@@ -1,0 +1,1 @@
+self.__REACT_LOADABLE_MANIFEST="{\"app\\\\(public)\\\\jornal-online\\\\[id]\\\\page.tsx -> ../../../../components/site/FlipbookReader\":{\"id\":\"app\\\\(public)\\\\jornal-online\\\\[id]\\\\page.tsx -> ../../../../components/site/FlipbookReader\",\"files\":[\"static/chunks/_app-pages-browser_src_components_site_FlipbookReader_tsx.js\"]}}"

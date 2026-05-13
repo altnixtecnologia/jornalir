@@ -1,0 +1,17 @@
+{
+  "name": "informativo-regional-monorepo",
+  "private": true,
+  "version": "0.1.0",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev:site": "npm run dev --workspace @ir/site -- -p 3000",
+    "dev:site:3002": "npm run dev --workspace @ir/site -- -p 3002",
+    "dev:site:stable": "powershell -NoProfile -Command \"Get-Process node -ErrorAction SilentlyContinue | Stop-Process -Force; if (Test-Path 'apps/site/.next') { cmd /c rmdir /s /q apps\\site\\.next }; if (Test-Path 'apps/site/.next-devcache') { cmd /c rmdir /s /q apps\\site\\.next-devcache }; npm run dev --workspace @ir/site -- -p 3010\"",
+    "dev:sistema": "npm run dev --workspace @ir/sistema",
+    "build": "npm run build --workspace @ir/site && npm run build --workspace @ir/sistema",
+    "typecheck": "npm run typecheck --workspace @ir/site && npm run typecheck --workspace @ir/sistema"
+  }
+}

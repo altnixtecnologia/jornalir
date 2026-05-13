@@ -1,0 +1,9 @@
+
+> informativo-regional-monorepo@0.1.0 dev:site:3002
+> npm run dev --workspace @ir/site -- -p 3002
+
+
+> @ir/site@0.1.0 dev
+> next dev -p 3002
+
+[?25h

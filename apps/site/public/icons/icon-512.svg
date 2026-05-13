@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512" role="img" aria-label="Informativo Regional">
+  <rect width="512" height="512" rx="88" fill="#0b6e4f"/>
+  <rect x="58" y="58" width="396" height="396" rx="66" fill="#ffffff" opacity="0.14"/>
+  <path d="M120 372V140h48v232h-48Zm82 0V140h48v232h-48Zm82 0V140h108v48h-60v48h54v48h-54v88h-48Z" fill="#ffffff"/>
+</svg>

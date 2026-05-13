@@ -1,0 +1,18 @@
+
+> @ir/site@0.1.0 dev
+> next dev -p 3010
+
+  ▲ Next.js 14.2.33
+  - Local:        http://localhost:3010
+
+ ✓ Starting...
+ ✓ Ready in 2.2s
+ ○ Compiling /_not-found ...
+ ✓ Compiled /_not-found in 7.6s (484 modules)
+ ⚠ Fast Refresh had to perform a full reload due to a runtime error.
+ GET /_next/static/webpack/a33c16358c85287a.webpack.hot-update.json 404 in 7920ms
+ ○ Compiling / ...
+ ✓ Compiled / in 1497ms (575 modules)
+ GET /.well-known/appspecific/com.chrome.devtools.json 404 in 1503ms
+ GET /_next/static/chunks/app/(public)/page.js 404 in 1531ms
+ GET / 200 in 1735ms

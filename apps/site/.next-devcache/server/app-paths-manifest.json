@@ -1,0 +1,7 @@
+{
+  "/(public)/page": "app/(public)/page.js",
+  "/(public)/policia/page": "app/(public)/policia/page.js",
+  "/(public)/geral/page": "app/(public)/geral/page.js",
+  "/(public)/esportes/page": "app/(public)/esportes/page.js",
+  "/(public)/jornal-online/[id]/page": "app/(public)/jornal-online/[id]/page.js"
+}
