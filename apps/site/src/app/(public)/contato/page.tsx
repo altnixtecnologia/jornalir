@@ -70,7 +70,7 @@ export default function ContatoPage(): JSX.Element {
                   Ver no mapa
                 </Link>
               </div>
-              <div className="mt-3 grid grid-cols-1 gap-2 sm:hidden">
+              <div className="mt-3 grid grid-cols-2 gap-2 sm:hidden">
                 <Link href={mapsHref} target="_blank" className="inline-flex justify-center rounded-lg border border-zinc-300 px-3 py-2 text-xs font-semibold text-zinc-700 hover:bg-zinc-200/70 dark:border-zinc-600 dark:text-zinc-200 dark:hover:bg-zinc-700/50">
                   Abrir no Google Maps
                 </Link>
