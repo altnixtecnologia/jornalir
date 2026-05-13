@@ -26,6 +26,9 @@ export default function ContatoPage(): JSX.Element {
 
   const whatsappHref = `https://wa.me/${contactInfo.phoneRaw}?text=${encodeURIComponent(composedMessage)}`;
   const mailtoHref = `mailto:${contactInfo.email}?subject=${encodeURIComponent("Contato pelo site - Informativo Regional")}&body=${encodeURIComponent(composedMessage)}`;
+  const addressLabel = "Rua Joaquim Pereira Maciel, 256 - Centro, São João do Sul - SC - Brasil";
+  const mapsHref = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(addressLabel)}`;
+  const wazeHref = `https://waze.com/ul?q=${encodeURIComponent(addressLabel)}&navigate=yes`;
 
   return (
     <main className="min-h-screen bg-stone-100 dark:bg-zinc-950">
@@ -61,6 +64,20 @@ export default function ContatoPage(): JSX.Element {
             <div className="mt-5 space-y-2 rounded-xl bg-zinc-100 p-4 text-sm dark:bg-zinc-800/60">
               <p><span className="font-semibold">Telefone/WhatsApp:</span> {contactInfo.phoneLabel}</p>
               <p><span className="font-semibold">E-mail:</span> {contactInfo.email}</p>
+              <p><span className="font-semibold">Endereço:</span> {addressLabel}</p>
+              <div className="mt-3 hidden sm:block">
+                <Link href={mapsHref} target="_blank" className="inline-flex rounded-lg border border-zinc-300 px-3 py-2 text-xs font-semibold text-zinc-700 hover:bg-zinc-200/70 dark:border-zinc-600 dark:text-zinc-200 dark:hover:bg-zinc-700/50">
+                  Ver no mapa
+                </Link>
+              </div>
+              <div className="mt-3 grid grid-cols-1 gap-2 sm:hidden">
+                <Link href={mapsHref} target="_blank" className="inline-flex justify-center rounded-lg border border-zinc-300 px-3 py-2 text-xs font-semibold text-zinc-700 hover:bg-zinc-200/70 dark:border-zinc-600 dark:text-zinc-200 dark:hover:bg-zinc-700/50">
+                  Abrir no Google Maps
+                </Link>
+                <Link href={wazeHref} target="_blank" className="inline-flex justify-center rounded-lg border border-zinc-300 px-3 py-2 text-xs font-semibold text-zinc-700 hover:bg-zinc-200/70 dark:border-zinc-600 dark:text-zinc-200 dark:hover:bg-zinc-700/50">
+                  Abrir no Waze
+                </Link>
+              </div>
             </div>
           </aside>
 
