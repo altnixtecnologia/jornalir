@@ -14,6 +14,7 @@ export interface AdSlotConfig {
   label: string;
   sizeType: "grande" | "medio";
   rotateMs: number;
+  phaseOffsetMs?: number;
   transitionEffect?: "fade" | "slide" | "zoom" | "flip" | "blur";
   creatives: AdCreative[];
 }

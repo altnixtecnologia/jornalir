@@ -9,8 +9,17 @@ function SlotCard({ slot, mode }: { slot: AdSlotConfig; mode: "sidebar" | "strip
 
   useEffect(() => {
     if (slot.creatives.length <= 1) return;
-    const timer = setInterval(() => setIndex((prev) => (prev + 1) % slot.creatives.length), slot.rotateMs);
-    return () => clearInterval(timer);
+    const phase = Math.max(0, slot.phaseOffsetMs ?? 0);
+    let intervalId: ReturnType<typeof setInterval> | null = null;
+    const timeoutId = setTimeout(() => {
+      setIndex((prev) => (prev + 1) % slot.creatives.length);
+      intervalId = setInterval(() => setIndex((prev) => (prev + 1) % slot.creatives.length), slot.rotateMs);
+    }, phase);
+
+    return () => {
+      clearTimeout(timeoutId);
+      if (intervalId) clearInterval(intervalId);
+    };
   }, [slot]);
 
   const current = useMemo(() => slot.creatives[index] ?? slot.creatives[0], [index, slot.creatives]);

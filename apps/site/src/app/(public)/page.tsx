@@ -69,6 +69,7 @@ export default function HomePage(): JSX.Element {
       id: "mobile-big-all",
       label: "Grande Mobile",
       rotateMs: 6000,
+      phaseOffsetMs: 0,
       creatives: paidAdSlots.filter((s) => s.sizeType === "grande").flatMap((s) => s.creatives)
     }));
   const mobileSmallSlots = paidAdSlots
@@ -79,6 +80,7 @@ export default function HomePage(): JSX.Element {
       id: "mobile-small-all",
       label: "Pequena Mobile",
       rotateMs: 6000,
+      phaseOffsetMs: 3000,
       creatives: paidAdSlots.filter((s) => s.sizeType === "medio").flatMap((s) => s.creatives)
     }));
 
