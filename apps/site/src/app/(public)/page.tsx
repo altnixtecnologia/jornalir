@@ -68,6 +68,7 @@ export default function HomePage(): JSX.Element {
       ...slot,
       id: "mobile-big-all",
       label: "Grande Mobile",
+      rotateMs: 6000,
       creatives: paidAdSlots.filter((s) => s.sizeType === "grande").flatMap((s) => s.creatives)
     }));
   const mobileSmallSlots = paidAdSlots
@@ -77,6 +78,7 @@ export default function HomePage(): JSX.Element {
       ...slot,
       id: "mobile-small-all",
       label: "Pequena Mobile",
+      rotateMs: 6000,
       creatives: paidAdSlots.filter((s) => s.sizeType === "medio").flatMap((s) => s.creatives)
     }));
 
@@ -98,7 +100,7 @@ export default function HomePage(): JSX.Element {
               <FeaturedHero items={featuredItems} />
               <UnderHeroEditorial items={newsItems} />
             </div>
-            <div className="mt-auto pt-3">
+            <div className="mt-auto hidden pt-3 lg:block">
               <PaidAdsStrip slots={desktopSmallSlots} />
             </div>
           </div>
