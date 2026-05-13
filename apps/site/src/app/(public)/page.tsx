@@ -55,10 +55,12 @@ export default function HomePage(): JSX.Element {
   const [newsItems, setNewsItems] = useState<NewsItem[]>(expandedNewsData);
   const featuredItems = (newsItems.filter((i) => i.isFeatured).length > 0 ? newsItems.filter((i) => i.isFeatured) : newsItems).slice(0, 4);
   const latestNews = newsItems.slice(0, 10);
-  const mainBigSlot = paidAdSlots.find((slot) => slot.sizeType === "grande");
-  const mainSmallSlot = paidAdSlots.find((slot) => slot.sizeType === "medio");
-  const bigSlots = mainBigSlot ? [mainBigSlot] : [];
-  const smallSlots = mainSmallSlot ? [mainSmallSlot] : [];
+
+  // Desktop keeps the original slots distribution.
+  const desktopBigSlots = paidAdSlots.filter((slot) => slot.sizeType === "grande");
+  const desktopSmallSlots = paidAdSlots.filter((slot) => slot.sizeType === "medio");
+
+  // Mobile keeps the compact mode: one large and one small rotating all creatives.
   const mobileBigSlots = paidAdSlots
     .filter((slot) => slot.sizeType === "grande")
     .slice(0, 1)
@@ -97,11 +99,11 @@ export default function HomePage(): JSX.Element {
               <UnderHeroEditorial items={newsItems} />
             </div>
             <div className="mt-auto pt-3">
-              <PaidAdsStrip slots={smallSlots} />
+              <PaidAdsStrip slots={desktopSmallSlots} />
             </div>
           </div>
           <div className="hidden lg:block">
-            <PaidAdsColumn slots={bigSlots} />
+            <PaidAdsColumn slots={desktopBigSlots} />
           </div>
         </div>
         <div className="mt-5 space-y-3 lg:hidden">
