@@ -1,5 +1,7 @@
 import type { AdItem, NewsItem, Sponsor } from "@ir/types";
 
+export * from "./editorial";
+
 export const newsData: NewsItem[] = [
   {
     id: "n1",

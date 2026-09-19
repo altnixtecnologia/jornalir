@@ -16,6 +16,7 @@
     "baseUrl": ".",
     "paths": {
       "@ir/types": ["packages/types/src"],
+      "@ir/core": ["packages/core/src"],
       "@ir/mocks": ["packages/mocks/src"],
       "@ir/config": ["packages/config/src"],
       "@ir/ui": ["packages/ui/src"],

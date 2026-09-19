@@ -1,3 +1,5 @@
+export * from "./editorial";
+
 export type Status = "ativo" | "inativo";
 
 export type CategorySlug =

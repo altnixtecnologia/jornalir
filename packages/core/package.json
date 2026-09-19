@@ -1,11 +1,10 @@
 {
-  "name": "@ir/mocks",
+  "name": "@ir/core",
   "version": "0.1.0",
   "private": true,
   "type": "module",
   "main": "./src/index.ts",
   "dependencies": {
-    "@ir/core": "*",
     "@ir/types": "*"
   }
 }
