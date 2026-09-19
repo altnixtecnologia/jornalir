@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 const steps = [
   {
     title: "Preparar",
@@ -20,11 +22,14 @@ export function EditorialOverview(): JSX.Element {
   return (
     <>
       <div className="editorial-notice">
-        <span className="status-label">Estrutura inicial</span>
+        <span className="status-label">Listagem disponível</span>
         <p>
-          Este é o espaço da redação. O cadastro e a gestão de matérias estarão
-          disponíveis em uma próxima etapa.
+          A listagem de matérias já consulta o domínio editorial. O cadastro e
+          a edição completos chegam em uma próxima etapa.
         </p>
+        <Link className="text-link" href="/sistema/editorial/materias">
+          Ver matérias <span aria-hidden="true">↗</span>
+        </Link>
       </div>
       <section aria-labelledby="fluxo-title">
         <div className="section-heading">

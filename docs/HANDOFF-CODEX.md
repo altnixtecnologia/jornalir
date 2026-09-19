@@ -1,5 +1,43 @@
 # Handoff — JornalIR
 
+## Fase 05 — lista de matérias (19/09/2026)
+
+- Branch: `feature/jornalir-core-foundation-20260917`.
+- HEAD ao iniciar a fase: `41d58151c587e980497f752ecd72772c1ccb9d1e` (commit da Fase 04).
+- Entrega: primeira tela real do CMS, ligando a UI ao domínio editorial composto na Fase 04. Sem editor completo.
+
+### Rotas criadas
+
+- `apps/sistema/src/app/sistema/editorial/materias/page.tsx` — Server Component assíncrono; busca `articleService.list()`, `editorialSectionService.list()` e `localityService.list()` via `composition/editorial.ts` (nenhuma fixture de `@ir/mocks` importada na página) e renderiza `ModuleHeader` + `MateriasList`.
+- `apps/sistema/src/app/sistema/editorial/materias/[id]/page.tsx` — detalhe somente leitura; usa `articleService.getById`, converte `ArticleNotFoundError` em `notFound()`. Mostra referência, editoria, localidade, status, destaque, notificação, mídia, origem, datas e responsável. Cobre as ações "Abrir" e "visualizar estado" sem ser um editor.
+- `apps/sistema/src/app/sistema/editorial/materias/nova/page.tsx` — stub da ação "Nova matéria", reaproveitando `EmptyModuleState` para deixar claro que o formulário completo é uma etapa futura.
+
+### Componentes e suporte
+
+- `apps/sistema/src/features/editorial/MateriasList.tsx` (client component) — filtros de busca por texto (título/subtítulo/referência), status, editoria e localidade, aplicados sobre a lista já carregada pelo Server Component (sem chamar os services novamente a cada filtro). Tabela densa (sem cards) com referência, matéria, editoria, localidade, status, publicação/programação, destaque, notificação, indicação de imagem/capa e ação "Abrir".
+- `apps/sistema/src/features/editorial/editorialLabels.ts` — mapas de rótulo em português para `ArticleStatus`, `EditorialPlacementType` e `NotificationMode`, e helpers de formatação de data/mídia. Fica na camada de UI, não em `packages/types` ou `packages/core`.
+- `EditorialOverview.tsx` atualizado: aviso não fala mais em "próxima etapa" para a listagem (que já existe) e ganhou o link "Ver matérias" para `/sistema/editorial/materias`.
+- `globals.css`: novo bloco de estilos próprios do shell (toolbar de filtros, tabela, `status-pill`/`placement-pill`/`notification-pill`, indicador de mídia, layout de detalhe com `meta-list`, `header-action`), sem Tailwind e sem `@ir/ui` — mantém a mesma linguagem visual (papel claro/verde escuro/tipografia editorial) das telas da Fase 03.
+
+### Validação
+
+- `npm run typecheck --workspace @ir/sistema`: sem erros.
+- `npm run build --workspace @ir/sistema`: sucesso, 18 rotas; `/sistema/editorial/materias` e `/sistema/editorial/materias/nova` pré-renderizadas como estáticas, `/sistema/editorial/materias/[id]` como dinâmica.
+- Servidor de produção iniciado localmente (`next start`, porta 3001) só para validação e encerrado ao final: `/sistema/editorial/materias` → 200 com as 7 referências mock (`IR-MAT-2026-001240`…`001246`) e contagem de status batendo com os fixtures (2 rascunho, 1 em ajuste, 1 programada, 3 publicadas); `/sistema/editorial/materias/article-1241` → 200, mostrando corretamente "Urgente" e "Notificação urgente"; `/sistema/editorial/materias/nao-existe` → 404 (via `notFound()`); `/sistema/editorial/materias/nova` → 200.
+- Não alterado: portal (`apps/site`), IndexedDB legado, flipbook, jornal digital, anúncios/patrocinadores.
+
+### Pendências e decisões
+
+- "Abrir" leva a uma visualização somente leitura do estado da matéria, não a um editor; "Nova matéria" leva a um stub explicando que o cadastro completo é uma etapa futura — ambos evitam sugerir uma funcionalidade que não existe ainda.
+- Filtros são client-side sobre a lista completa já carregada (adequado ao volume de dados mock atual); quando houver paginação/backend real, a filtragem deve migrar para os repositórios/serviços.
+- Nenhuma alteração em `packages/types`, `packages/core` ou `packages/mocks` nesta fase — a fase foi puramente de consumo da composição já existente.
+
+### Próxima fase
+
+Lote 2 (continuação) — cadastro/edição de matéria usando `articleService.saveDraft/updateDraft/publishNow/schedule`, escolha de capa/galeria, padrão editorial de título/subtítulo/texto, destaque e notificação. Ainda sem Supabase, autenticação real, upload remoto ou OCR/PDF real.
+
+---
+
 ## Fase 04 — domínio editorial (19/09/2026)
 
 - Branch: `feature/jornalir-core-foundation-20260917`.
