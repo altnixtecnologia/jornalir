@@ -2,10 +2,8 @@
 
 import { revalidatePath } from "next/cache";
 import type { ArticleMedia } from "@ir/types";
-import {
-  generateCandidatesForEdition,
-  importCandidateService,
-} from "../../../../composition/editorial";
+import { importCandidateService } from "../../../../composition/editorial";
+import { extractCandidatesFromPdf } from "../../../../composition/pdfCandidateExtraction";
 import { SIMULATED_AUDIT as AUDIT } from "../../../../lib/simulatedAudit";
 
 const IMPORT_PATH = "/sistema/editorial/importar-pdf";
@@ -17,15 +15,56 @@ function toErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : "Não foi possível concluir a ação.";
 }
 
-export async function generateCandidates(editionId: string): Promise<ActionResult> {
+export interface GenerateCandidatesResult {
+  ok: true;
+  candidateCount: number;
+  pageCount: number;
+  pagesWithoutText: number[];
+  warnings: string[];
+}
+
+/**
+ * Lê o PDF selecionado (arquivo temporário do envio — nunca salvo em disco
+ * ou storage remoto) e extrai candidatos reais via @ir/pdf-extraction. Só o
+ * necessário para o fluxo: não há upload persistente nesta fase.
+ */
+export async function generateCandidates(
+  editionId: string,
+  formData: FormData,
+): Promise<{ error: string } | GenerateCandidatesResult> {
   if (!editionId) return { error: "Selecione uma edição." };
+
+  const file = formData.get("pdf");
+  if (!(file instanceof File) || file.size === 0) {
+    return { error: "Selecione um arquivo PDF." };
+  }
+  const looksLikePdf = file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf");
+  if (!looksLikePdf) {
+    return { error: "O arquivo selecionado não parece ser um PDF." };
+  }
+
   try {
-    await generateCandidatesForEdition(editionId);
+    const buffer = new Uint8Array(await file.arrayBuffer());
+    const result = await extractCandidatesFromPdf(editionId, buffer);
+    if (result.candidates.length === 0) {
+      return {
+        error:
+          result.pagesWithoutText.length > 0
+            ? "Nenhum texto pôde ser identificado neste PDF (sem camada de texto e sem OCR disponível)."
+            : "Nenhum conteúdo pôde ser identificado neste PDF.",
+      };
+    }
+    revalidatePath(IMPORT_PATH);
+    return {
+      ok: true,
+      candidateCount: result.candidates.length,
+      pageCount: result.pageCount,
+      pagesWithoutText: result.pagesWithoutText,
+      warnings: result.warnings,
+    };
   } catch (error) {
     return { error: toErrorMessage(error) };
   }
-  revalidatePath(IMPORT_PATH);
-  return { ok: true };
 }
 
 export async function discardCandidate(id: string): Promise<ActionResult> {

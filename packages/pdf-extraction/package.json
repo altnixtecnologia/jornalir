@@ -1,0 +1,17 @@
+{
+  "name": "@ir/pdf-extraction",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.ts",
+  "scripts": {
+    "test": "tsx --test test/extraction.test.ts test/pipeline.test.ts"
+  },
+  "dependencies": {
+    "pdfjs-dist": "^3.11.174"
+  },
+  "devDependencies": {
+    "pdf-lib": "^1.17.1",
+    "tsx": "^4.19.0"
+  }
+}

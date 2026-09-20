@@ -129,9 +129,42 @@ export interface NewspaperEdition {
   createdAt: string;
 }
 
-// --- Contratos mínimos para futura importação de PDF (sem parser/OCR agora) ---
+// --- Importação de PDF (Parte G do Plano Mestre) ---
+// Extração real de texto/layout mora em @ir/pdf-extraction (pacote isolado,
+// sem depender deste pacote). Aqui ficam apenas os contratos de domínio.
 
 export type ImportCandidateStatus = "pending" | "discarded" | "converted";
+
+export type ImportExtractionMethod = "textLayer" | "ocr" | "manual";
+
+/** Um bloco de texto de origem (rastreabilidade até página/coluna/posição). */
+export interface ImportSourceBlock {
+  page: number;
+  column: number;
+  role: "title" | "subtitle" | "body";
+  text: string;
+  x: number;
+  y: number;
+  width: number;
+  fontSize: number;
+}
+
+/**
+ * Rastreabilidade e confiança da extração. Nunca esconde incerteza: os
+ * avisos e sinalizadores vêm diretamente do pipeline de extração e refletem
+ * exatamente o que foi (ou não) possível determinar com segurança.
+ */
+export interface ImportCandidateExtraction {
+  method: ImportExtractionMethod;
+  pageWidth: number;
+  pageHeight: number;
+  /** Blocos de origem, na ordem de leitura determinada pelo layout. */
+  blocks: ImportSourceBlock[];
+  warnings: string[];
+  lowConfidenceTitle: boolean;
+  possibleContinuation: boolean;
+  possibleAdvertisement: boolean;
+}
 
 /**
  * Candidato a matéria extraído de uma edição em PDF. Nunca é publicado
@@ -152,6 +185,8 @@ export interface ImportCandidate {
   createdArticleId?: string;
   /** Preenchido quando este candidato foi descartado por ter sido mesclado em outro. */
   mergedIntoId?: string;
+  /** Ausente para candidatos criados manualmente (fluxos futuros); presente para os extraídos de PDF. */
+  extraction?: ImportCandidateExtraction;
   createdAt: string;
 }
 

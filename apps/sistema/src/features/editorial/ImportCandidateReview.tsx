@@ -11,6 +11,7 @@ import {
 } from "../../app/sistema/editorial/importar-pdf/actions";
 import { ArticleBodyEditor } from "./ArticleBodyEditor";
 import { ArticleMediaPicker } from "./ArticleMediaPicker";
+import { ImportCandidateSourcePreview } from "./ImportCandidateSourcePreview";
 import {
   addGalleryMedia,
   moveGalleryMedia,
@@ -20,6 +21,12 @@ import {
   suggestedIdsToArticleMedia,
 } from "./articleMediaState";
 import { importCandidateStatusLabels } from "./editorialLabels";
+
+const EXTRACTION_METHOD_LABELS: Record<string, string> = {
+  textLayer: "Camada de texto do PDF",
+  ocr: "OCR (reconhecimento óptico)",
+  manual: "Entrada manual",
+};
 
 interface ImportCandidateReviewProps {
   candidate: ImportCandidate;
@@ -254,6 +261,25 @@ export function ImportCandidateReview({
           onMoveGalleryItem={(id, direction) => setMedia((prev) => moveGalleryMedia(prev, id, direction))}
         />
       </section>
+
+      {candidate.extraction ? (
+        <section className="form-section" aria-labelledby="origem-extracao-title">
+          <h2 id="origem-extracao-title">Comparar com a origem</h2>
+          <p className="helper-text">
+            Método de extração: <strong>{EXTRACTION_METHOD_LABELS[candidate.extraction.method] ?? candidate.extraction.method}</strong>
+          </p>
+          {candidate.extraction.warnings.length > 0 ? (
+            <ul className="extraction-warnings">
+              {candidate.extraction.warnings.map((warning, index) => (
+                <li key={index}>{warning}</li>
+              ))}
+            </ul>
+          ) : (
+            <p className="helper-text">Nenhum aviso de confiança para este candidato.</p>
+          )}
+          <ImportCandidateSourcePreview extraction={candidate.extraction} />
+        </section>
+      ) : null}
 
       {formError ? (
         <p className="form-error" role="alert">

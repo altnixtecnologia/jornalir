@@ -137,6 +137,11 @@ export function ImportCandidateList({
                     <span className="materia-title">
                       {candidate.suggestedTitle ?? "Sem título sugerido"}
                     </span>
+                    {candidate.extraction && candidate.extraction.warnings.length > 0 ? (
+                      <span className="materia-subtitle">
+                        ⚠ {candidate.extraction.warnings.length} aviso(s) de confiança
+                      </span>
+                    ) : null}
                     {mergedInto ? (
                       <span className="materia-subtitle">
                         Mesclado em: {mergedInto.suggestedTitle ?? mergedInto.id}

@@ -13,13 +13,14 @@ import {
   createLocalityRepositoryMock,
   createMediaAssetRepositoryMock,
   createNewspaperEditionRepositoryMock,
-  generateMockImportCandidates,
 } from "@ir/mocks";
-import type { ImportCandidate } from "@ir/types";
 
 // Ponto de composição do Editorial: escolhe o provider (mock) e injeta nos
 // serviços. Páginas e Server Actions devem consumir os serviços abaixo,
-// nunca os repositórios ou os dados mock diretamente.
+// nunca os repositórios ou os dados mock diretamente. A extração real de
+// PDF (Fase 09) fica em ./pdfCandidateExtraction — o único outro lugar
+// autorizado a produzir `NewImportCandidateRecord[]` para o
+// `importCandidateService` abaixo.
 
 const editorialSectionRepository = createEditorialSectionRepositoryMock();
 const localityRepository = createLocalityRepositoryMock();
@@ -41,12 +42,3 @@ export const importCandidateService = new ImportCandidateService(
   importCandidateRepository,
   articleService,
 );
-
-/**
- * Simula o processamento do PDF selecionado: a escolha de qual gerador mock
- * usar é uma decisão de composição/provider, não de tela nem de Server
- * Action — nenhuma outra camada importa `@ir/mocks` diretamente.
- */
-export function generateCandidatesForEdition(editionId: string): Promise<ImportCandidate[]> {
-  return importCandidateService.generateMockBatch(generateMockImportCandidates(editionId));
-}

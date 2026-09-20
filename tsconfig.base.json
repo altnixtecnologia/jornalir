@@ -17,6 +17,7 @@
     "paths": {
       "@ir/types": ["packages/types/src"],
       "@ir/core": ["packages/core/src"],
+      "@ir/pdf-extraction": ["packages/pdf-extraction/src"],
       "@ir/mocks": ["packages/mocks/src"],
       "@ir/config": ["packages/config/src"],
       "@ir/ui": ["packages/ui/src"],

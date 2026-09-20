@@ -81,8 +81,8 @@ export class ImportCandidateService {
     return candidate;
   }
 
-  /** Simula a geração de candidatos a partir do PDF selecionado (sem parser/OCR real). */
-  generateMockBatch(records: NewImportCandidateRecord[]): Promise<ImportCandidate[]> {
+  /** Cria um lote de candidatos (extraídos de um PDF real ou de outra origem futura). */
+  createBatch(records: NewImportCandidateRecord[]): Promise<ImportCandidate[]> {
     return this.candidates.createMany(records);
   }
 

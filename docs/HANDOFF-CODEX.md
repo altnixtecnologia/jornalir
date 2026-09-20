@@ -1,5 +1,97 @@
 # Handoff — JornalIR
 
+## Fase 09 — extração real de PDF com fidelidade textual (19/09/2026)
+
+- Branch: `feature/jornalir-core-foundation-20260917`.
+- HEAD ao iniciar a fase: `3dfa5e4` (commit da Fase 08).
+- Fase crítica. Entrega: o gerador mock de candidatos (Fase 08) foi **substituído** por leitura real de PDF — extração de texto por camada (pdfjs-dist), detecção de colunas por layout, agrupamento em parágrafos/matérias por tamanho de fonte e posição, e rastreabilidade completa até página/coluna/bloco em cada candidato. Nenhum texto é inventado, resumido ou reescrito.
+
+### Pipeline — novo pacote isolado `@ir/pdf-extraction`
+
+`PDF → páginas → blocos com coordenadas → agrupamento (linhas → parágrafos → matérias) → candidatos`, exportado por `extractPdf(bytes, options?)`. Módulos:
+
+- `pdfjsNode.ts` — único ponto que faz `require("pdfjs-dist/legacy/build/pdf.js")` (build "legacy", roda em Node sem worker real) e resolve `standardFontDataUrl`/`cMapUrl` para as métricas de fonte locais do próprio pacote. **Achado importante**: sem essas métricas, pdfjs relata larguras erradas para as fontes padrão (Helvetica etc.) usadas pelo pdf-lib, distorcendo toda a extração de posição — corrigido apontando `standardFontDataUrl`/`cMapUrl` para `node_modules/pdfjs-dist/{standard_fonts,cmaps}`.
+- `textLayer.ts` — abre o documento e extrai itens de texto com posição (x, linha de base) e tamanho de fonte, convertidos para espaço de página com origem no topo-esquerda.
+- `columns.ts` — detecta colunas por **vãos de tinta**: um histograma de cobertura horizontal da página inteira; vãos sem nenhum texto em toda a extensão vertical viram fronteiras de coluna. Técnica de análise de layout, não de conteúdo.
+- `lines.ts` — agrupa itens em linhas por proximidade vertical (dentro de uma coluna já atribuída); junta itens da mesma linha com espaço só quando há vão horizontal real entre eles.
+- `paragraphs.ts` — agrupa linhas em parágrafos: duas linhas só ficam juntas quando têm o **mesmo tamanho de fonte** e o vão vertical não é maior que o normal da coluna. A mediana do "vão normal" considera apenas pares de mesmo tamanho de fonte (ver "Achados e correções" abaixo).
+- `articleGroups.ts` — segmenta os parágrafos de uma coluna em candidatos a matéria (parágrafo em fonte maior que o corpo após já haver corpo acumulado, ou vão vertical muito maior que o normal) e classifica título/subtítulo/corpo pela hierarquia de tamanho de fonte. Sem hierarquia clara, mantém tudo como corpo e sinaliza baixa confiança — nunca adivinha.
+- `images.ts` — conta imagens candidatas por página via `page.getOperatorList()` (operadores `paintImageXObject`/`paintImageMaskXObject` e suas variantes "Repeat"), sem extrair pixels.
+- `ocr.ts` — interface `OcrProvider` + `NullOcrProvider` (padrão, sempre indisponível). Ver decisão sobre OCR abaixo.
+- `warnings.ts` — sinaliza caracteres suspeitos (substituição Unicode `�`, caracteres de controle inesperados) sem tentar corrigi-los.
+- `pipeline.ts` — orquestra tudo por página; decide `textLayer`/`ocr`/`unavailable` conforme a página tem ou não camada de texto e conforme o `OcrProvider` está disponível.
+
+### Achados e correções durante a implementação (documentados para não serem re-descobertos)
+
+1. **Texto truncado na borda direita da página**: pdfjs-dist (build legacy, sem `canvas` instalado) corta a extração de um item de texto exatamente no ponto em que ele ultrapassaria a largura da página — mesmo com a string completa presente no content stream (confirmado inspecionando o stream bruto). Isso só afeta texto que **extrapola** a página (nunca acontece em um PDF real bem diagramado, cujo texto sempre cabe dentro da margem). Testado e confirmado: instalar o pacote `canvas` **não** resolve (o comportamento é o mesmo com ou sem ele) — não é a ausência do polyfill de `DOMMatrix`/`Path2D` que causa isso. Não investigado a fundo além disso, por não afetar documentos reais; fixtures de teste foram ajustadas para larguras realistas.
+2. **"Moda" por contagem de parágrafos falha com poucas amostras**: calcular o tamanho de fonte do corpo como o mais frequente **por número de parágrafos** falha exatamente no caso comum de uma página com só uma matéria (um título, um subtítulo, um corpo — empate de 1 parágrafo cada, e o desempate por ordem de inserção pegava o título). Corrigido para ponderar por **total de caracteres**: corpo de texto real sempre acumula muito mais caracteres que título/subtítulo, então esse critério é robusto mesmo com poucas amostras.
+3. **Mediana "poluída" por vãos heterogêneos**: os limiares de quebra de parágrafo e de quebra de matéria, calculados a partir da mediana dos vãos observados na coluna, ficavam artificialmente altos quando a amostra misturava vãos de natureza diferente (vão título→corpo, vão entre parágrafos, vão entre matérias). Corrigido em dois lugares: (a) o vão "normal" de parágrafo agora só considera pares de linhas do **mesmo tamanho de fonte**; (b) o limiar de quebra de matéria agora é proporcional ao **tamanho da fonte do corpo** (`bodyFontSize × 3.5`), não a uma estatística dos próprios vãos — evita circularidade quando a transição entre matérias é uma das poucas amostras disponíveis.
+4. **Interoperabilidade CJS/ESM inconsistente em scripts de validação ad hoc**: ao importar os mesmos arquivos de `apps/sistema` a partir de dois caminhos relativos diferentes num script de teste solto, o Node (via `tsx`) instanciou o módulo de composição **duas vezes** (dois `importCandidateService` distintos) — um artefato específico de como `apps/sistema/package.json` (sem `"type": "module"`) e `packages/pdf-extraction/package.json` (`"type": "module"`) resolvem módulos de forma diferente conforme o caminho de chamada. Não afeta o app real (Next.js/webpack usa um único grafo de módulos). Corrigido no pacote com `pdfjsNode.ts` usando `require()` explícito (não `import` ESM) para o próprio pdfjs-dist, e nos scripts de validação importando tudo por um único caminho.
+
+### Decisão sobre OCR — não implementado nesta fase
+
+Renderizar uma página para imagem em Node exige um canvas nativo (`canvas` ou `@napi-rs/canvas`) e um motor de OCR real (`tesseract.js`, que baixa dados de idioma em tempo de execução — risco de rede indisponível no ambiente de execução). Optou-se por **não** adicionar essas dependências nesta fase: o risco (dependência binária/nativa, download em runtime) não se justifica frente à prioridade explícita desta fase (fidelidade da camada de texto). `OcrProvider` é uma interface real e testada — uma implementação completa pode ser adicionada depois sem mudar o pipeline. Testado: `page com texto` nunca aciona OCR; `página sem texto` com um provedor fake disponível usa o resultado dele, claramente marcado como não-exato (percentual de confiança no aviso); sem provedor disponível, a página é reportada como `unavailable` com aviso explícito, nunca com texto inventado.
+
+### Detecção de publicidade e de continuação entre colunas — heurísticas, não certezas
+
+- **Publicidade**: um grupo de parágrafos isolado por vãos maiores que o limiar de quebra de matéria em ambos os lados, com poucos caracteres (≤ 220), é marcado `possibleAdvertisement: true` e gera aviso — nunca descartado automaticamente. Avaliada e descartada a alternativa de detectar retângulos vetoriais (bordas) via `getOperatorList()`: exigiria rastrear a matriz de transformação corrente (pilha de `save`/`restore`/`transform`) para converter coordenadas de operador em espaço de página, complexidade não justificada frente ao critério de isolamento espacial, que já cobre o caso pedido (anúncio visualmente separado do conteúdo editorial).
+- **Continuação entre colunas**: o último parágrafo de um grupo sem pontuação de fechamento (`.`, `!`, `?`, aspas de fechamento) é marcado `possibleContinuation: true`. A **fusão em si não é automática** — o revisor usa a ação "Mesclar" já existente desde a Fase 08 para combinar os dois candidatos depois de ver o aviso. Decisão deliberada: detectar a separação corretamente é seguro; inferir automaticamente qual candidato futuro é a continuação certa cruzaria para "adivinhar", contra a regra principal desta fase.
+
+### Integração com a Fase 08
+
+- `ImportCandidateService.generateMockBatch` renomeado para `createBatch` (o método passou a ser genuinamente usado com dados reais, não só mock; nenhuma outra mudança de comportamento).
+- `packages/mocks/src/editorial/import-candidate-generator.mock.ts` **removido** — o mock foi substituído, não mantido em paralelo.
+- `ImportCandidate` (em `@ir/types`) ganhou `extraction?: ImportCandidateExtraction` (método, dimensões da página, blocos de origem com posição, avisos, e os três sinalizadores de confiança). Campo opcional: candidatos futuros não vindos de PDF (se algum dia existirem) simplesmente não o preenchem.
+- `apps/sistema/src/composition/pdfCandidateExtraction.ts` (novo): único ponto que decide qual provider de extração usar e traduz `ArticleGroup`/`PageExtraction` (formato do pipeline) em `NewImportCandidateRecord` (formato do domínio) — corpo vira HTML (`<p>` por parágrafo, mesma convenção da Fase 07), mantendo a régua "nenhuma tela ou Server Action importa outra coisa que não os serviços já compostos".
+- `GenerateCandidatesForm.tsx`: agora envia o arquivo de verdade (via `FormData`, chamada direta à Server Action — sem `<form action>` nem upload persistente) em vez de só mostrar o nome escolhido.
+- `importar-pdf/actions.ts`: `generateCandidates` passou a receber `FormData`, valida que é um PDF, lê os bytes (`file.arrayBuffer()`, nunca gravados em disco) e delega à extração real; retorna contagem de candidatos, páginas e páginas sem camada de texto.
+- `ImportCandidateReview.tsx`: nova seção "Comparar com a origem" mostrando o método de extração, os avisos de confiança do candidato, e um `ImportCandidateSourcePreview.tsx` novo — um SVG leve com a posição de cada bloco de origem na página (sem renderizar o PDF em si, que exigiria mantê-lo além da requisição de extração; ver limitações).
+- `ImportCandidateList.tsx`: indicador "⚠ N aviso(s) de confiança" por linha, quando o candidato tiver avisos.
+
+### Next.js — configuração necessária para pdfjs-dist em Server Action
+
+`apps/sistema/next.config.mjs` ganhou `experimental.serverComponentsExternalPackages: ["pdfjs-dist"]`: sem isso, o webpack tenta empacotar as detecções dinâmicas de ambiente do pdfjs-dist e falha/se comporta de forma inconsistente. Com a configuração, o pacote fica como dependência externa do runtime do servidor (Node nativo cuida do `require`), exatamente como já acontece implicitamente quando se roda um script Node puro.
+
+### Testes de fidelidade — `packages/pdf-extraction/test/` (`tsx --test`, sem framework novo)
+
+Fixtures geradas em código via `pdf-lib` (não binários versionados) — texto de origem conhecido, comparado por igualdade exata (`assert.deepEqual`/`assert.equal`), nunca por aproximação:
+
+| # | Fixture | O que valida | Resultado |
+| --- | --- | --- | --- |
+| 1 | Uma coluna (título + corpo em 2 parágrafos, com imagem embutida) | Correspondência exata de título e dos dois parágrafos; 1 coluna detectada; `imageCount === 1` (imagem não bloqueia o candidato) | ✅ exato |
+| 2 | Duas colunas independentes | 2 colunas detectadas; cada matéria isolada na sua coluna; texto de uma não vaza para a outra | ✅ exato |
+| 3 | Título + subtítulo + corpo | Classificação correta dos três papéis por tamanho de fonte | ✅ exato |
+| 4 | Caracteres acentuados + linha fragmentada em 2 itens de texto | Acentuação preservada exatamente; junção correta de dois itens de texto em uma linha (espaço nem perdido nem duplicado); zero avisos de caractere suspeito para texto legítimo | ✅ exato |
+| 5 | Bloco isolado entre duas matérias (publicidade) | 3 grupos distintos; texto do bloco isolado não aparece em nenhuma das matérias vizinhas; `possibleAdvertisement: true` só no bloco isolado | ✅ exato + sinalização correta |
+| 6 | Matéria continuando em outra coluna | 2 candidatos separados (nenhuma fusão automática); `possibleContinuation: true` na coluna 1; texto das duas colunas, concatenado, reconstitui a frase original exatamente (nada perdido/duplicado na fronteira) | ✅ exato + sinalização correta |
+| 7 | Página sem camada de texto | Sem OCR disponível: `method: "unavailable"`, zero candidatos, aviso explícito (não inventa texto); com um `OcrProvider` fake disponível: usa o resultado, marcado como baixa confiança, aviso cita o percentual — nunca tratado como exato | ✅ comportamento correto (não aplicável "exatidão" para OCR, conforme pedido) |
+
+10/10 testes (`npx tsx --test test/extraction.test.ts test/pipeline.test.ts`, executados de dentro de `packages/pdf-extraction`).
+
+**Testes que o conjunto acima detectaria** (conforme pedido): palavra perdida ou duplicada → comparação exata de string falha; troca de ordem → comparação exata de string (ordem faz parte do conteúdo) falha; parágrafo misturado → teste 5/6 falhariam (texto cruzando fronteiras); caractere alterado → comparação exata de string falha, e o teste 4 adicionalmente falharia se `�`/controle aparecessem.
+
+### Validação de integração (camada de composição real, não só o pacote isolado)
+
+Script `tsx` temporário (removido ao final, nunca commitado) gerou um PDF real via `pdf-lib`, chamou `extractCandidatesFromPdf` (a mesma função que a Server Action chama) contra a composição real de `apps/sistema`, e seguiu o fluxo completo — **16/16 asserções**: extração real gera candidato correto (título/corpo com acentos, exatos); vínculo `editionId`/`pageNumber` preservado; candidato nasce `pending` com `extraction` presente e `method: "textLayer"`; revisão manual (`keep`) funciona sobre candidato real; conversão sempre gera rascunho (`status: "draft"`), preserva título e vínculo edição/página; matéria aparece em `ArticleService.list()`.
+
+### Validação de renderização real
+
+`npm run typecheck`/`build --workspace @ir/sistema`: sem erros; 19 rotas, `/importar-pdf` e `/importar-pdf/[candidateId]` dinâmicas. `npm run typecheck --workspace @ir/site`: sem erros (tipos compartilhados não quebraram o portal). Servidor de produção local (porta verificada livre antes, processo encerrado ao final): `/importar-pdf` 200, `/importar-pdf?edicao=edition-2026-038` 200, `/importar-pdf/nao-existe` 404, `/materias` 200 (não afetado). `apps/site` confirmadamente sem alterações.
+
+### Pendências e limitações conhecidas
+
+- **Sem OCR real** — interface pronta, decisão de não implementar motor real documentada acima. Revisitar quando houver clareza sobre disponibilidade de rede em produção para baixar dados de idioma, ou disposição para depender de um binário nativo.
+- **Sem renderização visual do PDF na revisão** — o preview mostra as posições dos blocos (SVG), não a página em si; renderizar a página exigiria manter o arquivo além da requisição de extração (o PDF é hoje inteiramente transitório, nunca persistido), o que cruzaria para "storage", fora do escopo desta fase.
+- **Extração de imagens é só contagem** — sem bbox nem associação por bloco; extrair a posição exigiria rastrear a matriz de transformação corrente do operador list (não implementado, avaliado como não essencial frente à fidelidade textual).
+- **Heurísticas de publicidade/continuação são sinalizadores, não certezas** — sempre revisáveis pelo humano, nunca decidem sozinhas.
+- **`npm audit` continua reportando vulnerabilidades transitivas** (Tiptap desde a Fase 07); nenhuma ação nesta fase, consistente com "não atualizar stack sem necessidade".
+
+### Próxima fase
+
+A decidir — possíveis caminhos: OCR real (se/quando a infraestrutura permitir), extração de imagens com posição, ou avanço para outro módulo do Plano Mestre (cadastro de editorias/localidades, publicidade, cadastro central). Ainda sem Supabase, autenticação real, upload remoto/storage ou IA.
+
+---
+
 ## Fase 08 — importação de PDF / revisão de candidatos (19/09/2026)
 
 - Branch: `feature/jornalir-core-foundation-20260917`.

@@ -17,6 +17,7 @@
     "@ir/mocks": "*",
     "@ir/config": "*",
     "@ir/ui": "*",
+    "@ir/pdf-extraction": "*",
     "@tiptap/react": "^2.9.0",
     "@tiptap/starter-kit": "^2.9.0",
     "@tiptap/extension-link": "^2.9.0",
