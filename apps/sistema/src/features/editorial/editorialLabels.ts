@@ -2,6 +2,7 @@ import type {
   Article,
   ArticleStatus,
   EditorialPlacementType,
+  ImportCandidateStatus,
   NotificationMode,
 } from "@ir/types";
 
@@ -27,6 +28,12 @@ export const notificationLabels: Record<NotificationMode, string> = {
   none: "Sem notificação",
   normal: "Notificação normal",
   urgent: "Notificação urgente",
+};
+
+export const importCandidateStatusLabels: Record<ImportCandidateStatus, string> = {
+  pending: "Pendente",
+  discarded: "Descartado",
+  converted: "Convertido",
 };
 
 export function formatDate(iso?: string): string {

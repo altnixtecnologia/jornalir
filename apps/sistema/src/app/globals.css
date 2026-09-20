@@ -366,9 +366,14 @@ button {
   color: var(--muted);
   line-height: 1.7;
 }
+.editorial-notice .notice-links {
+  margin-left: auto;
+  display: flex;
+  gap: 18px;
+  flex-wrap: wrap;
+}
 .editorial-notice .text-link {
   margin-top: 0;
-  margin-left: auto;
   white-space: nowrap;
 }
 .editorial-steps {
@@ -649,7 +654,7 @@ button.secondary-link {
   .materias-count {
     padding-bottom: 0;
   }
-  .editorial-notice .text-link {
+  .editorial-notice .notice-links {
     margin-left: 0;
   }
 }
@@ -1378,6 +1383,107 @@ button.secondary-link {
   .form-grid {
     grid-template-columns: 1fr;
   }
+}
+
+/* Importação de PDF / revisão de candidatos */
+.import-step {
+  margin-top: 8px;
+}
+.edition-picker {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 16px;
+  margin-top: 16px;
+}
+.edition-picker select {
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  padding: 11px 12px;
+  font-size: 14px;
+  font-family: inherit;
+  color: var(--ink);
+  background: #fffefa;
+  min-width: 280px;
+}
+.pdf-picker {
+  margin-top: 16px;
+  max-width: 420px;
+}
+.pdf-picker input[type="file"] {
+  border: 1px dashed var(--line);
+  border-radius: 3px;
+  padding: 12px;
+  font-size: 12px;
+  width: 100%;
+  background: #fffefa;
+}
+.pdf-picker .header-action {
+  margin-top: 14px;
+  border: 0;
+}
+.generate-more summary {
+  cursor: pointer;
+  color: var(--green);
+  font-weight: 600;
+  font-size: 12px;
+}
+.candidates-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin: 16px 0;
+}
+.candidates-toolbar button {
+  border: 1px solid var(--line);
+  background: white;
+  padding: 10px 16px;
+  font-size: 12px;
+  font-weight: 700;
+  border-radius: 3px;
+}
+.candidates-toolbar button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.candidates-toolbar button:hover:not(:disabled) {
+  border-color: var(--green);
+}
+.candidate-row-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+}
+.candidate-row-actions button {
+  border: 0;
+  background: none;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--green);
+  padding: 0;
+}
+.candidate-row-actions button:hover:not(:disabled) {
+  text-decoration: underline;
+}
+.candidate-row-actions button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.suggested-media-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 10px 0 18px;
+}
+.suggested-media-row img {
+  width: 90px;
+  height: 66px;
+  object-fit: cover;
+  border-radius: 2px;
+  border: 1px solid var(--line);
 }
 
 @media (max-width: 480px) {

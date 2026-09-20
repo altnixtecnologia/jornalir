@@ -146,9 +146,13 @@ export interface ImportCandidate {
   suggestedSubtitle?: string;
   suggestedBody?: string;
   suggestedSectionId?: string;
+  suggestedLocalityId?: string;
   suggestedMediaAssetIds?: string[];
   status: ImportCandidateStatus;
   createdArticleId?: string;
+  /** Preenchido quando este candidato foi descartado por ter sido mesclado em outro. */
+  mergedIntoId?: string;
+  createdAt: string;
 }
 
 // --- Auditoria (contrato apenas; imutabilidade é responsabilidade do backend futuro) ---

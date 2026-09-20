@@ -27,9 +27,14 @@ export function EditorialOverview(): JSX.Element {
           A listagem de matérias já consulta o domínio editorial. O cadastro e
           a edição completos chegam em uma próxima etapa.
         </p>
-        <Link className="text-link" href="/sistema/editorial/materias">
-          Ver matérias <span aria-hidden="true">↗</span>
-        </Link>
+        <div className="notice-links">
+          <Link className="text-link" href="/sistema/editorial/materias">
+            Ver matérias <span aria-hidden="true">↗</span>
+          </Link>
+          <Link className="text-link" href="/sistema/editorial/importar-pdf">
+            Importar do jornal impresso <span aria-hidden="true">↗</span>
+          </Link>
+        </div>
       </div>
       <section aria-labelledby="fluxo-title">
         <div className="section-heading">

@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import type { AuditContext, EditorialPlacement, EditorialTextStyle } from "@ir/types";
+import type { EditorialPlacement, EditorialTextStyle } from "@ir/types";
 import { articleService } from "../../../../composition/editorial";
 import {
   validateArticlePayload,
@@ -10,9 +10,7 @@ import {
   type ArticleFormPayload,
 } from "../../../../features/editorial/articleFormTypes";
 import { isDefaultTextStyle } from "../../../../features/editorial/textStyle";
-
-// Identidade simulada: não há autenticação real nesta fase (ver docs/ARCHITECTURE.md).
-const AUDIT: AuditContext = { actorId: "editor-sistema", actorRole: "editorial" };
+import { SIMULATED_AUDIT as AUDIT } from "../../../../lib/simulatedAudit";
 
 const LIST_PATH = "/sistema/editorial/materias";
 

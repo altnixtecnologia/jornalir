@@ -1,5 +1,14 @@
 import type { ArticleMedia } from "@ir/types";
 
+/** Converte imagens sugeridas por um candidato de importação em `ArticleMedia[]`: a primeira vira capa, as demais formam a galeria. */
+export function suggestedIdsToArticleMedia(mediaAssetIds: string[]): ArticleMedia[] {
+  return mediaAssetIds.map((mediaAssetId, index) =>
+    index === 0
+      ? { mediaAssetId, role: "cover", order: 0 }
+      : { mediaAssetId, role: "gallery", order: index - 1 },
+  );
+}
+
 function reindexGallery(media: ArticleMedia[]): ArticleMedia[] {
   const cover = media.filter((item) => item.role === "cover");
   const gallery = media

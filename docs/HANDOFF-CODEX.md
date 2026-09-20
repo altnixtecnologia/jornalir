@@ -1,5 +1,67 @@
 # Handoff — JornalIR
 
+## Fase 08 — importação de PDF / revisão de candidatos (19/09/2026)
+
+- Branch: `feature/jornalir-core-foundation-20260917`.
+- HEAD ao iniciar a fase: `817c386` (commit da Fase 07).
+- Entrega: fluxo completo de importação simulada — selecionar edição, simular seleção de PDF, gerar candidatos mock, revisar (manter/descartar/editar/mesclar/dividir) e converter em rascunho real via `ArticleService`. Nenhum parser/OCR real; `apps/site` não foi tocado.
+
+### `packages/types`
+
+`ImportCandidate` ganhou `suggestedLocalityId?`, `mergedIntoId?` (referência de rastreabilidade quando descartado por mesclagem — nunca apagamos o registro) e `createdAt`. Nenhuma mudança nos demais tipos.
+
+### `packages/core` — dois serviços novos, simétricos aos existentes
+
+- `NewspaperEditionRepository`/`NewspaperEditionService` (somente leitura) — necessário para listar edições existentes na tela sem importar `@ir/mocks` diretamente.
+- `ImportCandidateRepository` (`list`/`getById`/`create`/`createMany`/`update`) e `ImportCandidateService`, que depende do `ArticleService` já existente (mesmo padrão de composição entre serviços já usado por `ArticleService` com `EditorialSectionRepository`/`LocalityRepository`):
+  - `generateMockBatch` — recebe os registros já prontos (a decisão de COMO gerá-los é do provider/composição, não do core).
+  - `keep` — salva os ajustes da revisão, candidato continua `pending`.
+  - `discard` — status `discarded`; nunca cria matéria.
+  - `merge(primaryId, secondaryIds)` — concatena corpo/mídia sugeridos dos secundários no principal; secundários viram `discarded` com `mergedIntoId` (sem exclusão destrutiva, rastreável).
+  - `split(id)` — divide o corpo em dois candidatos. Sem parser real: corta em blocos HTML de nível superior (`</p>`, `</h3>`, `</blockquote>`, `</ul>`, `</ol>`) e reparte pela metade; sem blocos identificáveis (texto puro), reparte a string pela metade dos caracteres. A soma das duas partes reconstitui o corpo original.
+  - `convertToDraft` — sempre chama `articleService.importAsDraft` (força `status: "draft"`); rejeita quando não há editoria (nem sugerida, nem escolhida na revisão) ou localidade, preservando a regra "toda matéria tem editoria" também para conteúdo importado. Mantém `editionId`/`editionPageNumber` (o segundo pode ser corrigido na revisão antes de converter).
+- `ArticleService` **não foi alterado nesta fase**.
+
+### `packages/mocks`
+
+- 2 edições adicionais em `newspaperEditions` (037 e 039, além da 038 já existente) — só para a seleção de edição na tela ter sentido real.
+- `createImportCandidateRepositoryMock` — começa **vazio** de propósito: o fluxo descrito (selecionar edição → selecionar PDF → gerar candidatos) só faz sentido se não houver nada pré-carregado.
+- `createNewspaperEditionRepositoryMock`.
+- `generateMockImportCandidates(editionId)` — lote fixo de 4 candidatos plausíveis: um sem editoria/localidade sugeridas (publicidade disfarçada de matéria, para demonstrar o descarte), um com dois parágrafos (para demonstrar a divisão), e dois candidatos comuns de política/esporte.
+
+### `apps/sistema`
+
+- `composition/editorial.ts`: `newspaperEditionService`, `importCandidateService` e `generateCandidatesForEdition(editionId)` — esta última é o único lugar do app que decide *qual* gerador mock usar, mantendo `@ir/mocks` fora de páginas e Server Actions.
+- `lib/simulatedAudit.ts`: constante `SIMULATED_AUDIT` extraída de `materias/actions.ts` (pequena limpeza, mesma identidade simulada reaproveitada pelas novas Server Actions).
+- `app/sistema/editorial/importar-pdf/page.tsx` — Server Component; edição selecionada via `searchParams.edicao` (formulário GET nativo, sem JS) para não obrigar client state só para navegar entre edições. Sem edição selecionada: só o seletor. Com edição e sem candidatos: `GenerateCandidatesForm`. Com candidatos: `ImportCandidateList` (e um `<details>` para gerar um novo lote sem perder o que já existe).
+- `app/sistema/editorial/importar-pdf/actions.ts` — `generateCandidates`, `discardCandidate`, `mergeCandidates`, `splitCandidate`, `keepCandidate`, `convertCandidate`. **Diferença deliberada do padrão das Fases 06/07**: nenhuma dessas ações chama `redirect()` internamente — todas retornam `{ error }` ou um resultado (`{ ok: true, articleId }`, etc.) e quem decide navegar é o componente cliente que a chamou, porque as mesmas ações são usadas tanto na lista (ação rápida, permanece na mesma página) quanto na revisão detalhada (navega para a lista ou para a matéria criada). Documentado aqui para não ser confundido com inconsistência.
+- `app/sistema/editorial/importar-pdf/[candidateId]/page.tsx` — Server Component; converte `ImportCandidateNotFoundError` em `notFound()`, mesmo padrão das Fases 05/06.
+- `features/editorial/GenerateCandidatesForm.tsx` — `<input type="file" accept="application/pdf">` cujo único efeito é mostrar o nome do arquivo escolhido; nada é lido ou enviado. O botão "Gerar candidatos" é o que de fato aciona a Server Action mock.
+- `features/editorial/ImportCandidateList.tsx` — tabela densa (mesmo padrão visual de `MateriasList`, sem cards): checkbox por candidato pendente para seleção múltipla, "Mesclar selecionados", e por linha: Abrir, Converter, Descartar (ou "Ver rascunho" quando já convertido; nota "Mesclado em: …" quando descartado por mesclagem).
+- `features/editorial/ImportCandidateReview.tsx` — reaproveita integralmente `ArticleBodyEditor` (Fase 07) para o corpo e `ArticleMediaPicker` (Fase 06) para capa/galeria, inicializado a partir de `suggestedMediaAssetIds` via novo helper `suggestedIdsToArticleMedia`. Campos: título, subtítulo, corpo, editoria, localidade, página da edição; mostra também uma fileira somente-leitura "Sugeridas pela importação" com as imagens que o (simulado) processamento indicou, distinta da seleção final ajustável. Ações: Manter, Converter em rascunho, Dividir candidato, Descartar — as duas últimas navegam de volta à lista da edição; converter navega para a matéria recém-criada.
+- `EditorialOverview.tsx`: novo link "Importar do jornal impresso" ao lado de "Ver matérias".
+
+### Validação
+
+- `npm run typecheck --workspace @ir/sistema`: sem erros.
+- `npm run build --workspace @ir/sistema`: sucesso, 19 rotas; `/importar-pdf` e `/importar-pdf/[candidateId]` dinâmicas (a segunda com ~207 kB de First Load JS, por reaproveitar o editor Tiptap da Fase 07).
+- Validação de negócio (script `tsx` temporário, removido ao final, nunca commitado), reproduzindo os mesmos serviços da composição real — **32/32 asserções**, cobrindo exatamente os pontos pedidos: geração do lote mock (4 candidatos, todos pendentes, na edição certa); candidato de publicidade sem editoria sugerida presente no lote; **descartar** (status `discarded`, nunca ganha `createdArticleId`, nenhuma matéria criada); **converter** (sempre `draft`, `origin: "pdfImport"`, vínculo `editionId`/`editionPageNumber` preservado, editoria sugerida usada quando não sobrescrita, candidato muda para `converted` com `createdArticleId`); conversão sem editoria (nem sugerida nem escolhida) rejeitada; **mesclar** (corpo combinado, secundário descartado com `mergedIntoId`, nunca apagado); **dividir** (duas partes pendentes, vínculo edição/página preservado na segunda parte, soma das partes reconstitui o corpo original); página vinculada corrigida manualmente na revisão é a que vale na conversão final.
+- Validação de renderização real (`next start`, porta 3001, processo verificado livre antes de iniciar e encerrado ao final): `/importar-pdf` sem edição 200; `/importar-pdf?edicao=edition-2026-038` 200, com as 3 edições listadas no seletor e mensagem correta de "nenhum candidato ainda"; `/importar-pdf/nao-existe` 404; nenhum "Hydration failed" ou erro de aplicação.
+- **Limite desta validação**: como nas Fases 06/07, sem ferramenta de automação de navegador nesta sessão — os cliques de mesclar/dividir/converter na interface não foram exercidos em um browser de verdade, apenas a lógica de negócio (script acima) e a renderização inicial via SSR. Recomenda-se um teste manual rápido no navegador.
+- Não alterado: `apps/site` (flipbook, leitor, Google Drive, acervo preservados), IndexedDB legado, anúncios/patrocinadores, `ArticleService`.
+
+### Pendências e decisões
+
+- Mesclagem concatena corpo/mídia de forma simples (sem interface de "escolher qual título prevalece" além do que já está no candidato principal); dividir usa um corte automático pela metade dos blocos HTML, não um ponto escolhido manualmente pelo revisor — ambos suficientes para demonstrar o fluxo mock, mas não são heurísticas sofisticadas (não é o objetivo desta fase).
+- `NewspaperEditionService`/`NewspaperEditionRepository` são somente leitura; cadastro de novas edições continua fora de escopo.
+- Sem aviso de alterações não salvas na tela de revisão do candidato (diferente do `ArticleForm` na Fase 07) — não pedido nesta fase, mantido fora para não expandir o escopo.
+
+### Próxima fase
+
+A decidir — possíveis caminhos: cadastro de editorias/localidades (`/sistema/editorial/editorias`, `/localidades`), tela de mídias (`/sistema/editorial/midias`), ou avanço para outro módulo do Plano Mestre (cadastro central, publicidade). Ainda sem Supabase, autenticação real, upload remoto ou OCR/PDF real.
+
+---
+
 ## Fase 07 — editor editorial de texto (19/09/2026)
 
 - Branch: `feature/jornalir-core-foundation-20260917`.
