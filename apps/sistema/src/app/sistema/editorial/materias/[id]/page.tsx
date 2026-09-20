@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArticleNotFoundError } from "@ir/core";
 import { ModuleHeader } from "../../../../../components/admin/ModuleHeader";
@@ -33,11 +32,6 @@ export default async function MateriaEditPage({
         eyebrow="EDITORIAL / MATÉRIAS"
         title={article.title}
         description={`${article.reference} · edite os campos e escolha uma das ações de publicação.`}
-        action={
-          <Link className="secondary-link" href="/sistema/editorial/materias">
-            Voltar à listagem
-          </Link>
-        }
       />
       <ArticleForm
         mode="edit"

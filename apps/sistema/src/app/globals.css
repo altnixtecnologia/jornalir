@@ -486,9 +486,17 @@ button {
   margin-top: 20px;
 }
 .secondary-link {
+  display: inline-block;
   border: 1px solid var(--line);
   padding: 12px 16px;
   font-weight: 600;
+}
+button.secondary-link {
+  background: none;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 12px;
+  color: var(--ink);
 }
 .secondary-link:hover {
   border-color: var(--green);
@@ -1021,19 +1029,185 @@ button {
   border-color: var(--green);
 }
 .field-title-input {
-  font:
-    22px Georgia,
-    serif;
-  padding: 12px 14px !important;
+  font-family: Georgia, serif;
+  padding: 12px 14px;
 }
 .field-subtitle-input {
-  font-size: 15px !important;
+  font-family: Georgia, serif;
   color: var(--muted);
 }
-.body-editor-textarea {
-  resize: vertical;
-  line-height: 1.7;
-  min-height: 220px;
+.field-label-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+.field-label-row .field-label {
+  margin-bottom: 0;
+}
+.form-back-link {
+  margin-bottom: 8px;
+}
+
+/* Controle discreto de negrito/itálico/tamanho/ênfase (título e subtítulo) */
+.text-style-control {
+  position: relative;
+}
+.text-style-control summary {
+  list-style: none;
+  cursor: pointer;
+  width: 26px;
+  height: 26px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  font-size: 11px;
+  color: var(--muted);
+}
+.text-style-control summary::-webkit-details-marker {
+  display: none;
+}
+.text-style-control[open] summary {
+  border-color: var(--green);
+  color: var(--green);
+}
+.text-style-panel {
+  position: absolute;
+  right: 0;
+  top: 32px;
+  z-index: 5;
+  width: 200px;
+  border: 1px solid var(--line);
+  background: white;
+  padding: 14px;
+  box-shadow: 0 6px 18px rgba(32, 43, 41, 0.12);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.text-style-toggle-row {
+  display: flex;
+  gap: 8px;
+}
+.text-style-toggle {
+  flex: 1;
+  border: 1px solid var(--line);
+  background: white;
+  padding: 8px 0;
+  border-radius: 3px;
+  font-size: 13px;
+}
+.text-style-toggle.is-active {
+  background: var(--green);
+  border-color: var(--green);
+  color: white;
+}
+.text-style-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.text-style-field select {
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  padding: 7px 8px;
+  font-size: 12px;
+  font-family: inherit;
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: normal;
+  color: var(--ink);
+}
+
+/* Editor de texto do corpo (Tiptap) */
+.body-editor-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  border: 1px solid var(--line);
+  border-bottom: 0;
+  background: #f0f2eb;
+  padding: 8px;
+}
+.body-editor-toolbar button {
+  border: 1px solid transparent;
+  background: none;
+  padding: 6px 9px;
+  font-size: 12px;
+  border-radius: 3px;
+  color: var(--ink);
+  min-width: 30px;
+}
+.body-editor-toolbar button:hover:not(:disabled) {
+  border-color: var(--line);
+  background: white;
+}
+.body-editor-toolbar button.is-active {
+  background: var(--green);
+  color: white;
+}
+.body-editor-toolbar button:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+.toolbar-divider {
+  width: 1px;
+  align-self: stretch;
+  background: var(--line);
+  margin: 2px 4px;
+}
+.body-editor-content {
+  border: 1px solid var(--line);
+  background: #fffefa;
+}
+.body-editor-content .ProseMirror {
+  min-height: 260px;
+  padding: 18px 20px;
+  line-height: 1.8;
+  font-size: 14px;
+}
+.body-editor-content .ProseMirror:focus {
+  outline: none;
+}
+.body-editor-content .ProseMirror p {
+  margin: 0 0 14px;
+}
+.body-editor-content .ProseMirror p:last-child {
+  margin-bottom: 0;
+}
+.body-editor-content .ProseMirror h3 {
+  font:
+    19px Georgia,
+    serif;
+  margin: 22px 0 12px;
+}
+.body-editor-content .ProseMirror blockquote {
+  border-left: 3px solid var(--green);
+  margin: 16px 0;
+  padding: 4px 0 4px 18px;
+  color: var(--muted);
+  font-style: italic;
+}
+.body-editor-content .ProseMirror ul,
+.body-editor-content .ProseMirror ol {
+  margin: 0 0 14px;
+  padding-left: 24px;
+}
+.body-editor-content .ProseMirror a {
+  color: var(--green);
+  text-decoration: underline;
+}
+.body-editor-content .ProseMirror.ProseMirror-focused {
+  box-shadow: inset 0 0 0 2px #cddbcf;
 }
 .form-error {
   border: 1px solid #d98b78;

@@ -2,13 +2,14 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import type { AuditContext, EditorialPlacement } from "@ir/types";
+import type { AuditContext, EditorialPlacement, EditorialTextStyle } from "@ir/types";
 import { articleService } from "../../../../composition/editorial";
 import {
   validateArticlePayload,
   type ArticleFormIntent,
   type ArticleFormPayload,
 } from "../../../../features/editorial/articleFormTypes";
+import { isDefaultTextStyle } from "../../../../features/editorial/textStyle";
 
 // Identidade simulada: não há autenticação real nesta fase (ver docs/ARCHITECTURE.md).
 const AUDIT: AuditContext = { actorId: "editor-sistema", actorRole: "editorial" };
@@ -32,6 +33,11 @@ function buildPlacement(payload: ArticleFormPayload): EditorialPlacement {
   };
 }
 
+/** Não persiste o estilo quando é igual ao padrão (mantém os dados enxutos). */
+function styleOrUndefined(style: EditorialTextStyle): EditorialTextStyle | undefined {
+  return isDefaultTextStyle(style) ? undefined : style;
+}
+
 function revalidateAndRedirect(id: string): never {
   revalidatePath(LIST_PATH);
   revalidatePath(`${LIST_PATH}/${id}`);
@@ -50,7 +56,9 @@ export async function createArticle(
     const created = await articleService.saveDraft(
       {
         title: payload.title.trim(),
+        titleStyle: styleOrUndefined(payload.titleStyle),
         subtitle: payload.subtitle.trim() || undefined,
+        subtitleStyle: styleOrUndefined(payload.subtitleStyle),
         body: payload.body,
         sectionId: payload.sectionId,
         localityId: payload.localityId,
@@ -95,7 +103,9 @@ export async function updateArticle(
     const placement = buildPlacement(payload);
     const baseChanges = {
       title: payload.title.trim(),
+      titleStyle: styleOrUndefined(payload.titleStyle),
       subtitle: payload.subtitle.trim() || undefined,
+      subtitleStyle: styleOrUndefined(payload.subtitleStyle),
       body: payload.body,
       sectionId: payload.sectionId,
       localityId: payload.localityId,

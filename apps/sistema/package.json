@@ -16,7 +16,11 @@
     "@ir/core": "*",
     "@ir/mocks": "*",
     "@ir/config": "*",
-    "@ir/ui": "*"
+    "@ir/ui": "*",
+    "@tiptap/react": "^2.9.0",
+    "@tiptap/starter-kit": "^2.9.0",
+    "@tiptap/extension-link": "^2.9.0",
+    "@tiptap/extension-text-align": "^2.9.0"
   },
   "devDependencies": {
     "typescript": "5.6.3",

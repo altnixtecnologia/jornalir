@@ -74,12 +74,32 @@ export interface ArticleMedia {
 
 export type ArticleOrigin = "manual" | "pdfImport";
 
+export type EditorialTextSize = "default" | "large" | "xlarge";
+export type EditorialEmphasis = "normal" | "medium" | "strong";
+
+/**
+ * Ajustes pontuais permitidos para título/subtítulo (Parte C, item 7 do
+ * Plano Mestre). Não é um editor livre: apenas negrito, itálico, tamanho e
+ * peso/ênfase entre opções limitadas. Ausente = padrão editorial automático.
+ */
+export interface EditorialTextStyle {
+  bold: boolean;
+  italic: boolean;
+  size: EditorialTextSize;
+  emphasis: EditorialEmphasis;
+}
+
 export interface Article {
   id: string;
   /** Referência interna legível, ex.: IR-MAT-2026-001245. */
   reference: string;
   title: string;
+  /** Ausente = padrão editorial automático do título. */
+  titleStyle?: EditorialTextStyle;
   subtitle?: string;
+  /** Ausente = padrão editorial automático do subtítulo. */
+  subtitleStyle?: EditorialTextStyle;
+  /** HTML gerado pelo editor de texto (negrito, itálico, listas, link, citação, alinhamento). */
   body: string;
   sectionId: string;
   localityId: string;

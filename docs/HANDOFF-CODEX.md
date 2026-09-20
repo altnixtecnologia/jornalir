@@ -1,5 +1,57 @@
 # Handoff — JornalIR
 
+## Fase 07 — editor editorial de texto (19/09/2026)
+
+- Branch: `feature/jornalir-core-foundation-20260917`.
+- HEAD ao iniciar a fase: `d5f3b29` (commit da Fase 06).
+- Entrega: título/subtítulo ganham controle discreto de formatação; o corpo passa a usar um editor de texto funcional (Tiptap/ProseMirror) no lugar do textarea simples; aviso de alterações não salvas ao sair da edição.
+
+### Título e subtítulo — controle discreto, não um editor livre
+
+- Novo tipo `EditorialTextStyle` (`bold`, `italic`, `size: "default"|"large"|"xlarge"`, `emphasis: "normal"|"medium"|"strong"`) em `packages/types/src/editorial/index.ts`, com `Article.titleStyle?`/`Article.subtitleStyle?` opcionais. Título e subtítulo continuam campos de texto simples (`string`); o estilo é metadado separado, nunca marcação dentro da string — evita que a listagem (Fase 05) ou qualquer outro consumidor de `article.title` passe a exibir HTML literal.
+- `TextStyleControl.tsx`: um `<details>`/`<summary>` nativo ("Aa") ao lado do rótulo do campo, com dois toggles (negrito/itálico) e dois selects (tamanho, peso/ênfase) — sem fonte livre, sem cor livre, exatamente as opções limitadas do Plano Mestre (Parte C, item 7).
+- `textStyle.ts`: `DEFAULT_TEXT_STYLE`, `textStyleToCss` (converte o estilo em `CSSProperties` aplicado inline no `<input>`, com tamanhos em px distintos para título/subtítulo) e `isDefaultTextStyle` — usada pelas Server Actions para não persistir o estilo quando é igual ao padrão, mantendo os dados enxutos e as matérias antigas (sem esse campo) visualmente equivalentes.
+- **Correção necessária**: as regras `.field-title-input`/`.field-subtitle-input` em `globals.css` usavam `font-size: ... !important`, que bloquearia qualquer `style` inline (CSS `!important` de folha de estilos vence estilo inline). Removido — o estilo inline agora controla peso/itálico/tamanho, a classe cuida apenas de fonte/cor base.
+
+### Corpo — editor funcional leve
+
+- Novas dependências em `apps/sistema/package.json`: `@tiptap/react`, `@tiptap/starter-kit`, `@tiptap/extension-link`, `@tiptap/extension-text-align` (resolvidas em `2.27.3`). Tiptap é headless (sem UI própria), por isso a barra de ferramentas em `ArticleBodyEditor.tsx` é inteiramente nossa, no mesmo padrão visual do shell (sem Tailwind, sem biblioteca de UI pronta).
+- Recursos habilitados, exatamente os pedidos — negrito, itálico, subtítulo interno (heading nível 3, único nível liberado), listas com marcadores e numeradas, link (com prompt para URL, sem abrir ao clicar durante a edição), citação, alinhamento esquerda/centro/justificado, desfazer/refazer. `strike`, `code`, `codeBlock` e `horizontalRule` do `StarterKit` foram explicitamente desativados para não abrir formatação além do escopo pedido.
+- `Article.body` continua `string` — agora HTML gerado pelo editor (`editor.getHTML()`). Nenhuma mudança de tipo; compatível com o contrato de importação de PDF já existente (`ImportCandidate.suggestedBody?: string`).
+- `immediatelyRender: false` no `useEditor` evita divergência entre o HTML renderizado no servidor e no cliente (armadilha documentada do Tiptap com Next.js App Router); a área do corpo mostra "Carregando editor…" até a hidratação — confirmado via HTML de produção (sem "Hydration failed" nem erro de aplicação).
+- Conteúdo mock antigo (texto puro, sem tags) continua abrindo normalmente: o parser HTML do ProseMirror envolve texto solto em um parágrafo padrão: comportamento documentado da biblioteca, confirmado na validação de negócio abaixo.
+
+### `packages/core` — extensão mínima (sem alterar regras)
+
+- `CreateArticleInput` (em `article-service.ts`) ganhou `titleStyle?`/`subtitleStyle?` opcionais, repassados para o registro criado por `saveDraft`. Nenhum outro método do `ArticleService` foi alterado — `updateDraft` já aceitava esses campos de forma genérica (`ArticleChanges = Partial<Omit<Article, ...>>`), sem precisar de código novo.
+
+### UX — aviso de alterações não salvas
+
+- `ArticleForm.tsx`: snapshot dos valores iniciais calculado uma vez (`useState` com inicializador lazy) comparado a cada render para derivar `isDirty`. Um listener de `beforeunload` bloqueia fechar a aba/atualizar quando há alterações não salvas.
+- O link "Voltar à listagem" saiu do `ModuleHeader` das páginas (que não têm acesso ao estado do formulário) e virou um botão dentro do próprio `ArticleForm`, que confirma com o usuário antes de navegar quando há alterações pendentes.
+- Escopo conhecido e documentado: a navegação pela barra lateral (`AdminSidebar`) não é interceptada — exigiria um contexto global de "formulário sujo" ou um guard de rota, fora do escopo desta fase. `beforeunload` também não cobre o botão "voltar" do navegador em navegação client-side do App Router (não dispara evento de unload real).
+
+### Validação
+
+- `npm run typecheck --workspace @ir/sistema`: sem erros.
+- `npm run build --workspace @ir/sistema`: sucesso, 18 rotas; `/materias/nova` e `/materias/[id]` cresceram de ~100 kB para ~198 kB de First Load JS (bundle do Tiptap/ProseMirror, esperado para um editor rico).
+- Validação de negócio (script `tsx` temporário, removido ao final, nunca commitado), reproduzindo os mesmos serviços da composição real — 14/14 asserções: corpo HTML (negrito/itálico/lista/link/citação/alinhamento) salvo e recuperado sem alteração; estilo de título/subtítulo persistido corretamente; reabrir preserva corpo e estilo; editar sobrescreve o corpo mantendo o restante; publicar preserva corpo/estilo; matéria mock antiga (`article-1243`, texto puro) continua com o corpo intacto e sem `titleStyle`; edição continua obrigatória.
+- Validação de renderização real (`next start`, porta 3001, processo encerrado ao final): `/materias/nova`, `/materias/article-1245` (com conteúdo pré-existente) e `/materias/article-1243` (corpo em texto puro) retornam 200; `/materias/nao-existe` 404; nenhum "Hydration failed" ou "Application error" no HTML; título pré-preenchido corretamente; barra de ferramentas do editor (8 botões com `aria-label`) presente na resposta do servidor; placeholder "Carregando editor…" presente (confirma `immediatelyRender: false` funcionando); botão "Voltar à listagem" e os dois controles "Aa" (título/subtítulo) presentes uma única vez cada, como esperado.
+- **Limite desta validação**: sem ferramenta de automação de navegador disponível nesta sessão (verificado: playwright/puppeteer não instalados), a interação real da barra de ferramentas do editor (cliques, atalhos, diálogo de confirmação ao sair) não foi exercida em um browser de verdade — apenas por leitura de código, pela renderização SSR acima e pela validação de negócio na camada de serviço. Recomenda-se um teste manual rápido no navegador antes de considerar a fase definitivamente encerrada para uso real da redação.
+- Não alterado: portal (`apps/site`), IndexedDB legado, flipbook, jornal digital, anúncios/patrocinadores.
+
+### Pendências e decisões
+
+- `npm install` reportou vulnerabilidades de auditoria na nova árvore de dependências do Tiptap (transitivas); nenhum `npm audit fix` foi executado nesta fase — decisão consistente com "não atualizar stack sem necessidade" das fases anteriores. Revisar oportunamente.
+- Sem confirmação de saída para navegação pela barra lateral (ver UX acima) — limite documentado, não implementado.
+- Título/subtítulo ainda não suportam fonte livre (fora do pedido: "fonte entre opções autorizadas" do Plano Mestre menciona fonte, mas a Fase 07 não pediu esse controle explicitamente; não implementado para não expandir além do solicitado).
+
+### Próxima fase
+
+Importação de PDF (candidatos, revisão, mesclar/dividir, vínculo com edição) — a estrutura de `ImportCandidate` e `Article.body`/`titleStyle` já é compatível. Ainda sem Supabase, autenticação real, upload remoto ou OCR/PDF real.
+
+---
+
 ## Fase 06 — cadastro e edição de matéria (19/09/2026)
 
 - Branch: `feature/jornalir-core-foundation-20260917`.

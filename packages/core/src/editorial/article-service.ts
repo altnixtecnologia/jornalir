@@ -4,6 +4,7 @@ import type {
   ArticleOrigin,
   AuditContext,
   EditorialPlacement,
+  EditorialTextStyle,
   NotificationMode,
 } from "@ir/types";
 import type {
@@ -35,7 +36,9 @@ export class LocalityNotFoundError extends Error {
 
 export interface CreateArticleInput {
   title: string;
+  titleStyle?: EditorialTextStyle;
   subtitle?: string;
+  subtitleStyle?: EditorialTextStyle;
   body: string;
   sectionId: string;
   localityId: string;
@@ -86,7 +89,9 @@ export class ArticleService {
 
     const record: NewArticleRecord = {
       title: input.title,
+      titleStyle: input.titleStyle,
       subtitle: input.subtitle,
+      subtitleStyle: input.subtitleStyle,
       body: input.body,
       sectionId: input.sectionId,
       localityId: input.localityId,

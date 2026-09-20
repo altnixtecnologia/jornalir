@@ -1,10 +1,17 @@
-import type { ArticleMedia, EditorialPlacementType, NotificationMode } from "@ir/types";
+import type {
+  ArticleMedia,
+  EditorialPlacementType,
+  EditorialTextStyle,
+  NotificationMode,
+} from "@ir/types";
 
 export type ArticleFormIntent = "draft" | "publish" | "schedule";
 
 export interface ArticleFormPayload {
   title: string;
+  titleStyle: EditorialTextStyle;
   subtitle: string;
+  subtitleStyle: EditorialTextStyle;
   body: string;
   sectionId: string;
   localityId: string;

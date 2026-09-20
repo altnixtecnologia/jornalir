@@ -1,11 +1,13 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import type {
   Article,
   ArticleMedia,
   EditorialPlacementType,
   EditorialSection,
+  EditorialTextStyle,
   Locality,
   MediaAsset,
   NotificationMode,
@@ -21,8 +23,14 @@ import {
 } from "./articleMediaState";
 import { ArticleBodyEditor } from "./ArticleBodyEditor";
 import { ArticleMediaPicker } from "./ArticleMediaPicker";
+import { TextStyleControl } from "./TextStyleControl";
 import { articleStatusLabels, notificationLabels, placementLabels } from "./editorialLabels";
+import { DEFAULT_TEXT_STYLE, textStyleToCss } from "./textStyle";
 import { fromDatetimeLocalValue, toDatetimeLocalValue } from "../../lib/datetimeLocal";
+
+const LIST_HREF = "/sistema/editorial/materias";
+const UNSAVED_CHANGES_MESSAGE =
+  "Existem alterações não salvas nesta matéria. Deseja realmente sair sem salvar?";
 
 interface ArticleFormProps {
   mode: "create" | "edit";
@@ -45,8 +53,13 @@ const PLACEMENT_OPTIONS: EditorialPlacementType[] = [
 const NOTIFICATION_OPTIONS: NotificationMode[] = ["none", "normal", "urgent"];
 
 export function ArticleForm({ mode, article, sections, localities, mediaAssets }: ArticleFormProps): JSX.Element {
+  const router = useRouter();
   const [title, setTitle] = useState(article?.title ?? "");
+  const [titleStyle, setTitleStyle] = useState<EditorialTextStyle>(article?.titleStyle ?? DEFAULT_TEXT_STYLE);
   const [subtitle, setSubtitle] = useState(article?.subtitle ?? "");
+  const [subtitleStyle, setSubtitleStyle] = useState<EditorialTextStyle>(
+    article?.subtitleStyle ?? DEFAULT_TEXT_STYLE,
+  );
   const [body, setBody] = useState(article?.body ?? "");
   const [sectionId, setSectionId] = useState(article?.sectionId ?? "");
   const [localityId, setLocalityId] = useState(article?.localityId ?? "");
@@ -72,7 +85,9 @@ export function ArticleForm({ mode, article, sections, localities, mediaAssets }
   function buildPayload(): ArticleFormPayload {
     return {
       title,
+      titleStyle,
       subtitle,
+      subtitleStyle,
       body,
       sectionId,
       localityId,
@@ -85,6 +100,66 @@ export function ArticleForm({ mode, article, sections, localities, mediaAssets }
     };
   }
 
+  // Snapshot dos valores iniciais (calculado uma única vez) para detectar
+  // alterações não salvas e avisar antes de sair da edição.
+  const [initialSnapshot] = useState(() =>
+    JSON.stringify({
+      title,
+      titleStyle,
+      subtitle,
+      subtitleStyle,
+      body,
+      sectionId,
+      localityId,
+      notificationMode,
+      placementType,
+      placementStartsAt,
+      placementEndsAt,
+      scheduledAt,
+      media,
+    }),
+  );
+  const isDirty =
+    initialSnapshot !==
+    JSON.stringify({
+      title,
+      titleStyle,
+      subtitle,
+      subtitleStyle,
+      body,
+      sectionId,
+      localityId,
+      notificationMode,
+      placementType,
+      placementStartsAt,
+      placementEndsAt,
+      scheduledAt,
+      media,
+    });
+  const isDirtyRef = useRef(isDirty);
+  isDirtyRef.current = isDirty;
+  const justSavedRef = useRef(false);
+
+  // Avisa ao fechar a aba, atualizar ou navegar para fora do site com
+  // alterações não salvas. Não cobre navegação interna pela barra lateral
+  // (exigiria um guard de rota mais amplo, fora do escopo desta fase).
+  useEffect(() => {
+    function handleBeforeUnload(event: BeforeUnloadEvent): void {
+      if (!isDirtyRef.current || justSavedRef.current) return;
+      event.preventDefault();
+      event.returnValue = "";
+    }
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+  }, []);
+
+  function handleBack(): void {
+    if (isDirty && !window.confirm(UNSAVED_CHANGES_MESSAGE)) {
+      return;
+    }
+    router.push(LIST_HREF);
+  }
+
   function handleAction(intent: ArticleFormIntent): void {
     setFormError(null);
     const payload = buildPayload();
@@ -93,7 +168,11 @@ export function ArticleForm({ mode, article, sections, localities, mediaAssets }
         mode === "edit" && article
           ? await updateArticle(article.id, payload, intent)
           : await createArticle(payload, intent);
-      if (result?.error) setFormError(result.error);
+      if (result?.error) {
+        setFormError(result.error);
+      } else {
+        justSavedRef.current = true;
+      }
     });
   }
 
@@ -105,33 +184,49 @@ export function ArticleForm({ mode, article, sections, localities, mediaAssets }
     setFormError(null);
     startTransition(async () => {
       const result = await archiveArticle(article.id);
-      if (result?.error) setFormError(result.error);
+      if (result?.error) {
+        setFormError(result.error);
+      } else {
+        justSavedRef.current = true;
+      }
     });
   }
 
   return (
     <div className="article-form">
+      <button type="button" className="secondary-link form-back-link" onClick={handleBack}>
+        ← Voltar à listagem
+      </button>
+
       <section className="form-section" aria-labelledby="identificacao-title">
         <h2 id="identificacao-title">Identificação</h2>
         <div className="form-field">
-          <label htmlFor="field-title" className="field-label">
-            Título
-          </label>
+          <div className="field-label-row">
+            <label htmlFor="field-title" className="field-label">
+              Título
+            </label>
+            <TextStyleControl label="Título" value={titleStyle} onChange={setTitleStyle} />
+          </div>
           <input
             id="field-title"
             className="field-title-input"
+            style={textStyleToCss(titleStyle, "title")}
             value={title}
             onChange={(event) => setTitle(event.target.value)}
             placeholder="Título da matéria"
           />
         </div>
         <div className="form-field">
-          <label htmlFor="field-subtitle" className="field-label">
-            Subtítulo <span className="field-optional">(opcional)</span>
-          </label>
+          <div className="field-label-row">
+            <label htmlFor="field-subtitle" className="field-label">
+              Subtítulo <span className="field-optional">(opcional)</span>
+            </label>
+            <TextStyleControl label="Subtítulo" value={subtitleStyle} onChange={setSubtitleStyle} />
+          </div>
           <input
             id="field-subtitle"
             className="field-subtitle-input"
+            style={textStyleToCss(subtitleStyle, "subtitle")}
             value={subtitle}
             onChange={(event) => setSubtitle(event.target.value)}
             placeholder="Subtítulo da matéria"
