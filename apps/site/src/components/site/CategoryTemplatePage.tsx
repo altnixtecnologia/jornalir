@@ -5,7 +5,6 @@ import type { CategorySlug } from "@ir/types";
 import { SiteHeader } from "./SiteHeader";
 import { loadNewsItems, getPublishedNews, type CmsNewsItem } from "./newsStorage";
 import { EditorialCard } from "./EditorialCard";
-import { formatDateBR } from "./date";
 import { getCategoryLabel } from "./categories";
 
 export function CategoryTemplatePage({ category }: { category: CategorySlug }): JSX.Element {
@@ -38,62 +37,67 @@ export function CategoryTemplatePage({ category }: { category: CategorySlug }): 
     });
   }, [items, category, dateFilter, textFilter]);
 
-  return (
-    <main className="min-h-screen bg-stone-100 dark:bg-zinc-950">
-      <SiteHeader />
-      <section className="site-shell py-7">
-        <div className="rounded-xl border border-zinc-200 bg-white p-6 dark:border-zinc-800 dark:bg-zinc-900">
-          <p className="text-sm text-zinc-500">Informativo Regional &gt; {getCategoryLabel(category)}</p>
-          <h1 className="mt-3 font-editorial text-4xl">{getCategoryLabel(category).toUpperCase()}</h1>
-        </div>
+  const [lead, ...rest] = filtered;
 
-        <div className="mt-5 flex flex-wrap gap-3">
+  return (
+    <main className="min-h-screen">
+      <SiteHeader active={category} />
+      <section className="site-shell py-8">
+        <p className="text-xs text-[color:var(--site-muted)]">Informativo Regional &gt; {getCategoryLabel(category)}</p>
+        <h1 className="mt-2 font-editorial text-[36px] font-bold leading-tight md:text-[44px]">{getCategoryLabel(category)}</h1>
+
+        <div className="mt-6 flex flex-wrap gap-3">
           <input
             type="text"
             placeholder="Filtrar por texto"
             value={textFilter}
             onChange={(e) => setTextFilter(e.target.value)}
-            className="rounded border border-zinc-300 px-3 py-2 dark:border-zinc-700 dark:bg-zinc-900"
+            className="rounded-sm border border-[color:var(--site-line)] bg-[color:var(--site-surface)] px-3 py-2 text-sm"
           />
           <input
             type="date"
             value={dateFilter}
             onChange={(e) => setDateFilter(e.target.value)}
-            className="rounded border border-zinc-300 px-3 py-2 dark:border-zinc-700 dark:bg-zinc-900"
+            className="rounded-sm border border-[color:var(--site-line)] bg-[color:var(--site-surface)] px-3 py-2 text-sm"
           />
-          <button
-            type="button"
-            onClick={() => {
-              setTextFilter("");
-              setDateFilter("");
-            }}
-            className="rounded border border-zinc-300 bg-white px-3 py-2 text-sm font-semibold hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:hover:bg-zinc-800"
-          >
-            Limpar filtros
-          </button>
+          {textFilter || dateFilter ? (
+            <button
+              type="button"
+              onClick={() => {
+                setTextFilter("");
+                setDateFilter("");
+              }}
+              className="nav-pill"
+            >
+              Limpar filtros
+            </button>
+          ) : null}
         </div>
 
-        <p className="mt-4 text-sm text-zinc-500">{filtered.length} resultado(s)</p>
+        <hr className="divider mt-6" />
+        <p className="mb-6 mt-4 text-xs uppercase tracking-wide text-[color:var(--site-muted)]">{filtered.length} resultado(s)</p>
 
         {isLoading ? (
-          <div className="mt-6 grid grid-cols-1 gap-4 md:grid-cols-3">
+          <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
             {Array.from({ length: 6 }).map((_, idx) => (
-              <div key={idx} className="h-64 animate-pulse rounded-lg border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900" />
+              <div key={idx} className="h-64 animate-pulse rounded-sm bg-[color:var(--site-surface)]" />
             ))}
           </div>
         ) : filtered.length === 0 ? (
-          <div className="mt-6 rounded-lg border border-zinc-200 bg-white p-6 text-center dark:border-zinc-800 dark:bg-zinc-900">
-            <h2 className="text-xl font-semibold">Nenhum resultado encontrado</h2>
-            <p className="mt-2 text-sm text-zinc-500">Tente ajustar ou limpar os filtros para ver mais matérias.</p>
+          <div className="rounded-sm border border-dashed border-[color:var(--site-line)] p-10 text-center">
+            <h2 className="font-editorial text-xl font-bold">Nenhum resultado encontrado</h2>
+            <p className="mt-2 text-sm text-[color:var(--site-muted)]">Tente ajustar ou limpar os filtros para ver mais matérias.</p>
           </div>
         ) : (
-          <div className="mt-6 grid grid-cols-1 gap-4 md:grid-cols-3">
-            {filtered.map((item) => (
-              <article key={item.id} className="rounded-lg border border-zinc-200 bg-white p-3 dark:border-zinc-800 dark:bg-zinc-900">
-                <EditorialCard item={item} />
-                <p className="mt-2 text-xs text-zinc-500">{formatDateBR(item.publishedAt)}</p>
-              </article>
-            ))}
+          <div className="space-y-10">
+            <EditorialCard item={lead} featured />
+            {rest.length > 0 ? (
+              <div className="grid grid-cols-1 gap-x-8 gap-y-10 md:grid-cols-2">
+                {rest.map((item) => (
+                  <EditorialCard key={item.id} item={item} />
+                ))}
+              </div>
+            ) : null}
           </div>
         )}
       </section>

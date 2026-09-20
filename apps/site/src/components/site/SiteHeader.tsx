@@ -1,37 +1,30 @@
 "use client";
 
-import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import type { MouseEvent } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { coverageLocations, socialLinks } from "./siteSettings";
+import { socialLinks } from "./siteSettings";
 import { menuItems } from "./menuConfig";
 
-export function SiteHeader({ active }: { active?: "home" | "noticias" | "esportes" | "anuncios" } = {}): JSX.Element {
+// Editorias principais direto na navegação (não escondidas em dropdown) —
+// o excedente (menos consultado) vai para "Mais".
+const FLAT_ORDER = ["/geral", "/politica", "/policia", "/esportes", "/saude", "/jornal-online"];
+const FLAT_LINKS = FLAT_ORDER.map((href) => menuItems.find((item) => item.href === href)).filter(
+  (item): item is NonNullable<typeof item> => Boolean(item),
+);
+const OVERFLOW_LINKS = menuItems.filter((item) => ["/colunistas", "/sociais", "/sobre", "/contato"].includes(item.href));
+const ALL_NAV_LINKS = [...FLAT_LINKS, ...OVERFLOW_LINKS];
+
+export function SiteHeader({ active }: { active?: string } = {}): JSX.Element {
   const [open, setOpen] = useState(false);
-  const [locationIndex, setLocationIndex] = useState(0);
+  const [editoriasOpen, setEditoriasOpen] = useState(false);
   const [mobileNavigatingTo, setMobileNavigatingTo] = useState<string | null>(null);
   const pathname = usePathname();
   const router = useRouter();
-  const now = new Date();
-  const weekday = now.toLocaleDateString("pt-BR", { weekday: "long" }).toUpperCase();
-  const fullDate = now.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric" });
-  const currentLocation = coverageLocations[locationIndex % coverageLocations.length];
 
   useEffect(() => {
-    const timer = setInterval(() => {
-      setLocationIndex((prev) => (prev + 1) % coverageLocations.length);
-    }, 6000);
-    return () => clearInterval(timer);
-  }, []);
-
-  useEffect(() => {
-    if (open) {
-      document.body.style.overflow = "hidden";
-    } else {
-      document.body.style.overflow = "";
-    }
+    document.body.style.overflow = open ? "hidden" : "";
     return () => {
       document.body.style.overflow = "";
     };
@@ -48,108 +41,182 @@ export function SiteHeader({ active }: { active?: "home" | "noticias" | "esporte
   function handleMobileNavClick(event: MouseEvent<HTMLAnchorElement>, href: string): void {
     event.preventDefault();
     if (mobileNavigatingTo) return;
-
     setMobileNavigatingTo(href);
-    window.setTimeout(() => setOpen(false), 700);
+    window.setTimeout(() => setOpen(false), 500);
     window.setTimeout(() => {
       router.push(href);
       setMobileNavigatingTo(null);
-    }, 1200);
+    }, 850);
+  }
+
+  function isActive(href: string): boolean {
+    if (href === "/") return pathname === "/";
+    return pathname.startsWith(href);
   }
 
   return (
-    <header className="sticky top-0 z-40 border-b border-zinc-200 bg-[color:var(--site-surface)] dark:border-zinc-800 dark:bg-zinc-950">
-      <div className="site-shell relative flex items-center justify-between gap-4 py-3">
-        <Link href="/" aria-label="Informativo Regional">
-          <Image src="/brand/logo-nova-sem-fundo.png" alt="Informativo Regional" width={620} height={150} className="h-12 w-auto md:h-16" priority />
-        </Link>
-        <div className="pointer-events-none absolute left-1/2 hidden -translate-x-1/2 text-center md:block">
-          <p className="text-sm font-extrabold tracking-wide text-zinc-900 dark:text-zinc-50">{weekday}</p>
-          <p className="text-sm font-semibold text-zinc-700 dark:text-zinc-300">{fullDate}</p>
-        </div>
-        <div className="hidden items-center gap-3 md:flex">
-          <a href={socialLinks.facebook} target="_blank" aria-label="Facebook" className="inline-flex h-12 w-12 items-center justify-center overflow-hidden rounded-full ring-1 ring-zinc-200">
-            <Image src="/brand/social-facebook.png" alt="Facebook" width={48} height={48} className="h-12 w-12 object-cover" />
-          </a>
-          <a href={socialLinks.instagram} target="_blank" aria-label="Instagram" className="inline-flex h-12 w-12 items-center justify-center overflow-hidden rounded-full ring-1 ring-zinc-200">
-            <Image src="/brand/social-instagram.png" alt="Instagram" width={48} height={48} className="h-12 w-12 object-cover" />
-          </a>
-          <a href="https://youtube.com" target="_blank" aria-label="YouTube" className="inline-flex h-12 w-12 items-center justify-center overflow-hidden rounded-full ring-1 ring-zinc-200">
-            <Image src="/brand/social-youtube.png" alt="YouTube" width={48} height={48} className="h-12 w-12 object-cover" />
-          </a>
-          <a href={socialLinks.whatsapp} target="_blank" aria-label="WhatsApp" className="inline-flex h-12 w-12 items-center justify-center overflow-hidden rounded-full ring-1 ring-zinc-200">
-            <Image src="/brand/social-whatsapp.png" alt="WhatsApp" width={48} height={48} className="h-12 w-12 object-cover" />
-          </a>
-        </div>
-        <button
-          type="button"
-          aria-label="Voltar"
-          className={`ir-mobile-back-btn md:hidden ${pathname === "/" ? "is-hidden" : ""}`}
-          onClick={goBack}
-        >
-          ←
-        </button>
-        <button
-          type="button"
-          aria-label={open ? "Fechar menu" : "Abrir menu"}
-          className={`ir-mobile-trigger md:hidden ${open ? "is-open" : ""}`}
-          onClick={() => setOpen((v) => !v)}
-        >
-          <i className="bar top" />
-          <i className="bar middle" />
-          <i className="bar bottom" />
-        </button>
-      </div>
+    <header className="site-header">
+      <div className="site-shell flex h-[58px] items-center justify-between gap-4 lg:h-[76px]">
+        <div className="flex items-center gap-5">
+          {/* Desktop: marca oficial escrita (PNG com transparência real), renderizada direto sobre o header — sem placa/fundo. Tamanho grande o bastante para "INFORMATIVO REGIONAL" e o slogan ficarem legíveis. */}
+          <Link href="/" aria-label="Informativo Regional" className="hidden lg:inline-flex lg:items-center">
+            <img src="/brand/logo-escrita.png" alt="Informativo Regional" style={{ height: 64, width: "auto" }} />
+          </Link>
+          {/* Mobile/tablet: símbolo oficial (transparente) + nome — melhor aproveitamento do espaço reduzido. */}
+          <Link href="/" aria-label="Informativo Regional" className="brand-mark lg:hidden">
+            <img src="/brand/logo-ir.png" alt="" />
+            <span className="brand-mark-name">
+              <strong>Informativo Regional</strong>
+            </span>
+          </Link>
 
-      <div className="border-t border-zinc-200 dark:border-zinc-800">
-        <nav className="site-shell hidden items-center justify-between gap-2 py-2 md:flex">
-          <div className="flex items-center gap-1">
-          <Link href="/busca" aria-label="Buscar no site" className="mr-1 rounded px-2 py-2 text-lg hover:bg-zinc-100 dark:hover:bg-zinc-800">🔎</Link>
-          {menuItems.map((item) => (
-            <Link key={item.label} href={item.href} className="ir-nav-cta">
-              <span className="ir-nav-text">{item.label}</span>
+          <nav className="hidden items-center gap-4 lg:flex xl:gap-5" aria-label="Navegação principal">
+            <Link href="/" className={`nav-link ${isActive("/") ? "is-active" : ""}`}>
+              Início
             </Link>
-          ))}
-          </div>
-          {currentLocation ? (
-            <div className="rounded-full border border-zinc-300 px-3 py-1 text-xs font-semibold text-zinc-700 transition-all dark:border-zinc-700 dark:text-zinc-300">
-              {currentLocation.cidade}/{currentLocation.uf} {currentLocation.temperatura}
+            {FLAT_LINKS.map((item) => (
+              <Link key={item.href} href={item.href} className={`nav-link ${isActive(item.href) ? "is-active" : ""}`}>
+                {item.label}
+              </Link>
+            ))}
+
+            <div className="relative" onMouseEnter={() => setEditoriasOpen(true)} onMouseLeave={() => setEditoriasOpen(false)}>
+              <button
+                type="button"
+                className={`nav-link inline-flex items-center gap-1 ${OVERFLOW_LINKS.some((i) => isActive(i.href)) ? "is-active" : ""}`}
+                onClick={() => setEditoriasOpen((v) => !v)}
+                aria-expanded={editoriasOpen}
+              >
+                Mais <span className="text-[9px]" aria-hidden="true">▾</span>
+              </button>
+              <div
+                className={`absolute left-0 top-full z-30 mt-2 w-56 rounded-lg border border-[color:var(--site-line)] bg-[color:var(--site-surface)] p-2 shadow-xl transition-all ${editoriasOpen ? "visible translate-y-0 opacity-100" : "invisible -translate-y-1 opacity-0"}`}
+              >
+                {OVERFLOW_LINKS.map((item) => (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    className="block rounded-md px-3 py-2 text-[13px] font-semibold text-[color:var(--site-text)] hover:bg-[color:var(--site-bg)] hover:text-[color:var(--brand-red)]"
+                  >
+                    {item.label}
+                  </Link>
+                ))}
+              </div>
             </div>
-          ) : null}
-        </nav>
+          </nav>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <Link href="/busca" aria-label="Buscar" className="icon-btn hidden md:inline-flex">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <circle cx="11" cy="11" r="7" />
+              <path d="m21 21-4.3-4.3" />
+            </svg>
+          </Link>
+
+          <div className="hidden items-center gap-1.5 lg:flex">
+            {[
+              { href: socialLinks.facebook, label: "Facebook", icon: "/brand/social-facebook.png" },
+              { href: socialLinks.instagram, label: "Instagram", icon: "/brand/social-instagram.png" },
+              { href: socialLinks.whatsapp, label: "WhatsApp", icon: "/brand/social-whatsapp.png" }
+            ].map((social) => (
+              <a
+                key={social.label}
+                href={social.href}
+                target="_blank"
+                rel="noreferrer"
+                aria-label={social.label}
+                className="inline-flex h-8 w-8 items-center justify-center overflow-hidden rounded-full ring-1 ring-[color:var(--site-line)] transition hover:ring-[color:var(--brand-navy)]"
+              >
+                <img src={social.icon} alt="" className="h-8 w-8 object-cover" />
+              </a>
+            ))}
+          </div>
+
+          <Link href="/contato" className="nav-pill nav-pill--solid hidden sm:inline-flex">
+            Assinante
+          </Link>
+
+          <button
+            type="button"
+            aria-label="Voltar"
+            className={`ir-mobile-back-btn lg:hidden ${pathname === "/" ? "is-hidden" : ""}`}
+            onClick={goBack}
+          >
+            ←
+          </button>
+          <button
+            type="button"
+            aria-label={open ? "Fechar menu" : "Abrir menu"}
+            className={`ir-mobile-trigger lg:hidden ${open ? "is-open" : ""}`}
+            onClick={() => setOpen((v) => !v)}
+          >
+            <i className="bar top" />
+            <i className="bar middle" />
+            <i className="bar bottom" />
+          </button>
+        </div>
       </div>
 
-      <div className={`ir-mobile-layer md:hidden ${open ? "is-open" : ""}`}>
+      <div className={`ir-mobile-layer lg:hidden ${open ? "is-open" : ""}`}>
         <button type="button" aria-label="Fechar menu" className="ir-mobile-backdrop" onClick={() => setOpen(false)} />
         <div className="ir-mobile-menu">
-          <div className="flex h-full w-full flex-col">
-            <div className="mb-4 flex items-center justify-between">
-              <p className="text-xs font-extrabold uppercase tracking-[0.18em] text-zinc-600">Navegação</p>
-              <button type="button" onClick={() => setOpen(false)} className="rounded-full border border-zinc-300 px-3 py-1 text-xs font-bold text-zinc-700">
-                Fechar ✕
-              </button>
-            </div>
-            <div className="grid grid-cols-2 gap-2">
-              {menuItems.map((item) => (
-                <Link
-                  key={`${item.label}-m`}
-                  href={item.href}
-                  onClick={(e) => handleMobileNavClick(e, item.href)}
-                  className={`ir-nav-cta ir-mobile-nav-cta ${mobileNavigatingTo === item.href ? "is-pending" : ""}`}
-                >
-                  <span className="ir-nav-text">{item.label}</span>
-                </Link>
-              ))}
-            </div>
+          <div className="mb-4 flex items-center justify-between">
+            <span className="brand-chip">
+              <img src="/brand/logo-ir.png" alt="Informativo Regional" width={28} height={28} style={{ height: 22, width: "auto" }} />
+            </span>
+            <button
+              type="button"
+              onClick={() => setOpen(false)}
+              className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-[color:var(--site-line)] text-sm font-bold"
+              aria-label="Fechar navegação"
+            >
+              ✕
+            </button>
+          </div>
 
-            <div className="mt-auto pt-4">
+          <Link
+            href="/busca"
+            onClick={(e) => handleMobileNavClick(e, "/busca")}
+            className={`ir-mobile-search-cta mb-4 ${mobileNavigatingTo === "/busca" ? "is-pending" : ""}`}
+          >
+            🔎 Buscar no site
+          </Link>
+
+          <div>
+            <Link
+              href="/"
+              onClick={(e) => handleMobileNavClick(e, "/")}
+              className={`ir-mobile-nav-link ${mobileNavigatingTo === "/" ? "is-pending" : ""}`}
+            >
+              Início
+            </Link>
+            {ALL_NAV_LINKS.map((item) => (
               <Link
-                href="/busca"
-                onClick={(e) => handleMobileNavClick(e, "/busca")}
-                className={`ir-nav-cta ir-mobile-nav-cta ir-mobile-search-cta ${mobileNavigatingTo === "/busca" ? "is-pending" : ""}`}
+                key={`${item.label}-m`}
+                href={item.href}
+                onClick={(e) => handleMobileNavClick(e, item.href)}
+                className={`ir-mobile-nav-link ${mobileNavigatingTo === item.href ? "is-pending" : ""}`}
               >
-                <span className="ir-nav-text">🔎 BUSCA</span>
+                {item.label}
               </Link>
+            ))}
+          </div>
+
+          <div className="mt-5 flex items-center justify-between">
+            <Link href="/contato" className="nav-pill nav-pill--solid">
+              Assinante
+            </Link>
+            <div className="flex items-center gap-2">
+              {[
+                { href: socialLinks.facebook, icon: "/brand/social-facebook.png", label: "Facebook" },
+                { href: socialLinks.instagram, icon: "/brand/social-instagram.png", label: "Instagram" },
+                { href: socialLinks.whatsapp, icon: "/brand/social-whatsapp.png", label: "WhatsApp" }
+              ].map((social) => (
+                <a key={social.label} href={social.href} target="_blank" rel="noreferrer" aria-label={social.label} className="inline-flex h-9 w-9 items-center justify-center overflow-hidden rounded-full ring-1 ring-[color:var(--site-line)]">
+                  <img src={social.icon} alt="" className="h-9 w-9 object-cover" />
+                </a>
+              ))}
             </div>
           </div>
         </div>

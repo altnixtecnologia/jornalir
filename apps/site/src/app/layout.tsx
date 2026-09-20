@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Merriweather, Source_Sans_3 } from "next/font/google";
 import { ServiceWorkerRegister } from "../components/ServiceWorkerRegister";
 import { SiteFooter } from "../components/site/SiteFooter";
+import { WhatsAppFloatingButton } from "../components/site/WhatsAppFloatingButton";
 import "./globals.css";
 
 const headline = Merriweather({ subsets: ["latin"], variable: "--font-headline", weight: ["700", "900"] });
@@ -31,7 +32,7 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#0b6e4f"
+  themeColor: "#30305c"
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }): JSX.Element {
@@ -41,6 +42,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }):
         <ServiceWorkerRegister />
         {children}
         <SiteFooter />
+        <WhatsAppFloatingButton />
       </body>
     </html>
   );

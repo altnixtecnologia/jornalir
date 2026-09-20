@@ -1,8 +1,8 @@
 "use client";
 
-import type { NewsItem } from "@ir/types";
-import { expandedNewsData } from "./content";
 import type { CategorySlug } from "@ir/types";
+import { expandedNewsData } from "./content";
+import type { SiteArticle } from "./siteArticleTypes";
 
 const DB_NAME = "ir_site_db";
 const STORE_NAME = "news";
@@ -12,7 +12,7 @@ const DB_VERSION = 2;
 export type FeaturedZone = "nenhum" | "hero-principal" | "hero-secundario" | "topo-categoria";
 export type PublishMode = "agora" | "programada";
 
-export interface CmsNewsItem extends NewsItem {
+export interface CmsNewsItem extends SiteArticle {
   menuCategory: CategorySlug;
   featuredZone: FeaturedZone;
   publishMode: PublishMode;
@@ -36,7 +36,7 @@ function openDb(): Promise<IDBDatabase> {
   });
 }
 
-function normalizeItem(item: NewsItem): CmsNewsItem {
+function normalizeItem(item: SiteArticle): CmsNewsItem {
   return {
     ...item,
     menuCategory: item.category,

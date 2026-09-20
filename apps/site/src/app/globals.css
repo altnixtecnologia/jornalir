@@ -2,31 +2,46 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Identidade real do Informativo Regional — amostrada por pixel das duas
+   marcas oficiais (apps/site/public/brand/logo-escrita.png e logo-ir.png):
+   azul-marinho/índigo do traço e do redemoinho, vermelho do símbolo "IR"
+   (idêntico nas duas peças), dourado do preenchimento das letras
+   (escurecido só o necessário para uso legível em UI). Usada com equilíbrio:
+   a base do portal continua neutra (papel/tinta), a cor entra como acento —
+   nunca como fundo dominante. `logo-nova-sem-fundo.png` NÃO é marca oficial
+   e não influencia esta paleta. */
 :root {
   color-scheme: light;
-  --site-bg: #f3f1ea;
-  --site-surface: #fffef8;
+  --site-bg: #f6f4ee;
+  --site-surface: #ffffff;
   --site-text: #16181d;
-  --site-accent: #0f5f49;
-  --site-muted: #6b7280;
+  --site-muted: #5c6270;
+  --site-line: #e3e0d5;
+  --brand-red: #c03030;
+  --brand-navy: #30305c;
+  --brand-gold: #c99700;
 }
 
 .dark {
   color-scheme: dark;
-  --site-bg: #0a0f14;
-  --site-surface: #121923;
+  --site-bg: #0a0b10;
+  --site-surface: #14161d;
   --site-text: #f3f4f6;
-  --site-accent: #41b18f;
   --site-muted: #9ca3af;
+  --site-line: #262832;
+  --brand-red: #e05a5a;
+  --brand-navy: #8f93c9;
+  --brand-gold: #e3b93a;
+}
+
+* {
+  -webkit-tap-highlight-color: transparent;
 }
 
 body {
   @apply antialiased;
   color: var(--site-text);
-  background:
-    radial-gradient(1300px 520px at 88% -5%, rgba(20, 122, 88, 0.12), transparent 60%),
-    radial-gradient(900px 460px at -10% 18%, rgba(30, 64, 175, 0.08), transparent 55%),
-    var(--site-bg);
+  background: var(--site-bg);
 }
 
 .font-editorial {
@@ -35,27 +50,239 @@ body {
 
 .site-shell {
   width: 100%;
-  max-width: 1520px;
+  max-width: 1440px;
   margin-left: auto;
   margin-right: auto;
-  padding-left: clamp(12px, 2.4vw, 34px);
-  padding-right: clamp(12px, 2.4vw, 34px);
+  padding-left: clamp(16px, 3vw, 40px);
+  padding-right: clamp(16px, 3vw, 40px);
 }
+
+/* --- Sistema editorial: rótulos, divisores, tipografia --- */
+
+.kicker {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--brand-red);
+}
+
+.kicker::before {
+  content: "";
+  width: 16px;
+  height: 2px;
+  background: var(--brand-red);
+  flex-shrink: 0;
+}
+
+.kicker--navy {
+  color: var(--brand-navy);
+}
+.kicker--navy::before {
+  background: var(--brand-navy);
+}
+
+.section-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 16px;
+  padding-bottom: 9px;
+  border-bottom: 2px solid var(--site-text);
+}
+
+.section-head h2 {
+  font-size: clamp(22px, 2.6vw, 30px);
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  line-height: 1.1;
+}
+
+.section-more {
+  flex-shrink: 0;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--brand-navy);
+  white-space: nowrap;
+  transition: color 180ms ease, gap 180ms ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.section-more:hover {
+  color: var(--brand-red);
+  gap: 8px;
+}
+
+.divider {
+  height: 1px;
+  background: var(--site-line);
+  border: 0;
+}
+
+/* --- Cartão de publicidade: rótulo claro, moldura discreta --- */
+
+.ad-frame {
+  position: relative;
+}
+.ad-frame::before {
+  content: "Publicidade";
+  display: block;
+  margin-bottom: 8px;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--site-muted);
+  text-align: center;
+}
+
+/* Coluna lateral de anúncios — reduzida (~35%) em relação ao conteúdo
+   editorial, mantendo a proporção 4:5 de cada arte intacta (sem cortar,
+   sem deformar): o conteúdo jornalístico tem mais peso visual. */
+.ad-sidebar {
+  width: 100%;
+  max-width: 190px;
+  margin-left: auto;
+}
+
+/* --- 6 quadros de publicidade própria (definitivo) ---
+   O QUADRO (slot) tem tamanho externo fixo e igual nos 6 — a proporção da
+   ARTE de cada anunciante nunca altera esse tamanho. A arte usa
+   object-fit:contain (nunca corta, nunca deforma) e fica centralizada,
+   com fundo neutro preenchendo o espaço sobrando. Proporção 4:5 no
+   desktop (colunas laterais); proporção própria mais compacta no mobile
+   (pares lado a lado), para não ficarem altos demais. */
+.ad-slot-unit {
+  border: 1px solid var(--site-line);
+  background: var(--site-surface);
+  overflow: hidden;
+  aspect-ratio: 4 / 5;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.ad-slot-unit--compact {
+  aspect-ratio: 4 / 3;
+}
+.ad-slot-unit a {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+}
+.ad-slot-img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  object-position: center;
+}
+
+/* Colunas laterais (desktop grande/médio): sticky, some progressivamente
+   em telas menores em vez de espremer o conteúdo central. Largura reduzida
+   ~30-40% frente ao peso visual anterior. */
+.ad-slot-column {
+  min-width: 0;
+}
+.ad-slot-column-sticky {
+  position: sticky;
+  top: 96px;
+}
+@media (max-width: 1023px) {
+  /* nunca deveria renderizar aqui (escondido via classe utilitária), mas
+     garante que não empurra layout caso algo mude a visibilidade. */
+  .ad-slot-column {
+    display: none;
+  }
+}
+
+/* Mobile: par de 2 quadros dentro do fluxo editorial. */
+.ad-pair-row {
+  border-top: 1px solid var(--site-line);
+  border-bottom: 1px solid var(--site-line);
+  padding: 16px 0;
+  margin: 8px 0;
+}
+
+/* --- Reserva de espaço para Google AdSense (futuro — sem integração agora) ---
+   Faixa slim, de fora a fora, sempre iniciando recolhida (o leitor decide
+   expandir). Altura fixa evita salto de layout quando o anúncio real
+   entrar no lugar. */
+
+.adsense-strip {
+  width: 100%;
+  border-bottom: 1px solid var(--site-line);
+  background: var(--site-surface);
+}
+.adsense-slot-label {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--site-muted);
+}
+.adsense-toggle {
+  flex-shrink: 0;
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--brand-navy);
+  padding: 4px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--site-line);
+}
+.adsense-toggle:hover {
+  border-color: var(--brand-navy);
+}
+.adsense-slot-expanded {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 60px;
+  border: 1px dashed var(--site-line);
+  border-radius: 6px;
+  background: var(--site-bg);
+  text-align: center;
+  padding: 8px 16px;
+}
+@media (min-width: 768px) {
+  .adsense-slot-expanded {
+    min-height: 90px;
+  }
+}
+
+/* --- Faixa de conteúdo local (muda o ritmo da rolagem) --- */
+
+.local-band {
+  width: 100%;
+  background: linear-gradient(155deg, var(--brand-navy), #17172f);
+}
+/* Embutida na coluna central (entre os 6 quadros de publicidade) — precisa
+   do próprio respiro horizontal, já que não é mais de fora a fora. */
+.local-band--contained {
+  border-radius: 8px;
+  padding-left: clamp(16px, 3vw, 32px);
+  padding-right: clamp(16px, 3vw, 32px);
+}
+
+/* --- Utilitários gerais --- */
 
 .card-hover {
   transition: transform 260ms ease, box-shadow 260ms ease, border-color 260ms ease;
 }
-
 .card-hover:hover {
   transform: translateY(-2px);
-  box-shadow: 0 18px 40px rgba(2, 8, 23, 0.14);
-  border-color: rgba(15, 95, 73, 0.28);
+  box-shadow: 0 18px 40px rgba(20, 20, 40, 0.12);
 }
 
 .reveal-up {
   animation: reveal-up 420ms ease both;
 }
-
 @keyframes reveal-up {
   from { opacity: 0; transform: translateY(8px); }
   to { opacity: 1; transform: translateY(0); }
@@ -65,70 +292,268 @@ body {
   0% { transform: translateX(0); }
   100% { transform: translateX(-50%); }
 }
-
 .ticker-track {
-  animation: ticker-scroll 30s linear infinite;
+  animation: ticker-scroll 34s linear infinite;
+}
+@media (max-width: 768px) {
+  .ticker-track { animation-duration: 24s; }
+}
+
+/* --- Manchete principal (hero) --- */
+
+.hero-stage {
+  isolation: isolate;
+}
+
+/* Fundo do hero: composição própria da identidade (azul/índigo em
+   gradiente) — a fotografia nunca é obrigada a preencher 100% da área;
+   ela é uma camada por cima deste fundo. */
+.hero-backdrop {
+  background:
+    radial-gradient(1100px 640px at 82% 8%, rgba(192, 48, 48, 0.16), transparent 60%),
+    radial-gradient(900px 520px at 8% 92%, rgba(48, 48, 92, 0.5), transparent 60%),
+    linear-gradient(150deg, #1a1a38 0%, #262657 48%, #30305c 100%);
+}
+
+.hero-photo-layer {
+  overflow: hidden;
+}
+
+.hero-parallax {
+  transform: translate3d(var(--hero-px, 0px), var(--hero-py, 0px), 0);
+  transition: transform 260ms ease-out;
+  height: 100%;
+  width: 100%;
+}
+
+/* Zoom contínuo (Ken Burns), alternando ida e volta — mais vida na foto
+   sem ser um efeito que "salta aos olhos". */
+.hero-kenburns {
+  animation: hero-kenburns 13s ease-in-out infinite alternate;
+  transform-origin: 55% 45%;
+}
+@keyframes hero-kenburns {
+  from { transform: scale(1.05); }
+  to { transform: scale(1.18); }
+}
+
+/* Foto nítida — camada dentro do fundo, nunca a área inteira. Bordas
+   dissolvidas por máscara direto no fundo (nunca border-radius/recorte).
+   Mobile: topo com fade bem discreto (a foto ainda tem presença forte),
+   base dissolve com força. Desktop: topo e esquerda também se dissolvem —
+   a foto "emerge" do fundo em vez de parecer um retângulo colado; a
+   direita não precisa de máscara porque sangra para fora da viewport. */
+.hero-photo-fg {
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0%, black 5%, black 60%, transparent 97%);
+  mask-image: linear-gradient(to bottom, transparent 0%, black 5%, black 60%, transparent 97%);
+}
+@media (min-width: 768px) {
+  .hero-photo-fg {
+    -webkit-mask-image:
+      linear-gradient(to right, transparent 0%, black 20%, black 100%),
+      linear-gradient(to bottom, transparent 0%, black 16%, black 58%, transparent 97%);
+    -webkit-mask-composite: source-in;
+    mask-image:
+      linear-gradient(to right, transparent 0%, black 20%, black 100%),
+      linear-gradient(to bottom, transparent 0%, black 16%, black 58%, transparent 97%);
+    mask-composite: intersect;
+  }
 }
 
 .hero-image-zoom {
   animation: hero-image-zoom 7s ease-out both;
   transform-origin: center;
 }
-
 .hero-text-reveal {
   animation: hero-text-reveal 520ms ease-out both;
 }
-
 .hero-hover-image {
   transition: transform 700ms ease, filter 500ms ease;
 }
-
 .group:hover .hero-hover-image,
 .group:focus-visible .hero-hover-image {
-  transform: scale(1.08);
-  filter: saturate(1.08) contrast(1.04);
+  transform: scale(1.06);
+  filter: saturate(1.06) contrast(1.03);
 }
-
 .hero-hover-overlay {
   transition: background 420ms ease;
 }
-
-.group:hover .hero-hover-overlay,
-.group:focus-visible .hero-hover-overlay {
-  background: linear-gradient(to bottom, rgba(0,0,0,.18), rgba(0,0,0,.22), rgba(0,0,0,.78));
-}
-
 .hero-sheen {
   opacity: 0;
-  background: linear-gradient(110deg, transparent 30%, rgba(255,255,255,.16) 46%, transparent 62%);
+  background: linear-gradient(110deg, transparent 30%, rgba(255, 255, 255, 0.14) 46%, transparent 62%);
   transform: translateX(-130%);
   transition: opacity 250ms ease;
 }
-
 .group:hover .hero-sheen,
 .group:focus-visible .hero-sheen {
   opacity: 1;
   animation: hero-sheen 900ms ease;
 }
-
 @keyframes hero-image-zoom {
-  from { transform: scale(1.07); }
+  from { transform: scale(1.06); }
   to { transform: scale(1); }
 }
-
 @keyframes hero-text-reveal {
   from { opacity: 0; transform: translateY(14px); }
   to { opacity: 1; transform: translateY(0); }
 }
-
 @keyframes hero-sheen {
   from { transform: translateX(-130%); }
   to { transform: translateX(130%); }
 }
 
-@media (max-width: 768px) {
-  .ticker-track { animation-duration: 22s; }
+.hero-dot {
+  height: 6px;
+  width: 6px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.5);
+  transition: all 220ms ease;
 }
+.hero-dot.is-active {
+  width: 22px;
+  background: #fff;
+}
+
+/* --- Header --- */
+
+.site-header {
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  background: var(--site-surface);
+  border-bottom: 1px solid var(--site-line);
+}
+
+.brand-chip {
+  display: inline-flex;
+  align-items: center;
+  background: #000;
+  padding: 6px 14px;
+  border-radius: 6px;
+}
+.brand-chip img {
+  display: block;
+  height: 30px;
+  width: auto;
+}
+
+/* Aplicação limpa da marca no header: só o símbolo oficial (`logo-ir.png`,
+   com transparência real) + nome tipográfico — sem placa/fundo pesado.
+   A logo em si não é alterada; só deixa de precisar de uma base sólida por
+   trás porque este símbolo já é transparente. */
+.brand-mark {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+.brand-mark img {
+  display: block;
+  height: 34px;
+  width: auto;
+}
+.brand-mark-name {
+  display: flex;
+  flex-direction: column;
+  line-height: 1;
+}
+.brand-mark-name strong {
+  font-family: var(--font-headline), Georgia, serif;
+  font-size: 16px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  color: var(--site-text);
+}
+.brand-mark-name span {
+  margin-top: 3px;
+  font-size: 8px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--brand-red);
+}
+
+.nav-link {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  padding: 8px 2px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  color: var(--site-text);
+  white-space: nowrap;
+}
+.nav-link::after {
+  content: "";
+  position: absolute;
+  left: 2px;
+  right: 2px;
+  bottom: 3px;
+  height: 2px;
+  background: var(--brand-red);
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: transform 220ms ease;
+}
+.nav-link:hover::after,
+.nav-link.is-active::after {
+  transform: scaleX(1);
+}
+.nav-link.is-active {
+  color: var(--brand-red);
+}
+
+.nav-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 9px 14px;
+  border-radius: 999px;
+  border: 1px solid var(--site-line);
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--site-text);
+  transition: all 200ms ease;
+}
+.nav-pill:hover {
+  border-color: var(--brand-navy);
+  color: var(--brand-navy);
+  background: rgba(48, 48, 92, 0.05);
+}
+.nav-pill--solid {
+  background: var(--brand-navy);
+  border-color: var(--brand-navy);
+  color: #fff;
+}
+.nav-pill--solid:hover {
+  background: var(--brand-red);
+  border-color: var(--brand-red);
+  color: #fff;
+}
+.nav-pill:active {
+  transform: scale(0.97);
+}
+
+.icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 38px;
+  width: 38px;
+  border-radius: 999px;
+  color: var(--site-text);
+  transition: background 180ms ease, color 180ms ease, transform 120ms ease;
+}
+.icon-btn:hover {
+  background: var(--site-bg);
+  color: var(--brand-navy);
+}
+.icon-btn:active {
+  transform: scale(0.94);
+}
+
+/* Menu mobile — mecanismo reaproveitado (slide-up + hamburguer), recolorido
+   e simplificado para a nova identidade. */
 
 .ir-mobile-trigger {
   position: relative;
@@ -139,57 +564,49 @@ body {
   flex-direction: column;
   justify-content: center;
   gap: 5px;
-  border-radius: 9999px;
-  border: 1px solid rgba(15, 95, 73, 0.35);
-  background: rgba(255, 255, 255, 0.92);
+  border-radius: 999px;
+  border: 1px solid var(--site-line);
+  background: var(--site-surface);
   padding: 10px;
   transition: all 220ms ease;
 }
-
 .ir-mobile-back-btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   height: 44px;
   width: 44px;
-  border-radius: 9999px;
-  border: 1px solid rgba(15, 95, 73, 0.32);
-  background: rgba(255, 255, 255, 0.92);
-  color: #0f5f49;
+  border-radius: 999px;
+  border: 1px solid var(--site-line);
+  background: var(--site-surface);
+  color: var(--brand-navy);
   font-size: 1.2rem;
   font-weight: 800;
 }
-
 .ir-mobile-back-btn.is-hidden {
   visibility: hidden;
 }
-
 .ir-mobile-trigger .bar {
   height: 3px;
   width: 100%;
-  border-radius: 9999px;
-  background: #0f5f49;
+  border-radius: 999px;
+  background: var(--brand-navy);
   transition: all 260ms ease;
 }
-
 .ir-mobile-trigger .bar.top,
 .ir-mobile-trigger .bar.bottom {
   width: 70%;
 }
-
 .ir-mobile-trigger .bar.bottom {
   margin-left: auto;
 }
-
 .ir-mobile-trigger.is-open .bar.top {
   width: 100%;
   transform: translateY(8px) rotate(45deg);
 }
-
 .ir-mobile-trigger.is-open .bar.middle {
   opacity: 0;
 }
-
 .ir-mobile-trigger.is-open .bar.bottom {
   width: 100%;
   margin-left: 0;
@@ -205,225 +622,355 @@ body {
   opacity: 0;
   transition: opacity 360ms ease;
 }
-
 .ir-mobile-layer.is-open {
   pointer-events: auto;
   opacity: 1;
 }
-
 .ir-mobile-backdrop {
   position: absolute;
   inset: 0;
-  background: rgba(8, 15, 24, 0.42);
+  background: rgba(8, 8, 16, 0.5);
   backdrop-filter: blur(2px);
 }
-
-.ir-mobile-bg {
-  position: absolute;
-  left: -35%;
-  width: 170%;
-  background: #fffef8;
-  transform: rotate(-14deg) translateY(-128%);
-  transition: transform 320ms cubic-bezier(.25,.8,.25,1);
-}
-
-.ir-mobile-bg.top {
-  top: -6%;
-  height: 34%;
-}
-
-.ir-mobile-bg.middle {
-  top: 22%;
-  height: 42%;
-  background: #f4f8f6;
-  transition-delay: 50ms;
-}
-
-.ir-mobile-bg.bottom {
-  top: 58%;
-  height: 44%;
-  background: #e9f1ee;
-  transition-delay: 90ms;
-}
-
-.ir-mobile-layer.is-open .ir-mobile-bg {
-  transform: rotate(-18deg) translateY(0%);
-}
-
 .ir-mobile-menu {
   position: absolute;
   left: 0;
   right: 0;
   bottom: 0;
-  height: min(78vh, 640px);
+  height: min(82vh, 660px);
   width: 100%;
-  border-radius: 22px 22px 0 0;
-  padding: 18px 16px 30px;
-  background:
-    radial-gradient(780px 320px at 100% -12%, rgba(17, 78, 133, 0.16), transparent 60%),
-    radial-gradient(660px 300px at -20% 18%, rgba(15, 95, 73, 0.14), transparent 56%),
-    linear-gradient(175deg, #fffef8, #f2f7f4);
-  border: 1px solid rgba(15, 95, 73, 0.18);
+  border-radius: 20px 20px 0 0;
+  padding: 18px 18px calc(20px + env(safe-area-inset-bottom, 0px));
+  background: var(--site-surface);
+  border-top: 3px solid var(--brand-red);
   transform: translateY(110%);
-  transition: transform 420ms cubic-bezier(.16,1,.3,1);
+  transition: transform 420ms cubic-bezier(0.16, 1, 0.3, 1);
   overflow-y: auto;
   box-shadow: 0 -20px 50px rgba(2, 8, 23, 0.28);
 }
-
 .ir-mobile-layer.is-open .ir-mobile-menu {
   transform: translateY(0%);
 }
 
-.ir-mobile-nav-cta {
-  justify-content: center;
-  min-height: 46px;
+.ir-mobile-nav-link {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 52px;
+  padding: 0 14px;
   border-radius: 10px;
-  background: rgba(255, 255, 255, 0.7);
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--site-text);
+  border-bottom: 1px solid var(--site-line);
 }
-
+.ir-mobile-nav-link.is-pending {
+  background: var(--brand-navy);
+  color: #fff;
+  border-color: var(--brand-navy);
+}
 .ir-mobile-search-cta {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
   width: 100%;
-  min-height: 50px;
-  background: #0f5f49;
-  border-color: #0f5f49;
+  min-height: 52px;
+  border-radius: 999px;
+  background: var(--brand-red);
   color: #fff;
+  font-size: 14px;
+  font-weight: 800;
 }
 
-.ir-mobile-search-cta::before,
-.ir-mobile-search-cta::after {
-  width: 100%;
-  background: #f4c430;
-}
+/* --- Publicidade: efeitos de troca de criativo (mantidos) --- */
 
-.ir-mobile-nav-cta.is-pending {
-  background: #0f5f49;
-  color: #fff;
-  border-color: #0f5f49;
-  transform: translateY(-1px);
-}
+.ad-effect-fade { animation: ad-fade 520ms ease both; }
+.ad-effect-slide { animation: ad-slide 520ms ease both; }
+.ad-effect-zoom { animation: ad-zoom 560ms ease both; }
+.ad-effect-flip { animation: ad-flip 640ms ease both; transform-style: preserve-3d; }
+.ad-effect-blur { animation: ad-blur 560ms ease both; }
 
-.ir-mobile-nav-cta.is-pending::before,
-.ir-mobile-nav-cta.is-pending::after {
-  width: 100%;
-  background: #f4c430;
-}
+@keyframes ad-fade { from { opacity: 0.28; } to { opacity: 1; } }
+@keyframes ad-slide { from { opacity: 0.4; transform: translateX(14px); } to { opacity: 1; transform: translateX(0); } }
+@keyframes ad-zoom { from { opacity: 0.45; transform: scale(1.06); } to { opacity: 1; transform: scale(1); } }
+@keyframes ad-flip { from { opacity: 0.45; transform: perspective(700px) rotateY(10deg); } to { opacity: 1; transform: perspective(700px) rotateY(0); } }
+@keyframes ad-blur { from { opacity: 0.38; filter: blur(4px); } to { opacity: 1; filter: blur(0); } }
 
-.ir-nav-cta:active {
-  background: #0f5f49;
-  color: #ffffff;
-  border-color: #0f5f49;
-  transform: translateY(-1px) scale(0.99);
-}
+/* --- Galeria de matéria (grade no desktop, scroll-snap no mobile) --- */
 
-.ir-nav-cta:active::before,
-.ir-nav-cta:active::after {
-  width: 100%;
-  background: #f4c430;
+.article-gallery-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
 }
-
-.ir-nav-cta {
+.article-gallery-grid button {
   position: relative;
+  aspect-ratio: 4 / 3;
+  overflow: hidden;
+  border-radius: 6px;
+}
+.article-gallery-grid img {
+  height: 100%;
+  width: 100%;
+  object-fit: cover;
+  transition: transform 400ms ease;
+}
+.article-gallery-grid button:hover img {
+  transform: scale(1.05);
+}
+
+.article-gallery-scroll {
+  display: flex;
+  gap: 10px;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  -webkit-overflow-scrolling: touch;
+  padding-bottom: 6px;
+  margin: 0 -16px;
+  padding-left: 16px;
+  padding-right: 16px;
+}
+.article-gallery-scroll > * {
+  scroll-snap-align: center;
+  flex: 0 0 82%;
+}
+@media (min-width: 640px) {
+  .article-gallery-scroll > * {
+    flex-basis: 46%;
+  }
+}
+
+.lightbox-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  background: rgba(6, 7, 12, 0.94);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 76px 20px calc(76px + env(safe-area-inset-bottom, 0px));
+  touch-action: pan-y;
+}
+.lightbox-backdrop img {
+  max-height: 78vh;
+  max-width: 100%;
+  object-fit: contain;
+  border-radius: 4px;
+}
+.lightbox-topbar {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: calc(14px + env(safe-area-inset-top, 0px)) 16px 14px;
+}
+.lightbox-counter {
+  font-size: 12px;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.75);
+  font-variant-numeric: tabular-nums;
+}
+.lightbox-close {
   display: inline-flex;
   align-items: center;
-  padding: 6px 11px;
-  text-decoration: none;
-  color: #0f5f49;
-  background: transparent;
-  border: 1px solid rgba(15, 95, 73, 0.28);
-  transition: all 220ms ease;
-  overflow: hidden;
+  justify-content: center;
+  height: 44px;
+  width: 44px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.14);
+  color: #fff;
+  font-size: 18px;
+  flex-shrink: 0;
 }
-
-.ir-nav-text {
-  position: relative;
-  z-index: 2;
-  font-size: 10px;
-  font-weight: 800;
-  letter-spacing: 0.04em;
-  line-height: 1;
-  white-space: nowrap;
-}
-
-.ir-nav-cta::before,
-.ir-nav-cta::after {
-  content: "";
+.lightbox-nav {
   position: absolute;
-  background: #114e85;
-  transition: all 240ms ease;
+  top: 50%;
+  transform: translateY(-50%);
+  height: 48px;
+  width: 48px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
+  font-size: 20px;
+  z-index: 2;
 }
-
-.ir-nav-cta::before {
+.lightbox-nav.prev { left: 12px; }
+.lightbox-nav.next { right: 12px; }
+@media (max-width: 640px) {
+  .lightbox-nav {
+    display: none;
+  }
+}
+.lightbox-caption {
+  position: absolute;
   left: 0;
-  top: 0;
-  height: 3px;
-  width: 18px;
-  box-shadow: 0 0 6px rgba(244, 196, 48, 0.22);
-}
-
-.ir-nav-cta::after {
   right: 0;
-  bottom: 0;
-  height: 3px;
-  width: 18px;
-  box-shadow: 0 0 6px rgba(244, 196, 48, 0.22);
+  bottom: calc(20px + env(safe-area-inset-bottom, 0px));
+  text-align: center;
+  color: #fff;
+  font-size: 13px;
+  padding: 0 16px;
+}
+.lightbox-caption span {
+  display: block;
+  color: rgba(255, 255, 255, 0.6);
+  margin-top: 4px;
 }
 
-.ir-nav-cta:hover {
-  background: #0f5f49;
-  color: #ffffff;
-  border-color: #0f5f49;
-  transform: translateY(-1px);
+/* --- Cabeçalho da página de matéria: voltar, título largo, metadados discretos --- */
+
+.back-link {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--site-muted);
+  transition: color 150ms ease, gap 150ms ease;
+}
+.back-link:hover {
+  color: var(--brand-red);
+  gap: 8px;
 }
 
-.ir-nav-cta:hover::before,
-.ir-nav-cta:hover::after {
+.article-title {
+  max-width: none;
+  overflow-wrap: normal;
+  word-break: normal;
+  text-wrap: balance;
+}
+
+.article-meta {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--site-muted);
+  letter-spacing: 0.01em;
+}
+
+.gallery-indicator {
+  position: absolute;
+  right: 12px;
+  bottom: 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #fff;
+  background: rgba(10, 11, 16, 0.6);
+  backdrop-filter: blur(2px);
+  padding: 5px 11px;
+  border-radius: 999px;
+  letter-spacing: 0.02em;
+}
+
+/* --- Corpo de matéria (HTML gerado pelo editor) --- */
+
+.article-body {
+  font-size: 18px;
+  line-height: 1.85;
+  color: var(--site-text);
+}
+.article-body p {
+  margin: 0 0 20px;
+}
+.article-body p:last-child {
+  margin-bottom: 0;
+}
+.article-body h3 {
+  font-family: var(--font-headline), Georgia, serif;
+  font-size: 26px;
+  margin: 34px 0 14px;
+}
+.article-body blockquote {
+  border-left: 3px solid var(--brand-red);
+  margin: 24px 0;
+  padding: 4px 0 4px 20px;
+  color: var(--site-muted);
+  font-style: italic;
+  font-size: 19px;
+}
+.article-body ul,
+.article-body ol {
+  margin: 0 0 20px;
+  padding-left: 26px;
+}
+.article-body a {
+  color: var(--brand-navy);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+/* --- Rodapé --- */
+
+.site-footer {
+  margin-top: 64px;
+  border-top: 1px solid var(--site-line);
+  background: var(--site-surface);
+}
+.footer-heading {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--site-muted);
+  margin-bottom: 14px;
+}
+.footer-link {
+  display: block;
+  padding: 6px 0;
+  font-size: 13px;
+  color: var(--site-text);
+}
+.footer-link:hover {
+  color: var(--brand-red);
+}
+
+@media (max-width: 900px) {
+  .article-gallery-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+/* --- Botão flutuante do WhatsApp --- */
+
+.whatsapp-float {
+  position: fixed;
+  right: 18px;
+  bottom: calc(18px + env(safe-area-inset-bottom, 0px));
+  z-index: 50;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 56px;
+  width: 56px;
+  border-radius: 999px;
+  overflow: hidden;
+  background: #fff;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.24);
+  transition: transform 220ms ease, box-shadow 220ms ease;
+}
+.whatsapp-float img {
+  height: 100%;
   width: 100%;
-  background: #f4c430;
-  box-shadow: 0 0 10px rgba(244, 196, 48, 0.45);
+  object-fit: cover;
 }
-
-.ad-effect-fade {
-  animation: ad-fade 520ms ease both;
+@media (hover: hover) {
+  .whatsapp-float:hover {
+    transform: translateY(-3px) scale(1.05);
+    box-shadow: 0 14px 30px rgba(0, 0, 0, 0.3);
+  }
 }
-
-.ad-effect-slide {
-  animation: ad-slide 520ms ease both;
+.whatsapp-float:active {
+  transform: scale(0.96);
 }
-
-.ad-effect-zoom {
-  animation: ad-zoom 560ms ease both;
-}
-
-.ad-effect-flip {
-  animation: ad-flip 640ms ease both;
-  transform-style: preserve-3d;
-}
-
-.ad-effect-blur {
-  animation: ad-blur 560ms ease both;
-}
-
-@keyframes ad-fade {
-  from { opacity: 0.28; }
-  to { opacity: 1; }
-}
-
-@keyframes ad-slide {
-  from { opacity: 0.4; transform: translateX(14px); }
-  to { opacity: 1; transform: translateX(0); }
-}
-
-@keyframes ad-zoom {
-  from { opacity: 0.45; transform: scale(1.06); }
-  to { opacity: 1; transform: scale(1); }
-}
-
-@keyframes ad-flip {
-  from { opacity: 0.45; transform: perspective(700px) rotateY(10deg); }
-  to { opacity: 1; transform: perspective(700px) rotateY(0); }
-}
-
-@keyframes ad-blur {
-  from { opacity: 0.38; filter: blur(4px); }
-  to { opacity: 1; filter: blur(0); }
+@media (max-width: 640px) {
+  .whatsapp-float {
+    right: 14px;
+    bottom: calc(14px + env(safe-area-inset-bottom, 0px));
+    height: 52px;
+    width: 52px;
+  }
 }
