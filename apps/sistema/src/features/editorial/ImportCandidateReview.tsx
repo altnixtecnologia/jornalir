@@ -1,8 +1,9 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
-import type { ArticleMedia, EditorialSection, ImportCandidate, Locality, MediaAsset } from "@ir/types";
+import type { ArticleMedia, EditorialSection, ImportCandidate, Locality, MediaAsset, NewspaperEdition } from "@ir/types";
 import {
   convertCandidate,
   discardCandidate,
@@ -11,6 +12,7 @@ import {
 } from "../../app/sistema/editorial/importar-pdf/actions";
 import { ArticleBodyEditor } from "./ArticleBodyEditor";
 import { ArticleMediaPicker } from "./ArticleMediaPicker";
+import { DestinoEditorial } from "./DestinoEditorial";
 import { ImportCandidateSourcePreview } from "./ImportCandidateSourcePreview";
 import {
   addGalleryMedia,
@@ -22,7 +24,7 @@ import {
   setMediaCredit,
   suggestedIdsToArticleMedia,
 } from "./articleMediaState";
-import { importCandidateStatusLabels } from "./editorialLabels";
+import { editionPageLabel, importCandidateStatusLabels } from "./editorialLabels";
 
 const EXTRACTION_METHOD_LABELS: Record<string, string> = {
   textLayer: "Camada de texto do PDF",
@@ -33,6 +35,7 @@ const EXTRACTION_METHOD_LABELS: Record<string, string> = {
 interface ImportCandidateReviewProps {
   candidate: ImportCandidate;
   editionTitle: string;
+  edition?: NewspaperEdition;
   sections: EditorialSection[];
   localities: Locality[];
   mediaAssets: MediaAsset[];
@@ -41,6 +44,7 @@ interface ImportCandidateReviewProps {
 export function ImportCandidateReview({
   candidate,
   editionTitle,
+  edition,
   sections,
   localities,
   mediaAssets,
@@ -147,6 +151,14 @@ export function ImportCandidateReview({
             Este candidato já foi {candidate.status === "converted" ? "convertido em matéria" : "descartado"} e não pode mais ser editado aqui.
           </p>
         ) : null}
+        {candidate.status === "converted" && candidate.createdArticleId ? (
+          <p className="helper-text">
+            Matéria já criada a partir deste candidato — convertê-lo de novo não é possível.{" "}
+            <Link className="section-more" href={`/sistema/editorial/materias/${candidate.createdArticleId}`}>
+              Abrir a matéria →
+            </Link>
+          </p>
+        ) : null}
       </section>
 
       <section className="form-section" aria-labelledby="identificacao-title">
@@ -238,6 +250,20 @@ export function ImportCandidateReview({
           />
         </div>
       </section>
+
+      <DestinoEditorial
+        sectionName={sections.find((section) => section.id === sectionId)?.name}
+        localityName={localities.find((locality) => locality.id === localityId)?.name}
+        placementType="none"
+        notificationMode="none"
+        publicationLine={
+          isPending
+            ? "Ao converter, nasce como rascunho — destaque, notificação e publicação/agendamento são decididos na edição da matéria."
+            : "Este candidato já foi processado — veja a matéria criada (ou a informação de mesclagem) acima."
+        }
+        editionLine={editionPageLabel(editionTitle, pageNumber ? Number(pageNumber) : candidate.pageNumber)}
+        digitalEditionUrl={edition?.pdfUrl}
+      />
 
       <section className="form-section" aria-labelledby="imagens-title">
         <h2 id="imagens-title">Imagens</h2>

@@ -1,5 +1,6 @@
 import type {
   Article,
+  ArticleOrigin,
   ArticleStatus,
   EditorialPlacementType,
   ImportCandidateStatus,
@@ -43,6 +44,20 @@ export const localityScopeLabels: Record<LocalityScope, string> = {
   general: "Geral",
 };
 
+export const articleOriginLabels: Record<ArticleOrigin, string> = {
+  manual: "Manual",
+  pdfImport: "Importado do PDF",
+};
+
+/** "Edição 037 · Página 6" (ou variação sem página) — só quando a matéria tem edição vinculada. */
+export function editionPageLabel(
+  editionTitle: string | undefined,
+  pageNumber: number | undefined,
+): string | null {
+  if (!editionTitle) return null;
+  return pageNumber ? `${editionTitle} · Página ${pageNumber}` : editionTitle;
+}
+
 export function formatDate(iso?: string): string {
   if (!iso) return "—";
   return new Date(iso).toLocaleDateString("pt-BR", {
@@ -72,6 +87,10 @@ export function publicationDate(article: Article): string {
 
 export function hasCoverImage(article: Article): boolean {
   return article.media.some((item) => item.role === "cover");
+}
+
+export function photoCount(article: Article): number {
+  return article.media.length;
 }
 
 export function mediaSummary(article: Article): string {

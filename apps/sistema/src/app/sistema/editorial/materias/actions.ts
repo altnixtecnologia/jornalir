@@ -36,6 +36,12 @@ function styleOrUndefined(style: EditorialTextStyle): EditorialTextStyle | undef
   return isDefaultTextStyle(style) ? undefined : style;
 }
 
+/** Página da edição é só um número corrigível — nunca cria vínculo com edição a partir daqui. */
+function parseEditionPageNumber(value: string): number | undefined {
+  const parsed = Number(value);
+  return value.trim() && Number.isFinite(parsed) && parsed > 0 ? parsed : undefined;
+}
+
 function revalidateAndRedirect(id: string): never {
   revalidatePath(LIST_PATH);
   revalidatePath(`${LIST_PATH}/${id}`);
@@ -99,6 +105,7 @@ export async function updateArticle(
 
   try {
     const placement = buildPlacement(payload);
+    const editionPageNumber = parseEditionPageNumber(payload.editionPageNumber);
     const baseChanges = {
       title: payload.title.trim(),
       titleStyle: styleOrUndefined(payload.titleStyle),
@@ -110,6 +117,9 @@ export async function updateArticle(
       notificationMode: payload.notificationMode,
       media: payload.media,
       placement,
+      // Só corrige a página quando o formulário de fato enviou uma (matéria já vinculada a uma edição) —
+      // nunca sobrescreve com undefined uma página existente de uma matéria manual sem edição.
+      ...(editionPageNumber !== undefined ? { editionPageNumber } : {}),
     };
 
     if (intent === "draft") {

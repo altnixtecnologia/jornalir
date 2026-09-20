@@ -13,6 +13,22 @@ export class ImportCandidateNotFoundError extends Error {
   }
 }
 
+/**
+ * Defesa em profundidade: a interface já esconde a ação de converter para um
+ * candidato que não está mais pendente, mas o serviço nunca deve confiar só
+ * na UI — duas conversões do mesmo candidato criariam duas matérias
+ * silenciosamente duplicadas.
+ */
+export class ImportCandidateAlreadyProcessedError extends Error {
+  constructor(id: string, status: ImportCandidate["status"], createdArticleId?: string) {
+    super(
+      status === "converted"
+        ? `Candidato ${id} já foi convertido em matéria${createdArticleId ? ` (${createdArticleId})` : ""} — não é possível converter de novo.`
+        : `Candidato ${id} já foi descartado e não pode ser convertido.`,
+    );
+  }
+}
+
 export interface ReviewCandidateInput {
   title?: string;
   subtitle?: string;
@@ -155,6 +171,9 @@ export class ImportCandidateService {
    */
   async convertToDraft(id: string, input: ConvertCandidateInput, audit: AuditContext) {
     const candidate = await this.getById(id);
+    if (candidate.status !== "pending") {
+      throw new ImportCandidateAlreadyProcessedError(id, candidate.status, candidate.createdArticleId);
+    }
     const sectionId = input.sectionId ?? candidate.suggestedSectionId;
     const localityId = input.localityId ?? candidate.suggestedLocalityId;
 

@@ -7,6 +7,7 @@ import {
   editorialSectionService,
   localityService,
   mediaAssetService,
+  newspaperEditionService,
 } from "../../../../../composition/editorial";
 
 export default async function MateriaEditPage({
@@ -20,10 +21,11 @@ export default async function MateriaEditPage({
   });
   if (!article) notFound();
 
-  const [sections, localities, mediaAssets] = await Promise.all([
+  const [sections, localities, mediaAssets, editions] = await Promise.all([
     editorialSectionService.list(),
     localityService.list(),
     mediaAssetService.list(),
+    newspaperEditionService.list(),
   ]);
 
   return (
@@ -39,6 +41,7 @@ export default async function MateriaEditPage({
         sections={sections}
         localities={localities}
         mediaAssets={mediaAssets}
+        editions={editions}
       />
     </>
   );

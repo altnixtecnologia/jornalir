@@ -1,5 +1,67 @@
 # Handoff — JornalIR
 
+## Fase 15 — fluxo editorial completo do painel (21/09/2026)
+
+- Branch: `feature/jornalir-core-foundation-20260917`.
+- HEAD ao iniciar a fase: `a4311be` (commit do portal público, apps/site — apps/sistema seguia em `3319d70`, Fase 12).
+- Entrega: fecha o caminho `Selecionar edição → carregar PDF → extrair → revisar candidatos → transformar em matéria → editar → publicar/agendar` sem vínculos soltos. Boa parte do domínio (`Article` já com `placement`, `notificationMode`, `editionId`/`editionPageNumber`, `origin`, `reference`, `media[]`; `ImportCandidate` já com `createdArticleId`) já existia desde as Fases 06–09 — esta fase é majoritariamente de **interface e uma lacuna real de defesa em profundidade no serviço**, não de novo modelo de dados. Ainda sem Supabase, auth real, integração Altnix, publicidade/playlist, financeiro, CRM ou redesign do painel inteiro.
+
+### Achado real corrigido — conversão duplicada não era bloqueada pelo serviço
+
+`ImportCandidateService.convertToDraft` (packages/core) nunca checava `candidate.status` antes de converter — a proteção contra "converter duas vezes o mesmo candidato" existia **só na interface** (`ImportCandidateList`/`ImportCandidateReview` escondem o botão quando não `pending`), o que é fácil de contornar (chamar a Server Action de novo, uma aba antiga, um clique duplo antes do revalidate). Corrigido: novo `ImportCandidateAlreadyProcessedError` e uma checagem no início de `convertToDraft` que rejeita qualquer conversão de candidato que não esteja `pending`, citando a matéria já criada quando aplicável. Validado no script de negócio (abaixo): reconverter o mesmo candidato é rejeitado e nunca cria uma segunda matéria.
+
+### `DestinoEditorial.tsx` (novo) — "para onde essa matéria vai", sempre derivado
+
+Componente de apresentação puro (`apps/sistema/src/features/editorial/DestinoEditorial.tsx`): recebe editoria, localidade, destaque/placement (com janela de início/fim quando houver), notificação, uma frase de publicação já resolvida pelo chamador, e opcionalmente edição/página + URL da edição digital. Nunca decide uma regra nova — só lê o que a própria matéria (ou o candidato em revisão) já tem configurado. Usado em dois lugares: `ArticleForm.tsx` (aside, computado a partir do estado atual do formulário — atualiza ao vivo enquanto o usuário edita, antes mesmo de salvar) e `ImportCandidateReview.tsx` (abaixo da Classificação, com uma frase própria explicando que destaque/publicação só são decididos depois, na edição da matéria criada — a conversão sempre nasce `draft` sem destaque).
+
+### Vínculo com a edição — visível e corrigível, nunca inventado
+
+- `ArticleForm.tsx`: nova seção "Origem" no aside (só aparece editando uma matéria existente) — pílula de origem (`articleOriginLabels`: Manual/Importado do PDF) e, quando há `editionId`, `editionPageLabel(edition.title, article.editionPageNumber)` (ex.: "Edição 037 — 08 a 14 de setembro · Página 6") mais um campo numérico para corrigir a página depois de importada. "Ver esta matéria na edição digital" só vira link real quando `NewspaperEdition.pdfUrl` existe (campo já presente no tipo desde a Fase 08, hoje sempre vazio nos mocks) — sem `pdfUrl`, mostra texto explicando que o link ainda não está disponível. **Nunca inventamos a URL.**
+- `ImportCandidateReview.tsx`: mesma lógica via `DestinoEditorial`, usando a edição já carregada pela página (`edition.pdfUrl`).
+- `materias/actions.ts`: `updateArticle` só inclui `editionPageNumber` no patch quando o formulário de fato enviou um valor válido — nunca sobrescreve com `undefined` a página de uma matéria manual sem edição (spread de um objeto com a chave ausente, não com valor `undefined`).
+
+### Listagem de matérias — origem, edição/página e filtros novos
+
+`MateriasList.tsx`: nova coluna "Origem" (pílula + edição/página abaixo, quando houver) na tabela desktop e na meta-linha dos cartões mobile; três novos filtros (Origem, Fotos — com/sem, Destaque — com/sem), somando aos já existentes (status, editoria, localidade, busca). Tudo client-side sobre o array já carregado (mesmo padrão desde a Fase 05) — sem novo filtro no repositório, que já tinha `ArticleFilters.placementType`/`editionId` não usados por esta tela. `materias/page.tsx` passou a buscar também `newspaperEditionService.list()`.
+
+### Não duplicar matéria — reforçado na revisão do candidato, não só na lista
+
+`ImportCandidateList.tsx` já mostrava "Ver rascunho" para candidato convertido desde a Fase 08 (não mudou). `ImportCandidateReview.tsx` (a tela de detalhe) não tinha o mesmo link — corrigido: candidato `converted` com `createdArticleId` agora mostra "Abrir a matéria →" na própria seção "Origem", ao lado do aviso de que a edição está bloqueada.
+
+### Correção de página — só onde já existe edição
+
+`ArticleFormPayload` ganhou `editionPageNumber: string` (valor do campo, paralelo ao padrão já usado por `ImportCandidateReview` para `pageNumber`). Em `ArticleForm`, o campo só é renderizado quando `article.editionId` existe — matéria manual nunca ganha esse campo na tela, então o payload chega vazio e a Server Action não aplica a chave (ver acima).
+
+### CSS
+
+Bloco novo em `globals.css`: `.origin-pill`/`.origin-pill--manual`/`.origin-pill--pdfImport` (pílula discreta, mesmo padrão visual de `.status-pill`/`.notification-pill`) e `.destino-box`/`.destino-title`/`.destino-list`/`.destino-label`/`.destino-window`/`.destino-muted` (lista rotulada com `flex-wrap`, sem largura fixa — não quebra em telas estreitas). Filtros novos de `MateriasList` reaproveitam `.materias-filters` (já com `flex-wrap: wrap`, sem CSS novo necessário).
+
+### Mobile
+
+Nenhum componente novo tem layout dedicado de mobile-redesign (fora do escopo desta fase) — reaproveita integralmente os padrões já responsivos das Fases 05/06 (`.materia-card`/`.materia-card-meta` com `flex-wrap`, `.form-section`/`.article-form-layout` já empilhando abaixo do breakpoint definido nas fases anteriores). Confirmado por leitura de CSS que nenhuma adição desta fase introduz largura fixa ou `white-space: nowrap` capaz de causar overflow horizontal; sem ferramenta de automação de navegador nesta sessão para verificação visual em viewport real (mesma limitação documentada desde a Fase 06) — recomenda-se um teste manual rápido no celular antes de considerar a fase definitivamente encerrada para uso real.
+
+### Validação
+
+- `npm run typecheck --workspace @ir/sistema`: sem erros. `npm run typecheck --workspace @ir/site`: sem erros (tipos compartilhados não quebraram o portal — nenhum tipo de `@ir/types` foi alterado nesta fase).
+- `npm run build --workspace @ir/sistema`: sucesso, 22 rotas (sem rota nova — esta fase evoluiu telas existentes, não criou novas).
+- Validação de negócio (script `tsx` temporário, `apps/sistema/tmp-fase15-validation.mts`, removido ao final, nunca commitado) — fluxo completo com um **PDF real do acervo** (`apps/site/public/uploads/jornal-online/IR 685_compressed.pdf`, o mesmo já usado pela Fase 10), reproduzindo os serviços da composição real: **27/27 asserções** — extração real gera candidatos pendentes vinculados à edição; revisão (`keep`) salva editoria/localidade escolhidas; conversão sempre nasce `draft`, `origin: "pdfImport"`, preserva `editionId`/`editionPageNumber`; capa + item de galeria com legenda/crédito individuais preservados na conversão; **reconverter o mesmo candidato é rejeitado** (`ImportCandidateAlreadyProcessedError`) e não cria uma segunda matéria; candidato muda para `converted` com `createdArticleId` correto; edição pós-conversão adiciona uma terceira foto à galeria, aplica destaque (`sectionHighlight`), corrige a página da edição; agendar muda o status e persiste `scheduledAt`; publicar agora muda o status e preenche `publishedAt`; matéria final aparece em `articleService.list()` com origem, vínculo de edição e as 3 fotos intactos.
+  - **Achado durante a escrita do script** (documentado para não ser redescoberto — é o mesmo artefato já registrado na Fase 09, achado 4): misturar dois caminhos relativos diferentes até `composition/editorial.ts` num script solto reinstancia o módulo (repositório mock em memória duplicado) e faz uma matéria criada por uma instância "sumir" para a outra. Corrigido no próprio script, importando `articleService`/`importCandidateService` sempre pelo mesmo caminho (`pdfCandidateExtraction`, que os reexporta exatamente para isso); serviços somente-leitura (editorias/localidades/mídias/edições) não têm esse risco por não serem mutados no script.
+- Não alterado: `apps/site` (verificado — só `apps/sistema`, `packages/core`, `packages/mocks` tocados nesta fase; `packages/types` e `packages/mocks` sem mudança de schema, só leitura), pipeline de extração de PDF (`@ir/pdf-extraction`, nenhum arquivo tocado), IndexedDB legado, flipbook, jornal digital, anúncios/patrocinadores.
+
+### Pendências e decisões
+
+- `NewspaperEdition.pdfUrl` continua vazio em todos os mocks — "Ver esta matéria na edição digital" está preparado (tipo, componente, condicional) mas nunca aparece como link ativo nesta fase, por design ("não inventar URL"). Preencher quando houver uma fonte real de verdade ligando `NewspaperEdition` (sistema) a uma edição publicada no portal (`apps/site` jornal-online, que hoje usa um acervo de arquivos sem esse vínculo).
+- Correção de página da edição (`editionPageNumber`) só é exposta na edição de uma matéria já vinculada a uma edição — criar esse vínculo do zero fora do fluxo de importação de PDF não foi pedido e permanece fora de escopo.
+- Guard de reconversão foi adicionado só em `convertToDraft` (o ponto que realmente cria uma matéria) — `keep`/`discard`/`merge`/`split` não ganharam guard simétrico por não terem sido citados no requisito e não apresentarem o mesmo risco de duplicação de matéria.
+- Sem teste de automação de navegador real (mobile ou desktop) nesta sessão — mesma limitação documentada desde a Fase 06; validação de mobile nesta fase foi por leitura de CSS/reuso de padrões já responsivos, não por viewport real.
+- `npm audit` continua reportando vulnerabilidades transitivas (Tiptap desde a Fase 07); nenhuma ação nesta fase.
+
+### Próxima fase
+
+A decidir — possíveis caminhos: upload real de mídia (quando houver storage), cadastro central (pessoas/empresas), publicidade do portal, redesign definitivo do painel (mobile-first), ou vínculo real entre `NewspaperEdition` e a edição digital do portal (para ativar "Ver esta matéria na edição digital"). Ainda sem Supabase, autenticação real, upload remoto/storage ou IA.
+
+---
+
 ## Fase 12 — editorias, localidades e biblioteca de mídia (21/09/2026)
 
 - Branch: `feature/jornalir-core-foundation-20260917`.

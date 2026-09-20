@@ -5,13 +5,15 @@ import {
   articleService,
   editorialSectionService,
   localityService,
+  newspaperEditionService,
 } from "../../../../composition/editorial";
 
 export default async function MateriasPage(): Promise<JSX.Element> {
-  const [articles, sections, localities] = await Promise.all([
+  const [articles, sections, localities, editions] = await Promise.all([
     articleService.list(),
     editorialSectionService.list(),
     localityService.list(),
+    newspaperEditionService.list(),
   ]);
 
   return (
@@ -26,7 +28,7 @@ export default async function MateriasPage(): Promise<JSX.Element> {
           </Link>
         }
       />
-      <MateriasList articles={articles} sections={sections} localities={localities} />
+      <MateriasList articles={articles} sections={sections} localities={localities} editions={editions} />
     </>
   );
 }

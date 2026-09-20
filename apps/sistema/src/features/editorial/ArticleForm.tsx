@@ -10,6 +10,7 @@ import type {
   EditorialTextStyle,
   Locality,
   MediaAsset,
+  NewspaperEdition,
   NotificationMode,
 } from "@ir/types";
 import { archiveArticle, createArticle, updateArticle } from "../../app/sistema/editorial/materias/actions";
@@ -25,8 +26,16 @@ import {
 } from "./articleMediaState";
 import { ArticleBodyEditor } from "./ArticleBodyEditor";
 import { ArticleMediaPicker } from "./ArticleMediaPicker";
+import { DestinoEditorial } from "./DestinoEditorial";
 import { TextStyleControl } from "./TextStyleControl";
-import { articleStatusLabels, notificationLabels, placementLabels } from "./editorialLabels";
+import {
+  articleOriginLabels,
+  articleStatusLabels,
+  editionPageLabel,
+  formatDateTime,
+  notificationLabels,
+  placementLabels,
+} from "./editorialLabels";
 import { DEFAULT_TEXT_STYLE, textStyleToCss } from "./textStyle";
 import { fromDatetimeLocalValue, toDatetimeLocalValue } from "../../lib/datetimeLocal";
 
@@ -40,6 +49,7 @@ interface ArticleFormProps {
   sections: EditorialSection[];
   localities: Locality[];
   mediaAssets: MediaAsset[];
+  editions?: NewspaperEdition[];
 }
 
 const PLACEMENT_OPTIONS: EditorialPlacementType[] = [
@@ -54,7 +64,14 @@ const PLACEMENT_OPTIONS: EditorialPlacementType[] = [
 
 const NOTIFICATION_OPTIONS: NotificationMode[] = ["none", "normal", "urgent"];
 
-export function ArticleForm({ mode, article, sections, localities, mediaAssets }: ArticleFormProps): JSX.Element {
+export function ArticleForm({
+  mode,
+  article,
+  sections,
+  localities,
+  mediaAssets,
+  editions = [],
+}: ArticleFormProps): JSX.Element {
   const router = useRouter();
   const [title, setTitle] = useState(article?.title ?? "");
   const [titleStyle, setTitleStyle] = useState<EditorialTextStyle>(article?.titleStyle ?? DEFAULT_TEXT_STYLE);
@@ -78,11 +95,22 @@ export function ArticleForm({ mode, article, sections, localities, mediaAssets }
     toDatetimeLocalValue(article?.placement.endsAt),
   );
   const [scheduledAt, setScheduledAt] = useState(toDatetimeLocalValue(article?.scheduledAt));
+  const [editionPageNumber, setEditionPageNumber] = useState(article?.editionPageNumber?.toString() ?? "");
   const [media, setMedia] = useState<ArticleMedia[]>(article?.media ?? []);
   const [formError, setFormError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
   const hasPlacementWindow = placementType !== "none";
+
+  const edition = article?.editionId ? editions.find((item) => item.id === article.editionId) : undefined;
+  const selectedSection = sections.find((section) => section.id === sectionId);
+  const selectedLocality = localities.find((locality) => locality.id === localityId);
+  const publicationLine = (() => {
+    if (article?.status === "published") return `Publicada em ${formatDateTime(article.publishedAt)}`;
+    if (article?.status === "archived") return "Arquivada — fora de circulação";
+    if (scheduledAt) return `Programada para ${formatDateTime(fromDatetimeLocalValue(scheduledAt))}`;
+    return "Ainda em rascunho — não publicada";
+  })();
 
   // Editorias/localidades inativas somem das opções de escolha, mas uma já
   // atribuída a esta matéria continua visível (nunca escondida por baixo dos
@@ -107,6 +135,7 @@ export function ArticleForm({ mode, article, sections, localities, mediaAssets }
       placementEndsAt: fromDatetimeLocalValue(placementEndsAt),
       scheduledAt: fromDatetimeLocalValue(scheduledAt),
       media,
+      editionPageNumber,
     };
   }
 
@@ -127,6 +156,7 @@ export function ArticleForm({ mode, article, sections, localities, mediaAssets }
       placementEndsAt,
       scheduledAt,
       media,
+      editionPageNumber,
     }),
   );
   const isDirty =
@@ -145,6 +175,7 @@ export function ArticleForm({ mode, article, sections, localities, mediaAssets }
       placementEndsAt,
       scheduledAt,
       media,
+      editionPageNumber,
     });
   const isDirtyRef = useRef(isDirty);
   isDirtyRef.current = isDirty;
@@ -208,206 +239,250 @@ export function ArticleForm({ mode, article, sections, localities, mediaAssets }
         ← Voltar à listagem
       </button>
 
-      <section className="form-section" aria-labelledby="identificacao-title">
-        <h2 id="identificacao-title">Identificação</h2>
-        <div className="form-field">
-          <div className="field-label-row">
-            <label htmlFor="field-title" className="field-label">
-              Título
-            </label>
-            <TextStyleControl label="Título" value={titleStyle} onChange={setTitleStyle} />
-          </div>
-          <input
-            id="field-title"
-            className="field-title-input"
-            style={textStyleToCss(titleStyle, "title")}
-            value={title}
-            onChange={(event) => setTitle(event.target.value)}
-            placeholder="Título da matéria"
-          />
-        </div>
-        <div className="form-field">
-          <div className="field-label-row">
-            <label htmlFor="field-subtitle" className="field-label">
-              Subtítulo <span className="field-optional">(opcional)</span>
-            </label>
-            <TextStyleControl label="Subtítulo" value={subtitleStyle} onChange={setSubtitleStyle} />
-          </div>
-          <input
-            id="field-subtitle"
-            className="field-subtitle-input"
-            style={textStyleToCss(subtitleStyle, "subtitle")}
-            value={subtitle}
-            onChange={(event) => setSubtitle(event.target.value)}
-            placeholder="Subtítulo da matéria"
-          />
-        </div>
-        <div className="form-field">
-          <span className="field-label">Referência interna</span>
-          <p className="field-static-value">
-            {article?.reference ?? "Gerada automaticamente ao salvar"}
-          </p>
-        </div>
-      </section>
+      <div className="article-form-layout">
+        {/* Coluna principal: exatamente a prioridade do dia a dia — fotos, título, subtítulo, texto. */}
+        <div className="article-form-main">
+          <section className="form-section form-section--first" aria-labelledby="imagens-title">
+            <h2 id="imagens-title">Imagens</h2>
+            <p className="helper-text">
+              Nenhuma, uma ou várias fotos. Com várias: escolha a capa, monte a galeria, ordene e
+              defina legenda e crédito individuais.
+            </p>
+            <ArticleMediaPicker
+              mediaAssets={mediaAssets}
+              media={media}
+              onSetCover={(id) => setMedia((prev) => setCoverMedia(prev, id))}
+              onRemoveCover={() => setMedia((prev) => removeCoverMedia(prev))}
+              onAddToGallery={(id) => setMedia((prev) => addGalleryMedia(prev, id))}
+              onRemoveFromGallery={(id) => setMedia((prev) => removeGalleryMedia(prev, id))}
+              onMoveGalleryItem={(id, direction) => setMedia((prev) => moveGalleryMedia(prev, id, direction))}
+              onSetCaption={(id, caption) => setMedia((prev) => setMediaCaption(prev, id, caption))}
+              onSetCredit={(id, credit) => setMedia((prev) => setMediaCredit(prev, id, credit))}
+            />
+          </section>
 
-      <section className="form-section" aria-labelledby="conteudo-title">
-        <h2 id="conteudo-title">Conteúdo</h2>
-        <ArticleBodyEditor value={body} onChange={setBody} />
-      </section>
-
-      <section className="form-section" aria-labelledby="classificacao-title">
-        <h2 id="classificacao-title">Classificação</h2>
-        <div className="form-grid">
-          <div className="form-field">
-            <label htmlFor="field-section" className="field-label">
-              Editoria
-            </label>
-            <select
-              id="field-section"
-              value={sectionId}
-              onChange={(event) => setSectionId(event.target.value)}
-            >
-              <option value="">Selecione a editoria</option>
-              {availableSections.map((section) => (
-                <option key={section.id} value={section.id}>
-                  {section.name}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className="form-field">
-            <label htmlFor="field-locality" className="field-label">
-              Localidade
-            </label>
-            <select
-              id="field-locality"
-              value={localityId}
-              onChange={(event) => setLocalityId(event.target.value)}
-            >
-              <option value="">Selecione a localidade</option>
-              {availableLocalities.map((locality) => (
-                <option key={locality.id} value={locality.id}>
-                  {locality.name}
-                </option>
-              ))}
-            </select>
-          </div>
-        </div>
-      </section>
-
-      <section className="form-section" aria-labelledby="destaque-title">
-        <h2 id="destaque-title">Exposição editorial</h2>
-        <p className="helper-text">
-          O destaque é temporário e não altera a editoria da matéria.
-        </p>
-        <div className="form-grid">
-          <div className="form-field">
-            <label htmlFor="field-placement" className="field-label">
-              Posição editorial
-            </label>
-            <select
-              id="field-placement"
-              value={placementType}
-              onChange={(event) => setPlacementType(event.target.value as EditorialPlacementType)}
-            >
-              {PLACEMENT_OPTIONS.map((option) => (
-                <option key={option} value={option}>
-                  {option === "none" ? "Nenhuma" : placementLabels[option]}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className="form-field">
-            <label htmlFor="field-notification" className="field-label">
-              Notificação
-            </label>
-            <select
-              id="field-notification"
-              value={notificationMode}
-              onChange={(event) => setNotificationMode(event.target.value as NotificationMode)}
-            >
-              {NOTIFICATION_OPTIONS.map((option) => (
-                <option key={option} value={option}>
-                  {notificationLabels[option]}
-                </option>
-              ))}
-            </select>
-          </div>
-        </div>
-        {hasPlacementWindow ? (
-          <div className="form-grid">
+          <section className="form-section" aria-labelledby="identificacao-title">
+            <h2 id="identificacao-title">Identificação</h2>
             <div className="form-field">
-              <label htmlFor="field-placement-start" className="field-label">
-                Início do destaque <span className="field-optional">(opcional)</span>
-              </label>
+              <div className="field-label-row">
+                <label htmlFor="field-title" className="field-label">
+                  Título
+                </label>
+                <TextStyleControl label="Título" value={titleStyle} onChange={setTitleStyle} />
+              </div>
               <input
-                id="field-placement-start"
-                type="datetime-local"
-                value={placementStartsAt}
-                onChange={(event) => setPlacementStartsAt(event.target.value)}
+                id="field-title"
+                className="field-title-input"
+                style={textStyleToCss(titleStyle, "title")}
+                value={title}
+                onChange={(event) => setTitle(event.target.value)}
+                placeholder="Título da matéria"
               />
             </div>
             <div className="form-field">
-              <label htmlFor="field-placement-end" className="field-label">
-                Fim do destaque <span className="field-optional">(opcional)</span>
-              </label>
+              <div className="field-label-row">
+                <label htmlFor="field-subtitle" className="field-label">
+                  Subtítulo <span className="field-optional">(opcional)</span>
+                </label>
+                <TextStyleControl label="Subtítulo" value={subtitleStyle} onChange={setSubtitleStyle} />
+              </div>
               <input
-                id="field-placement-end"
-                type="datetime-local"
-                value={placementEndsAt}
-                onChange={(event) => setPlacementEndsAt(event.target.value)}
+                id="field-subtitle"
+                className="field-subtitle-input"
+                style={textStyleToCss(subtitleStyle, "subtitle")}
+                value={subtitle}
+                onChange={(event) => setSubtitle(event.target.value)}
+                placeholder="Subtítulo da matéria"
               />
             </div>
-          </div>
-        ) : null}
-      </section>
+          </section>
 
-      <section className="form-section" aria-labelledby="imagens-title">
-        <h2 id="imagens-title">Imagens</h2>
-        <p className="helper-text">
-          Uma imagem pode ser marcada como capa. As demais formam a galeria, com ordem
-          própria.
-        </p>
-        <ArticleMediaPicker
-          mediaAssets={mediaAssets}
-          media={media}
-          onSetCover={(id) => setMedia((prev) => setCoverMedia(prev, id))}
-          onRemoveCover={() => setMedia((prev) => removeCoverMedia(prev))}
-          onAddToGallery={(id) => setMedia((prev) => addGalleryMedia(prev, id))}
-          onRemoveFromGallery={(id) => setMedia((prev) => removeGalleryMedia(prev, id))}
-          onMoveGalleryItem={(id, direction) => setMedia((prev) => moveGalleryMedia(prev, id, direction))}
-          onSetCaption={(id, caption) => setMedia((prev) => setMediaCaption(prev, id, caption))}
-          onSetCredit={(id, credit) => setMedia((prev) => setMediaCredit(prev, id, credit))}
-        />
-      </section>
-
-      <section className="form-section" aria-labelledby="publicacao-title">
-        <h2 id="publicacao-title">Publicação</h2>
-        {article ? (
-          <p className="helper-text">
-            Status atual:{" "}
-            <span className={`status-pill status-pill--${article.status}`}>
-              {articleStatusLabels[article.status]}
-            </span>
-          </p>
-        ) : (
-          <p className="helper-text">
-            Status inicial: rascunho, a menos que você publique ou programe agora.
-          </p>
-        )}
-        <div className="form-field">
-          <label htmlFor="field-scheduled-at" className="field-label">
-            Data e hora da programação{" "}
-            <span className="field-optional">(obrigatório para programar)</span>
-          </label>
-          <input
-            id="field-scheduled-at"
-            type="datetime-local"
-            value={scheduledAt}
-            onChange={(event) => setScheduledAt(event.target.value)}
-          />
+          <section className="form-section" aria-labelledby="conteudo-title">
+            <h2 id="conteudo-title">Texto</h2>
+            <ArticleBodyEditor value={body} onChange={setBody} />
+          </section>
         </div>
-      </section>
+
+        {/* Coluna secundária: editoria/localidade, publicação sempre à mão, e o que é usado com menos frequência dentro de "Mais opções". */}
+        <div className="article-form-aside">
+          {article ? (
+            <section className="form-section form-section--compact" aria-labelledby="origem-title">
+              <h2 id="origem-title">Origem</h2>
+              <p className="helper-text">
+                <span className={`origin-pill origin-pill--${article.origin}`}>
+                  {articleOriginLabels[article.origin]}
+                </span>
+              </p>
+              {edition ? (
+                <>
+                  <p className="field-static-value">{editionPageLabel(edition.title, article.editionPageNumber)}</p>
+                  <div className="form-field">
+                    <label htmlFor="field-edition-page" className="field-label">
+                      Página na edição <span className="field-optional">(corrigir se necessário)</span>
+                    </label>
+                    <input
+                      id="field-edition-page"
+                      type="number"
+                      min={1}
+                      value={editionPageNumber}
+                      onChange={(event) => setEditionPageNumber(event.target.value)}
+                    />
+                  </div>
+                  {edition.pdfUrl ? (
+                    <a href={edition.pdfUrl} target="_blank" rel="noreferrer" className="section-more">
+                      Ver esta matéria na edição digital
+                    </a>
+                  ) : (
+                    <p className="helper-text destino-muted">
+                      Link para a edição digital indisponível ainda.
+                    </p>
+                  )}
+                </>
+              ) : (
+                <p className="helper-text">Matéria cadastrada diretamente no painel, sem vínculo com edição impressa.</p>
+              )}
+            </section>
+          ) : null}
+
+          <section className="form-section form-section--compact" aria-labelledby="classificacao-title">
+            <h2 id="classificacao-title">Classificação</h2>
+            <div className="form-field">
+              <label htmlFor="field-section" className="field-label">
+                Editoria
+              </label>
+              <select id="field-section" value={sectionId} onChange={(event) => setSectionId(event.target.value)}>
+                <option value="">Selecione a editoria</option>
+                {availableSections.map((section) => (
+                  <option key={section.id} value={section.id}>
+                    {section.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="form-field">
+              <label htmlFor="field-locality" className="field-label">
+                Localidade
+              </label>
+              <select id="field-locality" value={localityId} onChange={(event) => setLocalityId(event.target.value)}>
+                <option value="">Selecione a localidade</option>
+                {availableLocalities.map((locality) => (
+                  <option key={locality.id} value={locality.id}>
+                    {locality.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </section>
+
+          <section className="form-section form-section--compact" aria-labelledby="publicacao-title">
+            <h2 id="publicacao-title">Publicação</h2>
+            {article ? (
+              <p className="helper-text">
+                Status atual:{" "}
+                <span className={`status-pill status-pill--${article.status}`}>
+                  {articleStatusLabels[article.status]}
+                </span>
+              </p>
+            ) : (
+              <p className="helper-text">Status inicial: rascunho, a menos que você publique ou programe agora.</p>
+            )}
+            <div className="form-field">
+              <label htmlFor="field-scheduled-at" className="field-label">
+                Data e hora da programação <span className="field-optional">(obrigatório para programar)</span>
+              </label>
+              <input
+                id="field-scheduled-at"
+                type="datetime-local"
+                value={scheduledAt}
+                onChange={(event) => setScheduledAt(event.target.value)}
+              />
+            </div>
+          </section>
+
+          <DestinoEditorial
+            sectionName={selectedSection?.name}
+            localityName={selectedLocality?.name}
+            placementType={placementType}
+            placementStartsAt={fromDatetimeLocalValue(placementStartsAt)}
+            placementEndsAt={fromDatetimeLocalValue(placementEndsAt)}
+            notificationMode={notificationMode}
+            publicationLine={publicationLine}
+            editionLine={edition ? editionPageLabel(edition.title, article?.editionPageNumber) : null}
+            digitalEditionUrl={edition?.pdfUrl}
+          />
+
+          <details className="more-options">
+            <summary>Mais opções</summary>
+            <div className="more-options-panel">
+              <div className="form-field">
+                <span className="field-label">Referência interna</span>
+                <p className="field-static-value">{article?.reference ?? "Gerada automaticamente ao salvar"}</p>
+              </div>
+
+              <p className="field-label">Exposição editorial</p>
+              <p className="helper-text">O destaque é temporário e não altera a editoria da matéria.</p>
+              <div className="form-field">
+                <label htmlFor="field-placement" className="field-label">
+                  Posição editorial
+                </label>
+                <select
+                  id="field-placement"
+                  value={placementType}
+                  onChange={(event) => setPlacementType(event.target.value as EditorialPlacementType)}
+                >
+                  {PLACEMENT_OPTIONS.map((option) => (
+                    <option key={option} value={option}>
+                      {option === "none" ? "Nenhuma" : placementLabels[option]}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              {hasPlacementWindow ? (
+                <>
+                  <div className="form-field">
+                    <label htmlFor="field-placement-start" className="field-label">
+                      Início do destaque <span className="field-optional">(opcional)</span>
+                    </label>
+                    <input
+                      id="field-placement-start"
+                      type="datetime-local"
+                      value={placementStartsAt}
+                      onChange={(event) => setPlacementStartsAt(event.target.value)}
+                    />
+                  </div>
+                  <div className="form-field">
+                    <label htmlFor="field-placement-end" className="field-label">
+                      Fim do destaque <span className="field-optional">(opcional)</span>
+                    </label>
+                    <input
+                      id="field-placement-end"
+                      type="datetime-local"
+                      value={placementEndsAt}
+                      onChange={(event) => setPlacementEndsAt(event.target.value)}
+                    />
+                  </div>
+                </>
+              ) : null}
+              <div className="form-field">
+                <label htmlFor="field-notification" className="field-label">
+                  Notificação
+                </label>
+                <select
+                  id="field-notification"
+                  value={notificationMode}
+                  onChange={(event) => setNotificationMode(event.target.value as NotificationMode)}
+                >
+                  {NOTIFICATION_OPTIONS.map((option) => (
+                    <option key={option} value={option}>
+                      {notificationLabels[option]}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+          </details>
+        </div>
+      </div>
 
       {formError ? (
         <p className="form-error" role="alert">

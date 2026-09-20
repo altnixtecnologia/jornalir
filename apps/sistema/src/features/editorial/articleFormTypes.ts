@@ -21,6 +21,8 @@ export interface ArticleFormPayload {
   placementEndsAt: string;
   scheduledAt: string;
   media: ArticleMedia[];
+  /** Correção manual da página da edição de origem (só relevante para matéria já vinculada a uma edição). */
+  editionPageNumber: string;
 }
 
 /** Validação compartilhada entre o formulário (feedback imediato) e a Server Action (defesa em profundidade). */

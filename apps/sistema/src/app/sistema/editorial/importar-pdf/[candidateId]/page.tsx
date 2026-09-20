@@ -50,6 +50,7 @@ export default async function ImportCandidateDetailPage({
       <ImportCandidateReview
         candidate={candidate}
         editionTitle={edition?.title ?? "Edição não encontrada"}
+        edition={edition}
         sections={sections}
         localities={localities}
         mediaAssets={mediaAssets}
