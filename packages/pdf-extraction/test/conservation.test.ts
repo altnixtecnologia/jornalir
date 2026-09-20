@@ -40,7 +40,7 @@ test("detecta bloco órfão (parágrafo detectado mas não usado em nenhum candi
     pageWidth: 600,
     pageHeight: 800,
     method: "textLayer",
-    columnRanges: [[0, 600]],
+    columnSegments: [{ yTop: 0, yBottom: 800, xStart: 0, xEnd: 600 }],
     paragraphs: [p1, p2],
     articleGroups: [
       {
@@ -72,7 +72,7 @@ test("detecta bloco usado em mais de um candidato (duplicação)", () => {
     pageWidth: 600,
     pageHeight: 800,
     method: "textLayer",
-    columnRanges: [[0, 600]],
+    columnSegments: [{ yTop: 0, yBottom: 800, xStart: 0, xEnd: 600 }],
     paragraphs: [p1],
     articleGroups: [
       {
@@ -109,7 +109,7 @@ test("detecta bloco com texto alterado em relação ao parágrafo de origem", ()
     pageWidth: 600,
     pageHeight: 800,
     method: "textLayer",
-    columnRanges: [[0, 600]],
+    columnSegments: [{ yTop: 0, yBottom: 800, xStart: 0, xEnd: 600 }],
     paragraphs: [p1],
     articleGroups: [
       {
@@ -141,7 +141,7 @@ test("detecta blocos fora da ordem de leitura dentro do mesmo candidato", () => 
     pageWidth: 600,
     pageHeight: 800,
     method: "textLayer",
-    columnRanges: [[0, 600]],
+    columnSegments: [{ yTop: 0, yBottom: 800, xStart: 0, xEnd: 600 }],
     paragraphs: [p1, p2],
     articleGroups: [
       {

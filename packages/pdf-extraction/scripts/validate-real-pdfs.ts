@@ -38,6 +38,7 @@ interface PageDiagnostic {
   page: number;
   why: string;
   columns: number;
+  regions: number;
   candidates: number;
   method: PageExtraction["method"];
   imageCount: number;
@@ -63,7 +64,8 @@ function summarizePage(pageEntry: (typeof SELECTED_PAGES)[number], page: PageExt
     file: pageEntry.file,
     page: pageEntry.page,
     why: pageEntry.why,
-    columns: page.columnRanges.length,
+    columns: page.columnSegments.length,
+    regions: new Set(page.columnSegments.map((s) => `${s.yTop}-${s.yBottom}`)).size,
     candidates: page.articleGroups.length,
     method: page.method,
     imageCount: page.imageCount,

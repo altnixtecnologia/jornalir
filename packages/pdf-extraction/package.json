@@ -5,7 +5,7 @@
   "type": "module",
   "main": "./src/index.ts",
   "scripts": {
-    "test": "tsx --test test/extraction.test.ts test/pipeline.test.ts test/conservation.test.ts test/warnings.test.ts"
+    "test": "tsx --test test/extraction.test.ts test/pipeline.test.ts test/conservation.test.ts test/warnings.test.ts test/columnRegions.test.ts"
   },
   "dependencies": {
     "pdfjs-dist": "^3.11.174"

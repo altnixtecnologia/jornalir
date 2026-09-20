@@ -28,7 +28,7 @@ test("uma coluna: título e corpo (dois parágrafos) são extraídos com corresp
   assert.equal(result.pageCount, 1);
   const page = result.pages[0];
   assert.equal(page.method, "textLayer");
-  assert.equal(page.columnRanges.length, 1, "página de uma coluna deve detectar exatamente uma coluna");
+  assert.equal(page.columnSegments.length, 1, "página de uma coluna deve detectar exatamente uma coluna");
   assert.equal(page.articleGroups.length, 1, "deve haver exatamente uma matéria candidata");
 
   const [group] = page.articleGroups;
@@ -45,7 +45,7 @@ test("duas colunas: cada matéria permanece na sua própria coluna, sem mistura"
   const result = await extractPdf(fixture.bytes);
   const page = result.pages[0];
 
-  assert.equal(page.columnRanges.length, 2, "deve detectar exatamente duas colunas");
+  assert.equal(page.columnSegments.length, 2, "deve detectar exatamente duas colunas");
   assert.equal(page.articleGroups.length, 2, "cada coluna deve gerar sua própria matéria");
 
   const [groupLeft] = page.articleGroups.filter((g) => g.column === 0);

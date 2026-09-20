@@ -1,4 +1,4 @@
-import { assignColumn, detectColumns } from "./columns";
+import { assignSegment, detectColumnSegments } from "./columns";
 import { checkConservation } from "./conservation";
 import { countPageImages } from "./images";
 import { groupItemsIntoLines } from "./lines";
@@ -66,7 +66,7 @@ async function extractPage(
         pageWidth: viewport.width,
         pageHeight: viewport.height,
         method: "unavailable",
-        columnRanges: [],
+        columnSegments: [],
         paragraphs: [],
         articleGroups: [],
         imageCount,
@@ -82,7 +82,7 @@ async function extractPage(
         pageWidth: viewport.width,
         pageHeight: viewport.height,
         method: "unavailable",
-        columnRanges: [],
+        columnSegments: [],
         paragraphs: [],
         articleGroups: [],
         imageCount,
@@ -99,7 +99,7 @@ async function extractPage(
       pageWidth: viewport.width,
       pageHeight: viewport.height,
       method: "ocr",
-      columnRanges: [],
+      columnSegments: [],
       paragraphs: [
         {
           id: ocrParagraphId,
@@ -136,11 +136,11 @@ async function extractPage(
     }
   }
 
-  const columnRanges = detectColumns(items, viewport.width);
-  const itemsByColumn: TextItem[][] = columnRanges.map(() => []);
+  const columnSegments = detectColumnSegments(items, viewport.width, viewport.height);
+  const itemsByColumn: TextItem[][] = columnSegments.map(() => []);
   for (const item of items) {
     if (item.text.trim().length === 0) continue;
-    itemsByColumn[assignColumn(item, columnRanges)].push(item);
+    itemsByColumn[assignSegment(item, columnSegments)].push(item);
   }
 
   const paragraphsByColumn = itemsByColumn.map((columnItems, column) =>
@@ -184,7 +184,7 @@ async function extractPage(
     pageWidth: viewport.width,
     pageHeight: viewport.height,
     method: "textLayer",
-    columnRanges,
+    columnSegments,
     paragraphs,
     articleGroups,
     imageCount,

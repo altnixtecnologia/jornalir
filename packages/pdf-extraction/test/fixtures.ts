@@ -279,3 +279,87 @@ export async function buildNoTextLayerFixture(): Promise<{ bytes: Uint8Array }> 
   const bytes = await pdfDoc.save();
   return { bytes };
 }
+
+/** Cresce uma linha (repetindo um preenchimento neutro) até atingir a largura mínima pedida — usado para garantir, de forma determinística (por métrica de fonte real, não por contagem de caracteres estimada), que uma linha "larga" realmente invade a faixa de x onde uma coluna estreita lateral existiria. */
+function widenLineToWidth(font: PDFFont, size: number, base: string, minWidth: number): string {
+  const filler = " informações adicionais de preenchimento para o teste automatizado";
+  let text = base;
+  while (font.widthOfTextAtSize(text, size) < minWidth) {
+    text += filler;
+  }
+  return text;
+}
+
+export interface MixedLayoutFixtureExpectation {
+  /** Presente apenas em linhas do artigo largo (topo e base da página, atravessando toda a largura). */
+  wideMarker: string;
+  /** Presente apenas na coluna estreita esquerda da faixa intermediária. */
+  narrowLeftMarker: string;
+  /** Presente apenas na coluna estreita direita (ex.: horóscopo) da faixa intermediária. */
+  narrowRightMarker: string;
+}
+
+/**
+ * 8) Diagramação mista real (Achado 2 da Fase 10, `docs/PDF-REAL-VALIDATION.md`):
+ * uma matéria corrida ocupa a largura inteira da página no topo e na base,
+ * mas uma faixa intermediária tem duas colunas lado a lado — uma larga
+ * (continuação da matéria) e uma estreita (ex.: horóscopo). Um detector de
+ * colunas que olha só para a página inteira nunca vê o vão entre as duas
+ * colunas da faixa do meio, porque nas faixas de topo/base já há tinta
+ * cobrindo exatamente aquela faixa de x. Reproduz o defeito relatado na
+ * Fase 10 (texto de assuntos diferentes se misturando na mesma linha).
+ */
+export async function buildMixedLayoutFixture(): Promise<{
+  bytes: Uint8Array;
+  expected: MixedLayoutFixtureExpectation;
+}> {
+  const { pdfDoc, page, fonts } = await createDocument();
+  const cursor: Cursor = { y: 750 };
+
+  const wideMarker = "MARCADORARTIGOLARGO";
+  const narrowLeftMarker = "MARCADORCOLUNAESQUERDA";
+  const narrowRightMarker = "MARCADORHOROSCOPO";
+
+  // Topo: matéria corrida atravessando quase toda a largura da página
+  // (x=50 até bem além de x=650, onde a coluna estreita vai existir mais
+  // abaixo) — título + parágrafo largo.
+  const title = "Prefeitura anuncia reforma completa do centro histórico da cidade";
+  drawParagraph(page, [title], 50, cursor, TITLE_SIZE, fonts.bold, TITLE_GAP);
+  const topLines = Array.from({ length: 8 }, (_, i) =>
+    widenLineToWidth(fonts.regular, BODY_SIZE, `${wideMarker} linha de topo número ${i + 1} da matéria.`, 780),
+  );
+  drawParagraph(page, topLines, 50, cursor, BODY_SIZE, fonts.regular);
+
+  // Vão real entre seções — bem maior que uma banda de detecção de região,
+  // para que nenhuma banda contenha conteúdo de duas seções estruturalmente
+  // diferentes ao mesmo tempo (o que aconteceria em diagramações reais onde
+  // as seções não colam uma na outra sem nenhum espaço).
+  addExtraGap(cursor, 2 * SECTION_GAP - LINE_GAP);
+  const middleTop = cursor.y;
+
+  // Faixa intermediária: coluna esquerda larga (continuação da matéria,
+  // x=50 a ~550) ao lado de uma coluna estreita (horóscopo, x=650 a ~850) —
+  // nenhuma das duas se estende sobre a outra.
+  const leftLines = Array.from(
+    { length: 10 },
+    (_, i) => `${narrowLeftMarker} continuação da matéria, parágrafo número ${i + 1} desta coluna larga.`,
+  );
+  const leftCursor: Cursor = { y: middleTop };
+  drawParagraph(page, leftLines, 50, leftCursor, BODY_SIZE, fonts.regular);
+
+  const rightLines = Array.from({ length: 10 }, (_, i) => `${narrowRightMarker} signo número ${i + 1}: dia favorável.`);
+  const rightCursor: Cursor = { y: middleTop };
+  drawParagraph(page, rightLines, 650, rightCursor, BODY_SIZE, fonts.regular);
+
+  cursor.y = Math.min(leftCursor.y, rightCursor.y);
+  addExtraGap(cursor, 2 * SECTION_GAP - LINE_GAP);
+
+  // Base: matéria volta a ocupar a largura inteira da página.
+  const bottomLines = Array.from({ length: 8 }, (_, i) =>
+    widenLineToWidth(fonts.regular, BODY_SIZE, `${wideMarker} linha de base número ${i + 1} da matéria.`, 780),
+  );
+  drawParagraph(page, bottomLines, 50, cursor, BODY_SIZE, fonts.regular);
+
+  const bytes = await pdfDoc.save();
+  return { bytes, expected: { wideMarker, narrowLeftMarker, narrowRightMarker } };
+}

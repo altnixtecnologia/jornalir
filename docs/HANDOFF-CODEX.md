@@ -1,5 +1,51 @@
 # Handoff — JornalIR
 
+## Fase 11 — ordem de leitura em diagramação mista (21/09/2026)
+
+- Branch: `feature/jornalir-core-foundation-20260917`.
+- HEAD ao iniciar a fase: `bbbd8db` (commit da Fase 10).
+- Entrega: detecção de colunas **por região vertical da página** (não mais uma partição global única) — corrige a limitação documentada como Achado 2 da Fase 10 (diagramação mista: matéria larga ao lado de coluna estreita, ex.: horóscopo). Zero mudança em texto; só em como os blocos são agrupados em candidatos. Relatório atualizado em `docs/PDF-REAL-VALIDATION.md` (adendo no topo).
+
+### O que mudou (`packages/pdf-extraction`)
+
+- `types.ts`: `PageExtraction.columnRanges: Array<[number, number]>` (Fase 09/10) virou `columnSegments: ColumnSegment[]` (`{ yTop, yBottom, xStart, xEnd }`). Cada segmento continua se comportando, para o resto do pipeline (parágrafos, matérias, conservação), exatamente como uma "coluna" antiga — só passou a existir mais de um "conjunto de colunas" por página quando o layout muda de fato entre faixas.
+- `columns.ts`: nova `detectColumnSegments(items, pageWidth, pageHeight)` — amostra a estrutura de colunas (reaproveitando `detectColumns`, a técnica de vão de tinta da Fase 09, sem mudança) em bandas horizontais de 70pt, funde bandas adjacentes com a mesma estrutura em uma única região, estende bordas até os limites da página. Nova `assignSegment(item, segments)` substitui `assignColumn` no pipeline. `detectColumns`/`assignColumn` originais **não foram alterados** — continuam existindo e são reaproveitados internamente por banda.
+- **Achado de implementação (evitou uma regressão)**: comparar bandas pela borda externa (esquerda da primeira coluna, direita da última) fragmentava artificialmente até páginas de coluna única — um título mais curto que o corpo já muda a borda direita da "tinta" daquela banda o bastante para parecer uma "mudança de estrutura". Corrigido comparando só a posição dos **vãos internos** entre colunas (irrelevante para colunas únicas, que não têm vão interno nenhum) — robusto à borda naturalmente irregular de texto alinhado à esquerda/direita.
+- `pipeline.ts`: troca `detectColumns`+`assignColumn` (nível de página) por `detectColumnSegments`+`assignSegment`; resto do pipeline (linhas → parágrafos → matérias → conservação) inalterado, pois já era genérico sobre um índice de "coluna".
+- `conservation.ts`: **nenhuma mudança** — a checagem de "fora de ordem dentro do candidato" já operava por candidato, não por página inteira; continua válida sem alteração.
+
+### Prova determinística — nova fixture sintética
+
+`test/fixtures.ts` ganhou `buildMixedLayoutFixture` (matéria larga no topo e na base da página + faixa intermediária com coluna larga e coluna estreita lado a lado, exatamente o padrão do Achado 2) e `test/columnRegions.test.ts` (4 testes novos): a página resultante tem mais de uma região vertical; nenhum candidato mistura o marcador da matéria larga com o da coluna estreita; nenhum marcador se perde; conservação textual continua 100% (zero órfãos/duplicados/alterados/fora de ordem); uma página de estrutura uniforme (fixture da Fase 09) continua com uma única região (sem fragmentação artificial). 23/23 testes do pacote passando (19 já existentes da Fase 09/10 + 4 novos).
+
+### Revalidação das 8 páginas reais da Fase 10 — sem regressão
+
+`scripts/validate-real-pdfs.ts` reexecutado sobre as mesmas 8 páginas (permanente desde a Fase 10, sem mudança de código, só do resultado que produz). **Cobertura textual permanece 100% nas 8 páginas, zero órfãos, zero duplicados, zero alterados, zero fora de ordem** — idêntico à Fase 10, provando que a mudança de segmentação não introduziu nenhuma perda/duplicação/alteração.
+
+O que mudou é a granularidade da segmentação (mais colunas/regiões, mais candidatos). Inspeção manual do conteúdo (não só das métricas) confirma que a maior parte é melhoria real: em 685/p12, 685/p18, 697/p20 e 699/p18, uma faixa de cabeçalho no topo da página (número de página + nome do jornal) agora é corretamente isolada em micro-candidatos próprios (sinalizados `possibleAdvertisement`, triviais de descartar), enquanto o corpo real da matéria permanece como um único candidato coeso e intacto — antes esse cabeçalho ficava implicitamente misturado na mesma coluna única da página inteira.
+
+**Limitação residual, documentada, não forçada**: as duas páginas mais densas do lote (685/p4, a ata de câmara em grade; 685/p23, a coluna social/horóscopo) continuam com pelo menos um candidato que mistura texto de assuntos diferentes em uma sub-região específica — são grades genuinamente bidimensionais (a fronteira entre colunas muda a cada poucas linhas), não apenas 2-3 faixas verticais limpas, e resolver isso por completo exigiria segmentação de layout bidimensional real, fora do escopo de uma correção determinística pontual. Cobertura textual continua 100% mesmo nessas duas páginas — o problema remanescente é só de agrupamento/ordem de leitura numa sub-região, nunca perda ou invenção de texto. Detalhe completo em `docs/PDF-REAL-VALIDATION.md`.
+
+### Validação
+
+- `packages/pdf-extraction`: 23/23 testes (`npx tsx --test test/*.test.ts`, de dentro do pacote).
+- `npm run typecheck --workspace @ir/sistema`: sem erros.
+- `npm run build --workspace @ir/sistema`: sucesso.
+- Comparação nas 8 páginas reais da Fase 10 via `scripts/validate-real-pdfs.ts`: sem regressão de conservação (ver acima).
+- `apps/site` e o acervo de PDFs (`apps/site/public/uploads/jornal-online/`) confirmadamente sem alterações.
+
+### Pendências e limitações conhecidas
+
+- Páginas com diagramação em grade densa (685/p4, 685/p23) continuam com agrupamento imperfeito em pelo menos uma sub-região — ver acima e `docs/PDF-REAL-VALIDATION.md`. Resolver exigiria segmentação de layout bidimensional real, possivelmente com apoio de renderização visual da página.
+- Constantes de tuning novas (`REGION_BAND_HEIGHT_PT = 70`, tolerância de fronteira `24pt`) foram calibradas contra as fixtures sintéticas e validadas contra as 8 páginas reais já conhecidas — não foram re-otimizadas especificamente para 685/p4 ou 685/p23 (isso seria ajustar a regra a duas páginas específicas, não uma regra geral).
+- `npm audit` continua reportando vulnerabilidades transitivas (Tiptap desde a Fase 07); nenhuma ação nesta fase.
+
+### Próxima fase
+
+A decidir — possíveis caminhos: segmentação de layout bidimensional (se diagramação em grade densa se mostrar frequente no uso real), OCR real, ou outro módulo do Plano Mestre (editorias/localidades, publicidade, cadastro central). Ainda sem Supabase, autenticação real, upload remoto/storage ou IA.
+
+---
+
 ## Fase 10 — validação com PDFs reais do jornal (20/09/2026)
 
 - Branch: `feature/jornalir-core-foundation-20260917`.

@@ -21,6 +21,19 @@ export interface Line {
   fontSize: number;
 }
 
+/**
+ * Uma coluna válida apenas dentro de uma faixa vertical da página (não a
+ * página inteira) — permite que regiões diferentes tenham estruturas de
+ * coluna diferentes (ex.: matéria larga ao lado de uma coluna estreita por
+ * parte da altura da página). Ver `detectColumnSegments` em `columns.ts`.
+ */
+export interface ColumnSegment {
+  yTop: number;
+  yBottom: number;
+  xStart: number;
+  xEnd: number;
+}
+
 export interface Paragraph {
   /** Identidade estável dentro da página (ex.: "c0-p2") — permite rastrear até o candidato final. */
   id: string;
@@ -63,7 +76,8 @@ export interface PageExtraction {
   pageWidth: number;
   pageHeight: number;
   method: PageExtractionMethod;
-  columnRanges: Array<[number, number]>;
+  /** Colunas detectadas por região vertical da página (Fase 11) — pode haver estruturas diferentes em faixas distintas da mesma página. Cada segmento equivale ao que a Fase 09 chamava de "coluna". */
+  columnSegments: ColumnSegment[];
   /** Catálogo completo de parágrafos detectados na página — base de verdade para a checagem de conservação (ver conservation.ts). Vazio quando `method !== "textLayer"`. */
   paragraphs: Paragraph[];
   articleGroups: ArticleGroup[];

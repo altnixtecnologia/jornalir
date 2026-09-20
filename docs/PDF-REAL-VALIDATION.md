@@ -1,6 +1,123 @@
 # Validação do pipeline de extração com PDFs reais do JornalIR
 
-Data: 20/09/2026. Fase 10 (`feature/jornalir-core-foundation-20260917`).
+Data: 20/09/2026 (Fase 10) e 21/09/2026 (Fase 11). Branch `feature/jornalir-core-foundation-20260917`.
+
+## Adendo — Fase 11: detecção de colunas por região vertical (21/09/2026)
+
+A Fase 10 documentou (Achado 2, abaixo) uma limitação real: o detector de
+colunas olhava para a página inteira de uma vez só, então uma faixa
+intermediária com duas colunas lado a lado (ex.: matéria larga + coluna
+estreita de horóscopo) não era separada quando as faixas de topo/base da
+mesma página já tinham tinta cobrindo aquela mesma faixa de x. A Fase 11
+substitui a detecção "página inteira" por detecção **por região vertical**:
+a página é amostrada em bandas horizontais (`packages/pdf-extraction/src/columns.ts`,
+`detectColumnSegments`), a estrutura de colunas de cada banda é medida
+independentemente (mesma técnica de vão de tinta da Fase 09,
+`detectColumns`), e bandas adjacentes com a mesma estrutura são fundidas em
+uma única região — a comparação usa só a posição dos vãos *entre* colunas
+(não a borda externa esquerda/direita, que varia naturalmente com texto
+alinhado à esquerda) para não fragmentar artificialmente uma coluna única
+só porque o título é mais curto que o corpo. `PageExtraction.columnRanges`
+(um único `Array<[number, number]>` para a página inteira) foi substituído
+por `columnSegments: ColumnSegment[]` (`{ yTop, yBottom, xStart, xEnd }` por
+segmento) — cada segmento continua se comportando, para o resto do
+pipeline (parágrafos, matérias, conservação), exatamente como uma "coluna"
+da Fase 09/10 se comportava; só passou a existir mais de uma estrutura por
+página quando o layout realmente muda de faixa para faixa. Uma página com
+estrutura uniforme do topo à base continua colapsando em uma única região —
+mesmo resultado de antes.
+
+### Prova determinística (fixture sintética)
+
+Novo teste (`packages/pdf-extraction/test/columnRegions.test.ts`,
+`buildMixedLayoutFixture` em `test/fixtures.ts`) reproduz exatamente o
+padrão do Achado 2: matéria larga no topo e na base da página (atravessando
+a faixa de x onde a coluna estreita vai existir), faixa intermediária com
+coluna larga (continuação da matéria) e coluna estreita (horóscopo) lado a
+lado. Antes da Fase 11, um teste equivalente falharia (o texto das duas
+colunas da faixa do meio se misturaria em uma única linha). Depois:
+detecção de pelo menos 2 regiões verticais distintas; nenhum candidato
+mistura o marcador da matéria larga com o da coluna estreita; nenhum
+marcador se perde; **cobertura textual permanece 100%, zero órfãos, zero
+duplicados, zero alterados, zero fora de ordem** — a correção só muda como
+os blocos são agrupados em candidatos, nunca o texto em si. Um teste
+adicional confirma que uma página de estrutura uniforme (fixture da Fase
+09) continua com uma única região, sem fragmentação artificial.
+
+### Revalidação das 8 páginas reais da Fase 10
+
+Reexecutado `scripts/validate-real-pdfs.ts` sobre as mesmas 8 páginas.
+**Nenhuma regressão de conservação**: as 8 continuam com 100% de cobertura
+por caracteres, zero órfãos, zero duplicados, zero caracteres alterados,
+zero blocos fora de ordem — idêntico à Fase 10. O que mudou é a
+segmentação (mais colunas/regiões detectadas, mais candidatos):
+
+| Arquivo | Pág. | Colunas (F10 → F11) | Regiões (F11) | Candidatos (F10 → F11) | Cobertura (chars) |
+| --- | --- | --- | --- | --- | --- |
+| IR 685 | 1 | 1 → 10 | 7 | 6 → 13 | 100% |
+| IR 685 | 4 | 1 → 6 | 4 | 6 → 11 | 100% |
+| IR 685 | 5 | 3 → 3 | 1 | 3 → 3 | 100% |
+| IR 685 | 12 | 2 → 3 | 2 | 3 → 4 | 100% |
+| IR 685 | 18 | 2 → 3 | 2 | 3 → 4 | 100% |
+| IR 685 | 23 | 1 → 31 | 13 | 31 → 48 | 100% |
+| IR 697 | 20 | 2 → 3 | 2 | 4 → 5 | 100% |
+| IR 699 | 18 | 3 → 4 | 2 | 4 → 5 | 100% |
+
+Inspeção manual do conteúdo confirma que a maior parte do aumento de
+colunas/candidatos é uma **melhoria real**: em 685/p12, por exemplo, a
+faixa superior (94pt) agora separa corretamente "12 Região" (número de
+página) de "ELÉTRICA CONTINUARÁ SEM..." (início do título), enquanto o
+resto da página permanece como uma única região de coluna única contendo o
+corpo inteiro da matéria (1002 caracteres, intacto, não fragmentado) — antes
+esse cabeçalho ficava implicitamente misturado à mesma coluna única da
+página inteira. O mesmo padrão se repete em 685/p18, 697/p20 e 699/p18:
+cabeçalho de página isolado em uma micro-região própria (sinalizado
+`possibleAdvertisement`, trivial de descartar na revisão, mesmo
+comportamento já usado desde a Fase 09 para blocos curtos isolados), corpo
+da matéria real preservado como um único candidato coeso.
+
+### Limitação que persiste — páginas 4 e 23 (diagramação em grade densa)
+
+As duas páginas mais complexas do lote (685/p4, a ata de câmara já citada
+no Achado 3 da Fase 10, e 685/p23, a coluna social/horóscopo do Achado 2)
+**não são totalmente resolvidas** pela detecção por região. Inspeção
+manual de 685/p23 mostra por quê: não é uma página com 2-3 faixas verticais
+limpas, é uma grade genuinamente densa onde a fronteira entre colunas se
+desloca a cada poucas linhas (avisos de aniversariantes, horóscopo por
+signo e o artigo sobre microplásticos intercalados na mesma região visual,
+com larguras de coluna que mudam de banda para banda). A maioria dos novos
+candidatos ficou corretamente isolada por assunto (ex.: o corpo do artigo
+de microplásticos aparece hoje fatiado em vários candidatos consecutivos,
+mas cada um só com texto do próprio artigo — antes ficava tudo em uma
+coluna só, misturado), mas pelo menos um candidato residual ainda mistura
+três assuntos diferentes na mesma banda (microplásticos + horóscopo +
+cartaz de igreja), porque nessa banda específica a largura da "coluna
+estreita" se sobrepõe à da matéria vizinha o bastante para o algoritmo de
+vão de tinta não separar os dois.
+
+**Isto continua sendo uma limitação real, documentada, não forçada com uma
+correção arriscada** — consistente com a regra desta fase de só corrigir
+com regra determinística seguramente aplicável. Resolver este caso por
+completo exigiria segmentação de layout verdadeiramente bidimensional (não
+só bandas horizontais empilhadas), o que está fora do escopo de uma
+"melhoria determinística pontual". Importante: mesmo nas páginas 4 e 23,
+**a cobertura textual continua 100%** — o problema remanescente é só de
+agrupamento/ordem de leitura em uma sub-região específica dessas duas
+páginas densas, nunca perda ou invenção de texto.
+
+### Recomendação para fases futuras
+
+Se páginas no padrão de 685/p4 e 685/p23 (grades densas com múltiplas
+colunas de largura variável por linha) se mostrarem frequentes no uso real
+— e não só um caso raro de duas páginas específicas — a próxima melhoria de
+maior valor seria segmentação de layout bidimensional real (ex.: análise
+por blocos de texto conectados, não bandas horizontais), possivelmente com
+apoio visual (renderização da página), o que cruzaria para uma mudança de
+escopo maior do que uma fase de refinamento pontual.
+
+---
+
+Data original deste relatório: 20/09/2026. Fase 10 (`feature/jornalir-core-foundation-20260917`).
 
 ## Objetivo e método
 
@@ -105,6 +222,13 @@ Nenhum texto é alterado — apenas um aviso é adicionado, visível na revisão
 
 ### Achado 2 — diagramação mista (matéria corrida + coluna estreita lado a lado)
 
+> **Atualização da Fase 11**: parcialmente corrigido por detecção de colunas
+> por região vertical — ver adendo no topo deste documento. Melhora a
+> maioria dos casos (inclusive um teste automatizado que prova o mecanismo
+> funciona), mas as duas páginas mais densas do lote (p4, p23) continuam
+> com agrupamento imperfeito em pelo menos uma sub-região, documentado como
+> limitação residual.
+
 A página 23 (coluna social, com um artigo sobre microplásticos correndo ao
 lado de uma coluna de horóscopo) e, em menor grau, um trecho da página 4
 (um resultado de jogos ao lado de um texto corrido) produziram candidatos
@@ -191,14 +315,21 @@ frequência por natureza do conteúdo.
   diagnóstico com dados reais (nunca inventando texto): sinalização de
   possível mapeamento de fonte quebrado; limite de tamanho plausível para
   título.
-- **Uma limitação real documentada, não corrigida**: diagramação mista
-  (colunas de largura desigual lado a lado) pode embaralhar a ordem de
-  leitura dentro de uma coluna mal segmentada — sem perda de texto, mas com
-  risco de leitura confusa, exigindo atenção do revisor humano.
+- **Uma limitação real documentada, então parcialmente corrigida na Fase
+  11**: diagramação mista (colunas de largura desigual lado a lado) podia
+  embaralhar a ordem de leitura dentro de uma coluna mal segmentada — sem
+  perda de texto, mas com risco de leitura confusa. A Fase 11 introduziu
+  detecção de colunas por região vertical (ver adendo no topo deste
+  documento), que resolve a maioria dos casos reais e é provada por um
+  teste automatizado; duas páginas com diagramação em grade muito densa
+  (p4, p23) continuam com agrupamento imperfeito em uma sub-região, agora
+  documentado como limitação residual da Fase 11.
 
-## Recomendação para fases futuras
+## Recomendação para fases futuras (registro original da Fase 10)
 
 Se a diagramação mista (Achado 2) se mostrar frequente no uso real, a
 próxima melhoria de maior valor seria detecção de colunas por região
 vertical da página (não uma partição global única) — fora do escopo desta
-fase de validação.
+fase de validação. **Implementado na Fase 11** (ver adendo no topo deste
+documento e "Recomendação para fases futuras" da Fase 11 para o que ainda
+resta).
