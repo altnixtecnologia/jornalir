@@ -1,8 +1,19 @@
 import Link from "next/link";
 import { ModuleHeader } from "../../../../../components/admin/ModuleHeader";
-import { EmptyModuleState } from "../../../../../components/admin/EmptyModuleState";
+import { ArticleForm } from "../../../../../features/editorial/ArticleForm";
+import {
+  editorialSectionService,
+  localityService,
+  mediaAssetService,
+} from "../../../../../composition/editorial";
 
-export default function NovaMateriaPage(): JSX.Element {
+export default async function NovaMateriaPage(): Promise<JSX.Element> {
+  const [sections, localities, mediaAssets] = await Promise.all([
+    editorialSectionService.list(),
+    localityService.list(),
+    mediaAssetService.list(),
+  ]);
+
   return (
     <>
       <ModuleHeader
@@ -15,10 +26,7 @@ export default function NovaMateriaPage(): JSX.Element {
           </Link>
         }
       />
-      <EmptyModuleState
-        title="O cadastro completo está a caminho."
-        description="Este formulário — com padrão editorial de título e texto, escolha de capa, galeria, destaque e programação — chega em uma próxima etapa."
-      />
+      <ArticleForm mode="create" sections={sections} localities={localities} mediaAssets={mediaAssets} />
     </>
   );
 }

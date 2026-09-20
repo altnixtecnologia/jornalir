@@ -1,5 +1,71 @@
 # Handoff — JornalIR
 
+## Fase 06 — cadastro e edição de matéria (19/09/2026)
+
+- Branch: `feature/jornalir-core-foundation-20260917`.
+- HEAD ao iniciar a fase: `d70d867` (commit da Fase 05).
+- Entrega: `/sistema/editorial/materias/nova` e `/sistema/editorial/materias/[id]` passam a ser um formulário real, usando `ArticleService` por Server Actions. Nenhuma página importa `@ir/mocks` diretamente.
+
+### Por que Server Actions
+
+O domínio editorial é mock em memória, sem banco. Se o formulário (client
+component) chamasse `ArticleService` diretamente pelo navegador, o
+`composition/editorial.ts` seria avaliado uma vez no bundle do servidor (usado
+pelas páginas) e outra vez no bundle do navegador (usado pelo formulário),
+criando dois estados divergentes do mesmo "banco" mock. Server Actions
+(`"use server"`) executam no mesmo processo Node dos Server Components, então
+`actions.ts` chama `articleService` diretamente e mantém um único estado
+consistente — a listagem criada na Fase 05 reflete imediatamente o que o
+formulário grava.
+
+### `packages/core` e `packages/mocks` — extensão mínima
+
+- Novo `MediaAssetRepository`/`MediaAssetService` (somente `list`/`getById`, sem criação/upload) em `packages/core/src/editorial/`, simétrico aos repositórios de editoria/localidade já existentes. Necessário para a biblioteca de mídia do formulário sem importar `mediaAssets` de `@ir/mocks` diretamente na página.
+- Novo `createMediaAssetRepositoryMock` em `packages/mocks/src/editorial/`, reaproveitando os `mediaAssets` já cadastrados na Fase 04.
+- `ArticleService` **não foi alterado** — toda a composição de ações (criar como programada, reverter para rascunho, etc.) acontece na camada de Server Action, reaproveitando `saveDraft`/`updateDraft`/`publishNow`/`schedule`/`archive` como já existiam.
+- `composition/editorial.ts` ganhou `mediaAssetService`.
+
+### `apps/sistema` — novos arquivos
+
+- `app/sistema/editorial/materias/actions.ts` (`"use server"`): `createArticle`, `updateArticle`, `archiveArticle`. Validam (`validateArticlePayload`, compartilhada com o formulário), chamam os métodos do `ArticleService`, revalidam a listagem e o detalhe (`revalidatePath`) e redirecionam para `/sistema/editorial/materias/[id]` ao final. Identidade simulada fixa (`editor-sistema` / `editorial`), sem autenticação real.
+- `features/editorial/ArticleForm.tsx` (client component): usado em criação e edição. Seções: Identificação (título/subtítulo com aparência editorial, referência interna somente leitura), Conteúdo, Classificação (editoria obrigatória, localidade), Exposição editorial (posição/destaque com janela opcional — não altera a editoria), Publicação (status atual informativo + data/hora de programação). Ações: Salvar rascunho, Publicar agora, Programar e, somente em edição, Arquivar (com confirmação).
+- `features/editorial/ArticleBodyEditor.tsx`: textarea isolada em componente próprio — seam preparado para um editor rico futuro sem alterar o restante do formulário.
+- `features/editorial/ArticleMediaPicker.tsx`: capa (com remoção), galeria ordenável (mover para cima/baixo, remover) e biblioteca de mídia mock com "Definir como capa"/"Adicionar à galeria". Sem upload — apenas seleção do catálogo existente.
+- `features/editorial/articleMediaState.ts`: funções puras (`setCoverMedia`, `removeCoverMedia`, `addGalleryMedia`, `removeGalleryMedia`, `moveGalleryMedia`) que mantêm no máximo uma capa e reindexam a ordem da galeria a cada mudança.
+- `features/editorial/articleFormTypes.ts`: `ArticleFormPayload`, `ArticleFormIntent` e `validateArticlePayload` — compartilhados entre o formulário (feedback imediato) e a Server Action (defesa em profundidade).
+- `lib/datetimeLocal.ts`: conversão entre ISO e o formato de `<input type="datetime-local">`.
+- `materias/nova/page.tsx` e `materias/[id]/page.tsx` reescritas: buscam editorias/localidades/mídias via composição e renderizam `ArticleForm` (`mode="create"` ou `mode="edit"`); `[id]` converte `ArticleNotFoundError` em `notFound()`, como na Fase 05.
+- CSS novo em `globals.css` para o formulário e o seletor de mídia (`.article-form`, `.form-section`, `.field-title-input`/`.field-subtitle-input` com tipografia editorial, `.form-actions`, `.media-picker`, `.gallery-list`, `.library-grid`), mesma linguagem visual do shell, sem Tailwind e sem biblioteca de UI nova.
+
+### Regras aplicadas na composição das ações
+
+- "Salvar rascunho" sempre define `status: "draft"` e limpa `publishedAt`/`scheduledAt` — mesmo a partir de uma matéria publicada, garantindo que rascunho nunca publica.
+- "Publicar agora" e "Programar" persistem primeiro os campos editados (`updateDraft`) e só então chamam `publishNow`/`schedule`; ao criar uma matéria já publicando/programando, `saveDraft` roda primeiro (sempre como rascunho, por contrato do `ArticleService`) e a transição de status é a chamada seguinte — nunca pulando o rascunho intermediário.
+- "Programar" sem data/hora é rejeitado antes de chamar o service (client e Server Action).
+- Destaque (`placement`) nunca inclui `sectionId` — a UI nem oferece esse campo dentro da seção de exposição editorial.
+- "Arquivar" só aparece quando `mode === "edit"`.
+
+### Validação
+
+- `npm run typecheck --workspace @ir/sistema`: sem erros.
+- `npm run build --workspace @ir/sistema`: sucesso, 18 rotas; `/materias/nova` e `/materias/[id]` cresceram (Server Actions incluídas no bundle) mas sem erros.
+- Validação de negócio (não apenas compilação): script `tsx` temporário (removido ao final, nunca commitado) compôs `ArticleService`/`EditorialSectionService`/`LocalityService` com os mesmos mocks da composição real e exercitou, com asserções, os 19 comportamentos-chave: criação sempre como rascunho, referência gerada automaticamente, edição altera campos, capa exclusiva, galeria mantém ordenação, destaque não altera editoria, publicar agora grava `publishedAt`, salvar rascunho reverte status e limpa datas, programar exige e grava `scheduledAt`, arquivar define `archived`, criação direta como programada (create+schedule), e rejeição de editoria inexistente. Todas as 19 asserções passaram.
+- Validação de renderização real: servidor de produção local (`next start`, porta 3001) — `/materias/nova` 200 com os 9 itens da biblioteca de mídia listados; `/materias/article-1245` (publicada, com galeria) 200 com capa e as 2 imagens de galeria corretas, seletor de destaque pré-selecionado em "mainHighlight", status "Publicada"; `/materias/article-1243` (rascunho sem imagem) 200 com os estados vazios corretos ("Nenhuma capa selecionada", "Nenhuma imagem na galeria"); `/materias/nao-existe` 404. Servidor encerrado ao final.
+- Não alterado: portal (`apps/site`), IndexedDB legado, flipbook, jornal digital, anúncios/patrocinadores.
+
+### Pendências e decisões
+
+- Corpo da matéria é uma textarea simples (isolada em `ArticleBodyEditor` para facilitar a troca futura por um editor rico); título/subtítulo têm aparência editorial (Georgia serif) mas sem controles de formatação pontual ainda.
+- Sem upload real: a galeria/capa só pode usar as 9 mídias mock já cadastradas na Fase 04.
+- Sem confirmação de saída ao navegar para fora do formulário com alterações não salvas — não solicitado nesta fase.
+- Identidade/ator continua simulada (`editor-sistema`); nenhuma auditoria é persistida (consistente com a decisão da Fase 04).
+
+### Próxima fase
+
+Importação de PDF (candidatos, revisão, mesclar/dividir, vínculo com edição) **ou** evolução do editor de texto (formatação básica: negrito, itálico, listas, links, citações) — a decidir. Ainda sem Supabase, autenticação real, upload remoto ou OCR/PDF real.
+
+---
+
 ## Fase 05 — lista de matérias (19/09/2026)
 
 - Branch: `feature/jornalir-core-foundation-20260917`.
