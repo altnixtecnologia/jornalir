@@ -18,6 +18,8 @@ import {
   removeCoverMedia,
   removeGalleryMedia,
   setCoverMedia,
+  setMediaCaption,
+  setMediaCredit,
   suggestedIdsToArticleMedia,
 } from "./articleMediaState";
 import { importCandidateStatusLabels } from "./editorialLabels";
@@ -58,6 +60,10 @@ export function ImportCandidateReview({
   const [pending, startTransition] = useTransition();
 
   const isPending = candidate.status === "pending";
+  const availableSections = sections.filter((section) => section.active || section.id === candidate.suggestedSectionId);
+  const availableLocalities = localities.filter(
+    (locality) => locality.active || locality.id === candidate.suggestedLocalityId,
+  );
   const suggestedAssets = (candidate.suggestedMediaAssetIds ?? [])
     .map((id) => mediaAssets.find((asset) => asset.id === id))
     .filter((asset): asset is MediaAsset => Boolean(asset));
@@ -192,7 +198,7 @@ export function ImportCandidateReview({
               disabled={!isPending}
             >
               <option value="">Selecione a editoria</option>
-              {sections.map((section) => (
+              {availableSections.map((section) => (
                 <option key={section.id} value={section.id}>
                   {section.name}
                 </option>
@@ -210,7 +216,7 @@ export function ImportCandidateReview({
               disabled={!isPending}
             >
               <option value="">Selecione a localidade</option>
-              {localities.map((locality) => (
+              {availableLocalities.map((locality) => (
                 <option key={locality.id} value={locality.id}>
                   {locality.name}
                 </option>
@@ -259,6 +265,8 @@ export function ImportCandidateReview({
           onAddToGallery={(id) => setMedia((prev) => addGalleryMedia(prev, id))}
           onRemoveFromGallery={(id) => setMedia((prev) => removeGalleryMedia(prev, id))}
           onMoveGalleryItem={(id, direction) => setMedia((prev) => moveGalleryMedia(prev, id, direction))}
+          onSetCaption={(id, caption) => setMedia((prev) => setMediaCaption(prev, id, caption))}
+          onSetCredit={(id, credit) => setMedia((prev) => setMediaCredit(prev, id, credit))}
         />
       </section>
 

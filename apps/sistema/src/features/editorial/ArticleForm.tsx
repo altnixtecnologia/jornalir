@@ -20,6 +20,8 @@ import {
   removeCoverMedia,
   removeGalleryMedia,
   setCoverMedia,
+  setMediaCaption,
+  setMediaCredit,
 } from "./articleMediaState";
 import { ArticleBodyEditor } from "./ArticleBodyEditor";
 import { ArticleMediaPicker } from "./ArticleMediaPicker";
@@ -81,6 +83,14 @@ export function ArticleForm({ mode, article, sections, localities, mediaAssets }
   const [pending, startTransition] = useTransition();
 
   const hasPlacementWindow = placementType !== "none";
+
+  // Editorias/localidades inativas somem das opções de escolha, mas uma já
+  // atribuída a esta matéria continua visível (nunca escondida por baixo dos
+  // olhos de quem está editando um conteúdo existente).
+  const availableSections = sections.filter((section) => section.active || section.id === article?.sectionId);
+  const availableLocalities = localities.filter(
+    (locality) => locality.active || locality.id === article?.localityId,
+  );
 
   function buildPayload(): ArticleFormPayload {
     return {
@@ -258,7 +268,7 @@ export function ArticleForm({ mode, article, sections, localities, mediaAssets }
               onChange={(event) => setSectionId(event.target.value)}
             >
               <option value="">Selecione a editoria</option>
-              {sections.map((section) => (
+              {availableSections.map((section) => (
                 <option key={section.id} value={section.id}>
                   {section.name}
                 </option>
@@ -275,7 +285,7 @@ export function ArticleForm({ mode, article, sections, localities, mediaAssets }
               onChange={(event) => setLocalityId(event.target.value)}
             >
               <option value="">Selecione a localidade</option>
-              {localities.map((locality) => (
+              {availableLocalities.map((locality) => (
                 <option key={locality.id} value={locality.id}>
                   {locality.name}
                 </option>
@@ -366,6 +376,8 @@ export function ArticleForm({ mode, article, sections, localities, mediaAssets }
           onAddToGallery={(id) => setMedia((prev) => addGalleryMedia(prev, id))}
           onRemoveFromGallery={(id) => setMedia((prev) => removeGalleryMedia(prev, id))}
           onMoveGalleryItem={(id, direction) => setMedia((prev) => moveGalleryMedia(prev, id, direction))}
+          onSetCaption={(id, caption) => setMedia((prev) => setMediaCaption(prev, id, caption))}
+          onSetCredit={(id, credit) => setMedia((prev) => setMediaCredit(prev, id, credit))}
         />
       </section>
 

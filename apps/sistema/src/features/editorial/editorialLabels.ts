@@ -3,6 +3,7 @@ import type {
   ArticleStatus,
   EditorialPlacementType,
   ImportCandidateStatus,
+  LocalityScope,
   NotificationMode,
 } from "@ir/types";
 
@@ -34,6 +35,12 @@ export const importCandidateStatusLabels: Record<ImportCandidateStatus, string> 
   pending: "Pendente",
   discarded: "Descartado",
   converted: "Convertido",
+};
+
+export const localityScopeLabels: Record<LocalityScope, string> = {
+  city: "Cidade",
+  region: "Região",
+  general: "Geral",
 };
 
 export function formatDate(iso?: string): string {

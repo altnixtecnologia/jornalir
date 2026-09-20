@@ -34,6 +34,15 @@ export function EditorialOverview(): JSX.Element {
           <Link className="text-link" href="/sistema/editorial/importar-pdf">
             Importar do jornal impresso <span aria-hidden="true">↗</span>
           </Link>
+          <Link className="text-link" href="/sistema/editorial/editorias">
+            Editorias <span aria-hidden="true">↗</span>
+          </Link>
+          <Link className="text-link" href="/sistema/editorial/localidades">
+            Localidades <span aria-hidden="true">↗</span>
+          </Link>
+          <Link className="text-link" href="/sistema/editorial/midias">
+            Biblioteca de mídia <span aria-hidden="true">↗</span>
+          </Link>
         </div>
       </div>
       <section aria-labelledby="fluxo-title">

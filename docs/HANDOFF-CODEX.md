@@ -1,5 +1,64 @@
 # Handoff — JornalIR
 
+## Fase 12 — editorias, localidades e biblioteca de mídia (21/09/2026)
+
+- Branch: `feature/jornalir-core-foundation-20260917`.
+- HEAD ao iniciar a fase: `598b965` (commit da Fase 11).
+- Entrega: três telas de gestão que fecham o ciclo de apoio ao editorial — `/sistema/editorial/editorias`, `/localidades` e `/midias` — mais o requisito permanente de legenda/crédito individuais por foto em qualquer matéria com galeria. Ainda sem Supabase, storage real, upload remoto ou OCR.
+
+### `packages/types` — extensões de domínio
+
+- `EditorialSection` ganhou `order: number` (ordem de exibição definida pela redação, não o índice do array).
+- `MediaAsset` ganhou `name: string` (obrigatório — nome curto para localizar na biblioteca, diferente da legenda de publicação), `caption?`, `credit?` (legenda/crédito padrão da mídia) e `capturedAt?` (data da foto, distinta de `createdAt` = data de cadastro).
+- `ArticleMedia` ganhou `caption?`/`credit?`: sobrescrevem, só para aquele uso específico, a legenda/crédito padrão da mídia — ausentes, a exibição cai para o padrão. Nenhuma mudança em `Locality` (já tinha `active`; "organizar cidade/região/geral" é agrupamento na interface, não um campo novo).
+
+### `packages/core` — de somente-leitura para CRUD completo
+
+- `EditorialSectionRepository`/`Service`: `create`/`update` no repositório; no serviço, `create` (gera `slug` a partir do nome quando ausente, `order` = próximo disponível), `update` (nome/slug/descrição), `setActive`, `reorder(orderedIds)` (reatribui `order` sequencialmente na ordem recebida), `listActive()`. Novo `DuplicateSlugError`; reaproveita `EditorialSectionNotFoundError` já existente em `article-service.ts` (sem duplicar a classe).
+- `LocalityRepository`/`Service`: mesmo padrão — `create`/`update`/`setActive`/`listActive()`, `DuplicateLocalitySlugError`, reaproveita `LocalityNotFoundError` existente.
+- `MediaAssetRepository`/`Service`: deixou de ser somente-leitura. `register(input)` cataloga uma mídia a partir de uma **URL já hospedada** (sem storage real, nunca recebe um arquivo) gerando `reference` automática; `update(id, changes)` edita nome/URL/legenda/crédito/texto alternativo/data. Vínculo com matéria **não é um campo armazenado aqui** — é calculado por quem lê `ArticleService.list()` e cruza `mediaAssetId`, para não duplicar a fonte de verdade (decisão deliberada, documentada no próprio serviço).
+- `ArticleService` **não foi alterado**: `media: ArticleMedia[]` já aceitava `caption`/`credit` por ser um tipo genérico (`Partial<Omit<Article,...>>`), então legenda/crédito individuais passam a funcionar automaticamente por já existir o campo no tipo.
+
+### `packages/mocks` — providers em memória com mutação real
+
+- `createEditorialSectionRepositoryMock`, `createLocalityRepositoryMock`, `createMediaAssetRepositoryMock`: o mesmo padrão já usado por `createArticleRepositoryMock` desde a Fase 06 (cópia do array inicial em uma variável de módulo, `create`/`update` mutam essa cópia — estado dura a sessão do processo, nunca persistência real).
+- `data.ts`: `editorialSections` ganhou `order` (0 a 6) e duas novas editorias dos exemplos do Plano Mestre que ainda faltavam — **Eventos** e **Cidades** (total agora 7: Geral, Esporte, Polícia, Política, Economia, Eventos, Cidades). `mediaAssets`: todas as 9 entradas ganharam `name` (agora obrigatório no tipo); 5 ganharam `caption`/`credit`/`capturedAt` de exemplo para a biblioteca não nascer com tudo vazio.
+
+### Interface — três telas novas, mesma linguagem visual do shell
+
+- **`/sistema/editorial/editorias`** (`EditoriasManager.tsx`): tabela com Ordem (botões ↑/↓ que chamam `reorderSections` com a lista reordenada inteira), Nome, Identificador, Descrição, Status (pílula + Ativar/Inativar) e Ações. Criar abre um formulário compacto no topo (`<div>` recolhível via estado, não `<details>` — precisa fechar sozinho após salvar); editar transforma a própria linha em campos editáveis, sem navegar para outra página (poucos cliques, conforme pedido). Nenhuma editoria hardcoded — tudo vem de `editorialSectionService.list()`.
+- **`/sistema/editorial/localidades`** (`LocalidadesManager.tsx`): mesmo padrão de criação/edição inline; tabela ordenada por abrangência (Cidade → Região → Geral) e depois por nome — "organizar cidade/região/geral" é esse agrupamento visual, não uma hierarquia de dados nova. Sem reordenação manual (não pedida para localidades, diferente de editorias).
+- **`/sistema/editorial/midias`** (`MidiasLibrary.tsx`): grade de miniaturas (reaproveita `.library-item` do seletor de mídia da Fase 06) + painel de detalhe/edição lateral que abre ao clicar em uma mídia ("selecionar" = ver/editar metadados, já que esta é a tela de catálogo, não um seletor embutido em outro formulário). Barra de pesquisa (nome/referência/legenda/crédito) e filtro por vínculo (vinculada a matéria / sem vínculo). Painel de detalhe mostra "Usada em" com links diretos para as matérias que usam aquela mídia — calculado em `midias/page.tsx` cruzando `articleService.list()` com `mediaAssetId`, nunca lido de um campo armazenado.
+- **Legenda/crédito individuais** (`ArticleMediaPicker.tsx`, `articleMediaState.ts`): a capa e cada item da galeria ganharam dois campos de texto discretos (placeholder mostrando a legenda/crédito padrão da mídia quando existir); `setMediaCaption`/`setMediaCredit` (novas funções puras) sobrescrevem só o uso daquele item naquela matéria — nunca a mídia em si. Usado tanto em `ArticleForm.tsx` (Fase 06) quanto em `ImportCandidateReview.tsx` (Fase 08), os dois consumidores existentes do seletor de mídia.
+- **Editoria/localidade inativa some das opções de matéria nova, mas nunca de uma já atribuída**: `ArticleForm.tsx` e `ImportCandidateReview.tsx` agora filtram as opções dos `<select>` para `active || já-selecionada-nesta-matéria` — sem essa regra, "inativar" seria um botão sem efeito prático em nenhum outro lugar do sistema.
+- `EditorialOverview.tsx`: três novos links ("Editorias", "Localidades", "Biblioteca de mídia") ao lado dos já existentes.
+
+### CSS
+
+Bloco novo em `globals.css` (`.inline-form`, `.reorder-buttons`, `button.header-action` como reset para uso em `<button>` além de `<a>`, `.media-caption-input`/`.media-slot-fields` para legenda/crédito por item, `.media-library-layout`/`.media-library-item`/`.media-detail-panel`/`.media-usage-list` para a biblioteca) — mesma linguagem visual (papel claro/verde escuro, sem Tailwind além do já configurado, sem `@ir/ui`), responsivo (`.media-library-layout` empilha abaixo de 900px).
+
+### Validação
+
+- `npm run typecheck --workspace @ir/sistema`: sem erros. `npm run typecheck --workspace @ir/site`: sem erros.
+- `npm run build --workspace @ir/sistema`: sucesso, 22 rotas (3 novas: `/editorial/editorias`, `/editorial/localidades`, `/editorial/midias`, todas estáticas).
+- Validação de negócio (script `tsx` temporário, removido ao final, nunca commitado), reproduzindo os mesmos serviços da composição real — **19/19 asserções**: 7 editorias iniciais na ordem correta; criar editoria gera slug e ordem automáticos; slug duplicado rejeitado (editoria e localidade); editar atualiza só os campos enviados; inativar remove de `listActive()` sem apagar; reordenar reatribui `order` sequencialmente; 4 localidades iniciais; criar/editar localidade; 9 mídias iniciais todas com nome; registrar mídia gera referência automática (`IR-MID-2026-…`); editar mídia inexistente rejeitado; **matéria real salva com capa + galeria de 2 fotos, ordem preservada, legenda/crédito individuais por item mantidos**; reordenar a galeria de uma matéria já salva persiste a nova ordem; vínculo mídia→matéria calculável a partir de `ArticleService.list()` sem campo duplicado.
+- Servidor de produção local (porta 3001, verificada livre antes e encerrada ao final via `taskkill`): `/editorial`, `/editorial/editorias`, `/editorial/localidades`, `/editorial/midias`, `/editorial/materias`, `/editorial/materias/nova` → 200; `/editorial/materias/nao-existe` → 404; contagens conferidas no HTML servido (7 editorias, 4 localidades, 9 mídias); nenhum "Hydration failed"/"Application error"; matéria existente com galeria (`article-1245`) renderiza os 6 campos de legenda/crédito esperados (capa + 2 itens de galeria × 2 campos); matéria nova (sem mídia selecionada ainda) renderiza 0 campos de legenda/crédito, como esperado.
+- Não alterado: `apps/site`, pipeline de extração de PDF (`@ir/pdf-extraction`), IndexedDB legado, flipbook, jornal digital, anúncios/patrocinadores.
+
+### Pendências e decisões
+
+- Sem storage real: cadastrar mídia exige colar uma URL já hospedada (mesma limitação documentada desde a Fase 06); upload de arquivo fica para uma fase futura, explicitamente fora de escopo aqui.
+- Vínculo mídia→matéria é somente leitura nesta tela (mostra onde a mídia é usada; não permite desvincular por aqui — a remoção acontece editando a matéria em si, em `ArticleForm.tsx`).
+- Sem exclusão de editoria/localidade/mídia: consistente com o princípio de auditoria/rastreabilidade do Plano Mestre (Parte P) — inativar é a operação reversível oferecida; excluir permanentemente não foi pedido e quebraria matérias que já referenciam esses ids.
+- Reordenação manual só para editorias (pedida explicitamente); localidades são organizadas por agrupamento (cidade/região/geral) + ordem alfabética, sem controle de ordem manual (não pedido).
+- `npm audit` continua reportando vulnerabilidades transitivas (Tiptap desde a Fase 07); nenhuma ação nesta fase.
+
+### Próxima fase
+
+A decidir — possíveis caminhos: upload real de mídia (quando houver storage), cadastro central (pessoas/empresas), publicidade do portal, ou segmentação de layout bidimensional para o pipeline de PDF (Fase 11, limitação residual em páginas de grade densa). Ainda sem Supabase, autenticação real, upload remoto/storage ou IA.
+
+---
+
 ## Fase 11 — ordem de leitura em diagramação mista (21/09/2026)
 
 - Branch: `feature/jornalir-core-foundation-20260917`.

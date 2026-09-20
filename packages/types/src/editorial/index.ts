@@ -30,6 +30,8 @@ export interface EditorialSection {
   name: string;
   description?: string;
   active: boolean;
+  /** Ordem de exibição definida pela redação (menor primeiro). Não é o índice do array. */
+  order: number;
 }
 
 export type EditorialPlacementType =
@@ -56,8 +58,16 @@ export interface MediaAsset {
   id: string;
   /** Referência interna legível, ex.: IR-MAT-2026-001245-IMG-01. */
   reference: string;
+  /** Nome curto para localizar a mídia na biblioteca (não é a legenda de publicação). */
+  name: string;
   url: string;
   altText?: string;
+  /** Legenda padrão, usada quando uma matéria não define uma legenda própria para esta mídia. */
+  caption?: string;
+  /** Crédito padrão (fotógrafo/fonte), usado quando uma matéria não define um crédito próprio. */
+  credit?: string;
+  /** Data em que a foto/mídia foi feita — distinta de `createdAt` (data de cadastro no sistema). */
+  capturedAt?: string;
   width?: number;
   height?: number;
   createdAt: string;
@@ -65,11 +75,18 @@ export interface MediaAsset {
 
 export type ArticleMediaRole = "cover" | "gallery";
 
-/** Vínculo entre matéria e mídia. Só uma imagem pode ser capa; as demais formam a galeria, com ordem própria. */
+/**
+ * Vínculo entre matéria e mídia. Só uma imagem pode ser capa; as demais
+ * formam a galeria, com ordem própria. `caption`/`credit` sobrescrevem, só
+ * para este uso, a legenda/crédito padrão da mídia (`MediaAsset.caption`/
+ * `credit`) — ausentes, a exibição cai para o padrão da mídia.
+ */
 export interface ArticleMedia {
   mediaAssetId: string;
   role: ArticleMediaRole;
   order: number;
+  caption?: string;
+  credit?: string;
 }
 
 export type ArticleOrigin = "manual" | "pdfImport";

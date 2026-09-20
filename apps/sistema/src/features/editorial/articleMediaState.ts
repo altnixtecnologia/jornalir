@@ -43,6 +43,20 @@ export function removeGalleryMedia(media: ArticleMedia[], mediaAssetId: string):
   return reindexGallery(remaining);
 }
 
+/** Sobrescreve, só para este uso, a legenda de uma mídia já selecionada (capa ou galeria). String vazia remove a sobrescrita, voltando à legenda padrão da mídia. */
+export function setMediaCaption(media: ArticleMedia[], mediaAssetId: string, caption: string): ArticleMedia[] {
+  return media.map((item) =>
+    item.mediaAssetId === mediaAssetId ? { ...item, caption: caption.trim() || undefined } : item,
+  );
+}
+
+/** Sobrescreve, só para este uso, o crédito de uma mídia já selecionada (capa ou galeria). String vazia remove a sobrescrita, voltando ao crédito padrão da mídia. */
+export function setMediaCredit(media: ArticleMedia[], mediaAssetId: string, credit: string): ArticleMedia[] {
+  return media.map((item) =>
+    item.mediaAssetId === mediaAssetId ? { ...item, credit: credit.trim() || undefined } : item,
+  );
+}
+
 export function moveGalleryMedia(
   media: ArticleMedia[],
   mediaAssetId: string,

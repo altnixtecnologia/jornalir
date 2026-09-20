@@ -8,6 +8,8 @@ interface ArticleMediaPickerProps {
   onAddToGallery: (mediaAssetId: string) => void;
   onRemoveFromGallery: (mediaAssetId: string) => void;
   onMoveGalleryItem: (mediaAssetId: string, direction: -1 | 1) => void;
+  onSetCaption: (mediaAssetId: string, caption: string) => void;
+  onSetCredit: (mediaAssetId: string, credit: string) => void;
 }
 
 export function ArticleMediaPicker({
@@ -18,6 +20,8 @@ export function ArticleMediaPicker({
   onAddToGallery,
   onRemoveFromGallery,
   onMoveGalleryItem,
+  onSetCaption,
+  onSetCredit,
 }: ArticleMediaPickerProps): JSX.Element {
   const assetById = new Map(mediaAssets.map((asset) => [asset.id, asset]));
   const cover = media.find((item) => item.role === "cover");
@@ -33,8 +37,22 @@ export function ArticleMediaPicker({
         {coverAsset ? (
           <div className="media-slot">
             <img src={coverAsset.url} alt={coverAsset.altText ?? coverAsset.reference} />
-            <div>
+            <div className="media-slot-fields">
               <span className="materia-reference">{coverAsset.reference}</span>
+              <input
+                className="media-caption-input"
+                value={cover?.caption ?? ""}
+                onChange={(event) => onSetCaption(coverAsset.id, event.target.value)}
+                placeholder={coverAsset.caption ?? "Legenda (opcional)"}
+                aria-label={`Legenda da capa ${coverAsset.reference}`}
+              />
+              <input
+                className="media-caption-input"
+                value={cover?.credit ?? ""}
+                onChange={(event) => onSetCredit(coverAsset.id, event.target.value)}
+                placeholder={coverAsset.credit ?? "Crédito (opcional)"}
+                aria-label={`Crédito da capa ${coverAsset.reference}`}
+              />
               <button type="button" className="media-remove-button" onClick={onRemoveCover}>
                 Remover capa
               </button>
@@ -58,6 +76,20 @@ export function ArticleMediaPicker({
                 <li key={item.mediaAssetId} className="gallery-item">
                   <img src={asset.url} alt={asset.altText ?? asset.reference} />
                   <span className="materia-reference">{asset.reference}</span>
+                  <input
+                    className="media-caption-input"
+                    value={item.caption ?? ""}
+                    onChange={(event) => onSetCaption(item.mediaAssetId, event.target.value)}
+                    placeholder={asset.caption ?? "Legenda (opcional)"}
+                    aria-label={`Legenda de ${asset.reference}`}
+                  />
+                  <input
+                    className="media-caption-input"
+                    value={item.credit ?? ""}
+                    onChange={(event) => onSetCredit(item.mediaAssetId, event.target.value)}
+                    placeholder={asset.credit ?? "Crédito (opcional)"}
+                    aria-label={`Crédito de ${asset.reference}`}
+                  />
                   <div className="gallery-item-actions">
                     <button
                       type="button"
@@ -93,8 +125,11 @@ export function ArticleMediaPicker({
       <div className="media-picker-section">
         <p className="field-label">Biblioteca de mídia</p>
         <p className="helper-text">
-          Seleção a partir da mídia já disponível. Envio de novas imagens chega em uma
-          próxima etapa.
+          Seleção a partir da mídia já cadastrada. Cadastrar mídia nova acontece em{" "}
+          <a className="text-link" href="/sistema/editorial/midias" target="_blank" rel="noreferrer">
+            Editorial → Mídias
+          </a>
+          .
         </p>
         <div className="library-grid">
           {mediaAssets.map((asset) => {
@@ -103,6 +138,7 @@ export function ArticleMediaPicker({
             return (
               <div key={asset.id} className="library-item">
                 <img src={asset.url} alt={asset.altText ?? asset.reference} />
+                <span className="materia-title">{asset.name}</span>
                 <span className="materia-reference">{asset.reference}</span>
                 <div className="library-item-actions">
                   <button type="button" onClick={() => onSetCover(asset.id)} disabled={isCover}>
