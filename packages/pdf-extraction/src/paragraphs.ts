@@ -19,12 +19,14 @@ function roundFontSize(size: number): number {
  * coluna. Junta linhas de um mesmo parágrafo com espaço simples (quebra de
  * linha dentro da mesma frase).
  */
-export function groupLinesIntoParagraphs(lines: Line[]): Paragraph[] {
+export function groupLinesIntoParagraphs(lines: Line[], column: number): Paragraph[] {
   if (lines.length === 0) return [];
   if (lines.length === 1) {
     const [line] = lines;
     return [
       {
+        id: `c${column}-p0`,
+        column,
         text: line.text,
         x: line.x,
         width: line.width,
@@ -60,10 +62,12 @@ export function groupLinesIntoParagraphs(lines: Line[]): Paragraph[] {
     }
   }
 
-  return groups.map((group) => {
+  return groups.map((group, index) => {
     const x = Math.min(...group.map((line) => line.x));
     const width = Math.max(...group.map((line) => line.x + line.width)) - x;
     return {
+      id: `c${column}-p${index}`,
+      column,
       text: group.map((line) => line.text).join(" "),
       x,
       width,

@@ -1,10 +1,11 @@
 import { assignColumn, detectColumns } from "./columns";
+import { checkConservation } from "./conservation";
 import { countPageImages } from "./images";
 import { groupItemsIntoLines } from "./lines";
 import { computeBodyFontSize, groupParagraphsIntoArticles } from "./articleGroups";
 import { groupLinesIntoParagraphs } from "./paragraphs";
 import { extractPageTextItems, hasTextLayer, loadPdfDocument } from "./textLayer";
-import { findSuspiciousCharacters } from "./warnings";
+import { findSuspiciousCharacters, hasIsolatedLowercaseInUppercaseRun } from "./warnings";
 import { defaultOcrProvider } from "./ocr";
 import type { OcrProvider, PageExtraction, PdfExtractionResult, TextItem } from "./types";
 import type { PDFPageProxy } from "pdfjs-dist/types/src/display/api";
@@ -66,6 +67,7 @@ async function extractPage(
         pageHeight: viewport.height,
         method: "unavailable",
         columnRanges: [],
+        paragraphs: [],
         articleGroups: [],
         imageCount,
         warnings,
@@ -81,6 +83,7 @@ async function extractPage(
         pageHeight: viewport.height,
         method: "unavailable",
         columnRanges: [],
+        paragraphs: [],
         articleGroups: [],
         imageCount,
         warnings,
@@ -90,16 +93,31 @@ async function extractPage(
     warnings.push(
       `Página ${pageNumber}: texto obtido por OCR (confiança ${(ocrResult.confidence * 100).toFixed(0)}%) — não é garantidamente exato, revise com atenção.`,
     );
+    const ocrParagraphId = "c0-p0";
     return {
       pageNumber,
       pageWidth: viewport.width,
       pageHeight: viewport.height,
       method: "ocr",
       columnRanges: [],
+      paragraphs: [
+        {
+          id: ocrParagraphId,
+          column: 0,
+          text: ocrResult.text,
+          x: 0,
+          width: viewport.width,
+          yTop: 0,
+          yBottom: 0,
+          fontSize: 0,
+        },
+      ],
       articleGroups: [
         {
           column: 0,
-          blocks: [{ role: "body", text: ocrResult.text, x: 0, y: 0, width: viewport.width, fontSize: 0 }],
+          blocks: [
+            { paragraphId: ocrParagraphId, role: "body", text: ocrResult.text, x: 0, y: 0, width: viewport.width, fontSize: 0 },
+          ],
           lowConfidenceTitle: true,
           possibleContinuation: false,
           possibleAdvertisement: false,
@@ -125,13 +143,22 @@ async function extractPage(
     itemsByColumn[assignColumn(item, columnRanges)].push(item);
   }
 
-  const paragraphsByColumn = itemsByColumn.map((columnItems) =>
-    groupLinesIntoParagraphs(groupItemsIntoLines(columnItems)),
+  const paragraphsByColumn = itemsByColumn.map((columnItems, column) =>
+    groupLinesIntoParagraphs(groupItemsIntoLines(columnItems), column),
   );
-  const bodyFontSize = computeBodyFontSize(paragraphsByColumn.flat());
+  const paragraphs = paragraphsByColumn.flat();
+  const bodyFontSize = computeBodyFontSize(paragraphs);
 
-  const articleGroups = paragraphsByColumn.flatMap((paragraphs, column) =>
-    groupParagraphsIntoArticles(paragraphs, column, bodyFontSize),
+  for (const paragraph of paragraphs) {
+    if (hasIsolatedLowercaseInUppercaseRun(paragraph.text)) {
+      warnings.push(
+        `Página ${pageNumber}: possível letra maiúscula mapeada incorretamente pela fonte em "${paragraph.text.slice(0, 60)}" — comum em fontes de título com CID/Unicode malformado; confira visualmente antes de usar.`,
+      );
+    }
+  }
+
+  const articleGroups = paragraphsByColumn.flatMap((columnParagraphs, column) =>
+    groupParagraphsIntoArticles(columnParagraphs, column, bodyFontSize),
   );
 
   for (const group of articleGroups) {
@@ -152,14 +179,22 @@ async function extractPage(
     }
   }
 
-  return {
+  const pageExtraction: PageExtraction = {
     pageNumber,
     pageWidth: viewport.width,
     pageHeight: viewport.height,
     method: "textLayer",
     columnRanges,
+    paragraphs,
     articleGroups,
     imageCount,
     warnings,
   };
+
+  // Auditoria independente: nunca decide nada, só mede e relata — os avisos
+  // entram na mesma lista para não criar um segundo canal de aviso oculto.
+  const conservation = checkConservation(pageExtraction);
+  pageExtraction.warnings.push(...conservation.warnings);
+
+  return pageExtraction;
 }

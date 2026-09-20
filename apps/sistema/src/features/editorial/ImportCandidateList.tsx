@@ -132,6 +132,13 @@ export function ImportCandidateList({
                   </td>
                   <td className="materia-reference">
                     {candidate.pageNumber ? `Pág. ${candidate.pageNumber}` : "—"}
+                    {candidate.extraction ? (
+                      <span
+                        className={`coverage-mini${candidate.extraction.pageCoverage.coverageByChars < 1 ? " coverage-mini--warning" : ""}`}
+                      >
+                        {(candidate.extraction.pageCoverage.coverageByChars * 100).toFixed(0)}% cobertura
+                      </span>
+                    ) : null}
                   </td>
                   <td>
                     <span className="materia-title">

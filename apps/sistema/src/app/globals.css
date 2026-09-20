@@ -1564,6 +1564,50 @@ button.secondary-link {
   }
 }
 
+/* Cobertura/conservação textual (Fase 10) */
+.coverage-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin: 10px 0;
+}
+.coverage-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 5px 9px;
+  border-radius: 3px;
+  font-size: 10px;
+  font-weight: 700;
+  background: #dcece2;
+  color: var(--green);
+  white-space: nowrap;
+}
+.coverage-badge--warning {
+  background: #f5e6c8;
+  color: #8a5a1f;
+}
+.coverage-risk {
+  border: 1px solid #d98b78;
+  background: #fbeae5;
+  color: #8a3420;
+  padding: 10px 14px;
+  border-radius: 3px;
+  font-size: 12px;
+  margin-bottom: 14px;
+}
+.coverage-mini {
+  display: block;
+  margin-top: 3px;
+  font-size: 10px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+.coverage-mini--warning {
+  color: #8a5a1f;
+  font-weight: 600;
+}
+
 @media (max-width: 480px) {
   .topbar-actions {
     gap: 12px;

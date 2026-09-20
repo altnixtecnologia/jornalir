@@ -1,5 +1,64 @@
 # Handoff — JornalIR
 
+## Fase 10 — validação com PDFs reais do jornal (20/09/2026)
+
+- Branch: `feature/jornalir-core-foundation-20260917`.
+- HEAD ao iniciar a fase: `4a6ca58` (commit da Fase 09).
+- Entrega: prova de fidelidade do pipeline da Fase 09 contra 8 páginas reais escolhidas de 3 edições do acervo do JornalIR (7 PDFs, 24 páginas cada, 168 páginas inspecionadas para a escolha), mais uma nova camada independente de auditoria de conservação textual, integrada à revisão da Fase 08. Relatório completo em `docs/PDF-REAL-VALIDATION.md`.
+
+### PDFs reais — só leitura
+
+Localizados em `apps/site/public/uploads/jornal-online/` (`IR 685/687/696/697/698/699/700_compressed.pdf`, já usados pelo flipbook do portal). Nenhum foi alterado, movido ou reescrito — confirmado via `git status` sobre esse diretório antes do commit. Todas as 168 páginas têm camada de texto real (nenhuma página digitalizada/sem texto encontrada no acervo testado, então o caminho "sem OCR disponível" não foi exercitado com dados reais nesta fase — permanece coberto pelos testes sintéticos da Fase 09).
+
+### Nova camada: conservação textual (`packages/pdf-extraction/src/conservation.ts`)
+
+Auditoria independente — não confia no agrupamento em matérias, reconta do zero a partir do catálogo bruto de parágrafos da página:
+
+- `Paragraph` ganhou `id` (`c{coluna}-p{índice}`) e `column`; `ArticleBlock` ganhou `paragraphId` apontando para o parágrafo de origem; `PageExtraction` ganhou `paragraphs: Paragraph[]` — o catálogo completo, base de verdade para a auditoria.
+- `checkConservation(page)`: para cada parágrafo, verifica se foi usado em exatamente um bloco (órfão = 0 usos; duplicado = 2+ usos), se o texto do bloco bate exatamente com o do parágrafo de origem (alterado = não bate), e se a ordem dos blocos dentro de cada candidato respeita a ordem vertical dos parágrafos de origem na coluna (fora de ordem). Produz `blocksFound`, `blocksUsed`, `orphanBlocks`, `duplicatedBlocks`, `alteredBlocks`, `reorderedBlockIds`, `coverageByCount`, `coverageByChars` e avisos — nunca decide nem corrige nada.
+- Rodada automaticamente ao final de `extractPage` no pipeline; os avisos entram na mesma lista de avisos da página (sem canal oculto).
+- 5 testes novos (`test/conservation.test.ts`), incluindo cenários sintéticos deliberadamente quebrados (órfão, duplicado, alterado, fora de ordem) para provar que o checador realmente detecta cada categoria — não só um teste de "caminho feliz".
+
+### Achados reais (via diagnóstico contra as 8 páginas) e correções aplicadas
+
+Ver `docs/PDF-REAL-VALIDATION.md` para o relatório completo com tabela por página. Resumo:
+
+1. **Cobertura textual: 100% em todas as 8 páginas reais testadas** — zero blocos órfãos, zero duplicados, zero alterados, zero fora de ordem. Confirma com dados reais a garantia estrutural do pipeline (nenhum caminho de código descarta um parágrafo silenciosamente).
+2. **Achado real — mapeamento de fonte quebrado em títulos**: em 6 das 8 páginas, uma fonte de título do PDF de origem mapeia o glifo de "N" (e, em outra edição, "ã"/"h") para o Unicode minúsculo (`"APRESEnTA"`, `"CITADIn"`, `"GOVERnO"`, `"MOÇãO"`, `"GUILhERME"`...). Confirmado inspecionando os itens brutos do `pdfjs-dist`: o defeito já vem assim do PDF, não é introduzido pela junção de linhas. **Correção**: `hasIsolatedLowercaseInUppercaseRun` (novo, em `warnings.ts`) — detector determinístico por padrão de maiúscula/minúscula por palavra (nunca por conteúdo), com exclusão deliberada do plural comum de sigla ("PDFs"). Só sinaliza; nunca corrige a letra.
+3. **Achado real — "título" implausivelmente longo**: na página 4, uma ata de câmara diagramada em grade densa produziu um parágrafo de 900+ caracteres que, por estar em fonte maior que o corpo, virava um "título" absurdo. **Correção**: `articleGroups.ts` só aceita um parágrafo como título quando tem no máximo 160 caracteres; acima disso, o grupo cai para baixa confiança (tudo mantido como corpo, sinalizado para revisão) — verificado antes/depois com o mesmo parágrafo real.
+4. **Limitação real, documentada, não corrigida**: diagramação mista (matéria corrida ao lado de coluna estreita, ex.: horóscopo) pode embaralhar a ordem de leitura dentro de uma coluna mal segmentada pelo detector global de vãos — sem perda de texto (cobertura continua 100%), mas com risco de leitura confusa. Corrigir exigiria detecção de colunas por região vertical da página, mudança de algoritmo maior, fora do escopo desta fase de validação.
+5. **Página inteira de publicidade com pouco texto**: comportamento correto, não uma falha — candidatos triviais e óbvios de descartar, a própria página já se rotula "Publicidade".
+
+### Integração com a Fase 08 (interface)
+
+- `ImportPageCoverage` (novo, em `@ir/types`) e `ImportCandidateExtraction.pageCoverage`: cada candidato carrega um retrato da cobertura da PÁGINA inteira (não só dele), calculado uma vez por página em `composition/pdfCandidateExtraction.ts` via `checkConservation` e compartilhado por todos os candidatos daquela página.
+- `ImportCandidateReview.tsx`: nova linha discreta "Cobertura da página: X%" (com selo de aviso quando <100%) + alerta de risco de perda/ordem quando há blocos órfãos ou cobertura incompleta.
+- `ImportCandidateList.tsx`: indicador discreto "X% cobertura" sob o número da página, por linha.
+
+### Script de diagnóstico — permanente, reprodutível
+
+`packages/pdf-extraction/scripts/validate-real-pdfs.ts`: lê as 8 páginas selecionadas (lista documentada com o motivo de cada escolha), roda `extractPdf` + `checkConservation`, imprime JSON. Não é descartável — fica no repositório para reexecução em fases futuras (`npx tsx scripts/validate-real-pdfs.ts`, de dentro do pacote).
+
+### Validação
+
+- `packages/pdf-extraction`: 19/19 testes (`npx tsx --test test/*.test.ts`, de dentro do pacote) — os 15 já existentes (Fase 09) continuam passando após o refactor de conservação, mais 5 novos de conservação, mais 4 novos do detector de maiúsculas/minúsculas.
+- `npm run typecheck --workspace @ir/sistema`: sem erros. `npm run typecheck --workspace @ir/site`: sem erros (tipos compartilhados não quebraram o portal).
+- `npm run build --workspace @ir/sistema`: sucesso, 19 rotas.
+- Servidor de produção local (porta verificada livre antes, processo encerrado ao final): `/importar-pdf` 200, `/materias` 200 (não afetado).
+- `apps/site` e o acervo de PDFs (`apps/site/public/uploads/jornal-online/`) confirmadamente sem alterações.
+
+### Pendências e limitações conhecidas
+
+- Diagramação mista (Achado 4 acima) — recomendação registrada em `docs/PDF-REAL-VALIDATION.md` para uma fase futura, se o padrão se mostrar frequente no uso real.
+- Nenhuma página sem camada de texto foi encontrada no acervo testado — o caminho de OCR (interface pronta desde a Fase 09, sem implementação real) permanece validado apenas por fixture sintética.
+- `npm audit` continua reportando vulnerabilidades transitivas (Tiptap, desde a Fase 07); nenhuma ação nesta fase.
+
+### Próxima fase
+
+A decidir — possíveis caminhos: detecção de colunas por região vertical (se a diagramação mista se mostrar frequente), OCR real, ou outro módulo do Plano Mestre (editorias/localidades, publicidade, cadastro central). Ainda sem Supabase, autenticação real, upload remoto/storage ou IA.
+
+---
+
 ## Fase 09 — extração real de PDF com fidelidade textual (19/09/2026)
 
 - Branch: `feature/jornalir-core-foundation-20260917`.

@@ -150,6 +150,23 @@ export interface ImportSourceBlock {
 }
 
 /**
+ * Métricas de conservação textual da página de origem (não só deste
+ * candidato) — quantos blocos a camada de texto tinha, quantos foram
+ * aproveitados em algum candidato, e se algo ficou órfão. Um retrato da
+ * página inteira no momento da extração; vários candidatos da mesma página
+ * compartilham o mesmo retrato.
+ */
+export interface ImportPageCoverage {
+  blocksFound: number;
+  blocksUsed: number;
+  orphanBlocks: number;
+  /** blocksUsed / blocksFound. 1 quando não há blocos. */
+  coverageByCount: number;
+  /** Caracteres cobertos / caracteres totais dos blocos de origem. 1 quando não há blocos. */
+  coverageByChars: number;
+}
+
+/**
  * Rastreabilidade e confiança da extração. Nunca esconde incerteza: os
  * avisos e sinalizadores vêm diretamente do pipeline de extração e refletem
  * exatamente o que foi (ou não) possível determinar com segurança.
@@ -164,6 +181,7 @@ export interface ImportCandidateExtraction {
   lowConfidenceTitle: boolean;
   possibleContinuation: boolean;
   possibleAdvertisement: boolean;
+  pageCoverage: ImportPageCoverage;
 }
 
 /**

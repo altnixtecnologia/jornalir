@@ -1,7 +1,7 @@
-import { extractPdf } from "@ir/pdf-extraction";
-import type { ArticleGroup, PageExtraction } from "@ir/pdf-extraction";
+import { checkConservation, extractPdf } from "@ir/pdf-extraction";
+import type { ArticleGroup, ConservationReport, PageExtraction } from "@ir/pdf-extraction";
 import type { NewImportCandidateRecord } from "@ir/core";
-import type { ImportCandidate, ImportSourceBlock } from "@ir/types";
+import type { ImportCandidate, ImportPageCoverage, ImportSourceBlock } from "@ir/types";
 import { articleService, importCandidateService } from "./editorial";
 
 // Re-exportados para que qualquer consumidor (Server Actions, scripts de
@@ -58,10 +58,21 @@ function buildCandidateWarnings(group: ArticleGroup, page: PageExtraction): stri
   return warnings;
 }
 
+function toPageCoverage(conservation: ConservationReport): ImportPageCoverage {
+  return {
+    blocksFound: conservation.blocksFound,
+    blocksUsed: conservation.blocksUsed,
+    orphanBlocks: conservation.orphanBlocks.length,
+    coverageByCount: conservation.coverageByCount,
+    coverageByChars: conservation.coverageByChars,
+  };
+}
+
 function articleGroupToRecord(
   editionId: string,
   page: PageExtraction,
   group: ArticleGroup,
+  pageCoverage: ImportPageCoverage,
 ): NewImportCandidateRecord {
   const titleBlock = group.blocks.find((block) => block.role === "title");
   const subtitleBlock = group.blocks.find((block) => block.role === "subtitle");
@@ -85,6 +96,7 @@ function articleGroupToRecord(
       lowConfidenceTitle: group.lowConfidenceTitle,
       possibleContinuation: group.possibleContinuation,
       possibleAdvertisement: group.possibleAdvertisement,
+      pageCoverage,
     },
   };
 }
@@ -114,8 +126,9 @@ export async function extractCandidatesFromPdf(
       pagesWithoutText.push(page.pageNumber);
       continue;
     }
+    const pageCoverage = toPageCoverage(checkConservation(page));
     for (const group of page.articleGroups) {
-      records.push(articleGroupToRecord(editionId, page, group));
+      records.push(articleGroupToRecord(editionId, page, group, pageCoverage));
     }
   }
 

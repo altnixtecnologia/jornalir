@@ -268,6 +268,24 @@ export function ImportCandidateReview({
           <p className="helper-text">
             Método de extração: <strong>{EXTRACTION_METHOD_LABELS[candidate.extraction.method] ?? candidate.extraction.method}</strong>
           </p>
+          <p className="coverage-line">
+            <span
+              className={`coverage-badge${candidate.extraction.pageCoverage.coverageByChars < 1 ? " coverage-badge--warning" : ""}`}
+            >
+              Cobertura da página: {(candidate.extraction.pageCoverage.coverageByChars * 100).toFixed(0)}%
+            </span>
+            <span className="helper-text">
+              {candidate.extraction.pageCoverage.blocksUsed} de {candidate.extraction.pageCoverage.blocksFound} bloco(s) da camada de texto usados nesta página
+              {candidate.extraction.pageCoverage.orphanBlocks > 0
+                ? ` · ${candidate.extraction.pageCoverage.orphanBlocks} bloco(s) não associado(s) a nenhum candidato`
+                : ""}
+            </span>
+          </p>
+          {candidate.extraction.pageCoverage.orphanBlocks > 0 || candidate.extraction.pageCoverage.coverageByChars < 1 ? (
+            <p className="coverage-risk" role="alert">
+              Risco de perda de texto nesta página: nem todo o conteúdo da camada textual foi associado a um candidato. Confira o PDF original antes de descartar esta página como concluída.
+            </p>
+          ) : null}
           {candidate.extraction.warnings.length > 0 ? (
             <ul className="extraction-warnings">
               {candidate.extraction.warnings.map((warning, index) => (

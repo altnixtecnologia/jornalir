@@ -93,6 +93,16 @@ interface IsolationContext {
 
 const ADVERTISEMENT_MAX_CHARS = 220;
 
+/**
+ * Um título plausível é curto. Em páginas com diagramação mista (matéria
+ * corrida ao lado de uma coluna estreita, ex.: horóscopo), o agrupamento por
+ * parágrafo pode juntar muitas linhas curtas no mesmo tamanho de fonte em um
+ * único parágrafo enorme — tecnicamente "maior que o corpo", mas claramente
+ * não é um título de verdade. Um limite de tamanho evita rotular esse bloco
+ * como título com falsa confiança, sem alterar nenhum caractere do texto.
+ */
+const MAX_PLAUSIBLE_TITLE_LENGTH = 160;
+
 function classifyArticleGroup(
   group: Paragraph[],
   column: number,
@@ -100,7 +110,9 @@ function classifyArticleGroup(
   isolation: IsolationContext,
 ): ArticleGroup {
   const first = group[0];
-  const isFirstTitleTier = roundFontSize(first.fontSize) > roundFontSize(bodyFontSize);
+  const isFirstTitleTier =
+    roundFontSize(first.fontSize) > roundFontSize(bodyFontSize) &&
+    first.text.length <= MAX_PLAUSIBLE_TITLE_LENGTH;
 
   const blocks: ArticleBlock[] = [];
   let lowConfidenceTitle = false;
@@ -138,6 +150,7 @@ function classifyArticleGroup(
 
 function toBlock(paragraph: Paragraph, role: ArticleBlock["role"]): ArticleBlock {
   return {
+    paragraphId: paragraph.id,
     role,
     text: paragraph.text,
     x: paragraph.x,

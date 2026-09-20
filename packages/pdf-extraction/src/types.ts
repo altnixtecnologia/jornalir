@@ -22,6 +22,9 @@ export interface Line {
 }
 
 export interface Paragraph {
+  /** Identidade estável dentro da página (ex.: "c0-p2") — permite rastrear até o candidato final. */
+  id: string;
+  column: number;
   text: string;
   x: number;
   width: number;
@@ -33,6 +36,8 @@ export interface Paragraph {
 export type ArticleRole = "title" | "subtitle" | "body";
 
 export interface ArticleBlock {
+  /** Aponta para o parágrafo de origem (Paragraph.id) — base da checagem de conservação. */
+  paragraphId: string;
   role: ArticleRole;
   text: string;
   x: number;
@@ -59,6 +64,8 @@ export interface PageExtraction {
   pageHeight: number;
   method: PageExtractionMethod;
   columnRanges: Array<[number, number]>;
+  /** Catálogo completo de parágrafos detectados na página — base de verdade para a checagem de conservação (ver conservation.ts). Vazio quando `method !== "textLayer"`. */
+  paragraphs: Paragraph[];
   articleGroups: ArticleGroup[];
   imageCount: number;
   warnings: string[];
