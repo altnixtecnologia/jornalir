@@ -8,3 +8,4 @@ coverage
 .env.local
 *.log
 apps/site/dev-*.log
+supabase/.temp

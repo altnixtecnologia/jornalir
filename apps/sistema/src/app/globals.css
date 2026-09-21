@@ -328,9 +328,10 @@ summary:active {
   background: #fff;
 }
 .login-logo {
-  height: 34px;
+  display: block;
+  height: 48px;
   width: auto;
-  margin-bottom: 24px;
+  margin: 0 auto 24px;
 }
 .login-title {
   font-size: 20px;

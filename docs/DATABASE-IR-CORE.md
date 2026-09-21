@@ -118,10 +118,33 @@ supabase link --project-ref iqnzrpdccecgalqboeyf
 supabase db push
 ```
 
-**Nesta fase, nenhuma das duas execuções acima foi rodada** — as migrations
-foram preparadas e revisadas estaticamente, mas a validação real (aplicar
-do zero, testar RLS/admin/editorial, criar matéria de teste) fica para
-quando alguém rodar um dos comandos acima com as próprias credenciais.
+**Status (Fase 18): ainda nenhuma das duas execuções foi rodada.** Na Fase
+18, tentamos deliberadamente `supabase link --project-ref
+iqnzrpdccecgalqboeyf` para confirmar o que falta — resultado exato:
+
+```text
+{"error":{"code":"LegacyLinkProjectStatusError","message":"Unexpected error retrieving remote project status: {\"message\":\"Unauthorized\"}"}}
+```
+
+A CLI está instalada (`supabase --version` → `2.117.0`) mas **sem nenhuma
+sessão local** — nem `supabase login` foi rodado neste ambiente, nem existe
+`SUPABASE_ACCESS_TOKEN` no ambiente, nem um token salvo em `~/.supabase`
+(confirmado por inspeção do diretório — só telemetria/cache do Deno, sem
+credencial). Conforme instrução explícita da Fase 18, paramos exatamente
+aqui: **não** inventamos nem pedimos para colocar um token no repositório.
+Para aplicar de verdade, rode localmente, fora deste ambiente/sessão:
+
+```bash
+supabase login                                    # abre o navegador para autenticar
+supabase link --project-ref iqnzrpdccecgalqboeyf  # vincula este repo ao projeto certo
+supabase migration list                            # confere o que está pendente
+supabase db push                                   # aplica só o que falta, nunca reset remoto
+```
+
+Config e `.env.local` já conferem com o projeto certo (`project_id =
+"site-system-ir"` em `supabase/config.toml`; `NEXT_PUBLIC_SUPABASE_URL`
+aponta para `iqnzrpdccecgalqboeyf.supabase.co`) — nenhum risco de aplicar
+contra Altnix Informativo/Platform por engano.
 
 ## 6. Variáveis de ambiente
 

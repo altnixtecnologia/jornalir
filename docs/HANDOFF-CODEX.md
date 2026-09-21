@@ -1,5 +1,47 @@
 # Handoff — JornalIR
 
+## Fase 18 — validar banco real + corrigir logo do login (21/09/2026)
+
+- Branch: `feature/jornalir-core-foundation-20260917`.
+- HEAD ao iniciar a fase: `d46934e` (commit da Fase 17).
+- Entrega: correção visual pontual do login (logo errada) + tentativa deliberada de aplicar as migrations reais contra `site-system-ir`, bloqueada por falta de autenticação local da Supabase CLI — parada exatamente onde as instruções mandaram parar, sem inventar nem pedir credencial para o repositório.
+
+### Logo do login corrigida
+
+`apps/sistema/src/app/login/page.tsx` usava `logo-escrita.png` (a marca com o nome escrito por extenso); trocada para `logo-ir.png` (o símbolo oficial), conforme pedido. O elemento já era um `<img>` direto, sem wrapper/placa/padding/fundo — não havia "moldura" para remover, só o arquivo errado. Ajustado tamanho (34px → 48px de altura) e centralização (`margin: 0 auto`) em `.login-logo` (`globals.css`), já que o símbolo é mais compacto que a marca escrita e ficava desproporcional/desalinhado no mesmo tamanho.
+
+### Tentativa de aplicar as migrations reais — bloqueada por autenticação, como esperado
+
+Confirmado antes de qualquer tentativa: ordem das 12 migrations em `supabase/migrations/` (inalterada desde a Fase 17, re-conferida), `project_id = "site-system-ir"` em `supabase/config.toml`, e `NEXT_PUBLIC_SUPABASE_URL` em `apps/sistema/.env.local` apontando para `iqnzrpdccecgalqboeyf.supabase.co` — os três coerentes entre si, sem risco de mirar Altnix Informativo/Platform por engano.
+
+`supabase projects list` e `supabase link --project-ref iqnzrpdccecgalqboeyf` (este último só para confirmar o diagnóstico, sem seguir para `db push`) retornaram `{"message":"Unauthorized"}` — a CLI (`2.117.0`, instalada) não tem nenhuma sessão local: sem `supabase login` rodado neste ambiente, sem `SUPABASE_ACCESS_TOKEN` no ambiente, sem token salvo em `~/.supabase` (inspecionado diretamente — só cache/telemetria do Deno, nenhuma credencial). Conforme instrução explícita desta fase ("não inventar credenciais, não pedir para colocar token no repositório, parar antes do `db push`"), a execução parou exatamente aqui. `.env.local` não foi alterado com nenhuma credencial administrativa.
+
+**O que falta, exatamente**: rodar `supabase login` (abre navegador para autenticar) ou exportar `SUPABASE_ACCESS_TOKEN` como variável de ambiente local — ambos fora deste repositório, feitos pelo usuário na própria máquina — antes de `supabase link` + `supabase db push` conseguirem funcionar. Passo a passo completo em `docs/DATABASE-IR-CORE.md` (seção 5, atualizada nesta fase).
+
+### O que NÃO foi feito (consequência direta do bloqueio acima)
+
+Nenhuma migration foi aplicada (nem local, nem remota); nenhuma tabela criada no banco real; nenhuma policy/RLS testada contra dados reais; nenhum teste de criação de matéria/placement/capa+galeria/audit event foi executado (todos dependiam do schema já existir no banco); seeds não confirmados em produção. Tudo isso permanece pendente, idêntico ao fim da Fase 17 — esta fase não regrediu nem avançou o estado do banco real, só diagnosticou precisamente o bloqueio.
+
+### Validação
+
+- `npm run typecheck --workspace @ir/sistema`: sem erros.
+- `npm run build --workspace @ir/sistema`: sucesso, 23 rotas (inalterado — só CSS/atributo de imagem mudou).
+- Servidor de desenvolvimento local (porta 3001): `/login` confirmado servindo `logo-ir.png` (`logo-escrita.png` ausente da resposta).
+- Nenhum secret impresso em log — a mensagem de erro do `supabase link` (reproduzida acima) não contém nenhum token, só a string genérica `"Unauthorized"`.
+- `apps/site`: não tocado.
+
+### Pendências e decisões
+
+- **Bloqueador real, não uma decisão de escopo**: aplicar as migrations exige que o usuário rode `supabase login` (ou defina `SUPABASE_ACCESS_TOKEN` localmente) fora deste ambiente — nenhuma ação de código resolve isso.
+- Todo o item 6 da Fase 18 (teste real mínimo: criar matéria/placement/capa+galeria/audit event contra o banco) permanece não executado, na mesma dependência acima.
+- Assim que houver autenticação, a sequência recomendada é: `supabase migration list` (conferir o que está pendente) → `supabase db push` (nunca `db reset` no remoto) → validar manualmente as tabelas/policies listadas na seção 5 do prompt desta fase.
+
+### Próxima fase
+
+A decidir pelo usuário — mas só depois de rodar `supabase login`/definir `SUPABASE_ACCESS_TOKEN` localmente: reexecutar a validação real do banco (aplicar migrations, testar RLS, teste mínimo controlado) antes de qualquer migração de provider. Ainda sem auth real na aplicação, sem mocks removidos, sem `apps/site` tocado.
+
+---
+
 ## Fase 17 — fundação real do banco JornalIR (21/09/2026)
 
 - Branch: `feature/jornalir-core-foundation-20260917`.

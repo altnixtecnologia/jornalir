@@ -33,7 +33,7 @@ export default function LoginPage(): JSX.Element {
   return (
     <div className="login-page">
       <div className="login-card">
-        <img src="/brand/logo-escrita.png" alt="Informativo Regional" className="login-logo" />
+        <img src="/brand/logo-ir.png" alt="Informativo Regional" className="login-logo" />
         <p className="login-title">Acesso ao painel</p>
         <p className="login-subtitle">Área restrita da equipe do Informativo Regional.</p>
 
