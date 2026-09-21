@@ -1,41 +1,54 @@
 "use client";
 
 import { useRef, type ReactNode } from "react";
-import { AdminSidebar } from "./AdminSidebar";
-import { AdminTopbar } from "./AdminTopbar";
+import { useRouter } from "next/navigation";
+import { AdminHeader } from "./AdminHeader";
+import { MobileNav } from "./MobileNav";
+import { clearMockSession } from "../../lib/mockSession";
 
 export function AdminShell({ children }: { children: ReactNode }): JSX.Element {
   const menuRef = useRef<HTMLDialogElement>(null);
+  const router = useRouter();
+
+  function handleLogout(): void {
+    clearMockSession();
+    router.push("/login");
+  }
+
+  function closeMenu(): void {
+    menuRef.current?.close();
+  }
+
   return (
     <div className="admin-shell">
       <a href="#admin-content" className="skip-link">
         Pular para o conteúdo
       </a>
-      <aside className="desktop-sidebar">
-        <AdminSidebar />
-      </aside>
       <dialog
         ref={menuRef}
         className="mobile-menu"
         aria-label="Menu de navegação"
         onClick={(event) => {
-          if (event.target === event.currentTarget) menuRef.current?.close();
+          if (event.target === event.currentTarget) closeMenu();
         }}
       >
         <div className="mobile-menu-inner">
-          <button
-            className="menu-close"
-            onClick={() => menuRef.current?.close()}
-            autoFocus
-            aria-label="Fechar navegação"
-          >
-            Fechar ×
-          </button>
-          <AdminSidebar onNavigate={() => menuRef.current?.close()} />
+          <div className="mobile-menu-header">
+            <img src="/brand/logo-ir.png" alt="Informativo Regional" className="app-brand-logo" />
+            <button type="button" className="menu-close" onClick={closeMenu} autoFocus aria-label="Fechar navegação">
+              ×
+            </button>
+          </div>
+          <MobileNav onNavigate={closeMenu} />
+          <div className="mobile-nav-footer">
+            <button type="button" className="logout-link" onClick={handleLogout}>
+              Sair
+            </button>
+          </div>
         </div>
       </dialog>
       <div className="admin-workspace">
-        <AdminTopbar onOpenMenu={() => menuRef.current?.showModal()} />
+        <AdminHeader onOpenMenu={() => menuRef.current?.showModal()} />
         <main id="admin-content" className="admin-content" tabIndex={-1}>
           {children}
         </main>

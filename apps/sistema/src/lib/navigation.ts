@@ -87,3 +87,43 @@ export function getActiveModule(pathname: string): AdminModule {
     adminModules.find((item) => item.slug === moduleSlug) ?? adminModules[0]
   );
 }
+
+// --- Navegação do header superior (Fase 13) ---
+// Estrutura própria do header, além de `adminModules` (que continua servindo
+// os stubs de módulo planejado em `[module]/page.tsx`). Editorial é o único
+// grupo com submenu hoje; os demais módulos (todos planejados) ficam juntos
+// em "Mais módulos" para o topo nunca virar uma fileira interminável.
+
+export interface AdminNavLink {
+  label: string;
+  href: string;
+  /** Destaca o item como ação principal do dia a dia (ex.: Nova matéria). */
+  primary?: boolean;
+}
+
+export interface AdminNavGroup {
+  label: string;
+  links: AdminNavLink[];
+  /** true quando todo o grupo é composto por módulos ainda não desenvolvidos. */
+  planned?: boolean;
+}
+
+export const editorialNavGroup: AdminNavGroup = {
+  label: "Editorial",
+  links: [
+    { label: "Matérias", href: "/sistema/editorial/materias" },
+    { label: "Nova matéria", href: "/sistema/editorial/materias/nova", primary: true },
+    { label: "Importar do jornal impresso", href: "/sistema/editorial/importar-pdf" },
+    { label: "Editorias", href: "/sistema/editorial/editorias" },
+    { label: "Localidades", href: "/sistema/editorial/localidades" },
+    { label: "Mídias", href: "/sistema/editorial/midias" },
+  ],
+};
+
+export const moreModulesNavGroup: AdminNavGroup = {
+  label: "Mais módulos",
+  planned: true,
+  links: adminModules
+    .filter((item) => item.planned)
+    .map((item) => ({ label: item.label, href: moduleHref(item.slug) })),
+};

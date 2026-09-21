@@ -197,20 +197,19 @@ summary:active {
   flex-shrink: 0;
   padding-left: 12px;
 }
-.environment-label {
-  font-size: 10px;
+.logout-link {
+  border: 0;
+  background: none;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 600;
   color: var(--muted);
-  display: flex;
-  align-items: center;
-  gap: 7px;
   white-space: nowrap;
 }
-.environment-label > span {
-  width: 6px;
-  height: 6px;
-  background: var(--brand-gold);
-  border-radius: 50%;
-  flex-shrink: 0;
+.logout-link:hover {
+  color: var(--brand);
+  text-decoration: underline;
 }
 .admin-workspace {
   min-height: 100dvh;
@@ -250,68 +249,11 @@ summary:active {
   max-width: 640px;
   margin-top: 12px;
 }
-.home-feature {
-  padding: 35px 38px;
-  background: #eef1f6;
-  border-top: 3px solid var(--brand);
-  display: grid;
-  grid-template-columns: 1fr 210px;
-  gap: 32px;
-}
-.home-feature h2 {
-  font:
-    36px/1.15 Georgia,
-    serif;
-  letter-spacing: -1px;
-}
-.home-feature p:not(.eyebrow) {
-  max-width: 465px;
-  color: #3c4650;
-  line-height: 1.7;
-  margin-top: 16px;
-}
-.primary-link {
-  display: inline-flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 35px;
-  padding: 13px 17px;
-  margin-top: 24px;
-  background: var(--brand);
-  color: white;
-  font-size: 12px;
-  font-weight: 700;
-  border-radius: 3px;
-}
-.primary-link:hover {
-  background: var(--brand-dark);
-}
-.feature-note {
-  border-left: 1px solid #c9d3de;
-  padding-left: 26px;
-  align-self: center;
-}
-.feature-note > span {
-  font-size: 9px;
-  letter-spacing: 1.5px;
-}
-.feature-note p {
-  font:
-    23px/1.35 Georgia,
-    serif;
-}
-.feature-note small {
-  display: block;
-  color: #5b6672;
-  margin-top: 14px;
-  line-height: 1.7;
+.helper-text {
   font-size: 11px;
-}
-.home-columns {
-  display: grid;
-  grid-template-columns: 1.35fr 1fr;
-  gap: 44px;
-  margin-top: 36px;
+  line-height: 1.7;
+  color: var(--muted);
+  margin-top: 15px;
 }
 .section-heading {
   display: flex;
@@ -329,51 +271,136 @@ summary:active {
   font-size: 10px;
   color: var(--muted);
 }
-.access-row {
+
+/* Visão geral interna: acesso rápido às áreas do dia a dia — nunca uma vitrine institucional. */
+.quick-access-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 16px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.quick-access-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 20px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  min-height: 108px;
+}
+.quick-access-card:hover {
+  border-color: var(--brand);
+}
+.quick-access-label {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--ink);
+}
+.quick-access-description {
+  font-size: 12px;
+  color: var(--muted);
+  line-height: 1.5;
+}
+.quick-access-arrow {
+  margin-top: auto;
+  align-self: flex-end;
+  color: var(--brand);
+  font-size: 16px;
+}
+
+/* Tela de login — acesso restrito ao painel interno, sem qualquer chrome de app (sem header/nav). */
+.login-page {
+  min-height: 100dvh;
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 20px;
-  border-bottom: 1px solid var(--line);
-  padding: 21px 0;
+  justify-content: center;
+  padding: 24px;
+  background: var(--paper, #f6f5f0);
 }
-.access-row:hover h3 {
-  color: var(--brand);
-  text-decoration: underline;
+.login-card {
+  width: 100%;
+  max-width: 380px;
+  padding: 36px 32px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #fff;
 }
-.access-row h3 {
-  font-weight: 600;
+.login-logo {
+  height: 34px;
+  width: auto;
+  margin-bottom: 24px;
 }
-.access-row p {
+.login-title {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--ink);
+}
+.login-subtitle {
   font-size: 12px;
   color: var(--muted);
   margin-top: 6px;
+  margin-bottom: 28px;
 }
-.access-row > span {
-  font-size: 22px;
-  color: var(--brand);
+.login-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 16px;
 }
-.helper-text {
+.login-field label {
   font-size: 11px;
-  line-height: 1.7;
+  font-weight: 700;
+  letter-spacing: 0.4px;
   color: var(--muted);
-  margin-top: 15px;
 }
-.workspace-note {
-  border-left: 1px solid var(--line);
-  padding-left: 30px;
+.login-field input {
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 12px 14px;
+  font-size: 14px;
+  font-family: inherit;
+  color: var(--ink);
+  min-height: 46px;
 }
-.workspace-note h2 {
-  font:
-    25px Georgia,
-    serif;
+.login-field input:focus {
+  border-color: var(--brand);
+  outline: none;
 }
-.workspace-note p:not(.eyebrow) {
-  color: var(--muted);
+.login-submit {
+  width: 100%;
+  min-height: 46px;
+  margin-top: 8px;
+  background: var(--brand);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 700;
+  border: 0;
+  border-radius: 4px;
+  cursor: pointer;
+}
+.login-submit:hover {
+  background: var(--brand-dark);
+}
+.login-forgot {
+  display: block;
+  text-align: center;
+  margin-top: 18px;
   font-size: 12px;
-  line-height: 1.9;
-  margin-top: 16px;
+  color: var(--muted);
 }
+.login-error {
+  font-size: 12px;
+  color: #a3402b;
+  margin-bottom: 16px;
+}
+@media (max-width: 420px) {
+  .login-card {
+    padding: 28px 22px;
+  }
+}
+
 .workspace-footer {
   display: flex;
   justify-content: space-between;
@@ -674,16 +701,6 @@ button.secondary-link {
   .workspace-footer {
     padding-inline: 22px;
   }
-  .home-feature {
-    grid-template-columns: 1fr;
-    padding: 28px;
-  }
-  .feature-note {
-    display: none;
-  }
-  .home-columns {
-    gap: 24px;
-  }
 }
 @media (max-width: 880px) {
   .app-nav {
@@ -696,7 +713,7 @@ button.secondary-link {
   .app-brand-logo {
     height: 22px;
   }
-  .portal-link {
+  .logout-link {
     display: none;
   }
   .menu-button {
@@ -719,14 +736,6 @@ button.secondary-link {
   }
   .module-header h1 {
     font-size: 30px;
-  }
-  .home-columns {
-    grid-template-columns: 1fr;
-  }
-  .workspace-note {
-    border-left: 0;
-    padding: 24px 0 0;
-    border-top: 1px solid var(--line);
   }
   .workspace-footer {
     padding-inline: 16px;
@@ -771,16 +780,6 @@ button.secondary-link {
   }
 }
 @media (max-width: 480px) {
-  .environment-label {
-    max-width: 120px;
-    line-height: 1.5;
-  }
-  .home-feature {
-    padding: 24px 20px;
-  }
-  .home-feature h2 {
-    font-size: 30px;
-  }
   .editorial-notice {
     align-items: flex-start;
     flex-direction: column;
@@ -1174,20 +1173,6 @@ button.secondary-link {
   font-size: 13px;
 }
 
-.topbar-actions {
-  display: flex;
-  align-items: center;
-  gap: 22px;
-}
-.portal-link {
-  color: var(--brand);
-  font-size: 11px;
-  font-weight: 600;
-  white-space: nowrap;
-}
-.portal-link:hover {
-  text-decoration: underline;
-}
 /* Formulário de matéria */
 .article-form {
   display: flex;
@@ -1721,6 +1706,60 @@ button.secondary-link {
 .import-step {
   margin-top: 8px;
 }
+.import-flow-steps {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  list-style: none;
+  margin: 0 0 20px;
+  padding: 0;
+}
+.import-flow-step {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #a6afa3;
+  padding: 6px 10px 6px 6px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+}
+.import-flow-step-index {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--line);
+  color: var(--muted);
+  font-size: 10px;
+}
+.import-flow-step.is-done {
+  color: var(--muted);
+  border-color: var(--line);
+}
+.import-flow-step.is-done .import-flow-step-index {
+  background: var(--brand);
+  color: #fff;
+}
+.import-flow-step.is-current {
+  color: var(--brand);
+  border-color: var(--brand);
+}
+.import-flow-step.is-current .import-flow-step-index {
+  background: var(--brand);
+  color: #fff;
+}
+@media (max-width: 480px) {
+  .import-flow-step {
+    padding: 5px 9px 5px 5px;
+    font-size: 10px;
+  }
+}
 .edition-picker {
   display: flex;
   flex-wrap: wrap;
@@ -1938,16 +1977,6 @@ button.secondary-link {
 .coverage-mini--warning {
   color: #8a5a1f;
   font-weight: 600;
-}
-
-@media (max-width: 480px) {
-  .topbar-actions {
-    gap: 12px;
-  }
-  .environment-label {
-    max-width: 100px;
-    font-size: 9px;
-  }
 }
 
 /* Editorias / localidades / mídias (Fase 12) */

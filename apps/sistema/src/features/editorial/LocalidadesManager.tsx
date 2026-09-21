@@ -229,6 +229,77 @@ export function LocalidadesManager({ localities }: LocalidadesManagerProps): JSX
           </tbody>
         </table>
       </div>
+
+      {/* Mobile: nunca a tabela desktop espremida — cartões empilhados, mesma edição inline da tabela. */}
+      <ul className="materias-cards">
+        {sorted.map((locality) => {
+          const isEditing = editingId === locality.id;
+          return (
+            <li key={locality.id} className="materia-card materia-card--static">
+              {isEditing ? (
+                <>
+                  <label className="form-field">
+                    <span className="field-label">Nome</span>
+                    <input
+                      value={editForm.name}
+                      onChange={(event) => setEditForm((form) => ({ ...form, name: event.target.value }))}
+                    />
+                  </label>
+                  <label className="form-field">
+                    <span className="field-label">Abrangência</span>
+                    <select
+                      value={editForm.scope}
+                      onChange={(event) =>
+                        setEditForm((form) => ({ ...form, scope: event.target.value as LocalityScope }))
+                      }
+                    >
+                      {SCOPE_OPTIONS.map((scope) => (
+                        <option key={scope} value={scope}>
+                          {localityScopeLabels[scope]}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="form-field">
+                    <span className="field-label">Identificador</span>
+                    <input
+                      value={editForm.slug}
+                      onChange={(event) => setEditForm((form) => ({ ...form, slug: event.target.value }))}
+                    />
+                  </label>
+                  <div className="form-actions">
+                    <button type="button" onClick={() => handleSaveEdit(locality.id)} disabled={pending}>
+                      Salvar
+                    </button>
+                    <button type="button" onClick={() => setEditingId(null)} disabled={pending}>
+                      Cancelar
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="materia-card-head">
+                    <span className={`status-pill status-pill--${locality.active ? "published" : "archived"}`}>
+                      {locality.active ? "Ativa" : "Inativa"}
+                    </span>
+                    <span className="materia-reference">{locality.slug}</span>
+                  </div>
+                  <span className="materia-card-title">{locality.name}</span>
+                  <span className="materia-subtitle">{localityScopeLabels[locality.scope]}</span>
+                  <div className="materia-card-foot">
+                    <button type="button" onClick={() => startEdit(locality)} disabled={pending}>
+                      Editar
+                    </button>
+                    <button type="button" onClick={() => handleToggleActive(locality)} disabled={pending}>
+                      {locality.active ? "Inativar" : "Ativar"}
+                    </button>
+                  </div>
+                </>
+              )}
+            </li>
+          );
+        })}
+      </ul>
     </>
   );
 }

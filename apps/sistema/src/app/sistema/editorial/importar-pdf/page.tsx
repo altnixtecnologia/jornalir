@@ -1,6 +1,7 @@
 import { ModuleHeader } from "../../../../components/admin/ModuleHeader";
 import { GenerateCandidatesForm } from "../../../../features/editorial/GenerateCandidatesForm";
 import { ImportCandidateList } from "../../../../features/editorial/ImportCandidateList";
+import { ImportFlowSteps, type ImportFlowStep } from "../../../../features/editorial/ImportFlowSteps";
 import {
   editorialSectionService,
   importCandidateService,
@@ -24,14 +25,17 @@ export default async function ImportarPdfPage({
     : [];
   const selectedEdition = editions.find((edition) => edition.id === editionId);
   const hasActiveCandidates = candidates.length > 0;
+  const currentStep: ImportFlowStep = !selectedEdition ? "edicao" : hasActiveCandidates ? "candidatos" : "pdf";
 
   return (
     <>
       <ModuleHeader
         eyebrow="EDITORIAL / IMPORTAÇÃO"
         title="Importar do jornal impresso"
-        description="Selecione uma edição, simule o PDF e revise os candidatos antes de virarem rascunhos reais."
+        description="Selecione uma edição, envie o PDF real e revise os candidatos extraídos antes de virarem rascunhos."
       />
+
+      <ImportFlowSteps current={currentStep} />
 
       <section className="form-section import-step" aria-labelledby="edicao-title">
         <h2 id="edicao-title">1. Selecionar edição</h2>
@@ -56,7 +60,7 @@ export default async function ImportarPdfPage({
       {selectedEdition ? (
         <>
           <section className="form-section import-step" aria-labelledby="pdf-title">
-            <h2 id="pdf-title">2. Selecionar PDF local (simulado)</h2>
+            <h2 id="pdf-title">2. Enviar o PDF da edição</h2>
             {hasActiveCandidates ? (
               <details className="generate-more">
                 <summary>Gerar novo lote de candidatos para esta edição</summary>

@@ -247,6 +247,87 @@ export function EditoriasManager({ sections }: EditoriasManagerProps): JSX.Eleme
           </tbody>
         </table>
       </div>
+
+      {/* Mobile: nunca a tabela desktop espremida — cartões empilhados, mesma edição inline da tabela. */}
+      <ul className="materias-cards">
+        {sorted.map((section, index) => {
+          const isEditing = editingId === section.id;
+          return (
+            <li key={section.id} className="materia-card materia-card--static">
+              {isEditing ? (
+                <>
+                  <label className="form-field">
+                    <span className="field-label">Nome</span>
+                    <input
+                      value={editForm.name}
+                      onChange={(event) => setEditForm((form) => ({ ...form, name: event.target.value }))}
+                    />
+                  </label>
+                  <label className="form-field">
+                    <span className="field-label">Identificador</span>
+                    <input
+                      value={editForm.slug}
+                      onChange={(event) => setEditForm((form) => ({ ...form, slug: event.target.value }))}
+                    />
+                  </label>
+                  <label className="form-field">
+                    <span className="field-label">Descrição</span>
+                    <input
+                      value={editForm.description}
+                      onChange={(event) => setEditForm((form) => ({ ...form, description: event.target.value }))}
+                    />
+                  </label>
+                  <div className="form-actions">
+                    <button type="button" onClick={() => handleSaveEdit(section.id)} disabled={pending}>
+                      Salvar
+                    </button>
+                    <button type="button" onClick={() => setEditingId(null)} disabled={pending}>
+                      Cancelar
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="materia-card-head">
+                    <span className={`status-pill status-pill--${section.active ? "published" : "archived"}`}>
+                      {section.active ? "Ativa" : "Inativa"}
+                    </span>
+                    <span className="materia-reference">{section.slug}</span>
+                  </div>
+                  <span className="materia-card-title">{section.name}</span>
+                  {section.description ? <span className="materia-subtitle">{section.description}</span> : null}
+                  <div className="materia-card-foot">
+                    <div className="reorder-buttons">
+                      <button
+                        type="button"
+                        onClick={() => handleMove(index, -1)}
+                        disabled={pending || index === 0}
+                        aria-label={`Mover ${section.name} para cima`}
+                      >
+                        ↑
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleMove(index, 1)}
+                        disabled={pending || index === sorted.length - 1}
+                        aria-label={`Mover ${section.name} para baixo`}
+                      >
+                        ↓
+                      </button>
+                    </div>
+                    <button type="button" onClick={() => startEdit(section)} disabled={pending}>
+                      Editar
+                    </button>
+                    <button type="button" onClick={() => handleToggleActive(section)} disabled={pending}>
+                      {section.active ? "Inativar" : "Ativar"}
+                    </button>
+                  </div>
+                </>
+              )}
+            </li>
+          );
+        })}
+      </ul>
     </>
   );
 }

@@ -196,6 +196,67 @@ export function ImportCandidateList({
           </tbody>
         </table>
       </div>
+
+      {/* Mobile: nunca a tabela desktop espremida — cartões empilhados com as mesmas informações e ações. */}
+      <ul className="materias-cards">
+        {candidates.map((candidate) => {
+          const section = candidate.suggestedSectionId ? sectionById.get(candidate.suggestedSectionId) : undefined;
+          const locality = candidate.suggestedLocalityId ? localityById.get(candidate.suggestedLocalityId) : undefined;
+          const mediaCount = candidate.suggestedMediaAssetIds?.length ?? 0;
+          const mergedInto = candidate.mergedIntoId ? candidateById.get(candidate.mergedIntoId) : undefined;
+          return (
+            <li key={candidate.id} className="materia-card materia-card--static">
+              <div className="materia-card-head">
+                <span
+                  className={`status-pill status-pill--${candidate.status === "pending" ? "draft" : candidate.status === "converted" ? "published" : "archived"}`}
+                >
+                  {importCandidateStatusLabels[candidate.status]}
+                </span>
+                <span className="materia-reference">{candidate.pageNumber ? `Pág. ${candidate.pageNumber}` : "—"}</span>
+              </div>
+              <span className="materia-card-title">{candidate.suggestedTitle ?? "Sem título sugerido"}</span>
+              {candidate.extraction && candidate.extraction.warnings.length > 0 ? (
+                <span className="materia-subtitle">⚠ {candidate.extraction.warnings.length} aviso(s) de confiança</span>
+              ) : null}
+              {mergedInto ? (
+                <span className="materia-subtitle">Mesclado em: {mergedInto.suggestedTitle ?? mergedInto.id}</span>
+              ) : null}
+              <div className="materia-card-meta">
+                <span>{section?.name ?? (candidate.status === "pending" ? "Editoria não sugerida" : "—")}</span>
+                <span aria-hidden="true">·</span>
+                <span>{locality?.name ?? (candidate.status === "pending" ? "Localidade não sugerida" : "—")}</span>
+                <span aria-hidden="true">·</span>
+                <span>{mediaCount > 0 ? `${mediaCount} imagem(ns)` : "Sem imagem"}</span>
+              </div>
+              <div className="materia-card-foot">
+                <Link className="materia-open-link" href={`/sistema/editorial/importar-pdf/${candidate.id}`}>
+                  Abrir ↗
+                </Link>
+                {candidate.status === "pending" ? (
+                  <>
+                    <button type="button" onClick={() => handleConvert(candidate.id)} disabled={pending}>
+                      Converter
+                    </button>
+                    <button
+                      type="button"
+                      className="media-remove-button"
+                      onClick={() => handleDiscard(candidate.id)}
+                      disabled={pending}
+                    >
+                      Descartar
+                    </button>
+                  </>
+                ) : null}
+                {candidate.status === "converted" && candidate.createdArticleId ? (
+                  <Link className="materia-open-link" href={`/sistema/editorial/materias/${candidate.createdArticleId}`}>
+                    Ver rascunho
+                  </Link>
+                ) : null}
+              </div>
+            </li>
+          );
+        })}
+      </ul>
     </>
   );
 }

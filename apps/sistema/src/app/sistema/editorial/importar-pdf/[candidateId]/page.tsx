@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { ImportCandidateNotFoundError } from "@ir/core";
 import { ModuleHeader } from "../../../../../components/admin/ModuleHeader";
 import { ImportCandidateReview } from "../../../../../features/editorial/ImportCandidateReview";
+import { ImportFlowSteps, type ImportFlowStep } from "../../../../../features/editorial/ImportFlowSteps";
 import {
   editorialSectionService,
   importCandidateService,
@@ -31,6 +32,7 @@ export default async function ImportCandidateDetailPage({
     newspaperEditionService.list(),
   ]);
   const edition = editions.find((item) => item.id === candidate.editionId);
+  const currentStep: ImportFlowStep = candidate.status === "converted" ? "materia" : "revisao";
 
   return (
     <>
@@ -47,6 +49,7 @@ export default async function ImportCandidateDetailPage({
           </Link>
         }
       />
+      <ImportFlowSteps current={currentStep} />
       <ImportCandidateReview
         candidate={candidate}
         editionTitle={edition?.title ?? "Edição não encontrada"}
