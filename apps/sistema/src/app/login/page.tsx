@@ -1,32 +1,59 @@
 "use client";
 
-import { useEffect, useState, type FormEvent } from "react";
-import { useRouter } from "next/navigation";
-import { hasMockSession, setMockSession } from "../../lib/mockSession";
+import { Suspense, useEffect, useMemo, useState, type FormEvent } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { createSupabaseClient } from "../../lib/supabaseClient";
+import { useAuth } from "../../lib/auth/AuthProvider";
 
 /**
  * Entrada do painel interno — tela de acesso, não uma landing page.
- * Fluxo visual/estruturado (sem backend real ainda): validar campos
- * preenchidos, marcar a sessão mock e seguir para o painel.
+ * Supabase Auth real (Fase 19): e-mail + senha, sessão de verdade.
  */
 export default function LoginPage(): JSX.Element {
+  return (
+    <Suspense fallback={null}>
+      <LoginForm />
+    </Suspense>
+  );
+}
+
+function LoginForm(): JSX.Element {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const { status } = useAuth();
+  const client = useMemo(() => createSupabaseClient(), []);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [pending, setPending] = useState(false);
 
   useEffect(() => {
-    if (hasMockSession()) router.replace("/sistema");
-  }, [router]);
+    if (status === "authenticated") router.replace("/sistema");
+  }, [status, router]);
 
-  function handleSubmit(event: FormEvent): void {
+  useEffect(() => {
+    if (searchParams.get("erro") === "inativo") {
+      setError("Sua conta está inativa. Fale com um administrador do painel.");
+    }
+  }, [searchParams]);
+
+  async function handleSubmit(event: FormEvent): Promise<void> {
     event.preventDefault();
     if (!email.trim() || !password.trim()) {
       setError("Informe usuário/e-mail e senha para continuar.");
       return;
     }
     setError(null);
-    setMockSession();
+    setPending(true);
+    const { error: signInError } = await client.auth.signInWithPassword({
+      email: email.trim(),
+      password,
+    });
+    setPending(false);
+    if (signInError) {
+      setError("E-mail ou senha inválidos.");
+      return;
+    }
     router.push("/sistema");
   }
 
@@ -67,8 +94,8 @@ export default function LoginPage(): JSX.Element {
             </p>
           ) : null}
 
-          <button type="submit" className="login-submit">
-            Entrar
+          <button type="submit" className="login-submit" disabled={pending}>
+            {pending ? "Entrando…" : "Entrar"}
           </button>
         </form>
 

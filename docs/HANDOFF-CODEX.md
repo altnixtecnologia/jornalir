@@ -1,5 +1,62 @@
 # Handoff — JornalIR
 
+## Fase 19 — perfis reais (owner/admin/operator) + auth real do painel (21/09/2026)
+
+- Branch: `feature/jornalir-core-foundation-20260917`.
+- HEAD ao iniciar a fase: `07d5b17` (commit da Fase 18).
+- Entrega: modelo de papéis substituído (admin/editorial → owner/admin/operator) via migration incremental + trigger de proteção do owner + RLS reescrita; `apps/sistema` trocou a sessão mock (Fase 16) por Supabase Auth real; nova tela `/sistema/usuarios`. **A migration ainda não foi aplicada ao banco remoto** — a sessão da CLI expirou no meio da fase (bloqueio novo, diferente do da Fase 18), então nada disso funciona de ponta a ponta até o usuário rodar `supabase login` de novo e aplicar.
+
+### Migration `20260922100000_owner_admin_operator_roles.sql` — pronta, não aplicada
+
+Sequência dentro do arquivo: `ALTER ... DROP CONSTRAINT` (a antiga não aceita `operator`) → `UPDATE profiles SET role='operator' WHERE role='editorial'` (migra dados existentes antes de reapertar a constraint) → `ALTER ... ADD CONSTRAINT` (novo enum) → índice único parcial `profiles_single_owner` (`WHERE role='owner'` — no máximo 1 linha possível) → função+trigger `protect_owner_profile` (`BEFORE UPDATE OR DELETE` em `profiles`, bloqueia qualquer alteração de `role`/`active`/`id` numa linha que já é owner, e qualquer `DELETE` dela) → `handle_new_auth_user()` redefinida (role inicial `operator`, nunca admin/owner) → `is_active_staff()`/`is_active_admin()` redefinidas + `is_active_owner()`/`is_active_admin_or_owner()` novas → policies de `profiles` (select/insert/update) e de `audit_events` (select) reescritas para 3 papéis. Nenhuma migration antiga (Fase 17) foi tocada — só `CREATE OR REPLACE`/`ALTER`/`DROP POLICY`+`CREATE POLICY` sobre o que já existia.
+
+**Por que a proteção do owner tem duas camadas**: a RLS decide quem pode *tentar* uma alteração (ex.: admin só mexe em linhas `role='operator'`); o trigger garante que, mesmo que uma tentativa passe pela RLS por algum motivo (bug de policy, caminho que já autenticou como outro papel), a linha do owner continua intocável. Nenhuma das duas camadas depende da interface — reforça a regra do Plano Mestre de nunca confiar só na aplicação para invariantes de negócio importantes.
+
+### Bloqueio novo: sessão da CLI expirou
+
+`supabase projects list` e `supabase db push --dry-run` passaram a retornar `{"message":"Unauthorized"}` (401 real do Supabase, não o classificador de permissões do ambiente que bloqueou a Fase 18) — a sessão criada por `supabase login` no início da Fase 18 não está mais válida. **Ação necessária, fora deste ambiente**: rodar `supabase login` de novo no terminal do usuário; depois disso, a sequência já validada (`link` → `db push --dry-run` → `db push`) deve funcionar igual à Fase 18.
+
+### Auth real do `apps/sistema` — sessão mock removida
+
+`apps/sistema/src/lib/mockSession.ts` **deletado** (não usado em lugar nenhum — confirmado por grep antes de remover). Novo `apps/sistema/src/lib/auth/AuthProvider.tsx`: contexto React que usa `client.auth.getSession()`/`onAuthStateChange()` como única fonte de verdade (nunca `localStorage` como flag de autenticação — a persistência interna do SDK do Supabase é outra coisa, não o hack de flag booleana da Fase 16), carrega o `profiles` real correspondente ao usuário logado, e desconecta automaticamente (`signOut()` + status `"inactive"`) quando `active=false`. Montado uma única vez em `RootProviders.tsx` (novo), dentro do layout raiz — cobre `/login` e `/sistema/*` com a mesma instância/assinatura.
+
+- `AuthGate.tsx`: reescrito para usar `useAuth().status` em vez de `hasMockSession()`; redireciona para `/login` (sem sessão) ou `/login?erro=inativo` (conta desativada).
+- `login/page.tsx`: reescrito para `client.auth.signInWithPassword({email, password})` de verdade; precisou de um `<Suspense>` em volta do form (usa `useSearchParams()` para ler `?erro=inativo` — Next.js exige isso para não quebrar o build estático). Logo trocada de novo? Não — continua `logo-ir.png`, sem mudança visual nesta fase (item 6 da Fase 19, mantida).
+- `AdminHeader.tsx`/`AdminShell.tsx`: botão "Sair" agora chama `useAuth().signOut()` (real) em vez de `clearMockSession()`; `AdminHeader` ganhou o nome do usuário logado (`profile.name`, escondido em telas estreitas) e o link "Usuários" (só quando `role` é `owner`/`admin`); `MobileNav.tsx` idem para o menu mobile.
+
+### `/sistema/usuarios` — nova
+
+`features/usuarios/UsersManager.tsx`: lista todos os perfis (`select` em `profiles`, sujeito à RLS — um `operator` que acessasse a URL diretamente só teria a mensagem "sem permissão", já que a query em si é decidida pelo banco, não escondida só na UI); ações de promover/rebaixar (só `owner`) e ativar/desativar (`owner` sobre admin/operator, `admin` só sobre operator) — tudo `UPDATE`s simples sobre `profiles`, cada um só tem efeito se a RLS permitir. Owner aparece com pílula "Proprietário" e sem nenhuma ação (nem no banco seria possível). Sem exclusão física de usuário (item 8 da Fase 19) — só ativar/desativar, em toda a tela.
+
+Botão "Convidar" usa `client.auth.signInWithOtp({ email, options: { shouldCreateUser: true } })` — a única forma de criar uma conta nova sem `service_role` e sem trocar a sessão do navegador de quem está convidando (diferente de `signUp()`, que logaria como o novo usuário). **Limitação documentada, não testada nesta sessão** (sem como testar envio de e-mail aqui): a resposta dessa chamada nunca traz o `id` do usuário criado, então convidar "como admin" não promove automaticamente — a conta sempre nasce `operator` via trigger, e promover a admin é sempre um passo manual depois que a pessoa aparecer na lista.
+
+### Ação manual necessária — primeiro owner
+
+Documentada em detalhe em `docs/DATABASE-IR-CORE.md` (seção 7): (1) criar a conta real no Dashboard do Supabase (Authentication → Users — `enable_signup=false` bloqueia autocadastro público, então essa primeira conta só nasce por ali); (2) depois da migration aplicada, promover via SQL Editor do Dashboard com um `UPDATE ... WHERE id = (select id from auth.users where email = '...')` — nunca commitado, nunca com e-mail fixo em migration. O índice único garante que só funciona uma vez.
+
+### Validação
+
+- `npm run typecheck --workspace @ir/sistema`: sem erros.
+- `npm run build --workspace @ir/sistema`: sucesso, 24 rotas (nova: `/sistema/usuarios`; `/login` cresceu de ~1kB para ~1.8kB pelo `Suspense`+lógica real de auth).
+- Migration **não aplicada** — bloqueio de sessão da CLI documentado acima; revisão estática do SQL (ordem de `ALTER`/`CREATE`, nomes de constraint/policy conferidos contra os nomes reais já aplicados na Fase 18) é o único nível de validação possível nesta sessão.
+- Login real **não testado de ponta a ponta** — depende da migration aplicada e de pelo menos um usuário real existir, nenhum dos dois disponível nesta sessão.
+- `apps/site`: não tocado.
+- Nenhum secret impresso em log; nenhuma credencial administrativa usada ou salva.
+
+### Pendências e decisões
+
+- **Bloqueador real**: `supabase login` precisa ser rodado de novo pelo usuário antes de qualquer coisa desta fase poder ser aplicada/testada contra o banco real.
+- Depois disso: aplicar a migration, criar o primeiro owner (2 passos manuais acima), testar login/logout/RLS pela aplicação com um usuário real.
+- Convite "como admin" tem promoção manual como passo extra, documentado — não é um bug, é a limitação real da API de convite sem `service_role`.
+- Nenhuma tela de conteúdo editorial (matérias/mídias/PDF/editorias/localidades) foi migrada para o banco nesta fase — só a autenticação. Continuam 100% sobre `@ir/mocks`.
+- `npm audit`: sem novas dependências além do que já existia desde a Fase 17 (`@supabase/supabase-js` já instalado).
+
+### Próxima fase
+
+A decidir pelo usuário — mas só depois de: `supabase login` de novo, aplicar esta migration, criar o primeiro owner, testar auth real pela aplicação. Depois disso: migração provider-por-provider do conteúdo editorial, começando por `apps/sistema`, e só então `apps/site`.
+
+---
+
 ## Fase 18 — validar banco real + corrigir logo do login (21/09/2026)
 
 - Branch: `feature/jornalir-core-foundation-20260917`.

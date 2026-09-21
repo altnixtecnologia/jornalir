@@ -1,27 +1,26 @@
 "use client";
 
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
-import { hasMockSession } from "../../lib/mockSession";
+import { useAuth } from "../../lib/auth/AuthProvider";
 
 /**
- * Portão de acesso do painel interno: sem sessão mock, manda para /login
- * antes de mostrar qualquer tela real. Ainda não é autenticação de verdade
- * (nenhum backend envolvido) — só garante que o painel nunca aparece
- * "aberto" por padrão, coerente com a ideia de acesso restrito.
+ * Portão de acesso do painel interno — Supabase Auth real (Fase 19). Sem
+ * sessão válida, ou com profile.active = false, manda para /login antes de
+ * mostrar qualquer tela real.
  */
 export function AuthGate({ children }: { children: ReactNode }): JSX.Element | null {
+  const { status } = useAuth();
   const router = useRouter();
-  const [authorized, setAuthorized] = useState(false);
 
   useEffect(() => {
-    if (hasMockSession()) {
-      setAuthorized(true);
-    } else {
+    if (status === "unauthenticated") {
       router.replace("/login");
+    } else if (status === "inactive") {
+      router.replace("/login?erro=inativo");
     }
-  }, [router]);
+  }, [status, router]);
 
-  if (!authorized) return null;
+  if (status !== "authenticated") return null;
   return <>{children}</>;
 }

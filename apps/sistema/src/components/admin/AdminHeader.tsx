@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { editorialNavGroup, moreModulesNavGroup } from "../../lib/navigation";
-import { clearMockSession } from "../../lib/mockSession";
+import { useAuth } from "../../lib/auth/AuthProvider";
 
 /** Fecha os dois menus suspensos — usado ao escolher um link dentro deles. */
 function closeNavDropdowns(): void {
@@ -15,12 +15,15 @@ function closeNavDropdowns(): void {
 export function AdminHeader({ onOpenMenu }: { onOpenMenu: () => void }): JSX.Element {
   const pathname = usePathname();
   const router = useRouter();
+  const { profile, signOut } = useAuth();
   const isHome = pathname === "/sistema";
   const isEditorial = pathname.startsWith("/sistema/editorial");
+  const isUsuarios = pathname.startsWith("/sistema/usuarios");
   const isMore = moreModulesNavGroup.links.some((link) => pathname.startsWith(link.href));
+  const canManageUsers = profile?.role === "owner" || profile?.role === "admin";
 
-  function handleLogout(): void {
-    clearMockSession();
+  async function handleLogout(): Promise<void> {
+    await signOut();
     router.push("/login");
   }
 
@@ -54,6 +57,16 @@ export function AdminHeader({ onOpenMenu }: { onOpenMenu: () => void }): JSX.Ele
             </div>
           </details>
 
+          {canManageUsers ? (
+            <Link
+              href="/sistema/usuarios"
+              className="app-nav-link"
+              aria-current={isUsuarios ? "page" : undefined}
+            >
+              Usuários
+            </Link>
+          ) : null}
+
           <details className="app-nav-dropdown" data-nav-dropdown name="app-nav-dropdown">
             <summary className={`app-nav-link app-nav-summary${isMore ? " is-active" : ""}`}>
               Mais módulos <span className="app-nav-caret" aria-hidden="true">▾</span>
@@ -75,6 +88,7 @@ export function AdminHeader({ onOpenMenu }: { onOpenMenu: () => void }): JSX.Ele
         </nav>
 
         <div className="app-header-actions">
+          {profile ? <span className="current-user-name">{profile.name}</span> : null}
           <button type="button" className="logout-link" onClick={handleLogout}>
             Sair
           </button>

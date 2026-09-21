@@ -51,7 +51,7 @@ audit_events                   (log imutável — sem update/delete para ningué
 
 | Tabela | Papel | Observações |
 | --- | --- | --- |
-| `profiles` | Perfil complementar a `auth.users` | Criada automaticamente por trigger (`handle_new_auth_user`) ao nascer um `auth.users`; role inicial sempre `editorial`. Promover a `admin` é uma ação deliberada, nunca o padrão. |
+| `profiles` | Perfil complementar a `auth.users` | Criada automaticamente por trigger (`handle_new_auth_user`) ao nascer um `auth.users`; role inicial sempre `operator` (Fase 19 — antes era `editorial`). Promover a `admin`/`owner` é sempre uma ação deliberada, nunca o padrão. |
 | `editorial_sections` | Editorias (assuntos) | `slug` único; `sort_order` é a ordem de exibição da redação, não o id. Sem exclusão — só `active=false`. |
 | `localities` | Cidade/região/geral | `scope` ∈ {`general`,`region`,`city`}; `parent_id` opcional para cidade apontar para sua região (não usado pelos seeds). |
 | `newspaper_editions` | Edição impressa | `pdf_url`/`cover_url` opcionais — alimentam futuramente "Ver esta matéria na edição digital" no portal; nunca inventados enquanto vazios (mesmo princípio já aplicado no painel desde a Fase 15). |
@@ -65,19 +65,51 @@ audit_events                   (log imutável — sem update/delete para ningué
 
 ## 3. Papéis e RLS
 
-Dois papéis (`profiles.role`): `admin` e `editorial`. Nesta fase **ambos têm
-o mesmo acesso ao conteúdo editorial** (matérias, editorias, localidades,
-mídias, importação de PDF, publicação) — a distinção prática hoje é que só
-`admin` gerencia outros `profiles` (promover, ativar/inativar) e só `admin`
-lê `audit_events`. Sem permissões de financeiro/CRM ainda porque esses
-módulos não existem.
+**Desde a Fase 19**, três papéis (`profiles.role`): `owner`, `admin`,
+`operator` (o modelo anterior, `admin`/`editorial` da Fase 17, foi
+substituído — ver migration `20260922100000_owner_admin_operator_roles.sql`).
+
+- **owner** — no máximo 1 em todo o banco (índice único parcial
+  `profiles_single_owner`). Dono do sistema: administra admins e
+  operadores. **Nunca** pode ser editado, desativado, rebaixado ou apagado
+  por ninguém — nem por si mesmo pelo painel — reforçado por RLS **e** por
+  um trigger (`protect_owner_profile`, `BEFORE UPDATE OR DELETE`) que
+  bloqueia qualquer alteração de `role`/`active`/`id` numa linha que já é
+  `owner`, e por qualquer `DELETE`. Dupla camada deliberada: RLS decide
+  quem pode tentar, o trigger garante que a tentativa nunca funciona,
+  mesmo vindo de um caminho que já passou pela RLS.
+- **admin** — acesso administrativo amplo ao conteúdo editorial; cria e
+  gerencia `operator`; **nunca** promove ninguém a `admin` (só `owner`
+  pode) e **nunca** toca no `owner`.
+- **operator** — acesso ao fluxo editorial (substitui o antigo
+  `editorial`); sem gestão de usuários.
+
+Todos os três têm o **mesmo acesso ao conteúdo editorial** (matérias,
+editorias, localidades, mídias, importação de PDF, publicação) — a
+diferença entre eles está inteiramente em `profiles`/`audit_events`
+(quem gerencia quem, quem lê o log). Sem permissões de financeiro/CRM
+ainda porque esses módulos não existem.
 
 Padrão de policy em toda tabela de negócio: `select`/`insert`/`update` para
 `is_active_staff()` (função `SECURITY DEFINER`, evita recursão de RLS ao
-consultar `profiles`); **sem `delete`** — a remoção sempre é reversível
-(`active=false`, `status='archived'`, etc.), exceto em `article_media`
-(remover uma foto de uma matéria é uma operação normal e não destrutiva; a
-mídia em si continua existindo na biblioteca).
+consultar `profiles`; redefinida na Fase 19 para os 3 papéis novos — as
+policies de `articles`/`editorial_sections`/etc. chamam essa função pelo
+nome e não precisaram ser tocadas); **sem `delete`** — a remoção sempre é
+reversível (`active=false`, `status='archived'`, etc.), exceto em
+`article_media` (remover uma foto de uma matéria é uma operação normal e
+não destrutiva; a mídia em si continua existindo na biblioteca).
+
+`profiles`: `select` é o próprio perfil, ou qualquer perfil quando
+`owner`/`admin` (tela `/sistema/usuarios`) — `operator` nunca vê perfil
+alheio. `update`: `owner` altera qualquer perfil não-`owner` (promovendo/
+rebaixando entre `admin`/`operator`, ativando/desativando); `admin` só
+altera perfis que já são `operator`, e o resultado da alteração precisa
+continuar sendo `operator` (a policy em si já impede a promoção — o
+trigger do `owner` nem chega a ser necessário para bloquear isso). Sem
+`delete` (item 8 da Fase 19 — só ativar/desativar).
+
+`audit_events`: `select` agora é `owner` **ou** `admin` (antes só
+`admin`); `insert` continua qualquer staff ativo, só em seu próprio nome.
 
 Leitura pública (para `apps/site` consumir matérias publicadas) está **fora
 de escopo nesta fase**, de propósito — nenhuma policy libera `anon`. Quando
@@ -201,10 +233,103 @@ um token pessoal (`sbp_...`) — essas credenciais administrativas só existem
 localmente, fora do repositório, quando realmente necessárias para rodar a
 CLI.
 
-## 7. Próxima fase (sugestão)
+## 7. Fase 19 — owner/admin/operator + Auth real do painel
 
-Migração provider-por-provider (`apps/sistema` primeiro, matérias/editorias/
+### Migration `20260922100000_owner_admin_operator_roles.sql` — status: **não aplicada ainda**
+
+Escrita e revisada estaticamente (mesmo padrão de rigor das anteriores),
+mas a sessão local da CLI expirou no meio desta fase — `supabase projects
+list` e `supabase db push --dry-run` passaram a retornar `Unauthorized`
+(diferente do bloqueio do classificador do ambiente visto na Fase 18; este
+é um 401 real do lado do Supabase, a sessão de `supabase login` simplesmente
+não está mais válida). **Ação necessária, fora deste ambiente**: rodar
+`supabase login` de novo no terminal do usuário. Depois disso, a sequência
+já testada e segura desde a Fase 18 continua valendo:
+
+```bash
+supabase link --project-ref iqnzrpdccecgalqboeyf
+supabase db push --dry-run   # conferir: só esta migration nova, nada destrutivo
+supabase db push             # aplicar de verdade
+```
+
+O que a migration faz (sem editar nenhuma migration antiga já aplicada):
+migra `profiles.role` de `admin`/`editorial` para `owner`/`admin`/`operator`
+(convertendo `editorial` → `operator`, sempre com `UPDATE` antes de trocar
+a `CHECK constraint`); cria o índice único parcial `profiles_single_owner`
+(no máximo 1 owner em todo o banco); cria a função+trigger
+`protect_owner_profile` (bloqueia `UPDATE`/`DELETE` que tentem alterar
+`role`/`active`/`id` de uma linha que já é `owner`); redefine
+`handle_new_auth_user()` para nascer sempre `operator`; redefine
+`is_active_staff()`/`is_active_admin()` e cria `is_active_owner()`/
+`is_active_admin_or_owner()`; reescreve as 3 policies de `profiles` e a
+policy de `select` de `audit_events` para o novo modelo de 3 papéis.
+
+### Auth real no `apps/sistema` — código pronto, sem usuário real para testar ainda
+
+`apps/sistema/src/lib/auth/AuthProvider.tsx` (novo) substitui inteiramente
+a sessão mock (`localStorage`) da Fase 16 — `mockSession.ts` foi **removido
+do repositório**. Fonte de verdade agora é o SDK do Supabase
+(`client.auth.getSession()`/`onAuthStateChange()`), nunca uma flag em
+`localStorage`. Fluxo: sessão válida → carrega `profiles` real do usuário
+→ `active=false` desconecta (`signOut()`) e manda para `/login?erro=inativo`
+→ `active=true` libera o painel com `role` real disponível via `useAuth()`.
+`AuthGate.tsx`, `login/page.tsx` (agora `signInWithPassword` de verdade),
+`AdminHeader.tsx`/`AdminShell.tsx` (logout real) e a nova
+`/sistema/usuarios` (`UsersManager.tsx`) todos consomem esse mesmo
+provider, montado uma única vez no layout raiz (`RootProviders.tsx`).
+
+**Sem migration aplicada e sem nenhum usuário real criado, o login não tem
+como funcionar de verdade ainda** — `signInWithPassword` vai sempre
+retornar "credenciais inválidas" até existir pelo menos um `auth.users`
+real no projeto. Isso é esperado nesta fase, não um bug.
+
+### `/sistema/usuarios` — listagem e gestão de papel/status prontas; criação de usuário com uma limitação conhecida
+
+Lista (`select` em `profiles`, protegido por RLS), promover/rebaixar
+(`owner` apenas), ativar/desativar (`owner`+`admin`, respeitando quem cada
+um pode tocar) — todas essas ações são `UPDATE`s simples que dependem só da
+RLS já validada estruturalmente. O botão "Convidar" usa
+`client.auth.signInWithOtp({ email, options: { shouldCreateUser: true } })`
+— a única forma de criar uma conta nova **sem usar `service_role`** e
+**sem sequestrar a sessão do admin que está convidando** (diferente de
+`signUp()`, que trocaria a sessão do navegador para a do usuário novo).
+**Limitação conhecida, não testada nesta sessão** (sem forma de testar
+envio de e-mail neste ambiente): a API de convite nunca devolve o `id` do
+usuário criado na resposta, então promover para `admin` no ato do convite
+não é possível — o convite sempre nasce `operator` (via trigger), e
+promover a `admin` é sempre um segundo passo manual depois que a pessoa
+aparecer na lista.
+
+### Ação manual necessária — criar o primeiro `owner`
+
+Não inventamos nem geramos um `owner` sozinhos (item 4 da Fase 19). Dois
+passos manuais, feitos pelo usuário:
+
+1. **Dashboard do Supabase** → Authentication → Users → criar (ou convidar)
+   a conta real que será o `owner` — `enable_signup = false` no
+   `config.toml` bloqueia o autocadastro público, então essa primeira conta
+   só nasce por essa via administrativa.
+2. Depois que a conta existir (e a migration acima estiver aplicada — o
+   trigger já terá criado o `profiles` correspondente como `operator`),
+   promover via **SQL Editor do Dashboard** (nunca commitado, nunca com
+   e-mail fixo em migration):
+
+   ```sql
+   update public.profiles
+   set role = 'owner'
+   where id = (select id from auth.users where email = 'SEU_EMAIL_AQUI');
+   ```
+
+   O índice único `profiles_single_owner` garante que isso só funciona uma
+   vez; tentar promover uma segunda conta depois retorna erro de violação
+   de unicidade.
+
+## 8. Próxima fase (sugestão)
+
+Rodar `supabase login` de novo, aplicar a migration da Fase 19, criar o
+primeiro `owner` (passos acima), testar login/logout/RLS pela própria
+aplicação com esse usuário real. Só depois: migração provider-por-provider
+do conteúdo editorial (`apps/sistema` primeiro, matérias/editorias/
 localidades/mídias/importação de PDF), reconciliando as divergências da
-seção 4, seguida de auth real substituindo a sessão mock (`AuthGate`/
-`mockSession.ts`, Fase 16), e só depois `apps/site` passando a ler
-`published` diretamente do banco com RLS pública.
+seção 4, e por último `apps/site` passando a ler `published` diretamente
+do banco com RLS pública.

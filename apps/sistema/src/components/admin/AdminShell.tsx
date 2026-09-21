@@ -4,14 +4,15 @@ import { useRef, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { AdminHeader } from "./AdminHeader";
 import { MobileNav } from "./MobileNav";
-import { clearMockSession } from "../../lib/mockSession";
+import { useAuth } from "../../lib/auth/AuthProvider";
 
 export function AdminShell({ children }: { children: ReactNode }): JSX.Element {
   const menuRef = useRef<HTMLDialogElement>(null);
   const router = useRouter();
+  const { signOut } = useAuth();
 
-  function handleLogout(): void {
-    clearMockSession();
+  async function handleLogout(): Promise<void> {
+    await signOut();
     router.push("/login");
   }
 
