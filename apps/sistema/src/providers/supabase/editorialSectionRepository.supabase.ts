@@ -6,13 +6,14 @@ import type {
   NewEditorialSectionRecord,
 } from "@ir/core";
 
-const COLUMNS = "id, name, slug, active, sort_order";
+const COLUMNS = "id, name, slug, description, active, sort_order";
 const TABLE = "editorial_sections";
 
 interface EditorialSectionRow {
   id: string;
   name: string;
   slug: string;
+  description: string | null;
   active: boolean;
   sort_order: number;
 }
@@ -21,21 +22,17 @@ interface EditorialSectionRow {
  * `EditorialSection.order` (domínio) ↔ `sort_order` (coluna real). A única
  * conversão de formato fica aqui — a UI nunca vê `sort_order`.
  *
- * `EditorialSection.description` não tem coluna correspondente em
- * `public.editorial_sections` (schema aplicado na Fase 17, sem esse
- * campo). Em vez de mudar o schema "porque o tipo pede" (instrução
- * explícita da Fase 24: não mudar schema sem necessidade clara), este
- * provider real simplesmente não persiste `description` — `list`/
- * `getById` sempre devolvem `description: undefined` para dados reais, e
- * `create`/`update` ignoram esse campo quando presente no input. Ver
- * docs/DATABASE-IR-CORE.md (Fase 24) para o registro completo desta
- * divergência.
+ * `description` ganhou coluna real na Fase 25 (migration
+ * `20260925100000_articles_real_provider.sql`) — a Fase 24 descartava esse
+ * campo silenciosamente por falta de coluna, mas ele é editável de verdade
+ * na tela de Editorias desde a Fase 16; ver docs/DATABASE-IR-CORE.md.
  */
 function toDomain(row: EditorialSectionRow): EditorialSection {
   return {
     id: row.id,
     name: row.name,
     slug: row.slug,
+    description: row.description ?? undefined,
     active: row.active,
     order: row.sort_order,
   };
@@ -66,6 +63,7 @@ export function createEditorialSectionRepositorySupabase(
         .insert({
           name: record.name,
           slug: record.slug,
+          description: record.description ?? null,
           active: record.active,
           sort_order: record.order ?? 0,
         })
@@ -79,6 +77,7 @@ export function createEditorialSectionRepositorySupabase(
       const patch: Record<string, unknown> = {};
       if (changes.name !== undefined) patch.name = changes.name;
       if (changes.slug !== undefined) patch.slug = changes.slug;
+      if (changes.description !== undefined) patch.description = changes.description ?? null;
       if (changes.active !== undefined) patch.active = changes.active;
       if (changes.order !== undefined) patch.sort_order = changes.order;
 

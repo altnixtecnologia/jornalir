@@ -8,29 +8,26 @@ import {
   NewspaperEditionService,
 } from "@ir/core";
 import {
-  createArticleRepositoryMock,
   createImportCandidateRepositoryMock,
   createMediaAssetRepositoryMock,
   createNewspaperEditionRepositoryMock,
 } from "@ir/mocks";
+import { createArticleRepositorySupabase } from "../providers/supabase/articleRepository.supabase";
 import { createEditorialSectionRepositorySupabase } from "../providers/supabase/editorialSectionRepository.supabase";
 import { createLocalityRepositorySupabase } from "../providers/supabase/localityRepository.supabase";
 
-// Ponto de composição do Editorial (Fase 24): editorias e localidades
-// passaram a usar o provider real do Supabase — matérias, mídias,
-// importação de PDF e edições continuam mock (ver docs/HANDOFF-CODEX.md).
+// Ponto de composição do Editorial. Fase 24: editorias e localidades
+// passaram a usar o provider real do Supabase. Fase 25: matérias e
+// destinos editoriais (article_placements) também — mídias e importação
+// de PDF (o candidato em si) continuam mock (ver docs/HANDOFF-CODEX.md).
 //
-// Editorial sections/localities precisam da sessão real de quem está
-// fazendo a requisição (cookies, via `createSupabaseServerClient()`), que
-// só existe DENTRO de uma requisição — por isso não são mais singletons de
-// módulo como antes. `getEditorialSectionService`/`getLocalityService` (e,
-// por depender deles, `getArticleService`/`getImportCandidateService`)
-// viraram fábricas: cada Server Component/Action chama a fábrica com o
-// client da própria requisição. `articleRepository`/`importCandidateRepository`
-// continuam únicos por processo (mock em memória) — só o serviço em volta é
+// Todo provider real precisa da sessão de quem está fazendo a requisição
+// (cookies, via `createSupabaseServerClient()`), que só existe DENTRO de
+// uma requisição — por isso viraram fábricas em vez de singletons de
+// módulo. `mediaAssetRepository`/`importCandidateRepository` continuam
+// únicos por processo (mock em memória) — só o serviço em volta é
 // reconstruído a cada chamada, os dados continuam os mesmos.
 
-const articleRepository = createArticleRepositoryMock();
 const mediaAssetRepository = createMediaAssetRepositoryMock();
 const newspaperEditionRepository = createNewspaperEditionRepositoryMock();
 const importCandidateRepository = createImportCandidateRepositoryMock();
@@ -48,7 +45,7 @@ export function getLocalityService(client: SupabaseClient): LocalityService {
 
 export function getArticleService(client: SupabaseClient): ArticleService {
   return new ArticleService(
-    articleRepository,
+    createArticleRepositorySupabase(client),
     createEditorialSectionRepositorySupabase(client),
     createLocalityRepositorySupabase(client),
   );

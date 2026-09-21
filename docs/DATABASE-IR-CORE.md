@@ -591,13 +591,98 @@ Supabase). Nenhuma migration nova — schema já suportava tudo.
   `/materias` continuam redirecionando (307) para `/login` sem sessão —
   confirmado via `curl` depois do refactor.
 
-## 13. Próxima fase (sugestão)
+## 13. Fase 25 — provider real de Matérias + destinos editoriais coerentes com agendamento
 
-Modelo de destinos editoriais e providers de editorias/localidades já
-estão no banco e conectados (Fases 23/24). Caminhos possíveis a partir
-daqui: migrar o provider de Matérias (`ArticleRepository` real, incluindo
-`article_placements`), depois Mídias e Importação de PDF, reconciliando
-o restante das divergências da seção 4; uma tela de gestão de posições
-editoriais no painel (consumindo `ArticleService.listActivePlacement`);
-ou só então `apps/site` passando a ler `published` diretamente do banco
-com RLS pública.
+`ArticleRepository` passou a ser real (Supabase) em `apps/sistema`. Mídias
+continuam mock (Fase 26). `apps/site` não foi tocado.
+
+- **Duas migrations novas** (`20260925100000_articles_real_provider.sql`,
+  `20260925100100_placement_pinned_capacity_fix.sql`) — nenhuma migration
+  anterior alterada.
+- **Estilos persistidos**: `articles.title_style`/`subtitle_style` (jsonb)
+  — o editor já os expunha; a Fase 22/23 os mantinha só em memória.
+- **Divergência da Fase 24 corrigida**: `editorial_sections.description`
+  ganhou coluna real — é campo editável de verdade na tela de Editorias
+  (não um campo do type sem uso), a Fase 24 descartava silenciosamente por
+  falta de coluna só.
+- **`created_by`/`updated_by` nunca vêm do cliente**: trigger
+  `set_article_actor()` sempre usa `auth.uid()` da sessão, em INSERT e
+  UPDATE — mesmo que o provider mande outro valor (ele nunca manda).
+- **`article_placements` — só uma linha ativa por matéria**: índice único
+  parcial `article_placements_one_active_per_article (article_id) where
+  active`. Testado: tentar uma segunda linha ativa para a mesma matéria
+  falha com `23505` (constraint violation).
+- **`enforce_placement_limit` reescrita — coerente com agendamento (item 8
+  da fase)**: uma linha só disputa/expulsa vaga quando a matéria já está
+  `published` **e** a janela própria (`starts_at`) já chegou. Rascunho,
+  ajuste, agendada e arquivada nunca disputam — a linha existe só como a
+  declaração de destino do editor (sobrevive a um refresh/reabertura), sem
+  contar para o limite 8/3/7/4 até uma publicação de verdade tocar aquele
+  placement de novo (o provider reafirma a linha ativa ao publicar —
+  `touchActivePlacement` — para forçar o trigger a reavaliar com o status
+  atualizado; sem isso o trigger nunca re-roda sozinho, porque ele só
+  dispara em INSERT/UPDATE de `article_placements`, nunca por causa de um
+  UPDATE em `articles`). Sem cron: "quando o horário chega" nesta fase é
+  sempre a ação humana de publicar — não há transição automática
+  `scheduled→published`.
+- **Capacidade de fixadas corrigida (achado desta fase, não só o pedido do
+  item 8)**: a função herdada da Fase 23 só evictava não-fixadas quando a
+  linha nova também era não-fixada; inserir uma fixada com as 8 vagas não-
+  fixadas já ocupadas não evictava ninguém, deixando o total efetivo em 9
+  até a próxima escrita não-fixada. Corrigido unificando os dois caminhos
+  (migration `..._pinned_capacity_fix.sql`) — o total (fixadas + não-
+  fixadas) agora nunca ultrapassa o limite em nenhuma escrita.
+- **`ArticleService` (packages/core) também corrigido**: `enforcePlacementLimit`
+  (chamado em JS, não só o trigger do banco) agora só considera ocupantes
+  `published`; `publishNow` passou a chamar `enforcePlacementLimit` (antes
+  não chamava — uma matéria publicada com destino escolhido em rascunho
+  nunca disputava vaga de verdade); `schedule` deixou de chamar
+  `enforcePlacementLimit` (agendamento nunca deve disputar/expulsar hoje).
+  `listActivePlacement` ganhou um corte de segurança por limite (fixadas
+  primeiro, depois mais recentes, `.slice(0, limite)`) — mesmo que o
+  `active` do banco ainda não tenha reagido a uma mudança recente, a
+  leitura nunca mostra mais que o limite.
+- **Slug**: gerado só na criação, a partir do título (accent-stripping +
+  URL-safe), nunca regenerado numa edição (evita quebrar URL publicada).
+  Unicidade por tentativa de sufixo `-2`, `-3`... contra o banco (sem
+  extensão `unaccent`, que este projeto não tem instalada — normalização
+  de acento é feita em JS). Testado: dois títulos idênticos → segunda
+  tentativa de mesmo slug rejeitada pela constraint única (`23505`),
+  confirmando que o loop de retry do provider tem o que precisa para
+  funcionar.
+- **Imagens**: provider real de Matérias nunca escreve em `article_media`
+  nesta fase (Media Provider ainda mock, Fase 26) — `changes.media` é
+  ignorado, `list`/`getById` sempre devolvem `media: []` para matéria real.
+  Nenhum vínculo real é perdido porque nenhum é tocado.
+- **Teste real completo** (contra `site-system-ir`, `supabase db query
+  --linked`, dados removidos ao final): 8 matérias `published` preenchendo
+  `mainCover`; 9ª como rascunho → não disputa, os 8 continuam intactos; 10ª
+  `published` com `starts_at` amanhã → não disputa; publicar a 9ª (rascunho
+  → published) e reafirmar seu placement → evicta exatamente 1 das 8
+  originais, total efetivo permanece 8; inserir uma 11ª fixada com as 8
+  vagas não-fixadas já ocupadas → evicta 1 não-fixada, total permanece 8;
+  segunda linha ativa para a mesma matéria → rejeitada pelo índice único;
+  `title_style` jsonb → grava e lê de volta idêntico; dois artigos com o
+  mesmo título/slug → segunda inserção rejeitada. Tudo limpo ao final —
+  `0` matérias restantes (banco também tinha `0` antes de começar).
+- **RLS/owner intocados**: 32 policies antes e depois; owner continua
+  `role=owner active=true`. `/sistema/editorial/materias` e `/nova`
+  continuam redirecionando (307) para `/login` sem sessão.
+- **Limitação aceita, documentada (não corrigida — instrução explícita de
+  não usar cron)**: se uma matéria `published` tem `starts_at` no futuro e
+  NADA mais toca aquele tipo de posição depois que a janela abre, o
+  `active` do banco só reflete a realidade na próxima escrita daquele
+  tipo — a leitura pública (`listActivePlacement`) já filtra corretamente
+  por janela e nunca mostra mais que o limite, mas o bookkeeping do banco
+  pode ficar "atrasado" por um tempo nesse cenário específico (raro: exige
+  publicar algo hoje para aparecer só amanhã e depois nada mexer no tipo).
+
+## 14. Próxima fase (sugestão)
+
+Matérias e destinos editoriais já são reais e coerentes com agendamento
+(Fase 25). Caminhos possíveis a partir daqui: migrar o Media Provider
+(`article_media`, upload real) e religar a seção de imagens do editor;
+depois Importação de PDF; uma tela de gestão de posições editoriais no
+painel (consumindo `ArticleService.listActivePlacement`, já pronta); ou só
+então `apps/site` passando a ler `published` diretamente do banco com RLS
+pública.

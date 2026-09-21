@@ -131,17 +131,25 @@ export class ArticleService {
     }
 
     const updated = await this.articles.update(id, finalChanges);
-    if (finalChanges.placement && finalChanges.placement.type !== "none") {
-      await this.enforcePlacementLimit(finalChanges.placement.type);
+    // A vaga só é disputada/expulsa quando a matéria já está `published` de
+    // verdade — um rascunho com destino escolhido não pode expulsar quem já
+    // está visível (Fase 25, item 9). `schedule`/`publishNow` é quem aciona
+    // a disputa, nunca `updateDraft` por si só.
+    if (updated.status === "published" && updated.placement.type !== "none") {
+      await this.enforcePlacementLimit(updated.placement.type);
     }
     return updated;
   }
 
-  publishNow(id: string, _audit: AuditContext): Promise<Article> {
-    return this.articles.update(id, {
+  async publishNow(id: string, _audit: AuditContext): Promise<Article> {
+    const updated = await this.articles.update(id, {
       status: "published",
       publishedAt: new Date().toISOString(),
     });
+    if (updated.placement.type !== "none") {
+      await this.enforcePlacementLimit(updated.placement.type);
+    }
+    return updated;
   }
 
   async schedule(
@@ -155,16 +163,15 @@ export class ArticleService {
       placement = this.stampPlacement(current.placement, placement);
     }
 
-    const updated = await this.articles.update(id, {
+    // Nunca chama enforcePlacementLimit aqui: uma matéria agendada para o
+    // futuro nunca disputa/expulsa vaga hoje (Fase 25, item 8) — a disputa
+    // só acontece quando ela de fato é publicada (publishNow).
+    return this.articles.update(id, {
       status: "scheduled",
       scheduledAt: input.scheduledAt,
       placement,
       notificationMode: input.notificationMode,
     });
-    if (placement && placement.type !== "none") {
-      await this.enforcePlacementLimit(placement.type);
-    }
-    return updated;
   }
 
   archive(id: string, _audit: AuditContext): Promise<Article> {
@@ -184,13 +191,22 @@ export class ArticleService {
   ): Promise<Article[]> {
     const occupants = await this.articles.list({ placementType: type, status: "published" });
     const nowIso = now.toISOString();
-    return occupants
+    const visible = occupants
       .filter(
         (article) =>
           (!article.placement.startsAt || article.placement.startsAt <= nowIso) &&
           (!article.placement.endsAt || article.placement.endsAt >= nowIso),
       )
       .sort((a, b) => (b.placement.setAt ?? "").localeCompare(a.placement.setAt ?? ""));
+
+    // Rede de segurança de leitura: fixadas sempre aparecem, e o total
+    // nunca ultrapassa o limite da posição mesmo se o bookkeeping do banco
+    // (active=true) ainda não tiver reagido a uma mudança recente — sem
+    // depender de cron, a query em si nunca mostra mais que o limite.
+    const pinned = visible.filter((article) => article.placement.pinned);
+    const unpinned = visible.filter((article) => !article.placement.pinned);
+    const limit = EDITORIAL_PLACEMENT_LIMITS[type];
+    return [...pinned, ...unpinned].slice(0, limit);
   }
 
   /**
@@ -218,7 +234,9 @@ export class ArticleService {
    */
   private async enforcePlacementLimit(type: Exclude<EditorialPlacementType, "none">): Promise<void> {
     const limit = EDITORIAL_PLACEMENT_LIMITS[type];
-    const occupants = await this.articles.list({ placementType: type });
+    // Só conta/expulsa entre matérias já `published` — rascunho/ajuste/
+    // agendada/arquivada nunca disputam vaga (Fase 25, item 8/9).
+    const occupants = await this.articles.list({ placementType: type, status: "published" });
     const pinned = occupants.filter((article) => article.placement.pinned);
     const unpinned = [...occupants.filter((article) => !article.placement.pinned)].sort((a, b) =>
       (b.placement.setAt ?? "").localeCompare(a.placement.setAt ?? ""),

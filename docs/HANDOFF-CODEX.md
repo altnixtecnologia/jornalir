@@ -1,5 +1,23 @@
 # Handoff — JornalIR
 
+## Fase 25 — provider real de Matérias + destinos editoriais coerentes com agendamento (21/09/2026)
+
+- Branch: `feature/jornalir-core-foundation-20260917`.
+- HEAD ao iniciar a fase: `14e70a3` (commit da Fase 24).
+- Entrega: `ArticleRepository` real (Supabase) em `apps/sistema`, incluindo `article_placements`. Mídias continuam mock (Fase 26); `apps/site` não foi tocado.
+- Duas migrations novas (`title_style`/`subtitle_style`, `editorial_sections.description`, trigger `created_by`/`updated_by` via `auth.uid()`, índice único de uma linha ativa por matéria, `enforce_placement_limit` reescrita duas vezes na mesma fase — primeiro coerente com `published`/`starts_at`, depois corrigindo um achado real sobre capacidade de fixadas). Nenhuma migration anterior alterada.
+- `ArticleService` (packages/core) corrigido junto: `enforcePlacementLimit` só considera ocupantes `published`; `publishNow` passou a acionar o limite (antes não acionava); `schedule` deixou de acionar (agendamento nunca disputa hoje); `listActivePlacement` ganhou corte de segurança por limite.
+- Slug gerado só na criação (nunca regenerado numa edição), accent-stripping em JS, unicidade por retry de sufixo contra o banco.
+- Teste real completo contra `site-system-ir` (8 mainCover preenchido, rascunho/agendado-futuro não disputam, publicar reavalia corretamente, fixada com vagas ocupadas evicta 1, índice único rejeita segunda linha ativa, jsonb de estilo grava e lê, slug duplicado rejeitado) — tudo limpo ao final, `0` matérias restantes.
+- RLS (32 policies) e owner intocados. Middleware confirmado bloqueando `/sistema/editorial/materias` sem sessão.
+- Detalhe completo em `docs/DATABASE-IR-CORE.md` (seção 13).
+
+### Próxima fase
+
+A decidir pelo usuário — caminhos possíveis: Media Provider real (`article_media`, upload), Importação de PDF, tela de gestão de posições editoriais, ou `apps/site` lendo o banco real.
+
+---
+
 ## Fase 24 — providers reais: editorias + localidades (21/09/2026)
 
 - Branch: `feature/jornalir-core-foundation-20260917`.
