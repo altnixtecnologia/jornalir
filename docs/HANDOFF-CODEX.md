@@ -1,5 +1,22 @@
 # Handoff — JornalIR
 
+## Fase 26 — mídias reais (Storage) + fotos das matérias + Instagram + preview público (21/09/2026)
+
+- Branch: `feature/jornalir-core-foundation-20260917`.
+- HEAD ao iniciar a fase: `fbf4c24` (commit da Fase 25).
+- Entrega: `MediaAssetRepository` real (Supabase + Storage) em `apps/sistema`; `ArticleRepository` passou a carregar/gravar `article_media` (capa/galeria deixam de ser sempre `[]`); botão "Enviar fotos" funciona de verdade; Instagram do portal corrigido; `apps/site` buildado para deploy em Preview na Vercel.
+- Duas migrations novas: colunas `alt_text`/`captured_at` em `media_assets` (campos editáveis reais que a Fase 25 corria risco de descartar), bucket `article-media` (público para leitura, staff para escrita, 8 MB, só imagem), trigger `created_by` via `auth.uid()`.
+- Capa/galeria: trocar capa nunca perde a imagem (vira galeria); remover da matéria só apaga o vínculo; índice único (já existia, Fase 17) garante nunca duas capas — testado real, incluindo a rejeição da segunda capa.
+- `siteSettings.ts`: Instagram `jornalinformativo.regional` → `jornal.informativoregional` (perfil oficial correto).
+- Detalhe completo em `docs/DATABASE-IR-CORE.md` (seção 14).
+- **Bloqueio nesta fase**: deploy do Preview na Vercel não pôde ser concluído — CLI (`vercel`) sem sessão autenticada neste ambiente (`vercel login` exige fluxo interativo/OAuth que não funciona aqui, mesmo padrão do bloqueio de CLI já visto com o Supabase nas Fases 18/23) e nenhum `VERCEL_TOKEN` de usuário persistente configurado. Aguardando decisão do usuário.
+
+### Próxima fase
+
+Depende de como o usuário resolve o acesso à Vercel para o Preview. Depois disso: Importação de PDF real, tela de gestão de posições editoriais, ou `apps/site` lendo o banco real.
+
+---
+
 ## Fase 25 — provider real de Matérias + destinos editoriais coerentes com agendamento (21/09/2026)
 
 - Branch: `feature/jornalir-core-foundation-20260917`.

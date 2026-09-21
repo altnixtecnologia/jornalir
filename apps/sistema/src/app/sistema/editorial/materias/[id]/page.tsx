@@ -6,7 +6,7 @@ import {
   getArticleService,
   getEditorialSectionService,
   getLocalityService,
-  mediaAssetService,
+  getMediaAssetService,
   newspaperEditionService,
 } from "../../../../../composition/editorial";
 import { createSupabaseServerClient } from "../../../../../lib/supabase/server";
@@ -26,7 +26,7 @@ export default async function MateriaEditPage({
   const [sections, localities, mediaAssets, editions] = await Promise.all([
     getEditorialSectionService(supabase).list(),
     getLocalityService(supabase).list(),
-    mediaAssetService.list(),
+    getMediaAssetService(supabase).list(),
     newspaperEditionService.list(),
   ]);
 

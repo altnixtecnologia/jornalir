@@ -9,31 +9,33 @@ import {
 } from "@ir/core";
 import {
   createImportCandidateRepositoryMock,
-  createMediaAssetRepositoryMock,
   createNewspaperEditionRepositoryMock,
 } from "@ir/mocks";
 import { createArticleRepositorySupabase } from "../providers/supabase/articleRepository.supabase";
 import { createEditorialSectionRepositorySupabase } from "../providers/supabase/editorialSectionRepository.supabase";
 import { createLocalityRepositorySupabase } from "../providers/supabase/localityRepository.supabase";
+import { createMediaAssetRepositorySupabase } from "../providers/supabase/mediaAssetRepository.supabase";
 
 // Ponto de composição do Editorial. Fase 24: editorias e localidades
 // passaram a usar o provider real do Supabase. Fase 25: matérias e
-// destinos editoriais (article_placements) também — mídias e importação
-// de PDF (o candidato em si) continuam mock (ver docs/HANDOFF-CODEX.md).
+// destinos editoriais (article_placements) também. Fase 26: mídias
+// também — importação de PDF (o candidato em si) continua mock (ver
+// docs/HANDOFF-CODEX.md).
 //
 // Todo provider real precisa da sessão de quem está fazendo a requisição
 // (cookies, via `createSupabaseServerClient()`), que só existe DENTRO de
 // uma requisição — por isso viraram fábricas em vez de singletons de
-// módulo. `mediaAssetRepository`/`importCandidateRepository` continuam
-// únicos por processo (mock em memória) — só o serviço em volta é
-// reconstruído a cada chamada, os dados continuam os mesmos.
+// módulo. `importCandidateRepository` continua único por processo (mock
+// em memória) — só o serviço em volta é reconstruído a cada chamada.
 
-const mediaAssetRepository = createMediaAssetRepositoryMock();
 const newspaperEditionRepository = createNewspaperEditionRepositoryMock();
 const importCandidateRepository = createImportCandidateRepositoryMock();
 
-export const mediaAssetService = new MediaAssetService(mediaAssetRepository);
 export const newspaperEditionService = new NewspaperEditionService(newspaperEditionRepository);
+
+export function getMediaAssetService(client: SupabaseClient): MediaAssetService {
+  return new MediaAssetService(createMediaAssetRepositorySupabase(client));
+}
 
 export function getEditorialSectionService(client: SupabaseClient): EditorialSectionService {
   return new EditorialSectionService(createEditorialSectionRepositorySupabase(client));

@@ -677,12 +677,65 @@ continuam mock (Fase 26). `apps/site` não foi tocado.
   pode ficar "atrasado" por um tempo nesse cenário específico (raro: exige
   publicar algo hoje para aparecer só amanhã e depois nada mexer no tipo).
 
-## 14. Próxima fase (sugestão)
+## 14. Fase 26 — Mídias reais (Storage) + fotos das matérias
 
-Matérias e destinos editoriais já são reais e coerentes com agendamento
-(Fase 25). Caminhos possíveis a partir daqui: migrar o Media Provider
-(`article_media`, upload real) e religar a seção de imagens do editor;
-depois Importação de PDF; uma tela de gestão de posições editoriais no
-painel (consumindo `ArticleService.listActivePlacement`, já pronta); ou só
-então `apps/site` passando a ler `published` diretamente do banco com RLS
-pública.
+`MediaAssetRepository` passou a ser real (Supabase + Storage) em
+`apps/sistema`. `ArticleRepository` (Fase 25) passou a carregar/gravar
+`article_media` de verdade — capa/galeria deixam de ser sempre `[]`.
+
+- **Duas migrations novas** (`20260926100000_media_real_provider.sql`,
+  `20260926100100_media_assets_actor_trigger.sql`) — nenhuma migration
+  anterior alterada.
+- **`altText`/`capturedAt` persistidos**: ganharam coluna real
+  (`alt_text`, `captured_at`) — eram campos editáveis de verdade na tela
+  de Mídias (Fase 16/22) que a Fase 25 corria o risco de descartar
+  silenciosamente assim que o provider real existisse; corrigido junto.
+- **Bucket `article-media`** (Supabase Storage): público para leitura (a
+  foto precisa aparecer no futuro portal público sem sessão), upload/
+  alteração só para staff autenticado via RLS de Storage — nunca
+  `service_role` no navegador. Limite de 8 MB, só `image/jpeg|png|webp|avif`.
+  Caminho sempre `{uuid}/{nome-sanitizado}` — nunca colide. Testado real:
+  upload não-autenticado rejeitado (`403`, política de RLS), leitura
+  pública alcança o objeto sem sessão (`404` correto para arquivo
+  inexistente, não erro de autorização).
+- **`created_by` de `media_assets`** também nunca vem do cliente — trigger
+  `set_media_asset_actor()` usa `auth.uid()`, mesmo princípio de
+  `set_article_actor` (Fase 25).
+- **Capa/galeria (`article_media`)**: regra 0/1/2+ já existia no domínio;
+  o provider real agora sincroniza fielmente com o banco. Trocar a capa
+  nunca perde a imagem anterior — ela vira o primeiro item da galeria
+  (nunca apagada, nunca perde o arquivo no Storage). Remover da matéria
+  apaga só o vínculo `article_media`, nunca `media_assets` nem o Storage.
+  Índice único parcial (`article_media_one_cover_per_article`, já existia
+  desde a Fase 17) garante nunca duas capas simultâneas — o provider
+  sempre demove a capa antiga antes de promover a nova, respeitando a
+  ordem para nunca violar o índice mesmo sem transação explícita.
+- **Sem N+1 na listagem**: `list()` carrega só a capa (uma query `.in()`
+  para todos os artigos da página); `getById()` carrega capa + galeria
+  completa. Nenhuma consulta por artigo individual.
+- **Teste real completo** (contra `site-system-ir`, dados removidos ao
+  final): matéria QA com 1 capa + 2 galeria; trocar a capa → a antiga vira
+  galeria (confirmado, sem violar o índice único); remover uma foto da
+  matéria → vínculo apagado, `media_assets` intacto; tentar inserir uma
+  segunda linha `role=cover` para a mesma matéria → rejeitada pelo índice
+  único (`23505`). Tudo limpo ao final — `0` matérias/mídias QA restantes.
+- **RLS/owner intocados**: 32 policies antes e depois; owner continua
+  `role=owner active=true`. Middleware confirmado bloqueando
+  `/sistema/editorial/midias` e `/materias/nova` sem sessão.
+- **Instagram corrigido** em `apps/site` (`siteSettings.ts`):
+  `jornalinformativo.regional` (perfil errado) →
+  `jornal.informativoregional` (perfil oficial, `@jornal.informativoregional`).
+- **Limitação aceita (documentada, não bloqueante)**: dimensões
+  (`width`/`height`) de uma foto enviada por upload não são detectadas no
+  servidor nesta fase (exigiria uma biblioteca de processamento de imagem,
+  ex. `sharp`, não instalada no projeto) — campo fica `undefined`, mesmo
+  comportamento de uma mídia cadastrada por URL sem informar dimensões
+  manualmente. Não impede nenhuma funcionalidade descrita nesta fase.
+
+## 15. Próxima fase (sugestão)
+
+Matérias, destinos editoriais e mídias já são reais (Fases 25/26).
+Caminhos possíveis a partir daqui: migrar Importação de PDF para o banco
+real; uma tela de gestão de posições editoriais no painel (consumindo
+`ArticleService.listActivePlacement`, já pronta); ou `apps/site` passando
+a ler `published` diretamente do banco com RLS pública.

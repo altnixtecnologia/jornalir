@@ -98,6 +98,10 @@ export function ArticleForm({
   const [scheduledAt, setScheduledAt] = useState(toDatetimeLocalValue(article?.scheduledAt));
   const [editionPageNumber, setEditionPageNumber] = useState(article?.editionPageNumber?.toString() ?? "");
   const [media, setMedia] = useState<ArticleMedia[]>(article?.media ?? []);
+  // Cópia local para refletir imediatamente as fotos recém-enviadas (upload
+  // real cadastra na biblioteca antes de a matéria ser salva) — a lista
+  // completa da biblioteca só volta a vir do servidor num próximo refresh.
+  const [availableMediaAssets, setAvailableMediaAssets] = useState<MediaAsset[]>(mediaAssets);
   const [formError, setFormError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
@@ -252,7 +256,7 @@ export function ArticleForm({
           <section className="form-section form-section--first" aria-labelledby="imagens-title">
             <h2 id="imagens-title">Imagens</h2>
             <ArticleMediaPicker
-              mediaAssets={mediaAssets}
+              mediaAssets={availableMediaAssets}
               media={media}
               onSetCover={(id) => setMedia((prev) => setCoverMedia(prev, id))}
               onRemoveCover={() => setMedia((prev) => removeCoverMedia(prev))}
@@ -261,6 +265,21 @@ export function ArticleForm({
               onMoveGalleryItem={(id, direction) => setMedia((prev) => moveGalleryMedia(prev, id, direction))}
               onSetCaption={(id, caption) => setMedia((prev) => setMediaCaption(prev, id, caption))}
               onSetCredit={(id, credit) => setMedia((prev) => setMediaCredit(prev, id, credit))}
+              onFilesUploaded={(uploaded) => {
+                setAvailableMediaAssets((prev) => [...uploaded, ...prev]);
+                setMedia((prev) => {
+                  let next = prev;
+                  for (const asset of uploaded) {
+                    // Sem capa ainda: a primeira foto enviada vira capa; as
+                    // demais (e as próximas leva, se já houver capa) vão para
+                    // a galeria — regra 0/1/2+ (item 6 da Fase 26).
+                    next = next.some((item) => item.role === "cover")
+                      ? addGalleryMedia(next, asset.id)
+                      : setCoverMedia(next, asset.id);
+                  }
+                  return next;
+                });
+              }}
             />
           </section>
 

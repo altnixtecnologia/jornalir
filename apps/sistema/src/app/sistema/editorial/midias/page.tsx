@@ -1,6 +1,6 @@
 import { ModuleHeader } from "../../../../components/admin/ModuleHeader";
 import { MidiasLibrary, type MediaUsageRef } from "../../../../features/editorial/MidiasLibrary";
-import { getArticleService, mediaAssetService } from "../../../../composition/editorial";
+import { getArticleService, getMediaAssetService } from "../../../../composition/editorial";
 import { createSupabaseServerClient } from "../../../../lib/supabase/server";
 
 /**
@@ -21,9 +21,10 @@ function buildUsageByMediaId(articles: Awaited<ReturnType<ReturnType<typeof getA
 }
 
 export default async function MidiasPage(): Promise<JSX.Element> {
+  const supabase = createSupabaseServerClient();
   const [mediaAssets, articles] = await Promise.all([
-    mediaAssetService.list(),
-    getArticleService(createSupabaseServerClient()).list(),
+    getMediaAssetService(supabase).list(),
+    getArticleService(supabase).list(),
   ]);
   const usageByMediaId = buildUsageByMediaId(articles);
 
@@ -32,7 +33,7 @@ export default async function MidiasPage(): Promise<JSX.Element> {
       <ModuleHeader
         eyebrow="EDITORIAL / MÍDIAS"
         title="Biblioteca de mídia"
-        description="Imagens disponíveis para capa e galeria das matérias. Ainda sem storage real — cadastro por referência de URL já hospedada."
+        description="Imagens disponíveis para capa e galeria das matérias — envie fotos direto ou cadastre por URL já hospedada."
       />
       <MidiasLibrary mediaAssets={mediaAssets} usageByMediaId={usageByMediaId} />
     </>

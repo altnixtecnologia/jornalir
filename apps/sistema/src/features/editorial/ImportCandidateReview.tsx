@@ -59,6 +59,7 @@ export function ImportCandidateReview({
   const [media, setMedia] = useState<ArticleMedia[]>(
     suggestedIdsToArticleMedia(candidate.suggestedMediaAssetIds ?? []),
   );
+  const [availableMediaAssets, setAvailableMediaAssets] = useState<MediaAsset[]>(mediaAssets);
   const [formError, setFormError] = useState<string | null>(null);
   const [savedMessage, setSavedMessage] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
@@ -284,7 +285,7 @@ export function ImportCandidateReview({
           imagem já cadastrada, não apenas as sugeridas.
         </p>
         <ArticleMediaPicker
-          mediaAssets={mediaAssets}
+          mediaAssets={availableMediaAssets}
           media={media}
           onSetCover={(id) => setMedia((prev) => setCoverMedia(prev, id))}
           onRemoveCover={() => setMedia((prev) => removeCoverMedia(prev))}
@@ -293,6 +294,18 @@ export function ImportCandidateReview({
           onMoveGalleryItem={(id, direction) => setMedia((prev) => moveGalleryMedia(prev, id, direction))}
           onSetCaption={(id, caption) => setMedia((prev) => setMediaCaption(prev, id, caption))}
           onSetCredit={(id, credit) => setMedia((prev) => setMediaCredit(prev, id, credit))}
+          onFilesUploaded={(uploaded) => {
+            setAvailableMediaAssets((prev) => [...uploaded, ...prev]);
+            setMedia((prev) => {
+              let next = prev;
+              for (const asset of uploaded) {
+                next = next.some((item) => item.role === "cover")
+                  ? addGalleryMedia(next, asset.id)
+                  : setCoverMedia(next, asset.id);
+              }
+              return next;
+            });
+          }}
         />
       </section>
 

@@ -1,5 +1,6 @@
-import { useRef, useState } from "react";
+import { useRef, useState, useTransition } from "react";
 import type { ArticleMedia, MediaAsset } from "@ir/types";
+import { uploadMediaAssets } from "../../app/sistema/editorial/midias/actions";
 
 interface ArticleMediaPickerProps {
   mediaAssets: MediaAsset[];
@@ -11,6 +12,8 @@ interface ArticleMediaPickerProps {
   onMoveGalleryItem: (mediaAssetId: string, direction: -1 | 1) => void;
   onSetCaption: (mediaAssetId: string, caption: string) => void;
   onSetCredit: (mediaAssetId: string, credit: string) => void;
+  /** Chamado com as mídias recém-cadastradas — quem usa decide se some com a capa/galeria automaticamente. */
+  onFilesUploaded: (assets: MediaAsset[]) => void;
 }
 
 export function ArticleMediaPicker({
@@ -23,6 +26,7 @@ export function ArticleMediaPicker({
   onMoveGalleryItem,
   onSetCaption,
   onSetCredit,
+  onFilesUploaded,
 }: ArticleMediaPickerProps): JSX.Element {
   const assetById = new Map(mediaAssets.map((asset) => [asset.id, asset]));
   const cover = media.find((item) => item.role === "cover");
@@ -34,15 +38,35 @@ export function ArticleMediaPicker({
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploadNotice, setUploadNotice] = useState<string | null>(null);
+  const [uploading, startUpload] = useTransition();
+  const [librarySearch, setLibrarySearch] = useState("");
+  const filteredMediaAssets = librarySearch.trim()
+    ? mediaAssets.filter((asset) => {
+        const term = librarySearch.trim().toLowerCase();
+        return `${asset.name} ${asset.reference}`.toLowerCase().includes(term);
+      })
+    : mediaAssets;
 
   function handleFilesSelected(event: React.ChangeEvent<HTMLInputElement>): void {
-    const count = event.target.files?.length ?? 0;
-    if (count > 0) {
-      setUploadNotice(
-        `${count} arquivo(s) selecionado(s). Envio direto ainda não está disponível (o provedor de mídia atual funciona por URL já hospedada) — cadastre a foto em Mídias e depois escolha-a na biblioteca abaixo.`,
-      );
-    }
+    const files = event.target.files;
     event.target.value = "";
+    if (!files || files.length === 0) return;
+
+    const formData = new FormData();
+    for (const file of Array.from(files)) formData.append("files", file);
+
+    setUploadNotice(`Enviando ${files.length} foto(s)…`);
+    startUpload(async () => {
+      const result = await uploadMediaAssets(formData);
+      if ("error" in result) {
+        setUploadNotice(result.error);
+        return;
+      }
+      onFilesUploaded(result.assets);
+      const okCount = result.assets.length;
+      const warningsText = result.warnings.length > 0 ? ` (${result.warnings.join("; ")})` : "";
+      setUploadNotice(`${okCount} foto(s) enviada(s) e vinculada(s).${warningsText}`);
+    });
   }
 
   return (
@@ -54,8 +78,8 @@ export function ArticleMediaPicker({
           pública fica disponível na matéria.
         </p>
         <div className="media-upload-actions">
-          <button type="button" onClick={() => fileInputRef.current?.click()}>
-            Enviar fotos
+          <button type="button" onClick={() => fileInputRef.current?.click()} disabled={uploading}>
+            {uploading ? "Enviando…" : "Enviar fotos"}
           </button>
           <span className="helper-text media-upload-hint">
             ou escolha da biblioteca cadastrada, mais abaixo
@@ -175,8 +199,16 @@ export function ArticleMediaPicker({
           </a>
           .
         </p>
+        <input
+          type="search"
+          className="media-library-search"
+          value={librarySearch}
+          onChange={(event) => setLibrarySearch(event.target.value)}
+          placeholder="Procurar por nome ou referência"
+          aria-label="Procurar mídia na biblioteca"
+        />
         <div className="library-grid">
-          {mediaAssets.map((asset) => {
+          {filteredMediaAssets.map((asset) => {
             const isCover = cover?.mediaAssetId === asset.id;
             const isInGallery = gallery.some((item) => item.mediaAssetId === asset.id);
             return (

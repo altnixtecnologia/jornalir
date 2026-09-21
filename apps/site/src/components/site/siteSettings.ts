@@ -25,7 +25,7 @@ export const ADS_SLOT_EFFECTS_STORAGE_KEY = "ir_ads_slot_effects_v1";
 
 export const socialLinks = {
   facebook: "https://www.facebook.com/Informativo-Regional-266542863464089/",
-  instagram: "https://www.instagram.com/jornalinformativo.regional/",
+  instagram: "https://www.instagram.com/jornal.informativoregional/",
   whatsapp: "https://wa.me/5548988297503?text=Ol%C3%A1%2C%20tudo%20bem%20equipe%20do%20jornal%2C%20vim%20do%20site."
 };
 

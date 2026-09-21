@@ -18,9 +18,26 @@ function reindexGallery(media: ArticleMedia[]): ArticleMedia[] {
   return [...cover, ...gallery];
 }
 
+/**
+ * Troca a capa. A capa anterior nunca é descartada — vira o primeiro item
+ * da galeria (Fase 26, item 6: "ao trocar a capa, a capa anterior deve
+ * continuar vinculada como galeria"). Se a nova capa já estava na galeria,
+ * ela só muda de papel — nunca fica duplicada.
+ */
 export function setCoverMedia(media: ArticleMedia[], mediaAssetId: string): ArticleMedia[] {
-  const withoutCover = media.filter((item) => item.role !== "cover");
-  return [...withoutCover, { mediaAssetId, role: "cover", order: 0 }];
+  const previousCover = media.find((item) => item.role === "cover");
+  const withoutNewCoverOrOldCover = media.filter(
+    (item) => item.mediaAssetId !== mediaAssetId && item.role !== "cover",
+  );
+  const gallery = withoutNewCoverOrOldCover
+    .filter((item) => item.role === "gallery")
+    .sort((a, b) => a.order - b.order);
+  const promotedOldCover: ArticleMedia[] =
+    previousCover && previousCover.mediaAssetId !== mediaAssetId
+      ? [{ ...previousCover, role: "gallery", order: 0 }]
+      : [];
+  const renumberedGallery = [...promotedOldCover, ...gallery].map((item, index) => ({ ...item, order: index }));
+  return [{ mediaAssetId, role: "cover", order: 0 }, ...renumberedGallery];
 }
 
 export function removeCoverMedia(media: ArticleMedia[]): ArticleMedia[] {

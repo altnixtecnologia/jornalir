@@ -1,6 +1,8 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type {
   Article,
+  ArticleMedia,
+  ArticleMediaRole,
   ArticleOrigin,
   ArticleStatus,
   EditorialPlacement,
@@ -17,6 +19,7 @@ import type {
 
 const ARTICLES_TABLE = "articles";
 const PLACEMENTS_TABLE = "article_placements";
+const ARTICLE_MEDIA_TABLE = "article_media";
 
 const ARTICLE_COLUMNS =
   "id, internal_reference, slug, title, title_style, subtitle, subtitle_style, body, section_id, locality_id, status, notification_mode, origin, newspaper_edition_id, newspaper_page, urgent, scheduled_at, published_at, archived_at, created_by, created_at, updated_at";
@@ -44,6 +47,16 @@ interface ArticleRow {
   created_by: string | null;
   created_at: string;
   updated_at: string;
+}
+
+interface ArticleMediaRow {
+  id: string;
+  article_id: string;
+  media_id: string;
+  role: ArticleMediaRole;
+  sort_order: number;
+  caption_override: string | null;
+  credit_override: string | null;
 }
 
 interface PlacementRow {
@@ -109,7 +122,17 @@ function placementToDomain(row: PlacementRow | null): EditorialPlacement {
   };
 }
 
-function toDomain(row: ArticleRow, placement: PlacementRow | null): Article {
+function articleMediaToDomain(row: ArticleMediaRow): ArticleMedia {
+  return {
+    mediaAssetId: row.media_id,
+    role: row.role,
+    order: row.sort_order,
+    caption: row.caption_override ?? undefined,
+    credit: row.credit_override ?? undefined,
+  };
+}
+
+function toDomain(row: ArticleRow, placement: PlacementRow | null, media: ArticleMedia[]): Article {
   return {
     id: row.id,
     reference: row.internal_reference,
@@ -124,10 +147,7 @@ function toDomain(row: ArticleRow, placement: PlacementRow | null): Article {
     placement: placementToDomain(placement),
     urgent: row.urgent,
     notificationMode: row.notification_mode,
-    // Media Provider ainda não migrado (Fase 26) — matéria real nunca
-    // recebe mídia mock injetada; vínculos reais de article_media, se
-    // algum dia existirem, só passam a ser lidos quando essa fase chegar.
-    media: [],
+    media,
     origin: ORIGIN_TO_DOMAIN[row.origin],
     editionId: row.newspaper_edition_id ?? undefined,
     editionPageNumber: row.newspaper_page ?? undefined,
@@ -268,6 +288,114 @@ async function closeActivePlacement(client: SupabaseClient, articleId: string): 
   if (error) throw new Error(error.message);
 }
 
+/**
+ * Listagem: só a capa (thumbnail) — suficiente para tabela/cartão, evita
+ * carregar galeria completa de toda a lista (Fase 26, item 7).
+ */
+async function fetchCoverMediaByArticle(
+  client: SupabaseClient,
+  articleIds: string[],
+): Promise<Map<string, ArticleMedia[]>> {
+  const map = new Map<string, ArticleMedia[]>();
+  if (articleIds.length === 0) return map;
+  const { data, error } = await client
+    .from(ARTICLE_MEDIA_TABLE)
+    .select("id, article_id, media_id, role, sort_order, caption_override, credit_override")
+    .in("article_id", articleIds)
+    .eq("role", "cover");
+  if (error) throw new Error(error.message);
+  for (const row of (data ?? []) as ArticleMediaRow[]) {
+    map.set(row.article_id, [articleMediaToDomain(row)]);
+  }
+  return map;
+}
+
+/** Detalhe/editor: capa + galeria completa, na ordem correta. */
+async function fetchArticleMedia(client: SupabaseClient, articleId: string): Promise<ArticleMedia[]> {
+  const { data, error } = await client
+    .from(ARTICLE_MEDIA_TABLE)
+    .select("id, article_id, media_id, role, sort_order, caption_override, credit_override")
+    .eq("article_id", articleId)
+    .order("role", { ascending: false })
+    .order("sort_order", { ascending: true });
+  if (error) throw new Error(error.message);
+  return ((data ?? []) as ArticleMediaRow[]).map(articleMediaToDomain);
+}
+
+/**
+ * Sincroniza `article_media` com a seleção atual do editor (Fase 26, item
+ * 6): remove vínculos que saíram, nunca apaga `media_assets` nem o arquivo
+ * no Storage — só o vínculo. Troca de capa nunca perde a mídia: a capa
+ * anterior, se continuar selecionada, vira o primeiro item da galeria
+ * (regra decidida na UI — `setCoverMedia`, `articleMediaState.ts` — este
+ * sync só grava fielmente o que chega). A capa é sempre demovida antes de
+ * promover a nova, nunca duas linhas `role='cover'` ativas ao mesmo tempo
+ * (índice único parcial do banco, Fase 17).
+ */
+async function syncArticleMedia(client: SupabaseClient, articleId: string, desired: ArticleMedia[]): Promise<void> {
+  const { data, error } = await client
+    .from(ARTICLE_MEDIA_TABLE)
+    .select("id, article_id, media_id, role, sort_order, caption_override, credit_override")
+    .eq("article_id", articleId);
+  if (error) throw new Error(error.message);
+  const current = (data ?? []) as ArticleMediaRow[];
+  const currentByMediaId = new Map(current.map((row) => [row.media_id, row]));
+
+  const desiredCover = desired.find((item) => item.role === "cover");
+  const desiredGallery = [...desired.filter((item) => item.role === "gallery")].sort((a, b) => a.order - b.order);
+  const desiredIds = new Set<string>([
+    ...(desiredCover ? [desiredCover.mediaAssetId] : []),
+    ...desiredGallery.map((item) => item.mediaAssetId),
+  ]);
+
+  const toDelete = current.filter((row) => !desiredIds.has(row.media_id));
+  if (toDelete.length > 0) {
+    const { error: deleteError } = await client
+      .from(ARTICLE_MEDIA_TABLE)
+      .delete()
+      .in("id", toDelete.map((row) => row.id));
+    if (deleteError) throw new Error(deleteError.message);
+  }
+
+  const currentCover = current.find((row) => row.role === "cover");
+  if (currentCover && desiredIds.has(currentCover.media_id) && currentCover.media_id !== desiredCover?.mediaAssetId) {
+    const { error: demoteError } = await client
+      .from(ARTICLE_MEDIA_TABLE)
+      .update({ role: "gallery", sort_order: 0 })
+      .eq("id", currentCover.id);
+    if (demoteError) throw new Error(demoteError.message);
+  }
+
+  if (desiredCover) {
+    const existing = currentByMediaId.get(desiredCover.mediaAssetId);
+    const patch = {
+      role: "cover" as const,
+      sort_order: 0,
+      caption_override: desiredCover.caption ?? null,
+      credit_override: desiredCover.credit ?? null,
+    };
+    const { error: coverError } = existing
+      ? await client.from(ARTICLE_MEDIA_TABLE).update(patch).eq("id", existing.id)
+      : await client.from(ARTICLE_MEDIA_TABLE).insert({ article_id: articleId, media_id: desiredCover.mediaAssetId, ...patch });
+    if (coverError) throw new Error(coverError.message);
+  }
+
+  for (let index = 0; index < desiredGallery.length; index += 1) {
+    const item = desiredGallery[index];
+    const existing = currentByMediaId.get(item.mediaAssetId);
+    const patch = {
+      role: "gallery" as const,
+      sort_order: index,
+      caption_override: item.caption ?? null,
+      credit_override: item.credit ?? null,
+    };
+    const { error: galleryError } = existing
+      ? await client.from(ARTICLE_MEDIA_TABLE).update(patch).eq("id", existing.id)
+      : await client.from(ARTICLE_MEDIA_TABLE).insert({ article_id: articleId, media_id: item.mediaAssetId, ...patch });
+    if (galleryError) throw new Error(galleryError.message);
+  }
+}
+
 export function createArticleRepositorySupabase(client: SupabaseClient): ArticleRepository {
   return {
     async list(filters?: ArticleFilters) {
@@ -281,9 +409,14 @@ export function createArticleRepositorySupabase(client: SupabaseClient): Article
       if (error) throw new Error(error.message);
       const rows = (data ?? []) as ArticleRow[];
 
-      const placements = await fetchActivePlacements(client, rows.map((row) => row.id));
+      const [placements, coverMedia] = await Promise.all([
+        fetchActivePlacements(client, rows.map((row) => row.id)),
+        fetchCoverMediaByArticle(client, rows.map((row) => row.id)),
+      ]);
 
-      const articles = rows.map((row) => toDomain(row, placements.get(row.id) ?? null));
+      const articles = rows.map((row) =>
+        toDomain(row, placements.get(row.id) ?? null, coverMedia.get(row.id) ?? []),
+      );
       if (filters?.placementType) {
         return articles.filter((article) => article.placement.type === filters.placementType);
       }
@@ -295,8 +428,11 @@ export function createArticleRepositorySupabase(client: SupabaseClient): Article
       if (error) throw new Error(error.message);
       if (!data) return null;
       const row = data as ArticleRow;
-      const placement = await fetchActivePlacement(client, row.id);
-      return toDomain(row, placement);
+      const [placement, media] = await Promise.all([
+        fetchActivePlacement(client, row.id),
+        fetchArticleMedia(client, row.id),
+      ]);
+      return toDomain(row, placement, media);
     },
 
     async create(record: NewArticleRecord) {
@@ -329,9 +465,15 @@ export function createArticleRepositorySupabase(client: SupabaseClient): Article
       if (record.placement.type !== "none") {
         await syncPlacement(client, row.id, record.placement, row.status, row.scheduled_at);
       }
+      if (record.media.length > 0) {
+        await syncArticleMedia(client, row.id, record.media);
+      }
 
-      const placement = await fetchActivePlacement(client, row.id);
-      return toDomain(row, placement);
+      const [placement, media] = await Promise.all([
+        fetchActivePlacement(client, row.id),
+        fetchArticleMedia(client, row.id),
+      ]);
+      return toDomain(row, placement, media);
     },
 
     async update(id: string, changes: ArticleChanges) {
@@ -350,9 +492,6 @@ export function createArticleRepositorySupabase(client: SupabaseClient): Article
       if (changes.scheduledAt !== undefined) patch.scheduled_at = changes.scheduledAt ?? null;
       if (changes.publishedAt !== undefined) patch.published_at = changes.publishedAt ?? null;
       if (changes.status === "archived") patch.archived_at = new Date().toISOString();
-      // media: Media Provider ainda mock (Fase 26) — nunca escreve em
-      // article_media aqui; qualquer `changes.media` enviado é ignorado
-      // para não fingir que um upload foi persistido.
 
       const { data, error } =
         Object.keys(patch).length > 0
@@ -369,8 +508,15 @@ export function createArticleRepositorySupabase(client: SupabaseClient): Article
         await touchActivePlacement(client, id);
       }
 
-      const placement = await fetchActivePlacement(client, id);
-      return toDomain(row, placement);
+      if (changes.media !== undefined) {
+        await syncArticleMedia(client, id, changes.media);
+      }
+
+      const [placement, media] = await Promise.all([
+        fetchActivePlacement(client, id),
+        fetchArticleMedia(client, id),
+      ]);
+      return toDomain(row, placement, media);
     },
   };
 }
