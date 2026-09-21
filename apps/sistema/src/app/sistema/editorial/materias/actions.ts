@@ -26,6 +26,9 @@ function buildPlacement(payload: ArticleFormPayload): EditorialPlacement {
   }
   return {
     type: payload.placementType,
+    // "Fixar na capa" só faz sentido em mainCover; ignorado silenciosamente
+    // para as demais posições (a UI já nem mostra o checkbox nesse caso).
+    pinned: payload.placementType === "mainCover" ? payload.pinned : undefined,
     startsAt: payload.placementStartsAt || undefined,
     endsAt: payload.placementEndsAt || undefined,
   };
@@ -66,6 +69,7 @@ export async function createArticle(
         body: payload.body,
         sectionId: payload.sectionId,
         localityId: payload.localityId,
+        urgent: payload.urgent,
         notificationMode: payload.notificationMode,
         media: payload.media,
         createdBy: AUDIT.actorId,
@@ -114,6 +118,7 @@ export async function updateArticle(
       body: payload.body,
       sectionId: payload.sectionId,
       localityId: payload.localityId,
+      urgent: payload.urgent,
       notificationMode: payload.notificationMode,
       media: payload.media,
       placement,

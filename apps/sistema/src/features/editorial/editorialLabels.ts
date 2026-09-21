@@ -16,14 +16,21 @@ export const articleStatusLabels: Record<ArticleStatus, string> = {
   archived: "Arquivada",
 };
 
+/** Fase 22 — só os destinos com um bloco real e já implementado no portal. */
 export const placementLabels: Record<EditorialPlacementType, string> = {
-  none: "—",
-  headline: "Manchete",
-  mainHighlight: "Destaque principal",
-  secondaryHighlight: "Destaque secundário",
-  urgent: "Urgente",
-  sectionHighlight: "Destaque da editoria",
-  special: "Especial",
+  none: "Nenhuma",
+  mainCover: "Capa principal",
+  highlightStrip: "Faixa de destaques",
+  latestNews: "Últimas notícias",
+  localSpotlight: "Nossa região",
+};
+
+export const placementDescriptions: Record<EditorialPlacementType, string> = {
+  none: "Aparece só no fluxo normal: editoria, localidade e listagens.",
+  mainCover: "Grande destaque da home. Até 8 matérias; a mais recente entra na posição 1.",
+  highlightStrip: "Faixa horizontal logo abaixo da capa. Até 3 matérias.",
+  latestNews: "Bloco interativo de últimas notícias. Até 7 matérias.",
+  localSpotlight: "Faixa \"Nossa região\". Até 4 matérias — não substitui a localidade da matéria.",
 };
 
 export const notificationLabels: Record<NotificationMode, string> = {

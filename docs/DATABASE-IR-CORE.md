@@ -421,13 +421,104 @@ promoção — por ser um `UPDATE` numa linha que ainda **não** é owner —
 continua permitida (o trigger só passa a bloquear a linha depois que ela
 já é owner).
 
-## 9. Próxima fase (sugestão)
+## 9. Fase 22 — consolidação de destinos editoriais (mock/tipos, banco intocado)
+
+Fase de UI/domínio, não de banco: `packages/types`, `packages/core` e
+`packages/mocks` foram ajustados; **nenhuma migration foi criada nem
+aplicada** (nem sequer tentada) — instrução explícita: "não fazer
+alteração destrutiva no banco". A tabela `article_placements` (aplicada na
+Fase 17) continua exatamente como estava. Esta seção documenta a migration
+incremental que será necessária mais adiante, quando os providers reais
+substituírem o mock — sem executá-la agora.
+
+### O que mudou no domínio (mock)
+
+- `EditorialPlacementType`: as 7 posições antigas (`headline`,
+  `mainHighlight`, `secondaryHighlight`, `urgent`, `sectionHighlight`,
+  `special`) viraram 5 (`none`, `mainCover`, `highlightStrip`,
+  `latestNews`, `localSpotlight`) — cada uma correspondendo a um bloco
+  real e já implementado do portal (capa/faixa/últimas notícias/região).
+  As que não tinham lugar nenhum para aparecer foram descontinuadas, não
+  substituídas por alias.
+- `urgent` deixou de ser uma posição e virou `Article.urgent: boolean`,
+  campo próprio, independente de `placement` e de `notificationMode`.
+- `EditorialPlacement` ganhou `pinned?: boolean` ("Fixar na capa", só
+  relevante quando `type === "mainCover"`) e `setAt?: string`
+  (timestamp interno para ordenação determinística — nunca a ordem
+  incidental de leitura do banco).
+- `ArticleService` ganhou a lógica de rotação: `updateDraft`/`schedule`
+  agora carimbam `setAt` sempre que o `type` muda, e aplicam
+  `enforcePlacementLimit` depois de qualquer posição não-`none` ser
+  definida — evicta automaticamente (volta para `type: "none"`, nunca
+  apaga, nunca muda editoria/localidade/status) a mais antiga não-fixada
+  quando o limite da posição (8/3/7/4) é ultrapassado. Fixadas nunca são
+  evictadas, mas sempre ocupam uma vaga dentro do limite. Novo
+  `listActivePlacement(type)`: só `status='published'`, respeitando a
+  janela `startsAt`/`endsAt`, ordenado por `setAt` mais recente primeiro
+  — pronto para consumo futuro (nenhuma tela usa isto ainda).
+- Validado por script de negócio temporário (removido ao final, nunca
+  commitado), reproduzindo os serviços reais: 21/21 asserções — editoria/
+  localidade preservadas ao entrar/sair de posição; matéria evictada
+  nunca apagada e continua publicada; limite de 8 na capa (a 9ª entrada
+  evicta a mais antiga não-fixada); matéria fixada nunca expulsa mesmo
+  com 8 novas entrando depois; nunca mais de 8 visíveis mesmo com
+  fixadas; limite de 3 na faixa de destaques; limite de 7 em Últimas
+  notícias; matéria agendada (ainda não publicada) não aparece na
+  posição até a data chegar; limite de 4 em Nossa região; selecionar
+  Nossa região não substitui a localidade original; `urgent` não altera
+  posição nem editoria.
+
+### Divergência com `article_placements` (banco real, Fase 17) — migration futura necessária
+
+A tabela real usa um desenho **historicizado** (uma linha nova por
+atribuição de destaque, `article_id` 1:N), enquanto o mock usa um objeto
+**único e mutável** (`Article.placement`, 1:1). São duas estratégias
+válidas — a do banco é, na verdade, mais rica (permite consultar o
+histórico completo de destaques de uma matéria). Reconciliar exige uma
+migration incremental (nunca alterando `20260921100600_article_placements.sql`,
+que já está aplicada):
+
+```sql
+-- Nova migration futura (rascunho, NÃO aplicar agora):
+
+-- 1) Trocar o vocabulário de type para o novo modelo de 5 posições.
+alter table public.article_placements drop constraint article_placements_type_check;
+-- migrar dados existentes de headline/primary/secondary/breaking/section/special
+-- para none/mainCover/highlightStrip/latestNews/localSpotlight (mapeamento a
+-- decidir com a redação quando houver dado real para migrar — não há hoje).
+alter table public.article_placements
+  add constraint article_placements_type_check
+  check (type in ('mainCover', 'highlightStrip', 'latestNews', 'localSpotlight'));
+  -- "none" não vira uma linha aqui — ausência de linha ativa já significa "none",
+  -- coerente com o desenho historicizado já existente da tabela.
+
+-- 2) Fixar na capa.
+alter table public.article_placements add column pinned boolean not null default false;
+
+-- 3) Urgente é um campo do artigo, não do placement.
+alter table public.articles add column urgent boolean not null default false;
+
+-- 4) Limite automático por posição — reforçar no banco (trigger), não só na
+-- aplicação, com a mesma lógica de packages/core (ArticleService.enforcePlacementLimit):
+-- fixadas nunca evictadas, sempre ocupam vaga; vagas restantes vão para as
+-- mais recentes (created_at desc); o resto volta para active=false (nunca
+-- delete — a tabela já não tem policy de delete).
+-- Detalhe de implementação (função/trigger) a desenhar quando esta migration
+-- for escrita de verdade, espelhando o pseudocódigo já testado no mock.
+```
+
+`priority` (coluna já existente na tabela) pode ser aposentada ou
+reaproveitada como critério de desempate quando dois placements tiverem o
+mesmo `created_at` — decisão para quando a migração de provider
+acontecer, não antes.
+
+## 10. Próxima fase (sugestão)
 
 Rodar `supabase login` de novo, aplicar a migration da Fase 20, promover o
 primeiro owner (passo acima), testar login real (owner e a conta operator
 existente) e o fluxo de convite de ponta a ponta pela própria aplicação.
 Só depois: migração provider-por-provider do conteúdo editorial
 (`apps/sistema` primeiro, matérias/editorias/localidades/mídias/
-importação de PDF), reconciliando as divergências da seção 4, e por
-último `apps/site` passando a ler `published` diretamente do banco com
-RLS pública.
+importação de PDF), reconciliando as divergências da seção 4 e a migration
+de `article_placements` desenhada na seção 9, e por último `apps/site`
+passando a ler `published` diretamente do banco com RLS pública.

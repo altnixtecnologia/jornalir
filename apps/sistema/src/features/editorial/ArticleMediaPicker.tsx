@@ -1,3 +1,4 @@
+import { useRef, useState } from "react";
 import type { ArticleMedia, MediaAsset } from "@ir/types";
 
 interface ArticleMediaPickerProps {
@@ -29,9 +30,48 @@ export function ArticleMediaPicker({
   const gallery = media
     .filter((item) => item.role === "gallery")
     .sort((a, b) => a.order - b.order);
+  const totalPhotos = media.length;
+
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [uploadNotice, setUploadNotice] = useState<string | null>(null);
+
+  function handleFilesSelected(event: React.ChangeEvent<HTMLInputElement>): void {
+    const count = event.target.files?.length ?? 0;
+    if (count > 0) {
+      setUploadNotice(
+        `${count} arquivo(s) selecionado(s). Envio direto ainda não está disponível (o provedor de mídia atual funciona por URL já hospedada) — cadastre a foto em Mídias e depois escolha-a na biblioteca abaixo.`,
+      );
+    }
+    event.target.value = "";
+  }
 
   return (
     <div className="media-picker">
+      <div className="media-picker-section">
+        <p className="field-label">Adicionar fotos</p>
+        <p className="helper-text">
+          Nenhuma, uma ou várias. Com 1 foto: capa normal, sem galeria pública. Com 2 ou mais: galeria
+          pública fica disponível na matéria.
+        </p>
+        <div className="media-upload-actions">
+          <button type="button" onClick={() => fileInputRef.current?.click()}>
+            Enviar fotos
+          </button>
+          <span className="helper-text media-upload-hint">
+            ou escolha da biblioteca cadastrada, mais abaixo
+          </span>
+        </div>
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/*"
+          multiple
+          className="visually-hidden"
+          onChange={handleFilesSelected}
+        />
+        {uploadNotice ? <p className="helper-text upload-notice">{uploadNotice}</p> : null}
+      </div>
+
       <div className="media-picker-section">
         <p className="field-label">Imagem de capa</p>
         {coverAsset ? (
@@ -66,7 +106,11 @@ export function ArticleMediaPicker({
       <div className="media-picker-section">
         <p className="field-label">Galeria ({gallery.length})</p>
         {gallery.length === 0 ? (
-          <p className="helper-text">Nenhuma imagem na galeria ainda.</p>
+          <p className="helper-text">
+            {totalPhotos === 1
+              ? "Só a capa por enquanto — com 1 foto só, a galeria pública não aparece na matéria."
+              : "Nenhuma imagem na galeria ainda."}
+          </p>
         ) : (
           <ol className="gallery-list">
             {gallery.map((item, index) => {
@@ -123,7 +167,7 @@ export function ArticleMediaPicker({
       </div>
 
       <div className="media-picker-section">
-        <p className="field-label">Biblioteca de mídia</p>
+        <p className="field-label">Escolher da biblioteca</p>
         <p className="helper-text">
           Seleção a partir da mídia já cadastrada. Cadastrar mídia nova acontece em{" "}
           <a className="text-link" href="/sistema/editorial/midias" target="_blank" rel="noreferrer">

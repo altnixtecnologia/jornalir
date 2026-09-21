@@ -17,6 +17,10 @@ export interface ArticleFormPayload {
   localityId: string;
   notificationMode: NotificationMode;
   placementType: EditorialPlacementType;
+  /** Só tem efeito quando placementType === "mainCover". */
+  pinned: boolean;
+  /** Selo de urgência — independente da posição editorial. */
+  urgent: boolean;
   placementStartsAt: string;
   placementEndsAt: string;
   scheduledAt: string;

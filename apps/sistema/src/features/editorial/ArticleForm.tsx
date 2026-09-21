@@ -34,6 +34,7 @@ import {
   editionPageLabel,
   formatDateTime,
   notificationLabels,
+  placementDescriptions,
   placementLabels,
 } from "./editorialLabels";
 import { DEFAULT_TEXT_STYLE, textStyleToCss } from "./textStyle";
@@ -54,12 +55,10 @@ interface ArticleFormProps {
 
 const PLACEMENT_OPTIONS: EditorialPlacementType[] = [
   "none",
-  "headline",
-  "mainHighlight",
-  "secondaryHighlight",
-  "urgent",
-  "sectionHighlight",
-  "special",
+  "mainCover",
+  "highlightStrip",
+  "latestNews",
+  "localSpotlight",
 ];
 
 const NOTIFICATION_OPTIONS: NotificationMode[] = ["none", "normal", "urgent"];
@@ -88,6 +87,8 @@ export function ArticleForm({
   const [placementType, setPlacementType] = useState<EditorialPlacementType>(
     article?.placement.type ?? "none",
   );
+  const [pinned, setPinned] = useState(article?.placement.pinned ?? false);
+  const [urgent, setUrgent] = useState(article?.urgent ?? false);
   const [placementStartsAt, setPlacementStartsAt] = useState(
     toDatetimeLocalValue(article?.placement.startsAt),
   );
@@ -131,6 +132,8 @@ export function ArticleForm({
       localityId,
       notificationMode,
       placementType,
+      pinned,
+      urgent,
       placementStartsAt: fromDatetimeLocalValue(placementStartsAt),
       placementEndsAt: fromDatetimeLocalValue(placementEndsAt),
       scheduledAt: fromDatetimeLocalValue(scheduledAt),
@@ -152,6 +155,8 @@ export function ArticleForm({
       localityId,
       notificationMode,
       placementType,
+      pinned,
+      urgent,
       placementStartsAt,
       placementEndsAt,
       scheduledAt,
@@ -171,6 +176,8 @@ export function ArticleForm({
       localityId,
       notificationMode,
       placementType,
+      pinned,
+      urgent,
       placementStartsAt,
       placementEndsAt,
       scheduledAt,
@@ -244,10 +251,6 @@ export function ArticleForm({
         <div className="article-form-main">
           <section className="form-section form-section--first" aria-labelledby="imagens-title">
             <h2 id="imagens-title">Imagens</h2>
-            <p className="helper-text">
-              Nenhuma, uma ou várias fotos. Com várias: escolha a capa, monte a galeria, ordene e
-              defina legenda e crédito individuais.
-            </p>
             <ArticleMediaPicker
               mediaAssets={mediaAssets}
               media={media}
@@ -403,6 +406,8 @@ export function ArticleForm({
             sectionName={selectedSection?.name}
             localityName={selectedLocality?.name}
             placementType={placementType}
+            pinned={pinned}
+            urgent={urgent}
             placementStartsAt={fromDatetimeLocalValue(placementStartsAt)}
             placementEndsAt={fromDatetimeLocalValue(placementEndsAt)}
             notificationMode={notificationMode}
@@ -419,8 +424,11 @@ export function ArticleForm({
                 <p className="field-static-value">{article?.reference ?? "Gerada automaticamente ao salvar"}</p>
               </div>
 
-              <p className="field-label">Exposição editorial</p>
-              <p className="helper-text">O destaque é temporário e não altera a editoria da matéria.</p>
+              <p className="field-label">Onde esta matéria aparece em destaque</p>
+              <p className="helper-text">
+                A matéria continua sempre na sua editoria e localidade — isto é só uma exposição extra,
+                temporária, em algum lugar da home.
+              </p>
               <div className="form-field">
                 <label htmlFor="field-placement" className="field-label">
                   Posição editorial
@@ -432,11 +440,18 @@ export function ArticleForm({
                 >
                   {PLACEMENT_OPTIONS.map((option) => (
                     <option key={option} value={option}>
-                      {option === "none" ? "Nenhuma" : placementLabels[option]}
+                      {placementLabels[option]}
                     </option>
                   ))}
                 </select>
+                <p className="helper-text">{placementDescriptions[placementType]}</p>
               </div>
+              {placementType === "mainCover" ? (
+                <label className="form-checkbox">
+                  <input type="checkbox" checked={pinned} onChange={(event) => setPinned(event.target.checked)} />
+                  Fixar na capa — não sai automaticamente quando novas matérias entram
+                </label>
+              ) : null}
               {hasPlacementWindow ? (
                 <>
                   <div className="form-field">
@@ -463,6 +478,16 @@ export function ArticleForm({
                   </div>
                 </>
               ) : null}
+
+              <p className="field-label">Urgência e notificação</p>
+              <label className="form-checkbox">
+                <input type="checkbox" checked={urgent} onChange={(event) => setUrgent(event.target.checked)} />
+                Marcar como urgente
+              </label>
+              <p className="helper-text">
+                Um selo de urgência, independente de onde a matéria aparece — não muda editoria,
+                localidade nem posição editorial.
+              </p>
               <div className="form-field">
                 <label htmlFor="field-notification" className="field-label">
                   Notificação

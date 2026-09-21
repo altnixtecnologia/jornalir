@@ -5,6 +5,9 @@ export interface DestinoEditorialProps {
   sectionName?: string;
   localityName?: string;
   placementType: EditorialPlacementType;
+  /** Só faz sentido quando placementType === "mainCover". */
+  pinned?: boolean;
+  urgent?: boolean;
   placementStartsAt?: string;
   placementEndsAt?: string;
   notificationMode: NotificationMode;
@@ -24,6 +27,8 @@ export function DestinoEditorial({
   sectionName,
   localityName,
   placementType,
+  pinned,
+  urgent,
   placementStartsAt,
   placementEndsAt,
   notificationMode,
@@ -46,9 +51,12 @@ export function DestinoEditorial({
           <span>{localityName ?? "Ainda não selecionada"}</span>
         </li>
         <li>
-          <span className="destino-label">Capa/destaque</span>
+          <span className="destino-label">Posição editorial</span>
           <span>
-            {hasPlacement ? placementLabels[placementType] : "Nenhum — aparece só na editoria/localidade acima"}
+            {hasPlacement ? placementLabels[placementType] : "Nenhuma — aparece só na editoria/localidade acima"}
+            {hasPlacement && placementType === "mainCover" && pinned ? (
+              <span className="destino-window"> (fixada na capa)</span>
+            ) : null}
             {hasPlacement && (placementStartsAt || placementEndsAt) ? (
               <span className="destino-window">
                 {" "}
@@ -58,6 +66,12 @@ export function DestinoEditorial({
             ) : null}
           </span>
         </li>
+        {urgent ? (
+          <li>
+            <span className="destino-label">Urgente</span>
+            <span>Selo de urgência ativo — não muda editoria, localidade nem posição editorial.</span>
+          </li>
+        ) : null}
         <li>
           <span className="destino-label">Publicação</span>
           <span>{publicationLine}</span>

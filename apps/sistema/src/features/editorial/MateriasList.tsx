@@ -194,7 +194,10 @@ export function MateriasList({ articles, sections, localities, editions }: Mater
                     <tr key={article.id}>
                       <td className="materia-reference">{article.reference}</td>
                       <td>
-                        <span className="materia-title">{article.title}</span>
+                        <span className="materia-title">
+                          {article.urgent ? <span className="urgent-badge">Urgente</span> : null}
+                          {article.title}
+                        </span>
                         {article.subtitle ? (
                           <span className="materia-subtitle">{article.subtitle}</span>
                         ) : null}
@@ -260,7 +263,10 @@ export function MateriasList({ articles, sections, localities, editions }: Mater
                       </span>
                       <span className="materia-reference">{article.reference}</span>
                     </div>
-                    <span className="materia-card-title">{article.title}</span>
+                    <span className="materia-card-title">
+                      {article.urgent ? <span className="urgent-badge">Urgente</span> : null}
+                      {article.title}
+                    </span>
                     {article.subtitle ? <span className="materia-subtitle">{article.subtitle}</span> : null}
                     <div className="materia-card-meta">
                       <span className={`origin-pill origin-pill--${article.origin}`}>

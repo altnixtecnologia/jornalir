@@ -34,24 +34,53 @@ export interface EditorialSection {
   order: number;
 }
 
+/**
+ * Posições editoriais (Fase 22) — os únicos destinos de exposição extra
+ * que o painel oferece. Cada um corresponde a um bloco real e já
+ * implementado do portal; nunca um nome sem lugar nenhum para aparecer.
+ * Os antigos `headline`/`mainHighlight`/`secondaryHighlight`/
+ * `sectionHighlight`/`special`/`urgent` (como posição) foram removidos —
+ * `urgent` virou o campo independente `Article.urgent` (ver abaixo), e os
+ * demais não tinham representação visual própria e foram descontinuados.
+ */
 export type EditorialPlacementType =
   | "none"
-  | "headline"
-  | "mainHighlight"
-  | "secondaryHighlight"
-  | "urgent"
-  | "sectionHighlight"
-  | "special";
+  | "mainCover"
+  | "highlightStrip"
+  | "latestNews"
+  | "localSpotlight";
+
+/** Limite máximo de matérias visíveis simultaneamente em cada posição editorial. */
+export const EDITORIAL_PLACEMENT_LIMITS: Record<Exclude<EditorialPlacementType, "none">, number> = {
+  mainCover: 8,
+  highlightStrip: 3,
+  latestNews: 7,
+  localSpotlight: 4,
+};
 
 /**
  * Exposição editorial temporária (capa/destaque). Nunca substitui a editoria
- * da matéria — a matéria continua existindo em sua editoria original mesmo
- * quando não está em nenhum destaque.
+ * nem a localidade da matéria — a matéria continua existindo em sua editoria
+ * (e, quando houver, sua localidade) original mesmo quando não está em
+ * nenhuma posição, ou quando sai de uma.
  */
 export interface EditorialPlacement {
   type: EditorialPlacementType;
+  /**
+   * Só tem efeito quando `type === "mainCover"`: impede a rotação
+   * automática de expulsar a matéria quando novas entram na posição 1.
+   * As demais vagas da Capa principal continuam girando normalmente.
+   */
+  pinned?: boolean;
   startsAt?: string;
   endsAt?: string;
+  /**
+   * Quando a posição foi definida/alterada pela última vez — base para a
+   * ordem determinística de "mais recente primeiro" (nunca a ordem
+   * incidental de leitura do banco). Preenchido automaticamente pelo
+   * serviço sempre que `type` muda para um valor diferente de "none".
+   */
+  setAt?: string;
 }
 
 export interface MediaAsset {
@@ -122,6 +151,15 @@ export interface Article {
   localityId: string;
   status: ArticleStatus;
   placement: EditorialPlacement;
+  /**
+   * Selo/alerta de urgência — independente da posição editorial e da
+   * editoria (Fase 22: antes era um valor de `EditorialPlacementType`,
+   * misturando "onde aparece" com "quão urgente é"). Também distinto de
+   * `notificationMode`: este é um selo permanente da matéria; o outro é o
+   * tom de uma notificação push pontual no momento da publicação/
+   * agendamento.
+   */
+  urgent: boolean;
   notificationMode: NotificationMode;
   /** Vazio quando não há imagem. Uma entrada com role "cover" quando houver capa. */
   media: ArticleMedia[];

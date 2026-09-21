@@ -40,17 +40,20 @@ export function LatestNewsList({ items }: { items: SiteArticle[] }): JSX.Element
               </div>
             )}
           </div>
-          <p className="kicker mt-4">{getCategoryLabel(selected.category)}</p>
-          <h3 className="mt-2 font-editorial text-[26px] font-bold leading-tight text-[color:var(--site-text)] md:text-[30px]">
-            {selected.title}
-          </h3>
-          <p className="mt-2 text-[15px] leading-snug text-[color:var(--site-muted)]">{selected.excerpt}</p>
-          <Link
-            href={`/noticias/${selected.slug}`}
-            className="mt-4 inline-flex items-center gap-1.5 text-sm font-bold text-[color:var(--brand-red)] hover:gap-2.5"
-          >
-            Ler matéria <span aria-hidden="true">→</span>
-          </Link>
+          {/* Marcador lateral discreto deixa evidente que este é o item ativo. */}
+          <div className="latest-news-active mt-4">
+            <p className="kicker">{getCategoryLabel(selected.category)}</p>
+            <h3 className="mt-2 font-editorial text-[26px] font-bold leading-tight text-[color:var(--site-text)] md:text-[30px]">
+              {selected.title}
+            </h3>
+            <p className="mt-2 text-[15px] leading-snug text-[color:var(--site-muted)]">{selected.excerpt}</p>
+            <Link
+              href={`/noticias/${selected.slug}`}
+              className="mt-4 inline-flex items-center gap-1.5 text-sm font-bold text-[color:var(--brand-red)] hover:gap-2.5"
+            >
+              Ler matéria <span aria-hidden="true">→</span>
+            </Link>
+          </div>
         </div>
 
         {/* Lista compacta das demais */}

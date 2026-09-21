@@ -55,10 +55,15 @@ export default function HomePage(): JSX.Element {
     })();
   }, []);
 
-  const featured = (newsItems.filter((i) => i.isFeatured).length > 0 ? newsItems.filter((i) => i.isFeatured) : newsItems).slice(0, 5);
+  // Limites alinhados às posições editoriais do painel (Fase 22): Capa
+  // principal até 8, Faixa de destaques até 3, Últimas notícias até 7.
+  // `isFeatured`/ordem cronológica continuam sendo a fonte aqui — o portal
+  // ainda não lê `EditorialPlacement` real (fora de escopo desta fase,
+  // ver docs/HANDOFF-CODEX.md).
+  const featured = (newsItems.filter((i) => i.isFeatured).length > 0 ? newsItems.filter((i) => i.isFeatured) : newsItems).slice(0, 8);
   const heroIds = new Set(featured.map((i) => i.id));
   const secondary = newsItems.filter((i) => !heroIds.has(i.id)).slice(0, 3);
-  const latest = newsItems.slice(0, 8);
+  const latest = newsItems.slice(0, 7);
 
   // Mobile: os 6 quadros em 3 pares, nunca os 6 juntos.
   const pairA: [AdSlot, AdSlot] = [adSlots[0], adSlots[1]];

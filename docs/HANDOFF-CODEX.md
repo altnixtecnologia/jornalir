@@ -1,5 +1,64 @@
 # Handoff — JornalIR
 
+## Fase 22 — consolida destinos editoriais e editor de matérias (21/09/2026)
+
+- Branch: `feature/jornalir-core-foundation-20260917`.
+- HEAD ao iniciar a fase: `33afedf` (commit da Fase 20) + correção pontual da logo do header (não commitada antes desta fase, incluída aqui).
+- Entrega: as 7 posições editoriais ambíguas (`headline`/`mainHighlight`/`secondaryHighlight`/`urgent`/`sectionHighlight`/`special`) viram 5 destinos reais (`none`/`mainCover`/`highlightStrip`/`latestNews`/`localSpotlight`), cada um mapeado a um bloco já existente do portal; `urgent` virou campo independente; rotação automática e determinística (8/3/7/4) com "fixar na capa" implementada e testada em `packages/core`; editor reorganizado; upload de fotos honesto sobre a limitação do provider mock; portal público com pequenos ajustes de limite/label alinhados ao novo modelo (sem migrar de provider). **Banco intocado** — nenhuma migration criada nem aplicada.
+
+### `packages/types` — o novo vocabulário
+
+`EditorialPlacementType`: `none | mainCover | highlightStrip | latestNews | localSpotlight` (era 7 valores, incluindo `urgent` misturado com posição visual). Novo `EDITORIAL_PLACEMENT_LIMITS` (8/3/7/4) exportado do pacote, única fonte de verdade do limite de cada posição — `ArticleService` importa de lá, não duplica o número. `EditorialPlacement` ganhou `pinned?`/`setAt?`. `Article` ganhou `urgent: boolean`, campo novo e obrigatório, deliberadamente separado de `notificationMode` (que continua existindo, sem mudança — é o tom de uma notificação push pontual, não um selo permanente da matéria).
+
+### `packages/core` — rotação automática, testada
+
+`ArticleService.updateDraft`/`schedule`: ao receber um `placement` novo, carimbam `setAt` só quando o `type` de fato muda (ajustar só `pinned` ou a janela de datas não "fura fila" na rotação), e chamam `enforcePlacementLimit` (privado) depois de qualquer posição não-`none`. Algoritmo: matérias fixadas nunca são evictadas mas sempre ocupam uma vaga; as vagas restantes até o limite vão para as definidas mais recentemente (`setAt` desc); o que sobra volta para `{type: "none"}` — nunca apagado, nunca muda `sectionId`/`localityId`/`status`. Novo `listActivePlacement(type, now?)`: só `status='published'`, respeitando `startsAt`/`endsAt`, ordenado por `setAt` — pronto para consumo futuro (nenhuma tela chama isto ainda; a UI do painel continua editando `placement` por matéria, não há uma "central de posições" nesta fase).
+
+Validação: script `tsx` temporário (removido ao final, nunca commitado), reproduzindo os serviços reais da composição — **21/21 asserções**, cobrindo exatamente os itens pedidos: editoria/localidade preservadas ao entrar/sair de posição; matéria evictada nunca apagada, continua publicada; limite de 8 na capa (9ª entrada evicta a mais antiga não-fixada); fixada nunca expulsa mesmo com 8 novas entrando depois; nunca mais de 8 visíveis mesmo com fixadas somadas; limite de 3 na faixa; limite de 7 em Últimas notícias; agendada não aparece até a data chegar; limite de 4 em Nossa região; selecionar Nossa região não substitui a localidade; `urgent` não altera posição/editoria.
+
+**Achado real corrigido durante a validação**: o mock `article-1240` (Capa principal, fixada) tinha um `endsAt` no passado (data fixa de uma fase anterior, ultrapassada pela passagem do tempo) — a janela expirada fazia `listActivePlacement` excluí-lo mesmo estando fixado, mascarando temporariamente a contagem correta no teste. Removido o `endsAt` desse registro (mantido só `startsAt`, sem prazo de fim) — não é um bug da lógica nova, é um lembrete de que datas fixas em mock "vencem" com o tempo; documentado aqui para não ser re-descoberto.
+
+### `packages/mocks` — dados remapeados, nunca hardcoded na UI
+
+7 artigos remapeados 1:1 para o novo vocabulário (nenhum article novo criado): `article-1240` → `mainCover` + `pinned: true` (demonstra fixar); `article-1241` → `highlightStrip` + `urgent: true` (demonstra os dois campos juntos, agora desacoplados); `article-1242` → `latestNews` (status `scheduled`, demonstra "agendada só entra quando publicada"); `article-1245` → `localSpotlight` (localidade real, Torres); os demais permanecem `none`. Todos os 7 ganharam `urgent` (campo agora obrigatório).
+
+### `apps/sistema` — editor reorganizado
+
+- `editorialLabels.ts`: `placementLabels` com os 5 nomes exatos pedidos (`Nenhuma`/`Capa principal`/`Faixa de destaques`/`Últimas notícias`/`Nossa região`); novo `placementDescriptions` (uma frase por posição, sem jargão, mostrada abaixo do select).
+- `ArticleForm.tsx`: "Mais opções" reorganizada em três blocos separados — "Onde esta matéria aparece em destaque" (posição editorial + descrição + janela de datas), "Fixar na capa" (checkbox, só renderizado quando `mainCover` está selecionado), "Urgência e notificação" (checkbox "Marcar como urgente" + o select de notificação já existente, agora com contexto explícito de que são coisas diferentes). Novo `.form-checkbox` (CSS, alvo de toque 44×44px em mobile).
+- `DestinoEditorial.tsx`: rótulo "Posição editorial" (era "Capa/destaque"), mostra "(fixada na capa)" quando aplicável, nova linha "Urgente" quando o selo está ativo.
+- `MateriasList.tsx`: novo selo "Urgente" (badge vermelho) ao lado do título, tabela e cartões mobile — nada ficou sem representação visual.
+- `ArticleMediaPicker.tsx`: nova seção "Adicionar fotos" no topo — botão "Enviar fotos" (abre seletor de arquivo real; ao escolher, mostra aviso honesto: "envio direto ainda não disponível, provider atual funciona por URL já hospedada — cadastre em Mídias e escolha da biblioteca", nunca finge sucesso) + texto explicando a regra 1 foto/2+ fotos; seção de biblioteca renomeada para "Escolher da biblioteca"; mensagem da galeria adaptada quando há só 1 foto ("galeria pública não aparece").
+- `articleFormTypes.ts`/`materias/actions.ts`: `ArticleFormPayload` ganhou `pinned`/`urgent`; `buildPlacement` só aplica `pinned` quando `type === "mainCover"`; `createArticle`/`updateArticle` passam `urgent` para `saveDraft`/`updateDraft`.
+- Logo do header corrigida nesta mesma fase (pedido à parte, incluído no commit): `logo-escrita.png` de `apps/sistema` era `Format24bppRgb` (fundo preto sólido, sem alfa — confirmado por pixel), substituída pela versão realmente transparente já usada em `apps/site` (só leitura lá); removida a "placa" preta (`background`/`padding`/`border-radius`) de `.app-brand`; altura `30px`→`40px` desktop, `22px`→`30px` mobile.
+
+### `apps/site` — só o necessário para representar os limites (sem migrar provider)
+
+Confirmado pelo mapeamento arquitetural desta fase: `apps/site` **não consome `packages/core`/`Article`** — tem seu próprio modelo paralelo (`NewsItem`/`SiteArticle`/`CmsNewsItem`, IndexedDB, campo `isFeatured: boolean` fazendo hoje o papel que `placement` faz no painel). Migrar isso de verdade é a integração de provider explicitamente fora de escopo. Ajustes feitos, alinhando só os **limites visuais** ao novo modelo:
+- `page.tsx`: capa (`isFeatured`) de `.slice(0,5)` para `.slice(0,8)` (Capa principal); Últimas notícias de `.slice(0,8)` para `.slice(0,7)`; "Nossa região" já estava em 4, faixa de destaques já estava em 3 — sem mudança.
+- `LatestNewsList.tsx`: novo marcador lateral (`border-left` vermelho) no bloco da matéria selecionada — "marcador lateral" era uma das opções explicitamente aceitas no pedido para deixar o item ativo visualmente evidente.
+- `FeaturedHero.tsx`: nenhuma mudança de código necessária — os pontos de navegação (`hero-dot`) já eram genéricos (`.map` sobre `items`), suportam 8 sem overflow (confirmado: container sem `flex-wrap`, largura total ~112px mesmo com 8 pontos, cabe em qualquer viewport).
+
+### Validação
+
+- `npm run typecheck`/`build --workspace @ir/sistema`: sem erros, 25 rotas (inalterado).
+- `npm run typecheck`/`build --workspace @ir/site`: sem erros, 22 rotas (inalterado).
+- Servidor de desenvolvimento local (ambos apps): `/login`, `/sistema` (redireciona sem sessão, como esperado desde a Fase 20), `/` e `/noticias/[slug]` do portal — sem "Application error"/"Hydration failed"; classe `latest-news-active` e textos "Nossa região"/"Últimas notícias" confirmados na resposta HTML.
+- `apps/site`: só os 3 arquivos citados acima tocados — nenhum outro comportamento (Jornal Online/flipbook/busca/anúncios) alterado.
+
+### Pendências e decisões
+
+- Nenhuma migration criada — a divergência com `article_placements` está documentada em detalhe em `docs/DATABASE-IR-CORE.md` (seção 9), pronta para quando a migração de provider acontecer.
+- `apps/site` continua sobre `isFeatured`/IndexedDB — os novos limites (8/7) foram alinhados manualmente; quando o portal migrar para consumir `Article`/`EditorialPlacement` reais, essa lógica inteira é substituída, não reconciliada campo a campo.
+- Nenhuma "central de posições" (tela mostrando todas as 8 vagas da capa, por exemplo) foi construída — não pedida explicitamente; `listActivePlacement` está pronto para alimentar uma, quando/se for pedida.
+- `logo-nova-sem-fundo.png` (não oficial) continua presente, sem uso, em `apps/sistema/public/brand/` — mesma pendência de limpeza já registrada em fases anteriores, não resolvida agora.
+
+### Próxima fase
+
+A decidir pelo usuário — possíveis caminhos: retomar a validação de auth real (Fase 20/21, ainda pendente rodar `supabase login` de novo e promover o owner), ou avançar para uma tela de gestão de posições editoriais no painel (consumindo `listActivePlacement`), ou seguir para a migração de provider do conteúdo editorial propriamente dita.
+
+---
+
 ## Fase 20 — hardening: owner imutável, auth SSR, convite server-side (21/09/2026)
 
 - Branch: `feature/jornalir-core-foundation-20260917`.

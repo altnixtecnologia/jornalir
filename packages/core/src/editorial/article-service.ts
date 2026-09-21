@@ -1,11 +1,13 @@
-import type {
-  Article,
-  ArticleMedia,
-  ArticleOrigin,
-  AuditContext,
-  EditorialPlacement,
-  EditorialTextStyle,
-  NotificationMode,
+import {
+  EDITORIAL_PLACEMENT_LIMITS,
+  type Article,
+  type ArticleMedia,
+  type ArticleOrigin,
+  type AuditContext,
+  type EditorialPlacement,
+  type EditorialPlacementType,
+  type EditorialTextStyle,
+  type NotificationMode,
 } from "@ir/types";
 import type {
   ArticleChanges,
@@ -42,6 +44,7 @@ export interface CreateArticleInput {
   body: string;
   sectionId: string;
   localityId: string;
+  urgent?: boolean;
   notificationMode?: NotificationMode;
   media?: ArticleMedia[];
   origin?: ArticleOrigin;
@@ -97,6 +100,7 @@ export class ArticleService {
       localityId: input.localityId,
       status: "draft",
       placement: { type: "none" },
+      urgent: input.urgent ?? false,
       notificationMode: input.notificationMode ?? "none",
       media: input.media ?? [],
       origin: input.origin ?? "manual",
@@ -119,7 +123,18 @@ export class ArticleService {
     if (changes.localityId) {
       await this.assertLocalityExists(changes.localityId);
     }
-    return this.articles.update(id, changes);
+
+    let finalChanges = changes;
+    if (changes.placement) {
+      const current = await this.getById(id);
+      finalChanges = { ...changes, placement: this.stampPlacement(current.placement, changes.placement) };
+    }
+
+    const updated = await this.articles.update(id, finalChanges);
+    if (finalChanges.placement && finalChanges.placement.type !== "none") {
+      await this.enforcePlacementLimit(finalChanges.placement.type);
+    }
+    return updated;
   }
 
   publishNow(id: string, _audit: AuditContext): Promise<Article> {
@@ -129,21 +144,90 @@ export class ArticleService {
     });
   }
 
-  schedule(
+  async schedule(
     id: string,
     input: ScheduleArticleInput,
     _audit: AuditContext,
   ): Promise<Article> {
-    return this.articles.update(id, {
+    let placement = input.placement;
+    if (placement) {
+      const current = await this.getById(id);
+      placement = this.stampPlacement(current.placement, placement);
+    }
+
+    const updated = await this.articles.update(id, {
       status: "scheduled",
       scheduledAt: input.scheduledAt,
-      placement: input.placement,
+      placement,
       notificationMode: input.notificationMode,
     });
+    if (placement && placement.type !== "none") {
+      await this.enforcePlacementLimit(placement.type);
+    }
+    return updated;
   }
 
   archive(id: string, _audit: AuditContext): Promise<Article> {
     return this.articles.update(id, { status: "archived" });
+  }
+
+  /**
+   * Matérias atualmente visíveis numa posição editorial, prontas para
+   * exibição pública — só `published`, respeitando a janela `startsAt`/
+   * `endsAt` quando definida, na mesma ordem determinística usada pela
+   * rotação (`setAt` mais recente primeiro). Preparado para consumo futuro
+   * do portal; nenhuma tela usa isto ainda nesta fase.
+   */
+  async listActivePlacement(
+    type: Exclude<EditorialPlacementType, "none">,
+    now: Date = new Date(),
+  ): Promise<Article[]> {
+    const occupants = await this.articles.list({ placementType: type, status: "published" });
+    const nowIso = now.toISOString();
+    return occupants
+      .filter(
+        (article) =>
+          (!article.placement.startsAt || article.placement.startsAt <= nowIso) &&
+          (!article.placement.endsAt || article.placement.endsAt >= nowIso),
+      )
+      .sort((a, b) => (b.placement.setAt ?? "").localeCompare(a.placement.setAt ?? ""));
+  }
+
+  /**
+   * `setAt` só é renovado quando o `type` realmente muda — ajustar só
+   * `pinned` ou a janela de datas, mantendo o mesmo tipo, não "fura fila"
+   * na rotação por recência.
+   */
+  private stampPlacement(current: EditorialPlacement | undefined, next: EditorialPlacement): EditorialPlacement {
+    if (next.type === "none") {
+      return { type: "none" };
+    }
+    const typeChanged = !current || current.type !== next.type;
+    return {
+      ...next,
+      setAt: typeChanged ? new Date().toISOString() : (current?.setAt ?? new Date().toISOString()),
+    };
+  }
+
+  /**
+   * Rotação automática e determinística (nunca a ordem incidental do
+   * banco): fixadas (`pinned`) nunca são expulsas e sempre ocupam uma
+   * vaga; as vagas restantes até o limite da posição vão para as matérias
+   * definidas mais recentemente (`setAt`); o que sobra volta para "Nenhuma"
+   * — nunca apagado, nunca muda editoria/localidade/status.
+   */
+  private async enforcePlacementLimit(type: Exclude<EditorialPlacementType, "none">): Promise<void> {
+    const limit = EDITORIAL_PLACEMENT_LIMITS[type];
+    const occupants = await this.articles.list({ placementType: type });
+    const pinned = occupants.filter((article) => article.placement.pinned);
+    const unpinned = [...occupants.filter((article) => !article.placement.pinned)].sort((a, b) =>
+      (b.placement.setAt ?? "").localeCompare(a.placement.setAt ?? ""),
+    );
+    const remainingSlots = Math.max(0, limit - pinned.length);
+    const evicted = unpinned.slice(remainingSlots);
+    for (const article of evicted) {
+      await this.articles.update(article.id, { placement: { type: "none" } });
+    }
   }
 
   /** Conteúdo vindo de importação de PDF sempre entra como rascunho. */
