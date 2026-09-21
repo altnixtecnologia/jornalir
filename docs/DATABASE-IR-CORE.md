@@ -761,10 +761,59 @@ continuam mock (Fase 26). `apps/site` não foi tocado.
   não pôde ser feita neste ambiente por falta de navegador — só checagem
   estrutural via HTTP.
 
-## 15. Próxima fase (sugestão)
+## 15. Fase 27 — Importação de PDF real (edições + candidatos)
 
-Matérias, destinos editoriais e mídias já são reais (Fases 25/26).
-Caminhos possíveis a partir daqui: migrar Importação de PDF para o banco
-real; uma tela de gestão de posições editoriais no painel (consumindo
-`ArticleService.listActivePlacement`, já pronta); ou `apps/site` passando
-a ler `published` diretamente do banco com RLS pública.
+`NewspaperEditionRepository` (somente leitura, como já era) e
+`ImportCandidateRepository` passaram a ser reais (Supabase) em
+`apps/sistema`. Nenhum mock de conteúdo editorial resta no painel.
+
+- **Migration nova** (`20260927100000_pdf_import_real_provider.sql`):
+  `pdf_import_candidates` ganhou `page_width`/`page_height` — usados de
+  verdade no `viewBox` do SVG de pré-visualização da página de origem
+  (`ImportCandidateSourcePreview.tsx`); sem coluna, o provider real
+  descartaria esse dado silenciosamente. Nenhuma migration anterior
+  alterada.
+- **`NewspaperEdition.reference`** (ex.: "ED-2026-038") não tem coluna
+  própria — gerado no provider a partir de `edition_number` + ano de
+  `publication_date`, mesmo formato dos dados mock anteriores.
+  **`pageCount`** não tem coluna e não é usado por nenhuma tela real
+  (o único `pageCount` usado é o de um resultado de extração de PDF, um
+  conceito diferente) — fica sempre `undefined`, sem migration.
+- **Um lote = uma extração** (`pdf_import_batches`): `NewImportCandidateRecord`
+  não carrega metadados de lote (nome do arquivo, contagem de páginas,
+  avisos gerais — esses só existem no retorno de `extractCandidatesFromPdf`,
+  consumido direto pela Server Action, nunca persistido); o provider cria
+  uma linha mínima de lote só como âncora da FK obrigatória de
+  `pdf_import_candidates.batch_id` — `source_file_name`/`page_count`/
+  `warnings` do lote ficam vazios (divergência documentada, sem uso real).
+- **Sem cadastro de edições ainda**: `NewspaperEditionService` continua só
+  leitura (decisão de fases anteriores, não desta). Sem uma edição real
+  cadastrada, a tela de Importação de PDF não tem o que listar — gap
+  pré-existente, não introduzido nem resolvido nesta fase.
+- **Teste real completo** (contra `site-system-ir`, via
+  `supabase db query --linked`, dados removidos ao final): criada uma
+  edição QA real; criado um lote + 2 candidatos (simulando `createMany`);
+  "manter" (atribuir editoria/localidade) num candidato; "descartar" no
+  outro; "converter em rascunho" no primeiro (cria a matéria com
+  `origin=pdf`, `status=draft`, marca o candidato `converted` com
+  `created_article_id`). Limpeza respeitando a ordem de FK (candidatos →
+  matéria → lote → edição) — `0` linhas restantes em todas as tabelas
+  envolvidas.
+- **Limitação aceita (não verificada nesta fase)**: a policy
+  `pdf_import_candidates_update_staff_not_converted` (já existia desde a
+  Fase 17, `USING (status <> 'converted')`) não pôde ser testada como
+  sessão `authenticated` real — a conexão de teste desta sessão (CLI)
+  ignora RLS. Mesma limitação estrutural das Fases 21/24 (sem credenciais
+  de um usuário real neste ambiente).
+- **RLS/owner intocados**: 32 policies antes e depois; owner continua
+  `role=owner active=true`. Middleware confirmado bloqueando
+  `/sistema/editorial/importar-pdf` sem sessão.
+
+## 16. Próxima fase (sugestão)
+
+Matérias, destinos editoriais, mídias e importação de PDF já são reais
+(Fases 25/26/27). Caminhos possíveis a partir daqui: uma tela de cadastro
+de edições do jornal (ainda só leitura); uma tela de gestão de posições
+editoriais no painel (consumindo `ArticleService.listActivePlacement`, já
+pronta); ou `apps/site` passando a ler `published` diretamente do banco
+com RLS pública.

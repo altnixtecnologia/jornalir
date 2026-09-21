@@ -5,7 +5,7 @@ import {
   getArticleService,
   getEditorialSectionService,
   getLocalityService,
-  newspaperEditionService,
+  getNewspaperEditionService,
 } from "../../../../composition/editorial";
 import { createSupabaseServerClient } from "../../../../lib/supabase/server";
 
@@ -15,7 +15,7 @@ export default async function MateriasPage(): Promise<JSX.Element> {
     getArticleService(supabase).list(),
     getEditorialSectionService(supabase).list(),
     getLocalityService(supabase).list(),
-    newspaperEditionService.list(),
+    getNewspaperEditionService(supabase).list(),
   ]);
 
   return (

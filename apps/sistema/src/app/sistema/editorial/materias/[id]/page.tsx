@@ -7,7 +7,7 @@ import {
   getEditorialSectionService,
   getLocalityService,
   getMediaAssetService,
-  newspaperEditionService,
+  getNewspaperEditionService,
 } from "../../../../../composition/editorial";
 import { createSupabaseServerClient } from "../../../../../lib/supabase/server";
 
@@ -27,7 +27,7 @@ export default async function MateriaEditPage({
     getEditorialSectionService(supabase).list(),
     getLocalityService(supabase).list(),
     getMediaAssetService(supabase).list(),
-    newspaperEditionService.list(),
+    getNewspaperEditionService(supabase).list(),
   ]);
 
   return (

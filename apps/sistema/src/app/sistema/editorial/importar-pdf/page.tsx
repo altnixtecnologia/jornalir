@@ -6,7 +6,7 @@ import {
   getEditorialSectionService,
   getImportCandidateService,
   getLocalityService,
-  newspaperEditionService,
+  getNewspaperEditionService,
 } from "../../../../composition/editorial";
 import { createSupabaseServerClient } from "../../../../lib/supabase/server";
 
@@ -18,7 +18,7 @@ export default async function ImportarPdfPage({
   const editionId = searchParams.edicao ?? "";
   const supabase = createSupabaseServerClient();
   const [editions, sections, localities] = await Promise.all([
-    newspaperEditionService.list(),
+    getNewspaperEditionService(supabase).list(),
     getEditorialSectionService(supabase).list(),
     getLocalityService(supabase).list(),
   ]);

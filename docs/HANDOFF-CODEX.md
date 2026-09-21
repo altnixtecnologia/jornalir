@@ -1,5 +1,21 @@
 # Handoff — JornalIR
 
+## Fase 27 — importação de PDF real (edições + candidatos ao Supabase) (21/09/2026)
+
+- Branch: `feature/jornalir-core-foundation-20260917`.
+- HEAD ao iniciar a fase: `7827ed7` (commit da Fase 26).
+- Auditoria prévia (pedida explicitamente pelo usuário, antes de qualquer código): confirmado que a Fase 26 (mídias reais) estava 100% concluída e testada — nada refeito. `git log fbf4c24..HEAD`, `git status`, existência/uso real de todos os providers Supabase de mídia, migrations aplicadas (`supabase db push --dry-run` → `up to date`), colunas/bucket/policies conferidos direto no banco.
+- Entrega desta fase: `NewspaperEditionRepository` (só leitura) e `ImportCandidateRepository` passaram a ser reais (Supabase) — nenhum mock de conteúdo editorial resta em `apps/sistema`.
+- Migration nova: `pdf_import_candidates.page_width`/`page_height` (usados de verdade no preview da página de origem, senão seriam descartados). `NewspaperEdition.reference` gerado no provider a partir de `edition_number`+ano (sem coluna própria). Um lote de importação = uma extração; o provider cria uma linha mínima em `pdf_import_batches` só como âncora de FK (metadados do lote não fazem parte do contrato de domínio).
+- Teste real completo no banco: edição QA → lote → 2 candidatos → manter/descartar/converter em rascunho (cria matéria `origin=pdf`) → limpeza respeitando FK. RLS (32 policies) e owner intocados.
+- Detalhe completo em `docs/DATABASE-IR-CORE.md` (seção 15).
+
+### Próxima fase
+
+Cadastro de edições do jornal (ainda só leitura); tela de gestão de posições editoriais; ou `apps/site` lendo o banco real.
+
+---
+
 ## Fase 26 — mídias reais (Storage) + fotos das matérias + Instagram + preview público (21/09/2026)
 
 - Branch: `feature/jornalir-core-foundation-20260917`.

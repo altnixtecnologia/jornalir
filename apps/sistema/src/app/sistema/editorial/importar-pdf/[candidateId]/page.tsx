@@ -9,7 +9,7 @@ import {
   getImportCandidateService,
   getLocalityService,
   getMediaAssetService,
-  newspaperEditionService,
+  getNewspaperEditionService,
 } from "../../../../../composition/editorial";
 import { createSupabaseServerClient } from "../../../../../lib/supabase/server";
 
@@ -31,7 +31,7 @@ export default async function ImportCandidateDetailPage({
     getEditorialSectionService(supabase).list(),
     getLocalityService(supabase).list(),
     getMediaAssetService(supabase).list(),
-    newspaperEditionService.list(),
+    getNewspaperEditionService(supabase).list(),
   ]);
   const edition = editions.find((item) => item.id === candidate.editionId);
   const currentStep: ImportFlowStep = candidate.status === "converted" ? "materia" : "revisao";
