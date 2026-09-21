@@ -118,33 +118,71 @@ supabase link --project-ref iqnzrpdccecgalqboeyf
 supabase db push
 ```
 
-**Status (Fase 18): ainda nenhuma das duas execuções foi rodada.** Na Fase
-18, tentamos deliberadamente `supabase link --project-ref
-iqnzrpdccecgalqboeyf` para confirmar o que falta — resultado exato:
+**Status: aplicado de verdade contra o projeto remoto (Fase 18, 21/09/2026).**
+Sequência real executada, nesta ordem:
 
-```text
-{"error":{"code":"LegacyLinkProjectStatusError","message":"Unexpected error retrieving remote project status: {\"message\":\"Unauthorized\"}"}}
-```
+1. `supabase login` — bloqueado na primeira tentativa (ambiente sem TTY não
+   consegue abrir o fluxo automático de navegador); usuário rodou o login
+   no próprio terminal, fora deste ambiente.
+2. `supabase link --project-ref iqnzrpdccecgalqboeyf` — confirmado
+   `{"project_ref":"iqnzrpdccecgalqboeyf"}`; `supabase projects list`
+   confirmou adicionalmente `name: "site-system-ir"`, `linked: true`, e os
+   outros dois projetos da organização (`altnix-platform`, `FarmaTemp`)
+   com `linked: false` — sem ambiguidade sobre qual projeto foi alvo.
+3. `supabase db push --dry-run` — listou as 12 migrations, todas novas
+   (`upToDate: false`), na ordem correta, nenhuma operação destrutiva no
+   conteúdo revisado (só `CREATE`/`INSERT ... ON CONFLICT DO NOTHING`).
+4. `supabase db push` — as 12 migrations aplicadas com sucesso, sem erro.
 
-A CLI está instalada (`supabase --version` → `2.117.0`) mas **sem nenhuma
-sessão local** — nem `supabase login` foi rodado neste ambiente, nem existe
-`SUPABASE_ACCESS_TOKEN` no ambiente, nem um token salvo em `~/.supabase`
-(confirmado por inspeção do diretório — só telemetria/cache do Deno, sem
-credencial). Conforme instrução explícita da Fase 18, paramos exatamente
-aqui: **não** inventamos nem pedimos para colocar um token no repositório.
-Para aplicar de verdade, rode localmente, fora deste ambiente/sessão:
+Nenhum `db reset` remoto, `drop` geral ou comando destrutivo foi usado em
+momento algum.
 
-```bash
-supabase login                                    # abre o navegador para autenticar
-supabase link --project-ref iqnzrpdccecgalqboeyf  # vincula este repo ao projeto certo
-supabase migration list                            # confere o que está pendente
-supabase db push                                   # aplica só o que falta, nunca reset remoto
-```
+### Validação pós-aplicação (via `supabase db query --linked`)
 
-Config e `.env.local` já conferem com o projeto certo (`project_id =
+Consultas somente-leitura contra o catálogo do Postgres (`information_schema`,
+`pg_class`, `pg_policies`, `pg_constraint`, `pg_indexes`, `pg_trigger`) —
+nenhuma exposição de dado sensível, resultado resumido:
+
+- **11 tabelas** presentes em `public`, exatamente a lista esperada.
+- **RLS habilitada** (`relrowsecurity = true`) nas 11 tabelas.
+- **31 policies** — padrão confirmado: sem `delete` em nenhuma tabela de
+  negócio exceto `article_media` (proposital); `pdf_import_candidates`
+  tem uma única policy de `update`
+  (`pdf_import_candidates_update_staff_not_converted`), confirmando a
+  proteção contra reconversão também no banco.
+- **9 triggers** — os 8 `set_updated_at` esperados + `on_auth_user_created`
+  (`AFTER INSERT` em `auth.users`), a criação automática de `profiles`.
+- **Índice único parcial `article_media_one_cover_per_article`** confirmado
+  (`WHERE role = 'cover'`) — 1 capa por matéria garantida no banco.
+- **34 constraints** de FK/CHECK conferidas uma a uma contra o desenho
+  original (inclui `pdf_import_candidates_converted_has_article`,
+  `pdf_import_candidates_merged_has_target`, `media_assets_has_source`,
+  `article_placements_window_check`).
+- **Seeds**: `editorial_sections` = 7 linhas, `localities` = 4 linhas.
+
+### Limite desta validação — teste funcional/RLS end-to-end não executado
+
+O item "teste mínimo controlado" (criar usuário de teste, confirmar profile,
+criar matéria draft, vincular editoria/localidade, placement, capa+galeria,
+audit event, validar RLS como usuário real) **não foi executado**: o
+classificador de modo automático deste ambiente bloqueou a tentativa de
+inserir uma linha de teste em `auth.users` ("Modify Shared Resources"),
+por ser uma escrita direta numa tabela do sistema de autenticação de um
+projeto real compartilhado — mesmo sem senha, mesmo descartável, mesmo com
+plano de limpeza ao final. Nenhuma linha chegou a ser criada (confirmado por
+`select count(*) ... where id = '<uuid de teste>'` → `0`); nenhum lixo de
+teste ficou no banco. A validação estrutural acima (constraints, policies,
+triggers, índices) prova que as REGRAS existem corretamente no schema; não
+prova, por execução real, que elas se comportam como esperado sob uma
+sessão autenticada de verdade. Fica como próximo passo, preferencialmente
+feito pelo usuário localmente (`supabase login` + um teste manual pela
+própria aplicação ou pelo SQL editor do dashboard) ou nesta sessão com uma
+liberação explícita de permissão para esse tipo de escrita.
+
+Config e `.env.local` conferem com o projeto certo (`project_id =
 "site-system-ir"` em `supabase/config.toml`; `NEXT_PUBLIC_SUPABASE_URL`
-aponta para `iqnzrpdccecgalqboeyf.supabase.co`) — nenhum risco de aplicar
-contra Altnix Informativo/Platform por engano.
+aponta para `iqnzrpdccecgalqboeyf.supabase.co`) — sem risco de ter aplicado
+contra Altnix Informativo/Platform.
 
 ## 6. Variáveis de ambiente
 

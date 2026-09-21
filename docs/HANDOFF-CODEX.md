@@ -4,41 +4,57 @@
 
 - Branch: `feature/jornalir-core-foundation-20260917`.
 - HEAD ao iniciar a fase: `d46934e` (commit da Fase 17).
-- Entrega: correção visual pontual do login (logo errada) + tentativa deliberada de aplicar as migrations reais contra `site-system-ir`, bloqueada por falta de autenticação local da Supabase CLI — parada exatamente onde as instruções mandaram parar, sem inventar nem pedir credencial para o repositório.
+- Entrega: correção visual pontual do login (logo errada) + as 12 migrations da Fase 17 **aplicadas de verdade** contra o projeto remoto `site-system-ir` (`iqnzrpdccecgalqboeyf`), com schema/RLS/triggers/constraints/seeds confirmados por introspecção direta do catálogo do Postgres. Fase rodada em duas partes: a primeira tentativa parou por falta de sessão local da CLI (registrado abaixo, corrigido pelo usuário fora deste ambiente); a segunda, já autenticada, concluiu link → dry-run → push → validação.
 
 ### Logo do login corrigida
 
-`apps/sistema/src/app/login/page.tsx` usava `logo-escrita.png` (a marca com o nome escrito por extenso); trocada para `logo-ir.png` (o símbolo oficial), conforme pedido. O elemento já era um `<img>` direto, sem wrapper/placa/padding/fundo — não havia "moldura" para remover, só o arquivo errado. Ajustado tamanho (34px → 48px de altura) e centralização (`margin: 0 auto`) em `.login-logo` (`globals.css`), já que o símbolo é mais compacto que a marca escrita e ficava desproporcional/desalinhado no mesmo tamanho.
+`apps/sistema/src/app/login/page.tsx` usava `logo-escrita.png` (a marca com o nome escrito por extenso); trocada para `logo-ir.png` (o símbolo oficial). O elemento já era um `<img>` direto, sem wrapper/placa/padding/fundo — não havia "moldura" para remover, só o arquivo errado. Ajustado tamanho (34px → 48px de altura) e centralização (`margin: 0 auto`) em `.login-logo` (`globals.css`), já que o símbolo é mais compacto que a marca escrita e ficava desproporcional/desalinhado no mesmo tamanho.
 
-### Tentativa de aplicar as migrations reais — bloqueada por autenticação, como esperado
+### Autenticação da CLI — bloqueio real, depois resolvido pelo usuário
 
-Confirmado antes de qualquer tentativa: ordem das 12 migrations em `supabase/migrations/` (inalterada desde a Fase 17, re-conferida), `project_id = "site-system-ir"` em `supabase/config.toml`, e `NEXT_PUBLIC_SUPABASE_URL` em `apps/sistema/.env.local` apontando para `iqnzrpdccecgalqboeyf.supabase.co` — os três coerentes entre si, sem risco de mirar Altnix Informativo/Platform por engano.
+Primeira tentativa: `supabase login` (sem `--no-browser`) falhou com `LegacyLoginMissingTokenError` — "Cannot use automatic login flow inside non-TTY environments" (este ambiente de execução não tem terminal interativo para o fluxo de navegador). Conforme instrução ("não inventar credenciais, não pedir para colar token, parar antes do `db push`"), a execução parou exatamente aí e o diagnóstico exato foi reportado. O usuário rodou `supabase login` no próprio terminal (fora deste ambiente) e confirmou sucesso — a sessão ficou salva localmente (`~/.supabase`), nunca vista ou manuseada por esta sessão.
 
-`supabase projects list` e `supabase link --project-ref iqnzrpdccecgalqboeyf` (este último só para confirmar o diagnóstico, sem seguir para `db push`) retornaram `{"message":"Unauthorized"}` — a CLI (`2.117.0`, instalada) não tem nenhuma sessão local: sem `supabase login` rodado neste ambiente, sem `SUPABASE_ACCESS_TOKEN` no ambiente, sem token salvo em `~/.supabase` (inspecionado diretamente — só cache/telemetria do Deno, nenhuma credencial). Conforme instrução explícita desta fase ("não inventar credenciais, não pedir para colocar token no repositório, parar antes do `db push`"), a execução parou exatamente aqui. `.env.local` não foi alterado com nenhuma credencial administrativa.
+### Link → dry-run → push — os três confirmados, nesta ordem
 
-**O que falta, exatamente**: rodar `supabase login` (abre navegador para autenticar) ou exportar `SUPABASE_ACCESS_TOKEN` como variável de ambiente local — ambos fora deste repositório, feitos pelo usuário na própria máquina — antes de `supabase link` + `supabase db push` conseguirem funcionar. Passo a passo completo em `docs/DATABASE-IR-CORE.md` (seção 5, atualizada nesta fase).
+1. `supabase link --project-ref iqnzrpdccecgalqboeyf` → `{"project_ref":"iqnzrpdccecgalqboeyf"}`.
+2. `supabase projects list` (checagem extra de identidade) → confirmou `name: "site-system-ir"`, `linked: true`; os outros dois projetos da organização (`altnix-platform`, `FarmaTemp`) apareceram com `linked: false` — sem ambiguidade sobre o alvo.
+3. `supabase db push --dry-run` → listou as 12 migrations, todas pendentes (`upToDate: false`), na ordem correta; revisão do conteúdo confirmou zero operação destrutiva (só `CREATE TABLE/INDEX/POLICY/TRIGGER/FUNCTION` e `INSERT ... ON CONFLICT DO NOTHING`).
+4. `supabase db push` → as 12 migrations aplicadas com sucesso, sem erro. Nenhum `db reset` remoto, `drop` geral ou comando destrutivo usado.
 
-### O que NÃO foi feito (consequência direta do bloqueio acima)
+### Validação do schema real (introspecção somente-leitura via `supabase db query --linked`)
 
-Nenhuma migration foi aplicada (nem local, nem remota); nenhuma tabela criada no banco real; nenhuma policy/RLS testada contra dados reais; nenhum teste de criação de matéria/placement/capa+galeria/audit event foi executado (todos dependiam do schema já existir no banco); seeds não confirmados em produção. Tudo isso permanece pendente, idêntico ao fim da Fase 17 — esta fase não regrediu nem avançou o estado do banco real, só diagnosticou precisamente o bloqueio.
+- 11 tabelas em `public`, exatamente a lista esperada.
+- RLS habilitada (`relrowsecurity = true`) nas 11.
+- 31 policies — sem `delete` em nenhuma tabela de negócio exceto `article_media` (proposital, remover uma foto de uma matéria não é destrutivo); `pdf_import_candidates` com uma única policy de `update` que exclui `status = 'converted'` (`pdf_import_candidates_update_staff_not_converted`) — a proteção contra reconversão de candidato agora confirmada também no banco, não só na aplicação (Fase 15) e não só no texto da migration (Fase 17).
+- 9 triggers — 8 `set_updated_at` + `on_auth_user_created` (`AFTER INSERT` em `auth.users`), criando `profiles` automaticamente.
+- Índice único parcial `article_media_one_cover_per_article` (`WHERE role = 'cover'`) confirmado — 1 capa por matéria garantida no banco.
+- 34 FKs/CHECKs conferidas uma a uma contra o desenho original.
+- Seeds: `editorial_sections` = 7, `localities` = 4.
 
-### Validação
+Detalhe completo em `docs/DATABASE-IR-CORE.md` (seção 5, reescrita nesta fase).
+
+### Limite desta fase — teste funcional/RLS com usuário real não executado
+
+O item "teste mínimo controlado" (criar usuário de teste, confirmar `profiles`, criar matéria draft, vincular editoria/localidade, placement, capa+galeria, audit event, validar RLS como sessão autenticada real) **não foi executado**: o classificador de modo automático deste ambiente bloqueou a tentativa de inserir uma linha em `auth.users` ("Modify Shared Resources") — uma escrita direta num sistema de autenticação real e compartilhado, mesmo sem senha, mesmo descartável, mesmo com plano de limpeza. Nenhuma linha chegou a ser criada (confirmado: `select count(*) from auth.users where id = '<uuid de teste>'` → `0`) — sem lixo de teste no banco. A validação estrutural (constraints/policies/triggers/índices acima) prova que as regras **existem** corretamente; não prova, por execução real, que elas se **comportam** como esperado sob uma sessão autenticada de verdade.
+
+### Validação (build/typecheck/servidor)
 
 - `npm run typecheck --workspace @ir/sistema`: sem erros.
-- `npm run build --workspace @ir/sistema`: sucesso, 23 rotas (inalterado — só CSS/atributo de imagem mudou).
+- `npm run build --workspace @ir/sistema`: sucesso, 23 rotas (inalterado).
 - Servidor de desenvolvimento local (porta 3001): `/login` confirmado servindo `logo-ir.png` (`logo-escrita.png` ausente da resposta).
-- Nenhum secret impresso em log — a mensagem de erro do `supabase link` (reproduzida acima) não contém nenhum token, só a string genérica `"Unauthorized"`.
+- Nenhum secret impresso em log em nenhum momento — nem o token de sessão da CLI, nem qualquer credencial administrativa; todas as consultas de validação foram somente-leitura contra o catálogo do Postgres.
 - `apps/site`: não tocado.
 
 ### Pendências e decisões
 
-- **Bloqueador real, não uma decisão de escopo**: aplicar as migrations exige que o usuário rode `supabase login` (ou defina `SUPABASE_ACCESS_TOKEN` localmente) fora deste ambiente — nenhuma ação de código resolve isso.
-- Todo o item 6 da Fase 18 (teste real mínimo: criar matéria/placement/capa+galeria/audit event contra o banco) permanece não executado, na mesma dependência acima.
-- Assim que houver autenticação, a sequência recomendada é: `supabase migration list` (conferir o que está pendente) → `supabase db push` (nunca `db reset` no remoto) → validar manualmente as tabelas/policies listadas na seção 5 do prompt desta fase.
+- **Teste funcional/RLS end-to-end com usuário real** — bloqueado pelo classificador de permissões deste ambiente; próximo passo natural é o usuário rodar esse teste localmente (app real ou SQL editor do dashboard) ou liberar explicitamente esse tipo de escrita nesta sessão.
+- `supabase/.temp/` (cache da CLI, criado pelo `link`) — já coberto por `.gitignore` desde o commit anterior desta mesma fase.
+- Nenhuma tela migrada para o banco ainda — instrução explícita desta fase; painel continua 100% sobre `@ir/mocks`.
+- `apps/sistema/.env.local` não foi alterado com nenhuma credencial administrativa (só a publishable key, já configurada desde a Fase 17).
 
 ### Próxima fase
 
-A decidir pelo usuário — mas só depois de rodar `supabase login`/definir `SUPABASE_ACCESS_TOKEN` localmente: reexecutar a validação real do banco (aplicar migrations, testar RLS, teste mínimo controlado) antes de qualquer migração de provider. Ainda sem auth real na aplicação, sem mocks removidos, sem `apps/site` tocado.
+A decidir pelo usuário — caminho sugerido: rodar o teste funcional/RLS com um usuário real (fora deste ambiente ou com permissão explícita), depois migração provider-por-provider começando por `apps/sistema` (matérias/editorias/localidades/mídias/importação de PDF), reconciliando as divergências de contrato já documentadas (`DATABASE-IR-CORE.md` seção 4), seguida de auth real substituindo a sessão mock da Fase 16, e só depois `apps/site`.
 
 ---
 
