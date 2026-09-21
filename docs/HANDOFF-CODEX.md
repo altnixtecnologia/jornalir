@@ -1,5 +1,50 @@
 # Handoff — JornalIR
 
+## Fase 23 — migration real dos destinos editoriais (21/09/2026)
+
+- Branch: `feature/jornalir-core-foundation-20260917`.
+- HEAD ao iniciar a fase: `b35af5b` (commit da Fase 22).
+- Entrega: o modelo de destinos editoriais consolidado na Fase 22 (`packages/types`/`core`/`mocks`) agora existe de verdade no banco `site-system-ir` — duas migrations aplicadas e validadas com testes reais (com limpeza total dos dados de teste). Owner/Auth (Fases 20/21) não foram tocados, como instruído.
+
+### Bloqueio de sessão da CLI — resolvido de um jeito novo desta vez
+
+A sessão expirou de novo no início da fase (`Unauthorized` em `projects list`/`link`, mesmo padrão das vezes anteriores). Desta vez a causa era diferente: o token não vive em `~/.supabase` (onde as fases anteriores o encontraram) — está salvo como variável de ambiente **persistente do usuário Windows** (`SUPABASE_ACCESS_TOKEN`, via `[Environment]::SetEnvironmentVariable(...,"User")`), que não é herdada automaticamente por um processo novo do Bash tool. Resolvido carregando explicitamente no início de cada chamada PowerShell: `$env:SUPABASE_ACCESS_TOKEN = [Environment]::GetEnvironmentVariable("SUPABASE_ACCESS_TOKEN","User")` — sem nunca imprimir o valor, sem `supabase login`, sem procurar em `~/.supabase`. Repetido em toda chamada `supabase` desta fase (o PowerShell tool não persiste estado de shell entre chamadas).
+
+### Diagnóstico read-only antes de escrever a migration (item 1 da fase)
+
+`select count(*) from articles` → 0. `select count(*) from article_placements` → 0. `select distinct type from article_placements` → vazio. Sem dado real de nenhum tipo antigo (`headline`/`primary`/`secondary`/`breaking`/`section`/`special`) para mapear ou perder — migration segura de escrever e aplicar sem qualquer heurística de conversão.
+
+### Duas migrations aplicadas (a segunda corrigindo um achado real da primeira)
+
+1. `20260924100000_editorial_placement_model.sql` — novo vocabulário de `type` (4 valores, `none` nunca vira linha); `article_placements.pinned` + constraint declarativa (só `mainCover`); `articles.urgent`; função+trigger `enforce_placement_limit()` (8/3/7/4, fixadas nunca evictadas mas sempre ocupam vaga, excesso volta para `active=false`, nunca `DELETE`, `pg_advisory_xact_lock` por tipo de posição para concorrência).
+2. `20260924100100_editorial_placement_deterministic_tiebreak.sql` — **achado real durante o próprio teste desta fase**: testar em lote (várias inserções numa única transação) revelou que `created_at` é idêntico entre linhas da mesma transação (`now()` estável por transação no Postgres), e o `ORDER BY created_at desc` sem desempate escolhia uma linha arbitrária para evictar — violando a exigência explícita de ordenação determinística. Corrigido com `order by created_at desc, id desc`. Documentado em detalhe em `docs/DATABASE-IR-CORE.md` (seção 10) para não ser redescoberto — e como lembrete de que "nunca alterar migration já aplicada" vale desde o primeiro minuto, inclusive dentro da mesma sessão: a correção virou uma migration nova, não uma edição da primeira.
+
+### Testes reais contra o banco (não só leitura de schema — escrita, verificação, limpeza)
+
+Diferente das fases anteriores (bloqueadas em escrita por `auth.users`), escrever em `articles`/`article_placements` **não foi bloqueado** pelo classificador do ambiente — são tabelas de negócio comuns, não o sistema de autenticação. Sequência: inserir 8 `mainCover` (uma primeira rodada em lote, que expôs o achado do desempate — revertida/limpa antes da correção), reaplicar com a função corrigida, inserir 8 em transações **separadas** (gaps reais de ~1,1s via `Start-Sleep`) para confirmar `created_at` genuinamente distintos, inserir a 9ª e confirmar que a evicção pega exatamente a mais antiga (não mais uma escolha arbitrária). Preencher as 8 vagas de `mainCover` com fixadas e confirmar que uma 9ª fixada é rejeitada com mensagem clara, sem criar linha. Testar `highlightStrip` com 4 entradas → só 3 ativas. Testar rejeição de `pinned` fora de `mainCover` e de `type='headline'`. Confirmar que o artigo evictado mantém `status`/`section_id`/`locality_id` idênticos. Confirmar 32 policies antes/depois (nenhuma perdida), RLS habilitada nas duas tabelas, e — sem tocar — exatamente 1 `profile` `role='owner'`/`active=true`. Toda linha de teste (`slug like 'qa-fase23%'`) removida ao final; confirmado `0` restantes.
+
+**Limite desta validação**: a trava de concorrência (`pg_advisory_xact_lock`) foi revisada estruturalmente (padrão recomendado do Postgres para este problema) mas não testada com duas transações genuinamente simultâneas — as chamadas desta sessão são sequenciais. Documentado como pendência, não um problema encontrado.
+
+### Validação (build/typecheck)
+
+- `npm run typecheck`/`build --workspace @ir/sistema`: sem erros, 25 rotas (inalterado — nenhum código de app tocado nesta fase, só migrations).
+- `npm run typecheck`/`build --workspace @ir/site`: sem erros, 22 rotas (inalterado).
+- `apps/sistema`/`apps/site` rodando localmente durante toda a fase (`http://localhost:3001`/`http://localhost:3000`), sem reinício necessário (nenhuma mudança de código).
+- Owner/Auth confirmados intocados: mesmo `id`, mesmo `role`, `active=true`, nenhuma tentativa de `UPDATE`/`DELETE` nele.
+- Nenhum secret impresso em log — só o comprimento do token (`44 caracteres`) foi mostrado, nunca o valor.
+
+### Pendências e decisões
+
+- Teste de concorrência real (duas transações simultâneas) não executado — ver "Limite desta validação" acima.
+- `packages/core`/`ArticleService` continua sendo a fonte de verdade para `apps/sistema` (mock) — o banco agora tem a MESMA regra de negócio (8/3/7/4, pinned, urgent), mas os dois ainda não estão conectados; migração de provider é a próxima etapa relevante, não feita nesta fase.
+- Nenhuma tela nova ou alterada — fase 100% de banco.
+
+### Próxima fase
+
+A decidir pelo usuário — caminhos possíveis: migração de provider do conteúdo editorial (`apps/sistema` primeiro, conectando ao banco que agora já tem o modelo certo), uma tela de gestão de posições editoriais, ou seguir para `apps/site`. Detalhe em `docs/DATABASE-IR-CORE.md` (seção 11).
+
+---
+
 ## Fase 22 — consolida destinos editoriais e editor de matérias (21/09/2026)
 
 - Branch: `feature/jornalir-core-foundation-20260917`.

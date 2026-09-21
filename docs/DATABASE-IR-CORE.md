@@ -421,15 +421,11 @@ promoção — por ser um `UPDATE` numa linha que ainda **não** é owner —
 continua permitida (o trigger só passa a bloquear a linha depois que ela
 já é owner).
 
-## 9. Fase 22 — consolidação de destinos editoriais (mock/tipos, banco intocado)
+## 9. Fase 22 — consolidação de destinos editoriais (mock/tipos)
 
-Fase de UI/domínio, não de banco: `packages/types`, `packages/core` e
-`packages/mocks` foram ajustados; **nenhuma migration foi criada nem
-aplicada** (nem sequer tentada) — instrução explícita: "não fazer
-alteração destrutiva no banco". A tabela `article_placements` (aplicada na
-Fase 17) continua exatamente como estava. Esta seção documenta a migration
-incremental que será necessária mais adiante, quando os providers reais
-substituírem o mock — sem executá-la agora.
+Fase de UI/domínio: `packages/types`, `packages/core` e `packages/mocks`
+foram ajustados. Nesta fase o banco ainda não foi tocado — a migration
+correspondente foi criada e aplicada depois, na Fase 23 (seção 10 abaixo).
 
 ### O que mudou no domínio (mock)
 
@@ -468,57 +464,102 @@ substituírem o mock — sem executá-la agora.
   Nossa região não substitui a localidade original; `urgent` não altera
   posição nem editoria.
 
-### Divergência com `article_placements` (banco real, Fase 17) — migration futura necessária
+## 10. Fase 23 — migration real dos destinos editoriais (aplicada)
 
-A tabela real usa um desenho **historicizado** (uma linha nova por
-atribuição de destaque, `article_id` 1:N), enquanto o mock usa um objeto
-**único e mutável** (`Article.placement`, 1:1). São duas estratégias
-válidas — a do banco é, na verdade, mais rica (permite consultar o
-histórico completo de destaques de uma matéria). Reconciliar exige uma
-migration incremental (nunca alterando `20260921100600_article_placements.sql`,
-que já está aplicada):
+### Diagnóstico prévio (obrigatório antes de escrever a migration)
 
-```sql
--- Nova migration futura (rascunho, NÃO aplicar agora):
+Leitura real do banco, antes de qualquer `ALTER`: **0 rows em `articles`,
+0 rows em `article_placements`, nenhum tipo antigo em uso**. Sem dado real
+para perder ou mapear — migration aplicada com segurança, sem qualquer
+heurística de conversão de dado inventada.
 
--- 1) Trocar o vocabulário de type para o novo modelo de 5 posições.
-alter table public.article_placements drop constraint article_placements_type_check;
--- migrar dados existentes de headline/primary/secondary/breaking/section/special
--- para none/mainCover/highlightStrip/latestNews/localSpotlight (mapeamento a
--- decidir com a redação quando houver dado real para migrar — não há hoje).
-alter table public.article_placements
-  add constraint article_placements_type_check
-  check (type in ('mainCover', 'highlightStrip', 'latestNews', 'localSpotlight'));
-  -- "none" não vira uma linha aqui — ausência de linha ativa já significa "none",
-  -- coerente com o desenho historicizado já existente da tabela.
+### `20260924100000_editorial_placement_model.sql` — status: **aplicada**
 
--- 2) Fixar na capa.
-alter table public.article_placements add column pinned boolean not null default false;
+- `article_placements.type`: `CHECK` trocado — só aceita `mainCover`,
+  `highlightStrip`, `latestNews`, `localSpotlight` (os antigos `headline`/
+  `primary`/`secondary`/`breaking`/`section`/`special` removidos do
+  vocabulário; confirmado por teste real que uma tentativa de inserir
+  `'headline'` é rejeitada). `none` continua sem virar linha — ausência de
+  linha ativa já significa nenhuma exposição extra, mesmo desenho
+  historicizado da Fase 17, preservado.
+- `article_placements.pinned boolean not null default false` — nova
+  coluna, mais uma constraint declarativa
+  `article_placements_pinned_only_main_cover` (`not pinned or type =
+  'mainCover'`) — confirmado por teste real que `pinned=true` fora de
+  `mainCover` é rejeitado.
+- `articles.urgent boolean not null default false` — nova coluna, sem
+  relação nenhuma com `placement`, `section_id`, `locality_id` ou `status`.
+- `enforce_placement_limit()` (função + trigger `AFTER INSERT OR UPDATE`
+  em `article_placements`): mesma lógica de `packages/core`
+  `ArticleService.enforcePlacementLimit`, agora reforçada no próprio
+  banco — fixadas nunca evictadas, sempre ocupam vaga; vagas restantes vão
+  para as mais recentes; excesso de não fixadas volta para `active=false`
+  (nunca `DELETE`); uma 9ª fixada quando as 8 vagas já estão fixadas é
+  **rejeitada com exceção clara**, nunca evictando uma fixada existente
+  nem ultrapassando o limite. Concorrência: `pg_advisory_xact_lock` por
+  tipo de posição serializa transações que mexem no mesmo destino ao
+  mesmo tempo, liberado automaticamente no fim da transação.
 
--- 3) Urgente é um campo do artigo, não do placement.
-alter table public.articles add column urgent boolean not null default false;
+### `20260924100100_editorial_placement_deterministic_tiebreak.sql` — status: **aplicada**
 
--- 4) Limite automático por posição — reforçar no banco (trigger), não só na
--- aplicação, com a mesma lógica de packages/core (ArticleService.enforcePlacementLimit):
--- fixadas nunca evictadas, sempre ocupam vaga; vagas restantes vão para as
--- mais recentes (created_at desc); o resto volta para active=false (nunca
--- delete — a tabela já não tem policy de delete).
--- Detalhe de implementação (função/trigger) a desenhar quando esta migration
--- for escrita de verdade, espelhando o pseudocódigo já testado no mock.
-```
+**Achado real durante o teste** (não um bug teórico — encontrado testando
+contra o banco de verdade nesta mesma fase): a primeira versão do trigger
+ordenava só por `created_at desc`. Um lote de testes inserido dentro de
+uma única transação recebeu o **mesmo** `created_at` para todas as linhas
+(`now()` é estável por transação no Postgres) — o `row_number() over
+(order by created_at desc)` ficou sem critério de desempate, e a evicção
+escolheu uma linha arbitrária em vez da mais antiga, violando a exigência
+explícita de "ordenação determinística, nunca a ordem incidental do
+banco". Corrigido acrescentando `id desc` como desempate secundário — não
+implica "mais recente" de verdade em caso de empate real de timestamp
+(`id` é `gen_random_uuid()`, não sequencial), só garante que o resultado é
+sempre o mesmo, todas as vezes, que é a garantia pedida. Migration
+incremental separada (não editou a de minutos antes) — mesmo princípio de
+"nunca alterar migration já aplicada" já vale para migrations da própria
+sessão, não só de fases anteriores.
 
-`priority` (coluna já existente na tabela) pode ser aposentada ou
-reaproveitada como critério de desempate quando dois placements tiverem o
-mesmo `created_at` — decisão para quando a migração de provider
-acontecer, não antes.
+### Validação real (contra `site-system-ir`, dados de teste sempre removidos ao final)
 
-## 10. Próxima fase (sugestão)
+- **8/3/7/4 confirmados**: 8 entradas em `mainCover` → todas ativas; 9ª
+  entrada (inserida em transação separada, `created_at` genuinamente
+  diferente) → evicta corretamente a mais antiga (`active=false`), as
+  outras 8 permanecem ativas. `highlightStrip` com 4 entradas → só 3
+  ativas.
+- **Fixar protegido**: 7 matérias fixadas + 1 pré-existente = 8 fixadas
+  (todas as vagas de `mainCover`); uma 9ª tentativa de fixar → rejeitada
+  com exceção citando o limite, nenhuma linha criada.
+- **Tipos antigos rejeitados**: tentativa de `type='headline'` → rejeitada
+  pela `CHECK` constraint.
+- **Pinned fora de mainCover rejeitado**: tentativa de `pinned=true` com
+  `type='highlightStrip'` → rejeitada pela `CHECK` constraint.
+- **Integridade**: depois de todas as evicções, o artigo evictado
+  continua com `status`, `section_id` e `locality_id` idênticos aos
+  originais — nenhum artigo apagado, nenhuma editoria/localidade alterada.
+- **RLS preservada**: 32 policies no schema antes e depois das duas
+  migrations (nenhuma perdida, nenhuma tabela com RLS desabilitada); as 3
+  policies de `articles` e as 3 de `article_placements` continuam
+  cobrindo as colunas novas automaticamente (RLS é por linha, não por
+  coluna).
+- **Owner intocado**: confirmado depois de tudo — exatamente 1 `profile`
+  com `role='owner'`, `active=true`.
+- **Limpeza**: todos os dados de teste (prefixo `qa-fase23`/`qa-fase23b`)
+  removidos ao final — `0` linhas restantes, confirmado por consulta.
+- **Concorrência**: a trava (`pg_advisory_xact_lock`) foi revisada
+  estruturalmente e é o padrão recomendado do Postgres para este problema;
+  **não foi exercitada com duas transações genuinamente simultâneas**
+  nesta sessão (as chamadas da CLI são sequenciais) — validação de
+  concorrência real fica como item futuro, se algum dia for necessário
+  (ex.: script com duas conexões paralelas).
 
-Rodar `supabase login` de novo, aplicar a migration da Fase 20, promover o
-primeiro owner (passo acima), testar login real (owner e a conta operator
-existente) e o fluxo de convite de ponta a ponta pela própria aplicação.
-Só depois: migração provider-por-provider do conteúdo editorial
-(`apps/sistema` primeiro, matérias/editorias/localidades/mídias/
-importação de PDF), reconciliando as divergências da seção 4 e a migration
-de `article_placements` desenhada na seção 9, e por último `apps/site`
-passando a ler `published` diretamente do banco com RLS pública.
+## 11. Próxima fase (sugestão)
+
+Auth real (Fase 20/21) já está concluída — owner existe, ativo, correto,
+promovido uma única vez e agora imutável; login pela aplicação já foi
+validado pelo usuário. Modelo de destinos editoriais já está no banco
+(Fase 23). Caminhos possíveis a partir daqui: migração provider-por-
+provider do conteúdo editorial (`apps/sistema` primeiro — matérias/
+editorias/localidades/mídias/importação de PDF — reconciliando as
+divergências da seção 4), uma tela de gestão de posições editoriais no
+painel (consumindo `ArticleService.listActivePlacement`), ou só então
+`apps/site` passando a ler `published` diretamente do banco com RLS
+pública.
