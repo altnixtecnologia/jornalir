@@ -9,11 +9,13 @@
 - Capa/galeria: trocar capa nunca perde a imagem (vira galeria); remover da matéria só apaga o vínculo; índice único (já existia, Fase 17) garante nunca duas capas — testado real, incluindo a rejeição da segunda capa.
 - `siteSettings.ts`: Instagram `jornalinformativo.regional` → `jornal.informativoregional` (perfil oficial correto).
 - Detalhe completo em `docs/DATABASE-IR-CORE.md` (seção 14).
-- **Bloqueio nesta fase**: deploy do Preview na Vercel não pôde ser concluído — CLI (`vercel`) sem sessão autenticada neste ambiente (`vercel login` exige fluxo interativo/OAuth que não funciona aqui, mesmo padrão do bloqueio de CLI já visto com o Supabase nas Fases 18/23) e nenhum `VERCEL_TOKEN` de usuário persistente configurado. Aguardando decisão do usuário.
+- **Vercel Preview concluído**: usuário configurou `VERCEL_TOKEN` como variável de usuário persistente (mesmo padrão do `SUPABASE_ACCESS_TOKEN`). Projeto `jornalir` já existente na conta (Root Directory `apps/site`) reutilizado — nenhum projeto novo, nenhum domínio oficial tocado. Deploy só Preview (`vercel deploy`, sem `--prod`). Proteção SSO do time desativada para o projeto, para o link ser realmente compartilhável.
+- **Achado real durante a verificação**: `Logo-escrita.png` (maiúsculo no disco) vs `/brand/logo-escrita.png` (minúsculo no código) — invisível no Windows, `404` real em produção Linux. Corrigido (`git mv`). Nenhum outro asset do site tinha o mesmo problema.
+- Link do Preview atual: `https://jornalir-loidb88h9-cristians-projects-34074cc3.vercel.app` (pode expirar/ser substituído por um novo deploy).
 
 ### Próxima fase
 
-Depende de como o usuário resolve o acesso à Vercel para o Preview. Depois disso: Importação de PDF real, tela de gestão de posições editoriais, ou `apps/site` lendo o banco real.
+Importação de PDF real, tela de gestão de posições editoriais, ou `apps/site` lendo o banco real.
 
 ---
 

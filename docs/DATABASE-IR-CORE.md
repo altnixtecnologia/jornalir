@@ -732,6 +732,35 @@ continuam mock (Fase 26). `apps/site` não foi tocado.
   comportamento de uma mídia cadastrada por URL sem informar dimensões
   manualmente. Não impede nenhuma funcionalidade descrita nesta fase.
 
+- **Preview público na Vercel (`apps/site` apenas)**: projeto `jornalir`
+  já existente na conta (`Root Directory = apps/site`, criado antes desta
+  sessão) reutilizado — nenhum projeto novo criado, nenhum domínio oficial
+  tocado (`informativoregional.net` não está conectado a nenhum projeto
+  desta conta Vercel). Deploy feito com `vercel deploy` (sem `--prod`,
+  nunca aponta para produção nem domínio custom). Proteção SSO do time
+  (`ssoProtection`, bloqueava o link para quem não tem login na Vercel)
+  desativada para este projeto — necessário para o link ser realmente
+  compartilhável, como pedido explicitamente.
+- **Achado real durante a verificação do Preview (case-sensitivity)**:
+  `apps/site/public/brand/Logo-escrita.png` estava no disco com "L"
+  maiúsculo, mas todo o código referencia `/brand/logo-escrita.png`
+  (minúsculo) — undetectável no Windows (filesystem case-insensitive),
+  gerava `404` de verdade em produção Linux (Vercel). Confirmado via
+  `curl` contra o Preview antes e depois; corrigido renomeando o arquivo
+  (`git mv`, preserva histórico) — nenhuma outra imagem do site tinha o
+  mesmo problema (conferido nome a nome, incluindo os anúncios com espaço/
+  acento no nome, que já batiam exatamente).
+- **Testes reais contra o Preview** (`curl`, HTTP): todas as rotas
+  públicas (`/`, `/noticias`, `/esportes`, `/materias`, `/jornal-online`,
+  `/anuncios`, `/sobre`, `/contato`, `/busca`, etc.) retornam `200`;
+  Instagram no HTML aponta para `jornal.informativoregional` (perfil
+  correto); WhatsApp aponta para o número correto; PDFs do Jornal Digital/
+  Flipbook presentes e acessíveis; marcador `latest-news-active` presente
+  no HTML da home (item selecionado de Últimas notícias). Verificação
+  visual/interativa (mobile real, animações, virar página do flipbook)
+  não pôde ser feita neste ambiente por falta de navegador — só checagem
+  estrutural via HTTP.
+
 ## 15. Próxima fase (sugestão)
 
 Matérias, destinos editoriais e mídias já são reais (Fases 25/26).

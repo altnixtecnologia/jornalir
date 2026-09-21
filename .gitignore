@@ -9,3 +9,6 @@ coverage
 *.log
 apps/site/dev-*.log
 supabase/.temp
+
+.vercel
+.env*.local
