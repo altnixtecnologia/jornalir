@@ -1,5 +1,70 @@
 # Handoff — JornalIR
 
+## Fase 17 — fundação real do banco JornalIR (21/09/2026)
+
+- Branch: `feature/jornalir-core-foundation-20260917`.
+- HEAD ao iniciar a fase: `9acc75c` (commit da Fase 16, checkpoint feito no início desta mesma fase).
+- Entrega: schema real do IR Core (projeto Supabase `site-system-ir`) como migrations SQL versionadas, RLS completa, seeds mínimos, variáveis de ambiente configuradas por app, e documentação do mapa de tabelas. **Nenhuma tela migrou para o banco** — `apps/sistema` e `apps/site` continuam 100% sobre os providers mock; esta fase é só a fundação (schema + RLS + contratos alinhados + conexão preparada), a migração de fato fica para uma fase futura, provider por provider.
+
+### Decisão de escopo — sem execução contra banco real ou local nesta sessão
+
+O ambiente não tinha credenciais Supabase (CLI instalada, não autenticada). Perguntado ao usuário como proceder (preparar só localmente vs. validar com Supabase local via Docker vs. receber um token agora); resposta: **só preparar migrations localmente**. Consequência: as 12 migrations em `supabase/migrations/` foram escritas e revisadas estaticamente (ordem de FK conferida manualmente arquivo a arquivo), mas **nunca executadas** — nem `supabase db reset` (local) nem `supabase db push` (remoto). Documentado com destaque em `docs/DATABASE-IR-CORE.md` (seção 5) para não ser confundido com "validado".
+
+### `supabase/` — migrations, config, sem segredo nenhum
+
+`supabase/config.toml` (`project_id = "site-system-ir"`, `enable_signup = false` — cadastro só via Admin API, coerente com o painel de acesso restrito da Fase 16) + 12 migrations sequenciais em `supabase/migrations/`:
+
+1. `extensions_and_helpers` — `pgcrypto`, trigger `set_updated_at()`.
+2. `profiles` — perfil complementar a `auth.users` (`role` admin/editorial, `active`); trigger `handle_new_auth_user()` cria o profile automaticamente (role inicial sempre `editorial`); funções `is_active_staff()`/`is_active_admin()` (`SECURITY DEFINER`, evitam RLS recursivo) reaproveitadas por toda tabela seguinte.
+3. `editorial_sections` — mesmos 7 campos/conceito da Fase 12 (`EditorialSection`).
+4. `localities` — `scope` general/region/city, `parent_id` opcional (cidade→região, não usado pelos seeds).
+5. `newspaper_editions` — `pdf_url`/`cover_url` opcionais, preparando (sem inventar) o futuro "Ver esta matéria na edição digital".
+6. `articles` — `internal_reference` gerado automaticamente (`generate_article_reference()`, sequência dedicada, formato `IR-MAT-{ano}-{sequencial}`, mesma convenção conceitual do Plano Mestre Parte 11); sem policy de `delete` (arquivar é o único caminho).
+7. `article_placements` — tabela própria (não coluna em `articles`); nunca substitui a editoria.
+8. `media_assets` — `storage_path` preparado para Supabase Storage (nulo por ora), `public_url` é o caminho atual (mesmo comportamento do mock desde a Fase 06); `internal_reference` automático (`IR-MID-...`).
+9. `article_media` — **índice único parcial `where role = 'cover'`** garante 1 capa por matéria no próprio banco, não só por convenção da aplicação; única tabela de negócio com policy de `delete` (remover uma foto de uma matéria não é destrutivo — a mídia continua existindo).
+10. `pdf_import_batches` + `pdf_import_candidates` — persistem o fluxo já validado desde a Fase 08/15; `status` com 6 estados (`pending, kept, discarded, converted, merged, split` — mais expressivo que o mock atual, ver divergências abaixo); **RLS reforça no banco** que um candidato `converted` nunca é atualizado de novo (`status <> 'converted'` na condição da policy de `update`), mesma regra já aplicada em `ImportCandidateService.convertToDraft` desde a Fase 15, agora em duas camadas.
+11. `audit_events` — sem `update`/`delete` para ninguém, nem admin (Parte P do Plano Mestre); só admin lê, staff ativo insere só em seu próprio nome.
+12. `seed_reference_data` — 7 editorias (idênticas à Fase 12) + 4 localidades reais (Geral, Torres, Passo de Torres, São João do Sul — os mesmos nomes já usados em todo o mock do projeto, não fictícios); `on conflict do nothing`, idempotente.
+
+### RLS — sem "liberar tudo para authenticated"
+
+Dois papéis (`admin`, `editorial`) com o **mesmo acesso ao conteúdo editorial** nesta fase (a distinção prática é só: `admin` gerencia outros `profiles`, `admin` lê `audit_events`). Padrão em toda tabela de negócio: `select`/`insert`/`update` condicionados a `is_active_staff()`; sem `delete` (exceto `article_media`, justificado acima). Leitura pública (`anon`) deliberadamente **não** preparada nesta fase — nenhuma policy libera acesso anônimo; quando `apps/site` migrar, a policy deverá restringir a `status = 'published'`.
+
+### Variáveis de ambiente — projeto real configurado, sem segredo no repositório
+
+`apps/sistema/.env.local` (gitignorado, confirmado via `git check-ignore`) com `NEXT_PUBLIC_SUPABASE_URL`/`NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` reais do projeto `site-system-ir` (só a publishable key — seguro no cliente). `apps/sistema/.env.example` e `apps/site/.env.example` (nomes das variáveis, sem valores) criados; `.env.example` na raiz atualizado para os novos nomes. `apps/sistema/src/lib/supabaseClient.ts` (novo) — `createSupabaseClient()` lança erro claro se as variáveis não estiverem definidas, em vez de criar um cliente inválido; **não é chamado em nenhuma tela ainda**. `@supabase/supabase-js` adicionado como dependência de `apps/sistema`. Nenhum `SUPABASE_SERVICE_ROLE_KEY` nem token pessoal (`sbp_...`) em lugar nenhum do repositório.
+
+### `packages/types`/`packages/core` — alinhados, não migrados
+
+Nenhuma mudança de código nesses pacotes nesta fase (instrução explícita: não migrar telas, não remover mocks). Divergências entre o schema real e os contratos mock atuais documentadas em `docs/DATABASE-IR-CORE.md` (seção 4): `ImportCandidateStatus` do mock (3 estados) é mais estreito que o do banco (6 estados); `MediaAsset.name` (mock) vira `title` (banco); `ArticleOrigin` usa `pdfImport` (mock) vs. `pdf` (banco); IDs são `string` sequencial no mock vs. `uuid` no banco. Nenhuma reconciliação de código feita agora — fica para a fase de migração real.
+
+### `docs/DATABASE-IR-CORE.md` (novo)
+
+Mapa de tabelas e relacionamentos, tabela-por-tabela com papel e observações, papéis/RLS, divergências conhecidas, como aplicar (local com Docker vs. remoto com `supabase link`/`db push`), variáveis de ambiente, sugestão de próxima fase.
+
+### Validação
+
+- `npm run typecheck --workspace @ir/sistema`: sem erros (inclui `supabaseClient.ts`, novo). `npm run typecheck --workspace @ir/site`: sem erros.
+- `npm run build --workspace @ir/sistema`: sucesso (rotas inalteradas — nenhuma tela nova, só o cliente Supabase preparado sem uso).
+- **Migrations não executadas nesta sessão** (decisão de escopo acima) — revisão manual arquivo a arquivo confirmou ordem de FK correta (profiles → editorial_sections/localities/newspaper_editions → articles → article_placements/media_assets → article_media → pdf_import_batches/candidates → audit_events → seeds) e ausência de referência a tabela ainda não criada. Sem prova de execução real (`db reset`/`db push`) — registrado como pendência explícita.
+- `apps/site`: nenhuma tela alterada; só `apps/site/.env.example` (novo, sem valores) e `apps/site/tsconfig.tsbuildinfo` (artefato de typecheck).
+- Nenhum secret exposto em log, commit ou código — só a publishable key (documentadamente segura no cliente) em `.env.local` (gitignorado) e `.env.example`/docs (sem valor real).
+
+### Pendências e decisões
+
+- **Migrations nunca aplicadas** (nem local, nem remoto) — validar com `supabase start && supabase db reset` (local) ou `supabase link --project-ref iqnzrpdccecgalqboeyf && supabase db push` (remoto) antes de considerar o schema definitivamente correto; usar credenciais próprias, nunca commitadas.
+- RLS pública (para `apps/site` ler `published`) deliberadamente não preparada — próxima fase de integração do portal.
+- Divergências de contrato (seção 4 do `DATABASE-IR-CORE.md`) não reconciliadas em código — só documentadas.
+- `SUPABASE_SERVICE_ROLE_KEY`/token pessoal (`sbp_...`) nunca solicitados nem usados nesta fase — qualquer migration remota futura exigirá o usuário rodar `supabase login`/`db push` com as próprias credenciais, fora deste ambiente ou como variável de ambiente local nunca persistida em arquivo versionado.
+- `npm audit` reportou novas vulnerabilidades transitivas ao instalar `@supabase/supabase-js` (mesma categoria já documentada desde a Fase 07 para o Tiptap); nenhuma ação nesta fase.
+
+### Próxima fase
+
+A decidir — caminho sugerido em `docs/DATABASE-IR-CORE.md` (seção 7): validar as migrations de fato (local ou remoto), depois migração provider-por-provider começando por `apps/sistema` (matérias/editorias/localidades/mídias/importação de PDF), reconciliando as divergências de contrato, seguida de auth real substituindo a sessão mock da Fase 16, e só depois `apps/site` lendo `published` diretamente do banco.
+
+---
+
 ## Fase 15 — fluxo editorial completo do painel (21/09/2026)
 
 - Branch: `feature/jornalir-core-foundation-20260917`.
