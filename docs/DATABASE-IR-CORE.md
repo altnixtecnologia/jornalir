@@ -324,12 +324,110 @@ passos manuais, feitos pelo usuário:
    vez; tentar promover uma segunda conta depois retorna erro de violação
    de unicidade.
 
-## 8. Próxima fase (sugestão)
+## 8. Fase 20 — hardening: owner imutável, auth SSR, convite server-side
 
-Rodar `supabase login` de novo, aplicar a migration da Fase 19, criar o
-primeiro `owner` (passos acima), testar login/logout/RLS pela própria
-aplicação com esse usuário real. Só depois: migração provider-por-provider
-do conteúdo editorial (`apps/sistema` primeiro, matérias/editorias/
-localidades/mídias/importação de PDF), reconciliando as divergências da
-seção 4, e por último `apps/site` passando a ler `published` diretamente
-do banco com RLS pública.
+### Migration `20260923100000_owner_immutable_hardening.sql` — status: **não aplicada ainda**
+
+A Fase 19 (`20260922100000_...`) foi aplicada com sucesso — confirmado
+depois, por introspecção real do banco: `profiles_role_check` já aceita
+`owner/admin/operator`, zero linhas `editorial` remanescentes, índice
+`profiles_single_owner`, trigger `profiles_protect_owner`, os 4 helpers de
+RLS e as policies novas de `profiles`/`audit_events`, todos confirmados.
+Também confirmado, na mesma validação: **1 profile real já existe**,
+`role='operator'`, `active=true` (criado pelo usuário, não por esta sessão
+— não lemos e-mail nem qualquer outro dado além de role/active/created_at).
+
+A Fase 20 endurece `protect_owner_profile()`: a Fase 19 só bloqueava
+alterar `role`/`active`/`id` de uma linha que já é owner; a nova versão
+bloqueia **qualquer** `UPDATE`/`DELETE` nessa linha, sem exceção de campo
+(inclusive `name`, que antes podia ser editado). A sessão da CLI expirou
+de novo no meio desta fase
+(mesmo tipo de erro já visto duas vezes: `Unauthorized` até em
+`supabase projects list`) — **ação necessária, fora deste ambiente**: rodar
+`supabase login` mais uma vez. Depois disso:
+
+```bash
+supabase link --project-ref iqnzrpdccecgalqboeyf
+supabase db push --dry-run   # confirmar: só esta migration nova
+supabase db push
+```
+
+### Auth SSR real (`@supabase/ssr`) — substituindo o cliente client-only
+
+Até a Fase 19, a sessão vivia só no `localStorage` do navegador (via
+`@supabase/supabase-js` puro) — o `AuthGate` client-side "decidia" se
+mostrava o painel, mas um acesso direto a `/sistema/*` ainda entregava a
+página (vazia, mas entregava) antes do React barrar. A Fase 20 corrige
+isso com `src/middleware.ts` (Next.js), usando `@supabase/ssr` para ler a
+sessão de cookies e `auth.getUser()` (não `getSession()` — valida o token
+contra o servidor de Auth a cada requisição, não só confia no cookie).
+Confirmado por teste real nesta fase: `GET /sistema` sem cookie de sessão
+→ `307` para `/login`, **antes de qualquer HTML da página ser gerado**;
+mesmo resultado para `/sistema/usuarios`, `/sistema/editorial/materias`,
+`/sistema/editorial/importar-pdf`. `AuthGate` continua existindo, mas
+agora só como UX (evita flash de conteúdo durante a hidratação) — a
+proteção real é o middleware.
+
+Três clientes Supabase agora, cada um com um papel:
+`lib/supabase/browser.ts` (navegador, cookies via `@supabase/ssr`),
+`lib/supabase/server.ts` (Server Components/Actions, também cookies),
+`lib/supabase/admin.ts` (só `service_role`, `import "server-only"` —
+o build falha se um Client Component tentar importar isso). O antigo
+`lib/supabaseClient.ts` (Fase 17, `localStorage`-only) foi removido —
+substituído pelos três acima.
+
+### Convite de usuário — server-side de verdade, sem `service_role` no navegador
+
+`signInWithOtp` (Fase 19) foi removido do `UsersManager.tsx`. Convite agora
+é uma Server Action (`app/sistema/usuarios/actions.ts`, `inviteUser`):
+revalida a sessão de quem chama (`getUser()` no servidor, nunca confia em
+nada vindo do cliente sobre "quem sou eu"), carrega o `profiles` real
+dessa pessoa, e só então decide: `operator`/`admin` sem permissão →
+recusado; `admin` tentando convidar `admin` → recusado (só `owner` pode);
+sem `SUPABASE_SERVICE_ROLE_KEY` configurada → mensagem clara ("criação de
+usuários ainda não habilitada"), painel continua funcionando normalmente.
+Com a chave configurada, usa `admin.auth.admin.inviteUserByEmail()` (Admin
+API, `service_role`, só em `lib/supabase/admin.ts`) — diferente de
+`signInWithOtp`, essa chamada **devolve o id do usuário criado**, então
+promover a `admin` (quando convidado por um `owner`) é possível de
+verdade, não mais um "torça para dar certo" como na Fase 19. Novo
+`app/definir-senha/page.tsx` (rota pública, fora de `/sistema`, fora do
+matcher do middleware) é para onde o link do convite aponta — a pessoa
+define a própria senha (`auth.updateUser({password})`) e depois entra
+normalmente por `signInWithPassword`.
+
+**Não testado nesta sessão** (sem como enviar/receber e-mail real aqui):
+o fluxo completo convite → clique no link → definir senha → logout →
+login com senha. Único jeito de validar de ponta a ponta é o usuário
+convidar uma conta real e seguir o fluxo manualmente.
+
+### Ação para promover o primeiro `owner` — sem adivinhar qual conta
+
+Já existe 1 profile real (`role='operator'`, `active=true`) — não sabemos
+nem tentamos descobrir qual é (não lemos e-mail). Depois que a migration
+desta fase estiver aplicada:
+
+```sql
+update public.profiles
+set role = 'owner'
+where id = (select id from auth.users where email = 'SEU_EMAIL_AQUI');
+```
+
+Rode isso pelo **SQL Editor do Dashboard** (nunca commitado, nunca com
+e-mail fixo em migration), usando o e-mail da conta que você mesmo
+cadastrou. O índice único `profiles_single_owner` garante que só funciona
+uma vez; e, depois de aplicada a migration desta fase, mesmo essa
+promoção — por ser um `UPDATE` numa linha que ainda **não** é owner —
+continua permitida (o trigger só passa a bloquear a linha depois que ela
+já é owner).
+
+## 9. Próxima fase (sugestão)
+
+Rodar `supabase login` de novo, aplicar a migration da Fase 20, promover o
+primeiro owner (passo acima), testar login real (owner e a conta operator
+existente) e o fluxo de convite de ponta a ponta pela própria aplicação.
+Só depois: migração provider-por-provider do conteúdo editorial
+(`apps/sistema` primeiro, matérias/editorias/localidades/mídias/
+importação de PDF), reconciliando as divergências da seção 4, e por
+último `apps/site` passando a ler `published` diretamente do banco com
+RLS pública.

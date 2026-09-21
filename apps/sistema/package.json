@@ -15,6 +15,7 @@
     "@ir/pdf-extraction": "*",
     "@ir/types": "*",
     "@ir/ui": "*",
+    "@supabase/ssr": "^0.12.7",
     "@supabase/supabase-js": "^2.116.0",
     "@tiptap/extension-link": "^2.9.0",
     "@tiptap/extension-text-align": "^2.9.0",
@@ -22,7 +23,8 @@
     "@tiptap/starter-kit": "^2.9.0",
     "next": "14.2.33",
     "react": "18.3.1",
-    "react-dom": "18.3.1"
+    "react-dom": "18.3.1",
+    "server-only": "^0.0.1"
   },
   "devDependencies": {
     "@types/node": "22.8.2",

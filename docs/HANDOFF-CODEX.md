@@ -1,5 +1,61 @@
 # Handoff — JornalIR
 
+## Fase 20 — hardening: owner imutável, auth SSR, convite server-side (21/09/2026)
+
+- Branch: `feature/jornalir-core-foundation-20260917`.
+- HEAD ao iniciar a fase: `85966b7` (commit da Fase 19).
+- Entrega: corrige as 3 lacunas reais deixadas pela Fase 19 — trigger do owner endurecido (bloqueava só role/active/id, agora bloqueia qualquer UPDATE/DELETE), `AuthGate` client-side substituído por proteção real via middleware Next.js (`@supabase/ssr`, cookies), e convite de usuário movido inteiramente para o servidor (Admin API com `service_role`, nunca no navegador, nunca sequestrando a sessão de quem convida). **A nova migration não foi aplicada** — a sessão da CLI expirou de novo (terceira vez nesta arco de fases); código e migration prontos e revisados, aplicação real pendente.
+
+### Migration `20260923100000_owner_immutable_hardening.sql` — pronta, não aplicada
+
+`CREATE OR REPLACE FUNCTION public.protect_owner_profile()`: a versão da Fase 19 comparava campo a campo (`NEW.role is distinct from 'owner'`, `NEW.active is distinct from true`, `NEW.id is distinct from OLD.id`), deixando `name` e qualquer coluna futura fora da proteção. A nova versão é radical: `if OLD.role = 'owner' then raise exception ...` sem nenhuma comparação de campo — qualquer `UPDATE` numa linha que já é owner falha, ponto. A promoção inicial continua possível porque, nesse momento, `OLD.role` ainda é `operator`/`admin` — o bloqueio só existe depois que a linha já é owner. Nenhuma migration anterior tocada (só `CREATE OR REPLACE FUNCTION`, mesmo nome/trigger da Fase 19).
+
+**Confirmado antes desta fase** (validação real feita na continuação da Fase 19): a migration `20260922100000_...` já estava aplicada — `profiles_role_check` com os 3 papéis, índice `profiles_single_owner`, trigger, 4 helpers de RLS, policies novas de `profiles`/`audit_events`, tudo confirmado por introspecção direta do banco (`supabase db query --linked`). Também confirmado: **existe 1 profile real** (`role='operator'`, `active=true`, criado pelo usuário — nunca lemos e-mail nem qualquer dado além de role/active/created_at).
+
+### Auth SSR — a proteção real, não mais só o `AuthGate`
+
+`apps/sistema/src/middleware.ts` (novo): usa `@supabase/ssr` (`createServerClient` com cookies do request/response) e `auth.getUser()` — não `getSession()`, porque `getUser()` revalida o token contra o servidor de Auth a cada requisição em vez de só confiar no que está no cookie. Matcher cobre `/sistema/:path*` e `/login`. Sem usuário → redirect para `/login`; `profiles.active = false` → redirect para `/login?erro=inativo`; usuário autenticado acessando `/login` → redirect para `/sistema`. **Testado de verdade nesta fase** (servidor local, sem sessão): `GET /sistema`, `/sistema/usuarios`, `/sistema/editorial/materias`, `/sistema/editorial/importar-pdf` → todos `307` para `/login`, confirmados via `curl -D -` (cabeçalho `location`), antes de qualquer HTML de página protegida ser gerado.
+
+Três clientes Supabase, cada um com escopo próprio:
+- `lib/supabase/browser.ts` — `createBrowserClient` (cookies, substitui o antigo `lib/supabaseClient.ts` da Fase 17/19, **removido**).
+- `lib/supabase/server.ts` — `createServerClient` para Server Components/Actions (`next/headers` cookies).
+- `lib/supabase/admin.ts` — só `service_role`, `import "server-only"` na primeira linha (o build do Next.js falha se um Client Component importar isso por engano); `hasServiceRoleKey()` permite checar disponibilidade sem lançar.
+
+`AuthProvider`/`AuthGate` (Fase 19) foram atualizados para o novo cliente browser, mas passaram a ser explicitamente documentados como camada de UX (evitar flash de conteúdo), não mais a fronteira de segurança — essa é o middleware.
+
+### Convite de usuário — server-side, `service_role` nunca no navegador
+
+`client.auth.signInWithOtp()` (Fase 19) removido do `UsersManager.tsx`. Novo `app/sistema/usuarios/actions.ts` (`"use server"`, `inviteUser(email, role)`): revalida a sessão de quem chama (`getUser()` no servidor — nunca confia em nada que o cliente diga sobre si mesmo), carrega o `profiles` real dessa pessoa, e só então aplica as regras — `operator` não convida ninguém; `admin` só convida `operator`; só `owner` convida `admin`; papel `owner` nunca é uma opção aceita pela action. Sem `SUPABASE_SERVICE_ROLE_KEY` configurada (`hasServiceRoleKey()` checado antes de qualquer chamada à Admin API), retorna erro claro em vez de quebrar — confirmado: neste ambiente a variável não está definida, então convidar hoje mostra essa mensagem, esperado. Com a chave, usa `admin.auth.admin.inviteUserByEmail()` — diferente do `signInWithOtp` da Fase 19, essa chamada devolve o `id` do usuário criado, então promover a `admin` (quando convidado por um owner) funciona de verdade via uma segunda escrita com o cliente admin.
+
+Novo `app/definir-senha/page.tsx` — destino do link de convite, rota pública (fora de `/sistema`, fora do matcher do middleware): a pessoa convidada define a própria senha (`auth.updateUser({password})`), depois entra normalmente por `signInWithPassword`. **Não testado de ponta a ponta nesta sessão** (sem como enviar/receber e-mail real neste ambiente) — precisa de um convite real, feito pelo usuário, para validar.
+
+### `.env.example` — nome novo, sem valor
+
+`SUPABASE_SERVICE_ROLE_KEY=` (sem valor) e `NEXT_PUBLIC_SISTEMA_URL=` (opcional, usada só para montar o link de retorno do convite) adicionadas a `apps/sistema/.env.example`. `apps/sistema/.env.local` (gitignorado) **não foi alterado** — a chave de service role não foi pedida, não foi fornecida, não existe neste ambiente.
+
+### Validação
+
+- `npm run typecheck --workspace @ir/sistema`: sem erros.
+- `npm run build --workspace @ir/sistema`: sucesso, 25 rotas (nova: `/definir-senha`); log confirma `ƒ Middleware 87.1 kB` compilado.
+- Middleware testado localmente sem sessão: `/sistema`, `/sistema/usuarios`, `/sistema/editorial/materias`, `/sistema/editorial/importar-pdf` → `307` para `/login` em todos, antes de qualquer conteúdo protegido.
+- Migration desta fase **não aplicada** — sessão da CLI expirou (`Unauthorized` até em `supabase projects list`); revisão estática do SQL é o único nível de validação possível nesta sessão.
+- Convite server-side e fluxo de definir senha **não testados de ponta a ponta** — dependem de envio real de e-mail, inviável neste ambiente.
+- `apps/site`: não tocado.
+- Nenhum secret impresso em log; `SUPABASE_SERVICE_ROLE_KEY` nunca solicitada, nunca fornecida, nunca vista por esta sessão.
+
+### Pendências e decisões
+
+- **Bloqueador real**: `supabase login` precisa ser rodado de novo (terceira vez) antes da migration desta fase poder ser aplicada.
+- Depois disso: promover o primeiro owner (SQL em `docs/DATABASE-IR-CORE.md`, seção 8 — usando o e-mail que o próprio usuário já cadastrou, nunca adivinhado por esta sessão), testar login real (owner e a conta operator já existente), testar o fluxo de convite de ponta a ponta.
+- Criação de usuário via painel depende de `SUPABASE_SERVICE_ROLE_KEY` ser configurada em `apps/sistema/.env.local` pelo próprio usuário — fora do escopo desta sessão (a chave nunca é pedida no chat).
+- Nenhuma tela de conteúdo editorial foi tocada nesta fase — só autenticação/gestão de usuários.
+
+### Próxima fase
+
+A decidir pelo usuário — mas só depois de: `supabase login` de novo, aplicar a migration desta fase, promover o primeiro owner, testar login/logout/convite reais pela aplicação. Depois disso: migração provider-por-provider do conteúdo editorial, começando por `apps/sistema`, e só então `apps/site`.
+
+---
+
 ## Fase 19 — perfis reais (owner/admin/operator) + auth real do painel (21/09/2026)
 
 - Branch: `feature/jornalir-core-foundation-20260917`.

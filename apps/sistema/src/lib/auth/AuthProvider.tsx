@@ -1,7 +1,7 @@
 "use client";
 
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
-import { createSupabaseClient } from "../supabaseClient";
+import { createSupabaseBrowserClient } from "../supabase/browser";
 
 export type AuthRole = "owner" | "admin" | "operator";
 
@@ -32,7 +32,7 @@ const AuthContext = createContext<AuthContextValue | null>(null);
  * a conta existe no Auth, mas não pode operar o painel.
  */
 export function AuthProvider({ children }: { children: ReactNode }): JSX.Element {
-  const client = useMemo(() => createSupabaseClient(), []);
+  const client = useMemo(() => createSupabaseBrowserClient(), []);
   const [status, setStatus] = useState<AuthStatus>("loading");
   const [profile, setProfile] = useState<AuthProfile | null>(null);
 

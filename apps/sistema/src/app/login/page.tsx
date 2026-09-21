@@ -2,12 +2,14 @@
 
 import { Suspense, useEffect, useMemo, useState, type FormEvent } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { createSupabaseClient } from "../../lib/supabaseClient";
+import { createSupabaseBrowserClient } from "../../lib/supabase/browser";
 import { useAuth } from "../../lib/auth/AuthProvider";
 
 /**
  * Entrada do painel interno — tela de acesso, não uma landing page.
- * Supabase Auth real (Fase 19): e-mail + senha, sessão de verdade.
+ * Supabase Auth real: e-mail + senha, sessão de verdade em cookies
+ * (`@supabase/ssr`, Fase 20) — o middleware é quem de fato decide se
+ * `/sistema/*` pode ser acessado; esta tela só oferece o formulário.
  */
 export default function LoginPage(): JSX.Element {
   return (
@@ -21,7 +23,7 @@ function LoginForm(): JSX.Element {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { status } = useAuth();
-  const client = useMemo(() => createSupabaseClient(), []);
+  const client = useMemo(() => createSupabaseBrowserClient(), []);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -55,6 +57,7 @@ function LoginForm(): JSX.Element {
       return;
     }
     router.push("/sistema");
+    router.refresh();
   }
 
   return (

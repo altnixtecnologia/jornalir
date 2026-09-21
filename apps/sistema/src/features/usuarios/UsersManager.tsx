@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { createSupabaseClient } from "../../lib/supabaseClient";
+import { createSupabaseBrowserClient } from "../../lib/supabase/browser";
 import { useAuth, type AuthRole } from "../../lib/auth/AuthProvider";
+import { inviteUser } from "../../app/sistema/usuarios/actions";
 
 interface UserRow {
   id: string;
@@ -23,15 +24,16 @@ function formatDate(iso: string): string {
 }
 
 /**
- * Gestão de usuários (Fase 19) — visível só para owner/admin (a própria
- * página garante isso; o menu já esconde o link para operator). Todas as
- * ações passam pela RLS real de `profiles`: o banco decide o que cada
- * papel pode de fato fazer, esta tela só oferece os botões coerentes com
- * isso.
+ * Gestão de usuários — visível só para owner/admin (a própria página
+ * garante isso; o menu já esconde o link para operator). Promover/rebaixar
+ * e ativar/desativar são `UPDATE`s no cliente, sujeitos à RLS real de
+ * `profiles` (o banco decide o que cada papel pode). Convidar usuário novo
+ * é diferente: sempre server-side (`actions.ts`, Fase 20) — nunca
+ * `service_role` no navegador, nunca troca a sessão de quem convida.
  */
 export function UsersManager(): JSX.Element {
   const { profile } = useAuth();
-  const client = useMemo(() => createSupabaseClient(), []);
+  const client = useMemo(() => createSupabaseBrowserClient(), []);
   const [users, setUsers] = useState<UserRow[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
@@ -107,25 +109,14 @@ export function UsersManager(): JSX.Element {
     setError(null);
     setMessage(null);
     setPending(true);
-    const { error: inviteError } = await client.auth.signInWithOtp({
-      email: inviteEmail.trim(),
-      options: { shouldCreateUser: true },
-    });
+    const result = await inviteUser(inviteEmail.trim(), inviteRole);
     setPending(false);
-    if (inviteError) {
-      setError("Não foi possível enviar o convite. Confira o e-mail e tente novamente.");
+    if ("error" in result) {
+      setError(result.error);
       return;
     }
-    // A API de convite passwordless nunca devolve o id do usuário criado —
-    // o profile (sempre "operator", pelo trigger) só aparece na lista
-    // abaixo depois que a linha existir. Promover a admin é sempre um
-    // segundo passo manual aqui, nunca automático.
     setInviteEmail("");
-    setMessage(
-      inviteRole === "admin"
-        ? "Convite enviado por e-mail. Assim que a pessoa aparecer na lista abaixo (como Operador), promova a Administrador."
-        : "Convite enviado por e-mail (link de acesso). O papel inicial é Operador.",
-    );
+    setMessage("Convite enviado por e-mail. A pessoa define a própria senha ao acessar o link.");
     await reload();
   }
 
@@ -142,9 +133,8 @@ export function UsersManager(): JSX.Element {
       <div className="inline-form">
         <p className="field-label">Convidar usuário</p>
         <p className="helper-text">
-          Envia um link de acesso por e-mail (sem senha definida aqui). O papel inicial de qualquer conta
-          nova é sempre Operador; se convidada como Administrador, uma segunda etapa tenta promover
-          automaticamente — confirme na lista abaixo.
+          Envia um convite por e-mail (processado no servidor — nunca troca a sua sessão). A pessoa define
+          a própria senha ao acessar o link e depois entra normalmente por e-mail e senha.
         </p>
         <div className="form-grid">
           <label className="form-field">
