@@ -1,8 +1,10 @@
 import { ModuleHeader } from "../../../../components/admin/ModuleHeader";
 import { EditoriasManager } from "../../../../features/editorial/EditoriasManager";
-import { editorialSectionService } from "../../../../composition/editorial";
+import { getEditorialSectionService } from "../../../../composition/editorial";
+import { createSupabaseServerClient } from "../../../../lib/supabase/server";
 
 export default async function EditoriasPage(): Promise<JSX.Element> {
+  const editorialSectionService = getEditorialSectionService(createSupabaseServerClient());
   const sections = await editorialSectionService.list();
 
   return (

@@ -2,7 +2,8 @@
 
 import { revalidatePath } from "next/cache";
 import type { Locality, LocalityScope } from "@ir/types";
-import { localityService } from "../../../../composition/editorial";
+import { getLocalityService } from "../../../../composition/editorial";
+import { createSupabaseServerClient } from "../../../../lib/supabase/server";
 
 const LIST_PATH = "/sistema/editorial/localidades";
 
@@ -23,7 +24,7 @@ export async function createLocality(payload: LocalityPayload): Promise<ActionRe
     return { error: "Informe o nome da localidade." };
   }
   try {
-    const locality = await localityService.create(payload);
+    const locality = await getLocalityService(createSupabaseServerClient()).create(payload);
     revalidatePath(LIST_PATH);
     return { ok: true, locality };
   } catch (error) {
@@ -36,7 +37,7 @@ export async function updateLocality(id: string, payload: LocalityPayload): Prom
     return { error: "Informe o nome da localidade." };
   }
   try {
-    const locality = await localityService.update(id, payload);
+    const locality = await getLocalityService(createSupabaseServerClient()).update(id, payload);
     revalidatePath(LIST_PATH);
     return { ok: true, locality };
   } catch (error) {
@@ -46,7 +47,7 @@ export async function updateLocality(id: string, payload: LocalityPayload): Prom
 
 export async function setLocalityActive(id: string, active: boolean): Promise<ActionResult> {
   try {
-    const locality = await localityService.setActive(id, active);
+    const locality = await getLocalityService(createSupabaseServerClient()).setActive(id, active);
     revalidatePath(LIST_PATH);
     return { ok: true, locality };
   } catch (error) {

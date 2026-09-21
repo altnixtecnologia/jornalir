@@ -2,17 +2,19 @@ import Link from "next/link";
 import { ModuleHeader } from "../../../../components/admin/ModuleHeader";
 import { MateriasList } from "../../../../features/editorial/MateriasList";
 import {
-  articleService,
-  editorialSectionService,
-  localityService,
+  getArticleService,
+  getEditorialSectionService,
+  getLocalityService,
   newspaperEditionService,
 } from "../../../../composition/editorial";
+import { createSupabaseServerClient } from "../../../../lib/supabase/server";
 
 export default async function MateriasPage(): Promise<JSX.Element> {
+  const supabase = createSupabaseServerClient();
   const [articles, sections, localities, editions] = await Promise.all([
-    articleService.list(),
-    editorialSectionService.list(),
-    localityService.list(),
+    getArticleService(supabase).list(),
+    getEditorialSectionService(supabase).list(),
+    getLocalityService(supabase).list(),
     newspaperEditionService.list(),
   ]);
 

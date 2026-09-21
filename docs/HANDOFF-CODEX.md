@@ -1,5 +1,45 @@
 # Handoff — JornalIR
 
+## Fase 24 — providers reais: editorias + localidades (21/09/2026)
+
+- Branch: `feature/jornalir-core-foundation-20260917`.
+- HEAD ao iniciar a fase: `d6a8a9e` (commit da Fase 23).
+- Entrega: `apps/sistema` passou a ler/gravar `editorial_sections` e `localities` direto no Supabase (`site-system-ir`), mantendo a camada `UI → Service → Repository Contract → Supabase Provider`. Matérias, mídias e PDF continuam mock nesta fase (só as duas telas/entidades pedidas). Owner/Auth não tocados.
+
+### Arquitetura: de singleton para factory por requisição
+
+`composition/editorial.ts` era só singletons módulo-level. Um provider Supabase real precisa do cliente autenticado da requisição (`createSupabaseServerClient()` usa `cookies()` do Next.js, só existe dentro de Server Component/Action). Resolvido trocando `editorialSectionService`/`localityService`/`articleService`/`importCandidateService` por factories (`getEditorialSectionService(client)`, etc.) — `mediaAssetService`/`newspaperEditionService` continuam singleton (ainda mock). Isso cascateou para 10 arquivos de tela/action que precisaram passar a construir `createSupabaseServerClient()` e chamar a factory em vez do import direto do singleton.
+
+### Providers novos
+
+`apps/sistema/src/providers/supabase/editorialSectionRepository.supabase.ts` e `localityRepository.supabase.ts`, implementando os contratos de `@ir/core` (`EditorialSectionRepository`/`LocalityRepository`), com mapeamento `sort_order` (DB) ↔ `order` (domínio) isolado no provider — nenhuma UI sabe o nome real da coluna.
+
+### Divergência conhecida (documentada, não corrigida — "não mudar schema sem necessidade")
+
+`EditorialSection.description` existe no tipo de domínio mas não tem coluna em `editorial_sections` — o provider real simplesmente não persiste esse campo (mock ainda persiste, então isso só é visível depois da migração real). `Locality` no domínio não expõe `order`/`parent_id`, embora a tabela tenha `sort_order`/`parent_id` — colunas existentes, só não mapeadas ainda.
+
+### Teste de persistência real (contra `site-system-ir`, dados removidos ao final)
+
+Sem sessão de owner disponível neste ambiente para testar pelo navegador (mesma limitação da Fase 21), a persistência foi validada direto no banco via `supabase db query --linked`: criado `editorial_sections`/`localities` com prefixo `qa-fase24`, editado (nome + `active=false`), depois apagado — `count()` confirmado igual ao original (7 editorias, 4 localidades) antes e depois. RLS/owner intocados: 32 policies antes e depois, owner continua `role=owner active=true`. `/sistema/editorial/editorias`, `/localidades` e `/materias` continuam redirecionando (307) para `/login` sem sessão, confirmado via `curl`.
+
+### Validação (build/typecheck)
+
+- `npm run typecheck --workspace @ir/sistema`: sem erros.
+- `npm run build --workspace @ir/sistema`: sem erros, 25 rotas (inalterado).
+- `apps/sistema`/`apps/site` já estavam rodando localmente (`http://localhost:3001`/`3000`).
+
+### Pendências e decisões
+
+- Teste de login real do owner pelo navegador (criar/editar/desativar pela UI de verdade) não executado — sem credenciais neste ambiente; só validação no nível do banco.
+- `ArticleService` (matérias) continua com repositório mock — próxima migração de provider natural, incluindo `article_placements`.
+- Mocks de editorias/localidades (`@ir/mocks`) não foram removidos — continuam existindo, só não são mais usados pela composição do `apps/sistema`.
+
+### Próxima fase
+
+A decidir pelo usuário — caminhos possíveis: migrar o provider de Matérias (`ArticleRepository` real), depois Mídias/Importação de PDF; uma tela de gestão de posições editoriais; ou seguir para `apps/site`. Detalhe em `docs/DATABASE-IR-CORE.md` (seção 13).
+
+---
+
 ## Fase 23 — migration real dos destinos editoriais (21/09/2026)
 
 - Branch: `feature/jornalir-core-foundation-20260917`.

@@ -1,9 +1,10 @@
 import { ModuleHeader } from "../../../../components/admin/ModuleHeader";
 import { LocalidadesManager } from "../../../../features/editorial/LocalidadesManager";
-import { localityService } from "../../../../composition/editorial";
+import { getLocalityService } from "../../../../composition/editorial";
+import { createSupabaseServerClient } from "../../../../lib/supabase/server";
 
 export default async function LocalidadesPage(): Promise<JSX.Element> {
-  const localities = await localityService.list();
+  const localities = await getLocalityService(createSupabaseServerClient()).list();
 
   return (
     <>

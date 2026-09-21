@@ -551,15 +551,53 @@ sessão, não só de fases anteriores.
   concorrência real fica como item futuro, se algum dia for necessário
   (ex.: script com duas conexões paralelas).
 
-## 11. Próxima fase (sugestão)
+## 12. Fase 24 — Providers reais: Editorias + Localidades
 
-Auth real (Fase 20/21) já está concluída — owner existe, ativo, correto,
-promovido uma única vez e agora imutável; login pela aplicação já foi
-validado pelo usuário. Modelo de destinos editoriais já está no banco
-(Fase 23). Caminhos possíveis a partir daqui: migração provider-por-
-provider do conteúdo editorial (`apps/sistema` primeiro — matérias/
-editorias/localidades/mídias/importação de PDF — reconciliando as
-divergências da seção 4), uma tela de gestão de posições editoriais no
-painel (consumindo `ArticleService.listActivePlacement`), ou só então
-`apps/site` passando a ler `published` diretamente do banco com RLS
-pública.
+`apps/sistema` passou a ler e gravar `editorial_sections` e `localities`
+direto no Supabase, mantendo a camada `UI → Service → Repository Contract
+→ Supabase Provider` (nenhum componente de UI faz consulta direta ao
+Supabase). Nenhuma migration nova — schema já suportava tudo.
+
+- **Providers novos**: `apps/sistema/src/providers/supabase/
+  editorialSectionRepository.supabase.ts` e `localityRepository.supabase.ts`
+  implementam os contratos `EditorialSectionRepository`/`LocalityRepository`
+  de `@ir/core`, mapeando `sort_order` (DB) ↔ `order` (domínio).
+- **Composição**: `composition/editorial.ts` trocou os singletons
+  `editorialSectionService`/`localityService`/`articleService`/
+  `importCandidateService` por factories (`getEditorialSectionService(client)`,
+  etc.) — necessário porque o cliente Supabase autenticado só existe dentro
+  de uma requisição (`createSupabaseServerClient()` usa `cookies()` do
+  Next.js). `mediaAssetService`/`newspaperEditionService` continuam
+  singletons (ainda mock, Fase 25+). Todas as telas/actions que consomem
+  esses serviços foram atualizadas para construir o cliente por requisição.
+- **Matérias/PDF/Mídias**: telas continuam usando `articleService`/
+  `importCandidateService` (agora via factory) só para ler/gravar editoria
+  e localidade reais nos formulários — o `Article` em si **continua mock**
+  (não migrado nesta fase).
+- **Divergência conhecida (não corrigida por decisão explícita — "não
+  mudar schema sem necessidade")**: `EditorialSection.description` existe
+  no tipo de domínio mas não tem coluna em `editorial_sections`; o
+  provider real simplesmente não persiste esse campo. `Locality` no
+  domínio não expõe `order`/`parent_id`, embora a tabela tenha
+  `sort_order`/`parent_id` — colunas existentes, só não usadas ainda.
+- **Teste de persistência real** (contra `site-system-ir`, via
+  `supabase db query --linked`, dados sempre removidos ao final): criado
+  `editorial_sections`/`localities` com prefixo `qa-fase24`, editado
+  (nome + `active=false`), depois apagado — `count()` confirmado igual ao
+  original (7 editorias, 4 localidades) antes e depois.
+- **RLS/owner intocados**: 32 policies antes e depois; owner continua
+  `role=owner active=true`, nenhuma escrita feita nesse profile.
+- **Middleware**: `/sistema/editorial/editorias`, `/localidades` e
+  `/materias` continuam redirecionando (307) para `/login` sem sessão —
+  confirmado via `curl` depois do refactor.
+
+## 13. Próxima fase (sugestão)
+
+Modelo de destinos editoriais e providers de editorias/localidades já
+estão no banco e conectados (Fases 23/24). Caminhos possíveis a partir
+daqui: migrar o provider de Matérias (`ArticleRepository` real, incluindo
+`article_placements`), depois Mídias e Importação de PDF, reconciliando
+o restante das divergências da seção 4; uma tela de gestão de posições
+editoriais no painel (consumindo `ArticleService.listActivePlacement`);
+ou só então `apps/site` passando a ler `published` diretamente do banco
+com RLS pública.

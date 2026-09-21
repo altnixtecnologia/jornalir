@@ -3,7 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import type { EditorialPlacement, EditorialTextStyle } from "@ir/types";
-import { articleService } from "../../../../composition/editorial";
+import { getArticleService } from "../../../../composition/editorial";
+import { createSupabaseServerClient } from "../../../../lib/supabase/server";
 import {
   validateArticlePayload,
   type ArticleFormIntent,
@@ -58,6 +59,7 @@ export async function createArticle(
   const validationError = validateArticlePayload(payload, intent);
   if (validationError) return { error: validationError };
 
+  const articleService = getArticleService(createSupabaseServerClient());
   let articleId: string;
   try {
     const created = await articleService.saveDraft(
@@ -107,6 +109,7 @@ export async function updateArticle(
   const validationError = validateArticlePayload(payload, intent);
   if (validationError) return { error: validationError };
 
+  const articleService = getArticleService(createSupabaseServerClient());
   try {
     const placement = buildPlacement(payload);
     const editionPageNumber = parseEditionPageNumber(payload.editionPageNumber);
@@ -154,7 +157,7 @@ export async function updateArticle(
 
 export async function archiveArticle(id: string): Promise<ActionResult> {
   try {
-    await articleService.archive(id, AUDIT);
+    await getArticleService(createSupabaseServerClient()).archive(id, AUDIT);
   } catch (error) {
     return { error: toErrorMessage(error) };
   }

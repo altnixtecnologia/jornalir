@@ -1,13 +1,7 @@
 import { checkConservation, extractPdf } from "@ir/pdf-extraction";
 import type { ArticleGroup, ConservationReport, PageExtraction } from "@ir/pdf-extraction";
-import type { NewImportCandidateRecord } from "@ir/core";
+import type { ImportCandidateService, NewImportCandidateRecord } from "@ir/core";
 import type { ImportCandidate, ImportPageCoverage, ImportSourceBlock } from "@ir/types";
-import { articleService, importCandidateService } from "./editorial";
-
-// Re-exportados para que qualquer consumidor (Server Actions, scripts de
-// validação) possa importar os serviços editoriais a partir deste mesmo
-// módulo sem precisar de um segundo caminho relativo até ./editorial.
-export { articleService, importCandidateService };
 
 function escapeHtml(text: string): string {
   return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
@@ -112,10 +106,16 @@ export interface ExtractCandidatesResult {
  * Lê o PDF de verdade (arquivo temporário/local, nunca persistido) e gera
  * candidatos reais a partir do texto/layout extraído — substitui o gerador
  * mock da Fase 08. Nenhum candidato é publicado; todos nascem "pending".
+ *
+ * `importCandidateService` é recebido como parâmetro (Fase 24) — desde que
+ * editorias/localidades viraram provider real, o serviço precisa da sessão
+ * Supabase da requisição atual (`getImportCandidateService(client)`, em
+ * `./editorial`), então não existe mais como singleton para importar direto.
  */
 export async function extractCandidatesFromPdf(
   editionId: string,
   pdfBytes: Uint8Array,
+  importCandidateService: ImportCandidateService,
 ): Promise<ExtractCandidatesResult> {
   const result = await extractPdf(pdfBytes);
 

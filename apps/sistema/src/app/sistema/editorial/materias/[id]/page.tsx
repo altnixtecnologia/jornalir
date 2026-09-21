@@ -3,27 +3,29 @@ import { ArticleNotFoundError } from "@ir/core";
 import { ModuleHeader } from "../../../../../components/admin/ModuleHeader";
 import { ArticleForm } from "../../../../../features/editorial/ArticleForm";
 import {
-  articleService,
-  editorialSectionService,
-  localityService,
+  getArticleService,
+  getEditorialSectionService,
+  getLocalityService,
   mediaAssetService,
   newspaperEditionService,
 } from "../../../../../composition/editorial";
+import { createSupabaseServerClient } from "../../../../../lib/supabase/server";
 
 export default async function MateriaEditPage({
   params,
 }: {
   params: { id: string };
 }): Promise<JSX.Element> {
-  const article = await articleService.getById(params.id).catch((error: unknown) => {
+  const supabase = createSupabaseServerClient();
+  const article = await getArticleService(supabase).getById(params.id).catch((error: unknown) => {
     if (error instanceof ArticleNotFoundError) return null;
     throw error;
   });
   if (!article) notFound();
 
   const [sections, localities, mediaAssets, editions] = await Promise.all([
-    editorialSectionService.list(),
-    localityService.list(),
+    getEditorialSectionService(supabase).list(),
+    getLocalityService(supabase).list(),
     mediaAssetService.list(),
     newspaperEditionService.list(),
   ]);

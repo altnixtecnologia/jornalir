@@ -2,7 +2,8 @@
 
 import { revalidatePath } from "next/cache";
 import type { EditorialSection } from "@ir/types";
-import { editorialSectionService } from "../../../../composition/editorial";
+import { getEditorialSectionService } from "../../../../composition/editorial";
+import { createSupabaseServerClient } from "../../../../lib/supabase/server";
 
 const LIST_PATH = "/sistema/editorial/editorias";
 
@@ -24,7 +25,7 @@ export async function createSection(payload: EditorialSectionPayload): Promise<A
     return { error: "Informe o nome da editoria." };
   }
   try {
-    const section = await editorialSectionService.create(payload);
+    const section = await getEditorialSectionService(createSupabaseServerClient()).create(payload);
     revalidatePath(LIST_PATH);
     return { ok: true, section };
   } catch (error) {
@@ -37,7 +38,7 @@ export async function updateSection(id: string, payload: EditorialSectionPayload
     return { error: "Informe o nome da editoria." };
   }
   try {
-    const section = await editorialSectionService.update(id, payload);
+    const section = await getEditorialSectionService(createSupabaseServerClient()).update(id, payload);
     revalidatePath(LIST_PATH);
     return { ok: true, section };
   } catch (error) {
@@ -47,7 +48,7 @@ export async function updateSection(id: string, payload: EditorialSectionPayload
 
 export async function setSectionActive(id: string, active: boolean): Promise<ActionResult> {
   try {
-    const section = await editorialSectionService.setActive(id, active);
+    const section = await getEditorialSectionService(createSupabaseServerClient()).setActive(id, active);
     revalidatePath(LIST_PATH);
     return { ok: true, section };
   } catch (error) {
@@ -57,7 +58,7 @@ export async function setSectionActive(id: string, active: boolean): Promise<Act
 
 export async function reorderSections(orderedIds: string[]): Promise<ReorderResult> {
   try {
-    await editorialSectionService.reorder(orderedIds);
+    await getEditorialSectionService(createSupabaseServerClient()).reorder(orderedIds);
     revalidatePath(LIST_PATH);
     return { ok: true };
   } catch (error) {

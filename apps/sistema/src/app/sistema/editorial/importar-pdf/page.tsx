@@ -3,11 +3,12 @@ import { GenerateCandidatesForm } from "../../../../features/editorial/GenerateC
 import { ImportCandidateList } from "../../../../features/editorial/ImportCandidateList";
 import { ImportFlowSteps, type ImportFlowStep } from "../../../../features/editorial/ImportFlowSteps";
 import {
-  editorialSectionService,
-  importCandidateService,
-  localityService,
+  getEditorialSectionService,
+  getImportCandidateService,
+  getLocalityService,
   newspaperEditionService,
 } from "../../../../composition/editorial";
+import { createSupabaseServerClient } from "../../../../lib/supabase/server";
 
 export default async function ImportarPdfPage({
   searchParams,
@@ -15,13 +16,14 @@ export default async function ImportarPdfPage({
   searchParams: { edicao?: string };
 }): Promise<JSX.Element> {
   const editionId = searchParams.edicao ?? "";
+  const supabase = createSupabaseServerClient();
   const [editions, sections, localities] = await Promise.all([
     newspaperEditionService.list(),
-    editorialSectionService.list(),
-    localityService.list(),
+    getEditorialSectionService(supabase).list(),
+    getLocalityService(supabase).list(),
   ]);
   const candidates = editionId
-    ? await importCandidateService.list({ editionId })
+    ? await getImportCandidateService(supabase).list({ editionId })
     : [];
   const selectedEdition = editions.find((edition) => edition.id === editionId);
   const hasActiveCandidates = candidates.length > 0;

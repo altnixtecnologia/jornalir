@@ -1,15 +1,17 @@
 import { ModuleHeader } from "../../../../../components/admin/ModuleHeader";
 import { ArticleForm } from "../../../../../features/editorial/ArticleForm";
 import {
-  editorialSectionService,
-  localityService,
+  getEditorialSectionService,
+  getLocalityService,
   mediaAssetService,
 } from "../../../../../composition/editorial";
+import { createSupabaseServerClient } from "../../../../../lib/supabase/server";
 
 export default async function NovaMateriaPage(): Promise<JSX.Element> {
+  const supabase = createSupabaseServerClient();
   const [sections, localities, mediaAssets] = await Promise.all([
-    editorialSectionService.list(),
-    localityService.list(),
+    getEditorialSectionService(supabase).list(),
+    getLocalityService(supabase).list(),
     mediaAssetService.list(),
   ]);
 

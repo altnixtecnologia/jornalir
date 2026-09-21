@@ -5,19 +5,21 @@ import { ModuleHeader } from "../../../../../components/admin/ModuleHeader";
 import { ImportCandidateReview } from "../../../../../features/editorial/ImportCandidateReview";
 import { ImportFlowSteps, type ImportFlowStep } from "../../../../../features/editorial/ImportFlowSteps";
 import {
-  editorialSectionService,
-  importCandidateService,
-  localityService,
+  getEditorialSectionService,
+  getImportCandidateService,
+  getLocalityService,
   mediaAssetService,
   newspaperEditionService,
 } from "../../../../../composition/editorial";
+import { createSupabaseServerClient } from "../../../../../lib/supabase/server";
 
 export default async function ImportCandidateDetailPage({
   params,
 }: {
   params: { candidateId: string };
 }): Promise<JSX.Element> {
-  const candidate = await importCandidateService
+  const supabase = createSupabaseServerClient();
+  const candidate = await getImportCandidateService(supabase)
     .getById(params.candidateId)
     .catch((error: unknown) => {
       if (error instanceof ImportCandidateNotFoundError) return null;
@@ -26,8 +28,8 @@ export default async function ImportCandidateDetailPage({
   if (!candidate) notFound();
 
   const [sections, localities, mediaAssets, editions] = await Promise.all([
-    editorialSectionService.list(),
-    localityService.list(),
+    getEditorialSectionService(supabase).list(),
+    getLocalityService(supabase).list(),
     mediaAssetService.list(),
     newspaperEditionService.list(),
   ]);

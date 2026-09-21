@@ -2,8 +2,9 @@
 
 import { revalidatePath } from "next/cache";
 import type { ArticleMedia } from "@ir/types";
-import { importCandidateService } from "../../../../composition/editorial";
+import { getImportCandidateService } from "../../../../composition/editorial";
 import { extractCandidatesFromPdf } from "../../../../composition/pdfCandidateExtraction";
+import { createSupabaseServerClient } from "../../../../lib/supabase/server";
 import { SIMULATED_AUDIT as AUDIT } from "../../../../lib/simulatedAudit";
 
 const IMPORT_PATH = "/sistema/editorial/importar-pdf";
@@ -45,7 +46,11 @@ export async function generateCandidates(
 
   try {
     const buffer = new Uint8Array(await file.arrayBuffer());
-    const result = await extractCandidatesFromPdf(editionId, buffer);
+    const result = await extractCandidatesFromPdf(
+      editionId,
+      buffer,
+      getImportCandidateService(createSupabaseServerClient()),
+    );
     if (result.candidates.length === 0) {
       return {
         error:
@@ -69,7 +74,7 @@ export async function generateCandidates(
 
 export async function discardCandidate(id: string): Promise<ActionResult> {
   try {
-    await importCandidateService.discard(id);
+    await getImportCandidateService(createSupabaseServerClient()).discard(id);
   } catch (error) {
     return { error: toErrorMessage(error) };
   }
@@ -85,7 +90,7 @@ export async function mergeCandidates(
     return { error: "Selecione ao menos dois candidatos para mesclar." };
   }
   try {
-    await importCandidateService.merge(primaryId, secondaryIds);
+    await getImportCandidateService(createSupabaseServerClient()).merge(primaryId, secondaryIds);
   } catch (error) {
     return { error: toErrorMessage(error) };
   }
@@ -101,7 +106,7 @@ export interface SplitResult {
 
 export async function splitCandidate(id: string): Promise<{ error: string } | SplitResult> {
   try {
-    const { first, second } = await importCandidateService.split(id);
+    const { first, second } = await getImportCandidateService(createSupabaseServerClient()).split(id);
     revalidatePath(IMPORT_PATH);
     return { ok: true, firstId: first.id, secondId: second.id };
   } catch (error) {
@@ -121,7 +126,7 @@ export interface ReviewFormInput {
 
 export async function keepCandidate(id: string, changes: ReviewFormInput): Promise<ActionResult> {
   try {
-    await importCandidateService.keep(id, changes);
+    await getImportCandidateService(createSupabaseServerClient()).keep(id, changes);
   } catch (error) {
     return { error: toErrorMessage(error) };
   }
@@ -144,7 +149,7 @@ export async function convertCandidate(
   input: ConvertCandidateInput,
 ): Promise<{ error: string } | ConvertResult> {
   try {
-    const article = await importCandidateService.convertToDraft(
+    const article = await getImportCandidateService(createSupabaseServerClient()).convertToDraft(
       id,
       { ...input, createdBy: AUDIT.actorId },
       AUDIT,
