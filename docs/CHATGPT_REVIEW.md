@@ -97,3 +97,36 @@ O relatório do canário deve trazer contagens do banco antes/depois, as 20 iden
 Commit/push e PARAR.
 
 **Não executar as outras 1.602 matérias sem nova conferência do ChatGPT.**
+
+
+## Resultado da primeira execução manual do canário
+
+O usuário executou manualmente, na raiz do projeto:
+
+`node --env-file=".env.local" scripts/legacy-audit/migrate.mjs --batch=2015-2016 --mode=import --commit --limit=20 --rps=4`
+
+Resultado informado pelo próprio processo:
+
+- imported: 20
+- skippedExisting: 0
+- failedArticles: 0
+- uploadedImages: 45
+- reusedImages: 0
+- alreadyLinkedImages: 0
+- correctedImages: 0
+- failedImages: 0
+- lote permaneceu `incomplete`, como esperado para um canário parcial (20/1622 artigos e 45/3025 referências de imagem).
+
+### Ação imediata
+
+Claude deve agora:
+1. Fazer a validação READ-ONLY diretamente no Supabase das 20 matérias e 45 imagens, conforme a seção "Validação obrigatória depois das 20".
+2. Se a validação direta estiver correta, preparar a segunda execução do mesmo canário para testar idempotência.
+3. Se o sandbox bloquear novamente a segunda escrita, PARAR e informar ao usuário que ele deve repetir EXATAMENTE o mesmo comando manualmente. Não sugerir nenhum comando diferente.
+4. Após a segunda execução, validar novamente em modo read-only:
+   - total de artigos legados permanece 20;
+   - total de external sources permanece 20;
+   - nenhuma mídia duplicada;
+   - nenhum article_media duplicado;
+   - role/sort_order permanecem corretos.
+5. Gerar `docs/legacy-canary-2015-2016.md`, atualizar handoff/status, commit/push e PARAR antes das outras 1.602 matérias.
