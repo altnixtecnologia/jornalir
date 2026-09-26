@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-09-26T20:00:00.000Z",
+  "updatedAt": "2026-09-26T23:32:01.713Z",
   "provider": "informativo_regional_legacy",
   "rule": "Lote padrão = 2 anos. Só dividir um lote específico (1 ano, depois semestre/mês) se ele apresentar problema grave.",
   "batches": [
@@ -111,7 +111,42 @@
         "finalValidationJson": "scripts/legacy-audit/output/batches/2017-2018/batch-final-validation.json"
       }
     },
-    { "batchKey": "2019-2020", "periodStart": "2019-01-01", "periodEnd": "2020-12-31", "status": "pending" },
+    {
+      "batchKey": "2019-2020",
+      "periodStart": "2019-01-01",
+      "periodEnd": "2020-12-31",
+      "status": "preflight_complete_pending_import_authorization",
+      "note": "Preflight autorizado por docs/CHATGPT_REVIEW.md (HEAD 6b5af37): 'AUTORIZADO SOMENTE PREFLIGHT/AUDITORIA 2019-2020'. Nenhuma escrita real. Primeira aparição real de policia (298 elegíveis, mapeamento policia->Polícia confirmado manualmente) e saude (885 elegíveis) com volume. agricultura (já liberada) passou normal. classificados ausente (0 itens).",
+      "preflight": {
+        "itemsFound": 5100,
+        "dateExceptions": 7,
+        "barreiraIntegridade": { "eligible": 5088, "needsReview": 12, "quarantined": 0, "rejected": 0 },
+        "withImage": 5039,
+        "withoutImage": 49,
+        "totalImageReferences": 7082,
+        "uniqueImageUrls": 7082,
+        "distribuicaoPorEditoria": { "policia": 298, "saude": 885, "agricultura": 39, "colunistas": 28, "geral": 3450, "esporte": 107, "politica": 236, "sociais": 45 }
+      },
+      "policiaMappingConfirmed": {
+        "firstOccurrenceInWholeSite": "2020-04-03",
+        "totalPoliciaItemsInWholeInventory": 898,
+        "sectionSlug": "policia",
+        "sectionName": "Polícia",
+        "seedSource": "supabase/migrations/20260921101100_seed_reference_data.sql ('Polícia', 'policia', 2) — sem mudança nesta fase",
+        "manuallyVerifiedSamples": 3
+      },
+      "reportFiles": {
+        "preflight": "scripts/legacy-audit/output/batches/2019-2020/preflight.json",
+        "dateExceptions": "scripts/legacy-audit/output/batches/2019-2020/date-exceptions.json",
+        "needsReview": "scripts/legacy-audit/output/batches/2019-2020/needs-review.json",
+        "quarantined": "scripts/legacy-audit/output/batches/2019-2020/quarantined.json",
+        "rejected": "scripts/legacy-audit/output/batches/2019-2020/rejected.json",
+        "preflightMarkdown": "docs/legacy-preflight-2019-2020.md",
+        "reviewMarkdown": "docs/legacy-review-2019-2020.md",
+        "quarantinedMarkdown": "docs/legacy-quarantined-2019-2020.md",
+        "sampleCheckMarkdown": "docs/legacy-sample-check-2019-2020.md"
+      }
+    },
     { "batchKey": "2021-2022", "periodStart": "2021-01-01", "periodEnd": "2022-12-31", "status": "pending" },
     { "batchKey": "2023-2024", "periodStart": "2023-01-01", "periodEnd": "2024-12-31", "status": "pending" },
     { "batchKey": "2025-2026", "periodStart": "2025-01-01", "periodEnd": "2026-12-31", "status": "pending" }
@@ -121,7 +156,7 @@
     "localidadePadrao": "Todas as matérias importadas do legado entram com Localidade = Geral (valor neutro obrigatório, nunca inferido)",
     "editoriasNaoMapeadas": "Nenhuma — Agricultura e Classificados foram adicionadas na Fase 35 (migration 20261002100000)",
     "barreiraIntegridade": "Uma matéria só é elegível para carga automática quando título, data, corpo e imagens vêm exclusivamente da estrutura própria da página de matéria (ver scripts/legacy-audit/lib/integrity.mjs). Qualquer ambiguidade vira needs_review — nunca é importada nem descartada silenciosamente.",
-    "quarentenaEditorial": "classificados está em quarentena editorial em TODOS os lotes até revisão humana específica da categoria inteira (lib/integrity.mjs QUARANTINED_CATEGORIES). agricultura exige amostragem/revisão antes do primeiro lote que a contiver (REVIEWED_CATEGORIES, hoje vazio). Nenhum item é descartado — só nunca vira eligible sozinho. O lote 2015-2016 não contém nenhuma das duas categorias, então isso não muda seus números.",
+    "quarentenaEditorial": "classificados está em quarentena editorial em TODOS os lotes até revisão humana específica da categoria inteira (lib/integrity.mjs QUARANTINED_CATEGORIES, nunca teve nenhum item liberado). agricultura exigia amostragem/revisão antes do primeiro lote que a contivesse (REVIEWED_CATEGORIES) — apareceu pela 1ª vez no lote 2017-2018 (5 itens), foi revisada e LIBERADA na Fase 37 (REVIEWED_CATEGORIES agora inclui 'agricultura'; ver categoriaAgriculturaEncontrada abaixo) e passa pela barreira normal desde então. Nenhum item é descartado — só nunca vira eligible sozinho enquanto a categoria não for revisada.",
     "dataHoraOriginal": "published_at usa a data E hora reais extraídas de .post-meta-info na própria página de detalhe (fuso America/Sao_Paulo, -03:00), nunca um horário inventado. Quando só a data existe (precisão date_only), isso é registrado explicitamente em article_external_sources.raw_metadata.datePrecision — nunca escondido atrás de um horário fixo.",
     "importacaoAtomica": "articles + article_external_sources são criados numa única transação via a função RPC public.legacy_import_article (migration 20261003100000) — nunca dois inserts separados que podem deixar um artigo órfão numa falha no meio.",
     "reconciliacaoMidia": "Ao reencontrar uma matéria já importada, o importador SEMPRE reconcilia as imagens esperadas contra media_assets/article_media existentes e só copia/vincula o que falta — nunca pula a matéria inteira (lib/pipeline.mjs + reconcileArticleImages em migrate.mjs).",
@@ -130,9 +165,9 @@
     "dedupMidiaNoBanco": "Índice único parcial media_assets(origin_source_url) where origin_source_url is not null (migration 20261004100000) impede duas execuções concorrentes de duplicarem a mesma mídia externa; conflito (23505) é tratado buscando/reutilizando a mídia existente (bloqueio 3 da revisão do ChatGPT, Fase 35C).",
     "gravacaoReal": "Lote 2015-2016 CONCLUÍDO (Fase 35E): 1.622 articles + 3.025 media_assets gravados via execução manual do usuário com credencial só em .env.local local (nunca exposta em chat/log/versionado). Validado diretamente no Supabase/Storage, paginado. legacy_migration_batches.status=complete.",
     "bucketGif": "O bucket article-media rejeitava image/gif até a migration 20261005100000 (Fase 35E) — 80 imagens do lote 2015-2016 eram GIF. Migration só atualizou allowed_mime_types (acrescentou image/gif), nenhum objeto apagado, nenhuma policy alterada.",
-    "revisaoChatgpt": "docs/CHATGPT_REVIEW.md registra o histórico completo: HEAD aca77b5 (3 bloqueios, Fase 35C), HEAD 8f4f137 (canário de 20, Fase 35D), HEAD 5b51e47 (conclusão do lote 2015-2016), o achado das 80 GIFs (Fase 35E), HEAD 1d84c96 (preflight-only de 2017-2018, Fase 36), HEAD dd718cf (liberação condicional de agricultura + autorização condicional da carga de 2017-2018, cumprida nas Fases 37/38). Aguardando nova conferência do ChatGPT sobre docs/legacy-batch-2017-2018-final.md antes de iniciar 2019-2020.",
+    "revisaoChatgpt": "docs/CHATGPT_REVIEW.md registra o histórico completo: HEAD aca77b5 (3 bloqueios, Fase 35C), HEAD 8f4f137 (canário de 20, Fase 35D), HEAD 5b51e47 (conclusão do lote 2015-2016), o achado das 80 GIFs (Fase 35E), HEAD 1d84c96 (preflight-only de 2017-2018, Fase 36), HEAD dd718cf (liberação condicional de agricultura + carga de 2017-2018, Fases 37/38), HEAD 6b5af37 (Fase 39 de paginação do portal aprovada/encerrada + autorização SOMENTE do preflight de 2019-2020, Fase 40). Aguardando nova conferência do ChatGPT sobre os relatórios de 2019-2020 antes de autorizar qualquer importação real desse lote.",
     "categoriaAgriculturaEncontrada": "agricultura apareceu pela 1ª vez no lote 2017-2018 (5 itens, todos em 2018). Revisada e LIBERADA na Fase 37 (REVIEWED_CATEGORIES em lib/integrity.mjs agora inclui 'agricultura', decisão em docs/CHATGPT_REVIEW.md sobre HEAD dd718cf) — os 5 itens passaram pela barreira normal e todos resultaram eligible. Histórico completo da revisão em docs/legacy-quarantined-2017-2018.md.",
     "validadorGeneralizado": "scripts/legacy-audit/batch-final-validate.mjs generalizado na Fase 37 (bloqueio da revisão do ChatGPT): aceita --batch=<key>, escopa a validação às identidades esperadas daquele lote (nunca mistura com outros lotes já migrados), e mantém uma checagem GLOBAL separada de duplicidade (slug/external_id/origin_source_url em todo o legado). Testado retroativamente contra 2015-2016 com resultado idêntico ao validador anterior.",
-    "categoriaPoliciaAusenteAteAqui": "policia não existe no site legado em nenhum ponto de 2015-2018 — a editoria só foi criada a partir de 2020 (299 itens naquele ano, confirmado no inventário completo da Fase 34). Vai aparecer normalmente a partir do lote 2019-2020; não é um erro de coleta."
+    "categoriaPoliciaConfirmada": "policia não existia no site legado em nenhum ponto de 2015-2018 (confirmado na Fase 34). Apareceu pela 1ª vez no lote 2019-2020 (298 elegíveis) — primeira matéria real de 2020-04-03. Mapeamento policia->Polícia confirmado (seed original, sem mudança) e 3 matérias reais conferidas manualmente na Fase 40 (conteúdo genuíno de ocorrência policial). Ver docs/legacy-preflight-2019-2020.md."
   }
 }

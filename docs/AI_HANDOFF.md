@@ -4,6 +4,57 @@ Este arquivo é atualizado ao final de CADA fase a partir da Fase 35. Curto, dir
 
 ---
 
+## Fase 40 — Preflight do lote 2019-2020 (SOMENTE LEITURA, nada importado)
+
+**HEAD/commit:** PLACEHOLDER (branch `feature/jornalir-core-foundation-20260917`)
+
+Autorizado por `docs/CHATGPT_REVIEW.md` (revisão sobre HEAD `6b5af37`: Fase 39 aprovada e encerrada + "AUTORIZADO SOMENTE PREFLIGHT/AUDITORIA 2019–2020"). **Nenhuma escrita real nesta fase.**
+
+### O que foi feito
+
+1. Rodado `migrate.mjs --batch=2019-2020 --mode=preflight` (mesmo pipeline/barreira, sem alteração de código) — lote bem maior que os anteriores (5.100 candidatas vs. ~1.6-2.5 mil).
+2. Corrigida a pendência documental pequena apontada pela revisão: a nota `quarentenaEditorial` em `docs/legacy-migration-status.json` ainda dizia "REVIEWED_CATEGORIES, hoje vazio" — desatualizada desde a Fase 37 (agricultura já liberada). Corrigida para refletir o estado real.
+3. Relatórios gerados via `report-batch.mjs --batch=2019-2020`: `docs/legacy-preflight-2019-2020.md`, `docs/legacy-review-2019-2020.md` (12 casos), `docs/legacy-quarantined-2019-2020.md` (0 casos), `docs/legacy-sample-check-2019-2020.md` (24 matérias).
+4. **Confirmação explícita do mapeamento `policia -> Polícia`** (pedido específico da revisão, por ser a primeira aparição real da categoria): primeira matéria de `policia` no site inteiro é de 2020-04-03 (0 antes disso, consistente com o já documentado nas Fases 34-38); mapeamento confirmado no seed original (`editorial_sections`, `('Polícia', 'policia', 2)`, sem mudança nesta fase); 3 matérias reais conferidas manualmente — conteúdo genuíno de ocorrência policial, nada mal categorizado. Detalhe completo em `docs/legacy-preflight-2019-2020.md`.
+
+### Números do preflight 2019-2020
+
+| Métrica | Valor |
+|---|---|
+| Candidatas no intervalo | 5.100 |
+| Exceções de data | 7 |
+| **Elegíveis** | **5.088** |
+| `needs_review` | 12 |
+| `quarantined` | 0 |
+| Rejeitadas | 0 |
+| Com imagem / sem imagem | 5.039 / 49 |
+| Referências de imagem | 7.082 |
+| Distribuição por editoria | policia=298, saude=885, agricultura=39, colunistas=28, geral=3.450, esporte=107, política=236, sociais=45 |
+
+### Achados
+
+1. `policia` aparece pela primeira vez com volume real (298 elegíveis) — mapeamento confirmado correto (ver acima).
+2. `saude` aparece com volume real pela primeira vez (885 elegíveis) — editoria já existia desde a Fase 33, mas sem matérias migradas até agora.
+3. `classificados` continua ausente (0 itens) — quarentena automática segue sem nenhum item liberado.
+4. `agricultura` (já liberada na Fase 37) passou normalmente pela barreira normal, sem tratamento especial.
+5. 12 `needs_review`, mesmo padrão já visto (corpo vazio/curto, estrutura sem `<p>`, título divergente) — inclusive outro artigo de teste do próprio site ("TESTE", `geral`, 2020-04-16).
+
+### Migrations
+
+Nenhuma nesta fase.
+
+### Pendências
+
+1. Decisão do usuário/ChatGPT sobre autorizar a carga real de 2019-2020 — nada decidido aqui.
+2. Revisão humana dos 12 casos `needs_review`.
+3. 2021-2022 não tocado.
+
+### Próximo passo recomendado
+
+Aguardar nova conferência do ChatGPT sobre os relatórios de 2019-2020 antes de autorizar qualquer importação real.
+
+---
+
 ## Fase 39C — 2 ajustes finais da paginação do portal (encerra a Fase 39)
 
 **HEAD/commit:** `bbbf36a` (branch `feature/jornalir-core-foundation-20260917`)
