@@ -1,0 +1,13 @@
+{
+  "name": "legacy-audit",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Coletor read-only do site legado (informativoregional.net) — auditoria (Fase 34) e, depois, carga/sincronização (Fase 35). Nunca grava no Supabase.",
+  "scripts": {
+    "audit": "node audit.mjs"
+  },
+  "dependencies": {
+    "cheerio": "^1.0.0"
+  }
+}

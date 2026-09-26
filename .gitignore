@@ -12,3 +12,7 @@ supabase/.temp
 
 .vercel
 .env*.local
+
+# Dados brutos da auditoria do site legado (grandes demais para o repo)
+scripts/legacy-audit/output/
+scripts/legacy-audit/checkpoints/

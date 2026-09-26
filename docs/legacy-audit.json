@@ -1,0 +1,1282 @@
+{
+  "generatedAt": "2026-09-26T14:15:05.404Z",
+  "totalEncontrado": 23393,
+  "totalOficial": 23399,
+  "porCategoria": {
+    "geral": 16544,
+    "esportes": 1179,
+    "policia": 898,
+    "politica": 1163,
+    "saude": 1864,
+    "sociais": 1144,
+    "classificados": 30,
+    "agricultura": 337,
+    "colunistas/roni_raupp": 108,
+    "colunistas/apae_de_sao_joao_do_sul": 10,
+    "colunistas/outras": 92,
+    "colunistas/informativo_contabil": 24
+  },
+  "totalOficialPorCategoria": {
+    "geral": 16547,
+    "esportes": 1181,
+    "policia": 900,
+    "politica": 1165,
+    "saude": 1866,
+    "sociais": 1146,
+    "classificados": 32,
+    "agricultura": 339,
+    "colunistas/roni_raupp": 107,
+    "colunistas/apae_de_sao_joao_do_sul": 5,
+    "colunistas/outras": 94,
+    "colunistas/informativo_contabil": 17
+  },
+  "cobertura": {
+    "geral": {
+      "official": 16547,
+      "found": 16544,
+      "pagesDone": 1379,
+      "pagesExpected": 1379,
+      "fullyPaginated": true
+    },
+    "esportes": {
+      "official": 1181,
+      "found": 1179,
+      "pagesDone": 99,
+      "pagesExpected": 99,
+      "fullyPaginated": true
+    },
+    "policia": {
+      "official": 900,
+      "found": 898,
+      "pagesDone": 75,
+      "pagesExpected": 75,
+      "fullyPaginated": true
+    },
+    "politica": {
+      "official": 1165,
+      "found": 1163,
+      "pagesDone": 98,
+      "pagesExpected": 98,
+      "fullyPaginated": true
+    },
+    "saude": {
+      "official": 1866,
+      "found": 1864,
+      "pagesDone": 156,
+      "pagesExpected": 156,
+      "fullyPaginated": true
+    },
+    "sociais": {
+      "official": 1146,
+      "found": 1144,
+      "pagesDone": 96,
+      "pagesExpected": 96,
+      "fullyPaginated": true
+    },
+    "classificados": {
+      "official": 32,
+      "found": 30,
+      "pagesDone": 3,
+      "pagesExpected": 3,
+      "fullyPaginated": true
+    },
+    "agricultura": {
+      "official": 339,
+      "found": 337,
+      "pagesDone": 29,
+      "pagesExpected": 29,
+      "fullyPaginated": true
+    },
+    "colunistas/roni_raupp": {
+      "official": 107,
+      "found": 108,
+      "pagesDone": 9,
+      "pagesExpected": 9,
+      "fullyPaginated": true
+    },
+    "colunistas/apae_de_sao_joao_do_sul": {
+      "official": 5,
+      "found": 10,
+      "pagesDone": 1,
+      "pagesExpected": 1,
+      "fullyPaginated": true
+    },
+    "colunistas/outras": {
+      "official": 94,
+      "found": 92,
+      "pagesDone": 8,
+      "pagesExpected": 8,
+      "fullyPaginated": true
+    },
+    "colunistas/informativo_contabil": {
+      "official": 17,
+      "found": 24,
+      "pagesDone": 2,
+      "pagesExpected": 2,
+      "fullyPaginated": true
+    }
+  },
+  "periodo": {
+    "inicio": "2015-06-27",
+    "fim": "2026-09-25"
+  },
+  "comImagemNaListagem": 23052,
+  "semImagemNaListagem": 341,
+  "semDataDetectavel": 0,
+  "dataZeroBug": 7,
+  "duplicidades": {
+    "urls": 14,
+    "slugsPorCategoria": 638,
+    "tituloMaisData": 48,
+    "exemplosUrls": [
+      "https://www.informativoregional.net/colunistas/apae_de_sao_joao_do_sul/dicas_e_informacoes_da_apae_de_sao_joao_do_sul.231536",
+      "https://www.informativoregional.net/colunistas/apae_de_sao_joao_do_sul/dicas_e_informacoes_da_apae_de_sao_joao_do_sul_gravidez_na_adolescencia.231533",
+      "https://www.informativoregional.net/colunistas/apae_de_sao_joao_do_sul/dicas_e_informacoes_da_apae_de_sao_joao_do_sul_gravidez_acima_dos_35.231532",
+      "https://www.informativoregional.net/colunistas/apae_de_sao_joao_do_sul/toxoplasmose_na_gravidez.231529",
+      "https://www.informativoregional.net/colunistas/apae_de_sao_joao_do_sul/dicas_e_informacoes_da_apae_de_sao_joao_do_sul.231527",
+      "https://www.informativoregional.net/colunistas/informativo_contabil/informativo_contabil.231550",
+      "https://www.informativoregional.net/colunistas/informativo_contabil/informativo_contabil.231550",
+      "https://www.informativoregional.net/colunistas/informativo_contabil/informativo_contabil.231549",
+      "https://www.informativoregional.net/colunistas/informativo_contabil/informativo_contabil.231547",
+      "https://www.informativoregional.net/colunistas/informativo_contabil/informativo_contabil_por_sabrina_silveira_souza_kontymax_contabilidade.231545"
+    ],
+    "exemplosSlugs": [
+      "esportes:anjos_do_futsal_de_sao_joao_do_sul_recebem_os_uniformes",
+      "sociais:personalidade_da_semana_oziel_luiz_bitencourt",
+      "agricultura:fiscais_agropecuarios_do_rs_monitoram_nuvem_de_gafanhotos_vinda_da_argentina",
+      "colunistas/roni_raupp:coluna_politica__por_roni_raupp",
+      "colunistas/roni_raupp:coluna_politica__por_roni_raupp",
+      "colunistas/roni_raupp:coluna_politica__por_roni_raupp",
+      "colunistas/roni_raupp:coluna_politica__por_roni_raupp",
+      "colunistas/roni_raupp:coluna_politica__por_roni_raupp",
+      "colunistas/roni_raupp:coluna_politica__por_roni_raupp",
+      "colunistas/roni_raupp:coluna_politica__por_roni_raupp"
+    ],
+    "exemplosTituloData": [
+      "DICAS E INFORMAÇÕES DA APAE DE SÃO JOÃO  DO SUL::21/05/2020 12:00",
+      "DICAS E INFORMAÇÕES DA APAE DE SÃO JOÃO  DO SUL: GRAVIDEZ NA ADOLESCÊNCIA::05/06/2020 11:32",
+      "DICAS E INFORMAÇÕES DA APAE DE SÃO JOÃO  DO SUL: GRAVIDEZ ACIMA DOS 35::19/06/2020 09:55",
+      "TOXOPLASMOSE NA GRAVIDEZ::11/09/2020 11:06",
+      "DICAS E INFORMAÇÕES DA APAE DE SÃO JOÃO  DO SUL::06/11/2020 10:28",
+      "INFORMATIVO  CONTÁBIL::17/09/2021 17:42",
+      "INFORMATIVO  CONTÁBIL::17/09/2021 17:42",
+      "INFORMATIVO  CONTÁBIL::01/10/2021 09:55",
+      "INFORMATIVO  CONTÁBIL::19/11/2021 10:20",
+      "INFORMATIVO  CONTÁBIL: Por: Sabrina Silveira Souza KontyMax Contabilidade::21/10/2022 10:47"
+    ]
+  },
+  "categoriasNaoMapeadas": [
+    "classificados",
+    "agricultura"
+  ],
+  "autoresEncontrados": [
+    "Secom/SC",
+    "Imprensa CRPO LIT",
+    "VACINAÇÃO RS",
+    "RCN",
+    "Agência Brasil",
+    "Prefeitura Municipal de Torres",
+    "Assessoria de Comunicação / Epagri"
+  ],
+  "colunistasEncontrados": [
+    "colunistas/roni_raupp :: COLUNA POLÍTICA - POR RONI RAUPP",
+    "colunistas/apae_de_sao_joao_do_sul :: COLUNA 21/05/2020",
+    "colunistas/apae_de_sao_joao_do_sul :: DICAS E INFORMAÇÕES DA APAE DE SÃO JOÃO  DO SUL:",
+    "colunistas/apae_de_sao_joao_do_sul :: COLUNA 03/06/2020",
+    "colunistas/informativo_contabil :: COLUNA  IR 441 (04/06/2020)"
+  ],
+  "paginasComErro": [],
+  "amostrasDetalhe": {
+    "geral": [
+      {
+        "url": "https://www.informativoregional.net/geral/furtos_a_residencias_sao_registrados_em_sao_joao_do_sul.415831",
+        "title": "FURTOS A RESIDÊNCIAS SÃO REGISTRADOS EM SÃO JOÃO DO SUL",
+        "subtitle": "Quatro famílias foram vítimas dos ladrões em suas propriedades no último final de semana.",
+        "sourceLabel": null,
+        "publishedRaw": "31/12/1969 21:00",
+        "bodySelectorUsed": ".entry-content",
+        "bodyParagraphCount": 2,
+        "bodyTextLength": 2297,
+        "bodyTextSample": "Em São João do Sul (SC), no sábado, dia 08 de setembro, três residências foram arrombadas e, vários objetos foram furtados pelos bandidos, sendo que na comunidade de Pinheiros, os moradores de uma residência saíram na parte da manhã e ao retornarem à tarde, encontraram a porta dos fundos da casa arrombada e vários objetos furtados, dentre eles, um tablet, serra circular makita, computador e celular. Outro roubo com as mesmas características foi registrado na comunidade de Vila São José, no qual ",
+        "coverUrl": "https://suitacdn.cloud-bricks.net/fotos/629258/file/desktop/14764719911630.jpg?1675075566",
+        "coverCaption": null,
+        "galleryImageCount": 1,
+        "galleryImages": [
+          {
+            "src": "https://suitacdn.cloud-bricks.net/fotos/629258/file/desktop/14764719911630.jpg?1675075566",
+            "caption": null,
+            "credit": null
+          }
+        ],
+        "additionalImageCount": 0
+      },
+      {
+        "url": "https://www.informativoregional.net/geral/governador_e_secretario_de_educacao_apresentam_balanco_de_acoes_durante_pandemia.409783",
+        "title": "GOVERNADOR E SECRETÁRIO DE EDUCAÇÃO APRESENTAM BALANÇO DE AÇÕES DURANTE PANDEMIA",
+        "subtitle": null,
+        "sourceLabel": null,
+        "publishedRaw": "18/05/2020 19:19",
+        "bodySelectorUsed": ".entry-content",
+        "bodyParagraphCount": 13,
+        "bodyTextLength": 4418,
+        "bodyTextSample": "O governador Carlos Moisés e o secretário de Estado da Educação, Natalino Uggioni, apresentaram nesta segunda-feira, 18, um balanço das ações para reposição de parte do conteúdo letivo do calendário escolar na rede pública estadual em meio à pandemia de Covid-19. Em coletiva de imprensa, ambos destacaram que o trabalho na Educação não parou, apesar da suspensão das aulas presenciais, que não têm prazo para retornar. Em relação às atividades não presenciais, o governador salientou que aproximadam",
+        "coverUrl": "https://suitacdn.cloud-bricks.net/fotos/620187/file/desktop/15898439982470.jpg?1675048858",
+        "coverCaption": "Ricardo Wolffenbüttel / Secom -",
+        "galleryImageCount": 1,
+        "galleryImages": [
+          {
+            "src": "https://suitacdn.cloud-bricks.net/fotos/620187/file/desktop/15898439982470.jpg?1675048858",
+            "caption": null,
+            "credit": "Ricardo Wolffenbüttel / Secom"
+          }
+        ],
+        "additionalImageCount": 0
+      },
+      {
+        "url": "https://www.informativoregional.net/geral/industria_catarinense_registra_terceiro_maior_crescimento_do_pais_em_junho____.536650",
+        "title": "INDÚSTRIA CATARINENSE REGISTRA TERCEIRO MAIOR CRESCIMENTO DO PAÍS EM JUNHO",
+        "subtitle": null,
+        "sourceLabel": "Secom/SC",
+        "publishedRaw": "15/08/2023 10:26",
+        "bodySelectorUsed": ".entry-content",
+        "bodyParagraphCount": 6,
+        "bodyTextLength": 1901,
+        "bodyTextSample": "Santa Catarina registrou, em junho, um crescimento de 2,6% na indústria em comparação com o mês anterior. O avanço foi o maior do país e também o maior na análise mensal de 2023. A porcentagem positiva amenizou a queda registrada no primeiro semestre. Os dados são do Observatório Fiesc com base em informações disponibilizadas pelo IBGE. Para o governador Jorginho Mello, o avanço na indústria catarinense mostra que Santa Catarina está no caminho certo. “Também tivemos o avanço no comércio e a som",
+        "coverUrl": "https://suitacdn.cloud-bricks.net/fotos/838398/file/desktop/industria%20catarinense.jpg?1692106031",
+        "coverCaption": "Marco Favero/Secom -",
+        "galleryImageCount": 1,
+        "galleryImages": [
+          {
+            "src": "https://suitacdn.cloud-bricks.net/fotos/838398/file/desktop/industria%20catarinense.jpg?1692106031",
+            "caption": null,
+            "credit": "Marco Favero/Secom"
+          }
+        ],
+        "additionalImageCount": 0
+      }
+    ],
+    "esportes": [
+      {
+        "url": "https://www.informativoregional.net/esportes/copas_informativo_regional_e_dellart_kollpe_iniciam_em_sao_joao_do_sul.418702",
+        "title": "COPAS INFORMATIVO REGIONAL E DELLART/KOLLPÉ INICIAM EM SÃO JOÃO DO SUL",
+        "subtitle": "O Departamento Municipal de Esportes de São João do Sul (SC) continua realizando grandes e importantes eventos para a garotada.",
+        "sourceLabel": null,
+        "publishedRaw": "31/12/1969 21:00",
+        "bodySelectorUsed": ".entry-content",
+        "bodyParagraphCount": 1,
+        "bodyTextLength": 1612,
+        "bodyTextSample": "Na manhã de domingo, dia 09 de outubro, foi dado o pontapé inicial para a Copa Municipal de Futebol de Campo Informativo Regional, na categoria sub-14 e Copa Municipal Dellart/Kollpé sub-17. Os jogos aconteceram na comunidade de Passo Magnus, com a presença do diretor Municipal de Esportes Paulo Sérgio Pereira Sala (Totinha), fundador do jornal Informativo Regional, Elizeu Cardoso; diretor proprietário da Kollpé Calçados, Oziel Bitencourt, desportistas, torcedores e os jovens atletas. No sub-14,",
+        "coverUrl": "https://suitacdn.cloud-bricks.net/fotos/633725/file/desktop/14764707481371.jpg?1675094188",
+        "coverCaption": null,
+        "galleryImageCount": 9,
+        "galleryImages": [
+          {
+            "src": "https://suitacdn.cloud-bricks.net/fotos/633725/file/desktop/14764707481371.jpg?1675094188",
+            "caption": null,
+            "credit": null
+          },
+          {
+            "src": "https://suitacdn.cloud-bricks.net/fotos/633726/file/desktop/14764707463920.jpg?1675094189",
+            "caption": null,
+            "credit": null
+          },
+          {
+            "src": "https://suitacdn.cloud-bricks.net/fotos/633727/file/desktop/14764707497942.jpg?1675094190",
+            "caption": null,
+            "credit": null
+          },
+          {
+            "src": "https://suitacdn.cloud-bricks.net/fotos/633728/file/desktop/14764707513863.jpg?1675094191",
+            "caption": null,
+            "credit": null
+          },
+          {
+            "src": "https://suitacdn.cloud-bricks.net/fotos/633729/file/desktop/14764707531974.jpg?1675094192",
+            "caption": null,
+            "credit": null
+          },
+          {
+            "src": "https://suitacdn.cloud-bricks.net/fotos/633730/file/desktop/14764707552595.jpg?1675094193",
+            "caption": null,
+            "credit": null
+          },
+          {
+            "src": "https://suitacdn.cloud-bricks.net/fotos/633731/file/desktop/14764707567926.jpg?1675094194",
+            "caption": null,
+            "credit": null
+          },
+          {
+            "src": "https://suitacdn.cloud-bricks.net/fotos/633732/file/desktop/14764707578457.jpg?1675094195",
+            "caption": null,
+            "credit": null
+          },
+          {
+            "src": "https://suitacdn.cloud-bricks.net/fotos/633733/file/desktop/14764707595358.jpg?1675094196",
+            "caption": null,
+            "credit": null
+          }
+        ],
+        "additionalImageCount": 8
+      },
+      {
+        "url": "https://www.informativoregional.net/esportes/conhecidos_os_campeoes_da_6_taca_comercio_de_vila_santa_catarina.418503",
+        "title": "CONHECIDOS OS CAMPEÕES DA  6ª TAÇA COMÉRCIO DE VILA SANTA CATARINA",
+        "subtitle": "Competição comunitária contou com a participação de diversas equipes nas categorias sub-16, veterano e livre.",
+        "sourceLabel": null,
+        "publishedRaw": "01/05/2018 00:00",
+        "bodySelectorUsed": ".entry-content",
+        "bodyParagraphCount": 11,
+        "bodyTextLength": 2296,
+        "bodyTextSample": "No domingo, 22 de abril, foi realizada no Estádio Alzemiro Farias, em Vila Santa Catarina, as finais da 6ª Taça Comércio, que foi disputada nas categorias sub-16, veterano e livre. Participaram da competição pela categoria sub-16, Dualem Lingerie, Padaria Doce Pão, Posto Catarinense, Eugênio Materiais de Construção e Serralheria Monteiro. Já no veterano, Raupp Materiais de Construção, Madecasa, Esquadrias Ramos e Sejolar. No livre, jogaram Catarina FM, Mercado Catarinense, Pontão das Fabricas, L",
+        "coverUrl": "https://suitacdn.cloud-bricks.net/fotos/633306/file/desktop/15255496553681.jpg?1675092948",
+        "coverCaption": null,
+        "galleryImageCount": 11,
+        "galleryImages": [
+          {
+            "src": "https://suitacdn.cloud-bricks.net/fotos/633306/file/desktop/15255496553681.jpg?1675092948",
+            "caption": null,
+            "credit": null
+          },
+          {
+            "src": "https://suitacdn.cloud-bricks.net/fotos/633307/file/desktop/15255496534930.jpg?1675092949",
+            "caption": null,
+            "credit": null
+          },
+          {
+            "src": "https://suitacdn.cloud-bricks.net/fotos/633308/file/desktop/15255496573482.jpg?1675092949",
+            "caption": null,
+            "credit": null
+          },
+          {
+            "src": "https://suitacdn.cloud-bricks.net/fotos/633309/file/desktop/15255496592263.jpg?1675092950",
+            "caption": null,
+            "credit": null
+          },
+          {
+            "src": "https://suitacdn.cloud-bricks.net/fotos/633310/file/desktop/15255496610624.jpg?1675092951",
+            "caption": null,
+            "credit": null
+          },
+          {
+            "src": "https://suitacdn.cloud-bricks.net/fotos/633311/file/desktop/15255496629005.jpg?1675092952",
+            "caption": null,
+            "credit": null
+          },
+          {
+            "src": "https://suitacdn.cloud-bricks.net/fotos/633312/file/desktop/15255496649436.jpg?1675092953",
+            "caption": null,
+            "credit": null
+          },
+          {
+            "src": "https://suitacdn.cloud-bricks.net/fotos/633313/file/desktop/15255496668967.jpg?1675092954",
+            "caption": null,
+            "credit": null
+          },
+          {
+            "src": "https://suitacdn.cloud-bricks.net/fotos/633314/file/desktop/15255496687528.jpg?1675092955",
+            "caption": null,
+            "credit": null
+          },
+          {
+            "src": "https://suitacdn.cloud-bricks.net/fotos/633315/file/desktop/15255496705689.jpg?1675092956",
+            "caption": null,
+            "credit": null
+          },
+          {
+            "src": "https://suitacdn.cloud-bricks.net/fotos/633316/file/desktop/152554967243210.jpg?1675092957",
+            "caption": null,
+            "credit": null
+          }
+        ],
+        "additionalImageCount": 10
+      },
+      {
+        "url": "https://www.informativoregional.net/esportes/_estancia_mae_dos_homens_conquista_o_titulo_do_campeonato_municipal_de_futebol_em_praia_grande.595988",
+        "title": "ESTÂNCIA/MÃE DOS HOMENS CONQUISTA O TÍTULO DO CAMPEONATO MUNICIPAL DE FUTEBOL EM PRAIA GRANDE",
+        "subtitle": "Já pela 2ª divisão, a equipe do Magnus Store sagrou-se campeã em Praia Grande.",
+        "sourceLabel": null,
+        "publishedRaw": "24/05/2024 09:26",
+        "bodySelectorUsed": ".entry-content",
+        "bodyParagraphCount": 1,
+        "bodyTextLength": 1768,
+        "bodyTextSample": "Finalizou no sábado (18), em Praia Grande, o Campeonato Municipal de Futebol de Campo, Taça Irmãos Silveira, com as finais da 1ª e 2ª divisão no Estádio do Sorefa.No primeiro jogo da tarde, se enfrentaram pela final da 2ª divisão, Magnus Store x Pedra Branca, sendo que o Magnus Store venceu a partida pelo placar de 04x01 e sagrou-se campeão. A defesa menos vazada foi da equipe do Atlético Praiagrandense e o artilheiro da competição foi Mika, do Flamenguinho, com 06 gols marcados.1ª divisãoJá na ",
+        "coverUrl": "https://suitacdn.cloud-bricks.net/fotos/937223/file/desktop/campeonato%20pk%201%20%28Copy%29.JPG?1716553668",
+        "coverCaption": null,
+        "galleryImageCount": 6,
+        "galleryImages": [
+          {
+            "src": "https://suitacdn.cloud-bricks.net/fotos/937222/file/desktop/campeonato%20capa%20%28Copy%29.JPG?1716553665",
+            "caption": null,
+            "credit": null
+          },
+          {
+            "src": "https://suitacdn.cloud-bricks.net/fotos/937223/file/desktop/campeonato%20pk%201%20%28Copy%29.JPG?1716553668",
+            "caption": null,
+            "credit": null
+          },
+          {
+            "src": "https://suitacdn.cloud-bricks.net/fotos/937224/file/desktop/campeonato%20pk%202%20%28Copy%29.JPG?1716553669",
+            "caption": null,
+            "credit": null
+          },
+          {
+            "src": "https://suitacdn.cloud-bricks.net/fotos/937225/file/desktop/campeonato%20pk%203%20%28Copy%29.JPG?1716553670",
+            "caption": null,
+            "credit": null
+          },
+          {
+            "src": "https://suitacdn.cloud-bricks.net/fotos/937226/file/desktop/campeonato%20pk%204%20%28Copy%29.JPG?1716553672",
+            "caption": null,
+            "credit": null
+          },
+          {
+            "src": "https://suitacdn.cloud-bricks.net/fotos/937227/file/desktop/campeonato%20pk%205%20%28Copy%29.JPG?1716553673",
+            "caption": null,
+            "credit": null
+          }
+        ],
+        "additionalImageCount": 5
+      }
+    ],
+    "policia": [
+      {
+        "url": "https://www.informativoregional.net/policia/bm_de_torres_prende_homem_que_ja_fez_mais_de_13_roubos.419406",
+        "title": "BM DE TORRES PRENDE HOMEM QUE JÁ FEZ MAIS DE 13 ROUBOS",
+        "subtitle": "Entre os crimes praticados estão o assalto ao Posto Fratelli, em São João do Sul e na Padaria Orebe e Mercado Nutripam, de Torres.",
+        "sourceLabel": null,
+        "publishedRaw": "03/04/2020 07:04",
+        "bodySelectorUsed": ".entry-content",
+        "bodyParagraphCount": 1,
+        "bodyTextLength": 1506,
+        "bodyTextSample": "Às 22:00h de quinta-feira (02), policiais militares prenderam um indivíduo com extensa ficha criminal, na Rua Santa Maria, Bairro São Jorge, em Torres. Identificado como G. de 19 anos, ele tem nos antecedentes cerca de 100 ocorrências no estado de Santa Catarina, tais como, roubo 13x, furto 9x, tráfico 5x, desobediência/resistência/desacato 7x, entre outras e ultimamente estava agindo em Torres. Com ele estava J. de 28 anos (antecedentes furto em residência e furto qualificado). O delinquente G.",
+        "coverUrl": "https://suitacdn.cloud-bricks.net/fotos/634988/file/desktop/15859118991730.jpg?1675098926",
+        "coverCaption": "BM -",
+        "galleryImageCount": 2,
+        "galleryImages": [
+          {
+            "src": "https://suitacdn.cloud-bricks.net/fotos/634988/file/desktop/15859118991730.jpg?1675098926",
+            "caption": null,
+            "credit": "BM"
+          },
+          {
+            "src": "https://suitacdn.cloud-bricks.net/fotos/634989/file/desktop/15859118993871.jpg?1675098927",
+            "caption": null,
+            "credit": "BM"
+          }
+        ],
+        "additionalImageCount": 1
+      },
+      {
+        "url": "https://www.informativoregional.net/policia/homens_sao_presos_apos_perseguicao_em_passo_de_torres.419100",
+        "title": "HOMENS SÃO PRESOS APÓS PERSEGUIÇÃO EM PASSO DE TORRES",
+        "subtitle": null,
+        "sourceLabel": null,
+        "publishedRaw": "02/01/2021 10:36",
+        "bodySelectorUsed": ".entry-content",
+        "bodyParagraphCount": 3,
+        "bodyTextLength": 944,
+        "bodyTextSample": "No início da manhã de sexta-feira, 1º de janeiro de 2021, por volta das 04:10h, a guarnição do Corpo de Bombeiros Militar de Passo de Torres foi acionada para dar apoio a Policias Militares na captura de um foragido dentro de um Lago, no município de Passo de Torres. De acordo com as informações da PM, os meliantes que estavam num veículo Kadett do Rio Grande do Sul haviam se evadido de uma barreira policial e na fuga acabaram caindo no Lago. Estavam na ocorrência 03 viaturas da PM e um viatura ",
+        "coverUrl": "https://suitacdn.cloud-bricks.net/fotos/634490/file/desktop/16095945881982.jpg?1675097195",
+        "coverCaption": "Divulgação CBMSC -",
+        "galleryImageCount": 3,
+        "galleryImages": [
+          {
+            "src": "https://suitacdn.cloud-bricks.net/fotos/634490/file/desktop/16095945881982.jpg?1675097195",
+            "caption": null,
+            "credit": "Divulgação CBMSC"
+          },
+          {
+            "src": "https://suitacdn.cloud-bricks.net/fotos/634491/file/desktop/16095945878650.jpg?1675097196",
+            "caption": null,
+            "credit": "Divulgação PMSC"
+          },
+          {
+            "src": "https://suitacdn.cloud-bricks.net/fotos/634492/file/desktop/16095945880401.jpg?1675097196",
+            "caption": null,
+            "credit": "Divulgação CBMSC"
+          }
+        ],
+        "additionalImageCount": 2
+      },
+      {
+        "url": "https://www.informativoregional.net/policia/_feriadao_termina_com_10_prisoes_no_litoral_norte_do_rs.15425807",
+        "title": "FERIADÃO TERMINA COM 10 PRISÕES NO LITORAL NORTE DO RS",
+        "subtitle": "Feriadão termina com 10 prisões, uma arma e mais de 100 porções de drogas tiradas das ruas na área do 2º BPAT.",
+        "sourceLabel": "Imprensa CRPO LIT",
+        "publishedRaw": "22/04/2025 09:43",
+        "bodySelectorUsed": ".entry-content",
+        "bodyParagraphCount": 10,
+        "bodyTextLength": 1787,
+        "bodyTextSample": "O feriadão de Páscoa foi marcado por uma série de ações da Brigada Militar no Litoral Norte, resultando em 10 prisões relacionadas ao tráfico de drogas, porte ilegal de arma de fogo e receptação de veículo, em municípios na área de abrangência do 2º Batalhão de Áreas Turísticas (2ºBPAT). As ocorrências foram registradas em Arroio do Sal, Torres, Tramandaí e Capão da Canoa. Em Arroio do Sal, um homem de 56 anos, com passagens policiais por estelionato e furto de veículo, foi preso por tráfico de ",
+        "coverUrl": "https://suitacdn.cloud-bricks.net/fotos/15779034/file/desktop/pris%C3%B5es%20litoral.jfif?1745326278",
+        "coverCaption": null,
+        "galleryImageCount": 5,
+        "galleryImages": [
+          {
+            "src": "https://suitacdn.cloud-bricks.net/fotos/15779034/file/desktop/pris%C3%B5es%20litoral.jfif?1745326278",
+            "caption": null,
+            "credit": null
+          },
+          {
+            "src": "https://suitacdn.cloud-bricks.net/fotos/15779035/file/desktop/pris%C3%B5es%20litoral.jfif1.jfif?1745326234",
+            "caption": null,
+            "credit": null
+          },
+          {
+            "src": "https://suitacdn.cloud-bricks.net/fotos/15779036/file/desktop/pris%C3%B5es%20litoral.jfif1.jfif4.jfif?1745326237",
+            "caption": null,
+            "credit": null
+          },
+          {
+            "src": "https://suitacdn.cloud-bricks.net/fotos/15779037/file/desktop/pris%C3%B5es%20litoral.jfif2.jfif?1745326239",
+            "caption": null,
+            "credit": null
+          },
+          {
+            "src": "https://suitacdn.cloud-bricks.net/fotos/15779038/file/desktop/pris%C3%B5es%20litoral.jfif3.jfif?1745326240",
+            "caption": null,
+            "credit": null
+          }
+        ],
+        "additionalImageCount": 4
+      }
+    ],
+    "politica": [
+      {
+        "url": "https://www.informativoregional.net/politica/camara_de_vereadores_de_passo_de_torres_entra_em_recesso_parlamentar.420016",
+        "title": "CÂMARA DE VEREADORES DE PASSO DE TORRES ENTRA EM RECESSO PARLAMENTAR",
+        "subtitle": "Na última sessão do 1º período do legislativo, dia 14 de julho, os vereadores Pedro Paulo Bitencourt (Presidente), Serginho do Bio, Ademilson Batista, Marlene Vidor, Ênio Silveira, Altemir Catel, Jonas Gomes, André Porto e Adilson Moacir aprovaram projetos importantes e avaliaram os trabalhos do 1º semestre de 2015.",
+        "sourceLabel": null,
+        "publishedRaw": "01/08/2015 11:25",
+        "bodySelectorUsed": ".entry-content",
+        "bodyParagraphCount": 1,
+        "bodyTextLength": 289,
+        "bodyTextSample": "A Câmara de Vereadores de Passo de Torres entrou em Recesso Parlamentar, previsto no regimento interno da casa. A última Sessão Ordinária do primeiro período aconteceu na terça-feira, dia 14 de julho com aprovação e apresentação de projetos importantes para o município de Passo de Torres.",
+        "coverUrl": "https://suitacdn.cloud-bricks.net/fotos/636122/file/desktop/14490819609880.jpg?1675103545",
+        "coverCaption": null,
+        "galleryImageCount": 2,
+        "galleryImages": [
+          {
+            "src": "https://suitacdn.cloud-bricks.net/fotos/636122/file/desktop/14490819609880.jpg?1675103545",
+            "caption": null,
+            "credit": null
+          },
+          {
+            "src": "https://suitacdn.cloud-bricks.net/fotos/636123/file/desktop/14490819615800.jpg?1675103546",
+            "caption": null,
+            "credit": null
+          }
+        ],
+        "additionalImageCount": 1
+      },
+      {
+        "url": "https://www.informativoregional.net/politica/joel_padilha_assume_a_secretaria_municipal_de_obras_de_mampituba.419609",
+        "title": "JOEL PADILHA ASSUME A SECRETARIA MUNICIPAL DE OBRAS DE MAMPITUBA",
+        "subtitle": null,
+        "sourceLabel": null,
+        "publishedRaw": "04/06/2020 20:50",
+        "bodySelectorUsed": ".entry-content",
+        "bodyParagraphCount": 3,
+        "bodyTextLength": 1597,
+        "bodyTextSample": "O ex-diretor do Departamento Municipal do Turismo e Desporto, Joel Bertoti Padilha, a partir desta quinta-feira (04/jun) passou a exercer a função de secretário Municipal de Transporte, Obras e Viação de Mampituba em substituição ao vice-prefeito Gilberto Lopes Roldão que ocupou a pasta desde o início da atual gestão em janeiro de 2017. Gilberto deixou a secretaria devido ao prazo de quatro meses estabelecido pela Legislação Eleitoral como tempo mínimo exigido de desincompatibilização para os se",
+        "coverUrl": "https://suitacdn.cloud-bricks.net/fotos/635397/file/desktop/15913146318380.jpg?1675100348",
+        "coverCaption": "Ascom Prefeitura de Mampituba -",
+        "galleryImageCount": 2,
+        "galleryImages": [
+          {
+            "src": "https://suitacdn.cloud-bricks.net/fotos/635397/file/desktop/15913146318380.jpg?1675100348",
+            "caption": null,
+            "credit": "Ascom Prefeitura de Mampituba"
+          },
+          {
+            "src": "https://suitacdn.cloud-bricks.net/fotos/635398/file/desktop/15913146320601.jpg?1675100348",
+            "caption": null,
+            "credit": "Ascom Prefeitura de Mampituba"
+          }
+        ],
+        "additionalImageCount": 1
+      },
+      {
+        "url": "https://www.informativoregional.net/politica/_eleicoes_municipais_2024_santa_catarina_tem_5640659_eleitores_e_no_rio_grande_do_sul_sao_8682558_pessoas_aptas_a_votar_nas_eleicoes_municipais_deste_ano_.606649",
+        "title": "ELEIÇÕES MUNICIPAIS 2024: Santa Catarina tem 5.640.659 eleitores e no Rio Grande do Sul são 8.682.558 pessoas aptas a votar nas Eleições Municipais deste ano.",
+        "subtitle": "Da região também foi conhecido o número de votantes em Torres, Passo de Torres, Santa Rosa do Sul, São João do Sul, Praia Grande, Morrinhos do Sul e Mampituba.",
+        "sourceLabel": null,
+        "publishedRaw": "26/07/2024 09:44",
+        "bodySelectorUsed": ".entry-content",
+        "bodyParagraphCount": 1,
+        "bodyTextLength": 6625,
+        "bodyTextSample": "O Estado de Santa Catarina tem 5.640.659 pessoas aptas a votar e no Rio Grande do Sul são 8.682.558 pessoas aptas a participar das Eleições Municipais de 2024. Os números foram divulgados pelo Tribunal Superior Eleitoral (TSE) na quinta-feira (18), após o fim do processamento de dados do Cadastro Nacional de Eleitores. Número de votantes na região ​Nos municípios de circulação do jornal Informativo Regional, estão 32.525 eleitores aptos a votar Torres (RS); em Passo de Torres (SC) são 8.808 vota",
+        "coverUrl": "https://suitacdn.cloud-bricks.net/fotos/954996/file/desktop/Mulher%20%28Copy%29.jpg?1721998124",
+        "coverCaption": null,
+        "galleryImageCount": 3,
+        "galleryImages": [
+          {
+            "src": "https://suitacdn.cloud-bricks.net/fotos/954995/file/desktop/Mois%C3%A9s%20%28Copy%29.JPG?1721998065",
+            "caption": null,
+            "credit": null
+          },
+          {
+            "src": "https://suitacdn.cloud-bricks.net/fotos/954996/file/desktop/Mulher%20%28Copy%29.jpg?1721998124",
+            "caption": null,
+            "credit": null
+          },
+          {
+            "src": "https://suitacdn.cloud-bricks.net/fotos/954997/file/desktop/NOVO%20%28Copy%29.jpeg?1721998069",
+            "caption": null,
+            "credit": null
+          }
+        ],
+        "additionalImageCount": 2
+      }
+    ],
+    "saude": [
+      {
+        "url": "https://www.informativoregional.net/saude/o_covid_19_visto_por_um_agente_de_saude.418272",
+        "title": "O COVID-19 VISTO POR UM AGENTE DE SAÚDE",
+        "subtitle": "Por Daniel Rodrigues, Enfermeiro responsável técnico e responsável pela Vigilância Epidemiológica de São João do Sul e monitor de Sala de Vacina do Estado de Santa Catarina",
+        "sourceLabel": null,
+        "publishedRaw": "03/04/2020 12:34",
+        "bodySelectorUsed": ".entry-content",
+        "bodyParagraphCount": 12,
+        "bodyTextLength": 4121,
+        "bodyTextSample": "O Coronavírus é uma família de vírus que causam infecções respiratórias. O novo agente do Coronavírus foi descoberto em 31/12/19 após casos registrados na China. Ele provoca a doença chamada de Coronavírus (COVID-19). O período de incubação é o tempo que leva para os primeiros sintomas aparecerem desde a infecção por Coronavírus, que pode ser de 02 a 14 dias. De uma forma geral, a transmissão viral ocorre apenas enquanto persistirem os sintomas (replicação viral). É possível a transmissão viral ",
+        "coverUrl": "https://suitacdn.cloud-bricks.net/fotos/632858/file/desktop/15859316416140.jpg?1675091461",
+        "coverCaption": null,
+        "galleryImageCount": 1,
+        "galleryImages": [
+          {
+            "src": "https://suitacdn.cloud-bricks.net/fotos/632858/file/desktop/15859316416140.jpg?1675091461",
+            "caption": null,
+            "credit": null
+          }
+        ],
+        "additionalImageCount": 0
+      },
+      {
+        "url": "https://www.informativoregional.net/saude/praia_grande_chega_a_113_casos_confirmados_de_covid_19.417634",
+        "title": "PRAIA GRANDE CHEGA A 113 CASOS CONFIRMADOS DE COVID-19",
+        "subtitle": null,
+        "sourceLabel": null,
+        "publishedRaw": "24/08/2020 16:25",
+        "bodySelectorUsed": ".entry-content",
+        "bodyParagraphCount": 2,
+        "bodyTextLength": 400,
+        "bodyTextSample": "No 157º Boletim Informativo Covid-19 emitido pela Secretaria Municipal de Saúde de Praia Grande, na tarde desta segunda-feira, 24 de agosto, constam que o município chegou a 113 casos confirmados de Coronavírus desde o início da pandemia. Dos casos confirmados, 94 pessoas já se recuperaram, houve 01 óbito e 18 estão em tratamento domiciliar. Os casos suspeitos são 10 e os descartados chegam a 519.",
+        "coverUrl": "https://suitacdn.cloud-bricks.net/fotos/632058/file/desktop/15982971100520.jpg?1675087941",
+        "coverCaption": null,
+        "galleryImageCount": 1,
+        "galleryImages": [
+          {
+            "src": "https://suitacdn.cloud-bricks.net/fotos/632058/file/desktop/15982971100520.jpg?1675087941",
+            "caption": null,
+            "credit": null
+          }
+        ],
+        "additionalImageCount": 0
+      },
+      {
+        "url": "https://www.informativoregional.net/saude/rs_estado_reduz_de_12_para_10_semanas_o_intervalo_de_vacinacao_da_astrazeneca_e_pfizer.416982",
+        "title": "RS: ESTADO REDUZ DE 12 PARA 10 SEMANAS O INTERVALO DE VACINAÇÃO DA ASTRAZENECA E PFIZER",
+        "subtitle": null,
+        "sourceLabel": "VACINAÇÃO RS",
+        "publishedRaw": "13/07/2021 09:30",
+        "bodySelectorUsed": ".entry-content",
+        "bodyParagraphCount": 13,
+        "bodyTextLength": 4138,
+        "bodyTextSample": "Em decorrência da suspeita de dois casos da variante delta (com origem na Índia) no Estado e a quantidade de doses de vacinas Astrazeneca reservadas para a segunda dose na Central Estadual de Armazenamento e Distribuição de Imunobiológicos (Ceadi), a Secretaria da Saúde (SES) e o Conselho das Secretarias Municipais de Saúde do Rio Grande do Sul (Cosems/RS) definiram, nesta segunda-feira (12/7), pela antecipação de 12 para 10 semanas o intervalo entre as doses da vacina contra a Covid-19 dos fabr",
+        "coverUrl": "https://suitacdn.cloud-bricks.net/fotos/631274/file/desktop/16261794243760.jpg?1675084350",
+        "coverCaption": "Divulgação -",
+        "galleryImageCount": 1,
+        "galleryImages": [
+          {
+            "src": "https://suitacdn.cloud-bricks.net/fotos/631274/file/desktop/16261794243760.jpg?1675084350",
+            "caption": null,
+            "credit": "Divulgação"
+          }
+        ],
+        "additionalImageCount": 0
+      }
+    ],
+    "sociais": [
+      {
+        "url": "https://www.informativoregional.net/sociais/rede_furnas_realiza_com_sucesso_o_1o_truck_fest.420256",
+        "title": "REDE FURNAS REALIZA COM SUCESSO O 1º TRUCK FEST",
+        "subtitle": "Evento reuniu centenas de caminhoneiros na comunidade de Três Coqueiros, São João do Sul.",
+        "sourceLabel": null,
+        "publishedRaw": "17/08/2015 13:27",
+        "bodySelectorUsed": ".entry-content",
+        "bodyParagraphCount": 1,
+        "bodyTextLength": 278,
+        "bodyTextSample": "Com a presença de centenas de caminhoneiros e suas máquinas possantes, o primeiro encontro de caminhões aconteceu na comunidade de Três Coqueiros, sede do Posto Bela América/Rede de Postos Furnas, e atraiu ainda muitos simpatizantes das grandes máquinas que movimentam o Brasil.",
+        "coverUrl": "https://suitacdn.cloud-bricks.net/fotos/636610/file/desktop/14490817051390.jpg?1675105381",
+        "coverCaption": null,
+        "galleryImageCount": 4,
+        "galleryImages": [
+          {
+            "src": "https://suitacdn.cloud-bricks.net/fotos/636610/file/desktop/14490817051390.jpg?1675105381",
+            "caption": null,
+            "credit": null
+          },
+          {
+            "src": "https://suitacdn.cloud-bricks.net/fotos/636611/file/desktop/14490817063970.jpg?1675105382",
+            "caption": null,
+            "credit": null
+          },
+          {
+            "src": "https://suitacdn.cloud-bricks.net/fotos/636612/file/desktop/14490817080490.jpg?1675105383",
+            "caption": null,
+            "credit": null
+          },
+          {
+            "src": "https://suitacdn.cloud-bricks.net/fotos/636613/file/desktop/14490817096880.jpg?1675105384",
+            "caption": null,
+            "credit": null
+          }
+        ],
+        "additionalImageCount": 3
+      },
+      {
+        "url": "https://www.informativoregional.net/sociais/_com_reajuste_concedido_pelo_governo_do_estado_a_pm_de_santa_catarina_tera_uma_das_maiores_remuneracoes_entre_as_policias_do_brasil.631368",
+        "title": "COM REAJUSTE CONCEDIDO PELO GOVERNO DO ESTADO, A PM DE SANTA CATARINA TERÁ UMA DAS MAIORES REMUNERAÇÕES ENTRE AS POLÍCIAS DO BRASIL",
+        "subtitle": "Salário inicial da Polícia Militar passará a R$ 7.290 por mês.",
+        "sourceLabel": "RCN",
+        "publishedRaw": "05/02/2025 18:43",
+        "bodySelectorUsed": ".entry-content",
+        "bodyParagraphCount": 6,
+        "bodyTextLength": 1975,
+        "bodyTextSample": "Com o reajuste concedido pelo governador Jorginho Mello na última segunda-feira, 3, o salário inicial de Soldado da Polícia Militar de Santa Catarina passará de R$ 6 mil para R$ 7.290,00 por mês. Essa será uma das maiores remunerações entre polícias do Brasil. O investimento, de acordo com o governador, caminha em conjunto com os resultados apresentados. “Nossas forças de segurança conseguiram baixar ainda mais os índices de violência em Santa Catarina. Somos o Estado mais seguro do Brasil. Send",
+        "coverUrl": "https://suitacdn.cloud-bricks.net/fotos/998074/file/desktop/reajuste%20sal%C3%A1rio%20pm.jpeg2.jpeg?1738791980",
+        "coverCaption": "Fotos: PMSC -",
+        "galleryImageCount": 1,
+        "galleryImages": [
+          {
+            "src": "https://suitacdn.cloud-bricks.net/fotos/998074/file/desktop/reajuste%20sal%C3%A1rio%20pm.jpeg2.jpeg?1738791980",
+            "caption": null,
+            "credit": "Fotos: PMSC"
+          }
+        ],
+        "additionalImageCount": 0
+      },
+      {
+        "url": "https://www.informativoregional.net/sociais/torres-celebra-o-carnaval-com-grande-publico.15463202",
+        "title": "TORRES CELEBRA O CARNAVAL COM GRANDE PÚBLICO",
+        "subtitle": null,
+        "sourceLabel": null,
+        "publishedRaw": "17/02/2026 17:21",
+        "bodySelectorUsed": ".entry-content",
+        "bodyParagraphCount": 3,
+        "bodyTextLength": 583,
+        "bodyTextSample": "Na segunda-feira (16) em Torres foi marcada pelo tradicional Folia de Rua 2026, evento que mobilizou moradores e turistas em um cortejo que percorreu as principais vias da cidade até a orla. Às 19:00h, o público foi recebido com sets de música eletrônica. O ponto alto da noite ocorreu às 22:30h, com o início do desfile oficial dos blocos, que coloriram a avenida sob o comando do DJ Fábio Santana e pra finalizar a noite, teve o Show da banda PH7. O evento reafirma o potencial turístico de Torres,",
+        "coverUrl": "https://suitacdn.cloud-bricks.net/fotos/15851379/file/desktop/1000049849.jpg?1771360063",
+        "coverCaption": null,
+        "galleryImageCount": 13,
+        "galleryImages": [
+          {
+            "src": "https://suitacdn.cloud-bricks.net/fotos/15851379/file/desktop/1000049849.jpg?1771360063",
+            "caption": null,
+            "credit": null
+          },
+          {
+            "src": "https://suitacdn.cloud-bricks.net/fotos/15851380/file/desktop/1000049848.jpg?1771360064",
+            "caption": null,
+            "credit": null
+          },
+          {
+            "src": "https://suitacdn.cloud-bricks.net/fotos/15851381/file/desktop/1000049845.jpg?1771360066",
+            "caption": null,
+            "credit": null
+          },
+          {
+            "src": "https://suitacdn.cloud-bricks.net/fotos/15851382/file/desktop/1000049846.jpg?1771360069",
+            "caption": null,
+            "credit": null
+          },
+          {
+            "src": "https://suitacdn.cloud-bricks.net/fotos/15851383/file/desktop/1000049843.jpg?1771360071",
+            "caption": null,
+            "credit": null
+          },
+          {
+            "src": "https://suitacdn.cloud-bricks.net/fotos/15851384/file/desktop/1000049842.jpg?1771360073",
+            "caption": null,
+            "credit": null
+          },
+          {
+            "src": "https://suitacdn.cloud-bricks.net/fotos/15851385/file/desktop/1000049839.jpg?1771360076",
+            "caption": null,
+            "credit": null
+          },
+          {
+            "src": "https://suitacdn.cloud-bricks.net/fotos/15851386/file/desktop/1000049840.jpg?1771360078",
+            "caption": null,
+            "credit": null
+          },
+          {
+            "src": "https://suitacdn.cloud-bricks.net/fotos/15851387/file/desktop/1000049824.jpg?1771360080",
+            "caption": null,
+            "credit": null
+          },
+          {
+            "src": "https://suitacdn.cloud-bricks.net/fotos/15851388/file/desktop/1000049836.jpg?1771360083",
+            "caption": null,
+            "credit": null
+          },
+          {
+            "src": "https://suitacdn.cloud-bricks.net/fotos/15851389/file/desktop/1000049837.jpg?1771360085",
+            "caption": null,
+            "credit": null
+          },
+          {
+            "src": "https://suitacdn.cloud-bricks.net/fotos/15851390/file/desktop/1000049829.jpg?1771360087",
+            "caption": null,
+            "credit": null
+          },
+          {
+            "src": "https://suitacdn.cloud-bricks.net/fotos/15851391/file/desktop/1000049841.jpg?1771360089",
+            "caption": null,
+            "credit": null
+          }
+        ],
+        "additionalImageCount": 12
+      }
+    ],
+    "classificados": [
+      {
+        "url": "https://www.informativoregional.net/classificados/prouni_mec_inicia_segunda_chamada_para_comprovacao_de_documentos.531838",
+        "title": "PROUNI: MEC INICIA SEGUNDA CHAMADA PARA COMPROVAÇÃO DE DOCUMENTOS",
+        "subtitle": "Para o segundo semestre foram disponibilizadas 276.566 bolsas.",
+        "sourceLabel": "Agência Brasil",
+        "publishedRaw": "24/07/2023 17:04",
+        "bodySelectorUsed": ".entry-content",
+        "bodyParagraphCount": 8,
+        "bodyTextLength": 1918,
+        "bodyTextSample": "Nesta segunda-feira (24), o Ministério da Educação (MEC) disponibiliza a segunda chamada para comprovação de documentação dos classificados no Programa Universidade Para Todos (Prouni), que oferta bolsas de estudo integrais e parciais em cursos de graduação nas instituições privadas de educação superior. Os candidatos selecionados terão até o dia 3 de agosto para comprovação das informações fornecidas durante a inscrição. Este ano, para o segundo semestre, foram disponibilizadas 276.566 bolsas, ",
+        "coverUrl": "https://suitacdn.cloud-bricks.net/fotos/830436/file/desktop/prouni%20mec.jpg?1690229117",
+        "coverCaption": "© Valter Campanato/Agência Brasil -",
+        "galleryImageCount": 1,
+        "galleryImages": [
+          {
+            "src": "https://suitacdn.cloud-bricks.net/fotos/830436/file/desktop/prouni%20mec.jpg?1690229117",
+            "caption": null,
+            "credit": "© Valter Campanato/Agência Brasil"
+          }
+        ],
+        "additionalImageCount": 0
+      },
+      {
+        "url": "https://www.informativoregional.net/classificados/prefeitura-de-torres-decreta-ponto-facultativo-na-sexta-feira-22-de-maio.15471863",
+        "title": "PREFEITURA DE TORRES DECRETA PONTO FACULTATIVO NA SEXTA-FEIRA, 22 DE MAIO",
+        "subtitle": null,
+        "sourceLabel": "Prefeitura Municipal de Torres",
+        "publishedRaw": "12/05/2026 15:42",
+        "bodySelectorUsed": ".entry-content",
+        "bodyParagraphCount": 4,
+        "bodyTextLength": 794,
+        "bodyTextSample": "Quinta-feira, 21 de maio, é feriado municipal, dia da Emancipação do Município de Torres, conforme Lei Municipal nº3.737, de 27 de março de 2003. Já na sexta-feira, 22 de maio, as repartições públicas municipais terão ponto facultativo, de acordo com o DECRETO Nº 70 de 11 de maio de 2026. O Centro Administrativo ficará fechado, mas serviços essenciais seguirão em funcionamento. Entre os serviços que não paralisam estão o Pronto Atendimento, o SAMU e transporte de pacientes, a vigilância em prédi",
+        "coverUrl": "https://suitacdn.cloud-bricks.net/fotos/15869958/file/desktop/CARD-FERIADO.jpg?1778611426",
+        "coverCaption": null,
+        "galleryImageCount": 1,
+        "galleryImages": [
+          {
+            "src": "https://suitacdn.cloud-bricks.net/fotos/15869958/file/desktop/CARD-FERIADO.jpg?1778611426",
+            "caption": null,
+            "credit": null
+          }
+        ],
+        "additionalImageCount": 0
+      },
+      {
+        "url": "https://www.informativoregional.net/classificados/comunidade-de-pirataba-sedia-no-dia-27-de-junho-a-festa-do-colono-e-agricutor-de-torres.15475434",
+        "title": "COMUNIDADE DE PIRATABA SEDIA NO DIA 27 DE JUNHO, A FESTA DO COLONO E AGRICUTOR DE TORRES",
+        "subtitle": null,
+        "sourceLabel": null,
+        "publishedRaw": "12/06/2026 10:24",
+        "bodySelectorUsed": ".entry-content",
+        "bodyParagraphCount": 1,
+        "bodyTextLength": 1429,
+        "bodyTextSample": "A comunidade de Pirataba, Torres, estará sediando no sábado, dia 27 de junho, a Festa do Colono e Agricultor celebrando a força do setor rural com forte integração comunitária. Tradicionalmente realizada entre o final de junho e o mês de julho - época próxima ao Dia do Colono (25 de julho), as festividades contam com desfiles, feiras de agricultura familiar e shows. Entre a programação da Festa do Colono e Agricultor 2026: 08:30h – Início do Torneio das Escolinhas de Futebol da Região; 10:00h – ",
+        "coverUrl": "https://suitacdn.cloud-bricks.net/fotos/15878205/file/desktop/Pirataba%20%28Copy%29.png?1781270738",
+        "coverCaption": null,
+        "galleryImageCount": 3,
+        "galleryImages": [
+          {
+            "src": "https://suitacdn.cloud-bricks.net/fotos/15878205/file/desktop/Pirataba%20%28Copy%29.png?1781270738",
+            "caption": null,
+            "credit": null
+          },
+          {
+            "src": "https://suitacdn.cloud-bricks.net/fotos/15878206/file/desktop/Pirataba%201%20%28Copy%29.png?1781270743",
+            "caption": null,
+            "credit": null
+          },
+          {
+            "src": "https://suitacdn.cloud-bricks.net/fotos/15878207/file/desktop/Piratba%202%20%28Copy%29.png?1781270748",
+            "caption": null,
+            "credit": null
+          }
+        ],
+        "additionalImageCount": 2
+      }
+    ],
+    "agricultura": [
+      {
+        "url": "https://www.informativoregional.net/agricultura/feira_da_agricultura_familiar_continua_sendo_realizada_todas_as_sextas_feiras.420340",
+        "title": "FEIRA DA AGRICULTURA FAMILIAR CONTINUA SENDO  REALIZADA TODAS AS SEXTAS-FEIRAS",
+        "subtitle": null,
+        "sourceLabel": null,
+        "publishedRaw": "16/04/2018 10:33",
+        "bodySelectorUsed": ".entry-content",
+        "bodyParagraphCount": 2,
+        "bodyTextLength": 820,
+        "bodyTextSample": "Organizada pela Emater, Secretaria Municipal da Agricultura e Conselho de Alimentação Escolar, depois de um intervalo nos meses de janeiro e fevereiro a Feira da Agricultura Familiar retornou as atividades em março e segue todas as tardes de sextas-feiras na praça São José Operário, em Mampituba. A feira reúne produtores locais que comercializam e vendem produtos naturais sem agrotóxicos feitos e produzidos pelos próprios agricultores. Na sexta-feira (06), os feirantes receberam a visita da secr",
+        "coverUrl": "https://suitacdn.cloud-bricks.net/fotos/636719/file/desktop/15238856083070.jpg?1675105944",
+        "coverCaption": null,
+        "galleryImageCount": 2,
+        "galleryImages": [
+          {
+            "src": "https://suitacdn.cloud-bricks.net/fotos/636719/file/desktop/15238856083070.jpg?1675105944",
+            "caption": null,
+            "credit": null
+          },
+          {
+            "src": "https://suitacdn.cloud-bricks.net/fotos/636720/file/desktop/15238856103121.jpg?1675105945",
+            "caption": null,
+            "credit": null
+          }
+        ],
+        "additionalImageCount": 1
+      },
+      {
+        "url": "https://www.informativoregional.net/agricultura/prefeito_de_torres_visita_obras_do_novo_posto_de_saude_central_na_reta_final_da_construcao.549550",
+        "title": "PREFEITO DE TORRES VISITA OBRAS DO NOVO POSTO DE SAÚDE CENTRAL NA RETA FINAL DA CONSTRUÇÃO",
+        "subtitle": null,
+        "sourceLabel": "Prefeitura Municipal de Torres",
+        "publishedRaw": "10/10/2023 17:49",
+        "bodySelectorUsed": ".entry-content",
+        "bodyParagraphCount": 3,
+        "bodyTextLength": 1953,
+        "bodyTextSample": "O prefeito Carlos Souza visitou nessa última segunda-feira, 9 de outubro, as obras do novo Posto de Saúde Central Américo Muniz dos Reis, localizado na Rua Joaquim Porto, 801. Acompanhado da secretária de Saúde, Suzana Machado, o prefeito conferiu que o trabalho está em andamento e que em breve o local será entregue à população. A reforma e a ampliação desta Unidade aumentará o índice de cobertura da rede pública municipal de saúde, além de oferecer uma maior estrutura na prestação de serviço of",
+        "coverUrl": "https://suitacdn.cloud-bricks.net/fotos/862100/file/desktop/visita-pc.jpg?1696971074",
+        "coverCaption": null,
+        "galleryImageCount": 2,
+        "galleryImages": [
+          {
+            "src": "https://suitacdn.cloud-bricks.net/fotos/862100/file/desktop/visita-pc.jpg?1696971074",
+            "caption": null,
+            "credit": null
+          },
+          {
+            "src": "https://suitacdn.cloud-bricks.net/fotos/862101/file/desktop/visita-pc2.jpg?1696971077",
+            "caption": null,
+            "credit": null
+          }
+        ],
+        "additionalImageCount": 1
+      },
+      {
+        "url": "https://www.informativoregional.net/agricultura/_vazio_sanitario_do_maracujazeiro_comecou_01_de_julho.603097",
+        "title": "VAZIO SANITÁRIO DO MARACUJAZEIRO COMEÇOU 01 DE JULHO",
+        "subtitle": null,
+        "sourceLabel": "Assessoria de Comunicação / Epagri",
+        "publishedRaw": "02/07/2024 14:23",
+        "bodySelectorUsed": ".entry-content",
+        "bodyParagraphCount": 21,
+        "bodyTextLength": 5653,
+        "bodyTextSample": "Começa na segunda-feira, 01 de julho, o vazio sanitário do maracujazeiro em Santa Catarina. Trata-se de períodos do ano em que os pomares de maracujá devem ser eliminados do território catarinense e seu plantio fica proibido. O objetivo é controlar a virose do endurecimento do fruto, capaz de comprometer substancialmente a produção da fruta. O vazio sanitário do maracujazeiro é estabelecido pela Companhia Integrada de Desenvolvimento Agrícola de SC (Cidasc) e acontece em intervalos diversos, de ",
+        "coverUrl": "https://suitacdn.cloud-bricks.net/fotos/949084/file/desktop/maracuja.jpg?1719941297",
+        "coverCaption": null,
+        "galleryImageCount": 1,
+        "galleryImages": [
+          {
+            "src": "https://suitacdn.cloud-bricks.net/fotos/949084/file/desktop/maracuja.jpg?1719941297",
+            "caption": null,
+            "credit": null
+          }
+        ],
+        "additionalImageCount": 0
+      }
+    ],
+    "colunistas/roni_raupp": [
+      {
+        "url": "https://www.informativoregional.net/colunistas/roni_raupp/seguem_as_obras_de_revitalizacao_em_morrinhos_do_sul.420084",
+        "title": "SEGUEM AS OBRAS DE REVITALIZAÇÃO EM MORRINHOS DO SUL",
+        "subtitle": null,
+        "sourceLabel": "COLUNA POLÍTICA - POR RONI RAUPP",
+        "publishedRaw": "05/06/2020 11:00",
+        "bodySelectorUsed": ".entry-content",
+        "bodyParagraphCount": 1,
+        "bodyTextLength": 467,
+        "bodyTextSample": "Em Morrinhos do Sul, a Administração Municipal segue acompanhando de perto os trabalhos de revitalização das ruas Antônio José Carlos e João Francisco Becker, obra orçada em quase meio milhão de reais. Na foto, o prefeito Luiz Evaldt Steffen, junto com o presidente da Câmara de Vereadores, Zico; do secretário de Administração, Franque Selau e do empresário Itamar, proprietário do Mercado Ita, visitam as obras de recuperação asfáltica da Rua João Francisco Becker.",
+        "coverUrl": "https://suitacdn.cloud-bricks.net/fotos/636209/file/desktop/15913656221980.jpg?1675103977",
+        "coverCaption": null,
+        "galleryImageCount": 1,
+        "galleryImages": [
+          {
+            "src": "https://suitacdn.cloud-bricks.net/fotos/636209/file/desktop/15913656221980.jpg?1675103977",
+            "caption": null,
+            "credit": null
+          }
+        ],
+        "additionalImageCount": 0
+      },
+      {
+        "url": "https://www.informativoregional.net/colunistas/roni_raupp/coluna_politica__por_roni_raupp.420048",
+        "title": "COLUNA POLÍTICA - POR RONI RAUPP",
+        "subtitle": null,
+        "sourceLabel": null,
+        "publishedRaw": "30/07/2021 09:17",
+        "bodySelectorUsed": ".entry-content",
+        "bodyParagraphCount": 14,
+        "bodyTextLength": 2478,
+        "bodyTextSample": "BEM AVALIADO Entusiasta da candidatura de Antídio Lunelli a governador de Santa Catarina, o deputado federal Carlos Chiodini (MDB), segue trabalhando forte para disputa da reeleição em 2022. Chiodini deve ser um dos deputados mais votados no próximo ano. GRANDE FORÇA Assunto que obteve grande repercussão foi a possível fusão do DEM, PP e PSL, do chamado Centrão. O novo partido seria o maior do Congresso Nacional, com 121 deputados e 15 senadores. Caso a fusão se confirmar no plano estadual, a no",
+        "coverUrl": "https://suitacdn.cloud-bricks.net/fotos/636161/file/desktop/16276474419920.jpg?1675103789",
+        "coverCaption": null,
+        "galleryImageCount": 1,
+        "galleryImages": [
+          {
+            "src": "https://suitacdn.cloud-bricks.net/fotos/636161/file/desktop/16276474419920.jpg?1675103789",
+            "caption": null,
+            "credit": null
+          }
+        ],
+        "additionalImageCount": 0
+      },
+      {
+        "url": "https://www.informativoregional.net/colunistas/roni_raupp/coluna_politica__por_roni_raupp.231509",
+        "title": "COLUNA POLÍTICA - POR RONI RAUPP",
+        "subtitle": null,
+        "sourceLabel": null,
+        "publishedRaw": "10/06/2022 09:36",
+        "bodySelectorUsed": ".entry-content",
+        "bodyParagraphCount": 14,
+        "bodyTextLength": 2147,
+        "bodyTextSample": "COM CHANCES I O governador e pré-candidato a reeleição, Carlos Moisés da Silva (Republicanos), deve contar com o apoio do MDB. O maior partido do estado deverá compor a vaga de vice e senado na chapa encabeçada por Moisés. O nome mais cotado para vice é o presidente da Assembleia legislativa Moacir Sopelsa, e ao senado o deputado federal Carlos Chiodini. COM CHANCES II O ex-prefeito de Florianópolis e pré-candidato a governador, Gean Loureiro (UB) deverá contar com o ex-secretário estadual da Ca",
+        "coverUrl": "https://suitacdn.cloud-bricks.net/fotos/347569/file/desktop/16548645611610.jpg?1668625873",
+        "coverCaption": null,
+        "galleryImageCount": 1,
+        "galleryImages": [
+          {
+            "src": "https://suitacdn.cloud-bricks.net/fotos/347569/file/desktop/16548645611610.jpg?1668625873",
+            "caption": null,
+            "credit": null
+          }
+        ],
+        "additionalImageCount": 0
+      }
+    ],
+    "colunistas/apae_de_sao_joao_do_sul": [
+      {
+        "url": "https://www.informativoregional.net/colunistas/apae_de_sao_joao_do_sul/dicas_e_informacoes_da_apae_de_sao_joao_do_sul.231536",
+        "title": "DICAS E INFORMAÇÕES DA APAE DE SÃO JOÃO  DO SUL",
+        "subtitle": null,
+        "sourceLabel": "COLUNA 21/05/2020",
+        "publishedRaw": "21/05/2020 12:00",
+        "bodySelectorUsed": ".entry-content",
+        "bodyParagraphCount": 4,
+        "bodyTextLength": 1957,
+        "bodyTextSample": "A dica de hoje da Apae de São João do Sul é sobre a importância do aconselhamento genético, que é um processo que tem como objetivo avaliar como a hereditariedade contribui para a doença, e o risco de recorrência para determinados parentes; entender quais as opções que possuem perante o risco de recorrência, em relação à vida reprodutiva da família; escolher que ações são mais apropriadas para eles, em vista dos riscos e dos objetivos de suas famílias, e agir de acordo com as decisões, além de o",
+        "coverUrl": "https://suitacdn.cloud-bricks.net/fotos/347601/file/desktop/15919653841650.png?1668625930",
+        "coverCaption": null,
+        "galleryImageCount": 1,
+        "galleryImages": [
+          {
+            "src": "https://suitacdn.cloud-bricks.net/fotos/347601/file/desktop/15919653841650.png?1668625930",
+            "caption": null,
+            "credit": null
+          }
+        ],
+        "additionalImageCount": 0
+      },
+      {
+        "url": "https://www.informativoregional.net/colunistas/apae_de_sao_joao_do_sul/toxoplasmose_na_gravidez.231529",
+        "title": "TOXOPLASMOSE NA GRAVIDEZ",
+        "subtitle": null,
+        "sourceLabel": "DICAS E INFORMAÇÕES DA APAE DE SÃO JOÃO  DO SUL:",
+        "publishedRaw": "11/09/2020 11:06",
+        "bodySelectorUsed": ".entry-content",
+        "bodyParagraphCount": 9,
+        "bodyTextLength": 2988,
+        "bodyTextSample": "A dica da Apae de hoje é sobre a toxoplasmose. O Toxoplasma gondii (T. gondii) é um protozoário parasita intracelular obrigatório, com ciclo de vida dependente de gatos domésticos e silvestres, únicos hospedeiros que eliminam os oocistos nas fezes. O oocisto é ingerido por outros mamíferos (por exemplo, bovinos) e liberado na luz intestinal. Humanos são infectados pela ingestão de cistos em alimentos infectados crus ou mal-cozidos ou contaminados por fezes de gatos, por transmissão vertical (TV)",
+        "coverUrl": "https://suitacdn.cloud-bricks.net/fotos/347593/file/desktop/15998331795170.jpg?1668625917",
+        "coverCaption": null,
+        "galleryImageCount": 2,
+        "galleryImages": [
+          {
+            "src": "https://suitacdn.cloud-bricks.net/fotos/347593/file/desktop/15998331795170.jpg?1668625917",
+            "caption": null,
+            "credit": null
+          },
+          {
+            "src": "https://suitacdn.cloud-bricks.net/fotos/347595/file/desktop/15998331805771.jpg?1668625918",
+            "caption": null,
+            "credit": null
+          }
+        ],
+        "additionalImageCount": 1
+      },
+      {
+        "url": "https://www.informativoregional.net/colunistas/apae_de_sao_joao_do_sul/dicas_e_informacoes_da_apae_de_sao_joao_do_sul_gravidez_na_adolescencia.231533",
+        "title": "DICAS E INFORMAÇÕES DA APAE DE SÃO JOÃO  DO SUL: GRAVIDEZ NA ADOLESCÊNCIA",
+        "subtitle": null,
+        "sourceLabel": "COLUNA 03/06/2020",
+        "publishedRaw": "05/06/2020 11:32",
+        "bodySelectorUsed": ".entry-content",
+        "bodyParagraphCount": 5,
+        "bodyTextLength": 2135,
+        "bodyTextSample": "Nossa dica de hoje é sobre a gravidez na adolescência, um tema mundial de muita relevância. Segundo a Organização Mundial da Saúde (OMS), a adolescência é o período da vida da pessoa que compreende entre os 10 e os 19 anos de idade. Uma em cada cinco mulheres no mundo já tem um filho antes dos 18 anos e a cada ano nascem 16 milhões de crianças filhas de mães adolescentes. Nas regiões mais pobres do mundo o índice é ainda maior: uma em cada três mulheres são mães na adolescência. A gravidez na ad",
+        "coverUrl": "https://suitacdn.cloud-bricks.net/fotos/347597/file/desktop/15919653089682.png?1668625924",
+        "coverCaption": null,
+        "galleryImageCount": 2,
+        "galleryImages": [
+          {
+            "src": "https://suitacdn.cloud-bricks.net/fotos/347597/file/desktop/15919653089682.png?1668625924",
+            "caption": null,
+            "credit": null
+          },
+          {
+            "src": "https://suitacdn.cloud-bricks.net/fotos/347599/file/desktop/15913675657200.jpg?1668625925",
+            "caption": null,
+            "credit": null
+          }
+        ],
+        "additionalImageCount": 1
+      }
+    ],
+    "colunistas/outras": [
+      {
+        "url": "https://www.informativoregional.net/colunistas/outras/palavras_do_bispo_por_dom_jaime_pedro_kohl_bispo_de_osorio_rs_.428191",
+        "title": "PALAVRAS DO BISPO: Por Dom Jaime Pedro Kohl Bispo de Osório (RS)",
+        "subtitle": null,
+        "sourceLabel": null,
+        "publishedRaw": "10/02/2023 11:08",
+        "bodySelectorUsed": ".entry-content",
+        "bodyParagraphCount": 2,
+        "bodyTextLength": 2739,
+        "bodyTextSample": "Eu, porém vos digo... Depois das bem-aventuranças e da exortação a sermos sal da terra e luz do mundo, Jesus deixa claro que não veio abolir a Lei e os Profetas, mas dar-lhe pleno cumprimento. E vai além: “se a vossa justiça não for maior que a justiça dos mestres da Lei e dos fariseus, vos não entrareis no Reino dos Céus”.O evangelista Mateus sempre relaciona a prática da Lei com a justiça, mostrando que a proposta do Evangelho não se reduz a uma observância pura e simples dos mandamentos, mas ",
+        "coverUrl": "https://suitacdn.cloud-bricks.net/fotos/645951/file/desktop/BISPO%202023.jpg?1676038166",
+        "coverCaption": null,
+        "galleryImageCount": 1,
+        "galleryImages": [
+          {
+            "src": "https://suitacdn.cloud-bricks.net/fotos/645951/file/desktop/BISPO%202023.jpg?1676038166",
+            "caption": null,
+            "credit": null
+          }
+        ],
+        "additionalImageCount": 0
+      },
+      {
+        "url": "https://www.informativoregional.net/colunistas/outras/_o_papo_e_meio_ambiente__por_roger_maciel_biologo.15425510",
+        "title": "O PAPO  É MEIO  AMBIENTE : Por Roger Maciel Biólogo",
+        "subtitle": null,
+        "sourceLabel": null,
+        "publishedRaw": "18/04/2025 17:13",
+        "bodySelectorUsed": ".entry-content",
+        "bodyParagraphCount": 3,
+        "bodyTextLength": 3187,
+        "bodyTextSample": "Páscoa Sustentável: Celebrando com Consciência Ambiental Olá, Amigo Leitor(a)! O feriado prolongado de Páscoa é um momento especial para muitos, marcado pela celebração da ressurreição de Cristo e simbolizado pela figura do coelho, que representa fertilidade e renovação. Este animal, conhecido por sua rápida reprodução, simboliza a esperança de novas vidas, uma ideia que remonta a civilizações antigas, como o Egito, onde o coelho era um emblema de nascimento e esperança. Tanto para judeus quanto",
+        "coverUrl": "https://suitacdn.cloud-bricks.net/fotos/15778514/file/desktop/roger.jpg?1745007325",
+        "coverCaption": null,
+        "galleryImageCount": 1,
+        "galleryImages": [
+          {
+            "src": "https://suitacdn.cloud-bricks.net/fotos/15778514/file/desktop/roger.jpg?1745007325",
+            "caption": null,
+            "credit": null
+          }
+        ],
+        "additionalImageCount": 0
+      },
+      {
+        "url": "https://www.informativoregional.net/colunistas/outras/o-papo-e-meio-ambiente-por-roger-maciel-biologo.15462037",
+        "title": "O PAPO É MEIO AMBIENTE: POR ROGER MACIEL BIÓLOGO",
+        "subtitle": "Águas mais quentes e limpas nas praias do Sul de Santa Catarina e Norte do Rio Grande do Sul: O que está acontecendo?",
+        "sourceLabel": null,
+        "publishedRaw": "06/02/2026 10:56",
+        "bodySelectorUsed": ".entry-content",
+        "bodyParagraphCount": 1,
+        "bodyTextLength": 2993,
+        "bodyTextSample": "Olá, Amigo Leitor (a)! Nos últimos anos, quem frequenta as praias do Sul de Santa Catarina e do Norte do Rio Grande do Sul tem percebido algo diferente: a água do mar está mais quente e, surpreendentemente, mais limpa. Essa mudança tem despertado curiosidade e também preocupação, levando a questionamentos sobre as causas e se isso tem relação com as mudanças climáticas ou outros fatores ambientais. Primeiro, é importante entender que o aumento da temperatura da água do mar está ligado às mudança",
+        "coverUrl": "https://suitacdn.cloud-bricks.net/fotos/15848648/file/desktop/roger.jpg?1770386256",
+        "coverCaption": null,
+        "galleryImageCount": 1,
+        "galleryImages": [
+          {
+            "src": "https://suitacdn.cloud-bricks.net/fotos/15848648/file/desktop/roger.jpg?1770386256",
+            "caption": null,
+            "credit": null
+          }
+        ],
+        "additionalImageCount": 0
+      }
+    ],
+    "colunistas/informativo_contabil": [
+      {
+        "url": "https://www.informativoregional.net/colunistas/informativo_contabil/prorrogacao_da_medida_936_como_ficou_os_prazos_e_o_que_muda.231572",
+        "title": "PRORROGAÇÃO DA MEDIDA 936: COMO FICOU OS PRAZOS E  O QUE MUDA",
+        "subtitle": null,
+        "sourceLabel": "COLUNA  IR 441 (04/06/2020)",
+        "publishedRaw": "05/06/2020 13:57",
+        "bodySelectorUsed": ".entry-content",
+        "bodyParagraphCount": 12,
+        "bodyTextLength": 2918,
+        "bodyTextSample": "Foi prorrogada a vigência da MP 936, que institui o Programa Emergencial de Manutenção do Emprego e da Renda, por mais sessenta dias. A MP 936 possibilita a redução proporcional da jornada e dos salários, além da suspensão temporária do contrato de trabalho. Anteriormente, a medida teria validade até o fim do mês de maio. Com a prorrogação, fica válida até julho. Vale lembrar que os prazos para redução de jornada e salário ou suspensão de contrato não foram prorrogados, o que mudou foi a vigênci",
+        "coverUrl": "https://suitacdn.cloud-bricks.net/fotos/347637/file/desktop/15913803621581.jpg?1668625997",
+        "coverCaption": null,
+        "galleryImageCount": 1,
+        "galleryImages": [
+          {
+            "src": "https://suitacdn.cloud-bricks.net/fotos/347637/file/desktop/15913803621581.jpg?1668625997",
+            "caption": null,
+            "credit": null
+          }
+        ],
+        "additionalImageCount": 0
+      },
+      {
+        "url": "https://www.informativoregional.net/colunistas/informativo_contabil/informativo_contabil.231556",
+        "title": "INFORMATIVO  CONTÁBIL",
+        "subtitle": "Por: Sabrina Silveira Souza KontyMax Contabilidade",
+        "sourceLabel": null,
+        "publishedRaw": "07/05/2021 10:32",
+        "bodySelectorUsed": ".entry-content",
+        "bodyParagraphCount": 15,
+        "bodyTextLength": 3271,
+        "bodyTextSample": "Saiba mais sobre o Benefício Emergencial Em vigor desde 28 de abril, a Medida Provisória 1.045/2021 autorizou empresas a fazerem acordos de suspensão de contrato ou redução de jornada e salários com seus funcionários, autorizou o pagamento do chamado BEM - Benefício Emergencial de Manutenção do Emprego e da Renda a que esses trabalhadores têm direito com as mudanças em contrato. A MP é uma reedição de regras criadas no ano passado para tentar evitar demissões durante a pandemia. Para receber o B",
+        "coverUrl": "https://suitacdn.cloud-bricks.net/fotos/347621/file/desktop/16203943737050.jpg?1668625966",
+        "coverCaption": null,
+        "galleryImageCount": 1,
+        "galleryImages": [
+          {
+            "src": "https://suitacdn.cloud-bricks.net/fotos/347621/file/desktop/16203943737050.jpg?1668625966",
+            "caption": null,
+            "credit": null
+          }
+        ],
+        "additionalImageCount": 0
+      },
+      {
+        "url": "https://www.informativoregional.net/colunistas/informativo_contabil/informativo_contabil_por_sabrina_silveira_souza_kontymax_contabilidade.231543",
+        "title": "INFORMATIVO  CONTÁBIL: Por: Sabrina Silveira Souza KontyMax Contabilidade",
+        "subtitle": null,
+        "sourceLabel": null,
+        "publishedRaw": "11/11/2022 12:09",
+        "bodySelectorUsed": ".entry-content",
+        "bodyParagraphCount": 2,
+        "bodyTextLength": 2607,
+        "bodyTextSample": "O crescimento da carteira de trabalho digital A Carteira de Trabalho no formato Digital foi instituída pela Portaria 1.065/2019, para substituir o documento físico de papel, passando a ser emitida automaticamente para todo brasileiro ou estrangeiro que possua inscrição no Cadastro das Pessoas Físicas (CPF), independentemente de solicitação.Desde seu lançamento em setembro de 2019, a carteira de trabalho digital já obteve mais de 1 bilhão de acessos. O aplicativo permite que o trabalhador acompan",
+        "coverUrl": "https://suitacdn.cloud-bricks.net/fotos/347608/file/desktop/16681793832350.jpg?1668625946",
+        "coverCaption": null,
+        "galleryImageCount": 1,
+        "galleryImages": [
+          {
+            "src": "https://suitacdn.cloud-bricks.net/fotos/347608/file/desktop/16681793832350.jpg?1668625946",
+            "caption": null,
+            "credit": null
+          }
+        ],
+        "additionalImageCount": 0
+      }
+    ]
+  }
+}
