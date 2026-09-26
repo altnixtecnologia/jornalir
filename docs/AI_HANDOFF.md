@@ -6,7 +6,7 @@ Este arquivo é atualizado ao final de CADA fase a partir da Fase 35. Curto, dir
 
 ## Fase 35E — Lote 2015-2016 CONCLUÍDO (1.622/1.622, 3.025/3.025 imagens)
 
-**HEAD/commit:** PLACEHOLDER (branch `feature/jornalir-core-foundation-20260917`)
+**HEAD/commit:** `3c519ba` (branch `feature/jornalir-core-foundation-20260917`)
 
 Autorizado por `docs/CHATGPT_REVIEW.md` (revisão sobre HEAD `5b51e47`: "AUTORIZADO CONCLUIR O LOTE 2015–2016"). **Lote completo migrado e validado.**
 
