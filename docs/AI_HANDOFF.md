@@ -6,7 +6,7 @@ Este arquivo é atualizado ao final de CADA fase a partir da Fase 35. Curto, dir
 
 ## Fase 39B — UX de paginação (24/48/96 + páginas numeradas) nas listagens do portal
 
-**HEAD/commit:** PLACEHOLDER (branch `feature/jornalir-core-foundation-20260917`)
+**HEAD/commit:** `c3f053e` (branch `feature/jornalir-core-foundation-20260917`)
 
 Complementa a Fase 39 (que já corrigiu os limites artificiais) com a UX específica pedida em `docs/CHATGPT_REVIEW.md` — chegou como um requisito novo enquanto a Fase 39 já estava com o primeiro commit enviado.
 
