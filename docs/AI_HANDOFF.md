@@ -6,7 +6,7 @@ Este arquivo é atualizado ao final de CADA fase a partir da Fase 35. Curto, dir
 
 ## Fase 35 — Motor de migração + preflight do lote 2015–2016 (ainda sem gravação)
 
-**HEAD/commit:** PLACEHOLDER (branch `feature/jornalir-core-foundation-20260917`)
+**HEAD/commit:** `5f58ce4` (branch `feature/jornalir-core-foundation-20260917`)
 
 ### O que foi feito
 
