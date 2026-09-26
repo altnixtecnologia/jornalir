@@ -1,90 +1,66 @@
-# Revisão do ChatGPT — Fase 35E
+# Revisão do ChatGPT — Fase 35E concluída / início 2017–2018
 
-Revisado após a execução real completa do lote 2015–2016.
+Revisado diretamente no GitHub sobre o HEAD `1d84c96`.
 
-## Veredito
+## Veredito do lote 2015–2016
 
-**ARTIGOS CONCLUÍDOS; LOTE AINDA NÃO PODE SER MARCADO COMPLETE POR 80 IMAGENS GIF PENDENTES.**
+**APROVADO E ENCERRADO.**
 
-Resultado da execução real informado pelo processo:
-- imported: 1.602
-- skippedExisting: 20
-- failedArticles: 0
-- uploadedImages: 2.900
-- alreadyLinkedImages: 45
-- correctedImages: 0
-- failedImages: 80
-- total reconciliado de imagens: 2.945 / 3.025
-- status do lote: `incomplete`
+Confirmado no GitHub:
+- 1.622/1.622 matérias elegíveis migradas;
+- 1.622/1.622 external sources;
+- 3.025/3.025 media assets;
+- 3.025/3.025 vínculos article_media;
+- 0 duplicatas;
+- 0 placements;
+- 0 falhas finais;
+- 13 needs_review continuam fora;
+- 7 exceções de data continuam fora;
+- 80 GIFs reconciliados após migration;
+- `legacy_migration_batches.status = complete`.
 
-As 20 matérias do canário foram corretamente reencontradas e as outras 1.602 foram criadas, totalizando as 1.622 elegíveis.
+A migration `20261005100000_article_media_allow_gif.sql` está correta: apenas acrescenta `image/gif` aos MIME permitidos do bucket `article-media`, sem recriar bucket, apagar objetos ou alterar policies.
 
-## Causa das 80 imagens pendentes
+O validador final é paginado e não fica limitado às primeiras 1.000 linhas.
 
-As 80 falhas são do mesmo tipo: arquivos com MIME `image/gif` rejeitados pelo bucket `article-media` porque o bucket hoje aceita JPEG/PNG/WebP/AVIF, mas não GIF.
+O problema isolado de decodificação do título `external_id=416746` continua documentado para correção pontual posterior e não invalida o lote.
 
-O importador já reconhece `image/gif` e já gera extensão `.gif`; portanto o bloqueio está na configuração do bucket, não no parser nem na reconciliação.
+## Próxima etapa — 2017–2018
 
-## Correção obrigatória
+**AUTORIZADO SOMENTE PREFLIGHT/AUDITORIA DO LOTE 2017–2018. AINDA NÃO IMPORTAR.**
 
-Criar uma migration incremental, por exemplo:
+Executar o mesmo pipeline de coleta/classificação para 2017–2018, sem escrita real, e produzir os números do lote antes de liberar a carga.
 
-`supabase/migrations/20261005100000_article_media_allow_gif.sql`
+Obrigatório:
+1. Rodar preflight completo de 2017–2018.
+2. Manter a mesma barreira de integridade editorial.
+3. Levantar:
+   - candidatas;
+   - eligible;
+   - needs_review;
+   - quarantined;
+   - rejected;
+   - com/sem imagem;
+   - referências de imagem;
+   - URLs únicas;
+   - distribuição por editoria.
+4. Identificar se aparecem `agricultura` e/ou `classificados`.
+5. `classificados` continua em quarentena automática.
+6. Se `agricultura` aparecer, fazer amostra/revisão da categoria antes de liberá-la.
+7. Não inferir localidade; legado continua `Geral`.
+8. Não importar nenhuma matéria/imagem ainda.
+9. Não tocar em 2019–2020.
 
-Ela deve atualizar SOMENTE o bucket `article-media` para manter os MIME atuais e acrescentar:
+Gerar/atualizar:
+- `docs/AI_HANDOFF.md`;
+- `docs/legacy-migration-status.json`;
+- criar relatório do preflight 2017–2018;
+- se houver casos para revisão, criar relatório legível específico deles.
 
-`image/gif`
+Commit/push e PARAR para nova conferência do ChatGPT.
 
-Não recriar bucket, não apagar objetos e não alterar políticas existentes.
+## Decisão de interface já definida pelo usuário
 
-Depois aplicar a migration com `supabase db push`.
+Para o bloco visual **“Mais destaques”** (`localSpotlight`), a intenção é deixar automático pelas matérias publicadas mais recentes, ordenadas por **`published_at`** e não por `created_at`, para que a migração de conteúdo antigo não faça matérias de 2015/2016 aparecerem como novas.
 
-## Retry do lote
-
-Após permitir GIF, executar novamente o MESMO comando completo:
-
-`node --env-file=".env.local" scripts/legacy-audit/migrate.mjs --batch=2015-2016 --mode=import --commit --rps=4`
-
-A execução deve ser idempotente:
-- nenhum artigo novo duplicado;
-- as 1.622 matérias devem ser reencontradas;
-- 2.945 imagens/vínculos já corretos devem ser preservados;
-- somente as 80 referências pendentes devem ser reconciliadas.
-
-Se o sandbox bloquear a escrita novamente, pedir ao usuário somente para executar exatamente esse comando manualmente.
-
-## Validação final obrigatória
-
-Depois do retry, consultar diretamente Supabase/Storage e confirmar:
-
-- 1.622 artigos elegíveis do lote;
-- 1.622 external sources correspondentes;
-- 3.025 referências `article_media` reconciliadas;
-- 0 falhas de artigos;
-- 0 falhas de imagens;
-- nenhuma duplicata de `media_assets.origin_source_url`;
-- nenhuma duplicata em `article_media`;
-- capa/galeria/sort_order corretos;
-- os GIFs existem fisicamente no bucket próprio;
-- nenhuma placement;
-- 13 `needs_review` continuam fora;
-- exceções de data continuam fora;
-- `legacy_migration_batches.status = complete` somente se tudo fechar exatamente.
-
-A validação deve consultar o estado real do banco/Storage, não apenas os contadores do importador.
-
-## Relatório
-
-Quando fechar 3.025/3.025:
-- criar `docs/legacy-batch-2015-2016-final.md`;
-- atualizar `docs/AI_HANDOFF.md`;
-- atualizar `docs/legacy-migration-status.json`;
-- commit/push;
-- PARAR antes de 2017–2018.
-
-## Decisões mantidas
-
-- preservar corretamente o dia/data histórica é prioritário;
-- 13 `needs_review` não entram automaticamente;
-- o problema isolado de `?` no título 416746 permanece documentado para correção pontual posterior;
-- não iniciar o próximo lote enquanto 2015–2016 não estiver 100% reconciliado.
+Não implementar essa alteração durante o preflight 2017–2018; apenas manter registrada para a próxima etapa de portal/UI.
