@@ -1,5 +1,20 @@
 # Handoff — JornalIR
 
+## Fase 32 — consolida navegação pública por editorias (26/09/2026)
+
+- Branch: `feature/jornalir-core-foundation-20260917`.
+- HEAD ao iniciar a fase: `dc9e508` (commit da Fase 31).
+- Entrega: `/editoria/[slug]` passa a ser a única rota de navegação por editoria. As 7 páginas antigas de categoria (mock) foram auditadas e removidas: `/geral`/`/esportes`/`/policia`/`/politica` viraram redirect permanente (308, `next.config.mjs`) para a editoria real correspondente; `/saude`/`/colunistas`/`/sociais` (sem editoria real equivalente) removidas sem redirect (404 real, nenhum link interno apontava para elas); `/noticias` virou listagem real de todas as matérias publicadas.
+- `CategoryTemplatePage.tsx`, `EditorialSection.tsx` e `menuConfig.ts` removidos (zero referências). Outros componentes mock já órfãos desde a Fase 30 (`FeaturedHero`/`LatestNewsList`/`LocalSpotlight`/`ReadAlsoCard` mock) mantidos, fora de escopo — não quebram nada.
+- Build de produção: 15 rotas (antes 22). Testado real (build local): redirects 308 corretos, rotas removidas 404, `/noticias` e `/editoria/[slug]` funcionando.
+- Detalhe completo em `docs/DATABASE-IR-CORE.md` (seção 20).
+
+### Próxima fase
+
+Popular o banco com as primeiras matérias reais de produção.
+
+---
+
 ## Fase 31 — menu público real (cabeçalho) (26/09/2026)
 
 - Branch: `feature/jornalir-core-foundation-20260917`.

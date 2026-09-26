@@ -1076,9 +1076,51 @@ na ordem de `sort_order` da própria view.
   existe no banco atualmente, mas a view já filtra `active=true` na
   fonte, mesmo mecanismo testado na Fase 30).
 
-## 20. Próxima fase (sugestão)
+## 20. Fase 32 — consolidação da navegação pública por editoria
 
-Cabeçalho, rodapé, home, matéria, editoria e busca já usam dado real.
-Caminhos possíveis a partir daqui: migrar as páginas de categoria antigas
-(mock) para `/editoria/[slug]`; ou popular o banco com as primeiras
-matérias reais de produção.
+Rota oficial de navegação por editoria: **`/editoria/[slug]`** — única
+implementação a partir de agora. As 7 páginas antigas de categoria (mock,
+`CategoryTemplatePage`) foram auditadas uma a uma:
+
+- **`/geral`, `/esportes`, `/policia`, `/politica`** têm equivalência
+  real e segura (`editorial_sections.slug`: `geral`, `esporte`, `policia`,
+  `politica`) — removidas e substituídas por **redirect permanente
+  (308)** em `next.config.mjs` (`redirects()`), não por página. Testado
+  real (build de produção local): os 4 caminhos antigos respondem `308`
+  para `/editoria/{slug}` correto.
+- **`/saude`, `/colunistas`, `/sociais`** não têm nenhuma editoria real
+  correspondente no banco — inventar um redirect seria "chutar" a
+  editoria errada (proibido explicitamente pela fase). Removidas sem
+  redirect — respondem `404` real (testado). Nenhum link interno do site
+  real apontava para elas (auditado por busca de texto no código antes de
+  remover).
+- **`/noticias`** (índice "todas as notícias", diferente de
+  `/editoria/[slug]$` que filtra por uma editoria) deixou de usar o mock
+  — agora lista `public_articles` real sem filtro de seção. É o destino
+  real do link "Ver todas" de Últimas notícias (`PublicLatestNewsList`),
+  que já apontava para cá e continuou funcionando sem mudança.
+- `CategoryTemplatePage.tsx`, `EditorialSection.tsx` (variante de listagem
+  por editoria, zero referências) e `menuConfig.ts` (lista fixa de menu,
+  zero referências desde a Fase 31) removidos — nenhum arquivo restante
+  os importa.
+- **Não removido, fora de escopo desta fase**: outros componentes mock já
+  órfãos antes desta fase (`FeaturedHero.tsx`, `LatestNewsList.tsx`,
+  `LocalSpotlight.tsx`, `ReadAlsoCard.tsx` — mock, superados pelas
+  versões `Public*` desde a Fase 30) continuam existindo; não quebram
+  nada, só não são mais usados por nenhuma rota real. `EditorialCard.tsx`
+  continua em uso por `NewsFeedWithAds.tsx` (componente pré-existente,
+  também não roteado). `/materias` (CMS mock de demonstração) e
+  `newsStorage.ts`/IndexedDB continuam intocados — não são páginas de
+  categoria, são o editor de demonstração do portal.
+- **Preview antigo preservado**: deployments da Vercel são imutáveis por
+  URL — remover arquivos-fonte não afeta builds já publicados
+  (confirmado nas Fases 29/30/31, reafirmado aqui).
+- Build de produção local: 15 rotas (antes 22) — as 7 removidas nunca
+  mais aparecem como página própria; `/noticias`/`/editoria/[slug]`
+  seguem dinâmicas (`force-dynamic`).
+
+## 21. Próxima fase (sugestão)
+
+Navegação pública por editoria consolidada (cabeçalho, rodapé, home,
+matéria, editoria, busca, "todas as notícias"). Caminho natural a partir
+daqui: popular o banco com as primeiras matérias reais de produção.

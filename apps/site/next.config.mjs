@@ -11,6 +11,18 @@ const nextConfig = {
       canvas: false
     };
     return config;
+  },
+  // Fase 32 — rotas antigas de categoria (mock) com equivalência real
+  // segura de editoria: redirect permanente para `/editoria/[slug]`.
+  // Só as que têm um `editorial_sections.slug` correspondente de verdade
+  // no banco — nunca um redirect genérico "chutando" a editoria certa.
+  async redirects() {
+    return [
+      { source: "/geral", destination: "/editoria/geral", permanent: true },
+      { source: "/esportes", destination: "/editoria/esporte", permanent: true },
+      { source: "/policia", destination: "/editoria/policia", permanent: true },
+      { source: "/politica", destination: "/editoria/politica", permanent: true }
+    ];
   }
 };
 
