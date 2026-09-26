@@ -17,13 +17,18 @@ export const articleStatusLabels: Record<ArticleStatus, string> = {
   archived: "Arquivada",
 };
 
-/** Fase 22 — só os destinos com um bloco real e já implementado no portal. */
+/**
+ * Fase 22 — só os destinos com um bloco real e já implementado no portal.
+ * Fase 29: `localSpotlight` renomeado de "Nossa região" para "Mais
+ * destaques" (só o nome visível — o identificador interno não muda, para
+ * não precisar de migration).
+ */
 export const placementLabels: Record<EditorialPlacementType, string> = {
   none: "Nenhuma",
   mainCover: "Capa principal",
   highlightStrip: "Faixa de destaques",
   latestNews: "Últimas notícias",
-  localSpotlight: "Nossa região",
+  localSpotlight: "Mais destaques",
 };
 
 export const placementDescriptions: Record<EditorialPlacementType, string> = {
@@ -31,7 +36,7 @@ export const placementDescriptions: Record<EditorialPlacementType, string> = {
   mainCover: "Grande destaque da home. Até 8 matérias; a mais recente entra na posição 1.",
   highlightStrip: "Faixa horizontal logo abaixo da capa. Até 3 matérias.",
   latestNews: "Bloco interativo de últimas notícias. Até 7 matérias.",
-  localSpotlight: "Faixa \"Nossa região\". Até 4 matérias — não substitui a localidade da matéria.",
+  localSpotlight: "Faixa \"Mais destaques\". Até 4 matérias — não substitui a localidade da matéria.",
 };
 
 export const notificationLabels: Record<NotificationMode, string> = {

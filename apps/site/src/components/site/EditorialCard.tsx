@@ -2,10 +2,12 @@ import Link from "next/link";
 import { formatDateBR } from "./date";
 import { galleryCount, hasPhoto, type SiteArticle } from "./siteArticleTypes";
 import { getCategoryLabel } from "./categories";
+import { estimateReadingMinutes, readingTimeLabel } from "./readingTime";
 
 export function EditorialCard({ item, featured = false }: { item: SiteArticle; featured?: boolean }): JSX.Element {
   const withPhoto = hasPhoto(item);
   const extraPhotos = galleryCount(item);
+  const readMinutes = estimateReadingMinutes(item.content);
 
   return (
     <Link href={`/noticias/${item.slug}`} className="group block">
@@ -36,7 +38,7 @@ export function EditorialCard({ item, featured = false }: { item: SiteArticle; f
             <p className="mt-2 text-sm text-[color:var(--site-muted)]">{item.excerpt}</p>
           </div>
           <p className="mt-3 text-[11px] font-semibold uppercase tracking-wider text-[color:var(--site-muted)]">
-            {formatDateBR(item.publishedAt)} · {item.readMinutes} min{item.locality ? ` · ${item.locality}` : ""}
+            {formatDateBR(item.publishedAt)} · {readingTimeLabel(readMinutes)}{item.locality ? ` · ${item.locality}` : ""}
           </p>
         </div>
       </div>

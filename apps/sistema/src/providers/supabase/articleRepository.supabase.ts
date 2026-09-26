@@ -66,9 +66,12 @@ interface PlacementRow {
   starts_at: string | null;
   ends_at: string | null;
   pinned: boolean;
+  pinned_rank: number | null;
   active: boolean;
   created_at: string;
 }
+
+const PLACEMENT_COLUMNS = "id, article_id, type, starts_at, ends_at, pinned, pinned_rank, active, created_at";
 
 const ORIGIN_TO_DOMAIN: Record<ArticleRow["origin"], ArticleOrigin> = {
   manual: "manual",
@@ -116,6 +119,7 @@ function placementToDomain(row: PlacementRow | null): EditorialPlacement {
   return {
     type: row.type,
     pinned: row.type === "mainCover" ? row.pinned : undefined,
+    pinnedRank: row.pinned ? row.pinned_rank ?? undefined : undefined,
     startsAt: row.starts_at ?? undefined,
     endsAt: row.ends_at ?? undefined,
     setAt: row.created_at,
@@ -167,7 +171,7 @@ async function fetchActivePlacements(
   if (articleIds.length === 0) return map;
   const { data, error } = await client
     .from(PLACEMENTS_TABLE)
-    .select("id, article_id, type, starts_at, ends_at, pinned, active, created_at")
+    .select(PLACEMENT_COLUMNS)
     .in("article_id", articleIds)
     .eq("active", true);
   if (error) throw new Error(error.message);
@@ -180,7 +184,7 @@ async function fetchActivePlacements(
 async function fetchActivePlacement(client: SupabaseClient, articleId: string): Promise<PlacementRow | null> {
   const { data, error } = await client
     .from(PLACEMENTS_TABLE)
-    .select("id, article_id, type, starts_at, ends_at, pinned, active, created_at")
+    .select(PLACEMENT_COLUMNS)
     .eq("article_id", articleId)
     .eq("active", true)
     .maybeSingle();
@@ -207,6 +211,26 @@ async function fetchActivePlacement(client: SupabaseClient, articleId: string): 
  * conta/expulsa quando a matéria já está `published`, então isso é reforço
  * de coerência, não a única barreira.
  */
+/**
+ * `pinned_rank` só importa quando fixada. Fixando sem uma ordem explícita
+ * (fluxo normal do editor, fora da tela de gestão de destaques), a matéria
+ * entra no fim da fila de fixadas daquele tipo — nunca `null` "furando
+ * fila" à frente de quem já estava fixado.
+ */
+async function nextPinnedRank(client: SupabaseClient, type: EditorialPlacementType): Promise<number> {
+  const { data, error } = await client
+    .from(PLACEMENTS_TABLE)
+    .select("pinned_rank")
+    .eq("type", type)
+    .eq("active", true)
+    .eq("pinned", true)
+    .order("pinned_rank", { ascending: false })
+    .limit(1);
+  if (error) throw new Error(error.message);
+  const maxRank = (data as { pinned_rank: number | null }[] | null)?.[0]?.pinned_rank ?? -1;
+  return maxRank + 1;
+}
+
 async function syncPlacement(
   client: SupabaseClient,
   articleId: string,
@@ -232,6 +256,9 @@ async function syncPlacement(
     return;
   }
 
+  const isPinned = next.type === "mainCover" ? (next.pinned ?? false) : false;
+  const pinnedRank = isPinned ? next.pinnedRank ?? (await nextPinnedRank(client, next.type)) : null;
+
   if (!current || current.type !== next.type) {
     if (current) {
       const { error: closeError } = await client
@@ -243,7 +270,8 @@ async function syncPlacement(
     const { error: insertError } = await client.from(PLACEMENTS_TABLE).insert({
       article_id: articleId,
       type: next.type,
-      pinned: next.type === "mainCover" ? (next.pinned ?? false) : false,
+      pinned: isPinned,
+      pinned_rank: pinnedRank,
       starts_at: startsAt,
       ends_at: next.endsAt ?? null,
       active: true,
@@ -255,7 +283,8 @@ async function syncPlacement(
   const { error } = await client
     .from(PLACEMENTS_TABLE)
     .update({
-      pinned: next.type === "mainCover" ? (next.pinned ?? false) : false,
+      pinned: isPinned,
+      pinned_rank: pinnedRank,
       starts_at: startsAt,
       ends_at: next.endsAt ?? null,
     })

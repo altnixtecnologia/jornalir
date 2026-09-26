@@ -9,11 +9,22 @@ import { AdSlotColumn } from "../../../../components/site/AdSlotColumn";
 import { AdSlotPairRow } from "../../../../components/site/AdSlotPairRow";
 import { leftAdSlots, rightAdSlots, type AdSlot } from "../../../../components/site/adSlots";
 import { ArticleGallery } from "../../../../components/site/ArticleGallery";
-import { EditorialCard } from "../../../../components/site/EditorialCard";
+import { ReadAlsoCard } from "../../../../components/site/ReadAlsoCard";
 import { SiteHeader } from "../../../../components/site/SiteHeader";
 import { hasPhoto } from "../../../../components/site/siteArticleTypes";
 import { getCategoryLabel } from "../../../../components/site/categories";
 import { getPublishedNews, loadNewsItems, type CmsNewsItem } from "../../../../components/site/newsStorage";
+import { estimateReadingMinutes, readingTimeLabel } from "../../../../components/site/readingTime";
+
+/** Embaralha em uma nova cópia — nunca muta a lista original (Fisher-Yates). */
+function shuffle<T>(list: T[]): T[] {
+  const copy = [...list];
+  for (let i = copy.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [copy[i], copy[j]] = [copy[j], copy[i]];
+  }
+  return copy;
+}
 
 /** Volta para onde o leitor veio (home, editoria, busca, listagem) usando o histórico do navegador; só cai para a home se não houver um histórico válido do próprio site. */
 function useSmartBack(): () => void {
@@ -55,9 +66,15 @@ export default function NoticiaDetalhePage(): JSX.Element {
     );
   }
 
-  const related = items.filter((item) => item.id !== current.id && item.category === current.category).slice(0, 2);
-  const fallbackRelated = related.length > 0 ? related : items.filter((item) => item.id !== current.id).slice(0, 2);
+  // "Leia também" (Fase 29, item 5): 4 sugestões aleatórias entre as
+  // matérias elegíveis — nunca a própria matéria atual, nunca repetida
+  // entre as 4 (cada item só existe uma vez na lista de origem).
+  const readAlso = useMemo(
+    () => shuffle(items.filter((item) => item.id !== current.id)).slice(0, 4),
+    [items, current.id],
+  );
   const withCover = hasPhoto(current);
+  const readMinutes = estimateReadingMinutes(current.content);
   const mobilePair: [AdSlot, AdSlot] = [leftAdSlots[0], rightAdSlots[0]];
 
   return (
@@ -86,7 +103,7 @@ export default function NoticiaDetalhePage(): JSX.Element {
                 <p className="mt-4 text-lg leading-snug text-[color:var(--site-muted)] md:text-xl">{current.subtitle}</p>
               ) : null}
               <p className="article-meta mt-3">
-                Por {current.author} · {formatDateBR(current.publishedAt)} · {current.readMinutes} min de leitura
+                Por {current.author} · {formatDateBR(current.publishedAt)} · {readingTimeLabel(readMinutes)}
                 {current.locality ? ` · ${current.locality}` : ""}
               </p>
 
@@ -128,9 +145,9 @@ export default function NoticiaDetalhePage(): JSX.Element {
         <div className="section-head">
           <h2>Leia também</h2>
         </div>
-        <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
-          {fallbackRelated.map((item) => (
-            <EditorialCard key={item.id} item={item} />
+        <div className="grid grid-cols-2 gap-x-6 gap-y-8 md:grid-cols-4">
+          {readAlso.map((item) => (
+            <ReadAlsoCard key={item.id} item={item} />
           ))}
         </div>
       </section>

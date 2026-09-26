@@ -1,5 +1,21 @@
 # Handoff — JornalIR
 
+## Fase 29 — gestão central de destaques + ajustes visuais do portal (25/09/2026)
+
+- Branch: `feature/jornalir-core-foundation-20260917`.
+- HEAD ao iniciar a fase: `065ce45` (commit da Fase 28).
+- Entrega: tela nova `/sistema/editorial/destaques` (visão única dos 4 blocos, fixar/desafixar/remover/reordenar fixadas), mais ajustes visuais em `apps/site` (hero sem moldura no topo/esquerda, "Leia também" reformulado com tempo de leitura, footer 5 colunas compacto, "Nossa região"→"Mais destaques"). `apps/site` não migrado para Supabase — continua mock, só visual.
+- Migration nova: `pinned_rank` em `article_placements` — ordem manual só entre fixadas (não fixadas continuam por recência automática).
+- `ArticleService` ganhou `setPlacementPinned`/`removeFromPlacement`/`reorderPinnedMainCover` — nenhum toca editoria/localidade/conteúdo/status; testado real.
+- Tempo de leitura (`readingTime.ts`) calculado do HTML do corpo, nunca salvo — substituiu o campo mock `readMinutes` na exibição.
+- Detalhe completo em `docs/DATABASE-IR-CORE.md` (seção 17).
+
+### Próxima fase
+
+`apps/site` passando a ler `published` diretamente do banco com RLS pública.
+
+---
+
 ## Fase 28 — gestão real das edições do jornal (25/09/2026)
 
 - Branch: `feature/jornalir-core-foundation-20260917`.

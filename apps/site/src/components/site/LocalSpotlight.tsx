@@ -15,7 +15,7 @@ export function LocalSpotlight({ items }: { items: SiteArticle[] }): JSX.Element
     <section className="local-band local-band--contained">
       <div className="py-10">
         <div className="section-head" style={{ borderBottomColor: "rgba(255,255,255,0.25)" }}>
-          <h2 style={{ color: "#fff" }}>Nossa região</h2>
+          <h2 style={{ color: "#fff" }}>Mais destaques</h2>
         </div>
         <div className="grid grid-cols-1 gap-x-8 gap-y-6 sm:grid-cols-2">
           {local.map((item) => (

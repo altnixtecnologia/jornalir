@@ -72,6 +72,13 @@ export interface EditorialPlacement {
    * As demais vagas da Capa principal continuam girando normalmente.
    */
   pinned?: boolean;
+  /**
+   * Só tem efeito com `pinned=true`: ordem manual entre as fixadas (Fase
+   * 29 — "reorganizar manualmente quando fizer sentido"). As não fixadas
+   * continuam ordenadas automaticamente por `setAt` (recência) — não fazem
+   * sentido reordenar manualmente porque já giram sozinhas.
+   */
+  pinnedRank?: number;
   startsAt?: string;
   endsAt?: string;
   /**

@@ -865,10 +865,65 @@ CRUD completo (create/update/setActive) — tela própria em
   confirmado bloqueando `/sistema/editorial/edicoes` e
   `/sistema/editorial/importar-pdf` sem sessão.
 
-## 17. Próxima fase (sugestão)
+## 17. Fase 29 — gestão central de destaques + ajustes visuais do portal
 
-Editorias, localidades, matérias, destinos editoriais, mídias, importação
-de PDF e edições já são reais (Fases 24–28). Caminhos possíveis a partir
-daqui: uma tela de gestão de posições editoriais no painel (consumindo
-`ArticleService.listActivePlacement`, já pronta); ou `apps/site` passando
-a ler `published` diretamente do banco com RLS pública.
+Tela `/sistema/editorial/destaques` (nova) — visão única dos 4 blocos
+(Capa principal/Faixa de destaques/Últimas notícias/Mais destaques),
+usando `ArticleService.listActivePlacement` já existente. Nenhuma query
+Supabase direta na UI. Ajustes visuais do portal (`apps/site`) também
+nesta fase — sem migrar o site para o banco real ainda.
+
+- **Migration nova**: `20260929100000_placement_pinned_rank.sql` — coluna
+  `pinned_rank` em `article_placements`. Nenhuma migration anterior
+  alterada.
+- **Ordem manual entre fixadas** (item 1/3 da fase): só faz sentido para
+  fixadas (`pinned=true`) — as não fixadas já giram sozinhas por recência,
+  reordená-las manualmente entraria em conflito direto com a rotação
+  automática. `ArticleService` ganhou `setPlacementPinned`,
+  `removeFromPlacement` e `reorderPinnedMainCover` — nenhum deles toca
+  editoria/localidade/conteúdo/status (regra fundamental do item 2).
+  Testado real: reordenar troca `pinned_rank` corretamente; desafixar
+  limpa o rank; remover do destaque encerra só o placement (`active=false`),
+  artigo continua `published` com editoria/localidade intactas.
+- **"Nossa região" → "Mais destaques"**: só o nome visível mudou (painel
+  em `placementLabels`, e o título do bloco em `apps/site`'s
+  `LocalSpotlight.tsx`) — identificador interno continua `localSpotlight`,
+  sem migration.
+- **Hero (`apps/site`)**: máscara de topo/esquerda alargada e mais
+  gradual (`FeaturedHero`/`.hero-photo-fg` em `globals.css`) — de
+  16%/20% para uma curva em 3 pontos terminando em 34%/42%, eliminando a
+  sensação de moldura retangular. Base e direita mantidos como estavam
+  (já aprovados). Mobile também ajustado (topo de 5% para 13%).
+- **"Leia também"**: novo componente `ReadAlsoCard.tsx` (só foto/título/
+  editoria/data/tempo de leitura, sem subtítulo/resumo) — 4 sugestões
+  aleatórias (Fisher-Yates) entre as matérias elegíveis, nunca a atual,
+  nunca repetida (cada item só existe uma vez na lista de origem).
+- **Tempo de leitura**: `readingTime.ts` — calculado a partir do HTML do
+  corpo (remove tags, conta palavras, ~200 palavras/min, mínimo 1 min).
+  Nunca salvo — `NewsItem.readMinutes` (campo mock antigo) deixou de ser
+  usado para exibição em `EditorialCard`/detalhe da matéria; o utilitário
+  deriva sempre do conteúdo real, evitando a divergência entre o número
+  salvo e o texto de verdade.
+- **Footer compacto**: 5 colunas no desktop (marca | editorias A | editorias
+  B | institucional | contato) — até 8 editorias cabem em duas colunas de
+  até 4 linhas; padding/margens reduzidos (`margin-top` 64px→40px,
+  `footer-heading`/`footer-link` mais compactos, faixa de copyright
+  40px→mais próxima). Mobile: 1–2 colunas (nunca 5 espremidas).
+- **Instagram**: confirmado `@jornal.informativoregional` (já corrigido na
+  Fase 26) — sem alteração adicional.
+- **RLS/owner intocados**: 32 policies antes e depois; owner continua
+  `role=owner active=true`. Middleware confirmado bloqueando
+  `/sistema/editorial/destaques` sem sessão.
+- **Teste real completo** (contra `site-system-ir`, dados removidos ao
+  final): 2 matérias QA publicadas e fixadas em `mainCover`; reordenar
+  (`pinned_rank` trocado corretamente); desafixar uma (rank limpo);
+  remover a outra do destaque (placement encerrado, `active=false`) —
+  confirmado que `title`/`section_id`/`locality_id`/`status` de ambas
+  nunca mudaram. Limpo ao final — `0` linhas restantes.
+
+## 18. Próxima fase (sugestão)
+
+Gestão de destaques, edições, mídias, importação de PDF e todo o conteúdo
+editorial já são reais no painel (Fases 24–29). Caminho natural a partir
+daqui: `apps/site` passando a ler `published` diretamente do banco com
+RLS pública — a fase mais estrutural que falta.

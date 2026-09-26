@@ -2188,3 +2188,87 @@ button.header-action {
     position: static;
   }
 }
+
+/* Gestão central de destaques (Fase 29) — visão rápida e leve de propósito, nunca um painel visual pesado. */
+.destaques-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 20px;
+}
+.destaques-block {
+  margin: 0;
+}
+.destaques-block-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+.destaques-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.destaques-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 8px;
+}
+.destaques-item-thumb {
+  width: 56px;
+  height: 56px;
+  flex-shrink: 0;
+  object-fit: cover;
+  border-radius: 3px;
+  background: #f1efe8;
+}
+.destaques-item-thumb--empty {
+  border: 1px dashed var(--line);
+}
+.destaques-item-body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
+.destaques-item-body .materia-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.destaques-item-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+@media (max-width: 1100px) {
+  .destaques-grid {
+    grid-template-columns: 1fr;
+  }
+}
+@media (max-width: 560px) {
+  .destaques-item {
+    flex-wrap: wrap;
+  }
+  .destaques-item-actions {
+    width: 100%;
+    justify-content: flex-start;
+  }
+  .destaques-item-actions button {
+    min-height: 40px;
+    padding-left: 12px;
+    padding-right: 12px;
+  }
+}
