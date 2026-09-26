@@ -121,26 +121,32 @@ export const mediaAssets: MediaAsset[] = [
 export const newspaperEditions: NewspaperEdition[] = [
   {
     id: "edition-2026-037",
+    editionNumber: 37,
     reference: "ED-2026-037",
     title: "Edição 037 — 08 a 14 de setembro",
     publicationDate: "2026-09-08",
     pageCount: 16,
+    active: true,
     createdAt: "2026-09-08T06:00:00-03:00",
   },
   {
     id: "edition-2026-038",
+    editionNumber: 38,
     reference: "ED-2026-038",
     title: "Edição 038 — 15 a 21 de setembro",
     publicationDate: "2026-09-15",
     pageCount: 16,
+    active: true,
     createdAt: "2026-09-15T06:00:00-03:00",
   },
   {
     id: "edition-2026-039",
+    editionNumber: 39,
     reference: "ED-2026-039",
     title: "Edição 039 — 22 a 28 de setembro",
     publicationDate: "2026-09-22",
     pageCount: 20,
+    active: true,
     createdAt: "2026-09-22T06:00:00-03:00",
   },
 ];

@@ -175,12 +175,16 @@ export interface Article {
 
 export interface NewspaperEdition {
   id: string;
-  /** Referência interna legível da edição, ex.: ED-2026-038. */
+  /** Número da edição — o identificador que a redação usa de verdade (ex.: "Edição 769"). */
+  editionNumber: number;
+  /** Referência interna legível, derivada do número, ex.: ED-2026-038. */
   reference: string;
   title: string;
   publicationDate: string;
   pdfUrl?: string;
   pageCount?: number;
+  /** Inativar é a única forma de remoção pela UI — nunca exclusão destrutiva. */
+  active: boolean;
   createdAt: string;
 }
 

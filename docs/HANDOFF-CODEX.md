@@ -1,5 +1,22 @@
 # Handoff — JornalIR
 
+## Fase 28 — gestão real das edições do jornal (25/09/2026)
+
+- Branch: `feature/jornalir-core-foundation-20260917`.
+- HEAD ao iniciar a fase: `6496fbd` (commit da Fase 27).
+- Entrega: `NewspaperEditionRepository`/`Service` passaram de só leitura para CRUD completo (create/update/setActive), com tela própria em `/sistema/editorial/edicoes` (linkada no menu Editorial). Upload real do PDF oficial de cada edição, em bucket próprio (`edition-pdfs`, privado — staff only, diferente do bucket público de mídias da Fase 26, pois o PDF da edição é gestão interna, não recurso público ainda).
+- `edition_number` já existia desde a Fase 17 — só precisou ser exposto de verdade no domínio/tela. Duplicidade impedida em dois níveis (constraint única + checagem amigável no service).
+- Correção de design feita na própria fase: a primeira versão guardaria uma URL assinada como se fosse permanente em `pdf_url` — corrigido com uma segunda migration incremental (`pdf_storage_path`), o provider gera a URL assinada de novo a cada leitura.
+- Nunca exclusão destrutiva: `setActive(false)` é a única remoção pela UI.
+- Integração com Importação de PDF confirmada de ponta a ponta: edição cadastrada aparece imediatamente na lista de `/importar-pdf`; testado real que `newspaper_edition_id`/`newspaper_page` sobrevivem até o artigo convertido.
+- Detalhe completo em `docs/DATABASE-IR-CORE.md` (seção 16).
+
+### Próxima fase
+
+Tela de gestão de posições editoriais no painel; ou `apps/site` lendo o banco real.
+
+---
+
 ## Fase 27 — importação de PDF real (edições + candidatos ao Supabase) (21/09/2026)
 
 - Branch: `feature/jornalir-core-foundation-20260917`.

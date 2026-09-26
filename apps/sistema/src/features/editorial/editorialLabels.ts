@@ -5,6 +5,7 @@ import type {
   EditorialPlacementType,
   ImportCandidateStatus,
   LocalityScope,
+  NewspaperEdition,
   NotificationMode,
 } from "@ir/types";
 
@@ -63,6 +64,11 @@ export function editionPageLabel(
 ): string | null {
   if (!editionTitle) return null;
   return pageNumber ? `${editionTitle} · Página ${pageNumber}` : editionTitle;
+}
+
+/** "Edição 769 — 17/09/2026" — identificação clara pedida pela redação (Fase 28). */
+export function editionLabel(edition: Pick<NewspaperEdition, "editionNumber" | "publicationDate">): string {
+  return `Edição ${edition.editionNumber} — ${formatDate(edition.publicationDate)}`;
 }
 
 export function formatDate(iso?: string): string {

@@ -9,6 +9,7 @@ import {
   getNewspaperEditionService,
 } from "../../../../composition/editorial";
 import { createSupabaseServerClient } from "../../../../lib/supabase/server";
+import { editionLabel } from "../../../../features/editorial/editorialLabels";
 
 export default async function ImportarPdfPage({
   searchParams,
@@ -17,11 +18,15 @@ export default async function ImportarPdfPage({
 }): Promise<JSX.Element> {
   const editionId = searchParams.edicao ?? "";
   const supabase = createSupabaseServerClient();
-  const [editions, sections, localities] = await Promise.all([
+  const [allEditions, sections, localities] = await Promise.all([
     getNewspaperEditionService(supabase).list(),
     getEditorialSectionService(supabase).list(),
     getLocalityService(supabase).list(),
   ]);
+  // Edições inativas somem da lista para importar de novo, mas uma já
+  // selecionada continua visível (nunca escondida por baixo de quem já
+  // está revisando candidatos dela).
+  const editions = allEditions.filter((edition) => edition.active || edition.id === editionId);
   const candidates = editionId
     ? await getImportCandidateService(supabase).list({ editionId })
     : [];
@@ -48,7 +53,7 @@ export default async function ImportarPdfPage({
               <option value="">Selecione uma edição</option>
               {editions.map((edition) => (
                 <option key={edition.id} value={edition.id}>
-                  {edition.title} · {edition.reference}
+                  {editionLabel(edition)}
                 </option>
               ))}
             </select>
@@ -83,8 +88,8 @@ export default async function ImportarPdfPage({
               />
             ) : (
               <p className="helper-text">
-                Nenhum candidato ainda para esta edição. Simule a seleção do PDF acima
-                para gerar o lote.
+                Nenhum candidato ainda para esta edição. Envie o PDF acima para gerar o
+                lote.
               </p>
             )}
           </section>

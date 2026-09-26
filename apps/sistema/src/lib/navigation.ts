@@ -114,6 +114,7 @@ export const editorialNavGroup: AdminNavGroup = {
     { label: "Matérias", href: "/sistema/editorial/materias" },
     { label: "Nova matéria", href: "/sistema/editorial/materias/nova", primary: true },
     { label: "Importar do jornal impresso", href: "/sistema/editorial/importar-pdf" },
+    { label: "Edições", href: "/sistema/editorial/edicoes" },
     { label: "Editorias", href: "/sistema/editorial/editorias" },
     { label: "Localidades", href: "/sistema/editorial/localidades" },
     { label: "Mídias", href: "/sistema/editorial/midias" },

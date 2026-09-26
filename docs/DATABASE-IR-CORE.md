@@ -809,11 +809,66 @@ continuam mock (Fase 26). `apps/site` não foi tocado.
   `role=owner active=true`. Middleware confirmado bloqueando
   `/sistema/editorial/importar-pdf` sem sessão.
 
-## 16. Próxima fase (sugestão)
+## 16. Fase 28 — Gestão real das edições do jornal
 
-Matérias, destinos editoriais, mídias e importação de PDF já são reais
-(Fases 25/26/27). Caminhos possíveis a partir daqui: uma tela de cadastro
-de edições do jornal (ainda só leitura); uma tela de gestão de posições
-editoriais no painel (consumindo `ArticleService.listActivePlacement`, já
-pronta); ou `apps/site` passando a ler `published` diretamente do banco
-com RLS pública.
+`NewspaperEditionRepository`/`Service` passaram de "só leitura" para
+CRUD completo (create/update/setActive) — tela própria em
+`/sistema/editorial/edicoes`, linkada no menu Editorial.
+
+- **Duas migrations novas**: `20260928100000_newspaper_editions_management.sql`
+  (`page_count` — quantidade de páginas, item 2 da fase; bucket
+  `edition-pdfs` + 4 policies de Storage) e
+  `20260928100100_newspaper_editions_pdf_storage_path.sql` (correção de
+  design na mesma fase — ver abaixo). Nenhuma migration anterior alterada.
+- **`edition_number` já existia** desde a Fase 17 (`not null unique`) — é
+  o campo próprio pedido no item 3; só o domínio (`NewspaperEdition.editionNumber`)
+  e a tela passaram a expor/usar de verdade. Duplicidade impedida em dois
+  níveis: constraint única no banco (testada real, `23505`) e verificação
+  amigável no `NewspaperEditionService` (`DuplicateEditionNumberError`)
+  antes de tentar gravar.
+- **Bucket `edition-pdfs` é privado** (diferente do bucket de mídias da
+  Fase 26, que é público) — decisão desta fase: o PDF da edição é gestão
+  interna do backend editorial, não um recurso servido ao portal público
+  ainda (`apps/site` continua com seu próprio fluxo de Flipbook/Google
+  Drive, intocado). Só staff autenticado lê e escreve. Testado real:
+  upload sem sessão rejeitado (`403`, RLS); leitura pública (rota
+  `/object/public/...`) nem reconhece o bucket como público
+  ("Bucket not found") — confirma que não há vazamento de leitura anônima.
+- **Correção de design na mesma fase**: a primeira versão guardava
+  `pdf_url` apontando para uma URL assinada do Storage — mas um bucket
+  privado gera URLs que expiram, e `pdf_url` seria uma URL "permanente"
+  guardada no banco, ficando quebrada mais cedo ou mais tarde. Corrigido
+  com uma segunda migration incremental: `pdf_storage_path` guarda o
+  caminho real no bucket, e o provider (`newspaperEditionRepository.supabase.ts`)
+  gera uma URL assinada nova (1 hora) a cada leitura — nunca expira
+  silenciosamente. `pdf_url` continua existindo para o caso de colar uma
+  URL externa já hospedada em vez de fazer upload (mesmo padrão de
+  `media_assets.public_url`).
+- **Nunca exclusão destrutiva**: `setActive(id, false)` é a única remoção
+  pela UI — testado real (edição desativada continua existindo na tabela).
+- **Integração com Importação de PDF confirmada de ponta a ponta**: uma
+  edição cadastrada aparece imediatamente na lista de
+  `/sistema/editorial/importar-pdf` (mesma fonte real,
+  `NewspaperEditionService.list()`); testado real — edição QA → lote →
+  candidato na página 5 → "convertido" em matéria — `newspaper_edition_id`
+  e `newspaper_page` confirmados preservados no artigo resultante.
+- **Teste real completo** (contra `site-system-ir`, dados removidos ao
+  final): criar edição, editar (título/páginas), tentar duplicar número
+  (rejeitado), anexar PDF (via `pdf_storage_path`), desativar (sem
+  apagar), fluxo completo de importação com edição/página preservados.
+  Tudo limpo ao final — `0` linhas restantes nas quatro tabelas
+  envolvidas (`newspaper_editions`, `pdf_import_batches`,
+  `pdf_import_candidates`, `articles`).
+- **RLS/owner intocados**: 32 policies do schema `public` antes e depois
+  (Storage tem policies à parte, no schema `storage` — 8 ao todo agora,
+  imagens + PDFs); owner continua `role=owner active=true`. Middleware
+  confirmado bloqueando `/sistema/editorial/edicoes` e
+  `/sistema/editorial/importar-pdf` sem sessão.
+
+## 17. Próxima fase (sugestão)
+
+Editorias, localidades, matérias, destinos editoriais, mídias, importação
+de PDF e edições já são reais (Fases 24–28). Caminhos possíveis a partir
+daqui: uma tela de gestão de posições editoriais no painel (consumindo
+`ArticleService.listActivePlacement`, já pronta); ou `apps/site` passando
+a ler `published` diretamente do banco com RLS pública.
