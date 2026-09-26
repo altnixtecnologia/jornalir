@@ -1,5 +1,19 @@
 # Handoff — JornalIR
 
+## Fase 31 — menu público real (cabeçalho) (26/09/2026)
+
+- Branch: `feature/jornalir-core-foundation-20260917`.
+- HEAD ao iniciar a fase: `cf9467b` (commit da Fase 30).
+- Entrega: `SiteHeader.tsx` passou a usar `public_editorial_sections` real (mesma view da Fase 30), em vez do `menuConfig.ts` fixo — sem alterar o visual aprovado (mesma estrutura "flat + Mais"). Rodapé (já real desde a Fase 30) e cabeçalho agora usam a mesma fonte, sem divergência.
+- Fallback sem mock escondido: enquanto carrega ou se a query falhar, o header cai para uma estrutura mínima (Início/Busca/Sobre/Contato), nunca a lista fixa antiga.
+- Detalhe completo em `docs/DATABASE-IR-CORE.md` (seção 19).
+
+### Próxima fase
+
+Migrar páginas de categoria antigas (mock) para `/editoria/[slug]`; ou popular o banco com as primeiras matérias reais.
+
+---
+
 ## Fase 30 — portal público lendo o banco real (26/09/2026)
 
 - Branch: `feature/jornalir-core-foundation-20260917`.

@@ -1048,10 +1048,37 @@ aparece sozinha e disputa a vaga certo; `ends_at` passado → some do
 destaque mas a matéria continua pública; arquivada → some de
 `public_articles` inteiramente.
 
-## 19. Próxima fase (sugestão)
+## 19. Fase 31 — menu público real (cabeçalho)
 
-Portal público já lê o banco real (home, matéria, editoria, busca).
-Caminhos possíveis a partir daqui: reconciliar o menu principal do
-cabeçalho com as editorias reais (redesenho, fora de escopo desta fase);
-migrar as páginas de categoria antigas (mock) para `/editoria/[slug]`;
-ou popular o banco com as primeiras matérias reais de produção.
+`SiteHeader.tsx` deixou de usar `menuConfig.ts` (fixo, baseado no antigo
+`CategorySlug`) — agora busca `public_editorial_sections` (Fase 30) direto
+no cliente (mesmo padrão já usado por `/busca`), sempre `active=true`, já
+na ordem de `sort_order` da própria view.
+
+- **Sem redesenho visual**: mesma estrutura "flat + Mais" de antes, só a
+  fonte dos links mudou. As 4 primeiras editorias reais (por `sort_order`)
+  ficam direto no header, junto com "Jornal Online" (link fixo, não é
+  editoria); o resto das editorias + "Sobre"/"Contato" vão para "Mais" —
+  crescimento de editorias nunca aumenta a altura do header, só o
+  dropdown "Mais".
+- **Menu mobile**: lista todas (flat + overflow) igual antes, agora com
+  editorias reais.
+- **Fallback sem mock escondido** (item 6): enquanto carrega ou se a
+  consulta falhar, o header nunca quebra — mostra só a estrutura mínima
+  (Início, Busca, Sobre, Contato via "Mais"), nunca volta a exibir a
+  lista fixa antiga como se fosse real.
+- **Rodapé inalterado** (já era real desde a Fase 30) — mesma fonte
+  (`listPublicSections`), mesmos slugs/nomes, sem divergência entre
+  cabeçalho e rodapé.
+- **Teste real**: build/typecheck limpos; Preview validado com as 7
+  editorias reais aparecendo (4 no header + 3 em "Mais", junto com
+  Sobre/Contato); nenhuma editoria inativa apareceu (nenhuma inativa
+  existe no banco atualmente, mas a view já filtra `active=true` na
+  fonte, mesmo mecanismo testado na Fase 30).
+
+## 20. Próxima fase (sugestão)
+
+Cabeçalho, rodapé, home, matéria, editoria e busca já usam dado real.
+Caminhos possíveis a partir daqui: migrar as páginas de categoria antigas
+(mock) para `/editoria/[slug]`; ou popular o banco com as primeiras
+matérias reais de produção.

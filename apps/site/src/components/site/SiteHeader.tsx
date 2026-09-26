@@ -5,16 +5,66 @@ import { useEffect, useState } from "react";
 import type { MouseEvent } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { socialLinks } from "./siteSettings";
-import { menuItems } from "./menuConfig";
+import { listPublicSections } from "../../lib/public/publicContentService";
+import type { PublicSection } from "../../lib/public/types";
 
-// Editorias principais direto na navegação (não escondidas em dropdown) —
-// o excedente (menos consultado) vai para "Mais".
-const FLAT_ORDER = ["/geral", "/politica", "/policia", "/esportes", "/saude", "/jornal-online"];
-const FLAT_LINKS = FLAT_ORDER.map((href) => menuItems.find((item) => item.href === href)).filter(
-  (item): item is NonNullable<typeof item> => Boolean(item),
-);
-const OVERFLOW_LINKS = menuItems.filter((item) => ["/colunistas", "/sociais", "/sobre", "/contato"].includes(item.href));
-const ALL_NAV_LINKS = [...FLAT_LINKS, ...OVERFLOW_LINKS];
+interface NavLink {
+  href: string;
+  label: string;
+}
+
+// Links fixos que não são editoria — mantidos nos mesmos grupos visuais de
+// antes (Jornal Online direto no header; Sobre/Contato em "Mais").
+const JORNAL_ONLINE: NavLink = { href: "/jornal-online", label: "Jornal Online" };
+const FIXED_OVERFLOW: NavLink[] = [
+  { href: "/sobre", label: "Sobre" },
+  { href: "/contato", label: "Contato" },
+];
+
+// Quantas editorias reais ficam direto no header (Fase 31, item 2) — o
+// resto sempre vai para "Mais", crescimento de editorias nunca aumenta a
+// altura do header.
+const FLAT_SECTION_COUNT = 4;
+
+function sectionToLink(section: PublicSection): NavLink {
+  return { href: `/editoria/${section.slug}`, label: section.name };
+}
+
+/**
+ * Menu real (Fase 31): editorias vêm de `public_editorial_sections`
+ * (só `active=true`, ordenadas por `sort_order`, já a ordem da própria
+ * view). Erro/vazio nunca quebra o header — cai para uma navegação
+ * estrutural mínima (Início/Busca/Sobre/Contato), nunca uma lista mock
+ * escondida (item 6).
+ */
+function useHeaderSections(): { flatLinks: NavLink[]; overflowLinks: NavLink[] } {
+  const [sections, setSections] = useState<PublicSection[] | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    listPublicSections()
+      .then((data) => {
+        if (!cancelled) setSections(data);
+      })
+      .catch(() => {
+        if (!cancelled) setSections([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  if (sections === null) {
+    // Ainda carregando: nada de editoria por enquanto, só a estrutura
+    // mínima — evita mostrar (e depois trocar) uma lista errada.
+    return { flatLinks: [], overflowLinks: FIXED_OVERFLOW };
+  }
+
+  const sectionLinks = sections.map(sectionToLink);
+  const flatLinks = [...sectionLinks.slice(0, FLAT_SECTION_COUNT), JORNAL_ONLINE];
+  const overflowLinks = [...sectionLinks.slice(FLAT_SECTION_COUNT), ...FIXED_OVERFLOW];
+  return { flatLinks, overflowLinks };
+}
 
 export function SiteHeader({ active }: { active?: string } = {}): JSX.Element {
   const [open, setOpen] = useState(false);
@@ -22,6 +72,8 @@ export function SiteHeader({ active }: { active?: string } = {}): JSX.Element {
   const [mobileNavigatingTo, setMobileNavigatingTo] = useState<string | null>(null);
   const pathname = usePathname();
   const router = useRouter();
+  const { flatLinks, overflowLinks } = useHeaderSections();
+  const allNavLinks = [...flatLinks, ...overflowLinks];
 
   useEffect(() => {
     document.body.style.overflow = open ? "hidden" : "";
@@ -74,35 +126,37 @@ export function SiteHeader({ active }: { active?: string } = {}): JSX.Element {
             <Link href="/" className={`nav-link ${isActive("/") ? "is-active" : ""}`}>
               Início
             </Link>
-            {FLAT_LINKS.map((item) => (
+            {flatLinks.map((item) => (
               <Link key={item.href} href={item.href} className={`nav-link ${isActive(item.href) ? "is-active" : ""}`}>
                 {item.label}
               </Link>
             ))}
 
-            <div className="relative" onMouseEnter={() => setEditoriasOpen(true)} onMouseLeave={() => setEditoriasOpen(false)}>
-              <button
-                type="button"
-                className={`nav-link inline-flex items-center gap-1 ${OVERFLOW_LINKS.some((i) => isActive(i.href)) ? "is-active" : ""}`}
-                onClick={() => setEditoriasOpen((v) => !v)}
-                aria-expanded={editoriasOpen}
-              >
-                Mais <span className="text-[9px]" aria-hidden="true">▾</span>
-              </button>
-              <div
-                className={`absolute left-0 top-full z-30 mt-2 w-56 rounded-lg border border-[color:var(--site-line)] bg-[color:var(--site-surface)] p-2 shadow-xl transition-all ${editoriasOpen ? "visible translate-y-0 opacity-100" : "invisible -translate-y-1 opacity-0"}`}
-              >
-                {OVERFLOW_LINKS.map((item) => (
-                  <Link
-                    key={item.href}
-                    href={item.href}
-                    className="block rounded-md px-3 py-2 text-[13px] font-semibold text-[color:var(--site-text)] hover:bg-[color:var(--site-bg)] hover:text-[color:var(--brand-red)]"
-                  >
-                    {item.label}
-                  </Link>
-                ))}
+            {overflowLinks.length > 0 ? (
+              <div className="relative" onMouseEnter={() => setEditoriasOpen(true)} onMouseLeave={() => setEditoriasOpen(false)}>
+                <button
+                  type="button"
+                  className={`nav-link inline-flex items-center gap-1 ${overflowLinks.some((i) => isActive(i.href)) ? "is-active" : ""}`}
+                  onClick={() => setEditoriasOpen((v) => !v)}
+                  aria-expanded={editoriasOpen}
+                >
+                  Mais <span className="text-[9px]" aria-hidden="true">▾</span>
+                </button>
+                <div
+                  className={`absolute left-0 top-full z-30 mt-2 w-56 rounded-lg border border-[color:var(--site-line)] bg-[color:var(--site-surface)] p-2 shadow-xl transition-all ${editoriasOpen ? "visible translate-y-0 opacity-100" : "invisible -translate-y-1 opacity-0"}`}
+                >
+                  {overflowLinks.map((item) => (
+                    <Link
+                      key={item.href}
+                      href={item.href}
+                      className="block rounded-md px-3 py-2 text-[13px] font-semibold text-[color:var(--site-text)] hover:bg-[color:var(--site-bg)] hover:text-[color:var(--brand-red)]"
+                    >
+                      {item.label}
+                    </Link>
+                  ))}
+                </div>
               </div>
-            </div>
+            ) : null}
           </nav>
         </div>
 
@@ -191,9 +245,9 @@ export function SiteHeader({ active }: { active?: string } = {}): JSX.Element {
             >
               Início
             </Link>
-            {ALL_NAV_LINKS.map((item) => (
+            {allNavLinks.map((item) => (
               <Link
-                key={`${item.label}-m`}
+                key={`${item.href}-m`}
                 href={item.href}
                 onClick={(e) => handleMobileNavClick(e, item.href)}
                 className={`ir-mobile-nav-link ${mobileNavigatingTo === item.href ? "is-pending" : ""}`}
