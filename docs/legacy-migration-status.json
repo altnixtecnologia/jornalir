@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-09-26T16:48:33.804Z",
+  "updatedAt": "2026-09-26T17:15:44.869Z",
   "provider": "informativo_regional_legacy",
   "rule": "Lote padrão = 2 anos. Só dividir um lote específico (1 ano, depois semestre/mês) se ele apresentar problema grave.",
   "batches": [
@@ -7,8 +7,8 @@
       "batchKey": "2015-2016",
       "periodStart": "2015-01-01",
       "periodEnd": "2016-12-31",
-      "status": "preflight_complete_reviewed_by_chatgpt",
-      "note": "Revisado pelo ChatGPT (docs/CHATGPT_REVIEW.md, HEAD aca77b5): veredito 'NÃO AUTORIZAR AINDA', 3 bloqueios obrigatórios. Todos corrigidos na Fase 35C (reconciliação real de imagens, ordem/role correta em retomada parcial, índice único de media_assets.origin_source_url). Preflight refeito confirma números idênticos (1622/13/0/0). Nenhuma gravação no Supabase ainda — aguardando nova conferência do ChatGPT e decisão do usuário sobre credencial de escrita.",
+      "status": "canary_20_complete_pending_full_batch_review",
+      "note": "Canário real de 20 matérias aprovado por docs/CHATGPT_REVIEW.md (HEAD 8f4f137) executado com sucesso: 20 articles + 45 media_assets gravados, validados diretamente no Supabase/Storage (allOk=true), idempotência confirmada numa 2ª execução (0 duplicatas, 0 correções necessárias). legacy_migration_batches permanece 'incomplete' (correto — só 20/1622 artigos e 45/3025 imagens). Restante do lote (1.602 matérias) NÃO importado — aguardando nova conferência do ChatGPT. Ver docs/legacy-canary-2015-2016.md.",
       "preflight": {
         "itemsFound": 1635,
         "dateExceptions": 7,
@@ -19,6 +19,15 @@
         "uniqueImageUrls": 3025,
         "distribuicaoPorEditoria": { "geral": 1114, "esporte": 231, "politica": 228, "sociais": 49 }
       },
+      "canary": {
+        "articlesImported": 20,
+        "imagesUploaded": 45,
+        "failedArticles": 0,
+        "failedImages": 0,
+        "dbValidation": "allOk=true (scripts/legacy-audit/canary-validate.mjs, direto no Supabase/Storage)",
+        "idempotencyRerun": "0 imported, 20 skippedExisting, 45 alreadyLinkedImages, 0 corrected, 0 failed — nenhuma duplicata, nenhuma ordem/role alterada",
+        "knownIssue": "Título de external_id 416746 tem um '?' isolado no lugar de um travessão — problema de decodificação pré-existente no cache de coleta (Fase 34/35), isolado (1/1635 títulos do lote), não bloqueante, não corrigido nesta etapa."
+      },
       "reportFiles": {
         "preflight": "scripts/legacy-audit/output/batches/2015-2016/preflight.json",
         "dateExceptions": "scripts/legacy-audit/output/batches/2015-2016/date-exceptions.json",
@@ -26,7 +35,9 @@
         "quarantined": "scripts/legacy-audit/output/batches/2015-2016/quarantined.json",
         "rejected": "scripts/legacy-audit/output/batches/2015-2016/rejected.json",
         "reviewMarkdown": "docs/legacy-review-2015-2016.md",
-        "sampleCheckMarkdown": "docs/legacy-sample-check-2015-2016.md"
+        "sampleCheckMarkdown": "docs/legacy-sample-check-2015-2016.md",
+        "canaryReport": "docs/legacy-canary-2015-2016.md",
+        "canaryValidationJson": "scripts/legacy-audit/output/batches/2015-2016/canary-validation.json"
       }
     },
     { "batchKey": "2017-2018", "periodStart": "2017-01-01", "periodEnd": "2018-12-31", "status": "pending" },
@@ -47,7 +58,7 @@
     "statusComplete": "legacy_migration_batches só recebe status=complete quando (imported+skippedExisting)===expected_articles E failed_articles=0 E (uploaded+reused+alreadyLinked+corrected+failed)===expected_image_references E failed_images=0 (bloqueio 1 da revisão do ChatGPT, Fase 35C — antes bastava failed_images=0, sem conferir a contagem real). expected_articles/expected_image_references/expected_unique_images são persistidos a partir do preflight ANTES de gravar.",
     "ordemImagemRetomada": "reconcileArticleImages usa a posição ORIGINAL esperada (índice em expectedRefs: capa=0, galeria na ordem original), nunca existingLinks.length — uma capa que falhou numa execução anterior não embaralha mais a ordem numa retomada. Um vínculo com role/sort_order errado é corrigido (update), nunca só pulado (bloqueio 2 da revisão do ChatGPT, Fase 35C).",
     "dedupMidiaNoBanco": "Índice único parcial media_assets(origin_source_url) where origin_source_url is not null (migration 20261004100000) impede duas execuções concorrentes de duplicarem a mesma mídia externa; conflito (23505) é tratado buscando/reutilizando a mídia existente (bloqueio 3 da revisão do ChatGPT, Fase 35C).",
-    "gravacaoReal": "NENHUMA matéria ou imagem foi gravada no Supabase até agora (Fase 34, 35, 35B e 35C são somente leitura/preflight/hardening de código). A escrita real depende de credencial de escrita (service role ou sessão staff) que o usuário ainda não forneceu, e não foi solicitada nesta fase.",
-    "revisaoChatgpt": "docs/CHATGPT_REVIEW.md registra a revisão feita sobre o HEAD aca77b5 (veredito: não autorizar ainda, 3 bloqueios). Os 3 bloqueios foram corrigidos na Fase 35C; aguardando nova conferência do ChatGPT antes de considerar autorizar a gravação real."
+    "gravacaoReal": "Fase 35D: PRIMEIRA gravação real do legado — canário de 20 matérias + 45 imagens, executado manualmente pelo usuário com credencial só em .env.local local (nunca exposta em chat/log/versionado). Validado diretamente no Supabase/Storage. As outras 1.602 matérias elegíveis do lote 2015-2016 continuam NÃO importadas.",
+    "revisaoChatgpt": "docs/CHATGPT_REVIEW.md registra: revisão sobre HEAD aca77b5 (3 bloqueios, corrigidos na Fase 35C) e revisão sobre HEAD 8f4f137 (aprovação do canário de 20, Fase 35D). Aguardando nova conferência do ChatGPT sobre docs/legacy-canary-2015-2016.md antes de decidir sobre o restante do lote."
   }
 }

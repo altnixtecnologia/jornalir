@@ -4,6 +4,59 @@ Este arquivo é atualizado ao final de CADA fase a partir da Fase 35. Curto, dir
 
 ---
 
+## Fase 35D — Canário real de 20 matérias (PRIMEIRA gravação real do legado)
+
+**HEAD/commit:** PLACEHOLDER (branch `feature/jornalir-core-foundation-20260917`)
+
+Autorizado por `docs/CHATGPT_REVIEW.md` (revisão sobre HEAD `8f4f137`: "APROVADO PARA CANÁRIO REAL PEQUENO"). **Esta é a primeira gravação real de conteúdo do legado no Supabase.**
+
+### O que foi feito
+
+- O usuário executou manualmente, na raiz do repo, com a credencial carregada só de `.env.local` (gitignorado, nunca exposta em chat/log/versionado):
+  `node --env-file=".env.local" scripts/legacy-audit/migrate.mjs --batch=2015-2016 --mode=import --commit --limit=20 --rps=4`
+  (Claude tentou rodar o mesmo comando primeiro; o sandbox bloqueou por classificar como "Production Deploy" — bloqueio de segurança legítimo, não contornado. O usuário rodou manualmente e reportou o resultado via `docs/CHATGPT_REVIEW.md`.)
+- Resultado da 1ª execução: `imported: 20, uploadedImages: 45, failedArticles: 0, failedImages: 0`.
+- Claude then validou DIRETO no Supabase (não só nos contadores do script) com dois scripts novos, somente leitura:
+  - `scripts/legacy-audit/db-check.mjs` — contagens agregadas.
+  - `scripts/legacy-audit/canary-validate.mjs` — checagem individual das 20 matérias contra o banco/Storage (fonte, origin, localidade, ausência de placement, corpo limpo, título/data, capa/galeria/ordem, `origin_source_url`, `public_url` no Storage próprio, objeto realmente existe no bucket).
+  - Resultado: `allOk: true` — as 20 matérias e as 45 imagens passaram em todas as checagens.
+- Rodou o MESMO comando de novo (idempotência): `imported: 0, skippedExisting: 20, uploadedImages: 0, alreadyLinkedImages: 45, correctedImages: 0, failedImages: 0`. Validação repetida confirma: ainda 20/20/45/45 no banco, nenhuma duplicata, nenhuma ordem/role alterada.
+- `docs/legacy-canary-2015-2016.md` (novo): relatório completo — contagens antes/depois/depois-da-2ª-execução, as 20 identidades, achados da validação, e um achado menor não-bloqueante (ver abaixo).
+
+### Achado não-bloqueante
+
+Título da matéria `external_id 416746` tem um `?` isolado onde provavelmente havia um travessão no site original — problema de decodificação já presente no cache da Fase 34/35 (não introduzido pela gravação), isolado (1 em 1.635 títulos do lote inteiro). Registrado para follow-up futuro, não corrigido nesta etapa.
+
+### Migrations
+
+Nenhuma nesta fase (só execução/validação).
+
+### Testes
+
+- Validação direta no Supabase, duas vezes (antes e depois da 2ª execução idempotente) — `allOk: true` nas duas.
+- Contagens confirmadas: 20 `articles` (origin=legacy_site), 20 `article_external_sources`, 45 `media_assets`, 45 `article_media` — inalteradas após a 2ª execução.
+
+### Quantidades
+
+Ver tabela completa em `docs/legacy-canary-2015-2016.md`. Resumo: 20/1.622 elegíveis importados, 45/3.025 referências de imagem migradas. `legacy_migration_batches.status = "incomplete"` (correto — canário parcial, não o lote inteiro).
+
+### Erros
+
+Nenhum. 0 `failedArticles`, 0 `failedImages` nas duas execuções.
+
+### Pendências
+
+1. As outras 1.602 matérias elegíveis do lote 2015-2016 NÃO foram importadas — aguardando nova conferência do ChatGPT antes de prosseguir.
+2. Os 13 casos `needs_review` continuam fora (nenhum foi importado).
+3. Follow-up do achado de decodificação (`?` em vez de travessão) na matéria 416746 — baixa prioridade, não bloqueante.
+4. `linkedTotal` na reconciliação ainda é soma de contadores operacionais durante a execução, não uma consulta final independente pós-lote inteiro — observação do ChatGPT para quando o lote completo for considerado.
+
+### Próximo passo recomendado
+
+Aguardar nova conferência do ChatGPT sobre `docs/legacy-canary-2015-2016.md` antes de decidir entre: (a) importar o restante do lote 2015-2016, ou (b) rodar mais um canário maior antes do lote completo.
+
+---
+
 ## Fase 35C — Correção dos 3 bloqueios da revisão do ChatGPT (ainda sem gravação)
 
 **HEAD/commit:** `676f1c9` (branch `feature/jornalir-core-foundation-20260917`)
