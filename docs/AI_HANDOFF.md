@@ -6,7 +6,7 @@ Este arquivo é atualizado ao final de CADA fase a partir da Fase 35. Curto, dir
 
 ## Fase 40 — Preflight do lote 2019-2020 (SOMENTE LEITURA, nada importado)
 
-**HEAD/commit:** PLACEHOLDER (branch `feature/jornalir-core-foundation-20260917`)
+**HEAD/commit:** `ee90816` (branch `feature/jornalir-core-foundation-20260917`)
 
 Autorizado por `docs/CHATGPT_REVIEW.md` (revisão sobre HEAD `6b5af37`: Fase 39 aprovada e encerrada + "AUTORIZADO SOMENTE PREFLIGHT/AUDITORIA 2019–2020"). **Nenhuma escrita real nesta fase.**
 
