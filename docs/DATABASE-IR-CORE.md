@@ -921,9 +921,137 @@ nesta fase — sem migrar o site para o banco real ainda.
   confirmado que `title`/`section_id`/`locality_id`/`status` de ambas
   nunca mudaram. Limpo ao final — `0` linhas restantes.
 
-## 18. Próxima fase (sugestão)
+## 18. Fase 30 — Portal público lendo o banco real
 
-Gestão de destaques, edições, mídias, importação de PDF e todo o conteúdo
-editorial já são reais no painel (Fases 24–29). Caminho natural a partir
-daqui: `apps/site` passando a ler `published` diretamente do banco com
-RLS pública — a fase mais estrutural que falta.
+`apps/site` passou a consumir conteúdo editorial real do Supabase (home,
+matéria, editoria, busca) — mantendo o mock (`newsStorage.ts`/IndexedDB)
+só para as páginas explicitamente fora de escopo desta fase (ver
+divergências abaixo). Banco real tinha `0` matérias ao iniciar a fase —
+os testes usaram dados QA removidos ao final.
+
+### Agendamento real (item 2)
+
+Limitação documentada desde a Fase 25 (`scheduled` nunca virava
+`published` sozinho) resolvida com **`pg_cron`** — mecanismo automático
+no próprio banco, rodando `public.publish_due_scheduled_articles()` a
+cada minuto:
+1. Publica (`status='published'`, `published_at=scheduled_at`) toda
+   matéria `scheduled` cujo `scheduled_at` já passou.
+2. Reafirma o placement ativo dela (`update ... set active=true`) — sem
+   isso o gatilho `enforce_placement_limit` (Fase 25) nunca reavaliaria a
+   disputa pela vaga 8/3/7/4, porque ele só dispara em INSERT/UPDATE de
+   `article_placements`, nunca por causa de um UPDATE em `articles`.
+
+Testado real (`site-system-ir`): matéria agendada para 75s no futuro,
+com placement em `mainCover` já com as 8 vagas ocupadas por outras
+matérias — antes do horário, não apareceu e não expulsou ninguém;
+depois de ~1 execução do cron (até 60s), virou `published` de verdade
+(`published_at` preservado = `scheduled_at` original, não o horário do
+cron) e disputou a vaga corretamente, evictando 1 das 8 mais antigas —
+total permaneceu 8.
+
+### Camada pública seguras (item 3)
+
+Nunca `SELECT` anon irrestrito nas tabelas — RLS das tabelas-base
+continua só para `authenticated`/staff, inalterada. Cinco views novas
+(dono = papel da migration, que ignora RLS — o filtro de segurança é o
+`WHERE` de cada view, não a RLS; testado explicitamente com o cliente
+anon, não só revisado):
+
+- `public_editorial_sections` / `public_localities` — só `active=true`.
+- `public_articles` — só `status='published'`; nenhum campo administrativo
+  (`created_by`/`updated_by`/`internal_reference`/`notification_mode`/
+  `origin`) exposto, só o que o portal usa de verdade.
+- `public_article_media` — só mídia de matéria `published`, já com
+  URL/legenda/crédito resolvidos (`caption_override`/`credit_override`
+  com fallback ao padrão de `media_assets`).
+- `public_article_placements` — só placements efetivos agora (`active`,
+  `published`, dentro da janela `starts_at`/`ends_at`); o corte 8/3/7/4 e
+  a ordenação (fixadas por `pinned_rank`, demais por recência) ficam no
+  provider público do site (`listPublicPlacement`,
+  `apps/site/src/lib/public/publicContentService.ts`), mesma regra de
+  `ArticleService.listActivePlacement`.
+
+Testado real com o cliente anon (chave publicável, sem sessão):
+`articles`/`profiles`/`media_assets` (tabelas-base) → `[]` sempre; as 5
+views → dados reais (7 editorias, 4 localidades, artigos `published`
+apenas). Rascunho nunca aparece em `public_articles` nem sua mídia em
+`public_article_media` (testado: draft com capa → mídia invisível;
+publicado → mídia aparece com URL real). `edition-pdfs` continua privado,
+inacessível mesmo pela rota `/object/public/`.
+
+### Editorias/localidades (item 4)
+
+`public_editorial_sections`/`public_localities` alimentam o rodapé real
+(`SiteFooter.tsx`, agora Server Component assíncrono) e a nova página
+`/editoria/[slug]` (lista matérias publicadas de uma editoria real).
+**Divergência documentada**: o menu principal do cabeçalho
+(`SiteHeader.tsx`) é uma navegação fixa e cuidadosamente desenhada em
+cima do antigo `CategorySlug` (`/geral`, `/saude`, `/esportes`, etc.) —
+não tem correspondência 1:1 com as 7 editorias reais (`geral`, `esporte`,
+`policia`, `politica`, `economia`, `eventos`, `cidades`; ex.: não existe
+`saude`/`colunistas`/`sociais` real, e `esportes`≠`esporte`). Redesenhar
+esse menu para ser 100% dirigido pelas editorias reais teria risco alto
+de regressão visual no Preview aprovado na Fase 29 — não feito nesta
+fase. As páginas antigas por categoria (mock) continuam existindo,
+intocadas, como conteúdo de demonstração.
+
+### Matérias públicas (item 5) e Home (item 6)
+
+Provider público novo (`apps/site/src/lib/public/`) — `UI → Service →
+Supabase`, nenhuma query direta em componente visual. Home
+(`(public)/page.tsx`) virou Server Component (`force-dynamic` — nunca
+estática, porque a publicação efetiva muda a cada minuto) lendo os 4
+blocos reais via `listPublicPlacement`: Capa principal (8),
+Faixa de destaques (3), Últimas notícias (7), Mais destaques (4,
+renomeado na Fase 29). Sem conteúdo real, cada bloco simplesmente some
+(nenhum mock escondido como fallback) — a home mostra um estado vazio
+específico quando não há nenhum destaque real ainda.
+
+### Matéria + Leia também (itens 8/9) e mídia (item 10)
+
+`/noticias/[slug]` virou Server Component real: capa/galeria via
+`public_article_media` (URLs reais do bucket público `article-media`,
+Fase 26 — nunca o bucket privado `edition-pdfs`), legenda/crédito
+resolvidos, tempo de leitura derivado do `body` real
+(`readingTime.ts`, Fase 29, sem mudança). "Leia também": 4 sugestões,
+metade priorizando a mesma editoria quando há opções suficientes, resto
+embaralhado para variedade (Fisher-Yates) — nunca a atual, nunca
+repetida. **Simplificação assumida**: o botão "Voltar" perdeu o
+comportamento de "smart back" (usava `router.back()` + checagem de
+referrer no client) porque a página virou Server Component; agora é um
+link fixo para a home — trade-off aceito pela simplicidade e
+confiabilidade do SSR.
+
+### Busca (item 11)
+
+`/busca` passou a carregar `public_articles` reais (até 200, filtro em
+memória por título/subtítulo/corpo/editoria) com estados de
+carregando/vazio/erro. Demais páginas de categoria/`/materias` (CMS mock
+de demonstração) permanecem mock nesta fase — mesma divergência do item
+4.
+
+### Preview (item 12)
+
+Preview da Fase 29 preservado intacto (deployments da Vercel são
+imutáveis por URL — um novo `vercel deploy` nunca sobrescreve um anterior):
+`https://jornalir-9zol5yc6v-cristians-projects-34074cc3.vercel.app`.
+Novo Preview desta fase publicado à parte.
+
+### Segurança (item 13) e teste temporal (item 14)
+
+RLS das tabelas-base e policies (32 no schema `public`) inalteradas;
+owner intocado. Sequência completa testada contra `site-system-ir` (dados
+QA removidos ao final): publicada agora → aparece; draft → não aparece;
+agendada para o futuro → não aparece nem expulsa vaga; após o horário →
+aparece sozinha e disputa a vaga certo; `ends_at` passado → some do
+destaque mas a matéria continua pública; arquivada → some de
+`public_articles` inteiramente.
+
+## 19. Próxima fase (sugestão)
+
+Portal público já lê o banco real (home, matéria, editoria, busca).
+Caminhos possíveis a partir daqui: reconciliar o menu principal do
+cabeçalho com as editorias reais (redesenho, fora de escopo desta fase);
+migrar as páginas de categoria antigas (mock) para `/editoria/[slug]`;
+ou popular o banco com as primeiras matérias reais de produção.

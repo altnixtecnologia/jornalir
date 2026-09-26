@@ -1,8 +1,6 @@
 import Link from "next/link";
-import { menuItems } from "./menuConfig";
 import { socialLinks, contactInfo } from "./siteSettings";
-
-const EDITORIA_LINKS = menuItems.filter((item) => !["/", "/materias", "/sobre", "/contato", "/jornal-online"].includes(item.href));
+import { listPublicSections } from "../../lib/public/publicContentService";
 
 /** Até 8 editorias cabem em duas colunas de até 4 linhas cada, sem aumentar a altura do rodapé (Fase 29, item 7). */
 function splitInHalf<T>(list: T[]): [T[], T[]] {
@@ -10,8 +8,13 @@ function splitInHalf<T>(list: T[]): [T[], T[]] {
   return [list.slice(0, mid), list.slice(mid)];
 }
 
-export function SiteFooter(): JSX.Element {
-  const [editoriaColumnA, editoriaColumnB] = splitInHalf(EDITORIA_LINKS);
+// Editorias do rodapé vêm do banco real (Fase 30, item 4) — nunca mais de
+// um mock fixo. Uma editoria inativa some daqui automaticamente (a view
+// `public_editorial_sections` já só traz `active=true`), mas continua
+// existindo/vinculada a matérias antigas.
+export async function SiteFooter(): Promise<JSX.Element> {
+  const sections = await listPublicSections().catch(() => []);
+  const [editoriaColumnA, editoriaColumnB] = splitInHalf(sections);
 
   return (
     <footer className="site-footer">
@@ -23,18 +26,18 @@ export function SiteFooter(): JSX.Element {
 
         <div>
           <p className="footer-heading">Editorias</p>
-          {editoriaColumnA.map((item) => (
-            <Link key={item.href} href={item.href} className="footer-link">
-              {item.label}
+          {editoriaColumnA.map((section) => (
+            <Link key={section.id} href={`/editoria/${section.slug}`} className="footer-link">
+              {section.name}
             </Link>
           ))}
         </div>
 
         <div>
           <p className="footer-heading">&nbsp;</p>
-          {editoriaColumnB.map((item) => (
-            <Link key={item.href} href={item.href} className="footer-link">
-              {item.label}
+          {editoriaColumnB.map((section) => (
+            <Link key={section.id} href={`/editoria/${section.slug}`} className="footer-link">
+              {section.name}
             </Link>
           ))}
         </div>

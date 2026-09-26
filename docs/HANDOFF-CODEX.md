@@ -1,5 +1,23 @@
 # Handoff — JornalIR
 
+## Fase 30 — portal público lendo o banco real (26/09/2026)
+
+- Branch: `feature/jornalir-core-foundation-20260917`.
+- HEAD ao iniciar a fase: `d61639d` (commit da Fase 29).
+- Entrega: `apps/site` passou a consumir conteúdo editorial real (home, matéria, editoria, busca) via uma camada pública nova (views + provider próprio), sem expor drafts/dados internos. Agendamento real corrigido com `pg_cron`.
+- Diagnóstico inicial: banco real com `0` matérias (esperado, nenhuma produzida ainda) — todos os testes desta fase usaram dados QA removidos ao final.
+- `pg_cron` habilitado — `publish_due_scheduled_articles()` roda a cada minuto, publica de verdade (não só "parece") e reafirma o placement para o gatilho de limite reavaliar. Testado real com agendamento de 75s no futuro: não disputou vaga antes, disputou e evictou corretamente depois.
+- 5 views públicas novas (`public_editorial_sections`, `public_localities`, `public_articles`, `public_article_media`, `public_article_placements`) — RLS das tabelas-base inalterada (continua só staff); a view é o único ponto de acesso do anon, com `WHERE` restrito a conteúdo seguro. Testado real: tabelas-base sempre `[]` para anon; views retornam só o que deveria.
+- Provider público novo em `apps/site/src/lib/public/` (`UI → Service → Supabase`, nenhuma query direta em componente visual).
+- **Divergência documentada**: o menu do cabeçalho (`SiteHeader`) não foi redesenhado para as editorias reais — risco de regressão visual no Preview aprovado na Fase 29. Rodapé e nova página `/editoria/[slug]` já usam dado real; páginas de categoria antigas (mock) continuam existindo.
+- Detalhe completo em `docs/DATABASE-IR-CORE.md` (seção 18).
+
+### Próxima fase
+
+Reconciliar o menu principal com as editorias reais; migrar páginas de categoria antigas; ou popular o banco com as primeiras matérias reais.
+
+---
+
 ## Fase 29 — gestão central de destaques + ajustes visuais do portal (25/09/2026)
 
 - Branch: `feature/jornalir-core-foundation-20260917`.
