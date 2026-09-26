@@ -257,3 +257,61 @@ Confirmar:
 - compartilhar/recarregar URL com `q/page/pageSize` restaura exatamente a tela.
 
 Depois atualizar `docs/AI_HANDOFF.md`, commit/push e parar para nova conferência.
+
+
+## Revisão da Fase 39C — APROVADA / encerrada
+
+Revisado diretamente no GitHub sobre o HEAD `6b5af37`.
+
+Os 2 ajustes pedidos foram implementados corretamente:
+
+1. `24/48/96` agora fica no cabeçalho de `/noticias` e `/editoria/[slug]`, separado da paginação numerada do rodapé.
+2. `/busca` usa a URL como fonte de verdade para `q/page/pageSize`; paginação e troca de tamanho usam `router.push`, enquanto a digitação usa `replace`.
+
+A lógica de Back/Forward está consistente por revisão de código. A checagem manual no navegador continua recomendada, mas **não é bloqueio para seguir com a migração**.
+
+Observação menor para hardening futuro: uma URL manual de busca com `page` muito acima da última página é corrigida internamente pelo serviço, mas a UI da busca ainda usa o `page` vindo da URL em vez de adotar explicitamente `result.page`. Não bloqueia o uso normal, mas pode ser normalizado numa manutenção futura.
+
+### Pendência documental pequena
+
+Em `docs/legacy-migration-status.json`, a nota global `quarentenaEditorial` ainda contém texto antigo dizendo que `REVIEWED_CATEGORIES` está vazio. Isso ficou desatualizado após a Fase 37, quando `agricultura` foi liberada. Corrigir essa nota na próxima atualização do status para não haver contradição com o estado real do código.
+
+---
+
+## Próxima etapa — AUTORIZADO SOMENTE PREFLIGHT/AUDITORIA 2019–2020
+
+Ainda **não importar** 2019–2020.
+
+Executar o preflight completo do lote `2019-2020` com a mesma barreira de integridade e gerar os relatórios antes de qualquer escrita real.
+
+Obrigatório levantar:
+- candidatas;
+- eligible;
+- needs_review;
+- quarantined;
+- rejected;
+- com/sem imagem;
+- referências de imagem;
+- URLs únicas;
+- distribuição por editoria;
+- exceções de data.
+
+Regras:
+- `agricultura` já está revisada/liberada e passa pela barreira normal;
+- `classificados` continua em quarentena automática e NÃO pode virar eligible;
+- `policia` deve aparecer neste lote a partir de 2020 segundo o inventário; confirmar a primeira ocorrência e incluir uma amostra legível da categoria para conferir que o mapeamento `policia -> Polícia` está correto;
+- manter localidade do legado = `Geral`;
+- não inferir cidades;
+- não liberar nenhum `needs_review` automaticamente;
+- não tocar em 2021–2022;
+- nenhuma matéria/imagem real importada nesta etapa.
+
+Gerar/atualizar:
+- `docs/AI_HANDOFF.md`;
+- `docs/legacy-migration-status.json` (incluindo corrigir a nota antiga de Agricultura);
+- `docs/legacy-preflight-2019-2020.md`;
+- `docs/legacy-review-2019-2020.md` se houver casos;
+- `docs/legacy-quarantined-2019-2020.md` se houver quarentena;
+- amostra legível de Polícia e das demais categorias novas/relevantes do lote.
+
+Commit/push e PARAR para nova conferência antes da carga real.
