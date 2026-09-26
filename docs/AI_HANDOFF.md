@@ -6,7 +6,7 @@ Este arquivo é atualizado ao final de CADA fase a partir da Fase 35. Curto, dir
 
 ## Fase 35D — Canário real de 20 matérias (PRIMEIRA gravação real do legado)
 
-**HEAD/commit:** PLACEHOLDER (branch `feature/jornalir-core-foundation-20260917`)
+**HEAD/commit:** `a95d387` (branch `feature/jornalir-core-foundation-20260917`)
 
 Autorizado por `docs/CHATGPT_REVIEW.md` (revisão sobre HEAD `8f4f137`: "APROVADO PARA CANÁRIO REAL PEQUENO"). **Esta é a primeira gravação real de conteúdo do legado no Supabase.**
 
