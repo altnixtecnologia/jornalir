@@ -4,6 +4,48 @@ Este arquivo é atualizado ao final de CADA fase a partir da Fase 35. Curto, dir
 
 ---
 
+## Fase 39 — Corrige limites artificiais nas listagens do portal (apps/site)
+
+**HEAD/commit:** PLACEHOLDER (branch `feature/jornalir-core-foundation-20260917`)
+
+Autorizado por `docs/CHATGPT_REVIEW.md`: com os lotes 2015-2018 migrados (4.125 matérias reais), `/noticias` (limit 60), `/editoria/[slug]` (limit 40) e `/busca` (limit 200, filtrado no navegador) escondiam a maior parte do acervo por teto fixo de query/interface — **não é perda de dados da migração**. Esta fase é só do portal (`apps/site`), não mexe em nada da migração já concluída.
+
+### O que foi feito
+
+1. `publicContentService.ts`: nova função `listPublicArticlesPage({ page, pageSize, sectionId, query })` — paginação real via `.range()` do Supabase com `count: "exact"` (total real, não estimado). Ordem sempre `published_at DESC` + desempate por `id DESC` (nunca `created_at` — matéria do legado importada agora não pode parecer recém-publicada). `listPublicArticles` (a função pequena antiga) foi mantida intacta para os usos pequenos que não precisam do acervo inteiro (home, `getReadAlso`/"Leia também", limit 60).
+2. **Bug real encontrado e corrigido durante o teste**: a primeira versão fazia a query com `.range()` direto — pedir uma página além da última (`?page=999`, ou qualquer link/parâmetro velho apontando pra além do fim) fazia o PostgREST responder "Requested range not satisfiable" e a página quebrava com erro 500. Corrigido calculando o total (`count: "exact", head: true`, sem trazer linhas) ANTES de montar o `.range()`, e limitando `page` ao `totalPages` real. Um segundo bug relacionado: a página estava exibindo o número de página PEDIDO (não-limitado) em vez do REALMENTE usado — corrigido para sempre exibir o `page` que a função devolve.
+3. `/noticias`: paginação server-side real (24/página), mostra o total real (`{total} matéria(s)`), nunca mais limitado a 60.
+4. `/editoria/[slug]`: mesma paginação, escopada por editoria (24/página), nunca mais limitado a 40.
+5. `/busca`: removida a arquitetura "carrega 200 e filtra no navegador" — agora é uma busca real no Supabase (`ilike` em título/subtítulo/corpo, com sanitização do termo — vírgula/parênteses quebrariam a sintaxe do filtro `.or()`, `%`/`_` são curinga do `ilike` e precisam ser escapados), com debounce de 300ms e paginação (30/página). Alcança todo o acervo publicado, não só os primeiros 200.
+6. `PublicPagination.tsx` (novo componente, server-safe): "Anterior / Página X de Y / Próxima" via `<Link>`, reaproveitado por `/noticias` e `/editoria/[slug]`. `/busca` usa uma variante com botões (é client component com estado, não pode navegar por URL da mesma forma sem perder o termo digitado).
+
+### Testes reais (não só typecheck)
+
+- `npx tsc --noEmit` limpo.
+- `npm run build` limpo (rota `/noticias` e `/editoria/[slug]` continuam `ƒ` dynamic, como esperado).
+- Servidor dev rodado de verdade contra o Supabase real:
+  - `/noticias` → **4.125 matéria(s)**, **172 páginas** (exatamente 1.622 + 2.503, os dois lotes migrados) — confirmado via `curl`.
+  - `/editoria/geral` → **3.268 matéria(s)**, **137 páginas** (exatamente 1.114 + 2.154) — confirmado.
+  - Página 1 e página 2 de `/noticias` não têm nenhum artigo em comum (24 únicos cada).
+  - `?page=999`, `?page=0`, `?page=-5`, `?page=abc` — todos retornam 200 e mostram a página real (clamped), nunca mais 500 (bug encontrado e corrigido nesta própria sessão de teste).
+  - Busca por "agricultura" retorna 359 resultados reais do banco (antes ficaria limitada a uma busca dentro de no máximo 200 itens carregados).
+  - Termos de busca com vírgula/parênteses/`%`/`_` não quebram a query (testado diretamente contra o Supabase real).
+
+### Migrations
+
+Nenhuma — mudança é só de código do portal (`apps/site`).
+
+### Pendências
+
+1. Regra de ordenação `published_at DESC` para o bloco "Mais destaques" (`localSpotlight`) — decisão do usuário já registrada em `docs/CHATGPT_REVIEW.md`, mas **não implementada nesta fase** (fora do escopo desta correção, é sobre o painel/regra de negócio do placement, não sobre paginação de listagem).
+2. Nenhuma pendência de migração — essa parte está 100% concluída (2015-2018).
+
+### Próximo passo recomendado
+
+Aguardar conferência do ChatGPT sobre esta correção do portal. Separadamente, decidir quando implementar a ordenação por `published_at` no bloco "Mais destaques" e quando iniciar o preflight do lote 2019-2020.
+
+---
+
 ## Fase 38 — Lote 2017-2018 CONCLUÍDO (2.503/2.503, 4.093/4.093 imagens)
 
 **HEAD/commit:** `8f964f1` (branch `feature/jornalir-core-foundation-20260917`)

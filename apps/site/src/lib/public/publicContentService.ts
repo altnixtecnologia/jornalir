@@ -114,13 +114,20 @@ function buildArticles(
   }));
 }
 
-/** Listagem (home, busca, editoria) — mais recentes primeiro, só capa. */
+/**
+ * Listagem pequena (home, "Leia também") — mais recentes primeiro, só
+ * capa. Mantida como estava (Fase 39 mexeu só em quem precisava do
+ * acervo inteiro) — nunca usar isto para páginas que precisam alcançar
+ * todo o acervo (mais de 4 mil matérias já migradas do legado); para
+ * isso, usar `listPublicArticlesPage`.
+ */
 export async function listPublicArticles(options?: { limit?: number; sectionId?: string }): Promise<PublicArticle[]> {
   const client = getPublicSupabaseClient();
   let query = client
     .from("public_articles")
     .select("id, slug, title, subtitle, body, section_id, locality_id, urgent, published_at")
-    .order("published_at", { ascending: false });
+    .order("published_at", { ascending: false })
+    .order("id", { ascending: false });
   if (options?.sectionId) query = query.eq("section_id", options.sectionId);
   if (options?.limit) query = query.limit(options.limit);
 
@@ -135,6 +142,97 @@ export async function listPublicArticles(options?: { limit?: number; sectionId?:
   const localityById = new Map(localities.map((l) => [l.id, l]));
   const coverByArticle = await fetchCoverByArticle(rows.map((r) => r.id));
   return buildArticles(rows, sectionById, localityById, coverByArticle);
+}
+
+export interface PagedArticles {
+  items: PublicArticle[];
+  total: number;
+  page: number;
+  pageSize: number;
+  totalPages: number;
+}
+
+/**
+ * Um termo de busca vai dentro de um filtro `.or(...)` do PostgREST, cuja
+ * sintaxe usa vírgula/parênteses como separadores estruturais — e `%`/`_`
+ * são curingas do `ilike`. Sem tratar isso, um termo com vírgula quebra o
+ * filtro inteiro (silenciosamente teria efeito diferente do esperado) e
+ * `%`/`_` viram curinga em vez de caractere literal buscado.
+ */
+function sanitizeSearchTerm(raw: string): string {
+  return raw
+    .replace(/[,()]/g, " ")
+    .replace(/[%_]/g, (match) => `\\${match}`)
+    .trim();
+}
+
+/**
+ * Listagem paginada real (item 1-4 da correção do portal, Fase 39) — nunca
+ * carrega o acervo inteiro no servidor nem no navegador. `count: "exact"`
+ * dá o total real (não uma estimativa) para mostrar "X de Y" e calcular o
+ * número de páginas. Ordem sempre `published_at DESC` com desempate por
+ * `id DESC` (estável mesmo com published_at empatado, ex.: vários itens
+ * do legado importados no mesmo minuto) — nunca `created_at` (faria
+ * conteúdo do legado, inserido agora, parecer "recém-publicado").
+ */
+export async function listPublicArticlesPage(options: {
+  page?: number;
+  pageSize?: number;
+  sectionId?: string;
+  query?: string;
+}): Promise<PagedArticles> {
+  const pageSize = Math.min(100, Math.max(1, Math.floor(options.pageSize ?? 24)));
+  const client = getPublicSupabaseClient();
+  const term = options.query ? sanitizeSearchTerm(options.query) : "";
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- o tipo exato do builder do supabase-js muda conforme .select()/.eq()/.or() encadeados; aqui só aplicamos os mesmos dois filtros opcionais em duas queries com formatos de retorno diferentes (count vs. dados).
+  const applyFilters = (q: any) => {
+    let query = q;
+    if (options.sectionId) query = query.eq("section_id", options.sectionId);
+    if (term) query = query.or(`title.ilike.%${term}%,subtitle.ilike.%${term}%,body.ilike.%${term}%`);
+    return query;
+  };
+
+  // Conta primeiro (query leve, `head: true` não traz linhas) para poder
+  // limitar `page` ao total real ANTES de pedir o `.range()` — pedir uma
+  // página além do fim faz o PostgREST responder "Requested range not
+  // satisfiable" (erro real encontrado ao testar `?page=999`, Fase 39),
+  // e uma paginação real nunca pode quebrar só porque alguém navegou (ou
+  // um link antigo aponta) para além da última página.
+  const [{ count, error: countError }, sections, localities] = await Promise.all([
+    applyFilters(client.from("public_articles").select("id", { count: "exact", head: true })),
+    listPublicSections(),
+    listPublicLocalities(),
+  ]);
+  if (countError) throw new Error(countError.message);
+  const total = count ?? 0;
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  const page = Math.min(Math.max(1, Math.floor(options.page ?? 1)), totalPages);
+
+  if (total === 0) {
+    return { items: [], total: 0, page: 1, pageSize, totalPages: 1 };
+  }
+
+  const from = (page - 1) * pageSize;
+  const to = from + pageSize - 1;
+  const dataQuery = applyFilters(
+    client
+      .from("public_articles")
+      .select("id, slug, title, subtitle, body, section_id, locality_id, urgent, published_at"),
+  )
+    .order("published_at", { ascending: false })
+    .order("id", { ascending: false })
+    .range(from, to);
+
+  const { data, error } = await dataQuery;
+  if (error) throw new Error(error.message);
+  const rows = (data ?? []) as ArticleRow[];
+  const sectionById = new Map(sections.map((s) => [s.id, s]));
+  const localityById = new Map(localities.map((l) => [l.id, l]));
+  const coverByArticle = await fetchCoverByArticle(rows.map((r) => r.id));
+  const items = buildArticles(rows, sectionById, localityById, coverByArticle);
+
+  return { items, total, page, pageSize, totalPages };
 }
 
 /** Página de matéria — capa + galeria completa, na ordem correta. */

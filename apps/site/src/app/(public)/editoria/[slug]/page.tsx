@@ -1,30 +1,48 @@
 import { notFound } from "next/navigation";
 import { SiteHeader } from "../../../../components/site/SiteHeader";
 import { PublicReadAlsoCard } from "../../../../components/site/public/PublicReadAlsoCard";
-import { listPublicArticles, listPublicSections } from "../../../../lib/public/publicContentService";
+import { PublicPagination } from "../../../../components/site/public/PublicPagination";
+import { listPublicArticlesPage, listPublicSections } from "../../../../lib/public/publicContentService";
 
 // Sempre no request — lista muda conforme novas matérias são publicadas.
 export const dynamic = "force-dynamic";
+
+const PAGE_SIZE = 24;
 
 /**
  * Editoria real (Fase 30, item 4/7) — lista todas as matérias publicadas
  * de uma editoria ativa do banco. Independente das páginas de categoria
  * antigas (mock, `/geral` etc.) — essas continuam existindo para o
  * conteúdo de demonstração; esta é a página real por editoria do banco.
+ *
+ * Paginação real (Fase 39 — corrige o teto artificial de 40 que escondia
+ * a maior parte de editorias grandes, ex.: "Geral" tem mais de 3 mil
+ * matérias só do legado já migrado).
  */
-export default async function EditoriaPage({ params }: { params: { slug: string } }): Promise<JSX.Element> {
+export default async function EditoriaPage({
+  params,
+  searchParams,
+}: {
+  params: { slug: string };
+  searchParams: { page?: string };
+}): Promise<JSX.Element> {
   const sections = await listPublicSections();
   const section = sections.find((item) => item.slug === params.slug);
   if (!section) notFound();
 
-  const articles = await listPublicArticles({ sectionId: section.id, limit: 40 });
+  const requestedPage = Math.max(1, Number.parseInt(searchParams.page ?? "1", 10) || 1);
+  const { items: articles, total, page, totalPages } = await listPublicArticlesPage({
+    sectionId: section.id,
+    page: requestedPage,
+    pageSize: PAGE_SIZE,
+  });
 
   return (
     <main className="min-h-screen">
       <SiteHeader />
       <section className="site-shell py-8">
         <h1 className="font-editorial text-3xl font-bold text-[color:var(--site-text)] md:text-4xl">{section.name}</h1>
-        <p className="mt-2 text-sm text-[color:var(--site-muted)]">{articles.length} matéria(s) publicada(s)</p>
+        <p className="mt-2 text-sm text-[color:var(--site-muted)]">{total} matéria(s) publicada(s)</p>
 
         {articles.length === 0 ? (
           <p className="mt-8 text-[color:var(--site-muted)]">Nenhuma matéria publicada nesta editoria ainda.</p>
@@ -35,6 +53,8 @@ export default async function EditoriaPage({ params }: { params: { slug: string 
             ))}
           </div>
         )}
+
+        <PublicPagination currentPage={page} totalPages={totalPages} basePath={`/editoria/${section.slug}`} />
       </section>
     </main>
   );
