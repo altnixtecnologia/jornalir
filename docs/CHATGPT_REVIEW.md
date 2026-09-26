@@ -1,66 +1,108 @@
-# Revisão do ChatGPT — Fase 35E concluída / início 2017–2018
+# Revisão do ChatGPT — Fase 36 / lote 2017–2018
 
-Revisado diretamente no GitHub sobre o HEAD `1d84c96`.
+Revisado diretamente no GitHub sobre o HEAD `dd718cf`.
 
-## Veredito do lote 2015–2016
+## Veredito do preflight
 
-**APROVADO E ENCERRADO.**
+**PREFLIGHT APROVADO. AGRICULTURA PODE SER LIBERADA, MAS É OBRIGATÓRIO RODAR NOVAMENTE O PREFLIGHT DEPOIS DA LIBERAÇÃO ANTES DE IMPORTAR.**
 
-Confirmado no GitHub:
-- 1.622/1.622 matérias elegíveis migradas;
-- 1.622/1.622 external sources;
-- 3.025/3.025 media assets;
-- 3.025/3.025 vínculos article_media;
-- 0 duplicatas;
-- 0 placements;
-- 0 falhas finais;
-- 13 needs_review continuam fora;
-- 7 exceções de data continuam fora;
-- 80 GIFs reconciliados após migration;
-- `legacy_migration_batches.status = complete`.
+Números atuais, ainda com Agricultura em quarentena:
+- 2.511 candidatas;
+- 2.498 eligible;
+- 8 needs_review;
+- 5 quarantined — todos agricultura;
+- 0 rejected;
+- 2.356 com imagem;
+- 142 sem imagem;
+- 4.087 referências de imagem;
+- 4.087 URLs de imagem únicas.
 
-A migration `20261005100000_article_media_allow_gif.sql` está correta: apenas acrescenta `image/gif` aos MIME permitidos do bucket `article-media`, sem recriar bucket, apagar objetos ou alterar policies.
+Os 5 itens de Agricultura foram revisados individualmente em `docs/legacy-quarantined-2017-2018.md`. Todos têm conteúdo real e imagens coerentes; não há motivo editorial para manter a categoria inteira bloqueada.
 
-O validador final é paginado e não fica limitado às primeiras 1.000 linhas.
+## Atenção técnica importante sobre Agricultura
 
-O problema isolado de decodificação do título `external_id=416746` continua documentado para correção pontual posterior e não invalida o lote.
+Hoje `assessArticleIntegrity()` retorna `quarantined` para Agricultura **antes** de executar todas as demais checagens estruturais.
 
-## Próxima etapa — 2017–2018
+Portanto os 5 itens não podem ser considerados definitivamente `eligible` apenas pelo relatório atual.
 
-**AUTORIZADO SOMENTE PREFLIGHT/AUDITORIA DO LOTE 2017–2018. AINDA NÃO IMPORTAR.**
+Próximo passo:
+1. alterar `REVIEWED_CATEGORIES` para incluir `"agricultura"`;
+2. manter `classificados` em quarentena;
+3. rodar novamente o preflight 2017–2018;
+4. somente depois usar o resultado real pós-liberação para autorizar a carga.
 
-Executar o mesmo pipeline de coleta/classificação para 2017–2018, sem escrita real, e produzir os números do lote antes de liberar a carga.
+Se os 5 passarem pela barreira normal, o resultado esperado será aproximadamente:
+- 2.503 eligible;
+- 8 needs_review;
+- 0 quarantined;
+- 0 rejected;
+- 2.361 com imagem;
+- 142 sem imagem;
+- 4.093 referências de imagem.
 
-Obrigatório:
-1. Rodar preflight completo de 2017–2018.
-2. Manter a mesma barreira de integridade editorial.
-3. Levantar:
-   - candidatas;
-   - eligible;
-   - needs_review;
-   - quarantined;
-   - rejected;
-   - com/sem imagem;
-   - referências de imagem;
-   - URLs únicas;
-   - distribuição por editoria.
-4. Identificar se aparecem `agricultura` e/ou `classificados`.
-5. `classificados` continua em quarentena automática.
-6. Se `agricultura` aparecer, fazer amostra/revisão da categoria antes de liberá-la.
-7. Não inferir localidade; legado continua `Geral`.
-8. Não importar nenhuma matéria/imagem ainda.
-9. Não tocar em 2019–2020.
+Não forçar esses números. Se algum item de Agricultura virar `needs_review`, respeitar a barreira e mantê-lo fora.
 
-Gerar/atualizar:
+## Os 8 needs_review
+
+Continuam todos FORA da carga automática.
+
+Os casos com texto real em estrutura antiga podem ser recuperados depois em revisão manual específica. Os itens com corpo vazio, inclusive `sociais/teste.420173`, não devem entrar automaticamente.
+
+Nenhum desses 8 deve ser liberado nesta fase.
+
+## Ajuste obrigatório do validador antes do segundo lote
+
+O atual `scripts/legacy-audit/batch-final-validate.mjs` foi suficiente para 2015–2016 porque aquele era o único conteúdo legado no banco. Ele consulta todo `origin=legacy_site`.
+
+Antes de validar 2017–2018, generalizar o validador para ser **escopado por lote** (`--batch=2017-2018`) e comparar apenas as identidades esperadas daquele lote.
+
+A validação de 2017–2018 deve conferir o lote isoladamente, sem misturar as 1.622 matérias já migradas de 2015–2016.
+
+Manter também uma checagem global de duplicidade, mas o veredito do lote precisa ser batch-scoped.
+
+## Autorização condicional para a carga real 2017–2018
+
+Depois de:
+1. liberar Agricultura;
+2. rerodar o preflight;
+3. confirmar que não houve nova anomalia;
+4. deixar o validador final escopado por lote;
+
+fica **AUTORIZADA a carga real de 2017–2018** com o conjunto `eligible` resultante.
+
+Comando:
+
+`node --env-file=".env.local" scripts/legacy-audit/migrate.mjs --batch=2017-2018 --mode=import --commit --rps=4`
+
+Se o sandbox bloquear, pedir ao usuário somente para executar esse comando exato manualmente.
+
+## Validação final obrigatória
+
+Após a carga:
+- artigos do lote == eligible pós-liberação;
+- sources do lote == eligible pós-liberação;
+- referências article_media do lote == esperado do novo preflight;
+- 0 falhas de artigos;
+- 0 falhas de imagens;
+- nenhuma duplicata;
+- capa/galeria/sort_order corretos;
+- Storage existente;
+- nenhuma placement;
+- os 8 needs_review continuam fora;
+- nenhum item de outro lote alterado;
+- `legacy_migration_batches.status = complete` somente se o lote fechar exatamente.
+
+Atualizar/criar:
 - `docs/AI_HANDOFF.md`;
 - `docs/legacy-migration-status.json`;
-- criar relatório do preflight 2017–2018;
-- se houver casos para revisão, criar relatório legível específico deles.
+- `docs/legacy-batch-2017-2018-final.md`;
+- relatório do novo preflight pós-liberação de Agricultura.
 
-Commit/push e PARAR para nova conferência do ChatGPT.
+Commit/push e PARAR antes de 2019–2020.
 
-## Decisão de interface já definida pelo usuário
+## Observações mantidas
 
-Para o bloco visual **“Mais destaques”** (`localSpotlight`), a intenção é deixar automático pelas matérias publicadas mais recentes, ordenadas por **`published_at`** e não por `created_at`, para que a migração de conteúdo antigo não faça matérias de 2015/2016 aparecerem como novas.
-
-Não implementar essa alteração durante o preflight 2017–2018; apenas manter registrada para a próxima etapa de portal/UI.
+- `classificados` continua em quarentena automática;
+- localidade do legado continua `Geral`;
+- a ausência histórica da editoria Polícia em 2015–2018 está documentada e não é tratada como erro;
+- o bloco público “Mais destaques” será automatizado futuramente por `published_at`, não por `created_at`.
