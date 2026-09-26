@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-09-26T17:15:44.869Z",
+  "updatedAt": "2026-09-26T18:00:00.000Z",
   "provider": "informativo_regional_legacy",
   "rule": "Lote padrão = 2 anos. Só dividir um lote específico (1 ano, depois semestre/mês) se ele apresentar problema grave.",
   "batches": [
@@ -7,8 +7,8 @@
       "batchKey": "2015-2016",
       "periodStart": "2015-01-01",
       "periodEnd": "2016-12-31",
-      "status": "canary_20_complete_pending_full_batch_review",
-      "note": "Canário real de 20 matérias aprovado por docs/CHATGPT_REVIEW.md (HEAD 8f4f137) executado com sucesso: 20 articles + 45 media_assets gravados, validados diretamente no Supabase/Storage (allOk=true), idempotência confirmada numa 2ª execução (0 duplicatas, 0 correções necessárias). legacy_migration_batches permanece 'incomplete' (correto — só 20/1622 artigos e 45/3025 imagens). Restante do lote (1.602 matérias) NÃO importado — aguardando nova conferência do ChatGPT. Ver docs/legacy-canary-2015-2016.md.",
+      "status": "complete",
+      "note": "LOTE CONCLUÍDO. Autorizado por docs/CHATGPT_REVIEW.md (HEAD 5b51e47). Execução completa gerou 80 falhas de imagem (MIME image/gif rejeitado pelo bucket article-media); corrigido via migration 20261005100000 (acrescenta image/gif aos MIME permitidos, sem recriar bucket/apagar objetos/alterar policies); retry reconciliou as 80 pendentes sem duplicar nada. legacy_migration_batches.status=complete confirmado. Validação final paginada direto no Supabase/Storage: 1622/1622 articles, 1622/1622 sources, 3025/3025 media, 3025/3025 vínculos, 0 duplicatas em qualquer tabela, 0 placements, 13 needs_review e 7 exceções de data confirmados fora da carga. Ver docs/legacy-batch-2015-2016-final.md.",
       "preflight": {
         "itemsFound": 1635,
         "dateExceptions": 7,
@@ -28,6 +28,20 @@
         "idempotencyRerun": "0 imported, 20 skippedExisting, 45 alreadyLinkedImages, 0 corrected, 0 failed — nenhuma duplicata, nenhuma ordem/role alterada",
         "knownIssue": "Título de external_id 416746 tem um '?' isolado no lugar de um travessão — problema de decodificação pré-existente no cache de coleta (Fase 34/35), isolado (1/1635 títulos do lote), não bloqueante, não corrigido nesta etapa."
       },
+      "finalBatch": {
+        "totalArticles": 1622,
+        "totalImageReferences": 3025,
+        "failedArticles": 0,
+        "failedImages": 0,
+        "gifImagesFixed": 80,
+        "gifFixMigration": "20261005100000_article_media_allow_gif.sql",
+        "dateRangeConfirmedInDb": { "first": "2015-06-27T13:44:00Z", "last": "2016-12-23T19:14:00Z" },
+        "distribuicaoPorEditoriaConfirmada": { "geral": 1114, "esporte": 231, "politica": 228, "sociais": 49 },
+        "duplicatesFound": 0,
+        "placementsCreated": 0,
+        "needsReviewLeaked": 0,
+        "dateExceptionsLeaked": 0
+      },
       "reportFiles": {
         "preflight": "scripts/legacy-audit/output/batches/2015-2016/preflight.json",
         "dateExceptions": "scripts/legacy-audit/output/batches/2015-2016/date-exceptions.json",
@@ -37,7 +51,9 @@
         "reviewMarkdown": "docs/legacy-review-2015-2016.md",
         "sampleCheckMarkdown": "docs/legacy-sample-check-2015-2016.md",
         "canaryReport": "docs/legacy-canary-2015-2016.md",
-        "canaryValidationJson": "scripts/legacy-audit/output/batches/2015-2016/canary-validation.json"
+        "canaryValidationJson": "scripts/legacy-audit/output/batches/2015-2016/canary-validation.json",
+        "finalReport": "docs/legacy-batch-2015-2016-final.md",
+        "finalValidationJson": "scripts/legacy-audit/output/batches/2015-2016/batch-final-validation.json"
       }
     },
     { "batchKey": "2017-2018", "periodStart": "2017-01-01", "periodEnd": "2018-12-31", "status": "pending" },
@@ -58,7 +74,8 @@
     "statusComplete": "legacy_migration_batches só recebe status=complete quando (imported+skippedExisting)===expected_articles E failed_articles=0 E (uploaded+reused+alreadyLinked+corrected+failed)===expected_image_references E failed_images=0 (bloqueio 1 da revisão do ChatGPT, Fase 35C — antes bastava failed_images=0, sem conferir a contagem real). expected_articles/expected_image_references/expected_unique_images são persistidos a partir do preflight ANTES de gravar.",
     "ordemImagemRetomada": "reconcileArticleImages usa a posição ORIGINAL esperada (índice em expectedRefs: capa=0, galeria na ordem original), nunca existingLinks.length — uma capa que falhou numa execução anterior não embaralha mais a ordem numa retomada. Um vínculo com role/sort_order errado é corrigido (update), nunca só pulado (bloqueio 2 da revisão do ChatGPT, Fase 35C).",
     "dedupMidiaNoBanco": "Índice único parcial media_assets(origin_source_url) where origin_source_url is not null (migration 20261004100000) impede duas execuções concorrentes de duplicarem a mesma mídia externa; conflito (23505) é tratado buscando/reutilizando a mídia existente (bloqueio 3 da revisão do ChatGPT, Fase 35C).",
-    "gravacaoReal": "Fase 35D: PRIMEIRA gravação real do legado — canário de 20 matérias + 45 imagens, executado manualmente pelo usuário com credencial só em .env.local local (nunca exposta em chat/log/versionado). Validado diretamente no Supabase/Storage. As outras 1.602 matérias elegíveis do lote 2015-2016 continuam NÃO importadas.",
-    "revisaoChatgpt": "docs/CHATGPT_REVIEW.md registra: revisão sobre HEAD aca77b5 (3 bloqueios, corrigidos na Fase 35C) e revisão sobre HEAD 8f4f137 (aprovação do canário de 20, Fase 35D). Aguardando nova conferência do ChatGPT sobre docs/legacy-canary-2015-2016.md antes de decidir sobre o restante do lote."
+    "gravacaoReal": "Lote 2015-2016 CONCLUÍDO (Fase 35E): 1.622 articles + 3.025 media_assets gravados via execução manual do usuário com credencial só em .env.local local (nunca exposta em chat/log/versionado). Validado diretamente no Supabase/Storage, paginado. legacy_migration_batches.status=complete.",
+    "bucketGif": "O bucket article-media rejeitava image/gif até a migration 20261005100000 (Fase 35E) — 80 imagens do lote 2015-2016 eram GIF. Migration só atualizou allowed_mime_types (acrescentou image/gif), nenhum objeto apagado, nenhuma policy alterada.",
+    "revisaoChatgpt": "docs/CHATGPT_REVIEW.md registra o histórico completo: HEAD aca77b5 (3 bloqueios, corrigidos na Fase 35C), HEAD 8f4f137 (aprovação do canário de 20, Fase 35D), HEAD 5b51e47 (autorização para concluir o lote inteiro) e o achado das 80 GIFs (Fase 35E, resolvido). Aguardando nova conferência do ChatGPT sobre docs/legacy-batch-2015-2016-final.md antes de iniciar 2017-2018."
   }
 }
