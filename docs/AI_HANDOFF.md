@@ -4,6 +4,60 @@ Este arquivo é atualizado ao final de CADA fase a partir da Fase 35. Curto, dir
 
 ---
 
+## Fase 36 — Preflight do lote 2017-2018 (SOMENTE LEITURA, nada importado)
+
+**HEAD/commit:** PLACEHOLDER (branch `feature/jornalir-core-foundation-20260917`)
+
+Autorizado por `docs/CHATGPT_REVIEW.md` (revisão sobre HEAD `1d84c96`: "AUTORIZADO SOMENTE PREFLIGHT/AUDITORIA DO LOTE 2017–2018. AINDA NÃO IMPORTAR"). **Nenhuma escrita real nesta fase.**
+
+### O que foi feito
+
+- Rodado `migrate.mjs --batch=2017-2018 --mode=preflight` de ponta a ponta contra o site real (mesmo pipeline/barreira do lote 2015-2016, sem alteração de código).
+- `scripts/legacy-audit/report-batch.mjs` (novo, generaliza `report-2015-2016.mjs` para qualquer lote): gera preflight resumido, revisão manual, quarentena e amostra para qualquer `--batch`.
+- Documentos gerados: `docs/legacy-preflight-2017-2018.md`, `docs/legacy-review-2017-2018.md`, `docs/legacy-quarantined-2017-2018.md`, `docs/legacy-sample-check-2017-2018.md`.
+
+### Números do preflight 2017-2018
+
+| Métrica | Valor |
+|---|---|
+| Candidatas no intervalo | 2.511 |
+| Exceções de data | 7 |
+| **Elegíveis** | **2.498** |
+| `needs_review` | 8 |
+| `quarantined` | 5 (todos `agricultura`) |
+| Rejeitadas | 0 |
+| Com imagem / sem imagem | 2.356 / 142 |
+| Referências de imagem | 4.087 |
+| Distribuição por editoria | geral=2.154, esporte=204, política=95, sociais=45 |
+
+### Achados
+
+1. **`agricultura` aparece pela primeira vez** (5 itens, 2018) — todos em quarentena automática, nenhum liberado. Os 5 casos foram documentados individualmente em `docs/legacy-quarantined-2017-2018.md` (conteúdo real e bem formado nos 5 — uma base para decisão futura de liberar a categoria, decisão essa NÃO tomada aqui).
+2. **`classificados` não aparece neste intervalo** (0 itens).
+3. **`policia` está ausente de 2015-2018 inteiro** — confirmado que a editoria só passou a existir no site legado a partir de 2020 (299 itens naquele ano). Fato real do histórico do site, não um erro de coleta; documentado para não causar confusão em lotes futuros.
+4. 8 casos `needs_review`, mesmo padrão já visto em 2015-2016 (corpo vazio/curto, estrutura sem `<p>`) — inclusive um artigo de teste do próprio site (`sociais/teste.420173`, título literalmente "teste").
+
+### Migrations
+
+Nenhuma nesta fase.
+
+### Testes
+
+Preflight rodado uma vez, sem necessidade de correção (barreira já validada em 2015-2016, nenhuma mudança de código).
+
+### Pendências
+
+1. Decisão do usuário/ChatGPT sobre liberar `agricultura` (ou manter em quarentena) — nada decidido aqui.
+2. Revisão humana dos 8 casos `needs_review`.
+3. Nenhuma importação de 2017-2018 ainda — aguardando autorização.
+4. 2019-2020 não tocado.
+
+### Próximo passo recomendado
+
+Aguardar nova conferência do ChatGPT sobre os relatórios de preflight/quarentena/revisão de 2017-2018 antes de autorizar qualquer importação real.
+
+---
+
 ## Fase 35E — Lote 2015-2016 CONCLUÍDO (1.622/1.622, 3.025/3.025 imagens)
 
 **HEAD/commit:** `3c519ba` (branch `feature/jornalir-core-foundation-20260917`)
