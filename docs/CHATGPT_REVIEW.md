@@ -136,3 +136,51 @@ Decisão do usuário:
 - a migração de conteúdo antigo não pode fazer matérias antigas subirem só porque foram inseridas agora no banco.
 
 Não alterar a data histórica da matéria para obter a ordenação; preservar `published_at` original.
+
+
+## Correção prioritária do portal — listagens estão artificialmente limitadas
+
+Achado confirmado no código atual do portal:
+
+- `/busca` chama `listPublicArticles({ limit: 200 })`;
+- `/noticias` chama `listPublicArticles({ limit: 60 })`;
+- `/editoria/[slug]` chama `listPublicArticles({ ..., limit: 40 })`.
+
+Isso explica por que o usuário vê apenas cerca de 200 matérias no site mesmo com milhares já migradas. **Não é perda de dados da migração; é limite de interface/query.**
+
+### Correção obrigatória
+
+Implementar paginação real, sem carregar milhares de matérias de uma vez:
+
+1. `/noticias`
+   - paginação server-side;
+   - ordem global `published_at DESC` + desempate estável;
+   - mostrar total real de matérias publicadas;
+   - todas as matérias devem ser alcançáveis pelas páginas.
+
+2. `/editoria/[slug]`
+   - paginação server-side por editoria;
+   - `published_at DESC`;
+   - mostrar total real daquela editoria;
+   - não limitar a 40 no total.
+
+3. `/busca`
+   - remover o teto global de 200;
+   - busca deve alcançar todo o acervo publicado;
+   - preferir busca/query paginada no Supabase em vez de carregar todo o acervo no navegador;
+   - resultados em `published_at DESC`.
+
+4. `publicContentService`
+   - criar API de listagem paginada com `page/pageSize` ou `offset/limit` e `count: exact`;
+   - manter compatibilidade com usos pequenos da home/“Leia também”;
+   - ao buscar capas para lotes maiores, evitar `.in()` gigante; fazer chunks/paginação se necessário.
+
+5. Não alterar `published_at` histórico e não usar `created_at` para ordenação.
+
+6. Não mexer na migração já concluída para resolver isso; a correção é do portal.
+
+### Critério de aceite
+
+Com os lotes 2015–2018 já migrados, o portal deve permitir navegar por **todo o acervo de 4.125 matérias**, sem exibir apenas 40/60/200 por limite fixo. As mais novas aparecem primeiro e as antigas ficam nas páginas seguintes.
+
+Implementar isso como etapa de portal/UI separada da migração e registrar no handoff.
