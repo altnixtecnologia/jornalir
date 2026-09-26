@@ -1,0 +1,42 @@
+{
+  "updatedAt": "2026-09-26T15:11:31.537Z",
+  "provider": "informativo_regional_legacy",
+  "rule": "Lote padrão = 2 anos. Só dividir um lote específico (1 ano, depois semestre/mês) se ele apresentar problema grave.",
+  "batches": [
+    {
+      "batchKey": "2015-2016",
+      "periodStart": "2015-01-01",
+      "periodEnd": "2016-12-31",
+      "status": "preflight_complete",
+      "note": "Preflight concluído contra o site real (nenhuma gravação no Supabase ainda). Aguardando credencial de escrita do usuário antes de qualquer --mode=import --commit.",
+      "preflight": {
+        "itemsFound": 1635,
+        "dateExceptions": 7,
+        "barreiraIntegridade": { "eligible": 1622, "needsReview": 13, "rejected": 0 },
+        "withImage": 1506,
+        "withoutImage": 116,
+        "totalImageReferences": 3025,
+        "uniqueImageUrls": 3025,
+        "distribuicaoPorEditoria": { "geral": 1114, "esporte": 231, "politica": 228, "sociais": 49 }
+      },
+      "reportFiles": {
+        "preflight": "scripts/legacy-audit/output/batches/2015-2016/preflight.json",
+        "dateExceptions": "scripts/legacy-audit/output/batches/2015-2016/date-exceptions.json",
+        "needsReview": "scripts/legacy-audit/output/batches/2015-2016/needs-review.json",
+        "rejected": "scripts/legacy-audit/output/batches/2015-2016/rejected.json"
+      }
+    },
+    { "batchKey": "2017-2018", "periodStart": "2017-01-01", "periodEnd": "2018-12-31", "status": "pending" },
+    { "batchKey": "2019-2020", "periodStart": "2019-01-01", "periodEnd": "2020-12-31", "status": "pending" },
+    { "batchKey": "2021-2022", "periodStart": "2021-01-01", "periodEnd": "2022-12-31", "status": "pending" },
+    { "batchKey": "2023-2024", "periodStart": "2023-01-01", "periodEnd": "2024-12-31", "status": "pending" },
+    { "batchKey": "2025-2026", "periodStart": "2025-01-01", "periodEnd": "2026-12-31", "status": "pending" }
+  ],
+  "globalNotes": {
+    "auditoriaOrigemDiferencaTotal": "Site declara 23399, listagens encontradas 23393 (diferença de 6, nunca fabricada — ver docs/legacy-audit.md)",
+    "localidadePadrao": "Todas as matérias importadas do legado entram com Localidade = Geral (valor neutro obrigatório, nunca inferido)",
+    "editoriasNaoMapeadas": "Nenhuma — Agricultura e Classificados foram adicionadas na Fase 35 (migration 20261002100000)",
+    "barreiraIntegridade": "Uma matéria só é elegível para carga automática quando título, data, corpo e imagens vêm exclusivamente da estrutura própria da página de matéria (ver scripts/legacy-audit/lib/integrity.mjs). Qualquer ambiguidade vira needs_review — nunca é importada nem descartada silenciosamente.",
+    "gravacaoReal": "NENHUMA matéria ou imagem foi gravada no Supabase até agora (Fase 34 e Fase 35 são somente leitura/preflight). A escrita real depende de credencial de escrita (service role ou sessão staff) que o usuário ainda não forneceu."
+  }
+}

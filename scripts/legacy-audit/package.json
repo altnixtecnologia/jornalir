@@ -3,11 +3,13 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "Coletor read-only do site legado (informativoregional.net) — auditoria (Fase 34) e, depois, carga/sincronização (Fase 35). Nunca grava no Supabase.",
+  "description": "Coletor read-only do site legado (informativoregional.net) — auditoria (Fase 34) — e motor de migração por lotes (Fase 35+). migrate.mjs só grava no Supabase quando chamado com --commit e credenciais explícitas.",
   "scripts": {
-    "audit": "node audit.mjs"
+    "audit": "node audit.mjs",
+    "migrate": "node migrate.mjs"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.45.0",
     "cheerio": "^1.0.0"
   }
 }

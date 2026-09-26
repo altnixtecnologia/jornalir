@@ -82,6 +82,12 @@ export function parseListingItems(html, category) {
 export function parseArticlePage(html, url) {
   const $ = cheerio.load(html);
 
+  // Contagem de ocorrências dos contêineres estruturais principais — mais
+  // de 1 sugere página ambígua (ex.: um índice que reaproveita o mesmo
+  // markup de matéria), usado pela barreira de integridade (Fase 35).
+  const entryHeaderCount = $(".entry-header").length;
+  const entryContentCount = $(".entry-content").length;
+
   const title = $(".entry-header .post-title").first().text().trim() || null;
   const subtitle = $(".entry-content h3.class-resumo").first().text().trim() || null;
   const sourceLabel = $(".entry-header .post-cat").first().text().trim() || null;
@@ -89,13 +95,46 @@ export function parseArticlePage(html, url) {
 
   const bodySelectorUsed = ".entry-content";
   const bodyEl = $(".entry-content").first();
+
+  // Detecção estrutural (seletor de classe real, nunca substring em texto
+  // solto — "relacionada" no meio de uma frase comum não pode disparar
+  // isto) de blocos não-editoriais que às vezes vazam para dentro do
+  // `.entry-content` (menu/publicidade/relacionadas/sidebar/widget).
+  const SUSPICIOUS_SELECTORS = [
+    ".ts-grid-box",
+    ".carousel-item",
+    "[class*='sidebar']",
+    "[class*='widget']",
+    "[class*='menu-item']",
+    "[class*='rodape']",
+    "[class*='footer']",
+    "[class*='recomendad']",
+    "[class*='relacionad']",
+    "[class*='publicidade']",
+    ".breaking-post",
+    ".post-date-info",
+  ];
+  const suspiciousBodyElements = SUSPICIOUS_SELECTORS.filter((sel) => bodyEl.find(sel).length > 0);
+
+  bodyEl.find("style, .box-download").remove();
   const bodyParagraphs = [];
   bodyEl.find("p").each((_, p) => {
     const text = $(p).text().replace(/\s+/g, " ").trim();
     if (text) bodyParagraphs.push(text);
   });
+  // HTML real do corpo (preserva <strong>/<br>/parágrafos) — usado na
+  // importação (Fase 35); bodyTextSample abaixo continua só para
+  // amostragem/leitura humana e hash de conteúdo.
+  const bodyHtml = bodyEl.html()?.trim() || null;
 
-  const coverUrl = $(".single-big-img img.img-principal-artigo").first().attr("src") || $("meta[property='og:image']").attr("content") || null;
+  // coverSource distingue a capa vinda da ESTRUTURA da própria matéria
+  // (confiável) de um fallback via <meta og:image> (pode ser um valor
+  // genérico do site em páginas malformadas) — usado pela barreira de
+  // integridade (Fase 35) para decidir needs_review.
+  const structuralCover = $(".single-big-img img.img-principal-artigo").first().attr("src") || null;
+  const ogCover = $("meta[property='og:image']").attr("content") || null;
+  const coverUrl = structuralCover || ogCover || null;
+  const coverSource = structuralCover ? "article-structure" : ogCover ? "og-image-fallback" : null;
   const coverCaption = $(".legenda-imagem li").first().text().trim() || null;
 
   const galleryImages = [];
@@ -115,11 +154,16 @@ export function parseArticlePage(html, url) {
     subtitle,
     sourceLabel,
     publishedRaw,
+    entryHeaderCount,
+    entryContentCount,
     bodySelectorUsed,
+    suspiciousBodyElements,
     bodyParagraphCount: bodyParagraphs.length,
     bodyTextLength: bodyParagraphs.join(" ").length,
     bodyTextSample: bodyParagraphs.join(" ").slice(0, 500) || null,
+    bodyHtml,
     coverUrl,
+    coverSource,
     coverCaption,
     galleryImageCount: galleryImages.length,
     galleryImages: galleryImages.slice(0, 20),
