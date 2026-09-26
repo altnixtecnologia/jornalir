@@ -70,7 +70,7 @@ Aguardar decisão do usuário sobre credencial de escrita e sobre os 13 itens de
 
 ## Fase 35B — Hardening final antes da primeira gravação (ainda sem gravação)
 
-**HEAD/commit:** PLACEHOLDER (branch `feature/jornalir-core-foundation-20260917`)
+**HEAD/commit:** `17e6e1e` (branch `feature/jornalir-core-foundation-20260917`)
 
 ### O que foi feito
 
