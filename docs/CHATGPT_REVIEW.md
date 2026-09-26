@@ -121,3 +121,18 @@ Decisão:
 - se a quantidade deixar de ser pontual e virar dezenas/centenas, PARAR e investigar a causa antes de seguir.
 
 Na validação final, reportar claramente quantas imagens ficaram pendentes e quais matérias foram afetadas. Não forçar números nem marcar como sucesso silenciosamente.
+
+
+## Regra global de ordenação de matérias
+
+Decisão do usuário:
+
+- em todas as listagens públicas de matérias, a ordem padrão deve ser **decrescente por publicação**;
+- matérias mais novas sempre aparecem primeiro;
+- matérias antigas vão ficando para o fim;
+- usar **`published_at DESC`** como critério principal, nunca `created_at`;
+- em empate de `published_at`, usar um desempate estável (por exemplo `id DESC`);
+- isso vale para home, editorias, localidades, arquivos/listagens e blocos automáticos como “Mais destaques”;
+- a migração de conteúdo antigo não pode fazer matérias antigas subirem só porque foram inseridas agora no banco.
+
+Não alterar a data histórica da matéria para obter a ordenação; preservar `published_at` original.
