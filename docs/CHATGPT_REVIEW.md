@@ -8,23 +8,21 @@ Revisado diretamente no GitHub sobre o HEAD `aca77b5`.
 
 O preflight está consistente (1.622 eligible / 13 needs_review / 0 quarantined / 0 rejected), a amostra de 30 matérias está coerente e a barreira editorial está bem mais segura. Porém ainda existem pontos técnicos que precisam ser corrigidos antes de usar credencial de escrita.
 
-## Bloqueios obrigatórios
+## Decisão do usuário sobre horário histórico
 
-### 1. Fuso histórico incorreto
+O usuário definiu que, para o conteúdo legado, **a prioridade é preservar corretamente o dia/data da publicação**. Uma eventual diferença histórica de 1 hora causada pelo horário de verão NÃO é bloqueio para a migração.
 
-`scripts/legacy-audit/lib/dates.mjs` usa offset fixo `-03:00`.
+Portanto:
+- o item antigo sobre offset histórico `-02:00/-03:00` deixa de ser bloqueante;
+- manter o valor bruto original de data/hora em `raw_metadata`;
+- não gastar uma rodada só para reconstruir regras históricas de horário de verão;
+- garantir que a DATA exibida continue sendo a mesma do site legado.
 
-Isso NÃO representa corretamente o horário histórico de `America/Sao_Paulo`, pois em parte de 2015/2016 havia horário de verão.
+Se no futuro for desejável refinar o horário histórico, isso pode ser feito sem bloquear a migração atual.
 
-Exemplo real:
-- 13/01/2016 em São Paulo/SC usa offset histórico `-02:00`;
-- 01/07/2016 usa `-03:00`.
+## Bloqueios obrigatórios restantes
 
-Corrigir para conversão baseada na timezone IANA `America/Sao_Paulo`, preservando exatamente o horário local exibido no site antigo e calculando o offset histórico correto para cada data.
-
-Validar pelo menos uma data de verão e uma de inverno.
-
-### 2. Lote pode ser marcado complete sem conferir a quantidade real de imagens
+### 1. Lote pode ser marcado complete sem conferir a quantidade real de imagens
 
 Hoje `imagesReconciled` é apenas:
 
@@ -48,7 +46,7 @@ Registrar explicitamente:
 
 Não depender apenas de ausência de erro.
 
-### 3. Ordem/role das imagens em retomada parcial
+### 2. Ordem/role das imagens em retomada parcial
 
 `reconcileArticleImages` usa `sortOrder = existingLinks.length`.
 
@@ -61,7 +59,7 @@ A reconciliação deve usar a posição ORIGINAL esperada da imagem:
 
 A retomada precisa reconstruir exatamente capa + galeria + ordem.
 
-### 4. Deduplicação de mídia precisa de garantia no banco
+### 3. Deduplicação de mídia precisa de garantia no banco
 
 O código procura `media_assets.origin_source_url`, mas hoje não há constraint/índice único que impeça duas execuções concorrentes de criarem a mesma mídia externa.
 
@@ -95,11 +93,11 @@ A amostra documentada está internamente coerente:
 - há casos com 0, 1 e múltiplas imagens;
 - nenhum dos 30 foi sinalizado pela barreira.
 
-Após os 4 bloqueios acima, rodar novamente o preflight 2015–2016 sem gravação. Os números podem permanecer 1.622/13, mas não forçar isso.
+Após os 3 bloqueios acima, rodar novamente o preflight 2015–2016 sem gravação. Os números podem permanecer 1.622/13, mas não forçar isso.
 
 ## Próximo passo
 
-1. Corrigir os 4 bloqueios.
+1. Corrigir os 3 bloqueios restantes.
 2. Rodar preflight completo novamente.
 3. Atualizar `docs/AI_HANDOFF.md` e `docs/legacy-migration-status.json`.
 4. Commit/push.
