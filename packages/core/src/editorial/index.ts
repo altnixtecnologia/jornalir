@@ -1,4 +1,5 @@
 export * from "./article-repository";
+export * from "./article-external-source-repository";
 export * from "./editorial-section-repository";
 export * from "./locality-repository";
 export * from "./media-asset-repository";

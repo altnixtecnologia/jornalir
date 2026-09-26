@@ -22,7 +22,7 @@ const PLACEMENTS_TABLE = "article_placements";
 const ARTICLE_MEDIA_TABLE = "article_media";
 
 const ARTICLE_COLUMNS =
-  "id, internal_reference, slug, title, title_style, subtitle, subtitle_style, body, section_id, locality_id, status, notification_mode, origin, newspaper_edition_id, newspaper_page, urgent, scheduled_at, published_at, archived_at, created_by, created_at, updated_at";
+  "id, internal_reference, slug, title, title_style, subtitle, subtitle_style, body, section_id, locality_id, status, notification_mode, origin, author_name, newspaper_edition_id, newspaper_page, urgent, scheduled_at, published_at, archived_at, created_by, created_at, updated_at";
 
 interface ArticleRow {
   id: string;
@@ -37,7 +37,8 @@ interface ArticleRow {
   locality_id: string;
   status: ArticleStatus;
   notification_mode: NotificationMode;
-  origin: "manual" | "pdf";
+  origin: "manual" | "pdf" | "legacy_site";
+  author_name: string | null;
   newspaper_edition_id: string | null;
   newspaper_page: number | null;
   urgent: boolean;
@@ -76,10 +77,12 @@ const PLACEMENT_COLUMNS = "id, article_id, type, starts_at, ends_at, pinned, pin
 const ORIGIN_TO_DOMAIN: Record<ArticleRow["origin"], ArticleOrigin> = {
   manual: "manual",
   pdf: "pdfImport",
+  legacy_site: "legacySite",
 };
 const ORIGIN_TO_DB: Record<ArticleOrigin, ArticleRow["origin"]> = {
   manual: "manual",
   pdfImport: "pdf",
+  legacySite: "legacy_site",
 };
 
 function slugify(value: string): string {
@@ -153,6 +156,7 @@ function toDomain(row: ArticleRow, placement: PlacementRow | null, media: Articl
     notificationMode: row.notification_mode,
     media,
     origin: ORIGIN_TO_DOMAIN[row.origin],
+    authorName: row.author_name ?? undefined,
     editionId: row.newspaper_edition_id ?? undefined,
     editionPageNumber: row.newspaper_page ?? undefined,
     publishedAt: row.published_at ?? undefined,
@@ -480,9 +484,16 @@ export function createArticleRepositorySupabase(client: SupabaseClient): Article
           status: record.status,
           notification_mode: record.notificationMode,
           origin: ORIGIN_TO_DB[record.origin],
+          author_name: record.authorName ?? null,
           newspaper_edition_id: record.editionId ?? null,
           newspaper_page: record.editionPageNumber ?? null,
           urgent: record.urgent,
+          // `publishedAt` explícito é usado pela migração do legado (Fase
+          // 33) para preservar a data original — nunca a data de
+          // importação. Ausente (fluxo normal do editor): nulo, só
+          // preenchido de verdade quando `publishNow`/o cron agendado
+          // (Fase 25/30) publicam a matéria.
+          published_at: record.publishedAt ?? null,
           // created_by/updated_by: nunca enviados — trigger `set_article_actor`
           // (Fase 25) sempre usa auth.uid() da sessão, ignora qualquer valor daqui.
         })
@@ -517,6 +528,7 @@ export function createArticleRepositorySupabase(client: SupabaseClient): Article
       if (changes.status !== undefined) patch.status = changes.status;
       if (changes.notificationMode !== undefined) patch.notification_mode = changes.notificationMode;
       if (changes.urgent !== undefined) patch.urgent = changes.urgent;
+      if (changes.authorName !== undefined) patch.author_name = changes.authorName ?? null;
       if (changes.editionPageNumber !== undefined) patch.newspaper_page = changes.editionPageNumber ?? null;
       if (changes.scheduledAt !== undefined) patch.scheduled_at = changes.scheduledAt ?? null;
       if (changes.publishedAt !== undefined) patch.published_at = changes.publishedAt ?? null;

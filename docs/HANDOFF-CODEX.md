@@ -1,5 +1,21 @@
 # Handoff — JornalIR
 
+## Fase 33 — preparação para migração do site legado (26/09/2026)
+
+- Branch: `feature/jornalir-core-foundation-20260917`.
+- HEAD ao iniciar a fase: `39dc6c6` (commit da Fase 32).
+- Entrega: estrutura pronta para receber o conteúdo do site antigo — nenhuma matéria importada ainda. 10 editorias reais (Saúde/Sociais/Colunistas adicionadas); `articles.author_name` (byline opcional); `origin` aceita `legacy_site`; tabela nova `article_external_sources` (rastreabilidade + deduplicação por `provider`+`external_id`/`source_url`); `media_assets.origin_source_url` para preservar a URL da foto original.
+- `ArticleService.importLegacyArticle()` novo (packages/core) — nasce `published` com a data ORIGINAL preservada, nunca a data de importação. Ainda sem importador real usando isso.
+- **Achado real corrigido**: bug de cache do `fetch` no App Router (Next.js cacheia por padrão, `supabase-js` nunca define `cache`) fazia páginas que dependem só do `SiteFooter` (sem `force-dynamic` próprio) servirem dado desatualizado — `/editoria/saude` respondia 404 mesmo com a editoria já existindo no banco. Corrigido globalmente (`cache: "no-store"` no cliente público) — efeito colateral bom: `/sobre`/`/contato`/etc. passam a ter rodapé sempre atualizado.
+- Testado real: matéria manual/pdf/legacy_site funcionando; author_name e data original persistidos; duplicidade externa bloqueada (dois caminhos); 10 editorias públicas; `/editoria/saude`/`sociais`/`colunistas` abrindo reais após a correção do cache.
+- Detalhe completo em `docs/DATABASE-IR-CORE.md` (seção 21).
+
+### Próxima fase
+
+Construir o importador real do legado (scraping/sincronização), usando o que já está pronto; ou popular o banco com as primeiras matérias reais manuais.
+
+---
+
 ## Fase 32 — consolida navegação pública por editorias (26/09/2026)
 
 - Branch: `feature/jornalir-core-foundation-20260917`.

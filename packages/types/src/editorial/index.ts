@@ -125,7 +125,8 @@ export interface ArticleMedia {
   credit?: string;
 }
 
-export type ArticleOrigin = "manual" | "pdfImport";
+/** `legacySite` (Fase 33) — conteúdo importado do site antigo, nunca marcado como `manual`. */
+export type ArticleOrigin = "manual" | "pdfImport" | "legacySite";
 
 export type EditorialTextSize = "default" | "large" | "xlarge";
 export type EditorialEmphasis = "normal" | "medium" | "strong";
@@ -171,6 +172,8 @@ export interface Article {
   /** Vazio quando não há imagem. Uma entrada com role "cover" quando houver capa. */
   media: ArticleMedia[];
   origin: ArticleOrigin;
+  /** Autoria/byline opcional (Fase 33) — nunca obrigatória, nunca uma editoria própria. */
+  authorName?: string;
   editionId?: string;
   editionPageNumber?: number;
   publishedAt?: string;
@@ -178,6 +181,33 @@ export interface Article {
   createdAt: string;
   updatedAt: string;
   createdBy: string;
+}
+
+/**
+ * Rastreabilidade de conteúdo importado de uma fonte externa (Fase 33 —
+ * preparação para a migração do site antigo). Nunca exposta ao público —
+ * é metadado interno de migração, não conteúdo editorial. Uma matéria tem
+ * no máximo uma linha por `provider`.
+ */
+export interface ArticleExternalSource {
+  id: string;
+  articleId: string;
+  /** Ex.: "informativo_regional_legacy". */
+  provider: string;
+  externalId?: string;
+  sourceUrl?: string;
+  sourceSlug?: string;
+  originalCategory?: string;
+  originalSubcategory?: string;
+  originalAuthor?: string;
+  originalPublishedAt?: string;
+  originalUpdatedAt?: string;
+  importedAt: string;
+  lastSyncedAt?: string;
+  sourceHash?: string;
+  rawMetadata?: unknown;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface NewspaperEdition {

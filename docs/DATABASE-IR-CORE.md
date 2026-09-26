@@ -1119,8 +1119,81 @@ implementação a partir de agora. As 7 páginas antigas de categoria (mock,
   mais aparecem como página própria; `/noticias`/`/editoria/[slug]`
   seguem dinâmicas (`force-dynamic`).
 
-## 21. Próxima fase (sugestão)
+## 21. Fase 33 — preparação para migração do site legado
 
-Navegação pública por editoria consolidada (cabeçalho, rodapé, home,
-matéria, editoria, busca, "todas as notícias"). Caminho natural a partir
-daqui: popular o banco com as primeiras matérias reais de produção.
+Regra central da fase: o site antigo se adapta ao modelo novo, nunca o
+contrário; nenhuma informação histórica pode ser perdida. **Nenhum
+conteúdo foi importado nesta fase** — só a estrutura foi preparada e
+testada com dados QA (removidos ao final).
+
+- **Editorias completas**: `Saúde`, `Sociais`, `Colunistas` adicionadas
+  (`sort_order` 7/8/9) — as 7 já existentes (`Economia`/`Eventos`/
+  `Cidades` incluídas) permanecem, mesmo sem correspondência no legado.
+  10 editorias reais no total.
+- **Autoria opcional**: `articles.author_name` (nullable) — nunca
+  obrigatória em matéria nova; usada como byline quando preenchida. Uma
+  matéria de coluna continua em `Colunistas` (editoria), o nome da pessoa
+  fica à parte — nunca "cada colunista vira uma editoria".
+- **`origin` ganha `legacy_site`**: `articles_origin_check` agora aceita
+  `manual`/`pdf`/`legacy_site` — nunca marcar conteúdo importado como
+  `manual`. `ArticleService` ganhou `importLegacyArticle()` (packages/core)
+  — diferente de `saveDraft`/`importAsDraft`: nasce direto `published`,
+  com `publishedAt` = data ORIGINAL informada (nunca a data de
+  importação; `created_at` técnico continua sendo a data real da
+  importação). Ainda sem nenhum importador real chamando isso — só a
+  capacidade existe, testada via QA.
+- **`article_external_sources`** (tabela nova): rastreabilidade completa
+  de conteúdo importado — `provider`, `external_id`, `source_url`,
+  `source_slug`, `original_category`/`original_subcategory`/
+  `original_author`, `original_published_at`/`original_updated_at`,
+  `imported_at`, `last_synced_at`, `source_hash`, `raw_metadata` (jsonb).
+  RLS só staff (nunca exposta ao público — é metadado de migração, não
+  conteúdo editorial). Deduplicação garantida por dois índices únicos
+  parciais: `(provider, external_id)` quando há id externo, `(provider,
+  source_url)` como alternativa — testado real: tentar importar o mesmo
+  `external_id` ou a mesma `source_url` duas vezes é rejeitado (`23505`)
+  nos dois casos. Provider inicial documentado: `informativo_regional_legacy`.
+- **Mídia legada**: `media_assets.origin_source_url` (nullable) — preserva
+  a URL original do site antigo mesmo depois de `storage_path`/
+  `public_url` passarem a apontar para uma cópia no Storage próprio
+  (etapa definitiva, fora desta fase). `public_url` já aceitava qualquer
+  URL externa desde a Fase 17 — nenhuma mudança necessária aí.
+- **Portal absorve as novas editorias automaticamente**: `/editoria/saude`,
+  `/editoria/sociais`, `/editoria/colunistas` testados reais, `200`, sem
+  nenhuma mudança de código em `apps/site` — a arquitetura genérica desde
+  a Fase 30/32 já lida com qualquer editoria ativa nova.
+- **Achado real e corrigido nesta fase (bug pré-existente desde a Fase
+  30)**: o `supabase-js` do portal não define `cache` nas próprias
+  chamadas `fetch`, e o Next.js App Router cacheia `fetch` por padrão —
+  `dynamic = "force-dynamic"` na página não bastava para páginas que só
+  dependiam de dado do Supabase através de um componente como
+  `SiteFooter` (usado em `layout.tsx`, sem `force-dynamic` próprio).
+  Sintoma real: `/editoria/saude` respondia `404` mesmo com a editoria
+  real já existindo e confirmada via `curl` direto à API do Supabase —
+  uma rota de diagnóstico temporária confirmou que o servidor via só 7
+  editorias enquanto o banco já tinha 10. Corrigido configurando
+  `global.fetch` do cliente público (`supabasePublicClient.ts`) para
+  sempre `cache: "no-store"` — resolve para toda leitura pública do
+  portal, não só a página de editoria. Efeito colateral bom: páginas antes
+  estáticas (`/sobre`, `/contato`, etc.) viraram dinâmicas (o rodapé real
+  agora sempre atualizado) — antes, essas páginas serviam um rodapé
+  potencialmente desatualizado, congelado no momento do build.
+- **RLS**: 35 policies no schema `public` agora (32 + 3 de
+  `article_external_sources`) — nenhuma das 32 anteriores alterada; owner
+  intocado.
+- **Teste real completo** (contra `site-system-ir`, dados QA removidos ao
+  final): matéria `manual` e `pdf` continuam funcionando; matéria
+  `legacy_site` com `author_name` e data original (`2019-03-15`, não
+  "hoje") criada e confirmada; origem externa criada e persistida;
+  duplicidade bloqueada nos dois caminhos (`external_id` e `source_url`);
+  10 editorias visíveis via `public_editorial_sections` para o cliente
+  anon; `article_external_sources` confirmado bloqueado para anon; portal
+  abriu as 3 novas editorias reais depois da correção do cache.
+
+## 22. Próxima fase (sugestão)
+
+Estrutura pronta para receber o conteúdo do site antigo. Caminho natural:
+construir o importador real (scraping/sincronização), usando
+`ArticleService.importLegacyArticle` + `article_external_sources` já
+preparados; ou popular o banco com as primeiras matérias reais de
+produção manual.

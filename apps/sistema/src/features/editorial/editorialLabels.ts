@@ -60,6 +60,7 @@ export const localityScopeLabels: Record<LocalityScope, string> = {
 export const articleOriginLabels: Record<ArticleOrigin, string> = {
   manual: "Manual",
   pdfImport: "Importado do PDF",
+  legacySite: "Site antigo",
 };
 
 /** "Edição 037 · Página 6" (ou variação sem página) — só quando a matéria tem edição vinculada. */

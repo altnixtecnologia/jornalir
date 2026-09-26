@@ -48,9 +48,22 @@ export interface CreateArticleInput {
   notificationMode?: NotificationMode;
   media?: ArticleMedia[];
   origin?: ArticleOrigin;
+  /** Autoria/byline opcional (Fase 33) — nunca obrigatória. */
+  authorName?: string;
   editionId?: string;
   editionPageNumber?: number;
   createdBy: string;
+}
+
+/**
+ * Conteúdo do site antigo (Fase 33) — diferente de `saveDraft`: já nasce
+ * `published`, com a data ORIGINAL de publicação preservada (nunca a data
+ * de importação). Nunca usado para matéria nova de verdade; só para
+ * backfill de algo que já esteve público por anos no site legado — não
+ * faz sentido esse conteúdo "nascer rascunho" de novo.
+ */
+export interface ImportLegacyArticleInput extends Omit<CreateArticleInput, "origin"> {
+  originalPublishedAt: string;
 }
 
 export interface ScheduleArticleInput {
@@ -104,6 +117,7 @@ export class ArticleService {
       notificationMode: input.notificationMode ?? "none",
       media: input.media ?? [],
       origin: input.origin ?? "manual",
+      authorName: input.authorName,
       editionId: input.editionId,
       editionPageNumber: input.editionPageNumber,
       createdBy: input.createdBy,
@@ -303,6 +317,43 @@ export class ArticleService {
     audit: AuditContext,
   ): Promise<Article> {
     return this.saveDraft({ ...input, origin: "pdfImport" }, audit);
+  }
+
+  /**
+   * Conteúdo do site antigo (Fase 33, preparação da migração — não usado
+   * por nenhum importador real ainda). Diferente de `saveDraft`/
+   * `importAsDraft`: nasce direto `published`, com `publishedAt` igual à
+   * data ORIGINAL informada (nunca a data de importação — `createdAt`
+   * técnico continua sendo a data real da importação, gerado pelo banco).
+   * Nunca dispara a disputa por vaga de destaque (`enforcePlacementLimit`)
+   * — conteúdo histórico não chega com posição editorial nova.
+   */
+  async importLegacyArticle(input: ImportLegacyArticleInput, _audit: AuditContext): Promise<Article> {
+    await this.assertSectionExists(input.sectionId);
+    await this.assertLocalityExists(input.localityId);
+
+    const record: NewArticleRecord = {
+      title: input.title,
+      titleStyle: input.titleStyle,
+      subtitle: input.subtitle,
+      subtitleStyle: input.subtitleStyle,
+      body: input.body,
+      sectionId: input.sectionId,
+      localityId: input.localityId,
+      status: "published",
+      placement: { type: "none" },
+      urgent: input.urgent ?? false,
+      notificationMode: input.notificationMode ?? "none",
+      media: input.media ?? [],
+      origin: "legacySite",
+      authorName: input.authorName,
+      editionId: input.editionId,
+      editionPageNumber: input.editionPageNumber,
+      publishedAt: input.originalPublishedAt,
+      createdBy: input.createdBy,
+    };
+
+    return this.articles.create(record);
   }
 
   private async assertSectionExists(sectionId: string): Promise<void> {
