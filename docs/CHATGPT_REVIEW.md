@@ -212,3 +212,48 @@ Aplicar em desktop e mobile nas listagens paginadas do portal.
 ### Ordenação
 - sempre `published_at DESC` + desempate estável;
 - nunca usar `created_at` para empurrar conteúdo histórico para o topo.
+
+
+## Revisão da Fase 39 — paginação do portal
+
+Revisado diretamente no GitHub sobre o HEAD `d7de753`.
+
+A base da correção está boa: paginação real no Supabase, `count: exact`, `.range()`, ordem `published_at DESC` + `id DESC`, 24/48/96, páginas numeradas e tratamento de página além do fim.
+
+**Ainda faltam 2 ajustes antes de encerrar a Fase 39:**
+
+### 1. Posição do seletor 24/48/96 em Notícias/Editorias
+
+O usuário pediu o seletor **no cabeçalho da listagem, no lado oposto ao título/contador**, tanto desktop quanto mobile.
+
+Hoje, em `/noticias` e `/editoria/[slug]`, o seletor está dentro de `PublicPagination`, depois da grade, portanto aparece no rodapé da listagem.
+
+Corrigir:
+- manter paginação numerada no rodapé;
+- mover/expor o seletor 24/48/96 também no cabeçalho da listagem, alinhado ao lado oposto ao título/contador no desktop;
+- no mobile, quebrar/empilhar de forma compacta e bonita;
+- evitar duplicar controles se não for necessário: o seletor pode ficar no topo e a navegação de páginas no rodapé.
+
+### 2. Busca: voltar/avançar do navegador não está realmente sincronizado
+
+Em `/busca`, o estado `queryInput/debouncedQuery/page/pageSize` é inicializado a partir de `useSearchParams()`, mas não existe efeito que sincronize o estado quando a URL muda depois do mount.
+
+Além disso, a atualização usa `router.replace()`, então mudanças de página/tamanho não criam histórico navegável.
+
+Corrigir para cumprir o requisito já registrado:
+- paginação e troca 24/48/96 devem usar navegação que permita Back/Forward (ex.: `router.push`);
+- mudanças de termo digitado podem continuar usando `replace` para não poluir o histórico a cada tecla, se preferível;
+- adicionar sincronização URL -> estado para mudanças reais vindas de Back/Forward;
+- evitar loop entre URL e estado;
+- preservar `q`, `page` e `pageSize`.
+
+### Validação mínima
+
+Confirmar:
+- editoria/notícias: seletor visível no topo + paginação numerada embaixo;
+- mobile responsivo;
+- busca: ir para página 2, voltar no navegador e retornar corretamente à página anterior/estado anterior;
+- trocar 24 -> 48 cria estado navegável e Back restaura 24;
+- compartilhar/recarregar URL com `q/page/pageSize` restaura exatamente a tela.
+
+Depois atualizar `docs/AI_HANDOFF.md`, commit/push e parar para nova conferência.
