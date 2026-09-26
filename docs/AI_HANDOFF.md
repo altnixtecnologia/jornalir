@@ -6,7 +6,7 @@ Este arquivo é atualizado ao final de CADA fase a partir da Fase 35. Curto, dir
 
 ## Fase 35C — Correção dos 3 bloqueios da revisão do ChatGPT (ainda sem gravação)
 
-**HEAD/commit:** PLACEHOLDER (branch `feature/jornalir-core-foundation-20260917`)
+**HEAD/commit:** `676f1c9` (branch `feature/jornalir-core-foundation-20260917`)
 
 Resposta a `docs/CHATGPT_REVIEW.md` (revisado sobre o HEAD `aca77b5`, veredito "NÃO AUTORIZAR AINDA"). Os 3 bloqueios obrigatórios foram corrigidos; nenhuma matéria/imagem foi gravada.
 
