@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { SiteHeader } from "../../../../components/site/SiteHeader";
 import { PublicReadAlsoCard } from "../../../../components/site/public/PublicReadAlsoCard";
 import { PublicPagination } from "../../../../components/site/public/PublicPagination";
+import { PublicPageSizeSelect } from "../../../../components/site/public/PublicPageSizeSelect";
 import { listPublicArticlesPage, listPublicSections } from "../../../../lib/public/publicContentService";
 import { parsePage, parsePageSize } from "../../../../lib/public/pagination";
 
@@ -41,8 +42,13 @@ export default async function EditoriaPage({
     <main className="min-h-screen">
       <SiteHeader />
       <section className="site-shell py-8">
-        <h1 className="font-editorial text-3xl font-bold text-[color:var(--site-text)] md:text-4xl">{section.name}</h1>
-        <p className="mt-2 text-sm text-[color:var(--site-muted)]">{total} matéria(s) publicada(s)</p>
+        <div className="flex flex-wrap items-end justify-between gap-3">
+          <div>
+            <h1 className="font-editorial text-3xl font-bold text-[color:var(--site-text)] md:text-4xl">{section.name}</h1>
+            <p className="mt-2 text-sm text-[color:var(--site-muted)]">{total} matéria(s) publicada(s)</p>
+          </div>
+          <PublicPageSizeSelect pageSize={pageSize} basePath={`/editoria/${section.slug}`} />
+        </div>
 
         {articles.length === 0 ? (
           <p className="mt-8 text-[color:var(--site-muted)]">Nenhuma matéria publicada nesta editoria ainda.</p>

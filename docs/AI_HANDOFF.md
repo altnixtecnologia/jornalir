@@ -4,6 +4,47 @@ Este arquivo é atualizado ao final de CADA fase a partir da Fase 35. Curto, dir
 
 ---
 
+## Fase 39C — 2 ajustes finais da paginação do portal (encerra a Fase 39)
+
+**HEAD/commit:** PLACEHOLDER (branch `feature/jornalir-core-foundation-20260917`)
+
+Resposta a `docs/CHATGPT_REVIEW.md` (revisão sobre HEAD `d7de753`). Os 2 ajustes pedidos:
+
+### Ajuste 1 — seletor 24/48/96 movido para o cabeçalho
+
+O seletor estava dentro de `PublicPagination`, no rodapé da listagem, junto com a navegação numerada — o usuário pediu ele no cabeçalho, do lado oposto ao título/contador.
+
+- Extraído para um componente novo, `PublicPageSizeSelect.tsx` (Link-based, mesma pílula visual de antes).
+- `/noticias` e `/editoria/[slug]`: título+contador e o seletor agora dividem uma linha no cabeçalho (`flex justify-between`, quebra para empilhar no mobile via `flex-wrap`).
+- `PublicPagination` (rodapé) ficou só com a navegação numerada — sem duplicar o seletor.
+- `/busca` não precisou de mudança aqui: seu seletor já estava no cabeçalho da lista de resultados, ao lado do contador (só a navegação numerada é que fica embaixo, como nas outras páginas).
+
+### Ajuste 2 — busca: Voltar/Avançar do navegador agora funciona de verdade
+
+Antes, `page`/`pageSize`/`debouncedQuery` eram `useState` inicializados a partir da URL uma vez só — Back/Forward mudava a URL mas nada re-sincronizava o estado, e tudo usava `router.replace` (nunca criava histórico navegável).
+
+Reescrito para a URL ser a ÚNICA fonte de verdade:
+- `q`, `page` e `pageSize` agora são lidos DIRETO de `useSearchParams()` a cada render — não existe mais `useState` duplicando esses três valores, então não há como desincronizar (e não há risco de loop entre "estado → URL" e "URL → estado").
+- Só o campo de texto (`queryInput`) continua com estado local, porque digitar não pode navegar a cada tecla — um efeito sincroniza `queryInput` de volta quando `q` muda (inclusive por Back/Forward), sem loop (só dispara quando `q` de fato muda).
+- Trocar de página ou de 24/48/96 usa `router.push` (cria uma entrada de histórico — Back volta pra página/tamanho anterior). O debounce da digitação continua usando `router.replace` (não polui o histórico a cada tecla, comportamento que o próprio usuário disse que podia continuar assim).
+
+### Testes reais
+
+- `npx tsc --noEmit` e `npm run build` limpos.
+- Servidor dev contra o Supabase real: seletor 24/48/96 aparece uma única vez, no cabeçalho de `/noticias` e `/editoria/geral?pageSize=48` (confirmado via `grep -c` no HTML — não duplica no rodapé); navegação numerada no rodapé continua funcionando (links `?page=2`, `?page=172` presentes); `basePath` correto preservado por editoria.
+- `/busca?q=agricultura&page=2&pageSize=48` carrega sem erro, campo de busca pré-preenchido a partir da URL.
+- **Sem ferramenta de navegador headless disponível neste ambiente** para gravar um teste automatizado de clique-em-Voltar-do-navegador — a correção foi verificada por revisão cuidadosa da lógica (fonte única de verdade = URL, `push` vs. `replace` corretos, efeito de sincronização sem loop) e pelos testes de carga/URL acima. Recomendo uma verificação manual rápida no navegador (ir para página 2, clicar Voltar, confirmar que volta pra página 1) antes de considerar 100% fechado.
+
+### Migrations
+
+Nenhuma — só código do portal.
+
+### Próximo passo recomendado
+
+Aguardar conferência do ChatGPT (ou verificação manual do usuário no navegador) sobre os 2 ajustes.
+
+---
+
 ## Fase 39B — UX de paginação (24/48/96 + páginas numeradas) nas listagens do portal
 
 **HEAD/commit:** `c3f053e` (branch `feature/jornalir-core-foundation-20260917`)

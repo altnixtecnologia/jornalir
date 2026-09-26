@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { Suspense, useEffect, useRef, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { SiteHeader } from "../../../components/site/SiteHeader";
 import { formatDateBR } from "../../../components/site/date";
 import { listPublicArticlesPage } from "../../../lib/public/publicContentService";
@@ -33,61 +33,73 @@ export default function BuscaPage(): JSX.Element {
 }
 
 /**
- * Busca real (Fase 30, item 11), corrigida na Fase 39: antes carregava até
- * 200 matérias no navegador e filtrava ali — com o acervo do legado
- * migrado (mais de 4 mil matérias), isso deixava a maior parte inalcançável
- * e o teto de 200 escondia resultados reais. Agora cada busca/página é uma
- * consulta paginada no Supabase (`ilike` em título/subtítulo/corpo,
- * `published_at DESC`), nunca o acervo inteiro no navegador — e `q`/
- * `page`/`pageSize` vivem na URL (voltar/avançar do navegador e
- * compartilhar a busca funcionam, pedido explícito do usuário).
+ * Busca real (Fase 30, item 11), corrigida na Fase 39 e ajustada de novo
+ * na revisão do ChatGPT sobre a Fase 39: `page`/`pageSize`/`q` são
+ * derivados DIRETO de `useSearchParams()` a cada render — a URL é a
+ * única fonte de verdade, nunca um `useState` espelhando-a. Isso é o que
+ * faz Voltar/Avançar do navegador funcionar de verdade: quando o
+ * navegador troca a URL (Back/Forward), o Next re-renderiza com os novos
+ * `searchParams` automaticamente, sem precisar de nenhum efeito
+ * "URL -> estado" que pudesse entrar em loop com o efeito contrário.
+ * Só o campo de texto (`queryInput`) precisa de estado local, porque
+ * digitar não pode navegar a cada tecla — só depois do debounce.
+ * Trocar página/tamanho usa `router.push` (cria histórico navegável,
+ * pedido explícito do usuário); o debounce da digitação usa
+ * `router.replace` (não polui o histórico a cada tecla).
  */
 function BuscaContent(): JSX.Element {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
 
-  const initialQuery = searchParams.get("q") ?? "";
-  const [queryInput, setQueryInput] = useState(initialQuery);
-  const [debouncedQuery, setDebouncedQuery] = useState(initialQuery);
-  const [page, setPage] = useState(() => parsePage(searchParams.get("page")));
-  const [pageSize, setPageSize] = useState(() => parsePageSize(searchParams.get("pageSize")));
+  const q = searchParams.get("q") ?? "";
+  const page = parsePage(searchParams.get("page"));
+  const pageSize = parsePageSize(searchParams.get("pageSize"));
+
+  const [queryInput, setQueryInput] = useState(q);
   const [items, setItems] = useState<PublicArticle[]>([]);
   const [total, setTotal] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
   const [state, setState] = useState<LoadState>("loading");
-  const isFirstDebounce = useRef(true);
 
-  // Debounce: só dispara a busca real 300ms depois de parar de digitar
-  // (não debounça a carga inicial vinda da URL), e sempre volta para a
-  // página 1 quando o termo muda.
+  // Volta/Avança do navegador (ou qualquer navegação externa) muda `q`
+  // na URL — sincroniza o campo de texto de volta, sem loop: só dispara
+  // quando `q` realmente muda, nunca a cada tecla digitada (que só afeta
+  // `queryInput`, não a URL, até o debounce comitar).
   useEffect(() => {
-    if (isFirstDebounce.current) {
-      isFirstDebounce.current = false;
-      return;
-    }
+    setQueryInput(q);
+  }, [q]);
+
+  function navigate(overrides: { q?: string; page?: number; pageSize?: number }, mode: "push" | "replace") {
+    const nextQ = overrides.q ?? q;
+    const nextPage = overrides.page ?? page;
+    const nextPageSize = overrides.pageSize ?? pageSize;
+
+    const params = new URLSearchParams();
+    if (nextQ) params.set("q", nextQ);
+    if (nextPage > 1) params.set("page", String(nextPage));
+    if (nextPageSize !== DEFAULT_PAGE_SIZE) params.set("pageSize", String(nextPageSize));
+    const qs = params.toString();
+    const href = qs ? `${pathname}?${qs}` : pathname;
+    router[mode](href, { scroll: false });
+  }
+
+  // Debounce: só comita o termo digitado na URL 300ms depois de parar de
+  // digitar (e sempre volta para a página 1) — usa `replace` para não
+  // criar uma entrada de histórico por tecla.
+  useEffect(() => {
+    if (queryInput === q) return;
     const timer = setTimeout(() => {
-      setDebouncedQuery(queryInput);
-      setPage(1);
+      navigate({ q: queryInput, page: 1 }, "replace");
     }, DEBOUNCE_MS);
     return () => clearTimeout(timer);
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- só reage a digitação, não a debouncedQuery.
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- só reage à digitação; `navigate` fecha sobre q/page/pageSize atuais, que já estão nas deps via re-render.
   }, [queryInput]);
-
-  // Reflete o estado na URL (compartilhável, funciona com voltar/avançar).
-  useEffect(() => {
-    const params = new URLSearchParams();
-    if (debouncedQuery) params.set("q", debouncedQuery);
-    if (page > 1) params.set("page", String(page));
-    if (pageSize !== DEFAULT_PAGE_SIZE) params.set("pageSize", String(pageSize));
-    const qs = params.toString();
-    router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
-  }, [debouncedQuery, page, pageSize, pathname, router]);
 
   useEffect(() => {
     let cancelled = false;
     setState("loading");
-    listPublicArticlesPage({ query: debouncedQuery, page, pageSize })
+    listPublicArticlesPage({ query: q, page, pageSize })
       .then((result) => {
         if (cancelled) return;
         setItems(result.items);
@@ -102,7 +114,7 @@ function BuscaContent(): JSX.Element {
     return () => {
       cancelled = true;
     };
-  }, [debouncedQuery, page, pageSize]);
+  }, [q, page, pageSize]);
 
   return (
     <main className="min-h-screen bg-stone-100 dark:bg-zinc-950">
@@ -124,17 +136,14 @@ function BuscaContent(): JSX.Element {
           <>
             <div className="mt-2 flex items-center justify-between">
               <p className="text-sm text-zinc-500">
-                {total} resultado(s){debouncedQuery ? ` para "${debouncedQuery}"` : ""}
+                {total} resultado(s){q ? ` para "${q}"` : ""}
               </p>
               <div className="inline-flex overflow-hidden rounded-full border border-zinc-300 text-xs dark:border-zinc-700">
                 {PAGE_SIZE_OPTIONS.map((size) => (
                   <button
                     key={size}
                     type="button"
-                    onClick={() => {
-                      setPageSize(size);
-                      setPage(1);
-                    }}
+                    onClick={() => navigate({ pageSize: size, page: 1 }, "push")}
                     aria-current={size === pageSize ? "true" : undefined}
                     className={`px-3 py-1 font-semibold transition ${
                       size === pageSize ? "bg-[color:var(--brand-red)] text-white" : "text-zinc-500 hover:bg-zinc-200 dark:hover:bg-zinc-800"
@@ -168,7 +177,7 @@ function BuscaContent(): JSX.Element {
 
             {totalPages > 1 ? (
               <nav className="mt-6 flex items-center justify-center gap-1 border-t border-zinc-300 pt-4 dark:border-zinc-700" aria-label="Paginação">
-                <PageButton disabled={page <= 1} onClick={() => setPage((p) => Math.max(1, p - 1))} ariaLabel="Página anterior">
+                <PageButton disabled={page <= 1} onClick={() => navigate({ page: page - 1 }, "push")} ariaLabel="Página anterior">
                   ‹
                 </PageButton>
                 <div className="hidden items-center gap-1 sm:flex">
@@ -178,7 +187,7 @@ function BuscaContent(): JSX.Element {
                         …
                       </span>
                     ) : (
-                      <PageButton key={token} active={token === page} onClick={() => setPage(token)}>
+                      <PageButton key={token} active={token === page} onClick={() => navigate({ page: token }, "push")}>
                         {token}
                       </PageButton>
                     ),
@@ -191,13 +200,13 @@ function BuscaContent(): JSX.Element {
                         …
                       </span>
                     ) : (
-                      <PageButton key={token} active={token === page} onClick={() => setPage(token)}>
+                      <PageButton key={token} active={token === page} onClick={() => navigate({ page: token }, "push")}>
                         {token}
                       </PageButton>
                     ),
                   )}
                 </div>
-                <PageButton disabled={page >= totalPages} onClick={() => setPage((p) => Math.min(totalPages, p + 1))} ariaLabel="Próxima página">
+                <PageButton disabled={page >= totalPages} onClick={() => navigate({ page: page + 1 }, "push")} ariaLabel="Próxima página">
                   ›
                 </PageButton>
               </nav>

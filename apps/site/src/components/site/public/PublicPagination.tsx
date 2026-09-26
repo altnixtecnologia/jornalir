@@ -1,14 +1,13 @@
 import Link from "next/link";
-import { PAGE_SIZE_OPTIONS, DEFAULT_PAGE_SIZE, getPageWindow } from "../../../lib/public/pagination";
+import { DEFAULT_PAGE_SIZE, getPageWindow } from "../../../lib/public/pagination";
 
 /**
- * Paginação server-side real (Fase 39 — corrige o teto artificial de
- * 40/60/200 matérias nas listagens do portal), com a UX pedida pelo
- * usuário: páginas numeradas com reticências (nunca só anterior/
- * próxima) e seletor de quantidade por página (24/48/96). Tudo via
- * `<Link>` — nenhum JavaScript de cliente necessário aqui, `page`/
- * `pageSize` vivem na própria URL (voltar/avançar do navegador e
- * compartilhar o link funcionam).
+ * Navegação numerada do RODAPÉ da listagem (Fase 39, ajuste da revisão do
+ * ChatGPT: o seletor 24/48/96 foi separado para `PublicPageSizeSelect`,
+ * que vive no cabeçalho — este componente cuida só de anterior/páginas/
+ * próxima). Páginas numeradas com reticências (nunca só anterior/
+ * próxima), via `<Link>` — `page`/`pageSize` vivem na própria URL
+ * (voltar/avançar do navegador e compartilhar o link funcionam).
  */
 export function PublicPagination({
   currentPage,
@@ -21,12 +20,12 @@ export function PublicPagination({
   pageSize: number;
   basePath: string;
 }): JSX.Element | null {
-  if (totalPages <= 1 && pageSize === DEFAULT_PAGE_SIZE) return null;
+  if (totalPages <= 1) return null;
 
-  const hrefFor = (page: number, size: number = pageSize) => {
+  const hrefFor = (page: number) => {
     const params = new URLSearchParams();
     if (page > 1) params.set("page", String(page));
-    if (size !== DEFAULT_PAGE_SIZE) params.set("pageSize", String(size));
+    if (pageSize !== DEFAULT_PAGE_SIZE) params.set("pageSize", String(pageSize));
     const qs = params.toString();
     return qs ? `${basePath}?${qs}` : basePath;
   };
@@ -35,27 +34,7 @@ export function PublicPagination({
   const hasNext = currentPage < totalPages;
 
   return (
-    <nav className="mt-10 flex flex-col gap-4 border-t border-[color:var(--site-border)] pt-6" aria-label="Paginação">
-      <div className="flex items-center justify-end gap-1 text-xs">
-        <span className="mr-1 text-[color:var(--site-muted)]">Por página:</span>
-        <div className="inline-flex overflow-hidden rounded-full border border-[color:var(--site-border)]">
-          {PAGE_SIZE_OPTIONS.map((size) => (
-            <Link
-              key={size}
-              href={hrefFor(1, size)}
-              className={`px-3 py-1 font-semibold transition ${
-                size === pageSize
-                  ? "bg-[color:var(--brand-red)] text-white"
-                  : "text-[color:var(--site-muted)] hover:bg-[color:var(--site-border)]/40"
-              }`}
-              aria-current={size === pageSize ? "true" : undefined}
-            >
-              {size}
-            </Link>
-          ))}
-        </div>
-      </div>
-
+    <nav className="mt-10 border-t border-[color:var(--site-border)] pt-6" aria-label="Paginação">
       <div className="flex items-center justify-center gap-1 sm:gap-1.5">
         <PageLink href={hrefFor(currentPage - 1)} disabled={!hasPrev} ariaLabel="Página anterior">
           ‹
