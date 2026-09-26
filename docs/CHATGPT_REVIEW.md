@@ -184,3 +184,31 @@ Implementar paginação real, sem carregar milhares de matérias de uma vez:
 Com os lotes 2015–2018 já migrados, o portal deve permitir navegar por **todo o acervo de 4.125 matérias**, sem exibir apenas 40/60/200 por limite fixo. As mais novas aparecem primeiro e as antigas ficam nas páginas seguintes.
 
 Implementar isso como etapa de portal/UI separada da migração e registrar no handoff.
+
+
+## UX da paginação — decisão do usuário
+
+Aplicar em desktop e mobile nas listagens paginadas do portal.
+
+### Quantidade por página
+- padrão: **24 matérias por página**;
+- opções: **24 / 48 / 96**;
+- usar controle visual moderno/compacto, não o `<select>` quadrado padrão;
+- posicionar no cabeçalho da listagem, no lado oposto ao título/contador quando houver espaço;
+- no mobile, adaptar para largura menor sem perder legibilidade.
+
+### Navegação por páginas
+- exibir paginação numerada: **1, 2, 3, ...**;
+- incluir controles anterior/próxima;
+- quando houver muitas páginas, usar reticências em vez de mostrar todos os números;
+- manter números suficientes ao redor da página atual para o usuário se localizar;
+- no mobile, pode ser mais compacto, mas deve continuar mostrando páginas numeradas, não apenas anterior/próxima.
+
+### Estado/URL
+- refletir `page` e `pageSize` na URL/query string para permitir voltar/avançar do navegador e compartilhar a página;
+- ao mudar 24/48/96, voltar para a página 1 para evitar página inválida;
+- preservar filtros/editoria/busca ao trocar de página.
+
+### Ordenação
+- sempre `published_at DESC` + desempate estável;
+- nunca usar `created_at` para empurrar conteúdo histórico para o topo.
