@@ -18,7 +18,14 @@ export const QUARANTINED_CATEGORIES = new Set(["classificados"]);
 // Categorias que exigem amostragem/revisão antes do PRIMEIRO lote que as
 // contiver — controlado por config externa (nenhuma automática vira
 // "revisada" sozinha). Ver docs/legacy-migration-status.json.
-const REVIEWED_CATEGORIES = new Set([]); // vazio = agricultura ainda não revisada.
+// "agricultura" liberada na Fase 37 (revisão do ChatGPT sobre
+// docs/legacy-quarantined-2017-2018.md, HEAD dd718cf: os 5 itens
+// encontrados no preflight de 2017-2018 têm conteúdo real e bem formado,
+// sem motivo editorial para manter a categoria inteira bloqueada) — os
+// itens ainda passam pela barreira normal (estrutura/data/corpo/imagem)
+// como qualquer outra categoria, nunca viram eligible automaticamente só
+// por sair da quarentena.
+const REVIEWED_CATEGORIES = new Set(["agricultura"]);
 
 function normalizeTitle(text) {
   return (text || "")

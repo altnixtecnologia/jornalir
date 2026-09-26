@@ -219,9 +219,9 @@ ${Object.entries(bySection).map(([slug, n]) => `- ${slug}: ${n}`).join("\n")}
 
 ## Categorias encontradas
 
-- \`agricultura\` e/ou \`classificados\` apareceram neste lote? **${quarantinedList.length > 0 ? "Sim" : "Não"}** — ver \`legacy-quarantined-${BATCH_KEY}.md\` (${quarantinedList.length} itens).
-- \`classificados\` continua em quarentena automática em todos os lotes.
-- \`agricultura\` (quando aparece) exige amostragem/revisão da categoria antes de ser liberada — feita em \`legacy-quarantined-${BATCH_KEY}.md\`, sem liberar automaticamente.
+- \`agricultura\` apareceu na distribuição por editoria acima? **${bySection.agricultura ? `Sim (${bySection.agricultura} itens, já revisada/liberada — ver REVIEWED_CATEGORIES em lib/integrity.mjs)` : "Não"}**.
+- \`classificados\` apareceu neste lote (sempre em quarentena, nunca elegível automaticamente)? **${quarantinedList.length > 0 ? `Sim (${quarantinedList.length} itens)` : "Não"}** — ver \`legacy-quarantined-${BATCH_KEY}.md\`.
+- \`classificados\` continua em quarentena automática em todos os lotes até revisão humana específica da categoria inteira.
 
 ## Localidade
 

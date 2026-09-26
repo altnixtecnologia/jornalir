@@ -4,6 +4,40 @@ Este arquivo é atualizado ao final de CADA fase a partir da Fase 35. Curto, dir
 
 ---
 
+## Fase 37 — Libera Agricultura, rerroda preflight, generaliza validador (ainda sem gravação)
+
+**HEAD/commit:** PLACEHOLDER (branch `feature/jornalir-core-foundation-20260917`)
+
+Autorizado por `docs/CHATGPT_REVIEW.md` (revisão sobre HEAD `dd718cf`: "PREFLIGHT APROVADO. AGRICULTURA PODE SER LIBERADA, MAS É OBRIGATÓRIO RODAR NOVAMENTE O PREFLIGHT DEPOIS DA LIBERAÇÃO ANTES DE IMPORTAR").
+
+### O que foi feito
+
+1. `REVIEWED_CATEGORIES` em `lib/integrity.mjs` passou de vazio para `Set(["agricultura"])` — os itens dessa categoria agora passam pela barreira normal (estrutura/data/corpo/imagem) como qualquer outra, em vez de serem bloqueados só por categoria.
+2. Preflight de 2017-2018 rerodado (sem forçar nada): resultado real **idêntico ao previsto pelo ChatGPT sem ajuste** — 2.503 eligible, 8 needs_review, 0 quarantined, 0 rejected, 4.093 referências de imagem. Os 5 itens de `agricultura` passaram todos na barreira normal (nenhum virou `needs_review`).
+3. `docs/legacy-quarantined-2017-2018.md` atualizado: mantém o histórico dos 5 casos revisados (não apaga o registro que levou à liberação) e documenta o resultado pós-liberação.
+4. `docs/legacy-preflight-2017-2018.md`, `docs/legacy-review-2017-2018.md`, `docs/legacy-sample-check-2017-2018.md` regenerados com os números finais.
+5. **`scripts/legacy-audit/batch-final-validate.mjs` generalizado** (pedido explícito do ChatGPT): antes consultava TODO `origin=legacy_site` sem distinguir lotes — a partir de agora aceita `--batch=<key>`, calcula as identidades esperadas daquele lote via o mesmo pipeline do preflight, e escopa a validação só a elas. Mantém também uma checagem GLOBAL de duplicidade (slug/external_id/origin_source_url em todo o conteúdo do legado, não só do lote) — testado retroativamente contra 2015-2016 e confirma os mesmos números já validados (1.622/1.622/3.025/3.025, 0 duplicatas).
+
+### Migrations
+
+Nenhuma nesta fase.
+
+### Testes
+
+- Preflight 2017-2018 rerodado, números conferem exatamente com a previsão do ChatGPT.
+- `batch-final-validate.mjs --batch=2015-2016` rodado como teste de regressão do validador generalizado — resultado idêntico ao validador anterior (não generalizado).
+
+### Pendências
+
+1. Carga real de 2017-2018 ainda não executada — próximo passo desta mesma sessão.
+2. Os 8 `needs_review` continuam fora.
+
+### Próximo passo
+
+Executar a carga real de 2017-2018 (`--mode=import --commit`, autorizada condicionalmente pelo ChatGPT após os 4 pré-requisitos acima) e validar com o validador generalizado.
+
+---
+
 ## Fase 36 — Preflight do lote 2017-2018 (SOMENTE LEITURA, nada importado)
 
 **HEAD/commit:** `d598f5d` (branch `feature/jornalir-core-foundation-20260917`)

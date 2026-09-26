@@ -1,6 +1,6 @@
 # Revisão manual — lote 2017-2018 (8 casos)
 
-Gerado em: 2026-09-26T19:12:17.735Z
+Gerado em: 2026-09-26T19:25:49.087Z
 
 Estes casos foram marcados `needs_review` pela barreira de integridade editorial (`scripts/legacy-audit/lib/integrity.mjs`) e **não foram importados automaticamente**. Nenhuma decisão foi tomada aqui — cada caso precisa de revisão humana antes de decidir se entra (corrigido manualmente) ou fica de fora.
 

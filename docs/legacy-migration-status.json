@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-09-26T19:12:17.740Z",
+  "updatedAt": "2026-09-26T19:25:17.736Z",
   "provider": "informativo_regional_legacy",
   "rule": "Lote padrão = 2 anos. Só dividir um lote específico (1 ano, depois semestre/mês) se ele apresentar problema grave.",
   "batches": [
@@ -60,17 +60,23 @@
       "batchKey": "2017-2018",
       "periodStart": "2017-01-01",
       "periodEnd": "2018-12-31",
-      "status": "preflight_complete_pending_import_authorization",
-      "note": "Preflight rodado por autorização de docs/CHATGPT_REVIEW.md (HEAD 1d84c96): 'AUTORIZADO SOMENTE PREFLIGHT/AUDITORIA... AINDA NÃO IMPORTAR'. Nenhuma escrita real. agricultura aparece pela 1ª vez (5 itens, todos em quarentena, documentados individualmente). classificados não aparece. policia ausente de todo o período 2015-2018 (editoria só existe no site a partir de 2020 — fato real, não erro de coleta).",
+      "status": "preflight_complete_agricultura_released_pending_import",
+      "note": "Preflight autorizado por docs/CHATGPT_REVIEW.md (HEAD 1d84c96), depois agricultura liberada e preflight rerodado por autorização sobre HEAD dd718cf ('AGRICULTURA PODE SER LIBERADA... rodar novamente o preflight'). Resultado real pós-liberação idêntico ao previsto pelo ChatGPT: 2503 eligible, 8 needs_review, 0 quarantined. Carga real AUTORIZADA CONDICIONALMENTE (após liberar agricultura + rerodar preflight + validador escopado por lote — todos feitos). classificados não aparece neste intervalo. policia ausente de todo o período 2015-2018 (editoria só existe no site a partir de 2020 — fato real, não erro de coleta).",
       "preflight": {
         "itemsFound": 2511,
         "dateExceptions": 7,
-        "barreiraIntegridade": { "eligible": 2498, "needsReview": 8, "quarantined": 5, "rejected": 0 },
-        "withImage": 2356,
+        "barreiraIntegridade": { "eligible": 2503, "needsReview": 8, "quarantined": 0, "rejected": 0 },
+        "withImage": 2361,
         "withoutImage": 142,
-        "totalImageReferences": 4087,
-        "uniqueImageUrls": 4087,
-        "distribuicaoPorEditoria": { "geral": 2154, "esporte": 204, "politica": 95, "sociais": 45 }
+        "totalImageReferences": 4093,
+        "uniqueImageUrls": 4093,
+        "distribuicaoPorEditoria": { "agricultura": 5, "geral": 2154, "esporte": 204, "politica": 95, "sociais": 45 }
+      },
+      "preflightBeforeAgriculturaReleased": {
+        "eligible": 2498,
+        "needsReview": 8,
+        "quarantined": 5,
+        "note": "Números da 1ª rodada, antes de liberar agricultura (Fase 36) — preservados aqui só para histórico."
       },
       "reportFiles": {
         "preflight": "scripts/legacy-audit/output/batches/2017-2018/preflight.json",
@@ -104,7 +110,8 @@
     "gravacaoReal": "Lote 2015-2016 CONCLUÍDO (Fase 35E): 1.622 articles + 3.025 media_assets gravados via execução manual do usuário com credencial só em .env.local local (nunca exposta em chat/log/versionado). Validado diretamente no Supabase/Storage, paginado. legacy_migration_batches.status=complete.",
     "bucketGif": "O bucket article-media rejeitava image/gif até a migration 20261005100000 (Fase 35E) — 80 imagens do lote 2015-2016 eram GIF. Migration só atualizou allowed_mime_types (acrescentou image/gif), nenhum objeto apagado, nenhuma policy alterada.",
     "revisaoChatgpt": "docs/CHATGPT_REVIEW.md registra o histórico completo: HEAD aca77b5 (3 bloqueios, corrigidos na Fase 35C), HEAD 8f4f137 (aprovação do canário de 20, Fase 35D), HEAD 5b51e47 (autorização para concluir o lote inteiro), o achado das 80 GIFs (Fase 35E, resolvido) e HEAD 1d84c96 (aprovação do lote 2015-2016 encerrado + autorização SOMENTE do preflight de 2017-2018, Fase 36). Aguardando nova conferência do ChatGPT sobre os relatórios de 2017-2018 antes de autorizar qualquer importação real desse lote.",
-    "categoriaAgriculturaEncontrada": "agricultura apareceu pela 1ª vez no lote 2017-2018 (5 itens, todos em 2018, todos com conteúdo real e bem formado — ver docs/legacy-quarantined-2017-2018.md). Continua em quarentena (REVIEWED_CATEGORIES vazio em lib/integrity.mjs) — nenhuma decisão de liberação foi tomada.",
+    "categoriaAgriculturaEncontrada": "agricultura apareceu pela 1ª vez no lote 2017-2018 (5 itens, todos em 2018). Revisada e LIBERADA na Fase 37 (REVIEWED_CATEGORIES em lib/integrity.mjs agora inclui 'agricultura', decisão em docs/CHATGPT_REVIEW.md sobre HEAD dd718cf) — os 5 itens passaram pela barreira normal e todos resultaram eligible. Histórico completo da revisão em docs/legacy-quarantined-2017-2018.md.",
+    "validadorGeneralizado": "scripts/legacy-audit/batch-final-validate.mjs generalizado na Fase 37 (bloqueio da revisão do ChatGPT): aceita --batch=<key>, escopa a validação às identidades esperadas daquele lote (nunca mistura com outros lotes já migrados), e mantém uma checagem GLOBAL separada de duplicidade (slug/external_id/origin_source_url em todo o legado). Testado retroativamente contra 2015-2016 com resultado idêntico ao validador anterior.",
     "categoriaPoliciaAusenteAteAqui": "policia não existe no site legado em nenhum ponto de 2015-2018 — a editoria só foi criada a partir de 2020 (299 itens naquele ano, confirmado no inventário completo da Fase 34). Vai aparecer normalmente a partir do lote 2019-2020; não é um erro de coleta."
   }
 }
