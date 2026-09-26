@@ -1,132 +1,78 @@
-# Revisão do ChatGPT — Fase 35C
+# Revisão do ChatGPT — Fase 35D
 
-Revisado diretamente no GitHub sobre o HEAD `8f4f137`.
+Revisado diretamente no GitHub sobre o HEAD `f8f0154`.
 
 ## Veredito
 
-**APROVADO PARA CANÁRIO REAL PEQUENO. NÃO AUTORIZADO AINDA O LOTE COMPLETO 2015–2016.**
+**CANÁRIO APROVADO. AUTORIZADO CONCLUIR O LOTE 2015–2016.**
 
-Os 3 bloqueios da revisão anterior foram implementados:
-- reconciliação de referências de imagem passou a conferir quantidade esperada;
-- role/sort_order usam a posição original esperada;
-- `media_assets.origin_source_url` ganhou índice único parcial e conflito 23505 é tratado de forma idempotente.
+O canário real passou:
+- 20 matérias corretas;
+- 45 imagens corretas;
+- validação direta no Supabase/Storage com `allOk=true`;
+- segunda execução idempotente sem duplicações;
+- 0 falhas;
+- nenhuma placement criada;
+- role/sort_order preservados;
+- lote permaneceu `incomplete`, corretamente.
 
-O preflight continua:
-- 1.635 candidatas;
-- 1.622 eligible;
-- 13 needs_review;
-- 0 quarantined;
-- 0 rejected;
-- 3.025 referências de imagens elegíveis.
+O achado isolado de decodificação no título `external_id=416746` não bloqueia a carga. Manter documentado para correção pontual posterior.
 
-Nenhuma matéria/imagem do legado foi gravada até esta revisão.
+## Próxima etapa — completar 2015–2016
 
-## Decisão do usuário sobre data/hora
+Executar a importação do lote completo 2015–2016 usando o mesmo motor já validado.
 
-Para o legado, a prioridade é preservar corretamente o **dia/data** original. Diferença histórica de 1h por horário de verão não bloqueia a migração. O valor bruto original continua preservado em `raw_metadata`.
+Regras obrigatórias:
+1. Importar somente as **1.622 elegíveis**.
+2. As 20 do canário devem ser reencontradas/reconciliadas, nunca duplicadas.
+3. Os **13 `needs_review` continuam fora** da carga automática.
+4. Não importar exceções de data `31/12/1969`.
+5. Não iniciar 2017–2018 nesta etapa.
+6. Nenhuma placement deve ser criada.
+7. Manter localidade `geral` para o legado.
+8. Se houver falha de artigo ou imagem, NÃO marcar o lote como `complete`.
 
-## Credencial local
+## Execução
 
-O usuário confirmou que as credenciais necessárias já estão no arquivo local `.env.local` na raiz do repositório.
+Usar o mesmo comando, agora **sem `--limit`**:
 
-A Claude deve:
-- ajustar o script/execução para carregar o `.env.local` da raiz localmente;
-- nunca imprimir, versionar ou copiar secrets para relatório/log;
-- nunca pedir novamente a service-role em chat;
-- usar a credencial apenas no processo local de migração.
+`node --env-file=".env.local" scripts/legacy-audit/migrate.mjs --batch=2015-2016 --mode=import --commit --rps=4`
 
-O arquivo `.env.local` já está coberto pelo `.gitignore`.
+Se o sandbox bloquear a escrita, parar e pedir ao usuário apenas para executar exatamente esse comando manualmente. Não contornar a proteção.
 
-## Observação para o canário
+## Validação obrigatória após a carga
 
-A lógica `linkedTotal` ainda é uma soma de contadores operacionais, não uma consulta final independente do banco. Isso NÃO bloqueia um canário pequeno em banco limpo, mas o canário deve validar diretamente o estado final do Supabase antes de qualquer lote completo.
+Consultar diretamente Supabase/Storage e confirmar:
 
-Não considerar o canário aprovado apenas porque o script terminou sem erro.
+- 1.622 `articles` do lote elegível 2015–2016 reconciliadas;
+- 1.622 `article_external_sources` correspondentes;
+- 3.025 referências de imagem reconciliadas;
+- nenhuma duplicata de `media_assets.origin_source_url`;
+- nenhuma duplicata em `article_media`;
+- 0 falhas de artigos;
+- 0 falhas de imagens;
+- capa/galeria e `sort_order` corretos;
+- objetos de Storage existentes;
+- nenhuma placement;
+- 13 `needs_review` continuam fora;
+- `legacy_migration_batches.status = complete` SOMENTE se todas as reconciliações acima fecharem exatamente.
 
-## Próxima etapa — CANÁRIO REAL
-
-Importar **somente 20 matérias elegíveis** do lote 2015–2016.
-
-Regras:
-1. NÃO importar os 13 `needs_review`.
-2. NÃO iniciar 2017–2018.
-3. NÃO importar o restante do lote após o canário.
-4. Usar `--limit=20`.
-5. Carregar a credencial apenas do `.env.local` local da raiz.
-6. Se as variáveis ainda não forem lidas pelo processo, corrigir o carregamento do `.env.local` sem expor os valores e continuar.
-
-## Validação obrigatória depois das 20
-
-Consultar o Supabase e validar diretamente as 20 matérias gravadas, não apenas os contadores do script.
-
-Para cada matéria confirmar:
-- existe exatamente 1 `article_external_sources` correspondente;
-- `origin=legacy_site`;
-- título corresponde ao legado;
-- data/dia publicado corresponde ao legado;
-- `source_url`/external_id correspondem à origem;
-- editoria está correta;
-- localidade = Geral;
-- nenhuma placement foi criada;
-- body não contém menu/publicidade/relacionadas/sidebar/rodapé;
-- quantidade de imagens corresponde ao esperado daquela matéria;
-- capa é role=cover e sort_order correto;
-- galeria mantém ordem original;
-- `origin_source_url` corresponde à imagem antiga;
-- `public_url` aponta para o Storage próprio;
-- os objetos do Storage existem.
-
-Depois, executar NOVAMENTE o mesmo canário de 20 para testar idempotência/retomada:
-- 0 artigos duplicados;
-- 0 `article_external_sources` duplicados;
-- 0 `media_assets` duplicados;
-- 0 `article_media` duplicados;
-- nenhuma ordem/role deve mudar indevidamente.
-
-Como `--limit=20` não cobre o lote inteiro, `legacy_migration_batches` NÃO pode terminar como `complete`.
+A validação final deve ser baseada no estado real do banco, não apenas nos contadores do processo.
 
 ## Relatório
 
-Criar/atualizar:
-- `docs/legacy-canary-2015-2016.md`
+Atualizar:
 - `docs/AI_HANDOFF.md`
 - `docs/legacy-migration-status.json`
+- criar `docs/legacy-batch-2015-2016-final.md`
 
-O relatório do canário deve trazer contagens do banco antes/depois, as 20 identidades importadas, reconciliação de imagens e resultado da segunda execução idempotente.
+Registrar números finais, falhas/retries se houver, contagens reais do banco e qualquer divergência.
 
-Commit/push e PARAR.
+Commit/push e PARAR antes de 2017–2018.
 
-**Não executar as outras 1.602 matérias sem nova conferência do ChatGPT.**
+## Decisões mantidas
 
-
-## Resultado da primeira execução manual do canário
-
-O usuário executou manualmente, na raiz do projeto:
-
-`node --env-file=".env.local" scripts/legacy-audit/migrate.mjs --batch=2015-2016 --mode=import --commit --limit=20 --rps=4`
-
-Resultado informado pelo próprio processo:
-
-- imported: 20
-- skippedExisting: 0
-- failedArticles: 0
-- uploadedImages: 45
-- reusedImages: 0
-- alreadyLinkedImages: 0
-- correctedImages: 0
-- failedImages: 0
-- lote permaneceu `incomplete`, como esperado para um canário parcial (20/1622 artigos e 45/3025 referências de imagem).
-
-### Ação imediata
-
-Claude deve agora:
-1. Fazer a validação READ-ONLY diretamente no Supabase das 20 matérias e 45 imagens, conforme a seção "Validação obrigatória depois das 20".
-2. Se a validação direta estiver correta, preparar a segunda execução do mesmo canário para testar idempotência.
-3. Se o sandbox bloquear novamente a segunda escrita, PARAR e informar ao usuário que ele deve repetir EXATAMENTE o mesmo comando manualmente. Não sugerir nenhum comando diferente.
-4. Após a segunda execução, validar novamente em modo read-only:
-   - total de artigos legados permanece 20;
-   - total de external sources permanece 20;
-   - nenhuma mídia duplicada;
-   - nenhum article_media duplicado;
-   - role/sort_order permanecem corretos.
-5. Gerar `docs/legacy-canary-2015-2016.md`, atualizar handoff/status, commit/push e PARAR antes das outras 1.602 matérias.
+- prioridade histórica: preservar corretamente o dia/data; diferença de 1h por DST não bloqueia;
+- `raw_metadata` mantém o valor bruto original;
+- os 13 casos manuais não são descartados nem importados automaticamente;
+- o problema isolado do `?` no título 416746 fica para correção pontual posterior.
