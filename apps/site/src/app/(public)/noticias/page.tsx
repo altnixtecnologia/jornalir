@@ -2,11 +2,10 @@ import { SiteHeader } from "../../../components/site/SiteHeader";
 import { PublicReadAlsoCard } from "../../../components/site/public/PublicReadAlsoCard";
 import { PublicPagination } from "../../../components/site/public/PublicPagination";
 import { listPublicArticlesPage } from "../../../lib/public/publicContentService";
+import { parsePage, parsePageSize } from "../../../lib/public/pagination";
 
 // Sempre no request — lista muda conforme novas matérias são publicadas.
 export const dynamic = "force-dynamic";
-
-const PAGE_SIZE = 24;
 
 /**
  * "Todas as notícias" real (Fase 32) — diferente de `/editoria/[slug]`
@@ -17,15 +16,18 @@ const PAGE_SIZE = 24;
  *
  * Paginação real (Fase 39 — corrige o teto artificial de 60 que escondia
  * a maior parte do acervo já migrado do legado, mais de 4 mil matérias):
- * cada página busca só `PAGE_SIZE` matérias, nunca o acervo inteiro.
+ * cada página busca só `pageSize` matérias, nunca o acervo inteiro.
+ * `page`/`pageSize` vivem na URL (item explícito da UX pedida pelo
+ * usuário: voltar/avançar do navegador e compartilhar o link funcionam).
  */
 export default async function NoticiasPage({
   searchParams,
 }: {
-  searchParams: { page?: string };
+  searchParams: { page?: string; pageSize?: string };
 }): Promise<JSX.Element> {
-  const requestedPage = Math.max(1, Number.parseInt(searchParams.page ?? "1", 10) || 1);
-  const { items: articles, total, page, totalPages } = await listPublicArticlesPage({ page: requestedPage, pageSize: PAGE_SIZE });
+  const requestedPage = parsePage(searchParams.page);
+  const pageSize = parsePageSize(searchParams.pageSize);
+  const { items: articles, total, page, totalPages } = await listPublicArticlesPage({ page: requestedPage, pageSize });
 
   return (
     <main className="min-h-screen">
@@ -44,7 +46,7 @@ export default async function NoticiasPage({
           </div>
         )}
 
-        <PublicPagination currentPage={page} totalPages={totalPages} basePath="/noticias" />
+        <PublicPagination currentPage={page} totalPages={totalPages} pageSize={pageSize} basePath="/noticias" />
       </section>
     </main>
   );

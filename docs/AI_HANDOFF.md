@@ -4,6 +4,35 @@ Este arquivo é atualizado ao final de CADA fase a partir da Fase 35. Curto, dir
 
 ---
 
+## Fase 39B — UX de paginação (24/48/96 + páginas numeradas) nas listagens do portal
+
+**HEAD/commit:** PLACEHOLDER (branch `feature/jornalir-core-foundation-20260917`)
+
+Complementa a Fase 39 (que já corrigiu os limites artificiais) com a UX específica pedida em `docs/CHATGPT_REVIEW.md` — chegou como um requisito novo enquanto a Fase 39 já estava com o primeiro commit enviado.
+
+### O que foi feito
+
+1. `lib/public/pagination.ts` (novo): `PAGE_SIZE_OPTIONS = [24, 48, 96]`, `parsePage`/`parsePageSize` (com fallback seguro para valores inválidos/fora da lista) e `getPageWindow(current, total, delta)` — função pura que gera a lista de páginas com reticências (`1, 2, 3, …, 43`), reaproveitada tanto pelas páginas server-rendered quanto pela busca (client).
+2. `PublicPagination.tsx` reescrito: agora mostra páginas numeradas (nunca só anterior/próxima), com uma janela mais larga no desktop e mais compacta no mobile (CSS `hidden sm:flex` / `sm:hidden`, sem JS extra) e um seletor 24/48/96 em formato de pílula (não o `<select>` padrão), tudo via `<Link>` — `page`/`pageSize` vivem na URL, então voltar/avançar do navegador e compartilhar o link funcionam sem nenhum JavaScript de cliente nessas duas páginas.
+3. `/noticias` e `/editoria/[slug]`: passam a ler `pageSize` da query string também (antes só liam `page`); trocar o tamanho da página sempre volta para a página 1 (link não inclui `page=`).
+4. `/busca`: reescrita para sincronizar `q`/`page`/`pageSize` na URL de verdade (`useSearchParams`/`useRouter().replace`) — precisou de um `<Suspense>` ao redor do conteúdo (`BuscaContent`), exigência do Next.js App Router para qualquer componente que usa `useSearchParams` (sem isso o build falha com "should be wrapped in a suspense boundary"). Paginação numerada com o mesmo `getPageWindow`, seletor de tamanho como botões (não pode ser `<Link>` aqui — é estado de cliente, não navegação de página inteira).
+
+### Testes reais
+
+- `npx tsc --noEmit` e `npm run build` limpos (o build falhou uma vez por causa do `<Suspense>` faltando — corrigido e revalidado).
+- Contra o Supabase real: `pageSize=48` em `/noticias` → 48 itens únicos na página; `pageSize=96&page=3` → `Página 3` ativa corretamente marcada (`aria-current`), 43 páginas totais (4.125/96 arredondado para cima); `pageSize=13` (valor inválido, fora da lista) → cai para o padrão 24 sem erro; `/editoria/geral?pageSize=48` → 69 páginas (3.268/48), links de paginação preservam `pageSize=48` e o `basePath` correto (`/editoria/geral`, não `/noticias`).
+- `/busca?q=agricultura&page=2&pageSize=48` carrega sem erro, com o campo de busca pré-preenchido a partir da URL (`value="agricultura"` já no HTML inicial, confirmando a sincronização de estado a partir da querystring).
+
+### Migrations
+
+Nenhuma — só código do portal.
+
+### Próximo passo recomendado
+
+Aguardar conferência do ChatGPT sobre a UX de paginação implementada.
+
+---
+
 ## Fase 39 — Corrige limites artificiais nas listagens do portal (apps/site)
 
 **HEAD/commit:** `a35ac62` (branch `feature/jornalir-core-foundation-20260917`)
