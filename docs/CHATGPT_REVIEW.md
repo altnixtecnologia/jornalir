@@ -106,3 +106,33 @@ Commit/push e PARAR antes de 2019–2020.
 - localidade do legado continua `Geral`;
 - a ausência histórica da editoria Polícia em 2015–2018 está documentada e não é tratada como erro;
 - o bloco público “Mais destaques” será automatizado futuramente por `published_at`, não por `created_at`.
+
+
+## Decisão do usuário sobre falhas pontuais de imagem
+
+Durante a carga 2017–2018, o usuário observou que aparentemente uma ou poucas imagens podem ter falhado.
+
+Decisão:
+- falha **pontual e isolada** de imagem não deve ser tratada como motivo para abandonar o lote;
+- registrar cada caso com matéria, URL de origem e motivo da falha;
+- manter a matéria migrada se o conteúdo editorial estiver íntegro;
+- essas imagens podem ser baixadas/inseridas manualmente depois;
+- **não esconder nem descartar** a pendência;
+- se a quantidade deixar de ser pontual e virar dezenas/centenas, PARAR e investigar a causa antes de seguir.
+
+Na validação final, reportar claramente quantas imagens ficaram pendentes e quais matérias foram afetadas. Não forçar números nem marcar como sucesso silenciosamente.
+
+
+## Regra global de ordenação de matérias
+
+Decisão do usuário:
+
+- em todas as listagens públicas de matérias, a ordem padrão deve ser **decrescente por publicação**;
+- matérias mais novas sempre aparecem primeiro;
+- matérias antigas vão ficando para o fim;
+- usar **`published_at DESC`** como critério principal, nunca `created_at`;
+- em empate de `published_at`, usar um desempate estável (por exemplo `id DESC`);
+- isso vale para home, editorias, localidades, arquivos/listagens e blocos automáticos como “Mais destaques”;
+- a migração de conteúdo antigo não pode fazer matérias antigas subirem só porque foram inseridas agora no banco.
+
+Não alterar a data histórica da matéria para obter a ordenação; preservar `published_at` original.
