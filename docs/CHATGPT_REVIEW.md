@@ -1,107 +1,87 @@
-# Revisão do ChatGPT — Fase 35B
+# Revisão do ChatGPT — Fase 35C
 
-Revisado diretamente no GitHub sobre o HEAD `aca77b5`.
+Revisado diretamente no GitHub sobre o HEAD `8f4f137`.
 
 ## Veredito
 
-**NÃO AUTORIZAR AINDA a primeira gravação real do lote 2015–2016.**
+**APROVADO PARA CANÁRIO REAL PEQUENO. NÃO AUTORIZADO AINDA O LOTE COMPLETO 2015–2016.**
 
-O preflight está consistente (1.622 eligible / 13 needs_review / 0 quarantined / 0 rejected), a amostra de 30 matérias está coerente e a barreira editorial está bem mais segura. Porém ainda existem pontos técnicos que precisam ser corrigidos antes de usar credencial de escrita.
+Os 3 bloqueios da revisão anterior foram implementados:
+- reconciliação de referências de imagem passou a conferir quantidade esperada;
+- role/sort_order usam a posição original esperada;
+- `media_assets.origin_source_url` ganhou índice único parcial e conflito 23505 é tratado de forma idempotente.
 
-## Decisão do usuário sobre horário histórico
+O preflight continua:
+- 1.635 candidatas;
+- 1.622 eligible;
+- 13 needs_review;
+- 0 quarantined;
+- 0 rejected;
+- 3.025 referências de imagens elegíveis.
 
-O usuário definiu que, para o conteúdo legado, **a prioridade é preservar corretamente o dia/data da publicação**. Uma eventual diferença histórica de 1 hora causada pelo horário de verão NÃO é bloqueio para a migração.
+Nenhuma matéria/imagem do legado foi gravada até esta revisão.
 
-Portanto:
-- o item antigo sobre offset histórico `-02:00/-03:00` deixa de ser bloqueante;
-- manter o valor bruto original de data/hora em `raw_metadata`;
-- não gastar uma rodada só para reconstruir regras históricas de horário de verão;
-- garantir que a DATA exibida continue sendo a mesma do site legado.
+## Decisão do usuário sobre data/hora
 
-Se no futuro for desejável refinar o horário histórico, isso pode ser feito sem bloquear a migração atual.
+Para o legado, a prioridade é preservar corretamente o **dia/data** original. Diferença histórica de 1h por horário de verão não bloqueia a migração. O valor bruto original continua preservado em `raw_metadata`.
 
-## Bloqueios obrigatórios restantes
+## Observação para o canário
 
-### 1. Lote pode ser marcado complete sem conferir a quantidade real de imagens
+A lógica `linkedTotal` ainda é uma soma de contadores operacionais, não uma consulta final independente do banco. Isso NÃO bloqueia um canário pequeno em banco limpo, mas o canário deve validar diretamente o estado final do Supabase antes de qualquer lote completo.
 
-Hoje `imagesReconciled` é apenas:
+Não considerar o canário aprovado apenas porque o script terminou sem erro.
 
-`batchStats.failedImages === 0`
+## Próxima etapa — CANÁRIO REAL
 
-Isso é insuficiente.
+Importar **somente 20 matérias elegíveis** do lote 2015–2016.
 
-Só marcar `complete` quando:
-- artigos reconciliados == expected_articles;
-- referências de imagem reconciliadas == expected_image_references;
-- zero falhas;
-- e a contagem real dos vínculos `article_media` esperados estiver reconciliada.
+Regras:
+1. NÃO importar os 13 `needs_review`.
+2. NÃO iniciar 2017–2018.
+3. NÃO importar o restante do lote após o canário.
+4. Usar `--limit=20`.
+5. A credencial privilegiada deve existir SOMENTE no ambiente local. Nunca pedir ao usuário para colar service-role em chat, arquivo versionado, comando exibido no relatório ou código.
+6. Se a credencial não estiver disponível no ambiente, PARAR e orientar apenas como configurá-la localmente com segurança.
 
-Registrar explicitamente:
-- uploaded;
-- reused;
-- alreadyLinked;
-- linkedTotal;
-- expectedReferences;
-- failed/pending.
+## Validação obrigatória depois das 20
 
-Não depender apenas de ausência de erro.
+Consultar o Supabase e validar diretamente as 20 matérias gravadas, não apenas os contadores do script.
 
-### 2. Ordem/role das imagens em retomada parcial
+Para cada matéria confirmar:
+- existe exatamente 1 `article_external_sources` correspondente;
+- `origin=legacy_site`;
+- título corresponde ao legado;
+- data/dia publicado corresponde ao legado;
+- `source_url`/external_id correspondem à origem;
+- editoria está correta;
+- localidade = Geral;
+- nenhuma placement foi criada;
+- body não contém menu/publicidade/relacionadas/sidebar/rodapé;
+- quantidade de imagens corresponde ao esperado daquela matéria;
+- capa é role=cover e sort_order correto;
+- galeria mantém ordem original;
+- `origin_source_url` corresponde à imagem antiga;
+- `public_url` aponta para o Storage próprio;
+- os objetos do Storage existem.
 
-`reconcileArticleImages` usa `sortOrder = existingLinks.length`.
+Depois, executar NOVAMENTE o mesmo canário de 20 para testar idempotência/retomada:
+- 0 artigos duplicados;
+- 0 `article_external_sources` duplicados;
+- 0 `media_assets` duplicados;
+- 0 `article_media` duplicados;
+- nenhuma ordem/role deve mudar indevidamente.
 
-Se a capa falhar e uma imagem de galeria entrar primeiro, uma segunda execução pode preservar ordem incorreta.
+Como `--limit=20` não cobre o lote inteiro, `legacy_migration_batches` NÃO pode terminar como `complete`.
 
-A reconciliação deve usar a posição ORIGINAL esperada da imagem:
-- cover = role cover e posição correspondente;
-- gallery = ordem original;
-- se a mídia já estiver vinculada mas com role/sort_order divergente, corrigir o vínculo em vez de simplesmente pular.
+## Relatório
 
-A retomada precisa reconstruir exatamente capa + galeria + ordem.
+Criar/atualizar:
+- `docs/legacy-canary-2015-2016.md`
+- `docs/AI_HANDOFF.md`
+- `docs/legacy-migration-status.json`
 
-### 3. Deduplicação de mídia precisa de garantia no banco
+O relatório do canário deve trazer contagens do banco antes/depois, as 20 identidades importadas, reconciliação de imagens e resultado da segunda execução idempotente.
 
-O código procura `media_assets.origin_source_url`, mas hoje não há constraint/índice único que impeça duas execuções concorrentes de criarem a mesma mídia externa.
+Commit/push e PARAR.
 
-Adicionar índice único parcial seguro em:
-`media_assets(origin_source_url) where origin_source_url is not null`
-
-Como ainda não houve carga real do legado, esta é a hora segura para endurecer isso.
-
-No código, tratar conflito de unicidade de forma idempotente: se outro processo criou a mídia entre SELECT e INSERT, buscar/reusar a existente.
-
-## Revisão humana dos 13 casos
-
-Manter TODOS fora da carga automática por enquanto.
-
-Os casos 2, 3, 6, 9, 10, 11 e 12 possuem texto real e parecem recuperáveis, mas usam estrutura HTML antiga sem `<p>`.
-
-Os casos 1, 4, 5, 7, 8 e 13 têm corpo praticamente/totalmente vazio e precisam de inspeção humana da página/imagens antes de decidir se são:
-- publicação baseada principalmente em imagem;
-- chamada/comunicado válido;
-- conteúdo quebrado;
-- ou item que não deve ser migrado como matéria textual.
-
-Não descartar nenhum silenciosamente.
-
-## Amostra de 30 elegíveis
-
-A amostra documentada está internamente coerente:
-- títulos de listagem e detalhe coincidem;
-- datas/horas coincidem;
-- editorias destino estão consistentes;
-- há casos com 0, 1 e múltiplas imagens;
-- nenhum dos 30 foi sinalizado pela barreira.
-
-Após os 3 bloqueios acima, rodar novamente o preflight 2015–2016 sem gravação. Os números podem permanecer 1.622/13, mas não forçar isso.
-
-## Próximo passo
-
-1. Corrigir os 3 bloqueios restantes.
-2. Rodar preflight completo novamente.
-3. Atualizar `docs/AI_HANDOFF.md` e `docs/legacy-migration-status.json`.
-4. Commit/push.
-5. PARAR antes de qualquer escrita real.
-6. Não solicitar service-role ainda.
-
-Quando terminar, o usuário apenas avisará ao ChatGPT para conferir novamente.
+**Não executar as outras 1.602 matérias sem nova conferência do ChatGPT.**
