@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-09-26T15:53:54.476Z",
+  "updatedAt": "2026-09-26T16:48:33.804Z",
   "provider": "informativo_regional_legacy",
   "rule": "Lote padrão = 2 anos. Só dividir um lote específico (1 ano, depois semestre/mês) se ele apresentar problema grave.",
   "batches": [
@@ -7,8 +7,8 @@
       "batchKey": "2015-2016",
       "periodStart": "2015-01-01",
       "periodEnd": "2016-12-31",
-      "status": "preflight_complete_hardened",
-      "note": "Preflight refeito após o hardening da Fase 35B (data/hora real, hash completo, importação atômica via RPC, reconciliação de mídia parcial, quarentena de categoria, corpo só editorial). Números confirmados iguais aos da primeira rodada (1622/13/0). Nenhuma gravação no Supabase ainda — aguardando decisão do usuário sobre credencial de escrita e sobre os 13 needs_review.",
+      "status": "preflight_complete_reviewed_by_chatgpt",
+      "note": "Revisado pelo ChatGPT (docs/CHATGPT_REVIEW.md, HEAD aca77b5): veredito 'NÃO AUTORIZAR AINDA', 3 bloqueios obrigatórios. Todos corrigidos na Fase 35C (reconciliação real de imagens, ordem/role correta em retomada parcial, índice único de media_assets.origin_source_url). Preflight refeito confirma números idênticos (1622/13/0/0). Nenhuma gravação no Supabase ainda — aguardando nova conferência do ChatGPT e decisão do usuário sobre credencial de escrita.",
       "preflight": {
         "itemsFound": 1635,
         "dateExceptions": 7,
@@ -44,7 +44,10 @@
     "dataHoraOriginal": "published_at usa a data E hora reais extraídas de .post-meta-info na própria página de detalhe (fuso America/Sao_Paulo, -03:00), nunca um horário inventado. Quando só a data existe (precisão date_only), isso é registrado explicitamente em article_external_sources.raw_metadata.datePrecision — nunca escondido atrás de um horário fixo.",
     "importacaoAtomica": "articles + article_external_sources são criados numa única transação via a função RPC public.legacy_import_article (migration 20261003100000) — nunca dois inserts separados que podem deixar um artigo órfão numa falha no meio.",
     "reconciliacaoMidia": "Ao reencontrar uma matéria já importada, o importador SEMPRE reconcilia as imagens esperadas contra media_assets/article_media existentes e só copia/vincula o que falta — nunca pula a matéria inteira (lib/pipeline.mjs + reconcileArticleImages em migrate.mjs).",
-    "statusComplete": "legacy_migration_batches só recebe status=complete quando (imported+skippedExisting)===expected_articles E failed_articles=0 E failed_images=0. expected_articles/expected_image_references/expected_unique_images são persistidos a partir do preflight ANTES de gravar, nunca depois.",
-    "gravacaoReal": "NENHUMA matéria ou imagem foi gravada no Supabase até agora (Fase 34 e Fase 35/35B são somente leitura/preflight). A escrita real depende de credencial de escrita (service role ou sessão staff) que o usuário ainda não forneceu, e não foi solicitada nesta fase."
+    "statusComplete": "legacy_migration_batches só recebe status=complete quando (imported+skippedExisting)===expected_articles E failed_articles=0 E (uploaded+reused+alreadyLinked+corrected+failed)===expected_image_references E failed_images=0 (bloqueio 1 da revisão do ChatGPT, Fase 35C — antes bastava failed_images=0, sem conferir a contagem real). expected_articles/expected_image_references/expected_unique_images são persistidos a partir do preflight ANTES de gravar.",
+    "ordemImagemRetomada": "reconcileArticleImages usa a posição ORIGINAL esperada (índice em expectedRefs: capa=0, galeria na ordem original), nunca existingLinks.length — uma capa que falhou numa execução anterior não embaralha mais a ordem numa retomada. Um vínculo com role/sort_order errado é corrigido (update), nunca só pulado (bloqueio 2 da revisão do ChatGPT, Fase 35C).",
+    "dedupMidiaNoBanco": "Índice único parcial media_assets(origin_source_url) where origin_source_url is not null (migration 20261004100000) impede duas execuções concorrentes de duplicarem a mesma mídia externa; conflito (23505) é tratado buscando/reutilizando a mídia existente (bloqueio 3 da revisão do ChatGPT, Fase 35C).",
+    "gravacaoReal": "NENHUMA matéria ou imagem foi gravada no Supabase até agora (Fase 34, 35, 35B e 35C são somente leitura/preflight/hardening de código). A escrita real depende de credencial de escrita (service role ou sessão staff) que o usuário ainda não forneceu, e não foi solicitada nesta fase.",
+    "revisaoChatgpt": "docs/CHATGPT_REVIEW.md registra a revisão feita sobre o HEAD aca77b5 (veredito: não autorizar ainda, 3 bloqueios). Os 3 bloqueios foram corrigidos na Fase 35C; aguardando nova conferência do ChatGPT antes de considerar autorizar a gravação real."
   }
 }

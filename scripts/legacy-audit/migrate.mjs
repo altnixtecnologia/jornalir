@@ -263,36 +263,54 @@ async function findExistingArticleId(sb, identity) {
  * copia/reutiliza o que ainda falta. Retorna contadores + o total de
  * vínculos existentes ao final (para a reconciliação do lote, item 4).
  */
+/**
+ * Reconcilia as imagens esperadas de UMA matéria usando a POSIÇÃO
+ * ORIGINAL esperada (índice em `expectedRefs`: capa sempre índice 0,
+ * galeria na ordem original) — nunca `existingLinks.length`, que
+ * embaralha capa/galeria numa retomada parcial (bloqueio 2 da revisão do
+ * ChatGPT, Fase 35B). Se uma mídia já está vinculada mas com role/
+ * sort_order errados (de uma execução anterior incompleta), CORRIGE o
+ * vínculo em vez de pular ou duplicar.
+ */
 async function reconcileArticleImages(sb, articleId, expectedRefs, { articleSlug, throttle, log, dryRun }) {
-  const outcome = { uploaded: 0, reused: 0, alreadyLinked: 0, failed: 0, linksAfter: 0 };
-  if (dryRun) {
-    outcome.alreadyLinked = 0;
-    return outcome;
-  }
+  const outcome = { uploaded: 0, reused: 0, alreadyLinked: 0, corrected: 0, failed: 0 };
+  if (dryRun) return outcome;
 
   const { data: existingLinks, error: linksErr } = await sb
     .from("article_media")
-    .select("id, role, sort_order, media_assets(origin_source_url)")
+    .select("id, media_id, role, sort_order, media_assets(origin_source_url)")
     .eq("article_id", articleId);
   if (linksErr) throw linksErr;
-  const linkedSourceUrls = new Set((existingLinks ?? []).map((l) => l.media_assets?.origin_source_url).filter(Boolean));
 
-  let sortOrder = (existingLinks ?? []).length;
-  for (const ref of expectedRefs) {
+  const linkByNormalizedUrl = new Map(
+    (existingLinks ?? []).filter((l) => l.media_assets?.origin_source_url).map((l) => [l.media_assets.origin_source_url, l]),
+  );
+
+  for (let index = 0; index < expectedRefs.length; index += 1) {
+    const ref = expectedRefs[index];
     const normalized = normalizeUrl(ref.src);
-    if (linkedSourceUrls.has(normalized)) {
-      outcome.alreadyLinked += 1;
-      continue; // já migrada e já vinculada nesta matéria — nunca duplicar.
+    const expectedRole = ref.role;
+    const expectedSortOrder = index; // capa = 0 sempre, galeria na ordem original — nunca incremental pós-existentes.
+
+    const existingLink = linkByNormalizedUrl.get(normalized);
+    if (existingLink) {
+      if (existingLink.role !== expectedRole || existingLink.sort_order !== expectedSortOrder) {
+        const { error: updateErr } = await sb
+          .from("article_media")
+          .update({ role: expectedRole, sort_order: expectedSortOrder, caption_override: ref.caption || null, credit_override: ref.credit || null })
+          .eq("id", existingLink.id);
+        if (updateErr) throw updateErr;
+        outcome.corrected += 1;
+      } else {
+        outcome.alreadyLinked += 1;
+      }
+      continue;
     }
 
     // Mídia pode já existir (baixada para OUTRA matéria) — reutilizar em
     // vez de baixar de novo (nunca copiar duas vezes a mesma imagem
     // externa, item 11).
-    const { data: existingMedia, error: findErr } = await sb
-      .from("media_assets")
-      .select("id")
-      .eq("origin_source_url", normalized)
-      .maybeSingle();
+    const { data: existingMedia, error: findErr } = await sb.from("media_assets").select("id").eq("origin_source_url", normalized).maybeSingle();
     if (findErr) throw findErr;
 
     let mediaId = existingMedia?.id ?? null;
@@ -312,7 +330,7 @@ async function reconcileArticleImages(sb, articleId, expectedRefs, { articleSlug
         continue;
       }
       const ext = extFromContentType(result.contentType);
-      const storagePath = `legacy/${articleSlug}/${sortOrder}.${ext}`;
+      const storagePath = `legacy/${articleSlug}/${expectedSortOrder}.${ext}`;
       const { error: uploadErr } = await sb.storage
         .from("article-media")
         .upload(storagePath, result.buffer, { contentType: result.contentType, upsert: true });
@@ -341,24 +359,53 @@ async function reconcileArticleImages(sb, articleId, expectedRefs, { articleSlug
         })
         .select("id")
         .single();
-      if (insertErr) throw insertErr;
-      mediaId = media.id;
-      outcome.uploaded += 1;
+      if (insertErr) {
+        // Corrida entre execuções concorrentes: o índice único de
+        // `media_assets.origin_source_url` (migration 20261004100000)
+        // pode rejeitar por outro processo já ter criado a mesma mídia
+        // entre o SELECT acima e este INSERT — buscar e reutilizar em vez
+        // de falhar (bloqueio 3 da revisão do ChatGPT).
+        if (insertErr.code === "23505") {
+          const { data: raceMedia, error: raceErr } = await sb.from("media_assets").select("id").eq("origin_source_url", normalized).single();
+          if (raceErr) throw raceErr;
+          mediaId = raceMedia.id;
+          outcome.reused += 1;
+        } else {
+          throw insertErr;
+        }
+      } else {
+        mediaId = media.id;
+        outcome.uploaded += 1;
+      }
+    }
+
+    // Corrigir uma capa errada de uma execução anterior (nunca inserir uma
+    // segunda — violaria o índice único de "1 capa por matéria").
+    if (expectedRole === "cover") {
+      const wrongCover = (existingLinks ?? []).find((l) => l.role === "cover" && l.media_id !== mediaId);
+      if (wrongCover) {
+        const { error: fixCoverErr } = await sb
+          .from("article_media")
+          .update({ media_id: mediaId, sort_order: expectedSortOrder, caption_override: ref.caption || null, credit_override: ref.credit || null })
+          .eq("id", wrongCover.id);
+        if (fixCoverErr) throw fixCoverErr;
+        outcome.corrected += 1;
+        continue;
+      }
     }
 
     const { error: linkErr } = await sb.from("article_media").insert({
       article_id: articleId,
       media_id: mediaId,
-      role: ref.role,
-      sort_order: sortOrder,
+      role: expectedRole,
+      sort_order: expectedSortOrder,
       caption_override: ref.caption || null,
       credit_override: ref.credit || null,
     });
     if (linkErr) throw linkErr;
-    sortOrder += 1;
   }
 
-  outcome.linksAfter = (existingLinks ?? []).length + outcome.uploaded + outcome.reused;
+  outcome.linkedTotal = outcome.uploaded + outcome.reused + outcome.alreadyLinked + outcome.corrected;
   return outcome;
 }
 
@@ -427,6 +474,7 @@ async function importCandidate(sb, c, detail, { sectionCache, localityId, thrott
     batchStats.uploadedImages += imgOutcome.uploaded;
     batchStats.reusedImages += imgOutcome.reused;
     batchStats.alreadyLinkedImages += imgOutcome.alreadyLinked;
+    batchStats.correctedImages += imgOutcome.corrected;
     batchStats.failedImages += imgOutcome.failed;
   }
 
@@ -454,6 +502,7 @@ async function runImport(eligiblePairs, preflightSummary, log) {
     uploadedImages: 0,
     reusedImages: 0,
     alreadyLinkedImages: 0,
+    correctedImages: 0,
     failedImages: 0,
   };
   let batchRowId = null;
@@ -501,14 +550,19 @@ async function runImport(eligiblePairs, preflightSummary, log) {
   log(JSON.stringify(batchStats, null, 2));
 
   if (!dryRun && batchRowId) {
-    // Reconciliação real (item 4) — nunca "complete" só por
-    // failedArticles === 0. Artigos: todo elegível precisa estar
-    // importado OU já existente, e zero falhas. Imagens: toda referência
-    // esperada precisa estar coberta (upload OU reuso OU já vinculada) —
-    // qualquer falha de imagem mantém o lote incomplete/pendente de mídia.
+    // Reconciliação real (item 4 da Fase 35B / bloqueio 1 da revisão do
+    // ChatGPT) — nunca "complete" só por failedArticles/failedImages
+    // === 0. Precisa CONFERIR a quantidade real: todo elegível importado
+    // OU já existente, e toda referência de imagem esperada efetivamente
+    // contabilizada (upload + reuso + já vinculada + corrigida + falha
+    // === total esperado) — nunca assumir isso por ausência de erro.
     const articlesAccountedFor = batchStats.imported + batchStats.skippedExisting;
     const articlesReconciled = articlesAccountedFor === preflightSummary.eligibleArticles && batchStats.failedArticles === 0;
-    const imagesReconciled = batchStats.failedImages === 0;
+
+    const linkedTotal = batchStats.uploadedImages + batchStats.reusedImages + batchStats.alreadyLinkedImages + batchStats.correctedImages;
+    const imageReferencesAccounted = linkedTotal + batchStats.failedImages === preflightSummary.totalImageReferences;
+    const imagesReconciled = imageReferencesAccounted && batchStats.failedImages === 0;
+
     const status = articlesReconciled && imagesReconciled ? "complete" : "incomplete";
 
     await sb
@@ -523,13 +577,22 @@ async function runImport(eligiblePairs, preflightSummary, log) {
         failed_images: batchStats.failedImages,
         completed_at: new Date().toISOString(),
         metadata: {
-          alreadyLinkedImages: batchStats.alreadyLinkedImages,
+          uploaded: batchStats.uploadedImages,
+          reused: batchStats.reusedImages,
+          alreadyLinked: batchStats.alreadyLinkedImages,
+          corrected: batchStats.correctedImages,
+          linkedTotal,
+          expectedReferences: preflightSummary.totalImageReferences,
+          failedOrPending: batchStats.failedImages,
           articlesReconciled,
+          imageReferencesAccounted,
           imagesReconciled,
         },
       })
       .eq("id", batchRowId);
-    log(`Lote marcado como: ${status} (artigos reconciliados: ${articlesReconciled}, imagens reconciliadas: ${imagesReconciled})`);
+    log(
+      `Lote marcado como: ${status} (artigos reconciliados: ${articlesReconciled}, imagens: ${linkedTotal}/${preflightSummary.totalImageReferences} vinculadas, ${batchStats.failedImages} falha(s)/pendente(s))`,
+    );
   }
   return batchStats;
 }
