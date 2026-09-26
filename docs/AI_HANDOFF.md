@@ -6,7 +6,7 @@ Este arquivo é atualizado ao final de CADA fase a partir da Fase 35. Curto, dir
 
 ## Fase 39C — 2 ajustes finais da paginação do portal (encerra a Fase 39)
 
-**HEAD/commit:** PLACEHOLDER (branch `feature/jornalir-core-foundation-20260917`)
+**HEAD/commit:** `bbbf36a` (branch `feature/jornalir-core-foundation-20260917`)
 
 Resposta a `docs/CHATGPT_REVIEW.md` (revisão sobre HEAD `d7de753`). Os 2 ajustes pedidos:
 
