@@ -4,6 +4,48 @@ Este arquivo é atualizado ao final de CADA fase a partir da Fase 35. Curto, dir
 
 ---
 
+## Fase 38 — Lote 2017-2018 CONCLUÍDO (2.503/2.503, 4.093/4.093 imagens)
+
+**HEAD/commit:** PLACEHOLDER (branch `feature/jornalir-core-foundation-20260917`)
+
+Autorização condicional de `docs/CHATGPT_REVIEW.md` (HEAD `dd718cf`) cumprida — os 4 pré-requisitos (liberar `agricultura`, rerodar preflight, confirmar sem anomalia, generalizar validador) foram feitos na Fase 37, então a carga real foi executada. **Lote completo migrado e validado.**
+
+### O que foi feito
+
+1. Usuário executou manualmente a carga completa (sem `--limit`) — Claude tentou primeiro e foi bloqueado de novo pelo sandbox ("Production Deploy"), não contornado.
+2. Resultado da 1ª execução: `imported: 2503, failedArticles: 0, uploadedImages: 4092, failedImages: 1`. A falha foi uma imagem com `Gateway Timeout` (falha de rede transitória do servidor legado, não um problema de configuração como o caso dos GIFs no lote anterior). Confirmado via `curl` que a URL respondia 200 logo depois.
+3. Retry do mesmo comando (não bloqueado desta vez): as 2.503 matérias e as 4.092 imagens já corretas foram reencontradas/reconciliadas (0 duplicatas), e a imagem pendente foi enviada com sucesso. Lote marcado `complete` pelo próprio importador (4.093/4.093).
+4. Validação final BATCH-SCOPED (usando o validador generalizado da Fase 37) direto no Supabase/Storage: 2.503/2.503 articles, 2.503/2.503 sources, 4.093/4.093 media, 4.093/4.093 vínculos deste lote — 0 duplicatas dentro do lote. Checagem GLOBAL confirma também 0 duplicatas ENTRE lotes (4.125 articles/slugs/sources únicos no total = 1.622 + 2.503; 7.118 media/origin_source_url/storage_path únicos no total = 3.025 + 4.093).
+5. `docs/legacy-batch-2017-2018-final.md` (novo): relatório completo, incluindo o registro detalhado da imagem que teve pendência transitória.
+
+### Migrations
+
+Nenhuma nesta fase.
+
+### Testes
+
+Validação batch-scoped completa — ver tabela em `docs/legacy-batch-2017-2018-final.md`. Nenhuma divergência.
+
+### Quantidades finais
+
+2.503 articles, 2.503 article_external_sources, 4.093 media_assets, 4.093 article_media. Distribuição: agricultura=5, geral=2.154, esporte=204, política=95, sociais=45. Período: `2017-01-02` a `2018-12-19`.
+
+### Erros
+
+Um erro transitório de rede (`Gateway Timeout`) numa única imagem, resolvido no retry — documentado em detalhe no relatório final, conforme pedido.
+
+### Pendências
+
+1. Os 8 casos `needs_review` continuam fora.
+2. As 7 exceções de data continuam fora.
+3. Lote 2019-2020 NÃO iniciado.
+
+### Próximo passo recomendado
+
+Aguardar nova conferência do ChatGPT sobre `docs/legacy-batch-2017-2018-final.md` antes de decidir iniciar o lote 2019-2020.
+
+---
+
 ## Fase 37 — Libera Agricultura, rerroda preflight, generaliza validador (ainda sem gravação)
 
 **HEAD/commit:** `e386be8` (branch `feature/jornalir-core-foundation-20260917`)
