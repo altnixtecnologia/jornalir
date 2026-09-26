@@ -315,3 +315,78 @@ Gerar/atualizar:
 - amostra legível de Polícia e das demais categorias novas/relevantes do lote.
 
 Commit/push e PARAR para nova conferência antes da carga real.
+
+
+## Revisão da Fase 40 — preflight 2019–2020 APROVADO
+
+Revisado diretamente no GitHub sobre o HEAD `9bca751`.
+
+O preflight está coerente e não houve mudança no motor de migração nesta fase — apenas relatórios/status. Os números fecham:
+
+- 5.100 candidatas;
+- 5.088 eligible;
+- 12 needs_review;
+- 0 quarantined;
+- 0 rejected;
+- 5.039 com imagem / 49 sem imagem;
+- 7.082 referências de imagem;
+- 7.082 URLs únicas.
+
+Distribuição elegível:
+- geral=3.450;
+- saude=885;
+- policia=298;
+- politica=236;
+- esporte=107;
+- sociais=45;
+- agricultura=39;
+- colunistas=28.
+
+A primeira entrada real de `policia` foi conferida e o mapeamento `policia -> Polícia` está correto. `saude` também aparece em volume pela primeira vez e usa a editoria já existente. `agricultura` segue liberada normalmente. `classificados` não apareceu neste lote e continua em quarentena automática para lotes futuros.
+
+Os 12 `needs_review` permanecem FORA da carga automática. Não liberar nenhum deles agora.
+
+## AUTORIZADA A CARGA REAL 2019–2020
+
+Como o motor, a retomada idempotente, a mídia e o validador batch-scoped já foram exercitados e validados nos dois lotes anteriores, não é necessário novo canário.
+
+Executar:
+
+`node --env-file=".env.local" scripts/legacy-audit/migrate.mjs --batch=2019-2020 --mode=import --commit --rps=4`
+
+Se o sandbox bloquear, pedir ao usuário somente para executar esse comando exato manualmente.
+
+### Regra para falhas de imagem
+
+- uma ou poucas falhas transitórias podem ser reconciliadas por retry, como no lote anterior;
+- registrar matéria/URL/motivo;
+- se começar a ocorrer em volume (dezenas/centenas), PARAR e investigar antes de continuar;
+- nunca marcar lote como complete com pendências silenciosas.
+
+### Validação final obrigatória
+
+Depois da carga, rodar:
+
+`node --env-file=".env.local" scripts/legacy-audit/batch-final-validate.mjs --batch=2019-2020`
+
+Confirmar no lote isolado:
+- 5.088 articles;
+- 5.088 article_external_sources;
+- 7.082 media_assets/referências reconciliadas conforme o preflight;
+- 7.082 article_media esperados;
+- 0 duplicatas;
+- 0 placements;
+- 12 needs_review continuam fora;
+- exceções de data continuam fora;
+- nenhuma matéria de 2015–2018 alterada;
+- checagem global sem duplicatas entre os 3 lotes;
+- `legacy_migration_batches.status = complete` apenas se tudo fechar.
+
+Se houver falha pontual de imagem, fazer retry do mesmo comando e repetir a validação.
+
+Gerar/atualizar:
+- `docs/legacy-batch-2019-2020-final.md`;
+- `docs/AI_HANDOFF.md`;
+- `docs/legacy-migration-status.json`.
+
+Commit/push e PARAR antes de 2021–2022.
