@@ -6,7 +6,7 @@ Este arquivo é atualizado ao final de CADA fase a partir da Fase 35. Curto, dir
 
 ## Fase 38 — Lote 2017-2018 CONCLUÍDO (2.503/2.503, 4.093/4.093 imagens)
 
-**HEAD/commit:** PLACEHOLDER (branch `feature/jornalir-core-foundation-20260917`)
+**HEAD/commit:** `8f964f1` (branch `feature/jornalir-core-foundation-20260917`)
 
 Autorização condicional de `docs/CHATGPT_REVIEW.md` (HEAD `dd718cf`) cumprida — os 4 pré-requisitos (liberar `agricultura`, rerodar preflight, confirmar sem anomalia, generalizar validador) foram feitos na Fase 37, então a carga real foi executada. **Lote completo migrado e validado.**
 
