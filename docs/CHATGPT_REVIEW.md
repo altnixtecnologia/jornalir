@@ -25,6 +25,18 @@ Nenhuma matéria/imagem do legado foi gravada até esta revisão.
 
 Para o legado, a prioridade é preservar corretamente o **dia/data** original. Diferença histórica de 1h por horário de verão não bloqueia a migração. O valor bruto original continua preservado em `raw_metadata`.
 
+## Credencial local
+
+O usuário confirmou que as credenciais necessárias já estão no arquivo local `.env.local` na raiz do repositório.
+
+A Claude deve:
+- ajustar o script/execução para carregar o `.env.local` da raiz localmente;
+- nunca imprimir, versionar ou copiar secrets para relatório/log;
+- nunca pedir novamente a service-role em chat;
+- usar a credencial apenas no processo local de migração.
+
+O arquivo `.env.local` já está coberto pelo `.gitignore`.
+
 ## Observação para o canário
 
 A lógica `linkedTotal` ainda é uma soma de contadores operacionais, não uma consulta final independente do banco. Isso NÃO bloqueia um canário pequeno em banco limpo, mas o canário deve validar diretamente o estado final do Supabase antes de qualquer lote completo.
@@ -40,8 +52,8 @@ Regras:
 2. NÃO iniciar 2017–2018.
 3. NÃO importar o restante do lote após o canário.
 4. Usar `--limit=20`.
-5. A credencial privilegiada deve existir SOMENTE no ambiente local. Nunca pedir ao usuário para colar service-role em chat, arquivo versionado, comando exibido no relatório ou código.
-6. Se a credencial não estiver disponível no ambiente, PARAR e orientar apenas como configurá-la localmente com segurança.
+5. Carregar a credencial apenas do `.env.local` local da raiz.
+6. Se as variáveis ainda não forem lidas pelo processo, corrigir o carregamento do `.env.local` sem expor os valores e continuar.
 
 ## Validação obrigatória depois das 20
 
