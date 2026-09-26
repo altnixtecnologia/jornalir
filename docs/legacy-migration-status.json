@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-09-26T15:11:31.537Z",
+  "updatedAt": "2026-09-26T15:53:54.476Z",
   "provider": "informativo_regional_legacy",
   "rule": "Lote padrão = 2 anos. Só dividir um lote específico (1 ano, depois semestre/mês) se ele apresentar problema grave.",
   "batches": [
@@ -7,12 +7,12 @@
       "batchKey": "2015-2016",
       "periodStart": "2015-01-01",
       "periodEnd": "2016-12-31",
-      "status": "preflight_complete",
-      "note": "Preflight concluído contra o site real (nenhuma gravação no Supabase ainda). Aguardando credencial de escrita do usuário antes de qualquer --mode=import --commit.",
+      "status": "preflight_complete_hardened",
+      "note": "Preflight refeito após o hardening da Fase 35B (data/hora real, hash completo, importação atômica via RPC, reconciliação de mídia parcial, quarentena de categoria, corpo só editorial). Números confirmados iguais aos da primeira rodada (1622/13/0). Nenhuma gravação no Supabase ainda — aguardando decisão do usuário sobre credencial de escrita e sobre os 13 needs_review.",
       "preflight": {
         "itemsFound": 1635,
         "dateExceptions": 7,
-        "barreiraIntegridade": { "eligible": 1622, "needsReview": 13, "rejected": 0 },
+        "barreiraIntegridade": { "eligible": 1622, "needsReview": 13, "quarantined": 0, "rejected": 0 },
         "withImage": 1506,
         "withoutImage": 116,
         "totalImageReferences": 3025,
@@ -23,7 +23,10 @@
         "preflight": "scripts/legacy-audit/output/batches/2015-2016/preflight.json",
         "dateExceptions": "scripts/legacy-audit/output/batches/2015-2016/date-exceptions.json",
         "needsReview": "scripts/legacy-audit/output/batches/2015-2016/needs-review.json",
-        "rejected": "scripts/legacy-audit/output/batches/2015-2016/rejected.json"
+        "quarantined": "scripts/legacy-audit/output/batches/2015-2016/quarantined.json",
+        "rejected": "scripts/legacy-audit/output/batches/2015-2016/rejected.json",
+        "reviewMarkdown": "docs/legacy-review-2015-2016.md",
+        "sampleCheckMarkdown": "docs/legacy-sample-check-2015-2016.md"
       }
     },
     { "batchKey": "2017-2018", "periodStart": "2017-01-01", "periodEnd": "2018-12-31", "status": "pending" },
@@ -37,6 +40,11 @@
     "localidadePadrao": "Todas as matérias importadas do legado entram com Localidade = Geral (valor neutro obrigatório, nunca inferido)",
     "editoriasNaoMapeadas": "Nenhuma — Agricultura e Classificados foram adicionadas na Fase 35 (migration 20261002100000)",
     "barreiraIntegridade": "Uma matéria só é elegível para carga automática quando título, data, corpo e imagens vêm exclusivamente da estrutura própria da página de matéria (ver scripts/legacy-audit/lib/integrity.mjs). Qualquer ambiguidade vira needs_review — nunca é importada nem descartada silenciosamente.",
-    "gravacaoReal": "NENHUMA matéria ou imagem foi gravada no Supabase até agora (Fase 34 e Fase 35 são somente leitura/preflight). A escrita real depende de credencial de escrita (service role ou sessão staff) que o usuário ainda não forneceu."
+    "quarentenaEditorial": "classificados está em quarentena editorial em TODOS os lotes até revisão humana específica da categoria inteira (lib/integrity.mjs QUARANTINED_CATEGORIES). agricultura exige amostragem/revisão antes do primeiro lote que a contiver (REVIEWED_CATEGORIES, hoje vazio). Nenhum item é descartado — só nunca vira eligible sozinho. O lote 2015-2016 não contém nenhuma das duas categorias, então isso não muda seus números.",
+    "dataHoraOriginal": "published_at usa a data E hora reais extraídas de .post-meta-info na própria página de detalhe (fuso America/Sao_Paulo, -03:00), nunca um horário inventado. Quando só a data existe (precisão date_only), isso é registrado explicitamente em article_external_sources.raw_metadata.datePrecision — nunca escondido atrás de um horário fixo.",
+    "importacaoAtomica": "articles + article_external_sources são criados numa única transação via a função RPC public.legacy_import_article (migration 20261003100000) — nunca dois inserts separados que podem deixar um artigo órfão numa falha no meio.",
+    "reconciliacaoMidia": "Ao reencontrar uma matéria já importada, o importador SEMPRE reconcilia as imagens esperadas contra media_assets/article_media existentes e só copia/vincula o que falta — nunca pula a matéria inteira (lib/pipeline.mjs + reconcileArticleImages em migrate.mjs).",
+    "statusComplete": "legacy_migration_batches só recebe status=complete quando (imported+skippedExisting)===expected_articles E failed_articles=0 E failed_images=0. expected_articles/expected_image_references/expected_unique_images são persistidos a partir do preflight ANTES de gravar, nunca depois.",
+    "gravacaoReal": "NENHUMA matéria ou imagem foi gravada no Supabase até agora (Fase 34 e Fase 35/35B são somente leitura/preflight). A escrita real depende de credencial de escrita (service role ou sessão staff) que o usuário ainda não forneceu, e não foi solicitada nesta fase."
   }
 }

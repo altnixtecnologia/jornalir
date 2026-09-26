@@ -12,9 +12,10 @@ import { fileURLToPath } from "node:url";
 import { createClient } from "@supabase/supabase-js";
 import { fetchText, createRateLimiter } from "./lib/http.mjs";
 import { parseArticlePage } from "./lib/parse.mjs";
-import { normalizeUrl, externalIdentity, stableSlug, sourceHash, PROVIDER } from "./lib/identity.mjs";
-import { getBatch, CATEGORY_PRIORITY, CATEGORY_TO_SECTION_SLUG } from "./lib/batches.mjs";
-import { assessArticleIntegrity } from "./lib/integrity.mjs";
+import { normalizeUrl, stableSlug, sourceHash, PROVIDER } from "./lib/identity.mjs";
+import { getBatch, CATEGORY_TO_SECTION_SLUG } from "./lib/batches.mjs";
+import { parseBrDateTime, toPublishedAtIso } from "./lib/dates.mjs";
+import { loadInventory, dedupeByIdentity, filterByBatchRange, candidateKey, collectImageRefs, classifyCandidates } from "./lib/pipeline.mjs";
 
 const AUDIT_DIR = fileURLToPath(new URL("./", import.meta.url));
 const ROOT_DIR = fileURLToPath(new URL("../../", import.meta.url));
@@ -46,71 +47,7 @@ const EXCEPTIONS_FILE = path.join(batchDir, "date-exceptions.json");
 const IMAGE_EXCEPTIONS_FILE = path.join(batchDir, "image-exceptions.ndjson");
 const NEEDS_REVIEW_FILE = path.join(batchDir, "needs-review.json");
 const REJECTED_FILE = path.join(batchDir, "rejected.json");
-
-function parseListingDate(raw) {
-  const m = (raw || "").match(/(\d{2})\/(\d{2})\/(\d{4})/);
-  if (!m) return null;
-  const [, d, mo, y] = m;
-  const iso = `${y}-${mo}-${d}`;
-  if (iso === "1969-12-31" || iso === "1970-01-01") return { iso, isBug: true };
-  return { iso, isBug: false };
-}
-
-async function loadInventory() {
-  const raw = await readFile(INVENTORY_FILE, "utf8");
-  return raw
-    .split("\n")
-    .filter((l) => l.trim())
-    .map((l) => JSON.parse(l));
-}
-
-/** Agrupa itens de listagem pela mesma identidade externa (item 5): a
- * mesma matéria pode ter aparecido em mais de uma categoria — vira UMA
- * candidata só, com todas as categorias preservadas em `allCategories`. */
-function dedupeByIdentity(items) {
-  const byIdentity = new Map();
-  for (const item of items) {
-    const identity = externalIdentity(item);
-    const key = identity.externalId ? `id:${identity.externalId}` : `url:${identity.normalizedUrl}`;
-    if (!byIdentity.has(key)) {
-      byIdentity.set(key, { identity, items: [item] });
-    } else {
-      byIdentity.get(key).items.push(item);
-    }
-  }
-  const candidates = [];
-  for (const { identity, items: group } of byIdentity.values()) {
-    const primary = [...group].sort(
-      (a, b) => CATEGORY_PRIORITY.indexOf(a.category) - CATEGORY_PRIORITY.indexOf(b.category),
-    )[0];
-    const allCategories = [...new Set(group.map((g) => g.category))];
-    candidates.push({ identity, primary, allCategories, listingItems: group });
-  }
-  return candidates;
-}
-
-function filterByBatchRange(candidates, batch) {
-  const eligible = [];
-  const dateExceptions = [];
-  const outOfRange = [];
-  for (const c of candidates) {
-    const parsed = parseListingDate(c.primary.listingDateRaw);
-    if (!parsed) {
-      outOfRange.push(c);
-      continue;
-    }
-    if (parsed.isBug) {
-      dateExceptions.push({ ...c, rawDate: c.primary.listingDateRaw });
-      continue;
-    }
-    if (parsed.iso >= batch.start && parsed.iso <= batch.end) {
-      eligible.push({ ...c, publishedIso: parsed.iso });
-    } else {
-      outOfRange.push(c);
-    }
-  }
-  return { eligible, dateExceptions, outOfRange };
-}
+const QUARANTINED_FILE = path.join(batchDir, "quarantined.json");
 
 async function loadCheckpoint() {
   if (existsSync(CHECKPOINT_FILE)) return JSON.parse(await readFile(CHECKPOINT_FILE, "utf8"));
@@ -130,10 +67,6 @@ async function loadDetailCache() {
     cache.set(row.key, row.detail);
   }
   return cache;
-}
-
-function candidateKey(c) {
-  return c.identity.externalId ? `id:${c.identity.externalId}` : `url:${c.identity.normalizedUrl}`;
 }
 
 /** Busca (com cache/checkpoint) a página completa de cada candidata do
@@ -170,43 +103,28 @@ async function ensureDetails(eligible, throttle, log) {
   return cache;
 }
 
-function collectImageRefs(detail) {
-  const refs = [];
-  if (detail.coverUrl) refs.push({ role: "cover", src: detail.coverUrl, caption: detail.coverCaption, credit: null });
-  for (const g of detail.galleryImages ?? []) {
-    if (g.src === detail.coverUrl) continue;
-    refs.push({ role: "gallery", src: g.src, caption: g.caption, credit: g.credit });
-  }
-  return refs;
-}
-
 /**
- * Classifica cada candidata do lote em eligible/needs_review/rejected
- * (barreira de integridade editorial — nunca importar automaticamente
- * algo ambíguo; ver lib/integrity.mjs) e só então calcula as contagens
- * do preflight (item 9) EXCLUSIVAMENTE sobre o conjunto `eligible`.
+ * Classifica cada candidata do lote em eligible/needs_review/quarantined/
+ * rejected via o pipeline compartilhado (lib/pipeline.mjs — a MESMA
+ * barreira de integridade que o importador usa) e só então calcula as
+ * contagens do preflight (item 9) EXCLUSIVAMENTE sobre o conjunto `eligible`.
  */
 async function runPreflight(eligible, dateExceptions, cache, log) {
-  const eligibleList = [];
-  const needsReviewList = [];
-  const rejectedList = [];
+  const { eligibleList: eligibleRaw, needsReviewList: needsReviewRaw, quarantinedList: quarantinedRaw, rejectedList: rejectedRaw } =
+    classifyCandidates(eligible, cache);
 
-  for (const c of eligible) {
-    const key = candidateKey(c);
-    const detail = cache.get(key);
-    const { verdict, reasons } = assessArticleIntegrity(c, detail);
-    const record = {
-      url: c.primary.url,
-      title: detail?.title || c.primary.title,
-      category: c.primary.category,
-      allCategories: c.allCategories,
-      publishedIso: c.publishedIso,
-      reasons,
-    };
-    if (verdict === "eligible") eligibleList.push({ candidate: c, detail });
-    else if (verdict === "needs_review") needsReviewList.push(record);
-    else rejectedList.push(record);
-  }
+  const toRecord = ({ candidate: c, detail, reasons }) => ({
+    url: c.primary.url,
+    title: detail?.title || c.primary.title,
+    category: c.primary.category,
+    allCategories: c.allCategories,
+    publishedIso: c.publishedIso,
+    reasons,
+  });
+  const eligibleList = eligibleRaw; // mantém {candidate, detail} para uso pela importação
+  const needsReviewList = needsReviewRaw.map(toRecord);
+  const quarantinedList = quarantinedRaw.map(toRecord);
+  const rejectedList = rejectedRaw.map(toRecord);
 
   let withImage = 0;
   let withoutImage = 0;
@@ -235,6 +153,7 @@ async function runPreflight(eligible, dateExceptions, cache, log) {
     barreiraIntegridade: {
       eligible: eligibleList.length,
       needsReview: needsReviewList.length,
+      quarantined: quarantinedList.length,
       rejected: rejectedList.length,
     },
     eligibleArticles: eligibleList.length,
@@ -263,13 +182,15 @@ async function runPreflight(eligible, dateExceptions, cache, log) {
   );
   await writeFile(NEEDS_REVIEW_FILE, JSON.stringify(needsReviewList, null, 2), "utf8");
   await writeFile(REJECTED_FILE, JSON.stringify(rejectedList, null, 2), "utf8");
+  await writeFile(QUARANTINED_FILE, JSON.stringify(quarantinedList, null, 2), "utf8");
 
   log("\n== PREFLIGHT " + batch.key + " ==");
   log(JSON.stringify(summary, null, 2));
   log(`\nExceções de data (fora da carga automática): ${dateExceptions.length} -> ${EXCEPTIONS_FILE}`);
   log(`Precisam de revisão manual (não importadas automaticamente): ${needsReviewList.length} -> ${NEEDS_REVIEW_FILE}`);
+  log(`Em quarentena editorial (categoria inteira ainda não liberada): ${quarantinedList.length} -> ${QUARANTINED_FILE}`);
   log(`Rejeitadas (falha de busca): ${rejectedList.length} -> ${REJECTED_FILE}`);
-  return { summary, eligibleList, needsReviewList, rejectedList };
+  return { summary, eligibleList, needsReviewList, rejectedList, quarantinedList };
 }
 
 // ---- modo import ----
@@ -335,146 +256,189 @@ async function findExistingArticleId(sb, identity) {
   return data?.article_id ?? null;
 }
 
-async function reuseOrUploadImage(sb, ref, { articleSlug, throttle, log, imgIndex, dryRun }) {
-  const normalized = normalizeUrl(ref.src);
-  const { data: existing, error: findErr } = await sb
-    .from("media_assets")
-    .select("id, public_url")
-    .eq("origin_source_url", normalized)
-    .maybeSingle();
-  if (findErr) throw findErr;
-  if (existing) return { mediaId: existing.id, reused: true };
-
-  await throttle();
-  const result = await downloadImage(ref.src);
-  if (!result.ok) {
-    await appendFile(
-      IMAGE_EXCEPTIONS_FILE,
-      JSON.stringify({ articleSlug, url: ref.src, status: result.status, error: result.error, at: new Date().toISOString() }) + "\n",
-      "utf8",
-    );
-    log(`    [imagem falhou] ${ref.src} (${result.status || result.error})`);
-    return { mediaId: null, reused: false, failed: true };
-  }
-
+/**
+ * Reconcilia as imagens esperadas de UMA matéria contra o que já existe
+ * no banco (item 3, Fase 35B) — usado tanto para uma matéria nova quanto
+ * para uma já existente reencontrada numa reexecução. Nunca duplica: só
+ * copia/reutiliza o que ainda falta. Retorna contadores + o total de
+ * vínculos existentes ao final (para a reconciliação do lote, item 4).
+ */
+async function reconcileArticleImages(sb, articleId, expectedRefs, { articleSlug, throttle, log, dryRun }) {
+  const outcome = { uploaded: 0, reused: 0, alreadyLinked: 0, failed: 0, linksAfter: 0 };
   if (dryRun) {
-    return { mediaId: "dry-run", reused: false, uploaded: true };
+    outcome.alreadyLinked = 0;
+    return outcome;
   }
 
-  const ext = extFromContentType(result.contentType);
-  const storagePath = `legacy/${articleSlug}/${imgIndex}.${ext}`;
-  const { error: uploadErr } = await sb.storage
-    .from("article-media")
-    .upload(storagePath, result.buffer, { contentType: result.contentType, upsert: true });
-  if (uploadErr) {
-    await appendFile(
-      IMAGE_EXCEPTIONS_FILE,
-      JSON.stringify({ articleSlug, url: ref.src, error: uploadErr.message, at: new Date().toISOString() }) + "\n",
-      "utf8",
-    );
-    log(`    [upload falhou] ${ref.src}: ${uploadErr.message}`);
-    return { mediaId: null, reused: false, failed: true };
-  }
-  const { data: pub } = sb.storage.from("article-media").getPublicUrl(storagePath);
+  const { data: existingLinks, error: linksErr } = await sb
+    .from("article_media")
+    .select("id, role, sort_order, media_assets(origin_source_url)")
+    .eq("article_id", articleId);
+  if (linksErr) throw linksErr;
+  const linkedSourceUrls = new Set((existingLinks ?? []).map((l) => l.media_assets?.origin_source_url).filter(Boolean));
 
-  const { data: media, error: insertErr } = await sb
-    .from("media_assets")
-    .insert({
-      type: "image",
-      file_name: storagePath.split("/").pop(),
-      storage_path: storagePath,
-      public_url: pub.publicUrl,
-      title: articleSlug,
-      caption: ref.caption || null,
-      credit: ref.credit || null,
-      origin_source_url: normalized,
-    })
-    .select("id")
-    .single();
-  if (insertErr) throw insertErr;
-  return { mediaId: media.id, reused: false, uploaded: true };
-}
+  let sortOrder = (existingLinks ?? []).length;
+  for (const ref of expectedRefs) {
+    const normalized = normalizeUrl(ref.src);
+    if (linkedSourceUrls.has(normalized)) {
+      outcome.alreadyLinked += 1;
+      continue; // já migrada e já vinculada nesta matéria — nunca duplicar.
+    }
 
-async function importCandidate(sb, c, detail, { sectionCache, localityId, throttle, log, dryRun, batchStats }) {
-  const key = candidateKey(c);
-  const existingId = await findExistingArticleId(sb, c.identity);
-  if (existingId) {
-    batchStats.skippedExisting += 1;
-    return { status: "skipped_existing", articleId: existingId };
-  }
+    // Mídia pode já existir (baixada para OUTRA matéria) — reutilizar em
+    // vez de baixar de novo (nunca copiar duas vezes a mesma imagem
+    // externa, item 11).
+    const { data: existingMedia, error: findErr } = await sb
+      .from("media_assets")
+      .select("id")
+      .eq("origin_source_url", normalized)
+      .maybeSingle();
+    if (findErr) throw findErr;
 
-  const sectionSlug = CATEGORY_TO_SECTION_SLUG[c.primary.category];
-  const sectionId = await resolveSectionId(sb, sectionSlug, sectionCache);
-  const slug = stableSlug(c.primary);
-  const publishedAtIso = `${c.publishedIso}T12:00:00Z`;
-  const hash = sourceHash(c.primary, detail);
-
-  const articlePayload = {
-    slug,
-    title: detail?.title || c.primary.title,
-    subtitle: detail?.subtitle || null,
-    body: detail?.bodyHtml || "",
-    section_id: sectionId,
-    locality_id: localityId,
-    status: "published",
-    origin: "legacy_site",
-    published_at: publishedAtIso,
-    author_name: detail?.sourceLabel || null,
-  };
-
-  if (dryRun) {
-    log(`  [dry-run] criaria matéria "${articlePayload.title}" (${slug}) em ${sectionSlug}`);
-  } else {
-    const { data: article, error: articleErr } = await sb.from("articles").insert(articlePayload).select("id").single();
-    if (articleErr) throw articleErr;
-
-    const { error: sourceErr } = await sb.from("article_external_sources").insert({
-      article_id: article.id,
-      provider: PROVIDER,
-      external_id: c.identity.externalId,
-      source_url: c.identity.normalizedUrl,
-      source_slug: c.primary.slug,
-      original_category: c.primary.category,
-      original_subcategory: c.primary.category.startsWith("colunistas/") ? c.primary.category.split("/")[1] : null,
-      original_author: detail?.sourceLabel || null,
-      original_published_at: publishedAtIso,
-      source_hash: hash,
-      raw_metadata: { allCategories: c.allCategories, listingTitle: c.primary.title, listingDateRaw: c.primary.listingDateRaw },
-    });
-    if (sourceErr) throw sourceErr;
-
-    const refs = detail ? collectImageRefs(detail) : [];
-    let sortOrder = 0;
-    for (const ref of refs) {
-      const result = await reuseOrUploadImage(sb, ref, { articleSlug: slug, throttle, log, imgIndex: sortOrder, dryRun });
-      if (result.failed) {
-        batchStats.failedImages += 1;
+    let mediaId = existingMedia?.id ?? null;
+    if (mediaId) {
+      outcome.reused += 1;
+    } else {
+      await throttle();
+      const result = await downloadImage(ref.src);
+      if (!result.ok) {
+        await appendFile(
+          IMAGE_EXCEPTIONS_FILE,
+          JSON.stringify({ articleSlug, url: ref.src, status: result.status, error: result.error, at: new Date().toISOString() }) + "\n",
+          "utf8",
+        );
+        log(`    [imagem falhou] ${ref.src} (${result.status || result.error})`);
+        outcome.failed += 1;
         continue;
       }
-      if (result.reused) batchStats.reusedImages += 1;
-      else batchStats.migratedImages += 1;
-
-      const { error: linkErr } = await sb.from("article_media").insert({
-        article_id: article.id,
-        media_id: result.mediaId,
-        role: ref.role,
-        sort_order: sortOrder,
-        caption_override: ref.caption || null,
-        credit_override: ref.credit || null,
-      });
-      if (linkErr) throw linkErr;
-      sortOrder += 1;
+      const ext = extFromContentType(result.contentType);
+      const storagePath = `legacy/${articleSlug}/${sortOrder}.${ext}`;
+      const { error: uploadErr } = await sb.storage
+        .from("article-media")
+        .upload(storagePath, result.buffer, { contentType: result.contentType, upsert: true });
+      if (uploadErr) {
+        await appendFile(
+          IMAGE_EXCEPTIONS_FILE,
+          JSON.stringify({ articleSlug, url: ref.src, error: uploadErr.message, at: new Date().toISOString() }) + "\n",
+          "utf8",
+        );
+        log(`    [upload falhou] ${ref.src}: ${uploadErr.message}`);
+        outcome.failed += 1;
+        continue;
+      }
+      const { data: pub } = sb.storage.from("article-media").getPublicUrl(storagePath);
+      const { data: media, error: insertErr } = await sb
+        .from("media_assets")
+        .insert({
+          type: "image",
+          file_name: storagePath.split("/").pop(),
+          storage_path: storagePath,
+          public_url: pub.publicUrl,
+          title: articleSlug,
+          caption: ref.caption || null,
+          credit: ref.credit || null,
+          origin_source_url: normalized,
+        })
+        .select("id")
+        .single();
+      if (insertErr) throw insertErr;
+      mediaId = media.id;
+      outcome.uploaded += 1;
     }
+
+    const { error: linkErr } = await sb.from("article_media").insert({
+      article_id: articleId,
+      media_id: mediaId,
+      role: ref.role,
+      sort_order: sortOrder,
+      caption_override: ref.caption || null,
+      credit_override: ref.credit || null,
+    });
+    if (linkErr) throw linkErr;
+    sortOrder += 1;
   }
 
-  batchStats.imported += 1;
-  return { status: "imported" };
+  outcome.linksAfter = (existingLinks ?? []).length + outcome.uploaded + outcome.reused;
+  return outcome;
+}
+
+/**
+ * Cria (via RPC atômica, item 2) ou reencontra a matéria e SEMPRE
+ * reconcilia as imagens (item 3) — nunca pula uma matéria já existente
+ * sem checar se a mídia dela está completa.
+ */
+async function importCandidate(sb, c, detail, { sectionCache, localityId, throttle, log, dryRun, batchStats }) {
+  const sectionSlug = CATEGORY_TO_SECTION_SLUG[c.primary.category];
+  const slug = stableSlug(c.primary);
+  const refs = detail ? collectImageRefs(detail) : [];
+
+  const existingId = await findExistingArticleId(sb, c.identity);
+  let articleId = existingId;
+  let wasExisting = Boolean(existingId);
+
+  if (dryRun) {
+    log(`  [dry-run] ${wasExisting ? "reconciliaria" : "criaria"} matéria "${detail?.title || c.primary.title}" (${slug}) em ${sectionSlug}, imagens=${refs.length}`);
+  } else if (!wasExisting) {
+    const sectionId = await resolveSectionId(sb, sectionSlug, sectionCache);
+    // Data/hora original preservada de verdade (item 1, Fase 35B) — nunca
+    // um horário inventado. A precisão real (datetime vs. date_only) vai
+    // em raw_metadata para nunca ficar escondida atrás do timestamp.
+    const detailParsed = parseBrDateTime(detail?.publishedRaw) ?? { dateIso: c.publishedIso, time: null, precision: "date_only" };
+    const publishedAtIso = toPublishedAtIso(detailParsed);
+    const hash = sourceHash(c.primary, detail);
+
+    const { data: newId, error: rpcErr } = await sb.rpc("legacy_import_article", {
+      article: {
+        slug,
+        title: detail?.title || c.primary.title,
+        subtitle: detail?.subtitle || null,
+        body: detail?.bodyHtml || "",
+        section_id: sectionId,
+        locality_id: localityId,
+        status: "published",
+        origin: "legacy_site",
+        published_at: publishedAtIso,
+        author_name: detail?.sourceLabel || null,
+      },
+      source: {
+        provider: PROVIDER,
+        external_id: c.identity.externalId,
+        source_url: c.identity.normalizedUrl,
+        source_slug: c.primary.slug,
+        original_category: c.primary.category,
+        original_subcategory: c.primary.category.startsWith("colunistas/") ? c.primary.category.split("/")[1] : null,
+        original_author: detail?.sourceLabel || null,
+        original_published_at: publishedAtIso,
+        source_hash: hash,
+        raw_metadata: {
+          allCategories: c.allCategories,
+          listingTitle: c.primary.title,
+          listingDateRaw: c.primary.listingDateRaw,
+          datePrecision: detailParsed.precision,
+        },
+      },
+    });
+    if (rpcErr) throw rpcErr;
+    articleId = newId;
+  }
+
+  if (!dryRun) {
+    const imgOutcome = await reconcileArticleImages(sb, articleId, refs, { articleSlug: slug, throttle, log, dryRun });
+    batchStats.uploadedImages += imgOutcome.uploaded;
+    batchStats.reusedImages += imgOutcome.reused;
+    batchStats.alreadyLinkedImages += imgOutcome.alreadyLinked;
+    batchStats.failedImages += imgOutcome.failed;
+  }
+
+  if (wasExisting) batchStats.skippedExisting += 1;
+  else batchStats.imported += 1;
+  return { status: wasExisting ? "reconciled_existing" : "imported", articleId };
 }
 
 // `eligiblePairs` já passou pela barreira de integridade (lib/integrity.mjs)
 // — só chega aqui quem foi classificado como "eligible", nunca
-// needs_review/rejected (Fase 35, item explícito do usuário).
-async function runImport(eligiblePairs, log) {
+// needs_review/quarantined/rejected (Fase 35, item explícito do usuário).
+async function runImport(eligiblePairs, preflightSummary, log) {
   const dryRun = !COMMIT;
   log(dryRun ? "\n== MODO IMPORT (dry-run — nenhuma gravação real) ==" : "\n== MODO IMPORT (--commit, gravando de verdade) ==");
 
@@ -483,18 +447,37 @@ async function runImport(eligiblePairs, log) {
   const localityId = dryRun ? "dry-run" : await resolveGeralLocalityId(sb);
   const throttle = createRateLimiter(RPS);
 
-  const batchStats = { imported: 0, skippedExisting: 0, failedArticles: 0, migratedImages: 0, reusedImages: 0, failedImages: 0 };
+  const batchStats = {
+    imported: 0,
+    skippedExisting: 0,
+    failedArticles: 0,
+    uploadedImages: 0,
+    reusedImages: 0,
+    alreadyLinkedImages: 0,
+    failedImages: 0,
+  };
   let batchRowId = null;
 
   if (!dryRun) {
+    // Persiste o esperado do preflight (item 5) — a reconciliação final
+    // (item 4) compara o banco contra ESTES números, nunca contra um
+    // "sucesso" definido só por failedArticles === 0.
     const { data: existingBatch } = await sb.from("legacy_migration_batches").select("id").eq("batch_key", batch.key).maybeSingle();
+    const expectedFields = {
+      expected_articles: preflightSummary.eligibleArticles,
+      expected_image_references: preflightSummary.totalImageReferences,
+      expected_unique_images: preflightSummary.uniqueImageUrls,
+    };
     if (existingBatch) {
       batchRowId = existingBatch.id;
-      await sb.from("legacy_migration_batches").update({ status: "running", started_at: new Date().toISOString() }).eq("id", batchRowId);
+      await sb
+        .from("legacy_migration_batches")
+        .update({ status: "running", started_at: new Date().toISOString(), ...expectedFields })
+        .eq("id", batchRowId);
     } else {
       const { data: created, error } = await sb
         .from("legacy_migration_batches")
-        .insert({ batch_key: batch.key, period_start: batch.start, period_end: batch.end, status: "running", started_at: new Date().toISOString() })
+        .insert({ batch_key: batch.key, period_start: batch.start, period_end: batch.end, status: "running", started_at: new Date().toISOString(), ...expectedFields })
         .select("id")
         .single();
       if (error) throw error;
@@ -506,16 +489,7 @@ async function runImport(eligiblePairs, log) {
   for (const { candidate: c, detail } of eligiblePairs) {
     if (processed >= LIMIT) break;
     try {
-      const result = dryRun
-        ? await (async () => {
-            const existingId = null; // dry-run não consulta o banco
-            if (existingId) return { status: "skipped_existing" };
-            const sectionSlug = CATEGORY_TO_SECTION_SLUG[c.primary.category];
-            log(`  [dry-run] "${detail?.title || c.primary.title}" -> editoria=${sectionSlug} slug=${stableSlug(c.primary)} imagens=${detail ? collectImageRefs(detail).length : 0}`);
-            batchStats.imported += 1;
-            return { status: "imported" };
-          })()
-        : await importCandidate(sb, c, detail, { sectionCache, localityId, throttle, log, dryRun: false, batchStats });
+      await importCandidate(sb, c, detail, { sectionCache, localityId, throttle, log, dryRun, batchStats });
       processed += 1;
     } catch (error) {
       batchStats.failedArticles += 1;
@@ -527,7 +501,16 @@ async function runImport(eligiblePairs, log) {
   log(JSON.stringify(batchStats, null, 2));
 
   if (!dryRun && batchRowId) {
-    const status = batchStats.failedArticles === 0 ? "complete" : "incomplete";
+    // Reconciliação real (item 4) — nunca "complete" só por
+    // failedArticles === 0. Artigos: todo elegível precisa estar
+    // importado OU já existente, e zero falhas. Imagens: toda referência
+    // esperada precisa estar coberta (upload OU reuso OU já vinculada) —
+    // qualquer falha de imagem mantém o lote incomplete/pendente de mídia.
+    const articlesAccountedFor = batchStats.imported + batchStats.skippedExisting;
+    const articlesReconciled = articlesAccountedFor === preflightSummary.eligibleArticles && batchStats.failedArticles === 0;
+    const imagesReconciled = batchStats.failedImages === 0;
+    const status = articlesReconciled && imagesReconciled ? "complete" : "incomplete";
+
     await sb
       .from("legacy_migration_batches")
       .update({
@@ -535,13 +518,18 @@ async function runImport(eligiblePairs, log) {
         imported_articles: batchStats.imported,
         skipped_existing: batchStats.skippedExisting,
         failed_articles: batchStats.failedArticles,
-        migrated_images: batchStats.migratedImages,
+        migrated_images: batchStats.uploadedImages,
         reused_images: batchStats.reusedImages,
         failed_images: batchStats.failedImages,
         completed_at: new Date().toISOString(),
+        metadata: {
+          alreadyLinkedImages: batchStats.alreadyLinkedImages,
+          articlesReconciled,
+          imagesReconciled,
+        },
       })
       .eq("id", batchRowId);
-    log(`Lote marcado como: ${status}`);
+    log(`Lote marcado como: ${status} (artigos reconciliados: ${articlesReconciled}, imagens reconciliadas: ${imagesReconciled})`);
   }
   return batchStats;
 }
@@ -551,7 +539,7 @@ async function main() {
   const log = (...m) => console.log(...m);
   log(`== Fase 35 — motor de migração — lote ${batch.key} (${batch.start} a ${batch.end}) — modo=${MODE} commit=${COMMIT} ==`);
 
-  const allItems = await loadInventory();
+  const allItems = await loadInventory(INVENTORY_FILE);
   const candidates = dedupeByIdentity(allItems);
   const { eligible: inRange, dateExceptions } = filterByBatchRange(candidates, batch);
   log(`Candidatas no intervalo: ${inRange.length} | exceções de data: ${dateExceptions.length}`);
@@ -564,8 +552,8 @@ async function main() {
   } else if (MODE === "import") {
     // Sempre recalcula (barreira de integridade incluída) antes de gravar
     // — só o conjunto `eligibleList` (pós-barreira) pode ser importado.
-    const { eligibleList } = await runPreflight(inRange, dateExceptions, cache, log);
-    await runImport(eligibleList, log);
+    const { summary, eligibleList } = await runPreflight(inRange, dateExceptions, cache, log);
+    await runImport(eligibleList, summary, log);
   } else {
     throw new Error(`Modo desconhecido: ${MODE}`);
   }

@@ -111,21 +111,30 @@ export function parseArticlePage(html, url) {
     "[class*='recomendad']",
     "[class*='relacionad']",
     "[class*='publicidade']",
+    "[class*='leia-tambem']",
+    "[class*='leia_tambem']",
+    "nav",
+    "aside",
     ".breaking-post",
     ".post-date-info",
   ];
   const suspiciousBodyElements = SUSPICIOUS_SELECTORS.filter((sel) => bodyEl.find(sel).length > 0);
 
-  bodyEl.find("style, .box-download").remove();
+  // Corpo salvo (`body`) precisa ser SOMENTE conteúdo editorial (item 10,
+  // Fase 35B) — nunca o subtítulo duplicado (já vai em `subtitle`), nem
+  // estilo/scripts/botão de download que o CMS injeta dentro do mesmo
+  // `.entry-content`.
+  bodyEl.find("style, script, h3.class-resumo, .box-download").remove();
   const bodyParagraphs = [];
   bodyEl.find("p").each((_, p) => {
     const text = $(p).text().replace(/\s+/g, " ").trim();
     if (text) bodyParagraphs.push(text);
   });
   // HTML real do corpo (preserva <strong>/<br>/parágrafos) — usado na
-  // importação (Fase 35); bodyTextSample abaixo continua só para
-  // amostragem/leitura humana e hash de conteúdo.
+  // importação (Fase 35); bodyTextSample/bodyTextFull abaixo continuam só
+  // para amostragem/leitura humana e hash de conteúdo completo.
   const bodyHtml = bodyEl.html()?.trim() || null;
+  const bodyTextFull = bodyEl.text().replace(/\s+/g, " ").trim();
 
   // coverSource distingue a capa vinda da ESTRUTURA da própria matéria
   // (confiável) de um fallback via <meta og:image> (pode ser um valor
@@ -161,6 +170,7 @@ export function parseArticlePage(html, url) {
     bodyParagraphCount: bodyParagraphs.length,
     bodyTextLength: bodyParagraphs.join(" ").length,
     bodyTextSample: bodyParagraphs.join(" ").slice(0, 500) || null,
+    bodyTextFull,
     bodyHtml,
     coverUrl,
     coverSource,

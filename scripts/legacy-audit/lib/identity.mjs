@@ -30,15 +30,27 @@ export function externalIdentity(item) {
   };
 }
 
-/** Hash estável do conteúdo bruto relevante — usado para source_hash
- * (permite detectar se uma re-sincronização futura mudou algo real). */
+/**
+ * Hash estável do conteúdo editorial COMPLETO relevante (item 6, Fase
+ * 35B) — usado para `source_hash` e para uma futura re-sincronização
+ * detectar qualquer alteração real, inclusive uma mudança só no final do
+ * corpo (a versão anterior usava só os 500 primeiros caracteres do texto
+ * e deixava isso invisível). Nunca inclui HTML bruto (espaçamento/atributo
+ * mudar sem o conteúdo mudar não pode invalidar o hash) — normaliza para
+ * texto puro antes de calcular.
+ */
 export function sourceHash(item, detail) {
+  const imageUrls = detail
+    ? [detail.coverUrl, ...(detail.galleryImages ?? []).map((g) => g.src)].filter(Boolean).map(normalizeUrl)
+    : [];
   const payload = JSON.stringify({
     title: detail?.title ?? item.title,
     subtitle: detail?.subtitle ?? null,
-    body: detail?.bodyTextSample ?? null,
+    bodyText: detail?.bodyTextFull ?? detail?.bodyTextSample ?? null,
     publishedRaw: item.listingDateRaw,
     category: item.category,
+    sourceLabel: detail?.sourceLabel ?? null,
+    imageUrls,
   });
   return sha1(payload);
 }
