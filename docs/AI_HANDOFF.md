@@ -6,7 +6,7 @@ Este arquivo é atualizado ao final de CADA fase a partir da Fase 35. Curto, dir
 
 ## Fase 39 — Corrige limites artificiais nas listagens do portal (apps/site)
 
-**HEAD/commit:** PLACEHOLDER (branch `feature/jornalir-core-foundation-20260917`)
+**HEAD/commit:** `a35ac62` (branch `feature/jornalir-core-foundation-20260917`)
 
 Autorizado por `docs/CHATGPT_REVIEW.md`: com os lotes 2015-2018 migrados (4.125 matérias reais), `/noticias` (limit 60), `/editoria/[slug]` (limit 40) e `/busca` (limit 200, filtrado no navegador) escondiam a maior parte do acervo por teto fixo de query/interface — **não é perda de dados da migração**. Esta fase é só do portal (`apps/site`), não mexe em nada da migração já concluída.
 
