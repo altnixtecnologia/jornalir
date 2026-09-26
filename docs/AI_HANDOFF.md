@@ -6,7 +6,7 @@ Este arquivo é atualizado ao final de CADA fase a partir da Fase 35. Curto, dir
 
 ## Fase 36 — Preflight do lote 2017-2018 (SOMENTE LEITURA, nada importado)
 
-**HEAD/commit:** PLACEHOLDER (branch `feature/jornalir-core-foundation-20260917`)
+**HEAD/commit:** `d598f5d` (branch `feature/jornalir-core-foundation-20260917`)
 
 Autorizado por `docs/CHATGPT_REVIEW.md` (revisão sobre HEAD `1d84c96`: "AUTORIZADO SOMENTE PREFLIGHT/AUDITORIA DO LOTE 2017–2018. AINDA NÃO IMPORTAR"). **Nenhuma escrita real nesta fase.**
 
