@@ -1,6 +1,6 @@
 import { useRef, useState, useTransition } from "react";
 import type { ArticleMedia, MediaAsset } from "@ir/types";
-import { uploadMediaAssets } from "../../app/sistema/editorial/midias/actions";
+import { searchMediaLibrary, uploadMediaAssets } from "../../app/sistema/editorial/midias/actions";
 
 interface ArticleMediaPickerProps {
   mediaAssets: MediaAsset[];
@@ -28,7 +28,13 @@ export function ArticleMediaPicker({
   onSetCredit,
   onFilesUploaded,
 }: ArticleMediaPickerProps): JSX.Element {
-  const assetById = new Map(mediaAssets.map((asset) => [asset.id, asset]));
+  const [remoteMediaAssets, setRemoteMediaAssets] = useState<MediaAsset[]>([]);
+  const [searchNotice, setSearchNotice] = useState<string | null>(null);
+  const [searching, startSearch] = useTransition();
+  const allMediaAssets = [
+    ...new Map([...mediaAssets, ...remoteMediaAssets].map((asset) => [asset.id, asset])).values(),
+  ];
+  const assetById = new Map(allMediaAssets.map((asset) => [asset.id, asset]));
   const cover = media.find((item) => item.role === "cover");
   const coverAsset = cover ? assetById.get(cover.mediaAssetId) : undefined;
   const gallery = media
@@ -41,11 +47,28 @@ export function ArticleMediaPicker({
   const [uploading, startUpload] = useTransition();
   const [librarySearch, setLibrarySearch] = useState("");
   const filteredMediaAssets = librarySearch.trim()
-    ? mediaAssets.filter((asset) => {
+    ? allMediaAssets.filter((asset) => {
         const term = librarySearch.trim().toLowerCase();
-        return `${asset.name} ${asset.reference}`.toLowerCase().includes(term);
+        return `${asset.name} ${asset.reference} ${asset.caption ?? ""} ${asset.credit ?? ""}`.toLowerCase().includes(term);
       })
-    : mediaAssets;
+    : allMediaAssets;
+
+  function handleRemoteSearch(): void {
+    setSearchNotice(null);
+    startSearch(async () => {
+      const result = await searchMediaLibrary(librarySearch);
+      if ("error" in result) {
+        setSearchNotice(result.error);
+        return;
+      }
+      setRemoteMediaAssets(result.assets);
+      setSearchNotice(
+        result.assets.length > 0
+          ? `${result.assets.length} resultado(s) carregado(s) do acervo.`
+          : "Nenhuma mídia encontrada no acervo.",
+      );
+    });
+  }
 
   function handleFilesSelected(event: React.ChangeEvent<HTMLInputElement>): void {
     const files = event.target.files;
@@ -199,14 +222,26 @@ export function ArticleMediaPicker({
           </a>
           .
         </p>
-        <input
-          type="search"
-          className="media-library-search"
-          value={librarySearch}
-          onChange={(event) => setLibrarySearch(event.target.value)}
-          placeholder="Procurar por nome ou referência"
-          aria-label="Procurar mídia na biblioteca"
-        />
+        <div className="media-upload-actions">
+          <input
+            type="search"
+            className="media-library-search"
+            value={librarySearch}
+            onChange={(event) => setLibrarySearch(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") {
+                event.preventDefault();
+                handleRemoteSearch();
+              }
+            }}
+            placeholder="Procurar por nome, referência, legenda ou crédito"
+            aria-label="Procurar mídia na biblioteca"
+          />
+          <button type="button" onClick={handleRemoteSearch} disabled={searching}>
+            {searching ? "Buscando…" : "Buscar no acervo"}
+          </button>
+        </div>
+        {searchNotice ? <p className="helper-text">{searchNotice}</p> : null}
         <div className="library-grid">
           {filteredMediaAssets.map((asset) => {
             const isCover = cover?.mediaAssetId === asset.id;
