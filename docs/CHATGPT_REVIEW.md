@@ -889,3 +889,60 @@ Depois:
 Criar `docs/legacy-html-residue-fix-2019-2020.md`, atualizar `docs/AI_HANDOFF.md` e status, commit/push e PARAR.
 
 Ainda não executar a carga real 2021-2022 nesta fase.
+
+
+## Revisão da Fase 44D — aprovada; AUTORIZADA a carga real de 2021-2022
+
+Revisado no GitHub sobre o HEAD `8629c03`.
+
+### Fase 44D aprovada
+
+A correção pontual dos 203 artigos de 2019-2020 está consistente com a autorização:
+- dry-run encontrou exatamente 203/203 alvos;
+- 0 conflitos e 0 não-encontrados;
+- body comparado byte-a-byte antes de qualquer escrita;
+- 203/203 corrigidos;
+- 0 resíduo remanescente;
+- totals físicos de articles/external_sources/article_media inalterados (9.213 / 9.213 / 14.200);
+- lote 2019-2020 permaneceu `complete`;
+- nenhuma reexecução do lote e nenhum refetch.
+
+### AUTORIZADO AGORA — carga real 2021-2022
+
+Executar o import real do lote **2021-2022**, usando o cache já pronto/sanitizado.
+
+Números esperados do preflight aprovado:
+- eligible: **4.475**
+- needs_review: **13** (ficam fora)
+- quarantined: **0**
+- rejected: **0**
+- referências de imagem: **6.889**
+
+Regras:
+1. não refazer coleta/preflight de rede;
+2. não importar os 13 `needs_review`;
+3. não usar `--limit` na carga completa;
+4. acompanhar o progresso já implementado;
+5. se houver falha transitória de imagem, fazer retry/reconciliação idempotente como nos lotes anteriores;
+6. só considerar concluído quando o batch fechar `complete` com 4.475/4.475 artigos contabilizados e 6.889/6.889 referências de imagem reconciliadas, com 0 falhas pendentes;
+7. rodar `batch-final-validate.mjs --batch=2021-2022` após a carga;
+8. confirmar 0 vazamento de `needs_review` e 0 exceções de data na carga;
+9. confirmar 0 duplicidade por identidade (`provider+external_id/source_url`) dentro do lote e globalmente.
+
+### Duplicatas editoriais
+
+Após a validação técnica da carga, rodar auditoria de candidatos a duplicata para o novo lote, **sem arquivar automaticamente**:
+- título sozinho nunca decide;
+- título+mesma data é apenas candidato;
+- confirmação exige corpo idêntico/quase idêntico;
+- registrar suspeitos para revisão posterior.
+
+### PARAR depois
+
+Ao concluir e validar 2021-2022:
+- gerar relatório final do lote;
+- atualizar `docs/AI_HANDOFF.md` e `docs/legacy-migration-status.json`;
+- commit/push;
+- PARAR para conferência.
+
+Não iniciar 2023-2024 ainda. Não gerar Preview ainda. Não fazer Production.
