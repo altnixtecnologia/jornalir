@@ -535,8 +535,12 @@ export function ArticleForm({
       ) : null}
 
       <div className="form-actions">
-        <button type="button" onClick={() => handleAction("draft")} disabled={pending}>
-          Salvar rascunho
+        <button
+          type="button"
+          onClick={() => handleAction(mode === "edit" ? "save" : "draft")}
+          disabled={pending}
+        >
+          {mode === "edit" ? "Salvar alterações" : "Salvar rascunho"}
         </button>
         <button
           type="button"
