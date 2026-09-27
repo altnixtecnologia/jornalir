@@ -1101,3 +1101,48 @@ Depois da validação:
 - PARAR para conferência.
 
 Não iniciar 2025-2026 ainda. Não gerar Preview ainda. Não fazer Production.
+
+
+## Revisão da Fase 45B — aprovada; limpar 1 duplicata confirmada antes de 2025-2026
+
+Revisado no GitHub sobre o HEAD `008f016`.
+
+### Fase 45B aprovada
+
+O lote 2023-2024 fechou corretamente:
+- 4.292/4.292 artigos;
+- 7.165/7.165 referências de imagem;
+- 0 falhas finais;
+- migration BMP aplicada e reconciliada;
+- 2 needs_review e 3 quarantined/classificados ficaram fora;
+- 0 duplicidade por identidade global;
+- acumulado: 17.980 articles / 17.980 external_sources / 28.254 media_assets;
+- lote 2023-2024 em `complete`.
+
+### Duplicatas editoriais
+
+A auditoria pós-carga encontrou 2 candidatos novos:
+- `CASOS DE DENGUE AUMENTAM 900% EM SC` (external_ids 572497 / 572509): corpo idêntico => **duplicata confirmada**;
+- `SANCIONADA LEI QUE CRIMINALIZA BULLYING...` (569333 / 569372): corpo apenas quase igual => **NÃO tocar**, continua para inspeção manual.
+
+### AUTORIZADO AGORA — limpeza reversível de somente 1 grupo
+
+Aplicar a mesma regra determinística já aprovada:
+1. tem capa > sem capa;
+2. editoria específica > Geral;
+3. published_at mais recente;
+4. maior external_id numérico como desempate.
+
+Regras:
+- dry-run primeiro;
+- deve encontrar exatamente **1 grupo / 2 artigos / 1 a arquivar / 1 canônico**;
+- nenhum DELETE;
+- arquivar somente o não-canônico com `status=archived` e `archived_at`;
+- preservar article_external_sources, media_assets e article_media;
+- não tocar o grupo 569333/569372;
+- não tocar os 13 candidatos antigos pendentes;
+- validar que o grupo termina com exatamente 1 published;
+- atualizar relatório, AI_HANDOFF e legacy-migration-status;
+- commit/push e PARAR.
+
+Ainda não iniciar o preflight 2025-2026 nesta mesma etapa.
