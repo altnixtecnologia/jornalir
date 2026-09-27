@@ -566,9 +566,13 @@ export function createArticleRepositorySupabase(client: SupabaseClient): Article
         fetchCoverMediaByArticle(client, rows.map((row) => row.id)),
       ]);
 
-      return rows.map((row) =>
+      const articles = rows.map((row) =>
         toDomain(row, placements.get(row.id) ?? null, coverMedia.get(row.id) ?? []),
       );
+      if (filters?.placementType === "none") {
+        return articles.filter((article) => article.placement.type === "none");
+      }
+      return articles;
     },
 
     async getById(id: string) {
