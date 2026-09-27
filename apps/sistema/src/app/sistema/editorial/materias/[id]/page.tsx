@@ -16,8 +16,10 @@ import {
 
 export default async function MateriaEditPage({
   params,
+  searchParams,
 }: {
   params: { id: string };
+  searchParams?: { aba?: string };
 }): Promise<JSX.Element> {
   const supabase = createSupabaseServerClient();
   const article = await getArticleService(supabase).getById(params.id).catch((error: unknown) => {
@@ -40,6 +42,11 @@ export default async function MateriaEditPage({
   const mediaById = new Map([...linkedMedia, ...recentMedia].map((asset) => [asset.id, asset]));
   const mediaAssets = [...mediaById.values()];
 
+  const initialTab =
+    searchParams?.aba === "imagens" || searchParams?.aba === "publicacao"
+      ? searchParams.aba
+      : "conteudo";
+
   return (
     <>
       <ModuleHeader
@@ -54,6 +61,7 @@ export default async function MateriaEditPage({
         localities={localities}
         mediaAssets={mediaAssets}
         editions={editions}
+        initialTab={initialTab}
       />
     </>
   );
