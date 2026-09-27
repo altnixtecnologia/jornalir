@@ -6,7 +6,7 @@ Este arquivo é atualizado ao final de CADA fase a partir da Fase 35. Curto, dir
 
 ## Fase 45B — CARGA REAL do lote 2023-2024 CONCLUÍDA
 
-**HEAD/commit:** `PENDENTE` (branch `feature/jornalir-core-foundation-20260917`)
+**HEAD/commit:** `5055f51` (branch `feature/jornalir-core-foundation-20260917`)
 
 Autorizado por `docs/CHATGPT_REVIEW.md` (revisão sobre HEAD `2521e81`: preflight aprovado, "AUTORIZADO AGORA — carga real 2023-2024", usando o cache já completo, sem refetch, sem `--limit`). Relatórios completos em `docs/legacy-batch-2023-2024-final.md` e `docs/legacy-duplicate-audit-2023-2024.md`.
 
