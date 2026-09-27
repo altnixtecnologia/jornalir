@@ -1,6 +1,6 @@
 import "server-only";
 
-import { createSign } from "node:crypto";
+import { createSign, randomUUID } from "node:crypto";
 
 const DEFAULT_PUBLIC_FOLDER_ID = "1lhyhSYnD_h2t5fmdQLXJsvQl7iJ90nsV";
 const DRIVE_SCOPE = "https://www.googleapis.com/auth/drive.file";
@@ -12,16 +12,48 @@ const MAX_PDF_BYTES = 100 * 1024 * 1024;
 export class DriveArchiveNotConfiguredError extends Error {}
 export class InvalidDriveEditionPdfError extends Error {}
 
-function getConfig(): { email: string; privateKey: string; folderId: string } | null {
+type DriveAuthConfig =
+  | {
+      mode: "oauth";
+      folderId: string;
+      clientId: string;
+      clientSecret: string;
+      refreshToken: string;
+    }
+  | {
+      mode: "service-account";
+      folderId: string;
+      email: string;
+      privateKey: string;
+    };
+
+function getConfig(): DriveAuthConfig | null {
+  const folderId = process.env.DRIVE_PUBLIC_FOLDER_ID?.trim() || DEFAULT_PUBLIC_FOLDER_ID;
+
+  // Preferido para pasta comum do Google Drive: o arquivo é criado pela
+  // própria conta do jornal e usa a cota normal dessa conta.
+  const clientId = process.env.GOOGLE_DRIVE_CLIENT_ID?.trim();
+  const clientSecret = process.env.GOOGLE_DRIVE_CLIENT_SECRET?.trim();
+  const refreshToken = process.env.GOOGLE_DRIVE_REFRESH_TOKEN?.trim();
+  if (clientId && clientSecret && refreshToken) {
+    return { mode: "oauth", folderId, clientId, clientSecret, refreshToken };
+  }
+
+  // Alternativa para Shared Drive / Google Workspace. Service accounts não
+  // devem ser a primeira opção para uma pasta comum de "Meu Drive", porque
+  // podem não ter cota própria para criar arquivos.
   const email = process.env.GOOGLE_DRIVE_SERVICE_ACCOUNT_EMAIL?.trim();
   const rawKey = process.env.GOOGLE_DRIVE_PRIVATE_KEY;
-  if (!email || !rawKey) return null;
+  if (email && rawKey) {
+    return {
+      mode: "service-account",
+      folderId,
+      email,
+      privateKey: rawKey.replace(/\\n/g, "\n"),
+    };
+  }
 
-  return {
-    email,
-    privateKey: rawKey.replace(/\\n/g, "\n"),
-    folderId: process.env.DRIVE_PUBLIC_FOLDER_ID?.trim() || DEFAULT_PUBLIC_FOLDER_ID,
-  };
+  return null;
 }
 
 export function isEditionDriveArchiveConfigured(): boolean {
@@ -32,7 +64,31 @@ function base64url(value: string | Buffer): string {
   return Buffer.from(value).toString("base64url");
 }
 
-async function getAccessToken(email: string, privateKey: string): Promise<string> {
+async function getOAuthAccessToken(
+  clientId: string,
+  clientSecret: string,
+  refreshToken: string,
+): Promise<string> {
+  const response = await fetch(TOKEN_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({
+      client_id: clientId,
+      client_secret: clientSecret,
+      refresh_token: refreshToken,
+      grant_type: "refresh_token",
+    }),
+    cache: "no-store",
+  });
+  if (!response.ok) {
+    throw new Error(`Google Drive: falha ao renovar acesso da conta (HTTP ${response.status}).`);
+  }
+  const data = (await response.json()) as { access_token?: string };
+  if (!data.access_token) throw new Error("Google Drive: token de acesso não retornado.");
+  return data.access_token;
+}
+
+async function getServiceAccountAccessToken(email: string, privateKey: string): Promise<string> {
   const now = Math.floor(Date.now() / 1000);
   const header = base64url(JSON.stringify({ alg: "RS256", typ: "JWT" }));
   const payload = base64url(
@@ -65,6 +121,12 @@ async function getAccessToken(email: string, privateKey: string): Promise<string
   return data.access_token;
 }
 
+async function getAccessToken(config: DriveAuthConfig): Promise<string> {
+  return config.mode === "oauth"
+    ? getOAuthAccessToken(config.clientId, config.clientSecret, config.refreshToken)
+    : getServiceAccountAccessToken(config.email, config.privateKey);
+}
+
 function safePdfName(fileName: string, editionNumber?: number, publicationDate?: string): string {
   const source = editionNumber
     ? `Informativo Regional - Edicao ${editionNumber}${publicationDate ? ` - ${publicationDate}` : ""}`
@@ -88,9 +150,6 @@ export interface DriveEditionUploadOptions {
  * Arquivo oficial do Jornal Online.
  * O PDF vai para a mesma pasta pública do Google Drive já consumida por
  * apps/site, e o Supabase guarda apenas metadados/URL — não os bytes.
- *
- * Para funcionar, compartilhe a pasta DRIVE_PUBLIC_FOLDER_ID como Editor
- * com GOOGLE_DRIVE_SERVICE_ACCOUNT_EMAIL.
  */
 export async function uploadEditionPdfToDrive(
   file: File,
@@ -99,7 +158,7 @@ export async function uploadEditionPdfToDrive(
   const config = getConfig();
   if (!config) {
     throw new DriveArchiveNotConfiguredError(
-      "Arquivo do Jornal Online ainda não configurado. Defina GOOGLE_DRIVE_SERVICE_ACCOUNT_EMAIL e GOOGLE_DRIVE_PRIVATE_KEY no painel.",
+      "Arquivo do Jornal Online ainda não configurado. Configure a conexão do Google Drive no painel.",
     );
   }
 
@@ -111,9 +170,9 @@ export async function uploadEditionPdfToDrive(
     );
   }
 
-  const accessToken = await getAccessToken(config.email, config.privateKey);
+  const accessToken = await getAccessToken(config);
   const name = safePdfName(file.name, options.editionNumber, options.publicationDate);
-  const boundary = `jornalir-${crypto.randomUUID()}`;
+  const boundary = `jornalir-${randomUUID()}`;
   const metadata = JSON.stringify({
     name,
     mimeType: "application/pdf",
@@ -138,7 +197,7 @@ export async function uploadEditionPdfToDrive(
       "Content-Type": `multipart/related; boundary=${boundary}`,
       "Content-Length": String(body.length),
     },
-    body,
+    body: new Uint8Array(body),
     cache: "no-store",
   });
 
