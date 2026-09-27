@@ -1146,3 +1146,50 @@ Regras:
 - commit/push e PARAR.
 
 Ainda não iniciar o preflight 2025-2026 nesta mesma etapa.
+
+
+## Revisão da Fase 45C — aprovada; AUTORIZADO somente preflight de 2025-2026
+
+Revisado no GitHub sobre o HEAD `3090bf4`.
+
+### Fase 45C aprovada
+
+A limpeza está coerente com a autorização:
+- dry-run: 1 grupo / 2 artigos / 1 a arquivar / 1 canônico;
+- mantido `572509` (editoria específica `saude`);
+- arquivado `572497` (`geral`);
+- nenhum DELETE;
+- totais físicos preservados: 17.980 articles / 17.980 external_sources / 28.254 article_media;
+- published legado = 17.905;
+- grupo 569333/569372 continua intocado;
+- 13 candidatos antigos pendentes continuam intocados.
+
+### AUTORIZADO AGORA — somente preflight/auditoria de 2025-2026
+
+Este é o último lote cronológico. Ainda NÃO importar.
+
+Antes da coleta:
+1. informar quantas candidatas 2025-2026 existem no inventário;
+2. informar quantos detalhes já existem em cache local;
+3. informar quantos ainda faltam buscar;
+4. reutilizar integralmente cache/checkpoint existente;
+5. buscar somente o que faltar.
+
+Depois:
+- executar somente o preflight de 2025-2026;
+- aplicar sanitização e barreira de integridade atuais;
+- gerar eligible / needs_review / quarantined / rejected;
+- contar com imagem / sem imagem, referências e URLs únicas;
+- distribuição por editoria;
+- destacar qualquer categoria nova ou ocorrência de `classificados`;
+- verificar tipos de mídia incomuns antes da futura carga (especialmente MIME/extensões não cobertas);
+- gerar amostra e relatórios equivalentes aos lotes anteriores;
+- atualizar `docs/AI_HANDOFF.md` e `docs/legacy-migration-status.json`;
+- commit/push;
+- PARAR para conferência.
+
+Ainda NÃO autorizado:
+- import real de 2025-2026;
+- revisão/forçamento dos casos needs_review/quarantined;
+- novo Preview;
+- Production.
