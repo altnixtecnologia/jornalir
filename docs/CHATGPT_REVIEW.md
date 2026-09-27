@@ -695,3 +695,27 @@ Fazer:
 - não fazer Production.
 
 Se o preflight encontrar categoria nova/não revisada, volume anormal de `needs_review`, inconsistência de contagem ou outro achado estrutural, destacar claramente no handoff.
+
+
+## Otimização obrigatória — evitar retrabalho no 2021-2022
+
+Preocupação explícita do usuário: etapas longas não devem ser refeitas sem necessidade.
+
+Para o preflight 2021-2022:
+
+1. **NÃO reexecutar nenhum lote já concluído** (2015-2016, 2017-2018, 2019-2020).
+2. **NÃO apagar/inutilizar cache ou checkpoint existente** sem motivo técnico comprovado.
+3. Reutilizar integralmente:
+   - `output/inventory.ndjson` da auditoria global;
+   - `output/batches/2021-2022/details.ndjson`, se já existir parcial;
+   - `checkpoint.json`, se já existir.
+4. Antes de qualquer coleta longa, fazer uma checagem rápida e informar:
+   - quantas candidatas 2021-2022 existem no inventário;
+   - quantos detalhes já estão em cache;
+   - quantos ainda precisariam ser buscados.
+5. Só buscar do site legado os detalhes **faltantes**.
+6. O cache gerado no preflight deve ser reutilizado depois na importação real do mesmo lote; não fazer nova coleta das mesmas páginas.
+7. Se a execução for interrompida, retomar do cache/checkpoint, nunca do zero.
+8. Não invalidar cache por mudanças recentes de progresso/deduplicação: essas mudanças não alteraram o parser de conteúdo legado.
+
+A próxima etapa continua sendo somente o preflight 2021-2022, mas deve ser feita de forma incremental e sem retrabalho.
