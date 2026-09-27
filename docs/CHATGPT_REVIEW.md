@@ -1235,3 +1235,57 @@ Antes de autorizar a carga, corrigir SOMENTE essa auditoria, sem refetch de mat�
 7. Commit/push e PARAR para nova conferência.
 
 NÃO importar 2025-2026 ainda. NÃO iniciar Preview/Production.
+
+
+## Revisão da Fase 46B — aprovada; AUTORIZADA carga real de 2025-2026
+
+Revisado no GitHub sobre o HEAD `b63830e`.
+
+### Fase 46B aprovada
+
+A inconsistência da auditoria de extensões foi corrigida corretamente:
+- a contagem agora usa exatamente `eligibleList + collectImageRefs(detail)`;
+- buckets mutuamente exclusivos pelo pathname;
+- soma das extensões = **16.035**, exatamente igual às referências elegíveis;
+- números editoriais do preflight permaneceram inalterados;
+- nenhum refetch e nenhuma importação nesta correção.
+
+Preflight final aprovado:
+- candidatas: **5.341**
+- eligible: **5.312**
+- needs_review: **2**
+- quarantined/classificados: **27**
+- rejected: **0**
+- com imagem: **5.311**
+- sem imagem: **1**
+- referências de imagem: **16.035**
+- URLs únicas no lote: **16.035**
+
+### AUTORIZADO AGORA — carga real do último lote 2025-2026
+
+Executar somente a carga dos **5.312 eligible**, usando o cache completo já existente.
+
+Regras:
+1. sem refetch de matérias;
+2. sem `--limit`;
+3. manter os **2 needs_review** fora;
+4. manter os **27 quarantined/classificados** fora;
+5. manter as **7 exceções de data** fora;
+6. expected_articles = **5.312**;
+7. expected_image_refs = **16.035**;
+8. retry/reconciliação apenas para falhas pontuais/transitórias;
+9. se surgir MIME real não suportado, falha sistêmica, divergência de contagem ou outro bloqueio não previsto, PARAR e reportar antes de alterar configuração/dados;
+10. fechar `legacy_migration_batches.status=complete` somente com 5.312/5.312 artigos e 16.035/16.035 referências reconciliadas, 0 falhas finais.
+
+Depois da carga:
+- rodar `batch-final-validate.mjs --batch=2025-2026`;
+- confirmar 0 vazamento de needs_review/quarantined/exceções de data;
+- confirmar 0 placements;
+- confirmar 0 duplicidade por identidade no lote e global;
+- auditar candidatos a duplicata editorial SOMENTE LEITURA, sem arquivar automaticamente;
+- gerar relatório final do lote e relatório de duplicatas;
+- atualizar `docs/AI_HANDOFF.md` e `docs/legacy-migration-status.json`;
+- commit/push;
+- PARAR para conferência.
+
+Ainda NÃO gerar Preview e NÃO fazer Production nesta etapa.
