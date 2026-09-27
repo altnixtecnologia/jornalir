@@ -27,9 +27,9 @@ export interface GenerateCandidatesResult {
 }
 
 /**
- * Lê o PDF selecionado (arquivo temporário do envio — nunca salvo em disco
- * ou storage remoto) e extrai candidatos reais via @ir/pdf-extraction. Só o
- * necessário para o fluxo: não há upload persistente nesta fase.
+ * Lê o PDF selecionado e extrai candidatos reais via @ir/pdf-extraction.
+ * Se a edição ainda não possui PDF oficial, o mesmo arquivo também é
+ * arquivado no Google Drive do Jornal Online. O Supabase não recebe os bytes.
  */
 export async function generateCandidates(
   editionId: string,
