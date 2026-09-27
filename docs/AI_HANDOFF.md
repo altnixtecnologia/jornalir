@@ -6,7 +6,7 @@ Este arquivo é atualizado ao final de CADA fase a partir da Fase 35. Curto, dir
 
 ## Fase 42 — Auditoria de duplicatas 2015-2020 (SOMENTE LEITURA, nada corrigido)
 
-**HEAD/commit:** PLACEHOLDER (branch `feature/jornalir-core-foundation-20260917`)
+**HEAD/commit:** `2c5b09a` (branch `feature/jornalir-core-foundation-20260917`)
 
 Pedido pelo usuário após observar visualmente uma matéria duplicada no portal ("HOMEM REENCONTRA A FAMÍLIA APÓS 26 ANOS DESAPARECIDO"). Auditoria **somente leitura** sobre os 9.213 `articles` já migrados (2015-2020) — nada foi apagado, mesclado ou alterado.
 
