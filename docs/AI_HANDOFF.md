@@ -6,7 +6,7 @@ Este arquivo é atualizado ao final de CADA fase a partir da Fase 35. Curto, dir
 
 ## Fase 45 — Preflight/auditoria do lote 2023-2024 (SOMENTE LEITURA, nada importado)
 
-**HEAD/commit:** `PENDENTE` (branch `feature/jornalir-core-foundation-20260917`)
+**HEAD/commit:** `8d25ed8` (branch `feature/jornalir-core-foundation-20260917`)
 
 Autorizado por `docs/CHATGPT_REVIEW.md` (revisão sobre HEAD `dc0ee49`: Fase 44F aprovada, "AUTORIZADO AGORA — somente preflight/auditoria de 2023-2024"). **Nenhuma escrita real nesta fase.**
 
