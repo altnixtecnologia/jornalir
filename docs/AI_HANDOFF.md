@@ -4,6 +4,47 @@ Este arquivo é atualizado ao final de CADA fase a partir da Fase 35. Curto, dir
 
 ---
 
+## Fase 42 — Auditoria de duplicatas 2015-2020 (SOMENTE LEITURA, nada corrigido)
+
+**HEAD/commit:** PLACEHOLDER (branch `feature/jornalir-core-foundation-20260917`)
+
+Pedido pelo usuário após observar visualmente uma matéria duplicada no portal ("HOMEM REENCONTRA A FAMÍLIA APÓS 26 ANOS DESAPARECIDO"). Auditoria **somente leitura** sobre os 9.213 `articles` já migrados (2015-2020) — nada foi apagado, mesclado ou alterado.
+
+### O que foi feito
+
+1. `scripts/legacy-audit/duplicate-audit.mjs` (novo): consulta o banco real (paginado) e agrupa por (a) título normalizado + `published_at`, (b) hash do corpo normalizado, (c) URL de origem da capa. Confirma também que **nenhuma duplicata por identidade** existe (`external_id`/`source_url` repetidos em 2 `articles` — 0 casos, índice único funcionando).
+2. **Achado durante a própria auditoria**: a primeira versão só usava hash exato de corpo, o que subestimava duplicatas — vários grupos tinham corpos de tamanho quase idêntico (diferença de poucos caracteres) mas hash diferente por uma edição mínima entre a republicação. Corrigido adicionando uma faixa de tolerância de tamanho (≤5% de diferença) que rebaixa esses casos para "precisa inspeção manual" em vez de classificá-los erroneamente como "conteúdo diferente" (legítimo).
+3. `scripts/legacy-audit/build-duplicate-report.mjs` (novo): gera `docs/legacy-duplicate-audit-2015-2020.md` a partir do JSON da auditoria.
+4. **Caso do usuário confirmado como duplicata real**: `external_id` 420122 e 420123, publicados com 5 minutos de diferença (18:29 e 18:34 de 26/09/2020), corpo idêntico (hash igual), capas diferentes (fotos diferentes). Como os dois vieram do site legado real sob `external_id` diferentes, nenhuma regra de deduplicação por identidade poderia ter evitado isso — é uma duplicata que já existia na fonte.
+
+### Resultado da auditoria
+
+| Métrica | Valor |
+|---|---|
+| Articles auditados | 9.213 |
+| Grupos com mesmo título+data | **68** (144 articles) |
+| — Duplicata real provável (corpo idêntico) | 54 grupos (115 articles) |
+| — Precisa inspeção manual (corpo quase idêntico) | 11 grupos (23 articles) |
+| — Legítimo (conteúdo claramente diferente) | 3 grupos (6 articles) |
+| Duplicata por identidade (`external_id`/`source_url` repetido) | **0** — estruturalmente impossível, confirmado |
+
+Comparação com a auditoria antiga (Fase 34, pré-migração): aquela reportou 48 ocorrências sobre TODO o inventário (23.393 itens, 2015-2026) contando duplicatas extras, não grupos. Esta cobre só os 9.213 já migrados e conta grupos — números não comparáveis diretamente (escopos/métricas diferentes), não foi assumido que um explica o outro. Detalhe completo (todos os 68 grupos, caso a caso) em `docs/legacy-duplicate-audit-2015-2020.md`.
+
+### Migrations
+
+Nenhuma — auditoria somente leitura.
+
+### Pendências
+
+1. **Decisão editorial/produto pendente**: como tratar as 54+11=65 duplicatas prováveis/suspeitas (mesclar? ocultar uma sem apagar? manter as duas por serem republicações reais do site antigo?). Nada decidido nesta auditoria.
+2. Nenhuma correção foi aplicada — todos os registros continuam exatamente como estavam.
+
+### Próximo passo recomendado
+
+Aguardar decisão do usuário/ChatGPT sobre o tratamento das duplicatas antes de decidir entre corrigir os lotes já migrados ou seguir para o preflight de 2021-2022.
+
+---
+
 ## Fase 41 — Lote 2019-2020 CONCLUÍDO (5.088/5.088, 7.082/7.082 imagens)
 
 **HEAD/commit:** `3eae165` (branch `feature/jornalir-core-foundation-20260917`)
