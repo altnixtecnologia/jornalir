@@ -4,6 +4,57 @@ Este arquivo é atualizado ao final de CADA fase a partir da Fase 35. Curto, dir
 
 ---
 
+## Fase 41 — Lote 2019-2020 CONCLUÍDO (5.088/5.088, 7.082/7.082 imagens)
+
+**HEAD/commit:** PLACEHOLDER (branch `feature/jornalir-core-foundation-20260917`)
+
+Autorizado por `docs/CHATGPT_REVIEW.md` (revisão sobre HEAD `9bca751`: "AUTORIZADA A CARGA REAL 2019–2020", sem exigir novo canário). **Terceiro lote migrado e validado.**
+
+### O que foi feito
+
+1. Usuário executou manualmente a carga completa — desta vez o sandbox NÃO bloqueou (mesmo padrão observado no lote 2017-2018: bloqueia às vezes, não sempre, mesma classe de ação).
+2. Resultado da 1ª execução: `imported: 5088, failedArticles: 0, uploadedImages: 7080, failedImages: 2` — 2 falhas, ambas `Gateway Timeout` (mesma classe de erro transitório do lote anterior). Confirmado via `curl` que as 2 URLs respondiam 200 logo depois.
+3. Retry: as 5.088 matérias e as 7.080 imagens já corretas foram reencontradas/reconciliadas (0 duplicatas), as 2 pendentes foram enviadas com sucesso. Lote marcado `complete` (7.082/7.082).
+4. Validação final BATCH-SCOPED direto no Supabase/Storage: 5.088/5.088 articles, sources, 7.082/7.082 media, vínculos deste lote — 0 duplicatas dentro do lote. Checagem GLOBAL confirma 0 duplicatas entre os 3 lotes já migrados: 9.213 articles/slugs/sources únicos no total (1.622+2.503+5.088), 14.200 media/origin_source_url únicos no total (3.025+4.093+7.082).
+5. `docs/legacy-batch-2019-2020-final.md` (novo): relatório completo.
+
+### Migrations
+
+Nenhuma nesta fase.
+
+### Testes
+
+Validação batch-scoped completa — ver tabela em `docs/legacy-batch-2019-2020-final.md`. Nenhuma divergência.
+
+### Quantidades finais
+
+5.088 articles, 5.088 article_external_sources, 7.082 media_assets, 7.082 article_media. Distribuição: policia=298, saude=885, agricultura=39, colunistas=28, geral=3.450, esporte=107, política=236, sociais=45. Período: `2019-01-02` a `2020-12-30`.
+
+### Estado acumulado da migração (3 lotes concluídos)
+
+| Lote | Articles | Media | Status |
+|---|---|---|---|
+| 2015-2016 | 1.622 | 3.025 | complete |
+| 2017-2018 | 2.503 | 4.093 | complete |
+| 2019-2020 | 5.088 | 7.082 | complete |
+| **Total** | **9.213** | **14.200** | — |
+
+### Erros
+
+2 falhas transitórias de rede (`Gateway Timeout`), resolvidas no retry — documentadas em detalhe no relatório final.
+
+### Pendências
+
+1. Os 12 casos `needs_review` continuam fora.
+2. As 7 exceções de data continuam fora.
+3. Lote 2021-2022 NÃO iniciado.
+
+### Próximo passo recomendado
+
+Aguardar nova conferência do ChatGPT sobre `docs/legacy-batch-2019-2020-final.md` antes de decidir iniciar o lote 2021-2022.
+
+---
+
 ## Fase 40 — Preflight do lote 2019-2020 (SOMENTE LEITURA, nada importado)
 
 **HEAD/commit:** `ee90816` (branch `feature/jornalir-core-foundation-20260917`)

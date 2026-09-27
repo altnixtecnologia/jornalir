@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-09-26T23:32:01.713Z",
+  "updatedAt": "2026-09-27T00:15:00.000Z",
   "provider": "informativo_regional_legacy",
   "rule": "Lote padrão = 2 anos. Só dividir um lote específico (1 ano, depois semestre/mês) se ele apresentar problema grave.",
   "batches": [
@@ -115,8 +115,8 @@
       "batchKey": "2019-2020",
       "periodStart": "2019-01-01",
       "periodEnd": "2020-12-31",
-      "status": "preflight_complete_pending_import_authorization",
-      "note": "Preflight autorizado por docs/CHATGPT_REVIEW.md (HEAD 6b5af37): 'AUTORIZADO SOMENTE PREFLIGHT/AUDITORIA 2019-2020'. Nenhuma escrita real. Primeira aparição real de policia (298 elegíveis, mapeamento policia->Polícia confirmado manualmente) e saude (885 elegíveis) com volume. agricultura (já liberada) passou normal. classificados ausente (0 itens).",
+      "status": "complete",
+      "note": "LOTE CONCLUÍDO. Autorizado por docs/CHATGPT_REVIEW.md (HEAD 9bca751), sem exigir novo canário. Execução completa gerou 2 falhas de imagem (Gateway Timeout transitório, confirmadas reachable via curl logo depois); retry reconciliou as 2 pendentes sem duplicar nada. legacy_migration_batches.status=complete confirmado. Validação batch-scoped: 5088/5088 articles, sources, 7082/7082 media, vínculos deste lote, 0 duplicatas dentro do lote. Checagem GLOBAL confirma 0 duplicatas entre os 3 lotes já migrados (9213 articles/slugs/sources únicos total = 1622+2503+5088; 14200 media/origin_source_url únicos total = 3025+4093+7082). 12 needs_review e 7 exceções de data confirmados fora da carga. Ver docs/legacy-batch-2019-2020-final.md.",
       "preflight": {
         "itemsFound": 5100,
         "dateExceptions": 7,
@@ -135,6 +135,23 @@
         "seedSource": "supabase/migrations/20260921101100_seed_reference_data.sql ('Polícia', 'policia', 2) — sem mudança nesta fase",
         "manuallyVerifiedSamples": 3
       },
+      "finalBatch": {
+        "totalArticles": 5088,
+        "totalImageReferences": 7082,
+        "failedArticles": 0,
+        "failedImages": 0,
+        "transientImageFailuresFixed": [
+          { "url": "https://suitacdn.cloud-bricks.net/fotos/634779/file/desktop/15931181822830.jpeg?1675098169", "error": "Gateway Timeout" },
+          { "url": "https://suitacdn.cloud-bricks.net/fotos/632808/file/desktop/15866117758341.jpg?1675091228", "error": "Gateway Timeout" }
+        ],
+        "dateRangeConfirmedInDb": { "first": "2019-01-02T19:15:00Z", "last": "2020-12-30T17:30:00Z" },
+        "distribuicaoPorEditoriaConfirmada": { "policia": 298, "saude": 885, "agricultura": 39, "colunistas": 28, "geral": 3450, "esporte": 107, "politica": 236, "sociais": 45 },
+        "duplicatesFoundWithinBatch": 0,
+        "duplicatesFoundAcrossBatches": 0,
+        "placementsCreated": 0,
+        "needsReviewLeaked": 0,
+        "dateExceptionsLeaked": 0
+      },
       "reportFiles": {
         "preflight": "scripts/legacy-audit/output/batches/2019-2020/preflight.json",
         "dateExceptions": "scripts/legacy-audit/output/batches/2019-2020/date-exceptions.json",
@@ -144,7 +161,9 @@
         "preflightMarkdown": "docs/legacy-preflight-2019-2020.md",
         "reviewMarkdown": "docs/legacy-review-2019-2020.md",
         "quarantinedMarkdown": "docs/legacy-quarantined-2019-2020.md",
-        "sampleCheckMarkdown": "docs/legacy-sample-check-2019-2020.md"
+        "sampleCheckMarkdown": "docs/legacy-sample-check-2019-2020.md",
+        "finalReport": "docs/legacy-batch-2019-2020-final.md",
+        "finalValidationJson": "scripts/legacy-audit/output/batches/2019-2020/batch-final-validation.json"
       }
     },
     { "batchKey": "2021-2022", "periodStart": "2021-01-01", "periodEnd": "2022-12-31", "status": "pending" },
@@ -165,7 +184,7 @@
     "dedupMidiaNoBanco": "Índice único parcial media_assets(origin_source_url) where origin_source_url is not null (migration 20261004100000) impede duas execuções concorrentes de duplicarem a mesma mídia externa; conflito (23505) é tratado buscando/reutilizando a mídia existente (bloqueio 3 da revisão do ChatGPT, Fase 35C).",
     "gravacaoReal": "Lote 2015-2016 CONCLUÍDO (Fase 35E): 1.622 articles + 3.025 media_assets gravados via execução manual do usuário com credencial só em .env.local local (nunca exposta em chat/log/versionado). Validado diretamente no Supabase/Storage, paginado. legacy_migration_batches.status=complete.",
     "bucketGif": "O bucket article-media rejeitava image/gif até a migration 20261005100000 (Fase 35E) — 80 imagens do lote 2015-2016 eram GIF. Migration só atualizou allowed_mime_types (acrescentou image/gif), nenhum objeto apagado, nenhuma policy alterada.",
-    "revisaoChatgpt": "docs/CHATGPT_REVIEW.md registra o histórico completo: HEAD aca77b5 (3 bloqueios, Fase 35C), HEAD 8f4f137 (canário de 20, Fase 35D), HEAD 5b51e47 (conclusão do lote 2015-2016), o achado das 80 GIFs (Fase 35E), HEAD 1d84c96 (preflight-only de 2017-2018, Fase 36), HEAD dd718cf (liberação condicional de agricultura + carga de 2017-2018, Fases 37/38), HEAD 6b5af37 (Fase 39 de paginação do portal aprovada/encerrada + autorização SOMENTE do preflight de 2019-2020, Fase 40). Aguardando nova conferência do ChatGPT sobre os relatórios de 2019-2020 antes de autorizar qualquer importação real desse lote.",
+    "revisaoChatgpt": "docs/CHATGPT_REVIEW.md registra o histórico completo: HEAD aca77b5 (3 bloqueios, Fase 35C), HEAD 8f4f137 (canário de 20, Fase 35D), HEAD 5b51e47 (conclusão do lote 2015-2016), o achado das 80 GIFs (Fase 35E), HEAD 1d84c96 (preflight-only de 2017-2018, Fase 36), HEAD dd718cf (liberação condicional de agricultura + carga de 2017-2018, Fases 37/38), HEAD 6b5af37 (Fase 39 de paginação aprovada/encerrada + preflight-only de 2019-2020, Fase 40), HEAD 9bca751 (preflight 2019-2020 aprovado + autorização da carga real sem exigir novo canário, cumprida na Fase 41). Aguardando nova conferência do ChatGPT sobre docs/legacy-batch-2019-2020-final.md antes de iniciar 2021-2022.",
     "categoriaAgriculturaEncontrada": "agricultura apareceu pela 1ª vez no lote 2017-2018 (5 itens, todos em 2018). Revisada e LIBERADA na Fase 37 (REVIEWED_CATEGORIES em lib/integrity.mjs agora inclui 'agricultura', decisão em docs/CHATGPT_REVIEW.md sobre HEAD dd718cf) — os 5 itens passaram pela barreira normal e todos resultaram eligible. Histórico completo da revisão em docs/legacy-quarantined-2017-2018.md.",
     "validadorGeneralizado": "scripts/legacy-audit/batch-final-validate.mjs generalizado na Fase 37 (bloqueio da revisão do ChatGPT): aceita --batch=<key>, escopa a validação às identidades esperadas daquele lote (nunca mistura com outros lotes já migrados), e mantém uma checagem GLOBAL separada de duplicidade (slug/external_id/origin_source_url em todo o legado). Testado retroativamente contra 2015-2016 com resultado idêntico ao validador anterior.",
     "categoriaPoliciaConfirmada": "policia não existia no site legado em nenhum ponto de 2015-2018 (confirmado na Fase 34). Apareceu pela 1ª vez no lote 2019-2020 (298 elegíveis) — primeira matéria real de 2020-04-03. Mapeamento policia->Polícia confirmado (seed original, sem mudança) e 3 matérias reais conferidas manualmente na Fase 40 (conteúdo genuíno de ocorrência policial). Ver docs/legacy-preflight-2019-2020.md."
