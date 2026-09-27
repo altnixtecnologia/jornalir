@@ -6,7 +6,7 @@ Este arquivo é atualizado ao final de CADA fase a partir da Fase 35. Curto, dir
 
 ## Fase 46B — Correção da auditoria de extensões de mídia do preflight 2025-2026
 
-**HEAD/commit:** `PENDENTE` (branch `feature/jornalir-core-foundation-20260917`)
+**HEAD/commit:** `8cc8ba3` (branch `feature/jornalir-core-foundation-20260917`)
 
 Autorizado por `docs/CHATGPT_REVIEW.md` (revisão sobre HEAD `c2b7f0a`: preflight principal aprovado, mas a tabela de extensões somava 21.408 ocorrências, incompatível com as 16.035 referências elegíveis do próprio preflight). **Somente correção local, sem refetch, sem importação.**
 
