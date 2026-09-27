@@ -6,7 +6,7 @@ Este arquivo é atualizado ao final de CADA fase a partir da Fase 35. Curto, dir
 
 ## Fase 44B — Varredura local de vazamento de HTML em `bodyTextFull` (2021-2022, SOMENTE LEITURA, nada importado)
 
-**HEAD/commit:** `PENDENTE` (branch `feature/jornalir-core-foundation-20260917`)
+**HEAD/commit:** `9781e60` (branch `feature/jornalir-core-foundation-20260917`)
 
 Autorizado por `docs/CHATGPT_REVIEW.md` (revisão sobre HEAD `a40e93f`: preflight 2021-2022 aprovado sem alterações, mas pediu checagem local de vazamento de atributos/tags HTML em `bodyTextFull` antes de qualquer carga, apontando o caso da amostra `external_id 418316`). Instrução do usuário: varredura **exclusivamente no cache já existente**, sem refetch, sem invalidar cache, reclassificar achados para `needs_review`, regenerar relatórios pelo cache, commit/push e parar — **nenhuma importação real nesta fase**.
 
