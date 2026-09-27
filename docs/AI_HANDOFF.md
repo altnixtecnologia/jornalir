@@ -6,7 +6,7 @@ Este arquivo é atualizado ao final de CADA fase a partir da Fase 35. Curto, dir
 
 ## Fase 44E — CARGA REAL do lote 2021-2022 CONCLUÍDA
 
-**HEAD/commit:** `PENDENTE` (branch `feature/jornalir-core-foundation-20260917`)
+**HEAD/commit:** `9a2fae0` (branch `feature/jornalir-core-foundation-20260917`)
 
 Autorizado por `docs/CHATGPT_REVIEW.md` (revisão sobre HEAD `8629c03`: Fase 44D aprovada, "AUTORIZADO AGORA — carga real 2021-2022", usando o cache já sanitizado da Fase 44C, sem refetch, sem `--limit`). Relatórios completos em `docs/legacy-batch-2021-2022-final.md` e `docs/legacy-duplicate-audit-2021-2022.md`.
 
