@@ -559,3 +559,20 @@ Sem tocar em lote concluído real:
 - typecheck/build se aplicável.
 
 Commit/push e PARAR para nova conferência. **Ainda não iniciar o preflight 2021–2022.**
+
+
+## Regra editorial revisada para duplicatas — decisão do usuário
+
+Não considerar matérias duplicadas apenas porque têm o mesmo título ao longo dos anos.
+
+Regra para auditorias futuras:
+- mesmo título em anos/datas diferentes = **não é duplicata por si só**;
+- mesmo título + mesma data = **forte candidato**, mas ainda não arquivar automaticamente apenas por isso;
+- para classificar como duplicata real, exigir confirmação adicional por conteúdo, preferencialmente:
+  - corpo normalizado idêntico/hash idêntico; ou
+  - corpo praticamente idêntico após inspeção;
+  - e, quando útil, mesma/semelhante mídia, fonte e proximidade de horário;
+- se o conteúdo divergir de forma relevante, manter como matérias distintas mesmo com mesmo título e mesma data;
+- nunca usar apenas título como chave de deduplicação.
+
+A limpeza já executada em 2015–2020 permanece válida: os 54 grupos corrigidos foram os grupos classificados como duplicata real provável com **corpo normalizado idêntico**, não apenas título/data iguais. Os 11 grupos de corpo apenas parecido e os 3 grupos legítimos não foram tocados.
