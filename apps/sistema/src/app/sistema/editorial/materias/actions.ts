@@ -165,7 +165,7 @@ export async function updateArticle(
     return { error: toErrorMessage(error) };
   }
 
-  revalidateAndRedirect(id);
+  revalidateAndRedirect(id, returnTab);
 }
 
 export async function archiveArticle(id: string): Promise<ActionResult> {
@@ -175,5 +175,5 @@ export async function archiveArticle(id: string): Promise<ActionResult> {
     return { error: toErrorMessage(error) };
   }
 
-  revalidateAndRedirect(id, returnTab);
+  revalidateAndRedirect(id);
 }
