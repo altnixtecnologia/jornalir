@@ -4,6 +4,43 @@ Este arquivo é atualizado ao final de CADA fase a partir da Fase 35. Curto, dir
 
 ---
 
+## Fase 44D — Correção pontual do resíduo HTML em 203 artigos já importados (2019-2020)
+
+**HEAD/commit:** `PENDENTE` (branch `feature/jornalir-core-foundation-20260917`)
+
+Autorizado por `docs/CHATGPT_REVIEW.md` (revisão sobre HEAD `b4c1540`: Fase 44C aprovada; pediu correção pontual, reversível e sem sobrescrever edição posterior dos 203 registros de 2019-2020 antes de importar 2021-2022). Relatório completo em `docs/legacy-html-residue-fix-2019-2020.md`.
+
+### O que foi feito
+
+1. Criados `scripts/legacy-audit/fix-imported-html-residue.mjs` (dry-run por padrão, `--commit` aplica) e `scripts/legacy-audit/validate-html-residue-fix.mjs` (só leitura).
+2. Usando exclusivamente `output/inventory.ndjson` + `output/batches/2019-2020/details.ndjson` (cache nunca tocado, sem refetch), localizados os 203 alvos via `sanitizeBodyHtml()` (mesma função da Fase 44C).
+3. **Dry-run**: para cada alvo, comparado o `articles.body` atual no banco contra o `bodyHtml` original esperado do cache — 203/203 bateram exatamente, **0 conflito manual, 0 não-encontrado**.
+4. Como o dry-run bateu exatamente com os 203 esperados e zero conflito (autorização explícita da revisão para esse cenário), aplicada a correção real: `articles.body` → HTML sanitizado; `article_external_sources.source_hash` → recalculado com a mesma `sourceHash()` do importador. Nenhum outro campo tocado.
+
+### Resultado
+
+**203/203 corrigidos, 0 conflito manual.**
+
+### Validação pós-correção (somente leitura)
+
+| Checagem | Resultado |
+|---|---|
+| Artigos sem mais resíduo no body | 203/203 |
+| Ainda com resíduo | 0 |
+| Total físico de `articles` | 9.213 (inalterado) |
+| Total de `article_external_sources` | 9.213 (inalterado) |
+| Total de `article_media` | 14.200 (inalterado) |
+| `legacy_migration_batches` (2019-2020) | `status=complete`, contadores inalterados — lote não foi reaberto |
+
+### Confirmação explícita
+
+- Nenhum refetch de rede.
+- Nenhuma reexecução/reabertura do lote 2019-2020.
+- Nenhuma mídia, status, título, data ou editoria alterados.
+- Nenhuma importação real de 2021-2022 nesta etapa — continua pendente de autorização.
+
+---
+
 ## Fase 44C — Análise, sanitização mecânica e correção do vazamento de HTML (2021-2022, SOMENTE LEITURA/CACHE, nada importado)
 
 **HEAD/commit:** `32ed8be` (branch `feature/jornalir-core-foundation-20260917`)
