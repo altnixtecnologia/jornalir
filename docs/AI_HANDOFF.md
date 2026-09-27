@@ -6,7 +6,7 @@ Este arquivo é atualizado ao final de CADA fase a partir da Fase 35. Curto, dir
 
 ## Fase 43B — Hardening final do progresso (3 correções de segurança)
 
-**HEAD/commit:** PLACEHOLDER (branch `feature/jornalir-core-foundation-20260917`)
+**HEAD/commit:** `8ba4503` (branch `feature/jornalir-core-foundation-20260917`)
 
 Autorizado por `docs/CHATGPT_REVIEW.md` (revisão sobre HEAD `8965781`: limpeza de duplicatas aprovada sem reversão; progresso precisa de 3 correções antes de 2021-2022). **Nenhum lote real foi tocado/reaberto** — todas as correções foram feitas e testadas sem gravar em lote concluído real.
 
