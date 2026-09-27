@@ -4,6 +4,37 @@ Este arquivo é atualizado ao final de CADA fase a partir da Fase 35. Curto, dir
 
 ---
 
+## Fase 45C — Limpeza reversível da 1 duplicata confirmada de 2023-2024
+
+**HEAD/commit:** `PENDENTE` (branch `feature/jornalir-core-foundation-20260917`)
+
+Autorizado por `docs/CHATGPT_REVIEW.md` (revisão sobre HEAD `008f016`: Fase 45B aprovada, "AUTORIZADO AGORA — limpeza reversível de somente 1 grupo": `CASOS DE DENGUE AUMENTAM 900% EM SC`, external_ids 572497/572509). Relatório completo em `docs/legacy-duplicate-cleanup-2023-2024.md`.
+
+### O que foi feito
+
+1. Criado `scripts/legacy-audit/duplicate-cleanup-2023-2024.mjs` (dry-run por padrão, `--commit` aplica), reaproveitando a MESMA regra determinística de canônico das limpezas anteriores.
+2. **Dry-run** confirmou exatamente os números autorizados: **1 grupo / 2 artigos / 1 a arquivar / 1 canônico** — e validou que o grupo proibido (569333/569372) não entrou no plano.
+3. Aplicado `--commit`: **1 artigo arquivado** (`572497`, editoria `geral`; mantido `572509`, editoria `saude` — venceu pela regra 2, específica > geral). `status='archived'`, `archived_at` preenchido. Nenhum `DELETE`.
+
+### Validação pós-limpeza (somente leitura)
+
+| Checagem | Resultado |
+|---|---|
+| Grupo com exatamente 1 published + 1 archived | ✅ |
+| Grupo proibido (569333/569372) continua published | ✅ intocado |
+| Total físico de `articles` | 17.980 (inalterado) |
+| Total `article_external_sources` | 17.980 (inalterado) |
+| Total `article_media` | 28.254 (inalterado) |
+| Total `published` (legacy_site) | 17.905 = 17.980 − 61 (Fase 43) − 13 (Fase 44F) − 1 (esta limpeza) ✅ |
+
+### Confirmação explícita
+
+- Nenhum DELETE em nenhuma tabela.
+- Os 13 candidatos antigos ainda pendentes permanecem intocados.
+- Não iniciado o preflight 2025-2026 nesta etapa.
+
+---
+
 ## Fase 45B — CARGA REAL do lote 2023-2024 CONCLUÍDA
 
 **HEAD/commit:** `5055f51` (branch `feature/jornalir-core-foundation-20260917`)

@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-09-27T17:36:19.318Z",
+  "updatedAt": "2026-09-27T17:41:28.665Z",
   "provider": "informativo_regional_legacy",
   "rule": "Lote padrão = 2 anos. Só dividir um lote específico (1 ano, depois semestre/mês) se ele apresentar problema grave.",
   "batches": [
@@ -325,7 +325,7 @@
       "periodStart": "2023-01-01",
       "periodEnd": "2024-12-31",
       "status": "complete",
-      "note": "LOTE CONCLUÍDO. Autorizado por docs/CHATGPT_REVIEW.md (HEAD 2521e81), usando o cache já completo, sem refetch, sem --limit. Execução completa gerou 1 falha de imagem NÃO transitória (mime type image/bmp não suportado pelo bucket article-media) — corrigida via migration 20261006100000_article_media_allow_bmp.sql (só acrescenta image/bmp a allowed_mime_types), aplicada manualmente pelo usuário via supabase db push (sandbox bloqueou alteração direta do bucket). Retry sem --limit reconciliou a pendente. legacy_migration_batches.status=complete confirmado. Validação batch-scoped: 4292/4292 articles/sources, 7165/7165 media/vínculos deste lote, 0 duplicatas dentro do lote, 0 vazamento de needs_review/quarantined/exceções de data. Checagem GLOBAL confirma 0 duplicatas entre os 5 lotes já migrados (17980 articles/slugs/sources únicos total = 1622+2503+5088+4475+4292; 28254 media/origin_source_url únicos total). Auditoria de duplicatas pós-carga (somente leitura): 64 grupos já resolvidos (54 Fase 43 + 10 Fase 44F), 2 candidatos novos envolvendo 2023-2024 (nenhum arquivado), 13 candidatos antigos ainda pendentes intocados. Ver docs/legacy-batch-2023-2024-final.md e docs/legacy-duplicate-audit-2023-2024.md.",
+      "note": "LOTE CONCLUÍDO. Autorizado por docs/CHATGPT_REVIEW.md (HEAD 2521e81), usando o cache já completo, sem refetch, sem --limit. Execução completa gerou 1 falha de imagem NÃO transitória (mime type image/bmp não suportado pelo bucket article-media) — corrigida via migration 20261006100000_article_media_allow_bmp.sql (só acrescenta image/bmp a allowed_mime_types), aplicada manualmente pelo usuário via supabase db push (sandbox bloqueou alteração direta do bucket). Retry sem --limit reconciliou a pendente. legacy_migration_batches.status=complete confirmado. Validação batch-scoped: 4292/4292 articles/sources, 7165/7165 media/vínculos deste lote, 0 duplicatas dentro do lote, 0 vazamento de needs_review/quarantined/exceções de data. Checagem GLOBAL confirma 0 duplicatas entre os 5 lotes já migrados (17980 articles/slugs/sources únicos total = 1622+2503+5088+4475+4292; 28254 media/origin_source_url únicos total). Auditoria de duplicatas pós-carga (somente leitura): 64 grupos já resolvidos (54 Fase 43 + 10 Fase 44F), 2 candidatos novos envolvendo 2023-2024 (nenhum arquivado), 13 candidatos antigos ainda pendentes intocados. Ver docs/legacy-batch-2023-2024-final.md e docs/legacy-duplicate-audit-2023-2024.md. [Fase 45C] Limpeza reversível aplicada ao único grupo de duplicata confirmada de 2023-2024 (CASOS DE DENGUE AUMENTAM 900% EM SC, 572497/572509): 1 artigo arquivado (572497, geral), 1 canônico mantido published (572509, saude — venceu por editoria específica). Dry-run bateu exatamente com os números autorizados (1 grupo/2 artigos/1 a arquivar) antes de qualquer escrita. Validação pós-limpeza: grupo proibido 569333/569372 continua intocado, totais físicos inalterados (17980/17980/28254), published total = 17905 (17980-61-13-1). Ver docs/legacy-duplicate-cleanup-2023-2024.md.",
       "preflight": {
         "itemsFound": 4297,
         "dateExceptions": 7,
@@ -393,7 +393,14 @@
           "alreadyResolved": 64,
           "newCandidatesInvolving2023_2024": 2,
           "otherPendingCandidates": 13,
-          "noneArchivedAutomatically": true
+          "noneArchivedAutomatically": true,
+          "cleanupApplied": {
+            "groups": 1,
+            "articlesInvolved": 2,
+            "archived": 1,
+            "canonicalKept": 1,
+            "note": "CASOS DE DENGUE AUMENTAM 900% EM SC (572497/572509) — corpo idêntico. Mantido 572509 (editoria saude, específica > geral). Arquivado 572497. Nenhum DELETE. Grupo 569333/569372 (precisa inspecao) e os 13 candidatos antigos pendentes NÃO tocados. Ver docs/legacy-duplicate-cleanup-2023-2024.md."
+          }
         }
       }
     },
