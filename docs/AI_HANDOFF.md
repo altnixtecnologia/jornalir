@@ -4,6 +4,50 @@ Este arquivo é atualizado ao final de CADA fase a partir da Fase 35. Curto, dir
 
 ---
 
+## Fase 45 — Preflight/auditoria do lote 2023-2024 (SOMENTE LEITURA, nada importado)
+
+**HEAD/commit:** `PENDENTE` (branch `feature/jornalir-core-foundation-20260917`)
+
+Autorizado por `docs/CHATGPT_REVIEW.md` (revisão sobre HEAD `dc0ee49`: Fase 44F aprovada, "AUTORIZADO AGORA — somente preflight/auditoria de 2023-2024"). **Nenhuma escrita real nesta fase.**
+
+### Checagem de cache (pedido explícito, antes de qualquer coleta)
+
+4.297 candidatas no intervalo 2023-2024; 0 já em cache (primeira vez que este lote é tocado); 4.297 faltando. Toda a coleta desta etapa buscou o que faltava — nenhum lote concluído foi tocado, nenhum cache invalidado.
+
+### O que foi feito
+
+1. `migrate.mjs --batch=2023-2024 --mode=preflight` rodado — coletou os 4.297 detalhes faltantes (barreira de integridade + sanitização de resíduo de `<img>` já aplicadas automaticamente no fetch, via `lib/parse.mjs` desde a Fase 44C).
+2. Confirmado que a sanitização integrada funcionou desde a origem: **0 casos** do padrão de resíduo de `<img>` quebrada em todo o lote (nenhum fragmento precisou ser removido — o conteúdo de 2023-2024 nunca teve esse problema).
+3. Relatórios gerados via `report-batch.mjs --batch=2023-2024`.
+
+### Números do preflight 2023-2024
+
+| Métrica | Valor |
+|---|---|
+| Candidatas no intervalo | 4.297 |
+| Exceções de data | 7 |
+| **Elegíveis** | **4.292** |
+| `needs_review` | 2 |
+| `quarantined` | 3 |
+| Rejeitadas | 0 |
+| Com imagem / sem imagem | 4.276 / 16 |
+| Referências de imagem | 7.165 |
+| Distribuição por editoria | geral=3.125, politica=261, esporte=231, sociais=193, saude=195, agricultura=168, policia=76, colunistas=43 |
+
+### Achado destacado: primeira aparição real de `classificados`
+
+`classificados` nunca havia aparecido em nenhum lote anterior (0 itens em 2015-2020 e 2021-2022). Aqui apareceram **3 itens**, todos corretamente barrados pela quarentena editorial (nunca elegíveis automaticamente). Pelos títulos, nenhum parece ser um classificado de fato — são notícias comuns (PROUNI, baleias-francas, obras na BR-101) aparentemente publicadas sob `/classificados/` por engano no CMS legado. Reforça manter a categoria em quarentena até revisão humana específica (não liberar cegamente como foi feito com `agricultura`). Detalhe completo em `docs/legacy-preflight-2023-2024.md` e `docs/legacy-quarantined-2023-2024.md`.
+
+Os 2 `needs_review` são do padrão já visto (corpo vazio) — nada novo.
+
+### Confirmação explícita
+
+- Nenhum lote concluído tocado, nenhum cache invalidado.
+- Nenhuma matéria/imagem importada nesta etapa.
+- Não iniciado o lote 2025-2026. Nenhum Preview gerado.
+
+---
+
 ## Fase 44F — Limpeza reversível das 10 duplicatas confirmadas (2021-2022 + 2 pares de 2019-2020)
 
 **HEAD/commit:** `02a94f5` (branch `feature/jornalir-core-foundation-20260917`)

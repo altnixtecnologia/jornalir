@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-09-27T13:33:03.441Z",
+  "updatedAt": "2026-09-27T14:07:22.203Z",
   "provider": "informativo_regional_legacy",
   "rule": "Lote padrão = 2 anos. Só dividir um lote específico (1 ano, depois semestre/mês) se ele apresentar problema grave.",
   "batches": [
@@ -324,7 +324,43 @@
       "batchKey": "2023-2024",
       "periodStart": "2023-01-01",
       "periodEnd": "2024-12-31",
-      "status": "pending"
+      "status": "preflight_complete_pending_import_authorization",
+      "note": "Preflight autorizado por docs/CHATGPT_REVIEW.md (HEAD dc0ee49): \"AUTORIZADO AGORA — somente preflight/auditoria de 2023-2024\". Nenhuma escrita real. Checagem de cache feita antes da coleta: 4297 candidatas, 0 já em cache (primeira vez que este lote é tocado), 4297 buscadas nesta etapa. Sanitização de resíduo de <img> (lib/sanitize.mjs, integrada desde a Fase 44C) aplicada automaticamente no fetch — 0 casos do padrão encontrados neste lote. Achado: classificados apareceu pela primeira vez (3 itens, todos em quarentena) — pelos títulos parecem notícias comuns publicadas por engano sob /classificados/, não classificados de fato; reforça manter a categoria em quarentena até revisão humana específica. 2 needs_review do padrão já visto (corpo vazio). Ver docs/legacy-preflight-2023-2024.md.",
+      "preflight": {
+        "itemsFound": 4297,
+        "dateExceptions": 7,
+        "barreiraIntegridade": {
+          "eligible": 4292,
+          "needsReview": 2,
+          "quarantined": 3,
+          "rejected": 0
+        },
+        "withImage": 4276,
+        "withoutImage": 16,
+        "totalImageReferences": 7165,
+        "uniqueImageUrls": 7165,
+        "distribuicaoPorEditoria": {
+          "colunistas": 43,
+          "geral": 3125,
+          "esporte": 231,
+          "policia": 76,
+          "politica": 261,
+          "saude": 195,
+          "sociais": 193,
+          "agricultura": 168
+        }
+      },
+      "reportFiles": {
+        "preflight": "scripts/legacy-audit/output/batches/2023-2024/preflight.json",
+        "dateExceptions": "scripts/legacy-audit/output/batches/2023-2024/date-exceptions.json",
+        "needsReview": "scripts/legacy-audit/output/batches/2023-2024/needs-review.json",
+        "quarantined": "scripts/legacy-audit/output/batches/2023-2024/quarantined.json",
+        "rejected": "scripts/legacy-audit/output/batches/2023-2024/rejected.json",
+        "preflightMarkdown": "docs/legacy-preflight-2023-2024.md",
+        "reviewMarkdown": "docs/legacy-review-2023-2024.md",
+        "quarantinedMarkdown": "docs/legacy-quarantined-2023-2024.md",
+        "sampleCheckMarkdown": "docs/legacy-sample-check-2023-2024.md"
+      }
     },
     {
       "batchKey": "2025-2026",
