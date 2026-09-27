@@ -6,7 +6,7 @@ Este arquivo é atualizado ao final de CADA fase a partir da Fase 35. Curto, dir
 
 ## Fase 44F — Limpeza reversível das 10 duplicatas confirmadas (2021-2022 + 2 pares de 2019-2020)
 
-**HEAD/commit:** `PENDENTE` (branch `feature/jornalir-core-foundation-20260917`)
+**HEAD/commit:** `02a94f5` (branch `feature/jornalir-core-foundation-20260917`)
 
 Autorizado por `docs/CHATGPT_REVIEW.md` (revisão sobre HEAD `d574fd5`: Fase 44E aprovada, "AUTORIZADO AGORA — limpeza reversível" de 10 grupos confirmados: 8 novos de 2021-2022 com corpo idêntico + 2 pares antigos de 2019-2020 promovidos pela sanitização da Fase 44D). Relatório completo em `docs/legacy-duplicate-cleanup-2021-2022.md`.
 
