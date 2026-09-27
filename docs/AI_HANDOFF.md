@@ -6,7 +6,7 @@ Este arquivo é atualizado ao final de CADA fase a partir da Fase 35. Curto, dir
 
 ## Fase 44D — Correção pontual do resíduo HTML em 203 artigos já importados (2019-2020)
 
-**HEAD/commit:** `PENDENTE` (branch `feature/jornalir-core-foundation-20260917`)
+**HEAD/commit:** `de8779b` (branch `feature/jornalir-core-foundation-20260917`)
 
 Autorizado por `docs/CHATGPT_REVIEW.md` (revisão sobre HEAD `b4c1540`: Fase 44C aprovada; pediu correção pontual, reversível e sem sobrescrever edição posterior dos 203 registros de 2019-2020 antes de importar 2021-2022). Relatório completo em `docs/legacy-html-residue-fix-2019-2020.md`.
 
