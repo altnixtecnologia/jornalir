@@ -390,3 +390,50 @@ Gerar/atualizar:
 - `docs/legacy-migration-status.json`.
 
 Commit/push e PARAR antes de 2021–2022.
+
+
+## Auditoria obrigatória antes de 2021–2022 — possíveis matérias duplicadas
+
+O usuário identificou visualmente uma matéria duplicada no portal:
+`HOMEM REENCONTRA A FAMÍLIA APÓS 26 ANOS DESAPARECIDO` (26/09/2020, editoria Sociais), aparecendo duas vezes com a mesma foto/título/data.
+
+Antes de iniciar 2021–2022, executar uma auditoria **somente leitura** sobre os 9.213 artigos já migrados (2015–2020). Não apagar, mesclar ou alterar nada ainda.
+
+### Verificar no banco
+
+1. Grupos com mesmo `title` normalizado + mesmo `published_at`.
+2. Grupos com mesmo `body` normalizado/hash.
+3. Grupos com mesma capa/`origin_source_url`.
+4. Para cada grupo suspeito, comparar:
+   - `article.id`;
+   - slug;
+   - `article_external_sources.external_id`;
+   - URL de origem;
+   - categoria/editoria;
+   - `published_at`;
+   - hash/corpo;
+   - mídia de capa.
+5. Separar em:
+   - duplicata real provável (mesmo conteúdo, IDs externos diferentes);
+   - registros diferentes legítimos apesar de título/data iguais;
+   - duplicata impossível por identidade (mesmo external_id/URL — seria bug grave).
+6. Conferir especificamente a matéria:
+   `HOMEM REENCONTRA A FAMÍLIA APÓS 26 ANOS DESAPARECIDO`.
+7. Comparar o achado com a auditoria antiga que já registrava 48 candidatos por título+data — mas não assumir que todos são duplicatas.
+
+### Entregáveis
+
+Criar:
+- `docs/legacy-duplicate-audit-2015-2020.md`;
+- se útil, um JSON resumido com os grupos encontrados;
+- atualizar `docs/AI_HANDOFF.md`.
+
+O relatório deve trazer:
+- quantidade total de grupos suspeitos;
+- quantidade de artigos envolvidos;
+- quantos são duplicatas reais prováveis;
+- quantos são legítimos/não conclusivos;
+- se existe qualquer duplicata pelo MESMO `external_id` ou mesma URL de origem;
+- detalhes completos do caso citado pelo usuário.
+
+**Não corrigir/apagar nesta etapa.** Apenas auditoria e classificação. Commit/push e parar para revisão.
