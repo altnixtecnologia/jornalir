@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-09-27T10:24:57.472Z",
+  "updatedAt": "2026-09-27T12:21:54.755Z",
   "provider": "informativo_regional_legacy",
   "rule": "Lote padrão = 2 anos. Só dividir um lote específico (1 ano, depois semestre/mês) se ele apresentar problema grave.",
   "batches": [
@@ -240,8 +240,8 @@
       "batchKey": "2021-2022",
       "periodStart": "2021-01-01",
       "periodEnd": "2022-12-31",
-      "status": "preflight_complete_pending_import_authorization",
-      "note": "Preflight autorizado por docs/CHATGPT_REVIEW.md (HEAD 2155dbb): 'AUTORIZADO AGORA: Executar somente o PREFLIGHT/AUDITORIA do lote 2021-2022'. Nenhuma escrita real. Checagem de reaproveitamento de cache feita antes da coleta (pedido do usuário): 4488 candidatas, 3301 já em cache de execução anterior, 1187 buscadas nesta etapa — nenhum lote concluído tocado, nenhum cache invalidado. Nenhuma categoria nova. classificados ausente (0 itens). agricultura (já liberada) passou normal. Achado: 2 needs_review de tipo novo (widget jQuery UI embutido; gráfico Datawrapper de COVID-19 embutido) — ver docs/legacy-preflight-2021-2022.md. [Fase 44B] Varredura local (sem refetch, sem invalidar cache) sobre bodyTextFull encontrou 160 casos de vazamento de atributo/tag HTML como texto (HTML malformado na origem, ex.: external_id 418316) — reclassificados de eligible para needs_review via nova regra HTML_LEAK_IN_TEXT em lib/integrity.mjs. eligible: 4475->4315, needs_review: 13->173. Ver docs/legacy-preflight-2021-2022.md. [Fase 44C] Análise confirmou que os 160 casos são 100% resíduo mecânico de <img> quebrada no CMS legado (atributos data-filename=\"retriever\"/style=\"width:...;height:...;\" terminados pela entidade &gt;, nunca um > real). Implementada sanitização estritamente específica (lib/sanitize.mjs, integrada em lib/parse.mjs) e reprocessado o cache de 2021-2022 sem nenhum refetch (reprocess-cache-html-leak.mjs) — os 160 voltaram a eligible com o corpo limpo. Números finais idênticos aos da Fase 44 original: eligible=4475, needs_review=13. Checagem preventiva nos caches antigos: 0 casos em 2015-2016 e 2017-2018; 203 casos no lote 2019-2020 JÁ IMPORTADO em produção — identificados mas NÃO corrigidos nesta etapa (aguardando decisão explícita). Ver docs/legacy-html-leak-analysis-2021-2022.md.",
+      "status": "complete",
+      "note": "LOTE CONCLUÍDO. Autorizado por docs/CHATGPT_REVIEW.md (HEAD 8629c03), usando o cache já sanitizado pela Fase 44C, sem refetch, sem --limit. Execução completa gerou 1 falha de imagem (Gateway Timeout transitório); retry sem --limit reconciliou a pendente sem duplicar nada. legacy_migration_batches.status=complete confirmado. Validação batch-scoped: 4475/4475 articles/sources, 6889/6889 media/vínculos deste lote, 0 duplicatas dentro do lote. Checagem GLOBAL confirma 0 duplicatas entre os 4 lotes já migrados (13688 articles/slugs/sources únicos total = 1622+2503+5088+4475; 21089 media/origin_source_url únicos total). 13 needs_review e 7 exceções de data confirmados fora da carga. Auditoria de duplicatas pós-carga (somente leitura): 54 grupos já resolvidos (Fase 43), 11 candidatos novos envolvendo 2021-2022 (nenhum arquivado), e um achado à parte de efeito colateral correto da Fase 44D em 2 pares de 2019-2020 (corpo ficou byte-a-byte idêntico após a sanitização do resíduo — nenhum arquivamento feito, pendente de decisão explícita). Ver docs/legacy-batch-2021-2022-final.md e docs/legacy-duplicate-audit-2021-2022.md.",
       "preflight": {
         "itemsFound": 4488,
         "dateExceptions": 7,
@@ -275,7 +275,42 @@
         "preflightMarkdown": "docs/legacy-preflight-2021-2022.md",
         "reviewMarkdown": "docs/legacy-review-2021-2022.md",
         "quarantinedMarkdown": "docs/legacy-quarantined-2021-2022.md",
-        "sampleCheckMarkdown": "docs/legacy-sample-check-2021-2022.md"
+        "sampleCheckMarkdown": "docs/legacy-sample-check-2021-2022.md",
+        "finalReport": "docs/legacy-batch-2021-2022-final.md",
+        "duplicateAuditMarkdown": "docs/legacy-duplicate-audit-2021-2022.md"
+      },
+      "finalBatch": {
+        "totalArticles": 4475,
+        "totalImageReferences": 6889,
+        "failedArticles": 0,
+        "failedImages": 0,
+        "transientImageFailuresFixed": [
+          {
+            "url": "https://suitacdn.cloud-bricks.net/fotos/616681/file/desktop/16143452606100.jpg?1675040227",
+            "error": "Gateway Timeout"
+          }
+        ],
+        "distribuicaoPorEditoriaConfirmada": {
+          "colunistas": 82,
+          "geral": 3377,
+          "esporte": 86,
+          "policia": 208,
+          "politica": 40,
+          "saude": 586,
+          "sociais": 37,
+          "agricultura": 59
+        },
+        "duplicatesFoundWithinBatch": 0,
+        "duplicatesFoundAcrossBatches": 0,
+        "placementsCreated": 0,
+        "needsReviewLeaked": 0,
+        "dateExceptionsLeaked": 0,
+        "duplicateCandidateAuditPostImport": {
+          "alreadyResolvedFromFase43": 54,
+          "newCandidatesInvolving2021_2022": 11,
+          "noneArchivedAutomatically": true,
+          "sideEffectFinding": "Fase 44D sanitization made 2 pairs of 2019-2020 articles (417983/417982 and 417727/417726) byte-identical in body — previously precisa_inspecao or legitimate-coincidence; now DUPLICATA_REAL_PROVAVEL. Not archived, pending explicit decision."
+        }
       }
     },
     {

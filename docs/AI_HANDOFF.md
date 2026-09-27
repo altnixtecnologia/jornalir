@@ -4,6 +4,36 @@ Este arquivo é atualizado ao final de CADA fase a partir da Fase 35. Curto, dir
 
 ---
 
+## Fase 44E — CARGA REAL do lote 2021-2022 CONCLUÍDA
+
+**HEAD/commit:** `PENDENTE` (branch `feature/jornalir-core-foundation-20260917`)
+
+Autorizado por `docs/CHATGPT_REVIEW.md` (revisão sobre HEAD `8629c03`: Fase 44D aprovada, "AUTORIZADO AGORA — carga real 2021-2022", usando o cache já sanitizado da Fase 44C, sem refetch, sem `--limit`). Relatórios completos em `docs/legacy-batch-2021-2022-final.md` e `docs/legacy-duplicate-audit-2021-2022.md`.
+
+### Carga real
+
+`node --env-file=".env.local" scripts/legacy-audit/migrate.mjs --batch=2021-2022 --mode=import --commit --rps=4`, executado 2x (1ª: 4.475 importados, 1 falha transitória de imagem — Gateway Timeout; 2ª/retry sem `--limit`: reconciliada). Resultado final: **4.475/4.475 articles, 6.889/6.889 referências de imagem, 0 falhas**, `legacy_migration_batches.status = complete`.
+
+### Validação final (`batch-final-validate.mjs --batch=2021-2022`)
+
+Todos os itens batem exatamente com o esperado: 4.475 articles/sources, 6.889 media/article_media, 0 placements, 0 artigo com mais de 1 capa, 4.469 com exatamente 1 capa, 6 sem imagem, 0 vazamento de `needs_review`(13)/exceções de data(7), 2/2 GIFs. Checagem global: **13.688 articles / 13.688 external_sources / 13.688 slugs — todos únicos (0 duplicidade por identidade)**; **21.089 media_assets — todos com `origin_source_url`/`storage_path` únicos**. Aritmética: 1.622+2.503+5.088+4.475=13.688.
+
+### Auditoria de candidatos a duplicata (somente leitura, nada arquivado)
+
+Rodada sobre os 4 lotes (13.688 articles) com a mesma regra editorial (título+data é só candidato; confirmação exige corpo idêntico/quase idêntico). Resultado:
+- 54 grupos já resolvidos na Fase 43 (esperado, não é achado novo);
+- **11 candidatos novos envolvendo 2021-2022** (8 corpo idêntico, 3 precisam inspeção) — nenhum arquivado;
+- **achado à parte**: a sanitização da Fase 44D revelou que 2 pares de artigos de 2019-2020 (antes "precisa inspeção" ou "coincidência legítima" só por causa do resíduo de `<img>` que diferenciava os corpos) agora têm corpo **byte-a-byte idêntico** depois da limpeza — `covid-19-brasil-tem-mil-novas-mortes...` (417983/417982) e `torres-e-regiao-ficam-na-bandeira-laranja...` (417727/417726). Nenhum arquivamento feito; fica para decisão explícita numa próxima etapa. Detalhe completo em `docs/legacy-duplicate-audit-2021-2022.md`.
+
+### Confirmação explícita
+
+- Nenhum refetch de rede (cache 100% reaproveitado, já sanitizado pela Fase 44C).
+- Nenhuma matéria dos lotes 2015-2020 alterada por esta carga.
+- Nenhum arquivamento automático de duplicata.
+- Não iniciado o lote 2023-2024.
+
+---
+
 ## Fase 44D — Correção pontual do resíduo HTML em 203 artigos já importados (2019-2020)
 
 **HEAD/commit:** `de8779b` (branch `feature/jornalir-core-foundation-20260917`)
