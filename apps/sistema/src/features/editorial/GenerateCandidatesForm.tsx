@@ -15,9 +15,9 @@ interface DoneState {
 }
 
 /**
- * Lê o PDF selecionado de verdade (leitura real de texto/layout via
- * @ir/pdf-extraction) — o arquivo é temporário para esta requisição, nunca
- * salvo em disco ou storage remoto.
+ * Lê o PDF selecionado e extrai candidatos reais. Quando a edição ainda
+ * não possui PDF oficial, o mesmo arquivo também é arquivado no Google
+ * Drive do Jornal Online; o Supabase guarda apenas a URL.
  */
 export function GenerateCandidatesForm({ editionId }: GenerateCandidatesFormProps): JSX.Element {
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -59,8 +59,8 @@ export function GenerateCandidatesForm({ editionId }: GenerateCandidatesFormProp
       </label>
       <p className="helper-text">
         {fileName
-          ? `Arquivo selecionado: ${fileName}. Nada é salvo — o PDF é lido apenas para esta extração.`
-          : "Selecione o PDF da edição impressa. Nada é enviado a um armazenamento remoto."}
+          ? `Arquivo selecionado: ${fileName}. Ao gerar, ele também será usado como PDF oficial do Jornal Online se a edição ainda não tiver um.`
+          : "Selecione o PDF da edição impressa. O mesmo arquivo pode alimentar a importação e o Jornal Online."}
       </p>
       <button type="button" className="header-action" onClick={handleGenerate} disabled={pending}>
         {pending ? "Extraindo…" : "Gerar candidatos"}
@@ -80,6 +80,9 @@ export function GenerateCandidatesForm({ editionId }: GenerateCandidatesFormProp
               Página(s) sem camada de texto (OCR indisponível nesta instalação): {done.pagesWithoutText.join(", ")}.
             </p>
           ) : null}
+          {done.warnings.map((warning) => (
+            <p key={warning}>{warning}</p>
+          ))}
         </div>
       ) : null}
     </div>
