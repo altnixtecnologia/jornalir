@@ -6,7 +6,7 @@ Este arquivo é atualizado ao final de CADA fase a partir da Fase 35. Curto, dir
 
 ## Fase 46 — Preflight/auditoria do lote 2025-2026 (SOMENTE LEITURA, nada importado) — último lote cronológico
 
-**HEAD/commit:** `PENDENTE` (branch `feature/jornalir-core-foundation-20260917`)
+**HEAD/commit:** `701d4e0` (branch `feature/jornalir-core-foundation-20260917`)
 
 Autorizado por `docs/CHATGPT_REVIEW.md` (revisão sobre HEAD `3090bf4`: Fase 45C aprovada, "AUTORIZADO AGORA — somente preflight/auditoria de 2025-2026"). **Nenhuma escrita real nesta fase.**
 
