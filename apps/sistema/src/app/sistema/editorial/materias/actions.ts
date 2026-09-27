@@ -111,6 +111,7 @@ export async function updateArticle(
 
   const articleService = getArticleService(createSupabaseServerClient());
   try {
+    const current = await articleService.getById(id);
     const placement = buildPlacement(payload);
     const editionPageNumber = parseEditionPageNumber(payload.editionPageNumber);
     const baseChanges = {
@@ -136,10 +137,18 @@ export async function updateArticle(
         { ...baseChanges, status: "draft", publishedAt: undefined, scheduledAt: undefined },
         AUDIT,
       );
+    } else if (intent === "save") {
+      // Editar uma matéria publicada/agendada/arquivada não deve mudar seu
+      // status nem sua data só por salvar conteúdo.
+      await articleService.updateDraft(id, baseChanges, AUDIT);
     } else {
       await articleService.updateDraft(id, baseChanges, AUDIT);
       if (intent === "publish") {
-        await articleService.publishNow(id, AUDIT);
+        // Re-salvar uma matéria que já estava publicada preserva a data
+        // original. "Publicar agora" só cria published_at ao sair de outro status.
+        if (current.status !== "published") {
+          await articleService.publishNow(id, AUDIT);
+        }
       } else {
         await articleService.schedule(
           id,
