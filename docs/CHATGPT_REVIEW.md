@@ -437,3 +437,76 @@ O relatório deve trazer:
 - detalhes completos do caso citado pelo usuário.
 
 **Não corrigir/apagar nesta etapa.** Apenas auditoria e classificação. Commit/push e parar para revisão.
+
+
+## URGENTE — limpar duplicatas confirmadas antes de 2021–2022
+
+O usuário quer encerrar isso agora. A auditoria `docs/legacy-duplicate-audit-2015-2020.md` foi revisada.
+
+### Decisão
+
+Corrigir **somente os 54 grupos classificados como "Duplicata real provável"** (115 artigos, corpo normalizado idêntico).
+
+**NÃO tocar**:
+- nos 11 grupos "Precisa inspeção manual";
+- nos 3 grupos legítimos;
+- em qualquer artigo fora desses 54 grupos.
+
+### Como corrigir
+
+Não deletar nem mesclar registros.
+
+Para cada grupo confirmado:
+- manter 1 artigo como `published`;
+- marcar os demais como `archived`;
+- preencher `archived_at = now()`;
+- preservar integralmente `article_external_sources`, mídias, URLs de origem, external_id e demais rastros.
+
+### Regra determinística para escolher a cópia canônica
+
+Aplicar nesta ordem:
+
+1. Se uma cópia não tem capa e outra tem, **manter a que tem capa**.
+2. Se as editorias diferem e uma é `geral` enquanto a outra é uma editoria específica, **manter a específica** (ex.: Esporte/Política).
+3. Caso contrário, **manter a publicação mais recente por `published_at`**.
+4. Se houver empate exato de `published_at`, manter a de maior `external_id` numérico.
+5. Nunca alterar título/corpo/data/editoria da canônica nesta etapa.
+
+Essa regra resolve também o caso reportado pelo usuário:
+`HOMEM REENCONTRA A FAMÍLIA APÓS 26 ANOS DESAPARECIDO` — manter a ocorrência mais recente e arquivar a outra.
+
+### Segurança
+
+Antes de gravar:
+- gerar dry-run com lista explícita `keep_external_id` / `archive_external_ids`;
+- confirmar que a quantidade a arquivar é exatamente `115 - 54 = 61` artigos;
+- confirmar que nenhum ID dos 11 grupos manuais ou 3 legítimos entrou na lista.
+
+Depois, executar a atualização real de status somente nesses IDs.
+
+### Validação depois da limpeza
+
+Confirmar:
+- 61 artigos arquivados;
+- 54 grupos confirmados passam a ter somente 1 artigo público;
+- 11 grupos manuais continuam intactos;
+- 3 grupos legítimos continuam intactos;
+- 0 deletes;
+- 0 alterações em `article_external_sources`;
+- 0 alterações/remoções de mídia;
+- total físico em `articles` continua 9.213;
+- total público diminui em 61;
+- o caso `420122/420123` aparece apenas uma vez publicamente.
+
+Criar `docs/legacy-duplicate-cleanup-2015-2020.md`, atualizar `docs/AI_HANDOFF.md` e `docs/legacy-migration-status.json`.
+
+### Progresso para os próximos lotes — fazer agora, antes de 2021–2022
+
+Depois da limpeza, adicionar progresso ao importador sem alterar a lógica de importação:
+- log a cada 25 ou 50 matérias;
+- mostrar `processadas/total`, %, imagens reconciliadas/esperadas, falhas, tempo decorrido e ETA aproximada;
+- atualizar `legacy_migration_batches.metadata` periodicamente com checkpoint/progresso;
+- não gerar escrita por artigo além do que já existe; checkpoint pode ser periódico;
+- preservar retomada/idempotência.
+
+Não iniciar 2021–2022 ainda. Commit/push e PARAR para conferência.
