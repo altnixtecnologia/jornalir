@@ -1047,3 +1047,57 @@ Ainda NÃO autorizado:
 - iniciar 2025-2026;
 - gerar novo Preview;
 - fazer Production.
+
+
+## Revisão da Fase 45 — preflight 2023-2024 aprovado; AUTORIZADA a carga real
+
+Revisado no GitHub sobre o HEAD `7f0928c`.
+
+### Preflight aprovado
+
+Números conferidos:
+- candidatas: **4.297**
+- eligible: **4.292**
+- needs_review: **2**
+- quarantined: **3**
+- rejected: **0**
+- com imagem / sem imagem: **4.276 / 16**
+- referências de imagem: **7.165**
+- URLs únicas de imagem: **7.165**
+
+Amostra sem sinais do resíduo HTML já corrigido nos lotes anteriores.
+
+### Classificados
+
+Os 3 itens em `classificados` permanecem fora da carga automática nesta etapa. O conteúdo parece ser notícia comum publicada sob a categoria errada no legado, então NÃO mapear cegamente para Classificados nem inferir nova editoria automaticamente agora.
+
+Eles continuam preservados em `quarantined` para revisão manual posterior:
+- 531838 — PROUNI...
+- 531843 — 61 baleias-francas...
+- 604963 — CCR ViaCosteira...
+
+### AUTORIZADO AGORA — carga real 2023-2024
+
+Importar somente os **4.292 eligible** usando o cache já completo.
+
+Regras:
+1. sem refetch;
+2. sem `--limit`;
+3. não importar os 2 `needs_review`;
+4. não importar os 3 `quarantined/classificados`;
+5. expected articles = **4.292**;
+6. expected image references = **7.165**;
+7. retry/reconciliação idempotente apenas se houver falha transitória;
+8. só fechar como `complete` com 4.292/4.292 e 7.165/7.165, 0 falhas;
+9. rodar `batch-final-validate.mjs --batch=2023-2024`;
+10. confirmar 0 vazamento de needs_review/quarantined/exceções de data e 0 duplicidade por identidade.
+
+Depois da validação:
+- rodar auditoria de duplicatas somente leitura;
+- não arquivar nada automaticamente;
+- gerar relatório final;
+- atualizar `docs/AI_HANDOFF.md` e `docs/legacy-migration-status.json`;
+- commit/push;
+- PARAR para conferência.
+
+Não iniciar 2025-2026 ainda. Não gerar Preview ainda. Não fazer Production.
