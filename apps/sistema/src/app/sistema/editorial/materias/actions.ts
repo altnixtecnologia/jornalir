@@ -46,15 +46,18 @@ function parseEditionPageNumber(value: string): number | undefined {
   return value.trim() && Number.isFinite(parsed) && parsed > 0 ? parsed : undefined;
 }
 
-function revalidateAndRedirect(id: string): never {
+type ArticleEditorTab = "conteudo" | "imagens" | "publicacao";
+
+function revalidateAndRedirect(id: string, tab?: ArticleEditorTab): never {
   revalidatePath(LIST_PATH);
   revalidatePath(`${LIST_PATH}/${id}`);
-  redirect(`${LIST_PATH}/${id}`);
+  redirect(`${LIST_PATH}/${id}${tab ? `?aba=${tab}` : ""}`);
 }
 
 export async function createArticle(
   payload: ArticleFormPayload,
   intent: ArticleFormIntent,
+  returnTab?: ArticleEditorTab,
 ): Promise<ActionResult> {
   const validationError = validateArticlePayload(payload, intent);
   if (validationError) return { error: validationError };
@@ -98,13 +101,14 @@ export async function createArticle(
     return { error: toErrorMessage(error) };
   }
 
-  revalidateAndRedirect(articleId);
+  revalidateAndRedirect(articleId, returnTab);
 }
 
 export async function updateArticle(
   id: string,
   payload: ArticleFormPayload,
   intent: ArticleFormIntent,
+  returnTab?: ArticleEditorTab,
 ): Promise<ActionResult> {
   const validationError = validateArticlePayload(payload, intent);
   if (validationError) return { error: validationError };
@@ -171,5 +175,5 @@ export async function archiveArticle(id: string): Promise<ActionResult> {
     return { error: toErrorMessage(error) };
   }
 
-  revalidateAndRedirect(id);
+  revalidateAndRedirect(id, returnTab);
 }
