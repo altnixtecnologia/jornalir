@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import type { MediaAsset } from "@ir/types";
 import { getMediaAssetService } from "../../../../composition/editorial";
 import { createSupabaseServerClient } from "../../../../lib/supabase/server";
-import { registerUploadedMediaAsset } from "../../../../providers/supabase/mediaAssetRepository.supabase";
+import { registerUploadedMediaAsset, searchMediaAssetsSupabase } from "../../../../providers/supabase/mediaAssetRepository.supabase";
 import { InvalidImageUploadError, uploadImageToArticleMediaBucket } from "../../../../providers/supabase/mediaStorage.supabase";
 
 const LIST_PATH = "/sistema/editorial/midias";
@@ -50,6 +50,16 @@ export async function updateMedia(id: string, payload: MediaAssetPayload): Promi
     const asset = await getMediaAssetService(createSupabaseServerClient()).update(id, payload);
     revalidatePath(LIST_PATH);
     return { ok: true, asset };
+  } catch (error) {
+    return { error: toErrorMessage(error) };
+  }
+}
+
+
+export async function searchMediaLibrary(query: string): Promise<{ error: string } | { ok: true; assets: MediaAsset[] }> {
+  try {
+    const assets = await searchMediaAssetsSupabase(createSupabaseServerClient(), query, 60);
+    return { ok: true, assets };
   } catch (error) {
     return { error: toErrorMessage(error) };
   }
