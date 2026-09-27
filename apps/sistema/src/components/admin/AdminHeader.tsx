@@ -67,7 +67,19 @@ export function AdminHeader({ onOpenMenu }: { onOpenMenu: () => void }): JSX.Ele
             </Link>
           ) : null}
 
-          <details className="app-nav-dropdown" data-nav-dropdown name="app-nav-dropdown">
+          <div className="app-nav-direct-modules" aria-label="Outros módulos">
+            {moreModulesNavGroup.links.map((link) => (
+              <Link
+                key={link.href}
+                href={link.href}
+                className={`app-nav-link app-nav-link--module${pathname.startsWith(link.href) ? " is-active" : ""}`}
+              >
+                {link.label}
+              </Link>
+            ))}
+          </div>
+
+          <details className="app-nav-dropdown app-nav-more" data-nav-dropdown name="app-nav-dropdown">
             <summary className={`app-nav-link app-nav-summary${isMore ? " is-active" : ""}`}>
               Mais módulos <span className="app-nav-caret" aria-hidden="true">▾</span>
             </summary>
