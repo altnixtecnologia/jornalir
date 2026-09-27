@@ -824,3 +824,68 @@ Depois:
 Se os caches locais dos lotes 2015-2016, 2017-2018 e 2019-2020 ainda existirem, fazer a MESMA varredura somente leitura neles, sem refetch e sem alterar nada, apenas para saber se esse padrão já entrou em conteúdo antigo. Se não houver cache local, não buscar novamente.
 
 Commit/push e PARAR. Ainda não executar a carga real 2021-2022.
+
+
+## Revisão da Fase 44C — sanitização aprovada; corrigir 203 registros de 2019-2020 antes da carga 2021-2022
+
+Revisado no GitHub sobre o HEAD `b4c1540`.
+
+### Fase 44C aprovada
+
+A análise sustenta que os 160 casos de 2021-2022 são resíduo mecânico de markup de imagem quebrado no CMS legado:
+- padrão restrito a atributos de imagem + `&gt;`;
+- 160/160 cobertos;
+- 0 falso-positivo nos demais artigos conferidos;
+- sanitização aplicada antes de derivar `bodyHtml/bodyTextFull`;
+- preflight 2021-2022 voltou corretamente para 4.475 eligible / 13 needs_review / 6.889 referências de imagem;
+- nenhum refetch foi necessário.
+
+A sanitização em `lib/sanitize.mjs` fica aprovada para os lotes futuros.
+
+### Pendência descoberta: 203 registros já importados em 2019-2020
+
+Antes de importar 2021-2022, corrigir somente esses 203 registros já existentes, sem refetch e sem reimportar o lote inteiro.
+
+### Procedimento obrigatório — correção pontual, reversível e sem sobrescrever edição posterior
+
+Criar um script específico, preferencialmente `scripts/legacy-audit/fix-imported-html-residue.mjs`, que use o cache local de 2019-2020 e a mesma função `sanitizeBodyHtml`.
+
+Primeiro executar em **dry-run** e montar plano explícito.
+
+Para cada um dos 203 external_ids:
+1. localizar a matéria por `article_external_sources.provider + external_id`;
+2. carregar `articles.body`, status e `article_external_sources.source_hash`;
+3. calcular do cache:
+   - corpo antigo esperado (não sanitizado);
+   - corpo sanitizado;
+   - novo `source_hash` usando o mesmo `sourceHash()` atual;
+4. **só atualizar automaticamente se o body atual no banco for exatamente o body antigo esperado do cache**. Isso evita sobrescrever qualquer edição manual feita depois da migração;
+5. se houver qualquer divergência no body atual, NÃO tocar o registro e listar como `manual_conflict`.
+
+### Escrita autorizada após dry-run válido
+
+Se o dry-run encontrar exatamente os 203 alvos e zero conflito inesperado:
+- atualizar somente `articles.body` para o body sanitizado;
+- atualizar somente `article_external_sources.source_hash` para o hash calculado a partir do conteúdo sanitizado;
+- preservar status (published/archived), título, subtitle, datas, editoria, localidade, autoria, external_id, source_url e mídias;
+- não deletar nada;
+- não alterar `media_assets` nem `article_media`;
+- não reabrir/reexecutar o lote 2019-2020;
+- não fazer refetch.
+
+Se existir conflito de body em qualquer item, corrigir automaticamente apenas os que baterem exatamente e deixar os divergentes intocados e documentados.
+
+### Validação
+
+Depois:
+- quantos dos 203 foram corrigidos;
+- quantos ficaram `manual_conflict`;
+- confirmar que nenhum body corrigido ainda contém o padrão de resíduo;
+- confirmar que total físico/status de articles não mudou;
+- confirmar que contagens de media/external_sources não mudaram;
+- confirmar que o lote 2019-2020 continua `complete`;
+- confirmar 0 alteração fora da lista dos 203 external_ids.
+
+Criar `docs/legacy-html-residue-fix-2019-2020.md`, atualizar `docs/AI_HANDOFF.md` e status, commit/push e PARAR.
+
+Ainda não executar a carga real 2021-2022 nesta fase.
