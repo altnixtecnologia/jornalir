@@ -4,6 +4,49 @@ Este arquivo é atualizado ao final de CADA fase a partir da Fase 35. Curto, dir
 
 ---
 
+## Fase 43 — Limpeza das duplicatas confirmadas + progresso do importador
+
+**HEAD/commit:** PLACEHOLDER (branch `feature/jornalir-core-foundation-20260917`)
+
+Autorizado por `docs/CHATGPT_REVIEW.md` (revisão sobre HEAD `a66e974`: "URGENTE — limpar duplicatas confirmadas antes de 2021–2022"). Duas partes independentes, ambas concluídas.
+
+### Parte 1 — Limpeza das 54 duplicatas confirmadas
+
+1. `scripts/legacy-audit/duplicate-cleanup.mjs` (novo): calcula o plano determinístico (regra fixa: capa > editoria específica > mais recente > maior `external_id`), valida os números exatos esperados (54 grupos, 61 a arquivar, 115 total) e a ausência de vazamento para os grupos não confirmados ANTES de gravar qualquer coisa — se algum número não bater, o script lança erro e para.
+2. **Bug real encontrado e corrigido durante a própria execução**: o parser de `--commit` não tinha o fallback `value ?? true` (padrão já usado em `migrate.mjs`), então `--commit` sem `=valor` virava `undefined` → `Boolean(undefined) === false` → o script silenciosamente rodava em dry-run mesmo com `--commit` explícito. Corrigido antes de qualquer gravação real (a 1ª tentativa não gravou nada, confirmado pelo log "[DRY-RUN]").
+3. Execução real: **61 artigos arquivados** (`status = archived`, `archived_at = now()`) — os 54 canônicos permanecem `published`, sem alteração de título/corpo/data/editoria. `article_external_sources`, `media_assets` e `article_media` de TODOS os artigos (arquivados e canônicos) permanecem intocados.
+4. Caso do usuário resolvido: `external_id 420122` (18:34) mantido `published`, `420123` (18:29) arquivado — a matéria aparece só 1x publicamente agora.
+5. Validação completa direto no Supabase — todos os critérios da revisão conferem exatamente: 9.213 físico (inalterado), 9.152 published, 61 archived, os 11 grupos "precisa inspeção" e os 3 "legítimos" continuam intactos, 0 deletes, `article_external_sources`/`media_assets` inalterados (9.213/14.200).
+6. `docs/legacy-duplicate-cleanup-2015-2020.md` (novo): relatório completo, grupo a grupo.
+
+### Parte 2 — Progresso no importador (para os próximos lotes)
+
+`migrate.mjs`: log a cada 50 matérias processadas (`processadas/total`, %, imagens vinculadas/esperadas, falhas, tempo decorrido, ETA) + atualização periódica de `legacy_migration_batches.metadata.progress` (nunca escrita extra por artigo — só a cada 50, mesma cadência do log). Nenhuma mudança na lógica de importação/retomada/idempotência.
+
+**Incidente durante o teste, corrigido**: testei a funcionalidade com `--limit=120 --commit` contra o lote 2019-2020 (já `complete`) para validar o log sem risco — mas por rodar só 120 das 5.088 matérias esperadas, a reconciliação final do PRÓPRIO script marcou o lote de volta como `incomplete` (comportamento correto do script para uma execução parcial, mas eu não deveria ter rodado um teste real com `--commit` contra um lote que já estava fechado). Corrigido imediatamente rodando o comando completo (sem `--limit`) de novo — restaurou exatamente o estado original (5.088/5.088, 7.082/7.082, `complete`), confirmado por leitura direta do banco antes e depois. Nenhum dado foi perdido; a mesma execução serviu de teste real do progresso em escala (5.088 matérias, log de 50 em 50, ETA decrescente até 0s).
+
+### Testes reais
+
+- Plano de limpeza validado (contagens exatas + zero vazamento) antes de gravar.
+- Validação pós-limpeza: todos os 11 critérios da revisão conferidos diretamente no Supabase.
+- Progresso testado em escala real (5.088 matérias) — log funcionando, `legacy_migration_batches.metadata.progress` atualizado periodicamente, estado final do lote restaurado e confirmado correto.
+
+### Migrations
+
+Nenhuma — `archived` já era um status válido de `articles` desde o schema original.
+
+### Pendências
+
+1. Os 11 grupos "precisa inspeção manual" continuam aguardando decisão humana caso a caso.
+2. Os 61 artigos arquivados são recuperáveis (reverter `status` para `published` desfaz integralmente, sem perda de dados) — nenhuma ação adicional planejada.
+3. Lote 2021-2022 NÃO iniciado.
+
+### Próximo passo recomendado
+
+Aguardar nova conferência do ChatGPT antes de iniciar o preflight de 2021-2022.
+
+---
+
 ## Fase 42 — Auditoria de duplicatas 2015-2020 (SOMENTE LEITURA, nada corrigido)
 
 **HEAD/commit:** `2c5b09a` (branch `feature/jornalir-core-foundation-20260917`)

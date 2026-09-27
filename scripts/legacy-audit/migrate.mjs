@@ -534,6 +534,49 @@ async function runImport(eligiblePairs, preflightSummary, log) {
     }
   }
 
+  // Progresso (Fase 43, pedido explícito do usuário) — lote de ~5 mil
+  // matérias podia rodar minutos sem nenhum sinal de vida no terminal.
+  // Loga a cada PROGRESS_INTERVAL matérias (nunca por matéria — não é
+  // escrita extra no banco além do checkpoint periódico já existente) e,
+  // quando não é dry-run, atualiza `legacy_migration_batches.metadata`
+  // com um snapshot do progresso — sobrescrito pela reconciliação final
+  // no fim da função, então nunca fica um progresso "travado" salvo.
+  const PROGRESS_INTERVAL = 50;
+  const totalToProcess = Math.min(eligiblePairs.length, LIMIT);
+  const startedAt = Date.now();
+
+  async function logProgress(processed) {
+    const elapsedMs = Date.now() - startedAt;
+    const elapsedSec = Math.round(elapsedMs / 1000);
+    const pct = totalToProcess > 0 ? ((processed / totalToProcess) * 100).toFixed(1) : "0.0";
+    const imagesLinked = batchStats.uploadedImages + batchStats.reusedImages + batchStats.alreadyLinkedImages + batchStats.correctedImages;
+    const etaSec = processed > 0 ? Math.round((elapsedMs / processed) * (totalToProcess - processed) / 1000) : null;
+    log(
+      `  [progresso] ${processed}/${totalToProcess} (${pct}%) — imagens ${imagesLinked}/${preflightSummary.totalImageReferences} — falhas: ${batchStats.failedArticles} artigo(s), ${batchStats.failedImages} imagem(ns) — decorrido: ${elapsedSec}s — ETA: ${etaSec === null ? "?" : `${etaSec}s`}`,
+    );
+    if (!dryRun && batchRowId) {
+      await sb
+        .from("legacy_migration_batches")
+        .update({
+          metadata: {
+            progress: {
+              processedArticles: processed,
+              totalArticles: totalToProcess,
+              percent: Number(pct),
+              imagesLinked,
+              imagesExpected: preflightSummary.totalImageReferences,
+              failedArticles: batchStats.failedArticles,
+              failedImages: batchStats.failedImages,
+              elapsedSeconds: elapsedSec,
+              etaSeconds: etaSec,
+              updatedAt: new Date().toISOString(),
+            },
+          },
+        })
+        .eq("id", batchRowId);
+    }
+  }
+
   let processed = 0;
   for (const { candidate: c, detail } of eligiblePairs) {
     if (processed >= LIMIT) break;
@@ -544,6 +587,12 @@ async function runImport(eligiblePairs, preflightSummary, log) {
       batchStats.failedArticles += 1;
       log(`  [ERRO] ${c.primary.url}: ${error.message}`);
     }
+    if (processed > 0 && processed % PROGRESS_INTERVAL === 0) {
+      await logProgress(processed);
+    }
+  }
+  if (processed % PROGRESS_INTERVAL !== 0) {
+    await logProgress(processed);
   }
 
   log("\n== RESULTADO DA IMPORTAÇÃO ==");
