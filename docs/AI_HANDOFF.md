@@ -4,6 +4,40 @@ Este arquivo é atualizado ao final de CADA fase a partir da Fase 35. Curto, dir
 
 ---
 
+## Fase 43B — Hardening final do progresso (3 correções de segurança)
+
+**HEAD/commit:** PLACEHOLDER (branch `feature/jornalir-core-foundation-20260917`)
+
+Autorizado por `docs/CHATGPT_REVIEW.md` (revisão sobre HEAD `8965781`: limpeza de duplicatas aprovada sem reversão; progresso precisa de 3 correções antes de 2021-2022). **Nenhum lote real foi tocado/reaberto** — todas as correções foram feitas e testadas sem gravar em lote concluído real.
+
+### As 3 correções
+
+1. **Bloqueio de lote `complete` contra execução parcial**: `runImport` agora lê `status` do lote ANTES de mudar qualquer coisa; se `status === "complete"` e `--limit` for finito (com `--commit`), lança erro e para — nenhum UPDATE acontece. Rerun completo (sem `--limit`) continua permitido (é sempre seguro, reprocessa 100%). Isso é exatamente a proteção que teria evitado o incidente da Fase 43.
+2. **`attempted` separado de `processed`**: o loop agora incrementa `attempted` para TODA tentativa (sucesso ou erro) — antes só incrementava em caso de sucesso, o que fazia `--limit`/%/ETA ficarem incorretos (e potencialmente nunca atingir o limite) quando havia falha de artigo. `imported`/`skippedExisting`/`failedArticles` continuam como contadores de resultado, sem mudança.
+3. **Merge de `metadata` no checkpoint periódico**: antes, cada atualização de progresso sobrescrevia `metadata` inteiro. Agora `baseMetadata` é lido uma vez do lote existente e cada checkpoint grava `{ ...baseMetadata, progress: {...} }` — nenhuma informação histórica desaparece só por causa do progresso.
+
+### Testes reais (sem tocar lote concluído real)
+
+- **Bloqueio testado contra o lote real 2019-2020** (`complete`): `--commit --limit=5` foi rejeitado com erro claro ANTES de qualquer escrita — confirmado lendo `updated_at` do lote no banco antes/depois (idêntico, nenhuma gravação ocorreu).
+- **`attempted` com falhas**: teste isolado (não toca o banco) simulando 137 itens com 6 falhas (incluindo falhas consecutivas) — `attempted` chegou a 137, `imported + failedArticles === attempted`, último snapshot de progresso em 100% com ETA 0, nenhum ETA `NaN`.
+- **Merge de metadata**: teste real isolado usando um `batch_key` descartável (`test-progress-hardening`, nunca usado por execuções reais) — criado, checkpoint simulado aplicado, confirmado que o campo histórico sobreviveu junto do novo `progress`, depois removido (limpeza completa, nenhum resíduo no banco).
+- `node --check migrate.mjs` limpo (script plano, sem TypeScript nesta pasta).
+
+### Migrations
+
+Nenhuma.
+
+### Pendências
+
+1. Lote 2021-2022 ainda NÃO iniciado — aguardando nova conferência do ChatGPT.
+2. Regra editorial de deduplicação (mesmo título em datas diferentes nunca é duplicata sozinho; mesmo título+data é só candidato) registrada como comentário em `duplicate-audit.mjs` para qualquer reuso futuro do script — já era o comportamento real da classificação usada na Fase 42/43.
+
+### Próximo passo recomendado
+
+Aguardar conferência do ChatGPT sobre o hardening antes de iniciar o preflight de 2021-2022.
+
+---
+
 ## Fase 43 — Limpeza das duplicatas confirmadas + progresso do importador
 
 **HEAD/commit:** `303d8de` (branch `feature/jornalir-core-foundation-20260917`)

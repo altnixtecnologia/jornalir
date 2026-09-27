@@ -507,11 +507,25 @@ async function runImport(eligiblePairs, preflightSummary, log) {
   };
   let batchRowId = null;
 
+  let baseMetadata = {};
   if (!dryRun) {
     // Persiste o esperado do preflight (item 5) — a reconciliação final
     // (item 4) compara o banco contra ESTES números, nunca contra um
     // "sucesso" definido só por failedArticles === 0.
-    const { data: existingBatch } = await sb.from("legacy_migration_batches").select("id").eq("batch_key", batch.key).maybeSingle();
+    const { data: existingBatch } = await sb.from("legacy_migration_batches").select("id, status, metadata").eq("batch_key", batch.key).maybeSingle();
+
+    // Bloqueio de segurança (revisão do ChatGPT, Fase 43B): um lote já
+    // `complete` nunca pode ser reaberto por uma execução PARCIAL
+    // (`--limit` finito) — foi exatamente isso que reabriu incorretamente
+    // o lote 2019-2020 como `incomplete` num teste manual. Reexecução
+    // completa (sem `--limit`, para reconciliação/idempotência) continua
+    // permitida — é sempre segura porque reprocessa 100% do esperado.
+    if (existingBatch?.status === "complete" && LIMIT !== Infinity) {
+      throw new Error(
+        `O lote "${batch.key}" já está marcado como "complete". Uma execução parcial (--limit=${LIMIT}) reabriria o lote incorretamente (foi assim que um teste anterior corrompeu o status). Rode sem --limit para reconciliar/confirmar o lote inteiro, ou não rode --commit contra um lote já concluído.`,
+      );
+    }
+
     const expectedFields = {
       expected_articles: preflightSummary.eligibleArticles,
       expected_image_references: preflightSummary.totalImageReferences,
@@ -519,6 +533,7 @@ async function runImport(eligiblePairs, preflightSummary, log) {
     };
     if (existingBatch) {
       batchRowId = existingBatch.id;
+      baseMetadata = existingBatch.metadata ?? {};
       await sb
         .from("legacy_migration_batches")
         .update({ status: "running", started_at: new Date().toISOString(), ...expectedFields })
@@ -539,28 +554,39 @@ async function runImport(eligiblePairs, preflightSummary, log) {
   // Loga a cada PROGRESS_INTERVAL matérias (nunca por matéria — não é
   // escrita extra no banco além do checkpoint periódico já existente) e,
   // quando não é dry-run, atualiza `legacy_migration_batches.metadata`
-  // com um snapshot do progresso — sobrescrito pela reconciliação final
-  // no fim da função, então nunca fica um progresso "travado" salvo.
+  // fazendo MERGE com o que já existia (bloqueio 3 da revisão, Fase 43B —
+  // a versão anterior sobrescrevia `metadata` inteiro a cada checkpoint,
+  // criando uma janela em que histórico gravado antes do progresso
+  // desaparecia). A reconciliação final (no fim da função) continua
+  // gravando o resumo definitivo normalmente.
   const PROGRESS_INTERVAL = 50;
   const totalToProcess = Math.min(eligiblePairs.length, LIMIT);
   const startedAt = Date.now();
 
-  async function logProgress(processed) {
+  // `attempted` conta TODA tentativa (sucesso ou falha) — bloqueio 2 da
+  // revisão (Fase 43B): a versão anterior só incrementava `processed` em
+  // caso de sucesso, então uma falha de artigo fazia `--limit`/%/ETA
+  // ficarem incorretos (o loop nunca atingia o limite numérico esperado
+  // e o progresso podia parecer travado). `imported`/`skippedExisting`/
+  // `failedArticles` continuam sendo os contadores de RESULTADO, sem
+  // mudança nenhuma no que já funcionava.
+  async function logProgress(attempted) {
     const elapsedMs = Date.now() - startedAt;
     const elapsedSec = Math.round(elapsedMs / 1000);
-    const pct = totalToProcess > 0 ? ((processed / totalToProcess) * 100).toFixed(1) : "0.0";
+    const pct = totalToProcess > 0 ? ((attempted / totalToProcess) * 100).toFixed(1) : "0.0";
     const imagesLinked = batchStats.uploadedImages + batchStats.reusedImages + batchStats.alreadyLinkedImages + batchStats.correctedImages;
-    const etaSec = processed > 0 ? Math.round((elapsedMs / processed) * (totalToProcess - processed) / 1000) : null;
+    const etaSec = attempted > 0 ? Math.round((elapsedMs / attempted) * (totalToProcess - attempted) / 1000) : null;
     log(
-      `  [progresso] ${processed}/${totalToProcess} (${pct}%) — imagens ${imagesLinked}/${preflightSummary.totalImageReferences} — falhas: ${batchStats.failedArticles} artigo(s), ${batchStats.failedImages} imagem(ns) — decorrido: ${elapsedSec}s — ETA: ${etaSec === null ? "?" : `${etaSec}s`}`,
+      `  [progresso] ${attempted}/${totalToProcess} (${pct}%) — imagens ${imagesLinked}/${preflightSummary.totalImageReferences} — falhas: ${batchStats.failedArticles} artigo(s), ${batchStats.failedImages} imagem(ns) — decorrido: ${elapsedSec}s — ETA: ${etaSec === null ? "?" : `${etaSec}s`}`,
     );
     if (!dryRun && batchRowId) {
       await sb
         .from("legacy_migration_batches")
         .update({
           metadata: {
+            ...baseMetadata,
             progress: {
-              processedArticles: processed,
+              attemptedArticles: attempted,
               totalArticles: totalToProcess,
               percent: Number(pct),
               imagesLinked,
@@ -577,22 +603,22 @@ async function runImport(eligiblePairs, preflightSummary, log) {
     }
   }
 
-  let processed = 0;
+  let attempted = 0;
   for (const { candidate: c, detail } of eligiblePairs) {
-    if (processed >= LIMIT) break;
+    if (attempted >= LIMIT) break;
+    attempted += 1;
     try {
       await importCandidate(sb, c, detail, { sectionCache, localityId, throttle, log, dryRun, batchStats });
-      processed += 1;
     } catch (error) {
       batchStats.failedArticles += 1;
       log(`  [ERRO] ${c.primary.url}: ${error.message}`);
     }
-    if (processed > 0 && processed % PROGRESS_INTERVAL === 0) {
-      await logProgress(processed);
+    if (attempted % PROGRESS_INTERVAL === 0) {
+      await logProgress(attempted);
     }
   }
-  if (processed % PROGRESS_INTERVAL !== 0) {
-    await logProgress(processed);
+  if (attempted % PROGRESS_INTERVAL !== 0) {
+    await logProgress(attempted);
   }
 
   log("\n== RESULTADO DA IMPORTAÇÃO ==");

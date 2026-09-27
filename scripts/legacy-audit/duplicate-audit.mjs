@@ -4,6 +4,14 @@
 // observar visualmente uma duplicata no portal. NUNCA apaga, mescla ou
 // altera nada; só classifica. Requer SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY
 // no ambiente (nunca imprime a chave).
+//
+// Regra editorial confirmada pelo usuário (Fase 43B) para QUALQUER reuso
+// futuro deste script: mesmo título em datas diferentes NUNCA é
+// duplicata por si só; mesmo título + mesma data é só um candidato, nunca
+// motivo suficiente sozinho para arquivar automaticamente. A classificação
+// abaixo já respeita isso — só os grupos com corpo normalizado idêntico
+// (ou de tamanho quase idêntico, marcados para revisão manual) viram
+// candidatos reais; título+data sozinhos nunca decidem nada.
 import { createClient } from "@supabase/supabase-js";
 import { writeFile } from "node:fs/promises";
 import { createHash } from "node:crypto";
