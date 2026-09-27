@@ -660,3 +660,38 @@ Manter o fluxo original, com uma etapa por vez e conferência entre elas.
 - Não fazer deploy de Production.
 
 Após cada etapa/lote, o ChatGPT confere o GitHub e libera explicitamente o próximo passo, mantendo o plano seguro usado até aqui.
+
+
+## Liberação explícita do próximo passo — 2021-2022
+
+Esclarecimento do usuário: a expressão "terminar tudo de uma vez" significava apenas concluir o projeto sem enrolação, **não** executar todos os lotes automaticamente. O fluxo correto continua sendo o original: **um lote por vez, com conferência entre as etapas**.
+
+O hardening da Fase 43B foi conferido no GitHub sobre o HEAD atual e está aprovado:
+- lote `complete` protegido contra `--commit --limit=N`;
+- progresso usa `attempted` para toda tentativa;
+- metadata anterior é preservada durante checkpoints.
+
+### AUTORIZADO AGORA
+
+Executar **somente o PREFLIGHT/AUDITORIA do lote 2021-2022**.
+
+Fazer:
+- coletar/classificar o lote com a mesma barreira de integridade;
+- gerar números de candidatas, eligible, needs_review, quarantined, rejected;
+- contar imagens/referências/URLs únicas;
+- distribuição por editoria;
+- identificar qualquer categoria nova ou primeira aparição relevante;
+- gerar relatórios equivalentes aos lotes anteriores;
+- atualizar `docs/AI_HANDOFF.md` e `docs/legacy-migration-status.json`;
+- commit/push;
+- **PARAR para nova conferência**.
+
+### NÃO AUTORIZADO AINDA
+
+- não executar import real de 2021-2022;
+- não iniciar 2023-2024;
+- não iniciar 2025-2026;
+- não gerar novo Preview ainda;
+- não fazer Production.
+
+Se o preflight encontrar categoria nova/não revisada, volume anormal de `needs_review`, inconsistência de contagem ou outro achado estrutural, destacar claramente no handoff.
