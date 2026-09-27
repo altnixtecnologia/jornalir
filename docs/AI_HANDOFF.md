@@ -6,7 +6,7 @@ Este arquivo é atualizado ao final de CADA fase a partir da Fase 35. Curto, dir
 
 ## Fase 46C — CARGA REAL do lote 2025-2026 CONCLUÍDA — último lote cronológico do legado
 
-**HEAD/commit:** `PENDENTE` (branch `feature/jornalir-core-foundation-20260917`)
+**HEAD/commit:** `6defdfe` (branch `feature/jornalir-core-foundation-20260917`)
 
 Autorizado por `docs/CHATGPT_REVIEW.md` (revisão sobre HEAD `b63830e`: Fase 46B aprovada, "AUTORIZADA carga real de 2025-2026", usando o cache já completo, sem refetch, sem `--limit`). Relatórios completos em `docs/legacy-batch-2025-2026-final.md` e `docs/legacy-duplicate-audit-2025-2026.md`.
 
