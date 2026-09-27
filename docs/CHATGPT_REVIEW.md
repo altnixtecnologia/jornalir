@@ -510,3 +510,52 @@ Depois da limpeza, adicionar progresso ao importador sem alterar a lógica de im
 - preservar retomada/idempotência.
 
 Não iniciar 2021–2022 ainda. Commit/push e PARAR para conferência.
+
+
+## Revisão da Fase 43 — limpeza aprovada; progresso precisa de hardening antes de 2021–2022
+
+Revisado diretamente no GitHub sobre o HEAD `8965781`.
+
+### Limpeza de duplicatas — APROVADA
+
+A limpeza dos 54 grupos confirmados está correta:
+- 61 artigos arquivados, 0 deletes;
+- 54 canônicos permanecem publicados;
+- total físico permanece 9.213;
+- total público caiu para 9.152;
+- 11 grupos manuais e 3 legítimos permaneceram intactos;
+- caso 420122/420123 resolvido conforme regra;
+- proveniência e mídia preservadas.
+
+Nenhuma reversão necessária.
+
+### Importador com progresso — ainda precisa 3 correções de segurança
+
+O incidente com `--limit=120 --commit` em um lote já `complete` mostrou um risco real. Antes de iniciar 2021–2022, corrigir:
+
+1. **Proteger lote já concluído contra execução parcial**
+   - se `legacy_migration_batches.status = complete` e houver `--limit` finito com `--commit`, abortar ANTES de mudar status para `running`;
+   - mensagem clara dizendo que um lote concluído não pode ser reaberto parcialmente;
+   - full rerun sem `--limit` pode continuar permitido para reconciliação/idempotência.
+
+2. **Separar tentativas de sucessos no progresso**
+   - hoje `processed` só incrementa quando `importCandidate` não lança erro;
+   - isso torna `--limit`, porcentagem e ETA incorretos quando existe falha de artigo;
+   - criar `attempted` que incrementa para CADA candidata tentada, sucesso ou erro;
+   - usar `attempted` para limite/progresso/ETA;
+   - manter `imported/skippedExisting/failedArticles` como contadores de resultado.
+
+3. **Não apagar metadata anterior durante checkpoint**
+   - o update periódico atual grava `metadata: { progress: ... }`, substituindo temporariamente o JSON anterior;
+   - ler/preservar metadata existente e fazer merge ao atualizar `progress`;
+   - a reconciliação final pode gravar o resumo final normalmente, mas não deve haver janela em que metadata histórica seja descartada só por causa do progresso.
+
+### Teste obrigatório
+
+Sem tocar em lote concluído real:
+- testar a lógica de progresso em dry-run ou com teste unitário/helper;
+- testar que `--commit --limit=N` contra lote `complete` é recusado antes de qualquer UPDATE;
+- testar cenário simulado com 1 falha para confirmar que `attempted` chega ao limite e o ETA/progresso não trava;
+- typecheck/build se aplicável.
+
+Commit/push e PARAR para nova conferência. **Ainda não iniciar o preflight 2021–2022.**
