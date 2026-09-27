@@ -4,6 +4,53 @@ Este arquivo é atualizado ao final de CADA fase a partir da Fase 35. Curto, dir
 
 ---
 
+## Fase 46 — Preflight/auditoria do lote 2025-2026 (SOMENTE LEITURA, nada importado) — último lote cronológico
+
+**HEAD/commit:** `PENDENTE` (branch `feature/jornalir-core-foundation-20260917`)
+
+Autorizado por `docs/CHATGPT_REVIEW.md` (revisão sobre HEAD `3090bf4`: Fase 45C aprovada, "AUTORIZADO AGORA — somente preflight/auditoria de 2025-2026"). **Nenhuma escrita real nesta fase.**
+
+### Checagem de cache (pedido explícito, antes de qualquer coleta)
+
+5.341 candidatas no intervalo 2025-2026; 0 já em cache (primeira vez que este lote é tocado); 5.341 faltando. Toda a coleta buscou o que faltava — nenhum lote concluído foi tocado, nenhum cache invalidado.
+
+### O que foi feito
+
+1. `migrate.mjs --batch=2025-2026 --mode=preflight` rodado — coletou os 5.341 detalhes faltantes (barreira de integridade + sanitização de resíduo de `<img>` já aplicadas automaticamente no fetch). Confirmado **0 casos** do padrão de resíduo neste lote.
+2. Relatórios gerados via `report-batch.mjs --batch=2025-2026`.
+3. Verificação de tipos de mídia incomuns (pedido explícito da revisão) — ver abaixo.
+
+### Números do preflight 2025-2026
+
+| Métrica | Valor |
+|---|---|
+| Candidatas no intervalo | 5.341 |
+| Exceções de data | 7 |
+| **Elegíveis** | **5.312** |
+| `needs_review` | 2 (corpo vazio, padrão já visto) |
+| `quarantined` | 27 (todos `classificados`) |
+| Rejeitadas | 0 |
+| Com imagem / sem imagem | 5.311 / 1 |
+| Referências de imagem | 16.035 (~3,0/matéria — quase o dobro da densidade dos lotes anteriores) |
+| Distribuição por editoria | geral=3.292, sociais=771, esporte=314, policia=313, politica=297, saude=191, colunistas=68, agricultura=66 |
+
+### Achado 1: `classificados` cresceu para 27 itens (era 3 em 2023-2024)
+
+Todos corretamente barrados pela quarentena — nenhum liberado automaticamente. Reforça a necessidade de revisão humana específica da categoria antes de qualquer liberação.
+
+### Achado 2: verificação de tipos de mídia incomuns (pedido explícito)
+
+Varredura das extensões de URL de imagem encontrou volume relevante de extensões fora do padrão: **3.371 referências `.jfif`** (2.442 URLs únicas), 4 `.mhtml` (2 únicas), 2 `.enc` (1 única). Verificado via `HEAD` request (sem baixar/gravar nada, 15 amostras distintas) que o `Content-Type` HTTP real de TODAS é `image/jpeg` ou `image/png` — já suportado pelo bucket. Como `migrate.mjs` decide o tipo pelo `Content-Type` real da resposta (nunca pela extensão da URL), essas extensões incomuns não deveriam causar falha de upload como aconteceu com o `.bmp` genuíno da Fase 45B. Risco residual (das ~2.442 URLs `.jfif` únicas, só 12 foram testadas uma a uma) é do mesmo tipo pontual já resolvido com sucesso antes. Detalhe completo em `docs/legacy-preflight-2025-2026.md`.
+
+### Confirmação explícita
+
+- Nenhum lote concluído tocado, nenhum cache invalidado.
+- Nenhuma matéria/imagem importada nesta etapa.
+- Nenhuma verificação de mídia envolveu download/gravação — só `HEAD` requests.
+- Este é o último lote cronológico do legado — depois da carga real (etapa futura), a migração histórica estará completa.
+
+---
+
 ## Fase 45C — Limpeza reversível da 1 duplicata confirmada de 2023-2024
 
 **HEAD/commit:** `b060de6` (branch `feature/jornalir-core-foundation-20260917`)

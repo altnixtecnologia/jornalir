@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-09-27T17:41:28.665Z",
+  "updatedAt": "2026-09-27T18:16:44.766Z",
   "provider": "informativo_regional_legacy",
   "rule": "Lote padrão = 2 anos. Só dividir um lote específico (1 ano, depois semestre/mês) se ele apresentar problema grave.",
   "batches": [
@@ -408,7 +408,65 @@
       "batchKey": "2025-2026",
       "periodStart": "2025-01-01",
       "periodEnd": "2026-12-31",
-      "status": "pending"
+      "status": "preflight_complete_pending_import_authorization",
+      "note": "Preflight autorizado por docs/CHATGPT_REVIEW.md (HEAD 3090bf4): \"AUTORIZADO AGORA — somente preflight/auditoria de 2025-2026\" (último lote cronológico). Nenhuma escrita real. Checagem de cache feita antes da coleta: 5341 candidatas, 0 já em cache, 5341 buscadas nesta etapa. Sanitização de resíduo de <img> (Fase 44C) aplicada automaticamente no fetch — 0 casos encontrados. Achados: classificados cresceu para 27 itens (era 3 em 2023-2024), todos em quarentena; densidade de imagens quase dobrou (~3,0/matéria vs ~1,5-1,6 nos lotes anteriores); verificação de tipos de mídia incomuns (pedido explícito) encontrou 3371 refs .jfif (2442 URLs únicas), 4 .mhtml, 2 .enc — verificado via HEAD (15 amostras, sem download/gravação) que o Content-Type real de todas é image/jpeg ou image/png, já suportado pelo bucket. 2 needs_review do padrão já visto (corpo vazio). Ver docs/legacy-preflight-2025-2026.md.",
+      "preflight": {
+        "itemsFound": 5341,
+        "dateExceptions": 7,
+        "barreiraIntegridade": {
+          "eligible": 5312,
+          "needsReview": 2,
+          "quarantined": 27,
+          "rejected": 0
+        },
+        "withImage": 5311,
+        "withoutImage": 1,
+        "totalImageReferences": 16035,
+        "uniqueImageUrls": 16035,
+        "distribuicaoPorEditoria": {
+          "geral": 3292,
+          "esporte": 314,
+          "policia": 313,
+          "politica": 297,
+          "saude": 191,
+          "sociais": 771,
+          "agricultura": 66,
+          "colunistas": 68
+        }
+      },
+      "mediaTypeCheck": {
+        "performedAt": "2026-09-27T18:16:44.766Z",
+        "method": "HEAD requests only, no download/write",
+        "extensionsCounted": {
+          "jpg": 10836,
+          "jpeg": 4680,
+          "jfif": 3371,
+          "png": 1765,
+          "webp": 738,
+          "gif": 12,
+          "mhtml": 4,
+          "enc": 2
+        },
+        "uniqueUrlsForUnusualExtensions": {
+          "jfif": 2442,
+          "mhtml": 2,
+          "enc": 1
+        },
+        "sampledAndVerified": 15,
+        "allSampledContentTypesAlreadySupported": true,
+        "note": "Extensão da URL não corresponde ao Content-Type real em vários casos (.jfif/.mhtml/.enc servidos como image/jpeg ou image/png) — migrate.mjs decide o tipo pelo Content-Type real, nunca pela extensão, então isso não deveria bloquear a futura carga real como o .bmp genuíno da Fase 45B bloqueou."
+      },
+      "reportFiles": {
+        "preflight": "scripts/legacy-audit/output/batches/2025-2026/preflight.json",
+        "dateExceptions": "scripts/legacy-audit/output/batches/2025-2026/date-exceptions.json",
+        "needsReview": "scripts/legacy-audit/output/batches/2025-2026/needs-review.json",
+        "quarantined": "scripts/legacy-audit/output/batches/2025-2026/quarantined.json",
+        "rejected": "scripts/legacy-audit/output/batches/2025-2026/rejected.json",
+        "preflightMarkdown": "docs/legacy-preflight-2025-2026.md",
+        "reviewMarkdown": "docs/legacy-review-2025-2026.md",
+        "quarantinedMarkdown": "docs/legacy-quarantined-2025-2026.md",
+        "sampleCheckMarkdown": "docs/legacy-sample-check-2025-2026.md"
+      }
     }
   ],
   "globalNotes": {
