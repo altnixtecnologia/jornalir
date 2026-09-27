@@ -429,10 +429,126 @@ async function syncArticleMedia(client: SupabaseClient, articleId: string, desir
   }
 }
 
+
+export interface ArticleAdminPageQuery {
+  page?: number;
+  pageSize?: number;
+  search?: string;
+  status?: ArticleStatus | "all";
+  sectionId?: string;
+  localityId?: string;
+  origin?: ArticleOrigin | "all";
+}
+
+export interface ArticleAdminPageResult {
+  articles: Article[];
+  total: number;
+  page: number;
+  pageSize: number;
+  totalPages: number;
+}
+
+function normalizePageSize(value?: number): number {
+  return value === 24 || value === 96 ? value : 48;
+}
+
+function safeSearchTerm(value?: string): string {
+  return (value ?? "").trim().replace(/[%_,]/g, " ");
+}
+
+function dbOrigin(origin?: ArticleOrigin | "all"): ArticleRow["origin"] | null {
+  if (!origin || origin === "all") return null;
+  return ORIGIN_TO_DB[origin];
+}
+
+/**
+ * Listagem administrativa paginada. Diferente de ArticleRepository.list(),
+ * esta função existe para telas com milhares de registros: filtros, count e
+ * range são aplicados no Postgres e só a página atual recebe capa/placement.
+ */
+export async function listArticlesAdminPageSupabase(
+  client: SupabaseClient,
+  input: ArticleAdminPageQuery = {},
+): Promise<ArticleAdminPageResult> {
+  const pageSize = normalizePageSize(input.pageSize);
+  const requestedPage = Math.max(1, Math.floor(input.page ?? 1));
+
+  const buildQuery = (page: number) => {
+    let query = client
+      .from(ARTICLES_TABLE)
+      .select(ARTICLE_COLUMNS, { count: "exact" })
+      .order("updated_at", { ascending: false })
+      .order("id", { ascending: false });
+
+    if (input.status && input.status !== "all") query = query.eq("status", input.status);
+    if (input.sectionId && input.sectionId !== "all") query = query.eq("section_id", input.sectionId);
+    if (input.localityId && input.localityId !== "all") query = query.eq("locality_id", input.localityId);
+    const origin = dbOrigin(input.origin);
+    if (origin) query = query.eq("origin", origin);
+
+    const term = safeSearchTerm(input.search);
+    if (term) {
+      const pattern = `%${term}%`;
+      query = query.or(
+        `title.ilike.${pattern},subtitle.ilike.${pattern},internal_reference.ilike.${pattern}`,
+      );
+    }
+
+    const from = (page - 1) * pageSize;
+    return query.range(from, from + pageSize - 1);
+  };
+
+  let { data, error, count } = await buildQuery(requestedPage);
+  if (error) throw new Error(error.message);
+
+  const total = count ?? 0;
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  const page = Math.min(requestedPage, totalPages);
+
+  if (page !== requestedPage) {
+    const retry = await buildQuery(page);
+    if (retry.error) throw new Error(retry.error.message);
+    data = retry.data;
+  }
+
+  const rows = (data ?? []) as ArticleRow[];
+  const ids = rows.map((row) => row.id);
+  const [placements, coverMedia] = await Promise.all([
+    fetchActivePlacements(client, ids),
+    fetchCoverMediaByArticle(client, ids),
+  ]);
+
+  return {
+    articles: rows.map((row) =>
+      toDomain(row, placements.get(row.id) ?? null, coverMedia.get(row.id) ?? []),
+    ),
+    total,
+    page,
+    pageSize,
+    totalPages,
+  };
+}
+
 export function createArticleRepositorySupabase(client: SupabaseClient): ArticleRepository {
   return {
     async list(filters?: ArticleFilters) {
+      // Destaques nunca precisam varrer todos os artigos publicados. Primeiro
+      // resolve os poucos placements ativos daquele tipo e só então busca as
+      // matérias correspondentes (limites atuais: 3 a 8 por bloco).
+      let placementRows: PlacementRow[] | null = null;
+      if (filters?.placementType && filters.placementType !== "none") {
+        const { data: placementData, error: placementError } = await client
+          .from(PLACEMENTS_TABLE)
+          .select(PLACEMENT_COLUMNS)
+          .eq("type", filters.placementType)
+          .eq("active", true);
+        if (placementError) throw new Error(placementError.message);
+        placementRows = (placementData ?? []) as PlacementRow[];
+        if (placementRows.length === 0) return [];
+      }
+
       let query = client.from(ARTICLES_TABLE).select(ARTICLE_COLUMNS).order("updated_at", { ascending: false });
+      if (placementRows) query = query.in("id", placementRows.map((row) => row.article_id));
       if (filters?.status) query = query.eq("status", filters.status);
       if (filters?.sectionId) query = query.eq("section_id", filters.sectionId);
       if (filters?.localityId) query = query.eq("locality_id", filters.localityId);
@@ -442,18 +558,17 @@ export function createArticleRepositorySupabase(client: SupabaseClient): Article
       if (error) throw new Error(error.message);
       const rows = (data ?? []) as ArticleRow[];
 
+      const placementMap = new Map<string, PlacementRow>(
+        placementRows?.map((row) => [row.article_id, row]) ?? [],
+      );
       const [placements, coverMedia] = await Promise.all([
-        fetchActivePlacements(client, rows.map((row) => row.id)),
+        placementRows ? Promise.resolve(placementMap) : fetchActivePlacements(client, rows.map((row) => row.id)),
         fetchCoverMediaByArticle(client, rows.map((row) => row.id)),
       ]);
 
-      const articles = rows.map((row) =>
+      return rows.map((row) =>
         toDomain(row, placements.get(row.id) ?? null, coverMedia.get(row.id) ?? []),
       );
-      if (filters?.placementType) {
-        return articles.filter((article) => article.placement.type === filters.placementType);
-      }
-      return articles;
     },
 
     async getById(id: string) {
