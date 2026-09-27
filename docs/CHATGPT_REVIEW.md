@@ -1193,3 +1193,45 @@ Ainda NÃO autorizado:
 - revisão/forçamento dos casos needs_review/quarantined;
 - novo Preview;
 - Production.
+
+
+## Revisão da Fase 46 — preflight 2025-2026 quase aprovado; corrigir inconsistência da auditoria de extensões antes da carga
+
+Revisado no GitHub sobre o HEAD `c2b7f0a`.
+
+### Parte principal do preflight conferida
+
+Os números editoriais do lote estão coerentes:
+- candidatas: **5.341**
+- eligible: **5.312**
+- needs_review: **2**
+- quarantined/classificados: **27**
+- rejected: **0**
+- referências de imagem elegíveis: **16.035**
+- URLs únicas elegíveis: **16.035**
+- sanitização de resíduo HTML: 0 casos.
+
+Os 2 needs_review e os 27 classificados continuam corretamente fora de qualquer carga automática.
+
+### BLOQUEIO antes da importação real — contagem de extensões não fecha
+
+A tabela de extensões do relatório soma **21.408 ocorrências**:
+10.836 jpg + 4.680 jpeg + 3.371 jfif + 1.765 png + 738 webp + 12 gif + 4 mhtml + 2 enc = **21.408**.
+
+Mas o próprio preflight informa **16.035 referências de imagem elegíveis** e **16.035 URLs únicas elegíveis**.
+
+Essa diferença de **5.373** não é explicada pelos itens excluídos: os 27 quarantined têm apenas 41 imagens documentadas e os 2 needs_review têm 5, totalizando 46.
+
+Antes de autorizar a carga, corrigir SOMENTE essa auditoria, sem refetch de matérias e sem importação.
+
+### O que fazer agora
+
+1. Recalcular localmente, a partir do cache já completo de 2025-2026, usando exatamente o mesmo conjunto `eligibleList` e a mesma função `collectImageRefs(detail)` usada pelo preflight/importador.
+2. Para cada referência, classificar a extensão de forma **mutuamente exclusiva** usando somente o pathname da URL (ignorando query string).
+3. A soma de todos os buckets de extensão + bucket `sem_extensao/outro` deve fechar exatamente em **16.035**.
+4. Informar também URLs únicas por extensão.
+5. Para extensões incomuns, preservar a verificação de MIME já feita; se a lista correta de URLs incomuns mudar, verificar apenas as novas amostras necessárias via HEAD.
+6. Corrigir `docs/legacy-preflight-2025-2026.md`, `docs/AI_HANDOFF.md` e `docs/legacy-migration-status.json` com os números consistentes.
+7. Commit/push e PARAR para nova conferência.
+
+NÃO importar 2025-2026 ainda. NÃO iniciar Preview/Production.
