@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-09-27T14:07:22.203Z",
+  "updatedAt": "2026-09-27T17:36:19.318Z",
   "provider": "informativo_regional_legacy",
   "rule": "Lote padrão = 2 anos. Só dividir um lote específico (1 ano, depois semestre/mês) se ele apresentar problema grave.",
   "batches": [
@@ -324,8 +324,8 @@
       "batchKey": "2023-2024",
       "periodStart": "2023-01-01",
       "periodEnd": "2024-12-31",
-      "status": "preflight_complete_pending_import_authorization",
-      "note": "Preflight autorizado por docs/CHATGPT_REVIEW.md (HEAD dc0ee49): \"AUTORIZADO AGORA — somente preflight/auditoria de 2023-2024\". Nenhuma escrita real. Checagem de cache feita antes da coleta: 4297 candidatas, 0 já em cache (primeira vez que este lote é tocado), 4297 buscadas nesta etapa. Sanitização de resíduo de <img> (lib/sanitize.mjs, integrada desde a Fase 44C) aplicada automaticamente no fetch — 0 casos do padrão encontrados neste lote. Achado: classificados apareceu pela primeira vez (3 itens, todos em quarentena) — pelos títulos parecem notícias comuns publicadas por engano sob /classificados/, não classificados de fato; reforça manter a categoria em quarentena até revisão humana específica. 2 needs_review do padrão já visto (corpo vazio). Ver docs/legacy-preflight-2023-2024.md.",
+      "status": "complete",
+      "note": "LOTE CONCLUÍDO. Autorizado por docs/CHATGPT_REVIEW.md (HEAD 2521e81), usando o cache já completo, sem refetch, sem --limit. Execução completa gerou 1 falha de imagem NÃO transitória (mime type image/bmp não suportado pelo bucket article-media) — corrigida via migration 20261006100000_article_media_allow_bmp.sql (só acrescenta image/bmp a allowed_mime_types), aplicada manualmente pelo usuário via supabase db push (sandbox bloqueou alteração direta do bucket). Retry sem --limit reconciliou a pendente. legacy_migration_batches.status=complete confirmado. Validação batch-scoped: 4292/4292 articles/sources, 7165/7165 media/vínculos deste lote, 0 duplicatas dentro do lote, 0 vazamento de needs_review/quarantined/exceções de data. Checagem GLOBAL confirma 0 duplicatas entre os 5 lotes já migrados (17980 articles/slugs/sources únicos total = 1622+2503+5088+4475+4292; 28254 media/origin_source_url únicos total). Auditoria de duplicatas pós-carga (somente leitura): 64 grupos já resolvidos (54 Fase 43 + 10 Fase 44F), 2 candidatos novos envolvendo 2023-2024 (nenhum arquivado), 13 candidatos antigos ainda pendentes intocados. Ver docs/legacy-batch-2023-2024-final.md e docs/legacy-duplicate-audit-2023-2024.md.",
       "preflight": {
         "itemsFound": 4297,
         "dateExceptions": 7,
@@ -359,7 +359,42 @@
         "preflightMarkdown": "docs/legacy-preflight-2023-2024.md",
         "reviewMarkdown": "docs/legacy-review-2023-2024.md",
         "quarantinedMarkdown": "docs/legacy-quarantined-2023-2024.md",
-        "sampleCheckMarkdown": "docs/legacy-sample-check-2023-2024.md"
+        "sampleCheckMarkdown": "docs/legacy-sample-check-2023-2024.md",
+        "finalReport": "docs/legacy-batch-2023-2024-final.md",
+        "duplicateAuditMarkdown": "docs/legacy-duplicate-audit-2023-2024.md"
+      },
+      "finalBatch": {
+        "totalArticles": 4292,
+        "totalImageReferences": 7165,
+        "failedArticles": 0,
+        "failedImages": 0,
+        "nonTransientImageFailureFixed": {
+          "url": "https://suitacdn.cloud-bricks.net/fotos/890776/file/desktop/brs.bmp?1704314984",
+          "error": "mime type image/bmp is not supported",
+          "fix": "supabase/migrations/20261006100000_article_media_allow_bmp.sql (allowed_mime_types += image/bmp)"
+        },
+        "distribuicaoPorEditoriaConfirmada": {
+          "colunistas": 43,
+          "geral": 3125,
+          "esporte": 231,
+          "policia": 76,
+          "politica": 261,
+          "saude": 195,
+          "sociais": 193,
+          "agricultura": 168
+        },
+        "duplicatesFoundWithinBatch": 0,
+        "duplicatesFoundAcrossBatches": 0,
+        "placementsCreated": 0,
+        "needsReviewLeaked": 0,
+        "quarantinedLeaked": 0,
+        "dateExceptionsLeaked": 0,
+        "duplicateCandidateAuditPostImport": {
+          "alreadyResolved": 64,
+          "newCandidatesInvolving2023_2024": 2,
+          "otherPendingCandidates": 13,
+          "noneArchivedAutomatically": true
+        }
       }
     },
     {
@@ -394,6 +429,7 @@
     "regraEditorialDuplicatasConfirmada": "Decisão do usuário (Fase 43B): mesmo título em datas diferentes NUNCA é duplicata por si só; mesmo título+data é só candidato, exige confirmação por conteúdo (corpo idêntico/quase idêntico) antes de qualquer arquivamento. A limpeza já feita nos 54 grupos da Fase 43 permanece válida — todos tinham corpo normalizado idêntico, não só título+data iguais. Regra registrada em scripts/legacy-audit/duplicate-audit.mjs para qualquer reuso futuro do script.",
     "htmlLeakDetectionFase44B": "Regra HTML_LEAK_IN_TEXT (lib/integrity.mjs) detecta atributo/tag HTML vazado como texto puro em bodyTextFull (ex.: style=\"...\" data-filename=\"...\" sobrando de uma tag <img> malformada na origem que o cheerio não fechou) — aplicada só sobre bodyTextFull, nunca sobre bodyHtml (onde os mesmos padrões são markup legítimo). Adicionada na Fase 44B após revisão do ChatGPT (HEAD a40e93f) apontar o caso na amostra de 2021-2022 (external_id 418316); varredura local no cache já existente confirmou 160 casos no lote, todos reclassificados de eligible para needs_review sem nenhum refetch. Na Fase 44C, a análise confirmou que os 160 são resíduo mecânico e a sanitização (ver htmlLeakSanitizationFase44C) devolveu todos a eligible — HTML_LEAK_IN_TEXT permanece como rede de segurança para padrões inesperados futuros.",
     "htmlLeakSanitizationFase44C": "lib/sanitize.mjs (IMG_ATTR_RESIDUE) remove cirurgicamente o resíduo de atributos de <img> quebrada (data-filename=\"retriever\"/style=\"width:...;height:...;\") terminado pela entidade &gt; — nunca um > real, o que garante que só resíduo malformado é removido, nunca texto/markup editorial legítimo. Integrada em lib/parse.mjs (parseArticlePage) para todo fetch futuro (2023-2024, 2025-2026) já sair limpo. O cache de 2021-2022 foi reprocessado sem refetch via reprocess-cache-html-leak.mjs (recalcula bodyHtml/bodyTextFull a partir do bodyHtml já em cache). Validação: 160/160 casos de 2021-2022 sanitizados, 0 falso-positivo nos 4.327 artigos restantes do lote e em todo o cache de 2015-2016/2017-2018. ACHADO PENDENTE: o mesmo padrão existe em 203 artigos do lote 2019-2020, JÁ IMPORTADO em produção — identificado mas não corrigido (nem no cache, nem no banco) até decisão explícita. Ver docs/legacy-html-leak-analysis-2021-2022.md.",
-    "htmlResidueFixFase44D": "scripts/legacy-audit/fix-imported-html-residue.mjs corrige pontualmente artigos JÁ IMPORTADOS que carregam o resíduo mecânico de <img> quebrada (ver htmlLeakSanitizationFase44C) — usa somente o cache local (inventory.ndjson + details.ndjson do lote), nunca refetch, nunca reabre/reexecuta o lote. Só corrige um registro quando articles.body atual bate EXATAMENTE com o body esperado do cache (evita sobrescrever qualquer edição manual pós-migração); divergências viram manual_conflict e não são tocadas. Aplicado nos 203 casos de 2019-2020 na Fase 44D: 203/203 corrigidos, 0 conflito. validate-html-residue-fix.mjs faz a verificação somente leitura pós-correção. Ver docs/legacy-html-residue-fix-2019-2020.md."
+    "htmlResidueFixFase44D": "scripts/legacy-audit/fix-imported-html-residue.mjs corrige pontualmente artigos JÁ IMPORTADOS que carregam o resíduo mecânico de <img> quebrada (ver htmlLeakSanitizationFase44C) — usa somente o cache local (inventory.ndjson + details.ndjson do lote), nunca refetch, nunca reabre/reexecuta o lote. Só corrige um registro quando articles.body atual bate EXATAMENTE com o body esperado do cache (evita sobrescrever qualquer edição manual pós-migração); divergências viram manual_conflict e não são tocadas. Aplicado nos 203 casos de 2019-2020 na Fase 44D: 203/203 corrigidos, 0 conflito. validate-html-residue-fix.mjs faz a verificação somente leitura pós-correção. Ver docs/legacy-html-residue-fix-2019-2020.md.",
+    "bucketBmpFase45B": "O bucket article-media não aceitava image/bmp até a migration 20261006100000 (Fase 45B) — 1 imagem do lote 2023-2024 era BMP. Migration só atualizou allowed_mime_types (acrescentou image/bmp), nenhum objeto apagado, nenhuma policy alterada. Mesmo padrão do achado de GIF na Fase 35E (ver bucketGif)."
   }
 }

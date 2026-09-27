@@ -4,6 +4,37 @@ Este arquivo é atualizado ao final de CADA fase a partir da Fase 35. Curto, dir
 
 ---
 
+## Fase 45B — CARGA REAL do lote 2023-2024 CONCLUÍDA
+
+**HEAD/commit:** `PENDENTE` (branch `feature/jornalir-core-foundation-20260917`)
+
+Autorizado por `docs/CHATGPT_REVIEW.md` (revisão sobre HEAD `2521e81`: preflight aprovado, "AUTORIZADO AGORA — carga real 2023-2024", usando o cache já completo, sem refetch, sem `--limit`). Relatórios completos em `docs/legacy-batch-2023-2024-final.md` e `docs/legacy-duplicate-audit-2023-2024.md`.
+
+### Carga real e achado técnico (bucket não aceitava BMP)
+
+`node --env-file=".env.local" scripts/legacy-audit/migrate.mjs --batch=2023-2024 --mode=import --commit --rps=4`, executado 2x. 1ª execução: 4.292/4.292 articles, 1 falha de imagem **não-transitória** (`mime type image/bmp is not supported` — mesma classe de achado da Fase 35E com GIF). Criada a migration `supabase/migrations/20261006100000_article_media_allow_bmp.sql` (só acrescenta `image/bmp` a `allowed_mime_types`, sem recriar bucket/apagar objetos). O sandbox bloqueou a alteração direta do bucket ("Modify Shared Resources"); o usuário aplicou a migration manualmente via `supabase db push`. 2ª execução (retry, sem `--limit`): reconciliada a imagem pendente. Resultado final: **4.292/4.292 articles, 7.165/7.165 referências de imagem, 0 falhas**, `legacy_migration_batches.status = complete`.
+
+### Validação final (`batch-final-validate.mjs --batch=2023-2024`)
+
+Todos os itens batem exatamente com o esperado: 4.292 articles/sources, 7.165 media/article_media, 0 placements, 4.276 com exatamente 1 capa, 16 sem imagem, 0 vazamento de `needs_review`(2)/`quarantined`(3, confirmado por consulta direta)/exceções de data(7), 5/5 GIFs. Checagem global: **17.980 articles/sources/slugs — todos únicos**; **28.254 media_assets — todos com `origin_source_url`/`storage_path` únicos**. Aritmética: 1.622+2.503+5.088+4.475+4.292=17.980.
+
+### Auditoria de candidatos a duplicata (somente leitura, nada arquivado)
+
+Rodada sobre os 5 lotes (17.980 articles). Resultado:
+- 64 grupos já resolvidos (54 Fase 43 + 10 Fase 44F) — esperado;
+- **2 candidatos novos envolvendo 2023-2024** (1 corpo idêntico, 1 precisa inspeção) — nenhum arquivado;
+- 13 candidatos antigos ainda pendentes (10 de 2015-2020 + 3 de 2021-2022) continuam intocados.
+
+### Confirmação explícita
+
+- Nenhum refetch de rede (cache 100% reaproveitado).
+- Nenhuma matéria dos lotes anteriores alterada por esta carga.
+- Os 2 `needs_review` e os 3 `quarantined`/`classificados` ficaram fora, confirmado.
+- Nenhum arquivamento automático de duplicata.
+- Não iniciado o lote 2025-2026. Nenhum Preview gerado.
+
+---
+
 ## Fase 45 — Preflight/auditoria do lote 2023-2024 (SOMENTE LEITURA, nada importado)
 
 **HEAD/commit:** `8d25ed8` (branch `feature/jornalir-core-foundation-20260917`)
