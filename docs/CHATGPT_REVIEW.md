@@ -999,3 +999,51 @@ Regras de segurança:
 Gerar relatório da limpeza, atualizar `docs/AI_HANDOFF.md` e `docs/legacy-migration-status.json`, commit/push e PARAR.
 
 Não iniciar 2023-2024 ainda. Não gerar Preview ainda.
+
+
+## Revisão da Fase 44F — aprovada; AUTORIZADO somente preflight de 2023-2024
+
+Revisado no GitHub sobre o HEAD `dc0ee49`.
+
+### Fase 44F aprovada
+
+A limpeza bate exatamente com o autorizado:
+- 10 grupos / 23 artigos;
+- 13 arquivados / 10 canônicos mantidos;
+- 0 DELETE;
+- 10/10 grupos terminaram com exatamente 1 published;
+- 13/13 arquivados com `archived_at`;
+- totais físicos preservados: 13.688 articles / 13.688 external_sources / 21.089 article_media;
+- published legado = 13.614, coerente com 13.688 - 61 - 13;
+- 3 grupos de 2021-2022 em inspeção continuam intocados;
+- 9 grupos antigos pendentes continuam intocados.
+
+### AUTORIZADO AGORA — somente preflight/auditoria de 2023-2024
+
+Seguir o mesmo fluxo seguro usado no lote anterior, sem import real ainda.
+
+Antes de qualquer coleta longa:
+1. informar quantas candidatas 2023-2024 existem no inventário;
+2. quantos detalhes já existem em cache local;
+3. quantos ainda faltam buscar;
+4. reutilizar integralmente qualquer cache/checkpoint existente;
+5. não invalidar cache por causa das mudanças de sanitização — o parser atual já sanitiza novos fetches.
+
+Depois:
+- executar somente o preflight de 2023-2024;
+- buscar apenas detalhes faltantes;
+- aplicar a barreira de integridade + sanitização atual;
+- gerar eligible / needs_review / quarantined / rejected;
+- contar imagens, referências e URLs únicas;
+- distribuição por editoria;
+- destacar qualquer categoria nova, especialmente `classificados` se aparecer;
+- gerar relatórios equivalentes aos lotes anteriores;
+- atualizar `docs/AI_HANDOFF.md` e `docs/legacy-migration-status.json`;
+- commit/push;
+- PARAR para conferência.
+
+Ainda NÃO autorizado:
+- import real de 2023-2024;
+- iniciar 2025-2026;
+- gerar novo Preview;
+- fazer Production.
