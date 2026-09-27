@@ -719,3 +719,66 @@ Para o preflight 2021-2022:
 8. Não invalidar cache por mudanças recentes de progresso/deduplicação: essas mudanças não alteraram o parser de conteúdo legado.
 
 A próxima etapa continua sendo somente o preflight 2021-2022, mas deve ser feita de forma incremental e sem retrabalho.
+
+
+## Revisão do preflight 2021-2022 — números aprovados, 1 checagem rápida antes da carga real
+
+Revisado no GitHub sobre o HEAD atual `f701266`.
+
+### Preflight aprovado nos números
+
+- candidatas: 4.488
+- eligible: 4.475
+- needs_review: 13
+- quarantined: 0
+- rejected: 0
+- com imagem: 4.469
+- sem imagem: 6
+- referências de imagem: 6.889
+- nenhuma categoria nova
+- classificados ausente
+- agricultura já liberada e normal
+
+### Achado pontual na amostra que precisa ser verificado antes de importar
+
+Na amostra `docs/legacy-sample-check-2021-2022.md`, a matéria:
+
+`CAMPEONATO PRAIANO DE BEACH SOCCER 2022 COMEÇA EM TORRES NO PRÓXIMO SÁBADO`
+(external_id 418316)
+
+foi classificada como `eligible`, mas o final de `bodyTextFull` contém texto com aparência de atributo HTML vazado:
+
+`style="width: 363.273px; height: 646.933px;" data-filename="retriever">Divulgação/`
+
+Isso pode indicar HTML malformado da origem sendo incorporado como texto editorial.
+
+### Fazer AGORA — sem retrabalho e sem refetch
+
+NÃO repetir coleta, NÃO invalidar cache e NÃO refazer o preflight de rede.
+
+Usar somente o cache já existente em:
+`output/batches/2021-2022/details.ndjson`
+
+Fazer uma varredura local rápida sobre os **4.475 eligible** procurando em `bodyTextFull` fragmentos com aparência de atributos/tags HTML vazados como texto, por exemplo:
+- `style="`
+- `data-...="`
+- `class="`
+- `src="`
+- `href="`
+- tags literais inesperadas como `<img`, `<div`, `<span`
+
+Evitar falso positivo: procurar esses padrões em `bodyTextFull` (texto extraído), NÃO em `bodyHtml`.
+
+### Se encontrar casos
+
+- listar quantidade + external_id + título;
+- classificar esses casos como `needs_review` (não corrigir conteúdo automaticamente nesta etapa);
+- adicionar uma regra conservadora na barreira de integridade para capturar esse tipo de vazamento textual;
+- reclassificar/regenerar os relatórios **usando exclusivamente o cache atual**, sem nova coleta do site;
+- atualizar os números finais do preflight.
+
+### Se não houver outros casos
+
+Mesmo assim, o external_id 418316 deve sair de `eligible` e virar `needs_review`, pois o vazamento está comprovado na amostra.
+
+Depois: commit/push e PARAR para conferência. Ainda não executar a carga real 2021-2022.
