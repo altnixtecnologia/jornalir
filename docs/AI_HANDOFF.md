@@ -6,7 +6,7 @@ Este arquivo é atualizado ao final de CADA fase a partir da Fase 35. Curto, dir
 
 ## Fase 41 — Lote 2019-2020 CONCLUÍDO (5.088/5.088, 7.082/7.082 imagens)
 
-**HEAD/commit:** PLACEHOLDER (branch `feature/jornalir-core-foundation-20260917`)
+**HEAD/commit:** `3eae165` (branch `feature/jornalir-core-foundation-20260917`)
 
 Autorizado por `docs/CHATGPT_REVIEW.md` (revisão sobre HEAD `9bca751`: "AUTORIZADA A CARGA REAL 2019–2020", sem exigir novo canário). **Terceiro lote migrado e validado.**
 
