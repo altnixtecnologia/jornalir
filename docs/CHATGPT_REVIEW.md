@@ -576,3 +576,87 @@ Regra para auditorias futuras:
 - nunca usar apenas título como chave de deduplicação.
 
 A limpeza já executada em 2015–2020 permanece válida: os 54 grupos corrigidos foram os grupos classificados como duplicata real provável com **corpo normalizado idêntico**, não apenas título/data iguais. Os 11 grupos de corpo apenas parecido e os 3 grupos legítimos não foram tocados.
+
+
+## Autorização operacional — concluir todos os lotes restantes antes do novo Preview
+
+Decisão do usuário: concluir a migração histórica inteira primeiro e só depois gerar o novo Preview do portal.
+
+### Ordem obrigatória
+
+1. Finalizar e testar o hardening do progresso já pedido nesta revisão.
+2. Processar, em sequência:
+   - 2021-2022
+   - 2023-2024
+   - 2025-2026
+3. Só após os 3 lotes restantes estarem concluídos/validados, gerar novo Preview do `apps/site`.
+
+### Para cada lote restante
+
+Executar o mesmo pipeline já validado:
+- preflight;
+- barreira de integridade;
+- relatório de `needs_review` / `quarantined` / `rejected`;
+- import real somente dos elegíveis;
+- retry das falhas pontuais de mídia;
+- validação batch-scoped;
+- checagem global de duplicidade por identidade;
+- atualizar `docs/AI_HANDOFF.md` e `docs/legacy-migration-status.json`.
+
+Não precisa parar entre lotes se todos os critérios abaixo estiverem verdes.
+
+### Parar imediatamente e pedir revisão somente se ocorrer
+
+- dezenas/centenas de falhas de imagem ou padrão de erro sistêmico;
+- falha de artigo não resolvida;
+- divergência entre esperado e importado;
+- duplicidade por `external_id` ou `source_url`;
+- nova categoria não mapeada / categoria que exija decisão editorial;
+- qualquer vazamento de `needs_review`, `quarantined` ou exceção de data para a carga;
+- risco de perda/alteração de dados já migrados;
+- lote não conseguir fechar como `complete`.
+
+Falhas isoladas/transitórias de imagem podem ser retentadas e reconciliadas como nos lotes anteriores.
+
+### Regras editoriais mantidas
+
+- `classificados` continua em quarentena editorial: não importar automaticamente enquanto não houver revisão específica.
+- duplicatas de conteúdo: não usar apenas título; mesmo título em datas diferentes não é duplicata por si só. Mesmo título+mesma data é apenas candidato; confirmação exige conteúdo idêntico/quase idêntico.
+- nenhuma limpeza automática de novos suspeitos durante a migração; apenas registrar para auditoria posterior.
+- matérias `needs_review` ficam fora da carga automática.
+
+### Fechamento final
+
+Ao terminar 2025-2026:
+- rodar validação global final;
+- informar total físico de artigos, total `published`, total `archived`, total de mídias;
+- listar quantidade total remanescente em `needs_review`, `quarantined` e exceções de data;
+- confirmar 0 duplicatas por identidade;
+- gerar relatório final da migração;
+- commit/push;
+- então gerar um NOVO Preview do `apps/site` contra o banco completo, com paginação 24/48/96.
+
+Não fazer deploy de Production/domínio oficial. Apenas Preview.
+
+
+## CORREÇÃO DA AUTORIZAÇÃO OPERACIONAL — seguir o plano lote a lote
+
+Correção explícita do usuário: **NÃO executar todos os lotes restantes em sequência automaticamente.**
+
+Manter o fluxo original, com uma etapa por vez e conferência entre elas.
+
+### Próximo passo autorizado agora
+
+1. Concluir o hardening do progresso já solicitado.
+2. Depois executar **somente o preflight/auditoria do lote 2021-2022**.
+3. Gerar os relatórios, atualizar handoff/status, commit/push e **PARAR para conferência**.
+
+### Não autorizado neste momento
+
+- Não executar a carga real de 2021-2022 sem nova aprovação.
+- Não iniciar 2023-2024.
+- Não iniciar 2025-2026.
+- Não gerar o Preview final ainda.
+- Não fazer deploy de Production.
+
+Após cada etapa/lote, o ChatGPT confere o GitHub e libera explicitamente o próximo passo, mantendo o plano seguro usado até aqui.
