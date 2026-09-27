@@ -6,7 +6,7 @@ Este arquivo é atualizado ao final de CADA fase a partir da Fase 35. Curto, dir
 
 ## Fase 45C — Limpeza reversível da 1 duplicata confirmada de 2023-2024
 
-**HEAD/commit:** `PENDENTE` (branch `feature/jornalir-core-foundation-20260917`)
+**HEAD/commit:** `b060de6` (branch `feature/jornalir-core-foundation-20260917`)
 
 Autorizado por `docs/CHATGPT_REVIEW.md` (revisão sobre HEAD `008f016`: Fase 45B aprovada, "AUTORIZADO AGORA — limpeza reversível de somente 1 grupo": `CASOS DE DENGUE AUMENTAM 900% EM SC`, external_ids 572497/572509). Relatório completo em `docs/legacy-duplicate-cleanup-2023-2024.md`.
 
