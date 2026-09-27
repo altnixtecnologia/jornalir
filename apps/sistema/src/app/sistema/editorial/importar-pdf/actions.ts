@@ -2,9 +2,11 @@
 
 import { revalidatePath } from "next/cache";
 import type { ArticleMedia } from "@ir/types";
-import { getImportCandidateService } from "../../../../composition/editorial";
+import { getImportCandidateService, getNewspaperEditionService } from "../../../../composition/editorial";
 import { extractCandidatesFromPdf } from "../../../../composition/pdfCandidateExtraction";
 import { createSupabaseServerClient } from "../../../../lib/supabase/server";
+import { uploadEditionPdfToDrive } from "../../../../lib/googleDrive/editionArchive";
+import { attachEditionExternalPdf } from "../../../../providers/supabase/newspaperEditionRepository.supabase";
 import { SIMULATED_AUDIT as AUDIT } from "../../../../lib/simulatedAudit";
 
 const IMPORT_PATH = "/sistema/editorial/importar-pdf";
@@ -45,11 +47,12 @@ export async function generateCandidates(
   }
 
   try {
+    const client = createSupabaseServerClient();
     const buffer = new Uint8Array(await file.arrayBuffer());
     const result = await extractCandidatesFromPdf(
       editionId,
       buffer,
-      getImportCandidateService(createSupabaseServerClient()),
+      getImportCandidateService(client),
     );
     if (result.candidates.length === 0) {
       return {
@@ -59,13 +62,36 @@ export async function generateCandidates(
             : "Nenhum conteúdo pôde ser identificado neste PDF.",
       };
     }
+
+    const warnings = [...result.warnings];
+    // O mesmo PDF usado para extrair as matérias vira o arquivo oficial do
+    // Jornal Online quando a edição ainda não tem PDF. Assim não há segundo
+    // upload nem cópia pesada no Supabase Storage.
+    try {
+      const edition = await getNewspaperEditionService(client).getById(editionId);
+      if (edition && !edition.pdfUrl) {
+        const uploaded = await uploadEditionPdfToDrive(file, {
+          editionNumber: edition.editionNumber,
+          publicationDate: edition.publicationDate,
+        });
+        await attachEditionExternalPdf(client, editionId, uploaded.previewUrl);
+      }
+    } catch (archiveError) {
+      warnings.push(
+        archiveError instanceof Error
+          ? `PDF extraído, mas não arquivado no Jornal Online: ${archiveError.message}`
+          : "PDF extraído, mas não foi possível arquivá-lo no Jornal Online.",
+      );
+    }
+
     revalidatePath(IMPORT_PATH);
+    revalidatePath("/sistema/editorial/edicoes");
     return {
       ok: true,
       candidateCount: result.candidates.length,
       pageCount: result.pageCount,
       pagesWithoutText: result.pagesWithoutText,
-      warnings: result.warnings,
+      warnings,
     };
   } catch (error) {
     return { error: toErrorMessage(error) };
