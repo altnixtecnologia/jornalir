@@ -637,3 +637,26 @@ Ao terminar 2025-2026:
 - então gerar um NOVO Preview do `apps/site` contra o banco completo, com paginação 24/48/96.
 
 Não fazer deploy de Production/domínio oficial. Apenas Preview.
+
+
+## CORREÇÃO DA AUTORIZAÇÃO OPERACIONAL — seguir o plano lote a lote
+
+Correção explícita do usuário: **NÃO executar todos os lotes restantes em sequência automaticamente.**
+
+Manter o fluxo original, com uma etapa por vez e conferência entre elas.
+
+### Próximo passo autorizado agora
+
+1. Concluir o hardening do progresso já solicitado.
+2. Depois executar **somente o preflight/auditoria do lote 2021-2022**.
+3. Gerar os relatórios, atualizar handoff/status, commit/push e **PARAR para conferência**.
+
+### Não autorizado neste momento
+
+- Não executar a carga real de 2021-2022 sem nova aprovação.
+- Não iniciar 2023-2024.
+- Não iniciar 2025-2026.
+- Não gerar o Preview final ainda.
+- Não fazer deploy de Production.
+
+Após cada etapa/lote, o ChatGPT confere o GitHub e libera explicitamente o próximo passo, mantendo o plano seguro usado até aqui.
