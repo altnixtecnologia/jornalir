@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-09-27T18:16:44.766Z",
+  "updatedAt": "2026-09-27T19:13:45.494Z",
   "provider": "informativo_regional_legacy",
   "rule": "Lote padrão = 2 anos. Só dividir um lote específico (1 ano, depois semestre/mês) se ele apresentar problema grave.",
   "batches": [
@@ -409,7 +409,7 @@
       "periodStart": "2025-01-01",
       "periodEnd": "2026-12-31",
       "status": "preflight_complete_pending_import_authorization",
-      "note": "Preflight autorizado por docs/CHATGPT_REVIEW.md (HEAD 3090bf4): \"AUTORIZADO AGORA — somente preflight/auditoria de 2025-2026\" (último lote cronológico). Nenhuma escrita real. Checagem de cache feita antes da coleta: 5341 candidatas, 0 já em cache, 5341 buscadas nesta etapa. Sanitização de resíduo de <img> (Fase 44C) aplicada automaticamente no fetch — 0 casos encontrados. Achados: classificados cresceu para 27 itens (era 3 em 2023-2024), todos em quarentena; densidade de imagens quase dobrou (~3,0/matéria vs ~1,5-1,6 nos lotes anteriores); verificação de tipos de mídia incomuns (pedido explícito) encontrou 3371 refs .jfif (2442 URLs únicas), 4 .mhtml, 2 .enc — verificado via HEAD (15 amostras, sem download/gravação) que o Content-Type real de todas é image/jpeg ou image/png, já suportado pelo bucket. 2 needs_review do padrão já visto (corpo vazio). Ver docs/legacy-preflight-2025-2026.md.",
+      "note": "Preflight autorizado por docs/CHATGPT_REVIEW.md (HEAD 3090bf4): \"AUTORIZADO AGORA — somente preflight/auditoria de 2025-2026\" (último lote cronológico). Nenhuma escrita real. Checagem de cache feita antes da coleta: 5341 candidatas, 0 já em cache, 5341 buscadas nesta etapa. Sanitização de resíduo de <img> (Fase 44C) aplicada automaticamente no fetch — 0 casos encontrados. Achados: classificados cresceu para 27 itens (era 3 em 2023-2024), todos em quarentena; densidade de imagens quase dobrou (~3,0/matéria vs ~1,5-1,6 nos lotes anteriores); verificação de tipos de mídia incomuns (pedido explícito) encontrou 3371 refs .jfif (2442 URLs únicas), 4 .mhtml, 2 .enc — verificado via HEAD (15 amostras, sem download/gravação) que o Content-Type real de todas é image/jpeg ou image/png, já suportado pelo bucket. 2 needs_review do padrão já visto (corpo vazio). Ver docs/legacy-preflight-2025-2026.md. [Fase 46B] Corrigida a auditoria de extensões de mídia do preflight: a versão anterior somava 21.408 ocorrências (bug duplo: varria todo o cache em vez de só eligibleList, e não deduplicava coverUrl repetido em galleryImages). Recalculado com eligibleList + collectImageRefs(detail) — soma agora fecha exatamente 16.035, batendo com as referências elegíveis do preflight. Números editoriais (eligible/needs_review/quarantined) não mudaram. Ver docs/legacy-preflight-2025-2026.md.",
       "preflight": {
         "itemsFound": 5341,
         "dateExceptions": 7,
@@ -435,20 +435,23 @@
         }
       },
       "mediaTypeCheck": {
-        "performedAt": "2026-09-27T18:16:44.766Z",
-        "method": "HEAD requests only, no download/write",
+        "performedAt": "2026-09-27T19:13:45.493Z",
+        "method": "HEAD requests only, no download/write; extensions counted from eligibleList + collectImageRefs(detail) only (excludes quarantined/needs_review), mutually exclusive by URL pathname (query string ignored)",
+        "correctionNote": "Versão anterior somava 21.408 (incompatível com 16.035 referências elegíveis) por 2 bugs: (1) varria todas as 5.341 entradas do cache em vez de só as 5.312 eligibleList; (2) não deduplicava coverUrl repetido em galleryImages como collectImageRefs() faz. Corrigido na Fase 46B.",
         "extensionsCounted": {
-          "jpg": 10836,
-          "jpeg": 4680,
-          "jfif": 3371,
-          "png": 1765,
-          "webp": 738,
-          "gif": 12,
-          "mhtml": 4,
-          "enc": 2
+          "jpg": 8793,
+          "jpeg": 3399,
+          "jfif": 2427,
+          "png": 1018,
+          "webp": 389,
+          "gif": 6,
+          "mhtml": 2,
+          "enc": 1
         },
+        "sumOfBuckets": 16035,
+        "matchesEligibleImageReferences": true,
         "uniqueUrlsForUnusualExtensions": {
-          "jfif": 2442,
+          "jfif": 2427,
           "mhtml": 2,
           "enc": 1
         },

@@ -46,22 +46,30 @@ Este lote tem **16.035 referências de imagem para 5.312 elegíveis** (~3,0 imag
 
 ## Verificação de tipos de mídia incomuns (pedido explícito da revisão, antes da futura carga)
 
-Varredura das extensões de arquivo em todas as URLs de imagem (capa + galeria) dos 5.312 elegíveis, comparando com o que o bucket `article-media` já aceita hoje (`image/jpeg`, `image/png`, `image/webp`, `image/avif`, `image/gif`, `image/bmp`):
+**Correção (revisão sobre HEAD `c2b7f0a`):** a primeira versão desta tabela somava 21.408 ocorrências, incompatível com as 16.035 referências elegíveis do preflight. Causa raiz, dupla:
 
-| Extensão na URL | Ocorrências | Content-Type real (verificado via HEAD, amostra) |
-|---|---|---|
-| `.jpg` | 10.836 | `image/jpeg` (já suportado) |
-| `.jpeg` | 4.680 | `image/jpeg` (já suportado) |
-| `.jfif` | **3.371** (2.442 URLs únicas) | `image/jpeg` (12/12 amostras verificadas) |
-| `.png` | 1.765 | `image/png` (já suportado) |
-| `.webp` | 738 | `image/webp` (já suportado) |
-| `.gif` | 12 | `image/gif` (já suportado) |
-| `.mhtml` | 4 (2 URLs únicas) | `image/jpeg` (2/2 amostras verificadas) |
-| `.enc` | 2 (1 URL única) | `image/png` (1/1 amostra verificada) |
+1. o script original varria **todas** as 5.341 entradas do cache (inclusive as 27 `quarantined` e os 2 `needs_review`, que não entram na carga), em vez de só as 5.312 `eligibleList`;
+2. o script original contava `coverUrl` e cada item de `galleryImages` separadamente, sem aplicar a regra de `collectImageRefs()` (a mesma função usada pelo preflight/importador) que **pula** um item de galeria cujo `src` seja igual ao `coverUrl` — inflando a contagem de ocorrências sempre que a capa também aparecia na galeria.
 
-**Achado importante:** a extensão do arquivo não corresponde necessariamente ao tipo real do conteúdo — `.jfif`/`.mhtml`/`.enc` são nomes de arquivo enganosos, mas o servidor de origem devolve o `Content-Type` HTTP real e correto (`image/jpeg` ou `image/png`) em todas as amostras testadas. Isso é consistente com o comportamento do importador (`migrate.mjs`), que **decide o tipo pelo `Content-Type` da resposta HTTP, nunca pela extensão da URL** — logo essas extensões incomuns não deveriam causar falha de upload como aconteceu com o `.bmp` genuíno da Fase 45B (aquele caso falhou porque o `Content-Type` real ERA `image/bmp`, não porque a extensão era incomum).
+Recalculado exclusivamente a partir de `eligibleList` (as 5.312 matérias elegíveis) + `collectImageRefs(detail)` — exatamente o par usado pelo preflight/importador —, classificando cada referência por extensão de forma **mutuamente exclusiva** pelo `pathname` da URL (sem query string):
 
-Verificação feita via requisições `HEAD` (sem baixar o conteúdo, sem gravar nada) em: 1 amostra `.jfif` inicial + 12 amostras adicionais (URLs distintas, artigos distintos) + as 2 URLs únicas `.mhtml` + a 1 URL única `.enc` — **15/15 bateram com um MIME já suportado pelo bucket**. Não foram testadas as 2.442 URLs `.jfif` únicas uma a uma (custaria uma varredura de rede extensa para uma etapa de preflight); o risco residual de algum outlier isolado na carga real é o mesmo tipo de risco pontual já tratado com sucesso na Fase 45B (bucket ampliado sob demanda, sem refetch do lote).
+| Extensão na URL | Ocorrências | URLs únicas | Content-Type real (verificado via HEAD) |
+|---|---|---|---|
+| `.jpg` | 8.793 | 8.793 | `image/jpeg` (já suportado) |
+| `.jpeg` | 3.399 | 3.399 | `image/jpeg` (já suportado) |
+| `.jfif` | 2.427 | 2.427 | `image/jpeg` (12 amostras verificadas) |
+| `.png` | 1.018 | 1.018 | `image/png` (já suportado) |
+| `.webp` | 389 | 389 | `image/webp` (já suportado) |
+| `.gif` | 6 | 6 | `image/gif` (já suportado) |
+| `.mhtml` | 2 | 2 | `image/jpeg` (2/2 amostras verificadas) |
+| `.enc` | 1 | 1 | `image/png` (1/1 amostra verificada) |
+| **Soma** | **16.035** | — | fecha exatamente com as referências elegíveis do preflight |
+
+As URLs `.mhtml`/`.enc` verificadas continuam sendo as mesmas 2+1 URLs distintas já testadas (não mudaram — só a contagem de ocorrências duplicadas foi corrigida). As amostras de `.jfif` também permanecem válidas (mesmas 12 URLs testadas via `HEAD`, ainda dentro do conjunto elegível correto).
+
+**Achado confirmado:** a extensão do arquivo não corresponde necessariamente ao tipo real do conteúdo — `.jfif`/`.mhtml`/`.enc` são nomes de arquivo enganosos, mas o servidor de origem devolve o `Content-Type` HTTP real e correto (`image/jpeg` ou `image/png`) em todas as amostras testadas. Isso é consistente com o comportamento do importador (`migrate.mjs`), que **decide o tipo pelo `Content-Type` da resposta HTTP, nunca pela extensão da URL** — logo essas extensões incomuns não deveriam causar falha de upload como aconteceu com o `.bmp` genuíno da Fase 45B (aquele caso falhou porque o `Content-Type` real ERA `image/bmp`, não porque a extensão era incomum).
+
+Verificação feita via requisições `HEAD` (sem baixar o conteúdo, sem gravar nada, sem refetch de matéria): 12 amostras `.jfif` + as 2 URLs `.mhtml` + a 1 URL `.enc` — **15/15 bateram com um MIME já suportado pelo bucket**. Não foram testadas as 2.427 URLs `.jfif` uma a uma; o risco residual de algum outlier isolado na carga real é o mesmo tipo de risco pontual já tratado com sucesso na Fase 45B (bucket ampliado sob demanda, sem refetch do lote).
 
 ## Localidade
 

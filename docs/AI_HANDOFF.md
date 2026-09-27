@@ -4,6 +4,45 @@ Este arquivo é atualizado ao final de CADA fase a partir da Fase 35. Curto, dir
 
 ---
 
+## Fase 46B — Correção da auditoria de extensões de mídia do preflight 2025-2026
+
+**HEAD/commit:** `PENDENTE` (branch `feature/jornalir-core-foundation-20260917`)
+
+Autorizado por `docs/CHATGPT_REVIEW.md` (revisão sobre HEAD `c2b7f0a`: preflight principal aprovado, mas a tabela de extensões somava 21.408 ocorrências, incompatível com as 16.035 referências elegíveis do próprio preflight). **Somente correção local, sem refetch, sem importação.**
+
+### Causa raiz (dupla)
+
+1. O script original varria **todas** as 5.341 entradas do cache (inclusive os 27 `quarantined` e os 2 `needs_review`, que nunca entram na carga), em vez de só as 5.312 `eligibleList`.
+2. O script original contava `coverUrl` e cada item de `galleryImages` separadamente, sem aplicar a regra de `collectImageRefs()` — a mesma função usada pelo preflight/importador — que pula um item de galeria cujo `src` seja igual ao `coverUrl`, inflando a contagem sempre que a capa também aparecia na galeria.
+
+### Correção
+
+Recalculado exclusivamente a partir de `eligibleList` (5.312 matérias) + `collectImageRefs(detail)`, classificando cada referência por extensão de forma mutuamente exclusiva pelo `pathname` da URL (sem query string). Soma dos buckets fecha exatamente em **16.035**:
+
+| Extensão | Ocorrências (corrigido) | Ocorrências (errado, versão anterior) |
+|---|---|---|
+| `.jpg` | 8.793 | 10.836 |
+| `.jpeg` | 3.399 | 4.680 |
+| `.jfif` | 2.427 | 3.371 |
+| `.png` | 1.018 | 1.765 |
+| `.webp` | 389 | 738 |
+| `.gif` | 6 | 12 |
+| `.mhtml` | 2 | 4 |
+| `.enc` | 1 | 2 |
+| **Total** | **16.035** | 21.408 |
+
+As URLs `.mhtml`/`.enc`/`.jfif` já verificadas via `HEAD` continuam válidas (mesmas URLs, dentro do conjunto elegível correto) — nenhuma nova verificação de rede foi necessária, conforme a revisão previu.
+
+`docs/legacy-preflight-2025-2026.md` corrigido com a tabela certa e a explicação da causa raiz. `docs/legacy-migration-status.json` atualizado com os números corretos.
+
+### Confirmação explícita
+
+- Nenhum refetch de matéria.
+- Nenhuma importação.
+- Números editoriais do preflight (eligible/needs_review/quarantined/rejected) não mudaram — só a auditoria de extensões estava errada.
+
+---
+
 ## Fase 46 — Preflight/auditoria do lote 2025-2026 (SOMENTE LEITURA, nada importado) — último lote cronológico
 
 **HEAD/commit:** `701d4e0` (branch `feature/jornalir-core-foundation-20260917`)
