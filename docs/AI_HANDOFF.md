@@ -4,6 +4,56 @@ Este arquivo é atualizado ao final de CADA fase a partir da Fase 35. Curto, dir
 
 ---
 
+## Fase 44 — Preflight do lote 2021-2022 (SOMENTE LEITURA, nada importado)
+
+**HEAD/commit:** PLACEHOLDER (branch `feature/jornalir-core-foundation-20260917`)
+
+Autorizado por `docs/CHATGPT_REVIEW.md` (revisão sobre HEAD `2155dbb`: hardening aprovado, "AUTORIZADO AGORA: Executar somente o PREFLIGHT/AUDITORIA do lote 2021-2022"). **Nenhuma escrita real nesta fase.**
+
+### Checagem de reaproveitamento de cache (pedido explícito do usuário, antes de rodar)
+
+Antes de iniciar a coleta, foi feita a checagem pedida: candidatas 2021-2022 no inventário = 4.488; já em cache (de uma coleta anterior desta mesma sessão) = 3.301 (0 falhas); faltavam buscar = 1.187. A coleta reaproveitou 100% do cache existente e buscou só o que faltava — nenhum lote concluído foi tocado, nenhum cache foi invalidado.
+
+### O que foi feito
+
+1. `migrate.mjs --batch=2021-2022 --mode=preflight` rodado (mesmo pipeline/barreira, sem alteração de código), completando o cache parcial já existente.
+2. Relatórios gerados via `report-batch.mjs --batch=2021-2022`.
+3. Confirmado: nenhuma categoria nova, `classificados` ausente (0 itens, continua em quarentena para lotes futuros), `agricultura` (já liberada) passou normal.
+
+### Números do preflight 2021-2022
+
+| Métrica | Valor |
+|---|---|
+| Candidatas no intervalo | 4.488 |
+| Exceções de data | 7 |
+| **Elegíveis** | **4.475** |
+| `needs_review` | 13 |
+| `quarantined` | 0 |
+| Rejeitadas | 0 |
+| Com imagem / sem imagem | 4.469 / 6 |
+| Referências de imagem | 6.889 |
+| Distribuição por editoria | geral=3.377, saude=586, policia=208, colunistas=82, agricultura=59, esporte=86, política=40, sociais=37 |
+
+### Achado destacado (pedido explícito da revisão)
+
+2 dos 13 `needs_review` são de um tipo novo, não visto em lotes anteriores: conteúdo HTML embutido não-editorial real dentro do corpo — um widget de abas jQuery UI (`policia`, external_id 231914) e um gráfico Datawrapper de óbitos por COVID-19 (`saude`, external_id 416996, cujo próprio rodapé de atribuição do gráfico disparou o filtro). Ambos corretamente barrados para inspeção manual — detalhe completo em `docs/legacy-preflight-2021-2022.md`.
+
+### Migrations
+
+Nenhuma nesta fase.
+
+### Pendências
+
+1. Decisão do usuário/ChatGPT sobre autorizar a carga real de 2021-2022.
+2. Revisão humana dos 13 casos `needs_review`, incluindo os 2 casos de conteúdo embutido.
+3. 2023-2024 NÃO tocado.
+
+### Próximo passo recomendado
+
+Aguardar nova conferência do ChatGPT sobre os relatórios de 2021-2022 antes de autorizar qualquer importação real.
+
+---
+
 ## Fase 43B — Hardening final do progresso (3 correções de segurança)
 
 **HEAD/commit:** `8ba4503` (branch `feature/jornalir-core-foundation-20260917`)

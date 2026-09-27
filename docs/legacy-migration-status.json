@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-09-27T03:10:00.000Z",
+  "updatedAt": "2026-09-27T06:51:24.018Z",
   "provider": "informativo_regional_legacy",
   "rule": "Lote padrão = 2 anos. Só dividir um lote específico (1 ano, depois semestre/mês) se ele apresentar problema grave.",
   "batches": [
@@ -166,7 +166,34 @@
         "finalValidationJson": "scripts/legacy-audit/output/batches/2019-2020/batch-final-validation.json"
       }
     },
-    { "batchKey": "2021-2022", "periodStart": "2021-01-01", "periodEnd": "2022-12-31", "status": "pending" },
+    {
+      "batchKey": "2021-2022",
+      "periodStart": "2021-01-01",
+      "periodEnd": "2022-12-31",
+      "status": "preflight_complete_pending_import_authorization",
+      "note": "Preflight autorizado por docs/CHATGPT_REVIEW.md (HEAD 2155dbb): 'AUTORIZADO AGORA: Executar somente o PREFLIGHT/AUDITORIA do lote 2021-2022'. Nenhuma escrita real. Checagem de reaproveitamento de cache feita antes da coleta (pedido do usuário): 4488 candidatas, 3301 já em cache de execução anterior, 1187 buscadas nesta etapa — nenhum lote concluído tocado, nenhum cache invalidado. Nenhuma categoria nova. classificados ausente (0 itens). agricultura (já liberada) passou normal. Achado: 2 needs_review de tipo novo (widget jQuery UI embutido; gráfico Datawrapper de COVID-19 embutido) — ver docs/legacy-preflight-2021-2022.md.",
+      "preflight": {
+        "itemsFound": 4488,
+        "dateExceptions": 7,
+        "barreiraIntegridade": { "eligible": 4475, "needsReview": 13, "quarantined": 0, "rejected": 0 },
+        "withImage": 4469,
+        "withoutImage": 6,
+        "totalImageReferences": 6889,
+        "uniqueImageUrls": 6889,
+        "distribuicaoPorEditoria": { "colunistas": 82, "geral": 3377, "esporte": 86, "policia": 208, "politica": 40, "saude": 586, "sociais": 37, "agricultura": 59 }
+      },
+      "reportFiles": {
+        "preflight": "scripts/legacy-audit/output/batches/2021-2022/preflight.json",
+        "dateExceptions": "scripts/legacy-audit/output/batches/2021-2022/date-exceptions.json",
+        "needsReview": "scripts/legacy-audit/output/batches/2021-2022/needs-review.json",
+        "quarantined": "scripts/legacy-audit/output/batches/2021-2022/quarantined.json",
+        "rejected": "scripts/legacy-audit/output/batches/2021-2022/rejected.json",
+        "preflightMarkdown": "docs/legacy-preflight-2021-2022.md",
+        "reviewMarkdown": "docs/legacy-review-2021-2022.md",
+        "quarantinedMarkdown": "docs/legacy-quarantined-2021-2022.md",
+        "sampleCheckMarkdown": "docs/legacy-sample-check-2021-2022.md"
+      }
+    },
     { "batchKey": "2023-2024", "periodStart": "2023-01-01", "periodEnd": "2024-12-31", "status": "pending" },
     { "batchKey": "2025-2026", "periodStart": "2025-01-01", "periodEnd": "2026-12-31", "status": "pending" }
   ],
