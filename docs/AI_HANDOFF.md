@@ -6,7 +6,7 @@ Este arquivo é atualizado ao final de CADA fase a partir da Fase 35. Curto, dir
 
 ## Fase 44C — Análise, sanitização mecânica e correção do vazamento de HTML (2021-2022, SOMENTE LEITURA/CACHE, nada importado)
 
-**HEAD/commit:** `PENDENTE` (branch `feature/jornalir-core-foundation-20260917`)
+**HEAD/commit:** `32ed8be` (branch `feature/jornalir-core-foundation-20260917`)
 
 Autorizado por `docs/CHATGPT_REVIEW.md` (revisão sobre HEAD `a786cec`: achado da Fase 44B válido, mas pediu análise mais profunda antes de aceitar 160 casos como `needs_review` sem entender o padrão — a observação da revisão já apontava concentração em `data-filename="retriever"` (99) e `style="width: 50%; ..."` (42), sugerindo resíduo mecânico de imagem). Instrução: análise local (sem refetch, sem import), sanitização estritamente específica se o padrão for mecânico e seguro, reclassificação/regeneração pelo cache, e checagem preventiva somente leitura nos caches antigos.
 
