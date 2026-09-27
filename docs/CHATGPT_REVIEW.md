@@ -946,3 +946,56 @@ Ao concluir e validar 2021-2022:
 - PARAR para conferência.
 
 Não iniciar 2023-2024 ainda. Não gerar Preview ainda. Não fazer Production.
+
+
+## Revisão da Fase 44E — carga 2021-2022 aprovada; limpar somente duplicatas confirmadas antes de 2023-2024
+
+Revisado no GitHub sobre o HEAD `d574fd5`.
+
+### Fase 44E aprovada
+
+A carga e validação de 2021-2022 estão consistentes:
+- 4.475/4.475 artigos;
+- 6.889/6.889 referências de imagem;
+- 0 falhas finais;
+- 13 needs_review fora da carga;
+- 7 exceções de data fora da carga;
+- 0 duplicidade por identidade global;
+- 13.688 articles / 13.688 external_sources / 21.089 media_assets no acumulado dos 4 lotes;
+- lote 2021-2022 em status `complete`.
+
+### Duplicatas editoriais confirmadas
+
+A auditoria pós-carga encontrou:
+- 8 grupos novos de 2021-2022 com corpo idêntico após normalização — **confirmados para limpeza**;
+- 3 grupos de 2021-2022 com corpo apenas quase igual — **NÃO tocar**, continuam para inspeção manual;
+- 2 pares antigos de 2019-2020 que, após a sanitização da Fase 44D, ficaram com corpo byte-a-byte idêntico — **confirmados para limpeza**;
+- os demais grupos antigos ainda pendentes continuam intocados.
+
+Total confirmado nesta etapa:
+- **10 grupos**
+- **23 artigos envolvidos**
+- **13 artigos a arquivar**
+- **10 canônicos a manter publicados**
+
+### AUTORIZADO AGORA — limpeza reversível desses 10 grupos somente
+
+Usar a MESMA regra determinística já aprovada na Fase 43:
+1. tem capa > sem capa;
+2. editoria específica > Geral;
+3. published_at mais recente;
+4. maior external_id numérico como desempate final.
+
+Regras de segurança:
+- dry-run primeiro e conferir exatamente 10 grupos / 23 artigos / 13 a arquivar;
+- nenhum DELETE;
+- arquivar somente os 13 não-canônicos (`status=archived`, `archived_at`);
+- preservar article_external_sources, media_assets e article_media;
+- não tocar os 3 grupos `PRECISA_INSPECAO_TAMANHO_QUASE_IGUAL` de 2021-2022;
+- não tocar os 9 grupos antigos ainda pendentes;
+- não tocar os 54 grupos já resolvidos além de confirmar que permanecem corretos;
+- validar que cada grupo confirmado termina com exatamente 1 published.
+
+Gerar relatório da limpeza, atualizar `docs/AI_HANDOFF.md` e `docs/legacy-migration-status.json`, commit/push e PARAR.
+
+Não iniciar 2023-2024 ainda. Não gerar Preview ainda.
