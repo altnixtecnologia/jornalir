@@ -6,7 +6,7 @@ Este arquivo é atualizado ao final de CADA fase a partir da Fase 35. Curto, dir
 
 ## Fase 43 — Limpeza das duplicatas confirmadas + progresso do importador
 
-**HEAD/commit:** PLACEHOLDER (branch `feature/jornalir-core-foundation-20260917`)
+**HEAD/commit:** `303d8de` (branch `feature/jornalir-core-foundation-20260917`)
 
 Autorizado por `docs/CHATGPT_REVIEW.md` (revisão sobre HEAD `a66e974`: "URGENTE — limpar duplicatas confirmadas antes de 2021–2022"). Duas partes independentes, ambas concluídas.
 
