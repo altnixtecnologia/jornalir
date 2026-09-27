@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-09-27T12:21:54.755Z",
+  "updatedAt": "2026-09-27T13:33:03.441Z",
   "provider": "informativo_regional_legacy",
   "rule": "Lote padrão = 2 anos. Só dividir um lote específico (1 ano, depois semestre/mês) se ele apresentar problema grave.",
   "batches": [
@@ -241,7 +241,7 @@
       "periodStart": "2021-01-01",
       "periodEnd": "2022-12-31",
       "status": "complete",
-      "note": "LOTE CONCLUÍDO. Autorizado por docs/CHATGPT_REVIEW.md (HEAD 8629c03), usando o cache já sanitizado pela Fase 44C, sem refetch, sem --limit. Execução completa gerou 1 falha de imagem (Gateway Timeout transitório); retry sem --limit reconciliou a pendente sem duplicar nada. legacy_migration_batches.status=complete confirmado. Validação batch-scoped: 4475/4475 articles/sources, 6889/6889 media/vínculos deste lote, 0 duplicatas dentro do lote. Checagem GLOBAL confirma 0 duplicatas entre os 4 lotes já migrados (13688 articles/slugs/sources únicos total = 1622+2503+5088+4475; 21089 media/origin_source_url únicos total). 13 needs_review e 7 exceções de data confirmados fora da carga. Auditoria de duplicatas pós-carga (somente leitura): 54 grupos já resolvidos (Fase 43), 11 candidatos novos envolvendo 2021-2022 (nenhum arquivado), e um achado à parte de efeito colateral correto da Fase 44D em 2 pares de 2019-2020 (corpo ficou byte-a-byte idêntico após a sanitização do resíduo — nenhum arquivamento feito, pendente de decisão explícita). Ver docs/legacy-batch-2021-2022-final.md e docs/legacy-duplicate-audit-2021-2022.md.",
+      "note": "LOTE CONCLUÍDO. Autorizado por docs/CHATGPT_REVIEW.md (HEAD 8629c03), usando o cache já sanitizado pela Fase 44C, sem refetch, sem --limit. Execução completa gerou 1 falha de imagem (Gateway Timeout transitório); retry sem --limit reconciliou a pendente sem duplicar nada. legacy_migration_batches.status=complete confirmado. Validação batch-scoped: 4475/4475 articles/sources, 6889/6889 media/vínculos deste lote, 0 duplicatas dentro do lote. Checagem GLOBAL confirma 0 duplicatas entre os 4 lotes já migrados (13688 articles/slugs/sources únicos total = 1622+2503+5088+4475; 21089 media/origin_source_url únicos total). 13 needs_review e 7 exceções de data confirmados fora da carga. Auditoria de duplicatas pós-carga (somente leitura): 54 grupos já resolvidos (Fase 43), 11 candidatos novos envolvendo 2021-2022 (nenhum arquivado), e um achado à parte de efeito colateral correto da Fase 44D em 2 pares de 2019-2020 (corpo ficou byte-a-byte idêntico após a sanitização do resíduo — nenhum arquivamento feito, pendente de decisão explícita). Ver docs/legacy-batch-2021-2022-final.md e docs/legacy-duplicate-audit-2021-2022.md. [Fase 44F] Limpeza reversível aplicada aos 10 grupos de duplicata confirmada (8 novos de 2021-2022 + 2 pares antigos de 2019-2020 promovidos pela Fase 44D): 23 artigos envolvidos, 13 arquivados (status=archived, archived_at preenchido), 10 canônicos mantidos published. Dry-run bateu exatamente com os números autorizados antes de qualquer escrita. Validação pós-limpeza: 10/10 grupos com 1 published, totais físicos de articles/external_sources/article_media inalterados (13688/13688/21089), published total = 13614 (13688-61-13). Os 3 grupos precisa_inspecao de 2021-2022 e os 9 grupos antigos pendentes continuam intocados. Ver docs/legacy-duplicate-cleanup-2021-2022.md.",
       "preflight": {
         "itemsFound": 4488,
         "dateExceptions": 7,
@@ -309,7 +309,14 @@
           "alreadyResolvedFromFase43": 54,
           "newCandidatesInvolving2021_2022": 11,
           "noneArchivedAutomatically": true,
-          "sideEffectFinding": "Fase 44D sanitization made 2 pairs of 2019-2020 articles (417983/417982 and 417727/417726) byte-identical in body — previously precisa_inspecao or legitimate-coincidence; now DUPLICATA_REAL_PROVAVEL. Not archived, pending explicit decision."
+          "sideEffectFinding": "Fase 44D sanitization made 2 pairs of 2019-2020 articles (417983/417982 and 417727/417726) byte-identical in body — previously precisa_inspecao or legitimate-coincidence; now DUPLICATA_REAL_PROVAVEL. Not archived, pending explicit decision.",
+          "cleanupApplied": {
+            "groups": 10,
+            "articlesInvolved": 23,
+            "archived": 13,
+            "canonicalKept": 10,
+            "note": "8 grupos novos de 2021-2022 com corpo idêntico + 2 pares antigos de 2019-2020 (417983/417982, 417727/417726) promovidos pela sanitização da Fase 44D. Mesma regra determinística da Fase 43. Nenhum DELETE. 3 grupos PRECISA_INSPECAO de 2021-2022 e os 9 grupos antigos pendentes NÃO tocados. Ver docs/legacy-duplicate-cleanup-2021-2022.md."
+          }
         }
       }
     },

@@ -4,6 +4,39 @@ Este arquivo é atualizado ao final de CADA fase a partir da Fase 35. Curto, dir
 
 ---
 
+## Fase 44F — Limpeza reversível das 10 duplicatas confirmadas (2021-2022 + 2 pares de 2019-2020)
+
+**HEAD/commit:** `PENDENTE` (branch `feature/jornalir-core-foundation-20260917`)
+
+Autorizado por `docs/CHATGPT_REVIEW.md` (revisão sobre HEAD `d574fd5`: Fase 44E aprovada, "AUTORIZADO AGORA — limpeza reversível" de 10 grupos confirmados: 8 novos de 2021-2022 com corpo idêntico + 2 pares antigos de 2019-2020 promovidos pela sanitização da Fase 44D). Relatório completo em `docs/legacy-duplicate-cleanup-2021-2022.md`.
+
+### O que foi feito
+
+1. Criados `scripts/legacy-audit/duplicate-cleanup-2021-2022.mjs` (dry-run por padrão, `--commit` aplica) e `validate-duplicate-cleanup-2021-2022.mjs` (só leitura), reaproveitando a MESMA regra determinística de canônico da Fase 43 (capa > sem capa; editoria específica > geral; `published_at` mais recente; maior `external_id` como desempate).
+2. **Dry-run** confirmou exatamente os números autorizados antes de qualquer escrita: **10 grupos / 23 artigos / 13 a arquivar / 10 canônicos** — e validou que nenhum artigo dos 3 grupos `PRECISA_INSPECAO` de 2021-2022 nem dos 9 grupos antigos pendentes entrou no plano.
+3. Aplicado `--commit`: **13 artigos arquivados** (`status='archived'`, `archived_at=now()`). Nenhum `DELETE`; `article_external_sources`/`media_assets`/`article_media` preservados intactos.
+
+### Validação pós-limpeza (somente leitura)
+
+| Checagem | Resultado |
+|---|---|
+| Grupos com exatamente 1 published + resto archived | 10/10 |
+| Artigos arquivados com `archived_at` preenchido | 13/13 |
+| Total físico de `articles` (nada deletado) | 13.688 (inalterado) |
+| Total `published` (legacy_site) | 13.614 = 13.688 − 61 (Fase 43) − 13 (esta limpeza) ✅ |
+| Total `article_external_sources` | 13.688 (inalterado) |
+| Total `article_media` | 21.089 (inalterado) |
+| Os 3 grupos `PRECISA_INSPECAO` de 2021-2022 continuam published | ✅ intocados |
+
+### Confirmação explícita
+
+- Nenhum DELETE em nenhuma tabela.
+- Nenhuma mídia, editoria, título, corpo ou proveniência alterados nos 13 arquivados (só `status`/`archived_at`).
+- Os 9 grupos antigos ainda pendentes e os 54 já resolvidos permanecem intocados.
+- Não iniciado o lote 2023-2024. Nenhum Preview gerado.
+
+---
+
 ## Fase 44E — CARGA REAL do lote 2021-2022 CONCLUÍDA
 
 **HEAD/commit:** `9a2fae0` (branch `feature/jornalir-core-foundation-20260917`)
