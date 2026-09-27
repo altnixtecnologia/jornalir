@@ -6,7 +6,7 @@ Este arquivo é atualizado ao final de CADA fase a partir da Fase 35. Curto, dir
 
 ## Fase 44 — Preflight do lote 2021-2022 (SOMENTE LEITURA, nada importado)
 
-**HEAD/commit:** PLACEHOLDER (branch `feature/jornalir-core-foundation-20260917`)
+**HEAD/commit:** `9abb147` (branch `feature/jornalir-core-foundation-20260917`)
 
 Autorizado por `docs/CHATGPT_REVIEW.md` (revisão sobre HEAD `2155dbb`: hardening aprovado, "AUTORIZADO AGORA: Executar somente o PREFLIGHT/AUDITORIA do lote 2021-2022"). **Nenhuma escrita real nesta fase.**
 
