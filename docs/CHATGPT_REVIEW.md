@@ -782,3 +782,45 @@ Evitar falso positivo: procurar esses padrões em `bodyTextFull` (texto extraíd
 Mesmo assim, o external_id 418316 deve sair de `eligible` e virar `needs_review`, pois o vazamento está comprovado na amostra.
 
 Depois: commit/push e PARAR para conferência. Ainda não executar a carga real 2021-2022.
+
+
+## Revisão da Fase 44B — achado válido; evitar deixar 160 matérias de fora sem apuração
+
+Revisado no GitHub sobre o HEAD `a786cec`.
+
+A nova barreira está correta e conservadora: os 160 casos realmente contêm texto com aparência de atributo HTML vazado. Porém, **160 casos é volume alto demais para simplesmente aceitar como revisão manual sem entender o padrão**, porque o relatório indica que muitos parecem ser resíduos mecânicos de marcação de imagem do CMS antigo, não conteúdo editorial ambíguo.
+
+### Observação da revisão
+
+Nos 160 casos:
+- 99 dispararam por `data-filename="retriever"`;
+- 42 por `style="width: 50%; ..."`;
+- os demais são principalmente variantes de `style="width: ...; height: ...;"`.
+
+Isso sugere fortemente um padrão sistemático de markup de imagem malformado da origem.
+
+### Próximo passo autorizado — SOMENTE análise local, sem refetch e sem import
+
+Usar exclusivamente o cache atual de 2021-2022. Não buscar nenhuma página novamente.
+
+Para os 160 casos, gerar uma análise curta contendo:
+1. assinatura/padrão do vazamento e quantidade por padrão;
+2. posição do vazamento no `bodyTextFull` (final do corpo vs. meio);
+3. 100–200 caracteres de contexto antes/depois do vazamento;
+4. se o mesmo fragmento aparece como texto literal também em `bodyHtml`;
+5. quantos casos parecem claramente resíduo de imagem/atributo do CMS e quantos são realmente ambíguos.
+
+### Se houver padrão mecânico seguro
+
+Se ficar comprovado que um subconjunto é somente resíduo de markup de imagem, propor/implementar uma sanitização **estritamente específica** para esse padrão, aplicada ao conteúdo que será efetivamente importado (`bodyHtml` e texto derivado), sem remover texto editorial legítimo.
+
+Depois:
+- reclassificar pelo cache;
+- regenerar relatórios pelo cache;
+- mostrar quantos voltaram a `eligible` e quantos continuam `needs_review`.
+
+### Checagem preventiva barata
+
+Se os caches locais dos lotes 2015-2016, 2017-2018 e 2019-2020 ainda existirem, fazer a MESMA varredura somente leitura neles, sem refetch e sem alterar nada, apenas para saber se esse padrão já entrou em conteúdo antigo. Se não houver cache local, não buscar novamente.
+
+Commit/push e PARAR. Ainda não executar a carga real 2021-2022.
