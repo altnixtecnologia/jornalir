@@ -5,7 +5,7 @@ import type {
   NotificationMode,
 } from "@ir/types";
 
-export type ArticleFormIntent = "draft" | "publish" | "schedule";
+export type ArticleFormIntent = "draft" | "save" | "publish" | "schedule";
 
 export interface ArticleFormPayload {
   title: string;
