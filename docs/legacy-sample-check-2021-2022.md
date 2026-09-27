@@ -1,6 +1,6 @@
 # Amostra de conferência — lote 2021-2022 (24 matérias elegíveis)
 
-Gerado em: 2026-09-27T06:51:24.026Z
+Gerado em: 2026-09-27T07:02:47.050Z
 
 Amostra determinística (não aleatória), distribuída entre as editorias reais do lote e espalhada pelo período. Objetivo: permitir conferência humana da qualidade da extração antes da carga real. Nenhuma destas matérias foi gravada no Supabase.
 
@@ -42,16 +42,16 @@ Amostra determinística (não aleatória), distribuída entre as editorias reais
 
 ### 3. COLUNA POLÍTICA - POR RONI RAUPP
 
-- **URL antiga:** https://www.informativoregional.net/colunistas/roni_raupp/coluna_politica__por_roni_raupp.231525
+- **URL antiga:** https://www.informativoregional.net/colunistas/roni_raupp/coluna_politica__por_roni_raupp.231523
 - **Título (listagem):** COLUNA POLÍTICA - POR RONI RAUPP
 - **Título (detalhe):** COLUNA POLÍTICA - POR RONI RAUPP
-- **Data (listagem):** 01/04/2022 10:26
-- **Data (detalhe):** 01/04/2022 10:26
+- **Data (listagem):** 08/04/2022 09:48
+- **Data (detalhe):** 08/04/2022 09:48
 - **Editoria destino:** colunistas
-- **Início do texto:** "DEPUTADO GABRIEL SOUZA SERÁ CANDIDATO A GOVERNADOR DO RIO GRANDE DO SUL PELO MDBNo último domingo, 27, aconteceu em Port…"
-- **Final do texto:** "…t, poderia ser um bom sinal e um apelo promissor para a ampla parcela do eleitorado que não quer nem Bolsonaro nem Lula."
-- **Capa:** https://suitacdn.cloud-bricks.net/fotos/347589/file/desktop/16488196175090.jpg?1668625904
-- **Nº de imagens:** 1
+- **Início do texto:** "CONSOLIDADO O deputado estadual Volnei Weber (MDB), pré-candidato à reeleição em outubro tem fortalecido muito suas base…"
+- **Final do texto:** "…nuidade aos projetos da empresa e com isto proporcionar mais saúde, qualidade de vida e desenvolvimento para as cidades."
+- **Capa:** https://suitacdn.cloud-bricks.net/fotos/347586/file/desktop/16494220834090.jpg?1668625901
+- **Nº de imagens:** 2
 - **sourceLabel (autor/fonte original):** (nenhum)
 - **Verdict da integridade:** eligible
 
@@ -74,36 +74,36 @@ Amostra determinística (não aleatória), distribuída entre as editorias reais
 
 ---
 
-### 5. O QUE É A REFORMA DA PREVIDÊNCIA ESTADUAL
+### 5. COVID-19 NÃO PODE SER SALVO-CONDUTO PARA PESSOAS EM CONFLITO COM A LEI, DIZ TJSC
 
-- **URL antiga:** https://www.informativoregional.net/geral/o_que_e_a_reforma_da_previdencia_estadual.405016
-- **Título (listagem):** O QUE É A REFORMA DA PREVIDÊNCIA ESTADUAL
-- **Título (detalhe):** O QUE É A REFORMA DA PREVIDÊNCIA ESTADUAL
-- **Data (listagem):** 12/07/2021 09:52
-- **Data (detalhe):** 12/07/2021 09:52
+- **URL antiga:** https://www.informativoregional.net/geral/covid_19_nao_pode_ser_salvo_conduto_para_pessoas_em_conflito_com_a_lei_diz_tjsc.405011
+- **Título (listagem):** COVID-19 NÃO PODE SER SALVO-CONDUTO PARA PESSOAS EM CONFLITO COM A LEI, DIZ TJSC
+- **Título (detalhe):** COVID-19 NÃO PODE SER SALVO-CONDUTO PARA PESSOAS EM CONFLITO COM A LEI, DIZ TJSC
+- **Data (listagem):** 12/07/2021 15:35
+- **Data (detalhe):** 12/07/2021 15:35
 - **Editoria destino:** geral
-- **Início do texto:** "Considerada a matéria mais importante desta legislatura, a proposta de reforma da Previdência já tem data para aprovação…"
-- **Final do texto:** "…60% do total, mais 10% por dependente. Agentes de segurança que falecerem devido à profissão garantem 100% ao familiar."
-- **Capa:** https://suitacdn.cloud-bricks.net/fotos/614473/file/desktop/16260943765950.jpg?1675034824
+- **Início do texto:** "Por cometer um crime sem violência ou grave ameaça em cidade do sul do Estado, um homem com três condenações e que respo…"
+- **Final do texto:** "…al n. 5029170-54.2021.8.24.0000/SC). Jornalista Fernanda de Maman Núcleo de Comunicação InstitucionalComarca de Criciúma"
+- **Capa:** https://suitacdn.cloud-bricks.net/fotos/614463/file/desktop/16261149100290.jpeg?1675034795
 - **Nº de imagens:** 1
 - **sourceLabel (autor/fonte original):** (nenhum)
 - **Verdict da integridade:** eligible
 
 ---
 
-### 6. SINE LEVA CARAVANA DO EMPREGO PARA SÃO JOSÉ E BALNEÁRIO GAIVOTA
+### 6. PRAIA GRANDE VAI PROMOVER CAPACITAÇÃO SOBRE  SEGURANÇA NAS TRILHAS
 
-- **URL antiga:** https://www.informativoregional.net/geral/sine_leva_caravana_do_emprego_para_sao_jose_e_balneario_gaivota.402530
-- **Título (listagem):** SINE LEVA CARAVANA DO EMPREGO PARA SÃO JOSÉ E BALNEÁRIO GAIVOTA
-- **Título (detalhe):** SINE LEVA CARAVANA DO EMPREGO PARA SÃO JOSÉ E BALNEÁRIO GAIVOTA
-- **Data (listagem):** 22/02/2022 17:49
-- **Data (detalhe):** 22/02/2022 17:49
+- **URL antiga:** https://www.informativoregional.net/geral/praia_grande_vai_promover_capacitacao_sobre_seguranca_nas_trilhas.402497
+- **Título (listagem):** PRAIA GRANDE VAI PROMOVER CAPACITAÇÃO SOBRE  SEGURANÇA NAS TRILHAS
+- **Título (detalhe):** PRAIA GRANDE VAI PROMOVER CAPACITAÇÃO SOBRE  SEGURANÇA NAS TRILHAS
+- **Data (listagem):** 25/02/2022 09:38
+- **Data (detalhe):** 25/02/2022 09:38
 - **Editoria destino:** geral
-- **Início do texto:** "O Sistema Nacional do Emprego (Sine), da Secretaria de Estado do Desenvolvimento Econômico Sustentável (SDE), estará em …"
-- **Final do texto:** "…al: Calçadão da Beira Mar - Centro (próximo ao container Informa Cidadão)Horário: 8h às 16hAssessoria de Comunicação SDE"
-- **Capa:** https://suitacdn.cloud-bricks.net/fotos/611179/file/desktop/16455629793230.jpg?1675027388
+- **Início do texto:** "Na sexta-feira, 18 de fevereiro, a Secretaria Municipal de Turismo de Praia Grande recebeu para uma reunião, o corpo téc…"
+- **Final do texto:** "…resença de toda comunidade, pois esta demanda foi pensada na disseminação da informação envolvendo a segurança de todos."
+- **Capa:** https://suitacdn.cloud-bricks.net/fotos/611133/file/desktop/16457927279820.jpg?1675027279
 - **Nº de imagens:** 1
-- **sourceLabel (autor/fonte original):** Santa Catarina
+- **sourceLabel (autor/fonte original):** (nenhum)
 - **Verdict da integridade:** eligible
 
 ---
@@ -125,35 +125,35 @@ Amostra determinística (não aleatória), distribuída entre as editorias reais
 
 ---
 
-### 8. CAMPEONATO PRAIANO DE BEACH SOCCER 2022 COMEÇA EM TORRES NO PRÓXIMO SÁBADO
+### 8. BONS JOGOS MARCARAM A ABERTURA OFICIAL  DO CAMPEONATO PRAIANO DE BEACH SOCCER EM TORRES
 
-- **URL antiga:** https://www.informativoregional.net/esportes/campeonato_praiano_de_beach_soccer_2022_comeca_em_torres_no_proximo_sabado.418316
-- **Título (listagem):** CAMPEONATO PRAIANO DE BEACH SOCCER 2022 COMEÇA EM TORRES NO PRÓXIMO SÁBADO
-- **Título (detalhe):** CAMPEONATO PRAIANO DE BEACH SOCCER 2022 COMEÇA EM TORRES NO PRÓXIMO SÁBADO
-- **Data (listagem):** 08/02/2022 09:38
-- **Data (detalhe):** 08/02/2022 09:38
+- **URL antiga:** https://www.informativoregional.net/esportes/bons_jogos_marcaram_a_abertura_oficial_do_campeonato_praiano_de_beach_soccer_em_torres.418314
+- **Título (listagem):** BONS JOGOS MARCARAM A ABERTURA OFICIAL  DO CAMPEONATO PRAIANO DE BEACH SOCCER EM TORRES
+- **Título (detalhe):** BONS JOGOS MARCARAM A ABERTURA OFICIAL  DO CAMPEONATO PRAIANO DE BEACH SOCCER EM TORRES
+- **Data (listagem):** 18/02/2022 10:37
+- **Data (detalhe):** 18/02/2022 10:37
 - **Editoria destino:** esporte
-- **Início do texto:** "Começa em Torres, no próximo sábado, 12 de fevereiro, o Campeonato Praiano de Beach Soccer 2022, na categoria Master e V…"
-- **Final do texto:** "…questão organizacional e disciplinar. style="width: 363.273px; height: 646.933px;" data-filename="retriever">Divulgação/"
-- **Capa:** https://suitacdn.cloud-bricks.net/fotos/632959/file/desktop/16443239353121.jpg?1675091821
-- **Nº de imagens:** 1
-- **sourceLabel (autor/fonte original):** Rio Grande do Sul
+- **Início do texto:** "Com a presença de autoridades, atletas e torcedores, abriu no último sábado (12), o Campeonato Praiano de Beach Soccer 2…"
+- **Final do texto:** "…refeitura de Torres, através da Secretaria Municipal de Cultura e Esporte, com apoio da Liga de Futebol Torrense - LIFT."
+- **Capa:** https://suitacdn.cloud-bricks.net/fotos/632954/file/desktop/16451914709680.jpg?1675091802
+- **Nº de imagens:** 4
+- **sourceLabel (autor/fonte original):** (nenhum)
 - **Verdict da integridade:** eligible
 
 ---
 
-### 9. HÉBER ROBERTO LOPES APITA A FINAL DO CAMPEONATO MUNICIPAL DE FUTEBOL DE PASSO DE TORRES
+### 9. BARRA VELHA E BELLATORRES CONQUISTAM O  CAMPEONATO MUNICIPAL DE FUTEBOL DE CAMPO 2022 EM PASSO DE TORRES
 
-- **URL antiga:** https://www.informativoregional.net/esportes/heber_roberto_lopes_apita_a_final_do_campeonato_municipal_de_futebol_de_passo_de_torres.231746
-- **Título (listagem):** HÉBER ROBERTO LOPES APITA A FINAL DO CAMPEONATO MUNICIPAL DE FUTEBOL DE PASSO DE TORRES
-- **Título (detalhe):** HÉBER ROBERTO LOPES APITA A FINAL DO CAMPEONATO MUNICIPAL DE FUTEBOL DE PASSO DE TORRES
-- **Data (listagem):** 23/07/2022 16:15
-- **Data (detalhe):** 23/07/2022 16:15
+- **URL antiga:** https://www.informativoregional.net/esportes/barra_velha_e_bellatorres_conquistam_o_campeonato_municipal_de_futebol_de_campo_2022_em_passo_de_torres.231744
+- **Título (listagem):** BARRA VELHA E BELLATORRES CONQUISTAM O  CAMPEONATO MUNICIPAL DE FUTEBOL DE CAMPO 2022 EM PASSO DE TORRES
+- **Título (detalhe):** BARRA VELHA E BELLATORRES CONQUISTAM O  CAMPEONATO MUNICIPAL DE FUTEBOL DE CAMPO 2022 EM PASSO DE TORRES
+- **Data (listagem):** 28/07/2022 11:00
+- **Data (detalhe):** 28/07/2022 11:00
 - **Editoria destino:** esporte
-- **Início do texto:** "Árbitro de renome Nacional, Héber Roberto Lopes vai apitar neste domingo (24) a final do Campeonato Municipal de Futebol…"
-- **Final do texto:** "…completou 45 anos de idade, perdeu o status de árbitro FIFA, conforme regra interna da própria federação internacional."
-- **Capa:** https://suitacdn.cloud-bricks.net/fotos/348113/file/desktop/16586037340460.jpg?1668626457
-- **Nº de imagens:** 1
+- **Início do texto:** "Com arbitragem de Héber Roberto Lopes, homenagem ao saudoso Northon Rossano e bom público no Estádio Martinísio Manoel S…"
+- **Final do texto:** "…ber Roberto Lopes, familiares homenageados de José Antônio Scheffer e Northon Rossano, atletas, dirigentes e torcedores."
+- **Capa:** https://suitacdn.cloud-bricks.net/fotos/348101/file/desktop/16590168532865.jpg?1668626449
+- **Nº de imagens:** 6
 - **sourceLabel (autor/fonte original):** (nenhum)
 - **Verdict da integridade:** eligible
 
@@ -244,19 +244,19 @@ Amostra determinística (não aleatória), distribuída entre as editorias reais
 
 ---
 
-### 15. MDB DEFINE DATA DAS PRÉVIAS AO GOVERNO DO ESTADO NESTA SEGUNDA-FEIRA
+### 15. MANIFESTAÇÕES MARCARAM O 07 DE SETEMBRO TAMBÉM NA REGIÃO
 
-- **URL antiga:** https://www.informativoregional.net/politica/mdb_define_data_das_previas_ao_governo_do_estado_nesta_segunda_feira.231788
-- **Título (listagem):** MDB DEFINE DATA DAS PRÉVIAS AO GOVERNO DO ESTADO NESTA SEGUNDA-FEIRA
-- **Título (detalhe):** MDB DEFINE DATA DAS PRÉVIAS AO GOVERNO DO ESTADO NESTA SEGUNDA-FEIRA
-- **Data (listagem):** 23/08/2021 09:50
-- **Data (detalhe):** 23/08/2021 09:50
+- **URL antiga:** https://www.informativoregional.net/politica/manifestacoes_marcaram_o_07_de_setembro_tambem_na_regiao.231785
+- **Título (listagem):** MANIFESTAÇÕES MARCARAM O 07 DE SETEMBRO TAMBÉM NA REGIÃO
+- **Título (detalhe):** MANIFESTAÇÕES MARCARAM O 07 DE SETEMBRO TAMBÉM NA REGIÃO
+- **Data (listagem):** 07/09/2021 17:56
+- **Data (detalhe):** 07/09/2021 17:56
 - **Editoria destino:** politica
-- **Início do texto:** "Está marcada para esta segunda-feira (23) uma reunião do diretório estadual do MDB para definição da data de votação às …"
-- **Final do texto:** "…rgo para participar das prévias. Segundo ele, a saída deve ocorrer cerca de 45 dias antes da votação interna do partido."
-- **Capa:** https://suitacdn.cloud-bricks.net/fotos/348193/file/desktop/16297230043900.jpg?1668626562
-- **Nº de imagens:** 1
-- **sourceLabel (autor/fonte original):** SANTA CATARINA
+- **Início do texto:** "Protestos contra e a favor ao governo do presidente Jair Bolsonaro marcaram o feriado da Independência no Brasil. Os ato…"
+- **Final do texto:** "…margens da BR-101, o que se viu foi um movimento grande no trânsito com as pessoas voltando do feriadão para suas casas."
+- **Capa:** https://suitacdn.cloud-bricks.net/fotos/348187/file/desktop/16310482150303.jpg?1668626557
+- **Nº de imagens:** 4
+- **sourceLabel (autor/fonte original):** (nenhum)
 - **Verdict da integridade:** eligible
 
 ---
@@ -278,36 +278,36 @@ Amostra determinística (não aleatória), distribuída entre as editorias reais
 
 ---
 
-### 17. ESTADO TEM REDUÇÃO DE 22% NOS CASOS ATIVOS EM DUAS SEMANAS
+### 17. COVID-19: SECRETARIA DE SAÚDE INFORMA OS HORÁRIOS DE VACINAÇÃO PARA IDOSOS COM 70 E 71 ANOS EM SÃO JOÃO DO SUL
 
-- **URL antiga:** https://www.informativoregional.net/saude/estado_tem_reducao_de_22_nos_casos_ativos_em_duas_semanas.417141
-- **Título (listagem):** ESTADO TEM REDUÇÃO DE 22% NOS CASOS ATIVOS EM DUAS SEMANAS
-- **Título (detalhe):** ESTADO TEM REDUÇÃO DE 22% NOS CASOS ATIVOS EM DUAS SEMANAS
-- **Data (listagem):** 29/03/2021 09:27
-- **Data (detalhe):** 29/03/2021 09:27
+- **URL antiga:** https://www.informativoregional.net/saude/covid_19_secretaria_de_saude_informa_os_horarios_de_vacinacao_para_idosos_com_70_e_71_anos_em_sao_joao_do_sul.417140
+- **Título (listagem):** COVID-19: SECRETARIA DE SAÚDE INFORMA OS HORÁRIOS DE VACINAÇÃO PARA IDOSOS COM 70 E 71 ANOS EM SÃO JOÃO DO SUL
+- **Título (detalhe):** COVID-19: SECRETARIA DE SAÚDE INFORMA OS HORÁRIOS DE VACINAÇÃO PARA IDOSOS COM 70 E 71 ANOS EM SÃO JOÃO DO SUL
+- **Data (listagem):** 29/03/2021 16:01
+- **Data (detalhe):** 29/03/2021 16:01
 - **Editoria destino:** saude
-- **Início do texto:** "Em um intervalo de duas semanas, Santa Catarina registrou uma redução de 22% no número de casos ativos de Covid-19. Entr…"
-- **Final do texto:** "…Apenas na última semana, mais de 210 mil doses foram aplicadas, um ritmo 3,7 vezes superior ao visto na semana anterior."
-- **Capa:** https://suitacdn.cloud-bricks.net/fotos/631465/file/desktop/16170208794620.jpg?1675085227
+- **Início do texto:** "A Secretaria de Saúde de São João do Sul, através da secretária Rejane Borba, informa a todos que na terça-feira, 30 e n…"
+- **Final do texto:** "…parecer antes do horário previsto para evitar aglomeração, pois há vacina suficiente para todos os idosos destes grupos."
+- **Capa:** https://suitacdn.cloud-bricks.net/fotos/631464/file/desktop/16170444949090.jpg?1675085222
 - **Nº de imagens:** 1
-- **sourceLabel (autor/fonte original):** CORONAVÍRUS EM SC:
+- **sourceLabel (autor/fonte original):** SANTA CATARINA
 - **Verdict da integridade:** eligible
 
 ---
 
-### 18. ESTADO E MUNICÍPIOS DO RS DEFINEM NOVO CÁLCULO DE DISTRIBUIÇÃO DE VACINAS
+### 18. ESTADO DE SC DISTRIBUI 199 MIL DOSES DA VACINA CONTRA A COVID-19 NESTA TERÇA
 
-- **URL antiga:** https://www.informativoregional.net/saude/estado_e_municipios_do_rs_definem_novo_calculo_de_distribuicao_de_vacinas.416942
-- **Título (listagem):** ESTADO E MUNICÍPIOS DO RS DEFINEM NOVO CÁLCULO DE DISTRIBUIÇÃO DE VACINAS
-- **Título (detalhe):** ESTADO E MUNICÍPIOS DO RS DEFINEM NOVO CÁLCULO DE DISTRIBUIÇÃO DE VACINAS
-- **Data (listagem):** 17/08/2021 09:31
-- **Data (detalhe):** 17/08/2021 09:31
+- **URL antiga:** https://www.informativoregional.net/saude/estado_de_sc_distribui_199_mil_doses_da_vacina_contra_a_covid_19_nesta_terca.416941
+- **Título (listagem):** ESTADO DE SC DISTRIBUI 199 MIL DOSES DA VACINA CONTRA A COVID-19 NESTA TERÇA
+- **Título (detalhe):** ESTADO DE SC DISTRIBUI 199 MIL DOSES DA VACINA CONTRA A COVID-19 NESTA TERÇA
+- **Data (listagem):** 17/08/2021 15:24
+- **Data (detalhe):** 17/08/2021 15:24
 - **Editoria destino:** saude
-- **Início do texto:** "Prestes a completar a primeira dose de 100% da população gaúcha de 18 anos ou mais, meta prevista pelo governo do Estado…"
-- **Final do texto:** "…s na Central de Armazenamento e Distribuição de Imunobiológicos (Ceadi), em Porto Alegre. Texto: Ascom SES Edição: Secom"
-- **Capa:** https://suitacdn.cloud-bricks.net/fotos/631227/file/desktop/16292034928861.jpg?1675084121
-- **Nº de imagens:** 2
-- **sourceLabel (autor/fonte original):** VACINAÇÃO RS
+- **Início do texto:** "A semana começa com mais uma distribuição de vacinas contra a Covid-19. As centrais regionais recebem nesta terça, 17, u…"
+- **Final do texto:** "…a Coronavac. Os dados são do Sistema de Informações do Programa Nacional de Imunizações (SiPNI), do Ministério da Saúde."
+- **Capa:** https://suitacdn.cloud-bricks.net/fotos/631226/file/desktop/16292246821380.jpg?1675084116
+- **Nº de imagens:** 1
+- **sourceLabel (autor/fonte original):** VACINAÇÃO SC:
 - **Verdict da integridade:** eligible
 
 ---
@@ -346,19 +346,19 @@ Amostra determinística (não aleatória), distribuída entre as editorias reais
 
 ---
 
-### 21. A ÁRVORE SÍMBOLO DA  FERTILIDADE E VITALIDADE
+### 21. ÚLTIMA SEMANA PARA GARANTIR PAGAMENTO DO IPVA COM DESCONTO EM JANEIRO
 
-- **URL antiga:** https://www.informativoregional.net/sociais/a_arvore_simbolo_da_fertilidade_e_vitalidade.231608
-- **Título (listagem):** A ÁRVORE SÍMBOLO DA  FERTILIDADE E VITALIDADE
-- **Título (detalhe):** A ÁRVORE SÍMBOLO DA  FERTILIDADE E VITALIDADE
-- **Data (listagem):** 24/12/2021 16:22
-- **Data (detalhe):** 24/12/2021 16:22
+- **URL antiga:** https://www.informativoregional.net/sociais/ultima_semana_para_garantir_pagamento_do_ipva_com_desconto_em_janeiro.231606
+- **Título (listagem):** ÚLTIMA SEMANA PARA GARANTIR PAGAMENTO DO IPVA COM DESCONTO EM JANEIRO
+- **Título (detalhe):** ÚLTIMA SEMANA PARA GARANTIR PAGAMENTO DO IPVA COM DESCONTO EM JANEIRO
+- **Data (listagem):** 25/01/2022 16:12
+- **Data (detalhe):** 25/01/2022 16:12
 - **Editoria destino:** sociais
-- **Início do texto:** "Até o pinheiro ganhar um espaço destacado na casa, decorado com bolinhas coloridas, luzinhas e outros adornos, sendo con…"
-- **Final do texto:** "…as. Além disso, o verde dos ramos simbolizava então a expectativa em relação à chegada da primavera e ao fim do inverno."
-- **Capa:** https://suitacdn.cloud-bricks.net/fotos/347774/file/desktop/16403737610830.jpg?1668626100
+- **Início do texto:** "O período de pagamento do IPVA 2022 (Imposto sobre a Propriedade de Veículos Automotores) com descontos que podem chegar…"
+- **Final do texto:** "…ta total do Estado 2021: 7.262.038Frota pagante de IPVA: 53,9%Frota isenta de IPVA: 46,1%Texto: Ascom SefazEdição: Secom"
+- **Capa:** https://suitacdn.cloud-bricks.net/fotos/347773/file/desktop/16431379786000.jpg?1668626097
 - **Nº de imagens:** 1
-- **sourceLabel (autor/fonte original):** (nenhum)
+- **sourceLabel (autor/fonte original):** Rio Grande do Sul
 - **Verdict da integridade:** eligible
 
 ---
@@ -397,17 +397,17 @@ Amostra determinística (não aleatória), distribuída entre as editorias reais
 
 ---
 
-### 24. PROJETO PARA LEVAR INTERNET AO MEIO RURAL É APROVADO EM COMISSÃO DA ALESC
+### 24. COM DESTAQUE PARA A SOJA, EXPORTAÇÕES DO AGRONEGÓCIO GAÚCHO CRESCEM 59,5% NO TERCEIRO TRIMESTRE DE 2021
 
-- **URL antiga:** https://www.informativoregional.net/agricultura/projeto_para_levar_internet_ao_meio_rural_e_aprovado_em_comissao_da_alesc.231843
-- **Título (listagem):** PROJETO PARA LEVAR INTERNET AO MEIO RURAL É APROVADO EM COMISSÃO DA ALESC
-- **Título (detalhe):** PROJETO PARA LEVAR INTERNET AO MEIO RURAL É APROVADO EM COMISSÃO DA ALESC
-- **Data (listagem):** 21/09/2021 15:32
-- **Data (detalhe):** 21/09/2021 15:32
+- **URL antiga:** https://www.informativoregional.net/agricultura/com_destaque_para_a_soja_exportacoes_do_agronegocio_gaucho_crescem_59_5_no_terceiro_trimestre_de_2021.231841
+- **Título (listagem):** COM DESTAQUE PARA A SOJA, EXPORTAÇÕES DO AGRONEGÓCIO GAÚCHO CRESCEM 59,5% NO TERCEIRO TRIMESTRE DE 2021
+- **Título (detalhe):** COM DESTAQUE PARA A SOJA, EXPORTAÇÕES DO AGRONEGÓCIO GAÚCHO CRESCEM 59,5% NO TERCEIRO TRIMESTRE DE 2021
+- **Data (listagem):** 10/11/2021 10:44
+- **Data (detalhe):** 10/11/2021 10:44
 - **Editoria destino:** agricultura
-- **Início do texto:** "Santa Catarina dá mais um importante passo para levar internet de qualidade para o campo. A Comissão de Constituição e J…"
-- **Final do texto:** "…estudos para os jovens agricultores. Assim como as cidades, o Interior também estará conectado", comemorou Altair Silva."
-- **Capa:** https://suitacdn.cloud-bricks.net/fotos/348287/file/desktop/16322491593110.jpg?1668626687
+- **Início do texto:** "As exportações do agronegócio do Rio Grande do Sul atingiram US $ 4,8 bilhões no terceiro trimestre de 2021, uma alta de…"
+- **Final do texto:** "…ldo de empregos formais criados entre janeiro e setembro. Texto: Vagner Benites / Ascom SPGGEdição: Vitor Necchi / Secom"
+- **Capa:** https://suitacdn.cloud-bricks.net/fotos/348285/file/desktop/16365518608680.jpg?1668626684
 - **Nº de imagens:** 1
-- **sourceLabel (autor/fonte original):** SANTA CATARINA
+- **sourceLabel (autor/fonte original):** RIO GRANDE DO SUL
 - **Verdict da integridade:** eligible

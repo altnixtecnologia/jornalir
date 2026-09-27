@@ -9,6 +9,17 @@ import { parseBrDateTime } from "./dates.mjs";
 
 const TRUSTED_IMAGE_HOST = /suitacdn\.cloud-bricks\.net/i;
 
+// Vazamento de atributo/tag HTML como TEXTO (Fase 44B, achado real no
+// lote 2021-2022: `external_id 418316` tinha
+// `style="width: 363.273px..." data-filename="retriever">Divulgação/`
+// dentro de `bodyTextFull` — HTML malformado na origem, provavelmente uma
+// tag `<img>` quebrada, cujo conteúdo cheerio não reconheceu como marcação
+// e extraiu como texto puro). Aplicado só sobre `bodyTextFull` (texto já
+// extraído), nunca sobre `bodyHtml` (onde esses padrões são markup
+// legítimo) — testar no lugar errado geraria falso-positivo em toda
+// matéria com imagem.
+const HTML_LEAK_IN_TEXT = /\b(style|class|src|href|data-[a-zA-Z0-9_-]+)\s*=\s*"[^"]*"|<\s*(img|div|span|table|td|tr|iframe|section)\b/i;
+
 // Categorias em quarentena editorial (item 7, Fase 35B) — nunca elegíveis
 // automaticamente em NENHUM lote até revisão humana específica da
 // categoria inteira. Nada é descartado: os itens continuam preservados,
@@ -110,6 +121,10 @@ export function assessArticleIntegrity(candidate, detail) {
   }
   if (detail.suspiciousBodyElements?.length > 0) {
     reasons.push(`corpo contém elemento(s) de bloco não-editorial: ${detail.suspiciousBodyElements.join(", ")}`);
+  }
+  const htmlLeakMatch = detail.bodyTextFull?.match(HTML_LEAK_IN_TEXT);
+  if (htmlLeakMatch) {
+    reasons.push(`corpo contém atributo/tag HTML vazado como texto (HTML malformado na origem): "${htmlLeakMatch[0]}"`);
   }
   const distinctLinks = countDistinctArticleLinks(detail.bodyHtml, detail.url);
   if (distinctLinks > 2) {

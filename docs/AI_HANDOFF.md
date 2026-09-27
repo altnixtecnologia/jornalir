@@ -4,6 +4,41 @@ Este arquivo é atualizado ao final de CADA fase a partir da Fase 35. Curto, dir
 
 ---
 
+## Fase 44B — Varredura local de vazamento de HTML em `bodyTextFull` (2021-2022, SOMENTE LEITURA, nada importado)
+
+**HEAD/commit:** `PENDENTE` (branch `feature/jornalir-core-foundation-20260917`)
+
+Autorizado por `docs/CHATGPT_REVIEW.md` (revisão sobre HEAD `a40e93f`: preflight 2021-2022 aprovado sem alterações, mas pediu checagem local de vazamento de atributos/tags HTML em `bodyTextFull` antes de qualquer carga, apontando o caso da amostra `external_id 418316`). Instrução do usuário: varredura **exclusivamente no cache já existente**, sem refetch, sem invalidar cache, reclassificar achados para `needs_review`, regenerar relatórios pelo cache, commit/push e parar — **nenhuma importação real nesta fase**.
+
+### O que foi feito
+
+1. Inspecionado o caso da amostra (`external_id 418316`) diretamente no cache (`output/batches/2021-2022/details.ndjson`): confirmado `bodyTextFull` terminando em `style="width: 363.273px; height: 646.933px;" data-filename="retriever">Divulgação/` — HTML malformado na origem (provável tag `<img>` quebrada extraída como texto puro pelo cheerio).
+2. Adicionada regra conservadora `HTML_LEAK_IN_TEXT` em `scripts/legacy-audit/lib/integrity.mjs`, aplicada apenas sobre `bodyTextFull` (nunca sobre `bodyHtml`, onde os mesmos padrões são markup legítimo) — evita falso-positivo em toda matéria com imagem.
+3. Rodada uma varredura local (script descartável, sem rede) sobre as 4.488 entradas do cache com o mesmo padrão da nova regra: **160 casos confirmados** de vazamento (não só o da amostra).
+4. Rerodado `migrate.mjs --batch=2021-2022 --mode=preflight` — log confirma "total em cache após esta execução: 4488/4488" **sem nenhuma linha de "detalhes buscados"**, ou seja, zero requisições de rede; reclassificação feita 100% a partir do cache já coletado.
+5. Rerodado `report-batch.mjs --batch=2021-2022` para regenerar `docs/legacy-preflight-2021-2022.md`, `docs/legacy-review-2021-2022.md`, `docs/legacy-quarantined-2021-2022.md`, `docs/legacy-sample-check-2021-2022.md` a partir do cache atualizado; a seção "Achado novo" da Fase 44 (widget jQuery UI + gráfico Datawrapper) foi restaurada manualmente no preflight regenerado, e uma nova seção documentando os 160 vazamentos foi adicionada.
+
+### Números do preflight 2021-2022 (atualizados)
+
+| Métrica | Antes (Fase 44) | Depois (Fase 44B) |
+|---|---|---|
+| **Elegíveis** | 4.475 | **4.315** |
+| `needs_review` | 13 | **173** |
+| Com imagem / sem imagem | 4.469 / 6 | 4.310 / 5 |
+| Referências de imagem (elegíveis) | 6.889 | 6.690 |
+| Distribuição por editoria (elegíveis) | geral=3.377, saude=586, policia=208, colunistas=82, agricultura=59, esporte=86, política=40, sociais=37 | geral=3.259, saude=557, policia=206, colunistas=77, agricultura=58, esporte=83, política=39, sociais=36 |
+
+`itemsFound` (4.488), `dateExceptions` (7), `quarantined` (0) e `rejected` (0) permanecem inalterados.
+
+### Confirmação explícita
+
+- Nenhum refetch de rede ocorrido (log do preflight rerodado não lista nenhum "detalhes buscados").
+- Nenhum cache invalidado ou apagado.
+- Nenhum lote concluído (2015-2020) tocado.
+- Nenhuma matéria ou imagem importada — carga real de 2021-2022 continua pendente de autorização.
+
+---
+
 ## Fase 44 — Preflight do lote 2021-2022 (SOMENTE LEITURA, nada importado)
 
 **HEAD/commit:** `9abb147` (branch `feature/jornalir-core-foundation-20260917`)
