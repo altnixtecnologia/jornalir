@@ -1,4 +1,5 @@
 import * as cheerio from "cheerio";
+import { sanitizeBodyHtml, recomputeBodyTextFromHtml } from "./sanitize.mjs";
 
 const BASE = "https://www.informativoregional.net";
 
@@ -125,16 +126,20 @@ export function parseArticlePage(html, url) {
   // estilo/scripts/botão de download que o CMS injeta dentro do mesmo
   // `.entry-content`.
   bodyEl.find("style, script, h3.class-resumo, .box-download").remove();
-  const bodyParagraphs = [];
-  bodyEl.find("p").each((_, p) => {
-    const text = $(p).text().replace(/\s+/g, " ").trim();
-    if (text) bodyParagraphs.push(text);
-  });
-  // HTML real do corpo (preserva <strong>/<br>/parágrafos) — usado na
-  // importação (Fase 35); bodyTextSample/bodyTextFull abaixo continuam só
-  // para amostragem/leitura humana e hash de conteúdo completo.
-  const bodyHtml = bodyEl.html()?.trim() || null;
-  const bodyTextFull = bodyEl.text().replace(/\s+/g, " ").trim();
+
+  // Sanitização (Fase 44C) de resíduo mecânico de <img> quebrada no HTML de
+  // origem do CMS legado (ver lib/sanitize.mjs) — feita ANTES de extrair
+  // parágrafos/texto/HTML final, para que nenhum campo derivado carregue o
+  // fragmento de atributo/tag HTML vazado como texto.
+  const rawBodyHtml = bodyEl.html()?.trim() || null;
+  const { html: sanitizedBodyHtml, removedCount: htmlResidueRemoved } = sanitizeBodyHtml(rawBodyHtml);
+  const {
+    bodyHtml,
+    bodyParagraphCount,
+    bodyTextLength,
+    bodyTextSample,
+    bodyTextFull,
+  } = recomputeBodyTextFromHtml(sanitizedBodyHtml);
 
   // coverSource distingue a capa vinda da ESTRUTURA da própria matéria
   // (confiável) de um fallback via <meta og:image> (pode ser um valor
@@ -167,11 +172,12 @@ export function parseArticlePage(html, url) {
     entryContentCount,
     bodySelectorUsed,
     suspiciousBodyElements,
-    bodyParagraphCount: bodyParagraphs.length,
-    bodyTextLength: bodyParagraphs.join(" ").length,
-    bodyTextSample: bodyParagraphs.join(" ").slice(0, 500) || null,
+    bodyParagraphCount,
+    bodyTextLength,
+    bodyTextSample,
     bodyTextFull,
     bodyHtml,
+    htmlResidueRemoved,
     coverUrl,
     coverSource,
     coverCaption,

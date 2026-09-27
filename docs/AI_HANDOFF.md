@@ -4,6 +4,57 @@ Este arquivo é atualizado ao final de CADA fase a partir da Fase 35. Curto, dir
 
 ---
 
+## Fase 44C — Análise, sanitização mecânica e correção do vazamento de HTML (2021-2022, SOMENTE LEITURA/CACHE, nada importado)
+
+**HEAD/commit:** `PENDENTE` (branch `feature/jornalir-core-foundation-20260917`)
+
+Autorizado por `docs/CHATGPT_REVIEW.md` (revisão sobre HEAD `a786cec`: achado da Fase 44B válido, mas pediu análise mais profunda antes de aceitar 160 casos como `needs_review` sem entender o padrão — a observação da revisão já apontava concentração em `data-filename="retriever"` (99) e `style="width: 50%; ..."` (42), sugerindo resíduo mecânico de imagem). Instrução: análise local (sem refetch, sem import), sanitização estritamente específica se o padrão for mecânico e seguro, reclassificação/regeneração pelo cache, e checagem preventiva somente leitura nos caches antigos.
+
+### Análise (relatório completo em `docs/legacy-html-leak-analysis-2021-2022.md`)
+
+Confirmado que os 160 casos de 2021-2022 são **100% resíduo mecânico** do mesmo padrão: os últimos atributos de uma tag `<img>` quebrada no HTML de origem do CMS legado (`data-filename="retriever"` e/ou `style="width: ...; height: ...;"`), sempre terminados pela entidade `&gt;` — nunca um `>` real, o que prova ser resíduo de markup malformado na própria origem, não um bug do nosso scraper. Nenhum dos 160 é ambíguo ou conteúdo editorial disfarçado. Duas assinaturas concentram 90% dos casos.
+
+### Sanitização implementada
+
+- `scripts/legacy-audit/lib/sanitize.mjs` (novo): regex `IMG_ATTR_RESIDUE` que remove exclusivamente essa sequência de atributos de imagem terminada em `&gt;` — nunca texto editorial nem um `>` real de tag válida.
+- `scripts/legacy-audit/lib/parse.mjs` (`parseArticlePage`): passou a sanitizar `bodyHtml` e recalcular `bodyTextFull`/`bodyParagraphCount`/etc a partir do HTML já sanitizado, ANTES de retornar o detalhe — daqui pra frente, todo fetch novo (2023-2024, 2025-2026) já sai limpo.
+- Validação de segurança: 160/160 casos de 2021-2022 totalmente sanitizados; **0 falso-positivo** nos outros 4.327 artigos de 2021-2022 e em todo o cache de 2015-2016 (1.635) e 2017-2018 (2.511).
+
+### Reprocessamento do cache (sem refetch)
+
+`scripts/legacy-audit/reprocess-cache-html-leak.mjs --batch=2021-2022`: releu `output/batches/2021-2022/details.ndjson`, sanitizou `bodyHtml` e recalculou os campos de texto SÓ a partir do que já estava em cache (nenhuma requisição de rede), regravando o mesmo arquivo (4.488 linhas antes e depois, preservadas). 160 entradas reprocessadas, 246 fragmentos de resíduo removidos no total (alguns artigos tinham mais de um).
+
+`migrate.mjs --batch=2021-2022 --mode=preflight` rerodado sobre o cache sanitizado — log confirma zero "detalhes buscados" (cache já 4488/4488). `report-batch.mjs --batch=2021-2022` regenerou os relatórios.
+
+### Números do preflight 2021-2022 (voltaram ao baseline da Fase 44 original)
+
+| Métrica | Fase 44B (com o bug) | Fase 44C (sanitizado) |
+|---|---|---|
+| **Elegíveis** | 4.315 | **4.475** |
+| `needs_review` | 173 | **13** |
+
+Os 160 casos voltaram a `eligible` com o corpo limpo (ex.: 418316 agora termina em "...questão organizacional e disciplinar. Divulgação/", preservando o crédito editorial e removendo só o resíduo). `itemsFound`, `dateExceptions`, `quarantined`, `rejected` e a distribuição por editoria voltaram aos valores originais da Fase 44.
+
+### Achado à parte — NÃO corrigido nesta etapa: 203 casos em dados já importados (2019-2020)
+
+Checagem preventiva pedida pela revisão nos caches locais dos lotes já concluídos:
+
+| Lote | Cache local | Casos do mesmo padrão |
+|---|---|---|
+| 2015-2016 | 1.635 artigos | 0 |
+| 2017-2018 | 2.511 artigos | 0 |
+| 2019-2020 | 5.100 artigos | **203** |
+
+O lote 2019-2020 já está `complete` em produção (5.088 articles publicados). Os 203 casos identificados têm exatamente o mesmo padrão (100% coberto pela mesma regra, 0 falso-positivo nos 4.897 artigos restantes do lote) — mas **nenhuma ação foi tomada sobre o cache local nem sobre o banco de dados** nesta etapa. Fica registrado como achado pendente de decisão explícita antes de qualquer correção em conteúdo já publicado. Lista completa dos 203 em `docs/legacy-html-leak-analysis-2021-2022.md`, seção 7.
+
+### Confirmação explícita
+
+- Nenhum refetch de rede em nenhum dos 4 lotes.
+- Nenhum dado de produção (2019-2020) alterado.
+- Nenhuma importação real de 2021-2022 nesta etapa.
+
+---
+
 ## Fase 44B — Varredura local de vazamento de HTML em `bodyTextFull` (2021-2022, SOMENTE LEITURA, nada importado)
 
 **HEAD/commit:** `9781e60` (branch `feature/jornalir-core-foundation-20260917`)
