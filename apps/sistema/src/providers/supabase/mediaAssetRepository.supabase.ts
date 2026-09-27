@@ -75,6 +75,123 @@ export async function registerUploadedMediaAsset(
   return toDomain(data as MediaAssetRow);
 }
 
+
+export interface MediaAdminPageQuery {
+  page?: number;
+  pageSize?: number;
+  search?: string;
+}
+
+export interface MediaAdminPageResult {
+  assets: MediaAsset[];
+  total: number;
+  page: number;
+  pageSize: number;
+  totalPages: number;
+}
+
+function mediaPageSize(value?: number): number {
+  return value === 24 || value === 96 ? value : 48;
+}
+
+function cleanMediaSearch(value?: string): string {
+  return (value ?? "").trim().replace(/[%_,]/g, " ");
+}
+
+export async function listMediaAdminPageSupabase(
+  client: SupabaseClient,
+  input: MediaAdminPageQuery = {},
+): Promise<MediaAdminPageResult> {
+  const pageSize = mediaPageSize(input.pageSize);
+  const requestedPage = Math.max(1, Math.floor(input.page ?? 1));
+
+  const build = (page: number) => {
+    let query = client
+      .from(TABLE)
+      .select(COLUMNS, { count: "exact" })
+      .order("created_at", { ascending: false })
+      .order("id", { ascending: false });
+
+    const term = cleanMediaSearch(input.search);
+    if (term) {
+      const pattern = `%${term}%`;
+      query = query.or(
+        `title.ilike.${pattern},internal_reference.ilike.${pattern},caption.ilike.${pattern},credit.ilike.${pattern}`,
+      );
+    }
+
+    const from = (page - 1) * pageSize;
+    return query.range(from, from + pageSize - 1);
+  };
+
+  let { data, error, count } = await build(requestedPage);
+  if (error) throw new Error(error.message);
+
+  const total = count ?? 0;
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  const page = Math.min(requestedPage, totalPages);
+  if (page !== requestedPage) {
+    const retry = await build(page);
+    if (retry.error) throw new Error(retry.error.message);
+    data = retry.data;
+  }
+
+  return {
+    assets: (data ?? []).map((row) => toDomain(row as MediaAssetRow)),
+    total,
+    page,
+    pageSize,
+    totalPages,
+  };
+}
+
+export async function listRecentMediaAssetsSupabase(
+  client: SupabaseClient,
+  limit = 60,
+): Promise<MediaAsset[]> {
+  const safeLimit = Math.max(1, Math.min(100, Math.floor(limit)));
+  const { data, error } = await client
+    .from(TABLE)
+    .select(COLUMNS)
+    .order("created_at", { ascending: false })
+    .limit(safeLimit);
+  if (error) throw new Error(error.message);
+  return (data ?? []).map((row) => toDomain(row as MediaAssetRow));
+}
+
+export async function searchMediaAssetsSupabase(
+  client: SupabaseClient,
+  search: string,
+  limit = 60,
+): Promise<MediaAsset[]> {
+  const term = cleanMediaSearch(search);
+  if (!term) return listRecentMediaAssetsSupabase(client, limit);
+
+  const safeLimit = Math.max(1, Math.min(100, Math.floor(limit)));
+  const pattern = `%${term}%`;
+  const { data, error } = await client
+    .from(TABLE)
+    .select(COLUMNS)
+    .or(
+      `title.ilike.${pattern},internal_reference.ilike.${pattern},caption.ilike.${pattern},credit.ilike.${pattern}`,
+    )
+    .order("created_at", { ascending: false })
+    .limit(safeLimit);
+  if (error) throw new Error(error.message);
+  return (data ?? []).map((row) => toDomain(row as MediaAssetRow));
+}
+
+export async function getMediaAssetsByIdsSupabase(
+  client: SupabaseClient,
+  ids: string[],
+): Promise<MediaAsset[]> {
+  const uniqueIds = [...new Set(ids.filter(Boolean))];
+  if (uniqueIds.length === 0) return [];
+  const { data, error } = await client.from(TABLE).select(COLUMNS).in("id", uniqueIds);
+  if (error) throw new Error(error.message);
+  return (data ?? []).map((row) => toDomain(row as MediaAssetRow));
+}
+
 export function createMediaAssetRepositorySupabase(client: SupabaseClient): MediaAssetRepository {
   return {
     async list() {
