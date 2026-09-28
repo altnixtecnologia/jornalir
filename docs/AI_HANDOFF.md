@@ -48,6 +48,10 @@ Toolbar `position: sticky` abaixo do header do sistema a partir de 768px (`--app
 - Login real com sessão de staff não estava disponível nesta sessão (mesma limitação já registrada nas Fases 47/48/49) — a interação real de clique nos cabeçalhos/preenchimento dos campos de data não pôde ser exercitada num navegador logado; validada por revisão de código + as queries equivalentes rodadas direto no banco (mesmas condições `WHERE`/`ORDER BY`/`RANGE` que o código gera) + o harness visual estático para toolbar/sticky/badges.
 - `npm run typecheck` e `npm run build --workspace=@ir/sistema`: limpos.
 
+### Preview publicado
+
+`apps/sistema` (projeto `jornalir-sistema`): `https://jornalir-sistema-j8r65r9t6-cristians-projects-34074cc3.vercel.app`. Rotas sem sessão confirmadas: `/login` (200), `/sistema/editorial/materias` (307 → login, middleware protegendo como esperado).
+
 ### Confirmação explícita
 
 - `apps/site` não foi tocado.
