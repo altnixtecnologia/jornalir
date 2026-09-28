@@ -1656,3 +1656,62 @@ Usuário deve testar visualmente os dois Previews, principalmente:
 - colocar/remover uma matéria publicada da Capa principal e atualizar a home.
 
 Não iniciar módulo Clientes até esta rodada visual ser aprovada pelo usuário.
+
+
+---
+
+## Ajuste visual imediato pós-Fase 49 — hero, largura desktop e header responsivo
+
+Substitui a orientação visual anterior sobre o hero/header. Aplicar antes de qualquer nova fase de produto.
+
+### Hero principal
+
+O Preview atual ficou visualmente errado após a troca para `contain`: a foto passou a parecer um quadro menor dentro do fundo, com bordas laterais/superiores visíveis. Para o **hero principal** a regra é diferente dos cards editoriais:
+
+- hero deve ser **full bleed**, ocupando toda a largura disponível;
+- imagem de fundo deve preencher toda a área do hero, sem moldura aparente;
+- no hero é permitido `cover` porque a função é cenográfica/de destaque; a regra “não cortar” continua valendo para imagem principal da matéria, galeria e cards/listagens;
+- manter overlay/gradiente para legibilidade;
+- título menor que o original, mas com distribuição melhor: usar tamanho responsivo próximo de `clamp(34px, 3.2vw, 58px)`, largura de texto bem controlada, `text-wrap: balance` e line-height ~0.98–1.02;
+- bloco textual não deve ficar grudado no topo: posicionar verticalmente de forma equilibrada;
+- subtítulo e meta devem ficar visualmente agrupados ao título;
+- validar com título longo real, não só título curto.
+
+### Aproveitamento da largura no desktop
+
+O usuário não quer o site inteiro preso em um container estreito centralizado com grandes bordas vazias.
+
+- em desktop, usar quase toda a largura da viewport, mantendo apenas gutters laterais pequenos e consistentes (aprox. 24–40 px conforme breakpoint);
+- header, áreas de destaque, listagens e estrutura com anúncios laterais devem aproveitar a largura disponível;
+- **não** esticar a coluna de leitura da matéria indefinidamente: texto corrido continua com largura confortável para leitura; quem amplia é a estrutura ao redor (shell, anúncios, hero, grids);
+- mobile/tablet continuam com paddings adequados;
+- evitar max-width global rígido que gere grandes margens em monitores 1440/1920px.
+
+### Header — esclarecimento definitivo
+
+O usuário **não quer duas faixas fixas no desktop**.
+
+Em desktop:
+- logo fica à esquerda;
+- links de navegação ficam **na mesma linha da logo**, ocupando o espaço entre logo e os controles da direita;
+- lupa, redes sociais e botão Assinante ficam à direita;
+- mostrar diretamente quantos itens couberem;
+- itens que não couberem devem ir para `Mais`;
+- não empurrar tudo para uma segunda faixa fixa;
+- se a implementação técnica preferir wrap em uma largura intermediária, a quebra deve ser controlada e limpa, mas a prioridade é manter uma única linha com overflow em `Mais`;
+- em monitor largo, deve ser possível exibir mais editorias diretamente;
+- em largura menor, reduzir gradualmente os itens diretos e concentrar o restante em `Mais`;
+- mobile mantém menu próprio/hambúrguer;
+- logo pode crescer um pouco em desktop desde que não estrangule a navegação.
+
+### Validação
+
+Testar visualmente em larguras equivalentes a 1366, 1440, 1920 e mobile:
+- hero sem bordas/moldura e preenchendo a largura;
+- título longo equilibrado;
+- header em uma linha no desktop largo;
+- `Mais` recebendo apenas o overflow real;
+- ausência de grandes faixas vazias nas laterais do layout;
+- página de matéria continua com imagem inteira/sem corte.
+
+Atualizar Preview do `apps/site` ao final. Não Production.
