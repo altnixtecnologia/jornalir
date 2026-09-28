@@ -19,6 +19,10 @@
   --brand-dark: #1f1f42;
   --brand-red: #c03030;
   --brand-gold: #d9ad00;
+  /* Altura real de `.app-header-inner` (min-height 62px + 1px de borda) —
+     usada pela toolbar sticky da listagem de matérias para não ficar
+     embaixo do header do sistema (Ajuste pós-Fase 49, item 6). */
+  --app-header-height: 63px;
 }
 body {
   margin: 0;
@@ -953,6 +957,177 @@ button.secondary-link {
   font-size: 11px;
   font-weight: 700;
   cursor: pointer;
+}
+
+/* Toolbar compacta da listagem de matérias (Ajuste pós-Fase 49, item 5) —
+   só usada em /sistema/editorial/materias; midias continua com
+   `.materias-toolbar`/`.materias-filters` (acima), inalteradas. */
+.materias-toolbar-compact {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  background: #fffefa;
+  border-bottom: 1px solid var(--line);
+  padding: 10px 0 12px;
+  margin-bottom: 18px;
+}
+.materias-filters-compact {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+.materias-filters-compact select,
+.materias-filters-compact input {
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  padding: 6px 8px;
+  font-size: 12px;
+  font-family: inherit;
+  color: var(--ink);
+  background: #fffefa;
+  height: 32px;
+}
+.materias-search-compact {
+  flex: 1 1 200px;
+  min-width: 160px;
+}
+.materias-search-compact input {
+  width: 100%;
+}
+.materias-date-compact input {
+  width: 130px;
+}
+.materias-filters-compact select {
+  min-width: 0;
+  max-width: 160px;
+}
+.materias-filters-compact button {
+  height: 32px;
+  padding: 0 14px;
+  border: 1px solid var(--brand);
+  background: var(--brand);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  border-radius: 3px;
+}
+.materias-filters-compact .secondary-link {
+  font-size: 11px;
+}
+.materias-toolbar-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: nowrap;
+}
+.materias-toolbar-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 14px;
+}
+.materias-inline-select {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.materias-inline-select select {
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  padding: 4px 6px;
+  font-size: 11px;
+  font-family: inherit;
+  color: var(--ink);
+  background: #fffefa;
+  text-transform: none;
+  letter-spacing: normal;
+  font-weight: 500;
+}
+.materias-toolbar-meta .materias-count {
+  margin-left: auto;
+  padding-bottom: 0;
+}
+
+/* Sticky moderado (item 6): toolbar gruda abaixo do header do sistema. Só a
+   partir de tablet — em telas de celular a listagem já vira cards (ver
+   `@media (max-width: 720px)` acima) e sticky tomaria espaço útil demais.
+   O cabeçalho da tabela (`thead`) foi testado como sticky também, mas
+   `.materias-table-wrap` precisa de `overflow-x: auto` pra rolagem
+   horizontal (a tabela tem `min-width: 980px`) — e por regra do próprio
+   CSS (Overflow Module Level 3), definir `overflow-x` diferente de
+   `visible` faz o `overflow-y` computar para `auto` também, mesmo sem
+   pedir. Isso torna esse wrapper o "nearest scrolling ancestor" do thead
+   para fins de `position: sticky`, que passa a colar relativo à rolagem
+   (inexistente) do próprio wrapper em vez da página — resultado real,
+   verificado visualmente: o cabeçalho ficava preso a meio caminho da
+   tabela, cobrindo linhas, violando exatamente a regra de não cobrir
+   conteúdo. Corrigir isso direito exigiria separar thead/tbody em
+   estruturas distintas com scroll sincronizado por JS; como o pedido
+   original marca este item como opcional ("pode ficar sticky"), optou-se
+   por manter só a toolbar sticky (item obrigatório) e deixar o cabeçalho
+   da tabela no fluxo normal — sem risco de cobrir linha nenhuma. */
+@media (min-width: 768px) {
+  .materias-toolbar-compact {
+    position: sticky;
+    top: var(--app-header-height);
+    z-index: 15;
+  }
+}
+
+.materia-sort-link {
+  display: inline-flex;
+  color: var(--muted);
+}
+.materia-sort-link:hover {
+  color: var(--ink);
+}
+.materia-sort-link.is-active {
+  color: var(--brand);
+}
+
+.pub-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  align-items: flex-start;
+}
+.pub-cell--muted {
+  color: var(--muted);
+  font-size: 11px;
+}
+.pub-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 3px;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+.pub-badge--published {
+  background: #dcece2;
+  color: var(--brand);
+}
+.pub-badge--scheduled {
+  background: #f5e6c8;
+  color: #8a5a1f;
+}
+.pub-datetime {
+  font-size: 11px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.materia-card-foot .pub-cell {
+  flex-direction: row;
+  align-items: center;
 }
 
 .materias-table-wrap {

@@ -4,6 +4,59 @@ Este arquivo é atualizado ao final de CADA fase a partir da Fase 35. Curto, dir
 
 ---
 
+## Ajuste do painel — listagem de matérias: ordenação, datas e toolbar compacta
+
+**HEAD/commit:** `PENDENTE` (branch `feature/painel-editorial-operacional-20260927`)
+
+Autorizado por instrução direta do usuário lendo `docs/CHATGPT_REVIEW.md`, commit `8926877` (seção "Ajuste do painel — listagem de matérias: ordenação, datas e toolbar compacta"). Só `apps/sistema` (listagem `/sistema/editorial/materias`) foi tocado — `apps/site` intocado.
+
+### 1. Ordem cronológica padrão — nunca mais `updated_at`
+
+Migration `supabase/migrations/20261008100000_articles_editorial_sort_at.sql`: coluna gerada `articles.editorial_sort_at timestamptz generated always as (coalesce(scheduled_at, published_at, updated_at)) stored`, com índice `(editorial_sort_at desc, id desc)`. `coalesce` nessa ordem já resolve os três casos pedidos sem lógica condicional por status: publicada nunca tem `scheduled_at` (já foi publicada), então cai em `published_at`; programada usa `scheduled_at`; rascunho/ajuste sem nenhuma das duas cai em `updated_at` só como fallback. Confirmado direto no banco pós-migration: `editorial_sort_at` de matérias publicadas bate com `published_at`, não com `updated_at` (que podia ser um valor bem mais recente por causa de uma edição administrativa).
+
+### 2. Cabeçalhos clicáveis, ordenação global no banco
+
+`listArticlesAdminPageSupabase` (`apps/sistema/src/providers/supabase/articleRepository.supabase.ts`) ganhou `sortBy`/`sortDir`, aplicados via `.order()` **antes** do `.range()` — nunca ordenação só da página atual. Colunas ordenáveis: Referência, Matéria, Origem, Editoria, Abrangência, Status, Publicação/Programação (`editorial_sort_at`) e Notificação — todas com desempate estável por `id`. Destaque/Mídia ficaram de fora (dependeriam de agregação por placement/mídia mais cara) e permanecem não clicáveis, documentado no código. Clique alterna asc/desc (▲/▼ na coluna ativa) e sempre volta pra página 1, preservando os demais filtros/pageSize/busca (`buildSortHref` em `MateriasList.tsx`, reaproveitando o `buildHref` já usado pela paginação).
+
+**Bug real encontrado e corrigido durante a implementação**: a primeira tentativa ordenava Editoria/Abrangência via embed do PostgREST (`.select("*, editorial_sections(name)").order("name", {foreignTable: "editorial_sections"})`). Testado direto no banco: isso **não ordena as linhas de `articles`** — `order` com `foreignTable` só reordena as linhas de um embed *one-to-many* aninhado, não uma relação *many-to-one* como `section_id → editorial_sections.id`. Confirmado com uma consulta real (pedindo `section_name` ascendente, o primeiro resultado vinha "Saúde", não "Agricultura"). Corrigido com a migration `supabase/migrations/20261008100100_articles_section_locality_name_cache.sql`: colunas cache `articles.section_name`/`articles.locality_name`, populadas por trigger (`before insert or update of section_id, locality_id`) — nunca aceitas do payload do cliente, sempre recalculadas a partir da FK — mais um trigger de propagação em `editorial_sections`/`localities` para o raríssimo caso de rename. Reconfirmado no banco: `section_name` ascendente agora começa em "Agricultura" corretamente.
+
+### 3. Filtro por período
+
+Novo `dateField` (Publicação/Programação/Data editorial) + `dateFrom`/`dateTo` em `listArticlesAdminPageSupabase`, aplicado com `.gte()`/`.lt()` (dia final inclusivo via "próximo dia meia-noite exclusivo", sem depender de fuso). Validado direto no banco: filtro de publicação em janeiro/2026 retornou uma contagem coerente (325).
+
+### 4. PUBLICADA x PROGRAMADA — distinção visual
+
+Novo componente `PublicationCell` (tabela e cards mobile): badge **PUBLICADA** (verde, cor da marca) + data/hora quando `status==='published'`; badge **PROGRAMADA** (dourado/âmbar) + data/hora quando `status==='scheduled'`; "Sem data" discreto e sem badge nos demais casos (rascunho/ajuste/arquivada sem data) — nunca o mesmo tratamento visual para publicada e programada.
+
+### 5. Terminologia — Abrangência
+
+"Localidade" trocado por "Abrangência" no filtro e no cabeçalho da coluna da listagem, mesmo nome já usado no formulário da matéria (Fase 49).
+
+### 6. Toolbar compacta + sticky
+
+Toolbar reescrita como um único formulário compacto (`.materias-toolbar-compact`/`.materias-filters-compact`, novas classes — a toolbar de `/sistema/editorial/midias` continua com as classes antigas, inalterada): busca + 5 selects + 2 campos de data + tamanho de página + Aplicar/Limpar numa faixa só que quebra em até 2–3 linhas curtas conforme a largura (2 linhas a partir de ~1920px; 3 linhas compactas em 1366/1440/tablet — nunca a altura excessiva de antes). Filtros "Fotos"/"Destaque nesta página" seguem client-side (explicitamente rotulados "nesta página", como já eram) e viraram uma segunda faixa junto com a contagem.
+
+Toolbar `position: sticky` abaixo do header do sistema a partir de 768px (`--app-header-height: 63px`); em mobile (tabela vira cards, `<720px`, comportamento já existente) sem sticky.
+
+**Cabeçalho da tabela (`thead`) — tentado como sticky também, revertido por bug real confirmado visualmente**: `.materias-table-wrap` precisa de `overflow-x: auto` pra rolagem horizontal (tabela com `min-width: 980px`). Por regra do CSS Overflow Module Level 3, definir `overflow-x` diferente de `visible` faz `overflow-y` computar para `auto` também — isso torna esse wrapper o "nearest scrolling ancestor" do `thead` para fins de `position: sticky`, que passa a colar relativo à rolagem (inexistente) do wrapper em vez da página. Resultado visual real, capturado em screenshot: o cabeçalho ficava preso no meio da tabela, cobrindo linhas de dados — exatamente o que a validação pede pra nunca acontecer. Corrigir isso direito exigiria separar `thead`/`tbody` em estruturas distintas com scroll sincronizado por JS; como o pedido original marca esse item como opcional ("cabeçalho da tabela também **pode** ficar sticky"), optou-se por manter só a toolbar sticky (item obrigatório) e deixar o `thead` no fluxo normal — sem nenhum risco de cobrir linha.
+
+### 7. Validação
+
+- Ordenação padrão/cronológica, `editorial_sort_at` vs `updated_at`, ordenação por Referência/Título (`internal_reference`/`title` asc e desc) e filtro de período: validados com queries reais contra o Supabase (projeto `iqnzrpdccecgalqboeyf`), reproduzindo exatamente a query que o código monta.
+- Ordenação por Editoria/Abrangência: bug do embed encontrado e corrigido conforme item 2; reconfirmado no banco pós-fix.
+- Toolbar compacta + sticky + ausência de sobreposição de linhas: validado visualmente com Playwright contra um harness estático que reaproveita o CSS compilado real do app (`apps/sistema/.next/static/css`) em 820/1024/1366/1440/1920px — sticky da toolbar confirmado correto (gruda abaixo do header, nunca cobre a própria toolbar), nenhuma sobreposição de linha da tabela em nenhuma largura.
+- Login real com sessão de staff não estava disponível nesta sessão (mesma limitação já registrada nas Fases 47/48/49) — a interação real de clique nos cabeçalhos/preenchimento dos campos de data não pôde ser exercitada num navegador logado; validada por revisão de código + as queries equivalentes rodadas direto no banco (mesmas condições `WHERE`/`ORDER BY`/`RANGE` que o código gera) + o harness visual estático para toolbar/sticky/badges.
+- `npm run typecheck` e `npm run build --workspace=@ir/sistema`: limpos.
+
+### Confirmação explícita
+
+- `apps/site` não foi tocado.
+- Nenhuma matéria histórica foi alterada — as duas migrations só adicionam colunas derivadas/cache e triggers, nunca mudam `section_id`/`locality_id`/`published_at`/`scheduled_at`/`updated_at` de nenhuma matéria.
+- Paginação/filtros seguem 100% server-side; nada além da página atual (até 96 itens) é carregado no navegador, mesmo com as 23.292 matérias no banco.
+- Nada além de Preview foi publicado — Production de `jornalir-sistema` intocado.
+
+---
+
 ## Ajuste visual imediato pós-Fase 49 — hero full bleed, largura desktop e header em uma linha só
 
 **HEAD/commit:** `37f4b03` (branch `feature/painel-editorial-operacional-20260927`)

@@ -8,7 +8,12 @@ import {
   getNewspaperEditionService,
 } from "../../../../composition/editorial";
 import { createSupabaseServerClient } from "../../../../lib/supabase/server";
-import { listArticlesAdminPageSupabase } from "../../../../providers/supabase/articleRepository.supabase";
+import {
+  listArticlesAdminPageSupabase,
+  type MateriasDateField,
+  type MateriasSortColumn,
+  type SortDirection,
+} from "../../../../providers/supabase/articleRepository.supabase";
 
 function one(value: string | string[] | undefined): string {
   return Array.isArray(value) ? value[0] ?? "" : value ?? "";
@@ -26,6 +31,33 @@ function asOrigin(value: string): ArticleOrigin | "all" {
     : "all";
 }
 
+const SORT_COLUMNS: MateriasSortColumn[] = [
+  "reference",
+  "title",
+  "origin",
+  "section",
+  "locality",
+  "status",
+  "date",
+  "notification",
+];
+
+function asSortColumn(value: string): MateriasSortColumn {
+  return (SORT_COLUMNS as string[]).includes(value) ? (value as MateriasSortColumn) : "date";
+}
+
+function asSortDir(value: string): SortDirection {
+  return value === "asc" ? "asc" : "desc";
+}
+
+function asDateField(value: string): MateriasDateField | undefined {
+  return value === "published" || value === "scheduled" || value === "editorial" ? value : undefined;
+}
+
+function asDateOnly(value: string): string {
+  return /^\d{4}-\d{2}-\d{2}$/.test(value) ? value : "";
+}
+
 export default async function MateriasPage({
   searchParams,
 }: {
@@ -38,6 +70,11 @@ export default async function MateriasPage({
     sectionId: one(searchParams?.section) || "all",
     localityId: one(searchParams?.locality) || "all",
     origin: asOrigin(one(searchParams?.origin)),
+    sortBy: asSortColumn(one(searchParams?.sortBy)),
+    sortDir: asSortDir(one(searchParams?.sortDir)),
+    dateField: asDateField(one(searchParams?.dateField)),
+    dateFrom: asDateOnly(one(searchParams?.dateFrom)),
+    dateTo: asDateOnly(one(searchParams?.dateTo)),
   };
   const requestedPage = Math.max(1, Number(one(searchParams?.page)) || 1);
   const requestedPageSize = Number(one(searchParams?.pageSize)) || 48;
@@ -51,6 +88,11 @@ export default async function MateriasPage({
       sectionId: filters.sectionId,
       localityId: filters.localityId,
       origin: filters.origin,
+      sortBy: filters.sortBy,
+      sortDir: filters.sortDir,
+      dateField: filters.dateField,
+      dateFrom: filters.dateFrom || undefined,
+      dateTo: filters.dateTo || undefined,
     }),
     getEditorialSectionService(supabase).list(),
     getLocalityService(supabase).list(),

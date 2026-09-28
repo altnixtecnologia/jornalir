@@ -430,6 +430,57 @@ async function syncArticleMedia(client: SupabaseClient, articleId: string, desir
 }
 
 
+export type MateriasSortColumn =
+  | "reference"
+  | "title"
+  | "origin"
+  | "section"
+  | "locality"
+  | "status"
+  | "date"
+  | "notification";
+
+export type SortDirection = "asc" | "desc";
+
+export type MateriasDateField = "published" | "scheduled" | "editorial";
+
+// `section`/`locality` ordenam por `section_name`/`locality_name` — colunas
+// cache mantidas por trigger (ver migration 20261008100100). PostgREST não
+// ordena as linhas de `articles` pelo nome de um embed many-to-one (testado
+// direto no banco: `order(col, {foreignTable})` simplesmente não fazia
+// nada), então a coluna denormalizada é a forma real de conseguir isso.
+const SORT_COLUMN_TO_DB: Record<MateriasSortColumn, string> = {
+  reference: "internal_reference",
+  title: "title",
+  origin: "origin",
+  section: "section_name",
+  locality: "locality_name",
+  status: "status",
+  date: "editorial_sort_at",
+  notification: "notification_mode",
+};
+
+const DATE_FIELD_TO_DB: Record<MateriasDateField, string> = {
+  published: "published_at",
+  scheduled: "scheduled_at",
+  editorial: "editorial_sort_at",
+};
+
+// Dia final inclusivo (ex.: "2026-09-28" → tudo até 2026-09-29T00:00:00,
+// exclusivo) — evita depender de fuso ao comparar só a data digitada pelo
+// usuário contra uma coluna timestamptz.
+function nextDayIso(dateOnly: string): string | null {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateOnly);
+  if (!match) return null;
+  const [, y, m, d] = match;
+  const next = new Date(Date.UTC(Number(y), Number(m) - 1, Number(d) + 1));
+  return next.toISOString();
+}
+
+function isValidDateOnly(value?: string): value is string {
+  return Boolean(value && /^\d{4}-\d{2}-\d{2}$/.test(value));
+}
+
 export interface ArticleAdminPageQuery {
   page?: number;
   pageSize?: number;
@@ -438,6 +489,11 @@ export interface ArticleAdminPageQuery {
   sectionId?: string;
   localityId?: string;
   origin?: ArticleOrigin | "all";
+  sortBy?: MateriasSortColumn;
+  sortDir?: SortDirection;
+  dateField?: MateriasDateField;
+  dateFrom?: string;
+  dateTo?: string;
 }
 
 export interface ArticleAdminPageResult {
@@ -473,12 +529,20 @@ export async function listArticlesAdminPageSupabase(
   const pageSize = normalizePageSize(input.pageSize);
   const requestedPage = Math.max(1, Math.floor(input.page ?? 1));
 
+  const sortBy = input.sortBy ?? "date";
+  const ascending = input.sortDir === "asc";
+
   const buildQuery = (page: number) => {
     let query = client
       .from(ARTICLES_TABLE)
       .select(ARTICLE_COLUMNS, { count: "exact" })
-      .order("updated_at", { ascending: false })
-      .order("id", { ascending: false });
+      .order(SORT_COLUMN_TO_DB[sortBy], { ascending });
+    // Desempate estável — evita a ordem "balançar" entre páginas quando a
+    // coluna ativa repete valor (ex.: mesmo status/origem em várias linhas).
+    if (sortBy !== "date") {
+      query = query.order("editorial_sort_at", { ascending: false });
+    }
+    query = query.order("id", { ascending: false });
 
     if (input.status && input.status !== "all") query = query.eq("status", input.status);
     if (input.sectionId && input.sectionId !== "all") query = query.eq("section_id", input.sectionId);
@@ -492,6 +556,14 @@ export async function listArticlesAdminPageSupabase(
       query = query.or(
         `title.ilike.${pattern},subtitle.ilike.${pattern},internal_reference.ilike.${pattern}`,
       );
+    }
+
+    if (input.dateField && isValidDateOnly(input.dateFrom)) {
+      query = query.gte(DATE_FIELD_TO_DB[input.dateField], `${input.dateFrom}T00:00:00.000Z`);
+    }
+    if (input.dateField && isValidDateOnly(input.dateTo)) {
+      const exclusiveEnd = nextDayIso(input.dateTo);
+      if (exclusiveEnd) query = query.lt(DATE_FIELD_TO_DB[input.dateField], exclusiveEnd);
     }
 
     const from = (page - 1) * pageSize;
@@ -511,7 +583,10 @@ export async function listArticlesAdminPageSupabase(
     data = retry.data;
   }
 
-  const rows = (data ?? []) as ArticleRow[];
+  // O select é montado em runtime (embed condicional pra ordenar por
+  // editoria/abrangência) — o TS não consegue inferir a forma da linha a
+  // partir de uma string dinâmica, então o cast passa por `unknown`.
+  const rows = (data ?? []) as unknown as ArticleRow[];
   const ids = rows.map((row) => row.id);
   const [placements, coverMedia] = await Promise.all([
     fetchActivePlacements(client, ids),
