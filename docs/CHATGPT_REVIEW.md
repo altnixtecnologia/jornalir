@@ -1734,3 +1734,100 @@ Confirmado no código:
 - nenhum código de Production foi acionado segundo o handoff; somente Preview.
 
 Observação: a decisão final aqui é visual. Não avançar para Clientes ainda; primeiro o usuário precisa conferir o Preview novo em desktop e mobile e aprovar hero/header/largura.
+
+
+---
+
+## Ajuste do painel — listagem de matérias: ordenação, datas e toolbar compacta
+
+Aplicar antes de avançar para novos módulos.
+
+### 1. Ordem cronológica padrão
+
+A listagem administrativa hoje ordena por `updated_at DESC`, o que mistura matérias antigas recém-editadas com conteúdo realmente recente. Corrigir.
+
+Definir uma ordenação editorial padrão coerente:
+- matérias publicadas: usar `published_at`;
+- matérias programadas: usar `scheduled_at`;
+- rascunhos/em ajuste sem data editorial: usar `updated_at` apenas como fallback administrativo;
+- ordem padrão: mais recente primeiro;
+- a ordenação deve ser global no banco, antes da paginação — nunca ordenar só os 48 itens da página atual.
+
+Se necessário, criar uma expressão/view/campo derivado seguro para `editorial_sort_at = coalesce(scheduled_at, published_at, updated_at)`, desde que não quebre RLS nem a migração histórica.
+
+### 2. Cabeçalhos clicáveis para ordenar
+
+Transformar os cabeçalhos da tabela em controles de ordenação server-side, preservando página, pageSize, busca e filtros.
+
+No mínimo ordenar corretamente:
+- Referência;
+- Matéria/título;
+- Origem;
+- Editoria;
+- Abrangência;
+- Status;
+- Publicação/Programação;
+- Notificação.
+
+Quando tecnicamente viável sem query ruim, incluir também Destaque e Mídia. Se esses dois exigirem um join caro/ambíguo, mantê-los não clicáveis e documentar — não fazer ordenação apenas local da página.
+
+UX:
+- primeiro clique: ordem natural/ascendente ou a mais útil para a coluna;
+- segundo clique: inverte;
+- mostrar seta ▲/▼ na coluna ativa;
+- ao trocar a ordenação, voltar para página 1.
+
+### 3. Filtro por data
+
+Adicionar filtro compacto por período, server-side:
+- seletor de tipo: Publicação | Programação | Data editorial;
+- campos `De` e `Até`;
+- preservar os demais filtros;
+- datas inclusivas no dia final;
+- sem carregar o acervo inteiro no browser.
+
+### 4. Publicação x Programação — distinção visual
+
+Na coluna hoje chamada “Publicação/Programação”, diferenciar claramente:
+- publicada: badge/label visual **PUBLICADA** + data/hora;
+- programada: badge/label visual **PROGRAMADA** + data/hora, com cor diferente;
+- rascunho/ajuste sem data: mostrar “—” ou “Sem data” discretamente;
+- não usar o mesmo tratamento visual para publicada e programada;
+- manter formato de data/hora consistente e legível.
+
+### 5. Toolbar mais compacta e responsiva
+
+A área de filtros ocupa altura demais no Preview atual. Reorganizar:
+- desktop largo: preferir 1 linha compacta ou no máximo 2 linhas curtas;
+- busca com largura flexível; selects menores;
+- reduzir paddings/gaps sem prejudicar leitura;
+- “Aplicar” e “Limpar” juntos e compactos;
+- contagem/página no mesmo bloco, sem criar uma faixa vazia;
+- filtros “Fotos” e “Destaque” devem integrar a mesma toolbar. Idealmente transformar em filtros server-side globais; se permanecerem locais à página, deixar isso visualmente explícito.
+- em largura menor, quebrar de forma organizada em grid responsivo.
+
+### 6. Sticky / travar área
+
+Implementar de forma moderada:
+- tornar a toolbar compacta `position: sticky` abaixo do header do sistema em desktop, com fundo sólido e z-index correto;
+- o sticky não pode ocupar grande parte da viewport;
+- o cabeçalho da tabela também pode ficar sticky imediatamente abaixo da toolbar;
+- em mobile, evitar sticky excessivo; priorizar espaço útil.
+
+### 7. Terminologia
+
+Na listagem administrativa, trocar “Localidade” por **“Abrangência”** também no filtro e no cabeçalho da tabela, mantendo coerência com o formulário da matéria.
+
+### 8. Validação
+
+Testar com o acervo real:
+- ordem padrão mostra cronologia editorial e não `updated_at`;
+- clique em Data alterna desc/asc;
+- clique em Título/Referência funciona globalmente entre páginas;
+- filtro de período retorna contagem coerente;
+- filtros e ordenação sobrevivem à paginação;
+- toolbar em 1366/1440/1920 e tablet não fica alta demais;
+- sticky não cobre linhas/tabela;
+- publicada e programada são visualmente impossíveis de confundir.
+
+Typecheck/build de `apps/sistema`, commit/push e novo Preview do painel. Não Production.
