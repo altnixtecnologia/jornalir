@@ -91,7 +91,7 @@ export function PublicFeaturedHero({ items }: { items: PublicArticle[] }): JSX.E
                     <span style={{ background: "#fff" }} className="h-[2px] w-4" />
                     {item.sectionName}
                   </span>
-                  <h1 className="mt-4 max-w-4xl font-editorial text-[38px] font-bold leading-[1.03] text-white drop-shadow-lg sm:text-[50px] md:text-[64px] xl:text-[78px]">
+                  <h1 className="mt-4 max-w-5xl font-editorial text-[clamp(30px,3.2vw,58px)] font-bold leading-[1.04] text-white drop-shadow-lg">
                     {item.title}
                   </h1>
                   {item.subtitle ? (
