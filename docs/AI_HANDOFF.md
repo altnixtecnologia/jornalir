@@ -4,6 +4,41 @@ Este arquivo é atualizado ao final de CADA fase a partir da Fase 35. Curto, dir
 
 ---
 
+## Fase 46C — CARGA REAL do lote 2025-2026 CONCLUÍDA — último lote cronológico do legado
+
+**HEAD/commit:** `6defdfe` (branch `feature/jornalir-core-foundation-20260917`)
+
+Autorizado por `docs/CHATGPT_REVIEW.md` (revisão sobre HEAD `b63830e`: Fase 46B aprovada, "AUTORIZADA carga real de 2025-2026", usando o cache já completo, sem refetch, sem `--limit`). Relatórios completos em `docs/legacy-batch-2025-2026-final.md` e `docs/legacy-duplicate-audit-2025-2026.md`.
+
+### Carga real (sem bloqueio de MIME — a verificação da Fase 46/46B se confirmou correta)
+
+`node --env-file=".env.local" scripts/legacy-audit/migrate.mjs --batch=2025-2026 --mode=import --commit --rps=4`, executado 2x. 1ª execução: 5.312/5.312 articles, 2 falhas de imagem **transitórias** (`Gateway Timeout` — não MIME/config, nenhuma alteração de bucket foi necessária). 2ª execução (retry, sem `--limit`): reconciliadas. Resultado final: **5.312/5.312 articles, 16.035/16.035 referências de imagem, 0 falhas**, `legacy_migration_batches.status = complete`.
+
+### Validação final (`batch-final-validate.mjs --batch=2025-2026`)
+
+Todos os itens batem exatamente com o esperado: 5.312 articles/sources, 16.035 media/article_media, 0 placements, 5.311 com exatamente 1 capa, 1 sem imagem, 0 vazamento de `needs_review`(2)/`quarantined`(27, confirmado por consulta direta)/exceções de data(7), 6/6 GIFs. Checagem global: **23.292 articles/sources/slugs — todos únicos**; **44.289 media_assets — todos com `origin_source_url`/`storage_path` únicos**. Aritmética: 1.622+2.503+5.088+4.475+4.292+5.312=23.292.
+
+### Auditoria de candidatos a duplicata (somente leitura, nada arquivado)
+
+Rodada sobre os 6 lotes (23.292 articles). Resultado:
+- 65 grupos já resolvidos (54 Fase 43 + 10 Fase 44F + 1 Fase 45C) — esperado;
+- **5 candidatos novos envolvendo 2025-2026** (3 corpo idêntico, 2 precisam inspeção) — nenhum arquivado;
+- 14 candidatos antigos ainda pendentes (10 de 2015-2020 + 3 de 2021-2022 + 1 de 2023-2024) continuam intocados.
+
+### Marco: migração histórica completa
+
+Este era o **último lote cronológico** do legado (2015–2026). A carga de conteúdo está tecnicamente completa em todos os 6 lotes. Preview e Production continuam **NÃO autorizados** nesta etapa.
+
+### Confirmação explícita
+
+- Nenhum refetch de rede (cache 100% reaproveitado).
+- Nenhuma matéria dos lotes anteriores alterada por esta carga.
+- Os 2 `needs_review` e os 27 `quarantined`/`classificados` ficaram fora, confirmado.
+- Nenhum arquivamento automático de duplicata.
+- Nenhum Preview gerado, nenhuma ação de Production.
+
+---
+
 ## Fase 46B — Correção da auditoria de extensões de mídia do preflight 2025-2026
 
 **HEAD/commit:** `8cc8ba3` (branch `feature/jornalir-core-foundation-20260917`)

@@ -1289,3 +1289,61 @@ Depois da carga:
 - PARAR para conferência.
 
 Ainda NÃO gerar Preview e NÃO fazer Production nesta etapa.
+
+
+---
+
+## Revisão da Fase 46C — APROVADA / migração histórica 2015–2026 concluída
+
+Revisado diretamente no GitHub sobre o HEAD `ff9ce6d` (carga em `6defdfe` + atualização documental em `ff9ce6d`).
+
+Os artefatos da Fase 46C estão coerentes entre `docs/AI_HANDOFF.md`, `docs/legacy-migration-status.json`, `docs/legacy-batch-2025-2026-final.md` e `docs/legacy-duplicate-audit-2025-2026.md`.
+
+### Lote 2025–2026 confirmado
+
+- 5.312/5.312 artigos e fontes externas;
+- 16.035/16.035 mídias e vínculos;
+- 0 falhas finais;
+- 2 Gateway Timeout transitórios reconciliados no retry;
+- nenhum MIME real não suportado;
+- 5.311 matérias com exatamente 1 capa e 1 sem imagem;
+- 0 placements;
+- 0 vazamento dos 2 needs_review;
+- 0 vazamento dos 27 quarantined/classificados;
+- 0 vazamento das 7 exceções de data;
+- distribuição editorial idêntica ao preflight aprovado;
+- `legacy_migration_batches.status = complete`.
+
+### Checagem global
+
+A aritmética dos 6 lotes fecha em 23.292 artigos/fontes/slugs e 44.289 mídias, com unicidade global documentada por identidade, URL de origem e storage_path.
+
+Portanto a carga histórica 2015–2026 está **tecnicamente concluída**.
+
+### Duplicatas
+
+A auditoria permaneceu somente leitura, como autorizado:
+
+- 65 grupos já resolvidos;
+- 5 candidatos novos envolvendo 2025–2026;
+- 14 candidatos antigos ainda pendentes;
+- nenhum novo arquivamento automático.
+
+**NÃO fazer limpeza adicional de duplicatas agora.** Os 19 grupos pendentes ficam preservados para revisão editorial específica futura.
+
+Observação documental pequena: o comentário interno de `scripts/legacy-audit/duplicate-audit-2025-2026.mjs` ainda menciona “13 candidatos antigos” em um trecho, enquanto o resultado final correto é 14. Isso é comentário desatualizado e não altera o cálculo nem bloqueia a aprovação; corrigir quando o arquivo for tocado novamente.
+
+## Próxima etapa autorizada — painel editorial operacional
+
+Com a migração encerrada, está autorizado concentrar o trabalho no painel em branch própria, sem alterar os dados históricos:
+
+- integrar a branch `feature/painel-editorial-operacional-20260927` com o HEAD final da migração;
+- manter o fluxo do editor em **Matéria → Imagens → Publicação e destaque**;
+- manter listagens de matérias/mídias paginadas e filtradas no servidor;
+- manter a gestão de destaques em área própria, com seleção também disponível na matéria;
+- manter PDFs das novas edições fora do Supabase Storage: o desenho aprovado é Google Drive/Jornal Online, com o Supabase guardando apenas referência/URL;
+- revisar autenticação/auditoria/RLS e eliminar o resíduo `SIMULATED_AUDIT` somente se a sessão real permitir fazê-lo sem quebrar os fluxos existentes;
+- validar typecheck/build antes de teste manual;
+- depois fazer teste manual local do fluxo completo, sem Preview/Production nesta etapa.
+
+Nenhuma ação em Production está autorizada por esta revisão.
