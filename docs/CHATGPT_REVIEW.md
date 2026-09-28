@@ -1614,3 +1614,45 @@ Ao final, validar no navegador:
 - remover do destaque;
 - atualizar a home;
 - matéria deve sair sem deixar de estar publicada.
+
+
+---
+
+## Revisão da Fase 49 — APROVADA para teste manual
+
+Revisado diretamente no GitHub sobre o HEAD `ca5e129`.
+
+A implementação corresponde ao escopo pedido:
+- diagnóstico de editorias sem alteração em massa de conteúdo histórico;
+- Abrangência com scopes país/estado/região/cidade/geral;
+- migration/seed das novas abrangências;
+- cadastro rápido de nova abrangência dentro da matéria;
+- `Geral` oculto nos metadados públicos;
+- capa + galeria unificadas no mesmo lightbox;
+- imagens editoriais preservadas sem crop;
+- “Voltar para {Editoria}”;
+- header desktop em duas faixas com logo maior;
+- paginação por blocos de 10 + salto direto no portal e nas listagens administrativas paginadas;
+- typecheck/build documentados como limpos;
+- Previews atualizados sem Production.
+
+### Destaque principal
+
+A cadeia de código atual está coerente: a home é `force-dynamic`, o cliente Supabase público força `cache: "no-store"`, a view pública filtra placement efetivo e `listPublicPlacement("mainCover")` alimenta diretamente o hero.
+
+O teste documentado encontrou a matéria real em `public_article_placements` e o servidor local renderizou o destaque corretamente.
+
+**Não considerar “cache CDN da Vercel” como causa comprovada.** É apenas hipótese operacional; com `force-dynamic` + `no-store`, a origem exata do sintoma anterior não ficou demonstrada. O comportamento deve ser retestado pelo usuário no Preview novo. Se voltar a falhar, registrar a URL exata, matéria e horário do teste antes de alterar código.
+
+### Próxima ação
+
+Usuário deve testar visualmente os dois Previews, principalmente:
+- header em desktop e resolução intermediária;
+- paginação 1–10 / 11–20 e salto para página distante;
+- matéria com imagem que contenha texto/bordas;
+- galeria completa;
+- voltar por editoria;
+- nova abrangência inline;
+- colocar/remover uma matéria publicada da Capa principal e atualizar a home.
+
+Não iniciar módulo Clientes até esta rodada visual ser aprovada pelo usuário.
