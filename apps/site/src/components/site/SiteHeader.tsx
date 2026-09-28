@@ -13,6 +13,11 @@ interface NavLink {
   label: string;
 }
 
+// Acesso permanente a todo o acervo de notícias — nunca depende de
+// editorias carregadas nem de existir algo em destaque (placement
+// "latestNews"): é um link estrutural fixo, sempre visível.
+const NOTICIAS_LINK: NavLink = { href: "/noticias", label: "Notícias" };
+
 // Links fixos que não são editoria — mantidos nos mesmos grupos visuais de
 // antes (Jornal Online direto no header; Sobre/Contato em "Mais").
 const JORNAL_ONLINE: NavLink = { href: "/jornal-online", label: "Jornal Online" };
@@ -125,6 +130,9 @@ export function SiteHeader({ active }: { active?: string } = {}): JSX.Element {
           <nav className="hidden items-center gap-4 lg:flex xl:gap-5" aria-label="Navegação principal">
             <Link href="/" className={`nav-link ${isActive("/") ? "is-active" : ""}`}>
               Início
+            </Link>
+            <Link href={NOTICIAS_LINK.href} className={`nav-link ${isActive(NOTICIAS_LINK.href) ? "is-active" : ""}`}>
+              {NOTICIAS_LINK.label}
             </Link>
             {flatLinks.map((item) => (
               <Link key={item.href} href={item.href} className={`nav-link ${isActive(item.href) ? "is-active" : ""}`}>
@@ -244,6 +252,13 @@ export function SiteHeader({ active }: { active?: string } = {}): JSX.Element {
               className={`ir-mobile-nav-link ${mobileNavigatingTo === "/" ? "is-pending" : ""}`}
             >
               Início
+            </Link>
+            <Link
+              href={NOTICIAS_LINK.href}
+              onClick={(e) => handleMobileNavClick(e, NOTICIAS_LINK.href)}
+              className={`ir-mobile-nav-link ${mobileNavigatingTo === NOTICIAS_LINK.href ? "is-pending" : ""}`}
+            >
+              {NOTICIAS_LINK.label}
             </Link>
             {allNavLinks.map((item) => (
               <Link

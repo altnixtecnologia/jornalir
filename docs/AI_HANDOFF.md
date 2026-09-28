@@ -4,6 +4,57 @@ Este arquivo é atualizado ao final de CADA fase a partir da Fase 35. Curto, dir
 
 ---
 
+## Fase 48 — Validação online do acervo completo (`apps/site`) + staging separado do painel (`apps/sistema`)
+
+**HEAD/commit:** `PENDENTE` (branch `feature/painel-editorial-operacional-20260927`)
+
+Autorizado por instrução direta do usuário: antes do staging do painel, garantir acesso online a todo o acervo migrado em `apps/site`. Ver `docs/CHATGPT_REVIEW.md` ("Ajuste da próxima etapa — site com acervo completo antes do staging do painel").
+
+### 1. Portal público — validado no Supabase IR real + Preview publicado (projeto `jornalir` existente)
+
+Baseline confirmado direto no banco: 23.292 `articles` físicos, 75 arquivados (61+13+1 das limpezas de duplicata), **23.217 publicados** — idêntico ao total da view `public_articles`.
+
+`/noticias` (pageSize=24) validado tanto localmente (contra o Supabase real) quanto na URL de Preview publicada:
+- total retornado: 23.217 (bate com o baseline);
+- última página calculada e presente no link: 968 (`ceil(23217/24)`);
+- página 1: 24 itens distintos, mais recentes primeiro;
+- página 500 (intermediária): 24 itens distintos;
+- página 968 (última): 9 itens = `23217 - 967*24` (confere exatamente);
+- página 999 (além do fim): HTTP 200, clampada — nunca erro.
+
+Editoria grande `/editoria/geral`: 16.461 publicadas, página 1 com 24 itens. Busca validada consultando o Supabase com a mesma query do cliente (`/busca` é client-side, sem SSR): "covid" → 2.463, "praia grande" → 3.941.
+
+**Correção aplicada**: `apps/site/src/components/site/SiteHeader.tsx` não tinha nenhum link permanente para `/noticias` — adicionado (`NOTICIAS_LINK`, logo após "Início", desktop e mobile), sem depender de editorias carregadas nem de existir placement `latestNews`. Confirmado presente no HTML da home do Preview publicado.
+
+Nenhum placement automático foi criado para o conteúdo histórico.
+
+**Preview publicado** (projeto Vercel `jornalir` já existente, Production `jornalir.vercel.app` intocado): `https://jornalir-2n6utksw7-cristians-projects-34074cc3.vercel.app`.
+
+### 2. Staging separado do painel — projeto Vercel novo e isolado
+
+Criado projeto Vercel `jornalir-sistema` (Root Directory = `apps/sistema`), separado do projeto `jornalir` do portal. Variáveis de ambiente definidas nos 3 ambientes: `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, `SUPABASE_SERVICE_ROLE_KEY` (mesmo projeto Supabase IR do portal).
+
+3 problemas reais encontrados e corrigidos durante a configuração (nenhum deles chegou a servir tráfego real):
+1. Primeiro deploy (rodado de dentro de `apps/sistema`) subiu só aquela subpasta, sem os pacotes irmãos do monorepo — `npm install` falhou (`@ir/config` não encontrado). Corrigido definindo `rootDirectory=apps/sistema` no projeto e reexecutando o deploy a partir da raiz do repositório.
+2. Esse mesmo primeiro deploy foi automaticamente direcionado ao ambiente Production do projeto novo (não pedido) — como o build falhou, nunca chegou a ficar "ready"/servir tráfego, mas as tentativas seguintes passaram a usar `--target=preview` explícito por segurança.
+3. A proteção "Vercel Authentication" (SSO da própria plataforma) vem ligada por padrão para deploys de Preview nesta conta, interceptando toda rota — inclusive `/login` do próprio painel — antes de chegar à aplicação, o que inviabilizaria testar a autenticação real. Desligada só para este projeto novo, preservando a proteção real da aplicação (middleware Next.js com `auth.getUser()` + `profiles.active`, inalterado).
+
+**Preview publicado**: `https://jornalir-sistema-ioz7fwy9p-cristians-projects-34074cc3.vercel.app`.
+
+Rotas validadas sem sessão: `/login` (200), `/definir-senha` (200), `/sistema` e as páginas de `editorial/*` (307 → `/login`, middleware protegendo corretamente), `/` (404 esperado — não existe `page.tsx` na raiz de `apps/sistema`).
+
+### Pendente de ação do usuário
+
+Login real (com credencial de staff de verdade), navegação autenticada, edição de matéria, upload de imagem e fluxo de destaques só podem ser confirmados por alguém logando de fato num navegador. **Ação exata pedida:** abrir `https://jornalir-sistema-ioz7fwy9p-cristians-projects-34074cc3.vercel.app/login`, entrar com uma conta real do painel e percorrer login → matérias → edição → imagens → destaques → sair. Nenhuma configuração adicional é necessária além disso.
+
+### Confirmação explícita
+
+- Nenhuma migração histórica reexecutada; nenhum dado do acervo alterado.
+- `jornalir` (Production do portal) não foi tocado — só um Preview novo.
+- `jornalir-sistema` é um projeto isolado; sua Production nunca serviu tráfego real e nenhum domínio definitivo foi apontado.
+
+---
+
 ## Fase 47 — Revisão pós-migração do painel editorial (branch `feature/painel-editorial-operacional-20260927`)
 
 **HEAD/commit:** `b15877f` (branch `feature/painel-editorial-operacional-20260927`)
