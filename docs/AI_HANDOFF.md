@@ -28,6 +28,10 @@ As duas faixas fixas da Fase 49 foram desfeitas. Agora é uma única linha em to
 
 Rodado com Playwright (`npx playwright screenshot`) contra o worktree do painel em 1180 (abaixo do `xl`), 1366, 1440, 1920 e mobile (390×844), usando o título real mais longo do acervo: hero sem moldura/borda preenchendo a área toda; header em uma linha em todas as larguras desktop, com 3/5/8 editorias diretas conforme o degrau e "Mais" recebendo só o restante; sem faixas vazias grandes nas laterais em 1920; página de matéria (`/noticias/[slug]`) conferida sem corte de imagem e com "Voltar para {Editoria}" funcionando. `npm run typecheck` e `npm run build --workspace=@ir/site`: limpos.
 
+### Preview publicado
+
+`apps/site` (projeto `jornalir`): `https://jornalir-d51tl0ads-cristians-projects-34074cc3.vercel.app`
+
 ### Confirmação explícita
 
 - Só `apps/site` foi alterado — `apps/sistema` intocado.
