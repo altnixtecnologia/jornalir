@@ -1831,3 +1831,33 @@ Testar com o acervo real:
 - publicada e programada são visualmente impossíveis de confundir.
 
 Typecheck/build de `apps/sistema`, commit/push e novo Preview do painel. Não Production.
+
+
+---
+
+## Correção operacional urgente — Preview do painel não confirmado
+
+Após o usuário relatar que a tela do painel não mudou e que o novo link não abre, foi conferido o HEAD atual `cc65a4d`.
+
+### Fatos confirmados
+
+- As mudanças da listagem estão de fato commitadas na branch: toolbar compacta, ordenação server-side, filtros de data, badges PUBLICADA/PROGRAMADA e migrations correspondentes.
+- O URL reportado no handoff para o novo painel termina em **`.appe`**, portanto está malformado. O domínio Vercel correto termina em **`.app`**.
+- O status automático de Vercel associado ao HEAD atual da branch aponta para o projeto **`jornalir` (apps/site)**, não para o projeto separado **`jornalir-sistema`**. Portanto não há evidência pelo GitHub de que o painel separado tenha sido atualizado automaticamente nesse HEAD.
+- O conector Vercel desta sessão não tem autorização para a equipe `cristians-projects-34074cc3`, então a existência/estado do deploy manual do `jornalir-sistema` não pôde ser validada por API daqui.
+
+### Ação obrigatória
+
+Não alterar novamente a UI antes de garantir que o usuário está vendo o build certo.
+
+1. confirmar o HEAD local/branch `feature/painel-editorial-operacional-20260927`;
+2. fazer novo deploy **Preview** explícito do projeto Vercel `jornalir-sistema` com Root Directory `apps/sistema`, a partir do HEAD atual;
+3. não usar/reaproveitar URL antiga;
+4. verificar no deploy resultante:
+   - `/login` = 200;
+   - `/sistema/editorial/materias` sem sessão = 307/redirect para login;
+   - o HTML/build contém as classes/labels novas da toolbar e `PUBLICADA`/`PROGRAMADA`;
+5. retornar ao usuário o URL exato, terminando em `.vercel.app`;
+6. não tocar em Production.
+
+Se o deploy falhar, reportar o erro real e logs, sem afirmar que foi publicado.
