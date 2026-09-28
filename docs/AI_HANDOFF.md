@@ -6,7 +6,7 @@ Este arquivo é atualizado ao final de CADA fase a partir da Fase 35. Curto, dir
 
 ## Fase 47 — Revisão pós-migração do painel editorial (branch `feature/painel-editorial-operacional-20260927`)
 
-**HEAD/commit:** `PENDENTE` (branch `feature/painel-editorial-operacional-20260927`)
+**HEAD/commit:** `b15877f` (branch `feature/painel-editorial-operacional-20260927`)
 
 Autorizado por `docs/CHATGPT_REVIEW.md` ("Próxima etapa autorizada — painel editorial operacional", após o fechamento da Fase 46C/migração histórica). Trabalho feito na worktree separada `Site-sistema-painel`, sincronizada com o HEAD final da migração (`f7edc93`).
 
