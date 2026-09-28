@@ -9,6 +9,10 @@ const UPLOAD_URL =
   "https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&supportsAllDrives=true&fields=id,name,size";
 const MAX_PDF_BYTES = 100 * 1024 * 1024;
 
+function permissionsUrl(fileId: string): string {
+  return `https://www.googleapis.com/drive/v3/files/${fileId}/permissions?supportsAllDrives=true`;
+}
+
 export class DriveArchiveNotConfiguredError extends Error {}
 export class InvalidDriveEditionPdfError extends Error {}
 
@@ -211,10 +215,36 @@ export async function uploadEditionPdfToDrive(
   const data = (await response.json()) as { id?: string; name?: string };
   if (!data.id) throw new Error("Google Drive: upload concluído sem ID do arquivo.");
 
+  // A API do Drive NUNCA herda o compartilhamento "qualquer pessoa com o
+  // link" da pasta para um arquivo criado via files.create — diferente de
+  // um upload manual pela interface web do Drive (arrastar-e-soltar), que
+  // herda automaticamente. Sem este passo explícito, o PDF fica privado
+  // (só a conta que fez o upload enxerga) e o apps/site — que lê a pasta
+  // e os arquivos de forma anônima, sem OAuth — não conseguiria exibi-lo.
+  await grantPublicReadPermission(data.id, accessToken);
+
   return {
     fileId: data.id,
     name: data.name ?? name,
     previewUrl: `https://drive.google.com/file/d/${data.id}/preview`,
     viewUrl: `https://drive.google.com/file/d/${data.id}/view`,
   };
+}
+
+async function grantPublicReadPermission(fileId: string, accessToken: string): Promise<void> {
+  const response = await fetch(permissionsUrl(fileId), {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ role: "reader", type: "anyone" }),
+    cache: "no-store",
+  });
+  if (!response.ok) {
+    const detail = await response.text();
+    throw new Error(
+      `Google Drive: PDF enviado, mas não foi possível torná-lo público (HTTP ${response.status})${detail ? ` — ${detail.slice(0, 180)}` : ""}.`,
+    );
+  }
 }

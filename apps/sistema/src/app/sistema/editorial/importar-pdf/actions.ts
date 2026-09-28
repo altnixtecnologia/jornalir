@@ -7,7 +7,7 @@ import { extractCandidatesFromPdf } from "../../../../composition/pdfCandidateEx
 import { createSupabaseServerClient } from "../../../../lib/supabase/server";
 import { uploadEditionPdfToDrive } from "../../../../lib/googleDrive/editionArchive";
 import { attachEditionExternalPdf } from "../../../../providers/supabase/newspaperEditionRepository.supabase";
-import { SIMULATED_AUDIT as AUDIT } from "../../../../lib/simulatedAudit";
+import { getAuditContext } from "../../../../lib/auth/getAuditContext";
 
 const IMPORT_PATH = "/sistema/editorial/importar-pdf";
 const LIST_PATH = "/sistema/editorial/materias";
@@ -175,7 +175,9 @@ export async function convertCandidate(
   input: ConvertCandidateInput,
 ): Promise<{ error: string } | ConvertResult> {
   try {
-    const article = await getImportCandidateService(createSupabaseServerClient()).convertToDraft(
+    const client = createSupabaseServerClient();
+    const AUDIT = await getAuditContext(client);
+    const article = await getImportCandidateService(client).convertToDraft(
       id,
       { ...input, createdBy: AUDIT.actorId },
       AUDIT,

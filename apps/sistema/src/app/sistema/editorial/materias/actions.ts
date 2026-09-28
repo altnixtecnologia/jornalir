@@ -11,7 +11,7 @@ import {
   type ArticleFormPayload,
 } from "../../../../features/editorial/articleFormTypes";
 import { isDefaultTextStyle } from "../../../../features/editorial/textStyle";
-import { SIMULATED_AUDIT as AUDIT } from "../../../../lib/simulatedAudit";
+import { getAuditContext } from "../../../../lib/auth/getAuditContext";
 
 const LIST_PATH = "/sistema/editorial/materias";
 
@@ -62,9 +62,11 @@ export async function createArticle(
   const validationError = validateArticlePayload(payload, intent);
   if (validationError) return { error: validationError };
 
-  const articleService = getArticleService(createSupabaseServerClient());
+  const client = createSupabaseServerClient();
+  const articleService = getArticleService(client);
   let articleId: string;
   try {
+    const AUDIT = await getAuditContext(client);
     const created = await articleService.saveDraft(
       {
         title: payload.title.trim(),
@@ -113,8 +115,10 @@ export async function updateArticle(
   const validationError = validateArticlePayload(payload, intent);
   if (validationError) return { error: validationError };
 
-  const articleService = getArticleService(createSupabaseServerClient());
+  const client = createSupabaseServerClient();
+  const articleService = getArticleService(client);
   try {
+    const AUDIT = await getAuditContext(client);
     const current = await articleService.getById(id);
     const placement = buildPlacement(payload);
     const editionPageNumber = parseEditionPageNumber(payload.editionPageNumber);
@@ -170,7 +174,9 @@ export async function updateArticle(
 
 export async function archiveArticle(id: string): Promise<ActionResult> {
   try {
-    await getArticleService(createSupabaseServerClient()).archive(id, AUDIT);
+    const client = createSupabaseServerClient();
+    const AUDIT = await getAuditContext(client);
+    await getArticleService(client).archive(id, AUDIT);
   } catch (error) {
     return { error: toErrorMessage(error) };
   }
