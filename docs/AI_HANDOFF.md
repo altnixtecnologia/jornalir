@@ -6,7 +6,7 @@ Este arquivo é atualizado ao final de CADA fase a partir da Fase 35. Curto, dir
 
 ## Ajuste do painel — listagem de matérias: ordenação, datas e toolbar compacta
 
-**HEAD/commit:** `PENDENTE` (branch `feature/painel-editorial-operacional-20260927`)
+**HEAD/commit:** `f8c800e` (branch `feature/painel-editorial-operacional-20260927`)
 
 Autorizado por instrução direta do usuário lendo `docs/CHATGPT_REVIEW.md`, commit `8926877` (seção "Ajuste do painel — listagem de matérias: ordenação, datas e toolbar compacta"). Só `apps/sistema` (listagem `/sistema/editorial/materias`) foi tocado — `apps/site` intocado.
 
