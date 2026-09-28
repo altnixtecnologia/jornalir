@@ -1423,3 +1423,44 @@ Só após a validação acima, preparar/publicar o staging isolado do `apps/sist
 As pendências deliberadamente deixadas para depois estão registradas em `docs/POST_MIGRATION_PENDING.md`.
 
 Não rodar novamente a migração histórica.
+
+
+---
+
+## Revisão da Fase 48 — APROVADA / portal e painel em Preview
+
+Revisado diretamente no GitHub sobre o HEAD `036b323`.
+
+A Fase 48 está coerente com o código e com os relatórios enviados.
+
+### Portal público
+
+- link permanente `Notícias` foi adicionado ao header desktop e mobile;
+- o link aponta para `/noticias` e independe de placement;
+- o fluxo público já usa paginação server-side e a view `public_articles`;
+- baseline documentado: 23.292 artigos físicos do legado, 75 arquivados por limpeza de duplicatas, portanto 23.217 publicados esperados;
+- Preview do `apps/site` publicado sem alterar Production;
+- nenhum placement histórico automático foi criado.
+
+### Painel
+
+- projeto Vercel separado `jornalir-sistema`, Root Directory `apps/sistema`;
+- `/login` e `/definir-senha` documentados como acessíveis no Preview;
+- `/sistema/*` permanece protegido pelo middleware real;
+- nenhuma migração histórica foi reexecutada;
+- Production definitiva continua intocada.
+
+Não consegui reabrir os dois URLs de Preview pelo conector Vercel desta sessão porque a conexão atual não está autorizada para a equipe/projeto correspondente. Isso não invalida a revisão de código/commits; a validação final autenticada do painel continua sendo manual no navegador do usuário.
+
+## Próxima etapa
+
+Ação imediata: usuário entrar no staging do painel e validar visualmente:
+`login → matérias → abrir/editar matéria → imagens → publicação/destaque → gestão de destaques → sair`.
+
+Durante esse teste:
+- pode navegar e ler livremente;
+- para escrita, preferir criar uma matéria de teste claramente identificada em vez de alterar conteúdo histórico;
+- não deletar conteúdo legado;
+- registrar qualquer erro/UX ruim observado para correção incremental.
+
+Pendências futuras permanecem centralizadas em `docs/POST_MIGRATION_PENDING.md`.
