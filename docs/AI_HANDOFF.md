@@ -55,11 +55,24 @@ Validado ao vivo contra o Supabase real (`/noticias`, 968 páginas totais, pageS
 - Servidores de desenvolvimento subidos localmente a partir do worktree do painel (`Site-sistema-painel`, portas 3010/3011, apontando para o Supabase IR real) para validar `/noticias` nas páginas 1/10/11/200/última, a matéria de exemplo com 20 fotos (capa + galeria, `object-contain` confirmado, sem corte), o link "Voltar" por editoria, o header em duas faixas e o seed das abrangências.
 - Cadastro rápido de abrangência validado por revisão de código do fluxo `ArticleForm` → `createLocality` (mesma server action já testada na Fase 47) e pela confirmação em banco de que as 11 abrangências esperadas (incluindo as 7 novas) existem com o `scope` correto.
 
+### Adendo — destaque "Capa principal" não aparecia na home do Preview
+
+Diagnóstico da cadeia completa, seguindo exatamente os passos pedidos no adendo do `docs/CHATGPT_REVIEW.md`, **sem alterar nenhum código nem dado**:
+
+1. `apps/sistema/src/app/sistema/editorial/materias/actions.ts` → `syncPlacement` em `apps/sistema/src/providers/supabase/articleRepository.supabase.ts` grava corretamente em `article_placements` (`type='mainCover'`, `active=true`, fecha o placement ativo anterior).
+2. `supabase/migrations/20260924100000_editorial_placement_model.sql` tem `'mainCover'` no `check` de `type`; a view `public_article_placements` (`20260930100000_public_content_and_scheduling.sql`) exige `active=true` + `articles.status='published'` + janela `starts_at/ends_at`, com tratamento correto de `null` (não exclui a linha).
+3. `apps/site` usa `dynamic = "force-dynamic"` na home e `cache: "no-store"` em todo fetch ao Supabase (`supabasePublicClient.ts`) — sem cache de dados do Next.js.
+4. Conferido ao vivo no Supabase real: existe exatamente 1 linha em `public_article_placements` (`type='mainCover'`, a matéria do teste do usuário, `starts_at`/`ends_at` nulos, criada às 2026-09-28T02:22:58Z), a matéria está publicada e com mídia de capa válida — a cadeia banco→view→`listPublicPlacement('mainCover')`→`PublicFeaturedHero` está correta.
+5. Validado localmente (servidor de desenvolvimento do worktree do painel contra o Supabase real): a home renderiza essa mesma matéria (`sindarroz-sc-aponta-prioridades-para-o-proximo-governo-...`) como primeiro item, confirmando que o código atual funciona corretamente ponta a ponta.
+
+**Conclusão:** não foi encontrado nenhum bug de código nem de dado — todas as camadas (salvar, tabela, view pública, consulta do site, componente de destaque) já produzem o resultado correto agora. O sintoma relatado é consistente com cache de CDN/edge do próprio deploy de Preview da Vercel no momento em que o usuário testou (ou teste feito antes do save terminar), não com um defeito na aplicação — por isso nenhum workaround manual nem placement por script foi criado, conforme pedido. **Ação sugerida ao usuário:** repetir o teste (selecionar Capa principal → salvar → atualizar a home → remover destaque → atualizar a home) direto no Preview novo publicado nesta fase, em aba anônima/com hard refresh, para descartar cache de CDN.
+
 ### Confirmação explícita
 
 - Nenhuma migração histórica reexecutada; nenhuma localidade/editoria de matéria histórica foi alterada em massa.
 - Publicidade (`AdsCarousel`, `SponsoredNativeCard`) não foi tocada.
 - Nada além de Preview foi publicado — Production de `jornalir` e de `jornalir-sistema` intocados.
+- Nenhum workaround manual ou placement criado por script para investigar o adendo dos destaques.
 
 ---
 
