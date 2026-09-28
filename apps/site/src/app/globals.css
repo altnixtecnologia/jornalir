@@ -314,6 +314,28 @@ body {
   isolation: isolate;
 }
 
+/* Sombreamento apenas vertical: protege leitura sobre fotos claras sem
+   escurecer as laterais nem alterar o enquadramento da imagem. */
+.hero-vertical-shade {
+  background: linear-gradient(
+    to bottom,
+    rgba(20, 20, 46, 0.72) 0%,
+    rgba(20, 20, 46, 0.24) 13%,
+    rgba(0, 0, 0, 0.04) 38%,
+    rgba(0, 0, 0, 0.08) 62%,
+    rgba(48, 48, 92, 0.9) 100%
+  );
+}
+
+/* Contorno discreto + sombra: mantém o título branco legível inclusive
+   sobre áreas muito claras da fotografia, sem aparência pesada. */
+.hero-title-contrast {
+  -webkit-text-stroke: 0.7px rgba(0, 0, 0, 0.58);
+  text-shadow:
+    0 2px 3px rgba(0, 0, 0, 0.72),
+    0 5px 18px rgba(0, 0, 0, 0.45);
+}
+
 /* Fundo do hero: composição própria da identidade (azul/índigo em
    gradiente) — a fotografia nunca é obrigada a preencher 100% da área;
    ela é uma camada por cima deste fundo. */
