@@ -6,7 +6,7 @@ Este arquivo é atualizado ao final de CADA fase a partir da Fase 35. Curto, dir
 
 ## Fase 49 — Abrangência, galeria unificada, sem corte de imagem, header em duas faixas e paginação por blocos de 10
 
-**HEAD/commit:** `PENDENTE` (branch `feature/painel-editorial-operacional-20260927`)
+**HEAD/commit:** `d98a54c` (branch `feature/painel-editorial-operacional-20260927`)
 
 Autorizado por instrução direta do usuário lendo `docs/CHATGPT_REVIEW.md`, commit `71eb723` (seção "Fase 49"). Oito ajustes, todos aplicados nesta fase.
 
