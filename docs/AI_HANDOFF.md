@@ -4,6 +4,46 @@ Este arquivo é atualizado ao final de CADA fase a partir da Fase 35. Curto, dir
 
 ---
 
+## Fase 47 — Revisão pós-migração do painel editorial (branch `feature/painel-editorial-operacional-20260927`)
+
+**HEAD/commit:** `PENDENTE` (branch `feature/painel-editorial-operacional-20260927`)
+
+Autorizado por `docs/CHATGPT_REVIEW.md` ("Próxima etapa autorizada — painel editorial operacional", após o fechamento da Fase 46C/migração histórica). Trabalho feito na worktree separada `Site-sistema-painel`, sincronizada com o HEAD final da migração (`f7edc93`).
+
+### O que foi feito
+
+1. `npm run typecheck --workspace=@ir/sistema` e `npm run build --workspace=@ir/sistema` rodados — ambos passaram limpos, sem nenhum erro de tipo ou build.
+2. Revisão manual dos fluxos citados (Matéria → Imagens → Publicação e destaque, paginação server-side, busca de mídia sob demanda, gestão de destaques, PDFs no Google Drive/Jornal Online) e de autenticação/auditoria/RLS. Encontrados e corrigidos 3 problemas reais (nenhum pego pelo typecheck/build, todos de comportamento em runtime):
+
+### Correção 1 — resíduo `SIMULATED_AUDIT` eliminado com segurança
+
+`apps/sistema/src/lib/simulatedAudit.ts` fornecia um ator fixo (`"editor-sistema"`) para toda escrita editorial. Confirmado, antes de tocar, que isso é seguro de remover: o backend mock de `article-service.ts` já ignora o parâmetro de auditoria (`_audit`, nunca lido) e o trigger real do Supabase (`set_article_actor`) sempre usa `auth.uid()` da sessão real, nunca o valor enviado pela aplicação — ou seja, o valor simulado nunca teve efeito nenhum em dado real. Criado `lib/auth/getAuditContext.ts`, que deriva o contexto real da sessão Supabase (`auth.getUser()` + `profiles.role`, mapeando `owner`/`admin` → `"admin"` e `operator` → `"editorial"`). Usado agora em `materias/actions.ts` e `importar-pdf/actions.ts`. Arquivo `simulatedAudit.ts` removido.
+
+### Correção 2 — PDF de edição nova ficaria privado no Google Drive
+
+`lib/googleDrive/editionArchive.ts` fazia upload via `files.create` da API do Drive, mas **nunca** chamava `permissions.create` depois. Um arquivo criado assim NUNCA herda o compartilhamento "qualquer pessoa com o link" da pasta pai — diferente de um upload manual pela interface web do Drive (arrastar-e-soltar), que herda automaticamente. Sem essa chamada explícita, o PDF de uma edição nova ficaria privado (só a conta que fez o upload enxergaria) e `apps/site` — que lê a pasta/arquivos do Drive de forma **anônima**, sem OAuth (`apps/site/src/app/api/jornal-online/drive/route.ts` e `drive-file/route.ts`) — não conseguiria exibi-lo aos visitantes do Jornal Online. Adicionado `grantPublicReadPermission()` (chamada `permissions.create`, `role=reader, type=anyone`) logo após o upload ter sucesso.
+
+### Correção 3 — 2 páginas ainda carregavam o acervo de mídia inteiro
+
+O padrão já estabelecido em `/sistema/editorial/midias` (paginado, `listMediaAdminPageSupabase`) e em `materias/[id]` (edição, `getMediaAssetsByIdsSupabase` só com as mídias já vinculadas) não tinha sido replicado em 2 lugares:
+- `/sistema/editorial/destaques` chamava `getMediaAssetService(supabase).list()` sem filtro nenhum — com **44.289 mídias já migradas do legado**, isso carregaria o catálogo inteiro só para resolver as ~22 miniaturas de capa das matérias em destaque. Corrigido para buscar só os `mediaAssetId` de capa das matérias retornadas (`getMediaAssetsByIdsSupabase`).
+- `/sistema/editorial/importar-pdf/[candidateId]` tinha o mesmo problema. Corrigido para buscar as mídias sugeridas pela extração do PDF (`candidate.suggestedMediaAssetIds`, que precisam estar disponíveis mesmo se não forem recentes) **+** uma amostra recente de 60 (`listRecentMediaAssetsSupabase`) para alimentar a busca sob demanda do `ArticleMediaPicker` — nunca o catálogo inteiro.
+
+### Auth/RLS confirmados intactos (sem alteração necessária)
+
+- `middleware.ts` já protege `/sistema/*` com `auth.getUser()` real (validado contra o servidor, não só o cookie) + checagem de `profiles.active` — confirmado que toda Server Action tocada por esta fase só é alcançável com sessão real, o que torna `getAuditContext()` seguro (nunca cai num "usuário inexistente" em uso normal).
+- RLS de `newspaper_editions` e `media_assets` já cobrem select/insert/update por staff (migrations `20260921100400`/`20260921100700`) — nenhuma mudança de schema/policy foi necessária para as correções acima (a nova coluna `pdf_url`/`pdf_storage_path=null` já é escrita sob a policy de update existente).
+- `searchMediaAssetsSupabase`/`cleanMediaSearch` já escapam `%`, `_` e `,` antes de montar o filtro `.or(...).ilike` — sem risco de injeção de filtro, confirmado ao revisar a busca sob demanda.
+
+### Confirmação explícita
+
+- Nenhum dado histórico da migração (2015–2026) tocado ou alterado.
+- Nenhum Preview gerado, nenhuma ação de Production.
+- Todas as correções são de código do painel (`apps/sistema`), nenhuma migration de banco nova.
+- `typecheck`/`build` confirmados limpos após cada correção.
+
+---
+
 ## Fase 46C — CARGA REAL do lote 2025-2026 CONCLUÍDA — último lote cronológico do legado
 
 **HEAD/commit:** `6defdfe` (branch `feature/jornalir-core-foundation-20260917`)
