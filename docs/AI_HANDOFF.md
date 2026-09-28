@@ -4,6 +4,30 @@ Este arquivo é atualizado ao final de CADA fase a partir da Fase 35. Curto, dir
 
 ---
 
+## Correção operacional — redeploy verificável do Preview do painel
+
+**HEAD/commit:** `1cff1ab` (branch `feature/painel-editorial-operacional-20260927`, sem alteração de código — só o redeploy)
+
+Autorizado por instrução direta do usuário lendo `docs/CHATGPT_REVIEW.md`, commit `1cff1ab` (seção "Correção operacional urgente — Preview do painel não confirmado"): o usuário reportou não ver as mudanças da listagem no painel, e o URL registrado no handoff anterior tinha sido reportado malformado (`.appe` em vez de `.app`) — a URL escrita no próprio `AI_HANDOFF.md` estava correta (`https://jornalir-sistema-j8r65r9t6-cristians-projects-34074cc3.vercel.app`), então o erro foi de transcrição na resposta ao usuário, não no arquivo. De qualquer forma, feito um novo deploy explícito para eliminar qualquer dúvida.
+
+**Nenhum código de UI foi tocado nesta correção** — só o processo de deploy/verificação.
+
+Novo deploy Preview do projeto Vercel `jornalir-sistema` (Root Directory `apps/sistema`), a partir do HEAD atual da branch, rodado com `--force` (nunca reaproveita build/cache antigo):
+
+`https://jornalir-sistema-ipdaoqfvx-cristians-projects-34074cc3.vercel.app`
+
+Validado:
+- `/login` → 200;
+- `/sistema/editorial/materias` sem sessão → 307, `Location: /login` (middleware protegendo);
+- o CSS publicado (`/_next/static/css/8338bccc5594612e.css`) tem o **mesmo hash** do CSS gerado no build local deste HEAD e contém as classes novas da listagem (`materias-toolbar-compact`, `materias-date-compact`, `materia-sort-link`, `pub-badge--published`, `pub-badge--scheduled`) — confirma que o build publicado é de fato o código atual, não um cache antigo.
+
+### Confirmação explícita
+
+- Nenhuma alteração de UI/código nesta correção — só deploy e verificação.
+- Nada além de Preview foi publicado — Production de `jornalir-sistema` intocado.
+
+---
+
 ## Ajuste do painel — listagem de matérias: ordenação, datas e toolbar compacta
 
 **HEAD/commit:** `f8c800e` (branch `feature/painel-editorial-operacional-20260927`)
