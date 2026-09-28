@@ -32,9 +32,12 @@ const MODE = args.mode || "preflight";
 const COMMIT = Boolean(args.commit);
 const LIMIT = args.limit ? Number(args.limit) : Infinity;
 const RPS = args.rps ? Number(args.rps) : 4;
+const FROM_DATE = typeof args.from === "string" ? args.from : null;
+const TO_DATE = typeof args.to === "string" ? args.to : null;
+const IS_INCREMENTAL = Boolean(FROM_DATE || TO_DATE);
 
 if (!BATCH_KEY) {
-  console.error("Uso: node migrate.mjs --batch=2015-2016 [--mode=preflight|import] [--commit] [--limit=N] [--rps=4]");
+  console.error("Uso: node migrate.mjs --batch=2015-2016 [--mode=preflight|import] [--commit] [--limit=N] [--rps=4] [--from=YYYY-MM-DD] [--to=YYYY-MM-DD]");
   process.exit(1);
 }
 const batch = getBatch(BATCH_KEY);
@@ -488,6 +491,7 @@ async function importCandidate(sb, c, detail, { sectionCache, localityId, thrott
 // needs_review/quarantined/rejected (Fase 35, item explícito do usuário).
 async function runImport(eligiblePairs, preflightSummary, log) {
   const dryRun = !COMMIT;
+  const trackBatch = !IS_INCREMENTAL;
   log(dryRun ? "\n== MODO IMPORT (dry-run — nenhuma gravação real) ==" : "\n== MODO IMPORT (--commit, gravando de verdade) ==");
 
   const sb = dryRun ? null : supabaseAdmin();
@@ -508,7 +512,7 @@ async function runImport(eligiblePairs, preflightSummary, log) {
   let batchRowId = null;
 
   let baseMetadata = {};
-  if (!dryRun) {
+  if (!dryRun && trackBatch) {
     // Persiste o esperado do preflight (item 5) — a reconciliação final
     // (item 4) compara o banco contra ESTES números, nunca contra um
     // "sucesso" definido só por failedArticles === 0.
@@ -624,7 +628,7 @@ async function runImport(eligiblePairs, preflightSummary, log) {
   log("\n== RESULTADO DA IMPORTAÇÃO ==");
   log(JSON.stringify(batchStats, null, 2));
 
-  if (!dryRun && batchRowId) {
+  if (!dryRun && batchRowId && trackBatch) {
     // Reconciliação real (item 4 da Fase 35B / bloqueio 1 da revisão do
     // ChatGPT) — nunca "complete" só por failedArticles/failedImages
     // === 0. Precisa CONFERIR a quantidade real: todo elegível importado
@@ -679,7 +683,17 @@ async function main() {
 
   const allItems = await loadInventory(INVENTORY_FILE);
   const candidates = dedupeByIdentity(allItems);
-  const { eligible: inRange, dateExceptions } = filterByBatchRange(candidates, batch);
+  const { eligible: batchRange, dateExceptions } = filterByBatchRange(candidates, batch);
+  const inRange = batchRange.filter((candidate) => {
+    const d = candidate.publishedIso;
+    if (!d) return false;
+    if (FROM_DATE && d < FROM_DATE) return false;
+    if (TO_DATE && d > TO_DATE) return false;
+    return true;
+  });
+  if (IS_INCREMENTAL) {
+    log(`Escopo incremental: ${FROM_DATE ?? batch.start} a ${TO_DATE ?? batch.end} — sem alterar o status histórico do lote ${batch.key}.`);
+  }
   log(`Candidatas no intervalo: ${inRange.length} | exceções de data: ${dateExceptions.length}`);
 
   const throttle = createRateLimiter(RPS);
