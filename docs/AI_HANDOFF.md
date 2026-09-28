@@ -67,6 +67,11 @@ Diagnóstico da cadeia completa, seguindo exatamente os passos pedidos no adendo
 
 **Conclusão:** não foi encontrado nenhum bug de código nem de dado — todas as camadas (salvar, tabela, view pública, consulta do site, componente de destaque) já produzem o resultado correto agora. O sintoma relatado é consistente com cache de CDN/edge do próprio deploy de Preview da Vercel no momento em que o usuário testou (ou teste feito antes do save terminar), não com um defeito na aplicação — por isso nenhum workaround manual nem placement por script foi criado, conforme pedido. **Ação sugerida ao usuário:** repetir o teste (selecionar Capa principal → salvar → atualizar a home → remover destaque → atualizar a home) direto no Preview novo publicado nesta fase, em aba anônima/com hard refresh, para descartar cache de CDN.
 
+### Previews publicados
+
+- `apps/site` (projeto `jornalir`): `https://jornalir-3aph9f2tv-cristians-projects-34074cc3.vercel.app`
+- `apps/sistema` (projeto `jornalir-sistema`): `https://jornalir-sistema-cwhb39jm6-cristians-projects-34074cc3.vercel.app`
+
 ### Confirmação explícita
 
 - Nenhuma migração histórica reexecutada; nenhuma localidade/editoria de matéria histórica foi alterada em massa.
