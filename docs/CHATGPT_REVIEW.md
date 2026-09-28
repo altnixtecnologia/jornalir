@@ -1347,3 +1347,41 @@ Com a migração encerrada, está autorizado concentrar o trabalho no painel em 
 - depois fazer teste manual local do fluxo completo, sem Preview/Production nesta etapa.
 
 Nenhuma ação em Production está autorizada por esta revisão.
+
+
+---
+
+## Revisão da Fase 47 — APROVADA / painel pronto para staging
+
+Revisado diretamente no GitHub sobre o HEAD `28655f9`.
+
+A revisão da Fase 47 está coerente com o código enviado e com o handoff.
+
+### Confirmado
+
+- `apps/sistema` passou em typecheck e build segundo o handoff da fase;
+- `SIMULATED_AUDIT` foi removido e não restam referências em `apps/sistema`;
+- o contexto de auditoria agora vem da sessão real do Supabase (`auth.getUser()` + `profiles`);
+- uploads de PDF para o Google Drive agora aplicam permissão pública de leitura após o upload;
+- `/destaques` deixou de carregar o acervo inteiro de mídia e busca apenas capas necessárias;
+- revisão de candidato de PDF usa mídias sugeridas + lote recente, sem carregar as 44 mil+ mídias;
+- nenhuma migration nova e nenhum dado histórico da migração foi alterado;
+- nenhum Preview ou Production foi gerado.
+
+### Observação não bloqueante
+
+Se o upload do PDF ao Drive concluir mas a criação da permissão pública falhar, pode ficar um arquivo órfão/privado no Drive. Isso não corrompe banco nem edição, porque a URL só é associada depois que `uploadEditionPdfToDrive()` retorna com sucesso. Pode ser tratado depois com limpeza/retry operacional se algum caso real ocorrer.
+
+## Próxima etapa autorizada
+
+**AUTORIZADO preparar e publicar somente um ambiente de staging/preview do `apps/sistema` para teste real.**
+
+Regras:
+- não alterar o projeto Vercel existente do portal público (`apps/site`);
+- usar projeto/deploy separado para `apps/sistema` ou equivalente tecnicamente isolado;
+- não apontar domínio principal de produção ainda;
+- usar o Supabase IR atual;
+- configurar somente variáveis necessárias ao painel e segredos server-side;
+- validar `/login`, proteção de `/sistema/*`, listagem de matérias, edição, upload de imagem, destaques e edição/PDF;
+- não executar novamente scripts de migração histórica;
+- Production definitiva continua dependente de validação manual do usuário no staging.
