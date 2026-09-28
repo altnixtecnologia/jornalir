@@ -50,7 +50,7 @@ export function PublicFeaturedHero({ items }: { items: PublicArticle[] }): JSX.E
     <article className="hero-stage hero-backdrop relative w-full overflow-hidden">
       <div
         ref={stageRef}
-        className="relative h-[68vh] min-h-[480px] w-full sm:h-[64vh] md:h-[620px] xl:h-[92vh] xl:max-h-[780px]"
+        className="relative h-[68vh] min-h-[480px] w-full sm:h-[64vh] md:h-[620px] xl:h-[calc(100svh-100px)] xl:min-h-[620px] xl:max-h-none"
         onMouseMove={handleMouseMove}
         onMouseLeave={handleMouseLeave}
       >
@@ -85,20 +85,20 @@ export function PublicFeaturedHero({ items }: { items: PublicArticle[] }): JSX.E
                 </>
               ) : null}
 
-              <div className="absolute inset-0 bg-gradient-to-t from-[color:var(--brand-navy)] via-black/10 to-transparent" />
+              <div className="hero-vertical-shade absolute inset-0" />
 
               {/* `pt` cresce por breakpoint (era fixo em pt-24): como o bloco é
                   ancorado no rodapé, o padding-top vira altura extra da caixa —
                   fixo, um título longo em tela estreita ultrapassava o topo do
                   hero (que tem overflow-hidden). */}
-              <div className={`absolute inset-x-0 bottom-0 pb-6 pt-4 sm:pb-10 sm:pt-14 md:pb-16 md:pt-20 xl:pt-24 ${isActive ? "hero-text-reveal" : ""}`}>
+              <div className={`absolute inset-x-0 bottom-0 pb-6 pt-4 sm:pb-10 sm:pt-14 md:pb-16 md:pt-20 xl:pb-28 xl:pt-24 ${isActive ? "hero-text-reveal" : ""}`}>
                 <div className="site-shell">
                   <span className="kicker" style={{ color: "#fff" }}>
                     <span style={{ background: "#fff" }} className="h-[2px] w-4" />
                     {item.sectionName}
                   </span>
                   <h1
-                    className="mt-3 max-w-4xl text-balance font-editorial text-[28px] font-bold leading-none text-white drop-shadow-lg sm:mt-4 sm:text-[clamp(34px,3.2vw,58px)]"
+                    className="hero-title-contrast mt-3 max-w-4xl text-balance font-editorial text-[28px] font-bold leading-none text-white sm:mt-4 sm:text-[clamp(34px,3.2vw,58px)]"
                   >
                     {item.title}
                   </h1>
