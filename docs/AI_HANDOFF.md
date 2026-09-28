@@ -6,7 +6,7 @@ Este arquivo é atualizado ao final de CADA fase a partir da Fase 35. Curto, dir
 
 ## Fase 48 — Validação online do acervo completo (`apps/site`) + staging separado do painel (`apps/sistema`)
 
-**HEAD/commit:** `PENDENTE` (branch `feature/painel-editorial-operacional-20260927`)
+**HEAD/commit:** `f0253f6` (branch `feature/painel-editorial-operacional-20260927`)
 
 Autorizado por instrução direta do usuário: antes do staging do painel, garantir acesso online a todo o acervo migrado em `apps/site`. Ver `docs/CHATGPT_REVIEW.md` ("Ajuste da próxima etapa — site com acervo completo antes do staging do painel").
 
