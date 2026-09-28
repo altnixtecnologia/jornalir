@@ -1385,3 +1385,41 @@ Regras:
 - validar `/login`, proteção de `/sistema/*`, listagem de matérias, edição, upload de imagem, destaques e edição/PDF;
 - não executar novamente scripts de migração histórica;
 - Production definitiva continua dependente de validação manual do usuário no staging.
+
+
+---
+
+## Ajuste da próxima etapa — site com acervo completo antes do staging do painel
+
+O usuário pediu que, antes de focar somente no painel online, o portal já permita navegar por todo o acervo histórico publicado.
+
+Esta instrução **substitui o prompt operacional anterior de staging**.
+
+### Primeiro: portal público
+
+Validar o `apps/site` contra o Supabase IR com o acervo completo já migrado.
+
+O código já possui:
+- `/noticias` paginado server-side;
+- editorias paginadas;
+- busca paginada;
+- ordem `published_at DESC, id DESC`;
+- view pública que expõe somente `status='published'`.
+
+Como existem 23.292 registros físicos do legado e 75 duplicatas confirmadas foram arquivadas, o baseline esperado do legado na camada pública é **23.217 matérias publicadas**, antes de eventuais matérias novas.
+
+Obrigatório nesta etapa:
+- validar contagem total online;
+- validar primeira, intermediária e última página de `/noticias`;
+- validar ao menos uma editoria grande e uma busca;
+- adicionar/confirmar acesso visível permanente a `/noticias` no header/menu, sem depender de existir placement `latestNews`;
+- não criar placements automáticos para o conteúdo histórico;
+- usar Preview/Staging, não Production definitiva.
+
+### Depois: staging do painel
+
+Só após a validação acima, preparar/publicar o staging isolado do `apps/sistema`, sem alterar o projeto Vercel existente do `apps/site`.
+
+As pendências deliberadamente deixadas para depois estão registradas em `docs/POST_MIGRATION_PENDING.md`.
+
+Não rodar novamente a migração histórica.
