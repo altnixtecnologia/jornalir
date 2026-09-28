@@ -1464,3 +1464,127 @@ Durante esse teste:
 - registrar qualquer erro/UX ruim observado para correção incremental.
 
 Pendências futuras permanecem centralizadas em `docs/POST_MIGRATION_PENDING.md`.
+
+
+---
+
+## Fase 49 — ajustes de navegação, imagens, abrangência e paginação (pedido do usuário)
+
+Aplicar estes ajustes na branch `feature/painel-editorial-operacional-20260927` e atualizar os Previews ao final. Não tocar em Production.
+
+### 1. Diagnóstico: editoria/localidade exibidas nas matérias
+
+O usuário relatou que está vendo muitas matérias como **Colunistas** e a localidade como **Geral**.
+
+Antes de alterar dados:
+- consultar o Supabase IR e conferir amostras reais de editorias diferentes (Geral, Esporte, Polícia, Política, Colunistas etc.);
+- confirmar se `articles.section_id` e a view pública estão corretos;
+- o importador histórico mapeou editorias separadamente e a distribuição final não é toda Colunistas, portanto **não fazer correção em massa sem provar erro de dados**;
+- se os IDs do banco estiverem corretos e a exibição estiver errada, corrigir somente a UI/provider;
+- se houver divergência real nos dados, PARAR e reportar antes de qualquer atualização em massa.
+
+A localidade `Geral` no legado é esperada: foi decisão da migração não inferir cidade de matéria antiga. Não reclassificar automaticamente as 23 mil matérias históricas.
+
+### 2. Localidade passa a ser “Abrangência”
+
+No cadastro/edição de matéria, renomear visualmente `Localidade` para **Abrangência**.
+
+Estrutura desejada para novas matérias:
+- Geral;
+- País;
+- Estado;
+- Região;
+- Cidade.
+
+Adicionar suporte real a scopes `country` e `state` no domínio/schema, preservando `general`, `region` e `city`.
+
+Cadastrar de forma idempotente as referências iniciais que faltam:
+- Brasil (País);
+- Santa Catarina (Estado);
+- Rio Grande do Sul (Estado);
+- Mampituba (Cidade);
+- Morrinhos do Sul (Cidade);
+- Praia Grande (Cidade);
+- Santa Rosa do Sul (Cidade).
+
+Manter Torres, Passo de Torres e São João do Sul já existentes.
+
+No formulário da matéria, permitir **+ Nova abrangência** sem sair da matéria: cadastro rápido com nome + tipo, atualizar a lista e selecionar a recém-criada. Não exigir que a redação abra o módulo Localidades para uma cidade nova.
+
+No portal público, quando a abrangência for `Geral`, **não mostrar “Geral” nos metadados da matéria**. Mostrar somente abrangências informativas (cidade/estado/país/região).
+
+### 3. Galeria da matéria
+
+Unificar capa + galeria como um único conjunto de fotos para visualização:
+- a foto principal/capa deve ser clicável;
+- o botão/indicador “Ver N fotos” deve abrir o lightbox na capa (índice 0);
+- o lightbox deve navegar por **capa + todas as fotos da galeria**;
+- setas/teclado no desktop e swipe no mobile;
+- contador deve refletir o total real;
+- miniaturas da galeria também abrem o mesmo conjunto.
+
+Hoje o indicador conta capa + galeria, mas o componente recebe apenas `current.gallery`; corrigir essa inconsistência.
+
+### 4. Imagens editoriais nunca cortadas
+
+O usuário não quer corte de imagem de matéria.
+
+Auditar as imagens editoriais do portal (capa da matéria, cards/listagens, faixa de destaques, últimas notícias, leia também, miniaturas e demais componentes de notícia):
+- remover usos de `bg-cover`/`object-cover` que cortem conteúdo editorial;
+- na página da matéria, mostrar a capa em proporção natural, inteira;
+- em caixas de tamanho fixo, usar `object-fit: contain`/equivalente com fundo neutro para preservar 100% da imagem;
+- não deformar imagem;
+- **não alterar publicidade**: esta regra é para fotos/imagens das matérias.
+
+### 5. “Voltar” da matéria
+
+Hoje a página de notícia usa `href="/"`.
+
+Corrigir para:
+- exibir **“← Voltar para {Editoria}”**;
+- apontar para `/editoria/{sectionSlug}`;
+- fallback seguro para `/noticias` somente se a matéria não tiver editoria/slug válido.
+
+### 6. Header do site em duas linhas
+
+Em desktop largo:
+- primeira linha: logo maior à esquerda; busca, redes e Assinante à direita;
+- aumentar a logo em relação ao header atual;
+- segunda linha: navegação principal, aproveitando toda a largura;
+- mostrar diretamente Início, Notícias, editorias ativas e Jornal Online quando couber;
+- `Mais` fica apenas para larguras em que os itens realmente não caibam;
+- em resoluções intermediárias, reduzir o conjunto direto e usar `Mais`;
+- mobile continua com menu próprio.
+
+Evitar simplesmente quebrar os links aleatoriamente em duas linhas; são duas faixas de header deliberadas.
+
+### 7. Paginação por blocos de 10 + ir para página
+
+Aplicar no portal e nas listas paginadas do sistema interno.
+
+Comportamento:
+- paginação centralizada;
+- mostrar um bloco de **10 páginas por vez**: 1–10, depois 11–20, 21–30 etc. conforme a página atual;
+- anterior/próxima continuam disponíveis;
+- controles para avançar/recuar um bloco de 10 quando houver bloco anterior/próximo;
+- adicionar campo compacto **“Ir para página”** para digitar diretamente, por exemplo 200;
+- validar/clamp de 1 até `totalPages`;
+- preservar `pageSize`, busca e filtros existentes;
+- no mobile, adaptar visualmente sem perder o campo de salto direto.
+
+Aplicar pelo menos em:
+- portal: `/noticias`, `/editoria/[slug]` e `/busca`;
+- sistema: `/sistema/editorial/materias` e toda outra listagem que já tenha paginação real (ex.: mídias), preferindo componente reutilizável.
+
+### 8. Validação/deploy
+
+Após implementar:
+- typecheck + build dos apps afetados;
+- validar pelo menos uma matéria com várias fotos e imagem com texto/bordas para provar que não corta;
+- validar voltar por editoria;
+- validar paginação página 1, 10, 11, 200 e última;
+- validar cadastro rápido de nova abrangência;
+- atualizar `docs/AI_HANDOFF.md` e `docs/POST_MIGRATION_PENDING.md`;
+- commit/push;
+- atualizar/publicar Preview do `apps/site` e Preview do `apps/sistema`;
+- **não Production**.
