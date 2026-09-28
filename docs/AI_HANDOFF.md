@@ -6,7 +6,7 @@ Este arquivo é atualizado ao final de CADA fase a partir da Fase 35. Curto, dir
 
 ## Ajuste visual imediato pós-Fase 49 — hero full bleed, largura desktop e header em uma linha só
 
-**HEAD/commit:** `PENDENTE` (branch `feature/painel-editorial-operacional-20260927`)
+**HEAD/commit:** `37f4b03` (branch `feature/painel-editorial-operacional-20260927`)
 
 Autorizado por instrução direta do usuário lendo `docs/CHATGPT_REVIEW.md`, commit `cc56c15` (seção "Ajuste visual imediato pós-Fase 49"). Substitui a orientação visual da Fase 49 no que diz respeito a hero/largura/header — só `apps/site` foi tocado.
 
