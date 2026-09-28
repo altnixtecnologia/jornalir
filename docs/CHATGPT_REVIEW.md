@@ -1715,3 +1715,22 @@ Testar visualmente em larguras equivalentes a 1366, 1440, 1920 e mobile:
 - página de matéria continua com imagem inteira/sem corte.
 
 Atualizar Preview do `apps/site` ao final. Não Production.
+
+
+---
+
+## Revisão do ajuste visual pós-Fase 49 — APROVADO para validação visual
+
+Revisado diretamente no GitHub sobre o HEAD `d0eb43a`.
+
+Confirmado no código:
+- hero voltou a full bleed com `background-size: cover` somente no destaque principal;
+- imagem de matéria/galeria/cards permanece fora dessa exceção;
+- título do hero usa escala responsiva menor e `text-balance`, com variante mobile;
+- `.site-shell` foi ampliado para aproveitar monitores largos;
+- header desktop voltou a uma única linha;
+- editorias diretas variam por breakpoint e o restante vai para `Mais`;
+- correção de especificidade de `.nav-link` foi aplicada em camada de componentes;
+- nenhum código de Production foi acionado segundo o handoff; somente Preview.
+
+Observação: a decisão final aqui é visual. Não avançar para Clientes ainda; primeiro o usuário precisa conferir o Preview novo em desktop e mobile e aprovar hero/header/largura.
