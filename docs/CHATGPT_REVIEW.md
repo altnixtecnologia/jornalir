@@ -1588,3 +1588,29 @@ Após implementar:
 - commit/push;
 - atualizar/publicar Preview do `apps/site` e Preview do `apps/sistema`;
 - **não Production**.
+
+
+### Adendo Fase 49 — destaques precisam refletir no site imediatamente
+
+O usuário selecionou uma matéria para o destaque principal pelo painel, salvou, e ela **não apareceu na home**. Isso é comportamento incorreto e deve ser diagnosticado nesta mesma fase.
+
+Antes de alterar código, verificar a matéria real usada no teste e seguir a cadeia inteira:
+
+1. confirmar `articles.status='published'`;
+2. confirmar linha ativa em `article_placements` com `type='mainCover'`;
+3. conferir `starts_at`/`ends_at` contra o horário atual;
+4. confirmar que a linha aparece em `public_article_placements`;
+5. confirmar que `listPublicPlacement('mainCover')` retorna a matéria;
+6. confirmar que a home do Preview mostra a matéria sem precisar redeploy/rebuild.
+
+Se o painel disser que o destaque foi salvo mas a linha não estiver efetiva no banco, corrigir o fluxo de save/sync do placement. Se a view pública retornar a matéria mas a home não mostrar, corrigir provider/renderização. Não criar workaround manual nem placement por script.
+
+Ao final, validar no navegador:
+- selecionar uma matéria publicada;
+- colocar em Capa principal;
+- salvar;
+- atualizar a home do Preview;
+- matéria deve aparecer imediatamente;
+- remover do destaque;
+- atualizar a home;
+- matéria deve sair sem deixar de estar publicada.
