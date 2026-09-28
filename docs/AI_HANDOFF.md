@@ -4,6 +4,39 @@ Este arquivo é atualizado ao final de CADA fase a partir da Fase 35. Curto, dir
 
 ---
 
+## Ajuste visual imediato pós-Fase 49 — hero full bleed, largura desktop e header em uma linha só
+
+**HEAD/commit:** `PENDENTE` (branch `feature/painel-editorial-operacional-20260927`)
+
+Autorizado por instrução direta do usuário lendo `docs/CHATGPT_REVIEW.md`, commit `cc56c15` (seção "Ajuste visual imediato pós-Fase 49"). Substitui a orientação visual da Fase 49 no que diz respeito a hero/largura/header — só `apps/site` foi tocado.
+
+### Hero principal (`PublicFeaturedHero.tsx`)
+
+O `contain` aplicado na Fase 49 fazia a foto parecer um quadro pequeno flutuando sobre o fundo índigo, com bordas visíveis nas quatro direções (produzidas por uma máscara CSS de dissolução em `.hero-photo-fg`, mais um deslocamento `left-[6%]/top-[8%]` no layer da foto). Corrigido: a camada da foto agora é `absolute inset-0` (sem deslocamento), `backgroundSize: cover` (permitido só aqui — o hero é cenográfico; a regra "nunca cortar" continua valendo para imagem da matéria/galeria/cards, nenhum deles foi tocado) e a máscara de dissolução foi removida de `globals.css`. Título: `clamp(34px, 3.2vw, 58px)`, `line-height: 1`, `text-wrap: balance` (desktop) — no mobile usa uma faixa menor (`text-[28px]`, mesma técnica) porque o padding-top fixo (`pt-24`) que dava respiro ao texto, somado ao clamp de 34px mínimo, estourava o topo do hero (`overflow-hidden`) em títulos longos de 6-7 linhas em 390px de largura; corrigido com padding progressivo por breakpoint e fonte/entrelinha menores só no mobile. Validado com o título real mais longo do acervo em uso (matéria do SINDARROZ-SC, ~130 caracteres) em 1366/1440/1920/390px — sem corte em nenhuma largura.
+
+### Largura desktop (`globals.css`)
+
+`.site-shell` tinha `max-width: 1440px`, deixando faixas vazias grandes em 1920px (~240px de cada lado). Aumentado para `1880px` — cobre 1366/1440/1920 quase por completo, mantendo só os gutters (`clamp(16px, 2.4vw, 40px)`). A coluna de leitura da matéria (`max-w-3xl`, em `noticias/[slug]/page.tsx`) é independente do `.site-shell` e não foi alterada — continua limitada para leitura confortável.
+
+### Header — uma linha só (`SiteHeader.tsx`)
+
+As duas faixas fixas da Fase 49 foram desfeitas. Agora é uma única linha em todo desktop (`lg:` e acima): logo (72px, um pouco maior que antes da Fase 49, sem tirar espaço da navegação) → nav no centro → busca/redes/Assinante à direita. Quantas editorias aparecem direto cresce por breakpoint sem JS de medição: `base=3` (`lg`, 1024–1279px), `xl=5` (1280–1535px, cobre 1366 e 1440), `2xl=8` (1536px+, cobre 1920) — cada link é renderizado uma única vez com a classe de visibilidade do seu degrau (`sectionTierClass`), e o mesmo item aparece em "Mais" só enquanto a largura atual ainda não o mostra direto (`overflowTierClass`, complemento exato). Mobile (`< lg`) inalterado — menu próprio.
+
+**Bug real encontrado e corrigido durante a implementação**: a primeira versão não escondia nada em nenhuma largura — todas as 12 editorias apareciam direto e sobrepunham a área de busca/Assinante. Causa: `.nav-link { display: inline-flex }` é uma regra solta em `globals.css`, posicionada (no arquivo) depois de `@tailwind utilities`; no CSS compilado ela vinha depois da camada de utilitários e por isso sempre vencia `.hidden`/`xl:inline-flex` aplicados no mesmo elemento (mesmo bug de especificidade já visto na Fase 49 com `object-fit`). Corrigido envolvendo `.nav-link` em `@layer components`, que reordena a regra para antes da camada de utilitários — confirmado visualmente em 1180/1366/1440/1920px que cada degrau mostra exatamente o número certo de editorias diretas, sem sobreposição.
+
+### Validação
+
+Rodado com Playwright (`npx playwright screenshot`) contra o worktree do painel em 1180 (abaixo do `xl`), 1366, 1440, 1920 e mobile (390×844), usando o título real mais longo do acervo: hero sem moldura/borda preenchendo a área toda; header em uma linha em todas as larguras desktop, com 3/5/8 editorias diretas conforme o degrau e "Mais" recebendo só o restante; sem faixas vazias grandes nas laterais em 1920; página de matéria (`/noticias/[slug]`) conferida sem corte de imagem e com "Voltar para {Editoria}" funcionando. `npm run typecheck` e `npm run build --workspace=@ir/site`: limpos.
+
+### Confirmação explícita
+
+- Só `apps/site` foi alterado — `apps/sistema` intocado.
+- Publicidade não foi tocada.
+- Regra "nunca cortar" mantida para imagem da matéria, galeria e cards — `cover` é exclusivo do hero.
+- Nada além de Preview foi publicado — Production de `jornalir` intocado.
+
+---
+
 ## Fase 49 — Abrangência, galeria unificada, sem corte de imagem, header em duas faixas e paginação por blocos de 10
 
 **HEAD/commit:** `d98a54c` (branch `feature/painel-editorial-operacional-20260927`)

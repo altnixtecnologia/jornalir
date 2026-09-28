@@ -50,7 +50,7 @@ export function PublicFeaturedHero({ items }: { items: PublicArticle[] }): JSX.E
     <article className="hero-stage hero-backdrop relative w-full overflow-hidden">
       <div
         ref={stageRef}
-        className="relative h-[60vh] min-h-[420px] w-full sm:h-[64vh] md:h-[620px] xl:h-[92vh] xl:max-h-[780px]"
+        className="relative h-[68vh] min-h-[480px] w-full sm:h-[64vh] md:h-[620px] xl:h-[92vh] xl:max-h-[780px]"
         onMouseMove={handleMouseMove}
         onMouseLeave={handleMouseLeave}
       >
@@ -67,14 +67,16 @@ export function PublicFeaturedHero({ items }: { items: PublicArticle[] }): JSX.E
             >
               {withPhoto ? (
                 <>
-                  <div className="hero-photo-layer absolute inset-x-0 top-0 bottom-0 md:left-[6%] md:right-[-4%] md:top-[8%] md:bottom-0">
+                  <div className="hero-photo-layer absolute inset-0">
                     <div className="hero-parallax h-full w-full">
                       <div
                         className={`hero-photo-fg h-full w-full bg-center bg-no-repeat ${isActive ? "hero-kenburns" : ""}`}
                         style={{
                           backgroundImage: `url(${item.cover?.url})`,
-                          // Nunca cortar imagem editorial (Fase 49, item 4) — sempre a foto inteira, nunca cover.
-                          backgroundSize: "contain",
+                          // Hero é cenográfico/full bleed (Ajuste pós-Fase 49): cover é
+                          // permitido aqui — a regra "nunca cortar" vale para a imagem da
+                          // matéria, galeria e cards, não para este fundo de destaque.
+                          backgroundSize: "cover",
                         }}
                       />
                     </div>
@@ -83,21 +85,27 @@ export function PublicFeaturedHero({ items }: { items: PublicArticle[] }): JSX.E
                 </>
               ) : null}
 
-              <div className="absolute inset-0 bg-gradient-to-t from-[color:var(--brand-navy)] via-transparent to-transparent" />
+              <div className="absolute inset-0 bg-gradient-to-t from-[color:var(--brand-navy)] via-black/10 to-transparent" />
 
-              <div className={`absolute inset-x-0 bottom-0 pb-10 pt-24 md:pb-16 xl:pb-20 ${isActive ? "hero-text-reveal" : ""}`}>
+              {/* `pt` cresce por breakpoint (era fixo em pt-24): como o bloco é
+                  ancorado no rodapé, o padding-top vira altura extra da caixa —
+                  fixo, um título longo em tela estreita ultrapassava o topo do
+                  hero (que tem overflow-hidden). */}
+              <div className={`absolute inset-x-0 bottom-0 pb-6 pt-4 sm:pb-10 sm:pt-14 md:pb-16 md:pt-20 xl:pt-24 ${isActive ? "hero-text-reveal" : ""}`}>
                 <div className="site-shell">
                   <span className="kicker" style={{ color: "#fff" }}>
                     <span style={{ background: "#fff" }} className="h-[2px] w-4" />
                     {item.sectionName}
                   </span>
-                  <h1 className="mt-4 max-w-5xl font-editorial text-[clamp(30px,3.2vw,58px)] font-bold leading-[1.04] text-white drop-shadow-lg">
+                  <h1
+                    className="mt-3 max-w-4xl text-balance font-editorial text-[28px] font-bold leading-none text-white drop-shadow-lg sm:mt-4 sm:text-[clamp(34px,3.2vw,58px)]"
+                  >
                     {item.title}
                   </h1>
                   {item.subtitle ? (
-                    <p className="mt-5 max-w-2xl text-base leading-snug text-white/85 md:text-xl">{item.subtitle}</p>
+                    <p className="mt-3 max-w-2xl text-sm leading-snug text-white/85 sm:mt-5 sm:text-base md:text-xl">{item.subtitle}</p>
                   ) : null}
-                  <p className="mt-5 text-[12px] font-semibold uppercase tracking-wide text-white/60">
+                  <p className="mt-3 text-[12px] font-semibold uppercase tracking-wide text-white/60 sm:mt-5">
                     {formatDateBR(item.publishedAt)} {item.localityName ? `· ${item.localityName}` : ""}
                   </p>
                 </div>

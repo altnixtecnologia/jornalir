@@ -26,15 +26,33 @@ const FIXED_OVERFLOW: NavLink[] = [
   { href: "/contato", label: "Contato" },
 ];
 
-// Quantas editorias reais ficam direto no header em resolução
-// INTERMEDIÁRIA (Fase 31/49, header de uma faixa só) — o resto vai para
-// "Mais". Em desktop LARGO (duas faixas, Fase 49 item 6) o espaço da
-// segunda faixa é dedicado só à navegação, então todas as editorias reais
-// aparecem direto; "Mais" nessa faixa guarda só Sobre/Contato.
-const INTERMEDIATE_FLAT_SECTION_COUNT = 3;
+// Header desktop numa linha só (Ajuste pós-Fase 49 — substitui as duas
+// faixas fixas da Fase 49): quantas editorias reais ficam diretas no menu
+// cresce por breakpoint (mais tela = mais editorias diretas), sem JS de
+// medição — cada editoria é renderizada uma única vez com a classe de
+// visibilidade do seu próprio degrau; o "Mais" mostra exatamente o
+// complemento em cada largura (ver `sectionTierClass`/`overflowTierClass`).
+const SECTION_TIERS = { base: 3, xl: 5, "2xl": 8 } as const;
 
 function sectionToLink(section: PublicSection): NavLink {
   return { href: `/editoria/${section.slug}`, label: section.name };
+}
+
+// Classe do link direto no nav: aparece a partir do degrau em que "cabe".
+function sectionTierClass(index: number): string {
+  if (index < SECTION_TIERS.base) return "inline-flex";
+  if (index < SECTION_TIERS.xl) return "hidden xl:inline-flex";
+  if (index < SECTION_TIERS["2xl"]) return "hidden 2xl:inline-flex";
+  return "hidden";
+}
+
+// Classe do mesmo item dentro de "Mais": visível só enquanto a largura
+// atual ainda não o mostra direto no nav (complemento exato da tier acima).
+function overflowTierClass(index: number): string {
+  if (index < SECTION_TIERS.base) return "hidden";
+  if (index < SECTION_TIERS.xl) return "block xl:hidden";
+  if (index < SECTION_TIERS["2xl"]) return "block 2xl:hidden";
+  return "block";
 }
 
 /**
@@ -44,11 +62,7 @@ function sectionToLink(section: PublicSection): NavLink {
  * estrutural mínima (Início/Busca/Sobre/Contato), nunca uma lista mock
  * escondida (item 6).
  */
-function useHeaderSections(): {
-  allSectionLinks: NavLink[];
-  intermediateFlat: NavLink[];
-  intermediateOverflow: NavLink[];
-} {
+function useHeaderSections(): { sectionLinks: NavLink[]; allNavLinks: NavLink[] } {
   const [sections, setSections] = useState<PublicSection[] | null>(null);
 
   useEffect(() => {
@@ -68,13 +82,12 @@ function useHeaderSections(): {
   if (sections === null) {
     // Ainda carregando: nada de editoria por enquanto, só a estrutura
     // mínima — evita mostrar (e depois trocar) uma lista errada.
-    return { allSectionLinks: [], intermediateFlat: [], intermediateOverflow: FIXED_OVERFLOW };
+    return { sectionLinks: [], allNavLinks: [JORNAL_ONLINE, ...FIXED_OVERFLOW] };
   }
 
-  const allSectionLinks = sections.map(sectionToLink);
-  const intermediateFlat = [...allSectionLinks.slice(0, INTERMEDIATE_FLAT_SECTION_COUNT), JORNAL_ONLINE];
-  const intermediateOverflow = [...allSectionLinks.slice(INTERMEDIATE_FLAT_SECTION_COUNT), ...FIXED_OVERFLOW];
-  return { allSectionLinks, intermediateFlat, intermediateOverflow };
+  const sectionLinks = sections.map(sectionToLink);
+  const allNavLinks = [...sectionLinks, JORNAL_ONLINE, ...FIXED_OVERFLOW];
+  return { sectionLinks, allNavLinks };
 }
 
 export function SiteHeader({ active }: { active?: string } = {}): JSX.Element {
@@ -83,8 +96,7 @@ export function SiteHeader({ active }: { active?: string } = {}): JSX.Element {
   const [mobileNavigatingTo, setMobileNavigatingTo] = useState<string | null>(null);
   const pathname = usePathname();
   const router = useRouter();
-  const { allSectionLinks, intermediateFlat, intermediateOverflow } = useHeaderSections();
-  const allNavLinks = [...intermediateFlat, ...intermediateOverflow];
+  const { sectionLinks, allNavLinks } = useHeaderSections();
 
   useEffect(() => {
     document.body.style.overflow = open ? "hidden" : "";
@@ -123,92 +135,20 @@ export function SiteHeader({ active }: { active?: string } = {}): JSX.Element {
     { href: socialLinks.whatsapp, label: "WhatsApp", icon: "/brand/social-whatsapp.png" },
   ];
 
+  const hasOverflow = sectionLinks.length > SECTION_TIERS.base || FIXED_OVERFLOW.length > 0;
+
   return (
     <header className="site-header">
-      {/* Desktop largo (Fase 49, item 6): duas faixas deliberadas — logo
-          maior + utilidades numa linha, navegação completa na outra,
-          aproveitando toda a largura em vez de espremer tudo numa faixa só. */}
-      <div className="hidden xl:block">
-        <div className="site-shell flex h-[92px] items-center justify-between gap-6">
-          <Link href="/" aria-label="Informativo Regional" className="inline-flex items-center">
-            <img src="/brand/logo-escrita.png" alt="Informativo Regional" style={{ height: 84, width: "auto" }} />
-          </Link>
-          <div className="flex items-center gap-3">
-            <Link href="/busca" aria-label="Buscar" className="icon-btn">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <circle cx="11" cy="11" r="7" />
-                <path d="m21 21-4.3-4.3" />
-              </svg>
-            </Link>
-            <div className="flex items-center gap-1.5">
-              {socialIcons.map((social) => (
-                <a
-                  key={social.label}
-                  href={social.href}
-                  target="_blank"
-                  rel="noreferrer"
-                  aria-label={social.label}
-                  className="inline-flex h-8 w-8 items-center justify-center overflow-hidden rounded-full ring-1 ring-[color:var(--site-line)] transition hover:ring-[color:var(--brand-navy)]"
-                >
-                  <img src={social.icon} alt="" className="h-8 w-8 object-cover" />
-                </a>
-              ))}
-            </div>
-            <Link href="/contato" className="nav-pill nav-pill--solid">
-              Assinante
-            </Link>
-          </div>
-        </div>
-        <div className="border-t border-[color:var(--site-line)]">
-          <nav className="site-shell flex h-14 items-center gap-5" aria-label="Navegação principal">
-            <Link href="/" className={`nav-link ${isActive("/") ? "is-active" : ""}`}>
-              Início
-            </Link>
-            <Link href={NOTICIAS_LINK.href} className={`nav-link ${isActive(NOTICIAS_LINK.href) ? "is-active" : ""}`}>
-              {NOTICIAS_LINK.label}
-            </Link>
-            {allSectionLinks.map((item) => (
-              <Link key={item.href} href={item.href} className={`nav-link ${isActive(item.href) ? "is-active" : ""}`}>
-                {item.label}
-              </Link>
-            ))}
-            <Link href={JORNAL_ONLINE.href} className={`nav-link ${isActive(JORNAL_ONLINE.href) ? "is-active" : ""}`}>
-              {JORNAL_ONLINE.label}
-            </Link>
-            <div className="relative" onMouseEnter={() => setEditoriasOpen(true)} onMouseLeave={() => setEditoriasOpen(false)}>
-              <button
-                type="button"
-                className={`nav-link inline-flex items-center gap-1 ${FIXED_OVERFLOW.some((i) => isActive(i.href)) ? "is-active" : ""}`}
-                onClick={() => setEditoriasOpen((v) => !v)}
-                aria-expanded={editoriasOpen}
-              >
-                Mais <span className="text-[9px]" aria-hidden="true">▾</span>
-              </button>
-              <div
-                className={`absolute left-0 top-full z-30 mt-2 w-56 rounded-lg border border-[color:var(--site-line)] bg-[color:var(--site-surface)] p-2 shadow-xl transition-all ${editoriasOpen ? "visible translate-y-0 opacity-100" : "invisible -translate-y-1 opacity-0"}`}
-              >
-                {FIXED_OVERFLOW.map((item) => (
-                  <Link
-                    key={item.href}
-                    href={item.href}
-                    className="block rounded-md px-3 py-2 text-[13px] font-semibold text-[color:var(--site-text)] hover:bg-[color:var(--site-bg)] hover:text-[color:var(--brand-red)]"
-                  >
-                    {item.label}
-                  </Link>
-                ))}
-              </div>
-            </div>
-          </nav>
-        </div>
-      </div>
-
-      {/* Mobile + desktop intermediário (< xl): faixa única, conjunto direto
-          reduzido, "Mais" pega o resto (Fase 49, item 6). */}
-      <div className="site-shell flex h-[58px] items-center justify-between gap-4 lg:h-[76px] xl:hidden">
-        <div className="flex items-center gap-5">
-          {/* Desktop intermediário: marca oficial escrita, tamanho igual ao já usado antes desta fase. */}
-          <Link href="/" aria-label="Informativo Regional" className="hidden lg:inline-flex lg:items-center">
-            <img src="/brand/logo-escrita.png" alt="Informativo Regional" style={{ height: 64, width: "auto" }} />
+      {/* Desktop (Ajuste pós-Fase 49): UMA linha só — logo à esquerda, nav
+          no centro, busca/redes/Assinante à direita. Quantas editorias
+          aparecem direto cresce por breakpoint (`sectionTierClass`); o
+          resto some para "Mais" (`overflowTierClass` é o complemento exato
+          em cada largura). Nunca uma segunda faixa fixa. */}
+      <div className="site-shell flex h-[58px] items-center justify-between gap-4 lg:h-[76px]">
+        <div className="flex min-w-0 items-center gap-5 xl:gap-7">
+          {/* Desktop: marca oficial escrita — um pouco maior que antes da Fase 49, sem estrangular a navegação. */}
+          <Link href="/" aria-label="Informativo Regional" className="hidden shrink-0 lg:inline-flex lg:items-center">
+            <img src="/brand/logo-escrita.png" alt="Informativo Regional" style={{ height: 72, width: "auto" }} />
           </Link>
           {/* Mobile/tablet: símbolo oficial (transparente) + nome — melhor aproveitamento do espaço reduzido. */}
           <Link href="/" aria-label="Informativo Regional" className="brand-mark lg:hidden">
@@ -218,24 +158,31 @@ export function SiteHeader({ active }: { active?: string } = {}): JSX.Element {
             </span>
           </Link>
 
-          <nav className="hidden items-center gap-4 lg:flex" aria-label="Navegação principal">
+          <nav className="hidden min-w-0 items-center gap-4 lg:flex xl:gap-5" aria-label="Navegação principal">
             <Link href="/" className={`nav-link ${isActive("/") ? "is-active" : ""}`}>
               Início
             </Link>
             <Link href={NOTICIAS_LINK.href} className={`nav-link ${isActive(NOTICIAS_LINK.href) ? "is-active" : ""}`}>
               {NOTICIAS_LINK.label}
             </Link>
-            {intermediateFlat.map((item) => (
-              <Link key={item.href} href={item.href} className={`nav-link ${isActive(item.href) ? "is-active" : ""}`}>
+            {sectionLinks.map((item, index) => (
+              <Link
+                key={item.href}
+                href={item.href}
+                className={`nav-link ${sectionTierClass(index)} ${isActive(item.href) ? "is-active" : ""}`}
+              >
                 {item.label}
               </Link>
             ))}
+            <Link href={JORNAL_ONLINE.href} className={`nav-link ${isActive(JORNAL_ONLINE.href) ? "is-active" : ""}`}>
+              {JORNAL_ONLINE.label}
+            </Link>
 
-            {intermediateOverflow.length > 0 ? (
+            {hasOverflow ? (
               <div className="relative" onMouseEnter={() => setEditoriasOpen(true)} onMouseLeave={() => setEditoriasOpen(false)}>
                 <button
                   type="button"
-                  className={`nav-link inline-flex items-center gap-1 ${intermediateOverflow.some((i) => isActive(i.href)) ? "is-active" : ""}`}
+                  className="nav-link inline-flex items-center gap-1"
                   onClick={() => setEditoriasOpen((v) => !v)}
                   aria-expanded={editoriasOpen}
                 >
@@ -244,7 +191,16 @@ export function SiteHeader({ active }: { active?: string } = {}): JSX.Element {
                 <div
                   className={`absolute left-0 top-full z-30 mt-2 w-56 rounded-lg border border-[color:var(--site-line)] bg-[color:var(--site-surface)] p-2 shadow-xl transition-all ${editoriasOpen ? "visible translate-y-0 opacity-100" : "invisible -translate-y-1 opacity-0"}`}
                 >
-                  {intermediateOverflow.map((item) => (
+                  {sectionLinks.map((item, index) => (
+                    <Link
+                      key={`${item.href}-overflow`}
+                      href={item.href}
+                      className={`${overflowTierClass(index)} rounded-md px-3 py-2 text-[13px] font-semibold text-[color:var(--site-text)] hover:bg-[color:var(--site-bg)] hover:text-[color:var(--brand-red)]`}
+                    >
+                      {item.label}
+                    </Link>
+                  ))}
+                  {FIXED_OVERFLOW.map((item) => (
                     <Link
                       key={item.href}
                       href={item.href}
@@ -259,7 +215,7 @@ export function SiteHeader({ active }: { active?: string } = {}): JSX.Element {
           </nav>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex shrink-0 items-center gap-2">
           <Link href="/busca" aria-label="Buscar" className="icon-btn hidden md:inline-flex">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <circle cx="11" cy="11" r="7" />

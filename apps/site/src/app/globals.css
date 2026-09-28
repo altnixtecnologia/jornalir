@@ -50,11 +50,14 @@ body {
 
 .site-shell {
   width: 100%;
-  max-width: 1440px;
+  /* Ajuste pós-Fase 49: 1440px prendia o site inteiro num container
+     estreito, sobrando faixas vazias grandes em 1920px+. A coluna de
+     leitura da matéria tem seu próprio max-width (não depende deste). */
+  max-width: 1880px;
   margin-left: auto;
   margin-right: auto;
-  padding-left: clamp(16px, 3vw, 40px);
-  padding-right: clamp(16px, 3vw, 40px);
+  padding-left: clamp(16px, 2.4vw, 40px);
+  padding-right: clamp(16px, 2.4vw, 40px);
 }
 
 /* --- Sistema editorial: rótulos, divisores, tipografia --- */
@@ -343,31 +346,12 @@ body {
   to { transform: scale(1.18); }
 }
 
-/* Foto nítida — camada dentro do fundo, nunca a área inteira. Bordas
-   dissolvidas por máscara direto no fundo (nunca border-radius/recorte).
-   Mobile: topo com fade bem discreto (a foto ainda tem presença forte),
-   base dissolve com força. Desktop: topo e esquerda também se dissolvem —
-   a foto "emerge" do fundo em vez de parecer um retângulo colado; a
-   direita não precisa de máscara porque sangra para fora da viewport. */
-.hero-photo-fg {
-  -webkit-mask-image: linear-gradient(to bottom, transparent 0%, black 13%, black 60%, transparent 97%);
-  mask-image: linear-gradient(to bottom, transparent 0%, black 13%, black 60%, transparent 97%);
-}
-@media (min-width: 768px) {
-  /* Fase 29: topo e esquerda alargados e com curva mais gradual (antes
-     16%/20%) — a foto "some" dentro do fundo em vez de mostrar um limite
-     reto. Base e direita continuam como estavam (já aprovadas). */
-  .hero-photo-fg {
-    -webkit-mask-image:
-      linear-gradient(to right, transparent 0%, rgba(0, 0, 0, 0.55) 18%, black 42%, black 100%),
-      linear-gradient(to bottom, transparent 0%, rgba(0, 0, 0, 0.55) 14%, black 34%, black 58%, transparent 97%);
-    -webkit-mask-composite: source-in;
-    mask-image:
-      linear-gradient(to right, transparent 0%, rgba(0, 0, 0, 0.55) 18%, black 42%, black 100%),
-      linear-gradient(to bottom, transparent 0%, rgba(0, 0, 0, 0.55) 14%, black 34%, black 58%, transparent 97%);
-    mask-composite: intersect;
-  }
-}
+/* Foto full bleed (Ajuste pós-Fase 49): preenche todo o hero, sem máscara
+   de dissolução nas bordas — a versão anterior (fade via mask-image nas
+   quatro bordas) fazia a foto parecer um quadro pequeno flutuando sobre o
+   fundo, com "moldura" visível. O hero é cenográfico, então cobre a área
+   inteira; o degradê em `PublicFeaturedHero` cuida só da legibilidade do
+   texto por cima. */
 
 .hero-image-zoom {
   animation: hero-image-zoom 7s ease-out both;
@@ -481,35 +465,45 @@ body {
   color: var(--brand-red);
 }
 
-.nav-link {
-  position: relative;
-  display: inline-flex;
-  align-items: center;
-  padding: 8px 2px;
-  font-size: 12px;
-  font-weight: 600;
-  letter-spacing: 0.03em;
-  color: var(--site-text);
-  white-space: nowrap;
-}
-.nav-link::after {
-  content: "";
-  position: absolute;
-  left: 2px;
-  right: 2px;
-  bottom: 3px;
-  height: 2px;
-  background: var(--brand-red);
-  transform: scaleX(0);
-  transform-origin: left;
-  transition: transform 220ms ease;
-}
-.nav-link:hover::after,
-.nav-link.is-active::after {
-  transform: scaleX(1);
-}
-.nav-link.is-active {
-  color: var(--brand-red);
+/* `@layer components` (em vez de regra solta): reordena esta classe para
+   ANTES da camada de utilitários no CSS compilado, para que classes de
+   visibilidade responsiva do Tailwind aplicadas no mesmo elemento
+   (`hidden`, `xl:inline-flex`, `2xl:inline-flex` — usadas no header de uma
+   linha só, Ajuste pós-Fase 49) consigam vencer o `display: inline-flex`
+   fixo daqui. Sem isso, por estarem depois de `@tailwind utilities` no
+   arquivo, a regra solta vencia sempre e nenhuma editoria ficava escondida
+   em nenhuma largura. */
+@layer components {
+  .nav-link {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    padding: 8px 2px;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.03em;
+    color: var(--site-text);
+    white-space: nowrap;
+  }
+  .nav-link::after {
+    content: "";
+    position: absolute;
+    left: 2px;
+    right: 2px;
+    bottom: 3px;
+    height: 2px;
+    background: var(--brand-red);
+    transform: scaleX(0);
+    transform-origin: left;
+    transition: transform 220ms ease;
+  }
+  .nav-link:hover::after,
+  .nav-link.is-active::after {
+    transform: scaleX(1);
+  }
+  .nav-link.is-active {
+    color: var(--brand-red);
+  }
 }
 
 .nav-pill {
