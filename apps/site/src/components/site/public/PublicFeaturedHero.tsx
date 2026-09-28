@@ -7,33 +7,6 @@ import type { PublicArticle } from "../../../lib/public/types";
 
 const AUTOPLAY_MS = 8000;
 
-type Orientation = "landscape" | "portrait";
-
-/** Mesma lógica de `FeaturedHero` (mock) — detecta a orientação real de cada foto antes de decidir `cover`/`contain`. */
-function useOrientations(items: PublicArticle[]): Record<string, Orientation> {
-  const [orientations, setOrientations] = useState<Record<string, Orientation>>({});
-
-  useEffect(() => {
-    let cancelled = false;
-    for (const item of items) {
-      if (!item.cover?.url || orientations[item.id]) continue;
-      const probe = new window.Image();
-      probe.onload = () => {
-        if (cancelled) return;
-        const isLandscape = probe.naturalWidth >= probe.naturalHeight * 1.1;
-        setOrientations((prev) => ({ ...prev, [item.id]: isLandscape ? "landscape" : "portrait" }));
-      };
-      probe.src = item.cover.url;
-    }
-    return () => {
-      cancelled = true;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [items]);
-
-  return orientations;
-}
-
 /**
  * `FeaturedHero` (Fase 14/29) adaptado a `PublicArticle` real (Fase 30) —
  * mesmo tratamento visual (moldura dissolvida, Ken Burns, parallax), só a
@@ -42,7 +15,6 @@ function useOrientations(items: PublicArticle[]): Record<string, Orientation> {
 export function PublicFeaturedHero({ items }: { items: PublicArticle[] }): JSX.Element {
   const [index, setIndex] = useState(0);
   const stageRef = useRef<HTMLDivElement>(null);
-  const orientations = useOrientations(items);
 
   useEffect(() => {
     if (items.length <= 1) return;
@@ -85,7 +57,6 @@ export function PublicFeaturedHero({ items }: { items: PublicArticle[] }): JSX.E
         {items.map((item, i) => {
           const isActive = i === index;
           const withPhoto = Boolean(item.cover?.url);
-          const orientation = orientations[item.id] ?? "landscape";
           return (
             <Link
               href={`/noticias/${item.slug}`}
@@ -102,7 +73,8 @@ export function PublicFeaturedHero({ items }: { items: PublicArticle[] }): JSX.E
                         className={`hero-photo-fg h-full w-full bg-center bg-no-repeat ${isActive ? "hero-kenburns" : ""}`}
                         style={{
                           backgroundImage: `url(${item.cover?.url})`,
-                          backgroundSize: orientation === "portrait" ? "contain" : "cover",
+                          // Nunca cortar imagem editorial (Fase 49, item 4) — sempre a foto inteira, nunca cover.
+                          backgroundSize: "contain",
                         }}
                       />
                     </div>

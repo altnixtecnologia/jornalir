@@ -4,7 +4,7 @@ import { formatDateBR } from "../../../../components/site/date";
 import { AdSlotColumn } from "../../../../components/site/AdSlotColumn";
 import { AdSlotPairRow } from "../../../../components/site/AdSlotPairRow";
 import { leftAdSlots, rightAdSlots, type AdSlot } from "../../../../components/site/adSlots";
-import { ArticleGallery } from "../../../../components/site/ArticleGallery";
+import { ArticleMediaViewer } from "../../../../components/site/ArticleMediaViewer";
 import { PublicReadAlsoCard } from "../../../../components/site/public/PublicReadAlsoCard";
 import { SiteHeader } from "../../../../components/site/SiteHeader";
 import { estimateReadingMinutes, readingTimeLabel } from "../../../../components/site/readingTime";
@@ -34,8 +34,11 @@ export default async function NoticiaDetalhePage({ params }: { params: { slug: s
           </div>
 
           <div className="min-w-0">
-            <Link href="/" className="back-link mb-5 inline-flex items-center gap-1.5">
-              <span aria-hidden="true">←</span> Voltar
+            <Link
+              href={current.sectionSlug ? `/editoria/${current.sectionSlug}` : "/noticias"}
+              className="back-link mb-5 inline-flex items-center gap-1.5"
+            >
+              <span aria-hidden="true">←</span> Voltar para {current.sectionSlug ? current.sectionName : "Notícias"}
             </Link>
 
             <p className="kicker">{current.sectionName}</p>
@@ -53,30 +56,12 @@ export default async function NoticiaDetalhePage({ params }: { params: { slug: s
                 {current.urgent ? " · Urgente" : ""}
               </p>
 
-              {current.cover ? (
-                <figure className="relative mt-6">
-                  <div
-                    className="h-[240px] rounded-sm bg-cover bg-center sm:h-[320px] md:h-[420px]"
-                    style={{ backgroundImage: `url(${current.cover.url})` }}
-                  />
-                  {current.gallery.length > 0 ? (
-                    <a href="#article-gallery" className="gallery-indicator">
-                      <span aria-hidden="true">▦</span> Ver {current.gallery.length + 1} fotos
-                    </a>
-                  ) : null}
-                  {current.cover.credit ? (
-                    <figcaption className="mt-2 text-right text-[11px] text-[color:var(--site-muted)]">Foto: {current.cover.credit}</figcaption>
-                  ) : null}
-                </figure>
-              ) : null}
-
-              <div className="article-body mt-8" dangerouslySetInnerHTML={{ __html: current.body }} />
-
-              {current.gallery.length > 0 ? (
-                <div id="article-gallery" className="mt-10 scroll-mt-24">
-                  <ArticleGallery images={galleryImages} />
-                </div>
-              ) : null}
+              <ArticleMediaViewer
+                cover={current.cover ? { url: current.cover.url, caption: current.cover.caption, credit: current.cover.credit } : undefined}
+                coverCredit={current.cover?.credit}
+                gallery={galleryImages}
+                bodyHtml={current.body}
+              />
 
               <div className="mt-10 md:hidden">
                 <AdSlotPairRow slots={mobilePair} />

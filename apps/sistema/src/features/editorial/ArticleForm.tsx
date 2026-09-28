@@ -10,11 +10,13 @@ import type {
   EditorialSection,
   EditorialTextStyle,
   Locality,
+  LocalityScope,
   MediaAsset,
   NewspaperEdition,
   NotificationMode,
 } from "@ir/types";
 import { archiveArticle, createArticle, updateArticle } from "../../app/sistema/editorial/materias/actions";
+import { createLocality } from "../../app/sistema/editorial/localidades/actions";
 import type { ArticleFormIntent, ArticleFormPayload } from "./articleFormTypes";
 import {
   addGalleryMedia,
@@ -34,6 +36,7 @@ import {
   articleStatusLabels,
   editionPageLabel,
   formatDateTime,
+  localityScopeLabels,
   notificationLabels,
   placementDescriptions,
   placementLabels,
@@ -108,12 +111,37 @@ export function ArticleForm({
   const [formError, setFormError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
+  // Abrangência (Fase 49) — lista local para poder adicionar uma nova sem
+  // sair da matéria nem recarregar a página (a redação não precisa abrir
+  // o módulo Localidades para uma cidade nova).
+  const [localityOptions, setLocalityOptions] = useState<Locality[]>(localities);
+  const [showNewLocality, setShowNewLocality] = useState(false);
+  const [newLocalityName, setNewLocalityName] = useState("");
+  const [newLocalityScope, setNewLocalityScope] = useState<LocalityScope>("city");
+  const [newLocalityError, setNewLocalityError] = useState<string | null>(null);
+  const [creatingLocality, startCreatingLocality] = useTransition();
+
+  function handleCreateLocality(): void {
+    setNewLocalityError(null);
+    startCreatingLocality(async () => {
+      const result = await createLocality({ name: newLocalityName, scope: newLocalityScope });
+      if ("error" in result) {
+        setNewLocalityError(result.error);
+        return;
+      }
+      setLocalityOptions((current) => [...current, result.locality]);
+      setLocalityId(result.locality.id);
+      setNewLocalityName("");
+      setShowNewLocality(false);
+    });
+  }
+
   const hasPlacementWindow = placementType !== "none";
   const edition = article?.editionId ? editions.find((item) => item.id === article.editionId) : undefined;
   const selectedSection = sections.find((section) => section.id === sectionId);
-  const selectedLocality = localities.find((locality) => locality.id === localityId);
+  const selectedLocality = localityOptions.find((locality) => locality.id === localityId);
   const availableSections = sections.filter((section) => section.active || section.id === article?.sectionId);
-  const availableLocalities = localities.filter(
+  const availableLocalities = localityOptions.filter(
     (locality) => locality.active || locality.id === article?.localityId,
   );
 
@@ -323,13 +351,58 @@ export function ArticleForm({
                 </select>
               </div>
               <div className="form-field">
-                <label htmlFor="field-locality" className="field-label">Localidade</label>
+                <label htmlFor="field-locality" className="field-label">Abrangência</label>
                 <select id="field-locality" value={localityId} onChange={(event) => setLocalityId(event.target.value)}>
-                  <option value="">Selecione a localidade</option>
+                  <option value="">Selecione a abrangência</option>
                   {availableLocalities.map((locality) => (
                     <option key={locality.id} value={locality.id}>{locality.name}</option>
                   ))}
                 </select>
+                <button
+                  type="button"
+                  className="text-link"
+                  onClick={() => setShowNewLocality((value) => !value)}
+                >
+                  {showNewLocality ? "Cancelar" : "+ Nova abrangência"}
+                </button>
+                {showNewLocality ? (
+                  <div className="inline-form inline-form--compact">
+                    <div className="form-grid">
+                      <label className="form-field">
+                        <span className="field-label">Nome</span>
+                        <input
+                          value={newLocalityName}
+                          onChange={(event) => setNewLocalityName(event.target.value)}
+                          placeholder="Ex.: Balneário Gaivota"
+                        />
+                      </label>
+                      <label className="form-field">
+                        <span className="field-label">Tipo</span>
+                        <select
+                          value={newLocalityScope}
+                          onChange={(event) => setNewLocalityScope(event.target.value as LocalityScope)}
+                        >
+                          {(["country", "state", "region", "city"] as LocalityScope[]).map((scope) => (
+                            <option key={scope} value={scope}>{localityScopeLabels[scope]}</option>
+                          ))}
+                        </select>
+                      </label>
+                    </div>
+                    {newLocalityError ? (
+                      <p className="form-error" role="alert">{newLocalityError}</p>
+                    ) : null}
+                    <div className="form-actions">
+                      <button
+                        type="button"
+                        className="form-action-primary"
+                        onClick={handleCreateLocality}
+                        disabled={creatingLocality || !newLocalityName.trim()}
+                      >
+                        {creatingLocality ? "Cadastrando…" : "Cadastrar e selecionar"}
+                      </button>
+                    </div>
+                  </div>
+                ) : null}
               </div>
             </section>
 

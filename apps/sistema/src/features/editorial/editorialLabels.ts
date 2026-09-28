@@ -52,9 +52,11 @@ export const importCandidateStatusLabels: Record<ImportCandidateStatus, string> 
 };
 
 export const localityScopeLabels: Record<LocalityScope, string> = {
-  city: "Cidade",
-  region: "Região",
   general: "Geral",
+  country: "País",
+  state: "Estado",
+  region: "Região",
+  city: "Cidade",
 };
 
 export const articleOriginLabels: Record<ArticleOrigin, string> = {

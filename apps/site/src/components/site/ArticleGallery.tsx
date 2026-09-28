@@ -1,28 +1,43 @@
 "use client";
 
-import { useEffect, useRef, useState, type TouchEvent } from "react";
+import { useEffect, useRef, type TouchEvent } from "react";
 import type { ArticleImage } from "./siteArticleTypes";
 
 const SWIPE_THRESHOLD_PX = 40;
 
 /**
- * Galeria de matéria com várias fotos: grade no desktop, faixa com
- * scroll-snap no mobile (fácil de arrastar com o dedo, sem biblioteca
- * externa), e um visualizador em tela cheia — setas no desktop, teclado,
- * swipe no mobile, contador "1/3", legenda e crédito por foto. Só aparece
- * quando há 2 ou mais fotos no total (capa + galeria); com apenas a capa,
- * nada disto é exibido.
+ * Galeria de matéria: grade das fotos da galeria (grid no desktop, faixa
+ * com scroll-snap no mobile) + um visualizador em tela cheia — setas no
+ * desktop, teclado, swipe no mobile, contador e legenda/crédito por foto.
+ *
+ * Componente CONTROLADO (Fase 49, item 3): `images` é o conjunto UNIFICADO
+ * capa + galeria (índice 0 = capa, quando existir) — quem decide QUANDO o
+ * lightbox abre e em qual índice é o componente pai (a capa é exibida como
+ * hero fora daqui, mas precisa abrir o MESMO visualizador, no índice 0).
+ * `thumbnailStart` diz a partir de qual índice desenhar a grade de
+ * miniaturas abaixo do corpo (1 quando há capa, para não repetir a capa
+ * como miniatura; 0 quando não há capa).
  */
-export function ArticleGallery({ images }: { images: ArticleImage[] }): JSX.Element {
-  const [openIndex, setOpenIndex] = useState<number | null>(null);
+export function ArticleGallery({
+  images,
+  thumbnailStart,
+  openIndex,
+  onOpenIndexChange,
+}: {
+  images: ArticleImage[];
+  thumbnailStart: number;
+  openIndex: number | null;
+  onOpenIndexChange: (index: number | null) => void;
+}): JSX.Element {
   const touchStartX = useRef<number | null>(null);
+  const thumbnails = images.slice(thumbnailStart);
 
   useEffect(() => {
     if (openIndex === null) return;
     function handleKey(event: KeyboardEvent): void {
-      if (event.key === "Escape") setOpenIndex(null);
-      if (event.key === "ArrowRight") setOpenIndex((i) => (i === null ? i : (i + 1) % images.length));
-      if (event.key === "ArrowLeft") setOpenIndex((i) => (i === null ? i : (i - 1 + images.length) % images.length));
+      if (event.key === "Escape") onOpenIndexChange(null);
+      if (event.key === "ArrowRight") onOpenIndexChange(((openIndex ?? 0) + 1) % images.length);
+      if (event.key === "ArrowLeft") onOpenIndexChange(((openIndex ?? 0) - 1 + images.length) % images.length);
     }
     window.addEventListener("keydown", handleKey);
     document.body.style.overflow = "hidden";
@@ -30,17 +45,17 @@ export function ArticleGallery({ images }: { images: ArticleImage[] }): JSX.Elem
       window.removeEventListener("keydown", handleKey);
       document.body.style.overflow = "";
     };
-  }, [openIndex, images.length]);
-
-  if (images.length === 0) return <></>;
+  }, [openIndex, images.length, onOpenIndexChange]);
 
   const active = openIndex !== null ? images[openIndex] : null;
 
   function goPrev(): void {
-    setOpenIndex((i) => (i === null ? i : (i - 1 + images.length) % images.length));
+    if (openIndex === null) return;
+    onOpenIndexChange((openIndex - 1 + images.length) % images.length);
   }
   function goNext(): void {
-    setOpenIndex((i) => (i === null ? i : (i + 1) % images.length));
+    if (openIndex === null) return;
+    onOpenIndexChange((openIndex + 1) % images.length);
   }
 
   function handleTouchStart(event: TouchEvent<HTMLDivElement>): void {
@@ -58,31 +73,41 @@ export function ArticleGallery({ images }: { images: ArticleImage[] }): JSX.Elem
 
   return (
     <div>
-      <p className="kicker mb-3">Galeria · {images.length} foto{images.length > 1 ? "s" : ""}</p>
+      {thumbnails.length > 0 ? (
+        <>
+          <p className="kicker mb-3">Galeria · {images.length} foto{images.length > 1 ? "s" : ""}</p>
 
-      {/* Desktop */}
-      <div className="hidden article-gallery-grid md:grid">
-        {images.map((image, i) => (
-          <button type="button" key={image.url + i} onClick={() => setOpenIndex(i)} aria-label={`Ampliar foto ${i + 1} de ${images.length}`}>
-            <img src={image.url} alt={image.caption ?? ""} loading="lazy" />
-          </button>
-        ))}
-      </div>
+          {/* Desktop */}
+          <div className="hidden article-gallery-grid md:grid">
+            {thumbnails.map((image, i) => {
+              const index = thumbnailStart + i;
+              return (
+                <button type="button" key={image.url + index} onClick={() => onOpenIndexChange(index)} aria-label={`Ampliar foto ${index + 1} de ${images.length}`}>
+                  <img src={image.url} alt={image.caption ?? ""} loading="lazy" className="h-full w-full object-contain" />
+                </button>
+              );
+            })}
+          </div>
 
-      {/* Mobile */}
-      <div className="article-gallery-scroll md:hidden">
-        {images.map((image, i) => (
-          <button
-            type="button"
-            key={image.url + i}
-            onClick={() => setOpenIndex(i)}
-            aria-label={`Ampliar foto ${i + 1} de ${images.length}`}
-            className="relative aspect-[4/3] overflow-hidden rounded-md"
-          >
-            <img src={image.url} alt={image.caption ?? ""} className="h-full w-full object-cover" loading="lazy" />
-          </button>
-        ))}
-      </div>
+          {/* Mobile */}
+          <div className="article-gallery-scroll md:hidden">
+            {thumbnails.map((image, i) => {
+              const index = thumbnailStart + i;
+              return (
+                <button
+                  type="button"
+                  key={image.url + index}
+                  onClick={() => onOpenIndexChange(index)}
+                  aria-label={`Ampliar foto ${index + 1} de ${images.length}`}
+                  className="relative aspect-[4/3] overflow-hidden rounded-md bg-[color:var(--site-bg)]"
+                >
+                  <img src={image.url} alt={image.caption ?? ""} className="h-full w-full object-contain" loading="lazy" />
+                </button>
+              );
+            })}
+          </div>
+        </>
+      ) : null}
 
       {active ? (
         <div
@@ -100,7 +125,7 @@ export function ArticleGallery({ images }: { images: ArticleImage[] }): JSX.Elem
             ) : (
               <span />
             )}
-            <button type="button" className="lightbox-close" onClick={() => setOpenIndex(null)} aria-label="Fechar">
+            <button type="button" className="lightbox-close" onClick={() => onOpenIndexChange(null)} aria-label="Fechar">
               ✕
             </button>
           </div>
@@ -116,7 +141,7 @@ export function ArticleGallery({ images }: { images: ArticleImage[] }): JSX.Elem
             </>
           ) : null}
 
-          <img src={active.url} alt={active.caption ?? ""} />
+          <img src={active.url} alt={active.caption ?? ""} className="lightbox-image" />
 
           {active.caption || active.credit ? (
             <p className="lightbox-caption">

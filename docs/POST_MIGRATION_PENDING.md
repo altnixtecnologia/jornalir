@@ -1,6 +1,6 @@
 # Pendências pós-migração — Informativo Regional
 
-Atualizado após a Fase 48. Este arquivo separa o que já está concluído do que ficou deliberadamente para depois.
+Atualizado após a Fase 49. Este arquivo separa o que já está concluído do que ficou deliberadamente para depois.
 
 ## Concluído
 
@@ -11,10 +11,11 @@ Atualizado após a Fase 48. Este arquivo separa o que já está concluído do qu
 - Agendamento automático de matérias existe no banco via `pg_cron` (`publish_due_scheduled_articles`, a cada minuto).
 - Painel editorial passou por typecheck/build e revisão pós-migração na Fase 47.
 - **Fase 48**: acesso online ao acervo completo validado (23.217 confirmados no Supabase e num Preview publicado do `apps/site`; `/noticias` testado na página 1, intermediária, última e além-do-fim; editoria grande e busca conferidas; link permanente "Notícias" adicionado ao header/menu desktop e mobile, sem depender de placement). Staging separado do painel (`apps/sistema`) publicado em projeto Vercel isolado (`jornalir-sistema`), com `/login`/proteção de `/sistema/*` validados sem sessão — ver `docs/AI_HANDOFF.md` (Fase 48) para as URLs e os 3 problemas reais corrigidos na configuração.
+- **Fase 49**: diagnóstico confirmou que a predominância de "Geral"/pequeno volume de Colunistas é real (sem corrupção de dados, nenhuma correção em massa aplicada). "Localidade" virou "Abrangência" com os scopes País/Estado/Região/Cidade/Geral, 7 abrangências iniciais cadastradas (Brasil, Santa Catarina, Rio Grande do Sul, Mampituba, Morrinhos do Sul, Praia Grande, Santa Rosa do Sul) e cadastro rápido "+ Nova abrangência" direto na matéria. "Geral" some da metadata pública; capa+galeria unificadas num único lightbox; nenhuma imagem editorial é mais cortada (`object-contain` em vez de `cover`, publicidade não tocada); "Voltar" aponta para a editoria real; header desktop em duas faixas (logo maior + nav completa, "Mais" só quando necessário); paginação de `/noticias`, `/busca`, `/sistema/editorial/materias` e `/sistema/editorial/midias` trocada por blocos de 10 + campo "Ir para página", preservando filtros/pageSize — ver `docs/AI_HANDOFF.md` (Fase 49).
 
 ## Fazer agora
 
-1. **Login real no staging do painel** — ação do usuário: abrir a URL de Preview de `jornalir-sistema` (ver Fase 48 do handoff), entrar com credencial real de staff e percorrer login → matérias → edição → imagens → destaques → sair. Isso não pôde ser automatizado (exige sessão real).
+1. **Login real no staging do painel** — ação do usuário: abrir a URL de Preview de `jornalir-sistema` (ver Fase 48 do handoff), entrar com credencial real de staff e percorrer login → matérias → edição → imagens → destaques → sair. Isso não pôde ser automatizado (exige sessão real). A Fase 49 também não pôde exercitar a paginação de `/sistema/editorial/materias`/`midias` logada de verdade por falta dessa credencial nesta sessão — validada por revisão de código e teste unitário do algoritmo de blocos; vale conferir visualmente no mesmo login.
 
 2. **Google Drive do Jornal Online**
    - concluir configuração OAuth/credenciais server-side do painel;

@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { ModuleHeader } from "../../../../components/admin/ModuleHeader";
 import { MidiasLibrary, type MediaUsageRef } from "../../../../features/editorial/MidiasLibrary";
+import { PaginationControls } from "../../../../features/editorial/PaginationControls";
 import { createSupabaseServerClient } from "../../../../lib/supabase/server";
 import { listMediaAdminPageSupabase } from "../../../../providers/supabase/mediaAssetRepository.supabase";
 
@@ -100,15 +101,7 @@ export default async function MidiasPage({
 
       <MidiasLibrary mediaAssets={mediaPage.assets} usageByMediaId={usageByMediaId} />
 
-      {mediaPage.totalPages > 1 ? (
-        <nav className="materias-toolbar" aria-label="Paginação da biblioteca de mídia">
-          <div className="materias-filters">
-            {mediaPage.page > 1 ? <Link className="secondary-link" href={href(mediaPage.page - 1)}>← Anterior</Link> : <span />}
-            <span className="materias-count">Página {mediaPage.page} de {mediaPage.totalPages}</span>
-            {mediaPage.page < mediaPage.totalPages ? <Link className="secondary-link" href={href(mediaPage.page + 1)}>Próxima →</Link> : null}
-          </div>
-        </nav>
-      ) : null}
+      <PaginationControls page={mediaPage.page} totalPages={mediaPage.totalPages} buildHref={href} />
     </>
   );
 }

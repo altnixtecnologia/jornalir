@@ -13,6 +13,7 @@ import {
   placementLabels,
   publicationDate,
 } from "./editorialLabels";
+import { PaginationControls } from "./PaginationControls";
 
 export interface MateriasListFilters {
   q: string;
@@ -236,15 +237,7 @@ export function MateriasList({
         </>
       )}
 
-      {totalPages > 1 ? (
-        <nav className="materias-toolbar" aria-label="Paginação de matérias">
-          <div className="materias-filters">
-            {page > 1 ? <Link className="secondary-link" href={buildHref(page - 1)}>← Anterior</Link> : <span />}
-            <span className="materias-count">Página {page} de {totalPages}</span>
-            {page < totalPages ? <Link className="secondary-link" href={buildHref(page + 1)}>Próxima →</Link> : null}
-          </div>
-        </nav>
-      ) : null}
+      <PaginationControls page={page} totalPages={totalPages} buildHref={buildHref} />
     </>
   );
 }

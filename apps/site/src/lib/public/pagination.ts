@@ -19,31 +19,44 @@ export function parsePage(raw: string | null | undefined): number {
   return Number.isFinite(n) && n > 0 ? n : 1;
 }
 
-export type PageToken = number | "…";
+export interface PageBlock {
+  pages: number[];
+  blockStart: number;
+  blockEnd: number;
+  hasPrevBlock: boolean;
+  hasNextBlock: boolean;
+  prevBlockPage: number;
+  nextBlockPage: number;
+}
 
 /**
- * Janela de páginas com reticências — sempre mostra a primeira, a última
- * e uma vizinhança (`delta`) ao redor da página atual. `delta` menor no
- * mobile (menos números, mas nunca só anterior/próxima — pedido
- * explícito do usuário).
+ * Paginação por blocos de 10 (Fase 49, item 7 — substitui a janela com
+ * reticências anterior): 1–10, depois 11–20, 21–30 etc., de acordo com a
+ * página atual. `prevBlockPage`/`nextBlockPage` levam para a última
+ * página do bloco anterior / primeira do próximo bloco — nunca pulam
+ * direto para o início/fim do total.
  */
-export function getPageWindow(current: number, total: number, delta: number): PageToken[] {
-  if (total <= 1) return [1];
+export function getPageBlock(current: number, total: number, blockSize = 10): PageBlock {
+  const safeTotal = Math.max(1, total);
+  const blockIndex = Math.floor((current - 1) / blockSize);
+  const blockStart = blockIndex * blockSize + 1;
+  const blockEnd = Math.min(blockStart + blockSize - 1, safeTotal);
   const pages: number[] = [];
-  for (let i = 1; i <= total; i += 1) {
-    if (i === 1 || i === total || (i >= current - delta && i <= current + delta)) {
-      pages.push(i);
-    }
-  }
-  const withDots: PageToken[] = [];
-  let last = 0;
-  for (const page of pages) {
-    if (last) {
-      if (page - last === 2) withDots.push(last + 1);
-      else if (page - last > 2) withDots.push("…");
-    }
-    withDots.push(page);
-    last = page;
-  }
-  return withDots;
+  for (let p = blockStart; p <= blockEnd; p += 1) pages.push(p);
+  return {
+    pages,
+    blockStart,
+    blockEnd,
+    hasPrevBlock: blockStart > 1,
+    hasNextBlock: blockEnd < safeTotal,
+    prevBlockPage: Math.max(1, blockStart - 1),
+    nextBlockPage: Math.min(safeTotal, blockEnd + 1),
+  };
+}
+
+/** Clampa e normaliza o valor digitado em "Ir para página" — nunca fora de 1..total. */
+export function clampJumpPage(raw: string, total: number): number | null {
+  const n = Number.parseInt(raw, 10);
+  if (!Number.isFinite(n)) return null;
+  return Math.min(Math.max(1, n), Math.max(1, total));
 }

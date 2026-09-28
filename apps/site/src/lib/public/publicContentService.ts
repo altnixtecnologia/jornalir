@@ -96,22 +96,30 @@ function buildArticles(
   localityById: Map<string, PublicLocality>,
   coverByArticle: Map<string, PublicArticleMedia>,
 ): PublicArticle[] {
-  return rows.map((row) => ({
-    id: row.id,
-    slug: row.slug,
-    title: row.title,
-    subtitle: row.subtitle ?? undefined,
-    body: row.body,
-    sectionId: row.section_id,
-    sectionName: sectionById.get(row.section_id)?.name ?? "Geral",
-    sectionSlug: sectionById.get(row.section_id)?.slug ?? "",
-    localityId: row.locality_id,
-    localityName: localityById.get(row.locality_id)?.name ?? "",
-    urgent: row.urgent,
-    publishedAt: row.published_at,
-    cover: coverByArticle.get(row.id),
-    gallery: [],
-  }));
+  return rows.map((row) => {
+    // Abrangência "geral" nunca aparece nos metadados públicos (Fase 49,
+    // item 2) — é o valor neutro/padrão do legado, não uma informação
+    // real para o leitor. Só abrangências informativas (cidade/estado/
+    // país/região) são mostradas.
+    const locality = localityById.get(row.locality_id);
+    const localityName = locality && locality.scope !== "general" ? locality.name : "";
+    return {
+      id: row.id,
+      slug: row.slug,
+      title: row.title,
+      subtitle: row.subtitle ?? undefined,
+      body: row.body,
+      sectionId: row.section_id,
+      sectionName: sectionById.get(row.section_id)?.name ?? "Geral",
+      sectionSlug: sectionById.get(row.section_id)?.slug ?? "",
+      localityId: row.locality_id,
+      localityName,
+      urgent: row.urgent,
+      publishedAt: row.published_at,
+      cover: coverByArticle.get(row.id),
+      gallery: [],
+    };
+  });
 }
 
 /**

@@ -885,6 +885,76 @@ button.secondary-link {
   white-space: nowrap;
   padding-bottom: 10px;
 }
+/* Paginação por blocos de 10 + "Ir para página" (Fase 49, item 7) —
+   usada por toda listagem paginada do sistema (matérias, mídias). */
+.pagination-controls {
+  margin-top: 20px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+.pagination-controls-numbers {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+}
+.pagination-page-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 30px;
+  height: 30px;
+  padding: 0 6px;
+  border: 1px solid var(--line);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink);
+}
+.pagination-page-link:hover {
+  border-color: var(--brand);
+}
+.pagination-page-link.is-active {
+  background: var(--brand);
+  border-color: var(--brand);
+  color: #fff;
+}
+.pagination-page-link.is-disabled {
+  color: var(--muted);
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.pagination-jump {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.pagination-jump label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--muted);
+}
+.pagination-jump input {
+  width: 64px;
+  padding: 4px 6px;
+  border: 1px solid var(--line);
+  text-align: center;
+  font-size: 12px;
+}
+.pagination-jump button {
+  border: 1px solid var(--brand);
+  background: var(--brand);
+  color: #fff;
+  padding: 4px 12px;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
 .materias-table-wrap {
   overflow-x: auto;
   border: 1px solid var(--line);

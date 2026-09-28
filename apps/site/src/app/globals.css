@@ -718,11 +718,15 @@ body {
   aspect-ratio: 4 / 3;
   overflow: hidden;
   border-radius: 6px;
+  background: var(--site-bg);
 }
 .article-gallery-grid img {
   height: 100%;
   width: 100%;
-  object-fit: cover;
+  /* Nunca cortar foto editorial (Fase 49, item 4) — a caixa tem proporção
+     fixa (4/3) para o grid ficar regular, mas a foto sempre aparece
+     inteira, com a caixa preenchendo o espaço sobrando (letterbox). */
+  object-fit: contain;
   transition: transform 400ms ease;
 }
 .article-gallery-grid button:hover img {

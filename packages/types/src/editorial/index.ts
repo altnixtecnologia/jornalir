@@ -12,9 +12,9 @@ export type ArticleStatus =
 
 export type NotificationMode = "none" | "normal" | "urgent";
 
-export type LocalityScope = "city" | "region" | "general";
+export type LocalityScope = "city" | "region" | "state" | "country" | "general";
 
-/** Cidade/região/abrangência geral. Independente da editoria. */
+/** Cidade/região/estado/país/abrangência geral ("Abrangência" na UI, Fase 49). Independente da editoria. */
 export interface Locality {
   id: string;
   slug: string;

@@ -4,6 +4,65 @@ Este arquivo é atualizado ao final de CADA fase a partir da Fase 35. Curto, dir
 
 ---
 
+## Fase 49 — Abrangência, galeria unificada, sem corte de imagem, header em duas faixas e paginação por blocos de 10
+
+**HEAD/commit:** `PENDENTE` (branch `feature/painel-editorial-operacional-20260927`)
+
+Autorizado por instrução direta do usuário lendo `docs/CHATGPT_REVIEW.md`, commit `71eb723` (seção "Fase 49"). Oito ajustes, todos aplicados nesta fase.
+
+### 1. Diagnóstico Colunistas/Geral — nenhuma correção em massa aplicada
+
+Consultado o Supabase real em três camadas (`articles.section_id`, view `public_articles`, view `public_editorial_sections`) — os três batem exatamente: Geral=16.461, Saúde=1.847, Esporte=1.171, Política=1.150, Sociais=1.138, Polícia=893, Agricultura=336, Colunistas=221 (Economia/Eventos/Cidades/Classificados=0). **Não há corrupção de dados**: o acervo real é ~71% "Geral" porque o site legado categorizava assim; Colunistas é pequeno em volume mas visualmente memorável por causa das assinaturas dos autores. Como os IDs/dados estão corretos, nenhuma correção em massa foi aplicada nos ~23 mil artigos históricos.
+
+### 2. Localidade → "Abrangência" (Geral/País/Estado/Região/Cidade)
+
+- `packages/types/src/editorial/index.ts`: `LocalityScope` ganhou `"state" | "country"` (preservando `general`/`region`/`city`).
+- Migração `supabase/migrations/20261007100000_localities_country_state_scope.sql`: recria o `check` de `localities.scope` incluindo os dois novos valores e faz seed idempotente (`on conflict (slug) do nothing`) de Brasil (país), Santa Catarina e Rio Grande do Sul (estados), Mampituba/Morrinhos do Sul/Praia Grande/Santa Rosa do Sul (cidades) — aplicada com `supabase db push` no projeto real (`iqnzrpdccecgalqboeyf`) e confirmada: as 11 localidades (4 originais + 7 novas) presentes com os `scope` corretos.
+- `apps/sistema/src/features/editorial/editorialLabels.ts` e `LocalidadesManager.tsx`: rótulos/opções dos novos scopes.
+- `apps/sistema/src/features/editorial/ArticleForm.tsx`: campo renomeado para "Abrangência" e novo formulário inline "+ Nova abrangência" (nome + tipo, sem sair da matéria) que chama a server action `createLocality` já existente e seleciona a localidade recém-criada automaticamente.
+- Nenhuma localidade foi inferida/atribuída em massa às matérias históricas — nenhum `UPDATE` em `articles.locality_id` foi executado.
+
+### 3. Portal esconde "Geral" e unifica capa+galeria no lightbox
+
+- `apps/site/src/lib/public/publicContentService.ts`: `buildArticles()` agora retorna `localityName` vazio quando `locality.scope === "general"` — "Geral" nunca aparece nos metadados de uma matéria pública.
+- Novo `apps/site/src/components/site/ArticleMediaViewer.tsx`: unifica capa + galeria num único conjunto de fotos; capa clicável abre o lightbox no índice 0; indicador "Ver N fotos" reflete o total real (capa + galeria); `apps/site/src/components/site/ArticleGallery.tsx` foi reescrito como componente controlado (teclado no desktop, swipe no mobile, miniaturas abrem o mesmo conjunto).
+- Bug real corrigido: o indicador contava capa+galeria, mas o componente antigo só recebia `gallery` — corrigido unificando o estado em `ArticleMediaViewer`.
+
+### 4. Nunca cortar imagem editorial
+
+Removidos todos os `bg-cover`/`object-cover` de conteúdo editorial real: capa da matéria, `PublicFeaturedHero` (removido o hook `useOrientations` — agora sempre `contain`), `PublicReadAlsoCard`, `PublicSecondaryHeadlines`, `PublicLatestNewsList`. Bug de especificidade CSS encontrado e corrigido em `apps/site/src/app/globals.css`: `.article-gallery-grid img { object-fit: cover }` (seletor descendente) sobrescrevia a classe Tailwind `object-contain` aplicada direto na tag — corrigido a regra CSS em si (`contain` + fundo neutro). Publicidade (`AdsCarousel`, `SponsoredNativeCard`) e ícones sociais/WhatsApp não foram tocados — não são conteúdo editorial.
+
+### 5. "Voltar" aponta para a editoria
+
+`apps/site/src/app/(public)/noticias/[slug]/page.tsx`: link "← Voltar" agora aponta para `/editoria/{sectionSlug}` com o nome real da editoria ("Voltar para Sociais"), com fallback para `/noticias` só quando não há `sectionSlug` válido. Validado na matéria de exemplo `abre-oficialmente-em-praia-grande-o-boia-cross-2025-15419282` → `href="/editoria/sociais"`.
+
+### 6. Header desktop em duas faixas (`apps/site/src/components/site/SiteHeader.tsx`)
+
+Em telas largas (`xl:`): faixa 1 = logo maior (84px, era 64px) + busca/redes/Assinante; faixa 2 = nav de largura total com Início, Notícias, todas as editorias diretas e Jornal Online, com "Mais" reservado só para Sobre/Contato. Em larguras intermediárias o bloco de uma faixa original é mantido (agora com `xl:hidden`), reduzindo o conjunto direto e usando "Mais" quando necessário. Mobile inalterado. Confirmado no HTML da home: bloco `hidden xl:block` (duas faixas) presente, `xl:hidden` (faixa única) presente para telas menores.
+
+### 7. Paginação em blocos de 10 + "Ir para página"
+
+Novo algoritmo puro `getPageBlock`/`clampJumpPage`, implementado em `apps/site/src/lib/public/pagination.ts` (substitui o antigo `getPageWindow`) e duplicado em `apps/sistema/src/lib/pagination.ts` (apps não compartilham estilo visual de paginação hoje; algoritmo pequeno o bastante para não justificar dependência cruzada). Componentes: `PublicPagination` (portal, reescrito `"use client"`) e novo `PaginationControls` (sistema), ambos com prev/next, bloco-anterior («)/bloco-seguinte (»), até 10 números por bloco e campo "Ir para página" com `clamp` em `1..totalPages`.
+
+Aplicado em `/noticias`, `/busca` (portal) e `/sistema/editorial/materias`, `/sistema/editorial/midias` (sistema) — reaproveitando os `buildHref`/`href` já existentes em cada página, que preservam todos os filtros (`q`, `status`, `section`, `locality`, `origin`, `pageSize`).
+
+Validado ao vivo contra o Supabase real (`/noticias`, 968 páginas totais, pageSize=24 default): página 1 → bloco 1–10; página 10 → mesmo bloco 1–10; página 11 → bloco 11–20; página 200 → bloco 191–200; página 968 (última) → bloco 961–968 (8 páginas, sem bloco-seguinte). Página 1 usa URL limpa (`/noticias`, sem `?page=1`) — comportamento intencional do `hrefFor`. Lógica de bloco/clamp também confirmada por teste unitário isolado (Node) para os mesmos casos. Paginação de `/sistema/*` não pôde ser exercitada logada de verdade (sem credencial de staff disponível nesta sessão) — validada por revisão de código + teste unitário do mesmo algoritmo; `buildHref`/`href` de `materias`/`midias` seguem preservando filtros como antes.
+
+### 8. Validação e typecheck/build
+
+- `npm run typecheck --workspace=@ir/site` e `--workspace=@ir/sistema`: limpos.
+- `npm run build --workspace=@ir/site` e `--workspace=@ir/sistema`: ambos concluídos com sucesso (todas as rotas compilando e gerando estático/dinâmico normalmente).
+- Servidores de desenvolvimento subidos localmente a partir do worktree do painel (`Site-sistema-painel`, portas 3010/3011, apontando para o Supabase IR real) para validar `/noticias` nas páginas 1/10/11/200/última, a matéria de exemplo com 20 fotos (capa + galeria, `object-contain` confirmado, sem corte), o link "Voltar" por editoria, o header em duas faixas e o seed das abrangências.
+- Cadastro rápido de abrangência validado por revisão de código do fluxo `ArticleForm` → `createLocality` (mesma server action já testada na Fase 47) e pela confirmação em banco de que as 11 abrangências esperadas (incluindo as 7 novas) existem com o `scope` correto.
+
+### Confirmação explícita
+
+- Nenhuma migração histórica reexecutada; nenhuma localidade/editoria de matéria histórica foi alterada em massa.
+- Publicidade (`AdsCarousel`, `SponsoredNativeCard`) não foi tocada.
+- Nada além de Preview foi publicado — Production de `jornalir` e de `jornalir-sistema` intocados.
+
+---
+
 ## Fase 48 — Validação online do acervo completo (`apps/site`) + staging separado do painel (`apps/sistema`)
 
 **HEAD/commit:** `f0253f6` (branch `feature/painel-editorial-operacional-20260927`)
