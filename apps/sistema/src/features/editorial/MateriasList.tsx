@@ -102,6 +102,8 @@ export function MateriasList({
   // no banco para nunca carregar dezenas de milhares de matérias no browser.
   const [photoFilter, setPhotoFilter] = useState<PhotoFilter>("all");
   const [highlightFilter, setHighlightFilter] = useState<HighlightFilter>("all");
+  const [dateFrom, setDateFrom] = useState(filters.dateFrom);
+  const [dateTo, setDateTo] = useState(filters.dateTo);
 
   const sectionById = useMemo(() => new Map(sections.map((section) => [section.id, section])), [sections]);
   const localityById = useMemo(() => new Map(localities.map((locality) => [locality.id, locality])), [localities]);
@@ -189,11 +191,13 @@ export function MateriasList({
           </select>
           <label className="materias-date-compact">
             <span className="sr-only">De</span>
-            <input type="date" name="dateFrom" defaultValue={filters.dateFrom} aria-label="De" title="De" />
+            <input type="date" name="dateFrom" value={dateFrom} onChange={(event) => setDateFrom(event.target.value)} aria-label="De" title="De" />
+            {dateFrom ? <button className="materias-date-clear" type="button" onClick={() => setDateFrom("")} aria-label="Limpar data inicial" title="Limpar data inicial">×</button> : null}
           </label>
           <label className="materias-date-compact">
             <span className="sr-only">Até</span>
-            <input type="date" name="dateTo" defaultValue={filters.dateTo} aria-label="Até" title="Até" />
+            <input type="date" name="dateTo" value={dateTo} onChange={(event) => setDateTo(event.target.value)} aria-label="Até" title="Até" />
+            {dateTo ? <button className="materias-date-clear" type="button" onClick={() => setDateTo("")} aria-label="Limpar data final" title="Limpar data final">×</button> : null}
           </label>
           <select name="pageSize" defaultValue={String(pageSize)} aria-label="Por página" title="Por página">
             <option value="24">24/pág.</option>
@@ -244,7 +248,7 @@ export function MateriasList({
                       </Link>
                     </th>
                   ))}
-                  <th>Destaque</th><th>Mídia</th><th>Ações</th>
+                  <th>Destaque</th><th>Fotos</th>
                 </tr>
               </thead>
               <tbody>
@@ -257,7 +261,7 @@ export function MateriasList({
                     <tr key={article.id}>
                       <td className="materia-reference">{article.reference}</td>
                       <td>
-                        <span className="materia-title">{article.urgent ? <span className="urgent-badge">Urgente</span> : null}{article.title}</span>
+                        <Link className="materia-title materia-title-link" href={`/sistema/editorial/materias/${article.id}`}>{article.urgent ? <span className="urgent-badge">Urgente</span> : null}{article.title}</Link>
                         {article.subtitle ? <span className="materia-subtitle">{article.subtitle}</span> : null}
                       </td>
                       <td>
@@ -270,7 +274,6 @@ export function MateriasList({
                       <td><span className={`notification-pill notification-pill--${article.notificationMode}`}>{notificationLabels[article.notificationMode]}</span></td>
                       <td><span className={`placement-pill${hasPlacement ? "" : " placement-pill--muted"}`}>{placementLabels[article.placement.type]}</span></td>
                       <td><span className={`media-indicator${hasCoverImage(article) ? " media-indicator--cover" : ""}`}>{mediaSummary(article)}</span></td>
-                      <td><Link className="materia-open-link" href={`/sistema/editorial/materias/${article.id}`}>Abrir ↗</Link></td>
                     </tr>
                   );
                 })}
