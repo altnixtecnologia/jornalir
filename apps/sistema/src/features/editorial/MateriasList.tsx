@@ -248,7 +248,7 @@ export function MateriasList({
                       </Link>
                     </th>
                   ))}
-                  <th>Destaque</th><th>Fotos</th>
+                  <th>Destaque</th>
                 </tr>
               </thead>
               <tbody>
@@ -273,7 +273,6 @@ export function MateriasList({
                       <td><PublicationCell article={article} /></td>
                       <td><span className={`notification-pill notification-pill--${article.notificationMode}`}>{notificationLabels[article.notificationMode]}</span></td>
                       <td><span className={`placement-pill${hasPlacement ? "" : " placement-pill--muted"}`}>{placementLabels[article.placement.type]}</span></td>
-                      <td><span className={`media-indicator${hasCoverImage(article) ? " media-indicator--cover" : ""}`}>{mediaSummary(article)}</span></td>
                     </tr>
                   );
                 })}
