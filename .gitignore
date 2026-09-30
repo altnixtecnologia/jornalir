@@ -16,3 +16,7 @@ supabase/.temp
 # Dados brutos da auditoria do site legado (grandes demais para o repo)
 scripts/legacy-audit/output/
 scripts/legacy-audit/checkpoints/
+
+# Logs por arquivo da migração R2 (grandes demais / só operacionais)
+scripts/r2-migration/output/
+scripts/r2-webp-optimize/output/
