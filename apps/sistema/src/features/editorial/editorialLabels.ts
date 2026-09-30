@@ -115,10 +115,11 @@ export function photoCount(article: Article): number {
 }
 
 export function mediaSummary(article: Article): string {
-  if (article.media.length === 0) return "Sem imagem";
+  if (article.media.length === 0) return "Sem foto";
   const galleryCount = article.media.filter((item) => item.role === "gallery").length;
   if (galleryCount > 0) {
     return hasCoverImage(article) ? `Capa + galeria (${galleryCount})` : `Galeria (${galleryCount})`;
   }
-  return hasCoverImage(article) ? "Com capa" : `${article.media.length} imagem(ns)`;
+  if (hasCoverImage(article)) return "Capa";
+  return article.media.length === 1 ? "1 foto" : `${article.media.length} fotos`;
 }
