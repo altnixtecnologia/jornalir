@@ -62,6 +62,7 @@ export async function registerUploadedMediaAsset(
     .from(TABLE)
     .insert({
       title: input.title,
+      storage_provider: "r2",
       storage_path: input.storagePath,
       public_url: input.publicUrl,
       file_name: input.fileName,
