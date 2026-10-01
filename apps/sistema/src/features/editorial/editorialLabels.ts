@@ -40,9 +40,9 @@ export const placementDescriptions: Record<EditorialPlacementType, string> = {
 };
 
 export const notificationLabels: Record<NotificationMode, string> = {
-  none: "Sem notificação",
-  normal: "Notificação normal",
-  urgent: "Notificação urgente",
+  none: "Não enviar notificação",
+  normal: "Enviar notificação normal",
+  urgent: "Enviar notificação urgente",
 };
 
 export const importCandidateStatusLabels: Record<ImportCandidateStatus, string> = {
