@@ -150,7 +150,11 @@ export async function updateArticle(
       // status nem sua data só por salvar conteúdo.
       await articleService.updateDraft(id, baseChanges, AUDIT);
     } else if (intent === "publish") {
-      await articleService.updateDraft(id, baseChanges, AUDIT);
+      await articleService.updateDraft(
+        id,
+        { ...baseChanges, ...(current.status === "published" ? { scheduledAt: undefined } : {}) },
+        AUDIT,
+      );
       // Re-salvar uma matéria que já estava publicada preserva a data
       // original. "Publicar agora" só cria published_at ao sair de outro status.
       if (current.status !== "published") {
