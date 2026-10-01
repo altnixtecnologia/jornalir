@@ -35,7 +35,7 @@ export default async function DestaquesPage(): Promise<JSX.Element> {
       <ModuleHeader
         eyebrow="EDITORIAL / DESTAQUES"
         title="Destaques do portal"
-        description="Onde cada matéria está aparecendo em destaque agora — fixar, desafixar e remover sem tocar em editoria, localidade ou status."
+        description="Onde cada matéria está aparecendo em destaque agora — fixe quando precisar e arraste as fixadas para ajustar a ordem."
       />
       <DestaquesManager
         placements={{ mainCover, highlightStrip, latestNews, localSpotlight }}
