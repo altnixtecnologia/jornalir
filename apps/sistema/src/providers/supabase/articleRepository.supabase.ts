@@ -121,7 +121,7 @@ function placementToDomain(row: PlacementRow | null): EditorialPlacement {
   if (!row) return { type: "none" };
   return {
     type: row.type,
-    pinned: row.type === "mainCover" ? row.pinned : undefined,
+    pinned: row.pinned,
     pinnedRank: row.pinned ? row.pinned_rank ?? undefined : undefined,
     startsAt: row.starts_at ?? undefined,
     endsAt: row.ends_at ?? undefined,
@@ -260,7 +260,7 @@ async function syncPlacement(
     return;
   }
 
-  const isPinned = next.type === "mainCover" ? (next.pinned ?? false) : false;
+  const isPinned = next.pinned ?? false;
   const pinnedRank = isPinned ? next.pinnedRank ?? (await nextPinnedRank(client, next.type)) : null;
 
   if (!current || current.type !== next.type) {
