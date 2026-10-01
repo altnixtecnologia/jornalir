@@ -1987,6 +1987,109 @@ button.secondary-link {
   font-weight: 600;
   cursor: pointer;
 }
+.article-media-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-width: 760px;
+}
+.article-media-row {
+  display: grid;
+  grid-template-columns: 34px 82px minmax(110px, 1fr) minmax(150px, 1.3fr) minmax(150px, 1.3fr) auto;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #fffefa;
+  padding: 10px;
+  transition:
+    border-color .15s ease,
+    box-shadow .15s ease,
+    opacity .15s ease,
+    transform .15s ease;
+}
+.article-media-row:first-child {
+  border-color: #b9bfd4;
+  box-shadow: inset 3px 0 0 var(--brand);
+}
+.article-media-row.is-dragging {
+  opacity: .45;
+  transform: scale(.995);
+}
+.article-media-drag-handle {
+  width: 30px;
+  height: 42px;
+  border: 0;
+  border-radius: 5px;
+  background: #f0f1f5;
+  color: var(--muted);
+  font-size: 18px;
+  line-height: 1;
+  cursor: grab;
+  user-select: none;
+}
+.article-media-drag-handle:active {
+  cursor: grabbing;
+}
+.article-media-thumb-wrap {
+  position: relative;
+  width: 82px;
+  height: 58px;
+}
+.article-media-thumb-wrap img {
+  width: 82px;
+  height: 58px;
+  object-fit: cover;
+  border-radius: 3px;
+  display: block;
+}
+.article-media-cover-badge {
+  position: absolute;
+  left: 4px;
+  bottom: 4px;
+  padding: 3px 6px;
+  border-radius: 4px;
+  background: var(--brand);
+  color: white;
+  font-size: 8px;
+  font-weight: 800;
+  letter-spacing: .7px;
+}
+.article-media-info {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.article-media-position {
+  color: var(--muted);
+  font-size: 9px;
+}
+.article-media-remove {
+  justify-self: end;
+  white-space: nowrap;
+}
+@media (max-width: 900px) {
+  .article-media-row {
+    grid-template-columns: 34px 72px minmax(0, 1fr);
+  }
+  .article-media-thumb-wrap,
+  .article-media-thumb-wrap img {
+    width: 72px;
+    height: 52px;
+  }
+  .article-media-row .media-caption-input {
+    grid-column: 2 / -1;
+  }
+  .article-media-remove {
+    grid-column: 2 / -1;
+    justify-self: start;
+  }
+}
+
 .library-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
