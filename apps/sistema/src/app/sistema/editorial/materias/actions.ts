@@ -27,11 +27,11 @@ function buildPlacement(payload: ArticleFormPayload): EditorialPlacement {
   }
   return {
     type: payload.placementType,
-    // "Fixar na capa" só faz sentido em mainCover; ignorado silenciosamente
-    // para as demais posições (a UI já nem mostra o checkbox nesse caso).
-    pinned: payload.placementType === "mainCover" ? payload.pinned : undefined,
-    startsAt: payload.placementStartsAt || undefined,
-    endsAt: payload.placementEndsAt || undefined,
+    pinned: payload.pinned || undefined,
+    // A fixação começa imediatamente. Só existe uma data opcional de saída;
+    // sem data, permanece fixa até alguém desligar o controle.
+    startsAt: undefined,
+    endsAt: payload.pinned ? (payload.placementEndsAt || undefined) : undefined,
   };
 }
 
