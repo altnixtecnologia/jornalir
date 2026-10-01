@@ -2,14 +2,17 @@
 // Motor de migração do legado por lotes (Fase 35). Reaproveita o coletor
 // da Fase 34 (lib/http.mjs, lib/parse.mjs). Dois modos:
 //   --mode=preflight (padrão): calcula o esperado do lote, não grava nada.
-//   --mode=import: grava de verdade — exige --commit explícito e
-//     SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY no ambiente. Sem --commit,
+//   --mode=import: grava de verdade — exige --commit explícito. Matérias e
+//     vínculos ficam no Supabase; imagens novas são otimizadas e enviadas
+//     DIRETO ao Cloudflare R2 (nunca ao Supabase Storage). Sem --commit,
 //     roda em dry-run (simula, loga o que faria, não grava).
 import { mkdir, readFile, writeFile, appendFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { createClient } from "@supabase/supabase-js";
+import { S3Client, PutObjectCommand, DeleteObjectCommand } from "@aws-sdk/client-s3";
+import sharp from "sharp";
 import { fetchText, createRateLimiter } from "./lib/http.mjs";
 import { parseArticlePage } from "./lib/parse.mjs";
 import { normalizeUrl, stableSlug, sourceHash, PROVIDER } from "./lib/identity.mjs";
@@ -209,6 +212,164 @@ function supabaseAdmin() {
   return createClient(url, key, { auth: { persistSession: false } });
 }
 
+function requiredEnv(name) {
+  const value = process.env[name];
+  if (!value) throw new Error(`Variável de ambiente ausente: ${name}`);
+  return value;
+}
+
+function r2Client() {
+  return new S3Client({
+    region: "auto",
+    endpoint: requiredEnv("R2_ENDPOINT"),
+    credentials: {
+      accessKeyId: requiredEnv("R2_ACCESS_KEY_ID"),
+      secretAccessKey: requiredEnv("R2_SECRET_ACCESS_KEY"),
+    },
+  });
+}
+
+function detectActualFormat(buf) {
+  if (!buf || buf.length < 12) return null;
+  if (buf[0] === 0xff && buf[1] === 0xd8) return "image/jpeg";
+  if (buf.subarray(0, 8).toString("hex") === "89504e470d0a1a0a") return "image/png";
+  if (buf.subarray(0, 3).toString() === "GIF") return "image/gif";
+  if (buf.subarray(0, 4).toString() === "RIFF" && buf.subarray(8, 12).toString() === "WEBP") return "image/webp";
+  if (buf.subarray(4, 8).toString("ascii") === "ftyp") {
+    const brands = buf.subarray(8, Math.min(buf.length, 64)).toString("ascii");
+    if (brands.includes("avif") || brands.includes("avis")) return "image/avif";
+  }
+  if (buf[0] === 0x42 && buf[1] === 0x4d) return "image/bmp";
+  return null;
+}
+
+function extForMime(mime) {
+  return {
+    "image/jpeg": "jpg",
+    "image/png": "png",
+    "image/gif": "gif",
+    "image/webp": "webp",
+    "image/avif": "avif",
+    "image/bmp": "bmp",
+  }[mime] || "bin";
+}
+
+async function chooseR2Profile(buf) {
+  const meta = await sharp(buf).metadata();
+  const hasAlpha = Boolean(meta.hasAlpha);
+  let realTransparency = false;
+  if (hasAlpha) {
+    try {
+      const stats = await sharp(buf).stats();
+      const alphaChannel = stats.channels[stats.channels.length - 1];
+      realTransparency = alphaChannel.min < 250;
+    } catch {
+      realTransparency = true;
+    }
+  }
+
+  let lowColorGraphic = false;
+  try {
+    const { data, info } = await sharp(buf)
+      .resize(32, 32, { fit: "inside" })
+      .removeAlpha()
+      .raw()
+      .toBuffer({ resolveWithObject: true });
+    const colors = new Set();
+    for (let i = 0; i < data.length; i += info.channels) {
+      colors.add(`${data[i]},${data[i + 1]},${data[i + 2]}`);
+    }
+    lowColorGraphic = colors.size < 40;
+  } catch {
+    // Se a amostragem falhar, usa o perfil padrão de fotografia.
+  }
+
+  if (realTransparency) return { quality: 90, nearLossless: true };
+  if (hasAlpha || lowColorGraphic) return { quality: 92, nearLossless: false };
+  return { quality: 78, nearLossless: false };
+}
+
+async function optimizeLegacyImageForR2(orig) {
+  const realFormat = detectActualFormat(orig);
+  if (!realFormat) throw new Error("assinatura binária de imagem não reconhecida");
+
+  let finalBuf = orig;
+  let finalMime = realFormat;
+  let width = null;
+  let height = null;
+
+  if (realFormat === "image/gif" || realFormat === "image/webp") {
+    try {
+      const meta = await sharp(orig, { animated: realFormat === "image/gif" }).metadata();
+      width = meta.width ?? null;
+      height = meta.height ?? null;
+    } catch {
+      // Metadata ausente não impede preservar GIF/WebP nativo.
+    }
+    return { finalBuf, finalMime, width, height };
+  }
+
+  try {
+    const profile = await chooseR2Profile(orig);
+    const webpBuf = await sharp(orig)
+      .webp({ quality: profile.quality, effort: 4, nearLossless: profile.nearLossless })
+      .toBuffer();
+    const [origMeta, webpMeta] = await Promise.all([sharp(orig).metadata(), sharp(webpBuf).metadata()]);
+    const savingPct = 100 * (1 - webpBuf.length / orig.length);
+    width = origMeta.width ?? null;
+    height = origMeta.height ?? null;
+
+    if (
+      webpBuf.length > 0 &&
+      webpMeta.width === origMeta.width &&
+      webpMeta.height === origMeta.height &&
+      savingPct >= 5
+    ) {
+      finalBuf = webpBuf;
+      finalMime = "image/webp";
+      width = webpMeta.width ?? width;
+      height = webpMeta.height ?? height;
+    }
+  } catch {
+    // Se o codec falhar, preserva o original detectado em vez de perder a foto.
+  }
+
+  return { finalBuf, finalMime, width, height };
+}
+
+async function uploadLegacyImageToR2(articleSlug, sortOrder, orig) {
+  const { finalBuf, finalMime, width, height } = await optimizeLegacyImageForR2(orig);
+  const storagePath = `legacy/${articleSlug}/${sortOrder}.${extForMime(finalMime)}`;
+  const bucket = requiredEnv("R2_BUCKET");
+  const publicBase = requiredEnv("R2_PUBLIC_BASE_URL").replace(/\/$/, "");
+  const s3 = r2Client();
+
+  await s3.send(
+    new PutObjectCommand({
+      Bucket: bucket,
+      Key: storagePath,
+      Body: finalBuf,
+      ContentType: finalMime,
+    }),
+  );
+
+  const publicUrl = `${publicBase}/${storagePath}`;
+  const check = await fetch(publicUrl, { cache: "no-store" }).catch(() => null);
+  if (!check || !check.ok) {
+    await s3.send(new DeleteObjectCommand({ Bucket: bucket, Key: storagePath })).catch(() => {});
+    throw new Error(`R2 não respondeu 200 após upload: ${publicUrl}`);
+  }
+
+  return {
+    storagePath,
+    publicUrl,
+    fileName: storagePath.split("/").pop(),
+    mimeType: finalMime,
+    width,
+    height,
+  };
+}
+
 async function downloadImage(url, { retries = 3, timeoutMs = 20000 } = {}) {
   for (let attempt = 1; attempt <= retries; attempt += 1) {
     const controller = new AbortController();
@@ -332,42 +493,49 @@ async function reconcileArticleImages(sb, articleId, expectedRefs, { articleSlug
         outcome.failed += 1;
         continue;
       }
-      const ext = extFromContentType(result.contentType);
-      const storagePath = `legacy/${articleSlug}/${expectedSortOrder}.${ext}`;
-      const { error: uploadErr } = await sb.storage
-        .from("article-media")
-        .upload(storagePath, result.buffer, { contentType: result.contentType, upsert: true });
-      if (uploadErr) {
+      let uploaded;
+      try {
+        uploaded = await uploadLegacyImageToR2(articleSlug, expectedSortOrder, result.buffer);
+      } catch (uploadError) {
         await appendFile(
           IMAGE_EXCEPTIONS_FILE,
-          JSON.stringify({ articleSlug, url: ref.src, error: uploadErr.message, at: new Date().toISOString() }) + "\n",
+          JSON.stringify({ articleSlug, url: ref.src, error: String(uploadError), at: new Date().toISOString() }) + "\n",
           "utf8",
         );
-        log(`    [upload falhou] ${ref.src}: ${uploadErr.message}`);
+        log(`    [R2 falhou] ${ref.src}: ${String(uploadError)}`);
         outcome.failed += 1;
         continue;
       }
-      const { data: pub } = sb.storage.from("article-media").getPublicUrl(storagePath);
+
       const { data: media, error: insertErr } = await sb
         .from("media_assets")
         .insert({
           type: "image",
-          file_name: storagePath.split("/").pop(),
-          storage_path: storagePath,
-          public_url: pub.publicUrl,
+          file_name: uploaded.fileName,
+          storage_provider: "r2",
+          storage_path: uploaded.storagePath,
+          public_url: uploaded.publicUrl,
           title: articleSlug,
           caption: ref.caption || null,
           credit: ref.credit || null,
+          mime_type: uploaded.mimeType,
+          width: uploaded.width,
+          height: uploaded.height,
           origin_source_url: normalized,
         })
         .select("id")
         .single();
       if (insertErr) {
-        // Corrida entre execuções concorrentes: o índice único de
-        // `media_assets.origin_source_url` (migration 20261004100000)
-        // pode rejeitar por outro processo já ter criado a mesma mídia
-        // entre o SELECT acima e este INSERT — buscar e reutilizar em vez
-        // de falhar (bloqueio 3 da revisão do ChatGPT).
+        // O objeto já foi enviado ao R2. Se o cadastro falhar, remove esse
+        // objeto para nunca deixar órfão; em corrida 23505, reutiliza o
+        // media_asset que venceu a disputa.
+        try {
+          const s3 = r2Client();
+          await s3.send(new DeleteObjectCommand({ Bucket: requiredEnv("R2_BUCKET"), Key: uploaded.storagePath }));
+        } catch {
+          // A falha principal continua sendo a do banco; limpeza pode ser auditada depois.
+        }
+
         if (insertErr.code === "23505") {
           const { data: raceMedia, error: raceErr } = await sb.from("media_assets").select("id").eq("origin_source_url", normalized).single();
           if (raceErr) throw raceErr;
