@@ -10,7 +10,7 @@ interface ArticleMediaPickerProps {
   onRemoveCover: () => void;
   onAddToGallery: (mediaAssetId: string) => void;
   onRemoveFromGallery: (mediaAssetId: string) => void;
-  onMoveGalleryItem: (mediaAssetId: string, direction: -1 | 1) => void;
+  onReorderMedia: (draggedMediaAssetId: string, targetMediaAssetId: string, placement: "before" | "after") => void;
   onSetCaption: (mediaAssetId: string, caption: string) => void;
   onSetCredit: (mediaAssetId: string, credit: string) => void;
   /** Chamado com as mídias recém-cadastradas — quem usa decide se some com a capa/galeria automaticamente. */
@@ -24,7 +24,7 @@ export function ArticleMediaPicker({
   onRemoveCover,
   onAddToGallery,
   onRemoveFromGallery,
-  onMoveGalleryItem,
+  onReorderMedia,
   onSetCaption,
   onSetCredit,
   onFilesUploaded,
@@ -42,10 +42,15 @@ export function ArticleMediaPicker({
     .filter((item) => item.role === "gallery")
     .sort((a, b) => a.order - b.order);
   const totalPhotos = media.length;
+  const orderedMedia = [
+    ...(cover ? [cover] : []),
+    ...gallery,
+  ];
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploading, startUpload] = useTransition();
   const [dragActive, setDragActive] = useState(false);
+  const [draggedMediaId, setDraggedMediaId] = useState<string | null>(null);
   const [lastUploadNotice, setLastUploadNotice] = useState<string | null>(null);
   const [uploadDialog, setUploadDialog] = useState<{
     total: number;
@@ -266,53 +271,62 @@ export function ArticleMediaPicker({
       ) : null}
 
       <div className="media-picker-section">
-        <p className="field-label">Imagem de capa</p>
-        {coverAsset ? (
-          <div className="media-slot">
-            <img src={coverAsset.url} alt={coverAsset.altText ?? coverAsset.reference} />
-            <div className="media-slot-fields">
-              <span className="materia-reference">{coverAsset.reference}</span>
-              <input
-                className="media-caption-input"
-                value={cover?.caption ?? ""}
-                onChange={(event) => onSetCaption(coverAsset.id, event.target.value)}
-                placeholder={coverAsset.caption ?? "Legenda (opcional)"}
-                aria-label={`Legenda da capa ${coverAsset.reference}`}
-              />
-              <input
-                className="media-caption-input"
-                value={cover?.credit ?? ""}
-                onChange={(event) => onSetCredit(coverAsset.id, event.target.value)}
-                placeholder={coverAsset.credit ?? "Crédito (opcional)"}
-                aria-label={`Crédito da capa ${coverAsset.reference}`}
-              />
-              <button type="button" className="media-remove-button" onClick={onRemoveCover}>
-                Remover capa
-              </button>
-            </div>
-          </div>
+        <p className="field-label">Imagens da matéria ({totalPhotos})</p>
+        {orderedMedia.length === 0 ? (
+          <p className="helper-text">Nenhuma imagem vinculada a esta matéria.</p>
         ) : (
-          <p className="helper-text">Nenhuma capa selecionada. Escolha uma imagem na biblioteca abaixo.</p>
-        )}
-      </div>
-
-      <div className="media-picker-section">
-        <p className="field-label">Galeria ({gallery.length})</p>
-        {gallery.length === 0 ? (
-          <p className="helper-text">
-            {totalPhotos === 1
-              ? "Só a capa por enquanto — com 1 foto só, a galeria pública não aparece na matéria."
-              : "Nenhuma imagem na galeria ainda."}
-          </p>
-        ) : (
-          <ol className="gallery-list">
-            {gallery.map((item, index) => {
+          <ol className="article-media-list">
+            {orderedMedia.map((item, index) => {
               const asset = assetById.get(item.mediaAssetId);
               if (!asset) return null;
+              const isCover = index === 0;
+
               return (
-                <li key={item.mediaAssetId} className="gallery-item">
-                  <img src={asset.url} alt={asset.altText ?? asset.reference} />
-                  <span className="materia-reference">{asset.reference}</span>
+                <li
+                  key={item.mediaAssetId}
+                  className={`article-media-row ${draggedMediaId === item.mediaAssetId ? "is-dragging" : ""}`}
+                  onDragOver={(event) => {
+                    if (!draggedMediaId || draggedMediaId === item.mediaAssetId) return;
+                    event.preventDefault();
+                    event.dataTransfer.dropEffect = "move";
+                  }}
+                  onDrop={(event) => {
+                    event.preventDefault();
+                    if (!draggedMediaId || draggedMediaId === item.mediaAssetId) return;
+                    const bounds = event.currentTarget.getBoundingClientRect();
+                    const placement = event.clientY > bounds.top + bounds.height / 2 ? "after" : "before";
+                    onReorderMedia(draggedMediaId, item.mediaAssetId, placement);
+                    setDraggedMediaId(null);
+                  }}
+                >
+                  <button
+                    type="button"
+                    className="article-media-drag-handle"
+                    draggable
+                    onDragStart={(event) => {
+                      setDraggedMediaId(item.mediaAssetId);
+                      event.dataTransfer.effectAllowed = "move";
+                      event.dataTransfer.setData("text/plain", item.mediaAssetId);
+                    }}
+                    onDragEnd={() => setDraggedMediaId(null)}
+                    aria-label={`Arrastar ${asset.reference} para reordenar`}
+                    title="Arraste para reordenar"
+                  >
+                    ⋮⋮
+                  </button>
+
+                  <div className="article-media-thumb-wrap">
+                    <img src={asset.url} alt={asset.altText ?? asset.reference} />
+                    {isCover ? <span className="article-media-cover-badge">CAPA</span> : null}
+                  </div>
+
+                  <div className="article-media-info">
+                    <span className="materia-reference">{asset.reference}</span>
+                    <span className="article-media-position">
+                      {isCover ? "Imagem principal" : `Galeria · posição ${index}`}
+                    </span>
+                  </div>
+
                   <input
                     className="media-caption-input"
                     value={item.caption ?? ""}
@@ -327,40 +341,14 @@ export function ArticleMediaPicker({
                     placeholder={asset.credit ?? "Crédito (opcional)"}
                     aria-label={`Crédito de ${asset.reference}`}
                   />
-                  <div className="gallery-item-actions">
-                    <button
-                      type="button"
-                      className="gallery-order-button"
-                      onClick={() => onMoveGalleryItem(item.mediaAssetId, -1)}
-                      disabled={index === 0}
-                      aria-label={`Mover ${asset.reference} para cima`}
-                    >
-                      ↑
-                    </button>
-                    <button
-                      type="button"
-                      className="gallery-order-button"
-                      onClick={() => onMoveGalleryItem(item.mediaAssetId, 1)}
-                      disabled={index === gallery.length - 1}
-                      aria-label={`Mover ${asset.reference} para baixo`}
-                    >
-                      ↓
-                    </button>
-                    <button
-                      type="button"
-                      className="gallery-cover-button"
-                      onClick={() => onSetCover(item.mediaAssetId)}
-                    >
-                      Definir como capa
-                    </button>
-                    <button
-                      type="button"
-                      className="media-remove-button"
-                      onClick={() => onRemoveFromGallery(item.mediaAssetId)}
-                    >
-                      Remover
-                    </button>
-                  </div>
+
+                  <button
+                    type="button"
+                    className="media-remove-button article-media-remove"
+                    onClick={() => (isCover ? onRemoveCover() : onRemoveFromGallery(item.mediaAssetId))}
+                  >
+                    Remover
+                  </button>
                 </li>
               );
             })}
@@ -407,15 +395,12 @@ export function ArticleMediaPicker({
                 <span className="materia-title">{asset.name}</span>
                 <span className="materia-reference">{asset.reference}</span>
                 <div className="library-item-actions">
-                  <button type="button" onClick={() => onSetCover(asset.id)} disabled={isCover}>
-                    {isCover ? "Capa atual" : "Definir como capa"}
-                  </button>
                   <button
                     type="button"
-                    onClick={() => onAddToGallery(asset.id)}
-                    disabled={isInGallery}
+                    onClick={() => (cover ? onAddToGallery(asset.id) : onSetCover(asset.id))}
+                    disabled={isCover || isInGallery}
                   >
-                    {isInGallery ? "Na galeria" : "Adicionar à galeria"}
+                    {isCover || isInGallery ? "Na matéria" : "Adicionar à matéria"}
                   </button>
                 </div>
               </div>
