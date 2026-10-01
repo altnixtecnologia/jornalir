@@ -26,7 +26,7 @@ const OUTPUT_DIR = path.join(__dirname, "output");
 fs.mkdirSync(OUTPUT_DIR, { recursive: true });
 
 function parseArgs(argv) {
-  const args = { commit: false, concurrency: 4, mode: "dry-run", sampleSize: 15 };
+  const args = { commit: false, concurrency: 4, mode: "dry-run", sampleSize: 15, qualityPhoto: 72, qualityHigh: 92 };
   for (const raw of argv) {
     const [key, value] = raw.replace(/^--/, "").split("=");
     if (key === "year") args.from = args.to = Number(value);
@@ -36,13 +36,20 @@ function parseArgs(argv) {
     else if (key === "mode") args.mode = value;
     else if (key === "concurrency") args.concurrency = Number(value);
     else if (key === "sample-per-year") args.sampleSize = Number(value);
+    else if (key === "quality-photo") args.qualityPhoto = Number(value);
+    else if (key === "quality-high") args.qualityHigh = Number(value);
   }
   if (!args.from || !args.to) {
-    console.error("Uso: convert.mjs --from=2015 --to=2019 --mode=dry-run|sample|convert|cutover|cleanup [--commit]");
+    console.error("Uso: convert.mjs --from=2015 --to=2019 --mode=dry-run|sample|convert|cutover|cleanup [--commit] [--quality-photo=72] [--quality-high=92]");
     process.exit(1);
   }
   return args;
 }
+
+// Perfil de qualidade — configurável por bloco de anos via --quality-photo/--quality-high
+// (bloco 2015-2019 validado com 72/92; bloco 2020-2024 usa 78/92 por pedido).
+let QUALITY_PHOTO = 72;
+let QUALITY_HIGH = 92;
 
 requireEnv([
   "SUPABASE_URL",
@@ -139,15 +146,30 @@ async function fetchEligibleMedia(fromYear, toYear) {
 }
 
 /**
- * Perfil de qualidade: q72 padrão pra foto; imagem com transparência (alpha)
- * ou poucas cores dominantes (proxy simples pra "arte/texto/logo" — sem
- * classificador de ML, só contagem de cores num thumbnail 32x32) usa
- * qualidade mais alta. GIF nunca chega aqui (filtrado antes).
+ * Perfil de qualidade — QUALITY_PHOTO por padrão pra foto comum; imagem com
+ * transparência real (alpha variando de verdade, não só um canal alpha
+ * presente e 100% opaco — muito comum em PNG do acervo legado) ou poucas
+ * cores dominantes (proxy simples pra "arte/texto/logo" — sem classificador
+ * de ML, só contagem de cores num thumbnail 32x32) usa qualidade mais alta;
+ * transparência REAL usa near-lossless (perde muito menos nas bordas do
+ * canal alpha do que WebP lossy comum). GIF nunca chega aqui (filtrado
+ * antes). QUALITY_PHOTO/QUALITY_HIGH configuráveis por bloco de anos.
  */
 async function chooseProfile(buf) {
   const img = sharp(buf, { animated: false });
   const meta = await img.metadata();
   const hasAlpha = Boolean(meta.hasAlpha);
+  let realTransparency = false;
+  if (hasAlpha) {
+    try {
+      const stats = await sharp(buf).stats();
+      const alphaChannel = stats.channels[stats.channels.length - 1];
+      realTransparency = alphaChannel.min < 250;
+    } catch {
+      // se a leitura de stats falhar, trata como transparência real por segurança (perfil mais alto)
+      realTransparency = true;
+    }
+  }
   let lowColorGraphic = false;
   try {
     const { data, info } = await sharp(buf).resize(32, 32, { fit: "inside" }).removeAlpha().raw().toBuffer({ resolveWithObject: true });
@@ -157,8 +179,9 @@ async function chooseProfile(buf) {
   } catch {
     // se a amostragem de cor falhar por algum motivo, segue com o perfil padrão
   }
-  if (hasAlpha || lowColorGraphic) return { quality: 92, meta, reason: hasAlpha ? "alpha" : "poucas_cores" };
-  return { quality: 72, meta, reason: "foto" };
+  if (realTransparency) return { quality: 90, nearLossless: true, meta, reason: "transparencia_real" };
+  if (hasAlpha || lowColorGraphic) return { quality: QUALITY_HIGH, meta, reason: hasAlpha ? "alpha_opaco" : "poucas_cores" };
+  return { quality: QUALITY_PHOTO, meta, reason: "foto" };
 }
 
 async function convertOne(item, { concurrency, logStream }) {
@@ -204,7 +227,9 @@ async function convertOne(item, { concurrency, logStream }) {
     }
 
     const profile = await chooseProfile(orig);
-    const webpBuf = await sharp(orig, { animated: false }).webp({ quality: profile.quality, effort: 4 }).toBuffer();
+    const webpBuf = await sharp(orig, { animated: false })
+      .webp({ quality: profile.quality, effort: 4, nearLossless: Boolean(profile.nearLossless) })
+      .toBuffer();
     const webpMeta = await sharp(webpBuf).metadata();
 
     if (webpMeta.width !== profile.meta.width || webpMeta.height !== profile.meta.height) {
@@ -357,7 +382,9 @@ function stratifiedSample(items, perYear) {
 
 async function main() {
   const args = parseArgs(process.argv.slice(2));
-  console.log(`Modo: ${args.mode} · commit=${args.commit} · anos ${args.from}-${args.to}`);
+  QUALITY_PHOTO = args.qualityPhoto;
+  QUALITY_HIGH = args.qualityHigh;
+  console.log(`Modo: ${args.mode} · commit=${args.commit} · anos ${args.from}-${args.to} · qualidade foto=${QUALITY_PHOTO} alta=${QUALITY_HIGH}`);
 
   let all;
   if (args.mode === "cleanup") {
