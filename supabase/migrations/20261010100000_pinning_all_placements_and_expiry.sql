@@ -11,6 +11,17 @@ alter table public.article_placements
 comment on column public.article_placements.pinned is
   'Quando true, ocupa uma vaga fixa em qualquer posição editorial. ends_at opcional encerra somente a fixação; sem ends_at permanece fixa.';
 
+-- O antigo selo permanente de "urgente" deixa de fazer parte do fluxo
+-- editorial. A coluna permanece por compatibilidade histórica, mas os
+-- registros atuais são neutralizados; urgência passa a existir apenas no
+-- modo de notificação.
+update public.articles
+set urgent = false
+where urgent = true;
+
+comment on column public.articles.urgent is
+  'Campo legado mantido por compatibilidade. O painel novo grava false; urgência editorial é representada somente por notification_mode.';
+
 create or replace function public.enforce_placement_limit()
 returns trigger
 language plpgsql
