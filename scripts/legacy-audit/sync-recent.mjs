@@ -57,12 +57,16 @@ function addDays(dateIso, days) {
   return d.toISOString().slice(0, 10);
 }
 
-/** Última matéria já importada deste provider — define o corte do sync. */
+/** Última matéria já importada deste provider — define o corte do sync.
+ * Ignora registros com original_published_at NULO (nunca pode virar a
+ * "última data" por ausência de valor — um NULL ordenado por engano pra
+ * frente/trás faria o corte ficar errado em qualquer direção). */
 async function findCutoff(sb) {
   const { data: lastSource, error } = await sb
     .from("article_external_sources")
     .select("article_id, original_published_at, source_url, external_id")
     .eq("provider", PROVIDER)
+    .not("original_published_at", "is", null)
     .order("original_published_at", { ascending: false })
     .limit(1)
     .maybeSingle();
@@ -170,10 +174,10 @@ async function main() {
   const { eligible: inRange, dateExceptions } = filterByBatchRange(candidates, { start: cutoffDateIso, end: "2100-12-31" });
   log(`Candidatas únicas no intervalo recente: ${inRange.length} | exceções de data: ${dateExceptions.length}`);
 
-  // Separa o que já existe no banco (não precisa buscar detalhe nem
-  // reclassificar) do que é potencialmente novo — só busca a página
-  // completa das candidatas realmente novas (requisito explícito: "buscar
-  // detalhes completos somente das candidatas dentro do intervalo recente").
+  // Separa o que já existe no banco do que é potencialmente novo — a
+  // barreira de integridade (classifyCandidates) só se aplica à decisão de
+  // CRIAR uma matéria nova; uma já existente nunca precisa "passar" nela de
+  // novo pra ter sua mídia reconciliada (requisito 4/7).
   const existingCandidates = [];
   const newCandidates = [];
   for (const c of inRange) {
@@ -183,13 +187,22 @@ async function main() {
   }
   log(`Já existentes no banco: ${existingCandidates.length} | potencialmente novas: ${newCandidates.length}`);
 
+  // Busca o detalhe de TODAS as candidatas da janela recente (novas E já
+  // existentes) — nunca do acervo histórico inteiro, só do que foi
+  // encontrado nesta janela. Já existentes precisam do detalhe pra
+  // reconcileArticleImages saber quais imagens deveriam existir e completar
+  // o que faltou numa execução anterior que falhou parcialmente (o
+  // problema que esta correção resolve: antes, uma matéria já existente
+  // nunca tinha a mídia reconciliada de novo).
   const detailCache = new Map();
-  for (const c of newCandidates) {
+  const detailFetchFailed = [];
+  for (const c of inRange) {
     const key = candidateKey(c);
     await throttle();
     const { ok, text, status } = await fetchText(c.primary.url);
     if (!ok) {
       log(`  [erro] detalhe ${c.primary.url} status=${status}`);
+      detailFetchFailed.push({ url: c.primary.url, status });
       continue;
     }
     detailCache.set(key, parseArticlePage(text, c.primary.url));
@@ -197,8 +210,20 @@ async function main() {
 
   const { eligibleList, needsReviewList, quarantinedList, rejectedList } = classifyCandidates(newCandidates, detailCache);
 
-  let totalImageRefs = 0;
-  for (const { detail } of eligibleList) totalImageRefs += collectImageRefs(detail).length;
+  // Existentes recentes a reconciliar: só as que conseguiram detalhe —
+  // quem falhou entra em `detailFetchFailed` (nunca recria/sobrescreve
+  // conteúdo, só não reconcilia mídia nesta execução; uma reexecução
+  // tenta de novo).
+  const existingReconcileList = existingCandidates
+    .map((c) => ({ candidate: c, detail: detailCache.get(candidateKey(c)) ?? null }))
+    .filter((pair) => pair.detail !== null);
+  const existingDetailFetchFailed = existingCandidates.filter((c) => !detailCache.has(candidateKey(c)));
+  const existingDetailFailedCount = existingDetailFetchFailed.length;
+
+  let totalImagesNewEligible = 0;
+  for (const { detail } of eligibleList) totalImagesNewEligible += collectImageRefs(detail).length;
+  let totalImagesExistingToReconcile = 0;
+  for (const { detail } of existingReconcileList) totalImagesExistingToReconcile += collectImageRefs(detail).length;
 
   const preflight = {
     generatedAt: new Date().toISOString(),
@@ -208,11 +233,14 @@ async function main() {
     uniqueCandidatesInRange: inRange.length,
     dateExceptions: dateExceptions.length,
     alreadyExisting: existingCandidates.length,
+    existingToReconcile: existingReconcileList.length,
+    existingDetailFetchFailed: existingDetailFailedCount,
     newEligible: eligibleList.length,
     needsReview: needsReviewList.length,
     quarantined: quarantinedList.length,
     rejected: rejectedList.length,
-    totalImagesInNewEligible: totalImageRefs,
+    totalImagesInNewEligible: totalImagesNewEligible,
+    totalImagesInExistingToReconcile: totalImagesExistingToReconcile,
   };
 
   log("\n== PREFLIGHT ==");
@@ -244,7 +272,15 @@ async function main() {
   };
   const failures = [];
 
-  for (const { candidate: c, detail } of eligibleList) {
+  // Novas elegíveis: importCandidate cria a matéria (RPC) e reconcilia a
+  // mídia. Já existentes na janela: importCandidate detecta existingId e
+  // SÓ reconcilia mídia/vínculos — nunca recria, nunca sobrescreve título/
+  // corpo/data (requisito 7; comportamento já embutido em importCandidate,
+  // ver lib/importer.mjs). É exatamente isso que permite uma reexecução
+  // reparar mídia que falhou parcialmente numa execução anterior, sem
+  // duplicar matéria nem vínculo.
+  const toProcess = [...eligibleList, ...existingReconcileList];
+  for (const { candidate: c, detail } of toProcess) {
     try {
       await importCandidate(sb, c, detail, {
         sectionCache,
@@ -260,6 +296,10 @@ async function main() {
       failures.push({ url: c.primary.url, error: error.message });
       log(`  [ERRO] ${c.primary.url}: ${error.message}`);
     }
+  }
+  for (const c of existingDetailFetchFailed) {
+    stats.failedArticles += 1;
+    failures.push({ url: c.primary.url, error: "detalhe não pôde ser buscado — mídia não reconciliada nesta execução, reexecute para tentar de novo" });
   }
 
   log("\n== RESULTADO DA IMPORTAÇÃO ==");
