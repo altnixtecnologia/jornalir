@@ -448,9 +448,6 @@ export function ArticleForm({
             <div>
               <p className="eyebrow">ETAPA 2</p>
               <h2 id="imagens-title">Imagens</h2>
-              <p className="helper-text">
-                Envie novas fotos ou procure no acervo. Defina uma capa e, se houver mais imagens, organize a galeria.
-              </p>
             </div>
           </div>
           <ArticleMediaPicker
