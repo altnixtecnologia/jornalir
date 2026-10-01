@@ -330,6 +330,7 @@ export function ArticleMediaPicker({
                   <div className="gallery-item-actions">
                     <button
                       type="button"
+                      className="gallery-order-button"
                       onClick={() => onMoveGalleryItem(item.mediaAssetId, -1)}
                       disabled={index === 0}
                       aria-label={`Mover ${asset.reference} para cima`}
@@ -338,11 +339,19 @@ export function ArticleMediaPicker({
                     </button>
                     <button
                       type="button"
+                      className="gallery-order-button"
                       onClick={() => onMoveGalleryItem(item.mediaAssetId, 1)}
                       disabled={index === gallery.length - 1}
                       aria-label={`Mover ${asset.reference} para baixo`}
                     >
                       ↓
+                    </button>
+                    <button
+                      type="button"
+                      className="gallery-cover-button"
+                      onClick={() => onSetCover(item.mediaAssetId)}
+                    >
+                      Definir como capa
                     </button>
                     <button
                       type="button"
