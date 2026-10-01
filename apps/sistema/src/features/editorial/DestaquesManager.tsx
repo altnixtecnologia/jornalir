@@ -42,10 +42,10 @@ export function DestaquesManager({ placements, sections, localities, mediaAssets
     return cover ? mediaById.get(cover.mediaAssetId)?.url : undefined;
   }
 
-  function handleTogglePinned(article: Article): void {
+  function handleTogglePinned(article: Article, activePinned: boolean): void {
     setError(null);
     startTransition(async () => {
-      const result = await setPlacementPinnedAction(article.id, !article.placement.pinned);
+      const result = await setPlacementPinnedAction(article.id, !activePinned);
       if ("error" in result) setError(result.error);
     });
   }
@@ -61,12 +61,17 @@ export function DestaquesManager({ placements, sections, localities, mediaAssets
     });
   }
 
-  function handleDropPinned(type: PlacementKey, pinnedIds: string[], targetArticleId: string): void {
+  function handleDropPinned(
+    type: PlacementKey,
+    pinnedIds: string[],
+    targetArticleId: string,
+    placement: "before" | "after",
+  ): void {
     if (!dragged || dragged.type !== type || dragged.articleId === targetArticleId) return;
     const reordered = pinnedIds.filter((id) => id !== dragged.articleId);
     const targetIndex = reordered.indexOf(targetArticleId);
     if (targetIndex < 0) return;
-    reordered.splice(targetIndex, 0, dragged.articleId);
+    reordered.splice(targetIndex + (placement === "after" ? 1 : 0), 0, dragged.articleId);
     setDragged(null);
     setError(null);
     startTransition(async () => {
@@ -123,7 +128,10 @@ export function DestaquesManager({ placements, sections, localities, mediaAssets
                         }}
                         onDrop={(event) => {
                           event.preventDefault();
-                          if (pinned) handleDropPinned(type, pinnedIds, article.id);
+                          if (!pinned) return;
+                          const bounds = event.currentTarget.getBoundingClientRect();
+                          const placement = event.clientY > bounds.top + bounds.height / 2 ? "after" : "before";
+                          handleDropPinned(type, pinnedIds, article.id, placement);
                         }}
                       >
                         {cover ? (
@@ -160,7 +168,7 @@ export function DestaquesManager({ placements, sections, localities, mediaAssets
                               ⋮⋮
                             </button>
                           ) : null}
-                          <button type="button" onClick={() => handleTogglePinned(article)} disabled={pending}>
+                          <button type="button" onClick={() => handleTogglePinned(article, pinned)} disabled={pending}>
                             {pinned ? "Desafixar" : "Fixar"}
                           </button>
                           <button
