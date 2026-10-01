@@ -47,6 +47,11 @@ function detectActualFormat(buf: Buffer): string | null {
   if (buf.subarray(0, 8).toString("hex") === "89504e470d0a1a0a") return "image/png";
   if (buf.subarray(0, 3).toString() === "GIF") return "image/gif";
   if (buf.subarray(0, 4).toString() === "RIFF" && buf.subarray(8, 12).toString() === "WEBP") return "image/webp";
+  // AVIF usa o container ISO-BMFF: box `ftyp` + marca principal/compatível `avif` ou `avis`.
+  if (buf.subarray(4, 8).toString("ascii") === "ftyp") {
+    const brands = buf.subarray(8, Math.min(buf.length, 64)).toString("ascii");
+    if (brands.includes("avif") || brands.includes("avis")) return "image/avif";
+  }
   if (buf[0] === 0x42 && buf[1] === 0x4d) return "image/bmp";
   return null;
 }
