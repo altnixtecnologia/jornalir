@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type {
+  ArticleMedia,
   ImportCandidate,
   ImportCandidateExtraction,
   ImportCandidateStatus,
@@ -8,10 +9,15 @@ import type {
   ImportSourceBlock,
 } from "@ir/types";
 import type {
+  ConvertCandidateAtomicInput,
+  ImportBatchMetadata,
+  ImportBatchSummary,
   ImportCandidateChanges,
   ImportCandidateFilters,
   ImportCandidateRepository,
+  MergeCandidatesAtomicInput,
   NewImportCandidateRecord,
+  SplitCandidateAtomicInput,
 } from "@ir/core";
 
 const CANDIDATES_TABLE = "pdf_import_candidates";
@@ -146,20 +152,24 @@ export function createImportCandidateRepositorySupabase(client: SupabaseClient):
       return toDomain(data as CandidateRow);
     },
 
-    async createMany(records: NewImportCandidateRecord[]) {
+    async createMany(records: NewImportCandidateRecord[], batchMeta?: ImportBatchMetadata) {
       if (records.length === 0) return [];
 
-      // Um lote = uma extração (Fase 17). `NewImportCandidateRecord` não
-      // carrega metadados do lote (nome do arquivo/contagem de páginas/
-      // avisos gerais) — esses só existem no retorno de
-      // `extractCandidatesFromPdf`, consumido diretamente pela Server
-      // Action, nunca persistido. `pdf_import_batches` aqui existe só como
-      // a FK obrigatória de agrupamento; `source_file_name`/`page_count`/
-      // `warnings` ficam nulos/vazios (divergência documentada, não usada
-      // por nenhuma tela).
+      // Um lote = uma extração. `batchMeta` (nome do arquivo, hash,
+      // contagem de páginas/avisos) é opcional — quando informado (fluxo
+      // real de upload de PDF), grava os metadados reais do lote; quando
+      // ausente (ex.: candidato avulso criado por outro caminho), grava um
+      // lote mínimo como antes.
       const { data: batch, error: batchError } = await client
         .from(BATCHES_TABLE)
-        .insert({ newspaper_edition_id: records[0].editionId })
+        .insert({
+          newspaper_edition_id: records[0].editionId,
+          source_file_name: batchMeta?.fileName ?? null,
+          file_hash: batchMeta?.fileHash ?? null,
+          page_count: batchMeta?.pageCount ?? null,
+          pages_without_text: batchMeta?.pagesWithoutText ?? [],
+          warnings: batchMeta?.warnings ?? [],
+        })
         .select("id")
         .single();
       if (batchError) throw new Error(batchError.message);
@@ -170,6 +180,80 @@ export function createImportCandidateRepositorySupabase(client: SupabaseClient):
         .select(CANDIDATE_COLUMNS);
       if (error) throw new Error(error.message);
       return ((data ?? []) as CandidateRow[]).map(toDomain);
+    },
+
+    /** Lote mais recente desta edição com este hash de arquivo — só pra
+     * avisar reenvio, nunca bloqueia sozinho (ver generateCandidates). */
+    async findBatchByHash(editionId: string, fileHash: string): Promise<ImportBatchSummary | null> {
+      const { data: batchRow, error: batchError } = await client
+        .from(BATCHES_TABLE)
+        .select("id, source_file_name, created_at")
+        .eq("newspaper_edition_id", editionId)
+        .eq("file_hash", fileHash)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (batchError) throw new Error(batchError.message);
+      if (!batchRow) return null;
+
+      const { count, error: countError } = await client
+        .from(CANDIDATES_TABLE)
+        .select("id", { count: "exact", head: true })
+        .eq("batch_id", batchRow.id);
+      if (countError) throw new Error(countError.message);
+
+      return {
+        batchId: batchRow.id,
+        fileName: batchRow.source_file_name ?? undefined,
+        createdAt: batchRow.created_at,
+        candidateCount: count ?? 0,
+      };
+    },
+
+    // convertToDraftAtomic/splitAtomic/mergeAtomic chamam RPCs transacionais
+    // (ver migration 20261012100000_pdf_import_atomicity_and_safety.sql) —
+    // nunca fazem a sequência de escritas separadas que existia antes.
+    async convertToDraftAtomic(id: string, input: ConvertCandidateAtomicInput) {
+      const { data, error } = await client.rpc("convert_import_candidate_to_draft", {
+        p_candidate_id: id,
+        p_title: input.title,
+        p_subtitle: input.subtitle ?? null,
+        p_body: input.body,
+        p_section_id: input.sectionId,
+        p_locality_id: input.localityId,
+        p_page_number: input.pageNumber ?? null,
+        p_media: input.media.map((m: ArticleMedia) => ({
+          mediaAssetId: m.mediaAssetId,
+          role: m.role,
+          order: m.order,
+          caption: m.caption ?? null,
+          credit: m.credit ?? null,
+        })),
+      });
+      if (error) throw new Error(error.message);
+      return { articleId: data as string };
+    },
+
+    async splitAtomic(id: string, input: SplitCandidateAtomicInput) {
+      const { data, error } = await client.rpc("split_import_candidate", {
+        p_id: id,
+        p_first_body: input.firstBody,
+        p_second_title: input.secondTitle ?? null,
+        p_second_body: input.secondBody,
+      });
+      if (error) throw new Error(error.message);
+      const result = data as { firstId: string; secondId: string };
+      return { firstId: result.firstId, secondId: result.secondId };
+    },
+
+    async mergeAtomic(primaryId: string, input: MergeCandidatesAtomicInput) {
+      const { error } = await client.rpc("merge_import_candidates", {
+        p_primary_id: primaryId,
+        p_secondary_ids: input.secondaryIds,
+        p_merged_body: input.mergedBody,
+        p_merged_media_ids: input.mergedMediaAssetIds,
+      });
+      if (error) throw new Error(error.message);
     },
 
     async update(id: string, changes: ImportCandidateChanges) {

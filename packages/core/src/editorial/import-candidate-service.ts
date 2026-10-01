@@ -1,5 +1,7 @@
 import type { ArticleMedia, AuditContext, ImportCandidate } from "@ir/types";
 import type {
+  ImportBatchMetadata,
+  ImportBatchSummary,
   ImportCandidateChanges,
   ImportCandidateFilters,
   ImportCandidateRepository,
@@ -98,8 +100,15 @@ export class ImportCandidateService {
   }
 
   /** Cria um lote de candidatos (extraídos de um PDF real ou de outra origem futura). */
-  createBatch(records: NewImportCandidateRecord[]): Promise<ImportCandidate[]> {
-    return this.candidates.createMany(records);
+  createBatch(records: NewImportCandidateRecord[], batchMeta?: ImportBatchMetadata): Promise<ImportCandidate[]> {
+    return this.candidates.createMany(records, batchMeta);
+  }
+
+  /** Lote já existente pra esta edição com este hash de arquivo, se houver
+   * — usado pra avisar reenvio do mesmo PDF antes de gerar um novo lote
+   * duplicado (nunca bloqueia sozinho; quem decide é o operador). */
+  findBatchByHash(editionId: string, fileHash: string): Promise<ImportBatchSummary | null> {
+    return this.candidates.findBatchByHash(editionId, fileHash);
   }
 
   /** Mantém o candidato em revisão, salvando os ajustes feitos manualmente. */
@@ -120,7 +129,33 @@ export class ImportCandidateService {
     return this.candidates.update(id, { status: "discarded" });
   }
 
-  /** Combina o conteúdo de um ou mais candidatos secundários no candidato principal. */
+  /**
+   * Restaura um candidato descartado de volta pra `pending` — origem/
+   * rastreabilidade (extraction, página, etc.) nunca é tocada, só o status.
+   * Um candidato descartado por ter sido absorvido num merge (`mergedIntoId`
+   * preenchido) não pode ser restaurado isoladamente: o conteúdo dele já
+   * foi incorporado no candidato principal, restaurar sozinho criaria
+   * duplicação de conteúdo entre os dois.
+   */
+  async restore(id: string): Promise<ImportCandidate> {
+    const candidate = await this.getById(id);
+    if (candidate.status !== "discarded") {
+      throw new Error(`Só é possível restaurar um candidato descartado (status atual: ${candidate.status}).`);
+    }
+    if (candidate.mergedIntoId) {
+      throw new Error("Este candidato foi descartado por mesclagem — restaure a partir do candidato principal, se necessário.");
+    }
+    return this.candidates.update(id, { status: "pending" });
+  }
+
+  /**
+   * Combina o conteúdo de um ou mais candidatos secundários no candidato
+   * principal. O algoritmo de combinação (concatenar corpo, unir mídia)
+   * continua o mesmo desta fase — só a gravação virou atômica: a RPC
+   * `merge_import_candidates` valida tudo (status pendente, mesma edição)
+   * e grava principal+secundários na mesma transação; qualquer falha
+   * desfaz tudo, nunca deixa secundário descartado sem o principal atualizado.
+   */
   async merge(primaryId: string, secondaryIds: string[]): Promise<ImportCandidate> {
     const uniqueSecondaryIds = dedupe(secondaryIds).filter((id) => id !== primaryId);
     const primary = await this.getById(primaryId);
@@ -134,33 +169,38 @@ export class ImportCandidateService {
         mergedBody = mergedBody ? `${mergedBody}${secondary.suggestedBody}` : secondary.suggestedBody;
       }
       mergedMedia = [...mergedMedia, ...(secondary.suggestedMediaAssetIds ?? [])];
-      await this.candidates.update(secondaryId, { status: "discarded", mergedIntoId: primaryId });
     }
 
-    return this.candidates.update(primaryId, {
-      suggestedBody: mergedBody,
-      suggestedMediaAssetIds: dedupe(mergedMedia),
+    await this.candidates.mergeAtomic(primaryId, {
+      secondaryIds: uniqueSecondaryIds,
+      mergedBody,
+      mergedMediaAssetIds: dedupe(mergedMedia),
     });
+    return this.getById(primaryId);
   }
 
-  /** Divide um candidato em dois; o segundo nasce como novo candidato pendente. */
+  /**
+   * Divide um candidato em dois; o segundo nasce como novo candidato
+   * pendente. Algoritmo de divisão (`splitBodyInHalf`) continua o mesmo
+   * desta fase — só a gravação virou atômica: a RPC `split_import_candidate`
+   * atualiza a primeira metade e cria a segunda na mesma transação, e
+   * reaproveita o `batch_id` do candidato original (preserva rastreabilidade
+   * do lote de origem, em vez de criar um lote sintético vazio).
+   */
   async split(id: string): Promise<{ first: ImportCandidate; second: ImportCandidate }> {
     const original = await this.getById(id);
+    if (original.status !== "pending") {
+      throw new Error(`Só é possível dividir um candidato pendente (status atual: ${original.status}).`);
+    }
     const { first: firstBody, second: secondBody } = splitBodyInHalf(original.suggestedBody ?? "");
 
-    const first = await this.candidates.update(id, { suggestedBody: firstBody });
-    const second = await this.candidates.create({
-      editionId: original.editionId,
-      pageNumber: original.pageNumber,
-      suggestedTitle: original.suggestedTitle ? `${original.suggestedTitle} (parte 2)` : undefined,
-      suggestedSubtitle: undefined,
-      suggestedBody: secondBody,
-      suggestedSectionId: original.suggestedSectionId,
-      suggestedLocalityId: original.suggestedLocalityId,
-      suggestedMediaAssetIds: [],
-      status: "pending",
+    const { firstId, secondId } = await this.candidates.splitAtomic(id, {
+      firstBody,
+      secondTitle: original.suggestedTitle ? `${original.suggestedTitle} (parte 2)` : undefined,
+      secondBody,
     });
 
+    const [first, second] = await Promise.all([this.getById(firstId), this.getById(secondId)]);
     return { first, second };
   }
 
@@ -168,8 +208,23 @@ export class ImportCandidateService {
    * Converte um candidato aprovado em matéria real, sempre como rascunho —
    * conteúdo importado nunca publica automaticamente (Parte G do Plano
    * Mestre). Mantém o vínculo com a edição e a página de origem.
+   *
+   * Atômico (RPC `convert_import_candidate_to_draft`): cria a matéria,
+   * vincula a mídia e marca o candidato como `converted` na mesma
+   * transação — nunca duas matérias pro mesmo candidato, mesmo em retry,
+   * duplo clique ou falha de rede no meio do caminho (a RPC trava a linha
+   * do candidato com `for update` antes de checar o status, então duas
+   * chamadas concorrentes nunca passam as duas pela checagem).
+   *
+   * A checagem de status aqui ANTES de chamar a RPC é só um atalho pra uma
+   * mensagem rápida no caso comum (candidato já convertido faz tempo); a
+   * garantia real de não-duplicação é a trava no banco, não esta checagem.
+   * Se a RPC ainda assim rejeitar (corrida genuína entre duas chamadas
+   * quase simultâneas), o catch abaixo busca o candidato de novo e devolve
+   * o erro amigável de "já processado" com a matéria relacionada, nunca o
+   * erro bruto do Postgres.
    */
-  async convertToDraft(id: string, input: ConvertCandidateInput, audit: AuditContext) {
+  async convertToDraft(id: string, input: ConvertCandidateInput, _audit: AuditContext) {
     const candidate = await this.getById(id);
     if (candidate.status !== "pending") {
       throw new ImportCandidateAlreadyProcessedError(id, candidate.status, candidate.createdArticleId);
@@ -184,22 +239,29 @@ export class ImportCandidateService {
       throw new Error("Selecione a localidade antes de converter em rascunho.");
     }
 
-    const article = await this.articles.importAsDraft(
-      {
+    let articleId: string;
+    try {
+      const result = await this.candidates.convertToDraftAtomic(id, {
         title: input.title ?? candidate.suggestedTitle ?? "Matéria importada sem título",
         subtitle: input.subtitle ?? candidate.suggestedSubtitle,
         body: input.body ?? candidate.suggestedBody ?? "",
         sectionId,
         localityId,
+        pageNumber: input.pageNumber ?? candidate.pageNumber,
         media: input.media ?? [],
-        editionId: candidate.editionId,
-        editionPageNumber: input.pageNumber ?? candidate.pageNumber,
-        createdBy: input.createdBy,
-      },
-      audit,
-    );
+      });
+      articleId = result.articleId;
+    } catch (error) {
+      // Corrida genuína: outra chamada converteu o candidato entre o
+      // getById acima e a RPC. Nunca propaga o erro bruto do Postgres —
+      // busca o estado real e devolve o erro de domínio já existente.
+      const current = await this.candidates.getById(id);
+      if (current && current.status === "converted") {
+        throw new ImportCandidateAlreadyProcessedError(id, current.status, current.createdArticleId);
+      }
+      throw error;
+    }
 
-    await this.candidates.update(id, { status: "converted", createdArticleId: article.id });
-    return article;
+    return this.articles.getById(articleId);
   }
 }

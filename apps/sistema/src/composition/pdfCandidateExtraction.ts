@@ -112,10 +112,16 @@ export interface ExtractCandidatesResult {
  * Supabase da requisição atual (`getImportCandidateService(client)`, em
  * `./editorial`), então não existe mais como singleton para importar direto.
  */
+export interface PdfBatchMeta {
+  fileName?: string;
+  fileHash?: string;
+}
+
 export async function extractCandidatesFromPdf(
   editionId: string,
   pdfBytes: Uint8Array,
   importCandidateService: ImportCandidateService,
+  batchMeta?: PdfBatchMeta,
 ): Promise<ExtractCandidatesResult> {
   const result = await extractPdf(pdfBytes);
 
@@ -132,6 +138,12 @@ export async function extractCandidatesFromPdf(
     }
   }
 
-  const candidates = await importCandidateService.createBatch(records);
+  const candidates = await importCandidateService.createBatch(records, {
+    fileName: batchMeta?.fileName,
+    fileHash: batchMeta?.fileHash,
+    pageCount: result.pageCount,
+    pagesWithoutText,
+    warnings: result.warnings,
+  });
   return { candidates, pageCount: result.pageCount, pagesWithoutText, warnings: result.warnings };
 }

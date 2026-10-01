@@ -1,5 +1,6 @@
 "use server";
 
+import { createHash } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import type { ArticleMedia } from "@ir/types";
 import { getImportCandidateService, getNewspaperEditionService } from "../../../../composition/editorial";
@@ -26,15 +27,32 @@ export interface GenerateCandidatesResult {
   warnings: string[];
 }
 
+export interface DuplicatePdfResult {
+  duplicate: true;
+  previousBatch: {
+    fileName?: string;
+    createdAt: string;
+    candidateCount: number;
+  };
+}
+
 /**
  * Lê o PDF selecionado e extrai candidatos reais via @ir/pdf-extraction.
  * Se a edição ainda não possui PDF oficial, o mesmo arquivo também é
  * arquivado no Google Drive do Jornal Online. O Supabase não recebe os bytes.
+ *
+ * Antes de gerar candidatos, calcula o hash (SHA-256) do arquivo e verifica
+ * se esta MESMA edição já processou um PDF idêntico. Sem `--force` (campo
+ * "force" no FormData), um PDF já processado nunca gera lote novo sozinho —
+ * devolve um aviso (`DuplicatePdfResult`), nunca um erro, pra UI oferecer
+ * "Reprocessar mesmo assim". Isto é importante porque o parser vai evoluir
+ * (PaddleOCR/PP-StructureV3) e reprocessar uma edição já importada vai ser
+ * uma operação legítima e esperada, não um erro do operador.
  */
 export async function generateCandidates(
   editionId: string,
   formData: FormData,
-): Promise<{ error: string } | GenerateCandidatesResult> {
+): Promise<{ error: string } | DuplicatePdfResult | GenerateCandidatesResult> {
   if (!editionId) return { error: "Selecione uma edição." };
 
   const file = formData.get("pdf");
@@ -45,15 +63,32 @@ export async function generateCandidates(
   if (!looksLikePdf) {
     return { error: "O arquivo selecionado não parece ser um PDF." };
   }
+  const force = formData.get("force") === "1";
 
   try {
     const client = createSupabaseServerClient();
     const buffer = new Uint8Array(await file.arrayBuffer());
-    const result = await extractCandidatesFromPdf(
-      editionId,
-      buffer,
-      getImportCandidateService(client),
-    );
+    const fileHash = createHash("sha256").update(buffer).digest("hex");
+
+    const candidateService = getImportCandidateService(client);
+    if (!force) {
+      const previousBatch = await candidateService.findBatchByHash(editionId, fileHash);
+      if (previousBatch) {
+        return {
+          duplicate: true,
+          previousBatch: {
+            fileName: previousBatch.fileName,
+            createdAt: previousBatch.createdAt,
+            candidateCount: previousBatch.candidateCount,
+          },
+        };
+      }
+    }
+
+    const result = await extractCandidatesFromPdf(editionId, buffer, candidateService, {
+      fileName: file.name,
+      fileHash,
+    });
     if (result.candidates.length === 0) {
       return {
         error:
@@ -101,6 +136,19 @@ export async function generateCandidates(
 export async function discardCandidate(id: string): Promise<ActionResult> {
   try {
     await getImportCandidateService(createSupabaseServerClient()).discard(id);
+  } catch (error) {
+    return { error: toErrorMessage(error) };
+  }
+  revalidatePath(IMPORT_PATH);
+  return { ok: true };
+}
+
+/** Restaura um candidato descartado por engano de volta pra revisão
+ * (`pending`) — nunca restaura um que foi absorvido por merge (ver
+ * ImportCandidateService.restore). */
+export async function restoreCandidate(id: string): Promise<ActionResult> {
+  try {
+    await getImportCandidateService(createSupabaseServerClient()).restore(id);
   } catch (error) {
     return { error: toErrorMessage(error) };
   }
