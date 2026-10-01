@@ -1949,7 +1949,7 @@ button.secondary-link {
   align-items: center;
   gap: 6px;
 }
-.gallery-item-actions button {
+.gallery-order-button {
   border: 1px solid var(--line);
   background: white;
   width: 26px;
@@ -1957,8 +1957,35 @@ button.secondary-link {
   font-size: 12px;
   border-radius: 3px;
 }
-.gallery-item-actions button:disabled {
+.gallery-order-button:disabled {
   opacity: 0.4;
+}
+.gallery-cover-button {
+  border: 1px solid var(--brand);
+  background: #f1f2f8;
+  color: var(--brand);
+  min-height: 26px;
+  padding: 0 9px;
+  font-size: 11px;
+  font-weight: 700;
+  border-radius: 3px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.gallery-cover-button:hover {
+  background: var(--brand);
+  color: white;
+}
+.gallery-item-actions .media-remove-button {
+  border: 0;
+  background: transparent;
+  width: auto;
+  height: auto;
+  padding: 0 3px;
+  color: #a3402b;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
 }
 .library-grid {
   display: grid;
