@@ -206,6 +206,16 @@ export class ArticleService {
   ): Promise<Article[]> {
     const occupants = await this.articles.list({ placementType: type, status: "published" });
     const nowIso = now.toISOString();
+    const visible = occupants.filter((article) => {
+      // Registros antigos não fixados ainda podem ter uma janela completa
+      // de destaque; ela continua respeitada. No fluxo novo, fixação começa
+      // imediatamente e usa somente endsAt como saída opcional.
+      if (article.placement.pinned) return true;
+      return (
+        (!article.placement.startsAt || article.placement.startsAt <= nowIso) &&
+        (!article.placement.endsAt || article.placement.endsAt >= nowIso)
+      );
+    });
     const isPinnedNow = (article: Article): boolean =>
       Boolean(article.placement.pinned) &&
       (!article.placement.endsAt || article.placement.endsAt >= nowIso);
@@ -213,7 +223,7 @@ export class ArticleService {
     // Fixadas ocupam vagas enquanto a fixação estiver ativa. Ao vencer
     // `endsAt`, a matéria continua publicada e volta ao fluxo normal da
     // mesma posição, disputando vaga por recência.
-    const pinned = occupants
+    const pinned = visible
       .filter(isPinnedNow)
       .sort((a, b) => {
         const rankA = a.placement.pinnedRank;
@@ -223,7 +233,7 @@ export class ArticleService {
         if (rankB !== undefined) return 1;
         return (b.placement.setAt ?? "").localeCompare(a.placement.setAt ?? "");
       });
-    const unpinned = occupants
+    const unpinned = visible
       .filter((article) => !isPinnedNow(article))
       .sort((a, b) => (b.placement.setAt ?? "").localeCompare(a.placement.setAt ?? ""));
     const limit = EDITORIAL_PLACEMENT_LIMITS[type];
