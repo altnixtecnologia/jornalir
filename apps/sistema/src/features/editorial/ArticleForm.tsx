@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import type {
@@ -38,7 +37,6 @@ import {
   formatDateTime,
   localityScopeLabels,
   notificationLabels,
-  placementDescriptions,
   placementLabels,
 } from "./editorialLabels";
 import { DEFAULT_TEXT_STYLE, textStyleToCss } from "./textStyle";
@@ -96,13 +94,13 @@ export function ArticleForm({
   const [placementType, setPlacementType] = useState<EditorialPlacementType>(
     article?.placement.type ?? "none",
   );
-  const [pinned, setPinned] = useState(article?.placement.pinned ?? false);
-  const [urgent, setUrgent] = useState(article?.urgent ?? false);
-  const [placementStartsAt, setPlacementStartsAt] = useState(
-    toDatetimeLocalValue(article?.placement.startsAt),
+  const initialPinActive = Boolean(
+    article?.placement.pinned &&
+      (!article.placement.endsAt || article.placement.endsAt >= new Date().toISOString()),
   );
+  const [pinned, setPinned] = useState(initialPinActive);
   const [placementEndsAt, setPlacementEndsAt] = useState(
-    toDatetimeLocalValue(article?.placement.endsAt),
+    initialPinActive ? toDatetimeLocalValue(article?.placement.endsAt) : "",
   );
   const [scheduledAt, setScheduledAt] = useState(toDatetimeLocalValue(article?.scheduledAt));
   const [editionPageNumber, setEditionPageNumber] = useState(article?.editionPageNumber?.toString() ?? "");
@@ -136,7 +134,6 @@ export function ArticleForm({
     });
   }
 
-  const hasPlacementWindow = placementType !== "none";
   const edition = article?.editionId ? editions.find((item) => item.id === article.editionId) : undefined;
   const selectedSection = sections.find((section) => section.id === sectionId);
   const selectedLocality = localityOptions.find((locality) => locality.id === localityId);
@@ -146,9 +143,9 @@ export function ArticleForm({
   );
 
   const publicationLine = (() => {
+    if (scheduledAt) return `Programada para ${formatDateTime(fromDatetimeLocalValue(scheduledAt))}`;
     if (article?.status === "published") return `Publicada em ${formatDateTime(article.publishedAt)}`;
     if (article?.status === "archived") return "Arquivada — fora de circulação";
-    if (scheduledAt) return `Programada para ${formatDateTime(fromDatetimeLocalValue(scheduledAt))}`;
     return "Ainda em rascunho — não publicada";
   })();
 
@@ -163,10 +160,11 @@ export function ArticleForm({
       localityId,
       notificationMode,
       placementType,
-      pinned,
-      urgent,
-      placementStartsAt: fromDatetimeLocalValue(placementStartsAt),
-      placementEndsAt: fromDatetimeLocalValue(placementEndsAt),
+      pinned: placementType !== "none" && pinned,
+      urgent: false,
+      placementStartsAt: "",
+      placementEndsAt:
+        placementType !== "none" && pinned ? fromDatetimeLocalValue(placementEndsAt) : "",
       scheduledAt: fromDatetimeLocalValue(scheduledAt),
       media,
       editionPageNumber,
@@ -185,8 +183,6 @@ export function ArticleForm({
       notificationMode,
       placementType,
       pinned,
-      urgent,
-      placementStartsAt,
       placementEndsAt,
       scheduledAt,
       media,
@@ -206,8 +202,6 @@ export function ArticleForm({
       notificationMode,
       placementType,
       pinned,
-      urgent,
-      placementStartsAt,
       placementEndsAt,
       scheduledAt,
       media,
@@ -246,6 +240,10 @@ export function ArticleForm({
         justSavedRef.current = true;
       }
     });
+  }
+
+  function handlePublishAction(): void {
+    handleAction(scheduledAt ? "schedule" : "publish", "publicacao");
   }
 
   function handleArchive(): void {
@@ -483,89 +481,127 @@ export function ArticleForm({
           <div className="article-step-main">
             <section className="form-section form-section--first" aria-labelledby="publicacao-title">
               <h2 id="publicacao-title">Publicação</h2>
-              {article ? (
-                <p className="helper-text">
-                  Status atual:{" "}
-                  <span className={`status-pill status-pill--${article.status}`}>
-                    {articleStatusLabels[article.status]}
-                  </span>
-                </p>
-              ) : null}
-              <div className="form-field">
-                <label htmlFor="field-scheduled-at" className="field-label">Data e hora para programar</label>
-                <input
-                  id="field-scheduled-at"
-                  type="datetime-local"
-                  value={scheduledAt}
-                  onChange={(event) => setScheduledAt(event.target.value)}
-                />
-              </div>
 
-              <div className="form-field">
-                <label htmlFor="field-placement" className="field-label">Destaque na página principal</label>
-                <select
-                  id="field-placement"
-                  value={placementType}
-                  onChange={(event) => setPlacementType(event.target.value as EditorialPlacementType)}
-                >
-                  {PLACEMENT_OPTIONS.map((option) => (
-                    <option key={option} value={option}>{placementLabels[option]}</option>
-                  ))}
-                </select>
-                <p className="helper-text">{placementDescriptions[placementType]}</p>
-                <p className="helper-text">
-                  Aqui você define o destino desta matéria. Para organizar todos os destaques juntos, use{" "}
-                  <Link href="/sistema/editorial/destaques" className="text-link text-link--inline">
-                    Gestão de destaques
-                  </Link>.
-                </p>
-              </div>
-
-              {placementType === "mainCover" ? (
-                <label className="form-checkbox">
-                  <input type="checkbox" checked={pinned} onChange={(event) => setPinned(event.target.checked)} />
-                  Fixar na capa
-                </label>
-              ) : null}
-
-              {hasPlacementWindow ? (
-                <div className="form-grid">
-                  <label className="form-field">
-                    <span className="field-label">Início do destaque</span>
-                    <input
-                      type="datetime-local"
-                      value={placementStartsAt}
-                      onChange={(event) => setPlacementStartsAt(event.target.value)}
-                    />
-                  </label>
-                  <label className="form-field">
-                    <span className="field-label">Fim do destaque</span>
-                    <input
-                      type="datetime-local"
-                      value={placementEndsAt}
-                      onChange={(event) => setPlacementEndsAt(event.target.value)}
-                    />
-                  </label>
+              <div className="publication-status-row">
+                <span className="field-label">Status atual</span>
+                <div className="publication-status-pills">
+                  {article ? (
+                    <span className={`status-pill status-pill--${article.status}`}>
+                      {articleStatusLabels[article.status]}
+                    </span>
+                  ) : (
+                    <span className="status-pill status-pill--draft">Rascunho</span>
+                  )}
+                  {article && article.status !== "draft" && isDirty ? (
+                    <span className="status-pill status-pill--modified">Modificada</span>
+                  ) : null}
                 </div>
-              ) : null}
+              </div>
 
-              <div className="publication-options">
-                <label className="form-checkbox">
-                  <input type="checkbox" checked={urgent} onChange={(event) => setUrgent(event.target.checked)} />
-                  Marcar como urgente
-                </label>
-                <div className="form-field">
-                  <label htmlFor="field-notification" className="field-label">Notificação</label>
+              <div className="publication-main-row">
+                <div className="form-field publication-schedule-field">
+                  <label htmlFor="field-scheduled-at" className="field-label">Data e hora</label>
+                  <div className="compact-datetime">
+                    <input
+                      id="field-scheduled-at"
+                      type="datetime-local"
+                      value={scheduledAt}
+                      onChange={(event) => setScheduledAt(event.target.value)}
+                    />
+                    {scheduledAt ? (
+                      <button
+                        type="button"
+                        className="compact-clear-button"
+                        onClick={() => setScheduledAt("")}
+                        aria-label="Limpar data e hora da publicação"
+                        title="Limpar"
+                      >
+                        ×
+                      </button>
+                    ) : null}
+                  </div>
+                </div>
+
+                <div className="form-field publication-placement-field">
+                  <label htmlFor="field-placement" className="field-label">Destaque</label>
                   <select
-                    id="field-notification"
-                    value={notificationMode}
-                    onChange={(event) => setNotificationMode(event.target.value as NotificationMode)}
+                    id="field-placement"
+                    value={placementType}
+                    onChange={(event) => {
+                      const next = event.target.value as EditorialPlacementType;
+                      setPlacementType(next);
+                      if (next === "none") {
+                        setPinned(false);
+                        setPlacementEndsAt("");
+                      }
+                    }}
                   >
-                    {NOTIFICATION_OPTIONS.map((option) => (
-                      <option key={option} value={option}>{notificationLabels[option]}</option>
+                    {PLACEMENT_OPTIONS.map((option) => (
+                      <option key={option} value={option}>{placementLabels[option]}</option>
                     ))}
                   </select>
                 </div>
+              </div>
+
+              {placementType !== "none" ? (
+                <div className="pinning-row">
+                  <button
+                    type="button"
+                    role="switch"
+                    aria-checked={pinned}
+                    className={`switch-control${pinned ? " is-on" : ""}`}
+                    onClick={() => {
+                      setPinned((current) => {
+                        const next = !current;
+                        if (!next) setPlacementEndsAt("");
+                        return next;
+                      });
+                    }}
+                  >
+                    <span className="switch-track" aria-hidden="true">
+                      <span className="switch-thumb" />
+                    </span>
+                    <span>Fixar matéria</span>
+                  </button>
+
+                  {pinned ? (
+                    <div className="pin-until-field">
+                      <span className="field-label">Fixar até</span>
+                      <div className="compact-datetime">
+                        <input
+                          type="datetime-local"
+                          value={placementEndsAt}
+                          onChange={(event) => setPlacementEndsAt(event.target.value)}
+                          aria-label="Fixar matéria até"
+                        />
+                        {placementEndsAt ? (
+                          <button
+                            type="button"
+                            className="compact-clear-button"
+                            onClick={() => setPlacementEndsAt("")}
+                            aria-label="Limpar data de saída da fixação"
+                            title="Deixar sem prazo"
+                          >
+                            ×
+                          </button>
+                        ) : null}
+                      </div>
+                    </div>
+                  ) : null}
+                </div>
+              ) : null}
+
+              <div className="form-field publication-notification-field">
+                <label htmlFor="field-notification" className="field-label">Notificação</label>
+                <select
+                  id="field-notification"
+                  value={notificationMode}
+                  onChange={(event) => setNotificationMode(event.target.value as NotificationMode)}
+                >
+                  {NOTIFICATION_OPTIONS.map((option) => (
+                    <option key={option} value={option}>{notificationLabels[option]}</option>
+                  ))}
+                </select>
               </div>
             </section>
           </div>
@@ -576,8 +612,6 @@ export function ArticleForm({
               localityName={selectedLocality?.name}
               placementType={placementType}
               pinned={pinned}
-              urgent={urgent}
-              placementStartsAt={fromDatetimeLocalValue(placementStartsAt)}
               placementEndsAt={fromDatetimeLocalValue(placementEndsAt)}
               notificationMode={notificationMode}
               publicationLine={publicationLine}
@@ -601,10 +635,18 @@ export function ArticleForm({
           <button
             type="button"
             className="form-action-primary"
-            onClick={() => handleAction(mode === "edit" ? "save" : "draft", "imagens")}
+            onClick={() =>
+              mode === "create"
+                ? handleAction("draft", "imagens")
+                : setActiveTab("imagens")
+            }
             disabled={pending}
           >
-            {pending ? "Salvando…" : "Salvar e continuar para imagens"}
+            {pending
+              ? "Salvando…"
+              : mode === "create"
+                ? "Salvar rascunho e continuar"
+                : "Continuar para imagens"}
           </button>
         ) : null}
 
@@ -614,10 +656,10 @@ export function ArticleForm({
             <button
               type="button"
               className="form-action-primary"
-              onClick={() => handleAction("save", "publicacao")}
+              onClick={() => setActiveTab("publicacao")}
               disabled={pending}
             >
-              {pending ? "Salvando…" : "Salvar e continuar para publicação"}
+              Continuar para publicação
             </button>
           </>
         ) : null}
@@ -625,21 +667,20 @@ export function ArticleForm({
         {activeTab === "publicacao" ? (
           <>
             <button type="button" onClick={() => setActiveTab("imagens")} disabled={pending}>← Imagens</button>
-            <button type="button" onClick={() => handleAction("save", "publicacao")} disabled={pending}>
-              Salvar alterações
-            </button>
+            {(!article || article.status === "draft" || article.status === "adjusting") ? (
+              <button type="button" onClick={() => handleAction("draft", "publicacao")} disabled={pending}>
+                {pending ? "Salvando…" : "Salvar rascunho"}
+              </button>
+            ) : null}
             <button
               type="button"
               className="form-action-primary"
-              onClick={() => handleAction("publish", "publicacao")}
+              onClick={handlePublishAction}
               disabled={pending}
             >
-              Publicar agora
+              {pending ? "Salvando…" : scheduledAt ? "Programar publicação" : "Publicar agora"}
             </button>
-            <button type="button" onClick={() => handleAction("schedule", "publicacao")} disabled={pending}>
-              Programar
-            </button>
-            {mode === "edit" ? (
+            {mode === "edit" && article?.status !== "archived" ? (
               <button type="button" className="form-action-danger" onClick={handleArchive} disabled={pending}>
                 Arquivar
               </button>
