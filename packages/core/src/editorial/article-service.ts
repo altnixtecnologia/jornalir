@@ -159,6 +159,7 @@ export class ArticleService {
     const updated = await this.articles.update(id, {
       status: "published",
       publishedAt: new Date().toISOString(),
+      scheduledAt: undefined,
     });
     if (updated.placement.type !== "none") {
       await this.enforcePlacementLimit(updated.placement.type);
