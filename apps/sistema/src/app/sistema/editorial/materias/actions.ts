@@ -149,21 +149,22 @@ export async function updateArticle(
       // Editar uma matéria publicada/agendada/arquivada não deve mudar seu
       // status nem sua data só por salvar conteúdo.
       await articleService.updateDraft(id, baseChanges, AUDIT);
-    } else {
+    } else if (intent === "publish") {
       await articleService.updateDraft(id, baseChanges, AUDIT);
-      if (intent === "publish") {
-        // Re-salvar uma matéria que já estava publicada preserva a data
-        // original. "Publicar agora" só cria published_at ao sair de outro status.
-        if (current.status !== "published") {
-          await articleService.publishNow(id, AUDIT);
-        }
-      } else {
-        await articleService.schedule(
-          id,
-          { scheduledAt: payload.scheduledAt, placement, notificationMode: payload.notificationMode },
-          AUDIT,
-        );
+      // Re-salvar uma matéria que já estava publicada preserva a data
+      // original. "Publicar agora" só cria published_at ao sair de outro status.
+      if (current.status !== "published") {
+        await articleService.publishNow(id, AUDIT);
       }
+    } else {
+      // Coloca em scheduled já no mesmo salvamento de conteúdo para uma
+      // matéria publicada não disputar/expulsar vaga de destaque antes da hora.
+      await articleService.updateDraft(id, { ...baseChanges, status: "scheduled" }, AUDIT);
+      await articleService.schedule(
+        id,
+        { scheduledAt: payload.scheduledAt, placement, notificationMode: payload.notificationMode },
+        AUDIT,
+      );
     }
   } catch (error) {
     return { error: toErrorMessage(error) };
