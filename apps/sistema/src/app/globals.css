@@ -2665,6 +2665,22 @@ button.header-action {
   flex-wrap: wrap;
   justify-content: flex-end;
 }
+.destaques-item.is-dragging {
+  opacity: .48;
+}
+.destaques-drag-handle {
+  width: 30px;
+  height: 30px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: #f5f6f3;
+  color: var(--muted);
+  font-size: 16px;
+  cursor: grab;
+}
+.destaques-drag-handle:active {
+  cursor: grabbing;
+}
 
 @media (max-width: 1100px) {
   .destaques-grid {
