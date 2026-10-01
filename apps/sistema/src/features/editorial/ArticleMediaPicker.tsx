@@ -1,6 +1,7 @@
 import { useRef, useState, useTransition } from "react";
 import type { ArticleMedia, MediaAsset } from "@ir/types";
 import { searchMediaLibrary, uploadMediaAssets } from "../../app/sistema/editorial/midias/actions";
+import styles from "./ArticleMediaPicker.module.css";
 
 interface ArticleMediaPickerProps {
   mediaAssets: MediaAsset[];
@@ -43,8 +44,17 @@ export function ArticleMediaPicker({
   const totalPhotos = media.length;
 
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [uploadNotice, setUploadNotice] = useState<string | null>(null);
   const [uploading, startUpload] = useTransition();
+  const [dragActive, setDragActive] = useState(false);
+  const [lastUploadNotice, setLastUploadNotice] = useState<string | null>(null);
+  const [uploadDialog, setUploadDialog] = useState<{
+    total: number;
+    completed: number;
+    successes: number;
+    currentName: string;
+    errors: string[];
+    phase: "uploading" | "done";
+  } | null>(null);
   const [librarySearch, setLibrarySearch] = useState("");
   const filteredMediaAssets = librarySearch.trim()
     ? allMediaAssets.filter((asset) => {
@@ -70,54 +80,190 @@ export function ArticleMediaPicker({
     });
   }
 
-  function handleFilesSelected(event: React.ChangeEvent<HTMLInputElement>): void {
-    const files = event.target.files;
-    event.target.value = "";
-    if (!files || files.length === 0) return;
+  function uploadFiles(selectedFiles: File[]): void {
+    if (selectedFiles.length === 0 || uploading) return;
 
-    const formData = new FormData();
-    for (const file of Array.from(files)) formData.append("files", file);
-
-    setUploadNotice(`Enviando ${files.length} foto(s)…`);
-    startUpload(async () => {
-      const result = await uploadMediaAssets(formData);
-      if ("error" in result) {
-        setUploadNotice(result.error);
-        return;
-      }
-      onFilesUploaded(result.assets);
-      const okCount = result.assets.length;
-      const warningsText = result.warnings.length > 0 ? ` (${result.warnings.join("; ")})` : "";
-      setUploadNotice(`${okCount} foto(s) enviada(s) e vinculada(s).${warningsText}`);
+    setLastUploadNotice(null);
+    setUploadDialog({
+      total: selectedFiles.length,
+      completed: 0,
+      successes: 0,
+      currentName: selectedFiles[0]?.name ?? "",
+      errors: [],
+      phase: "uploading",
     });
+
+    startUpload(async () => {
+      const uploadedAssets: MediaAsset[] = [];
+      const errors: string[] = [];
+
+      for (let index = 0; index < selectedFiles.length; index += 1) {
+        const file = selectedFiles[index];
+        setUploadDialog((current) =>
+          current
+            ? { ...current, currentName: file.name, completed: index, successes: uploadedAssets.length, errors: [...errors] }
+            : current,
+        );
+
+        const formData = new FormData();
+        formData.append("files", file);
+        const result = await uploadMediaAssets(formData);
+
+        if ("error" in result) {
+          errors.push(`${file.name}: ${result.error}`);
+        } else {
+          uploadedAssets.push(...result.assets);
+          for (const warning of result.warnings) errors.push(warning);
+        }
+
+        const completed = index + 1;
+        setUploadDialog({
+          total: selectedFiles.length,
+          completed,
+          successes: uploadedAssets.length,
+          currentName: completed < selectedFiles.length ? selectedFiles[completed].name : file.name,
+          errors: [...errors],
+          phase: completed === selectedFiles.length ? "done" : "uploading",
+        });
+      }
+
+      if (uploadedAssets.length > 0) onFilesUploaded(uploadedAssets);
+      setLastUploadNotice(
+        errors.length === 0
+          ? `${uploadedAssets.length} foto(s) enviada(s) com sucesso.`
+          : `${uploadedAssets.length} enviada(s); ${errors.length} com aviso ou falha.`,
+      );
+    });
+  }
+
+  function handleFilesSelected(event: React.ChangeEvent<HTMLInputElement>): void {
+    const files = Array.from(event.target.files ?? []);
+    event.target.value = "";
+    uploadFiles(files);
+  }
+
+  function handleDrop(event: React.DragEvent<HTMLLabelElement>): void {
+    event.preventDefault();
+    setDragActive(false);
+    if (uploading) return;
+    uploadFiles(Array.from(event.dataTransfer.files));
   }
 
   return (
     <div className="media-picker">
       <div className="media-picker-section">
         <p className="field-label">Adicionar fotos</p>
-        <p className="helper-text">
-          Nenhuma, uma ou várias. Com 1 foto: capa normal, sem galeria pública. Com 2 ou mais: galeria
-          pública fica disponível na matéria.
-        </p>
-        <div className="media-upload-actions">
-          <button type="button" onClick={() => fileInputRef.current?.click()} disabled={uploading}>
-            {uploading ? "Enviando…" : "Enviar fotos"}
-          </button>
-          <span className="helper-text media-upload-hint">
-            ou escolha da biblioteca cadastrada, mais abaixo
-          </span>
-        </div>
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept="image/*"
-          multiple
-          className="visually-hidden"
-          onChange={handleFilesSelected}
-        />
-        {uploadNotice ? <p className="helper-text upload-notice">{uploadNotice}</p> : null}
+        <label
+          className={`${styles.dropZone} ${dragActive ? styles.dropZoneActive : ""} ${uploading ? styles.dropZoneBusy : ""}`}
+          onDragEnter={(event) => {
+            event.preventDefault();
+            if (!uploading) setDragActive(true);
+          }}
+          onDragOver={(event) => {
+            event.preventDefault();
+            if (!uploading) setDragActive(true);
+          }}
+          onDragLeave={(event) => {
+            event.preventDefault();
+            setDragActive(false);
+          }}
+          onDrop={handleDrop}
+        >
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/jpeg,image/png,image/webp,image/avif,image/gif,.avif"
+            multiple
+            className="visually-hidden"
+            onChange={handleFilesSelected}
+            disabled={uploading}
+          />
+          <span className={styles.dropIcon} aria-hidden="true">↑</span>
+          <span className={styles.dropTitle}>{uploading ? "Processando fotos…" : "Arraste as fotos aqui"}</span>
+          <span className={styles.dropSubtitle}>ou clique para selecionar no computador</span>
+          <span className={styles.selectButton}>{uploading ? "Aguarde…" : "Selecionar fotos"}</span>
+          <span className={styles.formatHint}>JPEG, PNG, WebP, AVIF ou GIF · até 8 MB por arquivo</span>
+        </label>
+        {lastUploadNotice ? <p className={styles.lastUploadNotice}>{lastUploadNotice}</p> : null}
       </div>
+
+      {uploadDialog ? (
+        <div className={styles.modalBackdrop}>
+          <section
+            className={styles.uploadModal}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="upload-progress-title"
+          >
+            <div className={styles.modalTop}>
+              <div>
+                <p className={styles.modalEyebrow}>UPLOAD DE MÍDIA</p>
+                <h3 id="upload-progress-title">
+                  {uploadDialog.phase === "done"
+                    ? uploadDialog.errors.length > 0
+                      ? "Envio concluído com avisos"
+                      : "Fotos enviadas"
+                    : "Enviando e otimizando"}
+                </h3>
+              </div>
+              <strong className={styles.progressNumber}>
+                {Math.round((uploadDialog.completed / Math.max(1, uploadDialog.total)) * 100)}%
+              </strong>
+            </div>
+
+            <div
+              className={styles.progressTrack}
+              role="progressbar"
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-valuenow={Math.round((uploadDialog.completed / Math.max(1, uploadDialog.total)) * 100)}
+            >
+              <span
+                className={styles.progressFill}
+                style={{ width: `${Math.round((uploadDialog.completed / Math.max(1, uploadDialog.total)) * 100)}%` }}
+              />
+            </div>
+
+            <div className={styles.progressMeta}>
+              <span>{uploadDialog.completed} de {uploadDialog.total} processadas</span>
+              <span>{uploadDialog.successes} enviadas</span>
+            </div>
+
+            {uploadDialog.phase === "uploading" ? (
+              <div className={styles.currentFile}>
+                <span className={styles.spinner} aria-hidden="true" />
+                <div>
+                  <small>Processando agora</small>
+                  <strong title={uploadDialog.currentName}>{uploadDialog.currentName}</strong>
+                </div>
+              </div>
+            ) : (
+              <div className={styles.doneSummary}>
+                <strong>{uploadDialog.successes} foto(s) pronta(s)</strong>
+                <span>
+                  {uploadDialog.errors.length === 0
+                    ? "Tudo certo. As imagens já estão disponíveis na matéria."
+                    : `${uploadDialog.errors.length} arquivo(s) precisam de atenção.`}
+                </span>
+              </div>
+            )}
+
+            {uploadDialog.errors.length > 0 ? (
+              <div className={styles.errorList}>
+                {uploadDialog.errors.map((error, index) => (
+                  <p key={`${error}-${index}`}>{error}</p>
+                ))}
+              </div>
+            ) : null}
+
+            {uploadDialog.phase === "done" ? (
+              <button type="button" className={styles.modalClose} onClick={() => setUploadDialog(null)}>
+                Concluir
+              </button>
+            ) : null}
+          </section>
+        </div>
+      ) : null}
 
       <div className="media-picker-section">
         <p className="field-label">Imagem de capa</p>
