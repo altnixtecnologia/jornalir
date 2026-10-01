@@ -12,6 +12,11 @@ export class ClientDuplicateFieldError extends Error {
   }
 }
 
+/** CPF/CNPJ com dígito verificador inválido — barrada no próprio
+ * ClientService (não só na validação de formulário), pra continuar valendo
+ * mesmo se um módulo futuro chamar o service diretamente sem passar pela UI. */
+export class ClientValidationError extends Error {}
+
 export interface ClientRepository {
   list(): Promise<Client[]>;
   getById(id: string): Promise<Client | null>;

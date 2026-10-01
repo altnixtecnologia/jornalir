@@ -76,52 +76,52 @@ function toDomain(row: ClientRow): Client {
   };
 }
 
-function toRowPatch(record: NewClientRecord | ClientChanges): Record<string, unknown> {
-  const patch: Record<string, unknown> = {};
-  if (record.kind !== undefined) patch.kind = record.kind;
-  if (record.status !== undefined) patch.status = record.status;
-  if (record.fullName !== undefined) patch.full_name = record.fullName ?? null;
-  if (record.cpf !== undefined) patch.cpf = record.cpf ?? null;
-  if (record.birthDate !== undefined) patch.birth_date = record.birthDate ?? null;
-  if (record.companyName !== undefined) patch.company_name = record.companyName ?? null;
-  if (record.tradeName !== undefined) patch.trade_name = record.tradeName ?? null;
-  if (record.cnpj !== undefined) patch.cnpj = record.cnpj ?? null;
-  if (record.stateRegistration !== undefined) patch.state_registration = record.stateRegistration ?? null;
-  if (record.responsibleName !== undefined) patch.responsible_name = record.responsibleName ?? null;
-  if (record.responsibleCpf !== undefined) patch.responsible_cpf = record.responsibleCpf ?? null;
-  if (record.phonePrimary !== undefined) patch.phone_primary = record.phonePrimary ?? null;
-  if (record.phoneSecondary !== undefined) patch.phone_secondary = record.phoneSecondary ?? null;
-  if (record.whatsapp !== undefined) patch.whatsapp = record.whatsapp ?? null;
-  if (record.email !== undefined) patch.email = record.email ?? null;
-  if (record.notes !== undefined) patch.notes = record.notes ?? null;
-  if (record.address !== undefined) {
-    patch.address_zip = record.address.zip ?? null;
-    patch.address_street = record.address.street ?? null;
-    patch.address_number = record.address.number ?? null;
-    patch.address_complement = record.address.complement ?? null;
-    patch.address_neighborhood = record.address.neighborhood ?? null;
-    patch.address_city = record.address.city ?? null;
-    patch.address_state = record.address.state ?? null;
-  }
-  return patch;
+/**
+ * Monta o jsonb enviado pra `save_client` — SEMPRE com TODO campo de
+ * identidade presente (nunca omitido quando "undefined"), porque é a RPC
+ * quem escreve cada coluna explicitamente a cada chamada. `NewClientRecord`/
+ * `ClientChanges` já vêm completos do ClientService.normalizeFields (nunca
+ * um patch parcial de verdade nesta app), então não há perda de informação
+ * aqui — só a conversão de nome de campo (camelCase -> snake_case).
+ */
+function toClientJson(record: NewClientRecord | ClientChanges): Record<string, unknown> {
+  return {
+    kind: record.kind ?? null,
+    status: record.status ?? null,
+    full_name: record.fullName ?? null,
+    cpf: record.cpf ?? null,
+    birth_date: record.birthDate ?? null,
+    company_name: record.companyName ?? null,
+    trade_name: record.tradeName ?? null,
+    cnpj: record.cnpj ?? null,
+    state_registration: record.stateRegistration ?? null,
+    responsible_name: record.responsibleName ?? null,
+    responsible_cpf: record.responsibleCpf ?? null,
+    phone_primary: record.phonePrimary ?? null,
+    phone_secondary: record.phoneSecondary ?? null,
+    whatsapp: record.whatsapp ?? null,
+    email: record.email ?? null,
+    address_zip: record.address?.zip ?? null,
+    address_street: record.address?.street ?? null,
+    address_number: record.address?.number ?? null,
+    address_complement: record.address?.complement ?? null,
+    address_neighborhood: record.address?.neighborhood ?? null,
+    address_city: record.address?.city ?? null,
+    address_state: record.address?.state ?? null,
+    notes: record.notes ?? null,
+  };
 }
 
 /** Converte violação de índice único (23505) em erro de domínio amigável —
- * nunca deixa o erro bruto do Postgres chegar na UI. */
+ * nunca deixa o erro bruto do Postgres chegar na UI. Erros de RPC do
+ * PostgREST preservam `code`/`message` do Postgres original, então a
+ * mesma checagem vale tanto pra INSERT/UPDATE direto quanto pra `rpc()`. */
 function rethrowAsDuplicate(error: { code?: string; message?: string }): never {
   if (error.code === "23505") {
     if (error.message?.includes("clients_cpf_unique")) throw new ClientDuplicateFieldError("cpf");
     if (error.message?.includes("clients_cnpj_unique")) throw new ClientDuplicateFieldError("cnpj");
   }
   throw new Error(error.message ?? "Falha ao salvar cliente.");
-}
-
-async function replaceRoles(client: SupabaseClient, clientId: string, roles: ClientRole[]): Promise<void> {
-  const { error: deleteError } = await client.from("client_roles").delete().eq("client_id", clientId);
-  if (deleteError) throw new Error(deleteError.message);
-  if (roles.length === 0) return;
-  const { error: insertError } = await client.from("client_roles").insert(roles.map((role) => ({ client_id: clientId, role })));
-  if (insertError) throw new Error(insertError.message);
 }
 
 export function createClientRepositorySupabase(client: SupabaseClient): ClientRepository {
@@ -138,26 +138,33 @@ export function createClientRepositorySupabase(client: SupabaseClient): ClientRe
       return data ? toDomain(data as unknown as ClientRow) : null;
     },
 
+    // create/update chamam a RPC save_client (cliente + papéis na mesma
+    // transação — ver migration 20261011100000_clients.sql). Nunca faz
+    // INSERT/UPDATE de `clients` e DELETE/INSERT de `client_roles` como
+    // chamadas HTTP separadas: se qualquer parte falhar, nada é gravado.
     async create(record) {
-      const inserted = await client.from(TABLE).insert(toRowPatch(record)).select(COLUMNS).single();
-      if (inserted.error) rethrowAsDuplicate(inserted.error);
-      const insertedRow = inserted.data as unknown as ClientRow;
-      if (record.roles.length > 0) await replaceRoles(client, insertedRow.id, record.roles);
-      const reloaded = await client.from(TABLE).select(COLUMNS).eq("id", insertedRow.id).single();
+      const result = await client.rpc("save_client", {
+        p_id: null,
+        p_client: toClientJson(record),
+        p_roles: record.roles,
+      });
+      if (result.error) rethrowAsDuplicate(result.error);
+      const newId = result.data as string;
+      const reloaded = await client.from(TABLE).select(COLUMNS).eq("id", newId).single();
       if (reloaded.error) throw new Error(reloaded.error.message);
       return toDomain(reloaded.data as unknown as ClientRow);
     },
 
     async update(id, changes) {
-      const patch = toRowPatch(changes);
-      if (Object.keys(patch).length > 0) {
-        const { error } = await client.from(TABLE).update(patch).eq("id", id);
-        if (error) rethrowAsDuplicate(error);
-      }
-      if (changes.roles !== undefined) await replaceRoles(client, id, changes.roles);
-      const { data, error: reloadError } = await client.from(TABLE).select(COLUMNS).eq("id", id).single();
-      if (reloadError) throw new Error(reloadError.message);
-      return toDomain(data as unknown as ClientRow);
+      const result = await client.rpc("save_client", {
+        p_id: id,
+        p_client: toClientJson(changes),
+        p_roles: changes.roles ?? [],
+      });
+      if (result.error) rethrowAsDuplicate(result.error);
+      const reloaded = await client.from(TABLE).select(COLUMNS).eq("id", id).single();
+      if (reloaded.error) throw new Error(reloaded.error.message);
+      return toDomain(reloaded.data as unknown as ClientRow);
     },
   };
 }

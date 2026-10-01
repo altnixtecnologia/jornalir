@@ -191,3 +191,108 @@ comment on index public.clients_cpf_unique is
   'CPF válido nunca pode existir duplicado no cadastro central (requisito explícito de proteção contra duplicidade).';
 comment on index public.clients_cnpj_unique is
   'CNPJ válido nunca pode existir duplicado no cadastro central (requisito explícito de proteção contra duplicidade).';
+
+-- Gravação atômica cliente+papéis (create OU update) na mesma transação
+-- implícita da chamada RPC — mesmo princípio de legacy_import_article().
+-- Resolve dois problemas do provider anterior (que fazia UPDATE parcial +
+-- DELETE/INSERT de papéis como operações HTTP separadas):
+--   1) troca de kind (individual <-> company) deixando campo órfão do tipo
+--      anterior no banco (ex.: full_name sobrevivendo numa linha que virou
+--      company) — aqui TODO campo de identidade é escrito explicitamente a
+--      cada chamada, nunca "pulado" por estar undefined no client, então o
+--      campo do tipo anterior é sempre limpo pra null.
+--   2) se o INSERT dos novos papéis falhasse depois do DELETE dos antigos,
+--      o cliente ficava sem papel nenhum — aqui tudo é uma função só:
+--      qualquer exceção (inclusive violação de clients_cpf_unique/
+--      clients_cnpj_unique/clients_identity_by_kind) desfaz TUDO, incluindo
+--      o DELETE dos papéis antigos.
+-- security definer pelo mesmo motivo de legacy_import_article: a checagem
+-- de staff é feita explicitamente no corpo da função. RLS continua valendo
+-- pra qualquer outro acesso às duas tabelas (select direto, por exemplo).
+create or replace function public.save_client(
+  p_id uuid,
+  p_client jsonb,
+  p_roles text[]
+)
+returns uuid
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_id uuid;
+  v_roles text[] := coalesce(p_roles, '{}'::text[]);
+begin
+  if auth.role() = 'authenticated' and not public.is_active_staff() then
+    raise exception 'save_client: apenas staff ativo pode criar/editar clientes';
+  end if;
+
+  if p_id is null then
+    insert into public.clients (
+      kind, status,
+      full_name, cpf, birth_date,
+      company_name, trade_name, cnpj, state_registration, responsible_name, responsible_cpf,
+      phone_primary, phone_secondary, whatsapp, email,
+      address_zip, address_street, address_number, address_complement, address_neighborhood, address_city, address_state,
+      notes
+    )
+    values (
+      p_client->>'kind', coalesce(p_client->>'status', 'active'),
+      p_client->>'full_name', p_client->>'cpf', nullif(p_client->>'birth_date', '')::date,
+      p_client->>'company_name', p_client->>'trade_name', p_client->>'cnpj', p_client->>'state_registration', p_client->>'responsible_name', p_client->>'responsible_cpf',
+      p_client->>'phone_primary', p_client->>'phone_secondary', p_client->>'whatsapp', p_client->>'email',
+      p_client->>'address_zip', p_client->>'address_street', p_client->>'address_number', p_client->>'address_complement', p_client->>'address_neighborhood', p_client->>'address_city', p_client->>'address_state',
+      p_client->>'notes'
+    )
+    returning id into v_id;
+  else
+    -- Toda coluna de identidade é escrita explicitamente (nunca "coalesce
+    -- com o valor atual") — é exatamente isso que garante a limpeza do
+    -- campo do tipo anterior numa troca de kind.
+    update public.clients set
+      kind = p_client->>'kind',
+      status = coalesce(p_client->>'status', 'active'),
+      full_name = p_client->>'full_name',
+      cpf = p_client->>'cpf',
+      birth_date = nullif(p_client->>'birth_date', '')::date,
+      company_name = p_client->>'company_name',
+      trade_name = p_client->>'trade_name',
+      cnpj = p_client->>'cnpj',
+      state_registration = p_client->>'state_registration',
+      responsible_name = p_client->>'responsible_name',
+      responsible_cpf = p_client->>'responsible_cpf',
+      phone_primary = p_client->>'phone_primary',
+      phone_secondary = p_client->>'phone_secondary',
+      whatsapp = p_client->>'whatsapp',
+      email = p_client->>'email',
+      address_zip = p_client->>'address_zip',
+      address_street = p_client->>'address_street',
+      address_number = p_client->>'address_number',
+      address_complement = p_client->>'address_complement',
+      address_neighborhood = p_client->>'address_neighborhood',
+      address_city = p_client->>'address_city',
+      address_state = p_client->>'address_state',
+      notes = p_client->>'notes'
+    where id = p_id
+    returning id into v_id;
+
+    if v_id is null then
+      raise exception 'save_client: cliente não encontrado (id=%)', p_id;
+    end if;
+  end if;
+
+  delete from public.client_roles where client_id = v_id;
+  if array_length(v_roles, 1) > 0 then
+    insert into public.client_roles (client_id, role)
+    select v_id, r from unnest(v_roles) as r;
+  end if;
+
+  return v_id;
+end;
+$$;
+
+comment on function public.save_client(uuid, jsonb, text[]) is
+  'Cria (p_id nulo) ou atualiza (p_id preenchido) um cliente e substitui o conjunto de papéis inteiro, tudo na mesma transação. Toda coluna de identidade é sempre escrita (nunca condicional), garantindo que uma troca individual<->company limpe os campos do tipo anterior. Qualquer falha (CPF/CNPJ duplicado, constraint de identidade, erro nos papéis) desfaz a operação inteira — nunca deixa cliente sem papel nem campo órfão do tipo anterior.';
+
+revoke all on function public.save_client(uuid, jsonb, text[]) from public;
+grant execute on function public.save_client(uuid, jsonb, text[]) to authenticated, service_role;

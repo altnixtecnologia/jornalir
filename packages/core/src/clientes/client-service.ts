@@ -1,6 +1,6 @@
 import type { Client, ClientAddress, ClientKind, ClientRole, ClientStatus } from "@ir/types";
-import type { ClientChanges, ClientRepository, NewClientRecord } from "./client-repository";
-import { onlyDigits } from "./client-validation";
+import { ClientValidationError, type ClientChanges, type ClientRepository, type NewClientRecord } from "./client-repository";
+import { isValidCnpj, isValidCpf, onlyDigits } from "./client-validation";
 
 export class ClientNotFoundError extends Error {
   constructor(id: string) {
@@ -73,11 +73,26 @@ function normalizeFields(input: ClientInput): Omit<NewClientRecord, "status" | "
   };
 }
 
+/** Barreira de validação no próprio domínio (não só na UI/Server Action) —
+ * CPF/CNPJ com dígito verificador inválido nunca chega ao repositório,
+ * mesmo que ClientService seja chamado diretamente por outro módulo futuro
+ * sem passar pela validação de formulário. Campo vazio é válido (opcional);
+ * só um valor PREENCHIDO com checksum errado é rejeitado. */
+function assertValidDocuments(record: Pick<NewClientRecord, "kind" | "cpf" | "cnpj" | "responsibleCpf">): void {
+  if (record.kind === "individual") {
+    if (record.cpf && !isValidCpf(record.cpf)) throw new ClientValidationError("CPF inválido.");
+  } else {
+    if (record.cnpj && !isValidCnpj(record.cnpj)) throw new ClientValidationError("CNPJ inválido.");
+    if (record.responsibleCpf && !isValidCpf(record.responsibleCpf)) throw new ClientValidationError("CPF do responsável inválido.");
+  }
+}
+
 /** Cadastro central de clientes (Fase 1) — só identidade e contato.
  * Proteção contra duplicidade real (CPF/CNPJ) é enforced pelo banco
  * (índice único parcial); este service normaliza os dados ANTES de
  * chegarem lá, pra a comparação de duplicidade ser sempre sobre o mesmo
- * formato (só dígitos). */
+ * formato (só dígitos), e valida o checksum ANTES de chamar o repositório
+ * (defesa em profundidade — nunca confia só na validação de formulário). */
 export class ClientService {
   constructor(private readonly clients: ClientRepository) {}
 
@@ -93,12 +108,14 @@ export class ClientService {
 
   register(input: ClientInput): Promise<Client> {
     const record: NewClientRecord = normalizeFields(input);
+    assertValidDocuments(record);
     return this.clients.create(record);
   }
 
   async update(id: string, input: ClientInput): Promise<Client> {
     await this.getById(id);
     const changes: ClientChanges = normalizeFields(input);
+    assertValidDocuments(changes as Pick<NewClientRecord, "kind" | "cpf" | "cnpj" | "responsibleCpf">);
     return this.clients.update(id, changes);
   }
 }
