@@ -17,11 +17,13 @@ export interface ArticleFormPayload {
   localityId: string;
   notificationMode: NotificationMode;
   placementType: EditorialPlacementType;
-  /** Só tem efeito quando placementType === "mainCover". */
+  /** Fixação no destaque selecionado; começa imediatamente. */
   pinned: boolean;
-  /** Selo de urgência — independente da posição editorial. */
+  /** Campo legado, mantido por compatibilidade; novos fluxos sempre enviam false. */
   urgent: boolean;
+  /** Campo legado; novos fluxos de fixação não programam início. */
   placementStartsAt: string;
+  /** Saída opcional da fixação; vazio = fixação permanente. */
   placementEndsAt: string;
   scheduledAt: string;
   media: ArticleMedia[];
