@@ -28,6 +28,7 @@ const args = Object.fromEntries(
   }),
 );
 const PAGES_LIMIT = args["pages-limit"] ? Number(args["pages-limit"]) : Infinity;
+const REFRESH_PAGES = args["refresh-pages"] ? Math.max(0, Number(args["refresh-pages"])) : 0;
 const SAMPLE_DETAIL = args["sample-detail"] ? Number(args["sample-detail"]) : 2;
 const RPS = args.rps ? Number(args.rps) : 4;
 
@@ -62,7 +63,8 @@ async function crawlCategoryListings(categoryPath, lastPage, throttle, checkpoin
   const pagesToFetch = Math.min(lastPage, PAGES_LIMIT);
 
   for (let page = 1; page <= pagesToFetch; page += 1) {
-    if (doneSet.has(page)) continue;
+    const alreadyDone = doneSet.has(page);
+    if (alreadyDone && page > REFRESH_PAGES) continue;
     await throttle();
     const url = `${BASE}/${categoryPath}/?pagina=${page}&filtro=antigos`;
     const { ok, text, status } = await fetchText(url);
@@ -78,7 +80,7 @@ async function crawlCategoryListings(categoryPath, lastPage, throttle, checkpoin
     }
     doneSet.add(page);
     checkpoint.pagesDone[categoryPath] = [...doneSet];
-    checkpoint.totalItemsFound += items.length;
+    if (!alreadyDone) checkpoint.totalItemsFound += items.length;
     if (page % 25 === 0 || page === pagesToFetch) {
       await saveCheckpoint(checkpoint);
       log(`  ${categoryPath}: página ${page}/${pagesToFetch} (${items.length} itens nesta página)`);
@@ -132,7 +134,7 @@ async function main() {
   const log = (...msg) => console.log(...msg);
 
   log("== Fase 34 — auditoria do site legado (audit/read-only) ==");
-  log(`rps=${RPS} pages-limit=${PAGES_LIMIT === Infinity ? "sem limite" : PAGES_LIMIT} sample-detail=${SAMPLE_DETAIL}`);
+  log(`rps=${RPS} pages-limit=${PAGES_LIMIT === Infinity ? "sem limite" : PAGES_LIMIT} refresh-pages=${REFRESH_PAGES} sample-detail=${SAMPLE_DETAIL}`);
 
   const { mainCategories, extraCategories } = await discoverCategories();
   if (extraCategories.length > 0) {

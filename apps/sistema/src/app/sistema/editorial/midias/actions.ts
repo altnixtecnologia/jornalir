@@ -4,8 +4,8 @@ import { revalidatePath } from "next/cache";
 import type { MediaAsset } from "@ir/types";
 import { getMediaAssetService } from "../../../../composition/editorial";
 import { createSupabaseServerClient } from "../../../../lib/supabase/server";
-import { registerUploadedMediaAsset } from "../../../../providers/supabase/mediaAssetRepository.supabase";
-import { InvalidImageUploadError, uploadImageToArticleMediaBucket } from "../../../../providers/supabase/mediaStorage.supabase";
+import { registerUploadedMediaAsset, searchMediaAssetsSupabase } from "../../../../providers/supabase/mediaAssetRepository.supabase";
+import { InvalidImageUploadError, deleteObjectFromR2, uploadOptimizedImageToR2 } from "../../../../providers/r2/mediaStorage.r2";
 
 const LIST_PATH = "/sistema/editorial/midias";
 
@@ -55,6 +55,16 @@ export async function updateMedia(id: string, payload: MediaAssetPayload): Promi
   }
 }
 
+
+export async function searchMediaLibrary(query: string): Promise<{ error: string } | { ok: true; assets: MediaAsset[] }> {
+  try {
+    const assets = await searchMediaAssetsSupabase(createSupabaseServerClient(), query, 60);
+    return { ok: true, assets };
+  } catch (error) {
+    return { error: toErrorMessage(error) };
+  }
+}
+
 /**
  * Upload real (Storage) + cadastro automático na biblioteca — usado pelo
  * botão "Enviar fotos" tanto na tela de Mídias quanto no editor de
@@ -71,17 +81,22 @@ export async function uploadMediaAssets(formData: FormData): Promise<UploadResul
   const errors: string[] = [];
 
   for (const file of files) {
+    let uploaded: Awaited<ReturnType<typeof uploadOptimizedImageToR2>> | null = null;
     try {
-      const { storagePath, publicUrl } = await uploadImageToArticleMediaBucket(client, file);
+      uploaded = await uploadOptimizedImageToR2(file);
       const asset = await registerUploadedMediaAsset(client, {
         title: file.name.replace(/\.[^.]+$/, "") || "Foto",
-        storagePath,
-        publicUrl,
-        fileName: file.name,
-        mimeType: file.type,
+        storagePath: uploaded.storagePath,
+        publicUrl: uploaded.publicUrl,
+        fileName: uploaded.fileName,
+        mimeType: uploaded.mimeType,
+        width: uploaded.width,
+        height: uploaded.height,
       });
       assets.push(asset);
     } catch (error) {
+      // Se o objeto já foi criado no R2 mas o cadastro no banco falhou, remove pra não deixar órfão.
+      if (uploaded) await deleteObjectFromR2(uploaded.storagePath).catch(() => {});
       const message = error instanceof InvalidImageUploadError ? error.message : toErrorMessage(error);
       errors.push(`${file.name}: ${message}`);
     }

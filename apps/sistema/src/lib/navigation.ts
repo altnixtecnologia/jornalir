@@ -23,7 +23,7 @@ export const adminModules: readonly AdminModule[] = [
     label: "Clientes",
     description:
       "Pessoas, empresas e seus vínculos com o jornal em um cadastro central.",
-    planned: true,
+    planned: false,
   },
   {
     slug: "financeiro",
@@ -119,6 +119,14 @@ export const editorialNavGroup: AdminNavGroup = {
     { label: "Editorias", href: "/sistema/editorial/editorias" },
     { label: "Localidades", href: "/sistema/editorial/localidades" },
     { label: "Mídias", href: "/sistema/editorial/midias" },
+  ],
+};
+
+export const clientesNavGroup: AdminNavGroup = {
+  label: "Clientes",
+  links: [
+    { label: "Clientes", href: "/sistema/clientes" },
+    { label: "Novo cliente", href: "/sistema/clientes/novo", primary: true },
   ],
 };
 

@@ -40,8 +40,19 @@ export function setCoverMedia(media: ArticleMedia[], mediaAssetId: string): Arti
   return [{ mediaAssetId, role: "cover", order: 0 }, ...renumberedGallery];
 }
 
+function normalizeOrderedMedia(items: ArticleMedia[]): ArticleMedia[] {
+  return items.map((item, index) =>
+    index === 0
+      ? { ...item, role: "cover", order: 0 }
+      : { ...item, role: "gallery", order: index - 1 },
+  );
+}
+
 export function removeCoverMedia(media: ArticleMedia[]): ArticleMedia[] {
-  return media.filter((item) => item.role !== "cover");
+  const gallery = media
+    .filter((item) => item.role === "gallery")
+    .sort((a, b) => a.order - b.order);
+  return normalizeOrderedMedia(gallery);
 }
 
 export function addGalleryMedia(media: ArticleMedia[], mediaAssetId: string): ArticleMedia[] {
@@ -74,20 +85,28 @@ export function setMediaCredit(media: ArticleMedia[], mediaAssetId: string, cred
   );
 }
 
-export function moveGalleryMedia(
+export function reorderArticleMedia(
   media: ArticleMedia[],
-  mediaAssetId: string,
-  direction: -1 | 1,
+  draggedMediaAssetId: string,
+  targetMediaAssetId: string,
+  placement: "before" | "after",
 ): ArticleMedia[] {
-  const cover = media.filter((item) => item.role === "cover");
-  const gallery = media.filter((item) => item.role === "gallery").sort((a, b) => a.order - b.order);
-  const index = gallery.findIndex((item) => item.mediaAssetId === mediaAssetId);
-  const targetIndex = index + direction;
-  if (index === -1 || targetIndex < 0 || targetIndex >= gallery.length) return media;
+  if (draggedMediaAssetId === targetMediaAssetId) return media;
 
-  const reordered = [...gallery];
-  const [moved] = reordered.splice(index, 1);
-  reordered.splice(targetIndex, 0, moved);
-  const renumbered = reordered.map((item, position) => ({ ...item, order: position }));
-  return [...cover, ...renumbered];
+  const cover = media.find((item) => item.role === "cover");
+  const gallery = media
+    .filter((item) => item.role === "gallery")
+    .sort((a, b) => a.order - b.order);
+  const ordered = [...(cover ? [cover] : []), ...gallery];
+
+  const draggedIndex = ordered.findIndex((item) => item.mediaAssetId === draggedMediaAssetId);
+  if (draggedIndex === -1) return media;
+
+  const [dragged] = ordered.splice(draggedIndex, 1);
+  const targetIndex = ordered.findIndex((item) => item.mediaAssetId === targetMediaAssetId);
+  if (targetIndex === -1) return media;
+
+  const insertionIndex = targetIndex + (placement === "after" ? 1 : 0);
+  ordered.splice(insertionIndex, 0, dragged);
+  return normalizeOrderedMedia(ordered);
 }

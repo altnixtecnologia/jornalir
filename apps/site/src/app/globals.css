@@ -50,11 +50,14 @@ body {
 
 .site-shell {
   width: 100%;
-  max-width: 1440px;
+  /* Ajuste pós-Fase 49: 1440px prendia o site inteiro num container
+     estreito, sobrando faixas vazias grandes em 1920px+. A coluna de
+     leitura da matéria tem seu próprio max-width (não depende deste). */
+  max-width: 1880px;
   margin-left: auto;
   margin-right: auto;
-  padding-left: clamp(16px, 3vw, 40px);
-  padding-right: clamp(16px, 3vw, 40px);
+  padding-left: clamp(16px, 2.4vw, 40px);
+  padding-right: clamp(16px, 2.4vw, 40px);
 }
 
 /* --- Sistema editorial: rótulos, divisores, tipografia --- */
@@ -311,6 +314,28 @@ body {
   isolation: isolate;
 }
 
+/* Sombreamento apenas vertical: protege leitura sobre fotos claras sem
+   escurecer as laterais nem alterar o enquadramento da imagem. */
+.hero-vertical-shade {
+  background: linear-gradient(
+    to bottom,
+    rgba(20, 20, 46, 0.72) 0%,
+    rgba(20, 20, 46, 0.24) 13%,
+    rgba(0, 0, 0, 0.04) 38%,
+    rgba(0, 0, 0, 0.08) 62%,
+    rgba(48, 48, 92, 0.9) 100%
+  );
+}
+
+/* Contorno discreto + sombra: mantém o título branco legível inclusive
+   sobre áreas muito claras da fotografia, sem aparência pesada. */
+.hero-title-contrast {
+  -webkit-text-stroke: 0.7px rgba(0, 0, 0, 0.58);
+  text-shadow:
+    0 2px 3px rgba(0, 0, 0, 0.72),
+    0 5px 18px rgba(0, 0, 0, 0.45);
+}
+
 /* Fundo do hero: composição própria da identidade (azul/índigo em
    gradiente) — a fotografia nunca é obrigada a preencher 100% da área;
    ela é uma camada por cima deste fundo. */
@@ -332,49 +357,107 @@ body {
   width: 100%;
 }
 
+/* Crossfade entre slides: a troca "seca" reportada não era falta de fade
+   (já existia), mas o Ken Burns sendo ligado/desligado por classe a cada
+   troca — removida a animação, o navegador faz o elemento "saltar" de volta
+   para scale(1) no mesmo instante em que o fade começa. Ken Burns agora
+   roda sempre, em todo slide (ativo ou não) — nunca reinicia, então o
+   crossfade cruza duas fotos em fases de zoom contínuas, sem salto. */
+.hero-slide {
+  transition: opacity 1500ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
 /* Zoom contínuo (Ken Burns), alternando ida e volta — mais vida na foto
-   sem ser um efeito que "salta aos olhos". */
+   sem ser um efeito que "salta aos olhos". Amplitude reduzida (era
+   1.05→1.18) para não brigar visualmente com o crossfade mais longo. */
 .hero-kenburns {
-  animation: hero-kenburns 13s ease-in-out infinite alternate;
+  animation: hero-kenburns 18s ease-in-out infinite alternate;
   transform-origin: 55% 45%;
 }
 @keyframes hero-kenburns {
-  from { transform: scale(1.05); }
-  to { transform: scale(1.18); }
+  from { transform: scale(1.03); }
+  to { transform: scale(1.11); }
 }
 
-/* Foto nítida — camada dentro do fundo, nunca a área inteira. Bordas
-   dissolvidas por máscara direto no fundo (nunca border-radius/recorte).
-   Mobile: topo com fade bem discreto (a foto ainda tem presença forte),
-   base dissolve com força. Desktop: topo e esquerda também se dissolvem —
-   a foto "emerge" do fundo em vez de parecer um retângulo colado; a
-   direita não precisa de máscara porque sangra para fora da viewport. */
-.hero-photo-fg {
-  -webkit-mask-image: linear-gradient(to bottom, transparent 0%, black 13%, black 60%, transparent 97%);
-  mask-image: linear-gradient(to bottom, transparent 0%, black 13%, black 60%, transparent 97%);
-}
-@media (min-width: 768px) {
-  /* Fase 29: topo e esquerda alargados e com curva mais gradual (antes
-     16%/20%) — a foto "some" dentro do fundo em vez de mostrar um limite
-     reto. Base e direita continuam como estavam (já aprovadas). */
-  .hero-photo-fg {
-    -webkit-mask-image:
-      linear-gradient(to right, transparent 0%, rgba(0, 0, 0, 0.55) 18%, black 42%, black 100%),
-      linear-gradient(to bottom, transparent 0%, rgba(0, 0, 0, 0.55) 14%, black 34%, black 58%, transparent 97%);
-    -webkit-mask-composite: source-in;
-    mask-image:
-      linear-gradient(to right, transparent 0%, rgba(0, 0, 0, 0.55) 18%, black 42%, black 100%),
-      linear-gradient(to bottom, transparent 0%, rgba(0, 0, 0, 0.55) 14%, black 34%, black 58%, transparent 97%);
-    mask-composite: intersect;
-  }
-}
+/* Foto full bleed (Ajuste pós-Fase 49): preenche todo o hero, sem máscara
+   de dissolução nas bordas — a versão anterior (fade via mask-image nas
+   quatro bordas) fazia a foto parecer um quadro pequeno flutuando sobre o
+   fundo, com "moldura" visível. O hero é cenográfico, então cobre a área
+   inteira; o degradê em `PublicFeaturedHero` cuida só da legibilidade do
+   texto por cima. */
 
 .hero-image-zoom {
   animation: hero-image-zoom 7s ease-out both;
   transform-origin: center;
 }
+/* Conteúdo editorial entra um pouco depois da foto começar a cruzar
+   (150ms de delay) e com deslocamento bem discreto — nunca junto/igual
+   à troca da fotografia, nem exagerado. */
 .hero-text-reveal {
-  animation: hero-text-reveal 520ms ease-out both;
+  animation: hero-text-reveal 700ms cubic-bezier(0.4, 0, 0.2, 1) 150ms both;
+}
+
+/* Zona de texto do hero: largura/altura previsíveis independente do
+   tamanho da manchete — a altura do bloco não é mais o que empurra a
+   data para fora (ela sempre fica por último, na mesma faixa inferior
+   reservada por `padding-bottom`, com folga extra para a safe-area do
+   notch/home indicator no mobile). */
+.hero-copy {
+  padding-top: clamp(16px, 5vw, 40px);
+  padding-bottom: calc(20px + env(safe-area-inset-bottom, 0px));
+}
+@media (min-width: 640px) {
+  .hero-copy {
+    padding-top: clamp(20px, 4.5vw, 48px);
+    padding-bottom: calc(28px + env(safe-area-inset-bottom, 0px));
+  }
+}
+@media (min-width: 1280px) {
+  .hero-copy {
+    padding-top: clamp(28px, 4vw, 56px);
+    padding-bottom: calc(44px + env(safe-area-inset-bottom, 0px));
+  }
+}
+
+/* Título com faixas discretas por comprimento (em vez de um único
+   tamanho para qualquer manchete, ou line-clamp cortando o texto): uma
+   manchete longa usa uma fonte menor desde o início, o suficiente para
+   caber em menos linhas sem nunca truncar. */
+.hero-title {
+  line-height: 1.08;
+  max-width: 54rem;
+}
+.hero-title--short { font-size: clamp(28px, 7vw, 42px); }
+.hero-title--medium { font-size: clamp(25px, 6vw, 36px); }
+.hero-title--long { font-size: clamp(22px, 5vw, 30px); }
+@media (min-width: 640px) {
+  .hero-title--short { font-size: clamp(34px, 4.6vw, 60px); }
+  .hero-title--medium { font-size: clamp(31px, 3.8vw, 52px); }
+  .hero-title--long { font-size: clamp(27px, 3.1vw, 44px); }
+}
+
+.hero-subtitle {
+  line-height: 1.35;
+}
+
+.hero-meta {
+  min-height: 1.3em;
+}
+
+/* Movimento reduzido: crossfade continua funcional (só mais rápido),
+   Ken Burns desliga, texto não desloca — nunca remove a funcionalidade,
+   só a parte decorativa do movimento. */
+@media (prefers-reduced-motion: reduce) {
+  .hero-slide {
+    transition-duration: 300ms;
+  }
+  .hero-kenburns {
+    animation: none;
+  }
+  .hero-text-reveal {
+    animation-duration: 1ms;
+    animation-delay: 0ms;
+  }
 }
 .hero-hover-image {
   transition: transform 700ms ease, filter 500ms ease;
@@ -411,16 +494,20 @@ body {
   to { transform: translateX(130%); }
 }
 
+/* Alvo de toque maior que o ponto visível (padding + background-clip):
+   bom no mobile sem engordar o indicador visualmente. */
 .hero-dot {
   height: 6px;
   width: 6px;
+  padding: 9px;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.5);
+  background-color: rgba(255, 255, 255, 0.5);
+  background-clip: content-box;
   transition: all 220ms ease;
 }
 .hero-dot.is-active {
   width: 22px;
-  background: #fff;
+  background-color: #fff;
 }
 
 /* --- Header --- */
@@ -481,35 +568,45 @@ body {
   color: var(--brand-red);
 }
 
-.nav-link {
-  position: relative;
-  display: inline-flex;
-  align-items: center;
-  padding: 8px 2px;
-  font-size: 12px;
-  font-weight: 600;
-  letter-spacing: 0.03em;
-  color: var(--site-text);
-  white-space: nowrap;
-}
-.nav-link::after {
-  content: "";
-  position: absolute;
-  left: 2px;
-  right: 2px;
-  bottom: 3px;
-  height: 2px;
-  background: var(--brand-red);
-  transform: scaleX(0);
-  transform-origin: left;
-  transition: transform 220ms ease;
-}
-.nav-link:hover::after,
-.nav-link.is-active::after {
-  transform: scaleX(1);
-}
-.nav-link.is-active {
-  color: var(--brand-red);
+/* `@layer components` (em vez de regra solta): reordena esta classe para
+   ANTES da camada de utilitários no CSS compilado, para que classes de
+   visibilidade responsiva do Tailwind aplicadas no mesmo elemento
+   (`hidden`, `xl:inline-flex`, `2xl:inline-flex` — usadas no header de uma
+   linha só, Ajuste pós-Fase 49) consigam vencer o `display: inline-flex`
+   fixo daqui. Sem isso, por estarem depois de `@tailwind utilities` no
+   arquivo, a regra solta vencia sempre e nenhuma editoria ficava escondida
+   em nenhuma largura. */
+@layer components {
+  .nav-link {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    padding: 8px 2px;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.03em;
+    color: var(--site-text);
+    white-space: nowrap;
+  }
+  .nav-link::after {
+    content: "";
+    position: absolute;
+    left: 2px;
+    right: 2px;
+    bottom: 3px;
+    height: 2px;
+    background: var(--brand-red);
+    transform: scaleX(0);
+    transform-origin: left;
+    transition: transform 220ms ease;
+  }
+  .nav-link:hover::after,
+  .nav-link.is-active::after {
+    transform: scaleX(1);
+  }
+  .nav-link.is-active {
+    color: var(--brand-red);
+  }
 }
 
 .nav-pill {
@@ -718,11 +815,15 @@ body {
   aspect-ratio: 4 / 3;
   overflow: hidden;
   border-radius: 6px;
+  background: var(--site-bg);
 }
 .article-gallery-grid img {
   height: 100%;
   width: 100%;
-  object-fit: cover;
+  /* Nunca cortar foto editorial (Fase 49, item 4) — a caixa tem proporção
+     fixa (4/3) para o grid ficar regular, mas a foto sempre aparece
+     inteira, com a caixa preenchendo o espaço sobrando (letterbox). */
+  object-fit: contain;
   transition: transform 400ms ease;
 }
 .article-gallery-grid button:hover img {

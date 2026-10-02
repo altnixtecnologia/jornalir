@@ -66,6 +66,24 @@ export async function attachEditionPdf(
   if (error) throw new Error(error.message);
 }
 
+
+/**
+ * Associa um PDF externo (Google Drive) à edição. Novos PDFs do Jornal
+ * Online ficam fora do Supabase Storage; o banco guarda só a URL.
+ * pdf_storage_path é limpo para que a URL externa passe a ser a fonte.
+ */
+export async function attachEditionExternalPdf(
+  client: SupabaseClient,
+  editionId: string,
+  pdfUrl: string,
+): Promise<void> {
+  const { error } = await client
+    .from(TABLE)
+    .update({ pdf_url: pdfUrl, pdf_storage_path: null })
+    .eq("id", editionId);
+  if (error) throw new Error(error.message);
+}
+
 export function createNewspaperEditionRepositorySupabase(client: SupabaseClient): NewspaperEditionRepository {
   return {
     async list() {

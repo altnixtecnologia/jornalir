@@ -36,13 +36,13 @@ export const placementDescriptions: Record<EditorialPlacementType, string> = {
   mainCover: "Grande destaque da home. Até 8 matérias; a mais recente entra na posição 1.",
   highlightStrip: "Faixa horizontal logo abaixo da capa. Até 3 matérias.",
   latestNews: "Bloco interativo de últimas notícias. Até 7 matérias.",
-  localSpotlight: "Faixa \"Mais destaques\". Até 4 matérias — não substitui a localidade da matéria.",
+  localSpotlight: "Faixa \"Mais destaques\". Até 6 matérias — não substitui a localidade da matéria.",
 };
 
 export const notificationLabels: Record<NotificationMode, string> = {
-  none: "Sem notificação",
-  normal: "Notificação normal",
-  urgent: "Notificação urgente",
+  none: "Não enviar notificação",
+  normal: "Enviar notificação normal",
+  urgent: "Enviar notificação urgente",
 };
 
 export const importCandidateStatusLabels: Record<ImportCandidateStatus, string> = {
@@ -52,9 +52,11 @@ export const importCandidateStatusLabels: Record<ImportCandidateStatus, string> 
 };
 
 export const localityScopeLabels: Record<LocalityScope, string> = {
-  city: "Cidade",
-  region: "Região",
   general: "Geral",
+  country: "País",
+  state: "Estado",
+  region: "Região",
+  city: "Cidade",
 };
 
 export const articleOriginLabels: Record<ArticleOrigin, string> = {
@@ -113,10 +115,11 @@ export function photoCount(article: Article): number {
 }
 
 export function mediaSummary(article: Article): string {
-  if (article.media.length === 0) return "Sem imagem";
+  if (article.media.length === 0) return "Sem foto";
   const galleryCount = article.media.filter((item) => item.role === "gallery").length;
   if (galleryCount > 0) {
     return hasCoverImage(article) ? `Capa + galeria (${galleryCount})` : `Galeria (${galleryCount})`;
   }
-  return hasCoverImage(article) ? "Com capa" : `${article.media.length} imagem(ns)`;
+  if (hasCoverImage(article)) return "Capa";
+  return article.media.length === 1 ? "1 foto" : `${article.media.length} fotos`;
 }

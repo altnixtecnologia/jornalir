@@ -12,9 +12,9 @@ export type ArticleStatus =
 
 export type NotificationMode = "none" | "normal" | "urgent";
 
-export type LocalityScope = "city" | "region" | "general";
+export type LocalityScope = "city" | "region" | "state" | "country" | "general";
 
-/** Cidade/região/abrangência geral. Independente da editoria. */
+/** Cidade/região/estado/país/abrangência geral ("Abrangência" na UI, Fase 49). Independente da editoria. */
 export interface Locality {
   id: string;
   slug: string;
@@ -55,7 +55,7 @@ export const EDITORIAL_PLACEMENT_LIMITS: Record<Exclude<EditorialPlacementType, 
   mainCover: 8,
   highlightStrip: 3,
   latestNews: 7,
-  localSpotlight: 4,
+  localSpotlight: 6,
 };
 
 /**
@@ -67,19 +67,18 @@ export const EDITORIAL_PLACEMENT_LIMITS: Record<Exclude<EditorialPlacementType, 
 export interface EditorialPlacement {
   type: EditorialPlacementType;
   /**
-   * Só tem efeito quando `type === "mainCover"`: impede a rotação
-   * automática de expulsar a matéria quando novas entram na posição 1.
-   * As demais vagas da Capa principal continuam girando normalmente.
+   * Quando ativo, a matéria ocupa uma das vagas da posição editorial e não
+   * é expulsa pela rotação automática. Vale para qualquer destaque.
    */
   pinned?: boolean;
   /**
-   * Só tem efeito com `pinned=true`: ordem manual entre as fixadas (Fase
-   * 29 — "reorganizar manualmente quando fizer sentido"). As não fixadas
-   * continuam ordenadas automaticamente por `setAt` (recência) — não fazem
-   * sentido reordenar manualmente porque já giram sozinhas.
+   * Ordem manual apenas entre matérias fixadas da mesma posição. As demais
+   * continuam ordenadas automaticamente por `setAt` (recência).
    */
   pinnedRank?: number;
+  /** Campo legado; novos fluxos de fixação começam imediatamente. */
   startsAt?: string;
+  /** Quando definido com `pinned=true`, encerra a fixação nesse instante. */
   endsAt?: string;
   /**
    * Quando a posição foi definida/alterada pela última vez — base para a
@@ -299,6 +298,8 @@ export interface ImportCandidate {
   createdArticleId?: string;
   /** Preenchido quando este candidato foi descartado por ter sido mesclado em outro. */
   mergedIntoId?: string;
+  /** Preenchido quando este candidato nasceu como a segunda metade de um split — aponta pro candidato original. Linhagem apenas (PDF/lote/página -> original -> split), sem UX própria ainda. */
+  splitFromId?: string;
   /** Ausente para candidatos criados manualmente (fluxos futuros); presente para os extraídos de PDF. */
   extraction?: ImportCandidateExtraction;
   createdAt: string;

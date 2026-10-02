@@ -1,4 +1,5 @@
 export * from "./editorial";
+export * from "./clientes";
 
 export type Status = "ativo" | "inativo";
 

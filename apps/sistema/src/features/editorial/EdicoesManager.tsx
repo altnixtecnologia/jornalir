@@ -132,7 +132,7 @@ export function EdicoesManager({ editions }: EdicoesManagerProps): JSX.Element {
           onClick={() => fileInputRefs.current[edition.id]?.click()}
           disabled={pending || isUploading}
         >
-          {isUploading ? "Enviando…" : edition.pdfUrl ? "Trocar PDF" : "Enviar PDF"}
+          {isUploading ? "Enviando…" : edition.pdfUrl ? "Trocar PDF" : "Enviar ao Jornal Online"}
         </button>
         <input
           ref={(element) => {
@@ -209,7 +209,9 @@ export function EdicoesManager({ editions }: EdicoesManagerProps): JSX.Element {
               />
             </label>
           </div>
-          <p className="helper-text">O PDF é enviado depois de criar a edição, na própria listagem.</p>
+          <p className="helper-text">
+            Depois de criar a edição, envie o PDF uma única vez. Ele vai para o acervo do Jornal Online no Google Drive, não para o Supabase Storage.
+          </p>
           <div className="form-actions">
             <button type="button" className="form-action-primary" onClick={handleCreate} disabled={pending}>
               Salvar edição

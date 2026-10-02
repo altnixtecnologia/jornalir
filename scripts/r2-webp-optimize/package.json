@@ -1,0 +1,15 @@
+{
+  "name": "r2-webp-optimize",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Otimização WebP do acervo já migrado pro R2 (jornalir-media), bloco por bloco de anos. convert.mjs só grava (novo objeto WebP no R2, depois cutover em media_assets, depois exclusão dos originais já substituídos) quando chamado com --commit; sem essa flag roda em modo dry-run. Nunca escreve/apaga no Supabase — os originais de lá continuam intocados como backup.",
+  "scripts": {
+    "convert": "node convert.mjs"
+  },
+  "dependencies": {
+    "@aws-sdk/client-s3": "^3.600.0",
+    "@supabase/supabase-js": "^2.45.0",
+    "sharp": "^0.35.5"
+  }
+}

@@ -6,15 +6,20 @@ import {
   getArticleService,
   getEditorialSectionService,
   getLocalityService,
-  getMediaAssetService,
   getNewspaperEditionService,
 } from "../../../../../composition/editorial";
 import { createSupabaseServerClient } from "../../../../../lib/supabase/server";
+import {
+  getMediaAssetsByIdsSupabase,
+  listRecentMediaAssetsSupabase,
+} from "../../../../../providers/supabase/mediaAssetRepository.supabase";
 
 export default async function MateriaEditPage({
   params,
+  searchParams,
 }: {
   params: { id: string };
+  searchParams?: { aba?: string };
 }): Promise<JSX.Element> {
   const supabase = createSupabaseServerClient();
   const article = await getArticleService(supabase).getById(params.id).catch((error: unknown) => {
@@ -23,12 +28,24 @@ export default async function MateriaEditPage({
   });
   if (!article) notFound();
 
-  const [sections, localities, mediaAssets, editions] = await Promise.all([
+  const linkedMediaIds = article.media.map((item) => item.mediaAssetId);
+  const [sections, localities, recentMedia, linkedMedia, editions] = await Promise.all([
     getEditorialSectionService(supabase).list(),
     getLocalityService(supabase).list(),
-    getMediaAssetService(supabase).list(),
+    listRecentMediaAssetsSupabase(supabase, 60),
+    getMediaAssetsByIdsSupabase(supabase, linkedMediaIds),
     getNewspaperEditionService(supabase).list(),
   ]);
+
+  // Sempre mantém disponíveis as mídias já vinculadas à matéria, mesmo que
+  // sejam antigas e estejam fora das 60 mais recentes da biblioteca.
+  const mediaById = new Map([...linkedMedia, ...recentMedia].map((asset) => [asset.id, asset]));
+  const mediaAssets = [...mediaById.values()];
+
+  const initialTab =
+    searchParams?.aba === "imagens" || searchParams?.aba === "publicacao"
+      ? searchParams.aba
+      : "conteudo";
 
   return (
     <>
@@ -44,6 +61,7 @@ export default async function MateriaEditPage({
         localities={localities}
         mediaAssets={mediaAssets}
         editions={editions}
+        initialTab={initialTab}
       />
     </>
   );

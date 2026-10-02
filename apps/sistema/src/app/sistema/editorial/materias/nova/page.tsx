@@ -3,16 +3,16 @@ import { ArticleForm } from "../../../../../features/editorial/ArticleForm";
 import {
   getEditorialSectionService,
   getLocalityService,
-  getMediaAssetService,
 } from "../../../../../composition/editorial";
 import { createSupabaseServerClient } from "../../../../../lib/supabase/server";
+import { listRecentMediaAssetsSupabase } from "../../../../../providers/supabase/mediaAssetRepository.supabase";
 
 export default async function NovaMateriaPage(): Promise<JSX.Element> {
   const supabase = createSupabaseServerClient();
   const [sections, localities, mediaAssets] = await Promise.all([
     getEditorialSectionService(supabase).list(),
     getLocalityService(supabase).list(),
-    getMediaAssetService(supabase).list(),
+    listRecentMediaAssetsSupabase(supabase, 60),
   ]);
 
   return (
