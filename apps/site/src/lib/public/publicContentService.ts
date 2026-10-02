@@ -259,14 +259,21 @@ export async function getPublicArticleBySlug(slug: string): Promise<PublicArticl
   if (!data) return null;
   const row = data as ArticleRow;
 
+  // Mídia é suplementar ao texto da matéria — uma falha aqui (timeout,
+  // instabilidade pontual etc.) não pode derrubar a página inteira quando
+  // o título/corpo já foi carregado com sucesso acima. Degrada para "sem
+  // mídia" e loga, em vez de propagar (diferente do erro acima, que é a
+  // consulta principal e deve sempre propagar de verdade).
   const { data: mediaData, error: mediaError } = await client
     .from("public_article_media")
     .select("article_id, media_id, role, sort_order, url, alt_text, caption, credit")
     .eq("article_id", row.id)
     .order("role", { ascending: false })
     .order("sort_order", { ascending: true });
-  if (mediaError) throw new Error(mediaError.message);
-  const media = ((mediaData ?? []) as MediaRow[]).map(mediaRowToDomain);
+  if (mediaError) {
+    console.error(`[publicContentService] Falha ao buscar mídia do artigo ${row.id} (slug=${slug}): ${mediaError.message}`);
+  }
+  const media = mediaError ? [] : ((mediaData ?? []) as MediaRow[]).map(mediaRowToDomain);
 
   const sectionById = new Map(sections.map((s) => [s.id, s]));
   const localityById = new Map(localities.map((l) => [l.id, l]));
@@ -349,7 +356,16 @@ function shuffle<T>(list: T[]): T[] {
  * algoritmo complexo. Nunca a matéria atual, nunca repetida.
  */
 export async function getReadAlso(current: PublicArticle, count = 4): Promise<PublicArticle[]> {
-  const pool = (await listPublicArticles({ limit: 60 })).filter((article) => article.id !== current.id);
+  // Consulta secundária e não-essencial: a matéria principal já carregou
+  // com sucesso antes disso ser chamado. Uma falha aqui (timeout etc.)
+  // nunca pode derrubar a página — só significa "sem 'Leia também'".
+  let pool: PublicArticle[];
+  try {
+    pool = (await listPublicArticles({ limit: 60 })).filter((article) => article.id !== current.id);
+  } catch (error) {
+    console.error(`[publicContentService] Falha ao buscar "Leia também" para o artigo ${current.id}: ${(error as Error).message}`);
+    return [];
+  }
   const sameSection = shuffle(pool.filter((article) => article.sectionId === current.sectionId));
   const other = shuffle(pool.filter((article) => article.sectionId !== current.sectionId));
 
