@@ -298,6 +298,8 @@ export interface ImportCandidate {
   createdArticleId?: string;
   /** Preenchido quando este candidato foi descartado por ter sido mesclado em outro. */
   mergedIntoId?: string;
+  /** Preenchido quando este candidato nasceu como a segunda metade de um split — aponta pro candidato original. Linhagem apenas (PDF/lote/página -> original -> split), sem UX própria ainda. */
+  splitFromId?: string;
   /** Ausente para candidatos criados manualmente (fluxos futuros); presente para os extraídos de PDF. */
   extraction?: ImportCandidateExtraction;
   createdAt: string;

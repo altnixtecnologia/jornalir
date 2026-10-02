@@ -1,11 +1,18 @@
--- Fase PDF 1 — segurança/confiabilidade do importador de PDF. Corrige três
+-- Fase PDF 1 — segurança/confiabilidade do importador de PDF. Corrige
 -- problemas encontrados em auditoria: (1) conversão candidato->matéria não
 -- era atômica (dois writes HTTP separados: criar `articles`, depois marcar
 -- `pdf_import_candidates.status='converted'` — falha entre os dois deixava
 -- uma matéria órfã e o candidato ainda `pending`, permitindo reconversão e
 -- duplicação); (2) split/merge tinham o mesmo problema (writes sequenciais
--- sem transação); (3) reenvio do mesmo PDF não era detectado. Não altera o
--- algoritmo de extração/split/merge em si (packages/pdf-extraction e
+-- sem transação); (3) reenvio do mesmo PDF não era detectado; (4) revisão
+-- posterior: criação de lote+candidatos também não era atômica (podia
+-- sobrar um batch vazio com file_hash gravado se o insert dos candidatos
+-- falhasse, fazendo a detecção de reenvio mentir "já processado" com 0
+-- candidatos reais); (5) merge só validava mesma edição, não mesmo lote —
+-- insuficiente depois que reprocessar um PDF passou a gerar lotes
+-- diferentes pra mesma edição; (6) split não deixava rastro de qual
+-- candidato deu origem à segunda metade. Não altera o algoritmo de
+-- extração/split/merge em si (packages/pdf-extraction e
 -- `splitBodyInHalf`/combinação de merge continuam como estão) — só torna a
 -- GRAVAÇÃO de cada operação atômica, mesmo padrão já usado em
 -- `legacy_import_article` (20261003100000_legacy_import_atomic_rpc.sql).
@@ -22,6 +29,21 @@ create index pdf_import_batches_edition_hash_idx
 
 comment on column public.pdf_import_batches.file_hash is
   'SHA-256 (hex) do arquivo PDF enviado. Usado só para avisar reenvio do mesmo arquivo pra mesma edição — nunca impede reprocessamento explícito.';
+
+-- 1b) Linhagem do split: a segunda metade criada por split_import_candidate
+-- precisa apontar explicitamente pro candidato que lhe deu origem — nunca
+-- finge ser uma extração real da mesma página (por isso não herda
+-- source_blocks/extraction_method do original, só os campos de contexto:
+-- batch_id/newspaper_edition_id/page_number). PDF/lote/página -> candidato
+-- original -> candidato do split fica rastreável via esta coluna.
+alter table public.pdf_import_candidates add column split_from_id uuid references public.pdf_import_candidates (id);
+
+create index pdf_import_candidates_split_from_id_idx
+  on public.pdf_import_candidates (split_from_id)
+  where split_from_id is not null;
+
+comment on column public.pdf_import_candidates.split_from_id is
+  'Candidato original que deu origem a este via split_import_candidate — nulo pra qualquer candidato que não nasceu de um split (extração direta do PDF ou lado "primeira metade" de um split, que mantém o próprio id).';
 
 -- 2) Slug determinístico sem depender da extensão unaccent (não instalada
 -- neste projeto — mesmo motivo documentado em articleRepository.supabase.ts
@@ -203,16 +225,20 @@ begin
   set suggested_body = p_first_body
   where id = p_id;
 
+  -- Só os campos de CONTEXTO (lote/edição/página/editoria sugerida) são
+  -- herdados — nunca source_blocks/extraction_method/etc, porque a segunda
+  -- metade não é uma extração real daquela posição no PDF, é um corte
+  -- manual do texto. split_from_id é quem preserva a linhagem de verdade.
   insert into public.pdf_import_candidates (
     batch_id, newspaper_edition_id, page_number,
     suggested_title, suggested_subtitle, suggested_body,
     suggested_section_id, suggested_locality_id, suggested_media_ids,
-    status
+    status, split_from_id
   ) values (
     v_original.batch_id, v_original.newspaper_edition_id, v_original.page_number,
     p_second_title, null, p_second_body,
     v_original.suggested_section_id, v_original.suggested_locality_id, '{}',
-    'pending'
+    'pending', p_id
   )
   returning id into v_second_id;
 
@@ -228,8 +254,9 @@ grant execute on function public.split_import_candidate(uuid, text, text, text) 
 
 -- 5) Merge atômico — algoritmo de combinação (concatenar corpo, unir mídia)
 -- continua em TypeScript (ImportCandidateService.merge); esta RPC só
--- garante que a validação (status pendente, mesma edição) e todas as
--- escritas (marcar secundários + atualizar principal) aconteçam juntas.
+-- garante que a validação (status pendente, mesma edição, MESMO LOTE) e
+-- todas as escritas (marcar secundários + atualizar principal) aconteçam
+-- juntas.
 create or replace function public.merge_import_candidates(
   p_primary_id uuid,
   p_secondary_ids uuid[],
@@ -282,6 +309,13 @@ begin
     if v_secondary.newspaper_edition_id <> v_primary.newspaper_edition_id then
       raise exception 'Candidato secundário % pertence a outra edição — mesclagem bloqueada', v_secondary_id;
     end if;
+    -- Reprocessar o mesmo PDF gera um lote novo pra mesma edição (mesmo
+    -- newspaper_edition_id) — sem esta checagem, dois candidatos de lotes
+    -- diferentes (ex.: lote A e lote B, ambos da edição 771) passariam na
+    -- validação de edição mas nunca deveriam ser mesclados entre si.
+    if v_secondary.batch_id <> v_primary.batch_id then
+      raise exception 'Candidato secundário % pertence a outro lote de importação — mesclagem só é permitida dentro do mesmo lote', v_secondary_id;
+    end if;
 
     update public.pdf_import_candidates
     set status = 'discarded', merged_into_id = p_primary_id
@@ -297,7 +331,100 @@ end;
 $$;
 
 comment on function public.merge_import_candidates(uuid, uuid[], text, uuid[]) is
-  'Valida (status pendente, mesma edição) e grava principal+secundários na mesma transação — qualquer falha desfaz tudo, nunca deixa secundário descartado sem o principal atualizado.';
+  'Valida (status pendente, mesma edição, MESMO LOTE — reprocessar o mesmo PDF gera lotes diferentes pra mesma edição, então mesma edição sozinha não basta) e grava principal+secundários na mesma transação — qualquer falha desfaz tudo, nunca deixa secundário descartado sem o principal atualizado.';
 
 revoke all on function public.merge_import_candidates(uuid, uuid[], text, uuid[]) from public;
 grant execute on function public.merge_import_candidates(uuid, uuid[], text, uuid[]) to authenticated, service_role;
+
+-- 6) Criação atômica de lote + candidatos. Antes, createMany() fazia dois
+-- INSERTs separados (batches, depois candidates) — se o segundo falhasse,
+-- sobrava um batch vazio COM file_hash gravado, e findBatchByHash() na
+-- próxima tentativa encontrava esse batch fantasma e dizia "PDF já
+-- processado" mesmo com 0 candidatos. Uma única instrução INSERT ... SELECT
+-- insere TODOS os candidatos de uma vez — no Postgres, um INSERT multi-linha
+-- é atômico por natureza (ou todas as linhas entram, ou nenhuma), então
+-- qualquer candidato malformado (ex.: uuid inválido em suggested_section_id)
+-- derruba a função inteira ANTES do commit, levando o INSERT do batch junto
+-- (mesma transação implícita da chamada RPC).
+create or replace function public.create_pdf_import_batch(
+  p_newspaper_edition_id uuid,
+  p_source_file_name text,
+  p_file_hash text,
+  p_page_count integer,
+  p_pages_without_text integer[],
+  p_warnings jsonb,
+  p_candidates jsonb
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_batch_id uuid;
+  v_rows jsonb;
+begin
+  if auth.role() = 'authenticated' and not public.is_active_staff() then
+    raise exception 'create_pdf_import_batch: apenas staff ativo pode criar lotes de importação';
+  end if;
+
+  insert into public.pdf_import_batches (
+    newspaper_edition_id, source_file_name, file_hash, page_count, pages_without_text, warnings
+  ) values (
+    p_newspaper_edition_id,
+    p_source_file_name,
+    p_file_hash,
+    p_page_count,
+    coalesce(p_pages_without_text, '{}'::integer[]),
+    coalesce(p_warnings, '[]'::jsonb)
+  )
+  returning id into v_batch_id;
+
+  if p_candidates is not null and jsonb_array_length(p_candidates) > 0 then
+    with inserted as (
+      insert into public.pdf_import_candidates (
+        batch_id, newspaper_edition_id, page_number,
+        suggested_title, suggested_subtitle, suggested_body,
+        suggested_section_id, suggested_locality_id, suggested_media_ids,
+        extraction_method, extraction_warnings, low_confidence_title,
+        possible_continuation, possible_advertisement, page_coverage,
+        source_blocks, page_width, page_height, status
+      )
+      select
+        v_batch_id,
+        coalesce(nullif(c->>'newspaper_edition_id', '')::uuid, p_newspaper_edition_id),
+        nullif(c->>'page_number', '')::integer,
+        c->>'suggested_title',
+        c->>'suggested_subtitle',
+        c->>'suggested_body',
+        nullif(c->>'suggested_section_id', '')::uuid,
+        nullif(c->>'suggested_locality_id', '')::uuid,
+        coalesce(
+          (select array_agg(elem)::uuid[] from jsonb_array_elements_text(coalesce(c->'suggested_media_ids', '[]'::jsonb)) elem),
+          '{}'::uuid[]
+        ),
+        nullif(c->>'extraction_method', ''),
+        coalesce(c->'extraction_warnings', '[]'::jsonb),
+        coalesce((c->>'low_confidence_title')::boolean, false),
+        coalesce((c->>'possible_continuation')::boolean, false),
+        coalesce((c->>'possible_advertisement')::boolean, false),
+        c->'page_coverage',
+        coalesce(c->'source_blocks', '[]'::jsonb),
+        nullif(c->>'page_width', '')::numeric,
+        nullif(c->>'page_height', '')::numeric,
+        coalesce(nullif(c->>'status', ''), 'pending')
+      from jsonb_array_elements(p_candidates) as c
+      returning *
+    )
+    select jsonb_agg(to_jsonb(inserted) order by inserted.created_at) into v_rows from inserted;
+  end if;
+
+  return coalesce(v_rows, '[]'::jsonb);
+end;
+$$;
+
+comment on function public.create_pdf_import_batch(uuid, text, text, integer, integer[], jsonb, jsonb) is
+  'Cria pdf_import_batches + todos os pdf_import_candidates do lote na mesma transação. Um INSERT multi-linha só pra candidatos é atômico por natureza — qualquer candidato malformado derruba a função inteira ANTES do commit, levando o batch (e o file_hash) junto. Nunca sobra lote vazio por falha parcial. Retorna os candidatos criados (mesmo formato de linha de pdf_import_candidates, como jsonb).';
+
+revoke all on function public.create_pdf_import_batch(uuid, text, text, integer, integer[], jsonb, jsonb) from public;
+grant execute on function public.create_pdf_import_batch(uuid, text, text, integer, integer[], jsonb, jsonb) to authenticated, service_role;

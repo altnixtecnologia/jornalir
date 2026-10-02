@@ -24,7 +24,7 @@ const CANDIDATES_TABLE = "pdf_import_candidates";
 const BATCHES_TABLE = "pdf_import_batches";
 
 const CANDIDATE_COLUMNS =
-  "id, newspaper_edition_id, page_number, suggested_title, suggested_subtitle, suggested_body, suggested_section_id, suggested_locality_id, suggested_media_ids, extraction_method, extraction_warnings, low_confidence_title, possible_continuation, possible_advertisement, page_coverage, source_blocks, page_width, page_height, status, created_article_id, merged_into_id, created_at";
+  "id, newspaper_edition_id, page_number, suggested_title, suggested_subtitle, suggested_body, suggested_section_id, suggested_locality_id, suggested_media_ids, extraction_method, extraction_warnings, low_confidence_title, possible_continuation, possible_advertisement, page_coverage, source_blocks, page_width, page_height, status, created_article_id, merged_into_id, split_from_id, created_at";
 
 interface CandidateRow {
   id: string;
@@ -48,6 +48,7 @@ interface CandidateRow {
   status: ImportCandidateStatus;
   created_article_id: string | null;
   merged_into_id: string | null;
+  split_from_id: string | null;
   created_at: string;
 }
 
@@ -87,6 +88,7 @@ function toDomain(row: CandidateRow): ImportCandidate {
     status: row.status,
     createdArticleId: row.created_article_id ?? undefined,
     mergedIntoId: row.merged_into_id ?? undefined,
+    splitFromId: row.split_from_id ?? undefined,
     extraction: extractionToDomain(row),
     createdAt: row.created_at,
   };
@@ -152,32 +154,27 @@ export function createImportCandidateRepositorySupabase(client: SupabaseClient):
       return toDomain(data as CandidateRow);
     },
 
+    // Chama a RPC create_pdf_import_batch (ver migration
+    // 20261012100000_pdf_import_atomicity_and_safety.sql) — cria o batch
+    // (com file_hash/metadados) e TODOS os candidatos na mesma transação.
+    // Antes, eram dois INSERTs HTTP separados: se o dos candidatos
+    // falhasse, sobrava um batch vazio com file_hash gravado, e
+    // findBatchByHash() na próxima tentativa achava esse batch fantasma e
+    // dizia "PDF já processado" com 0 candidatos reais. Agora, qualquer
+    // falha desfaz os dois (o INSERT multi-linha de candidatos dentro da
+    // RPC é atômico por natureza: ou todas as linhas entram, ou nenhuma).
     async createMany(records: NewImportCandidateRecord[], batchMeta?: ImportBatchMetadata) {
       if (records.length === 0) return [];
 
-      // Um lote = uma extração. `batchMeta` (nome do arquivo, hash,
-      // contagem de páginas/avisos) é opcional — quando informado (fluxo
-      // real de upload de PDF), grava os metadados reais do lote; quando
-      // ausente (ex.: candidato avulso criado por outro caminho), grava um
-      // lote mínimo como antes.
-      const { data: batch, error: batchError } = await client
-        .from(BATCHES_TABLE)
-        .insert({
-          newspaper_edition_id: records[0].editionId,
-          source_file_name: batchMeta?.fileName ?? null,
-          file_hash: batchMeta?.fileHash ?? null,
-          page_count: batchMeta?.pageCount ?? null,
-          pages_without_text: batchMeta?.pagesWithoutText ?? [],
-          warnings: batchMeta?.warnings ?? [],
-        })
-        .select("id")
-        .single();
-      if (batchError) throw new Error(batchError.message);
-
-      const { data, error } = await client
-        .from(CANDIDATES_TABLE)
-        .insert(records.map((record) => ({ ...recordToRow(record), batch_id: batch.id })))
-        .select(CANDIDATE_COLUMNS);
+      const { data, error } = await client.rpc("create_pdf_import_batch", {
+        p_newspaper_edition_id: records[0].editionId,
+        p_source_file_name: batchMeta?.fileName ?? null,
+        p_file_hash: batchMeta?.fileHash ?? null,
+        p_page_count: batchMeta?.pageCount ?? null,
+        p_pages_without_text: batchMeta?.pagesWithoutText ?? [],
+        p_warnings: batchMeta?.warnings ?? [],
+        p_candidates: records.map(recordToRow),
+      });
       if (error) throw new Error(error.message);
       return ((data ?? []) as CandidateRow[]).map(toDomain);
     },
