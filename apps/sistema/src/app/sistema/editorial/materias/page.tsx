@@ -58,6 +58,13 @@ function asDateOnly(value: string): string {
   return /^\d{4}-\d{2}-\d{2}$/.test(value) ? value : "";
 }
 
+// Explícito (searchParams já tornaria dinâmico por padrão) para deixar
+// claro que esta listagem nunca pode ser servida do Full Route Cache —
+// qualquer mutação em uma matéria (destaque, status, fixação etc.) deve
+// refletir aqui na primeira renderização seguinte, sem depender de cache.
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 export default async function MateriasPage({
   searchParams,
 }: {

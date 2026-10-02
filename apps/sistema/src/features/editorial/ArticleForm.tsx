@@ -223,7 +223,15 @@ export function ArticleForm({
 
   function handleBack(): void {
     if (isDirty && !window.confirm(UNSAVED_CHANGES_MESSAGE)) return;
+    // A listagem pode ter sido visitada (e cacheada pelo Router Cache do
+    // App Router) antes de uma ação de servidor mudar destaque/status/etc.
+    // nesta matéria. `revalidatePath` nas actions já marca a listagem como
+    // stale no servidor, mas o `router.refresh()` é o que garante que ESTA
+    // navegação de volta de fato descarte qualquer árvore RSC já em cache
+    // no cliente, em vez de reaproveitar o snapshot visitado antes da
+    // edição — mesmo padrão já usado no login (app/login/page.tsx).
     router.push(LIST_HREF);
+    router.refresh();
   }
 
   function handleAction(intent: ArticleFormIntent, returnTab?: ArticleEditorTab): void {
