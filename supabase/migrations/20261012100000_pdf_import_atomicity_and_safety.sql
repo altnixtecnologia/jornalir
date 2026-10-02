@@ -390,9 +390,16 @@ begin
         possible_continuation, possible_advertisement, page_coverage,
         source_blocks, page_width, page_height, status
       )
+      -- newspaper_edition_id e status NUNCA vêm do jsonb do cliente — esta
+      -- função é security definer, então um payload malicioso/malformado
+      -- não pode colocar um candidato em outra edição nem nascer com um
+      -- status diferente de 'pending' (ex.: 'converted' direto, pulando
+      -- toda a barreira de revisão). Os dois são sempre os literais
+      -- correspondentes ao parâmetro/estado inicial — qualquer valor em
+      -- c->>'newspaper_edition_id' ou c->>'status' é ignorado.
       select
         v_batch_id,
-        coalesce(nullif(c->>'newspaper_edition_id', '')::uuid, p_newspaper_edition_id),
+        p_newspaper_edition_id,
         nullif(c->>'page_number', '')::integer,
         c->>'suggested_title',
         c->>'suggested_subtitle',
@@ -412,7 +419,7 @@ begin
         coalesce(c->'source_blocks', '[]'::jsonb),
         nullif(c->>'page_width', '')::numeric,
         nullif(c->>'page_height', '')::numeric,
-        coalesce(nullif(c->>'status', ''), 'pending')
+        'pending'
       from jsonb_array_elements(p_candidates) as c
       returning *
     )
@@ -424,7 +431,7 @@ end;
 $$;
 
 comment on function public.create_pdf_import_batch(uuid, text, text, integer, integer[], jsonb, jsonb) is
-  'Cria pdf_import_batches + todos os pdf_import_candidates do lote na mesma transação. Um INSERT multi-linha só pra candidatos é atômico por natureza — qualquer candidato malformado derruba a função inteira ANTES do commit, levando o batch (e o file_hash) junto. Nunca sobra lote vazio por falha parcial. Retorna os candidatos criados (mesmo formato de linha de pdf_import_candidates, como jsonb).';
+  'Cria pdf_import_batches + todos os pdf_import_candidates do lote na mesma transação. Um INSERT multi-linha só pra candidatos é atômico por natureza — qualquer candidato malformado derruba a função inteira ANTES do commit, levando o batch (e o file_hash) junto. Nunca sobra lote vazio por falha parcial. newspaper_edition_id e status de cada candidato são SEMPRE os literais p_newspaper_edition_id/''pending'', nunca o que vier em p_candidates (security definer — payload do cliente nunca decide edição nem pula a barreira de revisão). Retorna os candidatos criados (mesmo formato de linha de pdf_import_candidates, como jsonb).';
 
 revoke all on function public.create_pdf_import_batch(uuid, text, text, integer, integer[], jsonb, jsonb) from public;
 grant execute on function public.create_pdf_import_batch(uuid, text, text, integer, integer[], jsonb, jsonb) to authenticated, service_role;
