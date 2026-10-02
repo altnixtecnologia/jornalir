@@ -17,7 +17,7 @@ export function PublicLocalSpotlight({ items }: { items: PublicArticle[] }): JSX
         <div className="section-head" style={{ borderBottomColor: "rgba(255,255,255,0.25)" }}>
           <h2 style={{ color: "#fff" }}>Mais destaques</h2>
         </div>
-        <div className="grid grid-cols-1 gap-x-8 gap-y-6 sm:grid-cols-2">
+        <div className="grid grid-cols-1 gap-x-8 gap-y-6 sm:grid-cols-2 lg:grid-cols-3">
           {items.map((item) => (
             <Link key={item.id} href={`/noticias/${item.slug}`} className="group flex items-start justify-between gap-4 border-b border-white/15 py-4">
               <div className="min-w-0">

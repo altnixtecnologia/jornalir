@@ -55,7 +55,7 @@ export const EDITORIAL_PLACEMENT_LIMITS: Record<Exclude<EditorialPlacementType, 
   mainCover: 8,
   highlightStrip: 3,
   latestNews: 7,
-  localSpotlight: 4,
+  localSpotlight: 6,
 };
 
 /**

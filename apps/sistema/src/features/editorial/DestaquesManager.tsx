@@ -2,7 +2,7 @@
 
 import { useMemo, useState, useTransition } from "react";
 import Link from "next/link";
-import type { Article, EditorialPlacementType, EditorialSection, Locality, MediaAsset } from "@ir/types";
+import { EDITORIAL_PLACEMENT_LIMITS, type Article, type EditorialPlacementType, type EditorialSection, type Locality, type MediaAsset } from "@ir/types";
 import {
   removeFromPlacementAction,
   reorderPinnedPlacementAction,
@@ -18,13 +18,6 @@ interface DestaquesManagerProps {
   localities: Locality[];
   mediaAssets: MediaAsset[];
 }
-
-const PLACEMENT_LIMITS: Record<PlacementKey, number> = {
-  mainCover: 8,
-  highlightStrip: 3,
-  latestNews: 7,
-  localSpotlight: 4,
-};
 
 const BLOCK_ORDER: PlacementKey[] = ["mainCover", "highlightStrip", "latestNews", "localSpotlight"];
 
@@ -91,7 +84,8 @@ export function DestaquesManager({ placements, sections, localities, mediaAssets
       <div className="destaques-grid">
         {BLOCK_ORDER.map((type) => {
           const articles = placements[type];
-          const limit = PLACEMENT_LIMITS[type];
+          const limit = EDITORIAL_PLACEMENT_LIMITS[type];
+          const isSpotlight = type === "localSpotlight";
           const nowIso = new Date().toISOString();
           const isPinnedActive = (article: Article): boolean =>
             Boolean(article.placement.pinned) &&
@@ -110,7 +104,7 @@ export function DestaquesManager({ placements, sections, localities, mediaAssets
               {articles.length === 0 ? (
                 <p className="helper-text">Nenhuma matéria nesta posição agora.</p>
               ) : (
-                <ul className="destaques-list">
+                <ul className={`destaques-list${isSpotlight ? " destaques-list--grid" : ""}`}>
                   {articles.map((article) => {
                     const section = sectionById.get(article.sectionId);
                     const locality = localityById.get(article.localityId);

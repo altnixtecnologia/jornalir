@@ -2602,11 +2602,14 @@ button.header-action {
   }
 }
 
-/* Gestão central de destaques (Fase 29) — visão rápida e leve de propósito, nunca um painel visual pesado. */
+/* Gestão central de destaques (Fase 29) — visão rápida e leve de propósito, nunca um painel visual pesado.
+   Cada grupo editorial (capa principal, faixa de destaques, últimas
+   notícias, mais destaques) ocupa sua própria linha — nunca lado a lado —
+   para aproveitar a largura cheia da página (Fase de revisão dos destaques). */
 .destaques-grid {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 20px;
+  grid-template-columns: 1fr;
+  gap: 28px;
 }
 .destaques-block {
   margin: 0;
@@ -2682,8 +2685,33 @@ button.header-action {
   cursor: grabbing;
 }
 
+/* "Mais destaques" (localSpotlight, 6 vagas): grid 3×2 no desktop em vez
+   da lista vertical usada pelos demais grupos — os outros grupos não são
+   obrigados a adotar esse mesmo grid. */
+.destaques-list--grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 14px;
+}
+.destaques-list--grid .destaques-item {
+  flex-direction: column;
+  align-items: stretch;
+}
+.destaques-list--grid .destaques-item-thumb {
+  width: 100%;
+  height: 140px;
+}
+.destaques-list--grid .destaques-item-actions {
+  justify-content: flex-start;
+}
+
 @media (max-width: 1100px) {
-  .destaques-grid {
+  .destaques-list--grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+@media (max-width: 640px) {
+  .destaques-list--grid {
     grid-template-columns: 1fr;
   }
 }

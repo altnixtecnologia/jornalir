@@ -357,15 +357,26 @@ body {
   width: 100%;
 }
 
+/* Crossfade entre slides: a troca "seca" reportada não era falta de fade
+   (já existia), mas o Ken Burns sendo ligado/desligado por classe a cada
+   troca — removida a animação, o navegador faz o elemento "saltar" de volta
+   para scale(1) no mesmo instante em que o fade começa. Ken Burns agora
+   roda sempre, em todo slide (ativo ou não) — nunca reinicia, então o
+   crossfade cruza duas fotos em fases de zoom contínuas, sem salto. */
+.hero-slide {
+  transition: opacity 1500ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
 /* Zoom contínuo (Ken Burns), alternando ida e volta — mais vida na foto
-   sem ser um efeito que "salta aos olhos". */
+   sem ser um efeito que "salta aos olhos". Amplitude reduzida (era
+   1.05→1.18) para não brigar visualmente com o crossfade mais longo. */
 .hero-kenburns {
-  animation: hero-kenburns 13s ease-in-out infinite alternate;
+  animation: hero-kenburns 18s ease-in-out infinite alternate;
   transform-origin: 55% 45%;
 }
 @keyframes hero-kenburns {
-  from { transform: scale(1.05); }
-  to { transform: scale(1.18); }
+  from { transform: scale(1.03); }
+  to { transform: scale(1.11); }
 }
 
 /* Foto full bleed (Ajuste pós-Fase 49): preenche todo o hero, sem máscara
@@ -379,8 +390,74 @@ body {
   animation: hero-image-zoom 7s ease-out both;
   transform-origin: center;
 }
+/* Conteúdo editorial entra um pouco depois da foto começar a cruzar
+   (150ms de delay) e com deslocamento bem discreto — nunca junto/igual
+   à troca da fotografia, nem exagerado. */
 .hero-text-reveal {
-  animation: hero-text-reveal 520ms ease-out both;
+  animation: hero-text-reveal 700ms cubic-bezier(0.4, 0, 0.2, 1) 150ms both;
+}
+
+/* Zona de texto do hero: largura/altura previsíveis independente do
+   tamanho da manchete — a altura do bloco não é mais o que empurra a
+   data para fora (ela sempre fica por último, na mesma faixa inferior
+   reservada por `padding-bottom`, com folga extra para a safe-area do
+   notch/home indicator no mobile). */
+.hero-copy {
+  padding-top: clamp(16px, 5vw, 40px);
+  padding-bottom: calc(20px + env(safe-area-inset-bottom, 0px));
+}
+@media (min-width: 640px) {
+  .hero-copy {
+    padding-top: clamp(20px, 4.5vw, 48px);
+    padding-bottom: calc(28px + env(safe-area-inset-bottom, 0px));
+  }
+}
+@media (min-width: 1280px) {
+  .hero-copy {
+    padding-top: clamp(28px, 4vw, 56px);
+    padding-bottom: calc(44px + env(safe-area-inset-bottom, 0px));
+  }
+}
+
+/* Título com faixas discretas por comprimento (em vez de um único
+   tamanho para qualquer manchete, ou line-clamp cortando o texto): uma
+   manchete longa usa uma fonte menor desde o início, o suficiente para
+   caber em menos linhas sem nunca truncar. */
+.hero-title {
+  line-height: 1.08;
+  max-width: 54rem;
+}
+.hero-title--short { font-size: clamp(28px, 7vw, 42px); }
+.hero-title--medium { font-size: clamp(25px, 6vw, 36px); }
+.hero-title--long { font-size: clamp(22px, 5vw, 30px); }
+@media (min-width: 640px) {
+  .hero-title--short { font-size: clamp(34px, 4.6vw, 60px); }
+  .hero-title--medium { font-size: clamp(31px, 3.8vw, 52px); }
+  .hero-title--long { font-size: clamp(27px, 3.1vw, 44px); }
+}
+
+.hero-subtitle {
+  line-height: 1.35;
+}
+
+.hero-meta {
+  min-height: 1.3em;
+}
+
+/* Movimento reduzido: crossfade continua funcional (só mais rápido),
+   Ken Burns desliga, texto não desloca — nunca remove a funcionalidade,
+   só a parte decorativa do movimento. */
+@media (prefers-reduced-motion: reduce) {
+  .hero-slide {
+    transition-duration: 300ms;
+  }
+  .hero-kenburns {
+    animation: none;
+  }
+  .hero-text-reveal {
+    animation-duration: 1ms;
+    animation-delay: 0ms;
+  }
 }
 .hero-hover-image {
   transition: transform 700ms ease, filter 500ms ease;
@@ -417,16 +494,20 @@ body {
   to { transform: translateX(130%); }
 }
 
+/* Alvo de toque maior que o ponto visível (padding + background-clip):
+   bom no mobile sem engordar o indicador visualmente. */
 .hero-dot {
   height: 6px;
   width: 6px;
+  padding: 9px;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.5);
+  background-color: rgba(255, 255, 255, 0.5);
+  background-clip: content-box;
   transition: all 220ms ease;
 }
 .hero-dot.is-active {
   width: 22px;
-  background: #fff;
+  background-color: #fff;
 }
 
 /* --- Header --- */

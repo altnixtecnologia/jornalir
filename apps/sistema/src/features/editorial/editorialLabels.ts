@@ -36,7 +36,7 @@ export const placementDescriptions: Record<EditorialPlacementType, string> = {
   mainCover: "Grande destaque da home. Até 8 matérias; a mais recente entra na posição 1.",
   highlightStrip: "Faixa horizontal logo abaixo da capa. Até 3 matérias.",
   latestNews: "Bloco interativo de últimas notícias. Até 7 matérias.",
-  localSpotlight: "Faixa \"Mais destaques\". Até 4 matérias — não substitui a localidade da matéria.",
+  localSpotlight: "Faixa \"Mais destaques\". Até 6 matérias — não substitui a localidade da matéria.",
 };
 
 export const notificationLabels: Record<NotificationMode, string> = {

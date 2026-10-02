@@ -8,6 +8,19 @@ import type { PublicArticle } from "../../../lib/public/types";
 const AUTOPLAY_MS = 8000;
 
 /**
+ * Faixas discretas por comprimento da manchete (revisão do hero): em vez
+ * de um único tamanho de fonte para qualquer texto (que faz uma manchete
+ * curta parecer gigante e uma longa quebrar em muitas linhas) ou
+ * line-clamp (que corta o título — proibido aqui), cada faixa já nasce
+ * num tamanho que cabe em menos linhas, sem nunca truncar o texto.
+ */
+function heroTitleSizeClass(title: string): string {
+  if (title.length <= 42) return "hero-title--short";
+  if (title.length <= 78) return "hero-title--medium";
+  return "hero-title--long";
+}
+
+/**
  * `FeaturedHero` (Fase 14/29) adaptado a `PublicArticle` real (Fase 30) —
  * mesmo tratamento visual (moldura dissolvida, Ken Burns, parallax), só a
  * fonte de dados muda. Capa `mainCover`.
@@ -50,7 +63,7 @@ export function PublicFeaturedHero({ items }: { items: PublicArticle[] }): JSX.E
     <article className="hero-stage hero-backdrop relative w-full overflow-hidden">
       <div
         ref={stageRef}
-        className="relative h-[68vh] min-h-[480px] w-full sm:h-[64vh] md:h-[620px] xl:h-[calc(100svh-100px)] xl:min-h-[620px] xl:max-h-none"
+        className="relative h-[70svh] max-h-[640px] min-h-[460px] w-full sm:h-[66svh] md:h-[600px] md:min-h-[520px] xl:h-[min(78svh,720px)] xl:min-h-[560px] xl:max-h-[720px]"
         onMouseMove={handleMouseMove}
         onMouseLeave={handleMouseLeave}
       >
@@ -61,7 +74,7 @@ export function PublicFeaturedHero({ items }: { items: PublicArticle[] }): JSX.E
             <Link
               href={`/noticias/${item.slug}`}
               key={item.id}
-              className={`group absolute inset-0 block transition-opacity duration-[1100ms] ease-in-out ${isActive ? "opacity-100 z-10" : "pointer-events-none opacity-0 z-0"}`}
+              className={`hero-slide group absolute inset-0 block ${isActive ? "opacity-100 z-10" : "pointer-events-none opacity-0 z-0"}`}
               aria-hidden={!isActive}
               tabIndex={isActive ? 0 : -1}
             >
@@ -70,7 +83,7 @@ export function PublicFeaturedHero({ items }: { items: PublicArticle[] }): JSX.E
                   <div className="hero-photo-layer absolute inset-0">
                     <div className="hero-parallax h-full w-full">
                       <div
-                        className={`hero-photo-fg h-full w-full bg-center bg-no-repeat ${isActive ? "hero-kenburns" : ""}`}
+                        className="hero-photo-fg hero-kenburns h-full w-full bg-center bg-no-repeat"
                         style={{
                           backgroundImage: `url(${item.cover?.url})`,
                           // Hero é cenográfico/full bleed (Ajuste pós-Fase 49): cover é
@@ -87,25 +100,26 @@ export function PublicFeaturedHero({ items }: { items: PublicArticle[] }): JSX.E
 
               <div className="hero-vertical-shade absolute inset-0" />
 
-              {/* `pt` cresce por breakpoint (era fixo em pt-24): como o bloco é
-                  ancorado no rodapé, o padding-top vira altura extra da caixa —
-                  fixo, um título longo em tela estreita ultrapassava o topo do
-                  hero (que tem overflow-hidden). */}
-              <div className={`absolute inset-x-0 bottom-0 pb-6 pt-4 sm:pb-10 sm:pt-14 md:pb-16 md:pt-20 xl:pb-28 xl:pt-24 ${isActive ? "hero-text-reveal" : ""}`}>
-                <div className="site-shell">
+              {/* Coluna flex ancorada no rodapé (em vez de bottom-0 com altura
+                  livre pelo conteúdo): a data/localidade é sempre o último
+                  item, na mesma faixa inferior reservada (`.hero-copy`
+                  padding-bottom) — o tamanho do título/subtítulo não desloca
+                  mais essa faixa nem a empurra para fora da área visível. */}
+              <div className={`absolute inset-0 flex flex-col justify-end ${isActive ? "hero-text-reveal" : ""}`}>
+                <div className="hero-copy site-shell w-full">
                   <span className="kicker" style={{ color: "#fff" }}>
                     <span style={{ background: "#fff" }} className="h-[2px] w-4" />
                     {item.sectionName}
                   </span>
                   <h1
-                    className="hero-title-contrast mt-3 max-w-4xl text-balance font-editorial text-[28px] font-bold leading-none text-white sm:mt-4 sm:text-[clamp(34px,3.2vw,58px)]"
+                    className={`hero-title-contrast hero-title mt-3 max-w-4xl text-balance font-editorial font-bold text-white ${heroTitleSizeClass(item.title)}`}
                   >
                     {item.title}
                   </h1>
                   {item.subtitle ? (
-                    <p className="mt-3 max-w-2xl text-sm leading-snug text-white/85 sm:mt-5 sm:text-base md:text-xl">{item.subtitle}</p>
+                    <p className="hero-subtitle mt-3 max-w-2xl text-sm text-white/85 sm:mt-4 sm:text-base md:text-lg">{item.subtitle}</p>
                   ) : null}
-                  <p className="mt-3 text-[12px] font-semibold uppercase tracking-wide text-white/60 sm:mt-5">
+                  <p className="hero-meta mt-3 text-[12px] font-semibold uppercase tracking-wide text-white/60 sm:mt-4">
                     {formatDateBR(item.publishedAt)} {item.localityName ? `· ${item.localityName}` : ""}
                   </p>
                 </div>
