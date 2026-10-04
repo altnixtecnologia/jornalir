@@ -1,6 +1,7 @@
 import { useRef, useState, useTransition } from "react";
-import type { ArticleMedia, MediaAsset } from "@ir/types";
+import type { ArticleMedia, ArticleMediaRole, MediaAsset } from "@ir/types";
 import { searchMediaLibrary, uploadMediaAssets } from "../../app/sistema/editorial/midias/actions";
+import { ArticleImageEditorModal } from "./ArticleImageEditorModal";
 import styles from "./ArticleMediaPicker.module.css";
 
 interface ArticleMediaPickerProps {
@@ -15,6 +16,8 @@ interface ArticleMediaPickerProps {
   onSetCredit: (mediaAssetId: string, credit: string) => void;
   /** Chamado com as mídias recém-cadastradas — quem usa decide se some com a capa/galeria automaticamente. */
   onFilesUploaded: (assets: MediaAsset[]) => void;
+  /** Substitui o vínculo de UM slot (capa, ou uma posição exata da galeria) por uma mídia derivada — nunca a mídia original em si. */
+  onReplaceMediaAsset: (target: { role: ArticleMediaRole; order: number }, newAsset: MediaAsset) => void;
 }
 
 export function ArticleMediaPicker({
@@ -28,7 +31,9 @@ export function ArticleMediaPicker({
   onSetCaption,
   onSetCredit,
   onFilesUploaded,
+  onReplaceMediaAsset,
 }: ArticleMediaPickerProps): JSX.Element {
+  const [viewerTarget, setViewerTarget] = useState<{ role: ArticleMediaRole; order: number; mediaAssetId: string } | null>(null);
   const [remoteMediaAssets, setRemoteMediaAssets] = useState<MediaAsset[]>([]);
   const [searchNotice, setSearchNotice] = useState<string | null>(null);
   const [searching, startSearch] = useTransition();
@@ -342,13 +347,26 @@ export function ArticleMediaPicker({
                     aria-label={`Crédito de ${asset.reference}`}
                   />
 
-                  <button
-                    type="button"
-                    className="media-remove-button article-media-remove"
-                    onClick={() => (isCover ? onRemoveCover() : onRemoveFromGallery(item.mediaAssetId))}
-                  >
-                    Remover
-                  </button>
+                  <div className="article-media-row-actions">
+                    <button
+                      type="button"
+                      className="article-media-view"
+                      onClick={() =>
+                        setViewerTarget({ role: item.role, order: item.order, mediaAssetId: item.mediaAssetId })
+                      }
+                      aria-label={`Ver ${asset.reference} em tamanho grande`}
+                      title="Ver em tamanho grande"
+                    >
+                      👁
+                    </button>
+                    <button
+                      type="button"
+                      className="media-remove-button article-media-remove"
+                      onClick={() => (isCover ? onRemoveCover() : onRemoveFromGallery(item.mediaAssetId))}
+                    >
+                      Remover
+                    </button>
+                  </div>
                 </li>
               );
             })}
@@ -408,6 +426,20 @@ export function ArticleMediaPicker({
           })}
         </div>
       </div>
+
+      {viewerTarget ? (
+        <ArticleImageEditorModal
+          asset={assetById.get(viewerTarget.mediaAssetId) as MediaAsset}
+          onClose={() => setViewerTarget(null)}
+          onSaved={(newAsset) => {
+            onReplaceMediaAsset({ role: viewerTarget.role, order: viewerTarget.order }, newAsset);
+            // Edições seguintes no mesmo modal (outro crop, outra rotação)
+            // partem da derivada recém-criada, nunca refazendo a partir da
+            // original — evita empilhar perda de qualidade a cada salvamento.
+            setViewerTarget({ ...viewerTarget, mediaAssetId: newAsset.id });
+          }}
+        />
+      ) : null}
     </div>
   );
 }

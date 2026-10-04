@@ -381,6 +381,37 @@ summary:active {
   border-color: var(--brand);
   outline: none;
 }
+.login-password-wrap {
+  position: relative;
+  display: flex;
+}
+.login-password-wrap input {
+  flex: 1 1 auto;
+  padding-right: 42px;
+}
+.login-password-toggle {
+  position: absolute;
+  right: 4px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  border-radius: 4px;
+}
+.login-password-toggle:hover,
+.login-password-toggle:focus-visible {
+  color: var(--ink);
+  outline: none;
+  background: #f1efe8;
+}
 .login-submit {
   width: 100%;
   min-height: 46px;
@@ -1103,6 +1134,53 @@ button.secondary-link {
     position: sticky;
     top: var(--app-header-height);
     z-index: 15;
+  }
+}
+
+/* Filtros recolhíveis só no mobile (<768px): a listagem aparece de
+   imediato em vez dos filtros tomarem a primeira tela. Desktop nunca
+   renderiza o botão/linha de toggle e o painel de filtros continua
+   sempre visível, exatamente como antes. */
+.materias-filters-toggle-row {
+  display: none;
+}
+.materias-filters-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 36px;
+  padding: 0 14px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: #fffefa;
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.materias-filters-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 4px;
+  border-radius: 999px;
+  background: var(--brand);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+}
+@media (max-width: 767px) {
+  .materias-filters-toggle-row {
+    display: flex;
+    margin-bottom: 12px;
+  }
+  .materias-toolbar-compact {
+    display: none;
+  }
+  .materias-toolbar-compact.is-open {
+    display: flex;
   }
 }
 
@@ -2072,9 +2150,21 @@ button.secondary-link {
   color: var(--muted);
   font-size: 9px;
 }
-.article-media-remove {
+.article-media-row-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
   justify-self: end;
   white-space: nowrap;
+}
+.article-media-view {
+  width: 34px;
+  height: 34px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: #fff;
+  font-size: 15px;
+  cursor: pointer;
 }
 @media (max-width: 900px) {
   .article-media-row {
@@ -2088,7 +2178,7 @@ button.secondary-link {
   .article-media-row .media-caption-input {
     grid-column: 2 / -1;
   }
-  .article-media-remove {
+  .article-media-row-actions {
     grid-column: 2 / -1;
     justify-self: start;
   }

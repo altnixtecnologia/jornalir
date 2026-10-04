@@ -104,6 +104,23 @@ export function MateriasList({
   const [highlightFilter, setHighlightFilter] = useState<HighlightFilter>("all");
   const [dateFrom, setDateFrom] = useState(filters.dateFrom);
   const [dateTo, setDateTo] = useState(filters.dateTo);
+  // Só afeta mobile (ver CSS — no desktop o painel de filtros sempre
+  // aparece, igual a antes). Fechado por padrão: a listagem aparece de
+  // imediato em vez dos filtros tomarem a primeira tela inteira.
+  const [filtersOpen, setFiltersOpen] = useState(false);
+
+  const activeFilterCount = [
+    filters.q.length > 0,
+    filters.status !== "all",
+    filters.sectionId !== "all",
+    filters.localityId !== "all",
+    filters.origin !== "all",
+    Boolean(filters.dateField),
+    filters.dateFrom.length > 0,
+    filters.dateTo.length > 0,
+    photoFilter !== "all",
+    highlightFilter !== "all",
+  ].filter(Boolean).length;
 
   const sectionById = useMemo(() => new Map(sections.map((section) => [section.id, section])), [sections]);
   const localityById = useMemo(() => new Map(localities.map((locality) => [locality.id, locality])), [localities]);
@@ -159,7 +176,29 @@ export function MateriasList({
 
   return (
     <>
-      <form className="materias-toolbar-compact" method="get" action="/sistema/editorial/materias">
+      <div className="materias-filters-toggle-row">
+        <button
+          type="button"
+          className="materias-filters-toggle"
+          aria-expanded={filtersOpen}
+          aria-controls="materias-filters-panel"
+          onClick={() => setFiltersOpen((open) => !open)}
+        >
+          {filtersOpen ? "Fechar filtros" : "Filtros"}
+          {!filtersOpen && activeFilterCount > 0 ? (
+            <span className="materias-filters-badge" aria-label={`${activeFilterCount} filtro(s) ativo(s)`}>
+              {activeFilterCount}
+            </span>
+          ) : null}
+        </button>
+      </div>
+
+      <form
+        id="materias-filters-panel"
+        className={`materias-toolbar-compact${filtersOpen ? " is-open" : ""}`}
+        method="get"
+        action="/sistema/editorial/materias"
+      >
         <input type="hidden" name="sortBy" value={filters.sortBy} />
         <input type="hidden" name="sortDir" value={filters.sortDir} />
         <div className="materias-filters-compact">

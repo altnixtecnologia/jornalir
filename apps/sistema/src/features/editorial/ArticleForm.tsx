@@ -22,6 +22,7 @@ import {
   reorderArticleMedia,
   removeCoverMedia,
   removeGalleryMedia,
+  replaceMediaAssetAt,
   setCoverMedia,
   setMediaCaption,
   setMediaCredit,
@@ -479,6 +480,10 @@ export function ArticleForm({
                 }
                 return next;
               });
+            }}
+            onReplaceMediaAsset={(target, newAsset) => {
+              setAvailableMediaAssets((prev) => [newAsset, ...prev]);
+              setMedia((prev) => replaceMediaAssetAt(prev, target, newAsset.id));
             }}
           />
         </section>

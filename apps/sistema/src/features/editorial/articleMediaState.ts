@@ -85,6 +85,25 @@ export function setMediaCredit(media: ArticleMedia[], mediaAssetId: string, cred
   );
 }
 
+/**
+ * Troca o `mediaAssetId` de UM slot específico (capa, ou uma posição exata
+ * da galeria) por uma mídia derivada — nunca por asset id "cego", porque a
+ * mesma imagem original poderia (em tese) estar vinculada em mais de um
+ * slot da mesma matéria; o editor de imagem só deve substituir o slot que o
+ * usuário de fato abriu, preservando legenda/crédito/ordem desse slot.
+ */
+export function replaceMediaAssetAt(
+  media: ArticleMedia[],
+  target: { role: ArticleMedia["role"]; order: number },
+  newMediaAssetId: string,
+): ArticleMedia[] {
+  return media.map((item) =>
+    item.role === target.role && item.order === target.order
+      ? { ...item, mediaAssetId: newMediaAssetId }
+      : item,
+  );
+}
+
 export function reorderArticleMedia(
   media: ArticleMedia[],
   draggedMediaAssetId: string,

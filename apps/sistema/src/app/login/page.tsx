@@ -28,6 +28,7 @@ function LoginForm(): JSX.Element {
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   useEffect(() => {
     if (status === "authenticated") router.replace("/sistema");
@@ -81,14 +82,47 @@ function LoginForm(): JSX.Element {
           </div>
           <div className="login-field">
             <label htmlFor="login-password">Senha</label>
-            <input
-              id="login-password"
-              type="password"
-              autoComplete="current-password"
-              value={password}
-              onChange={(event) => setPassword(event.target.value)}
-              placeholder="••••••••"
-            />
+            <div className="login-password-wrap">
+              <input
+                id="login-password"
+                type={showPassword ? "text" : "password"}
+                autoComplete="current-password"
+                value={password}
+                onChange={(event) => setPassword(event.target.value)}
+                placeholder="••••••••"
+              />
+              <button
+                type="button"
+                className="login-password-toggle"
+                onClick={() => setShowPassword((show) => !show)}
+                aria-label={showPassword ? "Ocultar senha" : "Mostrar senha"}
+                aria-pressed={showPassword}
+              >
+                {showPassword ? (
+                  <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
+                    <path
+                      d="M3 3l18 18M10.6 10.6a2 2 0 002.8 2.8M9.6 5.6A10.4 10.4 0 0112 5.5c5 0 9 4 10.5 6.5a12.5 12.5 0 01-2.9 3.4M6.4 6.4A13 13 0 001.5 12c1.1 1.9 3 4.3 5.9 5.7a10.4 10.4 0 004.6 1.3"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="1.6"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                  </svg>
+                ) : (
+                  <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
+                    <path
+                      d="M1.5 12C3 9.5 7 5.5 12 5.5S21 9.5 22.5 12C21 14.5 17 18.5 12 18.5S3 14.5 1.5 12z"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="1.6"
+                      strokeLinejoin="round"
+                    />
+                    <circle cx="12" cy="12" r="2.6" fill="none" stroke="currentColor" strokeWidth="1.6" />
+                  </svg>
+                )}
+              </button>
+            </div>
           </div>
 
           {error ? (
