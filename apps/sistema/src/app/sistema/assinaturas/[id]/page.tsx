@@ -10,6 +10,7 @@ import {
 } from "@ir/types";
 import { ClientNotFoundError } from "@ir/core";
 import { ModuleHeader } from "../../../../components/admin/ModuleHeader";
+import { SubscriptionStatusActions } from "../../../../features/assinaturas/SubscriptionStatusActions";
 import { getSubscriptionService } from "../../../../composition/assinaturas";
 import { getClientService } from "../../../../composition/clientes";
 import { createSupabaseServerClient } from "../../../../lib/supabase/server";
@@ -88,18 +89,57 @@ export default async function AssinaturaDetailPage({ params }: { params: { id: s
         <div className="form-grid">
           <Field label="Tipo de serviço" value={SUBSCRIPTION_SERVICE_TYPE_LABELS[subscription.serviceType]} />
           <Field label="Status" value={SUBSCRIPTION_STATUS_LABELS[subscription.status]} />
-          <Field label="Periodicidade" value={SUBSCRIPTION_PERIODICITY_LABELS[subscription.periodicity]} />
           <Field label="Valor" value={formatAmount(subscription.amount)} />
+          <Field label="Periodicidade" value={SUBSCRIPTION_PERIODICITY_LABELS[subscription.periodicity]} />
         </div>
       </section>
 
       <section className="form-section">
-        <h2>Datas</h2>
+        <h2>Período</h2>
         <div className="form-grid">
           <Field label="Início" value={formatDate(subscription.startsAt)} />
-          <Field label="Vencimento" value={formatDate(subscription.dueDate)} />
+          <Field label="Dia de vencimento" value={subscription.dueDay ? String(subscription.dueDay) : undefined} />
+          <Field label="Próximo vencimento" value={formatDate(subscription.nextDueDate)} />
+          <Field label="Data de encerramento" value={formatDate(subscription.endsAt)} />
         </div>
       </section>
+
+      {subscription.serviceType === "impresso" && subscription.print ? (
+        <section className="form-section">
+          <h2>Entrega do impresso</h2>
+          <div className="form-grid">
+            <Field label="Quantidade de exemplares" value={String(subscription.print.copies)} />
+            <Field label="CEP" value={subscription.print.addressZip} />
+            <Field label="Logradouro" value={subscription.print.addressStreet} />
+            <Field label="Número" value={subscription.print.addressNumber} />
+            <Field label="Complemento" value={subscription.print.addressComplement} />
+            <Field label="Bairro" value={subscription.print.addressNeighborhood} />
+            <Field label="Cidade" value={subscription.print.addressCity} />
+            <Field label="UF" value={subscription.print.addressState} />
+          </div>
+        </section>
+      ) : null}
+
+      {subscription.serviceType === "tv" && subscription.tv ? (
+        <section className="form-section">
+          <h2>Integração TV <span className="field-optional">(preparação futura)</span></h2>
+          <div className="form-grid">
+            <Field label="Origem externa" value={subscription.tv.externalSource} />
+            <Field label="Referência do cliente externo" value={subscription.tv.externalClientReference} />
+            <Field label="Referência do dispositivo" value={subscription.tv.externalDeviceReference} />
+          </div>
+        </section>
+      ) : null}
+
+      {subscription.status === "cancelled" ? (
+        <section className="form-section">
+          <h2>Cancelamento</h2>
+          <div className="form-grid">
+            <Field label="Cancelada em" value={subscription.cancelledAt ? formatDateTime(subscription.cancelledAt) : undefined} />
+            <Field label="Motivo" value={subscription.cancellationReason} />
+          </div>
+        </section>
+      ) : null}
 
       <section className="form-section">
         <h2>Observações</h2>
@@ -113,6 +153,8 @@ export default async function AssinaturaDetailPage({ params }: { params: { id: s
           <Field label="Última atualização" value={formatDateTime(subscription.updatedAt)} />
         </div>
       </section>
+
+      <SubscriptionStatusActions subscription={subscription} />
 
       {/* Seções futuras (não implementadas nesta fase): cobrança, contas a
           receber e histórico de pagamento vão ocupar este mesmo espaço. */}

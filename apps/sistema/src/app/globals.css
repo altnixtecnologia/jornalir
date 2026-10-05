@@ -1330,6 +1330,25 @@ button.secondary-link {
   background: #e6e2dd;
   color: #746a5f;
 }
+.status-pill--overdue {
+  background: #fbeae5;
+  color: #8a3420;
+}
+
+/* Assinaturas — destaque só visual de vencida/vencendo em breve (Parte
+   2B), nunca cobrança/inadimplência real. */
+.materias-table tr.subscription-row--overdue {
+  background: #fdf4f2;
+}
+.materias-table tr.subscription-row--due-soon {
+  background: #fdf8ec;
+}
+.materia-card.subscription-row--overdue {
+  border-left: 3px solid #d98b78;
+}
+.materia-card.subscription-row--due-soon {
+  border-left: 3px solid #d9b25e;
+}
 .status-pill--modified {
   background: #fff0bd;
   color: #8a6500;

@@ -4,7 +4,10 @@ import type { NewSubscriptionRecord, SubscriptionChanges, SubscriptionListQuery,
 
 const TABLE = "subscriptions";
 const COLUMNS =
-  "id, internal_reference, client_id, service_type, status, amount, periodicity, starts_at, due_date, notes, created_at, updated_at";
+  "id, internal_reference, client_id, service_type, status, amount, periodicity, starts_at, due_day, next_due_date, " +
+  "ends_at, cancelled_at, cancellation_reason, print_copies, print_address_zip, print_address_street, print_address_number, " +
+  "print_address_complement, print_address_neighborhood, print_address_city, print_address_state, " +
+  "external_source, external_client_reference, external_device_reference, notes, created_at, updated_at";
 
 interface SubscriptionRow {
   id: string;
@@ -15,13 +18,30 @@ interface SubscriptionRow {
   amount: number;
   periodicity: SubscriptionPeriodicity;
   starts_at: string;
-  due_date: string | null;
+  due_day: number | null;
+  next_due_date: string | null;
+  ends_at: string | null;
+  cancelled_at: string | null;
+  cancellation_reason: string | null;
+  print_copies: number | null;
+  print_address_zip: string | null;
+  print_address_street: string | null;
+  print_address_number: string | null;
+  print_address_complement: string | null;
+  print_address_neighborhood: string | null;
+  print_address_city: string | null;
+  print_address_state: string | null;
+  external_source: string | null;
+  external_client_reference: string | null;
+  external_device_reference: string | null;
   notes: string | null;
   created_at: string;
   updated_at: string;
 }
 
 function toDomain(row: SubscriptionRow): Subscription {
+  const hasPrint = row.service_type === "impresso";
+  const hasTv = row.service_type === "tv";
   return {
     id: row.id,
     reference: row.internal_reference,
@@ -31,7 +51,30 @@ function toDomain(row: SubscriptionRow): Subscription {
     amount: Number(row.amount),
     periodicity: row.periodicity,
     startsAt: row.starts_at,
-    dueDate: row.due_date ?? undefined,
+    dueDay: row.due_day ?? undefined,
+    nextDueDate: row.next_due_date ?? undefined,
+    endsAt: row.ends_at ?? undefined,
+    cancelledAt: row.cancelled_at ?? undefined,
+    cancellationReason: row.cancellation_reason ?? undefined,
+    print: hasPrint
+      ? {
+          copies: row.print_copies ?? 1,
+          addressZip: row.print_address_zip ?? undefined,
+          addressStreet: row.print_address_street ?? undefined,
+          addressNumber: row.print_address_number ?? undefined,
+          addressComplement: row.print_address_complement ?? undefined,
+          addressNeighborhood: row.print_address_neighborhood ?? undefined,
+          addressCity: row.print_address_city ?? undefined,
+          addressState: row.print_address_state ?? undefined,
+        }
+      : undefined,
+    tv: hasTv
+      ? {
+          externalSource: row.external_source ?? undefined,
+          externalClientReference: row.external_client_reference ?? undefined,
+          externalDeviceReference: row.external_device_reference ?? undefined,
+        }
+      : undefined,
     notes: row.notes ?? undefined,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
@@ -46,7 +89,26 @@ function toRow(record: NewSubscriptionRecord | SubscriptionChanges): Record<stri
   if (record.amount !== undefined) row.amount = record.amount;
   if (record.periodicity !== undefined) row.periodicity = record.periodicity;
   if (record.startsAt !== undefined) row.starts_at = record.startsAt;
-  if (record.dueDate !== undefined) row.due_date = record.dueDate ?? null;
+  if (record.dueDay !== undefined) row.due_day = record.dueDay ?? null;
+  if (record.nextDueDate !== undefined) row.next_due_date = record.nextDueDate ?? null;
+  if (record.endsAt !== undefined) row.ends_at = record.endsAt ?? null;
+  if (record.cancelledAt !== undefined) row.cancelled_at = record.cancelledAt ?? null;
+  if (record.cancellationReason !== undefined) row.cancellation_reason = record.cancellationReason ?? null;
+  if (record.print !== undefined) {
+    row.print_copies = record.print?.copies ?? null;
+    row.print_address_zip = record.print?.addressZip ?? null;
+    row.print_address_street = record.print?.addressStreet ?? null;
+    row.print_address_number = record.print?.addressNumber ?? null;
+    row.print_address_complement = record.print?.addressComplement ?? null;
+    row.print_address_neighborhood = record.print?.addressNeighborhood ?? null;
+    row.print_address_city = record.print?.addressCity ?? null;
+    row.print_address_state = record.print?.addressState ?? null;
+  }
+  if (record.tv !== undefined) {
+    row.external_source = record.tv?.externalSource ?? null;
+    row.external_client_reference = record.tv?.externalClientReference ?? null;
+    row.external_device_reference = record.tv?.externalDeviceReference ?? null;
+  }
   if (record.notes !== undefined) row.notes = record.notes ?? null;
   return row;
 }
