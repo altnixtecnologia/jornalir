@@ -6,6 +6,8 @@ export interface ReceivableFormPayload {
   sourceType: ReceivableSourceType;
   sourceId: string;
   sourceReference: string;
+  /** Preenchido SÓ quando sourceType === "subscription" (geração a partir de Assinatura, Parte 3B). */
+  subscriptionId: string;
   contractId: string;
   originalAmount: string;
   issueDate: string;

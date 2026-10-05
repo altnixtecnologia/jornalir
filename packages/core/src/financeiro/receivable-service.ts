@@ -9,6 +9,7 @@ import {
   type AdjustmentType,
 } from "@ir/types";
 import {
+  ReceivableDuplicateSubscriptionChargeError,
   ReceivableValidationError,
   type NewReceivableRecord,
   type ReceivableChanges,
@@ -32,6 +33,8 @@ export interface ReceivableInput {
   sourceType: ReceivableSourceType;
   sourceId?: string;
   sourceReference?: string;
+  /** Preenchido SÓ quando sourceType === "subscription" — nunca por outra origem (ver ReceivableDuplicateSubscriptionChargeError). */
+  subscriptionId?: string;
   contractId?: string;
   originalAmount: number;
   issueDate: string;
@@ -69,6 +72,7 @@ function normalize(input: ReceivableInput): NewReceivableRecord {
     sourceType: input.sourceType,
     sourceId: trimOrUndefined(input.sourceId),
     sourceReference: trimOrUndefined(input.sourceReference),
+    subscriptionId: input.sourceType === "subscription" ? trimOrUndefined(input.subscriptionId) : undefined,
     contractId: trimOrUndefined(input.contractId),
     originalAmount: input.originalAmount,
     issueDate: input.issueDate,
@@ -114,6 +118,40 @@ export class ReceivableService {
     const record = normalize(input);
     assertValidReceivable(record);
     return this.receivables.create(record);
+  }
+
+  /**
+   * Geração manual de título a partir de uma Assinatura (Parte 3B, item
+   * 2) — nunca grava duas cobranças da mesma assinatura pra mesma
+   * competência: pré-checa (findBySubscriptionAndCompetency) ANTES de
+   * tentar criar, e o índice único parcial do banco continua sendo a
+   * proteção autoritativa mesmo se a pré-checagem perder uma corrida
+   * (ex.: dois cliques quase simultâneos). `input` já vem pronto
+   * (buildReceivableFromSubscription) mas pode ter sido editado pelo
+   * usuário na tela de revisão antes de confirmar.
+   */
+  async registerFromSubscription(input: ReceivableInput): Promise<Receivable> {
+    if (input.sourceType !== "subscription" || !input.subscriptionId) {
+      throw new ReceivableValidationError("registerFromSubscription exige sourceType=subscription e subscriptionId.");
+    }
+    if (!input.competencyDate) throw new ReceivableValidationError("Informe a competência desta cobrança.");
+
+    const existing = await this.receivables.findBySubscriptionAndCompetency(input.subscriptionId, input.competencyDate);
+    if (existing) throw new ReceivableDuplicateSubscriptionChargeError(input.competencyDate);
+
+    const record = normalize(input);
+    assertValidReceivable(record);
+    try {
+      return await this.receivables.create(record);
+    } catch (error) {
+      // Corrida rara (dois cliques quase simultâneos) pega pela
+      // constraint do banco mesmo depois de passar a pré-checagem —
+      // nunca deixa a mensagem bruta do Postgres chegar na UI.
+      if (error instanceof Error && error.message.includes("receivables_subscription_competency_unique")) {
+        throw new ReceivableDuplicateSubscriptionChargeError(input.competencyDate);
+      }
+      throw error;
+    }
   }
 
   async update(id: string, input: ReceivableInput): Promise<Receivable> {

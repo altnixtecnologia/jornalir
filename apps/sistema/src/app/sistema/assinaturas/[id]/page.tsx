@@ -11,8 +11,10 @@ import {
 import { ClientNotFoundError } from "@ir/core";
 import { ModuleHeader } from "../../../../components/admin/ModuleHeader";
 import { SubscriptionStatusActions } from "../../../../features/assinaturas/SubscriptionStatusActions";
+import { SubscriptionBillingPanel } from "../../../../features/financeiro/SubscriptionBillingPanel";
 import { getSubscriptionService } from "../../../../composition/assinaturas";
 import { getClientService } from "../../../../composition/clientes";
+import { getReceivableService } from "../../../../composition/financeiro";
 import { createSupabaseServerClient } from "../../../../lib/supabase/server";
 
 function formatAmount(value: number): string {
@@ -53,6 +55,7 @@ export default async function AssinaturaDetailPage({ params }: { params: { id: s
       if (error instanceof ClientNotFoundError) return null;
       throw error;
     });
+  const receivables = await getReceivableService(supabase).list({ subscriptionId: subscription.id });
 
   return (
     <>
@@ -156,12 +159,11 @@ export default async function AssinaturaDetailPage({ params }: { params: { id: s
 
       <SubscriptionStatusActions subscription={subscription} />
 
-      {/* Seções futuras (não implementadas nesta fase): cobrança, contas a
-          receber e histórico de pagamento vão ocupar este mesmo espaço. */}
-      <section className="form-section form-section--compact">
-        <h2>Em breve</h2>
-        <p className="helper-text">Cobrança, contas a receber e histórico de pagamento vão aparecer aqui em fases futuras (Financeiro).</p>
-      </section>
+      <SubscriptionBillingPanel
+        subscription={subscription}
+        receivables={receivables}
+        clientName={client ? clientDisplayName(client) : "Cliente não encontrado"}
+      />
     </>
   );
 }

@@ -1,11 +1,13 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ContractNotFoundError } from "@ir/core";
-import { CONTRACT_STATUS_LABELS, clientDisplayName } from "@ir/types";
+import { CONTRACT_STATUS_LABELS, clientDisplayName, computeEffectiveContractAmount, computeEffectiveContractEndsAt } from "@ir/types";
 import { ClientNotFoundError } from "@ir/core";
 import { ModuleHeader } from "../../../../../components/admin/ModuleHeader";
 import { ReceivablesList } from "../../../../../features/financeiro/ReceivablesList";
 import { ContractDocumentsPanel } from "../../../../../features/financeiro/ContractDocumentsPanel";
+import { ContractAmendmentsPanel } from "../../../../../features/financeiro/ContractAmendmentsPanel";
+import { ContractInstallmentsPanel } from "../../../../../features/financeiro/ContractInstallmentsPanel";
 import { getContractService, getReceivableService } from "../../../../../composition/financeiro";
 import { getClientService } from "../../../../../composition/clientes";
 import { createSupabaseServerClient } from "../../../../../lib/supabase/server";
@@ -32,7 +34,7 @@ export default async function ContractDetailPage({ params }: { params: { id: str
   });
   if (!contract) notFound();
 
-  const [client, documents, receivables] = await Promise.all([
+  const [client, documents, amendments, receivables] = await Promise.all([
     getClientService(supabase)
       .getById(contract.clientId)
       .catch((error: unknown) => {
@@ -40,12 +42,16 @@ export default async function ContractDetailPage({ params }: { params: { id: str
         throw error;
       }),
     contractService.listDocuments(contract.id),
+    contractService.listAmendments(contract.id),
     getReceivableService(supabase).list({ contractId: contract.id }),
   ]);
 
   const billedAmount = receivables.reduce((sum, item) => sum + item.originalAmount, 0);
   const receivedAmount = receivables.reduce((sum, item) => sum + item.totalReceived, 0);
   const adjustmentsAmount = receivables.reduce((sum, item) => sum + item.totalAdjustments, 0);
+  const effectiveAmount = computeEffectiveContractAmount(contract.contractedAmount, amendments);
+  const effectiveEndsAt = computeEffectiveContractEndsAt(contract.endsAt, amendments);
+  const overBudget = effectiveAmount !== undefined && billedAmount > effectiveAmount;
 
   return (
     <>
@@ -88,25 +94,39 @@ export default async function ContractDetailPage({ params }: { params: { id: str
             <span>{CONTRACT_STATUS_LABELS[contract.status]}</span>
           </div>
           <div className="form-field">
-            <span className="field-label">Vigência</span>
+            <span className="field-label">Vigência original</span>
             <span>{formatDate(contract.startsAt)} – {formatDate(contract.endsAt)}</span>
           </div>
           <div className="form-field">
-            <span className="field-label">Valor total contratado</span>
+            <span className="field-label">Vigência vigente {amendments.length > 0 ? "(com aditivos)" : ""}</span>
+            <span>{formatDate(contract.startsAt)} – {formatDate(effectiveEndsAt)}</span>
+          </div>
+          <div className="form-field">
+            <span className="field-label">Valor original contratado</span>
             <span>{formatAmount(contract.contractedAmount)}</span>
+          </div>
+          <div className="form-field">
+            <span className="field-label">Valor vigente {amendments.length > 0 ? "(original + aditivos)" : ""}</span>
+            <span>{formatAmount(effectiveAmount)}</span>
           </div>
         </div>
       </section>
 
-      {/* Resumo financeiro (Parte 3A, item 14) — preparado, não totalmente
-          apurado automaticamente: soma simples dos títulos já lançados
-          para este contrato. Nada impede uma apuração mais completa depois. */}
+      {/* Resumo financeiro (Parte 3A item 14 / Parte 3B item 8) — soma dos
+          títulos válidos lançados para este contrato. Nunca impede
+          lançamento acima do valor vigente (aditivos cobrem isso), só
+          avisa claramente quando o lançado ultrapassa. */}
       <section className="form-section">
         <h2>Resumo financeiro</h2>
+        {overBudget ? (
+          <p className="form-error" role="alert">
+            Atenção: o valor lançado ({formatAmount(billedAmount)}) ultrapassa o valor vigente do contrato ({formatAmount(effectiveAmount)}). Verifique se é necessário registrar um aditivo.
+          </p>
+        ) : null}
         <div className="form-grid">
           <div className="form-field">
-            <span className="field-label">Valor contratado</span>
-            <span>{formatAmount(contract.contractedAmount)}</span>
+            <span className="field-label">Valor vigente</span>
+            <span>{formatAmount(effectiveAmount)}</span>
           </div>
           <div className="form-field">
             <span className="field-label">Valor lançado/faturado</span>
@@ -121,8 +141,12 @@ export default async function ContractDetailPage({ params }: { params: { id: str
             <span>{formatAmount(adjustmentsAmount)}</span>
           </div>
           <div className="form-field">
-            <span className="field-label">Saldo contratual</span>
-            <span>{contract.contractedAmount !== undefined ? formatAmount(contract.contractedAmount - billedAmount) : "—"}</span>
+            <span className="field-label">Saldo dos títulos</span>
+            <span>{formatAmount(billedAmount - receivedAmount - adjustmentsAmount)}</span>
+          </div>
+          <div className="form-field">
+            <span className="field-label">Saldo contratual não lançado</span>
+            <span>{effectiveAmount !== undefined ? formatAmount(effectiveAmount - billedAmount) : "—"}</span>
           </div>
         </div>
       </section>
@@ -134,12 +158,17 @@ export default async function ContractDetailPage({ params }: { params: { id: str
 
       <ContractDocumentsPanel contractId={contract.id} documents={documents} />
 
+      <ContractAmendmentsPanel contractId={contract.id} amendments={amendments} documents={documents} />
+
       <section className="form-section">
         <h2>Títulos deste contrato</h2>
         <div className="form-actions">
           <Link className="form-action-primary" href={`/sistema/financeiro/contas-a-receber/novo?clientId=${contract.clientId}&contractId=${contract.id}`}>
             Novo título para este contrato
           </Link>
+        </div>
+        <div style={{ marginTop: "12px" }}>
+          <ContractInstallmentsPanel contract={contract} />
         </div>
         <div style={{ marginTop: "12px" }}>
           <ReceivablesList receivables={receivables.map((item) => ({ ...item, clientName: client ? clientDisplayName(client) : "—" }))} />

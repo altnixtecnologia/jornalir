@@ -7,9 +7,9 @@ import { analyzeContractDocumentAction, createContractWithDocument } from "../..
 import { ContractForm } from "./ContractForm";
 import type { ContractFormPayload } from "./contractFormTypes";
 
-function emptyPayload(): ContractFormPayload {
+function emptyPayload(initialClientId?: string): ContractFormPayload {
   return {
-    clientId: "",
+    clientId: initialClientId ?? "",
     contractNumber: "",
     processNumber: "",
     modality: "",
@@ -38,8 +38,8 @@ const FIELD_LABELS: Record<keyof ContractDocumentExtractedData, string> = {
   competencyDate: "Competência",
 };
 
-function applyExtractedData(extracted: ContractDocumentExtractedData): ContractFormPayload {
-  const payload = emptyPayload();
+function applyExtractedData(extracted: ContractDocumentExtractedData, initialClientId?: string): ContractFormPayload {
+  const payload = emptyPayload(initialClientId);
   if (extracted.contractNumber) payload.contractNumber = extracted.contractNumber;
   if (extracted.processNumber) payload.processNumber = extracted.processNumber;
   if (extracted.modality) payload.modality = extracted.modality;
@@ -64,7 +64,13 @@ type WizardStep = 1 | 2 | 3 | 4;
  * depois, na mesma ação — o usuário nunca precisa de um contrato
  * "vazio" esperando o anexo.
  */
-export function ContractIntakeWizard({ clients }: { clients: Client[] }): JSX.Element {
+export function ContractIntakeWizard({
+  clients,
+  initialClientId,
+}: {
+  clients: Client[];
+  initialClientId?: string;
+}): JSX.Element {
   const [step, setStep] = useState<WizardStep>(1);
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -79,7 +85,7 @@ export function ContractIntakeWizard({ clients }: { clients: Client[] }): JSX.El
   const [extractedData, setExtractedData] = useState<ContractDocumentExtractedData | null>(null);
   const [skipDocument, setSkipDocument] = useState(false);
 
-  const [contractPayload, setContractPayload] = useState<ContractFormPayload>(emptyPayload());
+  const [contractPayload, setContractPayload] = useState<ContractFormPayload>(emptyPayload(initialClientId));
 
   function handleFileSelected(file: File | null): void {
     setSelectedFile(file);
@@ -108,19 +114,19 @@ export function ContractIntakeWizard({ clients }: { clients: Client[] }): JSX.El
   }
 
   function handleUseExtractedData(): void {
-    if (extractedData) setContractPayload(applyExtractedData(extractedData));
+    if (extractedData) setContractPayload(applyExtractedData(extractedData, initialClientId));
     setStep(3);
   }
 
   function handleSkipExtractedData(): void {
-    setContractPayload(emptyPayload());
+    setContractPayload(emptyPayload(initialClientId));
     setStep(3);
   }
 
   function handleSkipDocumentEntirely(): void {
     setSkipDocument(true);
     setSelectedFile(null);
-    setContractPayload(emptyPayload());
+    setContractPayload(emptyPayload(initialClientId));
     setStep(3);
   }
 

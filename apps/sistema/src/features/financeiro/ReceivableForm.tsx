@@ -14,6 +14,7 @@ function payloadFromReceivable(receivable?: Receivable, initialClientId?: string
     sourceType: receivable?.sourceType ?? (initialContractId ? "institutional_contract" : "miscellaneous"),
     sourceId: receivable?.sourceId ?? "",
     sourceReference: receivable?.sourceReference ?? "",
+    subscriptionId: receivable?.subscriptionId ?? "",
     contractId: receivable?.contractId ?? initialContractId ?? "",
     originalAmount: receivable ? String(receivable.originalAmount) : "",
     issueDate: receivable?.issueDate ?? new Date().toISOString().slice(0, 10),

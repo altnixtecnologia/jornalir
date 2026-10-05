@@ -1,6 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { ContractDocument, ContractDocumentExtractedData, ContractDocumentType, ContractStatus, InstitutionalContract } from "@ir/types";
-import type { ContractListQuery, ContractRepository, NewContractDocumentRecord, NewContractRecord, ContractChanges } from "@ir/core";
+import type { ContractAmendment, ContractDocument, ContractDocumentExtractedData, ContractDocumentType, ContractStatus, InstitutionalContract } from "@ir/types";
+import type { ContractListQuery, ContractRepository, NewContractAmendmentRecord, NewContractDocumentRecord, NewContractRecord, ContractChanges } from "@ir/core";
 
 const TABLE = "institutional_contracts";
 const COLUMNS =
@@ -95,6 +95,34 @@ function documentToDomain(row: DocumentRow): ContractDocument {
   };
 }
 
+const AMENDMENT_COLUMNS = "id, contract_id, amount, new_ends_at, document_id, reason, notes, created_by, created_at";
+
+interface AmendmentRow {
+  id: string;
+  contract_id: string;
+  amount: number;
+  new_ends_at: string | null;
+  document_id: string | null;
+  reason: string | null;
+  notes: string | null;
+  created_by: string | null;
+  created_at: string;
+}
+
+function amendmentToDomain(row: AmendmentRow): ContractAmendment {
+  return {
+    id: row.id,
+    contractId: row.contract_id,
+    amount: Number(row.amount),
+    newEndsAt: row.new_ends_at ?? undefined,
+    documentId: row.document_id ?? undefined,
+    reason: row.reason ?? undefined,
+    notes: row.notes ?? undefined,
+    createdByProfileId: row.created_by ?? undefined,
+    createdAt: row.created_at,
+  };
+}
+
 export function createContractRepositorySupabase(client: SupabaseClient): ContractRepository {
   return {
     async list(query?: ContractListQuery) {
@@ -150,6 +178,33 @@ export function createContractRepositorySupabase(client: SupabaseClient): Contra
         .single();
       if (error) throw new Error(error.message);
       return documentToDomain(data as unknown as DocumentRow);
+    },
+
+    async listAmendments(contractId) {
+      const { data, error } = await client
+        .from("contract_amendments")
+        .select(AMENDMENT_COLUMNS)
+        .eq("contract_id", contractId)
+        .order("created_at", { ascending: false });
+      if (error) throw new Error(error.message);
+      return (data ?? []).map((row) => amendmentToDomain(row as unknown as AmendmentRow));
+    },
+
+    async addAmendment(record: NewContractAmendmentRecord) {
+      const { data, error } = await client
+        .from("contract_amendments")
+        .insert({
+          contract_id: record.contractId,
+          amount: record.amount,
+          new_ends_at: record.newEndsAt ?? null,
+          document_id: record.documentId ?? null,
+          reason: record.reason ?? null,
+          notes: record.notes ?? null,
+        })
+        .select(AMENDMENT_COLUMNS)
+        .single();
+      if (error) throw new Error(error.message);
+      return amendmentToDomain(data as unknown as AmendmentRow);
     },
   };
 }

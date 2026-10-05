@@ -171,3 +171,35 @@ export async function addContractDocumentAction(contractId: string, input: Contr
   }
   revalidatePath(`${LIST_PATH}/${contractId}`);
 }
+
+export interface ContractAmendmentFormInput {
+  amount: string;
+  newEndsAt: string;
+  documentId: string;
+  reason: string;
+  notes: string;
+}
+
+/**
+ * Registra um aditivo (Parte 3B, item 9) — NUNCA altera
+ * contracted_amount/ends_at do contrato; o valor/vigência vigentes
+ * continuam calculados (computeEffectiveContractAmount/
+ * computeEffectiveContractEndsAt) a partir do original + todos os
+ * aditivos registrados.
+ */
+export async function addContractAmendmentAction(contractId: string, input: ContractAmendmentFormInput): Promise<ActionResult> {
+  const amount = parseAmount(input.amount);
+  if (amount === undefined || amount <= 0) return { error: "Informe um valor de aditivo válido (maior que zero)." };
+  try {
+    await getContractService(createSupabaseServerClient()).addAmendment(contractId, {
+      amount,
+      newEndsAt: input.newEndsAt || undefined,
+      documentId: input.documentId || undefined,
+      reason: input.reason,
+      notes: input.notes,
+    });
+  } catch (error) {
+    return { error: toErrorMessage(error) };
+  }
+  revalidatePath(`${LIST_PATH}/${contractId}`);
+}

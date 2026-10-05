@@ -1,7 +1,9 @@
+import Link from "next/link";
 import type { PaymentMethod, ReceivableSourceType, ReceivableStatus } from "@ir/types";
 import { PAYMENT_METHODS, PAYMENT_METHOD_LABELS, RECEIVABLE_SOURCE_TYPE_LABELS, RECEIVABLE_SOURCE_TYPES, RECEIVABLE_STATUS_LABELS, RECEIVABLE_STATUSES } from "@ir/types";
 import { ModuleHeader } from "../../../../components/admin/ModuleHeader";
 import { ReceivablesList } from "../../../../features/financeiro/ReceivablesList";
+import { ReportFiltersToggle } from "../../../../features/financeiro/ReportFiltersToggle";
 import { getContractService } from "../../../../composition/financeiro";
 import { createSupabaseServerClient } from "../../../../lib/supabase/server";
 import { listReceivablesAdminPageSupabase } from "../../../../providers/supabase/receivableRepository.supabase";
@@ -37,27 +39,77 @@ export default async function RelatoriosPage({
   const sourceType = one(searchParams?.sourceType);
   const dueFrom = one(searchParams?.dueFrom);
   const dueTo = one(searchParams?.dueTo);
+  const competencyFrom = one(searchParams?.competencyFrom);
+  const competencyTo = one(searchParams?.competencyTo);
   const search = one(searchParams?.q).trim();
   const contractId = one(searchParams?.contractId);
   const receivedBy = one(searchParams?.receivedBy);
   const recordedBy = one(searchParams?.recordedBy);
   const paymentMethod = one(searchParams?.paymentMethod);
+  const settledWithDifferenceOnly = one(searchParams?.settledWithDifferenceOnly) === "1";
+  const withBalanceOnly = one(searchParams?.withBalanceOnly) === "1";
+  const partiallyPaidOnly = one(searchParams?.partiallyPaidOnly) === "1";
 
   const [contracts, staff] = await Promise.all([getContractService(supabase).list(), listActiveStaffSupabase(supabase)]);
 
-  const result = await listReceivablesAdminPageSupabase(supabase, {
-    page: 1,
-    pageSize: 100,
+  const filterQuery = {
     search,
     status: RECEIVABLE_STATUSES.includes(status as ReceivableStatus) ? (status as ReceivableStatus) : undefined,
     sourceType: RECEIVABLE_SOURCE_TYPES.includes(sourceType as ReceivableSourceType) ? (sourceType as ReceivableSourceType) : undefined,
     dueFrom: dueFrom || undefined,
     dueTo: dueTo || undefined,
+    competencyFrom: competencyFrom || undefined,
+    competencyTo: competencyTo || undefined,
     contractId: contractId || undefined,
     receivedByProfileId: receivedBy || undefined,
     recordedByProfileId: recordedBy || undefined,
     paymentMethod: PAYMENT_METHODS.includes(paymentMethod as PaymentMethod) ? (paymentMethod as PaymentMethod) : undefined,
+    settledWithDifferenceOnly: settledWithDifferenceOnly || undefined,
+    withBalanceOnly: withBalanceOnly || undefined,
+    partiallyPaidOnly: partiallyPaidOnly || undefined,
+  };
+
+  const result = await listReceivablesAdminPageSupabase(supabase, {
+    page: 1,
+    pageSize: 100,
+    ...filterQuery,
   });
+
+  const activeFilterCount = [
+    search.length > 0,
+    Boolean(status),
+    Boolean(sourceType),
+    Boolean(contractId),
+    Boolean(dueFrom),
+    Boolean(dueTo),
+    Boolean(competencyFrom),
+    Boolean(competencyTo),
+    Boolean(receivedBy),
+    Boolean(recordedBy),
+    Boolean(paymentMethod),
+    settledWithDifferenceOnly,
+    withBalanceOnly,
+    partiallyPaidOnly,
+  ].filter(Boolean).length;
+
+  const exportQueryString = new URLSearchParams(
+    Object.entries({
+      q: search,
+      status,
+      sourceType,
+      contractId,
+      dueFrom,
+      dueTo,
+      competencyFrom,
+      competencyTo,
+      receivedBy,
+      recordedBy,
+      paymentMethod,
+      settledWithDifferenceOnly: settledWithDifferenceOnly ? "1" : "",
+      withBalanceOnly: withBalanceOnly ? "1" : "",
+      partiallyPaidOnly: partiallyPaidOnly ? "1" : "",
+    }).filter(([, value]) => value),
+  ).toString();
 
   const totals = result.receivables.reduce(
     (acc, item) => ({
@@ -74,48 +126,49 @@ export default async function RelatoriosPage({
       <ModuleHeader
         eyebrow="FINANCEIRO / RELATÓRIOS"
         title="Relatórios"
-        description="Filtros sobre contas a receber — exportação (PDF/Excel) fica para uma fase futura; os mesmos filtros e consulta já suportam isso depois."
+        description="Filtros sobre contas a receber, com exportação em CSV (planilha) e PDF (impressão) respeitando o filtro ativo."
+        action={
+          <div className="materias-toolbar-actions">
+            <Link className="secondary-link" href="/sistema/financeiro/relatorios/recebimentos">
+              Relatório de recebimentos
+            </Link>
+            <Link className="secondary-link" href="/sistema/financeiro/relatorios/abatimentos">
+              Relatório de abatimentos
+            </Link>
+          </div>
+        }
       />
 
-      <form className="materias-toolbar" method="get" action="/sistema/financeiro/relatorios">
-        <div className="materias-filters">
-          <label className="materias-search">
-            Cliente / CPF / CNPJ / descrição / referência
-            <input name="q" type="search" defaultValue={search} />
+      <ReportFiltersToggle activeFilterCount={activeFilterCount}>
+        <form className="materias-filters-compact" method="get" action="/sistema/financeiro/relatorios">
+          <label className="materias-search-compact">
+            <span className="sr-only">Buscar</span>
+            <input name="q" type="search" defaultValue={search} placeholder="Cliente / CPF / CNPJ / descrição / referência" />
           </label>
-          <label>
-            Situação
-            <select name="status" defaultValue={status}>
-              <option value="">Todas</option>
-              {RECEIVABLE_STATUSES.map((value) => (
-                <option key={value} value={value}>
-                  {RECEIVABLE_STATUS_LABELS[value]}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label>
-            Origem
-            <select name="sourceType" defaultValue={sourceType}>
-              <option value="">Todas</option>
-              {RECEIVABLE_SOURCE_TYPES.map((type) => (
-                <option key={type} value={type}>
-                  {RECEIVABLE_SOURCE_TYPE_LABELS[type]}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label>
-            Contrato
-            <select name="contractId" defaultValue={contractId}>
-              <option value="">Todos</option>
-              {contracts.map((contract) => (
-                <option key={contract.id} value={contract.id}>
-                  {contract.reference}
-                </option>
-              ))}
-            </select>
-          </label>
+          <select name="status" defaultValue={status} aria-label="Situação" title="Situação">
+            <option value="">Situação: todas</option>
+            {RECEIVABLE_STATUSES.map((value) => (
+              <option key={value} value={value}>
+                {RECEIVABLE_STATUS_LABELS[value]}
+              </option>
+            ))}
+          </select>
+          <select name="sourceType" defaultValue={sourceType} aria-label="Origem" title="Origem">
+            <option value="">Origem: todas</option>
+            {RECEIVABLE_SOURCE_TYPES.map((type) => (
+              <option key={type} value={type}>
+                {RECEIVABLE_SOURCE_TYPE_LABELS[type]}
+              </option>
+            ))}
+          </select>
+          <select name="contractId" defaultValue={contractId} aria-label="Contrato" title="Contrato">
+            <option value="">Contrato: todos</option>
+            {contracts.map((contract) => (
+              <option key={contract.id} value={contract.id}>
+                {contract.reference}
+              </option>
+            ))}
+          </select>
           <label>
             Vencimento de
             <input type="date" name="dueFrom" defaultValue={dueFrom} />
@@ -125,42 +178,53 @@ export default async function RelatoriosPage({
             <input type="date" name="dueTo" defaultValue={dueTo} />
           </label>
           <label>
-            Quem recebeu
-            <select name="receivedBy" defaultValue={receivedBy}>
-              <option value="">Todos</option>
-              {staff.map((person) => (
-                <option key={person.id} value={person.id}>
-                  {person.name}
-                </option>
-              ))}
-            </select>
+            Competência de
+            <input type="date" name="competencyFrom" defaultValue={competencyFrom} />
           </label>
           <label>
-            Quem registrou
-            <select name="recordedBy" defaultValue={recordedBy}>
-              <option value="">Todos</option>
-              {staff.map((person) => (
-                <option key={person.id} value={person.id}>
-                  {person.name}
-                </option>
-              ))}
-            </select>
+            Competência até
+            <input type="date" name="competencyTo" defaultValue={competencyTo} />
           </label>
-          <label>
-            Forma de pagamento
-            <select name="paymentMethod" defaultValue={paymentMethod}>
-              <option value="">Todas</option>
-              {PAYMENT_METHODS.map((method) => (
-                <option key={method} value={method}>
-                  {PAYMENT_METHOD_LABELS[method]}
-                </option>
-              ))}
-            </select>
+          <select name="receivedBy" defaultValue={receivedBy} aria-label="Quem recebeu" title="Quem recebeu">
+            <option value="">Quem recebeu: todos</option>
+            {staff.map((person) => (
+              <option key={person.id} value={person.id}>
+                {person.name}
+              </option>
+            ))}
+          </select>
+          <select name="recordedBy" defaultValue={recordedBy} aria-label="Quem registrou" title="Quem registrou">
+            <option value="">Quem registrou: todos</option>
+            {staff.map((person) => (
+              <option key={person.id} value={person.id}>
+                {person.name}
+              </option>
+            ))}
+          </select>
+          <select name="paymentMethod" defaultValue={paymentMethod} aria-label="Forma de pagamento" title="Forma de pagamento">
+            <option value="">Forma de pagamento: todas</option>
+            {PAYMENT_METHODS.map((method) => (
+              <option key={method} value={method}>
+                {PAYMENT_METHOD_LABELS[method]}
+              </option>
+            ))}
+          </select>
+          <label className="materias-checkbox-compact">
+            <input type="checkbox" name="settledWithDifferenceOnly" value="1" defaultChecked={settledWithDifferenceOnly} />
+            Quitado com abatimento
+          </label>
+          <label className="materias-checkbox-compact">
+            <input type="checkbox" name="withBalanceOnly" value="1" defaultChecked={withBalanceOnly} />
+            Só com saldo
+          </label>
+          <label className="materias-checkbox-compact">
+            <input type="checkbox" name="partiallyPaidOnly" value="1" defaultChecked={partiallyPaidOnly} />
+            Só recebimentos parciais
           </label>
           <button type="submit">Filtrar</button>
-        </div>
+        </form>
         <span className="materias-count">{result.total} título(s) no filtro atual</span>
-      </form>
+      </ReportFiltersToggle>
 
       <section className="form-section">
         <h2>Totais do filtro atual</h2>
@@ -183,12 +247,12 @@ export default async function RelatoriosPage({
           </div>
         </div>
         <div className="form-actions" style={{ marginTop: "12px" }}>
-          <button type="button" disabled title="Exportação em fase futura">
-            Exportar PDF (em breve)
-          </button>
-          <button type="button" disabled title="Exportação em fase futura">
-            Exportar planilha (em breve)
-          </button>
+          <Link className="form-action-primary" href={`/sistema/financeiro/relatorios/exportar?${exportQueryString}`}>
+            Exportar planilha (CSV)
+          </Link>
+          <Link className="secondary-link" href={`/sistema/financeiro/relatorios/imprimir?${exportQueryString}`} target="_blank">
+            Exportar PDF (imprimir)
+          </Link>
         </div>
       </section>
 

@@ -1,7 +1,29 @@
-// Módulo Financeiro (Parte 3A) — fundação + Contas a Receber + Contratos
-// Institucionais. Contas a pagar, fornecedores, contas bancárias e fluxo
-// de caixa são deliberadamente deixados de fora desta fase — o modelo
-// não os impede, mas nenhum tipo deles existe aqui ainda.
+// Módulo Financeiro (Parte 3A/3B) — fundação + Contas a Receber +
+// Contratos Institucionais + geração manual de títulos. Contas a pagar,
+// fornecedores, contas bancárias e fluxo de caixa são deliberadamente
+// deixados de fora desta fase — o modelo não os impede, mas nenhum tipo
+// deles existe aqui ainda.
+
+import type { SubscriptionPeriodicity } from "../assinaturas";
+
+/**
+ * Avança uma data de competência por N "passos" de periodicidade —
+ * mesma regra de meses usada em computeNextDueDate (módulo Assinaturas),
+ * reaproveitada aqui em vez de duplicada (Parte 3B, item 3: "usar as
+ * regras já existentes no módulo Assinaturas"). Usada pela geração de
+ * período (N próximas cobranças) e pelas parcelas de contrato.
+ */
+export function addPeriodicityInterval(dateIso: string, periodicity: SubscriptionPeriodicity, steps: number): string {
+  const monthsPerStep = { monthly: 1, quarterly: 3, semiannual: 6, annual: 12 }[periodicity];
+  const date = new Date(`${dateIso}T00:00:00`);
+  const day = date.getDate();
+  const targetMonth = date.getMonth() + monthsPerStep * steps;
+  const targetYear = date.getFullYear() + Math.floor(targetMonth / 12);
+  const normalizedMonth = ((targetMonth % 12) + 12) % 12;
+  const lastDayOfTargetMonth = new Date(targetYear, normalizedMonth + 1, 0).getDate();
+  const clampedDay = Math.min(day, lastDayOfTargetMonth);
+  return new Date(targetYear, normalizedMonth, clampedDay).toISOString().slice(0, 10);
+}
 
 // --- Títulos / Contas a receber ---------------------------------------
 
@@ -106,6 +128,8 @@ export interface Receivable {
   sourceId?: string;
   /** Texto legível da origem (ex.: "Assinatura IR-ASS-2026-000012"). */
   sourceReference?: string;
+  /** Preenchido SÓ quando sourceType === "subscription" — referência real (com FK) à assinatura, usada pela proteção de duplicidade (um índice único por competência). Nunca usado por outras origens. */
+  subscriptionId?: string;
   contractId?: string;
   originalAmount: number;
   issueDate: string;
@@ -257,4 +281,38 @@ export interface ContractDocument {
   extractedData?: ContractDocumentExtractedData;
   uploadedByProfileId?: string;
   createdAt: string;
+}
+
+/**
+ * Aditivo contratual (Parte 3B, item 9) — NUNCA altera
+ * `InstitutionalContract.contractedAmount`/`endsAt` diretamente; o valor
+ * e a vigência vigentes são sempre calculados somando os aditivos a
+ * partir do original (ver computeEffectiveContractAmount/
+ * computeEffectiveContractEndsAt), preservando o histórico completo.
+ * Sem gestão jurídica complexa de propósito — só valor adicional e/ou
+ * nova data final.
+ */
+export interface ContractAmendment {
+  id: string;
+  contractId: string;
+  amount: number;
+  newEndsAt?: string;
+  documentId?: string;
+  reason?: string;
+  notes?: string;
+  createdByProfileId?: string;
+  createdAt: string;
+}
+
+/** Valor vigente = original + soma dos aditivos — nunca sobrescreve o original. */
+export function computeEffectiveContractAmount(contractedAmount: number | undefined, amendments: Pick<ContractAmendment, "amount">[]): number | undefined {
+  if (contractedAmount === undefined) return undefined;
+  return contractedAmount + amendments.reduce((sum, amendment) => sum + amendment.amount, 0);
+}
+
+/** Vigência vigente = a mais recente entre o fim original e os fins informados pelos aditivos (um aditivo sem newEndsAt não muda a vigência). */
+export function computeEffectiveContractEndsAt(endsAt: string | undefined, amendments: Pick<ContractAmendment, "newEndsAt">[]): string | undefined {
+  const candidates = [endsAt, ...amendments.map((amendment) => amendment.newEndsAt)].filter((value): value is string => Boolean(value));
+  if (candidates.length === 0) return undefined;
+  return candidates.reduce((latest, candidate) => (candidate > latest ? candidate : latest));
 }

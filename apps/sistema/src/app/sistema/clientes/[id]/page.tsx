@@ -1,13 +1,19 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ClientNotFoundError } from "@ir/core";
-import { CLIENT_KIND_LABELS, CLIENT_ROLE_LABELS, clientDisplayName } from "@ir/types";
+import { CLIENT_KIND_LABELS, CLIENT_ROLE_LABELS, clientDisplayName, computeReceivableDueFlag } from "@ir/types";
 import { ModuleHeader } from "../../../../components/admin/ModuleHeader";
 import { getClientService } from "../../../../composition/clientes";
+import { getSubscriptionService } from "../../../../composition/assinaturas";
+import { getContractService, getReceivableService } from "../../../../composition/financeiro";
 import { createSupabaseServerClient } from "../../../../lib/supabase/server";
 
 function formatDate(iso: string): string {
   return new Date(iso).toLocaleString("pt-BR");
+}
+
+function formatAmount(value: number): string {
+  return value.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 }
 
 function formatDoc(kind: "individual" | "company", value: string | undefined): string {
@@ -38,6 +44,18 @@ export default async function ClienteDetailPage({ params }: { params: { id: stri
 
   const isIndividual = client.kind === "individual";
 
+  const [subscriptions, contracts, receivables] = await Promise.all([
+    getSubscriptionService(supabase).list({ clientId: client.id }),
+    getContractService(supabase).list({ clientId: client.id }),
+    getReceivableService(supabase).list({ clientId: client.id }),
+  ]);
+  const activeSubscriptions = subscriptions.filter((subscription) => subscription.status === "active").length;
+  const totalOpen = receivables.filter((item) => item.status === "open" || item.status === "partially_paid").reduce((sum, item) => sum + item.balance, 0);
+  const totalOverdue = receivables
+    .filter((item) => computeReceivableDueFlag(item.dueDate, item.status) === "overdue")
+    .reduce((sum, item) => sum + item.balance, 0);
+  const totalReceived = receivables.reduce((sum, item) => sum + item.totalReceived, 0);
+
   return (
     <>
       <ModuleHeader
@@ -48,6 +66,12 @@ export default async function ClienteDetailPage({ params }: { params: { id: stri
           <div className="materias-toolbar-actions">
             <Link className="secondary-link" href={`/sistema/assinaturas/nova?clientId=${client.id}`}>
               Nova assinatura
+            </Link>
+            <Link className="secondary-link" href={`/sistema/financeiro/contas-a-receber/novo?clientId=${client.id}`}>
+              Novo título
+            </Link>
+            <Link className="secondary-link" href={`/sistema/financeiro/contratos/novo?clientId=${client.id}`}>
+              Novo contrato institucional
             </Link>
             <Link className="form-action-primary" href={`/sistema/clientes/${client.id}/editar`}>
               Editar
@@ -130,13 +154,21 @@ export default async function ClienteDetailPage({ params }: { params: { id: stri
         </div>
       </section>
 
-      {/* Seções futuras (não implementadas nesta fase): Financeiro,
-          Publicidade e Histórico de relacionamento vão ocupar este mesmo
-          espaço, consultando por client_id. Assinaturas já tem módulo
-          próprio (ação "Nova assinatura" acima / /sistema/assinaturas). */}
+      {/* Resumo financeiro compacto (Parte 3B, item 14) — não é um
+          dashboard, só os números essenciais para dar contexto rápido
+          na tela do cliente. Publicidade e histórico de relacionamento
+          continuam pendentes de fases futuras. */}
       <section className="form-section form-section--compact">
-        <h2>Em breve</h2>
-        <p className="helper-text">Financeiro, publicidade e histórico de relacionamento vão aparecer aqui em fases futuras.</p>
+        <h2>Resumo financeiro</h2>
+        <div className="form-grid">
+          <Field label="Total em aberto" value={formatAmount(totalOpen)} />
+          <Field label="Total vencido" value={formatAmount(totalOverdue)} />
+          <Field label="Total recebido" value={formatAmount(totalReceived)} />
+          <Field label="Quantidade de títulos" value={String(receivables.length)} />
+          <Field label="Assinaturas ativas" value={String(activeSubscriptions)} />
+          <Field label="Contratos institucionais vinculados" value={String(contracts.length)} />
+        </div>
+        <p className="helper-text">Publicidade e histórico de relacionamento vão aparecer aqui em fases futuras.</p>
       </section>
     </>
   );

@@ -13,9 +13,19 @@ export interface ReversalInput {
 
 export class ReceivableValidationError extends Error {}
 
+/** Já existe uma cobrança desta assinatura para esta competência — nunca
+ * duas iguais (índice único parcial em subscription_id+competency_date,
+ * Parte 3B item 5). */
+export class ReceivableDuplicateSubscriptionChargeError extends Error {
+  constructor(competencyDate: string) {
+    super(`Já existe uma cobrança desta assinatura para a competência ${competencyDate}.`);
+  }
+}
+
 export interface ReceivableListQuery {
   clientId?: string;
   contractId?: string;
+  subscriptionId?: string;
   status?: Receivable["status"];
   sourceType?: Receivable["sourceType"];
 }
@@ -25,6 +35,8 @@ export interface ReceivableRepository {
   getById(id: string): Promise<ReceivableWithBalance | null>;
   create(record: NewReceivableRecord): Promise<Receivable>;
   update(id: string, changes: ReceivableChanges): Promise<Receivable>;
+  /** Pré-checagem de idempotência (UX melhor que só esperar o erro do banco) — o índice único parcial em subscription_id+competency_date continua sendo a proteção autoritativa. */
+  findBySubscriptionAndCompetency(subscriptionId: string, competencyDate: string): Promise<Receivable | null>;
 
   listReceipts(receivableId: string): Promise<ReceivableReceipt[]>;
   addReceipt(record: NewReceiptRecord): Promise<ReceivableReceipt>;

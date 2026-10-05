@@ -1,4 +1,4 @@
-import type { ContractDocument, ContractDocumentExtractedData, ContractDocumentType, ContractStatus, InstitutionalContract } from "@ir/types";
+import type { ContractAmendment, ContractDocument, ContractDocumentExtractedData, ContractDocumentType, ContractStatus, InstitutionalContract } from "@ir/types";
 import {
   ContractValidationError,
   type ContractListQuery,
@@ -35,6 +35,14 @@ export interface ContractDocumentInput {
   notes?: string;
   /** Resultado bruto de uma extração automática — sempre auxílio, nunca aplicado automaticamente aos campos reais do contrato (ver regra absoluta da Parte 3A, item 11). */
   extractedData?: ContractDocumentExtractedData;
+}
+
+export interface ContractAmendmentInput {
+  amount: number;
+  newEndsAt?: string;
+  documentId?: string;
+  reason?: string;
+  notes?: string;
 }
 
 function trimOrUndefined(value: string | undefined | null): string | undefined {
@@ -119,6 +127,31 @@ export class ContractService {
       documentDate: input.documentDate || undefined,
       notes: trimOrUndefined(input.notes),
       extractedData: input.extractedData,
+    });
+  }
+
+  listAmendments(contractId: string): Promise<ContractAmendment[]> {
+    return this.contracts.listAmendments(contractId);
+  }
+
+  /**
+   * Registra um aditivo (Parte 3B, item 9) — NUNCA altera
+   * contractedAmount/endsAt do contrato diretamente; valor e vigência
+   * vigentes continuam sendo calculados (computeEffectiveContractAmount/
+   * computeEffectiveContractEndsAt em @ir/types) a partir do original +
+   * todos os aditivos, preservando histórico completo. Sem gestão
+   * jurídica complexa de propósito.
+   */
+  async addAmendment(contractId: string, input: ContractAmendmentInput): Promise<ContractAmendment> {
+    await this.getById(contractId);
+    if (!Number.isFinite(input.amount) || input.amount <= 0) throw new ContractValidationError("Informe um valor de aditivo válido (maior que zero).");
+    return this.contracts.addAmendment({
+      contractId,
+      amount: input.amount,
+      newEndsAt: input.newEndsAt || undefined,
+      documentId: trimOrUndefined(input.documentId),
+      reason: trimOrUndefined(input.reason),
+      notes: trimOrUndefined(input.notes),
     });
   }
 }
