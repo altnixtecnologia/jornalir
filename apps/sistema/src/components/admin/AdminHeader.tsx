@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { assinaturasNavGroup, clientesNavGroup, editorialNavGroup, moreModulesNavGroup } from "../../lib/navigation";
+import { assinaturasNavGroup, clientesNavGroup, editorialNavGroup, financeiroNavGroup, moreModulesNavGroup } from "../../lib/navigation";
 import { useAuth } from "../../lib/auth/AuthProvider";
 
 /** Fecha os dois menus suspensos — usado ao escolher um link dentro deles. */
@@ -20,6 +20,7 @@ export function AdminHeader({ onOpenMenu }: { onOpenMenu: () => void }): JSX.Ele
   const isEditorial = pathname.startsWith("/sistema/editorial");
   const isClientes = pathname.startsWith("/sistema/clientes");
   const isAssinaturas = pathname.startsWith("/sistema/assinaturas");
+  const isFinanceiro = pathname.startsWith("/sistema/financeiro");
   const isUsuarios = pathname.startsWith("/sistema/usuarios");
   const isMore = moreModulesNavGroup.links.some((link) => pathname.startsWith(link.href));
   const canManageUsers = profile?.role === "owner" || profile?.role === "admin";
@@ -83,6 +84,24 @@ export function AdminHeader({ onOpenMenu }: { onOpenMenu: () => void }): JSX.Ele
             </summary>
             <div className="app-nav-panel">
               {assinaturasNavGroup.links.map((link) => (
+                <Link
+                  key={link.href}
+                  href={link.href}
+                  className={`app-nav-panel-link${link.primary ? " is-primary" : ""}`}
+                  onClick={closeNavDropdowns}
+                >
+                  {link.label}
+                </Link>
+              ))}
+            </div>
+          </details>
+
+          <details className="app-nav-dropdown" data-nav-dropdown name="app-nav-dropdown">
+            <summary className={`app-nav-link app-nav-summary${isFinanceiro ? " is-active" : ""}`}>
+              Financeiro <span className="app-nav-caret" aria-hidden="true">▾</span>
+            </summary>
+            <div className="app-nav-panel">
+              {financeiroNavGroup.links.map((link) => (
                 <Link
                   key={link.href}
                   href={link.href}

@@ -28,8 +28,8 @@ export const adminModules: readonly AdminModule[] = [
   {
     slug: "financeiro",
     label: "Financeiro",
-    description: "Contas, recebimentos e a visão financeira de cada produto.",
-    planned: true,
+    description: "Contas a receber, recebimentos e contratos institucionais.",
+    planned: false,
   },
   {
     slug: "assinaturas",
@@ -135,6 +135,17 @@ export const assinaturasNavGroup: AdminNavGroup = {
   links: [
     { label: "Assinaturas", href: "/sistema/assinaturas" },
     { label: "Nova assinatura", href: "/sistema/assinaturas/nova", primary: true },
+  ],
+};
+
+export const financeiroNavGroup: AdminNavGroup = {
+  label: "Financeiro",
+  links: [
+    { label: "Visão geral", href: "/sistema/financeiro" },
+    { label: "Contas a receber", href: "/sistema/financeiro/contas-a-receber" },
+    { label: "Novo lançamento", href: "/sistema/financeiro/contas-a-receber/novo", primary: true },
+    { label: "Contratos institucionais", href: "/sistema/financeiro/contratos" },
+    { label: "Relatórios", href: "/sistema/financeiro/relatorios" },
   ],
 };
 
