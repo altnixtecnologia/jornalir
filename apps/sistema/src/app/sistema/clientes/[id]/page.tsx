@@ -45,9 +45,14 @@ export default async function ClienteDetailPage({ params }: { params: { id: stri
         title={clientDisplayName(client)}
         description={CLIENT_KIND_LABELS[client.kind]}
         action={
-          <Link className="form-action-primary" href={`/sistema/clientes/${client.id}/editar`}>
-            Editar
-          </Link>
+          <div className="materias-toolbar-actions">
+            <Link className="secondary-link" href={`/sistema/assinaturas/nova?clientId=${client.id}`}>
+              Nova assinatura
+            </Link>
+            <Link className="form-action-primary" href={`/sistema/clientes/${client.id}/editar`}>
+              Editar
+            </Link>
+          </div>
         }
       />
 
@@ -125,12 +130,13 @@ export default async function ClienteDetailPage({ params }: { params: { id: stri
         </div>
       </section>
 
-      {/* Seções futuras (não implementadas nesta fase): Assinaturas,
-          Financeiro, Publicidade e Histórico de relacionamento vão ocupar
-          este mesmo espaço, consultando por client_id. */}
+      {/* Seções futuras (não implementadas nesta fase): Financeiro,
+          Publicidade e Histórico de relacionamento vão ocupar este mesmo
+          espaço, consultando por client_id. Assinaturas já tem módulo
+          próprio (ação "Nova assinatura" acima / /sistema/assinaturas). */}
       <section className="form-section form-section--compact">
         <h2>Em breve</h2>
-        <p className="helper-text">Assinaturas, financeiro, publicidade e histórico de relacionamento vão aparecer aqui em fases futuras.</p>
+        <p className="helper-text">Financeiro, publicidade e histórico de relacionamento vão aparecer aqui em fases futuras.</p>
       </section>
     </>
   );

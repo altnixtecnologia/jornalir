@@ -34,8 +34,8 @@ export const adminModules: readonly AdminModule[] = [
   {
     slug: "assinaturas",
     label: "Assinaturas",
-    description: "Acompanhamento de assinantes e suas assinaturas.",
-    planned: true,
+    description: "Serviços (impresso, digital, TV) vinculados a um cliente.",
+    planned: false,
   },
   {
     slug: "publicidade",
@@ -127,6 +127,14 @@ export const clientesNavGroup: AdminNavGroup = {
   links: [
     { label: "Clientes", href: "/sistema/clientes" },
     { label: "Novo cliente", href: "/sistema/clientes/novo", primary: true },
+  ],
+};
+
+export const assinaturasNavGroup: AdminNavGroup = {
+  label: "Assinaturas",
+  links: [
+    { label: "Assinaturas", href: "/sistema/assinaturas" },
+    { label: "Nova assinatura", href: "/sistema/assinaturas/nova", primary: true },
   ],
 };
 

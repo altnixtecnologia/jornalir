@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { clientesNavGroup, editorialNavGroup, moreModulesNavGroup } from "../../lib/navigation";
+import { assinaturasNavGroup, clientesNavGroup, editorialNavGroup, moreModulesNavGroup } from "../../lib/navigation";
 import { useAuth } from "../../lib/auth/AuthProvider";
 
 export function MobileNav({ onNavigate }: { onNavigate: () => void }): JSX.Element {
@@ -36,6 +36,19 @@ export function MobileNav({ onNavigate }: { onNavigate: () => void }): JSX.Eleme
 
       <p className="mobile-nav-heading">Clientes</p>
       {clientesNavGroup.links.map((link) => (
+        <Link
+          key={link.href}
+          href={link.href}
+          className={`mobile-nav-link${link.primary ? " is-primary" : ""}`}
+          onClick={onNavigate}
+          aria-current={pathname === link.href ? "page" : undefined}
+        >
+          {link.label}
+        </Link>
+      ))}
+
+      <p className="mobile-nav-heading">Assinaturas</p>
+      {assinaturasNavGroup.links.map((link) => (
         <Link
           key={link.href}
           href={link.href}

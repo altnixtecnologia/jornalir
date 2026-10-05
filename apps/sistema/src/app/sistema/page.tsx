@@ -8,6 +8,8 @@ const QUICK_LINKS = [
   { label: "Mídias", href: "/sistema/editorial/midias", description: "Buscar, cadastrar e revisar imagens da biblioteca." },
   { label: "Editorias", href: "/sistema/editorial/editorias", description: "Gerenciar os assuntos do jornal." },
   { label: "Localidades", href: "/sistema/editorial/localidades", description: "Gerenciar cidades e regiões." },
+  { label: "Clientes", href: "/sistema/clientes", description: "Cadastro central de pessoas e empresas." },
+  { label: "Assinaturas", href: "/sistema/assinaturas", description: "Serviços (impresso, digital, TV) vinculados a um cliente." },
 ];
 
 export default function SistemaHomePage(): JSX.Element {

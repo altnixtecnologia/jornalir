@@ -1,5 +1,6 @@
 export * from "./editorial";
 export * from "./clientes";
+export * from "./assinaturas";
 
 export type Status = "ativo" | "inativo";
 
