@@ -1,6 +1,22 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { ContractAmendment, ContractDocument, ContractDocumentExtractedData, ContractDocumentType, ContractStatus, InstitutionalContract } from "@ir/types";
-import type { ContractListQuery, ContractRepository, NewContractAmendmentRecord, NewContractDocumentRecord, NewContractRecord, ContractChanges } from "@ir/core";
+import type {
+  ContractAmendment,
+  ContractCommitmentOrder,
+  ContractDocument,
+  ContractDocumentExtractedData,
+  ContractDocumentType,
+  ContractStatus,
+  InstitutionalContract,
+} from "@ir/types";
+import type {
+  ContractListQuery,
+  ContractRepository,
+  NewCommitmentOrderRecord,
+  NewContractAmendmentRecord,
+  NewContractDocumentRecord,
+  NewContractRecord,
+  ContractChanges,
+} from "@ir/core";
 
 const TABLE = "institutional_contracts";
 const COLUMNS =
@@ -95,13 +111,16 @@ function documentToDomain(row: DocumentRow): ContractDocument {
   };
 }
 
-const AMENDMENT_COLUMNS = "id, contract_id, amount, new_ends_at, document_id, reason, notes, created_by, created_at";
+const AMENDMENT_COLUMNS =
+  "id, contract_id, amount, new_ends_at, amendment_number, effective_date, document_id, reason, notes, created_by, created_at";
 
 interface AmendmentRow {
   id: string;
   contract_id: string;
   amount: number;
   new_ends_at: string | null;
+  amendment_number: string | null;
+  effective_date: string | null;
   document_id: string | null;
   reason: string | null;
   notes: string | null;
@@ -115,12 +134,57 @@ function amendmentToDomain(row: AmendmentRow): ContractAmendment {
     contractId: row.contract_id,
     amount: Number(row.amount),
     newEndsAt: row.new_ends_at ?? undefined,
+    amendmentNumber: row.amendment_number ?? undefined,
+    effectiveDate: row.effective_date ?? undefined,
     documentId: row.document_id ?? undefined,
     reason: row.reason ?? undefined,
     notes: row.notes ?? undefined,
     createdByProfileId: row.created_by ?? undefined,
     createdAt: row.created_at,
   };
+}
+
+const COMMITMENT_ORDER_COLUMNS =
+  "id, contract_id, number, issue_date, amount, competency_date, description, document_id, notes, created_by, created_at";
+
+interface CommitmentOrderRow {
+  id: string;
+  contract_id: string;
+  number: string;
+  issue_date: string;
+  amount: number | null;
+  competency_date: string | null;
+  description: string | null;
+  document_id: string | null;
+  notes: string | null;
+  created_by: string | null;
+  created_at: string;
+}
+
+function commitmentOrderToDomain(row: CommitmentOrderRow): ContractCommitmentOrder {
+  return {
+    id: row.id,
+    contractId: row.contract_id,
+    number: row.number,
+    issueDate: row.issue_date,
+    amount: row.amount !== null ? Number(row.amount) : undefined,
+    competencyDate: row.competency_date ?? undefined,
+    description: row.description ?? undefined,
+    documentId: row.document_id ?? undefined,
+    notes: row.notes ?? undefined,
+    createdByProfileId: row.created_by ?? undefined,
+    createdAt: row.created_at,
+  };
+}
+
+/** Aditivos de VÁRIOS contratos de uma vez (Bloco 2, item 10 — relatório
+ * de contratos) — evita N+1 ao montar o resumo de cada contrato na
+ * listagem. Agrupar por contract_id é responsabilidade de quem chama. */
+export async function listAmendmentsForContractsSupabase(client: SupabaseClient, contractIds: string[]): Promise<ContractAmendment[]> {
+  if (contractIds.length === 0) return [];
+  const { data, error } = await client.from("contract_amendments").select(AMENDMENT_COLUMNS).in("contract_id", contractIds);
+  if (error) throw new Error(error.message);
+  return (data ?? []).map((row) => amendmentToDomain(row as unknown as AmendmentRow));
 }
 
 export function createContractRepositorySupabase(client: SupabaseClient): ContractRepository {
@@ -197,6 +261,8 @@ export function createContractRepositorySupabase(client: SupabaseClient): Contra
           contract_id: record.contractId,
           amount: record.amount,
           new_ends_at: record.newEndsAt ?? null,
+          amendment_number: record.amendmentNumber ?? null,
+          effective_date: record.effectiveDate ?? null,
           document_id: record.documentId ?? null,
           reason: record.reason ?? null,
           notes: record.notes ?? null,
@@ -205,6 +271,35 @@ export function createContractRepositorySupabase(client: SupabaseClient): Contra
         .single();
       if (error) throw new Error(error.message);
       return amendmentToDomain(data as unknown as AmendmentRow);
+    },
+
+    async listCommitmentOrders(contractId) {
+      const { data, error } = await client
+        .from("contract_commitment_orders")
+        .select(COMMITMENT_ORDER_COLUMNS)
+        .eq("contract_id", contractId)
+        .order("issue_date", { ascending: true });
+      if (error) throw new Error(error.message);
+      return (data ?? []).map((row) => commitmentOrderToDomain(row as unknown as CommitmentOrderRow));
+    },
+
+    async addCommitmentOrder(record: NewCommitmentOrderRecord) {
+      const { data, error } = await client
+        .from("contract_commitment_orders")
+        .insert({
+          contract_id: record.contractId,
+          number: record.number,
+          issue_date: record.issueDate,
+          amount: record.amount ?? null,
+          competency_date: record.competencyDate ?? null,
+          description: record.description ?? null,
+          document_id: record.documentId ?? null,
+          notes: record.notes ?? null,
+        })
+        .select(COMMITMENT_ORDER_COLUMNS)
+        .single();
+      if (error) throw new Error(error.message);
+      return commitmentOrderToDomain(data as unknown as CommitmentOrderRow);
     },
   };
 }

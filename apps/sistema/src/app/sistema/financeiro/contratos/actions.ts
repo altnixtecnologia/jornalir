@@ -175,27 +175,62 @@ export async function addContractDocumentAction(contractId: string, input: Contr
 export interface ContractAmendmentFormInput {
   amount: string;
   newEndsAt: string;
+  amendmentNumber: string;
+  effectiveDate: string;
   documentId: string;
   reason: string;
   notes: string;
 }
 
 /**
- * Registra um aditivo (Parte 3B, item 9) — NUNCA altera
- * contracted_amount/ends_at do contrato; o valor/vigência vigentes
- * continuam calculados (computeEffectiveContractAmount/
+ * Registra um aditivo (Parte 3B, item 9 + Bloco 2, item 3) — NUNCA
+ * altera contracted_amount/ends_at do contrato; o valor/vigência
+ * vigentes continuam calculados (computeEffectiveContractAmount/
  * computeEffectiveContractEndsAt) a partir do original + todos os
- * aditivos registrados.
+ * aditivos registrados. `amount` pode ser negativo (redução).
  */
 export async function addContractAmendmentAction(contractId: string, input: ContractAmendmentFormInput): Promise<ActionResult> {
   const amount = parseAmount(input.amount);
-  if (amount === undefined || amount <= 0) return { error: "Informe um valor de aditivo válido (maior que zero)." };
+  if (amount === undefined || amount === 0) return { error: "Informe um valor de aditivo válido (diferente de zero)." };
   try {
     await getContractService(createSupabaseServerClient()).addAmendment(contractId, {
       amount,
       newEndsAt: input.newEndsAt || undefined,
+      amendmentNumber: input.amendmentNumber,
+      effectiveDate: input.effectiveDate || undefined,
       documentId: input.documentId || undefined,
       reason: input.reason,
+      notes: input.notes,
+    });
+  } catch (error) {
+    return { error: toErrorMessage(error) };
+  }
+  revalidatePath(`${LIST_PATH}/${contractId}`);
+}
+
+export interface CommitmentOrderFormInput {
+  number: string;
+  issueDate: string;
+  amount: string;
+  competencyDate: string;
+  description: string;
+  documentId: string;
+  notes: string;
+}
+
+/**
+ * Registra um empenho (Bloco 2, item 4) — entidade própria, nunca
+ * presume que todo título exige um.
+ */
+export async function addCommitmentOrderAction(contractId: string, input: CommitmentOrderFormInput): Promise<ActionResult> {
+  try {
+    await getContractService(createSupabaseServerClient()).addCommitmentOrder(contractId, {
+      number: input.number,
+      issueDate: input.issueDate,
+      amount: parseAmount(input.amount),
+      competencyDate: input.competencyDate || undefined,
+      description: input.description,
+      documentId: input.documentId || undefined,
       notes: input.notes,
     });
   } catch (error) {

@@ -1,16 +1,28 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ContractNotFoundError } from "@ir/core";
-import { CONTRACT_STATUS_LABELS, clientDisplayName, computeEffectiveContractAmount, computeEffectiveContractEndsAt } from "@ir/types";
+import {
+  CONTRACT_STATUS_LABELS,
+  clientDisplayName,
+  computeContractBudgetFlag,
+  computeContractVigencyFlag,
+  computeEffectiveContractAmount,
+  computeEffectiveContractEndsAt,
+  computeReceivableDueFlag,
+  buildContractTimeline,
+} from "@ir/types";
 import { ClientNotFoundError } from "@ir/core";
 import { ModuleHeader } from "../../../../../components/admin/ModuleHeader";
 import { ReceivablesList } from "../../../../../features/financeiro/ReceivablesList";
 import { ContractDocumentsPanel } from "../../../../../features/financeiro/ContractDocumentsPanel";
 import { ContractAmendmentsPanel } from "../../../../../features/financeiro/ContractAmendmentsPanel";
+import { ContractCommitmentOrdersPanel } from "../../../../../features/financeiro/ContractCommitmentOrdersPanel";
 import { ContractInstallmentsPanel } from "../../../../../features/financeiro/ContractInstallmentsPanel";
+import { ContractTimeline } from "../../../../../features/financeiro/ContractTimeline";
 import { getContractService, getReceivableService, getClientCreditService } from "../../../../../composition/financeiro";
 import { getClientService } from "../../../../../composition/clientes";
 import { createSupabaseServerClient } from "../../../../../lib/supabase/server";
+import { sumCreditAppliedForReceivables } from "../../../../../providers/supabase/receivableRepository.supabase";
 
 function formatAmount(value?: number): string {
   if (value === undefined) return "—";
@@ -34,7 +46,7 @@ export default async function ContractDetailPage({ params }: { params: { id: str
   });
   if (!contract) notFound();
 
-  const [client, documents, amendments, receivables, availableCredits] = await Promise.all([
+  const [client, documents, amendments, commitmentOrders, receivables, availableCredits] = await Promise.all([
     getClientService(supabase)
       .getById(contract.clientId)
       .catch((error: unknown) => {
@@ -43,17 +55,49 @@ export default async function ContractDetailPage({ params }: { params: { id: str
       }),
     contractService.listDocuments(contract.id),
     contractService.listAmendments(contract.id),
+    contractService.listCommitmentOrders(contract.id),
     getReceivableService(supabase).list({ contractId: contract.id }),
     getClientCreditService(supabase).list({ contractId: contract.id, availableOnly: true }),
   ]);
   const availableCreditTotal = availableCredits.reduce((sum, item) => sum + item.balance, 0);
 
+  const receivableService = getReceivableService(supabase);
+  const receiptsPerReceivable = await Promise.all(receivables.map((item) => receivableService.listReceipts(item.id)));
+  const receiptsForTimeline = receiptsPerReceivable.flatMap((list, index) =>
+    list.map((receipt) => ({ reference: receivables[index].reference, amount: receipt.amount, receivedAt: receipt.receivedAt })),
+  );
+
+  // Saldo CONTRATUAL (quanto ainda pode ser lançado dentro do valor
+  // vigente) e saldo FINANCEIRO (quanto dos títulos já lançados ainda
+  // não foi recebido) são conceitos DIFERENTES — Bloco 2, item 1.
+  // Nunca misturados nesta tela.
+  const amendmentsTotal = amendments.reduce((sum, item) => sum + item.amount, 0);
   const billedAmount = receivables.reduce((sum, item) => sum + item.originalAmount, 0);
   const receivedAmount = receivables.reduce((sum, item) => sum + item.totalReceived, 0);
   const adjustmentsAmount = receivables.reduce((sum, item) => sum + item.totalAdjustments, 0);
+  const creditAppliedAmount = await sumCreditAppliedForReceivables(supabase, receivables.map((item) => item.id));
+  const discountAmount = adjustmentsAmount - creditAppliedAmount;
+  const financialBalance = billedAmount - receivedAmount - adjustmentsAmount;
   const effectiveAmount = computeEffectiveContractAmount(contract.contractedAmount, amendments);
   const effectiveEndsAt = computeEffectiveContractEndsAt(contract.endsAt, amendments);
-  const overBudget = effectiveAmount !== undefined && billedAmount > effectiveAmount;
+  const contractualBalance = effectiveAmount !== undefined ? effectiveAmount - billedAmount : undefined;
+
+  const vigencyFlag = computeContractVigencyFlag(effectiveEndsAt, contract.status);
+  const budgetFlag = computeContractBudgetFlag(billedAmount, effectiveAmount);
+  const overdueFinancialBalance = receivables
+    .filter((item) => computeReceivableDueFlag(item.dueDate, item.status) === "overdue")
+    .reduce((sum, item) => sum + item.balance, 0);
+
+  const timeline = buildContractTimeline({
+    startsAt: contract.startsAt,
+    endsAt: effectiveEndsAt,
+    status: contract.status,
+    documents,
+    amendments,
+    commitmentOrders,
+    receivables: receivables.map((item) => ({ reference: item.reference, issueDate: item.issueDate, originalAmount: item.originalAmount })),
+    receipts: receiptsForTimeline,
+  });
 
   return (
     <>
@@ -68,7 +112,32 @@ export default async function ContractDetailPage({ params }: { params: { id: str
         }
       />
 
-      <section className="form-section form-section--first">
+      {/* Alertas (Bloco 2, item 9) — sempre derivados, nunca gravados;
+          sem jobs/background nesta fase, só exibição na própria tela. */}
+      {vigencyFlag || budgetFlag || overdueFinancialBalance > 0 ? (
+        <section className="form-section form-section--first">
+          <h2>Alertas</h2>
+          {vigencyFlag === "expired" ? (
+            <p className="form-error" role="alert">Vigência encerrada em {formatDate(effectiveEndsAt)}.</p>
+          ) : vigencyFlag === "expiring_soon" ? (
+            <p className="form-error" role="alert">Vigência próxima do fim: {formatDate(effectiveEndsAt)}.</p>
+          ) : null}
+          {budgetFlag === "over_limit" ? (
+            <p className="form-error" role="alert">
+              Valor lançado ({formatAmount(billedAmount)}) ultrapassa o valor vigente ({formatAmount(effectiveAmount)}).
+            </p>
+          ) : budgetFlag === "near_limit" ? (
+            <p className="form-error" role="alert">
+              Valor lançado ({formatAmount(billedAmount)}) está próximo do valor vigente ({formatAmount(effectiveAmount)}).
+            </p>
+          ) : null}
+          {overdueFinancialBalance > 0 ? (
+            <p className="form-error" role="alert">Saldo financeiro vencido: {formatAmount(overdueFinancialBalance)}.</p>
+          ) : null}
+        </section>
+      ) : null}
+
+      <section className={vigencyFlag || budgetFlag || overdueFinancialBalance > 0 ? "form-section" : "form-section form-section--first"}>
         <h2>Dados do contrato</h2>
         <div className="form-grid">
           <div className="form-field">
@@ -103,52 +172,51 @@ export default async function ContractDetailPage({ params }: { params: { id: str
             <span className="field-label">Vigência vigente {amendments.length > 0 ? "(com aditivos)" : ""}</span>
             <span>{formatDate(contract.startsAt)} – {formatDate(effectiveEndsAt)}</span>
           </div>
+        </div>
+      </section>
+
+      {/* Resumo do contrato (Bloco 2, item 1) — saldo CONTRATUAL (quanto
+          ainda pode ser lançado dentro do valor vigente) e saldo
+          FINANCEIRO (quanto dos títulos já lançados ainda falta
+          receber) são conceitos DIFERENTES, nunca misturados. */}
+      <section className="form-section">
+        <h2>Resumo do contrato</h2>
+        <div className="form-grid">
           <div className="form-field">
             <span className="field-label">Valor original contratado</span>
             <span>{formatAmount(contract.contractedAmount)}</span>
           </div>
           <div className="form-field">
-            <span className="field-label">Valor vigente {amendments.length > 0 ? "(original + aditivos)" : ""}</span>
-            <span>{formatAmount(effectiveAmount)}</span>
+            <span className="field-label">Aditivos de valor {amendments.length > 0 ? `(${amendments.length})` : ""}</span>
+            <span>{amendmentsTotal >= 0 ? "+" : ""}{formatAmount(amendmentsTotal)}</span>
           </div>
-        </div>
-      </section>
-
-      {/* Resumo financeiro (Parte 3A item 14 / Parte 3B item 8) — soma dos
-          títulos válidos lançados para este contrato. Nunca impede
-          lançamento acima do valor vigente (aditivos cobrem isso), só
-          avisa claramente quando o lançado ultrapassa. */}
-      <section className="form-section">
-        <h2>Resumo financeiro</h2>
-        {overBudget ? (
-          <p className="form-error" role="alert">
-            Atenção: o valor lançado ({formatAmount(billedAmount)}) ultrapassa o valor vigente do contrato ({formatAmount(effectiveAmount)}). Verifique se é necessário registrar um aditivo.
-          </p>
-        ) : null}
-        <div className="form-grid">
           <div className="form-field">
             <span className="field-label">Valor vigente</span>
             <span>{formatAmount(effectiveAmount)}</span>
           </div>
           <div className="form-field">
-            <span className="field-label">Valor lançado/faturado</span>
+            <span className="field-label">Total lançado em títulos</span>
             <span>{formatAmount(billedAmount)}</span>
           </div>
           <div className="form-field">
-            <span className="field-label">Valor recebido</span>
+            <span className="field-label">Saldo contratual não lançado</span>
+            <span>{contractualBalance !== undefined ? formatAmount(contractualBalance) : "—"}</span>
+          </div>
+          <div className="form-field">
+            <span className="field-label">Total recebido</span>
             <span>{formatAmount(receivedAmount)}</span>
           </div>
           <div className="form-field">
             <span className="field-label">Descontos/abatimentos</span>
-            <span>{formatAmount(adjustmentsAmount)}</span>
+            <span>{formatAmount(discountAmount)}</span>
           </div>
           <div className="form-field">
-            <span className="field-label">Saldo dos títulos</span>
-            <span>{formatAmount(billedAmount - receivedAmount - adjustmentsAmount)}</span>
+            <span className="field-label">Créditos aplicados</span>
+            <span>{formatAmount(creditAppliedAmount)}</span>
           </div>
           <div className="form-field">
-            <span className="field-label">Saldo contratual não lançado</span>
-            <span>{effectiveAmount !== undefined ? formatAmount(effectiveAmount - billedAmount) : "—"}</span>
+            <span className="field-label">Saldo financeiro dos títulos</span>
+            <span>{formatAmount(financialBalance)}</span>
           </div>
           {availableCreditTotal > 0 ? (
             <div className="form-field">
@@ -168,6 +236,8 @@ export default async function ContractDetailPage({ params }: { params: { id: str
 
       <ContractAmendmentsPanel contractId={contract.id} amendments={amendments} documents={documents} />
 
+      <ContractCommitmentOrdersPanel contractId={contract.id} commitmentOrders={commitmentOrders} documents={documents} />
+
       <section className="form-section">
         <h2>Títulos deste contrato</h2>
         <div className="form-actions">
@@ -181,6 +251,11 @@ export default async function ContractDetailPage({ params }: { params: { id: str
         <div style={{ marginTop: "12px" }}>
           <ReceivablesList receivables={receivables.map((item) => ({ ...item, clientName: client ? clientDisplayName(client) : "—" }))} />
         </div>
+      </section>
+
+      <section className="form-section">
+        <h2>Linha do tempo</h2>
+        <ContractTimeline entries={timeline} />
       </section>
     </>
   );

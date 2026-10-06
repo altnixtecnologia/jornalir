@@ -1,10 +1,11 @@
-import type { ContractAmendment, ContractDocument, InstitutionalContract } from "@ir/types";
+import type { ContractAmendment, ContractCommitmentOrder, ContractDocument, InstitutionalContract } from "@ir/types";
 
 export type NewContractRecord = Omit<InstitutionalContract, "id" | "reference" | "createdAt" | "updatedAt">;
 export type ContractChanges = Partial<NewContractRecord>;
 
 export type NewContractDocumentRecord = Omit<ContractDocument, "id" | "uploadedByProfileId" | "createdAt">;
 export type NewContractAmendmentRecord = Omit<ContractAmendment, "id" | "createdByProfileId" | "createdAt">;
+export type NewCommitmentOrderRecord = Omit<ContractCommitmentOrder, "id" | "createdByProfileId" | "createdAt">;
 
 export class ContractValidationError extends Error {}
 
@@ -24,4 +25,7 @@ export interface ContractRepository {
 
   listAmendments(contractId: string): Promise<ContractAmendment[]>;
   addAmendment(record: NewContractAmendmentRecord): Promise<ContractAmendment>;
+
+  listCommitmentOrders(contractId: string): Promise<ContractCommitmentOrder[]>;
+  addCommitmentOrder(record: NewCommitmentOrderRecord): Promise<ContractCommitmentOrder>;
 }

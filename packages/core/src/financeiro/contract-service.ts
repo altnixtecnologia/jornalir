@@ -1,4 +1,13 @@
-import type { ContractAmendment, ContractDocument, ContractDocumentExtractedData, ContractDocumentType, ContractStatus, InstitutionalContract } from "@ir/types";
+import { canTransitionContractStatus, CONTRACT_STATUS_LABELS } from "@ir/types";
+import type {
+  ContractAmendment,
+  ContractCommitmentOrder,
+  ContractDocument,
+  ContractDocumentExtractedData,
+  ContractDocumentType,
+  ContractStatus,
+  InstitutionalContract,
+} from "@ir/types";
 import {
   ContractValidationError,
   type ContractListQuery,
@@ -11,6 +20,9 @@ export class ContractNotFoundError extends Error {
     super(`Contrato não encontrado: ${id}`);
   }
 }
+
+/** Mesmo princípio de ReceivableStatusTransitionError/SubscriptionStatusTransitionError — nunca sai silenciosamente de um estado pra outro não permitido (Bloco 2, item 2). */
+export class ContractStatusTransitionError extends Error {}
 
 export interface ContractInput {
   clientId: string;
@@ -40,8 +52,20 @@ export interface ContractDocumentInput {
 export interface ContractAmendmentInput {
   amount: number;
   newEndsAt?: string;
+  amendmentNumber?: string;
+  effectiveDate?: string;
   documentId?: string;
   reason?: string;
+  notes?: string;
+}
+
+export interface CommitmentOrderInput {
+  number: string;
+  issueDate: string;
+  amount?: number;
+  competencyDate?: string;
+  description?: string;
+  documentId?: string;
   notes?: string;
 }
 
@@ -102,9 +126,14 @@ export class ContractService {
   }
 
   async update(id: string, input: ContractInput): Promise<InstitutionalContract> {
-    await this.getById(id);
+    const current = await this.getById(id);
     const changes = normalize(input);
     assertValid(changes);
+    if (changes.status !== current.status && !canTransitionContractStatus(current.status, changes.status)) {
+      throw new ContractStatusTransitionError(
+        `Não é possível mudar o status de "${CONTRACT_STATUS_LABELS[current.status]}" para "${CONTRACT_STATUS_LABELS[changes.status]}".`,
+      );
+    }
     return this.contracts.update(id, changes);
   }
 
@@ -135,22 +164,54 @@ export class ContractService {
   }
 
   /**
-   * Registra um aditivo (Parte 3B, item 9) — NUNCA altera
-   * contractedAmount/endsAt do contrato diretamente; valor e vigência
-   * vigentes continuam sendo calculados (computeEffectiveContractAmount/
-   * computeEffectiveContractEndsAt em @ir/types) a partir do original +
-   * todos os aditivos, preservando histórico completo. Sem gestão
-   * jurídica complexa de propósito.
+   * Registra um aditivo (Parte 3B, item 9 + Bloco 2, item 3) — NUNCA
+   * altera contractedAmount/endsAt do contrato diretamente; valor e
+   * vigência vigentes continuam sendo calculados
+   * (computeEffectiveContractAmount/computeEffectiveContractEndsAt em
+   * @ir/types) a partir do original + todos os aditivos, preservando
+   * histórico completo. Sem gestão jurídica complexa de propósito.
+   * `amount` pode ser negativo (redução de valor) — só nunca zero.
    */
   async addAmendment(contractId: string, input: ContractAmendmentInput): Promise<ContractAmendment> {
     await this.getById(contractId);
-    if (!Number.isFinite(input.amount) || input.amount <= 0) throw new ContractValidationError("Informe um valor de aditivo válido (maior que zero).");
+    if (!Number.isFinite(input.amount) || input.amount === 0) throw new ContractValidationError("Informe um valor de aditivo válido (diferente de zero — positivo pra acréscimo, negativo pra redução).");
     return this.contracts.addAmendment({
       contractId,
       amount: input.amount,
       newEndsAt: input.newEndsAt || undefined,
+      amendmentNumber: trimOrUndefined(input.amendmentNumber),
+      effectiveDate: input.effectiveDate || undefined,
       documentId: trimOrUndefined(input.documentId),
       reason: trimOrUndefined(input.reason),
+      notes: trimOrUndefined(input.notes),
+    });
+  }
+
+  listCommitmentOrders(contractId: string): Promise<ContractCommitmentOrder[]> {
+    return this.contracts.listCommitmentOrders(contractId);
+  }
+
+  /**
+   * Registra um empenho (Bloco 2, item 4) — entidade própria, nunca
+   * presume que todo título exige um. `amount`/`competencyDate` são
+   * opcionais de propósito (alguns órgãos emitem empenho sem valor
+   * fechado, ou um único empenho global cobrindo vários meses).
+   */
+  async addCommitmentOrder(contractId: string, input: CommitmentOrderInput): Promise<ContractCommitmentOrder> {
+    await this.getById(contractId);
+    if (!input.number.trim()) throw new ContractValidationError("Informe o número do empenho.");
+    if (!input.issueDate) throw new ContractValidationError("Informe a data do empenho.");
+    if (input.amount !== undefined && (!Number.isFinite(input.amount) || input.amount <= 0)) {
+      throw new ContractValidationError("Se informado, o valor do empenho deve ser maior que zero.");
+    }
+    return this.contracts.addCommitmentOrder({
+      contractId,
+      number: input.number.trim(),
+      issueDate: input.issueDate,
+      amount: input.amount,
+      competencyDate: input.competencyDate || undefined,
+      description: trimOrUndefined(input.description),
+      documentId: trimOrUndefined(input.documentId),
       notes: trimOrUndefined(input.notes),
     });
   }

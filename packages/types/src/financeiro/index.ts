@@ -132,6 +132,8 @@ export interface Receivable {
   /** Preenchido SÓ quando sourceType === "subscription" — referência real (com FK) à assinatura, usada pela proteção de duplicidade (um índice único por competência). Nunca usado por outras origens. */
   subscriptionId?: string;
   contractId?: string;
+  /** Vínculo opcional a um empenho (Bloco 2, item 4) — nunca presume que todo título exige um; só preenchido quando faz sentido administrativamente. */
+  commitmentOrderId?: string;
   originalAmount: number;
   issueDate: string;
   dueDate: string;
@@ -195,10 +197,19 @@ export function isReversed(entry: Pick<ReceivableReceipt | ReceivableAdjustment,
 
 // --- Contratos institucionais -------------------------------------------
 
-export type ContractStatus = "active" | "expired" | "terminated";
+/**
+ * Estados PERSISTIDOS do contrato (Bloco 2, item 2) — "vencido" NUNCA é
+ * um deles: vigência vencida é sempre um INDICADOR DERIVADO (ver
+ * computeContractVigencyFlag), igual ao padrão já usado em
+ * computeReceivableDueFlag para títulos. active/suspended só alternam
+ * entre si; terminated/cancelled são estados finais (nunca voltam),
+ * mesmo princípio de RECEIVABLE_STATUS_TRANSITIONS/
+ * SUBSCRIPTION_STATUS_TRANSITIONS.
+ */
+export type ContractStatus = "active" | "suspended" | "terminated" | "cancelled";
 export type ContractDocumentType = "contract" | "amendment" | "commitment_order" | "invoice" | "authorization" | "other";
 
-export const CONTRACT_STATUSES: readonly ContractStatus[] = ["active", "expired", "terminated"];
+export const CONTRACT_STATUSES: readonly ContractStatus[] = ["active", "suspended", "terminated", "cancelled"];
 export const CONTRACT_DOCUMENT_TYPES: readonly ContractDocumentType[] = [
   "contract",
   "amendment",
@@ -209,10 +220,56 @@ export const CONTRACT_DOCUMENT_TYPES: readonly ContractDocumentType[] = [
 ];
 
 export const CONTRACT_STATUS_LABELS: Record<ContractStatus, string> = {
-  active: "Ativo",
-  expired: "Vencido",
-  terminated: "Rescindido",
+  active: "Vigente",
+  suspended: "Suspenso",
+  terminated: "Encerrado",
+  cancelled: "Cancelado",
 };
+
+export const CONTRACT_STATUS_TRANSITIONS: Record<ContractStatus, readonly ContractStatus[]> = {
+  active: ["suspended", "terminated", "cancelled"],
+  suspended: ["active", "terminated", "cancelled"],
+  terminated: [],
+  cancelled: [],
+};
+
+export function canTransitionContractStatus(from: ContractStatus, to: ContractStatus): boolean {
+  return CONTRACT_STATUS_TRANSITIONS[from].includes(to);
+}
+
+/** "Próximo do fim"/"vigência encerrada" NUNCA são gravados — sempre
+ * calculados comparando a vigência vigente com a data atual (mesmo
+ * princípio de computeReceivableDueFlag). Só faz sentido pra contratos
+ * ainda vigente/suspenso — terminated/cancelled já têm um motivo
+ * explícito, não precisam do indicador de vigência. */
+export type ContractVigencyFlag = "expiring_soon" | "expired" | null;
+
+const CONTRACT_EXPIRING_SOON_DAYS = 30;
+
+export function computeContractVigencyFlag(endsAt: string | undefined, status: ContractStatus, today: Date = new Date()): ContractVigencyFlag {
+  if (!endsAt) return null;
+  if (status === "terminated" || status === "cancelled") return null;
+  const reference = new Date(today);
+  reference.setHours(0, 0, 0, 0);
+  const end = new Date(`${endsAt}T00:00:00`);
+  const diffDays = Math.round((end.getTime() - reference.getTime()) / (1000 * 60 * 60 * 24));
+  if (diffDays < 0) return "expired";
+  if (diffDays <= CONTRACT_EXPIRING_SOON_DAYS) return "expiring_soon";
+  return null;
+}
+
+/** Alerta de orçamento (Bloco 2, item 9) — "perto do limite"/"acima do
+ * limite" comparando o lançado com o valor VIGENTE (original +
+ * aditivos), nunca com o original isolado. 90% é só um limiar de aviso,
+ * nunca bloqueia lançamento (aditivos podem existir). */
+export type ContractBudgetFlag = "near_limit" | "over_limit" | null;
+
+export function computeContractBudgetFlag(billedAmount: number, effectiveAmount: number | undefined): ContractBudgetFlag {
+  if (effectiveAmount === undefined || effectiveAmount <= 0) return null;
+  if (billedAmount > effectiveAmount) return "over_limit";
+  if (billedAmount >= effectiveAmount * 0.9) return "near_limit";
+  return null;
+}
 
 export const CONTRACT_DOCUMENT_TYPE_LABELS: Record<ContractDocumentType, string> = {
   contract: "Contrato original",
@@ -288,21 +345,46 @@ export interface ContractDocument {
 }
 
 /**
- * Aditivo contratual (Parte 3B, item 9) — NUNCA altera
+ * Aditivo contratual (Parte 3B, item 9 + Bloco 2, item 3) — NUNCA altera
  * `InstitutionalContract.contractedAmount`/`endsAt` diretamente; o valor
  * e a vigência vigentes são sempre calculados somando os aditivos a
  * partir do original (ver computeEffectiveContractAmount/
  * computeEffectiveContractEndsAt), preservando o histórico completo.
- * Sem gestão jurídica complexa de propósito — só valor adicional e/ou
- * nova data final.
+ * Sem gestão jurídica complexa de propósito. `amount` pode ser negativo
+ * (redução de valor) — nunca zero; `effectiveDate` é quando o aditivo
+ * passou a valer (pode ser diferente de `createdAt`, que é só o
+ * registro no sistema).
  */
 export interface ContractAmendment {
   id: string;
   contractId: string;
   amount: number;
   newEndsAt?: string;
+  amendmentNumber?: string;
+  effectiveDate?: string;
   documentId?: string;
   reason?: string;
+  notes?: string;
+  createdByProfileId?: string;
+  createdAt: string;
+}
+
+/**
+ * Empenho (Bloco 2, item 4) — entidade operacional própria, nunca
+ * presume que todo título exige um: um contrato pode ter nenhum
+ * empenho, um global, ou vários ao longo da vigência. `receivableId`
+ * (ver Receivable.commitmentOrderId) é o único vínculo opcional entre
+ * título e empenho — nunca obrigatório.
+ */
+export interface ContractCommitmentOrder {
+  id: string;
+  contractId: string;
+  number: string;
+  issueDate: string;
+  amount?: number;
+  competencyDate?: string;
+  description?: string;
+  documentId?: string;
   notes?: string;
   createdByProfileId?: string;
   createdAt: string;
@@ -319,6 +401,72 @@ export function computeEffectiveContractEndsAt(endsAt: string | undefined, amend
   const candidates = [endsAt, ...amendments.map((amendment) => amendment.newEndsAt)].filter((value): value is string => Boolean(value));
   if (candidates.length === 0) return undefined;
   return candidates.reduce((latest, candidate) => (candidate > latest ? candidate : latest));
+}
+
+/** Uma linha da linha do tempo do contrato (Bloco 2, item 8) — nunca
+ * grava nada, é só uma visão ordenada do que já existe. */
+export interface ContractTimelineEntry {
+  date: string;
+  kind: "contract_start" | "document" | "amendment" | "commitment_order" | "receivable" | "receipt" | "contract_end";
+  label: string;
+  amount?: number;
+}
+
+/**
+ * Monta a linha do tempo do contrato (Bloco 2, item 8) — pura, só
+ * reorganiza dados que já existem (documentos, aditivos, empenhos,
+ * títulos, recebimentos, início/fim). Nunca cria nem altera nada.
+ * Objetivo é entender rápido o histórico, não uma visualização
+ * exagerada — por isso devolve uma lista simples, já ordenada.
+ */
+export function buildContractTimeline(input: {
+  startsAt?: string;
+  endsAt?: string;
+  status: ContractStatus;
+  documents: Pick<ContractDocument, "name" | "documentDate" | "createdAt" | "documentType">[];
+  amendments: Pick<ContractAmendment, "amount" | "effectiveDate" | "createdAt" | "amendmentNumber">[];
+  commitmentOrders: Pick<ContractCommitmentOrder, "number" | "issueDate" | "amount">[];
+  receivables: Pick<Receivable, "reference" | "issueDate" | "originalAmount">[];
+  receipts: { reference?: string; amount: number; receivedAt: string }[];
+}): ContractTimelineEntry[] {
+  const entries: ContractTimelineEntry[] = [];
+
+  if (input.startsAt) entries.push({ date: input.startsAt, kind: "contract_start", label: "Início do contrato" });
+
+  for (const document of input.documents) {
+    entries.push({
+      date: document.documentDate || document.createdAt.slice(0, 10),
+      kind: "document",
+      label: `Documento: ${document.name} (${CONTRACT_DOCUMENT_TYPE_LABELS[document.documentType]})`,
+    });
+  }
+
+  for (const amendment of input.amendments) {
+    entries.push({
+      date: amendment.effectiveDate || amendment.createdAt.slice(0, 10),
+      kind: "amendment",
+      label: `Aditivo${amendment.amendmentNumber ? ` ${amendment.amendmentNumber}` : ""}`,
+      amount: amendment.amount,
+    });
+  }
+
+  for (const order of input.commitmentOrders) {
+    entries.push({ date: order.issueDate, kind: "commitment_order", label: `Empenho ${order.number}`, amount: order.amount });
+  }
+
+  for (const receivable of input.receivables) {
+    entries.push({ date: receivable.issueDate, kind: "receivable", label: `Título ${receivable.reference}`, amount: receivable.originalAmount });
+  }
+
+  for (const receipt of input.receipts) {
+    entries.push({ date: receipt.receivedAt, kind: "receipt", label: `Recebimento${receipt.reference ? ` (${receipt.reference})` : ""}`, amount: receipt.amount });
+  }
+
+  if (input.endsAt && (input.status === "terminated" || input.status === "cancelled")) {
+    entries.push({ date: input.endsAt, kind: "contract_end", label: input.status === "cancelled" ? "Contrato cancelado" : "Contrato encerrado" });
+  }
+
+  return entries.sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
 }
 
 // --- Crédito do cliente (Parte 3B.1) -------------------------------------

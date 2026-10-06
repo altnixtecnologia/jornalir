@@ -144,6 +144,9 @@ export default async function RelatoriosPage({
             <Link className="secondary-link" href="/sistema/financeiro/relatorios/creditos">
               Relatório de créditos
             </Link>
+            <Link className="secondary-link" href="/sistema/financeiro/relatorios/contratos">
+              Relatório de contratos
+            </Link>
           </div>
         }
       />

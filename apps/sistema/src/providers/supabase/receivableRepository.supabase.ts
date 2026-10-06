@@ -22,7 +22,7 @@ import type {
 const TABLE = "receivables";
 const VIEW = "receivables_with_balance";
 const COLUMNS =
-  "id, internal_reference, client_id, description, source_type, source_id, source_reference, subscription_id, contract_id, " +
+  "id, internal_reference, client_id, description, source_type, source_id, source_reference, subscription_id, contract_id, commitment_order_id, " +
   "original_amount, issue_date, due_date, competency_date, status, notes, created_at, updated_at";
 const VIEW_COLUMNS = `${COLUMNS}, total_received, total_adjustments, balance`;
 
@@ -36,6 +36,7 @@ interface ReceivableRow {
   source_reference: string | null;
   subscription_id: string | null;
   contract_id: string | null;
+  commitment_order_id: string | null;
   original_amount: number;
   issue_date: string;
   due_date: string;
@@ -63,6 +64,7 @@ function toDomain(row: ReceivableRow): Receivable {
     sourceReference: row.source_reference ?? undefined,
     subscriptionId: row.subscription_id ?? undefined,
     contractId: row.contract_id ?? undefined,
+    commitmentOrderId: row.commitment_order_id ?? undefined,
     originalAmount: Number(row.original_amount),
     issueDate: row.issue_date,
     dueDate: row.due_date,
@@ -92,6 +94,7 @@ function toRow(record: NewReceivableRecord | ReceivableChanges): Record<string, 
   if (record.sourceReference !== undefined) row.source_reference = record.sourceReference ?? null;
   if (record.subscriptionId !== undefined) row.subscription_id = record.subscriptionId ?? null;
   if (record.contractId !== undefined) row.contract_id = record.contractId ?? null;
+  if (record.commitmentOrderId !== undefined) row.commitment_order_id = record.commitmentOrderId ?? null;
   if (record.originalAmount !== undefined) row.original_amount = record.originalAmount;
   if (record.issueDate !== undefined) row.issue_date = record.issueDate;
   if (record.dueDate !== undefined) row.due_date = record.dueDate;
@@ -511,6 +514,16 @@ export async function listReceivablesAdminPageSupabase(
     pageSize,
     totalPages,
   };
+}
+
+/** Títulos de VÁRIOS contratos de uma vez (Bloco 2, item 10 — relatório
+ * de contratos) — evita N+1 ao montar o resumo de cada contrato na
+ * listagem. Agrupar por contractId é responsabilidade de quem chama. */
+export async function listReceivablesForContractsSupabase(client: SupabaseClient, contractIds: string[]): Promise<ReceivableWithBalance[]> {
+  if (contractIds.length === 0) return [];
+  const { data, error } = await client.from(VIEW).select(VIEW_COLUMNS).in("contract_id", contractIds);
+  if (error) throw new Error(error.message);
+  return (data ?? []).map((row) => toDomainWithBalance(row as unknown as ReceivableWithBalanceRow));
 }
 
 /**

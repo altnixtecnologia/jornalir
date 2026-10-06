@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { CONTRACT_STATUS_LABELS, clientDisplayName } from "@ir/types";
+import { CONTRACT_STATUS_LABELS, clientDisplayName, computeContractVigencyFlag } from "@ir/types";
 import type { Client, InstitutionalContract } from "@ir/types";
 
 function formatAmount(value?: number): string {
@@ -14,8 +14,19 @@ function formatDate(iso?: string): string {
 
 function statusPillClass(status: InstitutionalContract["status"]): string {
   if (status === "active") return "status-pill status-pill--published";
-  if (status === "expired") return "status-pill status-pill--overdue";
+  if (status === "suspended") return "status-pill status-pill--draft";
   return "status-pill status-pill--archived";
+}
+
+/** Badge de vigência — SEMPRE derivado (nunca gravado), mesmo princípio de PublicationCell/computeReceivableDueFlag. */
+function VigencyBadge({ contract }: { contract: InstitutionalContract }): JSX.Element | null {
+  const flag = computeContractVigencyFlag(contract.endsAt, contract.status);
+  if (!flag) return null;
+  return (
+    <span className={`status-pill ${flag === "expired" ? "status-pill--overdue" : "status-pill--scheduled"}`}>
+      {flag === "expired" ? "Vigência encerrada" : "Vence em breve"}
+    </span>
+  );
 }
 
 /** Listagem de contratos institucionais — tabela + cards mobile, mesma convenção do restante do painel. */
@@ -57,7 +68,7 @@ export function ContractsList({ contracts, clients }: { contracts: Institutional
                   <td>{formatDate(contract.startsAt)} – {formatDate(contract.endsAt)}</td>
                   <td>{formatAmount(contract.contractedAmount)}</td>
                   <td>
-                    <span className={statusPillClass(contract.status)}>{CONTRACT_STATUS_LABELS[contract.status]}</span>
+                    <span className={statusPillClass(contract.status)}>{CONTRACT_STATUS_LABELS[contract.status]}</span> <VigencyBadge contract={contract} />
                   </td>
                 </tr>
               );
@@ -74,7 +85,7 @@ export function ContractsList({ contracts, clients }: { contracts: Institutional
               <Link className="materia-card" href={`/sistema/financeiro/contratos/${contract.id}`}>
                 <div className="materia-card-head">
                   <span className="materia-card-title">{client ? clientDisplayName(client) : "—"}</span>
-                  <span className={statusPillClass(contract.status)}>{CONTRACT_STATUS_LABELS[contract.status]}</span>
+                  <span className={statusPillClass(contract.status)}>{CONTRACT_STATUS_LABELS[contract.status]}</span> <VigencyBadge contract={contract} />
                 </div>
                 <span className="materia-card-meta">{contract.object || "Sem objeto informado"}</span>
                 <span className="materia-card-meta">
