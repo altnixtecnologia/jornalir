@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { assinaturasNavGroup, clientesNavGroup, editorialNavGroup, financeiroNavGroup, moreModulesNavGroup } from "../../lib/navigation";
+import { assinaturasNavGroup, clientesNavGroup, editorialNavGroup, financeiroNavGroup, moreModulesNavGroup, nfseNavGroup } from "../../lib/navigation";
 import { useAuth } from "../../lib/auth/AuthProvider";
 
 /** Fecha os dois menus suspensos — usado ao escolher um link dentro deles. */
@@ -21,6 +21,7 @@ export function AdminHeader({ onOpenMenu }: { onOpenMenu: () => void }): JSX.Ele
   const isClientes = pathname.startsWith("/sistema/clientes");
   const isAssinaturas = pathname.startsWith("/sistema/assinaturas");
   const isFinanceiro = pathname.startsWith("/sistema/financeiro");
+  const isNfse = pathname.startsWith("/sistema/nfse");
   const isUsuarios = pathname.startsWith("/sistema/usuarios");
   const isMore = moreModulesNavGroup.links.some((link) => pathname.startsWith(link.href));
   const canManageUsers = profile?.role === "owner" || profile?.role === "admin";
@@ -113,6 +114,26 @@ export function AdminHeader({ onOpenMenu }: { onOpenMenu: () => void }): JSX.Ele
               ))}
             </div>
           </details>
+
+          {canManageUsers ? (
+            <details className="app-nav-dropdown" data-nav-dropdown name="app-nav-dropdown">
+              <summary className={`app-nav-link app-nav-summary${isNfse ? " is-active" : ""}`}>
+                NFS-e <span className="app-nav-caret" aria-hidden="true">▾</span>
+              </summary>
+              <div className="app-nav-panel">
+                {nfseNavGroup.links.map((link) => (
+                  <Link
+                    key={link.href}
+                    href={link.href}
+                    className={`app-nav-panel-link${link.primary ? " is-primary" : ""}`}
+                    onClick={closeNavDropdowns}
+                  >
+                    {link.label}
+                  </Link>
+                ))}
+              </div>
+            </details>
+          ) : null}
 
           {canManageUsers ? (
             <Link

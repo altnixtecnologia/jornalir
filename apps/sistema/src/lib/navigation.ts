@@ -38,6 +38,12 @@ export const adminModules: readonly AdminModule[] = [
     planned: false,
   },
   {
+    slug: "nfse",
+    label: "NFS-e",
+    description: "Configuração fiscal, perfis de serviço e rascunhos de NFS-e.",
+    planned: false,
+  },
+  {
     slug: "publicidade",
     label: "Publicidade",
     description: "Anunciantes, espaços e períodos de veiculação.",
@@ -146,6 +152,18 @@ export const financeiroNavGroup: AdminNavGroup = {
     { label: "Novo lançamento", href: "/sistema/financeiro/contas-a-receber/novo", primary: true },
     { label: "Contratos institucionais", href: "/sistema/financeiro/contratos" },
     { label: "Relatórios", href: "/sistema/financeiro/relatorios" },
+  ],
+};
+
+export const nfseNavGroup: AdminNavGroup = {
+  label: "NFS-e",
+  links: [
+    { label: "Visão geral", href: "/sistema/nfse" },
+    { label: "Nova NFS-e", href: "/sistema/nfse/nova", primary: true },
+    { label: "Rascunhos", href: "/sistema/nfse/rascunhos" },
+    { label: "Notas emitidas", href: "/sistema/nfse/notas" },
+    { label: "Perfis de serviço", href: "/sistema/nfse/perfis-servico" },
+    { label: "Configurações", href: "/sistema/nfse/configuracoes" },
   ],
 };
 
