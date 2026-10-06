@@ -7,7 +7,7 @@ import { SiteHeader } from "../../../components/site/SiteHeader";
 import { formatDateBR } from "../../../components/site/date";
 import { listPublicArticlesPage } from "../../../lib/public/publicContentService";
 import type { PublicArticle } from "../../../lib/public/types";
-import { PAGE_SIZE_OPTIONS, DEFAULT_PAGE_SIZE, parsePage, parsePageSize, getPageWindow } from "../../../lib/public/pagination";
+import { PAGE_SIZE_OPTIONS, DEFAULT_PAGE_SIZE, parsePage, parsePageSize, clampJumpPage, getPageBlock } from "../../../lib/public/pagination";
 
 type LoadState = "loading" | "ready" | "error";
 const DEBOUNCE_MS = 300;
@@ -57,6 +57,7 @@ function BuscaContent(): JSX.Element {
   const pageSize = parsePageSize(searchParams.get("pageSize"));
 
   const [queryInput, setQueryInput] = useState(q);
+  const [jumpValue, setJumpValue] = useState("");
   const [items, setItems] = useState<PublicArticle[]>([]);
   const [total, setTotal] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
@@ -176,40 +177,67 @@ function BuscaContent(): JSX.Element {
             )}
 
             {totalPages > 1 ? (
-              <nav className="mt-6 flex items-center justify-center gap-1 border-t border-zinc-300 pt-4 dark:border-zinc-700" aria-label="Paginação">
-                <PageButton disabled={page <= 1} onClick={() => navigate({ page: page - 1 }, "push")} ariaLabel="Página anterior">
-                  ‹
-                </PageButton>
-                <div className="hidden items-center gap-1 sm:flex">
-                  {getPageWindow(page, totalPages, 2).map((token, i) =>
-                    token === "…" ? (
-                      <span key={`dots-${i}`} className="px-2 text-zinc-500">
-                        …
-                      </span>
-                    ) : (
-                      <PageButton key={token} active={token === page} onClick={() => navigate({ page: token }, "push")}>
-                        {token}
-                      </PageButton>
-                    ),
-                  )}
-                </div>
-                <div className="flex items-center gap-1 sm:hidden">
-                  {getPageWindow(page, totalPages, 1).map((token, i) =>
-                    token === "…" ? (
-                      <span key={`dots-m-${i}`} className="px-1.5 text-zinc-500">
-                        …
-                      </span>
-                    ) : (
-                      <PageButton key={token} active={token === page} onClick={() => navigate({ page: token }, "push")}>
-                        {token}
-                      </PageButton>
-                    ),
-                  )}
-                </div>
-                <PageButton disabled={page >= totalPages} onClick={() => navigate({ page: page + 1 }, "push")} ariaLabel="Próxima página">
-                  ›
-                </PageButton>
-              </nav>
+              <>
+                <nav className="mt-6 flex flex-wrap items-center justify-center gap-1 border-t border-zinc-300 pt-4 dark:border-zinc-700" aria-label="Paginação">
+                  <PageButton disabled={page <= 1} onClick={() => navigate({ page: page - 1 }, "push")} ariaLabel="Página anterior">
+                    ‹
+                  </PageButton>
+                  {(() => {
+                    const block = getPageBlock(page, totalPages, 10);
+                    return (
+                      <>
+                        {block.hasPrevBlock ? (
+                          <PageButton onClick={() => navigate({ page: block.prevBlockPage }, "push")} ariaLabel="Bloco de páginas anterior">
+                            «
+                          </PageButton>
+                        ) : null}
+                        <div className="flex items-center gap-1">
+                          {block.pages.map((p) => (
+                            <PageButton key={p} active={p === page} onClick={() => navigate({ page: p }, "push")}>
+                              {p}
+                            </PageButton>
+                          ))}
+                        </div>
+                        {block.hasNextBlock ? (
+                          <PageButton onClick={() => navigate({ page: block.nextBlockPage }, "push")} ariaLabel="Próximo bloco de páginas">
+                            »
+                          </PageButton>
+                        ) : null}
+                      </>
+                    );
+                  })()}
+                  <PageButton disabled={page >= totalPages} onClick={() => navigate({ page: page + 1 }, "push")} ariaLabel="Próxima página">
+                    ›
+                  </PageButton>
+                </nav>
+                <form
+                  onSubmit={(event) => {
+                    event.preventDefault();
+                    const target = clampJumpPage(jumpValue, totalPages);
+                    if (target === null) return;
+                    navigate({ page: target }, "push");
+                    setJumpValue("");
+                  }}
+                  className="mt-4 flex items-center justify-center gap-2"
+                >
+                  <label className="flex items-center gap-2 text-xs text-zinc-500">
+                    Ir para página
+                    <input
+                      type="number"
+                      min={1}
+                      max={totalPages}
+                      value={jumpValue}
+                      onChange={(event) => setJumpValue(event.target.value)}
+                      placeholder={String(page)}
+                      className="w-16 rounded-full border border-zinc-300 bg-white px-2 py-1 text-center text-sm dark:border-zinc-700 dark:bg-zinc-900"
+                      aria-label="Número da página"
+                    />
+                  </label>
+                  <button type="submit" className="rounded-full bg-[color:var(--brand-red)] px-3 py-1 text-xs font-semibold text-white transition hover:opacity-90">
+                    Ir
+                  </button>
+                </form>
+              </>
             ) : null}
           </>
         ) : null}

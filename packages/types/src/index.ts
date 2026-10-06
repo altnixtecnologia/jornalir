@@ -1,4 +1,8 @@
 export * from "./editorial";
+export * from "./clientes";
+export * from "./assinaturas";
+export * from "./financeiro";
+export * from "./nfse";
 
 export type Status = "ativo" | "inativo";
 

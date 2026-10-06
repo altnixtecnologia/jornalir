@@ -14,7 +14,7 @@ interface LocalidadesManagerProps {
   localities: Locality[];
 }
 
-const SCOPE_OPTIONS: LocalityScope[] = ["city", "region", "general"];
+const SCOPE_OPTIONS: LocalityScope[] = ["general", "country", "state", "region", "city"];
 
 const EMPTY_FORM: LocalityPayload = { name: "", slug: "", scope: "city" };
 

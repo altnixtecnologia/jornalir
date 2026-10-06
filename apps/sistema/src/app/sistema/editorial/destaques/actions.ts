@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import type { Article } from "@ir/types";
+import type { Article, EditorialPlacementType } from "@ir/types";
 import { getArticleService } from "../../../../composition/editorial";
 import { createSupabaseServerClient } from "../../../../lib/supabase/server";
 
@@ -14,10 +14,7 @@ function toErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : "Não foi possível concluir a ação.";
 }
 
-/**
- * Fixar/desafixar (só faz sentido em `mainCover`) — nunca altera editoria,
- * localidade, conteúdo ou status da matéria (Fase 29, item 2).
- */
+/** Fixar/desafixar em qualquer destaque sem alterar conteúdo ou status. */
 export async function setPlacementPinnedAction(articleId: string, pinned: boolean): Promise<ActionResult> {
   try {
     const article = await getArticleService(createSupabaseServerClient()).setPlacementPinned(articleId, pinned);
@@ -42,10 +39,13 @@ export async function removeFromPlacementAction(articleId: string): Promise<Acti
   }
 }
 
-/** Ordem manual entre fixadas de `mainCover` — as demais posições giram sozinhas por recência. */
-export async function reorderPinnedMainCoverAction(orderedArticleIds: string[]): Promise<ReorderResult> {
+/** Ordem manual entre matérias fixadas de uma mesma posição. */
+export async function reorderPinnedPlacementAction(
+  type: Exclude<EditorialPlacementType, "none">,
+  orderedArticleIds: string[],
+): Promise<ReorderResult> {
   try {
-    await getArticleService(createSupabaseServerClient()).reorderPinnedMainCover(orderedArticleIds);
+    await getArticleService(createSupabaseServerClient()).reorderPinnedPlacement(type, orderedArticleIds);
     revalidatePath(LIST_PATH);
     return { ok: true };
   } catch (error) {

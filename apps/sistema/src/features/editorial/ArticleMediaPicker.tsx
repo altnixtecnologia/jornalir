@@ -1,6 +1,8 @@
 import { useRef, useState, useTransition } from "react";
-import type { ArticleMedia, MediaAsset } from "@ir/types";
-import { uploadMediaAssets } from "../../app/sistema/editorial/midias/actions";
+import type { ArticleMedia, ArticleMediaRole, MediaAsset } from "@ir/types";
+import { searchMediaLibrary, uploadMediaAssets } from "../../app/sistema/editorial/midias/actions";
+import { ArticleImageEditorModal } from "./ArticleImageEditorModal";
+import styles from "./ArticleMediaPicker.module.css";
 
 interface ArticleMediaPickerProps {
   mediaAssets: MediaAsset[];
@@ -9,11 +11,13 @@ interface ArticleMediaPickerProps {
   onRemoveCover: () => void;
   onAddToGallery: (mediaAssetId: string) => void;
   onRemoveFromGallery: (mediaAssetId: string) => void;
-  onMoveGalleryItem: (mediaAssetId: string, direction: -1 | 1) => void;
+  onReorderMedia: (draggedMediaAssetId: string, targetMediaAssetId: string, placement: "before" | "after") => void;
   onSetCaption: (mediaAssetId: string, caption: string) => void;
   onSetCredit: (mediaAssetId: string, credit: string) => void;
   /** Chamado com as mídias recém-cadastradas — quem usa decide se some com a capa/galeria automaticamente. */
   onFilesUploaded: (assets: MediaAsset[]) => void;
+  /** Substitui o vínculo de UM slot (capa, ou uma posição exata da galeria) por uma mídia derivada — nunca a mídia original em si. */
+  onReplaceMediaAsset: (target: { role: ArticleMediaRole; order: number }, newAsset: MediaAsset) => void;
 }
 
 export function ArticleMediaPicker({
@@ -23,127 +27,311 @@ export function ArticleMediaPicker({
   onRemoveCover,
   onAddToGallery,
   onRemoveFromGallery,
-  onMoveGalleryItem,
+  onReorderMedia,
   onSetCaption,
   onSetCredit,
   onFilesUploaded,
+  onReplaceMediaAsset,
 }: ArticleMediaPickerProps): JSX.Element {
-  const assetById = new Map(mediaAssets.map((asset) => [asset.id, asset]));
+  const [viewerTarget, setViewerTarget] = useState<{ role: ArticleMediaRole; order: number; mediaAssetId: string } | null>(null);
+  const [remoteMediaAssets, setRemoteMediaAssets] = useState<MediaAsset[]>([]);
+  const [searchNotice, setSearchNotice] = useState<string | null>(null);
+  const [searching, startSearch] = useTransition();
+  const allMediaAssets = [
+    ...new Map([...mediaAssets, ...remoteMediaAssets].map((asset) => [asset.id, asset])).values(),
+  ];
+  const assetById = new Map(allMediaAssets.map((asset) => [asset.id, asset]));
   const cover = media.find((item) => item.role === "cover");
   const coverAsset = cover ? assetById.get(cover.mediaAssetId) : undefined;
   const gallery = media
     .filter((item) => item.role === "gallery")
     .sort((a, b) => a.order - b.order);
   const totalPhotos = media.length;
+  const orderedMedia = [
+    ...(cover ? [cover] : []),
+    ...gallery,
+  ];
 
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [uploadNotice, setUploadNotice] = useState<string | null>(null);
   const [uploading, startUpload] = useTransition();
+  const [dragActive, setDragActive] = useState(false);
+  const [draggedMediaId, setDraggedMediaId] = useState<string | null>(null);
+  const [lastUploadNotice, setLastUploadNotice] = useState<string | null>(null);
+  const [uploadDialog, setUploadDialog] = useState<{
+    total: number;
+    completed: number;
+    successes: number;
+    currentName: string;
+    errors: string[];
+    phase: "uploading" | "done";
+  } | null>(null);
   const [librarySearch, setLibrarySearch] = useState("");
   const filteredMediaAssets = librarySearch.trim()
-    ? mediaAssets.filter((asset) => {
+    ? allMediaAssets.filter((asset) => {
         const term = librarySearch.trim().toLowerCase();
-        return `${asset.name} ${asset.reference}`.toLowerCase().includes(term);
+        return `${asset.name} ${asset.reference} ${asset.caption ?? ""} ${asset.credit ?? ""}`.toLowerCase().includes(term);
       })
-    : mediaAssets;
+    : allMediaAssets;
 
-  function handleFilesSelected(event: React.ChangeEvent<HTMLInputElement>): void {
-    const files = event.target.files;
-    event.target.value = "";
-    if (!files || files.length === 0) return;
-
-    const formData = new FormData();
-    for (const file of Array.from(files)) formData.append("files", file);
-
-    setUploadNotice(`Enviando ${files.length} foto(s)…`);
-    startUpload(async () => {
-      const result = await uploadMediaAssets(formData);
+  function handleRemoteSearch(): void {
+    setSearchNotice(null);
+    startSearch(async () => {
+      const result = await searchMediaLibrary(librarySearch);
       if ("error" in result) {
-        setUploadNotice(result.error);
+        setSearchNotice(result.error);
         return;
       }
-      onFilesUploaded(result.assets);
-      const okCount = result.assets.length;
-      const warningsText = result.warnings.length > 0 ? ` (${result.warnings.join("; ")})` : "";
-      setUploadNotice(`${okCount} foto(s) enviada(s) e vinculada(s).${warningsText}`);
+      setRemoteMediaAssets(result.assets);
+      setSearchNotice(
+        result.assets.length > 0
+          ? `${result.assets.length} resultado(s) carregado(s) do acervo.`
+          : "Nenhuma mídia encontrada no acervo.",
+      );
     });
+  }
+
+  function uploadFiles(selectedFiles: File[]): void {
+    if (selectedFiles.length === 0 || uploading) return;
+
+    setLastUploadNotice(null);
+    setUploadDialog({
+      total: selectedFiles.length,
+      completed: 0,
+      successes: 0,
+      currentName: selectedFiles[0]?.name ?? "",
+      errors: [],
+      phase: "uploading",
+    });
+
+    startUpload(async () => {
+      const uploadedAssets: MediaAsset[] = [];
+      const errors: string[] = [];
+
+      for (let index = 0; index < selectedFiles.length; index += 1) {
+        const file = selectedFiles[index];
+        setUploadDialog((current) =>
+          current
+            ? { ...current, currentName: file.name, completed: index, successes: uploadedAssets.length, errors: [...errors] }
+            : current,
+        );
+
+        const formData = new FormData();
+        formData.append("files", file);
+        const result = await uploadMediaAssets(formData);
+
+        if ("error" in result) {
+          errors.push(`${file.name}: ${result.error}`);
+        } else {
+          uploadedAssets.push(...result.assets);
+          for (const warning of result.warnings) errors.push(warning);
+        }
+
+        const completed = index + 1;
+        setUploadDialog({
+          total: selectedFiles.length,
+          completed,
+          successes: uploadedAssets.length,
+          currentName: completed < selectedFiles.length ? selectedFiles[completed].name : file.name,
+          errors: [...errors],
+          phase: completed === selectedFiles.length ? "done" : "uploading",
+        });
+      }
+
+      if (uploadedAssets.length > 0) onFilesUploaded(uploadedAssets);
+      setLastUploadNotice(
+        errors.length === 0
+          ? `${uploadedAssets.length} foto(s) enviada(s) com sucesso.`
+          : `${uploadedAssets.length} enviada(s); ${errors.length} com aviso ou falha.`,
+      );
+    });
+  }
+
+  function handleFilesSelected(event: React.ChangeEvent<HTMLInputElement>): void {
+    const files = Array.from(event.target.files ?? []);
+    event.target.value = "";
+    uploadFiles(files);
+  }
+
+  function handleDrop(event: React.DragEvent<HTMLLabelElement>): void {
+    event.preventDefault();
+    setDragActive(false);
+    if (uploading) return;
+    uploadFiles(Array.from(event.dataTransfer.files));
   }
 
   return (
     <div className="media-picker">
       <div className="media-picker-section">
         <p className="field-label">Adicionar fotos</p>
-        <p className="helper-text">
-          Nenhuma, uma ou várias. Com 1 foto: capa normal, sem galeria pública. Com 2 ou mais: galeria
-          pública fica disponível na matéria.
-        </p>
-        <div className="media-upload-actions">
-          <button type="button" onClick={() => fileInputRef.current?.click()} disabled={uploading}>
-            {uploading ? "Enviando…" : "Enviar fotos"}
-          </button>
-          <span className="helper-text media-upload-hint">
-            ou escolha da biblioteca cadastrada, mais abaixo
-          </span>
-        </div>
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept="image/*"
-          multiple
-          className="visually-hidden"
-          onChange={handleFilesSelected}
-        />
-        {uploadNotice ? <p className="helper-text upload-notice">{uploadNotice}</p> : null}
+        <label
+          className={`${styles.dropZone} ${dragActive ? styles.dropZoneActive : ""} ${uploading ? styles.dropZoneBusy : ""}`}
+          onDragEnter={(event) => {
+            event.preventDefault();
+            if (!uploading) setDragActive(true);
+          }}
+          onDragOver={(event) => {
+            event.preventDefault();
+            if (!uploading) setDragActive(true);
+          }}
+          onDragLeave={(event) => {
+            event.preventDefault();
+            setDragActive(false);
+          }}
+          onDrop={handleDrop}
+        >
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/jpeg,image/png,image/webp,image/avif,image/gif,.avif"
+            multiple
+            className="visually-hidden"
+            onChange={handleFilesSelected}
+            disabled={uploading}
+          />
+          <span className={styles.dropIcon} aria-hidden="true">↑</span>
+          <span className={styles.dropTitle}>{uploading ? "Processando fotos…" : "Arraste as fotos aqui"}</span>
+          <span className={styles.dropSubtitle}>ou clique para selecionar no computador</span>
+          <span className={styles.selectButton}>{uploading ? "Aguarde…" : "Selecionar fotos"}</span>
+          <span className={styles.formatHint}>JPEG, PNG, WebP, AVIF ou GIF · até 8 MB por arquivo</span>
+        </label>
+        {lastUploadNotice ? <p className={styles.lastUploadNotice}>{lastUploadNotice}</p> : null}
       </div>
 
-      <div className="media-picker-section">
-        <p className="field-label">Imagem de capa</p>
-        {coverAsset ? (
-          <div className="media-slot">
-            <img src={coverAsset.url} alt={coverAsset.altText ?? coverAsset.reference} />
-            <div className="media-slot-fields">
-              <span className="materia-reference">{coverAsset.reference}</span>
-              <input
-                className="media-caption-input"
-                value={cover?.caption ?? ""}
-                onChange={(event) => onSetCaption(coverAsset.id, event.target.value)}
-                placeholder={coverAsset.caption ?? "Legenda (opcional)"}
-                aria-label={`Legenda da capa ${coverAsset.reference}`}
-              />
-              <input
-                className="media-caption-input"
-                value={cover?.credit ?? ""}
-                onChange={(event) => onSetCredit(coverAsset.id, event.target.value)}
-                placeholder={coverAsset.credit ?? "Crédito (opcional)"}
-                aria-label={`Crédito da capa ${coverAsset.reference}`}
-              />
-              <button type="button" className="media-remove-button" onClick={onRemoveCover}>
-                Remover capa
-              </button>
+      {uploadDialog ? (
+        <div className={styles.modalBackdrop}>
+          <section
+            className={styles.uploadModal}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="upload-progress-title"
+          >
+            <div className={styles.modalTop}>
+              <div>
+                <p className={styles.modalEyebrow}>UPLOAD DE MÍDIA</p>
+                <h3 id="upload-progress-title">
+                  {uploadDialog.phase === "done"
+                    ? uploadDialog.errors.length > 0
+                      ? "Envio concluído com avisos"
+                      : "Fotos enviadas"
+                    : "Enviando e otimizando"}
+                </h3>
+              </div>
+              <strong className={styles.progressNumber}>
+                {Math.round((uploadDialog.completed / Math.max(1, uploadDialog.total)) * 100)}%
+              </strong>
             </div>
-          </div>
-        ) : (
-          <p className="helper-text">Nenhuma capa selecionada. Escolha uma imagem na biblioteca abaixo.</p>
-        )}
-      </div>
+
+            <div
+              className={styles.progressTrack}
+              role="progressbar"
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-valuenow={Math.round((uploadDialog.completed / Math.max(1, uploadDialog.total)) * 100)}
+            >
+              <span
+                className={styles.progressFill}
+                style={{ width: `${Math.round((uploadDialog.completed / Math.max(1, uploadDialog.total)) * 100)}%` }}
+              />
+            </div>
+
+            <div className={styles.progressMeta}>
+              <span>{uploadDialog.completed} de {uploadDialog.total} processadas</span>
+              <span>{uploadDialog.successes} enviadas</span>
+            </div>
+
+            {uploadDialog.phase === "uploading" ? (
+              <div className={styles.currentFile}>
+                <span className={styles.spinner} aria-hidden="true" />
+                <div>
+                  <small>Processando agora</small>
+                  <strong title={uploadDialog.currentName}>{uploadDialog.currentName}</strong>
+                </div>
+              </div>
+            ) : (
+              <div className={styles.doneSummary}>
+                <strong>{uploadDialog.successes} foto(s) pronta(s)</strong>
+                <span>
+                  {uploadDialog.errors.length === 0
+                    ? "Tudo certo. As imagens já estão disponíveis na matéria."
+                    : `${uploadDialog.errors.length} arquivo(s) precisam de atenção.`}
+                </span>
+              </div>
+            )}
+
+            {uploadDialog.errors.length > 0 ? (
+              <div className={styles.errorList}>
+                {uploadDialog.errors.map((error, index) => (
+                  <p key={`${error}-${index}`}>{error}</p>
+                ))}
+              </div>
+            ) : null}
+
+            {uploadDialog.phase === "done" ? (
+              <button type="button" className={styles.modalClose} onClick={() => setUploadDialog(null)}>
+                Concluir
+              </button>
+            ) : null}
+          </section>
+        </div>
+      ) : null}
 
       <div className="media-picker-section">
-        <p className="field-label">Galeria ({gallery.length})</p>
-        {gallery.length === 0 ? (
-          <p className="helper-text">
-            {totalPhotos === 1
-              ? "Só a capa por enquanto — com 1 foto só, a galeria pública não aparece na matéria."
-              : "Nenhuma imagem na galeria ainda."}
-          </p>
+        <p className="field-label">Imagens da matéria ({totalPhotos})</p>
+        {orderedMedia.length === 0 ? (
+          <p className="helper-text">Nenhuma imagem vinculada a esta matéria.</p>
         ) : (
-          <ol className="gallery-list">
-            {gallery.map((item, index) => {
+          <ol className="article-media-list">
+            {orderedMedia.map((item, index) => {
               const asset = assetById.get(item.mediaAssetId);
               if (!asset) return null;
+              const isCover = index === 0;
+
               return (
-                <li key={item.mediaAssetId} className="gallery-item">
-                  <img src={asset.url} alt={asset.altText ?? asset.reference} />
-                  <span className="materia-reference">{asset.reference}</span>
+                <li
+                  key={item.mediaAssetId}
+                  className={`article-media-row ${draggedMediaId === item.mediaAssetId ? "is-dragging" : ""}`}
+                  onDragOver={(event) => {
+                    if (!draggedMediaId || draggedMediaId === item.mediaAssetId) return;
+                    event.preventDefault();
+                    event.dataTransfer.dropEffect = "move";
+                  }}
+                  onDrop={(event) => {
+                    event.preventDefault();
+                    if (!draggedMediaId || draggedMediaId === item.mediaAssetId) return;
+                    const bounds = event.currentTarget.getBoundingClientRect();
+                    const placement = event.clientY > bounds.top + bounds.height / 2 ? "after" : "before";
+                    onReorderMedia(draggedMediaId, item.mediaAssetId, placement);
+                    setDraggedMediaId(null);
+                  }}
+                >
+                  <button
+                    type="button"
+                    className="article-media-drag-handle"
+                    draggable
+                    onDragStart={(event) => {
+                      setDraggedMediaId(item.mediaAssetId);
+                      event.dataTransfer.effectAllowed = "move";
+                      event.dataTransfer.setData("text/plain", item.mediaAssetId);
+                    }}
+                    onDragEnd={() => setDraggedMediaId(null)}
+                    aria-label={`Arrastar ${asset.reference} para reordenar`}
+                    title="Arraste para reordenar"
+                  >
+                    ⋮⋮
+                  </button>
+
+                  <div className="article-media-thumb-wrap">
+                    <img src={asset.url} alt={asset.altText ?? asset.reference} />
+                    {isCover ? <span className="article-media-cover-badge">CAPA</span> : null}
+                  </div>
+
+                  <div className="article-media-info">
+                    <span className="materia-reference">{asset.reference}</span>
+                    <span className="article-media-position">
+                      {isCover ? "Imagem principal" : `Galeria · posição ${index}`}
+                    </span>
+                  </div>
+
                   <input
                     className="media-caption-input"
                     value={item.caption ?? ""}
@@ -158,27 +346,23 @@ export function ArticleMediaPicker({
                     placeholder={asset.credit ?? "Crédito (opcional)"}
                     aria-label={`Crédito de ${asset.reference}`}
                   />
-                  <div className="gallery-item-actions">
+
+                  <div className="article-media-row-actions">
                     <button
                       type="button"
-                      onClick={() => onMoveGalleryItem(item.mediaAssetId, -1)}
-                      disabled={index === 0}
-                      aria-label={`Mover ${asset.reference} para cima`}
+                      className="article-media-view"
+                      onClick={() =>
+                        setViewerTarget({ role: item.role, order: item.order, mediaAssetId: item.mediaAssetId })
+                      }
+                      aria-label={`Ver ${asset.reference} em tamanho grande`}
+                      title="Ver em tamanho grande"
                     >
-                      ↑
+                      👁
                     </button>
                     <button
                       type="button"
-                      onClick={() => onMoveGalleryItem(item.mediaAssetId, 1)}
-                      disabled={index === gallery.length - 1}
-                      aria-label={`Mover ${asset.reference} para baixo`}
-                    >
-                      ↓
-                    </button>
-                    <button
-                      type="button"
-                      className="media-remove-button"
-                      onClick={() => onRemoveFromGallery(item.mediaAssetId)}
+                      className="media-remove-button article-media-remove"
+                      onClick={() => (isCover ? onRemoveCover() : onRemoveFromGallery(item.mediaAssetId))}
                     >
                       Remover
                     </button>
@@ -199,14 +383,26 @@ export function ArticleMediaPicker({
           </a>
           .
         </p>
-        <input
-          type="search"
-          className="media-library-search"
-          value={librarySearch}
-          onChange={(event) => setLibrarySearch(event.target.value)}
-          placeholder="Procurar por nome ou referência"
-          aria-label="Procurar mídia na biblioteca"
-        />
+        <div className="media-upload-actions">
+          <input
+            type="search"
+            className="media-library-search"
+            value={librarySearch}
+            onChange={(event) => setLibrarySearch(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") {
+                event.preventDefault();
+                handleRemoteSearch();
+              }
+            }}
+            placeholder="Procurar por nome, referência, legenda ou crédito"
+            aria-label="Procurar mídia na biblioteca"
+          />
+          <button type="button" onClick={handleRemoteSearch} disabled={searching}>
+            {searching ? "Buscando…" : "Buscar no acervo"}
+          </button>
+        </div>
+        {searchNotice ? <p className="helper-text">{searchNotice}</p> : null}
         <div className="library-grid">
           {filteredMediaAssets.map((asset) => {
             const isCover = cover?.mediaAssetId === asset.id;
@@ -217,15 +413,12 @@ export function ArticleMediaPicker({
                 <span className="materia-title">{asset.name}</span>
                 <span className="materia-reference">{asset.reference}</span>
                 <div className="library-item-actions">
-                  <button type="button" onClick={() => onSetCover(asset.id)} disabled={isCover}>
-                    {isCover ? "Capa atual" : "Definir como capa"}
-                  </button>
                   <button
                     type="button"
-                    onClick={() => onAddToGallery(asset.id)}
-                    disabled={isInGallery}
+                    onClick={() => (cover ? onAddToGallery(asset.id) : onSetCover(asset.id))}
+                    disabled={isCover || isInGallery}
                   >
-                    {isInGallery ? "Na galeria" : "Adicionar à galeria"}
+                    {isCover || isInGallery ? "Na matéria" : "Adicionar à matéria"}
                   </button>
                 </div>
               </div>
@@ -233,6 +426,20 @@ export function ArticleMediaPicker({
           })}
         </div>
       </div>
+
+      {viewerTarget ? (
+        <ArticleImageEditorModal
+          asset={assetById.get(viewerTarget.mediaAssetId) as MediaAsset}
+          onClose={() => setViewerTarget(null)}
+          onSaved={(newAsset) => {
+            onReplaceMediaAsset({ role: viewerTarget.role, order: viewerTarget.order }, newAsset);
+            // Edições seguintes no mesmo modal (outro crop, outra rotação)
+            // partem da derivada recém-criada, nunca refazendo a partir da
+            // original — evita empilhar perda de qualidade a cada salvamento.
+            setViewerTarget({ ...viewerTarget, mediaAssetId: newAsset.id });
+          }}
+        />
+      ) : null}
     </div>
   );
 }

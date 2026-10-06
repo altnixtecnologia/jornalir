@@ -5,10 +5,7 @@ export interface DestinoEditorialProps {
   sectionName?: string;
   localityName?: string;
   placementType: EditorialPlacementType;
-  /** Só faz sentido quando placementType === "mainCover". */
   pinned?: boolean;
-  urgent?: boolean;
-  placementStartsAt?: string;
   placementEndsAt?: string;
   notificationMode: NotificationMode;
   /** Frase pronta descrevendo a publicação (ex.: "Publicada em 21/09/2026", "Programada para..."). */
@@ -28,8 +25,6 @@ export function DestinoEditorial({
   localityName,
   placementType,
   pinned,
-  urgent,
-  placementStartsAt,
   placementEndsAt,
   notificationMode,
   publicationLine,
@@ -53,25 +48,14 @@ export function DestinoEditorial({
         <li>
           <span className="destino-label">Posição editorial</span>
           <span>
-            {hasPlacement ? placementLabels[placementType] : "Nenhuma — aparece só na editoria/localidade acima"}
-            {hasPlacement && placementType === "mainCover" && pinned ? (
-              <span className="destino-window"> (fixada na capa)</span>
-            ) : null}
-            {hasPlacement && (placementStartsAt || placementEndsAt) ? (
+            {hasPlacement ? placementLabels[placementType] : "Nenhuma"}
+            {hasPlacement && pinned ? (
               <span className="destino-window">
-                {" "}
-                ({placementStartsAt ? formatDateTime(placementStartsAt) : "início livre"} até{" "}
-                {placementEndsAt ? formatDateTime(placementEndsAt) : "fim livre"})
+                {" "}· Fixada{placementEndsAt ? ` até ${formatDateTime(placementEndsAt)}` : " sem prazo"}
               </span>
             ) : null}
           </span>
         </li>
-        {urgent ? (
-          <li>
-            <span className="destino-label">Urgente</span>
-            <span>Selo de urgência ativo — não muda editoria, localidade nem posição editorial.</span>
-          </li>
-        ) : null}
         <li>
           <span className="destino-label">Publicação</span>
           <span>{publicationLine}</span>

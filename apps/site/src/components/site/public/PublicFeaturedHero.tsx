@@ -7,31 +7,17 @@ import type { PublicArticle } from "../../../lib/public/types";
 
 const AUTOPLAY_MS = 8000;
 
-type Orientation = "landscape" | "portrait";
-
-/** Mesma lógica de `FeaturedHero` (mock) — detecta a orientação real de cada foto antes de decidir `cover`/`contain`. */
-function useOrientations(items: PublicArticle[]): Record<string, Orientation> {
-  const [orientations, setOrientations] = useState<Record<string, Orientation>>({});
-
-  useEffect(() => {
-    let cancelled = false;
-    for (const item of items) {
-      if (!item.cover?.url || orientations[item.id]) continue;
-      const probe = new window.Image();
-      probe.onload = () => {
-        if (cancelled) return;
-        const isLandscape = probe.naturalWidth >= probe.naturalHeight * 1.1;
-        setOrientations((prev) => ({ ...prev, [item.id]: isLandscape ? "landscape" : "portrait" }));
-      };
-      probe.src = item.cover.url;
-    }
-    return () => {
-      cancelled = true;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [items]);
-
-  return orientations;
+/**
+ * Faixas discretas por comprimento da manchete (revisão do hero): em vez
+ * de um único tamanho de fonte para qualquer texto (que faz uma manchete
+ * curta parecer gigante e uma longa quebrar em muitas linhas) ou
+ * line-clamp (que corta o título — proibido aqui), cada faixa já nasce
+ * num tamanho que cabe em menos linhas, sem nunca truncar o texto.
+ */
+function heroTitleSizeClass(title: string): string {
+  if (title.length <= 42) return "hero-title--short";
+  if (title.length <= 78) return "hero-title--medium";
+  return "hero-title--long";
 }
 
 /**
@@ -42,7 +28,6 @@ function useOrientations(items: PublicArticle[]): Record<string, Orientation> {
 export function PublicFeaturedHero({ items }: { items: PublicArticle[] }): JSX.Element {
   const [index, setIndex] = useState(0);
   const stageRef = useRef<HTMLDivElement>(null);
-  const orientations = useOrientations(items);
 
   useEffect(() => {
     if (items.length <= 1) return;
@@ -78,31 +63,33 @@ export function PublicFeaturedHero({ items }: { items: PublicArticle[] }): JSX.E
     <article className="hero-stage hero-backdrop relative w-full overflow-hidden">
       <div
         ref={stageRef}
-        className="relative h-[60vh] min-h-[420px] w-full sm:h-[64vh] md:h-[620px] xl:h-[92vh] xl:max-h-[780px]"
+        className="relative h-[70svh] max-h-[640px] min-h-[460px] w-full sm:h-[66svh] md:h-[600px] md:min-h-[520px] xl:h-[min(78svh,720px)] xl:min-h-[560px] xl:max-h-[720px]"
         onMouseMove={handleMouseMove}
         onMouseLeave={handleMouseLeave}
       >
         {items.map((item, i) => {
           const isActive = i === index;
           const withPhoto = Boolean(item.cover?.url);
-          const orientation = orientations[item.id] ?? "landscape";
           return (
             <Link
               href={`/noticias/${item.slug}`}
               key={item.id}
-              className={`group absolute inset-0 block transition-opacity duration-[1100ms] ease-in-out ${isActive ? "opacity-100 z-10" : "pointer-events-none opacity-0 z-0"}`}
+              className={`hero-slide group absolute inset-0 block ${isActive ? "opacity-100 z-10" : "pointer-events-none opacity-0 z-0"}`}
               aria-hidden={!isActive}
               tabIndex={isActive ? 0 : -1}
             >
               {withPhoto ? (
                 <>
-                  <div className="hero-photo-layer absolute inset-x-0 top-0 bottom-0 md:left-[6%] md:right-[-4%] md:top-[8%] md:bottom-0">
+                  <div className="hero-photo-layer absolute inset-0">
                     <div className="hero-parallax h-full w-full">
                       <div
-                        className={`hero-photo-fg h-full w-full bg-center bg-no-repeat ${isActive ? "hero-kenburns" : ""}`}
+                        className="hero-photo-fg hero-kenburns h-full w-full bg-center bg-no-repeat"
                         style={{
                           backgroundImage: `url(${item.cover?.url})`,
-                          backgroundSize: orientation === "portrait" ? "contain" : "cover",
+                          // Hero é cenográfico/full bleed (Ajuste pós-Fase 49): cover é
+                          // permitido aqui — a regra "nunca cortar" vale para a imagem da
+                          // matéria, galeria e cards, não para este fundo de destaque.
+                          backgroundSize: "cover",
                         }}
                       />
                     </div>
@@ -111,21 +98,28 @@ export function PublicFeaturedHero({ items }: { items: PublicArticle[] }): JSX.E
                 </>
               ) : null}
 
-              <div className="absolute inset-0 bg-gradient-to-t from-[color:var(--brand-navy)] via-transparent to-transparent" />
+              <div className="hero-vertical-shade absolute inset-0" />
 
-              <div className={`absolute inset-x-0 bottom-0 pb-10 pt-24 md:pb-16 xl:pb-20 ${isActive ? "hero-text-reveal" : ""}`}>
-                <div className="site-shell">
+              {/* Coluna flex ancorada no rodapé (em vez de bottom-0 com altura
+                  livre pelo conteúdo): a data/localidade é sempre o último
+                  item, na mesma faixa inferior reservada (`.hero-copy`
+                  padding-bottom) — o tamanho do título/subtítulo não desloca
+                  mais essa faixa nem a empurra para fora da área visível. */}
+              <div className={`absolute inset-0 flex flex-col justify-end ${isActive ? "hero-text-reveal" : ""}`}>
+                <div className="hero-copy site-shell w-full">
                   <span className="kicker" style={{ color: "#fff" }}>
                     <span style={{ background: "#fff" }} className="h-[2px] w-4" />
                     {item.sectionName}
                   </span>
-                  <h1 className="mt-4 max-w-4xl font-editorial text-[38px] font-bold leading-[1.03] text-white drop-shadow-lg sm:text-[50px] md:text-[64px] xl:text-[78px]">
+                  <h1
+                    className={`hero-title-contrast hero-title mt-3 max-w-4xl text-balance font-editorial font-bold text-white ${heroTitleSizeClass(item.title)}`}
+                  >
                     {item.title}
                   </h1>
                   {item.subtitle ? (
-                    <p className="mt-5 max-w-2xl text-base leading-snug text-white/85 md:text-xl">{item.subtitle}</p>
+                    <p className="hero-subtitle mt-3 max-w-2xl text-sm text-white/85 sm:mt-4 sm:text-base md:text-lg">{item.subtitle}</p>
                   ) : null}
-                  <p className="mt-5 text-[12px] font-semibold uppercase tracking-wide text-white/60">
+                  <p className="hero-meta mt-3 text-[12px] font-semibold uppercase tracking-wide text-white/60 sm:mt-4">
                     {formatDateBR(item.publishedAt)} {item.localityName ? `· ${item.localityName}` : ""}
                   </p>
                 </div>

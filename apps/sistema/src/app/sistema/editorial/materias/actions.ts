@@ -11,7 +11,7 @@ import {
   type ArticleFormPayload,
 } from "../../../../features/editorial/articleFormTypes";
 import { isDefaultTextStyle } from "../../../../features/editorial/textStyle";
-import { SIMULATED_AUDIT as AUDIT } from "../../../../lib/simulatedAudit";
+import { getAuditContext } from "../../../../lib/auth/getAuditContext";
 
 const LIST_PATH = "/sistema/editorial/materias";
 
@@ -27,11 +27,11 @@ function buildPlacement(payload: ArticleFormPayload): EditorialPlacement {
   }
   return {
     type: payload.placementType,
-    // "Fixar na capa" só faz sentido em mainCover; ignorado silenciosamente
-    // para as demais posições (a UI já nem mostra o checkbox nesse caso).
-    pinned: payload.placementType === "mainCover" ? payload.pinned : undefined,
-    startsAt: payload.placementStartsAt || undefined,
-    endsAt: payload.placementEndsAt || undefined,
+    pinned: payload.pinned || undefined,
+    // A fixação começa imediatamente. Só existe uma data opcional de saída;
+    // sem data, permanece fixa até alguém desligar o controle.
+    startsAt: undefined,
+    endsAt: payload.pinned ? (payload.placementEndsAt || undefined) : undefined,
   };
 }
 
@@ -46,22 +46,27 @@ function parseEditionPageNumber(value: string): number | undefined {
   return value.trim() && Number.isFinite(parsed) && parsed > 0 ? parsed : undefined;
 }
 
-function revalidateAndRedirect(id: string): never {
+type ArticleEditorTab = "conteudo" | "imagens" | "publicacao";
+
+function revalidateAndRedirect(id: string, tab?: ArticleEditorTab): never {
   revalidatePath(LIST_PATH);
   revalidatePath(`${LIST_PATH}/${id}`);
-  redirect(`${LIST_PATH}/${id}`);
+  redirect(`${LIST_PATH}/${id}${tab ? `?aba=${tab}` : ""}`);
 }
 
 export async function createArticle(
   payload: ArticleFormPayload,
   intent: ArticleFormIntent,
+  returnTab?: ArticleEditorTab,
 ): Promise<ActionResult> {
   const validationError = validateArticlePayload(payload, intent);
   if (validationError) return { error: validationError };
 
-  const articleService = getArticleService(createSupabaseServerClient());
+  const client = createSupabaseServerClient();
+  const articleService = getArticleService(client);
   let articleId: string;
   try {
+    const AUDIT = await getAuditContext(client);
     const created = await articleService.saveDraft(
       {
         title: payload.title.trim(),
@@ -98,19 +103,23 @@ export async function createArticle(
     return { error: toErrorMessage(error) };
   }
 
-  revalidateAndRedirect(articleId);
+  revalidateAndRedirect(articleId, returnTab);
 }
 
 export async function updateArticle(
   id: string,
   payload: ArticleFormPayload,
   intent: ArticleFormIntent,
+  returnTab?: ArticleEditorTab,
 ): Promise<ActionResult> {
   const validationError = validateArticlePayload(payload, intent);
   if (validationError) return { error: validationError };
 
-  const articleService = getArticleService(createSupabaseServerClient());
+  const client = createSupabaseServerClient();
+  const articleService = getArticleService(client);
   try {
+    const AUDIT = await getAuditContext(client);
+    const current = await articleService.getById(id);
     const placement = buildPlacement(payload);
     const editionPageNumber = parseEditionPageNumber(payload.editionPageNumber);
     const baseChanges = {
@@ -136,28 +145,43 @@ export async function updateArticle(
         { ...baseChanges, status: "draft", publishedAt: undefined, scheduledAt: undefined },
         AUDIT,
       );
-    } else {
+    } else if (intent === "save") {
+      // Editar uma matéria publicada/agendada/arquivada não deve mudar seu
+      // status nem sua data só por salvar conteúdo.
       await articleService.updateDraft(id, baseChanges, AUDIT);
-      if (intent === "publish") {
+    } else if (intent === "publish") {
+      await articleService.updateDraft(
+        id,
+        { ...baseChanges, ...(current.status === "published" ? { scheduledAt: undefined } : {}) },
+        AUDIT,
+      );
+      // Re-salvar uma matéria que já estava publicada preserva a data
+      // original. "Publicar agora" só cria published_at ao sair de outro status.
+      if (current.status !== "published") {
         await articleService.publishNow(id, AUDIT);
-      } else {
-        await articleService.schedule(
-          id,
-          { scheduledAt: payload.scheduledAt, placement, notificationMode: payload.notificationMode },
-          AUDIT,
-        );
       }
+    } else {
+      // Coloca em scheduled já no mesmo salvamento de conteúdo para uma
+      // matéria publicada não disputar/expulsar vaga de destaque antes da hora.
+      await articleService.updateDraft(id, { ...baseChanges, status: "scheduled" }, AUDIT);
+      await articleService.schedule(
+        id,
+        { scheduledAt: payload.scheduledAt, placement, notificationMode: payload.notificationMode },
+        AUDIT,
+      );
     }
   } catch (error) {
     return { error: toErrorMessage(error) };
   }
 
-  revalidateAndRedirect(id);
+  revalidateAndRedirect(id, returnTab);
 }
 
 export async function archiveArticle(id: string): Promise<ActionResult> {
   try {
-    await getArticleService(createSupabaseServerClient()).archive(id, AUDIT);
+    const client = createSupabaseServerClient();
+    const AUDIT = await getAuditContext(client);
+    await getArticleService(client).archive(id, AUDIT);
   } catch (error) {
     return { error: toErrorMessage(error) };
   }

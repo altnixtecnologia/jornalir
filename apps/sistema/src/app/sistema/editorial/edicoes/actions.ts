@@ -4,8 +4,12 @@ import { revalidatePath } from "next/cache";
 import type { NewspaperEdition } from "@ir/types";
 import { getNewspaperEditionService } from "../../../../composition/editorial";
 import { createSupabaseServerClient } from "../../../../lib/supabase/server";
-import { attachEditionPdf } from "../../../../providers/supabase/newspaperEditionRepository.supabase";
-import { InvalidEditionPdfUploadError, uploadEditionPdf } from "../../../../providers/supabase/editionPdfStorage.supabase";
+import { attachEditionExternalPdf } from "../../../../providers/supabase/newspaperEditionRepository.supabase";
+import {
+  DriveArchiveNotConfiguredError,
+  InvalidDriveEditionPdfError,
+  uploadEditionPdfToDrive,
+} from "../../../../lib/googleDrive/editionArchive";
 
 const LIST_PATH = "/sistema/editorial/edicoes";
 
@@ -80,27 +84,38 @@ export async function setEditionActive(id: string, active: boolean): Promise<Act
 }
 
 /**
- * Upload real do PDF oficial da edição (bucket privado `edition-pdfs`,
- * Fase 28) — troca o arquivo anterior sem apagá-lo do Storage (o antigo só
- * deixa de ser referenciado; limpeza física não é o foco desta fase, mesmo
- * princípio de "nunca apagar" já usado para mídias/matérias).
+ * PDF oficial da edição: novos arquivos vão para a pasta pública do Google
+ * Drive que já alimenta o Jornal Online. O Supabase guarda somente a URL.
+ * PDFs antigos já existentes no bucket privado continuam legíveis, mas
+ * nenhum upload novo deste fluxo aumenta o Storage do Supabase.
  */
 export async function uploadEditionPdfAction(editionId: string, formData: FormData): Promise<ActionResult> {
   const file = formData.get("pdf");
   if (!(file instanceof File) || file.size === 0) {
     return { error: "Selecione um arquivo PDF." };
   }
+
   const client = createSupabaseServerClient();
   try {
-    const { storagePath } = await uploadEditionPdf(client, file);
-    await attachEditionPdf(client, editionId, storagePath);
+    const current = await getNewspaperEditionService(client).getById(editionId);
+    if (!current) return { error: "Edição não encontrada." };
+
+    const uploaded = await uploadEditionPdfToDrive(file, {
+      editionNumber: current.editionNumber,
+      publicationDate: current.publicationDate,
+    });
+    await attachEditionExternalPdf(client, editionId, uploaded.previewUrl);
+
     const edition = await getNewspaperEditionService(client).getById(editionId);
     if (!edition) return { error: "Edição não encontrada após o upload." };
     revalidatePath(LIST_PATH);
     revalidatePath("/sistema/editorial/importar-pdf");
     return { ok: true, edition };
   } catch (error) {
-    const message = error instanceof InvalidEditionPdfUploadError ? error.message : toErrorMessage(error);
+    const message =
+      error instanceof DriveArchiveNotConfiguredError || error instanceof InvalidDriveEditionPdfError
+        ? error.message
+        : toErrorMessage(error);
     return { error: message };
   }
 }

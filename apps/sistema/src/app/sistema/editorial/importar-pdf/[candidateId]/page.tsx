@@ -8,10 +8,13 @@ import {
   getEditorialSectionService,
   getImportCandidateService,
   getLocalityService,
-  getMediaAssetService,
   getNewspaperEditionService,
 } from "../../../../../composition/editorial";
 import { createSupabaseServerClient } from "../../../../../lib/supabase/server";
+import {
+  getMediaAssetsByIdsSupabase,
+  listRecentMediaAssetsSupabase,
+} from "../../../../../providers/supabase/mediaAssetRepository.supabase";
 
 export default async function ImportCandidateDetailPage({
   params,
@@ -27,12 +30,18 @@ export default async function ImportCandidateDetailPage({
     });
   if (!candidate) notFound();
 
-  const [sections, localities, mediaAssets, editions] = await Promise.all([
+  const [sections, localities, editions, suggestedMedia, recentMedia] = await Promise.all([
     getEditorialSectionService(supabase).list(),
     getLocalityService(supabase).list(),
-    getMediaAssetService(supabase).list(),
     getNewspaperEditionService(supabase).list(),
+    // As mídias sugeridas pela extração do PDF precisam estar disponíveis
+    // mesmo que não estejam entre as mais recentes do acervo.
+    getMediaAssetsByIdsSupabase(supabase, candidate.suggestedMediaAssetIds ?? []),
+    // Semente para a busca sob demanda do ArticleMediaPicker — nunca o
+    // acervo inteiro (já são dezenas de milhares de mídias migradas).
+    listRecentMediaAssetsSupabase(supabase, 60),
   ]);
+  const mediaAssets = [...new Map([...suggestedMedia, ...recentMedia].map((asset) => [asset.id, asset])).values()];
   const edition = editions.find((item) => item.id === candidate.editionId);
   const currentStep: ImportFlowStep = candidate.status === "converted" ? "materia" : "revisao";
 

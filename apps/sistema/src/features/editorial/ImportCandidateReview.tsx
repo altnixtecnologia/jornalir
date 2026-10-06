@@ -16,9 +16,10 @@ import { DestinoEditorial } from "./DestinoEditorial";
 import { ImportCandidateSourcePreview } from "./ImportCandidateSourcePreview";
 import {
   addGalleryMedia,
-  moveGalleryMedia,
+  reorderArticleMedia,
   removeCoverMedia,
   removeGalleryMedia,
+  replaceMediaAssetAt,
   setCoverMedia,
   setMediaCaption,
   setMediaCredit,
@@ -291,7 +292,9 @@ export function ImportCandidateReview({
           onRemoveCover={() => setMedia((prev) => removeCoverMedia(prev))}
           onAddToGallery={(id) => setMedia((prev) => addGalleryMedia(prev, id))}
           onRemoveFromGallery={(id) => setMedia((prev) => removeGalleryMedia(prev, id))}
-          onMoveGalleryItem={(id, direction) => setMedia((prev) => moveGalleryMedia(prev, id, direction))}
+          onReorderMedia={(draggedId, targetId, placement) =>
+            setMedia((prev) => reorderArticleMedia(prev, draggedId, targetId, placement))
+          }
           onSetCaption={(id, caption) => setMedia((prev) => setMediaCaption(prev, id, caption))}
           onSetCredit={(id, credit) => setMedia((prev) => setMediaCredit(prev, id, credit))}
           onFilesUploaded={(uploaded) => {
@@ -305,6 +308,10 @@ export function ImportCandidateReview({
               }
               return next;
             });
+          }}
+          onReplaceMediaAsset={(target, newAsset) => {
+            setAvailableMediaAssets((prev) => [newAsset, ...prev]);
+            setMedia((prev) => replaceMediaAssetAt(prev, target, newAsset.id));
           }}
         />
       </section>

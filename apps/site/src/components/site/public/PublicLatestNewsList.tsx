@@ -29,9 +29,9 @@ export function PublicLatestNewsList({ items }: { items: PublicArticle[] }): JSX
 
       <div className="grid grid-cols-1 items-start gap-8 lg:grid-cols-[1.15fr_1fr]">
         <div key={selected.id} className="reveal-up">
-          <div className="relative h-64 overflow-hidden rounded-sm md:h-80">
+          <div className="relative h-64 overflow-hidden rounded-sm bg-[color:var(--site-bg)] md:h-80">
             {selected.cover?.url ? (
-              <div className="h-full w-full bg-cover bg-center" style={{ backgroundImage: `url(${selected.cover.url})` }} />
+              <div className="h-full w-full bg-contain bg-center bg-no-repeat" style={{ backgroundImage: `url(${selected.cover.url})` }} />
             ) : (
               <div className="flex h-full w-full items-center justify-center bg-[color:var(--brand-navy)]">
                 <span className="font-editorial text-3xl font-bold text-white/25">IR</span>

@@ -13,6 +13,11 @@ interface NavLink {
   label: string;
 }
 
+// Acesso permanente a todo o acervo de notícias — nunca depende de
+// editorias carregadas nem de existir algo em destaque (placement
+// "latestNews"): é um link estrutural fixo, sempre visível.
+const NOTICIAS_LINK: NavLink = { href: "/noticias", label: "Notícias" };
+
 // Links fixos que não são editoria — mantidos nos mesmos grupos visuais de
 // antes (Jornal Online direto no header; Sobre/Contato em "Mais").
 const JORNAL_ONLINE: NavLink = { href: "/jornal-online", label: "Jornal Online" };
@@ -21,13 +26,33 @@ const FIXED_OVERFLOW: NavLink[] = [
   { href: "/contato", label: "Contato" },
 ];
 
-// Quantas editorias reais ficam direto no header (Fase 31, item 2) — o
-// resto sempre vai para "Mais", crescimento de editorias nunca aumenta a
-// altura do header.
-const FLAT_SECTION_COUNT = 4;
+// Header desktop numa linha só (Ajuste pós-Fase 49 — substitui as duas
+// faixas fixas da Fase 49): quantas editorias reais ficam diretas no menu
+// cresce por breakpoint (mais tela = mais editorias diretas), sem JS de
+// medição — cada editoria é renderizada uma única vez com a classe de
+// visibilidade do seu próprio degrau; o "Mais" mostra exatamente o
+// complemento em cada largura (ver `sectionTierClass`/`overflowTierClass`).
+const SECTION_TIERS = { base: 3, xl: 5, "2xl": 8 } as const;
 
 function sectionToLink(section: PublicSection): NavLink {
   return { href: `/editoria/${section.slug}`, label: section.name };
+}
+
+// Classe do link direto no nav: aparece a partir do degrau em que "cabe".
+function sectionTierClass(index: number): string {
+  if (index < SECTION_TIERS.base) return "inline-flex";
+  if (index < SECTION_TIERS.xl) return "hidden xl:inline-flex";
+  if (index < SECTION_TIERS["2xl"]) return "hidden 2xl:inline-flex";
+  return "hidden";
+}
+
+// Classe do mesmo item dentro de "Mais": visível só enquanto a largura
+// atual ainda não o mostra direto no nav (complemento exato da tier acima).
+function overflowTierClass(index: number): string {
+  if (index < SECTION_TIERS.base) return "hidden";
+  if (index < SECTION_TIERS.xl) return "block xl:hidden";
+  if (index < SECTION_TIERS["2xl"]) return "block 2xl:hidden";
+  return "block";
 }
 
 /**
@@ -37,7 +62,7 @@ function sectionToLink(section: PublicSection): NavLink {
  * estrutural mínima (Início/Busca/Sobre/Contato), nunca uma lista mock
  * escondida (item 6).
  */
-function useHeaderSections(): { flatLinks: NavLink[]; overflowLinks: NavLink[] } {
+function useHeaderSections(): { sectionLinks: NavLink[]; allNavLinks: NavLink[] } {
   const [sections, setSections] = useState<PublicSection[] | null>(null);
 
   useEffect(() => {
@@ -57,13 +82,12 @@ function useHeaderSections(): { flatLinks: NavLink[]; overflowLinks: NavLink[] }
   if (sections === null) {
     // Ainda carregando: nada de editoria por enquanto, só a estrutura
     // mínima — evita mostrar (e depois trocar) uma lista errada.
-    return { flatLinks: [], overflowLinks: FIXED_OVERFLOW };
+    return { sectionLinks: [], allNavLinks: [JORNAL_ONLINE, ...FIXED_OVERFLOW] };
   }
 
   const sectionLinks = sections.map(sectionToLink);
-  const flatLinks = [...sectionLinks.slice(0, FLAT_SECTION_COUNT), JORNAL_ONLINE];
-  const overflowLinks = [...sectionLinks.slice(FLAT_SECTION_COUNT), ...FIXED_OVERFLOW];
-  return { flatLinks, overflowLinks };
+  const allNavLinks = [...sectionLinks, JORNAL_ONLINE, ...FIXED_OVERFLOW];
+  return { sectionLinks, allNavLinks };
 }
 
 export function SiteHeader({ active }: { active?: string } = {}): JSX.Element {
@@ -72,8 +96,7 @@ export function SiteHeader({ active }: { active?: string } = {}): JSX.Element {
   const [mobileNavigatingTo, setMobileNavigatingTo] = useState<string | null>(null);
   const pathname = usePathname();
   const router = useRouter();
-  const { flatLinks, overflowLinks } = useHeaderSections();
-  const allNavLinks = [...flatLinks, ...overflowLinks];
+  const { sectionLinks, allNavLinks } = useHeaderSections();
 
   useEffect(() => {
     document.body.style.overflow = open ? "hidden" : "";
@@ -106,13 +129,26 @@ export function SiteHeader({ active }: { active?: string } = {}): JSX.Element {
     return pathname.startsWith(href);
   }
 
+  const socialIcons = [
+    { href: socialLinks.facebook, label: "Facebook", icon: "/brand/social-facebook.png" },
+    { href: socialLinks.instagram, label: "Instagram", icon: "/brand/social-instagram.png" },
+    { href: socialLinks.whatsapp, label: "WhatsApp", icon: "/brand/social-whatsapp.png" },
+  ];
+
+  const hasOverflow = sectionLinks.length > SECTION_TIERS.base || FIXED_OVERFLOW.length > 0;
+
   return (
     <header className="site-header">
+      {/* Desktop (Ajuste pós-Fase 49): UMA linha só — logo à esquerda, nav
+          no centro, busca/redes/Assinante à direita. Quantas editorias
+          aparecem direto cresce por breakpoint (`sectionTierClass`); o
+          resto some para "Mais" (`overflowTierClass` é o complemento exato
+          em cada largura). Nunca uma segunda faixa fixa. */}
       <div className="site-shell flex h-[58px] items-center justify-between gap-4 lg:h-[76px]">
-        <div className="flex items-center gap-5">
-          {/* Desktop: marca oficial escrita (PNG com transparência real), renderizada direto sobre o header — sem placa/fundo. Tamanho grande o bastante para "INFORMATIVO REGIONAL" e o slogan ficarem legíveis. */}
-          <Link href="/" aria-label="Informativo Regional" className="hidden lg:inline-flex lg:items-center">
-            <img src="/brand/logo-escrita.png" alt="Informativo Regional" style={{ height: 64, width: "auto" }} />
+        <div className="flex min-w-0 items-center gap-5 xl:gap-7">
+          {/* Desktop: marca oficial escrita — um pouco maior que antes da Fase 49, sem estrangular a navegação. */}
+          <Link href="/" aria-label="Informativo Regional" className="hidden shrink-0 lg:inline-flex lg:items-center">
+            <img src="/brand/logo-escrita.png" alt="Informativo Regional" style={{ height: 72, width: "auto" }} />
           </Link>
           {/* Mobile/tablet: símbolo oficial (transparente) + nome — melhor aproveitamento do espaço reduzido. */}
           <Link href="/" aria-label="Informativo Regional" className="brand-mark lg:hidden">
@@ -122,21 +158,31 @@ export function SiteHeader({ active }: { active?: string } = {}): JSX.Element {
             </span>
           </Link>
 
-          <nav className="hidden items-center gap-4 lg:flex xl:gap-5" aria-label="Navegação principal">
+          <nav className="hidden min-w-0 items-center gap-4 lg:flex xl:gap-5" aria-label="Navegação principal">
             <Link href="/" className={`nav-link ${isActive("/") ? "is-active" : ""}`}>
               Início
             </Link>
-            {flatLinks.map((item) => (
-              <Link key={item.href} href={item.href} className={`nav-link ${isActive(item.href) ? "is-active" : ""}`}>
+            <Link href={NOTICIAS_LINK.href} className={`nav-link ${isActive(NOTICIAS_LINK.href) ? "is-active" : ""}`}>
+              {NOTICIAS_LINK.label}
+            </Link>
+            {sectionLinks.map((item, index) => (
+              <Link
+                key={item.href}
+                href={item.href}
+                className={`nav-link ${sectionTierClass(index)} ${isActive(item.href) ? "is-active" : ""}`}
+              >
                 {item.label}
               </Link>
             ))}
+            <Link href={JORNAL_ONLINE.href} className={`nav-link ${isActive(JORNAL_ONLINE.href) ? "is-active" : ""}`}>
+              {JORNAL_ONLINE.label}
+            </Link>
 
-            {overflowLinks.length > 0 ? (
+            {hasOverflow ? (
               <div className="relative" onMouseEnter={() => setEditoriasOpen(true)} onMouseLeave={() => setEditoriasOpen(false)}>
                 <button
                   type="button"
-                  className={`nav-link inline-flex items-center gap-1 ${overflowLinks.some((i) => isActive(i.href)) ? "is-active" : ""}`}
+                  className="nav-link inline-flex items-center gap-1"
                   onClick={() => setEditoriasOpen((v) => !v)}
                   aria-expanded={editoriasOpen}
                 >
@@ -145,7 +191,16 @@ export function SiteHeader({ active }: { active?: string } = {}): JSX.Element {
                 <div
                   className={`absolute left-0 top-full z-30 mt-2 w-56 rounded-lg border border-[color:var(--site-line)] bg-[color:var(--site-surface)] p-2 shadow-xl transition-all ${editoriasOpen ? "visible translate-y-0 opacity-100" : "invisible -translate-y-1 opacity-0"}`}
                 >
-                  {overflowLinks.map((item) => (
+                  {sectionLinks.map((item, index) => (
+                    <Link
+                      key={`${item.href}-overflow`}
+                      href={item.href}
+                      className={`${overflowTierClass(index)} rounded-md px-3 py-2 text-[13px] font-semibold text-[color:var(--site-text)] hover:bg-[color:var(--site-bg)] hover:text-[color:var(--brand-red)]`}
+                    >
+                      {item.label}
+                    </Link>
+                  ))}
+                  {FIXED_OVERFLOW.map((item) => (
                     <Link
                       key={item.href}
                       href={item.href}
@@ -160,7 +215,7 @@ export function SiteHeader({ active }: { active?: string } = {}): JSX.Element {
           </nav>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex shrink-0 items-center gap-2">
           <Link href="/busca" aria-label="Buscar" className="icon-btn hidden md:inline-flex">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <circle cx="11" cy="11" r="7" />
@@ -169,11 +224,7 @@ export function SiteHeader({ active }: { active?: string } = {}): JSX.Element {
           </Link>
 
           <div className="hidden items-center gap-1.5 lg:flex">
-            {[
-              { href: socialLinks.facebook, label: "Facebook", icon: "/brand/social-facebook.png" },
-              { href: socialLinks.instagram, label: "Instagram", icon: "/brand/social-instagram.png" },
-              { href: socialLinks.whatsapp, label: "WhatsApp", icon: "/brand/social-whatsapp.png" }
-            ].map((social) => (
+            {socialIcons.map((social) => (
               <a
                 key={social.label}
                 href={social.href}
@@ -244,6 +295,13 @@ export function SiteHeader({ active }: { active?: string } = {}): JSX.Element {
               className={`ir-mobile-nav-link ${mobileNavigatingTo === "/" ? "is-pending" : ""}`}
             >
               Início
+            </Link>
+            <Link
+              href={NOTICIAS_LINK.href}
+              onClick={(e) => handleMobileNavClick(e, NOTICIAS_LINK.href)}
+              className={`ir-mobile-nav-link ${mobileNavigatingTo === NOTICIAS_LINK.href ? "is-pending" : ""}`}
+            >
+              {NOTICIAS_LINK.label}
             </Link>
             {allNavLinks.map((item) => (
               <Link

@@ -1,11 +1,14 @@
 "use server";
 
+import { createHash } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import type { ArticleMedia } from "@ir/types";
-import { getImportCandidateService } from "../../../../composition/editorial";
+import { getImportCandidateService, getNewspaperEditionService } from "../../../../composition/editorial";
 import { extractCandidatesFromPdf } from "../../../../composition/pdfCandidateExtraction";
 import { createSupabaseServerClient } from "../../../../lib/supabase/server";
-import { SIMULATED_AUDIT as AUDIT } from "../../../../lib/simulatedAudit";
+import { uploadEditionPdfToDrive } from "../../../../lib/googleDrive/editionArchive";
+import { attachEditionExternalPdf } from "../../../../providers/supabase/newspaperEditionRepository.supabase";
+import { getAuditContext } from "../../../../lib/auth/getAuditContext";
 
 const IMPORT_PATH = "/sistema/editorial/importar-pdf";
 const LIST_PATH = "/sistema/editorial/materias";
@@ -24,15 +27,32 @@ export interface GenerateCandidatesResult {
   warnings: string[];
 }
 
+export interface DuplicatePdfResult {
+  duplicate: true;
+  previousBatch: {
+    fileName?: string;
+    createdAt: string;
+    candidateCount: number;
+  };
+}
+
 /**
- * Lê o PDF selecionado (arquivo temporário do envio — nunca salvo em disco
- * ou storage remoto) e extrai candidatos reais via @ir/pdf-extraction. Só o
- * necessário para o fluxo: não há upload persistente nesta fase.
+ * Lê o PDF selecionado e extrai candidatos reais via @ir/pdf-extraction.
+ * Se a edição ainda não possui PDF oficial, o mesmo arquivo também é
+ * arquivado no Google Drive do Jornal Online. O Supabase não recebe os bytes.
+ *
+ * Antes de gerar candidatos, calcula o hash (SHA-256) do arquivo e verifica
+ * se esta MESMA edição já processou um PDF idêntico. Sem `--force` (campo
+ * "force" no FormData), um PDF já processado nunca gera lote novo sozinho —
+ * devolve um aviso (`DuplicatePdfResult`), nunca um erro, pra UI oferecer
+ * "Reprocessar mesmo assim". Isto é importante porque o parser vai evoluir
+ * (PaddleOCR/PP-StructureV3) e reprocessar uma edição já importada vai ser
+ * uma operação legítima e esperada, não um erro do operador.
  */
 export async function generateCandidates(
   editionId: string,
   formData: FormData,
-): Promise<{ error: string } | GenerateCandidatesResult> {
+): Promise<{ error: string } | DuplicatePdfResult | GenerateCandidatesResult> {
   if (!editionId) return { error: "Selecione uma edição." };
 
   const file = formData.get("pdf");
@@ -43,14 +63,32 @@ export async function generateCandidates(
   if (!looksLikePdf) {
     return { error: "O arquivo selecionado não parece ser um PDF." };
   }
+  const force = formData.get("force") === "1";
 
   try {
+    const client = createSupabaseServerClient();
     const buffer = new Uint8Array(await file.arrayBuffer());
-    const result = await extractCandidatesFromPdf(
-      editionId,
-      buffer,
-      getImportCandidateService(createSupabaseServerClient()),
-    );
+    const fileHash = createHash("sha256").update(buffer).digest("hex");
+
+    const candidateService = getImportCandidateService(client);
+    if (!force) {
+      const previousBatch = await candidateService.findBatchByHash(editionId, fileHash);
+      if (previousBatch) {
+        return {
+          duplicate: true,
+          previousBatch: {
+            fileName: previousBatch.fileName,
+            createdAt: previousBatch.createdAt,
+            candidateCount: previousBatch.candidateCount,
+          },
+        };
+      }
+    }
+
+    const result = await extractCandidatesFromPdf(editionId, buffer, candidateService, {
+      fileName: file.name,
+      fileHash,
+    });
     if (result.candidates.length === 0) {
       return {
         error:
@@ -59,13 +97,36 @@ export async function generateCandidates(
             : "Nenhum conteúdo pôde ser identificado neste PDF.",
       };
     }
+
+    const warnings = [...result.warnings];
+    // O mesmo PDF usado para extrair as matérias vira o arquivo oficial do
+    // Jornal Online quando a edição ainda não tem PDF. Assim não há segundo
+    // upload nem cópia pesada no Supabase Storage.
+    try {
+      const edition = await getNewspaperEditionService(client).getById(editionId);
+      if (edition && !edition.pdfUrl) {
+        const uploaded = await uploadEditionPdfToDrive(file, {
+          editionNumber: edition.editionNumber,
+          publicationDate: edition.publicationDate,
+        });
+        await attachEditionExternalPdf(client, editionId, uploaded.previewUrl);
+      }
+    } catch (archiveError) {
+      warnings.push(
+        archiveError instanceof Error
+          ? `PDF extraído, mas não arquivado no Jornal Online: ${archiveError.message}`
+          : "PDF extraído, mas não foi possível arquivá-lo no Jornal Online.",
+      );
+    }
+
     revalidatePath(IMPORT_PATH);
+    revalidatePath("/sistema/editorial/edicoes");
     return {
       ok: true,
       candidateCount: result.candidates.length,
       pageCount: result.pageCount,
       pagesWithoutText: result.pagesWithoutText,
-      warnings: result.warnings,
+      warnings,
     };
   } catch (error) {
     return { error: toErrorMessage(error) };
@@ -75,6 +136,19 @@ export async function generateCandidates(
 export async function discardCandidate(id: string): Promise<ActionResult> {
   try {
     await getImportCandidateService(createSupabaseServerClient()).discard(id);
+  } catch (error) {
+    return { error: toErrorMessage(error) };
+  }
+  revalidatePath(IMPORT_PATH);
+  return { ok: true };
+}
+
+/** Restaura um candidato descartado por engano de volta pra revisão
+ * (`pending`) — nunca restaura um que foi absorvido por merge (ver
+ * ImportCandidateService.restore). */
+export async function restoreCandidate(id: string): Promise<ActionResult> {
+  try {
+    await getImportCandidateService(createSupabaseServerClient()).restore(id);
   } catch (error) {
     return { error: toErrorMessage(error) };
   }
@@ -149,7 +223,9 @@ export async function convertCandidate(
   input: ConvertCandidateInput,
 ): Promise<{ error: string } | ConvertResult> {
   try {
-    const article = await getImportCandidateService(createSupabaseServerClient()).convertToDraft(
+    const client = createSupabaseServerClient();
+    const AUDIT = await getAuditContext(client);
+    const article = await getImportCandidateService(client).convertToDraft(
       id,
       { ...input, createdBy: AUDIT.actorId },
       AUDIT,

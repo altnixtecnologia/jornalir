@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { editorialNavGroup, moreModulesNavGroup } from "../../lib/navigation";
+import { assinaturasNavGroup, clientesNavGroup, editorialNavGroup, financeiroNavGroup, moreModulesNavGroup, nfseNavGroup } from "../../lib/navigation";
 import { useAuth } from "../../lib/auth/AuthProvider";
 
 /** Fecha os dois menus suspensos — usado ao escolher um link dentro deles. */
@@ -18,6 +18,10 @@ export function AdminHeader({ onOpenMenu }: { onOpenMenu: () => void }): JSX.Ele
   const { profile, signOut } = useAuth();
   const isHome = pathname === "/sistema";
   const isEditorial = pathname.startsWith("/sistema/editorial");
+  const isClientes = pathname.startsWith("/sistema/clientes");
+  const isAssinaturas = pathname.startsWith("/sistema/assinaturas");
+  const isFinanceiro = pathname.startsWith("/sistema/financeiro");
+  const isNfse = pathname.startsWith("/sistema/nfse");
   const isUsuarios = pathname.startsWith("/sistema/usuarios");
   const isMore = moreModulesNavGroup.links.some((link) => pathname.startsWith(link.href));
   const canManageUsers = profile?.role === "owner" || profile?.role === "admin";
@@ -57,6 +61,80 @@ export function AdminHeader({ onOpenMenu }: { onOpenMenu: () => void }): JSX.Ele
             </div>
           </details>
 
+          <details className="app-nav-dropdown" data-nav-dropdown name="app-nav-dropdown">
+            <summary className={`app-nav-link app-nav-summary${isClientes ? " is-active" : ""}`}>
+              Clientes <span className="app-nav-caret" aria-hidden="true">▾</span>
+            </summary>
+            <div className="app-nav-panel">
+              {clientesNavGroup.links.map((link) => (
+                <Link
+                  key={link.href}
+                  href={link.href}
+                  className={`app-nav-panel-link${link.primary ? " is-primary" : ""}`}
+                  onClick={closeNavDropdowns}
+                >
+                  {link.label}
+                </Link>
+              ))}
+            </div>
+          </details>
+
+          <details className="app-nav-dropdown" data-nav-dropdown name="app-nav-dropdown">
+            <summary className={`app-nav-link app-nav-summary${isAssinaturas ? " is-active" : ""}`}>
+              Assinaturas <span className="app-nav-caret" aria-hidden="true">▾</span>
+            </summary>
+            <div className="app-nav-panel">
+              {assinaturasNavGroup.links.map((link) => (
+                <Link
+                  key={link.href}
+                  href={link.href}
+                  className={`app-nav-panel-link${link.primary ? " is-primary" : ""}`}
+                  onClick={closeNavDropdowns}
+                >
+                  {link.label}
+                </Link>
+              ))}
+            </div>
+          </details>
+
+          <details className="app-nav-dropdown" data-nav-dropdown name="app-nav-dropdown">
+            <summary className={`app-nav-link app-nav-summary${isFinanceiro ? " is-active" : ""}`}>
+              Financeiro <span className="app-nav-caret" aria-hidden="true">▾</span>
+            </summary>
+            <div className="app-nav-panel">
+              {financeiroNavGroup.links.map((link) => (
+                <Link
+                  key={link.href}
+                  href={link.href}
+                  className={`app-nav-panel-link${link.primary ? " is-primary" : ""}`}
+                  onClick={closeNavDropdowns}
+                >
+                  {link.label}
+                </Link>
+              ))}
+            </div>
+          </details>
+
+          {canManageUsers ? (
+            <details className="app-nav-dropdown" data-nav-dropdown name="app-nav-dropdown">
+              <summary className={`app-nav-link app-nav-summary${isNfse ? " is-active" : ""}`}>
+                NFS-e <span className="app-nav-caret" aria-hidden="true">▾</span>
+              </summary>
+              <div className="app-nav-panel">
+                {nfseNavGroup.links.map((link) => (
+                  <Link
+                    key={link.href}
+                    href={link.href}
+                    className={`app-nav-panel-link${link.primary ? " is-primary" : ""}`}
+                    onClick={closeNavDropdowns}
+                  >
+                    {link.label}
+                  </Link>
+                ))}
+              </div>
+            </details>
+          ) : null}
+
           {canManageUsers ? (
             <Link
               href="/sistema/usuarios"
@@ -67,7 +145,19 @@ export function AdminHeader({ onOpenMenu }: { onOpenMenu: () => void }): JSX.Ele
             </Link>
           ) : null}
 
-          <details className="app-nav-dropdown" data-nav-dropdown name="app-nav-dropdown">
+          <div className="app-nav-direct-modules" aria-label="Outros módulos">
+            {moreModulesNavGroup.links.map((link) => (
+              <Link
+                key={link.href}
+                href={link.href}
+                className={`app-nav-link app-nav-link--module${pathname.startsWith(link.href) ? " is-active" : ""}`}
+              >
+                {link.label}
+              </Link>
+            ))}
+          </div>
+
+          <details className="app-nav-dropdown app-nav-more" data-nav-dropdown name="app-nav-dropdown">
             <summary className={`app-nav-link app-nav-summary${isMore ? " is-active" : ""}`}>
               Mais módulos <span className="app-nav-caret" aria-hidden="true">▾</span>
             </summary>

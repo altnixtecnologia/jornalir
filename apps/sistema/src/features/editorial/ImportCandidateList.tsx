@@ -4,7 +4,7 @@ import { useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { EditorialSection, ImportCandidate, Locality } from "@ir/types";
-import { discardCandidate, mergeCandidates, convertCandidate } from "../../app/sistema/editorial/importar-pdf/actions";
+import { discardCandidate, mergeCandidates, convertCandidate, restoreCandidate } from "../../app/sistema/editorial/importar-pdf/actions";
 import { importCandidateStatusLabels } from "./editorialLabels";
 
 interface ImportCandidateListProps {
@@ -44,15 +44,35 @@ export function ImportCandidateList({
     });
   }
 
-  function handleConvert(id: string): void {
+  /**
+   * Converter exige editoria+localidade. O parser nunca sugere esses dois
+   * campos sozinho (sempre `undefined` na extração) — então, sem passar
+   * pela tela de revisão, a conversão direta da lista sempre falhava com
+   * "Selecione a editoria...". Em vez de tentar e mostrar esse erro,
+   * encaminha pra revisão quando falta algo obrigatório; nunca inventa
+   * editoria/localidade.
+   */
+  function handleConvert(candidate: ImportCandidate): void {
+    if (!candidate.suggestedSectionId || !candidate.suggestedLocalityId) {
+      router.push(`/sistema/editorial/importar-pdf/${candidate.id}`);
+      return;
+    }
     setListError(null);
     startTransition(async () => {
-      const result = await convertCandidate(id, {});
+      const result = await convertCandidate(candidate.id, {});
       if ("error" in result) {
         setListError(result.error);
       } else {
         router.push(`/sistema/editorial/materias/${result.articleId}`);
       }
+    });
+  }
+
+  function handleRestore(id: string): void {
+    setListError(null);
+    startTransition(async () => {
+      const result = await restoreCandidate(id);
+      if ("error" in result) setListError(result.error);
     });
   }
 
@@ -170,8 +190,8 @@ export function ImportCandidateList({
                       </Link>
                       {candidate.status === "pending" ? (
                         <>
-                          <button type="button" onClick={() => handleConvert(candidate.id)} disabled={pending}>
-                            Converter
+                          <button type="button" onClick={() => handleConvert(candidate)} disabled={pending}>
+                            {candidate.suggestedSectionId && candidate.suggestedLocalityId ? "Converter" : "Revisar e converter"}
                           </button>
                           <button
                             type="button"
@@ -182,6 +202,11 @@ export function ImportCandidateList({
                             Descartar
                           </button>
                         </>
+                      ) : null}
+                      {candidate.status === "discarded" && !candidate.mergedIntoId ? (
+                        <button type="button" onClick={() => handleRestore(candidate.id)} disabled={pending}>
+                          Restaurar
+                        </button>
                       ) : null}
                       {candidate.status === "converted" && candidate.createdArticleId ? (
                         <Link className="materia-open-link" href={`/sistema/editorial/materias/${candidate.createdArticleId}`}>
@@ -234,8 +259,8 @@ export function ImportCandidateList({
                 </Link>
                 {candidate.status === "pending" ? (
                   <>
-                    <button type="button" onClick={() => handleConvert(candidate.id)} disabled={pending}>
-                      Converter
+                    <button type="button" onClick={() => handleConvert(candidate)} disabled={pending}>
+                      {candidate.suggestedSectionId && candidate.suggestedLocalityId ? "Converter" : "Revisar e converter"}
                     </button>
                     <button
                       type="button"
@@ -246,6 +271,11 @@ export function ImportCandidateList({
                       Descartar
                     </button>
                   </>
+                ) : null}
+                {candidate.status === "discarded" && !candidate.mergedIntoId ? (
+                  <button type="button" onClick={() => handleRestore(candidate.id)} disabled={pending}>
+                    Restaurar
+                  </button>
                 ) : null}
                 {candidate.status === "converted" && candidate.createdArticleId ? (
                   <Link className="materia-open-link" href={`/sistema/editorial/materias/${candidate.createdArticleId}`}>

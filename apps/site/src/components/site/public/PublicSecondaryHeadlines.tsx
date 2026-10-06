@@ -12,9 +12,9 @@ export function PublicSecondaryHeadlines({ items }: { items: PublicArticle[] }):
     <div className="grid grid-cols-1 divide-y divide-[color:var(--site-line)] sm:grid-cols-3 sm:divide-x sm:divide-y-0">
       {items.map((item) => (
         <Link key={item.id} href={`/noticias/${item.slug}`} className="group flex gap-3 px-0 py-4 sm:px-5 sm:first:pl-0 sm:last:pr-0">
-          <div className="relative h-16 w-24 flex-shrink-0 overflow-hidden rounded-sm">
+          <div className="relative h-16 w-24 flex-shrink-0 overflow-hidden rounded-sm bg-[color:var(--site-bg)]">
             {item.cover?.url ? (
-              <div className="h-full w-full bg-cover bg-center" style={{ backgroundImage: `url(${item.cover.url})` }} />
+              <div className="h-full w-full bg-contain bg-center bg-no-repeat" style={{ backgroundImage: `url(${item.cover.url})` }} />
             ) : (
               <div className="flex h-full w-full items-center justify-center bg-[color:var(--brand-navy)]">
                 <span className="font-editorial text-xs font-bold text-white/30">IR</span>

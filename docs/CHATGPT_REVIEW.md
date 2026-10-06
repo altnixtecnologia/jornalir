@@ -1347,3 +1347,517 @@ Com a migração encerrada, está autorizado concentrar o trabalho no painel em 
 - depois fazer teste manual local do fluxo completo, sem Preview/Production nesta etapa.
 
 Nenhuma ação em Production está autorizada por esta revisão.
+
+
+---
+
+## Revisão da Fase 47 — APROVADA / painel pronto para staging
+
+Revisado diretamente no GitHub sobre o HEAD `28655f9`.
+
+A revisão da Fase 47 está coerente com o código enviado e com o handoff.
+
+### Confirmado
+
+- `apps/sistema` passou em typecheck e build segundo o handoff da fase;
+- `SIMULATED_AUDIT` foi removido e não restam referências em `apps/sistema`;
+- o contexto de auditoria agora vem da sessão real do Supabase (`auth.getUser()` + `profiles`);
+- uploads de PDF para o Google Drive agora aplicam permissão pública de leitura após o upload;
+- `/destaques` deixou de carregar o acervo inteiro de mídia e busca apenas capas necessárias;
+- revisão de candidato de PDF usa mídias sugeridas + lote recente, sem carregar as 44 mil+ mídias;
+- nenhuma migration nova e nenhum dado histórico da migração foi alterado;
+- nenhum Preview ou Production foi gerado.
+
+### Observação não bloqueante
+
+Se o upload do PDF ao Drive concluir mas a criação da permissão pública falhar, pode ficar um arquivo órfão/privado no Drive. Isso não corrompe banco nem edição, porque a URL só é associada depois que `uploadEditionPdfToDrive()` retorna com sucesso. Pode ser tratado depois com limpeza/retry operacional se algum caso real ocorrer.
+
+## Próxima etapa autorizada
+
+**AUTORIZADO preparar e publicar somente um ambiente de staging/preview do `apps/sistema` para teste real.**
+
+Regras:
+- não alterar o projeto Vercel existente do portal público (`apps/site`);
+- usar projeto/deploy separado para `apps/sistema` ou equivalente tecnicamente isolado;
+- não apontar domínio principal de produção ainda;
+- usar o Supabase IR atual;
+- configurar somente variáveis necessárias ao painel e segredos server-side;
+- validar `/login`, proteção de `/sistema/*`, listagem de matérias, edição, upload de imagem, destaques e edição/PDF;
+- não executar novamente scripts de migração histórica;
+- Production definitiva continua dependente de validação manual do usuário no staging.
+
+
+---
+
+## Ajuste da próxima etapa — site com acervo completo antes do staging do painel
+
+O usuário pediu que, antes de focar somente no painel online, o portal já permita navegar por todo o acervo histórico publicado.
+
+Esta instrução **substitui o prompt operacional anterior de staging**.
+
+### Primeiro: portal público
+
+Validar o `apps/site` contra o Supabase IR com o acervo completo já migrado.
+
+O código já possui:
+- `/noticias` paginado server-side;
+- editorias paginadas;
+- busca paginada;
+- ordem `published_at DESC, id DESC`;
+- view pública que expõe somente `status='published'`.
+
+Como existem 23.292 registros físicos do legado e 75 duplicatas confirmadas foram arquivadas, o baseline esperado do legado na camada pública é **23.217 matérias publicadas**, antes de eventuais matérias novas.
+
+Obrigatório nesta etapa:
+- validar contagem total online;
+- validar primeira, intermediária e última página de `/noticias`;
+- validar ao menos uma editoria grande e uma busca;
+- adicionar/confirmar acesso visível permanente a `/noticias` no header/menu, sem depender de existir placement `latestNews`;
+- não criar placements automáticos para o conteúdo histórico;
+- usar Preview/Staging, não Production definitiva.
+
+### Depois: staging do painel
+
+Só após a validação acima, preparar/publicar o staging isolado do `apps/sistema`, sem alterar o projeto Vercel existente do `apps/site`.
+
+As pendências deliberadamente deixadas para depois estão registradas em `docs/POST_MIGRATION_PENDING.md`.
+
+Não rodar novamente a migração histórica.
+
+
+---
+
+## Revisão da Fase 48 — APROVADA / portal e painel em Preview
+
+Revisado diretamente no GitHub sobre o HEAD `036b323`.
+
+A Fase 48 está coerente com o código e com os relatórios enviados.
+
+### Portal público
+
+- link permanente `Notícias` foi adicionado ao header desktop e mobile;
+- o link aponta para `/noticias` e independe de placement;
+- o fluxo público já usa paginação server-side e a view `public_articles`;
+- baseline documentado: 23.292 artigos físicos do legado, 75 arquivados por limpeza de duplicatas, portanto 23.217 publicados esperados;
+- Preview do `apps/site` publicado sem alterar Production;
+- nenhum placement histórico automático foi criado.
+
+### Painel
+
+- projeto Vercel separado `jornalir-sistema`, Root Directory `apps/sistema`;
+- `/login` e `/definir-senha` documentados como acessíveis no Preview;
+- `/sistema/*` permanece protegido pelo middleware real;
+- nenhuma migração histórica foi reexecutada;
+- Production definitiva continua intocada.
+
+Não consegui reabrir os dois URLs de Preview pelo conector Vercel desta sessão porque a conexão atual não está autorizada para a equipe/projeto correspondente. Isso não invalida a revisão de código/commits; a validação final autenticada do painel continua sendo manual no navegador do usuário.
+
+## Próxima etapa
+
+Ação imediata: usuário entrar no staging do painel e validar visualmente:
+`login → matérias → abrir/editar matéria → imagens → publicação/destaque → gestão de destaques → sair`.
+
+Durante esse teste:
+- pode navegar e ler livremente;
+- para escrita, preferir criar uma matéria de teste claramente identificada em vez de alterar conteúdo histórico;
+- não deletar conteúdo legado;
+- registrar qualquer erro/UX ruim observado para correção incremental.
+
+Pendências futuras permanecem centralizadas em `docs/POST_MIGRATION_PENDING.md`.
+
+
+---
+
+## Fase 49 — ajustes de navegação, imagens, abrangência e paginação (pedido do usuário)
+
+Aplicar estes ajustes na branch `feature/painel-editorial-operacional-20260927` e atualizar os Previews ao final. Não tocar em Production.
+
+### 1. Diagnóstico: editoria/localidade exibidas nas matérias
+
+O usuário relatou que está vendo muitas matérias como **Colunistas** e a localidade como **Geral**.
+
+Antes de alterar dados:
+- consultar o Supabase IR e conferir amostras reais de editorias diferentes (Geral, Esporte, Polícia, Política, Colunistas etc.);
+- confirmar se `articles.section_id` e a view pública estão corretos;
+- o importador histórico mapeou editorias separadamente e a distribuição final não é toda Colunistas, portanto **não fazer correção em massa sem provar erro de dados**;
+- se os IDs do banco estiverem corretos e a exibição estiver errada, corrigir somente a UI/provider;
+- se houver divergência real nos dados, PARAR e reportar antes de qualquer atualização em massa.
+
+A localidade `Geral` no legado é esperada: foi decisão da migração não inferir cidade de matéria antiga. Não reclassificar automaticamente as 23 mil matérias históricas.
+
+### 2. Localidade passa a ser “Abrangência”
+
+No cadastro/edição de matéria, renomear visualmente `Localidade` para **Abrangência**.
+
+Estrutura desejada para novas matérias:
+- Geral;
+- País;
+- Estado;
+- Região;
+- Cidade.
+
+Adicionar suporte real a scopes `country` e `state` no domínio/schema, preservando `general`, `region` e `city`.
+
+Cadastrar de forma idempotente as referências iniciais que faltam:
+- Brasil (País);
+- Santa Catarina (Estado);
+- Rio Grande do Sul (Estado);
+- Mampituba (Cidade);
+- Morrinhos do Sul (Cidade);
+- Praia Grande (Cidade);
+- Santa Rosa do Sul (Cidade).
+
+Manter Torres, Passo de Torres e São João do Sul já existentes.
+
+No formulário da matéria, permitir **+ Nova abrangência** sem sair da matéria: cadastro rápido com nome + tipo, atualizar a lista e selecionar a recém-criada. Não exigir que a redação abra o módulo Localidades para uma cidade nova.
+
+No portal público, quando a abrangência for `Geral`, **não mostrar “Geral” nos metadados da matéria**. Mostrar somente abrangências informativas (cidade/estado/país/região).
+
+### 3. Galeria da matéria
+
+Unificar capa + galeria como um único conjunto de fotos para visualização:
+- a foto principal/capa deve ser clicável;
+- o botão/indicador “Ver N fotos” deve abrir o lightbox na capa (índice 0);
+- o lightbox deve navegar por **capa + todas as fotos da galeria**;
+- setas/teclado no desktop e swipe no mobile;
+- contador deve refletir o total real;
+- miniaturas da galeria também abrem o mesmo conjunto.
+
+Hoje o indicador conta capa + galeria, mas o componente recebe apenas `current.gallery`; corrigir essa inconsistência.
+
+### 4. Imagens editoriais nunca cortadas
+
+O usuário não quer corte de imagem de matéria.
+
+Auditar as imagens editoriais do portal (capa da matéria, cards/listagens, faixa de destaques, últimas notícias, leia também, miniaturas e demais componentes de notícia):
+- remover usos de `bg-cover`/`object-cover` que cortem conteúdo editorial;
+- na página da matéria, mostrar a capa em proporção natural, inteira;
+- em caixas de tamanho fixo, usar `object-fit: contain`/equivalente com fundo neutro para preservar 100% da imagem;
+- não deformar imagem;
+- **não alterar publicidade**: esta regra é para fotos/imagens das matérias.
+
+### 5. “Voltar” da matéria
+
+Hoje a página de notícia usa `href="/"`.
+
+Corrigir para:
+- exibir **“← Voltar para {Editoria}”**;
+- apontar para `/editoria/{sectionSlug}`;
+- fallback seguro para `/noticias` somente se a matéria não tiver editoria/slug válido.
+
+### 6. Header do site em duas linhas
+
+Em desktop largo:
+- primeira linha: logo maior à esquerda; busca, redes e Assinante à direita;
+- aumentar a logo em relação ao header atual;
+- segunda linha: navegação principal, aproveitando toda a largura;
+- mostrar diretamente Início, Notícias, editorias ativas e Jornal Online quando couber;
+- `Mais` fica apenas para larguras em que os itens realmente não caibam;
+- em resoluções intermediárias, reduzir o conjunto direto e usar `Mais`;
+- mobile continua com menu próprio.
+
+Evitar simplesmente quebrar os links aleatoriamente em duas linhas; são duas faixas de header deliberadas.
+
+### 7. Paginação por blocos de 10 + ir para página
+
+Aplicar no portal e nas listas paginadas do sistema interno.
+
+Comportamento:
+- paginação centralizada;
+- mostrar um bloco de **10 páginas por vez**: 1–10, depois 11–20, 21–30 etc. conforme a página atual;
+- anterior/próxima continuam disponíveis;
+- controles para avançar/recuar um bloco de 10 quando houver bloco anterior/próximo;
+- adicionar campo compacto **“Ir para página”** para digitar diretamente, por exemplo 200;
+- validar/clamp de 1 até `totalPages`;
+- preservar `pageSize`, busca e filtros existentes;
+- no mobile, adaptar visualmente sem perder o campo de salto direto.
+
+Aplicar pelo menos em:
+- portal: `/noticias`, `/editoria/[slug]` e `/busca`;
+- sistema: `/sistema/editorial/materias` e toda outra listagem que já tenha paginação real (ex.: mídias), preferindo componente reutilizável.
+
+### 8. Validação/deploy
+
+Após implementar:
+- typecheck + build dos apps afetados;
+- validar pelo menos uma matéria com várias fotos e imagem com texto/bordas para provar que não corta;
+- validar voltar por editoria;
+- validar paginação página 1, 10, 11, 200 e última;
+- validar cadastro rápido de nova abrangência;
+- atualizar `docs/AI_HANDOFF.md` e `docs/POST_MIGRATION_PENDING.md`;
+- commit/push;
+- atualizar/publicar Preview do `apps/site` e Preview do `apps/sistema`;
+- **não Production**.
+
+
+### Adendo Fase 49 — destaques precisam refletir no site imediatamente
+
+O usuário selecionou uma matéria para o destaque principal pelo painel, salvou, e ela **não apareceu na home**. Isso é comportamento incorreto e deve ser diagnosticado nesta mesma fase.
+
+Antes de alterar código, verificar a matéria real usada no teste e seguir a cadeia inteira:
+
+1. confirmar `articles.status='published'`;
+2. confirmar linha ativa em `article_placements` com `type='mainCover'`;
+3. conferir `starts_at`/`ends_at` contra o horário atual;
+4. confirmar que a linha aparece em `public_article_placements`;
+5. confirmar que `listPublicPlacement('mainCover')` retorna a matéria;
+6. confirmar que a home do Preview mostra a matéria sem precisar redeploy/rebuild.
+
+Se o painel disser que o destaque foi salvo mas a linha não estiver efetiva no banco, corrigir o fluxo de save/sync do placement. Se a view pública retornar a matéria mas a home não mostrar, corrigir provider/renderização. Não criar workaround manual nem placement por script.
+
+Ao final, validar no navegador:
+- selecionar uma matéria publicada;
+- colocar em Capa principal;
+- salvar;
+- atualizar a home do Preview;
+- matéria deve aparecer imediatamente;
+- remover do destaque;
+- atualizar a home;
+- matéria deve sair sem deixar de estar publicada.
+
+
+---
+
+## Revisão da Fase 49 — APROVADA para teste manual
+
+Revisado diretamente no GitHub sobre o HEAD `ca5e129`.
+
+A implementação corresponde ao escopo pedido:
+- diagnóstico de editorias sem alteração em massa de conteúdo histórico;
+- Abrangência com scopes país/estado/região/cidade/geral;
+- migration/seed das novas abrangências;
+- cadastro rápido de nova abrangência dentro da matéria;
+- `Geral` oculto nos metadados públicos;
+- capa + galeria unificadas no mesmo lightbox;
+- imagens editoriais preservadas sem crop;
+- “Voltar para {Editoria}”;
+- header desktop em duas faixas com logo maior;
+- paginação por blocos de 10 + salto direto no portal e nas listagens administrativas paginadas;
+- typecheck/build documentados como limpos;
+- Previews atualizados sem Production.
+
+### Destaque principal
+
+A cadeia de código atual está coerente: a home é `force-dynamic`, o cliente Supabase público força `cache: "no-store"`, a view pública filtra placement efetivo e `listPublicPlacement("mainCover")` alimenta diretamente o hero.
+
+O teste documentado encontrou a matéria real em `public_article_placements` e o servidor local renderizou o destaque corretamente.
+
+**Não considerar “cache CDN da Vercel” como causa comprovada.** É apenas hipótese operacional; com `force-dynamic` + `no-store`, a origem exata do sintoma anterior não ficou demonstrada. O comportamento deve ser retestado pelo usuário no Preview novo. Se voltar a falhar, registrar a URL exata, matéria e horário do teste antes de alterar código.
+
+### Próxima ação
+
+Usuário deve testar visualmente os dois Previews, principalmente:
+- header em desktop e resolução intermediária;
+- paginação 1–10 / 11–20 e salto para página distante;
+- matéria com imagem que contenha texto/bordas;
+- galeria completa;
+- voltar por editoria;
+- nova abrangência inline;
+- colocar/remover uma matéria publicada da Capa principal e atualizar a home.
+
+Não iniciar módulo Clientes até esta rodada visual ser aprovada pelo usuário.
+
+
+---
+
+## Ajuste visual imediato pós-Fase 49 — hero, largura desktop e header responsivo
+
+Substitui a orientação visual anterior sobre o hero/header. Aplicar antes de qualquer nova fase de produto.
+
+### Hero principal
+
+O Preview atual ficou visualmente errado após a troca para `contain`: a foto passou a parecer um quadro menor dentro do fundo, com bordas laterais/superiores visíveis. Para o **hero principal** a regra é diferente dos cards editoriais:
+
+- hero deve ser **full bleed**, ocupando toda a largura disponível;
+- imagem de fundo deve preencher toda a área do hero, sem moldura aparente;
+- no hero é permitido `cover` porque a função é cenográfica/de destaque; a regra “não cortar” continua valendo para imagem principal da matéria, galeria e cards/listagens;
+- manter overlay/gradiente para legibilidade;
+- título menor que o original, mas com distribuição melhor: usar tamanho responsivo próximo de `clamp(34px, 3.2vw, 58px)`, largura de texto bem controlada, `text-wrap: balance` e line-height ~0.98–1.02;
+- bloco textual não deve ficar grudado no topo: posicionar verticalmente de forma equilibrada;
+- subtítulo e meta devem ficar visualmente agrupados ao título;
+- validar com título longo real, não só título curto.
+
+### Aproveitamento da largura no desktop
+
+O usuário não quer o site inteiro preso em um container estreito centralizado com grandes bordas vazias.
+
+- em desktop, usar quase toda a largura da viewport, mantendo apenas gutters laterais pequenos e consistentes (aprox. 24–40 px conforme breakpoint);
+- header, áreas de destaque, listagens e estrutura com anúncios laterais devem aproveitar a largura disponível;
+- **não** esticar a coluna de leitura da matéria indefinidamente: texto corrido continua com largura confortável para leitura; quem amplia é a estrutura ao redor (shell, anúncios, hero, grids);
+- mobile/tablet continuam com paddings adequados;
+- evitar max-width global rígido que gere grandes margens em monitores 1440/1920px.
+
+### Header — esclarecimento definitivo
+
+O usuário **não quer duas faixas fixas no desktop**.
+
+Em desktop:
+- logo fica à esquerda;
+- links de navegação ficam **na mesma linha da logo**, ocupando o espaço entre logo e os controles da direita;
+- lupa, redes sociais e botão Assinante ficam à direita;
+- mostrar diretamente quantos itens couberem;
+- itens que não couberem devem ir para `Mais`;
+- não empurrar tudo para uma segunda faixa fixa;
+- se a implementação técnica preferir wrap em uma largura intermediária, a quebra deve ser controlada e limpa, mas a prioridade é manter uma única linha com overflow em `Mais`;
+- em monitor largo, deve ser possível exibir mais editorias diretamente;
+- em largura menor, reduzir gradualmente os itens diretos e concentrar o restante em `Mais`;
+- mobile mantém menu próprio/hambúrguer;
+- logo pode crescer um pouco em desktop desde que não estrangule a navegação.
+
+### Validação
+
+Testar visualmente em larguras equivalentes a 1366, 1440, 1920 e mobile:
+- hero sem bordas/moldura e preenchendo a largura;
+- título longo equilibrado;
+- header em uma linha no desktop largo;
+- `Mais` recebendo apenas o overflow real;
+- ausência de grandes faixas vazias nas laterais do layout;
+- página de matéria continua com imagem inteira/sem corte.
+
+Atualizar Preview do `apps/site` ao final. Não Production.
+
+
+---
+
+## Revisão do ajuste visual pós-Fase 49 — APROVADO para validação visual
+
+Revisado diretamente no GitHub sobre o HEAD `d0eb43a`.
+
+Confirmado no código:
+- hero voltou a full bleed com `background-size: cover` somente no destaque principal;
+- imagem de matéria/galeria/cards permanece fora dessa exceção;
+- título do hero usa escala responsiva menor e `text-balance`, com variante mobile;
+- `.site-shell` foi ampliado para aproveitar monitores largos;
+- header desktop voltou a uma única linha;
+- editorias diretas variam por breakpoint e o restante vai para `Mais`;
+- correção de especificidade de `.nav-link` foi aplicada em camada de componentes;
+- nenhum código de Production foi acionado segundo o handoff; somente Preview.
+
+Observação: a decisão final aqui é visual. Não avançar para Clientes ainda; primeiro o usuário precisa conferir o Preview novo em desktop e mobile e aprovar hero/header/largura.
+
+
+---
+
+## Ajuste do painel — listagem de matérias: ordenação, datas e toolbar compacta
+
+Aplicar antes de avançar para novos módulos.
+
+### 1. Ordem cronológica padrão
+
+A listagem administrativa hoje ordena por `updated_at DESC`, o que mistura matérias antigas recém-editadas com conteúdo realmente recente. Corrigir.
+
+Definir uma ordenação editorial padrão coerente:
+- matérias publicadas: usar `published_at`;
+- matérias programadas: usar `scheduled_at`;
+- rascunhos/em ajuste sem data editorial: usar `updated_at` apenas como fallback administrativo;
+- ordem padrão: mais recente primeiro;
+- a ordenação deve ser global no banco, antes da paginação — nunca ordenar só os 48 itens da página atual.
+
+Se necessário, criar uma expressão/view/campo derivado seguro para `editorial_sort_at = coalesce(scheduled_at, published_at, updated_at)`, desde que não quebre RLS nem a migração histórica.
+
+### 2. Cabeçalhos clicáveis para ordenar
+
+Transformar os cabeçalhos da tabela em controles de ordenação server-side, preservando página, pageSize, busca e filtros.
+
+No mínimo ordenar corretamente:
+- Referência;
+- Matéria/título;
+- Origem;
+- Editoria;
+- Abrangência;
+- Status;
+- Publicação/Programação;
+- Notificação.
+
+Quando tecnicamente viável sem query ruim, incluir também Destaque e Mídia. Se esses dois exigirem um join caro/ambíguo, mantê-los não clicáveis e documentar — não fazer ordenação apenas local da página.
+
+UX:
+- primeiro clique: ordem natural/ascendente ou a mais útil para a coluna;
+- segundo clique: inverte;
+- mostrar seta ▲/▼ na coluna ativa;
+- ao trocar a ordenação, voltar para página 1.
+
+### 3. Filtro por data
+
+Adicionar filtro compacto por período, server-side:
+- seletor de tipo: Publicação | Programação | Data editorial;
+- campos `De` e `Até`;
+- preservar os demais filtros;
+- datas inclusivas no dia final;
+- sem carregar o acervo inteiro no browser.
+
+### 4. Publicação x Programação — distinção visual
+
+Na coluna hoje chamada “Publicação/Programação”, diferenciar claramente:
+- publicada: badge/label visual **PUBLICADA** + data/hora;
+- programada: badge/label visual **PROGRAMADA** + data/hora, com cor diferente;
+- rascunho/ajuste sem data: mostrar “—” ou “Sem data” discretamente;
+- não usar o mesmo tratamento visual para publicada e programada;
+- manter formato de data/hora consistente e legível.
+
+### 5. Toolbar mais compacta e responsiva
+
+A área de filtros ocupa altura demais no Preview atual. Reorganizar:
+- desktop largo: preferir 1 linha compacta ou no máximo 2 linhas curtas;
+- busca com largura flexível; selects menores;
+- reduzir paddings/gaps sem prejudicar leitura;
+- “Aplicar” e “Limpar” juntos e compactos;
+- contagem/página no mesmo bloco, sem criar uma faixa vazia;
+- filtros “Fotos” e “Destaque” devem integrar a mesma toolbar. Idealmente transformar em filtros server-side globais; se permanecerem locais à página, deixar isso visualmente explícito.
+- em largura menor, quebrar de forma organizada em grid responsivo.
+
+### 6. Sticky / travar área
+
+Implementar de forma moderada:
+- tornar a toolbar compacta `position: sticky` abaixo do header do sistema em desktop, com fundo sólido e z-index correto;
+- o sticky não pode ocupar grande parte da viewport;
+- o cabeçalho da tabela também pode ficar sticky imediatamente abaixo da toolbar;
+- em mobile, evitar sticky excessivo; priorizar espaço útil.
+
+### 7. Terminologia
+
+Na listagem administrativa, trocar “Localidade” por **“Abrangência”** também no filtro e no cabeçalho da tabela, mantendo coerência com o formulário da matéria.
+
+### 8. Validação
+
+Testar com o acervo real:
+- ordem padrão mostra cronologia editorial e não `updated_at`;
+- clique em Data alterna desc/asc;
+- clique em Título/Referência funciona globalmente entre páginas;
+- filtro de período retorna contagem coerente;
+- filtros e ordenação sobrevivem à paginação;
+- toolbar em 1366/1440/1920 e tablet não fica alta demais;
+- sticky não cobre linhas/tabela;
+- publicada e programada são visualmente impossíveis de confundir.
+
+Typecheck/build de `apps/sistema`, commit/push e novo Preview do painel. Não Production.
+
+
+---
+
+## Correção operacional urgente — Preview do painel não confirmado
+
+Após o usuário relatar que a tela do painel não mudou e que o novo link não abre, foi conferido o HEAD atual `cc65a4d`.
+
+### Fatos confirmados
+
+- As mudanças da listagem estão de fato commitadas na branch: toolbar compacta, ordenação server-side, filtros de data, badges PUBLICADA/PROGRAMADA e migrations correspondentes.
+- O URL reportado no handoff para o novo painel termina em **`.appe`**, portanto está malformado. O domínio Vercel correto termina em **`.app`**.
+- O status automático de Vercel associado ao HEAD atual da branch aponta para o projeto **`jornalir` (apps/site)**, não para o projeto separado **`jornalir-sistema`**. Portanto não há evidência pelo GitHub de que o painel separado tenha sido atualizado automaticamente nesse HEAD.
+- O conector Vercel desta sessão não tem autorização para a equipe `cristians-projects-34074cc3`, então a existência/estado do deploy manual do `jornalir-sistema` não pôde ser validada por API daqui.
+
+### Ação obrigatória
+
+Não alterar novamente a UI antes de garantir que o usuário está vendo o build certo.
+
+1. confirmar o HEAD local/branch `feature/painel-editorial-operacional-20260927`;
+2. fazer novo deploy **Preview** explícito do projeto Vercel `jornalir-sistema` com Root Directory `apps/sistema`, a partir do HEAD atual;
+3. não usar/reaproveitar URL antiga;
+4. verificar no deploy resultante:
+   - `/login` = 200;
+   - `/sistema/editorial/materias` sem sessão = 307/redirect para login;
+   - o HTML/build contém as classes/labels novas da toolbar e `PUBLICADA`/`PROGRAMADA`;
+5. retornar ao usuário o URL exato, terminando em `.vercel.app`;
+6. não tocar em Production.
+
+Se o deploy falhar, reportar o erro real e logs, sem afirmar que foi publicado.

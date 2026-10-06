@@ -23,19 +23,25 @@ export const adminModules: readonly AdminModule[] = [
     label: "Clientes",
     description:
       "Pessoas, empresas e seus vínculos com o jornal em um cadastro central.",
-    planned: true,
+    planned: false,
   },
   {
     slug: "financeiro",
     label: "Financeiro",
-    description: "Contas, recebimentos e a visão financeira de cada produto.",
-    planned: true,
+    description: "Contas a receber, recebimentos e contratos institucionais.",
+    planned: false,
   },
   {
     slug: "assinaturas",
     label: "Assinaturas",
-    description: "Acompanhamento de assinantes e suas assinaturas.",
-    planned: true,
+    description: "Serviços (impresso, digital, TV) vinculados a um cliente.",
+    planned: false,
+  },
+  {
+    slug: "nfse",
+    label: "NFS-e",
+    description: "Configuração fiscal, perfis de serviço e rascunhos de NFS-e.",
+    planned: false,
   },
   {
     slug: "publicidade",
@@ -119,6 +125,45 @@ export const editorialNavGroup: AdminNavGroup = {
     { label: "Editorias", href: "/sistema/editorial/editorias" },
     { label: "Localidades", href: "/sistema/editorial/localidades" },
     { label: "Mídias", href: "/sistema/editorial/midias" },
+  ],
+};
+
+export const clientesNavGroup: AdminNavGroup = {
+  label: "Clientes",
+  links: [
+    { label: "Clientes", href: "/sistema/clientes" },
+    { label: "Novo cliente", href: "/sistema/clientes/novo", primary: true },
+  ],
+};
+
+export const assinaturasNavGroup: AdminNavGroup = {
+  label: "Assinaturas",
+  links: [
+    { label: "Assinaturas", href: "/sistema/assinaturas" },
+    { label: "Nova assinatura", href: "/sistema/assinaturas/nova", primary: true },
+  ],
+};
+
+export const financeiroNavGroup: AdminNavGroup = {
+  label: "Financeiro",
+  links: [
+    { label: "Visão geral", href: "/sistema/financeiro" },
+    { label: "Contas a receber", href: "/sistema/financeiro/contas-a-receber" },
+    { label: "Novo lançamento", href: "/sistema/financeiro/contas-a-receber/novo", primary: true },
+    { label: "Contratos institucionais", href: "/sistema/financeiro/contratos" },
+    { label: "Relatórios", href: "/sistema/financeiro/relatorios" },
+  ],
+};
+
+export const nfseNavGroup: AdminNavGroup = {
+  label: "NFS-e",
+  links: [
+    { label: "Visão geral", href: "/sistema/nfse" },
+    { label: "Nova NFS-e", href: "/sistema/nfse/nova", primary: true },
+    { label: "Rascunhos", href: "/sistema/nfse/rascunhos" },
+    { label: "Notas emitidas", href: "/sistema/nfse/notas" },
+    { label: "Perfis de serviço", href: "/sistema/nfse/perfis-servico" },
+    { label: "Configurações", href: "/sistema/nfse/configuracoes" },
   ],
 };
 

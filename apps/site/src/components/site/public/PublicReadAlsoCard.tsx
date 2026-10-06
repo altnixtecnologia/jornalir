@@ -13,10 +13,10 @@ export function PublicReadAlsoCard({ item }: { item: PublicArticle }): JSX.Eleme
 
   return (
     <Link href={`/noticias/${item.slug}`} className="group block">
-      <div className="relative h-36 overflow-hidden rounded-sm">
+      <div className="relative h-36 overflow-hidden rounded-sm bg-[color:var(--site-bg)]">
         {item.cover?.url ? (
           <div
-            className="h-full w-full bg-cover bg-center transition duration-500 group-hover:scale-[1.04]"
+            className="h-full w-full bg-contain bg-center bg-no-repeat transition duration-500 group-hover:scale-[1.04]"
             style={{ backgroundImage: `url(${item.cover.url})` }}
           />
         ) : (

@@ -4,6 +4,292 @@ Este arquivo é atualizado ao final de CADA fase a partir da Fase 35. Curto, dir
 
 ---
 
+## Correção operacional — redeploy verificável do Preview do painel
+
+**HEAD/commit:** `1cff1ab` (branch `feature/painel-editorial-operacional-20260927`, sem alteração de código — só o redeploy)
+
+Autorizado por instrução direta do usuário lendo `docs/CHATGPT_REVIEW.md`, commit `1cff1ab` (seção "Correção operacional urgente — Preview do painel não confirmado"): o usuário reportou não ver as mudanças da listagem no painel, e o URL registrado no handoff anterior tinha sido reportado malformado (`.appe` em vez de `.app`) — a URL escrita no próprio `AI_HANDOFF.md` estava correta (`https://jornalir-sistema-j8r65r9t6-cristians-projects-34074cc3.vercel.app`), então o erro foi de transcrição na resposta ao usuário, não no arquivo. De qualquer forma, feito um novo deploy explícito para eliminar qualquer dúvida.
+
+**Nenhum código de UI foi tocado nesta correção** — só o processo de deploy/verificação.
+
+Novo deploy Preview do projeto Vercel `jornalir-sistema` (Root Directory `apps/sistema`), a partir do HEAD atual da branch, rodado com `--force` (nunca reaproveita build/cache antigo):
+
+`https://jornalir-sistema-ipdaoqfvx-cristians-projects-34074cc3.vercel.app`
+
+Validado:
+- `/login` → 200;
+- `/sistema/editorial/materias` sem sessão → 307, `Location: /login` (middleware protegendo);
+- o CSS publicado (`/_next/static/css/8338bccc5594612e.css`) tem o **mesmo hash** do CSS gerado no build local deste HEAD e contém as classes novas da listagem (`materias-toolbar-compact`, `materias-date-compact`, `materia-sort-link`, `pub-badge--published`, `pub-badge--scheduled`) — confirma que o build publicado é de fato o código atual, não um cache antigo.
+
+### Confirmação explícita
+
+- Nenhuma alteração de UI/código nesta correção — só deploy e verificação.
+- Nada além de Preview foi publicado — Production de `jornalir-sistema` intocado.
+
+---
+
+## Ajuste do painel — listagem de matérias: ordenação, datas e toolbar compacta
+
+**HEAD/commit:** `f8c800e` (branch `feature/painel-editorial-operacional-20260927`)
+
+Autorizado por instrução direta do usuário lendo `docs/CHATGPT_REVIEW.md`, commit `8926877` (seção "Ajuste do painel — listagem de matérias: ordenação, datas e toolbar compacta"). Só `apps/sistema` (listagem `/sistema/editorial/materias`) foi tocado — `apps/site` intocado.
+
+### 1. Ordem cronológica padrão — nunca mais `updated_at`
+
+Migration `supabase/migrations/20261008100000_articles_editorial_sort_at.sql`: coluna gerada `articles.editorial_sort_at timestamptz generated always as (coalesce(scheduled_at, published_at, updated_at)) stored`, com índice `(editorial_sort_at desc, id desc)`. `coalesce` nessa ordem já resolve os três casos pedidos sem lógica condicional por status: publicada nunca tem `scheduled_at` (já foi publicada), então cai em `published_at`; programada usa `scheduled_at`; rascunho/ajuste sem nenhuma das duas cai em `updated_at` só como fallback. Confirmado direto no banco pós-migration: `editorial_sort_at` de matérias publicadas bate com `published_at`, não com `updated_at` (que podia ser um valor bem mais recente por causa de uma edição administrativa).
+
+### 2. Cabeçalhos clicáveis, ordenação global no banco
+
+`listArticlesAdminPageSupabase` (`apps/sistema/src/providers/supabase/articleRepository.supabase.ts`) ganhou `sortBy`/`sortDir`, aplicados via `.order()` **antes** do `.range()` — nunca ordenação só da página atual. Colunas ordenáveis: Referência, Matéria, Origem, Editoria, Abrangência, Status, Publicação/Programação (`editorial_sort_at`) e Notificação — todas com desempate estável por `id`. Destaque/Mídia ficaram de fora (dependeriam de agregação por placement/mídia mais cara) e permanecem não clicáveis, documentado no código. Clique alterna asc/desc (▲/▼ na coluna ativa) e sempre volta pra página 1, preservando os demais filtros/pageSize/busca (`buildSortHref` em `MateriasList.tsx`, reaproveitando o `buildHref` já usado pela paginação).
+
+**Bug real encontrado e corrigido durante a implementação**: a primeira tentativa ordenava Editoria/Abrangência via embed do PostgREST (`.select("*, editorial_sections(name)").order("name", {foreignTable: "editorial_sections"})`). Testado direto no banco: isso **não ordena as linhas de `articles`** — `order` com `foreignTable` só reordena as linhas de um embed *one-to-many* aninhado, não uma relação *many-to-one* como `section_id → editorial_sections.id`. Confirmado com uma consulta real (pedindo `section_name` ascendente, o primeiro resultado vinha "Saúde", não "Agricultura"). Corrigido com a migration `supabase/migrations/20261008100100_articles_section_locality_name_cache.sql`: colunas cache `articles.section_name`/`articles.locality_name`, populadas por trigger (`before insert or update of section_id, locality_id`) — nunca aceitas do payload do cliente, sempre recalculadas a partir da FK — mais um trigger de propagação em `editorial_sections`/`localities` para o raríssimo caso de rename. Reconfirmado no banco: `section_name` ascendente agora começa em "Agricultura" corretamente.
+
+### 3. Filtro por período
+
+Novo `dateField` (Publicação/Programação/Data editorial) + `dateFrom`/`dateTo` em `listArticlesAdminPageSupabase`, aplicado com `.gte()`/`.lt()` (dia final inclusivo via "próximo dia meia-noite exclusivo", sem depender de fuso). Validado direto no banco: filtro de publicação em janeiro/2026 retornou uma contagem coerente (325).
+
+### 4. PUBLICADA x PROGRAMADA — distinção visual
+
+Novo componente `PublicationCell` (tabela e cards mobile): badge **PUBLICADA** (verde, cor da marca) + data/hora quando `status==='published'`; badge **PROGRAMADA** (dourado/âmbar) + data/hora quando `status==='scheduled'`; "Sem data" discreto e sem badge nos demais casos (rascunho/ajuste/arquivada sem data) — nunca o mesmo tratamento visual para publicada e programada.
+
+### 5. Terminologia — Abrangência
+
+"Localidade" trocado por "Abrangência" no filtro e no cabeçalho da coluna da listagem, mesmo nome já usado no formulário da matéria (Fase 49).
+
+### 6. Toolbar compacta + sticky
+
+Toolbar reescrita como um único formulário compacto (`.materias-toolbar-compact`/`.materias-filters-compact`, novas classes — a toolbar de `/sistema/editorial/midias` continua com as classes antigas, inalterada): busca + 5 selects + 2 campos de data + tamanho de página + Aplicar/Limpar numa faixa só que quebra em até 2–3 linhas curtas conforme a largura (2 linhas a partir de ~1920px; 3 linhas compactas em 1366/1440/tablet — nunca a altura excessiva de antes). Filtros "Fotos"/"Destaque nesta página" seguem client-side (explicitamente rotulados "nesta página", como já eram) e viraram uma segunda faixa junto com a contagem.
+
+Toolbar `position: sticky` abaixo do header do sistema a partir de 768px (`--app-header-height: 63px`); em mobile (tabela vira cards, `<720px`, comportamento já existente) sem sticky.
+
+**Cabeçalho da tabela (`thead`) — tentado como sticky também, revertido por bug real confirmado visualmente**: `.materias-table-wrap` precisa de `overflow-x: auto` pra rolagem horizontal (tabela com `min-width: 980px`). Por regra do CSS Overflow Module Level 3, definir `overflow-x` diferente de `visible` faz `overflow-y` computar para `auto` também — isso torna esse wrapper o "nearest scrolling ancestor" do `thead` para fins de `position: sticky`, que passa a colar relativo à rolagem (inexistente) do wrapper em vez da página. Resultado visual real, capturado em screenshot: o cabeçalho ficava preso no meio da tabela, cobrindo linhas de dados — exatamente o que a validação pede pra nunca acontecer. Corrigir isso direito exigiria separar `thead`/`tbody` em estruturas distintas com scroll sincronizado por JS; como o pedido original marca esse item como opcional ("cabeçalho da tabela também **pode** ficar sticky"), optou-se por manter só a toolbar sticky (item obrigatório) e deixar o `thead` no fluxo normal — sem nenhum risco de cobrir linha.
+
+### 7. Validação
+
+- Ordenação padrão/cronológica, `editorial_sort_at` vs `updated_at`, ordenação por Referência/Título (`internal_reference`/`title` asc e desc) e filtro de período: validados com queries reais contra o Supabase (projeto `iqnzrpdccecgalqboeyf`), reproduzindo exatamente a query que o código monta.
+- Ordenação por Editoria/Abrangência: bug do embed encontrado e corrigido conforme item 2; reconfirmado no banco pós-fix.
+- Toolbar compacta + sticky + ausência de sobreposição de linhas: validado visualmente com Playwright contra um harness estático que reaproveita o CSS compilado real do app (`apps/sistema/.next/static/css`) em 820/1024/1366/1440/1920px — sticky da toolbar confirmado correto (gruda abaixo do header, nunca cobre a própria toolbar), nenhuma sobreposição de linha da tabela em nenhuma largura.
+- Login real com sessão de staff não estava disponível nesta sessão (mesma limitação já registrada nas Fases 47/48/49) — a interação real de clique nos cabeçalhos/preenchimento dos campos de data não pôde ser exercitada num navegador logado; validada por revisão de código + as queries equivalentes rodadas direto no banco (mesmas condições `WHERE`/`ORDER BY`/`RANGE` que o código gera) + o harness visual estático para toolbar/sticky/badges.
+- `npm run typecheck` e `npm run build --workspace=@ir/sistema`: limpos.
+
+### Preview publicado
+
+`apps/sistema` (projeto `jornalir-sistema`): `https://jornalir-sistema-j8r65r9t6-cristians-projects-34074cc3.vercel.app`. Rotas sem sessão confirmadas: `/login` (200), `/sistema/editorial/materias` (307 → login, middleware protegendo como esperado).
+
+### Confirmação explícita
+
+- `apps/site` não foi tocado.
+- Nenhuma matéria histórica foi alterada — as duas migrations só adicionam colunas derivadas/cache e triggers, nunca mudam `section_id`/`locality_id`/`published_at`/`scheduled_at`/`updated_at` de nenhuma matéria.
+- Paginação/filtros seguem 100% server-side; nada além da página atual (até 96 itens) é carregado no navegador, mesmo com as 23.292 matérias no banco.
+- Nada além de Preview foi publicado — Production de `jornalir-sistema` intocado.
+
+---
+
+## Ajuste visual imediato pós-Fase 49 — hero full bleed, largura desktop e header em uma linha só
+
+**HEAD/commit:** `37f4b03` (branch `feature/painel-editorial-operacional-20260927`)
+
+Autorizado por instrução direta do usuário lendo `docs/CHATGPT_REVIEW.md`, commit `cc56c15` (seção "Ajuste visual imediato pós-Fase 49"). Substitui a orientação visual da Fase 49 no que diz respeito a hero/largura/header — só `apps/site` foi tocado.
+
+### Hero principal (`PublicFeaturedHero.tsx`)
+
+O `contain` aplicado na Fase 49 fazia a foto parecer um quadro pequeno flutuando sobre o fundo índigo, com bordas visíveis nas quatro direções (produzidas por uma máscara CSS de dissolução em `.hero-photo-fg`, mais um deslocamento `left-[6%]/top-[8%]` no layer da foto). Corrigido: a camada da foto agora é `absolute inset-0` (sem deslocamento), `backgroundSize: cover` (permitido só aqui — o hero é cenográfico; a regra "nunca cortar" continua valendo para imagem da matéria/galeria/cards, nenhum deles foi tocado) e a máscara de dissolução foi removida de `globals.css`. Título: `clamp(34px, 3.2vw, 58px)`, `line-height: 1`, `text-wrap: balance` (desktop) — no mobile usa uma faixa menor (`text-[28px]`, mesma técnica) porque o padding-top fixo (`pt-24`) que dava respiro ao texto, somado ao clamp de 34px mínimo, estourava o topo do hero (`overflow-hidden`) em títulos longos de 6-7 linhas em 390px de largura; corrigido com padding progressivo por breakpoint e fonte/entrelinha menores só no mobile. Validado com o título real mais longo do acervo em uso (matéria do SINDARROZ-SC, ~130 caracteres) em 1366/1440/1920/390px — sem corte em nenhuma largura.
+
+### Largura desktop (`globals.css`)
+
+`.site-shell` tinha `max-width: 1440px`, deixando faixas vazias grandes em 1920px (~240px de cada lado). Aumentado para `1880px` — cobre 1366/1440/1920 quase por completo, mantendo só os gutters (`clamp(16px, 2.4vw, 40px)`). A coluna de leitura da matéria (`max-w-3xl`, em `noticias/[slug]/page.tsx`) é independente do `.site-shell` e não foi alterada — continua limitada para leitura confortável.
+
+### Header — uma linha só (`SiteHeader.tsx`)
+
+As duas faixas fixas da Fase 49 foram desfeitas. Agora é uma única linha em todo desktop (`lg:` e acima): logo (72px, um pouco maior que antes da Fase 49, sem tirar espaço da navegação) → nav no centro → busca/redes/Assinante à direita. Quantas editorias aparecem direto cresce por breakpoint sem JS de medição: `base=3` (`lg`, 1024–1279px), `xl=5` (1280–1535px, cobre 1366 e 1440), `2xl=8` (1536px+, cobre 1920) — cada link é renderizado uma única vez com a classe de visibilidade do seu degrau (`sectionTierClass`), e o mesmo item aparece em "Mais" só enquanto a largura atual ainda não o mostra direto (`overflowTierClass`, complemento exato). Mobile (`< lg`) inalterado — menu próprio.
+
+**Bug real encontrado e corrigido durante a implementação**: a primeira versão não escondia nada em nenhuma largura — todas as 12 editorias apareciam direto e sobrepunham a área de busca/Assinante. Causa: `.nav-link { display: inline-flex }` é uma regra solta em `globals.css`, posicionada (no arquivo) depois de `@tailwind utilities`; no CSS compilado ela vinha depois da camada de utilitários e por isso sempre vencia `.hidden`/`xl:inline-flex` aplicados no mesmo elemento (mesmo bug de especificidade já visto na Fase 49 com `object-fit`). Corrigido envolvendo `.nav-link` em `@layer components`, que reordena a regra para antes da camada de utilitários — confirmado visualmente em 1180/1366/1440/1920px que cada degrau mostra exatamente o número certo de editorias diretas, sem sobreposição.
+
+### Validação
+
+Rodado com Playwright (`npx playwright screenshot`) contra o worktree do painel em 1180 (abaixo do `xl`), 1366, 1440, 1920 e mobile (390×844), usando o título real mais longo do acervo: hero sem moldura/borda preenchendo a área toda; header em uma linha em todas as larguras desktop, com 3/5/8 editorias diretas conforme o degrau e "Mais" recebendo só o restante; sem faixas vazias grandes nas laterais em 1920; página de matéria (`/noticias/[slug]`) conferida sem corte de imagem e com "Voltar para {Editoria}" funcionando. `npm run typecheck` e `npm run build --workspace=@ir/site`: limpos.
+
+### Preview publicado
+
+`apps/site` (projeto `jornalir`): `https://jornalir-d51tl0ads-cristians-projects-34074cc3.vercel.app`
+
+### Confirmação explícita
+
+- Só `apps/site` foi alterado — `apps/sistema` intocado.
+- Publicidade não foi tocada.
+- Regra "nunca cortar" mantida para imagem da matéria, galeria e cards — `cover` é exclusivo do hero.
+- Nada além de Preview foi publicado — Production de `jornalir` intocado.
+
+---
+
+## Fase 49 — Abrangência, galeria unificada, sem corte de imagem, header em duas faixas e paginação por blocos de 10
+
+**HEAD/commit:** `d98a54c` (branch `feature/painel-editorial-operacional-20260927`)
+
+Autorizado por instrução direta do usuário lendo `docs/CHATGPT_REVIEW.md`, commit `71eb723` (seção "Fase 49"). Oito ajustes, todos aplicados nesta fase.
+
+### 1. Diagnóstico Colunistas/Geral — nenhuma correção em massa aplicada
+
+Consultado o Supabase real em três camadas (`articles.section_id`, view `public_articles`, view `public_editorial_sections`) — os três batem exatamente: Geral=16.461, Saúde=1.847, Esporte=1.171, Política=1.150, Sociais=1.138, Polícia=893, Agricultura=336, Colunistas=221 (Economia/Eventos/Cidades/Classificados=0). **Não há corrupção de dados**: o acervo real é ~71% "Geral" porque o site legado categorizava assim; Colunistas é pequeno em volume mas visualmente memorável por causa das assinaturas dos autores. Como os IDs/dados estão corretos, nenhuma correção em massa foi aplicada nos ~23 mil artigos históricos.
+
+### 2. Localidade → "Abrangência" (Geral/País/Estado/Região/Cidade)
+
+- `packages/types/src/editorial/index.ts`: `LocalityScope` ganhou `"state" | "country"` (preservando `general`/`region`/`city`).
+- Migração `supabase/migrations/20261007100000_localities_country_state_scope.sql`: recria o `check` de `localities.scope` incluindo os dois novos valores e faz seed idempotente (`on conflict (slug) do nothing`) de Brasil (país), Santa Catarina e Rio Grande do Sul (estados), Mampituba/Morrinhos do Sul/Praia Grande/Santa Rosa do Sul (cidades) — aplicada com `supabase db push` no projeto real (`iqnzrpdccecgalqboeyf`) e confirmada: as 11 localidades (4 originais + 7 novas) presentes com os `scope` corretos.
+- `apps/sistema/src/features/editorial/editorialLabels.ts` e `LocalidadesManager.tsx`: rótulos/opções dos novos scopes.
+- `apps/sistema/src/features/editorial/ArticleForm.tsx`: campo renomeado para "Abrangência" e novo formulário inline "+ Nova abrangência" (nome + tipo, sem sair da matéria) que chama a server action `createLocality` já existente e seleciona a localidade recém-criada automaticamente.
+- Nenhuma localidade foi inferida/atribuída em massa às matérias históricas — nenhum `UPDATE` em `articles.locality_id` foi executado.
+
+### 3. Portal esconde "Geral" e unifica capa+galeria no lightbox
+
+- `apps/site/src/lib/public/publicContentService.ts`: `buildArticles()` agora retorna `localityName` vazio quando `locality.scope === "general"` — "Geral" nunca aparece nos metadados de uma matéria pública.
+- Novo `apps/site/src/components/site/ArticleMediaViewer.tsx`: unifica capa + galeria num único conjunto de fotos; capa clicável abre o lightbox no índice 0; indicador "Ver N fotos" reflete o total real (capa + galeria); `apps/site/src/components/site/ArticleGallery.tsx` foi reescrito como componente controlado (teclado no desktop, swipe no mobile, miniaturas abrem o mesmo conjunto).
+- Bug real corrigido: o indicador contava capa+galeria, mas o componente antigo só recebia `gallery` — corrigido unificando o estado em `ArticleMediaViewer`.
+
+### 4. Nunca cortar imagem editorial
+
+Removidos todos os `bg-cover`/`object-cover` de conteúdo editorial real: capa da matéria, `PublicFeaturedHero` (removido o hook `useOrientations` — agora sempre `contain`), `PublicReadAlsoCard`, `PublicSecondaryHeadlines`, `PublicLatestNewsList`. Bug de especificidade CSS encontrado e corrigido em `apps/site/src/app/globals.css`: `.article-gallery-grid img { object-fit: cover }` (seletor descendente) sobrescrevia a classe Tailwind `object-contain` aplicada direto na tag — corrigido a regra CSS em si (`contain` + fundo neutro). Publicidade (`AdsCarousel`, `SponsoredNativeCard`) e ícones sociais/WhatsApp não foram tocados — não são conteúdo editorial.
+
+### 5. "Voltar" aponta para a editoria
+
+`apps/site/src/app/(public)/noticias/[slug]/page.tsx`: link "← Voltar" agora aponta para `/editoria/{sectionSlug}` com o nome real da editoria ("Voltar para Sociais"), com fallback para `/noticias` só quando não há `sectionSlug` válido. Validado na matéria de exemplo `abre-oficialmente-em-praia-grande-o-boia-cross-2025-15419282` → `href="/editoria/sociais"`.
+
+### 6. Header desktop em duas faixas (`apps/site/src/components/site/SiteHeader.tsx`)
+
+Em telas largas (`xl:`): faixa 1 = logo maior (84px, era 64px) + busca/redes/Assinante; faixa 2 = nav de largura total com Início, Notícias, todas as editorias diretas e Jornal Online, com "Mais" reservado só para Sobre/Contato. Em larguras intermediárias o bloco de uma faixa original é mantido (agora com `xl:hidden`), reduzindo o conjunto direto e usando "Mais" quando necessário. Mobile inalterado. Confirmado no HTML da home: bloco `hidden xl:block` (duas faixas) presente, `xl:hidden` (faixa única) presente para telas menores.
+
+### 7. Paginação em blocos de 10 + "Ir para página"
+
+Novo algoritmo puro `getPageBlock`/`clampJumpPage`, implementado em `apps/site/src/lib/public/pagination.ts` (substitui o antigo `getPageWindow`) e duplicado em `apps/sistema/src/lib/pagination.ts` (apps não compartilham estilo visual de paginação hoje; algoritmo pequeno o bastante para não justificar dependência cruzada). Componentes: `PublicPagination` (portal, reescrito `"use client"`) e novo `PaginationControls` (sistema), ambos com prev/next, bloco-anterior («)/bloco-seguinte (»), até 10 números por bloco e campo "Ir para página" com `clamp` em `1..totalPages`.
+
+Aplicado em `/noticias`, `/busca` (portal) e `/sistema/editorial/materias`, `/sistema/editorial/midias` (sistema) — reaproveitando os `buildHref`/`href` já existentes em cada página, que preservam todos os filtros (`q`, `status`, `section`, `locality`, `origin`, `pageSize`).
+
+Validado ao vivo contra o Supabase real (`/noticias`, 968 páginas totais, pageSize=24 default): página 1 → bloco 1–10; página 10 → mesmo bloco 1–10; página 11 → bloco 11–20; página 200 → bloco 191–200; página 968 (última) → bloco 961–968 (8 páginas, sem bloco-seguinte). Página 1 usa URL limpa (`/noticias`, sem `?page=1`) — comportamento intencional do `hrefFor`. Lógica de bloco/clamp também confirmada por teste unitário isolado (Node) para os mesmos casos. Paginação de `/sistema/*` não pôde ser exercitada logada de verdade (sem credencial de staff disponível nesta sessão) — validada por revisão de código + teste unitário do mesmo algoritmo; `buildHref`/`href` de `materias`/`midias` seguem preservando filtros como antes.
+
+### 8. Validação e typecheck/build
+
+- `npm run typecheck --workspace=@ir/site` e `--workspace=@ir/sistema`: limpos.
+- `npm run build --workspace=@ir/site` e `--workspace=@ir/sistema`: ambos concluídos com sucesso (todas as rotas compilando e gerando estático/dinâmico normalmente).
+- Servidores de desenvolvimento subidos localmente a partir do worktree do painel (`Site-sistema-painel`, portas 3010/3011, apontando para o Supabase IR real) para validar `/noticias` nas páginas 1/10/11/200/última, a matéria de exemplo com 20 fotos (capa + galeria, `object-contain` confirmado, sem corte), o link "Voltar" por editoria, o header em duas faixas e o seed das abrangências.
+- Cadastro rápido de abrangência validado por revisão de código do fluxo `ArticleForm` → `createLocality` (mesma server action já testada na Fase 47) e pela confirmação em banco de que as 11 abrangências esperadas (incluindo as 7 novas) existem com o `scope` correto.
+
+### Adendo — destaque "Capa principal" não aparecia na home do Preview
+
+Diagnóstico da cadeia completa, seguindo exatamente os passos pedidos no adendo do `docs/CHATGPT_REVIEW.md`, **sem alterar nenhum código nem dado**:
+
+1. `apps/sistema/src/app/sistema/editorial/materias/actions.ts` → `syncPlacement` em `apps/sistema/src/providers/supabase/articleRepository.supabase.ts` grava corretamente em `article_placements` (`type='mainCover'`, `active=true`, fecha o placement ativo anterior).
+2. `supabase/migrations/20260924100000_editorial_placement_model.sql` tem `'mainCover'` no `check` de `type`; a view `public_article_placements` (`20260930100000_public_content_and_scheduling.sql`) exige `active=true` + `articles.status='published'` + janela `starts_at/ends_at`, com tratamento correto de `null` (não exclui a linha).
+3. `apps/site` usa `dynamic = "force-dynamic"` na home e `cache: "no-store"` em todo fetch ao Supabase (`supabasePublicClient.ts`) — sem cache de dados do Next.js.
+4. Conferido ao vivo no Supabase real: existe exatamente 1 linha em `public_article_placements` (`type='mainCover'`, a matéria do teste do usuário, `starts_at`/`ends_at` nulos, criada às 2026-09-28T02:22:58Z), a matéria está publicada e com mídia de capa válida — a cadeia banco→view→`listPublicPlacement('mainCover')`→`PublicFeaturedHero` está correta.
+5. Validado localmente (servidor de desenvolvimento do worktree do painel contra o Supabase real): a home renderiza essa mesma matéria (`sindarroz-sc-aponta-prioridades-para-o-proximo-governo-...`) como primeiro item, confirmando que o código atual funciona corretamente ponta a ponta.
+
+**Conclusão:** não foi encontrado nenhum bug de código nem de dado — todas as camadas (salvar, tabela, view pública, consulta do site, componente de destaque) já produzem o resultado correto agora. O sintoma relatado é consistente com cache de CDN/edge do próprio deploy de Preview da Vercel no momento em que o usuário testou (ou teste feito antes do save terminar), não com um defeito na aplicação — por isso nenhum workaround manual nem placement por script foi criado, conforme pedido. **Ação sugerida ao usuário:** repetir o teste (selecionar Capa principal → salvar → atualizar a home → remover destaque → atualizar a home) direto no Preview novo publicado nesta fase, em aba anônima/com hard refresh, para descartar cache de CDN.
+
+### Previews publicados
+
+- `apps/site` (projeto `jornalir`): `https://jornalir-3aph9f2tv-cristians-projects-34074cc3.vercel.app`
+- `apps/sistema` (projeto `jornalir-sistema`): `https://jornalir-sistema-cwhb39jm6-cristians-projects-34074cc3.vercel.app`
+
+### Confirmação explícita
+
+- Nenhuma migração histórica reexecutada; nenhuma localidade/editoria de matéria histórica foi alterada em massa.
+- Publicidade (`AdsCarousel`, `SponsoredNativeCard`) não foi tocada.
+- Nada além de Preview foi publicado — Production de `jornalir` e de `jornalir-sistema` intocados.
+- Nenhum workaround manual ou placement criado por script para investigar o adendo dos destaques.
+
+---
+
+## Fase 48 — Validação online do acervo completo (`apps/site`) + staging separado do painel (`apps/sistema`)
+
+**HEAD/commit:** `f0253f6` (branch `feature/painel-editorial-operacional-20260927`)
+
+Autorizado por instrução direta do usuário: antes do staging do painel, garantir acesso online a todo o acervo migrado em `apps/site`. Ver `docs/CHATGPT_REVIEW.md` ("Ajuste da próxima etapa — site com acervo completo antes do staging do painel").
+
+### 1. Portal público — validado no Supabase IR real + Preview publicado (projeto `jornalir` existente)
+
+Baseline confirmado direto no banco: 23.292 `articles` físicos, 75 arquivados (61+13+1 das limpezas de duplicata), **23.217 publicados** — idêntico ao total da view `public_articles`.
+
+`/noticias` (pageSize=24) validado tanto localmente (contra o Supabase real) quanto na URL de Preview publicada:
+- total retornado: 23.217 (bate com o baseline);
+- última página calculada e presente no link: 968 (`ceil(23217/24)`);
+- página 1: 24 itens distintos, mais recentes primeiro;
+- página 500 (intermediária): 24 itens distintos;
+- página 968 (última): 9 itens = `23217 - 967*24` (confere exatamente);
+- página 999 (além do fim): HTTP 200, clampada — nunca erro.
+
+Editoria grande `/editoria/geral`: 16.461 publicadas, página 1 com 24 itens. Busca validada consultando o Supabase com a mesma query do cliente (`/busca` é client-side, sem SSR): "covid" → 2.463, "praia grande" → 3.941.
+
+**Correção aplicada**: `apps/site/src/components/site/SiteHeader.tsx` não tinha nenhum link permanente para `/noticias` — adicionado (`NOTICIAS_LINK`, logo após "Início", desktop e mobile), sem depender de editorias carregadas nem de existir placement `latestNews`. Confirmado presente no HTML da home do Preview publicado.
+
+Nenhum placement automático foi criado para o conteúdo histórico.
+
+**Preview publicado** (projeto Vercel `jornalir` já existente, Production `jornalir.vercel.app` intocado): `https://jornalir-2n6utksw7-cristians-projects-34074cc3.vercel.app`.
+
+### 2. Staging separado do painel — projeto Vercel novo e isolado
+
+Criado projeto Vercel `jornalir-sistema` (Root Directory = `apps/sistema`), separado do projeto `jornalir` do portal. Variáveis de ambiente definidas nos 3 ambientes: `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, `SUPABASE_SERVICE_ROLE_KEY` (mesmo projeto Supabase IR do portal).
+
+3 problemas reais encontrados e corrigidos durante a configuração (nenhum deles chegou a servir tráfego real):
+1. Primeiro deploy (rodado de dentro de `apps/sistema`) subiu só aquela subpasta, sem os pacotes irmãos do monorepo — `npm install` falhou (`@ir/config` não encontrado). Corrigido definindo `rootDirectory=apps/sistema` no projeto e reexecutando o deploy a partir da raiz do repositório.
+2. Esse mesmo primeiro deploy foi automaticamente direcionado ao ambiente Production do projeto novo (não pedido) — como o build falhou, nunca chegou a ficar "ready"/servir tráfego, mas as tentativas seguintes passaram a usar `--target=preview` explícito por segurança.
+3. A proteção "Vercel Authentication" (SSO da própria plataforma) vem ligada por padrão para deploys de Preview nesta conta, interceptando toda rota — inclusive `/login` do próprio painel — antes de chegar à aplicação, o que inviabilizaria testar a autenticação real. Desligada só para este projeto novo, preservando a proteção real da aplicação (middleware Next.js com `auth.getUser()` + `profiles.active`, inalterado).
+
+**Preview publicado**: `https://jornalir-sistema-ioz7fwy9p-cristians-projects-34074cc3.vercel.app`.
+
+Rotas validadas sem sessão: `/login` (200), `/definir-senha` (200), `/sistema` e as páginas de `editorial/*` (307 → `/login`, middleware protegendo corretamente), `/` (404 esperado — não existe `page.tsx` na raiz de `apps/sistema`).
+
+### Pendente de ação do usuário
+
+Login real (com credencial de staff de verdade), navegação autenticada, edição de matéria, upload de imagem e fluxo de destaques só podem ser confirmados por alguém logando de fato num navegador. **Ação exata pedida:** abrir `https://jornalir-sistema-ioz7fwy9p-cristians-projects-34074cc3.vercel.app/login`, entrar com uma conta real do painel e percorrer login → matérias → edição → imagens → destaques → sair. Nenhuma configuração adicional é necessária além disso.
+
+### Confirmação explícita
+
+- Nenhuma migração histórica reexecutada; nenhum dado do acervo alterado.
+- `jornalir` (Production do portal) não foi tocado — só um Preview novo.
+- `jornalir-sistema` é um projeto isolado; sua Production nunca serviu tráfego real e nenhum domínio definitivo foi apontado.
+
+---
+
+## Fase 47 — Revisão pós-migração do painel editorial (branch `feature/painel-editorial-operacional-20260927`)
+
+**HEAD/commit:** `b15877f` (branch `feature/painel-editorial-operacional-20260927`)
+
+Autorizado por `docs/CHATGPT_REVIEW.md` ("Próxima etapa autorizada — painel editorial operacional", após o fechamento da Fase 46C/migração histórica). Trabalho feito na worktree separada `Site-sistema-painel`, sincronizada com o HEAD final da migração (`f7edc93`).
+
+### O que foi feito
+
+1. `npm run typecheck --workspace=@ir/sistema` e `npm run build --workspace=@ir/sistema` rodados — ambos passaram limpos, sem nenhum erro de tipo ou build.
+2. Revisão manual dos fluxos citados (Matéria → Imagens → Publicação e destaque, paginação server-side, busca de mídia sob demanda, gestão de destaques, PDFs no Google Drive/Jornal Online) e de autenticação/auditoria/RLS. Encontrados e corrigidos 3 problemas reais (nenhum pego pelo typecheck/build, todos de comportamento em runtime):
+
+### Correção 1 — resíduo `SIMULATED_AUDIT` eliminado com segurança
+
+`apps/sistema/src/lib/simulatedAudit.ts` fornecia um ator fixo (`"editor-sistema"`) para toda escrita editorial. Confirmado, antes de tocar, que isso é seguro de remover: o backend mock de `article-service.ts` já ignora o parâmetro de auditoria (`_audit`, nunca lido) e o trigger real do Supabase (`set_article_actor`) sempre usa `auth.uid()` da sessão real, nunca o valor enviado pela aplicação — ou seja, o valor simulado nunca teve efeito nenhum em dado real. Criado `lib/auth/getAuditContext.ts`, que deriva o contexto real da sessão Supabase (`auth.getUser()` + `profiles.role`, mapeando `owner`/`admin` → `"admin"` e `operator` → `"editorial"`). Usado agora em `materias/actions.ts` e `importar-pdf/actions.ts`. Arquivo `simulatedAudit.ts` removido.
+
+### Correção 2 — PDF de edição nova ficaria privado no Google Drive
+
+`lib/googleDrive/editionArchive.ts` fazia upload via `files.create` da API do Drive, mas **nunca** chamava `permissions.create` depois. Um arquivo criado assim NUNCA herda o compartilhamento "qualquer pessoa com o link" da pasta pai — diferente de um upload manual pela interface web do Drive (arrastar-e-soltar), que herda automaticamente. Sem essa chamada explícita, o PDF de uma edição nova ficaria privado (só a conta que fez o upload enxergaria) e `apps/site` — que lê a pasta/arquivos do Drive de forma **anônima**, sem OAuth (`apps/site/src/app/api/jornal-online/drive/route.ts` e `drive-file/route.ts`) — não conseguiria exibi-lo aos visitantes do Jornal Online. Adicionado `grantPublicReadPermission()` (chamada `permissions.create`, `role=reader, type=anyone`) logo após o upload ter sucesso.
+
+### Correção 3 — 2 páginas ainda carregavam o acervo de mídia inteiro
+
+O padrão já estabelecido em `/sistema/editorial/midias` (paginado, `listMediaAdminPageSupabase`) e em `materias/[id]` (edição, `getMediaAssetsByIdsSupabase` só com as mídias já vinculadas) não tinha sido replicado em 2 lugares:
+- `/sistema/editorial/destaques` chamava `getMediaAssetService(supabase).list()` sem filtro nenhum — com **44.289 mídias já migradas do legado**, isso carregaria o catálogo inteiro só para resolver as ~22 miniaturas de capa das matérias em destaque. Corrigido para buscar só os `mediaAssetId` de capa das matérias retornadas (`getMediaAssetsByIdsSupabase`).
+- `/sistema/editorial/importar-pdf/[candidateId]` tinha o mesmo problema. Corrigido para buscar as mídias sugeridas pela extração do PDF (`candidate.suggestedMediaAssetIds`, que precisam estar disponíveis mesmo se não forem recentes) **+** uma amostra recente de 60 (`listRecentMediaAssetsSupabase`) para alimentar a busca sob demanda do `ArticleMediaPicker` — nunca o catálogo inteiro.
+
+### Auth/RLS confirmados intactos (sem alteração necessária)
+
+- `middleware.ts` já protege `/sistema/*` com `auth.getUser()` real (validado contra o servidor, não só o cookie) + checagem de `profiles.active` — confirmado que toda Server Action tocada por esta fase só é alcançável com sessão real, o que torna `getAuditContext()` seguro (nunca cai num "usuário inexistente" em uso normal).
+- RLS de `newspaper_editions` e `media_assets` já cobrem select/insert/update por staff (migrations `20260921100400`/`20260921100700`) — nenhuma mudança de schema/policy foi necessária para as correções acima (a nova coluna `pdf_url`/`pdf_storage_path=null` já é escrita sob a policy de update existente).
+- `searchMediaAssetsSupabase`/`cleanMediaSearch` já escapam `%`, `_` e `,` antes de montar o filtro `.or(...).ilike` — sem risco de injeção de filtro, confirmado ao revisar a busca sob demanda.
+
+### Confirmação explícita
+
+- Nenhum dado histórico da migração (2015–2026) tocado ou alterado.
+- Nenhum Preview gerado, nenhuma ação de Production.
+- Todas as correções são de código do painel (`apps/sistema`), nenhuma migration de banco nova.
+- `typecheck`/`build` confirmados limpos após cada correção.
+
+---
+
 ## Fase 46C — CARGA REAL do lote 2025-2026 CONCLUÍDA — último lote cronológico do legado
 
 **HEAD/commit:** `6defdfe` (branch `feature/jornalir-core-foundation-20260917`)

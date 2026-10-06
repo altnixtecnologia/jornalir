@@ -73,24 +73,28 @@ export default async function HomePage(): Promise<JSX.Element> {
             <div className="md:hidden">
               <AdSlotPairRow slots={pairA} />
             </div>
-
-            <hr className="divider" />
-            <div className="pt-10">
-              <PublicLocalSpotlight items={localSpotlight} />
-            </div>
-
-            <div className="mt-8 md:hidden">
-              <AdSlotPairRow slots={pairB} />
-            </div>
-
-            <div className="mt-2 pb-4 md:hidden">
-              <AdSlotPairRow slots={pairC} />
-            </div>
           </div>
 
           <div className="hidden xl:block">
             <AdSlotColumn slots={rightAdSlots} side="right" />
           </div>
+        </div>
+
+        {/* "Mais destaques" sai da coluna central estreita (entre as duas
+            colunas de publicidade) e passa a ocupar a largura total do
+            site-shell — grid 3×2 precisa desse espaço para não comprimir
+            os 6 cards (Fase de revisão dos destaques, item E). */}
+        <hr className="divider mt-10" />
+        <div className="pt-10">
+          <PublicLocalSpotlight items={localSpotlight} />
+        </div>
+
+        <div className="mt-8 md:hidden">
+          <AdSlotPairRow slots={pairB} />
+        </div>
+
+        <div className="mt-2 pb-4 md:hidden">
+          <AdSlotPairRow slots={pairC} />
         </div>
       </section>
     </main>

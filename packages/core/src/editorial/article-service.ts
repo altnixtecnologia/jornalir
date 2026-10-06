@@ -159,6 +159,7 @@ export class ArticleService {
     const updated = await this.articles.update(id, {
       status: "published",
       publishedAt: new Date().toISOString(),
+      scheduledAt: undefined,
     });
     if (updated.placement.type !== "none") {
       await this.enforcePlacementLimit(updated.placement.type);
@@ -205,20 +206,25 @@ export class ArticleService {
   ): Promise<Article[]> {
     const occupants = await this.articles.list({ placementType: type, status: "published" });
     const nowIso = now.toISOString();
-    const visible = occupants.filter(
-      (article) =>
+    const visible = occupants.filter((article) => {
+      // Registros antigos não fixados ainda podem ter uma janela completa
+      // de destaque; ela continua respeitada. No fluxo novo, fixação começa
+      // imediatamente e usa somente endsAt como saída opcional.
+      if (article.placement.pinned) return true;
+      return (
         (!article.placement.startsAt || article.placement.startsAt <= nowIso) &&
-        (!article.placement.endsAt || article.placement.endsAt >= nowIso),
-    );
+        (!article.placement.endsAt || article.placement.endsAt >= nowIso)
+      );
+    });
+    const isPinnedNow = (article: Article): boolean =>
+      Boolean(article.placement.pinned) &&
+      (!article.placement.endsAt || article.placement.endsAt >= nowIso);
 
-    // Rede de segurança de leitura: fixadas sempre aparecem, e o total
-    // nunca ultrapassa o limite da posição mesmo se o bookkeeping do banco
-    // (active=true) ainda não tiver reagido a uma mudança recente — sem
-    // depender de cron, a query em si nunca mostra mais que o limite.
-    // Fixadas: ordem manual (`pinnedRank`, Fase 29) — sem rank definido
-    // (fixada antes dessa fase existir), cai para `setAt` como antes.
+    // Fixadas ocupam vagas enquanto a fixação estiver ativa. Ao vencer
+    // `endsAt`, a matéria continua publicada e volta ao fluxo normal da
+    // mesma posição, disputando vaga por recência.
     const pinned = visible
-      .filter((article) => article.placement.pinned)
+      .filter(isPinnedNow)
       .sort((a, b) => {
         const rankA = a.placement.pinnedRank;
         const rankB = b.placement.pinnedRank;
@@ -228,23 +234,32 @@ export class ArticleService {
         return (b.placement.setAt ?? "").localeCompare(a.placement.setAt ?? "");
       });
     const unpinned = visible
-      .filter((article) => !article.placement.pinned)
+      .filter((article) => !isPinnedNow(article))
       .sort((a, b) => (b.placement.setAt ?? "").localeCompare(a.placement.setAt ?? ""));
     const limit = EDITORIAL_PLACEMENT_LIMITS[type];
     return [...pinned, ...unpinned].slice(0, limit);
   }
 
-  /** Fixa/desafixa (só faz sentido em `mainCover`) sem alterar editoria/localidade/conteúdo/status. */
+  /** Fixa/desafixa em qualquer posição editorial, sem alterar conteúdo/status. */
   async setPlacementPinned(id: string, pinned: boolean): Promise<Article> {
     const current = await this.getById(id);
-    if (current.placement.type !== "mainCover") {
-      throw new Error("Fixar só é possível na Capa principal.");
+    if (current.placement.type === "none") {
+      throw new Error("Escolha um destaque antes de fixar a matéria.");
     }
+    const type = current.placement.type;
     const updated = await this.articles.update(id, {
-      placement: { ...current.placement, pinned, pinnedRank: pinned ? current.placement.pinnedRank : undefined },
+      placement: {
+        ...current.placement,
+        pinned,
+        pinnedRank: pinned ? current.placement.pinnedRank : undefined,
+        // Pela Gestão de destaques, "Fixar" é permanente. O prazo opcional
+        // é configurado dentro da própria matéria.
+        startsAt: undefined,
+        endsAt: undefined,
+      },
     });
     if (updated.status === "published") {
-      await this.enforcePlacementLimit("mainCover");
+      await this.enforcePlacementLimit(type);
     }
     return updated;
   }
@@ -258,14 +273,14 @@ export class ArticleService {
     return this.articles.update(id, { placement: { type: "none" } });
   }
 
-  /**
-   * Ordem manual entre fixadas de `mainCover` (Fase 29) — nunca mexe em
-   * matérias não fixadas (essas continuam girando por recência sozinhas).
-   */
-  async reorderPinnedMainCover(orderedArticleIds: string[]): Promise<void> {
+  /** Ordem manual entre fixadas de uma mesma posição editorial. */
+  async reorderPinnedPlacement(
+    type: Exclude<EditorialPlacementType, "none">,
+    orderedArticleIds: string[],
+  ): Promise<void> {
     for (let index = 0; index < orderedArticleIds.length; index += 1) {
       const current = await this.getById(orderedArticleIds[index]);
-      if (current.placement.type !== "mainCover" || !current.placement.pinned) continue;
+      if (current.placement.type !== type || !current.placement.pinned) continue;
       await this.articles.update(orderedArticleIds[index], {
         placement: { ...current.placement, pinnedRank: index },
       });
@@ -300,8 +315,12 @@ export class ArticleService {
     // Só conta/expulsa entre matérias já `published` — rascunho/ajuste/
     // agendada/arquivada nunca disputam vaga (Fase 25, item 8/9).
     const occupants = await this.articles.list({ placementType: type, status: "published" });
-    const pinned = occupants.filter((article) => article.placement.pinned);
-    const unpinned = [...occupants.filter((article) => !article.placement.pinned)].sort((a, b) =>
+    const nowIso = new Date().toISOString();
+    const isPinnedNow = (article: Article): boolean =>
+      Boolean(article.placement.pinned) &&
+      (!article.placement.endsAt || article.placement.endsAt >= nowIso);
+    const pinned = occupants.filter(isPinnedNow);
+    const unpinned = [...occupants.filter((article) => !isPinnedNow(article))].sort((a, b) =>
       (b.placement.setAt ?? "").localeCompare(a.placement.setAt ?? ""),
     );
     const remainingSlots = Math.max(0, limit - pinned.length);
