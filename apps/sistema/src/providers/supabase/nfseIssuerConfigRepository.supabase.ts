@@ -1,10 +1,11 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { NfseCertificateStoredStatus, NfseCertificateType, NfseEnvironment, NfseIssuerConfig } from "@ir/types";
+import type { NfseCertificateStoredStatus, NfseCertificateType, NfseEnvironment, NfseIssuerConfig, NfseSimplesNacionalOption, NfseSpecialTaxRegimeCode } from "@ir/types";
 import type { IssuerConfigChanges, IssuerConfigRepository, NewIssuerConfigRecord } from "@ir/core";
 
 const TABLE = "nfse_issuer_configs";
 const COLUMNS =
   "id, company_name, trade_name, cnpj, municipal_registration, municipality, state, ibge_code, tax_regime, special_tax_regime, " +
+  "simples_nacional_option, special_tax_regime_code, " +
   "environment, certificate_type, certificate_status, certificate_valid_until, certificate_reference, dps_series, notes, " +
   "created_by, updated_by, created_at, updated_at";
 
@@ -19,6 +20,8 @@ interface IssuerConfigRow {
   ibge_code: string;
   tax_regime: string | null;
   special_tax_regime: string | null;
+  simples_nacional_option: NfseSimplesNacionalOption | null;
+  special_tax_regime_code: NfseSpecialTaxRegimeCode | null;
   environment: NfseEnvironment;
   certificate_type: NfseCertificateType;
   certificate_status: NfseCertificateStoredStatus;
@@ -44,6 +47,8 @@ function toDomain(row: IssuerConfigRow): NfseIssuerConfig {
     ibgeCode: row.ibge_code,
     taxRegime: row.tax_regime ?? undefined,
     specialTaxRegime: row.special_tax_regime ?? undefined,
+    simplesNacionalOption: row.simples_nacional_option ?? undefined,
+    specialTaxRegimeCode: row.special_tax_regime_code ?? undefined,
     environment: row.environment,
     certificateType: row.certificate_type,
     certificateStatus: row.certificate_status,
@@ -69,6 +74,8 @@ function toRow(record: NewIssuerConfigRecord | IssuerConfigChanges): Record<stri
   if (record.ibgeCode !== undefined) row.ibge_code = record.ibgeCode;
   if (record.taxRegime !== undefined) row.tax_regime = record.taxRegime ?? null;
   if (record.specialTaxRegime !== undefined) row.special_tax_regime = record.specialTaxRegime ?? null;
+  if (record.simplesNacionalOption !== undefined) row.simples_nacional_option = record.simplesNacionalOption ?? null;
+  if (record.specialTaxRegimeCode !== undefined) row.special_tax_regime_code = record.specialTaxRegimeCode ?? null;
   if (record.environment !== undefined) row.environment = record.environment;
   if (record.certificateType !== undefined) row.certificate_type = record.certificateType;
   if (record.certificateStatus !== undefined) row.certificate_status = record.certificateStatus;

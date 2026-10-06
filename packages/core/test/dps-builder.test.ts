@@ -6,9 +6,18 @@ import { buildDpsXml, parseAuthorizationResponse, parseRejectionResponse, valida
 
 function makeInput(overrides: Partial<DpsBuildInput> = {}): DpsBuildInput {
   return {
-    issuer: { companyName: "INFORMATIVO REGIONAL LTDA", cnpj: "23970969000190", municipalRegistration: "1000546", ibgeCode: "4216404", municipality: "São João do Sul", state: "SC" },
+    issuer: {
+      companyName: "INFORMATIVO REGIONAL LTDA",
+      cnpj: "23970969000190",
+      municipalRegistration: "1000546",
+      ibgeCode: "4216404",
+      municipality: "São João do Sul",
+      state: "SC",
+      simplesNacionalOption: "me_epp",
+      specialTaxRegimeCode: "none",
+    },
     tomador: { sourceClientId: "client-1", kind: "individual", name: "Maria Souza", cpf: "11144477735", city: "São João do Sul", state: "SC" },
-    fiscal: { cTribNac: "010101" },
+    fiscal: { cTribNac: "140619" },
     competencyDate: "2026-10-01",
     serviceValue: 150.5,
     serviceDescription: "Veiculação de anúncio publicitário em outubro/2026",
@@ -19,16 +28,27 @@ function makeInput(overrides: Partial<DpsBuildInput> = {}): DpsBuildInput {
   };
 }
 
-// Parte 2A, item 20 — geração determinística da DPS.
+// Parte 2A, item 20 / Parte 2C — geração determinística da DPS fechada contra o XSD oficial.
 
-test("buildDpsXml preserva EXATAMENTE a descrição informada pelo usuário", () => {
+test("buildDpsXml preserva EXATAMENTE a descrição informada pelo usuário — nunca autopreenchida pelo perfil", () => {
   const xml = buildDpsXml(makeInput({ serviceDescription: "Texto livre & especial <teste>" }));
   assert.ok(xml.includes("<xDescServ>Texto livre &amp; especial &lt;teste&gt;</xDescServ>"));
 });
 
-test("buildDpsXml preserva a competência escolhida pelo usuário", () => {
+test("buildDpsXml preserva a competência escolhida no rascunho", () => {
   const xml = buildDpsXml(makeInput({ competencyDate: "2026-03-15" }));
   assert.ok(xml.includes("<dCompet>2026-03-15</dCompet>"));
+});
+
+test("buildDpsXml preserva o valor informado naquela emissão — nunca recalculado", () => {
+  const xml = buildDpsXml(makeInput({ serviceValue: 999.9 }));
+  assert.ok(xml.includes("<vServ>999.90</vServ>"));
+});
+
+test("buildDpsXml nunca inventa cTribNac — usa exatamente o que o perfil de serviço informou", () => {
+  const xml = buildDpsXml(makeInput({ fiscal: { cTribNac: "140619" } }));
+  assert.ok(xml.includes("<cTribNac>140619</cTribNac>"));
+  assert.ok(!xml.includes("1706"), "código municipal antigo (1706) nunca deve aparecer — não é cTribNac válido");
 });
 
 test("buildDpsXml nunca inclui chave de acesso, número de NFS-e ou data de autorização — esses só existem depois da resposta oficial", () => {
@@ -50,6 +70,41 @@ test("buildDpsXml nunca inclui vISSQN/pAliq — alíquota do ISSQN não é mais 
   const xml = buildDpsXml(makeInput());
   assert.ok(!xml.includes("<vISSQN>"));
   assert.ok(!xml.includes("<pAliq>"));
+});
+
+test("buildDpsXml emite regTrib (opSimpNac/regEspTrib) quando o prestador está configurado (Simples Nacional)", () => {
+  const xml = buildDpsXml(makeInput({ issuer: { ...makeInput().issuer, simplesNacionalOption: "me_epp", specialTaxRegimeCode: "none" } }));
+  assert.ok(xml.includes("<regTrib><opSimpNac>3</opSimpNac><regEspTrib>0</regEspTrib></regTrib>"));
+});
+
+test("buildDpsXml NUNCA inventa opSimpNac/regEspTrib — omite regTrib por completo se o prestador não configurou", () => {
+  const xml = buildDpsXml(makeInput({ issuer: { ...makeInput().issuer, simplesNacionalOption: undefined, specialTaxRegimeCode: undefined } }));
+  assert.ok(!xml.includes("<regTrib>"));
+  assert.ok(!xml.includes("<opSimpNac>"));
+  assert.ok(!xml.includes("<regEspTrib>"));
+});
+
+test("buildDpsXml mapeia tomador pessoa física (CPF) corretamente", () => {
+  const xml = buildDpsXml(makeInput({ tomador: { sourceClientId: "c1", kind: "individual", name: "Maria Souza", cpf: "11144477735", city: "SJS", state: "SC" } }));
+  assert.ok(xml.includes("<toma><CPF>11144477735</CPF><xNome>Maria Souza</xNome></toma>"));
+});
+
+test("buildDpsXml mapeia tomador pessoa jurídica (CNPJ) corretamente", () => {
+  const xml = buildDpsXml(makeInput({ tomador: { sourceClientId: "c2", kind: "company", name: "Cliente PJ Ltda", cnpj: "11111111000199", city: "SJS", state: "SC" } }));
+  assert.ok(xml.includes("<toma><CNPJ>11111111000199</CNPJ><xNome>Cliente PJ Ltda</xNome></toma>"));
+  assert.ok(!xml.includes("<CPF>"));
+});
+
+test("buildDpsXml não emite tags opcionais vazias — cTribMun/cNBS ausentes quando não informados", () => {
+  const xml = buildDpsXml(makeInput({ fiscal: { cTribNac: "140619" } }));
+  assert.ok(!xml.includes("<cTribMun>"));
+  assert.ok(!xml.includes("<cNBS>"));
+});
+
+test("buildDpsXml emite cTribMun/cNBS quando informados no perfil (normalizando formatação de entrada)", () => {
+  const xml = buildDpsXml(makeInput({ fiscal: { cTribNac: "140619", cTribMun: "706", cNBS: "1.1406.19.00" } }));
+  assert.ok(xml.includes("<cTribMun>706</cTribMun>"));
+  assert.ok(xml.includes("<cNBS>114061900</cNBS>"));
 });
 
 test("validateDpsXmlStructure aprova um XML completo e reprova um incompleto", () => {

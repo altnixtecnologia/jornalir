@@ -1,4 +1,4 @@
-import { isValidDpsSeriesFormat, NFSE_SUGGESTED_ISSUER_DEFAULTS, type NfseIssuerConfig } from "@ir/types";
+import { isValidDpsSeriesFormat, NFSE_SUGGESTED_ISSUER_DEFAULTS, type NfseIssuerConfig, type NfseSimplesNacionalOption, type NfseSpecialTaxRegimeCode } from "@ir/types";
 import { onlyDigits } from "../clientes/client-validation";
 import { IssuerConfigValidationError, type IssuerConfigRepository, type NewIssuerConfigRecord } from "./issuer-config-repository";
 
@@ -12,6 +12,10 @@ export interface IssuerConfigInput {
   ibgeCode: string;
   taxRegime?: string;
   specialTaxRegime?: string;
+  /** `opSimpNac` do XSD oficial (grupo `regTrib`) — obrigatório pra transmitir, nunca um default assumido. */
+  simplesNacionalOption?: NfseSimplesNacionalOption;
+  /** `regEspTrib` do XSD oficial (grupo `regTrib`) — obrigatório pra transmitir, nunca um default assumido (mesmo "Nenhum" exige escolha explícita). */
+  specialTaxRegimeCode?: NfseSpecialTaxRegimeCode;
   environment: NfseIssuerConfig["environment"];
   certificateType: NfseIssuerConfig["certificateType"];
   certificateStatus: NfseIssuerConfig["certificateStatus"];
@@ -37,6 +41,8 @@ function normalize(input: IssuerConfigInput): NewIssuerConfigRecord {
     ibgeCode: input.ibgeCode.trim(),
     taxRegime: trimOrUndefined(input.taxRegime),
     specialTaxRegime: trimOrUndefined(input.specialTaxRegime),
+    simplesNacionalOption: input.simplesNacionalOption,
+    specialTaxRegimeCode: input.specialTaxRegimeCode,
     environment: input.environment,
     certificateType: input.certificateType,
     certificateStatus: input.certificateStatus,

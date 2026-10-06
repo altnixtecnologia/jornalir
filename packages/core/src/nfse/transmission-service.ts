@@ -325,11 +325,6 @@ export class TransmissionService {
       issuerConfig,
       activeCertificate,
       lastXsdValidationValid,
-      // issqnRate foi removido do perfil de serviço (ajuste final Parte
-      // 2B — não é mais modelado nesta fase, ver @ir/types). `readiness.ts`
-      // não foi alterado (fora do escopo deste ajuste); `true` aqui só
-      // significa que este item não é mais um pré-requisito verificável.
-      issqnRateConfigured: true,
       cTribNacConfigured: Boolean(draft.fiscal.cTribNac),
     });
   }

@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import forge from "node-forge";
 import { buildDpsXml } from "../src/nfse/dps-builder";
 import { signDpsXml, NFSE_DPS_SIGNATURE_PROFILE } from "../src/nfse/signature";
+import { validateDpsAgainstOfficialXsd } from "../src/nfse/xsd-validator";
 
 /** Certificado/chave de TESTE gerados localmente (node-forge) — NUNCA um
  * certificado real (item 10 do ajuste de segurança Parte 2B). */
@@ -25,9 +26,18 @@ function makeTestKeyAndCert(): { privateKeyPem: string; certificatePem: string }
 
 function makeSignedXml() {
   const xml = buildDpsXml({
-    issuer: { companyName: "INFORMATIVO REGIONAL LTDA", cnpj: "23970969000190", municipalRegistration: "1000546", ibgeCode: "4216404", municipality: "São João do Sul", state: "SC" },
+    issuer: {
+      companyName: "INFORMATIVO REGIONAL LTDA",
+      cnpj: "23970969000190",
+      municipalRegistration: "1000546",
+      ibgeCode: "4216404",
+      municipality: "São João do Sul",
+      state: "SC",
+      simplesNacionalOption: "me_epp",
+      specialTaxRegimeCode: "none",
+    },
     tomador: { sourceClientId: "client-1", kind: "individual", name: "Maria Souza", cpf: "11144477735", city: "São João do Sul", state: "SC" },
-    fiscal: { cTribNac: "010101" },
+    fiscal: { cTribNac: "140619" },
     competencyDate: "2026-10-01",
     serviceValue: 150.5,
     serviceDescription: "Veiculação de anúncio publicitário",
@@ -91,4 +101,11 @@ test("CanonicalizationMethod do SignedInfo é C14N 1.0 (não exclusivo)", () => 
   const { result } = makeSignedXml();
   assert.ok(result.signedXml.includes('<CanonicalizationMethod Algorithm="http://www.w3.org/TR/2001/REC-xml-c14n-20010315"'));
   assert.ok(!result.signedXml.includes("xml-exc-c14n"));
+});
+
+test("Parte 2C, item 11: a DPS assinada continua estruturalmente válida contra o XSD oficial (TCDPS aceita ds:Signature) — assinatura nunca quebra a conformidade", async () => {
+  const { result } = makeSignedXml();
+  const xsdResult = await validateDpsAgainstOfficialXsd(result.signedXml);
+  assert.deepEqual(xsdResult.errors, []);
+  assert.equal(xsdResult.valid, true);
 });

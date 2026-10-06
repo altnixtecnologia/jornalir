@@ -2,13 +2,17 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import type { NfseCertificateType, NfseCertificateStoredStatus, NfseEnvironment, NfseIssuerConfig } from "@ir/types";
+import type { NfseCertificateType, NfseCertificateStoredStatus, NfseEnvironment, NfseIssuerConfig, NfseSimplesNacionalOption, NfseSpecialTaxRegimeCode } from "@ir/types";
 import {
   NFSE_CERTIFICATE_STORED_STATUSES,
   NFSE_CERTIFICATE_TYPE_LABELS,
   NFSE_CERTIFICATE_TYPES,
   NFSE_ENVIRONMENT_LABELS,
   NFSE_ENVIRONMENTS,
+  NFSE_SIMPLES_NACIONAL_OPTIONS,
+  NFSE_SIMPLES_NACIONAL_OPTION_LABELS,
+  NFSE_SPECIAL_TAX_REGIME_CODES,
+  NFSE_SPECIAL_TAX_REGIME_CODE_LABELS,
   computeCertificateEffectiveStatus,
 } from "@ir/types";
 import { NfseCertificatePanel } from "./NfseCertificatePanel";
@@ -25,6 +29,8 @@ function toFormInput(config: Partial<NfseIssuerConfig> | undefined): IssuerConfi
     ibgeCode: config?.ibgeCode ?? "",
     taxRegime: config?.taxRegime ?? "",
     specialTaxRegime: config?.specialTaxRegime ?? "",
+    simplesNacionalOption: config?.simplesNacionalOption ?? "",
+    specialTaxRegimeCode: config?.specialTaxRegimeCode ?? "",
     environment: config?.environment ?? "homologation",
     certificateType: config?.certificateType ?? "not_configured",
     certificateStatus: config?.certificateStatus ?? "not_configured",
@@ -119,6 +125,34 @@ export function NfseIssuerConfigForm({ initialConfig }: { initialConfig: NfseIss
           <label className="form-field">
             <span className="field-label">Regime especial <span className="field-optional">(opcional)</span></span>
             <input type="text" value={input.specialTaxRegime} onChange={(event) => set("specialTaxRegime", event.target.value)} />
+          </label>
+        </div>
+        <p className="helper-text" style={{ marginTop: "0.75rem" }}>
+          Os dois campos abaixo são exigidos pelo Sistema Nacional da NFS-e pra identificar a situação tributária do prestador — sem eles, a emissão não fica pronta (ver "Prontidão" no rascunho).
+        </p>
+        <div className="form-grid">
+          <label className="form-field">
+            <span className="field-label">Situação no Simples Nacional</span>
+            <select value={input.simplesNacionalOption} onChange={(event) => set("simplesNacionalOption", event.target.value as NfseSimplesNacionalOption | "")}>
+              <option value="">Não escolhido</option>
+              {NFSE_SIMPLES_NACIONAL_OPTIONS.map((value) => (
+                <option key={value} value={value}>
+                  {NFSE_SIMPLES_NACIONAL_OPTION_LABELS[value]}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="form-field">
+            <span className="field-label">Regime especial de tributação (NFS-e)</span>
+            <select value={input.specialTaxRegimeCode} onChange={(event) => set("specialTaxRegimeCode", event.target.value as NfseSpecialTaxRegimeCode | "")}>
+              <option value="">Não escolhido</option>
+              {NFSE_SPECIAL_TAX_REGIME_CODES.map((value) => (
+                <option key={value} value={value}>
+                  {NFSE_SPECIAL_TAX_REGIME_CODE_LABELS[value]}
+                </option>
+              ))}
+            </select>
+            <span className="helper-text">Se o prestador não tem nenhum regime especial, escolha "Nenhum" — mesmo assim precisa escolher.</span>
           </label>
         </div>
       </section>

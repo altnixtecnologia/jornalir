@@ -57,6 +57,73 @@ export function computeCertificateEffectiveStatus(
 }
 
 /**
+ * Situação do prestador perante o Simples Nacional (Parte 2C) — mapeia
+ * diretamente `opSimpNac` do XSD oficial (`TSOpSimpNac`,
+ * `tiposSimples_v1.01.xsd`: "1"=não optante, "2"=MEI, "3"=ME/EPP).
+ * SEMPRE configuração explícita do prestador (permanente, não muda
+ * por emissão) — `undefined` bloqueia a transmissão (ver readiness.ts).
+ * NUNCA um default assumido: mesmo "não optante" precisa ser escolhido.
+ */
+export type NfseSimplesNacionalOption = "non_optant" | "mei" | "me_epp";
+export const NFSE_SIMPLES_NACIONAL_OPTIONS: readonly NfseSimplesNacionalOption[] = ["non_optant", "mei", "me_epp"];
+export const NFSE_SIMPLES_NACIONAL_OPTION_LABELS: Record<NfseSimplesNacionalOption, string> = {
+  non_optant: "Não optante do Simples Nacional",
+  mei: "Optante — MEI (Microempreendedor Individual)",
+  me_epp: "Optante — ME/EPP (Microempresa ou Empresa de Pequeno Porte)",
+};
+export const NFSE_SIMPLES_NACIONAL_OPTION_CODES: Record<NfseSimplesNacionalOption, "1" | "2" | "3"> = {
+  non_optant: "1",
+  mei: "2",
+  me_epp: "3",
+};
+
+/**
+ * Regime especial de tributação do prestador (Parte 2C) — mapeia
+ * `regEspTrib` do XSD oficial (`TSRegEspTrib`). SEMPRE configuração
+ * explícita — "none" (Nenhum) também precisa ser escolhido pelo
+ * usuário, nunca é um default silencioso.
+ */
+export type NfseSpecialTaxRegimeCode =
+  | "none"
+  | "cooperative"
+  | "estimated"
+  | "municipal_micro_enterprise"
+  | "notary_or_registrar"
+  | "autonomous_professional"
+  | "professional_society"
+  | "other";
+export const NFSE_SPECIAL_TAX_REGIME_CODES: readonly NfseSpecialTaxRegimeCode[] = [
+  "none",
+  "cooperative",
+  "estimated",
+  "municipal_micro_enterprise",
+  "notary_or_registrar",
+  "autonomous_professional",
+  "professional_society",
+  "other",
+];
+export const NFSE_SPECIAL_TAX_REGIME_CODE_LABELS: Record<NfseSpecialTaxRegimeCode, string> = {
+  none: "Nenhum",
+  cooperative: "Ato Cooperado (Cooperativa)",
+  estimated: "Estimativa",
+  municipal_micro_enterprise: "Microempresa Municipal",
+  notary_or_registrar: "Notário ou Registrador",
+  autonomous_professional: "Profissional Autônomo",
+  professional_society: "Sociedade de Profissionais",
+  other: "Outros",
+};
+export const NFSE_SPECIAL_TAX_REGIME_CODE_XSD_VALUES: Record<NfseSpecialTaxRegimeCode, "0" | "1" | "2" | "3" | "4" | "5" | "6" | "9"> = {
+  none: "0",
+  cooperative: "1",
+  estimated: "2",
+  municipal_micro_enterprise: "3",
+  notary_or_registrar: "4",
+  autonomous_professional: "5",
+  professional_society: "6",
+  other: "9",
+};
+
+/**
  * Configuração fiscal permanente do prestador (item 4) — uma única
  * configuração ativa por vez (o provider sempre trabalha com a mais
  * recente). Dados iniciais da Informativo Regional LTDA podem ser
@@ -75,6 +142,10 @@ export interface NfseIssuerConfig {
   /** Regime tributário geral (ex.: Simples Nacional) — conceito de negócio comum, nunca um código de tributação da NFS-e. Exige configuração explícita, nunca assumido silenciosamente. */
   taxRegime?: string;
   specialTaxRegime?: string;
+  /** `opSimpNac` do XSD oficial (grupo `regTrib`, obrigatório pra transmitir — ver readiness.ts). Nunca presumido a partir de `taxRegime` (texto livre). */
+  simplesNacionalOption?: NfseSimplesNacionalOption;
+  /** `regEspTrib` do XSD oficial (grupo `regTrib`, obrigatório pra transmitir). Campo DISTINTO do `specialTaxRegime` (texto livre, de uso geral) — este é o código fechado exigido pelo XSD. */
+  specialTaxRegimeCode?: NfseSpecialTaxRegimeCode;
   environment: NfseEnvironment;
   certificateType: NfseCertificateType;
   certificateStatus: NfseCertificateStoredStatus;
@@ -364,6 +435,23 @@ export function isValidDpsSeriesFormat(series: string): boolean {
   return /^[0-9]{1,5}$/.test(series);
 }
 
+/**
+ * Validações de FORMATO (Parte 2C) contra os tipos simples do XSD
+ * oficial (`tiposSimples_v1.01.xsd`) — nunca validam o CONTEÚDO/valor
+ * fiscal (isso é decisão do usuário, nunca inventada aqui), só o
+ * formato exigido pelo schema: `TSCodTribNac` (6 dígitos),
+ * `TCCodTribMun` (3 dígitos), `TSCodNBS` (9 dígitos).
+ */
+export function isValidCTribNacFormat(value: string): boolean {
+  return /^[0-9]{6}$/.test(value);
+}
+export function isValidCTribMunFormat(value: string): boolean {
+  return /^[0-9]{3}$/.test(value);
+}
+export function isValidCNBSFormat(value: string): boolean {
+  return /^[0-9]{9}$/.test(value);
+}
+
 /** Nunca inventado — authorized/rejected só existem depois de resposta
  * real; "uncertain" cobre timeout/falha de rede (item 11), nunca dispara
  * nova DPS/retransmissão automática. */
@@ -429,7 +517,10 @@ export interface NfseIssuedNote {
  * que já está no rascunho.
  */
 export interface DpsBuildInput {
-  issuer: Pick<NfseIssuerConfig, "companyName" | "cnpj" | "municipalRegistration" | "ibgeCode" | "municipality" | "state">;
+  issuer: Pick<
+    NfseIssuerConfig,
+    "companyName" | "cnpj" | "municipalRegistration" | "ibgeCode" | "municipality" | "state" | "simplesNacionalOption" | "specialTaxRegimeCode"
+  >;
   tomador: NfseTomadorSnapshot;
   fiscal: NfseFiscalSnapshot;
   competencyDate: string;

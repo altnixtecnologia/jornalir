@@ -53,6 +53,8 @@ function makeIssuerConfig(overrides: Partial<NfseIssuerConfig> = {}): NfseIssuer
     certificateType: "a1",
     certificateStatus: "configured",
     dpsSeries: "1",
+    simplesNacionalOption: "me_epp",
+    specialTaxRegimeCode: "none",
     createdAt: "2026-01-01T00:00:00Z",
     updatedAt: "2026-01-01T00:00:00Z",
     ...overrides,
@@ -305,11 +307,11 @@ test("ajuste de segurança: bloqueio do provider real nunca é tratado como 'unc
 
 // Parte 2B — guarda central de prontidão (readiness.ts), exposta via checkReadiness().
 
-test("checkReadiness: certificado configurado mas DPS ainda não passa XSD real -> ready=false com o motivo exato", async () => {
+test("checkReadiness: fixture completa (Parte 2C — regTrib configurado, XSD real validando) -> ready=true", async () => {
   const { service, dpsSequences } = makeService({ providerBehavior: "authorize" });
   const readiness = await service.checkReadiness("draft-1");
-  assert.equal(readiness.ready, false);
-  assert.ok(readiness.missing.some((item) => item.includes("XSD")));
+  assert.deepEqual(readiness.missing, []);
+  assert.equal(readiness.ready, true);
   // checkReadiness nunca reserva um número de DPS de verdade.
   assert.equal(dpsSequences.calls, 0);
 });
@@ -319,4 +321,20 @@ test("checkReadiness: sem certificado configurado -> lista o certificado como fa
   const readiness = await service.checkReadiness("draft-1");
   assert.equal(readiness.ready, false);
   assert.ok(readiness.missing.some((item) => item.includes("Certificado")));
+});
+
+test("checkReadiness: sem Simples Nacional configurado no prestador -> lista o item exato (nunca mensagem genérica)", async () => {
+  const issuerConfig = makeIssuerConfig({ simplesNacionalOption: undefined });
+  const { service } = makeService({ issuerConfig, providerBehavior: "authorize" });
+  const readiness = await service.checkReadiness("draft-1");
+  assert.equal(readiness.ready, false);
+  assert.ok(readiness.missing.some((item) => item.includes("Simples Nacional")));
+});
+
+test("checkReadiness: sem regime especial de tributação configurado no prestador -> lista o item exato", async () => {
+  const issuerConfig = makeIssuerConfig({ specialTaxRegimeCode: undefined });
+  const { service } = makeService({ issuerConfig, providerBehavior: "authorize" });
+  const readiness = await service.checkReadiness("draft-1");
+  assert.equal(readiness.ready, false);
+  assert.ok(readiness.missing.some((item) => item.includes("Regime especial")));
 });

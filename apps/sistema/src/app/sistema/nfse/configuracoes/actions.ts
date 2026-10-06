@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import type { NfseCertificateType, NfseCertificateStoredStatus, NfseEnvironment } from "@ir/types";
+import type { NfseCertificateType, NfseCertificateStoredStatus, NfseEnvironment, NfseSimplesNacionalOption, NfseSpecialTaxRegimeCode } from "@ir/types";
 import { getIssuerConfigService } from "../../../../composition/nfse";
 import { createSupabaseServerClient } from "../../../../lib/supabase/server";
 import { getAuditContext } from "../../../../lib/auth/getAuditContext";
@@ -26,6 +26,9 @@ export interface IssuerConfigFormInput {
   ibgeCode: string;
   taxRegime: string;
   specialTaxRegime: string;
+  /** "" significa não escolhido ainda — nunca um default assumido (bloqueia a transmissão, ver readiness.ts). */
+  simplesNacionalOption: NfseSimplesNacionalOption | "";
+  specialTaxRegimeCode: NfseSpecialTaxRegimeCode | "";
   environment: NfseEnvironment;
   certificateType: NfseCertificateType;
   certificateStatus: NfseCertificateStoredStatus;
@@ -57,6 +60,8 @@ export async function saveIssuerConfigAction(input: IssuerConfigFormInput): Prom
       ibgeCode: input.ibgeCode,
       taxRegime: input.taxRegime,
       specialTaxRegime: input.specialTaxRegime,
+      simplesNacionalOption: input.simplesNacionalOption || undefined,
+      specialTaxRegimeCode: input.specialTaxRegimeCode || undefined,
       environment: input.environment,
       certificateType: input.certificateType,
       certificateStatus: input.certificateStatus,
