@@ -1,4 +1,4 @@
-import { NFSE_SUGGESTED_ISSUER_DEFAULTS, type NfseIssuerConfig } from "@ir/types";
+import { isValidDpsSeriesFormat, NFSE_SUGGESTED_ISSUER_DEFAULTS, type NfseIssuerConfig, type NfseSignatureAlgorithmChoice } from "@ir/types";
 import { onlyDigits } from "../clientes/client-validation";
 import { IssuerConfigValidationError, type IssuerConfigRepository, type NewIssuerConfigRecord } from "./issuer-config-repository";
 
@@ -17,6 +17,8 @@ export interface IssuerConfigInput {
   certificateStatus: NfseIssuerConfig["certificateStatus"];
   certificateValidUntil?: string;
   certificateReference?: string;
+  dpsSeries?: string;
+  signatureAlgorithm?: NfseSignatureAlgorithmChoice;
   notes?: string;
 }
 
@@ -41,6 +43,8 @@ function normalize(input: IssuerConfigInput): NewIssuerConfigRecord {
     certificateStatus: input.certificateStatus,
     certificateValidUntil: input.certificateValidUntil || undefined,
     certificateReference: trimOrUndefined(input.certificateReference),
+    dpsSeries: trimOrUndefined(input.dpsSeries),
+    signatureAlgorithm: input.signatureAlgorithm,
     notes: trimOrUndefined(input.notes),
   };
 }
@@ -54,6 +58,9 @@ function assertValid(record: NewIssuerConfigRecord): void {
   if (!record.ibgeCode) throw new IssuerConfigValidationError("Informe o código IBGE do município do prestador.");
   if (record.certificateType === "not_configured" && record.certificateStatus === "configured") {
     throw new IssuerConfigValidationError("Selecione um tipo de certificado (A1/A3) antes de marcar como configurado.");
+  }
+  if (record.dpsSeries !== undefined && !isValidDpsSeriesFormat(record.dpsSeries)) {
+    throw new IssuerConfigValidationError("Série da DPS inválida — deve ter de 1 a 5 dígitos numéricos.");
   }
 }
 

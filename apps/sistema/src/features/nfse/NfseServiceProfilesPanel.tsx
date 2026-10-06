@@ -20,6 +20,7 @@ function emptyInput(): ServiceProfileFormInput {
     defaultLocationMunicipality: "",
     defaultLocationIbgeCode: "",
     issqnTaxation: "",
+    issqnRate: "",
     specialTaxRegime: "",
     notes: "",
   };
@@ -34,6 +35,7 @@ function toInput(profile: NfseServiceProfile): ServiceProfileFormInput {
     defaultLocationMunicipality: profile.defaultLocationMunicipality ?? "",
     defaultLocationIbgeCode: profile.defaultLocationIbgeCode ?? "",
     issqnTaxation: profile.issqnTaxation ?? "",
+    issqnRate: profile.issqnRate !== undefined ? String(profile.issqnRate) : "",
     specialTaxRegime: profile.specialTaxRegime ?? "",
     notes: profile.notes ?? "",
   };
@@ -138,6 +140,10 @@ export function NfseServiceProfilesPanel({ profiles }: { profiles: NfseServicePr
           <label className="form-field">
             <span className="field-label">Tributação do ISSQN <span className="field-optional">(opcional)</span></span>
             <input type="text" value={input.issqnTaxation} onChange={(event) => set("issqnTaxation", event.target.value)} placeholder="ex.: Tributado no município do prestador" />
+          </label>
+          <label className="form-field">
+            <span className="field-label">Alíquota do ISSQN (%) <span className="field-optional">(obrigatória só para transmitir)</span></span>
+            <input type="text" inputMode="decimal" value={input.issqnRate} onChange={(event) => set("issqnRate", event.target.value)} placeholder="ex.: 5" />
           </label>
           <label className="form-field">
             <span className="field-label">Regime especial <span className="field-optional">(opcional)</span></span>

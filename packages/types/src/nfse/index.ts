@@ -81,12 +81,41 @@ export interface NfseIssuerConfig {
   certificateValidUntil?: string;
   /** Referência segura futura (nunca o arquivo/senha) — ex.: um identificador de onde o certificado está guardado num cofre externo. */
   certificateReference?: string;
+  /** Série da DPS usada nas transmissões (Parte 2A, item 5) — SEMPRE configurada explicitamente, nunca um valor fictício. `undefined` bloqueia a transmissão (ver validação em DraftService/TransmissionService). */
+  dpsSeries?: string;
+  /**
+   * Algoritmo de assinatura da DPS — AINDA NÃO HÁ CONFIRMAÇÃO OFICIAL
+   * conclusiva de qual é exigido pelo Sistema Nacional (ver
+   * signature.ts para o levantamento feito e as fontes consultadas).
+   * Por isso nunca tem valor padrão/assumido: fica `undefined` até o
+   * usuário escolher explicitamente, e a transmissão real continua
+   * bloqueada por outro motivo (`RealTransmissionNotReadyError`)
+   * mesmo depois de escolhido.
+   */
+  signatureAlgorithm?: NfseSignatureAlgorithmChoice;
   notes?: string;
   createdByProfileId?: string;
   updatedByProfileId?: string;
   createdAt: string;
   updatedAt: string;
 }
+
+export type NfseSignatureAlgorithmChoice = "rsa-sha1" | "rsa-sha256";
+export const NFSE_SIGNATURE_ALGORITHM_CHOICES: readonly NfseSignatureAlgorithmChoice[] = ["rsa-sha1", "rsa-sha256"];
+export const NFSE_SIGNATURE_ALGORITHM_LABELS: Record<NfseSignatureAlgorithmChoice, string> = {
+  "rsa-sha1": "RSA-SHA1 (padrão legado NF-e/CT-e/MDF-e)",
+  "rsa-sha256": "RSA-SHA256",
+};
+
+/**
+ * Pacote de esquemas XSD vigente pra PRODUÇÃO RESTRITA (Parte 2A, item
+ * 4) — "NFSe-ESQUEMAS_XSD-PRODREST-v1.01-20260727", confirmado
+ * diretamente pelo usuário/fonte oficial. Produção tem um pacote
+ * PRÓPRIO e diferente, que nunca deve ser misturado com este — ainda
+ * não precisamos do valor exato porque a transmissão em produção
+ * continua bloqueada nesta fase (ver isTransmissionEnvironmentAllowed).
+ */
+export const NFSE_SCHEMA_PACKAGE_HOMOLOGATION = "NFSe-ESQUEMAS_XSD-PRODREST-v1.01-20260727";
 
 /** Valores sugeridos pra primeira configuração — nunca aplicados automaticamente, só usados como `defaultValue` num formulário que o usuário ainda precisa salvar explicitamente. */
 export const NFSE_SUGGESTED_ISSUER_DEFAULTS = {
@@ -121,6 +150,8 @@ export interface NfseServiceProfile {
   defaultLocationIbgeCode?: string;
   /** Configuração padrão de tributação do ISSQN — descrição livre (ex.: "Tributado no município do prestador"), nunca um código presumido. */
   issqnTaxation?: string;
+  /** Alíquota do ISSQN (%) — SEMPRE informada explicitamente pelo usuário, nunca presumida/calculada pela aplicação (Parte 2A, item 6: "não inventar alíquota"). Obrigatória só para transmitir, não para salvar o perfil/rascunho. */
+  issqnRate?: number;
   specialTaxRegime?: string;
   notes?: string;
   createdByProfileId?: string;
@@ -204,6 +235,7 @@ export interface NfseFiscalSnapshot {
   cTribMun?: string;
   cNBS?: string;
   issqnTaxation?: string;
+  issqnRate?: number;
   specialTaxRegime?: string;
   locationMunicipality?: string;
   locationIbgeCode?: string;
@@ -216,10 +248,19 @@ export function buildFiscalSnapshotFromServiceProfile(profile: NfseServiceProfil
     cTribMun: profile.cTribMun,
     cNBS: profile.cNBS,
     issqnTaxation: profile.issqnTaxation,
+    issqnRate: profile.issqnRate,
     specialTaxRegime: profile.specialTaxRegime,
     locationMunicipality: profile.defaultLocationMunicipality,
     locationIbgeCode: profile.defaultLocationIbgeCode,
   };
+}
+
+/** Valor do ISSQN — SÓ calculado quando a alíquota foi explicitamente
+ * configurada (nunca presumida). `undefined` significa "não dá pra
+ * calcular ainda", nunca um valor fictício de fallback. */
+export function computeIssqnAmount(serviceValue: number, issqnRate: number | undefined): number | undefined {
+  if (issqnRate === undefined || !Number.isFinite(issqnRate)) return undefined;
+  return Math.round(serviceValue * (issqnRate / 100) * 100) / 100;
 }
 
 // --- Rascunho de NFS-e -----------------------------------------------------
@@ -250,4 +291,133 @@ export interface NfseDraft {
   updatedByProfileId?: string;
   createdAt: string;
   updatedAt: string;
+}
+
+// --- Emissão nacional (Parte 2A) -----------------------------------------
+//
+// Rascunho -> validação -> reservar DPS -> montar XML -> validar ->
+// assinar -> transmitir -> autorização/rejeição -> registrar ->
+// consultar. NÃO implementa cancelamento/substituição/produção real
+// (ver docs/NFSE-NACIONAL-ARQUITETURA.md).
+
+/** Produção permanece bloqueada nesta fase — trava explícita na
+ * aplicação, não só na configuração (item 2/18). Único lugar que
+ * decide isso; nunca duplicar esta regra em outro ponto do código. */
+export function isTransmissionEnvironmentAllowed(environment: NfseEnvironment): boolean {
+  return environment === "homologation";
+}
+
+/**
+ * Identificador da DPS (item 5) — Cód.Município(7) + Tipo de Inscrição
+ * Federal(1: 1=CPF, 2=CNPJ) + Inscrição Federal(14, CPF completado com
+ * zeros à esquerda) + Série(5) + Número(15) = 42 caracteres.
+ * Composição confirmada via documentação pública do Portal Nacional da
+ * NFS-e (estrutura do identificador da DPS e da chave de acesso) —
+ * AINDA ASSIM precisa ser revalidada contra o ANEXO I/manual vigente
+ * antes de qualquer transmissão real (nunca tratar isto como definitivo
+ * sem essa confirmação final).
+ */
+export function buildDpsId(input: {
+  ibgeCode: string;
+  federalInscriptionType: "cpf" | "cnpj";
+  federalInscription: string;
+  series: string;
+  number: number;
+}): string {
+  const municipality = input.ibgeCode.padStart(7, "0").slice(-7);
+  const inscriptionTypeCode = input.federalInscriptionType === "cpf" ? "1" : "2";
+  const federalInscription = input.federalInscription.replace(/\D/g, "").padStart(14, "0").slice(-14);
+  const series = input.series.padStart(5, "0").slice(-5);
+  const number = String(input.number).padStart(15, "0").slice(-15);
+  return `${municipality}${inscriptionTypeCode}${federalInscription}${series}${number}`;
+}
+
+/**
+ * Validação de FORMATO da série da DPS — só o que está confirmado pelo
+ * Manual de Contribuintes vigente (item 2 do ajuste de segurança): o
+ * campo "Série DPS" do identificador tem largura 5 (ver buildDpsId).
+ * NUNCA valida uma faixa semântica específica (ex.: "1-49999 só pra
+ * aplicativo próprio") — essa regra de negócio não foi confirmada
+ * contra uma fonte oficial vigente nesta fase, então não é aplicada;
+ * a transmissão real continua bloqueada por outros motivos
+ * (certificado/assinatura/XSD) até lá.
+ */
+export function isValidDpsSeriesFormat(series: string): boolean {
+  return /^[0-9]{1,5}$/.test(series);
+}
+
+/** Nunca inventado — authorized/rejected só existem depois de resposta
+ * real; "uncertain" cobre timeout/falha de rede (item 11), nunca dispara
+ * nova DPS/retransmissão automática. */
+export type NfseTransmissionStatus = "pending" | "authorized" | "rejected" | "uncertain";
+export const NFSE_TRANSMISSION_STATUSES: readonly NfseTransmissionStatus[] = ["pending", "authorized", "rejected", "uncertain"];
+export const NFSE_TRANSMISSION_STATUS_LABELS: Record<NfseTransmissionStatus, string> = {
+  pending: "Em processamento",
+  authorized: "Autorizada",
+  rejected: "Rejeitada",
+  uncertain: "Resultado incerto (confirmar antes de repetir)",
+};
+
+/** Histórico TÉCNICO de uma tentativa de transmissão (item 11/13) —
+ * nunca segredo/senha/PFX/chave privada. Separado de audit_events por
+ * design (audit_events = ação; isto = detalhe técnico da transmissão). */
+export interface NfseTransmissionAttempt {
+  id: string;
+  draftId: string;
+  dpsSeries?: string;
+  dpsNumber?: number;
+  environment: NfseEnvironment;
+  status: NfseTransmissionStatus;
+  requestReference?: string;
+  responseSummary?: string;
+  rejectionCode?: string;
+  rejectionMessage?: string;
+  issuedNoteId?: string;
+  createdByProfileId?: string;
+  createdAt: string;
+}
+
+/**
+ * NFS-e efetivamente AUTORIZADA (item 10) — só nasce depois de resposta
+ * oficial válida. Preserva o snapshot fiscal realmente transmitido
+ * (XML assinado + XML de retorno); alterações futuras em cliente/
+ * perfil/configuração NUNCA alteram esta linha. accessKey/nfseNumber/
+ * issuedAt só vêm da resposta oficial — nunca calculados aqui.
+ */
+export interface NfseIssuedNote {
+  id: string;
+  draftId: string;
+  issuerConfigId: string;
+  clientId: string;
+  environment: NfseEnvironment;
+  dpsSeries: string;
+  dpsNumber: number;
+  dpsId: string;
+  accessKey?: string;
+  nfseNumber?: string;
+  issuedAt?: string;
+  competencyDate: string;
+  serviceValue: number;
+  signedDpsXml: string;
+  nfseXml?: string;
+  createdByProfileId?: string;
+  createdAt: string;
+}
+
+/**
+ * Dados necessários pra montar a DPS/revisão de transmissão (Parte 2A,
+ * item 6/14) — monta a partir do que já existe (config do prestador,
+ * snapshot do tomador, snapshot fiscal, rascunho), nunca pede de novo o
+ * que já está no rascunho.
+ */
+export interface DpsBuildInput {
+  issuer: Pick<NfseIssuerConfig, "companyName" | "cnpj" | "municipalRegistration" | "ibgeCode" | "municipality" | "state">;
+  tomador: NfseTomadorSnapshot;
+  fiscal: NfseFiscalSnapshot;
+  competencyDate: string;
+  serviceValue: number;
+  serviceDescription: string;
+  environment: NfseEnvironment;
+  dpsSeries: string;
+  dpsNumber: number;
 }

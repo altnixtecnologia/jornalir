@@ -1,9 +1,115 @@
 # NFS-e Nacional — arquitetura do módulo
 
-Status: **Parte 1 implementada** (base, configurações fiscais, perfis de
-serviço, rascunhos com snapshot). **Nenhuma transmissão real existe ainda.**
-Este documento substitui e consolida `docs/NFSE-REGRA-FUTURA.md` (mantido só
-como um apontador curto, pra nunca haver duas fontes conflitantes).
+Status: **Parte 1 + Parte 2A implementadas** (base, configurações fiscais,
+perfis de serviço, rascunhos com snapshot, e a arquitetura completa de
+emissão — DPS, assinatura, transmissão, autorização/rejeição). **Nenhuma
+transmissão real foi feita nem será até o certificado/API Nacional estarem
+de fato configurados e confirmados.** Este documento substitui e consolida
+`docs/NFSE-REGRA-FUTURA.md` (mantido só como um apontador curto, pra nunca
+haver duas fontes conflitantes).
+
+## Parte 2A — emissão nacional (DPS, assinatura, transmissão)
+
+Fluxo real (arquitetura completa, nunca executada contra a API real):
+rascunho → validação → reservar DPS (RPC atômica
+`reserve_next_dps_number`) → montar XML (`buildDpsXml`) → validar
+estruturalmente (`validateDpsXmlStructure` — validação interna de
+completude dos campos, **não é validação XSD oficial**; XSD real contra o
+pacote `NFSE_SCHEMA_PACKAGE_HOMOLOGATION` ainda não está implementado) →
+assinar (`signDpsXml`, algoritmo explícito por configuração — ver
+"Ajuste de segurança" abaixo, nunca um default assumido) → transmitir
+(`NationalNfseProvider`) → interpretar resposta → registrar tentativa
+(`nfse_transmission_attempts`) → se autorizada, criar `nfse_issued_notes`
+(nunca a partir de rejeição).
+
+### Ajuste de segurança (revisão pós-implementação inicial)
+
+A primeira versão desta Parte 2A havia assumido RSA-SHA256 e a faixa
+1-49999 para a série da DPS como "confirmadas", sem fonte primária oficial
+suficiente. Revisão posterior corrigiu isso:
+
+- **Algoritmo de assinatura**: não foi possível confirmar, com uma fonte
+  oficial primária atual (Documentação Atual de Produção / Documentação
+  Técnica de Produção Restrita / ANEXO_I-SEFIN_ADN-DPS_NFSe / XSD vigentes),
+  se o Sistema Nacional exige RSA-SHA1 ou RSA-SHA256 — o ANEXO_I é uma
+  planilha de leiaute de campos, não uma especificação de assinatura, e o
+  Manual dos Municípios (PDF oficial) não pôde ser lido com as ferramentas
+  disponíveis nesta sessão (`pdftoppm`/`poppler-utils` ausente). Fontes
+  secundárias do ecossistema divergem entre si (há inclusive uma ferramenta
+  de terceiros, "nfse-doctor", feita especificamente para sondar
+  empiricamente qual perfil um servidor SEFIN aceita — evidência de que o
+  tema é genuinamente contestado). Por instrução explícita, isso NUNCA foi
+  resolvido por preferência técnica: `signDpsXml` agora exige o parâmetro
+  `signatureAlgorithm: "rsa-sha1" | "rsa-sha256"` explicitamente, sem
+  default; `NfseIssuerConfig.signatureAlgorithm` é opcional e, se não
+  configurado no momento da transmissão, bloqueia (`TransmissionValidationError`).
+  Continua pendente de confirmação por fonte oficial.
+- **Série da DPS**: a faixa semântica "1-49999 para aplicativo próprio" não
+  pôde ser rastreada a uma fonte primária gov.br confiável nesta sessão (só
+  uma fonte secundária/blog). Foi removida; `isValidDpsSeriesFormat` agora
+  valida apenas o formato confirmado do campo (1 a 5 dígitos numéricos, a
+  largura do campo "Série" no identificador da DPS — ver `buildDpsId`
+  abaixo), nunca uma faixa de negócio não confirmada.
+- **Guarda de transmissão real**: independentemente da configuração acima,
+  `FetchNationalNfseProvider` (única implementação real, baseada em
+  `fetch`, de `NationalNfseProvider`) lança `RealTransmissionNotReadyError`
+  em todos os seus métodos, sem nunca chegar a fazer uma chamada HTTP real.
+  Esse bloqueio é propagado explicitamente por `TransmissionService` (nunca
+  tratado como falha "incerta"/`uncertain`). Transmissão real só poderá
+  ocorrer depois que assinatura, XSD real e extração de certificado
+  estiverem todos confirmados/implementados.
+
+Pontos deliberadamente travados/documentados, não implementados de verdade:
+
+- **Certificado**: `certificate-provider.ts` lê PFX+senha de variável de
+  ambiente do servidor (nunca banco/browser), mas `extractKeyMaterialFromPfx`
+  lança erro proposital — extrair a chave privada de um PKCS#12 exige uma
+  dependência de parsing (ex.: `node-forge`) que ainda não existe no
+  projeto. `signDpsXml` já funciona de ponta a ponta (testado com chave de
+  teste), só falta essa extração pra usar um certificado real. Fluxo futuro
+  já decidido (painel, ainda não implementado): Configurações da empresa →
+  Certificado digital A1 (.pfx/.p12) → upload pelo painel → senha digitada
+  em campo mascarado → senha usada só para abrir/validar o PFX, nunca
+  guardada em texto → material criptográfico armazenado de forma segura no
+  servidor → validar CNPJ, validade e chave privada no upload → certificado
+  poderá futuramente ser reutilizado por NF-e.
+- **Esquema XSD/versão de leiaute**: o pacote adotado para homologação é
+  `NFSE_SCHEMA_PACKAGE_HOMOLOGATION = "NFSe-ESQUEMAS_XSD-PRODREST-v1.01-20260727"`
+  (Produção Restrita — primeiro alvo desta fase). Produção usa um pacote
+  diferente, ainda não necessário; o código nunca mistura os dois.
+- **Canonicalização XML**: `signDpsXml` usa uma canonicalização
+  simplificada (só remove espaço insignificante), documentada como
+  provisória — há divergência conhecida no ecossistema sobre
+  `exc-c14n#WithComments` vs. c14n inclusivo; precisa ser revalidada contra
+  o manual oficial vigente antes de qualquer transmissão real.
+- **Identificador da DPS** (`buildDpsId`): composição confirmada via
+  pesquisa na documentação pública do Portal Nacional (município+tipo de
+  inscrição+inscrição federal+série+número), mas ainda precisa ser
+  revalidada contra o ANEXO I/manual vigente antes de produção.
+- **Série da DPS**: campo configurável (`nfse_issuer_configs.dps_series`),
+  nunca um valor fictício; bloqueia a transmissão enquanto vazio ou fora do
+  formato confirmado (1 a 5 dígitos numéricos — ver "Ajuste de segurança"
+  acima; nenhuma faixa de negócio é assumida).
+- **Alíquota do ISSQN**: campo configurável por perfil de serviço
+  (`issqnRate`), nunca calculada/presumida; sem ela, a transmissão é
+  bloqueada (o XML de valores ficaria incompleto de propósito).
+- **Ambiente**: Parte 2A só transmite em homologação
+  (`isTransmissionEnvironmentAllowed`), travado na aplicação — mesmo que a
+  configuração salva diga "produção".
+- **DANFSe**: não recriado — a API específica foi desativada em 2026; só
+  guardamos XML/identificadores pra usar o fluxo oficial vigente depois.
+
+Idempotência real: `nfse_issued_notes.draft_id` é `UNIQUE` no banco — nunca
+duas NFS-e autorizadas a partir do mesmo rascunho, mesmo com duplo
+clique/retry/concorrência. Falha de rede/timeout depois do envio nunca
+dispara retransmissão automática — vira tentativa `uncertain`, e é preciso
+consultar a DPS (`GET/HEAD /dps/{id}`) antes de qualquer nova tentativa.
+
+Permissão: só owner/admin (confirmado direto no banco, mesma regra da RLS).
+Auditoria: `transmission_started`/`transmission_authorized`/
+`transmission_rejected`/`transmission_uncertain` em `audit_events`
+(ação) + detalhe técnico em `nfse_transmission_attempts` (nunca duplicado
+entre os dois).
 
 ## Independência do módulo
 

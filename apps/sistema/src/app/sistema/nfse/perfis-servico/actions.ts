@@ -23,15 +23,22 @@ export interface ServiceProfileFormInput {
   defaultLocationMunicipality: string;
   defaultLocationIbgeCode: string;
   issqnTaxation: string;
+  issqnRate: string;
   specialTaxRegime: string;
   notes: string;
+}
+
+function parseRate(value: string): number | undefined {
+  if (!value.trim()) return undefined;
+  const parsed = Number(value.replace(",", "."));
+  return Number.isFinite(parsed) ? parsed : undefined;
 }
 
 export async function createServiceProfileAction(input: ServiceProfileFormInput): Promise<ActionResult> {
   try {
     const client = createSupabaseServerClient();
     const AUDIT = await getAuditContext(client);
-    const profile = await getServiceProfileService(client).register(input);
+    const profile = await getServiceProfileService(client).register({ ...input, issqnRate: parseRate(input.issqnRate) });
     await recordAuditEventSupabase(client, { userId: AUDIT.actorId, entityType: ENTITY_TYPE, entityId: profile.id, action: "create", metadata: { name: profile.name } });
   } catch (error) {
     return { error: toErrorMessage(error) };
@@ -43,7 +50,7 @@ export async function updateServiceProfileAction(id: string, input: ServiceProfi
   try {
     const client = createSupabaseServerClient();
     const AUDIT = await getAuditContext(client);
-    await getServiceProfileService(client).update(id, input);
+    await getServiceProfileService(client).update(id, { ...input, issqnRate: parseRate(input.issqnRate) });
     await recordAuditEventSupabase(client, { userId: AUDIT.actorId, entityType: ENTITY_TYPE, entityId: id, action: "update" });
   } catch (error) {
     return { error: toErrorMessage(error) };

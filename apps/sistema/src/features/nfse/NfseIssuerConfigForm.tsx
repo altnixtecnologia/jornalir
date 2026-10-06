@@ -2,13 +2,15 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import type { NfseCertificateType, NfseCertificateStoredStatus, NfseEnvironment, NfseIssuerConfig } from "@ir/types";
+import type { NfseCertificateType, NfseCertificateStoredStatus, NfseEnvironment, NfseIssuerConfig, NfseSignatureAlgorithmChoice } from "@ir/types";
 import {
   NFSE_CERTIFICATE_STORED_STATUSES,
   NFSE_CERTIFICATE_TYPE_LABELS,
   NFSE_CERTIFICATE_TYPES,
   NFSE_ENVIRONMENT_LABELS,
   NFSE_ENVIRONMENTS,
+  NFSE_SIGNATURE_ALGORITHM_CHOICES,
+  NFSE_SIGNATURE_ALGORITHM_LABELS,
   computeCertificateEffectiveStatus,
 } from "@ir/types";
 import { saveIssuerConfigAction, type IssuerConfigFormInput } from "../../app/sistema/nfse/configuracoes/actions";
@@ -29,6 +31,8 @@ function toFormInput(config: Partial<NfseIssuerConfig> | undefined): IssuerConfi
     certificateStatus: config?.certificateStatus ?? "not_configured",
     certificateValidUntil: config?.certificateValidUntil ?? "",
     certificateReference: config?.certificateReference ?? "",
+    dpsSeries: config?.dpsSeries ?? "",
+    signatureAlgorithm: config?.signatureAlgorithm ?? "",
     notes: config?.notes ?? "",
   };
 }
@@ -131,6 +135,35 @@ export function NfseIssuerConfigForm({ initialConfig }: { initialConfig: NfseIss
               {NFSE_ENVIRONMENTS.map((value) => (
                 <option key={value} value={value}>
                   {NFSE_ENVIRONMENT_LABELS[value]}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
+      </section>
+
+      <section className="form-section">
+        <h2>Emissão (DPS)</h2>
+        <p className="helper-text">
+          Série da DPS usada nas transmissões deste prestador — nunca um valor fictício (até 5 dígitos numéricos; largura confirmada do campo "Série DPS" no identificador oficial). Obrigatória pra transmitir, não pra salvar esta configuração.
+        </p>
+        <div className="form-grid">
+          <label className="form-field">
+            <span className="field-label">Série da DPS <span className="field-optional">(opcional por ora)</span></span>
+            <input type="text" inputMode="numeric" maxLength={5} value={input.dpsSeries} onChange={(event) => set("dpsSeries", event.target.value)} placeholder="ex.: 1" />
+          </label>
+        </div>
+        <p className="helper-text">
+          Algoritmo de assinatura da DPS — <strong>ainda sem confirmação oficial conclusiva</strong> de qual o Sistema Nacional exige (RSA-SHA1 ou RSA-SHA256). Escolha fica pendente até confirmação; a transmissão real continua bloqueada de qualquer forma.
+        </p>
+        <div className="form-grid">
+          <label className="form-field">
+            <span className="field-label">Algoritmo de assinatura <span className="field-optional">(opcional por ora — pendente de confirmação)</span></span>
+            <select value={input.signatureAlgorithm} onChange={(event) => set("signatureAlgorithm", event.target.value as NfseSignatureAlgorithmChoice | "")}>
+              <option value="">Não escolhido</option>
+              {NFSE_SIGNATURE_ALGORITHM_CHOICES.map((value) => (
+                <option key={value} value={value}>
+                  {NFSE_SIGNATURE_ALGORITHM_LABELS[value]}
                 </option>
               ))}
             </select>

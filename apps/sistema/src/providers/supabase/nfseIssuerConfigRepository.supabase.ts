@@ -1,11 +1,11 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { NfseCertificateStoredStatus, NfseCertificateType, NfseEnvironment, NfseIssuerConfig } from "@ir/types";
+import type { NfseCertificateStoredStatus, NfseCertificateType, NfseEnvironment, NfseIssuerConfig, NfseSignatureAlgorithmChoice } from "@ir/types";
 import type { IssuerConfigChanges, IssuerConfigRepository, NewIssuerConfigRecord } from "@ir/core";
 
 const TABLE = "nfse_issuer_configs";
 const COLUMNS =
   "id, company_name, trade_name, cnpj, municipal_registration, municipality, state, ibge_code, tax_regime, special_tax_regime, " +
-  "environment, certificate_type, certificate_status, certificate_valid_until, certificate_reference, notes, " +
+  "environment, certificate_type, certificate_status, certificate_valid_until, certificate_reference, dps_series, signature_algorithm, notes, " +
   "created_by, updated_by, created_at, updated_at";
 
 interface IssuerConfigRow {
@@ -24,6 +24,8 @@ interface IssuerConfigRow {
   certificate_status: NfseCertificateStoredStatus;
   certificate_valid_until: string | null;
   certificate_reference: string | null;
+  dps_series: string | null;
+  signature_algorithm: NfseSignatureAlgorithmChoice | null;
   notes: string | null;
   created_by: string | null;
   updated_by: string | null;
@@ -48,6 +50,8 @@ function toDomain(row: IssuerConfigRow): NfseIssuerConfig {
     certificateStatus: row.certificate_status,
     certificateValidUntil: row.certificate_valid_until ?? undefined,
     certificateReference: row.certificate_reference ?? undefined,
+    dpsSeries: row.dps_series ?? undefined,
+    signatureAlgorithm: row.signature_algorithm ?? undefined,
     notes: row.notes ?? undefined,
     createdByProfileId: row.created_by ?? undefined,
     updatedByProfileId: row.updated_by ?? undefined,
@@ -72,6 +76,8 @@ function toRow(record: NewIssuerConfigRecord | IssuerConfigChanges): Record<stri
   if (record.certificateStatus !== undefined) row.certificate_status = record.certificateStatus;
   if (record.certificateValidUntil !== undefined) row.certificate_valid_until = record.certificateValidUntil ?? null;
   if (record.certificateReference !== undefined) row.certificate_reference = record.certificateReference ?? null;
+  if (record.dpsSeries !== undefined) row.dps_series = record.dpsSeries ?? null;
+  if (record.signatureAlgorithm !== undefined) row.signature_algorithm = record.signatureAlgorithm ?? null;
   if (record.notes !== undefined) row.notes = record.notes ?? null;
   return row;
 }
