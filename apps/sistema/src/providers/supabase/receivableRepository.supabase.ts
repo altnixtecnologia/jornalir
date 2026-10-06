@@ -140,7 +140,7 @@ function receiptToDomain(row: ReceiptRow): ReceivableReceipt {
 }
 
 const ADJUSTMENT_COLUMNS =
-  "id, receivable_id, amount, adjustment_type, reason, authorized_by, recorded_by, recorded_at, notes, " +
+  "id, receivable_id, amount, adjustment_type, reason, credit_id, authorized_by, recorded_by, recorded_at, notes, " +
   "reversed_at, reversed_by, reversal_reason";
 
 interface AdjustmentRow {
@@ -149,6 +149,7 @@ interface AdjustmentRow {
   amount: number;
   adjustment_type: AdjustmentType;
   reason: string;
+  credit_id: string | null;
   authorized_by: string | null;
   recorded_by: string | null;
   recorded_at: string;
@@ -165,6 +166,7 @@ function adjustmentToDomain(row: AdjustmentRow): ReceivableAdjustment {
     amount: Number(row.amount),
     adjustmentType: row.adjustment_type,
     reason: row.reason,
+    creditId: row.credit_id ?? undefined,
     authorizedByProfileId: row.authorized_by ?? undefined,
     recordedByProfileId: row.recorded_by ?? undefined,
     recordedAt: row.recorded_at,
@@ -204,6 +206,22 @@ export function createReceivableRepositorySupabase(client: SupabaseClient): Rece
         .maybeSingle();
       if (error) throw new Error(error.message);
       return data ? toDomain(data as unknown as ReceivableRow) : null;
+    },
+
+    async listOpenForOrigin(query) {
+      let builder = client
+        .from(VIEW)
+        .select(VIEW_COLUMNS)
+        .eq("client_id", query.clientId)
+        .eq("source_type", query.sourceType)
+        .in("status", ["open", "partially_paid"])
+        .order("due_date", { ascending: true });
+      if (query.subscriptionId) builder = builder.eq("subscription_id", query.subscriptionId);
+      if (query.contractId) builder = builder.eq("contract_id", query.contractId);
+      if (query.excludeId) builder = builder.neq("id", query.excludeId);
+      const { data, error } = await builder;
+      if (error) throw new Error(error.message);
+      return (data ?? []).map((row) => toDomainWithBalance(row as unknown as ReceivableWithBalanceRow));
     },
 
     async create(record) {
@@ -284,6 +302,7 @@ export function createReceivableRepositorySupabase(client: SupabaseClient): Rece
           amount: record.amount,
           adjustment_type: record.adjustmentType,
           reason: record.reason,
+          credit_id: record.creditId ?? null,
           authorized_by: record.authorizedByProfileId ?? null,
           notes: record.notes ?? null,
         })
@@ -492,6 +511,24 @@ export async function listReceivablesAdminPageSupabase(
     pageSize,
     totalPages,
   };
+}
+
+/**
+ * Quanto do total "Descontos/abatimentos" de um conjunto de títulos é
+ * na verdade crédito aplicado (Parte 3B.1, item 18 — "não tratar
+ * crédito aplicado como novo dinheiro recebido" / nunca misturar com
+ * desconto de verdade nos relatórios). Só soma aplicações válidas.
+ */
+export async function sumCreditAppliedForReceivables(client: SupabaseClient, receivableIds: string[]): Promise<number> {
+  if (receivableIds.length === 0) return 0;
+  const { data, error } = await client
+    .from("receivable_adjustments")
+    .select("amount")
+    .in("receivable_id", receivableIds)
+    .eq("adjustment_type", "credit_applied")
+    .is("reversed_at", null);
+  if (error) throw new Error(error.message);
+  return (data ?? []).reduce((sum, row) => sum + Number((row as { amount: number }).amount), 0);
 }
 
 /** Contexto do título mostrado nas linhas dos relatórios de Recebimentos/

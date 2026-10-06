@@ -1,11 +1,11 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ClientNotFoundError } from "@ir/core";
-import { CLIENT_KIND_LABELS, CLIENT_ROLE_LABELS, clientDisplayName, computeReceivableDueFlag } from "@ir/types";
+import { CLIENT_KIND_LABELS, CLIENT_ROLE_LABELS, clientDisplayName, computeReceivableDueFlag, RECEIVABLE_SOURCE_TYPE_LABELS } from "@ir/types";
 import { ModuleHeader } from "../../../../components/admin/ModuleHeader";
 import { getClientService } from "../../../../composition/clientes";
 import { getSubscriptionService } from "../../../../composition/assinaturas";
-import { getContractService, getReceivableService } from "../../../../composition/financeiro";
+import { getContractService, getReceivableService, getClientCreditService } from "../../../../composition/financeiro";
 import { createSupabaseServerClient } from "../../../../lib/supabase/server";
 
 function formatDate(iso: string): string {
@@ -44,10 +44,11 @@ export default async function ClienteDetailPage({ params }: { params: { id: stri
 
   const isIndividual = client.kind === "individual";
 
-  const [subscriptions, contracts, receivables] = await Promise.all([
+  const [subscriptions, contracts, receivables, availableCredits] = await Promise.all([
     getSubscriptionService(supabase).list({ clientId: client.id }),
     getContractService(supabase).list({ clientId: client.id }),
     getReceivableService(supabase).list({ clientId: client.id }),
+    getClientCreditService(supabase).list({ clientId: client.id, availableOnly: true }),
   ]);
   const activeSubscriptions = subscriptions.filter((subscription) => subscription.status === "active").length;
   const totalOpen = receivables.filter((item) => item.status === "open" || item.status === "partially_paid").reduce((sum, item) => sum + item.balance, 0);
@@ -55,6 +56,7 @@ export default async function ClienteDetailPage({ params }: { params: { id: stri
     .filter((item) => computeReceivableDueFlag(item.dueDate, item.status) === "overdue")
     .reduce((sum, item) => sum + item.balance, 0);
   const totalReceived = receivables.reduce((sum, item) => sum + item.totalReceived, 0);
+  const totalAvailableCredit = availableCredits.reduce((sum, item) => sum + item.balance, 0);
 
   return (
     <>
@@ -164,10 +166,20 @@ export default async function ClienteDetailPage({ params }: { params: { id: stri
           <Field label="Total em aberto" value={formatAmount(totalOpen)} />
           <Field label="Total vencido" value={formatAmount(totalOverdue)} />
           <Field label="Total recebido" value={formatAmount(totalReceived)} />
+          <Field label="Créditos disponíveis" value={formatAmount(totalAvailableCredit)} />
           <Field label="Quantidade de títulos" value={String(receivables.length)} />
           <Field label="Assinaturas ativas" value={String(activeSubscriptions)} />
           <Field label="Contratos institucionais vinculados" value={String(contracts.length)} />
         </div>
+        {availableCredits.length > 0 ? (
+          <ul className="helper-text" style={{ marginTop: "8px" }}>
+            {availableCredits.map((credit) => (
+              <li key={credit.id}>
+                {formatAmount(credit.balance)} disponível — origem: {RECEIVABLE_SOURCE_TYPE_LABELS[credit.sourceType]}, criado em {formatDate(credit.createdAt)} (usado: {formatAmount(credit.totalApplied)} de {formatAmount(credit.originalAmount)})
+              </li>
+            ))}
+          </ul>
+        ) : null}
         <p className="helper-text">Publicidade e histórico de relacionamento vão aparecer aqui em fases futuras.</p>
       </section>
     </>

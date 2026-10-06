@@ -4,3 +4,5 @@ export * from "./contract-repository";
 export * from "./contract-service";
 export * from "./subscription-billing";
 export * from "./contract-installments";
+export * from "./client-credit-repository";
+export * from "./client-credit-service";

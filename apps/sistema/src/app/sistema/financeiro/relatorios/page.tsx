@@ -6,7 +6,7 @@ import { ReceivablesList } from "../../../../features/financeiro/ReceivablesList
 import { ReportFiltersToggle } from "../../../../features/financeiro/ReportFiltersToggle";
 import { getContractService } from "../../../../composition/financeiro";
 import { createSupabaseServerClient } from "../../../../lib/supabase/server";
-import { listReceivablesAdminPageSupabase } from "../../../../providers/supabase/receivableRepository.supabase";
+import { listReceivablesAdminPageSupabase, sumCreditAppliedForReceivables } from "../../../../providers/supabase/receivableRepository.supabase";
 import { listActiveStaffSupabase } from "../../../../providers/supabase/staffRepository.supabase";
 
 function one(value: string | string[] | undefined): string {
@@ -120,6 +120,12 @@ export default async function RelatoriosPage({
     }),
     { original: 0, received: 0, adjustments: 0, balance: 0 },
   );
+  // Crédito aplicado NUNCA é dinheiro novo recebido (Parte 3B.1, item
+  // 18) — por isso é subtraído do total "Descontos/abatimentos" (que
+  // hoje soma discount+settlement_difference+credit_applied) e mostrado
+  // como linha própria.
+  const creditApplied = await sumCreditAppliedForReceivables(supabase, result.receivables.map((item) => item.id));
+  const realAdjustments = totals.adjustments - creditApplied;
 
   return (
     <>
@@ -134,6 +140,9 @@ export default async function RelatoriosPage({
             </Link>
             <Link className="secondary-link" href="/sistema/financeiro/relatorios/abatimentos">
               Relatório de abatimentos
+            </Link>
+            <Link className="secondary-link" href="/sistema/financeiro/relatorios/creditos">
+              Relatório de créditos
             </Link>
           </div>
         }
@@ -239,13 +248,18 @@ export default async function RelatoriosPage({
           </div>
           <div className="form-field">
             <span className="field-label">Descontos/abatimentos</span>
-            <span>{formatAmount(totals.adjustments)}</span>
+            <span>{formatAmount(realAdjustments)}</span>
+          </div>
+          <div className="form-field">
+            <span className="field-label">Créditos aplicados</span>
+            <span>{formatAmount(creditApplied)}</span>
           </div>
           <div className="form-field">
             <span className="field-label">Saldo em aberto</span>
             <span>{formatAmount(totals.balance)}</span>
           </div>
         </div>
+        <p className="helper-text">Crédito aplicado nunca é contado como dinheiro novo recebido — é saldo que o próprio cliente já tinha.</p>
         <div className="form-actions" style={{ marginTop: "12px" }}>
           <Link className="form-action-primary" href={`/sistema/financeiro/relatorios/exportar?${exportQueryString}`}>
             Exportar planilha (CSV)

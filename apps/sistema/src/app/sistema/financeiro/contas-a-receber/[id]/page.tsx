@@ -6,7 +6,9 @@ import { RECEIVABLE_SOURCE_TYPE_LABELS, RECEIVABLE_STATUS_LABELS, clientDisplayN
 import { ClientNotFoundError } from "@ir/core";
 import { ModuleHeader } from "../../../../../components/admin/ModuleHeader";
 import { ReceivableActionsPanel } from "../../../../../features/financeiro/ReceivableActionsPanel";
-import { getReceivableService } from "../../../../../composition/financeiro";
+import { ReceivableCreditPanel } from "../../../../../features/financeiro/ReceivableCreditPanel";
+import { CompositionPaymentPanel } from "../../../../../features/financeiro/CompositionPaymentPanel";
+import { getReceivableService, getClientCreditService } from "../../../../../composition/financeiro";
 import { getClientService } from "../../../../../composition/clientes";
 import { createSupabaseServerClient } from "../../../../../lib/supabase/server";
 import { listActiveStaffSupabase } from "../../../../../providers/supabase/staffRepository.supabase";
@@ -41,7 +43,7 @@ export default async function ReceivableDetailPage({ params }: { params: { id: s
   });
   if (!receivable) notFound();
 
-  const [client, receipts, adjustments, staff] = await Promise.all([
+  const [client, receipts, adjustments, staff, { priorOpen, availableCredits, composition }, otherCredits] = await Promise.all([
     getClientService(supabase)
       .getById(receivable.clientId)
       .catch((error: unknown) => {
@@ -51,7 +53,13 @@ export default async function ReceivableDetailPage({ params }: { params: { id: s
     receivableService.listReceipts(receivable.id),
     receivableService.listAdjustments(receivable.id),
     listActiveStaffSupabase(supabase),
+    receivableService.getComposition(receivable.id),
+    getClientCreditService(supabase).list({ clientId: receivable.clientId, availableOnly: true }),
   ]);
+  const creditAppliedToThis = adjustments.filter((item) => item.adjustmentType === "credit_applied" && !item.reversedAt);
+  const manuallyApplicableCredits = otherCredits.filter(
+    (credit) => !availableCredits.some((sameOrigin) => sameOrigin.id === credit.id),
+  );
 
   return (
     <>
@@ -86,12 +94,59 @@ export default async function ReceivableDetailPage({ params }: { params: { id: s
         </div>
       </section>
 
+      {/* Composição do valor (Parte 3B.1, item 10/11) — VISÃO agregada
+          (saldo anterior em aberto da mesma origem + crédito disponível
+          ainda não aplicado); nunca funde títulos nem altera o valor
+          original (item 15). */}
+      <section className="form-section">
+        <h2>Composição do valor</h2>
+        <table className="materias-table" style={{ maxWidth: "480px" }}>
+          <tbody>
+            {composition.lines.map((line, index) => (
+              <tr key={index}>
+                <td>{line.label}</td>
+                <td style={{ textAlign: "right" }}>{line.amount < 0 ? "- " : ""}{formatAmount(Math.abs(line.amount))}</td>
+              </tr>
+            ))}
+            <tr>
+              <td><strong>TOTAL A PAGAR</strong></td>
+              <td style={{ textAlign: "right" }}><strong>{formatAmount(composition.total)}</strong></td>
+            </tr>
+          </tbody>
+        </table>
+        {priorOpen.length > 0 ? (
+          <p className="helper-text" style={{ marginTop: "8px" }}>
+            Saldo anterior em aberto vem de {priorOpen.length} título(s) da mesma origem, ainda existentes individualmente (nunca fundidos): {priorOpen.map((item) => item.reference).join(", ")}.
+          </p>
+        ) : null}
+        {creditAppliedToThis.length > 0 ? (
+          <p className="helper-text">
+            Já aplicado neste título: {formatAmount(creditAppliedToThis.reduce((sum, item) => sum + item.amount, 0))} de crédito de saldo anterior (ver histórico abaixo).
+          </p>
+        ) : null}
+        {priorOpen.length > 0 ? (
+          <div style={{ marginTop: "12px" }}>
+            <CompositionPaymentPanel
+              receivableIdsOldestFirst={[...priorOpen.map((item) => item.id), receivable.id]}
+              totalDue={composition.total}
+              staff={staff}
+            />
+          </div>
+        ) : null}
+      </section>
+
+      <ReceivableCreditPanel
+        receivableId={receivable.id}
+        receivableBalance={receivable.balance}
+        availableCredits={manuallyApplicableCredits}
+      />
+
       <section className="form-section">
         <h2>Observações</h2>
         <p className="helper-text">{receivable.notes || "Nenhuma observação registrada."}</p>
       </section>
 
-      <ReceivableActionsPanel receivable={receivable} receipts={receipts} adjustments={adjustments} staff={staff} />
+      <ReceivableActionsPanel receivable={receivable} receipts={receipts} adjustments={adjustments} staff={staff} hasOlderOpenBalance={priorOpen.length > 0} />
     </>
   );
 }

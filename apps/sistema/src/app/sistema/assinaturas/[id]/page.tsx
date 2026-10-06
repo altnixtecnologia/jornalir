@@ -14,7 +14,7 @@ import { SubscriptionStatusActions } from "../../../../features/assinaturas/Subs
 import { SubscriptionBillingPanel } from "../../../../features/financeiro/SubscriptionBillingPanel";
 import { getSubscriptionService } from "../../../../composition/assinaturas";
 import { getClientService } from "../../../../composition/clientes";
-import { getReceivableService } from "../../../../composition/financeiro";
+import { getReceivableService, getClientCreditService } from "../../../../composition/financeiro";
 import { createSupabaseServerClient } from "../../../../lib/supabase/server";
 
 function formatAmount(value: number): string {
@@ -56,6 +56,8 @@ export default async function AssinaturaDetailPage({ params }: { params: { id: s
       throw error;
     });
   const receivables = await getReceivableService(supabase).list({ subscriptionId: subscription.id });
+  const availableCredits = await getClientCreditService(supabase).list({ subscriptionId: subscription.id, availableOnly: true });
+  const availableCreditTotal = availableCredits.reduce((sum, item) => sum + item.balance, 0);
 
   return (
     <>
@@ -94,6 +96,7 @@ export default async function AssinaturaDetailPage({ params }: { params: { id: s
           <Field label="Status" value={SUBSCRIPTION_STATUS_LABELS[subscription.status]} />
           <Field label="Valor" value={formatAmount(subscription.amount)} />
           <Field label="Periodicidade" value={SUBSCRIPTION_PERIODICITY_LABELS[subscription.periodicity]} />
+          {availableCreditTotal > 0 ? <Field label="Crédito disponível desta assinatura" value={formatAmount(availableCreditTotal)} /> : null}
         </div>
       </section>
 

@@ -38,6 +38,12 @@ interface ReceivableActionsPanelProps {
   receipts: ReceivableReceipt[];
   adjustments: ReceivableAdjustment[];
   staff: StaffOption[];
+  /** Existe saldo mais antigo em aberto da MESMA origem (ver "Composição
+   * do valor" acima) — quando true, "Registrar recebimento" aqui é um
+   * lançamento manual específico SÓ neste título, não o fluxo padrão
+   * (que é o botão "Registrar recebimento (quita o mais antigo
+   * primeiro)" da composição, ajuste de integridade pós-revisão). */
+  hasOlderOpenBalance?: boolean;
 }
 
 /**
@@ -49,7 +55,7 @@ interface ReceivableActionsPanelProps {
  * router.refresh() depois de cada ação, mesmo padrão já usado em
  * ArticleForm/SubscriptionStatusActions pra descartar o Router Cache.
  */
-export function ReceivableActionsPanel({ receivable, receipts, adjustments, staff }: ReceivableActionsPanelProps): JSX.Element {
+export function ReceivableActionsPanel({ receivable, receipts, adjustments, staff, hasOlderOpenBalance }: ReceivableActionsPanelProps): JSX.Element {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -121,7 +127,7 @@ export function ReceivableActionsPanel({ receivable, receipts, adjustments, staf
           <div className="form-actions">
             {activeForm !== "receipt" ? (
               <button type="button" onClick={() => setActiveForm("receipt")} disabled={pending || receivable.balance <= 0}>
-                Registrar recebimento
+                {hasOlderOpenBalance ? "Registrar recebimento só neste título" : "Registrar recebimento"}
               </button>
             ) : null}
             {activeForm !== "settle" ? (
@@ -148,6 +154,14 @@ export function ReceivableActionsPanel({ receivable, receipts, adjustments, staf
 
         {activeForm === "receipt" ? (
           <div className="form-grid" style={{ marginTop: "14px" }}>
+            {hasOlderOpenBalance ? (
+              <p className="form-error" role="alert" style={{ gridColumn: "1 / -1" }}>
+                Atenção: existe saldo mais antigo em aberto da mesma origem. Isto aqui lança o recebimento SÓ neste título, ignorando o mais antigo — use "Registrar recebimento (quita o mais antigo primeiro)" na Composição do valor acima, a menos que este lançamento manual específico seja realmente intencional.
+              </p>
+            ) : null}
+            <p className="helper-text" style={{ gridColumn: "1 / -1" }}>
+              Saldo atual: {formatAmount(receivable.balance)}. Se o valor recebido for maior, a diferença vira crédito do cliente (disponível pra próxima cobrança da mesma origem) — nunca é perdida.
+            </p>
             <label className="form-field">
               <span className="field-label">Valor recebido (R$)</span>
               <input type="text" inputMode="decimal" value={receiptAmount} onChange={(event) => setReceiptAmount(event.target.value)} />
@@ -301,7 +315,8 @@ export function ReceivableActionsPanel({ receivable, receipts, adjustments, staf
             <label className="form-field">
               <span className="field-label">Tipo</span>
               <select value={adjustmentType} onChange={(event) => setAdjustmentType(event.target.value as AdjustmentType)}>
-                {ADJUSTMENT_TYPES.map((type) => (
+                {/* credit_applied nunca aparece aqui — só é gravado pela aplicação automática/manual de crédito, nunca pelo abatimento manual (ver ReceivableService.addAdjustment). */}
+                {ADJUSTMENT_TYPES.filter((type) => type !== "credit_applied").map((type) => (
                   <option key={type} value={type}>
                     {ADJUSTMENT_TYPE_LABELS[type]}
                   </option>

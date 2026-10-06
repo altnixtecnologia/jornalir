@@ -30,7 +30,7 @@ export function addPeriodicityInterval(dateIso: string, periodicity: Subscriptio
 export type ReceivableSourceType = "subscription" | "advertising" | "institutional_contract" | "miscellaneous" | "other";
 export type ReceivableStatus = "open" | "partially_paid" | "paid" | "cancelled";
 export type PaymentMethod = "cash" | "pix" | "bank_transfer" | "check" | "card" | "other";
-export type AdjustmentType = "discount" | "settlement_difference";
+export type AdjustmentType = "discount" | "settlement_difference" | "credit_applied";
 
 export const RECEIVABLE_SOURCE_TYPES: readonly ReceivableSourceType[] = [
   "subscription",
@@ -41,7 +41,7 @@ export const RECEIVABLE_SOURCE_TYPES: readonly ReceivableSourceType[] = [
 ];
 export const RECEIVABLE_STATUSES: readonly ReceivableStatus[] = ["open", "partially_paid", "paid", "cancelled"];
 export const PAYMENT_METHODS: readonly PaymentMethod[] = ["cash", "pix", "bank_transfer", "check", "card", "other"];
-export const ADJUSTMENT_TYPES: readonly AdjustmentType[] = ["discount", "settlement_difference"];
+export const ADJUSTMENT_TYPES: readonly AdjustmentType[] = ["discount", "settlement_difference", "credit_applied"];
 
 export const RECEIVABLE_SOURCE_TYPE_LABELS: Record<ReceivableSourceType, string> = {
   subscription: "Assinatura",
@@ -70,6 +70,7 @@ export const PAYMENT_METHOD_LABELS: Record<PaymentMethod, string> = {
 export const ADJUSTMENT_TYPE_LABELS: Record<AdjustmentType, string> = {
   discount: "Desconto",
   settlement_difference: "Abatimento de quitação",
+  credit_applied: "Crédito aplicado",
 };
 
 /** Transições de status permitidas — cancelado é estado final, nunca
@@ -169,13 +170,16 @@ export interface ReceivableReceipt {
 }
 
 /** Abatimento/desconto — registro próprio e auditável, nunca altera
- * originalAmount. reason é obrigatório. */
+ * originalAmount. reason é obrigatório para discount/settlement_difference
+ * (credit_applied não exige motivo em texto — a origem já está em creditId). */
 export interface ReceivableAdjustment {
   id: string;
   receivableId: string;
   amount: number;
   adjustmentType: AdjustmentType;
   reason: string;
+  /** Preenchido SÓ quando adjustmentType === "credit_applied" — qual ClientCredit foi usado (Parte 3B.1). Nunca usado por discount/settlement_difference. */
+  creditId?: string;
   authorizedByProfileId?: string;
   recordedByProfileId?: string;
   recordedAt: string;
@@ -315,4 +319,210 @@ export function computeEffectiveContractEndsAt(endsAt: string | undefined, amend
   const candidates = [endsAt, ...amendments.map((amendment) => amendment.newEndsAt)].filter((value): value is string => Boolean(value));
   if (candidates.length === 0) return undefined;
   return candidates.reduce((latest, candidate) => (candidate > latest ? candidate : latest));
+}
+
+// --- Crédito do cliente (Parte 3B.1) -------------------------------------
+//
+// Deliberadamente NÃO um saldo mutável (nunca `clients.credit_balance`
+// sobrescrito). Cada crédito é uma linha própria e imutável (origem,
+// valor original); o saldo disponível é sempre CALCULADO a partir das
+// aplicações válidas (ver ClientCreditWithBalance.balance, espelhando
+// receivables_with_balance/recomputeReceivableStatus). Aplicar um
+// crédito num título reaproveita ReceivableAdjustment
+// (adjustmentType="credit_applied" + creditId) — nunca uma tabela de
+// "aplicações" paralela, pelo mesmo motivo que descontos já vivem em
+// receivable_adjustments: reduz o saldo do título sem ser um
+// recebimento de dinheiro novo.
+
+export interface ClientCredit {
+  id: string;
+  clientId: string;
+  sourceType: ReceivableSourceType;
+  /** Preenchido SÓ quando sourceType === "subscription" — mesma semântica de Receivable.subscriptionId, usada pra casar "mesma origem" na aplicação automática. */
+  subscriptionId?: string;
+  /** Preenchido SÓ quando sourceType === "institutional_contract". */
+  contractId?: string;
+  /** De qual título/recebimento este crédito surgiu — rastreabilidade (item 2), nunca obrigatório (um crédito pode futuramente vir de outro fluxo). */
+  originReceivableId?: string;
+  originReceiptId?: string;
+  originalAmount: number;
+  reason?: string;
+  notes?: string;
+  createdByProfileId?: string;
+  createdAt: string;
+  reversedAt?: string;
+  reversedByProfileId?: string;
+  reversalReason?: string;
+}
+
+/** ClientCredit + saldo já calculado (original_amount - aplicações válidas). */
+export interface ClientCreditWithBalance extends ClientCredit {
+  totalApplied: number;
+  balance: number;
+}
+
+function round2(value: number): number {
+  return Math.round(value * 100) / 100;
+}
+
+/**
+ * "Mesma origem" (item 3/4) — só assinatura/contrato têm um id de
+ * recorrência bem definido pra casar automaticamente; avulso/
+ * publicidade/outro NUNCA aplicam crédito automaticamente (ficam
+ * disponíveis só pra aplicação manual futura). Nunca cruza origens
+ * diferentes (ex.: crédito de Publicidade não serve pra Assinatura),
+ * mesmo quando sourceType bate mas o id específico não.
+ */
+export function creditMatchesReceivableOrigin(
+  credit: Pick<ClientCredit, "sourceType" | "subscriptionId" | "contractId">,
+  receivable: Pick<Receivable, "sourceType" | "subscriptionId" | "contractId">,
+): boolean {
+  if (credit.sourceType !== receivable.sourceType) return false;
+  if (receivable.sourceType === "subscription") {
+    return Boolean(receivable.subscriptionId) && credit.subscriptionId === receivable.subscriptionId;
+  }
+  if (receivable.sourceType === "institutional_contract") {
+    return Boolean(receivable.contractId) && credit.contractId === receivable.contractId;
+  }
+  return false;
+}
+
+export interface CreditApplicationPlanItem {
+  creditId: string;
+  amount: number;
+}
+
+/**
+ * Plano puro de aplicação automática de crédito num título (item 16) —
+ * recebe os créditos disponíveis da MESMA origem (já filtrados por
+ * creditMatchesReceivableOrigin, ordenados do mais antigo pro mais
+ * novo) e o saldo do título; devolve quanto usar de cada crédito e o
+ * saldo restante do título. Nunca aplica o mesmo crédito duas vezes —
+ * cada `balance` já reflete aplicações anteriores (sempre derivado,
+ * nunca um contador que possa dessincronizar).
+ */
+export function planCreditApplication(
+  availableCredits: Pick<ClientCreditWithBalance, "id" | "balance">[],
+  receivableBalance: number,
+): { applications: CreditApplicationPlanItem[]; remainingReceivableBalance: number } {
+  let remaining = receivableBalance;
+  const applications: CreditApplicationPlanItem[] = [];
+  for (const credit of availableCredits) {
+    if (remaining <= 0) break;
+    if (credit.balance <= 0) continue;
+    const amount = round2(Math.min(remaining, credit.balance));
+    if (amount <= 0) continue;
+    applications.push({ creditId: credit.id, amount });
+    remaining = round2(remaining - amount);
+  }
+  return { applications, remainingReceivableBalance: remaining };
+}
+
+export interface OverpaymentSplit {
+  appliedToReceivable: number;
+  creditAmount: number;
+}
+
+/**
+ * Divide um recebimento que pode ultrapassar o saldo do título (item 2)
+ * — nunca perde o valor total efetivamente recebido: o que não cobre o
+ * saldo atual vira crédito (criedAmount), o título nunca recebe mais do
+ * que o necessário pra zerar o saldo.
+ */
+export function splitOverpayment(amountReceived: number, receivableBalance: number): OverpaymentSplit {
+  const appliedToReceivable = round2(Math.min(amountReceived, receivableBalance));
+  const creditAmount = round2(amountReceived - appliedToReceivable);
+  return { appliedToReceivable, creditAmount };
+}
+
+export interface AllocationTarget {
+  id: string;
+  balance: number;
+}
+
+export interface AllocationPlanItem {
+  id: string;
+  amount: number;
+}
+
+/**
+ * Aplica um único pagamento em vários títulos da MESMA origem, do mais
+ * antigo pro mais novo (item 8) — `targets` já deve vir ordenado do
+ * mais antigo pro mais novo (ex.: por competencyDate/dueDate) por quem
+ * chama. O que sobrar depois de quitar todos os saldos é excedente —
+ * quem chama decide o que fazer com ele (normalmente: splitOverpayment/
+ * virar ClientCredit).
+ */
+export function allocatePaymentAcrossReceivables(
+  targets: AllocationTarget[],
+  amountPaid: number,
+): { allocations: AllocationPlanItem[]; remainingPayment: number } {
+  let remaining = amountPaid;
+  const allocations: AllocationPlanItem[] = [];
+  for (const target of targets) {
+    if (remaining <= 0) break;
+    if (target.balance <= 0) continue;
+    const amount = round2(Math.min(remaining, target.balance));
+    if (amount <= 0) continue;
+    allocations.push({ id: target.id, amount });
+    remaining = round2(remaining - amount);
+  }
+  return { allocations, remainingPayment: remaining };
+}
+
+/**
+ * Quanto efetivamente solicitar via Pix/cartão/cobrança ao cliente
+ * (item 9) quando há crédito disponível da MESMA origem — o título em
+ * si continua com o valor original; só o valor PEDIDO ao cliente já
+ * desconta o crédito. Mesma conta de planCreditApplication, mas
+ * resumida pra um total (quando a composição não precisa detalhar de
+ * qual crédito individual veio).
+ */
+export function computeAmountToCollect(receivableBalance: number, availableCredit: number): { amountToCollect: number; creditApplied: number } {
+  const creditApplied = round2(Math.min(receivableBalance, Math.max(0, availableCredit)));
+  const amountToCollect = round2(receivableBalance - creditApplied);
+  return { amountToCollect, creditApplied };
+}
+
+export interface ReceivableCompositionLine {
+  label: string;
+  /** Positivo = soma ao total; negativo = desconto/crédito. */
+  amount: number;
+}
+
+export interface ReceivableComposition {
+  lines: ReceivableCompositionLine[];
+  total: number;
+}
+
+/**
+ * Monta a "Composição do valor" exibível (fatura/carnê/Pix/mensagem de
+ * cobrança — item 10/11) de UM título atual, somando saldo(s)
+ * anterior(es) em aberto da MESMA origem e crédito disponível da MESMA
+ * origem. Pura VISÃO agregada (item 15) — nunca funde títulos no banco,
+ * nunca muda valor original, nunca apaga competência; quem chama já
+ * calculou `priorOpenBalance`/`availableCredit` a partir dos títulos/
+ * créditos reais.
+ */
+export function buildReceivableComposition(input: {
+  currentChargeLabel: string;
+  currentChargeAmount: number;
+  priorOpenBalance?: number;
+  priorOpenLabel?: string;
+  availableCredit?: number;
+  creditLabel?: string;
+  adjustmentsAmount?: number;
+}): ReceivableComposition {
+  const lines: ReceivableCompositionLine[] = [{ label: input.currentChargeLabel, amount: round2(input.currentChargeAmount) }];
+  if (input.priorOpenBalance && input.priorOpenBalance > 0) {
+    lines.push({ label: input.priorOpenLabel ?? "Saldo anterior em aberto", amount: round2(input.priorOpenBalance) });
+  }
+  if (input.availableCredit && input.availableCredit > 0) {
+    lines.push({ label: input.creditLabel ?? "Crédito de saldo anterior", amount: -round2(input.availableCredit) });
+  }
+  if (input.adjustmentsAmount && input.adjustmentsAmount > 0) {
+    lines.push({ label: "Desconto/abatimento", amount: -round2(input.adjustmentsAmount) });
+  }
+  const total = round2(lines.reduce((sum, line) => sum + line.amount, 0));
+  return { lines, total };
 }

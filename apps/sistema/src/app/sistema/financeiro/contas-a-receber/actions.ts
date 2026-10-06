@@ -157,6 +157,60 @@ export async function addAdjustmentAction(receivableId: string, input: Adjustmen
   revalidatePath(LIST_PATH);
 }
 
+export interface CompositionPaymentFormInput {
+  amount: string;
+  receivedAt: string;
+  paymentMethod: PaymentMethod | "";
+  reference: string;
+  notes: string;
+  receivedByProfileId: string;
+}
+
+/**
+ * Pagamento pela COMPOSIÇÃO (Parte 3B.1, ajuste de integridade item 2)
+ * — `receivableIdsOldestFirst` já vem pronto da tela (saldo(s) anterior
+ * em aberto + o título atual, nessa ordem). Esta é a ação PADRÃO pra
+ * quem está pagando a composição inteira: sempre quita o mais antigo
+ * primeiro (ver ReceivableService.payAcrossReceivables), nunca deixa o
+ * operador escolher por engano aplicar tudo só no título mais novo. O
+ * lançamento manual específico num único título continua existindo
+ * (addReceiptAction), mas é uma ação separada e consciente.
+ */
+export async function payCompositionAction(receivableIdsOldestFirst: string[], input: CompositionPaymentFormInput): Promise<ActionResult> {
+  try {
+    await getReceivableService(createSupabaseServerClient()).payAcrossReceivables(receivableIdsOldestFirst, {
+      amount: parseAmount(input.amount),
+      receivedAt: input.receivedAt,
+      paymentMethod: input.paymentMethod || undefined,
+      reference: input.reference,
+      notes: input.notes,
+      receivedByProfileId: input.receivedByProfileId || undefined,
+    });
+  } catch (error) {
+    return { error: toErrorMessage(error) };
+  }
+  for (const id of receivableIdsOldestFirst) revalidatePath(`${LIST_PATH}/${id}`);
+  revalidatePath(LIST_PATH);
+}
+
+/**
+ * Aplicação MANUAL de crédito de outra origem (Parte 3B.1, item 4) —
+ * mesmo mecanismo da aplicação automática (ReceivableAdjustment
+ * credit_applied), só que explícita e podendo cruzar origens
+ * diferentes (a automática nunca cruza).
+ */
+export async function applyCreditManuallyAction(receivableId: string, creditId: string, amount: number): Promise<ActionResult> {
+  try {
+    const client = createSupabaseServerClient();
+    const AUDIT = await getAuditContext(client);
+    await getReceivableService(client).applyCreditManually(receivableId, creditId, amount, AUDIT.actorId);
+  } catch (error) {
+    return { error: toErrorMessage(error) };
+  }
+  revalidatePath(`${LIST_PATH}/${receivableId}`);
+  revalidatePath(LIST_PATH);
+}
+
 export async function reverseReceiptAction(receivableId: string, receiptId: string, reason: string): Promise<ActionResult> {
   try {
     const client = createSupabaseServerClient();

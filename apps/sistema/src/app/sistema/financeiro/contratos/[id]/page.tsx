@@ -8,7 +8,7 @@ import { ReceivablesList } from "../../../../../features/financeiro/ReceivablesL
 import { ContractDocumentsPanel } from "../../../../../features/financeiro/ContractDocumentsPanel";
 import { ContractAmendmentsPanel } from "../../../../../features/financeiro/ContractAmendmentsPanel";
 import { ContractInstallmentsPanel } from "../../../../../features/financeiro/ContractInstallmentsPanel";
-import { getContractService, getReceivableService } from "../../../../../composition/financeiro";
+import { getContractService, getReceivableService, getClientCreditService } from "../../../../../composition/financeiro";
 import { getClientService } from "../../../../../composition/clientes";
 import { createSupabaseServerClient } from "../../../../../lib/supabase/server";
 
@@ -34,7 +34,7 @@ export default async function ContractDetailPage({ params }: { params: { id: str
   });
   if (!contract) notFound();
 
-  const [client, documents, amendments, receivables] = await Promise.all([
+  const [client, documents, amendments, receivables, availableCredits] = await Promise.all([
     getClientService(supabase)
       .getById(contract.clientId)
       .catch((error: unknown) => {
@@ -44,7 +44,9 @@ export default async function ContractDetailPage({ params }: { params: { id: str
     contractService.listDocuments(contract.id),
     contractService.listAmendments(contract.id),
     getReceivableService(supabase).list({ contractId: contract.id }),
+    getClientCreditService(supabase).list({ contractId: contract.id, availableOnly: true }),
   ]);
+  const availableCreditTotal = availableCredits.reduce((sum, item) => sum + item.balance, 0);
 
   const billedAmount = receivables.reduce((sum, item) => sum + item.originalAmount, 0);
   const receivedAmount = receivables.reduce((sum, item) => sum + item.totalReceived, 0);
@@ -148,6 +150,12 @@ export default async function ContractDetailPage({ params }: { params: { id: str
             <span className="field-label">Saldo contratual não lançado</span>
             <span>{effectiveAmount !== undefined ? formatAmount(effectiveAmount - billedAmount) : "—"}</span>
           </div>
+          {availableCreditTotal > 0 ? (
+            <div className="form-field">
+              <span className="field-label">Crédito disponível deste contrato</span>
+              <span>{formatAmount(availableCreditTotal)}</span>
+            </div>
+          ) : null}
         </div>
       </section>
 

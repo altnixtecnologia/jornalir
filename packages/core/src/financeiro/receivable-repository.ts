@@ -30,6 +30,18 @@ export interface ReceivableListQuery {
   sourceType?: Receivable["sourceType"];
 }
 
+/** Títulos ainda em aberto/parcial da MESMA origem (Parte 3B.1, item 7 —
+ * "saldo anterior em aberto") — nunca inclui o próprio título atual
+ * (excludeId). subscriptionId/contractId só fazem sentido junto do
+ * sourceType correspondente, mesma semântica de Receivable. */
+export interface OpenByOriginQuery {
+  clientId: string;
+  sourceType: Receivable["sourceType"];
+  subscriptionId?: string;
+  contractId?: string;
+  excludeId?: string;
+}
+
 export interface ReceivableRepository {
   list(query?: ReceivableListQuery): Promise<ReceivableWithBalance[]>;
   getById(id: string): Promise<ReceivableWithBalance | null>;
@@ -37,6 +49,8 @@ export interface ReceivableRepository {
   update(id: string, changes: ReceivableChanges): Promise<Receivable>;
   /** Pré-checagem de idempotência (UX melhor que só esperar o erro do banco) — o índice único parcial em subscription_id+competency_date continua sendo a proteção autoritativa. */
   findBySubscriptionAndCompetency(subscriptionId: string, competencyDate: string): Promise<Receivable | null>;
+  /** Mesmo cliente+origem, status aberto/parcial, nunca o próprio título (Parte 3B.1, item 7). Ordenado do mais antigo pro mais novo. */
+  listOpenForOrigin(query: OpenByOriginQuery): Promise<ReceivableWithBalance[]>;
 
   listReceipts(receivableId: string): Promise<ReceivableReceipt[]>;
   addReceipt(record: NewReceiptRecord): Promise<ReceivableReceipt>;
