@@ -21,7 +21,6 @@ export interface ServiceProfileInput {
   defaultLocationMunicipality?: string;
   defaultLocationIbgeCode?: string;
   issqnTaxation?: string;
-  issqnRate?: number;
   specialTaxRegime?: string;
   notes?: string;
 }
@@ -41,7 +40,6 @@ function normalize(input: ServiceProfileInput) {
     defaultLocationMunicipality: trimOrUndefined(input.defaultLocationMunicipality),
     defaultLocationIbgeCode: trimOrUndefined(input.defaultLocationIbgeCode),
     issqnTaxation: trimOrUndefined(input.issqnTaxation),
-    issqnRate: input.issqnRate !== undefined && Number.isFinite(input.issqnRate) ? input.issqnRate : undefined,
     specialTaxRegime: trimOrUndefined(input.specialTaxRegime),
     notes: trimOrUndefined(input.notes),
   };

@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import type { NfseCertificateType, NfseCertificateStoredStatus, NfseEnvironment, NfseSignatureAlgorithmChoice } from "@ir/types";
+import type { NfseCertificateType, NfseCertificateStoredStatus, NfseEnvironment } from "@ir/types";
 import { getIssuerConfigService } from "../../../../composition/nfse";
 import { createSupabaseServerClient } from "../../../../lib/supabase/server";
 import { getAuditContext } from "../../../../lib/auth/getAuditContext";
@@ -32,8 +32,6 @@ export interface IssuerConfigFormInput {
   certificateValidUntil: string;
   certificateReference: string;
   dpsSeries: string;
-  /** "" significa não escolhido ainda — nunca um default assumido (ver signature.ts). */
-  signatureAlgorithm: NfseSignatureAlgorithmChoice | "";
   notes: string;
 }
 
@@ -65,7 +63,6 @@ export async function saveIssuerConfigAction(input: IssuerConfigFormInput): Prom
       certificateValidUntil: input.certificateValidUntil,
       certificateReference: input.certificateReference,
       dpsSeries: input.dpsSeries,
-      signatureAlgorithm: input.signatureAlgorithm || undefined,
       notes: input.notes,
     });
     // Nunca registra certificateReference/CNPJ/dados sensíveis em metadata — só a ação em si.

@@ -83,16 +83,6 @@ export interface NfseIssuerConfig {
   certificateReference?: string;
   /** Série da DPS usada nas transmissões (Parte 2A, item 5) — SEMPRE configurada explicitamente, nunca um valor fictício. `undefined` bloqueia a transmissão (ver validação em DraftService/TransmissionService). */
   dpsSeries?: string;
-  /**
-   * Algoritmo de assinatura da DPS — AINDA NÃO HÁ CONFIRMAÇÃO OFICIAL
-   * conclusiva de qual é exigido pelo Sistema Nacional (ver
-   * signature.ts para o levantamento feito e as fontes consultadas).
-   * Por isso nunca tem valor padrão/assumido: fica `undefined` até o
-   * usuário escolher explicitamente, e a transmissão real continua
-   * bloqueada por outro motivo (`RealTransmissionNotReadyError`)
-   * mesmo depois de escolhido.
-   */
-  signatureAlgorithm?: NfseSignatureAlgorithmChoice;
   notes?: string;
   createdByProfileId?: string;
   updatedByProfileId?: string;
@@ -100,12 +90,35 @@ export interface NfseIssuerConfig {
   updatedAt: string;
 }
 
-export type NfseSignatureAlgorithmChoice = "rsa-sha1" | "rsa-sha256";
-export const NFSE_SIGNATURE_ALGORITHM_CHOICES: readonly NfseSignatureAlgorithmChoice[] = ["rsa-sha1", "rsa-sha256"];
-export const NFSE_SIGNATURE_ALGORITHM_LABELS: Record<NfseSignatureAlgorithmChoice, string> = {
-  "rsa-sha1": "RSA-SHA1 (padrão legado NF-e/CT-e/MDF-e)",
-  "rsa-sha256": "RSA-SHA256",
-};
+/**
+ * AJUSTE (Parte 2B): o campo `signatureAlgorithm` (escolha manual
+ * SHA1/SHA256) da Parte 2A foi REMOVIDO. A incerteza que o motivou foi
+ * resolvida: há fonte oficial do Portal Nacional confirmando o perfil
+ * de assinatura da DPS (RSA-SHA1/SHA1/C14N 1.0/enveloped — ver
+ * `NFSE_DPS_SIGNATURE_PROFILE` em `signature.ts`, @ir/core). Não é mais
+ * uma escolha do usuário; o perfil é fixo e só muda se uma nota técnica
+ * oficial futura alterar a regra (nesse caso, só `signature.ts` muda).
+ */
+
+/**
+ * Metadata do certificado digital A1 efetivamente validado e
+ * armazenado de forma criptografada (Parte 2B) — NUNCA o PFX/senha/
+ * chave privada em texto puro; isso fica só no cofre criptografado
+ * (ver `nfse_certificates`/secret-store em @ir/core). Esta metadata é
+ * segura de expor à UI (nenhum campo aqui é segredo).
+ */
+export interface NfseCertificateInfo {
+  id: string;
+  /** CNPJ extraído do certificado, só os dígitos — usado para confirmar que corresponde ao CNPJ configurado do prestador. */
+  subjectCnpj?: string;
+  subjectName?: string;
+  issuerName?: string;
+  serialNumber: string;
+  validFrom: string;
+  validUntil: string;
+  active: boolean;
+  createdAt: string;
+}
 
 /**
  * Pacote de esquemas XSD vigente pra PRODUÇÃO RESTRITA (Parte 2A, item
@@ -150,8 +163,6 @@ export interface NfseServiceProfile {
   defaultLocationIbgeCode?: string;
   /** Configuração padrão de tributação do ISSQN — descrição livre (ex.: "Tributado no município do prestador"), nunca um código presumido. */
   issqnTaxation?: string;
-  /** Alíquota do ISSQN (%) — SEMPRE informada explicitamente pelo usuário, nunca presumida/calculada pela aplicação (Parte 2A, item 6: "não inventar alíquota"). Obrigatória só para transmitir, não para salvar o perfil/rascunho. */
-  issqnRate?: number;
   specialTaxRegime?: string;
   notes?: string;
   createdByProfileId?: string;
@@ -159,6 +170,19 @@ export interface NfseServiceProfile {
   createdAt: string;
   updatedAt: string;
 }
+
+/**
+ * AJUSTE FINAL (Parte 2B): `issqnRate` (alíquota do ISSQN) foi REMOVIDO
+ * de `NfseServiceProfile`/`NfseFiscalSnapshot` — nunca deveria ter sido
+ * tratado como propriedade fiscal permanente de um perfil genérico
+ * ("Publicidade", "Produção de vídeo" etc.). A alíquota depende do
+ * município de incidência/regime tributário/regras do Simples Nacional,
+ * que ainda não foram mapeados contra o XSD/DPS oficial. Removido sem
+ * substituto inventado — nenhum campo novo, nenhum default, nenhuma
+ * alíquota hardcoded (ex.: 3,2582%). `computeIssqnAmount` também foi
+ * removido; o cálculo de `vISSQN` na DPS fica indisponível até essa
+ * modelagem existir de fato (ver dps-builder.ts).
+ */
 
 /** Nunca preenche a descrição do serviço de um rascunho automaticamente —
  * toda nova NFS-e começa com descrição em branco (ajuste pós-revisão, item
@@ -235,7 +259,6 @@ export interface NfseFiscalSnapshot {
   cTribMun?: string;
   cNBS?: string;
   issqnTaxation?: string;
-  issqnRate?: number;
   specialTaxRegime?: string;
   locationMunicipality?: string;
   locationIbgeCode?: string;
@@ -248,19 +271,10 @@ export function buildFiscalSnapshotFromServiceProfile(profile: NfseServiceProfil
     cTribMun: profile.cTribMun,
     cNBS: profile.cNBS,
     issqnTaxation: profile.issqnTaxation,
-    issqnRate: profile.issqnRate,
     specialTaxRegime: profile.specialTaxRegime,
     locationMunicipality: profile.defaultLocationMunicipality,
     locationIbgeCode: profile.defaultLocationIbgeCode,
   };
-}
-
-/** Valor do ISSQN — SÓ calculado quando a alíquota foi explicitamente
- * configurada (nunca presumida). `undefined` significa "não dá pra
- * calcular ainda", nunca um valor fictício de fallback. */
-export function computeIssqnAmount(serviceValue: number, issqnRate: number | undefined): number | undefined {
-  if (issqnRate === undefined || !Number.isFinite(issqnRate)) return undefined;
-  return Math.round(serviceValue * (issqnRate / 100) * 100) / 100;
 }
 
 // --- Rascunho de NFS-e -----------------------------------------------------
@@ -308,14 +322,18 @@ export function isTransmissionEnvironmentAllowed(environment: NfseEnvironment): 
 }
 
 /**
- * Identificador da DPS (item 5) — Cód.Município(7) + Tipo de Inscrição
- * Federal(1: 1=CPF, 2=CNPJ) + Inscrição Federal(14, CPF completado com
- * zeros à esquerda) + Série(5) + Número(15) = 42 caracteres.
- * Composição confirmada via documentação pública do Portal Nacional da
- * NFS-e (estrutura do identificador da DPS e da chave de acesso) —
- * AINDA ASSIM precisa ser revalidada contra o ANEXO I/manual vigente
- * antes de qualquer transmissão real (nunca tratar isto como definitivo
- * sem essa confirmação final).
+ * Identificador da DPS (item 5; CONFIRMADO E CORRIGIDO na Parte 2B
+ * contra o XSD oficial vigente — `TSIdDPS` em
+ * `xsd/prodrest-v1.01-20260727/tiposSimples_v1.01.xsd`, pacote
+ * `NFSE_SCHEMA_PACKAGE_HOMOLOGATION`): literal "DPS" + Cód.Município(7)
+ * + Tipo de Inscrição Federal(1: 1=CPF, 2=CNPJ) + Inscrição Federal(14,
+ * CPF completado com zeros à esquerda) + Série(5) + Número(15) = 45
+ * caracteres. `pattern="DPS[0-9]{7}(1[0-9]{14}|2[0-9A-Z]{14})[0-9]{20}"`
+ * — o tipo "2" (CNPJ) aceita letras porque o CNPJ alfanumérico da
+ * Reforma Tributária pode conter letras; esta implementação só emite
+ * CNPJ numérico (não há suporte a CNPJ alfanumérico no domínio ainda).
+ * A versão anterior desta função (42 caracteres, sem o prefixo "DPS")
+ * estava incompleta — corrigida nesta revisão.
  */
 export function buildDpsId(input: {
   ibgeCode: string;
@@ -329,7 +347,7 @@ export function buildDpsId(input: {
   const federalInscription = input.federalInscription.replace(/\D/g, "").padStart(14, "0").slice(-14);
   const series = input.series.padStart(5, "0").slice(-5);
   const number = String(input.number).padStart(15, "0").slice(-15);
-  return `${municipality}${inscriptionTypeCode}${federalInscription}${series}${number}`;
+  return `DPS${municipality}${inscriptionTypeCode}${federalInscription}${series}${number}`;
 }
 
 /**

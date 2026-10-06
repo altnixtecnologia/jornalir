@@ -2,17 +2,16 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import type { NfseCertificateType, NfseCertificateStoredStatus, NfseEnvironment, NfseIssuerConfig, NfseSignatureAlgorithmChoice } from "@ir/types";
+import type { NfseCertificateType, NfseCertificateStoredStatus, NfseEnvironment, NfseIssuerConfig } from "@ir/types";
 import {
   NFSE_CERTIFICATE_STORED_STATUSES,
   NFSE_CERTIFICATE_TYPE_LABELS,
   NFSE_CERTIFICATE_TYPES,
   NFSE_ENVIRONMENT_LABELS,
   NFSE_ENVIRONMENTS,
-  NFSE_SIGNATURE_ALGORITHM_CHOICES,
-  NFSE_SIGNATURE_ALGORITHM_LABELS,
   computeCertificateEffectiveStatus,
 } from "@ir/types";
+import { NfseCertificatePanel } from "./NfseCertificatePanel";
 import { saveIssuerConfigAction, type IssuerConfigFormInput } from "../../app/sistema/nfse/configuracoes/actions";
 
 function toFormInput(config: Partial<NfseIssuerConfig> | undefined): IssuerConfigFormInput {
@@ -32,7 +31,6 @@ function toFormInput(config: Partial<NfseIssuerConfig> | undefined): IssuerConfi
     certificateValidUntil: config?.certificateValidUntil ?? "",
     certificateReference: config?.certificateReference ?? "",
     dpsSeries: config?.dpsSeries ?? "",
-    signatureAlgorithm: config?.signatureAlgorithm ?? "",
     notes: config?.notes ?? "",
   };
 }
@@ -153,28 +151,16 @@ export function NfseIssuerConfigForm({ initialConfig }: { initialConfig: NfseIss
             <input type="text" inputMode="numeric" maxLength={5} value={input.dpsSeries} onChange={(event) => set("dpsSeries", event.target.value)} placeholder="ex.: 1" />
           </label>
         </div>
-        <p className="helper-text">
-          Algoritmo de assinatura da DPS — <strong>ainda sem confirmação oficial conclusiva</strong> de qual o Sistema Nacional exige (RSA-SHA1 ou RSA-SHA256). Escolha fica pendente até confirmação; a transmissão real continua bloqueada de qualquer forma.
-        </p>
-        <div className="form-grid">
-          <label className="form-field">
-            <span className="field-label">Algoritmo de assinatura <span className="field-optional">(opcional por ora — pendente de confirmação)</span></span>
-            <select value={input.signatureAlgorithm} onChange={(event) => set("signatureAlgorithm", event.target.value as NfseSignatureAlgorithmChoice | "")}>
-              <option value="">Não escolhido</option>
-              {NFSE_SIGNATURE_ALGORITHM_CHOICES.map((value) => (
-                <option key={value} value={value}>
-                  {NFSE_SIGNATURE_ALGORITHM_LABELS[value]}
-                </option>
-              ))}
-            </select>
-          </label>
-        </div>
       </section>
 
       <section className="form-section">
         <h2>Certificado digital</h2>
         <p className="helper-text">
-          Só metadata — o arquivo (PFX/P12), senha e chave privada NUNCA são armazenados aqui. A estratégia segura de armazenamento será definida na fase da integração real.
+          Upload do PFX/P12 real — a senha só é usada no servidor pra abrir o arquivo e NUNCA é armazenada (nem em texto, nem em log). Só a chave privada/certificado, já extraídos, ficam guardados — criptografados (AES-256-GCM).
+        </p>
+        <NfseCertificatePanel issuerCnpj={input.cnpj} />
+        <p className="helper-text" style={{ marginTop: "0.75rem" }}>
+          Campos legados abaixo (tipo/status/validade/referência) — mantidos só por compatibilidade com configurações antigas; o upload acima é a fonte de verdade a partir de agora.
         </p>
         <div className="form-grid">
           <label className="form-field">

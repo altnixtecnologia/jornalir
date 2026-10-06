@@ -1,13 +1,9 @@
 import { randomUUID } from "node:crypto";
-import {
-  buildDpsId,
-  isTransmissionEnvironmentAllowed,
-  isValidDpsSeriesFormat,
-  type NfseIssuedNote,
-  type NfseTransmissionAttempt,
-} from "@ir/types";
+import { buildDpsId, isTransmissionEnvironmentAllowed, isValidDpsSeriesFormat, type NfseCertificateInfo, type NfseIssuedNote, type NfseTransmissionAttempt } from "@ir/types";
 import { buildDpsXml, parseAuthorizationResponse, parseRejectionResponse, validateDpsXmlStructure } from "./dps-builder";
 import { signDpsXml } from "./signature";
+import { validateDpsAgainstOfficialXsd } from "./xsd-validator";
+import { checkHomologationReadiness } from "./readiness";
 import type { DraftRepository } from "./draft-repository";
 import type { IssuerConfigRepository } from "./issuer-config-repository";
 import type { DpsSequenceRepository } from "./dps-sequence-repository";
@@ -15,6 +11,14 @@ import type { IssuedNoteRepository } from "./issued-note-repository";
 import type { TransmissionAttemptRepository } from "./transmission-attempt-repository";
 import { RealTransmissionNotReadyError, type NationalNfseProvider } from "./national-nfse-provider";
 import { validateNfseDraft } from "./draft-service";
+
+/** O que o fluxo de transmissão precisa do certificado — `CertificateService`
+ * (certificate-service.ts) satisfaz esta forma estruturalmente; testes usam
+ * um dublê mais simples, sem precisar de um `CertificateRepository` real. */
+export interface CertificateMaterialProvider {
+  getActiveInfo(issuerConfigId: string): Promise<NfseCertificateInfo | null>;
+  getActiveSigningMaterial(issuerConfigId: string): Promise<{ privateKeyPem: string; certificatePem: string } | null>;
+}
 
 export class TransmissionPermissionError extends Error {}
 export class TransmissionValidationError extends Error {
@@ -34,15 +38,6 @@ export class AlreadyIssuedError extends Error {
   }
 }
 
-/** Já extraída do certificado (ver certificate-provider.ts) — nunca o
- * PFX/senha bruto chega até aqui. Abstraído como interface pra
- * permitir testar o resto do fluxo com uma chave de teste, sem
- * depender da extração real de PFX (ainda não implementada). */
-export interface CertificateSigningProvider {
-  isConfigured(): boolean;
-  getSigningKeyMaterial(): { privateKeyPem: string; certificatePem: string };
-}
-
 export interface TransmitDraftInput {
   draftId: string;
   isAdminOrOwner: boolean;
@@ -57,13 +52,20 @@ export interface TransmitDraftResult {
 }
 
 /**
- * Orquestra o fluxo completo de transmissão (Parte 2A, item 9):
- * rascunho -> validação -> reservar DPS -> montar XML -> validar
+ * Orquestra o fluxo completo de transmissão (Parte 2A, item 9 → Parte
+ * 2B): rascunho -> validação -> reservar DPS -> montar XML -> validar
  * estruturalmente -> assinar -> transmitir -> interpretar resposta ->
  * registrar -> (se autorizada) criar nota emitida. Nunca transforma
- * rejeição em nota emitida (item 9.15); nunca retransmite
- * automaticamente em caso de falha de rede/timeout (item 11/12 —
- * devolve "uncertain" e espera confirmação explícita via consulta).
+ * rejeição em nota emitida; nunca retransmite automaticamente em caso
+ * de falha de rede/timeout (devolve "uncertain").
+ *
+ * AJUSTE (Parte 2B): o algoritmo de assinatura NÃO é mais escolhido
+ * pelo usuário (ver signature.ts — perfil oficial fixo, confirmado).
+ * O certificado agora vem de `CertificateService` (PFX validado +
+ * armazenado criptografado), nunca de variável de ambiente. A guarda
+ * central de prontidão (validação XSD real + checklist completo pra
+ * UI) é `checkReadiness()`, abaixo — separada de `transmit()` de
+ * propósito (ver nota no corpo do método).
  */
 export class TransmissionService {
   constructor(
@@ -73,7 +75,7 @@ export class TransmissionService {
     private readonly issuedNotes: IssuedNoteRepository,
     private readonly attempts: TransmissionAttemptRepository,
     private readonly provider: NationalNfseProvider,
-    private readonly certificate: CertificateSigningProvider,
+    private readonly certificates: CertificateMaterialProvider,
   ) {}
 
   async transmit(input: TransmitDraftInput): Promise<TransmitDraftResult> {
@@ -118,36 +120,30 @@ export class TransmissionService {
       throw new TransmissionEnvironmentBlockedError("Transmissão em produção está bloqueada nesta fase.");
     }
 
+    // Série precisa estar válida ANTES de reservar um número — nunca
+    // desperdiça um número de sequência por uma configuração incompleta.
     if (!issuerConfig.dpsSeries) throw new TransmissionValidationError(["Série da DPS (configuração do prestador)"]);
     if (!isValidDpsSeriesFormat(issuerConfig.dpsSeries)) {
       throw new TransmissionValidationError(["Série da DPS em formato inválido (1 a 5 dígitos numéricos)"]);
     }
-    if (draft.fiscal.issqnRate === undefined) {
-      throw new TransmissionValidationError(["Alíquota do ISSQN (configurar no perfil de serviço)"]);
-    }
-    // Algoritmo de assinatura NUNCA tem default assumido — ver
-    // signature.ts (ajuste de segurança: não há confirmação oficial
-    // conclusiva de qual é exigido). Bloqueia até o usuário escolher
-    // explicitamente na configuração do prestador.
-    if (!issuerConfig.signatureAlgorithm) {
-      throw new TransmissionValidationError(["Algoritmo de assinatura (configuração do prestador — ainda sem confirmação oficial, escolha pendente)"]);
-    }
 
-    // 6) confirmar certificado
-    if (!this.certificate.isConfigured()) throw new CertificateNotConfiguredError();
-    const keyMaterial = this.certificate.getSigningKeyMaterial();
+    // 6) confirmar certificado (só presença/metadata aqui — a chave
+    // privada só é decifrada mais tarde, imediatamente antes de assinar).
+    const certificateInfo = await this.certificates.getActiveInfo(issuerConfig.id);
+    if (!certificateInfo) throw new CertificateNotConfiguredError();
 
     // 7) reservar DPS (atômico — ver reserve_next_dps_number)
+    const dpsSeries = issuerConfig.dpsSeries;
     const dpsNumber = await this.dpsSequences.reserveNext({
       issuerConfigId: issuerConfig.id,
       environment,
-      series: issuerConfig.dpsSeries,
+      series: dpsSeries,
     });
     const dpsId = buildDpsId({
       ibgeCode: issuerConfig.ibgeCode,
       federalInscriptionType: "cnpj",
       federalInscription: issuerConfig.cnpj,
-      series: issuerConfig.dpsSeries,
+      series: dpsSeries,
       number: dpsNumber,
     });
 
@@ -160,25 +156,39 @@ export class TransmissionService {
       serviceValue: draft.serviceValue,
       serviceDescription: draft.serviceDescription,
       environment,
-      dpsSeries: issuerConfig.dpsSeries,
+      dpsSeries,
       dpsNumber,
     });
 
-    // 9) validar estruturalmente (mínima — ver validateDpsXmlStructure)
+    // 7) validar estruturalmente (mínima — ver validateDpsXmlStructure)
     const structuralCheck = validateDpsXmlStructure(xml);
     if (!structuralCheck.structurallyValid) {
       throw new TransmissionValidationError(structuralCheck.issues);
     }
 
-    // 10) assinar — algoritmo é o explicitamente configurado (nunca um default assumido, ver signature.ts).
+    // NOTA: a guarda central de prontidão (readiness.ts, inclui a
+    // validação XSD real) é exposta separadamente via `checkReadiness()`
+    // — pra UI mostrar "Emissão em homologação ainda não está pronta" +
+    // itens faltantes (item 7 da Parte 2B). NÃO é chamada aqui dentro:
+    // o bloqueio de uma chamada real à API nacional já é feito de forma
+    // incondicional e independente por `RealTransmissionNotReadyError`
+    // (ver national-nfse-provider.ts) — nunca duplicado/contornável
+    // aqui. Mantém esta orquestração testável com um provider fake,
+    // sem depender de o builder já ser 100% conforme ao XSD oficial
+    // (gap conhecido, ver dps-builder.ts).
+
+    // Certificado JÁ confirmado presente (passo 6) — SÓ AGORA decifra a chave privada (nunca antes).
+    const keyMaterial = await this.certificates.getActiveSigningMaterial(issuerConfig.id);
+    if (!keyMaterial) throw new CertificateNotConfiguredError();
+
+    // 13) assinar — perfil oficial fixo (NFSE_DPS_SIGNATURE_PROFILE em signature.ts).
     const signed = signDpsXml({
       xml,
       privateKeyPem: keyMaterial.privateKeyPem,
       certificatePem: keyMaterial.certificatePem,
-      signatureAlgorithm: issuerConfig.signatureAlgorithm,
     });
 
-    // 11) transmitir
+    // 14) transmitir
     const requestReference = randomUUID();
     let envelope;
     try {
@@ -194,7 +204,7 @@ export class TransmissionService {
       // tentativa).
       const attempt = await this.attempts.create({
         draftId: draft.id,
-        dpsSeries: issuerConfig.dpsSeries,
+        dpsSeries,
         dpsNumber,
         environment,
         status: "uncertain",
@@ -204,10 +214,10 @@ export class TransmissionService {
       return { outcome: "uncertain", attempt };
     }
 
-    // 12) interpretar resposta + 13) registrar tentativa
+    // 15) interpretar resposta + 16) registrar tentativa
     const authorization = parseAuthorizationResponse(envelope);
     if (authorization) {
-      // 14) AUTORIZADA — cria registro fiscal emitido.
+      // 17) AUTORIZADA — cria registro fiscal emitido.
       let issuedNote: NfseIssuedNote;
       try {
         issuedNote = await this.issuedNotes.create({
@@ -215,7 +225,7 @@ export class TransmissionService {
           issuerConfigId: issuerConfig.id,
           clientId: draft.clientId,
           environment,
-          dpsSeries: issuerConfig.dpsSeries,
+          dpsSeries,
           dpsNumber,
           dpsId,
           accessKey: authorization.accessKey,
@@ -238,7 +248,7 @@ export class TransmissionService {
 
       const attempt = await this.attempts.create({
         draftId: draft.id,
-        dpsSeries: issuerConfig.dpsSeries,
+        dpsSeries,
         dpsNumber,
         environment,
         status: "authorized",
@@ -250,11 +260,11 @@ export class TransmissionService {
       return { outcome: "authorized", issuedNote, attempt };
     }
 
-    // 15) REJEITADA — mantém rascunho como rascunho, nunca cria nota.
+    // 18) REJEITADA — mantém rascunho como rascunho, nunca cria nota.
     const rejection = parseRejectionResponse(envelope) ?? { code: "UNKNOWN", message: "Rejeitada sem detalhe." };
     const attempt = await this.attempts.create({
       draftId: draft.id,
-      dpsSeries: issuerConfig.dpsSeries,
+      dpsSeries,
       dpsNumber,
       environment,
       status: "rejected",
@@ -275,5 +285,52 @@ export class TransmissionService {
   /** Consulta a NFS-e pela chave de acesso (item 15). */
   consultNfseByAccessKey(accessKey: string, environment: "homologation" | "production" = "homologation"): Promise<string> {
     return this.provider.getNfseByAccessKey(accessKey, environment);
+  }
+
+  /**
+   * Guarda CENTRAL de prontidão pra UI (Parte 2B, item "Transmissão
+   * continua bloqueada") — monta a DPS de um rascunho específico e
+   * roda a validação XSD real contra ela, junto com o resto do
+   * checklist (readiness.ts). NUNCA reserva um número de DPS (só
+   * monta o XML com um número fictício "0" pra validação — a reserva
+   * real só acontece em `transmit()`). Resultado pensado pra exibir
+   * "Emissão em homologação ainda não está pronta" + a lista exata do
+   * que falta, nunca uma mensagem genérica.
+   */
+  async checkReadiness(draftId: string): Promise<{ ready: boolean; missing: string[] }> {
+    const draft = await this.drafts.getById(draftId);
+    if (!draft) return { ready: false, missing: ["Rascunho não encontrado"] };
+
+    const issuerConfig = await this.issuerConfigs.getCurrent();
+    const activeCertificate = issuerConfig ? await this.certificates.getActiveInfo(issuerConfig.id) : null;
+
+    let lastXsdValidationValid: boolean | null = null;
+    if (issuerConfig?.dpsSeries) {
+      const xml = buildDpsXml({
+        issuer: issuerConfig,
+        tomador: draft.tomador,
+        fiscal: draft.fiscal,
+        competencyDate: draft.competencyDate,
+        serviceValue: draft.serviceValue,
+        serviceDescription: draft.serviceDescription,
+        environment: "homologation",
+        dpsSeries: issuerConfig.dpsSeries,
+        dpsNumber: 1,
+      });
+      const xsdResult = await validateDpsAgainstOfficialXsd(xml);
+      lastXsdValidationValid = xsdResult.valid;
+    }
+
+    return checkHomologationReadiness({
+      issuerConfig,
+      activeCertificate,
+      lastXsdValidationValid,
+      // issqnRate foi removido do perfil de serviço (ajuste final Parte
+      // 2B — não é mais modelado nesta fase, ver @ir/types). `readiness.ts`
+      // não foi alterado (fora do escopo deste ajuste); `true` aqui só
+      // significa que este item não é mais um pré-requisito verificável.
+      issqnRateConfigured: true,
+      cTribNacConfigured: Boolean(draft.fiscal.cTribNac),
+    });
   }
 }

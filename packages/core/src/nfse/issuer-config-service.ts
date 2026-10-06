@@ -1,4 +1,4 @@
-import { isValidDpsSeriesFormat, NFSE_SUGGESTED_ISSUER_DEFAULTS, type NfseIssuerConfig, type NfseSignatureAlgorithmChoice } from "@ir/types";
+import { isValidDpsSeriesFormat, NFSE_SUGGESTED_ISSUER_DEFAULTS, type NfseIssuerConfig } from "@ir/types";
 import { onlyDigits } from "../clientes/client-validation";
 import { IssuerConfigValidationError, type IssuerConfigRepository, type NewIssuerConfigRecord } from "./issuer-config-repository";
 
@@ -18,7 +18,6 @@ export interface IssuerConfigInput {
   certificateValidUntil?: string;
   certificateReference?: string;
   dpsSeries?: string;
-  signatureAlgorithm?: NfseSignatureAlgorithmChoice;
   notes?: string;
 }
 
@@ -44,7 +43,6 @@ function normalize(input: IssuerConfigInput): NewIssuerConfigRecord {
     certificateValidUntil: input.certificateValidUntil || undefined,
     certificateReference: trimOrUndefined(input.certificateReference),
     dpsSeries: trimOrUndefined(input.dpsSeries),
-    signatureAlgorithm: input.signatureAlgorithm,
     notes: trimOrUndefined(input.notes),
   };
 }

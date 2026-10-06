@@ -1,5 +1,5 @@
 import type { DpsBuildInput } from "@ir/types";
-import { computeIssqnAmount } from "@ir/types";
+import { buildDpsId } from "@ir/types";
 
 /**
  * Builder determinístico da DPS (Parte 2A, item 6) — cobre só o
@@ -39,14 +39,29 @@ function federalInscriptionTag(kind: "individual" | "company", cpf: string | und
 /**
  * Monta o XML da DPS (ainda NÃO assinado) a partir dos dados já
  * existentes no rascunho/configuração — nunca inventa valor, alíquota
- * ou código fiscal. `computeIssqnAmount` só calcula o ISSQN quando a
- * alíquota foi explicitamente configurada; se não houver, o bloco de
- * valores de tributo fica incompleto DE PROPÓSITO (a validação
- * bloqueia a transmissão nesse caso, ver transmission-service.ts).
+ * ou código fiscal. AJUSTE FINAL (Parte 2B): `issqnRate`/`vISSQN`/
+ * `pAliq` foram removidos — a alíquota do ISSQN não é mais modelada
+ * como propriedade do perfil de serviço (ver @ir/types) até o
+ * mapeamento real do XSD/Simples Nacional existir; `valores` por ora
+ * só tem `vServPrest` (bloco de tributo fica incompleto DE PROPÓSITO).
  */
+/** TSDateTimeUTC (XSD oficial) exige offset explícito (ex.: "-03:00"), nunca "Z", e sem milissegundos. Assume America/Sao_Paulo (-03:00, sem horário de verão desde 2019) — único fuso usado pelo negócio (SC). */
+function formatDhEmi(date: Date): string {
+  const iso = date.toISOString().replace(/\.\d{3}Z$/, "");
+  return `${iso}-03:00`;
+}
+
 export function buildDpsXml(input: DpsBuildInput): string {
-  const issqnAmount = computeIssqnAmount(input.serviceValue, input.fiscal.issqnRate);
-  const dhEmi = new Date().toISOString();
+  const dhEmi = formatDhEmi(new Date());
+  // Id do infDPS (ver buildDpsId em @ir/types) — referenciado pela
+  // assinatura XML via Reference URI="#"+Id (ver signature.ts).
+  const dpsId = buildDpsId({
+    ibgeCode: input.issuer.ibgeCode,
+    federalInscriptionType: "cnpj",
+    federalInscription: input.issuer.cnpj,
+    series: input.dpsSeries,
+    number: input.dpsNumber,
+  });
 
   const prest = [
     tag("CNPJ", input.issuer.cnpj),
@@ -78,24 +93,35 @@ export function buildDpsXml(input: DpsBuildInput): string {
     tag("xDescServ", input.serviceDescription),
   ].join("");
 
-  const valores = [
-    tag("vServPrest", input.serviceValue.toFixed(2)),
-    issqnAmount !== undefined ? tag("vBC", input.serviceValue.toFixed(2)) + tag("pAliq", (input.fiscal.issqnRate ?? 0).toFixed(2)) + tag("vISSQN", issqnAmount.toFixed(2)) : "",
-  ].join("");
+  // vBC/pAliq/vISSQN removidos (ajuste final Parte 2B) — alíquota do
+  // ISSQN não é mais modelada no perfil de serviço (ver @ir/types).
+  const valores = [tag("vServPrest", input.serviceValue.toFixed(2))].join("");
 
+  // Ordem e campos conforme TCInfDPS (xsd/prodrest-v1.01-20260727/tiposComplexos_v1.01.xsd).
+  // NUNCA 100% completo ainda: `regTrib` (opSimpNac/regEspTrib, dentro de TCInfoPrestador)
+  // é obrigatório no XSD oficial e AINDA NÃO é gerado aqui — mapear o
+  // `taxRegime`/`specialTaxRegime` (texto livre do usuário) pros códigos
+  // enumerados exigidos (1-3 / 0-9) seria inventar uma regra fiscal sem
+  // confirmação, o que este projeto nunca faz. Por isso a validação XSD
+  // real (ver xsd-validator.ts) REJEITA a DPS gerada por este builder
+  // hoje — isso é esperado e é exatamente o que mantém a transmissão
+  // real bloqueada (ver readiness.ts) até esse campo ser modelado.
   const infDps = [
     tag("tpAmb", input.environment === "production" ? "1" : "2"),
     tag("dhEmi", dhEmi),
-    tag("dCompet", input.competencyDate),
+    tag("verAplic", "JornalIR-1.0"),
     tag("serie", input.dpsSeries),
     tag("nDPS", String(input.dpsNumber)),
+    tag("dCompet", input.competencyDate),
+    tag("tpEmit", "1"),
+    tag("cLocEmi", input.issuer.ibgeCode),
     `<prest>${prest}</prest>`,
     `<toma>${toma}</toma>`,
     `<serv>${serv}</serv>`,
     `<valores>${valores}</valores>`,
   ].join("");
 
-  return `<?xml version="1.0" encoding="UTF-8"?><DPS xmlns="http://www.sped.fazenda.gov.br/nfse"><infDPS>${infDps}</infDPS></DPS>`;
+  return `<?xml version="1.0" encoding="UTF-8"?><DPS xmlns="http://www.sped.fazenda.gov.br/nfse" versao="1.01"><infDPS Id="${dpsId}">${infDps}</infDPS></DPS>`;
 }
 
 export interface DpsXmlValidationResult {
@@ -118,7 +144,7 @@ export interface DpsXmlValidationResult {
  */
 export function validateDpsXmlStructure(xml: string): DpsXmlValidationResult {
   const issues: string[] = [];
-  const requiredElements = ["<DPS", "<infDPS>", "<prest>", "<toma>", "<serv>", "<valores>", "<tpAmb>", "<dCompet>", "<serie>", "<nDPS>", "<xDescServ>", "<vServPrest>"];
+  const requiredElements = ["<DPS", "<infDPS ", "<prest>", "<toma>", "<serv>", "<valores>", "<tpAmb>", "<dCompet>", "<serie>", "<nDPS>", "<xDescServ>", "<vServPrest>"];
   for (const element of requiredElements) {
     if (!xml.includes(element)) issues.push(`Elemento obrigatório ausente: ${element}`);
   }

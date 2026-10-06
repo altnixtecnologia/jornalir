@@ -5,7 +5,7 @@ import type { NewServiceProfileRecord, ServiceProfileChanges, ServiceProfileList
 const TABLE = "nfse_service_profiles";
 const COLUMNS =
   "id, name, active, c_trib_nac, c_trib_mun, c_nbs, default_location_municipality, default_location_ibge_code, " +
-  "issqn_taxation, issqn_rate, special_tax_regime, notes, created_by, updated_by, created_at, updated_at";
+  "issqn_taxation, special_tax_regime, notes, created_by, updated_by, created_at, updated_at";
 
 interface ServiceProfileRow {
   id: string;
@@ -17,7 +17,6 @@ interface ServiceProfileRow {
   default_location_municipality: string | null;
   default_location_ibge_code: string | null;
   issqn_taxation: string | null;
-  issqn_rate: number | null;
   special_tax_regime: string | null;
   notes: string | null;
   created_by: string | null;
@@ -37,7 +36,6 @@ function toDomain(row: ServiceProfileRow): NfseServiceProfile {
     defaultLocationMunicipality: row.default_location_municipality ?? undefined,
     defaultLocationIbgeCode: row.default_location_ibge_code ?? undefined,
     issqnTaxation: row.issqn_taxation ?? undefined,
-    issqnRate: row.issqn_rate !== null ? Number(row.issqn_rate) : undefined,
     specialTaxRegime: row.special_tax_regime ?? undefined,
     notes: row.notes ?? undefined,
     createdByProfileId: row.created_by ?? undefined,
@@ -57,7 +55,6 @@ function toRow(record: NewServiceProfileRecord | ServiceProfileChanges): Record<
   if (record.defaultLocationMunicipality !== undefined) row.default_location_municipality = record.defaultLocationMunicipality ?? null;
   if (record.defaultLocationIbgeCode !== undefined) row.default_location_ibge_code = record.defaultLocationIbgeCode ?? null;
   if (record.issqnTaxation !== undefined) row.issqn_taxation = record.issqnTaxation ?? null;
-  if (record.issqnRate !== undefined) row.issqn_rate = record.issqnRate ?? null;
   if (record.specialTaxRegime !== undefined) row.special_tax_regime = record.specialTaxRegime ?? null;
   if (record.notes !== undefined) row.notes = record.notes ?? null;
   return row;

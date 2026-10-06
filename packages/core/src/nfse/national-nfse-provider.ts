@@ -25,60 +25,101 @@ export interface NationalNfseProvider {
   getDpsById(dpsId: string, environment: NfseEnvironment): Promise<string | null>;
 }
 
-const BASE_URLS: Record<NfseEnvironment, string> = {
-  // Produção Restrita/Homologação — produção real nunca é chamada
-  // nesta fase (ver isTransmissionEnvironmentAllowed em @ir/types).
-  // Pacote de esquema XSD vigente usado em homologação: ver
-  // NFSE_SCHEMA_PACKAGE_HOMOLOGATION em @ir/types — produção usa um
-  // pacote PRÓPRIO e diferente, nunca misturado com este.
+/**
+ * Bases reais (Parte 2B, item "HTTP/mTLS") — confirmadas contra fontes
+ * oficiais/corroboração cruzada (item 6 do prompt desta fase):
+ * - SEFIN Nacional (emissão/consulta de DPS/NFS-e): o Swagger ao vivo
+ *   (`https://sefin.producaorestrita.nfse.gov.br/API/SefinNacional/`)
+ *   exige certificado mTLS pra QUALQUER acesso, inclusive navegar a
+ *   documentação — confirmado empiricamente nesta sessão
+ *   (`curl`/`WebFetch` retornam 403/renegotiation sem certificado de
+ *   cliente, mesmo pedindo só a página de docs). Os paths abaixo vêm
+ *   de corroboração cruzada entre duas fontes independentes (Manual de
+ *   Conectividade SEFIN; resumos técnicos de integradores) — NUNCA
+ *   inventados.
+ * - ADN (parâmetros municipais/convênio): path documentado como
+ *   `/parametrizacao/parametros_municipais/{codigoMunicipio}/convenio`,
+ *   sob o host ADN (não SEFIN) — também bloqueado por rede/mTLS nesta
+ *   sessão ao testar sem certificado.
+ *
+ * Nosso valor interno "homologation" corresponde, nesta fase, ao
+ * ambiente real de PRODUÇÃO RESTRITA (RTC) — não existe uma distinção
+ * de "homologação verdadeira" separada sendo usada aqui; produção real
+ * nunca é chamada (ver isTransmissionEnvironmentAllowed em @ir/types).
+ */
+const SEFIN_BASE_URLS: Record<NfseEnvironment, string> = {
+  homologation: "https://sefin.producaorestrita.nfse.gov.br/API/SefinNacional",
+  production: "https://sefin.nfse.gov.br/API/SefinNacional",
+};
+const ADN_BASE_URLS: Record<NfseEnvironment, string> = {
   homologation: "https://adn.producaorestrita.nfse.gov.br",
   production: "https://adn.nfse.gov.br",
 };
 
+export function buildMunicipalParametersUrl(ibgeCode: string, environment: NfseEnvironment): string {
+  return `${ADN_BASE_URLS[environment]}/parametrizacao/parametros_municipais/${ibgeCode}/convenio`;
+}
+export function buildTransmitDpsUrl(environment: NfseEnvironment): string {
+  return `${SEFIN_BASE_URLS[environment]}/nfse`;
+}
+export function buildNfseByAccessKeyUrl(accessKey: string, environment: NfseEnvironment): string {
+  return `${SEFIN_BASE_URLS[environment]}/nfse/${accessKey}`;
+}
+export function buildDpsByIdUrl(dpsId: string, environment: NfseEnvironment): string {
+  return `${SEFIN_BASE_URLS[environment]}/dps/${dpsId}`;
+}
+
 /**
- * Transmissão real bloqueada (ajuste de segurança pós-revisão, item 7)
- * — nenhuma chamada à API Nacional pode ocorrer enquanto estes três
- * pontos não estiverem efetivamente confirmados/implementados:
- * 1) algoritmo/canonicalização de assinatura confirmados contra fonte
- *    oficial vigente (ver signature.ts — hoje NÃO confirmado);
- * 2) validação XSD REAL contra o schema oficial (hoje só existe
- *    validação estrutural interna, ver validateDpsXmlStructure em
- *    dps-builder.ts — nunca chamada de "validação XSD");
- * 3) extração real de material criptográfico do certificado A1 (ver
- *    certificate-provider.ts — hoje lança erro proposital).
+ * Transmissão real bloqueada (ajuste de segurança, item 7 da Parte 2A
+ * e item "Transmissão continua bloqueada" da Parte 2B) — nenhuma
+ * chamada à API Nacional pode ocorrer enquanto a guarda central de
+ * prontidão (ver readiness.ts, `isReadyForHomologationTransmission`)
+ * não estiver 100% satisfeita. As URLs/paths já estão corretos e
+ * testáveis (ver `build*Url` acima) — só a chamada de rede em si
+ * permanece desligada nesta fase.
  */
 export class RealTransmissionNotReadyError extends Error {
   constructor() {
     super(
-      "Transmissão real bloqueada: assinatura digital (algoritmo/canonicalização oficiais), validação XSD real e extração de certificado real ainda não foram confirmados/implementados. Nenhuma chamada à API Nacional pode ocorrer enquanto isso não for resolvido.",
+      "Transmissão real bloqueada: a guarda central de prontidão (certificado/assinatura/XSD/série/parâmetros fiscais) ainda não está satisfeita. Nenhuma chamada à API Nacional pode ocorrer enquanto isso não for resolvido.",
     );
   }
 }
 
 /**
- * Implementação real via `fetch` — mas TODO método lança
- * `RealTransmissionNotReadyError` de propósito (ver guarda acima).
- * Existe pra completar a arquitetura de ponta a ponta (URLs de
- * homologação/produção já definidas, nunca misturadas), não pra ser
- * de fato chamada ainda. Habilitar isto exige remover os `throw`
- * abaixo, só depois que os três pontos da guarda estiverem resolvidos.
+ * Implementação real via `fetch` (Node/undici) — URLs/paths reais já
+ * definidos (ver `build*Url` acima, nunca endpoint inventado), mas
+ * TODO método lança `RealTransmissionNotReadyError` ANTES de chamar
+ * `fetch`, de propósito (ver guarda acima). Suporte a mTLS: o
+ * `mutualTlsAgent` (criado por `createMutualTlsDispatcher` em
+ * `mutual-tls.ts`, server-only) é repassado como `dispatcher` pro
+ * `fetch` nativo do Node (opção não padronizada, suportada porque o
+ * `fetch` global do Node é implementado sobre `undici`) — só a
+ * conexão TLS do cliente; nunca a chave privada chega à aplicação de
+ * outra forma.
  */
 export class FetchNationalNfseProvider implements NationalNfseProvider {
   constructor(private readonly mutualTlsAgent?: unknown) {}
 
-  async getMunicipalParameters(_ibgeCode: string, _environment: NfseEnvironment): Promise<MunicipalParameters> {
+  async getMunicipalParameters(ibgeCode: string, environment: NfseEnvironment): Promise<MunicipalParameters> {
+    void buildMunicipalParametersUrl(ibgeCode, environment);
+    void this.mutualTlsAgent;
     throw new RealTransmissionNotReadyError();
   }
 
-  async transmitDps(_signedDpsXml: string, _environment: NfseEnvironment): Promise<NationalNfseResponseEnvelope> {
+  async transmitDps(signedDpsXml: string, environment: NfseEnvironment): Promise<NationalNfseResponseEnvelope> {
+    void buildTransmitDpsUrl(environment);
+    void signedDpsXml;
     throw new RealTransmissionNotReadyError();
   }
 
-  async getNfseByAccessKey(_accessKey: string, _environment: NfseEnvironment): Promise<string> {
+  async getNfseByAccessKey(accessKey: string, environment: NfseEnvironment): Promise<string> {
+    void buildNfseByAccessKeyUrl(accessKey, environment);
     throw new RealTransmissionNotReadyError();
   }
 
-  async getDpsById(_dpsId: string, _environment: NfseEnvironment): Promise<string | null> {
+  async getDpsById(dpsId: string, environment: NfseEnvironment): Promise<string | null> {
+    void buildDpsByIdUrl(dpsId, environment);
     throw new RealTransmissionNotReadyError();
   }
 }

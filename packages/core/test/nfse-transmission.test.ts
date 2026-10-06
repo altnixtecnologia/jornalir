@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { generateKeyPairSync } from "node:crypto";
-import type { NfseDraft, NfseIssuerConfig, NfseIssuedNote, NfseTransmissionAttempt } from "@ir/types";
+import forge from "node-forge";
+import type { NfseCertificateInfo, NfseDraft, NfseIssuerConfig, NfseIssuedNote, NfseTransmissionAttempt } from "@ir/types";
 import type {
   DraftRepository,
   DpsSequenceRepository,
@@ -19,7 +19,7 @@ import {
   CertificateNotConfiguredError,
   TransmissionService,
   TransmissionValidationError,
-  type CertificateSigningProvider,
+  type CertificateMaterialProvider,
 } from "../src/nfse/transmission-service";
 
 function makeDraft(overrides: Partial<NfseDraft> = {}): NfseDraft {
@@ -29,7 +29,7 @@ function makeDraft(overrides: Partial<NfseDraft> = {}): NfseDraft {
     clientId: "client-1",
     tomador: { sourceClientId: "client-1", kind: "individual", name: "Maria Souza", cpf: "11144477735", city: "São João do Sul", state: "SC" },
     serviceProfileId: "profile-1",
-    fiscal: { sourceServiceProfileId: "profile-1", cTribNac: "010101", issqnRate: 5 },
+    fiscal: { sourceServiceProfileId: "profile-1", cTribNac: "010101" },
     competencyDate: "2026-10-01",
     serviceValue: 200,
     serviceDescription: "Veiculação de anúncio",
@@ -53,9 +53,6 @@ function makeIssuerConfig(overrides: Partial<NfseIssuerConfig> = {}): NfseIssuer
     certificateType: "a1",
     certificateStatus: "configured",
     dpsSeries: "1",
-    // Escolha de TESTE pra exercitar o resto do fluxo — nunca afirma
-    // que este é o algoritmo oficialmente exigido (ver signature.ts).
-    signatureAlgorithm: "rsa-sha256",
     createdAt: "2026-01-01T00:00:00Z",
     updatedAt: "2026-01-01T00:00:00Z",
     ...overrides,
@@ -153,20 +150,52 @@ class FakeNationalNfseProvider implements NationalNfseProvider {
   }
 }
 
-function makeConfiguredCertificateProvider(): CertificateSigningProvider {
-  const { privateKey } = generateKeyPairSync("rsa", { modulusLength: 2048 });
-  const privateKeyPem = privateKey.export({ type: "pkcs1", format: "pem" }).toString();
+const FAKE_CERTIFICATE_INFO: NfseCertificateInfo = {
+  id: "cert-1",
+  subjectCnpj: "23970969000190",
+  subjectName: "TESTE",
+  issuerName: "AC TESTE",
+  serialNumber: "01",
+  validFrom: "2026-01-01T00:00:00Z",
+  validUntil: "2030-01-01T00:00:00Z",
+  active: true,
+  createdAt: "2026-01-01T00:00:00Z",
+};
+
+/** Chave/certificado de TESTE (node-forge, autoassinado) — nunca um certificado real. */
+function makeTestKeyAndCert(): { privateKeyPem: string; certificatePem: string } {
+  const keys = forge.pki.rsa.generateKeyPair(2048);
+  const cert = forge.pki.createCertificate();
+  cert.publicKey = keys.publicKey;
+  cert.serialNumber = "01";
+  cert.validity.notBefore = new Date();
+  cert.validity.notAfter = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000);
+  const attrs = [{ name: "commonName", value: "TESTE:23970969000190" }];
+  cert.setSubject(attrs);
+  cert.setIssuer(attrs);
+  cert.sign(keys.privateKey, forge.md.sha256.create());
+  return { privateKeyPem: forge.pki.privateKeyToPem(keys.privateKey), certificatePem: forge.pki.certificateToPem(cert) };
+}
+
+function makeConfiguredCertificateProvider(): CertificateMaterialProvider {
+  const { privateKeyPem, certificatePem } = makeTestKeyAndCert();
   return {
-    isConfigured: () => true,
-    getSigningKeyMaterial: () => ({ privateKeyPem, certificatePem: "-----BEGIN CERTIFICATE-----\nZmFrZQ==\n-----END CERTIFICATE-----" }),
+    async getActiveInfo() {
+      return FAKE_CERTIFICATE_INFO;
+    },
+    async getActiveSigningMaterial() {
+      return { privateKeyPem, certificatePem };
+    },
   };
 }
 
-function makeUnconfiguredCertificateProvider(): CertificateSigningProvider {
+function makeUnconfiguredCertificateProvider(): CertificateMaterialProvider {
   return {
-    isConfigured: () => false,
-    getSigningKeyMaterial: () => {
-      throw new Error("Certificado não configurado.");
+    async getActiveInfo() {
+      return null;
+    },
+    async getActiveSigningMaterial() {
+      return null;
     },
   };
 }
@@ -239,24 +268,10 @@ test("confirma owner/admin antes de qualquer outra etapa", async () => {
   assert.equal(dpsSequences.calls, 0);
 });
 
-test("rascunho incompleto (sem alíquota ISSQN configurada) bloqueia a transmissão", async () => {
-  const draft = makeDraft({ fiscal: { sourceServiceProfileId: "profile-1", cTribNac: "010101" } });
-  const { service, dpsSequences } = makeService({ draft, providerBehavior: "authorize" });
-  await assert.rejects(() => service.transmit({ draftId: "draft-1", isAdminOrOwner: true }));
-  assert.equal(dpsSequences.calls, 0);
-});
-
 test("série da DPS ausente na configuração bloqueia a transmissão", async () => {
   const issuerConfig = makeIssuerConfig({ dpsSeries: undefined });
   const { service, dpsSequences } = makeService({ issuerConfig, providerBehavior: "authorize" });
   await assert.rejects(() => service.transmit({ draftId: "draft-1", isAdminOrOwner: true }));
-  assert.equal(dpsSequences.calls, 0);
-});
-
-test("ajuste de segurança: algoritmo de assinatura ausente bloqueia a transmissão — nunca assume um default", async () => {
-  const issuerConfig = makeIssuerConfig({ signatureAlgorithm: undefined });
-  const { service, dpsSequences } = makeService({ issuerConfig, providerBehavior: "authorize" });
-  await assert.rejects(() => service.transmit({ draftId: "draft-1", isAdminOrOwner: true }), TransmissionValidationError);
   assert.equal(dpsSequences.calls, 0);
 });
 
@@ -286,4 +301,22 @@ test("ajuste de segurança: bloqueio do provider real nunca é tratado como 'unc
   await assert.rejects(() => service.transmit({ draftId: "draft-1", isAdminOrOwner: true }), RealTransmissionNotReadyError);
   assert.equal(attempts.created.length, 0);
   assert.equal(issuedNotes.created.length, 0);
+});
+
+// Parte 2B — guarda central de prontidão (readiness.ts), exposta via checkReadiness().
+
+test("checkReadiness: certificado configurado mas DPS ainda não passa XSD real -> ready=false com o motivo exato", async () => {
+  const { service, dpsSequences } = makeService({ providerBehavior: "authorize" });
+  const readiness = await service.checkReadiness("draft-1");
+  assert.equal(readiness.ready, false);
+  assert.ok(readiness.missing.some((item) => item.includes("XSD")));
+  // checkReadiness nunca reserva um número de DPS de verdade.
+  assert.equal(dpsSequences.calls, 0);
+});
+
+test("checkReadiness: sem certificado configurado -> lista o certificado como faltante", async () => {
+  const { service } = makeService({ providerBehavior: "authorize", certificateConfigured: false });
+  const readiness = await service.checkReadiness("draft-1");
+  assert.equal(readiness.ready, false);
+  assert.ok(readiness.missing.some((item) => item.includes("Certificado")));
 });

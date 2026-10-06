@@ -8,7 +8,7 @@ function makeInput(overrides: Partial<DpsBuildInput> = {}): DpsBuildInput {
   return {
     issuer: { companyName: "INFORMATIVO REGIONAL LTDA", cnpj: "23970969000190", municipalRegistration: "1000546", ibgeCode: "4216404", municipality: "São João do Sul", state: "SC" },
     tomador: { sourceClientId: "client-1", kind: "individual", name: "Maria Souza", cpf: "11144477735", city: "São João do Sul", state: "SC" },
-    fiscal: { cTribNac: "010101", issqnRate: 5 },
+    fiscal: { cTribNac: "010101" },
     competencyDate: "2026-10-01",
     serviceValue: 150.5,
     serviceDescription: "Veiculação de anúncio publicitário em outubro/2026",
@@ -46,14 +46,10 @@ test("buildDpsXml é determinístico para os mesmos dados de entrada (exceto dhE
   assert.equal(xmlA, xmlB);
 });
 
-test("buildDpsXml nunca inventa alíquota/ISSQN quando issqnRate não foi configurado", () => {
-  const xml = buildDpsXml(makeInput({ fiscal: { cTribNac: "010101" } }));
+test("buildDpsXml nunca inclui vISSQN/pAliq — alíquota do ISSQN não é mais modelada no perfil de serviço (ajuste final Parte 2B)", () => {
+  const xml = buildDpsXml(makeInput());
   assert.ok(!xml.includes("<vISSQN>"));
-});
-
-test("buildDpsXml calcula vISSQN só quando issqnRate foi explicitamente configurado", () => {
-  const xml = buildDpsXml(makeInput({ serviceValue: 200, fiscal: { cTribNac: "010101", issqnRate: 5 } }));
-  assert.ok(xml.includes("<vISSQN>10.00</vISSQN>"));
+  assert.ok(!xml.includes("<pAliq>"));
 });
 
 test("validateDpsXmlStructure aprova um XML completo e reprova um incompleto", () => {
@@ -65,14 +61,15 @@ test("validateDpsXmlStructure aprova um XML completo e reprova um incompleto", (
   assert.ok(result.issues.length > 0);
 });
 
-test("buildDpsId monta os 42 caracteres na ordem município+tipo+inscrição+série+número", () => {
+test("buildDpsId monta os 45 caracteres: literal DPS + município+tipo+inscrição+série+número (confirmado contra TSIdDPS no XSD oficial)", () => {
   const id = buildDpsId({ ibgeCode: "4216404", federalInscriptionType: "cnpj", federalInscription: "23970969000190", series: "1", number: 42 });
-  assert.equal(id.length, 42);
-  assert.equal(id.slice(0, 7), "4216404");
-  assert.equal(id.slice(7, 8), "2");
-  assert.equal(id.slice(8, 22), "23970969000190");
-  assert.equal(id.slice(22, 27), "00001");
-  assert.equal(id.slice(27, 42), "000000000000042");
+  assert.equal(id.length, 45);
+  assert.equal(id.slice(0, 3), "DPS");
+  assert.equal(id.slice(3, 10), "4216404");
+  assert.equal(id.slice(10, 11), "2");
+  assert.equal(id.slice(11, 25), "23970969000190");
+  assert.equal(id.slice(25, 30), "00001");
+  assert.equal(id.slice(30, 45), "000000000000042");
 });
 
 test("isValidDpsSeriesFormat só valida formato (até 5 dígitos numéricos) — nenhuma faixa semântica não confirmada", () => {
