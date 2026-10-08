@@ -82,8 +82,8 @@ export default async function HomePage(): Promise<JSX.Element> {
 
         {/* "Mais destaques" sai da coluna central estreita (entre as duas
             colunas de publicidade) e passa a ocupar a largura total do
-            site-shell — grid 3×2 precisa desse espaço para não comprimir
-            os 6 cards (Fase de revisão dos destaques, item E). */}
+            site-shell — espaço melhor aproveitado pelo grid 2×2 de 4
+            matérias (revisão visual do portal público). */}
         <hr className="divider mt-10" />
         <div className="pt-10">
           <PublicLocalSpotlight items={localSpotlight} />

@@ -26,7 +26,11 @@ export function PublicReadAlsoCard({ item }: { item: PublicArticle }): JSX.Eleme
         )}
       </div>
       <p className="kicker mt-3">{item.sectionName}</p>
-      <h3 className="mt-1 font-editorial text-base font-bold leading-tight text-[color:var(--site-text)] transition group-hover:text-[color:var(--brand-red)]">
+      {/* line-clamp aqui é intencional (card secundário/leve, 4 por linha)
+          — nunca no título do hero (ver PublicFeaturedHero.tsx), só pra
+          manter os 4 cards com a mesma altura mesmo com títulos de
+          tamanhos diferentes. */}
+      <h3 className="mt-1 line-clamp-2 font-editorial text-base font-bold leading-tight text-[color:var(--site-text)] transition group-hover:text-[color:var(--brand-red)]">
         {item.title}
       </h3>
       <p className="mt-2 text-[11px] font-semibold uppercase tracking-wider text-[color:var(--site-muted)]">
