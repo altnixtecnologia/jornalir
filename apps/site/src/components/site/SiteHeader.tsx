@@ -320,7 +320,22 @@ export function SiteHeader({ active }: { active?: string } = {}): JSX.Element {
         </div>
       </div>
 
-      <div className={`ir-mobile-layer lg:hidden ${open ? "is-open" : ""}`}>
+      {/* Fase 1 (acabamento do menu mobile): fechado, este container já fica
+          fora da tela visualmente (opacity/transform em .ir-mobile-layer/
+          .ir-mobile-menu) — mas sem isto o backdrop e os links do painel
+          continuavam alcançáveis por Tab e visíveis pra leitores de tela.
+          `inert` tira os dois do tab-order e da árvore de acessibilidade de
+          uma vez só, no container (nunca espalhado por link/botão filho);
+          `aria-hidden` reforça pra leitores de tela que ainda não suportam
+          `inert`. Nenhum dos dois usa `display:none` — a transição de
+          transform/opacity já existente continua intacta. `@types/react`
+          18 ainda não tipa `inert` como atributo JSX — por isso o spread
+          tipado como `any` só para este atributo específico. */}
+      <div
+        className={`ir-mobile-layer lg:hidden ${open ? "is-open" : ""}`}
+        aria-hidden={!open}
+        {...({ inert: open ? undefined : "" } as Record<string, unknown>)}
+      >
         <button type="button" aria-label="Fechar menu" className="ir-mobile-backdrop" onClick={() => setOpen(false)} />
         <div id="ir-mobile-menu-panel" ref={mobilePanelRef} className="ir-mobile-menu" role="dialog" aria-modal="true" aria-label="Menu">
           <div className="mb-4 flex items-center justify-between">
