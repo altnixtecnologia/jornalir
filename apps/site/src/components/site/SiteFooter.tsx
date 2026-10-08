@@ -18,10 +18,14 @@ export async function SiteFooter(): Promise<JSX.Element> {
 
   return (
     <footer className="site-footer">
-      <div className="site-shell grid grid-cols-2 gap-x-6 gap-y-6 py-8 md:grid-cols-5">
+      <div className="site-shell grid grid-cols-2 gap-x-6 gap-y-8 py-8 md:grid-cols-5">
         <div className="col-span-2 md:col-span-1">
           <img src="/brand/logo-ir.png" alt="Informativo Regional" style={{ height: 28, width: "auto", display: "block" }} />
-          <p className="mt-3 max-w-[200px] text-sm text-[color:var(--site-muted)]">O jornal da sua região — cobertura da costa sul de Santa Catarina e litoral norte do Rio Grande do Sul.</p>
+          {/* max-w-[200px] só faz sentido quando esta coluna É estreita
+              (1/5 do grid, a partir de md) — no mobile ela ocupa a largura
+              cheia (col-span-2) e o limite deixava o texto encolhido/
+              quebrando sem necessidade. */}
+          <p className="mt-3 max-w-none text-sm text-[color:var(--site-muted)] md:max-w-[200px]">O jornal da sua região — cobertura da costa sul de Santa Catarina e litoral norte do Rio Grande do Sul.</p>
         </div>
 
         <div>

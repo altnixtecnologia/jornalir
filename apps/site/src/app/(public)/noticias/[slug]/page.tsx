@@ -41,12 +41,16 @@ export default async function NoticiaDetalhePage({ params }: { params: { slug: s
               <span aria-hidden="true">←</span> Voltar para {current.sectionSlug ? current.sectionName : "Notícias"}
             </Link>
 
-            <p className="kicker">{current.sectionName}</p>
-            <h1 className="article-title mt-3 font-editorial text-[clamp(28px,4.6vw,52px)] font-bold leading-[1.08] text-[color:var(--site-text)]">
-              {current.title}
-            </h1>
-
+            {/* Revisão de largura de leitura: título/subtítulo/metadados/corpo
+                agora vivem na MESMA coluna (max-w-3xl) — antes o título ficava
+                fora, podendo se esticar mais largo que o resto do texto em
+                telas largas (xl/2xl), quebrando a leitura em dois larguras
+                diferentes. */}
             <div className="mx-auto w-full max-w-3xl">
+              <p className="kicker">{current.sectionName}</p>
+              <h1 className="article-title mt-3 font-editorial text-[clamp(28px,4.6vw,52px)] font-bold leading-[1.08] text-[color:var(--site-text)]">
+                {current.title}
+              </h1>
               {current.subtitle ? (
                 <p className="mt-4 text-lg leading-snug text-[color:var(--site-muted)] md:text-xl">{current.subtitle}</p>
               ) : null}

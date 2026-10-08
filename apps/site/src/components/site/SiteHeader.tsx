@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { MouseEvent } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { socialLinks } from "./siteSettings";
@@ -97,12 +97,62 @@ export function SiteHeader({ active }: { active?: string } = {}): JSX.Element {
   const pathname = usePathname();
   const router = useRouter();
   const { sectionLinks, allNavLinks } = useHeaderSections();
+  const mobileTriggerRef = useRef<HTMLButtonElement>(null);
+  const mobilePanelRef = useRef<HTMLDivElement>(null);
+  const wasOpenRef = useRef(false);
 
   useEffect(() => {
     document.body.style.overflow = open ? "hidden" : "";
     return () => {
       document.body.style.overflow = "";
     };
+  }, [open]);
+
+  // Auditoria de acessibilidade do menu mobile (coerência com
+  // role="dialog"/aria-modal): foco entra no painel ao abrir, Tab/Shift+Tab
+  // ficam presos dentro dele enquanto aberto (nunca escapam pros links da
+  // página por trás, que continuam no DOM só visualmente cobertos), Escape
+  // fecha, e o foco volta pro botão que abriu ao fechar (efeito abaixo).
+  useEffect(() => {
+    if (!open) return;
+    const panel = mobilePanelRef.current;
+    if (!panel) return;
+
+    function getFocusable(): HTMLElement[] {
+      return Array.from(panel!.querySelectorAll<HTMLElement>('a[href], button:not([disabled]), [tabindex]:not([tabindex="-1"])'));
+    }
+
+    getFocusable()[0]?.focus();
+
+    function handleKeyDown(event: KeyboardEvent): void {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        setOpen(false);
+        return;
+      }
+      if (event.key !== "Tab") return;
+      const items = getFocusable();
+      if (items.length === 0) return;
+      const first = items[0];
+      const last = items[items.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    }
+
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [open]);
+
+  useEffect(() => {
+    if (wasOpenRef.current && !open) {
+      mobileTriggerRef.current?.focus();
+    }
+    wasOpenRef.current = open;
   }, [open]);
 
   function goBack(): void {
@@ -150,10 +200,14 @@ export function SiteHeader({ active }: { active?: string } = {}): JSX.Element {
           <Link href="/" aria-label="Informativo Regional" className="hidden shrink-0 lg:inline-flex lg:items-center">
             <img src="/brand/logo-escrita.png" alt="Informativo Regional" style={{ height: 72, width: "auto" }} />
           </Link>
-          {/* Mobile/tablet: símbolo oficial (transparente) + nome — melhor aproveitamento do espaço reduzido. */}
-          <Link href="/" aria-label="Informativo Regional" className="brand-mark lg:hidden">
+          {/* Mobile/tablet: símbolo oficial (transparente) + nome — melhor
+              aproveitamento do espaço reduzido. `min-w-0` + o CSS de
+              `.brand-mark-name strong` (nowrap/ellipsis) evitam que o nome
+              quebre em duas linhas feias quando o espaço fica curto ao lado
+              dos botões de voltar/menu. */}
+          <Link href="/" aria-label="Informativo Regional" className="brand-mark min-w-0 lg:hidden">
             <img src="/brand/logo-ir.png" alt="" />
-            <span className="brand-mark-name">
+            <span className="brand-mark-name min-w-0">
               <strong>Informativo Regional</strong>
             </span>
           </Link>
@@ -251,8 +305,11 @@ export function SiteHeader({ active }: { active?: string } = {}): JSX.Element {
             ←
           </button>
           <button
+            ref={mobileTriggerRef}
             type="button"
             aria-label={open ? "Fechar menu" : "Abrir menu"}
+            aria-expanded={open}
+            aria-controls="ir-mobile-menu-panel"
             className={`ir-mobile-trigger lg:hidden ${open ? "is-open" : ""}`}
             onClick={() => setOpen((v) => !v)}
           >
@@ -265,7 +322,7 @@ export function SiteHeader({ active }: { active?: string } = {}): JSX.Element {
 
       <div className={`ir-mobile-layer lg:hidden ${open ? "is-open" : ""}`}>
         <button type="button" aria-label="Fechar menu" className="ir-mobile-backdrop" onClick={() => setOpen(false)} />
-        <div className="ir-mobile-menu">
+        <div id="ir-mobile-menu-panel" ref={mobilePanelRef} className="ir-mobile-menu" role="dialog" aria-modal="true" aria-label="Menu">
           <div className="mb-4 flex items-center justify-between">
             <span className="brand-chip">
               <img src="/brand/logo-ir.png" alt="Informativo Regional" width={28} height={28} style={{ height: 22, width: "auto" }} />

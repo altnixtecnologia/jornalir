@@ -547,18 +547,30 @@ body {
   display: inline-flex;
   align-items: center;
   gap: 10px;
+  min-width: 0;
 }
 .brand-mark img {
   display: block;
   height: 34px;
   width: auto;
+  flex-shrink: 0;
 }
 .brand-mark-name {
   display: flex;
   flex-direction: column;
+  justify-content: center;
   line-height: 1;
+  min-width: 0;
 }
+/* Revisão do header (responsividade): em telas bem estreitas, com o botão
+   de voltar + o de abrir o menu disputando espaço do outro lado, o nome
+   "Informativo Regional" podia quebrar em duas linhas desalinhadas. Nunca
+   quebra — encolhe pra "…" antes disso. */
 .brand-mark-name strong {
+  display: block;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
   font-family: var(--font-headline), Georgia, serif;
   font-size: 16px;
   font-weight: 800;
