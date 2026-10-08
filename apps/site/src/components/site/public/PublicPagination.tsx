@@ -50,7 +50,7 @@ export function PublicPagination({
   }
 
   return (
-    <nav className="mt-10 border-t border-[color:var(--site-border)] pt-6" aria-label="Paginação">
+    <nav className="mt-10 border-t border-[color:var(--site-line)] pt-6" aria-label="Paginação">
       <div className="flex flex-wrap items-center justify-center gap-1 sm:gap-1.5">
         <PageLink href={hrefFor(currentPage - 1)} disabled={!hasPrev} ariaLabel="Página anterior">
           ‹
@@ -117,7 +117,7 @@ function PageLink({
   ariaLabel?: string;
   children: React.ReactNode;
 }): JSX.Element {
-  const base = "flex h-8 min-w-8 items-center justify-center rounded-full px-2 text-sm font-semibold transition";
+  const base = "flex h-8 min-w-8 items-center justify-center rounded-full px-2 text-sm font-semibold transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--brand-navy)]";
   if (disabled) {
     return (
       <span className={`${base} cursor-not-allowed text-[color:var(--site-muted)]/40`} aria-hidden="true">
@@ -133,7 +133,7 @@ function PageLink({
       className={`${base} ${
         active
           ? "bg-[color:var(--brand-red)] text-white"
-          : "text-[color:var(--site-text)] hover:bg-[color:var(--site-border)]/40"
+          : "text-[color:var(--site-text)] hover:bg-[color:var(--site-line)]/40"
       }`}
     >
       {children}

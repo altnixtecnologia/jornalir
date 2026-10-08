@@ -1,10 +1,9 @@
 "use client";
 
-import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
 import { SiteHeader } from "../../../components/site/SiteHeader";
-import { formatDateBR } from "../../../components/site/date";
+import { PublicReadAlsoCard } from "../../../components/site/public/PublicReadAlsoCard";
 import { listPublicArticlesPage } from "../../../lib/public/publicContentService";
 import type { PublicArticle } from "../../../lib/public/types";
 import { PAGE_SIZE_OPTIONS, DEFAULT_PAGE_SIZE, parsePage, parsePageSize, clampJumpPage, getPageBlock } from "../../../lib/public/pagination";
@@ -22,7 +21,7 @@ export default function BuscaPage(): JSX.Element {
   return (
     <Suspense
       fallback={
-        <main className="min-h-screen bg-stone-100 dark:bg-zinc-950">
+        <main className="min-h-screen">
           <SiteHeader />
         </main>
       }
@@ -118,36 +117,36 @@ function BuscaContent(): JSX.Element {
   }, [q, page, pageSize]);
 
   return (
-    <main className="min-h-screen bg-stone-100 dark:bg-zinc-950">
+    <main className="min-h-screen">
       <SiteHeader />
-      <section className="site-shell py-7">
-        <h1 className="font-editorial text-4xl">Busca no Site</h1>
+      <section className="site-shell py-8">
+        <h1 className="font-editorial text-3xl font-bold text-[color:var(--site-text)] md:text-4xl">Busca no Site</h1>
         <input
           value={queryInput}
           onChange={(e) => setQueryInput(e.target.value)}
           placeholder="Buscar em todo o site"
-          className="mt-4 w-full rounded-lg border border-zinc-300 px-4 py-3 text-lg dark:border-zinc-700 dark:bg-zinc-900"
+          className="mt-4 w-full rounded-lg border border-[color:var(--site-line)] bg-[color:var(--site-surface)] px-4 py-3 text-lg text-[color:var(--site-text)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--brand-navy)]"
         />
 
-        {state === "loading" ? <p className="mt-4 text-sm text-zinc-500">Carregando…</p> : null}
+        {state === "loading" ? <p className="mt-4 text-sm text-[color:var(--site-muted)]">Carregando…</p> : null}
         {state === "error" ? (
-          <p className="mt-4 text-sm text-red-600">Não foi possível carregar as matérias agora. Tente novamente em instantes.</p>
+          <p className="mt-4 text-sm text-[color:var(--brand-red)]">Não foi possível carregar as matérias agora. Tente novamente em instantes.</p>
         ) : null}
         {state === "ready" ? (
           <>
             <div className="mt-2 flex items-center justify-between">
-              <p className="text-sm text-zinc-500">
+              <p className="text-sm text-[color:var(--site-muted)]">
                 {total} resultado(s){q ? ` para "${q}"` : ""}
               </p>
-              <div className="inline-flex overflow-hidden rounded-full border border-zinc-300 text-xs dark:border-zinc-700">
+              <div className="inline-flex overflow-hidden rounded-full border border-[color:var(--site-line)] text-xs">
                 {PAGE_SIZE_OPTIONS.map((size) => (
                   <button
                     key={size}
                     type="button"
                     onClick={() => navigate({ pageSize: size, page: 1 }, "push")}
                     aria-current={size === pageSize ? "true" : undefined}
-                    className={`px-3 py-1 font-semibold transition ${
-                      size === pageSize ? "bg-[color:var(--brand-red)] text-white" : "text-zinc-500 hover:bg-zinc-200 dark:hover:bg-zinc-800"
+                    className={`px-3 py-1 font-semibold transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--brand-navy)] ${
+                      size === pageSize ? "bg-[color:var(--brand-red)] text-white" : "text-[color:var(--site-muted)] hover:bg-[color:var(--site-line)]/40"
                     }`}
                   >
                     {size}
@@ -156,29 +155,23 @@ function BuscaContent(): JSX.Element {
               </div>
             </div>
 
+            {/* Card/grid alinhados com /noticias e /editoria/[slug] (2B —
+                "parecer claramente parte do mesmo portal"): mesmo
+                PublicReadAlsoCard, mesma grade — antes a busca tinha um
+                card e uma lista vertical só seus, sem foto. */}
             {items.length === 0 ? (
-              <p className="mt-6 text-sm text-zinc-500">Nenhuma matéria encontrada.</p>
+              <p className="mt-6 text-sm text-[color:var(--site-muted)]">Nenhuma matéria encontrada.</p>
             ) : (
-              <div className="mt-5 space-y-3">
+              <div className="mt-6 grid grid-cols-2 gap-x-6 gap-y-8 md:grid-cols-4">
                 {items.map((item) => (
-                  <Link
-                    key={item.id}
-                    href={`/noticias/${item.slug}`}
-                    className="block rounded-lg border border-zinc-300 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-900"
-                  >
-                    <h3 className="text-xl font-semibold">{item.title}</h3>
-                    {item.subtitle ? <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-300">{item.subtitle}</p> : null}
-                    <p className="mt-2 text-xs text-zinc-500">
-                      {item.sectionName} · {formatDateBR(item.publishedAt)}
-                    </p>
-                  </Link>
+                  <PublicReadAlsoCard key={item.id} item={item} />
                 ))}
               </div>
             )}
 
             {totalPages > 1 ? (
               <>
-                <nav className="mt-6 flex flex-wrap items-center justify-center gap-1 border-t border-zinc-300 pt-4 dark:border-zinc-700" aria-label="Paginação">
+                <nav className="mt-10 flex flex-wrap items-center justify-center gap-1 border-t border-[color:var(--site-line)] pt-6 sm:gap-1.5" aria-label="Paginação">
                   <PageButton disabled={page <= 1} onClick={() => navigate({ page: page - 1 }, "push")} ariaLabel="Página anterior">
                     ‹
                   </PageButton>
@@ -220,7 +213,7 @@ function BuscaContent(): JSX.Element {
                   }}
                   className="mt-4 flex items-center justify-center gap-2"
                 >
-                  <label className="flex items-center gap-2 text-xs text-zinc-500">
+                  <label className="flex items-center gap-2 text-xs text-[color:var(--site-muted)]">
                     Ir para página
                     <input
                       type="number"
@@ -229,7 +222,7 @@ function BuscaContent(): JSX.Element {
                       value={jumpValue}
                       onChange={(event) => setJumpValue(event.target.value)}
                       placeholder={String(page)}
-                      className="w-16 rounded-full border border-zinc-300 bg-white px-2 py-1 text-center text-sm dark:border-zinc-700 dark:bg-zinc-900"
+                      className="w-16 rounded-full border border-[color:var(--site-line)] bg-[color:var(--site-surface)] px-2 py-1 text-center text-sm text-[color:var(--site-text)]"
                       aria-label="Número da página"
                     />
                   </label>
@@ -266,8 +259,8 @@ function PageButton({
       onClick={onClick}
       aria-label={ariaLabel}
       aria-current={active ? "page" : undefined}
-      className={`flex h-8 min-w-8 items-center justify-center rounded-full px-2 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-30 ${
-        active ? "bg-[color:var(--brand-red)] text-white" : "text-zinc-700 hover:bg-zinc-200 dark:text-zinc-200 dark:hover:bg-zinc-800"
+      className={`flex h-8 min-w-8 items-center justify-center rounded-full px-2 text-sm font-semibold transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--brand-navy)] disabled:cursor-not-allowed disabled:opacity-30 ${
+        active ? "bg-[color:var(--brand-red)] text-white" : "text-[color:var(--site-text)] hover:bg-[color:var(--site-line)]/40"
       }`}
     >
       {children}

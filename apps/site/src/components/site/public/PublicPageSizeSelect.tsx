@@ -13,15 +13,15 @@ export function PublicPageSizeSelect({ pageSize, basePath }: { pageSize: number;
   return (
     <div className="flex shrink-0 items-center gap-1.5 text-xs">
       <span className="text-[color:var(--site-muted)]">Por página:</span>
-      <div className="inline-flex overflow-hidden rounded-full border border-[color:var(--site-border)]">
+      <div className="inline-flex overflow-hidden rounded-full border border-[color:var(--site-line)]">
         {PAGE_SIZE_OPTIONS.map((size) => (
           <Link
             key={size}
             href={hrefFor(size)}
-            className={`px-3 py-1 font-semibold transition ${
+            className={`px-3 py-1 font-semibold transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--brand-navy)] ${
               size === pageSize
                 ? "bg-[color:var(--brand-red)] text-white"
-                : "text-[color:var(--site-muted)] hover:bg-[color:var(--site-border)]/40"
+                : "text-[color:var(--site-muted)] hover:bg-[color:var(--site-line)]/40"
             }`}
             aria-current={size === pageSize ? "true" : undefined}
           >

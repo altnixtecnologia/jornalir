@@ -44,7 +44,11 @@ export default async function EditoriaPage({
       <section className="site-shell py-8">
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
-            <h1 className="font-editorial text-3xl font-bold text-[color:var(--site-text)] md:text-4xl">{section.name}</h1>
+            {/* Kicker "Editoria" (2B.1): o nome da seção isolado podia ser
+                lido como título de matéria, não como filtro — o mesmo
+                recurso já usado na página de matéria (ver .kicker). */}
+            <p className="kicker">Editoria</p>
+            <h1 className="mt-2 font-editorial text-3xl font-bold text-[color:var(--site-text)] md:text-4xl">{section.name}</h1>
             <p className="mt-2 text-sm text-[color:var(--site-muted)]">{total} matéria(s) publicada(s)</p>
           </div>
           <PublicPageSizeSelect pageSize={pageSize} basePath={`/editoria/${section.slug}`} />
