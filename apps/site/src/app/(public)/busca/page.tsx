@@ -8,7 +8,10 @@ import { listPublicArticlesPage } from "../../../lib/public/publicContentService
 import type { PublicArticle } from "../../../lib/public/types";
 import { PAGE_SIZE_OPTIONS, DEFAULT_PAGE_SIZE, parsePage, parsePageSize, clampJumpPage, getPageBlock } from "../../../lib/public/pagination";
 
-type LoadState = "loading" | "ready" | "error";
+// "idle" (ETAPA A.1): sem termo nenhum, nunca dispara busca — nem
+// "carregando todo o acervo" (requisição inútil) nem erro; só convida a
+// digitar.
+type LoadState = "idle" | "loading" | "ready" | "error";
 const DEBOUNCE_MS = 300;
 
 /**
@@ -51,7 +54,9 @@ function BuscaContent(): JSX.Element {
   const pathname = usePathname();
   const searchParams = useSearchParams();
 
-  const q = searchParams.get("q") ?? "";
+  // Fase 3A.1/3A.2: trim aplicado já na leitura — nunca manda nem compara
+  // contra um termo com espaço sobrando (ex.: URL manual `?q=%20algo%20`).
+  const q = (searchParams.get("q") ?? "").trim();
   const page = parsePage(searchParams.get("page"));
   const pageSize = parsePageSize(searchParams.get("pageSize"));
 
@@ -60,7 +65,7 @@ function BuscaContent(): JSX.Element {
   const [items, setItems] = useState<PublicArticle[]>([]);
   const [total, setTotal] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
-  const [state, setState] = useState<LoadState>("loading");
+  const [state, setState] = useState<LoadState>(q ? "loading" : "idle");
 
   // Volta/Avança do navegador (ou qualquer navegação externa) muda `q`
   // na URL — sincroniza o campo de texto de volta, sem loop: só dispara
@@ -71,7 +76,7 @@ function BuscaContent(): JSX.Element {
   }, [q]);
 
   function navigate(overrides: { q?: string; page?: number; pageSize?: number }, mode: "push" | "replace") {
-    const nextQ = overrides.q ?? q;
+    const nextQ = (overrides.q ?? q).trim();
     const nextPage = overrides.page ?? page;
     const nextPageSize = overrides.pageSize ?? pageSize;
 
@@ -86,11 +91,14 @@ function BuscaContent(): JSX.Element {
 
   // Debounce: só comita o termo digitado na URL 300ms depois de parar de
   // digitar (e sempre volta para a página 1) — usa `replace` para não
-  // criar uma entrada de histórico por tecla.
+  // criar uma entrada de histórico por tecla. Trim antes de comparar/
+  // enviar (3A.1/3A.2): digitar só espaços nunca dispara uma busca nem
+  // suja a URL com `q=%20%20`.
   useEffect(() => {
-    if (queryInput === q) return;
+    const trimmed = queryInput.trim();
+    if (trimmed === q) return;
     const timer = setTimeout(() => {
-      navigate({ q: queryInput, page: 1 }, "replace");
+      navigate({ q: trimmed, page: 1 }, "replace");
     }, DEBOUNCE_MS);
     return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- só reage à digitação; `navigate` fecha sobre q/page/pageSize atuais, que já estão nas deps via re-render.
@@ -98,6 +106,17 @@ function BuscaContent(): JSX.Element {
 
   useEffect(() => {
     let cancelled = false;
+
+    // ETAPA A.1: sem termo, nunca busca "o acervo inteiro" por engano —
+    // nem toca a rede. Estado "idle" é o convite inicial a pesquisar.
+    if (!q) {
+      setState("idle");
+      setItems([]);
+      setTotal(0);
+      setTotalPages(1);
+      return;
+    }
+
     setState("loading");
     listPublicArticlesPage({ query: q, page, pageSize })
       .then((result) => {
@@ -121,16 +140,68 @@ function BuscaContent(): JSX.Element {
       <SiteHeader />
       <section className="site-shell py-8">
         <h1 className="font-editorial text-3xl font-bold text-[color:var(--site-text)] md:text-4xl">Busca no Site</h1>
-        <input
-          value={queryInput}
-          onChange={(e) => setQueryInput(e.target.value)}
-          placeholder="Buscar em todo o site"
-          className="mt-4 w-full rounded-lg border border-[color:var(--site-line)] bg-[color:var(--site-surface)] px-4 py-3 text-lg text-[color:var(--site-text)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--brand-navy)]"
-        />
 
-        {state === "loading" ? <p className="mt-4 text-sm text-[color:var(--site-muted)]">Carregando…</p> : null}
+        {/* Fase 3A.1: Enter pesquisa imediatamente (não depende só do
+            debounce); botão de pesquisar explícito (desktop e mobile);
+            botão "limpar" só aparece com texto digitado. Input tem
+            `aria-label` próprio — o placeholder some ao digitar e não é
+            nome acessível confiável por si só. `shrink-0` no botão de
+            busca garante que ele nunca comprime o campo no mobile. */}
+        <form
+          role="search"
+          onSubmit={(event) => {
+            event.preventDefault();
+            navigate({ q: queryInput, page: 1 }, "push");
+          }}
+          className="mt-4 flex items-stretch gap-2"
+        >
+          <div className="relative min-w-0 flex-1">
+            <input
+              value={queryInput}
+              onChange={(e) => setQueryInput(e.target.value)}
+              placeholder="Buscar em todo o site"
+              aria-label="Buscar no site"
+              type="search"
+              className="w-full rounded-lg border border-[color:var(--site-line)] bg-[color:var(--site-surface)] py-3 pl-4 pr-10 text-lg text-[color:var(--site-text)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--brand-navy)] [&::-webkit-search-cancel-button]:hidden"
+            />
+            {queryInput ? (
+              <button
+                type="button"
+                onClick={() => {
+                  setQueryInput("");
+                  navigate({ q: "", page: 1 }, "push");
+                }}
+                aria-label="Limpar busca"
+                className="absolute inset-y-0 right-2 inline-flex items-center px-2 text-[color:var(--site-muted)] transition hover:text-[color:var(--brand-red)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--brand-navy)]"
+              >
+                ✕
+              </button>
+            ) : null}
+          </div>
+          <button
+            type="submit"
+            aria-label="Pesquisar"
+            className="icon-btn shrink-0 border border-[color:var(--site-line)]"
+          >
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <circle cx="11" cy="11" r="7" />
+              <path d="m21 21-4.3-4.3" />
+            </svg>
+          </button>
+        </form>
+
+        {/* Região de status sempre montada (3C.2): `role="status"` com
+            conteúdo vazio não ocupa espaço visível nem some do DOM entre
+            estados — leitores de tela acompanham a mesma região em vez de
+            precisar "descobrir" um elemento novo a cada troca. */}
+        <p role="status" aria-live="polite" className={state === "loading" ? "mt-4 text-sm text-[color:var(--site-muted)]" : "sr-only"}>
+          {state === "loading" ? "Carregando…" : ""}
+        </p>
+        {state === "idle" ? (
+          <p className="mt-4 text-sm text-[color:var(--site-muted)]">Digite um termo acima para encontrar matérias publicadas no portal.</p>
+        ) : null}
         {state === "error" ? (
-          <p className="mt-4 text-sm text-[color:var(--brand-red)]">Não foi possível carregar as matérias agora. Tente novamente em instantes.</p>
+          <p role="alert" className="mt-4 text-sm text-[color:var(--brand-red)]">Não foi possível carregar os resultados agora. Tente novamente em instantes.</p>
         ) : null}
         {state === "ready" ? (
           <>
@@ -138,7 +209,7 @@ function BuscaContent(): JSX.Element {
               <p className="text-sm text-[color:var(--site-muted)]">
                 {total} resultado(s){q ? ` para "${q}"` : ""}
               </p>
-              <div className="inline-flex overflow-hidden rounded-full border border-[color:var(--site-line)] text-xs">
+              <div role="group" aria-label="Itens por página" className="inline-flex overflow-hidden rounded-full border border-[color:var(--site-line)] text-xs">
                 {PAGE_SIZE_OPTIONS.map((size) => (
                   <button
                     key={size}
@@ -160,7 +231,9 @@ function BuscaContent(): JSX.Element {
                 PublicReadAlsoCard, mesma grade — antes a busca tinha um
                 card e uma lista vertical só seus, sem foto. */}
             {items.length === 0 ? (
-              <p className="mt-6 text-sm text-[color:var(--site-muted)]">Nenhuma matéria encontrada.</p>
+              <p className="mt-6 text-sm text-[color:var(--site-muted)]">
+                {q ? `Nenhuma matéria encontrada para "${q}".` : "Nenhuma matéria encontrada."}
+              </p>
             ) : (
               <div className="mt-6 grid grid-cols-2 gap-x-6 gap-y-8 md:grid-cols-4">
                 {items.map((item) => (
@@ -185,11 +258,18 @@ function BuscaContent(): JSX.Element {
                           </PageButton>
                         ) : null}
                         <div className="flex items-center gap-1">
-                          {block.pages.map((p) => (
-                            <PageButton key={p} active={p === page} onClick={() => navigate({ page: p }, "push")}>
-                              {p}
-                            </PageButton>
-                          ))}
+                          {/* Mesmo tratamento de PublicPagination (3B.4/3B.6
+                              — aparência consistente): some visualmente os
+                              números "do meio" em telas estreitas, nunca
+                              a atual/vizinhas/pontas do bloco. */}
+                          {block.pages.map((p) => {
+                            const isEdgeOrNear = p === page || Math.abs(p - page) <= 1 || p === block.pages[0] || p === block.pages[block.pages.length - 1];
+                            return (
+                              <PageButton key={p} active={p === page} hideOnMobile={!isEdgeOrNear} onClick={() => navigate({ page: p }, "push")}>
+                                {p}
+                              </PageButton>
+                            );
+                          })}
                         </div>
                         {block.hasNextBlock ? (
                           <PageButton onClick={() => navigate({ page: block.nextBlockPage }, "push")} ariaLabel="Próximo bloco de páginas">
@@ -243,15 +323,18 @@ function PageButton({
   active,
   disabled,
   ariaLabel,
+  hideOnMobile,
   onClick,
   children,
 }: {
   active?: boolean;
   disabled?: boolean;
   ariaLabel?: string;
+  hideOnMobile?: boolean;
   onClick: () => void;
   children: React.ReactNode;
 }): JSX.Element {
+  const display = hideOnMobile ? "hidden sm:flex" : "flex";
   return (
     <button
       type="button"
@@ -259,7 +342,7 @@ function PageButton({
       onClick={onClick}
       aria-label={ariaLabel}
       aria-current={active ? "page" : undefined}
-      className={`flex h-8 min-w-8 items-center justify-center rounded-full px-2 text-sm font-semibold transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--brand-navy)] disabled:cursor-not-allowed disabled:opacity-30 ${
+      className={`${display} h-8 min-w-8 items-center justify-center rounded-full px-2 text-sm font-semibold transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--brand-navy)] disabled:cursor-not-allowed disabled:opacity-30 ${
         active ? "bg-[color:var(--brand-red)] text-white" : "text-[color:var(--site-text)] hover:bg-[color:var(--site-line)]/40"
       }`}
     >

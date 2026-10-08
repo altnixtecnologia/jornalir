@@ -62,11 +62,21 @@ export function PublicPagination({
         ) : null}
 
         <div className="flex items-center gap-1">
-          {pages.map((page) => (
-            <PageLink key={page} href={hrefFor(page)} active={page === currentPage}>
-              {page}
-            </PageLink>
-          ))}
+          {/* Mobile (3B.3/3B.4): o bloco pode ter até 10 números — nenhuma
+              mudança no algoritmo (`getPageBlock` continua calculando os
+              10), só visualmente escondemos os "do meio" em telas
+              estreitas, sempre mantendo visíveis a atual, as duas vizinhas
+              e as pontas do bloco. Evita até 14 controles de 32px tentando
+              caber em ~328px úteis (360px - padding) e quebrando em várias
+              linhas. */}
+          {pages.map((page) => {
+            const isEdgeOrNear = page === currentPage || Math.abs(page - currentPage) <= 1 || page === pages[0] || page === pages[pages.length - 1];
+            return (
+              <PageLink key={page} href={hrefFor(page)} active={page === currentPage} hideOnMobile={!isEdgeOrNear}>
+                {page}
+              </PageLink>
+            );
+          })}
         </div>
 
         {hasNextBlock ? (
@@ -109,15 +119,18 @@ function PageLink({
   active,
   disabled,
   ariaLabel,
+  hideOnMobile,
   children,
 }: {
   href: string;
   active?: boolean;
   disabled?: boolean;
   ariaLabel?: string;
+  hideOnMobile?: boolean;
   children: React.ReactNode;
 }): JSX.Element {
-  const base = "flex h-8 min-w-8 items-center justify-center rounded-full px-2 text-sm font-semibold transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--brand-navy)]";
+  const display = hideOnMobile ? "hidden sm:flex" : "flex";
+  const base = `${display} h-8 min-w-8 items-center justify-center rounded-full px-2 text-sm font-semibold transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--brand-navy)]`;
   if (disabled) {
     return (
       <span className={`${base} cursor-not-allowed text-[color:var(--site-muted)]/40`} aria-hidden="true">

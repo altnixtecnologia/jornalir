@@ -12,8 +12,13 @@ export function PublicPageSizeSelect({ pageSize, basePath }: { pageSize: number;
 
   return (
     <div className="flex shrink-0 items-center gap-1.5 text-xs">
-      <span className="text-[color:var(--site-muted)]">Por página:</span>
-      <div className="inline-flex overflow-hidden rounded-full border border-[color:var(--site-line)]">
+      <span id="page-size-label" className="text-[color:var(--site-muted)]">
+        Por página:
+      </span>
+      {/* `role="group"` + `aria-labelledby` (3B.5/3C.2): o texto "Por
+          página" é só visual, sem isto nada liga essa label aos links —
+          leitor de tela ouviria "24, 48, 96" sem contexto. */}
+      <div role="group" aria-labelledby="page-size-label" className="inline-flex overflow-hidden rounded-full border border-[color:var(--site-line)]">
         {PAGE_SIZE_OPTIONS.map((size) => (
           <Link
             key={size}
