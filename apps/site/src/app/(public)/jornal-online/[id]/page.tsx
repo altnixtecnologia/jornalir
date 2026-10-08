@@ -28,6 +28,7 @@ export default function JornalOnlineReaderPage(): JSX.Element {
   const id = params?.id ?? "";
   const [zoom, setZoom] = useState(100);
   const [driveEditions, setDriveEditions] = useState<DriveEdition[]>([]);
+  const [driveStatus, setDriveStatus] = useState<"loading" | "ready" | "error">("loading");
   const [isMobile, setIsMobile] = useState(false);
   const [showScrollTop, setShowScrollTop] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -42,8 +43,9 @@ export default function JornalOnlineReaderPage(): JSX.Element {
         if (data?.ok && Array.isArray(data.items) && data.items.length > 0) {
           setDriveEditions(data.items);
         }
+        setDriveStatus("ready");
       } catch {
-        setDriveEditions([]);
+        setDriveStatus("error");
       }
     })();
   }, []);
@@ -71,6 +73,21 @@ export default function JornalOnlineReaderPage(): JSX.Element {
   const edition = useMemo(() => {
     return driveEditions.find((item) => item.id === id) ?? calameoEditions.find((item) => item.id === id);
   }, [driveEditions, id]);
+
+  // Edições "drive-*" só existem depois do fetch de /api/jornal-online/drive
+  // terminar; até lá, "não encontrado" seria um falso 404 (edição ainda não
+  // carregada). Edições do fallback local resolvem de forma síncrona e não
+  // dependem desse status.
+  const isDriveId = id.startsWith("drive-");
+  const editionPending = isDriveId && !edition && driveStatus === "loading";
+  const editionLoadError = isDriveId && !edition && driveStatus === "error";
+
+  // "Abrir PDF" sempre prefere sourceUrl quando ele existe; para as edições
+  // do fallback local (todas com sourceUrl no Calaméo), isso faz "Abrir PDF"
+  // e "Fonte Calaméo" apontarem para o mesmo destino. Nesse caso, mostramos
+  // só um botão (rotulado como a fonte real) em vez de duplicar a ação.
+  const hasCalameoSource = Boolean(edition?.sourceUrl) && !edition?.id.startsWith("drive-");
+
   const driveFileId = edition?.id.startsWith("drive-") ? edition.id.replace("drive-", "") : "";
   const pdfRenderUrl = driveFileId ? `/api/jornal-online/drive-file?id=${driveFileId}` : (edition?.pdfPath ?? "");
   const mobileViewerSrc = driveFileId
@@ -118,6 +135,36 @@ export default function JornalOnlineReaderPage(): JSX.Element {
     "inline-flex h-9 min-w-[2.25rem] items-center justify-center rounded-md px-2 text-sm font-semibold transition hover:bg-[color:var(--site-bg)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2";
 
   if (!edition) {
+    if (editionPending) {
+      return (
+        <main className="min-h-screen" style={{ background: "var(--site-bg)" }}>
+          <SiteHeader />
+          <section className="site-shell py-7">
+            <p className="animate-pulse text-sm" style={{ color: "var(--site-muted)" }}>
+              Carregando edição...
+            </p>
+          </section>
+        </main>
+      );
+    }
+
+    if (editionLoadError) {
+      return (
+        <main className="min-h-screen" style={{ background: "var(--site-bg)" }}>
+          <SiteHeader />
+          <section className="site-shell py-7">
+            <h1 className="font-editorial text-4xl">Não foi possível carregar esta edição</h1>
+            <p className="mt-2 text-sm" style={{ color: "var(--site-muted)" }}>
+              Tente novamente em alguns instantes.
+            </p>
+            <Link href="/jornal-online" className={`mt-4 ${primaryButtonClass}`} style={primaryButtonStyle}>
+              Voltar ao acervo
+            </Link>
+          </section>
+        </main>
+      );
+    }
+
     return (
       <main className="min-h-screen" style={{ background: "var(--site-bg)" }}>
         <SiteHeader />
@@ -150,18 +197,9 @@ export default function JornalOnlineReaderPage(): JSX.Element {
             <Link href="/jornal-online" className={secondaryButtonClass} style={secondaryButtonStyle}>
               Voltar ao acervo
             </Link>
-            <Link
-              href={edition.sourceUrl ?? edition.pdfPath}
-              target="_blank"
-              rel="noopener noreferrer"
-              className={secondaryButtonClass}
-              style={secondaryButtonStyle}
-            >
-              Abrir PDF
-            </Link>
-            {edition.sourceUrl && !edition.id.startsWith("drive-") ? (
+            {hasCalameoSource ? (
               <Link
-                href={edition.sourceUrl}
+                href={edition.sourceUrl as string}
                 target="_blank"
                 rel="noopener noreferrer"
                 className={secondaryButtonClass}
@@ -170,7 +208,17 @@ export default function JornalOnlineReaderPage(): JSX.Element {
               >
                 Fonte Calaméo
               </Link>
-            ) : null}
+            ) : (
+              <Link
+                href={edition.sourceUrl ?? edition.pdfPath}
+                target="_blank"
+                rel="noopener noreferrer"
+                className={secondaryButtonClass}
+                style={secondaryButtonStyle}
+              >
+                Abrir PDF
+              </Link>
+            )}
             <button
               type="button"
               onClick={toggleFullscreen}

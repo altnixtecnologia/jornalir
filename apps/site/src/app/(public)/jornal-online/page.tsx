@@ -121,15 +121,40 @@ export default function JornalOnlinePage(): JSX.Element {
                   style={{ borderColor: "var(--site-line)", background: "var(--site-bg)" }}
                 >
                   <div className="relative aspect-[3/4] w-full overflow-hidden">
-                    <embed
-                      src={`${edition.pdfPath}#page=1&zoom=page-width&toolbar=0&navpanes=0&scrollbar=0`}
-                      type="application/pdf"
-                      className="pointer-events-none h-full w-full"
-                      aria-hidden="true"
-                    />
-                    <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/50 to-transparent p-2 text-center text-xs font-semibold tracking-wider text-white">
-                      CAPA
-                    </div>
+                    {edition.id.startsWith("drive-") ? (
+                      <div
+                        className="flex h-full w-full flex-col items-center justify-center gap-3 p-4 text-center"
+                        style={{ background: "var(--brand-navy)" }}
+                        aria-hidden="true"
+                      >
+                        <svg
+                          viewBox="0 0 24 24"
+                          className="h-10 w-10 text-white/80"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="1.5"
+                        >
+                          <path d="M6 2.5h9l3 3V21a0.5 0.5 0 0 1-.5.5h-11A0.5.5 0 0 1 6 21V3a0.5.5 0 0 1 .5-.5Z" />
+                          <path d="M8.5 9h7M8.5 12.5h7M8.5 16h4.5" />
+                        </svg>
+                        <p className="text-[11px] font-semibold uppercase tracking-wider text-white/70">
+                          Informativo Regional
+                        </p>
+                        <p className="line-clamp-2 text-sm font-semibold text-white">{edition.title}</p>
+                      </div>
+                    ) : (
+                      <>
+                        <embed
+                          src={`${edition.pdfPath}#page=1&zoom=page-width&toolbar=0&navpanes=0&scrollbar=0`}
+                          type="application/pdf"
+                          className="pointer-events-none h-full w-full"
+                          aria-hidden="true"
+                        />
+                        <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/50 to-transparent p-2 text-center text-xs font-semibold tracking-wider text-white">
+                          CAPA
+                        </div>
+                      </>
+                    )}
                   </div>
                 </div>
                 <p className="text-xs font-semibold uppercase tracking-wider" style={{ color: "var(--site-muted)" }}>
