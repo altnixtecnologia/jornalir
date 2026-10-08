@@ -77,7 +77,11 @@ export function FlipbookReader({ pdfUrl, title, zoomPercent }: FlipbookReaderPro
 
   if (error) {
     return (
-      <div className="rounded-xl border border-zinc-300 bg-white p-4 text-sm text-zinc-600 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300">
+      <div
+        role="status"
+        className="rounded-xl border p-4 text-sm"
+        style={{ borderColor: "var(--site-line)", background: "var(--site-surface)", color: "var(--site-muted)" }}
+      >
         {error}
       </div>
     );
@@ -85,23 +89,28 @@ export function FlipbookReader({ pdfUrl, title, zoomPercent }: FlipbookReaderPro
 
   if (pages.length === 0) {
     return (
-      <div className="rounded-xl border border-zinc-300 bg-white p-4 text-sm text-zinc-600 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300">
+      <div
+        role="status"
+        aria-live="polite"
+        className="rounded-xl border p-4 text-sm"
+        style={{ borderColor: "var(--site-line)", background: "var(--site-surface)", color: "var(--site-muted)" }}
+      >
         Preparando modo revista...
       </div>
     );
   }
 
   return (
-    <div className="overflow-auto rounded-xl border border-zinc-300 bg-zinc-100 p-3 dark:border-zinc-700 dark:bg-zinc-950">
+    <div className="overflow-auto rounded-xl border p-3" style={{ borderColor: "var(--site-line)", background: "var(--site-bg)" }}>
       <div className="flex min-w-max justify-center" style={{ transform: `scale(${visualScale})`, transformOrigin: "top center" }}>
         <HTMLFlipBook
         width={430}
         height={620}
         size="stretch"
         minWidth={280}
-        maxWidth={980}
+        maxWidth={1180}
         minHeight={400}
-        maxHeight={1200}
+        maxHeight={1400}
         startPage={0}
         drawShadow
         flippingTime={900}
