@@ -35,25 +35,25 @@ const historyBlocks = [
 
 export default function SobrePage(): JSX.Element {
   return (
-    <main className="min-h-screen bg-stone-100 dark:bg-zinc-950">
+    <main className="min-h-screen" style={{ background: "var(--site-bg)" }}>
       <SiteHeader />
       <section className="site-shell py-8">
-        <div className="overflow-hidden rounded-3xl border border-zinc-300 bg-zinc-900 text-white shadow-2xl dark:border-zinc-700">
+        <div className="overflow-hidden rounded-3xl border shadow-2xl" style={{ borderColor: "var(--site-line)", background: "var(--brand-navy)" }}>
           <div className="relative min-h-[320px]">
             <div className="absolute inset-0 bg-cover bg-center" style={{ backgroundImage: "url(https://images.unsplash.com/photo-1504711434969-e33886168f5c?auto=format&fit=crop&w=1800&q=80)" }} />
             <div className="absolute inset-0 bg-gradient-to-r from-black/85 via-black/50 to-black/20" />
-            <div className="relative z-10 p-7 md:p-10">
-              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-cyan-200">Nossa trajetória</p>
+            <div className="relative z-10 p-7 text-white md:p-10">
+              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-white/70">Nossa trajetória</p>
               <h1 className="mt-2 max-w-3xl font-editorial text-5xl leading-tight">Sobre o Informativo Regional</h1>
-              <p className="mt-4 max-w-2xl text-sm text-zinc-200">
+              <p className="mt-4 max-w-2xl text-sm text-white/90">
                 De um jornal de proximidade para uma plataforma regional de informação: seguimos contando a história da nossa gente com credibilidade, memória e inovação.
               </p>
             </div>
           </div>
         </div>
 
-        <div className="mt-6 rounded-2xl border border-zinc-300 bg-white p-6 dark:border-zinc-700 dark:bg-zinc-900">
-          <p className="text-sm leading-relaxed text-zinc-600 dark:text-zinc-300">
+        <div className="mt-6 rounded-2xl border p-6" style={{ borderColor: "var(--site-line)", background: "var(--site-surface)" }}>
+          <p className="text-sm leading-relaxed" style={{ color: "var(--site-muted)" }}>
             O Informativo Regional construiu sua identidade acompanhando o ritmo de São João do Sul e municípios vizinhos. Ao longo dos anos, o compromisso editorial permaneceu o mesmo:
             informar com clareza, valorizar histórias locais e aproximar a comunidade dos temas que impactam seu cotidiano.
           </p>
@@ -61,13 +61,17 @@ export default function SobrePage(): JSX.Element {
 
         <div className="mt-8 space-y-8">
           {historyBlocks.map((block, idx) => (
-            <article key={block.title} className={`grid items-center gap-5 rounded-2xl border border-zinc-300 bg-white p-4 shadow-sm transition hover:shadow-md dark:border-zinc-700 dark:bg-zinc-900 md:p-5 ${idx % 2 === 0 ? "lg:grid-cols-[1.05fr_1fr]" : "lg:grid-cols-[1fr_1.05fr]"}`}>
+            <article
+              key={block.title}
+              className={`grid items-center gap-5 rounded-2xl border p-4 shadow-sm transition hover:shadow-md md:p-5 ${idx % 2 === 0 ? "lg:grid-cols-[1.05fr_1fr]" : "lg:grid-cols-[1fr_1.05fr]"}`}
+              style={{ borderColor: "var(--site-line)", background: "var(--site-surface)" }}
+            >
               <div className={idx % 2 === 0 ? "" : "lg:order-2"}>
-                <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[color:var(--site-accent)]">{block.year}</p>
+                <p className="text-xs font-semibold uppercase tracking-[0.14em]" style={{ color: "var(--brand-red)" }}>{block.year}</p>
                 <h2 className="mt-2 font-editorial text-3xl">{block.title}</h2>
-                <p className="mt-3 text-sm leading-relaxed text-zinc-600 dark:text-zinc-300">{block.text}</p>
+                <p className="mt-3 text-sm leading-relaxed" style={{ color: "var(--site-muted)" }}>{block.text}</p>
               </div>
-              <div className={`${idx % 2 === 0 ? "" : "lg:order-1"} overflow-hidden rounded-xl border border-zinc-200 dark:border-zinc-700`}>
+              <div className={`${idx % 2 === 0 ? "" : "lg:order-1"} overflow-hidden rounded-xl border`} style={{ borderColor: "var(--site-line)" }}>
                 <div className="h-64 w-full bg-cover bg-center md:h-72" style={{ backgroundImage: `url(${block.image})` }} />
               </div>
             </article>
