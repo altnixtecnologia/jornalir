@@ -1,6 +1,6 @@
 import Link from "next/link";
 import type { Client } from "@ir/types";
-import { CLIENT_KIND_LABELS, clientDisplayName } from "@ir/types";
+import { CLIENT_KIND_LABELS, CLIENT_ROLE_LABELS, clientDisplayName } from "@ir/types";
 
 function formatDoc(client: Client): string {
   const doc = client.kind === "individual" ? client.cpf : client.cnpj;
@@ -10,12 +10,34 @@ function formatDoc(client: Client): string {
     : doc.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/, "$1.$2.$3/$4-$5");
 }
 
-/** Lista de clientes — tabela + versão em card pra mobile (mesma convenção
- * do editorial: filtro/busca/paginação ficam na página servidora, este
- * componente só renderiza o que já veio filtrado/paginado). */
+function RolesBadges({ client }: { client: Client }): JSX.Element {
+  if (client.roles.length === 0) return <span className="cadastro-kind-hint">—</span>;
+  return (
+    <span className="cadastro-roles">
+      {client.roles.map((role) => (
+        <span key={role} className="cadastro-role-badge">
+          {CLIENT_ROLE_LABELS[role]}
+        </span>
+      ))}
+    </span>
+  );
+}
+
+/**
+ * Lista de clientes ("Cadastros") — tabela + versão em card pra mobile
+ * (mesma convenção do editorial: filtro/busca/paginação ficam na página
+ * servidora, este componente só renderiza o que já veio filtrado/paginado).
+ *
+ * Ordenação (Fase 7 da padronização): os cabeçalhos abaixo só têm o
+ * indicador visual (↕, apagado) — `listClientsAdminPageSupabase` não
+ * aceita `sortBy`/`sortDir` hoje, então deixá-los clicáveis sem isso
+ * mudaria a URL sem nunca reordenar o resultado (enganoso). Fica preparado
+ * pro CSS/visual; a lógica real depende de um ajuste no provider, fora do
+ * escopo desta tarefa.
+ */
 export function ClientesList({ clients }: { clients: Client[] }): JSX.Element {
   if (clients.length === 0) {
-    return <p className="helper-text">Nenhum cliente encontrado com os filtros atuais.</p>;
+    return <p className="helper-text">Nenhum cadastro encontrado com os filtros atuais.</p>;
   }
 
   return (
@@ -24,12 +46,12 @@ export function ClientesList({ clients }: { clients: Client[] }): JSX.Element {
         <table className="materias-table">
           <thead>
             <tr>
-              <th>Referência</th>
-              <th>Nome / Razão social</th>
-              <th>Tipo</th>
-              <th>CPF/CNPJ</th>
+              <th>Referência <span className="cadastros-sort-hint" aria-hidden="true">↕</span></th>
+              <th>Nome / Razão social <span className="cadastros-sort-hint" aria-hidden="true">↕</span></th>
+              <th>Papéis</th>
+              <th>CPF/CNPJ <span className="cadastros-sort-hint" aria-hidden="true">↕</span></th>
               <th>Contato</th>
-              <th>Status</th>
+              <th>Status <span className="cadastros-sort-hint" aria-hidden="true">↕</span></th>
             </tr>
           </thead>
           <tbody>
@@ -40,8 +62,11 @@ export function ClientesList({ clients }: { clients: Client[] }): JSX.Element {
                   <Link className="materia-title materia-title-link" href={`/sistema/clientes/${client.id}`}>
                     {clientDisplayName(client)}
                   </Link>
+                  <span className="cadastro-kind-hint">{CLIENT_KIND_LABELS[client.kind]}</span>
                 </td>
-                <td>{CLIENT_KIND_LABELS[client.kind]}</td>
+                <td>
+                  <RolesBadges client={client} />
+                </td>
                 <td>{formatDoc(client)}</td>
                 <td>{client.email || client.phonePrimary || client.whatsapp || "—"}</td>
                 <td>
@@ -67,6 +92,7 @@ export function ClientesList({ clients }: { clients: Client[] }): JSX.Element {
               </div>
               <span className="materia-card-meta">{CLIENT_KIND_LABELS[client.kind]} · {formatDoc(client)}</span>
               <span className="materia-card-meta">{client.email || client.phonePrimary || client.whatsapp || "—"}</span>
+              <RolesBadges client={client} />
             </Link>
           </li>
         ))}

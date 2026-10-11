@@ -2,6 +2,21 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { NewspaperEdition } from "@ir/types";
 import type { NewspaperEditionChanges, NewspaperEditionRepository, NewNewspaperEditionRecord } from "@ir/core";
 import { signEditionPdfUrl } from "./editionPdfStorage.supabase";
+import { isLocalPreviewEnabled } from "../../lib/auth/localPreview";
+
+const PREVIEW_EDITIONS: NewspaperEdition[] = [
+  {
+    id: "preview-edicao-1",
+    editionNumber: 700,
+    reference: "ED-2026-700",
+    title: "Edição 700 (visualização local)",
+    publicationDate: "2026-10-01",
+    pdfUrl: undefined,
+    pageCount: 28,
+    active: true,
+    createdAt: new Date(0).toISOString(),
+  },
+];
 
 const TABLE = "newspaper_editions";
 const COLUMNS =
@@ -87,6 +102,7 @@ export async function attachEditionExternalPdf(
 export function createNewspaperEditionRepositorySupabase(client: SupabaseClient): NewspaperEditionRepository {
   return {
     async list() {
+      if (isLocalPreviewEnabled()) return PREVIEW_EDITIONS;
       const { data, error } = await client
         .from(TABLE)
         .select(COLUMNS)
@@ -96,6 +112,7 @@ export function createNewspaperEditionRepositorySupabase(client: SupabaseClient)
     },
 
     async getById(id) {
+      if (isLocalPreviewEnabled()) return PREVIEW_EDITIONS.find((edition) => edition.id === id) ?? null;
       const { data, error } = await client.from(TABLE).select(COLUMNS).eq("id", id).maybeSingle();
       if (error) throw new Error(error.message);
       return data ? toDomain(client, data as NewspaperEditionRow) : null;

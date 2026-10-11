@@ -160,7 +160,7 @@ export function EdicoesManager({ editions }: EdicoesManagerProps): JSX.Element {
             setError(null);
           }}
         >
-          {showCreate ? "Cancelar" : "Nova edição ＋"}
+          {showCreate ? "Cancelar" : "+ Nova edição"}
         </button>
       </div>
 

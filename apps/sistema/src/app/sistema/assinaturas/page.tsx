@@ -2,10 +2,13 @@ import Link from "next/link";
 import type { SubscriptionServiceType, SubscriptionStatus } from "@ir/types";
 import { SUBSCRIPTION_SERVICE_TYPE_LABELS, SUBSCRIPTION_STATUS_LABELS, SUBSCRIPTION_SERVICE_TYPES, SUBSCRIPTION_STATUSES } from "@ir/types";
 import { ModuleHeader } from "../../../components/admin/ModuleHeader";
-import { PaginationControls } from "../../../features/editorial/PaginationControls";
+import { PaginatedNav } from "../../../features/editorial/PaginatedNav";
 import { SubscriptionsList } from "../../../features/assinaturas/SubscriptionsList";
+import { SubscriptionPageSizeSelect } from "../../../features/assinaturas/SubscriptionPageSizeSelect";
 import { createSupabaseServerClient } from "../../../lib/supabase/server";
 import { listSubscriptionsAdminPageSupabase } from "../../../providers/supabase/subscriptionRepository.supabase";
+
+const FILTERS_FORM_ID = "assinaturas-filtros";
 
 function one(value: string | string[] | undefined): string {
   return Array.isArray(value) ? value[0] ?? "" : value ?? "";
@@ -38,16 +41,6 @@ export default async function AssinaturasPage({
     status: SUBSCRIPTION_STATUSES.includes(status as SubscriptionStatus) ? (status as SubscriptionStatus) : undefined,
   });
 
-  function href(targetPage: number): string {
-    const params = new URLSearchParams();
-    if (q) params.set("q", q);
-    if (serviceType) params.set("serviceType", serviceType);
-    if (status) params.set("status", status);
-    params.set("page", String(targetPage));
-    params.set("pageSize", String(result.pageSize));
-    return `/sistema/assinaturas?${params.toString()}`;
-  }
-
   return (
     <>
       <ModuleHeader
@@ -61,11 +54,11 @@ export default async function AssinaturasPage({
         }
       />
 
-      <form className="materias-toolbar" method="get" action="/sistema/assinaturas">
+      <form id={FILTERS_FORM_ID} className="materias-toolbar" method="get" action="/sistema/assinaturas">
         <div className="materias-filters">
           <label className="materias-search">
             Buscar
-            <input name="q" type="search" defaultValue={q} placeholder="Referência da assinatura" />
+            <input name="q" type="search" defaultValue={q} placeholder="Referência, nome/razão social, CPF ou CNPJ" />
           </label>
           <label>
             Serviço
@@ -89,25 +82,33 @@ export default async function AssinaturasPage({
               ))}
             </select>
           </label>
-          <label>
-            Por página
-            <select name="pageSize" defaultValue={String(result.pageSize)}>
-              <option value="25">25</option>
-              <option value="50">50</option>
-              <option value="100">100</option>
-            </select>
-          </label>
-          <button type="submit">Buscar</button>
+          <button type="submit" className="cadastros-btn-primary">Buscar</button>
           <Link className="secondary-link" href="/sistema/assinaturas">Limpar</Link>
         </div>
+      </form>
+
+      <div className="cadastros-table-controls">
         <span className="materias-count">
           Página {result.page} de {result.totalPages} · {result.total} assinatura(s)
         </span>
-      </form>
+        <SubscriptionPageSizeSelect formId={FILTERS_FORM_ID} value={result.pageSize} />
+      </div>
 
       <SubscriptionsList subscriptions={result.subscriptions} />
 
-      <PaginationControls page={result.page} totalPages={result.totalPages} buildHref={href} />
+      <div className="cadastros-table-controls">
+        <PaginatedNav
+          basePath="/sistema/assinaturas"
+          page={result.page}
+          totalPages={result.totalPages}
+          params={{
+            ...(q ? { q } : {}),
+            ...(serviceType ? { serviceType } : {}),
+            ...(status ? { status } : {}),
+            pageSize: String(result.pageSize),
+          }}
+        />
+      </div>
     </>
   );
 }

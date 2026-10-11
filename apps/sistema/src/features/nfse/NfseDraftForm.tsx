@@ -3,8 +3,8 @@
 import Link from "next/link";
 import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import type { Client, NfseDraft, NfseServiceProfile } from "@ir/types";
-import { buildFiscalSnapshotFromServiceProfile, buildTomadorSnapshotFromClient, clientDisplayName, listSelectableServiceProfiles } from "@ir/types";
+import type { NfseDraft, NfseServiceProfile } from "@ir/types";
+import { buildFiscalSnapshotFromServiceProfile, listSelectableServiceProfiles } from "@ir/types";
 import { validateNfseDraft } from "@ir/core";
 import {
   createDraftAction,
@@ -14,6 +14,9 @@ import {
   type FiscalSnapshotFormInput,
   type TomadorSnapshotFormInput,
 } from "../../app/sistema/nfse/nova/actions";
+import { ClientPicker } from "../../components/admin/ClientPicker";
+import type { ClientSearchResult } from "../../components/admin/clientSearchTypes";
+import { Tabs, type TabItem } from "../../components/admin/Tabs";
 
 function emptyTomador(): TomadorSnapshotFormInput {
   return {
@@ -79,30 +82,39 @@ function draftToInput(draft: NfseDraft): DraftFormInput {
 }
 
 /**
- * Nova NFS-e / edição de rascunho (Parte 1, item 8) — uma única
- * página em seções (Tomador/Serviço/Valores/Tributação/Descrição/
- * Revisão), nunca um wizard longo. NUNCA existe um botão funcional de
- * "Transmitir" — isso só chega na Parte 2, com integração real.
+ * Nova NFS-e / edição de rascunho — organizada em ABAS reais (Dados da
+ * nota / Tomador / Serviço e tributação / Revisão), não mais uma única
+ * página longa em seções soltas: esta tela tem grupos de informação
+ * genuinamente independentes, o caso exato em que abas fazem sentido
+ * (ver Tabs). Todas as abas ficam montadas o tempo todo — trocar de aba
+ * nunca perde o que já foi digitado. "Transmitir" nunca aparece aqui —
+ * isso é só no detalhe do rascunho já salvo (NfseTransmissionPanel).
+ *
+ * Seletor de Cadastro único (ClientPicker) — nunca mais "Buscar cliente" +
+ * "Cliente" nem a lista inteira de clientes carregada na página; ao
+ * selecionar, busca o snapshot fiscal completo via Server Action
+ * (refreshTomadorSnapshotAction, já existente — mesma função usada por
+ * "Atualizar dados do cliente").
  */
 export function NfseDraftForm({
   mode,
-  clients,
   serviceProfiles,
   issuerConfigured,
   initialDraft,
+  initialSelectedClient,
 }: {
   mode: "create" | "edit";
-  clients: Client[];
   serviceProfiles: NfseServiceProfile[];
   issuerConfigured: boolean;
   initialDraft?: NfseDraft;
+  initialSelectedClient?: ClientSearchResult | null;
 }): JSX.Element {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [refreshMessage, setRefreshMessage] = useState<string | null>(null);
 
-  const [clientId, setClientId] = useState(initialDraft?.clientId ?? "");
+  const [selectedClient, setSelectedClient] = useState<ClientSearchResult | null>(initialSelectedClient ?? null);
   const [tomador, setTomador] = useState<TomadorSnapshotFormInput>(initialDraft ? draftToInput(initialDraft).tomador : emptyTomador());
   const [serviceProfileId, setServiceProfileId] = useState(initialDraft?.serviceProfileId ?? "");
   const [fiscal, setFiscal] = useState<FiscalSnapshotFormInput>(initialDraft ? draftToInput(initialDraft).fiscal : emptyFiscal());
@@ -111,32 +123,28 @@ export function NfseDraftForm({
   const [serviceDescription, setServiceDescription] = useState(initialDraft?.serviceDescription ?? "");
   const [notes, setNotes] = useState(initialDraft?.notes ?? "");
 
+  const clientId = selectedClient?.id ?? "";
   const selectableProfiles = useMemo(() => listSelectableServiceProfiles(serviceProfiles), [serviceProfiles]);
 
-  function handleSelectClient(id: string): void {
-    setClientId(id);
+  function applySnapshot(result: { error: string } | { ok: true; tomador: TomadorSnapshotFormInput }, successMessage?: string): void {
+    if ("error" in result) {
+      setError(result.error);
+      return;
+    }
+    setTomador(result.tomador);
+    if (successMessage) setRefreshMessage(successMessage);
+  }
+
+  function handleSelectClient(client: ClientSearchResult | null): void {
+    setSelectedClient(client);
+    setError(null);
     setRefreshMessage(null);
-    const client = clients.find((item) => item.id === id);
-    if (client) setTomador(() => {
-      const snapshot = buildTomadorSnapshotFromClient(client, clientDisplayName(client));
-      return {
-        kind: snapshot.kind,
-        name: snapshot.name,
-        cpf: snapshot.cpf ?? "",
-        cnpj: snapshot.cnpj ?? "",
-        municipalRegistration: snapshot.municipalRegistration ?? "",
-        stateRegistration: snapshot.stateRegistration ?? "",
-        zip: snapshot.zip ?? "",
-        street: snapshot.street ?? "",
-        number: snapshot.number ?? "",
-        complement: snapshot.complement ?? "",
-        neighborhood: snapshot.neighborhood ?? "",
-        city: snapshot.city ?? "",
-        state: snapshot.state ?? "",
-        ibgeCode: snapshot.ibgeCode ?? "",
-        email: snapshot.email ?? "",
-        phone: snapshot.phone ?? "",
-      };
+    if (!client) {
+      setTomador(emptyTomador());
+      return;
+    }
+    startTransition(async () => {
+      applySnapshot(await refreshTomadorSnapshotAction(client.id));
     });
   }
 
@@ -148,13 +156,7 @@ export function NfseDraftForm({
     setError(null);
     setRefreshMessage(null);
     startTransition(async () => {
-      const result = await refreshTomadorSnapshotAction(clientId, initialDraft?.id);
-      if ("error" in result) {
-        setError(result.error);
-        return;
-      }
-      setTomador(result.tomador);
-      setRefreshMessage("Dados do tomador atualizados a partir do cadastro do cliente.");
+      applySnapshot(await refreshTomadorSnapshotAction(clientId, initialDraft?.id), "Dados do tomador atualizados a partir do cadastro do cliente.");
     });
   }
 
@@ -216,198 +218,225 @@ export function NfseDraftForm({
     });
   }
 
+  const emailSourceHint = selectedClient
+    ? tomador.email
+      ? "e-mail fiscal do cadastro (ou e-mail principal, quando não há e-mail fiscal cadastrado)"
+      : "cadastro sem e-mail"
+    : undefined;
+
+  const tabs: TabItem[] = [
+    {
+      id: "dados",
+      label: "Dados da nota",
+      content: (
+        <>
+          <section className="form-section form-section--first">
+            <h2>Valores</h2>
+            <div className="form-grid">
+              <label className="form-field">
+                <span className="field-label">Competência</span>
+                <input type="date" value={competencyDate} onChange={(event) => setCompetencyDate(event.target.value)} />
+                <span className="helper-text">Sempre explícita — nunca derivada silenciosamente; a data atual é só sugestão inicial.</span>
+              </label>
+              <label className="form-field">
+                <span className="field-label">Valor do serviço (R$)</span>
+                <input type="text" inputMode="decimal" value={serviceValue} onChange={(event) => setServiceValue(event.target.value)} placeholder="0,00" />
+              </label>
+            </div>
+          </section>
+          <section className="form-section">
+            <h2>Descrição</h2>
+            <div className="form-grid">
+              <label className="form-field" style={{ gridColumn: "1 / -1" }}>
+                <span className="field-label">Descrição do serviço</span>
+                <textarea rows={3} value={serviceDescription} onChange={(event) => setServiceDescription(event.target.value)} />
+              </label>
+              <label className="form-field" style={{ gridColumn: "1 / -1" }}>
+                <span className="field-label">Observações internas <span className="field-optional">(opcional)</span></span>
+                <textarea rows={2} value={notes} onChange={(event) => setNotes(event.target.value)} />
+              </label>
+            </div>
+          </section>
+        </>
+      ),
+    },
+    {
+      id: "tomador",
+      label: "Tomador",
+      content: (
+        <section className="form-section form-section--first">
+          <h2>Tomador</h2>
+          <div className="form-grid">
+            <div className="form-field" style={{ gridColumn: "1 / -1" }}>
+              <ClientPicker selected={selectedClient} onSelect={handleSelectClient} />
+            </div>
+          </div>
+          <p className="helper-text">
+            Cliente ainda não cadastrado?{" "}
+            <Link className="materia-title-link" href="/sistema/clientes/novo">
+              Cadastrar novo cliente
+            </Link>
+            .
+          </p>
+
+          {selectedClient ? (
+            <>
+              <p className="helper-text">
+                Snapshot fiscal da nota — <strong>somente leitura</strong> aqui. Estes dados não mudam se o Cadastro for editado depois; use "Atualizar
+                dados do cliente" para recarregar explicitamente.
+              </p>
+              <div className="form-grid">
+                <div className="form-field" style={{ gridColumn: "1 / -1" }}>
+                  <span className="field-label">Nome/razão social</span>
+                  <span>{tomador.name || "—"}</span>
+                </div>
+                <div className="form-field">
+                  <span className="field-label">{tomador.kind === "individual" ? "CPF" : "CNPJ"}</span>
+                  <span>{(tomador.kind === "individual" ? tomador.cpf : tomador.cnpj) || "—"}</span>
+                </div>
+                <div className="form-field">
+                  <span className="field-label">Inscrição municipal</span>
+                  <span>{tomador.municipalRegistration || "—"}</span>
+                </div>
+                <div className="form-field">
+                  <span className="field-label">Inscrição estadual</span>
+                  <span>{tomador.stateRegistration || "—"}</span>
+                </div>
+                <div className="form-field">
+                  <span className="field-label">Endereço</span>
+                  <span>
+                    {[tomador.street, tomador.number, tomador.complement].filter(Boolean).join(", ") || "—"}
+                    {tomador.neighborhood ? ` — ${tomador.neighborhood}` : ""}
+                  </span>
+                </div>
+                <div className="form-field">
+                  <span className="field-label">Município/UF</span>
+                  <span>{[tomador.city, tomador.state].filter(Boolean).join("/") || "—"}</span>
+                </div>
+                <div className="form-field">
+                  <span className="field-label">CEP</span>
+                  <span>{tomador.zip || "—"}</span>
+                </div>
+                <div className="form-field">
+                  <span className="field-label">Código do município (IBGE)</span>
+                  <span>{tomador.ibgeCode || "—"}</span>
+                </div>
+                <div className="form-field">
+                  <span className="field-label">E-mail fiscal da nota</span>
+                  <span>{tomador.email || "—"}</span>
+                  {emailSourceHint ? <span className="helper-text">{emailSourceHint}</span> : null}
+                </div>
+                <div className="form-field">
+                  <span className="field-label">Telefone</span>
+                  <span>{tomador.phone || "—"}</span>
+                </div>
+              </div>
+              <div className="form-actions">
+                <Link className="secondary-link" href={`/sistema/clientes/${clientId}/editar`} target="_blank">
+                  Editar cliente
+                </Link>
+                <button type="button" onClick={handleRefreshFromClient} disabled={pending}>
+                  Atualizar dados do cliente
+                </button>
+              </div>
+              {refreshMessage ? <p className="helper-text">{refreshMessage}</p> : null}
+            </>
+          ) : null}
+        </section>
+      ),
+    },
+    {
+      id: "servico",
+      label: "Serviço e tributação",
+      content: (
+        <>
+          <section className="form-section form-section--first">
+            <h2>Serviço</h2>
+            <div className="form-grid">
+              <label className="form-field" style={{ gridColumn: "1 / -1" }}>
+                <span className="field-label">Perfil de serviço</span>
+                <select value={serviceProfileId} onChange={(event) => handleSelectServiceProfile(event.target.value)}>
+                  <option value="">Nenhum (preencher manualmente)</option>
+                  {selectableProfiles.map((profile) => (
+                    <option key={profile.id} value={profile.id}>
+                      {profile.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+          </section>
+          <section className="form-section">
+            <h2>Tributação/configuração fiscal</h2>
+            <p className="helper-text">Carregada do perfil de serviço escolhido — editável só para esta NFS-e. Nenhum valor é presumido pela aplicação.</p>
+            <div className="form-grid">
+              <label className="form-field">
+                <span className="field-label">Código de tributação nacional (cTribNac)</span>
+                <input type="text" value={fiscal.cTribNac} onChange={(event) => setFiscalField("cTribNac", event.target.value)} />
+                <span className="helper-text">Usado pelo padrão nacional da NFS-e.</span>
+              </label>
+              <label className="form-field">
+                <span className="field-label">Código de tributação municipal (cTribMun) <span className="field-optional">(opcional)</span></span>
+                <input type="text" value={fiscal.cTribMun} onChange={(event) => setFiscalField("cTribMun", event.target.value)} />
+              </label>
+              <label className="form-field">
+                <span className="field-label">NBS (cNBS) <span className="field-optional">(opcional)</span></span>
+                <input type="text" value={fiscal.cNBS} onChange={(event) => setFiscalField("cNBS", event.target.value)} />
+              </label>
+              <label className="form-field">
+                <span className="field-label">Tributação do ISSQN <span className="field-optional">(opcional)</span></span>
+                <input type="text" value={fiscal.issqnTaxation} onChange={(event) => setFiscalField("issqnTaxation", event.target.value)} />
+              </label>
+              <label className="form-field">
+                <span className="field-label">Regime especial <span className="field-optional">(opcional)</span></span>
+                <input type="text" value={fiscal.specialTaxRegime} onChange={(event) => setFiscalField("specialTaxRegime", event.target.value)} />
+              </label>
+              <label className="form-field">
+                <span className="field-label">Município da prestação <span className="field-optional">(opcional)</span></span>
+                <input type="text" value={fiscal.locationMunicipality} onChange={(event) => setFiscalField("locationMunicipality", event.target.value)} />
+              </label>
+              <label className="form-field">
+                <span className="field-label">Código IBGE da prestação <span className="field-optional">(opcional)</span></span>
+                <input type="text" value={fiscal.locationIbgeCode} onChange={(event) => setFiscalField("locationIbgeCode", event.target.value)} />
+              </label>
+            </div>
+          </section>
+        </>
+      ),
+    },
+    {
+      id: "revisao",
+      label: "Revisão",
+      content: (
+        <section className="form-section form-section--first">
+          <h2>Revisão</h2>
+          {validation.readyForFutureTransmission ? (
+            <p className="helper-text">Rascunho completo — pronto para transmissão (na página do rascunho, depois de salvo). Isto NÃO é uma validação fiscal perante a Receita/Governo.</p>
+          ) : (
+            <div className="form-error" role="alert">
+              <p>Rascunho incompleto — faltam:</p>
+              <ul>
+                {validation.missingFields.map((field) => (
+                  <li key={field}>{field}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+          <div className="form-actions">
+            <button type="button" className="form-action-primary" onClick={handleSave} disabled={pending}>
+              {pending ? "Salvando…" : "Salvar rascunho"}
+            </button>
+          </div>
+          <p className="helper-text">A transmissão para o Sistema Nacional acontece na página do rascunho já salvo, nunca aqui.</p>
+        </section>
+      ),
+    },
+  ];
+
   return (
     <div className="inline-form">
       {error ? <p className="form-error" role="alert">{error}</p> : null}
-
-      <section className="form-section form-section--first">
-        <h2>Tomador</h2>
-        <div className="form-grid">
-          <label className="form-field" style={{ gridColumn: "1 / -1" }}>
-            <span className="field-label">Cliente</span>
-            <select value={clientId} onChange={(event) => handleSelectClient(event.target.value)}>
-              <option value="">Selecione um cliente</option>
-              {clients.map((client) => (
-                <option key={client.id} value={client.id}>
-                  {clientDisplayName(client)} ({client.reference})
-                </option>
-              ))}
-            </select>
-          </label>
-        </div>
-        <p className="helper-text">
-          Cliente ainda não cadastrado?{" "}
-          <Link className="materia-title-link" href="/sistema/clientes/novo">
-            Cadastrar novo cliente
-          </Link>
-          .
-        </p>
-
-        {clientId ? (
-          <>
-            <p className="helper-text">
-              Dados do cadastro — <strong>somente leitura</strong> nesta tela. Os dados do cliente não podem ser editados aqui; corrija no cadastro de Clientes e depois use "Atualizar dados do cliente".
-            </p>
-            <div className="form-grid">
-              <div className="form-field" style={{ gridColumn: "1 / -1" }}>
-                <span className="field-label">Nome/razão social</span>
-                <span>{tomador.name || "—"}</span>
-              </div>
-              <div className="form-field">
-                <span className="field-label">{tomador.kind === "individual" ? "CPF" : "CNPJ"}</span>
-                <span>{(tomador.kind === "individual" ? tomador.cpf : tomador.cnpj) || "—"}</span>
-              </div>
-              <div className="form-field">
-                <span className="field-label">Inscrição municipal</span>
-                <span>{tomador.municipalRegistration || "—"}</span>
-              </div>
-              <div className="form-field">
-                <span className="field-label">Inscrição estadual</span>
-                <span>{tomador.stateRegistration || "—"}</span>
-              </div>
-              <div className="form-field">
-                <span className="field-label">Endereço</span>
-                <span>
-                  {[tomador.street, tomador.number, tomador.complement].filter(Boolean).join(", ") || "—"}
-                  {tomador.neighborhood ? ` — ${tomador.neighborhood}` : ""}
-                </span>
-              </div>
-              <div className="form-field">
-                <span className="field-label">Município/UF</span>
-                <span>{[tomador.city, tomador.state].filter(Boolean).join("/") || "—"}</span>
-              </div>
-              <div className="form-field">
-                <span className="field-label">CEP</span>
-                <span>{tomador.zip || "—"}</span>
-              </div>
-              <div className="form-field">
-                <span className="field-label">Código do município (IBGE)</span>
-                <span>{tomador.ibgeCode || "—"}</span>
-              </div>
-              <div className="form-field">
-                <span className="field-label">E-mail</span>
-                <span>{tomador.email || "—"}</span>
-              </div>
-              <div className="form-field">
-                <span className="field-label">Telefone</span>
-                <span>{tomador.phone || "—"}</span>
-              </div>
-            </div>
-            <div className="form-actions">
-              <Link className="secondary-link" href={`/sistema/clientes/${clientId}/editar`} target="_blank">
-                Editar cliente
-              </Link>
-              <button type="button" onClick={handleRefreshFromClient} disabled={pending}>
-                Atualizar dados do cliente
-              </button>
-            </div>
-            {refreshMessage ? <p className="helper-text">{refreshMessage}</p> : null}
-          </>
-        ) : null}
-      </section>
-
-      <section className="form-section">
-        <h2>Serviço</h2>
-        <div className="form-grid">
-          <label className="form-field" style={{ gridColumn: "1 / -1" }}>
-            <span className="field-label">Perfil de serviço</span>
-            <select value={serviceProfileId} onChange={(event) => handleSelectServiceProfile(event.target.value)}>
-              <option value="">Nenhum (preencher manualmente)</option>
-              {selectableProfiles.map((profile) => (
-                <option key={profile.id} value={profile.id}>
-                  {profile.name}
-                </option>
-              ))}
-            </select>
-          </label>
-        </div>
-      </section>
-
-      <section className="form-section">
-        <h2>Valores</h2>
-        <div className="form-grid">
-          <label className="form-field">
-            <span className="field-label">Competência</span>
-            <input type="date" value={competencyDate} onChange={(event) => setCompetencyDate(event.target.value)} />
-          </label>
-          <label className="form-field">
-            <span className="field-label">Valor do serviço (R$)</span>
-            <input type="text" inputMode="decimal" value={serviceValue} onChange={(event) => setServiceValue(event.target.value)} placeholder="0,00" />
-          </label>
-        </div>
-      </section>
-
-      <section className="form-section">
-        <h2>Tributação/configuração fiscal</h2>
-        <p className="helper-text">Carregada do perfil de serviço escolhido — editável só para esta NFS-e.</p>
-        <div className="form-grid">
-          <label className="form-field">
-            <span className="field-label">Código de tributação nacional (cTribNac)</span>
-            <input type="text" value={fiscal.cTribNac} onChange={(event) => setFiscalField("cTribNac", event.target.value)} />
-            <span className="helper-text">Usado pelo padrão nacional da NFS-e.</span>
-          </label>
-          <label className="form-field">
-            <span className="field-label">Código de tributação municipal (cTribMun) <span className="field-optional">(opcional)</span></span>
-            <input type="text" value={fiscal.cTribMun} onChange={(event) => setFiscalField("cTribMun", event.target.value)} />
-          </label>
-          <label className="form-field">
-            <span className="field-label">NBS (cNBS) <span className="field-optional">(opcional)</span></span>
-            <input type="text" value={fiscal.cNBS} onChange={(event) => setFiscalField("cNBS", event.target.value)} />
-          </label>
-          <label className="form-field">
-            <span className="field-label">Tributação do ISSQN <span className="field-optional">(opcional)</span></span>
-            <input type="text" value={fiscal.issqnTaxation} onChange={(event) => setFiscalField("issqnTaxation", event.target.value)} />
-          </label>
-          <label className="form-field">
-            <span className="field-label">Regime especial <span className="field-optional">(opcional)</span></span>
-            <input type="text" value={fiscal.specialTaxRegime} onChange={(event) => setFiscalField("specialTaxRegime", event.target.value)} />
-          </label>
-          <label className="form-field">
-            <span className="field-label">Município da prestação <span className="field-optional">(opcional)</span></span>
-            <input type="text" value={fiscal.locationMunicipality} onChange={(event) => setFiscalField("locationMunicipality", event.target.value)} />
-          </label>
-          <label className="form-field">
-            <span className="field-label">Código IBGE da prestação <span className="field-optional">(opcional)</span></span>
-            <input type="text" value={fiscal.locationIbgeCode} onChange={(event) => setFiscalField("locationIbgeCode", event.target.value)} />
-          </label>
-        </div>
-      </section>
-
-      <section className="form-section">
-        <h2>Descrição</h2>
-        <div className="form-grid">
-          <label className="form-field" style={{ gridColumn: "1 / -1" }}>
-            <span className="field-label">Descrição do serviço</span>
-            <textarea rows={3} value={serviceDescription} onChange={(event) => setServiceDescription(event.target.value)} />
-          </label>
-          <label className="form-field" style={{ gridColumn: "1 / -1" }}>
-            <span className="field-label">Observações internas <span className="field-optional">(opcional)</span></span>
-            <textarea rows={2} value={notes} onChange={(event) => setNotes(event.target.value)} />
-          </label>
-        </div>
-      </section>
-
-      <section className="form-section">
-        <h2>Revisão</h2>
-        {validation.readyForFutureTransmission ? (
-          <p className="helper-text">Rascunho completo — pronto para uma futura transmissão (quando a Parte 2 existir). Isto NÃO é uma validação fiscal perante a Receita/Governo.</p>
-        ) : (
-          <div className="form-error" role="alert">
-            <p>Rascunho incompleto — faltam:</p>
-            <ul>
-              {validation.missingFields.map((field) => (
-                <li key={field}>{field}</li>
-              ))}
-            </ul>
-          </div>
-        )}
-        <div className="form-actions">
-          <button type="button" className="form-action-primary" onClick={handleSave} disabled={pending}>
-            {pending ? "Salvando…" : "Salvar rascunho"}
-          </button>
-        </div>
-        <p className="helper-text">Transmissão para o Sistema Nacional ainda não está habilitada — esta NFS-e continua sendo só um rascunho.</p>
-      </section>
+      <Tabs tabs={tabs} />
     </div>
   );
 }

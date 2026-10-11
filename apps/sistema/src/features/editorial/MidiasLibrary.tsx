@@ -131,7 +131,7 @@ export function MidiasLibrary({ mediaAssets, usageByMediaId }: MidiasLibraryProp
             setError(null);
           }}
         >
-          {showCreate ? "Cancelar" : "Nova mídia ＋"}
+          {showCreate ? "Cancelar" : "+ Nova mídia"}
         </button>
       </div>
 

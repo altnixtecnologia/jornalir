@@ -1,6 +1,12 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Locality } from "@ir/types";
 import type { LocalityChanges, LocalityRepository, NewLocalityRecord } from "@ir/core";
+import { isLocalPreviewEnabled } from "../../lib/auth/localPreview";
+
+const PREVIEW_LOCALITIES: Locality[] = [
+  { id: "preview-sjs", slug: "sao-joao-do-sul", name: "São João do Sul", scope: "city", active: true },
+  { id: "preview-sc", slug: "santa-catarina", name: "Santa Catarina", scope: "state", active: true },
+];
 
 const COLUMNS = "id, name, slug, scope, active";
 const TABLE = "localities";
@@ -26,12 +32,14 @@ function toDomain(row: LocalityRow): Locality {
 export function createLocalityRepositorySupabase(client: SupabaseClient): LocalityRepository {
   return {
     async list() {
+      if (isLocalPreviewEnabled()) return PREVIEW_LOCALITIES;
       const { data, error } = await client.from(TABLE).select(COLUMNS).order("name", { ascending: true });
       if (error) throw new Error(error.message);
       return (data ?? []).map((row) => toDomain(row as LocalityRow));
     },
 
     async getById(id) {
+      if (isLocalPreviewEnabled()) return PREVIEW_LOCALITIES.find((locality) => locality.id === id) ?? null;
       const { data, error } = await client.from(TABLE).select(COLUMNS).eq("id", id).maybeSingle();
       if (error) throw new Error(error.message);
       return data ? toDomain(data as LocalityRow) : null;

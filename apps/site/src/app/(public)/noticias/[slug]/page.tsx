@@ -3,24 +3,41 @@ import { notFound } from "next/navigation";
 import { formatDateBR } from "../../../../components/site/date";
 import { AdSlotColumn } from "../../../../components/site/AdSlotColumn";
 import { AdSlotPairRow } from "../../../../components/site/AdSlotPairRow";
-import { leftAdSlots, rightAdSlots, type AdSlot } from "../../../../components/site/adSlots";
+import type { AdSlot } from "../../../../components/site/adSlots";
 import { ArticleMediaViewer } from "../../../../components/site/ArticleMediaViewer";
 import { PublicReadAlsoCard } from "../../../../components/site/public/PublicReadAlsoCard";
 import { SiteHeader } from "../../../../components/site/SiteHeader";
 import { estimateReadingMinutes, readingTimeLabel } from "../../../../components/site/readingTime";
 import { getPublicArticleBySlug, getReadAlso } from "../../../../lib/public/publicContentService";
+import { getPublicSiteAds } from "../../../../lib/public/siteAdsService";
 
 // Sempre no request — matéria pode virar pública automaticamente a
 // qualquer minuto (cron de agendamento, Fase 30).
 export const dynamic = "force-dynamic";
 
+const PHASE_OFFSET_STEP_MS = 1200;
+
 export default async function NoticiaDetalhePage({ params }: { params: { slug: string } }): Promise<JSX.Element> {
   const current = await getPublicArticleBySlug(params.slug);
   if (!current) notFound();
 
-  const readAlso = await getReadAlso(current, 4);
+  const [readAlso, siteAds] = await Promise.all([getReadAlso(current, 4), getPublicSiteAds()]);
   const readMinutes = estimateReadingMinutes(current.body);
   const galleryImages = current.gallery.map((item) => ({ url: item.url, caption: item.caption, credit: item.credit }));
+
+  const adSlots: AdSlot[] = Array.from({ length: 6 }, (_, index) => {
+    const slotNumber = index + 1;
+    const media = siteAds.mediaBySlot.get(slotNumber) ?? [];
+    return {
+      id: `slot-${slotNumber}`,
+      label: `Quadro ${slotNumber}`,
+      rotateMs: siteAds.settings.rotationIntervalMs,
+      phaseOffsetMs: index * PHASE_OFFSET_STEP_MS,
+      creatives: media.map((item) => ({ id: item.id, imageUrl: item.imageUrl, href: item.href, alt: item.altText })),
+    };
+  });
+  const leftAdSlots = adSlots.slice(0, 3);
+  const rightAdSlots = adSlots.slice(3, 6);
   const mobilePair: [AdSlot, AdSlot] = [leftAdSlots[0], rightAdSlots[0]];
 
   return (
@@ -30,7 +47,7 @@ export default async function NoticiaDetalhePage({ params }: { params: { slug: s
       <article className="site-shell py-7">
         <div className="grid grid-cols-1 gap-10 xl:grid-cols-[170px_minmax(0,1fr)_170px] 2xl:grid-cols-[200px_minmax(0,1fr)_200px] xl:items-start">
           <div className="hidden xl:block">
-            <AdSlotColumn slots={leftAdSlots} side="left" />
+            <AdSlotColumn slots={leftAdSlots} side="left" effect={siteAds.settings.transitionEffect} />
           </div>
 
           <div className="min-w-0">
@@ -68,13 +85,13 @@ export default async function NoticiaDetalhePage({ params }: { params: { slug: s
               />
 
               <div className="mt-10 md:hidden">
-                <AdSlotPairRow slots={mobilePair} />
+                <AdSlotPairRow slots={mobilePair} effect={siteAds.settings.transitionEffect} />
               </div>
             </div>
           </div>
 
           <div className="hidden xl:block">
-            <AdSlotColumn slots={rightAdSlots} side="right" />
+            <AdSlotColumn slots={rightAdSlots} side="right" effect={siteAds.settings.transitionEffect} />
           </div>
         </div>
       </article>

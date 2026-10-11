@@ -95,7 +95,7 @@ export function EditoriasManager({ sections }: EditoriasManagerProps): JSX.Eleme
             setError(null);
           }}
         >
-          {showCreate ? "Cancelar" : "Nova editoria ＋"}
+          {showCreate ? "Cancelar" : "+ Nova editoria"}
         </button>
       </div>
 

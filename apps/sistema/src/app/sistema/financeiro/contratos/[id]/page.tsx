@@ -100,7 +100,7 @@ export default async function ContractDetailPage({ params }: { params: { id: str
   });
 
   return (
-    <>
+    <div className="inline-form">
       <ModuleHeader
         eyebrow={`FINANCEIRO / CONTRATOS / ${contract.reference}`}
         title={client ? clientDisplayName(client) : "Contrato institucional"}
@@ -257,6 +257,6 @@ export default async function ContractDetailPage({ params }: { params: { id: str
         <h2>Linha do tempo</h2>
         <ContractTimeline entries={timeline} />
       </section>
-    </>
+    </div>
   );
 }

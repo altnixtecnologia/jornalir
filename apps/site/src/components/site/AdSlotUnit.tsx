@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import type { SiteAdTransitionEffect } from "@ir/types";
 import type { AdSlot } from "./adSlots";
 
 /**
@@ -8,9 +9,19 @@ import type { AdSlot } from "./adSlots";
  * inicial própria (`phaseOffsetMs`) para nunca trocar em sincronia com os
  * outros 5 quadros. O SLOT tem tamanho externo fixo (igual nos 6); a arte
  * usa object-fit:contain dentro dele — proporção da arte nunca altera o
- * tamanho do quadro (nunca corta, nunca deforma).
+ * tamanho do quadro (nunca corta, nunca deforma). `effect` vem da
+ * configuração global (Configurações > Patrocinadores do site) — um
+ * único efeito vale para os 6 quadros, nunca por imagem.
  */
-export function AdSlotUnit({ slot, variant = "column" }: { slot: AdSlot; variant?: "column" | "pair" }): JSX.Element | null {
+export function AdSlotUnit({
+  slot,
+  variant = "column",
+  effect = "fade",
+}: {
+  slot: AdSlot;
+  variant?: "column" | "pair";
+  effect?: SiteAdTransitionEffect;
+}): JSX.Element | null {
   const [index, setIndex] = useState(0);
 
   useEffect(() => {
@@ -36,7 +47,7 @@ export function AdSlotUnit({ slot, variant = "column" }: { slot: AdSlot; variant
       src={current.imageUrl}
       alt={current.alt ?? slot.label}
       loading="lazy"
-      className="ad-slot-img ad-effect-fade"
+      className={`ad-slot-img ad-effect-${effect}`}
     />
   );
 

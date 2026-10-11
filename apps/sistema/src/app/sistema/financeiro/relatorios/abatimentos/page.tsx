@@ -90,7 +90,7 @@ export default async function RelatorioAbatimentosPage({
               </option>
             ))}
           </select>
-          <button type="submit">Filtrar</button>
+          <button type="submit" className="cadastros-btn-primary">Filtrar</button>
         </form>
         <span className="materias-count">{result.total} abatimento(s) · {formatAmount(total)}</span>
       </ReportFiltersToggle>

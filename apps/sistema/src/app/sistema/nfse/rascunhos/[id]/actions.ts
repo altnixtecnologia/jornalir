@@ -5,6 +5,8 @@ import { getTransmissionService } from "../../../../../composition/nfse";
 import { createSupabaseServerClient } from "../../../../../lib/supabase/server";
 import { getAuditContext } from "../../../../../lib/auth/getAuditContext";
 import { recordAuditEventSupabase } from "../../../../../providers/supabase/auditEvents.supabase";
+import { isLocalPreviewEnabled } from "../../../../../lib/auth/localPreview";
+import { simulatePreviewTransmission } from "../../../../../providers/supabase/nfsePreviewTransmission";
 
 const ENTITY_TYPE = "nfse_draft";
 
@@ -44,6 +46,30 @@ export async function transmitDraftAction(draftId: string): Promise<TransmitDraf
   }
 
   const isAdminOrOwner = await isActorAdminOrOwner(supabase, AUDIT.actorId);
+
+  // Preview (demonstração) — nunca chega ao TransmissionService real;
+  // nunca grava em audit_events (log real) uma transmissão que não
+  // aconteceu de verdade (ver nfsePreviewTransmission.ts).
+  if (isLocalPreviewEnabled()) {
+    if (!isAdminOrOwner) return { error: "Sem permissão para transmitir NFS-e — só owner/admin." };
+    try {
+      const result = await simulatePreviewTransmission(supabase, draftId);
+      revalidatePath(`/sistema/nfse/rascunhos/${draftId}`);
+      revalidatePath("/sistema/nfse/rascunhos");
+      revalidatePath("/sistema/nfse/notas");
+      if (result.outcome === "authorized") {
+        return {
+          outcome: "authorized",
+          issuedNoteId: result.issuedNote?.id,
+          nfseNumber: result.issuedNote?.nfseNumber,
+          accessKey: result.issuedNote?.accessKey,
+        };
+      }
+      return { outcome: "rejected", rejectionMessage: result.rejection?.message };
+    } catch (error) {
+      return { error: toErrorMessage(error) };
+    }
+  }
 
   await recordAuditEventSupabase(supabase, { userId: AUDIT.actorId, entityType: ENTITY_TYPE, entityId: draftId, action: "transmission_started" });
 

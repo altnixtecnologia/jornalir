@@ -171,7 +171,7 @@ export function ReceivableActionsPanel({ receivable, receipts, adjustments, staf
               <input type="date" value={receiptDate} onChange={(event) => setReceiptDate(event.target.value)} />
             </label>
             <label className="form-field">
-              <span className="field-label">Forma de pagamento <span className="field-optional">(opcional)</span></span>
+              <span className="field-label">Forma de liquidação <span className="field-optional">(opcional)</span></span>
               <select value={receiptMethod} onChange={(event) => setReceiptMethod(event.target.value as PaymentMethod | "")}>
                 <option value="">Não informado</option>
                 {PAYMENT_METHODS.map((method) => (
@@ -241,7 +241,7 @@ export function ReceivableActionsPanel({ receivable, receipts, adjustments, staf
               <input type="date" value={receiptDate} onChange={(event) => setReceiptDate(event.target.value)} />
             </label>
             <label className="form-field">
-              <span className="field-label">Forma de pagamento <span className="field-optional">(opcional)</span></span>
+              <span className="field-label">Forma de liquidação <span className="field-optional">(opcional)</span></span>
               <select value={receiptMethod} onChange={(event) => setReceiptMethod(event.target.value as PaymentMethod | "")}>
                 <option value="">Não informado</option>
                 {PAYMENT_METHODS.map((method) => (

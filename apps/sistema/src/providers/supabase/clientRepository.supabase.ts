@@ -1,11 +1,50 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Client, ClientAddress, ClientKind, ClientRole, ClientStatus } from "@ir/types";
+import type { Client, ClientAddress, ClientIcmsStatus, ClientKind, ClientRole, ClientStatus } from "@ir/types";
 import { ClientDuplicateFieldError, type ClientChanges, type ClientRepository, type NewClientRecord } from "@ir/core";
+import { isLocalPreviewEnabled } from "../../lib/auth/localPreview";
+
+const PREVIEW_CLIENTS: Client[] = [
+  {
+    id: "preview-cliente-1",
+    reference: "CLI-000001",
+    kind: "individual",
+    status: "active",
+    fullName: "Cliente de Exemplo (visualização local)",
+    cpf: "11122233396",
+    email: "preview@example.invalid",
+    address: {},
+    // "anunciante" incluído aqui porque os fixtures de Comercial/
+    // Publicidade (commercialSaleRepository.supabase.ts) usam este mesmo
+    // cliente em várias vendas — em produção o trigger
+    // ensure_advertiser_role garante isso automaticamente; o preview
+    // (sem banco) precisa simular o mesmo resultado à mão, senão filtrar
+    // Cadastros por "Anunciante" aparentaria incoerente com Comercial.
+    roles: ["cliente", "assinante", "anunciante"],
+    createdAt: new Date(0).toISOString(),
+    updatedAt: new Date(0).toISOString(),
+  },
+  // PJ — pra Assinaturas conseguir demonstrar PF e PJ no preview sem
+  // precisar duplicar cadastro (ver relatório da tarefa de Assinaturas).
+  {
+    id: "preview-cliente-2",
+    reference: "CLI-000002",
+    kind: "company",
+    status: "active",
+    companyName: "Empresa de Exemplo Ltda. (visualização local)",
+    cnpj: "11222333000181",
+    email: "empresa-preview@example.invalid",
+    address: {},
+    roles: ["cliente", "assinante", "anunciante"],
+    createdAt: new Date(0).toISOString(),
+    updatedAt: new Date(0).toISOString(),
+  },
+];
 
 const TABLE = "clients";
 const COLUMNS =
   "id, internal_reference, kind, status, full_name, cpf, birth_date, company_name, trade_name, cnpj, " +
-  "state_registration, responsible_name, responsible_cpf, phone_primary, phone_secondary, whatsapp, email, " +
+  "state_registration, responsible_name, responsible_cpf, phone_primary, phone_secondary, whatsapp, email, fiscal_email, " +
+  "municipal_registration, address_ibge_code, icms_status, " +
   "address_zip, address_street, address_number, address_complement, address_neighborhood, address_city, address_state, " +
   "notes, created_at, updated_at, client_roles(role)";
 
@@ -27,6 +66,10 @@ interface ClientRow {
   phone_secondary: string | null;
   whatsapp: string | null;
   email: string | null;
+  fiscal_email: string | null;
+  municipal_registration: string | null;
+  address_ibge_code: string | null;
+  icms_status: ClientIcmsStatus | null;
   address_zip: string | null;
   address_street: string | null;
   address_number: string | null;
@@ -68,6 +111,10 @@ function toDomain(row: ClientRow): Client {
     phoneSecondary: row.phone_secondary ?? undefined,
     whatsapp: row.whatsapp ?? undefined,
     email: row.email ?? undefined,
+    fiscalEmail: row.fiscal_email ?? undefined,
+    municipalRegistration: row.municipal_registration ?? undefined,
+    addressIbgeCode: row.address_ibge_code ?? undefined,
+    icmsStatus: row.icms_status ?? undefined,
     address,
     notes: row.notes ?? undefined,
     roles: (row.client_roles ?? []).map((r) => r.role),
@@ -101,6 +148,10 @@ function toClientJson(record: NewClientRecord | ClientChanges): Record<string, u
     phone_secondary: record.phoneSecondary ?? null,
     whatsapp: record.whatsapp ?? null,
     email: record.email ?? null,
+    fiscal_email: record.fiscalEmail ?? null,
+    municipal_registration: record.municipalRegistration ?? null,
+    address_ibge_code: record.addressIbgeCode ?? null,
+    icms_status: record.icmsStatus ?? null,
     address_zip: record.address?.zip ?? null,
     address_street: record.address?.street ?? null,
     address_number: record.address?.number ?? null,
@@ -127,12 +178,18 @@ function rethrowAsDuplicate(error: { code?: string; message?: string }): never {
 export function createClientRepositorySupabase(client: SupabaseClient): ClientRepository {
   return {
     async list() {
+      if (isLocalPreviewEnabled()) return PREVIEW_CLIENTS;
       const { data, error } = await client.from(TABLE).select(COLUMNS).order("created_at", { ascending: false });
       if (error) throw new Error(error.message);
       return (data ?? []).map((row) => toDomain(row as unknown as ClientRow));
     },
 
     async getById(id) {
+      // Faltava aqui (só `list()` tinha o guard) — Assinaturas resolve o
+      // cadastro pré-selecionado via getById em preview (nova/editar), e
+      // sem isto cairia na mesma chamada real bloqueada (402) só pra achar
+      // um cliente de demonstração.
+      if (isLocalPreviewEnabled()) return PREVIEW_CLIENTS.find((c) => c.id === id) ?? null;
       const { data, error } = await client.from(TABLE).select(COLUMNS).eq("id", id).maybeSingle();
       if (error) throw new Error(error.message);
       return data ? toDomain(data as unknown as ClientRow) : null;
@@ -200,6 +257,9 @@ export async function listClientsAdminPageSupabase(
   client: SupabaseClient,
   input: ClientAdminPageQuery = {},
 ): Promise<ClientAdminPageResult> {
+  if (isLocalPreviewEnabled()) {
+    return { clients: PREVIEW_CLIENTS, total: PREVIEW_CLIENTS.length, page: 1, pageSize: clientPageSize(input.pageSize), totalPages: 1 };
+  }
   const pageSize = clientPageSize(input.pageSize);
   const requestedPage = Math.max(1, Math.floor(input.page ?? 1));
 

@@ -29,7 +29,32 @@ export function addPeriodicityInterval(dateIso: string, periodicity: Subscriptio
 
 export type ReceivableSourceType = "subscription" | "advertising" | "institutional_contract" | "miscellaneous" | "other";
 export type ReceivableStatus = "open" | "partially_paid" | "paid" | "cancelled";
-export type PaymentMethod = "cash" | "pix" | "bank_transfer" | "check" | "card" | "other";
+/**
+ * "Forma de liquidação" na UI (não "forma de pagamento") — nem toda
+ * liquidação é dinheiro entrando (ver `trade`/`bailment`). Valores em
+ * inglês normalizado, mesmo padrão do resto do projeto — `pix`/`boleto`
+ * ficam como estão por serem nomes próprios de instrumentos brasileiros
+ * (mesmo tratamento já dado a "pix").
+ *
+ * `card` é um valor LEGADO — o genérico de antes de crédito/débito serem
+ * separados. Mantido no tipo só pra conseguir LER registros históricos
+ * eventualmente existentes no remoto (Supabase 402, não dá pra confirmar
+ * se existem); NUNCA oferecido em formulários de nova baixa (ver
+ * `PAYMENT_METHODS`, que o exclui, vs `ALL_PAYMENT_METHODS`, que o
+ * inclui pra filtros/relatórios).
+ */
+export type PaymentMethod =
+  | "cash"
+  | "pix"
+  | "bank_transfer"
+  | "check"
+  | "credit_card"
+  | "debit_card"
+  | "boleto"
+  | "trade"
+  | "bailment"
+  | "other"
+  | "card";
 export type AdjustmentType = "discount" | "settlement_difference" | "credit_applied";
 
 export const RECEIVABLE_SOURCE_TYPES: readonly ReceivableSourceType[] = [
@@ -40,7 +65,22 @@ export const RECEIVABLE_SOURCE_TYPES: readonly ReceivableSourceType[] = [
   "other",
 ];
 export const RECEIVABLE_STATUSES: readonly ReceivableStatus[] = ["open", "partially_paid", "paid", "cancelled"];
-export const PAYMENT_METHODS: readonly PaymentMethod[] = ["cash", "pix", "bank_transfer", "check", "card", "other"];
+
+/** Oferecido em formulários de NOVA baixa/liquidação — nunca inclui o legado `card`. */
+export const PAYMENT_METHODS: readonly PaymentMethod[] = [
+  "cash",
+  "pix",
+  "bank_transfer",
+  "check",
+  "credit_card",
+  "debit_card",
+  "boleto",
+  "trade",
+  "bailment",
+  "other",
+];
+/** Usado em filtros/relatórios (precisa conseguir localizar registros históricos com o legado `card`). */
+export const ALL_PAYMENT_METHODS: readonly PaymentMethod[] = [...PAYMENT_METHODS, "card"];
 export const ADJUSTMENT_TYPES: readonly AdjustmentType[] = ["discount", "settlement_difference", "credit_applied"];
 
 export const RECEIVABLE_SOURCE_TYPE_LABELS: Record<ReceivableSourceType, string> = {
@@ -63,9 +103,22 @@ export const PAYMENT_METHOD_LABELS: Record<PaymentMethod, string> = {
   pix: "Pix",
   bank_transfer: "Transferência bancária",
   check: "Cheque",
-  card: "Cartão",
+  credit_card: "Cartão de crédito",
+  debit_card: "Cartão de débito",
+  boleto: "Boleto",
+  trade: "Permuta",
+  bailment: "Comodato",
   other: "Outro",
+  card: "Cartão (legado)",
 };
+
+/** `trade`/`bailment` reduzem o saldo do título como qualquer liquidação,
+ * mas NÃO representam dinheiro entrando — a UI usa isto pra deixar claro
+ * no histórico que não houve entrada monetária (item 6/7 da Fase "Formas
+ * de liquidação"). */
+export function isNonMonetaryPaymentMethod(method: PaymentMethod | undefined): boolean {
+  return method === "trade" || method === "bailment";
+}
 
 export const ADJUSTMENT_TYPE_LABELS: Record<AdjustmentType, string> = {
   discount: "Desconto",
@@ -132,6 +185,10 @@ export interface Receivable {
   /** Preenchido SÓ quando sourceType === "subscription" — referência real (com FK) à assinatura, usada pela proteção de duplicidade (um índice único por competência). Nunca usado por outras origens. */
   subscriptionId?: string;
   contractId?: string;
+  /** Preenchido SÓ quando sourceType === "advertising" — referência real (com FK) à venda comercial de origem (ver @ir/types/comercial), usada pela unicidade por parcela (índice único em commercial_sale_id+installment_number). Nunca usado por outras origens. */
+  commercialSaleId?: string;
+  /** Parcela (1..N) dentro da venda comercial — só preenchido junto de commercialSaleId. */
+  installmentNumber?: number;
   /** Vínculo opcional a um empenho (Bloco 2, item 4) — nunca presume que todo título exige um; só preenchido quando faz sentido administrativamente. */
   commitmentOrderId?: string;
   originalAmount: number;
@@ -193,6 +250,89 @@ export interface ReceivableAdjustment {
 
 export function isReversed(entry: Pick<ReceivableReceipt | ReceivableAdjustment, "reversedAt">): boolean {
   return Boolean(entry.reversedAt);
+}
+
+// --- Cobrança Pix (fase "Formas de liquidação / Pix / envio ao cliente") --
+//
+// DISTINÇÃO DELIBERADA de ReceivableReceipt: um PaymentCharge é uma
+// cobrança CRIADA, ainda aguardando confirmação (status="pending") — não é
+// um recebimento. Só quando o provedor confirma o pagamento é que um
+// ReceivableReceipt de verdade é criado (paymentMethod="pix"), reduzindo o
+// saldo pela lógica já existente (recomputeReceivableStatus). Nenhum saldo
+// é alterado só por existir uma cobrança pendente.
+//
+// provider-agnostic de propósito: hoje só existe o adapter de demonstração
+// ("pix_manual", preview) — NENHUM provedor real foi escolhido/integrado
+// ainda (ver PixProvider em @ir/core). Novos providers exigem migration
+// própria ampliando o check de `provider`, nunca inventados aqui.
+
+export type PaymentChargeProvider = "pix_manual";
+export type PaymentChargeStatus = "pending" | "paid" | "expired" | "cancelled" | "failed";
+
+export const PAYMENT_CHARGE_STATUSES: readonly PaymentChargeStatus[] = ["pending", "paid", "expired", "cancelled", "failed"];
+
+export const PAYMENT_CHARGE_STATUS_LABELS: Record<PaymentChargeStatus, string> = {
+  pending: "Aguardando pagamento",
+  paid: "Paga",
+  expired: "Expirada",
+  cancelled: "Cancelada",
+  failed: "Falhou",
+};
+
+export interface PaymentCharge {
+  id: string;
+  receivableId: string;
+  clientId: string;
+  provider: PaymentChargeProvider;
+  /** txid/id da cobrança no provedor — nulo enquanto não há provedor real configurado (preview sempre preenche com um valor demonstrativo). */
+  providerChargeId?: string;
+  amount: number;
+  description?: string;
+  status: PaymentChargeStatus;
+  /** Payload Pix "copia e cola" — nunca a imagem do QR (o QR é sempre renderizado a partir deste payload, nunca armazenado). */
+  pixCopyPaste?: string;
+  expiresAt?: string;
+  paidAt?: string;
+  /** Preenchido quando o pagamento é confirmado e um ReceivableReceipt é criado — chave de idempotência: se já preenchido, a confirmação NUNCA cria um segundo receipt para esta cobrança. */
+  receiptId?: string;
+  cancelledAt?: string;
+  cancelledByProfileId?: string;
+  cancellationReason?: string;
+  createdByProfileId?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// --- Envio de cobrança ao cliente (WhatsApp) -----------------------------
+//
+// Arquitetura equivalente à já usada no Altnix Informativo (Edge Function
+// + WhatsApp Cloud API), preparada agora mas NÃO implantada/chamada de
+// verdade nesta fase — ver supabase/functions/enviar-cobranca-whatsapp e
+// o relatório da tarefa. `simulated` é o único status possível em preview;
+// fora do preview, sem provedor configurado, o envio é recusado de forma
+// honesta (nunca finge sucesso).
+
+export type BillingMessageChannel = "whatsapp";
+export type BillingMessageStatus = "sent" | "failed" | "simulated";
+
+export const BILLING_MESSAGE_STATUS_LABELS: Record<BillingMessageStatus, string> = {
+  sent: "Enviada",
+  failed: "Falhou",
+  simulated: "Demonstração (preview)",
+};
+
+export interface BillingMessageLog {
+  id: string;
+  receivableId: string;
+  clientId: string;
+  channel: BillingMessageChannel;
+  toPhone: string;
+  message: string;
+  status: BillingMessageStatus;
+  providerMessageId?: string;
+  errorMessage?: string;
+  createdByProfileId?: string;
+  createdAt: string;
 }
 
 // --- Contratos institucionais -------------------------------------------
@@ -493,6 +633,8 @@ export interface ClientCredit {
   /** De qual título/recebimento este crédito surgiu — rastreabilidade (item 2), nunca obrigatório (um crédito pode futuramente vir de outro fluxo). */
   originReceivableId?: string;
   originReceiptId?: string;
+  /** Preenchido quando o crédito surgiu do EXCEDENTE de uma cobrança Pix confirmada acima do saldo do título (ver confirm_payment_charge) — chave de idempotência: no máximo um crédito por cobrança (unique parcial no banco). */
+  originPaymentChargeId?: string;
   originalAmount: number;
   reason?: string;
   notes?: string;

@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import type { Subscription } from "@ir/types";
+import { ConfirmDialog } from "../../components/admin/ConfirmDialog";
 import { cancelSubscriptionAction, reactivateSubscriptionAction, suspendSubscriptionAction } from "../../app/sistema/assinaturas/actions";
 
 /**
@@ -11,13 +12,16 @@ import { cancelSubscriptionAction, reactivateSubscriptionAction, suspendSubscrip
  * ação descarta o Router Cache da página (mesmo padrão de
  * ArticleForm.handleBack) pra mostrar o status atualizado sem precisar
  * de hard refresh. Cancelada é estado final — este componente não
- * mostra nenhuma ação quando a assinatura já está cancelada.
+ * mostra nenhuma ação quando a assinatura já está cancelada. Cancelar é a
+ * única ação destrutiva/irreversível daqui — usa o mesmo `ConfirmDialog`
+ * (dialog nativo) já aprovado em Cadastros/Aniversariantes, em vez do
+ * formulário inline que havia antes.
  */
 export function SubscriptionStatusActions({ subscription }: { subscription: Subscription }): JSX.Element | null {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
-  const [showCancelForm, setShowCancelForm] = useState(false);
+  const [showCancelConfirm, setShowCancelConfirm] = useState(false);
   const [cancellationReason, setCancellationReason] = useState("");
 
   function runAction(action: () => Promise<{ error: string } | void>): void {
@@ -28,7 +32,7 @@ export function SubscriptionStatusActions({ subscription }: { subscription: Subs
         setError(result.error);
         return;
       }
-      setShowCancelForm(false);
+      setShowCancelConfirm(false);
       router.refresh();
     });
   }
@@ -50,37 +54,35 @@ export function SubscriptionStatusActions({ subscription }: { subscription: Subs
             Reativar
           </button>
         ) : null}
-        {!showCancelForm ? (
-          <button type="button" className="media-remove-button" onClick={() => setShowCancelForm(true)} disabled={pending}>
-            Cancelar assinatura
-          </button>
-        ) : null}
+        <button
+          type="button"
+          className="media-remove-button"
+          onClick={() => {
+            setCancellationReason("");
+            setShowCancelConfirm(true);
+          }}
+          disabled={pending}
+        >
+          Cancelar assinatura
+        </button>
       </div>
 
-      {showCancelForm ? (
-        <div className="form-grid" style={{ marginTop: "12px" }}>
-          <label className="form-field" style={{ gridColumn: "1 / -1" }}>
-            <span className="field-label">Motivo do cancelamento <span className="field-optional">(opcional)</span></span>
-            <textarea rows={3} value={cancellationReason} onChange={(event) => setCancellationReason(event.target.value)} />
-          </label>
-          <div className="form-actions">
-            <button
-              type="button"
-              className="media-remove-button"
-              onClick={() => runAction(() => cancelSubscriptionAction(subscription.id, cancellationReason))}
-              disabled={pending}
-            >
-              {pending ? "Cancelando…" : "Confirmar cancelamento"}
-            </button>
-            <button type="button" onClick={() => setShowCancelForm(false)} disabled={pending}>
-              Voltar
-            </button>
-          </div>
-          <p className="helper-text" style={{ gridColumn: "1 / -1" }}>
-            Cancelada é definitiva — para retomar o serviço depois, será necessário criar uma nova assinatura.
-          </p>
-        </div>
-      ) : null}
+      <ConfirmDialog
+        open={showCancelConfirm}
+        title={`Cancelar assinatura "${subscription.reference}"?`}
+        description={
+          <>
+            <p>Cancelada é definitiva — para retomar o serviço depois, será necessário criar uma nova assinatura.</p>
+            <label className="form-field" style={{ marginTop: "10px" }}>
+              <span className="field-label">Motivo do cancelamento <span className="field-optional">(opcional)</span></span>
+              <textarea rows={3} value={cancellationReason} onChange={(event) => setCancellationReason(event.target.value)} />
+            </label>
+          </>
+        }
+        confirmLabel={pending ? "Cancelando…" : "Confirmar cancelamento"}
+        onConfirm={() => runAction(() => cancelSubscriptionAction(subscription.id, cancellationReason))}
+        onCancel={() => setShowCancelConfirm(false)}
+      />
     </div>
   );
 }

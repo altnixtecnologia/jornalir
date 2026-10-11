@@ -6,3 +6,7 @@ export * from "./subscription-billing";
 export * from "./contract-installments";
 export * from "./client-credit-repository";
 export * from "./client-credit-service";
+export * from "./pix-provider";
+export * from "./payment-charge-repository";
+export * from "./payment-charge-service";
+export * from "./billing-message";

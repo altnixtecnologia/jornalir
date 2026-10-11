@@ -2,13 +2,14 @@ import Link from "next/link";
 import { ModuleHeader } from "../../../../components/admin/ModuleHeader";
 import { createSupabaseServerClient } from "../../../../lib/supabase/server";
 import { createIssuedNoteRepositorySupabase } from "../../../../providers/supabase/nfseIssuedNoteRepository.supabase";
+import { getDraftService } from "../../../../composition/nfse";
 
 function formatAmount(value: number): string {
   return value.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 }
 
-function formatDate(iso: string): string {
-  return new Date(`${iso}T00:00:00`).toLocaleDateString("pt-BR");
+function formatDateTime(iso: string): string {
+  return new Date(iso).toLocaleString("pt-BR");
 }
 
 export const dynamic = "force-dynamic";
@@ -18,11 +19,14 @@ export const revalidate = 0;
  * Notas emitidas (Parte 1, item 3 + Parte 2A, item 10) — lista
  * `nfse_issued_notes`, nunca `nfse_drafts`. Enquanto nenhuma
  * transmissão real tiver acontecido, mostra um estado vazio
- * explicativo — nunca dados falsos pra aparentar emissão.
+ * explicativo — nunca dados falsos pra aparentar emissão. Tomador/
+ * Serviço/Referência vêm do rascunho de origem (join real por
+ * draftId) — a nota em si nunca guarda esse snapshot de novo.
  */
 export default async function NfseNotasPage(): Promise<JSX.Element> {
   const supabase = createSupabaseServerClient();
-  const notes = await createIssuedNoteRepositorySupabase(supabase).listAll();
+  const [notes, drafts] = await Promise.all([createIssuedNoteRepositorySupabase(supabase).listAll(), getDraftService(supabase).list()]);
+  const draftsById = new Map(drafts.map((draft) => [draft.id, draft]));
 
   return (
     <>
@@ -45,26 +49,37 @@ export default async function NfseNotasPage(): Promise<JSX.Element> {
             <thead>
               <tr>
                 <th>Número</th>
-                <th>Chave de acesso</th>
-                <th>Competência</th>
+                <th>Emissão</th>
+                <th>Tomador</th>
+                <th>Serviço</th>
                 <th>Valor</th>
-                <th>Ambiente</th>
+                <th>Status</th>
+                <th>Chave de acesso</th>
+                <th>Referência</th>
               </tr>
             </thead>
             <tbody>
-              {notes.map((note) => (
-                <tr key={note.id}>
-                  <td>
-                    <Link className="materia-title-link" href={`/sistema/nfse/rascunhos/${note.draftId}`}>
-                      {note.nfseNumber ?? "—"}
-                    </Link>
-                  </td>
-                  <td>{note.accessKey ?? "—"}</td>
-                  <td>{formatDate(note.competencyDate)}</td>
-                  <td>{formatAmount(note.serviceValue)}</td>
-                  <td>{note.environment === "homologation" ? "Homologação" : "Produção"}</td>
-                </tr>
-              ))}
+              {notes.map((note) => {
+                const draft = draftsById.get(note.draftId);
+                return (
+                  <tr key={note.id}>
+                    <td>{note.nfseNumber ?? "—"}</td>
+                    <td>{note.issuedAt ? formatDateTime(note.issuedAt) : "—"}</td>
+                    <td>{draft?.tomador.name ?? "—"}</td>
+                    <td>{draft?.fiscal.cTribNac ?? "—"}</td>
+                    <td>{formatAmount(note.serviceValue)}</td>
+                    <td>
+                      <span className="status-pill status-pill--published">Autorizada</span>
+                    </td>
+                    <td>{note.accessKey ?? "—"}</td>
+                    <td>
+                      <Link className="materia-title-link" href={`/sistema/nfse/rascunhos/${note.draftId}`}>
+                        {draft?.reference ?? note.draftId}
+                      </Link>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>

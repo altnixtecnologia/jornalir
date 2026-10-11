@@ -22,10 +22,19 @@ export class ReceivableDuplicateSubscriptionChargeError extends Error {
   }
 }
 
+/** Já existe um título gerado para esta parcela desta venda comercial —
+ * nunca duas iguais (índice único parcial em commercial_sale_id+installment_number). */
+export class ReceivableDuplicateCommercialInstallmentError extends Error {
+  constructor(installmentNumber: number) {
+    super(`Já existe um título gerado para a parcela ${installmentNumber} desta venda.`);
+  }
+}
+
 export interface ReceivableListQuery {
   clientId?: string;
   contractId?: string;
   subscriptionId?: string;
+  commercialSaleId?: string;
   status?: Receivable["status"];
   sourceType?: Receivable["sourceType"];
 }
@@ -49,6 +58,8 @@ export interface ReceivableRepository {
   update(id: string, changes: ReceivableChanges): Promise<Receivable>;
   /** Pré-checagem de idempotência (UX melhor que só esperar o erro do banco) — o índice único parcial em subscription_id+competency_date continua sendo a proteção autoritativa. */
   findBySubscriptionAndCompetency(subscriptionId: string, competencyDate: string): Promise<Receivable | null>;
+  /** Mesma lógica, para a venda comercial — índice único parcial em commercial_sale_id+installment_number é a proteção autoritativa. */
+  findByCommercialSaleAndInstallment(commercialSaleId: string, installmentNumber: number): Promise<Receivable | null>;
   /** Mesmo cliente+origem, status aberto/parcial, nunca o próprio título (Parte 3B.1, item 7). Ordenado do mais antigo pro mais novo. */
   listOpenForOrigin(query: OpenByOriginQuery): Promise<ReceivableWithBalance[]>;
 

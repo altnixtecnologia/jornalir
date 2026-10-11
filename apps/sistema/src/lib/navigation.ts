@@ -45,15 +45,15 @@ export const adminModules: readonly AdminModule[] = [
   },
   {
     slug: "publicidade",
-    label: "Publicidade",
-    description: "Anunciantes, espaços e períodos de veiculação.",
-    planned: true,
+    label: "Comercial",
+    description: "Propostas, vendas, anunciantes e vínculo com o Financeiro.",
+    planned: false,
   },
   {
     slug: "aniversariantes",
     label: "Aniversariantes",
     description: "A agenda da comunidade, de quinta-feira a quarta-feira.",
-    planned: true,
+    planned: false,
   },
   {
     slug: "whatsapp",
@@ -76,8 +76,8 @@ export const adminModules: readonly AdminModule[] = [
   {
     slug: "configuracoes",
     label: "Configurações",
-    description: "Preferências, equipe e organização do ambiente de trabalho.",
-    planned: true,
+    description: "Usuários, patrocinadores do site e demais preferências.",
+    planned: false,
   },
 ];
 
@@ -129,10 +129,10 @@ export const editorialNavGroup: AdminNavGroup = {
 };
 
 export const clientesNavGroup: AdminNavGroup = {
-  label: "Clientes",
+  label: "Cadastros",
   links: [
-    { label: "Clientes", href: "/sistema/clientes" },
-    { label: "Novo cliente", href: "/sistema/clientes/novo", primary: true },
+    { label: "Cadastros", href: "/sistema/clientes" },
+    { label: "Novo cadastro", href: "/sistema/clientes/novo", primary: true },
   ],
 };
 
@@ -151,7 +151,19 @@ export const financeiroNavGroup: AdminNavGroup = {
     { label: "Contas a receber", href: "/sistema/financeiro/contas-a-receber" },
     { label: "Novo lançamento", href: "/sistema/financeiro/contas-a-receber/novo", primary: true },
     { label: "Contratos institucionais", href: "/sistema/financeiro/contratos" },
+    { label: "Recibos", href: "/sistema/financeiro/recibos" },
     { label: "Relatórios", href: "/sistema/financeiro/relatorios" },
+  ],
+};
+
+export const commercialNavGroup: AdminNavGroup = {
+  label: "Comercial",
+  links: [
+    { label: "Visão geral", href: "/sistema/publicidade" },
+    { label: "Nova proposta", href: "/sistema/publicidade/propostas/novo", primary: true },
+    { label: "Propostas/Orçamentos", href: "/sistema/publicidade/propostas" },
+    { label: "Vendas", href: "/sistema/publicidade/vendas" },
+    { label: "Produtos/serviços", href: "/sistema/publicidade/produtos" },
   ],
 };
 
@@ -164,6 +176,14 @@ export const nfseNavGroup: AdminNavGroup = {
     { label: "Notas emitidas", href: "/sistema/nfse/notas" },
     { label: "Perfis de serviço", href: "/sistema/nfse/perfis-servico" },
     { label: "Configurações", href: "/sistema/nfse/configuracoes" },
+  ],
+};
+
+export const configuracoesNavGroup: AdminNavGroup = {
+  label: "Configurações",
+  links: [
+    { label: "Usuários", href: "/sistema/usuarios" },
+    { label: "Patrocinadores do site", href: "/sistema/configuracoes/patrocinadores" },
   ],
 };
 

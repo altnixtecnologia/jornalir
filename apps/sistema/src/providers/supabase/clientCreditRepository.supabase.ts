@@ -1,11 +1,41 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { ClientCredit, ClientCreditWithBalance, ReceivableSourceType } from "@ir/types";
 import type { ApplyCreditInput, ApplyCreditResult, ClientCreditListQuery, ClientCreditRepository, ClientCreditReversalInput, NewClientCreditRecord } from "@ir/core";
+import { isLocalPreviewEnabled } from "../../lib/auth/localPreview";
+
+// Crédito de exemplo (preview) — da assinatura ASS-000002 (ver
+// subscriptionRepository.supabase.ts), disponível pra demonstrar o painel
+// de crédito na tela de detalhe sem depender do Supabase remoto. Exportado
+// porque paymentChargeRepository.supabase.ts também grava aqui (crédito
+// por excedente de cobrança Pix confirmada) — mesmo princípio de
+// PREVIEW_RECEIVABLES/PREVIEW_RECEIPTS em receivableRepository.supabase.ts.
+export const PREVIEW_CLIENT_CREDITS: ClientCreditWithBalance[] = [
+  {
+    id: "preview-credito-1",
+    clientId: "preview-cliente-1",
+    sourceType: "subscription",
+    subscriptionId: "preview-assinatura-2",
+    originalAmount: 49.9,
+    reason: "Preview — crédito de exemplo (cobrança duplicada corrigida).",
+    createdAt: new Date(0).toISOString(),
+    totalApplied: 0,
+    balance: 49.9,
+  },
+];
+
+function matchesPreviewQuery(credit: ClientCreditWithBalance, query: ClientCreditListQuery): boolean {
+  if (query.clientId && credit.clientId !== query.clientId) return false;
+  if (query.sourceType && credit.sourceType !== query.sourceType) return false;
+  if (query.subscriptionId && credit.subscriptionId !== query.subscriptionId) return false;
+  if (query.contractId && credit.contractId !== query.contractId) return false;
+  if (query.availableOnly && (credit.reversedAt || credit.balance <= 0)) return false;
+  return true;
+}
 
 const TABLE = "client_credits";
 const VIEW = "client_credits_with_balance";
 const COLUMNS =
-  "id, client_id, source_type, subscription_id, contract_id, origin_receivable_id, origin_receipt_id, " +
+  "id, client_id, source_type, subscription_id, contract_id, origin_receivable_id, origin_receipt_id, origin_payment_charge_id, " +
   "original_amount, reason, notes, created_by, created_at, reversed_at, reversed_by, reversal_reason";
 const VIEW_COLUMNS = `${COLUMNS}, total_applied, balance`;
 
@@ -17,6 +47,7 @@ interface ClientCreditRow {
   contract_id: string | null;
   origin_receivable_id: string | null;
   origin_receipt_id: string | null;
+  origin_payment_charge_id: string | null;
   original_amount: number;
   reason: string | null;
   notes: string | null;
@@ -41,6 +72,7 @@ function toDomain(row: ClientCreditRow): ClientCredit {
     contractId: row.contract_id ?? undefined,
     originReceivableId: row.origin_receivable_id ?? undefined,
     originReceiptId: row.origin_receipt_id ?? undefined,
+    originPaymentChargeId: row.origin_payment_charge_id ?? undefined,
     originalAmount: Number(row.original_amount),
     reason: row.reason ?? undefined,
     notes: row.notes ?? undefined,
@@ -68,6 +100,7 @@ function toRow(record: NewClientCreditRecord): Record<string, unknown> {
     contract_id: record.contractId ?? null,
     origin_receivable_id: record.originReceivableId ?? null,
     origin_receipt_id: record.originReceiptId ?? null,
+    origin_payment_charge_id: record.originPaymentChargeId ?? null,
     original_amount: record.originalAmount,
     reason: record.reason ?? null,
     notes: record.notes ?? null,
@@ -84,6 +117,7 @@ function toRow(record: NewClientCreditRecord): Record<string, unknown> {
 export function createClientCreditRepositorySupabase(client: SupabaseClient): ClientCreditRepository {
   return {
     async list(query: ClientCreditListQuery = {}) {
+      if (isLocalPreviewEnabled()) return PREVIEW_CLIENT_CREDITS.filter((credit) => matchesPreviewQuery(credit, query));
       let builder = client.from(VIEW).select(VIEW_COLUMNS).order("created_at", { ascending: true });
       if (query.clientId) builder = builder.eq("client_id", query.clientId);
       if (query.sourceType) builder = builder.eq("source_type", query.sourceType);
@@ -96,6 +130,7 @@ export function createClientCreditRepositorySupabase(client: SupabaseClient): Cl
     },
 
     async getById(id) {
+      if (isLocalPreviewEnabled()) return PREVIEW_CLIENT_CREDITS.find((credit) => credit.id === id) ?? null;
       const { data, error } = await client.from(VIEW).select(VIEW_COLUMNS).eq("id", id).maybeSingle();
       if (error) throw new Error(error.message);
       return data ? toDomainWithBalance(data as unknown as ClientCreditWithBalanceRow) : null;

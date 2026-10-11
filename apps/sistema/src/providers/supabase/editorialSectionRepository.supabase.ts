@@ -5,6 +5,12 @@ import type {
   EditorialSectionRepository,
   NewEditorialSectionRecord,
 } from "@ir/core";
+import { isLocalPreviewEnabled } from "../../lib/auth/localPreview";
+
+const PREVIEW_SECTIONS: EditorialSection[] = [
+  { id: "preview-geral", name: "Geral", slug: "geral", description: "Editoria de exemplo (visualização local)", active: true, order: 0 },
+  { id: "preview-esportes", name: "Esportes", slug: "esportes", description: "Editoria de exemplo (visualização local)", active: true, order: 1 },
+];
 
 const COLUMNS = "id, name, slug, description, active, sort_order";
 const TABLE = "editorial_sections";
@@ -43,6 +49,7 @@ export function createEditorialSectionRepositorySupabase(
 ): EditorialSectionRepository {
   return {
     async list() {
+      if (isLocalPreviewEnabled()) return PREVIEW_SECTIONS;
       const { data, error } = await client
         .from(TABLE)
         .select(COLUMNS)
@@ -52,6 +59,7 @@ export function createEditorialSectionRepositorySupabase(
     },
 
     async getById(id) {
+      if (isLocalPreviewEnabled()) return PREVIEW_SECTIONS.find((section) => section.id === id) ?? null;
       const { data, error } = await client.from(TABLE).select(COLUMNS).eq("id", id).maybeSingle();
       if (error) throw new Error(error.message);
       return data ? toDomain(data as EditorialSectionRow) : null;

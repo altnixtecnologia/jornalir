@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { assinaturasNavGroup, clientesNavGroup, editorialNavGroup, financeiroNavGroup, moreModulesNavGroup, nfseNavGroup } from "../../lib/navigation";
+import { assinaturasNavGroup, clientesNavGroup, configuracoesNavGroup, editorialNavGroup, financeiroNavGroup, moreModulesNavGroup, nfseNavGroup, commercialNavGroup } from "../../lib/navigation";
 import { useAuth } from "../../lib/auth/AuthProvider";
 
 export function MobileNav({ onNavigate }: { onNavigate: () => void }): JSX.Element {
@@ -34,18 +34,23 @@ export function MobileNav({ onNavigate }: { onNavigate: () => void }): JSX.Eleme
         </Link>
       ))}
 
-      <p className="mobile-nav-heading">Clientes</p>
-      {clientesNavGroup.links.map((link) => (
-        <Link
-          key={link.href}
-          href={link.href}
-          className={`mobile-nav-link${link.primary ? " is-primary" : ""}`}
-          onClick={onNavigate}
-          aria-current={pathname === link.href ? "page" : undefined}
-        >
-          {link.label}
-        </Link>
-      ))}
+      <Link
+        href={clientesNavGroup.links[0].href}
+        className="mobile-nav-link"
+        onClick={onNavigate}
+        aria-current={pathname.startsWith(clientesNavGroup.links[0].href) ? "page" : undefined}
+      >
+        {clientesNavGroup.label}
+      </Link>
+
+      <Link
+        href="/sistema/aniversariantes"
+        className="mobile-nav-link"
+        onClick={onNavigate}
+        aria-current={pathname.startsWith("/sistema/aniversariantes") ? "page" : undefined}
+      >
+        Aniversariantes
+      </Link>
 
       <p className="mobile-nav-heading">Assinaturas</p>
       {assinaturasNavGroup.links.map((link) => (
@@ -62,6 +67,19 @@ export function MobileNav({ onNavigate }: { onNavigate: () => void }): JSX.Eleme
 
       <p className="mobile-nav-heading">Financeiro</p>
       {financeiroNavGroup.links.map((link) => (
+        <Link
+          key={link.href}
+          href={link.href}
+          className={`mobile-nav-link${link.primary ? " is-primary" : ""}`}
+          onClick={onNavigate}
+          aria-current={pathname === link.href ? "page" : undefined}
+        >
+          {link.label}
+        </Link>
+      ))}
+
+      <p className="mobile-nav-heading">Comercial</p>
+      {commercialNavGroup.links.map((link) => (
         <Link
           key={link.href}
           href={link.href}
@@ -92,15 +110,18 @@ export function MobileNav({ onNavigate }: { onNavigate: () => void }): JSX.Eleme
 
       {canManageUsers ? (
         <>
-          <p className="mobile-nav-heading">Administração</p>
-          <Link
-            href="/sistema/usuarios"
-            className="mobile-nav-link"
-            onClick={onNavigate}
-            aria-current={pathname.startsWith("/sistema/usuarios") ? "page" : undefined}
-          >
-            Usuários
-          </Link>
+          <p className="mobile-nav-heading">Configurações</p>
+          {configuracoesNavGroup.links.map((link) => (
+            <Link
+              key={link.href}
+              href={link.href}
+              className="mobile-nav-link"
+              onClick={onNavigate}
+              aria-current={pathname.startsWith(link.href) ? "page" : undefined}
+            >
+              {link.label}
+            </Link>
+          ))}
         </>
       ) : null}
 

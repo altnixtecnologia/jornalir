@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { assinaturasNavGroup, clientesNavGroup, editorialNavGroup, financeiroNavGroup, moreModulesNavGroup, nfseNavGroup } from "../../lib/navigation";
+import { assinaturasNavGroup, clientesNavGroup, configuracoesNavGroup, editorialNavGroup, financeiroNavGroup, moreModulesNavGroup, nfseNavGroup, commercialNavGroup } from "../../lib/navigation";
 import { useAuth } from "../../lib/auth/AuthProvider";
 
 /** Fecha os dois menus suspensos — usado ao escolher um link dentro deles. */
@@ -19,10 +19,12 @@ export function AdminHeader({ onOpenMenu }: { onOpenMenu: () => void }): JSX.Ele
   const isHome = pathname === "/sistema";
   const isEditorial = pathname.startsWith("/sistema/editorial");
   const isClientes = pathname.startsWith("/sistema/clientes");
+  const isAniversariantes = pathname.startsWith("/sistema/aniversariantes");
   const isAssinaturas = pathname.startsWith("/sistema/assinaturas");
   const isFinanceiro = pathname.startsWith("/sistema/financeiro");
+  const isPublicidade = pathname.startsWith("/sistema/publicidade");
   const isNfse = pathname.startsWith("/sistema/nfse");
-  const isUsuarios = pathname.startsWith("/sistema/usuarios");
+  const isConfiguracoes = pathname.startsWith("/sistema/usuarios") || pathname.startsWith("/sistema/configuracoes");
   const isMore = moreModulesNavGroup.links.some((link) => pathname.startsWith(link.href));
   const canManageUsers = profile?.role === "owner" || profile?.role === "admin";
 
@@ -61,23 +63,21 @@ export function AdminHeader({ onOpenMenu }: { onOpenMenu: () => void }): JSX.Ele
             </div>
           </details>
 
-          <details className="app-nav-dropdown" data-nav-dropdown name="app-nav-dropdown">
-            <summary className={`app-nav-link app-nav-summary${isClientes ? " is-active" : ""}`}>
-              Clientes <span className="app-nav-caret" aria-hidden="true">▾</span>
-            </summary>
-            <div className="app-nav-panel">
-              {clientesNavGroup.links.map((link) => (
-                <Link
-                  key={link.href}
-                  href={link.href}
-                  className={`app-nav-panel-link${link.primary ? " is-primary" : ""}`}
-                  onClick={closeNavDropdowns}
-                >
-                  {link.label}
-                </Link>
-              ))}
-            </div>
-          </details>
+          <Link
+            href={clientesNavGroup.links[0].href}
+            className="app-nav-link"
+            aria-current={isClientes ? "page" : undefined}
+          >
+            {clientesNavGroup.label}
+          </Link>
+
+          <Link
+            href="/sistema/aniversariantes"
+            className="app-nav-link"
+            aria-current={isAniversariantes ? "page" : undefined}
+          >
+            Aniversariantes
+          </Link>
 
           <details className="app-nav-dropdown" data-nav-dropdown name="app-nav-dropdown">
             <summary className={`app-nav-link app-nav-summary${isAssinaturas ? " is-active" : ""}`}>
@@ -115,6 +115,24 @@ export function AdminHeader({ onOpenMenu }: { onOpenMenu: () => void }): JSX.Ele
             </div>
           </details>
 
+          <details className="app-nav-dropdown" data-nav-dropdown name="app-nav-dropdown">
+            <summary className={`app-nav-link app-nav-summary${isPublicidade ? " is-active" : ""}`}>
+              Comercial <span className="app-nav-caret" aria-hidden="true">▾</span>
+            </summary>
+            <div className="app-nav-panel">
+              {commercialNavGroup.links.map((link) => (
+                <Link
+                  key={link.href}
+                  href={link.href}
+                  className={`app-nav-panel-link${link.primary ? " is-primary" : ""}`}
+                  onClick={closeNavDropdowns}
+                >
+                  {link.label}
+                </Link>
+              ))}
+            </div>
+          </details>
+
           {canManageUsers ? (
             <details className="app-nav-dropdown" data-nav-dropdown name="app-nav-dropdown">
               <summary className={`app-nav-link app-nav-summary${isNfse ? " is-active" : ""}`}>
@@ -136,13 +154,23 @@ export function AdminHeader({ onOpenMenu }: { onOpenMenu: () => void }): JSX.Ele
           ) : null}
 
           {canManageUsers ? (
-            <Link
-              href="/sistema/usuarios"
-              className="app-nav-link"
-              aria-current={isUsuarios ? "page" : undefined}
-            >
-              Usuários
-            </Link>
+            <details className="app-nav-dropdown" data-nav-dropdown name="app-nav-dropdown">
+              <summary className={`app-nav-link app-nav-summary${isConfiguracoes ? " is-active" : ""}`}>
+                Configurações <span className="app-nav-caret" aria-hidden="true">▾</span>
+              </summary>
+              <div className="app-nav-panel">
+                {configuracoesNavGroup.links.map((link) => (
+                  <Link
+                    key={link.href}
+                    href={link.href}
+                    className={`app-nav-panel-link${link.primary ? " is-primary" : ""}`}
+                    onClick={closeNavDropdowns}
+                  >
+                    {link.label}
+                  </Link>
+                ))}
+              </div>
+            </details>
           ) : null}
 
           <div className="app-nav-direct-modules" aria-label="Outros módulos">

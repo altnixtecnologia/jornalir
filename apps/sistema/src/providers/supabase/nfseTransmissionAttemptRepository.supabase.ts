@@ -1,6 +1,25 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { NfseEnvironment, NfseTransmissionAttempt, NfseTransmissionStatus } from "@ir/types";
 import type { NewTransmissionAttemptRecord, TransmissionAttemptRepository } from "@ir/core";
+import { isLocalPreviewEnabled } from "../../lib/auth/localPreview";
+
+// Preview — em memória só pela duração do processo, mesmo princípio dos
+// demais módulos em SYSTEM_LOCAL_PREVIEW=1 (ver payment_charges). Semeado
+// com uma tentativa rejeitada de demonstração (ver nfseIssuedNoteRepository.supabase.ts
+// para o rascunho/nota correspondentes).
+export const PREVIEW_TRANSMISSION_ATTEMPTS: NfseTransmissionAttempt[] = [
+  {
+    id: "preview-tentativa-1",
+    draftId: "preview-rascunho-2",
+    dpsSeries: "1",
+    dpsNumber: 1,
+    environment: "homologation",
+    status: "rejected",
+    rejectionCode: "E001",
+    rejectionMessage: "Rejeição de demonstração (preview) — código de tributação municipal não localizado para o município informado.",
+    createdAt: new Date(0).toISOString(),
+  },
+];
 
 const TABLE = "nfse_transmission_attempts";
 const COLUMNS =
@@ -46,12 +65,31 @@ function toDomain(row: AttemptRow): NfseTransmissionAttempt {
 export function createTransmissionAttemptRepositorySupabase(client: SupabaseClient): TransmissionAttemptRepository {
   return {
     async listByDraftId(draftId) {
+      if (isLocalPreviewEnabled()) return PREVIEW_TRANSMISSION_ATTEMPTS.filter((a) => a.draftId === draftId);
       const { data, error } = await client.from(TABLE).select(COLUMNS).eq("draft_id", draftId).order("created_at", { ascending: false });
       if (error) throw new Error(error.message);
       return (data ?? []).map((row) => toDomain(row as unknown as AttemptRow));
     },
 
     async create(record: NewTransmissionAttemptRecord) {
+      if (isLocalPreviewEnabled()) {
+        const attempt: NfseTransmissionAttempt = {
+          id: `preview-tentativa-${Date.now()}`,
+          draftId: record.draftId,
+          dpsSeries: record.dpsSeries,
+          dpsNumber: record.dpsNumber,
+          environment: record.environment,
+          status: record.status,
+          requestReference: record.requestReference,
+          responseSummary: record.responseSummary,
+          rejectionCode: record.rejectionCode,
+          rejectionMessage: record.rejectionMessage,
+          issuedNoteId: record.issuedNoteId,
+          createdAt: new Date().toISOString(),
+        };
+        PREVIEW_TRANSMISSION_ATTEMPTS.push(attempt);
+        return attempt;
+      }
       const { data, error } = await client
         .from(TABLE)
         .insert({

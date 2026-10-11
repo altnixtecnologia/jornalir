@@ -55,10 +55,10 @@ export default async function FinanceiroPage(): Promise<JSX.Element> {
         description="Contas a receber, recebimentos e contratos institucionais. Período: mês corrente."
       />
 
-      <ul className="quick-access-grid">
-        <Tile label="Total a receber (aberto/parcial)" value={formatAmount(overview.totalOpenAmount)} href="/sistema/financeiro/contas-a-receber?status=open" />
-        <Tile label="Total vencido" value={formatAmount(overview.totalOverdueAmount)} />
-        <Tile label="Vencendo em breve (7 dias)" value={formatAmount(overview.dueSoonAmount)} />
+      <ul className="quick-access-grid financeiro-kpi-grid">
+        <Tile label="A receber (aberto/parcial)" value={formatAmount(overview.totalOpenAmount)} href="/sistema/financeiro/contas-a-receber?status=open" />
+        <Tile label="Vencido" value={formatAmount(overview.totalOverdueAmount)} />
+        <Tile label="A vencer (7 dias)" value={formatAmount(overview.dueSoonAmount)} />
         <Tile label="Recebido no período" value={formatAmount(overview.receivedInPeriod)} />
         <Tile label="Descontos/abatimentos no período" value={formatAmount(overview.adjustmentsInPeriod)} />
         <Tile label="Títulos em aberto" value={String(overview.openCount)} href="/sistema/financeiro/contas-a-receber?status=open" />

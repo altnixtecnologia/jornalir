@@ -1,5 +1,26 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { CertificateRepository, NewCertificateRecord, StoredCertificateRecord } from "@ir/core/src/nfse/certificate-repository";
+import { isLocalPreviewEnabled } from "../../lib/auth/localPreview";
+
+// Certificado demonstrativo (preview) — dados FICTÍCIOS, nunca um PFX/chave
+// real. encryptedPrivateKey nunca é decifrado neste caminho (CertificateService.getActiveInfo
+// só expõe campos seguros) — a chave "cifrada" aqui é só um placeholder,
+// jamais usada pra assinar nada (transmissão real já é bloqueada em
+// qualquer ambiente, ver RealTransmissionNotReadyError).
+const PREVIEW_CERTIFICATE: StoredCertificateRecord = {
+  id: "preview-certificado-1",
+  issuerConfigId: "preview-issuer-config-1",
+  subjectCnpj: "23970969000190",
+  subjectName: "INFORMATIVO REGIONAL LTDA (demonstração)",
+  issuerName: "AC Demonstração (preview)",
+  serialNumber: "00:PREVIEW:00",
+  validFrom: "2026-01-01T00:00:00.000Z",
+  validUntil: "2027-01-01T00:00:00.000Z",
+  certificatePem: "-----BEGIN CERTIFICATE-----\nPREVIEW-DEMO-ONLY\n-----END CERTIFICATE-----",
+  encryptedPrivateKey: { ciphertextBase64: "preview", ivBase64: "preview", authTagBase64: "preview" },
+  active: true,
+  createdAt: new Date(0).toISOString(),
+};
 
 const TABLE = "nfse_certificates";
 const COLUMNS =
@@ -58,6 +79,7 @@ function toDomain(row: CertificateRow): StoredCertificateRecord {
 export function createCertificateRepositorySupabase(client: SupabaseClient): CertificateRepository {
   return {
     async getActive(issuerConfigId: string) {
+      if (isLocalPreviewEnabled()) return PREVIEW_CERTIFICATE;
       const { data, error } = await client.from(TABLE).select(COLUMNS).eq("issuer_config_id", issuerConfigId).eq("active", true).maybeSingle();
       if (error) throw new Error(error.message);
       return data ? toDomain(data as unknown as CertificateRow) : null;

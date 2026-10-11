@@ -35,7 +35,7 @@ export default async function ImportarPdfPage({
   const currentStep: ImportFlowStep = !selectedEdition ? "edicao" : hasActiveCandidates ? "candidatos" : "pdf";
 
   return (
-    <>
+    <div className="inline-form">
       <ModuleHeader
         eyebrow="EDITORIAL / IMPORTAÇÃO"
         title="Importar do jornal impresso"
@@ -102,6 +102,6 @@ export default async function ImportarPdfPage({
         Nada é publicado automaticamente. Todo candidato aprovado entra como rascunho;
         publicidade ou conteúdo indesejado pode ser descartado a qualquer momento.
       </p>
-    </>
+    </div>
   );
 }

@@ -4,9 +4,13 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import type { PaymentMethod, AdjustmentType } from "@ir/types";
 import type { ReceivableInput } from "@ir/core";
-import { getReceivableService } from "../../../../composition/financeiro";
+import type { SupabaseClient } from "@supabase/supabase-js";
+import { getBillingMessageService, getPaymentChargeService, getReceivableService } from "../../../../composition/financeiro";
+import { getClientService } from "../../../../composition/clientes";
 import { createSupabaseServerClient } from "../../../../lib/supabase/server";
 import { getAuditContext } from "../../../../lib/auth/getAuditContext";
+import { isLocalPreviewEnabled, LOCAL_PREVIEW_PROFILE } from "../../../../lib/auth/localPreview";
+import { buildBillingMessage, ClientWithoutWhatsappError } from "@ir/core";
 import { parseAmount, validateReceivablePayload, type ReceivableFormPayload } from "../../../../features/financeiro/receivableFormTypes";
 
 const LIST_PATH = "/sistema/financeiro/contas-a-receber";
@@ -15,6 +19,12 @@ type ActionResult = { error: string } | void;
 
 function toErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : "Não foi possível concluir a operação.";
+}
+
+/** Mesmo princípio de getAuditContext, mas também funciona em preview (onde não existe sessão real do Supabase) — usado só pelas ações novas desta fase (Pix/WhatsApp). */
+async function resolveActorId(client: SupabaseClient): Promise<string> {
+  if (isLocalPreviewEnabled()) return LOCAL_PREVIEW_PROFILE.id;
+  return (await getAuditContext(client)).actorId;
 }
 
 function toServiceInput(payload: ReceivableFormPayload): ReceivableInput {
@@ -294,6 +304,122 @@ export async function generateReceivablesForSubscriptionPeriodAction(
 
   revalidatePath(LIST_PATH);
   return { results };
+}
+
+// ----------------------------------------------------------------------
+// Cobrança Pix (fase "Formas de liquidação/Pix/envio ao cliente") — nunca
+// cria um ReceivableReceipt direto: só uma cobrança PENDENTE, até uma
+// confirmação futura (ver PaymentChargeService.confirmPixCharge, ainda
+// não acionada por nenhum webhook real nesta fase).
+// ----------------------------------------------------------------------
+
+export interface PixChargeFormInput {
+  amount: string;
+  description: string;
+  expiresAt: string;
+}
+
+export async function createPixChargeAction(
+  receivableId: string,
+  clientId: string,
+  input: PixChargeFormInput,
+): Promise<{ error: string } | { ok: true }> {
+  const amount = parseAmount(input.amount);
+  if (!Number.isFinite(amount) || amount <= 0) return { error: "Informe um valor válido para a cobrança." };
+  try {
+    const client = createSupabaseServerClient();
+    await getPaymentChargeService(client).createPixCharge({
+      receivableId,
+      clientId,
+      amount,
+      description: input.description.trim() || undefined,
+      expiresAt: input.expiresAt ? new Date(`${input.expiresAt}T23:59:59`).toISOString() : undefined,
+    });
+  } catch (error) {
+    return { error: toErrorMessage(error) };
+  }
+  revalidatePath(`${LIST_PATH}/${receivableId}`);
+  return { ok: true };
+}
+
+export async function cancelPixChargeAction(chargeId: string, receivableId: string, reason: string): Promise<ActionResult> {
+  try {
+    const client = createSupabaseServerClient();
+    const cancelledByProfileId = await resolveActorId(client);
+    await getPaymentChargeService(client).cancelPixCharge(chargeId, { cancelledByProfileId, cancellationReason: reason });
+  } catch (error) {
+    return { error: toErrorMessage(error) };
+  }
+  revalidatePath(`${LIST_PATH}/${receivableId}`);
+}
+
+/**
+ * SÓ existe pra demonstração em preview (SYSTEM_LOCAL_PREVIEW=1) — nenhum
+ * webhook real confirma cobranças nesta fase. Fora do preview, o
+ * composition ainda usa o PixProvider "indisponível", então esta ação
+ * nunca é exposta pela UI (ver PixChargePanel: botão só aparece quando
+ * localPreview=true). Delega ao mesmo PaymentChargeService.confirmPixCharge
+ * que, fora do preview, chamaria a RPC atômica confirm_payment_charge.
+ */
+export async function confirmPixChargeAction(
+  chargeId: string,
+  receivableId: string,
+): Promise<{ error: string } | { ok: true; overpaymentAmount: number }> {
+  try {
+    const client = createSupabaseServerClient();
+    const receivedByProfileId = await resolveActorId(client);
+    const result = await getPaymentChargeService(client).confirmPixCharge(chargeId, new Date().toISOString().slice(0, 10), receivedByProfileId);
+    revalidatePath(`${LIST_PATH}/${receivableId}`);
+    return { ok: true, overpaymentAmount: result.overpaymentAmount };
+  } catch (error) {
+    return { error: toErrorMessage(error) };
+  }
+}
+
+// ----------------------------------------------------------------------
+// Envio de cobrança ao cliente (WhatsApp) — nunca chama nenhuma API real
+// nesta fase; em preview só simula, fora do preview recusa honestamente
+// sem provedor configurado (ver BillingMessageService).
+// ----------------------------------------------------------------------
+
+export async function sendBillingMessageAction(
+  receivableId: string,
+  clientId: string,
+  message: string,
+): Promise<{ error: string } | { ok: true; status: "sent" | "simulated" }> {
+  try {
+    const client = createSupabaseServerClient();
+    const [clientRecord, createdByProfileId] = await Promise.all([getClientService(client).getById(clientId), resolveActorId(client)]);
+    const log = await getBillingMessageService(client).send({
+      receivableId,
+      clientId,
+      toPhone: clientRecord.whatsapp,
+      message,
+      createdByProfileId,
+    });
+    revalidatePath(`${LIST_PATH}/${receivableId}`);
+    return { ok: true, status: log.status === "failed" ? "sent" : log.status };
+  } catch (error) {
+    if (error instanceof ClientWithoutWhatsappError) return { error: error.message };
+    return { error: toErrorMessage(error) };
+  }
+}
+
+/** Compõe a prévia da mensagem (nunca envia) — usada pelo modal "Enviar ao cliente" antes de confirmar. */
+export async function buildBillingMessagePreviewAction(receivableId: string): Promise<{ error: string } | { ok: true; message: string; hasWhatsapp: boolean }> {
+  try {
+    const client = createSupabaseServerClient();
+    const receivable = await getReceivableService(client).getById(receivableId);
+    const clientRecord = await getClientService(client).getById(receivable.clientId);
+    const message = buildBillingMessage({
+      clientFirstName: (clientRecord.fullName ?? clientRecord.companyName ?? "Cliente").split(" ")[0],
+      receivable: { sourceType: receivable.sourceType, description: receivable.description, dueDate: receivable.dueDate },
+      amount: receivable.balance,
+    });
+    return { ok: true, message, hasWhatsapp: Boolean(clientRecord.whatsapp) };
+  } catch (error) {
+    return { error: toErrorMessage(error) };
+  }
 }
 
 export interface InstallmentPayload extends ReceivableFormPayload {

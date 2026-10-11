@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { NfseCertificateStoredStatus, NfseCertificateType, NfseEnvironment, NfseIssuerConfig, NfseSimplesNacionalOption, NfseSpecialTaxRegimeCode } from "@ir/types";
 import type { IssuerConfigChanges, IssuerConfigRepository, NewIssuerConfigRecord } from "@ir/core";
+import { isLocalPreviewEnabled } from "../../lib/auth/localPreview";
 
 const TABLE = "nfse_issuer_configs";
 const COLUMNS =
@@ -86,6 +87,33 @@ function toRow(record: NewIssuerConfigRecord | IssuerConfigChanges): Record<stri
   return row;
 }
 
+// Configuração demonstrativa (preview) — usa os mesmos valores sugeridos
+// de NFSE_SUGGESTED_ISSUER_DEFAULTS (@ir/types), só que aqui já "salvos"
+// pra demonstrar a tela de configurações/certificado/nova NFS-e sem
+// depender do Supabase remoto. São João do Sul/SC continua sendo só o
+// cenário de homologação deste preview — nunca hardcoded na aplicação
+// (ver NFSE_SUGGESTED_ISSUER_DEFAULTS, item 16 da tarefa).
+const PREVIEW_ISSUER_CONFIG: NfseIssuerConfig = {
+  id: "preview-issuer-config-1",
+  companyName: "INFORMATIVO REGIONAL LTDA",
+  cnpj: "23970969000190",
+  municipalRegistration: "1000546",
+  municipality: "São João do Sul",
+  state: "SC",
+  ibgeCode: "4216404",
+  taxRegime: "Simples Nacional",
+  simplesNacionalOption: "me_epp",
+  specialTaxRegimeCode: "none",
+  environment: "homologation",
+  certificateType: "a1",
+  certificateStatus: "configured",
+  certificateValidUntil: "2027-01-01",
+  dpsSeries: "1",
+  notes: "Configuração de demonstração (preview) — nenhum dado real.",
+  createdAt: new Date(0).toISOString(),
+  updatedAt: new Date(0).toISOString(),
+};
+
 /**
  * Configuração fiscal do emissor (Parte 1, item 4) — uma única
  * configuração ativa: `getCurrent()` sempre busca a linha mais
@@ -96,6 +124,7 @@ function toRow(record: NewIssuerConfigRecord | IssuerConfigChanges): Record<stri
 export function createIssuerConfigRepositorySupabase(client: SupabaseClient): IssuerConfigRepository {
   return {
     async getCurrent() {
+      if (isLocalPreviewEnabled()) return PREVIEW_ISSUER_CONFIG;
       const { data, error } = await client.from(TABLE).select(COLUMNS).order("updated_at", { ascending: false }).limit(1).maybeSingle();
       if (error) throw new Error(error.message);
       return data ? toDomain(data as unknown as IssuerConfigRow) : null;

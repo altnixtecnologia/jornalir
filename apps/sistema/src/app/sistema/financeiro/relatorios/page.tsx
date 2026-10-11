@@ -1,6 +1,6 @@
 import Link from "next/link";
 import type { PaymentMethod, ReceivableSourceType, ReceivableStatus } from "@ir/types";
-import { PAYMENT_METHODS, PAYMENT_METHOD_LABELS, RECEIVABLE_SOURCE_TYPE_LABELS, RECEIVABLE_SOURCE_TYPES, RECEIVABLE_STATUS_LABELS, RECEIVABLE_STATUSES } from "@ir/types";
+import { ALL_PAYMENT_METHODS, PAYMENT_METHOD_LABELS, RECEIVABLE_SOURCE_TYPE_LABELS, RECEIVABLE_SOURCE_TYPES, RECEIVABLE_STATUS_LABELS, RECEIVABLE_STATUSES } from "@ir/types";
 import { ModuleHeader } from "../../../../components/admin/ModuleHeader";
 import { ReceivablesList } from "../../../../features/financeiro/ReceivablesList";
 import { ReportFiltersToggle } from "../../../../features/financeiro/ReportFiltersToggle";
@@ -63,7 +63,7 @@ export default async function RelatoriosPage({
     contractId: contractId || undefined,
     receivedByProfileId: receivedBy || undefined,
     recordedByProfileId: recordedBy || undefined,
-    paymentMethod: PAYMENT_METHODS.includes(paymentMethod as PaymentMethod) ? (paymentMethod as PaymentMethod) : undefined,
+    paymentMethod: ALL_PAYMENT_METHODS.includes(paymentMethod as PaymentMethod) ? (paymentMethod as PaymentMethod) : undefined,
     settledWithDifferenceOnly: settledWithDifferenceOnly || undefined,
     withBalanceOnly: withBalanceOnly || undefined,
     partiallyPaidOnly: partiallyPaidOnly || undefined,
@@ -213,9 +213,9 @@ export default async function RelatoriosPage({
               </option>
             ))}
           </select>
-          <select name="paymentMethod" defaultValue={paymentMethod} aria-label="Forma de pagamento" title="Forma de pagamento">
-            <option value="">Forma de pagamento: todas</option>
-            {PAYMENT_METHODS.map((method) => (
+          <select name="paymentMethod" defaultValue={paymentMethod} aria-label="Forma de liquidação" title="Forma de liquidação">
+            <option value="">Forma de liquidação: todas</option>
+            {ALL_PAYMENT_METHODS.map((method) => (
               <option key={method} value={method}>
                 {PAYMENT_METHOD_LABELS[method]}
               </option>
@@ -233,7 +233,7 @@ export default async function RelatoriosPage({
             <input type="checkbox" name="partiallyPaidOnly" value="1" defaultChecked={partiallyPaidOnly} />
             Só recebimentos parciais
           </label>
-          <button type="submit">Filtrar</button>
+          <button type="submit" className="cadastros-btn-primary">Filtrar</button>
         </form>
         <span className="materias-count">{result.total} título(s) no filtro atual</span>
       </ReportFiltersToggle>

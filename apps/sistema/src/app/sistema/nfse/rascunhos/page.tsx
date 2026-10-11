@@ -11,6 +11,10 @@ function formatDate(iso: string): string {
   return new Date(`${iso}T00:00:00`).toLocaleDateString("pt-BR");
 }
 
+function formatDateTime(iso: string): string {
+  return new Date(iso).toLocaleString("pt-BR");
+}
+
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
@@ -45,9 +49,10 @@ export default async function NfseRascunhosPage(): Promise<JSX.Element> {
                 <th>Referência</th>
                 <th>Tomador</th>
                 <th>Competência</th>
+                <th>Serviço</th>
                 <th>Valor</th>
-                <th>Criado em</th>
                 <th>Status</th>
+                <th>Atualização</th>
               </tr>
             </thead>
             <tbody>
@@ -60,11 +65,12 @@ export default async function NfseRascunhosPage(): Promise<JSX.Element> {
                   </td>
                   <td>{draft.tomador.name}</td>
                   <td>{formatDate(draft.competencyDate)}</td>
+                  <td>{draft.fiscal.cTribNac ?? "—"}</td>
                   <td>{formatAmount(draft.serviceValue)}</td>
-                  <td>{formatDate(draft.createdAt.slice(0, 10))}</td>
                   <td>
                     <span className="status-pill status-pill--draft">Rascunho</span>
                   </td>
+                  <td>{formatDateTime(draft.updatedAt)}</td>
                 </tr>
               ))}
             </tbody>

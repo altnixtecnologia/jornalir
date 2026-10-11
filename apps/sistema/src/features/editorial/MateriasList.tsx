@@ -244,7 +244,7 @@ export function MateriasList({
             <option value="96">96/pág.</option>
           </select>
           <div className="materias-toolbar-actions">
-            <button type="submit">Aplicar</button>
+            <button type="submit" className="cadastros-btn-primary">Aplicar</button>
             <Link className="secondary-link" href="/sistema/editorial/materias">Limpar</Link>
           </div>
         </div>

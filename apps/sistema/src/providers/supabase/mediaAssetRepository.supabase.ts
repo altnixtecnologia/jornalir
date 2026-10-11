@@ -1,6 +1,11 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { MediaAsset } from "@ir/types";
 import type { MediaAssetChanges, MediaAssetRepository, NewMediaAssetRecord } from "@ir/core";
+import { isLocalPreviewEnabled } from "../../lib/auth/localPreview";
+
+const PREVIEW_MEDIA_ASSETS: MediaAsset[] = [
+  { id: "preview-midia-1", reference: "IMG-0001", name: "Foto de exemplo (visualização local)", url: "", createdAt: new Date(0).toISOString() },
+];
 
 const TABLE = "media_assets";
 const COLUMNS =
@@ -103,6 +108,9 @@ export async function listMediaAdminPageSupabase(
   client: SupabaseClient,
   input: MediaAdminPageQuery = {},
 ): Promise<MediaAdminPageResult> {
+  if (isLocalPreviewEnabled()) {
+    return { assets: PREVIEW_MEDIA_ASSETS, total: PREVIEW_MEDIA_ASSETS.length, page: 1, pageSize: mediaPageSize(input.pageSize), totalPages: 1 };
+  }
   const pageSize = mediaPageSize(input.pageSize);
   const requestedPage = Math.max(1, Math.floor(input.page ?? 1));
 
@@ -196,12 +204,14 @@ export async function getMediaAssetsByIdsSupabase(
 export function createMediaAssetRepositorySupabase(client: SupabaseClient): MediaAssetRepository {
   return {
     async list() {
+      if (isLocalPreviewEnabled()) return PREVIEW_MEDIA_ASSETS;
       const { data, error } = await client.from(TABLE).select(COLUMNS).order("created_at", { ascending: false });
       if (error) throw new Error(error.message);
       return (data ?? []).map((row) => toDomain(row as MediaAssetRow));
     },
 
     async getById(id) {
+      if (isLocalPreviewEnabled()) return PREVIEW_MEDIA_ASSETS.find((asset) => asset.id === id) ?? null;
       const { data, error } = await client.from(TABLE).select(COLUMNS).eq("id", id).maybeSingle();
       if (error) throw new Error(error.message);
       return data ? toDomain(data as MediaAssetRow) : null;

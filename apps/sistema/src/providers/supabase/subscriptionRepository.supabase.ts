@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { ClientKind, Subscription, SubscriptionPeriodicity, SubscriptionServiceType, SubscriptionStatus } from "@ir/types";
 import type { NewSubscriptionRecord, SubscriptionChanges, SubscriptionListQuery, SubscriptionRepository } from "@ir/core";
+import { isLocalPreviewEnabled } from "../../lib/auth/localPreview";
 
 const TABLE = "subscriptions";
 const COLUMNS =
@@ -116,6 +117,12 @@ function toRow(record: NewSubscriptionRecord | SubscriptionChanges): Record<stri
 export function createSubscriptionRepositorySupabase(client: SupabaseClient): SubscriptionRepository {
   return {
     async list(query?: SubscriptionListQuery) {
+      // Faltava aqui (só `listSubscriptionsAdminPageSupabase` tinha o guard)
+      // — SubscriptionService.list() cairia direto na chamada real
+      // bloqueada (402) em preview.
+      if (isLocalPreviewEnabled()) {
+        return query?.clientId ? PREVIEW_SUBSCRIPTIONS.filter((s) => s.clientId === query.clientId) : PREVIEW_SUBSCRIPTIONS;
+      }
       let builder = client.from(TABLE).select(COLUMNS).order("created_at", { ascending: false });
       if (query?.clientId) builder = builder.eq("client_id", query.clientId);
       const { data, error } = await builder;
@@ -124,6 +131,9 @@ export function createSubscriptionRepositorySupabase(client: SupabaseClient): Su
     },
 
     async getById(id) {
+      // Faltava aqui também — a página de detalhe/edição chama
+      // SubscriptionService.getById em todo acesso, inclusive em preview.
+      if (isLocalPreviewEnabled()) return PREVIEW_SUBSCRIPTIONS.find((s) => s.id === id) ?? null;
       const { data, error } = await client.from(TABLE).select(COLUMNS).eq("id", id).maybeSingle();
       if (error) throw new Error(error.message);
       return data ? toDomain(data as unknown as SubscriptionRow) : null;
@@ -193,6 +203,79 @@ function toListItem(row: SubscriptionRowWithClient): SubscriptionListItem {
 
 const LIST_COLUMNS = `${COLUMNS}, clients(kind, full_name, company_name, trade_name)`;
 
+// Variedade suficiente pra demonstrar status/periodicidade/PF-PJ sem
+// depender do Supabase remoto (ver relatório da tarefa de Assinaturas):
+// ASS-000001 ativa em dia; ASS-000002 ativa com nextDueDate no passado —
+// mostra o badge "Vencida" (sinalização visual client-side, ver dueFlag em
+// SubscriptionsList, nunca um status "vencida" de verdade no banco);
+// ASS-000003 suspensa; ASS-000004 cancelada. PF (preview-cliente-1) e PJ
+// (preview-cliente-2), periodicidades diferentes.
+const PREVIEW_SUBSCRIPTIONS: SubscriptionListItem[] = [
+  {
+    id: "preview-assinatura-1",
+    reference: "ASS-000001",
+    clientId: "preview-cliente-1",
+    serviceType: "digital",
+    status: "active",
+    amount: 29.9,
+    periodicity: "monthly",
+    startsAt: "2026-01-01",
+    dueDay: 10,
+    nextDueDate: "2099-01-10",
+    createdAt: new Date(0).toISOString(),
+    updatedAt: new Date(0).toISOString(),
+    clientName: "Cliente de Exemplo (visualização local)",
+    clientKind: "individual",
+  },
+  {
+    id: "preview-assinatura-2",
+    reference: "ASS-000002",
+    clientId: "preview-cliente-1",
+    serviceType: "impresso",
+    status: "active",
+    amount: 49.9,
+    periodicity: "annual",
+    startsAt: "2025-01-05",
+    dueDay: 5,
+    nextDueDate: "2026-01-05",
+    print: { copies: 1 },
+    createdAt: new Date(0).toISOString(),
+    updatedAt: new Date(0).toISOString(),
+    clientName: "Cliente de Exemplo (visualização local)",
+    clientKind: "individual",
+  },
+  {
+    id: "preview-assinatura-3",
+    reference: "ASS-000003",
+    clientId: "preview-cliente-2",
+    serviceType: "tv",
+    status: "suspended",
+    amount: 89.9,
+    periodicity: "quarterly",
+    startsAt: "2026-02-01",
+    createdAt: new Date(0).toISOString(),
+    updatedAt: new Date(0).toISOString(),
+    clientName: "Empresa de Exemplo Ltda. (visualização local)",
+    clientKind: "company",
+  },
+  {
+    id: "preview-assinatura-4",
+    reference: "ASS-000004",
+    clientId: "preview-cliente-2",
+    serviceType: "digital",
+    status: "cancelled",
+    amount: 29.9,
+    periodicity: "semiannual",
+    startsAt: "2025-06-01",
+    cancelledAt: new Date(0).toISOString(),
+    cancellationReason: "Preview — demonstração de assinatura cancelada.",
+    createdAt: new Date(0).toISOString(),
+    updatedAt: new Date(0).toISOString(),
+    clientName: "Empresa de Exemplo Ltda. (visualização local)",
+    clientKind: "company",
+  },
+];
+
 /**
  * Clientes cujo nome/razão social/CPF/CNPJ combina com o termo — usado só
  * para resolver quais `client_id` entram no OR da busca de assinaturas
@@ -226,6 +309,9 @@ export async function listSubscriptionsAdminPageSupabase(
   client: SupabaseClient,
   input: SubscriptionAdminPageQuery = {},
 ): Promise<SubscriptionAdminPageResult> {
+  if (isLocalPreviewEnabled()) {
+    return { subscriptions: PREVIEW_SUBSCRIPTIONS, total: PREVIEW_SUBSCRIPTIONS.length, page: 1, pageSize: subscriptionPageSize(input.pageSize), totalPages: 1 };
+  }
   const pageSize = subscriptionPageSize(input.pageSize);
   const requestedPage = Math.max(1, Math.floor(input.page ?? 1));
 

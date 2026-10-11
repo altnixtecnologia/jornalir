@@ -15,6 +15,8 @@ export interface DraftListQuery {
 export interface DraftRepository {
   list(query?: DraftListQuery): Promise<NfseDraft[]>;
   getById(id: string): Promise<NfseDraft | null>;
+  /** Pré-checagem de idempotência (item explícito da Fase 5 — "evitar criar dois rascunhos para a mesma origem sem confirmação") — o índice único parcial em (origin_system, origin_type, origin_record_id) continua sendo a proteção autoritativa. */
+  findByOrigin(originSystem: string, originType: string, originRecordId: string): Promise<NfseDraft | null>;
   create(record: NewDraftRecord): Promise<NfseDraft>;
   update(id: string, changes: DraftChanges): Promise<NfseDraft>;
 }

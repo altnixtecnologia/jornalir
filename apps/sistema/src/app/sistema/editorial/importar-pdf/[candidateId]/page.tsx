@@ -46,7 +46,7 @@ export default async function ImportCandidateDetailPage({
   const currentStep: ImportFlowStep = candidate.status === "converted" ? "materia" : "revisao";
 
   return (
-    <>
+    <div className="inline-form">
       <ModuleHeader
         eyebrow="EDITORIAL / IMPORTAÇÃO"
         title={candidate.suggestedTitle ?? "Candidato sem título"}
@@ -69,6 +69,6 @@ export default async function ImportCandidateDetailPage({
         localities={localities}
         mediaAssets={mediaAssets}
       />
-    </>
+    </div>
   );
 }

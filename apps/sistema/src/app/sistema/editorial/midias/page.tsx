@@ -2,9 +2,10 @@ import Link from "next/link";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { ModuleHeader } from "../../../../components/admin/ModuleHeader";
 import { MidiasLibrary, type MediaUsageRef } from "../../../../features/editorial/MidiasLibrary";
-import { PaginationControls } from "../../../../features/editorial/PaginationControls";
+import { PaginatedNav } from "../../../../features/editorial/PaginatedNav";
 import { createSupabaseServerClient } from "../../../../lib/supabase/server";
 import { listMediaAdminPageSupabase } from "../../../../providers/supabase/mediaAssetRepository.supabase";
+import { isLocalPreviewEnabled } from "../../../../lib/auth/localPreview";
 
 function one(value: string | string[] | undefined): string {
   return Array.isArray(value) ? value[0] ?? "" : value ?? "";
@@ -15,7 +16,7 @@ async function buildUsageByMediaId(
   mediaIds: string[],
 ): Promise<Record<string, MediaUsageRef[]>> {
   const usage: Record<string, MediaUsageRef[]> = {};
-  if (mediaIds.length === 0) return usage;
+  if (mediaIds.length === 0 || isLocalPreviewEnabled()) return usage;
 
   const { data: links, error: linksError } = await client
     .from("article_media")
@@ -61,14 +62,6 @@ export default async function MidiasPage({
     mediaPage.assets.map((asset) => asset.id),
   );
 
-  function href(targetPage: number): string {
-    const params = new URLSearchParams();
-    if (q) params.set("q", q);
-    params.set("page", String(targetPage));
-    params.set("pageSize", String(mediaPage.pageSize));
-    return `/sistema/editorial/midias?${params.toString()}`;
-  }
-
   return (
     <>
       <ModuleHeader
@@ -91,7 +84,7 @@ export default async function MidiasPage({
               <option value="96">96</option>
             </select>
           </label>
-          <button type="submit">Buscar</button>
+          <button type="submit" className="cadastros-btn-primary">Buscar</button>
           <Link className="secondary-link" href="/sistema/editorial/midias">Limpar</Link>
         </div>
         <span className="materias-count">
@@ -101,7 +94,12 @@ export default async function MidiasPage({
 
       <MidiasLibrary mediaAssets={mediaPage.assets} usageByMediaId={usageByMediaId} />
 
-      <PaginationControls page={mediaPage.page} totalPages={mediaPage.totalPages} buildHref={href} />
+      <PaginatedNav
+        basePath="/sistema/editorial/midias"
+        page={mediaPage.page}
+        totalPages={mediaPage.totalPages}
+        params={{ ...(q ? { q } : {}), pageSize: String(mediaPage.pageSize) }}
+      />
     </>
   );
 }

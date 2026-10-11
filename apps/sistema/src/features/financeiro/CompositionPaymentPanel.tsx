@@ -85,7 +85,7 @@ export function CompositionPaymentPanel({
           <input type="date" value={receivedAt} onChange={(event) => setReceivedAt(event.target.value)} />
         </label>
         <label className="form-field">
-          <span className="field-label">Forma de pagamento <span className="field-optional">(opcional)</span></span>
+          <span className="field-label">Forma de liquidação <span className="field-optional">(opcional)</span></span>
           <select value={paymentMethod} onChange={(event) => setPaymentMethod(event.target.value as PaymentMethod | "")}>
             <option value="">Não informado</option>
             {PAYMENT_METHODS.map((method) => (

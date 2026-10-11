@@ -86,7 +86,7 @@ export function LocalidadesManager({ localities }: LocalidadesManagerProps): JSX
             setError(null);
           }}
         >
-          {showCreate ? "Cancelar" : "Nova localidade ＋"}
+          {showCreate ? "Cancelar" : "+ Nova localidade"}
         </button>
       </div>
 

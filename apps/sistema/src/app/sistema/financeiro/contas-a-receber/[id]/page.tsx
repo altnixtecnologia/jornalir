@@ -8,10 +8,12 @@ import { ModuleHeader } from "../../../../../components/admin/ModuleHeader";
 import { ReceivableActionsPanel } from "../../../../../features/financeiro/ReceivableActionsPanel";
 import { ReceivableCreditPanel } from "../../../../../features/financeiro/ReceivableCreditPanel";
 import { CompositionPaymentPanel } from "../../../../../features/financeiro/CompositionPaymentPanel";
-import { getReceivableService, getClientCreditService } from "../../../../../composition/financeiro";
+import { PixChargePanel } from "../../../../../features/financeiro/PixChargePanel";
+import { getReceivableService, getClientCreditService, getPaymentChargeService } from "../../../../../composition/financeiro";
 import { getClientService } from "../../../../../composition/clientes";
 import { createSupabaseServerClient } from "../../../../../lib/supabase/server";
 import { listActiveStaffSupabase } from "../../../../../providers/supabase/staffRepository.supabase";
+import { isLocalPreviewEnabled } from "../../../../../lib/auth/localPreview";
 
 function formatAmount(value: number): string {
   return value.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
@@ -43,7 +45,7 @@ export default async function ReceivableDetailPage({ params }: { params: { id: s
   });
   if (!receivable) notFound();
 
-  const [client, receipts, adjustments, staff, { priorOpen, availableCredits, composition }, otherCredits] = await Promise.all([
+  const [client, receipts, adjustments, staff, { priorOpen, availableCredits, composition }, otherCredits, pixCharges] = await Promise.all([
     getClientService(supabase)
       .getById(receivable.clientId)
       .catch((error: unknown) => {
@@ -55,6 +57,7 @@ export default async function ReceivableDetailPage({ params }: { params: { id: s
     listActiveStaffSupabase(supabase),
     receivableService.getComposition(receivable.id),
     getClientCreditService(supabase).list({ clientId: receivable.clientId, availableOnly: true }),
+    getPaymentChargeService(supabase).listForReceivable(receivable.id),
   ]);
   const creditAppliedToThis = adjustments.filter((item) => item.adjustmentType === "credit_applied" && !item.reversedAt);
   const manuallyApplicableCredits = otherCredits.filter(
@@ -62,7 +65,7 @@ export default async function ReceivableDetailPage({ params }: { params: { id: s
   );
 
   return (
-    <>
+    <div className="inline-form">
       <ModuleHeader
         eyebrow={`FINANCEIRO / CONTAS A RECEBER / ${receivable.reference}`}
         title={receivable.description}
@@ -146,7 +149,15 @@ export default async function ReceivableDetailPage({ params }: { params: { id: s
         <p className="helper-text">{receivable.notes || "Nenhuma observação registrada."}</p>
       </section>
 
+      <PixChargePanel
+        receivableId={receivable.id}
+        clientId={receivable.clientId}
+        receivableBalance={receivable.balance}
+        charges={pixCharges}
+        localPreview={isLocalPreviewEnabled()}
+      />
+
       <ReceivableActionsPanel receivable={receivable} receipts={receipts} adjustments={adjustments} staff={staff} hasOlderOpenBalance={priorOpen.length > 0} />
-    </>
+    </div>
   );
 }

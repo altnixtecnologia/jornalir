@@ -815,6 +815,30 @@ body {
 .ad-effect-flip { animation: ad-flip 640ms ease both; transform-style: preserve-3d; }
 .ad-effect-blur { animation: ad-blur 560ms ease both; }
 
+/* Configuração global de rotação dos Patrocinadores do site (Fase 6) —
+   um único efeito escolhido em Configurações > Patrocinadores do site
+   vale pros 6 quadros ao mesmo tempo. Transições discretas, nunca
+   exageradas (durações curtas, sempre terminando no estado normal). */
+.ad-effect-slide-left { animation: ad-slide-left 480ms ease both; }
+.ad-effect-slide-right { animation: ad-slide-right 480ms ease both; }
+.ad-effect-slide-up { animation: ad-slide-up 480ms ease both; }
+.ad-effect-slide-down { animation: ad-slide-down 480ms ease both; }
+.ad-effect-zoom-in { animation: ad-zoom-in 480ms ease both; }
+.ad-effect-zoom-out { animation: ad-zoom-out 480ms ease both; }
+.ad-effect-blur-fade { animation: ad-blur-fade 520ms ease both; }
+.ad-effect-scale-fade { animation: ad-scale-fade 480ms ease both; }
+.ad-effect-crossfade { animation: ad-crossfade 600ms ease both; }
+
+@keyframes ad-slide-left { from { opacity: 0.3; transform: translateX(16px); } to { opacity: 1; transform: translateX(0); } }
+@keyframes ad-slide-right { from { opacity: 0.3; transform: translateX(-16px); } to { opacity: 1; transform: translateX(0); } }
+@keyframes ad-slide-up { from { opacity: 0.3; transform: translateY(16px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes ad-slide-down { from { opacity: 0.3; transform: translateY(-16px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes ad-zoom-in { from { opacity: 0.3; transform: scale(0.94); } to { opacity: 1; transform: scale(1); } }
+@keyframes ad-zoom-out { from { opacity: 0.3; transform: scale(1.06); } to { opacity: 1; transform: scale(1); } }
+@keyframes ad-blur-fade { from { opacity: 0.2; filter: blur(6px); } to { opacity: 1; filter: blur(0); } }
+@keyframes ad-scale-fade { from { opacity: 0.25; transform: scale(0.96); } to { opacity: 1; transform: scale(1); } }
+@keyframes ad-crossfade { from { opacity: 0; } to { opacity: 1; } }
+
 @keyframes ad-fade { from { opacity: 0.28; } to { opacity: 1; } }
 @keyframes ad-slide { from { opacity: 0.4; transform: translateX(14px); } to { opacity: 1; transform: translateX(0); } }
 @keyframes ad-zoom { from { opacity: 0.45; transform: scale(1.06); } to { opacity: 1; transform: scale(1); } }

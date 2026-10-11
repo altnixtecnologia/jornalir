@@ -16,6 +16,29 @@ import type {
   ArticleRepository,
   NewArticleRecord,
 } from "@ir/core";
+import { isLocalPreviewEnabled } from "../../lib/auth/localPreview";
+
+const PREVIEW_ARTICLES: Article[] = [
+  {
+    id: "preview-materia-1",
+    reference: "IR-MAT-2026-000001",
+    title: "Matéria de exemplo (visualização local)",
+    body: "<p>Conteúdo de exemplo para visualização local do painel.</p>",
+    sectionId: "preview-geral",
+    localityId: "preview-sjs",
+    status: "published",
+    placement: { type: "none" },
+    urgent: false,
+    notificationMode: "none",
+    media: [],
+    origin: "manual",
+    authorName: "Redação (visualização local)",
+    publishedAt: new Date(0).toISOString(),
+    createdAt: new Date(0).toISOString(),
+    updatedAt: new Date(0).toISOString(),
+    createdBy: "00000000-0000-0000-0000-000000000000",
+  },
+];
 
 const ARTICLES_TABLE = "articles";
 const PLACEMENTS_TABLE = "article_placements";
@@ -526,6 +549,9 @@ export async function listArticlesAdminPageSupabase(
   client: SupabaseClient,
   input: ArticleAdminPageQuery = {},
 ): Promise<ArticleAdminPageResult> {
+  if (isLocalPreviewEnabled()) {
+    return { articles: PREVIEW_ARTICLES, total: PREVIEW_ARTICLES.length, page: 1, pageSize: normalizePageSize(input.pageSize), totalPages: 1 };
+  }
   const pageSize = normalizePageSize(input.pageSize);
   const requestedPage = Math.max(1, Math.floor(input.page ?? 1));
 
@@ -607,6 +633,7 @@ export async function listArticlesAdminPageSupabase(
 export function createArticleRepositorySupabase(client: SupabaseClient): ArticleRepository {
   return {
     async list(filters?: ArticleFilters) {
+      if (isLocalPreviewEnabled()) return PREVIEW_ARTICLES;
       // Destaques nunca precisam varrer todos os artigos publicados. Primeiro
       // resolve os poucos placements ativos daquele tipo e só então busca as
       // matérias correspondentes (limites atuais: 3 a 8 por bloco).
@@ -651,6 +678,7 @@ export function createArticleRepositorySupabase(client: SupabaseClient): Article
     },
 
     async getById(id: string) {
+      if (isLocalPreviewEnabled()) return PREVIEW_ARTICLES.find((article) => article.id === id) ?? null;
       const { data, error } = await client.from(ARTICLES_TABLE).select(ARTICLE_COLUMNS).eq("id", id).maybeSingle();
       if (error) throw new Error(error.message);
       if (!data) return null;

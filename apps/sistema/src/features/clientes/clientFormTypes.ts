@@ -32,17 +32,26 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 /** Mesma validação usada pela Server Action e pelo formulário — fonte
  * única, nunca duas regras divergentes (mesmo princípio de
- * validateArticlePayload). Retorna a primeira mensagem de erro ou null. */
+ * validateArticlePayload). Retorna a primeira mensagem de erro ou null.
+ *
+ * Regras obrigatórias (padronização de Cadastros): Nome/Razão social,
+ * CPF/CNPJ, WhatsApp, e-mail e ao menos um papel — para os dois tipos de
+ * cadastro. */
 export function validateClientPayload(payload: ClientFormPayload): string | null {
   if (payload.kind === "individual") {
     if (!payload.fullName.trim()) return "Informe o nome completo.";
-    if (payload.cpf.trim() && !isValidCpf(payload.cpf)) return "CPF inválido.";
+    if (!payload.cpf.trim()) return "Informe o CPF.";
+    if (!isValidCpf(payload.cpf)) return "CPF inválido.";
   } else {
     if (!payload.companyName.trim()) return "Informe a razão social.";
-    if (payload.cnpj.trim() && !isValidCnpj(payload.cnpj)) return "CNPJ inválido.";
+    if (!payload.cnpj.trim()) return "Informe o CNPJ.";
+    if (!isValidCnpj(payload.cnpj)) return "CNPJ inválido.";
     if (payload.responsibleCpf.trim() && !isValidCpf(payload.responsibleCpf)) return "CPF do responsável inválido.";
   }
-  if (payload.email.trim() && !EMAIL_RE.test(payload.email.trim())) return "E-mail inválido.";
+  if (!payload.whatsapp.trim()) return "Informe o WhatsApp.";
+  if (!payload.email.trim()) return "Informe o e-mail de contato.";
+  if (!EMAIL_RE.test(payload.email.trim())) return "E-mail inválido.";
   if (payload.addressState.trim() && onlyDigits(payload.addressState).length > 0) return "UF deve conter só letras.";
+  if (payload.roles.length === 0) return "Selecione ao menos um papel.";
   return null;
 }

@@ -159,7 +159,7 @@ export default async function RelatorioContratosPage({
             <input type="checkbox" name="withFinancialBalanceOnly" value="1" defaultChecked={withFinancialBalanceOnly} />
             Com saldo financeiro
           </label>
-          <button type="submit">Filtrar</button>
+          <button type="submit" className="cadastros-btn-primary">Filtrar</button>
         </form>
         <span className="materias-count">{rows.length} contrato(s)</span>
       </ReportFiltersToggle>

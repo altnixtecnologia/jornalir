@@ -114,7 +114,7 @@ export default async function MateriasPage({
         description="Listagem paginada no banco para continuar rápida mesmo com todo o acervo histórico carregado."
         action={
           <Link className="header-action" href="/sistema/editorial/materias/nova">
-            Nova matéria <span aria-hidden="true">＋</span>
+            + Nova matéria
           </Link>
         }
       />

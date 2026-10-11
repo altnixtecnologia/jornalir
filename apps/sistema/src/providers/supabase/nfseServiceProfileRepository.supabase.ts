@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { NfseServiceProfile } from "@ir/types";
 import type { NewServiceProfileRecord, ServiceProfileChanges, ServiceProfileListQuery, ServiceProfileRepository } from "@ir/core";
+import { isLocalPreviewEnabled } from "../../lib/auth/localPreview";
 
 const TABLE = "nfse_service_profiles";
 const COLUMNS =
@@ -60,10 +61,34 @@ function toRow(record: NewServiceProfileRecord | ServiceProfileChanges): Record<
   return row;
 }
 
+// Perfil demonstrativo (preview) — cTribNac/cTribMun/cNBS reaproveitam o
+// MESMO trio já usado como exemplo nos testes do DPS builder (ver
+// packages/core/test/dps-builder.test.ts — "Veiculação de anúncio
+// publicitário"), nunca um código tributário real presumido pela
+// aplicação (ver docs/NFSE-NACIONAL-ARQUITETURA.md — cTribNac/cTribMun/
+// cNBS são sempre texto livre informado pelo usuário, nunca um enum
+// hardcoded). Antes usava "140202" aqui, um valor sem nenhuma origem no
+// projeto — corrigido pra não narrar dois exemplos diferentes pro mesmo
+// cenário de "Publicidade".
+const PREVIEW_SERVICE_PROFILE: NfseServiceProfile = {
+  id: "preview-perfil-servico-1",
+  name: "Divulgação institucional (demonstração)",
+  active: true,
+  cTribNac: "140619",
+  cTribMun: "706",
+  cNBS: "1.1406.19.00",
+  defaultLocationMunicipality: "São João do Sul",
+  defaultLocationIbgeCode: "4216404",
+  notes: "Perfil de demonstração (preview) — ajustar os códigos reais antes de usar fora do preview.",
+  createdAt: new Date(0).toISOString(),
+  updatedAt: new Date(0).toISOString(),
+};
+
 /** Perfis de serviço (Parte 1, item 5) — nunca excluídos, só desativados (active=false), mesmo depois de usados em rascunhos. */
 export function createServiceProfileRepositorySupabase(client: SupabaseClient): ServiceProfileRepository {
   return {
     async list(query: ServiceProfileListQuery = {}) {
+      if (isLocalPreviewEnabled()) return [PREVIEW_SERVICE_PROFILE];
       let builder = client.from(TABLE).select(COLUMNS).order("name", { ascending: true });
       if (query.activeOnly) builder = builder.eq("active", true);
       const { data, error } = await builder;
@@ -72,6 +97,7 @@ export function createServiceProfileRepositorySupabase(client: SupabaseClient): 
     },
 
     async getById(id) {
+      if (isLocalPreviewEnabled()) return PREVIEW_SERVICE_PROFILE.id === id ? PREVIEW_SERVICE_PROFILE : null;
       const { data, error } = await client.from(TABLE).select(COLUMNS).eq("id", id).maybeSingle();
       if (error) throw new Error(error.message);
       return data ? toDomain(data as unknown as ServiceProfileRow) : null;

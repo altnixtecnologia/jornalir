@@ -17,6 +17,18 @@ export interface DraftInput {
   serviceValue: number;
   serviceDescription: string;
   notes?: string;
+  /** Preenchidos só quando o rascunho nasce de uma origem externa (ex.: venda comercial) — ver NfseDraftOrigin. */
+  originSystem?: string;
+  originType?: string;
+  originRecordId?: string;
+  commercialSaleId?: string;
+}
+
+/** Já existe um rascunho para esta origem — nunca dois pra MESMA origem sem confirmação explícita (índice único parcial em origin_system+origin_type+origin_record_id). */
+export class DraftDuplicateOriginError extends Error {
+  constructor() {
+    super("Já existe um rascunho de NFS-e para esta origem.");
+  }
 }
 
 export interface DraftValidationResult {
@@ -40,6 +52,10 @@ function normalize(input: DraftInput): NewDraftRecord {
     serviceDescription: input.serviceDescription.trim(),
     notes: trimOrUndefined(input.notes),
     status: "draft",
+    originSystem: trimOrUndefined(input.originSystem),
+    originType: trimOrUndefined(input.originType),
+    originRecordId: trimOrUndefined(input.originRecordId),
+    commercialSaleId: trimOrUndefined(input.commercialSaleId),
   };
 }
 
@@ -122,10 +138,39 @@ export class DraftService {
     return draft;
   }
 
+  /** Rascunho já existente para esta origem, se houver (ex.: tela de detalhe da venda comercial decidindo entre "Criar rascunho" e "Abrir NFS-e"). */
+  getByOrigin(originSystem: string, originType: string, originRecordId: string): Promise<NfseDraft | null> {
+    return this.drafts.findByOrigin(originSystem, originType, originRecordId);
+  }
+
   register(input: DraftInput): Promise<NfseDraft> {
     const record = normalize(input);
     assertValid(record);
     return this.drafts.create(record);
+  }
+
+  /**
+   * Criação a partir de uma origem externa (Fase 5 — ex.: "Criar
+   * rascunho de NFS-e" na venda comercial) — pré-checa
+   * (findByOrigin) ANTES de criar, e o índice único parcial do banco
+   * continua sendo a proteção autoritativa mesmo numa corrida rara
+   * (mesmo desenho de registerFromSubscription/registerFromCommercialSale).
+   */
+  async registerFromOrigin(input: DraftInput): Promise<NfseDraft> {
+    if (!input.originSystem || !input.originType || !input.originRecordId) {
+      throw new DraftValidationError("registerFromOrigin exige originSystem, originType e originRecordId.");
+    }
+    const existing = await this.drafts.findByOrigin(input.originSystem, input.originType, input.originRecordId);
+    if (existing) throw new DraftDuplicateOriginError();
+
+    const record = normalize(input);
+    assertValid(record);
+    try {
+      return await this.drafts.create(record);
+    } catch (error) {
+      if (error instanceof Error && error.message.includes("nfse_drafts_origin_unique")) throw new DraftDuplicateOriginError();
+      throw error;
+    }
   }
 
   async update(id: string, input: DraftInput): Promise<NfseDraft> {

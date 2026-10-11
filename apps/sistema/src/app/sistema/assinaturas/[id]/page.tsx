@@ -60,7 +60,7 @@ export default async function AssinaturaDetailPage({ params }: { params: { id: s
   const availableCreditTotal = availableCredits.reduce((sum, item) => sum + item.balance, 0);
 
   return (
-    <>
+    <div className="inline-form">
       <ModuleHeader
         eyebrow={`ASSINATURAS / ${subscription.reference}`}
         title={SUBSCRIPTION_SERVICE_TYPE_LABELS[subscription.serviceType]}
@@ -167,6 +167,6 @@ export default async function AssinaturaDetailPage({ params }: { params: { id: s
         receivables={receivables}
         clientName={client ? clientDisplayName(client) : "Cliente não encontrado"}
       />
-    </>
+    </div>
   );
 }

@@ -94,7 +94,7 @@ export default async function RelatorioCreditosPage({
             <input type="checkbox" name="onlyAvailable" value="1" defaultChecked={onlyAvailable} />
             Só com saldo disponível
           </label>
-          <button type="submit">Filtrar</button>
+          <button type="submit" className="cadastros-btn-primary">Filtrar</button>
         </form>
         <span className="materias-count">
           {credits.length} crédito(s) · gerado {formatAmount(totals.generated)} · aplicado {formatAmount(totals.applied)} · disponível {formatAmount(totals.available)}

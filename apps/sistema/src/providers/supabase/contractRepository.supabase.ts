@@ -17,6 +17,7 @@ import type {
   NewContractRecord,
   ContractChanges,
 } from "@ir/core";
+import { isLocalPreviewEnabled } from "../../lib/auth/localPreview";
 
 const TABLE = "institutional_contracts";
 const COLUMNS =
@@ -177,11 +178,28 @@ function commitmentOrderToDomain(row: CommitmentOrderRow): ContractCommitmentOrd
   };
 }
 
+// Contrato institucional de exemplo (preview) — PJ, pra demonstrar a tela
+// de detalhe/relatório de contratos sem depender do Supabase remoto.
+const PREVIEW_CONTRACTS: InstitutionalContract[] = [
+  {
+    id: "preview-contrato-1",
+    reference: "CTR-000001",
+    clientId: "preview-cliente-2",
+    object: "Publicação de matérias institucionais (preview)",
+    contractedAmount: 1200,
+    startsAt: "2026-01-01",
+    endsAt: "2026-12-31",
+    status: "active",
+    createdAt: new Date(0).toISOString(),
+    updatedAt: new Date(0).toISOString(),
+  },
+];
+
 /** Aditivos de VÁRIOS contratos de uma vez (Bloco 2, item 10 — relatório
  * de contratos) — evita N+1 ao montar o resumo de cada contrato na
  * listagem. Agrupar por contract_id é responsabilidade de quem chama. */
 export async function listAmendmentsForContractsSupabase(client: SupabaseClient, contractIds: string[]): Promise<ContractAmendment[]> {
-  if (contractIds.length === 0) return [];
+  if (contractIds.length === 0 || isLocalPreviewEnabled()) return [];
   const { data, error } = await client.from("contract_amendments").select(AMENDMENT_COLUMNS).in("contract_id", contractIds);
   if (error) throw new Error(error.message);
   return (data ?? []).map((row) => amendmentToDomain(row as unknown as AmendmentRow));
@@ -190,6 +208,11 @@ export async function listAmendmentsForContractsSupabase(client: SupabaseClient,
 export function createContractRepositorySupabase(client: SupabaseClient): ContractRepository {
   return {
     async list(query?: ContractListQuery) {
+      if (isLocalPreviewEnabled()) {
+        return PREVIEW_CONTRACTS.filter(
+          (contract) => (!query?.clientId || contract.clientId === query.clientId) && (!query?.status || contract.status === query.status),
+        );
+      }
       let builder = client.from(TABLE).select(COLUMNS).order("created_at", { ascending: false });
       if (query?.clientId) builder = builder.eq("client_id", query.clientId);
       if (query?.status) builder = builder.eq("status", query.status);
@@ -199,6 +222,7 @@ export function createContractRepositorySupabase(client: SupabaseClient): Contra
     },
 
     async getById(id) {
+      if (isLocalPreviewEnabled()) return PREVIEW_CONTRACTS.find((contract) => contract.id === id) ?? null;
       const { data, error } = await client.from(TABLE).select(COLUMNS).eq("id", id).maybeSingle();
       if (error) throw new Error(error.message);
       return data ? toDomain(data as unknown as ContractRow) : null;
@@ -217,6 +241,7 @@ export function createContractRepositorySupabase(client: SupabaseClient): Contra
     },
 
     async listDocuments(contractId) {
+      if (isLocalPreviewEnabled()) return [];
       const { data, error } = await client
         .from("contract_documents")
         .select(DOCUMENT_COLUMNS)
@@ -245,6 +270,7 @@ export function createContractRepositorySupabase(client: SupabaseClient): Contra
     },
 
     async listAmendments(contractId) {
+      if (isLocalPreviewEnabled()) return [];
       const { data, error } = await client
         .from("contract_amendments")
         .select(AMENDMENT_COLUMNS)
@@ -274,6 +300,7 @@ export function createContractRepositorySupabase(client: SupabaseClient): Contra
     },
 
     async listCommitmentOrders(contractId) {
+      if (isLocalPreviewEnabled()) return [];
       const { data, error } = await client
         .from("contract_commitment_orders")
         .select(COMMITMENT_ORDER_COLUMNS)

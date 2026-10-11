@@ -297,6 +297,19 @@ export interface NfseTomadorSnapshot {
 }
 
 /** Monta o snapshot a partir do cliente mestre — sempre um objeto novo (nunca referencia `client.address`), ver garantia de imutabilidade no comentário de NfseTomadorSnapshot. */
+/**
+ * E-mail fiscal: `fiscalEmail` primeiro, `email` como fallback só quando
+ * vazio (nunca o contrário, nunca os dois gravados) — mesma regra já
+ * documentada em `clients.fiscal_email` (ver
+ * 20261025100000_clients_fiscal_fields.sql, ainda não aplicada
+ * remotamente). `municipalRegistration`/`ibgeCode` do Cadastro só
+ * passam a ser aproveitados aqui quando esses campos existirem no
+ * client — enquanto o banco remoto não tiver as colunas, ambos
+ * continuam `undefined` (o cliente carregado nunca terá essas
+ * propriedades), preservando o comportamento atual sem quebrar nada.
+ * `icmsStatus` NUNCA entra no snapshot — a NFS-e trata ISSQN, não ICMS
+ * (item 15: "não forçar na NFS-e se não for necessário").
+ */
 export function buildTomadorSnapshotFromClient(client: Client, displayName: string): NfseTomadorSnapshot {
   return {
     sourceClientId: client.id,
@@ -304,7 +317,7 @@ export function buildTomadorSnapshotFromClient(client: Client, displayName: stri
     name: displayName,
     cpf: client.cpf,
     cnpj: client.cnpj,
-    municipalRegistration: undefined,
+    municipalRegistration: client.municipalRegistration,
     stateRegistration: client.stateRegistration,
     zip: client.address.zip,
     street: client.address.street,
@@ -313,8 +326,8 @@ export function buildTomadorSnapshotFromClient(client: Client, displayName: stri
     neighborhood: client.address.neighborhood,
     city: client.address.city,
     state: client.address.state,
-    ibgeCode: undefined,
-    email: client.email,
+    ibgeCode: client.addressIbgeCode,
+    email: client.fiscalEmail || client.email,
     phone: client.whatsapp || client.phonePrimary,
   };
 }
@@ -360,7 +373,22 @@ export const NFSE_DRAFT_STATUS_LABELS: Record<NfseDraftStatus, string> = {
   draft: "Rascunho",
 };
 
-export interface NfseDraft {
+/**
+ * Origem de um rascunho — modelo genérico pensado para o futuro Altnix
+ * Informativo (Comercial Fase 5): originSystem/originType/originRecordId
+ * nunca dependem de uma FK cross-project (originRecordId é texto livre,
+ * pode representar um registro de outro sistema/banco). commercialSaleId
+ * é só conveniência LOCAL opcional pra join rápido — nunca a fonte de
+ * verdade da origem.
+ */
+export interface NfseDraftOrigin {
+  originSystem?: string;
+  originType?: string;
+  originRecordId?: string;
+  commercialSaleId?: string;
+}
+
+export interface NfseDraft extends NfseDraftOrigin {
   id: string;
   reference: string;
   clientId: string;

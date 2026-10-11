@@ -71,9 +71,81 @@ summary:active {
   outline: 3px solid var(--brand);
   outline-offset: 3px;
 }
+
+/* Baseline do padrão visual (Cadastros/telas novas) para QUALQUER
+   button/input/select/textarea sem classe própria — nenhum controle
+   nesta aplicação deve cair no estilo bruto do navegador só por faltar
+   um wrapper (.inline-form/.cadastros-filters-bar/etc.) numa tela mais
+   antiga. Seletor de classe sempre vence por especificidade normal do
+   CSS — isto nunca sobrescreve .cadastros-btn-primary, .form-actions
+   button, .materias-filters-compact input, nem nenhum outro estilo já
+   definido por classe neste arquivo; só cobre o que mais nenhuma regra
+   mais específica alcança. */
+button {
+  height: 36px;
+  padding: 0 16px;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: #fffefa;
+  color: var(--ink);
+  cursor: pointer;
+}
+button:hover:not(:disabled) {
+  border-color: var(--brand);
+}
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]),
+select {
+  height: 36px;
+  padding: 0 10px;
+  font-family: inherit;
+  font-size: 12px;
+  color: var(--ink);
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  background: #fffefa;
+}
+textarea {
+  min-height: 72px;
+  padding: 8px 10px;
+  font-family: inherit;
+  font-size: 12px;
+  color: var(--ink);
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  background: #fffefa;
+}
+input:not([type="checkbox"]):not([type="radio"]):focus,
+select:focus,
+textarea:focus {
+  border-color: var(--brand);
+  outline: none;
+}
 .admin-shell {
   min-height: 100dvh;
 }
+/* Aviso de visualização local (SYSTEM_LOCAL_PREVIEW=1) — discreto, nunca
+   some sozinho, pra nunca confundir dados de demonstração com produção
+   real durante uma apresentação. */
+.local-preview-banner {
+  position: sticky;
+  top: 0;
+  z-index: 21;
+  padding: 6px 16px;
+  text-align: center;
+  font-size: 12px;
+  font-weight: 600;
+  background: #f5e6c8;
+  color: #8a5a1f;
+  border-bottom: 1px solid var(--line);
+}
+
 /* Header superior (Fase 13) — substitui a barra lateral: navegação
    principal no topo, quase toda a largura/altura abaixo fica disponível
    para o conteúdo. */
@@ -235,31 +307,37 @@ summary:active {
   padding: 32px 28px 48px;
   flex: 1;
 }
+/* Cabeçalho de módulo — mesma densidade do cabeçalho de Cadastros
+   (.cadastros-header, referência de padrão compacto), pra toda tela que
+   usa ModuleHeader (Financeiro/NFS-e/Assinaturas/Editorial/Comercial)
+   parecer a MESMA versão do sistema, não uma mais antiga/espaçosa. */
 .module-header {
   display: flex;
+  flex-wrap: wrap;
   justify-content: space-between;
-  gap: 24px;
+  gap: 16px;
   align-items: flex-end;
-  margin-bottom: 34px;
+  margin-bottom: 18px;
 }
 .eyebrow {
   font-size: 10px;
   font-weight: 700;
   letter-spacing: 1.8px;
   color: var(--brand);
-  margin-bottom: 14px;
+  margin-bottom: 8px;
 }
 .module-header h1 {
-  font-size: clamp(28px, 3vw, 40px);
-  letter-spacing: -1.5px;
-  font-weight: 500;
-  line-height: 1.15;
+  font-size: clamp(22px, 2.4vw, 28px);
+  letter-spacing: -0.5px;
+  font-weight: 600;
+  line-height: 1.2;
 }
 .module-description {
   color: var(--muted);
-  line-height: 1.7;
-  max-width: 640px;
-  margin-top: 12px;
+  font-size: 12px;
+  line-height: 1.5;
+  max-width: 520px;
+  margin-top: 4px;
 }
 .helper-text {
   font-size: 11px;
@@ -314,6 +392,18 @@ summary:active {
   font-size: 12px;
   color: var(--muted);
   line-height: 1.5;
+}
+/* Cards do dashboard de Financeiro — mesma base de .quick-access-grid
+   (reaproveitada do dashboard principal em /sistema), só com colunas um
+   pouco mais largas (~4/linha em desktop em vez de ~5) e o valor em
+   destaque maior, porque aqui o número é o KPI principal da tela. Escopado
+   só aqui — nunca altera o grid/cards do dashboard principal. */
+.financeiro-kpi-grid {
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+}
+.financeiro-kpi-grid .quick-access-label {
+  font-size: 26px;
+  line-height: 1.2;
 }
 .quick-access-arrow {
   margin-top: auto;
@@ -603,22 +693,8 @@ summary:active {
   gap: 12px;
   margin-top: 20px;
 }
-.secondary-link {
-  display: inline-block;
-  border: 1px solid var(--line);
-  padding: 12px 16px;
-  font-weight: 600;
-}
-button.secondary-link {
-  background: none;
-  cursor: pointer;
-  font-family: inherit;
-  font-size: 12px;
-  color: var(--ink);
-}
-.secondary-link:hover {
-  border-color: var(--brand);
-}
+/* .secondary-link definitiva: ver bloco "HIERARQUIA ÚNICA DE
+   BOTÕES/LINKS-AÇÃO" mais abaixo neste arquivo. */
 .skip-link {
   position: fixed;
   top: -100px;
@@ -852,32 +928,20 @@ button.secondary-link {
     font-size: 9px;
   }
 }
-.header-action {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  padding: 12px 18px;
-  background: var(--brand);
-  color: white;
-  font-size: 12px;
-  font-weight: 700;
-  border-radius: 3px;
-  white-space: nowrap;
-}
-.header-action:hover {
-  background: var(--brand-dark);
-}
+/* .header-action definitiva: ver bloco "HIERARQUIA ÚNICA DE
+   BOTÕES/LINKS-AÇÃO" mais abaixo neste arquivo (mesma classe/altura/raio
+   de .form-action-primary). */
 
 /* Matérias — listagem e filtros */
 .materias-toolbar {
   display: flex;
   flex-wrap: wrap;
-  gap: 16px;
+  gap: 12px;
   align-items: flex-end;
   justify-content: space-between;
   border-bottom: 1px solid var(--line);
-  padding-bottom: 24px;
-  margin-bottom: 24px;
+  padding-bottom: 14px;
+  margin-bottom: 16px;
 }
 .materias-filters {
   display: flex;
@@ -1474,15 +1538,8 @@ button.secondary-link {
   color: #a6afa3;
 }
 
-.materia-open-link {
-  font-size: 11px;
-  font-weight: 700;
-  color: var(--brand);
-  white-space: nowrap;
-}
-.materia-open-link:hover {
-  text-decoration: underline;
-}
+/* .materia-open-link definitiva: ver bloco "HIERARQUIA ÚNICA DE
+   BOTÕES/LINKS-AÇÃO" mais abaixo neste arquivo. */
 .materias-empty {
   padding: 60px 0;
   text-align: center;
@@ -1699,6 +1756,16 @@ button.secondary-link {
   grid-template-columns: 1fr 1fr;
   gap: 20px;
   margin-top: 18px;
+}
+/* Largura cheia da célula pra qualquer input/select/textarea dentro de
+   um .form-field — sem isto, o baseline global (acima) dá altura/borda
+   mas o controle ficava com a largura padrão do navegador (~20
+   caracteres), estreito e deslocado dentro do grid. Cobre .form-grid e
+   .inline-form igualmente (ambos usam .form-field). */
+.form-field input,
+.form-field select,
+.form-field textarea {
+  width: 100%;
 }
 .field-label {
   display: block;
@@ -1936,11 +2003,11 @@ button.secondary-link {
 .form-actions button {
   border: 1px solid var(--line);
   background: white;
-  padding: 12px 18px;
-  min-height: 44px;
+  padding: 9px 16px;
+  min-height: 36px;
   font-size: 12px;
   font-weight: 700;
-  border-radius: 6px;
+  border-radius: 4px;
 }
 .form-actions button:hover:not(:disabled) {
   border-color: var(--brand);
@@ -1949,21 +2016,1313 @@ button.secondary-link {
   opacity: 0.6;
   cursor: not-allowed;
 }
-.form-action-primary {
+/* ================================================================
+   HIERARQUIA ÚNICA DE BOTÕES/LINKS-AÇÃO — canônica em todo o sistema,
+   padrão de referência = Cadastros (/sistema/clientes). Self-contida de
+   propósito (altura/padding/borda/fonte próprios): antes, .form-action-
+   primary/.form-action-danger só trocavam cor e dependiam de
+   `.form-actions button` como pai — qualquer uso FORA de .form-actions
+   (ex.: action= do ModuleHeader em Assinaturas/Contas a Receber/
+   Contratos/Comercial/NFS-e-rascunhos) virava um link colorido sem
+   padding nenhum, não um botão. .header-action (Editorial) fazia a
+   mesma função com altura/raio diferentes — unificado aqui, nenhum
+   arquivo precisou mudar de classe. */
+.form-action-primary,
+.header-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 36px;
+  padding: 0 16px;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  border-radius: 4px;
+  white-space: nowrap;
+  text-decoration: none;
+  cursor: pointer;
   background: var(--brand) !important;
-  color: white;
-  border-color: var(--brand) !important;
+  color: white !important;
+  border: 1px solid var(--brand) !important;
 }
-.form-action-primary:hover:not(:disabled) {
+.form-action-primary:hover:not(:disabled),
+.header-action:hover {
   background: var(--brand-dark) !important;
+  border-color: var(--brand-dark) !important;
+}
+.form-action-primary:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 .form-action-danger {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 36px;
+  padding: 0 16px;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  border-radius: 4px;
+  white-space: nowrap;
+  text-decoration: none;
+  cursor: pointer;
+  background: #fffefa;
   color: #a3402b;
-  border-color: #e0bcb2 !important;
+  border: 1px solid #e0bcb2 !important;
 }
 .form-action-danger:hover:not(:disabled) {
   border-color: #a3402b !important;
 }
+.form-action-danger:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* Ação secundária/discreta — Voltar, Limpar, Cancelar sem destruição,
+   Fechar. Mesma altura/fonte dos botões primários, sem preenchimento;
+   usada tanto em <Link> quanto <button> (button.secondary-link zera a
+   aparência nativa de botão antes de herdar isto). */
+.secondary-link {
+  display: inline-flex;
+  align-items: center;
+  height: 36px;
+  padding: 0 16px;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  border-radius: 4px;
+  border: 1px solid var(--line);
+  color: var(--muted);
+  background: transparent;
+  white-space: nowrap;
+  text-decoration: none;
+  cursor: pointer;
+}
+button.secondary-link {
+  background: transparent;
+}
+.secondary-link:hover {
+  border-color: var(--brand);
+  color: var(--ink);
+  text-decoration: none;
+}
+
+/* Ação terciária/discreta em linha de tabela (abrir/ver detalhe) — nunca
+   um botão preenchido, só texto na cor da marca. */
+.materia-open-link {
+  display: inline-flex;
+  align-items: center;
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--brand);
+  white-space: nowrap;
+  text-decoration: none;
+  background: none;
+  border: 0;
+  cursor: pointer;
+}
+.materia-open-link:hover {
+  text-decoration: underline;
+}
+
+/* ================================================================
+   CADASTROS — padrão visual de referência APROVADO (ver /sistema/clientes
+   e /sistema/clientes/novo), generalizado para o resto do sistema via o
+   baseline global de button/input/select/textarea no topo deste arquivo
+   (mesma altura 36px, mesma fonte/borda) — nunca precisou reescrever o
+   markup de cada tela pra isso. Classes próprias abaixo continuam usadas
+   só por ClientesList.tsx/ClientForm.tsx/clientes/page.tsx/clientes/novo. */
+.cadastros-header {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 16px;
+  margin-bottom: 18px;
+}
+.cadastros-header h1 {
+  font-size: clamp(22px, 2.4vw, 28px);
+  font-weight: 600;
+  letter-spacing: -0.5px;
+  line-height: 1.2;
+}
+.cadastros-header-desc {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.5;
+  margin-top: 4px;
+  max-width: 520px;
+}
+@media (max-width: 520px) {
+  .cadastros-header {
+    align-items: flex-start;
+  }
+}
+
+.cadastros-filters-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+.cadastros-search {
+  flex: 1 1 260px;
+  min-width: 200px;
+}
+.cadastros-search input {
+  width: 100%;
+}
+.cadastros-filters-bar input,
+.cadastros-filters-bar select {
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  padding: 0 10px;
+  height: 36px;
+  font-size: 12px;
+  font-family: inherit;
+  color: var(--ink);
+  background: #fffefa;
+}
+.cadastros-filters-bar input:focus,
+.cadastros-filters-bar select:focus {
+  border-color: var(--brand);
+  outline: none;
+}
+.cadastros-filters-bar select {
+  min-width: 0;
+  max-width: 170px;
+}
+.cadastros-filters-bar select:disabled {
+  color: var(--muted);
+  background: #f1f2ee;
+  cursor: not-allowed;
+}
+.cadastros-filters-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.cadastros-btn-primary,
+.cadastros-btn-secondary {
+  height: 36px;
+  padding: 0 16px;
+  font-size: 12px;
+  font-weight: 700;
+  border-radius: 4px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  font-family: inherit;
+}
+.cadastros-btn-primary {
+  border: 1px solid var(--brand);
+  background: var(--brand);
+  color: #fff;
+}
+.cadastros-btn-primary:hover {
+  background: var(--brand-dark);
+  border-color: var(--brand-dark);
+}
+.cadastros-btn-secondary {
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--muted);
+}
+.cadastros-btn-secondary:hover {
+  border-color: var(--brand);
+  color: var(--ink);
+}
+.cadastros-btn-primary:focus-visible,
+.cadastros-btn-secondary:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
+}
+@media (max-width: 520px) {
+  .cadastros-filters-bar select {
+    max-width: none;
+    flex: 1 1 140px;
+  }
+}
+
+.cadastros-table-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin: 10px 0;
+}
+.cadastros-count {
+  font-size: 11px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+.cadastros-pagesize {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.cadastros-pagesize select {
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  padding: 4px 6px;
+  font-size: 11px;
+  font-family: inherit;
+  color: var(--ink);
+  background: #fffefa;
+  text-transform: none;
+  letter-spacing: normal;
+  font-weight: 500;
+}
+
+/* Seletor único de Cadastro (ClientPicker) — Assinaturas e, futuramente,
+   outros módulos que hoje carregam todo client no formulário. */
+.client-picker {
+  position: relative;
+}
+.client-picker-selected-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 10px 12px;
+  background: #fff;
+}
+.client-picker-selected {
+  font-size: 13px;
+  color: var(--ink);
+  margin: 0;
+  line-height: 1.5;
+}
+.client-picker-results {
+  position: absolute;
+  z-index: 20;
+  top: 100%;
+  left: 0;
+  right: 0;
+  margin-top: 4px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: #fff;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.12);
+  max-height: 280px;
+  overflow-y: auto;
+}
+.client-picker-empty {
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.client-picker-result {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: 100%;
+  text-align: left;
+  padding: 8px 12px;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  background: #fff;
+  font-family: inherit;
+  cursor: pointer;
+}
+.client-picker-result:last-child {
+  border-bottom: 0;
+}
+.client-picker-result:hover {
+  background: #f7f8f3;
+}
+.client-picker-result-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+/* Campo de data opcional com botão "Limpar" discreto (Assinaturas). */
+.cadastro-field-with-clear {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+.cadastro-field-with-clear input {
+  padding-right: 28px;
+}
+.cadastro-field-clear {
+  position: absolute;
+  right: 6px;
+  width: 20px;
+  height: 20px;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  font-size: 15px;
+  line-height: 1;
+  cursor: pointer;
+  border-radius: 3px;
+}
+.cadastro-field-clear:hover {
+  background: #f1f2ee;
+  color: var(--ink);
+}
+
+.cadastro-roles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  max-width: 220px;
+}
+.cadastro-role-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 7px;
+  border-radius: 3px;
+  font-size: 10px;
+  font-weight: 600;
+  background: #eef1f6;
+  color: var(--brand);
+  white-space: nowrap;
+}
+.cadastro-kind-hint {
+  color: var(--muted);
+  font-size: 11px;
+}
+.cadastros-sort-hint {
+  color: var(--muted);
+  opacity: 0.55;
+  font-size: 9px;
+  margin-left: 4px;
+  text-transform: none;
+  letter-spacing: normal;
+}
+
+/* Novo Cadastro — formulário compacto, max-width confortável. UMA grade
+   base de 12 colunas, gap constante, em todas as linhas (Identificação/
+   Contato/Endereço/parte inferior) — span exato por campo, sem
+   max-width individual nenhum no wrapper ou no input: isso é o que
+   causava "buracos" entre campos (cada um parava de crescer antes do
+   fim da própria coluna). Cada input ocupa 100% do span que recebeu. */
+.cadastro-form {
+  width: 100%;
+  max-width: 1480px;
+  margin-inline: auto;
+}
+.cadastro-form .form-section {
+  padding-top: 12px;
+  padding-bottom: 0;
+}
+.cadastro-form .form-section--first {
+  padding-top: 0;
+}
+.cadastro-form .form-section h2 {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: var(--muted);
+  margin-bottom: 4px;
+}
+.cadastro-form .helper-text {
+  margin-top: 2px;
+  margin-bottom: 4px;
+}
+.cadastro-field--required .field-label::after {
+  content: " *";
+  color: var(--brand-red);
+}
+.cadastro-grid {
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  gap: 16px;
+  margin-top: 10px;
+}
+.cadastro-field {
+  margin-top: 0;
+  min-width: 0;
+}
+.cadastro-field--span-2 {
+  grid-column: span 2;
+}
+.cadastro-field--span-3 {
+  grid-column: span 3;
+}
+.cadastro-field--span-4 {
+  grid-column: span 4;
+}
+.cadastro-field--span-6 {
+  grid-column: span 6;
+}
+.cadastro-field--span-7 {
+  grid-column: span 7;
+}
+.cadastro-field--span-8 {
+  grid-column: span 8;
+}
+.cadastro-field--span-9 {
+  grid-column: span 9;
+}
+.cadastro-field--span-12 {
+  grid-column: span 12;
+}
+
+/* Telefone com +55 fixo e visual — nunca um campo separado de DDI; o
+   valor digitado/salvo continua só "DDD + número", igual antes. O grupo
+   ocupa 100% do span do field wrapper, sem teto próprio. */
+.cadastro-phone-group {
+  display: flex;
+  align-items: stretch;
+  width: 100%;
+}
+.cadastro-phone-prefix {
+  display: inline-flex;
+  align-items: center;
+  padding: 0 8px;
+  border: 1px solid var(--line);
+  border-right: 0;
+  border-radius: 3px 0 0 3px;
+  background: #eef1f6;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  font-family: inherit;
+  cursor: pointer;
+}
+.cadastro-phone-prefix:hover {
+  background: #e3e7f0;
+}
+.cadastro-phone-prefix:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 1px;
+}
+.cadastro-phone-ddi-input {
+  width: 42px;
+  flex: 0 0 42px;
+  border: 1px solid var(--brand);
+  border-right: 0;
+  border-radius: 3px 0 0 3px;
+  padding: 0 6px;
+  font-size: 12px;
+  font-weight: 600;
+  text-align: center;
+  font-family: inherit;
+  color: var(--ink);
+  background: #fffefa;
+}
+.cadastro-phone-group input {
+  flex: 1 1 auto;
+  min-width: 0;
+  border-radius: 0 3px 3px 0;
+}
+
+/* Linha superior: segmentado PF/PJ + Status agrupados juntos (gap normal,
+   nunca jogados para as extremidades com space-between). */
+.cadastro-top-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 20px;
+  margin-bottom: 16px;
+}
+.cadastro-status-inline {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.cadastro-status-inline .field-label {
+  margin-bottom: 0;
+}
+.cadastro-segmented {
+  display: inline-flex;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  overflow: hidden;
+}
+.cadastro-segmented-btn {
+  height: 36px;
+  padding: 0 16px;
+  font-size: 12px;
+  font-weight: 700;
+  font-family: inherit;
+  background: #fffefa;
+  color: var(--muted);
+  border: 0;
+  cursor: pointer;
+}
+.cadastro-segmented-btn + .cadastro-segmented-btn {
+  border-left: 1px solid var(--line);
+}
+.cadastro-segmented-btn.is-active {
+  background: var(--brand);
+  color: #fff;
+}
+.cadastro-segmented-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+.cadastro-segmented-btn:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
+}
+.cadastro-segmented--disabled {
+  opacity: 0.75;
+}
+.cadastro-segmented--disabled .cadastro-segmented-btn {
+  cursor: not-allowed;
+}
+
+.cadastro-cep-hint {
+  font-size: 11px;
+  color: var(--muted);
+  margin: -4px 0 0;
+}
+.cadastro-cep-hint--error {
+  color: var(--brand-red);
+}
+
+.cadastro-family-tree {
+  margin-top: 14px;
+  list-style: none;
+  font-size: 13px;
+}
+.cadastro-family-tree ul {
+  list-style: none;
+  margin: 8px 0 0 18px;
+  padding-left: 14px;
+  border-left: 1px solid var(--line);
+}
+.cadastro-family-tree li {
+  padding: 4px 0;
+}
+.cadastro-family-tree li.is-placeholder {
+  color: var(--muted);
+  font-style: italic;
+}
+
+.cadastro-empty-box {
+  border: 1px dashed var(--line);
+  border-radius: 6px;
+  padding: 28px 20px;
+  text-align: center;
+  color: var(--muted);
+}
+.cadastro-empty-box p {
+  margin: 0 0 4px;
+}
+
+/* Abas (Tabs.tsx) — reutilizável, aplicado só em Cadastros por enquanto. */
+.ir-tabs-list {
+  display: flex;
+  gap: 4px;
+  overflow-x: auto;
+  border-bottom: 1px solid var(--line);
+  margin-bottom: 16px;
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.ir-tabs-list::-webkit-scrollbar {
+  display: none;
+}
+.ir-tab {
+  flex: 0 0 auto;
+  height: 38px;
+  padding: 0 14px;
+  font-size: 12px;
+  font-weight: 700;
+  font-family: inherit;
+  white-space: nowrap;
+  background: transparent;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+.ir-tab:hover {
+  color: var(--ink);
+}
+.ir-tab.is-active {
+  color: var(--brand);
+  border-bottom-color: var(--brand);
+}
+.ir-tab:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
+}
+@media (max-width: 520px) {
+  .cadastro-top-row {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}
+.cadastro-form input[type="text"],
+.cadastro-form input[type="email"],
+.cadastro-form input[type="date"],
+.cadastro-form input[type="search"],
+.cadastro-form input[type="number"],
+.cadastro-form select,
+.cadastro-form textarea {
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  padding: 9px 10px;
+  font-size: 13px;
+  font-family: inherit;
+  color: var(--ink);
+  background: #fffefa;
+}
+.cadastro-form input:focus,
+.cadastro-form select:focus,
+.cadastro-form textarea:focus {
+  border-color: var(--brand);
+  outline: none;
+}
+.cadastro-form textarea {
+  resize: vertical;
+  min-height: 90px;
+  max-height: 360px;
+}
+
+.cadastro-date-compact {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  width: 100%;
+}
+.cadastro-date-compact input {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.cadastro-date-clear {
+  flex: 0 0 26px;
+  width: 26px;
+  height: 36px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  font-size: 17px;
+  line-height: 1;
+  border-radius: 3px;
+  cursor: pointer;
+  font-family: inherit;
+}
+.cadastro-date-clear:hover {
+  background: #eef1f6;
+  color: var(--ink);
+}
+.cadastro-date-clear:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 1px;
+}
+
+/* Switches de Papéis em grid compacto de 2 colunas — nunca um item
+   isolado longe dos demais (flex-wrap deixava o último de 5 sozinho
+   bem abaixo quando a coluna era estreita). */
+.cadastro-switches {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px 16px;
+  margin-top: 10px;
+}
+
+.cadastro-actions {
+  margin-top: 8px;
+}
+
+@media (max-width: 860px) {
+  .cadastro-grid {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+  }
+  .cadastro-field--span-2 {
+    grid-column: span 2;
+  }
+  .cadastro-field--span-3,
+  .cadastro-field--span-4 {
+    grid-column: span 3;
+  }
+  .cadastro-field--span-6,
+  .cadastro-field--span-7,
+  .cadastro-field--span-8,
+  .cadastro-field--span-9 {
+    grid-column: span 6;
+  }
+  .cadastro-field--span-12 {
+    grid-column: span 6;
+  }
+}
+@media (max-width: 520px) {
+  .cadastro-grid {
+    grid-template-columns: 1fr;
+  }
+  .cadastro-field--span-2,
+  .cadastro-field--span-3,
+  .cadastro-field--span-4,
+  .cadastro-field--span-6,
+  .cadastro-field--span-7,
+  .cadastro-field--span-8,
+  .cadastro-field--span-9,
+  .cadastro-field--span-12 {
+    grid-column: span 1;
+  }
+  .cadastro-switches {
+    grid-template-columns: 1fr;
+  }
+  .ir-tabs-list {
+    gap: 2px;
+  }
+}
+/* ================================================================ */
+
+/* ================================================================
+   ANIVERSARIANTES — base editorial separada do cadastro mestre.
+   Listagem em árvore/expansível por grupo (titular PF ou empresa PJ),
+   sem linhas gráficas pesadas — só indentação por borda esquerda. */
+.aniv-principal-card {
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 12px 14px;
+  background: #fffefa;
+  margin-top: 8px;
+}
+.aniv-principal-card .field-label {
+  margin-bottom: 4px;
+}
+.aniv-principal-card .aniv-entry-name {
+  font-size: 15px;
+  display: block;
+  margin-bottom: 4px;
+}
+.aniv-tree {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 12px;
+}
+.aniv-group {
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  overflow: hidden;
+}
+.aniv-group-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 10px 14px;
+  background: #fffefa;
+  border: 0;
+  cursor: pointer;
+  font-family: inherit;
+  text-align: left;
+}
+.aniv-group-header:hover {
+  background: #f7f8f3;
+}
+.aniv-group-chevron {
+  font-size: 10px;
+  color: var(--muted);
+  flex: 0 0 auto;
+}
+.aniv-group-label {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--ink);
+  flex: 1 1 auto;
+}
+.aniv-group-meta {
+  font-size: 11px;
+  color: var(--muted);
+}
+.aniv-group-body {
+  padding: 10px 14px 14px 30px;
+  border-top: 1px solid var(--line);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.aniv-member-row {
+  border-left: 1px solid var(--line);
+  padding-left: 12px;
+}
+.aniv-entry {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+  font-size: 12px;
+  padding: 4px 0;
+}
+.aniv-entry-main {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.aniv-entry-name {
+  font-weight: 600;
+  color: var(--ink);
+}
+.aniv-entry-relationship {
+  color: var(--muted);
+  font-size: 11px;
+}
+.aniv-entry-date {
+  font-variant-numeric: tabular-nums;
+  font-size: 11px;
+  color: var(--muted);
+}
+.aniv-entry-city {
+  font-size: 11px;
+  color: var(--muted);
+}
+.aniv-edit-btn {
+  height: 28px;
+  padding: 0 10px;
+  font-size: 11px;
+}
+.aniv-entry--editing {
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 12px;
+  background: #fffefa;
+}
+/* Campos de edição/inclusão de Aniversariantes (árvore e "Adicionar familiar/pessoa") não ficam
+   dentro de `.cadastro-form` nem `.ir-modal` — sem isto, input/select/textarea caem no estilo
+   padrão do navegador e quase não se distinguem do fundo do card (campo "sumindo"). */
+.aniv-entry--editing input[type="text"],
+.aniv-entry--editing input[type="email"],
+.aniv-entry--editing input[type="date"],
+.aniv-entry--editing select,
+.aniv-entry--editing textarea {
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 9px 10px;
+  font-size: 13px;
+  font-family: inherit;
+  color: var(--ink);
+  background: #fff;
+  transition: border-color 0.12s ease;
+}
+.aniv-entry--editing input::placeholder,
+.aniv-entry--editing textarea::placeholder {
+  color: #9aa0a6;
+}
+.aniv-entry--editing input:focus,
+.aniv-entry--editing select:focus,
+.aniv-entry--editing textarea:focus {
+  border-color: var(--brand);
+  outline: 2px solid var(--brand);
+  outline-offset: 1px;
+}
+.aniv-entry--editing input:disabled,
+.aniv-entry--editing select:disabled {
+  background: #f1f2ee;
+  color: var(--muted);
+  cursor: not-allowed;
+}
+.aniv-entry--editing textarea {
+  resize: vertical;
+  min-height: 84px;
+}
+.aniv-entry-switches {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin-top: 10px;
+}
+.aniv-entry-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+}
+.aniv-add-btn {
+  width: fit-content;
+  height: 32px;
+  font-size: 11px;
+}
+.aniv-entry.is-match {
+  background: #fff8e1;
+  border-radius: 4px;
+  outline: 1px solid #f0cf6b;
+  padding: 4px 6px;
+}
+/* Camada editorial da edição ATUAL (Semana do Jornal) — compacta, sem card dentro de card.
+   Só duas ações: Trocar mensagem / Copiar mensagem — sem destaque, sem edição manual. */
+.aniv-editorial {
+  flex: 1 1 100%;
+  border-top: 1px dashed var(--line);
+  margin-top: 6px;
+  padding-top: 6px;
+}
+.aniv-editorial-text {
+  font-size: 12px;
+  color: var(--ink);
+  font-style: italic;
+  margin: 0 0 6px;
+  line-height: 1.5;
+}
+.aniv-editorial-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.aniv-editorial-btn {
+  height: 26px;
+  padding: 0 10px;
+  font-size: 11px;
+  font-weight: 600;
+  font-family: inherit;
+  border: 1px solid var(--line);
+  background: #fff;
+  color: var(--ink);
+  border-radius: 4px;
+  cursor: pointer;
+}
+.aniv-editorial-btn:hover {
+  background: #f7f8f3;
+}
+.aniv-editorial-error {
+  font-size: 11px;
+  color: #a3402b;
+}
+.aniv-editorial-note {
+  font-size: 11px;
+  color: var(--muted);
+  margin: -4px 0 10px;
+}
+.aniv-entry-profession {
+  font-size: 11px;
+  color: var(--muted);
+}
+.aniv-entry-row-actions {
+  display: inline-flex;
+  gap: 6px;
+  flex: 0 0 auto;
+}
+.aniv-delete-btn {
+  height: 28px;
+  padding: 0 10px;
+  font-size: 11px;
+  font-weight: 600;
+  font-family: inherit;
+  border: 1px solid #e0bcb2;
+  background: transparent;
+  color: #a3402b;
+  border-radius: 4px;
+  cursor: pointer;
+}
+.aniv-delete-btn:hover {
+  background: #fbeae5;
+}
+.aniv-group-header-row {
+  display: flex;
+  align-items: stretch;
+}
+.aniv-group-header-row .aniv-group-header {
+  flex: 1 1 auto;
+}
+.aniv-group-header-row .aniv-delete-btn {
+  margin: 8px 12px 8px 0;
+  flex: 0 0 auto;
+}
+.aniv-empty-real {
+  border: 1px dashed var(--line);
+  border-radius: 6px;
+  padding: 28px 20px;
+  text-align: center;
+  color: var(--muted);
+}
+
+/* CTA "Incluir aniversariante" + Semana do jornal */
+.aniv-header-row {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 12px;
+}
+.aniv-week-cta-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 14px;
+}
+.aniv-week-cta {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  padding: 10px 18px;
+  border: 2px solid var(--brand);
+  border-radius: 6px;
+  background: #fffefa;
+  color: var(--brand);
+  cursor: pointer;
+  font-family: inherit;
+}
+.aniv-week-cta strong {
+  font-size: 13px;
+  letter-spacing: 0.4px;
+}
+.aniv-week-cta span {
+  font-size: 11px;
+  color: var(--muted);
+}
+.aniv-week-cta.is-active {
+  background: var(--brand);
+  color: #fff;
+}
+.aniv-week-cta.is-active span {
+  color: rgba(255, 255, 255, 0.8);
+}
+.aniv-week-nav {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+/* Faixa semanal quinta→quarta */
+.aniv-week-strip {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 6px;
+  margin-bottom: 14px;
+}
+.aniv-day-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 8px 4px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #fffefa;
+  cursor: pointer;
+  font-family: inherit;
+}
+.aniv-day-weekday {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  color: var(--muted);
+}
+.aniv-day-number {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--ink);
+}
+.aniv-day-count {
+  font-size: 10px;
+  color: var(--muted);
+}
+.aniv-day-cell.has-entries {
+  border-color: var(--brand);
+  background: #eef1f6;
+}
+.aniv-day-cell.has-entries .aniv-day-count {
+  color: var(--brand);
+  font-weight: 700;
+}
+.aniv-day-cell.is-selected {
+  background: var(--brand);
+  border-color: var(--brand);
+}
+.aniv-day-cell.is-selected .aniv-day-weekday,
+.aniv-day-cell.is-selected .aniv-day-number,
+.aniv-day-cell.is-selected .aniv-day-count {
+  color: #fff;
+}
+
+/* Modal genérico (dialog nativo) — reutilizável fora de Aniversariantes também. */
+.ir-modal {
+  border: 0;
+  border-radius: 10px;
+  padding: 24px 28px;
+  max-width: 420px;
+  width: calc(100vw - 32px);
+  background: #fffefa;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.18);
+}
+.ir-modal--form {
+  max-width: 860px;
+}
+.ir-modal::backdrop {
+  background: rgba(20, 20, 20, 0.45);
+}
+.ir-modal h2 {
+  font-size: 17px;
+  font-weight: 700;
+  margin-bottom: 12px;
+}
+/* Campos do modal não ficam dentro de `.cadastro-form` — sem isto, input/
+   select/textarea caem no estilo padrão do navegador (sumindo contra o
+   fundo do modal). Mesma receita visual do resto do painel, só escopada
+   aqui em vez de `.cadastro-form`. */
+.ir-modal input[type="text"],
+.ir-modal input[type="email"],
+.ir-modal input[type="date"],
+.ir-modal select,
+.ir-modal textarea {
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 10px 12px;
+  font-size: 13px;
+  font-family: inherit;
+  color: var(--ink);
+  background: #fff;
+}
+.ir-modal input::placeholder,
+.ir-modal textarea::placeholder {
+  color: #9aa0a6;
+}
+.ir-modal input:focus,
+.ir-modal select:focus,
+.ir-modal textarea:focus {
+  border-color: var(--brand);
+  outline: 2px solid var(--brand);
+  outline-offset: 1px;
+}
+.ir-modal input:disabled,
+.ir-modal select:disabled {
+  background: #f1f2ee;
+  color: var(--muted);
+  cursor: not-allowed;
+}
+.ir-modal textarea {
+  resize: vertical;
+  min-height: 90px;
+}
+/* Campo principal do modal de inclusão — maior destaque que os demais. */
+.ir-modal-field--primary input {
+  font-size: 16px;
+  padding: 12px 14px;
+  font-weight: 600;
+}
+.ir-modal-field--primary .field-label {
+  font-size: 11px;
+  color: var(--ink);
+}
+/* Modal de inclusão ganhou mais campos (perfil editorial opcional) — rola só o
+   conteúdo, cabeçalho (h2) e rodapé (Cancelar/Incluir) continuam sempre visíveis. */
+.ir-modal-scroll {
+  max-height: min(62vh, 520px);
+  overflow-y: auto;
+  padding-right: 4px;
+  margin-bottom: 4px;
+}
+.ir-confirm-body p {
+  font-size: 13px;
+  color: var(--ink);
+  margin: 0 0 8px;
+}
+.ir-confirm-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 16px;
+}
+.ir-confirm-actions button {
+  height: 38px;
+  padding: 0 16px;
+  font-size: 12px;
+  font-weight: 700;
+  border-radius: 6px;
+  border: 1px solid var(--line);
+  background: white;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+/* Relatório para impressão — invisível na tela, só existe no @media print. */
+.aniv-print-report {
+  display: none;
+}
+
+@media (max-width: 520px) {
+  .aniv-group-header {
+    flex-wrap: wrap;
+  }
+  .aniv-group-body {
+    padding-left: 18px;
+  }
+  .aniv-week-strip {
+    grid-template-columns: repeat(7, minmax(44px, 1fr));
+    overflow-x: auto;
+  }
+  .aniv-header-row {
+    justify-content: stretch;
+  }
+  .aniv-header-row .cadastros-btn-primary {
+    width: 100%;
+    justify-content: center;
+  }
+}
+
+@media print {
+  .no-print,
+  .aniv-empty-real {
+    display: none !important;
+  }
+  .aniv-print-report {
+    display: block;
+  }
+  .aniv-print-report h1 {
+    font-size: 18px;
+    margin-bottom: 4px;
+  }
+  .aniv-print-period {
+    font-size: 12px;
+    margin-bottom: 14px;
+  }
+  /* A linha separa um bloco diário do próximo — fica DEPOIS do conteúdo do
+     dia (no fechamento da seção), nunca embaixo do título (isso parecia um
+     sublinhado do título, o que estava confuso). */
+  .aniv-print-section {
+    padding-bottom: 10px;
+    margin-bottom: 10px;
+    border-bottom: 1px solid #000;
+  }
+  .aniv-print-section:last-child {
+    border-bottom: 0;
+    margin-bottom: 0;
+    padding-bottom: 0;
+  }
+  .aniv-print-section h2 {
+    font-size: 12px;
+    text-transform: uppercase;
+    margin: 14px 0 6px;
+  }
+  .aniv-print-section ul {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+  .aniv-print-section li {
+    font-size: 13px;
+    padding: 2px 0;
+  }
+  .aniv-print-total {
+    margin-top: 16px;
+    font-weight: 700;
+  }
+}
+/* ================================================================ */
 
 /* Seletor de mídia */
 .media-picker {
@@ -2394,7 +3753,6 @@ button.secondary-link {
 }
 .pdf-picker .header-action {
   margin-top: 14px;
-  border: 0;
 }
 .generate-more summary {
   cursor: pointer;
@@ -2582,12 +3940,8 @@ button.secondary-link {
   font-weight: 600;
 }
 
-/* Editorias / localidades / mídias (Fase 12) */
-button.header-action {
-  border: 0;
-  cursor: pointer;
-  font-family: inherit;
-}
+/* Editorias / localidades / mídias (Fase 12) — button.header-action
+   definitiva: ver bloco "HIERARQUIA ÚNICA DE BOTÕES/LINKS-AÇÃO". */
 .inline-form {
   border: 1px solid var(--line);
   background: #f7f8f3;
@@ -3222,6 +4576,74 @@ button.header-action {
     display: table-header-group;
   }
   .print-report-table tr {
+    break-inside: avoid;
+  }
+}
+
+/* Cartela de recibos (Fase 7.1) — infraestrutura de impressão só, o
+   DESENHO final do recibo ainda depende de um modelo manual que o
+   usuário vai enviar depois. Por ora: dois recibos por linha, cada um
+   nunca quebra entre páginas, sem menu/sidebar na folha impressa
+   (mesmo princípio de .print-report). */
+.receipt-cards {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 24px;
+  font-family: Arial, Helvetica, sans-serif;
+  color: #111;
+}
+.receipt-cards-toolbar {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 16px;
+}
+.receipt-cards-toolbar button {
+  height: 34px;
+  padding: 0 16px;
+  border: 1px solid var(--brand);
+  background: var(--brand);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  border-radius: 3px;
+}
+.receipt-cards-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 14px;
+}
+.receipt-card {
+  border: 1px solid #999;
+  border-radius: 4px;
+  padding: 14px;
+  font-size: 12px;
+  break-inside: avoid;
+}
+.receipt-card h2 {
+  font-size: 14px;
+  margin-bottom: 6px;
+}
+.receipt-card dl {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 2px 8px;
+  margin: 0;
+}
+.receipt-card dt {
+  color: #555;
+}
+.receipt-card dd {
+  margin: 0;
+}
+@media print {
+  .receipt-cards-toolbar {
+    display: none;
+  }
+  .receipt-cards {
+    padding: 0;
+  }
+  .receipt-card {
     break-inside: avoid;
   }
 }

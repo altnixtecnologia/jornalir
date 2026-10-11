@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { ClientKind, NfseDraft, NfseDraftStatus } from "@ir/types";
 import type { DraftChanges, DraftListQuery, DraftRepository, NewDraftRecord } from "@ir/core";
+import { isLocalPreviewEnabled } from "../../lib/auth/localPreview";
 
 const TABLE = "nfse_drafts";
 const COLUMNS =
@@ -10,6 +11,7 @@ const COLUMNS =
   "tomador_ibge_code, tomador_email, tomador_phone, " +
   "service_profile_id, c_trib_nac, c_trib_mun, c_nbs, issqn_taxation, fiscal_special_tax_regime, location_municipality, location_ibge_code, " +
   "competency_date, service_value, service_description, notes, status, " +
+  "origin_system, origin_type, origin_record_id, commercial_sale_id, " +
   "created_by, updated_by, created_at, updated_at";
 
 interface DraftRow {
@@ -45,6 +47,10 @@ interface DraftRow {
   service_description: string;
   notes: string | null;
   status: NfseDraftStatus;
+  origin_system: string | null;
+  origin_type: string | null;
+  origin_record_id: string | null;
+  commercial_sale_id: string | null;
   created_by: string | null;
   updated_by: string | null;
   created_at: string;
@@ -91,6 +97,10 @@ function toDomain(row: DraftRow): NfseDraft {
     serviceDescription: row.service_description,
     notes: row.notes ?? undefined,
     status: row.status,
+    originSystem: row.origin_system ?? undefined,
+    originType: row.origin_type ?? undefined,
+    originRecordId: row.origin_record_id ?? undefined,
+    commercialSaleId: row.commercial_sale_id ?? undefined,
     createdByProfileId: row.created_by ?? undefined,
     updatedByProfileId: row.updated_by ?? undefined,
     createdAt: row.created_at,
@@ -134,8 +144,91 @@ function toRow(record: NewDraftRecord | DraftChanges): Record<string, unknown> {
   if (record.serviceDescription !== undefined) row.service_description = record.serviceDescription;
   if (record.notes !== undefined) row.notes = record.notes ?? null;
   if (record.status !== undefined) row.status = record.status;
+  if (record.originSystem !== undefined) row.origin_system = record.originSystem ?? null;
+  if (record.originType !== undefined) row.origin_type = record.originType ?? null;
+  if (record.originRecordId !== undefined) row.origin_record_id = record.originRecordId ?? null;
+  if (record.commercialSaleId !== undefined) row.commercial_sale_id = record.commercialSaleId ?? null;
   return row;
 }
+
+// Rascunhos demonstrativos (preview) — em memória só pela duração do
+// processo, mesmo princípio dos demais módulos em SYSTEM_LOCAL_PREVIEW=1.
+// preview-rascunho-1 (PF): editável, sem tentativa ainda.
+// preview-rascunho-2 (PJ): tem uma tentativa REJEITADA (ver
+// PREVIEW_TRANSMISSION_ATTEMPTS em nfseTransmissionAttemptRepository.supabase.ts).
+// preview-rascunho-3 (PF): tem uma NOTA EMITIDA (ver
+// nfseIssuedNoteRepository.supabase.ts) — demonstra o fluxo autorizado.
+export const PREVIEW_DRAFTS: NfseDraft[] = [
+  {
+    id: "preview-rascunho-1",
+    reference: "IR-NFSE-2026-000001",
+    clientId: "preview-cliente-1",
+    tomador: {
+      sourceClientId: "preview-cliente-1",
+      kind: "individual",
+      name: "Cliente de Exemplo (visualização local)",
+      cpf: "11122233396",
+      city: "São João do Sul",
+      state: "SC",
+      ibgeCode: "4216404",
+      email: "preview@example.invalid",
+    },
+    serviceProfileId: "preview-perfil-servico-1",
+    fiscal: { sourceServiceProfileId: "preview-perfil-servico-1", cTribNac: "140619", cTribMun: "706", cNBS: "1.1406.19.00", locationMunicipality: "São João do Sul", locationIbgeCode: "4216404" },
+    competencyDate: "2026-10-01",
+    serviceValue: 150,
+    serviceDescription: "Divulgação institucional — demonstração (preview).",
+    status: "draft",
+    createdAt: new Date(0).toISOString(),
+    updatedAt: new Date(0).toISOString(),
+  },
+  {
+    id: "preview-rascunho-2",
+    reference: "IR-NFSE-2026-000002",
+    clientId: "preview-cliente-2",
+    tomador: {
+      sourceClientId: "preview-cliente-2",
+      kind: "company",
+      name: "Empresa de Exemplo Ltda. (visualização local)",
+      cnpj: "11222333000181",
+      city: "São João do Sul",
+      state: "SC",
+      ibgeCode: "4216404",
+      email: "empresa-preview@example.invalid",
+    },
+    serviceProfileId: "preview-perfil-servico-1",
+    fiscal: { sourceServiceProfileId: "preview-perfil-servico-1", cTribNac: "140619", cTribMun: "706", cNBS: "1.1406.19.00" },
+    competencyDate: "2026-10-01",
+    serviceValue: 300,
+    serviceDescription: "Publicidade institucional — demonstração de rejeição (preview).",
+    status: "draft",
+    createdAt: new Date(0).toISOString(),
+    updatedAt: new Date(0).toISOString(),
+  },
+  {
+    id: "preview-rascunho-3",
+    reference: "IR-NFSE-2026-000003",
+    clientId: "preview-cliente-1",
+    tomador: {
+      sourceClientId: "preview-cliente-1",
+      kind: "individual",
+      name: "Cliente de Exemplo (visualização local)",
+      cpf: "11122233396",
+      city: "São João do Sul",
+      state: "SC",
+      ibgeCode: "4216404",
+      email: "preview@example.invalid",
+    },
+    serviceProfileId: "preview-perfil-servico-1",
+    fiscal: { sourceServiceProfileId: "preview-perfil-servico-1", cTribNac: "140619", cTribMun: "706", cNBS: "1.1406.19.00" },
+    competencyDate: "2026-09-01",
+    serviceValue: 220,
+    serviceDescription: "Divulgação institucional — demonstração de autorização (preview).",
+    status: "draft",
+    createdAt: new Date(0).toISOString(),
+    updatedAt: new Date(0).toISOString(),
+  },
+];
 
 /**
  * Rascunhos de NFS-e (Parte 1, item 8/9) — independente de contrato/
@@ -146,6 +239,7 @@ function toRow(record: NewDraftRecord | DraftChanges): Record<string, unknown> {
 export function createDraftRepositorySupabase(client: SupabaseClient): DraftRepository {
   return {
     async list(query: DraftListQuery = {}) {
+      if (isLocalPreviewEnabled()) return query.clientId ? PREVIEW_DRAFTS.filter((d) => d.clientId === query.clientId) : PREVIEW_DRAFTS;
       let builder = client.from(TABLE).select(COLUMNS).order("created_at", { ascending: false });
       if (query.clientId) builder = builder.eq("client_id", query.clientId);
       const { data, error } = await builder;
@@ -154,18 +248,57 @@ export function createDraftRepositorySupabase(client: SupabaseClient): DraftRepo
     },
 
     async getById(id) {
+      if (isLocalPreviewEnabled()) return PREVIEW_DRAFTS.find((d) => d.id === id) ?? null;
       const { data, error } = await client.from(TABLE).select(COLUMNS).eq("id", id).maybeSingle();
       if (error) throw new Error(error.message);
       return data ? toDomain(data as unknown as DraftRow) : null;
     },
 
-    async create(record) {
-      const { data, error } = await client.from(TABLE).insert(toRow(record)).select(COLUMNS).single();
+    async findByOrigin(originSystem, originType, originRecordId) {
+      if (isLocalPreviewEnabled()) {
+        return (
+          PREVIEW_DRAFTS.find((d) => d.originSystem === originSystem && d.originType === originType && d.originRecordId === originRecordId) ?? null
+        );
+      }
+      const { data, error } = await client
+        .from(TABLE)
+        .select(COLUMNS)
+        .eq("origin_system", originSystem)
+        .eq("origin_type", originType)
+        .eq("origin_record_id", originRecordId)
+        .maybeSingle();
       if (error) throw new Error(error.message);
+      return data ? toDomain(data as unknown as DraftRow) : null;
+    },
+
+    async create(record) {
+      if (isLocalPreviewEnabled()) {
+        const draft: NfseDraft = {
+          ...record,
+          id: `preview-rascunho-${Date.now()}`,
+          reference: `IR-NFSE-PREVIEW-${PREVIEW_DRAFTS.length + 1}`,
+          status: "draft",
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        };
+        PREVIEW_DRAFTS.push(draft);
+        return draft;
+      }
+      const { data, error } = await client.from(TABLE).insert(toRow(record)).select(COLUMNS).single();
+      if (error) {
+        if (error.message.includes("nfse_drafts_origin_unique")) throw new Error("nfse_drafts_origin_unique");
+        throw new Error(error.message);
+      }
       return toDomain(data as unknown as DraftRow);
     },
 
     async update(id, changes) {
+      if (isLocalPreviewEnabled()) {
+        const index = PREVIEW_DRAFTS.findIndex((d) => d.id === id);
+        if (index === -1) throw new Error(`Rascunho não encontrado: ${id}`);
+        PREVIEW_DRAFTS[index] = { ...PREVIEW_DRAFTS[index], ...changes, updatedAt: new Date().toISOString() };
+        return PREVIEW_DRAFTS[index];
+      }
       const { data, error } = await client.from(TABLE).update(toRow(changes)).eq("id", id).select(COLUMNS).single();
       if (error) throw new Error(error.message);
       return toDomain(data as unknown as DraftRow);

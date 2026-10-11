@@ -17,6 +17,7 @@ import {
   type AdjustmentType,
 } from "@ir/types";
 import {
+  ReceivableDuplicateCommercialInstallmentError,
   ReceivableDuplicateSubscriptionChargeError,
   ReceivableValidationError,
   type NewReceivableRecord,
@@ -45,6 +46,9 @@ export interface ReceivableInput {
   /** Preenchido SÓ quando sourceType === "subscription" — nunca por outra origem (ver ReceivableDuplicateSubscriptionChargeError). */
   subscriptionId?: string;
   contractId?: string;
+  /** Preenchido SÓ quando sourceType === "advertising" — ver CommercialSaleService.generateFinanceiro. */
+  commercialSaleId?: string;
+  installmentNumber?: number;
   originalAmount: number;
   issueDate: string;
   dueDate: string;
@@ -92,6 +96,8 @@ function normalize(input: ReceivableInput): NewReceivableRecord {
     sourceReference: trimOrUndefined(input.sourceReference),
     subscriptionId: input.sourceType === "subscription" ? trimOrUndefined(input.subscriptionId) : undefined,
     contractId: trimOrUndefined(input.contractId),
+    commercialSaleId: input.sourceType === "advertising" ? trimOrUndefined(input.commercialSaleId) : undefined,
+    installmentNumber: input.sourceType === "advertising" ? input.installmentNumber : undefined,
     originalAmount: input.originalAmount,
     issueDate: input.issueDate,
     dueDate: input.dueDate,
@@ -181,6 +187,36 @@ export class ReceivableService {
     }
     await this.applyAvailableCreditAutomatically(created.id);
     return created;
+  }
+
+  /**
+   * Geração manual de título a partir de uma venda comercial (Comercial/
+   * Publicidade, "Gerar Financeiro") — mesmo desenho de
+   * registerFromSubscription: pré-checa (findByCommercialSaleAndInstallment)
+   * ANTES de criar, e o índice único parcial do banco continua sendo a
+   * proteção autoritativa mesmo numa corrida rara (dois cliques quase
+   * simultâneos). Nunca aplica crédito automaticamente aqui — avulso/
+   * publicidade não têm "mesma origem" bem definida pra isso ainda (ver
+   * creditMatchesReceivableOrigin), mesmo comportamento de register().
+   */
+  async registerFromCommercialSale(input: ReceivableInput): Promise<Receivable> {
+    if (input.sourceType !== "advertising" || !input.commercialSaleId || !input.installmentNumber) {
+      throw new ReceivableValidationError("registerFromCommercialSale exige sourceType=advertising, commercialSaleId e installmentNumber.");
+    }
+
+    const existing = await this.receivables.findByCommercialSaleAndInstallment(input.commercialSaleId, input.installmentNumber);
+    if (existing) throw new ReceivableDuplicateCommercialInstallmentError(input.installmentNumber);
+
+    const record = normalize(input);
+    assertValidReceivable(record);
+    try {
+      return await this.receivables.create(record);
+    } catch (error) {
+      if (error instanceof Error && error.message.includes("receivables_commercial_sale_installment_unique")) {
+        throw new ReceivableDuplicateCommercialInstallmentError(input.installmentNumber);
+      }
+      throw error;
+    }
   }
 
   async update(id: string, input: ReceivableInput): Promise<Receivable> {

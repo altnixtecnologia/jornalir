@@ -11,6 +11,8 @@ const QUICK_LINKS = [
   { label: "Clientes", href: "/sistema/clientes", description: "Cadastro central de pessoas e empresas." },
   { label: "Assinaturas", href: "/sistema/assinaturas", description: "Serviços (impresso, digital, TV) vinculados a um cliente." },
   { label: "Contas a receber", href: "/sistema/financeiro/contas-a-receber", description: "Títulos, recebimentos e situação de cada cliente." },
+  { label: "Publicidade", href: "/sistema/publicidade", description: "Vendas comerciais, anunciantes e vínculo com o Financeiro." },
+  { label: "NFS-e", href: "/sistema/nfse", description: "Configuração fiscal, rascunhos e notas emitidas." },
 ];
 
 export default function SistemaHomePage(): JSX.Element {

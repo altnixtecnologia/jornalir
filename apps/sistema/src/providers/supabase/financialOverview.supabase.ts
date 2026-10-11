@@ -1,5 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { computeReceivableDueFlag } from "@ir/types";
+import { isLocalPreviewEnabled } from "../../lib/auth/localPreview";
+import { PREVIEW_RECEIPTS, PREVIEW_RECEIVABLES } from "./receivableRepository.supabase";
 
 export interface FinancialOverview {
   totalOpenAmount: number;
@@ -23,6 +25,30 @@ export async function getFinancialOverviewSupabase(
   client: SupabaseClient,
   { periodStart, periodEnd }: { periodStart: string; periodEnd: string },
 ): Promise<FinancialOverview> {
+  if (isLocalPreviewEnabled()) {
+    // Mesmo cálculo do ramo real, só que sobre as fixtures de preview —
+    // nunca um KPI fixo desacoplado dos registros (ver PREVIEW_RECEIVABLES/
+    // PREVIEW_RECEIPTS em receivableRepository.supabase.ts).
+    let totalOpenAmount = 0;
+    let totalOverdueAmount = 0;
+    let dueSoonAmount = 0;
+    let openCount = 0;
+    let partiallyPaidCount = 0;
+    for (const receivable of PREVIEW_RECEIVABLES) {
+      if (receivable.status !== "open" && receivable.status !== "partially_paid") continue;
+      totalOpenAmount += receivable.balance;
+      if (receivable.status === "open") openCount += 1;
+      else partiallyPaidCount += 1;
+      const flag = computeReceivableDueFlag(receivable.dueDate, receivable.status);
+      if (flag === "overdue") totalOverdueAmount += receivable.balance;
+      if (flag === "due_today" || flag === "due_soon") dueSoonAmount += receivable.balance;
+    }
+    const receivedInPeriod = PREVIEW_RECEIPTS.filter((r) => r.receivedAt >= periodStart && r.receivedAt <= `${periodEnd}T23:59:59`).reduce(
+      (sum, r) => sum + r.amount,
+      0,
+    );
+    return { totalOpenAmount, totalOverdueAmount, dueSoonAmount, receivedInPeriod, adjustmentsInPeriod: 0, openCount, partiallyPaidCount };
+  }
   const [openResult, receiptsResult, adjustmentsResult] = await Promise.all([
     client
       .from("receivables_with_balance")

@@ -55,7 +55,7 @@ export default async function ContratosPage({
               ))}
             </select>
           </label>
-          <button type="submit">Filtrar</button>
+          <button type="submit" className="cadastros-btn-primary">Filtrar</button>
           <Link className="secondary-link" href="/sistema/financeiro/contratos">Limpar</Link>
         </div>
         <span className="materias-count">{contracts.length} contrato(s)</span>

@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { SubscriptionNotFoundError } from "@ir/core";
 import { SUBSCRIPTION_SERVICE_TYPE_LABELS } from "@ir/types";
 import { ModuleHeader } from "../../../../../components/admin/ModuleHeader";
+import { toClientSearchResult } from "../../../../../components/admin/clientSearchTypes";
 import { SubscriptionForm } from "../../../../../features/assinaturas/SubscriptionForm";
 import { getSubscriptionService } from "../../../../../composition/assinaturas";
 import { getClientService } from "../../../../../composition/clientes";
@@ -17,7 +18,12 @@ export default async function EditarAssinaturaPage({ params }: { params: { id: s
     });
   if (!subscription) notFound();
 
-  const clients = await getClientService(supabase).list();
+  // Só o cliente desta assinatura (campo é travado em edição — não dá pra
+  // trocar) — nunca a lista inteira, mesmo princípio de nova/page.tsx.
+  const initialSelectedClient = await getClientService(supabase)
+    .getById(subscription.clientId)
+    .then(toClientSearchResult)
+    .catch(() => null);
 
   return (
     <>
@@ -26,7 +32,7 @@ export default async function EditarAssinaturaPage({ params }: { params: { id: s
         title={`Editar ${SUBSCRIPTION_SERVICE_TYPE_LABELS[subscription.serviceType]}`}
         description="Serviço, status, valor, periodicidade e datas."
       />
-      <SubscriptionForm mode="edit" subscription={subscription} clients={clients} />
+      <SubscriptionForm mode="edit" subscription={subscription} initialSelectedClient={initialSelectedClient} />
     </>
   );
 }

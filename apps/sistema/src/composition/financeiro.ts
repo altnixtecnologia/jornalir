@@ -1,8 +1,21 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { ClientCreditService, ContractService, ReceivableService } from "@ir/core";
+import {
+  BillingMessageService,
+  ClientCreditService,
+  ContractService,
+  PaymentChargeService,
+  ReceivableService,
+  createPixProviderPreview,
+  createPixProviderUnavailable,
+  createWhatsappSenderPreview,
+  createWhatsappSenderUnavailable,
+} from "@ir/core";
 import { createReceivableRepositorySupabase } from "../providers/supabase/receivableRepository.supabase";
 import { createContractRepositorySupabase } from "../providers/supabase/contractRepository.supabase";
 import { createClientCreditRepositorySupabase } from "../providers/supabase/clientCreditRepository.supabase";
+import { createPaymentChargeRepositorySupabase } from "../providers/supabase/paymentChargeRepository.supabase";
+import { createBillingMessageLogRepositorySupabase } from "../providers/supabase/billingMessageLogRepository.supabase";
+import { isLocalPreviewEnabled } from "../lib/auth/localPreview";
 
 // Ponto de composição do módulo Financeiro — fábrica, nunca singleton de
 // módulo (mesmo princípio de composition/assinaturas.ts e composition/clientes.ts).
@@ -16,4 +29,21 @@ export function getContractService(client: SupabaseClient): ContractService {
 
 export function getClientCreditService(client: SupabaseClient): ClientCreditService {
   return new ClientCreditService(createClientCreditRepositorySupabase(client));
+}
+
+/**
+ * Nenhum provedor Pix real foi integrado ainda — em preview usa o adapter
+ * de demonstração (createPixProviderPreview), fora do preview usa o
+ * adapter "indisponível" (createPixProviderUnavailable), que recusa
+ * qualquer chamada com uma mensagem honesta em vez de fingir sucesso.
+ */
+export function getPaymentChargeService(client: SupabaseClient): PaymentChargeService {
+  const provider = isLocalPreviewEnabled() ? createPixProviderPreview() : createPixProviderUnavailable();
+  return new PaymentChargeService(createPaymentChargeRepositorySupabase(client), provider);
+}
+
+/** Mesmo princípio de getPaymentChargeService: preview simula, fora do preview recusa honestamente até um provedor WhatsApp ser configurado. */
+export function getBillingMessageService(client: SupabaseClient): BillingMessageService {
+  const sender = isLocalPreviewEnabled() ? createWhatsappSenderPreview() : createWhatsappSenderUnavailable();
+  return new BillingMessageService(createBillingMessageLogRepositorySupabase(client), sender);
 }

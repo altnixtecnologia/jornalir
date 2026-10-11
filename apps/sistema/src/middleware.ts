@@ -1,5 +1,6 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
+import { isLocalPreviewEnabled } from "./lib/auth/localPreview";
 
 /**
  * Proteção real de `/sistema/*` — server-side, antes de qualquer conteúdo
@@ -15,6 +16,14 @@ import { NextResponse, type NextRequest } from "next/server";
  */
 export async function middleware(request: NextRequest): Promise<NextResponse> {
   let response = NextResponse.next({ request });
+
+  // Visualização local do painel (ver lib/auth/localPreview.ts): só vale
+  // com NODE_ENV=development E SYSTEM_LOCAL_PREVIEW=1 ao mesmo tempo — em
+  // qualquer outro caso esta função retorna false e a Auth real abaixo
+  // continua idêntica a antes.
+  if (isLocalPreviewEnabled()) {
+    return response;
+  }
 
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const publishableKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;

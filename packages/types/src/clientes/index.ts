@@ -4,6 +4,14 @@
 
 export type ClientKind = "individual" | "company";
 export type ClientStatus = "active" | "inactive";
+/** Situação perante o ICMS — opcional, foco atual é NFS-e (ISSQN). */
+export type ClientIcmsStatus = "contribuinte" | "isento" | "nao_contribuinte";
+
+export const CLIENT_ICMS_STATUS_LABELS: Record<ClientIcmsStatus, string> = {
+  contribuinte: "Contribuinte",
+  isento: "Isento",
+  nao_contribuinte: "Não contribuinte",
+};
 
 /** Papéis que o mesmo cadastro pode acumular — nenhuma funcionalidade
  * específica de cada papel é implementada nesta fase, só o vínculo. */
@@ -63,6 +71,15 @@ export interface Client {
   phoneSecondary?: string;
   whatsapp?: string;
   email?: string;
+  /** Opcional — endereço preferencial para comunicação fiscal/NFS-e. Quando vazio, a aplicação usa `email` como fallback (regra só da aplicação, nunca duplicada no banco). */
+  fiscalEmail?: string;
+
+  // Fiscal — opcionais, preparados para NFS-e (ver 20261025100000_clients_fiscal_fields.sql).
+  /** Inscrição municipal — relevante principalmente para PJ. */
+  municipalRegistration?: string;
+  /** Código IBGE do município do endereço (7 dígitos). */
+  addressIbgeCode?: string;
+  icmsStatus?: ClientIcmsStatus;
 
   address: ClientAddress;
   notes?: string;

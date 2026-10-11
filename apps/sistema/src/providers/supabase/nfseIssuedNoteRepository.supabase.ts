@@ -1,6 +1,37 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { NfseEnvironment, NfseIssuedNote } from "@ir/types";
+import { buildDpsId } from "@ir/types";
 import type { IssuedNoteRepository, NewIssuedNoteRecord } from "@ir/core";
+import { isLocalPreviewEnabled } from "../../lib/auth/localPreview";
+
+// Nota emitida demonstrativa (preview) — corresponde ao rascunho
+// preview-rascunho-3 (PF, ver nfseDraftRepository.supabase.ts/
+// PREVIEW_DRAFTS). Todos os campos existem de verdade no tipo
+// NfseIssuedNote; nenhuma coluna inventada. accessKey/nfseNumber/dpsId são
+// claramente fictícios (nunca um identificador real do Sistema Nacional).
+// Mutável (array, não const de objeto) — "Emitir NFS-e (demonstração)"
+// (ver NfseTransmissionPanel) acrescenta uma nova linha aqui ao simular
+// autorização de outro rascunho.
+export const PREVIEW_ISSUED_NOTES: NfseIssuedNote[] = [
+  {
+    id: "preview-nota-1",
+    draftId: "preview-rascunho-3",
+    issuerConfigId: "preview-issuer-config-1",
+    clientId: "preview-cliente-1",
+    environment: "homologation",
+    dpsSeries: "1",
+    dpsNumber: 1,
+    dpsId: buildDpsId({ ibgeCode: "4216404", federalInscriptionType: "cpf", federalInscription: "11122233396", series: "1", number: 1 }),
+    accessKey: "42264091122233396100100000000000000000000001",
+    nfseNumber: "1",
+    issuedAt: "2026-09-10T14:32:00.000Z",
+    competencyDate: "2026-09-01",
+    serviceValue: 220,
+    signedDpsXml:
+      '<?xml version="1.0" encoding="UTF-8"?><DPS xmlns="http://www.sped.fazenda.gov.br/nfse" versao="1.01"><infDPS Id="PREVIEW-DEMO-ONLY">...(assinatura e corpo reais omitidos — este é um XML de demonstração, nunca transmitido)...</infDPS></DPS>',
+    createdAt: new Date(0).toISOString(),
+  },
+];
 
 const TABLE = "nfse_issued_notes";
 const COLUMNS =
@@ -54,24 +85,32 @@ function toDomain(row: IssuedNoteRow): NfseIssuedNote {
 export function createIssuedNoteRepositorySupabase(client: SupabaseClient): IssuedNoteRepository {
   return {
     async listAll() {
+      if (isLocalPreviewEnabled()) return PREVIEW_ISSUED_NOTES;
       const { data, error } = await client.from(TABLE).select(COLUMNS).order("created_at", { ascending: false });
       if (error) throw new Error(error.message);
       return (data ?? []).map((row) => toDomain(row as unknown as IssuedNoteRow));
     },
 
     async getByDraftId(draftId) {
+      if (isLocalPreviewEnabled()) return PREVIEW_ISSUED_NOTES.find((n) => n.draftId === draftId) ?? null;
       const { data, error } = await client.from(TABLE).select(COLUMNS).eq("draft_id", draftId).maybeSingle();
       if (error) throw new Error(error.message);
       return data ? toDomain(data as unknown as IssuedNoteRow) : null;
     },
 
     async getById(id) {
+      if (isLocalPreviewEnabled()) return PREVIEW_ISSUED_NOTES.find((n) => n.id === id) ?? null;
       const { data, error } = await client.from(TABLE).select(COLUMNS).eq("id", id).maybeSingle();
       if (error) throw new Error(error.message);
       return data ? toDomain(data as unknown as IssuedNoteRow) : null;
     },
 
     async create(record: NewIssuedNoteRecord) {
+      if (isLocalPreviewEnabled()) {
+        const note: NfseIssuedNote = { ...record, id: `preview-nota-${Date.now()}`, createdAt: new Date().toISOString() };
+        PREVIEW_ISSUED_NOTES.push(note);
+        return note;
+      }
       const { data, error } = await client
         .from(TABLE)
         .insert({

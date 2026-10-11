@@ -6,7 +6,7 @@ import { AdminHeader } from "./AdminHeader";
 import { MobileNav } from "./MobileNav";
 import { useAuth } from "../../lib/auth/AuthProvider";
 
-export function AdminShell({ children }: { children: ReactNode }): JSX.Element {
+export function AdminShell({ children, previewMode = false }: { children: ReactNode; previewMode?: boolean }): JSX.Element {
   const menuRef = useRef<HTMLDialogElement>(null);
   const router = useRouter();
   const { signOut } = useAuth();
@@ -49,6 +49,11 @@ export function AdminShell({ children }: { children: ReactNode }): JSX.Element {
         </div>
       </dialog>
       <div className="admin-workspace">
+        {previewMode ? (
+          <div className="local-preview-banner" role="status">
+            Visualização local (preview) — dados de demonstração, nenhuma integração real está ativa.
+          </div>
+        ) : null}
         <AdminHeader onOpenMenu={() => menuRef.current?.showModal()} />
         <main id="admin-content" className="admin-content" tabIndex={-1}>
           {children}

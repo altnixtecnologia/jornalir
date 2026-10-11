@@ -2,6 +2,7 @@
 
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { createSupabaseBrowserClient } from "../supabase/browser";
+import { LOCAL_PREVIEW_PROFILE } from "./localPreview";
 
 export type AuthRole = "owner" | "admin" | "operator";
 
@@ -31,12 +32,20 @@ const AuthContext = createContext<AuthContextValue | null>(null);
  * correspondente. `active = false` desconecta a sessão imediatamente —
  * a conta existe no Auth, mas não pode operar o painel.
  */
-export function AuthProvider({ children }: { children: ReactNode }): JSX.Element {
+export function AuthProvider({
+  children,
+  localPreview = false
+}: {
+  children: ReactNode;
+  /** Decidido só no Server Component raiz (ver lib/auth/localPreview.ts) — nunca recalculado aqui. */
+  localPreview?: boolean;
+}): JSX.Element {
   const client = useMemo(() => createSupabaseBrowserClient(), []);
-  const [status, setStatus] = useState<AuthStatus>("loading");
-  const [profile, setProfile] = useState<AuthProfile | null>(null);
+  const [status, setStatus] = useState<AuthStatus>(localPreview ? "authenticated" : "loading");
+  const [profile, setProfile] = useState<AuthProfile | null>(localPreview ? LOCAL_PREVIEW_PROFILE : null);
 
   useEffect(() => {
+    if (localPreview) return;
     let cancelled = false;
 
     async function loadProfile(userId: string): Promise<void> {
@@ -91,17 +100,22 @@ export function AuthProvider({ children }: { children: ReactNode }): JSX.Element
       cancelled = true;
       listener.subscription.unsubscribe();
     };
-  }, [client]);
+  }, [client, localPreview]);
 
   const value = useMemo<AuthContextValue>(
     () => ({
       status,
       profile,
       signOut: async () => {
+        if (localPreview) {
+          setStatus("unauthenticated");
+          setProfile(null);
+          return;
+        }
         await client.auth.signOut();
       },
     }),
-    [status, profile, client],
+    [status, profile, client, localPreview],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

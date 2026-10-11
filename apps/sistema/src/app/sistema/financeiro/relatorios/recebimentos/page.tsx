@@ -1,6 +1,6 @@
 import Link from "next/link";
 import type { PaymentMethod, ReceivableSourceType } from "@ir/types";
-import { PAYMENT_METHODS, PAYMENT_METHOD_LABELS, RECEIVABLE_SOURCE_TYPE_LABELS, RECEIVABLE_SOURCE_TYPES } from "@ir/types";
+import { ALL_PAYMENT_METHODS, PAYMENT_METHOD_LABELS, RECEIVABLE_SOURCE_TYPE_LABELS, RECEIVABLE_SOURCE_TYPES } from "@ir/types";
 import { ModuleHeader } from "../../../../../components/admin/ModuleHeader";
 import { ReportFiltersToggle } from "../../../../../features/financeiro/ReportFiltersToggle";
 import { getClientService } from "../../../../../composition/clientes";
@@ -60,7 +60,7 @@ export default async function RelatorioRecebimentosPage({
     receivedTo: receivedTo || undefined,
     receivedByProfileId: receivedBy || undefined,
     recordedByProfileId: recordedBy || undefined,
-    paymentMethod: PAYMENT_METHODS.includes(paymentMethod as PaymentMethod) ? (paymentMethod as PaymentMethod) : undefined,
+    paymentMethod: ALL_PAYMENT_METHODS.includes(paymentMethod as PaymentMethod) ? (paymentMethod as PaymentMethod) : undefined,
   });
 
   const activeFilterCount = [clientId, contractId, sourceType, receivedFrom, receivedTo, receivedBy, recordedBy, paymentMethod].filter(
@@ -132,15 +132,15 @@ export default async function RelatorioRecebimentosPage({
               </option>
             ))}
           </select>
-          <select name="paymentMethod" defaultValue={paymentMethod} aria-label="Forma de pagamento" title="Forma de pagamento">
-            <option value="">Forma de pagamento: todas</option>
-            {PAYMENT_METHODS.map((method) => (
+          <select name="paymentMethod" defaultValue={paymentMethod} aria-label="Forma de liquidação" title="Forma de liquidação">
+            <option value="">Forma de liquidação: todas</option>
+            {ALL_PAYMENT_METHODS.map((method) => (
               <option key={method} value={method}>
                 {PAYMENT_METHOD_LABELS[method]}
               </option>
             ))}
           </select>
-          <button type="submit">Filtrar</button>
+          <button type="submit" className="cadastros-btn-primary">Filtrar</button>
         </form>
         <span className="materias-count">{result.total} recebimento(s) · {formatAmount(total)}</span>
       </ReportFiltersToggle>
