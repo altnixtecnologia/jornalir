@@ -106,6 +106,51 @@ export function AuthProvider({
     };
   }, [client, localPreview]);
 
+  // Abas deixadas abertas por muito tempo podem ser suspensas pelo
+  // navegador. Ao voltar para o painel, valida a sessão no servidor antes
+  // de continuar usando a UI. Se o refresh token já expirou/revogou, o
+  // AuthGate faz navegação completa para /login, evitando estado quebrado
+  // ou tela 404 depois de longos períodos de inatividade.
+  useEffect(() => {
+    if (localPreview) return;
+
+    let validating = false;
+
+    async function validateSessionOnResume(): Promise<void> {
+      if (validating || document.visibilityState === "hidden") return;
+      validating = true;
+      try {
+        const {
+          data: { user },
+          error,
+        } = await client.auth.getUser();
+
+        if (error || !user) {
+          setProfile(null);
+          setStatus("unauthenticated");
+        }
+      } finally {
+        validating = false;
+      }
+    }
+
+    function handleVisibilityChange(): void {
+      if (document.visibilityState === "visible") {
+        void validateSessionOnResume();
+      }
+    }
+
+    window.addEventListener("focus", validateSessionOnResume);
+    window.addEventListener("pageshow", validateSessionOnResume);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
+    return () => {
+      window.removeEventListener("focus", validateSessionOnResume);
+      window.removeEventListener("pageshow", validateSessionOnResume);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
+  }, [client, localPreview]);
+
   const value = useMemo<AuthContextValue>(
     () => ({
       status,
