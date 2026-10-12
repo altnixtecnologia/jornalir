@@ -7,17 +7,25 @@ import { recordAuditEventSupabase } from "../../../../providers/supabase/auditEv
 
 export interface SiteOfferSettingsFormInput {
   annualSubscriptionPrice: string;
+  annualSubscriptionComboDiscount: string;
+
   printBusinessCardPrice: string;
+  printBusinessCardComboDiscount: string;
+
   printStandardPrice: string;
+  printStandardComboDiscount: string;
+
   printQuarterPrice: string;
+  printQuarterComboDiscount: string;
+
   printHalfPrice: string;
+  printHalfComboDiscount: string;
+
   printFullPrice: string;
+  printFullComboDiscount: string;
+
   ledThreeCitiesPrice: string;
-  comboBusinessCardLedPrice: string;
-  comboStandardLedPrice: string;
-  comboQuarterLedPrice: string;
-  comboHalfLedPrice: string;
-  comboFullLedPrice: string;
+  ledThreeCitiesComboDiscount: string;
 }
 
 type ActionResult = { error: string } | { ok: true };
@@ -44,17 +52,25 @@ export async function updateSiteOfferSettingsAction(
 
     const values = {
       annual_subscription_price: parseOptionalMoney("Assinatura anual", input.annualSubscriptionPrice),
+      annual_subscription_combo_discount: parseRequiredMoney("Desconto da assinatura", input.annualSubscriptionComboDiscount),
+
       print_business_card_price: parseRequiredMoney("Cartão de visita", input.printBusinessCardPrice),
+      print_business_card_combo_discount: parseRequiredMoney("Desconto do cartão de visita", input.printBusinessCardComboDiscount),
+
       print_standard_price: parseRequiredMoney("Padrão", input.printStandardPrice),
+      print_standard_combo_discount: parseRequiredMoney("Desconto do padrão", input.printStandardComboDiscount),
+
       print_quarter_price: parseRequiredMoney("1/4 de página", input.printQuarterPrice),
+      print_quarter_combo_discount: parseRequiredMoney("Desconto do 1/4 de página", input.printQuarterComboDiscount),
+
       print_half_price: parseRequiredMoney("Meia página", input.printHalfPrice),
+      print_half_combo_discount: parseRequiredMoney("Desconto da meia página", input.printHalfComboDiscount),
+
       print_full_price: parseRequiredMoney("Página inteira", input.printFullPrice),
+      print_full_combo_discount: parseRequiredMoney("Desconto da página inteira", input.printFullComboDiscount),
+
       led_three_cities_price: parseRequiredMoney("3 painéis de LED", input.ledThreeCitiesPrice),
-      combo_business_card_led_price: parseRequiredMoney("Cartão + painéis", input.comboBusinessCardLedPrice),
-      combo_standard_led_price: parseRequiredMoney("Padrão + painéis", input.comboStandardLedPrice),
-      combo_quarter_led_price: parseRequiredMoney("1/4 + painéis", input.comboQuarterLedPrice),
-      combo_half_led_price: parseRequiredMoney("Meia página + painéis", input.comboHalfLedPrice),
-      combo_full_led_price: parseRequiredMoney("Página inteira + painéis", input.comboFullLedPrice),
+      led_three_cities_combo_discount: parseRequiredMoney("Desconto dos 3 painéis", input.ledThreeCitiesComboDiscount),
     };
 
     const { error } = await client.from("site_offer_settings").update(values).eq("id", 1);
