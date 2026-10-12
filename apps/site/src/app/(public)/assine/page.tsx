@@ -21,8 +21,13 @@ export default async function AssinePage(): Promise<JSX.Element> {
           }}
         >
           <p className="text-xs font-bold uppercase tracking-[0.16em] text-white/65">ASSINE E ANUNCIE</p>
-          <h1 className="mt-3 max-w-4xl font-editorial text-4xl font-bold leading-tight sm:text-5xl md:text-6xl">
-            Escolha como quer receber ou divulgar no Informativo Regional
+          <h1 className="mt-3 font-editorial font-bold leading-[1.02] sm:text-[clamp(2rem,5vw,3rem)] lg:text-[clamp(2.4rem,4vw,3.35rem)] xl:whitespace-nowrap xl:text-[clamp(2.35rem,3vw,3.6rem)]">
+            <span className="text-[clamp(1.15rem,5.4vw,1.6rem)] sm:hidden">
+              Escolha como quer receber ou
+              <br />
+              divulgar no Informativo Regional
+            </span>
+            <span className="hidden sm:inline">Escolha como quer receber ou divulgar no Informativo Regional</span>
           </h1>
           <p className="mt-4 max-w-3xl text-sm leading-relaxed text-white/85 md:text-base">
             Monte sua solicitação com assinatura anual, publicidade no jornal impresso e divulgação nos painéis digitais.
