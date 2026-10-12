@@ -5,7 +5,8 @@ import { useEffect, useRef, useState } from "react";
 import { formatDateBR } from "../date";
 import type { PublicArticle } from "../../../lib/public/types";
 
-const AUTO_ROTATION_MS = 20_000;
+const DESKTOP_AUTO_ROTATION_MS = 20_000;
+const MOBILE_AUTO_ROTATION_MS = 12_000;
 const MANUAL_HOLD_MS = 30_000;
 
 type RotationState = {
@@ -14,8 +15,17 @@ type RotationState = {
 };
 
 export function PublicLatestNewsList({ items }: { items: PublicArticle[] }): JSX.Element {
-  const [rotation, setRotation] = useState<RotationState>({ index: 0, nextDelayMs: AUTO_ROTATION_MS });
+  const [rotation, setRotation] = useState<RotationState>({ index: 0, nextDelayMs: DESKTOP_AUTO_ROTATION_MS });
+  const [isMobile, setIsMobile] = useState(false);
   const activeStoryRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const media = window.matchMedia("(max-width: 1023px)");
+    const sync = (): void => setIsMobile(media.matches);
+    sync();
+    media.addEventListener("change", sync);
+    return () => media.removeEventListener("change", sync);
+  }, []);
 
   useEffect(() => {
     if (items.length <= 1) return;
@@ -25,13 +35,13 @@ export function PublicLatestNewsList({ items }: { items: PublicArticle[] }): JSX
         const currentIndex = previous.index < items.length ? previous.index : 0;
         return {
           index: (currentIndex + 1) % items.length,
-          nextDelayMs: AUTO_ROTATION_MS,
+          nextDelayMs: isMobile ? MOBILE_AUTO_ROTATION_MS : DESKTOP_AUTO_ROTATION_MS,
         };
       });
     }, rotation.nextDelayMs);
 
     return () => window.clearTimeout(timer);
-  }, [items.length, rotation.index, rotation.nextDelayMs]);
+  }, [items.length, rotation.index, rotation.nextDelayMs, isMobile]);
 
   if (items.length === 0) return <></>;
 

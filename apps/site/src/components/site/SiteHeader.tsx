@@ -88,10 +88,17 @@ export function SiteHeader({ emphasized = false }: { active?: string; emphasized
 
   useEffect(() => {
     document.body.style.overflow = open ? "hidden" : "";
+    document.body.classList.toggle("ir-mobile-menu-open", open);
     return () => {
       document.body.style.overflow = "";
+      document.body.classList.remove("ir-mobile-menu-open");
     };
   }, [open]);
+
+  useEffect(() => {
+    document.body.classList.toggle("ir-mobile-search-open", searchOpen);
+    return () => document.body.classList.remove("ir-mobile-search-open");
+  }, [searchOpen]);
 
   useEffect(() => {
     if (!open) return;
@@ -174,7 +181,6 @@ export function SiteHeader({ emphasized = false }: { active?: string; emphasized
   const mobileUtilityLinks: NavLink[] = [
     { href: "/", label: "Início" },
     JORNAL_ONLINE,
-    classifiedLink,
     CONTACT_LINK,
     ...FIXED_OVERFLOW,
   ];

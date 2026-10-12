@@ -24,6 +24,10 @@ interface ArticleRow {
   urgent: boolean;
   published_at: string;
 }
+interface SearchArticleRow extends ArticleRow {
+  total_count: number | string;
+  match_source: "title" | "subtitle" | "body";
+}
 interface MediaRow {
   article_id: string;
   media_id: string;
@@ -188,25 +192,87 @@ export async function listPublicArticlesPage(options: {
   pageSize?: number;
   sectionId?: string;
   query?: string;
+  dateFrom?: string;
+  dateTo?: string;
 }): Promise<PagedArticles> {
   const pageSize = Math.min(100, Math.max(1, Math.floor(options.pageSize ?? 24)));
+  const requestedPage = Math.max(1, Math.floor(options.page ?? 1));
   const client = getPublicSupabaseClient();
   const term = options.query ? sanitizeSearchTerm(options.query) : "";
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- o tipo exato do builder do supabase-js muda conforme .select()/.eq()/.or() encadeados; aqui só aplicamos os mesmos dois filtros opcionais em duas queries com formatos de retorno diferentes (count vs. dados).
+  // Busca textual: o banco escolhe UM nível por vez, exatamente na ordem
+  // editorial solicitada: se houver título contendo o fragmento, retorna
+  // títulos; só se não houver, tenta subtítulos; só depois procura no corpo.
+  // A comparação é sem acentos e usa índices trigram para continuar rápida
+  // no acervo grande.
+  if (term) {
+    const runSearch = async (page: number) => {
+      const offset = (page - 1) * pageSize;
+      const { data, error } = await client.rpc("search_public_articles", {
+        p_search: term,
+        p_section_id: options.sectionId || null,
+        p_date_from: options.dateFrom || null,
+        p_date_to: options.dateTo || null,
+        p_limit: pageSize,
+        p_offset: offset,
+      });
+      if (error) throw new Error(error.message);
+      return (data ?? []) as SearchArticleRow[];
+    };
+
+    const [initialRows, sections, localities] = await Promise.all([
+      runSearch(requestedPage),
+      listPublicSections(),
+      listPublicLocalities(),
+    ]);
+
+    let rows = initialRows;
+    let total = rows.length > 0 ? Number(rows[0].total_count) : 0;
+    let totalPages = Math.max(1, Math.ceil(total / pageSize));
+    let page = Math.min(requestedPage, totalPages);
+
+    // URL manual com página muito alta: refaz só a página válida, sem erro.
+    if (rows.length === 0 && requestedPage > 1) {
+      rows = await runSearch(1);
+      total = rows.length > 0 ? Number(rows[0].total_count) : 0;
+      totalPages = Math.max(1, Math.ceil(total / pageSize));
+      page = 1;
+    }
+
+    if (rows.length === 0) {
+      return { items: [], total: 0, page: 1, pageSize, totalPages: 1 };
+    }
+
+    const articleRows: ArticleRow[] = rows.map((row) => ({
+      id: row.id,
+      slug: row.slug,
+      title: row.title,
+      subtitle: row.subtitle,
+      body: row.body,
+      section_id: row.section_id,
+      locality_id: row.locality_id,
+      urgent: row.urgent,
+      published_at: row.published_at,
+    }));
+
+    const sectionById = new Map(sections.map((s) => [s.id, s]));
+    const localityById = new Map(localities.map((l) => [l.id, l]));
+    const coverByArticle = await fetchCoverByArticle(articleRows.map((r) => r.id));
+    const items = buildArticles(articleRows, sectionById, localityById, coverByArticle);
+    return { items, total, page, pageSize, totalPages };
+  }
+
+  // Listagens sem busca textual continuam usando a view pública normal.
+  // Os filtros de período também podem ser reutilizados por páginas futuras.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const applyFilters = (q: any) => {
     let query = q;
     if (options.sectionId) query = query.eq("section_id", options.sectionId);
-    if (term) query = query.or(`title.ilike.%${term}%,subtitle.ilike.%${term}%,body.ilike.%${term}%`);
+    if (options.dateFrom) query = query.gte("published_at", `${options.dateFrom}T00:00:00`);
+    if (options.dateTo) query = query.lte("published_at", `${options.dateTo}T23:59:59.999`);
     return query;
   };
 
-  // Conta primeiro (query leve, `head: true` não traz linhas) para poder
-  // limitar `page` ao total real ANTES de pedir o `.range()` — pedir uma
-  // página além do fim faz o PostgREST responder "Requested range not
-  // satisfiable" (erro real encontrado ao testar `?page=999`, Fase 39),
-  // e uma paginação real nunca pode quebrar só porque alguém navegou (ou
-  // um link antigo aponta) para além da última página.
   const [{ count, error: countError }, sections, localities] = await Promise.all([
     applyFilters(client.from("public_articles").select("id", { count: "exact", head: true })),
     listPublicSections(),
@@ -215,7 +281,7 @@ export async function listPublicArticlesPage(options: {
   if (countError) throw new Error(countError.message);
   const total = count ?? 0;
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
-  const page = Math.min(Math.max(1, Math.floor(options.page ?? 1)), totalPages);
+  const page = Math.min(requestedPage, totalPages);
 
   if (total === 0) {
     return { items: [], total: 0, page: 1, pageSize, totalPages: 1 };
