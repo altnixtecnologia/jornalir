@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, type ReactNode } from "react";
-import { useRouter } from "next/navigation";
 import { useAuth } from "../../lib/auth/AuthProvider";
 
 /**
@@ -14,15 +13,13 @@ import { useAuth } from "../../lib/auth/AuthProvider";
  */
 export function AuthGate({ children }: { children: ReactNode }): JSX.Element | null {
   const { status } = useAuth();
-  const router = useRouter();
-
   useEffect(() => {
     if (status === "unauthenticated") {
-      router.replace("/login");
+      window.location.replace("/login?erro=sessao");
     } else if (status === "inactive") {
-      router.replace("/login?erro=inativo");
+      window.location.replace("/login?erro=inativo");
     }
-  }, [status, router]);
+  }, [status]);
 
   if (status !== "authenticated") return null;
   return <>{children}</>;
