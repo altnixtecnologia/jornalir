@@ -136,7 +136,15 @@ async function crawlCategoryRecent(category, cutoffDateIso, throttle, log) {
       break;
     }
     const pageItems = parseListingItems(text, category);
-    if (pageItems.length === 0) break;
+    if (pageItems.length === 0) {
+      // O site legado às vezes anuncia um lastPage uma página além do fim
+      // real (ex.: pagina=1386 vazia, enquanto 1385 contém os itens mais
+      // recentes). Não encerrar o crawl no primeiro vazio: continua para a
+      // página anterior, mantendo MAX_PAGES_PER_CATEGORY como válvula de
+      // segurança para não varrer o acervo inteiro por engano.
+      log(`  [aviso] ${category} pagina=${page}: vazia; tentando a página anterior`);
+      continue;
+    }
     items.push(...pageItems);
 
     const newestOnPage = pageItems[pageItems.length - 1];
