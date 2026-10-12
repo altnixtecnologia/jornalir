@@ -8,33 +8,49 @@ import {
 
 export interface SiteOfferSettingsValues {
   annualSubscriptionPrice: number | null;
+  annualSubscriptionComboDiscount: number;
+
   printBusinessCardPrice: number;
+  printBusinessCardComboDiscount: number;
+
   printStandardPrice: number;
+  printStandardComboDiscount: number;
+
   printQuarterPrice: number;
+  printQuarterComboDiscount: number;
+
   printHalfPrice: number;
+  printHalfComboDiscount: number;
+
   printFullPrice: number;
+  printFullComboDiscount: number;
+
   ledThreeCitiesPrice: number;
-  comboBusinessCardLedPrice: number;
-  comboStandardLedPrice: number;
-  comboQuarterLedPrice: number;
-  comboHalfLedPrice: number;
-  comboFullLedPrice: number;
+  ledThreeCitiesComboDiscount: number;
 }
 
 function toInput(values: SiteOfferSettingsValues): SiteOfferSettingsFormInput {
   return {
     annualSubscriptionPrice: values.annualSubscriptionPrice === null ? "" : String(values.annualSubscriptionPrice),
+    annualSubscriptionComboDiscount: String(values.annualSubscriptionComboDiscount),
+
     printBusinessCardPrice: String(values.printBusinessCardPrice),
+    printBusinessCardComboDiscount: String(values.printBusinessCardComboDiscount),
+
     printStandardPrice: String(values.printStandardPrice),
+    printStandardComboDiscount: String(values.printStandardComboDiscount),
+
     printQuarterPrice: String(values.printQuarterPrice),
+    printQuarterComboDiscount: String(values.printQuarterComboDiscount),
+
     printHalfPrice: String(values.printHalfPrice),
+    printHalfComboDiscount: String(values.printHalfComboDiscount),
+
     printFullPrice: String(values.printFullPrice),
+    printFullComboDiscount: String(values.printFullComboDiscount),
+
     ledThreeCitiesPrice: String(values.ledThreeCitiesPrice),
-    comboBusinessCardLedPrice: String(values.comboBusinessCardLedPrice),
-    comboStandardLedPrice: String(values.comboStandardLedPrice),
-    comboQuarterLedPrice: String(values.comboQuarterLedPrice),
-    comboHalfLedPrice: String(values.comboHalfLedPrice),
-    comboFullLedPrice: String(values.comboFullLedPrice),
+    ledThreeCitiesComboDiscount: String(values.ledThreeCitiesComboDiscount),
   };
 }
 
@@ -59,7 +75,7 @@ export function SiteOfferSettingsPanel({ values }: { values: SiteOfferSettingsVa
         setError(result.error);
         return;
       }
-      setMessage("Valores atualizados. A página Assine passa a usar estes preços automaticamente.");
+      setMessage("Valores e descontos atualizados. A página Assine usa estas configurações automaticamente.");
     });
   }
 
@@ -83,66 +99,76 @@ export function SiteOfferSettingsPanel({ values }: { values: SiteOfferSettingsVa
     );
   }
 
+  function productRow(
+    label: string,
+    priceKey: keyof SiteOfferSettingsFormInput,
+    discountKey: keyof SiteOfferSettingsFormInput,
+    helper?: string,
+  ): JSX.Element {
+    return (
+      <div className="form-grid" style={{ marginTop: "12px" }}>
+        {moneyField(label + " — valor", priceKey, helper)}
+        {moneyField(
+          label + " — desconto com 2+ itens",
+          discountKey,
+          "Aplicado neste produto quando o carrinho tiver dois ou mais produtos.",
+        )}
+      </div>
+    );
+  }
+
   return (
     <>
       <section className="form-section form-section--first">
-        <h2>Assinatura</h2>
-        <div className="form-grid">
-          {moneyField(
-            "Assinatura anual do jornal",
-            "annualSubscriptionPrice",
-            "Deixe em branco para o site mostrar “Valor sob consulta”.",
-          )}
-        </div>
+        <h2>Como funciona o desconto</h2>
+        <p className="helper-text">
+          O site não possui planos fechados. O cliente monta o carrinho escolhendo os produtos separadamente. Quando houver 2 ou mais produtos no carrinho, cada item recebe o desconto configurado no seu próprio campo.
+        </p>
+        <p className="helper-text" style={{ marginTop: "8px" }}>
+          Exemplo: se dois produtos tiverem R$ 50,00 de desconto cada, o carrinho aplica R$ 100,00 de desconto total.
+        </p>
+      </section>
+
+      <section className="form-section">
+        <h2>Assinatura anual</h2>
+        {productRow(
+          "Assinatura anual do jornal",
+          "annualSubscriptionPrice",
+          "annualSubscriptionComboDiscount",
+          "Deixe o valor em branco somente se quiser mostrar “Sob consulta”.",
+        )}
       </section>
 
       <section className="form-section">
         <h2>Publicidade no jornal impresso</h2>
-        <p className="helper-text">Valores individuais exibidos na página Assine. Todos os formatos continuam identificados como coloridos.</p>
-        <div className="form-grid" style={{ marginTop: "12px" }}>
-          {moneyField("Cartão de visita", "printBusinessCardPrice")}
-          {moneyField("Padrão", "printStandardPrice")}
-          {moneyField("1/4 de página", "printQuarterPrice")}
-          {moneyField("Meia página", "printHalfPrice")}
-          {moneyField("Página inteira", "printFullPrice")}
-        </div>
+        <p className="helper-text">Cada formato tem seu preço e seu desconto próprio para compras combinadas.</p>
+        {productRow("Cartão de visita", "printBusinessCardPrice", "printBusinessCardComboDiscount")}
+        {productRow("Padrão", "printStandardPrice", "printStandardComboDiscount")}
+        {productRow("1/4 de página", "printQuarterPrice", "printQuarterComboDiscount")}
+        {productRow("Meia página", "printHalfPrice", "printHalfComboDiscount")}
+        {productRow("Página inteira", "printFullPrice", "printFullComboDiscount")}
       </section>
 
       <section className="form-section">
         <h2>Painéis digitais</h2>
-        <div className="form-grid">
-          {moneyField(
-            "3 painéis — São João do Sul + Praia Grande + Passo de Torres",
-            "ledThreeCitiesPrice",
-            "Preço individual do pacote com os três painéis de LED.",
-          )}
-        </div>
-      </section>
-
-      <section className="form-section">
-        <h2>Pacotes: impresso + painéis</h2>
-        <p className="helper-text">
-          Estes são os valores finais do combinado. O desconto mostrado no site é calculado automaticamente comparando este campo com a soma dos itens separados.
-        </p>
-        <div className="form-grid" style={{ marginTop: "12px" }}>
-          {moneyField("Cartão de visita + 3 painéis", "comboBusinessCardLedPrice")}
-          {moneyField("Padrão + 3 painéis", "comboStandardLedPrice")}
-          {moneyField("1/4 de página + 3 painéis", "comboQuarterLedPrice")}
-          {moneyField("Meia página + 3 painéis", "comboHalfLedPrice")}
-          {moneyField("Página inteira + 3 painéis", "comboFullLedPrice")}
-        </div>
+        {productRow(
+          "3 painéis — São João do Sul + Praia Grande + Passo de Torres",
+          "ledThreeCitiesPrice",
+          "ledThreeCitiesComboDiscount",
+          "Valor da divulgação nos três painéis de LED.",
+        )}
       </section>
 
       <section className="form-section">
         <div className="form-actions">
           <button type="button" className="form-action-primary" onClick={save} disabled={pending}>
-            {pending ? "Salvando..." : "Salvar valores"}
+            {pending ? "Salvando..." : "Salvar valores e descontos"}
           </button>
         </div>
         {message ? <p className="form-success" role="status">{message}</p> : null}
         {error ? <p className="form-error" role="alert">{error}</p> : null}
         <p className="helper-text" style={{ marginTop: "12px" }}>
-          Alterar estes campos muda apenas os preços públicos e os preços sugeridos correspondentes no catálogo Comercial. Não altera vendas, propostas ou cobranças já existentes.
+          As alterações mudam os valores públicos do site. Não alteram propostas, vendas ou cobranças que já tenham sido criadas.
         </p>
       </section>
     </>
