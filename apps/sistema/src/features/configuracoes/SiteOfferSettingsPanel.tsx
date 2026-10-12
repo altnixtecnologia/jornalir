@@ -9,6 +9,7 @@ import {
 export interface SiteOfferSettingsValues {
   annualSubscriptionPrice: number | null;
   annualSubscriptionComboDiscount: number;
+
   printBusinessCardPrice: number;
   printBusinessCardComboDiscount: number;
   printStandardPrice: number;
@@ -19,8 +20,15 @@ export interface SiteOfferSettingsValues {
   printHalfComboDiscount: number;
   printFullPrice: number;
   printFullComboDiscount: number;
-  ledThreeCitiesPrice: number;
-  ledThreeCitiesComboDiscount: number;
+
+  ledSjs1x2Price: number;
+  ledSjs1x2ComboDiscount: number;
+  ledPraiaGrande1x2Price: number;
+  ledPraiaGrande1x2ComboDiscount: number;
+  ledPassoTorres1x2Price: number;
+  ledPassoTorres1x2ComboDiscount: number;
+  ledSjs4x2Price: number;
+  ledSjs4x2ComboDiscount: number;
 }
 
 function formatMoneyInput(value: number): string {
@@ -37,6 +45,7 @@ function toInput(values: SiteOfferSettingsValues): SiteOfferSettingsFormInput {
   return {
     annualSubscriptionPrice: values.annualSubscriptionPrice === null ? "" : formatMoneyInput(values.annualSubscriptionPrice),
     annualSubscriptionComboDiscount: formatMoneyInput(values.annualSubscriptionComboDiscount),
+
     printBusinessCardPrice: formatMoneyInput(values.printBusinessCardPrice),
     printBusinessCardComboDiscount: formatMoneyInput(values.printBusinessCardComboDiscount),
     printStandardPrice: formatMoneyInput(values.printStandardPrice),
@@ -47,8 +56,15 @@ function toInput(values: SiteOfferSettingsValues): SiteOfferSettingsFormInput {
     printHalfComboDiscount: formatMoneyInput(values.printHalfComboDiscount),
     printFullPrice: formatMoneyInput(values.printFullPrice),
     printFullComboDiscount: formatMoneyInput(values.printFullComboDiscount),
-    ledThreeCitiesPrice: formatMoneyInput(values.ledThreeCitiesPrice),
-    ledThreeCitiesComboDiscount: formatMoneyInput(values.ledThreeCitiesComboDiscount),
+
+    ledSjs1x2Price: formatMoneyInput(values.ledSjs1x2Price),
+    ledSjs1x2ComboDiscount: formatMoneyInput(values.ledSjs1x2ComboDiscount),
+    ledPraiaGrande1x2Price: formatMoneyInput(values.ledPraiaGrande1x2Price),
+    ledPraiaGrande1x2ComboDiscount: formatMoneyInput(values.ledPraiaGrande1x2ComboDiscount),
+    ledPassoTorres1x2Price: formatMoneyInput(values.ledPassoTorres1x2Price),
+    ledPassoTorres1x2ComboDiscount: formatMoneyInput(values.ledPassoTorres1x2ComboDiscount),
+    ledSjs4x2Price: formatMoneyInput(values.ledSjs4x2Price),
+    ledSjs4x2ComboDiscount: formatMoneyInput(values.ledSjs4x2ComboDiscount),
   };
 }
 
@@ -75,10 +91,7 @@ export function SiteOfferSettingsPanel({ values }: { values: SiteOfferSettingsVa
     setError(null);
     startTransition(async () => {
       const normalizedInput = Object.fromEntries(
-        Object.entries(input).map(([key, value]) => [
-          key,
-          value.trim() ? normalizeMoneyInput(value) : value,
-        ]),
+        Object.entries(input).map(([key, value]) => [key, value.trim() ? normalizeMoneyInput(value) : value]),
       ) as unknown as SiteOfferSettingsFormInput;
 
       setInput(normalizedInput);
@@ -87,15 +100,11 @@ export function SiteOfferSettingsPanel({ values }: { values: SiteOfferSettingsVa
         setError(result.error);
         return;
       }
-      setMessage("Valores e descontos atualizados. A página Assine usa estas configurações automaticamente.");
+      setMessage("Valores e descontos atualizados.");
     });
   }
 
-  function moneyField(
-    key: keyof SiteOfferSettingsFormInput,
-    ariaLabel: string,
-    allowBlank = false,
-  ): JSX.Element {
+  function moneyField(key: keyof SiteOfferSettingsFormInput, ariaLabel: string, allowBlank = false): JSX.Element {
     return (
       <label className="assine-money-field">
         <span className="assine-money-input">
@@ -127,12 +136,10 @@ export function SiteOfferSettingsPanel({ values }: { values: SiteOfferSettingsVa
           <strong>{label}</strong>
           {helper ? <span>{helper}</span> : null}
         </div>
-
         <div>
           <span className="assine-config-column-label">Valor</span>
           {moneyField(priceKey, `Valor de ${label}`, allowBlankPrice)}
         </div>
-
         <div>
           <span className="assine-config-column-label">Desconto com 2+ itens</span>
           {moneyField(discountKey, `Desconto de ${label}`)}
@@ -148,10 +155,10 @@ export function SiteOfferSettingsPanel({ values }: { values: SiteOfferSettingsVa
           <div>
             <h2>Valores exibidos no site</h2>
             <p className="helper-text">
-              O cliente escolhe produtos separados. Com 2 ou mais itens, cada produto recebe o desconto definido na mesma linha.
+              O cliente escolhe os produtos separadamente. Com 2 ou mais itens, cada produto recebe o desconto definido na mesma linha.
             </p>
           </div>
-          <p className="assine-config-example">Ex.: 2 itens com R$ 50,00 de desconto cada = R$ 100,00 de desconto no carrinho.</p>
+          <p className="assine-config-example">Nos painéis digitais, valor R$ 0,00 = opção oculta no site.</p>
         </div>
       </section>
 
@@ -162,7 +169,7 @@ export function SiteOfferSettingsPanel({ values }: { values: SiteOfferSettingsVa
             "Assinatura anual do jornal",
             "annualSubscriptionPrice",
             "annualSubscriptionComboDiscount",
-            "Deixe o valor vazio somente para mostrar “Sob consulta”.",
+            "Deixe vazio somente se quiser mostrar “Sob consulta”.",
             true,
           )}
         </div>
@@ -171,22 +178,24 @@ export function SiteOfferSettingsPanel({ values }: { values: SiteOfferSettingsVa
       <section className="form-section">
         <h2>Jornal impresso</h2>
         <div className="assine-config-list">
-          {productRow("Cartão de visita", "printBusinessCardPrice", "printBusinessCardComboDiscount")}
-          {productRow("Padrão", "printStandardPrice", "printStandardComboDiscount")}
-          {productRow("1/4 de página", "printQuarterPrice", "printQuarterComboDiscount")}
-          {productRow("Meia página", "printHalfPrice", "printHalfComboDiscount")}
-          {productRow("Página inteira", "printFullPrice", "printFullComboDiscount")}
+          {productRow("Cartão de visita — 8,4 × 6 cm", "printBusinessCardPrice", "printBusinessCardComboDiscount")}
+          {productRow("Padrão — 8,4 × 12 cm", "printStandardPrice", "printStandardComboDiscount")}
+          {productRow("1/4 de página — 12,5 × 18 cm", "printQuarterPrice", "printQuarterComboDiscount")}
+          {productRow("Meia página — 25 × 18 cm", "printHalfPrice", "printHalfComboDiscount")}
+          {productRow("Página inteira — 25 × 36 cm", "printFullPrice", "printFullComboDiscount")}
         </div>
       </section>
 
       <section className="form-section">
         <h2>Painéis digitais</h2>
+        <p className="helper-text">
+          Cada painel tem preço próprio. Deixe R$ 0,00 para não oferecer aquela opção no site.
+        </p>
         <div className="assine-config-list">
-          {productRow(
-            "3 painéis — São João do Sul + Praia Grande + Passo de Torres",
-            "ledThreeCitiesPrice",
-            "ledThreeCitiesComboDiscount",
-          )}
+          {productRow("1 × 2 m — São João do Sul", "ledSjs1x2Price", "ledSjs1x2ComboDiscount")}
+          {productRow("1 × 2 m — Praia Grande/SC", "ledPraiaGrande1x2Price", "ledPraiaGrande1x2ComboDiscount")}
+          {productRow("1 × 2 m — Passo de Torres/SC", "ledPassoTorres1x2Price", "ledPassoTorres1x2ComboDiscount")}
+          {productRow("4 × 2 m — Entrada de São João do Sul", "ledSjs4x2Price", "ledSjs4x2ComboDiscount")}
         </div>
       </section>
 
@@ -198,9 +207,6 @@ export function SiteOfferSettingsPanel({ values }: { values: SiteOfferSettingsVa
         </div>
         {message ? <p className="form-success" role="status">{message}</p> : null}
         {error ? <p className="form-error" role="alert">{error}</p> : null}
-        <p className="helper-text" style={{ marginTop: "10px" }}>
-          As alterações valem para novas visualizações e solicitações do site. Propostas, vendas e cobranças já criadas não mudam.
-        </p>
       </section>
     </>
   );

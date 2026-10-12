@@ -11,21 +11,23 @@ export interface SiteOfferSettingsFormInput {
 
   printBusinessCardPrice: string;
   printBusinessCardComboDiscount: string;
-
   printStandardPrice: string;
   printStandardComboDiscount: string;
-
   printQuarterPrice: string;
   printQuarterComboDiscount: string;
-
   printHalfPrice: string;
   printHalfComboDiscount: string;
-
   printFullPrice: string;
   printFullComboDiscount: string;
 
-  ledThreeCitiesPrice: string;
-  ledThreeCitiesComboDiscount: string;
+  ledSjs1x2Price: string;
+  ledSjs1x2ComboDiscount: string;
+  ledPraiaGrande1x2Price: string;
+  ledPraiaGrande1x2ComboDiscount: string;
+  ledPassoTorres1x2Price: string;
+  ledPassoTorres1x2ComboDiscount: string;
+  ledSjs4x2Price: string;
+  ledSjs4x2ComboDiscount: string;
 }
 
 type ActionResult = { error: string } | { ok: true };
@@ -56,21 +58,23 @@ export async function updateSiteOfferSettingsAction(
 
       print_business_card_price: parseRequiredMoney("Cartão de visita", input.printBusinessCardPrice),
       print_business_card_combo_discount: parseRequiredMoney("Desconto do cartão de visita", input.printBusinessCardComboDiscount),
-
       print_standard_price: parseRequiredMoney("Padrão", input.printStandardPrice),
       print_standard_combo_discount: parseRequiredMoney("Desconto do padrão", input.printStandardComboDiscount),
-
       print_quarter_price: parseRequiredMoney("1/4 de página", input.printQuarterPrice),
       print_quarter_combo_discount: parseRequiredMoney("Desconto do 1/4 de página", input.printQuarterComboDiscount),
-
       print_half_price: parseRequiredMoney("Meia página", input.printHalfPrice),
       print_half_combo_discount: parseRequiredMoney("Desconto da meia página", input.printHalfComboDiscount),
-
       print_full_price: parseRequiredMoney("Página inteira", input.printFullPrice),
       print_full_combo_discount: parseRequiredMoney("Desconto da página inteira", input.printFullComboDiscount),
 
-      led_three_cities_price: parseRequiredMoney("3 painéis de LED", input.ledThreeCitiesPrice),
-      led_three_cities_combo_discount: parseRequiredMoney("Desconto dos 3 painéis", input.ledThreeCitiesComboDiscount),
+      led_sjs_1x2_price: parseRequiredMoney("Painel 1x2 m de São João do Sul", input.ledSjs1x2Price),
+      led_sjs_1x2_combo_discount: parseRequiredMoney("Desconto do painel 1x2 m de São João do Sul", input.ledSjs1x2ComboDiscount),
+      led_praia_grande_1x2_price: parseRequiredMoney("Painel 1x2 m de Praia Grande", input.ledPraiaGrande1x2Price),
+      led_praia_grande_1x2_combo_discount: parseRequiredMoney("Desconto do painel 1x2 m de Praia Grande", input.ledPraiaGrande1x2ComboDiscount),
+      led_passo_torres_1x2_price: parseRequiredMoney("Painel 1x2 m de Passo de Torres", input.ledPassoTorres1x2Price),
+      led_passo_torres_1x2_combo_discount: parseRequiredMoney("Desconto do painel 1x2 m de Passo de Torres", input.ledPassoTorres1x2ComboDiscount),
+      led_sjs_4x2_price: parseRequiredMoney("Painel 4x2 m da entrada de São João do Sul", input.ledSjs4x2Price),
+      led_sjs_4x2_combo_discount: parseRequiredMoney("Desconto do painel 4x2 m da entrada de São João do Sul", input.ledSjs4x2ComboDiscount),
     };
 
     const { error } = await client.from("site_offer_settings").update(values).eq("id", 1);
