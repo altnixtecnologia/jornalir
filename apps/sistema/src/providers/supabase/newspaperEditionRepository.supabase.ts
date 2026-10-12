@@ -69,6 +69,43 @@ async function toDomain(client: SupabaseClient, row: NewspaperEditionRow): Promi
  * `pdf_url` (URL externa) quando um upload substitui uma referência
  * externa antiga — nunca os dois ao mesmo tempo.
  */
+export interface R2EditionArchiveMetadata {
+  key: string;
+  publicUrl: string;
+  fileName: string;
+  fileSize: number;
+  sha256: string;
+  coverKey?: string;
+  coverUrl?: string;
+}
+
+/**
+ * Associa o arquivo oficial arquivado no Cloudflare R2. O banco guarda
+ * somente metadados e URLs; os bytes permanecem no object storage.
+ */
+export async function attachEditionR2Archive(
+  client: SupabaseClient,
+  editionId: string,
+  archive: R2EditionArchiveMetadata,
+): Promise<void> {
+  const { error } = await client
+    .from(TABLE)
+    .update({
+      archive_provider: "r2",
+      pdf_url: archive.publicUrl,
+      pdf_storage_path: null,
+      pdf_r2_key: archive.key,
+      pdf_file_name: archive.fileName,
+      pdf_file_size: archive.fileSize,
+      pdf_sha256: archive.sha256,
+      cover_r2_key: archive.coverKey ?? null,
+      cover_url: archive.coverUrl ?? null,
+      archived_at: new Date().toISOString(),
+    })
+    .eq("id", editionId);
+  if (error) throw new Error(error.message);
+}
+
 export async function attachEditionPdf(
   client: SupabaseClient,
   editionId: string,
@@ -76,7 +113,16 @@ export async function attachEditionPdf(
 ): Promise<void> {
   const { error } = await client
     .from(TABLE)
-    .update({ pdf_storage_path: storagePath, pdf_url: null })
+    .update({
+      archive_provider: "supabase",
+      pdf_storage_path: storagePath,
+      pdf_url: null,
+      pdf_r2_key: null,
+      pdf_file_name: null,
+      pdf_file_size: null,
+      pdf_sha256: null,
+      archived_at: new Date().toISOString(),
+    })
     .eq("id", editionId);
   if (error) throw new Error(error.message);
 }
@@ -94,7 +140,13 @@ export async function attachEditionExternalPdf(
 ): Promise<void> {
   const { error } = await client
     .from(TABLE)
-    .update({ pdf_url: pdfUrl, pdf_storage_path: null })
+    .update({
+      archive_provider: pdfUrl.includes("drive.google.com") ? "drive" : "external",
+      pdf_url: pdfUrl,
+      pdf_storage_path: null,
+      pdf_r2_key: null,
+      archived_at: new Date().toISOString(),
+    })
     .eq("id", editionId);
   if (error) throw new Error(error.message);
 }
