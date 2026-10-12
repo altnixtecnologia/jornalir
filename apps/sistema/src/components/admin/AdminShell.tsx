@@ -1,15 +1,17 @@
 "use client";
 
+import Link from "next/link";
 import { useRef, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { AdminHeader } from "./AdminHeader";
 import { MobileNav } from "./MobileNav";
 import { useAuth } from "../../lib/auth/AuthProvider";
+import { getInitials } from "../../lib/auth/accountDisplay";
 
 export function AdminShell({ children, previewMode = false }: { children: ReactNode; previewMode?: boolean }): JSX.Element {
   const menuRef = useRef<HTMLDialogElement>(null);
   const router = useRouter();
-  const { signOut } = useAuth();
+  const { profile, signOut } = useAuth();
 
   async function handleLogout(): Promise<void> {
     await signOut();
@@ -42,6 +44,15 @@ export function AdminShell({ children, previewMode = false }: { children: ReactN
           </div>
           <MobileNav onNavigate={closeMenu} />
           <div className="mobile-nav-footer">
+            {profile ? (
+              <div className="mobile-nav-account">
+                <span className="account-initials" aria-hidden="true">{getInitials(profile.name)}</span>
+                <span className="mobile-nav-account-name">{profile.name}</span>
+              </div>
+            ) : null}
+            <Link href="/sistema/perfil" className="mobile-nav-link" onClick={closeMenu}>
+              Meu perfil
+            </Link>
             <button type="button" className="logout-link" onClick={handleLogout}>
               Sair
             </button>

@@ -15,6 +15,7 @@ export function isLocalPreviewEnabled(): boolean {
 export const LOCAL_PREVIEW_PROFILE = {
   id: "00000000-0000-0000-0000-000000000000",
   name: "Visualização Local",
+  email: "preview@local.dev",
   role: "owner" as const,
   active: true,
   createdAt: new Date(0).toISOString()

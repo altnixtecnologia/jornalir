@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { createSupabaseBrowserClient } from "../../lib/supabase/browser";
 import { useAuth, type AuthRole } from "../../lib/auth/AuthProvider";
+import { ROLE_LABELS } from "../../lib/auth/accountDisplay";
 import { inviteUser } from "../../app/sistema/usuarios/actions";
 
 interface UserRow {
@@ -12,12 +13,6 @@ interface UserRow {
   active: boolean;
   created_at: string;
 }
-
-const ROLE_LABELS: Record<AuthRole, string> = {
-  owner: "Proprietário",
-  admin: "Administrador",
-  operator: "Operador",
-};
 
 function formatDate(iso: string): string {
   return new Date(iso).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric" });

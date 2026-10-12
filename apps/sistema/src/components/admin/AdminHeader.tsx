@@ -1,9 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 import { assinaturasNavGroup, clientesNavGroup, configuracoesNavGroup, editorialNavGroup, financeiroNavGroup, moreModulesNavGroup, nfseNavGroup, commercialNavGroup } from "../../lib/navigation";
 import { useAuth } from "../../lib/auth/AuthProvider";
+import { AccountMenu } from "./AccountMenu";
 
 /** Fecha os dois menus suspensos — usado ao escolher um link dentro deles. */
 function closeNavDropdowns(): void {
@@ -14,8 +15,7 @@ function closeNavDropdowns(): void {
 
 export function AdminHeader({ onOpenMenu }: { onOpenMenu: () => void }): JSX.Element {
   const pathname = usePathname();
-  const router = useRouter();
-  const { profile, signOut } = useAuth();
+  const { profile } = useAuth();
   const isHome = pathname === "/sistema";
   const isEditorial = pathname.startsWith("/sistema/editorial");
   const isClientes = pathname.startsWith("/sistema/clientes");
@@ -27,11 +27,6 @@ export function AdminHeader({ onOpenMenu }: { onOpenMenu: () => void }): JSX.Ele
   const isConfiguracoes = pathname.startsWith("/sistema/usuarios") || pathname.startsWith("/sistema/configuracoes");
   const isMore = moreModulesNavGroup.links.some((link) => pathname.startsWith(link.href));
   const canManageUsers = profile?.role === "owner" || profile?.role === "admin";
-
-  async function handleLogout(): Promise<void> {
-    await signOut();
-    router.push("/login");
-  }
 
   return (
     <header className="app-header">
@@ -206,10 +201,7 @@ export function AdminHeader({ onOpenMenu }: { onOpenMenu: () => void }): JSX.Ele
         </nav>
 
         <div className="app-header-actions">
-          {profile ? <span className="current-user-name">{profile.name}</span> : null}
-          <button type="button" className="logout-link" onClick={handleLogout}>
-            Sair
-          </button>
+          <AccountMenu />
           <button
             type="button"
             className="menu-button"

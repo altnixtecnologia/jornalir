@@ -9,6 +9,7 @@ export type AuthRole = "owner" | "admin" | "operator";
 export interface AuthProfile {
   id: string;
   name: string;
+  email: string;
   role: AuthRole;
   active: boolean;
   createdAt: string;
@@ -19,6 +20,8 @@ export type AuthStatus = "loading" | "authenticated" | "unauthenticated" | "inac
 interface AuthContextValue {
   status: AuthStatus;
   profile: AuthProfile | null;
+  /** Visualização local (SYSTEM_LOCAL_PREVIEW) — Meu perfil usa isto pra nunca chamar Supabase Auth real nesse modo. */
+  localPreview: boolean;
   signOut: () => Promise<void>;
 }
 
@@ -48,7 +51,7 @@ export function AuthProvider({
     if (localPreview) return;
     let cancelled = false;
 
-    async function loadProfile(userId: string): Promise<void> {
+    async function loadProfile(userId: string, email: string | undefined): Promise<void> {
       const { data, error } = await client
         .from("profiles")
         .select("id, name, role, active, created_at")
@@ -72,6 +75,7 @@ export function AuthProvider({
       setProfile({
         id: data.id,
         name: data.name,
+        email: email ?? "",
         role: data.role as AuthRole,
         active: data.active,
         createdAt: data.created_at,
@@ -82,14 +86,14 @@ export function AuthProvider({
     void client.auth.getSession().then(({ data }) => {
       if (cancelled) return;
       const userId = data.session?.user.id;
-      if (userId) void loadProfile(userId);
+      if (userId) void loadProfile(userId, data.session?.user.email);
       else setStatus("unauthenticated");
     });
 
     const { data: listener } = client.auth.onAuthStateChange((_event, session) => {
       if (cancelled) return;
       const userId = session?.user.id;
-      if (userId) void loadProfile(userId);
+      if (userId) void loadProfile(userId, session?.user.email);
       else {
         setProfile(null);
         setStatus("unauthenticated");
@@ -106,6 +110,7 @@ export function AuthProvider({
     () => ({
       status,
       profile,
+      localPreview,
       signOut: async () => {
         if (localPreview) {
           setStatus("unauthenticated");
