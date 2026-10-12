@@ -90,7 +90,7 @@ function useHeaderSections(): { sectionLinks: NavLink[]; allNavLinks: NavLink[] 
   return { sectionLinks, allNavLinks };
 }
 
-export function SiteHeader({ active }: { active?: string } = {}): JSX.Element {
+export function SiteHeader({ active, emphasized = false }: { active?: string; emphasized?: boolean } = {}): JSX.Element {
   const [open, setOpen] = useState(false);
   const [editoriasOpen, setEditoriasOpen] = useState(false);
   const [mobileNavigatingTo, setMobileNavigatingTo] = useState<string | null>(null);
@@ -188,7 +188,7 @@ export function SiteHeader({ active }: { active?: string } = {}): JSX.Element {
   const hasOverflow = sectionLinks.length > SECTION_TIERS.base || FIXED_OVERFLOW.length > 0;
 
   return (
-    <header className="site-header">
+    <header className={`site-header ${emphasized ? "site-header--emphasized" : ""}`}>
       {/* Desktop (Ajuste pós-Fase 49): UMA linha só — logo à esquerda, nav
           no centro, busca/redes/Assinante à direita. Quantas editorias
           aparecem direto cresce por breakpoint (`sectionTierClass`); o
