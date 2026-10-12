@@ -27,9 +27,9 @@ const DIGITAL_PRICE = 800;
 const COMBO_PRICES: Record<string, number> = {
   "business-card": 900,
   standard: 950,
-  quarter: 1115,
+  quarter: 1100,
   half: 1450,
-  full: 1940,
+  full: 1950,
 };
 
 function money(value: number): string {
