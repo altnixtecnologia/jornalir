@@ -45,14 +45,16 @@ export const revalidate = 0;
  */
 export default async function CommercialOverviewPage(): Promise<JSX.Element> {
   const supabase = createSupabaseServerClient();
-  const [sales, proposals] = await Promise.all([
+  const [sales, proposals, requestsResult] = await Promise.all([
     getCommercialSaleService(supabase).list(),
     listCommercialProposalsWithTotalsSupabase(supabase),
+    supabase.from("site_interest_requests").select("id", { count: "exact", head: true }).eq("status", "new"),
   ]);
 
   const active = sales.filter((sale) => sale.status === "active").length;
   const contracted = sales.filter((sale) => sale.status !== "cancelled").reduce((sum, sale) => sum + sale.amount, 0);
   const openProposals = proposals.filter((proposal) => proposal.status === "draft" || proposal.status === "sent").length;
+  const newSiteRequests = requestsResult.count ?? 0;
 
   return (
     <>
@@ -68,6 +70,7 @@ export default async function CommercialOverviewPage(): Promise<JSX.Element> {
       />
 
       <ul className="quick-access-grid financeiro-kpi-grid">
+        <Tile label="Solicitações novas do site" value={String(newSiteRequests)} href="/sistema/publicidade/solicitacoes" />
         <Tile label="Propostas em aberto" value={String(openProposals)} href="/sistema/publicidade/propostas" />
         <Tile label="Vendas em veiculação" value={String(active)} href="/sistema/publicidade/vendas?status=active" />
         <Tile label="Faturamento contratado" value={formatAmount(contracted)} href="/sistema/publicidade/vendas" />
@@ -79,6 +82,7 @@ export default async function CommercialOverviewPage(): Promise<JSX.Element> {
           <Link className="form-action-primary" href="/sistema/publicidade/propostas/novo">
             Nova proposta
           </Link>
+          <Link href="/sistema/publicidade/solicitacoes">Solicitações do site</Link>
           <Link href="/sistema/publicidade/propostas">Propostas/Orçamentos</Link>
           <Link href="/sistema/publicidade/vendas">Vendas</Link>
           <Link href="/sistema/publicidade/produtos">Produtos/serviços</Link>
