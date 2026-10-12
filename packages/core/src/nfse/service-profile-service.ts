@@ -1,4 +1,4 @@
-import type { NfseServiceProfile } from "@ir/types";
+import { isValidCAtvSN, type NfseServiceProfile } from "@ir/types";
 import {
   ServiceProfileValidationError,
   type ServiceProfileChanges,
@@ -22,6 +22,12 @@ export interface ServiceProfileInput {
   defaultLocationIbgeCode?: string;
   issqnTaxation?: string;
   specialTaxRegime?: string;
+  /** Domínio fechado oficial (NFSE_CATVSN_CODES) — validado em assertValidCAtvSN, nunca um valor fora da lista. */
+  cAtvSN?: string;
+  /** Domínio ainda não confirmado contra fonte oficial — texto livre de propósito. */
+  cstIbsCbs?: string;
+  cClassTrib?: string;
+  cIndOp?: string;
   notes?: string;
 }
 
@@ -41,8 +47,18 @@ function normalize(input: ServiceProfileInput) {
     defaultLocationIbgeCode: trimOrUndefined(input.defaultLocationIbgeCode),
     issqnTaxation: trimOrUndefined(input.issqnTaxation),
     specialTaxRegime: trimOrUndefined(input.specialTaxRegime),
+    cAtvSN: trimOrUndefined(input.cAtvSN),
+    cstIbsCbs: trimOrUndefined(input.cstIbsCbs),
+    cClassTrib: trimOrUndefined(input.cClassTrib),
+    cIndOp: trimOrUndefined(input.cIndOp),
     notes: trimOrUndefined(input.notes),
   };
+}
+
+function assertValidCAtvSN(cAtvSN: string | undefined): void {
+  if (cAtvSN !== undefined && !isValidCAtvSN(cAtvSN)) {
+    throw new ServiceProfileValidationError(`cAtvSN inválido: "${cAtvSN}" não está no domínio oficial confirmado (NT009 v1.01).`);
+  }
 }
 
 /**
@@ -68,6 +84,7 @@ export class ServiceProfileService {
   register(input: ServiceProfileInput): Promise<NfseServiceProfile> {
     const record = normalize(input);
     if (!record.name) throw new ServiceProfileValidationError("Informe um nome amigável para o perfil.");
+    assertValidCAtvSN(record.cAtvSN);
     return this.profiles.create(record);
   }
 
@@ -75,6 +92,7 @@ export class ServiceProfileService {
     await this.getById(id);
     const record = normalize(input);
     if (!record.name) throw new ServiceProfileValidationError("Informe um nome amigável para o perfil.");
+    assertValidCAtvSN(record.cAtvSN);
     return this.profiles.update(id, record);
   }
 

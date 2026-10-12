@@ -24,6 +24,10 @@ export interface ServiceProfileFormInput {
   defaultLocationIbgeCode: string;
   issqnTaxation: string;
   specialTaxRegime: string;
+  cAtvSN: string;
+  cstIbsCbs: string;
+  cClassTrib: string;
+  cIndOp: string;
   notes: string;
 }
 

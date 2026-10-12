@@ -2,18 +2,32 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import type { NfseCertificateType, NfseCertificateStoredStatus, NfseEnvironment, NfseIssuerConfig, NfseSimplesNacionalOption, NfseSpecialTaxRegimeCode } from "@ir/types";
+import type {
+  NfseAdministrativeTaxRegime,
+  NfseCertificateType,
+  NfseCertificateStoredStatus,
+  NfseEnvironment,
+  NfseIbsCbsSimplesNacionalRegime,
+  NfseIssuerConfig,
+  NfseSimplesNacionalOption,
+  NfseSpecialTaxRegimeCode,
+} from "@ir/types";
 import {
+  NFSE_ADMINISTRATIVE_TAX_REGIMES,
+  NFSE_ADMINISTRATIVE_TAX_REGIME_LABELS,
   NFSE_CERTIFICATE_STORED_STATUSES,
   NFSE_CERTIFICATE_TYPE_LABELS,
   NFSE_CERTIFICATE_TYPES,
   NFSE_ENVIRONMENT_LABELS,
   NFSE_ENVIRONMENTS,
+  NFSE_IBS_CBS_SIMPLES_NACIONAL_REGIMES,
+  NFSE_IBS_CBS_SIMPLES_NACIONAL_REGIME_LABELS,
   NFSE_SIMPLES_NACIONAL_OPTIONS,
   NFSE_SIMPLES_NACIONAL_OPTION_LABELS,
   NFSE_SPECIAL_TAX_REGIME_CODES,
   NFSE_SPECIAL_TAX_REGIME_CODE_LABELS,
   computeCertificateEffectiveStatus,
+  isIbsCbsSimplesRegimeApplicable,
 } from "@ir/types";
 import { NfseCertificatePanel } from "./NfseCertificatePanel";
 import { saveIssuerConfigAction, type IssuerConfigFormInput } from "../../app/sistema/nfse/configuracoes/actions";
@@ -24,13 +38,14 @@ function toFormInput(config: Partial<NfseIssuerConfig> | undefined): IssuerConfi
     tradeName: config?.tradeName ?? "",
     cnpj: config?.cnpj ?? "",
     municipalRegistration: config?.municipalRegistration ?? "",
+    stateRegistration: config?.stateRegistration ?? "",
     municipality: config?.municipality ?? "",
     state: config?.state ?? "",
     ibgeCode: config?.ibgeCode ?? "",
-    taxRegime: config?.taxRegime ?? "",
-    specialTaxRegime: config?.specialTaxRegime ?? "",
+    administrativeTaxRegime: config?.administrativeTaxRegime ?? "",
     simplesNacionalOption: config?.simplesNacionalOption ?? "",
     specialTaxRegimeCode: config?.specialTaxRegimeCode ?? "",
+    ibsCbsSimplesNacionalRegime: config?.ibsCbsSimplesNacionalRegime ?? "",
     environment: config?.environment ?? "homologation",
     certificateType: config?.certificateType ?? "not_configured",
     certificateStatus: config?.certificateStatus ?? "not_configured",
@@ -82,8 +97,8 @@ export function NfseIssuerConfigForm({ initialConfig }: { initialConfig: NfseIss
 
       <section className="form-section form-section--first">
         <h2>Prestador</h2>
-        <div className="form-grid">
-          <label className="form-field" style={{ gridColumn: "1 / -1" }}>
+        <div className="nfse-config-row nfse-issuer-row-1">
+          <label className="form-field">
             <span className="field-label">Razão social</span>
             <input type="text" value={input.companyName} onChange={(event) => set("companyName", event.target.value)} />
           </label>
@@ -94,6 +109,12 @@ export function NfseIssuerConfigForm({ initialConfig }: { initialConfig: NfseIss
           <label className="form-field">
             <span className="field-label">CNPJ</span>
             <input type="text" value={input.cnpj} onChange={(event) => set("cnpj", event.target.value)} />
+          </label>
+        </div>
+        <div className="nfse-config-row nfse-issuer-row-2">
+          <label className="form-field">
+            <span className="field-label">Inscrição Estadual <span className="field-optional">(opcional)</span></span>
+            <input type="text" value={input.stateRegistration} onChange={(event) => set("stateRegistration", event.target.value)} />
           </label>
           <label className="form-field">
             <span className="field-label">Inscrição municipal</span>
@@ -107,33 +128,43 @@ export function NfseIssuerConfigForm({ initialConfig }: { initialConfig: NfseIss
             <span className="field-label">UF</span>
             <input type="text" maxLength={2} value={input.state} onChange={(event) => set("state", event.target.value.toUpperCase())} />
           </label>
+        </div>
+        <div className="nfse-config-row nfse-issuer-row-3">
           <label className="form-field">
             <span className="field-label">Código IBGE do município</span>
             <input type="text" value={input.ibgeCode} onChange={(event) => set("ibgeCode", event.target.value)} />
           </label>
         </div>
+        <p className="helper-text" style={{ marginTop: "0.75rem" }}>
+          Inscrição Estadual é só dado cadastral/fiscal — nunca incluída automaticamente no XML da DPS sem confirmação de que o leiaute oficial vigente a exige.
+        </p>
       </section>
 
       <section className="form-section">
         <h2>Regime/configuração fiscal</h2>
         <p className="helper-text">Exige confirmação explícita — nada aqui é assumido automaticamente.</p>
-        <div className="form-grid">
+        <div className="nfse-config-row nfse-regime-row">
           <label className="form-field">
-            <span className="field-label">Regime tributário <span className="field-optional">(opcional)</span></span>
-            <input type="text" value={input.taxRegime} onChange={(event) => set("taxRegime", event.target.value)} placeholder="ex.: Simples Nacional" />
+            <span className="field-label">Regime tributário <span className="field-optional">(administrativo)</span></span>
+            <select value={input.administrativeTaxRegime} onChange={(event) => set("administrativeTaxRegime", event.target.value as NfseAdministrativeTaxRegime | "")}>
+              <option value="">Não escolhido</option>
+              {NFSE_ADMINISTRATIVE_TAX_REGIMES.map((value) => (
+                <option key={value} value={value}>
+                  {NFSE_ADMINISTRATIVE_TAX_REGIME_LABELS[value]}
+                </option>
+              ))}
+            </select>
           </label>
-          <label className="form-field">
-            <span className="field-label">Regime especial <span className="field-optional">(opcional)</span></span>
-            <input type="text" value={input.specialTaxRegime} onChange={(event) => set("specialTaxRegime", event.target.value)} />
-          </label>
-        </div>
-        <p className="helper-text" style={{ marginTop: "0.75rem" }}>
-          Os dois campos abaixo são exigidos pelo Sistema Nacional da NFS-e pra identificar a situação tributária do prestador — sem eles, a emissão não fica pronta (ver "Prontidão" no rascunho).
-        </p>
-        <div className="form-grid">
           <label className="form-field">
             <span className="field-label">Situação no Simples Nacional</span>
-            <select value={input.simplesNacionalOption} onChange={(event) => set("simplesNacionalOption", event.target.value as NfseSimplesNacionalOption | "")}>
+            <select
+              value={input.simplesNacionalOption}
+              onChange={(event) => {
+                const value = event.target.value as NfseSimplesNacionalOption | "";
+                set("simplesNacionalOption", value);
+                if (!isIbsCbsSimplesRegimeApplicable(value || undefined)) set("ibsCbsSimplesNacionalRegime", "");
+              }}
+            >
               <option value="">Não escolhido</option>
               {NFSE_SIMPLES_NACIONAL_OPTIONS.map((value) => (
                 <option key={value} value={value}>
@@ -143,7 +174,7 @@ export function NfseIssuerConfigForm({ initialConfig }: { initialConfig: NfseIss
             </select>
           </label>
           <label className="form-field">
-            <span className="field-label">Regime especial de tributação (NFS-e)</span>
+            <span className="field-label">Regime especial de tributação</span>
             <select value={input.specialTaxRegimeCode} onChange={(event) => set("specialTaxRegimeCode", event.target.value as NfseSpecialTaxRegimeCode | "")}>
               <option value="">Não escolhido</option>
               {NFSE_SPECIAL_TAX_REGIME_CODES.map((value) => (
@@ -152,15 +183,37 @@ export function NfseIssuerConfigForm({ initialConfig }: { initialConfig: NfseIss
                 </option>
               ))}
             </select>
-            <span className="helper-text">Se o prestador não tem nenhum regime especial, escolha "Nenhum" — mesmo assim precisa escolher.</span>
           </label>
+          {(() => {
+            const applicable = isIbsCbsSimplesRegimeApplicable(input.simplesNacionalOption || undefined);
+            return (
+              <label className="form-field">
+                <span className="field-label">Regime IBS/CBS no Simples</span>
+                <select
+                  value={applicable ? input.ibsCbsSimplesNacionalRegime : ""}
+                  disabled={!applicable}
+                  onChange={(event) => set("ibsCbsSimplesNacionalRegime", event.target.value as NfseIbsCbsSimplesNacionalRegime | "")}
+                >
+                  <option value="">{applicable ? "Não escolhido" : "Não aplicável"}</option>
+                  {NFSE_IBS_CBS_SIMPLES_NACIONAL_REGIMES.map((value) => (
+                    <option key={value} value={value}>
+                      {NFSE_IBS_CBS_SIMPLES_NACIONAL_REGIME_LABELS[value]}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            );
+          })()}
         </div>
+        <p className="helper-text" style={{ marginTop: "0.75rem" }}>
+          "Regime tributário" é só administrativo/descritivo. Os 3 campos à direita são exigidos pelo Sistema Nacional pra identificar a situação tributária do prestador (regApIBSCBSSN só se aplica quando optante — MEI/ME-EPP/Pendente) — sem eles, a emissão não fica pronta.
+        </p>
       </section>
 
       <section className="form-section">
-        <h2>Ambiente</h2>
-        <p className="helper-text">Nenhuma transmissão é realizada em nenhum dos dois ambientes nesta fase.</p>
-        <div className="form-grid">
+        <h2>Ambiente e emissão</h2>
+        <p className="helper-text">Nenhuma transmissão real é realizada em nenhum ambiente nesta fase.</p>
+        <div className="nfse-config-row nfse-ambiente-row">
           <label className="form-field">
             <span className="field-label">Ambiente</span>
             <select value={input.environment} onChange={(event) => set("environment", event.target.value as NfseEnvironment)}>
@@ -171,15 +224,6 @@ export function NfseIssuerConfigForm({ initialConfig }: { initialConfig: NfseIss
               ))}
             </select>
           </label>
-        </div>
-      </section>
-
-      <section className="form-section">
-        <h2>Emissão (DPS)</h2>
-        <p className="helper-text">
-          Série da DPS usada nas transmissões deste prestador — nunca um valor fictício (até 5 dígitos numéricos; largura confirmada do campo "Série DPS" no identificador oficial). Obrigatória pra transmitir, não pra salvar esta configuração.
-        </p>
-        <div className="form-grid">
           <label className="form-field">
             <span className="field-label">Série da DPS <span className="field-optional">(opcional por ora)</span></span>
             <input type="text" inputMode="numeric" maxLength={5} value={input.dpsSeries} onChange={(event) => set("dpsSeries", event.target.value)} placeholder="ex.: 1" />

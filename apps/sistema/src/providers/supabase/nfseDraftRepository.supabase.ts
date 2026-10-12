@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { ClientKind, NfseDraft, NfseDraftStatus } from "@ir/types";
+import type { ClientKind, NfseDraft, NfseDraftStatus, NfseIbsCbsSimplesNacionalRegime, NfseSimplesNacionalOption, NfseSpecialTaxRegimeCode } from "@ir/types";
 import type { DraftChanges, DraftListQuery, DraftRepository, NewDraftRecord } from "@ir/core";
 import { isLocalPreviewEnabled } from "../../lib/auth/localPreview";
 
@@ -10,6 +10,8 @@ const COLUMNS =
   "tomador_zip, tomador_street, tomador_number, tomador_complement, tomador_neighborhood, tomador_city, tomador_state, " +
   "tomador_ibge_code, tomador_email, tomador_phone, " +
   "service_profile_id, c_trib_nac, c_trib_mun, c_nbs, issqn_taxation, fiscal_special_tax_regime, location_municipality, location_ibge_code, " +
+  "fiscal_c_atv_sn, fiscal_cst_ibs_cbs, fiscal_c_class_trib, fiscal_c_ind_op, " +
+  "fiscal_issuer_simples_nacional_option, fiscal_issuer_ibs_cbs_simples_nacional_regime, fiscal_issuer_special_tax_regime_code, " +
   "competency_date, service_value, service_description, notes, status, " +
   "origin_system, origin_type, origin_record_id, commercial_sale_id, " +
   "created_by, updated_by, created_at, updated_at";
@@ -42,6 +44,13 @@ interface DraftRow {
   fiscal_special_tax_regime: string | null;
   location_municipality: string | null;
   location_ibge_code: string | null;
+  fiscal_c_atv_sn: string | null;
+  fiscal_cst_ibs_cbs: string | null;
+  fiscal_c_class_trib: string | null;
+  fiscal_c_ind_op: string | null;
+  fiscal_issuer_simples_nacional_option: string | null;
+  fiscal_issuer_ibs_cbs_simples_nacional_regime: string | null;
+  fiscal_issuer_special_tax_regime_code: string | null;
   competency_date: string;
   service_value: number;
   service_description: string;
@@ -91,6 +100,14 @@ function toDomain(row: DraftRow): NfseDraft {
       specialTaxRegime: row.fiscal_special_tax_regime ?? undefined,
       locationMunicipality: row.location_municipality ?? undefined,
       locationIbgeCode: row.location_ibge_code ?? undefined,
+      cAtvSN: row.fiscal_c_atv_sn ?? undefined,
+      cstIbsCbs: row.fiscal_cst_ibs_cbs ?? undefined,
+      cClassTrib: row.fiscal_c_class_trib ?? undefined,
+      cIndOp: row.fiscal_c_ind_op ?? undefined,
+      issuerSimplesNacionalOption: (row.fiscal_issuer_simples_nacional_option as NfseSimplesNacionalOption | null) ?? undefined,
+      issuerIbsCbsSimplesNacionalRegime:
+        (row.fiscal_issuer_ibs_cbs_simples_nacional_regime as NfseIbsCbsSimplesNacionalRegime | null) ?? undefined,
+      issuerSpecialTaxRegimeCode: (row.fiscal_issuer_special_tax_regime_code as NfseSpecialTaxRegimeCode | null) ?? undefined,
     },
     competencyDate: row.competency_date,
     serviceValue: Number(row.service_value),
@@ -138,6 +155,13 @@ function toRow(record: NewDraftRecord | DraftChanges): Record<string, unknown> {
     row.fiscal_special_tax_regime = record.fiscal.specialTaxRegime ?? null;
     row.location_municipality = record.fiscal.locationMunicipality ?? null;
     row.location_ibge_code = record.fiscal.locationIbgeCode ?? null;
+    row.fiscal_c_atv_sn = record.fiscal.cAtvSN ?? null;
+    row.fiscal_cst_ibs_cbs = record.fiscal.cstIbsCbs ?? null;
+    row.fiscal_c_class_trib = record.fiscal.cClassTrib ?? null;
+    row.fiscal_c_ind_op = record.fiscal.cIndOp ?? null;
+    row.fiscal_issuer_simples_nacional_option = record.fiscal.issuerSimplesNacionalOption ?? null;
+    row.fiscal_issuer_ibs_cbs_simples_nacional_regime = record.fiscal.issuerIbsCbsSimplesNacionalRegime ?? null;
+    row.fiscal_issuer_special_tax_regime_code = record.fiscal.issuerSpecialTaxRegimeCode ?? null;
   }
   if (record.competencyDate !== undefined) row.competency_date = record.competencyDate;
   if (record.serviceValue !== undefined) row.service_value = record.serviceValue;

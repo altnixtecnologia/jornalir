@@ -57,24 +57,78 @@ export function computeCertificateEffectiveStatus(
 }
 
 /**
- * Situação do prestador perante o Simples Nacional (Parte 2C) — mapeia
- * diretamente `opSimpNac` do XSD oficial (`TSOpSimpNac`,
- * `tiposSimples_v1.01.xsd`: "1"=não optante, "2"=MEI, "3"=ME/EPP).
+ * Situação do prestador perante o Simples Nacional (Parte 2C, atualizado
+ * na revisão RTC/IBS-CBS — NT SE/CGNFS-e 009 v1.01, outubro/2026) —
+ * mapeia diretamente `opSimpNac` do XSD oficial: "1"=não optante,
+ * "2"=MEI, "3"=ME/EPP, "4"=Optante Pendente (opção nova desta revisão).
  * SEMPRE configuração explícita do prestador (permanente, não muda
  * por emissão) — `undefined` bloqueia a transmissão (ver readiness.ts).
  * NUNCA um default assumido: mesmo "não optante" precisa ser escolhido.
  */
-export type NfseSimplesNacionalOption = "non_optant" | "mei" | "me_epp";
-export const NFSE_SIMPLES_NACIONAL_OPTIONS: readonly NfseSimplesNacionalOption[] = ["non_optant", "mei", "me_epp"];
+export type NfseSimplesNacionalOption = "non_optant" | "mei" | "me_epp" | "pending_optant";
+export const NFSE_SIMPLES_NACIONAL_OPTIONS: readonly NfseSimplesNacionalOption[] = ["non_optant", "mei", "me_epp", "pending_optant"];
 export const NFSE_SIMPLES_NACIONAL_OPTION_LABELS: Record<NfseSimplesNacionalOption, string> = {
   non_optant: "Não optante do Simples Nacional",
   mei: "Optante — MEI (Microempreendedor Individual)",
   me_epp: "Optante — ME/EPP (Microempresa ou Empresa de Pequeno Porte)",
+  pending_optant: "Optante Pendente",
 };
-export const NFSE_SIMPLES_NACIONAL_OPTION_CODES: Record<NfseSimplesNacionalOption, "1" | "2" | "3"> = {
+export const NFSE_SIMPLES_NACIONAL_OPTION_CODES: Record<NfseSimplesNacionalOption, "1" | "2" | "3" | "4"> = {
   non_optant: "1",
   mei: "2",
   me_epp: "3",
+  pending_optant: "4",
+};
+
+/**
+ * Regime de apuração de IBS/CBS no Simples Nacional — `regApIBSCBSSN`
+ * (Anexo VI IBS/CBS v1.04.01, NT009 v1.01). Só faz sentido/é exigido
+ * quando `simplesNacionalOption` é MEI, ME/EPP ou Optante Pendente
+ * (nunca para não optante) — ver readiness.ts. NUNCA um default
+ * silencioso: mesmo quando aplicável, o usuário escolhe explicitamente.
+ */
+export type NfseIbsCbsSimplesNacionalRegime = "simples_both" | "simples_cbs_only" | "regular_both";
+export const NFSE_IBS_CBS_SIMPLES_NACIONAL_REGIMES: readonly NfseIbsCbsSimplesNacionalRegime[] = [
+  "simples_both",
+  "simples_cbs_only",
+  "regular_both",
+];
+export const NFSE_IBS_CBS_SIMPLES_NACIONAL_REGIME_LABELS: Record<NfseIbsCbsSimplesNacionalRegime, string> = {
+  simples_both: "IBS e CBS apurados pelo Simples Nacional",
+  simples_cbs_only: "CBS pelo Simples Nacional e IBS pelo regime regular",
+  regular_both: "IBS e CBS pelo regime regular",
+};
+export const NFSE_IBS_CBS_SIMPLES_NACIONAL_REGIME_CODES: Record<NfseIbsCbsSimplesNacionalRegime, "1" | "2" | "3"> = {
+  simples_both: "1",
+  simples_cbs_only: "2",
+  regular_both: "3",
+};
+
+/** `regApIBSCBSSN` só é exigido quando o prestador é optante (MEI/ME-EPP/Pendente) — nunca para não optante. Única fonte desta regra (nunca duplicar em outro ponto). */
+export function isIbsCbsSimplesRegimeApplicable(option: NfseSimplesNacionalOption | undefined): boolean {
+  return option === "mei" || option === "me_epp" || option === "pending_optant";
+}
+
+/**
+ * Regime tributário — campo administrativo/descritivo (ex.: exibição em
+ * relatórios internos), NUNCA usado isoladamente para gerar o código
+ * fiscal da DPS. O campo fiscal de verdade continua sendo sempre
+ * `simplesNacionalOption`/`specialTaxRegimeCode` (os campos oficiais do
+ * XSD). Antes era texto livre; passou a ser um select fechado só pra
+ * padronizar a exibição administrativa.
+ */
+export type NfseAdministrativeTaxRegime = "simples_nacional" | "lucro_presumido" | "lucro_real" | "other";
+export const NFSE_ADMINISTRATIVE_TAX_REGIMES: readonly NfseAdministrativeTaxRegime[] = [
+  "simples_nacional",
+  "lucro_presumido",
+  "lucro_real",
+  "other",
+];
+export const NFSE_ADMINISTRATIVE_TAX_REGIME_LABELS: Record<NfseAdministrativeTaxRegime, string> = {
+  simples_nacional: "Simples Nacional",
+  lucro_presumido: "Lucro Presumido",
+  lucro_real: "Lucro Real",
+  other: "Outro",
 };
 
 /**
@@ -136,16 +190,38 @@ export interface NfseIssuerConfig {
   tradeName?: string;
   cnpj: string;
   municipalRegistration: string;
+  /** Opcional — nem todo prestador de serviço tem IE. Dado cadastral/fiscal só armazenado; NUNCA incluído automaticamente no XML/DPS sem confirmação de que o leiaute oficial vigente usa este campo. */
+  stateRegistration?: string;
   municipality: string;
   state: string;
   ibgeCode: string;
-  /** Regime tributário geral (ex.: Simples Nacional) — conceito de negócio comum, nunca um código de tributação da NFS-e. Exige configuração explícita, nunca assumido silenciosamente. */
-  taxRegime?: string;
-  specialTaxRegime?: string;
-  /** `opSimpNac` do XSD oficial (grupo `regTrib`, obrigatório pra transmitir — ver readiness.ts). Nunca presumido a partir de `taxRegime` (texto livre). */
+  /**
+   * Regime tributário geral — administrativo/descritivo (ver
+   * NfseAdministrativeTaxRegime), nunca usado isoladamente para gerar
+   * código fiscal da DPS. Era texto livre; passou a ser select fechado
+   * na revisão RTC/IBS-CBS (NT009 v1.01) — "taxRegime" (texto livre)
+   * removido de propósito: eliminava a duplicidade de ter um campo
+   * livre E um campo oficial para a mesma ideia geral.
+   */
+  administrativeTaxRegime?: NfseAdministrativeTaxRegime;
+  /** `opSimpNac` do XSD oficial (grupo `regTrib`, obrigatório pra transmitir — ver readiness.ts). Nunca presumido a partir de `administrativeTaxRegime`. */
   simplesNacionalOption?: NfseSimplesNacionalOption;
-  /** `regEspTrib` do XSD oficial (grupo `regTrib`, obrigatório pra transmitir). Campo DISTINTO do `specialTaxRegime` (texto livre, de uso geral) — este é o código fechado exigido pelo XSD. */
+  /**
+   * `regEspTrib` do XSD oficial (grupo `regTrib`, obrigatório pra
+   * transmitir) — ÚNICO campo de regime especial do prestador na
+   * revisão RTC/IBS-CBS. O antigo `specialTaxRegime` (texto livre,
+   * duplicava a mesma informação) foi removido de propósito — eliminar
+   * essa duplicidade era um requisito explícito desta revisão.
+   */
   specialTaxRegimeCode?: NfseSpecialTaxRegimeCode;
+  /**
+   * `regApIBSCBSSN` (Anexo VI IBS/CBS v1.04.01) — NOVO na revisão RTC/
+   * IBS-CBS. Só aplicável/exigido quando `simplesNacionalOption` for
+   * MEI, ME/EPP ou Optante Pendente (ver isIbsCbsSimplesRegimeApplicable
+   * — nunca para não optante). Nunca um default silencioso: mesmo
+   * quando aplicável, exige escolha explícita (ver readiness.ts).
+   */
+  ibsCbsSimplesNacionalRegime?: NfseIbsCbsSimplesNacionalRegime;
   environment: NfseEnvironment;
   certificateType: NfseCertificateType;
   certificateStatus: NfseCertificateStoredStatus;
@@ -201,6 +277,22 @@ export interface NfseCertificateInfo {
  */
 export const NFSE_SCHEMA_PACKAGE_HOMOLOGATION = "NFSe-ESQUEMAS_XSD-PRODREST-v1.01-20260727";
 
+/**
+ * PENDENTE (revisão RTC/IBS-CBS, outubro/2026): a Reforma Tributária do
+ * Consumo alterou o leiaute da NFS-e Nacional (NT SE/CGNFS-e 009 v1.01 +
+ * Anexo VI IBS/CBS v1.04.01 + Anexo VII cIndOp v1.03.00) a partir de
+ * 01/10/2026 — o pacote XSD vendorizado acima
+ * (`xsd/prodrest-v1.01-20260727/`) é ANTERIOR a essa atualização e NÃO
+ * inclui os grupos IBS/CBS. Esta constante continua apontando pro
+ * pacote antigo de propósito: não temos ainda o pacote XSD oficial
+ * revisado vendorizado neste projeto (precisa ser obtido da fonte
+ * oficial e conferido antes de qualquer alteração aqui — nunca
+ * reconstruído de memória). `validateDpsAgainstOfficialXsd` continua
+ * validando contra o pacote antigo; o builder (dps-builder.ts) continua
+ * SEM emitir nenhum elemento IBS/CBS até o pacote revisado existir de
+ * fato neste repositório.
+ */
+
 /** Valores sugeridos pra primeira configuração — nunca aplicados automaticamente, só usados como `defaultValue` num formulário que o usuário ainda precisa salvar explicitamente. */
 export const NFSE_SUGGESTED_ISSUER_DEFAULTS = {
   companyName: "INFORMATIVO REGIONAL LTDA",
@@ -235,11 +327,77 @@ export interface NfseServiceProfile {
   /** Configuração padrão de tributação do ISSQN — descrição livre (ex.: "Tributado no município do prestador"), nunca um código presumido. */
   issqnTaxation?: string;
   specialTaxRegime?: string;
+  /**
+   * `cAtvSN` — código de atividade do Simples Nacional (NT009 v1.01),
+   * domínio FECHADO e oficial (ver NFSE_CATVSN_CODES): só os códigos
+   * confirmados, nunca um valor livre. Descrição oficial de cada
+   * código ainda não confirmada contra a fonte oficial — por isso a UI
+   * mostra só o código, nunca um rótulo inventado (ver relatório desta
+   * tarefa, item 6).
+   */
+  cAtvSN?: string;
+  /**
+   * CST (Código de Situação Tributária) de IBS/CBS — domínio da Reforma
+   * Tributária do Consumo ainda NÃO confirmado contra uma fonte oficial
+   * nesta revisão. Texto livre de propósito (nunca um enum com valores
+   * presumidos) — mesmo princípio de cTribNac/cTribMun/cNBS.
+   */
+  cstIbsCbs?: string;
+  /**
+   * `cClassTrib` — classificação tributária de IBS/CBS. Domínio ainda
+   * NÃO confirmado contra uma fonte oficial nesta revisão. Texto livre
+   * de propósito, nunca um enum com valores presumidos.
+   */
+  cClassTrib?: string;
+  /**
+   * `cIndOp` — indicador de operação (Anexo VII cIndOp v1.03.00).
+   * Domínio ainda NÃO confirmado contra uma fonte oficial nesta
+   * revisão. Texto livre de propósito, nunca um enum com valores
+   * presumidos. Valor PADRÃO do perfil — pode ser ajustado por
+   * operação no rascunho (ver NfseFiscalSnapshot).
+   */
+  cIndOp?: string;
   notes?: string;
   createdByProfileId?: string;
   updatedByProfileId?: string;
   createdAt: string;
   updatedAt: string;
+}
+
+/**
+ * `cAtvSN` — domínio oficial CONFIRMADO diretamente no Anexo VI
+ * IBS/CBS v1.04.01 (NT009 v1.01, planilha oficial do portal
+ * gov.br/nfse — campo "cAtvSN", 2 caracteres, grupo
+ * NFSe/infNFSe/DPS/infDPS/serv/cServ), não mais um palpite. Campo
+ * numérico de 2 dígitos — "07"/"08"/"09", nunca "7"/"8"/"9" (largura
+ * fixa confirmada na planilha oficial). Descrições abaixo são o texto
+ * oficial literal da mesma célula, nunca reformuladas.
+ *
+ * Aplicabilidade confirmada no texto oficial do próprio campo: "Campo
+ * deve ser informado apenas quando opSimpNac = 2 (MEI); ou 3 (ME/EPP);
+ * ou 4 (Optante Pendente)" — mesma condição de
+ * isIbsCbsSimplesRegimeApplicable. ATENÇÃO: a mesma planilha também
+ * contém uma nota de regra de negócio dizendo o oposto pra MEI ("não
+ * deve ser preenchido quando opSimpNac = 1 ou 2") — contradição real
+ * entre dois trechos do próprio documento oficial, não resolvida aqui;
+ * reportada no relatório da tarefa. Até confirmação humana, a
+ * aplicação usa a nota do PRÓPRIO campo (a mais específica) como regra.
+ */
+export const NFSE_CATVSN_CODES = ["07", "08", "09", "10", "11", "12", "13", "14", "90"] as const;
+export type NfseCAtvSNCode = (typeof NFSE_CATVSN_CODES)[number];
+export const NFSE_CATVSN_LABELS: Record<NfseCAtvSNCode, string> = {
+  "07": "Prestação de serviços, cessão de direitos, de uso ou de espaço com incidência do ISS, tributados exclusivamente pelo Anexo III",
+  "08": "Prestação de serviços contábeis autorizados a pagar o ISS em valor fixo em guia do Município - Anexo III",
+  "09": 'Prestação de serviços - Sujeitos ao Fator "R" – Anexo III ou V',
+  "10": "Prestação de serviços de transporte municipal rodoviário, metroviário, ferroviário e aquaviário de passageiros relacionados no subitem 16.01 da lista anexa à LC 116/2003 - Anexo III",
+  "11": "Locação de bens móveis e operações com serviços, bens imateriais e direitos, inclusive com bens imóveis, sem incidência de ISS - Anexo III",
+  "12": "Prestação de serviços da área da construção civil relacionados nos subitens 7.02 e 7.05 da lista anexa à LC 116/2003 - Anexo III",
+  "13": "Prestação de serviços da área da construção civil relacionados nos subitens 7.02 e 7.05 da lista anexa à LC 116/2003 - Anexo IV",
+  "14": "Prestação de serviços - Anexo IV",
+  "90": "Operações não tributadas",
+};
+export function isValidCAtvSN(value: string): boolean {
+  return (NFSE_CATVSN_CODES as readonly string[]).includes(value);
 }
 
 /**
@@ -346,9 +504,38 @@ export interface NfseFiscalSnapshot {
   specialTaxRegime?: string;
   locationMunicipality?: string;
   locationIbgeCode?: string;
+  /** Copiado do perfil de serviço na criação do rascunho — ajustável por operação sem alterar o perfil mestre (ver NfseServiceProfile.cAtvSN). */
+  cAtvSN?: string;
+  /** Copiado do perfil de serviço — ver NfseServiceProfile.cstIbsCbs. */
+  cstIbsCbs?: string;
+  /** Copiado do perfil de serviço — ver NfseServiceProfile.cClassTrib. */
+  cClassTrib?: string;
+  /** Copiado do perfil de serviço (valor padrão) — ver NfseServiceProfile.cIndOp. Específico da operação: ajustável no rascunho. */
+  cIndOp?: string;
+  /**
+   * Os 3 campos abaixo são copiados da CONFIGURAÇÃO DO PRESTADOR (nunca
+   * do perfil de serviço) no momento em que o rascunho é criado —
+   * mesmo princípio do snapshot do tomador: a configuração do prestador
+   * pode mudar depois sem alterar retroativamente um rascunho já
+   * existente. Nunca editáveis diretamente no rascunho (refletem a
+   * configuração fiscal permanente do prestador, não a operação).
+   */
+  issuerSimplesNacionalOption?: NfseSimplesNacionalOption;
+  issuerIbsCbsSimplesNacionalRegime?: NfseIbsCbsSimplesNacionalRegime;
+  issuerSpecialTaxRegimeCode?: NfseSpecialTaxRegimeCode;
 }
 
-export function buildFiscalSnapshotFromServiceProfile(profile: NfseServiceProfile): NfseFiscalSnapshot {
+/**
+ * Monta o snapshot fiscal do rascunho combinando o perfil de SERVIÇO
+ * (campos que variam por atividade/operação: cTribNac/cAtvSN/CST/
+ * cClassTrib/cIndOp) com a configuração do PRESTADOR (campos
+ * permanentes: opSimpNac/regApIBSCBSSN/regime especial) — `issuer` é
+ * opcional só pra não quebrar chamadores que ainda não carregam a
+ * configuração do prestador neste ponto; sem ela, os 3 campos
+ * `issuer*` ficam `undefined` (readiness.ts continua apontando o que
+ * falta antes de transmitir).
+ */
+export function buildFiscalSnapshotFromServiceProfile(profile: NfseServiceProfile, issuer?: NfseIssuerConfig): NfseFiscalSnapshot {
   return {
     sourceServiceProfileId: profile.id,
     cTribNac: profile.cTribNac,
@@ -358,6 +545,13 @@ export function buildFiscalSnapshotFromServiceProfile(profile: NfseServiceProfil
     specialTaxRegime: profile.specialTaxRegime,
     locationMunicipality: profile.defaultLocationMunicipality,
     locationIbgeCode: profile.defaultLocationIbgeCode,
+    cAtvSN: profile.cAtvSN,
+    cstIbsCbs: profile.cstIbsCbs,
+    cClassTrib: profile.cClassTrib,
+    cIndOp: profile.cIndOp,
+    issuerSimplesNacionalOption: issuer?.simplesNacionalOption,
+    issuerIbsCbsSimplesNacionalRegime: issuer?.ibsCbsSimplesNacionalRegime,
+    issuerSpecialTaxRegimeCode: issuer?.specialTaxRegimeCode,
   };
 }
 

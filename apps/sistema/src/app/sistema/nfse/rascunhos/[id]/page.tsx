@@ -57,6 +57,7 @@ export default async function NfseRascunhoDetailPage({ params }: { params: { id:
           mode="edit"
           serviceProfiles={serviceProfiles}
           issuerConfigured={Boolean(issuerConfig)}
+          issuerConfig={issuerConfig}
           initialDraft={draft}
           initialSelectedClient={selectedClient}
         />

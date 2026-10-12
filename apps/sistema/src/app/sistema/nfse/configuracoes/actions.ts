@@ -1,7 +1,15 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import type { NfseCertificateType, NfseCertificateStoredStatus, NfseEnvironment, NfseSimplesNacionalOption, NfseSpecialTaxRegimeCode } from "@ir/types";
+import type {
+  NfseAdministrativeTaxRegime,
+  NfseCertificateType,
+  NfseCertificateStoredStatus,
+  NfseEnvironment,
+  NfseIbsCbsSimplesNacionalRegime,
+  NfseSimplesNacionalOption,
+  NfseSpecialTaxRegimeCode,
+} from "@ir/types";
 import { getIssuerConfigService } from "../../../../composition/nfse";
 import { createSupabaseServerClient } from "../../../../lib/supabase/server";
 import { getAuditContext } from "../../../../lib/auth/getAuditContext";
@@ -21,14 +29,17 @@ export interface IssuerConfigFormInput {
   tradeName: string;
   cnpj: string;
   municipalRegistration: string;
+  stateRegistration: string;
   municipality: string;
   state: string;
   ibgeCode: string;
-  taxRegime: string;
-  specialTaxRegime: string;
+  /** "" significa não escolhido ainda — administrativo/descritivo, nunca gera código fiscal isoladamente. */
+  administrativeTaxRegime: NfseAdministrativeTaxRegime | "";
   /** "" significa não escolhido ainda — nunca um default assumido (bloqueia a transmissão, ver readiness.ts). */
   simplesNacionalOption: NfseSimplesNacionalOption | "";
   specialTaxRegimeCode: NfseSpecialTaxRegimeCode | "";
+  /** "" significa não escolhido ainda — só aplicável quando simplesNacionalOption for MEI/ME-EPP/Pendente (ver isIbsCbsSimplesRegimeApplicable). */
+  ibsCbsSimplesNacionalRegime: NfseIbsCbsSimplesNacionalRegime | "";
   environment: NfseEnvironment;
   certificateType: NfseCertificateType;
   certificateStatus: NfseCertificateStoredStatus;
@@ -55,13 +66,14 @@ export async function saveIssuerConfigAction(input: IssuerConfigFormInput): Prom
       tradeName: input.tradeName,
       cnpj: input.cnpj,
       municipalRegistration: input.municipalRegistration,
+      stateRegistration: input.stateRegistration,
       municipality: input.municipality,
       state: input.state,
       ibgeCode: input.ibgeCode,
-      taxRegime: input.taxRegime,
-      specialTaxRegime: input.specialTaxRegime,
+      administrativeTaxRegime: input.administrativeTaxRegime || undefined,
       simplesNacionalOption: input.simplesNacionalOption || undefined,
       specialTaxRegimeCode: input.specialTaxRegimeCode || undefined,
+      ibsCbsSimplesNacionalRegime: input.ibsCbsSimplesNacionalRegime || undefined,
       environment: input.environment,
       certificateType: input.certificateType,
       certificateStatus: input.certificateStatus,

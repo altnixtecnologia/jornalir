@@ -1,4 +1,13 @@
-import { isValidDpsSeriesFormat, NFSE_SUGGESTED_ISSUER_DEFAULTS, type NfseIssuerConfig, type NfseSimplesNacionalOption, type NfseSpecialTaxRegimeCode } from "@ir/types";
+import {
+  isIbsCbsSimplesRegimeApplicable,
+  isValidDpsSeriesFormat,
+  NFSE_SUGGESTED_ISSUER_DEFAULTS,
+  type NfseAdministrativeTaxRegime,
+  type NfseIbsCbsSimplesNacionalRegime,
+  type NfseIssuerConfig,
+  type NfseSimplesNacionalOption,
+  type NfseSpecialTaxRegimeCode,
+} from "@ir/types";
 import { onlyDigits } from "../clientes/client-validation";
 import { IssuerConfigValidationError, type IssuerConfigRepository, type NewIssuerConfigRecord } from "./issuer-config-repository";
 
@@ -7,15 +16,19 @@ export interface IssuerConfigInput {
   tradeName?: string;
   cnpj: string;
   municipalRegistration: string;
+  /** Opcional — dado cadastral/fiscal, nunca incluído automaticamente no XML/DPS. */
+  stateRegistration?: string;
   municipality: string;
   state: string;
   ibgeCode: string;
-  taxRegime?: string;
-  specialTaxRegime?: string;
+  /** Administrativo/descritivo (select fechado) — nunca gera código fiscal isoladamente. */
+  administrativeTaxRegime?: NfseAdministrativeTaxRegime;
   /** `opSimpNac` do XSD oficial (grupo `regTrib`) — obrigatório pra transmitir, nunca um default assumido. */
   simplesNacionalOption?: NfseSimplesNacionalOption;
-  /** `regEspTrib` do XSD oficial (grupo `regTrib`) — obrigatório pra transmitir, nunca um default assumido (mesmo "Nenhum" exige escolha explícita). */
+  /** `regEspTrib` do XSD oficial (grupo `regTrib`) — obrigatório pra transmitir, nunca um default assumido (mesmo "Nenhum" exige escolha explícita). ÚNICO campo de regime especial do prestador (o antigo texto livre foi removido). */
   specialTaxRegimeCode?: NfseSpecialTaxRegimeCode;
+  /** `regApIBSCBSSN` — exigido só quando simplesNacionalOption for MEI/ME-EPP/Pendente (ver isIbsCbsSimplesRegimeApplicable); nunca default silencioso. */
+  ibsCbsSimplesNacionalRegime?: NfseIbsCbsSimplesNacionalRegime;
   environment: NfseIssuerConfig["environment"];
   certificateType: NfseIssuerConfig["certificateType"];
   certificateStatus: NfseIssuerConfig["certificateStatus"];
@@ -36,13 +49,14 @@ function normalize(input: IssuerConfigInput): NewIssuerConfigRecord {
     tradeName: trimOrUndefined(input.tradeName),
     cnpj: onlyDigits(input.cnpj),
     municipalRegistration: input.municipalRegistration.trim(),
+    stateRegistration: trimOrUndefined(input.stateRegistration),
     municipality: input.municipality.trim(),
     state: input.state.trim().toUpperCase().slice(0, 2),
     ibgeCode: input.ibgeCode.trim(),
-    taxRegime: trimOrUndefined(input.taxRegime),
-    specialTaxRegime: trimOrUndefined(input.specialTaxRegime),
+    administrativeTaxRegime: input.administrativeTaxRegime,
     simplesNacionalOption: input.simplesNacionalOption,
     specialTaxRegimeCode: input.specialTaxRegimeCode,
+    ibsCbsSimplesNacionalRegime: input.ibsCbsSimplesNacionalRegime,
     environment: input.environment,
     certificateType: input.certificateType,
     certificateStatus: input.certificateStatus,

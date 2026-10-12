@@ -1,12 +1,26 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { NfseCertificateStoredStatus, NfseCertificateType, NfseEnvironment, NfseIssuerConfig, NfseSimplesNacionalOption, NfseSpecialTaxRegimeCode } from "@ir/types";
+import type {
+  NfseAdministrativeTaxRegime,
+  NfseCertificateStoredStatus,
+  NfseCertificateType,
+  NfseEnvironment,
+  NfseIbsCbsSimplesNacionalRegime,
+  NfseIssuerConfig,
+  NfseSimplesNacionalOption,
+  NfseSpecialTaxRegimeCode,
+} from "@ir/types";
 import type { IssuerConfigChanges, IssuerConfigRepository, NewIssuerConfigRecord } from "@ir/core";
 import { isLocalPreviewEnabled } from "../../lib/auth/localPreview";
 
 const TABLE = "nfse_issuer_configs";
+// tax_regime/special_tax_regime (texto livre) são colunas DEPRECADAS
+// (revisão RTC/IBS-CBS — ver migration 20261029100500): nunca mais
+// lidas/escritas pela aplicação, mas preservadas no banco (dado
+// histórico eventual, nunca descartado). administrative_tax_regime e
+// special_tax_regime_code são os campos atuais.
 const COLUMNS =
-  "id, company_name, trade_name, cnpj, municipal_registration, municipality, state, ibge_code, tax_regime, special_tax_regime, " +
-  "simples_nacional_option, special_tax_regime_code, " +
+  "id, company_name, trade_name, cnpj, municipal_registration, state_registration, municipality, state, ibge_code, administrative_tax_regime, " +
+  "simples_nacional_option, special_tax_regime_code, ibs_cbs_simples_nacional_regime, " +
   "environment, certificate_type, certificate_status, certificate_valid_until, certificate_reference, dps_series, notes, " +
   "created_by, updated_by, created_at, updated_at";
 
@@ -16,13 +30,14 @@ interface IssuerConfigRow {
   trade_name: string | null;
   cnpj: string;
   municipal_registration: string;
+  state_registration: string | null;
   municipality: string;
   state: string;
   ibge_code: string;
-  tax_regime: string | null;
-  special_tax_regime: string | null;
+  administrative_tax_regime: NfseAdministrativeTaxRegime | null;
   simples_nacional_option: NfseSimplesNacionalOption | null;
   special_tax_regime_code: NfseSpecialTaxRegimeCode | null;
+  ibs_cbs_simples_nacional_regime: NfseIbsCbsSimplesNacionalRegime | null;
   environment: NfseEnvironment;
   certificate_type: NfseCertificateType;
   certificate_status: NfseCertificateStoredStatus;
@@ -43,13 +58,14 @@ function toDomain(row: IssuerConfigRow): NfseIssuerConfig {
     tradeName: row.trade_name ?? undefined,
     cnpj: row.cnpj,
     municipalRegistration: row.municipal_registration,
+    stateRegistration: row.state_registration ?? undefined,
     municipality: row.municipality,
     state: row.state,
     ibgeCode: row.ibge_code,
-    taxRegime: row.tax_regime ?? undefined,
-    specialTaxRegime: row.special_tax_regime ?? undefined,
+    administrativeTaxRegime: row.administrative_tax_regime ?? undefined,
     simplesNacionalOption: row.simples_nacional_option ?? undefined,
     specialTaxRegimeCode: row.special_tax_regime_code ?? undefined,
+    ibsCbsSimplesNacionalRegime: row.ibs_cbs_simples_nacional_regime ?? undefined,
     environment: row.environment,
     certificateType: row.certificate_type,
     certificateStatus: row.certificate_status,
@@ -70,13 +86,14 @@ function toRow(record: NewIssuerConfigRecord | IssuerConfigChanges): Record<stri
   if (record.tradeName !== undefined) row.trade_name = record.tradeName ?? null;
   if (record.cnpj !== undefined) row.cnpj = record.cnpj;
   if (record.municipalRegistration !== undefined) row.municipal_registration = record.municipalRegistration;
+  if (record.stateRegistration !== undefined) row.state_registration = record.stateRegistration ?? null;
   if (record.municipality !== undefined) row.municipality = record.municipality;
   if (record.state !== undefined) row.state = record.state;
   if (record.ibgeCode !== undefined) row.ibge_code = record.ibgeCode;
-  if (record.taxRegime !== undefined) row.tax_regime = record.taxRegime ?? null;
-  if (record.specialTaxRegime !== undefined) row.special_tax_regime = record.specialTaxRegime ?? null;
+  if (record.administrativeTaxRegime !== undefined) row.administrative_tax_regime = record.administrativeTaxRegime ?? null;
   if (record.simplesNacionalOption !== undefined) row.simples_nacional_option = record.simplesNacionalOption ?? null;
   if (record.specialTaxRegimeCode !== undefined) row.special_tax_regime_code = record.specialTaxRegimeCode ?? null;
+  if (record.ibsCbsSimplesNacionalRegime !== undefined) row.ibs_cbs_simples_nacional_regime = record.ibsCbsSimplesNacionalRegime ?? null;
   if (record.environment !== undefined) row.environment = record.environment;
   if (record.certificateType !== undefined) row.certificate_type = record.certificateType;
   if (record.certificateStatus !== undefined) row.certificate_status = record.certificateStatus;
@@ -101,9 +118,10 @@ const PREVIEW_ISSUER_CONFIG: NfseIssuerConfig = {
   municipality: "São João do Sul",
   state: "SC",
   ibgeCode: "4216404",
-  taxRegime: "Simples Nacional",
+  administrativeTaxRegime: "simples_nacional",
   simplesNacionalOption: "me_epp",
   specialTaxRegimeCode: "none",
+  ibsCbsSimplesNacionalRegime: "simples_both",
   environment: "homologation",
   certificateType: "a1",
   certificateStatus: "configured",

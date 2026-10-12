@@ -27,7 +27,7 @@ export default async function NovaNfsePage(): Promise<JSX.Element> {
         title="Nova NFS-e"
         description="Tomador, serviço, valores, tributação e descrição — salvos como rascunho. Nenhuma transmissão real ainda."
       />
-      <NfseDraftForm mode="create" serviceProfiles={serviceProfiles} issuerConfigured={Boolean(issuerConfig)} />
+      <NfseDraftForm mode="create" serviceProfiles={serviceProfiles} issuerConfigured={Boolean(issuerConfig)} issuerConfig={issuerConfig} />
     </>
   );
 }

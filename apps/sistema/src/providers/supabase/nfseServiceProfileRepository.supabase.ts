@@ -6,7 +6,7 @@ import { isLocalPreviewEnabled } from "../../lib/auth/localPreview";
 const TABLE = "nfse_service_profiles";
 const COLUMNS =
   "id, name, active, c_trib_nac, c_trib_mun, c_nbs, default_location_municipality, default_location_ibge_code, " +
-  "issqn_taxation, special_tax_regime, notes, created_by, updated_by, created_at, updated_at";
+  "issqn_taxation, special_tax_regime, c_atv_sn, cst_ibs_cbs, c_class_trib, c_ind_op, notes, created_by, updated_by, created_at, updated_at";
 
 interface ServiceProfileRow {
   id: string;
@@ -19,6 +19,10 @@ interface ServiceProfileRow {
   default_location_ibge_code: string | null;
   issqn_taxation: string | null;
   special_tax_regime: string | null;
+  c_atv_sn: string | null;
+  cst_ibs_cbs: string | null;
+  c_class_trib: string | null;
+  c_ind_op: string | null;
   notes: string | null;
   created_by: string | null;
   updated_by: string | null;
@@ -38,6 +42,10 @@ function toDomain(row: ServiceProfileRow): NfseServiceProfile {
     defaultLocationIbgeCode: row.default_location_ibge_code ?? undefined,
     issqnTaxation: row.issqn_taxation ?? undefined,
     specialTaxRegime: row.special_tax_regime ?? undefined,
+    cAtvSN: row.c_atv_sn ?? undefined,
+    cstIbsCbs: row.cst_ibs_cbs ?? undefined,
+    cClassTrib: row.c_class_trib ?? undefined,
+    cIndOp: row.c_ind_op ?? undefined,
     notes: row.notes ?? undefined,
     createdByProfileId: row.created_by ?? undefined,
     updatedByProfileId: row.updated_by ?? undefined,
@@ -57,6 +65,10 @@ function toRow(record: NewServiceProfileRecord | ServiceProfileChanges): Record<
   if (record.defaultLocationIbgeCode !== undefined) row.default_location_ibge_code = record.defaultLocationIbgeCode ?? null;
   if (record.issqnTaxation !== undefined) row.issqn_taxation = record.issqnTaxation ?? null;
   if (record.specialTaxRegime !== undefined) row.special_tax_regime = record.specialTaxRegime ?? null;
+  if (record.cAtvSN !== undefined) row.c_atv_sn = record.cAtvSN ?? null;
+  if (record.cstIbsCbs !== undefined) row.cst_ibs_cbs = record.cstIbsCbs ?? null;
+  if (record.cClassTrib !== undefined) row.c_class_trib = record.cClassTrib ?? null;
+  if (record.cIndOp !== undefined) row.c_ind_op = record.cIndOp ?? null;
   if (record.notes !== undefined) row.notes = record.notes ?? null;
   return row;
 }

@@ -1,4 +1,4 @@
-import { isValidDpsSeriesFormat, type NfseCertificateInfo, type NfseIssuerConfig } from "@ir/types";
+import { isIbsCbsSimplesRegimeApplicable, isValidDpsSeriesFormat, type NfseCertificateInfo, type NfseIssuerConfig } from "@ir/types";
 
 /**
  * Guarda CENTRAL de prontidão pra emissão real em homologação/Produção
@@ -47,6 +47,16 @@ export function checkHomologationReadiness(input: HomologationReadinessInput): H
     }
     if (!input.issuerConfig.specialTaxRegimeCode) {
       missing.push('Regime especial de tributação do prestador (Configurações NFS-e — escolha "Nenhum" se não houver)');
+    }
+    // regApIBSCBSSN (revisão RTC/IBS-CBS) — só exigido quando o
+    // prestador é optante (MEI/ME-EPP/Pendente); nunca para não
+    // optante. Única verificação desta regra (ver
+    // isIbsCbsSimplesRegimeApplicable em @ir/types).
+    if (
+      isIbsCbsSimplesRegimeApplicable(input.issuerConfig.simplesNacionalOption) &&
+      !input.issuerConfig.ibsCbsSimplesNacionalRegime
+    ) {
+      missing.push("Regime de apuração IBS/CBS no Simples Nacional — regApIBSCBSSN (Configurações NFS-e)");
     }
   }
 

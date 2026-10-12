@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import type { ClientKind } from "@ir/types";
+import type { ClientKind, NfseIbsCbsSimplesNacionalRegime, NfseSimplesNacionalOption, NfseSpecialTaxRegimeCode } from "@ir/types";
 import { buildTomadorSnapshotFromClient, clientDisplayName } from "@ir/types";
 import { getDraftService } from "../../../../composition/nfse";
 import { getClientService } from "../../../../composition/clientes";
@@ -46,6 +46,13 @@ export interface FiscalSnapshotFormInput {
   specialTaxRegime: string;
   locationMunicipality: string;
   locationIbgeCode: string;
+  cAtvSN: string;
+  cstIbsCbs: string;
+  cClassTrib: string;
+  cIndOp: string;
+  issuerSimplesNacionalOption: string;
+  issuerIbsCbsSimplesNacionalRegime: string;
+  issuerSpecialTaxRegimeCode: string;
 }
 
 export interface DraftFormInput {
@@ -95,6 +102,15 @@ function toServiceInput(input: DraftFormInput) {
       specialTaxRegime: input.fiscal.specialTaxRegime || undefined,
       locationMunicipality: input.fiscal.locationMunicipality || undefined,
       locationIbgeCode: input.fiscal.locationIbgeCode || undefined,
+      cAtvSN: input.fiscal.cAtvSN || undefined,
+      cstIbsCbs: input.fiscal.cstIbsCbs || undefined,
+      cClassTrib: input.fiscal.cClassTrib || undefined,
+      cIndOp: input.fiscal.cIndOp || undefined,
+      issuerSimplesNacionalOption: (input.fiscal.issuerSimplesNacionalOption || undefined) as NfseSimplesNacionalOption | undefined,
+      issuerIbsCbsSimplesNacionalRegime: (input.fiscal.issuerIbsCbsSimplesNacionalRegime || undefined) as
+        | NfseIbsCbsSimplesNacionalRegime
+        | undefined,
+      issuerSpecialTaxRegimeCode: (input.fiscal.issuerSpecialTaxRegimeCode || undefined) as NfseSpecialTaxRegimeCode | undefined,
     },
     competencyDate: input.competencyDate,
     serviceValue: parseValue(input.serviceValue),

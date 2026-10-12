@@ -1907,6 +1907,54 @@ textarea:focus {
   gap: 20px;
   margin-top: 18px;
 }
+
+/* Configuração NFS-e (Prestador/Regime/Ambiente) — linhas horizontais
+   dedicadas pra aproveitar a largura em 1366px (campos curtos nunca
+   ocupam metade da tela). Cada linha zera o margin-top padrão de
+   .form-field (que só faz sentido numa pilha vertical) e aplica o
+   espaçamento na própria linha; tablet quebra pra 2 colunas, mobile
+   pra 1 — nunca overflow horizontal. */
+.nfse-config-row {
+  display: grid;
+  gap: 16px;
+  margin-top: 18px;
+}
+.nfse-config-row .form-field {
+  margin-top: 0;
+}
+.nfse-issuer-row-1 {
+  grid-template-columns: 2fr 1fr 1fr;
+}
+.nfse-issuer-row-2 {
+  grid-template-columns: 1fr 1fr 1.4fr 0.6fr;
+}
+.nfse-issuer-row-3 {
+  grid-template-columns: 1fr;
+  max-width: 220px;
+}
+.nfse-regime-row {
+  grid-template-columns: repeat(4, 1fr);
+}
+.nfse-ambiente-row {
+  grid-template-columns: 1fr 1fr;
+  max-width: 480px;
+}
+@media (max-width: 900px) {
+  .nfse-issuer-row-1,
+  .nfse-issuer-row-2,
+  .nfse-regime-row {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+@media (max-width: 640px) {
+  .nfse-issuer-row-1,
+  .nfse-issuer-row-2,
+  .nfse-regime-row,
+  .nfse-ambiente-row {
+    grid-template-columns: 1fr;
+    max-width: none;
+  }
+}
 /* Largura cheia da célula pra qualquer input/select/textarea dentro de
    um .form-field — sem isto, o baseline global (acima) dá altura/borda
    mas o controle ficava com a largura padrão do navegador (~20

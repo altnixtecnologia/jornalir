@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import type { NfseServiceProfile } from "@ir/types";
+import { NFSE_CATVSN_CODES, NFSE_CATVSN_LABELS } from "@ir/types";
 import {
   createServiceProfileAction,
   deactivateServiceProfileAction,
@@ -21,6 +22,10 @@ function emptyInput(): ServiceProfileFormInput {
     defaultLocationIbgeCode: "",
     issqnTaxation: "",
     specialTaxRegime: "",
+    cAtvSN: "",
+    cstIbsCbs: "",
+    cClassTrib: "",
+    cIndOp: "",
     notes: "",
   };
 }
@@ -35,6 +40,10 @@ function toInput(profile: NfseServiceProfile): ServiceProfileFormInput {
     defaultLocationIbgeCode: profile.defaultLocationIbgeCode ?? "",
     issqnTaxation: profile.issqnTaxation ?? "",
     specialTaxRegime: profile.specialTaxRegime ?? "",
+    cAtvSN: profile.cAtvSN ?? "",
+    cstIbsCbs: profile.cstIbsCbs ?? "",
+    cClassTrib: profile.cClassTrib ?? "",
+    cIndOp: profile.cIndOp ?? "",
     notes: profile.notes ?? "",
   };
 }
@@ -109,6 +118,7 @@ export function NfseServiceProfilesPanel({ profiles }: { profiles: NfseServicePr
           </button>
         </div>
       ) : (
+        <>
         <div className="form-grid" style={{ marginTop: "12px" }}>
           <label className="form-field" style={{ gridColumn: "1 / -1" }}>
             <span className="field-label">Nome amigável</span>
@@ -143,6 +153,38 @@ export function NfseServiceProfilesPanel({ profiles }: { profiles: NfseServicePr
             <span className="field-label">Regime especial <span className="field-optional">(opcional)</span></span>
             <input type="text" value={input.specialTaxRegime} onChange={(event) => set("specialTaxRegime", event.target.value)} />
           </label>
+        </div>
+        <p className="helper-text" style={{ marginTop: "0.75rem" }}>RTC/IBS-CBS — variam por atividade/operação, nunca pelo prestador como um todo.</p>
+        <div className="nfse-config-row nfse-regime-row">
+          <label className="form-field">
+            <span className="field-label">cAtvSN <span className="field-optional">(opcional)</span></span>
+            <select value={input.cAtvSN} onChange={(event) => set("cAtvSN", event.target.value)}>
+              <option value="">Não escolhido</option>
+              {NFSE_CATVSN_CODES.map((code) => (
+                <option key={code} value={code}>
+                  {code} — {NFSE_CATVSN_LABELS[code]}
+                </option>
+              ))}
+            </select>
+            <span className="helper-text">Domínio oficial confirmado (Anexo VI IBS/CBS v1.04.01) — só quando o prestador for optante do Simples (MEI/ME-EPP/Pendente).</span>
+          </label>
+          <label className="form-field">
+            <span className="field-label">CST IBS/CBS <span className="field-optional">(opcional)</span></span>
+            <input type="text" value={input.cstIbsCbs} onChange={(event) => set("cstIbsCbs", event.target.value)} />
+            <span className="helper-text">Domínio ainda não localizado nas fontes oficiais consultadas — texto livre por ora.</span>
+          </label>
+          <label className="form-field">
+            <span className="field-label">cClassTrib <span className="field-optional">(opcional)</span></span>
+            <input type="text" value={input.cClassTrib} onChange={(event) => set("cClassTrib", event.target.value)} />
+            <span className="helper-text">Os 3 primeiros dígitos devem ser iguais ao CST (regra confirmada) — tabela completa ainda não localizada.</span>
+          </label>
+          <label className="form-field">
+            <span className="field-label">cIndOp <span className="field-optional">(opcional)</span></span>
+            <input type="text" value={input.cIndOp} onChange={(event) => set("cIndOp", event.target.value)} />
+            <span className="helper-text">Domínio localizado (Anexo VII), extenso — ainda não modelado como select. Valor padrão; ajustável por operação no rascunho.</span>
+          </label>
+        </div>
+        <div className="form-grid">
           <label className="form-field" style={{ gridColumn: "1 / -1" }}>
             <span className="field-label">Observações internas <span className="field-optional">(opcional)</span></span>
             <textarea rows={2} value={input.notes} onChange={(event) => set("notes", event.target.value)} />
@@ -156,6 +198,7 @@ export function NfseServiceProfilesPanel({ profiles }: { profiles: NfseServicePr
             </button>
           </div>
         </div>
+        </>
       )}
 
       {profiles.length === 0 ? (

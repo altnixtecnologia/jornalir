@@ -3,8 +3,8 @@
 import Link from "next/link";
 import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import type { NfseDraft, NfseServiceProfile } from "@ir/types";
-import { buildFiscalSnapshotFromServiceProfile, listSelectableServiceProfiles } from "@ir/types";
+import type { NfseDraft, NfseIssuerConfig, NfseServiceProfile } from "@ir/types";
+import { NFSE_CATVSN_CODES, NFSE_CATVSN_LABELS, buildFiscalSnapshotFromServiceProfile, listSelectableServiceProfiles } from "@ir/types";
 import { validateNfseDraft } from "@ir/core";
 import {
   createDraftAction,
@@ -39,8 +39,27 @@ function emptyTomador(): TomadorSnapshotFormInput {
   };
 }
 
-function emptyFiscal(): FiscalSnapshotFormInput {
-  return { cTribNac: "", cTribMun: "", cNBS: "", issqnTaxation: "", specialTaxRegime: "", locationMunicipality: "", locationIbgeCode: "" };
+/** Em modo "create", os 3 campos `issuer*` nascem já preenchidos com a
+ * configuração ATUAL do prestador (snapshot no momento da criação) —
+ * nunca ficam vazios à espera de um perfil de serviço, porque não têm
+ * nenhuma relação com o perfil (são do prestador, não da operação). */
+function emptyFiscal(issuerConfig?: NfseIssuerConfig | null): FiscalSnapshotFormInput {
+  return {
+    cTribNac: "",
+    cTribMun: "",
+    cNBS: "",
+    issqnTaxation: "",
+    specialTaxRegime: "",
+    locationMunicipality: "",
+    locationIbgeCode: "",
+    cAtvSN: "",
+    cstIbsCbs: "",
+    cClassTrib: "",
+    cIndOp: "",
+    issuerSimplesNacionalOption: issuerConfig?.simplesNacionalOption ?? "",
+    issuerIbsCbsSimplesNacionalRegime: issuerConfig?.ibsCbsSimplesNacionalRegime ?? "",
+    issuerSpecialTaxRegimeCode: issuerConfig?.specialTaxRegimeCode ?? "",
+  };
 }
 
 function draftToInput(draft: NfseDraft): DraftFormInput {
@@ -73,6 +92,17 @@ function draftToInput(draft: NfseDraft): DraftFormInput {
       specialTaxRegime: draft.fiscal.specialTaxRegime ?? "",
       locationMunicipality: draft.fiscal.locationMunicipality ?? "",
       locationIbgeCode: draft.fiscal.locationIbgeCode ?? "",
+      cAtvSN: draft.fiscal.cAtvSN ?? "",
+      cstIbsCbs: draft.fiscal.cstIbsCbs ?? "",
+      cClassTrib: draft.fiscal.cClassTrib ?? "",
+      cIndOp: draft.fiscal.cIndOp ?? "",
+      // Preserva EXATAMENTE o que foi snapshotado na criação — nunca
+      // recarrega da configuração atual do prestador ao editar (mesmo
+      // princípio do snapshot do tomador: editar depois nunca reflete
+      // mudanças retroativas na configuração do prestador).
+      issuerSimplesNacionalOption: draft.fiscal.issuerSimplesNacionalOption ?? "",
+      issuerIbsCbsSimplesNacionalRegime: draft.fiscal.issuerIbsCbsSimplesNacionalRegime ?? "",
+      issuerSpecialTaxRegimeCode: draft.fiscal.issuerSpecialTaxRegimeCode ?? "",
     },
     competencyDate: draft.competencyDate,
     serviceValue: String(draft.serviceValue),
@@ -100,12 +130,15 @@ export function NfseDraftForm({
   mode,
   serviceProfiles,
   issuerConfigured,
+  issuerConfig,
   initialDraft,
   initialSelectedClient,
 }: {
   mode: "create" | "edit";
   serviceProfiles: NfseServiceProfile[];
   issuerConfigured: boolean;
+  /** Configuração ATUAL do prestador — usada só pra semear os campos `issuer*` de um rascunho NOVO (ver emptyFiscal). Nunca aplicada retroativamente a um rascunho já existente. */
+  issuerConfig?: NfseIssuerConfig | null;
   initialDraft?: NfseDraft;
   initialSelectedClient?: ClientSearchResult | null;
 }): JSX.Element {
@@ -117,7 +150,7 @@ export function NfseDraftForm({
   const [selectedClient, setSelectedClient] = useState<ClientSearchResult | null>(initialSelectedClient ?? null);
   const [tomador, setTomador] = useState<TomadorSnapshotFormInput>(initialDraft ? draftToInput(initialDraft).tomador : emptyTomador());
   const [serviceProfileId, setServiceProfileId] = useState(initialDraft?.serviceProfileId ?? "");
-  const [fiscal, setFiscal] = useState<FiscalSnapshotFormInput>(initialDraft ? draftToInput(initialDraft).fiscal : emptyFiscal());
+  const [fiscal, setFiscal] = useState<FiscalSnapshotFormInput>(initialDraft ? draftToInput(initialDraft).fiscal : emptyFiscal(issuerConfig));
   const [competencyDate, setCompetencyDate] = useState(initialDraft?.competencyDate ?? new Date().toISOString().slice(0, 10));
   const [serviceValue, setServiceValue] = useState(initialDraft ? String(initialDraft.serviceValue) : "");
   const [serviceDescription, setServiceDescription] = useState(initialDraft?.serviceDescription ?? "");
@@ -164,8 +197,14 @@ export function NfseDraftForm({
     setServiceProfileId(id);
     const profile = serviceProfiles.find((item) => item.id === id);
     if (profile) {
-      const snapshot = buildFiscalSnapshotFromServiceProfile(profile);
-      setFiscal({
+      // Perfil traz os campos da OPERAÇÃO (cTribNac/cAtvSN/CST/
+      // cClassTrib/cIndOp); os 3 campos issuer* vêm sempre da
+      // configuração do prestador, nunca do perfil — por isso
+      // `fiscal.issuer*` atual é preservado aqui, nunca sobrescrito ao
+      // trocar de perfil.
+      const snapshot = buildFiscalSnapshotFromServiceProfile(profile, issuerConfig ?? undefined);
+      setFiscal((prev) => ({
+        ...prev,
         cTribNac: snapshot.cTribNac ?? "",
         cTribMun: snapshot.cTribMun ?? "",
         cNBS: snapshot.cNBS ?? "",
@@ -173,7 +212,11 @@ export function NfseDraftForm({
         specialTaxRegime: snapshot.specialTaxRegime ?? "",
         locationMunicipality: snapshot.locationMunicipality ?? "",
         locationIbgeCode: snapshot.locationIbgeCode ?? "",
-      });
+        cAtvSN: snapshot.cAtvSN ?? "",
+        cstIbsCbs: snapshot.cstIbsCbs ?? "",
+        cClassTrib: snapshot.cClassTrib ?? "",
+        cIndOp: snapshot.cIndOp ?? "",
+      }));
     }
   }
 
@@ -398,6 +441,50 @@ export function NfseDraftForm({
               <label className="form-field">
                 <span className="field-label">Código IBGE da prestação <span className="field-optional">(opcional)</span></span>
                 <input type="text" value={fiscal.locationIbgeCode} onChange={(event) => setFiscalField("locationIbgeCode", event.target.value)} />
+              </label>
+              <label className="form-field">
+                <span className="field-label">Código de atividade do Simples Nacional (cAtvSN) <span className="field-optional">(opcional)</span></span>
+                <select value={fiscal.cAtvSN} onChange={(event) => setFiscalField("cAtvSN", event.target.value)}>
+                  <option value="">Não escolhido</option>
+                  {NFSE_CATVSN_CODES.map((code) => (
+                    <option key={code} value={code}>
+                      {code} — {NFSE_CATVSN_LABELS[code]}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="form-field">
+                <span className="field-label">CST IBS/CBS <span className="field-optional">(opcional)</span></span>
+                <input type="text" value={fiscal.cstIbsCbs} onChange={(event) => setFiscalField("cstIbsCbs", event.target.value)} />
+              </label>
+              <label className="form-field">
+                <span className="field-label">Classificação tributária (cClassTrib) <span className="field-optional">(opcional)</span></span>
+                <input type="text" value={fiscal.cClassTrib} onChange={(event) => setFiscalField("cClassTrib", event.target.value)} />
+              </label>
+              <label className="form-field">
+                <span className="field-label">Indicador de operação (cIndOp) <span className="field-optional">(opcional)</span></span>
+                <input type="text" value={fiscal.cIndOp} onChange={(event) => setFiscalField("cIndOp", event.target.value)} />
+                <span className="helper-text">Carregado do perfil como padrão — pode ser ajustado só para esta operação.</span>
+              </label>
+            </div>
+          </section>
+          <section className="form-section">
+            <h2>Situação fiscal do prestador (snapshot)</h2>
+            <p className="helper-text">
+              Copiados da configuração do prestador no momento da criação deste rascunho — nunca editáveis aqui diretamente; pra corrigir, ajuste a configuração fiscal do prestador antes de criar um novo rascunho.
+            </p>
+            <div className="form-grid">
+              <label className="form-field">
+                <span className="field-label">Situação no Simples Nacional</span>
+                <input type="text" value={fiscal.issuerSimplesNacionalOption || "—"} disabled readOnly />
+              </label>
+              <label className="form-field">
+                <span className="field-label">Regime de apuração IBS/CBS no Simples</span>
+                <input type="text" value={fiscal.issuerIbsCbsSimplesNacionalRegime || "—"} disabled readOnly />
+              </label>
+              <label className="form-field">
+                <span className="field-label">Regime especial de tributação</span>
+                <input type="text" value={fiscal.issuerSpecialTaxRegimeCode || "—"} disabled readOnly />
               </label>
             </div>
           </section>
