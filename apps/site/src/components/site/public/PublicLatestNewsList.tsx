@@ -30,6 +30,11 @@ export function PublicLatestNewsList({ items }: { items: PublicArticle[] }): JSX
   useEffect(() => {
     if (items.length <= 1) return;
 
+    const effectiveDelay =
+      rotation.nextDelayMs === DESKTOP_AUTO_ROTATION_MS && isMobile
+        ? MOBILE_AUTO_ROTATION_MS
+        : rotation.nextDelayMs;
+
     const timer = window.setTimeout(() => {
       setRotation((previous) => {
         const currentIndex = previous.index < items.length ? previous.index : 0;
@@ -38,7 +43,7 @@ export function PublicLatestNewsList({ items }: { items: PublicArticle[] }): JSX
           nextDelayMs: isMobile ? MOBILE_AUTO_ROTATION_MS : DESKTOP_AUTO_ROTATION_MS,
         };
       });
-    }, rotation.nextDelayMs);
+    }, effectiveDelay);
 
     return () => window.clearTimeout(timer);
   }, [items.length, rotation.index, rotation.nextDelayMs, isMobile]);
