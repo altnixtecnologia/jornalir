@@ -1,12 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useRef, useState, type MouseEvent } from "react";
+import { useEffect, useRef, useState, type MouseEvent, type TouchEvent } from "react";
 import { formatDateBR } from "../date";
 import type { PublicArticle } from "../../../lib/public/types";
 
 const DESKTOP_AUTOPLAY_MS = 8_000;
 const MOBILE_AUTOPLAY_MS = 16_000;
+const SWIPE_THRESHOLD_PX = 42;
 
 type ImageOrientation = "landscape" | "portrait" | "square";
 
@@ -21,6 +22,9 @@ export function PublicFeaturedHero({ items }: { items: PublicArticle[] }): JSX.E
   const [isMobile, setIsMobile] = useState(false);
   const [orientations, setOrientations] = useState<Record<string, ImageOrientation>>({});
   const stageRef = useRef<HTMLDivElement>(null);
+  const touchStartXRef = useRef<number | null>(null);
+  const touchStartYRef = useRef<number | null>(null);
+  const suppressClickRef = useRef(false);
 
   useEffect(() => {
     const media = window.matchMedia("(max-width: 767px)");
@@ -50,7 +54,9 @@ export function PublicFeaturedHero({ items }: { items: PublicArticle[] }): JSX.E
       image.onload = () => {
         if (cancelled) return;
         const ratio = image.naturalWidth / Math.max(1, image.naturalHeight);
-        const orientation: ImageOrientation = ratio > 1.08 ? "landscape" : ratio < 0.72 ? "portrait" : "square";
+        // Retratos realmente próximos do formato vertical (ex.: 9:16)
+        // respiram. Quadradas e horizontais percorrem lateralmente.
+        const orientation: ImageOrientation = ratio > 1.08 ? "landscape" : ratio < 0.78 ? "portrait" : "square";
         setOrientations((current) => (current[item.id] ? current : { ...current, [item.id]: orientation }));
       };
       image.src = url;
@@ -84,6 +90,32 @@ export function PublicFeaturedHero({ items }: { items: PublicArticle[] }): JSX.E
     el.style.setProperty("--hero-py", "0px");
   }
 
+  function handleTouchStart(event: TouchEvent<HTMLDivElement>): void {
+    const touch = event.touches[0];
+    touchStartXRef.current = touch.clientX;
+    touchStartYRef.current = touch.clientY;
+  }
+
+  function handleTouchEnd(event: TouchEvent<HTMLDivElement>): void {
+    if (touchStartXRef.current === null || touchStartYRef.current === null) return;
+    const touch = event.changedTouches[0];
+    const dx = touch.clientX - touchStartXRef.current;
+    const dy = touch.clientY - touchStartYRef.current;
+
+    touchStartXRef.current = null;
+    touchStartYRef.current = null;
+
+    if (Math.abs(dx) < SWIPE_THRESHOLD_PX || Math.abs(dx) <= Math.abs(dy)) return;
+
+    suppressClickRef.current = true;
+    if (dx < 0) next();
+    else prev();
+
+    window.setTimeout(() => {
+      suppressClickRef.current = false;
+    }, 350);
+  }
+
   return (
     <article className="hero-stage hero-backdrop relative w-full overflow-hidden">
       <div
@@ -91,6 +123,8 @@ export function PublicFeaturedHero({ items }: { items: PublicArticle[] }): JSX.E
         className="relative h-[100svh] min-h-[520px] w-full"
         onMouseMove={handleMouseMove}
         onMouseLeave={handleMouseLeave}
+        onTouchStart={handleTouchStart}
+        onTouchEnd={handleTouchEnd}
       >
         {items.map((item, i) => {
           const isActive = i === index;
@@ -110,6 +144,10 @@ export function PublicFeaturedHero({ items }: { items: PublicArticle[] }): JSX.E
               className={`hero-slide group absolute inset-0 block ${isActive ? "opacity-100 z-10" : "pointer-events-none opacity-0 z-0"}`}
               aria-hidden={!isActive}
               tabIndex={isActive ? 0 : -1}
+              onClick={(event) => {
+                if (!suppressClickRef.current) return;
+                event.preventDefault();
+              }}
             >
               {withPhoto ? (
                 <>
@@ -184,7 +222,7 @@ export function PublicFeaturedHero({ items }: { items: PublicArticle[] }): JSX.E
           <button
             type="button"
             onClick={prev}
-            className="absolute left-3 top-1/2 z-30 -translate-y-1/2 rounded-full bg-black/25 px-3 py-3 text-white transition hover:bg-black/50 md:left-6"
+            className="absolute left-6 top-1/2 z-30 hidden -translate-y-1/2 rounded-full bg-black/25 px-3 py-3 text-white transition hover:bg-black/50 md:block"
             aria-label="Destaque anterior"
           >
             ‹
@@ -192,11 +230,18 @@ export function PublicFeaturedHero({ items }: { items: PublicArticle[] }): JSX.E
           <button
             type="button"
             onClick={next}
-            className="absolute right-3 top-1/2 z-30 -translate-y-1/2 rounded-full bg-black/25 px-3 py-3 text-white transition hover:bg-black/50 md:right-6"
+            className="absolute right-6 top-1/2 z-30 hidden -translate-y-1/2 rounded-full bg-black/25 px-3 py-3 text-white transition hover:bg-black/50 md:block"
             aria-label="Próximo destaque"
           >
             ›
           </button>
+
+          <div className="hero-swipe-hint pointer-events-none absolute inset-x-0 top-[48%] z-30 flex items-center justify-between px-5 md:hidden" aria-hidden="true">
+            <span className="hero-swipe-edge">‹</span>
+            <span className="hero-swipe-label">deslize</span>
+            <span className="hero-swipe-edge">›</span>
+          </div>
+
           <div className="site-shell absolute inset-x-0 top-6 z-30 flex justify-end gap-1.5">
             {items.map((item, i) => (
               <button

@@ -1448,3 +1448,158 @@ body {
 .whatsapp-float.is-docked {
   box-shadow: none;
 }
+
+
+/* --- Hero mobile: zoom-out para retratos e gesto de deslizar --- */
+@media (max-width: 767px) {
+  .hero-mobile-breathe {
+    animation: hero-mobile-breathe 15s ease-in-out both;
+    transform-origin: center center;
+    will-change: transform;
+  }
+  .hero-mobile-pan {
+    animation-duration: 15s;
+  }
+  .hero-swipe-hint {
+    opacity: 0.46;
+    animation: hero-swipe-hint 2.2s ease-in-out infinite;
+  }
+  .hero-swipe-edge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    height: 38px;
+    min-width: 30px;
+    color: #fff;
+    font-size: 34px;
+    line-height: 1;
+    text-shadow: 0 2px 8px rgba(0, 0, 0, 0.45);
+  }
+  .hero-swipe-label {
+    border-radius: 999px;
+    padding: 5px 10px;
+    background: rgba(0, 0, 0, 0.18);
+    color: rgba(255, 255, 255, 0.82);
+    font-size: 9px;
+    font-weight: 800;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    backdrop-filter: blur(2px);
+  }
+}
+@keyframes hero-mobile-breathe {
+  from { transform: scale(1.115); }
+  to { transform: scale(1); }
+}
+@keyframes hero-swipe-hint {
+  0%, 100% { opacity: 0.24; transform: scale(0.98); }
+  50% { opacity: 0.62; transform: scale(1); }
+}
+
+/* --- Busca rápida mobile: a lupa abre um campo flutuante em qualquer tela --- */
+.mobile-search-layer {
+  pointer-events: none;
+  position: fixed;
+  inset: 0;
+  z-index: 110;
+  opacity: 0;
+  transition: opacity 180ms ease;
+}
+.mobile-search-layer.is-open {
+  pointer-events: auto;
+  opacity: 1;
+}
+.mobile-search-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(9, 10, 18, 0.38);
+  backdrop-filter: blur(2px);
+}
+.mobile-search-popover {
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  top: calc(12px + env(safe-area-inset-top, 0px));
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  min-height: 54px;
+  padding: 7px 8px 7px 12px;
+  border: 1px solid var(--site-line);
+  border-radius: 18px;
+  background: var(--site-surface);
+  box-shadow: 0 14px 36px rgba(9, 10, 18, 0.28);
+}
+.mobile-search-popover-icon {
+  color: var(--brand-navy);
+}
+.mobile-search-popover input {
+  min-width: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--site-text);
+  font: inherit;
+  font-size: 15px;
+}
+.mobile-search-submit {
+  min-height: 38px;
+  padding: 0 13px;
+  border-radius: 999px;
+  background: var(--brand-red);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 800;
+}
+.mobile-search-submit:disabled {
+  opacity: 0.45;
+}
+.ir-mobile-menu-brand {
+  justify-content: space-between;
+  gap: 12px;
+  padding-right: 0;
+}
+.ir-mobile-menu-search {
+  flex: 0 0 auto;
+  border: 1px solid var(--site-line);
+}
+
+/* --- Voltar global mobile: aparece em todas as páginas, exceto a home --- */
+.mobile-global-back {
+  position: fixed;
+  left: 8px;
+  top: calc(64px + env(safe-area-inset-top, 0px));
+  z-index: 62;
+  display: inline-flex;
+  height: 32px;
+  width: 32px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(255, 255, 255, 0.55);
+  border-radius: 999px;
+  background: rgba(31, 31, 58, 0.58);
+  color: #fff;
+  font-size: 18px;
+  font-weight: 800;
+  line-height: 1;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.14);
+  backdrop-filter: blur(5px);
+}
+
+/* --- WhatsApp flutuante: menor e mais lateral no desktop; no hero mobile
+   o componente calcula uma posição segura acima do bloco de texto. --- */
+@media (min-width: 768px) {
+  .whatsapp-float {
+    right: 7px;
+    height: 48px;
+    width: 48px;
+  }
+}
+@media (max-width: 767px) {
+  .whatsapp-float {
+    right: 10px;
+    height: 50px;
+    width: 50px;
+  }
+}

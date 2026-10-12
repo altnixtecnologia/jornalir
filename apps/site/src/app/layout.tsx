@@ -3,6 +3,7 @@ import { Merriweather, Source_Sans_3 } from "next/font/google";
 import { ServiceWorkerRegister } from "../components/ServiceWorkerRegister";
 import { SiteFooter } from "../components/site/SiteFooter";
 import { WhatsAppFloatingButton } from "../components/site/WhatsAppFloatingButton";
+import { MobileBackButton } from "../components/site/MobileBackButton";
 import "./globals.css";
 
 const headline = Merriweather({ subsets: ["latin"], variable: "--font-headline", weight: ["700", "900"] });
@@ -40,6 +41,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }):
     <html lang="pt-BR" suppressHydrationWarning className={`${headline.variable} ${bodyFont.variable}`}>
       <body className="font-[family-name:var(--font-body)]">
         <ServiceWorkerRegister />
+        <MobileBackButton />
         {children}
         <SiteFooter />
         <WhatsAppFloatingButton />
