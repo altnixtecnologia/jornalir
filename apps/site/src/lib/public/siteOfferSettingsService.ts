@@ -7,7 +7,11 @@ export interface PublicSiteOfferSettings {
   printQuarterPrice: number;
   printHalfPrice: number;
   printFullPrice: number;
-  ledThreeCitiesPrice: number;
+
+  ledSjs1x2Price: number;
+  ledPraiaGrande1x2Price: number;
+  ledPassoTorres1x2Price: number;
+  ledSjs4x2Price: number;
 
   annualSubscriptionComboDiscount: number;
   printBusinessCardComboDiscount: number;
@@ -15,7 +19,11 @@ export interface PublicSiteOfferSettings {
   printQuarterComboDiscount: number;
   printHalfComboDiscount: number;
   printFullComboDiscount: number;
-  ledThreeCitiesComboDiscount: number;
+
+  ledSjs1x2ComboDiscount: number;
+  ledPraiaGrande1x2ComboDiscount: number;
+  ledPassoTorres1x2ComboDiscount: number;
+  ledSjs4x2ComboDiscount: number;
 }
 
 export const DEFAULT_SITE_OFFER_SETTINGS: PublicSiteOfferSettings = {
@@ -25,7 +33,11 @@ export const DEFAULT_SITE_OFFER_SETTINGS: PublicSiteOfferSettings = {
   printQuarterPrice: 350,
   printHalfPrice: 700,
   printFullPrice: 1200,
-  ledThreeCitiesPrice: 800,
+
+  ledSjs1x2Price: 0,
+  ledPraiaGrande1x2Price: 0,
+  ledPassoTorres1x2Price: 0,
+  ledSjs4x2Price: 0,
 
   annualSubscriptionComboDiscount: 50,
   printBusinessCardComboDiscount: 50,
@@ -33,7 +45,11 @@ export const DEFAULT_SITE_OFFER_SETTINGS: PublicSiteOfferSettings = {
   printQuarterComboDiscount: 50,
   printHalfComboDiscount: 50,
   printFullComboDiscount: 50,
-  ledThreeCitiesComboDiscount: 50,
+
+  ledSjs1x2ComboDiscount: 50,
+  ledPraiaGrande1x2ComboDiscount: 50,
+  ledPassoTorres1x2ComboDiscount: 50,
+  ledSjs4x2ComboDiscount: 50,
 };
 
 interface Row {
@@ -43,7 +59,11 @@ interface Row {
   print_quarter_price: number | string;
   print_half_price: number | string;
   print_full_price: number | string;
-  led_three_cities_price: number | string;
+
+  led_sjs_1x2_price: number | string;
+  led_praia_grande_1x2_price: number | string;
+  led_passo_torres_1x2_price: number | string;
+  led_sjs_4x2_price: number | string;
 
   annual_subscription_combo_discount: number | string;
   print_business_card_combo_discount: number | string;
@@ -51,7 +71,11 @@ interface Row {
   print_quarter_combo_discount: number | string;
   print_half_combo_discount: number | string;
   print_full_combo_discount: number | string;
-  led_three_cities_combo_discount: number | string;
+
+  led_sjs_1x2_combo_discount: number | string;
+  led_praia_grande_1x2_combo_discount: number | string;
+  led_passo_torres_1x2_combo_discount: number | string;
+  led_sjs_4x2_combo_discount: number | string;
 }
 
 function numberValue(value: number | string): number {
@@ -64,23 +88,26 @@ export async function getPublicSiteOfferSettings(): Promise<PublicSiteOfferSetti
     const { data, error } = await client
       .from("site_offer_settings")
       .select(
-        "annual_subscription_price, print_business_card_price, print_standard_price, print_quarter_price, print_half_price, print_full_price, led_three_cities_price, annual_subscription_combo_discount, print_business_card_combo_discount, print_standard_combo_discount, print_quarter_combo_discount, print_half_combo_discount, print_full_combo_discount, led_three_cities_combo_discount",
+        "annual_subscription_price, print_business_card_price, print_standard_price, print_quarter_price, print_half_price, print_full_price, led_sjs_1x2_price, led_praia_grande_1x2_price, led_passo_torres_1x2_price, led_sjs_4x2_price, annual_subscription_combo_discount, print_business_card_combo_discount, print_standard_combo_discount, print_quarter_combo_discount, print_half_combo_discount, print_full_combo_discount, led_sjs_1x2_combo_discount, led_praia_grande_1x2_combo_discount, led_passo_torres_1x2_combo_discount, led_sjs_4x2_combo_discount",
       )
       .eq("id", 1)
       .maybeSingle();
 
     if (error || !data) return DEFAULT_SITE_OFFER_SETTINGS;
-
     const row = data as Row;
+
     return {
-      annualSubscriptionPrice:
-        row.annual_subscription_price === null ? null : numberValue(row.annual_subscription_price),
+      annualSubscriptionPrice: row.annual_subscription_price === null ? null : numberValue(row.annual_subscription_price),
       printBusinessCardPrice: numberValue(row.print_business_card_price),
       printStandardPrice: numberValue(row.print_standard_price),
       printQuarterPrice: numberValue(row.print_quarter_price),
       printHalfPrice: numberValue(row.print_half_price),
       printFullPrice: numberValue(row.print_full_price),
-      ledThreeCitiesPrice: numberValue(row.led_three_cities_price),
+
+      ledSjs1x2Price: numberValue(row.led_sjs_1x2_price),
+      ledPraiaGrande1x2Price: numberValue(row.led_praia_grande_1x2_price),
+      ledPassoTorres1x2Price: numberValue(row.led_passo_torres_1x2_price),
+      ledSjs4x2Price: numberValue(row.led_sjs_4x2_price),
 
       annualSubscriptionComboDiscount: numberValue(row.annual_subscription_combo_discount),
       printBusinessCardComboDiscount: numberValue(row.print_business_card_combo_discount),
@@ -88,7 +115,11 @@ export async function getPublicSiteOfferSettings(): Promise<PublicSiteOfferSetti
       printQuarterComboDiscount: numberValue(row.print_quarter_combo_discount),
       printHalfComboDiscount: numberValue(row.print_half_combo_discount),
       printFullComboDiscount: numberValue(row.print_full_combo_discount),
-      ledThreeCitiesComboDiscount: numberValue(row.led_three_cities_combo_discount),
+
+      ledSjs1x2ComboDiscount: numberValue(row.led_sjs_1x2_combo_discount),
+      ledPraiaGrande1x2ComboDiscount: numberValue(row.led_praia_grande_1x2_combo_discount),
+      ledPassoTorres1x2ComboDiscount: numberValue(row.led_passo_torres_1x2_combo_discount),
+      ledSjs4x2ComboDiscount: numberValue(row.led_sjs_4x2_combo_discount),
     };
   } catch {
     return DEFAULT_SITE_OFFER_SETTINGS;
