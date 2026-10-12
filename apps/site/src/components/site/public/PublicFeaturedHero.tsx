@@ -7,26 +7,17 @@ import type { PublicArticle } from "../../../lib/public/types";
 
 const AUTOPLAY_MS = 8000;
 
-/**
- * Faixas discretas por comprimento da manchete: o título nunca é truncado,
- * apenas reduzido por faixas quando a manchete é longa.
- */
+type ImageOrientation = "landscape" | "portrait" | "square";
+
 function heroTitleSizeClass(title: string): string {
   if (title.length <= 42) return "hero-title--short";
   if (title.length <= 78) return "hero-title--medium";
   return "hero-title--long";
 }
 
-/**
- * Manchete principal da home:
- * - ocupa a primeira viewport;
- * - mostra a foto inteira (contain), sem corte;
- * - usa a mesma foto desfocada ao fundo apenas para preencher eventuais
- *   sobras de proporção sem criar faixas vazias;
- * - a marca fica flutuando sobre o hero e a navegação vem depois dele.
- */
 export function PublicFeaturedHero({ items }: { items: PublicArticle[] }): JSX.Element {
   const [index, setIndex] = useState(0);
+  const [orientations, setOrientations] = useState<Record<string, ImageOrientation>>({});
   const stageRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -36,6 +27,31 @@ export function PublicFeaturedHero({ items }: { items: PublicArticle[] }): JSX.E
     }, AUTOPLAY_MS);
     return () => window.clearInterval(timer);
   }, [items.length]);
+
+  // Detecta a proporção real de cada capa no navegador. Assim, fotos
+  // horizontais podem preencher todo o hero e fotos verticais preservam
+  // a imagem inteira com extensão desfocada nas laterais.
+  useEffect(() => {
+    let cancelled = false;
+
+    for (const item of items) {
+      const url = item.cover?.url;
+      if (!url || orientations[item.id]) continue;
+
+      const image = new Image();
+      image.onload = () => {
+        if (cancelled) return;
+        const ratio = image.naturalWidth / Math.max(1, image.naturalHeight);
+        const orientation: ImageOrientation = ratio > 1.08 ? "landscape" : ratio < 0.92 ? "portrait" : "square";
+        setOrientations((current) => (current[item.id] ? current : { ...current, [item.id]: orientation }));
+      };
+      image.src = url;
+    }
+
+    return () => {
+      cancelled = true;
+    };
+  }, [items, orientations]);
 
   if (items.length === 0) return <></>;
 
@@ -70,6 +86,8 @@ export function PublicFeaturedHero({ items }: { items: PublicArticle[] }): JSX.E
         {items.map((item, i) => {
           const isActive = i === index;
           const withPhoto = Boolean(item.cover?.url);
+          const orientation = orientations[item.id];
+          const fillsHero = orientation === "landscape";
 
           return (
             <Link
@@ -81,21 +99,29 @@ export function PublicFeaturedHero({ items }: { items: PublicArticle[] }): JSX.E
             >
               {withPhoto ? (
                 <>
-                  {/* Preenchimento cenográfico: cobre toda a viewport e fica
-                      desfocado/escurecido. Não é a foto editorial principal. */}
+                  {/* "Borda infinita": para vertical/quadrada, a própria
+                      foto ampliada, desfocada e escurecida preenche as
+                      laterais. Em horizontal fica praticamente escondida
+                      pela imagem principal em cover. */}
                   <div
-                    className="absolute -inset-8 scale-110 bg-cover bg-center opacity-45 blur-2xl"
+                    className={`absolute -inset-10 scale-110 bg-cover bg-center blur-2xl transition-opacity duration-500 ${
+                      fillsHero ? "opacity-20" : "opacity-65"
+                    }`}
                     style={{ backgroundImage: `url(${item.cover?.url})` }}
                     aria-hidden="true"
                   />
 
-                  {/* Foto editorial: sempre inteira. O contain garante que
-                      nenhuma borda seja cortada em qualquer proporção de tela. */}
                   <div className="hero-photo-layer absolute inset-0">
                     <div className="hero-parallax h-full w-full">
                       <div
-                        className="hero-photo-fg h-full w-full bg-contain bg-center bg-no-repeat"
-                        style={{ backgroundImage: `url(${item.cover?.url})` }}
+                        className="hero-photo-fg h-full w-full bg-center bg-no-repeat"
+                        style={{
+                          backgroundImage: `url(${item.cover?.url})`,
+                          // Horizontal: preenche todo o espaço lateral.
+                          // Vertical/quadrada: preserva a foto inteira e usa
+                          // o fundo desfocado como continuação lateral.
+                          backgroundSize: fillsHero ? "cover" : "contain",
+                        }}
                       />
                     </div>
                   </div>
@@ -129,8 +155,6 @@ export function PublicFeaturedHero({ items }: { items: PublicArticle[] }): JSX.E
           );
         })}
 
-        {/* Marca da home: aparece sozinha na abertura; o menu completo fica
-            logo abaixo do hero e passa a ser sticky quando alcança o topo. */}
         <div className="site-shell pointer-events-none absolute inset-x-0 top-0 z-30 flex items-start pt-[max(18px,env(safe-area-inset-top))]">
           <Link href="/" aria-label="Informativo Regional" className="pointer-events-auto inline-flex">
             <img
