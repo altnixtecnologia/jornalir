@@ -1,7 +1,9 @@
 import { ModuleHeader } from "../../../../components/admin/ModuleHeader";
 import { createSupabaseServerClient } from "../../../../lib/supabase/server";
 import {
+  reviewSiteInterestAction,
   updateSiteInterestStatusAction,
+  type SiteInterestAvailability,
   type SiteInterestStatus,
 } from "./actions";
 
@@ -20,6 +22,17 @@ interface InterestRow {
   estimated_total: number | null;
   notes: string | null;
   status: SiteInterestStatus;
+  payment_preference: "pix" | "boleto" | "credit_card" | "cash" | "to_define" | null;
+  address_zip: string | null;
+  address_street: string | null;
+  address_number: string | null;
+  address_complement: string | null;
+  address_neighborhood: string | null;
+  address_city: string | null;
+  address_state: string | null;
+  availability_status: SiteInterestAvailability;
+  approved_total: number | null;
+  admin_note: string | null;
   created_at: string;
 }
 
@@ -28,10 +41,7 @@ function money(value: number): string {
 }
 
 function formatDate(value: string): string {
-  return new Date(value).toLocaleString("pt-BR", {
-    dateStyle: "short",
-    timeStyle: "short",
-  });
+  return new Date(value).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" });
 }
 
 function requestTypeLabel(value: InterestRow["request_type"]): string {
@@ -41,13 +51,26 @@ function requestTypeLabel(value: InterestRow["request_type"]): string {
 }
 
 function statusLabel(value: SiteInterestStatus): string {
-  const labels: Record<SiteInterestStatus, string> = {
-    new: "Nova",
-    contacted: "Em contato",
-    converted: "Convertida",
-    discarded: "Descartada",
-  };
-  return labels[value];
+  return { new: "Nova", contacted: "Em atendimento", converted: "Convertida", discarded: "Descartada" }[value];
+}
+
+function availabilityLabel(value: SiteInterestAvailability): string {
+  return {
+    pending: "Aguardando análise",
+    approved: "Disponível/aprovada",
+    unavailable: "Sem disponibilidade/rota",
+    needs_info: "Precisa de informação",
+  }[value];
+}
+
+function paymentLabel(value: InterestRow["payment_preference"]): string {
+  return {
+    pix: "Pix",
+    boleto: "Boleto",
+    credit_card: "Cartão",
+    cash: "Dinheiro",
+    to_define: "A definir",
+  }[value ?? "to_define"];
 }
 
 function selectionLabels(value: unknown): string[] {
@@ -61,11 +84,41 @@ function selectionLabels(value: unknown): string[] {
     .filter((item): item is string => Boolean(item));
 }
 
+function whatsappHref(row: InterestRow): string {
+  const digits = row.phone.replace(/\D/g, "");
+  const amount = row.approved_total ?? row.estimated_total;
+  const lines = [
+    `Olá, ${row.name.split(" ")[0]}! Aqui é do Informativo Regional.`,
+    "",
+    row.availability_status === "approved"
+      ? "Analisamos sua solicitação e ela está disponível para seguirmos com a confirmação."
+      : row.availability_status === "unavailable"
+        ? "Analisamos sua solicitação e precisamos conversar sobre a disponibilidade/rota."
+        : "Recebemos sua solicitação pelo site e estamos fazendo a análise.",
+    amount !== null ? `Valor de referência: ${money(Number(amount))}.` : null,
+    `Forma de pagamento indicada: ${paymentLabel(row.payment_preference)}.`,
+    "",
+    "Nenhuma cobrança é emitida sem a confirmação do atendimento.",
+  ].filter(Boolean);
+  return `https://wa.me/${digits}?text=${encodeURIComponent(lines.join("\n"))}`;
+}
+
+function fullAddress(row: InterestRow): string | null {
+  if (!row.address_street && !row.address_city) return null;
+  return [
+    [row.address_street, row.address_number].filter(Boolean).join(", "),
+    row.address_complement,
+    row.address_neighborhood,
+    [row.address_city, row.address_state].filter(Boolean).join(" - "),
+    row.address_zip ? `CEP ${row.address_zip}` : null,
+  ].filter(Boolean).join(" · ");
+}
+
 export default async function SiteInterestRequestsPage(): Promise<JSX.Element> {
   const client = createSupabaseServerClient();
   const { data, error } = await client
     .from("site_interest_requests")
-    .select("id, request_type, name, phone, email, city, company, selections, estimated_total, notes, status, created_at")
+    .select("id, request_type, name, phone, email, city, company, selections, estimated_total, notes, status, payment_preference, address_zip, address_street, address_number, address_complement, address_neighborhood, address_city, address_state, availability_status, approved_total, admin_note, created_at")
     .order("created_at", { ascending: false })
     .limit(200);
 
@@ -79,95 +132,109 @@ export default async function SiteInterestRequestsPage(): Promise<JSX.Element> {
       <ModuleHeader
         eyebrow="COMERCIAL / SITE"
         title="Solicitações do site"
-        description="Interesses enviados pela página Assine. São apenas solicitações para análise — nunca viram venda, assinatura ou Financeiro automaticamente."
+        description="Fila de assinatura e publicidade. Primeiro analisamos rota/disponibilidade; só depois confirmamos e enviamos a cobrança."
       />
 
       <ul className="quick-access-grid financeiro-kpi-grid">
-        <li>
-          <div className="quick-access-card" style={{ cursor: "default" }}>
-            <span className="quick-access-label">{newCount}</span>
-            <span className="quick-access-description">Novas aguardando contato</span>
-          </div>
-        </li>
-        <li>
-          <div className="quick-access-card" style={{ cursor: "default" }}>
-            <span className="quick-access-label">{rows.length}</span>
-            <span className="quick-access-description">Solicitações carregadas</span>
-          </div>
-        </li>
+        <li><div className="quick-access-card" style={{ cursor: "default" }}><span className="quick-access-label">{newCount}</span><span className="quick-access-description">Novas</span></div></li>
+        <li><div className="quick-access-card" style={{ cursor: "default" }}><span className="quick-access-label">{rows.length}</span><span className="quick-access-description">Solicitações carregadas</span></div></li>
       </ul>
 
       <section className="form-section">
         <h2>Fila de atendimento</h2>
-
         {rows.length === 0 ? (
-          <p className="helper-text">Nenhuma solicitação recebida pelo site até agora.</p>
+          <p className="helper-text">Nenhuma solicitação recebida até agora.</p>
         ) : (
-          <div className="table-wrap">
-            <table>
-              <thead>
-                <tr>
-                  <th>Recebida</th>
-                  <th>Contato</th>
-                  <th>Interesse</th>
-                  <th>Estimativa</th>
-                  <th>Status</th>
-                  <th>Ações</th>
-                </tr>
-              </thead>
-              <tbody>
-                {rows.map((row) => {
-                  const labels = selectionLabels(row.selections);
-                  return (
-                    <tr key={row.id}>
-                      <td style={{ whiteSpace: "nowrap" }}>{formatDate(row.created_at)}</td>
-                      <td>
-                        <strong>{row.name}</strong>
-                        {row.company ? <><br /><span className="helper-text">{row.company}</span></> : null}
-                        <br />
-                        <a href={`https://wa.me/${row.phone.replace(/\D/g, "")}`} target="_blank" rel="noreferrer">
-                          {row.phone}
-                        </a>
-                        {row.city ? <><br /><span className="helper-text">{row.city}</span></> : null}
-                        {row.email ? <><br /><span className="helper-text">{row.email}</span></> : null}
-                      </td>
-                      <td>
-                        <strong>{requestTypeLabel(row.request_type)}</strong>
-                        {labels.length > 0 ? (
-                          <ul style={{ margin: "6px 0 0", paddingLeft: "18px" }}>
-                            {labels.map((label, index) => <li key={`${row.id}-${index}`}>{label}</li>)}
-                          </ul>
-                        ) : null}
-                        {row.notes ? <p className="helper-text" style={{ marginTop: "6px" }}>{row.notes}</p> : null}
-                      </td>
-                      <td>{row.estimated_total !== null ? money(Number(row.estimated_total)) : "Sob consulta"}</td>
-                      <td>
-                        <span className="status-badge">{statusLabel(row.status)}</span>
-                      </td>
-                      <td>
-                        <div className="form-actions">
-                          {row.status !== "contacted" ? (
-                            <form action={updateSiteInterestStatusAction.bind(null, row.id, "contacted")}>
-                              <button type="submit">Em contato</button>
-                            </form>
-                          ) : null}
-                          {row.status !== "converted" ? (
-                            <form action={updateSiteInterestStatusAction.bind(null, row.id, "converted")}>
-                              <button type="submit">Convertida</button>
-                            </form>
-                          ) : null}
-                          {row.status !== "discarded" ? (
-                            <form action={updateSiteInterestStatusAction.bind(null, row.id, "discarded")}>
-                              <button type="submit">Descartar</button>
-                            </form>
-                          ) : null}
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+          <div style={{ display: "grid", gap: 14, marginTop: 12 }}>
+            {rows.map((row) => {
+              const labels = selectionLabels(row.selections);
+              const address = fullAddress(row);
+              return (
+                <article key={row.id} style={{ border: "1px solid var(--line)", borderRadius: 6, background: "#fff", padding: 16 }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+                    <div>
+                      <div className="helper-text">{formatDate(row.created_at)} · protocolo {row.id.slice(0,8).toUpperCase()}</div>
+                      <h3 style={{ margin: "4px 0 0", fontSize: 16 }}>{row.name}</h3>
+                      <div className="helper-text">
+                        {row.company ? `${row.company} · ` : ""}
+                        <a href={`https://wa.me/${row.phone.replace(/\D/g, "")}`} target="_blank" rel="noreferrer">{row.phone}</a>
+                        {row.email ? ` · ${row.email}` : ""}
+                      </div>
+                    </div>
+                    <div style={{ display: "flex", gap: 6, alignItems: "flex-start", flexWrap: "wrap" }}>
+                      <span className="status-badge">{statusLabel(row.status)}</span>
+                      <span className="status-badge">{availabilityLabel(row.availability_status)}</span>
+                    </div>
+                  </div>
+
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 14, marginTop: 14 }}>
+                    <div>
+                      <strong style={{ fontSize: 12 }}>{requestTypeLabel(row.request_type)}</strong>
+                      <ul style={{ margin: "6px 0 0", paddingLeft: 18 }}>
+                        {labels.map((label, index) => <li key={`${row.id}-${index}`} style={{ fontSize: 12 }}>{label}</li>)}
+                      </ul>
+                      <p className="helper-text" style={{ marginTop: 6 }}>
+                        Estimativa: {row.estimated_total !== null ? money(Number(row.estimated_total)) : "Sob consulta"}
+                      </p>
+                    </div>
+
+                    <div>
+                      <strong style={{ fontSize: 12 }}>Pagamento preferido</strong>
+                      <p className="helper-text" style={{ marginTop: 5 }}>{paymentLabel(row.payment_preference)}</p>
+                      {address ? (
+                        <>
+                          <strong style={{ display: "block", marginTop: 10, fontSize: 12 }}>Endereço / rota</strong>
+                          <p className="helper-text" style={{ marginTop: 5 }}>{address}</p>
+                        </>
+                      ) : null}
+                    </div>
+
+                    <div>
+                      {row.notes ? <><strong style={{ fontSize: 12 }}>Observação do cliente</strong><p className="helper-text" style={{ marginTop: 5 }}>{row.notes}</p></> : null}
+                      {row.admin_note ? <><strong style={{ display: "block", marginTop: 10, fontSize: 12 }}>Observação interna</strong><p className="helper-text" style={{ marginTop: 5 }}>{row.admin_note}</p></> : null}
+                    </div>
+                  </div>
+
+                  <form action={reviewSiteInterestAction.bind(null, row.id)} style={{ marginTop: 14, paddingTop: 12, borderTop: "1px solid var(--line)" }}>
+                    <div className="form-grid">
+                      <label className="form-field">
+                        <span className="field-label">Análise de rota/disponibilidade</span>
+                        <select name="availability" defaultValue={row.availability_status}>
+                          <option value="pending">Aguardando análise</option>
+                          <option value="approved">Disponível / aprovada</option>
+                          <option value="needs_info">Precisa de informação</option>
+                          <option value="unavailable">Sem disponibilidade / fora da rota</option>
+                        </select>
+                      </label>
+                      <label className="form-field">
+                        <span className="field-label">Valor aprovado (R$)</span>
+                        <input name="approvedTotal" inputMode="decimal" defaultValue={row.approved_total ?? row.estimated_total ?? ""} />
+                      </label>
+                      <label className="form-field" style={{ gridColumn: "1 / -1" }}>
+                        <span className="field-label">Observação interna</span>
+                        <input name="adminNote" defaultValue={row.admin_note ?? ""} />
+                      </label>
+                    </div>
+                    <div className="form-actions" style={{ marginTop: 10 }}>
+                      <button type="submit" className="form-action-primary">Salvar análise</button>
+                      <a href={whatsappHref(row)} target="_blank" rel="noreferrer" className="button-link">Atender pelo WhatsApp</a>
+                    </div>
+                  </form>
+
+                  <div className="form-actions" style={{ marginTop: 10 }}>
+                    {row.status !== "contacted" ? (
+                      <form action={updateSiteInterestStatusAction.bind(null,row.id,"contacted")}><button type="submit">Em atendimento</button></form>
+                    ) : null}
+                    {row.status !== "converted" ? (
+                      <form action={updateSiteInterestStatusAction.bind(null,row.id,"converted")}><button type="submit">Marcar convertida</button></form>
+                    ) : null}
+                    {row.status !== "discarded" ? (
+                      <form action={updateSiteInterestStatusAction.bind(null,row.id,"discarded")}><button type="submit" className="media-remove-button">Descartar</button></form>
+                    ) : null}
+                  </div>
+                </article>
+              );
+            })}
           </div>
         )}
       </section>
