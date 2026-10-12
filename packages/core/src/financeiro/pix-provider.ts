@@ -1,3 +1,5 @@
+import type { PaymentChargeProvider } from "@ir/types";
+
 /**
  * Contrato de provedor Pix — NENHUM provedor real foi escolhido/integrado
  * ainda (item 13 da tarefa "Formas de liquidação/Pix/envio ao cliente").
@@ -24,6 +26,7 @@ export interface CreatePixChargeRequest {
 }
 
 export interface PixChargeProviderResult {
+  provider: PaymentChargeProvider;
   providerChargeId: string;
   pixCopyPaste: string;
   expiresAt?: string;
@@ -71,6 +74,7 @@ export function createPixProviderPreview(): PixProvider {
     async createCharge(request: CreatePixChargeRequest): Promise<PixChargeProviderResult> {
       const seed = `${request.receivableId}-${Date.now()}`;
       return {
+        provider: "pix_manual",
         providerChargeId: `preview-pix-${seed}`,
         pixCopyPaste: demoCopyPaste(request.amount, seed),
         expiresAt: request.expiresAt,
@@ -78,7 +82,7 @@ export function createPixProviderPreview(): PixProvider {
       };
     },
     async getCharge(providerChargeId: string): Promise<PixChargeProviderResult> {
-      return { providerChargeId, pixCopyPaste: demoCopyPaste(0, providerChargeId), status: "pending" };
+      return { provider: "pix_manual", providerChargeId, pixCopyPaste: demoCopyPaste(0, providerChargeId), status: "pending" };
     },
     async cancelCharge(): Promise<void> {
       // No-op — o cancelamento de verdade é só o status da linha em payment_charges.

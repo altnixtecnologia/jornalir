@@ -16,6 +16,7 @@ import { createClientCreditRepositorySupabase } from "../providers/supabase/clie
 import { createPaymentChargeRepositorySupabase } from "../providers/supabase/paymentChargeRepository.supabase";
 import { createBillingMessageLogRepositorySupabase } from "../providers/supabase/billingMessageLogRepository.supabase";
 import { isLocalPreviewEnabled } from "../lib/auth/localPreview";
+import { createAsaasPixProvider } from "../lib/financeiro/asaasPixProvider";
 
 // Ponto de composição do módulo Financeiro — fábrica, nunca singleton de
 // módulo (mesmo princípio de composition/assinaturas.ts e composition/clientes.ts).
@@ -38,7 +39,7 @@ export function getClientCreditService(client: SupabaseClient): ClientCreditServ
  * qualquer chamada com uma mensagem honesta em vez de fingir sucesso.
  */
 export function getPaymentChargeService(client: SupabaseClient): PaymentChargeService {
-  const provider = isLocalPreviewEnabled() ? createPixProviderPreview() : createPixProviderUnavailable();
+  const provider = isLocalPreviewEnabled() ? createPixProviderPreview() : createAsaasPixProvider(client);
   return new PaymentChargeService(createPaymentChargeRepositorySupabase(client), provider);
 }
 

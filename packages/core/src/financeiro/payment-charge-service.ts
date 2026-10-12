@@ -63,7 +63,7 @@ export class PaymentChargeService {
     return this.charges.create({
       receivableId: input.receivableId,
       clientId: input.clientId,
-      provider: "pix_manual",
+      provider: providerResult.provider,
       providerChargeId: providerResult.providerChargeId,
       amount: input.amount,
       description: input.description,

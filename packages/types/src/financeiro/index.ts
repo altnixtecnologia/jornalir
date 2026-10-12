@@ -266,7 +266,7 @@ export function isReversed(entry: Pick<ReceivableReceipt | ReceivableAdjustment,
 // ainda (ver PixProvider em @ir/core). Novos providers exigem migration
 // própria ampliando o check de `provider`, nunca inventados aqui.
 
-export type PaymentChargeProvider = "pix_manual";
+export type PaymentChargeProvider = "pix_manual" | "asaas";
 export type PaymentChargeStatus = "pending" | "paid" | "expired" | "cancelled" | "failed";
 
 export const PAYMENT_CHARGE_STATUSES: readonly PaymentChargeStatus[] = ["pending", "paid", "expired", "cancelled", "failed"];
