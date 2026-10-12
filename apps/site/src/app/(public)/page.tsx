@@ -11,17 +11,13 @@ import { listPublicPlacement } from "../../lib/public/publicContentService";
 import { getPublicSiteAds } from "../../lib/public/siteAdsService";
 
 // Sempre renderizada no request — nunca estática: publicação efetiva
-// (Fase 30, item 2) muda a cada minuto (cron), uma página congelada em
-// build time mostraria conteúdo desatualizado/errado.
+// muda a cada minuto; uma página congelada em build time mostraria conteúdo
+// desatualizado/errado.
 export const dynamic = "force-dynamic";
 
-/** Defasagem fixa entre quadros (nunca trocam em sincronia) — item 6.4 da Fase 6, nunca configurável por slot de propósito (só o intervalo/efeito são globais). */
+/** Defasagem fixa entre quadros — nunca trocam em sincronia. */
 const PHASE_OFFSET_STEP_MS = 1200;
 
-// Página real (Fase 30) — os quatro blocos editoriais vêm direto das
-// posições do banco, nunca de mock. Patrocinadores do site (Fase 6) vêm
-// das views públicas (ver siteAdsService) com fallback seguro — nunca
-// derruba a home se o banco estiver indisponível/sem dado.
 export default async function HomePage(): Promise<JSX.Element> {
   const [mainCover, highlightStrip, latestNews, localSpotlight, siteAds] = await Promise.all([
     listPublicPlacement("mainCover"),
@@ -54,22 +50,32 @@ export default async function HomePage(): Promise<JSX.Element> {
 
   return (
     <main className="min-h-screen">
-      <SiteHeader />
-      <AdSenseSlot />
-
       {mainCover.length > 0 ? (
-        <PublicFeaturedHero items={mainCover} />
-      ) : !hasAnyContent ? (
-        <section className="hero-stage hero-backdrop relative flex w-full items-center justify-center overflow-hidden py-24">
-          <div className="site-shell text-center">
-            <p className="kicker" style={{ color: "#fff" }}>Informativo Regional</p>
-            <h1 className="mt-4 font-editorial text-3xl font-bold text-white md:text-5xl">
-              Em breve, as primeiras matérias por aqui
-            </h1>
-            <p className="mt-4 text-white/70">A redação está preparando o conteúdo do novo portal.</p>
-          </div>
-        </section>
-      ) : null}
+        <>
+          {/* A home abre direto na manchete. A marca flutua no hero e o
+              menu completo vem logo abaixo, tornando-se sticky ao rolar. */}
+          <PublicFeaturedHero items={mainCover} />
+          <SiteHeader />
+          <AdSenseSlot />
+        </>
+      ) : (
+        <>
+          <SiteHeader />
+          <AdSenseSlot />
+
+          {!hasAnyContent ? (
+            <section className="hero-stage hero-backdrop relative flex w-full items-center justify-center overflow-hidden py-24">
+              <div className="site-shell text-center">
+                <p className="kicker" style={{ color: "#fff" }}>Informativo Regional</p>
+                <h1 className="mt-4 font-editorial text-3xl font-bold text-white md:text-5xl">
+                  Em breve, as primeiras matérias por aqui
+                </h1>
+                <p className="mt-4 text-white/70">A redação está preparando o conteúdo do novo portal.</p>
+              </div>
+            </section>
+          ) : null}
+        </>
+      )}
 
       <section className="site-shell pt-8">
         <PublicSecondaryHeadlines items={highlightStrip} />
@@ -98,10 +104,6 @@ export default async function HomePage(): Promise<JSX.Element> {
           </div>
         </div>
 
-        {/* "Mais destaques" sai da coluna central estreita (entre as duas
-            colunas de publicidade) e passa a ocupar a largura total do
-            site-shell — espaço melhor aproveitado pelo grid 2×2 de 4
-            matérias (revisão visual do portal público). */}
         <hr className="divider mt-10" />
         <div className="pt-10">
           <PublicLocalSpotlight items={localSpotlight} />
