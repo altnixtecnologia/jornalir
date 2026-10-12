@@ -18,13 +18,23 @@ interface NavLink {
 // "latestNews"): é um link estrutural fixo, sempre visível.
 const NOTICIAS_LINK: NavLink = { href: "/noticias", label: "Notícias" };
 
-// Links fixos que não são editoria — mantidos nos mesmos grupos visuais de
-// antes (Jornal Online direto no header; Sobre/Contato em "Mais").
+// Links fixos do menu. Contato fica sempre visível no desktop; Sobre
+// permanece em "Mais". Jornal Online recebe destaque próprio.
 const JORNAL_ONLINE: NavLink = { href: "/jornal-online", label: "Jornal Online" };
-const FIXED_OVERFLOW: NavLink[] = [
-  { href: "/sobre", label: "Sobre" },
-  { href: "/contato", label: "Contato" },
-];
+const CONTACT_LINK: NavLink = { href: "/contato", label: "Contato" };
+const FIXED_OVERFLOW: NavLink[] = [{ href: "/sobre", label: "Sobre" }];
+
+// Estas editorias ficam deliberadamente dentro de "Mais", mesmo quando há
+// espaço no desktop. Isso mantém o menu principal mais limpo e previsível.
+const FORCED_OVERFLOW_LABELS = new Set(["economia", "eventos", "cidades", "saúde", "saude"]);
+
+function normalizeMenuLabel(value: string): string {
+  return value.trim().toLocaleLowerCase("pt-BR");
+}
+
+function isForcedOverflow(item: NavLink): boolean {
+  return FORCED_OVERFLOW_LABELS.has(normalizeMenuLabel(item.label));
+}
 
 // Header desktop numa linha só (Ajuste pós-Fase 49 — substitui as duas
 // faixas fixas da Fase 49): quantas editorias reais ficam diretas no menu
@@ -82,11 +92,11 @@ function useHeaderSections(): { sectionLinks: NavLink[]; allNavLinks: NavLink[] 
   if (sections === null) {
     // Ainda carregando: nada de editoria por enquanto, só a estrutura
     // mínima — evita mostrar (e depois trocar) uma lista errada.
-    return { sectionLinks: [], allNavLinks: [JORNAL_ONLINE, ...FIXED_OVERFLOW] };
+    return { sectionLinks: [], allNavLinks: [JORNAL_ONLINE, CONTACT_LINK, ...FIXED_OVERFLOW] };
   }
 
   const sectionLinks = sections.map(sectionToLink);
-  const allNavLinks = [...sectionLinks, JORNAL_ONLINE, ...FIXED_OVERFLOW];
+  const allNavLinks = [...sectionLinks, JORNAL_ONLINE, CONTACT_LINK, ...FIXED_OVERFLOW];
   return { sectionLinks, allNavLinks };
 }
 
@@ -185,7 +195,12 @@ export function SiteHeader({ active, emphasized = false }: { active?: string; em
     { href: socialLinks.whatsapp, label: "WhatsApp", icon: "/brand/social-whatsapp.png" },
   ];
 
-  const hasOverflow = sectionLinks.length > SECTION_TIERS.base || FIXED_OVERFLOW.length > 0;
+  const directSectionLinks = sectionLinks.filter((item) => !isForcedOverflow(item));
+  const forcedOverflowLinks = sectionLinks.filter(isForcedOverflow);
+  const hasOverflow =
+    directSectionLinks.length > SECTION_TIERS.base ||
+    forcedOverflowLinks.length > 0 ||
+    FIXED_OVERFLOW.length > 0;
 
   return (
     <header className={`site-header ${emphasized ? "site-header--emphasized" : ""}`}>
@@ -219,7 +234,7 @@ export function SiteHeader({ active, emphasized = false }: { active?: string; em
             <Link href={NOTICIAS_LINK.href} className={`nav-link ${isActive(NOTICIAS_LINK.href) ? "is-active" : ""}`}>
               {NOTICIAS_LINK.label}
             </Link>
-            {sectionLinks.map((item, index) => (
+            {directSectionLinks.map((item, index) => (
               <Link
                 key={item.href}
                 href={item.href}
@@ -228,7 +243,10 @@ export function SiteHeader({ active, emphasized = false }: { active?: string; em
                 {item.label}
               </Link>
             ))}
-            <Link href={JORNAL_ONLINE.href} className={`nav-link ${isActive(JORNAL_ONLINE.href) ? "is-active" : ""}`}>
+            <Link
+              href={JORNAL_ONLINE.href}
+              className={`nav-link nav-link--journal ${isActive(JORNAL_ONLINE.href) ? "is-active" : ""}`}
+            >
               {JORNAL_ONLINE.label}
             </Link>
 
@@ -245,11 +263,20 @@ export function SiteHeader({ active, emphasized = false }: { active?: string; em
                 <div
                   className={`absolute left-0 top-full z-30 mt-2 w-56 rounded-lg border border-[color:var(--site-line)] bg-[color:var(--site-surface)] p-2 shadow-xl transition-all ${editoriasOpen ? "visible translate-y-0 opacity-100" : "invisible -translate-y-1 opacity-0"}`}
                 >
-                  {sectionLinks.map((item, index) => (
+                  {directSectionLinks.map((item, index) => (
                     <Link
                       key={`${item.href}-overflow`}
                       href={item.href}
-                      className={`${overflowTierClass(index)} rounded-md px-3 py-2 text-[13px] font-semibold text-[color:var(--site-text)] hover:bg-[color:var(--site-bg)] hover:text-[color:var(--brand-red)]`}
+                      className={`${overflowTierClass(index)} rounded-md px-3 py-2 text-[14px] font-semibold text-[color:var(--site-text)] hover:bg-[color:var(--site-bg)] hover:text-[color:var(--brand-red)]`}
+                    >
+                      {item.label}
+                    </Link>
+                  ))}
+                  {forcedOverflowLinks.map((item) => (
+                    <Link
+                      key={`${item.href}-forced-overflow`}
+                      href={item.href}
+                      className="block rounded-md px-3 py-2 text-[14px] font-semibold text-[color:var(--site-text)] hover:bg-[color:var(--site-bg)] hover:text-[color:var(--brand-red)]"
                     >
                       {item.label}
                     </Link>
@@ -258,7 +285,7 @@ export function SiteHeader({ active, emphasized = false }: { active?: string; em
                     <Link
                       key={item.href}
                       href={item.href}
-                      className="block rounded-md px-3 py-2 text-[13px] font-semibold text-[color:var(--site-text)] hover:bg-[color:var(--site-bg)] hover:text-[color:var(--brand-red)]"
+                      className="block rounded-md px-3 py-2 text-[14px] font-semibold text-[color:var(--site-text)] hover:bg-[color:var(--site-bg)] hover:text-[color:var(--brand-red)]"
                     >
                       {item.label}
                     </Link>
@@ -266,6 +293,10 @@ export function SiteHeader({ active, emphasized = false }: { active?: string; em
                 </div>
               </div>
             ) : null}
+
+            <Link href={CONTACT_LINK.href} className={`nav-link ${isActive(CONTACT_LINK.href) ? "is-active" : ""}`}>
+              {CONTACT_LINK.label}
+            </Link>
           </nav>
         </div>
 
