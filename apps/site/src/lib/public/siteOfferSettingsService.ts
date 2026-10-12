@@ -8,26 +8,32 @@ export interface PublicSiteOfferSettings {
   printHalfPrice: number;
   printFullPrice: number;
   ledThreeCitiesPrice: number;
-  comboBusinessCardLedPrice: number;
-  comboStandardLedPrice: number;
-  comboQuarterLedPrice: number;
-  comboHalfLedPrice: number;
-  comboFullLedPrice: number;
+
+  annualSubscriptionComboDiscount: number;
+  printBusinessCardComboDiscount: number;
+  printStandardComboDiscount: number;
+  printQuarterComboDiscount: number;
+  printHalfComboDiscount: number;
+  printFullComboDiscount: number;
+  ledThreeCitiesComboDiscount: number;
 }
 
 export const DEFAULT_SITE_OFFER_SETTINGS: PublicSiteOfferSettings = {
-  annualSubscriptionPrice: null,
+  annualSubscriptionPrice: 130,
   printBusinessCardPrice: 130,
   printStandardPrice: 180,
   printQuarterPrice: 350,
   printHalfPrice: 700,
   printFullPrice: 1200,
   ledThreeCitiesPrice: 800,
-  comboBusinessCardLedPrice: 900,
-  comboStandardLedPrice: 950,
-  comboQuarterLedPrice: 1100,
-  comboHalfLedPrice: 1450,
-  comboFullLedPrice: 1950,
+
+  annualSubscriptionComboDiscount: 50,
+  printBusinessCardComboDiscount: 50,
+  printStandardComboDiscount: 50,
+  printQuarterComboDiscount: 50,
+  printHalfComboDiscount: 50,
+  printFullComboDiscount: 50,
+  ledThreeCitiesComboDiscount: 50,
 };
 
 interface Row {
@@ -38,11 +44,14 @@ interface Row {
   print_half_price: number | string;
   print_full_price: number | string;
   led_three_cities_price: number | string;
-  combo_business_card_led_price: number | string;
-  combo_standard_led_price: number | string;
-  combo_quarter_led_price: number | string;
-  combo_half_led_price: number | string;
-  combo_full_led_price: number | string;
+
+  annual_subscription_combo_discount: number | string;
+  print_business_card_combo_discount: number | string;
+  print_standard_combo_discount: number | string;
+  print_quarter_combo_discount: number | string;
+  print_half_combo_discount: number | string;
+  print_full_combo_discount: number | string;
+  led_three_cities_combo_discount: number | string;
 }
 
 function numberValue(value: number | string): number {
@@ -55,7 +64,7 @@ export async function getPublicSiteOfferSettings(): Promise<PublicSiteOfferSetti
     const { data, error } = await client
       .from("site_offer_settings")
       .select(
-        "annual_subscription_price, print_business_card_price, print_standard_price, print_quarter_price, print_half_price, print_full_price, led_three_cities_price, combo_business_card_led_price, combo_standard_led_price, combo_quarter_led_price, combo_half_led_price, combo_full_led_price",
+        "annual_subscription_price, print_business_card_price, print_standard_price, print_quarter_price, print_half_price, print_full_price, led_three_cities_price, annual_subscription_combo_discount, print_business_card_combo_discount, print_standard_combo_discount, print_quarter_combo_discount, print_half_combo_discount, print_full_combo_discount, led_three_cities_combo_discount",
       )
       .eq("id", 1)
       .maybeSingle();
@@ -72,11 +81,14 @@ export async function getPublicSiteOfferSettings(): Promise<PublicSiteOfferSetti
       printHalfPrice: numberValue(row.print_half_price),
       printFullPrice: numberValue(row.print_full_price),
       ledThreeCitiesPrice: numberValue(row.led_three_cities_price),
-      comboBusinessCardLedPrice: numberValue(row.combo_business_card_led_price),
-      comboStandardLedPrice: numberValue(row.combo_standard_led_price),
-      comboQuarterLedPrice: numberValue(row.combo_quarter_led_price),
-      comboHalfLedPrice: numberValue(row.combo_half_led_price),
-      comboFullLedPrice: numberValue(row.combo_full_led_price),
+
+      annualSubscriptionComboDiscount: numberValue(row.annual_subscription_combo_discount),
+      printBusinessCardComboDiscount: numberValue(row.print_business_card_combo_discount),
+      printStandardComboDiscount: numberValue(row.print_standard_combo_discount),
+      printQuarterComboDiscount: numberValue(row.print_quarter_combo_discount),
+      printHalfComboDiscount: numberValue(row.print_half_combo_discount),
+      printFullComboDiscount: numberValue(row.print_full_combo_discount),
+      ledThreeCitiesComboDiscount: numberValue(row.led_three_cities_combo_discount),
     };
   } catch {
     return DEFAULT_SITE_OFFER_SETTINGS;
