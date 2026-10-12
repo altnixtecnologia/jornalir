@@ -1,9 +1,12 @@
 import { SiteHeader } from "../../../components/site/SiteHeader";
 import { AssineConfigurator } from "../../../components/site/public/AssineConfigurator";
+import { getPublicSiteOfferSettings } from "../../../lib/public/siteOfferSettingsService";
 
 export const dynamic = "force-dynamic";
 
-export default function AssinePage(): JSX.Element {
+export default async function AssinePage(): Promise<JSX.Element> {
+  const offerSettings = await getPublicSiteOfferSettings();
+
   return (
     <main className="min-h-screen" style={{ background: "var(--site-bg)" }}>
       <SiteHeader />
@@ -28,7 +31,7 @@ export default function AssinePage(): JSX.Element {
         </div>
 
         <div className="mt-8">
-          <AssineConfigurator />
+          <AssineConfigurator settings={offerSettings} />
         </div>
       </section>
     </main>
