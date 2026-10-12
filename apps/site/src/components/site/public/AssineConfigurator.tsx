@@ -9,34 +9,73 @@ type PrintOffer = {
   id: string;
   label: string;
   price: number;
+  comboDiscount: number;
   width: string;
   height: string;
+};
+
+type CartItem = {
+  id: string;
+  label: string;
+  price: number | null;
+  comboDiscount: number;
+  kind: "subscription" | "print_ad" | "digital_ad";
 };
 
 function money(value: number): string {
   return value.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 }
 
+function discountedPrice(item: CartItem, comboActive: boolean): number | null {
+  if (item.price === null) return null;
+  if (!comboActive) return item.price;
+  return Math.max(0, item.price - item.comboDiscount);
+}
+
 export function AssineConfigurator({ settings }: { settings: PublicSiteOfferSettings }): JSX.Element {
   const printOffers = useMemo<PrintOffer[]>(
     () => [
-      { id: "business-card", label: "Cartão de visita", price: settings.printBusinessCardPrice, width: "42%", height: "18%" },
-      { id: "standard", label: "Padrão", price: settings.printStandardPrice, width: "48%", height: "31%" },
-      { id: "quarter", label: "1/4 de página", price: settings.printQuarterPrice, width: "48%", height: "48%" },
-      { id: "half", label: "Meia página", price: settings.printHalfPrice, width: "96%", height: "48%" },
-      { id: "full", label: "Página inteira", price: settings.printFullPrice, width: "96%", height: "94%" },
+      {
+        id: "business-card",
+        label: "Cartão de visita",
+        price: settings.printBusinessCardPrice,
+        comboDiscount: settings.printBusinessCardComboDiscount,
+        width: "42%",
+        height: "18%",
+      },
+      {
+        id: "standard",
+        label: "Padrão",
+        price: settings.printStandardPrice,
+        comboDiscount: settings.printStandardComboDiscount,
+        width: "48%",
+        height: "31%",
+      },
+      {
+        id: "quarter",
+        label: "1/4 de página",
+        price: settings.printQuarterPrice,
+        comboDiscount: settings.printQuarterComboDiscount,
+        width: "48%",
+        height: "48%",
+      },
+      {
+        id: "half",
+        label: "Meia página",
+        price: settings.printHalfPrice,
+        comboDiscount: settings.printHalfComboDiscount,
+        width: "96%",
+        height: "48%",
+      },
+      {
+        id: "full",
+        label: "Página inteira",
+        price: settings.printFullPrice,
+        comboDiscount: settings.printFullComboDiscount,
+        width: "96%",
+        height: "94%",
+      },
     ],
-    [settings],
-  );
-
-  const comboPrices = useMemo<Record<string, number>>(
-    () => ({
-      "business-card": settings.comboBusinessCardLedPrice,
-      standard: settings.comboStandardLedPrice,
-      quarter: settings.comboQuarterLedPrice,
-      half: settings.comboHalfLedPrice,
-      full: settings.comboFullLedPrice,
-    }),
     [settings],
   );
 
@@ -55,69 +94,93 @@ export function AssineConfigurator({ settings }: { settings: PublicSiteOfferSett
   const [error, setError] = useState<string | null>(null);
 
   const printOffer = printOffers.find((item) => item.id === printOfferId) ?? null;
-  const hasAdvertising = Boolean(printOffer || digital);
-  const hasSelection = annualSubscription || hasAdvertising;
 
-  const advertisingTotal = useMemo(() => {
-    if (printOffer && digital) return comboPrices[printOffer.id];
-    return (printOffer?.price ?? 0) + (digital ? settings.ledThreeCitiesPrice : 0);
-  }, [printOffer, digital, comboPrices, settings.ledThreeCitiesPrice]);
-
-  const regularAdvertisingTotal = (printOffer?.price ?? 0) + (digital ? settings.ledThreeCitiesPrice : 0);
-  const comboSaving = printOffer && digital ? Math.max(0, regularAdvertisingTotal - advertisingTotal) : 0;
-  const annualPrice = settings.annualSubscriptionPrice;
-  const knownTotal = advertisingTotal + (annualSubscription && annualPrice !== null ? annualPrice : 0);
-  const hasKnownValue = knownTotal > 0;
-  const hasUnpricedAnnual = annualSubscription && annualPrice === null;
-
-  const selections = useMemo(() => {
-    const result: Array<Record<string, unknown>> = [];
+  const cartItems = useMemo<CartItem[]>(() => {
+    const items: CartItem[] = [];
 
     if (annualSubscription) {
-      result.push({
-        type: "subscription",
+      items.push({
         id: "annual-newspaper",
-        label: "Assinatura anual para receber o jornal",
-        price: annualPrice,
+        label: "Assinatura anual do jornal",
+        price: settings.annualSubscriptionPrice,
+        comboDiscount: settings.annualSubscriptionComboDiscount,
+        kind: "subscription",
       });
     }
 
     if (printOffer) {
-      result.push({
-        type: "print_ad",
-        id: printOffer.id,
+      items.push({
+        id: `print-${printOffer.id}`,
         label: `Jornal impresso — ${printOffer.label}`,
-        individualPrice: printOffer.price,
-        color: true,
+        price: printOffer.price,
+        comboDiscount: printOffer.comboDiscount,
+        kind: "print_ad",
       });
     }
 
     if (digital) {
-      result.push({
-        type: "digital_ad",
+      items.push({
         id: "led-3-cities",
-        label: "3 painéis de LED — São João do Sul, Praia Grande e Passo de Torres",
-        individualPrice: settings.ledThreeCitiesPrice,
+        label: "Divulgação nos 3 painéis de LED",
+        price: settings.ledThreeCitiesPrice,
+        comboDiscount: settings.ledThreeCitiesComboDiscount,
+        kind: "digital_ad",
       });
     }
 
-    if (printOffer && digital) {
-      result.push({
-        type: "combo",
-        id: `print-${printOffer.id}-plus-led`,
-        label: `Pacote ${printOffer.label} + 3 painéis`,
-        packagePrice: advertisingTotal,
-      });
+    return items;
+  }, [annualSubscription, printOffer, digital, settings]);
+
+  const comboActive = cartItems.length >= 2;
+  const hasSelection = cartItems.length > 0;
+
+  const totals = useMemo(() => {
+    let subtotal = 0;
+    let discount = 0;
+    let hasUnknownPrice = false;
+
+    for (const item of cartItems) {
+      if (item.price === null) {
+        hasUnknownPrice = true;
+        continue;
+      }
+      subtotal += item.price;
+      if (comboActive) discount += Math.min(item.price, item.comboDiscount);
     }
 
-    return result;
-  }, [annualSubscription, annualPrice, printOffer, digital, settings.ledThreeCitiesPrice, advertisingTotal]);
+    return {
+      subtotal,
+      discount,
+      total: Math.max(0, subtotal - discount),
+      hasUnknownPrice,
+    };
+  }, [cartItems, comboActive]);
+
+  const selections = useMemo(
+    () =>
+      cartItems.map((item) => ({
+        type: item.kind,
+        id: item.id,
+        label: item.label,
+        individualPrice: item.price,
+        comboDiscountApplied: comboActive && item.price !== null ? Math.min(item.price, item.comboDiscount) : 0,
+        finalPrice: discountedPrice(item, comboActive),
+        color: item.kind === "print_ad" ? true : undefined,
+      })),
+    [cartItems, comboActive],
+  );
+
+  function removeItem(item: CartItem): void {
+    if (item.kind === "subscription") setAnnualSubscription(false);
+    if (item.kind === "print_ad") setPrintOfferId(null);
+    if (item.kind === "digital_ad") setDigital(false);
+  }
 
   async function submitRequest(): Promise<void> {
     setError(null);
 
     if (!hasSelection) {
-      setError("Selecione pelo menos uma opção antes de enviar.");
+      setError("Adicione pelo menos um item ao carrinho antes de enviar.");
       return;
     }
     if (name.trim().length < 2) {
@@ -133,9 +196,11 @@ export function AssineConfigurator({ settings }: { settings: PublicSiteOfferSett
       return;
     }
 
-    const requestType = annualSubscription && hasAdvertising
+    const hasSubscription = cartItems.some((item) => item.kind === "subscription");
+    const hasAdvertising = cartItems.some((item) => item.kind !== "subscription");
+    const requestType = hasSubscription && hasAdvertising
       ? "mixed"
-      : annualSubscription
+      : hasSubscription
         ? "subscription"
         : "advertising";
 
@@ -150,13 +215,22 @@ export function AssineConfigurator({ settings }: { settings: PublicSiteOfferSett
         p_city: city.trim() || null,
         p_company: company.trim() || null,
         p_selections: selections,
-        p_estimated_total: hasKnownValue ? knownTotal : null,
+        p_estimated_total: totals.subtotal > 0 ? totals.total : null,
         p_notes: notes.trim() || null,
       });
 
       if (rpcError) throw rpcError;
 
       const protocol = typeof data === "string" ? data.slice(0, 8).toUpperCase() : "-";
+      const itemLines = cartItems.map((item) => {
+        const final = discountedPrice(item, comboActive);
+        if (item.price === null || final === null) return `- ${item.label} — sob consulta`;
+        if (comboActive && item.comboDiscount > 0) {
+          return `- ${item.label} — ${money(item.price)} - ${money(Math.min(item.price, item.comboDiscount))} = ${money(final)}`;
+        }
+        return `- ${item.label} — ${money(item.price)}`;
+      });
+
       const lines = [
         "Olá, equipe do Informativo Regional!",
         "",
@@ -167,14 +241,11 @@ export function AssineConfigurator({ settings }: { settings: PublicSiteOfferSett
         city.trim() ? `Cidade: ${city.trim()}` : null,
         company.trim() ? `Empresa: ${company.trim()}` : null,
         "",
-        "Interesse:",
-        annualSubscription
-          ? `- Assinatura anual — ${annualPrice === null ? "sob consulta" : money(annualPrice)}`
-          : null,
-        printOffer ? `- Jornal impresso: ${printOffer.label} — ${money(printOffer.price)}` : null,
-        digital ? `- Divulgação nos 3 painéis — ${money(settings.ledThreeCitiesPrice)}` : null,
-        printOffer && digital ? `- Valor do pacote impresso + painéis: ${money(advertisingTotal)}` : null,
-        hasKnownValue ? `- Estimativa total conhecida: ${money(knownTotal)}` : null,
+        "Carrinho:",
+        ...itemLines,
+        comboActive ? `Desconto total por combinação: ${money(totals.discount)}` : null,
+        totals.subtotal > 0 ? `Total estimado: ${money(totals.total)}` : null,
+        totals.hasUnknownPrice ? "Há item com valor sob consulta." : null,
         notes.trim() ? "" : null,
         notes.trim() ? `Observação: ${notes.trim()}` : null,
         "",
@@ -190,107 +261,110 @@ export function AssineConfigurator({ settings }: { settings: PublicSiteOfferSett
   }
 
   return (
-    <div className="space-y-8">
-      <section className="rounded-3xl border p-6 md:p-8" style={{ borderColor: "var(--site-line)", background: "var(--site-surface)" }}>
-        <div className="grid gap-5 lg:grid-cols-[1fr_320px] lg:items-center">
-          <div>
-            <p className="kicker">ASSINATURA</p>
-            <h2 className="mt-3 font-editorial text-3xl font-bold md:text-4xl">Receba o Informativo Regional</h2>
-            <p className="mt-3 max-w-2xl text-sm md:text-base" style={{ color: "var(--site-muted)" }}>
-              Assinatura anual do jornal impresso. Área de entrega e condições são confirmadas no atendimento.
-            </p>
+    <section className="grid gap-8 xl:grid-cols-[minmax(0,1fr)_390px] xl:items-start">
+      <div className="space-y-8">
+        <section className="rounded-3xl border p-6 md:p-8" style={{ borderColor: "var(--site-line)", background: "var(--site-surface)" }}>
+          <div className="grid gap-5 lg:grid-cols-[1fr_300px] lg:items-center">
+            <div>
+              <p className="kicker">ASSINATURA</p>
+              <h2 className="mt-3 font-editorial text-3xl font-bold md:text-4xl">Receba o Informativo Regional</h2>
+              <p className="mt-3 max-w-2xl text-sm md:text-base" style={{ color: "var(--site-muted)" }}>
+                Assinatura anual do jornal impresso. Área de entrega e condições são confirmadas no atendimento.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setAnnualSubscription((value) => !value)}
+              className={`rounded-2xl border px-5 py-5 text-left transition ${annualSubscription ? "ring-2 ring-[color:var(--brand-red)]" : ""}`}
+              style={{ borderColor: "var(--site-line)", background: annualSubscription ? "var(--site-bg)" : "transparent" }}
+            >
+              <span className="block text-xs font-bold uppercase tracking-[0.12em]" style={{ color: "var(--brand-red)" }}>
+                {annualSubscription ? "No carrinho" : "Adicionar ao carrinho"}
+              </span>
+              <strong className="mt-1 block text-lg">Assinatura anual</strong>
+              <span className="mt-1 block text-2xl font-extrabold" style={{ color: "var(--brand-navy)" }}>
+                {settings.annualSubscriptionPrice === null ? "Sob consulta" : money(settings.annualSubscriptionPrice)}
+              </span>
+            </button>
           </div>
-          <button
-            type="button"
-            onClick={() => setAnnualSubscription((value) => !value)}
-            className={`rounded-2xl border px-5 py-5 text-left transition ${annualSubscription ? "ring-2 ring-[color:var(--brand-red)]" : ""}`}
-            style={{ borderColor: "var(--site-line)", background: annualSubscription ? "var(--site-bg)" : "transparent" }}
-          >
-            <span className="block text-xs font-bold uppercase tracking-[0.12em]" style={{ color: "var(--brand-red)" }}>
-              {annualSubscription ? "Selecionado" : "Adicionar"}
-            </span>
-            <strong className="mt-1 block text-lg">Assinatura anual</strong>
-            <span className="mt-1 block text-sm" style={{ color: "var(--site-muted)" }}>
-              {annualPrice === null ? "Valor sob consulta" : money(annualPrice)}
-            </span>
-          </button>
-        </div>
-      </section>
+        </section>
 
-      <section className="rounded-3xl border p-6 md:p-8" style={{ borderColor: "var(--site-line)", background: "var(--site-surface)" }}>
-        <p className="kicker">JORNAL IMPRESSO</p>
-        <div className="mt-3 flex flex-col justify-between gap-3 md:flex-row md:items-end">
-          <div>
-            <h2 className="font-editorial text-3xl font-bold md:text-4xl">Escolha o tamanho do anúncio</h2>
-            <p className="mt-2 text-sm" style={{ color: "var(--site-muted)" }}>
-              Todos os formatos são coloridos. Os desenhos abaixo são apenas uma representação visual do espaço.
-            </p>
+        <section className="rounded-3xl border p-6 md:p-8" style={{ borderColor: "var(--site-line)", background: "var(--site-surface)" }}>
+          <p className="kicker">JORNAL IMPRESSO</p>
+          <div className="mt-3 flex flex-col justify-between gap-3 md:flex-row md:items-end">
+            <div>
+              <h2 className="font-editorial text-3xl font-bold md:text-4xl">Escolha o tamanho do anúncio</h2>
+              <p className="mt-2 text-sm" style={{ color: "var(--site-muted)" }}>
+                Todos os formatos são coloridos. Escolha um tamanho; ao trocar, o novo substitui o anterior no carrinho.
+              </p>
+            </div>
+            <span className="text-xs font-semibold uppercase tracking-[0.1em]" style={{ color: "var(--brand-red)" }}>
+              Sujeito à avaliação comercial
+            </span>
           </div>
-          <span className="text-xs font-semibold uppercase tracking-[0.1em]" style={{ color: "var(--brand-red)" }}>
-            Sujeito à avaliação comercial
-          </span>
-        </div>
 
-        <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
-          {printOffers.map((offer) => {
-            const selected = printOfferId === offer.id;
-            return (
-              <button
-                key={offer.id}
-                type="button"
-                onClick={() => setPrintOfferId(selected ? null : offer.id)}
-                className={`rounded-2xl border p-4 text-left transition hover:-translate-y-0.5 hover:shadow-lg ${selected ? "ring-2 ring-[color:var(--brand-red)]" : ""}`}
-                style={{ borderColor: "var(--site-line)", background: selected ? "var(--site-bg)" : "var(--site-surface)" }}
-              >
-                <div className="flex h-40 items-center justify-center rounded-xl border bg-white p-3" style={{ borderColor: "var(--site-line)" }}>
-                  <div className="relative h-full w-[105px] border-2 border-zinc-300 bg-zinc-50">
-                    <div
-                      className="absolute left-1/2 top-1/2 flex -translate-x-1/2 -translate-y-1/2 items-center justify-center border-2 border-[color:var(--brand-red)] bg-red-50 px-1 text-center text-[8px] font-bold text-red-700"
-                      style={{ width: offer.width, height: offer.height }}
-                    >
-                      ANÚNCIO
+          <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+            {printOffers.map((offer) => {
+              const selected = printOfferId === offer.id;
+              return (
+                <button
+                  key={offer.id}
+                  type="button"
+                  onClick={() => setPrintOfferId(selected ? null : offer.id)}
+                  className={`rounded-2xl border p-4 text-left transition hover:-translate-y-0.5 hover:shadow-lg ${selected ? "ring-2 ring-[color:var(--brand-red)]" : ""}`}
+                  style={{ borderColor: "var(--site-line)", background: selected ? "var(--site-bg)" : "var(--site-surface)" }}
+                >
+                  <div className="flex h-40 items-center justify-center rounded-xl border bg-white p-3" style={{ borderColor: "var(--site-line)" }}>
+                    <div className="relative h-full w-[105px] border-2 border-zinc-300 bg-zinc-50">
+                      <div
+                        className="absolute left-1/2 top-1/2 flex -translate-x-1/2 -translate-y-1/2 items-center justify-center border-2 border-[color:var(--brand-red)] bg-red-50 px-1 text-center text-[8px] font-bold text-red-700"
+                        style={{ width: offer.width, height: offer.height }}
+                      >
+                        ANÚNCIO
+                      </div>
                     </div>
                   </div>
-                </div>
-                <strong className="mt-3 block text-base">{offer.label}</strong>
-                <span className="mt-1 block text-xl font-extrabold" style={{ color: "var(--brand-navy)" }}>{money(offer.price)}</span>
-              </button>
-            );
-          })}
-        </div>
-
-        <p className="mt-4 text-xs" style={{ color: "var(--site-muted)" }}>
-          A posição, disponibilidade e medidas finais do anúncio serão confirmadas pelo setor comercial antes da contratação.
-        </p>
-      </section>
-
-      <section className="rounded-3xl border p-6 md:p-8" style={{ borderColor: "var(--site-line)", background: "var(--site-surface)" }}>
-        <div className="grid gap-5 lg:grid-cols-[1fr_340px] lg:items-center">
-          <div>
-            <p className="kicker">PAINÉIS DIGITAIS</p>
-            <h2 className="mt-3 font-editorial text-3xl font-bold md:text-4xl">Divulgação nos 3 painéis de LED</h2>
-            <p className="mt-3 text-sm md:text-base" style={{ color: "var(--site-muted)" }}>
-              Painéis de 1 × 2 m em São João do Sul, Praia Grande/SC e Passo de Torres/SC.
-              Período, frequência de exibição e disponibilidade são confirmados pelo Comercial.
-            </p>
+                  <span className="mt-3 block text-[11px] font-bold uppercase tracking-[0.08em]" style={{ color: "var(--brand-red)" }}>
+                    {selected ? "No carrinho" : "Adicionar"}
+                  </span>
+                  <strong className="mt-1 block text-base">{offer.label}</strong>
+                  <span className="mt-1 block text-xl font-extrabold" style={{ color: "var(--brand-navy)" }}>{money(offer.price)}</span>
+                </button>
+              );
+            })}
           </div>
-          <button
-            type="button"
-            onClick={() => setDigital((value) => !value)}
-            className={`rounded-2xl border px-5 py-5 text-left transition ${digital ? "ring-2 ring-[color:var(--brand-red)]" : ""}`}
-            style={{ borderColor: "var(--site-line)", background: digital ? "var(--site-bg)" : "transparent" }}
-          >
-            <span className="block text-xs font-bold uppercase tracking-[0.12em]" style={{ color: "var(--brand-red)" }}>
-              {digital ? "Selecionado" : "Adicionar"}
-            </span>
-            <strong className="mt-1 block text-lg">3 cidades</strong>
-            <span className="mt-1 block text-2xl font-extrabold" style={{ color: "var(--brand-navy)" }}>{money(settings.ledThreeCitiesPrice)}</span>
-          </button>
-        </div>
-      </section>
 
-      <section className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_390px]">
-        <div className="rounded-3xl border p-6 md:p-8" style={{ borderColor: "var(--site-line)", background: "var(--site-surface)" }}>
+          <p className="mt-4 text-xs" style={{ color: "var(--site-muted)" }}>
+            A posição, disponibilidade e medidas finais serão confirmadas pelo setor comercial antes da contratação.
+          </p>
+        </section>
+
+        <section className="rounded-3xl border p-6 md:p-8" style={{ borderColor: "var(--site-line)", background: "var(--site-surface)" }}>
+          <div className="grid gap-5 lg:grid-cols-[1fr_320px] lg:items-center">
+            <div>
+              <p className="kicker">PAINÉIS DIGITAIS</p>
+              <h2 className="mt-3 font-editorial text-3xl font-bold md:text-4xl">Divulgação nos 3 painéis de LED</h2>
+              <p className="mt-3 text-sm md:text-base" style={{ color: "var(--site-muted)" }}>
+                Painéis de 1 × 2 m em São João do Sul, Praia Grande/SC e Passo de Torres/SC.
+                Período, frequência de exibição e disponibilidade são confirmados pelo Comercial.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setDigital((value) => !value)}
+              className={`rounded-2xl border px-5 py-5 text-left transition ${digital ? "ring-2 ring-[color:var(--brand-red)]" : ""}`}
+              style={{ borderColor: "var(--site-line)", background: digital ? "var(--site-bg)" : "transparent" }}
+            >
+              <span className="block text-xs font-bold uppercase tracking-[0.12em]" style={{ color: "var(--brand-red)" }}>
+                {digital ? "No carrinho" : "Adicionar ao carrinho"}
+              </span>
+              <strong className="mt-1 block text-lg">3 cidades</strong>
+              <span className="mt-1 block text-2xl font-extrabold" style={{ color: "var(--brand-navy)" }}>{money(settings.ledThreeCitiesPrice)}</span>
+            </button>
+          </div>
+        </section>
+
+        <section className="rounded-3xl border p-6 md:p-8" style={{ borderColor: "var(--site-line)", background: "var(--site-surface)" }}>
           <p className="kicker">DADOS PARA RETORNO</p>
           <h2 className="mt-3 font-editorial text-3xl font-bold">Solicitar avaliação comercial</h2>
           <p className="mt-2 text-sm" style={{ color: "var(--site-muted)" }}>
@@ -330,52 +404,100 @@ export function AssineConfigurator({ settings }: { settings: PublicSiteOfferSett
           </label>
 
           {error ? <p className="mt-4 rounded-xl bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">{error}</p> : null}
+        </section>
+      </div>
+
+      <aside
+        className="h-fit overflow-hidden rounded-3xl border shadow-xl xl:sticky xl:top-24"
+        style={{ borderColor: "var(--site-line)", background: "var(--site-surface)" }}
+      >
+        <div className="px-6 py-5 text-white" style={{ background: "var(--brand-navy)" }}>
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="text-xs font-bold uppercase tracking-[0.14em] text-white/60">Seu carrinho</p>
+              <h2 className="mt-1 text-2xl font-extrabold">{cartItems.length} {cartItems.length === 1 ? "item" : "itens"}</h2>
+            </div>
+            <span className="rounded-full bg-white/10 px-3 py-1 text-xs font-bold">🛒</span>
+          </div>
+          <p className="mt-3 text-xs leading-relaxed text-white/70">
+            Com 2 ou mais produtos, cada item recebe o desconto configurado para ele.
+          </p>
         </div>
 
-        <aside className="h-fit rounded-3xl border p-6 xl:sticky xl:top-24" style={{ borderColor: "var(--site-line)", background: "var(--brand-navy)", color: "#fff" }}>
-          <p className="text-xs font-bold uppercase tracking-[0.14em] text-white/65">Sua seleção</p>
-
+        <div className="p-6">
           {!hasSelection ? (
-            <p className="mt-4 text-sm text-white/75">Escolha uma assinatura, um formato impresso e/ou os painéis digitais.</p>
+            <div className="rounded-2xl border border-dashed p-5 text-center" style={{ borderColor: "var(--site-line)" }}>
+              <p className="text-sm font-semibold">Seu carrinho está vazio.</p>
+              <p className="mt-1 text-xs" style={{ color: "var(--site-muted)" }}>Adicione uma assinatura, um anúncio impresso ou os painéis.</p>
+            </div>
           ) : (
-            <div className="mt-4 space-y-3 text-sm">
-              {annualSubscription ? (
-                <div className="flex justify-between gap-4">
-                  <span>Assinatura anual</span>
-                  <strong>{annualPrice === null ? "Sob consulta" : money(annualPrice)}</strong>
-                </div>
-              ) : null}
-              {printOffer ? (
-                <div className="flex justify-between gap-4">
-                  <span>{printOffer.label}</span>
-                  <strong>{money(printOffer.price)}</strong>
-                </div>
-              ) : null}
-              {digital ? (
-                <div className="flex justify-between gap-4">
-                  <span>3 painéis digitais</span>
-                  <strong>{money(settings.ledThreeCitiesPrice)}</strong>
-                </div>
-              ) : null}
+            <div className="space-y-3">
+              {cartItems.map((item) => {
+                const final = discountedPrice(item, comboActive);
+                const itemDiscount = comboActive && item.price !== null ? Math.min(item.price, item.comboDiscount) : 0;
 
-              {printOffer && digital ? (
-                <div className="mt-4 rounded-2xl bg-white/10 p-4">
-                  <p className="text-xs font-bold uppercase tracking-[0.12em] text-white/65">Pacote combinado</p>
-                  <p className="mt-1 text-3xl font-extrabold">{money(advertisingTotal)}</p>
-                  {comboSaving > 0 ? (
-                    <p className="mt-1 text-xs text-white/70">Economia estimada de {money(comboSaving)} sobre os itens separados.</p>
-                  ) : null}
-                </div>
-              ) : null}
-
-              {hasKnownValue ? (
-                <div className="border-t border-white/20 pt-3">
-                  <div className="flex justify-between gap-4 text-base">
-                    <span>Estimativa total</span>
-                    <strong>{money(knownTotal)}</strong>
+                return (
+                  <div key={item.id} className="rounded-2xl border p-4" style={{ borderColor: "var(--site-line)", background: "var(--site-bg)" }}>
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <strong className="block text-sm leading-snug">{item.label}</strong>
+                        {item.price === null || final === null ? (
+                          <span className="mt-1 block text-sm font-bold">Sob consulta</span>
+                        ) : itemDiscount > 0 ? (
+                          <div className="mt-2">
+                            <span className="text-xs line-through" style={{ color: "var(--site-muted)" }}>{money(item.price)}</span>
+                            <span className="ml-2 rounded-full bg-green-100 px-2 py-1 text-[10px] font-extrabold text-green-800">
+                              -{money(itemDiscount)}
+                            </span>
+                            <strong className="mt-1 block text-lg" style={{ color: "var(--brand-navy)" }}>{money(final)}</strong>
+                          </div>
+                        ) : (
+                          <strong className="mt-1 block text-lg" style={{ color: "var(--brand-navy)" }}>{money(item.price)}</strong>
+                        )}
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => removeItem(item)}
+                        className="rounded-lg border px-2 py-1 text-xs font-bold"
+                        style={{ borderColor: "var(--site-line)", color: "var(--brand-red)" }}
+                        aria-label={`Remover ${item.label}`}
+                      >
+                        Remover
+                      </button>
+                    </div>
                   </div>
-                  {hasUnpricedAnnual ? (
-                    <p className="mt-1 text-[11px] text-white/60">+ valor da assinatura anual, que está sob consulta.</p>
+                );
+              })}
+
+              {comboActive ? (
+                <div className="rounded-2xl bg-green-50 p-4 text-green-900">
+                  <p className="text-xs font-extrabold uppercase tracking-[0.1em]">Desconto por combinação aplicado</p>
+                  <p className="mt-1 text-sm">Economia total: <strong>{money(totals.discount)}</strong></p>
+                </div>
+              ) : (
+                <p className="rounded-xl bg-amber-50 px-4 py-3 text-xs font-semibold text-amber-900">
+                  Adicione mais 1 produto para ativar o desconto combinado.
+                </p>
+              )}
+
+              {totals.subtotal > 0 ? (
+                <div className="border-t pt-4" style={{ borderColor: "var(--site-line)" }}>
+                  <div className="flex justify-between text-sm" style={{ color: "var(--site-muted)" }}>
+                    <span>Subtotal</span>
+                    <span>{money(totals.subtotal)}</span>
+                  </div>
+                  {totals.discount > 0 ? (
+                    <div className="mt-1 flex justify-between text-sm font-semibold text-green-700">
+                      <span>Descontos</span>
+                      <span>-{money(totals.discount)}</span>
+                    </div>
+                  ) : null}
+                  <div className="mt-3 flex items-end justify-between gap-3">
+                    <span className="font-bold">Total estimado</span>
+                    <strong className="text-3xl" style={{ color: "var(--brand-navy)" }}>{money(totals.total)}</strong>
+                  </div>
+                  {totals.hasUnknownPrice ? (
+                    <p className="mt-2 text-xs" style={{ color: "var(--site-muted)" }}>+ item com valor sob consulta.</p>
                   ) : null}
                 </div>
               ) : null}
@@ -385,16 +507,16 @@ export function AssineConfigurator({ settings }: { settings: PublicSiteOfferSett
           <button
             type="button"
             onClick={() => void submitRequest()}
-            disabled={pending}
-            className="mt-5 w-full rounded-xl bg-[color:var(--brand-red)] px-4 py-3 text-sm font-extrabold text-white transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60"
+            disabled={pending || !hasSelection}
+            className="mt-5 w-full rounded-xl bg-[color:var(--brand-red)] px-4 py-3 text-sm font-extrabold text-white transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50"
           >
-            {pending ? "Registrando..." : "Solicitar e continuar no WhatsApp"}
+            {pending ? "Registrando..." : "Solicitar pelo WhatsApp"}
           </button>
-          <p className="mt-3 text-[11px] leading-relaxed text-white/60">
-            O pedido fica registrado para acompanhamento e depois abre uma mensagem pronta no WhatsApp do Informativo Regional.
+          <p className="mt-3 text-[11px] leading-relaxed" style={{ color: "var(--site-muted)" }}>
+            A solicitação fica registrada no painel e depois abre o WhatsApp com o carrinho preenchido. A contratação depende da avaliação do setor comercial.
           </p>
-        </aside>
-      </section>
-    </div>
+        </div>
+      </aside>
+    </section>
   );
 }
