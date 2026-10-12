@@ -1,5 +1,5 @@
 -- Busca pública rápida e hierárquica:
-// título -> subtítulo -> corpo; fragmentos sem acento; filtros por editoria/período.
+-- título -> subtítulo -> corpo; fragmentos sem acento; filtros por editoria/período.
 
 create extension if not exists unaccent with schema extensions;
 create extension if not exists pg_trgm with schema extensions;
