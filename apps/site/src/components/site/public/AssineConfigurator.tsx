@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { contactInfo } from "../siteSettings";
 import { getPublicSupabaseClient } from "../../../lib/public/supabasePublicClient";
+import type { PublicSiteOfferSettings } from "../../../lib/public/siteOfferSettingsService";
 
 type PrintOffer = {
   id: string;
@@ -12,31 +13,33 @@ type PrintOffer = {
   height: string;
 };
 
-const PRINT_OFFERS: PrintOffer[] = [
-  { id: "business-card", label: "Cartão de visita", price: 130, width: "42%", height: "18%" },
-  { id: "standard", label: "Padrão", price: 180, width: "48%", height: "31%" },
-  { id: "quarter", label: "1/4 de página", price: 350, width: "48%", height: "48%" },
-  { id: "half", label: "Meia página", price: 700, width: "96%", height: "48%" },
-  { id: "full", label: "Página inteira", price: 1200, width: "96%", height: "94%" },
-];
-
-const DIGITAL_PRICE = 800;
-
-// Mantém aproximadamente a mesma proporção do combinado informado:
-// Padrão (R$ 180) + painéis (R$ 800) => pacote R$ 950.
-const COMBO_PRICES: Record<string, number> = {
-  "business-card": 900,
-  standard: 950,
-  quarter: 1100,
-  half: 1450,
-  full: 1950,
-};
-
 function money(value: number): string {
   return value.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 }
 
-export function AssineConfigurator(): JSX.Element {
+export function AssineConfigurator({ settings }: { settings: PublicSiteOfferSettings }): JSX.Element {
+  const printOffers = useMemo<PrintOffer[]>(
+    () => [
+      { id: "business-card", label: "Cartão de visita", price: settings.printBusinessCardPrice, width: "42%", height: "18%" },
+      { id: "standard", label: "Padrão", price: settings.printStandardPrice, width: "48%", height: "31%" },
+      { id: "quarter", label: "1/4 de página", price: settings.printQuarterPrice, width: "48%", height: "48%" },
+      { id: "half", label: "Meia página", price: settings.printHalfPrice, width: "96%", height: "48%" },
+      { id: "full", label: "Página inteira", price: settings.printFullPrice, width: "96%", height: "94%" },
+    ],
+    [settings],
+  );
+
+  const comboPrices = useMemo<Record<string, number>>(
+    () => ({
+      "business-card": settings.comboBusinessCardLedPrice,
+      standard: settings.comboStandardLedPrice,
+      quarter: settings.comboQuarterLedPrice,
+      half: settings.comboHalfLedPrice,
+      full: settings.comboFullLedPrice,
+    }),
+    [settings],
+  );
+
   const [annualSubscription, setAnnualSubscription] = useState(false);
   const [printOfferId, setPrintOfferId] = useState<string | null>(null);
   const [digital, setDigital] = useState(false);
@@ -51,17 +54,21 @@ export function AssineConfigurator(): JSX.Element {
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const printOffer = PRINT_OFFERS.find((item) => item.id === printOfferId) ?? null;
+  const printOffer = printOffers.find((item) => item.id === printOfferId) ?? null;
   const hasAdvertising = Boolean(printOffer || digital);
   const hasSelection = annualSubscription || hasAdvertising;
 
   const advertisingTotal = useMemo(() => {
-    if (printOffer && digital) return COMBO_PRICES[printOffer.id];
-    return (printOffer?.price ?? 0) + (digital ? DIGITAL_PRICE : 0);
-  }, [printOffer, digital]);
+    if (printOffer && digital) return comboPrices[printOffer.id];
+    return (printOffer?.price ?? 0) + (digital ? settings.ledThreeCitiesPrice : 0);
+  }, [printOffer, digital, comboPrices, settings.ledThreeCitiesPrice]);
 
-  const regularAdvertisingTotal = (printOffer?.price ?? 0) + (digital ? DIGITAL_PRICE : 0);
-  const comboSaving = printOffer && digital ? regularAdvertisingTotal - advertisingTotal : 0;
+  const regularAdvertisingTotal = (printOffer?.price ?? 0) + (digital ? settings.ledThreeCitiesPrice : 0);
+  const comboSaving = printOffer && digital ? Math.max(0, regularAdvertisingTotal - advertisingTotal) : 0;
+  const annualPrice = settings.annualSubscriptionPrice;
+  const knownTotal = advertisingTotal + (annualSubscription && annualPrice !== null ? annualPrice : 0);
+  const hasKnownValue = knownTotal > 0;
+  const hasUnpricedAnnual = annualSubscription && annualPrice === null;
 
   const selections = useMemo(() => {
     const result: Array<Record<string, unknown>> = [];
@@ -71,7 +78,7 @@ export function AssineConfigurator(): JSX.Element {
         type: "subscription",
         id: "annual-newspaper",
         label: "Assinatura anual para receber o jornal",
-        price: null,
+        price: annualPrice,
       });
     }
 
@@ -90,7 +97,7 @@ export function AssineConfigurator(): JSX.Element {
         type: "digital_ad",
         id: "led-3-cities",
         label: "3 painéis de LED — São João do Sul, Praia Grande e Passo de Torres",
-        individualPrice: DIGITAL_PRICE,
+        individualPrice: settings.ledThreeCitiesPrice,
       });
     }
 
@@ -104,7 +111,7 @@ export function AssineConfigurator(): JSX.Element {
     }
 
     return result;
-  }, [annualSubscription, printOffer, digital, advertisingTotal]);
+  }, [annualSubscription, annualPrice, printOffer, digital, settings.ledThreeCitiesPrice, advertisingTotal]);
 
   async function submitRequest(): Promise<void> {
     setError(null);
@@ -143,7 +150,7 @@ export function AssineConfigurator(): JSX.Element {
         p_city: city.trim() || null,
         p_company: company.trim() || null,
         p_selections: selections,
-        p_estimated_total: hasAdvertising ? advertisingTotal : null,
+        p_estimated_total: hasKnownValue ? knownTotal : null,
         p_notes: notes.trim() || null,
       });
 
@@ -161,10 +168,13 @@ export function AssineConfigurator(): JSX.Element {
         company.trim() ? `Empresa: ${company.trim()}` : null,
         "",
         "Interesse:",
-        annualSubscription ? "- Assinatura anual para receber o jornal" : null,
+        annualSubscription
+          ? `- Assinatura anual — ${annualPrice === null ? "sob consulta" : money(annualPrice)}`
+          : null,
         printOffer ? `- Jornal impresso: ${printOffer.label} — ${money(printOffer.price)}` : null,
-        digital ? `- Divulgação nos 3 painéis — ${money(DIGITAL_PRICE)}` : null,
-        printOffer && digital ? `- Valor estimado do pacote: ${money(advertisingTotal)}` : null,
+        digital ? `- Divulgação nos 3 painéis — ${money(settings.ledThreeCitiesPrice)}` : null,
+        printOffer && digital ? `- Valor do pacote impresso + painéis: ${money(advertisingTotal)}` : null,
+        hasKnownValue ? `- Estimativa total conhecida: ${money(knownTotal)}` : null,
         notes.trim() ? "" : null,
         notes.trim() ? `Observação: ${notes.trim()}` : null,
         "",
@@ -187,7 +197,7 @@ export function AssineConfigurator(): JSX.Element {
             <p className="kicker">ASSINATURA</p>
             <h2 className="mt-3 font-editorial text-3xl font-bold md:text-4xl">Receba o Informativo Regional</h2>
             <p className="mt-3 max-w-2xl text-sm md:text-base" style={{ color: "var(--site-muted)" }}>
-              Assinatura anual do jornal impresso. O valor, a área de entrega e as condições são confirmados no atendimento.
+              Assinatura anual do jornal impresso. Área de entrega e condições são confirmadas no atendimento.
             </p>
           </div>
           <button
@@ -200,7 +210,9 @@ export function AssineConfigurator(): JSX.Element {
               {annualSubscription ? "Selecionado" : "Adicionar"}
             </span>
             <strong className="mt-1 block text-lg">Assinatura anual</strong>
-            <span className="mt-1 block text-sm" style={{ color: "var(--site-muted)" }}>Valor sob consulta</span>
+            <span className="mt-1 block text-sm" style={{ color: "var(--site-muted)" }}>
+              {annualPrice === null ? "Valor sob consulta" : money(annualPrice)}
+            </span>
           </button>
         </div>
       </section>
@@ -220,7 +232,7 @@ export function AssineConfigurator(): JSX.Element {
         </div>
 
         <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
-          {PRINT_OFFERS.map((offer) => {
+          {printOffers.map((offer) => {
             const selected = printOfferId === offer.id;
             return (
               <button
@@ -272,7 +284,7 @@ export function AssineConfigurator(): JSX.Element {
               {digital ? "Selecionado" : "Adicionar"}
             </span>
             <strong className="mt-1 block text-lg">3 cidades</strong>
-            <span className="mt-1 block text-2xl font-extrabold" style={{ color: "var(--brand-navy)" }}>{money(DIGITAL_PRICE)}</span>
+            <span className="mt-1 block text-2xl font-extrabold" style={{ color: "var(--brand-navy)" }}>{money(settings.ledThreeCitiesPrice)}</span>
           </button>
         </div>
       </section>
@@ -330,7 +342,7 @@ export function AssineConfigurator(): JSX.Element {
               {annualSubscription ? (
                 <div className="flex justify-between gap-4">
                   <span>Assinatura anual</span>
-                  <strong>Sob consulta</strong>
+                  <strong>{annualPrice === null ? "Sob consulta" : money(annualPrice)}</strong>
                 </div>
               ) : null}
               {printOffer ? (
@@ -342,7 +354,7 @@ export function AssineConfigurator(): JSX.Element {
               {digital ? (
                 <div className="flex justify-between gap-4">
                   <span>3 painéis digitais</span>
-                  <strong>{money(DIGITAL_PRICE)}</strong>
+                  <strong>{money(settings.ledThreeCitiesPrice)}</strong>
                 </div>
               ) : null}
 
@@ -350,14 +362,21 @@ export function AssineConfigurator(): JSX.Element {
                 <div className="mt-4 rounded-2xl bg-white/10 p-4">
                   <p className="text-xs font-bold uppercase tracking-[0.12em] text-white/65">Pacote combinado</p>
                   <p className="mt-1 text-3xl font-extrabold">{money(advertisingTotal)}</p>
-                  <p className="mt-1 text-xs text-white/70">Economia estimada de {money(comboSaving)} sobre os itens separados.</p>
+                  {comboSaving > 0 ? (
+                    <p className="mt-1 text-xs text-white/70">Economia estimada de {money(comboSaving)} sobre os itens separados.</p>
+                  ) : null}
                 </div>
-              ) : hasAdvertising ? (
+              ) : null}
+
+              {hasKnownValue ? (
                 <div className="border-t border-white/20 pt-3">
                   <div className="flex justify-between gap-4 text-base">
-                    <span>Estimativa</span>
-                    <strong>{money(advertisingTotal)}</strong>
+                    <span>Estimativa total</span>
+                    <strong>{money(knownTotal)}</strong>
                   </div>
+                  {hasUnpricedAnnual ? (
+                    <p className="mt-1 text-[11px] text-white/60">+ valor da assinatura anual, que está sob consulta.</p>
+                  ) : null}
                 </div>
               ) : null}
             </div>
