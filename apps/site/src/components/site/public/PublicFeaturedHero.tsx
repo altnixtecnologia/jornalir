@@ -5,7 +5,8 @@ import { useEffect, useRef, useState, type MouseEvent } from "react";
 import { formatDateBR } from "../date";
 import type { PublicArticle } from "../../../lib/public/types";
 
-const AUTOPLAY_MS = 8000;
+const DESKTOP_AUTOPLAY_MS = 8_000;
+const MOBILE_AUTOPLAY_MS = 16_000;
 
 type ImageOrientation = "landscape" | "portrait" | "square";
 
@@ -17,20 +18,27 @@ function heroTitleSizeClass(title: string): string {
 
 export function PublicFeaturedHero({ items }: { items: PublicArticle[] }): JSX.Element {
   const [index, setIndex] = useState(0);
+  const [isMobile, setIsMobile] = useState(false);
   const [orientations, setOrientations] = useState<Record<string, ImageOrientation>>({});
   const stageRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (items.length <= 1) return;
-    const timer = window.setInterval(() => {
-      setIndex((old) => (old === items.length - 1 ? 0 : old + 1));
-    }, AUTOPLAY_MS);
-    return () => window.clearInterval(timer);
-  }, [items.length]);
+    const media = window.matchMedia("(max-width: 767px)");
+    const sync = (): void => setIsMobile(media.matches);
+    sync();
+    media.addEventListener("change", sync);
+    return () => media.removeEventListener("change", sync);
+  }, []);
 
-  // Detecta a proporção real de cada capa no navegador. Assim, fotos
-  // horizontais podem preencher todo o hero e fotos verticais preservam
-  // a imagem inteira com extensão desfocada nas laterais.
+  useEffect(() => {
+    if (items.length <= 1) return;
+    const delay = isMobile ? MOBILE_AUTOPLAY_MS : DESKTOP_AUTOPLAY_MS;
+    const timer = window.setTimeout(() => {
+      setIndex((old) => (old === items.length - 1 ? 0 : old + 1));
+    }, delay);
+    return () => window.clearTimeout(timer);
+  }, [items.length, index, isMobile]);
+
   useEffect(() => {
     let cancelled = false;
 
@@ -59,6 +67,7 @@ export function PublicFeaturedHero({ items }: { items: PublicArticle[] }): JSX.E
   const next = (): void => setIndex((old) => (old === items.length - 1 ? 0 : old + 1));
 
   function handleMouseMove(event: MouseEvent<HTMLDivElement>): void {
+    if (isMobile) return;
     const el = stageRef.current;
     if (!el) return;
     const rect = el.getBoundingClientRect();
@@ -88,6 +97,11 @@ export function PublicFeaturedHero({ items }: { items: PublicArticle[] }): JSX.E
           const withPhoto = Boolean(item.cover?.url);
           const orientation = orientations[item.id];
           const fillsHero = orientation === "landscape";
+          const mobileMotionClass = isMobile
+            ? fillsHero
+              ? "hero-mobile-pan"
+              : "hero-mobile-breathe"
+            : "";
 
           return (
             <Link
@@ -99,13 +113,9 @@ export function PublicFeaturedHero({ items }: { items: PublicArticle[] }): JSX.E
             >
               {withPhoto ? (
                 <>
-                  {/* "Borda infinita": para vertical/quadrada, a própria
-                      foto ampliada, desfocada e escurecida preenche as
-                      laterais. Em horizontal fica praticamente escondida
-                      pela imagem principal em cover. */}
                   <div
                     className={`absolute -inset-10 scale-110 bg-cover bg-center blur-2xl transition-opacity duration-500 ${
-                      fillsHero ? "opacity-20" : "opacity-65"
+                      fillsHero ? "opacity-28" : "opacity-70"
                     }`}
                     style={{ backgroundImage: `url(${item.cover?.url})` }}
                     aria-hidden="true"
@@ -114,13 +124,10 @@ export function PublicFeaturedHero({ items }: { items: PublicArticle[] }): JSX.E
                   <div className="hero-photo-layer absolute inset-0">
                     <div className="hero-parallax h-full w-full">
                       <div
-                        className="hero-photo-fg h-full w-full bg-center bg-no-repeat"
+                        className={`hero-photo-fg h-full w-full bg-center bg-no-repeat ${mobileMotionClass}`}
                         style={{
                           backgroundImage: `url(${item.cover?.url})`,
-                          // Horizontal: preenche todo o espaço lateral.
-                          // Vertical/quadrada: preserva a foto inteira e usa
-                          // o fundo desfocado como continuação lateral.
-                          backgroundSize: fillsHero ? "cover" : "contain",
+                          backgroundSize: isMobile && fillsHero ? "auto 100%" : fillsHero ? "cover" : "contain",
                         }}
                       />
                     </div>

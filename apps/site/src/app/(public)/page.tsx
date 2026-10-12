@@ -1,6 +1,6 @@
 import { AdSenseSlot } from "../../components/site/AdSenseSlot";
 import { AdSlotColumn } from "../../components/site/AdSlotColumn";
-import { AdSlotPairRow } from "../../components/site/AdSlotPairRow";
+import { MobileAdPairRotation } from "../../components/site/MobileAdPairRotation";
 import type { AdSlot } from "../../components/site/adSlots";
 import { SiteHeader } from "../../components/site/SiteHeader";
 import { PublicFeaturedHero } from "../../components/site/public/PublicFeaturedHero";
@@ -43,10 +43,12 @@ export default async function HomePage(): Promise<JSX.Element> {
   const leftAdSlots = adSlots.slice(0, 3);
   const rightAdSlots = adSlots.slice(3, 6);
 
-  // Mobile: os 6 quadros em 3 pares, nunca os 6 juntos.
-  const pairA: [AdSlot, AdSlot] = [adSlots[0], adSlots[1]];
-  const pairB: [AdSlot, AdSlot] = [adSlots[2], adSlots[3]];
-  const pairC: [AdSlot, AdSlot] = [adSlots[4], adSlots[5]];
+  // Mobile: todas as artes entram numa única rotação. Os seis espaços
+  // usam o mesmo relógio e offsets diferentes, então cada patrocinador
+  // percorre, ao longo do ciclo, as seis posições (topo/meio/base).
+  const mobileCreativePool = Array.from(
+    new Map(adSlots.flatMap((slot) => slot.creatives).map((creative) => [creative.id, creative] as const)).values(),
+  );
 
   return (
     <main className="min-h-screen">
@@ -92,10 +94,24 @@ export default async function HomePage(): Promise<JSX.Element> {
           </div>
 
           <div className="min-w-0">
+            <div className="mb-7 md:hidden">
+              <MobileAdPairRotation
+                creatives={mobileCreativePool}
+                pairIndex={0}
+                rotateMs={siteAds.settings.rotationIntervalMs}
+                effect={siteAds.settings.transitionEffect}
+              />
+            </div>
+
             <PublicLatestNewsList items={latestNews} />
 
-            <div className="md:hidden">
-              <AdSlotPairRow slots={pairA} effect={siteAds.settings.transitionEffect} />
+            <div className="mt-1 md:hidden">
+              <MobileAdPairRotation
+                creatives={mobileCreativePool}
+                pairIndex={1}
+                rotateMs={siteAds.settings.rotationIntervalMs}
+                effect={siteAds.settings.transitionEffect}
+              />
             </div>
           </div>
 
@@ -109,12 +125,13 @@ export default async function HomePage(): Promise<JSX.Element> {
           <PublicLocalSpotlight items={localSpotlight} />
         </div>
 
-        <div className="mt-8 md:hidden">
-          <AdSlotPairRow slots={pairB} effect={siteAds.settings.transitionEffect} />
-        </div>
-
-        <div className="mt-2 pb-4 md:hidden">
-          <AdSlotPairRow slots={pairC} effect={siteAds.settings.transitionEffect} />
+        <div className="mt-8 pb-4 md:hidden">
+          <MobileAdPairRotation
+            creatives={mobileCreativePool}
+            pairIndex={2}
+            rotateMs={siteAds.settings.rotationIntervalMs}
+            effect={siteAds.settings.transitionEffect}
+          />
         </div>
       </section>
     </main>

@@ -215,16 +215,10 @@ export function SiteHeader({ active, emphasized = false }: { active?: string; em
           <Link href="/" aria-label="Informativo Regional" className="hidden shrink-0 lg:inline-flex lg:items-center">
             <img src="/brand/logo-escrita.png" alt="Informativo Regional" style={{ height: 72, width: "auto" }} />
           </Link>
-          {/* Mobile/tablet: símbolo oficial (transparente) + nome — melhor
-              aproveitamento do espaço reduzido. `min-w-0` + o CSS de
-              `.brand-mark-name strong` (nowrap/ellipsis) evitam que o nome
-              quebre em duas linhas feias quando o espaço fica curto ao lado
-              dos botões de voltar/menu. */}
-          <Link href="/" aria-label="Informativo Regional" className="brand-mark min-w-0 lg:hidden">
-            <img src="/brand/logo-ir.png" alt="" />
-            <span className="brand-mark-name min-w-0">
-              <strong>Informativo Regional</strong>
-            </span>
+          {/* Mobile/tablet: só o símbolo IR. Libera espaço para busca,
+              Assine e o acionador do menu sem comprimir o cabeçalho. */}
+          <Link href="/" aria-label="Informativo Regional" className="brand-mark ir-mobile-brand lg:hidden">
+            <img src="/brand/logo-ir.png" alt="IR" />
           </Link>
 
           <nav className="hidden min-w-0 items-center gap-4 lg:flex xl:gap-5" aria-label="Navegação principal">
@@ -301,7 +295,7 @@ export function SiteHeader({ active, emphasized = false }: { active?: string; em
         </div>
 
         <div className="flex shrink-0 items-center gap-2">
-          <Link href="/busca" aria-label="Buscar" className="icon-btn hidden md:inline-flex">
+          <Link href="/busca" aria-label="Buscar" className="icon-btn">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <circle cx="11" cy="11" r="7" />
               <path d="m21 21-4.3-4.3" />
@@ -323,7 +317,7 @@ export function SiteHeader({ active, emphasized = false }: { active?: string; em
             ))}
           </div>
 
-          <Link href="/assine" className="nav-pill nav-pill--solid hidden sm:inline-flex">
+          <Link href="/assine" className="nav-pill nav-pill--solid mobile-assine-cta">
             Assine
           </Link>
 

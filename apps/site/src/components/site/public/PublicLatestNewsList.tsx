@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { formatDateBR } from "../date";
 import type { PublicArticle } from "../../../lib/public/types";
 
@@ -13,15 +13,9 @@ type RotationState = {
   nextDelayMs: number;
 };
 
-/**
- * "Últimas notícias" com lista fixa e destaque sincronizado:
- * - rotação automática a cada 20s;
- * - clique troca imediatamente o destaque e segura por 30s;
- * - depois do hold manual, avança uma vez e retoma o ciclo de 20s;
- * - a lista mantém a numeração/ordem original e só marca o item ativo.
- */
 export function PublicLatestNewsList({ items }: { items: PublicArticle[] }): JSX.Element {
   const [rotation, setRotation] = useState<RotationState>({ index: 0, nextDelayMs: AUTO_ROTATION_MS });
+  const activeStoryRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (items.length <= 1) return;
@@ -46,6 +40,15 @@ export function PublicLatestNewsList({ items }: { items: PublicArticle[] }): JSX
 
   function selectManually(index: number): void {
     setRotation({ index, nextDelayMs: MANUAL_HOLD_MS });
+
+    if (window.matchMedia("(max-width: 1023px)").matches) {
+      window.setTimeout(() => {
+        const target = activeStoryRef.current;
+        if (!target) return;
+        const top = target.getBoundingClientRect().top + window.scrollY - 76;
+        window.scrollTo({ top: Math.max(0, top), behavior: "smooth" });
+      }, 40);
+    }
   }
 
   return (
@@ -58,7 +61,7 @@ export function PublicLatestNewsList({ items }: { items: PublicArticle[] }): JSX
       </div>
 
       <div className="grid grid-cols-1 items-start gap-8 lg:grid-cols-[1.15fr_1fr]">
-        <div key={selected.id} className="reveal-up">
+        <div ref={activeStoryRef} key={selected.id} className="reveal-up">
           <div className="relative h-64 overflow-hidden rounded-sm bg-[color:var(--site-bg)] md:h-80">
             {selected.cover?.url ? (
               <div className="h-full w-full bg-contain bg-center bg-no-repeat" style={{ backgroundImage: `url(${selected.cover.url})` }} />
