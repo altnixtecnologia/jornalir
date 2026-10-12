@@ -1,22 +1,52 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { formatDateBR } from "../date";
 import type { PublicArticle } from "../../../lib/public/types";
 
+const AUTO_ROTATION_MS = 20_000;
+const MANUAL_HOLD_MS = 30_000;
+
+type RotationState = {
+  index: number;
+  nextDelayMs: number;
+};
+
 /**
- * `LatestNewsList` (Fase 22/29) adaptado a `PublicArticle` real — mesma
- * interação (troca a matéria em destaque ao clicar na lista, sem navegar),
- * mesmo marcador `.latest-news-active` no item selecionado. Posição
- * `latestNews`.
+ * "Últimas notícias" com lista fixa e destaque sincronizado:
+ * - rotação automática a cada 20s;
+ * - clique troca imediatamente o destaque e segura por 30s;
+ * - depois do hold manual, avança uma vez e retoma o ciclo de 20s;
+ * - a lista mantém a numeração/ordem original e só marca o item ativo.
  */
 export function PublicLatestNewsList({ items }: { items: PublicArticle[] }): JSX.Element {
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [rotation, setRotation] = useState<RotationState>({ index: 0, nextDelayMs: AUTO_ROTATION_MS });
+
+  useEffect(() => {
+    if (items.length <= 1) return;
+
+    const timer = window.setTimeout(() => {
+      setRotation((previous) => {
+        const currentIndex = previous.index < items.length ? previous.index : 0;
+        return {
+          index: (currentIndex + 1) % items.length,
+          nextDelayMs: AUTO_ROTATION_MS,
+        };
+      });
+    }, rotation.nextDelayMs);
+
+    return () => window.clearTimeout(timer);
+  }, [items.length, rotation.index, rotation.nextDelayMs]);
 
   if (items.length === 0) return <></>;
-  const selected = items.find((item) => item.id === selectedId) ?? items[0];
-  const list = items.filter((item) => item.id !== selected.id);
+
+  const selectedIndex = rotation.index < items.length ? rotation.index : 0;
+  const selected = items[selectedIndex];
+
+  function selectManually(index: number): void {
+    setRotation({ index, nextDelayMs: MANUAL_HOLD_MS });
+  }
 
   return (
     <section className="pb-10">
@@ -56,27 +86,46 @@ export function PublicLatestNewsList({ items }: { items: PublicArticle[] }): JSX
         </div>
 
         <ol className="divide-y divide-[color:var(--site-line)] lg:border-l lg:border-[color:var(--site-line)] lg:pl-8">
-          {list.map((item, i) => (
-            <li key={item.id}>
-              <button
-                type="button"
-                onClick={() => setSelectedId(item.id)}
-                className="group flex w-full items-start gap-4 py-4 text-left"
-              >
-                <span className="font-editorial text-xl font-bold leading-none text-[color:var(--site-line)] group-hover:text-[color:var(--brand-red)]">
-                  {String(i + 1).padStart(2, "0")}
-                </span>
-                <div className="min-w-0">
-                  <p className="text-[10px] font-bold uppercase tracking-wide text-[color:var(--site-muted)]">
-                    {item.sectionName} · {formatDateBR(item.publishedAt)}
-                  </p>
-                  <h4 className="mt-1 text-base font-semibold leading-snug text-[color:var(--site-text)] group-hover:text-[color:var(--brand-red)]">
-                    {item.title}
-                  </h4>
-                </div>
-              </button>
-            </li>
-          ))}
+          {items.map((item, i) => {
+            const isActive = i === selectedIndex;
+
+            return (
+              <li key={item.id}>
+                <button
+                  type="button"
+                  onClick={() => selectManually(i)}
+                  aria-pressed={isActive}
+                  className={`group flex w-full items-start gap-4 border-l-2 py-4 pl-3 text-left transition-colors ${
+                    isActive ? "border-[color:var(--brand-red)]" : "border-transparent"
+                  }`}
+                >
+                  <span
+                    className={`font-editorial text-xl font-bold leading-none transition-colors ${
+                      isActive
+                        ? "text-[color:var(--brand-red)]"
+                        : "text-[color:var(--site-line)] group-hover:text-[color:var(--brand-red)]"
+                    }`}
+                  >
+                    {String(i + 1).padStart(2, "0")}
+                  </span>
+                  <div className="min-w-0">
+                    <p className="text-[10px] font-bold uppercase tracking-wide text-[color:var(--site-muted)]">
+                      {item.sectionName} · {formatDateBR(item.publishedAt)}
+                    </p>
+                    <h4
+                      className={`mt-1 text-base font-semibold leading-snug transition-colors ${
+                        isActive
+                          ? "text-[color:var(--brand-red)]"
+                          : "text-[color:var(--site-text)] group-hover:text-[color:var(--brand-red)]"
+                      }`}
+                    >
+                      {item.title}
+                    </h4>
+                  </div>
+                </button>
+              </li>
+            );
+          })}
         </ol>
       </div>
     </section>
