@@ -98,7 +98,6 @@ export function SiteOfferSettingsPanel({ values }: { values: SiteOfferSettingsVa
   ): JSX.Element {
     return (
       <label className="assine-money-field">
-        <span className="sr-only">{ariaLabel}</span>
         <span className="assine-money-input">
           <span className="assine-money-prefix">R$</span>
           <input
