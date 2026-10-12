@@ -64,7 +64,15 @@ export async function SiteFooter(): Promise<JSX.Element> {
               { href: socialLinks.instagram, icon: "/brand/social-instagram.png", label: "Instagram" },
               { href: socialLinks.whatsapp, icon: "/brand/social-whatsapp.png", label: "WhatsApp" }
             ].map((social) => (
-              <a key={social.label} href={social.href} target="_blank" rel="noreferrer" aria-label={social.label} className="inline-flex h-7 w-7 items-center justify-center overflow-hidden rounded-full ring-1 ring-[color:var(--site-line)]">
+              <a
+                key={social.label}
+                href={social.href}
+                target="_blank"
+                rel="noreferrer"
+                aria-label={social.label}
+                data-footer-whatsapp={social.label === "WhatsApp" ? "true" : undefined}
+                className="inline-flex h-7 w-7 items-center justify-center overflow-hidden rounded-full ring-1 ring-[color:var(--site-line)]"
+              >
                 <img src={social.icon} alt="" className="h-7 w-7 object-cover" />
               </a>
             ))}

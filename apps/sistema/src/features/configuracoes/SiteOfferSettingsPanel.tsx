@@ -9,48 +9,46 @@ import {
 export interface SiteOfferSettingsValues {
   annualSubscriptionPrice: number | null;
   annualSubscriptionComboDiscount: number;
-
   printBusinessCardPrice: number;
   printBusinessCardComboDiscount: number;
-
   printStandardPrice: number;
   printStandardComboDiscount: number;
-
   printQuarterPrice: number;
   printQuarterComboDiscount: number;
-
   printHalfPrice: number;
   printHalfComboDiscount: number;
-
   printFullPrice: number;
   printFullComboDiscount: number;
-
   ledThreeCitiesPrice: number;
   ledThreeCitiesComboDiscount: number;
 }
 
+function formatMoneyInput(value: number): string {
+  return value.toFixed(2).replace(".", ",");
+}
+
+function normalizeMoneyInput(value: string): string {
+  const parsed = Number(value.trim().replace(",", "."));
+  if (!Number.isFinite(parsed) || parsed < 0) return value;
+  return formatMoneyInput(parsed);
+}
+
 function toInput(values: SiteOfferSettingsValues): SiteOfferSettingsFormInput {
   return {
-    annualSubscriptionPrice: values.annualSubscriptionPrice === null ? "" : String(values.annualSubscriptionPrice),
-    annualSubscriptionComboDiscount: String(values.annualSubscriptionComboDiscount),
-
-    printBusinessCardPrice: String(values.printBusinessCardPrice),
-    printBusinessCardComboDiscount: String(values.printBusinessCardComboDiscount),
-
-    printStandardPrice: String(values.printStandardPrice),
-    printStandardComboDiscount: String(values.printStandardComboDiscount),
-
-    printQuarterPrice: String(values.printQuarterPrice),
-    printQuarterComboDiscount: String(values.printQuarterComboDiscount),
-
-    printHalfPrice: String(values.printHalfPrice),
-    printHalfComboDiscount: String(values.printHalfComboDiscount),
-
-    printFullPrice: String(values.printFullPrice),
-    printFullComboDiscount: String(values.printFullComboDiscount),
-
-    ledThreeCitiesPrice: String(values.ledThreeCitiesPrice),
-    ledThreeCitiesComboDiscount: String(values.ledThreeCitiesComboDiscount),
+    annualSubscriptionPrice: values.annualSubscriptionPrice === null ? "" : formatMoneyInput(values.annualSubscriptionPrice),
+    annualSubscriptionComboDiscount: formatMoneyInput(values.annualSubscriptionComboDiscount),
+    printBusinessCardPrice: formatMoneyInput(values.printBusinessCardPrice),
+    printBusinessCardComboDiscount: formatMoneyInput(values.printBusinessCardComboDiscount),
+    printStandardPrice: formatMoneyInput(values.printStandardPrice),
+    printStandardComboDiscount: formatMoneyInput(values.printStandardComboDiscount),
+    printQuarterPrice: formatMoneyInput(values.printQuarterPrice),
+    printQuarterComboDiscount: formatMoneyInput(values.printQuarterComboDiscount),
+    printHalfPrice: formatMoneyInput(values.printHalfPrice),
+    printHalfComboDiscount: formatMoneyInput(values.printHalfComboDiscount),
+    printFullPrice: formatMoneyInput(values.printFullPrice),
+    printFullComboDiscount: formatMoneyInput(values.printFullComboDiscount),
+    ledThreeCitiesPrice: formatMoneyInput(values.ledThreeCitiesPrice),
+    ledThreeCitiesComboDiscount: formatMoneyInput(values.ledThreeCitiesComboDiscount),
   };
 }
 
@@ -66,11 +64,25 @@ export function SiteOfferSettingsPanel({ values }: { values: SiteOfferSettingsVa
     setError(null);
   }
 
+  function normalize(key: keyof SiteOfferSettingsFormInput): void {
+    const value = input[key];
+    if (!value.trim()) return;
+    set(key, normalizeMoneyInput(value));
+  }
+
   function save(): void {
     setMessage(null);
     setError(null);
     startTransition(async () => {
-      const result = await updateSiteOfferSettingsAction(input);
+      const normalizedInput = Object.fromEntries(
+        Object.entries(input).map(([key, value]) => [
+          key,
+          value.trim() ? normalizeMoneyInput(value) : value,
+        ]),
+      ) as unknown as SiteOfferSettingsFormInput;
+
+      setInput(normalizedInput);
+      const result = await updateSiteOfferSettingsAction(normalizedInput);
       if ("error" in result) {
         setError(result.error);
         return;
@@ -80,21 +92,25 @@ export function SiteOfferSettingsPanel({ values }: { values: SiteOfferSettingsVa
   }
 
   function moneyField(
-    label: string,
     key: keyof SiteOfferSettingsFormInput,
-    helper?: string,
+    ariaLabel: string,
+    allowBlank = false,
   ): JSX.Element {
     return (
-      <label className="form-field">
-        <span className="field-label">{label}</span>
-        <input
-          type="number"
-          min="0"
-          step="0.01"
-          value={input[key]}
-          onChange={(event) => set(key, event.target.value)}
-        />
-        {helper ? <span className="helper-text">{helper}</span> : null}
+      <label className="assine-money-field">
+        <span className="sr-only">{ariaLabel}</span>
+        <span className="assine-money-input">
+          <span className="assine-money-prefix">R$</span>
+          <input
+            type="text"
+            inputMode="decimal"
+            value={input[key]}
+            placeholder={allowBlank ? "Sob consulta" : "0,00"}
+            onChange={(event) => set(key, event.target.value)}
+            onBlur={() => normalize(key)}
+            aria-label={ariaLabel}
+          />
+        </span>
       </label>
     );
   }
@@ -104,15 +120,24 @@ export function SiteOfferSettingsPanel({ values }: { values: SiteOfferSettingsVa
     priceKey: keyof SiteOfferSettingsFormInput,
     discountKey: keyof SiteOfferSettingsFormInput,
     helper?: string,
+    allowBlankPrice = false,
   ): JSX.Element {
     return (
-      <div className="form-grid" style={{ marginTop: "12px" }}>
-        {moneyField(label + " — valor", priceKey, helper)}
-        {moneyField(
-          label + " — desconto com 2+ itens",
-          discountKey,
-          "Aplicado neste produto quando o carrinho tiver dois ou mais produtos.",
-        )}
+      <div className="assine-config-row">
+        <div className="assine-config-product">
+          <strong>{label}</strong>
+          {helper ? <span>{helper}</span> : null}
+        </div>
+
+        <div>
+          <span className="assine-config-column-label">Valor</span>
+          {moneyField(priceKey, `Valor de ${label}`, allowBlankPrice)}
+        </div>
+
+        <div>
+          <span className="assine-config-column-label">Desconto com 2+ itens</span>
+          {moneyField(discountKey, `Desconto de ${label}`)}
+        </div>
       </div>
     );
   }
@@ -120,43 +145,50 @@ export function SiteOfferSettingsPanel({ values }: { values: SiteOfferSettingsVa
   return (
     <>
       <section className="form-section form-section--first">
-        <h2>Como funciona o desconto</h2>
-        <p className="helper-text">
-          O site não possui planos fechados. O cliente monta o carrinho escolhendo os produtos separadamente. Quando houver 2 ou mais produtos no carrinho, cada item recebe o desconto configurado no seu próprio campo.
-        </p>
-        <p className="helper-text" style={{ marginTop: "8px" }}>
-          Exemplo: se dois produtos tiverem R$ 50,00 de desconto cada, o carrinho aplica R$ 100,00 de desconto total.
-        </p>
+        <div className="assine-config-intro">
+          <div>
+            <h2>Valores exibidos no site</h2>
+            <p className="helper-text">
+              O cliente escolhe produtos separados. Com 2 ou mais itens, cada produto recebe o desconto definido na mesma linha.
+            </p>
+          </div>
+          <p className="assine-config-example">Ex.: 2 itens com R$ 50,00 de desconto cada = R$ 100,00 de desconto no carrinho.</p>
+        </div>
       </section>
 
       <section className="form-section">
-        <h2>Assinatura anual</h2>
-        {productRow(
-          "Assinatura anual do jornal",
-          "annualSubscriptionPrice",
-          "annualSubscriptionComboDiscount",
-          "Deixe o valor em branco somente se quiser mostrar “Sob consulta”.",
-        )}
+        <h2>Assinatura</h2>
+        <div className="assine-config-list">
+          {productRow(
+            "Assinatura anual do jornal",
+            "annualSubscriptionPrice",
+            "annualSubscriptionComboDiscount",
+            "Deixe o valor vazio somente para mostrar “Sob consulta”.",
+            true,
+          )}
+        </div>
       </section>
 
       <section className="form-section">
-        <h2>Publicidade no jornal impresso</h2>
-        <p className="helper-text">Cada formato tem seu preço e seu desconto próprio para compras combinadas.</p>
-        {productRow("Cartão de visita", "printBusinessCardPrice", "printBusinessCardComboDiscount")}
-        {productRow("Padrão", "printStandardPrice", "printStandardComboDiscount")}
-        {productRow("1/4 de página", "printQuarterPrice", "printQuarterComboDiscount")}
-        {productRow("Meia página", "printHalfPrice", "printHalfComboDiscount")}
-        {productRow("Página inteira", "printFullPrice", "printFullComboDiscount")}
+        <h2>Jornal impresso</h2>
+        <div className="assine-config-list">
+          {productRow("Cartão de visita", "printBusinessCardPrice", "printBusinessCardComboDiscount")}
+          {productRow("Padrão", "printStandardPrice", "printStandardComboDiscount")}
+          {productRow("1/4 de página", "printQuarterPrice", "printQuarterComboDiscount")}
+          {productRow("Meia página", "printHalfPrice", "printHalfComboDiscount")}
+          {productRow("Página inteira", "printFullPrice", "printFullComboDiscount")}
+        </div>
       </section>
 
       <section className="form-section">
         <h2>Painéis digitais</h2>
-        {productRow(
-          "3 painéis — São João do Sul + Praia Grande + Passo de Torres",
-          "ledThreeCitiesPrice",
-          "ledThreeCitiesComboDiscount",
-          "Valor da divulgação nos três painéis de LED.",
-        )}
+        <div className="assine-config-list">
+          {productRow(
+            "3 painéis — São João do Sul + Praia Grande + Passo de Torres",
+            "ledThreeCitiesPrice",
+            "ledThreeCitiesComboDiscount",
+          )}
+        </div>
       </section>
 
       <section className="form-section">
@@ -167,8 +199,8 @@ export function SiteOfferSettingsPanel({ values }: { values: SiteOfferSettingsVa
         </div>
         {message ? <p className="form-success" role="status">{message}</p> : null}
         {error ? <p className="form-error" role="alert">{error}</p> : null}
-        <p className="helper-text" style={{ marginTop: "12px" }}>
-          As alterações mudam os valores públicos do site. Não alteram propostas, vendas ou cobranças que já tenham sido criadas.
+        <p className="helper-text" style={{ marginTop: "10px" }}>
+          As alterações valem para novas visualizações e solicitações do site. Propostas, vendas e cobranças já criadas não mudam.
         </p>
       </section>
     </>

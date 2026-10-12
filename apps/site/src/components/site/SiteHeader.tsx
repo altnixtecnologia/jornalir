@@ -13,19 +13,12 @@ interface NavLink {
   label: string;
 }
 
-// Acesso permanente a todo o acervo de notícias — nunca depende de
-// editorias carregadas nem de existir algo em destaque (placement
-// "latestNews"): é um link estrutural fixo, sempre visível.
 const NOTICIAS_LINK: NavLink = { href: "/noticias", label: "Notícias" };
-
-// Links fixos do menu. Contato fica sempre visível no desktop; Sobre
-// permanece em "Mais". Jornal Online recebe destaque próprio.
 const JORNAL_ONLINE: NavLink = { href: "/jornal-online", label: "Jornal Online" };
 const CONTACT_LINK: NavLink = { href: "/contato", label: "Contato" };
+const CLASSIFICADOS_FALLBACK: NavLink = { href: "/editoria/classificados", label: "Classificados" };
 const FIXED_OVERFLOW: NavLink[] = [{ href: "/sobre", label: "Sobre" }];
 
-// Estas editorias ficam deliberadamente dentro de "Mais", mesmo quando há
-// espaço no desktop. Isso mantém o menu principal mais limpo e previsível.
 const FORCED_OVERFLOW_LABELS = new Set(["economia", "eventos", "cidades", "saúde", "saude"]);
 
 function normalizeMenuLabel(value: string): string {
@@ -36,19 +29,16 @@ function isForcedOverflow(item: NavLink): boolean {
   return FORCED_OVERFLOW_LABELS.has(normalizeMenuLabel(item.label));
 }
 
-// Header desktop numa linha só (Ajuste pós-Fase 49 — substitui as duas
-// faixas fixas da Fase 49): quantas editorias reais ficam diretas no menu
-// cresce por breakpoint (mais tela = mais editorias diretas), sem JS de
-// medição — cada editoria é renderizada uma única vez com a classe de
-// visibilidade do seu próprio degrau; o "Mais" mostra exatamente o
-// complemento em cada largura (ver `sectionTierClass`/`overflowTierClass`).
+function isClassificados(item: NavLink): boolean {
+  return normalizeMenuLabel(item.label) === "classificados";
+}
+
 const SECTION_TIERS = { base: 3, xl: 5, "2xl": 8 } as const;
 
 function sectionToLink(section: PublicSection): NavLink {
   return { href: `/editoria/${section.slug}`, label: section.name };
 }
 
-// Classe do link direto no nav: aparece a partir do degrau em que "cabe".
 function sectionTierClass(index: number): string {
   if (index < SECTION_TIERS.base) return "inline-flex";
   if (index < SECTION_TIERS.xl) return "hidden xl:inline-flex";
@@ -56,8 +46,6 @@ function sectionTierClass(index: number): string {
   return "hidden";
 }
 
-// Classe do mesmo item dentro de "Mais": visível só enquanto a largura
-// atual ainda não o mostra direto no nav (complemento exato da tier acima).
 function overflowTierClass(index: number): string {
   if (index < SECTION_TIERS.base) return "hidden";
   if (index < SECTION_TIERS.xl) return "block xl:hidden";
@@ -65,14 +53,7 @@ function overflowTierClass(index: number): string {
   return "block";
 }
 
-/**
- * Menu real (Fase 31): editorias vêm de `public_editorial_sections`
- * (só `active=true`, ordenadas por `sort_order`, já a ordem da própria
- * view). Erro/vazio nunca quebra o header — cai para uma navegação
- * estrutural mínima (Início/Busca/Sobre/Contato), nunca uma lista mock
- * escondida (item 6).
- */
-function useHeaderSections(): { sectionLinks: NavLink[]; allNavLinks: NavLink[] } {
+function useHeaderSections(): NavLink[] {
   const [sections, setSections] = useState<PublicSection[] | null>(null);
 
   useEffect(() => {
@@ -89,24 +70,16 @@ function useHeaderSections(): { sectionLinks: NavLink[]; allNavLinks: NavLink[] 
     };
   }, []);
 
-  if (sections === null) {
-    // Ainda carregando: nada de editoria por enquanto, só a estrutura
-    // mínima — evita mostrar (e depois trocar) uma lista errada.
-    return { sectionLinks: [], allNavLinks: [JORNAL_ONLINE, CONTACT_LINK, ...FIXED_OVERFLOW] };
-  }
-
-  const sectionLinks = sections.map(sectionToLink);
-  const allNavLinks = [...sectionLinks, JORNAL_ONLINE, CONTACT_LINK, ...FIXED_OVERFLOW];
-  return { sectionLinks, allNavLinks };
+  return sections?.map(sectionToLink) ?? [];
 }
 
-export function SiteHeader({ active, emphasized = false }: { active?: string; emphasized?: boolean } = {}): JSX.Element {
+export function SiteHeader({ emphasized = false }: { active?: string; emphasized?: boolean } = {}): JSX.Element {
   const [open, setOpen] = useState(false);
   const [editoriasOpen, setEditoriasOpen] = useState(false);
   const [mobileNavigatingTo, setMobileNavigatingTo] = useState<string | null>(null);
   const pathname = usePathname();
   const router = useRouter();
-  const { sectionLinks, allNavLinks } = useHeaderSections();
+  const sectionLinks = useHeaderSections();
   const mobileTriggerRef = useRef<HTMLButtonElement>(null);
   const mobilePanelRef = useRef<HTMLDivElement>(null);
   const wasOpenRef = useRef(false);
@@ -118,11 +91,6 @@ export function SiteHeader({ active, emphasized = false }: { active?: string; em
     };
   }, [open]);
 
-  // Auditoria de acessibilidade do menu mobile (coerência com
-  // role="dialog"/aria-modal): foco entra no painel ao abrir, Tab/Shift+Tab
-  // ficam presos dentro dele enquanto aberto (nunca escapam pros links da
-  // página por trás, que continuam no DOM só visualmente cobertos), Escape
-  // fecha, e o foco volta pro botão que abriu ao fechar (efeito abaixo).
   useEffect(() => {
     if (!open) return;
     const panel = mobilePanelRef.current;
@@ -165,23 +133,15 @@ export function SiteHeader({ active, emphasized = false }: { active?: string; em
     wasOpenRef.current = open;
   }, [open]);
 
-  function goBack(): void {
-    if (window.history.length > 1) {
-      router.back();
-      return;
-    }
-    router.push("/");
-  }
-
   function handleMobileNavClick(event: MouseEvent<HTMLAnchorElement>, href: string): void {
     event.preventDefault();
     if (mobileNavigatingTo) return;
     setMobileNavigatingTo(href);
-    window.setTimeout(() => setOpen(false), 500);
+    window.setTimeout(() => setOpen(false), 350);
     window.setTimeout(() => {
       router.push(href);
       setMobileNavigatingTo(null);
-    }, 850);
+    }, 650);
   }
 
   function isActive(href: string): boolean {
@@ -195,39 +155,41 @@ export function SiteHeader({ active, emphasized = false }: { active?: string; em
     { href: socialLinks.whatsapp, label: "WhatsApp", icon: "/brand/social-whatsapp.png" },
   ];
 
-  const directSectionLinks = sectionLinks.filter((item) => !isForcedOverflow(item));
-  const forcedOverflowLinks = sectionLinks.filter(isForcedOverflow);
+  const classifiedLink = sectionLinks.find(isClassificados) ?? CLASSIFICADOS_FALLBACK;
+  const editorialLinks = sectionLinks.filter((item) => !isClassificados(item));
+  const directSectionLinks = editorialLinks.filter((item) => !isForcedOverflow(item));
+  const forcedOverflowLinks = editorialLinks.filter(isForcedOverflow);
   const hasOverflow =
     directSectionLinks.length > SECTION_TIERS.base ||
     forcedOverflowLinks.length > 0 ||
     FIXED_OVERFLOW.length > 0;
 
+  const mobileUtilityLinks: NavLink[] = [
+    { href: "/", label: "Início" },
+    JORNAL_ONLINE,
+    classifiedLink,
+    CONTACT_LINK,
+    ...FIXED_OVERFLOW,
+  ];
+
   return (
     <header className={`site-header ${emphasized ? "site-header--emphasized" : ""}`}>
-      {/* Desktop (Ajuste pós-Fase 49): UMA linha só — logo à esquerda, nav
-          no centro, busca/redes/Assinante à direita. Quantas editorias
-          aparecem direto cresce por breakpoint (`sectionTierClass`); o
-          resto some para "Mais" (`overflowTierClass` é o complemento exato
-          em cada largura). Nunca uma segunda faixa fixa. */}
-      <div className="site-shell flex h-[58px] items-center justify-between gap-4 lg:h-[76px]">
+      {/* Desktop */}
+      <div className="site-shell hidden h-[76px] items-center justify-between gap-4 lg:flex">
         <div className="flex min-w-0 items-center gap-5 xl:gap-7">
-          {/* Desktop: marca oficial escrita — um pouco maior que antes da Fase 49, sem estrangular a navegação. */}
-          <Link href="/" aria-label="Informativo Regional" className="hidden shrink-0 lg:inline-flex lg:items-center">
+          <Link href="/" aria-label="Informativo Regional" className="shrink-0 inline-flex items-center">
             <img src="/brand/logo-escrita.png" alt="Informativo Regional" style={{ height: 72, width: "auto" }} />
           </Link>
-          {/* Mobile/tablet: só o símbolo IR. Libera espaço para busca,
-              Assine e o acionador do menu sem comprimir o cabeçalho. */}
-          <Link href="/" aria-label="Informativo Regional" className="brand-mark ir-mobile-brand lg:hidden">
-            <img src="/brand/logo-ir.png" alt="IR" />
-          </Link>
 
-          <nav className="hidden min-w-0 items-center gap-4 lg:flex xl:gap-5" aria-label="Navegação principal">
-            <Link href="/" className={`nav-link ${isActive("/") ? "is-active" : ""}`}>
+          <nav className="flex min-w-0 items-center gap-3 xl:gap-4" aria-label="Navegação principal">
+            <Link href="/" className={`nav-link nav-link--utility ${isActive("/") ? "is-active" : ""}`}>
               Início
             </Link>
+
             <Link href={NOTICIAS_LINK.href} className={`nav-link ${isActive(NOTICIAS_LINK.href) ? "is-active" : ""}`}>
               {NOTICIAS_LINK.label}
             </Link>
+
             {directSectionLinks.map((item, index) => (
               <Link
                 key={item.href}
@@ -237,9 +199,10 @@ export function SiteHeader({ active, emphasized = false }: { active?: string; em
                 {item.label}
               </Link>
             ))}
+
             <Link
               href={JORNAL_ONLINE.href}
-              className={`nav-link nav-link--journal ${isActive(JORNAL_ONLINE.href) ? "is-active" : ""}`}
+              className={`nav-link nav-link--utility nav-link--journal ${isActive(JORNAL_ONLINE.href) ? "is-active" : ""}`}
             >
               {JORNAL_ONLINE.label}
             </Link>
@@ -249,7 +212,7 @@ export function SiteHeader({ active, emphasized = false }: { active?: string; em
                 <button
                   type="button"
                   className="nav-link inline-flex items-center gap-1"
-                  onClick={() => setEditoriasOpen((v) => !v)}
+                  onClick={() => setEditoriasOpen((value) => !value)}
                   aria-expanded={editoriasOpen}
                 >
                   Mais <span className="text-[9px]" aria-hidden="true">▾</span>
@@ -288,7 +251,17 @@ export function SiteHeader({ active, emphasized = false }: { active?: string; em
               </div>
             ) : null}
 
-            <Link href={CONTACT_LINK.href} className={`nav-link ${isActive(CONTACT_LINK.href) ? "is-active" : ""}`}>
+            <Link
+              href={classifiedLink.href}
+              className={`nav-link nav-link--utility ${isActive(classifiedLink.href) ? "is-active" : ""}`}
+            >
+              {classifiedLink.label}
+            </Link>
+
+            <Link
+              href={CONTACT_LINK.href}
+              className={`nav-link nav-link--utility ${isActive(CONTACT_LINK.href) ? "is-active" : ""}`}
+            >
               {CONTACT_LINK.label}
             </Link>
           </nav>
@@ -302,7 +275,7 @@ export function SiteHeader({ active, emphasized = false }: { active?: string; em
             </svg>
           </Link>
 
-          <div className="hidden items-center gap-1.5 lg:flex">
+          <div className="flex items-center gap-1.5">
             {socialIcons.map((social) => (
               <a
                 key={social.label}
@@ -317,26 +290,40 @@ export function SiteHeader({ active, emphasized = false }: { active?: string; em
             ))}
           </div>
 
+          <Link href="/assine" className="nav-pill nav-pill--solid">
+            Assine
+          </Link>
+        </div>
+      </div>
+
+      {/* Mobile: Assine à esquerda, IR centralizado, busca + menu à direita. */}
+      <div className="site-shell ir-mobile-header h-[58px] lg:hidden">
+        <div className="ir-mobile-header-left">
           <Link href="/assine" className="nav-pill nav-pill--solid mobile-assine-cta">
             Assine
           </Link>
+        </div>
 
-          <button
-            type="button"
-            aria-label="Voltar"
-            className={`ir-mobile-back-btn lg:hidden ${pathname === "/" ? "is-hidden" : ""}`}
-            onClick={goBack}
-          >
-            ←
-          </button>
+        <Link href="/" aria-label="Informativo Regional" className="ir-mobile-header-logo">
+          <img src="/brand/logo-ir.png" alt="IR" />
+        </Link>
+
+        <div className="ir-mobile-header-actions">
+          <Link href="/busca" aria-label="Buscar" className="icon-btn">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <circle cx="11" cy="11" r="7" />
+              <path d="m21 21-4.3-4.3" />
+            </svg>
+          </Link>
+
           <button
             ref={mobileTriggerRef}
             type="button"
             aria-label={open ? "Fechar menu" : "Abrir menu"}
             aria-expanded={open}
             aria-controls="ir-mobile-menu-panel"
-            className={`ir-mobile-trigger lg:hidden ${open ? "is-open" : ""}`}
-            onClick={() => setOpen((v) => !v)}
+            className={`ir-mobile-trigger ${open ? "is-open" : ""}`}
+            onClick={() => setOpen((value) => !value)}
           >
             <i className="bar top" />
             <i className="bar middle" />
@@ -345,66 +332,54 @@ export function SiteHeader({ active, emphasized = false }: { active?: string; em
         </div>
       </div>
 
-      {/* Fase 1 (acabamento do menu mobile): fechado, este container já fica
-          fora da tela visualmente (opacity/transform em .ir-mobile-layer/
-          .ir-mobile-menu) — mas sem isto o backdrop e os links do painel
-          continuavam alcançáveis por Tab e visíveis pra leitores de tela.
-          `inert` tira os dois do tab-order e da árvore de acessibilidade de
-          uma vez só, no container (nunca espalhado por link/botão filho);
-          `aria-hidden` reforça pra leitores de tela que ainda não suportam
-          `inert`. Nenhum dos dois usa `display:none` — a transição de
-          transform/opacity já existente continua intacta. `@types/react`
-          18 ainda não tipa `inert` como atributo JSX — por isso o spread
-          tipado como `any` só para este atributo específico. */}
       <div
         className={`ir-mobile-layer lg:hidden ${open ? "is-open" : ""}`}
         aria-hidden={!open}
         {...({ inert: open ? undefined : "" } as Record<string, unknown>)}
       >
         <button type="button" aria-label="Fechar menu" className="ir-mobile-backdrop" onClick={() => setOpen(false)} />
+
         <div id="ir-mobile-menu-panel" ref={mobilePanelRef} className="ir-mobile-menu" role="dialog" aria-modal="true" aria-label="Menu">
-          <div className="mb-4 flex items-center justify-between">
-            <span className="brand-chip">
-              <img src="/brand/logo-ir.png" alt="Informativo Regional" width={28} height={28} style={{ height: 22, width: "auto" }} />
-            </span>
-            <button
-              type="button"
-              onClick={() => setOpen(false)}
-              className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-[color:var(--site-line)] text-sm font-bold"
-              aria-label="Fechar navegação"
-            >
-              ✕
-            </button>
+          <div className="ir-mobile-menu-brand">
+            <img src="/brand/logo-escrita.png" alt="Informativo Regional" />
           </div>
 
           <Link
             href="/busca"
-            onClick={(e) => handleMobileNavClick(e, "/busca")}
+            onClick={(event) => handleMobileNavClick(event, "/busca")}
             className={`ir-mobile-search-cta mb-4 ${mobileNavigatingTo === "/busca" ? "is-pending" : ""}`}
           >
             🔎 Buscar no site
           </Link>
 
+          <p className="ir-mobile-group-label">Acessos</p>
+          <div className="ir-mobile-utility-grid">
+            {mobileUtilityLinks.map((item) => (
+              <Link
+                key={`${item.href}-utility-m`}
+                href={item.href}
+                onClick={(event) => handleMobileNavClick(event, item.href)}
+                className={`ir-mobile-utility-link ${item.href === JORNAL_ONLINE.href ? "is-journal" : ""} ${mobileNavigatingTo === item.href ? "is-pending" : ""}`}
+              >
+                {item.label}
+              </Link>
+            ))}
+          </div>
+
+          <p className="ir-mobile-group-label mt-5">Editorias</p>
           <div>
             <Link
-              href="/"
-              onClick={(e) => handleMobileNavClick(e, "/")}
-              className={`ir-mobile-nav-link ${mobileNavigatingTo === "/" ? "is-pending" : ""}`}
-            >
-              Início
-            </Link>
-            <Link
               href={NOTICIAS_LINK.href}
-              onClick={(e) => handleMobileNavClick(e, NOTICIAS_LINK.href)}
+              onClick={(event) => handleMobileNavClick(event, NOTICIAS_LINK.href)}
               className={`ir-mobile-nav-link ${mobileNavigatingTo === NOTICIAS_LINK.href ? "is-pending" : ""}`}
             >
               {NOTICIAS_LINK.label}
             </Link>
-            {allNavLinks.map((item) => (
+            {editorialLinks.map((item) => (
               <Link
                 key={`${item.href}-m`}
                 href={item.href}
-                onClick={(e) => handleMobileNavClick(e, item.href)}
+                onClick={(event) => handleMobileNavClick(event, item.href)}
                 className={`ir-mobile-nav-link ${mobileNavigatingTo === item.href ? "is-pending" : ""}`}
               >
                 {item.label}
@@ -417,12 +392,15 @@ export function SiteHeader({ active, emphasized = false }: { active?: string; em
               Assine
             </Link>
             <div className="flex items-center gap-2">
-              {[
-                { href: socialLinks.facebook, icon: "/brand/social-facebook.png", label: "Facebook" },
-                { href: socialLinks.instagram, icon: "/brand/social-instagram.png", label: "Instagram" },
-                { href: socialLinks.whatsapp, icon: "/brand/social-whatsapp.png", label: "WhatsApp" }
-              ].map((social) => (
-                <a key={social.label} href={social.href} target="_blank" rel="noreferrer" aria-label={social.label} className="inline-flex h-9 w-9 items-center justify-center overflow-hidden rounded-full ring-1 ring-[color:var(--site-line)]">
+              {socialIcons.map((social) => (
+                <a
+                  key={`${social.label}-menu`}
+                  href={social.href}
+                  target="_blank"
+                  rel="noreferrer"
+                  aria-label={social.label}
+                  className="inline-flex h-9 w-9 items-center justify-center overflow-hidden rounded-full ring-1 ring-[color:var(--site-line)]"
+                >
                   <img src={social.icon} alt="" className="h-9 w-9 object-cover" />
                 </a>
               ))}

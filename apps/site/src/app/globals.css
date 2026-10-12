@@ -1301,3 +1301,150 @@ body {
     width: 52px;
   }
 }
+
+
+/* --- Refinos de navegação: acessos institucionais x editorias --- */
+.nav-link--utility {
+  padding: 6px 9px;
+  border: 1px solid rgba(100, 100, 120, 0.28);
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 750;
+  letter-spacing: 0.015em;
+  background: rgba(255, 255, 255, 0.04);
+}
+.nav-link--utility::after {
+  display: none;
+}
+.nav-link--utility:hover,
+.nav-link--utility.is-active {
+  border-color: var(--brand-red);
+  color: var(--brand-red);
+  background: rgba(192, 48, 48, 0.06);
+}
+.nav-link--journal {
+  margin-inline: 0;
+  padding: 5px 8px;
+  border-color: rgba(201, 151, 0, 0.58);
+  background: transparent;
+  color: var(--brand-navy);
+  font-size: 11px;
+}
+.nav-link--journal:hover,
+.nav-link--journal.is-active {
+  border-color: var(--brand-gold);
+  background: rgba(201, 151, 0, 0.12);
+  color: #8a6900;
+}
+.site-header--emphasized .nav-link--utility {
+  border-color: rgba(255, 255, 255, 0.3);
+  color: #fff;
+  background: rgba(255, 255, 255, 0.055);
+}
+.site-header--emphasized .nav-link--utility:hover,
+.site-header--emphasized .nav-link--utility.is-active {
+  border-color: rgba(255, 255, 255, 0.72);
+  color: #fff;
+  background: rgba(255, 255, 255, 0.12);
+}
+.site-header--emphasized .nav-link--journal {
+  border-color: rgba(224, 178, 28, 0.78);
+  color: #f2cc51;
+  background: transparent;
+  box-shadow: none;
+}
+.site-header--emphasized .nav-link--journal:hover,
+.site-header--emphasized .nav-link--journal.is-active {
+  border-color: var(--brand-gold);
+  color: #ffe69a;
+  background: rgba(201, 151, 0, 0.12);
+}
+
+/* Mobile fechado: ordem visual fixa Assine | IR | busca + menu. */
+.ir-mobile-header {
+  display: grid;
+  grid-template-columns: minmax(74px, 1fr) auto minmax(88px, 1fr);
+  align-items: center;
+  gap: 8px;
+}
+.ir-mobile-header-left {
+  justify-self: start;
+}
+.ir-mobile-header-logo {
+  justify-self: center;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.ir-mobile-header-logo img {
+  display: block;
+  height: 38px;
+  width: auto;
+}
+.ir-mobile-header-actions {
+  justify-self: end;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.ir-mobile-menu-brand {
+  display: flex;
+  align-items: center;
+  min-height: 42px;
+  margin-bottom: 12px;
+  padding-right: 52px;
+}
+.ir-mobile-menu-brand img {
+  display: block;
+  height: 38px;
+  width: auto;
+  max-width: 220px;
+  object-fit: contain;
+  object-position: left center;
+}
+.ir-mobile-group-label {
+  margin: 6px 2px 8px;
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: var(--site-muted);
+}
+.ir-mobile-utility-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+.ir-mobile-utility-link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 38px;
+  padding: 0 12px;
+  border: 1px solid var(--site-line);
+  border-radius: 999px;
+  background: var(--site-bg);
+  color: var(--site-text);
+  font-size: 12px;
+  font-weight: 800;
+}
+.ir-mobile-utility-link.is-journal {
+  border-color: rgba(201, 151, 0, 0.7);
+  color: #8a6900;
+  background: rgba(201, 151, 0, 0.08);
+}
+.ir-mobile-utility-link.is-pending {
+  border-color: var(--brand-red);
+  background: var(--brand-red);
+  color: #fff;
+}
+
+/* O botão flutuante acompanha o ícone do rodapé e encolhe até encaixar
+   sobre ele quando o usuário chega ao fim da página. */
+.whatsapp-float {
+  transform-origin: center center;
+  will-change: transform;
+  transition: transform 260ms cubic-bezier(0.2, 0.75, 0.2, 1), box-shadow 220ms ease;
+}
+.whatsapp-float.is-docked {
+  box-shadow: none;
+}

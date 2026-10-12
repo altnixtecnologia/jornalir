@@ -50,7 +50,7 @@ export function PublicFeaturedHero({ items }: { items: PublicArticle[] }): JSX.E
       image.onload = () => {
         if (cancelled) return;
         const ratio = image.naturalWidth / Math.max(1, image.naturalHeight);
-        const orientation: ImageOrientation = ratio > 1.08 ? "landscape" : ratio < 0.92 ? "portrait" : "square";
+        const orientation: ImageOrientation = ratio > 1.08 ? "landscape" : ratio < 0.72 ? "portrait" : "square";
         setOrientations((current) => (current[item.id] ? current : { ...current, [item.id]: orientation }));
       };
       image.src = url;
@@ -97,10 +97,10 @@ export function PublicFeaturedHero({ items }: { items: PublicArticle[] }): JSX.E
           const withPhoto = Boolean(item.cover?.url);
           const orientation = orientations[item.id];
           const fillsHero = orientation === "landscape";
-          const mobileMotionClass = isMobile
-            ? fillsHero
-              ? "hero-mobile-pan"
-              : "hero-mobile-breathe"
+          const mobileMotionClass = isMobile && isActive
+            ? orientation === "portrait"
+              ? "hero-mobile-breathe"
+              : "hero-mobile-pan"
             : "";
 
           return (
@@ -127,7 +127,13 @@ export function PublicFeaturedHero({ items }: { items: PublicArticle[] }): JSX.E
                         className={`hero-photo-fg h-full w-full bg-center bg-no-repeat ${mobileMotionClass}`}
                         style={{
                           backgroundImage: `url(${item.cover?.url})`,
-                          backgroundSize: isMobile && fillsHero ? "auto 100%" : fillsHero ? "cover" : "contain",
+                          backgroundSize: isMobile
+                            ? orientation === "portrait"
+                              ? "contain"
+                              : "auto 100%"
+                            : fillsHero
+                              ? "cover"
+                              : "contain",
                         }}
                       />
                     </div>
