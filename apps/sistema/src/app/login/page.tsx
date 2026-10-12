@@ -35,8 +35,11 @@ function LoginForm(): JSX.Element {
   }, [status, router]);
 
   useEffect(() => {
-    if (searchParams.get("erro") === "inativo") {
+    const errorCode = searchParams.get("erro");
+    if (errorCode === "inativo") {
       setError("Sua conta está inativa. Fale com um administrador do painel.");
+    } else if (errorCode === "sessao") {
+      setError("Sua sessão expirou. Entre novamente para continuar.");
     }
   }, [searchParams]);
 
