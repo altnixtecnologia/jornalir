@@ -107,7 +107,7 @@ body {
 
 .section-more {
   flex-shrink: 0;
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 700;
   color: var(--brand-navy);
   white-space: nowrap;
@@ -643,8 +643,8 @@ body {
     display: inline-flex;
     align-items: center;
     padding: 8px 2px;
-    font-size: 12px;
-    font-weight: 600;
+    font-size: 13px;
+    font-weight: 650;
     letter-spacing: 0.03em;
     color: var(--site-text);
     white-space: nowrap;
@@ -668,6 +668,43 @@ body {
   .nav-link.is-active {
     color: var(--brand-red);
   }
+}
+
+/* Jornal Online funciona como chamada editorial, não apenas mais um link. */
+.nav-link--journal {
+  margin-inline: 2px;
+  padding: 8px 11px;
+  border: 1px solid rgba(201, 151, 0, 0.55);
+  border-radius: 999px;
+  background: rgba(201, 151, 0, 0.12);
+  color: var(--brand-navy);
+  font-weight: 800;
+  letter-spacing: 0.015em;
+  transition: background 180ms ease, border-color 180ms ease, color 180ms ease, transform 120ms ease;
+}
+.nav-link--journal::after {
+  display: none;
+}
+.nav-link--journal:hover,
+.nav-link--journal.is-active {
+  background: var(--brand-gold);
+  border-color: var(--brand-gold);
+  color: #17172f;
+}
+.nav-link--journal:active {
+  transform: scale(0.97);
+}
+.site-header--emphasized .nav-link--journal {
+  background: var(--brand-gold);
+  border-color: var(--brand-gold);
+  color: #17172f;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.18);
+}
+.site-header--emphasized .nav-link--journal:hover,
+.site-header--emphasized .nav-link--journal.is-active {
+  background: #e0b21c;
+  border-color: #e0b21c;
+  color: #101024;
 }
 
 .nav-pill {
