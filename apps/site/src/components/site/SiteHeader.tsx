@@ -323,8 +323,8 @@ export function SiteHeader({ active, emphasized = false }: { active?: string; em
             ))}
           </div>
 
-          <Link href="/contato" className="nav-pill nav-pill--solid hidden sm:inline-flex">
-            Assinante
+          <Link href="/assine" className="nav-pill nav-pill--solid hidden sm:inline-flex">
+            Assine
           </Link>
 
           <button
@@ -419,8 +419,8 @@ export function SiteHeader({ active, emphasized = false }: { active?: string; em
           </div>
 
           <div className="mt-5 flex items-center justify-between">
-            <Link href="/contato" className="nav-pill nav-pill--solid">
-              Assinante
+            <Link href="/assine" className="nav-pill nav-pill--solid">
+              Assine
             </Link>
             <div className="flex items-center gap-2">
               {[
