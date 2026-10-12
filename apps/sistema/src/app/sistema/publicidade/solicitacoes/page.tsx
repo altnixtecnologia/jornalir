@@ -1,4 +1,5 @@
 import { ModuleHeader } from "../../../../components/admin/ModuleHeader";
+import { ConvertSubscriptionInterestButton } from "../../../../features/publicidade/ConvertSubscriptionInterestButton";
 import { createSupabaseServerClient } from "../../../../lib/supabase/server";
 import {
   reviewSiteInterestAction,
@@ -149,6 +150,12 @@ export default async function SiteInterestRequestsPage(): Promise<JSX.Element> {
             {rows.map((row) => {
               const labels = selectionLabels(row.selections);
               const address = fullAddress(row);
+              const finalStatus = row.status === "converted" || row.status === "discarded";
+              const canConvertSubscription =
+                row.request_type === "subscription" &&
+                row.availability_status === "approved" &&
+                !finalStatus;
+
               return (
                 <article key={row.id} style={{ border: "1px solid var(--line)", borderRadius: 6, background: "#fff", padding: 16 }}>
                   <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
@@ -191,44 +198,56 @@ export default async function SiteInterestRequestsPage(): Promise<JSX.Element> {
 
                     <div>
                       {row.notes ? <><strong style={{ fontSize: 12 }}>Observação do cliente</strong><p className="helper-text" style={{ marginTop: 5 }}>{row.notes}</p></> : null}
-                      {row.admin_note ? <><strong style={{ display: "block", marginTop: 10, fontSize: 12 }}>Observação interna</strong><p className="helper-text" style={{ marginTop: 5 }}>{row.admin_note}</p></> : null}
+                      {row.admin_note ? <><strong style={{ display: "block", marginTop: 10, fontSize: 12 }}>Observação interna</strong><p className="helper-text" style={{ marginTop: 5, whiteSpace: "pre-line" }}>{row.admin_note}</p></> : null}
                     </div>
                   </div>
 
-                  <form action={reviewSiteInterestAction.bind(null, row.id)} style={{ marginTop: 14, paddingTop: 12, borderTop: "1px solid var(--line)" }}>
-                    <div className="form-grid">
-                      <label className="form-field">
-                        <span className="field-label">Análise de rota/disponibilidade</span>
-                        <select name="availability" defaultValue={row.availability_status}>
-                          <option value="pending">Aguardando análise</option>
-                          <option value="approved">Disponível / aprovada</option>
-                          <option value="needs_info">Precisa de informação</option>
-                          <option value="unavailable">Sem disponibilidade / fora da rota</option>
-                        </select>
-                      </label>
-                      <label className="form-field">
-                        <span className="field-label">Valor aprovado (R$)</span>
-                        <input name="approvedTotal" inputMode="decimal" defaultValue={row.approved_total ?? row.estimated_total ?? ""} />
-                      </label>
-                      <label className="form-field" style={{ gridColumn: "1 / -1" }}>
-                        <span className="field-label">Observação interna</span>
-                        <input name="adminNote" defaultValue={row.admin_note ?? ""} />
-                      </label>
-                    </div>
-                    <div className="form-actions" style={{ marginTop: 10 }}>
-                      <button type="submit" className="form-action-primary">Salvar análise</button>
-                      <a href={whatsappHref(row)} target="_blank" rel="noreferrer" className="button-link">Atender pelo WhatsApp</a>
-                    </div>
-                  </form>
+                  {!finalStatus ? (
+                    <form action={reviewSiteInterestAction.bind(null, row.id)} style={{ marginTop: 14, paddingTop: 12, borderTop: "1px solid var(--line)" }}>
+                      <div className="form-grid">
+                        <label className="form-field">
+                          <span className="field-label">Análise de rota/disponibilidade</span>
+                          <select name="availability" defaultValue={row.availability_status}>
+                            <option value="pending">Aguardando análise</option>
+                            <option value="approved">Disponível / aprovada</option>
+                            <option value="needs_info">Precisa de informação</option>
+                            <option value="unavailable">Sem disponibilidade / fora da rota</option>
+                          </select>
+                        </label>
+                        <label className="form-field">
+                          <span className="field-label">Valor aprovado (R$)</span>
+                          <input name="approvedTotal" inputMode="decimal" defaultValue={row.approved_total ?? row.estimated_total ?? ""} />
+                        </label>
+                        <label className="form-field" style={{ gridColumn: "1 / -1" }}>
+                          <span className="field-label">Observação interna</span>
+                          <input name="adminNote" defaultValue={row.admin_note ?? ""} />
+                        </label>
+                      </div>
+                      <div className="form-actions" style={{ marginTop: 10 }}>
+                        <button type="submit" className="form-action-primary">Salvar análise</button>
+                        <a href={whatsappHref(row)} target="_blank" rel="noreferrer" className="button-link">Atender pelo WhatsApp</a>
+                      </div>
+                    </form>
+                  ) : null}
 
-                  <div className="form-actions" style={{ marginTop: 10 }}>
-                    {row.status !== "contacted" ? (
+                  <div className="form-actions" style={{ marginTop: 10, alignItems: "flex-start" }}>
+                    {row.status === "new" ? (
                       <form action={updateSiteInterestStatusAction.bind(null,row.id,"contacted")}><button type="submit">Em atendimento</button></form>
                     ) : null}
-                    {row.status !== "converted" ? (
+
+                    {canConvertSubscription ? (
+                      <ConvertSubscriptionInterestButton requestId={row.id} />
+                    ) : null}
+
+                    {row.request_type === "subscription" && !finalStatus && row.availability_status !== "approved" ? (
+                      <span className="helper-text">Aprove a rota/disponibilidade antes de criar a assinatura e o financeiro.</span>
+                    ) : null}
+
+                    {row.request_type !== "subscription" && !finalStatus ? (
                       <form action={updateSiteInterestStatusAction.bind(null,row.id,"converted")}><button type="submit">Marcar convertida</button></form>
                     ) : null}
-                    {row.status !== "discarded" ? (
+
+                    {!finalStatus ? (
                       <form action={updateSiteInterestStatusAction.bind(null,row.id,"discarded")}><button type="submit" className="media-remove-button">Descartar</button></form>
                     ) : null}
                   </div>
