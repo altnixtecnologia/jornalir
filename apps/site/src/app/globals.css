@@ -526,6 +526,49 @@ body {
   border-bottom: 1px solid var(--site-line);
 }
 
+/* Na home o menu vem depois da manchete principal. Como ele deixa de ser
+   o primeiro elemento da página, ganha uma faixa editorial mais forte para
+   ser reconhecido imediatamente como navegação, sem alterar o header das
+   páginas internas. */
+.site-header--emphasized {
+  background: linear-gradient(90deg, #24244f 0%, var(--brand-navy) 55%, #252552 100%);
+  border-top: 3px solid var(--brand-red);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.14);
+  box-shadow: 0 10px 28px rgba(17, 24, 39, 0.22);
+}
+.site-header--emphasized .nav-link {
+  color: #fff;
+  font-weight: 700;
+}
+.site-header--emphasized .nav-link::after {
+  background: #fff;
+}
+.site-header--emphasized .nav-link.is-active {
+  color: #fff;
+}
+.site-header--emphasized .icon-btn {
+  color: #fff;
+}
+.site-header--emphasized .icon-btn:hover {
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
+}
+.site-header--emphasized .nav-pill--solid {
+  background: var(--brand-red);
+  border-color: var(--brand-red);
+}
+.site-header--emphasized .nav-pill--solid:hover {
+  background: #a92727;
+  border-color: #a92727;
+}
+.site-header--emphasized .brand-mark-name strong {
+  color: #fff;
+}
+.site-header--emphasized .ir-mobile-back-btn,
+.site-header--emphasized .ir-mobile-trigger {
+  border-color: rgba(255, 255, 255, 0.32);
+}
+
 .brand-chip {
   display: inline-flex;
   align-items: center;
