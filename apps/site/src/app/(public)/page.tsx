@@ -55,7 +55,7 @@ export default async function HomePage(): Promise<JSX.Element> {
           {/* A home abre direto na manchete. A marca flutua no hero e o
               menu completo vem logo abaixo, tornando-se sticky ao rolar. */}
           <PublicFeaturedHero items={mainCover} />
-          <SiteHeader />
+          <SiteHeader emphasized />
           <AdSenseSlot />
         </>
       ) : (
