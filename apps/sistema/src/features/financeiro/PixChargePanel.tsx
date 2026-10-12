@@ -195,14 +195,14 @@ export function PixChargePanel({
               }}
               aria-hidden="true"
             >
-              QR Code (demonstrativo)
+              QR Code
             </div>
             <div style={{ flex: "1 1 220px", minWidth: "220px" }}>
               <p className="helper-text" style={{ fontWeight: 700, marginBottom: "4px" }}>
-                Pix Copia e Cola (demonstrativo)
+                Pix Copia e Cola
               </p>
               <p className="helper-text" style={{ wordBreak: "break-all" }}>
-                {pendingCharge.pixCopyPaste}
+                {pendingCharge.pixCopyPaste || "Payload Pix ainda não disponível."}
               </p>
             </div>
           </div>

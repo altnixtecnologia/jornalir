@@ -186,6 +186,7 @@ export const configuracoesNavGroup: AdminNavGroup = {
     { label: "Usuários", href: "/sistema/usuarios" },
     { label: "Patrocinadores do site", href: "/sistema/configuracoes/patrocinadores" },
     { label: "Valores da página Assine", href: "/sistema/configuracoes/valores-assine" },
+    { label: "Cobranças / Asaas", href: "/sistema/configuracoes/cobrancas" },
   ],
 };
 
