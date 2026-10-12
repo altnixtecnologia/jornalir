@@ -10,6 +10,7 @@ export default function ConfiguracoesPage(): JSX.Element {
         <div className="form-grid">
           <Link className="materia-title-link" href="/sistema/usuarios">Usuários</Link>
           <Link className="materia-title-link" href="/sistema/configuracoes/patrocinadores">Patrocinadores do site</Link>
+          <Link className="materia-title-link" href="/sistema/configuracoes/valores-assine">Valores da página Assine</Link>
         </div>
       </section>
     </>
