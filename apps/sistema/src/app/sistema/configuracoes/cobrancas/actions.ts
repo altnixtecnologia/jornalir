@@ -4,7 +4,11 @@ import { revalidatePath } from "next/cache";
 import { createSupabaseServerClient } from "../../../../lib/supabase/server";
 import { getAuditContext } from "../../../../lib/auth/getAuditContext";
 import { recordAuditEventSupabase } from "../../../../providers/supabase/auditEvents.supabase";
-import { getAsaasApiKey, isAsaasApiKeyConfigured } from "../../../../lib/financeiro/asaasEnv";
+import {
+  getAsaasApiKey,
+  getConfiguredAsaasEnvironment,
+  isAsaasApiKeyConfigured,
+} from "../../../../lib/financeiro/asaasEnv";
 import { hasServiceRoleKey } from "../../../../lib/supabase/admin";
 import {
   ASAAS_WEBHOOK_EMAIL,
@@ -37,7 +41,8 @@ export async function updateBillingProviderSettingsAction(
       return { error: "Informe um prazo padrão entre 0 e 60 dias." };
     }
 
-    const keyConfigured = isAsaasApiKeyConfigured(input.environment);
+    const environment = getConfiguredAsaasEnvironment() ?? input.environment;
+    const keyConfigured = isAsaasApiKeyConfigured(environment);
 
     if (input.enabled && !input.allowPix) {
       return { error: "Habilite Pix antes de ativar a integração Asaas." };
@@ -46,7 +51,7 @@ export async function updateBillingProviderSettingsAction(
     if (input.enabled && !keyConfigured) {
       return {
         error:
-          input.environment === "sandbox"
+          environment === "sandbox"
             ? "Configure uma chave do Sandbox (ASAAS_API_KEY_SANDBOX ou ASAAS_API_KEY com ASAAS_ENV=sandbox) antes de habilitar."
             : "Configure uma chave de Produção (ASAAS_API_KEY_PRODUCTION ou ASAAS_API_KEY com ASAAS_ENV=production) antes de habilitar.",
       };
@@ -69,7 +74,7 @@ export async function updateBillingProviderSettingsAction(
       .single();
     if (currentSettingsError) throw new Error(currentSettingsError.message);
 
-    if (currentSettings.environment !== input.environment) {
+    if (currentSettings.environment !== environment) {
       const { data: pendingCharges, error: pendingError } = await client
         .from("payment_charges")
         .select("id")
@@ -87,7 +92,7 @@ export async function updateBillingProviderSettingsAction(
 
     const audit = await getAuditContext(client);
     const values = {
-      environment: input.environment,
+      environment,
       enabled: input.enabled,
       allow_pix: input.allowPix,
       // Boleto/cartão ainda não têm provider implementado; nunca gravar como habilitados só porque a UI já os prepara.
@@ -119,9 +124,10 @@ export async function updateBillingProviderSettingsAction(
 
 
 export async function testAsaasConnectionAction(
-  environment: "sandbox" | "production",
+  requestedEnvironment: "sandbox" | "production",
 ): Promise<{ ok: true; generalStatus: string } | { error: string }> {
   try {
+    const environment = getConfiguredAsaasEnvironment() ?? requestedEnvironment;
     const key = getAsaasApiKey(environment);
     if (!key) {
       return { error: environment === "sandbox" ? "Chave do Sandbox não configurada." : "Chave de Produção não configurada." };
@@ -185,9 +191,10 @@ async function asaasConfigurationRequest(
 }
 
 export async function provisionAsaasWebhookAction(
-  environment: "sandbox" | "production",
+  requestedEnvironment: "sandbox" | "production",
 ): Promise<{ ok: true; created: boolean; webhookId: string } | { error: string }> {
   try {
+    const environment = getConfiguredAsaasEnvironment() ?? requestedEnvironment;
     const apiKey = getAsaasApiKey(environment);
     if (!apiKey) {
       return { error: environment === "sandbox" ? "Chave do Sandbox não configurada." : "Chave de Produção não configurada." };
