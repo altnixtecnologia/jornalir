@@ -14,7 +14,10 @@ function absoluteUrl(hostOrUrl: string): string {
 }
 
 export function getAsaasWebhookEndpoint(): string {
-  if (process.env.VERCEL_ENV === "production") {
+  // O ambiente do Asaas manda mais que o tipo do deployment da Vercel.
+  // Hoje controle.altnix.com.br pode apontar temporariamente para um build
+  // Preview, mas cobranças reais precisam sempre usar o endpoint estável.
+  if ((process.env.ASAAS_ENV ?? "").trim().toLowerCase() === "production") {
     return "https://controle.altnix.com.br/api/integrations/asaas/webhook";
   }
 
