@@ -13,22 +13,24 @@ const FlipbookReader = dynamic(
   { ssr: false }
 );
 
-interface DriveEdition {
+interface OnlineEdition {
   id: string;
   title: string;
   dateLabel: string;
   category: string;
   pdfPath: string;
   sourceUrl?: string;
+  coverUrl?: string;
   pageCount?: number;
+  archiveProvider?: string;
 }
 
 export default function JornalOnlineReaderPage(): JSX.Element {
   const params = useParams<{ id: string }>();
   const id = params?.id ?? "";
   const [zoom, setZoom] = useState(100);
-  const [driveEditions, setDriveEditions] = useState<DriveEdition[]>([]);
-  const [driveStatus, setDriveStatus] = useState<"loading" | "ready" | "error">("loading");
+  const [remoteEditions, setRemoteEditions] = useState<OnlineEdition[]>([]);
+  const [remoteStatus, setRemoteStatus] = useState<"loading" | "ready" | "error">("loading");
   const [isMobile, setIsMobile] = useState(false);
   const [showScrollTop, setShowScrollTop] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -38,14 +40,32 @@ export default function JornalOnlineReaderPage(): JSX.Element {
   useEffect(() => {
     void (async () => {
       try {
-        const response = await fetch("/api/jornal-online/drive", { cache: "no-store" });
-        const data = (await response.json()) as { ok?: boolean; items?: DriveEdition[] };
-        if (data?.ok && Array.isArray(data.items) && data.items.length > 0) {
-          setDriveEditions(data.items);
+        const [archiveResult, driveResult] = await Promise.allSettled([
+          fetch("/api/jornal-online/editions", { cache: "no-store" }).then((response) => response.json()),
+          fetch("/api/jornal-online/drive", { cache: "no-store" }).then((response) => response.json()),
+        ]);
+
+        const archiveItems =
+          archiveResult.status === "fulfilled" &&
+          archiveResult.value?.ok &&
+          Array.isArray(archiveResult.value.items)
+            ? (archiveResult.value.items as OnlineEdition[])
+            : [];
+        const driveItems =
+          driveResult.status === "fulfilled" &&
+          driveResult.value?.ok &&
+          Array.isArray(driveResult.value.items)
+            ? (driveResult.value.items as OnlineEdition[])
+            : [];
+
+        const merged = new Map<string, OnlineEdition>();
+        for (const item of [...archiveItems, ...driveItems]) {
+          if (!merged.has(item.id)) merged.set(item.id, item);
         }
-        setDriveStatus("ready");
+        setRemoteEditions(Array.from(merged.values()));
+        setRemoteStatus("ready");
       } catch {
-        setDriveStatus("error");
+        setRemoteStatus("error");
       }
     })();
   }, []);
@@ -71,22 +91,23 @@ export default function JornalOnlineReaderPage(): JSX.Element {
   }, []);
 
   const edition = useMemo(() => {
-    return driveEditions.find((item) => item.id === id) ?? calameoEditions.find((item) => item.id === id);
-  }, [driveEditions, id]);
+    return remoteEditions.find((item) => item.id === id) ?? calameoEditions.find((item) => item.id === id);
+  }, [remoteEditions, id]);
 
-  // Edições "drive-*" só existem depois do fetch de /api/jornal-online/drive
-  // terminar; até lá, "não encontrado" seria um falso 404 (edição ainda não
-  // carregada). Edições do fallback local resolvem de forma síncrona e não
-  // dependem desse status.
+  // Edições do banco/R2 e do Drive chegam de forma assíncrona. Enquanto
+  // as duas fontes remotas não terminarem, não tratamos a ausência como 404.
   const isDriveId = id.startsWith("drive-");
-  const editionPending = isDriveId && !edition && driveStatus === "loading";
-  const editionLoadError = isDriveId && !edition && driveStatus === "error";
+  const editionPending = !edition && remoteStatus === "loading";
+  const editionLoadError = !edition && remoteStatus === "error";
 
   // "Abrir PDF" sempre prefere sourceUrl quando ele existe; para as edições
   // do fallback local (todas com sourceUrl no Calaméo), isso faz "Abrir PDF"
   // e "Fonte Calaméo" apontarem para o mesmo destino. Nesse caso, mostramos
   // só um botão (rotulado como a fonte real) em vez de duplicar a ação.
-  const hasCalameoSource = Boolean(edition?.sourceUrl) && !edition?.id.startsWith("drive-");
+  const hasCalameoSource =
+    Boolean(edition?.sourceUrl) &&
+    !edition?.id.startsWith("drive-") &&
+    !edition?.archiveProvider;
 
   const driveFileId = edition?.id.startsWith("drive-") ? edition.id.replace("drive-", "") : "";
   const pdfRenderUrl = driveFileId ? `/api/jornal-online/drive-file?id=${driveFileId}` : (edition?.pdfPath ?? "");
