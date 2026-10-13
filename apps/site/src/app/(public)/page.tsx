@@ -88,7 +88,7 @@ export default async function HomePage(): Promise<JSX.Element> {
       </div>
 
       <section className="site-shell">
-        <div className="grid grid-cols-1 gap-10 xl:grid-cols-[170px_minmax(0,1fr)_170px] 2xl:grid-cols-[200px_minmax(0,1fr)_200px] xl:items-start">
+        <div className="home-latest-news-grid grid grid-cols-1 gap-10 xl:grid-cols-[170px_minmax(0,1fr)_170px] 2xl:grid-cols-[200px_minmax(0,1fr)_200px] xl:items-start">
           <div className="hidden xl:block">
             <AdSlotColumn slots={leftAdSlots} side="left" effect={siteAds.settings.transitionEffect} />
           </div>
