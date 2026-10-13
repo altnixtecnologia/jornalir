@@ -1,7 +1,11 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { testAsaasConnectionAction, updateBillingProviderSettingsAction } from "../../app/sistema/configuracoes/cobrancas/actions";
+import {
+  provisionAsaasWebhookAction,
+  testAsaasConnectionAction,
+  updateBillingProviderSettingsAction,
+} from "../../app/sistema/configuracoes/cobrancas/actions";
 
 export interface BillingProviderSettingsValues {
   environment: "sandbox" | "production";
@@ -43,6 +47,23 @@ export function BillingProviderSettingsPanel({ values }: { values: BillingProvid
         return;
       }
       setMessage(`Conexão com o Asaas confirmada. Status geral da conta: ${result.generalStatus}.`);
+    });
+  }
+
+  function provisionWebhook(): void {
+    setMessage(null);
+    setError(null);
+    startTransition(async () => {
+      const result = await provisionAsaasWebhookAction(environment);
+      if ("error" in result) {
+        setError(result.error);
+        return;
+      }
+      setMessage(
+        result.created
+          ? `Webhook do Asaas criado com sucesso (${result.webhookId}).`
+          : `Webhook do Asaas atualizado com sucesso (${result.webhookId}).`,
+      );
     });
   }
 
@@ -126,9 +147,16 @@ export function BillingProviderSettingsPanel({ values }: { values: BillingProvid
         <p className="helper-text">
           Nesta etapa, a integração automática está habilitada somente para Pix. Boleto e cartão permanecem visíveis apenas como preparação futura.
         </p>
-        <div className="form-actions" style={{ marginTop: 12 }}>
+        <div className="form-actions" style={{ marginTop: 12, flexWrap: "wrap" }}>
           <button type="button" onClick={testConnection} disabled={pending || !selectedKeyConfigured}>
-            {pending ? "Testando..." : "Testar conexão com o Asaas"}
+            Testar conexão com o Asaas
+          </button>
+          <button
+            type="button"
+            onClick={provisionWebhook}
+            disabled={pending || !selectedKeyConfigured || !values.webhookTokenConfigured}
+          >
+            Cadastrar / atualizar webhook
           </button>
         </div>
         {enabled && !selectedKeyConfigured ? <p className="form-error">O ambiente selecionado ainda não possui chave configurada.</p> : null}
