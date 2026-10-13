@@ -39,7 +39,7 @@ export default async function ImportarPdfPage({
       <ModuleHeader
         eyebrow="EDITORIAL / IMPORTAÇÃO"
         title="Importar do jornal impresso"
-        description="Selecione uma edição, envie o PDF real e revise os candidatos extraídos antes de virarem rascunhos."
+        description="Selecione uma edição, reutilize o PDF oficial arquivado e revise os candidatos extraídos antes de virarem rascunhos."
       />
 
       <ImportFlowSteps current={currentStep} />
@@ -67,14 +67,22 @@ export default async function ImportarPdfPage({
       {selectedEdition ? (
         <>
           <section className="form-section import-step" aria-labelledby="pdf-title">
-            <h2 id="pdf-title">2. Enviar o PDF da edição</h2>
+            <h2 id="pdf-title">2. Extrair matérias do PDF</h2>
             {hasActiveCandidates ? (
               <details className="generate-more">
                 <summary>Gerar novo lote de candidatos para esta edição</summary>
-                <GenerateCandidatesForm editionId={selectedEdition.id} />
+                <GenerateCandidatesForm
+                  editionId={selectedEdition.id}
+                  archivedPdfAvailable={selectedEdition.archiveProvider === "r2" && Boolean(selectedEdition.pdfR2Key)}
+                  archivedFileName={selectedEdition.pdfFileName}
+                />
               </details>
             ) : (
-              <GenerateCandidatesForm editionId={selectedEdition.id} />
+              <GenerateCandidatesForm
+                  editionId={selectedEdition.id}
+                  archivedPdfAvailable={selectedEdition.archiveProvider === "r2" && Boolean(selectedEdition.pdfR2Key)}
+                  archivedFileName={selectedEdition.pdfFileName}
+                />
             )}
           </section>
 
@@ -88,8 +96,7 @@ export default async function ImportarPdfPage({
               />
             ) : (
               <p className="helper-text">
-                Nenhum candidato ainda para esta edição. Envie o PDF acima para gerar o
-                lote.
+                Nenhum candidato ainda para esta edição. Gere o lote a partir do PDF oficial acima.
               </p>
             )}
           </section>
