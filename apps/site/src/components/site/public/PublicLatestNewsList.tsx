@@ -75,9 +75,9 @@ export function PublicLatestNewsList({ items }: { items: PublicArticle[] }): JSX
         </Link>
       </div>
 
-      <div className="grid grid-cols-1 items-start gap-8 lg:grid-cols-[1.15fr_1fr]">
+      <div className="grid grid-cols-1 items-start gap-8 lg:grid-cols-[1.05fr_0.95fr]">
         <div ref={activeStoryRef} key={selected.id} className="reveal-up">
-          <div className="relative h-64 overflow-hidden rounded-sm bg-[color:var(--site-bg)] md:h-80">
+          <div className="relative aspect-[4/3] w-full overflow-hidden rounded-sm bg-[color:var(--site-bg)]">
             {selected.cover?.url ? (
               <div className="h-full w-full bg-contain bg-center bg-no-repeat" style={{ backgroundImage: `url(${selected.cover.url})` }} />
             ) : (
@@ -86,7 +86,7 @@ export function PublicLatestNewsList({ items }: { items: PublicArticle[] }): JSX
               </div>
             )}
           </div>
-          <div className="latest-news-active mt-4">
+          <div className="latest-news-active mt-6">
             <p className="kicker">{selected.sectionName}</p>
             <h3 className="mt-2 font-editorial text-[26px] font-bold leading-tight text-[color:var(--site-text)] md:text-[30px]">
               {selected.title}
