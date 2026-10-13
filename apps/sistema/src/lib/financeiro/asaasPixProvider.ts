@@ -33,10 +33,19 @@ interface ClientRow {
   address_complement: string | null;
   address_neighborhood: string | null;
   asaas_customer_id: string | null;
+  asaas_customer_environment: "sandbox" | "production" | null;
 }
 
-interface AsaasPayment { id: string; status: string; dueDate?: string; }
+interface AsaasPayment {
+  id: string;
+  status: string;
+  dueDate?: string;
+  value?: number;
+  billingType?: string;
+}
 interface AsaasPaymentList { data?: AsaasPayment[]; }
+interface AsaasCustomer { id: string; }
+interface AsaasCustomerList { data?: AsaasCustomer[]; }
 interface AsaasPixQrCode { payload?: string; expirationDate?: string; }
 
 function onlyDigits(value?: string | null): string | undefined {
@@ -124,39 +133,66 @@ async function findExistingActivePayment(
 async function ensureAsaasCustomer(client: SupabaseClient, settings: BillingSettingsRow, clientId: string): Promise<string> {
   const { data, error } = await client
     .from("clients")
-    .select("id, kind, full_name, company_name, trade_name, cpf, cnpj, whatsapp, phone_primary, email, address_zip, address_street, address_number, address_complement, address_neighborhood, asaas_customer_id")
+    .select("id, kind, full_name, company_name, trade_name, cpf, cnpj, whatsapp, phone_primary, email, address_zip, address_street, address_number, address_complement, address_neighborhood, asaas_customer_id, asaas_customer_environment")
     .eq("id", clientId)
     .single();
 
   if (error || !data) throw new Error("Cliente não encontrado para gerar a cobrança.");
-  const row = data as ClientRow;
-  if (row.asaas_customer_id) return row.asaas_customer_id;
+  const row = data as unknown as ClientRow;
+
+  if (row.asaas_customer_id && row.asaas_customer_environment === settings.environment) {
+    return row.asaas_customer_id;
+  }
 
   const document = onlyDigits(row.kind === "company" ? row.cnpj : row.cpf);
   if (!document) throw new Error("O cadastro precisa de CPF/CNPJ antes de gerar cobrança pelo Asaas.");
   const name = row.kind === "company" ? row.trade_name || row.company_name : row.full_name;
   if (!name) throw new Error("O cadastro precisa de nome/razão social antes de gerar cobrança.");
 
-  const created = await asaasFetch<{ id: string }>(settings, "/customers", {
-    method: "POST",
-    body: JSON.stringify({
-      name,
-      cpfCnpj: document,
-      email: row.email || undefined,
-      mobilePhone: onlyDigits(row.whatsapp || row.phone_primary),
-      address: row.address_street || undefined,
-      addressNumber: row.address_number || undefined,
-      complement: row.address_complement || undefined,
-      province: row.address_neighborhood || undefined,
-      postalCode: row.address_zip || undefined,
-      externalReference: row.id,
-      notificationDisabled: true,
-    }),
-  });
+  // Procura primeiro no AMBIENTE atual usando a referência interna. Assim,
+  // alternar sandbox -> produção (ou voltar) nunca reutiliza o customer_id
+  // do outro ambiente e também não cria clientes duplicados em tentativas
+  // repetidas depois de timeout.
+  const existing = await asaasFetch<AsaasCustomerList>(
+    settings,
+    `/customers?externalReference=${encodeURIComponent(row.id)}&limit=10`,
+    { method: "GET" },
+  );
+  const matches = existing.data ?? [];
+  if (matches.length > 1) {
+    throw new Error("Há mais de um cliente no Asaas com a mesma referência interna. Faça a conciliação antes de gerar cobrança.");
+  }
 
-  const { error: updateError } = await client.from("clients").update({ asaas_customer_id: created.id }).eq("id", clientId);
+  let customerId = matches[0]?.id;
+  if (!customerId) {
+    const created = await asaasFetch<{ id: string }>(settings, "/customers", {
+      method: "POST",
+      body: JSON.stringify({
+        name,
+        cpfCnpj: document,
+        email: row.email || undefined,
+        mobilePhone: onlyDigits(row.whatsapp || row.phone_primary),
+        address: row.address_street || undefined,
+        addressNumber: row.address_number || undefined,
+        complement: row.address_complement || undefined,
+        province: row.address_neighborhood || undefined,
+        postalCode: row.address_zip || undefined,
+        externalReference: row.id,
+        notificationDisabled: true,
+      }),
+    });
+    customerId = created.id;
+  }
+
+  const { error: updateError } = await client
+    .from("clients")
+    .update({
+      asaas_customer_id: customerId,
+      asaas_customer_environment: settings.environment,
+    })
+    .eq("id", clientId);
   if (updateError) throw new Error(updateError.message);
-  return created.id;
+  return customerId;
 }
 
 export function createAsaasPixProvider(client: SupabaseClient): PixProvider {
@@ -167,6 +203,15 @@ export function createAsaasPixProvider(client: SupabaseClient): PixProvider {
       const recovered = await findExistingActivePayment(settings, externalReference);
 
       if (recovered) {
+        if (recovered.billingType && recovered.billingType.toUpperCase() !== "PIX") {
+          throw new Error("A cobrança existente no Asaas para este título não é Pix. Faça a conciliação antes de continuar.");
+        }
+        if (typeof recovered.value === "number" && Math.abs(recovered.value - request.amount) > 0.005) {
+          throw new Error(
+            `Já existe uma cobrança Asaas para este título com valor diferente (R$ ${recovered.value.toFixed(2)}). Faça a conciliação antes de gerar outra.`,
+          );
+        }
+
         let qr: AsaasPixQrCode = {};
         try {
           qr = await asaasFetch<AsaasPixQrCode>(settings, `/payments/${recovered.id}/pixQrCode`, { method: "GET" });
