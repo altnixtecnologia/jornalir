@@ -218,6 +218,11 @@ export interface NewspaperEdition {
   title: string;
   publicationDate: string;
   pdfUrl?: string;
+  coverUrl?: string;
+  archiveProvider?: "r2" | "drive" | "supabase" | "external";
+  pdfR2Key?: string;
+  pdfFileName?: string;
+  pdfSha256?: string;
   pageCount?: number;
   /** Inativar é a única forma de remoção pela UI — nunca exclusão destrutiva. */
   active: boolean;
