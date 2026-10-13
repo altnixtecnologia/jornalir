@@ -19,8 +19,10 @@ type DigitalOffer = {
   label: string;
   location: string;
   dimensions: string;
-  price: number | null;
+  price: number;
   comboDiscount: number;
+  visualWidth: number;
+  visualHeight: number;
 };
 
 type CartItem = {
@@ -128,40 +130,49 @@ export function AssineConfigurator({ settings }: { settings: PublicSiteOfferSett
   );
 
   const digitalOffers = useMemo<DigitalOffer[]>(
-    () => [
-      {
-        id: "led-sjs-1x2",
-        label: "Painel 1 × 2 m",
-        location: "São João do Sul",
-        dimensions: "1 × 2 m",
-        price: settings.ledSjs1x2Price > 0 ? settings.ledSjs1x2Price : null,
-        comboDiscount: settings.ledSjs1x2ComboDiscount,
-      },
-      {
-        id: "led-pg-1x2",
-        label: "Painel 1 × 2 m",
-        location: "Praia Grande/SC",
-        dimensions: "1 × 2 m",
-        price: settings.ledPraiaGrande1x2Price > 0 ? settings.ledPraiaGrande1x2Price : null,
-        comboDiscount: settings.ledPraiaGrande1x2ComboDiscount,
-      },
-      {
-        id: "led-pt-1x2",
-        label: "Painel 1 × 2 m",
-        location: "Passo de Torres/SC",
-        dimensions: "1 × 2 m",
-        price: settings.ledPassoTorres1x2Price > 0 ? settings.ledPassoTorres1x2Price : null,
-        comboDiscount: settings.ledPassoTorres1x2ComboDiscount,
-      },
-      {
-        id: "led-sjs-4x2",
-        label: "Painel grande 4 × 2 m",
-        location: "Entrada de São João do Sul",
-        dimensions: "4 × 2 m",
-        price: settings.ledSjs4x2Price > 0 ? settings.ledSjs4x2Price : null,
-        comboDiscount: settings.ledSjs4x2ComboDiscount,
-      },
-    ],
+    () =>
+      [
+        {
+          id: "led-sjs-1x2",
+          label: "Painel 1 × 2 m",
+          location: "São João do Sul",
+          dimensions: "1 × 2 m",
+          price: settings.ledSjs1x2Price,
+          comboDiscount: settings.ledSjs1x2ComboDiscount,
+          visualWidth: 1,
+          visualHeight: 2,
+        },
+        {
+          id: "led-pg-1x2",
+          label: "Painel 1 × 2 m",
+          location: "Praia Grande/SC",
+          dimensions: "1 × 2 m",
+          price: settings.ledPraiaGrande1x2Price,
+          comboDiscount: settings.ledPraiaGrande1x2ComboDiscount,
+          visualWidth: 1,
+          visualHeight: 2,
+        },
+        {
+          id: "led-pt-1x2",
+          label: "Painel 1 × 2 m",
+          location: "Passo de Torres/SC",
+          dimensions: "1 × 2 m",
+          price: settings.ledPassoTorres1x2Price,
+          comboDiscount: settings.ledPassoTorres1x2ComboDiscount,
+          visualWidth: 1,
+          visualHeight: 2,
+        },
+        {
+          id: "led-sjs-4x2",
+          label: "Painel grande 4 × 2 m",
+          location: "Entrada de São João do Sul",
+          dimensions: "4 × 2 m",
+          price: settings.ledSjs4x2Price,
+          comboDiscount: settings.ledSjs4x2ComboDiscount,
+          visualWidth: 4,
+          visualHeight: 2,
+        },
+      ].filter((item) => item.price > 0),
     [settings],
   );
 
@@ -473,14 +484,31 @@ export function AssineConfigurator({ settings }: { settings: PublicSiteOfferSett
                       className={`rounded-xl border p-4 text-left transition hover:-translate-y-0.5 hover:shadow-md ${selected ? "ring-2 ring-[color:var(--brand-red)]" : ""}`}
                       style={{ borderColor: "var(--site-line)", background: selected ? "var(--site-bg)" : "transparent" }}
                     >
-                      <span className="text-[11px] font-bold uppercase tracking-[0.1em]" style={{ color: "var(--brand-red)" }}>
-                        {selected ? "No carrinho" : "Adicionar"}
-                      </span>
-                      <strong className="mt-1.5 block text-base">{offer.label}</strong>
-                      <span className="mt-1 block text-sm" style={{ color: "var(--site-muted)" }}>{offer.location} · {offer.dimensions}</span>
-                      <span className="mt-2 block text-xl font-extrabold" style={{ color: "var(--brand-navy)" }}>
-                        {offer.price === null ? "Sob consulta" : money(offer.price)}
-                      </span>
+                      <div className="grid grid-cols-[88px_minmax(0,1fr)] items-center gap-4">
+                        <div className="flex h-[86px] items-center justify-center rounded-lg border bg-white" style={{ borderColor: "var(--site-line)" }}>
+                          <div
+                            className="relative border-2 border-[color:var(--brand-red)] bg-red-50"
+                            style={{
+                              width: offer.visualWidth > offer.visualHeight ? 72 : 34,
+                              height: offer.visualHeight > offer.visualWidth ? 68 : 36,
+                            }}
+                          >
+                            <span className="absolute inset-x-0 top-1 text-center text-[7px] font-extrabold tracking-[0.08em] text-red-700">
+                              PAINEL
+                            </span>
+                          </div>
+                        </div>
+                        <div className="min-w-0">
+                          <span className="text-[11px] font-bold uppercase tracking-[0.1em]" style={{ color: "var(--brand-red)" }}>
+                            {selected ? "No carrinho" : "Adicionar"}
+                          </span>
+                          <strong className="mt-1.5 block text-base">{offer.label}</strong>
+                          <span className="mt-1 block text-sm" style={{ color: "var(--site-muted)" }}>{offer.location} · {offer.dimensions}</span>
+                          <span className="mt-2 block text-xl font-extrabold" style={{ color: "var(--brand-navy)" }}>
+                            {money(offer.price)}
+                          </span>
+                        </div>
+                      </div>
                     </button>
                   );
                 })}
