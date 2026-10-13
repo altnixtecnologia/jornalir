@@ -32,6 +32,10 @@ export interface SiteOfferSettingsFormInput {
 
 type ActionResult = { error: string } | { ok: true };
 
+// audit_events.entity_id é UUID, enquanto site_offer_settings usa PK smallint=1.
+// Este UUID estável identifica o registro singleton apenas no log de auditoria.
+const SITE_OFFER_SETTINGS_AUDIT_ID = "00000000-0000-4000-8000-000000000101";
+
 function parseRequiredMoney(label: string, value: string): number {
   const normalized = value.trim().replace(",", ".");
   if (!normalized) throw new Error(`Informe o valor de ${label}.`);
@@ -83,7 +87,7 @@ export async function updateSiteOfferSettingsAction(
     await recordAuditEventSupabase(client, {
       userId: audit.actorId,
       entityType: "site_offer_settings",
-      entityId: "1",
+      entityId: SITE_OFFER_SETTINGS_AUDIT_ID,
       action: "update",
       metadata: values,
     });
