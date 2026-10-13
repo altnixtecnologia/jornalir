@@ -58,6 +58,16 @@ function money(value: number): string {
   return value.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 }
 
+function paymentMethodLabel(payment: AsaasWebhookPayment | undefined): string {
+  const billingType = (payment?.billingType ?? "").trim().toUpperCase();
+  if (billingType === "PIX") return "PIX";
+  if (billingType === "CREDIT_CARD") return "Cartão de crédito";
+  if (billingType === "DEBIT_CARD") return "Cartão de débito";
+  if (billingType === "BOLETO") return "Boleto";
+  if (billingType === "TRANSFER") return "Transferência bancária";
+  return billingType || "Não informado";
+}
+
 async function createPanelNotification(input: {
   kind: "payment_received" | "payment_cancelled" | "payment_overdue" | "whatsapp_failed";
   title: string;
@@ -120,6 +130,8 @@ async function notifyPaymentReceived(input: {
   eventId: string;
   receivableId: string;
   amount: number;
+  paymentMethodLabel: string;
+  providerTransactionId: string;
 }): Promise<void> {
   const admin = createSupabaseAdminClient();
   const { receivable, client } = await loadPaymentContext(input.receivableId);
@@ -166,8 +178,10 @@ async function notifyPaymentReceived(input: {
     const sent = await sendWhatsappPaymentConfirmedTemplate({
       toPhone,
       clientName,
-      amountLabel,
       reference,
+      amountLabel,
+      paymentMethodLabel: input.paymentMethodLabel,
+      transactionId: input.providerTransactionId,
     });
 
     const { error: logError } = await admin.from("billing_message_logs").insert({
@@ -175,7 +189,7 @@ async function notifyPaymentReceived(input: {
       client_id: client.id,
       channel: "whatsapp",
       to_phone: toPhone,
-      message: `Pagamento confirmado: ${amountLabel} • ${reference}`,
+      message: `Pagamento confirmado: ${amountLabel} • ${reference} • ${input.paymentMethodLabel} • Transação ${input.providerTransactionId}`,
       status: "sent",
       provider_message_id: sent.providerMessageId ?? null,
       error_message: null,
@@ -189,7 +203,7 @@ async function notifyPaymentReceived(input: {
       client_id: client.id,
       channel: "whatsapp",
       to_phone: toPhone,
-      message: `Pagamento confirmado: ${amountLabel} • ${reference}`,
+      message: `Pagamento confirmado: ${amountLabel} • ${reference} • ${input.paymentMethodLabel} • Transação ${input.providerTransactionId}`,
       status: "failed",
       provider_message_id: null,
       error_message: message.slice(0, 1000),
@@ -340,6 +354,8 @@ export async function POST(request: Request): Promise<Response> {
         eventId,
         receivableId: charge.receivable_id as string,
         amount: Number(charge.amount ?? 0),
+        paymentMethodLabel: paymentMethodLabel(payload.payment),
+        providerTransactionId: providerChargeId,
       });
     } else if (eventType === "PAYMENT_OVERDUE") {
       if (charge.status === "pending") {

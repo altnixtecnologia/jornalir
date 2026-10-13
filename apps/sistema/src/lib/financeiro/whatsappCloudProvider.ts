@@ -112,13 +112,20 @@ export async function sendWhatsappBillingTemplate(
 export async function sendWhatsappPaymentConfirmedTemplate(input: {
   toPhone: string;
   clientName: string;
-  amountLabel: string;
   reference: string;
+  amountLabel: string;
+  paymentMethodLabel: string;
+  transactionId: string;
 }): Promise<WhatsappBillingTemplateResult> {
-  const template = (process.env.WHATSAPP_PAYMENT_CONFIRMED_TEMPLATE ?? "pagamento_confirmado").trim();
+  // Template criado na Meta em 13/10/2026.
+  // Variáveis, na ordem aprovada:
+  // {{1}} nome; {{2}} referência; {{3}} valor; {{4}} forma; {{5}} transação.
+  const template = (process.env.WHATSAPP_PAYMENT_CONFIRMED_TEMPLATE ?? "confirmacao_pagamento_ir").trim();
   return sendTemplate(input.toPhone, template, [
     input.clientName,
-    input.amountLabel,
     input.reference,
+    input.amountLabel,
+    input.paymentMethodLabel,
+    input.transactionId,
   ]);
 }
