@@ -36,6 +36,7 @@ interface ClientRow {
 }
 
 interface AsaasPayment { id: string; status: string; dueDate?: string; }
+interface AsaasPaymentList { data?: AsaasPayment[]; }
 interface AsaasPixQrCode { payload?: string; expirationDate?: string; }
 
 function onlyDigits(value?: string | null): string | undefined {
@@ -97,6 +98,29 @@ async function asaasFetch<T>(settings: BillingSettingsRow, path: string, init?: 
   return (await response.json()) as T;
 }
 
+async function findExistingActivePayment(
+  settings: BillingSettingsRow,
+  externalReference: string,
+): Promise<AsaasPayment | null> {
+  const result = await asaasFetch<AsaasPaymentList>(
+    settings,
+    `/payments?externalReference=${encodeURIComponent(externalReference)}&limit=10`,
+    { method: "GET" },
+  );
+
+  const active = (result.data ?? []).filter((payment) => {
+    const status = payment.status.toUpperCase();
+    return status !== "DELETED" && status !== "REFUNDED" && status !== "REFUND_REQUESTED";
+  });
+
+  if (active.length > 1) {
+    throw new Error(
+      "Há mais de uma cobrança ativa no Asaas para este título. Faça a conciliação antes de gerar outra cobrança.",
+    );
+  }
+  return active[0] ?? null;
+}
+
 async function ensureAsaasCustomer(client: SupabaseClient, settings: BillingSettingsRow, clientId: string): Promise<string> {
   const { data, error } = await client
     .from("clients")
@@ -139,6 +163,25 @@ export function createAsaasPixProvider(client: SupabaseClient): PixProvider {
   return {
     async createCharge(request: CreatePixChargeRequest): Promise<PixChargeProviderResult> {
       const settings = await loadSettings(client);
+      const externalReference = `receivable:${request.receivableId}`;
+      const recovered = await findExistingActivePayment(settings, externalReference);
+
+      if (recovered) {
+        let qr: AsaasPixQrCode = {};
+        try {
+          qr = await asaasFetch<AsaasPixQrCode>(settings, `/payments/${recovered.id}/pixQrCode`, { method: "GET" });
+        } catch {
+          // Cobrança já paga pode não disponibilizar mais o QR Code.
+        }
+        return {
+          provider: "asaas",
+          providerChargeId: recovered.id,
+          pixCopyPaste: qr.payload ?? "",
+          expiresAt: qr.expirationDate ?? (recovered.dueDate ? `${recovered.dueDate}T23:59:59` : undefined),
+          status: mapStatus(recovered.status),
+        };
+      }
+
       const customer = await ensureAsaasCustomer(client, settings, request.clientId);
       const dueDate = request.expiresAt?.slice(0, 10) || addDaysIso(settings.default_due_days);
 
@@ -150,7 +193,7 @@ export function createAsaasPixProvider(client: SupabaseClient): PixProvider {
           value: request.amount,
           dueDate,
           description: request.description?.slice(0, 500),
-          externalReference: `receivable:${request.receivableId}`,
+          externalReference,
         }),
       });
 
