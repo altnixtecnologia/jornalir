@@ -416,7 +416,7 @@ export async function convertSubscriptionInterestAction(id: string): Promise<Con
       const dueDaysRaw = Number(settings?.default_due_days ?? 3);
       const dueDays = Number.isFinite(dueDaysRaw) ? Math.max(0, Math.min(60, Math.floor(dueDaysRaw))) : 3;
 
-      receivable = await receivableService.registerFromSubscription({
+      const createdReceivable = await receivableService.registerFromSubscription({
         clientId,
         description: "Assinatura anual do Informativo Regional",
         sourceType: "subscription",
@@ -429,6 +429,7 @@ export async function convertSubscriptionInterestAction(id: string): Promise<Con
         competencyDate: subscription.startsAt,
         notes: `${originTag} Gerada a partir da solicitação do site ${protocol}.`,
       });
+      receivable = await receivableService.getById(createdReceivable.id);
     }
 
     const conversionLine = `Assinatura convertida: ${subscription.reference}; financeiro: ${receivable.reference}.`;
