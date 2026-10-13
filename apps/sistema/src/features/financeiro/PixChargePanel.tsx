@@ -66,6 +66,7 @@ export function PixChargePanel({
   const [sendOpen, setSendOpen] = useState(false);
   const [sendMessage, setSendMessage] = useState("");
   const [sendHasWhatsapp, setSendHasWhatsapp] = useState(true);
+  const [sendWhatsappHref, setSendWhatsappHref] = useState<string | null>(null);
   const [sendFeedback, setSendFeedback] = useState<string | null>(null);
   const [confirmFeedback, setConfirmFeedback] = useState<string | null>(null);
 
@@ -113,6 +114,7 @@ export function PixChargePanel({
     }
     setSendMessage(result.message);
     setSendHasWhatsapp(result.hasWhatsapp);
+    setSendWhatsappHref(result.whatsappHref ?? null);
     setSendOpen(true);
   }
 
@@ -330,17 +332,16 @@ export function PixChargePanel({
             </>
           )
         }
-        confirmLabel={!sendHasWhatsapp ? "Cadastro sem WhatsApp" : pending ? "Enviando…" : localPreview ? "Simular envio" : "Enviar"}
+        confirmLabel={!sendHasWhatsapp ? "Cadastro sem WhatsApp" : "Abrir WhatsApp"}
         onConfirm={() => {
-          if (!sendHasWhatsapp) return;
-          run(
-            () => sendBillingMessageAction(receivableId, clientId, sendMessage),
-            () => setSendFeedback(localPreview ? "Envio demonstrativo registrado." : "Mensagem enviada."),
-          );
+          if (!sendHasWhatsapp || !sendWhatsappHref) return;
+          window.open(sendWhatsappHref, "_blank", "noopener,noreferrer");
+          setSendFeedback("WhatsApp aberto com a mensagem e o link da cobrança prontos para envio.");
         }}
         onCancel={() => {
           setSendOpen(false);
           setSendFeedback(null);
+          setSendWhatsappHref(null);
         }}
       />
     </section>
