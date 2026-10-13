@@ -21,6 +21,8 @@ interface SubscriptionInterestRow {
   phone: string;
   email: string | null;
   company: string | null;
+  customer_kind: "individual" | "company" | null;
+  document_number: string | null;
   selections: unknown;
   estimated_total: number | null;
   notes: string | null;
@@ -98,9 +100,34 @@ async function resolveOrCreateClient(
   supabase: ReturnType<typeof createSupabaseServerClient>,
   row: SubscriptionInterestRow,
 ): Promise<string> {
+  if (!row.customer_kind || !row.document_number) {
+    throw new Error("A solicitação não possui CPF/CNPJ. Peça o documento antes de converter.");
+  }
+
   const candidateIds = new Set<string>();
   const phone = onlyDigits(row.phone);
   const email = row.email?.trim().toLowerCase() || "";
+  const document = onlyDigits(row.document_number);
+
+  const addMatches = (matches: Array<{ id: string; status: string }> | null): void => {
+    for (const match of matches ?? []) {
+      if (match.status === "inactive") {
+        throw new Error("Já existe um cadastro inativo com os dados desta solicitação. Reative o cadastro antes de converter.");
+      }
+      candidateIds.add(match.id);
+    }
+  };
+
+  if (document) {
+    const documentColumn = row.customer_kind === "company" ? "cnpj" : "cpf";
+    const { data, error } = await supabase
+      .from("clients")
+      .select("id, status")
+      .eq(documentColumn, document)
+      .limit(3);
+    if (error) throw new Error(error.message);
+    addMatches(data as Array<{ id: string; status: string }> | null);
+  }
 
   if (phone) {
     const { data, error } = await supabase
@@ -109,12 +136,7 @@ async function resolveOrCreateClient(
       .or(`whatsapp.eq.${phone},phone_primary.eq.${phone}`)
       .limit(3);
     if (error) throw new Error(error.message);
-    for (const match of data ?? []) {
-      if (match.status === "inactive") {
-        throw new Error("Já existe um cadastro inativo com este telefone. Reative o cadastro antes de converter a solicitação.");
-      }
-      candidateIds.add(match.id as string);
-    }
+    addMatches(data as Array<{ id: string; status: string }> | null);
   }
 
   if (email) {
@@ -124,28 +146,66 @@ async function resolveOrCreateClient(
       .ilike("email", email)
       .limit(3);
     if (error) throw new Error(error.message);
-    for (const match of data ?? []) {
-      if (match.status === "inactive") {
-        throw new Error("Já existe um cadastro inativo com este e-mail. Reative o cadastro antes de converter a solicitação.");
-      }
-      candidateIds.add(match.id as string);
-    }
+    addMatches(data as Array<{ id: string; status: string }> | null);
   }
 
   if (candidateIds.size > 1) {
-    throw new Error("Foram encontrados cadastros diferentes com o mesmo telefone/e-mail. Confira os Cadastros antes de converter.");
+    throw new Error("Os dados da solicitação apontam para cadastros diferentes. Confira CPF/CNPJ, telefone e e-mail antes de converter.");
   }
 
+  const clientService = getClientService(supabase);
   const existingId = [...candidateIds][0];
-  if (existingId) return existingId;
 
-  const isCompany = Boolean(row.company?.trim());
-  const created = await getClientService(supabase).register({
-    kind: isCompany ? "company" : "individual",
+  if (existingId) {
+    const current = await clientService.getById(existingId);
+    if (current.kind !== row.customer_kind) {
+      throw new Error("O cadastro localizado tem tipo diferente (pessoa física/empresa). Confira antes de converter.");
+    }
+
+    const currentDocument = onlyDigits(current.kind === "company" ? current.cnpj : current.cpf);
+    if (currentDocument && currentDocument !== document) {
+      throw new Error("O CPF/CNPJ informado é diferente do documento já cadastrado. Confira antes de converter.");
+    }
+
+    const updated = await clientService.update(existingId, {
+      kind: current.kind,
+      status: "active",
+      fullName: current.kind === "individual" ? row.name : undefined,
+      cpf: current.kind === "individual" ? document : undefined,
+      birthDate: current.birthDate,
+      companyName: current.kind === "company" ? row.company ?? current.companyName : undefined,
+      tradeName: current.tradeName,
+      cnpj: current.kind === "company" ? document : undefined,
+      stateRegistration: current.stateRegistration,
+      responsibleName: current.kind === "company" ? row.name : undefined,
+      responsibleCpf: current.responsibleCpf,
+      phonePrimary: current.phonePrimary,
+      phoneSecondary: current.phoneSecondary,
+      whatsapp: row.phone || current.whatsapp,
+      email: row.email ?? current.email,
+      address: {
+        zip: row.address_zip ?? current.address.zip,
+        street: row.address_street ?? current.address.street,
+        number: row.address_number ?? current.address.number,
+        complement: row.address_complement ?? current.address.complement,
+        neighborhood: row.address_neighborhood ?? current.address.neighborhood,
+        city: row.address_city ?? current.address.city,
+        state: row.address_state ?? current.address.state,
+      },
+      notes: current.notes,
+      roles: Array.from(new Set([...current.roles, "cliente"])),
+    });
+    return updated.id;
+  }
+
+  const created = await clientService.register({
+    kind: row.customer_kind,
     status: "active",
-    fullName: isCompany ? undefined : row.name,
-    companyName: isCompany ? row.company ?? undefined : undefined,
-    responsibleName: isCompany ? row.name : undefined,
+    fullName: row.customer_kind === "individual" ? row.name : undefined,
+    cpf: row.customer_kind === "individual" ? document : undefined,
+    companyName: row.customer_kind === "company" ? row.company ?? row.name : undefined,
+    cnpj: row.customer_kind === "company" ? document : undefined,
+    responsibleName: row.customer_kind === "company" ? row.name : undefined,
     whatsapp: row.phone,
     email: row.email ?? undefined,
     address: {
@@ -249,7 +309,7 @@ export async function convertSubscriptionInterestAction(id: string): Promise<Con
     const { data, error } = await supabase
       .from("site_interest_requests")
       .select(
-        "id, request_type, name, phone, email, company, selections, estimated_total, notes, status, payment_preference, " +
+        "id, request_type, name, phone, email, company, customer_kind, document_number, selections, estimated_total, notes, status, payment_preference, " +
           "address_zip, address_street, address_number, address_complement, address_neighborhood, address_city, address_state, " +
           "availability_status, approved_total, admin_note",
       )
