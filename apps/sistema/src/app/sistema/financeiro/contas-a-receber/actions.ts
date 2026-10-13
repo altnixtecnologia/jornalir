@@ -638,7 +638,7 @@ export async function sendPaymentConfirmationAction(
           clientId,
           channel: "whatsapp",
           toPhone,
-          message || "Confirmação de pagamento",
+          message: message || "Confirmação de pagamento",
           status: "failed",
           errorMessage: toErrorMessage(error),
           createdByProfileId: actorId,
