@@ -1,6 +1,6 @@
 import "server-only";
 
-import { createHash } from "node:crypto";
+import { createHash, createHmac, randomUUID } from "node:crypto";
 import {
   DeleteObjectCommand,
   GetObjectCommand,
@@ -75,6 +75,149 @@ function archivePrefix(editionNumber: number, publicationDate: string): string {
 
 function publicUrl(key: string): string {
   return `${publicBase()}/${key}`;
+}
+
+function rfc3986(value: string): string {
+  return encodeURIComponent(value).replace(/[!'()*]/g, (char) =>
+    `%${char.charCodeAt(0).toString(16).toUpperCase()}`,
+  );
+}
+
+function encodeKeyPath(key: string): string {
+  return "/" + key.split("/").map(rfc3986).join("/");
+}
+
+function hmac(key: Buffer | string, value: string): Buffer {
+  return createHmac("sha256", key).update(value).digest();
+}
+
+function sha256Hex(value: string): string {
+  return createHash("sha256").update(value).digest("hex");
+}
+
+function formatAmzDate(date: Date): { amzDate: string; dateStamp: string } {
+  const iso = date.toISOString().replace(/[:-]|\.\d{3}/g, "");
+  return { amzDate: iso, dateStamp: iso.slice(0, 8) };
+}
+
+/**
+ * URL PUT pré-assinada para o domínio S3 do R2.
+ * Implementa AWS Signature V4 diretamente para não adicionar uma dependência
+ * só para a assinatura. O navegador recebe apenas a URL temporária; nunca as
+ * credenciais R2.
+ */
+function presignPutUrl(key: string, expiresSeconds = 900): string {
+  const endpoint = new URL(requiredEnv("R2_ENDPOINT"));
+  const accessKeyId = requiredEnv("R2_ACCESS_KEY_ID");
+  const secretAccessKey = requiredEnv("R2_SECRET_ACCESS_KEY");
+  const region = "auto";
+  const service = "s3";
+  const host = `${bucket()}.${endpoint.host}`;
+  const canonicalUri = encodeKeyPath(key);
+  const { amzDate, dateStamp } = formatAmzDate(new Date());
+  const scope = `${dateStamp}/${region}/${service}/aws4_request`;
+
+  const query: Record<string, string> = {
+    "X-Amz-Algorithm": "AWS4-HMAC-SHA256",
+    "X-Amz-Content-Sha256": "UNSIGNED-PAYLOAD",
+    "X-Amz-Credential": `${accessKeyId}/${scope}`,
+    "X-Amz-Date": amzDate,
+    "X-Amz-Expires": String(expiresSeconds),
+    "X-Amz-SignedHeaders": "host",
+  };
+
+  const canonicalQuery = Object.entries(query)
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([keyName, value]) => `${rfc3986(keyName)}=${rfc3986(value)}`)
+    .join("&");
+
+  const canonicalRequest = [
+    "PUT",
+    canonicalUri,
+    canonicalQuery,
+    `host:${host}\n`,
+    "host",
+    "UNSIGNED-PAYLOAD",
+  ].join("\n");
+
+  const stringToSign = [
+    "AWS4-HMAC-SHA256",
+    amzDate,
+    scope,
+    sha256Hex(canonicalRequest),
+  ].join("\n");
+
+  const kDate = hmac(`AWS4${secretAccessKey}`, dateStamp);
+  const kRegion = hmac(kDate, region);
+  const kService = hmac(kRegion, service);
+  const kSigning = hmac(kService, "aws4_request");
+  const signature = createHmac("sha256", kSigning).update(stringToSign).digest("hex");
+
+  return `${endpoint.protocol}//${host}${canonicalUri}?${canonicalQuery}&X-Amz-Signature=${signature}`;
+}
+
+export interface EditionDirectUploadPlan {
+  pdf: { key: string; uploadUrl: string; publicUrl: string };
+  cover: { key: string; uploadUrl: string; publicUrl: string };
+  expiresAt: string;
+}
+
+export function createEditionDirectUploadPlan(
+  fileName: string,
+  options: EditionArchiveUploadOptions,
+): EditionDirectUploadPlan {
+  const cleanName = `${safeFileBase(fileName)}.pdf`;
+  const prefix = archivePrefix(options.editionNumber, options.publicationDate);
+  const uploadId = randomUUID();
+  const pdfKey = `${prefix}/${uploadId}-${cleanName}`;
+  const coverKey = `${prefix}/capa-${uploadId}.webp`;
+
+  return {
+    pdf: {
+      key: pdfKey,
+      uploadUrl: presignPutUrl(pdfKey),
+      publicUrl: publicUrl(pdfKey),
+    },
+    cover: {
+      key: coverKey,
+      uploadUrl: presignPutUrl(coverKey),
+      publicUrl: publicUrl(coverKey),
+    },
+    expiresAt: new Date(Date.now() + 15 * 60_000).toISOString(),
+  };
+}
+
+export function isEditionArchiveKeyFor(
+  key: string,
+  options: EditionArchiveUploadOptions,
+): boolean {
+  return key.startsWith(`${archivePrefix(options.editionNumber, options.publicationDate)}/`);
+}
+
+export async function validateEditionPdfObject(
+  key: string,
+  expectedSize: number,
+): Promise<void> {
+  const client = r2Client();
+  const head = await client.send(new HeadObjectCommand({ Bucket: bucket(), Key: key }));
+  if (Number(head.ContentLength ?? 0) !== expectedSize) {
+    throw new Error("O PDF chegou ao R2 com tamanho diferente do arquivo selecionado.");
+  }
+  const firstBytes = await client.send(
+    new GetObjectCommand({ Bucket: bucket(), Key: key, Range: "bytes=0-4" }),
+  );
+  const signature = firstBytes.Body ? Buffer.from(await firstBytes.Body.transformToByteArray()).toString("ascii") : "";
+  if (signature !== "%PDF-") {
+    throw new Error("O objeto enviado ao R2 não possui assinatura de PDF válida.");
+  }
+}
+
+export async function validateEditionCoverObject(key: string): Promise<void> {
+  const head = await r2Client().send(new HeadObjectCommand({ Bucket: bucket(), Key: key }));
+  const size = Number(head.ContentLength ?? 0);
+  if (size <= 0 || size > MAX_EDITION_COVER_BYTES) {
+    throw new Error("A capa enviada ao R2 está vazia ou acima do limite permitido.");
+  }
 }
 
 export interface EditionArchiveUploadOptions {
