@@ -32,17 +32,18 @@ function normalizePhone(raw: string): string {
   return digits;
 }
 
-export async function sendWhatsappBillingTemplate(
-  input: WhatsappBillingTemplateInput,
+async function sendTemplate(
+  toPhone: string,
+  template: string,
+  variables: string[],
 ): Promise<WhatsappBillingTemplateResult> {
   const accessToken = token();
   const numberId = phoneNumberId();
   if (!accessToken || !numberId) throw new Error("WhatsApp Cloud API não configurada.");
 
   const version = (process.env.WHATSAPP_API_VERSION ?? "v21.0").trim();
-  const template = (process.env.WHATSAPP_BILLING_TEMPLATE ?? "fatura_disponivel").trim();
   const language = (process.env.WHATSAPP_BILLING_LANGUAGE ?? "pt_BR").trim();
-  const to = normalizePhone(input.toPhone);
+  const to = normalizePhone(toPhone);
   if (!to) throw new Error("Cliente sem WhatsApp válido.");
 
   const response = await fetch("https://graph.facebook.com/" + version + "/" + numberId + "/messages", {
@@ -59,18 +60,14 @@ export async function sendWhatsappBillingTemplate(
       template: {
         name: template,
         language: { code: language },
-        components: [
-          {
-            type: "body",
-            parameters: [
-              { type: "text", text: input.clientName },
-              { type: "text", text: input.reference },
-              { type: "text", text: input.amountLabel },
-              { type: "text", text: input.dueDateLabel },
-              { type: "text", text: input.paymentUrl },
-            ],
-          },
-        ],
+        components: variables.length
+          ? [
+              {
+                type: "body",
+                parameters: variables.map((text) => ({ type: "text", text })),
+              },
+            ]
+          : undefined,
       },
     }),
   });
@@ -78,13 +75,50 @@ export async function sendWhatsappBillingTemplate(
   const raw = await response.text();
   let body: Record<string, any> = {};
   if (raw) {
-    try { body = JSON.parse(raw) as Record<string, any>; } catch { body = { message: raw.slice(0, 500) }; }
+    try {
+      body = JSON.parse(raw) as Record<string, any>;
+    } catch {
+      body = { message: raw.slice(0, 500) };
+    }
   }
   if (!response.ok) {
     const meta = body?.error as { code?: number; message?: string; title?: string } | undefined;
     const detail = meta?.message || meta?.title || body?.message || "erro desconhecido";
-    throw new Error("WhatsApp/Meta retornou " + response.status + (meta?.code ? " (Meta " + meta.code + ")" : "") + ": " + detail);
+    throw new Error(
+      "WhatsApp/Meta retornou " +
+        response.status +
+        (meta?.code ? " (Meta " + meta.code + ")" : "") +
+        ": " +
+        detail,
+    );
   }
 
   return { providerMessageId: body?.messages?.[0]?.id as string | undefined };
+}
+
+export async function sendWhatsappBillingTemplate(
+  input: WhatsappBillingTemplateInput,
+): Promise<WhatsappBillingTemplateResult> {
+  const template = (process.env.WHATSAPP_BILLING_TEMPLATE ?? "fatura_disponivel").trim();
+  return sendTemplate(input.toPhone, template, [
+    input.clientName,
+    input.reference,
+    input.amountLabel,
+    input.dueDateLabel,
+    input.paymentUrl,
+  ]);
+}
+
+export async function sendWhatsappPaymentConfirmedTemplate(input: {
+  toPhone: string;
+  clientName: string;
+  amountLabel: string;
+  reference: string;
+}): Promise<WhatsappBillingTemplateResult> {
+  const template = (process.env.WHATSAPP_PAYMENT_CONFIRMED_TEMPLATE ?? "pagamento_confirmado").trim();
+  return sendTemplate(input.toPhone, template, [
+    input.clientName,
+    input.amountLabel,
+    input.reference,
+  ]);
 }
