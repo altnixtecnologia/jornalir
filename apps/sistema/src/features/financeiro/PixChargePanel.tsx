@@ -7,10 +7,12 @@ import { PAYMENT_CHARGE_STATUS_LABELS } from "@ir/types";
 import { ConfirmDialog } from "../../components/admin/ConfirmDialog";
 import {
   buildBillingMessagePreviewAction,
+  buildPaymentConfirmationPreviewAction,
   cancelPixChargeAction,
   confirmPixChargeAction,
   createPixChargeAction,
   sendBillingMessageAction,
+  sendPaymentConfirmationAction,
 } from "../../app/sistema/financeiro/contas-a-receber/actions";
 
 function formatAmount(value: number): string {
@@ -66,6 +68,7 @@ export function PixChargePanel({
   const [copied, setCopied] = useState(false);
 
   const [sendOpen, setSendOpen] = useState(false);
+  const [sendMode, setSendMode] = useState<"charge" | "payment">("charge");
   const [sendMessage, setSendMessage] = useState("");
   const [sendHasWhatsapp, setSendHasWhatsapp] = useState(true);
   const [sendWhatsappHref, setSendWhatsappHref] = useState<string | null>(null);
@@ -141,6 +144,22 @@ export function PixChargePanel({
       setError(result.error);
       return;
     }
+    setSendMode("charge");
+    setSendMessage(result.message);
+    setSendHasWhatsapp(result.hasWhatsapp);
+    setSendWhatsappHref(result.whatsappHref ?? null);
+    setSendOpen(true);
+  }
+
+  async function openPaymentConfirmationPreview(): Promise<void> {
+    setError(null);
+    setSendFeedback(null);
+    const result = await buildPaymentConfirmationPreviewAction(receivableId);
+    if ("error" in result) {
+      setError(result.error);
+      return;
+    }
+    setSendMode("payment");
     setSendMessage(result.message);
     setSendHasWhatsapp(result.hasWhatsapp);
     setSendWhatsappHref(result.whatsappHref ?? null);
@@ -350,6 +369,18 @@ export function PixChargePanel({
                                 </a>
                               </div>
                             ) : null}
+                            {charge.status === "paid" ? (
+                              <div className="form-field" style={{ gridColumn: "1 / -1" }}>
+                                <span className="field-label">Cliente</span>
+                                <button
+                                  type="button"
+                                  onClick={() => void openPaymentConfirmationPreview()}
+                                  disabled={pending}
+                                >
+                                  Enviar confirmação de pagamento
+                                </button>
+                              </div>
+                            ) : null}
                           </div>
                         </td>
                       </tr>
@@ -395,7 +426,7 @@ export function PixChargePanel({
       <ConfirmDialog
         open={sendOpen}
         destructive={false}
-        title="Enviar cobrança ao cliente"
+        title={sendMode === "payment" ? "Confirmar pagamento ao cliente" : "Enviar cobrança ao cliente"}
         description={
           !sendHasWhatsapp ? (
             <p>
@@ -426,14 +457,26 @@ export function PixChargePanel({
           if (!sendHasWhatsapp) return;
           if (whatsappAutoConfigured) {
             run(
-              () => sendBillingMessageAction(receivableId, clientId, sendMessage),
-              () => setSendFeedback("Cobrança enviada pelo WhatsApp."),
+              () =>
+                sendMode === "payment"
+                  ? sendPaymentConfirmationAction(receivableId)
+                  : sendBillingMessageAction(receivableId, clientId, sendMessage),
+              () =>
+                setSendFeedback(
+                  sendMode === "payment"
+                    ? "Confirmação de pagamento enviada pelo WhatsApp."
+                    : "Cobrança enviada pelo WhatsApp.",
+                ),
             );
             return;
           }
           if (!sendWhatsappHref) return;
           window.open(sendWhatsappHref, "_blank", "noopener,noreferrer");
-          setSendFeedback("WhatsApp aberto com a mensagem e o link da cobrança prontos para envio.");
+          setSendFeedback(
+            sendMode === "payment"
+              ? "WhatsApp aberto com a confirmação de pagamento pronta para envio."
+              : "WhatsApp aberto com a mensagem e o link da cobrança prontos para envio.",
+          );
         }}
         onCancel={() => {
           setSendOpen(false);
