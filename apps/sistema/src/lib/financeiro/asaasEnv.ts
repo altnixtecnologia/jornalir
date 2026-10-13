@@ -2,7 +2,7 @@ import "server-only";
 
 export type AsaasEnvironment = "sandbox" | "production";
 
-function normalizeLegacyEnvironment(): AsaasEnvironment | undefined {
+export function getConfiguredAsaasEnvironment(): AsaasEnvironment | undefined {
   const value = (process.env.ASAAS_ENV ?? "").trim().toLowerCase();
   if (value === "sandbox") return "sandbox";
   if (value === "production" || value === "prod") return "production";
@@ -27,7 +27,7 @@ export function getAsaasApiKey(environment: AsaasEnvironment): string | undefine
 
   const legacyKey = process.env.ASAAS_API_KEY?.trim();
   if (!legacyKey) return undefined;
-  return normalizeLegacyEnvironment() === environment ? legacyKey : undefined;
+  return getConfiguredAsaasEnvironment() === environment ? legacyKey : undefined;
 }
 
 export function isAsaasApiKeyConfigured(environment: AsaasEnvironment): boolean {
