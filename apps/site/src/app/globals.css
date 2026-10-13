@@ -205,6 +205,13 @@ body {
   }
 }
 
+/* Somente na faixa "Últimas notícias" da home, os quadros laterais
+   seguem a nova medida física 8 x 10,5 cm. O restante do portal mantém
+   a proporção configurada globalmente. */
+.home-latest-news-grid .ad-slot-column .ad-slot-unit {
+  aspect-ratio: 16 / 21;
+}
+
 /* Mobile: par de 2 quadros dentro do fluxo editorial. */
 .ad-pair-row {
   border-top: 1px solid var(--site-line);
