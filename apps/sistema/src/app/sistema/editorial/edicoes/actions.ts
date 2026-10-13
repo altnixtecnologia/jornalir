@@ -10,6 +10,7 @@ import {
   createEditionDirectUploadPlan,
   deleteEditionArchiveObject,
   getEditionArchivePublicUrl,
+  ensureEditionR2CorsConfigured,
   isEditionArchiveKeyFor,
   isEditionR2ArchiveConfigured,
   validateEditionCoverObject,
@@ -136,6 +137,8 @@ export async function prepareEditionR2UploadAction(
     const client = await requireStaffClient();
     const edition = await getNewspaperEditionService(client).getById(editionId);
     if (!edition) return { error: "Edição não encontrada." };
+
+    await ensureEditionR2CorsConfigured();
 
     const plan = createEditionDirectUploadPlan(fileName, {
       editionNumber: edition.editionNumber,
