@@ -378,21 +378,21 @@ export function AssineConfigurator({ settings }: { settings: PublicSiteOfferSett
 
   return (
     <>
-      <section className="grid gap-8 xl:grid-cols-[minmax(0,1fr)_390px] xl:items-start">
-        <div className="space-y-8">
-          <section className="rounded-3xl border p-6 md:p-8" style={{ borderColor: "var(--site-line)", background: "var(--site-surface)" }}>
-            <div className="grid gap-5 lg:grid-cols-[1fr_300px] lg:items-center">
+      <section className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px] xl:items-start">
+        <div className="space-y-5">
+          <section className="rounded-2xl border p-4 md:p-5" style={{ borderColor: "var(--site-line)", background: "var(--site-surface)" }}>
+            <div className="grid gap-4 lg:grid-cols-[1fr_280px] lg:items-center">
               <div>
                 <p className="kicker">ASSINATURA</p>
-                <h2 className="mt-3 font-editorial text-3xl font-bold md:text-4xl">Receba o Informativo Regional</h2>
-                <p className="mt-3 max-w-2xl text-sm md:text-base" style={{ color: "var(--site-muted)" }}>
+                <h2 className="mt-2 font-editorial text-2xl font-bold md:text-3xl">Receba o Informativo Regional</h2>
+                <p className="mt-2 max-w-2xl text-sm leading-snug" style={{ color: "var(--site-muted)" }}>
                   Assinatura anual do jornal impresso. Antes da confirmação, verificamos se o endereço faz parte da rota de entrega.
                 </p>
               </div>
               <button
                 type="button"
                 onClick={() => setAnnualSubscription((value) => !value)}
-                className={`rounded-2xl border px-5 py-5 text-left transition ${annualSubscription ? "ring-2 ring-[color:var(--brand-red)]" : ""}`}
+                className={`rounded-xl border px-4 py-3 text-left transition ${annualSubscription ? "ring-2 ring-[color:var(--brand-red)]" : ""}`}
                 style={{ borderColor: "var(--site-line)", background: annualSubscription ? "var(--site-bg)" : "transparent" }}
               >
                 <span className="block text-xs font-bold uppercase tracking-[0.12em]" style={{ color: "var(--brand-red)" }}>
@@ -406,11 +406,11 @@ export function AssineConfigurator({ settings }: { settings: PublicSiteOfferSett
             </div>
           </section>
 
-          <section className="rounded-3xl border p-6 md:p-8" style={{ borderColor: "var(--site-line)", background: "var(--site-surface)" }}>
+          <section className="rounded-2xl border p-4 md:p-5" style={{ borderColor: "var(--site-line)", background: "var(--site-surface)" }}>
             <p className="kicker">JORNAL IMPRESSO</p>
-            <div className="mt-3 flex flex-col justify-between gap-3 md:flex-row md:items-end">
+            <div className="mt-2 flex flex-col justify-between gap-2 md:flex-row md:items-end">
               <div>
-                <h2 className="font-editorial text-3xl font-bold md:text-4xl">Escolha o tamanho do anúncio</h2>
+                <h2 className="font-editorial text-2xl font-bold md:text-3xl">Escolha o tamanho do anúncio</h2>
                 <p className="mt-2 text-sm" style={{ color: "var(--site-muted)" }}>
                   Todos os formatos são coloridos. As medidas abaixo seguem a página impressa de 25 × 36 cm.
                 </p>
@@ -420,7 +420,7 @@ export function AssineConfigurator({ settings }: { settings: PublicSiteOfferSett
               </span>
             </div>
 
-            <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+            <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
               {printOffers.map((offer) => {
                 const selected = printOfferId === offer.id;
                 return (
@@ -428,11 +428,11 @@ export function AssineConfigurator({ settings }: { settings: PublicSiteOfferSett
                     key={offer.id}
                     type="button"
                     onClick={() => setPrintOfferId(selected ? null : offer.id)}
-                    className={`rounded-2xl border p-4 text-left transition hover:-translate-y-0.5 hover:shadow-lg ${selected ? "ring-2 ring-[color:var(--brand-red)]" : ""}`}
+                    className={`rounded-xl border p-3 text-left transition hover:-translate-y-0.5 hover:shadow-md ${selected ? "ring-2 ring-[color:var(--brand-red)]" : ""}`}
                     style={{ borderColor: "var(--site-line)", background: selected ? "var(--site-bg)" : "var(--site-surface)" }}
                   >
-                    <div className="flex h-40 items-center justify-center rounded-xl border bg-white p-3" style={{ borderColor: "var(--site-line)" }}>
-                      <div className="relative aspect-[25/36] h-full max-h-[132px] border-2 border-zinc-300 bg-zinc-50">
+                    <div className="flex h-32 items-center justify-center rounded-lg border bg-white p-2" style={{ borderColor: "var(--site-line)" }}>
+                      <div className="relative aspect-[25/36] h-full max-h-[104px] border-2 border-zinc-300 bg-zinc-50">
                         <div
                           className="absolute left-1/2 top-1/2 flex -translate-x-1/2 -translate-y-1/2 items-center justify-center border-2 border-[color:var(--brand-red)] bg-red-50 px-1 text-center text-[7px] font-bold text-red-700"
                           style={{
@@ -444,12 +444,12 @@ export function AssineConfigurator({ settings }: { settings: PublicSiteOfferSett
                         </div>
                       </div>
                     </div>
-                    <span className="mt-3 block text-[11px] font-bold uppercase tracking-[0.08em]" style={{ color: "var(--brand-red)" }}>
+                    <span className="mt-2 block text-[10px] font-bold uppercase tracking-[0.08em]" style={{ color: "var(--brand-red)" }}>
                       {selected ? "No carrinho" : "Adicionar"}
                     </span>
                     <strong className="mt-1 block text-base">{offer.label}</strong>
                     <span className="mt-0.5 block text-xs font-semibold" style={{ color: "var(--site-muted)" }}>{offer.dimensions}</span>
-                    <span className="mt-1 block text-xl font-extrabold" style={{ color: "var(--brand-navy)" }}>{money(offer.price)}</span>
+                    <span className="mt-1 block text-lg font-extrabold" style={{ color: "var(--brand-navy)" }}>{money(offer.price)}</span>
                   </button>
                 );
               })}
@@ -457,13 +457,13 @@ export function AssineConfigurator({ settings }: { settings: PublicSiteOfferSett
           </section>
 
           {digitalOffers.length > 0 ? (
-            <section className="rounded-3xl border p-6 md:p-8" style={{ borderColor: "var(--site-line)", background: "var(--site-surface)" }}>
+            <section className="rounded-2xl border p-4 md:p-5" style={{ borderColor: "var(--site-line)", background: "var(--site-surface)" }}>
               <p className="kicker">PAINÉIS DIGITAIS</p>
-              <h2 className="mt-3 font-editorial text-3xl font-bold md:text-4xl">Escolha onde divulgar</h2>
+              <h2 className="mt-2 font-editorial text-2xl font-bold md:text-3xl">Escolha onde divulgar</h2>
               <p className="mt-2 text-sm" style={{ color: "var(--site-muted)" }}>
                 Você pode selecionar um ou mais painéis. Período, frequência e disponibilidade são confirmados pelo Comercial.
               </p>
-              <div className="mt-5 grid gap-4 sm:grid-cols-2">
+              <div className="mt-4 grid gap-3 sm:grid-cols-2">
                 {digitalOffers.map((offer) => {
                   const selected = digitalIds.includes(offer.id);
                   return (
@@ -471,15 +471,15 @@ export function AssineConfigurator({ settings }: { settings: PublicSiteOfferSett
                       key={offer.id}
                       type="button"
                       onClick={() => toggleDigital(offer.id)}
-                      className={`rounded-2xl border p-5 text-left transition hover:-translate-y-0.5 hover:shadow-lg ${selected ? "ring-2 ring-[color:var(--brand-red)]" : ""}`}
+                      className={`rounded-xl border p-4 text-left transition hover:-translate-y-0.5 hover:shadow-md ${selected ? "ring-2 ring-[color:var(--brand-red)]" : ""}`}
                       style={{ borderColor: "var(--site-line)", background: selected ? "var(--site-bg)" : "transparent" }}
                     >
                       <span className="text-[11px] font-bold uppercase tracking-[0.1em]" style={{ color: "var(--brand-red)" }}>
                         {selected ? "No carrinho" : "Adicionar"}
                       </span>
-                      <strong className="mt-2 block text-lg">{offer.label}</strong>
+                      <strong className="mt-1.5 block text-base">{offer.label}</strong>
                       <span className="mt-1 block text-sm" style={{ color: "var(--site-muted)" }}>{offer.location} · {offer.dimensions}</span>
-                      <span className="mt-3 block text-2xl font-extrabold" style={{ color: "var(--brand-navy)" }}>{money(offer.price)}</span>
+                      <span className="mt-2 block text-xl font-extrabold" style={{ color: "var(--brand-navy)" }}>{money(offer.price)}</span>
                     </button>
                   );
                 })}
@@ -489,20 +489,20 @@ export function AssineConfigurator({ settings }: { settings: PublicSiteOfferSett
         </div>
 
         <aside
-          className="h-fit overflow-hidden rounded-3xl border shadow-xl xl:sticky xl:top-24"
+          className="h-fit overflow-hidden rounded-2xl border shadow-lg xl:sticky xl:top-24"
           style={{ borderColor: "var(--site-line)", background: "var(--site-surface)" }}
         >
-          <div className="px-6 py-5 text-white" style={{ background: "var(--brand-navy)" }}>
+          <div className="px-5 py-4 text-white" style={{ background: "var(--brand-navy)" }}>
             <p className="text-xs font-bold uppercase tracking-[0.14em] text-white/60">Seu carrinho</p>
-            <h2 className="mt-1 text-2xl font-extrabold">{cartItems.length} {cartItems.length === 1 ? "item" : "itens"}</h2>
-            <p className="mt-3 text-xs leading-relaxed text-white/70">
+            <h2 className="mt-1 text-xl font-extrabold">{cartItems.length} {cartItems.length === 1 ? "item" : "itens"}</h2>
+            <p className="mt-2 text-xs leading-snug text-white/70">
               Com 2 ou mais produtos, cada item recebe o desconto configurado para ele.
             </p>
           </div>
 
-          <div className="p-6">
+          <div className="p-5">
             {!hasSelection ? (
-              <div className="rounded-2xl border border-dashed p-5 text-center" style={{ borderColor: "var(--site-line)" }}>
+              <div className="rounded-xl border border-dashed p-4 text-center" style={{ borderColor: "var(--site-line)" }}>
                 <p className="text-sm font-semibold">Seu carrinho está vazio.</p>
               </div>
             ) : (
@@ -511,7 +511,7 @@ export function AssineConfigurator({ settings }: { settings: PublicSiteOfferSett
                   const final = discountedPrice(item, comboActive);
                   const itemDiscount = comboActive && item.price !== null ? Math.min(item.price, item.comboDiscount) : 0;
                   return (
-                    <div key={item.id} className="rounded-2xl border p-4" style={{ borderColor: "var(--site-line)", background: "var(--site-bg)" }}>
+                    <div key={item.id} className="rounded-xl border p-3" style={{ borderColor: "var(--site-line)", background: "var(--site-bg)" }}>
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0">
                           <strong className="block text-sm leading-snug">{item.label}</strong>
@@ -541,7 +541,7 @@ export function AssineConfigurator({ settings }: { settings: PublicSiteOfferSett
                 })}
 
                 {comboActive ? (
-                  <div className="rounded-2xl bg-green-50 p-4 text-green-900">
+                  <div className="rounded-xl bg-green-50 p-3 text-green-900">
                     <p className="text-xs font-extrabold uppercase tracking-[0.1em]">Desconto combinado</p>
                     <p className="mt-1 text-sm">Economia: <strong>{money(totals.discount)}</strong></p>
                   </div>
@@ -573,11 +573,11 @@ export function AssineConfigurator({ settings }: { settings: PublicSiteOfferSett
               type="button"
               onClick={openRequest}
               disabled={!hasSelection}
-              className="mt-5 w-full rounded-xl bg-[color:var(--brand-red)] px-4 py-3 text-sm font-extrabold text-white transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50"
+              className="mt-4 w-full rounded-xl bg-[color:var(--brand-red)] px-4 py-2.5 text-sm font-extrabold text-white transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50"
             >
               Solicitar análise
             </button>
-            <p className="mt-3 text-[11px] leading-relaxed" style={{ color: "var(--site-muted)" }}>
+            <p className="mt-2 text-[11px] leading-snug" style={{ color: "var(--site-muted)" }}>
               Nenhuma cobrança é feita agora. A equipe verifica rota/disponibilidade e entra em contato pelo WhatsApp para confirmação.
             </p>
             {error && !requestOpen ? <p className="mt-3 text-xs font-semibold text-red-700">{error}</p> : null}
@@ -619,7 +619,7 @@ export function AssineConfigurator({ settings }: { settings: PublicSiteOfferSett
                   <button type="button" onClick={() => setRequestOpen(false)} className="rounded-full border px-3 py-2 text-sm" style={{ borderColor: "var(--site-line)" }}>✕</button>
                 </div>
 
-                <div className="mt-5 grid gap-4 sm:grid-cols-2">
+                <div className="mt-4 grid gap-3 sm:grid-cols-2">
                   <label className="text-sm">
                     <span className="mb-1 block font-semibold">Nome *</span>
                     <input value={name} onChange={(e) => setName(e.target.value)} className="w-full rounded-xl border px-4 py-3" style={{ borderColor: "var(--site-line)" }} />
