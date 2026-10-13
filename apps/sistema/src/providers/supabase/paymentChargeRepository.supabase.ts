@@ -11,7 +11,7 @@ function round2(value: number): number {
 
 const TABLE = "payment_charges";
 const COLUMNS =
-  "id, receivable_id, client_id, provider, provider_charge_id, amount, description, status, pix_copy_paste, " +
+  "id, receivable_id, client_id, provider, provider_charge_id, amount, description, status, pix_copy_paste, public_token, " +
   "expires_at, paid_at, receipt_id, cancelled_at, cancelled_by, cancellation_reason, created_by, created_at, updated_at";
 
 interface PaymentChargeRow {
@@ -24,6 +24,7 @@ interface PaymentChargeRow {
   description: string | null;
   status: PaymentChargeStatus;
   pix_copy_paste: string | null;
+  public_token: string | null;
   expires_at: string | null;
   paid_at: string | null;
   receipt_id: string | null;
@@ -46,6 +47,7 @@ function toDomain(row: PaymentChargeRow): PaymentCharge {
     description: row.description ?? undefined,
     status: row.status,
     pixCopyPaste: row.pix_copy_paste ?? undefined,
+    publicToken: row.public_token ?? undefined,
     expiresAt: row.expires_at ?? undefined,
     paidAt: row.paid_at ?? undefined,
     receiptId: row.receipt_id ?? undefined,
