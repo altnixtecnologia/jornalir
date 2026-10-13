@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { createSupabaseServerClient } from "../../../../lib/supabase/server";
 import { getAuditContext } from "../../../../lib/auth/getAuditContext";
 import { recordAuditEventSupabase } from "../../../../providers/supabase/auditEvents.supabase";
+import { isAsaasApiKeyConfigured } from "../../../../lib/financeiro/asaasEnv";
 
 export interface BillingProviderSettingsInput {
   environment: "sandbox" | "production";
@@ -25,10 +26,7 @@ export async function updateBillingProviderSettingsAction(
       return { error: "Informe um prazo padrão entre 0 e 60 dias." };
     }
 
-    const keyConfigured =
-      input.environment === "sandbox"
-        ? Boolean(process.env.ASAAS_API_KEY_SANDBOX)
-        : Boolean(process.env.ASAAS_API_KEY_PRODUCTION);
+    const keyConfigured = isAsaasApiKeyConfigured(input.environment);
 
     if (input.enabled && !keyConfigured) {
       return {
