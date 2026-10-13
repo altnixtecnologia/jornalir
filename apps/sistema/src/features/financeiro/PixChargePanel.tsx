@@ -137,7 +137,7 @@ export function PixChargePanel({
       {showForm ? (
         <div className="form-grid" style={{ marginTop: "14px" }}>
           <p className="helper-text" style={{ gridColumn: "1 / -1" }}>
-            Saldo atual: {formatAmount(receivableBalance)}. Por padrão a cobrança é do saldo total — pode gerar um valor menor (cobrança parcial).
+            Saldo atual: {formatAmount(receivableBalance)}. Por padrão a cobrança é do saldo total — pode gerar um valor menor (cobrança parcial), desde que seja de pelo menos R$ 5,00.
           </p>
           <label className="form-field">
             <span className="field-label">Valor a cobrar (R$)</span>
