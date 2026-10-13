@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { createSupabaseServerClient } from "../../../../lib/supabase/server";
 import { getAuditContext } from "../../../../lib/auth/getAuditContext";
 import { recordAuditEventSupabase } from "../../../../providers/supabase/auditEvents.supabase";
-import { isAsaasApiKeyConfigured } from "../../../../lib/financeiro/asaasEnv";
+import { getAsaasApiKey, isAsaasApiKeyConfigured } from "../../../../lib/financeiro/asaasEnv";
 import { hasServiceRoleKey } from "../../../../lib/supabase/admin";
 
 export interface BillingProviderSettingsInput {
@@ -104,5 +104,38 @@ export async function updateBillingProviderSettingsAction(
     return { ok: true };
   } catch (error) {
     return { error: error instanceof Error ? error.message : "Não foi possível salvar as configurações." };
+  }
+}
+
+
+export async function testAsaasConnectionAction(
+  environment: "sandbox" | "production",
+): Promise<{ ok: true; generalStatus: string } | { error: string }> {
+  try {
+    const key = getAsaasApiKey(environment);
+    if (!key) {
+      return { error: environment === "sandbox" ? "Chave do Sandbox não configurada." : "Chave de Produção não configurada." };
+    }
+
+    const baseUrl = environment === "sandbox" ? "https://api-sandbox.asaas.com/v3" : "https://api.asaas.com/v3";
+    const response = await fetch(`${baseUrl}/myAccount/status/`, {
+      method: "GET",
+      cache: "no-store",
+      headers: {
+        accept: "application/json",
+        "User-Agent": "InformativoRegional/1.0",
+        access_token: key,
+      },
+    });
+
+    if (!response.ok) {
+      const body = await response.text();
+      return { error: `Asaas retornou ${response.status}: ${body.slice(0, 300)}` };
+    }
+
+    const body = (await response.json()) as { general?: string };
+    return { ok: true, generalStatus: body.general ?? "conexão autenticada" };
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : "Não foi possível testar a conexão com o Asaas." };
   }
 }
