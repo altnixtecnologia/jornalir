@@ -42,12 +42,14 @@ export function PixChargePanel({
   receivableBalance,
   charges,
   localPreview,
+  whatsappAutoConfigured,
 }: {
   receivableId: string;
   clientId: string;
   receivableBalance: number;
   charges: PaymentCharge[];
   localPreview: boolean;
+  whatsappAutoConfigured: boolean;
 }): JSX.Element {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -324,7 +326,9 @@ export function PixChargePanel({
             </p>
           ) : (
             <>
-              <p className="helper-text">Prévia da mensagem{localPreview ? " (envio será só demonstrativo)" : ""}:</p>
+              <p className="helper-text">
+                Prévia da mensagem {whatsappAutoConfigured ? "(envio automático pela WhatsApp Cloud API)" : "(abrirá no WhatsApp para envio manual)"}:
+              </p>
               <pre style={{ whiteSpace: "pre-wrap", fontSize: "12px", background: "#f7f8f3", border: "1px solid var(--line)", borderRadius: "4px", padding: "10px" }}>
                 {sendMessage}
               </pre>
@@ -332,9 +336,25 @@ export function PixChargePanel({
             </>
           )
         }
-        confirmLabel={!sendHasWhatsapp ? "Cadastro sem WhatsApp" : "Abrir WhatsApp"}
+        confirmLabel={
+          !sendHasWhatsapp
+            ? "Cadastro sem WhatsApp"
+            : whatsappAutoConfigured
+              ? pending
+                ? "Enviando..."
+                : "Enviar agora"
+              : "Abrir WhatsApp"
+        }
         onConfirm={() => {
-          if (!sendHasWhatsapp || !sendWhatsappHref) return;
+          if (!sendHasWhatsapp) return;
+          if (whatsappAutoConfigured) {
+            run(
+              () => sendBillingMessageAction(receivableId, clientId, sendMessage),
+              () => setSendFeedback("Cobrança enviada pelo WhatsApp."),
+            );
+            return;
+          }
+          if (!sendWhatsappHref) return;
           window.open(sendWhatsappHref, "_blank", "noopener,noreferrer");
           setSendFeedback("WhatsApp aberto com a mensagem e o link da cobrança prontos para envio.");
         }}
