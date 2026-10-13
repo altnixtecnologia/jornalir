@@ -2,19 +2,10 @@ import { ModuleHeader } from "../../../../components/admin/ModuleHeader";
 import { BillingProviderSettingsPanel } from "../../../../features/configuracoes/BillingProviderSettingsPanel";
 import { createSupabaseServerClient } from "../../../../lib/supabase/server";
 import { isAsaasApiKeyConfigured } from "../../../../lib/financeiro/asaasEnv";
+import { getAsaasWebhookEndpoint, getAsaasWebhookToken } from "../../../../lib/financeiro/asaasWebhookConfig";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
-
-function webhookEndpoint(): string {
-  if (process.env.VERCEL_ENV === "production") {
-    return "https://controle.altnix.com.br/api/integrations/asaas/webhook";
-  }
-  const previewHost = process.env.VERCEL_BRANCH_URL || process.env.VERCEL_URL;
-  return previewHost
-    ? `https://${previewHost}/api/integrations/asaas/webhook`
-    : "http://localhost:3001/api/integrations/asaas/webhook";
-}
 
 export default async function BillingProviderSettingsPage(): Promise<JSX.Element> {
   const client = createSupabaseServerClient();
@@ -45,8 +36,8 @@ export default async function BillingProviderSettingsPage(): Promise<JSX.Element
           financeWhatsapp: data.finance_whatsapp ?? "",
           sandboxKeyConfigured: isAsaasApiKeyConfigured("sandbox"),
           productionKeyConfigured: isAsaasApiKeyConfigured("production"),
-          webhookTokenConfigured: Boolean(process.env.ASAAS_WEBHOOK_TOKEN),
-          webhookEndpoint: webhookEndpoint(),
+          webhookTokenConfigured: Boolean(getAsaasWebhookToken()),
+          webhookEndpoint: getAsaasWebhookEndpoint(),
         }}
       />
     </>
