@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { assinaturasNavGroup, clientesNavGroup, configuracoesNavGroup, editorialNavGroup, financeiroNavGroup, moreModulesNavGroup, nfseNavGroup, commercialNavGroup } from "../../lib/navigation";
+import { assinaturasNavGroup, clientesNavGroup, configuracoesNavGroup, editorialNavGroup, financeiroNavGroup, nfseNavGroup, commercialNavGroup } from "../../lib/navigation";
 import { useAuth } from "../../lib/auth/AuthProvider";
 import { AccountMenu } from "./AccountMenu";
 import { AdminNotificationBell } from "./AdminNotificationBell";
@@ -26,7 +26,6 @@ export function AdminHeader({ onOpenMenu }: { onOpenMenu: () => void }): JSX.Ele
   const isPublicidade = pathname.startsWith("/sistema/publicidade");
   const isNfse = pathname.startsWith("/sistema/nfse");
   const isConfiguracoes = pathname.startsWith("/sistema/usuarios") || pathname.startsWith("/sistema/configuracoes");
-  const isMore = moreModulesNavGroup.links.some((link) => pathname.startsWith(link.href));
   const canManageUsers = profile?.role === "owner" || profile?.role === "admin";
 
   return (
@@ -169,36 +168,6 @@ export function AdminHeader({ onOpenMenu }: { onOpenMenu: () => void }): JSX.Ele
             </details>
           ) : null}
 
-          <div className="app-nav-direct-modules" aria-label="Outros módulos">
-            {moreModulesNavGroup.links.map((link) => (
-              <Link
-                key={link.href}
-                href={link.href}
-                className={`app-nav-link app-nav-link--module${pathname.startsWith(link.href) ? " is-active" : ""}`}
-              >
-                {link.label}
-              </Link>
-            ))}
-          </div>
-
-          <details className="app-nav-dropdown app-nav-more" data-nav-dropdown name="app-nav-dropdown">
-            <summary className={`app-nav-link app-nav-summary${isMore ? " is-active" : ""}`}>
-              Mais módulos <span className="app-nav-caret" aria-hidden="true">▾</span>
-            </summary>
-            <div className="app-nav-panel">
-              {moreModulesNavGroup.links.map((link) => (
-                <Link
-                  key={link.href}
-                  href={link.href}
-                  className="app-nav-panel-link app-nav-panel-link--planned"
-                  onClick={closeNavDropdowns}
-                >
-                  {link.label}
-                  <span className="planned-dot" aria-hidden="true" />
-                </Link>
-              ))}
-            </div>
-          </details>
         </nav>
 
         <div className="app-header-actions">
