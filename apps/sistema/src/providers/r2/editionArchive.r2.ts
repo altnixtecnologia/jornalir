@@ -10,6 +10,7 @@ import {
   PutObjectCommand,
   S3Client,
 } from "@aws-sdk/client-s3";
+import type { CORSRule } from "@aws-sdk/client-s3";
 
 export const MAX_EDITION_PDF_BYTES = 100 * 1024 * 1024;
 export const MAX_EDITION_COVER_BYTES = 3 * 1024 * 1024;
@@ -76,14 +77,7 @@ export async function ensureEditionR2CorsConfigured(): Promise<void> {
     ]),
   );
 
-  let previousRules: Array<{
-    ID?: string;
-    AllowedOrigins?: string[];
-    AllowedMethods?: string[];
-    AllowedHeaders?: string[];
-    ExposeHeaders?: string[];
-    MaxAgeSeconds?: number;
-  }> = [];
+  let previousRules: CORSRule[] = [];
 
   try {
     const existing = await client.send(new GetBucketCorsCommand({ Bucket: bucket() }));
