@@ -238,7 +238,7 @@ export function createAsaasPixProvider(client: SupabaseClient): PixProvider {
           provider: "asaas",
           providerChargeId: recovered.id,
           pixCopyPaste: qr.payload ?? "",
-          expiresAt: recovered.dueDate ? `${recovered.dueDate}T23:59:59` : undefined,
+          expiresAt: recovered.dueDate ? `${recovered.dueDate}T23:59:59-03:00` : undefined,
           status: mapStatus(recovered.status),
         };
       }
@@ -264,7 +264,7 @@ export function createAsaasPixProvider(client: SupabaseClient): PixProvider {
         provider: "asaas",
         providerChargeId: payment.id,
         pixCopyPaste: qr.payload ?? "",
-        expiresAt: `${dueDate}T23:59:59`,
+        expiresAt: `${dueDate}T23:59:59-03:00`,
         status: mapStatus(payment.status),
       };
     },
@@ -282,7 +282,7 @@ export function createAsaasPixProvider(client: SupabaseClient): PixProvider {
         provider: "asaas",
         providerChargeId,
         pixCopyPaste: qr.payload ?? "",
-        expiresAt: payment.dueDate ? `${payment.dueDate}T23:59:59` : undefined,
+        expiresAt: payment.dueDate ? `${payment.dueDate}T23:59:59-03:00` : undefined,
         status: mapStatus(payment.status),
       };
     },
