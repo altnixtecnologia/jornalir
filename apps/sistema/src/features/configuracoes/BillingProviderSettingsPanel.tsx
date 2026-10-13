@@ -15,6 +15,7 @@ export interface BillingProviderSettingsValues {
   sandboxKeyConfigured: boolean;
   productionKeyConfigured: boolean;
   webhookTokenConfigured: boolean;
+  webhookEndpoint: string;
 }
 
 export function BillingProviderSettingsPanel({ values }: { values: BillingProviderSettingsValues }): JSX.Element {
@@ -107,12 +108,13 @@ export function BillingProviderSettingsPanel({ values }: { values: BillingProvid
           <div><span className="field-label">Token do Webhook</span><span className="status-badge">{values.webhookTokenConfigured ? "Configurado" : "Não configurado"}</span></div>
         </div>
         <p className="helper-text" style={{ marginTop: 12 }}>
-          Endpoint: <code>https://controle.altnix.com.br/api/integrations/asaas/webhook</code>
+          Endpoint deste ambiente: <code>{values.webhookEndpoint}</code>
         </p>
         <p className="helper-text">
           Nesta etapa, a integração automática está habilitada somente para Pix. Boleto e cartão permanecem visíveis apenas como preparação futura.
         </p>
         {enabled && !selectedKeyConfigured ? <p className="form-error">O ambiente selecionado ainda não possui chave configurada.</p> : null}
+        {enabled && !values.webhookTokenConfigured ? <p className="form-error">O token de autenticação do webhook ainda não está configurado.</p> : null}
       </section>
 
       <section className="form-section">
