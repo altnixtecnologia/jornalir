@@ -86,8 +86,12 @@ export function BillingProviderSettingsPanel({ values }: { values: BillingProvid
         <div style={{ marginTop: 14, display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(200px,1fr))", gap: 8 }}>
           <label><input type="checkbox" checked={enabled} onChange={(e) => setEnabled(e.target.checked)} /> Habilitar Asaas</label>
           <label><input type="checkbox" checked={allowPix} onChange={(e) => setAllowPix(e.target.checked)} /> Pix</label>
-          <label><input type="checkbox" checked={allowBoleto} onChange={(e) => setAllowBoleto(e.target.checked)} /> Boleto</label>
-          <label><input type="checkbox" checked={allowCreditCard} onChange={(e) => setAllowCreditCard(e.target.checked)} /> Cartão</label>
+          <label title="Integração ainda não habilitada">
+            <input type="checkbox" checked={allowBoleto} onChange={(e) => setAllowBoleto(e.target.checked)} disabled /> Boleto <span className="field-optional">(em preparação)</span>
+          </label>
+          <label title="Integração ainda não habilitada">
+            <input type="checkbox" checked={allowCreditCard} onChange={(e) => setAllowCreditCard(e.target.checked)} disabled /> Cartão <span className="field-optional">(em preparação)</span>
+          </label>
           <label><input type="checkbox" checked={allowCash} onChange={(e) => setAllowCash(e.target.checked)} /> Dinheiro / manual</label>
         </div>
       </section>
@@ -104,6 +108,9 @@ export function BillingProviderSettingsPanel({ values }: { values: BillingProvid
         </div>
         <p className="helper-text" style={{ marginTop: 12 }}>
           Endpoint: <code>https://controle.altnix.com.br/api/integrations/asaas/webhook</code>
+        </p>
+        <p className="helper-text">
+          Nesta etapa, a integração automática está habilitada somente para Pix. Boleto e cartão permanecem visíveis apenas como preparação futura.
         </p>
         {enabled && !selectedKeyConfigured ? <p className="form-error">O ambiente selecionado ainda não possui chave configurada.</p> : null}
       </section>
