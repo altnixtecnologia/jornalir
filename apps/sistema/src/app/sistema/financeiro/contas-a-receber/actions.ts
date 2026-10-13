@@ -5,13 +5,15 @@ import { redirect } from "next/navigation";
 import type { PaymentMethod, AdjustmentType } from "@ir/types";
 import type { ReceivableInput } from "@ir/core";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { getBillingMessageService, getPaymentChargeService, getReceivableService } from "../../../../composition/financeiro";
+import { getPaymentChargeService, getReceivableService } from "../../../../composition/financeiro";
 import { getClientService } from "../../../../composition/clientes";
 import { createSupabaseServerClient } from "../../../../lib/supabase/server";
 import { getAuditContext } from "../../../../lib/auth/getAuditContext";
 import { isLocalPreviewEnabled, LOCAL_PREVIEW_PROFILE } from "../../../../lib/auth/localPreview";
-import { buildBillingMessage, ClientWithoutWhatsappError } from "@ir/core";
+import { buildBillingMessage } from "@ir/core";
 import { parseAmount, validateReceivablePayload, type ReceivableFormPayload } from "../../../../features/financeiro/receivableFormTypes";
+import { createBillingMessageLogRepositorySupabase } from "../../../../providers/supabase/billingMessageLogRepository.supabase";
+import { sendWhatsappBillingTemplate } from "../../../../lib/financeiro/whatsappCloudProvider";
 
 const LIST_PATH = "/sistema/financeiro/contas-a-receber";
 
@@ -388,20 +390,70 @@ export async function sendBillingMessageAction(
   clientId: string,
   message: string,
 ): Promise<{ error: string } | { ok: true; status: "sent" | "simulated" }> {
+  const client = createSupabaseServerClient();
+  let toPhone = "";
+  let createdByProfileId: string | undefined;
+
   try {
-    const client = createSupabaseServerClient();
-    const [clientRecord, createdByProfileId] = await Promise.all([getClientService(client).getById(clientId), resolveActorId(client)]);
-    const log = await getBillingMessageService(client).send({
+    const [clientRecord, receivable, charges, actorId] = await Promise.all([
+      getClientService(client).getById(clientId),
+      getReceivableService(client).getById(receivableId),
+      getPaymentChargeService(client).listForReceivable(receivableId),
+      resolveActorId(client),
+    ]);
+    createdByProfileId = actorId;
+    toPhone = clientRecord.whatsapp ?? clientRecord.phonePrimary ?? "";
+    if (!toPhone) return { error: "Cadastro sem WhatsApp." };
+
+    const pendingCharge = charges.find((charge) => charge.status === "pending");
+    if (!pendingCharge?.publicToken) {
+      return { error: "Gere uma cobrança Pix antes de enviar ao cliente." };
+    }
+
+    const paymentUrl = `https://controle.altnix.com.br/pagamento/${pendingCharge.publicToken}`;
+    const clientName = (clientRecord.tradeName ?? clientRecord.fullName ?? clientRecord.companyName ?? "Cliente").split(" ")[0];
+    const amountLabel = pendingCharge.amount.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+    const dueDateLabel = new Date(`${receivable.dueDate}T12:00:00`).toLocaleDateString("pt-BR");
+
+    const sent = await sendWhatsappBillingTemplate({
+      toPhone,
+      clientName,
+      reference: receivable.reference,
+      amountLabel,
+      dueDateLabel,
+      paymentUrl,
+    });
+
+    await createBillingMessageLogRepositorySupabase(client).create({
       receivableId,
       clientId,
-      toPhone: clientRecord.whatsapp,
+      channel: "whatsapp",
+      toPhone,
       message,
+      status: "sent",
+      providerMessageId: sent.providerMessageId,
       createdByProfileId,
     });
+
     revalidatePath(`${LIST_PATH}/${receivableId}`);
-    return { ok: true, status: log.status === "failed" ? "sent" : log.status };
+    return { ok: true, status: "sent" };
   } catch (error) {
-    if (error instanceof ClientWithoutWhatsappError) return { error: error.message };
+    if (toPhone) {
+      try {
+        await createBillingMessageLogRepositorySupabase(client).create({
+          receivableId,
+          clientId,
+          channel: "whatsapp",
+          toPhone,
+          message,
+          status: "failed",
+          errorMessage: toErrorMessage(error),
+          createdByProfileId,
+        });
+      } catch {
+        // Falha de log nunca deve esconder o erro real do provedor.
+      }
+    }
     return { error: toErrorMessage(error) };
   }
 }
