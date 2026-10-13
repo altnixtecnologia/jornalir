@@ -74,6 +74,32 @@ export function PixChargePanel({
 
   const pendingCharge = charges.find((c) => c.status === "pending") ?? null;
 
+  async function copyPixPayload(payload: string): Promise<void> {
+    if (!payload) {
+      setError("Código Pix indisponível.");
+      return;
+    }
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(payload);
+      } else {
+        const element = document.createElement("textarea");
+        element.value = payload;
+        element.style.position = "fixed";
+        element.style.opacity = "0";
+        document.body.appendChild(element);
+        element.select();
+        const copied = document.execCommand("copy");
+        element.remove();
+        if (!copied) throw new Error("copy_failed");
+      }
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1800);
+    } catch {
+      setError("Não foi possível copiar automaticamente. Selecione o código Pix e copie manualmente.");
+    }
+  }
+
   function run(action: () => Promise<ActionOutcome>, onSuccess?: () => void): void {
     setError(null);
     startTransition(async () => {
@@ -220,15 +246,7 @@ export function PixChargePanel({
           <div className="form-actions" style={{ gridColumn: "1 / -1" }}>
             <button
               type="button"
-              onClick={() => {
-                navigator.clipboard?.writeText(pendingCharge.pixCopyPaste ?? "").then(
-                  () => {
-                    setCopied(true);
-                    window.setTimeout(() => setCopied(false), 1800);
-                  },
-                  () => setError("Não foi possível copiar."),
-                );
-              }}
+              onClick={() => void copyPixPayload(pendingCharge.pixCopyPaste ?? "")}
             >
               {copied ? "Copiado ✓" : "Copiar Pix"}
             </button>
