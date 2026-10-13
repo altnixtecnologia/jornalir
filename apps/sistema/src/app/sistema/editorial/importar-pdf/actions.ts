@@ -9,6 +9,7 @@ import { createSupabaseServerClient } from "../../../../lib/supabase/server";
 import { uploadEditionPdfToDrive } from "../../../../lib/googleDrive/editionArchive";
 import { attachEditionExternalPdf } from "../../../../providers/supabase/newspaperEditionRepository.supabase";
 import { getAuditContext } from "../../../../lib/auth/getAuditContext";
+import { getEditionPdfFromR2 } from "../../../../providers/r2/editionArchive.r2";
 
 const IMPORT_PATH = "/sistema/editorial/importar-pdf";
 const LIST_PATH = "/sistema/editorial/materias";
@@ -127,6 +128,66 @@ export async function generateCandidates(
       pageCount: result.pageCount,
       pagesWithoutText: result.pagesWithoutText,
       warnings,
+    };
+  } catch (error) {
+    return { error: toErrorMessage(error) };
+  }
+}
+
+export async function generateCandidatesFromArchivedPdf(
+  editionId: string,
+  force = false,
+): Promise<{ error: string } | DuplicatePdfResult | GenerateCandidatesResult> {
+  if (!editionId) return { error: "Selecione uma edição." };
+
+  try {
+    const client = createSupabaseServerClient();
+    const edition = await getNewspaperEditionService(client).getById(editionId);
+    if (!edition) return { error: "Edição não encontrada." };
+    if (edition.archiveProvider !== "r2" || !edition.pdfR2Key) {
+      return { error: "Esta edição ainda não possui PDF oficial arquivado no R2." };
+    }
+
+    const buffer = await getEditionPdfFromR2(edition.pdfR2Key);
+    const fileHash = edition.pdfSha256 || createHash("sha256").update(buffer).digest("hex");
+    const fileName = edition.pdfFileName || `edicao-${edition.editionNumber}.pdf`;
+    const candidateService = getImportCandidateService(client);
+
+    if (!force) {
+      const previousBatch = await candidateService.findBatchByHash(editionId, fileHash);
+      if (previousBatch) {
+        return {
+          duplicate: true,
+          previousBatch: {
+            fileName: previousBatch.fileName,
+            createdAt: previousBatch.createdAt,
+            candidateCount: previousBatch.candidateCount,
+          },
+        };
+      }
+    }
+
+    const result = await extractCandidatesFromPdf(editionId, buffer, candidateService, {
+      fileName,
+      fileHash,
+    });
+    if (result.candidates.length === 0) {
+      return {
+        error:
+          result.pagesWithoutText.length > 0
+            ? "Nenhum texto pôde ser identificado neste PDF (sem camada de texto e sem OCR disponível)."
+            : "Nenhum conteúdo pôde ser identificado neste PDF.",
+      };
+    }
+
+    revalidatePath(IMPORT_PATH);
+    revalidatePath("/sistema/editorial/edicoes");
+    return {
+      ok: true,
+      candidateCount: result.candidates.length,
+      pageCount: result.pageCount,
+      pagesWithoutText: result.pagesWithoutText,
+      warnings: result.warnings,
     };
   } catch (error) {
     return { error: toErrorMessage(error) };
