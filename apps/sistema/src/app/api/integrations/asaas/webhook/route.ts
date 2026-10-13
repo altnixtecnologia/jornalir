@@ -6,6 +6,10 @@ import { getPaymentChargeService } from "../../../../../composition/financeiro";
 import { createSupabaseAdminClient, hasServiceRoleKey } from "../../../../../lib/supabase/admin";
 import { getAsaasWebhookToken } from "../../../../../lib/financeiro/asaasWebhookConfig";
 import { createAsaasPixProvider } from "../../../../../lib/financeiro/asaasPixProvider";
+import {
+  isWhatsappCloudConfigured,
+  sendWhatsappPaymentConfirmedTemplate,
+} from "../../../../../lib/financeiro/whatsappCloudProvider";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -48,6 +52,159 @@ async function markEvent(
   const admin = createSupabaseAdminClient();
   const { error } = await admin.from("billing_webhook_events").update(values).eq("id", eventId);
   if (error) throw new Error(error.message);
+}
+
+function money(value: number): string {
+  return value.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+}
+
+async function createPanelNotification(input: {
+  kind: "payment_received" | "payment_cancelled" | "payment_overdue" | "whatsapp_failed";
+  title: string;
+  message: string;
+  href: string;
+  entityId: string;
+  eventKey: string;
+}): Promise<void> {
+  const admin = createSupabaseAdminClient();
+  const { error } = await admin.from("admin_notifications").upsert(
+    {
+      kind: input.kind,
+      title: input.title,
+      message: input.message,
+      href: input.href,
+      entity_type: "receivable",
+      entity_id: input.entityId,
+      event_key: input.eventKey,
+    },
+    { onConflict: "event_key", ignoreDuplicates: true },
+  );
+  if (error) throw new Error(error.message);
+}
+
+async function loadPaymentContext(receivableId: string): Promise<{
+  receivable: {
+    id: string;
+    internal_reference: string | null;
+    description: string | null;
+    client_id: string;
+  };
+  client: {
+    id: string;
+    full_name: string | null;
+    company_name: string | null;
+    trade_name: string | null;
+    whatsapp: string | null;
+    phone_primary: string | null;
+  };
+}> {
+  const admin = createSupabaseAdminClient();
+  const { data: receivable, error: receivableError } = await admin
+    .from("receivables")
+    .select("id, internal_reference, description, client_id")
+    .eq("id", receivableId)
+    .single();
+  if (receivableError || !receivable) throw new Error(receivableError?.message ?? "Título não encontrado.");
+
+  const { data: client, error: clientError } = await admin
+    .from("clients")
+    .select("id, full_name, company_name, trade_name, whatsapp, phone_primary")
+    .eq("id", receivable.client_id)
+    .single();
+  if (clientError || !client) throw new Error(clientError?.message ?? "Cliente não encontrado.");
+
+  return { receivable, client };
+}
+
+async function notifyPaymentReceived(input: {
+  eventId: string;
+  receivableId: string;
+  amount: number;
+}): Promise<void> {
+  const admin = createSupabaseAdminClient();
+  const { receivable, client } = await loadPaymentContext(input.receivableId);
+  const reference = receivable.internal_reference || receivable.description || "Título financeiro";
+  const clientName = client.trade_name || client.full_name || client.company_name || "Cliente";
+  const amountLabel = money(input.amount);
+  const href = `/sistema/financeiro/contas-a-receber/${receivable.id}`;
+
+  await createPanelNotification({
+    kind: "payment_received",
+    title: "Pagamento recebido",
+    message: `${clientName} • ${amountLabel} • ${reference}`,
+    href,
+    entityId: receivable.id,
+    eventKey: `asaas:${input.eventId}:payment_received`,
+  });
+
+  const toPhone = client.whatsapp || client.phone_primary || "";
+  if (!toPhone) {
+    await createPanelNotification({
+      kind: "whatsapp_failed",
+      title: "WhatsApp de confirmação não enviado",
+      message: `${clientName} não possui WhatsApp/telefone cadastrado para confirmar o pagamento de ${amountLabel}.`,
+      href,
+      entityId: receivable.id,
+      eventKey: `asaas:${input.eventId}:whatsapp_no_phone`,
+    });
+    return;
+  }
+
+  if (!isWhatsappCloudConfigured()) {
+    await createPanelNotification({
+      kind: "whatsapp_failed",
+      title: "WhatsApp de confirmação pendente",
+      message: `Pagamento de ${amountLabel} confirmado, mas a WhatsApp Cloud API ainda não está configurada no JornalIR.`,
+      href,
+      entityId: receivable.id,
+      eventKey: `asaas:${input.eventId}:whatsapp_not_configured`,
+    });
+    return;
+  }
+
+  try {
+    const sent = await sendWhatsappPaymentConfirmedTemplate({
+      toPhone,
+      clientName,
+      amountLabel,
+      reference,
+    });
+
+    const { error: logError } = await admin.from("billing_message_logs").insert({
+      receivable_id: receivable.id,
+      client_id: client.id,
+      channel: "whatsapp",
+      to_phone: toPhone,
+      message: `Pagamento confirmado: ${amountLabel} • ${reference}`,
+      status: "sent",
+      provider_message_id: sent.providerMessageId ?? null,
+      error_message: null,
+      created_by: null,
+    });
+    if (logError) throw new Error(logError.message);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Falha ao enviar confirmação pelo WhatsApp.";
+    await admin.from("billing_message_logs").insert({
+      receivable_id: receivable.id,
+      client_id: client.id,
+      channel: "whatsapp",
+      to_phone: toPhone,
+      message: `Pagamento confirmado: ${amountLabel} • ${reference}`,
+      status: "failed",
+      provider_message_id: null,
+      error_message: message.slice(0, 1000),
+      created_by: null,
+    });
+
+    await createPanelNotification({
+      kind: "whatsapp_failed",
+      title: "Falha ao confirmar pagamento no WhatsApp",
+      message: `${clientName} • ${amountLabel} • ${message}`,
+      href,
+      entityId: receivable.id,
+      eventKey: `asaas:${input.eventId}:whatsapp_failed`,
+    });
+  }
 }
 
 export async function POST(request: Request): Promise<Response> {
@@ -133,7 +290,7 @@ export async function POST(request: Request): Promise<Response> {
 
     const { data: charge, error: chargeError } = await admin
       .from("payment_charges")
-      .select("id, receivable_id, status, receipt_id")
+      .select("id, receivable_id, status, receipt_id, amount")
       .eq("provider", "asaas")
       .eq("provider_charge_id", providerChargeId)
       .maybeSingle();
@@ -179,6 +336,11 @@ export async function POST(request: Request): Promise<Response> {
         receivedDate(payload.payment),
         undefined,
       );
+      await notifyPaymentReceived({
+        eventId,
+        receivableId: charge.receivable_id as string,
+        amount: Number(charge.amount ?? 0),
+      });
     } else if (eventType === "PAYMENT_OVERDUE") {
       if (charge.status === "pending") {
         await createAsaasPixProvider(admin).cancelCharge(providerChargeId);
@@ -191,6 +353,16 @@ export async function POST(request: Request): Promise<Response> {
           })
           .eq("id", charge.id);
         if (error) throw new Error(error.message);
+        const context = await loadPaymentContext(charge.receivable_id as string);
+        const reference = context.receivable.internal_reference || context.receivable.description || "Título financeiro";
+        await createPanelNotification({
+          kind: "payment_overdue",
+          title: "Cobrança Pix vencida",
+          message: `${reference} venceu e foi removida automaticamente do Asaas.`,
+          href: `/sistema/financeiro/contas-a-receber/${charge.receivable_id}`,
+          entityId: charge.receivable_id as string,
+          eventKey: `asaas:${eventId}:payment_overdue`,
+        });
       }
     } else if (eventType === "PAYMENT_DELETED") {
       if (charge.status === "pending") {
@@ -203,6 +375,16 @@ export async function POST(request: Request): Promise<Response> {
           })
           .eq("id", charge.id);
         if (error) throw new Error(error.message);
+        const context = await loadPaymentContext(charge.receivable_id as string);
+        const reference = context.receivable.internal_reference || context.receivable.description || "Título financeiro";
+        await createPanelNotification({
+          kind: "payment_cancelled",
+          title: "Cobrança Pix cancelada",
+          message: `${reference} foi removida no Asaas.`,
+          href: `/sistema/financeiro/contas-a-receber/${charge.receivable_id}`,
+          entityId: charge.receivable_id as string,
+          eventKey: `asaas:${eventId}:payment_deleted`,
+        });
       }
     } else if (eventType === "PAYMENT_REFUNDED" || eventType === "PAYMENT_PARTIALLY_REFUNDED") {
       // Não altera o recebimento automaticamente: estorno financeiro precisa
