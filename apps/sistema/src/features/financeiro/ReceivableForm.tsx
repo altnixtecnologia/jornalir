@@ -7,6 +7,16 @@ import { RECEIVABLE_SOURCE_TYPES, RECEIVABLE_SOURCE_TYPE_LABELS, clientDisplayNa
 import { createReceivable, updateReceivable } from "../../app/sistema/financeiro/contas-a-receber/actions";
 import type { ReceivableFormPayload } from "./receivableFormTypes";
 
+function formatMoneyInput(value: number): string {
+  return value.toFixed(2).replace(".", ",");
+}
+
+function normalizeMoneyInput(value: string): string {
+  const normalized = value.trim().replace(",", ".");
+  const amount = Number(normalized);
+  return Number.isFinite(amount) ? formatMoneyInput(amount) : value;
+}
+
 function payloadFromReceivable(receivable?: Receivable, initialClientId?: string, initialContractId?: string): ReceivableFormPayload {
   return {
     clientId: receivable?.clientId ?? initialClientId ?? "",
@@ -16,7 +26,7 @@ function payloadFromReceivable(receivable?: Receivable, initialClientId?: string
     sourceReference: receivable?.sourceReference ?? "",
     subscriptionId: receivable?.subscriptionId ?? "",
     contractId: receivable?.contractId ?? initialContractId ?? "",
-    originalAmount: receivable ? String(receivable.originalAmount) : "",
+    originalAmount: receivable ? formatMoneyInput(receivable.originalAmount) : "",
     issueDate: receivable?.issueDate ?? new Date().toISOString().slice(0, 10),
     dueDate: receivable?.dueDate ?? "",
     competencyDate: receivable?.competencyDate ?? "",
@@ -144,7 +154,14 @@ export function ReceivableForm({ mode, receivable, clients, contracts, initialCl
         <div className="form-grid">
           <label className="form-field">
             <span className="field-label">Valor original (R$)</span>
-            <input type="text" inputMode="decimal" value={payload.originalAmount} onChange={(event) => set("originalAmount", event.target.value)} placeholder="0,00" />
+            <input
+              type="text"
+              inputMode="decimal"
+              value={payload.originalAmount}
+              onChange={(event) => set("originalAmount", event.target.value)}
+              onBlur={(event) => set("originalAmount", normalizeMoneyInput(event.target.value))}
+              placeholder="0,00"
+            />
           </label>
         </div>
       </section>
