@@ -2,14 +2,19 @@
 
 import { useRef, useState, useTransition } from "react";
 import type { NewspaperEdition } from "@ir/types";
+import { GlobalWorkerOptions, getDocument } from "pdfjs-dist";
 import {
+  abandonEditionR2UploadAction,
   createEdition,
+  finalizeEditionR2UploadAction,
+  prepareEditionR2UploadAction,
   setEditionActive,
   updateEdition,
-  uploadEditionPdfAction,
   type NewspaperEditionPayload,
 } from "../../app/sistema/editorial/edicoes/actions";
 import { editionLabel, formatDate } from "./editorialLabels";
+
+GlobalWorkerOptions.workerSrc = new URL("pdfjs-dist/build/pdf.worker.min.js", import.meta.url).toString();
 
 interface EdicoesManagerProps {
   editions: NewspaperEdition[];
@@ -45,6 +50,7 @@ export function EdicoesManager({ editions }: EdicoesManagerProps): JSX.Element {
   const [editForm, setEditForm] = useState<NewspaperEditionPayload>(EMPTY_FORM);
   const [error, setError] = useState<string | null>(null);
   const [uploadingId, setUploadingId] = useState<string | null>(null);
+  const [uploadStage, setUploadStage] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
   const fileInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
 
@@ -96,22 +102,103 @@ export function EdicoesManager({ editions }: EdicoesManagerProps): JSX.Element {
     });
   }
 
+  async function analyzePdf(file: File): Promise<{
+    sha256: string;
+    pageCount: number;
+    cover: Blob;
+  }> {
+    const bytes = await file.arrayBuffer();
+    const hash = await crypto.subtle.digest("SHA-256", bytes);
+    const sha256 = Array.from(new Uint8Array(hash))
+      .map((value) => value.toString(16).padStart(2, "0"))
+      .join("");
+
+    const pdf = await getDocument({ data: new Uint8Array(bytes) }).promise;
+    const page = await pdf.getPage(1);
+    const base = page.getViewport({ scale: 1 });
+    const scale = Math.max(1, Math.min(2, 960 / base.width));
+    const viewport = page.getViewport({ scale });
+    const canvas = document.createElement("canvas");
+    const context = canvas.getContext("2d");
+    if (!context) throw new Error("Não foi possível preparar a capa da edição.");
+    canvas.width = Math.ceil(viewport.width);
+    canvas.height = Math.ceil(viewport.height);
+    await page.render({ canvasContext: context, viewport }).promise;
+
+    const cover = await new Promise<Blob>((resolve, reject) => {
+      canvas.toBlob(
+        (blob) => (blob ? resolve(blob) : reject(new Error("Não foi possível gerar a capa WebP."))),
+        "image/webp",
+        0.86,
+      );
+    });
+
+    return { sha256, pageCount: pdf.numPages, cover };
+  }
+
   function handlePdfSelected(editionId: string, event: React.ChangeEvent<HTMLInputElement>): void {
     const file = event.target.files?.[0];
     event.target.value = "";
     if (!file) return;
 
-    const formData = new FormData();
-    formData.append("pdf", file);
     setError(null);
     setUploadingId(editionId);
+    setUploadStage("Preparando PDF e capa…");
+
     startTransition(async () => {
-      const result = await uploadEditionPdfAction(editionId, formData);
-      setUploadingId(null);
-      if ("error" in result) {
-        setError(result.error);
-      } else {
-        setItems((prev) => prev.map((item) => (item.id === editionId ? result.edition : item)));
+      let plan: Awaited<ReturnType<typeof prepareEditionR2UploadAction>> extends { ok: true; plan: infer P } ? P : never;
+      try {
+        const prepared = await analyzePdf(file);
+        setUploadStage(`PDF validado · ${prepared.pageCount} páginas · preparando R2…`);
+
+        const authorization = await prepareEditionR2UploadAction(editionId, file.name, file.size);
+        if ("error" in authorization) {
+          setError(authorization.error);
+          return;
+        }
+        plan = authorization.plan;
+
+        setUploadStage("Enviando PDF diretamente ao R2…");
+        const pdfResponse = await fetch(plan.pdf.uploadUrl, {
+          method: "PUT",
+          headers: { "Content-Type": "application/pdf" },
+          body: file,
+        });
+        if (!pdfResponse.ok) throw new Error(`Falha no upload do PDF para o R2 (HTTP ${pdfResponse.status}).`);
+
+        setUploadStage("Enviando capa…");
+        const coverResponse = await fetch(plan.cover.uploadUrl, {
+          method: "PUT",
+          headers: { "Content-Type": "image/webp" },
+          body: prepared.cover,
+        });
+        if (!coverResponse.ok) throw new Error(`Falha no upload da capa para o R2 (HTTP ${coverResponse.status}).`);
+
+        setUploadStage("Validando arquivo no servidor…");
+        const finalized = await finalizeEditionR2UploadAction(editionId, {
+          pdfKey: plan.pdf.key,
+          coverKey: plan.cover.key,
+          fileName: file.name,
+          fileSize: file.size,
+          sha256: prepared.sha256,
+          pageCount: prepared.pageCount,
+        });
+
+        if ("error" in finalized) {
+          setError(finalized.error);
+          return;
+        }
+
+        setItems((prev) => prev.map((item) => (item.id === editionId ? finalized.edition : item)));
+        setUploadStage("PDF e capa publicados no R2.");
+        window.setTimeout(() => setUploadStage(null), 2500);
+      } catch (uploadError) {
+        if (plan) {
+          await abandonEditionR2UploadAction(editionId, plan.pdf.key, plan.cover.key);
+        }
+        setError(uploadError instanceof Error ? uploadError.message : "Não foi possível enviar a edição.");
+      } finally {
+        setUploadingId(null);
       }
     });
   }
@@ -210,7 +297,7 @@ export function EdicoesManager({ editions }: EdicoesManagerProps): JSX.Element {
             </label>
           </div>
           <p className="helper-text">
-            Depois de criar a edição, envie o PDF uma única vez. Ele vai para o acervo do Jornal Online no Google Drive, não para o Supabase Storage.
+            Depois de criar a edição, envie o PDF uma única vez. O navegador envia diretamente ao Cloudflare R2; a capa é gerada automaticamente da página 1 e o Supabase guarda somente os metadados.
           </p>
           <div className="form-actions">
             <button type="button" className="form-action-primary" onClick={handleCreate} disabled={pending}>
@@ -223,6 +310,12 @@ export function EdicoesManager({ editions }: EdicoesManagerProps): JSX.Element {
       {error ? (
         <p className="form-error" role="alert">
           {error}
+        </p>
+      ) : null}
+
+      {uploadStage ? (
+        <p className="helper-text" role="status" aria-live="polite">
+          {uploadStage}
         </p>
       ) : null}
 
