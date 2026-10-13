@@ -216,19 +216,28 @@ export async function provisionAsaasWebhookAction(
       };
     }
 
-    const payload = {
+    const existing = candidates[0];
+    const commonPayload = {
       name: ASAAS_WEBHOOK_NAME,
       url: endpoint,
-      email: ASAAS_WEBHOOK_EMAIL,
       enabled: true,
       interrupted: false,
-      apiVersion: 3,
       authToken,
       sendType: "SEQUENTIALLY",
       events: [...ASAAS_WEBHOOK_EVENTS],
     };
 
-    const existing = candidates[0];
+    // POST aceita/obriga o e-mail e permite apiVersion. No PUT de atualização
+    // o Asaas documenta somente os campos mutáveis; não enviar email/apiVersion
+    // evita rejeição por campo não suportado.
+    const payload = existing
+      ? commonPayload
+      : {
+          ...commonPayload,
+          email: ASAAS_WEBHOOK_EMAIL,
+          apiVersion: 3,
+        };
+
     const response = await asaasConfigurationRequest(
       environment,
       apiKey,
