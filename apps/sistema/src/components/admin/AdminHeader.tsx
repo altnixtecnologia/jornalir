@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 import { assinaturasNavGroup, clientesNavGroup, configuracoesNavGroup, editorialNavGroup, financeiroNavGroup, moreModulesNavGroup, nfseNavGroup, commercialNavGroup } from "../../lib/navigation";
 import { useAuth } from "../../lib/auth/AuthProvider";
 import { AccountMenu } from "./AccountMenu";
-import { SiteRequestNotificationBell } from "./SiteRequestNotificationBell";
+import { AdminNotificationBell } from "./AdminNotificationBell";
 
 /** Fecha os dois menus suspensos — usado ao escolher um link dentro deles. */
 function closeNavDropdowns(): void {
@@ -202,7 +202,7 @@ export function AdminHeader({ onOpenMenu }: { onOpenMenu: () => void }): JSX.Ele
         </nav>
 
         <div className="app-header-actions">
-          <SiteRequestNotificationBell />
+          <AdminNotificationBell />
           <AccountMenu />
           <button
             type="button"
