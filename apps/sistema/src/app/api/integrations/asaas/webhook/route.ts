@@ -5,6 +5,7 @@ import { NextResponse } from "next/server";
 import { getPaymentChargeService } from "../../../../../composition/financeiro";
 import { createSupabaseAdminClient, hasServiceRoleKey } from "../../../../../lib/supabase/admin";
 import { getAsaasWebhookToken } from "../../../../../lib/financeiro/asaasWebhookConfig";
+import { createAsaasPixProvider } from "../../../../../lib/financeiro/asaasPixProvider";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -178,6 +179,19 @@ export async function POST(request: Request): Promise<Response> {
         receivedDate(payload.payment),
         undefined,
       );
+    } else if (eventType === "PAYMENT_OVERDUE") {
+      if (charge.status === "pending") {
+        await createAsaasPixProvider(admin).cancelCharge(providerChargeId);
+        const { error } = await admin
+          .from("payment_charges")
+          .update({
+            status: "cancelled",
+            cancelled_at: new Date().toISOString(),
+            cancellation_reason: "Cobrança vencida; removida automaticamente do Asaas.",
+          })
+          .eq("id", charge.id);
+        if (error) throw new Error(error.message);
+      }
     } else if (eventType === "PAYMENT_DELETED") {
       if (charge.status === "pending") {
         const { error } = await admin
