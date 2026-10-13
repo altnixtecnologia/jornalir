@@ -289,8 +289,10 @@ export interface PaymentCharge {
   amount: number;
   description?: string;
   status: PaymentChargeStatus;
-  /** Payload Pix "copia e cola" — nunca a imagem do QR (o QR é sempre renderizado a partir deste payload, nunca armazenado). */
+  /** Payload Pix "copia e cola". A imagem do QR continua não sendo armazenada; é obtida do Asaas no servidor. */
   pixCopyPaste?: string;
+  /** Token aleatório para a página pública da cobrança. Nunca usar providerChargeId como URL pública. */
+  publicToken?: string;
   expiresAt?: string;
   paidAt?: string;
   /** Preenchido quando o pagamento é confirmado e um ReceivableReceipt é criado — chave de idempotência: se já preenchido, a confirmação NUNCA cria um segundo receipt para esta cobrança. */
