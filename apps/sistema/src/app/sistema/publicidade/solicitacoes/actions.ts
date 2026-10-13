@@ -5,6 +5,8 @@ import { isValidCnpj, isValidCpf } from "@ir/core";
 import { getClientService } from "../../../../composition/clientes";
 import { getSubscriptionService } from "../../../../composition/assinaturas";
 import { getReceivableService } from "../../../../composition/financeiro";
+import { getCommercialProposalService } from "../../../../composition/comercial";
+import type { CommercialCondition } from "@ir/types";
 import { createSupabaseServerClient } from "../../../../lib/supabase/server";
 import { getAuditContext } from "../../../../lib/auth/getAuditContext";
 import { recordAuditEventSupabase } from "../../../../providers/supabase/auditEvents.supabase";
@@ -39,6 +41,10 @@ interface SubscriptionInterestRow {
   availability_status: SiteInterestAvailability;
   approved_total: number | null;
   admin_note: string | null;
+  converted_client_id: string | null;
+  converted_subscription_id: string | null;
+  converted_receivable_id: string | null;
+  converted_proposal_id: string | null;
 }
 
 export type ConvertSubscriptionInterestResult =
@@ -78,6 +84,133 @@ function addYearsIso(iso: string, years: number): string {
   const date = new Date(`${iso}T12:00:00Z`);
   date.setUTCFullYear(date.getUTCFullYear() + years);
   return date.toISOString().slice(0, 10);
+}
+
+interface AdvertisingSelection {
+  id: string;
+  label: string;
+  price: number;
+  type: "print_ad" | "digital_ad";
+}
+
+function advertisingSelections(selections: unknown): AdvertisingSelection[] {
+  if (!Array.isArray(selections)) return [];
+  const result: AdvertisingSelection[] = [];
+
+  for (const selection of selections) {
+    if (!selection || typeof selection !== "object") continue;
+    const item = selection as Record<string, unknown>;
+    if (item.type !== "print_ad" && item.type !== "digital_ad") continue;
+
+    const label = typeof item.label === "string" && item.label.trim() ? item.label.trim() : String(item.id ?? "Publicidade");
+    let price = 0;
+    for (const key of ["finalPrice", "individualPrice", "price"]) {
+      const value = item[key];
+      if (value === null || value === undefined || value === "") continue;
+      const parsed = Number(value);
+      if (Number.isFinite(parsed) && parsed >= 0) {
+        price = parsed;
+        break;
+      }
+    }
+
+    result.push({
+      id: typeof item.id === "string" ? item.id : label,
+      label,
+      price,
+      type: item.type,
+    });
+  }
+
+  return result;
+}
+
+function commercialConditionFromPayment(
+  payment: SubscriptionInterestRow["payment_preference"],
+): CommercialCondition {
+  if (payment === "pix" || payment === "cash") return "cash";
+  if (payment === "boleto" || payment === "credit_card") return "installments";
+  return "other";
+}
+
+async function resolveOrCreateAdvertisingClient(
+  supabase: ReturnType<typeof createSupabaseServerClient>,
+  row: SubscriptionInterestRow,
+): Promise<string> {
+  if (row.converted_client_id) return row.converted_client_id;
+
+  const candidateIds = new Set<string>();
+  const phone = onlyDigits(row.phone);
+  const email = row.email?.trim().toLowerCase() || "";
+
+  const addMatches = (matches: Array<{ id: string; status: string }> | null): void => {
+    for (const match of matches ?? []) {
+      if (match.status === "inactive") {
+        throw new Error("Já existe um cadastro inativo com os dados desta solicitação. Reative o cadastro antes de converter.");
+      }
+      candidateIds.add(match.id);
+    }
+  };
+
+  if (phone) {
+    const { data, error } = await supabase
+      .from("clients")
+      .select("id, status")
+      .or(`whatsapp.eq.${phone},phone_primary.eq.${phone}`)
+      .limit(3);
+    if (error) throw new Error(error.message);
+    addMatches(data as Array<{ id: string; status: string }> | null);
+  }
+
+  if (email) {
+    const { data, error } = await supabase
+      .from("clients")
+      .select("id, status")
+      .ilike("email", email)
+      .limit(3);
+    if (error) throw new Error(error.message);
+    addMatches(data as Array<{ id: string; status: string }> | null);
+  }
+
+  if (candidateIds.size > 1) {
+    throw new Error("Telefone e e-mail apontam para cadastros diferentes. Confira os dados antes de converter.");
+  }
+
+  const existingId = [...candidateIds][0];
+  if (existingId) {
+    const current = await getClientService(supabase).getById(existingId);
+    const patch: Record<string, unknown> = {};
+    if (!current.whatsapp && phone) patch.whatsapp = phone;
+    if (!current.email && email) patch.email = email;
+    if (current.kind === "individual" && !current.fullName) patch.full_name = row.name;
+    if (current.kind === "company") {
+      if (!current.companyName && row.company) patch.company_name = row.company;
+      if (!current.responsibleName) patch.responsible_name = row.name;
+    }
+    if (Object.keys(patch).length) {
+      const { error } = await supabase.from("clients").update(patch).eq("id", existingId);
+      if (error) throw new Error(error.message);
+    }
+    const { error: roleError } = await supabase
+      .from("client_roles")
+      .upsert({ client_id: existingId, role: "cliente" }, { onConflict: "client_id,role", ignoreDuplicates: true });
+    if (roleError) throw new Error(roleError.message);
+    return existingId;
+  }
+
+  const kind = row.company?.trim() ? "company" : "individual";
+  const created = await getClientService(supabase).register({
+    kind,
+    status: "active",
+    fullName: kind === "individual" ? row.name : undefined,
+    companyName: kind === "company" ? row.company ?? row.name : undefined,
+    responsibleName: kind === "company" ? row.name : undefined,
+    whatsapp: row.phone,
+    email: row.email ?? undefined,
+    notes: `Cadastro criado a partir da solicitação comercial do site ${row.id.slice(0, 8).toUpperCase()}.`,
+    roles: ["cliente"],
+  });
+  return created.id;
 }
 
 function subscriptionSelectionAmount(selections: unknown): number | null {
