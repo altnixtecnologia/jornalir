@@ -324,7 +324,7 @@ export async function convertSubscriptionInterestAction(id: string): Promise<Con
       .single();
 
     if (error || !data) throw new Error(error?.message ?? "Solicitação não encontrada.");
-    const row = data as SubscriptionInterestRow;
+    const row = data as unknown as SubscriptionInterestRow;
 
     if (row.request_type !== "subscription") {
       return {
