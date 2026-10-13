@@ -407,17 +407,52 @@ export async function sendBillingMessageAction(
 }
 
 /** Compõe a prévia da mensagem (nunca envia) — usada pelo modal "Enviar ao cliente" antes de confirmar. */
-export async function buildBillingMessagePreviewAction(receivableId: string): Promise<{ error: string } | { ok: true; message: string; hasWhatsapp: boolean }> {
+export async function buildBillingMessagePreviewAction(
+  receivableId: string,
+): Promise<
+  | { error: string }
+  | {
+      ok: true;
+      message: string;
+      hasWhatsapp: boolean;
+      whatsappHref?: string;
+      pixCopyPaste?: string;
+      paymentUrl?: string;
+    }
+> {
   try {
     const client = createSupabaseServerClient();
     const receivable = await getReceivableService(client).getById(receivableId);
-    const clientRecord = await getClientService(client).getById(receivable.clientId);
-    const message = buildBillingMessage({
+    const [clientRecord, charges] = await Promise.all([
+      getClientService(client).getById(receivable.clientId),
+      getPaymentChargeService(client).listForReceivable(receivableId),
+    ]);
+    const pendingCharge = charges.find((charge) => charge.status === "pending");
+    const paymentUrl = pendingCharge?.publicToken
+      ? `https://controle.altnix.com.br/pagamento/${pendingCharge.publicToken}`
+      : undefined;
+    const baseMessage = buildBillingMessage({
       clientFirstName: (clientRecord.fullName ?? clientRecord.companyName ?? "Cliente").split(" ")[0],
       receivable: { sourceType: receivable.sourceType, description: receivable.description, dueDate: receivable.dueDate },
-      amount: receivable.balance,
+      amount: pendingCharge?.amount ?? receivable.balance,
     });
-    return { ok: true, message, hasWhatsapp: Boolean(clientRecord.whatsapp) };
+    const message = paymentUrl
+      ? `${baseMessage}\n\nQR Code e Pix Copia e Cola:\n${paymentUrl}`
+      : baseMessage;
+    const phone = (clientRecord.whatsapp ?? clientRecord.phonePrimary ?? "").replace(/\D/g, "");
+    const normalizedPhone = phone && !phone.startsWith("55") ? `55${phone}` : phone;
+    const whatsappHref = normalizedPhone
+      ? `https://wa.me/${normalizedPhone}?text=${encodeURIComponent(message)}`
+      : undefined;
+
+    return {
+      ok: true,
+      message,
+      hasWhatsapp: Boolean(normalizedPhone),
+      whatsappHref,
+      pixCopyPaste: pendingCharge?.pixCopyPaste,
+      paymentUrl,
+    };
   } catch (error) {
     return { error: toErrorMessage(error) };
   }
