@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { updateBillingProviderSettingsAction } from "../../app/sistema/configuracoes/cobrancas/actions";
+import { testAsaasConnectionAction, updateBillingProviderSettingsAction } from "../../app/sistema/configuracoes/cobrancas/actions";
 
 export interface BillingProviderSettingsValues {
   environment: "sandbox" | "production";
@@ -32,6 +32,19 @@ export function BillingProviderSettingsPanel({ values }: { values: BillingProvid
   const [error, setError] = useState<string | null>(null);
 
   const selectedKeyConfigured = environment === "sandbox" ? values.sandboxKeyConfigured : values.productionKeyConfigured;
+
+  function testConnection(): void {
+    setMessage(null);
+    setError(null);
+    startTransition(async () => {
+      const result = await testAsaasConnectionAction(environment);
+      if ("error" in result) {
+        setError(result.error);
+        return;
+      }
+      setMessage(`Conexão com o Asaas confirmada. Status geral da conta: ${result.generalStatus}.`);
+    });
+  }
 
   function save(): void {
     setMessage(null);
@@ -113,6 +126,11 @@ export function BillingProviderSettingsPanel({ values }: { values: BillingProvid
         <p className="helper-text">
           Nesta etapa, a integração automática está habilitada somente para Pix. Boleto e cartão permanecem visíveis apenas como preparação futura.
         </p>
+        <div className="form-actions" style={{ marginTop: 12 }}>
+          <button type="button" onClick={testConnection} disabled={pending || !selectedKeyConfigured}>
+            {pending ? "Testando..." : "Testar conexão com o Asaas"}
+          </button>
+        </div>
         {enabled && !selectedKeyConfigured ? <p className="form-error">O ambiente selecionado ainda não possui chave configurada.</p> : null}
         {enabled && !values.webhookTokenConfigured ? <p className="form-error">O token de autenticação do webhook ainda não está configurado.</p> : null}
       </section>
