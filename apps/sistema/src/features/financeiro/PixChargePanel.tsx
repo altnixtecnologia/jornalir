@@ -71,6 +71,7 @@ export function PixChargePanel({
   const [sendWhatsappHref, setSendWhatsappHref] = useState<string | null>(null);
   const [sendFeedback, setSendFeedback] = useState<string | null>(null);
   const [confirmFeedback, setConfirmFeedback] = useState<string | null>(null);
+  const [detailChargeId, setDetailChargeId] = useState<string | null>(null);
 
   const pendingCharge = charges.find((c) => c.status === "pending") ?? null;
 
@@ -286,18 +287,76 @@ export function PixChargePanel({
                 <th>Status</th>
                 <th>Expira</th>
                 <th>Paga em</th>
+                <th>Ações</th>
               </tr>
             </thead>
             <tbody>
-              {charges.map((charge) => (
-                <tr key={charge.id}>
-                  <td>{formatDateTime(charge.createdAt)}</td>
-                  <td>{formatAmount(charge.amount)}</td>
-                  <td>{PAYMENT_CHARGE_STATUS_LABELS[charge.status]}</td>
-                  <td>{formatDateTime(charge.expiresAt)}</td>
-                  <td>{formatDateTime(charge.paidAt)}</td>
-                </tr>
-              ))}
+              {charges.map((charge) => {
+                const open = detailChargeId === charge.id;
+                return (
+                  <>
+                    <tr key={charge.id}>
+                      <td>{formatDateTime(charge.createdAt)}</td>
+                      <td>{formatAmount(charge.amount)}</td>
+                      <td>{PAYMENT_CHARGE_STATUS_LABELS[charge.status]}</td>
+                      <td>{formatDateTime(charge.expiresAt)}</td>
+                      <td>{formatDateTime(charge.paidAt)}</td>
+                      <td>
+                        <button
+                          type="button"
+                          onClick={() => setDetailChargeId(open ? null : charge.id)}
+                        >
+                          {open ? "Fechar" : "Detalhes"}
+                        </button>
+                      </td>
+                    </tr>
+                    {open ? (
+                      <tr key={`${charge.id}-details`}>
+                        <td colSpan={6}>
+                          <div className="form-grid" style={{ padding: "8px 0" }}>
+                            <div className="form-field">
+                              <span className="field-label">ID interno</span>
+                              <span style={{ wordBreak: "break-all" }}>{charge.id}</span>
+                            </div>
+                            <div className="form-field">
+                              <span className="field-label">ID no Asaas</span>
+                              <span style={{ wordBreak: "break-all" }}>{charge.providerChargeId || "—"}</span>
+                            </div>
+                            <div className="form-field">
+                              <span className="field-label">Criada em</span>
+                              <span>{formatDateTime(charge.createdAt)}</span>
+                            </div>
+                            <div className="form-field">
+                              <span className="field-label">Vencimento</span>
+                              <span>{formatDateTime(charge.expiresAt)}</span>
+                            </div>
+                            <div className="form-field">
+                              <span className="field-label">Cancelada em</span>
+                              <span>{formatDateTime(charge.cancelledAt)}</span>
+                            </div>
+                            <div className="form-field" style={{ gridColumn: "1 / -1" }}>
+                              <span className="field-label">Motivo do cancelamento</span>
+                              <span>{charge.cancellationReason || "—"}</span>
+                            </div>
+                            {charge.publicToken ? (
+                              <div className="form-field" style={{ gridColumn: "1 / -1" }}>
+                                <span className="field-label">Página de pagamento</span>
+                                <a
+                                  href={`/pagamento/${charge.publicToken}`}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                >
+                                  Abrir cobrança
+                                </a>
+                              </div>
+                            ) : null}
+                          </div>
+                        </td>
+                      </tr>
+                    ) : null}
+                  </>
+                );
+              })}
             </tbody>
           </table>
         </div>
