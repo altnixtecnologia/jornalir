@@ -431,6 +431,10 @@ export async function convertSubscriptionInterestAction(id: string): Promise<Con
       .update({
         status: "converted",
         admin_note: adminNote,
+        // Depois da conversão, o documento passa a existir somente no
+        // cadastro mestre do cliente. Não mantém CPF/CNPJ duplicado na
+        // fila comercial além do tempo necessário para a contratação.
+        document_number: null,
         reviewed_by: audit.actorId,
         reviewed_at: new Date().toISOString(),
       })
