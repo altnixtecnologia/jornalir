@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { isValidCnpj, isValidCpf } from "@ir/core";
 import { getClientService } from "../../../../composition/clientes";
 import { getSubscriptionService } from "../../../../composition/assinaturas";
 import { getReceivableService } from "../../../../composition/financeiro";
@@ -108,6 +109,14 @@ async function resolveOrCreateClient(
   const phone = onlyDigits(row.phone);
   const email = row.email?.trim().toLowerCase() || "";
   const document = onlyDigits(row.document_number);
+  const documentValid =
+    row.customer_kind === "company" ? isValidCnpj(document) : isValidCpf(document);
+  if (!documentValid) {
+    throw new Error(row.customer_kind === "company" ? "CNPJ inválido." : "CPF inválido.");
+  }
+  if (row.customer_kind === "company" && !row.company?.trim()) {
+    throw new Error("Informe a empresa/razão social antes de converter a assinatura.");
+  }
 
   const addMatches = (matches: Array<{ id: string; status: string }> | null): void => {
     for (const match of matches ?? []) {
