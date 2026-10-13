@@ -76,17 +76,21 @@ export async function ensureEditionR2CorsConfigured(): Promise<void> {
     ]),
   );
 
-  let existing: Awaited<ReturnType<S3Client["send"]>> | null = null;
+  let previousRules: Array<{
+    ID?: string;
+    AllowedOrigins?: string[];
+    AllowedMethods?: string[];
+    AllowedHeaders?: string[];
+    ExposeHeaders?: string[];
+    MaxAgeSeconds?: number;
+  }> = [];
+
   try {
-    existing = await client.send(new GetBucketCorsCommand({ Bucket: bucket() }));
+    const existing = await client.send(new GetBucketCorsCommand({ Bucket: bucket() }));
+    previousRules = existing.CORSRules ?? [];
   } catch {
     // Bucket sem configuração CORS ainda.
   }
-
-  const previousRules =
-    existing && "CORSRules" in existing && Array.isArray(existing.CORSRules)
-      ? existing.CORSRules
-      : [];
 
   const keptRules = previousRules.filter((rule) => rule.ID !== corsRuleId);
   await client.send(
