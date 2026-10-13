@@ -5,31 +5,49 @@ import { useEffect, useMemo, useState } from "react";
 import { SiteHeader } from "../../../components/site/SiteHeader";
 import { calameoEditions } from "../../../components/site/calameoEditions";
 
-interface DriveEdition {
+interface OnlineEdition {
   id: string;
   title: string;
   dateLabel: string;
   category: string;
   pdfPath: string;
   sourceUrl?: string;
+  coverUrl?: string;
+  pageCount?: number;
+  archiveProvider?: string;
 }
 
 export default function JornalOnlinePage(): JSX.Element {
   const [query, setQuery] = useState("");
-  const [driveEditions, setDriveEditions] = useState<DriveEdition[]>([]);
-  const [driveLoaded, setDriveLoaded] = useState(false);
+  const [remoteEditions, setRemoteEditions] = useState<OnlineEdition[]>([]);
+  const [remoteLoaded, setRemoteLoaded] = useState(false);
+  const [sourceLabel, setSourceLabel] = useState("Carregando…");
   const [showScrollTop, setShowScrollTop] = useState(false);
 
   useEffect(() => {
     void (async () => {
       try {
-        const response = await fetch("/api/jornal-online/drive", { cache: "no-store" });
-        const data = (await response.json()) as { ok?: boolean; items?: DriveEdition[] };
-        if (data?.ok && Array.isArray(data.items) && data.items.length > 0) {
-          setDriveEditions(data.items);
+        const archiveResponse = await fetch("/api/jornal-online/editions", { cache: "no-store" });
+        const archiveData = (await archiveResponse.json()) as { ok?: boolean; items?: OnlineEdition[] };
+        if (archiveData?.ok && Array.isArray(archiveData.items) && archiveData.items.length > 0) {
+          setRemoteEditions(archiveData.items);
+          setSourceLabel("Acervo oficial");
+          return;
         }
+
+        const driveResponse = await fetch("/api/jornal-online/drive", { cache: "no-store" });
+        const driveData = (await driveResponse.json()) as { ok?: boolean; items?: OnlineEdition[] };
+        if (driveData?.ok && Array.isArray(driveData.items) && driveData.items.length > 0) {
+          setRemoteEditions(driveData.items);
+          setSourceLabel("Acervo legado");
+          return;
+        }
+
+        setSourceLabel("Acervo local");
+      } catch {
+        setSourceLabel("Acervo local");
       } finally {
-        setDriveLoaded(true);
+        setRemoteLoaded(true);
       }
     })();
   }, []);
@@ -43,7 +61,7 @@ export default function JornalOnlinePage(): JSX.Element {
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
 
-  const sourceEditions = driveEditions.length > 0 ? driveEditions : calameoEditions;
+  const sourceEditions = remoteEditions.length > 0 ? remoteEditions : calameoEditions;
   const latestEdition = sourceEditions[0];
 
   const editions = useMemo(() => {
@@ -64,11 +82,11 @@ export default function JornalOnlinePage(): JSX.Element {
         >
           <h1 className="font-editorial text-4xl">Jornal Online</h1>
           <p className="mt-2" style={{ color: "var(--site-muted)" }}>
-            Leitor próprio do Informativo Regional. Acervo interno e pronto para sincronizar com pasta na nuvem.
+            Edições do Informativo Regional em leitura digital, com acesso ao PDF oficial.
           </p>
           <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
             <p className="text-xs" style={{ color: "var(--site-muted)" }}>
-              Fonte atual: {driveEditions.length > 0 ? "Google Drive (teste automático)" : driveLoaded ? "Acervo local (fallback)" : "Carregando..."}
+              Fonte: {remoteLoaded ? sourceLabel : "Carregando…"}
             </p>
             <Link
               href={latestEdition ? `/jornal-online/${latestEdition.id}` : "/jornal-online"}
@@ -121,7 +139,14 @@ export default function JornalOnlinePage(): JSX.Element {
                   style={{ borderColor: "var(--site-line)", background: "var(--site-bg)" }}
                 >
                   <div className="relative aspect-[3/4] w-full overflow-hidden">
-                    {edition.id.startsWith("drive-") ? (
+                    {edition.coverUrl ? (
+                      <img
+                        src={edition.coverUrl}
+                        alt={`Capa da ${edition.title}`}
+                        className="h-full w-full object-cover"
+                        loading="lazy"
+                      />
+                    ) : edition.id.startsWith("drive-") || edition.archiveProvider === "drive" ? (
                       <div
                         className="flex h-full w-full flex-col items-center justify-center gap-3 p-4 text-center"
                         style={{ background: "var(--brand-navy)" }}
@@ -134,7 +159,7 @@ export default function JornalOnlinePage(): JSX.Element {
                           stroke="currentColor"
                           strokeWidth="1.5"
                         >
-                          <path d="M6 2.5h9l3 3V21a0.5 0.5 0 0 1-.5.5h-11A0.5.5 0 0 1 6 21V3a0.5.5 0 0 1 .5-.5Z" />
+                          <path d="M6 2.5h9l3 3V21a0.5.5 0 0 1-.5.5h-11A0.5.5 0 0 1 6 21V3a0.5.5 0 0 1 .5-.5Z" />
                           <path d="M8.5 9h7M8.5 12.5h7M8.5 16h4.5" />
                         </svg>
                         <p className="text-[11px] font-semibold uppercase tracking-wider text-white/70">
@@ -143,19 +168,13 @@ export default function JornalOnlinePage(): JSX.Element {
                         <p className="line-clamp-2 text-sm font-semibold text-white">{edition.title}</p>
                       </div>
                     ) : (
-                      <>
-                        <embed
-                          src={`${edition.pdfPath}#page=1&zoom=page-width&toolbar=0&navpanes=0&scrollbar=0`}
-                          type="application/pdf"
-                          className="pointer-events-none h-full w-full"
-                          aria-hidden="true"
-                        />
-                        <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/50 to-transparent p-2 text-center text-xs font-semibold tracking-wider text-white">
-                          CAPA
-                        </div>
-                      </>
-                    )}
-                  </div>
+                      <embed
+                        src={`${edition.pdfPath}#page=1&zoom=page-width&toolbar=0&navpanes=0&scrollbar=0`}
+                        type="application/pdf"
+                        className="pointer-events-none h-full w-full"
+                        aria-hidden="true"
+                      />
+                    )}                  </div>
                 </div>
                 <p className="text-xs font-semibold uppercase tracking-wider" style={{ color: "var(--site-muted)" }}>
                   {edition.category}
