@@ -46,7 +46,11 @@ interface AsaasPayment {
 interface AsaasPaymentList { data?: AsaasPayment[]; }
 interface AsaasCustomer { id: string; }
 interface AsaasCustomerList { data?: AsaasCustomer[]; }
-interface AsaasPixQrCode { payload?: string; expirationDate?: string; }
+export interface AsaasPixQrCode {
+  encodedImage?: string;
+  payload?: string;
+  expirationDate?: string;
+}
 
 function onlyDigits(value?: string | null): string | undefined {
   const digits = (value ?? "").replace(/\D/g, "");
@@ -193,6 +197,18 @@ async function ensureAsaasCustomer(client: SupabaseClient, settings: BillingSett
     .eq("id", clientId);
   if (updateError) throw new Error(updateError.message);
   return customerId;
+}
+
+export async function getAsaasPixQrCodeData(
+  client: SupabaseClient,
+  providerChargeId: string,
+): Promise<AsaasPixQrCode> {
+  const settings = await loadSettings(client);
+  return asaasFetch<AsaasPixQrCode>(
+    settings,
+    `/payments/${encodeURIComponent(providerChargeId)}/pixQrCode`,
+    { method: "GET" },
+  );
 }
 
 export function createAsaasPixProvider(client: SupabaseClient): PixProvider {
