@@ -60,17 +60,32 @@ export class PaymentChargeService {
       expiresAt: input.expiresAt,
     } satisfies CreatePixChargeRequest);
 
-    return this.charges.create({
+    // Se o provedor já devolver a cobrança como paga (caso típico de
+    // recuperação após timeout: o Asaas criou/recebeu, mas o registro
+    // local não chegou a ser persistido), grava primeiro como pending e
+    // passa pela MESMA confirmação atômica usada pelo webhook. Assim o
+    // receipt e o saldo do título nunca ficam para trás de um status
+    // "paid" gravado isoladamente.
+    const created = await this.charges.create({
       receivableId: input.receivableId,
       clientId: input.clientId,
       provider: providerResult.provider,
       providerChargeId: providerResult.providerChargeId,
       amount: input.amount,
       description: input.description,
-      status: providerResult.status,
+      status: providerResult.status === "paid" ? "pending" : providerResult.status,
       pixCopyPaste: providerResult.pixCopyPaste,
       expiresAt: providerResult.expiresAt,
     });
+
+    if (providerResult.status === "paid") {
+      const confirmed = await this.charges.confirmCharge(created.id, {
+        receivedAt: new Date().toISOString().slice(0, 10),
+      });
+      return confirmed.charge;
+    }
+
+    return created;
   }
 
   async cancelPixCharge(id: string, input: CancelPixChargeInput): Promise<PaymentCharge> {
