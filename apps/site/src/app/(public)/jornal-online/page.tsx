@@ -61,7 +61,8 @@ export default function JornalOnlinePage(): JSX.Element {
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
 
-  const sourceEditions = remoteEditions.length > 0 ? remoteEditions : calameoEditions;
+  const sourceEditions: OnlineEdition[] =
+    remoteEditions.length > 0 ? remoteEditions : calameoEditions.map((edition) => ({ ...edition }));
   const latestEdition = sourceEditions[0];
 
   const editions = useMemo(() => {
