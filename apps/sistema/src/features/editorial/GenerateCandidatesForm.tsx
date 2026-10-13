@@ -1,10 +1,15 @@
 "use client";
 
 import { useRef, useState, useTransition } from "react";
-import { generateCandidates } from "../../app/sistema/editorial/importar-pdf/actions";
+import {
+  generateCandidates,
+  generateCandidatesFromArchivedPdf,
+} from "../../app/sistema/editorial/importar-pdf/actions";
 
 interface GenerateCandidatesFormProps {
   editionId: string;
+  archivedPdfAvailable?: boolean;
+  archivedFileName?: string;
 }
 
 interface DoneState {
@@ -21,15 +26,18 @@ interface DuplicateState {
 }
 
 /**
- * Lê o PDF selecionado e extrai candidatos reais. Quando a edição ainda
- * não possui PDF oficial, o mesmo arquivo também é arquivado no Google
- * Drive do Jornal Online; o Supabase guarda apenas a URL.
+ * Reutiliza o PDF oficial do R2 quando disponível; o seletor manual fica
+ * como fallback para legado ou reprocessamento excepcional.
  *
  * Antes de processar, o servidor verifica se este MESMO arquivo (por hash)
  * já foi processado pra esta edição — se sim, nenhum lote novo é gerado
  * sem confirmação explícita ("Reprocessar mesmo assim").
  */
-export function GenerateCandidatesForm({ editionId }: GenerateCandidatesFormProps): JSX.Element {
+export function GenerateCandidatesForm({
+  editionId,
+  archivedPdfAvailable = false,
+  archivedFileName,
+}: GenerateCandidatesFormProps): JSX.Element {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [fileName, setFileName] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -39,18 +47,25 @@ export function GenerateCandidatesForm({ editionId }: GenerateCandidatesFormProp
 
   function handleGenerate(force = false): void {
     const file = fileInputRef.current?.files?.[0];
-    if (!file) {
+    if (!file && !archivedPdfAvailable) {
       setError("Selecione um arquivo PDF.");
       return;
     }
+
     setError(null);
     setDone(null);
     if (!force) setDuplicate(null);
-    const formData = new FormData();
-    formData.set("pdf", file);
-    if (force) formData.set("force", "1");
+
     startTransition(async () => {
-      const result = await generateCandidates(editionId, formData);
+      const result = file
+        ? await (() => {
+            const formData = new FormData();
+            formData.set("pdf", file);
+            if (force) formData.set("force", "1");
+            return generateCandidates(editionId, formData);
+          })()
+        : await generateCandidatesFromArchivedPdf(editionId, force);
+
       if ("error" in result) {
         setError(result.error);
       } else if ("duplicate" in result) {
@@ -64,22 +79,40 @@ export function GenerateCandidatesForm({ editionId }: GenerateCandidatesFormProp
 
   return (
     <div className="pdf-picker">
-      <label className="form-field">
-        <span className="field-label">Arquivo PDF</span>
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept="application/pdf"
-          onChange={(event) => setFileName(event.target.files?.[0]?.name ?? null)}
-        />
-      </label>
-      <p className="helper-text">
-        {fileName
-          ? `Arquivo selecionado: ${fileName}. Ao gerar, ele também será usado como PDF oficial do Jornal Online se a edição ainda não tiver um.`
-          : "Selecione o PDF da edição impressa. O mesmo arquivo pode alimentar a importação e o Jornal Online."}
-      </p>
+      {archivedPdfAvailable ? (
+        <div
+          className="rounded-lg border p-3"
+          style={{ borderColor: "var(--line)", background: "var(--surface, #fff)" }}
+        >
+          <strong>PDF oficial já arquivado no R2</strong>
+          <p className="helper-text" style={{ marginBottom: 0 }}>
+            {archivedFileName || "PDF da edição"} será reutilizado diretamente, sem novo upload.
+          </p>
+        </div>
+      ) : null}
+
+      <details className="generate-more" open={!archivedPdfAvailable}>
+        <summary>{archivedPdfAvailable ? "Usar outro PDF nesta extração" : "Selecionar PDF"}</summary>
+        <label className="form-field" style={{ marginTop: 10 }}>
+          <span className="field-label">Arquivo PDF</span>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="application/pdf"
+            onChange={(event) => setFileName(event.target.files?.[0]?.name ?? null)}
+          />
+        </label>
+        <p className="helper-text">
+          {fileName
+            ? `Arquivo selecionado: ${fileName}.`
+            : archivedPdfAvailable
+              ? "Se nenhum arquivo for escolhido, a extração usará o PDF oficial arquivado."
+              : "Selecione o PDF da edição impressa."}
+        </p>
+      </details>
+
       <button type="button" className="header-action" onClick={() => handleGenerate(false)} disabled={pending}>
-        {pending ? "Extraindo…" : "Gerar candidatos"}
+        {pending ? "Extraindo…" : archivedPdfAvailable && !fileName ? "Gerar candidatos do PDF arquivado" : "Gerar candidatos"}
       </button>
       {error ? (
         <p className="form-error" role="alert">
