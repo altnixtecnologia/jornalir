@@ -211,6 +211,20 @@ export async function getAsaasPixQrCodeData(
   );
 }
 
+async function validatePixPayload(
+  settings: BillingSettingsRow,
+  payload: string,
+): Promise<void> {
+  if (!payload.trim()) {
+    throw new Error("O Asaas não retornou um Pix Copia e Cola válido.");
+  }
+
+  await asaasFetch<Record<string, unknown>>(settings, "/pix/qrCodes/decode", {
+    method: "POST",
+    body: JSON.stringify({ payload }),
+  });
+}
+
 export function createAsaasPixProvider(client: SupabaseClient): PixProvider {
   return {
     async createCharge(request: CreatePixChargeRequest): Promise<PixChargeProviderResult> {
@@ -234,6 +248,7 @@ export function createAsaasPixProvider(client: SupabaseClient): PixProvider {
         } catch {
           // Cobrança já paga pode não disponibilizar mais o QR Code.
         }
+        if (qr.payload) await validatePixPayload(settings, qr.payload);
         return {
           provider: "asaas",
           providerChargeId: recovered.id,
@@ -259,6 +274,7 @@ export function createAsaasPixProvider(client: SupabaseClient): PixProvider {
       });
 
       const qr = await asaasFetch<AsaasPixQrCode>(settings, `/payments/${payment.id}/pixQrCode`, { method: "GET" });
+      await validatePixPayload(settings, qr.payload ?? "");
 
       return {
         provider: "asaas",
