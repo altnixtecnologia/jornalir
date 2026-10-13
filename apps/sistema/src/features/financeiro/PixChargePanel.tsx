@@ -181,21 +181,28 @@ export function PixChargePanel({
           >
             <div
               style={{
-                width: "120px",
-                height: "120px",
+                width: "132px",
+                minHeight: "132px",
                 flex: "0 0 auto",
                 border: "1px solid var(--line)",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
-                fontSize: "11px",
-                color: "var(--muted)",
-                textAlign: "center",
+                background: "#fff",
                 padding: "6px",
               }}
-              aria-hidden="true"
             >
-              QR Code
+              {pendingCharge.publicToken ? (
+                <img
+                  src={`/api/public/pagamento/${pendingCharge.publicToken}/qrcode`}
+                  alt="QR Code Pix"
+                  width={120}
+                  height={120}
+                  style={{ width: "120px", height: "120px", objectFit: "contain" }}
+                />
+              ) : (
+                <span className="helper-text">QR Code indisponível.</span>
+              )}
             </div>
             <div style={{ flex: "1 1 220px", minWidth: "220px" }}>
               <p className="helper-text" style={{ fontWeight: 700, marginBottom: "4px" }}>
@@ -221,6 +228,16 @@ export function PixChargePanel({
             >
               {copied ? "Copiado ✓" : "Copiar Pix"}
             </button>
+            {pendingCharge.publicToken ? (
+              <a
+                className="button-link"
+                href={`/pagamento/${pendingCharge.publicToken}`}
+                target="_blank"
+                rel="noreferrer"
+              >
+                Abrir página de pagamento
+              </a>
+            ) : null}
             <button type="button" onClick={openSendPreview} disabled={pending}>
               Enviar ao cliente
             </button>
