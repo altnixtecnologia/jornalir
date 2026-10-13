@@ -17,6 +17,7 @@ import {
   sendWhatsappBillingTemplate,
   sendWhatsappPaymentConfirmedTemplate,
 } from "../../../../lib/financeiro/whatsappCloudProvider";
+import { provisionAsaasWebhookAction } from "../../configuracoes/cobrancas/actions";
 
 const LIST_PATH = "/sistema/financeiro/contas-a-receber";
 
@@ -334,6 +335,25 @@ export async function createPixChargeAction(
   if (amount < 5) return { error: "O Asaas exige cobrança Pix mínima de R$ 5,00." };
   try {
     const client = createSupabaseServerClient();
+
+    const { data: billingSettings, error: billingSettingsError } = await client
+      .from("billing_provider_settings")
+      .select("environment")
+      .eq("id", 1)
+      .single();
+    if (billingSettingsError) throw new Error(billingSettingsError.message);
+
+    const webhook = await provisionAsaasWebhookAction(
+      billingSettings.environment as "sandbox" | "production",
+    );
+    if ("error" in webhook) {
+      return {
+        error:
+          "Não foi possível garantir o webhook do Asaas antes de criar a cobrança: " +
+          webhook.error,
+      };
+    }
+
     await getPaymentChargeService(client).createPixCharge({
       receivableId,
       clientId,
