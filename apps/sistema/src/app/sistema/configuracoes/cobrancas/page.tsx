@@ -1,7 +1,7 @@
 import { ModuleHeader } from "../../../../components/admin/ModuleHeader";
 import { BillingProviderSettingsPanel } from "../../../../features/configuracoes/BillingProviderSettingsPanel";
 import { createSupabaseServerClient } from "../../../../lib/supabase/server";
-import { isAsaasApiKeyConfigured } from "../../../../lib/financeiro/asaasEnv";
+import { getConfiguredAsaasEnvironment, isAsaasApiKeyConfigured } from "../../../../lib/financeiro/asaasEnv";
 import { getAsaasWebhookEndpoint, getAsaasWebhookToken } from "../../../../lib/financeiro/asaasWebhookConfig";
 
 export const dynamic = "force-dynamic";
@@ -17,6 +17,8 @@ export default async function BillingProviderSettingsPage(): Promise<JSX.Element
 
   if (error) throw new Error(error.message);
 
+  const lockedEnvironment = getConfiguredAsaasEnvironment();
+
   return (
     <>
       <ModuleHeader
@@ -26,7 +28,8 @@ export default async function BillingProviderSettingsPage(): Promise<JSX.Element
       />
       <BillingProviderSettingsPanel
         values={{
-          environment: data.environment as "sandbox" | "production",
+          environment: lockedEnvironment ?? (data.environment as "sandbox" | "production"),
+          environmentLocked: Boolean(lockedEnvironment),
           enabled: Boolean(data.enabled),
           allowPix: Boolean(data.allow_pix),
           allowBoleto: Boolean(data.allow_boleto),
