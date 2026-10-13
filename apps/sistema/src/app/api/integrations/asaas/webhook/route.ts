@@ -4,6 +4,7 @@ import { timingSafeEqual } from "crypto";
 import { NextResponse } from "next/server";
 import { getPaymentChargeService } from "../../../../../composition/financeiro";
 import { createSupabaseAdminClient, hasServiceRoleKey } from "../../../../../lib/supabase/admin";
+import { getAsaasWebhookToken } from "../../../../../lib/financeiro/asaasWebhookConfig";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -49,7 +50,7 @@ async function markEvent(
 }
 
 export async function POST(request: Request): Promise<Response> {
-  const expectedToken = process.env.ASAAS_WEBHOOK_TOKEN;
+  const expectedToken = getAsaasWebhookToken();
   if (!expectedToken || !hasServiceRoleKey()) {
     return NextResponse.json({ error: "Integração de cobrança não configurada." }, { status: 503 });
   }
