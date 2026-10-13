@@ -167,35 +167,33 @@ async function resolveOrCreateClient(
       throw new Error("O CPF/CNPJ informado é diferente do documento já cadastrado. Confira antes de converter.");
     }
 
-    const updated = await clientService.update(existingId, {
-      kind: current.kind,
-      status: "active",
-      fullName: current.kind === "individual" ? row.name : undefined,
-      cpf: current.kind === "individual" ? document : undefined,
-      birthDate: current.birthDate,
-      companyName: current.kind === "company" ? row.company ?? current.companyName : undefined,
-      tradeName: current.tradeName,
-      cnpj: current.kind === "company" ? document : undefined,
-      stateRegistration: current.stateRegistration,
-      responsibleName: current.kind === "company" ? row.name : undefined,
-      responsibleCpf: current.responsibleCpf,
-      phonePrimary: current.phonePrimary,
-      phoneSecondary: current.phoneSecondary,
-      whatsapp: row.phone || current.whatsapp,
-      email: row.email ?? current.email,
-      address: {
-        zip: row.address_zip ?? current.address.zip,
-        street: row.address_street ?? current.address.street,
-        number: row.address_number ?? current.address.number,
-        complement: row.address_complement ?? current.address.complement,
-        neighborhood: row.address_neighborhood ?? current.address.neighborhood,
-        city: row.address_city ?? current.address.city,
-        state: row.address_state ?? current.address.state,
-      },
-      notes: current.notes,
-      roles: Array.from(new Set([...current.roles, "cliente"])),
-    });
-    return updated.id;
+    // Atualização PARCIAL deliberada: não passa pelo save_client completo,
+    // porque a conversão de uma solicitação não deve limpar/reescrever
+    // dados fiscais já existentes (inscrição municipal, e-mail fiscal,
+    // código IBGE etc.). Só completa campos necessários que estiverem vazios.
+    const patch: Record<string, unknown> = {};
+    if (!currentDocument) patch[current.kind === "company" ? "cnpj" : "cpf"] = document;
+    if (!current.whatsapp) patch.whatsapp = onlyDigits(row.phone);
+    if (!current.email && row.email) patch.email = row.email.trim().toLowerCase();
+    if (current.kind === "individual" && !current.fullName) patch.full_name = row.name;
+    if (current.kind === "company") {
+      if (!current.companyName && row.company) patch.company_name = row.company;
+      if (!current.responsibleName) patch.responsible_name = row.name;
+    }
+    if (!current.address.zip && row.address_zip) patch.address_zip = row.address_zip;
+    if (!current.address.street && row.address_street) patch.address_street = row.address_street;
+    if (!current.address.number && row.address_number) patch.address_number = row.address_number;
+    if (!current.address.complement && row.address_complement) patch.address_complement = row.address_complement;
+    if (!current.address.neighborhood && row.address_neighborhood) patch.address_neighborhood = row.address_neighborhood;
+    if (!current.address.city && row.address_city) patch.address_city = row.address_city;
+    if (!current.address.state && row.address_state) patch.address_state = row.address_state;
+
+    if (Object.keys(patch).length > 0) {
+      const { error: patchError } = await supabase.from("clients").update(patch).eq("id", existingId);
+      if (patchError) throw new Error(patchError.message);
+    }
+
+    return existingId;
   }
 
   const created = await clientService.register({
