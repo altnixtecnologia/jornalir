@@ -127,7 +127,7 @@ export default async function SiteInterestRequestsPage(): Promise<JSX.Element> {
 
   if (error) throw new Error(error.message);
 
-  const rows = (data ?? []) as InterestRow[];
+  const rows = (data ?? []) as unknown as InterestRow[];
   const newCount = rows.filter((row) => row.status === "new").length;
 
   return (
