@@ -14,6 +14,9 @@ import {
   getAsaasWebhookToken,
 } from "../../../../lib/financeiro/asaasWebhookConfig";
 
+// billing_provider_settings também é singleton numérico, mas audit_events.entity_id exige UUID.
+const BILLING_PROVIDER_SETTINGS_AUDIT_ID = "00000000-0000-4000-8000-000000000102";
+
 export interface BillingProviderSettingsInput {
   environment: "sandbox" | "production";
   enabled: boolean;
@@ -102,7 +105,7 @@ export async function updateBillingProviderSettingsAction(
     await recordAuditEventSupabase(client, {
       userId: audit.actorId,
       entityType: "billing_provider_settings",
-      entityId: "1",
+      entityId: BILLING_PROVIDER_SETTINGS_AUDIT_ID,
       action: "update",
       metadata: { ...values, apiKeyStoredInDatabase: false },
     });
@@ -262,7 +265,7 @@ export async function provisionAsaasWebhookAction(
     await recordAuditEventSupabase(client, {
       userId: audit.actorId,
       entityType: "billing_provider_settings",
-      entityId: "1",
+      entityId: BILLING_PROVIDER_SETTINGS_AUDIT_ID,
       action: existing ? "asaas_webhook_update" : "asaas_webhook_create",
       metadata: {
         environment,
