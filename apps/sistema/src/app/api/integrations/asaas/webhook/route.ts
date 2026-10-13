@@ -15,6 +15,7 @@ interface AsaasWebhookPayment {
   paymentDate?: string;
   clientPaymentDate?: string;
   confirmedDate?: string;
+  externalReference?: string;
 }
 
 interface AsaasWebhookPayload {
@@ -137,10 +138,32 @@ export async function POST(request: Request): Promise<Response> {
 
     if (chargeError) throw new Error(chargeError.message);
 
-    // A mesma conta Asaas pode conter cobranças de outros sistemas.
-    // Evento sem correspondência local é registrado e reconhecido com 200
-    // para não interromper a fila do provedor.
+    // Há uma janela curta entre criar a cobrança no Asaas e persistir
+    // payment_charges localmente. Se o webhook chegar nessa janela e a
+    // externalReference apontar para um título REAL deste banco, devolve
+    // erro temporário para o Asaas reenviar — nunca perde um pagamento.
     if (!charge) {
+      const externalReference = payload.payment?.externalReference ?? "";
+      const match = /^receivable:([0-9a-f-]{36})$/i.exec(externalReference);
+      if (match) {
+        const { data: receivable, error: receivableError } = await admin
+          .from("receivables")
+          .select("id")
+          .eq("id", match[1])
+          .maybeSingle();
+        if (receivableError) throw new Error(receivableError.message);
+        if (receivable) {
+          await markEvent(eventId, {
+            processed_at: null,
+            error_message: "Cobrança local ainda não persistida; aguardando reenvio do Asaas.",
+          });
+          return NextResponse.json({ error: "Cobrança local ainda não disponível." }, { status: 503 });
+        }
+      }
+
+      // A mesma conta Asaas pode conter cobranças de outros sistemas.
+      // Se não aponta para um título do JornalIR, reconhece com 200 para
+      // não interromper a fila compartilhada do provedor.
       await markEvent(eventId, {
         processed_at: new Date().toISOString(),
         error_message: "Cobrança Asaas não pertence ao JornalIR; evento ignorado.",
