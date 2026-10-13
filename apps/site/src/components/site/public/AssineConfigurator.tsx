@@ -19,7 +19,7 @@ type DigitalOffer = {
   label: string;
   location: string;
   dimensions: string;
-  price: number;
+  price: number | null;
   comboDiscount: number;
 };
 
@@ -128,41 +128,40 @@ export function AssineConfigurator({ settings }: { settings: PublicSiteOfferSett
   );
 
   const digitalOffers = useMemo<DigitalOffer[]>(
-    () =>
-      [
-        {
-          id: "led-sjs-1x2",
-          label: "Painel 1 × 2 m",
-          location: "São João do Sul",
-          dimensions: "1 × 2 m",
-          price: settings.ledSjs1x2Price,
-          comboDiscount: settings.ledSjs1x2ComboDiscount,
-        },
-        {
-          id: "led-pg-1x2",
-          label: "Painel 1 × 2 m",
-          location: "Praia Grande/SC",
-          dimensions: "1 × 2 m",
-          price: settings.ledPraiaGrande1x2Price,
-          comboDiscount: settings.ledPraiaGrande1x2ComboDiscount,
-        },
-        {
-          id: "led-pt-1x2",
-          label: "Painel 1 × 2 m",
-          location: "Passo de Torres/SC",
-          dimensions: "1 × 2 m",
-          price: settings.ledPassoTorres1x2Price,
-          comboDiscount: settings.ledPassoTorres1x2ComboDiscount,
-        },
-        {
-          id: "led-sjs-4x2",
-          label: "Painel grande 4 × 2 m",
-          location: "Entrada de São João do Sul",
-          dimensions: "4 × 2 m",
-          price: settings.ledSjs4x2Price,
-          comboDiscount: settings.ledSjs4x2ComboDiscount,
-        },
-      ].filter((item) => item.price > 0),
+    () => [
+      {
+        id: "led-sjs-1x2",
+        label: "Painel 1 × 2 m",
+        location: "São João do Sul",
+        dimensions: "1 × 2 m",
+        price: settings.ledSjs1x2Price > 0 ? settings.ledSjs1x2Price : null,
+        comboDiscount: settings.ledSjs1x2ComboDiscount,
+      },
+      {
+        id: "led-pg-1x2",
+        label: "Painel 1 × 2 m",
+        location: "Praia Grande/SC",
+        dimensions: "1 × 2 m",
+        price: settings.ledPraiaGrande1x2Price > 0 ? settings.ledPraiaGrande1x2Price : null,
+        comboDiscount: settings.ledPraiaGrande1x2ComboDiscount,
+      },
+      {
+        id: "led-pt-1x2",
+        label: "Painel 1 × 2 m",
+        location: "Passo de Torres/SC",
+        dimensions: "1 × 2 m",
+        price: settings.ledPassoTorres1x2Price > 0 ? settings.ledPassoTorres1x2Price : null,
+        comboDiscount: settings.ledPassoTorres1x2ComboDiscount,
+      },
+      {
+        id: "led-sjs-4x2",
+        label: "Painel grande 4 × 2 m",
+        location: "Entrada de São João do Sul",
+        dimensions: "4 × 2 m",
+        price: settings.ledSjs4x2Price > 0 ? settings.ledSjs4x2Price : null,
+        comboDiscount: settings.ledSjs4x2ComboDiscount,
+      },
+    ],
     [settings],
   );
 
@@ -434,7 +433,7 @@ export function AssineConfigurator({ settings }: { settings: PublicSiteOfferSett
                     <div className="flex h-32 items-center justify-center rounded-lg border bg-white p-2" style={{ borderColor: "var(--site-line)" }}>
                       <div className="relative aspect-[25/36] h-full max-h-[104px] border-2 border-zinc-300 bg-zinc-50">
                         <div
-                          className="absolute left-1/2 top-1/2 flex -translate-x-1/2 -translate-y-1/2 items-center justify-center border-2 border-[color:var(--brand-red)] bg-red-50 px-1 text-center text-[7px] font-bold text-red-700"
+                          className="absolute left-1/2 top-1/2 flex -translate-x-1/2 -translate-y-1/2 items-start justify-center overflow-hidden border-2 border-[color:var(--brand-red)] bg-red-50 pt-[2px] text-center text-[4px] font-bold leading-none text-red-700"
                           style={{
                             width: `${Math.min(96, offer.widthPct)}%`,
                             height: `${Math.min(96, offer.heightPct)}%`,
@@ -479,7 +478,9 @@ export function AssineConfigurator({ settings }: { settings: PublicSiteOfferSett
                       </span>
                       <strong className="mt-1.5 block text-base">{offer.label}</strong>
                       <span className="mt-1 block text-sm" style={{ color: "var(--site-muted)" }}>{offer.location} · {offer.dimensions}</span>
-                      <span className="mt-2 block text-xl font-extrabold" style={{ color: "var(--brand-navy)" }}>{money(offer.price)}</span>
+                      <span className="mt-2 block text-xl font-extrabold" style={{ color: "var(--brand-navy)" }}>
+                        {offer.price === null ? "Sob consulta" : money(offer.price)}
+                      </span>
                     </button>
                   );
                 })}
