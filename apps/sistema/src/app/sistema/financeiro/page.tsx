@@ -176,19 +176,19 @@ export default async function FinanceiroPage({
             title={`Hoje · ${formatDate(today)}`}
             metric={overview.dueToday}
             primary="amount"
-            href={`/sistema/financeiro/contas-a-receber?status=open&dueFrom=${today}&dueTo=${today}`}
+            href={`/sistema/financeiro/contas-a-receber?withBalance=1&dueFrom=${today}&dueTo=${today}`}
           />
           <MetricTile
             title={`Período · ${periodLabel}`}
             metric={overview.duePeriod}
             primary="amount"
-            href={`/sistema/financeiro/contas-a-receber?status=open&dueFrom=${period.start}&dueTo=${period.end}`}
+            href={`/sistema/financeiro/contas-a-receber?withBalance=1&dueFrom=${period.start}&dueTo=${period.end}`}
           />
           <MetricTile
             title={`Mês · ${formatDate(month.start)} a ${formatDate(month.end)}`}
             metric={overview.dueMonth}
             primary="amount"
-            href={`/sistema/financeiro/contas-a-receber?status=open&dueFrom=${month.start}&dueTo=${month.end}`}
+            href={`/sistema/financeiro/contas-a-receber?withBalance=1&dueFrom=${month.start}&dueTo=${month.end}`}
           />
         </ul>
       </section>
@@ -209,19 +209,19 @@ export default async function FinanceiroPage({
             title={`Hoje · ${formatDate(today)}`}
             metric={overview.openToday}
             primary="count"
-            href={`/sistema/financeiro/contas-a-receber?status=open&dueFrom=${today}&dueTo=${today}`}
+            href={`/sistema/financeiro/contas-a-receber?withBalance=1&dueFrom=${today}&dueTo=${today}`}
           />
           <MetricTile
             title={`Período · ${periodLabel}`}
             metric={overview.openPeriod}
             primary="count"
-            href={`/sistema/financeiro/contas-a-receber?status=open&dueFrom=${period.start}&dueTo=${period.end}`}
+            href={`/sistema/financeiro/contas-a-receber?withBalance=1&dueFrom=${period.start}&dueTo=${period.end}`}
           />
           <MetricTile
             title={`Mês · ${formatDate(month.start)} a ${formatDate(month.end)}`}
             metric={overview.openMonth}
             primary="count"
-            href={`/sistema/financeiro/contas-a-receber?status=open&dueFrom=${month.start}&dueTo=${month.end}`}
+            href={`/sistema/financeiro/contas-a-receber?withBalance=1&dueFrom=${month.start}&dueTo=${month.end}`}
           />
         </ul>
       </section>
