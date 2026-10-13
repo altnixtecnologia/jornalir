@@ -6,6 +6,16 @@ import { isAsaasApiKeyConfigured } from "../../../../lib/financeiro/asaasEnv";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
+function webhookEndpoint(): string {
+  if (process.env.VERCEL_ENV === "production") {
+    return "https://controle.altnix.com.br/api/integrations/asaas/webhook";
+  }
+  const previewHost = process.env.VERCEL_BRANCH_URL || process.env.VERCEL_URL;
+  return previewHost
+    ? `https://${previewHost}/api/integrations/asaas/webhook`
+    : "http://localhost:3001/api/integrations/asaas/webhook";
+}
+
 export default async function BillingProviderSettingsPage(): Promise<JSX.Element> {
   const client = createSupabaseServerClient();
   const { data, error } = await client
@@ -36,6 +46,7 @@ export default async function BillingProviderSettingsPage(): Promise<JSX.Element
           sandboxKeyConfigured: isAsaasApiKeyConfigured("sandbox"),
           productionKeyConfigured: isAsaasApiKeyConfigured("production"),
           webhookTokenConfigured: Boolean(process.env.ASAAS_WEBHOOK_TOKEN),
+          webhookEndpoint: webhookEndpoint(),
         }}
       />
     </>
