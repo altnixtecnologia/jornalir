@@ -94,8 +94,11 @@ export default function JornalOnlineReaderPage(): JSX.Element {
     return () => document.removeEventListener("fullscreenchange", onFullscreenChange);
   }, []);
 
-  const edition = useMemo(() => {
-    return remoteEditions.find((item) => item.id === id) ?? calameoEditions.find((item) => item.id === id);
+  const edition = useMemo<OnlineEdition | undefined>(() => {
+    const remote = remoteEditions.find((item) => item.id === id);
+    if (remote) return remote;
+    const legacy = calameoEditions.find((item) => item.id === id);
+    return legacy ? { ...legacy } : undefined;
   }, [remoteEditions, id]);
 
   // Edições do banco/R2 e do Drive chegam de forma assíncrona. Enquanto
