@@ -202,6 +202,14 @@ async function resolveOrCreateClient(
       if (patchError) throw new Error(patchError.message);
     }
 
+    const { error: roleError } = await supabase
+      .from("client_roles")
+      .upsert(
+        { client_id: existingId, role: "cliente" },
+        { onConflict: "client_id,role", ignoreDuplicates: true },
+      );
+    if (roleError) throw new Error(roleError.message);
+
     return existingId;
   }
 
