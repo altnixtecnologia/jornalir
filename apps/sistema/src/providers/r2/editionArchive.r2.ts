@@ -3,8 +3,10 @@ import "server-only";
 import { createHash, createHmac, randomUUID } from "node:crypto";
 import {
   DeleteObjectCommand,
+  GetBucketCorsCommand,
   GetObjectCommand,
   HeadObjectCommand,
+  PutBucketCorsCommand,
   PutObjectCommand,
   S3Client,
 } from "@aws-sdk/client-s3";
@@ -53,6 +55,57 @@ export function isEditionR2ArchiveConfigured(): boolean {
       env("R2_SECRET_ACCESS_KEY") &&
       (env("R2_EDITIONS_BUCKET") || env("R2_BUCKET")) &&
       (env("R2_EDITIONS_PUBLIC_BASE_URL") || env("R2_PUBLIC_BASE_URL")),
+  );
+}
+
+export async function ensureEditionR2CorsConfigured(): Promise<void> {
+  const client = r2Client();
+  const corsRuleId = "jornal-online-browser";
+  const extraOrigins = (env("R2_EDITIONS_CORS_ORIGINS") ?? "")
+    .split(",")
+    .map((value) => value.trim())
+    .filter(Boolean);
+  const origins = Array.from(
+    new Set([
+      "https://controle.altnix.com.br",
+      "https://jornalir-sistema.vercel.app",
+      "https://jornalir.vercel.app",
+      "http://localhost:3000",
+      "http://localhost:3001",
+      ...extraOrigins,
+    ]),
+  );
+
+  let existing: Awaited<ReturnType<S3Client["send"]>> | null = null;
+  try {
+    existing = await client.send(new GetBucketCorsCommand({ Bucket: bucket() }));
+  } catch {
+    // Bucket sem configuração CORS ainda.
+  }
+
+  const previousRules =
+    existing && "CORSRules" in existing && Array.isArray(existing.CORSRules)
+      ? existing.CORSRules
+      : [];
+
+  const keptRules = previousRules.filter((rule) => rule.ID !== corsRuleId);
+  await client.send(
+    new PutBucketCorsCommand({
+      Bucket: bucket(),
+      CORSConfiguration: {
+        CORSRules: [
+          ...keptRules,
+          {
+            ID: corsRuleId,
+            AllowedOrigins: origins,
+            AllowedMethods: ["GET", "HEAD", "PUT"],
+            AllowedHeaders: ["*"],
+            ExposeHeaders: ["Accept-Ranges", "Content-Length", "Content-Range", "ETag"],
+            MaxAgeSeconds: 3600,
+          },
+        ],
+      },
+    }),
   );
 }
 
