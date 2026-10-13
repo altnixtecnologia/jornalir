@@ -11,7 +11,7 @@ export default async function EdicoesPage(): Promise<JSX.Element> {
       <ModuleHeader
         eyebrow="EDITORIAL / EDIÇÕES"
         title="Edições do jornal"
-        description="Cadastro das edições impressas. O PDF oficial fica no Google Drive do Jornal Online; o Supabase guarda apenas os dados e a referência do arquivo."
+        description="Cadastro das edições impressas. O PDF oficial e a capa ficam no Cloudflare R2; o Supabase guarda somente os metadados e as referências do arquivo."
       />
       <EdicoesManager editions={editions} />
     </>
