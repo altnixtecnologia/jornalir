@@ -13,6 +13,11 @@ const FlipbookReader = dynamic(
   { ssr: false }
 );
 
+const MobilePdfReader = dynamic(
+  () => import("../../../../components/site/MobilePdfReader").then((m) => m.MobilePdfReader),
+  { ssr: false }
+);
+
 interface OnlineEdition {
   id: string;
   title: string;
@@ -35,7 +40,6 @@ export default function JornalOnlineReaderPage(): JSX.Element {
   const [showScrollTop, setShowScrollTop] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const frameWrapRef = useRef<HTMLDivElement | null>(null);
-  const mobileFrameRef = useRef<HTMLIFrameElement | null>(null);
 
   useEffect(() => {
     void (async () => {
@@ -111,17 +115,8 @@ export default function JornalOnlineReaderPage(): JSX.Element {
 
   const driveFileId = edition?.id.startsWith("drive-") ? edition.id.replace("drive-", "") : "";
   const pdfRenderUrl = driveFileId ? `/api/jornal-online/drive-file?id=${driveFileId}` : (edition?.pdfPath ?? "");
-  const mobileViewerSrc = driveFileId
-    ? `https://drive.google.com/file/d/${driveFileId}/preview`
-    : `${edition?.pdfPath ?? ""}#page=1&zoom=page-width&toolbar=1&navpanes=0&scrollbar=1`;
-
   async function toggleFullscreen(): Promise<void> {
-    if (isMobile) {
-      window.open(edition?.sourceUrl ?? edition?.pdfPath ?? "", "_blank", "noopener,noreferrer");
-      return;
-    }
-
-    const el = isMobile ? mobileFrameRef.current : frameWrapRef.current;
+    const el = frameWrapRef.current;
     if (!el) return;
     try {
       if (!document.fullscreenElement) {
@@ -247,14 +242,14 @@ export default function JornalOnlineReaderPage(): JSX.Element {
               style={primaryButtonStyle}
               aria-pressed={isMobile ? undefined : isFullscreen}
             >
-              {isMobile ? "Abrir visualizador" : isFullscreen ? "Sair da tela cheia" : "Tela cheia"}
+              {isFullscreen ? "Sair da tela cheia" : "Tela cheia"}
             </button>
           </div>
         </div>
 
         {isMobile ? (
           <p className="mb-3 text-center text-xs" style={{ color: "var(--site-muted)" }}>
-            No mobile, use o zoom nativo do celular (pinça com dois dedos).
+            Leitura vertical com páginas carregadas conforme você avança. Use pinça ou os controles para ampliar.
           </p>
         ) : (
           <div
@@ -280,21 +275,13 @@ export default function JornalOnlineReaderPage(): JSX.Element {
 
         <div ref={frameWrapRef}>
           {isMobile ? (
-            <div className="overflow-hidden rounded-xl border bg-black" style={{ borderColor: "var(--site-line)" }}>
-              <iframe
-                ref={mobileFrameRef}
-                src={mobileViewerSrc}
-                title={edition.title}
-                className="h-[78vh] w-full bg-white"
-                allowFullScreen
-              />
-            </div>
+            <MobilePdfReader pdfUrl={pdfRenderUrl} title={edition.title} />
           ) : (
             <FlipbookReader pdfUrl={pdfRenderUrl} title={edition.title} zoomPercent={zoom} />
           )}
         </div>
         <p className="mt-2 text-center text-xs" style={{ color: "var(--site-muted)" }}>
-          {isMobile ? "No celular, leitura em rolagem normal para facilitar a visualização." : "No desktop, deslize/clique para virar as páginas."}
+          {isMobile ? "No celular, role verticalmente; as páginas são carregadas sob demanda." : "No desktop, deslize/clique para virar as páginas."}
         </p>
       </section>
       {showScrollTop ? (
