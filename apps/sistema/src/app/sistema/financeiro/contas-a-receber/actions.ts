@@ -613,8 +613,10 @@ export async function sendPaymentConfirmationAction(
     const sent = await sendWhatsappPaymentConfirmedTemplate({
       toPhone,
       clientName,
-      amountLabel,
       reference,
+      amountLabel,
+      paymentMethodLabel: "PIX",
+      transactionId: paidCharge.providerChargeId || paidCharge.id,
     });
 
     await createBillingMessageLogRepositorySupabase(client).create({
