@@ -19,6 +19,8 @@ interface InterestRow {
   email: string | null;
   city: string | null;
   company: string | null;
+  customer_kind: "individual" | "company" | null;
+  document_number: string | null;
   selections: unknown;
   estimated_total: number | null;
   notes: string | null;
@@ -119,7 +121,7 @@ export default async function SiteInterestRequestsPage(): Promise<JSX.Element> {
   const client = createSupabaseServerClient();
   const { data, error } = await client
     .from("site_interest_requests")
-    .select("id, request_type, name, phone, email, city, company, selections, estimated_total, notes, status, payment_preference, address_zip, address_street, address_number, address_complement, address_neighborhood, address_city, address_state, availability_status, approved_total, admin_note, created_at")
+    .select("id, request_type, name, phone, email, city, company, customer_kind, document_number, selections, estimated_total, notes, status, payment_preference, address_zip, address_street, address_number, address_complement, address_neighborhood, address_city, address_state, availability_status, approved_total, admin_note, created_at")
     .order("created_at", { ascending: false })
     .limit(200);
 
@@ -188,6 +190,14 @@ export default async function SiteInterestRequestsPage(): Promise<JSX.Element> {
                     <div>
                       <strong style={{ fontSize: 12 }}>Pagamento preferido</strong>
                       <p className="helper-text" style={{ marginTop: 5 }}>{paymentLabel(row.payment_preference)}</p>
+                      {row.customer_kind && row.document_number ? (
+                        <>
+                          <strong style={{ display: "block", marginTop: 10, fontSize: 12 }}>
+                            {row.customer_kind === "company" ? "CNPJ" : "CPF"}
+                          </strong>
+                          <p className="helper-text" style={{ marginTop: 5 }}>{row.document_number}</p>
+                        </>
+                      ) : null}
                       {address ? (
                         <>
                           <strong style={{ display: "block", marginTop: 10, fontSize: 12 }}>Endereço / rota</strong>
