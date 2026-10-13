@@ -1,10 +1,11 @@
-name: Validate system
+name: Validate project
 
 on:
   push:
     branches:
       - frontend-integracao-20261008
     paths:
+      - "apps/site/**"
       - "apps/sistema/**"
       - "packages/**"
       - "package.json"
@@ -34,6 +35,12 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
+
+      - name: Typecheck site
+        run: npm run typecheck --workspace @ir/site
+
+      - name: Build site
+        run: npm run build --workspace @ir/site
 
       - name: Typecheck system
         run: npm run typecheck --workspace @ir/sistema
