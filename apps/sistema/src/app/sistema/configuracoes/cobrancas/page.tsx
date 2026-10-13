@@ -1,6 +1,7 @@
 import { ModuleHeader } from "../../../../components/admin/ModuleHeader";
 import { BillingProviderSettingsPanel } from "../../../../features/configuracoes/BillingProviderSettingsPanel";
 import { createSupabaseServerClient } from "../../../../lib/supabase/server";
+import { isAsaasApiKeyConfigured } from "../../../../lib/financeiro/asaasEnv";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -32,8 +33,8 @@ export default async function BillingProviderSettingsPage(): Promise<JSX.Element
           allowCash: Boolean(data.allow_cash),
           defaultDueDays: Number(data.default_due_days),
           financeWhatsapp: data.finance_whatsapp ?? "",
-          sandboxKeyConfigured: Boolean(process.env.ASAAS_API_KEY_SANDBOX),
-          productionKeyConfigured: Boolean(process.env.ASAAS_API_KEY_PRODUCTION),
+          sandboxKeyConfigured: isAsaasApiKeyConfigured("sandbox"),
+          productionKeyConfigured: isAsaasApiKeyConfigured("production"),
           webhookTokenConfigured: Boolean(process.env.ASAAS_WEBHOOK_TOKEN),
         }}
       />
