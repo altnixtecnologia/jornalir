@@ -4,6 +4,7 @@ export const ASAAS_WEBHOOK_NAME = "JornalIR - Pagamentos";
 export const ASAAS_WEBHOOK_EMAIL = "contato@informativoregional.net";
 export const ASAAS_WEBHOOK_EVENTS = [
   "PAYMENT_RECEIVED",
+  "PAYMENT_OVERDUE",
   "PAYMENT_DELETED",
   "PAYMENT_REFUNDED",
   "PAYMENT_PARTIALLY_REFUNDED",
