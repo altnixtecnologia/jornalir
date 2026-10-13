@@ -21,7 +21,7 @@ export default async function AssinePage(): Promise<JSX.Element> {
           }}
         >
           <p className="text-xs font-bold uppercase tracking-[0.16em] text-white/65">ASSINE E ANUNCIE</p>
-          <h1 className="mt-2 font-editorial font-bold leading-[1.02] sm:text-[clamp(2rem,5vw,3rem)] lg:text-[clamp(2.4rem,4vw,3.35rem)] xl:whitespace-nowrap xl:text-[clamp(2.35rem,3vw,3.6rem)]">
+          <h1 className="mt-2 font-editorial font-bold leading-[1.03] sm:text-[clamp(1.75rem,3.6vw,2.45rem)] lg:text-[clamp(1.9rem,2.65vw,2.55rem)] xl:whitespace-nowrap xl:text-[clamp(2rem,2.35vw,2.5rem)]">
             <span className="text-[clamp(1.15rem,5.4vw,1.6rem)] sm:hidden">
               Escolha como quer receber ou
               <br />
@@ -29,21 +29,21 @@ export default async function AssinePage(): Promise<JSX.Element> {
             </span>
             <span className="hidden sm:inline">Escolha como quer receber ou divulgar no Informativo Regional</span>
           </h1>
-          <p className="mt-3 max-w-5xl text-sm leading-snug text-white/85">
-            Monte sua solicitação com assinatura anual, publicidade no jornal impresso e divulgação nos painéis digitais.
-            Nenhuma seleção gera contratação automática: tudo passa pela avaliação e confirmação do setor comercial.
+          <p className="mt-3 text-[13px] leading-snug text-white/85 xl:whitespace-nowrap">
+            Monte sua solicitação com assinatura anual, publicidade no jornal impresso e divulgação nos painéis digitais. Nenhuma seleção gera contratação automática: tudo passa pela avaliação e confirmação do setor comercial.
           </p>
 
-          <div className="mt-4 border-t border-white/15 pt-3">
-            <div className="flex flex-wrap items-center gap-x-5 gap-y-1 text-xs text-white/90">
+          <div className="mt-3 border-t border-white/15 pt-2.5">
+            <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] leading-snug text-white/80 lg:flex-nowrap lg:whitespace-nowrap">
               <strong className="text-white">1.000 exemplares</strong>
+              <span>•</span>
               <span>Todas as quintas-feiras</span>
+              <span>•</span>
               <span>Circulação regional em 7 municípios</span>
-            </div>
-            <p className="mt-1 text-[11px] leading-relaxed text-white/70">
-              <strong className="text-white/85">SC:</strong> São João do Sul, Praia Grande, Passo de Torres e Santa Rosa do Sul
-              <span className="mx-2 hidden sm:inline">•</span>
-              <span className="block sm:inline"><strong className="text-white/85">RS:</strong> Mampituba, Morrinhos do Sul e Torres</span>
+              <span>•</span>
+              <span><strong className="text-white/90">SC:</strong> São João do Sul, Praia Grande, Passo de Torres e Santa Rosa do Sul</span>
+              <span>•</span>
+              <span><strong className="text-white/90">RS:</strong> Mampituba, Morrinhos do Sul e Torres</span>
             </p>
           </div>
         </div>
