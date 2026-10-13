@@ -6,8 +6,6 @@ import type { ArticleMedia } from "@ir/types";
 import { getImportCandidateService, getNewspaperEditionService } from "../../../../composition/editorial";
 import { extractCandidatesFromPdf } from "../../../../composition/pdfCandidateExtraction";
 import { createSupabaseServerClient } from "../../../../lib/supabase/server";
-import { uploadEditionPdfToDrive } from "../../../../lib/googleDrive/editionArchive";
-import { attachEditionExternalPdf } from "../../../../providers/supabase/newspaperEditionRepository.supabase";
 import { getAuditContext } from "../../../../lib/auth/getAuditContext";
 import { getEditionPdfFromR2 } from "../../../../providers/r2/editionArchive.r2";
 
@@ -39,8 +37,9 @@ export interface DuplicatePdfResult {
 
 /**
  * Lê o PDF selecionado e extrai candidatos reais via @ir/pdf-extraction.
- * Se a edição ainda não possui PDF oficial, o mesmo arquivo também é
- * arquivado no Google Drive do Jornal Online. O Supabase não recebe os bytes.
+ * O fluxo normal reutiliza o PDF oficial do R2. Este action permanece como
+ * fallback para selecionar outro PDF só para extração; nunca arquiva novo
+ * conteúdo no Drive/Supabase.
  *
  * Antes de gerar candidatos, calcula o hash (SHA-256) do arquivo e verifica
  * se esta MESMA edição já processou um PDF idêntico. Sem `--force` (campo
@@ -100,23 +99,10 @@ export async function generateCandidates(
     }
 
     const warnings = [...result.warnings];
-    // O mesmo PDF usado para extrair as matérias vira o arquivo oficial do
-    // Jornal Online quando a edição ainda não tem PDF. Assim não há segundo
-    // upload nem cópia pesada no Supabase Storage.
-    try {
-      const edition = await getNewspaperEditionService(client).getById(editionId);
-      if (edition && !edition.pdfUrl) {
-        const uploaded = await uploadEditionPdfToDrive(file, {
-          editionNumber: edition.editionNumber,
-          publicationDate: edition.publicationDate,
-        });
-        await attachEditionExternalPdf(client, editionId, uploaded.previewUrl);
-      }
-    } catch (archiveError) {
+    const edition = await getNewspaperEditionService(client).getById(editionId);
+    if (edition && !edition.pdfUrl) {
       warnings.push(
-        archiveError instanceof Error
-          ? `PDF extraído, mas não arquivado no Jornal Online: ${archiveError.message}`
-          : "PDF extraído, mas não foi possível arquivá-lo no Jornal Online.",
+        "Este PDF foi usado somente para extração. Para publicar no Jornal Online, envie o arquivo oficial em Editorial → Edições.",
       );
     }
 
