@@ -28,6 +28,7 @@ export default async function ContasAReceberPage({
   const sourceType = one(searchParams?.sourceType);
   const dueFrom = one(searchParams?.dueFrom);
   const dueTo = one(searchParams?.dueTo);
+  const withBalanceOnly = one(searchParams?.withBalance) === "1";
   const page = Math.max(1, Number(one(searchParams?.page)) || 1);
   const pageSize = Number(one(searchParams?.pageSize)) || 25;
 
@@ -39,6 +40,7 @@ export default async function ContasAReceberPage({
     sourceType: RECEIVABLE_SOURCE_TYPES.includes(sourceType as ReceivableSourceType) ? (sourceType as ReceivableSourceType) : undefined,
     dueFrom: dueFrom || undefined,
     dueTo: dueTo || undefined,
+    withBalanceOnly,
   });
 
   return (
@@ -90,6 +92,7 @@ export default async function ContasAReceberPage({
             Vencimento até
             <input type="date" name="dueTo" defaultValue={dueTo} />
           </label>
+          {withBalanceOnly ? <input type="hidden" name="withBalance" value="1" /> : null}
           <button type="submit" className="cadastros-btn-primary">Buscar</button>
           <Link className="secondary-link" href="/sistema/financeiro/contas-a-receber">Limpar</Link>
         </div>
@@ -115,6 +118,7 @@ export default async function ContasAReceberPage({
             ...(sourceType ? { sourceType } : {}),
             ...(dueFrom ? { dueFrom } : {}),
             ...(dueTo ? { dueTo } : {}),
+            ...(withBalanceOnly ? { withBalance: "1" } : {}),
             pageSize: String(result.pageSize),
           }}
         />
