@@ -77,6 +77,10 @@ function publicUrl(key: string): string {
   return `${publicBase()}/${key}`;
 }
 
+export function getEditionArchivePublicUrl(key: string): string {
+  return publicUrl(key);
+}
+
 function rfc3986(value: string): string {
   return encodeURIComponent(value).replace(/[!'()*]/g, (char) =>
     `%${char.charCodeAt(0).toString(16).toUpperCase()}`,
