@@ -45,8 +45,9 @@ export async function updateBillingProviderSettingsAction(
       environment: input.environment,
       enabled: input.enabled,
       allow_pix: input.allowPix,
-      allow_boleto: input.allowBoleto,
-      allow_credit_card: input.allowCreditCard,
+      // Boleto/cartão ainda não têm provider implementado; nunca gravar como habilitados só porque a UI já os prepara.
+      allow_boleto: false,
+      allow_credit_card: false,
       allow_cash: input.allowCash,
       default_due_days: dueDays,
       finance_whatsapp: input.financeWhatsapp.trim() || null,
