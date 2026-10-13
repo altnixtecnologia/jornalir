@@ -9,6 +9,7 @@ import {
 
 export interface BillingProviderSettingsValues {
   environment: "sandbox" | "production";
+  environmentLocked: boolean;
   enabled: boolean;
   allowPix: boolean;
   allowBoleto: boolean;
@@ -100,10 +101,17 @@ export function BillingProviderSettingsPanel({ values }: { values: BillingProvid
         <div className="form-grid" style={{ marginTop: 14 }}>
           <label className="form-field">
             <span className="field-label">Ambiente</span>
-            <select value={environment} onChange={(e) => setEnvironment(e.target.value as "sandbox" | "production")}>
+            <select
+              value={environment}
+              onChange={(e) => setEnvironment(e.target.value as "sandbox" | "production")}
+              disabled={values.environmentLocked}
+            >
               <option value="sandbox">Sandbox / testes</option>
               <option value="production">Produção</option>
             </select>
+            {values.environmentLocked ? (
+              <span className="helper-text">Ambiente fixado pela configuração segura do servidor.</span>
+            ) : null}
           </label>
           <label className="form-field">
             <span className="field-label">Prazo padrão</span>
