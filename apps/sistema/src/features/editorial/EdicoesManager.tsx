@@ -146,7 +146,11 @@ export function EdicoesManager({ editions }: EdicoesManagerProps): JSX.Element {
     setUploadStage("Preparando PDF e capa…");
 
     startTransition(async () => {
-      let plan: Awaited<ReturnType<typeof prepareEditionR2UploadAction>> extends { ok: true; plan: infer P } ? P : never;
+      let plan: {
+        pdf: { key: string; uploadUrl: string; publicUrl: string };
+        cover: { key: string; uploadUrl: string; publicUrl: string };
+        expiresAt: string;
+      } | null = null;
       try {
         const prepared = await analyzePdf(file);
         setUploadStage(`PDF validado · ${prepared.pageCount} páginas · preparando R2…`);
