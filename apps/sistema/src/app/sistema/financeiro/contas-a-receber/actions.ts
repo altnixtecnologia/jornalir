@@ -13,7 +13,10 @@ import { isLocalPreviewEnabled, LOCAL_PREVIEW_PROFILE } from "../../../../lib/au
 import { buildBillingMessage } from "@ir/core";
 import { parseAmount, validateReceivablePayload, type ReceivableFormPayload } from "../../../../features/financeiro/receivableFormTypes";
 import { createBillingMessageLogRepositorySupabase } from "../../../../providers/supabase/billingMessageLogRepository.supabase";
-import { sendWhatsappBillingTemplate } from "../../../../lib/financeiro/whatsappCloudProvider";
+import {
+  sendWhatsappBillingTemplate,
+  sendWhatsappPaymentConfirmedTemplate,
+} from "../../../../lib/financeiro/whatsappCloudProvider";
 
 const LIST_PATH = "/sistema/financeiro/contas-a-receber";
 
@@ -506,6 +509,124 @@ export async function buildBillingMessagePreviewAction(
       paymentUrl,
     };
   } catch (error) {
+    return { error: toErrorMessage(error) };
+  }
+}
+
+export async function buildPaymentConfirmationPreviewAction(
+  receivableId: string,
+): Promise<
+  | { error: string }
+  | {
+      ok: true;
+      message: string;
+      hasWhatsapp: boolean;
+      whatsappHref?: string;
+    }
+> {
+  try {
+    const client = createSupabaseServerClient();
+    const receivable = await getReceivableService(client).getById(receivableId);
+    const [clientRecord, charges] = await Promise.all([
+      getClientService(client).getById(receivable.clientId),
+      getPaymentChargeService(client).listForReceivable(receivableId),
+    ]);
+    const paidCharge = charges
+      .filter((charge) => charge.status === "paid")
+      .sort((a, b) => (b.paidAt ?? "").localeCompare(a.paidAt ?? ""))[0];
+    if (!paidCharge) return { error: "Nenhuma cobrança Pix paga encontrada neste título." };
+
+    const clientName = (clientRecord.tradeName ?? clientRecord.fullName ?? clientRecord.companyName ?? "Cliente").split(" ")[0];
+    const amountLabel = paidCharge.amount.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+    const reference = receivable.description || receivable.reference;
+    const message =
+      `Olá, ${clientName}! Confirmamos o recebimento de ${amountLabel} referente a ${reference}. Obrigado! — Informativo Regional`;
+
+    const phone = (clientRecord.whatsapp ?? clientRecord.phonePrimary ?? "").replace(/\D/g, "");
+    const normalizedPhone = phone && !phone.startsWith("55") ? `55${phone}` : phone;
+    const whatsappHref = normalizedPhone
+      ? `https://wa.me/${normalizedPhone}?text=${encodeURIComponent(message)}`
+      : undefined;
+
+    return {
+      ok: true,
+      message,
+      hasWhatsapp: Boolean(normalizedPhone),
+      whatsappHref,
+    };
+  } catch (error) {
+    return { error: toErrorMessage(error) };
+  }
+}
+
+export async function sendPaymentConfirmationAction(
+  receivableId: string,
+): Promise<{ error: string } | { ok: true; status: "sent" }> {
+  const client = createSupabaseServerClient();
+  let toPhone = "";
+  let clientId = "";
+  let message = "";
+  let actorId: string | undefined;
+
+  try {
+    const receivable = await getReceivableService(client).getById(receivableId);
+    const [clientRecord, charges, resolvedActorId] = await Promise.all([
+      getClientService(client).getById(receivable.clientId),
+      getPaymentChargeService(client).listForReceivable(receivableId),
+      resolveActorId(client),
+    ]);
+    actorId = resolvedActorId;
+    clientId = clientRecord.id;
+    toPhone = clientRecord.whatsapp ?? clientRecord.phonePrimary ?? "";
+    if (!toPhone) return { error: "Cadastro sem WhatsApp." };
+
+    const paidCharge = charges
+      .filter((charge) => charge.status === "paid")
+      .sort((a, b) => (b.paidAt ?? "").localeCompare(a.paidAt ?? ""))[0];
+    if (!paidCharge) return { error: "Nenhuma cobrança Pix paga encontrada neste título." };
+
+    const clientName = (clientRecord.tradeName ?? clientRecord.fullName ?? clientRecord.companyName ?? "Cliente").split(" ")[0];
+    const amountLabel = paidCharge.amount.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+    const reference = receivable.description || receivable.reference;
+    message = `Pagamento confirmado: ${amountLabel} • ${reference}`;
+
+    const sent = await sendWhatsappPaymentConfirmedTemplate({
+      toPhone,
+      clientName,
+      amountLabel,
+      reference,
+    });
+
+    await createBillingMessageLogRepositorySupabase(client).create({
+      receivableId,
+      clientId,
+      channel: "whatsapp",
+      toPhone,
+      message,
+      status: "sent",
+      providerMessageId: sent.providerMessageId,
+      createdByProfileId: actorId,
+    });
+
+    revalidatePath(`${LIST_PATH}/${receivableId}`);
+    return { ok: true, status: "sent" };
+  } catch (error) {
+    if (toPhone && clientId) {
+      try {
+        await createBillingMessageLogRepositorySupabase(client).create({
+          receivableId,
+          clientId,
+          channel: "whatsapp",
+          toPhone,
+          message || "Confirmação de pagamento",
+          status: "failed",
+          errorMessage: toErrorMessage(error),
+          createdByProfileId: actorId,
+        });
+      } catch {
+        // Não mascara o erro real do provedor.
+      }
+    }
     return { error: toErrorMessage(error) };
   }
 }
