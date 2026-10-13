@@ -149,8 +149,8 @@ export async function getFinancialOverviewSupabase(
       .from("receivable_receipts")
       .select("amount, received_at")
       .is("reversed_at", null)
-      .gte("received_at", receiptQueryStart)
-      .lte("received_at", receiptQueryEnd),
+      .gte("received_at", `${receiptQueryStart}T00:00:00`)
+      .lte("received_at", `${receiptQueryEnd}T23:59:59.999`),
     client
       .from("receivable_adjustments")
       .select("amount")
