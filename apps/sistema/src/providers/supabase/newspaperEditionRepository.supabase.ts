@@ -77,6 +77,7 @@ export interface R2EditionArchiveMetadata {
   sha256: string;
   coverKey?: string;
   coverUrl?: string;
+  pageCount?: number;
 }
 
 /**
@@ -100,6 +101,7 @@ export async function attachEditionR2Archive(
       pdf_sha256: archive.sha256,
       cover_r2_key: archive.coverKey ?? null,
       cover_url: archive.coverUrl ?? null,
+      page_count: archive.pageCount ?? null,
       archived_at: new Date().toISOString(),
     })
     .eq("id", editionId);
