@@ -418,7 +418,7 @@ export async function sendBillingMessageAction(
     const sent = await sendWhatsappBillingTemplate({
       toPhone,
       clientName,
-      reference: receivable.reference,
+      reference: receivable.description || receivable.reference,
       amountLabel,
       dueDateLabel,
       paymentUrl,
