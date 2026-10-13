@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { Fragment, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import type { PaymentCharge } from "@ir/types";
 import { PAYMENT_CHARGE_STATUS_LABELS } from "@ir/types";
@@ -294,8 +294,8 @@ export function PixChargePanel({
               {charges.map((charge) => {
                 const open = detailChargeId === charge.id;
                 return (
-                  <>
-                    <tr key={charge.id}>
+                  <Fragment key={charge.id}>
+                    <tr>
                       <td>{formatDateTime(charge.createdAt)}</td>
                       <td>{formatAmount(charge.amount)}</td>
                       <td>{PAYMENT_CHARGE_STATUS_LABELS[charge.status]}</td>
@@ -311,7 +311,7 @@ export function PixChargePanel({
                       </td>
                     </tr>
                     {open ? (
-                      <tr key={`${charge.id}-details`}>
+                      <tr>
                         <td colSpan={6}>
                           <div className="form-grid" style={{ padding: "8px 0" }}>
                             <div className="form-field">
@@ -354,7 +354,7 @@ export function PixChargePanel({
                         </td>
                       </tr>
                     ) : null}
-                  </>
+                  </Fragment>
                 );
               })}
             </tbody>
