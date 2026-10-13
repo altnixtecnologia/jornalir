@@ -7,6 +7,7 @@ import {
   type PixChargeProviderResult,
   type PixProvider,
 } from "@ir/core";
+import { getAsaasApiKey } from "./asaasEnv";
 
 interface BillingSettingsRow {
   environment: "sandbox" | "production";
@@ -56,10 +57,6 @@ function mapStatus(status: string): PixChargeProviderResult["status"] {
   return "failed";
 }
 
-function keyForEnvironment(environment: "sandbox" | "production"): string | undefined {
-  return environment === "sandbox" ? process.env.ASAAS_API_KEY_SANDBOX : process.env.ASAAS_API_KEY_PRODUCTION;
-}
-
 function baseUrl(environment: "sandbox" | "production"): string {
   return environment === "sandbox" ? "https://api-sandbox.asaas.com/v3" : "https://api.asaas.com/v3";
 }
@@ -73,12 +70,12 @@ async function loadSettings(client: SupabaseClient): Promise<BillingSettingsRow>
 
   if (error || !data) throw new PixProviderUnavailableError();
   const settings = data as BillingSettingsRow;
-  if (!settings.enabled || !settings.allow_pix || !keyForEnvironment(settings.environment)) throw new PixProviderUnavailableError();
+  if (!settings.enabled || !settings.allow_pix || !getAsaasApiKey(settings.environment)) throw new PixProviderUnavailableError();
   return settings;
 }
 
 async function asaasFetch<T>(settings: BillingSettingsRow, path: string, init?: RequestInit): Promise<T> {
-  const key = keyForEnvironment(settings.environment);
+  const key = getAsaasApiKey(settings.environment);
   if (!key) throw new PixProviderUnavailableError();
 
   const response = await fetch(`${baseUrl(settings.environment)}${path}`, {
