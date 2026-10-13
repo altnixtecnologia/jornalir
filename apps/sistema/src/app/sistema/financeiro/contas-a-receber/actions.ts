@@ -326,6 +326,7 @@ export async function createPixChargeAction(
 ): Promise<{ error: string } | { ok: true }> {
   const amount = parseAmount(input.amount);
   if (!Number.isFinite(amount) || amount <= 0) return { error: "Informe um valor válido para a cobrança." };
+  if (amount < 5) return { error: "O Asaas exige cobrança Pix mínima de R$ 5,00." };
   try {
     const client = createSupabaseServerClient();
     await getPaymentChargeService(client).createPixCharge({
