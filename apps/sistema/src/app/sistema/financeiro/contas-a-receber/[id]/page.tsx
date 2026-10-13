@@ -14,6 +14,7 @@ import { getClientService } from "../../../../../composition/clientes";
 import { createSupabaseServerClient } from "../../../../../lib/supabase/server";
 import { listActiveStaffSupabase } from "../../../../../providers/supabase/staffRepository.supabase";
 import { isLocalPreviewEnabled } from "../../../../../lib/auth/localPreview";
+import { isWhatsappCloudConfigured } from "../../../../../lib/financeiro/whatsappCloudProvider";
 
 function formatAmount(value: number): string {
   return value.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
@@ -155,6 +156,7 @@ export default async function ReceivableDetailPage({ params }: { params: { id: s
         receivableBalance={receivable.balance}
         charges={pixCharges}
         localPreview={isLocalPreviewEnabled()}
+        whatsappAutoConfigured={isWhatsappCloudConfigured()}
       />
 
       <ReceivableActionsPanel receivable={receivable} receipts={receipts} adjustments={adjustments} staff={staff} hasOlderOpenBalance={priorOpen.length > 0} />
