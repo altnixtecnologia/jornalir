@@ -20,7 +20,7 @@ const PREVIEW_EDITIONS: NewspaperEdition[] = [
 
 const TABLE = "newspaper_editions";
 const COLUMNS =
-  "id, edition_number, publication_date, title, pdf_url, pdf_storage_path, page_count, active, created_at";
+  "id, edition_number, publication_date, title, pdf_url, pdf_storage_path, cover_url, archive_provider, pdf_r2_key, pdf_file_name, pdf_sha256, page_count, active, created_at";
 
 interface NewspaperEditionRow {
   id: string;
@@ -29,6 +29,11 @@ interface NewspaperEditionRow {
   title: string | null;
   pdf_url: string | null;
   pdf_storage_path: string | null;
+  cover_url: string | null;
+  archive_provider: "r2" | "drive" | "supabase" | "external" | null;
+  pdf_r2_key: string | null;
+  pdf_file_name: string | null;
+  pdf_sha256: string | null;
   page_count: number | null;
   active: boolean;
   created_at: string;
@@ -56,6 +61,11 @@ async function toDomain(client: SupabaseClient, row: NewspaperEditionRow): Promi
     title: row.title ?? `Edição ${row.edition_number}`,
     publicationDate: row.publication_date,
     pdfUrl,
+    coverUrl: row.cover_url ?? undefined,
+    archiveProvider: row.archive_provider ?? undefined,
+    pdfR2Key: row.pdf_r2_key ?? undefined,
+    pdfFileName: row.pdf_file_name ?? undefined,
+    pdfSha256: row.pdf_sha256 ?? undefined,
     pageCount: row.page_count ?? undefined,
     active: row.active,
     createdAt: row.created_at,
