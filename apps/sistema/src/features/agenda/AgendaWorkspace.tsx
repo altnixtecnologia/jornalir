@@ -418,9 +418,9 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
                       {item.description ? <p>{item.description}</p> : null}
                       {item.articleId ? (
                         <Link href={"/sistema/editorial/materias/" + item.articleId} className="agenda-link-materia">Abrir matéria vinculada ↗</Link>
-                      ) : (
+                      ) : data.access.pautaWrite ? (
                         <Link href={"/sistema/editorial/materias/nova?pauta=" + encodeURIComponent(item.id)} className="agenda-link-materia">+ Criar matéria desta pauta</Link>
-                      )}
+                      ) : null}
                       {data.access.pautaWrite ? <PautaEdit item={item} /> : null}
                     </div>
                     {data.access.pautaWrite ? <button type="button" className="pauta-cancel" disabled={isPending} onClick={() => run(() => setPautaItemStatusAction(item.id, cancelled ? "pending" : "cancelled"), cancelled ? "Item restaurado." : "Item retirado da pauta.")}>{cancelled ? "↶" : "×"}</button> : null}

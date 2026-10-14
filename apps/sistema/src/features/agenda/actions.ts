@@ -185,7 +185,7 @@ export async function updateAgendaEventAction(eventId: string, formData: FormDat
   try {
     const { supabase } = await requireActiveUser();
     await validateActiveProfiles(supabase, input.assigneeIds);
-    const { error } = await supabase
+    const { data: updated, error } = await supabase
       .from("agenda_events")
       .update({
         title: input.title,
@@ -196,8 +196,10 @@ export async function updateAgendaEventAction(eventId: string, formData: FormDat
         location: input.location || null,
         reminder_minutes: input.reminderMinutes,
       })
-      .eq("id", eventId);
-    if (error) return { error: error.message };
+      .eq("id", eventId)
+      .select("id")
+      .maybeSingle();
+    if (error || !updated) return { error: error?.message ?? "Compromisso nao encontrado ou sem permissao." };
 
     await replaceEventAssignees(supabase, eventId, input.assigneeIds);
     refreshAgenda();
@@ -255,7 +257,7 @@ export async function updatePautaItemAction(itemId: string, formData: FormData):
   try {
     const { supabase } = await requireActiveUser();
     if (input.responsibleProfileId) await validateActiveProfiles(supabase, [input.responsibleProfileId]);
-    const { error } = await supabase
+    const { data: updated, error } = await supabase
       .from("weekly_pauta_items")
       .update({
         title: input.title,
@@ -265,8 +267,10 @@ export async function updatePautaItemAction(itemId: string, formData: FormData):
         responsible_profile_id: input.responsibleProfileId || null,
         agenda_event_id: input.agendaEventId || null,
       })
-      .eq("id", itemId);
-    if (error) return { error: error.message };
+      .eq("id", itemId)
+      .select("id")
+      .maybeSingle();
+    if (error || !updated) return { error: error?.message ?? "Pauta nao encontrada ou sem permissao." };
     refreshAgenda();
     return { ok: true };
   } catch (error) {
