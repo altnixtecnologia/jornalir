@@ -52,7 +52,9 @@ export async function getPublicSiteAds(): Promise<PublicSiteAds> {
     if (error) throw new Error(error.message);
 
     const rows = (data as MediaRow[] | null) ?? [];
-    if (rows.length === 0) return { mediaBySlot: buildFallbackMediaBySlot() };
+    // Banco respondeu normalmente e não há publicidade ativa: respeita o
+    // painel (inclusive posições desativadas) e não ressuscita mocks antigos.
+    if (rows.length === 0) return { mediaBySlot: new Map() };
 
     const mediaBySlot = new Map<number, PublicSiteAdMedia[]>();
     for (const row of rows) {
