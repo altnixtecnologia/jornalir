@@ -48,6 +48,9 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
 
   const supabase = createClient(url, serviceRoleKey, {
     auth: { persistSession: false, autoRefreshToken: false },
+    // Next.js pode reter respostas GET do PostgREST entre chamadas do cron.
+    // Compromissos cancelados, editados ou excluidos devem ser lidos imediatamente.
+    global: { fetch: (input, init) => fetch(input, { ...init, cache: "no-store" }) },
   });
   const current = nowLocal();
   const date = current.slice(0, 10);
