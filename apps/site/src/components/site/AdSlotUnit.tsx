@@ -23,7 +23,7 @@ export function AdSlotUnit({
         () => setIndex((prev) => (prev + 1) % slot.creatives.length),
         Math.max(2000, slot.rotateMs),
       );
-    }, Math.max(0, slot.phaseOffsetMs));
+    }, Math.max(2000, slot.rotateMs) + Math.max(0, slot.phaseOffsetMs));
 
     return () => {
       window.clearTimeout(timeoutId);
