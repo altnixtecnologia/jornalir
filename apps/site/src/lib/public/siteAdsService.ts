@@ -48,27 +48,6 @@ function fallbackForSlot(slotNumber: number, config: PublicSlotRow): PublicSiteA
   }));
 }
 
-function buildEmergencyFallback(): Map<number, PublicSiteAdMedia[]> {
-  const map = new Map<number, PublicSiteAdMedia[]>();
-  FALLBACK_AD_SLOTS.forEach((slot, index) => {
-    map.set(
-      index + 1,
-      slot.creatives.map((creative, order) => ({
-        slotNumber: index + 1,
-        id: creative.id,
-        imageUrl: creative.imageUrl,
-        altText: creative.alt,
-        href: creative.href,
-        sortOrder: order,
-        rotationIntervalMs: slot.rotateMs,
-        transitionEffect: slot.transitionEffect,
-        fitMode: slot.fitMode,
-      })),
-    );
-  });
-  return map;
-}
-
 export async function getPublicSiteAds(): Promise<PublicSiteAds> {
   try {
     const supabase = getPublicSupabaseClient();
@@ -123,8 +102,8 @@ export async function getPublicSiteAds(): Promise<PublicSiteAds> {
 
     return { mediaBySlot };
   } catch {
-    // Falha real de leitura do banco: mantém o portal com os anúncios
-    // legados em vez de deixar as laterais vazias.
-    return { mediaBySlot: buildEmergencyFallback() };
+    // Sem configuracao confiavel, nao ressuscitar anuncios antigos
+    // que possam ter sido removidos ou desativados pelo painel.
+    return { mediaBySlot: new Map() };
   }
 }
