@@ -76,6 +76,7 @@ function validateEventPayload(formData: FormData):
       location: string;
       description: string;
       assigneeIds: string[];
+      reminderMinutes: number | null;
     } {
   const title = value(formData, "title");
   const eventDate = value(formData, "event_date");
@@ -84,6 +85,10 @@ function validateEventPayload(formData: FormData):
   const location = value(formData, "location");
   const description = value(formData, "description");
   const assigneeIds = values(formData, "assignee_profile_ids");
+  const reminderRaw = value(formData, "reminder_minutes");
+  const reminderMinutes = reminderRaw === "off" ? null : Number(reminderRaw || "30");
+  if (reminderMinutes !== null && ![0,5,10,15,30,60,120,1440].includes(reminderMinutes)) return { error: "Lembrete inválido." };
+  if (!startTime && reminderMinutes !== null) return { error: "Informe um horário de início ou escolha Sem lembrete." };
 
   if (!title || title.length > 180) return { error: "Informe um título válido." };
   if (!validDate(eventDate)) return { error: "Informe uma data válida." };
@@ -91,7 +96,7 @@ function validateEventPayload(formData: FormData):
   if (startTime && endTime && endTime < startTime) return { error: "O horário final não pode ser anterior ao inicial." };
   if (location.length > 240) return { error: "Local muito longo." };
   if (description.length > 4000) return { error: "Descrição muito longa." };
-  return { title, eventDate, startTime, endTime, location, description, assigneeIds };
+  return { title, eventDate, startTime, endTime, location, description, assigneeIds, reminderMinutes };
 }
 
 function validatePautaPayload(formData: FormData):
@@ -145,6 +150,7 @@ export async function createAgendaEventAction(formData: FormData): Promise<Agend
         start_time: input.startTime || null,
         end_time: input.endTime || null,
         location: input.location || null,
+        reminder_minutes: input.reminderMinutes,
       })
       .select("id")
       .single();
@@ -175,6 +181,7 @@ export async function updateAgendaEventAction(eventId: string, formData: FormDat
         start_time: input.startTime || null,
         end_time: input.endTime || null,
         location: input.location || null,
+        reminder_minutes: input.reminderMinutes,
       })
       .eq("id", eventId);
     if (error) return { error: error.message };

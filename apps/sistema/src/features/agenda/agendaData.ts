@@ -78,7 +78,7 @@ export async function loadAgendaWorkspaceData(focusDate: string): Promise<Agenda
     supabase.from("profiles").select("id, name, role").eq("active", true).order("name", { ascending: true }),
     supabase
       .from("agenda_events")
-      .select("id, title, description, event_date, start_time, end_time, location, status")
+      .select("id, title, description, event_date, start_time, end_time, location, status, reminder_minutes")
       .gte("event_date", eventRangeStart)
       .lte("event_date", eventRangeEnd)
       .order("event_date", { ascending: true })
@@ -132,6 +132,7 @@ export async function loadAgendaWorkspaceData(focusDate: string): Promise<Agenda
     eventDate: event.event_date,
     startTime: trimDbTime(event.start_time),
     endTime: trimDbTime(event.end_time),
+    reminderMinutes: event.reminder_minutes,
     location: event.location,
     status: event.status as AgendaEventItem["status"],
     assignees: assigneesByEvent.get(event.id) ?? [],
