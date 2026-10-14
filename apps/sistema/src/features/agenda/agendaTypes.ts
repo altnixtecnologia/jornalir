@@ -11,6 +11,7 @@ export interface AgendaEventItem {
   eventDate: string;
   startTime: string | null;
   endTime: string | null;
+  reminderMinutes: number | null;
   location: string | null;
   status: "scheduled" | "completed" | "cancelled";
   assignees: AgendaProfile[];
