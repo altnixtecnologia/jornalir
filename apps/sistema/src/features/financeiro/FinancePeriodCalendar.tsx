@@ -184,7 +184,7 @@ export function FinancePeriodCalendar({
                     borderRadius: 7,
                     border: isToday ? "1px solid #b6242d" : "1px solid transparent",
                     background: endpoint
-                      ? "var(--brand-navy)"
+                      ? "var(--brand)"
                       : inRange
                         ? "rgba(37,36,86,.10)"
                         : "transparent",
