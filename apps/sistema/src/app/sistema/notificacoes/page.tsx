@@ -25,7 +25,7 @@ export default async function NotificationsPage(): Promise<JSX.Element> {
       client
         .from("site_interest_requests")
         .select("id, name, request_type, created_at")
-        .eq("status", "new")
+        .is("attended_at", null)
         .order("created_at", { ascending: false })
         .limit(50),
     ]);
