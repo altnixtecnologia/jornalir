@@ -23,7 +23,10 @@ function values(formData: FormData, key: string): string[] {
 }
 
 function validDate(input: string): boolean {
-  return /^\d{4}-\d{2}-\d{2}$/.test(input);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(input)) return false;
+  const [year, month, day] = input.split("-").map(Number);
+  const parsed = new Date(Date.UTC(year, month - 1, day, 12));
+  return parsed.toISOString().slice(0, 10) === input;
 }
 
 function validTime(input: string): boolean {
@@ -50,20 +53,11 @@ async function validateActiveProfiles(client: SupabaseClient, ids: string[]): Pr
 }
 
 async function replaceEventAssignees(client: SupabaseClient, eventId: string, profileIds: string[]): Promise<void> {
-  await validateActiveProfiles(client, profileIds);
-
-  const { error: deleteError } = await client.from("agenda_event_assignees").delete().eq("event_id", eventId);
-  if (deleteError) throw new Error(deleteError.message);
-
-  if (profileIds.length === 0) return;
-  const { error: insertError } = await client.from("agenda_event_assignees").insert(
-    profileIds.map((profileId) => ({
-      event_id: eventId,
-      profile_id: profileId,
-      assignment_type: "responsible",
-    })),
-  );
-  if (insertError) throw new Error(insertError.message);
+  const { error } = await client.rpc("replace_agenda_assignees", {
+    p_event_id: eventId,
+    p_profile_ids: profileIds,
+  });
+  if (error) throw new Error(error.message);
 }
 
 function validateEventPayload(formData: FormData):
@@ -133,6 +127,27 @@ function refreshAgenda(): void {
   revalidatePath("/agenda");
 }
 
+function repeatDates(firstDate: string, mode: string): string[] {
+  if (!["none", "weekly4", "weekly12", "monthly3"].includes(mode)) {
+    throw new Error("Recorrência inválida.");
+  }
+  const count = mode === "weekly4" ? 4 : mode === "weekly12" ? 12 : mode === "monthly3" ? 3 : 1;
+  const [year, month, day] = firstDate.split("-").map(Number);
+  const dates: string[] = [];
+  for (let i = 0; i < count; i++) {
+    let date: Date;
+    if (mode === "monthly3") {
+      const firstOfMonth = new Date(Date.UTC(year, month - 1 + i, 1, 12));
+      const lastDay = new Date(Date.UTC(firstOfMonth.getUTCFullYear(), firstOfMonth.getUTCMonth() + 1, 0, 12)).getUTCDate();
+      date = new Date(Date.UTC(firstOfMonth.getUTCFullYear(), firstOfMonth.getUTCMonth(), Math.min(day, lastDay), 12));
+    } else {
+      date = new Date(Date.UTC(year, month - 1, day + (mode === "none" ? 0 : i * 7), 12));
+    }
+    dates.push(date.toISOString().slice(0, 10));
+  }
+  return dates;
+}
+
 export async function createAgendaEventAction(formData: FormData): Promise<AgendaActionResult> {
   const input = validateEventPayload(formData);
   if ("error" in input) return input;
@@ -140,27 +155,25 @@ export async function createAgendaEventAction(formData: FormData): Promise<Agend
   try {
     const { supabase } = await requireActiveUser();
     await validateActiveProfiles(supabase, input.assigneeIds);
-
-    const { data: event, error } = await supabase
-      .from("agenda_events")
-      .insert({
-        title: input.title,
-        description: input.description || null,
-        event_date: input.eventDate,
-        start_time: input.startTime || null,
-        end_time: input.endTime || null,
-        location: input.location || null,
-        reminder_minutes: input.reminderMinutes,
-      })
-      .select("id")
-      .single();
-
-    if (error || !event) return { error: error?.message ?? "Não foi possível criar o compromisso." };
-    await replaceEventAssignees(supabase, event.id, input.assigneeIds);
+    const dates = repeatDates(input.eventDate, value(formData, "recurrence") || "none");
+    // Uma unica transacao no Postgres: ou grava todas as ocorrencias e todos
+    // os responsaveis, ou nao grava nenhuma.
+    const { data: inserted, error } = await supabase.rpc("create_agenda_occurrences", {
+      p_title: input.title,
+      p_description: input.description || null,
+      p_dates: dates,
+      p_start_time: input.startTime || null,
+      p_end_time: input.endTime || null,
+      p_location: input.location || null,
+      p_reminder_minutes: input.reminderMinutes,
+      p_assignee_ids: input.assigneeIds,
+    });
+    if (error) return { error: error.message };
+    if (Number(inserted) !== dates.length) return { error: "Nao foi possivel confirmar todas as ocorrencias." };
     refreshAgenda();
     return { ok: true };
   } catch (error) {
-    return { error: error instanceof Error ? error.message : "Não foi possível criar o compromisso." };
+    return { error: error instanceof Error ? error.message : "Nao foi possivel criar o compromisso." };
   }
 }
 
@@ -172,7 +185,7 @@ export async function updateAgendaEventAction(eventId: string, formData: FormDat
   try {
     const { supabase } = await requireActiveUser();
     await validateActiveProfiles(supabase, input.assigneeIds);
-    const { error } = await supabase
+    const { data: updated, error } = await supabase
       .from("agenda_events")
       .update({
         title: input.title,
@@ -183,8 +196,10 @@ export async function updateAgendaEventAction(eventId: string, formData: FormDat
         location: input.location || null,
         reminder_minutes: input.reminderMinutes,
       })
-      .eq("id", eventId);
-    if (error) return { error: error.message };
+      .eq("id", eventId)
+      .select("id")
+      .maybeSingle();
+    if (error || !updated) return { error: error?.message ?? "Compromisso nao encontrado ou sem permissao." };
 
     await replaceEventAssignees(supabase, eventId, input.assigneeIds);
     refreshAgenda();
@@ -201,8 +216,8 @@ export async function setAgendaEventStatusAction(
   if (!eventId) return { error: "Compromisso inválido." };
   try {
     const { supabase } = await requireActiveUser();
-    const { error } = await supabase.from("agenda_events").update({ status }).eq("id", eventId);
-    if (error) return { error: error.message };
+    const { data, error } = await supabase.from("agenda_events").update({ status }).eq("id", eventId).select("id").maybeSingle();
+    if (error || !data) return { error: error?.message ?? "Compromisso nao encontrado ou sem permissao." };
     refreshAgenda();
     return { ok: true };
   } catch (error) {
@@ -242,7 +257,7 @@ export async function updatePautaItemAction(itemId: string, formData: FormData):
   try {
     const { supabase } = await requireActiveUser();
     if (input.responsibleProfileId) await validateActiveProfiles(supabase, [input.responsibleProfileId]);
-    const { error } = await supabase
+    const { data: updated, error } = await supabase
       .from("weekly_pauta_items")
       .update({
         title: input.title,
@@ -252,8 +267,10 @@ export async function updatePautaItemAction(itemId: string, formData: FormData):
         responsible_profile_id: input.responsibleProfileId || null,
         agenda_event_id: input.agendaEventId || null,
       })
-      .eq("id", itemId);
-    if (error) return { error: error.message };
+      .eq("id", itemId)
+      .select("id")
+      .maybeSingle();
+    if (error || !updated) return { error: error?.message ?? "Pauta nao encontrada ou sem permissao." };
     refreshAgenda();
     return { ok: true };
   } catch (error) {
@@ -268,8 +285,8 @@ export async function setPautaItemStatusAction(
   if (!itemId) return { error: "Item inválido." };
   try {
     const { supabase } = await requireActiveUser();
-    const { error } = await supabase.from("weekly_pauta_items").update({ status }).eq("id", itemId);
-    if (error) return { error: error.message };
+    const { data, error } = await supabase.from("weekly_pauta_items").update({ status }).eq("id", itemId).select("id").maybeSingle();
+    if (error || !data) return { error: error?.message ?? "Pauta nao encontrada ou sem permissao." };
     refreshAgenda();
     return { ok: true };
   } catch (error) {

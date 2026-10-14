@@ -11,8 +11,10 @@ export default async function AgendaStandalonePage({
   searchParams?: Record<string, string | string[] | undefined>;
 }): Promise<JSX.Element> {
   const focusDate = normalizeAgendaDate(one(searchParams?.date));
-  const initialView = one(searchParams?.view) === "pauta" ? "pauta" : "agenda";
+  let initialView: "agenda" | "pauta" = one(searchParams?.view) === "pauta" ? "pauta" : "agenda";
   const data = await loadAgendaWorkspaceData(focusDate);
+  if (initialView === "agenda" && !data.access.agendaRead) initialView = "pauta";
+  if (initialView === "pauta" && !data.access.pautaRead) initialView = "agenda";
 
   return (
     <div className="agenda-standalone-page">

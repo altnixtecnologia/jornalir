@@ -1,4 +1,5 @@
 import "server-only";
+import { redirect } from "next/navigation";
 
 import { createSupabaseServerClient } from "../../lib/supabase/server";
 import type { AgendaEventItem, AgendaProfile, AgendaWorkspaceData, WeeklyPautaItem } from "./agendaTypes";
@@ -73,6 +74,22 @@ export async function loadAgendaWorkspaceData(focusDate: string): Promise<Agenda
   const { data: authData, error: userError } = await supabase.auth.getUser();
   const user = authData.user;
   if (userError || !user) throw new Error("Sessão inválida.");
+
+  const permissionResults = await Promise.all([
+    supabase.rpc("has_staff_module_access", { p_module: "agenda", p_write: false }),
+    supabase.rpc("has_staff_module_access", { p_module: "agenda", p_write: true }),
+    supabase.rpc("has_staff_module_access", { p_module: "pauta", p_write: false }),
+    supabase.rpc("has_staff_module_access", { p_module: "pauta", p_write: true }),
+  ]);
+  const failedPermission = permissionResults.find((result) => result.error);
+  if (failedPermission?.error) throw new Error(failedPermission.error.message);
+  const access = {
+    agendaRead: permissionResults[0].data === true,
+    agendaWrite: permissionResults[1].data === true,
+    pautaRead: permissionResults[2].data === true,
+    pautaWrite: permissionResults[3].data === true,
+  };
+  if (!access.agendaRead && !access.pautaRead) redirect("/sistema");
 
   const [profilesResult, eventsResult, pautaResult] = await Promise.all([
     supabase.from("profiles").select("id, name, role").eq("active", true).order("name", { ascending: true }),
@@ -163,6 +180,7 @@ export async function loadAgendaWorkspaceData(focusDate: string): Promise<Agenda
     weekStart,
     weekEnd,
     currentUserId: user.id,
+    access,
     profiles,
     events,
     pautaItems,

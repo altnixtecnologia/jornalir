@@ -2,6 +2,7 @@
 
 import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import {
   createAgendaEventAction,
   createPautaFromAgendaEventAction,
@@ -171,7 +172,8 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
           className="agenda-form"
           onSubmit={(event) => {
             event.preventDefault();
-            run(() => updateAgendaEventAction(item.id, new FormData(event.currentTarget)), "Compromisso atualizado.");
+            const form = event.currentTarget;
+            run(() => updateAgendaEventAction(item.id, new FormData(form)), "Compromisso atualizado.");
           }}
         >
           <label className="agenda-field agenda-field-wide"><span>Compromisso</span><input name="title" required maxLength={180} defaultValue={item.title} /></label>
@@ -196,7 +198,8 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
           className="agenda-form"
           onSubmit={(event) => {
             event.preventDefault();
-            run(() => updatePautaItemAction(item.id, new FormData(event.currentTarget)), "Pauta atualizada.");
+            const form = event.currentTarget;
+            run(() => updatePautaItemAction(item.id, new FormData(form)), "Pauta atualizada.");
           }}
         >
           <input type="hidden" name="week_start" value={item.weekStart} />
@@ -234,8 +237,8 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
     <section className="agenda-workspace">
       <div className="agenda-topbar">
         <div className="agenda-tabs" role="tablist" aria-label="Agenda e pauta">
-          <button type="button" className={initialView === "agenda" ? "is-active" : ""} onClick={() => navigate("agenda", data.focusDate)}>Agenda</button>
-          <button type="button" className={initialView === "pauta" ? "is-active" : ""} onClick={() => navigate("pauta", data.focusDate)}>Pauta da semana</button>
+          {data.access.agendaRead ? <button type="button" className={initialView === "agenda" ? "is-active" : ""} onClick={() => navigate("agenda", data.focusDate)}>Agenda</button> : null}
+          {data.access.pautaRead ? <button type="button" className={initialView === "pauta" ? "is-active" : ""} onClick={() => navigate("pauta", data.focusDate)}>Pauta da semana</button> : null}
         </div>
         <label className="agenda-person-filter">
           <span>Mostrar</span>
@@ -251,7 +254,7 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
 
       {message ? <div className="agenda-feedback" role="status">{message}</div> : null}
 
-      {initialView === "agenda" ? (
+      {initialView === "agenda" && data.access.agendaRead ? (
         <div className="agenda-layout">
           <div className="agenda-calendar-card">
             <div className="agenda-calendar-head">
@@ -302,25 +305,25 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
                           {item.description ? <p>{item.description}</p> : null}
                         </div>
                       </div>
-                      <div className="agenda-event-actions">
+                      {(data.access.agendaWrite || data.access.pautaWrite) ? <div className="agenda-event-actions">
                         {item.status === "scheduled" ? (
                           <>
-                            <button type="button" disabled={isPending} onClick={() => run(() => setAgendaEventStatusAction(item.id, "completed"), "Compromisso concluído.")}>✓ Concluir</button>
-                            <button type="button" disabled={isPending} onClick={() => run(() => createPautaFromAgendaEventAction(item.id), "Compromisso enviado para a pauta.")}>+ Pauta</button>
-                            <button type="button" className="is-danger-soft" disabled={isPending} onClick={() => run(() => setAgendaEventStatusAction(item.id, "cancelled"), "Compromisso cancelado.")}>Cancelar</button>
+                            {data.access.agendaWrite ? <button type="button" disabled={isPending} onClick={() => run(() => setAgendaEventStatusAction(item.id, "completed"), "Compromisso concluído.")}>✓ Concluir</button> : null}
+                            {data.access.pautaWrite ? <button type="button" disabled={isPending} onClick={() => run(() => createPautaFromAgendaEventAction(item.id), "Compromisso enviado para a pauta.")}>+ Pauta</button> : null}
+                            {data.access.agendaWrite ? <button type="button" className="is-danger-soft" disabled={isPending} onClick={() => run(() => setAgendaEventStatusAction(item.id, "cancelled"), "Compromisso cancelado.")}>Cancelar</button> : null}
                           </>
                         ) : (
-                          <button type="button" disabled={isPending} onClick={() => run(() => setAgendaEventStatusAction(item.id, "scheduled"), "Compromisso reaberto.")}>Reabrir</button>
+                          data.access.agendaWrite ? <button type="button" disabled={isPending} onClick={() => run(() => setAgendaEventStatusAction(item.id, "scheduled"), "Compromisso reaberto.")}>Reabrir</button> : null
                         )}
-                      </div>
-                      <EventEdit item={item} />
+                      </div> : null}
+                      {data.access.agendaWrite ? <EventEdit item={item} /> : null}
                     </article>
                   ))}
                 </div>
               ) : <div className="agenda-empty">Nenhum compromisso neste dia.</div>}
             </div>
 
-            <details className="agenda-create-panel" open>
+            {data.access.agendaWrite ? <details className="agenda-create-panel" open>
               <summary>Novo compromisso</summary>
               <form
                 className="agenda-form"
@@ -339,12 +342,13 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
                 <label className="agenda-field"><span>Início</span><input name="start_time" type="time" /></label>
                 <label className="agenda-field"><span>Fim</span><input name="end_time" type="time" /></label>
                 <label className="agenda-field"><span>Lembrete no grupo Telegram</span><select name="reminder_minutes" defaultValue="30"><option value="off">Sem lembrete</option><option value="0">No horário</option><option value="5">5 min antes</option><option value="10">10 min antes</option><option value="15">15 min antes</option><option value="30">30 min antes</option><option value="60">1 hora antes</option><option value="120">2 horas antes</option><option value="1440">1 dia antes</option></select></label>
+                <label className="agenda-field"><span>Repetir compromisso</span><select name="recurrence" defaultValue="none"><option value="none">Não repetir</option><option value="weekly4">Semanal · 4 ocorrências</option><option value="weekly12">Semanal · 12 ocorrências</option><option value="monthly3">Mensal · 3 ocorrências</option></select></label>
                 <label className="agenda-field agenda-field-wide"><span>Local</span><input name="location" maxLength={240} placeholder="Opcional" /></label>
                 <label className="agenda-field agenda-field-wide"><span>Observação</span><textarea name="description" maxLength={4000} placeholder="Informações úteis para a equipe" /></label>
                 <div className="agenda-field-wide"><AssigneeChecks profiles={data.profiles} currentUserId={data.currentUserId} /></div>
                 <div className="agenda-form-actions"><button type="submit" className="agenda-primary" disabled={isPending}>{isPending ? "Salvando..." : "Adicionar compromisso"}</button></div>
               </form>
-            </details>
+            </details> : null}
           </div>
         </div>
       ) : (
@@ -360,7 +364,7 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
             <span>{pautaItems.filter((item) => item.status === "pending").length} pendente(s)</span>
           </div>
 
-          <form
+          {data.access.pautaWrite ? <form
             className="pauta-quick-form"
             onSubmit={(event) => {
               event.preventDefault();
@@ -394,7 +398,7 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
             </label>
             <label className="agenda-field pauta-note-field"><span>Observação</span><input name="description" maxLength={4000} placeholder="Opcional" /></label>
             <button type="submit" className="agenda-primary" disabled={isPending}>+ Adicionar</button>
-          </form>
+          </form> : null}
 
           {pautaItems.length ? (
             <div className="pauta-list">
@@ -403,7 +407,7 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
                 const cancelled = item.status === "cancelled";
                 return (
                   <article key={item.id} className={"pauta-item" + (done ? " is-done" : "") + (cancelled ? " is-cancelled" : "")}>
-                    <button type="button" className="pauta-check" aria-label={done ? "Reabrir item" : "Concluir item"} disabled={isPending || cancelled} onClick={() => run(() => setPautaItemStatusAction(item.id, done ? "pending" : "completed"), done ? "Item reaberto." : "Item concluído.")}>{done ? "✓" : ""}</button>
+                    {data.access.pautaWrite ? <button type="button" className="pauta-check" aria-label={done ? "Reabrir item" : "Concluir item"} disabled={isPending || cancelled} onClick={() => run(() => setPautaItemStatusAction(item.id, done ? "pending" : "completed"), done ? "Item reaberto." : "Item concluído.")}>{done ? "✓" : ""}</button> : null}
                     <div className="pauta-item-content">
                       <div className="pauta-item-topline"><strong>{item.title}</strong><span>{item.responsibleName ?? "Sem responsável"}</span></div>
                       <div className="pauta-item-meta">
@@ -412,9 +416,14 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
                         {item.agendaEventTitle ? <span>Agenda: {item.agendaEventTitle}</span> : null}
                       </div>
                       {item.description ? <p>{item.description}</p> : null}
-                      <PautaEdit item={item} />
+                      {item.articleId ? (
+                        <Link href={"/sistema/editorial/materias/" + item.articleId} className="agenda-link-materia">Abrir matéria vinculada ↗</Link>
+                      ) : data.access.pautaWrite ? (
+                        <Link href={"/sistema/editorial/materias/nova?pauta=" + encodeURIComponent(item.id)} className="agenda-link-materia">+ Criar matéria desta pauta</Link>
+                      ) : null}
+                      {data.access.pautaWrite ? <PautaEdit item={item} /> : null}
                     </div>
-                    <button type="button" className="pauta-cancel" disabled={isPending} onClick={() => run(() => setPautaItemStatusAction(item.id, cancelled ? "pending" : "cancelled"), cancelled ? "Item restaurado." : "Item retirado da pauta.")}>{cancelled ? "↶" : "×"}</button>
+                    {data.access.pautaWrite ? <button type="button" className="pauta-cancel" disabled={isPending} onClick={() => run(() => setPautaItemStatusAction(item.id, cancelled ? "pending" : "cancelled"), cancelled ? "Item restaurado." : "Item retirado da pauta.")}>{cancelled ? "↶" : "×"}</button> : null}
                   </article>
                 );
               })}

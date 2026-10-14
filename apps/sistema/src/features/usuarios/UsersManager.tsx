@@ -6,6 +6,10 @@ import { useAuth, type AuthRole } from "../../lib/auth/AuthProvider";
 import { ROLE_LABELS } from "../../lib/auth/accountDisplay";
 import { inviteUser } from "../../app/sistema/usuarios/actions";
 
+type ModuleName = "agenda" | "pauta";
+type PermissionLevel = "none" | "read" | "write";
+interface PermissionRow { profile_id: string; module_name: ModuleName; can_read: boolean; can_write: boolean; }
+
 interface UserRow {
   id: string;
   name: string;
@@ -30,6 +34,7 @@ export function UsersManager(): JSX.Element {
   const { profile } = useAuth();
   const client = useMemo(() => createSupabaseBrowserClient(), []);
   const [users, setUsers] = useState<UserRow[] | null>(null);
+  const [modulePermissions, setModulePermissions] = useState<PermissionRow[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
@@ -40,15 +45,16 @@ export function UsersManager(): JSX.Element {
   const isAdmin = profile?.role === "admin";
 
   async function reload(): Promise<void> {
-    const { data, error: loadError } = await client
-      .from("profiles")
-      .select("id, name, role, active, created_at")
-      .order("created_at", { ascending: true });
-    if (loadError) {
-      setError("Não foi possível carregar os usuários.");
+    const [profilesResult, permissionsResult] = await Promise.all([
+      client.from("profiles").select("id, name, role, active, created_at").order("created_at", { ascending: true }),
+      client.from("staff_module_permissions").select("profile_id,module_name,can_read,can_write"),
+    ]);
+    if (profilesResult.error || permissionsResult.error) {
+      setError(profilesResult.error?.message ?? permissionsResult.error?.message ?? "Não foi possível carregar os usuários.");
       return;
     }
-    setUsers((data ?? []) as UserRow[]);
+    setUsers((profilesResult.data ?? []) as UserRow[]);
+    setModulePermissions((permissionsResult.data ?? []) as PermissionRow[]);
   }
 
   useEffect(() => {
@@ -112,6 +118,32 @@ export function UsersManager(): JSX.Element {
     }
     setInviteEmail("");
     setMessage("Convite enviado por e-mail. A pessoa define a própria senha ao acessar o link.");
+    await reload();
+  }
+
+  function permissionLevel(profileId: string, moduleName: ModuleName): PermissionLevel {
+    const row = modulePermissions.find((permission) => permission.profile_id === profileId && permission.module_name === moduleName);
+    return row?.can_write ? "write" : row?.can_read ? "read" : "none";
+  }
+
+  async function saveModulePermission(target: UserRow, moduleName: ModuleName, level: PermissionLevel): Promise<void> {
+    if (target.role !== "operator" || !canManage(target)) return;
+    setError(null);
+    setMessage(null);
+    setPending(true);
+    const { error: saveError } = await client.from("staff_module_permissions").upsert({
+      profile_id: target.id,
+      module_name: moduleName,
+      can_read: level !== "none",
+      can_write: level === "write",
+      updated_at: new Date().toISOString(),
+    }, { onConflict: "profile_id,module_name" });
+    setPending(false);
+    if (saveError) {
+      setError("Não foi possível salvar a permissão: " + saveError.message);
+      return;
+    }
+    setMessage("Permissões atualizadas para " + target.name + ".");
     await reload();
   }
 
@@ -262,6 +294,35 @@ export function UsersManager(): JSX.Element {
           );
         })}
       </ul>
+
+      <section className="form-section">
+        <h2>Permissões por usuário e módulo</h2>
+        <p className="helper-text">Proprietário e administradores mantêm acesso integral. Para operadores, configure individualmente Agenda e Pauta: sem acesso, somente leitura ou edição.</p>
+        {(users ?? []).filter((user) => user.role === "operator").map((user) => (
+          <div key={user.id} className="inline-form">
+            <strong>{user.name} {user.active ? "" : "(inativo)"}</strong>
+            <div className="form-grid">
+              {(["agenda", "pauta"] as ModuleName[]).map((moduleName) => (
+                <label className="form-field" key={moduleName}>
+                  <span className="field-label">{moduleName === "agenda" ? "Agenda" : "Pauta da semana"}</span>
+                  <select
+                    value={permissionLevel(user.id, moduleName)}
+                    disabled={pending || !canManage(user)}
+                    onChange={(event) => void saveModulePermission(user, moduleName, event.target.value as PermissionLevel)}
+                  >
+                    <option value="none">Sem acesso</option>
+                    <option value="read">Somente visualizar</option>
+                    <option value="write">Visualizar e editar</option>
+                  </select>
+                </label>
+              ))}
+            </div>
+          </div>
+        ))}
+        {(users ?? []).filter((user) => user.role === "operator").length === 0
+          ? <p className="helper-text">Ainda não há operadores cadastrados. Os controles aparecerão aqui quando um operador for convidado.</p>
+          : null}
+      </section>
     </>
   );
 }

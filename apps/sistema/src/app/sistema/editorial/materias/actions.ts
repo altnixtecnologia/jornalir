@@ -58,6 +58,7 @@ export async function createArticle(
   payload: ArticleFormPayload,
   intent: ArticleFormIntent,
   returnTab?: ArticleEditorTab,
+  pautaId?: string,
 ): Promise<ActionResult> {
   const validationError = validateArticlePayload(payload, intent);
   if (validationError) return { error: validationError };
@@ -67,6 +68,14 @@ export async function createArticle(
   let articleId: string;
   try {
     const AUDIT = await getAuditContext(client);
+    if (pautaId) {
+      if (!/^[0-9a-f-]{36}$/i.test(pautaId)) return { error: "Pauta invalida." };
+      const access = await client.rpc("has_staff_module_access", { p_module: "pauta", p_write: true });
+      if (access.error || access.data !== true) return { error: "Sem permissao para vincular materia a pauta." };
+      const { data: availablePauta, error: pautaError } = await client.from("weekly_pauta_items")
+        .select("id").eq("id", pautaId).is("article_id", null).maybeSingle();
+      if (pautaError || !availablePauta) return { error: pautaError?.message ?? "Pauta nao encontrada ou ja vinculada." };
+    }
     const created = await articleService.saveDraft(
       {
         title: payload.title.trim(),
@@ -84,6 +93,24 @@ export async function createArticle(
       AUDIT,
     );
     articleId = created.id;
+    if (pautaId && /^[0-9a-f-]{36}$/i.test(pautaId)) {
+      const { data: linkedPauta, error: linkError } = await client
+        .from("weekly_pauta_items")
+        .update({ article_id: articleId })
+        .eq("id", pautaId)
+        .is("article_id", null)
+        .select("id")
+        .maybeSingle();
+      if (linkError || !linkedPauta) {
+        // A matéria foi criada; evite declarar falha no cadastro e gerar
+        // duplicação por tentativa de novo envio.
+        console.error("Não foi possível vincular a pauta à matéria:", linkError?.message ?? "pauta indisponível");
+      } else {
+        revalidatePath("/sistema/agenda");
+        revalidatePath("/agenda");
+      }
+    }
+
 
     const placement = buildPlacement(payload);
     if (placement.type !== "none") {
