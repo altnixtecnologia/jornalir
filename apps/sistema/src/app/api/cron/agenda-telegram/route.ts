@@ -57,48 +57,63 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     .select("id,title,description,location,event_date,start_time,reminder_minutes")
     .eq("status", "scheduled")
     .gte("event_date", date)
-    .lte("event_date", tomorrow)
-    .not("start_time", "is", null);
+    .lte("event_date", tomorrow);
   if (error) return NextResponse.json({ error: "Falha ao buscar compromissos." }, { status: 500 });
 
   let sent = 0;
   let failed = 0;
   for (const event of (data ?? []) as AgendaRow[]) {
-    if (event.reminder_minutes === null) continue;
+    if (event.reminder_minutes === null || !event.start_time) continue;
     const dueAt = atMinute(event.event_date + "T" + (event.start_time ?? "00:00").slice(0, 5), -event.reminder_minutes);
     // A chamada deve ocorrer em até 10 minutos do vencimento.
     if (dueAt > current || atMinute(dueAt, 10) <= current) continue;
     const eventKey = event.id + ":" + dueAt + ":" + event.reminder_minutes;
-    const { data: existing } = await supabase.from("agenda_telegram_delivery")
-      .select("event_key").eq("event_key", eventKey).maybeSingle();
-    if (existing) continue;
+    // A reserva UNIQUE vem antes do envio: chamadas concorrentes não duplicam avisos.
+    const claim = await supabase.from("agenda_telegram_delivery")
+      .insert({ event_key: eventKey, event_id: event.id, delivery_status: "pending" });
+    if (claim.error?.code === "23505") continue;
+    if (claim.error) { failed += 1; continue; }
 
     const assignees = await supabase.from("agenda_event_assignees")
-      .select("profiles(name)").eq("event_id", event.id);
-    const names = (assignees.data ?? [])
-      .map((row: { profiles: unknown }) => {
-        const profile = row.profiles as { name?: string } | null;
-        return profile?.name;
-      }).filter(Boolean).join(", ");
+      .select("profile_id").eq("event_id", event.id);
+    const ids = (assignees.data ?? []).map((row) => row.profile_id);
+    const profiles = ids.length ? await supabase.from("profiles").select("name").in("id", ids) : null;
+    const names = (profiles?.data ?? []).map((row) => row.name).filter(Boolean).join(", ");
     const lines = [
       "📅 Jornal IR | Lembrete da Agenda",
       event.title,
       "Quando: " + event.event_date.split("-").reverse().join("/") + " às " + event.start_time?.slice(0, 5) + "h",
       names ? "Responsáveis: " + names : null,
       event.location ? "Local: " + event.location : null,
-      event.description ? "Observações: " + event.description : null,
+      event.description ? "Observações: " + event.description.slice(0, 1500) : null,
     ].filter(Boolean);
-    const delivery = await fetch("https://api.telegram.org/bot" + token + "/sendMessage", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ chat_id: chatId, text: lines.join("\n"), disable_web_page_preview: true }),
-    });
-    if (!delivery.ok) { failed += 1; continue; }
-    const result = await supabase.from("agenda_telegram_delivery").insert({
-      event_key: eventKey, event_id: event.id,
-    });
-    if (result.error) { failed += 1; continue; }
-    sent += 1;
+    try {
+      const response = await fetch("https://api.telegram.org/bot" + token + "/sendMessage", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ chat_id: chatId, text: lines.join("\n"), disable_web_page_preview: true }),
+        signal: AbortSignal.timeout(10000),
+      });
+      if (!response.ok) {
+        const message = "Telegram HTTP " + response.status;
+        await supabase.from("agenda_telegram_delivery").update({
+          delivery_status: "failed", last_error: message,
+        }).eq("event_key", eventKey);
+        failed += 1;
+        continue;
+      }
+      const result = await supabase.from("agenda_telegram_delivery").update({
+        delivery_status: "sent", sent_at: new Date().toISOString(), last_error: null,
+      }).eq("event_key", eventKey);
+      if (result.error) { failed += 1; continue; }
+      sent += 1;
+    } catch (error) {
+      // Resposta perdida pode significar envio efetivado: nao repetir automaticamente.
+      await supabase.from("agenda_telegram_delivery").update({
+        delivery_status: "uncertain", last_error: error instanceof Error ? error.message.slice(0, 300) : "Sem resposta",
+      }).eq("event_key", eventKey);
+      failed += 1;
+    }
   }
   return NextResponse.json({ sent, failed });
 }

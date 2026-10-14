@@ -88,6 +88,7 @@ function validateEventPayload(formData: FormData):
   const reminderRaw = value(formData, "reminder_minutes");
   const reminderMinutes = reminderRaw === "off" ? null : Number(reminderRaw || "30");
   if (reminderMinutes !== null && ![0,5,10,15,30,60,120,1440].includes(reminderMinutes)) return { error: "Lembrete inválido." };
+  if (!startTime && reminderMinutes !== null) return { error: "Informe um horário de início ou escolha Sem lembrete." };
 
   if (!title || title.length > 180) return { error: "Informe um título válido." };
   if (!validDate(eventDate)) return { error: "Informe uma data válida." };
@@ -205,6 +206,7 @@ export async function updateAgendaEventAction(eventId: string, formData: FormDat
         start_time: input.startTime || null,
         end_time: input.endTime || null,
         location: input.location || null,
+        reminder_minutes: input.reminderMinutes,
       })
       .eq("id", eventId);
     if (error) return { error: error.message };
