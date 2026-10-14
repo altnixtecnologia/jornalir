@@ -57,6 +57,9 @@ interface ArticleFormProps {
   mediaAssets: MediaAsset[];
   editions?: NewspaperEdition[];
   initialTab?: ArticleEditorTab;
+  initialTitle?: string;
+  initialBody?: string;
+  pautaId?: string;
 }
 
 const PLACEMENT_OPTIONS: EditorialPlacementType[] = [
@@ -77,16 +80,19 @@ export function ArticleForm({
   mediaAssets,
   editions = [],
   initialTab = "conteudo",
+  initialTitle = "",
+  initialBody = "",
+  pautaId,
 }: ArticleFormProps): JSX.Element {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<ArticleEditorTab>(initialTab);
-  const [title, setTitle] = useState(article?.title ?? "");
+  const [title, setTitle] = useState(article?.title ?? initialTitle);
   const [titleStyle, setTitleStyle] = useState<EditorialTextStyle>(article?.titleStyle ?? DEFAULT_TEXT_STYLE);
   const [subtitle, setSubtitle] = useState(article?.subtitle ?? "");
   const [subtitleStyle, setSubtitleStyle] = useState<EditorialTextStyle>(
     article?.subtitleStyle ?? DEFAULT_TEXT_STYLE,
   );
-  const [body, setBody] = useState(article?.body ?? "");
+  const [body, setBody] = useState(article?.body ?? initialBody);
   const [sectionId, setSectionId] = useState(article?.sectionId ?? "");
   const [localityId, setLocalityId] = useState(article?.localityId ?? "");
   const [notificationMode, setNotificationMode] = useState<NotificationMode>(
@@ -242,7 +248,7 @@ export function ArticleForm({
       const result =
         mode === "edit" && article
           ? await updateArticle(article.id, payload, intent, returnTab)
-          : await createArticle(payload, intent, returnTab);
+          : await createArticle(payload, intent, returnTab, pautaId);
       if (result?.error) {
         setFormError(result.error);
       } else {
