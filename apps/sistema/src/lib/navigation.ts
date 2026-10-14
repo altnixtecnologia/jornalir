@@ -19,6 +19,12 @@ export const adminModules: readonly AdminModule[] = [
     planned: false,
   },
   {
+    slug: "agenda",
+    label: "Agenda",
+    description: "Compromissos da equipe e pauta operacional da semana.",
+    planned: false,
+  },
+  {
     slug: "clientes",
     label: "Clientes",
     description:

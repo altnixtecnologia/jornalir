@@ -52,7 +52,7 @@ export async function middleware(request: NextRequest): Promise<NextResponse> {
   } = await supabase.auth.getUser();
 
   const { pathname } = request.nextUrl;
-  const isProtected = pathname.startsWith("/sistema");
+  const isProtected = pathname.startsWith("/sistema") || pathname.startsWith("/agenda");
   const isLogin = pathname === "/login";
 
   if (isProtected) {
@@ -77,5 +77,5 @@ export async function middleware(request: NextRequest): Promise<NextResponse> {
 }
 
 export const config = {
-  matcher: ["/sistema/:path*", "/login"],
+  matcher: ["/sistema/:path*", "/agenda/:path*", "/login"],
 };

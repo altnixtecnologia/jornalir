@@ -35,6 +35,15 @@ export function MobileNav({ onNavigate }: { onNavigate: () => void }): JSX.Eleme
       ))}
 
       <Link
+        href="/sistema/agenda"
+        className="mobile-nav-link"
+        onClick={onNavigate}
+        aria-current={pathname.startsWith("/sistema/agenda") ? "page" : undefined}
+      >
+        Agenda e pauta
+      </Link>
+
+      <Link
         href={clientesNavGroup.links[0].href}
         className="mobile-nav-link"
         onClick={onNavigate}

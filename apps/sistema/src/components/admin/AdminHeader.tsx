@@ -19,6 +19,7 @@ export function AdminHeader({ onOpenMenu }: { onOpenMenu: () => void }): JSX.Ele
   const { profile } = useAuth();
   const isHome = pathname === "/sistema";
   const isEditorial = pathname.startsWith("/sistema/editorial");
+  const isAgenda = pathname.startsWith("/sistema/agenda");
   const isClientes = pathname.startsWith("/sistema/clientes");
   const isAniversariantes = pathname.startsWith("/sistema/aniversariantes");
   const isAssinaturas = pathname.startsWith("/sistema/assinaturas");
@@ -57,6 +58,10 @@ export function AdminHeader({ onOpenMenu }: { onOpenMenu: () => void }): JSX.Ele
               ))}
             </div>
           </details>
+
+          <Link href="/sistema/agenda" className="app-nav-link" aria-current={isAgenda ? "page" : undefined}>
+            Agenda
+          </Link>
 
           <Link
             href={clientesNavGroup.links[0].href}
