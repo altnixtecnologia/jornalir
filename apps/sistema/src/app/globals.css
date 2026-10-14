@@ -5015,3 +5015,13 @@ button.secondary-link {
 @media(max-width:1180px){.site-ad-side-grid{grid-template-columns:1fr}.site-ad-slot-settings{grid-template-columns:110px 1fr 1fr}.site-ad-thumbnails,.site-ad-preview-grid{grid-template-columns:repeat(6,minmax(0,1fr))}}
 @media(max-width:700px){.site-ad-side-heading{display:grid}.site-ad-slot-settings{grid-template-columns:1fr 1fr}.site-ad-slot-settings>.form-field:last-of-type{grid-column:1/-1}.site-ad-preview-grid,.site-ad-thumbnails{grid-template-columns:repeat(3,minmax(0,1fr))}}
 @media(max-width:460px){.site-ad-slot-settings{grid-template-columns:1fr}.site-ad-slot-settings>.form-field:last-of-type{grid-column:auto}.site-ad-slot-settings>.form-action-primary{grid-column:auto;width:100%;justify-self:stretch}.site-ad-preview-grid,.site-ad-thumbnails{grid-template-columns:repeat(2,minmax(0,1fr))}}
+
+
+/* Botão de exclusão sobre miniaturas de patrocinadores. */
+.site-ad-preview-item{position:relative;min-width:0}
+.site-ad-preview-item img{display:block;width:100%;aspect-ratio:4/3;border:1px solid var(--line);border-radius:6px;background:#fff;min-height:72px}
+.site-ad-image-remove{position:absolute;top:5px;right:5px;z-index:2;display:flex;align-items:center;justify-content:center;width:30px;height:30px;padding:0;border:1px solid rgba(255,255,255,.75);border-radius:50%;background:rgba(42,42,42,.9);color:#fff;font-size:23px;line-height:1;cursor:pointer;opacity:0;transition:opacity .15s ease,background .15s ease}
+.site-ad-thumb-image:hover .site-ad-image-remove,.site-ad-preview-item:hover .site-ad-image-remove,.site-ad-image-remove:focus-visible{opacity:1}
+.site-ad-image-remove:hover{background:#be2525}
+.site-ad-image-remove:disabled{opacity:.35;cursor:wait}
+@media(hover:none),(pointer:coarse){.site-ad-image-remove{opacity:1;width:34px;height:34px}}
