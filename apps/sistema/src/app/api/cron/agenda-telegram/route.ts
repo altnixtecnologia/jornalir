@@ -62,15 +62,11 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
 
   let sent = 0;
   let failed = 0;
-  let eligible = 0;
-  const scanned = (data ?? []).length;
-  const probe = await supabase.from("agenda_events").select("id", { count: "exact", head: true });
   for (const event of (data ?? []) as AgendaRow[]) {
     if (event.reminder_minutes === null || !event.start_time) continue;
     const dueAt = atMinute(event.event_date + "T" + (event.start_time ?? "00:00").slice(0, 5), -event.reminder_minutes);
     // A chamada deve ocorrer em até 10 minutos do vencimento.
     if (dueAt > current || atMinute(dueAt, 10) <= current) continue;
-    eligible += 1;
     const eventKey = event.id + ":" + dueAt + ":" + event.reminder_minutes;
     // A reserva UNIQUE vem antes do envio: chamadas concorrentes não duplicam avisos.
     const claim = await supabase.from("agenda_telegram_delivery")
@@ -119,15 +115,5 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       failed += 1;
     }
   }
-  const sample = (data ?? [])[0] as AgendaRow | undefined;
-  const sampleDue = sample?.start_time && sample.reminder_minutes !== null
-    ? atMinute(sample.event_date + "T" + sample.start_time.slice(0, 5), -sample.reminder_minutes) : null;
-  return NextResponse.json({
-    sent, failed, scanned, eligible, localClock: current, allEvents: probe.count,
-    probeError: probe.error?.code ?? null,
-    sample: sample ? { eventDate: sample.event_date, startTime: sample.start_time,
-      reminder: sample.reminder_minutes, dueAt: sampleDue,
-      isFuture: sampleDue ? sampleDue > current : null,
-      isExpired: sampleDue ? atMinute(sampleDue, 10) <= current : null } : null,
-  });
+  return NextResponse.json({ sent, failed });
 }
