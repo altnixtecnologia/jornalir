@@ -2,6 +2,7 @@
 
 import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import {
   createAgendaEventAction,
   createPautaFromAgendaEventAction,
@@ -410,6 +411,11 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
                         {item.agendaEventTitle ? <span>Agenda: {item.agendaEventTitle}</span> : null}
                       </div>
                       {item.description ? <p>{item.description}</p> : null}
+                      {item.articleId ? (
+                        <Link href={"/sistema/editorial/materias/" + item.articleId} className="agenda-link-materia">Abrir matéria vinculada ↗</Link>
+                      ) : (
+                        <Link href={"/sistema/editorial/materias/nova?pauta=" + encodeURIComponent(item.id)} className="agenda-link-materia">+ Criar matéria desta pauta</Link>
+                      )}
                       <PautaEdit item={item} />
                     </div>
                     <button type="button" className="pauta-cancel" disabled={isPending} onClick={() => run(() => setPautaItemStatusAction(item.id, cancelled ? "pending" : "cancelled"), cancelled ? "Item restaurado." : "Item retirado da pauta.")}>{cancelled ? "↶" : "×"}</button>
