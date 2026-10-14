@@ -1,12 +1,3 @@
--- Recria/atualiza a view de saldo de créditos após a adição de
--- client_credits.origin_payment_charge_id.
---
--- PostgreSQL expande cc.* no momento em que a view é criada; colunas
--- adicionadas depois na tabela base não entram automaticamente na view.
--- Mantemos a ordem original das colunas existentes e acrescentamos
--- origin_payment_charge_id ao final, permitindo CREATE OR REPLACE sem
--- quebrar dependências.
-
 create or replace view public.client_credits_with_balance
 with (security_invoker = true)
 as

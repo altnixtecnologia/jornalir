@@ -1,31 +1,3 @@
--- Busca pública rápida e hierárquica:
--- título -> subtítulo -> corpo; fragmentos sem acento; filtros por editoria/período.
-
-create extension if not exists unaccent with schema extensions;
-create extension if not exists pg_trgm with schema extensions;
-
-create or replace function public.ir_unaccent(value text)
-returns text
-language sql
-immutable
-parallel safe
-set search_path = public, extensions
-as $$
-  select extensions.unaccent(coalesce(value, ''))
-$$;
-
-create index if not exists articles_public_search_title_trgm_idx
-  on public.articles using gin (public.ir_unaccent(lower(title)) gin_trgm_ops)
-  where status = 'published';
-
-create index if not exists articles_public_search_subtitle_trgm_idx
-  on public.articles using gin (public.ir_unaccent(lower(coalesce(subtitle, ''))) gin_trgm_ops)
-  where status = 'published';
-
-create index if not exists articles_public_search_body_trgm_idx
-  on public.articles using gin (public.ir_unaccent(lower(body)) gin_trgm_ops)
-  where status = 'published';
-
 create or replace function public.search_public_articles(
   p_search text,
   p_section_id uuid default null,
@@ -49,7 +21,7 @@ returns table (
 )
 language sql
 stable
-security invoker
+security definer
 set search_path = public, extensions
 as $$
   with params as (
@@ -93,4 +65,5 @@ as $$
   offset greatest(0, coalesce(p_offset, 0))
 $$;
 
+revoke all on function public.search_public_articles(text, uuid, date, date, integer, integer) from public;
 grant execute on function public.search_public_articles(text, uuid, date, date, integer, integer) to anon, authenticated;

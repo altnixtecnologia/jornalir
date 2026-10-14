@@ -1,7 +1,3 @@
--- Descontos configuráveis por produto na página /assine.
--- Quando o visitante coloca 2 ou mais produtos no carrinho, cada item
--- recebe o seu próprio desconto configurado abaixo.
-
 alter table public.site_offer_settings
   add column annual_subscription_combo_discount numeric(12, 2) not null default 50
     check (annual_subscription_combo_discount >= 0),
