@@ -41,7 +41,7 @@ function SlotCard({ slot }: { slot: SiteAdSlotWithMedia }): JSX.Element {
   useEffect(() => () => previews.forEach(({ url }) => URL.revokeObjectURL(url)), [previews]);
 
   function selectFiles(files: FileList | null): void {
-    previews.forEach((url) => URL.revokeObjectURL(url));
+    previews.forEach(({ url }) => URL.revokeObjectURL(url));
     setPreviews(files ? Array.from(files).map((file) => ({ file, url: URL.createObjectURL(file) })) : []);
   }
 
@@ -95,7 +95,7 @@ function SlotCard({ slot }: { slot: SiteAdSlotWithMedia }): JSX.Element {
           : result.count + " imagem(ns) enviada(s).",
       );
       if (inputRef.current) inputRef.current.value = "";
-      previews.forEach((url) => URL.revokeObjectURL(url));
+      previews.forEach(({ url }) => URL.revokeObjectURL(url));
       setPreviews([]);
       router.refresh();
     });
