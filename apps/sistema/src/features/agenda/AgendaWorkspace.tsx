@@ -313,7 +313,7 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
                             {data.access.agendaWrite ? <button type="button" className="is-danger-soft" disabled={isPending} onClick={() => run(() => setAgendaEventStatusAction(item.id, "cancelled"), "Compromisso cancelado.")}>Cancelar</button> : null}
                           </>
                         ) : (
-                          {data.access.agendaWrite ? <button type="button" disabled={isPending} onClick={() => run(() => setAgendaEventStatusAction(item.id, "scheduled"), "Compromisso reaberto.")}>Reabrir</button> : null}
+                          data.access.agendaWrite ? <button type="button" disabled={isPending} onClick={() => run(() => setAgendaEventStatusAction(item.id, "scheduled"), "Compromisso reaberto.")}>Reabrir</button> : null
                         )}
                       </div> : null}
                       {data.access.agendaWrite ? <EventEdit item={item} /> : null}
