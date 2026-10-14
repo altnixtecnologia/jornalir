@@ -338,6 +338,7 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
                 <label className="agenda-field"><span>Data</span><input name="event_date" type="date" value={selectedDate} onChange={(e) => setSelectedDate(e.target.value)} required /></label>
                 <label className="agenda-field"><span>Início</span><input name="start_time" type="time" /></label>
                 <label className="agenda-field"><span>Fim</span><input name="end_time" type="time" /></label>
+                <label className="agenda-field"><span>Repetir compromisso</span><select name="recurrence" defaultValue="none"><option value="none">Não repetir</option><option value="weekly4">Semanal · 4 ocorrências</option><option value="weekly12">Semanal · 12 ocorrências</option><option value="monthly3">Mensal · 3 ocorrências</option></select></label>
                 <label className="agenda-field agenda-field-wide"><span>Local</span><input name="location" maxLength={240} placeholder="Opcional" /></label>
                 <label className="agenda-field agenda-field-wide"><span>Observação</span><textarea name="description" maxLength={4000} placeholder="Informações úteis para a equipe" /></label>
                 <div className="agenda-field-wide"><AssigneeChecks profiles={data.profiles} currentUserId={data.currentUserId} /></div>
