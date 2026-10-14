@@ -63,11 +63,14 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
 
   let sent = 0;
   let failed = 0;
+  let eligible = 0;
+  const scanned = (data ?? []).length;
   for (const event of (data ?? []) as AgendaRow[]) {
     if (event.reminder_minutes === null) continue;
     const dueAt = atMinute(event.event_date + "T" + (event.start_time ?? "00:00").slice(0, 5), -event.reminder_minutes);
     // A chamada deve ocorrer em até 10 minutos do vencimento.
     if (dueAt > current || atMinute(dueAt, 10) <= current) continue;
+    eligible += 1;
     const eventKey = event.id + ":" + dueAt + ":" + event.reminder_minutes;
     // A reserva UNIQUE vem antes do envio: chamadas concorrentes não duplicam avisos.
     const claim = await supabase.from("agenda_telegram_delivery")
@@ -116,5 +119,5 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       failed += 1;
     }
   }
-  return NextResponse.json({ sent, failed });
+  return NextResponse.json({ sent, failed, scanned, eligible, localClock: current });
 }
