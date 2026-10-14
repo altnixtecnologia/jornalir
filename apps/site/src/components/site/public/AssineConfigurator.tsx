@@ -83,43 +83,43 @@ export function AssineConfigurator({ settings }: { settings: PublicSiteOfferSett
       {
         id: "business-card",
         label: "Cartão de visita",
-        dimensions: "8,4 × 6 cm",
+        dimensions: "8,4 × 5,4 cm",
         price: settings.printBusinessCardPrice,
         comboDiscount: settings.printBusinessCardComboDiscount,
-        widthPct: 33.6,
-        heightPct: 16.67,
+        widthPct: (8.4 / 26) * 100,
+        heightPct: (5.4 / 33.5) * 100,
       },
       {
         id: "standard",
         label: "Padrão",
-        dimensions: "8,4 × 12 cm",
+        dimensions: "8,4 × 11 cm",
         price: settings.printStandardPrice,
         comboDiscount: settings.printStandardComboDiscount,
-        widthPct: 33.6,
-        heightPct: 33.33,
+        widthPct: (8.4 / 26) * 100,
+        heightPct: (11 / 33.5) * 100,
       },
       {
         id: "quarter",
         label: "1/4 de página",
-        dimensions: "12,5 × 18 cm",
+        dimensions: "12,8 × 16,7 cm",
         price: settings.printQuarterPrice,
         comboDiscount: settings.printQuarterComboDiscount,
-        widthPct: 50,
-        heightPct: 50,
+        widthPct: (12.8 / 26) * 100,
+        heightPct: (16.7 / 33.5) * 100,
       },
       {
         id: "half",
         label: "Meia página",
-        dimensions: "25 × 18 cm",
+        dimensions: "26 × 16,7 cm",
         price: settings.printHalfPrice,
         comboDiscount: settings.printHalfComboDiscount,
         widthPct: 100,
-        heightPct: 50,
+        heightPct: (16.7 / 33.5) * 100,
       },
       {
         id: "full",
         label: "Página inteira",
-        dimensions: "25 × 36 cm",
+        dimensions: "26 × 33,5 cm",
         price: settings.printFullPrice,
         comboDiscount: settings.printFullComboDiscount,
         widthPct: 100,
@@ -430,7 +430,7 @@ export function AssineConfigurator({ settings }: { settings: PublicSiteOfferSett
               <div>
                 <h2 className="font-editorial text-2xl font-bold md:text-3xl">Escolha o tamanho do anúncio</h2>
                 <p className="mt-2 text-sm" style={{ color: "var(--site-muted)" }}>
-                  Todos os formatos são coloridos. As medidas abaixo seguem a página impressa de 25 × 36 cm.
+                  Todos os formatos são coloridos. As medidas abaixo seguem a página impressa de 26 × 33,5 cm.
                 </p>
               </div>
               <span className="text-xs font-semibold uppercase tracking-[0.1em]" style={{ color: "var(--brand-red)" }}>
@@ -450,7 +450,7 @@ export function AssineConfigurator({ settings }: { settings: PublicSiteOfferSett
                     style={{ borderColor: "var(--site-line)", background: selected ? "var(--site-bg)" : "var(--site-surface)" }}
                   >
                     <div className="flex h-32 items-center justify-center rounded-lg border bg-white p-2" style={{ borderColor: "var(--site-line)" }}>
-                      <div className="relative aspect-[25/36] h-full max-h-[104px] border-2 border-zinc-300 bg-zinc-50">
+                      <div className="relative aspect-[26/33.5] h-full max-h-[104px] border-2 border-zinc-300 bg-zinc-50">
                         <div
                           className="absolute left-1/2 top-1/2 flex -translate-x-1/2 -translate-y-1/2 items-start justify-center overflow-hidden border-2 border-[color:var(--brand-red)] bg-red-50 pt-[2px] text-center text-[4px] font-bold leading-none text-red-700"
                           style={{

@@ -178,11 +178,11 @@ export function SiteOfferSettingsPanel({ values }: { values: SiteOfferSettingsVa
       <section className="form-section">
         <h2>Jornal impresso</h2>
         <div className="assine-config-list">
-          {productRow("Cartão de visita — 8,4 × 6 cm", "printBusinessCardPrice", "printBusinessCardComboDiscount")}
-          {productRow("Padrão — 8,4 × 12 cm", "printStandardPrice", "printStandardComboDiscount")}
-          {productRow("1/4 de página — 12,5 × 18 cm", "printQuarterPrice", "printQuarterComboDiscount")}
-          {productRow("Meia página — 25 × 18 cm", "printHalfPrice", "printHalfComboDiscount")}
-          {productRow("Página inteira — 25 × 36 cm", "printFullPrice", "printFullComboDiscount")}
+          {productRow("Cartão de visita — 8,4 × 5,4 cm", "printBusinessCardPrice", "printBusinessCardComboDiscount")}
+          {productRow("Padrão — 8,4 × 11 cm", "printStandardPrice", "printStandardComboDiscount")}
+          {productRow("1/4 de página — 12,8 × 16,7 cm", "printQuarterPrice", "printQuarterComboDiscount")}
+          {productRow("Meia página — 26 × 16,7 cm", "printHalfPrice", "printHalfComboDiscount")}
+          {productRow("Página inteira — 26 × 33,5 cm", "printFullPrice", "printFullComboDiscount")}
         </div>
       </section>
 
