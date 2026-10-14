@@ -1,3 +1,4 @@
+import { redirect } from "next/navigation";
 import { ModuleHeader } from "../../../../../components/admin/ModuleHeader";
 import { ArticleForm } from "../../../../../features/editorial/ArticleForm";
 import {
@@ -24,6 +25,7 @@ export default async function NovaMateriaPage({
   const { data: pauta } = pautaId
     ? await supabase.from("weekly_pauta_items").select("id, title, description, article_id").eq("id", pautaId).maybeSingle()
     : { data: null };
+  if (pauta?.article_id) redirect("/sistema/editorial/materias/" + pauta.article_id);
   const linkedPauta = pauta && !pauta.article_id ? pauta : null;
 
   return (
