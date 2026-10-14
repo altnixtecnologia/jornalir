@@ -54,6 +54,7 @@ export type ConvertSubscriptionInterestResult =
 function paths(): void {
   revalidatePath("/sistema/publicidade");
   revalidatePath("/sistema/publicidade/solicitacoes");
+  revalidatePath("/sistema/notificacoes");
   revalidatePath("/sistema");
 }
 
@@ -380,13 +381,24 @@ export async function updateSiteInterestStatusAction(
   const client = createSupabaseServerClient();
   const audit = await getAuditContext(client);
 
+  const now = new Date().toISOString();
+  const update: Record<string, unknown> = {
+    status,
+    reviewed_by: audit.actorId,
+    reviewed_at: now,
+  };
+  if (status === "converted") {
+    update.converted_at = now;
+    update.attended_at = now;
+    update.attended_by = audit.actorId;
+  } else if (status === "discarded") {
+    update.attended_at = now;
+    update.attended_by = audit.actorId;
+  }
+
   const { error } = await client
     .from("site_interest_requests")
-    .update({
-      status,
-      reviewed_by: audit.actorId,
-      reviewed_at: new Date().toISOString(),
-    })
+    .update(update)
     .eq("id", id);
 
   if (error) throw new Error(error.message);
@@ -397,6 +409,40 @@ export async function updateSiteInterestStatusAction(
     entityId: id,
     action: "status_change",
     metadata: { status },
+  });
+
+  paths();
+}
+
+export async function markSiteInterestAttendedAction(id: string): Promise<void> {
+  const client = createSupabaseServerClient();
+  const audit = await getAuditContext(client);
+  const { data: current, error: currentError } = await client
+    .from("site_interest_requests")
+    .select("status")
+    .eq("id", id)
+    .single();
+  if (currentError) throw new Error(currentError.message);
+
+  const now = new Date().toISOString();
+  const { error } = await client
+    .from("site_interest_requests")
+    .update({
+      attended_at: now,
+      attended_by: audit.actorId,
+      status: current.status === "new" ? "contacted" : current.status,
+      reviewed_by: audit.actorId,
+      reviewed_at: now,
+    })
+    .eq("id", id);
+  if (error) throw new Error(error.message);
+
+  await recordAuditEventSupabase(client, {
+    userId: audit.actorId,
+    entityType: "site_interest_request",
+    entityId: id,
+    action: "attended",
+    metadata: {},
   });
 
   paths();
@@ -577,6 +623,12 @@ export async function convertSubscriptionInterestAction(id: string): Promise<Con
         // cadastro mestre do cliente. Não mantém CPF/CNPJ duplicado na
         // fila comercial além do tempo necessário para a contratação.
         document_number: null,
+        converted_client_id: clientId,
+        converted_subscription_id: subscription.id,
+        converted_receivable_id: receivable.id,
+        converted_at: new Date().toISOString(),
+        attended_at: new Date().toISOString(),
+        attended_by: audit.actorId,
         reviewed_by: audit.actorId,
         reviewed_at: new Date().toISOString(),
       })

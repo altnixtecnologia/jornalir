@@ -198,6 +198,8 @@ export function AssineConfigurator({ settings }: { settings: PublicSiteOfferSett
   const [addressNeighborhood, setAddressNeighborhood] = useState("");
   const [addressCity, setAddressCity] = useState("");
   const [addressState, setAddressState] = useState("");
+  const [routeReference, setRouteReference] = useState("");
+  const [locationUrl, setLocationUrl] = useState("");
 
   const [consent, setConsent] = useState(false);
   const [pending, setPending] = useState(false);
@@ -344,6 +346,10 @@ export function AssineConfigurator({ settings }: { settings: PublicSiteOfferSett
         setError("Para assinatura, informe o endereço completo para verificarmos a rota de entrega.");
         return;
       }
+      if (locationUrl.trim() && !/^https?:\/\//i.test(locationUrl.trim())) {
+        setError("O link da localização precisa começar com http:// ou https://.");
+        return;
+      }
     }
     if (!consent) {
       setError("Confirme o uso dos dados para retorno desta solicitação.");
@@ -356,7 +362,7 @@ export function AssineConfigurator({ settings }: { settings: PublicSiteOfferSett
     setPending(true);
     try {
       const client = getPublicSupabaseClient();
-      const { data, error: rpcError } = await client.rpc("submit_site_interest_request_v3", {
+      const { data, error: rpcError } = await client.rpc("submit_site_interest_request_v4", {
         p_request_type: requestType,
         p_name: name.trim(),
         p_phone: phone.trim(),
@@ -375,6 +381,8 @@ export function AssineConfigurator({ settings }: { settings: PublicSiteOfferSett
         p_address_state: hasSubscription ? addressState.trim().toUpperCase() : null,
         p_customer_kind: hasSubscription ? customerKind : null,
         p_document_number: hasSubscription ? onlyDigits(documentNumber) : null,
+        p_route_reference: hasSubscription ? routeReference.trim() || null : null,
+        p_location_url: hasSubscription ? locationUrl.trim() || null : null,
       });
 
       if (rpcError) throw rpcError;
@@ -703,6 +711,9 @@ export function AssineConfigurator({ settings }: { settings: PublicSiteOfferSett
                       </label>
                       <div className="sm:col-span-2 mt-1 border-t pt-4" style={{ borderColor: "var(--site-line)" }}>
                         <strong className="text-sm">Endereço para verificar a rota de entrega</strong>
+                        <span className="mt-1 block text-[11px] leading-relaxed" style={{ color: "var(--site-muted)" }}>
+                          Se for interior, linha rural ou um local sem endereço claro, informe um ponto de referência e, se possível, cole o link exato do Google Maps. Isso ajuda nossa equipe a confirmar a rota sem depender apenas do endereço escrito.
+                        </span>
                       </div>
                       <label className="text-sm">
                         <span className="mb-1 block font-semibold">CEP *</span>
@@ -731,6 +742,33 @@ export function AssineConfigurator({ settings }: { settings: PublicSiteOfferSett
                       <label className="text-sm">
                         <span className="mb-1 block font-semibold">UF *</span>
                         <input maxLength={2} value={addressState} onChange={(e) => setAddressState(e.target.value.toUpperCase())} className="w-full rounded-xl border px-4 py-3 uppercase" style={{ borderColor: "var(--site-line)" }} />
+                      </label>
+                      <label className="text-sm sm:col-span-2">
+                        <span className="mb-1 block font-semibold">Ponto de referência / como chegar</span>
+                        <textarea
+                          rows={2}
+                          maxLength={1000}
+                          value={routeReference}
+                          onChange={(e) => setRouteReference(e.target.value)}
+                          placeholder="Ex.: Linha Vila Nova, 2 km após a igreja, entrada ao lado do galpão..."
+                          className="w-full rounded-xl border px-4 py-3"
+                          style={{ borderColor: "var(--site-line)" }}
+                        />
+                      </label>
+                      <label className="text-sm sm:col-span-2">
+                        <span className="mb-1 block font-semibold">Link da localização no Google Maps</span>
+                        <input
+                          type="url"
+                          maxLength={1000}
+                          value={locationUrl}
+                          onChange={(e) => setLocationUrl(e.target.value)}
+                          placeholder="https://maps.app.goo.gl/..."
+                          className="w-full rounded-xl border px-4 py-3"
+                          style={{ borderColor: "var(--site-line)" }}
+                        />
+                        <span className="mt-1 block text-[11px]" style={{ color: "var(--site-muted)" }}>
+                          Opcional, mas recomendado para endereços do interior. Abra o local no Maps, toque em Compartilhar e cole o link aqui.
+                        </span>
                       </label>
                     </>
                   ) : null}
