@@ -1,9 +1,14 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import type { SiteAdTransitionEffect } from "@ir/types";
-import { getSiteAdSettingsService, getSiteAdSlotService } from "../../../../composition/siteAds";
+import type { SiteAdFitMode, SiteAdSlotTransitionEffect } from "@ir/types";
+import { getSiteAdSlotService } from "../../../../composition/siteAds";
 import { createSupabaseServerClient } from "../../../../lib/supabase/server";
+import { registerUploadedMediaAsset } from "../../../../providers/supabase/mediaAssetRepository.supabase";
+import {
+  InvalidImageUploadError,
+  uploadSiteAdImageToR2,
+} from "../../../../providers/r2/mediaStorage.r2";
 
 const LIST_PATH = "/sistema/configuracoes/patrocinadores";
 
@@ -11,10 +16,19 @@ function toErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : "Não foi possível concluir a operação.";
 }
 
-export async function updateSiteAdSettingsAction(id: string, rotationIntervalMs: number, transitionEffect: SiteAdTransitionEffect): Promise<{ error: string } | void> {
+export async function updateSiteAdSlotSettingsAction(
+  slotId: string,
+  rotationIntervalMs: number,
+  transitionEffect: SiteAdSlotTransitionEffect,
+  fitMode: SiteAdFitMode,
+): Promise<{ error: string } | void> {
   try {
     const client = createSupabaseServerClient();
-    await getSiteAdSettingsService(client).update(id, { rotationIntervalMs, transitionEffect });
+    await getSiteAdSlotService(client).updateSlotSettings(slotId, {
+      rotationIntervalMs,
+      transitionEffect,
+      fitMode,
+    });
   } catch (error) {
     return { error: toErrorMessage(error) };
   }
@@ -31,51 +45,43 @@ export async function toggleSiteAdSlotActiveAction(slotId: string, active: boole
   revalidatePath(LIST_PATH);
 }
 
-export interface SiteAdMediaFormInput {
-  clientId: string;
-  href: string;
-  altText: string;
-  activeFrom: string;
-  activeUntil: string;
-}
+export async function uploadSiteAdImagesAction(
+  slotId: string,
+  nextSortOrder: number,
+  formData: FormData,
+): Promise<{ error: string } | { ok: true; count: number; warnings: string[] }> {
+  const files = formData.getAll("files").filter((item): item is File => item instanceof File && item.size > 0);
+  if (files.length === 0) return { error: "Selecione ao menos uma imagem." };
+  if (files.length > 20) return { error: "Envie no máximo 20 imagens por vez." };
 
-/** Imagem já enviada (ver uploadMediaAssets, reaproveitado do módulo Mídias) — aqui só vincula o media_asset_id já existente ao slot, na próxima posição da playlist. */
-export async function addSiteAdMediaAction(slotId: string, mediaAssetId: string, nextSortOrder: number, input: SiteAdMediaFormInput): Promise<{ error: string } | void> {
-  try {
-    const client = createSupabaseServerClient();
-    await getSiteAdSlotService(client).addMedia(
-      {
-        slotId,
-        mediaAssetId,
-        clientId: input.clientId || undefined,
-        href: input.href || undefined,
-        altText: input.altText || undefined,
-        activeFrom: input.activeFrom || undefined,
-        activeUntil: input.activeUntil || undefined,
-      },
-      nextSortOrder,
-    );
-  } catch (error) {
-    return { error: toErrorMessage(error) };
-  }
-  revalidatePath(LIST_PATH);
-}
+  const client = createSupabaseServerClient();
+  const slotService = getSiteAdSlotService(client);
+  const warnings: string[] = [];
+  let count = 0;
 
-export async function updateSiteAdMediaAction(id: string, input: SiteAdMediaFormInput & { active: boolean }): Promise<{ error: string } | void> {
-  try {
-    const client = createSupabaseServerClient();
-    await getSiteAdSlotService(client).updateMedia(id, {
-      clientId: input.clientId || undefined,
-      href: input.href || undefined,
-      altText: input.altText || undefined,
-      active: input.active,
-      activeFrom: input.activeFrom || undefined,
-      activeUntil: input.activeUntil || undefined,
-    });
-  } catch (error) {
-    return { error: toErrorMessage(error) };
+  for (const file of files) {
+    try {
+      const uploaded = await uploadSiteAdImageToR2(file);
+      const asset = await registerUploadedMediaAsset(client, {
+        title: file.name.replace(/\.[^.]+$/, "") || "Publicidade",
+        storagePath: uploaded.storagePath,
+        publicUrl: uploaded.publicUrl,
+        fileName: uploaded.fileName,
+        mimeType: uploaded.mimeType,
+        width: uploaded.width,
+        height: uploaded.height,
+      });
+      await slotService.addMedia({ slotId, mediaAssetId: asset.id }, nextSortOrder + count);
+      count += 1;
+    } catch (error) {
+      const message = error instanceof InvalidImageUploadError ? error.message : toErrorMessage(error);
+      warnings.push(file.name + ": " + message);
+    }
   }
+
+  if (count === 0) return { error: warnings.join(" ") || "Não foi possível enviar as imagens." };
   revalidatePath(LIST_PATH);
+  return { ok: true, count, warnings };
 }
 
 export async function removeSiteAdMediaAction(id: string): Promise<{ error: string } | void> {

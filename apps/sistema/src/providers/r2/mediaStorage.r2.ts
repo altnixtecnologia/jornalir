@@ -179,6 +179,67 @@ export async function uploadOptimizedImageToR2(file: File): Promise<OptimizedUpl
   return { storagePath, publicUrl, fileName, mimeType: finalMime, width, height };
 }
 
+
+/**
+ * Upload específico de publicidade lateral: imagem estática, sempre em
+ * WebP qualidade 70, dentro de site-ads/ no R2 público.
+ */
+export async function uploadSiteAdImageToR2(file: File): Promise<OptimizedUploadResult> {
+  if (file.size > MAX_UPLOAD_BYTES) {
+    throw new InvalidImageUploadError(
+      "Arquivo muito grande (" + (file.size / 1024 / 1024).toFixed(1) + " MB). Limite de " + (MAX_UPLOAD_BYTES / 1024 / 1024) + " MB.",
+    );
+  }
+
+  const allowed = ["image/jpeg", "image/png", "image/webp", "image/avif"];
+  if (!allowed.includes(file.type)) {
+    throw new InvalidImageUploadError("Para publicidade use JPEG, PNG, WebP ou AVIF.");
+  }
+
+  const orig = Buffer.from(await file.arrayBuffer());
+  const realFormat = detectActualFormat(orig);
+  if (!realFormat || realFormat === "image/gif") {
+    throw new InvalidImageUploadError("Imagem inválida ou animada. Use uma imagem estática.");
+  }
+
+  const finalBuf = await sharp(orig, { animated: false })
+    .rotate()
+    .webp({ quality: 70, effort: 4 })
+    .toBuffer();
+  const meta = await sharp(finalBuf).metadata();
+
+  const uuid = crypto.randomUUID();
+  const baseName = sanitizeBaseName(file.name);
+  const fileName = baseName + ".webp";
+  const storagePath = "site-ads/" + uuid + "/" + fileName;
+  const bucket = requiredEnv("R2_BUCKET");
+  const publicBase = requiredEnv("R2_PUBLIC_BASE_URL").replace(/\/$/, "");
+  const s3 = r2Client();
+
+  await s3.send(new PutObjectCommand({
+    Bucket: bucket,
+    Key: storagePath,
+    Body: finalBuf,
+    ContentType: "image/webp",
+  }));
+
+  const publicUrl = publicBase + "/" + storagePath;
+  const check = await fetch(publicUrl, { cache: "no-store" }).catch(() => null);
+  if (!check || !check.ok) {
+    await deleteObjectFromR2(storagePath).catch(() => {});
+    throw new Error("Upload de publicidade não pôde ser validado no R2 público.");
+  }
+
+  return {
+    storagePath,
+    publicUrl,
+    fileName,
+    mimeType: "image/webp",
+    width: meta.width,
+    height: meta.height,
+  };
+}
+
 /** Remove um objeto do R2 — usado para desfazer o upload se o cadastro em media_assets falhar logo em seguida (evita órfão). */
 export async function deleteObjectFromR2(key: string): Promise<void> {
   const bucket = requiredEnv("R2_BUCKET");

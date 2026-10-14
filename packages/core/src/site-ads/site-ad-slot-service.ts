@@ -1,7 +1,18 @@
-import type { SiteAdMedia, SiteAdSlotWithMedia } from "@ir/types";
-import type { NewSiteAdMediaRecord, SiteAdMediaChanges, SiteAdSlotRepository } from "./site-ad-slot-repository";
+import {
+  SITE_AD_SLOT_TRANSITION_EFFECTS,
+  type SiteAdFitMode,
+  type SiteAdMedia,
+  type SiteAdSlotTransitionEffect,
+  type SiteAdSlotWithMedia,
+} from "@ir/types";
+import type {
+  NewSiteAdMediaRecord,
+  SiteAdMediaChanges,
+  SiteAdSlotRepository,
+} from "./site-ad-slot-repository";
 
 export class SiteAdMediaValidationError extends Error {}
+export class SiteAdSlotValidationError extends Error {}
 
 export interface SiteAdMediaInput {
   slotId: string;
@@ -13,12 +24,18 @@ export interface SiteAdMediaInput {
   activeUntil?: string;
 }
 
+export interface SiteAdSlotSettingsInput {
+  rotationIntervalMs: number;
+  transitionEffect: SiteAdSlotTransitionEffect;
+  fitMode: SiteAdFitMode;
+}
+
 function trimOrUndefined(value: string | undefined | null): string | undefined {
   const trimmed = value?.trim();
   return trimmed ? trimmed : undefined;
 }
 
-function assertValid(input: Pick<SiteAdMediaInput, "slotId" | "mediaAssetId" | "activeFrom" | "activeUntil">): void {
+function assertMediaValid(input: Pick<SiteAdMediaInput, "slotId" | "mediaAssetId" | "activeFrom" | "activeUntil">): void {
   if (!input.slotId) throw new SiteAdMediaValidationError("Selecione a posição.");
   if (!input.mediaAssetId) throw new SiteAdMediaValidationError("Selecione a imagem.");
   if (input.activeFrom && input.activeUntil && input.activeUntil < input.activeFrom) {
@@ -26,12 +43,18 @@ function assertValid(input: Pick<SiteAdMediaInput, "slotId" | "mediaAssetId" | "
   }
 }
 
-/**
- * Playlist das 6 posições de publicidade do site — benefício/brinde
- * (nunca uma venda, ver comentário na migration). Adicionar/remover/
- * reordenar mídia é operação normal; ativar/desativar um slot inteiro
- * é mais raro (ex.: manutenção) mas nunca remove as mídias já cadastradas.
- */
+function assertSlotSettings(input: SiteAdSlotSettingsInput): void {
+  if (!Number.isFinite(input.rotationIntervalMs) || input.rotationIntervalMs < 2000 || input.rotationIntervalMs > 120000) {
+    throw new SiteAdSlotValidationError("Informe um tempo entre 2 e 120 segundos.");
+  }
+  if (!SITE_AD_SLOT_TRANSITION_EFFECTS.includes(input.transitionEffect)) {
+    throw new SiteAdSlotValidationError("Efeito de transição inválido.");
+  }
+  if (input.fitMode !== "contain" && input.fitMode !== "stretch") {
+    throw new SiteAdSlotValidationError("Formato de exibição inválido.");
+  }
+}
+
 export class SiteAdSlotService {
   constructor(private readonly repository: SiteAdSlotRepository) {}
 
@@ -43,8 +66,13 @@ export class SiteAdSlotService {
     return this.repository.setSlotActive(slotId, active);
   }
 
+  async updateSlotSettings(slotId: string, input: SiteAdSlotSettingsInput): Promise<void> {
+    assertSlotSettings(input);
+    return this.repository.updateSlot(slotId, input);
+  }
+
   async addMedia(input: SiteAdMediaInput, sortOrder: number): Promise<SiteAdMedia> {
-    assertValid(input);
+    assertMediaValid(input);
     const record: NewSiteAdMediaRecord = {
       slotId: input.slotId,
       mediaAssetId: input.mediaAssetId,

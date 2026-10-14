@@ -1736,3 +1736,7 @@ body {
     justify-self: start;
   }
 }
+
+
+/* Publicidade por posição: opção de esticar e transição desligada. */
+.ad-slot-img--stretch{object-fit:fill}.ad-effect-none{animation:none}

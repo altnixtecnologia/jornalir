@@ -1,304 +1,235 @@
 "use client";
 
-import { useRef, useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import type { MediaAsset, SiteAdSettings, SiteAdSlotWithMedia, SiteAdTransitionEffect } from "@ir/types";
-import { SITE_AD_TRANSITION_EFFECT_LABELS, SITE_AD_TRANSITION_EFFECTS, isSiteAdMediaCurrentlyActive } from "@ir/types";
-import { ClientPicker } from "../../components/admin/ClientPicker";
-import type { ClientSearchResult } from "../../components/admin/clientSearchTypes";
-import { uploadMediaAssets } from "../../app/sistema/editorial/midias/actions";
+import type {
+  SiteAdFitMode,
+  SiteAdSlotTransitionEffect,
+  SiteAdSlotWithMedia,
+} from "@ir/types";
 import {
-  addSiteAdMediaAction,
+  SITE_AD_FIT_MODE_LABELS,
+  SITE_AD_SLOT_TRANSITION_EFFECT_LABELS,
+  SITE_AD_SLOT_TRANSITION_EFFECTS,
+} from "@ir/types";
+import {
   removeSiteAdMediaAction,
   reorderSiteAdMediaAction,
   toggleSiteAdSlotActiveAction,
-  updateSiteAdMediaAction,
-  updateSiteAdSettingsAction,
-  type SiteAdMediaFormInput,
+  updateSiteAdSlotSettingsAction,
+  uploadSiteAdImagesAction,
 } from "../../app/sistema/configuracoes/patrocinadores/actions";
 
-function formatDate(iso?: string): string {
-  if (!iso) return "—";
-  return new Date(`${iso}T00:00:00`).toLocaleDateString("pt-BR");
+function slotIdentity(slotNumber: number): { position: number; side: "Esquerda" | "Direita" } {
+  return {
+    position: Math.ceil(slotNumber / 2),
+    side: slotNumber % 2 === 1 ? "Esquerda" : "Direita",
+  };
 }
 
-function emptyMediaInput(): SiteAdMediaFormInput {
-  return { clientId: "", href: "", altText: "", activeFrom: "", activeUntil: "" };
-}
-
-/**
- * Patrocinadores do site — gestão das 6 posições fixas (nunca
- * criadas/removidas aqui). Upload real reaproveita uploadMediaAssets
- * (mesmo pipeline R2 do módulo Mídias) — nenhum storage novo. Benefício/
- * brinde: nunca gera venda/Financeiro/NFS-e (ver módulo Comercial,
- * totalmente separado).
- */
-export function SiteAdSlotsPanel({ settings, slots }: { settings: SiteAdSettings; slots: SiteAdSlotWithMedia[] }): JSX.Element {
+function SlotCard({ slot }: { slot: SiteAdSlotWithMedia }): JSX.Element {
   const router = useRouter();
+  const inputRef = useRef<HTMLInputElement>(null);
   const [pending, startTransition] = useTransition();
-  const [error, setError] = useState<string | null>(null);
-  const [rotationSeconds, setRotationSeconds] = useState(String(settings.rotationIntervalMs / 1000));
-  const [effect, setEffect] = useState<SiteAdTransitionEffect>(settings.transitionEffect);
-  const [addingSlotId, setAddingSlotId] = useState<string | null>(null);
-  const [newMedia, setNewMedia] = useState<SiteAdMediaFormInput>(emptyMediaInput());
-  const [newMediaClient, setNewMediaClient] = useState<ClientSearchResult | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [seconds, setSeconds] = useState(String(Math.round(slot.rotationIntervalMs / 1000)));
+  const [effect, setEffect] = useState<SiteAdSlotTransitionEffect>(slot.transitionEffect);
+  const [fitMode, setFitMode] = useState<SiteAdFitMode>(slot.fitMode);
+  const [previews, setPreviews] = useState<string[]>([]);
+  const [message, setMessage] = useState<string | null>(null);
+  const identity = slotIdentity(slot.slotNumber);
 
-  function handleSaveSettings(): void {
-    setError(null);
-    const ms = Math.max(2, Math.min(120, Number(rotationSeconds) || 10)) * 1000;
+  useEffect(() => () => previews.forEach((url) => URL.revokeObjectURL(url)), [previews]);
+
+  function selectFiles(files: FileList | null): void {
+    previews.forEach((url) => URL.revokeObjectURL(url));
+    setPreviews(files ? Array.from(files).map((file) => URL.createObjectURL(file)) : []);
+  }
+
+  function saveSettings(): void {
+    setMessage(null);
+    const value = Math.max(2, Math.min(120, Number(seconds) || 10)) * 1000;
     startTransition(async () => {
-      const result = await updateSiteAdSettingsAction(settings.id, ms, effect);
+      const result = await updateSiteAdSlotSettingsAction(slot.id, value, effect, fitMode);
       if (result && "error" in result) {
-        setError(result.error);
+        setMessage(result.error);
+        return;
+      }
+      setMessage("Configuração salva.");
+      router.refresh();
+    });
+  }
+
+  function toggle(): void {
+    setMessage(null);
+    startTransition(async () => {
+      const result = await toggleSiteAdSlotActiveAction(slot.id, !slot.active);
+      if (result && "error" in result) {
+        setMessage(result.error);
         return;
       }
       router.refresh();
     });
   }
 
-  function handleToggleSlot(slotId: string, active: boolean): void {
-    setError(null);
-    startTransition(async () => {
-      const result = await toggleSiteAdSlotActiveAction(slotId, active);
-      if (result && "error" in result) {
-        setError(result.error);
-        return;
-      }
-      router.refresh();
-    });
-  }
-
-  function startAdding(slotId: string): void {
-    setAddingSlotId(slotId);
-    setNewMedia(emptyMediaInput());
-    setNewMediaClient(null);
-    setError(null);
-  }
-
-  function handleAddMedia(slot: SiteAdSlotWithMedia): void {
-    setError(null);
-    const file = fileInputRef.current?.files?.[0];
-    if (!file) {
-      setError("Selecione um arquivo de imagem.");
+  function upload(): void {
+    const files = inputRef.current?.files;
+    if (!files?.length) {
+      setMessage("Selecione uma ou mais imagens.");
       return;
     }
+    const formData = new FormData();
+    Array.from(files).forEach((file) => formData.append("files", file));
+    setMessage(null);
     startTransition(async () => {
-      const formData = new FormData();
-      formData.append("files", file);
-      const uploadResult = await uploadMediaAssets(formData);
-      if ("error" in uploadResult) {
-        setError(uploadResult.error);
+      const result = await uploadSiteAdImagesAction(slot.id, slot.media.length, formData);
+      if ("error" in result) {
+        setMessage(result.error);
         return;
       }
-      const asset: MediaAsset = uploadResult.assets[0];
-      const result = await addSiteAdMediaAction(slot.id, asset.id, slot.media.length, { ...newMedia, clientId: newMediaClient?.id ?? "" });
-      if (result && "error" in result) {
-        setError(result.error);
-        return;
-      }
-      setAddingSlotId(null);
+      setMessage(
+        result.warnings.length
+          ? result.count + " imagem(ns) enviada(s). " + result.warnings.join(" ")
+          : result.count + " imagem(ns) enviada(s).",
+      );
+      if (inputRef.current) inputRef.current.value = "";
+      previews.forEach((url) => URL.revokeObjectURL(url));
+      setPreviews([]);
       router.refresh();
     });
   }
 
-  function handleUpdateMedia(id: string, current: SiteAdMediaFormInput & { active: boolean }): void {
-    setError(null);
-    startTransition(async () => {
-      const result = await updateSiteAdMediaAction(id, current);
-      if (result && "error" in result) {
-        setError(result.error);
-        return;
-      }
-      router.refresh();
-    });
-  }
-
-  function handleRemoveMedia(id: string): void {
-    setError(null);
-    startTransition(async () => {
-      const result = await removeSiteAdMediaAction(id);
-      if (result && "error" in result) {
-        setError(result.error);
-        return;
-      }
-      router.refresh();
-    });
-  }
-
-  function handleMove(slot: SiteAdSlotWithMedia, index: number, direction: -1 | 1): void {
+  function move(index: number, direction: -1 | 1): void {
     const target = index + direction;
     if (target < 0 || target >= slot.media.length) return;
-    const ids = slot.media.map((m) => m.id);
-    const [moved] = ids.splice(index, 1);
+    const ids = slot.media.map((item) => item.id);
+    const moved = ids.splice(index, 1)[0];
     ids.splice(target, 0, moved);
-    setError(null);
     startTransition(async () => {
       const result = await reorderSiteAdMediaAction(slot.id, ids);
       if (result && "error" in result) {
-        setError(result.error);
+        setMessage(result.error);
         return;
       }
       router.refresh();
     });
   }
 
+  function remove(id: string): void {
+    if (!window.confirm("Remover esta imagem desta posição?")) return;
+    startTransition(async () => {
+      const result = await removeSiteAdMediaAction(id);
+      if (result && "error" in result) {
+        setMessage(result.error);
+        return;
+      }
+      router.refresh();
+    });
+  }
+
+  const previewObjectFit = fitMode === "stretch" ? "fill" : "contain";
+
   return (
-    <>
-      {error ? <p className="form-error" role="alert">{error}</p> : null}
-
-      <section className="inline-form form-section form-section--first">
-        <h2>Configuração global de rotação</h2>
-        <p className="helper-text">Vale para os 6 quadros ao mesmo tempo — nunca um efeito diferente por imagem.</p>
-        <div className="form-grid">
-          <label className="form-field">
-            <span className="field-label">Intervalo entre imagens (segundos)</span>
-            <input type="number" min="2" max="120" value={rotationSeconds} onChange={(event) => setRotationSeconds(event.target.value)} disabled={pending} />
-          </label>
-          <label className="form-field">
-            <span className="field-label">Efeito de transição</span>
-            <select value={effect} onChange={(event) => setEffect(event.target.value as SiteAdTransitionEffect)} disabled={pending}>
-              {SITE_AD_TRANSITION_EFFECTS.map((value) => (
-                <option key={value} value={value}>
-                  {SITE_AD_TRANSITION_EFFECT_LABELS[value]}
-                </option>
-              ))}
-            </select>
-          </label>
+    <article className="site-ad-slot-card">
+      <div className="site-ad-slot-head">
+        <div>
+          <h3>Posição {identity.position} - {identity.side}</h3>
+          <span className={"status-pill " + (slot.active ? "status-pill--published" : "status-pill--archived")}>
+            {slot.active ? "Ativa" : "Desativada"}
+          </span>
         </div>
-        <div className="form-actions">
-          <button type="button" className="form-action-primary" onClick={handleSaveSettings} disabled={pending}>
-            {pending ? "Salvando…" : "Salvar configuração"}
-          </button>
-        </div>
-      </section>
+        <button type="button" onClick={toggle} disabled={pending}>
+          {slot.active ? "Desativar" : "Ativar"}
+        </button>
+      </div>
 
-      {slots.map((slot) => (
-        <section key={slot.id} className="inline-form form-section">
-          <div className="form-actions" style={{ justifyContent: "space-between" }}>
-            <h2 style={{ margin: 0 }}>
-              Posição {slot.slotNumber} <span className={`status-pill ${slot.active ? "status-pill--published" : "status-pill--archived"}`}>{slot.active ? "Ativa" : "Desativada"}</span>
-            </h2>
-            <button type="button" onClick={() => handleToggleSlot(slot.id, !slot.active)} disabled={pending}>
-              {slot.active ? "Desativar posição" : "Ativar posição"}
-            </button>
+      <div className="site-ad-slot-settings">
+        <label className="form-field">
+          <span className="field-label">Tempo por imagem</span>
+          <div className="site-ad-seconds"><input type="number" min={2} max={120} value={seconds} onChange={(event) => setSeconds(event.target.value)} /><span>s</span></div>
+        </label>
+        <label className="form-field">
+          <span className="field-label">Transição</span>
+          <select value={effect} onChange={(event) => setEffect(event.target.value as SiteAdSlotTransitionEffect)}>
+            {SITE_AD_SLOT_TRANSITION_EFFECTS.map((item) => <option key={item} value={item}>{SITE_AD_SLOT_TRANSITION_EFFECT_LABELS[item]}</option>)}
+          </select>
+        </label>
+        <label className="form-field">
+          <span className="field-label">Formato da imagem</span>
+          <select value={fitMode} onChange={(event) => setFitMode(event.target.value as SiteAdFitMode)}>
+            {(Object.keys(SITE_AD_FIT_MODE_LABELS) as SiteAdFitMode[]).map((item) => <option key={item} value={item}>{SITE_AD_FIT_MODE_LABELS[item]}</option>)}
+          </select>
+        </label>
+        <button type="button" className="form-action-primary" onClick={saveSettings} disabled={pending}>Salvar posição</button>
+      </div>
+
+      <div className="site-ad-upload">
+        <div>
+          <strong>Imagens desta posição</strong>
+          <p className="helper-text">Envio múltiplo · R2 público · convertido para WebP com qualidade 70%.</p>
+        </div>
+        <input
+          ref={inputRef}
+          type="file"
+          multiple
+          accept="image/jpeg,image/png,image/webp,image/avif"
+          onChange={(event) => selectFiles(event.target.files)}
+          disabled={pending}
+        />
+        {previews.length ? (
+          <div className="site-ad-preview-grid">
+            {previews.map((url, index) => <img key={url} src={url} alt={"Prévia " + (index + 1)} style={{ objectFit: previewObjectFit }} />)}
           </div>
+        ) : null}
+        <button type="button" className="form-action-primary" onClick={upload} disabled={pending}>
+          {pending ? "Processando..." : "Enviar imagens"}
+        </button>
+      </div>
 
-          {slot.media.length === 0 ? (
-            <p className="helper-text" style={{ marginTop: "8px" }}>Nenhuma imagem cadastrada nesta posição ainda.</p>
-          ) : (
-            <div className="materias-table-wrap" style={{ marginTop: "8px" }}>
-              <table className="materias-table">
-                <thead>
-                  <tr>
-                    <th>Imagem</th>
-                    <th>Patrocinador</th>
-                    <th>Link</th>
-                    <th>Período</th>
-                    <th>Vigente hoje</th>
-                    <th>Ordem</th>
-                    <th>Ações</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {slot.media.map((media, index) => (
-                    <tr key={media.id}>
-                      <td>
-                        <img src={media.imageUrl} alt={media.altText ?? media.mediaAssetAltText ?? ""} style={{ width: "72px", height: "54px", objectFit: "cover", borderRadius: "4px" }} />
-                      </td>
-                      <td>{media.clientName ?? "—"}</td>
-                      <td>{media.href ? <a href={media.href} target="_blank" rel="noreferrer">{media.href}</a> : "—"}</td>
-                      <td>
-                        {media.activeFrom || media.activeUntil ? `${formatDate(media.activeFrom)} a ${formatDate(media.activeUntil)}` : "Sem período"}
-                      </td>
-                      <td>
-                        <span className={`status-pill ${isSiteAdMediaCurrentlyActive(media) ? "status-pill--published" : "status-pill--archived"}`}>
-                          {isSiteAdMediaCurrentlyActive(media) ? "Sim" : "Não"}
-                        </span>
-                      </td>
-                      <td>
-                        <div className="form-actions">
-                          <button type="button" onClick={() => handleMove(slot, index, -1)} disabled={pending || index === 0}>
-                            ↑
-                          </button>
-                          <button type="button" onClick={() => handleMove(slot, index, 1)} disabled={pending || index === slot.media.length - 1}>
-                            ↓
-                          </button>
-                        </div>
-                      </td>
-                      <td>
-                        <div className="form-actions">
-                          <button
-                            type="button"
-                            onClick={() =>
-                              handleUpdateMedia(media.id, {
-                                clientId: media.clientId ?? "",
-                                href: media.href ?? "",
-                                altText: media.altText ?? "",
-                                activeFrom: media.activeFrom ?? "",
-                                activeUntil: media.activeUntil ?? "",
-                                active: !media.active,
-                              })
-                            }
-                            disabled={pending}
-                          >
-                            {media.active ? "Desativar" : "Ativar"}
-                          </button>
-                          <button type="button" className="form-action-danger" onClick={() => handleRemoveMedia(media.id)} disabled={pending}>
-                            Remover
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
+      {message ? <p className="helper-text site-ad-message">{message}</p> : null}
 
-          {addingSlotId === slot.id ? (
-            <div className="form-grid" style={{ marginTop: "12px" }}>
-              <label className="form-field" style={{ gridColumn: "1 / -1" }}>
-                <span className="field-label">Arquivo de imagem</span>
-                <input ref={fileInputRef} type="file" accept="image/*" disabled={pending} />
-              </label>
-              <div className="form-field" style={{ gridColumn: "1 / -1" }}>
-                <ClientPicker selected={newMediaClient} onSelect={setNewMediaClient} disabled={pending} helperText="Opcional — quem anuncia nesta imagem, se houver." />
+      {slot.media.length ? (
+        <div className="site-ad-thumbnails">
+          {slot.media.map((media, index) => (
+            <div key={media.id} className="site-ad-thumb">
+              <div className="site-ad-thumb-image">
+                <img src={media.imageUrl} alt={media.altText ?? media.mediaAssetAltText ?? "Publicidade"} style={{ objectFit: previewObjectFit }} />
+                <span>{index + 1}</span>
               </div>
-              <label className="form-field">
-                <span className="field-label">Link <span className="field-optional">(opcional)</span></span>
-                <input type="text" value={newMedia.href} onChange={(event) => setNewMedia((prev) => ({ ...prev, href: event.target.value }))} disabled={pending} placeholder="https://…" />
-              </label>
-              <label className="form-field">
-                <span className="field-label">Texto alternativo <span className="field-optional">(opcional)</span></span>
-                <input type="text" value={newMedia.altText} onChange={(event) => setNewMedia((prev) => ({ ...prev, altText: event.target.value }))} disabled={pending} />
-              </label>
-              <label className="form-field">
-                <span className="field-label">Início do período <span className="field-optional">(opcional)</span></span>
-                <input type="date" value={newMedia.activeFrom} onChange={(event) => setNewMedia((prev) => ({ ...prev, activeFrom: event.target.value }))} disabled={pending} />
-              </label>
-              <label className="form-field">
-                <span className="field-label">Fim do período <span className="field-optional">(opcional)</span></span>
-                <input type="date" value={newMedia.activeUntil} onChange={(event) => setNewMedia((prev) => ({ ...prev, activeUntil: event.target.value }))} disabled={pending} />
-              </label>
-              <div className="form-actions" style={{ gridColumn: "1 / -1" }}>
-                <button type="button" className="form-action-primary" onClick={() => handleAddMedia(slot)} disabled={pending}>
-                  {pending ? "Enviando…" : "Enviar e adicionar"}
-                </button>
-                <button type="button" onClick={() => setAddingSlotId(null)} disabled={pending}>
-                  Cancelar
-                </button>
+              <div className="site-ad-thumb-actions">
+                <button type="button" onClick={() => move(index, -1)} disabled={pending || index === 0} aria-label="Mover para cima">↑</button>
+                <button type="button" onClick={() => move(index, 1)} disabled={pending || index === slot.media.length - 1} aria-label="Mover para baixo">↓</button>
+                <button type="button" className="form-action-danger" onClick={() => remove(media.id)} disabled={pending}>Remover</button>
               </div>
             </div>
-          ) : (
-            <div className="form-actions" style={{ marginTop: "8px" }}>
-              <button type="button" onClick={() => startAdding(slot.id)} disabled={pending}>
-                + Adicionar imagem
-              </button>
-            </div>
-          )}
-        </section>
-      ))}
-    </>
+          ))}
+        </div>
+      ) : (
+        <p className="helper-text site-ad-empty">Nenhuma imagem cadastrada nesta posição.</p>
+      )}
+    </article>
+  );
+}
+
+export function SiteAdSlotsPanel({ slots }: { slots: SiteAdSlotWithMedia[] }): JSX.Element {
+  const left = slots.filter((slot) => slot.slotNumber % 2 === 1).sort((a, b) => a.slotNumber - b.slotNumber);
+  const right = slots.filter((slot) => slot.slotNumber % 2 === 0).sort((a, b) => a.slotNumber - b.slotNumber);
+
+  return (
+    <div className="site-ad-manager">
+      <section>
+        <div className="site-ad-side-heading">
+          <div><p className="eyebrow">LADO ESQUERDO</p><h2>Posições 1, 2 e 3</h2></div>
+          <span>cada posição gira apenas as próprias imagens</span>
+        </div>
+        <div className="site-ad-side-grid">{left.map((slot) => <SlotCard key={slot.id} slot={slot} />)}</div>
+      </section>
+      <section>
+        <div className="site-ad-side-heading">
+          <div><p className="eyebrow">LADO DIREITO</p><h2>Posições 1, 2 e 3</h2></div>
+          <span>configuração independente por posição</span>
+        </div>
+        <div className="site-ad-side-grid">{right.map((slot) => <SlotCard key={slot.id} slot={slot} />)}</div>
+      </section>
+    </div>
   );
 }

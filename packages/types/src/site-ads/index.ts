@@ -1,8 +1,5 @@
-// Patrocinadores do site — as 6 posições laterais do portal público
-// (Fase 6 da rodada "Comercial completo"). Domínio DELIBERADAMENTE
-// separado de Comercial/Publicidade (commercial_sales/proposals): isto
-// é um BENEFÍCIO/BRINDE para quem anuncia no jornal impresso, nunca uma
-// venda — nenhum campo aqui gera cobrança/Financeiro/NFS-e.
+// Patrocinadores do site — 6 posições fixas, cada uma com a própria
+// playlist, tempo, efeito e modo de encaixe.
 
 export type SiteAdTransitionEffect =
   | "fade"
@@ -42,6 +39,39 @@ export const SITE_AD_TRANSITION_EFFECT_LABELS: Record<SiteAdTransitionEffect, st
   crossfade: "Crossfade",
 };
 
+export type SiteAdSlotTransitionEffect =
+  | "none"
+  | "fade"
+  | "slide-left"
+  | "slide-up"
+  | "zoom-in"
+  | "crossfade";
+
+export const SITE_AD_SLOT_TRANSITION_EFFECTS: readonly SiteAdSlotTransitionEffect[] = [
+  "none",
+  "fade",
+  "slide-left",
+  "slide-up",
+  "zoom-in",
+  "crossfade",
+];
+
+export const SITE_AD_SLOT_TRANSITION_EFFECT_LABELS: Record<SiteAdSlotTransitionEffect, string> = {
+  none: "Sem efeito",
+  fade: "Fade suave",
+  "slide-left": "Deslizar",
+  "slide-up": "Subir",
+  "zoom-in": "Zoom suave",
+  crossfade: "Crossfade",
+};
+
+export type SiteAdFitMode = "contain" | "stretch";
+
+export const SITE_AD_FIT_MODE_LABELS: Record<SiteAdFitMode, string> = {
+  contain: "Ajustar para caber",
+  stretch: "Esticar para preencher",
+};
+
 export interface SiteAdSettings {
   id: string;
   rotationIntervalMs: number;
@@ -56,6 +86,9 @@ export interface SiteAdSlot {
   id: string;
   slotNumber: number;
   active: boolean;
+  rotationIntervalMs: number;
+  transitionEffect: SiteAdSlotTransitionEffect;
+  fitMode: SiteAdFitMode;
   createdAt: string;
   updatedAt: string;
 }
@@ -64,10 +97,8 @@ export interface SiteAdMedia {
   id: string;
   slotId: string;
   mediaAssetId: string;
-  /** "Patrocinador" opcional — só identificação, nunca uma obrigação financeira (ver Comercial/Publicidade para isso). */
   clientId?: string;
   href?: string;
-  /** Sobrescreve o alt text padrão do media_asset, quando preenchido. */
   altText?: string;
   active: boolean;
   activeFrom?: string;
@@ -78,7 +109,6 @@ export interface SiteAdMedia {
   updatedAt: string;
 }
 
-/** SiteAdMedia + o que a tela de gestão precisa pra exibir sem outra consulta. */
 export interface SiteAdMediaWithAsset extends SiteAdMedia {
   imageUrl: string;
   mediaAssetAltText?: string;
@@ -89,17 +119,18 @@ export interface SiteAdSlotWithMedia extends SiteAdSlot {
   media: SiteAdMediaWithAsset[];
 }
 
-/** "Vigente hoje" — nunca gravado, sempre derivado (mesmo princípio de computeReceivableDueFlag/isCommercialProposalExpired). */
-export function isSiteAdMediaCurrentlyActive(media: Pick<SiteAdMedia, "active" | "activeFrom" | "activeUntil">, today: Date = new Date()): boolean {
+export function isSiteAdMediaCurrentlyActive(
+  media: Pick<SiteAdMedia, "active" | "activeFrom" | "activeUntil">,
+  today: Date = new Date(),
+): boolean {
   if (!media.active) return false;
   const reference = new Date(today);
   reference.setHours(0, 0, 0, 0);
-  if (media.activeFrom && new Date(`${media.activeFrom}T00:00:00`) > reference) return false;
-  if (media.activeUntil && new Date(`${media.activeUntil}T00:00:00`) < reference) return false;
+  if (media.activeFrom && new Date(media.activeFrom + "T00:00:00") > reference) return false;
+  if (media.activeUntil && new Date(media.activeUntil + "T00:00:00") < reference) return false;
   return true;
 }
 
-/** Fixture pública mínima (preview/fallback do site) — mesmo contrato da view public_site_ad_media. */
 export interface PublicSiteAdMedia {
   slotNumber: number;
   id: string;
@@ -107,6 +138,9 @@ export interface PublicSiteAdMedia {
   altText?: string;
   href?: string;
   sortOrder: number;
+  rotationIntervalMs: number;
+  transitionEffect: SiteAdSlotTransitionEffect;
+  fitMode: SiteAdFitMode;
 }
 
 export interface PublicSiteAdSettings {
