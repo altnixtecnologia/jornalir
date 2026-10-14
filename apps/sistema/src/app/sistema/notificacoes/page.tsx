@@ -24,7 +24,7 @@ export default async function NotificationsPage(): Promise<JSX.Element> {
         .limit(100),
       client
         .from("site_interest_requests")
-        .select("id, name, protocol, request_type, created_at")
+        .select("id, name, request_type, created_at")
         .eq("status", "new")
         .order("created_at", { ascending: false })
         .limit(50),
@@ -73,7 +73,7 @@ export default async function NotificationsPage(): Promise<JSX.Element> {
               >
                 <strong>{request.name}</strong>
                 <div className="helper-text">
-                  {request.protocol} · {request.request_type} · {dateTime(request.created_at)}
+                  {request.id.slice(0, 8).toUpperCase()} · {request.request_type} · {dateTime(request.created_at)}
                 </div>
               </Link>
             ))}

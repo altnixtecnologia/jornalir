@@ -8,8 +8,10 @@ import {
   createPautaItemAction,
   setAgendaEventStatusAction,
   setPautaItemStatusAction,
+  updateAgendaEventAction,
+  updatePautaItemAction,
 } from "./actions";
-import type { AgendaWorkspaceData } from "./agendaTypes";
+import type { AgendaEventItem, AgendaWorkspaceData, WeeklyPautaItem } from "./agendaTypes";
 
 interface AgendaWorkspaceProps {
   data: AgendaWorkspaceData;
@@ -51,10 +53,43 @@ function statusLabel(status: string): string {
   return "Agendado";
 }
 
+function AssigneeChecks({
+  profiles,
+  selectedIds,
+  currentUserId,
+}: {
+  profiles: AgendaWorkspaceData["profiles"];
+  selectedIds?: string[];
+  currentUserId?: string;
+}): JSX.Element {
+  const selected = new Set(selectedIds ?? (currentUserId ? [currentUserId] : []));
+  return (
+    <fieldset className="agenda-assignees">
+      <legend>Responsáveis</legend>
+      {profiles.length === 0 ? <span className="helper-text">Nenhum usuário ativo.</span> : profiles.map((profile) => (
+        <label key={profile.id}>
+          <input
+            type="checkbox"
+            name="assignee_profile_ids"
+            value={profile.id}
+            defaultChecked={selected.has(profile.id)}
+          />
+          <span>{profile.name}</span>
+        </label>
+      ))}
+    </fieldset>
+  );
+}
+
+function weekEventOptions(events: AgendaEventItem[], weekStart: string, weekEnd: string): AgendaEventItem[] {
+  return events.filter((event) => event.eventDate >= weekStart && event.eventDate <= weekEnd && event.status !== "cancelled");
+}
+
 export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspaceProps): JSX.Element {
   const router = useRouter();
   const [selectedDate, setSelectedDate] = useState(data.focusDate);
   const [message, setMessage] = useState<string | null>(null);
+  const [responsibleFilter, setResponsibleFilter] = useState("");
   const [isPending, startTransition] = useTransition();
 
   const days = useMemo(() => {
@@ -70,18 +105,30 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
     });
   }, [data.focusDate]);
 
+  const filteredEvents = useMemo(
+    () => responsibleFilter
+      ? data.events.filter((event) => event.assignees.some((profile) => profile.id === responsibleFilter))
+      : data.events,
+    [data.events, responsibleFilter],
+  );
+
   const eventsByDate = useMemo(() => {
     const map = new Map<string, typeof data.events>();
-    for (const event of data.events) {
+    for (const event of filteredEvents) {
       const list = map.get(event.eventDate) ?? [];
       list.push(event);
       map.set(event.eventDate, list);
     }
     return map;
-  }, [data.events]);
+  }, [filteredEvents]);
 
   const selectedEvents = eventsByDate.get(selectedDate) ?? [];
   const weekDays = Array.from({ length: 7 }, (_, index) => addDays(data.weekStart, index));
+  const weekEvents = weekEventOptions(data.events, data.weekStart, data.weekEnd);
+  const monthEventCount = data.events.filter((event) => event.eventDate >= data.monthStart && event.eventDate <= data.monthEnd).length;
+  const pautaItems = responsibleFilter
+    ? data.pautaItems.filter((item) => item.responsibleProfileId === responsibleFilter)
+    : data.pautaItems;
 
   function navigate(view: "agenda" | "pauta", date: string): void {
     router.push(basePath + "?view=" + view + "&date=" + date);
@@ -116,15 +163,89 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
     });
   }
 
+  function EventEdit({ item }: { item: AgendaEventItem }): JSX.Element {
+    return (
+      <details className="agenda-inline-edit">
+        <summary>Editar</summary>
+        <form
+          className="agenda-form"
+          onSubmit={(event) => {
+            event.preventDefault();
+            run(() => updateAgendaEventAction(item.id, new FormData(event.currentTarget)), "Compromisso atualizado.");
+          }}
+        >
+          <label className="agenda-field agenda-field-wide"><span>Compromisso</span><input name="title" required maxLength={180} defaultValue={item.title} /></label>
+          <label className="agenda-field"><span>Data</span><input name="event_date" type="date" required defaultValue={item.eventDate} /></label>
+          <label className="agenda-field"><span>Início</span><input name="start_time" type="time" defaultValue={item.startTime ?? ""} /></label>
+          <label className="agenda-field"><span>Fim</span><input name="end_time" type="time" defaultValue={item.endTime ?? ""} /></label>
+          <label className="agenda-field agenda-field-wide"><span>Local</span><input name="location" maxLength={240} defaultValue={item.location ?? ""} /></label>
+          <label className="agenda-field agenda-field-wide"><span>Observação</span><textarea name="description" maxLength={4000} defaultValue={item.description ?? ""} /></label>
+          <div className="agenda-field-wide"><AssigneeChecks profiles={data.profiles} selectedIds={item.assignees.map((profile) => profile.id)} /></div>
+          <div className="agenda-form-actions"><button type="submit" className="agenda-primary" disabled={isPending}>Salvar alterações</button></div>
+        </form>
+      </details>
+    );
+  }
+
+  function PautaEdit({ item }: { item: WeeklyPautaItem }): JSX.Element {
+    return (
+      <details className="agenda-inline-edit pauta-inline-edit">
+        <summary>Editar</summary>
+        <form
+          className="agenda-form"
+          onSubmit={(event) => {
+            event.preventDefault();
+            run(() => updatePautaItemAction(item.id, new FormData(event.currentTarget)), "Pauta atualizada.");
+          }}
+        >
+          <input type="hidden" name="week_start" value={item.weekStart} />
+          <label className="agenda-field agenda-field-wide"><span>O que precisa ser feito?</span><input name="title" required maxLength={240} defaultValue={item.title} /></label>
+          <label className="agenda-field">
+            <span>Responsável</span>
+            <select name="responsible_profile_id" defaultValue={item.responsibleProfileId ?? ""}>
+              <option value="">Sem responsável</option>
+              {data.profiles.map((profile) => <option key={profile.id} value={profile.id}>{profile.name}</option>)}
+            </select>
+          </label>
+          <label className="agenda-field">
+            <span>Dia</span>
+            <select name="due_date" defaultValue={item.dueDate ?? ""}>
+              <option value="">Sem dia definido</option>
+              {weekDays.map((day) => <option key={day} value={day}>{longDate(day)}</option>)}
+            </select>
+          </label>
+          <label className="agenda-field"><span>Horário</span><input name="due_time" type="time" defaultValue={item.dueTime ?? ""} /></label>
+          <label className="agenda-field">
+            <span>Vincular à agenda</span>
+            <select name="agenda_event_id" defaultValue={item.agendaEventId ?? ""}>
+              <option value="">Sem vínculo</option>
+              {weekEvents.map((agendaEvent) => <option key={agendaEvent.id} value={agendaEvent.id}>{shortDate(agendaEvent.eventDate)} · {agendaEvent.title}</option>)}
+            </select>
+          </label>
+          <label className="agenda-field agenda-field-wide"><span>Observação</span><textarea name="description" maxLength={4000} defaultValue={item.description ?? ""} /></label>
+          <div className="agenda-form-actions"><button type="submit" className="agenda-primary" disabled={isPending}>Salvar alterações</button></div>
+        </form>
+      </details>
+    );
+  }
+
   return (
     <section className="agenda-workspace">
-      <div className="agenda-tabs" role="tablist" aria-label="Agenda e pauta">
-        <button type="button" className={initialView === "agenda" ? "is-active" : ""} onClick={() => navigate("agenda", data.focusDate)}>
-          Agenda
-        </button>
-        <button type="button" className={initialView === "pauta" ? "is-active" : ""} onClick={() => navigate("pauta", data.focusDate)}>
-          Pauta da semana
-        </button>
+      <div className="agenda-topbar">
+        <div className="agenda-tabs" role="tablist" aria-label="Agenda e pauta">
+          <button type="button" className={initialView === "agenda" ? "is-active" : ""} onClick={() => navigate("agenda", data.focusDate)}>Agenda</button>
+          <button type="button" className={initialView === "pauta" ? "is-active" : ""} onClick={() => navigate("pauta", data.focusDate)}>Pauta da semana</button>
+        </div>
+        <label className="agenda-person-filter">
+          <span>Mostrar</span>
+          <select value={responsibleFilter} onChange={(event) => setResponsibleFilter(event.target.value)}>
+            <option value="">Toda a equipe</option>
+            <option value={data.currentUserId}>Somente meus itens</option>
+            {data.profiles.filter((profile) => profile.id !== data.currentUserId).map((profile) => (
+              <option key={profile.id} value={profile.id}>{profile.name}</option>
+            ))}
+          </select>
+        </label>
       </div>
 
       {message ? <div className="agenda-feedback" role="status">{message}</div> : null}
@@ -136,15 +257,12 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
               <button type="button" onClick={() => moveMonth(-1)} aria-label="Mês anterior">‹</button>
               <div>
                 <strong>{monthLabel(data.focusDate)}</strong>
-                <span>{data.events.length} compromisso{data.events.length === 1 ? "" : "s"} no mês</span>
+                <span>{monthEventCount} compromisso{monthEventCount === 1 ? "" : "s"} no mês</span>
               </div>
               <button type="button" onClick={() => moveMonth(1)} aria-label="Próximo mês">›</button>
             </div>
 
-            <div className="agenda-weekdays">
-              {["SEG", "TER", "QUA", "QUI", "SEX", "SÁB", "DOM"].map((day) => <span key={day}>{day}</span>)}
-            </div>
-
+            <div className="agenda-weekdays">{["SEG", "TER", "QUA", "QUI", "SEX", "SÁB", "DOM"].map((day) => <span key={day}>{day}</span>)}</div>
             <div className="agenda-month-grid">
               {days.map((day) => {
                 const dayEvents = eventsByDate.get(day.value) ?? [];
@@ -166,40 +284,35 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
 
           <div className="agenda-side-column">
             <div className="agenda-day-panel">
-              <div className="agenda-section-title">
-                <p className="eyebrow">COMPROMISSOS</p>
-                <h2>{longDate(selectedDate)}</h2>
-              </div>
+              <div className="agenda-section-title"><p className="eyebrow">COMPROMISSOS</p><h2>{longDate(selectedDate)}</h2></div>
               {selectedEvents.length ? (
                 <div className="agenda-events-list">
-                  {selectedEvents.map((event) => (
-                    <article key={event.id} className={"agenda-event-card is-" + event.status}>
+                  {selectedEvents.map((item) => (
+                    <article key={item.id} className={"agenda-event-card is-" + item.status}>
                       <div className="agenda-event-main">
-                        <div className="agenda-event-time">
-                          {event.startTime ?? "—"}
-                          {event.endTime ? <small>até {event.endTime}</small> : null}
-                        </div>
+                        <div className="agenda-event-time">{item.startTime ?? "—"}{item.endTime ? <small>até {item.endTime}</small> : null}</div>
                         <div>
-                          <h3>{event.title}</h3>
+                          <h3>{item.title}</h3>
                           <div className="agenda-event-meta">
-                            {event.location ? <span>{event.location}</span> : null}
-                            {event.assignees.length ? <span>{event.assignees.map((item) => item.name).join(", ")}</span> : null}
-                            <span>{statusLabel(event.status)}</span>
+                            {item.location ? <span>{item.location}</span> : null}
+                            {item.assignees.length ? <span>{item.assignees.map((person) => person.name).join(", ")}</span> : <span>Sem responsável</span>}
+                            <span>{statusLabel(item.status)}</span>
                           </div>
-                          {event.description ? <p>{event.description}</p> : null}
+                          {item.description ? <p>{item.description}</p> : null}
                         </div>
                       </div>
                       <div className="agenda-event-actions">
-                        {event.status === "scheduled" ? (
+                        {item.status === "scheduled" ? (
                           <>
-                            <button type="button" disabled={isPending} onClick={() => run(() => setAgendaEventStatusAction(event.id, "completed"), "Compromisso concluído.")}>✓ Concluir</button>
-                            <button type="button" disabled={isPending} onClick={() => run(() => createPautaFromAgendaEventAction(event.id), "Compromisso enviado para a pauta.")}>+ Pauta</button>
-                            <button type="button" className="is-danger-soft" disabled={isPending} onClick={() => run(() => setAgendaEventStatusAction(event.id, "cancelled"), "Compromisso cancelado.")}>Cancelar</button>
+                            <button type="button" disabled={isPending} onClick={() => run(() => setAgendaEventStatusAction(item.id, "completed"), "Compromisso concluído.")}>✓ Concluir</button>
+                            <button type="button" disabled={isPending} onClick={() => run(() => createPautaFromAgendaEventAction(item.id), "Compromisso enviado para a pauta.")}>+ Pauta</button>
+                            <button type="button" className="is-danger-soft" disabled={isPending} onClick={() => run(() => setAgendaEventStatusAction(item.id, "cancelled"), "Compromisso cancelado.")}>Cancelar</button>
                           </>
                         ) : (
-                          <button type="button" disabled={isPending} onClick={() => run(() => setAgendaEventStatusAction(event.id, "scheduled"), "Compromisso reaberto.")}>Reabrir</button>
+                          <button type="button" disabled={isPending} onClick={() => run(() => setAgendaEventStatusAction(item.id, "scheduled"), "Compromisso reaberto.")}>Reabrir</button>
                         )}
                       </div>
+                      <EventEdit item={item} />
                     </article>
                   ))}
                 </div>
@@ -213,8 +326,7 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
                 onSubmit={(event) => {
                   event.preventDefault();
                   const form = event.currentTarget;
-                  const formData = new FormData(form);
-                  run(() => createAgendaEventAction(formData), "Compromisso adicionado.", () => {
+                  run(() => createAgendaEventAction(new FormData(form)), "Compromisso adicionado.", () => {
                     form.reset();
                     const dateInput = form.elements.namedItem("event_date") as HTMLInputElement | null;
                     if (dateInput) dateInput.value = selectedDate;
@@ -225,15 +337,9 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
                 <label className="agenda-field"><span>Data</span><input name="event_date" type="date" value={selectedDate} onChange={(e) => setSelectedDate(e.target.value)} required /></label>
                 <label className="agenda-field"><span>Início</span><input name="start_time" type="time" /></label>
                 <label className="agenda-field"><span>Fim</span><input name="end_time" type="time" /></label>
-                <label className="agenda-field">
-                  <span>Responsável</span>
-                  <select name="responsible_profile_id" defaultValue={data.currentUserId}>
-                    <option value="">Sem responsável</option>
-                    {data.profiles.map((profile) => <option key={profile.id} value={profile.id}>{profile.name}</option>)}
-                  </select>
-                </label>
                 <label className="agenda-field agenda-field-wide"><span>Local</span><input name="location" maxLength={240} placeholder="Opcional" /></label>
                 <label className="agenda-field agenda-field-wide"><span>Observação</span><textarea name="description" maxLength={4000} placeholder="Informações úteis para a equipe" /></label>
+                <div className="agenda-field-wide"><AssigneeChecks profiles={data.profiles} currentUserId={data.currentUserId} /></div>
                 <div className="agenda-form-actions"><button type="submit" className="agenda-primary" disabled={isPending}>{isPending ? "Salvando..." : "Adicionar compromisso"}</button></div>
               </form>
             </details>
@@ -249,7 +355,7 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
 
           <div className="pauta-actions-row">
             <button type="button" onClick={() => navigate("pauta", data.today)}>Semana atual</button>
-            <span>{data.pautaItems.filter((item) => item.status === "pending").length} pendente(s)</span>
+            <span>{pautaItems.filter((item) => item.status === "pending").length} pendente(s)</span>
           </div>
 
           <form
@@ -277,13 +383,20 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
               </select>
             </label>
             <label className="agenda-field"><span>Horário</span><input name="due_time" type="time" /></label>
+            <label className="agenda-field">
+              <span>Vincular à agenda</span>
+              <select name="agenda_event_id" defaultValue="">
+                <option value="">Sem vínculo</option>
+                {weekEvents.map((item) => <option key={item.id} value={item.id}>{shortDate(item.eventDate)} · {item.title}</option>)}
+              </select>
+            </label>
             <label className="agenda-field pauta-note-field"><span>Observação</span><input name="description" maxLength={4000} placeholder="Opcional" /></label>
             <button type="submit" className="agenda-primary" disabled={isPending}>+ Adicionar</button>
           </form>
 
-          {data.pautaItems.length ? (
+          {pautaItems.length ? (
             <div className="pauta-list">
-              {data.pautaItems.map((item) => {
+              {pautaItems.map((item) => {
                 const done = item.status === "completed";
                 const cancelled = item.status === "cancelled";
                 return (
@@ -297,6 +410,7 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
                         {item.agendaEventTitle ? <span>Agenda: {item.agendaEventTitle}</span> : null}
                       </div>
                       {item.description ? <p>{item.description}</p> : null}
+                      <PautaEdit item={item} />
                     </div>
                     <button type="button" className="pauta-cancel" disabled={isPending} onClick={() => run(() => setPautaItemStatusAction(item.id, cancelled ? "pending" : "cancelled"), cancelled ? "Item restaurado." : "Item retirado da pauta.")}>{cancelled ? "↶" : "×"}</button>
                   </article>

@@ -67,6 +67,8 @@ export async function loadAgendaWorkspaceData(focusDate: string): Promise<Agenda
   const month = monthBounds(focusDate);
   const weekStart = startOfWeek(focusDate);
   const weekEnd = addDays(weekStart, 6);
+  const eventRangeStart = weekStart < month.start ? weekStart : month.start;
+  const eventRangeEnd = weekEnd > month.end ? weekEnd : month.end;
 
   const { data: authData, error: userError } = await supabase.auth.getUser();
   const user = authData.user;
@@ -77,8 +79,8 @@ export async function loadAgendaWorkspaceData(focusDate: string): Promise<Agenda
     supabase
       .from("agenda_events")
       .select("id, title, description, event_date, start_time, end_time, location, status")
-      .gte("event_date", month.start)
-      .lte("event_date", month.end)
+      .gte("event_date", eventRangeStart)
+      .lte("event_date", eventRangeEnd)
       .order("event_date", { ascending: true })
       .order("start_time", { ascending: true, nullsFirst: false }),
     supabase

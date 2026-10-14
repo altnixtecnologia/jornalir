@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { createSupabaseServerClient } from "../../lib/supabase/server";
 import { addDays, startOfWeek } from "./agendaData";
 
@@ -9,6 +10,16 @@ export type AgendaActionResult = { ok: true } | { error: string };
 function value(formData: FormData, key: string): string {
   const raw = formData.get(key);
   return typeof raw === "string" ? raw.trim() : "";
+}
+
+function values(formData: FormData, key: string): string[] {
+  return [...new Set(
+    formData
+      .getAll(key)
+      .filter((item): item is string => typeof item === "string")
+      .map((item) => item.trim())
+      .filter(Boolean),
+  )];
 }
 
 function validDate(input: string): boolean {
@@ -30,19 +41,49 @@ async function requireActiveUser() {
   return { supabase, user };
 }
 
-function refreshAgenda(): void {
-  revalidatePath("/sistema/agenda");
-  revalidatePath("/agenda");
+async function validateActiveProfiles(client: SupabaseClient, ids: string[]): Promise<void> {
+  if (ids.length === 0) return;
+  const { data, error } = await client.from("profiles").select("id").in("id", ids).eq("active", true);
+  if (error) throw new Error(error.message);
+  const found = new Set((data ?? []).map((row) => row.id as string));
+  if (ids.some((id) => !found.has(id))) throw new Error("Há um responsável inválido ou inativo.");
 }
 
-export async function createAgendaEventAction(formData: FormData): Promise<AgendaActionResult> {
+async function replaceEventAssignees(client: SupabaseClient, eventId: string, profileIds: string[]): Promise<void> {
+  await validateActiveProfiles(client, profileIds);
+
+  const { error: deleteError } = await client.from("agenda_event_assignees").delete().eq("event_id", eventId);
+  if (deleteError) throw new Error(deleteError.message);
+
+  if (profileIds.length === 0) return;
+  const { error: insertError } = await client.from("agenda_event_assignees").insert(
+    profileIds.map((profileId) => ({
+      event_id: eventId,
+      profile_id: profileId,
+      assignment_type: "responsible",
+    })),
+  );
+  if (insertError) throw new Error(insertError.message);
+}
+
+function validateEventPayload(formData: FormData):
+  | { error: string }
+  | {
+      title: string;
+      eventDate: string;
+      startTime: string;
+      endTime: string;
+      location: string;
+      description: string;
+      assigneeIds: string[];
+    } {
   const title = value(formData, "title");
   const eventDate = value(formData, "event_date");
   const startTime = value(formData, "start_time");
   const endTime = value(formData, "end_time");
   const location = value(formData, "location");
   const description = value(formData, "description");
-  const responsibleProfileId = value(formData, "responsible_profile_id");
+  const assigneeIds = values(formData, "assignee_profile_ids");
 
   if (!title || title.length > 180) return { error: "Informe um título válido." };
   if (!validDate(eventDate)) return { error: "Informe uma data válida." };
@@ -50,40 +91,99 @@ export async function createAgendaEventAction(formData: FormData): Promise<Agend
   if (startTime && endTime && endTime < startTime) return { error: "O horário final não pode ser anterior ao inicial." };
   if (location.length > 240) return { error: "Local muito longo." };
   if (description.length > 4000) return { error: "Descrição muito longa." };
+  return { title, eventDate, startTime, endTime, location, description, assigneeIds };
+}
+
+function validatePautaPayload(formData: FormData):
+  | { error: string }
+  | {
+      title: string;
+      weekStart: string;
+      dueDate: string;
+      dueTime: string;
+      description: string;
+      responsibleProfileId: string;
+      agendaEventId: string;
+    } {
+  const title = value(formData, "title");
+  const weekStart = value(formData, "week_start");
+  const dueDate = value(formData, "due_date");
+  const dueTime = value(formData, "due_time");
+  const description = value(formData, "description");
+  const responsibleProfileId = value(formData, "responsible_profile_id");
+  const agendaEventId = value(formData, "agenda_event_id");
+
+  if (!title || title.length > 240) return { error: "Informe o que precisa ser feito." };
+  if (!validDate(weekStart) || startOfWeek(weekStart) !== weekStart) return { error: "Semana inválida." };
+  if (dueDate && (!validDate(dueDate) || dueDate < weekStart || dueDate > addDays(weekStart, 6))) {
+    return { error: "O dia precisa estar dentro da semana selecionada." };
+  }
+  if (!validTime(dueTime)) return { error: "Horário inválido." };
+  if (description.length > 4000) return { error: "Observação muito longa." };
+  return { title, weekStart, dueDate, dueTime, description, responsibleProfileId, agendaEventId };
+}
+
+function refreshAgenda(): void {
+  revalidatePath("/sistema/agenda");
+  revalidatePath("/agenda");
+}
+
+export async function createAgendaEventAction(formData: FormData): Promise<AgendaActionResult> {
+  const input = validateEventPayload(formData);
+  if ("error" in input) return input;
 
   try {
     const { supabase } = await requireActiveUser();
+    await validateActiveProfiles(supabase, input.assigneeIds);
+
     const { data: event, error } = await supabase
       .from("agenda_events")
       .insert({
-        title,
-        description: description || null,
-        event_date: eventDate,
-        start_time: startTime || null,
-        end_time: endTime || null,
-        location: location || null,
+        title: input.title,
+        description: input.description || null,
+        event_date: input.eventDate,
+        start_time: input.startTime || null,
+        end_time: input.endTime || null,
+        location: input.location || null,
       })
       .select("id")
       .single();
 
     if (error || !event) return { error: error?.message ?? "Não foi possível criar o compromisso." };
-
-    if (responsibleProfileId) {
-      const { error: assignmentError } = await supabase.from("agenda_event_assignees").insert({
-        event_id: event.id,
-        profile_id: responsibleProfileId,
-        assignment_type: "responsible",
-      });
-      if (assignmentError) {
-        refreshAgenda();
-        return { error: "Compromisso criado, mas não foi possível vincular o responsável." };
-      }
-    }
-
+    await replaceEventAssignees(supabase, event.id, input.assigneeIds);
     refreshAgenda();
     return { ok: true };
   } catch (error) {
     return { error: error instanceof Error ? error.message : "Não foi possível criar o compromisso." };
+  }
+}
+
+export async function updateAgendaEventAction(eventId: string, formData: FormData): Promise<AgendaActionResult> {
+  if (!eventId) return { error: "Compromisso inválido." };
+  const input = validateEventPayload(formData);
+  if ("error" in input) return input;
+
+  try {
+    const { supabase } = await requireActiveUser();
+    await validateActiveProfiles(supabase, input.assigneeIds);
+    const { error } = await supabase
+      .from("agenda_events")
+      .update({
+        title: input.title,
+        description: input.description || null,
+        event_date: input.eventDate,
+        start_time: input.startTime || null,
+        end_time: input.endTime || null,
+        location: input.location || null,
+      })
+      .eq("id", eventId);
+    if (error) return { error: error.message };
+
+    await replaceEventAssignees(supabase, eventId, input.assigneeIds);
+    refreshAgenda();
+    return { ok: true };
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : "Não foi possível editar o compromisso." };
   }
 }
 
@@ -104,38 +204,53 @@ export async function setAgendaEventStatusAction(
 }
 
 export async function createPautaItemAction(formData: FormData): Promise<AgendaActionResult> {
-  const title = value(formData, "title");
-  const weekStart = value(formData, "week_start");
-  const dueDate = value(formData, "due_date");
-  const dueTime = value(formData, "due_time");
-  const description = value(formData, "description");
-  const responsibleProfileId = value(formData, "responsible_profile_id");
-  const agendaEventId = value(formData, "agenda_event_id");
-
-  if (!title || title.length > 240) return { error: "Informe o que precisa ser feito." };
-  if (!validDate(weekStart) || startOfWeek(weekStart) !== weekStart) return { error: "Semana inválida." };
-  if (dueDate && (!validDate(dueDate) || dueDate < weekStart || dueDate > addDays(weekStart, 6))) {
-    return { error: "O dia precisa estar dentro da semana selecionada." };
-  }
-  if (!validTime(dueTime)) return { error: "Horário inválido." };
-  if (description.length > 4000) return { error: "Observação muito longa." };
+  const input = validatePautaPayload(formData);
+  if ("error" in input) return input;
 
   try {
     const { supabase } = await requireActiveUser();
+    if (input.responsibleProfileId) await validateActiveProfiles(supabase, [input.responsibleProfileId]);
     const { error } = await supabase.from("weekly_pauta_items").insert({
-      week_start: weekStart,
-      title,
-      description: description || null,
-      due_date: dueDate || null,
-      due_time: dueTime || null,
-      responsible_profile_id: responsibleProfileId || null,
-      agenda_event_id: agendaEventId || null,
+      week_start: input.weekStart,
+      title: input.title,
+      description: input.description || null,
+      due_date: input.dueDate || null,
+      due_time: input.dueTime || null,
+      responsible_profile_id: input.responsibleProfileId || null,
+      agenda_event_id: input.agendaEventId || null,
     });
     if (error) return { error: error.message };
     refreshAgenda();
     return { ok: true };
   } catch (error) {
     return { error: error instanceof Error ? error.message : "Não foi possível adicionar a pauta." };
+  }
+}
+
+export async function updatePautaItemAction(itemId: string, formData: FormData): Promise<AgendaActionResult> {
+  if (!itemId) return { error: "Item inválido." };
+  const input = validatePautaPayload(formData);
+  if ("error" in input) return input;
+
+  try {
+    const { supabase } = await requireActiveUser();
+    if (input.responsibleProfileId) await validateActiveProfiles(supabase, [input.responsibleProfileId]);
+    const { error } = await supabase
+      .from("weekly_pauta_items")
+      .update({
+        title: input.title,
+        description: input.description || null,
+        due_date: input.dueDate || null,
+        due_time: input.dueTime || null,
+        responsible_profile_id: input.responsibleProfileId || null,
+        agenda_event_id: input.agendaEventId || null,
+      })
+      .eq("id", itemId);
+    if (error) return { error: error.message };
+    refreshAgenda();
+    return { ok: true };
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : "Não foi possível editar a pauta." };
   }
 }
 
