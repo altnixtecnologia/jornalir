@@ -17,6 +17,7 @@ interface PublicSlotRow {
   transition_effect: SiteAdSlotTransitionEffect;
   fit_mode: SiteAdFitMode;
   has_media: boolean;
+  managed_by_panel: boolean;
 }
 
 interface MediaRow {
@@ -74,7 +75,7 @@ export async function getPublicSiteAds(): Promise<PublicSiteAds> {
     const [slotsResult, mediaResult] = await Promise.all([
       supabase
         .from("public_site_ad_slots")
-        .select("slot_number, active, rotation_interval_ms, transition_effect, fit_mode, has_media")
+        .select("slot_number, active, rotation_interval_ms, transition_effect, fit_mode, has_media, managed_by_panel")
         .order("slot_number", { ascending: true }),
       supabase
         .from("public_site_ad_media")
@@ -110,10 +111,9 @@ export async function getPublicSiteAds(): Promise<PublicSiteAds> {
 
       if (configuredMedia.length > 0) {
         mediaBySlot.set(config.slot_number, configuredMedia);
-      } else if (!config.has_media) {
-        // Transição: enquanto a posição ainda nunca recebeu mídia pelo
-        // painel, preserva o anúncio legado. No primeiro upload ela passa
-        // definitivamente a ser controlada pela playlist do banco.
+      } else if (!config.managed_by_panel) {
+        // Antes do primeiro upload, preserva os anuncios antigos. Depois
+        // de gerenciada, a posicao nunca volta automaticamente ao legado.
         mediaBySlot.set(config.slot_number, fallbackForSlot(config.slot_number, config));
       } else {
         // Há mídia cadastrada, mas nenhuma está pública/ativa agora.
