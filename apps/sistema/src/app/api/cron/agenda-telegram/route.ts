@@ -119,5 +119,15 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       failed += 1;
     }
   }
-  return NextResponse.json({ sent, failed, scanned, eligible, localClock: current, allEvents: probe.count, probeError: probe.error?.code ?? null });
+  const sample = (data ?? [])[0] as AgendaRow | undefined;
+  const sampleDue = sample?.start_time && sample.reminder_minutes !== null
+    ? atMinute(sample.event_date + "T" + sample.start_time.slice(0, 5), -sample.reminder_minutes) : null;
+  return NextResponse.json({
+    sent, failed, scanned, eligible, localClock: current, allEvents: probe.count,
+    probeError: probe.error?.code ?? null,
+    sample: sample ? { eventDate: sample.event_date, startTime: sample.start_time,
+      reminder: sample.reminder_minutes, dueAt: sampleDue,
+      isFuture: sampleDue ? sampleDue > current : null,
+      isExpired: sampleDue ? atMinute(sampleDue, 10) <= current : null } : null,
+  });
 }
