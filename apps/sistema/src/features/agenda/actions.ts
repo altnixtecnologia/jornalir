@@ -128,6 +128,27 @@ function refreshAgenda(): void {
   revalidatePath("/agenda");
 }
 
+function repeatDates(firstDate: string, mode: string): string[] {
+  if (!["none", "weekly4", "weekly12", "monthly3"].includes(mode)) {
+    throw new Error("Recorrência inválida.");
+  }
+  const count = mode === "weekly4" ? 4 : mode === "weekly12" ? 12 : mode === "monthly3" ? 3 : 1;
+  const [year, month, day] = firstDate.split("-").map(Number);
+  const dates: string[] = [];
+  for (let i = 0; i < count; i++) {
+    let date: Date;
+    if (mode === "monthly3") {
+      const firstOfMonth = new Date(Date.UTC(year, month - 1 + i, 1, 12));
+      const lastDay = new Date(Date.UTC(firstOfMonth.getUTCFullYear(), firstOfMonth.getUTCMonth() + 1, 0, 12)).getUTCDate();
+      date = new Date(Date.UTC(firstOfMonth.getUTCFullYear(), firstOfMonth.getUTCMonth(), Math.min(day, lastDay), 12));
+    } else {
+      date = new Date(Date.UTC(year, month - 1, day + (mode === "none" ? 0 : i * 7), 12));
+    }
+    dates.push(date.toISOString().slice(0, 10));
+  }
+  return dates;
+}
+
 export async function createAgendaEventAction(formData: FormData): Promise<AgendaActionResult> {
   const input = validateEventPayload(formData);
   if ("error" in input) return input;
@@ -135,13 +156,15 @@ export async function createAgendaEventAction(formData: FormData): Promise<Agend
   try {
     const { supabase } = await requireActiveUser();
     await validateActiveProfiles(supabase, input.assigneeIds);
-
+    const dates = repeatDates(input.eventDate, value(formData, "recurrence") || "none");
+    let createdCount = 0;
+    for (const date of dates) {
     const { data: event, error } = await supabase
       .from("agenda_events")
       .insert({
         title: input.title,
         description: input.description || null,
-        event_date: input.eventDate,
+        event_date: date,
         start_time: input.startTime || null,
         end_time: input.endTime || null,
         location: input.location || null,
@@ -149,8 +172,10 @@ export async function createAgendaEventAction(formData: FormData): Promise<Agend
       .select("id")
       .single();
 
-    if (error || !event) return { error: error?.message ?? "Não foi possível criar o compromisso." };
+    if (error || !event) return { error: (createdCount ? createdCount + " compromisso(s) criado(s), mas os demais falharam. " : "") + (error?.message ?? "Não foi possível criar o compromisso.") };
     await replaceEventAssignees(supabase, event.id, input.assigneeIds);
+    createdCount += 1;
+    }
     refreshAgenda();
     return { ok: true };
   } catch (error) {
