@@ -57,16 +57,16 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     .select("id,title,description,location,event_date,start_time,reminder_minutes")
     .eq("status", "scheduled")
     .gte("event_date", date)
-    .lte("event_date", tomorrow)
-    .not("start_time", "is", null);
+    .lte("event_date", tomorrow);
   if (error) return NextResponse.json({ error: "Falha ao buscar compromissos." }, { status: 500 });
 
   let sent = 0;
   let failed = 0;
   let eligible = 0;
   const scanned = (data ?? []).length;
+  const probe = await supabase.from("agenda_events").select("id", { count: "exact", head: true });
   for (const event of (data ?? []) as AgendaRow[]) {
-    if (event.reminder_minutes === null) continue;
+    if (event.reminder_minutes === null || !event.start_time) continue;
     const dueAt = atMinute(event.event_date + "T" + (event.start_time ?? "00:00").slice(0, 5), -event.reminder_minutes);
     // A chamada deve ocorrer em até 10 minutos do vencimento.
     if (dueAt > current || atMinute(dueAt, 10) <= current) continue;
@@ -119,5 +119,5 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       failed += 1;
     }
   }
-  return NextResponse.json({ sent, failed, scanned, eligible, localClock: current });
+  return NextResponse.json({ sent, failed, scanned, eligible, localClock: current, allEvents: probe.count, probeError: probe.error?.code ?? null });
 }
