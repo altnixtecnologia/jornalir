@@ -48,10 +48,13 @@ function parseEditionPageNumber(value: string): number | undefined {
 
 type ArticleEditorTab = "conteudo" | "imagens" | "publicacao";
 
-function revalidateAndRedirect(id: string, tab?: ArticleEditorTab): never {
+function revalidateAndRedirect(id: string, tab?: ArticleEditorTab, linkFailed = false): never {
   revalidatePath(LIST_PATH);
   revalidatePath(`${LIST_PATH}/${id}`);
-  redirect(`${LIST_PATH}/${id}${tab ? `?aba=${tab}` : ""}`);
+  const query = new URLSearchParams();
+  if (tab) query.set("aba", tab);
+  if (linkFailed) query.set("aviso", "pauta-nao-vinculada");
+  redirect(`${LIST_PATH}/${id}${query.size ? "?" + query.toString() : ""}`);
 }
 
 export async function createArticle(
@@ -66,6 +69,7 @@ export async function createArticle(
   const client = createSupabaseServerClient();
   const articleService = getArticleService(client);
   let articleId: string;
+  let pautaLinkFailed = false;
   try {
     const AUDIT = await getAuditContext(client);
     if (pautaId) {
@@ -104,6 +108,7 @@ export async function createArticle(
       if (linkError || !linkedPauta) {
         // A matéria foi criada; evite declarar falha no cadastro e gerar
         // duplicação por tentativa de novo envio.
+        pautaLinkFailed = true;
         console.error("Não foi possível vincular a pauta à matéria:", linkError?.message ?? "pauta indisponível");
       } else {
         revalidatePath("/sistema/agenda");
@@ -130,7 +135,7 @@ export async function createArticle(
     return { error: toErrorMessage(error) };
   }
 
-  revalidateAndRedirect(articleId, returnTab);
+  revalidateAndRedirect(articleId, returnTab, pautaLinkFailed);
 }
 
 export async function updateArticle(

@@ -19,7 +19,7 @@ export default async function MateriaEditPage({
   searchParams,
 }: {
   params: { id: string };
-  searchParams?: { aba?: string };
+  searchParams?: { aba?: string; aviso?: string };
 }): Promise<JSX.Element> {
   const supabase = createSupabaseServerClient();
   const article = await getArticleService(supabase).getById(params.id).catch((error: unknown) => {
@@ -54,6 +54,12 @@ export default async function MateriaEditPage({
         title={article.title}
         description={`${article.reference} · edite os campos e escolha uma das ações de publicação.`}
       />
+      {searchParams?.aviso === "pauta-nao-vinculada" ? (
+        <p role="alert" className="form-error">
+          A matéria foi salva, mas o vínculo com a pauta não foi confirmado.
+          Não crie outra matéria para esta pauta. Confirme o vínculo com a equipe editorial.
+        </p>
+      ) : null}
       <ArticleForm
         mode="edit"
         article={article}

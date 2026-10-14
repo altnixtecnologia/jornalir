@@ -185,23 +185,19 @@ export async function updateAgendaEventAction(eventId: string, formData: FormDat
   try {
     const { supabase } = await requireActiveUser();
     await validateActiveProfiles(supabase, input.assigneeIds);
-    const { data: updated, error } = await supabase
-      .from("agenda_events")
-      .update({
-        title: input.title,
-        description: input.description || null,
-        event_date: input.eventDate,
-        start_time: input.startTime || null,
-        end_time: input.endTime || null,
-        location: input.location || null,
-        reminder_minutes: input.reminderMinutes,
-      })
-      .eq("id", eventId)
-      .select("id")
-      .maybeSingle();
-    if (error || !updated) return { error: error?.message ?? "Compromisso nao encontrado ou sem permissao." };
-
-    await replaceEventAssignees(supabase, eventId, input.assigneeIds);
+    // Uma transação grava a edição e todos os responsáveis.
+    const { data: updated, error } = await supabase.rpc("update_agenda_event_with_assignees", {
+      p_event_id: eventId,
+      p_title: input.title,
+      p_description: input.description || null,
+      p_event_date: input.eventDate,
+      p_start_time: input.startTime || null,
+      p_end_time: input.endTime || null,
+      p_location: input.location || null,
+      p_reminder_minutes: input.reminderMinutes,
+      p_profile_ids: input.assigneeIds,
+    });
+    if (error || !updated) return { error: error?.message ?? "Compromisso não encontrado ou sem permissão." };
     refreshAgenda();
     return { ok: true };
   } catch (error) {
@@ -333,7 +329,7 @@ export async function createPautaFromAgendaEventAction(eventId: string): Promise
       responsible_profile_id: assignmentResult.data?.[0]?.profile_id ?? null,
       agenda_event_id: event.id,
     });
-    if (error) return { error: error.message };
+    if (error) return { error: error.code === "23505" ? "Esse compromisso já está ligado a uma pauta ativa." : error.message };
     refreshAgenda();
     return { ok: true };
   } catch (error) {
