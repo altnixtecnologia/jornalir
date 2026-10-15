@@ -17,7 +17,7 @@ export function AdminNotificationBell(): JSX.Element {
         client
           .from("site_interest_requests")
           .select("id", { count: "exact", head: true })
-          .eq("status", "new"),
+          .is("attended_at", null),
         client
           .from("admin_notifications")
           .select("id", { count: "exact", head: true })

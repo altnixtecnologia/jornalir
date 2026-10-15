@@ -34,15 +34,20 @@ function SlotCard({ slot }: { slot: SiteAdSlotWithMedia }): JSX.Element {
   const [seconds, setSeconds] = useState(String(Math.round(slot.rotationIntervalMs / 1000)));
   const [effect, setEffect] = useState<SiteAdSlotTransitionEffect>(slot.transitionEffect);
   const [fitMode, setFitMode] = useState<SiteAdFitMode>(slot.fitMode);
-  const [previews, setPreviews] = useState<string[]>([]);
+  const [previews, setPreviews] = useState<{ file: File; url: string }[]>([]);
   const [message, setMessage] = useState<string | null>(null);
   const identity = slotIdentity(slot.slotNumber);
 
-  useEffect(() => () => previews.forEach((url) => URL.revokeObjectURL(url)), [previews]);
+  useEffect(() => () => previews.forEach(({ url }) => URL.revokeObjectURL(url)), [previews]);
 
   function selectFiles(files: FileList | null): void {
-    previews.forEach((url) => URL.revokeObjectURL(url));
-    setPreviews(files ? Array.from(files).map((file) => URL.createObjectURL(file)) : []);
+    previews.forEach(({ url }) => URL.revokeObjectURL(url));
+    setPreviews(files ? Array.from(files).map((file) => ({ file, url: URL.createObjectURL(file) })) : []);
+    if (inputRef.current) inputRef.current.value = "";
+  }
+
+  function removePreview(index: number): void {
+    setPreviews((items) => items.filter((_, itemIndex) => itemIndex !== index));
   }
 
   function saveSettings(): void {
@@ -72,13 +77,12 @@ function SlotCard({ slot }: { slot: SiteAdSlotWithMedia }): JSX.Element {
   }
 
   function upload(): void {
-    const files = inputRef.current?.files;
-    if (!files?.length) {
+    if (!previews.length) {
       setMessage("Selecione uma ou mais imagens.");
       return;
     }
     const formData = new FormData();
-    Array.from(files).forEach((file) => formData.append("files", file));
+    previews.forEach(({ file }) => formData.append("files", file));
     setMessage(null);
     startTransition(async () => {
       const result = await uploadSiteAdImagesAction(slot.id, slot.media.length, formData);
@@ -92,7 +96,7 @@ function SlotCard({ slot }: { slot: SiteAdSlotWithMedia }): JSX.Element {
           : result.count + " imagem(ns) enviada(s).",
       );
       if (inputRef.current) inputRef.current.value = "";
-      previews.forEach((url) => URL.revokeObjectURL(url));
+      previews.forEach(({ url }) => URL.revokeObjectURL(url));
       setPreviews([]);
       router.refresh();
     });
@@ -177,7 +181,12 @@ function SlotCard({ slot }: { slot: SiteAdSlotWithMedia }): JSX.Element {
         />
         {previews.length ? (
           <div className="site-ad-preview-grid">
-            {previews.map((url, index) => <img key={url} src={url} alt={"Prévia " + (index + 1)} style={{ objectFit: previewObjectFit }} />)}
+            {previews.map(({ url }, index) => (
+              <div key={url} className="site-ad-preview-item">
+                <img src={url} alt={"Prévia " + (index + 1)} style={{ objectFit: previewObjectFit }} />
+                <button type="button" className="site-ad-image-remove" aria-label={"Retirar imagem " + (index + 1) + " do envio"} title="Retirar do envio" onClick={() => removePreview(index)} disabled={pending}>×</button>
+              </div>
+            ))}
           </div>
         ) : null}
         <button type="button" className="form-action-primary" onClick={upload} disabled={pending}>
@@ -194,11 +203,11 @@ function SlotCard({ slot }: { slot: SiteAdSlotWithMedia }): JSX.Element {
               <div className="site-ad-thumb-image">
                 <img src={media.imageUrl} alt={media.altText ?? media.mediaAssetAltText ?? "Publicidade"} style={{ objectFit: previewObjectFit }} />
                 <span>{index + 1}</span>
+                <button type="button" className="site-ad-image-remove" aria-label={"Excluir imagem " + (index + 1) + " desta posição"} title="Excluir imagem" onClick={() => remove(media.id)} disabled={pending}>×</button>
               </div>
               <div className="site-ad-thumb-actions">
                 <button type="button" onClick={() => move(index, -1)} disabled={pending || index === 0} aria-label="Mover para cima">↑</button>
                 <button type="button" onClick={() => move(index, 1)} disabled={pending || index === slot.media.length - 1} aria-label="Mover para baixo">↓</button>
-                <button type="button" className="form-action-danger" onClick={() => remove(media.id)} disabled={pending}>Remover</button>
               </div>
             </div>
           ))}

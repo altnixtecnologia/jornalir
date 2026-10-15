@@ -25,13 +25,13 @@ export default async function NotificationsPage(): Promise<JSX.Element> {
       client
         .from("site_interest_requests")
         .select("id, name, request_type, created_at")
-        .eq("status", "new")
+        .is("attended_at", null)
         .order("created_at", { ascending: false })
         .limit(50),
     ]);
 
-  if (notificationError) throw new Error(notificationError.message);
-  if (requestError) throw new Error(requestError.message);
+  // Uma falha de leitura não deve derrubar toda a página de notificações.
+  // Mantenha as seções independentes e mostre o problema para diagnóstico.
 
   const unread = (notifications ?? []).filter((item) => !item.read_at).length;
 
@@ -42,6 +42,15 @@ export default async function NotificationsPage(): Promise<JSX.Element> {
         title="Notificações"
         description="Pagamentos, alertas financeiros e solicitações novas do site."
       />
+
+      {notificationError || requestError ? (
+        <div role="alert" className="inline-form" style={{ marginBottom: 16 }}>
+          <strong>Não foi possível carregar todos os avisos.</strong>
+          {notificationError ? <p>Eventos do sistema: {notificationError.message}</p> : null}
+          {requestError ? <p>Solicitações do site: {requestError.message}</p> : null}
+          <p className="helper-text">Atualize a página para tentar novamente. Nenhum registro foi alterado.</p>
+        </div>
+      ) : null}
 
       <div className="materias-toolbar">
         <span className="materias-count">
