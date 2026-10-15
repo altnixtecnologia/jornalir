@@ -83,3 +83,46 @@ self.addEventListener("fetch", (event) => {
   // Qualquer outro GET (imagens de capa/R2, APIs, dados editoriais em
   // geral): segue direto para a rede, sem interceptar — nunca cacheado.
 });
+
+
+// Notificações futuras do jornal (envio permanece desabilitado até configurar
+// assinatura voluntária e emissor Web Push). Não interferem no cache editorial.
+self.addEventListener("push", (event) => {
+  if (!event.data) return;
+  let payload;
+  try { payload = event.data.json(); } catch { return; }
+  if (!payload || typeof payload !== "object") return;
+  const title = typeof payload.title === "string" ? payload.title.slice(0, 150) : "Jornal IR";
+  const body = typeof payload.body === "string" ? payload.body.slice(0, 350) : "";
+  const href = typeof payload.href === "string" ? payload.href : "/";
+  const target = new URL(href, self.location.origin);
+  if (target.origin !== self.location.origin) return;
+  const urgent = payload.kind === "urgent";
+  const tag = typeof payload.tag === "string" ? payload.tag.slice(0, 100) : (urgent ? "jornal-ir-urgente" : undefined);
+  event.waitUntil(self.registration.showNotification(title, {
+    body,
+    icon: "/icons/icon-ir-192.png",
+    badge: "/icons/icon-ir-192.png",
+    tag,
+    renotify: urgent,
+    data: { href: target.pathname + target.search },
+    // Android/Web permitem vibração em algumas versões.
+    // O modo silencioso e ajustes do usuário podem impedir o alerta.
+    vibrate: urgent ? [250, 100, 250, 100, 350] : [120],
+  }));
+});
+
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  const href = event.notification.data?.href || "/";
+  const target = new URL(href, self.location.origin);
+  if (target.origin !== self.location.origin) return;
+  event.waitUntil(self.clients.matchAll({ type: "window", includeUncontrolled: true }).then(async (clients) => {
+    const found = clients.find((client) => client.url.startsWith(self.location.origin) && "focus" in client);
+    if (found) {
+      await found.focus();
+      if ("navigate" in found) return found.navigate(target.href);
+    }
+    return self.clients.openWindow(target.href);
+  }));
+});

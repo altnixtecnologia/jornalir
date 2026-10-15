@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRef, type ReactNode } from "react";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { AdminHeader } from "./AdminHeader";
 import { MobileNav } from "./MobileNav";
 import { useAuth } from "../../lib/auth/AuthProvider";
@@ -11,6 +11,7 @@ import { getInitials } from "../../lib/auth/accountDisplay";
 export function AdminShell({ children, previewMode = false }: { children: ReactNode; previewMode?: boolean }): JSX.Element {
   const menuRef = useRef<HTMLDialogElement>(null);
   const router = useRouter();
+  const pathname = usePathname();
   const { profile, signOut } = useAuth();
 
   async function handleLogout(): Promise<void> {
@@ -69,6 +70,23 @@ export function AdminShell({ children, previewMode = false }: { children: ReactN
         <main id="admin-content" className="admin-content" tabIndex={-1}>
           {children}
         </main>
+        <nav className="mobile-bottom-nav" aria-label="Acesso rápido do sistema">
+          <Link href="/sistema" aria-current={pathname === "/sistema" ? "page" : undefined}>
+            <span aria-hidden="true">⌂</span><small>Início</small>
+          </Link>
+          <Link href="/sistema/agenda?view=agenda" aria-current={pathname.startsWith("/sistema/agenda") && !pathname.includes("view=pauta") ? "page" : undefined}>
+            <span aria-hidden="true">▦</span><small>Agenda</small>
+          </Link>
+          <Link href="/sistema/agenda?view=pauta">
+            <span aria-hidden="true">☷</span><small>Pauta</small>
+          </Link>
+          <Link href="/sistema/editorial/materias" aria-current={pathname.startsWith("/sistema/editorial/materias") ? "page" : undefined}>
+            <span aria-hidden="true">▤</span><small>Matérias</small>
+          </Link>
+          <button type="button" onClick={() => menuRef.current?.showModal()} aria-label="Abrir todos os módulos">
+            <span aria-hidden="true">☰</span><small>Menu</small>
+          </button>
+        </nav>
         <footer className="workspace-footer">
           <span>JornalIR · Sistema interno</span>
           <span>Informativo Regional</span>

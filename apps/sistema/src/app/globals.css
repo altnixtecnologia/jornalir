@@ -5094,3 +5094,30 @@ button.secondary-link {
 .notification-preference-item span{display:grid;gap:4px;min-width:0}
 .notification-preference-item small{line-height:1.5;color:var(--muted)}
 @media(max-width:700px){.notification-preference-item{padding:14px}.notification-preference-item input{width:22px;height:22px;min-width:22px;min-height:22px}}
+
+
+/* Barra inferior mobile: destinos frequentes sem atravessar o menu completo. */
+.mobile-bottom-nav{display:none}
+@media(max-width:760px){
+  .admin-workspace{padding-bottom:calc(72px + env(safe-area-inset-bottom,0px))}
+  .mobile-bottom-nav{
+    position:fixed;left:0;right:0;bottom:0;z-index:50;
+    display:grid;grid-template-columns:repeat(5,minmax(0,1fr));
+    align-items:stretch;gap:0;
+    padding:5px 4px calc(5px + env(safe-area-inset-bottom,0px));
+    background:#fffefa;border-top:1px solid var(--line);
+    box-shadow:0 -5px 22px rgba(0,0,0,.08)
+  }
+  .mobile-bottom-nav a,.mobile-bottom-nav button{
+    border:0;background:transparent;color:var(--ink);
+    display:flex;flex-direction:column;align-items:center;justify-content:center;
+    text-decoration:none;min-width:0;min-height:53px;gap:2px;
+    border-radius:7px;padding:4px 1px;cursor:pointer
+  }
+  .mobile-bottom-nav span{font-size:21px;line-height:1.1}
+  .mobile-bottom-nav small{font-size:10px;font-weight:700}
+  .mobile-bottom-nav a[aria-current="page"]{background:#eeeefa;color:#252458}
+  .mobile-bottom-nav a:focus-visible,.mobile-bottom-nav button:focus-visible{
+    outline:2px solid #383676;outline-offset:-3px
+  }
+}
