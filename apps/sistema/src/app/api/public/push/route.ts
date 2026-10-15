@@ -12,11 +12,11 @@ function allowedOrigins(): Set<string> {
     try { return new URL(value).origin; } catch { return ""; }
   }).filter(Boolean));
 }
-export function corsOrigin(request: NextRequest): string | null {
+function corsOrigin(request: NextRequest): string | null {
   const origin = request.headers.get("origin");
   return origin && allowedOrigins().has(origin) ? origin : null;
 }
-export function corsHeaders(origin: string): HeadersInit {
+function corsHeaders(origin: string): HeadersInit {
   return {
     "Access-Control-Allow-Origin": origin,
     "Access-Control-Allow-Methods": "GET, POST, DELETE, OPTIONS",
