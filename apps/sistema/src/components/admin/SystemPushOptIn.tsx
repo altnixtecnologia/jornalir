@@ -29,11 +29,11 @@ export function SystemPushOptIn(): JSX.Element {
     if (busy) return;
     setBusy(true);setMessage("");
     try {
+      const permission = await Notification.requestPermission();
+      if (permission !== "granted") throw new Error("Permita notificações para o Sistema nas configurações do celular.");
       const config = await fetch("/api/push/subscriptions", { cache: "no-store" });
       const keys = await config.json() as { publicKey?: string | null };
       if (!keys.publicKey) throw new Error("Servidor de notificações ainda não configurado.");
-      const permission = await Notification.requestPermission();
-      if (permission !== "granted") throw new Error("Permita notificações para o Sistema nas configurações do celular.");
       // No fetch listener: nunca armazena paginas/sessoes administrativas em cache offline.
       const reg = await navigator.serviceWorker.register("/sw-push.js", { scope: "/" });
       const existing = await reg.pushManager.getSubscription();

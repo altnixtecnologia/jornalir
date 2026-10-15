@@ -36,11 +36,13 @@ export function PublicPushOptIn(): JSX.Element {
     if (busy || (!normal && !urgent)) return;
     setBusy(true);setMessage("");
     try {
+      // A permissão precisa ser pedida ANTES do primeiro await de rede:
+      // no iOS e outros navegadores exige uma interação recente do usuário.
+      const permission = await Notification.requestPermission();
+      if (permission !== "granted") throw new Error("Autorize as notificações nas configurações do navegador.");
       const response = await fetch(API, { cache: "no-store" });
       const data = await response.json() as KeyResponse;
       if (!data.publicKey) throw new Error("Notificações temporariamente indisponíveis.");
-      const permission = await Notification.requestPermission();
-      if (permission !== "granted") throw new Error("Autorize as notificações nas configurações do navegador.");
       const registration = await navigator.serviceWorker.ready;
       const existing = await registration.pushManager.getSubscription();
       const subscription = existing ?? await registration.pushManager.subscribe({

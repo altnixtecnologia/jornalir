@@ -1,8 +1,8 @@
 import "server-only";
 import { NextRequest, NextResponse } from "next/server";
-import { createSupabaseAdminClient } from "../../../lib/supabase/admin";
-import { createSupabaseServerClient } from "../../../lib/supabase/server";
-import { allowedPushSiteOrigin, validSubscription, vapidPublicKey } from "../../../lib/notifications/webPush";
+import { createSupabaseAdminClient } from "../../../../lib/supabase/admin";
+import { createSupabaseServerClient } from "../../../../lib/supabase/server";
+import { allowedPushSiteOrigin, validSubscription, vapidPublicKey } from "../../../../lib/notifications/webPush";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
