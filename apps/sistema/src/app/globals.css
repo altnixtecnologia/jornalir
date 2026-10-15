@@ -5053,7 +5053,9 @@ button.secondary-link {
 .mobile-nav-v2 .mobile-nav-link.is-primary[aria-current="page"]{color:#fff}
 
 /* Botão de excluir visível no desktop e no celular, sem depender do hover. */
-.site-ad-image-remove{opacity:1!important;visibility:visible!important;width:34px;height:34px;box-shadow:0 1px 5px rgba(0,0,0,.28)}
+.site-ad-thumb-image .site-ad-image-remove{opacity:0;visibility:hidden;box-shadow:0 1px 5px rgba(0,0,0,.28)}
+.site-ad-thumb-image:hover .site-ad-image-remove,.site-ad-thumb-image .site-ad-image-remove:focus-visible{opacity:1;visibility:visible}
+@media(hover:none),(pointer:coarse){.site-ad-thumb-image .site-ad-image-remove{opacity:1;visibility:visible;width:34px;height:34px}}
 
 /* Miniaturas PENDENTES: controles independentes das imagens já publicadas. */
 .site-ad-preview-tools{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap}
@@ -5061,7 +5063,7 @@ button.secondary-link {
 .site-ad-clear-pending{min-height:36px;padding:6px 12px;border:1px solid #963838;border-radius:6px;background:#fff;color:#963838;font-size:12px;font-weight:700;cursor:pointer}
 .site-ad-pending-image{position:relative}
 .site-ad-pending-image img{display:block;width:100%;aspect-ratio:4/3;object-fit:cover;border-radius:6px}
-.site-ad-pending-image>.site-ad-image-remove{opacity:1!important;visibility:visible!important;display:flex!important}
+
 .site-ad-remove-pending{position:static!important;display:flex!important;align-items:center;justify-content:center;width:100%;min-height:36px;margin-top:5px;padding:5px 8px;background:#fff1f1;border:1px solid #d99595;border-radius:6px;color:#8c2323;font-size:13px;font-weight:750;cursor:pointer}
 .site-ad-remove-pending:hover,.site-ad-clear-pending:hover{background:#ffe3e3}
 .site-ad-remove-pending:disabled,.site-ad-clear-pending:disabled{opacity:.55;cursor:wait}
