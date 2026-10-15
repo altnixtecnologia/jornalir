@@ -34,7 +34,7 @@ function atMinute(local: string, difference: number): string {
   return date.toISOString().slice(0, 16);
 }
 
-export async function GET(request: NextRequest): Promise<NextResponse> {
+async function sendTelegramReminders(request: NextRequest): Promise<NextResponse> {
   const secret = process.env.CRON_SECRET;
   if (!secret || request.headers.get("authorization") !== "Bearer " + secret) {
     return NextResponse.json({ error: "Não autorizado." }, { status: 401 });
@@ -119,15 +119,37 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       failed += 1;
     }
   }
-  // Reutiliza a execução já agendada a cada minuto: evita criar um
-  // segundo cron na Vercel e preserva o orçamento do plano gratuito.
-  // Falha no Push não invalida um lembrete já entregue no Telegram.
-  let push: unknown = null;
-  try {
-    const pushResponse = await runPushCron(request);
-    push = pushResponse.ok ? await pushResponse.json() : { status: pushResponse.status, enabled: false };
-  } catch {
-    push = { status: "unavailable" };
+  return NextResponse.json({ sent, failed });
+}
+
+// Uma única chamada do pg_cron executa os dois processadores isoladamente.
+// Mesmo uma falha na configuração/consulta do Telegram não interrompe o push,
+// e uma falha no push não impede o lembrete Telegram de ser processado.
+export async function GET(request: NextRequest): Promise<NextResponse> {
+  const secret = process.env.CRON_SECRET;
+  if (!secret || request.headers.get("authorization") !== "Bearer " + secret) {
+    return NextResponse.json({ error: "Não autorizado." }, { status: 401 });
   }
-  return NextResponse.json({ sent, failed, push });
+  const [telegram, push] = await Promise.allSettled([
+    sendTelegramReminders(request),
+    runPushCron(request),
+  ]);
+
+  let telegramResult: Record<string, unknown>;
+  if (telegram.status === "fulfilled") {
+    telegramResult = await telegram.value.json() as Record<string, unknown>;
+    if (!telegram.value.ok) telegramResult.status = telegram.value.status;
+  } else {
+    telegramResult = { status: "unavailable", sent: 0, failed: 1 };
+  }
+  let pushResult: Record<string, unknown>;
+  if (push.status === "fulfilled") {
+    pushResult = await push.value.json() as Record<string, unknown>;
+    if (!push.value.ok) pushResult.status = push.value.status;
+  } else {
+    pushResult = { status: "unavailable", enabled: false };
+  }
+  return NextResponse.json({ ...telegramResult, push: pushResult }, {
+    headers: { "Cache-Control": "no-store" },
+  });
 }

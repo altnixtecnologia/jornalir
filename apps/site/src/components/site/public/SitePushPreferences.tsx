@@ -10,6 +10,13 @@ function decodePublicKey(base64: string): Uint8Array {
   const bytes = atob(clean + "=".repeat((4 - clean.length % 4) % 4));
   return Uint8Array.from(bytes, (char) => char.charCodeAt(0));
 }
+function matchesVapidKey(subscription: PushSubscription, publicKey: string): boolean {
+  const currentKey = subscription.options.applicationServerKey;
+  if (!currentKey) return false;
+  const current = new Uint8Array(currentKey);
+  const expected = decodePublicKey(publicKey);
+  return current.length === expected.length && current.every((value, index) => value === expected[index]);
+}
 function platform(): "web" | "ios" | "android" {
   if (/android/i.test(navigator.userAgent)) return "android";
   if (/iphone|ipad|ipod/i.test(navigator.userAgent)) return "ios";
@@ -37,9 +44,14 @@ export function SitePushPreferences(): JSX.Element {
       try {
         const saved = localStorage.getItem(PREFERENCES_KEY);
         if (saved) {
-          const prefs = JSON.parse(saved) as { ordinary?: boolean; urgent?: boolean };
-          if (typeof prefs.ordinary === "boolean") setOrdinary(prefs.ordinary);
-          if (typeof prefs.urgent === "boolean") setUrgent(prefs.urgent);
+          try {
+            const prefs = JSON.parse(saved) as { ordinary?: boolean; urgent?: boolean };
+            if (typeof prefs.ordinary === "boolean") setOrdinary(prefs.ordinary);
+            if (typeof prefs.urgent === "boolean") setUrgent(prefs.urgent);
+          } catch {
+            // Preferências locais inválidas não devem impedir o cadastro.
+            localStorage.removeItem(PREFERENCES_KEY);
+          }
         }
         const configResponse = await fetch(ENDPOINT, { cache: "no-store" });
         if (!configResponse.ok) throw new Error("Serviço indisponível");
@@ -49,7 +61,12 @@ export function SitePushPreferences(): JSX.Element {
         const subscription = await registration?.pushManager.getSubscription();
         if (cancelled) return;
         setPublicKey(config.publicKey);
-        setStatus(subscription && localStorage.getItem(TOKEN_KEY) ? "active" : "ready");
+        const validSubscription = Boolean(
+          subscription && Notification.permission === "granted" &&
+          matchesVapidKey(subscription, config.publicKey) &&
+          localStorage.getItem(TOKEN_KEY)
+        );
+        setStatus(validSubscription ? "active" : "ready");
       } catch {
         if (!cancelled) setStatus("unavailable");
       }
@@ -75,13 +92,9 @@ export function SitePushPreferences(): JSX.Element {
       }
       const registration = await navigator.serviceWorker.register("/sw.js", { scope: "/" });
       let subscription = await registration.pushManager.getSubscription();
-      if (subscription?.options.applicationServerKey) {
-        const current = new Uint8Array(subscription.options.applicationServerKey);
-        const expected = decodePublicKey(publicKey);
-        if (current.length !== expected.length || !current.every((value, i) => value === expected[i])) {
-          await subscription.unsubscribe();
-          subscription = null;
-        }
+      if (subscription && !matchesVapidKey(subscription, publicKey)) {
+        await subscription.unsubscribe();
+        subscription = null;
       }
       if (!subscription) subscription = await registration.pushManager.subscribe({
         userVisibleOnly: true,
