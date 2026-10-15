@@ -1,6 +1,6 @@
 # Jornal IR — aplicativos mobile e notificações
 
-Situação de 15/10/2026: planejamento e base de app instalável do Sistema. **Não** há push nativo nem alarme local prontos, e nenhum app foi enviado às lojas.
+Situação de 15/10/2026: base instalável do Sistema. Web Push e fila de entregas estão sendo implementados no lote de desenvolvimento; **ainda não foram publicados/ativados**, não há alarme nativo pronto e nenhum app foi enviado às lojas.
 
 ## Estratégia
 - Continuar evoluindo desktop e mobile juntos. Não postergar a estrutura de navegação mobile até o final.
@@ -38,3 +38,28 @@ Situação de 15/10/2026: planejamento e base de app instalável do Sistema. **N
 - [ ] Push normal e urgente; validar sonoridade, vibração e limites dos sistemas operacionais.
 - [ ] Alarmes da Agenda com aplicativo encerrado, empregando suporte nativo se necessário.
 - [ ] Empacotamento, assinatura e publicação em lojas.
+
+
+## Implementação do lote push em preparação (não homologada)
+- A fila `notification_outbox` e as inscrições `notification_push_subscriptions` já existiam no Supabase; reutilizadas sem duplicar tabelas.
+- O gatilho de publicação editorial já enfileira avisos conforme `notification_mode` normal/urgent.
+- Rotas no Sistema: `/api/notifications/subscription` (usuários logados),
+  `/api/notifications/site-subscription` (leitores com origem explicitamente permitida)
+  e `/api/cron/notifications-push` (somente CRON_SECRET).
+- O cadastro anônimo de leitores precisa de `PUSH_SITE_REGISTRATION_ENABLED=true`; manter desligado até a homologação e os controles contra abuso.
+- Processador Web Push com HKDF, AES-128-GCM e VAPID ES256, sem dependências externas adicionais.
+- O worker envia no máximo três notificações por execução, com fila exclusiva e idempotência; resposta incerta não é reprocessada automaticamente.
+- Lembretes pessoais da Agenda são enfileirados ao criar ou alterar compromissos e responsáveis, com verificação antes do envio.
+- `20261015120100_notification_push_worker_rpc.sql` e `20261015120200_agenda_push_outbox.sql` precedem a ativação do cron;
+  `20261015120400_activate_notification_push_cron.sql` deve ser aplicada apenas depois de publicar a rota protegida.
+- A chave pública VAPID já existe na Vercel do Sistema; chave privada e assunto permanecem exclusivos do servidor.
+- As telas de inscrição e consentimento do site/Sistema estão em preparação. As notícias urgentes podem priorizar notificações,
+  mas **não garantem som/vibração personalizada** no navegador.
+- Antes de ligar: revisar limites e consentimento, executar build e testes de permissão/endpoints,
+  aplicar migrations em ordem, publicar rotas e então habilitar agendamento; testar em aparelhos reais.
+
+### Permanecem pendentes
+- [ ] Homologar Web Push ponta a ponta em Android e iOS com permissões reais.
+- [ ] Adicionar proteção/rate limit do cadastro público antes de ligar para leitores.
+- [ ] Desenvolver aplicativo nativo e toque próprio licenciado; respeitar silencioso e permissões dos SOs.
+- [ ] Implementar lembretes locais da Agenda que despertem mesmo sem conexão; testar em segundo plano.
