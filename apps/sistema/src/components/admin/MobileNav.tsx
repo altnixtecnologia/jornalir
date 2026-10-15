@@ -43,6 +43,7 @@ const SHORTCUTS: AdminNavLink[] = [
   { label: "Nova matéria", href: "/sistema/editorial/materias/nova" },
   { label: "Solicitações", href: "/sistema/publicidade/solicitacoes" },
   { label: "Notificações", href: "/sistema/notificacoes" },
+  { label: "Preferências", href: "/sistema/preferencias-notificacoes" },
 ];
 
 function normalize(text: string): string {

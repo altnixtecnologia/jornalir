@@ -70,6 +70,9 @@ export function AccountMenu(): JSX.Element | null {
           <Link href="/sistema/perfil#seguranca" className="account-menu-link" role="menuitem" onClick={() => setOpen(false)}>
             Alterar senha
           </Link>
+          <Link href="/sistema/preferencias-notificacoes" className="account-menu-link" role="menuitem" onClick={() => setOpen(false)}>
+            Notificações do aplicativo
+          </Link>
           <div className="account-menu-divider" role="separator" />
           <button type="button" className="account-menu-link account-menu-signout" role="menuitem" onClick={handleLogout}>
             Sair
