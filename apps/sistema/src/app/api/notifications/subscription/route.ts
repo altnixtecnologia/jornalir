@@ -39,6 +39,16 @@ function validateEndpoint(value: unknown): string | null {
   try {
     const parsed = new URL(value);
     if (parsed.protocol !== "https:" || parsed.username || parsed.password || parsed.hash) return null;
+    // Endpoints de push são fornecidos por provedores reconhecidos.
+    // Não permitir hosts privados, IPs ou domínios arbitrários que criariam SSRF.
+    const host = parsed.hostname.toLowerCase();
+    const allowed = host === "fcm.googleapis.com"
+      || host === "updates.push.services.mozilla.com"
+      || host === "web.push.apple.com"
+      || host === "webpush.push.apple.com"
+      || (host.endsWith(".notify.windows.com") && host.length > ".notify.windows.com".length)
+      || host === "wns.notify.windows.com";
+    if (!allowed || (parsed.port && parsed.port !== "443")) return null;
     return parsed.toString();
   } catch {
     return null;
@@ -67,6 +77,9 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   try {
     if (Number(request.headers.get("content-length") || 0) > 8192) return NextResponse.json({ error: "Payload grande demais." }, { status: 413 });
     payload = await request.json() as WebSubscription;
+    if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
+      return NextResponse.json({ error: "Dados inválidos." }, { status: 400 });
+    }
   } catch {
     return NextResponse.json({ error: "Dados inválidos." }, { status: 400 });
   }

@@ -51,6 +51,7 @@ export async function SiteFooter(): Promise<JSX.Element> {
           <Link href="/jornal-online" className="footer-link">Jornal Online</Link>
           <Link href="/sobre" className="footer-link">Sobre</Link>
           <Link href="/contato" className="footer-link">Contato</Link>
+          <Link href="/notificacoes" className="footer-link">Receber notícias</Link>
           <Link href="/busca" className="footer-link">Buscar</Link>
         </div>
 
