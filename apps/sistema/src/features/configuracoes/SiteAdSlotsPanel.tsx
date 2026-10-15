@@ -30,6 +30,7 @@ function slotIdentity(slotNumber: number): { position: number; side: "Esquerda" 
 function SlotCard({ slot }: { slot: SiteAdSlotWithMedia }): JSX.Element {
   const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
+  const previewUrlsRef = useRef<Set<string>>(new Set());
   const [pending, startTransition] = useTransition();
   const [seconds, setSeconds] = useState(String(Math.round(slot.rotationIntervalMs / 1000)));
   const [effect, setEffect] = useState<SiteAdSlotTransitionEffect>(slot.transitionEffect);
@@ -38,15 +39,32 @@ function SlotCard({ slot }: { slot: SiteAdSlotWithMedia }): JSX.Element {
   const [message, setMessage] = useState<string | null>(null);
   const identity = slotIdentity(slot.slotNumber);
 
-  useEffect(() => () => previews.forEach(({ url }) => URL.revokeObjectURL(url)), [previews]);
+  // Revoga as URLs somente ao retirá-las, trocar a seleção ou desmontar o
+  // componente. Não revogue todas a cada mudança do estado de prévias:
+  // isso faz as imagens restantes desaparecerem ao remover uma miniatura.
+  useEffect(() => () => {
+    for (const url of previewUrlsRef.current) URL.revokeObjectURL(url);
+    previewUrlsRef.current.clear();
+  }, []);
 
   function selectFiles(files: FileList | null): void {
-    previews.forEach(({ url }) => URL.revokeObjectURL(url));
-    setPreviews(files ? Array.from(files).map((file) => ({ file, url: URL.createObjectURL(file) })) : []);
+    for (const url of previewUrlsRef.current) URL.revokeObjectURL(url);
+    previewUrlsRef.current.clear();
+    const selected = files ? Array.from(files).map((file) => {
+      const url = URL.createObjectURL(file);
+      previewUrlsRef.current.add(url);
+      return { file, url };
+    }) : [];
+    setPreviews(selected);
     if (inputRef.current) inputRef.current.value = "";
   }
 
   function removePreview(index: number): void {
+    const removed = previews[index];
+    if (removed) {
+      URL.revokeObjectURL(removed.url);
+      previewUrlsRef.current.delete(removed.url);
+    }
     setPreviews((items) => items.filter((_, itemIndex) => itemIndex !== index));
   }
 
@@ -96,7 +114,8 @@ function SlotCard({ slot }: { slot: SiteAdSlotWithMedia }): JSX.Element {
           : result.count + " imagem(ns) enviada(s).",
       );
       if (inputRef.current) inputRef.current.value = "";
-      previews.forEach(({ url }) => URL.revokeObjectURL(url));
+      for (const url of previewUrlsRef.current) URL.revokeObjectURL(url);
+      previewUrlsRef.current.clear();
       setPreviews([]);
       router.refresh();
     });

@@ -58,7 +58,9 @@ export async function getPublicSiteAds(): Promise<PublicSiteAds> {
         .order("slot_number", { ascending: true }),
       supabase
         .from("public_site_ad_media")
-        .select("slot_number, id, image_url, alt_text, href, sort_order, rotation_interval_ms, transition_effect, fit_mode"),
+        .select("slot_number, id, image_url, alt_text, href, sort_order, rotation_interval_ms, transition_effect, fit_mode")
+        .order("slot_number", { ascending: true })
+        .order("sort_order", { ascending: true }),
     ]);
 
     if (slotsResult.error) throw new Error(slotsResult.error.message);

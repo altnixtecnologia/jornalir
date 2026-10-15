@@ -293,14 +293,14 @@ export function createSiteAdSlotRepositorySupabase(client: SupabaseClient): Site
         slot.media.forEach((item, index) => { item.sortOrder = index; });
         return;
       }
-      for (let index = 0; index < orderedMediaIds.length; index += 1) {
-        const { error } = await client
-          .from(MEDIA_TABLE)
-          .update({ sort_order: index })
-          .eq("id", orderedMediaIds[index])
-          .eq("slot_id", slotId);
-        if (error) throw new Error(error.message);
-      }
+      // Um unico RPC transacional: nao deixa a ordem pela metade se uma
+      // imagem tiver sido removida ou outro editor alterar a lista.
+      const { data: changed, error } = await client.rpc("reorder_site_ad_media", {
+        p_slot_id: slotId,
+        p_media_ids: orderedMediaIds,
+      });
+      if (error) throw new Error(error.message);
+      if (changed !== orderedMediaIds.length) throw new Error("Não foi possível confirmar a ordem de todas as imagens.");
     },
   };
 }
