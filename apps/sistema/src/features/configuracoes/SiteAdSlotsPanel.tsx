@@ -288,14 +288,36 @@ function SlotCard({ slot }: { slot: SiteAdSlotWithMedia }): JSX.Element {
           disabled={pending || uploading}
         />
         {previews.length ? (
+          <>
+          <div className="site-ad-preview-tools">
+            <strong>{previews.length} imagem(ns) selecionada(s) — ainda não enviadas</strong>
+            <button
+              type="button"
+              className="site-ad-clear-pending"
+              onClick={() => selectFiles(null)}
+              disabled={pending || uploading}
+            >
+              Limpar seleção
+            </button>
+          </div>
           <div className="site-ad-preview-grid">
             {previews.map(({ url }, index) => (
               <div key={url} className="site-ad-preview-item">
-                <img src={url} alt={"Prévia " + (index + 1)} style={{ objectFit: previewObjectFit }} />
-                <button type="button" className="site-ad-image-remove" aria-label={"Retirar imagem " + (index + 1) + " do envio"} title="Retirar do envio" onClick={() => removePreview(index)} disabled={pending || uploading}>×</button>
+                <div className="site-ad-pending-image">
+                  <img src={url} alt={"Prévia " + (index + 1)} style={{ objectFit: previewObjectFit }} />
+                  <button type="button" className="site-ad-image-remove" aria-label={"Retirar imagem " + (index + 1) + " antes de enviar"} title="Retirar antes de enviar" onClick={() => removePreview(index)} disabled={pending || uploading}>×</button>
+                </div>
+                <button
+                  type="button"
+                  className="site-ad-remove-pending"
+                  aria-label={"Retirar imagem " + (index + 1) + " da seleção"}
+                  onClick={() => removePreview(index)}
+                  disabled={pending || uploading}
+                >× Retirar</button>
               </div>
             ))}
           </div>
+          </>
         ) : null}
         <button type="button" className="form-action-primary" onClick={upload} disabled={pending || uploading}>
           {uploading ? "Enviando..." : pending ? "Processando..." : "Enviar imagens"}

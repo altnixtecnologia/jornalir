@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useEffect } from "react";
 import { usePathname } from "next/navigation";
 import { assinaturasNavGroup, clientesNavGroup, configuracoesNavGroup, editorialNavGroup, financeiroNavGroup, nfseNavGroup, commercialNavGroup } from "../../lib/navigation";
 import { useAuth } from "../../lib/auth/AuthProvider";
@@ -16,6 +17,27 @@ function closeNavDropdowns(): void {
 
 export function AdminHeader({ onOpenMenu }: { onOpenMenu: () => void }): JSX.Element {
   const pathname = usePathname();
+
+  useEffect(() => {
+    // <details> não fecha sozinho ao clicar fora da lista.
+    // O listener é único para todos os menus superiores, sem interferir
+    // no clique de uma opção dentro do menu.
+    function handleOutsideClick(event: PointerEvent): void {
+      if (!(event.target instanceof Element)) return;
+      if (event.target.closest("details[data-nav-dropdown]")) return;
+      closeNavDropdowns();
+    }
+    function handleEscape(event: KeyboardEvent): void {
+      if (event.key === "Escape") closeNavDropdowns();
+    }
+    document.addEventListener("pointerdown", handleOutsideClick);
+    document.addEventListener("keydown", handleEscape);
+    closeNavDropdowns(); // inclui navegação para outra página.
+    return () => {
+      document.removeEventListener("pointerdown", handleOutsideClick);
+      document.removeEventListener("keydown", handleEscape);
+    };
+  }, [pathname]);
   const { profile } = useAuth();
   const isHome = pathname === "/sistema";
   const isEditorial = pathname.startsWith("/sistema/editorial");

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   assinaturasNavGroup,
   clientesNavGroup,
@@ -58,11 +58,30 @@ export function MobileNav({ onNavigate }: { onNavigate: () => void }): JSX.Eleme
   const pathname = usePathname();
   const { profile } = useAuth();
   const [search, setSearch] = useState("");
+  const [openGroup, setOpenGroup] = useState<string | null>(null);
+  const navRef = useRef<HTMLElement>(null);
+
+  useEffect(() => {
+    // Qualquer toque fora do grupo aberto recolhe aquele submenu.
+    function handleOutsideClick(event: PointerEvent): void {
+      if (!(event.target instanceof Element)) return;
+      if (event.target.closest(".mobile-nav-group")) return;
+      setOpenGroup(null);
+    }
+    document.addEventListener("pointerdown", handleOutsideClick);
+    return () => document.removeEventListener("pointerdown", handleOutsideClick);
+  }, []);
+
+  useEffect(() => {
+    // Reinicia o submenu quando a rota mudar.
+    setOpenGroup(null);
+  }, [pathname]);
   const canManageUsers = profile?.role === "owner" || profile?.role === "admin";
   const visibleGroups = GROUPS.filter((group) => !group.restricted || canManageUsers);
   const query = normalize(search);
   const close = (): void => {
     setSearch("");
+    setOpenGroup(null);
     onNavigate();
   };
   const uniqueResults = new Map<string, AdminNavLink>();
@@ -86,7 +105,7 @@ export function MobileNav({ onNavigate }: { onNavigate: () => void }): JSX.Eleme
   );
 
   return (
-    <nav className="mobile-nav mobile-nav-v2" aria-label="Menu do sistema">
+    <nav ref={navRef} className="mobile-nav mobile-nav-v2" aria-label="Menu do sistema">
       <label className="mobile-nav-find" htmlFor="mobile-nav-search">
         <span>Encontre rapidamente</span>
         <input
@@ -128,21 +147,25 @@ export function MobileNav({ onNavigate }: { onNavigate: () => void }): JSX.Eleme
             Visão geral
           </Link>
           <p className="mobile-nav-subheading">Todos os módulos</p>
-          {visibleGroups.map((group) => {
-            const active = group.links.some((link) => isActive(pathname, link.href));
-            return (
+          {visibleGroups.map((group) => (
               <details
-                key={pathname + group.label}
+                key={group.label}
                 className="mobile-nav-group"
-                open={active}
+                open={openGroup === group.label}
               >
-                <summary>{group.label}<span className="mobile-nav-count">{group.links.length}</span></summary>
+                <summary
+                  onClick={(event) => {
+                    event.preventDefault();
+                    setOpenGroup((previous) => previous === group.label ? null : group.label);
+                  }}
+                >
+                  {group.label}<span className="mobile-nav-count">{group.links.length}</span>
+                </summary>
                 <div className="mobile-nav-group-links">
                   {group.links.map((link) => renderLink(link, group.planned))}
                 </div>
               </details>
-            );
-          })}
+          ))}
         </>
       )}
     </nav>
