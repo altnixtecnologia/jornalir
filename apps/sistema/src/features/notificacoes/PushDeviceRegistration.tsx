@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { createSupabaseBrowserClient } from "../../lib/supabase/browser";
 import { useAuth } from "../../lib/auth/AuthProvider";
+import { sendMyPushTestAction } from "./actions";
 
 type Setup = "loading" | "unsupported" | "unconfigured" | "blocked" | "ready" | "active";
 
@@ -91,6 +92,20 @@ export function PushDeviceRegistration(): JSX.Element {
     }
   }
 
+  async function sendTest(): Promise<void> {
+    if (working || !profile) return;
+    setWorking(true);
+    setMessage(null);
+    try {
+      const result = await sendMyPushTestAction(crypto.randomUUID());
+      setMessage(result.error ?? "Teste agendado. Se você permitiu avisos administrativos, deverá aparecer no aparelho após o próximo ciclo de envio.");
+    } catch {
+      setMessage("Não foi possível agendar o teste.");
+    } finally {
+      setWorking(false);
+    }
+  }
+
   async function deactivate(): Promise<void> {
     if (!profile || working) return;
     setWorking(true);
@@ -124,7 +139,16 @@ export function PushDeviceRegistration(): JSX.Element {
       {setup === "unconfigured" ? <p className="helper-text">Cadastro de dispositivos preparado; aguardando a configuração de envio push.</p> : null}
       {setup === "blocked" ? <p className="helper-text">Notificações bloqueadas pelo navegador.</p> : null}
       {setup === "ready" ? <button type="button" className="form-action-primary" disabled={working} onClick={() => void activate()}>{working ? "Registrando..." : "Ativar notificações neste dispositivo"}</button> : null}
-      {setup === "active" ? <button type="button" disabled={working} onClick={() => void deactivate()}>{working ? "Desativando..." : "Desativar notificações neste dispositivo"}</button> : null}
+      {setup === "active" ? (
+        <div className="flex flex-wrap gap-3">
+          <button type="button" className="form-action-primary" disabled={working} onClick={() => void sendTest()}>
+            {working ? "Aguarde..." : "Enviar teste ao meu dispositivo"}
+          </button>
+          <button type="button" disabled={working} onClick={() => void deactivate()}>
+            Desativar notificações neste dispositivo
+          </button>
+        </div>
+      ) : null}
       {message ? <p role="status" className="helper-text">{message}</p> : null}
     </section>
   );

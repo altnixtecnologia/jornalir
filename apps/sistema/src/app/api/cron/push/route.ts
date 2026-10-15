@@ -1,6 +1,6 @@
 import "server-only";
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
+import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { sendWebPush, type WebPushSubscription } from "../../../../lib/notifications/webPush.server";
 
 export const runtime = "nodejs";
@@ -9,7 +9,7 @@ const TIMEZONE = "America/Sao_Paulo";
 const MAX_SEND_PER_RUN = 20;
 
 type AgendaEvent = { id: string; title: string; event_date: string; start_time: string | null; reminder_minutes: number | null };
-type PushEvent = { id: string; app_kind: string; kind: string; title: string; body: string; href: string | null; target_profile_id: string | null; dedupe_key: string | null };
+type PushEvent = { id: string; app_kind: string; kind: string; title: string; body: string; href: string | null; target_profile_id: string | null; dedupe_key: string | null; scheduled_at: string };
 type PushDevice = { id: string; profile_id: string; subscription_endpoint: string; subscription_payload: unknown };
 type PushPreference = { profile_id: string; ordinary_enabled: boolean; urgent_enabled: boolean; agenda_enabled: boolean };
 
@@ -34,6 +34,58 @@ function asSubscription(device: PushDevice): WebPushSubscription {
     throw new Error("Assinatura Web Push inválida");
   }
   return { endpoint: device.subscription_endpoint, keys: { p256dh: payload.keys.p256dh, auth: payload.keys.auth } };
+}
+
+
+type SiteDelivery = { delivery_id: string; event_id: string; subscription_id: string };
+type SiteSubscription = { id: string; endpoint: string; subscription_payload: unknown; enabled: boolean; ordinary_enabled: boolean; urgent_enabled: boolean };
+
+async function processSiteDeliveries(db: SupabaseClient): Promise<{ siteClaimed: number; siteSent: number; siteFailed: number }> {
+  const { data, error } = await db.rpc("claim_site_push_deliveries", { p_limit: 20 });
+  if (error) throw new Error("Não foi possível reservar entregas públicas: " + error.message);
+  const claims = (data ?? []) as SiteDelivery[];
+  let siteSent = 0;
+  let siteFailed = 0;
+  // As entregas são reservadas atomicamente no banco antes de qualquer envio.
+  await Promise.all(claims.map(async (claim) => {
+    try {
+      const [eventResult, subscriberResult] = await Promise.all([
+        db.from("notification_events").select("title,body,href,kind,dedupe_key").eq("id", claim.event_id).maybeSingle(),
+        db.from("site_push_subscriptions").select("id,endpoint,subscription_payload,enabled,ordinary_enabled,urgent_enabled").eq("id", claim.subscription_id).maybeSingle(),
+      ]);
+      const event = eventResult.data;
+      const subscriber = subscriberResult.data as SiteSubscription | null;
+      if (eventResult.error || subscriberResult.error || !event || !subscriber) throw new Error("Evento ou assinatura indisponível");
+      if (!subscriber.enabled || (event.kind === "urgent" ? !subscriber.urgent_enabled : !subscriber.ordinary_enabled)) {
+        await db.from("site_push_deliveries").update({ status: "expired", last_error: "Preferência desativada" }).eq("id", claim.delivery_id);
+        return;
+      }
+      const push = subscriber.subscription_payload as { keys?: { p256dh?: string; auth?: string } } | null;
+      if (!push?.keys?.p256dh || !push?.keys?.auth) throw new Error("Chaves da assinatura ausentes");
+      const sent = await sendWebPush({ endpoint: subscriber.endpoint, keys: { p256dh: push.keys.p256dh, auth: push.keys.auth } }, {
+        title: event.title, body: event.body, kind: event.kind,
+        href: event.href || "/", tag: event.dedupe_key || claim.event_id,
+      });
+      const nextStatus = sent.ok ? "sent" : sent.expired ? "expired" : "failed";
+      await db.from("site_push_deliveries").update({
+        status: nextStatus,
+        last_error: sent.ok ? null : "Web Push HTTP " + sent.status,
+      }).eq("id", claim.delivery_id);
+      if (sent.expired) {
+        await db.from("site_push_subscriptions").update({ enabled: false }).eq("id", claim.subscription_id);
+      }
+      if (sent.ok) siteSent++;
+      else siteFailed++;
+    } catch (error) {
+      siteFailed++;
+      await db.from("site_push_deliveries").update({
+        status: "failed",
+        last_error: error instanceof Error ? error.message.slice(0, 240) : "Falha na entrega",
+      }).eq("id", claim.delivery_id);
+      // Status desconhecido não é repetido automaticamente para evitar duplicidade.
+    }
+  }));
+  return { siteClaimed: claims.length, siteSent, siteFailed };
 }
 
 export async function GET(request: NextRequest): Promise<NextResponse> {
@@ -94,7 +146,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   // bloqueiem a fila. O claim UNIQUE protege de execução concorrente.
   const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
   const { data: pushEvents, error: queueError } = await db.from("notification_events")
-    .select("id,app_kind,kind,title,body,href,target_profile_id,dedupe_key")
+    .select("id,app_kind,kind,title,body,href,target_profile_id,dedupe_key,scheduled_at")
     .eq("app_kind", "sistema").lte("scheduled_at", new Date().toISOString())
     .gte("scheduled_at", since).order("scheduled_at", { ascending: false }).limit(80);
   if (queueError) return NextResponse.json({ error: "Falha na fila de notificações" }, { status: 500 });
@@ -103,7 +155,10 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     .eq("app_kind", "sistema").eq("enabled", true).limit(300);
   if (deviceError) return NextResponse.json({ error: "Falha no cadastro dos dispositivos" }, { status: 500 });
   const activeDevices = (devices ?? []) as PushDevice[];
-  if (activeDevices.length === 0) return NextResponse.json({ queued, sent: 0, failed, devices: 0 });
+  if (activeDevices.length === 0) {
+    const site = await processSiteDeliveries(db);
+    return NextResponse.json({ queued, sent: 0, failed, devices: 0, ...site });
+  }
   const profileIds = [...new Set(activeDevices.map((x) => x.profile_id))];
   const [preferenceResult, activeResult] = await Promise.all([
     db.from("notification_preferences")
@@ -119,6 +174,9 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   let sent = 0;
   let claimed = 0;
   outer: for (const event of (pushEvents ?? []) as PushEvent[]) {
+    const ageMs = Date.now() - new Date(event.scheduled_at).getTime();
+    if (event.kind === "agenda" && ageMs > 10 * 60 * 1000) continue;
+    if (event.kind === "urgent" && ageMs > 60 * 60 * 1000) continue;
     for (const device of activeDevices) {
       if (claimed >= MAX_SEND_PER_RUN) break outer;
       if (event.target_profile_id && event.target_profile_id !== device.profile_id) continue;
@@ -153,5 +211,6 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       }
     }
   }
-  return NextResponse.json({ queued, claimed, sent, failed, devices: activeDevices.length });
+  const site = await processSiteDeliveries(db);
+  return NextResponse.json({ queued, claimed, sent, failed, devices: activeDevices.length, ...site });
 }

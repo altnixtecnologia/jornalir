@@ -38,3 +38,15 @@ Situação de 15/10/2026: planejamento e base de app instalável do Sistema. **N
 - [ ] Push normal e urgente; validar sonoridade, vibração e limites dos sistemas operacionais.
 - [ ] Alarmes da Agenda com aplicativo encerrado, empregando suporte nativo se necessário.
 - [ ] Empacotamento, assinatura e publicação em lojas.
+
+
+## Implementação web (15/10/2026, lote em validação)
+- Sistema: barra inferior mobile, preferências individuais, registro/desregistro de assinatura Web Push, disparo de teste somente ao próprio usuário, alarmes da Agenda gerados por responsável na fila de notificações.
+- Portal público: página /notificacoes com opt-in separado para notícias comuns e urgentes; assinatura sem conta vinculada a token de gestão armazenado no dispositivo; gateway autenticado por origem e limitado por IP com HMAC.
+- Envio: RFC 8291 AES128GCM e VAPID ES256 no servidor, endpoint restrito a provedores conhecidos; entrega idempotente por dispositivo. Requer teste real no navegador/aparelho.
+- Disparo editorial: página de Configurações > Notificações push, reservada a proprietário/administradores, com confirmação adicional para urgentes. Notícias não são enviadas automaticamente ao publicar.
+- Agendador: execução push acoplada ao cron existente de Telegram (uma chamada por minuto), sem criar cron extra.
+- Credenciais VAPID já presentes na Vercel Sistema; **não substituir**, pois isso invalidaria assinaturas anteriores.
+- O app web oferece push condicionado à plataforma e permissão; som urgente característico e alarmes com precisão nativa ainda exigem camada Android/iOS.
+- Em clientes iOS, Web Push depende de web app instalado na tela inicial e de versão compatível. Pode ser limitado por Não Perturbe e ajustes do SO.
+- Nenhum teste de entrega real é considerado aprovado até um dispositivo receber os dois tipos de mensagens.

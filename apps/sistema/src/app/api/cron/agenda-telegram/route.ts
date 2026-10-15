@@ -1,6 +1,7 @@
 import "server-only";
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { GET as runPushCron } from "../push/route";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -118,5 +119,15 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       failed += 1;
     }
   }
-  return NextResponse.json({ sent, failed });
+  // Reutiliza a execução já agendada a cada minuto: evita criar um
+  // segundo cron na Vercel e preserva o orçamento do plano gratuito.
+  // Falha no Push não invalida um lembrete já entregue no Telegram.
+  let push: unknown = null;
+  try {
+    const pushResponse = await runPushCron(request);
+    push = pushResponse.ok ? await pushResponse.json() : { status: pushResponse.status, enabled: false };
+  } catch {
+    push = { status: "unavailable" };
+  }
+  return NextResponse.json({ sent, failed, push });
 }
