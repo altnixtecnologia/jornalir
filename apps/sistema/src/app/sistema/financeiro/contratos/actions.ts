@@ -6,6 +6,7 @@ import type { ContractDocumentType, ContractDocumentExtractedData } from "@ir/ty
 import type { ContractInput } from "@ir/core";
 import { getContractService } from "../../../../composition/financeiro";
 import { createSupabaseServerClient } from "../../../../lib/supabase/server";
+import { financePermissionError } from "../../../../lib/permissions/serverFinanceGuard";
 import { parseAmount, validateContractPayload, type ContractFormPayload } from "../../../../features/financeiro/contractFormTypes";
 import { extractContractDocumentData, type ContractDocumentExtractionResult } from "../../../../lib/financeiro/contractDocumentExtraction";
 
@@ -43,6 +44,8 @@ function toServiceInput(payload: ContractFormPayload): ContractInput {
 export async function analyzeContractDocumentAction(
   formData: FormData,
 ): Promise<{ error: string } | ({ ok: true } & ContractDocumentExtractionResult)> {
+  const denied = await financePermissionError("contratos_criar");
+  if (denied) return { error: denied };
   const file = formData.get("file");
   if (!(file instanceof File)) return { error: "Selecione um arquivo." };
   try {
@@ -76,6 +79,8 @@ export async function createContractWithDocument(
   payload: ContractFormPayload,
   pendingDocument?: PendingDocumentInput,
 ): Promise<ActionResult> {
+  const denied = await financePermissionError("contratos_criar");
+  if (denied) return { error: denied };
   const validationError = validateContractPayload(payload);
   if (validationError) return { error: validationError };
 
@@ -114,6 +119,8 @@ export async function createContractWithDocument(
 }
 
 export async function createContract(payload: ContractFormPayload): Promise<ActionResult> {
+  const denied = await financePermissionError("contratos_criar");
+  if (denied) return { error: denied };
   const validationError = validateContractPayload(payload);
   if (validationError) return { error: validationError };
 
@@ -129,6 +136,8 @@ export async function createContract(payload: ContractFormPayload): Promise<Acti
 }
 
 export async function updateContract(id: string, payload: ContractFormPayload): Promise<ActionResult> {
+  const denied = await financePermissionError("contratos_editar");
+  if (denied) return { error: denied };
   const validationError = validateContractPayload(payload);
   if (validationError) return { error: validationError };
 
@@ -157,6 +166,8 @@ export interface ContractDocumentFormInput {
  * só acontece se o usuário revisar e chamar updateContract explicitamente.
  */
 export async function addContractDocumentAction(contractId: string, input: ContractDocumentFormInput): Promise<ActionResult> {
+  const denied = await financePermissionError("contratos_editar");
+  if (denied) return { error: denied };
   try {
     await getContractService(createSupabaseServerClient()).addDocument(contractId, {
       documentType: input.documentType,
@@ -190,6 +201,8 @@ export interface ContractAmendmentFormInput {
  * aditivos registrados. `amount` pode ser negativo (redução).
  */
 export async function addContractAmendmentAction(contractId: string, input: ContractAmendmentFormInput): Promise<ActionResult> {
+  const denied = await financePermissionError("contratos_editar");
+  if (denied) return { error: denied };
   const amount = parseAmount(input.amount);
   if (amount === undefined || amount === 0) return { error: "Informe um valor de aditivo válido (diferente de zero)." };
   try {
@@ -223,6 +236,8 @@ export interface CommitmentOrderFormInput {
  * presume que todo título exige um.
  */
 export async function addCommitmentOrderAction(contractId: string, input: CommitmentOrderFormInput): Promise<ActionResult> {
+  const denied = await financePermissionError("contratos_editar");
+  if (denied) return { error: denied };
   try {
     await getContractService(createSupabaseServerClient()).addCommitmentOrder(contractId, {
       number: input.number,
