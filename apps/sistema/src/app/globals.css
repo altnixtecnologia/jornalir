@@ -5069,3 +5069,20 @@ button.secondary-link {
 .site-ad-remove-pending:disabled,.site-ad-clear-pending:disabled{opacity:.55;cursor:wait}
 
 .site-ad-preview-file-name{display:block;width:100%;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:4px 1px 0;font-size:11px;color:var(--muted)}
+
+
+/* Mobile: controls must remain usable without horizontal panning. */
+@media (max-width: 760px) {
+  .admin-content,.admin-content > *{min-width:0;max-width:100%}
+  .admin-content input:not([type="checkbox"]):not([type="radio"]),
+  .admin-content select,
+  .admin-content textarea{max-width:100%;min-width:0}
+  .admin-content button,.admin-content a,.admin-content summary{touch-action:manipulation}
+  .admin-content .form-grid,.admin-content .inline-form{min-width:0}
+  .admin-content img,.admin-content video{max-width:100%;height:auto}
+  .admin-content [role="table"],.admin-content table{max-width:100%}
+  .admin-content .table-wrapper,.admin-content .data-table-wrapper{overflow-x:auto;-webkit-overflow-scrolling:touch}
+  .site-ad-slot-settings,.site-ad-upload,.site-ad-preview-grid,.site-ad-side-grid{min-width:0}
+  .site-ad-preview-grid img{min-height:0}
+  .site-ad-remove-pending,.site-ad-clear-pending{min-height:44px}
+}
