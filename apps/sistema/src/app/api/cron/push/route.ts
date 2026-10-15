@@ -179,7 +179,8 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     if (event.kind === "urgent" && ageMs > 60 * 60 * 1000) continue;
     for (const device of activeDevices) {
       if (claimed >= MAX_SEND_PER_RUN) break outer;
-      if (event.target_profile_id && event.target_profile_id !== device.profile_id) continue;
+      // Evento privado sem destinatário jamais vira envio para todos.
+      if (event.target_profile_id !== device.profile_id) continue;
       if (!activeProfiles.has(device.profile_id)) continue;
       const pref = preferences.get(device.profile_id);
       if (!pref || !optedIn(event.kind, pref)) continue;

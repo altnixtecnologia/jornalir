@@ -15,6 +15,14 @@ function decodePublicKey(base64: string): Uint8Array {
   return bytes;
 }
 
+function matchesServerKey(subscription: PushSubscription, key: string): boolean {
+  const registered = subscription.options.applicationServerKey;
+  if (!registered) return false;
+  const current = new Uint8Array(registered);
+  const expected = decodePublicKey(key);
+  return current.length === expected.length && current.every((value, index) => value === expected[index]);
+}
+
 export function PushDeviceRegistration(): JSX.Element {
   const client = useMemo(() => createSupabaseBrowserClient(), []);
   const { profile, localPreview } = useAuth();
@@ -46,14 +54,27 @@ export function PushDeviceRegistration(): JSX.Element {
         setKey(config.publicKey);
         const registration = await navigator.serviceWorker.getRegistration("/");
         const subscription = registration ? await registration.pushManager.getSubscription() : null;
-        if (!cancelled) setSetup(subscription ? "active" : "ready");
+        if (!subscription || !matchesServerKey(subscription, config.publicKey) || !profile?.id) {
+          if (!cancelled) setSetup("ready");
+          return;
+        }
+        const { data, error } = await client.from("notification_devices")
+          .select("id")
+          .eq("profile_id", profile.id)
+          .eq("app_kind", "sistema")
+          .eq("subscription_endpoint", subscription.endpoint)
+          .eq("enabled", true)
+          .maybeSingle();
+        if (cancelled) return;
+        if (error) throw new Error(error.message);
+        setSetup(data ? "active" : "ready");
       } catch {
         if (!cancelled) setSetup("unconfigured");
       }
     }
     void check();
     return () => { cancelled = true; };
-  }, [localPreview]);
+  }, [client, localPreview, profile?.id]);
 
   async function activate(): Promise<void> {
     if (!profile || !key || working || localPreview) return;
@@ -67,7 +88,11 @@ export function PushDeviceRegistration(): JSX.Element {
         setMessage("O navegador não autorizou notificações. Você pode revisar a permissão nas configurações do dispositivo.");
         return;
       }
-      const existing = await registration.pushManager.getSubscription();
+      let existing = await registration.pushManager.getSubscription();
+      if (existing && !matchesServerKey(existing, key)) {
+        await existing.unsubscribe();
+        existing = null;
+      }
       const subscription = existing ?? await registration.pushManager.subscribe({
         userVisibleOnly: true,
         applicationServerKey: decodePublicKey(key) as BufferSource,
