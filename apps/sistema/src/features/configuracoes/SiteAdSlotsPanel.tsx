@@ -301,12 +301,13 @@ function SlotCard({ slot }: { slot: SiteAdSlotWithMedia }): JSX.Element {
             </button>
           </div>
           <div className="site-ad-preview-grid">
-            {previews.map(({ url }, index) => (
+            {previews.map(({ file, url }, index) => (
               <div key={url} className="site-ad-preview-item">
                 <div className="site-ad-pending-image">
                   <img src={url} alt={"Prévia " + (index + 1)} style={{ objectFit: previewObjectFit }} />
                   <button type="button" className="site-ad-image-remove" aria-label={"Retirar imagem " + (index + 1) + " antes de enviar"} title="Retirar antes de enviar" onClick={() => removePreview(index)} disabled={pending || uploading}>×</button>
                 </div>
+                <span className="site-ad-preview-file-name" title={file.name}>{file.name}</span>
                 <button
                   type="button"
                   className="site-ad-remove-pending"

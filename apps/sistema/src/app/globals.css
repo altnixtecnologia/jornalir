@@ -5065,3 +5065,5 @@ button.secondary-link {
 .site-ad-remove-pending{position:static!important;display:flex!important;align-items:center;justify-content:center;width:100%;min-height:36px;margin-top:5px;padding:5px 8px;background:#fff1f1;border:1px solid #d99595;border-radius:6px;color:#8c2323;font-size:13px;font-weight:750;cursor:pointer}
 .site-ad-remove-pending:hover,.site-ad-clear-pending:hover{background:#ffe3e3}
 .site-ad-remove-pending:disabled,.site-ad-clear-pending:disabled{opacity:.55;cursor:wait}
+
+.site-ad-preview-file-name{display:block;width:100%;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:4px 1px 0;font-size:11px;color:var(--muted)}
