@@ -48,6 +48,15 @@ function validateKey(value: unknown, min: number, max: number): value is string 
   return typeof value === "string" && value.length >= min && value.length <= max && /^[A-Za-z0-9_-]+$/.test(value);
 }
 
+export async function GET(): Promise<NextResponse> {
+  // A chave pública não é segredo; a privada jamais é retornada.
+  const key = process.env.PUSH_VAPID_PUBLIC_KEY?.trim();
+  if (!key) return NextResponse.json({ configured: false }, { status: 503 });
+  return NextResponse.json({ configured: true, publicKey: key }, {
+    headers: { "Cache-Control": "no-store" },
+  });
+}
+
 export async function POST(request: NextRequest): Promise<NextResponse> {
   if (!checkOrigin(request)) return forbidden();
   const userId = await authenticatedProfile();

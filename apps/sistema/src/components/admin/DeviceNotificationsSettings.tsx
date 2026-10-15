@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from "react";
 
-const vapidPublicKey = process.env.NEXT_PUBLIC_PUSH_VAPID_PUBLIC_KEY;
 
 function serverKey(base64: string): Uint8Array {
   const padding = "=".repeat((4 - (base64.length % 4)) % 4);
@@ -14,6 +13,7 @@ function serverKey(base64: string): Uint8Array {
 
 export function DeviceNotificationsSettings(): JSX.Element {
   const [supported, setSupported] = useState<boolean | null>(null);
+  const [vapidPublicKey, setVapidPublicKey] = useState<string | null>(null);
   const [enabled, setEnabled] = useState(false);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
@@ -24,6 +24,10 @@ export function DeviceNotificationsSettings(): JSX.Element {
       return;
     }
     setSupported(true);
+    void fetch("/api/notifications/subscription", { cache: "no-store" })
+      .then(async response => response.ok ? response.json() as Promise<{ publicKey?: string }> : null)
+      .then(result => setVapidPublicKey(result?.publicKey ?? null))
+      .catch(() => setVapidPublicKey(null));
     void navigator.serviceWorker.getRegistration("/").then(async (registration) => {
       const subscription = await registration?.pushManager.getSubscription();
       setEnabled(!!subscription);
