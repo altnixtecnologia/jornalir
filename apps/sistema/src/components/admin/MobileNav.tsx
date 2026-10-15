@@ -134,7 +134,7 @@ export function MobileNav({ onNavigate }: { onNavigate: () => void }): JSX.Eleme
               <details
                 key={pathname + group.label}
                 className="mobile-nav-group"
-                defaultOpen={active}
+                open={active}
               >
                 <summary>{group.label}<span className="mobile-nav-count">{group.links.length}</span></summary>
                 <div className="mobile-nav-group-links">
