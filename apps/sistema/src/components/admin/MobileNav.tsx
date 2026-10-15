@@ -2,145 +2,149 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { assinaturasNavGroup, clientesNavGroup, configuracoesNavGroup, editorialNavGroup, financeiroNavGroup, moreModulesNavGroup, nfseNavGroup, commercialNavGroup } from "../../lib/navigation";
+import { useState } from "react";
+import {
+  assinaturasNavGroup,
+  clientesNavGroup,
+  configuracoesNavGroup,
+  editorialNavGroup,
+  financeiroNavGroup,
+  moreModulesNavGroup,
+  nfseNavGroup,
+  commercialNavGroup,
+  type AdminNavLink,
+} from "../../lib/navigation";
 import { useAuth } from "../../lib/auth/AuthProvider";
+
+type MobileGroup = { label: string; links: AdminNavLink[]; restricted?: boolean; planned?: boolean };
+
+const GROUPS: MobileGroup[] = [
+  { label: "Redação", links: [
+    { label: "Agenda", href: "/sistema/agenda?view=agenda" },
+    { label: "Pauta da semana", href: "/sistema/agenda?view=pauta" },
+    ...editorialNavGroup.links,
+  ] },
+  { label: clientesNavGroup.label, links: [
+    ...clientesNavGroup.links,
+    { label: "Aniversariantes", href: "/sistema/aniversariantes" },
+  ] },
+  { label: assinaturasNavGroup.label, links: assinaturasNavGroup.links },
+  { label: financeiroNavGroup.label, links: financeiroNavGroup.links },
+  { label: commercialNavGroup.label, links: commercialNavGroup.links },
+  { label: "Fiscal (NFS-e)", links: nfseNavGroup.links, restricted: true },
+  { label: configuracoesNavGroup.label, links: configuracoesNavGroup.links, restricted: true },
+  { label: "Outros (em preparação)", links: moreModulesNavGroup.links, planned: true },
+];
+
+const SHORTCUTS: AdminNavLink[] = [
+  { label: "Agenda", href: "/sistema/agenda?view=agenda" },
+  { label: "Pauta", href: "/sistema/agenda?view=pauta" },
+  { label: "Matérias", href: "/sistema/editorial/materias" },
+  { label: "Nova matéria", href: "/sistema/editorial/materias/nova" },
+  { label: "Solicitações", href: "/sistema/publicidade/solicitacoes" },
+  { label: "Notificações", href: "/sistema/notificacoes" },
+];
+
+function normalize(text: string): string {
+  return text.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
+}
+
+function isActive(pathname: string, href: string): boolean {
+  const [route] = href.split("?");
+  return pathname === route || (route !== "/sistema" && pathname.startsWith(route + "/"));
+}
 
 export function MobileNav({ onNavigate }: { onNavigate: () => void }): JSX.Element {
   const pathname = usePathname();
   const { profile } = useAuth();
+  const [search, setSearch] = useState("");
   const canManageUsers = profile?.role === "owner" || profile?.role === "admin";
+  const visibleGroups = GROUPS.filter((group) => !group.restricted || canManageUsers);
+  const query = normalize(search);
+  const close = (): void => {
+    setSearch("");
+    onNavigate();
+  };
+  const uniqueResults = new Map<string, AdminNavLink>();
+  for (const group of visibleGroups.filter((item) => !item.planned)) {
+    for (const link of group.links) {
+      if (normalize(group.label + " " + link.label).includes(query)) uniqueResults.set(link.href, link);
+    }
+  }
+  const searchResults = Array.from(uniqueResults.values());
+
+  const renderLink = (link: AdminNavLink, planned = false): JSX.Element => (
+    <Link
+      key={link.href}
+      href={link.href}
+      onClick={close}
+      className={"mobile-nav-link" + (link.primary ? " is-primary" : "") + (planned ? " mobile-nav-link--planned" : "")}
+      aria-current={isActive(pathname, link.href) ? "page" : undefined}
+    >
+      {link.label}
+    </Link>
+  );
 
   return (
-    <nav className="mobile-nav" aria-label="Navegação">
-      <Link
-        href="/sistema"
-        className="mobile-nav-link"
-        onClick={onNavigate}
-        aria-current={pathname === "/sistema" ? "page" : undefined}
-      >
-        Visão geral
-      </Link>
+    <nav className="mobile-nav mobile-nav-v2" aria-label="Menu do sistema">
+      <label className="mobile-nav-find" htmlFor="mobile-nav-search">
+        <span>Encontre rapidamente</span>
+        <input
+          id="mobile-nav-search"
+          type="search"
+          placeholder="Buscar função ou módulo..."
+          autoComplete="off"
+          value={search}
+          onChange={(event) => setSearch(event.target.value)}
+        />
+      </label>
 
-      <p className="mobile-nav-heading">Editorial</p>
-      {editorialNavGroup.links.map((link) => (
-        <Link
-          key={link.href}
-          href={link.href}
-          className={`mobile-nav-link${link.primary ? " is-primary" : ""}`}
-          onClick={onNavigate}
-          aria-current={pathname === link.href ? "page" : undefined}
-        >
-          {link.label}
-        </Link>
-      ))}
-
-      <Link
-        href="/sistema/agenda"
-        className="mobile-nav-link"
-        onClick={onNavigate}
-        aria-current={pathname.startsWith("/sistema/agenda") ? "page" : undefined}
-      >
-        Agenda e pauta
-      </Link>
-
-      <Link
-        href={clientesNavGroup.links[0].href}
-        className="mobile-nav-link"
-        onClick={onNavigate}
-        aria-current={pathname.startsWith(clientesNavGroup.links[0].href) ? "page" : undefined}
-      >
-        {clientesNavGroup.label}
-      </Link>
-
-      <Link
-        href="/sistema/aniversariantes"
-        className="mobile-nav-link"
-        onClick={onNavigate}
-        aria-current={pathname.startsWith("/sistema/aniversariantes") ? "page" : undefined}
-      >
-        Aniversariantes
-      </Link>
-
-      <p className="mobile-nav-heading">Assinaturas</p>
-      {assinaturasNavGroup.links.map((link) => (
-        <Link
-          key={link.href}
-          href={link.href}
-          className={`mobile-nav-link${link.primary ? " is-primary" : ""}`}
-          onClick={onNavigate}
-          aria-current={pathname === link.href ? "page" : undefined}
-        >
-          {link.label}
-        </Link>
-      ))}
-
-      <p className="mobile-nav-heading">Financeiro</p>
-      {financeiroNavGroup.links.map((link) => (
-        <Link
-          key={link.href}
-          href={link.href}
-          className={`mobile-nav-link${link.primary ? " is-primary" : ""}`}
-          onClick={onNavigate}
-          aria-current={pathname === link.href ? "page" : undefined}
-        >
-          {link.label}
-        </Link>
-      ))}
-
-      <p className="mobile-nav-heading">Comercial</p>
-      {commercialNavGroup.links.map((link) => (
-        <Link
-          key={link.href}
-          href={link.href}
-          className={`mobile-nav-link${link.primary ? " is-primary" : ""}`}
-          onClick={onNavigate}
-          aria-current={pathname === link.href ? "page" : undefined}
-        >
-          {link.label}
-        </Link>
-      ))}
-
-      {canManageUsers ? (
+      {query ? (
+        <section aria-label="Resultados da busca" className="mobile-nav-results">
+          <p className="mobile-nav-subheading">Resultados ({searchResults.length})</p>
+          {searchResults.length ? searchResults.map((link) => renderLink(link)) : (
+            <p className="helper-text">Nenhuma opção encontrada. Tente outro termo.</p>
+          )}
+        </section>
+      ) : (
         <>
-          <p className="mobile-nav-heading">NFS-e</p>
-          {nfseNavGroup.links.map((link) => (
-            <Link
-              key={link.href}
-              href={link.href}
-              className={`mobile-nav-link${link.primary ? " is-primary" : ""}`}
-              onClick={onNavigate}
-              aria-current={pathname === link.href ? "page" : undefined}
-            >
-              {link.label}
-            </Link>
-          ))}
+          <div className="mobile-nav-shortcuts" aria-label="Acesso rápido">
+            <p className="mobile-nav-subheading">Acesso rápido</p>
+            <div className="mobile-nav-quick-grid">
+              {SHORTCUTS.map((link) => (
+                <Link
+                  key={link.href}
+                  href={link.href}
+                  onClick={close}
+                  className="mobile-nav-quick-link"
+                  aria-current={isActive(pathname, link.href) ? "page" : undefined}
+                >
+                  {link.label}
+                </Link>
+              ))}
+            </div>
+          </div>
+          <Link href="/sistema" onClick={close} className="mobile-nav-link mobile-nav-home" aria-current={pathname === "/sistema" ? "page" : undefined}>
+            Visão geral
+          </Link>
+          <p className="mobile-nav-subheading">Todos os módulos</p>
+          {visibleGroups.map((group) => {
+            const active = group.links.some((link) => isActive(pathname, link.href));
+            return (
+              <details
+                key={pathname + group.label}
+                className="mobile-nav-group"
+                open={active}
+              >
+                <summary>{group.label}<span className="mobile-nav-count">{group.links.length}</span></summary>
+                <div className="mobile-nav-group-links">
+                  {group.links.map((link) => renderLink(link, group.planned))}
+                </div>
+              </details>
+            );
+          })}
         </>
-      ) : null}
-
-      {canManageUsers ? (
-        <>
-          <p className="mobile-nav-heading">Configurações</p>
-          {configuracoesNavGroup.links.map((link) => (
-            <Link
-              key={link.href}
-              href={link.href}
-              className="mobile-nav-link"
-              onClick={onNavigate}
-              aria-current={pathname.startsWith(link.href) ? "page" : undefined}
-            >
-              {link.label}
-            </Link>
-          ))}
-        </>
-      ) : null}
-
-      <p className="mobile-nav-heading">Mais módulos</p>
-      {moreModulesNavGroup.links.map((link) => (
-        <Link key={link.href} href={link.href} className="mobile-nav-link mobile-nav-link--planned" onClick={onNavigate}>
-          {link.label}
-          <span className="planned-dot" aria-hidden="true" />
-        </Link>
-      ))}
+      )}
     </nav>
   );
 }

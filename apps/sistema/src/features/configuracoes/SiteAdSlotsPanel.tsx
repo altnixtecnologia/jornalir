@@ -20,6 +20,55 @@ import {
   uploadSiteAdImagesAction,
 } from "../../app/sistema/configuracoes/patrocinadores/actions";
 
+const MAX_PREPARED_BYTES = 2 * 1024 * 1024;
+const MAX_UPLOAD_SOURCE_BYTES = 40 * 1024 * 1024;
+
+async function prepareAdvertisingImage(source: File): Promise<File> {
+  if (!["image/jpeg", "image/png", "image/webp", "image/avif"].includes(source.type)) {
+    throw new Error("Formato não aceito: " + source.name + ". Escolha JPEG, PNG, WebP ou AVIF.");
+  }
+  if (source.size > MAX_UPLOAD_SOURCE_BYTES) {
+    throw new Error(source.name + ": limite de 40 MB por imagem original.");
+  }
+  const url = URL.createObjectURL(source);
+  let image: HTMLImageElement;
+  try {
+    image = new Image();
+    image.decoding = "async";
+    image.src = url;
+    await image.decode();
+  } catch {
+    throw new Error("Não foi possível abrir " + source.name + ". Verifique o arquivo.");
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+  if (!image.naturalWidth || !image.naturalHeight) {
+    throw new Error("Imagem sem dimensões válidas: " + source.name);
+  }
+  const canvas = document.createElement("canvas");
+  const context = canvas.getContext("2d");
+  if (!context) throw new Error("Este navegador não suporta a preparação de imagens.");
+
+  let longestSide = Math.min(2048, Math.max(image.naturalWidth, image.naturalHeight));
+  for (const quality of [0.72, 0.6, 0.48, 0.4]) {
+    const scale = Math.min(1, longestSide / Math.max(image.naturalWidth, image.naturalHeight));
+    canvas.width = Math.max(1, Math.round(image.naturalWidth * scale));
+    canvas.height = Math.max(1, Math.round(image.naturalHeight * scale));
+    context.clearRect(0, 0, canvas.width, canvas.height);
+    context.drawImage(image, 0, 0, canvas.width, canvas.height);
+    const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/webp", quality));
+    if (!blob || blob.type !== "image/webp") {
+      throw new Error("Este navegador não conseguiu converter " + source.name + " em WebP.");
+    }
+    if (blob.size <= MAX_PREPARED_BYTES) {
+      const name = source.name.replace(/\.[^.]+$/, "") + ".webp";
+      return new File([blob], name, { type: "image/webp" });
+    }
+    longestSide = Math.max(720, Math.round(longestSide * 0.75));
+  }
+  throw new Error(source.name + ": não foi possível reduzir para o limite seguro de upload.");
+}
+
 function slotIdentity(slotNumber: number): { position: number; side: "Esquerda" | "Direita" } {
   return {
     position: Math.ceil(slotNumber / 2),
@@ -37,6 +86,8 @@ function SlotCard({ slot }: { slot: SiteAdSlotWithMedia }): JSX.Element {
   const [fitMode, setFitMode] = useState<SiteAdFitMode>(slot.fitMode);
   const [previews, setPreviews] = useState<{ file: File; url: string }[]>([]);
   const [message, setMessage] = useState<string | null>(null);
+  const [uploadProgress, setUploadProgress] = useState<string | null>(null);
+  const [uploading, setUploading] = useState(false);
   const identity = slotIdentity(slot.slotNumber);
 
   // Revoga as URLs somente ao retirá-las, trocar a seleção ou desmontar o
@@ -95,29 +146,67 @@ function SlotCard({ slot }: { slot: SiteAdSlotWithMedia }): JSX.Element {
   }
 
   function upload(): void {
+    if (uploading) return;
     if (!previews.length) {
       setMessage("Selecione uma ou mais imagens.");
       return;
     }
-    const formData = new FormData();
-    previews.forEach(({ file }) => formData.append("files", file));
+    const selected = [...previews];
     setMessage(null);
-    startTransition(async () => {
-      const result = await uploadSiteAdImagesAction(slot.id, slot.media.length, formData);
-      if ("error" in result) {
-        setMessage(result.error);
-        return;
+    setUploadProgress(null);
+    setUploading(true);
+    void (async () => {
+      let sent = 0;
+      const warnings: string[] = [];
+      // O limite da Vercel aplica-se à requisição inteira. Nunca enviar o
+      // conjunto de fotos originais numa única Server Action.
+      for (let index = 0; index < selected.length; index += 1) {
+        const { file } = selected[index];
+        setUploadProgress("Enviando " + (index + 1) + " de " + selected.length + ": " + file.name);
+        try {
+          const optimized = await prepareAdvertisingImage(file);
+          const formData = new FormData();
+          formData.append("files", optimized);
+          const result = await uploadSiteAdImagesAction(slot.id, slot.media.length + sent, formData);
+          if (!result || typeof result !== "object") {
+            warnings.push(file.name + ": o servidor não respondeu. Atualize a página e confira as imagens antes de tentar novamente.");
+            break; // Resposta ambígua: evita reenviar uma foto que pode ter sido cadastrada.
+          }
+          if ("error" in result) {
+            warnings.push(file.name + ": " + result.error);
+            continue;
+          }
+          sent += result.count;
+          warnings.push(...result.warnings);
+        } catch (error) {
+          const message = error instanceof Error ? error.message : "Erro desconhecido.";
+          if (/413|payload too large|request entity too large/i.test(message)) {
+            warnings.push(file.name + ": requisição recusada pelo tamanho. Tente uma imagem menor.");
+          } else {
+            warnings.push(file.name + ": " + message);
+          }
+        }
       }
-      setMessage(
-        result.warnings.length
-          ? result.count + " imagem(ns) enviada(s). " + result.warnings.join(" ")
-          : result.count + " imagem(ns) enviada(s).",
-      );
-      if (inputRef.current) inputRef.current.value = "";
-      for (const url of previewUrlsRef.current) URL.revokeObjectURL(url);
-      previewUrlsRef.current.clear();
-      setPreviews([]);
+      setUploadProgress(null);
+      setMessage([
+        sent ? sent + " imagem(ns) enviada(s)." : "Nenhuma imagem enviada.",
+        ...warnings,
+        sent > 0 && warnings.length ? "Para repetir, selecione apenas as fotos que falharam." : "",
+      ].filter(Boolean).join(" "));
+      // Após um envio parcial, nunca permitir reenviar por engano as fotos
+      // já gravadas. Para tentar de novo, selecione somente as que falharam.
+      if (sent > 0) {
+        if (inputRef.current) inputRef.current.value = "";
+        for (const url of previewUrlsRef.current) URL.revokeObjectURL(url);
+        previewUrlsRef.current.clear();
+        setPreviews([]);
+      }
       router.refresh();
+    })().catch((error: unknown) => {
+      setMessage(error instanceof Error ? error.message : "Não foi possível enviar as imagens.");
+    }).finally(() => {
+      setUploadProgress(null);
+      setUploading(false);
     });
   }
 
@@ -196,24 +285,25 @@ function SlotCard({ slot }: { slot: SiteAdSlotWithMedia }): JSX.Element {
           multiple
           accept="image/jpeg,image/png,image/webp,image/avif"
           onChange={(event) => selectFiles(event.target.files)}
-          disabled={pending}
+          disabled={pending || uploading}
         />
         {previews.length ? (
           <div className="site-ad-preview-grid">
             {previews.map(({ url }, index) => (
               <div key={url} className="site-ad-preview-item">
                 <img src={url} alt={"Prévia " + (index + 1)} style={{ objectFit: previewObjectFit }} />
-                <button type="button" className="site-ad-image-remove" aria-label={"Retirar imagem " + (index + 1) + " do envio"} title="Retirar do envio" onClick={() => removePreview(index)} disabled={pending}>×</button>
+                <button type="button" className="site-ad-image-remove" aria-label={"Retirar imagem " + (index + 1) + " do envio"} title="Retirar do envio" onClick={() => removePreview(index)} disabled={pending || uploading}>×</button>
               </div>
             ))}
           </div>
         ) : null}
-        <button type="button" className="form-action-primary" onClick={upload} disabled={pending}>
-          {pending ? "Processando..." : "Enviar imagens"}
+        <button type="button" className="form-action-primary" onClick={upload} disabled={pending || uploading}>
+          {uploading ? "Enviando..." : pending ? "Processando..." : "Enviar imagens"}
         </button>
       </div>
 
-      {message ? <p className="helper-text site-ad-message">{message}</p> : null}
+      {uploadProgress ? <p role="status" className="helper-text site-ad-message">{uploadProgress}</p> : null}
+      {message ? <p role="status" className="helper-text site-ad-message">{message}</p> : null}
 
       {slot.media.length ? (
         <div className="site-ad-thumbnails">

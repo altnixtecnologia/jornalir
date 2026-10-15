@@ -5,7 +5,13 @@ import { isLocalPreviewEnabled } from "../lib/auth/localPreview";
 
 export const metadata: Metadata = {
   title: { default: "JornalIR | Sistema interno", template: "%s | JornalIR" },
-  description: "Espaço de trabalho do Informativo Regional"
+  description: "Espaço de trabalho do Informativo Regional",
+  manifest: "/manifest.webmanifest",
+  appleWebApp: { capable: true, title: "IR Sistema", statusBarStyle: "default" },
+  icons: {
+    icon: [{ url: "/icons/icon-ir-192.png", sizes: "192x192", type: "image/png" }],
+    apple: "/icons/icon-ir-192.png",
+  },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }): JSX.Element {
