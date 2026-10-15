@@ -5021,3 +5021,33 @@ button.secondary-link {
 .site-ad-image-remove:hover{background:#be2525}
 .site-ad-image-remove:disabled{opacity:.35;cursor:wait}
 @media(hover:none),(pointer:coarse){.site-ad-image-remove{opacity:1;width:34px;height:34px}}
+
+
+/* Navegação mobile v2: busca, acessos rápidos e seções recolhíveis. */
+.mobile-nav-v2{gap:10px}
+.mobile-nav-find{position:sticky;top:-10px;z-index:3;display:grid;gap:6px;background:#fffefa;padding:10px 4px 12px}
+.mobile-nav-find span,.mobile-nav-subheading{font-size:11px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.mobile-nav-find input{width:100%;min-height:46px;border:1px solid var(--line);border-radius:9px;padding:10px 12px;font-size:16px;background:#fff}
+.mobile-nav-shortcuts{margin:0 2px 4px}
+.mobile-nav-shortcuts .mobile-nav-subheading{margin:4px 2px 9px}
+.mobile-nav-quick-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.mobile-nav-quick-link{display:flex;align-items:center;justify-content:center;min-height:46px;padding:9px 7px;text-align:center;line-height:1.25;border:1px solid var(--line);border-radius:9px;background:#f4f6fb;color:var(--ink);font-size:13px;font-weight:750}
+.mobile-nav-quick-link:hover,.mobile-nav-quick-link:focus-visible{border-color:var(--brand);background:#eef1fa}
+.mobile-nav-quick-link[aria-current="page"]{background:var(--brand);color:white}
+.mobile-nav-home{border:1px solid var(--line)}
+.mobile-nav-v2>.mobile-nav-subheading{margin:8px 8px 0}
+.mobile-nav-group{border:1px solid var(--line);border-radius:9px;background:#fff;overflow:hidden}
+.mobile-nav-group summary{display:flex;align-items:center;justify-content:space-between;gap:10px;min-height:48px;padding:11px 12px;font-size:14px;font-weight:750;cursor:pointer;list-style:none}
+.mobile-nav-group summary::-webkit-details-marker{display:none}
+.mobile-nav-group summary:after{content:"⌄";font-size:19px;color:var(--muted)}
+.mobile-nav-group[open] summary:after{content:"⌃"}
+.mobile-nav-group[open] summary{border-bottom:1px solid var(--line);background:#f7f8fb}
+.mobile-nav-count{margin-left:auto;border-radius:99px;padding:2px 8px;background:#f0f1f4;color:var(--muted);font-size:11px}
+.mobile-nav-group-links{display:grid;gap:2px;padding:5px}
+.mobile-nav-group-links .mobile-nav-link{min-height:44px;padding:10px 12px;font-size:14px}
+.mobile-nav-results .mobile-nav-subheading{margin:10px 7px}
+.mobile-nav-results .helper-text{padding:8px}
+.mobile-nav-v2 .mobile-nav-link.is-primary[aria-current="page"]{color:#fff}
+
+/* Botão de excluir visível no desktop e no celular, sem depender do hover. */
+.site-ad-image-remove{opacity:1!important;visibility:visible!important;width:34px;height:34px;box-shadow:0 1px 5px rgba(0,0,0,.28)}
