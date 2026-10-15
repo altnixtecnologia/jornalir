@@ -11,6 +11,7 @@ import {
 import { createSupabaseServerClient } from "../../../../../lib/supabase/server";
 import { listReceivablesAdminPageSupabase } from "../../../../../providers/supabase/receivableRepository.supabase";
 import { getClientService } from "../../../../../composition/clientes";
+import { financePermissionError } from "../../../../../lib/permissions/serverFinanceGuard";
 
 function csvCell(value: string): string {
   const escaped = value.replace(/"/g, '""');
@@ -41,6 +42,8 @@ function clientDoc(client: { kind: "individual" | "company"; cpf?: string; cnpj?
 export async function GET(request: NextRequest): Promise<NextResponse> {
   const params = request.nextUrl.searchParams;
   const supabase = createSupabaseServerClient();
+  const denied = await financePermissionError("relatorios_exportar", supabase);
+  if (denied) return NextResponse.json({ error: denied }, { status: 403, headers: { "Cache-Control": "no-store" } });
 
   const status = params.get("status") ?? "";
   const sourceType = params.get("sourceType") ?? "";
