@@ -61,11 +61,32 @@ export async function middleware(request: NextRequest): Promise<NextResponse> {
     }
     const { data: profile } = await supabase
       .from("profiles")
-      .select("active")
+      .select("active, role")
       .eq("id", user.id)
       .maybeSingle();
     if (!profile || !profile.active) {
       return NextResponse.redirect(new URL("/login?erro=inativo", request.url));
+    }
+    // A proteção do módulo vale também quando o usuário digita a URL.
+    if (profile.role === "operator") {
+      const modules: Array<[string, string]> = [
+        ["/sistema/financeiro", "financeiro"],
+        ["/sistema/configuracoes/cobrancas", "financeiro"],
+        ["/sistema/clientes", "clientes"],
+        ["/sistema/assinaturas", "assinaturas"],
+        ["/sistema/publicidade", "publicidade"],
+        ["/sistema/comercial", "publicidade"],
+        ["/sistema/aniversariantes", "aniversariantes"],
+        ["/sistema/materias", "editorial"],
+        ["/sistema/midias", "editorial"],
+      ];
+      const selected = modules.find(([prefix]) => pathname === prefix || pathname.startsWith(prefix + "/"));
+      if (selected) {
+        const { data: allowed, error } = await supabase.rpc("staff_can_see_module", { p_module: selected[1] });
+        if (error || allowed !== true) {
+          return NextResponse.redirect(new URL("/sistema?acesso=negado", request.url));
+        }
+      }
     }
   }
 
