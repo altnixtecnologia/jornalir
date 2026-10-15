@@ -99,6 +99,7 @@ function SlotCard({ slot }: { slot: SiteAdSlotWithMedia }): JSX.Element {
   }, []);
 
   function selectFiles(files: FileList | null): void {
+    setMessage(null);
     for (const url of previewUrlsRef.current) URL.revokeObjectURL(url);
     previewUrlsRef.current.clear();
     const selected = files ? Array.from(files).map((file) => {
@@ -111,6 +112,7 @@ function SlotCard({ slot }: { slot: SiteAdSlotWithMedia }): JSX.Element {
   }
 
   function removePreview(index: number): void {
+    setMessage(null);
     const removed = previews[index];
     if (removed) {
       URL.revokeObjectURL(removed.url);
@@ -290,7 +292,7 @@ function SlotCard({ slot }: { slot: SiteAdSlotWithMedia }): JSX.Element {
         {previews.length ? (
           <>
           <div className="site-ad-preview-tools">
-            <strong>{previews.length} imagem(ns) selecionada(s) — ainda não enviadas</strong>
+            <strong>{previews.length} {previews.length === 1 ? "imagem selecionada" : "imagens selecionadas"} — ainda não {previews.length === 1 ? "enviada" : "enviadas"}</strong>
             <button
               type="button"
               className="site-ad-clear-pending"
