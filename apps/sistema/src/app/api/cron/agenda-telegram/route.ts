@@ -1,6 +1,7 @@
 import "server-only";
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { processMobilePushCron } from "../../../../lib/notifications/processMobilePush";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -118,5 +119,14 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       failed += 1;
     }
   }
-  return NextResponse.json({ sent, failed });
+  // Reusa a chamada por minuto já existente no Supabase Cron.
+  // O canal Telegram não depende do push e vice-versa.
+  let push: { configured:boolean;queued:number;sent:number;failed:number;processed:number } | { error:string };
+  try {
+    push = await processMobilePushCron();
+  } catch (error) {
+    console.error("[agenda/push] erro:", error instanceof Error ? error.message : "Falha desconhecida");
+    push = { error: "Falha no processamento push." };
+  }
+  return NextResponse.json({ sent, failed, push });
 }

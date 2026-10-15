@@ -38,3 +38,19 @@ Situação de 15/10/2026: planejamento e base de app instalável do Sistema. **N
 - [ ] Push normal e urgente; validar sonoridade, vibração e limites dos sistemas operacionais.
 - [ ] Alarmes da Agenda com aplicativo encerrado, empregando suporte nativo se necessário.
 - [ ] Empacotamento, assinatura e publicação em lojas.
+
+
+## Implementação web push — lote de outubro/2026
+
+Backend: `notification_push_subscriptions`, `notification_outbox`, `notification_push_deliveries` e RPCs de claim, todos sem acesso direto de anon/authenticated; inscrição via API server-side do Sistema autenticada para colaboradores e restrita por origem para leitores.
+
+- Site: componente `PublicPushOptIn` no rodapé, opt-in separado para notícia e urgente. `sw.js` trata push e abertura de matérias. A matéria publicada com `notification_mode=normal|urgent` entra automaticamente na fila mediante trigger de transição de status; textos e links são limitados no servidor.
+- Sistema: `SystemPushOptIn` na página de notificações, SW `sw-push.js` sem cache de autenticação. Só aparelhos de colaboradores ativos com acesso à Agenda podem se registrar; avisos de compromisso são endereçados apenas aos responsáveis.
+- O agendador existente do Supabase continua chamando `/api/cron/agenda-telegram` por minuto, que agora também chama o processador web push com controle de duplicidades e quantidade por rodada.
+- VAPID: `PUSH_VAPID_PUBLIC_KEY`, `PUSH_VAPID_PRIVATE_KEY`, `PUSH_VAPID_SUBJECT`, `PUSH_ALLOWED_SITE_ORIGINS` no projeto sistema da Vercel. Não colocar a privada em NEXT_PUBLIC nem no banco.
+- Uma falha de entrega, token expirado e retransmissão são registrados individualmente. Links nunca são URLs externas de notificação. A fila expira anúncios antigos e lembretes atrasados.
+- O frontend do Site acessa a API em `https://controle.altnix.com.br/api/push/subscriptions`. Origens permitidas precisam ser atualizadas no ambiente quando mudar o domínio oficial.
+
+**Limitações explícitas:** Web Push não garante tocar com celular no silencioso / Não Perturbe, vibração ou execução pontual. PWA não implementa ainda alarme nativo, som próprio do Android/iOS nem app publicado na loja. Para essas garantias, próximo estágio exige módulo nativo (Android: canais locais/AlarmManager com permissões; iOS: UNUserNotificationCenter e limites nativos), testes em aparelhos e aprovar arquivo de identidade sonora.
+
+Próximas tarefas de homologação: build de ambos os projetos; envio real a um navegador inscrito (não executar disparo de teste para todos os leitores); alteração de permissão, cancelamento da assinatura, iOS instalado, Android e modos silenciosos; configurar domínios definitivos. Não marcar estes testes como concluídos sem fazê-los.

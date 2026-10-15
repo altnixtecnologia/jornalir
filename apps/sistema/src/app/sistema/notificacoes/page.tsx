@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { SystemPushOptIn } from "../../../components/admin/SystemPushOptIn";
 import { ModuleHeader } from "../../../components/admin/ModuleHeader";
 import { createSupabaseServerClient } from "../../../lib/supabase/server";
 import {
@@ -42,6 +43,8 @@ export default async function NotificationsPage(): Promise<JSX.Element> {
         title="Notificações"
         description="Pagamentos, alertas financeiros e solicitações novas do site."
       />
+
+      <SystemPushOptIn />
 
       {notificationError || requestError ? (
         <div role="alert" className="inline-form" style={{ marginBottom: 16 }}>

@@ -83,3 +83,40 @@ self.addEventListener("fetch", (event) => {
   // Qualquer outro GET (imagens de capa/R2, APIs, dados editoriais em
   // geral): segue direto para a rede, sem interceptar — nunca cacheado.
 });
+
+// As mensagens push nunca entram no cache de noticias; o navegador exibe
+// notificacoes somente depois de consentimento explicito do leitor.
+self.addEventListener("push", (event) => {
+  let data = {};
+  try { data = event.data ? event.data.json() : {}; } catch {}
+  const title = typeof data.title === "string" ? data.title.slice(0, 140) : "Jornal IR";
+  const urgent = data.kind === "urgent";
+  const path = typeof data.href === "string" && data.href.startsWith("/") && !data.href.startsWith("//")
+    ? data.href : "/";
+  event.waitUntil(self.registration.showNotification(title, {
+    body: typeof data.body === "string" ? data.body.slice(0, 300) : "",
+    icon: "/icons/icon-ir-192.png",
+    badge: "/icons/icon-ir-192.png",
+    tag: typeof data.eventKey === "string" ? data.eventKey : undefined,
+    renotify: urgent,
+    requireInteraction: urgent,
+    vibrate: urgent ? [180, 120, 180] : [80],
+    data: { href: path },
+  }));
+});
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  const path = event.notification.data && typeof event.notification.data.href === "string"
+    ? event.notification.data.href : "/";
+  const url = new URL(path, self.location.origin);
+  if (url.origin !== self.location.origin) return;
+  event.waitUntil(self.clients.matchAll({ type: "window", includeUncontrolled: true }).then(async (clients) => {
+    for (const client of clients) {
+      if (client.url.startsWith(self.location.origin) && "focus" in client) {
+        await client.navigate(url.href);
+        return client.focus();
+      }
+    }
+    if (self.clients.openWindow) return self.clients.openWindow(url.href);
+  }));
+});

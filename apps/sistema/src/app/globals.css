@@ -5053,9 +5053,7 @@ button.secondary-link {
 .mobile-nav-v2 .mobile-nav-link.is-primary[aria-current="page"]{color:#fff}
 
 /* Botão de excluir visível no desktop e no celular, sem depender do hover. */
-.site-ad-thumb-image .site-ad-image-remove{opacity:0;visibility:hidden;box-shadow:0 1px 5px rgba(0,0,0,.28)}
-.site-ad-thumb-image:hover .site-ad-image-remove,.site-ad-thumb-image .site-ad-image-remove:focus-visible{opacity:1;visibility:visible}
-@media(hover:none),(pointer:coarse){.site-ad-thumb-image .site-ad-image-remove{opacity:1;visibility:visible;width:34px;height:34px}}
+.site-ad-image-remove{opacity:1!important;visibility:visible!important;width:34px;height:34px;box-shadow:0 1px 5px rgba(0,0,0,.28)}
 
 /* Miniaturas PENDENTES: controles independentes das imagens já publicadas. */
 .site-ad-preview-tools{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap}
@@ -5063,9 +5061,18 @@ button.secondary-link {
 .site-ad-clear-pending{min-height:36px;padding:6px 12px;border:1px solid #963838;border-radius:6px;background:#fff;color:#963838;font-size:12px;font-weight:700;cursor:pointer}
 .site-ad-pending-image{position:relative}
 .site-ad-pending-image img{display:block;width:100%;aspect-ratio:4/3;object-fit:cover;border-radius:6px}
-
+.site-ad-pending-image>.site-ad-image-remove{opacity:1!important;visibility:visible!important;display:flex!important}
 .site-ad-remove-pending{position:static!important;display:flex!important;align-items:center;justify-content:center;width:100%;min-height:36px;margin-top:5px;padding:5px 8px;background:#fff1f1;border:1px solid #d99595;border-radius:6px;color:#8c2323;font-size:13px;font-weight:750;cursor:pointer}
 .site-ad-remove-pending:hover,.site-ad-clear-pending:hover{background:#ffe3e3}
 .site-ad-remove-pending:disabled,.site-ad-clear-pending:disabled{opacity:.55;cursor:wait}
 
 .site-ad-preview-file-name{display:block;width:100%;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:4px 1px 0;font-size:11px;color:var(--muted)}
+
+/* Acesso rapido fixo em telas pequenas, sem alterar a navegacao desktop. */
+.mobile-bottom-quick-nav{display:none}
+@media(max-width:800px){
+  .mobile-bottom-quick-nav{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));position:fixed;z-index:70;bottom:0;left:0;right:0;padding:6px max(4px,env(safe-area-inset-right)) calc(6px + env(safe-area-inset-bottom)) max(4px,env(safe-area-inset-left));border-top:1px solid var(--line);background:var(--surface,#fff);box-shadow:0 -3px 13px rgba(0,0,0,.09)}
+  .mobile-bottom-quick-nav a{display:flex;align-items:center;justify-content:center;min-height:40px;padding:6px 2px;text-align:center;font-size:11px;line-height:1.2;text-decoration:none;font-weight:700;color:var(--ink);border-radius:7px}
+  .mobile-bottom-quick-nav a[aria-current="page"]{background:#e9ebf4;color:var(--brand)}
+  .admin-shell .admin-workspace{padding-bottom:calc(66px + env(safe-area-inset-bottom))}
+}

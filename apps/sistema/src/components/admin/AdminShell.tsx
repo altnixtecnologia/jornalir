@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { useRef, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { AdminHeader } from "./AdminHeader";
@@ -11,6 +12,7 @@ import { getInitials } from "../../lib/auth/accountDisplay";
 export function AdminShell({ children, previewMode = false }: { children: ReactNode; previewMode?: boolean }): JSX.Element {
   const menuRef = useRef<HTMLDialogElement>(null);
   const router = useRouter();
+  const pathname = usePathname();
   const { profile, signOut } = useAuth();
 
   async function handleLogout(): Promise<void> {
@@ -66,6 +68,20 @@ export function AdminShell({ children, previewMode = false }: { children: ReactN
           </div>
         ) : null}
         <AdminHeader onOpenMenu={() => menuRef.current?.showModal()} />
+        <nav className="mobile-bottom-quick-nav" aria-label="Atalhos rápidos no celular">
+          {([
+            ["Início", "/sistema"],
+            ["Agenda", "/sistema/agenda?view=agenda"],
+            ["Pauta", "/sistema/agenda?view=pauta"],
+            ["Matérias", "/sistema/editorial/materias"],
+            ["Avisos", "/sistema/notificacoes"],
+          ] as const).map(([label,href]) => (
+            <Link key={label} href={href}
+              aria-current={pathname === href.split("?")[0] && label !== "Pauta" ? "page" : undefined}>
+              {label}
+            </Link>
+          ))}
+        </nav>
         <main id="admin-content" className="admin-content" tabIndex={-1}>
           {children}
         </main>

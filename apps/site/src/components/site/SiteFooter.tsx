@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { PublicPushOptIn } from "./PublicPushOptIn";
 import { socialLinks, contactInfo } from "./siteSettings";
 import { listPublicSections } from "../../lib/public/publicContentService";
 
@@ -52,6 +53,7 @@ export async function SiteFooter(): Promise<JSX.Element> {
           <Link href="/sobre" className="footer-link">Sobre</Link>
           <Link href="/contato" className="footer-link">Contato</Link>
           <Link href="/busca" className="footer-link">Buscar</Link>
+          <PublicPushOptIn />
         </div>
 
         <div>
