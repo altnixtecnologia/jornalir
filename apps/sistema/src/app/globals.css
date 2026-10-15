@@ -5102,7 +5102,7 @@ button.secondary-link {
   .admin-workspace{padding-bottom:calc(72px + env(safe-area-inset-bottom,0px))}
   .mobile-bottom-nav{
     position:fixed;left:0;right:0;bottom:0;z-index:50;
-    display:grid;grid-template-columns:repeat(5,minmax(0,1fr));
+    display:grid;grid-template-columns:repeat(auto-fit,minmax(55px,1fr));
     align-items:stretch;gap:0;
     padding:5px 4px calc(5px + env(safe-area-inset-bottom,0px));
     background:#fffefa;border-top:1px solid var(--line);

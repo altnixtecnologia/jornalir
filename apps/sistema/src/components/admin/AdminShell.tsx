@@ -7,12 +7,14 @@ import { AdminHeader } from "./AdminHeader";
 import { MobileNav } from "./MobileNav";
 import { useAuth } from "../../lib/auth/AuthProvider";
 import { getInitials } from "../../lib/auth/accountDisplay";
+import { useAgendaPautaReadAccess } from "../../lib/permissions/useAgendaPautaReadAccess";
 
 export function AdminShell({ children, previewMode = false }: { children: ReactNode; previewMode?: boolean }): JSX.Element {
   const menuRef = useRef<HTMLDialogElement>(null);
   const router = useRouter();
   const pathname = usePathname();
   const { profile, signOut } = useAuth();
+  const { agendaRead, pautaRead } = useAgendaPautaReadAccess();
 
   async function handleLogout(): Promise<void> {
     await signOut();
@@ -74,12 +76,16 @@ export function AdminShell({ children, previewMode = false }: { children: ReactN
           <Link href="/sistema" aria-current={pathname === "/sistema" ? "page" : undefined}>
             <span aria-hidden="true">⌂</span><small>Início</small>
           </Link>
-          <Link href="/sistema/agenda?view=agenda" aria-current={pathname.startsWith("/sistema/agenda") && !pathname.includes("view=pauta") ? "page" : undefined}>
-            <span aria-hidden="true">▦</span><small>Agenda</small>
-          </Link>
-          <Link href="/sistema/agenda?view=pauta">
-            <span aria-hidden="true">☷</span><small>Pauta</small>
-          </Link>
+          {agendaRead ? (
+            <Link href="/sistema/agenda?view=agenda" aria-current={pathname.startsWith("/sistema/agenda") ? "page" : undefined}>
+              <span aria-hidden="true">▦</span><small>Agenda</small>
+            </Link>
+          ) : null}
+          {pautaRead ? (
+            <Link href="/sistema/agenda?view=pauta">
+              <span aria-hidden="true">☷</span><small>Pauta</small>
+            </Link>
+          ) : null}
           <Link href="/sistema/editorial/materias" aria-current={pathname.startsWith("/sistema/editorial/materias") ? "page" : undefined}>
             <span aria-hidden="true">▤</span><small>Matérias</small>
           </Link>

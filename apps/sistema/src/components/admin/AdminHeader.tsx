@@ -5,6 +5,7 @@ import { useEffect } from "react";
 import { usePathname } from "next/navigation";
 import { assinaturasNavGroup, clientesNavGroup, configuracoesNavGroup, editorialNavGroup, financeiroNavGroup, nfseNavGroup, commercialNavGroup } from "../../lib/navigation";
 import { useAuth } from "../../lib/auth/AuthProvider";
+import { useAgendaPautaReadAccess } from "../../lib/permissions/useAgendaPautaReadAccess";
 import { AccountMenu } from "./AccountMenu";
 import { AdminNotificationBell } from "./AdminNotificationBell";
 
@@ -39,6 +40,7 @@ export function AdminHeader({ onOpenMenu }: { onOpenMenu: () => void }): JSX.Ele
     };
   }, [pathname]);
   const { profile } = useAuth();
+  const { agendaRead, pautaRead } = useAgendaPautaReadAccess();
   const isHome = pathname === "/sistema";
   const isEditorial = pathname.startsWith("/sistema/editorial");
   const isAgenda = pathname.startsWith("/sistema/agenda");
@@ -81,9 +83,15 @@ export function AdminHeader({ onOpenMenu }: { onOpenMenu: () => void }): JSX.Ele
             </div>
           </details>
 
-          <Link href="/sistema/agenda" className="app-nav-link" aria-current={isAgenda ? "page" : undefined}>
-            Agenda
-          </Link>
+          {agendaRead || pautaRead ? (
+            <Link
+              href={agendaRead ? "/sistema/agenda?view=agenda" : "/sistema/agenda?view=pauta"}
+              className="app-nav-link"
+              aria-current={isAgenda ? "page" : undefined}
+            >
+              {agendaRead ? "Agenda" : "Pauta"}
+            </Link>
+          ) : null}
 
           <Link
             href={clientesNavGroup.links[0].href}

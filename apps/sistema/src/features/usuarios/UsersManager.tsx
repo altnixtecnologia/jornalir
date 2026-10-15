@@ -297,7 +297,8 @@ export function UsersManager(): JSX.Element {
 
       <section className="form-section">
         <h2>Permissões por usuário e módulo</h2>
-        <p className="helper-text">Proprietário e administradores mantêm acesso integral. Para operadores, configure individualmente Agenda e Pauta: sem acesso, somente leitura ou edição.</p>
+        <p className="helper-text">Proprietário e administradores mantêm acesso integral. Para operadores, configure individualmente Agenda e Pauta: sem acesso, somente leitura ou edição. O bloqueio também retira os atalhos correspondentes da navegação.</p>
+        <p className="helper-text"><strong>Atenção:</strong> os demais módulos (Matérias, Clientes, Financeiro, Comercial, Assinaturas, NFS-e e outros) ainda não têm bloqueio individual completo. Não considere a ocultação do menu como proteção de dados. O botão Ativar/Desativar acima controla a conta inteira.</p>
         {(users ?? []).filter((user) => user.role === "operator").map((user) => (
           <div key={user.id} className="inline-form">
             <strong>{user.name} {user.active ? "" : "(inativo)"}</strong>
