@@ -43,6 +43,7 @@ function SlotCard({ slot }: { slot: SiteAdSlotWithMedia }): JSX.Element {
   function selectFiles(files: FileList | null): void {
     previews.forEach(({ url }) => URL.revokeObjectURL(url));
     setPreviews(files ? Array.from(files).map((file) => ({ file, url: URL.createObjectURL(file) })) : []);
+    if (inputRef.current) inputRef.current.value = "";
   }
 
   function removePreview(index: number): void {
