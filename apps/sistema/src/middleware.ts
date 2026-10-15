@@ -69,6 +69,15 @@ export async function middleware(request: NextRequest): Promise<NextResponse> {
     }
     // A proteção do módulo vale também quando o usuário digita a URL.
     if (profile.role === "operator") {
+      if (pathname === "/sistema/nfse" || pathname.startsWith("/sistema/nfse/")) {
+        return NextResponse.redirect(new URL("/sistema?acesso=negado", request.url));
+      }
+      if (pathname === "/sistema/financeiro/relatorios" || pathname.startsWith("/sistema/financeiro/relatorios/")) {
+        const { data: canView, error: viewError } = await supabase.rpc("staff_can_finance_action", { p_action: "relatorios_ver" });
+        if (viewError || canView !== true) {
+          return NextResponse.redirect(new URL("/sistema?acesso=negado", request.url));
+        }
+      }
       const modules: Array<[string, string]> = [
         ["/sistema/financeiro", "financeiro"],
         ["/sistema/configuracoes/cobrancas", "financeiro"],
@@ -77,8 +86,9 @@ export async function middleware(request: NextRequest): Promise<NextResponse> {
         ["/sistema/publicidade", "publicidade"],
         ["/sistema/comercial", "publicidade"],
         ["/sistema/aniversariantes", "aniversariantes"],
-        ["/sistema/materias", "editorial"],
-        ["/sistema/midias", "editorial"],
+        ["/sistema/editorial", "editorial"],
+        ["/sistema/anuncios", "publicidade"],
+        ["/sistema/patrocinadores", "publicidade"],
       ];
       const selected = modules.find(([prefix]) => pathname === prefix || pathname.startsWith(prefix + "/"));
       if (selected) {

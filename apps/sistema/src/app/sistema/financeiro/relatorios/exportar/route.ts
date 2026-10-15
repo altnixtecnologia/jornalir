@@ -42,7 +42,8 @@ function clientDoc(client: { kind: "individual" | "company"; cpf?: string; cnpj?
 export async function GET(request: NextRequest): Promise<NextResponse> {
   const params = request.nextUrl.searchParams;
   const supabase = createSupabaseServerClient();
-  const denied = await financePermissionError("relatorios_exportar", supabase);
+  const denied = await financePermissionError("relatorios_ver", supabase)
+    ?? await financePermissionError("relatorios_exportar", supabase);
   if (denied) return NextResponse.json({ error: denied }, { status: 403, headers: { "Cache-Control": "no-store" } });
 
   const status = params.get("status") ?? "";
