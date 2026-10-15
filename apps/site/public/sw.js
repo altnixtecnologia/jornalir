@@ -83,3 +83,45 @@ self.addEventListener("fetch", (event) => {
   // Qualquer outro GET (imagens de capa/R2, APIs, dados editoriais em
   // geral): segue direto para a rede, sem interceptar — nunca cacheado.
 });
+
+
+/*
+ * Avisos editoriais: recebimento e abertura de notificações Web Push.
+ * O usuário só será inscrito com consentimento e após configurar a chave
+ * VAPID. Som nativo próprio não é garantido em browsers/PWA.
+ */
+self.addEventListener("push", (event) => {
+  let payload = {};
+  try { payload = event.data ? event.data.json() : {}; } catch { payload = {}; }
+  const urgent = payload.kind === "urgent";
+  const title = typeof payload.title === "string" ? payload.title.slice(0, 120) : "Informativo Regional";
+  const body = typeof payload.body === "string" ? payload.body.slice(0, 360) : "Nova notícia disponível.";
+  const path = typeof payload.href === "string" && payload.href.startsWith("/") && !payload.href.startsWith("//")
+    ? payload.href : "/";
+  const destination = new URL(path, self.location.origin);
+  if (destination.origin !== self.location.origin) return;
+  event.waitUntil(self.registration.showNotification(title, {
+    body,
+    icon: "/icons/icon-ir-192.png",
+    badge: "/icons/icon-ir-192.png",
+    tag: typeof payload.tag === "string" ? payload.tag.slice(0, 90) : urgent ? "ir-urgente" : "ir-noticia",
+    data: { href: destination.pathname + destination.search },
+    requireInteraction: urgent,
+    vibrate: urgent ? [250, 100, 250, 100, 300] : [120],
+  }));
+});
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  const href = event.notification.data?.href || "/";
+  const target = new URL(href, self.location.origin);
+  if (target.origin !== self.location.origin) return;
+  event.waitUntil(self.clients.matchAll({ type: "window", includeUncontrolled: true }).then(async (clients) => {
+    for (const client of clients) {
+      if (client.url.startsWith(self.location.origin) && "focus" in client) {
+        await client.navigate(target.href);
+        return client.focus();
+      }
+    }
+    return self.clients.openWindow(target.href);
+  }));
+});

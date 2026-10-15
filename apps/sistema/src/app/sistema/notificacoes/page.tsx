@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { ModuleHeader } from "../../../components/admin/ModuleHeader";
+import { DeviceNotificationsSettings } from "../../../components/admin/DeviceNotificationsSettings";
 import { createSupabaseServerClient } from "../../../lib/supabase/server";
 import {
   markAllNotificationsReadAction,
@@ -42,6 +43,8 @@ export default async function NotificationsPage(): Promise<JSX.Element> {
         title="Notificações"
         description="Pagamentos, alertas financeiros e solicitações novas do site."
       />
+
+      <DeviceNotificationsSettings />
 
       {notificationError || requestError ? (
         <div role="alert" className="inline-form" style={{ marginBottom: 16 }}>
