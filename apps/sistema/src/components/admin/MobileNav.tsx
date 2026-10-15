@@ -16,6 +16,7 @@ import {
 } from "../../lib/navigation";
 import { useAuth } from "../../lib/auth/AuthProvider";
 import { useAgendaPautaReadAccess } from "../../lib/permissions/useAgendaPautaReadAccess";
+import { useStaffModuleVisibility } from "../../lib/permissions/useStaffModuleVisibility";
 
 type MobileGroup = { label: string; links: AdminNavLink[]; restricted?: boolean; planned?: boolean };
 
@@ -60,6 +61,7 @@ export function MobileNav({ onNavigate }: { onNavigate: () => void }): JSX.Eleme
   const pathname = usePathname();
   const { profile } = useAuth();
   const { agendaRead, pautaRead } = useAgendaPautaReadAccess();
+  const { hasModule } = useStaffModuleVisibility();
   const [search, setSearch] = useState("");
   const [openGroup, setOpenGroup] = useState<string | null>(null);
   const navRef = useRef<HTMLElement>(null);
@@ -81,8 +83,19 @@ export function MobileNav({ onNavigate }: { onNavigate: () => void }): JSX.Eleme
   }, [pathname]);
   const canManageUsers = profile?.role === "owner" || profile?.role === "admin";
   const canSeeLink = (href: string): boolean => {
-    if (!href.startsWith("/sistema/agenda")) return true;
-    return href.includes("view=pauta") ? pautaRead : agendaRead;
+    const path = href.split("?")[0];
+    if (path.startsWith("/sistema/agenda")) return href.includes("view=pauta") ? pautaRead : agendaRead;
+    for (const [prefix, key] of [
+      ["/sistema/editorial", "editorial"],
+      ["/sistema/clientes", "clientes"],
+      ["/sistema/financeiro", "financeiro"],
+      ["/sistema/assinaturas", "assinaturas"],
+      ["/sistema/publicidade", "publicidade"],
+      ["/sistema/aniversariantes", "aniversariantes"],
+    ] as const) {
+      if (path === prefix || path.startsWith(prefix + "/")) return hasModule(key);
+    }
+    return true;
   };
   const visibleGroups = GROUPS
     .filter((group) => !group.restricted || canManageUsers)

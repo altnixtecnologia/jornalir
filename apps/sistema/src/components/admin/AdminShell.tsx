@@ -8,6 +8,7 @@ import { MobileNav } from "./MobileNav";
 import { useAuth } from "../../lib/auth/AuthProvider";
 import { getInitials } from "../../lib/auth/accountDisplay";
 import { useAgendaPautaReadAccess } from "../../lib/permissions/useAgendaPautaReadAccess";
+import { useStaffModuleVisibility } from "../../lib/permissions/useStaffModuleVisibility";
 
 export function AdminShell({ children, previewMode = false }: { children: ReactNode; previewMode?: boolean }): JSX.Element {
   const menuRef = useRef<HTMLDialogElement>(null);
@@ -15,6 +16,7 @@ export function AdminShell({ children, previewMode = false }: { children: ReactN
   const pathname = usePathname();
   const { profile, signOut } = useAuth();
   const { agendaRead, pautaRead } = useAgendaPautaReadAccess();
+  const { hasModule } = useStaffModuleVisibility();
 
   async function handleLogout(): Promise<void> {
     await signOut();
@@ -86,9 +88,11 @@ export function AdminShell({ children, previewMode = false }: { children: ReactN
               <span aria-hidden="true">☷</span><small>Pauta</small>
             </Link>
           ) : null}
-          <Link href="/sistema/editorial/materias" aria-current={pathname.startsWith("/sistema/editorial/materias") ? "page" : undefined}>
-            <span aria-hidden="true">▤</span><small>Matérias</small>
-          </Link>
+          {hasModule("editorial") ? (
+            <Link href="/sistema/editorial/materias" aria-current={pathname.startsWith("/sistema/editorial/materias") ? "page" : undefined}>
+              <span aria-hidden="true">▤</span><small>Matérias</small>
+            </Link>
+          ) : null}
           <button type="button" onClick={() => menuRef.current?.showModal()} aria-label="Abrir todos os módulos">
             <span aria-hidden="true">☰</span><small>Menu</small>
           </button>

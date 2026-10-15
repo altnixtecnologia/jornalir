@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import { assinaturasNavGroup, clientesNavGroup, configuracoesNavGroup, editorialNavGroup, financeiroNavGroup, nfseNavGroup, commercialNavGroup } from "../../lib/navigation";
 import { useAuth } from "../../lib/auth/AuthProvider";
 import { useAgendaPautaReadAccess } from "../../lib/permissions/useAgendaPautaReadAccess";
+import { useStaffModuleVisibility } from "../../lib/permissions/useStaffModuleVisibility";
 import { AccountMenu } from "./AccountMenu";
 import { AdminNotificationBell } from "./AdminNotificationBell";
 
@@ -41,6 +42,7 @@ export function AdminHeader({ onOpenMenu }: { onOpenMenu: () => void }): JSX.Ele
   }, [pathname]);
   const { profile } = useAuth();
   const { agendaRead, pautaRead } = useAgendaPautaReadAccess();
+  const { hasModule } = useStaffModuleVisibility();
   const isHome = pathname === "/sistema";
   const isEditorial = pathname.startsWith("/sistema/editorial");
   const isAgenda = pathname.startsWith("/sistema/agenda");
@@ -65,7 +67,8 @@ export function AdminHeader({ onOpenMenu }: { onOpenMenu: () => void }): JSX.Ele
             Visão geral
           </Link>
 
-          <details className="app-nav-dropdown" data-nav-dropdown name="app-nav-dropdown">
+          {hasModule("editorial") ? (
+            <details className="app-nav-dropdown" data-nav-dropdown name="app-nav-dropdown">
             <summary className={`app-nav-link app-nav-summary${isEditorial ? " is-active" : ""}`}>
               Editorial <span className="app-nav-caret" aria-hidden="true">▾</span>
             </summary>
@@ -82,6 +85,7 @@ export function AdminHeader({ onOpenMenu }: { onOpenMenu: () => void }): JSX.Ele
               ))}
             </div>
           </details>
+          ) : null}
 
           {agendaRead || pautaRead ? (
             <Link
@@ -93,6 +97,7 @@ export function AdminHeader({ onOpenMenu }: { onOpenMenu: () => void }): JSX.Ele
             </Link>
           ) : null}
 
+          {hasModule("clientes") ? (
           <Link
             href={clientesNavGroup.links[0].href}
             className="app-nav-link"
@@ -100,7 +105,9 @@ export function AdminHeader({ onOpenMenu }: { onOpenMenu: () => void }): JSX.Ele
           >
             {clientesNavGroup.label}
           </Link>
+          ) : null}
 
+          {hasModule("aniversariantes") ? (
           <Link
             href="/sistema/aniversariantes"
             className="app-nav-link"
@@ -108,8 +115,10 @@ export function AdminHeader({ onOpenMenu }: { onOpenMenu: () => void }): JSX.Ele
           >
             Aniversariantes
           </Link>
+          ) : null}
 
-          <details className="app-nav-dropdown" data-nav-dropdown name="app-nav-dropdown">
+          {hasModule("assinaturas") ? (
+            <details className="app-nav-dropdown" data-nav-dropdown name="app-nav-dropdown">
             <summary className={`app-nav-link app-nav-summary${isAssinaturas ? " is-active" : ""}`}>
               Assinaturas <span className="app-nav-caret" aria-hidden="true">▾</span>
             </summary>
@@ -126,8 +135,10 @@ export function AdminHeader({ onOpenMenu }: { onOpenMenu: () => void }): JSX.Ele
               ))}
             </div>
           </details>
+          ) : null}
 
-          <details className="app-nav-dropdown" data-nav-dropdown name="app-nav-dropdown">
+          {hasModule("financeiro") ? (
+            <details className="app-nav-dropdown" data-nav-dropdown name="app-nav-dropdown">
             <summary className={`app-nav-link app-nav-summary${isFinanceiro ? " is-active" : ""}`}>
               Financeiro <span className="app-nav-caret" aria-hidden="true">▾</span>
             </summary>
@@ -144,8 +155,10 @@ export function AdminHeader({ onOpenMenu }: { onOpenMenu: () => void }): JSX.Ele
               ))}
             </div>
           </details>
+          ) : null}
 
-          <details className="app-nav-dropdown" data-nav-dropdown name="app-nav-dropdown">
+          {hasModule("publicidade") ? (
+            <details className="app-nav-dropdown" data-nav-dropdown name="app-nav-dropdown">
             <summary className={`app-nav-link app-nav-summary${isPublicidade ? " is-active" : ""}`}>
               Comercial <span className="app-nav-caret" aria-hidden="true">▾</span>
             </summary>
@@ -162,6 +175,7 @@ export function AdminHeader({ onOpenMenu }: { onOpenMenu: () => void }): JSX.Ele
               ))}
             </div>
           </details>
+          ) : null}
 
           {canManageUsers ? (
             <details className="app-nav-dropdown" data-nav-dropdown name="app-nav-dropdown">
