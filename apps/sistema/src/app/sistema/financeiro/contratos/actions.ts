@@ -63,8 +63,7 @@ function toServiceInput(payload: ContractFormPayload): ContractInput {
 }
 
 /**
- * Analisa um documento (PDF com camada de texto) SEM persistir nada —
- * nem o arquivo (Storage indisponível nesta fase), nem o contrato. Só
+ * Analisa PDF com camada de texto, sem persistir bytes nem contrato. Só
  * roda a extração conservadora (ver lib/financeiro/contractDocumentExtraction)
  * e devolve o que encontrou pro usuário conferir no wizard. Usado pelo
  * Passo 1 (Documento) do fluxo "documento primeiro" de novo contrato.
@@ -74,6 +73,11 @@ export async function analyzeContractDocumentAction(
 ): Promise<{ error: string } | ({ ok: true } & ContractDocumentExtractionResult)> {
   const file = formData.get("file");
   if (!(file instanceof File)) return { error: "Selecione um arquivo." };
+  const pdfError = validateContractPdf(file);
+  if (pdfError) return { error: pdfError };
+  const client = createSupabaseServerClient();
+  const { data: permission, error: permissionError } = await client.rpc("staff_can_see_module", { p_module: "financeiro" });
+  if (permissionError || permission !== true) return { error: "Sem permissão para analisar documentos contratuais." };
   try {
     const bytes = new Uint8Array(await file.arrayBuffer());
     const result = await extractContractDocumentData({ name: file.name, type: file.type, bytes });
@@ -95,11 +99,8 @@ export interface PendingDocumentInput {
 /**
  * Passo 4 (Revisão/salvamento) do wizard — cria o contrato e, se houver
  * um documento pendente do Passo 1, persiste o documento vinculado
- * IMEDIATAMENTE depois, na mesma ação (nunca deixa o usuário com um
- * contrato "vazio" esperando o documento ser anexado à parte). Quando o
- * Storage (R2) estiver disponível, o upload real entra bem aqui, entre
- * criar o contrato e chamar addDocument — sem mudar a experiência do
- * usuário no wizard.
+ * IMEDIATAMENTE depois, na mesma ação. Salva bytes no bucket privado;
+ * falha do upload preserva o cadastro e avisa que deve anexar novamente.
  */
 export async function createContractWithDocument(
   payload: ContractFormPayload,
@@ -116,6 +117,11 @@ export async function createContractWithDocument(
   if (pdf instanceof File) {
     const pdfError = validateContractPdf(pdf);
     if (pdfError) return { error: pdfError };
+    // O cadastro só deve ser criado depois de confirmar o cabeçalho do PDF.
+    const header = new Uint8Array((await pdf.slice(0, 5).arrayBuffer()));
+    if (new TextDecoder().decode(header) !== "%PDF-") {
+      return { error: "Arquivo inválido: selecione um PDF válido antes de salvar o contrato." };
+    }
   }
 
   const client = createSupabaseServerClient();
