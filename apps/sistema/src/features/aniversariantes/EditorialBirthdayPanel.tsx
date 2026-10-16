@@ -2,7 +2,6 @@
 
 import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
 import { birthdayWithinEdition } from "./birthdayWeek";
 import type {
   EditorialBirthdayInput, EditorialBirthdayMessage, EditorialBirthdayRow,
@@ -12,11 +11,6 @@ import {
   prepareBirthdayEditionMessage, saveEditorialBirthday, setEditorialBirthdayActive,
 } from "../../app/sistema/aniversariantes/actions";
 
-const EMPTY: EditorialBirthdayInput = {
-  displayName:"", birthDate:"", city:"", groupClientId:null,
-  relationship:"", profession:"", organization:"", knownAs:"",
-  messageContext:"", notes:"", publishInPrint:false,
-};
 function fromSaved(row: EditorialBirthdayRow): EditorialBirthdayInput {
   return {
     id: row.id, displayName:row.display_name,
@@ -117,8 +111,7 @@ export function EditorialBirthdayPanel({ clients, entries, initialMessages, week
 
       <section className="form-section">
         <h2>Mensagens da semana do jornal</h2>
-        <p className="helper-text">Semana iniciada em {shortDate(weekStart)} (quinta a quarta). As mensagens são geradas somente ao solicitar e salvas no banco; não são enviadas nem publicadas automaticamente.</p>
-        {!thisWeek.length ? <p className="helper-text">Não há aniversários na semana atual. Informe as datas em Clientes ou adicione pessoas relacionadas abaixo.</p> : (
+        {!thisWeek.length ? <p className="helper-text">Nenhum aniversariante nesta semana.</p> : (
           <div style={{display:"grid",gap:12}}>
             {thisWeek.map(person=>{
               const saved=messages[person.id];
@@ -146,17 +139,8 @@ export function EditorialBirthdayPanel({ clients, entries, initialMessages, week
       </section>
 
       <section className="form-section">
-        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:8,flexWrap:"wrap"}}>
-          <div>
-            <h2>Familiares e aniversariantes editoriais</h2>
-            <p className="helper-text">Registros independentes ou pessoas vinculadas a clientes e empresas. O cadastro mestre não será alterado.</p>
-          </div>
-          <button type="button" className="cadastros-btn-primary" disabled={busy}
-            onClick={()=>{setEditing({...EMPTY});setError(null);setSuccess(null);}}>
-            + Incluir aniversariante
-          </button>
-        </div>
-        {!manual.length ? <p className="helper-text">Nenhum aniversariante editorial cadastrado.</p> : (
+        <h2>Familiares e aniversariantes editoriais</h2>
+        {!manual.length ? <p className="helper-text">Nenhum registro editorial.</p> : (
           <div style={{display:"grid",gap:8,marginTop:12}}>
             {manual.map(person=>{
               const holder=person.group_client_id?clientMap.get(person.group_client_id):null;
@@ -221,7 +205,6 @@ export function EditorialBirthdayPanel({ clients, entries, initialMessages, week
           <button type="button" className="cadastros-btn-secondary" disabled={busy} onClick={()=>setEditing(null)}>Cancelar</button>
         </div>
       </section> : null}
-      <p className="helper-text">Para mudar o nascimento de um cliente, utilize <Link href="/sistema/clientes">Clientes</Link>. O módulo usa a mesma data. A preparação de mensagem não gera publicação automática.</p>
     </div>
   );
 }

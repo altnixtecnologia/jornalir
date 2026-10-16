@@ -147,7 +147,6 @@ export function LiveBirthdayTree({groups,messages,initialWeekStart,todayISO}:{
       <button className="cadastros-btn-primary" type="button" onClick={()=>setNewGroup(null)}>
         + Novo aniversariante
       </button>
-      <span className="helper-text">Cadastros vinculados e modelos de mensagens continuam disponíveis.</span>
     </div>
     {newGroup!==undefined && <div id="aniv-new-birthday"><NewBirthdayForm key={newGroup??"manual"} groups={groups}
       linkedId={newGroup} onClose={()=>setNewGroup(undefined)} /></div>}
@@ -255,7 +254,6 @@ export function LiveBirthdayTree({groups,messages,initialWeekStart,todayISO}:{
           </div>
           {expanded?<div className={`aniv-group-body ${styles.groupBody}`}>
             {selected.map(entryView)}
-            {!selected.length?<p className="helper-text">Nenhuma pessoa neste período. Use Novo para vincular alguém.</p>:null}
             <button className="cadastros-btn-secondary no-print" type="button"
               onClick={()=>{
                 setNewGroup(/^[a-f0-9-]{36}$/i.test(g.id)?g.id:null);
@@ -266,7 +264,7 @@ export function LiveBirthdayTree({groups,messages,initialWeekStart,todayISO}:{
           </div>:null}
         </div>;
       })}
-      {!visible.length?<p className="helper-text">Nenhum resultado para os filtros selecionados.</p>:null}
+      {!visible.length?<p className="helper-text" role="status">Nenhum aniversário {period==="newspaper" ? "nesta semana" : period==="today" ? "hoje" : period==="month" ? "neste mês" : "para os filtros selecionados"}.</p>:null}
     </div>
     <div className="aniv-print-report">
       <h1>ANIVERSARIANTES</h1>

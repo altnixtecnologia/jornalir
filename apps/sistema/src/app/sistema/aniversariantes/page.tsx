@@ -105,7 +105,7 @@ export default async function AniversariantesPage():Promise<JSX.Element>{
       <details id="aniv-gerenciar" style={{marginTop:20}}>
         <summary style={{cursor:"pointer",padding:"12px 14px",fontWeight:700,
           border:"1px solid var(--line)",borderRadius:6}}>
-          Gerenciar aniversariantes, vínculos e modelos de mensagens
+          Mensagens e cadastros editoriais
         </summary>
         <div style={{marginTop:12}}>
           <EditorialBirthdayPanel clients={directory} entries={entries}
