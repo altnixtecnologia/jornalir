@@ -107,13 +107,17 @@ export function PixChargePanel({
   function run(action: () => Promise<ActionOutcome>, onSuccess?: () => void): void {
     setError(null);
     startTransition(async () => {
-      const result = await action();
-      if (result && "error" in result) {
-        setError(result.error);
-        return;
+      try {
+        const result = await action();
+        if (result && "error" in result) {
+          setError(result.error);
+          return;
+        }
+        onSuccess?.();
+        router.refresh();
+      } catch {
+        setError("A operação Pix/WhatsApp falhou. Confira a conexão e tente novamente.");
       }
-      onSuccess?.();
-      router.refresh();
     });
   }
 
@@ -139,31 +143,39 @@ export function PixChargePanel({
   async function openSendPreview(): Promise<void> {
     setError(null);
     setSendFeedback(null);
-    const result = await buildBillingMessagePreviewAction(receivableId);
-    if ("error" in result) {
-      setError(result.error);
-      return;
+    try {
+      const result = await buildBillingMessagePreviewAction(receivableId);
+      if ("error" in result) {
+        setError(result.error);
+        return;
+      }
+      setSendMode("charge");
+      setSendMessage(result.message);
+      setSendHasWhatsapp(result.hasWhatsapp);
+      setSendWhatsappHref(result.whatsappHref ?? null);
+      setSendOpen(true);
+    } catch {
+      setError("Não foi possível preparar a mensagem de cobrança. Tente novamente.");
     }
-    setSendMode("charge");
-    setSendMessage(result.message);
-    setSendHasWhatsapp(result.hasWhatsapp);
-    setSendWhatsappHref(result.whatsappHref ?? null);
-    setSendOpen(true);
   }
 
   async function openPaymentConfirmationPreview(): Promise<void> {
     setError(null);
     setSendFeedback(null);
-    const result = await buildPaymentConfirmationPreviewAction(receivableId);
-    if ("error" in result) {
-      setError(result.error);
-      return;
+    try {
+      const result = await buildPaymentConfirmationPreviewAction(receivableId);
+      if ("error" in result) {
+        setError(result.error);
+        return;
+      }
+      setSendMode("payment");
+      setSendMessage(result.message);
+      setSendHasWhatsapp(result.hasWhatsapp);
+      setSendWhatsappHref(result.whatsappHref ?? null);
+      setSendOpen(true);
+    } catch {
+      setError("Não foi possível preparar a confirmação do pagamento. Tente novamente.");
     }
-    setSendMode("payment");
-    setSendMessage(result.message);
-    setSendHasWhatsapp(result.hasWhatsapp);
-    setSendWhatsappHref(result.whatsappHref ?? null);
-    setSendOpen(true);
   }
 
   return (
@@ -435,7 +447,9 @@ export function PixChargePanel({
           ) : (
             <>
               <p className="helper-text">
-                Prévia da mensagem {whatsappAutoConfigured ? "(envio automático pela WhatsApp Cloud API)" : "(abrirá no WhatsApp para envio manual)"}:
+                {whatsappAutoConfigured
+                  ? "Resumo para conferência (o envio usa o template aprovado na Meta):"
+                  : "Mensagem pronta para envio manual pelo WhatsApp:"}
               </p>
               <pre style={{ whiteSpace: "pre-wrap", fontSize: "12px", background: "#f7f8f3", border: "1px solid var(--line)", borderRadius: "4px", padding: "10px" }}>
                 {sendMessage}
