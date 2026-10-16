@@ -9,12 +9,15 @@ import {
   RECEIVABLE_STATUSES,
 } from "@ir/types";
 import { createSupabaseServerClient } from "../../../../../lib/supabase/server";
-import { listAllReceivablesForReportSupabase } from "../../../../../providers/supabase/receivableRepository.supabase";
+import { listAllReceivablesForReportSupabase, listAppliedCreditsByReceivableSupabase } from "../../../../../providers/supabase/receivableRepository.supabase";
 import { getClientService } from "../../../../../composition/clientes";
 
 function csvCell(value: string): string {
-  const escaped = value.replace(/"/g, '""');
-  return /[",;\n]/.test(value) ? `"${escaped}"` : escaped;
+  // Excel/LibreOffice interpretam =, +, -, @ como fórmulas, mesmo em
+  // campos que vieram do cadastro (nome ou descrição).
+  const safe = /^[\s]*[=+\-@]/.test(value) ? "'" + value : value;
+  const escaped = safe.replace(/"/g, '""');
+  return /[",;\n\r]/.test(safe) ? `"${escaped}"` : escaped;
 }
 
 function formatAmount(value: number): string {
@@ -67,6 +70,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   ]);
 
   const clientById = new Map(clients.map((client) => [client.id, client]));
+  const appliedCredit = await listAppliedCreditsByReceivableSupabase(supabase, result.receivables.map((item) => item.id));
 
   const header = [
     "Cliente",
@@ -79,7 +83,8 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     "Vencimento",
     "Valor original",
     "Recebido",
-    "Abatimentos",
+    "Abatimentos reais",
+    "Crédito aplicado",
     "Saldo",
     "Situação",
   ];
@@ -95,7 +100,8 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     formatDate(item.dueDate),
     formatAmount(item.originalAmount),
     formatAmount(item.totalReceived),
-    formatAmount(item.totalAdjustments),
+    formatAmount(Math.max(0, item.totalAdjustments - (appliedCredit.get(item.id) ?? 0))),
+    formatAmount(appliedCredit.get(item.id) ?? 0),
     formatAmount(item.balance),
     RECEIVABLE_STATUS_LABELS[item.status],
   ]);
