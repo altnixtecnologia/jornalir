@@ -5136,3 +5136,41 @@ button.secondary-link {
 .staff-permission-choice:has(input:disabled){opacity:.65;cursor:not-allowed}
 @media(max-width:760px){.staff-permissions-grid{grid-template-columns:1fr}.staff-permission-choice{min-height:48px}.staff-permission-choice input{width:22px;height:22px}}
 
+
+
+/* Aniversariantes — preservar a arvore original, com um unico X de retirada.
+   Desktop: X no hover/foco; touch/mobile: X sempre visivel. */
+.aniv-entry-created {
+  font-size: 10px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.aniv-entry-row-actions .aniv-entry-remove {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 29px;
+  min-width: 29px;
+  height: 29px;
+  padding: 0;
+  font-size: 20px;
+  line-height: 1;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity .12s ease;
+}
+.aniv-entry:hover .aniv-entry-remove,
+.aniv-entry:focus-within .aniv-entry-remove {
+  opacity: 1;
+  pointer-events: auto;
+}
+@media (hover: none), (max-width: 760px) {
+  .aniv-entry-row-actions .aniv-entry-remove {
+    opacity: 1;
+    pointer-events: auto;
+    width: 36px;
+    min-width: 36px;
+    height: 36px;
+  }
+}
