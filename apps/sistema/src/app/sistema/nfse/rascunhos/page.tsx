@@ -34,7 +34,7 @@ export default async function NfseRascunhosPage(): Promise<JSX.Element> {
         description="Nenhum rascunho aqui foi transmitido — a integração real ainda não existe."
         action={
           <Link className="form-action-primary" href="/sistema/nfse/nova">
-            Nova NFS-e
+            + Nova NFS-e
           </Link>
         }
       />
