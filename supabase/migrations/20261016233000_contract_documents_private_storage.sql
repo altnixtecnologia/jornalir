@@ -9,10 +9,12 @@ on conflict (id) do update set
 
 -- Authenticated staff com modulo financeiro habilitado.
 -- Sem policy de UPDATE nem DELETE: os arquivos sao imutaveis (evidencia).
+drop policy if exists contract_docs_storage_select_finance_staff on storage.objects;
 create policy contract_docs_storage_select_finance_staff
   on storage.objects for select to authenticated
   using (bucket_id = 'contract-documents' and public.staff_can_see_module('financeiro'));
 
+drop policy if exists contract_docs_storage_insert_finance_staff on storage.objects;
 create policy contract_docs_storage_insert_finance_staff
   on storage.objects for insert to authenticated
   with check (
