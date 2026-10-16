@@ -128,7 +128,7 @@ export function ContractSignaturesPanel({
             </a>
           </div>
         </div>
-      )}
+      ) : null}
       <h3 style={{ marginTop: 20 }}>Histórico de convites</h3>
       {localInvites.length === 0 ? <p className="helper-text">Nenhum convite criado ainda.</p> : (
         <ul className="destaques-list">
