@@ -4,7 +4,7 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import type { ContractDocument, ContractDocumentType } from "@ir/types";
 import { CONTRACT_DOCUMENT_TYPE_LABELS, CONTRACT_DOCUMENT_TYPES } from "@ir/types";
-import { addContractDocumentAction } from "../../app/sistema/financeiro/contratos/actions";
+import { uploadContractDocumentAction } from "../../app/sistema/financeiro/contratos/actions";
 
 function formatDate(iso?: string): string {
   if (!iso) return "—";
@@ -22,60 +22,57 @@ function formatDateTime(iso: string): string {
  * ABSOLUTA: o resultado da extração é só auxílio e nunca é aplicado
  * sozinho aos campos reais do contrato — o usuário sempre revisa e edita
  * manualmente (via "Editar" do contrato) antes de qualquer campo mudar.
- * Upload real (R2) não é implementado nesta fase — file_reference é só
- * uma referência de texto.
+ * PDFs reais: Supabase Storage privado; download somente por
+ * URL temporária, com autenticação e escopo do contrato verificados.
  */
 export function ContractDocumentsPanel({ contractId, documents }: { contractId: string; documents: ContractDocument[] }): JSX.Element {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
-  const [extractionNotice, setExtractionNotice] = useState<string | null>(null);
+  const [file, setFile] = useState<File | null>(null);
 
   const [documentType, setDocumentType] = useState<ContractDocumentType>("contract");
   const [name, setName] = useState("");
-  const [fileReference, setFileReference] = useState("");
-  const [documentDate, setDocumentDate] = useState("");
+    const [documentDate, setDocumentDate] = useState("");
   const [notes, setNotes] = useState("");
 
   function resetForm(): void {
     setName("");
-    setFileReference("");
+    setFile(null);
     setDocumentDate("");
     setNotes("");
-    setExtractionNotice(null);
-    setShowForm(false);
-  }
-
-  /** Extração automática — ainda NÃO implementada nesta fase (Parte 3A,
-   * item 13: preparar a arquitetura, nunca inventar dado). Mostra
-   * claramente que nada foi encontrado, em vez de fingir um resultado. */
-  function handleSimulateExtraction(): void {
-    setExtractionNotice(
-      "Extração automática ainda não implementada nesta fase — nenhum campo foi preenchido sozinho. Complete manualmente abaixo e confira os dados no formulário do contrato depois de anexar.",
-    );
+        setShowForm(false);
   }
 
   function handleSave(): void {
     setError(null);
-    if (!name.trim()) {
-      setError("Informe um nome/descrição para o documento.");
+    if (!name.trim() || !file) {
+      setError("Informe um nome e selecione o PDF.");
       return;
     }
+    if (file.size > 4 * 1024 * 1024) {
+      setError("O PDF precisa ter até 4 MB nesta etapa.");
+      return;
+    }
+    const formData = new FormData();
+    formData.append("file", file);
+    formData.append("documentType", documentType);
+    formData.append("name", name);
+    formData.append("documentDate", documentDate);
+    formData.append("notes", notes);
     startTransition(async () => {
-      const result = await addContractDocumentAction(contractId, {
-        documentType,
-        name,
-        fileReference,
-        documentDate,
-        notes,
-      });
-      if (result && "error" in result) {
-        setError(result.error);
-        return;
+      try {
+        const result = await uploadContractDocumentAction(contractId, formData);
+        if (result && "error" in result) {
+          setError(result.error);
+          return;
+        }
+        resetForm();
+        router.refresh();
+      } catch {
+        setError("Não foi possível enviar o PDF. Confira a conexão e tente novamente.");
       }
-      resetForm();
-      router.refresh();
     });
   }
 
@@ -83,7 +80,7 @@ export function ContractDocumentsPanel({ contractId, documents }: { contractId: 
     <section className="form-section">
       <h2>Documentos</h2>
       <p className="helper-text">
-        Contrato original, aditivos, empenhos, notas/documentos e autorizações. Upload real de arquivo ainda não está disponível nesta fase — só a referência é guardada.
+        Contrato original, aditivos, empenhos, notas e autorizações. PDFs de até 4 MB são armazenados de forma privada e acessados apenas com autenticação.
       </p>
 
       {error ? <p className="form-error" role="alert">{error}</p> : null}
@@ -111,8 +108,8 @@ export function ContractDocumentsPanel({ contractId, documents }: { contractId: 
             <input type="text" value={name} onChange={(event) => setName(event.target.value)} placeholder="ex.: Contrato nº 012/2026" />
           </label>
           <label className="form-field">
-            <span className="field-label">Referência do arquivo <span className="field-optional">(opcional)</span></span>
-            <input type="text" value={fileReference} onChange={(event) => setFileReference(event.target.value)} placeholder="caminho/nome do arquivo quando o upload estiver disponível" />
+            <span className="field-label">Arquivo PDF (obrigatório)</span>
+            <input type="file" accept="application/pdf,.pdf" onChange={(event) => setFile(event.target.files?.[0] ?? null)} />
           </label>
           <label className="form-field">
             <span className="field-label">Data do documento <span className="field-optional">(opcional)</span></span>
@@ -122,17 +119,6 @@ export function ContractDocumentsPanel({ contractId, documents }: { contractId: 
             <span className="field-label">Observações <span className="field-optional">(opcional)</span></span>
             <textarea rows={2} value={notes} onChange={(event) => setNotes(event.target.value)} />
           </label>
-
-          <div className="form-actions" style={{ gridColumn: "1 / -1" }}>
-            <button type="button" onClick={handleSimulateExtraction} disabled={pending}>
-              Tentar extração automática
-            </button>
-          </div>
-          {extractionNotice ? (
-            <p className="helper-text" style={{ gridColumn: "1 / -1" }}>
-              {extractionNotice}
-            </p>
-          ) : null}
 
           <div className="form-actions" style={{ gridColumn: "1 / -1" }}>
             <button type="button" className="form-action-primary" onClick={handleSave} disabled={pending}>
@@ -159,6 +145,11 @@ export function ContractDocumentsPanel({ contractId, documents }: { contractId: 
                   {CONTRACT_DOCUMENT_TYPE_LABELS[document.documentType]} · {formatDate(document.documentDate)} · anexado em {formatDateTime(document.createdAt)}
                 </span>
                 {document.notes ? <span className="helper-text">{document.notes}</span> : null}
+                {document.fileReference?.startsWith(`contracts/${contractId}/`) ? (
+                  <a className="materia-title-link"
+                    href={`/api/financeiro/contratos/${contractId}/documentos/${document.id}`}
+                    target="_blank" rel="noopener noreferrer">Abrir PDF privado</a>
+                ) : null}
               </div>
             </li>
           ))}
