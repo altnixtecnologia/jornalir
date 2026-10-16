@@ -383,12 +383,8 @@ export function UsersManager(): JSX.Element {
                 </label>
               ))}
             </div>
-          </div>
-        ))}
-        {(users ?? []).filter((user) => user.role === "operator").map((user) => (
-          <div key={"extended-" + user.id} className="inline-form">
-            <h3>Visibilidade dos módulos — {user.name}</h3>
-            <p className="helper-text">Um módulo desativado não deve aparecer na navegação do operador. Agenda e Pauta continuam com os controles de leitura/edição acima.</p>
+            <h3>Módulos disponíveis</h3>
+            <p className="helper-text">Desmarque o módulo para removê-lo dos menus deste operador.</p>
             <div className="staff-permissions-grid">
               {STAFF_MODULES.map((item) => (
                 <label key={item.key} className="staff-permission-choice">
@@ -402,7 +398,6 @@ export function UsersManager(): JSX.Element {
                 </label>
               ))}
             </div>
-
           </div>
         ))}
         {(users ?? []).filter((user) => user.role === "operator").length === 0
