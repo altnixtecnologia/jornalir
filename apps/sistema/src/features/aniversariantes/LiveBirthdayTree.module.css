@@ -31,3 +31,21 @@
 .groupBody :global(.aniv-entry-main){flex:1 1 100%}
 }
 @media(max-width:360px){.filters,.actions{grid-template-columns:minmax(0,1fr)}}
+
+/* Card de pessoa: ações e mensagem visíveis na própria árvore, sem sobreposição. */
+.personHeader{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;width:100%;min-width:0}
+.personHeader :global(.aniv-entry-main){flex:1 1 300px;min-width:0}
+.personActions{flex:0 1 auto;display:flex;gap:7px;align-items:center;flex-wrap:wrap}
+.personActions button,.personActions a{white-space:normal;min-height:32px;display:inline-flex;align-items:center;justify-content:center;text-align:center}
+.message{width:100%;min-width:0;margin-top:8px;padding:12px 14px;border:1px solid var(--line);border-radius:6px;background:#fffefa;box-sizing:border-box}
+.messageHeader{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.messageHeader strong{font-size:12px}
+.messageActions{display:flex;gap:8px;flex-wrap:wrap}
+.messageText{font-size:13px;line-height:1.6;margin:10px 0 2px;white-space:pre-wrap;overflow-wrap:anywhere}
+.unpublishedNote{display:block;color:var(--muted);font-size:11px;margin-top:8px}
+@media(max-width:680px){
+.personActions{width:100%}
+.personActions button,.personActions a{flex:1 1 150px}
+.message{padding:10px}
+.messageActions{width:100%}
+}

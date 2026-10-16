@@ -1,14 +1,17 @@
 "use client";
 import { useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import type { BirthdayEntry, BirthdayGroup } from "./birthdayTypes";
 import {
   dayIndexWithinRange, formatBirthDateShort, formatDateShort,
   getNewspaperWeekRange, getMonthRange, isBirthdayWithinRange, listNewspaperWeekDays,
-  matchesDay, weekdayAbbr, shiftWeeks,
+  matchesDay, weekdayAbbr, weekdayFull, shiftWeeks,
 } from "./birthdayTypes";
 import type { EditorialBirthdayMessage } from "./editorialBirthdayTypes";
 import { NewBirthdayForm } from "./NewBirthdayForm";
+import { prepareBirthdayEditionMessage, setBirthdayPublication } from "../../app/sistema/aniversariantes/actions";
+import { extractSafeEditorialPhrase,formatEditorialDayLabel,generateBirthdayMessage } from "./messageGenerator";
 import styles from "./LiveBirthdayTree.module.css";
 
 type Period = "all"|"newspaper"|"today"|"month"|"custom";
@@ -32,6 +35,12 @@ export function LiveBirthdayTree({groups,messages,initialWeekStart,todayISO}:{
   groups:BirthdayGroup[];messages:EditorialBirthdayMessage[];
   initialWeekStart:string;todayISO:string;
 }): JSX.Element {
+  const router=useRouter();
+  const [pendingId,setPendingId]=useState<string|null>(null);
+  const [feedback,setFeedback]=useState<string|null>(null);
+  const [issue,setIssue]=useState<string|null>(null);
+  const [publishOverrides,setPublishOverrides]=useState<Record<string,boolean>>({});
+  const [localMessages,setLocalMessages]=useState<Record<string,EditorialBirthdayMessage>>({});
   const [open,setOpen]=useState<Set<string>>(()=>new Set(groups.map(g=>g.id)));
   const [newGroup,setNewGroup]=useState<string|null|undefined>(undefined);
   const [period,setPeriod]=useState<Period>("newspaper");
@@ -69,7 +78,7 @@ export function LiveBirthdayTree({groups,messages,initialWeekStart,todayISO}:{
     return entry.active&&
       (city==="all"||entry.city===city)&&
       (origin==="all"||entry.origin===origin)&&
-      (publication==="all"||entry.publishInPrint===(publication==="yes"))&&
+      (publication==="all"||isPublished(entry)===(publication==="yes"))&&
       (!search.trim()||searchedKey===birthdayKey(entry.birthDate));
   }
   function include(entry:BirthdayEntry):boolean{
@@ -110,6 +119,52 @@ export function LiveBirthdayTree({groups,messages,initialWeekStart,todayISO}:{
     // eslint-disable-next-line react-hooks/exhaustive-deps
   },[groups,matching,range,period,startKey]);
   const weekMessages=useMemo(()=>new Map(messages.map(m=>[m.birthday_entry_id,m])),[messages]);
+  const isCurrentWeek= dateISO(weeks.start)===initialWeekStart;
+  const usedMessageTexts=useMemo(()=>new Set(messages.map(m=>m.message)),[messages]);
+  function isPublished(entry:BirthdayEntry):boolean {
+    return publishOverrides[entry.id]??entry.publishInPrint;
+  }
+  async function togglePublication(entry:BirthdayEntry):Promise<void> {
+    if(pendingId)return;
+    setPendingId(entry.id);setIssue(null);setFeedback(null);
+    const next=!isPublished(entry);
+    try {
+      const result=await setBirthdayPublication(entry.origin==="cadastro"?"cliente":"editorial",entry.id,next);
+      if("error" in result){setIssue(result.error);return;}
+      setPublishOverrides(previous=>({...previous,[entry.id]:result.data.published}));
+      setFeedback(result.data.published?"Publicação autorizada.":"Publicação desativada.");
+      router.refresh();
+    } catch {setIssue("Não foi possível alterar a autorização. Tente novamente.");}
+    finally {setPendingId(null);}
+  }
+  async function saveMessage(entry:BirthdayEntry,regenerate:boolean):Promise<void> {
+    if(pendingId)return;
+    setPendingId(entry.id);setIssue(null);setFeedback(null);
+    try {
+      const result=await prepareBirthdayEditionMessage(
+        entry.origin==="cadastro"?"cliente":"editorial",entry.id,regenerate
+      );
+      if("error" in result){setIssue(result.error);return;}
+      setLocalMessages(previous=>({...previous,[entry.id]:result.data}));
+      setFeedback("Mensagem salva na edição atual.");
+      router.refresh();
+    } catch {setIssue("Não foi possível salvar a mensagem. Tente novamente.");}
+    finally {setPendingId(null);}
+  }
+  function suggestMessage(entry:BirthdayEntry):string|null {
+    if(!isCurrentWeek)return null;
+    const day=weekDays.find(day=>matchesDay(entry.birthDate,day));
+    if(!day)return null;
+    const result=generateBirthdayMessage({
+      name:entry.displayName,city:entry.city||undefined,
+      profession:entry.profession||undefined,organization:entry.organization||undefined,
+      knownAs:entry.knownAs||undefined,
+      editorialPhrase:extractSafeEditorialPhrase(entry.messageContext||""),
+      dateLabel:formatEditorialDayLabel(weekdayFull(day),day),
+    },usedMessageTexts,{family:{},opening:{},ending:{}},{},
+    `${initialWeekStart}::${entry.id}::preview`);
+    return result.text;
+  }
   function toggle(id:string):void{setOpen(prev=>{const n=new Set(prev);if(n.has(id))n.delete(id);else n.add(id);return n;});}
   function clear():void{
     setSearch("");setPeriod("newspaper");setWeek(dateOnly(initialWeekStart));
@@ -120,29 +175,50 @@ export function LiveBirthdayTree({groups,messages,initialWeekStart,todayISO}:{
     if(el){el.open=true;el.scrollIntoView({behavior:"smooth",block:"start"});}
   }
   function entryView(e:BirthdayEntry):JSX.Element{
-    const stored=weekMessages.get(e.id);
+    const stored=localMessages[e.id]||weekMessages.get(e.id);
+    const preview=period==="newspaper"&&!stored?suggestMessage(e):null;
+    const published=isPublished(e);
+    const waiting=pendingId===e.id;
     return <div key={e.id} className="aniv-entry" style={{padding:10}}>
-      <div className="aniv-entry-main">
-        <span className="aniv-entry-name">{e.displayName}</span>
-        {e.relationship?<span className="aniv-entry-relationship">{e.relationship}</span>:null}
-        <span className="aniv-entry-date">{formatBirthDateShort(e.birthDate)}</span>
-        <span className="aniv-entry-city">{e.city||"—"}</span>
-        <span className="cadastro-role-badge">{e.origin==="cadastro"?"Cadastro":e.origin==="familiar"?"Familiar":"Extraordinário"}</span>
-        {!e.active?<span className="status-pill status-pill--archived">Inativo</span>:null}
-        <span className={`status-pill ${e.publishInPrint?"status-pill--published":"status-pill--draft"}`}>
-          {e.publishInPrint?"Autorizado para publicação":"Não publica"}
-        </span>
+      <div className={styles.personHeader}>
+        <div className="aniv-entry-main">
+          <span className="aniv-entry-name">{e.displayName}</span>
+          {e.relationship?<span className="aniv-entry-relationship">{e.relationship}</span>:null}
+          <span className="aniv-entry-date">{formatBirthDateShort(e.birthDate)}</span>
+          <span className="aniv-entry-city">{e.city||"—"}</span>
+          <span className="cadastro-role-badge">{e.origin==="cadastro"?"Cadastro":e.origin==="familiar"?"Familiar":"Excepcional"}</span>
+          <span className={`status-pill ${published?"status-pill--published":"status-pill--draft"}`}>
+            {published?"Publicação autorizada":"Não publica"}
+          </span>
+        </div>
+        <div className={`aniv-entry-row-actions no-print ${styles.personActions}`}>
+          <button type="button" className="cadastros-btn-secondary"
+            aria-pressed={published} disabled={Boolean(pendingId)} onClick={()=>void togglePublication(e)}>
+            {waiting?"Salvando...":published?"Desativar publicação":"Autorizar publicação"}
+          </button>
+          {e.origin==="cadastro"?
+            <Link className="cadastros-btn-secondary" href={`/sistema/clientes/${e.id}/editar`}>Editar nascimento</Link>:
+            <button type="button" className="cadastros-btn-secondary" onClick={openManagement}>Editar cadastro editorial</button>}
+        </div>
       </div>
-      <div className="aniv-entry-row-actions no-print">
-        {e.origin==="cadastro"?<Link className="cadastros-btn-secondary" href={`/sistema/clientes/${e.id}/editar`}>Editar nascimento</Link>:
-          <button type="button" className="cadastros-btn-secondary" onClick={openManagement}>Editar no gerenciamento</button>}
-      </div>
-      {period==="newspaper"&&stored?<div className="aniv-editorial">
-        <p className="aniv-editorial-text"><strong>Mensagem salva:</strong> {stored.message}</p>
+      {period==="newspaper"&&isCurrentWeek&&(stored||preview)?<div className={styles.message}>
+        <div className={styles.messageHeader}>
+          <strong>{stored?"Mensagem da edição":"Sugestão de mensagem · não salva"}</strong>
+          <div className={`no-print ${styles.messageActions}`}>
+            <button className="cadastros-btn-secondary" type="button" disabled={Boolean(pendingId)}
+              onClick={()=>void saveMessage(e,Boolean(stored))}>
+              {waiting?"Salvando...":stored?"Trocar mensagem":"Salvar mensagem"}
+            </button>
+          </div>
+        </div>
+        <p className={styles.messageText}>{stored?.message||preview}</p>
+        {!published?<small className={styles.unpublishedNote}>Prévia editorial. Este aniversariante não está autorizado para publicação.</small>:null}
       </div>:null}
     </div>;
   }
   return <div className={`aniv-module ${styles.root}`}>
+    {issue?<p className="form-error" role="alert">{issue}</p>:null}
+    {feedback?<p className="helper-text" role="status">{feedback}</p>:null}
     <div className={`aniv-header-row no-print ${styles.header}`}>
       <button className="cadastros-btn-primary" type="button" onClick={()=>setNewGroup(null)}>
         + Novo aniversariante
@@ -269,8 +345,13 @@ export function LiveBirthdayTree({groups,messages,initialWeekStart,todayISO}:{
     <div className="aniv-print-report">
       <h1>ANIVERSARIANTES</h1>
       <p className="aniv-print-period">{period==="all"?"Todos os aniversariantes":period==="newspaper"?`Semana: ${formatDateShort(weeks.start)} a ${formatDateShort(weeks.end)}`:"Período selecionado"}</p>
-      <ul>{matching.map(({entry})=><li key={entry.id}>{entry.displayName} — {formatBirthDateShort(entry.birthDate)} {entry.city?"· "+entry.city:""}</li>)}</ul>
-      <p className="aniv-print-total">Total: {matching.length}</p>
+      <ul>{matching.filter(({entry})=>isPublished(entry)).map(({entry})=>
+        <li key={entry.id}>
+          <strong>{entry.displayName}</strong> — {formatBirthDateShort(entry.birthDate)} {entry.city?"· "+entry.city:""}
+          {(localMessages[entry.id]||weekMessages.get(entry.id))?.message?
+            <p>{(localMessages[entry.id]||weekMessages.get(entry.id))?.message}</p>:null}
+        </li>)}</ul>
+      <p className="aniv-print-total">Total autorizado: {matching.filter(({entry})=>isPublished(entry)).length}</p>
     </div>
   </div>;
 }

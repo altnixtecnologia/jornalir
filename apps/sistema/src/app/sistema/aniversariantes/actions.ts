@@ -95,6 +95,73 @@ export async function setEditorialBirthdayActive(id: string, active: boolean): P
   return { ok: true, data: undefined };
 }
 
+/** Autoriza ou retira a publicação sem alterar a data no cadastro mestre.
+ * A data de nascimento, sozinha, nunca concede autorização editorial.
+ */
+export async function setBirthdayPublication(
+  source: "cliente" | "editorial", id: string, allowed: boolean,
+): Promise<ActionResult<{ published: boolean }>> {
+  const caller = await permitted();
+  if (!caller) return { error: "Acesso não autorizado ao módulo Aniversariantes." };
+  if (!UUID.test(id) || (source !== "cliente" && source !== "editorial") || typeof allowed !== "boolean") {
+    return { error: "Dados de publicação inválidos." };
+  }
+  const { db, userId } = caller;
+
+  if (source === "editorial") {
+    const { data: saved, error } = await db.from("birthday_entries")
+      .update({ publish_in_print: allowed, updated_at: new Date().toISOString() })
+      .eq("id",id).is("source_client_id",null).eq("active",true)
+      .select("id,publish_in_print").maybeSingle();
+    if (error || !saved) return { error: "Não foi possível alterar a publicação deste aniversariante." };
+    revalidatePath(PATH);
+    return { ok: true, data: { published: saved.publish_in_print } };
+  }
+
+  const { data: master, error: masterError } = await db.from("clients")
+    .select("id,kind,status,full_name,birth_date,address_city").eq("id",id).maybeSingle();
+  if (masterError || !master || master.kind !== "individual" || master.status !== "active"
+    || !master.birth_date || !validBirthDate(master.birth_date)) {
+    return { error: "Nascimento indisponível. Verifique o cadastro da pessoa física." };
+  }
+  const [year,month,day] = master.birth_date.split("-").map(Number);
+  const { data: existing, error: lookupError } = await db.from("birthday_entries")
+    .select("id,source_client_id,origin").eq("id",id).maybeSingle();
+  if (lookupError) return { error: "Não foi possível consultar a autorização editorial." };
+  if (existing && (existing.source_client_id !== id || existing.origin !== "cadastro")) {
+    return { error: "Identificador editorial inconsistente; operação interrompida." };
+  }
+  if (!existing) {
+    const { error: insertError } = await db.from("birthday_entries").insert({
+      id,source_client_id:id,group_client_id:id,origin:"cadastro",
+      display_name:master.full_name || "Pessoa sem nome",
+      birth_year:year,birth_month:month,birth_day:day,city:master.address_city||null,
+      active:true,publish_in_print:allowed,created_by:userId,
+    });
+    if (insertError) {
+      // If a concurrent action created the link, verify it belongs to this master client.
+      const { data: concurrent } = await db.from("birthday_entries")
+        .select("source_client_id,origin").eq("id",id).maybeSingle();
+      if (!concurrent || concurrent.source_client_id !== id || concurrent.origin !== "cadastro") {
+        return { error: "Não foi possível criar o vínculo editorial." };
+      }
+    } else {
+      revalidatePath(PATH);
+      return { ok: true, data: { published: allowed } };
+    }
+  }
+  const { data: saved, error } = await db.from("birthday_entries")
+    .update({
+      publish_in_print:allowed, display_name:master.full_name||"Pessoa sem nome",
+      birth_year:year,birth_month:month,birth_day:day,city:master.address_city||null,
+      updated_at:new Date().toISOString(),
+    }).eq("id",id).eq("source_client_id",id).eq("origin","cadastro")
+    .select("id,publish_in_print").maybeSingle();
+  if (error || !saved) return { error: "Não foi possível salvar a autorização de publicação." };
+  revalidatePath(PATH);
+  return { ok:true,data:{published:saved.publish_in_print} };
+}
+
 export async function prepareBirthdayEditionMessage(
   source: "cliente" | "editorial", id: string, regenerate = false,
 ): Promise<ActionResult<EditorialBirthdayMessage>> {
