@@ -39,13 +39,17 @@ export function ReceivableCreditPanel({
     setError(null);
     const parsedAmount = Number(amount.replace(",", "."));
     startTransition(async () => {
-      const result = await applyCreditManuallyAction(receivableId, selectedCreditId, parsedAmount);
-      if (result && "error" in result) {
-        setError(result.error);
-        return;
+      try {
+        const result = await applyCreditManuallyAction(receivableId, selectedCreditId, parsedAmount);
+        if (result && "error" in result) {
+          setError(result.error);
+          return;
+        }
+        setAmount("");
+        router.refresh();
+      } catch {
+        setError("Não foi possível aplicar o crédito. Confira a conexão e tente novamente.");
       }
-      setAmount("");
-      router.refresh();
     });
   }
 
