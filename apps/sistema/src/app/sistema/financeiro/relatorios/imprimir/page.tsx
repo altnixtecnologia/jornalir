@@ -1,7 +1,7 @@
 import type { PaymentMethod, ReceivableSourceType, ReceivableStatus } from "@ir/types";
 import { PAYMENT_METHODS, RECEIVABLE_SOURCE_TYPE_LABELS, RECEIVABLE_SOURCE_TYPES, RECEIVABLE_STATUS_LABELS, RECEIVABLE_STATUSES } from "@ir/types";
 import { createSupabaseServerClient } from "../../../../../lib/supabase/server";
-import { listReceivablesAdminPageSupabase } from "../../../../../providers/supabase/receivableRepository.supabase";
+import { listAllReceivablesForReportSupabase } from "../../../../../providers/supabase/receivableRepository.supabase";
 import { getClientService } from "../../../../../composition/clientes";
 import { PrintButton } from "../../../../../features/financeiro/PrintButton";
 
@@ -45,9 +45,7 @@ export default async function RelatorioImprimirPage({
   const paymentMethod = one(searchParams?.paymentMethod);
 
   const [result, clients] = await Promise.all([
-    listReceivablesAdminPageSupabase(supabase, {
-      page: 1,
-      pageSize: 1000,
+    listAllReceivablesForReportSupabase(supabase, {
       search: one(searchParams?.q),
       status: RECEIVABLE_STATUSES.includes(status as ReceivableStatus) ? (status as ReceivableStatus) : undefined,
       sourceType: RECEIVABLE_SOURCE_TYPES.includes(sourceType as ReceivableSourceType) ? (sourceType as ReceivableSourceType) : undefined,
