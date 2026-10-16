@@ -2,6 +2,7 @@
 
 import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import { useStaffFinanceActions } from "../../lib/permissions/useStaffFinanceActions";
 import type { AdjustmentType, PaymentMethod, ReceivableAdjustment, ReceivableReceipt, ReceivableWithBalance } from "@ir/types";
 import { ADJUSTMENT_TYPE_LABELS, ADJUSTMENT_TYPES, PAYMENT_METHOD_LABELS, PAYMENT_METHODS, isReversed } from "@ir/types";
 import {
@@ -57,6 +58,8 @@ interface ReceivableActionsPanelProps {
  */
 export function ReceivableActionsPanel({ receivable, receipts, adjustments, staff, hasOlderOpenBalance }: ReceivableActionsPanelProps): JSX.Element {
   const router = useRouter();
+  const { hasAction } = useStaffFinanceActions();
+  const canSettle = hasAction("recebimentos_quitar_diferenca") && hasAction("recebimentos_baixar") && hasAction("ajustes_criar");
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [activeForm, setActiveForm] = useState<"none" | "receipt" | "settle" | "adjustment">("none");
@@ -125,34 +128,34 @@ export function ReceivableActionsPanel({ receivable, receipts, adjustments, staf
 
         {!isCancelled ? (
           <div className="form-actions">
-            {activeForm !== "receipt" ? (
+            {activeForm !== "receipt" && hasAction("recebimentos_baixar") ? (
               <button type="button" onClick={() => setActiveForm("receipt")} disabled={pending || receivable.balance <= 0}>
                 {hasOlderOpenBalance ? "Registrar recebimento só neste título" : "Registrar recebimento"}
               </button>
             ) : null}
-            {activeForm !== "settle" ? (
+            {activeForm !== "settle" && canSettle ? (
               <button type="button" onClick={() => setActiveForm("settle")} disabled={pending || receivable.balance <= 0}>
                 Quitar com diferença
               </button>
             ) : null}
-            {activeForm !== "adjustment" ? (
+            {activeForm !== "adjustment" && hasAction("ajustes_criar") ? (
               <button type="button" onClick={() => setActiveForm("adjustment")} disabled={pending || receivable.balance <= 0}>
                 Lançar abatimento
               </button>
             ) : null}
-            <button type="button" className="media-remove-button" onClick={() => run(() => cancelReceivableAction(receivable.id))} disabled={pending}>
+            {hasAction("titulos_cancelar") ? <button type="button" className="media-remove-button" onClick={() => run(() => cancelReceivableAction(receivable.id))} disabled={pending}>
               Cancelar título
-            </button>
+            </button> : null}
           </div>
         ) : (
           <div className="form-actions">
-            <button type="button" onClick={() => run(() => reopenReceivableAction(receivable.id))} disabled={pending}>
+            {hasAction("titulos_reabrir") ? <button type="button" onClick={() => run(() => reopenReceivableAction(receivable.id))} disabled={pending}>
               Reabrir título
-            </button>
+            </button> : null}
           </div>
         )}
 
-        {activeForm === "receipt" ? (
+        {activeForm === "receipt" && hasAction("recebimentos_baixar") ? (
           <div className="form-grid" style={{ marginTop: "14px" }}>
             {hasOlderOpenBalance ? (
               <p className="form-error" role="alert" style={{ gridColumn: "1 / -1" }}>
@@ -227,7 +230,7 @@ export function ReceivableActionsPanel({ receivable, receipts, adjustments, staf
           </div>
         ) : null}
 
-        {activeForm === "settle" ? (
+        {activeForm === "settle" && canSettle ? (
           <div className="form-grid" style={{ marginTop: "14px" }}>
             <p className="helper-text" style={{ gridColumn: "1 / -1" }}>
               Saldo atual: {formatAmount(receivable.balance)}. A diferença entre o saldo e o valor recebido é dispensada como abatimento — o título fica quitado.
@@ -306,7 +309,7 @@ export function ReceivableActionsPanel({ receivable, receipts, adjustments, staf
           </div>
         ) : null}
 
-        {activeForm === "adjustment" ? (
+        {activeForm === "adjustment" && hasAction("ajustes_criar") ? (
           <div className="form-grid" style={{ marginTop: "14px" }}>
             <label className="form-field">
               <span className="field-label">Valor do abatimento (R$)</span>
@@ -417,7 +420,7 @@ export function ReceivableActionsPanel({ receivable, receipts, adjustments, staf
                         )}
                       </td>
                       <td>
-                        {!reversed && !isCancelled ? (
+                        {!reversed && !isCancelled && hasAction(entry.kind === "receipt" ? "recebimentos_estornar" : "ajustes_estornar") ? (
                           <button
                             type="button"
                             className="media-remove-button"
