@@ -6,7 +6,7 @@ import { ReceivablesList } from "../../../../features/financeiro/ReceivablesList
 import { ReportFiltersToggle } from "../../../../features/financeiro/ReportFiltersToggle";
 import { getContractService } from "../../../../composition/financeiro";
 import { createSupabaseServerClient } from "../../../../lib/supabase/server";
-import { listReceivablesAdminPageSupabase, sumCreditAppliedForReceivables } from "../../../../providers/supabase/receivableRepository.supabase";
+import { listAllReceivablesForReportSupabase, sumCreditAppliedForReceivables } from "../../../../providers/supabase/receivableRepository.supabase";
 import { listActiveStaffSupabase } from "../../../../providers/supabase/staffRepository.supabase";
 
 function one(value: string | string[] | undefined): string {
@@ -69,9 +69,7 @@ export default async function RelatoriosPage({
     partiallyPaidOnly: partiallyPaidOnly || undefined,
   };
 
-  const result = await listReceivablesAdminPageSupabase(supabase, {
-    page: 1,
-    pageSize: 100,
+  const result = await listAllReceivablesForReportSupabase(supabase, {
     ...filterQuery,
   });
 
