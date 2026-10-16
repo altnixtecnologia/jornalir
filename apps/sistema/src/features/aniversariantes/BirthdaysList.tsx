@@ -906,7 +906,7 @@ export function BirthdaysList({ localPreview, initialGroups = [], initialMessage
         {notice?<p className="helper-text" role="status">{notice}</p>:null}
           <div className="aniv-header-row no-print">
             <button type="button" className="cadastros-btn-primary" onClick={() => setIncludeOpen(true)}>
-              + Incluir aniversariante
+              + Novo aniversariante
             </button>
           </div>
 

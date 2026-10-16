@@ -49,7 +49,7 @@ export default async function AssinaturasPage({
         description="Serviços (impresso, digital, TV) vinculados a um cliente — um mesmo cliente pode ter mais de uma assinatura."
         action={
           <Link className="form-action-primary" href="/sistema/assinaturas/nova">
-            Nova assinatura
+            + Nova assinatura
           </Link>
         }
       />
