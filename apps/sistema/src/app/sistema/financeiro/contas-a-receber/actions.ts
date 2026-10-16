@@ -8,6 +8,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { getPaymentChargeService, getReceivableService } from "../../../../composition/financeiro";
 import { getClientService } from "../../../../composition/clientes";
 import { createSupabaseServerClient } from "../../../../lib/supabase/server";
+import { todayInSaoPauloISO } from "../../../../lib/date/saoPauloDate";
 import { getAuditContext } from "../../../../lib/auth/getAuditContext";
 import { isLocalPreviewEnabled, LOCAL_PREVIEW_PROFILE } from "../../../../lib/auth/localPreview";
 import { buildBillingMessage } from "@ir/core";
@@ -333,8 +334,22 @@ export async function createPixChargeAction(
   const amount = parseAmount(input.amount);
   if (!Number.isFinite(amount) || amount <= 0) return { error: "Informe um valor válido para a cobrança." };
   if (amount < 5) return { error: "O Asaas exige cobrança Pix mínima de R$ 5,00." };
+  if (input.expiresAt && (!/^\d{4}-\d{2}-\d{2}$/.test(input.expiresAt)
+    || !Number.isFinite(Date.parse(input.expiresAt + "T12:00:00-03:00"))
+    || input.expiresAt < todayInSaoPauloISO())) {
+    return { error: "A data de vencimento do Pix não pode ser anterior a hoje." };
+  }
   try {
     const client = createSupabaseServerClient();
+    // Os IDs enviados pelo navegador não são fonte da verdade.
+    const title = await getReceivableService(client).getById(receivableId);
+    if (title.clientId !== clientId) return { error: "Cliente não corresponde ao título selecionado." };
+    if (title.status === "cancelled" || title.balance <= 0) {
+      return { error: "Este título não possui saldo aberto para gerar uma cobrança." };
+    }
+    if (Math.round(amount * 100) > Math.round(title.balance * 100)) {
+      return { error: "A cobrança Pix não pode ser maior que o saldo aberto do título." };
+    }
 
     const { data: billingSettings, error: billingSettingsError } = await client
       .from("billing_provider_settings")
@@ -359,7 +374,7 @@ export async function createPixChargeAction(
       clientId,
       amount,
       description: input.description.trim() || undefined,
-      expiresAt: input.expiresAt ? new Date(`${input.expiresAt}T23:59:59`).toISOString() : undefined,
+      expiresAt: input.expiresAt ? new Date(`${input.expiresAt}T23:59:59-03:00`).toISOString() : undefined,
     });
   } catch (error) {
     return { error: toErrorMessage(error) };
