@@ -5,8 +5,10 @@ import { ContractForm } from "../../../../../../features/financeiro/ContractForm
 import { getContractService } from "../../../../../../composition/financeiro";
 import { getClientService } from "../../../../../../composition/clientes";
 import { createSupabaseServerClient } from "../../../../../../lib/supabase/server";
+import { financePermissionError } from "../../../../../../lib/permissions/serverFinanceGuard";
 
 export default async function EditarContratoPage({ params }: { params: { id: string } }): Promise<JSX.Element> {
+  if (await financePermissionError("contratos_editar")) notFound();
   const supabase = createSupabaseServerClient();
   const contract = await getContractService(supabase)
     .getById(params.id)
