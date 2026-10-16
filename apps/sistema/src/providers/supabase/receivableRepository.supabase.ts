@@ -1127,7 +1127,8 @@ export async function listReceiptsForRecibosSupabase(client: SupabaseClient, inp
     let query = client
       .from("receivable_receipts")
       .select(RECEIPT_REPORT_COLUMNS, { count: "exact" })
-      .order("received_at", { ascending: false });
+      .order("received_at", { ascending: false })
+      .order("id", { ascending: true });
     if (status === "active") query = query.is("reversed_at", null);
     if (status === "cancelled") query = query.not("reversed_at", "is", null);
     if (titleFilteredIds !== null) {
@@ -1163,6 +1164,29 @@ export async function listReceiptsForRecibosSupabase(client: SupabaseClient, inp
   });
 
   return { receipts, total, page, pageSize, totalPages };
+}
+
+/**
+ * Recibos selecionados ou "imprimir todos": NÃO truncar ao limite de 25
+ * linhas do paginador da listagem. Mantém os estados ativos/estornados
+ * informados pelo filtro; nunca transforma impressão em operação de baixa.
+ */
+export async function listAllReceiptsForPrintSupabase(
+  client: SupabaseClient,
+  filters: Omit<RecibosQuery, "page" | "pageSize"> = {},
+): Promise<RecibosResult> {
+  const first = await listReceiptsForRecibosSupabase(client, { ...filters, page: 1, pageSize: 100 });
+  if (first.total > 10000) throw new Error("Existem mais de 10.000 recibos. Restrinja o período ou os filtros.");
+  const all = [...first.receipts];
+  for (let page = 2; page <= first.totalPages; page += 1) {
+    const next = await listReceiptsForRecibosSupabase(client, { ...filters, page, pageSize: 100 });
+    if (next.total !== first.total || next.page !== page) {
+      throw new Error("O conjunto de recibos mudou durante a impressão. Recarregue a página.");
+    }
+    all.push(...next.receipts);
+  }
+  if (all.length !== first.total) throw new Error("Lista de recibos incompleta. Recarregue a página.");
+  return { receipts: all, total: first.total, page: 1, pageSize: all.length, totalPages: 1 };
 }
 
 export interface AdjustmentReportQuery {
