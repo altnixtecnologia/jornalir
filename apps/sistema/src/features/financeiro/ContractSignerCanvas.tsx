@@ -10,6 +10,7 @@ export function ContractSignerCanvas({
   const drawing = useRef(false);
   const [signed, setSigned] = useState(false);
   const [fullName, setFullName] = useState("");
+  const [signerEmail, setSignerEmail] = useState("");
   const [consent, setConsent] = useState(false);
   const [hasStroke, setHasStroke] = useState(false);
   const [error, setError] = useState("");
@@ -50,7 +51,7 @@ export function ContractSignerCanvas({
   }
   function submit(): void {
     setError("");
-    if (!consent || !hasStroke || !fullName.trim()) {
+    if (!consent || !hasStroke || !fullName.trim() || !signerEmail.trim()) {
       setError("Confira o PDF, informe seu nome, desenhe sua assinatura e aceite o termo.");
       return;
     }
@@ -58,7 +59,7 @@ export function ContractSignerCanvas({
     startTransition(async () => {
       try {
         const result = await completeSignatureInvitationAction({
-          token, signerName: fullName, consent, imageDataUrl,
+          token, signerName: fullName, signerEmail, consent, imageDataUrl,
         });
         if ("error" in result) { setError(result.error); return; }
         setSigned(true);
@@ -89,6 +90,11 @@ export function ContractSignerCanvas({
         <input value={fullName} onChange={(e) => setFullName(e.target.value)} maxLength={180}
           autoComplete="name" />
       </label>
+      <label className="form-field" style={{ display: "block", marginTop: 12 }}>
+        <span className="field-label">Confirme seu e-mail informado no convite</span>
+        <input type="email" value={signerEmail} onChange={(e) => setSignerEmail(e.target.value)}
+          autoComplete="email" maxLength={254} />
+      </label>
       <p className="field-label">Desenhe sua assinatura com dedo, caneta ou mouse</p>
       <canvas ref={canvasRef} width={700} height={230}
         onPointerDown={pointerDown} onPointerMove={pointerMove} onPointerUp={pointerUp}
@@ -110,7 +116,7 @@ export function ContractSignerCanvas({
       {error ? <p className="form-error" role="alert">{error}</p> : null}
       <div className="form-actions">
         <button type="button" className="form-action-primary" onClick={submit}
-          disabled={pending || !consent || !hasStroke || !fullName.trim()}>
+          disabled={pending || !consent || !hasStroke || !fullName.trim() || !signerEmail.trim()}>
           {pending ? "Registrando…" : "Confirmar assinatura eletrônica"}
         </button>
       </div>
