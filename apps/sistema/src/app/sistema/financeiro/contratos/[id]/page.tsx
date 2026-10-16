@@ -15,6 +15,8 @@ import { ClientNotFoundError } from "@ir/core";
 import { ModuleHeader } from "../../../../../components/admin/ModuleHeader";
 import { ReceivablesList } from "../../../../../features/financeiro/ReceivablesList";
 import { ContractDocumentsPanel } from "../../../../../features/financeiro/ContractDocumentsPanel";
+import { ContractSignaturesPanel } from "../../../../../features/financeiro/ContractSignaturesPanel";
+import { listSignatureInvitationsAction } from "../signature-actions";
 import { ContractAmendmentsPanel } from "../../../../../features/financeiro/ContractAmendmentsPanel";
 import { ContractCommitmentOrdersPanel } from "../../../../../features/financeiro/ContractCommitmentOrdersPanel";
 import { ContractInstallmentsPanel } from "../../../../../features/financeiro/ContractInstallmentsPanel";
@@ -59,6 +61,8 @@ export default async function ContractDetailPage({ params }: { params: { id: str
     getReceivableService(supabase).list({ contractId: contract.id }),
     getClientCreditService(supabase).list({ contractId: contract.id, availableOnly: true }),
   ]);
+  const signatureResult = await listSignatureInvitationsAction(contract.id);
+  const signatureInvitations = "error" in signatureResult ? [] : signatureResult.invitations;
   const availableCreditTotal = availableCredits.reduce((sum, item) => sum + item.balance, 0);
 
   const receivableService = getReceivableService(supabase);
@@ -233,6 +237,8 @@ export default async function ContractDetailPage({ params }: { params: { id: str
       </section>
 
       <ContractDocumentsPanel contractId={contract.id} documents={documents} />
+      <ContractSignaturesPanel contractId={contract.id} documents={documents}
+        invitations={signatureInvitations} />
 
       <ContractAmendmentsPanel contractId={contract.id} amendments={amendments} documents={documents} />
 
