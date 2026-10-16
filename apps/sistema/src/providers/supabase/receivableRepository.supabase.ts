@@ -776,7 +776,7 @@ export async function listReceivablesAdminPageSupabase(
   const settledWithDifferenceIds = input.settledWithDifferenceOnly ? await findReceivableIdsSettledWithDifference(client) : null;
 
   const build = (page: number) => {
-    let query = client.from(VIEW).select(LIST_VIEW_COLUMNS, { count: "exact" }).order("due_date", { ascending: true });
+    let query = client.from(VIEW).select(LIST_VIEW_COLUMNS, { count: "exact" }).order("due_date", { ascending: true }).order("id", { ascending: true });
 
     if (input.status) query = query.eq("status", input.status);
     if (input.partiallyPaidOnly) query = query.eq("status", "partially_paid");
@@ -827,6 +827,34 @@ export async function listReceivablesAdminPageSupabase(
   };
 }
 
+/**
+ * Relatórios/exportações: varre todas as páginas REAIS, porque o paginador
+ * público limita pageSize a 100. Pedir pageSize:1000 silenciosamente
+ * retornava só 25 lançamentos e produzia CSV, impressão e totais errados.
+ * Em volumes excepcionais falha explicitamente em vez de truncar dados.
+ */
+export async function listAllReceivablesForReportSupabase(
+  client: SupabaseClient,
+  filters: Omit<ReceivableAdminPageQuery, "page" | "pageSize"> = {},
+): Promise<{ receivables: ReceivableListItem[]; total: number }> {
+  const first = await listReceivablesAdminPageSupabase(client, { ...filters, page: 1, pageSize: 100 });
+  const all = [...first.receivables];
+  if (first.total > 10000) {
+    throw new Error("O relatório possui mais de 10.000 títulos. Reduza o período ou os filtros antes de exportar.");
+  }
+  for (let page = 2; page <= first.totalPages; page += 1) {
+    const result = await listReceivablesAdminPageSupabase(client, { ...filters, page, pageSize: 100 });
+    if (result.total !== first.total || result.page !== page) {
+      throw new Error("Os lançamentos mudaram durante a geração do relatório. Recarregue e tente novamente.");
+    }
+    all.push(...result.receivables);
+  }
+  if (all.length !== first.total) {
+    throw new Error("Relatório incompleto: a quantidade de títulos mudou. Tente novamente.");
+  }
+  return { receivables: all, total: first.total };
+}
+
 /** Títulos de VÁRIOS contratos de uma vez (Bloco 2, item 10 — relatório
  * de contratos) — evita N+1 ao montar o resumo de cada contrato na
  * listagem. Agrupar por contractId é responsabilidade de quem chama. */
@@ -857,14 +885,20 @@ export async function listReceivablesForCommercialSalesSupabase(client: Supabase
  */
 export async function sumCreditAppliedForReceivables(client: SupabaseClient, receivableIds: string[]): Promise<number> {
   if (receivableIds.length === 0 || isLocalPreviewEnabled()) return 0;
-  const { data, error } = await client
-    .from("receivable_adjustments")
-    .select("amount")
-    .in("receivable_id", receivableIds)
-    .eq("adjustment_type", "credit_applied")
-    .is("reversed_at", null);
-  if (error) throw new Error(error.message);
-  return (data ?? []).reduce((sum, row) => sum + Number((row as { amount: number }).amount), 0);
+  let total = 0;
+  // Evita limites de tamanho no filtro "in" para relatórios grandes.
+  for (let index = 0; index < receivableIds.length; index += 100) {
+    const batch = receivableIds.slice(index, index + 100);
+    const { data, error } = await client
+      .from("receivable_adjustments")
+      .select("amount")
+      .in("receivable_id", batch)
+      .eq("adjustment_type", "credit_applied")
+      .is("reversed_at", null);
+    if (error) throw new Error(error.message);
+    total += (data ?? []).reduce((sum, row) => sum + Number((row as { amount: number }).amount), 0);
+  }
+  return total;
 }
 
 /** Contexto do título mostrado nas linhas dos relatórios de Recebimentos/
