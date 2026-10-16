@@ -2,6 +2,7 @@
 
 import { Fragment, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import { useStaffFinanceActions } from "../../lib/permissions/useStaffFinanceActions";
 import type { PaymentCharge } from "@ir/types";
 import { PAYMENT_CHARGE_STATUS_LABELS } from "@ir/types";
 import { ConfirmDialog } from "../../components/admin/ConfirmDialog";
@@ -54,6 +55,7 @@ export function PixChargePanel({
   whatsappAutoConfigured: boolean;
 }): JSX.Element {
   const router = useRouter();
+  const { hasAction } = useStaffFinanceActions();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
 
@@ -176,7 +178,7 @@ export function PixChargePanel({
       ) : null}
       {error ? <p className="form-error" role="alert">{error}</p> : null}
 
-      {!pendingCharge && !showForm ? (
+      {!pendingCharge && !showForm && hasAction("pix_gerar") ? (
         <div className="form-actions">
           <button type="button" onClick={() => setShowForm(true)} disabled={pending || receivableBalance <= 0}>
             Gerar cobrança Pix
@@ -184,7 +186,7 @@ export function PixChargePanel({
         </div>
       ) : null}
 
-      {showForm ? (
+      {showForm && hasAction("pix_gerar") ? (
         <div className="form-grid" style={{ marginTop: "14px" }}>
           <p className="helper-text" style={{ gridColumn: "1 / -1" }}>
             Saldo atual: {formatAmount(receivableBalance)}. Por padrão a cobrança é do saldo total — pode gerar um valor menor (cobrança parcial), desde que seja de pelo menos R$ 5,00.
@@ -280,17 +282,17 @@ export function PixChargePanel({
                 Abrir página de pagamento
               </a>
             ) : null}
-            <button type="button" onClick={openSendPreview} disabled={pending}>
+            {hasAction("pix_enviar") ? <button type="button" onClick={openSendPreview} disabled={pending}>
               Enviar ao cliente
-            </button>
-            {localPreview ? (
+            </button> : null}
+            {localPreview && hasAction("recebimentos_baixar") ? (
               <button type="button" onClick={() => confirmDemo(pendingCharge.id)} disabled={pending}>
                 Confirmar pagamento (demonstração)
               </button>
             ) : null}
-            <button type="button" className="media-remove-button" onClick={() => setCancelTarget(pendingCharge)} disabled={pending}>
+            {hasAction("pix_cancelar") ? <button type="button" className="media-remove-button" onClick={() => setCancelTarget(pendingCharge)} disabled={pending}>
               Cancelar cobrança
-            </button>
+            </button> : null}
           </div>
           {confirmFeedback ? <p className="helper-text">{confirmFeedback}</p> : null}
         </div>
@@ -369,7 +371,7 @@ export function PixChargePanel({
                                 </a>
                               </div>
                             ) : null}
-                            {charge.status === "paid" ? (
+                            {charge.status === "paid" && hasAction("pix_enviar") ? (
                               <div className="form-field" style={{ gridColumn: "1 / -1" }}>
                                 <span className="field-label">Cliente</span>
                                 <button
