@@ -33,7 +33,7 @@ async function uploadContractPdf(
   }
   const fileReference = `contracts/${contractId}/${crypto.randomUUID()}.pdf`;
   const { error } = await supabase.storage.from(CONTRACT_BUCKET).upload(fileReference, bytes, {
-    contentType: "application/pdf", cacheControl: "private, no-store", upsert: false,
+    contentType: "application/pdf", cacheControl: "0", upsert: false,
   });
   if (error) throw new Error("Falha ao armazenar o PDF privado: " + error.message);
   return fileReference;
