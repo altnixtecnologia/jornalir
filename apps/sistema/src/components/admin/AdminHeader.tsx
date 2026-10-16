@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect } from "react";
 import { usePathname } from "next/navigation";
-import { assinaturasNavGroup, clientesNavGroup, configuracoesNavGroup, editorialNavGroup, financeiroNavGroup, nfseNavGroup, commercialNavGroup } from "../../lib/navigation";
+import { clientesNavGroup, configuracoesNavGroup, editorialNavGroup, financeiroNavGroup, nfseNavGroup, commercialNavGroup } from "../../lib/navigation";
 import { useAuth } from "../../lib/auth/AuthProvider";
 import { useAgendaPautaReadAccess } from "../../lib/permissions/useAgendaPautaReadAccess";
 import { useStaffModuleVisibility } from "../../lib/permissions/useStaffModuleVisibility";
@@ -118,23 +118,10 @@ export function AdminHeader({ onOpenMenu }: { onOpenMenu: () => void }): JSX.Ele
           ) : null}
 
           {hasModule("assinaturas") ? (
-            <details className="app-nav-dropdown" data-nav-dropdown name="app-nav-dropdown">
-            <summary className={`app-nav-link app-nav-summary${isAssinaturas ? " is-active" : ""}`}>
-              Assinaturas <span className="app-nav-caret" aria-hidden="true">▾</span>
-            </summary>
-            <div className="app-nav-panel">
-              {assinaturasNavGroup.links.map((link) => (
-                <Link
-                  key={link.href}
-                  href={link.href}
-                  className={`app-nav-panel-link${link.primary ? " is-primary" : ""}`}
-                  onClick={closeNavDropdowns}
-                >
-                  {link.label}
-                </Link>
-              ))}
-            </div>
-          </details>
+            <Link href="/sistema/assinaturas" className="app-nav-link"
+              aria-current={isAssinaturas ? "page" : undefined}>
+              Assinaturas
+            </Link>
           ) : null}
 
           {hasModule("financeiro") ? (

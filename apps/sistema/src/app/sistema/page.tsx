@@ -4,7 +4,6 @@ import { ModuleHeader } from "../../components/admin/ModuleHeader";
 const QUICK_LINKS = [
   { label: "Agenda e pauta", href: "/sistema/agenda", description: "Compromissos da equipe e o que cada um precisa fazer na semana." },
   { label: "Matérias", href: "/sistema/editorial/materias", description: "Ver, filtrar e abrir tudo o que já foi cadastrado." },
-  { label: "Nova matéria", href: "/sistema/editorial/materias/nova", description: "Cadastrar uma matéria manualmente." },
   { label: "Importar PDF", href: "/sistema/editorial/importar-pdf", description: "Extrair candidatos a matéria do jornal impresso." },
   { label: "Mídias", href: "/sistema/editorial/midias", description: "Buscar, cadastrar e revisar imagens da biblioteca." },
   { label: "Editorias", href: "/sistema/editorial/editorias", description: "Gerenciar os assuntos do jornal." },

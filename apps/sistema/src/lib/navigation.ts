@@ -124,7 +124,6 @@ export const editorialNavGroup: AdminNavGroup = {
   label: "Editorial",
   links: [
     { label: "Matérias", href: "/sistema/editorial/materias" },
-    { label: "Nova matéria", href: "/sistema/editorial/materias/nova", primary: true },
     { label: "Destaques", href: "/sistema/editorial/destaques" },
     { label: "Importar do jornal impresso", href: "/sistema/editorial/importar-pdf" },
     { label: "Edições", href: "/sistema/editorial/edicoes" },
@@ -138,7 +137,6 @@ export const clientesNavGroup: AdminNavGroup = {
   label: "Cadastros",
   links: [
     { label: "Cadastros", href: "/sistema/clientes" },
-    { label: "Novo cadastro", href: "/sistema/clientes/novo", primary: true },
   ],
 };
 
@@ -146,7 +144,6 @@ export const assinaturasNavGroup: AdminNavGroup = {
   label: "Assinaturas",
   links: [
     { label: "Assinaturas", href: "/sistema/assinaturas" },
-    { label: "Nova assinatura", href: "/sistema/assinaturas/nova", primary: true },
   ],
 };
 
@@ -155,7 +152,6 @@ export const financeiroNavGroup: AdminNavGroup = {
   links: [
     { label: "Visão geral", href: "/sistema/financeiro" },
     { label: "Contas a receber", href: "/sistema/financeiro/contas-a-receber" },
-    { label: "Novo lançamento", href: "/sistema/financeiro/contas-a-receber/novo", primary: true },
     { label: "Contratos institucionais", href: "/sistema/financeiro/contratos" },
     { label: "Recibos", href: "/sistema/financeiro/recibos" },
     { label: "Relatórios", href: "/sistema/financeiro/relatorios" },
@@ -167,7 +163,6 @@ export const commercialNavGroup: AdminNavGroup = {
   links: [
     { label: "Visão geral", href: "/sistema/publicidade" },
     { label: "Solicitações do site", href: "/sistema/publicidade/solicitacoes" },
-    { label: "Nova proposta", href: "/sistema/publicidade/propostas/novo", primary: true },
     { label: "Propostas/Orçamentos", href: "/sistema/publicidade/propostas" },
     { label: "Vendas", href: "/sistema/publicidade/vendas" },
     { label: "Produtos/serviços", href: "/sistema/publicidade/produtos" },
@@ -178,7 +173,6 @@ export const nfseNavGroup: AdminNavGroup = {
   label: "NFS-e",
   links: [
     { label: "Visão geral", href: "/sistema/nfse" },
-    { label: "Nova NFS-e", href: "/sistema/nfse/nova", primary: true },
     { label: "Rascunhos", href: "/sistema/nfse/rascunhos" },
     { label: "Notas emitidas", href: "/sistema/nfse/notas" },
     { label: "Perfis de serviço", href: "/sistema/nfse/perfis-servico" },

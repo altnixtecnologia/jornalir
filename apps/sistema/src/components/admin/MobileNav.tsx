@@ -42,7 +42,6 @@ const SHORTCUTS: AdminNavLink[] = [
   { label: "Agenda", href: "/sistema/agenda?view=agenda" },
   { label: "Pauta", href: "/sistema/agenda?view=pauta" },
   { label: "Matérias", href: "/sistema/editorial/materias" },
-  { label: "Nova matéria", href: "/sistema/editorial/materias/nova" },
   { label: "Solicitações", href: "/sistema/publicidade/solicitacoes" },
   { label: "Notificações", href: "/sistema/notificacoes" },
   { label: "Preferências", href: "/sistema/preferencias-notificacoes" },

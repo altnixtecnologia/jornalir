@@ -64,7 +64,7 @@ export default async function CommercialOverviewPage(): Promise<JSX.Element> {
         description="Propostas, vendas, produtos/serviços e vínculo com o Financeiro — cliente sempre vem do Cadastro mestre."
         action={
           <Link className="form-action-primary" href="/sistema/publicidade/propostas/novo">
-            Nova proposta
+            + Nova proposta
           </Link>
         }
       />
@@ -79,9 +79,6 @@ export default async function CommercialOverviewPage(): Promise<JSX.Element> {
       <section className="form-section">
         <h2>Acesso rápido</h2>
         <div className="form-actions">
-          <Link className="form-action-primary" href="/sistema/publicidade/propostas/novo">
-            Nova proposta
-          </Link>
           <Link href="/sistema/publicidade/solicitacoes">Solicitações do site</Link>
           <Link href="/sistema/publicidade/propostas">Propostas/Orçamentos</Link>
           <Link href="/sistema/publicidade/vendas">Vendas</Link>
