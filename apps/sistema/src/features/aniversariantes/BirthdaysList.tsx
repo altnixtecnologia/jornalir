@@ -3,7 +3,6 @@
 import { useEffect, useMemo, useRef, useState, type JSX } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import styles from "./BirthdaysList.module.css";
 import { saveEditorialBirthday, setEditorialBirthdayActive, setBirthdayPublication, prepareBirthdayEditionMessage } from "../../app/sistema/aniversariantes/actions";
 import type { EditorialBirthdayInput, EditorialBirthdayMessage } from "./editorialBirthdayTypes";
 import {
@@ -25,6 +24,7 @@ import {
   type BirthdayOrigin,
 } from "./birthdayTypes";
 import { buildBirthdayPreviewSeed } from "./birthdayPreviewData";
+import { fuzzyMatches } from "../../lib/fuzzySearch";
 
 import { ConfirmDialog } from "../../components/admin/ConfirmDialog";
 import {
@@ -142,12 +142,10 @@ function getActiveRange(
   }
   if (period === "month") return getMonthRange(new Date());
   if (period === "custom") {
-    const first=parseDayMonth(customStart),last=parseDayMonth(customEnd);
-    if(!first||!last)return null;
-    return {
-      start:new Date(2000,first.month-1,first.day,0,0,0,0),
-      end:new Date(last.key<first.key?2001:2000,last.month-1,last.day,23,59,59,999),
-    };
+    if (!customStart || !customEnd) return null;
+    const start = new Date(`${customStart}T00:00:00`);
+    const end = new Date(`${customEnd}T23:59:59`);
+    return Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) ? null : { start, end };
   }
   return null;
 }
@@ -422,9 +420,9 @@ export function BirthdaysList({ localPreview, initialGroups = [], initialMessage
   const requested=useRef(new Set<string>());
   const persisted=useRef(new Set(initialMessages.map(m=>`${m.edition_week_start}::${m.birthday_entry_id}`)));
   const [groups, setGroups] = useState<BirthdayGroup[]>(() => localPreview ? buildBirthdayPreviewSeed() : initialGroups);
-  const [expanded, setExpanded] = useState<Set<string>>(() => new Set(initialGroups.map(g=>g.id)));
+  const [expanded, setExpanded] = useState<Set<string>>(() => new Set());
   const [search, setSearch] = useState("");
-  const [period, setPeriod] = useState<PeriodFilter>("newspaper");
+  const [period, setPeriod] = useState<PeriodFilter>("all");
   const [weekReference, setWeekReference] = useState<Date>(() => todayISO ? new Date(todayISO+"T12:00:00") : new Date());
   const [selectedDay, setSelectedDay] = useState<Date | null>(null);
   const [customStart, setCustomStart] = useState("");
@@ -629,7 +627,11 @@ export function BirthdaysList({ localPreview, initialGroups = [], initialMessage
 
   function entryMatchesNonPeriod(entry: BirthdayEntry): boolean {
     if(!entry.active && period!=="all")return false;
-    if (search.trim() && ddmmKey(entry.birthDate)!==parseDayMonth(search)?.key) return false;
+    if (search.trim()) {
+      const dateSearch = parseDayMonth(search);
+      if (dateSearch ? ddmmKey(entry.birthDate) !== dateSearch.key
+        : !fuzzyMatches(search, entry.displayName)) return false;
+    }
     if (city !== "all" && entry.city !== city) return false;
     if (publishFilter !== "all" && entry.publishInPrint !== (publishFilter === "yes")) return false;
     if (originFilter !== "all" && entry.origin !== originFilter) return false;
@@ -674,9 +676,7 @@ export function BirthdaysList({ localPreview, initialGroups = [], initialMessage
   const matchingGroupIds = useMemo(() => new Set(matchingFlat.map((m) => m.group.id)), [matchingFlat]);
 
   const visibleGroups = useMemo(() => {
-    const unfiltered=period==="all"&&!search.trim()&&city==="all"&&
-      publishFilter==="all"&&originFilter==="all";
-    const list = groups.filter(g=>matchingGroupIds.has(g.id)||unfiltered);
+    const list = groups.filter(g=>matchingGroupIds.has(g.id));
     if (!activeRange && !(period === "newspaper" && selectedDay)) {
       return [...list].sort((a, b) => a.label.localeCompare(b.label, "pt-BR"));
     }
@@ -838,8 +838,7 @@ export function BirthdaysList({ localPreview, initialGroups = [], initialMessage
 
   function clearFilters(): void {
     setSearch("");
-    setPeriod("newspaper");
-    setWeekReference(todayISO ? new Date(todayISO+"T12:00:00") : new Date());
+    setPeriod("all");
     setCity("all");
     setPublishFilter("all");
     setOriginFilter("all");
@@ -901,10 +900,16 @@ export function BirthdaysList({ localPreview, initialGroups = [], initialMessage
   }
 
   return (
-    <div className={`aniv-module ${styles.root}`}>
+    <div className="aniv-module">
       <>
         {error?<p className="form-error" role="alert">{error}</p>:null}
         {notice?<p className="helper-text" role="status">{notice}</p>:null}
+          <div className="aniv-header-row no-print">
+            <button type="button" className="cadastros-btn-primary" onClick={() => setIncludeOpen(true)}>
+              + Incluir aniversariante
+            </button>
+          </div>
+
           <div className="aniv-week-cta-row no-print">
             <button type="button" className={`aniv-week-cta${period === "newspaper" ? " is-active" : ""}`} onClick={activateNewspaperWeek}>
               <strong>SEMANA DO JORNAL</strong>
@@ -917,8 +922,6 @@ export function BirthdaysList({ localPreview, initialGroups = [], initialMessage
                 <button type="button" className="cadastros-btn-secondary" onClick={() => shiftWeek(1)}>Próxima semana ›</button>
               </div>
             ) : null}
-            <button type="button" className="cadastros-btn-primary aniv-create-birthday"
-              onClick={() => setIncludeOpen(true)}>+ Novo aniversariante</button>
           </div>
 
           {period === "newspaper" ? (
@@ -952,12 +955,8 @@ export function BirthdaysList({ localPreview, initialGroups = [], initialMessage
           <div className="cadastros-filters-bar no-print">
             <label className="cadastros-search">
               <span className="sr-only">Buscar</span>
-              <input type="text" inputMode="numeric" maxLength={5} value={search}
-                onChange={(e)=>{
-                  const v=e.target.value.replace(/[^0-9/]/g,"").slice(0,5);
-                  setSearch(v);
-                  if(v.replace(/\D/g,"").length===4){setPeriod("all");setSelectedDay(null);}
-                }} placeholder="Buscar aniversário (DD/MM)" aria-label="Buscar por dia e mês" />
+              <input type="search" value={search} onChange={(e) => setSearch(e.target.value)}
+                placeholder="Buscar por nome (tolera erro de digitação)" aria-label="Buscar por nome ou DD/MM" />
             </label>
             <select
               value={period}
@@ -968,20 +967,18 @@ export function BirthdaysList({ localPreview, initialGroups = [], initialMessage
               aria-label="Período"
               title="Período"
             >
-              <option value="newspaper">Semana do jornal</option>
               <option value="all">Todos</option>
+              <option value="newspaper">Semana do jornal</option>
               <option value="today">Hoje</option>
               <option value="month">Este mês</option>
               <option value="custom">Personalizado</option>
             </select>
             {period === "custom" ? (
               <>
-                <input type="text" inputMode="numeric" maxLength={5} placeholder="De DD/MM" value={customStart}
-                  onChange={(e)=>setCustomStart(e.target.value.replace(/[^0-9/]/g,"").slice(0,5))}
-                  aria-label="Início do período em dia e mês" title="De DD/MM" />
-                <input type="text" inputMode="numeric" maxLength={5} placeholder="Até DD/MM" value={customEnd}
-                  onChange={(e)=>setCustomEnd(e.target.value.replace(/[^0-9/]/g,"").slice(0,5))}
-                  aria-label="Fim do período em dia e mês" title="Até DD/MM" />
+                <input type="date" value={customStart} onChange={(e) => setCustomStart(e.target.value)}
+                  aria-label="De" title="De" />
+                <input type="date" value={customEnd} onChange={(e) => setCustomEnd(e.target.value)}
+                  aria-label="Até" title="Até" />
               </>
             ) : null}
             <select value={city} onChange={(e) => setCity(e.target.value)} aria-label="Cidade" title="Cidade">
@@ -1015,8 +1012,8 @@ export function BirthdaysList({ localPreview, initialGroups = [], initialMessage
             {visibleGroups.map((group) => {
               const isOpen = expanded.has(group.id);
               const memberCount = group.members.length;
-              const shownMembers=group.members.filter(entryMatchesAll);
-              const showPrincipal=Boolean(group.principal&&entryMatchesAll(group.principal));
+              const shownMembers=group.members;
+              const showPrincipal=Boolean(group.principal);
               return (
                 <div key={group.id} className="aniv-group">
                   <div className="aniv-group-header-row">
@@ -1055,7 +1052,7 @@ export function BirthdaysList({ localPreview, initialGroups = [], initialMessage
                         <EntryRow
                           entry={group.principal}
                           isPrincipal
-                          highlighted={Boolean(search.trim())}
+                          highlighted={Boolean(search.trim()) && fuzzyMatches(search, group.principal.displayName)}
                           readonlyPrincipal={!localPreview && group.principal.origin==="cadastro"}
                           pending={busy}
                           onTogglePublication={()=>togglePublication(group.principal!)}
@@ -1070,7 +1067,7 @@ export function BirthdaysList({ localPreview, initialGroups = [], initialMessage
                           <EntryRow
                             entry={member}
                             isPrincipal={false}
-                            highlighted={Boolean(search.trim())}
+                            highlighted={Boolean(search.trim()) && fuzzyMatches(search, member.displayName)}
                             pending={busy}
                             onSave={(next) => updateEntry(group.id, member.id, next)}
                             onDelete={() => setDeleteTarget({ kind: "member", groupId: group.id, entryId: member.id, name: member.displayName, groupLabel: group.label })}
