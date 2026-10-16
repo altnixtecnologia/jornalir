@@ -1,4 +1,5 @@
 "use client";
+import { todayInSaoPauloISO } from "../../lib/date/saoPauloDate";
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
@@ -33,7 +34,7 @@ export function CompositionPaymentPanel({
   const [error, setError] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
   const [amount, setAmount] = useState(totalDue > 0 ? totalDue.toFixed(2).replace(".", ",") : "");
-  const [receivedAt, setReceivedAt] = useState(new Date().toISOString().slice(0, 10));
+  const [receivedAt, setReceivedAt] = useState(() => todayInSaoPauloISO());
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod | "">("");
   const [reference, setReference] = useState("");
   const [notes, setNotes] = useState("");
