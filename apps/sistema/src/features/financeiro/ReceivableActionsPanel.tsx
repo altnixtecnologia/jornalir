@@ -101,13 +101,17 @@ export function ReceivableActionsPanel({ receivable, receipts, adjustments, staf
   function run(action: () => Promise<{ error: string } | void>): void {
     setError(null);
     startTransition(async () => {
-      const result = await action();
-      if (result && "error" in result) {
-        setError(result.error);
-        return;
+      try {
+        const result = await action();
+        if (result && "error" in result) {
+          setError(result.error);
+          return;
+        }
+        resetForms();
+        router.refresh();
+      } catch {
+        setError("Não foi possível concluir a operação financeira. Confira a conexão e tente novamente.");
       }
-      resetForms();
-      router.refresh();
     });
   }
 
