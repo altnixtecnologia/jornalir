@@ -1,9 +1,10 @@
 import Link from "next/link";
 import { NFSE_ENVIRONMENT_LABELS } from "@ir/types";
+import { checkHomologationReadiness } from "@ir/core";
 import { ModuleHeader } from "../../../components/admin/ModuleHeader";
 import { createSupabaseServerClient } from "../../../lib/supabase/server";
 import { isLocalPreviewEnabled } from "../../../lib/auth/localPreview";
-import { getDraftService, getIssuerConfigService, getServiceProfileService } from "../../../composition/nfse";
+import { getDraftService, getIssuerConfigService, getServiceProfileService, getCertificateService } from "../../../composition/nfse";
 import { createIssuedNoteRepositorySupabase } from "../../../providers/supabase/nfseIssuedNoteRepository.supabase";
 
 function formatAmount(value: number): string {
@@ -55,6 +56,13 @@ export default async function NfseOverviewPage(): Promise<JSX.Element> {
     getIssuerConfigService(supabase).getCurrent(),
   ]);
 
+  const activeCertificate = issuerConfig ? await getCertificateService(supabase).getActiveInfo(issuerConfig.id) : null;
+  const readiness = checkHomologationReadiness({
+    issuerConfig,
+    activeCertificate,
+    cTribNacConfigured: serviceProfiles.some((profile) => Boolean(profile.cTribNac?.trim())),
+    lastXsdValidationValid: null, // Só é verdadeiro após validar um XML real daquele rascunho.
+  });
   const totalIssuedValue = notes.reduce((sum, note) => sum + note.serviceValue, 0);
   // Aviso de "isto é preview" já vem do banner global (AdminShell) — nunca
   // duplicado aqui; este badge mostra só o ambiente fiscal configurado.
@@ -93,9 +101,28 @@ export default async function NfseOverviewPage(): Promise<JSX.Element> {
         </div>
         <p className="helper-text" style={{ marginTop: "12px" }}>
           {preview
-            ? "Modo demonstração (preview) — nenhuma transmissão real ocorre; rascunhos e notas aqui são fixtures locais."
-            : "Nesta fase não existe transmissão real para o Sistema Nacional — só a base do módulo (configuração do prestador, perfis de serviço e rascunhos com snapshot)."}
+            ? "Modo demonstração: nenhuma transmissão fiscal real é realizada."
+            : "A configuração fiscal e os rascunhos são reais, mas a transmissão ao Sistema Nacional permanece tecnicamente bloqueada até a validação integral da integração."}
         </p>
+      </section>
+
+      <section className="form-section">
+        <h2>Conferência para emissão nacional</h2>
+        <p className="helper-text">
+          O botão de emissão não autoriza nenhuma NFS-e enquanto houver pendências ou o provedor nacional estiver bloqueado.
+          Nenhum imposto, alíquota ou parâmetro municipal é presumido automaticamente.
+        </p>
+        {readiness.missing.length ? (
+          <ul style={{ paddingLeft: "22px" }}>
+            {readiness.missing.map((item) => <li key={item}>{item}</li>)}
+          </ul>
+        ) : (
+          <p className="helper-text">Pré-requisitos internos completos, mas a integração oficial ainda exige homologação do provedor.</p>
+        )}
+        <div className="form-actions">
+          <Link className="secondary-link" href="/sistema/nfse/configuracoes">Configurar prestador e certificado</Link>
+          <Link className="secondary-link" href="/sistema/nfse/perfis-servico">Conferir perfis de serviço</Link>
+        </div>
       </section>
     </>
   );
