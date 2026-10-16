@@ -105,7 +105,7 @@ export async function sendPasswordResetForUser(profileId: string): Promise<Actio
   if (lookupError || !email) return { error: "Não foi possível localizar o e-mail deste usuário." };
 
   const redirectTo = new URL(
-    "/redefinir-senha?recovery=1",
+    "/definir-senha?recovery=1",
     process.env.NEXT_PUBLIC_SISTEMA_URL ?? "http://localhost:3001",
   ).toString();
   const { error: resetError } = await admin.auth.resetPasswordForEmail(email, { redirectTo });
