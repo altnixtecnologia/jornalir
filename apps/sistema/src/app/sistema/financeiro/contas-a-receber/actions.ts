@@ -440,6 +440,9 @@ export async function sendBillingMessageAction(
       resolveActorId(client),
     ]);
     createdByProfileId = actorId;
+    if (receivable.clientId !== clientRecord.id) {
+      return { error: "O cliente informado não corresponde à cobrança selecionada." };
+    }
     toPhone = clientRecord.whatsapp ?? clientRecord.phonePrimary ?? "";
     if (!toPhone) return { error: "Cadastro sem WhatsApp." };
 
