@@ -51,7 +51,7 @@ export default async function ContasAReceberPage({
         description="Títulos, recebimentos parciais e situação de cada cliente."
         action={
           <Link className="form-action-primary" href="/sistema/financeiro/contas-a-receber/novo">
-            Novo lançamento
+            + Novo lançamento
           </Link>
         }
       />
