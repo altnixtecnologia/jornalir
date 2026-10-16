@@ -4,7 +4,8 @@ import { useEffect, useMemo, useState } from "react";
 import { createSupabaseBrowserClient } from "../../lib/supabase/browser";
 import { useAuth, type AuthRole } from "../../lib/auth/AuthProvider";
 import { ROLE_LABELS } from "../../lib/auth/accountDisplay";
-import { inviteUser } from "../../app/sistema/usuarios/actions";
+import { inviteUser, sendPasswordResetForUser } from "../../app/sistema/usuarios/actions";
+import { ConfirmDialog } from "../../components/admin/ConfirmDialog";
 import { STAFF_MODULES, FINANCE_ACTION_GROUPS, type StaffModuleKey, type FinanceActionKey } from "../../lib/permissions/staffPermissionsCatalog";
 
 type ModuleName = "agenda" | "pauta";
@@ -45,6 +46,7 @@ export function UsersManager(): JSX.Element {
   const [pending, setPending] = useState(false);
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteRole, setInviteRole] = useState<"operator" | "admin">("operator");
+  const [resetTarget, setResetTarget] = useState<UserRow | null>(null);
 
   const isOwner = profile?.role === "owner";
   const isAdmin = profile?.role === "admin";
@@ -130,6 +132,22 @@ export function UsersManager(): JSX.Element {
     setInviteEmail("");
     setMessage("Convite enviado por e-mail. A pessoa define a própria senha ao acessar o link.");
     await reload();
+  }
+
+  async function confirmPasswordReset(): Promise<void> {
+    const target = resetTarget;
+    if (!target || !canManage(target) || pending) return;
+    setPending(true);
+    setError(null);
+    setMessage(null);
+    const result = await sendPasswordResetForUser(target.id);
+    setPending(false);
+    setResetTarget(null);
+    if ("error" in result) {
+      setError(result.error);
+      return;
+    }
+    setMessage("Link para redefinir a senha enviado por e-mail para " + target.name + ".");
   }
 
   function permissionLevel(profileId: string, moduleName: ModuleName): PermissionLevel {
@@ -297,6 +315,9 @@ export function UsersManager(): JSX.Element {
                             {user.role === "admin" ? "Rebaixar a operador" : "Promover a admin"}
                           </button>
                         ) : null}
+                        <button type="button" onClick={() => setResetTarget(user)} disabled={pending}>
+                          Redefinir senha
+                        </button>
                         <button type="button" onClick={() => toggleActive(user)} disabled={pending}>
                           {user.active ? "Desativar" : "Ativar"}
                         </button>
@@ -339,6 +360,9 @@ export function UsersManager(): JSX.Element {
                         {user.role === "admin" ? "Rebaixar a operador" : "Promover a admin"}
                       </button>
                     ) : null}
+                    <button type="button" onClick={() => setResetTarget(user)} disabled={pending}>
+                      Redefinir senha
+                    </button>
                     <button type="button" onClick={() => toggleActive(user)} disabled={pending}>
                       {user.active ? "Desativar" : "Ativar"}
                     </button>
@@ -349,6 +373,18 @@ export function UsersManager(): JSX.Element {
           );
         })}
       </ul>
+
+      <ConfirmDialog
+        open={Boolean(resetTarget)}
+        title="Enviar link para redefinir senha?"
+        description={
+          <p>Será enviado um e-mail para {resetTarget?.name ?? "o usuário"} com um link seguro. A senha atual não será exibida nem alterada até a pessoa confirmar a nova senha.</p>
+        }
+        confirmLabel={pending ? "Enviando…" : "Enviar link"}
+        destructive={false}
+        onConfirm={() => { void confirmPasswordReset(); }}
+        onCancel={() => { if (!pending) setResetTarget(null); }}
+      />
 
       <section className="form-section">
         <h2>Permissões por usuário e módulo</h2>

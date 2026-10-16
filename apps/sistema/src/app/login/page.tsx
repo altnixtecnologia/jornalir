@@ -1,6 +1,7 @@
 "use client";
 
 import { Suspense, useEffect, useMemo, useState, type FormEvent } from "react";
+import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createSupabaseBrowserClient } from "../../lib/supabase/browser";
 import { useAuth } from "../../lib/auth/AuthProvider";
@@ -139,7 +140,7 @@ function LoginForm(): JSX.Element {
           </button>
         </form>
 
-        <span className="login-forgot">Esqueci minha senha</span>
+        <Link className="login-forgot" href="/recuperar-senha">Esqueci minha senha</Link>
       </div>
     </div>
   );

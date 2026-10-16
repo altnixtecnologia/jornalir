@@ -69,3 +69,46 @@ export async function inviteUser(email: string, role: InviteRole): Promise<Actio
 
   return { ok: true };
 }
+
+
+/**
+ * Recuperação assistida: admins enviam um link, nunca definem nem recebem
+ * uma senha. O perfil de destino e o solicitante são conferidos no servidor.
+ */
+export async function sendPasswordResetForUser(profileId: string): Promise<ActionResult> {
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(profileId)) {
+    return { error: "Usuário inválido." };
+  }
+
+  const supabase = createSupabaseServerClient();
+  const { data: auth, error: authError } = await supabase.auth.getUser();
+  if (authError || !auth.user) return { error: "Sessão inválida. Faça login novamente." };
+
+  const { data: requester, error: requesterError } = await supabase
+    .from("profiles").select("role, active").eq("id", auth.user.id).maybeSingle();
+  if (requesterError || !requester?.active || !["owner", "admin"].includes(requester.role)) {
+    return { error: "Você não tem permissão para redefinir senhas de usuários." };
+  }
+  const { data: target, error: targetError } = await supabase
+    .from("profiles").select("role").eq("id", profileId).maybeSingle();
+  if (targetError || !target || target.role === "owner" ||
+      (requester.role === "admin" && target.role !== "operator")) {
+    return { error: "Você não tem permissão para redefinir a senha deste usuário." };
+  }
+  if (!hasServiceRoleKey()) {
+    return { error: "Recuperação administrativa indisponível neste ambiente." };
+  }
+
+  const admin = createSupabaseAdminClient();
+  const { data: targetAccount, error: lookupError } = await admin.auth.admin.getUserById(profileId);
+  const email = targetAccount.user?.email;
+  if (lookupError || !email) return { error: "Não foi possível localizar o e-mail deste usuário." };
+
+  const redirectTo = new URL(
+    "/redefinir-senha?recovery=1",
+    process.env.NEXT_PUBLIC_SISTEMA_URL ?? "http://localhost:3001",
+  ).toString();
+  const { error: resetError } = await admin.auth.resetPasswordForEmail(email, { redirectTo });
+  if (resetError) return { error: "Não foi possível enviar o link. Confira a configuração de e-mail e tente novamente." };
+  return { ok: true };
+}
