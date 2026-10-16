@@ -67,9 +67,12 @@ export default async function NfseOverviewPage(): Promise<JSX.Element> {
         title="NFS-e"
         description="Configuração fiscal, perfis de serviço e rascunhos — independente de contratos, assinaturas e financeiro."
         action={
-          <span className={`status-pill ${preview ? "status-pill--adjusting" : "status-pill--published"}`}>
-            Ambiente: {environmentLabel}
-          </span>
+          <div className="form-actions">
+            <span className={`status-pill ${preview ? "status-pill--adjusting" : "status-pill--published"}`}>
+              Ambiente: {environmentLabel}
+            </span>
+            <Link className="form-action-primary" href="/sistema/nfse/nova">+ Nova NFS-e</Link>
+          </div>
         }
       />
 
@@ -83,7 +86,6 @@ export default async function NfseOverviewPage(): Promise<JSX.Element> {
       <section className="form-section">
         <h2>Áreas do módulo</h2>
         <div className="form-grid">
-          <Link className="materia-title-link" href="/sistema/nfse/nova">Nova NFS-e</Link>
           <Link className="materia-title-link" href="/sistema/nfse/rascunhos">Rascunhos</Link>
           <Link className="materia-title-link" href="/sistema/nfse/notas">Notas emitidas</Link>
           <Link className="materia-title-link" href="/sistema/nfse/perfis-servico">Perfis de serviço</Link>
