@@ -1,7 +1,7 @@
 import type { PaymentMethod, ReceivableSourceType, ReceivableStatus } from "@ir/types";
 import { PAYMENT_METHODS, RECEIVABLE_SOURCE_TYPE_LABELS, RECEIVABLE_SOURCE_TYPES, RECEIVABLE_STATUS_LABELS, RECEIVABLE_STATUSES } from "@ir/types";
 import { createSupabaseServerClient } from "../../../../../lib/supabase/server";
-import { listAllReceivablesForReportSupabase } from "../../../../../providers/supabase/receivableRepository.supabase";
+import { listAllReceivablesForReportSupabase, listAppliedCreditsByReceivableSupabase } from "../../../../../providers/supabase/receivableRepository.supabase";
 import { getClientService } from "../../../../../composition/clientes";
 import { PrintButton } from "../../../../../features/financeiro/PrintButton";
 
@@ -65,6 +65,8 @@ export default async function RelatorioImprimirPage({
   ]);
 
   const clientById = new Map(clients.map((client) => [client.id, client]));
+  const appliedCredit = await listAppliedCreditsByReceivableSupabase(supabase, result.receivables.map((item) => item.id));
+  const totalCredit = Array.from(appliedCredit.values()).reduce((sum, amount) => sum + amount, 0);
 
   const totals = result.receivables.reduce(
     (acc, item) => ({
@@ -95,7 +97,8 @@ export default async function RelatorioImprimirPage({
             <th>Vencimento</th>
             <th>Valor original</th>
             <th>Recebido</th>
-            <th>Abatimentos</th>
+            <th>Abatimentos reais</th>
+            <th>Crédito aplicado</th>
             <th>Saldo</th>
             <th>Situação</th>
           </tr>
@@ -111,7 +114,8 @@ export default async function RelatorioImprimirPage({
               <td>{formatDate(item.dueDate)}</td>
               <td>{formatAmount(item.originalAmount)}</td>
               <td>{formatAmount(item.totalReceived)}</td>
-              <td>{formatAmount(item.totalAdjustments)}</td>
+              <td>{formatAmount(Math.max(0, item.totalAdjustments - (appliedCredit.get(item.id) ?? 0)))}</td>
+              <td>{formatAmount(appliedCredit.get(item.id) ?? 0)}</td>
               <td>{formatAmount(item.balance)}</td>
               <td>{RECEIVABLE_STATUS_LABELS[item.status]}</td>
             </tr>
@@ -122,7 +126,8 @@ export default async function RelatorioImprimirPage({
             <td colSpan={6}>Totais</td>
             <td>{formatAmount(totals.original)}</td>
             <td>{formatAmount(totals.received)}</td>
-            <td>{formatAmount(totals.adjustments)}</td>
+            <td>{formatAmount(Math.max(0, totals.adjustments - totalCredit))}</td>
+            <td>{formatAmount(totalCredit)}</td>
             <td>{formatAmount(totals.balance)}</td>
             <td />
           </tr>
