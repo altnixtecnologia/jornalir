@@ -9,12 +9,13 @@ import {
   configuracoesNavGroup,
   editorialNavGroup,
   financeiroNavGroup,
-  moreModulesNavGroup,
   nfseNavGroup,
   commercialNavGroup,
   type AdminNavLink,
 } from "../../lib/navigation";
 import { useAuth } from "../../lib/auth/AuthProvider";
+import { useAgendaPautaReadAccess } from "../../lib/permissions/useAgendaPautaReadAccess";
+import { useStaffModuleVisibility } from "../../lib/permissions/useStaffModuleVisibility";
 
 type MobileGroup = { label: string; links: AdminNavLink[]; restricted?: boolean; planned?: boolean };
 
@@ -33,7 +34,6 @@ const GROUPS: MobileGroup[] = [
   { label: commercialNavGroup.label, links: commercialNavGroup.links },
   { label: "Fiscal (NFS-e)", links: nfseNavGroup.links, restricted: true },
   { label: configuracoesNavGroup.label, links: configuracoesNavGroup.links, restricted: true },
-  { label: "Outros (em preparação)", links: moreModulesNavGroup.links, planned: true },
 ];
 
 const SHORTCUTS: AdminNavLink[] = [
@@ -57,6 +57,8 @@ function isActive(pathname: string, href: string): boolean {
 export function MobileNav({ onNavigate }: { onNavigate: () => void }): JSX.Element {
   const pathname = usePathname();
   const { profile } = useAuth();
+  const { agendaRead, pautaRead } = useAgendaPautaReadAccess();
+  const { hasModule } = useStaffModuleVisibility();
   const [search, setSearch] = useState("");
   const [openGroup, setOpenGroup] = useState<string | null>(null);
   const navRef = useRef<HTMLElement>(null);
@@ -77,7 +79,26 @@ export function MobileNav({ onNavigate }: { onNavigate: () => void }): JSX.Eleme
     setOpenGroup(null);
   }, [pathname]);
   const canManageUsers = profile?.role === "owner" || profile?.role === "admin";
-  const visibleGroups = GROUPS.filter((group) => !group.restricted || canManageUsers);
+  const canSeeLink = (href: string): boolean => {
+    const path = href.split("?")[0];
+    if (path.startsWith("/sistema/agenda")) return href.includes("view=pauta") ? pautaRead : agendaRead;
+    for (const [prefix, key] of [
+      ["/sistema/editorial", "editorial"],
+      ["/sistema/clientes", "clientes"],
+      ["/sistema/financeiro", "financeiro"],
+      ["/sistema/assinaturas", "assinaturas"],
+      ["/sistema/publicidade", "publicidade"],
+      ["/sistema/aniversariantes", "aniversariantes"],
+    ] as const) {
+      if (path === prefix || path.startsWith(prefix + "/")) return hasModule(key);
+    }
+    return true;
+  };
+  const visibleGroups = GROUPS
+    .filter((group) => !group.restricted || canManageUsers)
+    .map((group) => ({ ...group, links: group.links.filter((link) => canSeeLink(link.href)) }))
+    .filter((group) => group.links.length > 0);
+  const quickLinks = SHORTCUTS.filter((link) => canSeeLink(link.href));
   const query = normalize(search);
   const close = (): void => {
     setSearch("");
@@ -130,7 +151,7 @@ export function MobileNav({ onNavigate }: { onNavigate: () => void }): JSX.Eleme
           <div className="mobile-nav-shortcuts" aria-label="Acesso rápido">
             <p className="mobile-nav-subheading">Acesso rápido</p>
             <div className="mobile-nav-quick-grid">
-              {SHORTCUTS.map((link) => (
+              {quickLinks.map((link) => (
                 <Link
                   key={link.href}
                   href={link.href}
