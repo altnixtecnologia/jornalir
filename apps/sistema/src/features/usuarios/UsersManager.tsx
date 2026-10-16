@@ -7,6 +7,7 @@ import { ROLE_LABELS } from "../../lib/auth/accountDisplay";
 import { inviteUser } from "../../app/sistema/usuarios/actions";
 
 type ModuleName = "agenda" | "pauta";
+// Permissões avançadas serão integradas com validação no servidor.
 type PermissionLevel = "none" | "read" | "write";
 interface PermissionRow { profile_id: string; module_name: ModuleName; can_read: boolean; can_write: boolean; }
 
