@@ -52,7 +52,7 @@ export default async function ClienteDetailPage({ params }: { params: { id: stri
   const maySeeContracts = Boolean(profile?.active && (profile.role === "owner" || profile.role === "admin"));
   const documentResult = maySeeContracts
     ? await supabase.from("client_contract_documents")
-        .select("id,title,document_number,source_kind,source_id,revision,status,created_at,signed_at,original_storage_key,signed_storage_key,evidence_storage_key")
+        .select("id,title,document_number,source_kind,source_id,revision,status,created_at,signed_at,original_storage_key,original_sha256,signed_storage_key,signed_sha256,evidence_storage_key,evidence_sha256")
         .eq("client_id",client.id).order("created_at",{ascending:false}).limit(40)
     : null;
   const contractDocuments = documentResult?.error ? [] : (documentResult?.data ?? []);
@@ -196,13 +196,13 @@ export default async function ClienteDetailPage({ params }: { params: { id: stri
                     {doc.signed_at ? " · Assinado em " + formatDate(doc.signed_at) : ""}
                   </p>
                   <div className="materias-toolbar-actions" style={{ marginTop: 8 }}>
-                    {doc.original_storage_key ? (
+                    {doc.original_storage_key && doc.original_sha256 ? (
                       <a className="secondary-link" href={`/sistema/clientes/${client.id}/documentos/${doc.id}/arquivo?tipo=original`}>Baixar original</a>
                     ) : null}
-                    {doc.status === "signed" && doc.signed_storage_key ? (
+                    {doc.status === "signed" && doc.signed_storage_key && doc.signed_sha256 ? (
                       <a className="form-action-primary" href={`/sistema/clientes/${client.id}/documentos/${doc.id}/arquivo?tipo=assinado`}>Baixar PDF assinado</a>
                     ) : null}
-                    {doc.status === "signed" && doc.evidence_storage_key ? (
+                    {doc.status === "signed" && doc.evidence_storage_key && doc.evidence_sha256 ? (
                       <a className="secondary-link" href={`/sistema/clientes/${client.id}/documentos/${doc.id}/arquivo?tipo=evidencias`}>Evidências</a>
                     ) : null}
                     <span className="helper-text">Reenvio por e-mail: aguardando homologação do envio seguro.</span>

@@ -22,7 +22,7 @@ export async function GET(req: NextRequest, { params }: { params: { id: string; 
     return NextResponse.json({ error: "Acesso não autorizado." }, { status: 403, headers: noCache });
   }
   const { data: document, error } = await db.from("client_contract_documents")
-    .select("id,client_id,status,original_storage_key,signed_storage_key,evidence_storage_key")
+    .select("id,client_id,status,original_storage_key,original_sha256,signed_storage_key,signed_sha256,evidence_storage_key,evidence_sha256")
     .eq("id",documentId).eq("client_id",clientId).maybeSingle();
   if (error || !document) return NextResponse.json({ error: "Documento não encontrado." }, { status: 404, headers: noCache });
   if (kind !== "original" && document.status !== "signed") {
@@ -30,12 +30,14 @@ export async function GET(req: NextRequest, { params }: { params: { id: string; 
   }
   const key = kind === "original" ? document.original_storage_key
     : kind === "assinado" ? document.signed_storage_key : document.evidence_storage_key;
-  if (!key) return NextResponse.json({ error: "Arquivo ainda não disponível." }, { status: 404, headers: noCache });
+  const expectedHash = kind === "original" ? document.original_sha256
+    : kind === "assinado" ? document.signed_sha256 : document.evidence_sha256;
+  if (!key || !expectedHash) return NextResponse.json({ error: "Arquivo ainda não disponível." }, { status: 404, headers: noCache });
   if (!isPrivateContractStorageConfigured()) {
     return NextResponse.json({ error: "Armazenamento privado em preparação." }, { status: 503, headers: noCache });
   }
   try {
-    const body = await getPrivateContractPdf(key, clientId, documentId);
+    const body = await getPrivateContractPdf(key, clientId, documentId, expectedHash);
     const isPdf = kind !== "evidencias";
     return new NextResponse(Buffer.from(body), {
       status: 200,

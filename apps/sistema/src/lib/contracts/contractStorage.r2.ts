@@ -36,13 +36,16 @@ export function isContractObjectKeyFor(key: string, clientId: string, documentId
     !key.includes("..") && !key.includes("//");
 }
 
-export async function getPrivateContractPdf(key: string, clientId: string, documentId: string): Promise<Uint8Array> {
+export async function getPrivateContractPdf(key: string, clientId: string, documentId: string, expectedSha256: string): Promise<Uint8Array> {
+  if (!/^[a-f0-9]{64}$/.test(expectedSha256)) throw new Error("Hash de evidência ausente ou inválido.");
   if (!isContractObjectKeyFor(key, clientId, documentId)) throw new Error("Caminho privado inválido.");
   const { bucket, client } = settings();
   const resp = await client.send(new GetObjectCommand({ Bucket: bucket, Key: key }));
   if (!resp.Body) throw new Error("Documento indisponível no armazenamento.");
   const data = await resp.Body.transformToByteArray();
   if (data.length > 12 * 1024 * 1024) throw new Error("Arquivo ultrapassa o limite.");
+  const actualHash = createHash("sha256").update(data).digest("hex");
+  if (actualHash !== expectedSha256) throw new Error("O arquivo não corresponde ao hash preservado.");
   return data;
 }
 

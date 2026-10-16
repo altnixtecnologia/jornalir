@@ -86,6 +86,10 @@ alter table public.client_contract_events enable row level security;
 alter table public.client_contract_deliveries enable row level security;
 revoke all on public.client_contract_documents,public.client_contract_signers,public.client_contract_events,public.client_contract_deliveries from public,anon,authenticated;
 grant select on public.client_contract_documents,public.client_contract_signers,public.client_contract_events,public.client_contract_deliveries to authenticated;
+-- Bypass-RLS service role still needs explicit table privileges. No DELETE grants.
+grant select,insert,update on public.client_contract_documents,public.client_contract_signers to service_role;
+grant select,insert on public.client_contract_events to service_role;
+grant select,insert,update on public.client_contract_deliveries to service_role;
 drop policy if exists client_contract_documents_admin_read on public.client_contract_documents;
 create policy client_contract_documents_admin_read on public.client_contract_documents
   for select to authenticated using ((select public.is_active_admin_or_owner()));
