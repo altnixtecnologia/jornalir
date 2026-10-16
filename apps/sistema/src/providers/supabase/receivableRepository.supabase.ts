@@ -883,22 +883,43 @@ export async function listReceivablesForCommercialSalesSupabase(client: Supabase
  * crédito aplicado como novo dinheiro recebido" / nunca misturar com
  * desconto de verdade nos relatórios). Só soma aplicações válidas.
  */
-export async function sumCreditAppliedForReceivables(client: SupabaseClient, receivableIds: string[]): Promise<number> {
-  if (receivableIds.length === 0 || isLocalPreviewEnabled()) return 0;
-  let total = 0;
-  // Evita limites de tamanho no filtro "in" para relatórios grandes.
+/** Créditos aproveitados por título: devem aparecer separadamente de abatimentos reais. */
+export async function listAppliedCreditsByReceivableSupabase(
+  client: SupabaseClient,
+  receivableIds: string[],
+): Promise<Map<string, number>> {
+  const amounts = new Map<string, number>();
+  if (receivableIds.length === 0 || isLocalPreviewEnabled()) return amounts;
+
+  // Fatias menores evitam URL IN enorme; páginas de 500 impedem truncamento
+  // do PostgREST quando houver vários créditos aplicados no mesmo título.
   for (let index = 0; index < receivableIds.length; index += 100) {
     const batch = receivableIds.slice(index, index + 100);
-    const { data, error } = await client
-      .from("receivable_adjustments")
-      .select("amount")
-      .in("receivable_id", batch)
-      .eq("adjustment_type", "credit_applied")
-      .is("reversed_at", null);
-    if (error) throw new Error(error.message);
-    total += (data ?? []).reduce((sum, row) => sum + Number((row as { amount: number }).amount), 0);
+    let offset = 0;
+    while (true) {
+      const { data, error } = await client
+        .from("receivable_adjustments")
+        .select("id,receivable_id,amount")
+        .in("receivable_id", batch)
+        .eq("adjustment_type", "credit_applied")
+        .is("reversed_at", null)
+        .order("id", { ascending: true })
+        .range(offset, offset + 499);
+      if (error) throw new Error(error.message);
+      for (const row of data ?? []) {
+        const receivableId = String(row.receivable_id);
+        amounts.set(receivableId, (amounts.get(receivableId) ?? 0) + Number(row.amount));
+      }
+      if (!data || data.length < 500) break;
+      offset += 500;
+    }
   }
-  return total;
+  return amounts;
+}
+
+export async function sumCreditAppliedForReceivables(client: SupabaseClient, receivableIds: string[]): Promise<number> {
+  const amounts = await listAppliedCreditsByReceivableSupabase(client, receivableIds);
+  return Array.from(amounts.values()).reduce((sum, amount) => sum + amount, 0);
 }
 
 /** Contexto do título mostrado nas linhas dos relatórios de Recebimentos/
