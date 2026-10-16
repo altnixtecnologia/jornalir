@@ -1,7 +1,7 @@
 import { PAYMENT_METHOD_LABELS } from "@ir/types";
 import { PrintButton } from "../../../../../features/financeiro/PrintButton";
 import { createSupabaseServerClient } from "../../../../../lib/supabase/server";
-import { listReceiptsForRecibosSupabase, type ReceiptRecordStatus } from "../../../../../providers/supabase/receivableRepository.supabase";
+import { listAllReceiptsForPrintSupabase, type ReceiptRecordStatus } from "../../../../../providers/supabase/receivableRepository.supabase";
 
 function one(value: string | string[] | undefined): string {
   return Array.isArray(value) ? value[0] ?? "" : value ?? "";
@@ -36,7 +36,7 @@ export default async function RecibosPrintPage({
   const statusParam = one(searchParams?.status);
   const status: ReceiptRecordStatus = statusParam === "all" || statusParam === "cancelled" ? statusParam : "active";
 
-  const result = await listReceiptsForRecibosSupabase(supabase, { status: idsParam ? "all" : status, page: 1, pageSize: 1000 });
+  const result = await listAllReceiptsForPrintSupabase(supabase, { status: idsParam ? "all" : status });
   const ids = idsParam ? new Set(idsParam.split(",").filter(Boolean)) : null;
   const receipts = ids ? result.receipts.filter((receipt) => ids.has(receipt.id)) : result.receipts;
 
