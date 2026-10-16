@@ -619,7 +619,7 @@ export function BirthdaysList({ localPreview, initialGroups = [], initialMessage
   }, [groups]);
 
   function entryMatchesNonPeriod(entry: BirthdayEntry): boolean {
-    if(!entry.active)return false;
+    if(!entry.active && period!=="all")return false;
     if (search.trim() && ddmmKey(entry.birthDate)!==parseDayMonth(search)?.key) return false;
     if (city !== "all" && entry.city !== city) return false;
     if (publishFilter !== "all" && entry.publishInPrint !== (publishFilter === "yes")) return false;
@@ -841,7 +841,7 @@ export function BirthdaysList({ localPreview, initialGroups = [], initialMessage
 
   // --- Relatório (editorial — pessoas, nunca a árvore administrativa) ---
   const reportSections = useMemo(() => {
-    const printable=matchingFlat.filter(item=>item.entry.publishInPrint);
+    const printable=matchingFlat.filter(item=>item.entry.active && item.entry.publishInPrint);
     if (!activeRange && !(period === "newspaper" && selectedDay)) {
       const sorted = [...printable].sort((a, b) => {
         const am = Number(a.entry.birthDate.slice(5, 7)) * 100 + Number(a.entry.birthDate.slice(8, 10));
@@ -1110,12 +1110,13 @@ export function BirthdaysList({ localPreview, initialGroups = [], initialMessage
                 </ul>
               </div>
             ))}
-            <p className="aniv-print-total">Total autorizado: {matchingFlat.filter(m=>m.entry.publishInPrint).length} aniversariante(s)</p>
+            <p className="aniv-print-total">Total autorizado: {matchingFlat.filter(m=>m.entry.active&&m.entry.publishInPrint).length} aniversariante(s)</p>
           </div>
       </>
 
       <dialog ref={includeDialogRef} className="ir-modal ir-modal--form" aria-labelledby="aniv-include-title" onCancel={(e) => { e.preventDefault(); setIncludeOpen(false); }}>
         <IncludeForm
+          localPreview={localPreview}
           groups={groups}
           onCancel={() => setIncludeOpen(false)}
           onSubmit={(linkGroupId, entry) => {
@@ -1167,8 +1168,10 @@ function IncludeForm({
   groups,
   onCancel,
   onSubmit,
+  localPreview,
 }: {
   groups: BirthdayGroup[];
+  localPreview: boolean;
   onCancel: () => void;
   onSubmit: (linkGroupId: string | null, entry: BirthdayEntry) => void;
 }): JSX.Element {
