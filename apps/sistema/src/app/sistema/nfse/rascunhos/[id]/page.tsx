@@ -1,10 +1,10 @@
 import { notFound } from "next/navigation";
-import { DraftNotFoundError } from "@ir/core";
+import { DraftNotFoundError, checkHomologationReadiness } from "@ir/core";
 import { ModuleHeader } from "../../../../../components/admin/ModuleHeader";
 import { NfseDraftForm } from "../../../../../features/nfse/NfseDraftForm";
 import { NfseTransmissionPanel } from "../../../../../features/nfse/NfseTransmissionPanel";
 import { toClientSearchResult } from "../../../../../components/admin/clientSearchTypes";
-import { getDraftService, getIssuerConfigService, getServiceProfileService } from "../../../../../composition/nfse";
+import { getDraftService, getIssuerConfigService, getServiceProfileService, getCertificateService } from "../../../../../composition/nfse";
 import { getClientService } from "../../../../../composition/clientes";
 import { createSupabaseServerClient } from "../../../../../lib/supabase/server";
 import { createIssuedNoteRepositorySupabase } from "../../../../../providers/supabase/nfseIssuedNoteRepository.supabase";
@@ -36,6 +36,14 @@ export default async function NfseRascunhoDetailPage({ params }: { params: { id:
     createTransmissionAttemptRepositorySupabase(supabase).listByDraftId(draft.id),
   ]);
 
+  const activeCertificate = issuerConfig ? await getCertificateService(supabase).getActiveInfo(issuerConfig.id) : null;
+  const readiness = checkHomologationReadiness({
+    issuerConfig,
+    activeCertificate,
+    cTribNacConfigured: Boolean(draft.fiscal.cTribNac?.trim()),
+    lastXsdValidationValid: null,
+  });
+
   return (
     <>
       <ModuleHeader
@@ -49,6 +57,7 @@ export default async function NfseRascunhoDetailPage({ params }: { params: { id:
         issuedNote={issuedNote}
         attempts={attempts}
         issuerConfigured={Boolean(issuerConfig)}
+        blockingReasons={readiness.missing}
         previewMode={isLocalPreviewEnabled()}
       />
 
