@@ -11,9 +11,9 @@ export const dynamic = "force-dynamic";
 type ClientRow = {
   id:string;kind:string;status:string;
   full_name:string|null;company_name:string|null;trade_name:string|null;
-  birth_date:string|null;address_city:string|null;
+  birth_date:string|null;address_city:string|null;created_at:string|null;
 };
-function makeGroups(clients:ClientRow[],records:EditorialBirthdayRow[]):BirthdayGroup[] {
+function makeGroups(clients:ClientRow[],records:(EditorialBirthdayRow & {created_at:string|null})[]):BirthdayGroup[] {
   const groups:BirthdayGroup[]=[];
   const map=new Map<string,BirthdayGroup>();
   const masterEntries=new Map(records.filter(r=>r.source_client_id).map(r=>[r.source_client_id!,r]));
@@ -22,7 +22,7 @@ function makeGroups(clients:ClientRow[],records:EditorialBirthdayRow[]):Birthday
     const label=person?c.full_name||"Pessoa sem nome":c.trade_name||c.company_name||"Empresa sem nome";
     const saved=masterEntries.get(c.id);
     const principal:BirthdayEntry|undefined=person&&c.birth_date?{
-      id:c.id,displayName:label,birthDate:c.birth_date,city:c.address_city||"",
+      id:c.id,displayName:label,birthDate:c.birth_date,createdAt:c.created_at||undefined,city:c.address_city||"",
       origin:"cadastro",active:true,publishInPrint:saved?.publish_in_print??false,
       notes:saved?.notes||undefined,profession:saved?.profession||undefined,
       organization:saved?.organization||undefined,knownAs:saved?.known_as||undefined,
@@ -37,7 +37,7 @@ function makeGroups(clients:ClientRow[],records:EditorialBirthdayRow[]):Birthday
   for(const r of records) {
     if(r.source_client_id)continue;
     const member:BirthdayEntry={
-      id:r.id,displayName:r.display_name,
+      id:r.id,displayName:r.display_name,createdAt:r.created_at||undefined,
       birthDate:`${r.birth_year??2000}-${String(r.birth_month).padStart(2,"0")}-${String(r.birth_day).padStart(2,"0")}`,
       city:r.city||"",relationship:r.relationship||undefined,
       origin:r.origin,active:r.active,publishInPrint:r.publish_in_print,
@@ -74,10 +74,10 @@ export default async function AniversariantesPage():Promise<JSX.Element>{
   }
   const week=currentBirthdayWeekISO();
   const [clientResult,entryResult,messageResult]=await Promise.all([
-    db.from("clients").select("id,kind,status,full_name,company_name,trade_name,birth_date,address_city")
+    db.from("clients").select("id,kind,status,full_name,company_name,trade_name,birth_date,address_city,created_at")
       .eq("status","active").order("created_at",{ascending:false}),
     db.from("birthday_entries").select(
-      "id,origin,source_client_id,group_client_id,display_name,birth_month,birth_day,birth_year,city,relationship,profession,organization,known_as,message_context,notes,active,publish_in_print"
+      "id,origin,source_client_id,group_client_id,display_name,birth_month,birth_day,birth_year,city,relationship,profession,organization,known_as,message_context,notes,active,publish_in_print,created_at"
     ).order("display_name"),
     db.from("birthday_edition_messages").select(
       "birthday_entry_id,edition_week_start,message,family,opening,ending"
@@ -85,7 +85,7 @@ export default async function AniversariantesPage():Promise<JSX.Element>{
   ]);
   const error=clientResult.error||entryResult.error||messageResult.error;
   const clients=(clientResult.data||[]) as ClientRow[];
-  const entries=(entryResult.data||[]) as EditorialBirthdayRow[];
+  const entries=(entryResult.data||[]) as (EditorialBirthdayRow & {created_at:string|null})[];
   const messages=(messageResult.data||[]) as EditorialBirthdayMessage[];
   const groups=makeGroups(clients,entries);
   return <>
