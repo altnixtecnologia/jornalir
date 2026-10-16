@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import { useStaffFinanceActions } from "../../lib/permissions/useStaffFinanceActions";
 import type { ClientCreditWithBalance } from "@ir/types";
 import { RECEIVABLE_SOURCE_TYPE_LABELS } from "@ir/types";
 import { applyCreditManuallyAction } from "../../app/sistema/financeiro/contas-a-receber/actions";
@@ -28,12 +29,13 @@ export function ReceivableCreditPanel({
   availableCredits: ClientCreditWithBalance[];
 }): JSX.Element | null {
   const router = useRouter();
+  const { hasAction } = useStaffFinanceActions();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [selectedCreditId, setSelectedCreditId] = useState(availableCredits[0]?.id ?? "");
   const [amount, setAmount] = useState("");
 
-  if (availableCredits.length === 0 || receivableBalance <= 0) return null;
+  if (!hasAction("creditos_aplicar") || availableCredits.length === 0 || receivableBalance <= 0) return null;
 
   function handleApply(): void {
     setError(null);
