@@ -12,6 +12,7 @@ import { PixChargePanel } from "../../../../../features/financeiro/PixChargePane
 import { getReceivableService, getClientCreditService, getPaymentChargeService } from "../../../../../composition/financeiro";
 import { getClientService } from "../../../../../composition/clientes";
 import { createSupabaseServerClient } from "../../../../../lib/supabase/server";
+import { financePermissionError } from "../../../../../lib/permissions/serverFinanceGuard";
 import { listActiveStaffSupabase } from "../../../../../providers/supabase/staffRepository.supabase";
 import { isLocalPreviewEnabled } from "../../../../../lib/auth/localPreview";
 import { isWhatsappCloudConfigured } from "../../../../../lib/financeiro/whatsappCloudProvider";
@@ -39,6 +40,7 @@ export const revalidate = 0;
 
 export default async function ReceivableDetailPage({ params }: { params: { id: string } }): Promise<JSX.Element> {
   const supabase = createSupabaseServerClient();
+  const canEdit = (await financePermissionError("titulos_editar", supabase)) === null;
   const receivableService = getReceivableService(supabase);
   const receivable = await receivableService.getById(params.id).catch((error: unknown) => {
     if (error instanceof ReceivableNotFoundError) return null;
@@ -71,11 +73,11 @@ export default async function ReceivableDetailPage({ params }: { params: { id: s
         eyebrow={`FINANCEIRO / CONTAS A RECEBER / ${receivable.reference}`}
         title={receivable.description}
         description={client ? clientDisplayName(client) : "Cliente não encontrado"}
-        action={
+        action={canEdit ? (
           <Link className="form-action-primary" href={`/sistema/financeiro/contas-a-receber/${receivable.id}/editar`}>
             Editar
           </Link>
-        }
+        ) : undefined}
       />
 
       <section className="form-section form-section--first">
