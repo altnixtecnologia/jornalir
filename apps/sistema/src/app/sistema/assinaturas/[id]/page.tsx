@@ -66,9 +66,16 @@ export default async function AssinaturaDetailPage({ params }: { params: { id: s
         title={SUBSCRIPTION_SERVICE_TYPE_LABELS[subscription.serviceType]}
         description={client ? clientDisplayName(client) : "Cliente não encontrado"}
         action={
-          <Link className="form-action-primary" href={`/sistema/assinaturas/${subscription.id}/editar`}>
-            Editar
-          </Link>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            {subscription.serviceType === "impresso" && subscription.periodicity === "annual" && subscription.status !== "cancelled" ? (
+              <Link className="form-action-primary" href={`/sistema/contratos/previa?origem=assinatura&id=${subscription.id}`}>
+                Conferir documento
+              </Link>
+            ) : null}
+            <Link className="form-action-primary" href={`/sistema/assinaturas/${subscription.id}/editar`}>
+              Editar
+            </Link>
+          </div>
         }
       />
 

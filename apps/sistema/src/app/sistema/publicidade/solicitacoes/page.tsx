@@ -354,6 +354,18 @@ export default async function SiteInterestRequestsPage({
                     </form>
                   ) : null}
 
+                  {row.availability_status === "approved" && row.status !== "discarded" ? (
+                    <div className="interest-actions">
+                      <Link className="form-action-primary"
+                        href={row.converted_subscription_id
+                          ? "/sistema/contratos/previa?origem=assinatura&id=" + row.converted_subscription_id
+                          : "/sistema/contratos/previa?origem=solicitacao&id=" + row.id}>
+                        Conferir documento
+                      </Link>
+                      <span className="helper-text">Prévia preenchida automaticamente; envio desativado até homologação.</span>
+                    </div>
+                  ) : null}
+
                   {!row.attended_at ? (
                     <div className="interest-actions">
                       <a href={whatsappHref(row)} target="_blank" rel="noreferrer" className="button-link">Atender pelo WhatsApp</a>

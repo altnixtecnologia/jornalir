@@ -1,0 +1,45 @@
+.workspace { max-width: 1040px; margin: 0 auto; padding: 18px 0 36px; }
+.toolbar { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; margin-bottom: 16px; }
+.toolbar button { padding: 9px 13px; border: 1px solid var(--site-line, #d4d4d8); border-radius: 8px; }
+.toolbar button:disabled { opacity: 0.5; cursor: not-allowed; }
+.notice { font-size: 12px; font-weight: 800; color: #991b1b; margin-right: auto; }
+.document { width: min(100%, 210mm); min-height: 270mm; margin: auto; padding: 18mm 18mm 20mm; background: white; color: #111827; border: 1px solid #e4e4e7; box-shadow: 0 10px 35px #00000016; font-family: Georgia, serif; font-size: 13px; line-height: 1.55; overflow-wrap: anywhere; }
+.heading { display: flex; justify-content: space-between; align-items: center; gap: 16px; padding-bottom: 14px; border-bottom: 2px solid #1b3154; }
+.logo { width: 150px; max-height: 76px; object-fit: contain; }
+.identity { text-align: right; font: 11px/1.4 Arial, sans-serif; }
+.identity p { margin: 3px 0; }
+.draftBanner { text-align: center; padding: 10px 8px; margin-top: 14px; background: #fff1f2; color: #9f1239; font: bold 11px/1.4 Arial, sans-serif; letter-spacing: 0.09em; border: 1px dashed #fb7185; }
+.title { font: bold 21px/1.25 Georgia, serif; margin: 24px 0 7px; text-align: center; }
+.meta { text-align: center; font: 11px/1.4 Arial, sans-serif; color: #52525b; margin-bottom: 26px; }
+.section { margin: 22px 0; break-inside: avoid-page; }
+.section h2 { font: bold 14px/1.35 Georgia, serif; border-bottom: 1px solid #d4d4d8; margin: 0 0 8px; padding-bottom: 5px; }
+.section p { margin: 8px 0; white-space: pre-wrap; }
+.section ul { margin: 8px 0 8px 18px; padding-left: 16px; }
+.section li { margin: 5px 0; }
+.warning { padding: 10px; color: #9f1239; background: #fff1f2; font: 12px/1.5 Arial, sans-serif; }
+.signatures { display: flex; justify-content: space-between; gap: 24px; margin-top: 55px; text-align: center; }
+.signatures div { flex: 1; }
+.signatures span { display: block; font: 11px/1.4 Arial, sans-serif; padding-top: 5px; }
+.bottom { max-width: 210mm; margin: 18px auto; display: flex; gap: 16px; align-items: center; justify-content: space-between; }
+.bottom p { margin: 0; max-width: 650px; font-size: 12px; }
+.bottom a { white-space: nowrap; text-decoration: underline; font-size: 13px; }
+@media (max-width: 700px) {
+  .workspace { padding: 0; }
+  .toolbar { padding: 10px 0; gap: 8px; }
+  .toolbar button { font-size: 12px; }
+  .document { padding: 16px 13px 20px; min-height: auto; box-shadow: none; }
+  .heading { align-items: flex-start; flex-direction: column; }
+  .identity { text-align: left; }
+  .logo { max-width: 170px; }
+  .title { font-size: 18px; }
+  .section { margin: 20px 0; }
+  .signatures { gap: 10px; font-size: 11px; }
+  .bottom { flex-direction: column; align-items: flex-start; }
+}
+@media print {
+  @page { size: A4; margin: 12mm; }
+  .workspace { max-width: none; padding: 0; }
+  .toolbar, .bottom { display: none !important; }
+  .document { border: none; box-shadow: none; margin: 0; padding: 0; width: 100%; min-height: auto; }
+  .section { break-inside: avoid-page; }
+}

@@ -194,6 +194,7 @@ export const configuracoesNavGroup: AdminNavGroup = {
     { label: "Notificações push", href: "/sistema/configuracoes/notificacoes-push" },
     { label: "Valores da página Assine", href: "/sistema/configuracoes/valores-assine" },
     { label: "Cobranças / Asaas", href: "/sistema/configuracoes/cobrancas" },
+    { label: "Modelos de contratos", href: "/sistema/configuracoes/contratos" },
   ],
 };
 

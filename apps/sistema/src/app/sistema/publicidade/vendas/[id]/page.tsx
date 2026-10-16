@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import Link from "next/link";
 import { clientDisplayName, deriveCommercialSaleFinancialStatus } from "@ir/types";
 import { CommercialSaleNotFoundError } from "@ir/core";
 import { ModuleHeader } from "../../../../../components/admin/ModuleHeader";
@@ -34,7 +35,8 @@ export default async function CommercialSaleDetailPage({ params }: { params: { i
 
   return (
     <>
-      <ModuleHeader eyebrow={`COMERCIAL / VENDAS / ${sale.reference}`} title={clientDisplayName(client)} description={`${sale.channel} — ${sale.description}`} />
+      <ModuleHeader eyebrow={`COMERCIAL / VENDAS / ${sale.reference}`} title={clientDisplayName(client)} description={`${sale.channel} — ${sale.description}`}
+        action={sale.status !== "cancelled" ? <Link className="form-action-primary" href={`/sistema/contratos/previa?origem=venda&id=${sale.id}`}>Conferir documento</Link> : undefined} />
       <CommercialSaleDetail
         sale={sale}
         clientName={clientDisplayName(client)}

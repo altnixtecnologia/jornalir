@@ -69,7 +69,7 @@ export async function middleware(request: NextRequest): Promise<NextResponse> {
     }
     // A proteção do módulo vale também quando o usuário digita a URL.
     if (profile.role === "operator") {
-      if (pathname === "/sistema/nfse" || pathname.startsWith("/sistema/nfse/") || pathname === "/sistema/configuracoes/cobrancas" || pathname.startsWith("/sistema/configuracoes/cobrancas/")) {
+      if (pathname === "/sistema/nfse" || pathname.startsWith("/sistema/nfse/") || pathname === "/sistema/configuracoes/cobrancas" || pathname.startsWith("/sistema/configuracoes/cobrancas/") || pathname === "/sistema/configuracoes/contratos" || pathname.startsWith("/sistema/configuracoes/contratos/")) {
         return NextResponse.redirect(new URL("/sistema?acesso=negado", request.url));
       }
       if (pathname === "/sistema/financeiro/relatorios/imprimir" || pathname.startsWith("/sistema/financeiro/relatorios/imprimir/") ||
