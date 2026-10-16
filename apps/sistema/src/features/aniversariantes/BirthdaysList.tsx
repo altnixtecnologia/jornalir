@@ -1,6 +1,10 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState, type JSX } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { saveEditorialBirthday, setEditorialBirthdayActive, setBirthdayPublication, prepareBirthdayEditionMessage } from "../../app/sistema/aniversariantes/actions";
+import type { EditorialBirthdayInput, EditorialBirthdayMessage } from "./editorialBirthdayTypes";
 import {
   dayIndexWithinRange,
   formatBirthDateShort,
@@ -20,7 +24,7 @@ import {
   type BirthdayOrigin,
 } from "./birthdayTypes";
 import { buildBirthdayPreviewSeed } from "./birthdayPreviewData";
-import { fuzzyMatches } from "../../lib/fuzzySearch";
+
 import { ConfirmDialog } from "../../components/admin/ConfirmDialog";
 import {
   extractSafeEditorialPhrase,
@@ -47,10 +51,8 @@ type OriginFilter = "all" | BirthdayOrigin;
 
 /**
  * Mensagem pertence à EDIÇÃO (Semana do Jornal atual), não ao aniversariante
- * — por isso vive num Map separado, chaveado por `${editionKey}::${entryId}`,
- * nunca dentro de `BirthdayEntry`. Preview puro: estado em memória, resetado
- * ao recarregar a página (nenhuma persistência). Sem destaque e sem edição
- * manual — só "Trocar mensagem" e "Copiar mensagem" (decisão aprovada).
+ * — por isso vive num Map separado, chaveado por `${editionKey}::${entryId}`.
+ * Na visualização local é efêmero; no sistema real, é carregado do Supabase.
  */
 interface EditionMessageState {
   text: string;
@@ -111,6 +113,18 @@ function resolveProfile(entry: BirthdayEntry, dateLabel: string | null): PersonP
   };
 }
 
+/** Ano virtual bissexto: filtra somente por dia e mês. */
+function parseDayMonth(raw:string):{day:number;month:number;key:number}|null{
+  const digits=raw.trim().replace(/\D/g,"");
+  if(digits.length!==4)return null;
+  const day=Number(digits.slice(0,2)),month=Number(digits.slice(2));
+  const d=new Date(2000,month-1,day,12);
+  if(day<1||month<1||d.getMonth()+1!==month||d.getDate()!==day)return null;
+  return {day,month,key:month*100+day};
+}
+function ddmmKey(iso:string):number{
+  return Number(iso.slice(5,7))*100+Number(iso.slice(8,10));
+}
 function getActiveRange(
   period: PeriodFilter,
   weekReference: Date,
@@ -127,8 +141,12 @@ function getActiveRange(
   }
   if (period === "month") return getMonthRange(new Date());
   if (period === "custom") {
-    if (!customStart || !customEnd) return null;
-    return { start: new Date(`${customStart}T00:00:00`), end: new Date(`${customEnd}T23:59:59`) };
+    const first=parseDayMonth(customStart),last=parseDayMonth(customEnd);
+    if(!first||!last)return null;
+    return {
+      start:new Date(2000,first.month-1,first.day,0,0,0,0),
+      end:new Date(last.key<first.key?2001:2000,last.month-1,last.day,23,59,59,999),
+    };
   }
   return null;
 }
@@ -141,6 +159,9 @@ function EntryRow({
   onDelete,
   editorial,
   onChangeMessage,
+  readonlyPrincipal = false,
+  onTogglePublication,
+  pending = false,
 }: {
   entry: BirthdayEntry;
   isPrincipal: boolean;
@@ -149,6 +170,9 @@ function EntryRow({
   onDelete: () => void;
   editorial: EditionMessageState | null;
   onChangeMessage: () => void;
+  readonlyPrincipal?: boolean;
+  onTogglePublication?: () => void;
+  pending?: boolean;
 }): JSX.Element {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState<EntryDraft>(() => draftFromEntry(entry));
@@ -258,7 +282,7 @@ function EntryRow({
           </button>
         </div>
         <div className="aniv-entry-actions">
-          <button type="button" className="cadastros-btn-primary" onClick={save}>Salvar (preview)</button>
+          <button type="button" className="cadastros-btn-primary" disabled={pending} onClick={save}>Salvar alterações</button>
           <button type="button" className="cadastros-btn-secondary" onClick={() => setEditing(false)}>Cancelar</button>
         </div>
       </div>
@@ -280,12 +304,23 @@ function EntryRow({
         </span>
       </div>
       <div className="aniv-entry-row-actions no-print">
-        <button type="button" className="cadastros-btn-secondary aniv-edit-btn" onClick={startEdit}>
-          Editar
-        </button>
-        <button type="button" className="aniv-delete-btn" onClick={onDelete}>
-          Excluir
-        </button>
+        {readonlyPrincipal ? (
+          <>
+            <button type="button" className="cadastros-btn-secondary" disabled={pending}
+              onClick={onTogglePublication}>{entry.publishInPrint?"Desativar publicação":"Autorizar publicação"}</button>
+            <Link href={`/sistema/clientes/${entry.id}/editar`} className="cadastros-btn-secondary">
+              Editar nascimento no cadastro
+            </Link>
+          </>
+        ):(
+          <>
+            <button type="button" className="cadastros-btn-secondary aniv-edit-btn"
+              disabled={pending} onClick={startEdit}>Editar</button>
+            <button type="button" className="aniv-delete-btn" disabled={pending} onClick={onDelete}>
+              {pending?"Aguarde...":"Arquivar"}
+            </button>
+          </>
+        )}
       </div>
       {editorial ? (
         <div className="aniv-editorial no-print">
@@ -326,7 +361,7 @@ function AddMemberForm({ kind, onAdd }: { kind: "individual" | "company"; onAdd:
       relationship: relationship.trim() || undefined,
       origin: kind === "individual" ? "familiar" : "manual",
       active: true,
-      publishInPrint: true,
+      publishInPrint: false,
     });
     setName("");
     setRelationship("");
@@ -372,12 +407,23 @@ function AddMemberForm({ kind, onAdd }: { kind: "individual" | "company"; onAdd:
   );
 }
 
-export function BirthdaysList({ localPreview }: { localPreview: boolean }): JSX.Element {
-  const [groups, setGroups] = useState<BirthdayGroup[]>(() => (localPreview ? buildBirthdayPreviewSeed() : []));
-  const [expanded, setExpanded] = useState<Set<string>>(() => new Set());
+export function BirthdaysList({ localPreview, initialGroups = [], initialMessages = [], initialWeekStart = "", todayISO = "" }: {
+  localPreview: boolean;
+  initialGroups?: BirthdayGroup[];
+  initialMessages?: EditorialBirthdayMessage[];
+  initialWeekStart?: string;
+  todayISO?: string;
+}): JSX.Element {
+  const router=useRouter();
+  const [busy,setBusy]=useState(false);
+  const [error,setError]=useState<string|null>(null);
+  const [notice,setNotice]=useState<string|null>(null);
+  const requested=useRef(new Set<string>());
+  const [groups, setGroups] = useState<BirthdayGroup[]>(() => localPreview ? buildBirthdayPreviewSeed() : initialGroups);
+  const [expanded, setExpanded] = useState<Set<string>>(() => new Set(initialGroups.map(g=>g.id)));
   const [search, setSearch] = useState("");
-  const [period, setPeriod] = useState<PeriodFilter>("all");
-  const [weekReference, setWeekReference] = useState<Date>(() => new Date());
+  const [period, setPeriod] = useState<PeriodFilter>("newspaper");
+  const [weekReference, setWeekReference] = useState<Date>(() => todayISO ? new Date(todayISO+"T12:00:00") : new Date());
   const [selectedDay, setSelectedDay] = useState<Date | null>(null);
   const [customStart, setCustomStart] = useState("");
   const [customEnd, setCustomEnd] = useState("");
@@ -387,7 +433,26 @@ export function BirthdaysList({ localPreview }: { localPreview: boolean }): JSX.
   const [deleteTarget, setDeleteTarget] = useState<DeleteTarget | null>(null);
   const [includeOpen, setIncludeOpen] = useState(false);
   const includeDialogRef = useRef<HTMLDialogElement>(null);
-  const [editionMessages, setEditionMessages] = useState<Map<string, EditionMessageState>>(() => new Map());
+  const [editionMessages, setEditionMessages] = useState<Map<string, EditionMessageState>>(
+    () => new Map(initialMessages.map(m=>[`${m.edition_week_start}::${m.birthday_entry_id}`,{
+      text:m.message,family:m.family,opening:m.opening,ending:m.ending,
+    }]))
+  );
+  useEffect(()=>{
+    if(localPreview)return;
+    setGroups(initialGroups);
+  },[initialGroups,localPreview]);
+  useEffect(()=>{
+    if(localPreview)return;
+    setEditionMessages(old=>{
+      const next=new Map(old);
+      for(const m of initialMessages){
+        const key=`${m.edition_week_start}::${m.birthday_entry_id}`;
+        next.set(key,{text:m.message,family:m.family,opening:m.opening,ending:m.ending});
+      }
+      return next;
+    });
+  },[localPreview,initialMessages]);
 
   useEffect(() => {
     const dialog = includeDialogRef.current;
@@ -404,7 +469,8 @@ export function BirthdaysList({ localPreview }: { localPreview: boolean }): JSX.
   const editionKey = useMemo(() => newspaperRange.start.toISOString().slice(0, 10), [newspaperRange]);
 
   // Chave da semana editorial ATUAL (a que contém a data de hoje) — mensagens só aparecem/geram nela.
-  const currentEditionKey = useMemo(() => getNewspaperWeekRange(new Date()).start.toISOString().slice(0, 10), []);
+  const currentEditionKey = useMemo(() => initialWeekStart ||
+    getNewspaperWeekRange(new Date()).start.toISOString().slice(0,10), [initialWeekStart]);
   const isCurrentEditorialWeek = editionKey === currentEditionKey;
 
   // Base de verdade da edição: TODOS os aniversariantes da semana (independente dos filtros de
@@ -428,7 +494,7 @@ export function BirthdaysList({ localPreview }: { localPreview: boolean }): JSX.
   // A diversidade considera a edição INTEIRA: family/opening/ending são contados conforme
   // cada mensagem é atribuída, então a 5ª pessoa já evita o que as 4 anteriores usaram.
   useEffect(() => {
-    if (period !== "newspaper" || !isCurrentEditorialWeek) return;
+    if (!localPreview || period !== "newspaper" || !isCurrentEditorialWeek) return;
     setEditionMessages((prev) => {
       let changed = false;
       const next = new Map(prev);
@@ -457,9 +523,65 @@ export function BirthdaysList({ localPreview }: { localPreview: boolean }): JSX.
       });
       return changed ? next : prev;
     });
-  }, [period, isCurrentEditorialWeek, editionKey, weekEntries]);
+  }, [period, isCurrentEditorialWeek, editionKey, weekEntries, localPreview]);
+
+  // Mantém a geração automática aprovada, mas salva cada mensagem real
+  // para não perder a escolha ao atualizar a página.
+  useEffect(()=>{
+    if(localPreview || !isCurrentEditorialWeek || period!=="newspaper")return;
+    let active=true;
+    void (async()=>{
+      for(const {entry} of weekEntries){
+        if(!active)break;
+        if(!entry.active)continue;
+        const key=`${editionKey}::${entry.id}`;
+        if(editionMessages.has(key)||requested.current.has(key))continue;
+        requested.current.add(key);
+        try{
+          const result=await prepareBirthdayEditionMessage(
+            entry.origin==="cadastro"?"cliente":"editorial",entry.id,false
+          );
+          if(!active)return;
+          if("error" in result){
+            setError(result.error);
+          } else {
+            setEditionMessages(prev=>{
+              const m=new Map(prev);
+              m.set(key,{text:result.data.message,family:result.data.family,
+                opening:result.data.opening,ending:result.data.ending});
+              return m;
+            });
+          }
+        }catch{if(active)setError("Falha ao preparar mensagens da semana.");}
+      }
+    })();
+    return ()=>{active=false;};
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  },[localPreview,isCurrentEditorialWeek,period,editionKey,weekEntries,editionMessages]);
 
   function changeMessage(entryId: string): void {
+    if(!localPreview){
+      if(busy)return;
+      const key=`${editionKey}::${entryId}`;
+      const found=weekEntries.find(w=>w.entry.id===entryId);
+      if(!found)return;
+      setBusy(true);setError(null);setNotice(null);
+      void prepareBirthdayEditionMessage(
+        found.entry.origin==="cadastro"?"cliente":"editorial",entryId,true
+      ).then(result=>{
+        if("error" in result){setError(result.error);return;}
+        setEditionMessages(prev=>{
+          const m=new Map(prev);
+          m.set(key,{text:result.data.message,family:result.data.family,
+            opening:result.data.opening,ending:result.data.ending});
+          return m;
+        });
+        setNotice("Nova mensagem salva na edição.");
+        router.refresh();
+      }).catch(()=>setError("Não foi possível trocar a mensagem."))
+        .finally(()=>setBusy(false));
+      return;
+    }
     const found = weekEntries.find((w) => w.entry.id === entryId);
     if (!found) return;
     const key = `${editionKey}::${entryId}`;
@@ -497,7 +619,8 @@ export function BirthdaysList({ localPreview }: { localPreview: boolean }): JSX.
   }, [groups]);
 
   function entryMatchesNonPeriod(entry: BirthdayEntry): boolean {
-    if (search.trim() && !fuzzyMatches(search, entry.displayName)) return false;
+    if(!entry.active && period!=="all")return false;
+    if (search.trim() && ddmmKey(entry.birthDate)!==parseDayMonth(search)?.key) return false;
     if (city !== "all" && entry.city !== city) return false;
     if (publishFilter !== "all" && entry.publishInPrint !== (publishFilter === "yes")) return false;
     if (originFilter !== "all" && entry.origin !== originFilter) return false;
@@ -542,7 +665,9 @@ export function BirthdaysList({ localPreview }: { localPreview: boolean }): JSX.
   const matchingGroupIds = useMemo(() => new Set(matchingFlat.map((m) => m.group.id)), [matchingFlat]);
 
   const visibleGroups = useMemo(() => {
-    const list = groups.filter((g) => matchingGroupIds.has(g.id));
+    const unfiltered=period==="all"&&!search.trim()&&city==="all"&&
+      publishFilter==="all"&&originFilter==="all";
+    const list = groups.filter(g=>matchingGroupIds.has(g.id)||unfiltered);
     if (!activeRange && !(period === "newspaper" && selectedDay)) {
       return [...list].sort((a, b) => a.label.localeCompare(b.label, "pt-BR"));
     }
@@ -561,7 +686,7 @@ export function BirthdaysList({ localPreview }: { localPreview: boolean }): JSX.
       return diff !== 0 ? diff : a.label.localeCompare(b.label, "pt-BR");
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [groups, matchingGroupIds, activeRange, selectedDay, period]);
+  }, [groups, matchingGroupIds, activeRange, selectedDay, period,search,city,publishFilter,originFilter]);
 
   function dayCount(day: Date): number {
     let count = 0;
@@ -583,33 +708,113 @@ export function BirthdaysList({ localPreview }: { localPreview: boolean }): JSX.
     });
   }
 
+  function editorialInput(entry:BirthdayEntry,groupId:string|null):EditorialBirthdayInput {
+    return {
+      ...(entry.id.startsWith("local-")?{}:{id:entry.id}),
+      displayName:entry.displayName,birthDate:entry.birthDate,city:entry.city,
+      groupClientId:groupId && /^[a-f0-9-]{36}$/i.test(groupId)?groupId:null,
+      relationship:entry.relationship||"",profession:entry.profession||"",
+      organization:entry.organization||"",knownAs:entry.knownAs||"",
+      messageContext:entry.messageContext||"",notes:entry.notes||"",
+      publishInPrint:entry.publishInPrint,active:entry.active,
+    };
+  }
+  async function saveRealEntry(entry:BirthdayEntry,groupId:string|null):Promise<boolean>{
+    const result=await saveEditorialBirthday(editorialInput(entry,groupId));
+    if("error" in result){setError(result.error);return false;}
+    router.refresh();
+    return true;
+  }
   function updateEntry(groupId: string, entryId: string, next: BirthdayEntry): void {
-    setGroups((prev) =>
-      prev.map((group) => {
-        if (group.id !== groupId) return group;
-        if (group.principal?.id === entryId) return { ...group, principal: next };
-        return { ...group, members: group.members.map((m) => (m.id === entryId ? next : m)) };
-      }),
-    );
+    if(!localPreview){
+      if(next.origin==="cadastro"){setError("O nascimento deve ser editado no cadastro mestre.");return;}
+      if(busy)return;
+      setBusy(true);setError(null);setNotice(null);
+      void saveRealEntry(next,groupId).then(saved=>{
+        if(saved)setNotice("Aniversariante atualizado no banco.");
+      }).catch(()=>setError("Não foi possível salvar este registro."))
+        .finally(()=>setBusy(false));
+      return;
+    }
+    setGroups(prev=>prev.map(group=>{
+      if(group.id!==groupId)return group;
+      if(group.principal?.id===entryId)return {...group,principal:next};
+      return {...group,members:group.members.map(m=>m.id===entryId?next:m)};
+    }));
   }
-
-  function addMember(groupId: string, entry: BirthdayEntry): void {
-    setGroups((prev) => prev.map((group) => (group.id === groupId ? { ...group, members: [...group.members, entry] } : group)));
+  function addMember(groupId:string,entry:BirthdayEntry):void{
+    if(!localPreview){
+      if(busy)return;
+      setBusy(true);setError(null);setNotice(null);
+      void saveRealEntry(entry,groupId).then(saved=>{
+        if(saved)setNotice("Aniversariante vinculado e salvo.");
+      }).catch(()=>setError("Falha ao incluir aniversariante."))
+        .finally(()=>setBusy(false));
+      return;
+    }
+    setGroups(prev=>prev.map(g=>g.id===groupId?{...g,members:[...g.members,entry]}:g));
   }
-
-  function confirmDelete(): void {
-    if (!deleteTarget) return;
-    if (deleteTarget.kind === "member") {
-      setGroups((prev) => prev.map((g) => (g.id === deleteTarget.groupId ? { ...g, members: g.members.filter((m) => m.id !== deleteTarget.entryId) } : g)));
-    } else {
-      setGroups((prev) => prev.filter((g) => g.id !== deleteTarget.groupId));
+  function addIndependent(entry:BirthdayEntry):void{
+    if(!localPreview){
+      if(busy)return;
+      setBusy(true);setError(null);setNotice(null);
+      void saveRealEntry(entry,null).then(saved=>{
+        if(saved)setNotice("Aniversariante excepcional salvo.");
+      }).catch(()=>setError("Falha ao incluir aniversariante."))
+        .finally(()=>setBusy(false));
+      return;
+    }
+    setGroups(prev=>[...prev,{
+      id:`local-group-${Date.now()}`,kind:"individual",
+      label:entry.displayName,city:entry.city,principal:entry,members:[],
+    }]);
+  }
+  function togglePublication(entry:BirthdayEntry):void{
+    if(localPreview||busy)return;
+    setBusy(true);setError(null);setNotice(null);
+    void setBirthdayPublication(entry.origin==="cadastro"?"cliente":"editorial",
+      entry.id,!entry.publishInPrint).then(result=>{
+      if("error" in result){setError(result.error);return;}
+      setGroups(prev=>prev.map(group=>({
+        ...group,
+        principal:group.principal?.id===entry.id?
+          {...group.principal,publishInPrint:result.data.published}:group.principal,
+        members:group.members.map(m=>m.id===entry.id?
+          {...m,publishInPrint:result.data.published}:m),
+      })));
+      setNotice(result.data.published?"Publicação autorizada.":"Publicação desativada.");
+      router.refresh();
+    }).catch(()=>setError("Falha ao alterar publicação."))
+      .finally(()=>setBusy(false));
+  }
+  function confirmDelete():void{
+    if(!deleteTarget||busy)return;
+    if(!localPreview){
+      const group=groups.find(g=>g.id===deleteTarget.groupId);
+      const entryId=deleteTarget.kind==="member"?deleteTarget.entryId:group?.principal?.id;
+      if(!entryId||entryId===group?.id&&group?.principal?.origin==="cadastro"){
+        setError("Não é permitido arquivar o cadastro mestre.");setDeleteTarget(null);return;
+      }
+      setBusy(true);setError(null);setNotice(null);
+      void setEditorialBirthdayActive(entryId,false).then(result=>{
+        if("error" in result)setError(result.error);
+        else{setNotice("Registro editorial arquivado.");router.refresh();}
+      }).catch(()=>setError("Falha ao arquivar o registro."))
+        .finally(()=>{setBusy(false);setDeleteTarget(null);});
+      return;
+    }
+    if(deleteTarget.kind==="member"){
+      setGroups(prev=>prev.map(g=>g.id===deleteTarget.groupId?
+        {...g,members:g.members.filter(m=>m.id!==deleteTarget.entryId)}:g));
+    }else{
+      setGroups(prev=>prev.filter(g=>g.id!==deleteTarget.groupId));
     }
     setDeleteTarget(null);
   }
 
   function activateNewspaperWeek(): void {
     setPeriod("newspaper");
-    setWeekReference(new Date());
+    setWeekReference(todayISO ? new Date(todayISO+"T12:00:00") : new Date());
     setSelectedDay(null);
   }
 
@@ -624,7 +829,8 @@ export function BirthdaysList({ localPreview }: { localPreview: boolean }): JSX.
 
   function clearFilters(): void {
     setSearch("");
-    setPeriod("all");
+    setPeriod("newspaper");
+    setWeekReference(todayISO ? new Date(todayISO+"T12:00:00") : new Date());
     setCity("all");
     setPublishFilter("all");
     setOriginFilter("all");
@@ -635,8 +841,9 @@ export function BirthdaysList({ localPreview }: { localPreview: boolean }): JSX.
 
   // --- Relatório (editorial — pessoas, nunca a árvore administrativa) ---
   const reportSections = useMemo(() => {
+    const printable=matchingFlat.filter(item=>item.entry.active && item.entry.publishInPrint);
     if (!activeRange && !(period === "newspaper" && selectedDay)) {
-      const sorted = [...matchingFlat].sort((a, b) => {
+      const sorted = [...printable].sort((a, b) => {
         const am = Number(a.entry.birthDate.slice(5, 7)) * 100 + Number(a.entry.birthDate.slice(8, 10));
         const bm = Number(b.entry.birthDate.slice(5, 7)) * 100 + Number(b.entry.birthDate.slice(8, 10));
         return am !== bm ? am - bm : a.entry.displayName.localeCompare(b.entry.displayName, "pt-BR");
@@ -645,7 +852,7 @@ export function BirthdaysList({ localPreview }: { localPreview: boolean }): JSX.
     }
     const range = selectedDay ? { start: selectedDay, end: selectedDay } : activeRange!;
     const byDate = new Map<string, { date: Date; entries: BirthdayEntry[] }>();
-    matchingFlat.forEach(({ entry }) => {
+    printable.forEach(({ entry }) => {
       const idx = selectedDay ? 0 : dayIndexWithinRange(entry.birthDate, range.start, range.end);
       if (idx === null) return;
       const date = new Date(range.start);
@@ -686,18 +893,12 @@ export function BirthdaysList({ localPreview }: { localPreview: boolean }): JSX.
 
   return (
     <div className="aniv-module">
-      {!localPreview ? (
-        <div className="aniv-empty-real">
-          <p>Nenhum aniversariante cadastrado ainda.</p>
-          <p className="helper-text">
-            Este módulo ainda não tem persistência real — disponível apenas em visualização local de desenvolvimento.
-          </p>
-        </div>
-      ) : (
-        <>
+      <>
+        {error?<p className="form-error" role="alert">{error}</p>:null}
+        {notice?<p className="helper-text" role="status">{notice}</p>:null}
           <div className="aniv-header-row no-print">
             <button type="button" className="cadastros-btn-primary" onClick={() => setIncludeOpen(true)}>
-              + Incluir aniversariante
+              + Novo aniversariante
             </button>
           </div>
 
@@ -709,7 +910,7 @@ export function BirthdaysList({ localPreview }: { localPreview: boolean }): JSX.
             {period === "newspaper" ? (
               <div className="aniv-week-nav">
                 <button type="button" className="cadastros-btn-secondary" onClick={() => shiftWeek(-1)}>‹ Semana anterior</button>
-                <button type="button" className="cadastros-btn-secondary" onClick={() => setWeekReference(new Date())}>Semana atual</button>
+                <button type="button" className="cadastros-btn-secondary" onClick={() => setWeekReference(todayISO?new Date(todayISO+"T12:00:00"):new Date())}>Semana atual</button>
                 <button type="button" className="cadastros-btn-secondary" onClick={() => shiftWeek(1)}>Próxima semana ›</button>
               </div>
             ) : null}
@@ -739,14 +940,19 @@ export function BirthdaysList({ localPreview }: { localPreview: boolean }): JSX.
 
           {period === "newspaper" && !isCurrentEditorialWeek ? (
             <p className="aniv-editorial-note no-print">
-              Mensagens são preparadas automaticamente para a semana editorial atual.
+              As mensagens automáticas são preparadas para a semana editorial atual.
             </p>
           ) : null}
 
           <div className="cadastros-filters-bar no-print">
             <label className="cadastros-search">
               <span className="sr-only">Buscar</span>
-              <input type="search" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Buscar por nome (tolera erro de digitação)" />
+              <input type="text" inputMode="numeric" maxLength={5} value={search}
+                onChange={(e)=>{
+                  const v=e.target.value.replace(/[^0-9/]/g,"").slice(0,5);
+                  setSearch(v);
+                  if(v.replace(/\D/g,"").length===4){setPeriod("all");setSelectedDay(null);}
+                }} placeholder="Buscar aniversário (DD/MM)" aria-label="Buscar por dia e mês" />
             </label>
             <select
               value={period}
@@ -757,16 +963,20 @@ export function BirthdaysList({ localPreview }: { localPreview: boolean }): JSX.
               aria-label="Período"
               title="Período"
             >
-              <option value="all">Todos</option>
               <option value="newspaper">Semana do jornal</option>
+              <option value="all">Todos</option>
               <option value="today">Hoje</option>
               <option value="month">Este mês</option>
               <option value="custom">Personalizado</option>
             </select>
             {period === "custom" ? (
               <>
-                <input type="date" value={customStart} onChange={(e) => setCustomStart(e.target.value)} aria-label="De" title="De" />
-                <input type="date" value={customEnd} onChange={(e) => setCustomEnd(e.target.value)} aria-label="Até" title="Até" />
+                <input type="text" inputMode="numeric" maxLength={5} placeholder="De DD/MM" value={customStart}
+                  onChange={(e)=>setCustomStart(e.target.value.replace(/[^0-9/]/g,"").slice(0,5))}
+                  aria-label="Início do período em dia e mês" title="De DD/MM" />
+                <input type="text" inputMode="numeric" maxLength={5} placeholder="Até DD/MM" value={customEnd}
+                  onChange={(e)=>setCustomEnd(e.target.value.replace(/[^0-9/]/g,"").slice(0,5))}
+                  aria-label="Fim do período em dia e mês" title="Até DD/MM" />
               </>
             ) : null}
             <select value={city} onChange={(e) => setCity(e.target.value)} aria-label="Cidade" title="Cidade">
@@ -800,6 +1010,8 @@ export function BirthdaysList({ localPreview }: { localPreview: boolean }): JSX.
             {visibleGroups.map((group) => {
               const isOpen = expanded.has(group.id);
               const memberCount = group.members.length;
+              const shownMembers=group.members.filter(entryMatchesAll);
+              const showPrincipal=Boolean(group.principal&&entryMatchesAll(group.principal));
               return (
                 <div key={group.id} className="aniv-group">
                   <div className="aniv-group-header-row">
@@ -821,7 +1033,7 @@ export function BirthdaysList({ localPreview }: { localPreview: boolean }): JSX.
                       )}
                       {group.kind === "individual" ? <span className="cadastro-kind-hint">Origem: Cadastro</span> : null}
                     </button>
-                    {!group.principal ? (
+                    {!group.principal && localPreview ? (
                       <button
                         type="button"
                         className="aniv-delete-btn"
@@ -834,23 +1046,27 @@ export function BirthdaysList({ localPreview }: { localPreview: boolean }): JSX.
 
                   {isOpen ? (
                     <div className="aniv-group-body">
-                      {group.principal ? (
+                      {showPrincipal && group.principal ? (
                         <EntryRow
                           entry={group.principal}
                           isPrincipal
-                          highlighted={Boolean(search.trim()) && fuzzyMatches(search, group.principal.displayName)}
+                          highlighted={Boolean(search.trim())}
+                          readonlyPrincipal={!localPreview && group.principal.origin==="cadastro"}
+                          pending={busy}
+                          onTogglePublication={()=>togglePublication(group.principal!)}
                           onSave={(next) => updateEntry(group.id, group.principal!.id, next)}
                           onDelete={() => setDeleteTarget({ kind: "group", groupId: group.id, label: group.label, groupKind: group.kind, memberCount })}
                           editorial={editorialFor(group.principal.id)}
                           onChangeMessage={() => changeMessage(group.principal!.id)}
                         />
                       ) : null}
-                      {group.members.map((member) => (
+                      {shownMembers.map((member) => (
                         <div key={member.id} className="aniv-member-row">
                           <EntryRow
                             entry={member}
                             isPrincipal={false}
-                            highlighted={Boolean(search.trim()) && fuzzyMatches(search, member.displayName)}
+                            highlighted={Boolean(search.trim())}
+                            pending={busy}
                             onSave={(next) => updateEntry(group.id, member.id, next)}
                             onDelete={() => setDeleteTarget({ kind: "member", groupId: group.id, entryId: member.id, name: member.displayName, groupLabel: group.label })}
                             editorial={editorialFor(member.id)}
@@ -858,7 +1074,8 @@ export function BirthdaysList({ localPreview }: { localPreview: boolean }): JSX.
                           />
                         </div>
                       ))}
-                      <AddMemberForm kind={group.kind} onAdd={(entry) => addMember(group.id, entry)} />
+                      {(localPreview || /^[a-f0-9-]{36}$/i.test(group.id))?
+                        <AddMemberForm kind={group.kind} onAdd={(entry) => addMember(group.id, entry)} /> : null}
                     </div>
                   ) : null}
                 </div>
@@ -876,7 +1093,8 @@ export function BirthdaysList({ localPreview }: { localPreview: boolean }): JSX.
                 : period === "newspaper"
                   ? `Período: ${formatDateLong(newspaperRange.start)} a ${formatDateLong(newspaperRange.end)}${selectedDay ? ` (dia: ${formatDateLong(selectedDay)})` : ""}`
                   : activeRange
-                    ? `Período: ${formatDateLong(activeRange.start)} a ${formatDateLong(activeRange.end)}`
+                    ? period==="custom" ? `Período: ${customStart} a ${customEnd}` :
+                      `Período: ${formatDateLong(activeRange.start)} a ${formatDateLong(activeRange.end)}`
                     : "Período personalizado incompleto"}
             </p>
             {reportSections.map((section, index) => (
@@ -892,24 +1110,18 @@ export function BirthdaysList({ localPreview }: { localPreview: boolean }): JSX.
                 </ul>
               </div>
             ))}
-            <p className="aniv-print-total">Total: {matchingFlat.length} aniversariante(s)</p>
+            <p className="aniv-print-total">Total autorizado: {matchingFlat.filter(m=>m.entry.active&&m.entry.publishInPrint).length} aniversariante(s)</p>
           </div>
-        </>
-      )}
+      </>
 
       <dialog ref={includeDialogRef} className="ir-modal ir-modal--form" aria-labelledby="aniv-include-title" onCancel={(e) => { e.preventDefault(); setIncludeOpen(false); }}>
         <IncludeForm
+          localPreview={localPreview}
           groups={groups}
           onCancel={() => setIncludeOpen(false)}
           onSubmit={(linkGroupId, entry) => {
-            if (linkGroupId) {
-              addMember(linkGroupId, entry);
-            } else {
-              setGroups((prev) => [
-                ...prev,
-                { id: `local-group-${Date.now()}`, kind: "individual", label: entry.displayName, city: entry.city, principal: entry, members: [] },
-              ]);
-            }
+            if(linkGroupId)addMember(linkGroupId,entry);
+            else addIndependent(entry);
             setIncludeOpen(false);
           }}
         />
@@ -944,8 +1156,8 @@ export function BirthdaysList({ localPreview }: { localPreview: boolean }): JSX.
             </p>
           ) : null
         }
-        confirmLabel={deleteTarget?.kind === "group" ? "Excluir grupo" : "Excluir aniversariante"}
-        onConfirm={confirmDelete}
+        confirmLabel={localPreview?"Excluir":"Arquivar registro"}
+        onConfirm={()=>confirmDelete()}
         onCancel={() => setDeleteTarget(null)}
       />
     </div>
@@ -956,8 +1168,10 @@ function IncludeForm({
   groups,
   onCancel,
   onSubmit,
+  localPreview,
 }: {
   groups: BirthdayGroup[];
+  localPreview: boolean;
   onCancel: () => void;
   onSubmit: (linkGroupId: string | null, entry: BirthdayEntry) => void;
 }): JSX.Element {
@@ -970,7 +1184,7 @@ function IncludeForm({
   const [organization, setOrganization] = useState("");
   const [knownAs, setKnownAs] = useState("");
   const [messageContext, setMessageContext] = useState("");
-  const [publishInPrint, setPublishInPrint] = useState(true);
+  const [publishInPrint, setPublishInPrint] = useState(false);
   const [notes, setNotes] = useState("");
 
   function submit(): void {
@@ -997,7 +1211,7 @@ function IncludeForm({
   return (
     <div>
       <h2 id="aniv-include-title">Incluir aniversariante</h2>
-      <p className="helper-text"><strong>Dados de demonstração — não persistidos.</strong></p>
+      <p className="helper-text">Para um caso excepcional, deixe a origem sem vínculo. Empresas e pessoas podem ser selecionadas como grupo.</p>
       <div className="ir-modal-scroll">
         <div className="cadastro-grid">
           <label className="cadastro-field cadastro-field--span-6 ir-modal-field--primary">
@@ -1016,7 +1230,7 @@ function IncludeForm({
             <span className="field-label">Origem / vínculo</span>
             <select value={linkGroupId} onChange={(e) => setLinkGroupId(e.target.value)}>
               <option value="">Registro manual independente</option>
-              {groups.map((g) => <option key={g.id} value={g.id}>Vincular a: {g.label}</option>)}
+              {groups.filter(g=>localPreview||/^[a-f0-9-]{36}$/i.test(g.id)).map((g) => <option key={g.id} value={g.id}>Vincular a: {g.label}</option>)}
             </select>
           </label>
           <label className="cadastro-field cadastro-field--span-4">
@@ -1059,7 +1273,7 @@ function IncludeForm({
       </div>
       <div className="ir-confirm-actions">
         <button type="button" onClick={onCancel}>Cancelar</button>
-        <button type="button" className="form-action-primary" onClick={submit}>Incluir (preview)</button>
+        <button type="button" className="form-action-primary" onClick={submit}>Salvar aniversariante</button>
       </div>
     </div>
   );
