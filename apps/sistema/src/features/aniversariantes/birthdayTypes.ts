@@ -16,6 +16,8 @@ export interface BirthdayEntry {
   displayName: string;
   /** "YYYY-MM-DD" — o ano pode ser fictício/desconhecido para familiares. */
   birthDate: string;
+  /** Data do cadastro do registro, independente da data de nascimento. */
+  createdAt?: string;
   city: string;
   /** Preenchido para membros de um grupo (ex.: "Cônjuge", "Filho(a)", "Responsável"); ausente para o titular PF. */
   relationship?: string;
