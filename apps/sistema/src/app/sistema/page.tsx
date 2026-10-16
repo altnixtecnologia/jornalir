@@ -1,5 +1,10 @@
+"use client";
+
 import Link from "next/link";
 import { ModuleHeader } from "../../components/admin/ModuleHeader";
+import { useAuth } from "../../lib/auth/AuthProvider";
+import { useStaffModuleVisibility } from "../../lib/permissions/useStaffModuleVisibility";
+import { useAgendaPautaReadAccess } from "../../lib/permissions/useAgendaPautaReadAccess";
 
 const QUICK_LINKS = [
   { label: "Agenda e pauta", href: "/sistema/agenda", description: "Compromissos da equipe e o que cada um precisa fazer na semana." },
@@ -16,6 +21,27 @@ const QUICK_LINKS = [
 ];
 
 export default function SistemaHomePage(): JSX.Element {
+  const { profile } = useAuth();
+  const { hasModule } = useStaffModuleVisibility();
+  const { agendaRead, pautaRead } = useAgendaPautaReadAccess();
+  const privileged = Boolean(profile?.active && (profile.role === "owner" || profile.role === "admin"));
+
+  function canSee(href: string): boolean {
+    if (href === "/sistema/agenda") return agendaRead || pautaRead;
+    if (href.startsWith("/sistema/nfse")) return privileged;
+    for (const [prefix, key] of [
+      ["/sistema/editorial", "editorial"],
+      ["/sistema/clientes", "clientes"],
+      ["/sistema/assinaturas", "assinaturas"],
+      ["/sistema/financeiro", "financeiro"],
+      ["/sistema/publicidade", "publicidade"],
+    ] as const) {
+      if (href.startsWith(prefix)) return hasModule(key);
+    }
+    return false;
+  }
+
+  const visibleLinks = QUICK_LINKS.filter((item) => canSee(item.href));
   return (
     <>
       <ModuleHeader
@@ -24,9 +50,11 @@ export default function SistemaHomePage(): JSX.Element {
         description="Acesso rápido às áreas do dia a dia da redação."
       />
       <ul className="quick-access-grid">
-        {QUICK_LINKS.map((item) => (
+        {visibleLinks.map((item) => (
           <li key={item.href}>
-            <Link className="quick-access-card" href={item.href}>
+            <Link className="quick-access-card" href={item.href === "/sistema/agenda"
+              ? agendaRead ? "/sistema/agenda?view=agenda" : "/sistema/agenda?view=pauta"
+              : item.href}>
               <span className="quick-access-label">{item.label}</span>
               <span className="quick-access-description">{item.description}</span>
               <span className="quick-access-arrow" aria-hidden="true">
