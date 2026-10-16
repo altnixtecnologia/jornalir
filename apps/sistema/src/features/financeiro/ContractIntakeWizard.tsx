@@ -59,7 +59,7 @@ type WizardStep = 1 | 2 | 3 | 4;
  * Complemento dos dados -> Revisão/salvamento. O arquivo nunca é
  * enviado para armazenamento real (Storage indisponível nesta fase) —
  * só os bytes são lidos uma vez, transitoriamente, para a análise de
- * texto (ver analyzeContractDocumentAction). O contrato só é criado no
+ * texto (ver analyzeContractDocumentAction). O PDF real é anexado em armazenamento privado quando o contrato é salvo. O contrato só é criado no
  * Passo 4, e o documento (quando houver) é persistido imediatamente
  * depois, na mesma ação — o usuário nunca precisa de um contrato
  * "vazio" esperando o anexo.
@@ -133,20 +133,21 @@ export function ContractIntakeWizard({
   function handleSave(): void {
     setError(null);
     startTransition(async () => {
+      const documentData = new FormData();
+      if (!skipDocument && selectedFile) documentData.append("file", selectedFile);
       const result = await createContractWithDocument(
         contractPayload,
-        !skipDocument && documentName.trim()
+        !skipDocument && selectedFile
           ? {
               documentType,
-              name: documentName,
-              // Referência textual só do nome do arquivo — upload real
-              // (R2) é módulo futuro; nada é enviado para armazenamento.
-              fileReference: selectedFile?.name ?? "",
+              name: documentName.trim() || selectedFile.name,
+              fileReference: "",
               documentDate,
               notes: documentNotes,
               extractedData: extractedData ?? undefined,
             }
           : undefined,
+        documentData,
       );
       if (result && "error" in result) setError(result.error);
     });
