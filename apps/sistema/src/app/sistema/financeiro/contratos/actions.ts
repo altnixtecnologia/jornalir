@@ -233,7 +233,7 @@ export async function uploadContractDocumentAction(contractId: string, formData:
   const allowedTypes = ["contract","amendment","commitment_order","invoice","authorization","other"];
   if (!name) return { error: "Informe o nome/descrição do documento." };
   if (!allowedTypes.includes(type)) return { error: "Tipo do documento inválido." };
-  if (date && (!/^\\d{4}-\\d{2}-\\d{2}$/.test(date) || !Number.isFinite(Date.parse(date)))) {
+  if (date && (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !Number.isFinite(Date.parse(date)))) {
     return { error: "Data do documento inválida." };
   }
   const supabase = createSupabaseServerClient();
