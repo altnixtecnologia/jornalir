@@ -10,6 +10,35 @@ import { parseAmount, validateContractPayload, type ContractFormPayload } from "
 import { extractContractDocumentData, type ContractDocumentExtractionResult } from "../../../../lib/financeiro/contractDocumentExtraction";
 
 const LIST_PATH = "/sistema/financeiro/contratos";
+const CONTRACT_BUCKET = "contract-documents";
+const MAX_CONTRACT_PDF_BYTES = 4 * 1024 * 1024; // Vercel Function request cap: no files above 4 MiB through Server Actions.
+
+function validateContractPdf(file: File): string | null {
+  if (!file.name.toLowerCase().endsWith(".pdf")) return "Somente arquivos PDF são aceitos.";
+  if (file.type && file.type !== "application/pdf") return "Tipo de arquivo inválido: envie um PDF.";
+  if (file.size <= 0 || file.size > MAX_CONTRACT_PDF_BYTES) return "PDF deve ter até 4 MB neste envio.";
+  return null;
+}
+
+async function uploadContractPdf(
+  supabase: ReturnType<typeof createSupabaseServerClient>,
+  contractId: string,
+  file: File,
+): Promise<string> {
+  const validationError = validateContractPdf(file);
+  if (validationError) throw new Error(validationError);
+  const bytes = new Uint8Array(await file.arrayBuffer());
+  if (new TextDecoder().decode(bytes.subarray(0, 5)) !== "%PDF-") {
+    throw new Error("Este arquivo não contém a assinatura de cabeçalho de um PDF válido.");
+  }
+  const fileReference = `contracts/${contractId}/${crypto.randomUUID()}.pdf`;
+  const { error } = await supabase.storage.from(CONTRACT_BUCKET).upload(fileReference, bytes, {
+    contentType: "application/pdf", cacheControl: "private, no-store", upsert: false,
+  });
+  if (error) throw new Error("Falha ao armazenar o PDF privado: " + error.message);
+  return fileReference;
+}
+
 
 type ActionResult = { error: string } | void;
 
@@ -75,9 +104,19 @@ export interface PendingDocumentInput {
 export async function createContractWithDocument(
   payload: ContractFormPayload,
   pendingDocument?: PendingDocumentInput,
+  documentFormData?: FormData,
 ): Promise<ActionResult> {
   const validationError = validateContractPayload(payload);
   if (validationError) return { error: validationError };
+
+  if (pendingDocument && !documentFormData?.get("file")) {
+    return { error: "Selecione o PDF que será salvo com o contrato." };
+  }
+  const pdf = documentFormData?.get("file");
+  if (pdf instanceof File) {
+    const pdfError = validateContractPdf(pdf);
+    if (pdfError) return { error: pdfError };
+  }
 
   const client = createSupabaseServerClient();
   const contractService = getContractService(client);
@@ -92,10 +131,12 @@ export async function createContractWithDocument(
 
   if (pendingDocument && pendingDocument.name.trim()) {
     try {
+      const storedFile = pdf instanceof File ? await uploadContractPdf(client, contractId, pdf) : "";
+      if (!storedFile) throw new Error("PDF obrigatório para concluir o anexo.");
       await contractService.addDocument(contractId, {
         documentType: pendingDocument.documentType,
         name: pendingDocument.name,
-        fileReference: pendingDocument.fileReference,
+        fileReference: storedFile,
         documentDate: pendingDocument.documentDate || undefined,
         notes: pendingDocument.notes,
         extractedData: pendingDocument.extractedData,
@@ -170,6 +211,42 @@ export async function addContractDocumentAction(contractId: string, input: Contr
     return { error: toErrorMessage(error) };
   }
   revalidatePath(`${LIST_PATH}/${contractId}`);
+}
+
+
+/** Anexa PDF real, imutável e privado a contrato já existente. */
+export async function uploadContractDocumentAction(contractId: string, formData: FormData): Promise<ActionResult> {
+  const file = formData.get("file");
+  if (!(file instanceof File)) return { error: "Escolha um PDF antes de salvar." };
+  const validationError = validateContractPdf(file);
+  if (validationError) return { error: validationError };
+  const name = String(formData.get("name") ?? "").trim().slice(0, 180);
+  const type = String(formData.get("documentType") ?? "");
+  const date = String(formData.get("documentDate") ?? "");
+  const notes = String(formData.get("notes") ?? "").trim().slice(0, 1500);
+  const allowedTypes = ["contract","amendment","commitment_order","invoice","authorization","other"];
+  if (!name) return { error: "Informe o nome/descrição do documento." };
+  if (!allowedTypes.includes(type)) return { error: "Tipo do documento inválido." };
+  if (date && (!/^\\d{4}-\\d{2}-\\d{2}$/.test(date) || !Number.isFinite(Date.parse(date)))) {
+    return { error: "Data do documento inválida." };
+  }
+  const supabase = createSupabaseServerClient();
+  try {
+    // Acesso real ao contrato antes de gravar bytes privados.
+    await getContractService(supabase).getById(contractId);
+    const fileReference = await uploadContractPdf(supabase, contractId, file);
+    await getContractService(supabase).addDocument(contractId, {
+      documentType: type as ContractDocumentType,
+      name,
+      fileReference,
+      documentDate: date || undefined,
+      notes,
+    });
+    revalidatePath(`${LIST_PATH}/${contractId}`);
+    return;
+  } catch (error) {
+    return { error: toErrorMessage(error) };
+  }
 }
 
 export interface ContractAmendmentFormInput {
