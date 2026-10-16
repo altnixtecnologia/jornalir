@@ -8,6 +8,7 @@ export const metadata: Metadata = {
   description: "Espaço de trabalho do Informativo Regional",
   manifest: "/manifest.webmanifest",
   appleWebApp: { capable: true, title: "IR Sistema", statusBarStyle: "default" },
+  other: { "mobile-web-app-capable": "yes" },
   icons: {
     icon: [{ url: "/icons/icon-ir-192.png", sizes: "192x192", type: "image/png" }],
     apple: "/icons/icon-ir-192.png",

@@ -14,7 +14,7 @@ import {
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 const PATH = "/sistema/aniversariantes";
-const UUID = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i;
+const UUID = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i;
 type ActionResult<T = undefined> = { ok: true; data: T } | { error: string };
 async function permitted(): Promise<{ db: SupabaseClient; userId: string } | null> {
   const db = createSupabaseServerClient();

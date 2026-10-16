@@ -1,0 +1,33 @@
+/* Mantém o desenho aprovado dos Aniversariantes, corrigindo apenas os encaixes. */
+.root{min-width:0}
+.root :global(.aniv-week-cta-row){display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px}
+.root :global(.aniv-create-birthday){margin-left:auto;min-height:36px;white-space:nowrap}
+.root :global(.aniv-week-nav){display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.root :global(.aniv-week-strip){display:grid;grid-template-columns:repeat(7,minmax(68px,1fr));gap:6px;overflow-x:auto;margin-bottom:12px}
+.root :global(.cadastros-filters-bar){display:grid;grid-template-columns:minmax(180px,2fr) repeat(4,minmax(110px,1fr));gap:8px;align-items:center}
+.root :global(.cadastros-filters-bar) :is(input,select){min-width:0;max-width:none;width:100%;box-sizing:border-box;height:36px}
+.root :global(.cadastros-filters-actions){grid-column:1/-1;display:flex;justify-content:flex-end;gap:8px;flex-wrap:wrap}
+.root :global(.aniv-tree){min-width:0}
+.root :global(.aniv-group-header){flex-wrap:wrap;gap:8px}
+.root :global(.aniv-group-label){min-width:0;overflow-wrap:anywhere}
+.root :global(.aniv-entry-main){gap:8px;min-width:0}
+.root :global(.aniv-entry-row-actions){display:flex;align-items:center;gap:7px;flex-wrap:wrap}
+.root :global(.aniv-entry-row-actions) a,.root :global(.aniv-entry-row-actions) button{min-height:32px;white-space:normal}
+.root :global(.aniv-editorial){width:100%;margin-top:10px;padding-top:10px;min-width:0}
+.root :global(.aniv-editorial-text){line-height:1.65;overflow-wrap:anywhere}
+@media(max-width:1100px){
+.root :global(.cadastros-filters-bar){grid-template-columns:repeat(3,minmax(0,1fr))}
+.root :global(.cadastros-filters-bar)>:first-child{grid-column:span 2}
+}
+@media(max-width:680px){
+.root :global(.aniv-create-birthday){margin-left:0;width:100%}
+.root :global(.aniv-week-cta){flex:1 1 100%}
+.root :global(.aniv-week-nav){width:100%;justify-content:space-between}
+.root :global(.aniv-week-nav) button{flex:1 1 100px}
+.root :global(.aniv-week-strip){grid-template-columns:repeat(7,minmax(54px,1fr))}
+.root :global(.cadastros-filters-bar){grid-template-columns:repeat(2,minmax(0,1fr))}
+.root :global(.cadastros-filters-bar)>:first-child{grid-column:1/-1}
+.root :global(.aniv-entry-row-actions){width:100%}
+.root :global(.aniv-entry-row-actions) a,.root :global(.aniv-entry-row-actions) button{flex:1 1 145px}
+}
+@media(max-width:380px){.root :global(.cadastros-filters-bar){grid-template-columns:minmax(0,1fr)}}

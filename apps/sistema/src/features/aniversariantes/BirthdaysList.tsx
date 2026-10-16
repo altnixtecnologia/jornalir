@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState, type JSX } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import styles from "./BirthdaysList.module.css";
 import { saveEditorialBirthday, setEditorialBirthdayActive, setBirthdayPublication, prepareBirthdayEditionMessage } from "../../app/sistema/aniversariantes/actions";
 import type { EditorialBirthdayInput, EditorialBirthdayMessage } from "./editorialBirthdayTypes";
 import {
@@ -419,6 +420,7 @@ export function BirthdaysList({ localPreview, initialGroups = [], initialMessage
   const [error,setError]=useState<string|null>(null);
   const [notice,setNotice]=useState<string|null>(null);
   const requested=useRef(new Set<string>());
+  const persisted=useRef(new Set(initialMessages.map(m=>`${m.edition_week_start}::${m.birthday_entry_id}`)));
   const [groups, setGroups] = useState<BirthdayGroup[]>(() => localPreview ? buildBirthdayPreviewSeed() : initialGroups);
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set(initialGroups.map(g=>g.id)));
   const [search, setSearch] = useState("");
@@ -525,8 +527,8 @@ export function BirthdaysList({ localPreview, initialGroups = [], initialMessage
     });
   }, [period, isCurrentEditorialWeek, editionKey, weekEntries, localPreview]);
 
-  // Mantém a geração automática aprovada, mas salva cada mensagem real
-  // para não perder a escolha ao atualizar a página.
+  // A versão original gera automaticamente. No sistema real, salvamos UMA VEZ
+  // por pessoa/edição; atualizar o estado das mensagens não cancela requisições.
   useEffect(()=>{
     if(localPreview || !isCurrentEditorialWeek || period!=="newspaper")return;
     let active=true;
@@ -535,29 +537,35 @@ export function BirthdaysList({ localPreview, initialGroups = [], initialMessage
         if(!active)break;
         if(!entry.active)continue;
         const key=`${editionKey}::${entry.id}`;
-        if(editionMessages.has(key)||requested.current.has(key))continue;
+        if(persisted.current.has(key)||requested.current.has(key))continue;
         requested.current.add(key);
         try{
           const result=await prepareBirthdayEditionMessage(
             entry.origin==="cadastro"?"cliente":"editorial",entry.id,false
           );
-          if(!active)return;
           if("error" in result){
-            setError(result.error);
-          } else {
+            requested.current.delete(key);
+            if(active)setError(result.error);
+            continue;
+          }
+          persisted.current.add(key);
+          if(active){
             setEditionMessages(prev=>{
               const m=new Map(prev);
               m.set(key,{text:result.data.message,family:result.data.family,
                 opening:result.data.opening,ending:result.data.ending});
               return m;
             });
+            setError(null);
           }
-        }catch{if(active)setError("Falha ao preparar mensagens da semana.");}
+        }catch{
+          requested.current.delete(key);
+          if(active)setError("Falha ao preparar mensagens da semana.");
+        }
       }
     })();
     return ()=>{active=false;};
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  },[localPreview,isCurrentEditorialWeek,period,editionKey,weekEntries,editionMessages]);
+  },[localPreview,isCurrentEditorialWeek,period,editionKey,weekEntries]);
 
   function changeMessage(entryId: string): void {
     if(!localPreview){
@@ -570,6 +578,7 @@ export function BirthdaysList({ localPreview, initialGroups = [], initialMessage
         found.entry.origin==="cadastro"?"cliente":"editorial",entryId,true
       ).then(result=>{
         if("error" in result){setError(result.error);return;}
+        persisted.current.add(key);
         setEditionMessages(prev=>{
           const m=new Map(prev);
           m.set(key,{text:result.data.message,family:result.data.family,
@@ -892,16 +901,10 @@ export function BirthdaysList({ localPreview, initialGroups = [], initialMessage
   }
 
   return (
-    <div className="aniv-module">
+    <div className={`aniv-module ${styles.root}`}>
       <>
         {error?<p className="form-error" role="alert">{error}</p>:null}
         {notice?<p className="helper-text" role="status">{notice}</p>:null}
-          <div className="aniv-header-row no-print">
-            <button type="button" className="cadastros-btn-primary" onClick={() => setIncludeOpen(true)}>
-              + Novo aniversariante
-            </button>
-          </div>
-
           <div className="aniv-week-cta-row no-print">
             <button type="button" className={`aniv-week-cta${period === "newspaper" ? " is-active" : ""}`} onClick={activateNewspaperWeek}>
               <strong>SEMANA DO JORNAL</strong>
@@ -914,6 +917,8 @@ export function BirthdaysList({ localPreview, initialGroups = [], initialMessage
                 <button type="button" className="cadastros-btn-secondary" onClick={() => shiftWeek(1)}>Próxima semana ›</button>
               </div>
             ) : null}
+            <button type="button" className="cadastros-btn-primary aniv-create-birthday"
+              onClick={() => setIncludeOpen(true)}>+ Novo aniversariante</button>
           </div>
 
           {period === "newspaper" ? (
