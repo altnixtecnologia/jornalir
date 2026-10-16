@@ -6,6 +6,7 @@ import { PaginatedNav } from "../../../../features/editorial/PaginatedNav";
 import { ReceivablesList } from "../../../../features/financeiro/ReceivablesList";
 import { ReceivablePageSizeSelect } from "../../../../features/financeiro/ReceivablePageSizeSelect";
 import { createSupabaseServerClient } from "../../../../lib/supabase/server";
+import { financePermissionError } from "../../../../lib/permissions/serverFinanceGuard";
 import { listReceivablesAdminPageSupabase } from "../../../../providers/supabase/receivableRepository.supabase";
 
 const FILTERS_FORM_ID = "contas-a-receber-filtros";
@@ -23,6 +24,7 @@ export default async function ContasAReceberPage({
   searchParams?: Record<string, string | string[] | undefined>;
 }): Promise<JSX.Element> {
   const supabase = createSupabaseServerClient();
+  const canCreate = (await financePermissionError("titulos_criar", supabase)) === null;
   const q = one(searchParams?.q).trim();
   const status = one(searchParams?.status);
   const sourceType = one(searchParams?.sourceType);
@@ -49,11 +51,11 @@ export default async function ContasAReceberPage({
         eyebrow="FINANCEIRO / CONTAS A RECEBER"
         title="Contas a receber"
         description="Títulos, recebimentos parciais e situação de cada cliente."
-        action={
+        action={canCreate ? (
           <Link className="form-action-primary" href="/sistema/financeiro/contas-a-receber/novo">
-            Novo lançamento
+            + Novo lançamento
           </Link>
-        }
+        ) : undefined}
       />
 
       <form id={FILTERS_FORM_ID} className="materias-toolbar" method="get" action="/sistema/financeiro/contas-a-receber">

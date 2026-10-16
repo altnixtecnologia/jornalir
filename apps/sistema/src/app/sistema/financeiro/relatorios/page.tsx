@@ -1,3 +1,4 @@
+import { notFound } from "next/navigation";
 import Link from "next/link";
 import type { PaymentMethod, ReceivableSourceType, ReceivableStatus } from "@ir/types";
 import { ALL_PAYMENT_METHODS, PAYMENT_METHOD_LABELS, RECEIVABLE_SOURCE_TYPE_LABELS, RECEIVABLE_SOURCE_TYPES, RECEIVABLE_STATUS_LABELS, RECEIVABLE_STATUSES } from "@ir/types";
@@ -6,6 +7,7 @@ import { ReceivablesList } from "../../../../features/financeiro/ReceivablesList
 import { ReportFiltersToggle } from "../../../../features/financeiro/ReportFiltersToggle";
 import { getContractService } from "../../../../composition/financeiro";
 import { createSupabaseServerClient } from "../../../../lib/supabase/server";
+import { financePermissionError } from "../../../../lib/permissions/serverFinanceGuard";
 import { listReceivablesAdminPageSupabase, sumCreditAppliedForReceivables } from "../../../../providers/supabase/receivableRepository.supabase";
 import { listActiveStaffSupabase } from "../../../../providers/supabase/staffRepository.supabase";
 
@@ -34,7 +36,9 @@ export default async function RelatoriosPage({
 }: {
   searchParams?: Record<string, string | string[] | undefined>;
 }): Promise<JSX.Element> {
+  if (await financePermissionError("relatorios_ver")) notFound();
   const supabase = createSupabaseServerClient();
+  const canExport = (await financePermissionError("relatorios_exportar", supabase)) === null;
   const status = one(searchParams?.status);
   const sourceType = one(searchParams?.sourceType);
   const dueFrom = one(searchParams?.dueFrom);
@@ -264,12 +268,14 @@ export default async function RelatoriosPage({
         </div>
         <p className="helper-text">Crédito aplicado nunca é contado como dinheiro novo recebido — é saldo que o próprio cliente já tinha.</p>
         <div className="form-actions" style={{ marginTop: "12px" }}>
-          <Link className="form-action-primary" href={`/sistema/financeiro/relatorios/exportar?${exportQueryString}`}>
-            Exportar planilha (CSV)
-          </Link>
-          <Link className="secondary-link" href={`/sistema/financeiro/relatorios/imprimir?${exportQueryString}`} target="_blank">
-            Exportar PDF (imprimir)
-          </Link>
+          {canExport ? <>
+            <Link className="form-action-primary" href={`/sistema/financeiro/relatorios/exportar?${exportQueryString}`}>
+              Exportar planilha (CSV)
+            </Link>
+            <Link className="secondary-link" href={`/sistema/financeiro/relatorios/imprimir?${exportQueryString}`} target="_blank">
+              Exportar PDF (imprimir)
+            </Link>
+          </> : null}
         </div>
       </section>
 

@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import { useStaffFinanceActions } from "../../lib/permissions/useStaffFinanceActions";
 import type { PaymentMethod } from "@ir/types";
 import { PAYMENT_METHODS, PAYMENT_METHOD_LABELS } from "@ir/types";
 import type { StaffOption } from "../../providers/supabase/staffRepository.supabase";
@@ -27,8 +28,9 @@ export function CompositionPaymentPanel({
   receivableIdsOldestFirst: string[];
   totalDue: number;
   staff: StaffOption[];
-}): JSX.Element {
+}): JSX.Element | null {
   const router = useRouter();
+  const { hasAction } = useStaffFinanceActions();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
@@ -58,6 +60,8 @@ export function CompositionPaymentPanel({
       router.refresh();
     });
   }
+
+  if (!hasAction("recebimentos_baixar")) return null;
 
   if (!open) {
     return (

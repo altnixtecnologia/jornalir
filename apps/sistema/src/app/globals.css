@@ -5121,3 +5121,14 @@ button.secondary-link {
     outline:2px solid #383676;outline-offset:-3px
   }
 }
+
+/* Permissões por módulo e operações financeiras no cadastro dos usuários. */
+.staff-permissions-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:8px;margin:12px 0}
+.staff-permission-choice{display:flex;align-items:center;gap:9px;padding:10px 12px;border:1px solid var(--line);border-radius:7px;min-height:44px;cursor:pointer;line-height:1.35}
+.staff-permission-choice input{width:18px;height:18px;flex-shrink:0}
+.staff-permission-choice:has(input:disabled){opacity:.65;cursor:not-allowed}
+.staff-finance-permissions{margin-top:16px;border:1px solid var(--line);border-radius:8px;padding:12px}
+.staff-finance-permissions summary{font-weight:700;cursor:pointer;padding:4px 0}
+.staff-finance-permissions-group{padding:12px 0;border-top:1px solid var(--line)}
+.staff-finance-permissions-group:first-of-type{margin-top:12px}
+@media(max-width:760px){.staff-permissions-grid{grid-template-columns:1fr}.staff-permission-choice{min-height:48px}.staff-permission-choice input{width:22px;height:22px}}

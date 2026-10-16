@@ -27,11 +27,15 @@ export async function middleware(request: NextRequest): Promise<NextResponse> {
 
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const publishableKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
+  const { pathname } = request.nextUrl;
+  const isProtected = pathname.startsWith("/sistema") || pathname.startsWith("/agenda");
+  const isLogin = pathname === "/login";
+
   if (!url || !publishableKey) {
-    // Sem Supabase configurado, não há como validar sessão nenhuma — deixa
-    // passar (mesmo comportamento de antes desta fase) em vez de travar o
-    // ambiente inteiro por uma variável de ambiente ausente.
-    return response;
+    // Produção: se faltar a configuração de autenticação, NUNCA liberar conteúdo protegido.
+    return isProtected
+      ? new NextResponse("Autenticação indisponível.", { status: 503 })
+      : response;
   }
 
   const supabase = createServerClient(url, publishableKey, {
@@ -51,21 +55,46 @@ export async function middleware(request: NextRequest): Promise<NextResponse> {
     data: { user },
   } = await supabase.auth.getUser();
 
-  const { pathname } = request.nextUrl;
-  const isProtected = pathname.startsWith("/sistema") || pathname.startsWith("/agenda");
-  const isLogin = pathname === "/login";
-
   if (isProtected) {
     if (!user) {
       return NextResponse.redirect(new URL("/login", request.url));
     }
-    const { data: profile } = await supabase
+    const { data: profile, error: profileError } = await supabase
       .from("profiles")
-      .select("active")
+      .select("active,role")
       .eq("id", user.id)
       .maybeSingle();
-    if (!profile || !profile.active) {
+    if (profileError || !profile || !profile.active) {
       return NextResponse.redirect(new URL("/login?erro=inativo", request.url));
+    }
+
+    // O menu escondido é apenas conveniência. A autorização abaixo também
+    // bloqueia GET/POST direto à rota do módulo, com sessão real do usuário.
+    const privileged = profile.role === "owner" || profile.role === "admin";
+    const starts = (prefix: string): boolean => pathname === prefix || pathname.startsWith(prefix + "/");
+    const restrictedToAdmins = starts("/sistema/usuarios")
+      || starts("/sistema/configuracoes") || starts("/sistema/nfse");
+    if (restrictedToAdmins && !privileged) {
+      return NextResponse.redirect(new URL("/sistema?erro=sem-permissao", request.url), 303);
+    }
+
+    let moduleKey: string | null = null;
+    if (starts("/sistema/financeiro")) moduleKey = "financeiro";
+    else if (starts("/sistema/editorial")) moduleKey = "editorial";
+    else if (starts("/sistema/clientes")) moduleKey = "clientes";
+    else if (starts("/sistema/assinaturas")) moduleKey = "assinaturas";
+    else if (starts("/sistema/publicidade") || starts("/sistema/anuncios") || starts("/sistema/patrocinadores")) moduleKey = "publicidade";
+    else if (starts("/sistema/aniversariantes")) moduleKey = "aniversariantes";
+    else if (starts("/sistema/agenda") || starts("/agenda")) {
+      moduleKey = request.nextUrl.searchParams.get("view") === "pauta" ? "pauta" : "agenda";
+    }
+    if (moduleKey && !privileged) {
+      const { data: allowed, error: permissionError } = await supabase.rpc(
+        "staff_can_see_module", { p_module: moduleKey },
+      );
+      if (permissionError || allowed !== true) {
+        return NextResponse.redirect(new URL("/sistema?erro=sem-permissao", request.url), 303);
+      }
     }
   }
 
