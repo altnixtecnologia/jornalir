@@ -93,7 +93,11 @@ async function sendTemplate(
     );
   }
 
-  return { providerMessageId: body?.messages?.[0]?.id as string | undefined };
+  const providerMessageId = body?.messages?.[0]?.id;
+  if (typeof providerMessageId !== "string" || !providerMessageId.trim()) {
+    throw new Error("A Meta não confirmou um identificador de mensagem. Verifique o envio no WhatsApp Manager antes de tentar novamente.");
+  }
+  return { providerMessageId };
 }
 
 export async function sendWhatsappBillingTemplate(
