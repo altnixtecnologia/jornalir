@@ -43,20 +43,24 @@ export function CompositionPaymentPanel({
   function handleConfirm(): void {
     setError(null);
     startTransition(async () => {
-      const result = await payCompositionAction(receivableIdsOldestFirst, {
-        amount,
-        receivedAt,
-        paymentMethod,
-        reference,
-        notes,
-        receivedByProfileId: receivedBy,
-      });
-      if (result && "error" in result) {
-        setError(result.error);
-        return;
+      try {
+        const result = await payCompositionAction(receivableIdsOldestFirst, {
+          amount,
+          receivedAt,
+          paymentMethod,
+          reference,
+          notes,
+          receivedByProfileId: receivedBy,
+        });
+        if (result && "error" in result) {
+          setError(result.error);
+          return;
+        }
+        setOpen(false);
+        router.refresh();
+      } catch {
+        setError("Falha ao registrar recebimento. Verifique a conexão e tente novamente.");
       }
-      setOpen(false);
-      router.refresh();
     });
   }
 
