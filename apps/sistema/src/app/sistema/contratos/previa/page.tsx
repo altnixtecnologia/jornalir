@@ -13,6 +13,7 @@ import {
   type ContractTemplateKind,
 } from "../../../../lib/contracts/contractTemplates";
 import { PrintButton } from "../../../../features/financeiro/PrintButton";
+import { RegisterContractDraftButton } from "./RegisterContractDraftButton";
 import styles from "./preview.module.css";
 
 export const dynamic = "force-dynamic";
@@ -157,12 +158,22 @@ export default async function ContractPreviewPage({ searchParams }: {
     ...(draft.clientDocument.includes("não informado") ? ["CPF/CNPJ do cliente"] : []),
     ...(draft.total === null ? ["valor negociado"] : []),
   ];
+  const draftRegistrationAllowed = Boolean(
+    profile.role === "owner" || profile.role === "admin"
+  ) && origin !== "solicitacao";
+  const contractSchemaReady = draftRegistrationAllowed
+    ? !(await db.from("client_contract_documents").select("id").limit(1)).error
+    : false;
   return (
     <div className={styles.workspace}>
       <div className={styles.toolbar}>
         <Link href={back} className="secondary-link">← Voltar ao cadastro</Link>
         <span className={styles.notice}>MINUTA NÃO ASSINÁVEL</span>
         <PrintButton />
+        {draftRegistrationAllowed && contractSchemaReady && (
+          <RegisterContractDraftButton origin={origin as "assinatura" | "venda"} id={id} />
+        )}
+        {draftRegistrationAllowed && !contractSchemaReady && <span className={styles.notice}>Registro de minutas aguardando migration</span>}
         <button disabled title="Disponível somente após homologação jurídica e técnica">Enviar WhatsApp (em preparação)</button>
       </div>
       <div className={styles.document}>
