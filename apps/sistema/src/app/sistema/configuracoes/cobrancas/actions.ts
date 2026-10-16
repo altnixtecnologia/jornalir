@@ -18,6 +18,17 @@ import {
   getAsaasWebhookToken,
 } from "../../../../lib/financeiro/asaasWebhookConfig";
 
+async function assertBillingAdmin(): Promise<void> {
+  const client = createSupabaseServerClient();
+  const { data: { user }, error: authError } = await client.auth.getUser();
+  if (authError || !user) throw new Error("Sessão inválida.");
+  const { data: profile, error } = await client.from("profiles")
+    .select("role, active").eq("id", user.id).maybeSingle();
+  if (error || !profile?.active || !["admin", "owner"].includes(profile.role)) {
+    throw new Error("Somente administrador ou proprietário pode alterar a integração Asaas.");
+  }
+}
+
 // billing_provider_settings também é singleton numérico, mas audit_events.entity_id exige UUID.
 const BILLING_PROVIDER_SETTINGS_AUDIT_ID = "00000000-0000-4000-8000-000000000102";
 
@@ -36,6 +47,7 @@ export async function updateBillingProviderSettingsAction(
   input: BillingProviderSettingsInput,
 ): Promise<{ ok: true } | { error: string }> {
   try {
+    await assertBillingAdmin();
     const dueDays = Number(input.defaultDueDays);
     if (!Number.isInteger(dueDays) || dueDays < 0 || dueDays > 60) {
       return { error: "Informe um prazo padrão entre 0 e 60 dias." };
@@ -127,6 +139,7 @@ export async function testAsaasConnectionAction(
   requestedEnvironment: "sandbox" | "production",
 ): Promise<{ ok: true; generalStatus: string } | { error: string }> {
   try {
+    await assertBillingAdmin();
     const environment = getConfiguredAsaasEnvironment() ?? requestedEnvironment;
     const key = getAsaasApiKey(environment);
     if (!key) {
@@ -194,6 +207,7 @@ export async function provisionAsaasWebhookAction(
   requestedEnvironment: "sandbox" | "production",
 ): Promise<{ ok: true; created: boolean; webhookId: string } | { error: string }> {
   try {
+    await assertBillingAdmin();
     const environment = getConfiguredAsaasEnvironment() ?? requestedEnvironment;
     const apiKey = getAsaasApiKey(environment);
     if (!apiKey) {

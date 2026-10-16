@@ -236,3 +236,28 @@ revoke delete on public.receivables,public.receivable_receipts,public.receivable
   public.payment_charges,public.client_credits,public.institutional_contracts,
   public.contract_documents,public.contract_amendments,public.contract_commitment_orders,
   public.billing_message_logs from authenticated;
+
+-- REVISAO FASE 3 (2026-10-15): TRUNCATE nao passa pela RLS.
+revoke truncate,delete,trigger,references on
+  public.receivables,public.receivable_receipts,public.receivable_adjustments,
+  public.payment_charges,public.client_credits,public.institutional_contracts,
+  public.contract_documents,public.contract_amendments,public.contract_commitment_orders,
+  public.billing_message_logs, public.billing_provider_settings
+from public,anon,authenticated;
+
+-- Ninguem altera chaves, ambiente, boleto ou Pix pelo Data API sem ser admin/owner.
+drop policy if exists billing_provider_settings_staff_select on public.billing_provider_settings;
+create policy finance_provider_select on public.billing_provider_settings
+for select to authenticated using ((select public.staff_can_see_module('financeiro')));
+drop policy if exists billing_provider_settings_staff_update on public.billing_provider_settings;
+create policy finance_provider_update on public.billing_provider_settings
+for update to authenticated
+using ((select public.is_active_admin_or_owner()))
+with check ((select public.is_active_admin_or_owner()));
+
+-- Creditos financeiros nao podem ser criados arbitrariamente pelo operador
+-- (o fluxo de excesso requer transacao atomica futura; excedentes dos
+-- operadores sao rejeitados ANTES de registrar parcialmente o pagamento).
+drop policy if exists finance_client_credits_insert on public.client_credits;
+create policy finance_client_credits_insert on public.client_credits
+for insert to authenticated with check ((select public.is_active_admin_or_owner()));

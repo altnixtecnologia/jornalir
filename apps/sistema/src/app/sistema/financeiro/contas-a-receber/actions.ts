@@ -121,7 +121,15 @@ export async function addReceiptAction(receivableId: string, input: ReceiptFormI
   const denied = await financePermissionError("recebimentos_baixar");
   if (denied) return { error: denied };
   try {
-    await getReceivableService(createSupabaseServerClient()).addReceipt(receivableId, {
+    const client = createSupabaseServerClient();
+    const { data: privileged } = await client.rpc("is_active_admin_or_owner");
+    if (privileged !== true) {
+      const title = await getReceivableService(client).getById(receivableId);
+      if (parseAmount(input.amount) > title.balance) {
+        return { error: "Recebimentos acima do saldo exigem administrador enquanto a criação de crédito não for atômica." };
+      }
+    }
+    await getReceivableService(client).addReceipt(receivableId, {
       amount: parseAmount(input.amount),
       receivedAt: input.receivedAt,
       paymentMethod: input.paymentMethod || undefined,
@@ -142,9 +150,12 @@ export interface SettleWithDifferenceFormInput extends ReceiptFormInput {
 }
 
 export async function settleWithDifferenceAction(receivableId: string, input: SettleWithDifferenceFormInput): Promise<ActionResult> {
-  const denied = await financePermissionError("recebimentos_quitar_diferenca")
-    ?? await financePermissionError("recebimentos_baixar")
-    ?? await financePermissionError("ajustes_criar");
+  const checks = await Promise.all([
+    financePermissionError("recebimentos_quitar_diferenca"),
+    financePermissionError("recebimentos_baixar"),
+    financePermissionError("ajustes_criar"),
+  ]);
+  const denied = checks.find((result) => result !== null);
   if (denied) return { error: denied };
   try {
     await getReceivableService(createSupabaseServerClient()).settleWithDifference(receivableId, {
@@ -213,7 +224,16 @@ export async function payCompositionAction(receivableIdsOldestFirst: string[], i
   const denied = await financePermissionError("recebimentos_baixar");
   if (denied) return { error: denied };
   try {
-    await getReceivableService(createSupabaseServerClient()).payAcrossReceivables(receivableIdsOldestFirst, {
+    const client = createSupabaseServerClient();
+    const { data: privileged } = await client.rpc("is_active_admin_or_owner");
+    if (privileged !== true) {
+      const service = getReceivableService(client);
+      const titles = await Promise.all(receivableIdsOldestFirst.map((id) => service.getById(id)));
+      if (parseAmount(input.amount) > titles.reduce((sum, item) => sum + item.balance, 0)) {
+        return { error: "Recebimentos acima do saldo exigem administrador enquanto a criação de crédito não for atômica." };
+      }
+    }
+    await getReceivableService(client).payAcrossReceivables(receivableIdsOldestFirst, {
       amount: parseAmount(input.amount),
       receivedAt: input.receivedAt,
       paymentMethod: input.paymentMethod || undefined,
@@ -369,20 +389,19 @@ export async function createPixChargeAction(
 
     const { data: billingSettings, error: billingSettingsError } = await client
       .from("billing_provider_settings")
-      .select("environment")
+      .select("environment, enabled, allow_pix")
       .eq("id", 1)
       .single();
     if (billingSettingsError) throw new Error(billingSettingsError.message);
+    if (!billingSettings.enabled || !billingSettings.allow_pix) return { error: "Integração Pix desativada pelo administrador." };
 
-    const webhook = await provisionAsaasWebhookAction(
-      billingSettings.environment as "sandbox" | "production",
-    );
-    if ("error" in webhook) {
-      return {
-        error:
-          "Não foi possível garantir o webhook do Asaas antes de criar a cobrança: " +
-          webhook.error,
-      };
+    // Operadores não podem provisionar webhooks ou configurar credenciais.
+    const { data: isAdmin } = await client.rpc("is_active_admin_or_owner");
+    if (isAdmin === true) {
+      const webhook = await provisionAsaasWebhookAction(
+        billingSettings.environment as "sandbox" | "production",
+      );
+      if ("error" in webhook) return { error: "Não foi possível garantir o webhook do Asaas: " + webhook.error };
     }
 
     await getPaymentChargeService(client).createPixCharge({
