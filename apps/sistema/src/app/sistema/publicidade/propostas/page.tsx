@@ -35,7 +35,7 @@ export default async function CommercialProposalsPage({
         description="Documentos pré-venda — podem ser aprovados e convertidos em venda, ou recusados/arquivados."
         action={
           <Link className="form-action-primary" href="/sistema/publicidade/propostas/novo">
-            Nova proposta
+            + Nova proposta
           </Link>
         }
       />
