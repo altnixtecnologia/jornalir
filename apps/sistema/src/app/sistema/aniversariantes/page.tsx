@@ -1,11 +1,8 @@
 import { redirect } from "next/navigation";
 import { ModuleHeader } from "../../../components/admin/ModuleHeader";
 import { BirthdaysList } from "../../../features/aniversariantes/BirthdaysList";
-import { LiveBirthdayTree } from "../../../features/aniversariantes/LiveBirthdayTree";
-import { EditorialBirthdayPanel } from "../../../features/aniversariantes/EditorialBirthdayPanel";
 import type { BirthdayEntry,BirthdayGroup } from "../../../features/aniversariantes/birthdayTypes";
 import type { EditorialBirthdayRow,EditorialBirthdayMessage } from "../../../features/aniversariantes/editorialBirthdayTypes";
-import type { BirthdayClientRow } from "../../../features/aniversariantes/ClientBirthdayDirectory";
 import { brazilTodayISO, currentBirthdayWeekISO } from "../../../features/aniversariantes/birthdayWeek";
 import { isLocalPreviewEnabled } from "../../../lib/auth/localPreview";
 import { createSupabaseServerClient } from "../../../lib/supabase/server";
@@ -91,27 +88,12 @@ export default async function AniversariantesPage():Promise<JSX.Element>{
   const entries=(entryResult.data||[]) as EditorialBirthdayRow[];
   const messages=(messageResult.data||[]) as EditorialBirthdayMessage[];
   const groups=makeGroups(clients,entries);
-  const directory:BirthdayClientRow[]=clients.map(c=>({
-    id:c.id,kind:c.kind==="company"?"company":"individual",
-    name:c.kind==="company"?c.trade_name||c.company_name||"Empresa sem nome":c.full_name||"Pessoa sem nome",
-    city:c.address_city||"",birthDate:c.kind==="individual"?c.birth_date:null,
-  }));
   return <>
     <ModuleHeader eyebrow="ANIVERSARIANTES" title="Aniversariantes"
       description="Semana editorial, aniversários de clientes, instituições e casos excepcionais."/>
-    {error?<p className="form-error" role="alert">Não foi possível carregar os registros de aniversário. Tente novamente.</p>:<>
-      <LiveBirthdayTree groups={groups} messages={messages}
-        initialWeekStart={week} todayISO={brazilTodayISO()}/>
-      <details id="aniv-gerenciar" style={{marginTop:20}}>
-        <summary style={{cursor:"pointer",padding:"12px 14px",fontWeight:700,
-          border:"1px solid var(--line)",borderRadius:6}}>
-          Mensagens e cadastros editoriais
-        </summary>
-        <div style={{marginTop:12}}>
-          <EditorialBirthdayPanel clients={directory} entries={entries}
-            initialMessages={messages} weekStart={week}/>
-        </div>
-      </details>
-    </>}
+    {error ? <p className="form-error" role="alert">
+      Não foi possível carregar os registros de aniversário. Tente novamente.
+    </p> : <BirthdaysList localPreview={false} initialGroups={groups}
+        initialMessages={messages} initialWeekStart={week} todayISO={brazilTodayISO()}/>}
   </>;
 }

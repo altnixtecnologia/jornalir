@@ -38,4 +38,5 @@ export interface EditorialBirthdayInput {
   messageContext: string;
   notes: string;
   publishInPrint: boolean;
+  active?: boolean;
 }

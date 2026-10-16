@@ -65,6 +65,7 @@ export async function saveEditorialBirthday(input: EditorialBirthdayInput): Prom
     message_context: clean(input.messageContext, 1500) || null,
     notes: clean(input.notes, 1500) || null,
     publish_in_print: Boolean(input.publishInPrint),
+    ...(input.id && typeof input.active==="boolean" ? { active:input.active }:{}),
     updated_at: new Date().toISOString(),
   };
   if (input.id) {
