@@ -9,7 +9,7 @@ import {
   RECEIVABLE_STATUSES,
 } from "@ir/types";
 import { createSupabaseServerClient } from "../../../../../lib/supabase/server";
-import { listReceivablesAdminPageSupabase } from "../../../../../providers/supabase/receivableRepository.supabase";
+import { listAllReceivablesForReportSupabase } from "../../../../../providers/supabase/receivableRepository.supabase";
 import { getClientService } from "../../../../../composition/clientes";
 
 function csvCell(value: string): string {
@@ -47,9 +47,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   const paymentMethod = params.get("paymentMethod") ?? "";
 
   const [result, clients] = await Promise.all([
-    listReceivablesAdminPageSupabase(supabase, {
-      page: 1,
-      pageSize: 1000,
+    listAllReceivablesForReportSupabase(supabase, {
       search: params.get("q") ?? "",
       status: RECEIVABLE_STATUSES.includes(status as ReceivableStatus) ? (status as ReceivableStatus) : undefined,
       sourceType: RECEIVABLE_SOURCE_TYPES.includes(sourceType as ReceivableSourceType) ? (sourceType as ReceivableSourceType) : undefined,
