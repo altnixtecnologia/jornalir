@@ -27,6 +27,7 @@ function LoginForm(): JSX.Element {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [resetRequested, setResetRequested] = useState(false);
   const [pending, setPending] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
 
@@ -43,6 +44,25 @@ function LoginForm(): JSX.Element {
     }
   }, [searchParams]);
 
+  async function handleForgotPassword(): Promise<void> {
+    if (!email.trim() || !email.includes("@")) {
+      setError("Informe seu e-mail no campo acima para recuperar a senha.");
+      return;
+    }
+    setError(null);
+    setResetRequested(false);
+    setPending(true);
+    const { error: resetError } = await client.auth.resetPasswordForEmail(email.trim(), {
+      redirectTo: new URL("/definir-senha?recovery=1", window.location.origin).toString(),
+    });
+    setPending(false);
+    if (resetError) {
+      setError("Não foi possível solicitar a redefinição. Tente novamente.");
+      return;
+    }
+    setResetRequested(true);
+  }
+
   async function handleSubmit(event: FormEvent): Promise<void> {
     event.preventDefault();
     if (!email.trim() || !password.trim()) {
@@ -50,6 +70,7 @@ function LoginForm(): JSX.Element {
       return;
     }
     setError(null);
+    setResetRequested(false);
     setPending(true);
     const { error: signInError } = await client.auth.signInWithPassword({
       email: email.trim(),
@@ -139,7 +160,12 @@ function LoginForm(): JSX.Element {
           </button>
         </form>
 
-        <span className="login-forgot">Esqueci minha senha</span>
+        {resetRequested ? (
+          <p role="status" className="login-subtitle">Se o e-mail estiver cadastrado, você receberá um link para redefinir sua senha.</p>
+        ) : null}
+        <button type="button" className="login-forgot" onClick={() => void handleForgotPassword()} disabled={pending}>
+          Esqueci minha senha
+        </button>
       </div>
     </div>
   );
