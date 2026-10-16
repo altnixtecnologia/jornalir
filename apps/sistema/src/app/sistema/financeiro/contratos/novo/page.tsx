@@ -1,7 +1,9 @@
+import { notFound } from "next/navigation";
 import { ModuleHeader } from "../../../../../components/admin/ModuleHeader";
 import { ContractIntakeWizard } from "../../../../../features/financeiro/ContractIntakeWizard";
 import { getClientService } from "../../../../../composition/clientes";
 import { createSupabaseServerClient } from "../../../../../lib/supabase/server";
+import { financePermissionError } from "../../../../../lib/permissions/serverFinanceGuard";
 
 function one(value: string | string[] | undefined): string {
   return Array.isArray(value) ? value[0] ?? "" : value ?? "";
@@ -12,6 +14,7 @@ export default async function NovoContratoPage({
 }: {
   searchParams?: Record<string, string | string[] | undefined>;
 }): Promise<JSX.Element> {
+  if (await financePermissionError("contratos_criar")) notFound();
   const supabase = createSupabaseServerClient();
   const clients = await getClientService(supabase).list();
   const initialClientId = one(searchParams?.clientId) || undefined;
