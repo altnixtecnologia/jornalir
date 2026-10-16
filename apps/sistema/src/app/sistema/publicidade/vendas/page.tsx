@@ -68,7 +68,7 @@ export default async function CommercialSalesPage({
         description="Publicidade contratada, valor, período e situação financeira."
         action={
           <Link className="form-action-primary" href="/sistema/publicidade/vendas/novo">
-            Nova venda
+            + Nova venda
           </Link>
         }
       />
