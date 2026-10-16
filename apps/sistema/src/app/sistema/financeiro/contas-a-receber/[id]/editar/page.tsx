@@ -5,8 +5,10 @@ import { ReceivableForm } from "../../../../../../features/financeiro/Receivable
 import { getContractService, getReceivableService } from "../../../../../../composition/financeiro";
 import { getClientService } from "../../../../../../composition/clientes";
 import { createSupabaseServerClient } from "../../../../../../lib/supabase/server";
+import { financePermissionError } from "../../../../../../lib/permissions/serverFinanceGuard";
 
 export default async function EditarLancamentoPage({ params }: { params: { id: string } }): Promise<JSX.Element> {
+  if (await financePermissionError("titulos_editar")) notFound();
   const supabase = createSupabaseServerClient();
   const receivable = await getReceivableService(supabase)
     .getById(params.id)
