@@ -1,3 +1,4 @@
+import { notFound } from "next/navigation";
 import Link from "next/link";
 import type { PaymentMethod, ReceivableSourceType, ReceivableStatus } from "@ir/types";
 import { ALL_PAYMENT_METHODS, PAYMENT_METHOD_LABELS, RECEIVABLE_SOURCE_TYPE_LABELS, RECEIVABLE_SOURCE_TYPES, RECEIVABLE_STATUS_LABELS, RECEIVABLE_STATUSES } from "@ir/types";
@@ -35,6 +36,7 @@ export default async function RelatoriosPage({
 }: {
   searchParams?: Record<string, string | string[] | undefined>;
 }): Promise<JSX.Element> {
+  if (await financePermissionError("relatorios_ver")) notFound();
   const supabase = createSupabaseServerClient();
   const canExport = (await financePermissionError("relatorios_exportar", supabase)) === null;
   const status = one(searchParams?.status);
