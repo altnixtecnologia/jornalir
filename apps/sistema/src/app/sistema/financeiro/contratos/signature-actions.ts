@@ -113,6 +113,7 @@ function sameName(a: string, b: string): boolean {
 export async function completeSignatureInvitationAction(input: {
   token: string;
   signerName: string;
+  signerEmail: string;
   consent: boolean;
   imageDataUrl: string;
 }): Promise<Result<{ receiptId: string }>> {
@@ -122,8 +123,9 @@ export async function completeSignatureInvitationAction(input: {
     if (!invitation || !invitationIsPending(invitation)) {
       return { error: "Convite inválido, utilizado, revogado ou expirado." };
     }
-    if (!sameName(input.signerName, invitation.signer_name)) {
-      return { error: "O nome informado deve corresponder ao do convite." };
+    if (!sameName(input.signerName, invitation.signer_name) ||
+        input.signerEmail.trim().toLowerCase() !== invitation.signer_email.trim().toLowerCase()) {
+      return { error: "Nome ou e-mail não corresponde ao destinatário deste convite." };
     }
     const source = await findInvitationSource(invitation);
     if (!source) return { error: "PDF original não encontrado." };
