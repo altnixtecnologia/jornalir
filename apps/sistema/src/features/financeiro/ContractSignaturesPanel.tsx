@@ -29,6 +29,8 @@ export function ContractSignaturesPanel({
   const [inviteLink, setInviteLink] = useState("");
   const [error, setError] = useState("");
   const [copied, setCopied] = useState(false);
+  const [createdInvitePhone, setCreatedInvitePhone] = useState("");
+  const [createdInviteEmail, setCreatedInviteEmail] = useState("");
 
   function sendInvite(): void {
     setError("");
@@ -40,6 +42,8 @@ export function ContractSignaturesPanel({
         });
         if ("error" in result) { setError(result.error); return; }
         setInviteLink(window.location.origin + result.urlPath);
+        setCreatedInvitePhone(phone.replace(/\D/g, ""));
+        setCreatedInviteEmail(email.trim());
         setCopied(false);
         setLocalInvites((old) => [{
           id: result.invitationId, contract_id: contractId, document_id: documentId,
@@ -64,7 +68,7 @@ export function ContractSignaturesPanel({
     });
   }
 
-  const whatsappLink = phone.replace(/\D/g, "");
+  const whatsappLink = createdInvitePhone;
   return (
     <section className="form-section">
       <h2>Assinatura eletrônica</h2>
@@ -118,7 +122,7 @@ export function ContractSignaturesPanel({
                 "?text=" + encodeURIComponent("Olá! Segue seu convite privado para conferir e assinar o documento: " + inviteLink)}>
               Compartilhar no WhatsApp
             </a> : null}
-            <a href={"mailto:?subject=" + encodeURIComponent("Convite para assinatura de documento") +
+            <a href={"mailto:" + encodeURIComponent(createdInviteEmail) + "?subject=" + encodeURIComponent("Convite para assinatura de documento") +
               "&body=" + encodeURIComponent("Confira e assine o documento neste link privado: " + inviteLink)}>
               Preparar e-mail
             </a>
