@@ -6,7 +6,7 @@ import { EditorialBirthdayPanel } from "../../../features/aniversariantes/Editor
 import type { BirthdayEntry,BirthdayGroup } from "../../../features/aniversariantes/birthdayTypes";
 import type { EditorialBirthdayRow,EditorialBirthdayMessage } from "../../../features/aniversariantes/editorialBirthdayTypes";
 import type { BirthdayClientRow } from "../../../features/aniversariantes/ClientBirthdayDirectory";
-import { currentBirthdayWeekISO } from "../../../features/aniversariantes/birthdayWeek";
+import { brazilTodayISO, currentBirthdayWeekISO } from "../../../features/aniversariantes/birthdayWeek";
 import { isLocalPreviewEnabled } from "../../../lib/auth/localPreview";
 import { createSupabaseServerClient } from "../../../lib/supabase/server";
 
@@ -100,11 +100,18 @@ export default async function AniversariantesPage():Promise<JSX.Element>{
     <ModuleHeader eyebrow="ANIVERSARIANTES" title="Aniversariantes"
       description="Semana editorial, aniversários de clientes, instituições e casos excepcionais."/>
     {error?<p className="form-error" role="alert">Não foi possível carregar os registros de aniversário. Tente novamente.</p>:<>
-      <LiveBirthdayTree groups={groups} messages={messages}/>
-      <section id="aniv-gerenciar" style={{marginTop:24}}>
-        <EditorialBirthdayPanel clients={directory} entries={entries}
-          initialMessages={messages} weekStart={week}/>
-      </section>
+      <LiveBirthdayTree groups={groups} messages={messages}
+        initialWeekStart={week} todayISO={brazilTodayISO()}/>
+      <details id="aniv-gerenciar" style={{marginTop:20}}>
+        <summary style={{cursor:"pointer",padding:"12px 14px",fontWeight:700,
+          border:"1px solid var(--line)",borderRadius:6}}>
+          Gerenciar aniversariantes, vínculos e modelos de mensagens
+        </summary>
+        <div style={{marginTop:12}}>
+          <EditorialBirthdayPanel clients={directory} entries={entries}
+            initialMessages={messages} weekStart={week}/>
+        </div>
+      </details>
     </>}
   </>;
 }
