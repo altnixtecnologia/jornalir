@@ -59,13 +59,42 @@ export async function middleware(request: NextRequest): Promise<NextResponse> {
     if (!user) {
       return NextResponse.redirect(new URL("/login", request.url));
     }
-    const { data: profile } = await supabase
+    const { data: profile, error: profileError } = await supabase
       .from("profiles")
-      .select("active")
+      .select("active,role")
       .eq("id", user.id)
       .maybeSingle();
-    if (!profile || !profile.active) {
+    if (profileError || !profile || !profile.active) {
       return NextResponse.redirect(new URL("/login?erro=inativo", request.url));
+    }
+
+    // Módulo desligado: impedir também a abertura direta da URL, não só
+    // ocultar a opção do menu. A RPC confere o perfil ativo no banco.
+    const privileged = profile.role === "owner" || profile.role === "admin";
+    const matches = (prefix: string): boolean => pathname === prefix || pathname.startsWith(prefix + "/");
+    const adminOnly = matches("/sistema/usuarios")
+      || matches("/sistema/configuracoes") || matches("/sistema/nfse");
+    if (adminOnly && !privileged) {
+      return NextResponse.redirect(new URL("/sistema?erro=sem-permissao", request.url), 303);
+    }
+
+    let moduleKey: string | null = null;
+    if (matches("/sistema/financeiro")) moduleKey = "financeiro";
+    else if (matches("/sistema/editorial")) moduleKey = "editorial";
+    else if (matches("/sistema/clientes")) moduleKey = "clientes";
+    else if (matches("/sistema/assinaturas")) moduleKey = "assinaturas";
+    else if (matches("/sistema/publicidade") || matches("/sistema/anuncios") || matches("/sistema/patrocinadores")) moduleKey = "publicidade";
+    else if (matches("/sistema/aniversariantes")) moduleKey = "aniversariantes";
+    else if (matches("/sistema/agenda") || matches("/agenda")) {
+      moduleKey = request.nextUrl.searchParams.get("view") === "pauta" ? "pauta" : "agenda";
+    }
+    if (moduleKey && !privileged) {
+      const { data: allowed, error: permissionError } = await supabase.rpc(
+        "staff_can_see_module", { p_module: moduleKey },
+      );
+      if (permissionError || allowed !== true) {
+        return NextResponse.redirect(new URL("/sistema?erro=sem-permissao", request.url), 303);
+      }
     }
   }
 
