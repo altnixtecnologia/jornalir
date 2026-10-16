@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - frontend-integracao-20261008
+      - release/contratos-nfse-integracao-20261016
     paths:
       - "apps/site/**"
       - "apps/sistema/**"
