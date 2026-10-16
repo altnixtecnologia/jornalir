@@ -17,6 +17,7 @@ export default function DefinirSenhaPage(): JSX.Element {
   const router = useRouter();
   const client = useMemo(() => createSupabaseBrowserClient(), []);
   const [ready, setReady] = useState(false);
+  const [isRecovery, setIsRecovery] = useState(false);
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -24,10 +25,14 @@ export default function DefinirSenhaPage(): JSX.Element {
   const [done, setDone] = useState(false);
 
   useEffect(() => {
+    const recovery = new URLSearchParams(window.location.search).get("recovery") === "1";
+    setIsRecovery(recovery);
     client.auth.getSession().then(({ data }) => {
       setReady(Boolean(data.session));
       if (!data.session) {
-        setError("Link de convite inválido ou expirado. Peça um novo convite a um administrador.");
+        setError(recovery
+          ? "Link de recuperação inválido ou expirado. Solicite outro na tela de login."
+          : "Link de convite inválido ou expirado. Peça um novo convite a um administrador.");
       }
     });
   }, [client]);
@@ -71,7 +76,7 @@ export default function DefinirSenhaPage(): JSX.Element {
   return (
     <div className="login-page">
       <div className="login-card">
-        <p className="login-title">Defina sua senha</p>
+        <p className="login-title">{isRecovery ? "Redefina sua senha" : "Defina sua senha"}</p>
         <p className="login-subtitle">Informativo Regional — acesso ao painel interno.</p>
 
         <form onSubmit={handleSubmit}>
@@ -107,7 +112,7 @@ export default function DefinirSenhaPage(): JSX.Element {
           ) : null}
 
           <button type="submit" className="login-submit" disabled={!ready || pending}>
-            {pending ? "Salvando…" : "Definir senha"}
+            {pending ? "Salvando…" : isRecovery ? "Redefinir senha" : "Definir senha"}
           </button>
         </form>
       </div>
