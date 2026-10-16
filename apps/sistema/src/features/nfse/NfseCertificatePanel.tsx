@@ -20,7 +20,7 @@ function daysUntil(iso: string): number {
  * chave privada — nem o botão permite download). Alertas de validade
  * calculados no cliente (30/15/7 dias), sem job de background.
  */
-export function NfseCertificatePanel({ issuerCnpj }: { issuerCnpj: string }): JSX.Element {
+export function NfseCertificatePanel({ issuerCnpj, encryptionReady }: { issuerCnpj: string; encryptionReady: boolean }): JSX.Element {
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [showPassword, setShowPassword] = useState(false);
@@ -36,6 +36,7 @@ export function NfseCertificatePanel({ issuerCnpj }: { issuerCnpj: string }): JS
 
   function handleSubmit(event: React.FormEvent<HTMLFormElement>): void {
     event.preventDefault();
+    if (!encryptionReady) { setError("Cofre criptográfico não configurado."); return; }
     setError(null);
     const formData = new FormData(event.currentTarget);
     startTransition(async () => {
@@ -85,22 +86,26 @@ export function NfseCertificatePanel({ issuerCnpj }: { issuerCnpj: string }): JS
 
       {error ? <p className="form-error" role="alert">{error}</p> : null}
 
+      {!encryptionReady ? <p className="form-error" role="alert">
+        Cofre de certificados indisponível: a chave mestra NFSE_CERTIFICATE_MASTER_KEY ainda não foi configurada
+        corretamente no servidor. Configure-a antes de enviar qualquer PFX.
+      </p> : null}
       <form onSubmit={handleSubmit} className="form-grid">
         <label className="form-field">
           <span className="field-label">{certificate ? "Substituir certificado (.pfx/.p12)" : "Selecionar arquivo (.pfx/.p12)"}</span>
-          <input type="file" name="pfxFile" accept=".pfx,.p12" required />
+          <input type="file" name="pfxFile" accept=".pfx,.p12" required disabled={!encryptionReady} />
         </label>
         <label className="form-field">
           <span className="field-label">Senha</span>
           <span style={{ display: "flex", gap: "0.5rem" }}>
-            <input type={showPassword ? "text" : "password"} name="password" required autoComplete="off" />
+            <input type={showPassword ? "text" : "password"} name="password" required autoComplete="off" disabled={!encryptionReady} />
             <button type="button" onClick={() => setShowPassword((prev) => !prev)}>
               {showPassword ? "Ocultar" : "Mostrar"}
             </button>
           </span>
         </label>
         <div className="form-field" style={{ gridColumn: "1 / -1" }}>
-          <button type="submit" className="form-action-primary" disabled={pending}>
+          <button type="submit" className="form-action-primary" disabled={pending || !encryptionReady}>
             {pending ? "Validando…" : "Validar e salvar"}
           </button>
         </div>
