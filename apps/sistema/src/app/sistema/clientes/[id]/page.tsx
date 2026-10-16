@@ -43,6 +43,20 @@ export default async function ClienteDetailPage({ params }: { params: { id: stri
   if (!client) notFound();
 
   const isIndividual = client.kind === "individual";
+  const { data: auth } = await supabase.auth.getUser();
+  const { data: profile } = auth.user
+    ? await supabase.from("profiles").select("role, active").eq("id", auth.user.id).maybeSingle()
+    : { data: null };
+  // Signed commercial contracts can contain sensitive prices and personal identifiers.
+  // Operators will get a dedicated document action permission in a later migration.
+  const maySeeContracts = Boolean(profile?.active && (profile.role === "owner" || profile.role === "admin"));
+  const documentResult = maySeeContracts
+    ? await supabase.from("client_contract_documents")
+        .select("id,title,document_number,source_kind,source_id,revision,status,created_at,signed_at,original_storage_key,signed_storage_key,evidence_storage_key")
+        .eq("client_id",client.id).order("created_at",{ascending:false}).limit(40)
+    : null;
+  const contractDocuments = documentResult?.error ? [] : (documentResult?.data ?? []);
+  const contractDocumentsReady = !documentResult?.error;
 
   const [subscriptions, contracts, receivables, availableCredits] = await Promise.all([
     getSubscriptionService(supabase).list({ clientId: client.id }),
@@ -155,6 +169,50 @@ export default async function ClienteDetailPage({ params }: { params: { id: stri
           <Field label="Última atualização" value={formatDate(client.updatedAt)} />
         </div>
       </section>
+
+      {maySeeContracts ? (
+        <section className="form-section">
+          <h2>Documentos e contratos assinados</h2>
+          <p className="helper-text">Documentos associados a este cliente. PDFs originais e assinados serão armazenados separadamente, com evidências e histórico de envios.</p>
+          {!contractDocumentsReady ? (
+            <p className="helper-text">Área preparada. A migration de documentos ainda não foi homologada no banco.</p>
+          ) : contractDocuments.length === 0 ? (
+            <p className="helper-text">Nenhum documento contratual registrado para este cliente.</p>
+          ) : (
+            <div style={{ display: "grid", gap: 12 }}>
+              {contractDocuments.map((doc) => (
+                <div key={doc.id} style={{ border: "1px solid var(--border,#ddd)", borderRadius: 9, padding: 12 }}>
+                  <strong>{doc.title}</strong>
+                  <p className="helper-text">
+                    {doc.document_number || "Sem numeração"} · Revisão {doc.revision} ·
+                    {" "}Status: {({
+                      draft:"Minuta",ready:"Pronto para envio",awaiting_signature:"Aguardando assinatura",
+                      partially_signed:"Assinaturas parciais",signed:"Assinado",declined:"Recusado",
+                      expired:"Link expirado",cancelled:"Cancelado",
+                    } as Record<string,string>)[doc.status] || doc.status}
+                  </p>
+                  <p className="helper-text">
+                    Criado em {formatDate(doc.created_at)}
+                    {doc.signed_at ? " · Assinado em " + formatDate(doc.signed_at) : ""}
+                  </p>
+                  <div className="materias-toolbar-actions" style={{ marginTop: 8 }}>
+                    {doc.original_storage_key ? (
+                      <a className="secondary-link" href={`/sistema/clientes/${client.id}/documentos/${doc.id}/arquivo?tipo=original`}>Baixar original</a>
+                    ) : null}
+                    {doc.status === "signed" && doc.signed_storage_key ? (
+                      <a className="form-action-primary" href={`/sistema/clientes/${client.id}/documentos/${doc.id}/arquivo?tipo=assinado`}>Baixar PDF assinado</a>
+                    ) : null}
+                    {doc.status === "signed" && doc.evidence_storage_key ? (
+                      <a className="secondary-link" href={`/sistema/clientes/${client.id}/documentos/${doc.id}/arquivo?tipo=evidencias`}>Evidências</a>
+                    ) : null}
+                    <span className="helper-text">Reenvio por e-mail: aguardando homologação do envio seguro.</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
+      ) : null}
 
       {/* Resumo financeiro compacto (Parte 3B, item 14) — não é um
           dashboard, só os números essenciais para dar contexto rápido
