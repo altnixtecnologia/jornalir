@@ -293,7 +293,8 @@ function EntryRow({
       <div className="aniv-entry-main">
         <span className="aniv-entry-name">{entry.displayName}</span>
         {entry.relationship ? <span className="aniv-entry-relationship">{entry.relationship}</span> : null}
-        <span className="aniv-entry-date">{formatBirthDateShort(entry.birthDate)}</span>
+        <span className="aniv-entry-date" title="Data de nascimento">{formatBirthDateShort(entry.birthDate)}</span>
+        {entry.createdAt ? <span className="aniv-entry-created" title="Data em que o cadastro foi criado">Cadastrado em {new Date(entry.createdAt).toLocaleDateString("pt-BR", { timeZone: "America/Sao_Paulo" })}</span> : null}
         <span className="aniv-entry-city">{entry.city || "—"}</span>
         {entry.profession ? <span className="aniv-entry-profession">{entry.profession}</span> : null}
         <span className="cadastro-role-badge">{ORIGIN_LABELS[entry.origin]}</span>
@@ -315,8 +316,10 @@ function EntryRow({
           <>
             <button type="button" className="cadastros-btn-secondary aniv-edit-btn"
               disabled={pending} onClick={startEdit}>Editar</button>
-            <button type="button" className="aniv-delete-btn" disabled={pending} onClick={onDelete}>
-              {pending?"Aguarde...":"Arquivar"}
+            <button type="button" className="aniv-delete-btn aniv-entry-remove" disabled={pending}
+              onClick={onDelete} aria-label={`Retirar ${entry.displayName} da lista de aniversariantes`}
+              title="Retirar da lista editorial (arquivar, sem excluir o Cadastro mestre)">
+              {pending ? "…" : "×"}
             </button>
           </>
         )}
@@ -343,7 +346,7 @@ function EntryRow({
   );
 }
 
-function AddMemberForm({ kind, onAdd }: { kind: "individual" | "company"; onAdd: (entry: BirthdayEntry) => void }): JSX.Element {
+function AddMemberForm({ kind, onAdd, localPreview }: { kind: "individual" | "company"; onAdd: (entry: BirthdayEntry) => void; localPreview: boolean }): JSX.Element {
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
   const [relationship, setRelationship] = useState("");
@@ -379,7 +382,7 @@ function AddMemberForm({ kind, onAdd }: { kind: "individual" | "company"; onAdd:
 
   return (
     <div className="aniv-entry aniv-entry--editing no-print">
-      <p className="helper-text">Demonstração local (preview) — nada é salvo de verdade ainda.</p>
+      {localPreview ? <p className="helper-text">Visualização de demonstração: as alterações não serão salvas.</p> : <p className="helper-text">Esta pessoa será vinculada ao cadastro selecionado, sem alterar os dados do Cadastro mestre.</p>}
       <div className="cadastro-grid">
         <label className="cadastro-field cadastro-field--span-4">
           <span className="field-label">Nome</span>
@@ -399,7 +402,7 @@ function AddMemberForm({ kind, onAdd }: { kind: "individual" | "company"; onAdd:
         </label>
       </div>
       <div className="aniv-entry-actions">
-        <button type="button" className="cadastros-btn-primary" onClick={submit}>Adicionar (preview)</button>
+        <button type="button" className="cadastros-btn-primary" onClick={submit}>{localPreview ? "Adicionar (preview)" : "Salvar pessoa"}</button>
         <button type="button" className="cadastros-btn-secondary" onClick={() => setOpen(false)}>Cancelar</button>
       </div>
     </div>
@@ -1077,7 +1080,7 @@ export function BirthdaysList({ localPreview, initialGroups = [], initialMessage
                         </div>
                       ))}
                       {(localPreview || /^[a-f0-9-]{36}$/i.test(group.id))?
-                        <AddMemberForm kind={group.kind} onAdd={(entry) => addMember(group.id, entry)} /> : null}
+                        <AddMemberForm kind={group.kind} localPreview={localPreview} onAdd={(entry) => addMember(group.id, entry)} /> : null}
                     </div>
                   ) : null}
                 </div>
@@ -1212,7 +1215,7 @@ function IncludeForm({
 
   return (
     <div>
-      <h2 id="aniv-include-title">Incluir aniversariante</h2>
+      <h2 id="aniv-include-title">Novo aniversariante</h2>
       <p className="helper-text">Para um caso excepcional, deixe a origem sem vínculo. Empresas e pessoas podem ser selecionadas como grupo.</p>
       <div className="ir-modal-scroll">
         <div className="cadastro-grid">
@@ -1231,7 +1234,7 @@ function IncludeForm({
           <label className="cadastro-field cadastro-field--span-4">
             <span className="field-label">Origem / vínculo</span>
             <select value={linkGroupId} onChange={(e) => setLinkGroupId(e.target.value)}>
-              <option value="">Registro manual independente</option>
+              <option value="">Caso extraordinário (sem vínculo com cliente)</option>
               {groups.filter(g=>localPreview||/^[a-f0-9-]{36}$/i.test(g.id)).map((g) => <option key={g.id} value={g.id}>Vincular a: {g.label}</option>)}
             </select>
           </label>
