@@ -151,6 +151,15 @@ export function ContractSignaturesPanel({
               </div>
               {invite.status === "pending" && !expired ? (
                 <button type="button" disabled={pending} onClick={() => revoke(invite.id)}>Revogar</button>
+              ) : (expired || invite.status === "revoked") ? (
+                <button type="button" disabled={pending} onClick={() => {
+                  setDocumentId(invite.document_id);
+                  setName(invite.signer_name);
+                  setEmail(invite.signer_email);
+                  setPhone(invite.signer_phone ?? "");
+                  setInviteLink("");
+                  setError("");
+                }}>Preparar novo convite</button>
               ) : null}
             </li>;
           })}
