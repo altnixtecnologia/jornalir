@@ -69,8 +69,13 @@ export async function middleware(request: NextRequest): Promise<NextResponse> {
     }
     // A proteção do módulo vale também quando o usuário digita a URL.
     if (profile.role === "operator") {
-      if (pathname === "/sistema/nfse" || pathname.startsWith("/sistema/nfse/")) {
+      if (pathname === "/sistema/nfse" || pathname.startsWith("/sistema/nfse/") || pathname === "/sistema/configuracoes/cobrancas" || pathname.startsWith("/sistema/configuracoes/cobrancas/")) {
         return NextResponse.redirect(new URL("/sistema?acesso=negado", request.url));
+      }
+      if (pathname === "/sistema/financeiro/relatorios/imprimir" || pathname.startsWith("/sistema/financeiro/relatorios/imprimir/") ||
+          pathname === "/sistema/financeiro/recibos/imprimir" || pathname.startsWith("/sistema/financeiro/recibos/imprimir/")) {
+        const { data: canExport, error: exportError } = await supabase.rpc("staff_can_finance_action", { p_action: "relatorios_exportar" });
+        if (exportError || canExport !== true) return NextResponse.redirect(new URL("/sistema?acesso=negado", request.url));
       }
       if (pathname === "/sistema/financeiro/relatorios" || pathname.startsWith("/sistema/financeiro/relatorios/")) {
         const { data: canView, error: viewError } = await supabase.rpc("staff_can_finance_action", { p_action: "relatorios_ver" });

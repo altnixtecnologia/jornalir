@@ -6,6 +6,7 @@ import { ContractsList } from "../../../../features/financeiro/ContractsList";
 import { getContractService } from "../../../../composition/financeiro";
 import { getClientService } from "../../../../composition/clientes";
 import { createSupabaseServerClient } from "../../../../lib/supabase/server";
+import { financePermissionError } from "../../../../lib/permissions/serverFinanceGuard";
 
 function one(value: string | string[] | undefined): string {
   return Array.isArray(value) ? value[0] ?? "" : value ?? "";
@@ -20,6 +21,7 @@ export default async function ContratosPage({
   searchParams?: Record<string, string | string[] | undefined>;
 }): Promise<JSX.Element> {
   const supabase = createSupabaseServerClient();
+  const canCreate = (await financePermissionError("contratos_criar", supabase)) === null;
   const status = one(searchParams?.status);
 
   const [contracts, clients] = await Promise.all([
@@ -35,11 +37,11 @@ export default async function ContratosPage({
         eyebrow="FINANCEIRO / CONTRATOS INSTITUCIONAIS"
         title="Contratos institucionais"
         description="Prefeituras, câmaras, autarquias e demais órgãos — um contrato pode gerar vários títulos."
-        action={
+        action={canCreate ? (
           <Link className="form-action-primary" href="/sistema/financeiro/contratos/novo">
             Novo contrato
           </Link>
-        }
+        ) : undefined}
       />
 
       <form className="materias-toolbar" method="get" action="/sistema/financeiro/contratos">
