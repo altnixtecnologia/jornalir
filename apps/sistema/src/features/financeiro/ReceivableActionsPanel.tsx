@@ -1,4 +1,5 @@
 "use client";
+import { todayInSaoPauloISO } from "../../lib/date/saoPauloDate";
 
 import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
@@ -62,7 +63,7 @@ export function ReceivableActionsPanel({ receivable, receipts, adjustments, staf
   const [activeForm, setActiveForm] = useState<"none" | "receipt" | "settle" | "adjustment">("none");
 
   const [receiptAmount, setReceiptAmount] = useState("");
-  const [receiptDate, setReceiptDate] = useState(new Date().toISOString().slice(0, 10));
+  const [receiptDate, setReceiptDate] = useState(() => todayInSaoPauloISO());
   const [receiptMethod, setReceiptMethod] = useState<PaymentMethod | "">("");
   const [receiptReference, setReceiptReference] = useState("");
   const [receiptNotes, setReceiptNotes] = useState("");
