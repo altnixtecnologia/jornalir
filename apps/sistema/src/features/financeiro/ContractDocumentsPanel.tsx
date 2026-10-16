@@ -34,7 +34,7 @@ export function ContractDocumentsPanel({ contractId, documents }: { contractId: 
 
   const [documentType, setDocumentType] = useState<ContractDocumentType>("contract");
   const [name, setName] = useState("");
-    const [documentDate, setDocumentDate] = useState("");
+  const [documentDate, setDocumentDate] = useState("");
   const [notes, setNotes] = useState("");
 
   function resetForm(): void {
@@ -42,7 +42,7 @@ export function ContractDocumentsPanel({ contractId, documents }: { contractId: 
     setFile(null);
     setDocumentDate("");
     setNotes("");
-        setShowForm(false);
+    setShowForm(false);
   }
 
   function handleSave(): void {
