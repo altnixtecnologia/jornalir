@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import type { NfseCertificateInfo } from "@ir/types";
 import { CertificateService } from "@ir/core/src/nfse/certificate-service";
+import { isSecretStoreConfigured } from "@ir/core/src/nfse/secret-store";
 import { getIssuerConfigService, getCertificateService } from "../../../../composition/nfse";
 import { createSupabaseServerClient } from "../../../../lib/supabase/server";
 import { getAuditContext } from "../../../../lib/auth/getAuditContext";
@@ -12,6 +13,16 @@ const PATH = "/sistema/nfse/configuracoes";
 const ENTITY_TYPE = "nfse_certificate";
 
 type ActionResult = { error: string } | { certificate: NfseCertificateInfo };
+
+async function requireFiscalAdmin(client: ReturnType<typeof createSupabaseServerClient>): Promise<void> {
+  const { data: user, error: authError } = await client.auth.getUser();
+  if (authError || !user.user) throw new Error("Faça login novamente.");
+  const { data: profile, error } = await client.from("profiles")
+    .select("active,role").eq("id", user.user.id).maybeSingle();
+  if (error || !profile?.active || (profile.role !== "admin" && profile.role !== "owner")) {
+    throw new Error("Somente administradores podem acessar o certificado fiscal.");
+  }
+}
 
 function toErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : "Não foi possível validar o certificado.";
@@ -28,10 +39,14 @@ export async function uploadCertificateAction(formData: FormData): Promise<Actio
   const password = formData.get("password");
 
   if (!(file instanceof File) || file.size === 0) return { error: "Selecione o arquivo do certificado (.pfx/.p12)." };
+  if (!/\.p(?:fx|12)$/i.test(file.name)) return { error: "Selecione um arquivo PFX/P12 válido." };
+  if (file.size > 2 * 1024 * 1024) return { error: "O arquivo de certificado deve ter até 2 MB." };
   if (typeof password !== "string" || password.length === 0) return { error: "Informe a senha do certificado." };
+  if (!isSecretStoreConfigured()) return { error: "Cofre de certificados ainda não configurado no servidor." };
 
   try {
     const client = createSupabaseServerClient();
+    await requireFiscalAdmin(client);
     const AUDIT = await getAuditContext(client);
     const issuerConfigService = getIssuerConfigService(client);
     const issuerConfig = await issuerConfigService.getCurrent();
@@ -64,6 +79,7 @@ export async function uploadCertificateAction(formData: FormData): Promise<Actio
 
 export async function getActiveCertificateAction(): Promise<NfseCertificateInfo | null> {
   const client = createSupabaseServerClient();
+  await requireFiscalAdmin(client);
   const issuerConfigService = getIssuerConfigService(client);
   const issuerConfig = await issuerConfigService.getCurrent();
   if (!issuerConfig) return null;
