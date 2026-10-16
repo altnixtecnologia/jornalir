@@ -1,0 +1,214 @@
+"use server";
+
+import { revalidatePath } from "next/cache";
+import { createSupabaseServerClient } from "../../../lib/supabase/server";
+import {
+  birthdayWithinEdition, currentBirthdayWeekISO, editionDays, validBirthDate,
+} from "../../../features/aniversariantes/birthdayWeek";
+import type {
+  EditorialBirthdayInput, EditorialBirthdayMessage,
+} from "../../../features/aniversariantes/editorialBirthdayTypes";
+import {
+  extractSafeEditorialPhrase, formatEditorialDayLabel, generateBirthdayMessage,
+} from "../../../features/aniversariantes/messageGenerator";
+import type { SupabaseClient } from "@supabase/supabase-js";
+
+const PATH = "/sistema/aniversariantes";
+const UUID = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i;
+type ActionResult<T = undefined> = { ok: true; data: T } | { error: string };
+async function permitted(): Promise<{ db: SupabaseClient; userId: string } | null> {
+  const db = createSupabaseServerClient();
+  const { data: auth, error } = await db.auth.getUser();
+  if (error || !auth.user) return null;
+  const { data: profile } = await db.from("profiles").select("role,active")
+    .eq("id", auth.user.id).maybeSingle();
+  if (!profile?.active) return null;
+  if (profile.role === "operator") {
+    const { data, error: denied } = await db.rpc("staff_can_see_module", { p_module: "aniversariantes" });
+    if (denied || data !== true) return null;
+  } else if (profile.role !== "owner" && profile.role !== "admin") return null;
+  return { db, userId: auth.user.id };
+}
+function clean(value: string, length: number): string {
+  return value.trim().slice(0, length);
+}
+
+export async function saveEditorialBirthday(input: EditorialBirthdayInput): Promise<ActionResult<{ id: string }>> {
+  const caller = await permitted();
+  if (!caller) return { error: "Acesso não autorizado ao módulo Aniversariantes." };
+  const name = clean(input.displayName, 180);
+  if (!name || !validBirthDate(input.birthDate) || input.displayName.length > 180) {
+    return { error: "Informe nome e uma data de nascimento válida." };
+  }
+  if (input.groupClientId && !UUID.test(input.groupClientId)) return { error: "Grupo de cliente inválido." };
+  if (input.id && !UUID.test(input.id)) return { error: "Identificador de aniversariante inválido." };
+  const { db, userId } = caller;
+  let origin: "manual" | "familiar" = "manual";
+  if (input.groupClientId) {
+    const { data: client } = await db.from("clients").select("id,kind,status")
+      .eq("id", input.groupClientId).maybeSingle();
+    if (!client || client.status !== "active") return { error: "Cliente vinculado não encontrado." };
+    origin = client.kind === "individual" ? "familiar" : "manual";
+  }
+  const [year, month, day] = input.birthDate.split("-").map(Number);
+  const fields = {
+    group_client_id: input.groupClientId || null,
+    source_client_id: null,
+    origin,
+    display_name: name,
+    birth_year: year, birth_month: month, birth_day: day,
+    city: clean(input.city, 120) || null,
+    relationship: clean(input.relationship, 100) || null,
+    profession: clean(input.profession, 150) || null,
+    organization: clean(input.organization, 180) || null,
+    known_as: clean(input.knownAs, 120) || null,
+    message_context: clean(input.messageContext, 1500) || null,
+    notes: clean(input.notes, 1500) || null,
+    publish_in_print: Boolean(input.publishInPrint),
+    updated_at: new Date().toISOString(),
+  };
+  if (input.id) {
+    // Never edit a client-derived birthday in this editor: the master client owns its identity and date.
+    const { data: updated, error } = await db.from("birthday_entries").update(fields)
+      .eq("id", input.id).is("source_client_id", null)
+      .select("id").maybeSingle();
+    if (error || !updated) return { error: "Não foi possível atualizar. Confira o registro e suas permissões." };
+    revalidatePath(PATH);
+    return { ok: true, data: { id: updated.id } };
+  }
+  const { data: created, error } = await db.from("birthday_entries")
+    .insert({ ...fields, active: true, created_by: userId }).select("id").single();
+  if (error || !created) return { error: "Não foi possível salvar este aniversariante." };
+  revalidatePath(PATH);
+  return { ok: true, data: { id: created.id } };
+}
+
+export async function setEditorialBirthdayActive(id: string, active: boolean): Promise<ActionResult> {
+  const caller = await permitted();
+  if (!caller) return { error: "Acesso não autorizado." };
+  if (!UUID.test(id)) return { error: "Identificador inválido." };
+  const { data, error } = await caller.db.from("birthday_entries")
+    .update({ active: Boolean(active), updated_at: new Date().toISOString() })
+    .eq("id", id).is("source_client_id", null).select("id").maybeSingle();
+  if (error || !data) return { error: "Não foi possível alterar o registro editorial." };
+  revalidatePath(PATH);
+  return { ok: true, data: undefined };
+}
+
+export async function prepareBirthdayEditionMessage(
+  source: "cliente" | "editorial", id: string, regenerate = false,
+): Promise<ActionResult<EditorialBirthdayMessage>> {
+  const caller = await permitted();
+  if (!caller) return { error: "Acesso não autorizado." };
+  if (!UUID.test(id) || (source !== "cliente" && source !== "editorial")) {
+    return { error: "Origem inválida." };
+  }
+  const { db, userId } = caller;
+  const currentWeek = currentBirthdayWeekISO();
+  let entryId = id;
+  let name = "";
+  let birthDate = "";
+  let city = "";
+  let profession = "";
+  let organization = "";
+  let knownAs = "";
+  let messageContext = "";
+
+  if (source === "cliente") {
+    const { data: client, error: clientError } = await db.from("clients")
+      .select("id,kind,status,full_name,birth_date,address_city").eq("id",id).maybeSingle();
+    if (clientError || !client || client.kind !== "individual" || client.status !== "active"
+      || !client.birth_date || !validBirthDate(client.birth_date)) {
+      return { error: "Preencha primeiro o nascimento de uma pessoa física no Cadastro." };
+    }
+    name = client.full_name || "";
+    birthDate = client.birth_date;
+    city = client.address_city || "";
+    // The linked editorial record reuses the UUID of its own master client, preventing
+    // duplicate linked people on concurrent button clicks without any schema migration.
+    const [year, month, day] = birthDate.split("-").map(Number);
+    const { data: existingEntry, error: lookupError } = await db.from("birthday_entries")
+      .select("id,origin,source_client_id,active").eq("id", id).maybeSingle();
+    if (lookupError) return { error: "Não foi possível localizar o registro editorial." };
+    if (existingEntry && (existingEntry.origin !== "cadastro" || existingEntry.source_client_id !== id)) {
+      return { error: "Identificador editorial inconsistente; operação interrompida." };
+    }
+    if (!existingEntry) {
+      const { error: insertError } = await db.from("birthday_entries").insert({
+        id, source_client_id: id, group_client_id: id,
+        origin: "cadastro", display_name: name,
+        birth_year: year, birth_month: month, birth_day: day,
+        city: city || null, active: true, publish_in_print: false, created_by: userId,
+      });
+      if (insertError) {
+        // Another request may have inserted it simultaneously: verify identity before proceeding.
+        const { data: concurrent } = await db.from("birthday_entries")
+          .select("source_client_id,origin").eq("id",id).maybeSingle();
+        if (!concurrent || concurrent.source_client_id !== id || concurrent.origin !== "cadastro") {
+          return { error: "Falha ao vincular nascimento ao cadastro mestre." };
+        }
+      }
+    } else {
+      if (!existingEntry.active) return { error: "Registro editorial desativado." };
+      // Keep name and birth date synchronized with the client master.
+      const { error } = await db.from("birthday_entries").update({
+        display_name: name, birth_year: year, birth_month: month, birth_day: day,
+        city: city || null, updated_at: new Date().toISOString(),
+      }).eq("id",id).eq("source_client_id",id);
+      if (error) return { error: "Não foi possível sincronizar a data de nascimento." };
+    }
+    entryId = id;
+  } else {
+    const { data: entry, error } = await db.from("birthday_entries")
+      .select("id,source_client_id,display_name,birth_month,birth_day,birth_year,city,profession,organization,known_as,message_context,active")
+      .eq("id", id).maybeSingle();
+    if (error || !entry || entry.source_client_id || !entry.active) return { error: "Aniversariante editorial indisponível." };
+    entryId = entry.id;
+    name = entry.display_name;
+    birthDate = `${entry.birth_year ?? 2000}-${String(entry.birth_month).padStart(2,"0")}-${String(entry.birth_day).padStart(2,"0")}`;
+    city = entry.city || "";
+    profession = entry.profession || "";
+    organization = entry.organization || "";
+    knownAs = entry.known_as || "";
+    messageContext = entry.message_context || "";
+  }
+  if (!birthdayWithinEdition(birthDate, currentWeek)) {
+    return { error: "A mensagem só pode ser preparada para aniversários da semana atual do jornal." };
+  }
+  const { data: previousRows, error: messageError } = await db.from("birthday_edition_messages")
+    .select("birthday_entry_id,edition_week_start,message,family,opening,ending")
+    .eq("edition_week_start", currentWeek);
+  if (messageError) return { error: "Não foi possível consultar as mensagens salvas." };
+  const old = previousRows?.find(row => row.birthday_entry_id === entryId);
+  if (old && !regenerate) return { ok: true, data: old as EditorialBirthdayMessage };
+  const usedTexts = new Set<string>();
+  const usage = { family: {} as Record<string,number>, opening: {} as Record<string,number>, ending: {} as Record<string,number> };
+  for (const row of previousRows ?? []) {
+    if (row.birthday_entry_id === entryId) continue;
+    usedTexts.add(row.message);
+    usage.family[row.family] = (usage.family[row.family] ?? 0) + 1;
+    usage.opening[row.opening] = (usage.opening[row.opening] ?? 0) + 1;
+    usage.ending[row.ending] = (usage.ending[row.ending] ?? 0) + 1;
+  }
+  if (old) usedTexts.add(old.message);
+  const dateForBirthday = editionDays(currentWeek).find(d=>d.slice(5)===birthDate.slice(5))!;
+  const targetDay = new Date(dateForBirthday + "T12:00:00Z");
+  const weekdays = ["DOMINGO","SEGUNDA-FEIRA","TERÇA-FEIRA","QUARTA-FEIRA","QUINTA-FEIRA","SEXTA-FEIRA","SÁBADO"];
+  const result = generateBirthdayMessage({
+    name, city: city || undefined, profession: profession || undefined,
+    organization: organization || undefined, knownAs: knownAs || undefined,
+    editorialPhrase: extractSafeEditorialPhrase(messageContext),
+    dateLabel: formatEditorialDayLabel(weekdays[targetDay.getUTCDay()],targetDay),
+  }, usedTexts, usage, old ? {family:old.family, opening:old.opening, ending:old.ending}: {},
+  `${currentWeek}::${entryId}::${regenerate ? Date.now() : 0}`);
+  const end = editionDays(currentWeek)[6];
+  const { data: saved, error: savedError } = await db.from("birthday_edition_messages").upsert({
+    birthday_entry_id: entryId, edition_week_start: currentWeek, edition_week_end: end,
+    message: result.text, family: result.family, opening: result.opening, ending: result.ending,
+    updated_at: new Date().toISOString(),
+  }, { onConflict:"birthday_entry_id,edition_week_start" })
+    .select("birthday_entry_id,edition_week_start,message,family,opening,ending").single();
+  if (savedError || !saved) return { error: "Não foi possível registrar a mensagem desta edição." };
+  revalidatePath(PATH);
+  return { ok: true, data: saved as EditorialBirthdayMessage };
+}
