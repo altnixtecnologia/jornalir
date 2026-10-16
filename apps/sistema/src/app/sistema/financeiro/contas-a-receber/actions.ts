@@ -9,6 +9,7 @@ import { getPaymentChargeService, getReceivableService } from "../../../../compo
 import { getClientService } from "../../../../composition/clientes";
 import { createSupabaseServerClient } from "../../../../lib/supabase/server";
 import { getAuditContext } from "../../../../lib/auth/getAuditContext";
+import { financePermissionError } from "../../../../lib/permissions/serverFinanceGuard";
 import { isLocalPreviewEnabled, LOCAL_PREVIEW_PROFILE } from "../../../../lib/auth/localPreview";
 import { buildBillingMessage } from "@ir/core";
 import { parseAmount, validateReceivablePayload, type ReceivableFormPayload } from "../../../../features/financeiro/receivableFormTypes";
@@ -51,6 +52,8 @@ function toServiceInput(payload: ReceivableFormPayload): ReceivableInput {
 }
 
 export async function createReceivable(payload: ReceivableFormPayload): Promise<ActionResult> {
+  const denied = await financePermissionError("titulos_criar");
+  if (denied) return { error: denied };
   const validationError = validateReceivablePayload(payload);
   if (validationError) return { error: validationError };
 
@@ -66,6 +69,8 @@ export async function createReceivable(payload: ReceivableFormPayload): Promise<
 }
 
 export async function updateReceivable(id: string, payload: ReceivableFormPayload): Promise<ActionResult> {
+  const denied = await financePermissionError("titulos_editar");
+  if (denied) return { error: denied };
   const validationError = validateReceivablePayload(payload);
   if (validationError) return { error: validationError };
 
@@ -80,6 +85,8 @@ export async function updateReceivable(id: string, payload: ReceivableFormPayloa
 }
 
 export async function cancelReceivableAction(id: string): Promise<ActionResult> {
+  const denied = await financePermissionError("titulos_cancelar");
+  if (denied) return { error: denied };
   try {
     await getReceivableService(createSupabaseServerClient()).cancel(id);
   } catch (error) {
@@ -90,6 +97,8 @@ export async function cancelReceivableAction(id: string): Promise<ActionResult> 
 }
 
 export async function reopenReceivableAction(id: string): Promise<ActionResult> {
+  const denied = await financePermissionError("titulos_reabrir");
+  if (denied) return { error: denied };
   try {
     await getReceivableService(createSupabaseServerClient()).reopen(id);
   } catch (error) {
@@ -109,8 +118,18 @@ export interface ReceiptFormInput {
 }
 
 export async function addReceiptAction(receivableId: string, input: ReceiptFormInput): Promise<ActionResult> {
+  const denied = await financePermissionError("recebimentos_baixar");
+  if (denied) return { error: denied };
   try {
-    await getReceivableService(createSupabaseServerClient()).addReceipt(receivableId, {
+    const client = createSupabaseServerClient();
+    const { data: privileged } = await client.rpc("is_active_admin_or_owner");
+    if (privileged !== true) {
+      const title = await getReceivableService(client).getById(receivableId);
+      if (parseAmount(input.amount) > title.balance) {
+        return { error: "Recebimentos acima do saldo exigem administrador enquanto a criação de crédito não for atômica." };
+      }
+    }
+    await getReceivableService(client).addReceipt(receivableId, {
       amount: parseAmount(input.amount),
       receivedAt: input.receivedAt,
       paymentMethod: input.paymentMethod || undefined,
@@ -131,6 +150,13 @@ export interface SettleWithDifferenceFormInput extends ReceiptFormInput {
 }
 
 export async function settleWithDifferenceAction(receivableId: string, input: SettleWithDifferenceFormInput): Promise<ActionResult> {
+  const checks = await Promise.all([
+    financePermissionError("recebimentos_quitar_diferenca"),
+    financePermissionError("recebimentos_baixar"),
+    financePermissionError("ajustes_criar"),
+  ]);
+  const denied = checks.find((result) => result !== null);
+  if (denied) return { error: denied };
   try {
     await getReceivableService(createSupabaseServerClient()).settleWithDifference(receivableId, {
       receivedAmount: parseAmount(input.amount),
@@ -158,6 +184,8 @@ export interface AdjustmentFormInput {
 }
 
 export async function addAdjustmentAction(receivableId: string, input: AdjustmentFormInput): Promise<ActionResult> {
+  const denied = await financePermissionError("ajustes_criar");
+  if (denied) return { error: denied };
   try {
     await getReceivableService(createSupabaseServerClient()).addAdjustment(receivableId, {
       amount: parseAmount(input.amount),
@@ -193,8 +221,19 @@ export interface CompositionPaymentFormInput {
  * (addReceiptAction), mas é uma ação separada e consciente.
  */
 export async function payCompositionAction(receivableIdsOldestFirst: string[], input: CompositionPaymentFormInput): Promise<ActionResult> {
+  const denied = await financePermissionError("recebimentos_baixar");
+  if (denied) return { error: denied };
   try {
-    await getReceivableService(createSupabaseServerClient()).payAcrossReceivables(receivableIdsOldestFirst, {
+    const client = createSupabaseServerClient();
+    const { data: privileged } = await client.rpc("is_active_admin_or_owner");
+    if (privileged !== true) {
+      const service = getReceivableService(client);
+      const titles = await Promise.all(receivableIdsOldestFirst.map((id) => service.getById(id)));
+      if (parseAmount(input.amount) > titles.reduce((sum, item) => sum + item.balance, 0)) {
+        return { error: "Recebimentos acima do saldo exigem administrador enquanto a criação de crédito não for atômica." };
+      }
+    }
+    await getReceivableService(client).payAcrossReceivables(receivableIdsOldestFirst, {
       amount: parseAmount(input.amount),
       receivedAt: input.receivedAt,
       paymentMethod: input.paymentMethod || undefined,
@@ -216,6 +255,8 @@ export async function payCompositionAction(receivableIdsOldestFirst: string[], i
  * diferentes (a automática nunca cruza).
  */
 export async function applyCreditManuallyAction(receivableId: string, creditId: string, amount: number): Promise<ActionResult> {
+  const denied = await financePermissionError("creditos_aplicar");
+  if (denied) return { error: denied };
   try {
     const client = createSupabaseServerClient();
     const AUDIT = await getAuditContext(client);
@@ -228,6 +269,8 @@ export async function applyCreditManuallyAction(receivableId: string, creditId: 
 }
 
 export async function reverseReceiptAction(receivableId: string, receiptId: string, reason: string): Promise<ActionResult> {
+  const denied = await financePermissionError("recebimentos_estornar");
+  if (denied) return { error: denied };
   try {
     const client = createSupabaseServerClient();
     const AUDIT = await getAuditContext(client);
@@ -240,6 +283,8 @@ export async function reverseReceiptAction(receivableId: string, receiptId: stri
 }
 
 export async function reverseAdjustmentAction(receivableId: string, adjustmentId: string, reason: string): Promise<ActionResult> {
+  const denied = await financePermissionError("ajustes_estornar");
+  if (denied) return { error: denied };
   try {
     const client = createSupabaseServerClient();
     const AUDIT = await getAuditContext(client);
@@ -261,6 +306,8 @@ export async function reverseAdjustmentAction(receivableId: string, adjustmentId
 export async function generateReceivableFromSubscriptionAction(
   payload: ReceivableFormPayload,
 ): Promise<{ error: string } | { ok: true; receivableId: string }> {
+  const denied = await financePermissionError("titulos_criar");
+  if (denied) return { error: denied };
   const validationError = validateReceivablePayload(payload);
   if (validationError) return { error: validationError };
   try {
@@ -290,6 +337,8 @@ export interface BatchGenerationItemResult {
 export async function generateReceivablesForSubscriptionPeriodAction(
   payloads: ReceivableFormPayload[],
 ): Promise<{ results: BatchGenerationItemResult[] }> {
+  const denied = await financePermissionError("titulos_criar");
+  if (denied) return { results: payloads.map((item) => ({ competencyDate: item.competencyDate, ok: false, error: denied })) };
   const client = createSupabaseServerClient();
   const service = getReceivableService(client);
   const results: BatchGenerationItemResult[] = [];
@@ -330,6 +379,8 @@ export async function createPixChargeAction(
   clientId: string,
   input: PixChargeFormInput,
 ): Promise<{ error: string } | { ok: true }> {
+  const denied = await financePermissionError("pix_gerar");
+  if (denied) return { error: denied };
   const amount = parseAmount(input.amount);
   if (!Number.isFinite(amount) || amount <= 0) return { error: "Informe um valor válido para a cobrança." };
   if (amount < 5) return { error: "O Asaas exige cobrança Pix mínima de R$ 5,00." };
@@ -338,20 +389,19 @@ export async function createPixChargeAction(
 
     const { data: billingSettings, error: billingSettingsError } = await client
       .from("billing_provider_settings")
-      .select("environment")
+      .select("environment, enabled, allow_pix")
       .eq("id", 1)
       .single();
     if (billingSettingsError) throw new Error(billingSettingsError.message);
+    if (!billingSettings.enabled || !billingSettings.allow_pix) return { error: "Integração Pix desativada pelo administrador." };
 
-    const webhook = await provisionAsaasWebhookAction(
-      billingSettings.environment as "sandbox" | "production",
-    );
-    if ("error" in webhook) {
-      return {
-        error:
-          "Não foi possível garantir o webhook do Asaas antes de criar a cobrança: " +
-          webhook.error,
-      };
+    // Operadores não podem provisionar webhooks ou configurar credenciais.
+    const { data: isAdmin } = await client.rpc("is_active_admin_or_owner");
+    if (isAdmin === true) {
+      const webhook = await provisionAsaasWebhookAction(
+        billingSettings.environment as "sandbox" | "production",
+      );
+      if ("error" in webhook) return { error: "Não foi possível garantir o webhook do Asaas: " + webhook.error };
     }
 
     await getPaymentChargeService(client).createPixCharge({
@@ -369,6 +419,8 @@ export async function createPixChargeAction(
 }
 
 export async function cancelPixChargeAction(chargeId: string, receivableId: string, reason: string): Promise<ActionResult> {
+  const denied = await financePermissionError("pix_cancelar");
+  if (denied) return { error: denied };
   try {
     const client = createSupabaseServerClient();
     const cancelledByProfileId = await resolveActorId(client);
@@ -391,6 +443,9 @@ export async function confirmPixChargeAction(
   chargeId: string,
   receivableId: string,
 ): Promise<{ error: string } | { ok: true; overpaymentAmount: number }> {
+  if (!isLocalPreviewEnabled()) return { error: "A confirmação manual de Pix não está disponível. Aguarde o webhook autenticado." };
+  const denied = await financePermissionError("recebimentos_baixar");
+  if (denied) return { error: denied };
   try {
     const client = createSupabaseServerClient();
     const receivedByProfileId = await resolveActorId(client);
@@ -413,6 +468,8 @@ export async function sendBillingMessageAction(
   clientId: string,
   message: string,
 ): Promise<{ error: string } | { ok: true; status: "sent" | "simulated" }> {
+  const denied = await financePermissionError("pix_enviar");
+  if (denied) return { error: denied };
   const client = createSupabaseServerClient();
   let toPhone = "";
   let createdByProfileId: string | undefined;
@@ -495,6 +552,8 @@ export async function buildBillingMessagePreviewAction(
       paymentUrl?: string;
     }
 > {
+  const denied = await financePermissionError("pix_enviar");
+  if (denied) return { error: denied };
   try {
     const client = createSupabaseServerClient();
     const receivable = await getReceivableService(client).getById(receivableId);
@@ -544,6 +603,8 @@ export async function buildPaymentConfirmationPreviewAction(
       whatsappHref?: string;
     }
 > {
+  const denied = await financePermissionError("pix_enviar");
+  if (denied) return { error: denied };
   try {
     const client = createSupabaseServerClient();
     const receivable = await getReceivableService(client).getById(receivableId);
@@ -582,6 +643,8 @@ export async function buildPaymentConfirmationPreviewAction(
 export async function sendPaymentConfirmationAction(
   receivableId: string,
 ): Promise<{ error: string } | { ok: true; status: "sent" }> {
+  const denied = await financePermissionError("pix_enviar");
+  if (denied) return { error: denied };
   const client = createSupabaseServerClient();
   let toPhone = "";
   let clientId = "";
@@ -668,6 +731,8 @@ export interface InstallmentPayload extends ReceivableFormPayload {
 export async function generateContractInstallmentsAction(
   payloads: InstallmentPayload[],
 ): Promise<{ results: BatchGenerationItemResult[] }> {
+  const denied = await financePermissionError("titulos_criar");
+  if (denied) return { results: payloads.map((item) => ({ competencyDate: item.competencyDate, ok: false, error: denied })) };
   const client = createSupabaseServerClient();
   const service = getReceivableService(client);
   const results: BatchGenerationItemResult[] = [];
