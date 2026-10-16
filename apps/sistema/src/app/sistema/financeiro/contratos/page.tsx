@@ -37,7 +37,7 @@ export default async function ContratosPage({
         description="Prefeituras, câmaras, autarquias e demais órgãos — um contrato pode gerar vários títulos."
         action={
           <Link className="form-action-primary" href="/sistema/financeiro/contratos/novo">
-            Novo contrato
+            + Novo contrato
           </Link>
         }
       />
