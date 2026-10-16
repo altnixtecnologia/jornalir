@@ -6,6 +6,7 @@ import { ReceivablesList } from "../../../../features/financeiro/ReceivablesList
 import { ReportFiltersToggle } from "../../../../features/financeiro/ReportFiltersToggle";
 import { getContractService } from "../../../../composition/financeiro";
 import { createSupabaseServerClient } from "../../../../lib/supabase/server";
+import { financePermissionError } from "../../../../lib/permissions/serverFinanceGuard";
 import { listReceivablesAdminPageSupabase, sumCreditAppliedForReceivables } from "../../../../providers/supabase/receivableRepository.supabase";
 import { listActiveStaffSupabase } from "../../../../providers/supabase/staffRepository.supabase";
 
@@ -35,6 +36,7 @@ export default async function RelatoriosPage({
   searchParams?: Record<string, string | string[] | undefined>;
 }): Promise<JSX.Element> {
   const supabase = createSupabaseServerClient();
+  const canExport = (await financePermissionError("relatorios_exportar", supabase)) === null;
   const status = one(searchParams?.status);
   const sourceType = one(searchParams?.sourceType);
   const dueFrom = one(searchParams?.dueFrom);
@@ -264,12 +266,14 @@ export default async function RelatoriosPage({
         </div>
         <p className="helper-text">Crédito aplicado nunca é contado como dinheiro novo recebido — é saldo que o próprio cliente já tinha.</p>
         <div className="form-actions" style={{ marginTop: "12px" }}>
-          <Link className="form-action-primary" href={`/sistema/financeiro/relatorios/exportar?${exportQueryString}`}>
-            Exportar planilha (CSV)
-          </Link>
-          <Link className="secondary-link" href={`/sistema/financeiro/relatorios/imprimir?${exportQueryString}`} target="_blank">
-            Exportar PDF (imprimir)
-          </Link>
+          {canExport ? <>
+            <Link className="form-action-primary" href={`/sistema/financeiro/relatorios/exportar?${exportQueryString}`}>
+              Exportar planilha (CSV)
+            </Link>
+            <Link className="secondary-link" href={`/sistema/financeiro/relatorios/imprimir?${exportQueryString}`} target="_blank">
+              Exportar PDF (imprimir)
+            </Link>
+          </> : null}
         </div>
       </section>
 
