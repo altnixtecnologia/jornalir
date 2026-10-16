@@ -28,7 +28,7 @@ export function CompositionPaymentPanel({
   receivableIdsOldestFirst: string[];
   totalDue: number;
   staff: StaffOption[];
-}): JSX.Element {
+}): JSX.Element | null {
   const router = useRouter();
   const { hasAction } = useStaffFinanceActions();
   const [pending, startTransition] = useTransition();
