@@ -28,9 +28,15 @@ export function getDraftService(client: SupabaseClient): DraftService {
   return new DraftService(createDraftRepositorySupabase(client));
 }
 
-/** Certificado digital A1 (Parte 2B) — PFX validado, chave privada criptografada (ver certificate-service.ts/secret-store.ts). */
-export function getCertificateService(client: SupabaseClient): CertificateService {
-  return new CertificateService(createCertificateRepositorySupabase(client));
+/**
+ * Certificado digital A1 (Parte 2B) — PFX validado, chave privada
+ * criptografada (ver certificate-service.ts/secret-store.ts). Nunca
+ * recebe o client de sessão: a tabela `nfse_certificates` só concede
+ * acesso a `service_role` (migration de hardening), e o repositório
+ * cria o client admin internamente (ver nfseCertificateRepository.supabase.ts).
+ */
+export function getCertificateService(): CertificateService {
+  return new CertificateService(createCertificateRepositorySupabase());
 }
 
 /**
@@ -47,6 +53,6 @@ export function getTransmissionService(client: SupabaseClient): TransmissionServ
     createIssuedNoteRepositorySupabase(client),
     createTransmissionAttemptRepositorySupabase(client),
     new FetchNationalNfseProvider(),
-    getCertificateService(client),
+    getCertificateService(),
   );
 }

@@ -52,7 +52,7 @@ export async function uploadCertificateAction(formData: FormData): Promise<Actio
     const issuerConfig = await issuerConfigService.getCurrent();
     if (!issuerConfig) return { error: "Salve a configuração do prestador (CNPJ) antes de enviar o certificado." };
 
-    const certificateService: CertificateService = getCertificateService(client);
+    const certificateService: CertificateService = getCertificateService();
     const pfxBuffer = Buffer.from(await file.arrayBuffer());
     const certificate = await certificateService.validateAndStore({
       issuerConfigId: issuerConfig.id,
@@ -83,6 +83,6 @@ export async function getActiveCertificateAction(): Promise<NfseCertificateInfo 
   const issuerConfigService = getIssuerConfigService(client);
   const issuerConfig = await issuerConfigService.getCurrent();
   if (!issuerConfig) return null;
-  const certificateService = getCertificateService(client);
+  const certificateService = getCertificateService();
   return certificateService.getActiveInfo(issuerConfig.id);
 }

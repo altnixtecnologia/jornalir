@@ -1,4 +1,6 @@
+import "server-only";
 import { createCipheriv, createDecipheriv, randomBytes } from "node:crypto";
+import { NfseIntegrationError } from "./integration-errors";
 
 /**
  * Cofre de material criptográfico sensível (Parte 2B, item "Armazenamento
@@ -18,14 +20,14 @@ const ENV_MASTER_KEY = "NFSE_CERTIFICATE_MASTER_KEY";
 const ALGORITHM = "aes-256-gcm";
 const IV_LENGTH = 12;
 
-export class SecretStoreNotConfiguredError extends Error {
+export class SecretStoreNotConfiguredError extends NfseIntegrationError {
   constructor() {
-    super(`Chave mestra de criptografia não configurada (variável de ambiente ${ENV_MASTER_KEY}) — armazenamento de certificado bloqueado.`);
+    super("CERTIFICATE_DECRYPT_FAILED", `Chave mestra de criptografia não configurada (variável de ambiente ${ENV_MASTER_KEY}) — armazenamento de certificado bloqueado.`);
   }
 }
-export class SecretDecryptionError extends Error {
+export class SecretDecryptionError extends NfseIntegrationError {
   constructor() {
-    super("Falha ao decifrar o segredo — ciphertext adulterado/corrompido ou chave mestra incorreta.");
+    super("CERTIFICATE_DECRYPT_FAILED", "Falha ao decifrar o segredo — ciphertext adulterado/corrompido ou chave mestra incorreta.");
   }
 }
 

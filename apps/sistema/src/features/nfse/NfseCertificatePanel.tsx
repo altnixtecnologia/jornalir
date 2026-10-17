@@ -13,6 +13,11 @@ function daysUntil(iso: string): number {
   return Math.ceil((new Date(iso).getTime() - Date.now()) / (24 * 60 * 60 * 1000));
 }
 
+function partialFingerprint(value: string): string {
+  const compact = value.replace(/:/g, "");
+  return compact.length > 16 ? `${compact.slice(0, 8)}…${compact.slice(-8)}` : compact;
+}
+
 /**
  * Upload do certificado digital A1 (Parte 2B) — layout simples:
  * seletor de arquivo + senha mascarada + "Validar e salvar". Depois
@@ -28,10 +33,10 @@ export function NfseCertificatePanel({ issuerCnpj, encryptionReady }: { issuerCn
   const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
-    getActiveCertificateAction().then((result) => {
-      setCertificate(result);
-      setLoaded(true);
-    });
+    getActiveCertificateAction()
+      .then((result) => setCertificate(result))
+      .catch(() => setError("Não foi possível carregar os metadados do certificado."))
+      .finally(() => setLoaded(true));
   }, []);
 
   function handleSubmit(event: React.FormEvent<HTMLFormElement>): void {
@@ -71,6 +76,10 @@ export function NfseCertificatePanel({ issuerCnpj, encryptionReady }: { issuerCn
           <div className="form-field">
             <span className="field-label">Emissor</span>
             <span>{certificate.issuerName ?? "—"}</span>
+          </div>
+          <div className="form-field">
+            <span className="field-label">Fingerprint SHA-256</span>
+            <span title={certificate.fingerprint}>{partialFingerprint(certificate.fingerprint)}</span>
           </div>
           <div className="form-field">
             <span className="field-label">Status</span>

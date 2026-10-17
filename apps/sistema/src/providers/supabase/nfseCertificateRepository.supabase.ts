@@ -1,6 +1,7 @@
-import type { SupabaseClient } from "@supabase/supabase-js";
+import "server-only";
 import type { CertificateRepository, NewCertificateRecord, StoredCertificateRecord } from "@ir/core/src/nfse/certificate-repository";
 import { isLocalPreviewEnabled } from "../../lib/auth/localPreview";
+import { createSupabaseAdminClient } from "../../lib/supabase/admin";
 
 // Certificado demonstrativo (preview) — dados FICTÍCIOS, nunca um PFX/chave
 // real. encryptedPrivateKey nunca é decifrado neste caminho (CertificateService.getActiveInfo
@@ -14,6 +15,7 @@ const PREVIEW_CERTIFICATE: StoredCertificateRecord = {
   subjectName: "INFORMATIVO REGIONAL LTDA (demonstração)",
   issuerName: "AC Demonstração (preview)",
   serialNumber: "00:PREVIEW:00",
+  fingerprint: "00:PREVIEW:FINGERPRINT:00",
   validFrom: "2026-01-01T00:00:00.000Z",
   validUntil: "2027-01-01T00:00:00.000Z",
   certificatePem: "-----BEGIN CERTIFICATE-----\nPREVIEW-DEMO-ONLY\n-----END CERTIFICATE-----",
@@ -24,7 +26,7 @@ const PREVIEW_CERTIFICATE: StoredCertificateRecord = {
 
 const TABLE = "nfse_certificates";
 const COLUMNS =
-  "id, issuer_config_id, subject_cnpj, subject_name, issuer_name, serial_number, valid_from, valid_until, certificate_pem, " +
+  "id, issuer_config_id, subject_cnpj, subject_name, issuer_name, serial_number, fingerprint, valid_from, valid_until, certificate_pem, " +
   "private_key_ciphertext, private_key_iv, private_key_auth_tag, active, created_by, created_at";
 
 interface CertificateRow {
@@ -34,6 +36,7 @@ interface CertificateRow {
   subject_name: string | null;
   issuer_name: string | null;
   serial_number: string;
+  fingerprint: string;
   valid_from: string;
   valid_until: string;
   certificate_pem: string;
@@ -53,6 +56,7 @@ function toDomain(row: CertificateRow): StoredCertificateRecord {
     subjectName: row.subject_name ?? undefined,
     issuerName: row.issuer_name ?? undefined,
     serialNumber: row.serial_number,
+    fingerprint: row.fingerprint,
     validFrom: row.valid_from,
     validUntil: row.valid_until,
     certificatePem: row.certificate_pem,
@@ -75,17 +79,26 @@ function toDomain(row: CertificateRow): StoredCertificateRecord {
  * (ver migration) garantem nunca dois certificados ativos ao mesmo tempo
  * pro mesmo prestador — "substituir certificado" é sempre
  * deactivateAll + create, nunca update in-place.
+ *
+ * Acesso EXCLUSIVO via `service_role` (migration de hardening
+ * `nfse_initial_integration_security` revoga anon/authenticated da
+ * tabela) — por isso este repositório nunca recebe o client de sessão
+ * do usuário, e cria o client admin só dentro de cada operação real
+ * (nunca no modo preview, que continua funcionando sem
+ * SUPABASE_SERVICE_ROLE_KEY configurada).
  */
-export function createCertificateRepositorySupabase(client: SupabaseClient): CertificateRepository {
+export function createCertificateRepositorySupabase(): CertificateRepository {
   return {
     async getActive(issuerConfigId: string) {
       if (isLocalPreviewEnabled()) return PREVIEW_CERTIFICATE;
+      const client = createSupabaseAdminClient();
       const { data, error } = await client.from(TABLE).select(COLUMNS).eq("issuer_config_id", issuerConfigId).eq("active", true).maybeSingle();
       if (error) throw new Error(error.message);
       return data ? toDomain(data as unknown as CertificateRow) : null;
     },
 
     async create(record: NewCertificateRecord) {
+      const client = createSupabaseAdminClient();
       const { data, error } = await client
         .from(TABLE)
         .insert({
@@ -94,6 +107,7 @@ export function createCertificateRepositorySupabase(client: SupabaseClient): Cer
           subject_name: record.subjectName ?? null,
           issuer_name: record.issuerName ?? null,
           serial_number: record.serialNumber,
+          fingerprint: record.fingerprint,
           valid_from: record.validFrom,
           valid_until: record.validUntil,
           certificate_pem: record.certificatePem,
@@ -110,6 +124,7 @@ export function createCertificateRepositorySupabase(client: SupabaseClient): Cer
     },
 
     async deactivateAll(issuerConfigId: string) {
+      const client = createSupabaseAdminClient();
       const { error } = await client.from(TABLE).update({ active: false }).eq("issuer_config_id", issuerConfigId).eq("active", true);
       if (error) throw new Error(error.message);
     },

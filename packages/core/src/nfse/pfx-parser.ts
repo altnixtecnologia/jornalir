@@ -1,4 +1,7 @@
+import "server-only";
 import forge from "node-forge";
+import { X509Certificate, createPrivateKey, createPublicKey } from "node:crypto";
+import { NfseIntegrationError } from "./integration-errors";
 
 /**
  * Parsing de certificado digital A1 (.pfx/.p12) — Parte 2B, item
@@ -15,24 +18,24 @@ import forge from "node-forge";
  * verificamos uma assinatura de origem não confiável com esta lib).
  */
 
-export class PfxInvalidError extends Error {
+export class PfxInvalidError extends NfseIntegrationError {
   constructor(detail?: string) {
-    super(`Arquivo PFX/P12 inválido ou corrompido.${detail ? ` (${detail})` : ""}`);
+    super("CERTIFICATE_INVALID", `Arquivo PFX/P12 inválido ou corrompido.${detail ? ` (${detail})` : ""}`);
   }
 }
-export class PfxWrongPasswordError extends Error {
+export class PfxWrongPasswordError extends NfseIntegrationError {
   constructor() {
-    super("Senha do certificado incorreta.");
+    super("CERTIFICATE_INVALID", "Senha do certificado incorreta.");
   }
 }
-export class PfxNoPrivateKeyError extends Error {
+export class PfxNoPrivateKeyError extends NfseIntegrationError {
   constructor() {
-    super("O arquivo PFX/P12 não contém uma chave privada.");
+    super("CERTIFICATE_INVALID", "O arquivo PFX/P12 não contém uma chave privada.");
   }
 }
-export class PfxNoCertificateError extends Error {
+export class PfxNoCertificateError extends NfseIntegrationError {
   constructor() {
-    super("O arquivo PFX/P12 não contém um certificado.");
+    super("CERTIFICATE_INVALID", "O arquivo PFX/P12 não contém um certificado compatível com a chave privada.");
   }
 }
 /**
@@ -44,9 +47,10 @@ export class PfxNoCertificateError extends Error {
  * ser lido de forma confiável, falhamos explicitamente em vez de
  * inferir o CNPJ de qualquer outro campo (ex.: CN).
  */
-export class PfxCnpjNotFoundError extends Error {
+export class PfxCnpjNotFoundError extends NfseIntegrationError {
   constructor() {
     super(
+      "CERTIFICATE_INVALID",
       "Não foi possível ler o CNPJ do certificado pela extensão Subject Alternative Name (otherName, OID 2.16.76.1.3.3 — ICP-Brasil/ITI). Esse OID é obrigatório para certificados e-CNPJ; o CN nunca é usado como fonte de CNPJ.",
     );
   }
@@ -63,6 +67,7 @@ export interface ParsedPfx {
   serialNumber: string;
   validFrom: Date;
   validUntil: Date;
+  fingerprint: string;
 }
 
 const ICP_BRASIL_CNPJ_OID = "2.16.76.1.3.3";
@@ -145,22 +150,40 @@ export function parsePfx(pfxBuffer: Buffer, password: string): ParsedPfx {
   const keyBag = keyBags[forge.pki.oids.pkcs8ShroudedKeyBag]?.[0] ?? unshroudedBags[forge.pki.oids.keyBag]?.[0];
   if (!keyBag?.key) throw new PfxNoPrivateKeyError();
 
+  // Um PFX pode conter mais de um certificado (ex.: folha + intermediária
+  // da cadeia ICP-Brasil) — pegar sempre o[0] sem critério podia escolher
+  // um certificado que não corresponde à chave privada parseada. Aqui
+  // comparamos a chave pública de cada certBag com a chave pública
+  // derivada da chave privada já extraída, e só aceitamos o que bater.
+  const privateKeyPem = forge.pki.privateKeyToPem(keyBag.key);
+  const expectedPublicKey = createPublicKey(createPrivateKey(privateKeyPem)).export({ type: "spki", format: "der" });
   const certBags = p12.getBags({ bagType: forge.pki.oids.certBag });
-  const certBag = certBags[forge.pki.oids.certBag]?.[0];
+  const certBag = certBags[forge.pki.oids.certBag]?.find((bag) => {
+    if (!bag.cert) return false;
+    try {
+      const candidate = new X509Certificate(forge.pki.certificateToPem(bag.cert));
+      return Buffer.from(candidate.publicKey.export({ type: "spki", format: "der" })).equals(expectedPublicKey);
+    } catch {
+      return false;
+    }
+  });
   if (!certBag?.cert) throw new PfxNoCertificateError();
 
   const cert = certBag.cert;
+  const certificatePem = forge.pki.certificateToPem(cert);
+  const x509 = new X509Certificate(certificatePem);
   const subjectCnpj = extractCnpjFromSanOtherName(cert);
   if (!subjectCnpj) throw new PfxCnpjNotFoundError();
 
   return {
-    privateKeyPem: forge.pki.privateKeyToPem(keyBag.key),
-    certificatePem: forge.pki.certificateToPem(cert),
+    privateKeyPem,
+    certificatePem,
     subjectCnpj,
     subjectName: commonNameOf(cert.subject.attributes),
     issuerName: commonNameOf(cert.issuer.attributes),
     serialNumber: cert.serialNumber,
     validFrom: cert.validity.notBefore,
     validUntil: cert.validity.notAfter,
+    fingerprint: x509.fingerprint256,
   };
 }

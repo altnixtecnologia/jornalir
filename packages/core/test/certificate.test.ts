@@ -64,6 +64,7 @@ test("parsePfx extrai chave privada/certificado de um PFX válido, lendo o CNPJ 
   assert.ok(parsed.privateKeyPem.includes("BEGIN RSA PRIVATE KEY") || parsed.privateKeyPem.includes("BEGIN PRIVATE KEY"));
   assert.ok(parsed.certificatePem.includes("BEGIN CERTIFICATE"));
   assert.equal(parsed.subjectCnpj, "23970969000190");
+  assert.match(parsed.fingerprint, /^([0-9A-F]{2}:){31}[0-9A-F]{2}$/);
   // CN continua disponível só pra exibição (nunca pra validar CNPJ).
   assert.equal(parsed.subjectName, "INFORMATIVO REGIONAL LTDA");
 });

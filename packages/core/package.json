@@ -5,12 +5,13 @@
   "type": "module",
   "main": "./src/index.ts",
   "scripts": {
-    "test": "tsx --test test/nfse.test.ts test/dps-builder.test.ts test/nfse-transmission.test.ts test/signature.test.ts test/xsd-validator.test.ts test/certificate.test.ts"
+    "test": "tsx --conditions=react-server --test test/nfse.test.ts test/dps-builder.test.ts test/nfse-transmission.test.ts test/signature.test.ts test/xsd-validator.test.ts test/certificate.test.ts"
   },
   "dependencies": {
     "@ir/types": "*",
     "@xmldom/xmldom": "^0.9.12",
     "node-forge": "^1.4.0",
+    "server-only": "^0.0.1",
     "undici": "^8.11.2",
     "xml-crypto": "^6.3.3",
     "xmllint-wasm": "^5.3.0"

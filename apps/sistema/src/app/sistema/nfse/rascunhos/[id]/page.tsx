@@ -36,7 +36,7 @@ export default async function NfseRascunhoDetailPage({ params }: { params: { id:
     createTransmissionAttemptRepositorySupabase(supabase).listByDraftId(draft.id),
   ]);
 
-  const activeCertificate = issuerConfig ? await getCertificateService(supabase).getActiveInfo(issuerConfig.id) : null;
+  const activeCertificate = issuerConfig ? await getCertificateService().getActiveInfo(issuerConfig.id) : null;
   const readiness = checkHomologationReadiness({
     issuerConfig,
     activeCertificate,

@@ -1,3 +1,4 @@
+import "server-only";
 import { Agent } from "undici";
 
 /**
@@ -16,9 +17,13 @@ import { Agent } from "undici";
  */
 export function createMutualTlsDispatcher(certificatePem: string, privateKeyPem: string): Agent {
   return new Agent({
+    headersTimeout: 15_000,
+    bodyTimeout: 15_000,
     connect: {
       cert: certificatePem,
       key: privateKeyPem,
+      rejectUnauthorized: true,
+      timeout: 15_000,
     },
   });
 }

@@ -261,6 +261,8 @@ export interface NfseCertificateInfo {
   subjectName?: string;
   issuerName?: string;
   serialNumber: string;
+  /** SHA-256 do certificado público, seguro para identificação visual. */
+  fingerprint: string;
   validFrom: string;
   validUntil: string;
   active: boolean;

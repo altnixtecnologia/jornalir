@@ -56,7 +56,7 @@ export default async function NfseOverviewPage(): Promise<JSX.Element> {
     getIssuerConfigService(supabase).getCurrent(),
   ]);
 
-  const activeCertificate = issuerConfig ? await getCertificateService(supabase).getActiveInfo(issuerConfig.id) : null;
+  const activeCertificate = issuerConfig ? await getCertificateService().getActiveInfo(issuerConfig.id) : null;
   const readiness = checkHomologationReadiness({
     issuerConfig,
     activeCertificate,

@@ -14,6 +14,7 @@ export interface StoredCertificateRecord {
   subjectName?: string;
   issuerName?: string;
   serialNumber: string;
+  fingerprint: string;
   validFrom: string;
   validUntil: string;
   /** Certificado X.509 é informação PÚBLICA — guardado em claro (PEM), nunca criptografado como a chave privada. */

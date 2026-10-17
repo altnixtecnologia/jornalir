@@ -1,18 +1,25 @@
+import "server-only";
 import type { NfseCertificateInfo } from "@ir/types";
 import { parsePfx, PfxCnpjNotFoundError, PfxInvalidError, PfxNoCertificateError, PfxNoPrivateKeyError, PfxWrongPasswordError } from "./pfx-parser";
 import { decryptSecret, encryptSecret } from "./secret-store";
 import type { CertificateRepository, StoredCertificateRecord } from "./certificate-repository";
+import { NfseIntegrationError } from "./integration-errors";
 
 export { PfxCnpjNotFoundError, PfxInvalidError, PfxNoCertificateError, PfxNoPrivateKeyError, PfxWrongPasswordError };
 
-export class CertificateCnpjMismatchError extends Error {
+export class CertificateCnpjMismatchError extends NfseIntegrationError {
   constructor(expectedCnpj: string, foundCnpj: string) {
-    super(`O certificado pertence ao CNPJ ${foundCnpj}, diferente do CNPJ configurado do prestador (${expectedCnpj}).`);
+    super("CERTIFICATE_CNPJ_MISMATCH", `O certificado pertence ao CNPJ ${foundCnpj}, diferente do CNPJ configurado do prestador (${expectedCnpj}).`);
   }
 }
-export class CertificateExpiredError extends Error {
+export class CertificateExpiredError extends NfseIntegrationError {
   constructor(validUntil: Date) {
-    super(`Certificado vencido em ${validUntil.toISOString().slice(0, 10)} — não é possível configurar um certificado já expirado.`);
+    super("CERTIFICATE_EXPIRED", `Certificado vencido em ${validUntil.toISOString().slice(0, 10)} — não é possível configurar um certificado já expirado.`);
+  }
+}
+export class CertificateNotYetValidError extends NfseIntegrationError {
+  constructor(validFrom: Date) {
+    super("CERTIFICATE_INVALID", `Certificado ainda não válido (início em ${validFrom.toISOString().slice(0, 10)}).`);
   }
 }
 
@@ -23,6 +30,7 @@ function toCertificateInfo(record: StoredCertificateRecord): NfseCertificateInfo
     subjectName: record.subjectName,
     issuerName: record.issuerName,
     serialNumber: record.serialNumber,
+    fingerprint: record.fingerprint,
     validFrom: record.validFrom,
     validUntil: record.validUntil,
     active: record.active,
@@ -58,6 +66,9 @@ export class CertificateService {
     if (parsed.validUntil.getTime() < Date.now()) {
       throw new CertificateExpiredError(parsed.validUntil);
     }
+    if (parsed.validFrom.getTime() > Date.now()) {
+      throw new CertificateNotYetValidError(parsed.validFrom);
+    }
     // parsed.subjectCnpj é SEMPRE o CNPJ do SAN/otherName (pfx-parser.ts
     // já lança PfxCnpjNotFoundError se não conseguir ler — nunca chega
     // aqui sem um CNPJ confiável).
@@ -74,6 +85,7 @@ export class CertificateService {
       subjectName: parsed.subjectName,
       issuerName: parsed.issuerName,
       serialNumber: parsed.serialNumber,
+      fingerprint: parsed.fingerprint,
       validFrom: parsed.validFrom.toISOString(),
       validUntil: parsed.validUntil.toISOString(),
       certificatePem: parsed.certificatePem,
@@ -93,6 +105,8 @@ export class CertificateService {
   async getActiveSigningMaterial(issuerConfigId: string): Promise<{ privateKeyPem: string; certificatePem: string } | null> {
     const record = await this.certificates.getActive(issuerConfigId);
     if (!record) return null;
+    if (new Date(record.validUntil).getTime() < Date.now()) throw new CertificateExpiredError(new Date(record.validUntil));
+    if (new Date(record.validFrom).getTime() > Date.now()) throw new CertificateNotYetValidError(new Date(record.validFrom));
     return { privateKeyPem: decryptSecret(record.encryptedPrivateKey), certificatePem: record.certificatePem };
   }
 }
