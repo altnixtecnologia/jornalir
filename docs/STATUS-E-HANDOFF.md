@@ -473,3 +473,102 @@ Riscos de regressão: baixo — mudanças são aditivas (colunas nullable, novas
 
 Próximo lote: aguardando autorização do usuário.
 ```
+
+## Lote — Sincronização GitHub e publicação manual Vercel (17/10/2026)
+
+Autorização explícita do responsável: "JORNAL IR — SINCRONIZAÇÃO E PUBLICAÇÃO FINAL
+  CONTROLADA" (push no GitHub + publicação manual na Vercel de `jornalir` e
+  `jornalir-sistema`). Pré-requisito (lote anterior) já cumprido: 19 migrations
+  aplicadas de fato no Supabase remoto, com backup completo e validação pós-aplicação
+  (ver lote "APLICAÇÃO REAL autorizada" acima).
+
+### 1. Preservação da versão em produção (antes de publicar)
+
+- Site: deployment anterior `dpl_6rd8TtmXKDYgLv6ZtgWFNx3ensLk` (criado 15/10/2026
+  18:44, URL `jornalir-9m5wscc5b-...vercel.app`), correspondente ao commit `44346e0`
+  informado pelo usuário — confirmado via `vercel inspect` no alias
+  `jornalir.vercel.app` (não presumido pela listagem `vercel ls --prod`) e via
+  `git merge-base --is-ancestor 44346e0 HEAD` (ancestral confirmado).
+- Sistema: deployment anterior `dpl_9gYFJCHY5ZPzoLAoHmx1CxnmQseR` (criado 16/10/2026
+  20:03, URL `jornalir-sistema-btyttuacs-...vercel.app`), correspondente ao commit
+  `64c288a` — mesma verificação (`vercel inspect` no alias `controle.altnix.com.br` +
+  `merge-base --is-ancestor`).
+- Conferência objetiva das áreas protegidas (homepage/header/notícias/editorias,
+  Jornal Online, Assine/Anuncie, Publicidade/posições/rotação, Aniversariantes,
+  Financeiro/PIX/cobranças/recibos, Usuários/permissões/menus, Agenda/notificações,
+  Contratos/assinatura eletrônica) entre os commits de referência e o HEAD atual:
+  só diffs aditivos (migrations, novas colunas/props/actions, novos componentes) —
+  nenhuma remoção ou alteração de comportamento visual/funcional já aprovado
+  encontrada. Nenhuma auditoria geral nova foi refeita.
+
+### 2. Testes antes de publicar
+
+- 153/153 testes automatizados passando, typecheck limpo, build de `apps/site` e de
+  `apps/sistema` concluídos com sucesso.
+- Comparação visual real (não só HTTP 200/build): screenshots via Playwright
+  (instalado temporariamente, desinstalado ao final) em desktop e mobile da
+  homepage do site local (build) vs. então-produção ao vivo — equivalência visual
+  pixel a pixel confirmada; checagem pontual adicional em Jornal Online e Assine.
+  Nenhuma modificação de layout foi feita nesta etapa.
+
+### 3. Sincronização GitHub
+
+- Push único e normal da branch `consolidacao-local-20261016` (sem force, sem
+  merge em main). Commit publicado e confirmado por `git fetch` +
+  `git rev-parse`: `354e7837f54921d7227897a6acef543dfb145e8f`. Nenhum deploy Preview
+  automático disparado (guardas em `apps/site/vercel.json`/`apps/sistema/vercel.json`
+  confirmadas intactas).
+- Bloqueio de autenticação do GitHub (falta do scope `workflow`, por causa de um
+  commit anterior `61c944d` que tocou `.github/workflows/validate-system.yml`)
+  resolvido com `gh auth refresh -h github.com -s workflow`, autorizado
+  explicitamente pelo usuário via fluxo de device code.
+- **Pendência de git, transparente**: depois desse único push autorizado, foi feito
+  mais um commit local (`20d515d`, "chore: amplia exclusao de arquivos .env no
+  gitignore" — o `vercel link` adicionou automaticamente uma linha `.env*` ao
+  `.gitignore`). Esse commit **não foi enviado** ao GitHub nesta sessão (a
+  autorização era para "um único push normal"); o branch local está `ahead 1` de
+  `origin/consolidacao-local-20261016`. Fica para o próximo push autorizado.
+
+### 4. Publicação manual Vercel
+
+- Ordem seguida: `jornalir-sistema` primeiro, depois `jornalir`. Deploy manual via
+  `vercel deploy --prod --yes` a partir da raiz do monorepo (necessário para que o
+  "Root Directory" de cada projeto seja resolvido corretamente — deploy de dentro de
+  `apps/sistema`/`apps/site` falha com "Root Directory ... does not exist").
+  Nenhum Preview criado, nenhum domínio alterado, um único deploy de produção por
+  projeto.
+- **jornalir-sistema**: novo deployment `dpl_8y9izdXcXm5tTf98Ni7b4cuMMQjx`, URL
+  `jornalir-sistema-lycdvcs4t-...vercel.app`, alias de produção
+  `controle.altnix.com.br`. Build e logs verificados sem erro.
+- **jornalir**: novo deployment `dpl_7KQH8kBA8MpW5XnHFQCJe4tghmk2`, URL
+  `jornalir-l9hjns9fv-...vercel.app`, alias de produção `jornalir.vercel.app`.
+  Build e logs verificados sem erro.
+- Nenhuma migration foi executada nesta etapa (as 19 já estavam aplicadas no lote
+  anterior).
+
+### 5. Conferência pós-publicação (parcial — ver limitações abaixo)
+
+- Sistema: `/login` → HTTP 200; `/sistema` → HTTP 307 (confirma proteção de rota).
+  Screenshot da tela de login confirma renderização/branding corretos.
+- Site: `/`, `/jornal-online`, `/assine`, `/noticias` → HTTP 200. Screenshots
+  desktop/mobile da homepage pós-deploy equivalentes à comparação pré-deploy.
+- **Limitação explícita, não maquiada**: não há sessão autenticada disponível nesta
+  sessão. Por isso NÃO foi possível exercer funcionalmente (além do nível
+  HTTP/redirect) as áreas protegidas do sistema — menus/permissões, Aniversariantes,
+  Clientes, Publicidade (painel), Contratos/modelos, Financeiro, Agenda,
+  Notificações. O mesmo vale para navegação completa/banners em rotação e ausência
+  de erros de console no portal público além dos pontos já verificados por
+  screenshot. **Não afirmamos teste de ponta a ponta** — isso depende de teste
+  autenticado pelo responsável.
+- Nenhuma operação financeira/fiscal real (NFS-e, cobrança, WhatsApp/e-mail) foi
+  executada ou simulada.
+
+### 6. Resultado
+
+- Nenhuma regressão encontrada nas verificações possíveis sem sessão autenticada.
+- Nenhum rollback necessário.
+- Pendência aberta: teste funcional autenticado das áreas protegidas do sistema, a
+  cargo do responsável.
+
+Próximo lote: aguardando autorização do usuário. Nenhum novo módulo foi iniciado
+  nesta etapa, conforme instruído.
