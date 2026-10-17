@@ -7,8 +7,8 @@
 - Repositório `altnixtecnologia/jornalir`, monorepo (`apps/site`, `apps/sistema`, `packages`, `supabase`).
 - Pasta **oficial**: `C:\Users\caber\OneDrive\Altnix\Projetos\Informativo Regional\Site-sistema`.
 - Branch local oficial: `consolidacao-local-20261016`.
-- Último HEAD **confirmado em 17/10/2026 (verificação direta, não só relato)**: `71448d1` (Aniversariantes/Usuários-Menus/Publicidade — ver lote abaixo).
-- Sequência completa de commits locais confirmados: `ba3955f` (cliente/contratos) → `f8a3783` (certificado NFS-e) → `36e3276` (parametrização municipal) → `1c32734` (404/loading público) → `c4c02d5` (lote 2) → `61c944d` (lote 3) → `31798c8` (instalação da memória permanente de governança) → `7ee1ee2` (vercel.json) → `d89f6ed` (método ~3 tópicos + confirmação Vercel) → `71448d1` (Aniversariantes/Usuários-Menus/Publicidade).
+- Último HEAD **confirmado em 17/10/2026 (verificação direta, não só relato)**: `4ebd0d8` (implementação efetiva Aniversariantes/Publicidade/Migrations — ver lote abaixo).
+- Sequência completa de commits locais confirmados: `ba3955f` (cliente/contratos) → `f8a3783` (certificado NFS-e) → `36e3276` (parametrização municipal) → `1c32734` (404/loading público) → `c4c02d5` (lote 2) → `61c944d` (lote 3) → `31798c8` (instalação da memória permanente de governança) → `7ee1ee2` (vercel.json) → `d89f6ed` (método ~3 tópicos + confirmação Vercel) → `71448d1` (Aniversariantes/Usuários-Menus/Publicidade, auditoria) → `d7781f0` (correção doc) → `3301471` (fix ordem de migrations) → `734fecf` (Publicidade per-imagem) → `4ebd0d8` (Aniversariantes: fundação/foto/edição manual).
 - **Confirmado por `git fetch origin` (17/10/2026, leitura apenas — sem pull/merge/rebase):** `consolidacao-local-20261016` está **7 commits à frente de `origin/consolidacao-local-20261016`, em fast-forward limpo, sem divergência** (o remoto é ancestral direto do local). `origin/release/contratos-nfse-integracao-20261016` e `origin/frontend-integracao-20261008` (branch padrão do repo) já estão totalmente contidos no local. **Ainda não sincronizado com o GitHub** — ver seção "Sincronização com GitHub" abaixo antes de fazer push.
 - Pastas preservadas **somente referência**: `Site-sistema-ANTIGO-BACKUP`, `Site-sistema-painel`, `jornalir-consolidacao-local`.
 - Remoto no GitHub **não tem** os commits locais listados acima (confirmado, não presumido). Não usar `git pull` ou checkout remoto sem inspecionar diferenças.
@@ -150,6 +150,117 @@ Decisões novas APROVADAS pelo usuário: nenhuma — dois conflitos documentais
 
 Riscos de regressão: nenhum identificado nas mudanças feitas (só correção de
   comentário/rótulo/link, sem alteração de schema/comportamento/permissão).
+
+Próximo lote: aguardando autorização do usuário.
+```
+
+## Lote — Implementação efetiva: Aniversariantes, Publicidade, Migrations (17/10/2026)
+
+```
+Data: 17/10/2026
+Branch/HEAD: consolidacao-local-20261016 / 4ebd0d8
+Objetivo autorizado: o usuário corrigiu explicitamente que o lote anterior (71448d1,
+  acima) era só uma auditoria — pediu execução EFETIVA dos 3 tópicos pendentes:
+  1) Aniversariantes: destaque com foto, edição manual de mensagens, data de fundação
+     para instituições, preservando o layout aprovado; 2) Publicidade: configurações
+     individuais por imagem (duração, proporção, efeito, ordem) com persistência e
+     transições reais; 3) Migrations: corrigir dependências fora de ordem e preparar
+     as migrations necessárias, sem alterar migrations já aplicadas nem tocar o banco
+     remoto. Commits locais apenas — sem push/deploy/alteração no Supabase remoto.
+
+FEITO (com arquivos e evidência):
+- Migrations (commit 3301471): renomeadas via `git mv` (histórico preservado,
+  conteúdo idêntico + comentário explicando a troca) — site_ad_slots/site_ad_media
+  (CREATE TABLE) de 20261029100200 para 20261014000000_site_ad_slots.sql (antes dos
+  5 arquivos 20261014*/20261015* que fazem ALTER nessas tabelas); site_interest_
+  conversion_links.sql de 20261013043920 para 20261029100050 e site_interest_
+  attendance_and_route.sql de 20261014020555 para 20261029100060 (ambas depois de
+  20261029100000_commercial_proposals.sql, que criam a tabela que referenciam).
+  Nenhuma das três havia sido aplicada a banco real.
+- Publicidade (commit 734fecf): nova migration 20261029101300_site_ad_media_per_
+  image_settings.sql adiciona rotation_interval_ms/transition_effect/fit_mode
+  NULLABLE em site_ad_media (null = usa o valor da posição); public_site_ad_media
+  resolve o fallback via COALESCE na própria view. packages/types + packages/core
+  (SiteAdMediaChanges aceita null explícito para "voltar ao padrão da posição";
+  SiteAdSlotService valida os 3 campos quando informados). siteAdRepository.
+  supabase.ts lê/grava as 3 colunas. SiteAdSlotsPanel.tsx ganha um bloco
+  "Configuração própria desta imagem" por miniatura (checkbox + segundos + efeito +
+  formato). No site público: adSlots.ts/AdSlotUnit.tsx passam a ler duração/efeito/
+  formato de CADA imagem (current.rotateMs/transitionEffect/fitMode), agendando a
+  próxima troca com setTimeout dinâmico por imagem em vez de um setInterval fixo
+  por posição — transição real por imagem, não só armazenada. Corrigido também um
+  bug pré-existente em siteAdsService.ts que ignorava o valor por-linha da view e
+  sempre usava o da primeira mídia do slot. "Ordem" (sort_order) já era por imagem,
+  confirmado sem necessidade de mudança.
+- Aniversariantes (commit 4ebd0d8):
+  - Data de fundação: nova migration 20261029101100_clients_founding_date.sql
+    (founding_date em clients, só kind=company, constraint
+    clients_founding_date_only_company, nunca confundida com birth_date; save_client
+    redefinida para escrever a coluna nova). Editável na aba Identificação do
+    Cadastro PJ (ClientForm.tsx) e exibida/gerenciada em Aniversariantes como
+    BirthdayGroup.foundingEntry — conceito SEPARADO de principal, que continua
+    exclusivo de pessoa física ("PJ nunca tem titular aniversariante" preservado).
+    setBirthdayPublication/prepareBirthdayEditionMessage (source "cliente")
+    generalizados via resolveMasterAnniversary() para resolver nascimento (PF) OU
+    fundação (PJ) pelo mesmo fluxo de vínculo editorial.
+  - Foto de destaque: nova migration 20261029101200_birthday_photo_and_manual_
+    message.sql adiciona photo_media_asset_id em birthday_entries (reaproveita
+    media_assets/R2, nenhum storage novo). Novas actions setBirthdayEntryPhoto/
+    removeBirthdayEntryPhoto; EntryRow (BirthdaysList.tsx) ganha upload/remoção de
+    foto, funcionando para qualquer origem (cadastro/familiar/manual) sem nunca
+    alterar o cadastro mestre.
+  - Edição manual de mensagem: mesma migration adiciona message_override/
+    manually_edited em birthday_edition_messages. Nova action
+    saveManualBirthdayMessage (exige mensagem automática já preparada na edição
+    atual antes de permitir edição manual — nunca cria uma mensagem do nada).
+    "Trocar mensagem" (gerador automático) sempre limpa manually_edited/
+    message_override — as duas operações nunca se combinam na mesma linha.
+    EntryRow ganha textarea de edição manual + badge "(editada manualmente)".
+
+VALIDADO LOCALMENTE (testes e UX):
+- typecheck limpo em @ir/types, @ir/core (via npm test), @ir/sistema e @ir/site
+  após cada etapa (Publicidade primeiro, depois Aniversariantes) — nenhum erro
+  restante nos dois apps.
+- build de produção OK em @ir/sistema e @ir/site (next build completo, sem erros).
+- Suíte completa do monorepo: 153 testes (@ir/core 101 incl. 6 novos de
+  site-ad-media-overrides.test.ts + @ir/pdf-extraction 23 + @ir/types 29), 0
+  falhas. Novo teste cobre validação de overrides por imagem (duração 2-120s,
+  efeito/formato válidos, null explícito aceito, undefined nunca dispara erro).
+- Sem sessão autenticada disponível nesta sessão — telas não conferidas
+  visualmente logadas (mesma limitação já registrada em lotes anteriores).
+
+VALIDADO EM SERVIÇO REAL (somente se autorizado): nenhum — nenhuma migration foi
+  aplicada a banco real, nenhum push/deploy realizado, conforme instrução explícita.
+
+NÃO VALIDADO / FALTA:
+- Conferência visual autenticada (desktop/mobile) dos três módulos com os novos
+  controles (foto, edição manual, configuração por imagem, campo de fundação).
+- Efeito de transição por imagem continua limitado às mesmas 6 opções já
+  liberadas por posição (SiteAdSlotTransitionEffect) — ampliar para as 10 opções
+  completas do enum (SiteAdTransitionEffect) não foi pedido e não foi feito.
+- FK estrutural venda→banner (P04) continua pendente — fora do escopo deste lote.
+- As 3 novas migrations (clients_founding_date, birthday_photo_and_manual_message,
+  site_ad_media_per_image_settings) estão preparadas e commitadas, mas NÃO
+  aplicadas a nenhum banco — aplicar exige autorização explícita futura.
+
+Migrations pendentes: as 3 novas deste lote (ver acima) seguem a mesma regra de
+  trabalho das demais pendentes do projeto — nunca aplicadas sem autorização
+  explícita e sem acesso ao Supabase remoto nesta sessão.
+
+Decisões novas APROVADAS pelo usuário: reversão explícita da "decisão final do
+  módulo" que havia removido destaque com foto e edição manual de mensagem em
+  Aniversariantes (contradição A03 registrada no lote anterior, agora resolvida a
+  favor de implementar as duas funcionalidades); autorização para tocar as
+  migrations pendentes (instrução anterior "não mexa nas migrations pendentes"
+  foi explicitamente substituída por esta).
+
+Riscos de regressão: baixo — mudanças são aditivas (colunas nullable, novas
+  actions, novos props de UI com defaults que preservam o comportamento anterior
+  quando não configurados). Ponto de atenção: AdSlotUnit.tsx mudou de um
+  setInterval fixo por posição para setTimeout recursivo por imagem — comportamento
+  equivalente quando nenhuma imagem tem override individual (usa sempre o valor da
+  posição), mas vale conferir visualmente a rotação de um slot com várias imagens
+  após o próximo deploy de preview.
 
 Próximo lote: aguardando autorização do usuário.
 ```
