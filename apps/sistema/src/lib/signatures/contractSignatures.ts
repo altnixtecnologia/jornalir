@@ -14,6 +14,9 @@ export type SignatureInvitation = {
   signed_at: string | null;
   receipt_document_id: string | null;
   signed_document_id: string | null;
+  notification_channel?: "manual" | "whatsapp";
+  notification_status?: "not_sent" | "accepted_by_meta" | "failed";
+  notification_message_id?: string | null;
   created_at: string;
 };
 
