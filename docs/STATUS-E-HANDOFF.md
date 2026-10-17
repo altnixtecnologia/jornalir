@@ -7,8 +7,8 @@
 - Repositório `altnixtecnologia/jornalir`, monorepo (`apps/site`, `apps/sistema`, `packages`, `supabase`).
 - Pasta **oficial**: `C:\Users\caber\OneDrive\Altnix\Projetos\Informativo Regional\Site-sistema`.
 - Branch local oficial: `consolidacao-local-20261016`.
-- Último HEAD **confirmado em 17/10/2026 (verificação direta, não só relato)**: `7ee1ee2` (preparação de `vercel.json` para desativar deploy automático).
-- Sequência completa de commits locais confirmados: `ba3955f` (cliente/contratos) → `f8a3783` (certificado NFS-e) → `36e3276` (parametrização municipal) → `1c32734` (404/loading público) → `c4c02d5` (lote 2) → `61c944d` (lote 3) → `31798c8` (instalação da memória permanente de governança) → `7ee1ee2` (vercel.json).
+- Último HEAD **confirmado em 17/10/2026 (verificação direta, não só relato)**: `71448d1` (Aniversariantes/Usuários-Menus/Publicidade — ver lote abaixo).
+- Sequência completa de commits locais confirmados: `ba3955f` (cliente/contratos) → `f8a3783` (certificado NFS-e) → `36e3276` (parametrização municipal) → `1c32734` (404/loading público) → `c4c02d5` (lote 2) → `61c944d` (lote 3) → `31798c8` (instalação da memória permanente de governança) → `7ee1ee2` (vercel.json) → `d89f6ed` (método ~3 tópicos + confirmação Vercel) → `71448d1` (Aniversariantes/Usuários-Menus/Publicidade).
 - **Confirmado por `git fetch origin` (17/10/2026, leitura apenas — sem pull/merge/rebase):** `consolidacao-local-20261016` está **7 commits à frente de `origin/consolidacao-local-20261016`, em fast-forward limpo, sem divergência** (o remoto é ancestral direto do local). `origin/release/contratos-nfse-integracao-20261016` e `origin/frontend-integracao-20261008` (branch padrão do repo) já estão totalmente contidos no local. **Ainda não sincronizado com o GitHub** — ver seção "Sincronização com GitHub" abaixo antes de fazer push.
 - Pastas preservadas **somente referência**: `Site-sistema-ANTIGO-BACKUP`, `Site-sistema-painel`, `jornalir-consolidacao-local`.
 - Remoto no GitHub **não tem** os commits locais listados acima (confirmado, não presumido). Não usar `git pull` ou checkout remoto sem inspecionar diferenças.
@@ -88,7 +88,7 @@ Próximo lote:
 
 ```
 Data: 17/10/2026
-Branch/HEAD: consolidacao-local-20261016 / (ver commit ao final desta seção)
+Branch/HEAD: consolidacao-local-20261016 / 71448d1
 Objetivo autorizado: conferir e recuperar layout/comportamentos aprovados em 3 tópicos
   (Aniversariantes, Usuários e Menus, Publicidade), corrigindo o que estiver incompleto.
 
