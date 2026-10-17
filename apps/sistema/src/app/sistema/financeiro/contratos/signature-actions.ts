@@ -12,6 +12,9 @@ import {
 } from "../../../../lib/signatures/contractSignatures";
 import { buildSignatureReceiptPdf } from "../../../../lib/signatures/signatureReceiptPdf";
 import { buildSignedContractPdf } from "../../../../lib/signatures/signedContractPdf";
+import {
+  isWhatsappSignatureTemplateConfigured, sendWhatsappSignatureInviteTemplate,
+} from "../../../../lib/financeiro/whatsappCloudProvider";
 
 type Result<T = never> = { error: string } | { ok: true } & T;
 const PDF_BUCKET = "contract-documents";
@@ -50,7 +53,8 @@ export async function listSignatureInvitationsAction(contractId: string): Promis
 export async function createSignatureInvitationAction(input: {
   contractId: string; documentId: string; signerName: string;
   signerEmail: string; signerPhone?: string;
-}): Promise<Result<{ invitationId: string; urlPath: string }>> {
+  sendWhatsapp?: boolean; operatorConfirmedOptIn?: boolean;
+}): Promise<Result<{ invitationId: string; urlPath: string; deliveryError?: string }>> {
   try {
     const actorId = await requireFinanceAccess();
     const signerName = input.signerName.trim().replace(/\s+/g, " ").slice(0, 180);
@@ -60,6 +64,12 @@ export async function createSignatureInvitationAction(input: {
     if (!EMAIL_RE.test(signerEmail)) return { error: "Informe um e-mail válido." };
     if (signerPhone && (signerPhone.length < 10 || signerPhone.length > 13)) {
       return { error: "Informe um WhatsApp com DDD válido ou deixe em branco." };
+    }
+    if (input.sendWhatsapp && (!signerPhone || !input.operatorConfirmedOptIn)) {
+      return { error: "Informe o número e confirme que o destinatário autorizou contato por WhatsApp." };
+    }
+    if (input.sendWhatsapp && !isWhatsappSignatureTemplateConfigured()) {
+      return { error: "Template de convite de assinatura ainda não configurado/aprovado na Meta." };
     }
     const admin = createSupabaseAdminClient();
     const { data: document, error: docError } = await admin.from("contract_documents")
@@ -78,11 +88,39 @@ export async function createSignatureInvitationAction(input: {
         token_sha256: hashInvitationToken(token),
         created_by: actorId,
         expires_at: expiresAt,
+        notification_channel: input.sendWhatsapp ? "whatsapp" : "manual",
       }).select("id").single();
     if (error || !data) throw new Error("Não foi possível criar o convite: " + (error?.message ?? ""));
+    const urlPath = "/assinar-contrato/" + token;
+    let deliveryError: string | undefined;
+    if (input.sendWhatsapp && signerPhone) {
+      try {
+        const { data: contractRow, error: contractError } = await admin
+          .from("institutional_contracts")
+          .select("contract_number").eq("id", input.contractId).single();
+        if (contractError || !contractRow) throw new Error("Número do contrato indisponível.");
+        const sent = await sendWhatsappSignatureInviteTemplate({
+          toPhone: signerPhone,
+          signerName,
+          contractNumber: String(contractRow.contract_number || "Informativo Regional"),
+          invitationLink: "https://controle.altnix.com.br" + urlPath,
+        });
+        await admin.from("contract_signature_invitations").update({
+          notification_status: "accepted_by_meta",
+          notification_message_id: sent.providerMessageId ?? null,
+          notification_attempted_at: new Date().toISOString(),
+        }).eq("id", data.id);
+      } catch (error) {
+        deliveryError = error instanceof Error ? error.message : "Falha na API Meta.";
+        await admin.from("contract_signature_invitations").update({
+          notification_status: "failed", notification_error: deliveryError.slice(0, 600),
+          notification_attempted_at: new Date().toISOString(),
+        }).eq("id", data.id);
+      }
+    }
     revalidatePath("/sistema/financeiro/contratos/" + input.contractId);
-    // Token só é retornado UMA VEZ ao navegador do operador que criou.
-    return { ok: true, invitationId: data.id, urlPath: "/assinar-contrato/" + token };
+    // O convite permanece utilizável se a Meta falhar; operador recebe o link.
+    return { ok: true, invitationId: data.id, urlPath, deliveryError };
   } catch (error) {
     return { error: error instanceof Error ? error.message : "Não foi possível gerar o convite." };
   }
