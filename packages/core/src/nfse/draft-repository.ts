@@ -19,4 +19,8 @@ export interface DraftRepository {
   findByOrigin(originSystem: string, originType: string, originRecordId: string): Promise<NfseDraft | null>;
   create(record: NewDraftRecord): Promise<NfseDraft>;
   update(id: string, changes: DraftChanges): Promise<NfseDraft>;
+  /** Mutex curto contra transmissão concorrente do MESMO rascunho (Item 5, Lote 2, Tarefa 4) — lança erro claro se já houver uma transmissão em andamento (ver migration 20261029100800). */
+  claimForTransmission(id: string): Promise<void>;
+  /** Libera o mutex — sempre chamado depois de registrar a tentativa, com sucesso ou erro. */
+  releaseTransmissionClaim(id: string): Promise<void>;
 }

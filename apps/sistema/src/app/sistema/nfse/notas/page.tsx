@@ -56,6 +56,7 @@ export default async function NfseNotasPage(): Promise<JSX.Element> {
                 <th>Status</th>
                 <th>Chave de acesso</th>
                 <th>Referência</th>
+                <th>Cancelamento</th>
               </tr>
             </thead>
             <tbody>
@@ -75,6 +76,11 @@ export default async function NfseNotasPage(): Promise<JSX.Element> {
                     <td>
                       <Link className="materia-title-link" href={`/sistema/nfse/rascunhos/${note.draftId}`}>
                         {draft?.reference ?? note.draftId}
+                      </Link>
+                    </td>
+                    <td>
+                      <Link className="materia-title-link" href={`/sistema/nfse/notas/${note.id}`}>
+                        Ver/solicitar
                       </Link>
                     </td>
                   </tr>

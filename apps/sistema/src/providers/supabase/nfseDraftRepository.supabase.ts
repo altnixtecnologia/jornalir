@@ -327,5 +327,16 @@ export function createDraftRepositorySupabase(client: SupabaseClient): DraftRepo
       if (error) throw new Error(error.message);
       return toDomain(data as unknown as DraftRow);
     },
+
+    async claimForTransmission(id) {
+      if (isLocalPreviewEnabled()) return;
+      const { error } = await client.rpc("claim_draft_transmission", { p_draft_id: id });
+      if (error) throw new Error(error.message);
+    },
+
+    async releaseTransmissionClaim(id) {
+      if (isLocalPreviewEnabled()) return;
+      await client.rpc("release_draft_transmission", { p_draft_id: id });
+    },
   };
 }

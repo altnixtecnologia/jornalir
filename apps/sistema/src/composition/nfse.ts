@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { DraftService, FetchNationalNfseProvider, IssuerConfigService, ServiceProfileService } from "@ir/core";
+import { CancellationService, DraftService, FetchNationalNfseProvider, IssuerConfigService, ServiceProfileService } from "@ir/core";
 // Importados por caminho direto (nunca pelo barrel de @ir/core) — ver
 // comentário em packages/core/src/nfse/index.ts: usam dependências
 // Node-only (node:crypto, node-forge, xml-crypto, xmllint-wasm) e
@@ -13,6 +13,7 @@ import { createDpsSequenceRepositorySupabase } from "../providers/supabase/nfseD
 import { createIssuedNoteRepositorySupabase } from "../providers/supabase/nfseIssuedNoteRepository.supabase";
 import { createTransmissionAttemptRepositorySupabase } from "../providers/supabase/nfseTransmissionAttemptRepository.supabase";
 import { createCertificateRepositorySupabase } from "../providers/supabase/nfseCertificateRepository.supabase";
+import { createCancellationRequestRepositorySupabase } from "../providers/supabase/nfseCancellationRequestRepository.supabase";
 
 // Ponto de composição do módulo NFS-e — fábrica, nunca singleton de
 // módulo (mesmo princípio de composition/financeiro.ts e composition/clientes.ts).
@@ -54,5 +55,17 @@ export function getTransmissionService(client: SupabaseClient): TransmissionServ
     createTransmissionAttemptRepositorySupabase(client),
     new FetchNationalNfseProvider(),
     getCertificateService(),
+  );
+}
+
+/**
+ * Preparação do cancelamento (Item 5, Lote 2, Tarefa 5) — registra
+ * motivo/justificativa localmente; NUNCA envia o cancelamento real
+ * (ver CancellationSubmissionNotReadyError em cancellation-service.ts).
+ */
+export function getCancellationService(client: SupabaseClient): CancellationService {
+  return new CancellationService(
+    createIssuedNoteRepositorySupabase(client),
+    createCancellationRequestRepositorySupabase(client),
   );
 }

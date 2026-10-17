@@ -7,6 +7,8 @@ export * from "./draft-service";
 export * from "./dps-sequence-repository";
 export * from "./issued-note-repository";
 export * from "./transmission-attempt-repository";
+export * from "./cancellation-repository";
+export * from "./cancellation-service";
 export * from "./dps-builder";
 export * from "./national-nfse-provider";
 export * from "./readiness";

@@ -19,6 +19,7 @@ import {
   CertificateNotConfiguredError,
   TransmissionService,
   TransmissionValidationError,
+  UnresolvedUncertainAttemptError,
   type CertificateMaterialProvider,
 } from "../src/nfse/transmission-service";
 
@@ -76,6 +77,11 @@ class FakeDraftRepository implements DraftRepository {
   async update(): Promise<NfseDraft> {
     throw new Error("not used in these tests");
   }
+  async findByOrigin(): Promise<NfseDraft | null> {
+    return null;
+  }
+  async claimForTransmission(): Promise<void> {}
+  async releaseTransmissionClaim(): Promise<void> {}
 }
 
 class FakeIssuerConfigRepository implements IssuerConfigRepository {
@@ -257,6 +263,39 @@ test("proteção contra emissão duplicada — rascunho que já tem issued note 
   const { service } = makeService({ providerBehavior: "authorize" });
   await service.transmit({ draftId: "draft-1", isAdminOrOwner: true });
   await assert.rejects(() => service.transmit({ draftId: "draft-1", isAdminOrOwner: true }), AlreadyIssuedError);
+});
+
+test("tentativa anterior 'uncertain' bloqueia nova transmissão sem antes consultar o resultado real", async () => {
+  const { service, attempts } = makeService({ providerBehavior: "authorize" });
+  attempts.created.push({
+    draftId: "draft-1", dpsSeries: "1", dpsNumber: 1, environment: "homologation",
+    status: "uncertain", requestReference: "req-1", responseSummary: "timeout",
+  });
+  // listByDraftId é mockado pra devolver [] por padrão (ver FakeTransmissionAttemptRepository) —
+  // injeta diretamente o retorno pra este teste específico, sem reescrever o fake compartilhado.
+  (attempts as unknown as { listByDraftId: () => Promise<NfseTransmissionAttempt[]> }).listByDraftId =
+    async () => [{ id: "attempt-1", createdAt: "2026-10-01T10:00:00Z", ...attempts.created[0] }];
+  await assert.rejects(() => service.transmit({ draftId: "draft-1", isAdminOrOwner: true }), UnresolvedUncertainAttemptError);
+});
+
+test("proteção contra chamadas simultâneas — segunda transmissão do mesmo rascunho é rejeitada enquanto a primeira está em andamento", async () => {
+  const drafts = new FakeDraftRepository(makeDraft());
+  let claims = 0;
+  drafts.claimForTransmission = async () => {
+    claims += 1;
+    if (claims > 1) throw new Error("Este rascunho já está sendo transmitido agora");
+  };
+  const issuerConfigs = new FakeIssuerConfigRepository(makeIssuerConfig());
+  const dpsSequences = new FakeDpsSequenceRepository();
+  const issuedNotes = new FakeIssuedNoteRepository();
+  const attempts = new FakeTransmissionAttemptRepository();
+  const provider = new FakeNationalNfseProvider("authorize");
+  const certificate = makeConfiguredCertificateProvider();
+  const service = new TransmissionService(drafts, issuerConfigs, dpsSequences, issuedNotes, attempts, provider, certificate);
+  // Não aguarda a primeira terminar de propósito — simula duas chamadas concorrentes reais.
+  const first = service.transmit({ draftId: "draft-1", isAdminOrOwner: true });
+  await assert.rejects(() => service.transmit({ draftId: "draft-1", isAdminOrOwner: true }), /já está sendo transmitido/);
+  await first;
 });
 
 test("certificado ausente bloqueia a transmissão antes de reservar DPS/montar XML", async () => {

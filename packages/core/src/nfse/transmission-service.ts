@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { buildDpsId, isTransmissionEnvironmentAllowed, isValidDpsSeriesFormat, type NfseCertificateInfo, type NfseIssuedNote, type NfseTransmissionAttempt } from "@ir/types";
+import { buildDpsId, isTransmissionEnvironmentAllowed, isValidDpsSeriesFormat, type NfseCertificateInfo, type NfseDraft, type NfseIssuedNote, type NfseTransmissionAttempt } from "@ir/types";
 import { buildDpsXml, parseAuthorizationResponse, parseRejectionResponse, validateDpsXmlStructure } from "./dps-builder";
 import { signDpsXml } from "./signature";
 import { validateDpsAgainstOfficialXsd } from "./xsd-validator";
@@ -35,6 +35,15 @@ export class TransmissionEnvironmentBlockedError extends Error {}
 export class AlreadyIssuedError extends Error {
   constructor(draftId: string) {
     super(`Este rascunho já tem uma NFS-e emitida (draft ${draftId}) — nunca duas autorizadas a partir do mesmo rascunho.`);
+  }
+}
+/** Item 5, Lote 2, Tarefa 4 — nunca permite retransmitir sem antes consultar o resultado real da tentativa anterior. */
+export class UnresolvedUncertainAttemptError extends Error {
+  constructor(draftId: string) {
+    super(
+      `O rascunho ${draftId} tem uma tentativa de transmissão anterior com resultado DESCONHECIDO (falha de rede/timeout após o envio). ` +
+        `Consulte a DPS/NFS-e pela identificação antes de transmitir de novo — nunca gere uma nova DPS sem confirmar se a anterior já foi autorizada.`,
+    );
   }
 }
 
@@ -91,6 +100,31 @@ export class TransmissionService {
     const existingIssued = await this.issuedNotes.getByDraftId(draft.id);
     if (existingIssued) throw new AlreadyIssuedError(draft.id);
 
+    // Nunca retransmite sem antes consultar o resultado real de uma
+    // tentativa anterior "uncertain" (falha de rede/timeout após o
+    // envio — pode ter sido autorizada do outro lado sem a aplicação
+    // saber). A tentativa mais recente é sempre a primeira de
+    // listByDraftId (ordenado por created_at desc).
+    const previousAttempts = await this.attempts.listByDraftId(draft.id);
+    if (previousAttempts[0]?.status === "uncertain") {
+      throw new UnresolvedUncertainAttemptError(draft.id);
+    }
+
+    // Mutex curto contra duas transmissões concorrentes do MESMO
+    // rascunho (ex.: duplo clique, duas abas) — sem isso, as duas
+    // poderiam reservar números de DPS distintos e ser autorizadas
+    // nacionalmente ANTES de a constraint local (draft_id único em
+    // nfse_issued_notes) rejeitar a segunda inserção. Liberado no
+    // finally mais abaixo, sempre, com sucesso ou erro.
+    await this.drafts.claimForTransmission(draft.id);
+    try {
+      return await this.transmitClaimed(draft);
+    } finally {
+      await this.drafts.releaseTransmissionClaim(draft.id);
+    }
+  }
+
+  private async transmitClaimed(draft: NfseDraft): Promise<TransmitDraftResult> {
     // 4) carregar configuração fiscal
     const issuerConfig = await this.issuerConfigs.getCurrent();
 

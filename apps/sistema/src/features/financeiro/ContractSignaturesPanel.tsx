@@ -3,16 +3,25 @@
 import { useMemo, useState, useTransition } from "react";
 import type { ContractDocument } from "@ir/types";
 import {
-  createSignatureInvitationAction, revokeSignatureInvitationAction,
-  type PublicSignatureInvite,
+  createSignatureInvitationAction, createSignatureRequestAction, revokeSignatureInvitationAction,
+  type PublicSignatureInvite, type SignatureRequest,
 } from "../../app/sistema/financeiro/contratos/signature-actions";
 
+type DraftSigner = { name: string; email: string; phone: string };
+
+function requestStatusLabel(status: SignatureRequest["status"]): string {
+  if (status === "completed") return "Concluída — todos assinaram";
+  if (status === "cancelled") return "Cancelada";
+  return "Em andamento";
+}
+
 export function ContractSignaturesPanel({
-  contractId, documents, invitations, whatsappEnabled = false,
+  contractId, documents, invitations, requests = [], whatsappEnabled = false,
 }: {
   contractId: string;
   documents: ContractDocument[];
   invitations: PublicSignatureInvite[];
+  requests?: SignatureRequest[];
   whatsappEnabled?: boolean;
 }): JSX.Element {
   const eligible = useMemo(
@@ -34,6 +43,71 @@ export function ContractSignaturesPanel({
   const [whatsappOptIn, setWhatsappOptIn] = useState(false);
   const [createdInvitePhone, setCreatedInvitePhone] = useState("");
   const [createdInviteEmail, setCreatedInviteEmail] = useState("");
+  const [multiMode, setMultiMode] = useState(false);
+  const [draftSigners, setDraftSigners] = useState<DraftSigner[]>([]);
+  const [localRequests, setLocalRequests] = useState(requests);
+  const [resendOf, setResendOf] = useState("");
+  const [requestLinks, setRequestLinks] = useState<Array<{ signerName: string; urlPath: string; deliveryError?: string }>>([]);
+
+  function addDraftSigner(): void {
+    if (!name.trim() || !email.trim()) { setError("Informe nome e e-mail do signatário antes de adicionar."); return; }
+    if (draftSigners.some((signer) => signer.email.trim().toLowerCase() === email.trim().toLowerCase())) {
+      setError("Já há um signatário com este e-mail nesta rodada.");
+      return;
+    }
+    setError("");
+    setDraftSigners((old) => [...old, { name: name.trim(), email: email.trim(), phone: phone.trim() }]);
+    setName(""); setEmail(""); setPhone("");
+  }
+
+  function removeDraftSigner(index: number): void {
+    setDraftSigners((old) => old.filter((_, i) => i !== index));
+  }
+
+  function sendSignatureRequest(): void {
+    setError("");
+    setRequestLinks([]);
+    startTransition(async () => {
+      try {
+        const result = await createSignatureRequestAction({
+          contractId, documentId,
+          signers: draftSigners.map((signer) => ({
+            name: signer.name, email: signer.email, phone: signer.phone,
+            sendWhatsapp: sendWhatsapp && Boolean(signer.phone), operatorConfirmedOptIn: whatsappOptIn,
+          })),
+        });
+        if ("error" in result) { setError(result.error); return; }
+        const failedDeliveries = result.invitations.filter((item) => item.deliveryError);
+        if (failedDeliveries.length > 0) {
+          setError("Rodada criada, mas o envio automático falhou para: " + failedDeliveries.map((item) => item.signerName).join(", "));
+        }
+        setRequestLinks(result.invitations.map((item) => ({
+          signerName: item.signerName, urlPath: item.urlPath, deliveryError: item.deliveryError,
+        })));
+        const now = new Date().toISOString();
+        const expiresAt = new Date(Date.now() + 7 * 86400000).toISOString();
+        setLocalRequests((old) => [{
+          id: result.requestId, contract_id: contractId, document_id: documentId,
+          status: "pending", final_document_id: null, created_at: now, completed_at: null,
+        }, ...old]);
+        setLocalInvites((old) => [
+          ...result.invitations.map((item, index) => ({
+            id: item.invitationId, contract_id: contractId, document_id: documentId, request_id: result.requestId,
+            previous_invitation_id: null,
+            signer_name: item.signerName, signer_email: draftSigners[index]?.email ?? "", signer_phone: draftSigners[index]?.phone ?? "",
+            status: "pending" as const, expires_at: expiresAt,
+            notification_channel: (sendWhatsapp && draftSigners[index]?.phone ? "whatsapp" : "manual") as "whatsapp" | "manual",
+            notification_status: (sendWhatsapp && draftSigners[index]?.phone ? (item.deliveryError ? "failed" : "accepted_by_meta") : "not_sent") as "not_sent" | "accepted_by_meta" | "failed",
+            created_at: now, signed_at: null, receipt_document_id: null, signed_document_id: null,
+          })),
+          ...old,
+        ]);
+        setDraftSigners([]);
+        setMultiMode(false);
+        setSendWhatsapp(false); setWhatsappOptIn(false);
+      } catch { setError("Não foi possível criar a rodada de assinatura. Tente novamente."); }
+    });
+  }
 
   function sendInvite(): void {
     setError("");
@@ -43,6 +117,7 @@ export function ContractSignaturesPanel({
         const result = await createSignatureInvitationAction({
           contractId, documentId, signerName: name, signerEmail: email, signerPhone: phone,
           sendWhatsapp, operatorConfirmedOptIn: whatsappOptIn,
+          previousInvitationId: resendOf || undefined,
         });
         if ("error" in result) { setError(result.error); return; }
         setInviteLink(window.location.origin + result.urlPath);
@@ -51,14 +126,15 @@ export function ContractSignaturesPanel({
         setCreatedInviteEmail(email.trim());
         setCopied(false);
         setLocalInvites((old) => [{
-          id: result.invitationId, contract_id: contractId, document_id: documentId,
+          id: result.invitationId, contract_id: contractId, document_id: documentId, request_id: null,
+          previous_invitation_id: resendOf || null,
           signer_name: name.trim(), signer_email: email.trim(), signer_phone: phone.trim(),
           status: "pending", expires_at: new Date(Date.now() + 7 * 86400000).toISOString(),
           notification_channel: sendWhatsapp ? "whatsapp" : "manual",
           notification_status: sendWhatsapp && !result.deliveryError ? "accepted_by_meta" : sendWhatsapp ? "failed" : "not_sent",
           created_at: new Date().toISOString(), signed_at: null, receipt_document_id: null, signed_document_id: null,
         }, ...old]);
-        setName(""); setEmail(""); setPhone(""); setSendWhatsapp(false); setWhatsappOptIn(false);
+        setName(""); setEmail(""); setPhone(""); setSendWhatsapp(false); setWhatsappOptIn(false); setResendOf("");
       } catch { setError("Não foi possível gerar o convite. Tente novamente."); }
     });
   }
@@ -90,12 +166,35 @@ export function ContractSignaturesPanel({
         <p className="helper-text">Anexe primeiro um PDF privado ao contrato para gerar um convite.</p>
       ) : (
         <div className="form-grid">
+          <div className="form-field" style={{ gridColumn: "1 / -1" }}>
+            <label style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <input type="checkbox" checked={multiMode}
+                onChange={(e) => { setMultiMode(e.target.checked); setDraftSigners([]); setError(""); }} />
+              Este documento precisa de múltiplos signatários (ex.: representante da contratante e do Jornal IR)
+            </label>
+          </div>
           <label className="form-field">
             <span className="field-label">Documento para assinatura</span>
             <select value={documentId} onChange={(e) => setDocumentId(e.target.value)}>
               {eligible.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
             </select>
           </label>
+          {multiMode && draftSigners.length > 0 ? (
+            <div className="form-field" style={{ gridColumn: "1 / -1" }}>
+              <span className="field-label">Signatários desta rodada ({draftSigners.length})</span>
+              <ul className="destaques-list">
+                {draftSigners.map((signer, index) => (
+                  <li className="destaques-item" key={signer.email}>
+                    <div className="destaques-item-body">
+                      <span className="materia-title">{signer.name}</span>
+                      <span className="helper-text">{signer.email}{signer.phone ? " · " + signer.phone : ""}</span>
+                    </div>
+                    <button type="button" onClick={() => removeDraftSigner(index)}>Remover</button>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
           <label className="form-field">
             <span className="field-label">Nome completo do signatário</span>
             <input value={name} onChange={(e) => setName(e.target.value)} maxLength={180} />
@@ -126,13 +225,46 @@ export function ContractSignaturesPanel({
             Por enquanto, compartilhe o link manualmente.
           </p>}
           <div className="form-actions">
-            <button type="button" className="form-action-primary" onClick={sendInvite}
-              disabled={pending || !documentId || !name.trim() || !email.trim() || (sendWhatsapp && (!whatsappOptIn || !phone.trim()))}>
-              {pending ? "Processando…" : "+ Criar convite de assinatura"}
-            </button>
+            {multiMode ? (
+              <>
+                <button type="button" onClick={addDraftSigner}
+                  disabled={pending || !name.trim() || !email.trim() || (sendWhatsapp && (!whatsappOptIn || !phone.trim()))}>
+                  + Adicionar signatário à rodada
+                </button>
+                <button type="button" className="form-action-primary" onClick={sendSignatureRequest}
+                  disabled={pending || !documentId || draftSigners.length < 2}>
+                  {pending ? "Processando…" : "Criar rodada com " + draftSigners.length + " signatário(s)"}
+                </button>
+              </>
+            ) : (
+              <button type="button" className="form-action-primary" onClick={sendInvite}
+                disabled={pending || !documentId || !name.trim() || !email.trim() || (sendWhatsapp && (!whatsappOptIn || !phone.trim()))}>
+                {pending ? "Processando…" : "+ Criar convite de assinatura"}
+              </button>
+            )}
           </div>
+          {multiMode ? <p className="helper-text" style={{ gridColumn: "1 / -1" }}>
+            Adicione pelo menos dois signatários antes de criar a rodada. O documento final só fica disponível depois que TODOS assinarem,
+            e reúne a evidência de cada um — nunca apenas a do último a assinar.
+          </p> : null}
         </div>
       )}
+      {requestLinks.length > 0 ? (
+        <div className="inline-form" style={{ marginTop: 12 }}>
+          <p className="helper-text"><strong>Rodada criada.</strong> Salve e compartilhe cada link agora, somente com o respectivo destinatário: eles não poderão ser recuperados depois.</p>
+          <ul className="destaques-list">
+            {requestLinks.map((link) => (
+              <li className="destaques-item" key={link.urlPath}>
+                <div className="destaques-item-body">
+                  <span className="materia-title">{link.signerName}</span>
+                  <input readOnly value={window.location.origin + link.urlPath} aria-label={"Link privado de assinatura de " + link.signerName} />
+                  {link.deliveryError ? <span className="form-error">Envio automático falhou: {link.deliveryError}</span> : null}
+                </div>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
       {inviteLink ? (
         <div className="inline-form" style={{ marginTop: 12 }}>
           <p className="helper-text"><strong>Convite criado.</strong> Salve e compartilhe este link agora: ele não poderá ser recuperado depois.</p>
@@ -153,6 +285,26 @@ export function ContractSignaturesPanel({
           </div>
         </div>
       ) : null}
+      {localRequests.length > 0 ? (
+        <>
+          <h3 style={{ marginTop: 20 }}>Rodadas com múltiplos signatários</h3>
+          <ul className="destaques-list">
+            {localRequests.map((request) => {
+              const signers = localInvites.filter((invite) => invite.request_id === request.id);
+              const signedCount = signers.filter((invite) => invite.status === "signed").length;
+              return <li className="destaques-item" key={request.id}>
+                <div className="destaques-item-body">
+                  <span className="materia-title">{requestStatusLabel(request.status)} — {signedCount} de {signers.length} assinaram</span>
+                  <span className="helper-text">Criada em {new Date(request.created_at).toLocaleDateString("pt-BR")}</span>
+                  {request.final_document_id ? <a className="materia-title-link"
+                    href={"/api/financeiro/contratos/" + contractId + "/documentos/" + request.final_document_id}
+                    target="_blank" rel="noopener noreferrer">Abrir documento final consolidado (todos os signatários)</a> : null}
+                </div>
+              </li>;
+            })}
+          </ul>
+        </>
+      ) : null}
       <h3 style={{ marginTop: 20 }}>Histórico de convites</h3>
       {localInvites.length === 0 ? <p className="helper-text">Nenhum convite criado ainda.</p> : (
         <ul className="destaques-list">
@@ -160,7 +312,7 @@ export function ContractSignaturesPanel({
             const expired = invite.status === "pending" && Date.parse(invite.expires_at) < Date.now();
             return <li className="destaques-item" key={invite.id}>
               <div className="destaques-item-body">
-                <span className="materia-title">{invite.signer_name}</span>
+                <span className="materia-title">{invite.signer_name}{invite.request_id ? " · rodada com múltiplos signatários" : ""}{invite.previous_invitation_id ? " · reenvio" : ""}</span>
                 <span className="helper-text">
                   {invite.signer_email} · {invite.notification_status === "accepted_by_meta" ? "Envio aceito pela Meta · " : invite.notification_status === "failed" ? "Falha no envio automático · " : ""}{invite.status === "signed" ? "Assinado" :
                     invite.status === "revoked" ? "Revogado" : expired ? "Expirado" : "Aguardando assinatura"} ·
@@ -180,13 +332,15 @@ export function ContractSignaturesPanel({
                 <button type="button" disabled={pending} onClick={() => revoke(invite.id)}>Revogar</button>
               ) : (expired || invite.status === "revoked") ? (
                 <button type="button" disabled={pending} onClick={() => {
+                  setMultiMode(false);
                   setDocumentId(invite.document_id);
                   setName(invite.signer_name);
                   setEmail(invite.signer_email);
                   setPhone(invite.signer_phone ?? "");
                   setInviteLink("");
                   setError("");
-                }}>Preparar novo convite</button>
+                  setResendOf(invite.id);
+                }}>Preparar novo convite (reenvio)</button>
               ) : null}
             </li>;
           })}

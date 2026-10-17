@@ -17,7 +17,7 @@ import { ReceivablesList } from "../../../../../features/financeiro/ReceivablesL
 import { ContractDocumentsPanel } from "../../../../../features/financeiro/ContractDocumentsPanel";
 import { ContractSignaturesPanel } from "../../../../../features/financeiro/ContractSignaturesPanel";
 import { isWhatsappSignatureTemplateConfigured } from "../../../../../lib/financeiro/whatsappCloudProvider";
-import { listSignatureInvitationsAction } from "../signature-actions";
+import { listSignatureInvitationsAction, listSignatureRequestsAction } from "../signature-actions";
 import { ContractAmendmentsPanel } from "../../../../../features/financeiro/ContractAmendmentsPanel";
 import { ContractCommitmentOrdersPanel } from "../../../../../features/financeiro/ContractCommitmentOrdersPanel";
 import { ContractInstallmentsPanel } from "../../../../../features/financeiro/ContractInstallmentsPanel";
@@ -64,6 +64,8 @@ export default async function ContractDetailPage({ params }: { params: { id: str
   ]);
   const signatureResult = await listSignatureInvitationsAction(contract.id);
   const signatureInvitations = "error" in signatureResult ? [] : signatureResult.invitations;
+  const signatureRequestsResult = await listSignatureRequestsAction(contract.id);
+  const signatureRequests = "error" in signatureRequestsResult ? [] : signatureRequestsResult.requests;
   const availableCreditTotal = availableCredits.reduce((sum, item) => sum + item.balance, 0);
 
   const receivableService = getReceivableService(supabase);
@@ -239,7 +241,8 @@ export default async function ContractDetailPage({ params }: { params: { id: str
 
       <ContractDocumentsPanel contractId={contract.id} documents={documents} />
       <ContractSignaturesPanel contractId={contract.id} documents={documents}
-        invitations={signatureInvitations} whatsappEnabled={isWhatsappSignatureTemplateConfigured()} />
+        invitations={signatureInvitations} requests={signatureRequests}
+        whatsappEnabled={isWhatsappSignatureTemplateConfigured()} />
 
       <ContractAmendmentsPanel contractId={contract.id} amendments={amendments} documents={documents} />
 

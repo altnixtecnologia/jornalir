@@ -753,6 +753,33 @@ export interface NfseIssuedNote {
 }
 
 /**
+ * Preparação do cancelamento (Item 5, Lote 2, Tarefa 5) — código e
+ * rótulo vêm do XSD oficial vendorizado (tiposSimples_v1.01.xsd,
+ * TSCodJustCanc), nunca inventados.
+ */
+export type NfseCancellationJustificationCode = 1 | 2 | 9;
+export const NFSE_CANCELLATION_JUSTIFICATION_LABELS: Record<NfseCancellationJustificationCode, string> = {
+  1: "Erro na Emissão",
+  2: "Serviço não Prestado",
+  9: "Outros",
+};
+export type NfseCancellationStatus = "pending" | "submitted" | "confirmed" | "rejected" | "uncertain";
+export interface NfseCancellationRequest {
+  id: string;
+  issuedNoteId: string;
+  justificationCode: NfseCancellationJustificationCode;
+  justificationText: string;
+  status: NfseCancellationStatus;
+  requestedByProfileId?: string;
+  requestedAt: string;
+  submittedAt?: string;
+  responseSummary?: string;
+  rejectionCode?: string;
+  rejectionMessage?: string;
+  createdAt: string;
+}
+
+/**
  * Dados necessários pra montar a DPS/revisão de transmissão (Parte 2A,
  * item 6/14) — monta a partir do que já existe (config do prestador,
  * snapshot do tomador, snapshot fiscal, rascunho), nunca pede de novo o

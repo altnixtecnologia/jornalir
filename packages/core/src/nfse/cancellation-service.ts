@@ -1,0 +1,98 @@
+import type { NfseCancellationRequest } from "@ir/types";
+import type { CancellationRequestRepository } from "./cancellation-repository";
+import type { IssuedNoteRepository } from "./issued-note-repository";
+
+export class CancellationPermissionError extends Error {}
+export class IssuedNoteNotFoundError extends Error {
+  constructor(issuedNoteId: string) {
+    super(`NFS-e emitida não encontrada: ${issuedNoteId}.`);
+  }
+}
+export class InvalidCancellationJustificationError extends Error {}
+export class CancellationAlreadyRequestedError extends Error {
+  constructor(issuedNoteId: string) {
+    super(
+      `Já existe uma solicitação de cancelamento ativa (pendente, enviada ou confirmada) para a NFS-e ${issuedNoteId} — ` +
+        "nunca duas solicitações ativas ao mesmo tempo pra mesma nota.",
+    );
+  }
+}
+/**
+ * O envio REAL do evento de cancelamento (e101101) ao Sistema Nacional
+ * permanece bloqueado nesta fase — mesmo princípio de
+ * RealTransmissionNotReadyError em national-nfse-provider.ts. Falta:
+ * (1) confirmar o endpoint/formato exato de registro de evento contra
+ * a documentação oficial com acesso ao Swagger autenticado por mTLS
+ * (bloqueado sem certificado real nesta sessão); (2) homologação
+ * completa do fluxo de emissão em si, do qual o cancelamento depende.
+ * Até lá, esta operação fica só na preparação local (registro de
+ * motivo/justificativa, ver requestCancellation).
+ */
+export class CancellationSubmissionNotReadyError extends Error {
+  constructor() {
+    super(
+      "Envio do cancelamento ao Sistema Nacional ainda não disponível: depende de homologação completa da emissão e confirmação do " +
+        "formato exato de registro de evento (e101101) contra a documentação oficial com certificado real. A solicitação foi preparada e " +
+        "registrada localmente (motivo/justificativa), mas nenhum cancelamento foi enviado.",
+    );
+  }
+}
+
+export interface RequestCancellationInput {
+  issuedNoteId: string;
+  justificationCode: 1 | 2 | 9;
+  justificationText: string;
+  isAdminOrOwner: boolean;
+  actorProfileId?: string;
+}
+
+/**
+ * Preparação do cancelamento de NFS-e (Item 5, Lote 2, Tarefa 5) —
+ * identifica a nota, confere permissão, valida e registra motivo/
+ * justificativa, evita solicitações repetidas. NUNCA envia o
+ * cancelamento de fato (ver CancellationSubmissionNotReadyError).
+ */
+export class CancellationService {
+  constructor(
+    private readonly issuedNotes: IssuedNoteRepository,
+    private readonly requests: CancellationRequestRepository,
+  ) {}
+
+  async requestCancellation(input: RequestCancellationInput): Promise<NfseCancellationRequest> {
+    if (!input.isAdminOrOwner) {
+      throw new CancellationPermissionError("Sem permissão para solicitar cancelamento de NFS-e — só owner/admin.");
+    }
+
+    const issuedNote = await this.issuedNotes.getById(input.issuedNoteId);
+    if (!issuedNote) throw new IssuedNoteNotFoundError(input.issuedNoteId);
+
+    // Códigos/limites vêm do XSD oficial vendorizado (TSCodJustCanc/TSMotivo) —
+    // revalidados aqui como defesa em profundidade (a constraint no banco é a proteção real).
+    if (![1, 2, 9].includes(input.justificationCode)) {
+      throw new InvalidCancellationJustificationError("Código de justificativa inválido — use 1 (Erro na Emissão), 2 (Serviço não Prestado) ou 9 (Outros).");
+    }
+    const justificationText = input.justificationText.trim();
+    if (justificationText.length < 15 || justificationText.length > 255) {
+      throw new InvalidCancellationJustificationError("A justificativa precisa ter entre 15 e 255 caracteres.");
+    }
+
+    const active = await this.requests.getActiveByIssuedNoteId(input.issuedNoteId);
+    if (active) throw new CancellationAlreadyRequestedError(input.issuedNoteId);
+
+    return this.requests.create({
+      issuedNoteId: input.issuedNoteId,
+      justificationCode: input.justificationCode,
+      justificationText,
+      requestedByProfileId: input.actorProfileId,
+    });
+  }
+
+  async listHistory(issuedNoteId: string): Promise<NfseCancellationRequest[]> {
+    return this.requests.listByIssuedNoteId(issuedNoteId);
+  }
+
+  /** Sempre bloqueado nesta fase — ver CancellationSubmissionNotReadyError. */
+  async submitCancellation(_requestId: string): Promise<never> {
+    throw new CancellationSubmissionNotReadyError();
+  }
+}
