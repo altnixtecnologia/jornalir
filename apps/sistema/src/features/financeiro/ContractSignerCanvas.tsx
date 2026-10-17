@@ -1,7 +1,9 @@
 "use client";
 
 import { useRef, useState, useTransition } from "react";
-import { completeSignatureInvitationAction } from "../../app/sistema/financeiro/contratos/signature-actions";
+import {
+  completeSignatureInvitationAction, requestSignerEmailCodeAction, verifySignerEmailCodeAction,
+} from "../../app/sistema/financeiro/contratos/signature-actions";
 
 export function ContractSignerCanvas({
   token, name, documentName, expiresAt,
@@ -11,6 +13,9 @@ export function ContractSignerCanvas({
   const [signed, setSigned] = useState(false);
   const [fullName, setFullName] = useState("");
   const [signerEmail, setSignerEmail] = useState("");
+  const [otpSent, setOtpSent] = useState(false);
+  const [otpCode, setOtpCode] = useState("");
+  const [otpVerified, setOtpVerified] = useState(false);
   const [consent, setConsent] = useState(false);
   const [hasStroke, setHasStroke] = useState(false);
   const [error, setError] = useState("");
@@ -49,8 +54,29 @@ export function ContractSignerCanvas({
     canvas?.getContext("2d")?.clearRect(0, 0, canvas.width, canvas.height);
     setHasStroke(false);
   }
+  function sendEmailCode(): void {
+    setError("");
+    startTransition(async () => {
+      const result = await requestSignerEmailCodeAction(token);
+      if ("error" in result) { setError(result.error); return; }
+      setOtpSent(true);
+    });
+  }
+  function verifyEmailCode(): void {
+    setError("");
+    startTransition(async () => {
+      const result = await verifySignerEmailCodeAction(token, otpCode);
+      if ("error" in result) { setError(result.error); return; }
+      setOtpVerified(true);
+    });
+  }
+
   function submit(): void {
     setError("");
+    if (!otpVerified) {
+      setError("Confirme o código de e-mail antes de assinar.");
+      return;
+    }
     if (!consent || !hasStroke || !fullName.trim() || !signerEmail.trim()) {
       setError("Confira o PDF, informe seu nome, desenhe sua assinatura e aceite o termo.");
       return;
@@ -95,6 +121,30 @@ export function ContractSignerCanvas({
         <input type="email" value={signerEmail} onChange={(e) => setSignerEmail(e.target.value)}
           autoComplete="email" maxLength={254} />
       </label>
+      <div className="form-field" style={{ marginTop: 16 }}>
+        <span className="field-label">Confirmação do e-mail do convite</span>
+        {otpVerified ? <p role="status">E-mail confirmado para esta sessão.</p> : (
+          <>
+            <p className="helper-text">
+              Enviamos um código somente para o e-mail cadastrado no convite.
+              Não é possível assinar sem confirmá-lo.
+            </p>
+            <button type="button" onClick={sendEmailCode} disabled={pending}>
+              {otpSent ? "Reenviar código" : "Enviar código de confirmação"}
+            </button>
+            {otpSent ? (
+              <div className="form-actions" style={{ marginTop: 8 }}>
+                <input value={otpCode} onChange={(e) => setOtpCode(e.target.value)}
+                  inputMode="numeric" autoComplete="one-time-code" placeholder="Código de e-mail"
+                  aria-label="Código enviado para o e-mail do convite" maxLength={8} />
+                <button type="button" onClick={verifyEmailCode} disabled={pending || otpCode.length < 6}>
+                  Confirmar código
+                </button>
+              </div>
+            ) : null}
+          </>
+        )}
+      </div>
       <p className="field-label">Desenhe sua assinatura com dedo, caneta ou mouse</p>
       <canvas ref={canvasRef} width={700} height={230}
         onPointerDown={pointerDown} onPointerMove={pointerMove} onPointerUp={pointerUp}
@@ -116,7 +166,7 @@ export function ContractSignerCanvas({
       {error ? <p className="form-error" role="alert">{error}</p> : null}
       <div className="form-actions">
         <button type="button" className="form-action-primary" onClick={submit}
-          disabled={pending || !consent || !hasStroke || !fullName.trim() || !signerEmail.trim()}>
+          disabled={pending || !otpVerified || !consent || !hasStroke || !fullName.trim() || !signerEmail.trim()}>
           {pending ? "Registrando…" : "Confirmar assinatura eletrônica"}
         </button>
       </div>
