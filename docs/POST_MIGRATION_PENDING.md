@@ -2,6 +2,15 @@
 
 Atualizado após a Fase 49. Este arquivo separa o que já está concluído do que ficou deliberadamente para depois.
 
+> **DECISÃO SUPERADA EM 12/10/2026 — NÃO SEGUIR A SEÇÃO "Google Drive do Jornal Online" ABAIXO.**
+> A seção "Fazer agora → Google Drive do Jornal Online" (item 2, abaixo) instruía configurar OAuth do
+> Google Drive para novos PDFs de edição. Essa instrução foi **substituída** pela decisão posterior em
+> [`docs/JORNAL-ONLINE-ARMAZENAMENTO-E-LEITOR.md`](./JORNAL-ONLINE-ARMAZENAMENTO-E-LEITOR.md) (12/10/2026):
+> **PDFs de edições novas vão para o Cloudflare R2, não para o Google Drive.** O texto original abaixo é
+> preservado como registro histórico (nunca apagado), mas não deve ser usado como instrução vigente — ver
+> `docs/ACORDOS-E-FONTE-DA-VERDADE.md` e `docs/AUDITORIA-GERAL-REQUISITOS-E-PENDENCIAS-2026-10-17.md`
+> (seção "Contradições/versões antigas") para o registro completo deste conflito documental.
+
 ## Concluído
 
 - Migração histórica 2015–2026 encerrada: 23.292 registros físicos de matérias e 44.289 mídias.
