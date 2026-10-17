@@ -1,13 +1,12 @@
--- EXTRAÍDO de 20261013001144_asaas_customer_environment.sql em 17/10/2026
--- (preparação de publicação). Conteúdo idêntico, só a posição mudou:
--- public.clients só existe a partir de 20261014110000_clients.sql (1 dia
--- depois do arquivo original) e a constraint clients_asaas_customer_pair_
--- check referencia asaas_customer_id, coluna só adicionada em
--- 20261027100150_billing_provider_deferred_fixes.sql (aplicada
--- imediatamente antes desta). Um fresh install falhava com "relation
--- public.clients does not exist". Nunca renomear
--- 20261013001144_asaas_customer_environment.sql — já aplicado no
--- histórico remoto sob este nome exato.
+-- NOVA em 17/10/2026 (preparação de publicação, reconciliação de
+-- histórico). Executa a alteração em public.clients que já existe
+-- (protegida por guarda to_regclass) em
+-- 20261013001144_asaas_customer_environment.sql — aquele arquivo já está
+-- aplicado no remoto sob este nome exato e tem timestamp anterior tanto a
+-- 20261014110000_clients.sql quanto a
+-- 20261014110060_clients_asaas_customer_id.sql (a constraint de par
+-- abaixo depende de asaas_customer_id, criada nessa última, aplicada
+-- imediatamente antes desta). Idempotente.
 alter table public.clients
   add column if not exists asaas_customer_environment text;
 

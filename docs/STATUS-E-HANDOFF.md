@@ -236,6 +236,67 @@ Nenhum db push real, nenhum migration repair, nenhuma alteração no
 Supabase remoto, nenhum push no GitHub, nenhum deploy.
 ```
 
+## Lote — Reconciliação definitiva do histórico de migrations (17/10/2026, 2ª rodada)
+
+```
+Objetivo: resolver definitivamente o bloqueio de db push sem migration
+repair, sem push real e sem arquivos vazios artificiais — usando
+`supabase migration fetch` (leitura do histórico remoto, escreve só
+localmente) para recuperar o conteúdo REAL das 18 versões "órfãs", em vez
+de reconstruir por tentativa/erro como no lote anterior.
+
+DESCOBERTA: 12 das 18 órfãs tinham arquivo correspondente no histórico Git
+local (nunca deletado, só "esquecido" por renomeações antigas). As outras
+6 (toda a família de assinatura de contrato: storage, convites, finalize,
+PDF assinado, status de notificação, trigger de signatário) não existiam
+em NENHUM commit deste repositório — `supabase migration fetch` recuperou
+o conteúdo exato de todas as 18 diretamente do histórico armazenado no
+próprio Supabase (leitura, nunca escreve no remoto).
+
+RECONCILIAÇÃO: as 15 migrations duplicadas criadas no lote anterior
+(reconstruções/relocations aproximadas) foram DESCARTADAS em favor do
+conteúdo real restaurado sob os nomes verdadeiros. Confirmado também que
+a FK site_ad_media.client_id→clients JÁ EXISTE no remoto (dump re-
+verificado) — a migration nova que eu tinha criado para "completá-la" no
+lote anterior era baseada numa leitura equivocada e foi removida.
+
+PADRÃO FINAL (sem arquivos vazios, sem migration repair): cada uma das 11
+migrations já aplicadas cujo timestamp real é anterior à sua dependência
+ganhou uma GUARDA (`to_regclass`/`to_regprocedure` + bloco condicional —
+nunca um arquivo vazio, sempre o SQL original completo, só protegido) que
+a torna um no-op seguro em fresh install quando a dependência ainda não
+existe; o SQL real roda numa migration NOVA, posicionada corretamente
+depois da dependência. As 11 novas: clients_asaas_customer_id,
+clients_asaas_customer_environment, contract_signature_family (consolida
+4), payment_charges_provider_asaas, payment_charge_public_token,
+restrict_payment_confirmation_rpc_to_service_role,
+client_credits_with_balance_pix_origin, commercial_products_seed (x2
+fontes), site_interest_conversion_links, site_interest_attendance_
+backfill, site_ad_slots_dependent_setup (consolida 4).
+
+VALIDADO:
+- Fresh install do zero (Docker local descartável, Postgres 17): as 139
+  migrations aplicam em sequência, sem erro, do início ao fim.
+- Dados fictícios: 10 produtos em commercial_products (seed completo,
+  sem duplicar), staff_module_visibility/finance_actions existem,
+  finalize_contract_signature existe só na versão v2 (9 parâmetros — v1
+  foi substituída exatamente como historicamente aconteceu), FK
+  site_ad_media_client_id_fkey existe.
+- Suíte completa: 153/153 testes.
+- `supabase db push --project-ref iqnzrpdccecgalqboeyf --dry-run
+  --include-all` (SEM aplicar nada): retornou EXATAMENTE as 19 migrations
+  que realmente precisam rodar — as 11 de reconciliação + as 8
+  genuinamente novas (contract_multi_signer, contract_signature_resend_
+  link, nfse_transmission_concurrency_guard, nfse_cancellation_
+  preparation, contract_templates, clients_founding_date, birthday_photo_
+  and_manual_message, site_ad_media_per_image_settings) — ZERO tentativa
+  de reaplicar as 16 que já existem no remoto.
+
+Nenhum migration repair, nenhum db push real, nenhuma alteração no
+Supabase remoto (fetch e dry-run são leitura/simulação), nenhum push no
+GitHub, nenhum deploy.
+```
+
 ## Lote — Implementação efetiva: Aniversariantes, Publicidade, Migrations (17/10/2026)
 
 ```

@@ -1,3 +1,4 @@
+
 -- 1) Ofertas digitais separadas na página Assine.
 alter table public.site_offer_settings
   add column if not exists led_sjs_1x2_price numeric(12,2) not null default 0 check (led_sjs_1x2_price >= 0),
@@ -14,13 +15,35 @@ comment on column public.site_offer_settings.led_praia_grande_1x2_price is 'Valo
 comment on column public.site_offer_settings.led_passo_torres_1x2_price is 'Valor do painel 1x2 m em Passo de Torres/SC. Zero oculta a opção no site.';
 comment on column public.site_offer_settings.led_sjs_4x2_price is 'Valor do painel 4x2 m na entrada de São João do Sul. Zero oculta a opção no site.';
 
--- Seed de public.commercial_products (painéis LED individuais) MOVIDO para
--- 20261028100050_commercial_products_seed.sql em 17/10/2026 (preparação de
--- publicação) — mesmo motivo do bloco já movido de
--- 20261012195906_site_interest_requests.sql: commercial_products só existe
--- a partir de 20261028100000_comercial_publicidade.sql, 16 dias depois
--- deste arquivo; um fresh install falhava aqui. Nunca renomear ESTE
--- arquivo — já aplicado no histórico remoto sob este nome exato.
+-- GUARDA adicionada em 17/10/2026 (reconciliação de histórico — ver nota
+-- igual em 20261012195906_site_interest_requests.sql): commercial_products
+-- só existe a partir de 20261028100000_comercial_publicidade.sql, 16 dias
+-- depois. Inserção real para fresh install em
+-- 20261028100050_commercial_products_seed.sql.
+do $$
+begin
+  if to_regclass('public.commercial_products') is not null then
+    insert into public.commercial_products (name, channel, description, suggested_price)
+    select 'Painel LED 1x2 m — São João do Sul', 'led_panel',
+           'Divulgação no painel 1x2 m de São João do Sul. Período, frequência e disponibilidade sujeitos à avaliação comercial.', 0
+    where not exists (select 1 from public.commercial_products where lower(name)=lower('Painel LED 1x2 m — São João do Sul'));
+
+    insert into public.commercial_products (name, channel, description, suggested_price)
+    select 'Painel LED 1x2 m — Praia Grande', 'led_panel',
+           'Divulgação no painel 1x2 m de Praia Grande/SC. Período, frequência e disponibilidade sujeitos à avaliação comercial.', 0
+    where not exists (select 1 from public.commercial_products where lower(name)=lower('Painel LED 1x2 m — Praia Grande'));
+
+    insert into public.commercial_products (name, channel, description, suggested_price)
+    select 'Painel LED 1x2 m — Passo de Torres', 'led_panel',
+           'Divulgação no painel 1x2 m de Passo de Torres/SC. Período, frequência e disponibilidade sujeitos à avaliação comercial.', 0
+    where not exists (select 1 from public.commercial_products where lower(name)=lower('Painel LED 1x2 m — Passo de Torres'));
+
+    insert into public.commercial_products (name, channel, description, suggested_price)
+    select 'Painel LED 4x2 m — Entrada de São João do Sul', 'led_panel',
+           'Divulgação no painel grande 4x2 m na entrada de São João do Sul. Período, frequência e disponibilidade sujeitos à avaliação comercial.', 0
+    where not exists (select 1 from public.commercial_products where lower(name)=lower('Painel LED 4x2 m — Entrada de São João do Sul'));
+  end if;
+end $$;
 
 create or replace function public.sync_site_offer_settings_to_commercial_products()
 returns trigger
@@ -231,12 +254,35 @@ create policy billing_provider_settings_staff_update
 comment on table public.billing_provider_settings is
   'Configuração operacional central de cobranças. Chaves API e token de webhook NÃO são armazenados aqui; ficam em variáveis de ambiente/secret store.';
 
--- Os dois blocos finais originais (coluna asaas_customer_id em
--- public.clients + constraint de provider em public.payment_charges) MOVIDOS
--- para 20261027100150_billing_provider_deferred_fixes.sql em 17/10/2026
--- (preparação de publicação) — public.clients só existe a partir de
--- 20261014110000_clients.sql (2 dias depois deste arquivo) e
--- public.payment_charges só existe a partir de
--- 20261027100100_payment_charges.sql (15 dias depois); um fresh install
--- falhava aqui. Nunca renomear ESTE arquivo — já aplicado no histórico
--- remoto sob este nome exato.
+-- GUARDA adicionada em 17/10/2026 (reconciliação de histórico): public.clients
+-- só existe a partir de 20261014110000_clients.sql, 2 dias depois deste
+-- arquivo. Alteração real para fresh install em
+-- 20261014110060_clients_asaas_customer_id.sql (nova).
+do $$
+begin
+  if to_regclass('public.clients') is not null then
+    -- Cliente Asaas reutilizável em todas as cobranças do mesmo cadastro.
+    alter table public.clients
+      add column if not exists asaas_customer_id text;
+
+    create unique index if not exists clients_asaas_customer_id_unique
+      on public.clients (asaas_customer_id)
+      where asaas_customer_id is not null;
+  end if;
+end $$;
+
+-- GUARDA adicionada em 17/10/2026 (reconciliação de histórico): public.
+-- payment_charges só existe a partir de 20261027100100_payment_charges.sql,
+-- 14 dias depois deste arquivo. Alteração real para fresh install em
+-- 20261027100120_payment_charges_provider_asaas.sql (nova).
+do $$
+begin
+  if to_regclass('public.payment_charges') is not null then
+    -- Provedor real passa a coexistir com o provider de preview.
+    alter table public.payment_charges
+      drop constraint if exists payment_charges_provider_check;
+    alter table public.payment_charges
+      add constraint payment_charges_provider_check
+      check (provider in ('pix_manual','asaas'));
+  end if;
+end $$;

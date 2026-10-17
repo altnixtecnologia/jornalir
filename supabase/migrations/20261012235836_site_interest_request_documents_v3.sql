@@ -1,3 +1,4 @@
+
 alter table public.site_interest_requests
   add column if not exists customer_kind text,
   add column if not exists document_number text;
@@ -157,3 +158,4 @@ revoke all on function public.submit_site_interest_request_v3(
 grant execute on function public.submit_site_interest_request_v3(
   text,text,text,text,text,jsonb,numeric,text,text,text,text,text,text,text,text,text,text,text
 ) to anon, authenticated, service_role;
+;

@@ -1,17 +1,16 @@
--- Seed de public.commercial_products — EXTRAÍDO de DOIS arquivos em
--- 17/10/2026 (preparação de publicação), conteúdo idêntico, só a posição
--- mudou: o seed precisa rodar DEPOIS que commercial_products existe
--- (20261028100000_comercial_publicidade.sql).
---   1) 20261012195906_site_interest_requests.sql (16 dias antes da tabela
---      existir) — bloco "Jornal impresso"/"Painéis LED" combinado.
---   2) 20261012223715_assine_requests_and_billing_provider.sql (mesmo
---      problema) — bloco "Painel LED" individual por cidade, logo abaixo.
--- Um fresh install (`supabase start` do zero) falhava com "relation
--- public.commercial_products does not exist" nos dois pontos. Mesmo
--- princípio de idempotência dos blocos originais (`where not exists`) —
--- nunca duplica produtos se já existirem (inclusive no banco remoto, onde
--- esses produtos já foram inseridos há tempos por uma ordem de aplicação
--- real diferente da ordem de nome de arquivo atual).
+-- NOVA em 17/10/2026 (preparação de publicação, reconciliação de
+-- histórico). Executa o seed de public.commercial_products que já existe
+-- (protegido por guarda to_regclass) em
+-- 20261012195906_site_interest_requests.sql e
+-- 20261012223715_assine_requests_and_billing_provider.sql — aqueles dois
+-- arquivos já estão aplicados no remoto sob esses nomes exatos e têm
+-- timestamp ANTERIOR a 20261028100000_comercial_publicidade.sql (que cria
+-- commercial_products), então num fresh install a tabela ainda não
+-- existia nesses dois pontos e a guarda pulava o insert. Esta migration
+-- roda DEPOIS da tabela existir e insere o catálogo completo (idêntico ao
+-- que os dois arquivos antigos inseririam) — idempotente (`where not
+-- exists`), nunca duplica se o catálogo já tiver sido inserido por outro
+-- caminho (ex.: no banco remoto, onde isso já aconteceu há tempos).
 insert into public.commercial_products (name, channel, description, suggested_price)
 select 'Jornal impresso — Cartão de visita', 'newspaper',
        'Publicidade colorida em formato cartão de visita. Medida/posição final sujeita à avaliação do setor comercial.', 130.00

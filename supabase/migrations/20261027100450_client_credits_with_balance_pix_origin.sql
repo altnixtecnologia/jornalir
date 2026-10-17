@@ -1,12 +1,12 @@
--- EXTRAÍDO de
--- 20261013033146_refresh_client_credits_with_balance_after_pix_origin.sql
--- em 17/10/2026 (preparação de publicação). Conteúdo idêntico, só a
--- posição mudou: depende de public.client_credits
--- (20261019100000_financeiro_credito_cliente.sql) e da coluna
--- origin_payment_charge_id (20261027100400_payment_charge_overpayment_
--- credit.sql, aplicada imediatamente antes desta) — o arquivo original
--- tinha timestamp anterior às duas. Um fresh install falhava com
--- "relation public.client_credits does not exist".
+-- NOVA em 17/10/2026 (preparação de publicação, reconciliação de
+-- histórico). Cria a view que já existe (protegida por guarda dinâmica)
+-- em 20261013033146_refresh_client_credits_with_balance_after_pix_origin.sql
+-- — aquele arquivo já está aplicado no remoto sob este nome exato e tem
+-- timestamp anterior a public.client_credits
+-- (20261019100000_financeiro_credito_cliente.sql) e à coluna
+-- origin_payment_charge_id
+-- (20261027100400_payment_charge_overpayment_credit.sql, aplicada
+-- imediatamente antes desta). create or replace view é idempotente.
 create or replace view public.client_credits_with_balance
 with (security_invoker = true)
 as

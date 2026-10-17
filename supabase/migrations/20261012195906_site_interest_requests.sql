@@ -115,14 +115,50 @@ comment on function public.submit_site_interest_request(
 ) is
   'Entrada pública controlada para interesses de assinatura/publicidade. Apenas registra a solicitação para análise; não cria venda, assinatura, cliente ou financeiro.';
 
--- Seed de public.commercial_products MOVIDO para 20261028100050_commercial_
--- products_seed.sql em 17/10/2026 (preparação de publicação) — a tabela só
--- é criada em 20261028100000_comercial_publicidade.sql, 16 dias depois deste
--- arquivo; um fresh install (`supabase start` do zero) falhava aqui com
--- "relation public.commercial_products does not exist". No ambiente remoto
--- já aplicado isto nunca foi um problema porque a ordem real de aplicação
--- não seguiu a ordem de nome de arquivo atual — mas um banco novo sempre
--- aplica em ordem de nome, então o bug era real para qualquer ambiente
--- futuro criado do zero. Nunca renomear ESTE arquivo (20261012195906) nem
--- mudar seu timestamp — já está registrado como aplicado no histórico
--- remoto sob este nome exato.
+-- GUARDA adicionada em 17/10/2026 (preparação de publicação, reconciliação
+-- de histórico): este arquivo já está aplicado no remoto sob este nome
+-- exato (não pode ser renomeado) e commercial_products só é criada em
+-- 20261028100000_comercial_publicidade.sql, 16 dias depois — num fresh
+-- install (banco novo do zero, aplicando em ordem de nome de arquivo) a
+-- tabela ainda não existe aqui. to_regclass faz o bloco nunca tentar
+-- resolver/executar o INSERT contra uma tabela inexistente (plpgsql só
+-- compila cada comando quando o fluxo realmente alcança a linha) — não é
+-- um arquivo vazio, é o MESMO insert original, só protegido. A inserção
+-- real para fresh install acontece em
+-- 20261028100050_commercial_products_seed.sql (nova, depois da tabela
+-- existir); se este bloco algum dia rodar de novo com a tabela já
+-- existente, o "where not exists" de cada insert garante que nunca duplica.
+do $$
+begin
+  if to_regclass('public.commercial_products') is not null then
+    insert into public.commercial_products (name, channel, description, suggested_price)
+    select 'Jornal impresso — Cartão de visita', 'newspaper',
+           'Publicidade colorida em formato cartão de visita. Medida/posição final sujeita à avaliação do setor comercial.', 130.00
+    where not exists (select 1 from public.commercial_products where lower(name) = lower('Jornal impresso — Cartão de visita'));
+
+    insert into public.commercial_products (name, channel, description, suggested_price)
+    select 'Jornal impresso — Padrão', 'newspaper',
+           'Publicidade colorida em formato padrão. Medida/posição final sujeita à avaliação do setor comercial.', 180.00
+    where not exists (select 1 from public.commercial_products where lower(name) = lower('Jornal impresso — Padrão'));
+
+    insert into public.commercial_products (name, channel, description, suggested_price)
+    select 'Jornal impresso — 1/4 de página', 'newspaper',
+           'Publicidade colorida em 1/4 de página. Posição final sujeita à avaliação do setor comercial.', 350.00
+    where not exists (select 1 from public.commercial_products where lower(name) = lower('Jornal impresso — 1/4 de página'));
+
+    insert into public.commercial_products (name, channel, description, suggested_price)
+    select 'Jornal impresso — Meia página', 'newspaper',
+           'Publicidade colorida em meia página. Posição final sujeita à avaliação do setor comercial.', 700.00
+    where not exists (select 1 from public.commercial_products where lower(name) = lower('Jornal impresso — Meia página'));
+
+    insert into public.commercial_products (name, channel, description, suggested_price)
+    select 'Jornal impresso — Página inteira', 'newspaper',
+           'Publicidade colorida em página inteira. Posição final sujeita à avaliação do setor comercial.', 1200.00
+    where not exists (select 1 from public.commercial_products where lower(name) = lower('Jornal impresso — Página inteira'));
+
+    insert into public.commercial_products (name, channel, description, suggested_price)
+    select 'Painéis LED — São João do Sul + Praia Grande + Passo de Torres', 'led_panel',
+           'Divulgação nos 3 painéis de LED 1x2 m. Período, frequência e disponibilidade sujeitos à avaliação do setor comercial.', 800.00
+    where not exists (select 1 from public.commercial_products where lower(name) = lower('Painéis LED — São João do Sul + Praia Grande + Passo de Torres'));
+  end if;
+end $$;

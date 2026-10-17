@@ -1,10 +1,4 @@
--- RENOMEADA em 17/10/2026 (de 20261014020555 para 20261029100060):
--- o UPDATE abaixo lê converted_client_id/converted_subscription_id/
--- converted_receivable_id, colunas criadas por
--- 20261029100050_site_interest_conversion_links.sql (também renomeada
--- nesta auditoria) — precisa continuar rodando DEPOIS dela. Nunca
--- aplicada a nenhum banco real; só o nome do arquivo mudou, conteúdo
--- idêntico.
+
 alter table public.site_interest_requests
   add column if not exists route_reference text,
   add column if not exists location_url text,
@@ -34,49 +28,68 @@ comment on column public.site_interest_requests.attended_at is
 comment on column public.site_interest_requests.attended_by is
   'Usuário que marcou a solicitação como atendida.';
 
--- Recupera vínculos antigos de conversões que já guardavam a origem nas notas.
-update public.site_interest_requests r
-set converted_subscription_id = coalesce(
-      r.converted_subscription_id,
-      (
-        select s.id
-        from public.subscriptions s
-        where s.notes ilike '%' || '[site-interest:' || r.id::text || ']' || '%'
-        order by s.created_at asc
-        limit 1
-      )
-    ),
-    converted_receivable_id = coalesce(
-      r.converted_receivable_id,
-      (
-        select rec.id
-        from public.receivables rec
-        where rec.notes ilike '%' || '[site-interest:' || r.id::text || ']' || '%'
-        order by rec.created_at asc
-        limit 1
-      )
-    )
-where r.status = 'converted';
+-- GUARDA adicionada em 17/10/2026 (reconciliação de histórico): os 3
+-- UPDATEs abaixo leem converted_subscription_id/converted_receivable_id/
+-- converted_client_id, colunas que só existem a partir de
+-- 20261013043920_site_interest_conversion_links.sql guardado (idem nota
+-- lá) — na prática só passam a existir de verdade a partir de
+-- 20261029100010_site_interest_conversion_links.sql (nova). Backfill real
+-- para fresh install em
+-- 20261029100020_site_interest_attendance_backfill.sql (nova, depois
+-- dessa). Não é um arquivo vazio: o ALTER/função abaixo continuam reais e
+-- rodam normalmente nesta posição (route_reference/location_url/
+-- attended_at/attended_by e profiles já existem aqui).
+do $$
+begin
+  if exists (
+    select 1 from information_schema.columns
+    where table_schema = 'public' and table_name = 'site_interest_requests'
+      and column_name = 'converted_subscription_id'
+  ) then
+    update public.site_interest_requests r
+    set converted_subscription_id = coalesce(
+          r.converted_subscription_id,
+          (
+            select s.id
+            from public.subscriptions s
+            where s.notes ilike '%' || '[site-interest:' || r.id::text || ']' || '%'
+            order by s.created_at asc
+            limit 1
+          )
+        ),
+        converted_receivable_id = coalesce(
+          r.converted_receivable_id,
+          (
+            select rec.id
+            from public.receivables rec
+            where rec.notes ilike '%' || '[site-interest:' || r.id::text || ']' || '%'
+            order by rec.created_at asc
+            limit 1
+          )
+        )
+    where r.status = 'converted';
 
-update public.site_interest_requests r
-set converted_client_id = coalesce(
-      r.converted_client_id,
-      (
-        select s.client_id
-        from public.subscriptions s
-        where s.id = r.converted_subscription_id
-        limit 1
-      )
-    ),
-    converted_at = coalesce(r.converted_at, r.reviewed_at, r.updated_at),
-    attended_at = coalesce(r.attended_at, r.converted_at, r.reviewed_at, r.updated_at),
-    attended_by = coalesce(r.attended_by, r.reviewed_by)
-where r.status = 'converted';
+    update public.site_interest_requests r
+    set converted_client_id = coalesce(
+          r.converted_client_id,
+          (
+            select s.client_id
+            from public.subscriptions s
+            where s.id = r.converted_subscription_id
+            limit 1
+          )
+        ),
+        converted_at = coalesce(r.converted_at, r.reviewed_at, r.updated_at),
+        attended_at = coalesce(r.attended_at, r.converted_at, r.reviewed_at, r.updated_at),
+        attended_by = coalesce(r.attended_by, r.reviewed_by)
+    where r.status = 'converted';
+  end if;
 
-update public.site_interest_requests r
-set attended_at = coalesce(r.attended_at, r.reviewed_at, r.updated_at),
-    attended_by = coalesce(r.attended_by, r.reviewed_by)
-where r.status = 'discarded';
+  update public.site_interest_requests r
+  set attended_at = coalesce(r.attended_at, r.reviewed_at, r.updated_at),
+      attended_by = coalesce(r.attended_by, r.reviewed_by)
+  where r.status = 'discarded';
+end $$;
 
 create or replace function public.submit_site_interest_request_v4(
   p_request_type text,
@@ -216,3 +229,4 @@ comment on function public.submit_site_interest_request_v4(
   text,text,text,text,text,jsonb,numeric,text,text,text,text,text,text,text,text,text,text,text,text,text
 ) is
   'Entrada pública controlada de solicitações. V4 acrescenta ponto de referência e link opcional de localização para análise da rota.';
+;
