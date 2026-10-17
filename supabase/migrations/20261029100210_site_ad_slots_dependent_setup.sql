@@ -69,25 +69,18 @@ create or replace view public.public_site_ad_media as
 
 grant select on public.public_site_ad_media to anon, authenticated;
 
--- (2) 20261014022359 — view pública das posições (versão inicial, substituída no passo 3).
-create or replace view public.public_site_ad_slots as
-select
-  s.slot_number,
-  s.active,
-  s.rotation_interval_ms,
-  s.transition_effect,
-  s.fit_mode,
-  exists (
-    select 1
-    from public.site_ad_media m
-    where m.slot_id = s.id
-  ) as has_media
-from public.site_ad_slots s
-order by s.slot_number;
+-- (2) 20261014022359 — PULADA de propósito nesta migration de reconciliação.
+-- O arquivo original criava public_site_ad_slots com 6 colunas (sem
+-- managed_by_panel); essa versão foi substituída pela de 7 colunas do
+-- passo (3) já na execução histórica real (confirmado via backup
+-- estrutural de 17/10/2026: a view no remoto já tem managed_by_panel).
+-- CREATE OR REPLACE VIEW nunca pode remover uma coluna de saída já
+-- existente — recriar a versão de 6 colunas aqui falharia com "cannot
+-- drop columns from view" contra o estado real. Ir direto à versão final
+-- do passo (3) é o comportamento correto tanto no remoto real quanto num
+-- fresh install (que nunca precisa passar pela versão intermediária).
 
-grant select on public.public_site_ad_slots to anon, authenticated;
-
--- (3) 20261014124630 — managed_by_panel + view final (substitui a do passo 2).
+-- (3) 20261014124630 — managed_by_panel + view final (inclui o que seria o passo 2).
 alter table public.site_ad_slots add column if not exists managed_by_panel boolean not null default false;
 update public.site_ad_slots s set managed_by_panel = true where exists (select 1 from public.site_ad_media m where m.slot_id=s.id);
 
