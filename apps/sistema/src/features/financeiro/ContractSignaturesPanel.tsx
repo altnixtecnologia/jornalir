@@ -49,7 +49,7 @@ export function ContractSignaturesPanel({
           id: result.invitationId, contract_id: contractId, document_id: documentId,
           signer_name: name.trim(), signer_email: email.trim(), signer_phone: phone.trim(),
           status: "pending", expires_at: new Date(Date.now() + 7 * 86400000).toISOString(),
-          created_at: new Date().toISOString(), signed_at: null, receipt_document_id: null,
+          created_at: new Date().toISOString(), signed_at: null, receipt_document_id: null, signed_document_id: null,
         }, ...old]);
         setName(""); setEmail(""); setPhone("");
       } catch { setError("Não foi possível gerar o convite. Tente novamente."); }
@@ -145,6 +145,9 @@ export function ContractSignaturesPanel({
                 {invite.signed_at ? <span className="helper-text">
                   Aceite: {new Date(invite.signed_at).toLocaleString("pt-BR")}
                 </span> : null}
+                {invite.signed_document_id ? <a className="materia-title-link"
+                  href={"/api/financeiro/contratos/" + contractId + "/documentos/" + invite.signed_document_id}
+                  target="_blank" rel="noopener noreferrer">Abrir PDF com assinatura</a> : null}
                 {invite.receipt_document_id ? <a className="materia-title-link"
                   href={"/api/financeiro/contratos/" + contractId + "/documentos/" + invite.receipt_document_id}
                   target="_blank" rel="noopener noreferrer">Abrir comprovante PDF</a> : null}
