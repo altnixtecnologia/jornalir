@@ -11,6 +11,7 @@ import {
   type SignatureInvitation,
 } from "../../../../lib/signatures/contractSignatures";
 import { buildSignatureReceiptPdf } from "../../../../lib/signatures/signatureReceiptPdf";
+import { buildSignedContractPdf } from "../../../../lib/signatures/signedContractPdf";
 
 type Result<T = never> = { error: string } | { ok: true } & T;
 const PDF_BUCKET = "contract-documents";
@@ -29,7 +30,7 @@ async function requireFinanceAccess(): Promise<string> {
 export type PublicSignatureInvite = Pick<
   SignatureInvitation,
   "id" | "contract_id" | "document_id" | "signer_name" | "signer_email" |
-  "signer_phone" | "status" | "expires_at" | "signed_at" | "created_at" | "receipt_document_id"
+  "signer_phone" | "status" | "expires_at" | "signed_at" | "created_at" | "receipt_document_id" | "signed_document_id"
 >;
 
 export async function listSignatureInvitationsAction(contractId: string): Promise<Result<{ invitations: PublicSignatureInvite[] }>> {
@@ -37,7 +38,7 @@ export async function listSignatureInvitationsAction(contractId: string): Promis
     await requireFinanceAccess();
     const admin = createSupabaseAdminClient();
     const { data, error } = await admin.from("contract_signature_invitations")
-      .select("id,contract_id,document_id,signer_name,signer_email,signer_phone,status,expires_at,signed_at,created_at,receipt_document_id")
+      .select("id,contract_id,document_id,signer_name,signer_email,signer_phone,status,expires_at,signed_at,created_at,receipt_document_id,signed_document_id")
       .eq("contract_id", contractId).order("created_at", { ascending: false }).limit(100);
     if (error) throw error;
     return { ok: true, invitations: (data ?? []) as PublicSignatureInvite[] };
@@ -211,8 +212,18 @@ export async function completeSignatureInvitationAction(input: {
       jpegBytes: jpeg, jpegWidth: jpegInfo.width ?? 640, jpegHeight: jpegInfo.height ?? 240,
     });
     const receiptSha256 = createHash("sha256").update(receiptBytes).digest("hex");
+    const signedPdfBytes = await buildSignedContractPdf({
+      originalBytes, signatureJpeg: jpeg, documentName: source.filename,
+      signerName: invitation.signer_name, signerEmail: invitation.signer_email,
+      signedAt, originalSha256, invitationId: invitation.id,
+    });
+    if (signedPdfBytes.byteLength > 10 * 1024 * 1024) {
+      return { error: "O PDF assinado excedeu 10 MB. Solicite à equipe a compactação do documento antes de assinar." };
+    }
+    const signedSha256 = createHash("sha256").update(signedPdfBytes).digest("hex");
     const signaturePath = "signatures/" + invitation.id + ".jpg";
     const receiptPath = "contracts/" + invitation.contract_id + "/signing/" + invitation.id + ".pdf";
+    const signedPath = "contracts/" + invitation.contract_id + "/signing/" + invitation.id + "-signed.pdf";
 
     const { error: pngError } = await admin.storage.from(SIGN_BUCKET).upload(signaturePath, jpeg, {
       contentType: "image/jpeg", upsert: false, cacheControl: "0",
@@ -222,19 +233,25 @@ export async function completeSignatureInvitationAction(input: {
       contentType: "application/pdf", upsert: false, cacheControl: "0",
     });
     if (pdfError) return { error: "Falha ao guardar comprovante. Contate o responsável pelo contrato." };
+    const { error: signedPdfError } = await admin.storage.from(PDF_BUCKET).upload(signedPath, signedPdfBytes, {
+      contentType: "application/pdf", upsert: false, cacheControl: "0",
+    });
+    if (signedPdfError) return { error: "Falha ao guardar o documento com assinatura. Contate a equipe." };
     const h = headers();
     const remoteIp = h.get("x-real-ip") ?? h.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "";
     const audit = {
       signedAt, consent: "contract-v1",
       ipHash: remoteIp ? createHash("sha256").update(remoteIp).digest("hex") : null,
       userAgent: (h.get("user-agent") ?? "").slice(0, 400),
-      method: "graphical-electronic-acceptance",
+      method: "verified-email-otp-and-graphical-acceptance",
       originalDocumentId: invitation.document_id,
     };
     const { data: receiptId, error: finalizeError } = await admin.rpc("finalize_contract_signature", {
       p_invitation_id: invitation.id, p_token_hash: hashInvitationToken(input.token),
       p_signature_path: signaturePath, p_receipt_storage_path: receiptPath,
+      p_signed_storage_path: signedPath,
       p_original_sha256: originalSha256, p_receipt_sha256: receiptSha256,
+      p_signed_sha256: signedSha256,
       p_audit_metadata: audit,
     });
     if (finalizeError || !receiptId) {
