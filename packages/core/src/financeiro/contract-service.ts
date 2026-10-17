@@ -47,6 +47,9 @@ export interface ContractDocumentInput {
   notes?: string;
   /** Resultado bruto de uma extração automática — sempre auxílio, nunca aplicado automaticamente aos campos reais do contrato (ver regra absoluta da Parte 3A, item 11). */
   extractedData?: ContractDocumentExtractedData;
+  /** Preenchido só quando o documento foi GERADO a partir de um modelo (Item 5, Lote 3) — nunca para upload manual. */
+  templateId?: string;
+  templateVersion?: number;
 }
 
 export interface ContractAmendmentInput {
@@ -156,6 +159,8 @@ export class ContractService {
       documentDate: input.documentDate || undefined,
       notes: trimOrUndefined(input.notes),
       extractedData: input.extractedData,
+      templateId: input.templateId,
+      templateVersion: input.templateVersion,
     });
   }
 

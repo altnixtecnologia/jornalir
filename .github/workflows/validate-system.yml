@@ -49,5 +49,8 @@ jobs:
       - name: Signed contract PDF smoke test
         run: node apps/sistema/scripts/signatures-smoke.cjs
 
+      - name: Contract template PDF smoke test
+        run: node apps/sistema/scripts/contract-template-pdf-smoke.cjs
+
       - name: Build system
         run: npm run build --workspace @ir/sistema

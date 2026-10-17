@@ -82,7 +82,7 @@ function toRow(record: NewContractRecord | ContractChanges): Record<string, unkn
 }
 
 const DOCUMENT_COLUMNS =
-  "id, contract_id, document_type, name, file_reference, document_date, notes, extracted_data, uploaded_by, created_at";
+  "id, contract_id, document_type, name, file_reference, document_date, notes, extracted_data, template_id, template_version, uploaded_by, created_at";
 
 interface DocumentRow {
   id: string;
@@ -93,6 +93,8 @@ interface DocumentRow {
   document_date: string | null;
   notes: string | null;
   extracted_data: ContractDocumentExtractedData | null;
+  template_id: string | null;
+  template_version: number | null;
   uploaded_by: string | null;
   created_at: string;
 }
@@ -107,6 +109,8 @@ function documentToDomain(row: DocumentRow): ContractDocument {
     documentDate: row.document_date ?? undefined,
     notes: row.notes ?? undefined,
     extractedData: row.extracted_data ?? undefined,
+    templateId: row.template_id ?? undefined,
+    templateVersion: row.template_version ?? undefined,
     uploadedByProfileId: row.uploaded_by ?? undefined,
     createdAt: row.created_at,
   };
@@ -262,6 +266,8 @@ export function createContractRepositorySupabase(client: SupabaseClient): Contra
           document_date: record.documentDate ?? null,
           notes: record.notes ?? null,
           extracted_data: record.extractedData ?? {},
+          template_id: record.templateId ?? null,
+          template_version: record.templateVersion ?? null,
         })
         .select(DOCUMENT_COLUMNS)
         .single();

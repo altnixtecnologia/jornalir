@@ -3,6 +3,7 @@ import {
   BillingMessageService,
   ClientCreditService,
   ContractService,
+  ContractTemplateService,
   PaymentChargeService,
   ReceivableService,
   createPixProviderPreview,
@@ -12,6 +13,7 @@ import {
 } from "@ir/core";
 import { createReceivableRepositorySupabase } from "../providers/supabase/receivableRepository.supabase";
 import { createContractRepositorySupabase } from "../providers/supabase/contractRepository.supabase";
+import { createContractTemplateRepositorySupabase } from "../providers/supabase/contractTemplateRepository.supabase";
 import { createClientCreditRepositorySupabase } from "../providers/supabase/clientCreditRepository.supabase";
 import { createPaymentChargeRepositorySupabase } from "../providers/supabase/paymentChargeRepository.supabase";
 import { createBillingMessageLogRepositorySupabase } from "../providers/supabase/billingMessageLogRepository.supabase";
@@ -26,6 +28,11 @@ export function getReceivableService(client: SupabaseClient): ReceivableService 
 
 export function getContractService(client: SupabaseClient): ContractService {
   return new ContractService(createContractRepositorySupabase(client));
+}
+
+/** Modelos de contrato e geração automática de PDF (Item 5, Lote 3). */
+export function getContractTemplateService(client: SupabaseClient): ContractTemplateService {
+  return new ContractTemplateService(createContractTemplateRepositorySupabase(client));
 }
 
 export function getClientCreditService(client: SupabaseClient): ClientCreditService {

@@ -244,6 +244,7 @@ export default async function FinanceiroPage({
           </Link>
           <Link href="/sistema/financeiro/contas-a-receber">Contas a receber</Link>
           <Link href="/sistema/financeiro/contratos">Contratos institucionais</Link>
+          <Link href="/sistema/financeiro/modelos-contrato">Modelos de contrato</Link>
           <Link href="/sistema/financeiro/relatorios">Relatórios</Link>
         </div>
       </section>

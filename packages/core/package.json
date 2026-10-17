@@ -5,7 +5,7 @@
   "type": "module",
   "main": "./src/index.ts",
   "scripts": {
-    "test": "tsx --conditions=react-server --test test/nfse.test.ts test/dps-builder.test.ts test/nfse-transmission.test.ts test/signature.test.ts test/xsd-validator.test.ts test/certificate.test.ts test/nfse-integration.test.ts test/nfse-query.test.ts test/nfse-cancellation.test.ts"
+    "test": "tsx --conditions=react-server --test test/nfse.test.ts test/dps-builder.test.ts test/nfse-transmission.test.ts test/signature.test.ts test/xsd-validator.test.ts test/certificate.test.ts test/nfse-integration.test.ts test/nfse-query.test.ts test/nfse-cancellation.test.ts test/contract-template.test.ts"
   },
   "dependencies": {
     "@ir/types": "*",

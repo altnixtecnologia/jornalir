@@ -482,9 +482,65 @@ export interface ContractDocument {
   documentDate?: string;
   notes?: string;
   extractedData?: ContractDocumentExtractedData;
+  /** Preenchido só quando este documento foi GERADO a partir de um modelo (Item 5, Lote 3) — nunca para upload manual. */
+  templateId?: string;
+  /** Versão EXATA do modelo usada — nunca a versão "atual", mesmo que o modelo tenha sido editado depois. */
+  templateVersion?: number;
   uploadedByProfileId?: string;
   createdAt: string;
 }
+
+/**
+ * Modelo de contrato (Item 5, Lote 3) — versionado: cada edição de
+ * conteúdo é uma linha NOVA com o mesmo `groupId` e `version`
+ * incrementado; nenhuma linha já criada é editada depois (mesmo
+ * princípio de ContractDocument). "category" é só referência
+ * organizacional (texto livre, nunca um enum fechado).
+ */
+export interface ContractTemplateVariable {
+  key: string;
+  label: string;
+  required: boolean;
+}
+
+export interface ContractTemplate {
+  id: string;
+  groupId: string;
+  version: number;
+  title: string;
+  description?: string;
+  category?: string;
+  /** Texto puro com placeholders {{chave}} — nunca HTML/script. */
+  content: string;
+  variables: ContractTemplateVariable[];
+  active: boolean;
+  createdByProfileId?: string;
+  createdAt: string;
+}
+
+/** Categorias sugeridas (Item 5, Lote 3) — só referência, o usuário pode digitar outra; nunca um enum fechado no banco. */
+export const CONTRACT_TEMPLATE_SUGGESTED_CATEGORIES: readonly string[] = [
+  "publicidade",
+  "prestacao_servicos",
+  "assinaturas",
+  "institucional",
+];
+
+/** Vocabulário FIXO dos placeholders automáticos (cliente/contrato) — nunca inventado pelo usuário; usado tanto pelo merge (packages/core) quanto pela UI do editor de modelos (client component, por isso vive em @ir/types, sem dependências server-only). */
+export const CONTRACT_TEMPLATE_AUTO_FIELDS: readonly { key: string; label: string }[] = [
+  { key: "cliente.nome", label: "Nome ou razão social do cliente" },
+  { key: "cliente.cpf_cnpj", label: "CPF ou CNPJ do cliente (formatado)" },
+  { key: "cliente.endereco", label: "Endereço completo do cliente" },
+  { key: "cliente.representante", label: "Representante legal (pessoa jurídica)" },
+  { key: "cliente.contato", label: "Telefone/WhatsApp e e-mail do cliente" },
+  { key: "contrato.numero", label: "Número do contrato" },
+  { key: "contrato.referencia", label: "Referência interna do contrato" },
+  { key: "contrato.objeto", label: "Objeto do contrato" },
+  { key: "contrato.valor", label: "Valor contratado (formatado em R$)" },
+  { key: "contrato.vigencia_inicio", label: "Início da vigência" },
+  { key: "contrato.vigencia_fim", label: "Fim da vigência" },
+  { key: "data.hoje", label: "Data da geração do documento" },
+];
 
 /**
  * Aditivo contratual (Parte 3B, item 9 + Bloco 2, item 3) — NUNCA altera

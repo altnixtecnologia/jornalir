@@ -22,7 +22,8 @@ import { ContractAmendmentsPanel } from "../../../../../features/financeiro/Cont
 import { ContractCommitmentOrdersPanel } from "../../../../../features/financeiro/ContractCommitmentOrdersPanel";
 import { ContractInstallmentsPanel } from "../../../../../features/financeiro/ContractInstallmentsPanel";
 import { ContractTimeline } from "../../../../../features/financeiro/ContractTimeline";
-import { getContractService, getReceivableService, getClientCreditService } from "../../../../../composition/financeiro";
+import { ContractTemplateGenerationPanel } from "../../../../../features/financeiro/ContractTemplateGenerationPanel";
+import { getContractService, getContractTemplateService, getReceivableService, getClientCreditService } from "../../../../../composition/financeiro";
 import { getClientService } from "../../../../../composition/clientes";
 import { createSupabaseServerClient } from "../../../../../lib/supabase/server";
 import { sumCreditAppliedForReceivables } from "../../../../../providers/supabase/receivableRepository.supabase";
@@ -66,6 +67,7 @@ export default async function ContractDetailPage({ params }: { params: { id: str
   const signatureInvitations = "error" in signatureResult ? [] : signatureResult.invitations;
   const signatureRequestsResult = await listSignatureRequestsAction(contract.id);
   const signatureRequests = "error" in signatureRequestsResult ? [] : signatureRequestsResult.requests;
+  const contractTemplates = (await getContractTemplateService(supabase).listCurrentVersions()).filter((t) => t.active);
   const availableCreditTotal = availableCredits.reduce((sum, item) => sum + item.balance, 0);
 
   const receivableService = getReceivableService(supabase);
@@ -239,6 +241,7 @@ export default async function ContractDetailPage({ params }: { params: { id: str
         <p className="helper-text">{contract.notes || "Nenhuma observação registrada."}</p>
       </section>
 
+      <ContractTemplateGenerationPanel contractId={contract.id} templates={contractTemplates} />
       <ContractDocumentsPanel contractId={contract.id} documents={documents} />
       <ContractSignaturesPanel contractId={contract.id} documents={documents}
         invitations={signatureInvitations} requests={signatureRequests}
