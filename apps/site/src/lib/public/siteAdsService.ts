@@ -42,6 +42,7 @@ function fallbackForSlot(slotNumber: number, config: PublicSlotRow): PublicSiteA
     altText: creative.alt,
     href: creative.href,
     sortOrder: order,
+    // Acervo legado nunca teve configuração por imagem — usa sempre o padrão da posição.
     rotationIntervalMs: config.rotation_interval_ms,
     transitionEffect: config.transition_effect,
     fitMode: config.fit_mode,
@@ -85,9 +86,11 @@ export async function getPublicSiteAds(): Promise<PublicSiteAds> {
           altText: row.alt_text ?? undefined,
           href: row.href ?? undefined,
           sortOrder: row.sort_order,
-          rotationIntervalMs: config.rotation_interval_ms,
-          transitionEffect: config.transition_effect,
-          fitMode: config.fit_mode,
+          // public_site_ad_media já resolve o COALESCE imagem->posição — usar o valor da
+          // própria linha, nunca o da posição direto (seria ignorar a configuração individual).
+          rotationIntervalMs: row.rotation_interval_ms,
+          transitionEffect: row.transition_effect,
+          fitMode: row.fit_mode,
         }));
 
       if (configuredMedia.length > 0) {

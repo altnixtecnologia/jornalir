@@ -55,6 +55,20 @@ function assertSlotSettings(input: SiteAdSlotSettingsInput): void {
   }
 }
 
+// Overrides por imagem aceitam null (volta a usar o valor da posição) — só valida quando um
+// valor de fato foi informado (null/undefined nunca disparam erro de validação).
+function assertMediaOverrides(changes: Pick<SiteAdMediaChanges, "rotationIntervalMs" | "transitionEffect" | "fitMode">): void {
+  if (changes.rotationIntervalMs != null && (!Number.isFinite(changes.rotationIntervalMs) || changes.rotationIntervalMs < 2000 || changes.rotationIntervalMs > 120000)) {
+    throw new SiteAdMediaValidationError("Informe um tempo entre 2 e 120 segundos para esta imagem.");
+  }
+  if (changes.transitionEffect != null && !SITE_AD_SLOT_TRANSITION_EFFECTS.includes(changes.transitionEffect)) {
+    throw new SiteAdMediaValidationError("Efeito de transição inválido para esta imagem.");
+  }
+  if (changes.fitMode != null && changes.fitMode !== "contain" && changes.fitMode !== "stretch") {
+    throw new SiteAdMediaValidationError("Formato de exibição inválido para esta imagem.");
+  }
+}
+
 export class SiteAdSlotService {
   constructor(private readonly repository: SiteAdSlotRepository) {}
 
@@ -91,6 +105,7 @@ export class SiteAdSlotService {
     if (changes.activeFrom && changes.activeUntil && changes.activeUntil < changes.activeFrom) {
       throw new SiteAdMediaValidationError("O fim do período não pode ser anterior ao início.");
     }
+    assertMediaOverrides(changes);
     return this.repository.updateMedia(id, changes);
   }
 

@@ -36,7 +36,15 @@ export default async function NoticiaDetalhePage({ params }: { params: { slug: s
       phaseOffsetMs: index * PHASE_OFFSET_STEP_MS,
       transitionEffect: config?.transitionEffect ?? "fade",
       fitMode: config?.fitMode ?? "contain",
-      creatives: media.map((item) => ({ id: item.id, imageUrl: item.imageUrl, href: item.href, alt: item.altText })),
+      creatives: media.map((item) => ({
+        id: item.id,
+        imageUrl: item.imageUrl,
+        href: item.href,
+        alt: item.altText,
+        rotateMs: item.rotationIntervalMs,
+        transitionEffect: item.transitionEffect,
+        fitMode: item.fitMode,
+      })),
     };
   });
   const leftAdSlots = [adSlots[0], adSlots[2], adSlots[4]];

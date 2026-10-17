@@ -5,11 +5,16 @@ export interface AdCreative {
   imageUrl: string;
   href?: string;
   alt?: string;
+  /** Duração/efeito/formato individuais desta imagem — sempre resolvidos (nunca undefined), já com o padrão da posição aplicado quando a imagem não tem configuração própria. */
+  rotateMs: number;
+  transitionEffect: SiteAdSlotTransitionEffect;
+  fitMode: SiteAdFitMode;
 }
 
 export interface AdSlot {
   id: string;
   label: string;
+  /** Padrão da posição — usado como fallback só quando uma imagem não traz seus próprios valores (nunca lido diretamente pelo AdSlotUnit, que sempre consulta a imagem atual). */
   rotateMs: number;
   phaseOffsetMs: number;
   transitionEffect: SiteAdSlotTransitionEffect;
@@ -17,7 +22,7 @@ export interface AdSlot {
   creatives: AdCreative[];
 }
 
-function creative(folder: string, fileName: string, id: string): AdCreative {
+function creative(folder: string, fileName: string, id: string): Omit<AdCreative, "rotateMs" | "transitionEffect" | "fitMode"> {
   return { id, imageUrl: "/uploads/anuncios/" + folder + "/" + encodeURIComponent(fileName) };
 }
 
@@ -26,9 +31,14 @@ function fallbackSlot(
   label: string,
   rotateMs: number,
   phaseOffsetMs: number,
-  creatives: AdCreative[],
+  creativesWithoutDefaults: Array<Omit<AdCreative, "rotateMs" | "transitionEffect" | "fitMode">>,
 ): AdSlot {
-  return { id: "slot-" + id, label, rotateMs, phaseOffsetMs, transitionEffect: "fade", fitMode: "contain", creatives };
+  const transitionEffect: SiteAdSlotTransitionEffect = "fade";
+  const fitMode: SiteAdFitMode = "contain";
+  return {
+    id: "slot-" + id, label, rotateMs, phaseOffsetMs, transitionEffect, fitMode,
+    creatives: creativesWithoutDefaults.map((item) => ({ ...item, rotateMs, transitionEffect, fitMode })),
+  };
 }
 
 export const adSlots: AdSlot[] = [

@@ -84,6 +84,19 @@ export async function uploadSiteAdImagesAction(
   return { ok: true, count, warnings };
 }
 
+export async function updateSiteAdMediaSettingsAction(
+  id: string,
+  changes: { rotationIntervalMs: number | null; transitionEffect: SiteAdSlotTransitionEffect | null; fitMode: SiteAdFitMode | null },
+): Promise<{ error: string } | void> {
+  try {
+    const client = createSupabaseServerClient();
+    await getSiteAdSlotService(client).updateMedia(id, changes);
+  } catch (error) {
+    return { error: toErrorMessage(error) };
+  }
+  revalidatePath(LIST_PATH);
+}
+
 export async function removeSiteAdMediaAction(id: string): Promise<{ error: string } | void> {
   try {
     const client = createSupabaseServerClient();

@@ -104,6 +104,10 @@ export interface SiteAdMedia {
   activeFrom?: string;
   activeUntil?: string;
   sortOrder: number;
+  /** Override individual — ausente/undefined usa o valor da posição (SiteAdSlot). */
+  rotationIntervalMs?: number;
+  transitionEffect?: SiteAdSlotTransitionEffect;
+  fitMode?: SiteAdFitMode;
   createdByProfileId?: string;
   createdAt: string;
   updatedAt: string;

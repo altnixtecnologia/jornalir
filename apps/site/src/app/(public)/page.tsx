@@ -41,11 +41,16 @@ export default async function HomePage(): Promise<JSX.Element> {
       phaseOffsetMs: index * PHASE_OFFSET_STEP_MS,
       transitionEffect: config?.transitionEffect ?? "fade",
       fitMode: config?.fitMode ?? "contain",
+      // Cada item já vem com seu próprio tempo/efeito/formato resolvidos (override da
+      // imagem ou, na ausência dele, o padrão da posição) — ver getPublicSiteAds().
       creatives: media.map((item) => ({
         id: item.id,
         imageUrl: item.imageUrl,
         href: item.href,
         alt: item.altText,
+        rotateMs: item.rotationIntervalMs,
+        transitionEffect: item.transitionEffect,
+        fitMode: item.fitMode,
       })),
     };
   });

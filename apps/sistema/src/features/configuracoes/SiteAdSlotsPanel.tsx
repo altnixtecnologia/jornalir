@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import type {
   SiteAdFitMode,
+  SiteAdMediaWithAsset,
   SiteAdSlotTransitionEffect,
   SiteAdSlotWithMedia,
 } from "@ir/types";
@@ -16,6 +17,7 @@ import {
   removeSiteAdMediaAction,
   reorderSiteAdMediaAction,
   toggleSiteAdSlotActiveAction,
+  updateSiteAdMediaSettingsAction,
   updateSiteAdSlotSettingsAction,
   uploadSiteAdImagesAction,
 } from "../../app/sistema/configuracoes/patrocinadores/actions";
@@ -67,6 +69,65 @@ async function prepareAdvertisingImage(source: File): Promise<File> {
     longestSide = Math.max(720, Math.round(longestSide * 0.75));
   }
   throw new Error(source.name + ": não foi possível reduzir para o limite seguro de upload.");
+}
+
+function MediaSettingsRow({
+  media,
+  pending,
+  onSave,
+}: {
+  media: SiteAdMediaWithAsset;
+  pending: boolean;
+  onSave: (changes: { rotationIntervalMs: number | null; transitionEffect: SiteAdSlotTransitionEffect | null; fitMode: SiteAdFitMode | null }) => void;
+}): JSX.Element {
+  const hasOverride = media.rotationIntervalMs != null || media.transitionEffect != null || media.fitMode != null;
+  const [custom, setCustom] = useState(hasOverride);
+  const [seconds, setSeconds] = useState(String(Math.round((media.rotationIntervalMs ?? 10000) / 1000)));
+  const [effect, setEffect] = useState<SiteAdSlotTransitionEffect>(media.transitionEffect ?? "fade");
+  const [fitMode, setFitMode] = useState<SiteAdFitMode>(media.fitMode ?? "contain");
+  const [saved, setSaved] = useState(false);
+
+  function save(): void {
+    setSaved(false);
+    if (!custom) {
+      onSave({ rotationIntervalMs: null, transitionEffect: null, fitMode: null });
+    } else {
+      const value = Math.max(2, Math.min(120, Number(seconds) || 10)) * 1000;
+      onSave({ rotationIntervalMs: value, transitionEffect: effect, fitMode });
+    }
+    setSaved(true);
+    window.setTimeout(() => setSaved(false), 1800);
+  }
+
+  return (
+    <div className="site-ad-thumb-settings">
+      <label className="site-ad-thumb-custom-toggle">
+        <input
+          type="checkbox"
+          checked={custom}
+          onChange={(event) => setCustom(event.target.checked)}
+          disabled={pending}
+        />
+        Configuração própria desta imagem
+      </label>
+      {custom ? (
+        <div className="site-ad-thumb-settings-fields">
+          <div className="site-ad-seconds"><input type="number" min={2} max={120} value={seconds} onChange={(event) => setSeconds(event.target.value)} disabled={pending} /><span>s</span></div>
+          <select value={effect} onChange={(event) => setEffect(event.target.value as SiteAdSlotTransitionEffect)} disabled={pending}>
+            {SITE_AD_SLOT_TRANSITION_EFFECTS.map((item) => <option key={item} value={item}>{SITE_AD_SLOT_TRANSITION_EFFECT_LABELS[item]}</option>)}
+          </select>
+          <select value={fitMode} onChange={(event) => setFitMode(event.target.value as SiteAdFitMode)} disabled={pending}>
+            {(Object.keys(SITE_AD_FIT_MODE_LABELS) as SiteAdFitMode[]).map((item) => <option key={item} value={item}>{SITE_AD_FIT_MODE_LABELS[item]}</option>)}
+          </select>
+        </div>
+      ) : (
+        <span className="helper-text">Usa o tempo/efeito/formato da posição.</span>
+      )}
+      <button type="button" className="cadastros-btn-secondary" onClick={save} disabled={pending}>
+        {saved ? "Salvo ✓" : "Salvar imagem"}
+      </button>
+    </div>
+  );
 }
 
 function slotIdentity(slotNumber: number): { position: number; side: "Esquerda" | "Direita" } {
@@ -240,6 +301,21 @@ function SlotCard({ slot }: { slot: SiteAdSlotWithMedia }): JSX.Element {
     });
   }
 
+  function updateMediaSettings(
+    id: string,
+    changes: { rotationIntervalMs: number | null; transitionEffect: SiteAdSlotTransitionEffect | null; fitMode: SiteAdFitMode | null },
+  ): void {
+    setMessage(null);
+    startTransition(async () => {
+      const result = await updateSiteAdMediaSettingsAction(id, changes);
+      if (result && "error" in result) {
+        setMessage(result.error);
+        return;
+      }
+      router.refresh();
+    });
+  }
+
   const previewObjectFit = fitMode === "stretch" ? "fill" : "contain";
 
   return (
@@ -258,10 +334,10 @@ function SlotCard({ slot }: { slot: SiteAdSlotWithMedia }): JSX.Element {
 
       <div className="site-ad-slot-settings">
         <label className="form-field">
-          <span className="field-label">Tempo de rotação desta posição</span>
+          <span className="field-label">Tempo de rotação desta posição (padrão)</span>
           <div className="site-ad-seconds"><input type="number" min={2} max={120} value={seconds} onChange={(event) => setSeconds(event.target.value)} /><span>s</span></div>
           <span className="helper-text">
-            Aplica-se a todas as imagens desta posição — ainda não é possível configurar um tempo diferente por imagem individual.
+            Vale para toda imagem desta posição que não tiver uma configuração própria (ver cada miniatura abaixo).
           </span>
         </label>
         <label className="form-field">
@@ -345,6 +421,11 @@ function SlotCard({ slot }: { slot: SiteAdSlotWithMedia }): JSX.Element {
                 <button type="button" onClick={() => move(index, -1)} disabled={pending || index === 0} aria-label="Mover para cima">↑</button>
                 <button type="button" onClick={() => move(index, 1)} disabled={pending || index === slot.media.length - 1} aria-label="Mover para baixo">↓</button>
               </div>
+              <MediaSettingsRow
+                media={media}
+                pending={pending}
+                onSave={(changes) => updateMediaSettings(media.id, changes)}
+              />
             </div>
           ))}
         </div>

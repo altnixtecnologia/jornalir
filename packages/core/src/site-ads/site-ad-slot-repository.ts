@@ -1,7 +1,13 @@
-import type { SiteAdMedia, SiteAdSlot, SiteAdSlotWithMedia } from "@ir/types";
+import type { SiteAdFitMode, SiteAdMedia, SiteAdSlot, SiteAdSlotTransitionEffect, SiteAdSlotWithMedia } from "@ir/types";
 
 export type NewSiteAdMediaRecord = Omit<SiteAdMedia, "id" | "createdByProfileId" | "createdAt" | "updatedAt">;
-export type SiteAdMediaChanges = Partial<Pick<SiteAdMedia, "clientId" | "href" | "altText" | "active" | "activeFrom" | "activeUntil" | "sortOrder">>;
+// rotationIntervalMs/transitionEffect/fitMode aceitam null explícito (volta a usar o valor da
+// posição) além de undefined (não alterar) — por isso não usam Pick/Partial puro do domínio.
+export type SiteAdMediaChanges = Partial<Pick<SiteAdMedia, "clientId" | "href" | "altText" | "active" | "activeFrom" | "activeUntil" | "sortOrder">> & {
+  rotationIntervalMs?: number | null;
+  transitionEffect?: SiteAdSlotTransitionEffect | null;
+  fitMode?: SiteAdFitMode | null;
+};
 export type SiteAdSlotChanges = Partial<Pick<SiteAdSlot, "active" | "rotationIntervalMs" | "transitionEffect" | "fitMode">>;
 
 export class SiteAdSlotNotFoundError extends Error {

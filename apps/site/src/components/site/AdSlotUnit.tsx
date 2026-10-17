@@ -14,34 +14,32 @@ export function AdSlotUnit({
 
   useEffect(() => {
     setIndex(0);
-    if (slot.creatives.length <= 1) return;
-
-    let intervalId: ReturnType<typeof setInterval> | null = null;
-    const timeoutId = window.setTimeout(() => {
-      setIndex((prev) => (prev + 1) % slot.creatives.length);
-      intervalId = setInterval(
-        () => setIndex((prev) => (prev + 1) % slot.creatives.length),
-        Math.max(2000, slot.rotateMs),
-      );
-    }, Math.max(2000, slot.rotateMs) + Math.max(0, slot.phaseOffsetMs));
-
-    return () => {
-      window.clearTimeout(timeoutId);
-      if (intervalId) clearInterval(intervalId);
-    };
-  }, [slot.creatives.length, slot.phaseOffsetMs, slot.rotateMs]);
+  }, [slot.id, slot.creatives.length]);
 
   const current = useMemo(() => slot.creatives[index] ?? slot.creatives[0], [index, slot.creatives]);
+
+  // Cada imagem controla sua própria duração (current.rotateMs) — nunca um intervalo fixo
+  // compartilhado pela posição. O primeiro ciclo soma o deslocamento de fase (phaseOffsetMs)
+  // pra evitar que todas as posições troquem de imagem exatamente no mesmo instante.
+  useEffect(() => {
+    if (slot.creatives.length <= 1 || !current) return;
+    const phase = index === 0 ? Math.max(0, slot.phaseOffsetMs) : 0;
+    const timeoutId = window.setTimeout(() => {
+      setIndex((prev) => (prev + 1) % slot.creatives.length);
+    }, Math.max(2000, current.rotateMs) + phase);
+    return () => window.clearTimeout(timeoutId);
+  }, [current, index, slot.creatives.length, slot.phaseOffsetMs]);
+
   if (!current) return null;
 
-  const fitClass = slot.fitMode === "stretch" ? " ad-slot-img--stretch" : "";
+  const fitClass = current.fitMode === "stretch" ? " ad-slot-img--stretch" : "";
   const content = (
     <img
       key={current.id}
       src={current.imageUrl}
       alt={current.alt ?? slot.label}
       loading="lazy"
-      className={"ad-slot-img" + fitClass + " ad-effect-" + slot.transitionEffect}
+      className={"ad-slot-img" + fitClass + " ad-effect-" + current.transitionEffect}
     />
   );
 

@@ -102,11 +102,16 @@ interface MediaRow {
   active_from: string | null;
   active_until: string | null;
   sort_order: number;
+  rotation_interval_ms: number | null;
+  transition_effect: SiteAdSlotTransitionEffect | null;
+  fit_mode: SiteAdFitMode | null;
   created_by: string | null;
   created_at: string;
   updated_at: string;
   media_assets: { public_url: string | null; alt_text: string | null } | null;
 }
+
+const MEDIA_COLUMNS = "id, slot_id, media_asset_id, client_id, href, alt_text, active, active_from, active_until, sort_order, rotation_interval_ms, transition_effect, fit_mode, created_by, created_at, updated_at, media_assets(public_url, alt_text)";
 
 function mediaToDomain(row: MediaRow): SiteAdMedia & { imageUrl: string; mediaAssetAltText?: string } {
   return {
@@ -120,6 +125,9 @@ function mediaToDomain(row: MediaRow): SiteAdMedia & { imageUrl: string; mediaAs
     activeFrom: row.active_from ?? undefined,
     activeUntil: row.active_until ?? undefined,
     sortOrder: row.sort_order,
+    rotationIntervalMs: row.rotation_interval_ms ?? undefined,
+    transitionEffect: row.transition_effect ?? undefined,
+    fitMode: row.fit_mode ?? undefined,
     createdByProfileId: row.created_by ?? undefined,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
@@ -161,7 +169,7 @@ export function createSiteAdSlotRepositorySupabase(client: SupabaseClient): Site
 
       const { data: mediaRows, error: mediaError } = await client
         .from(MEDIA_TABLE)
-        .select("id, slot_id, media_asset_id, client_id, href, alt_text, active, active_from, active_until, sort_order, created_by, created_at, updated_at, media_assets(public_url, alt_text)")
+        .select(MEDIA_COLUMNS)
         .order("sort_order", { ascending: true });
       if (mediaError) throw new Error(mediaError.message);
 
@@ -238,7 +246,7 @@ export function createSiteAdSlotRepositorySupabase(client: SupabaseClient): Site
           active_until: record.activeUntil ?? null,
           sort_order: record.sortOrder,
         })
-        .select("id, slot_id, media_asset_id, client_id, href, alt_text, active, active_from, active_until, sort_order, created_by, created_at, updated_at, media_assets(public_url, alt_text)")
+        .select(MEDIA_COLUMNS)
         .single();
       if (error) throw new Error(error.message);
       return mediaToDomain(data as unknown as MediaRow);
@@ -249,7 +257,14 @@ export function createSiteAdSlotRepositorySupabase(client: SupabaseClient): Site
         for (const slot of PREVIEW_SLOTS) {
           const index = slot.media.findIndex((item) => item.id === id);
           if (index >= 0) {
-            slot.media[index] = { ...slot.media[index], ...changes, updatedAt: new Date().toISOString() };
+            slot.media[index] = {
+              ...slot.media[index],
+              ...changes,
+              rotationIntervalMs: changes.rotationIntervalMs === null ? undefined : changes.rotationIntervalMs ?? slot.media[index].rotationIntervalMs,
+              transitionEffect: changes.transitionEffect === null ? undefined : changes.transitionEffect ?? slot.media[index].transitionEffect,
+              fitMode: changes.fitMode === null ? undefined : changes.fitMode ?? slot.media[index].fitMode,
+              updatedAt: new Date().toISOString(),
+            };
             return slot.media[index];
           }
         }
@@ -263,11 +278,14 @@ export function createSiteAdSlotRepositorySupabase(client: SupabaseClient): Site
       if (changes.activeFrom !== undefined) row.active_from = changes.activeFrom ?? null;
       if (changes.activeUntil !== undefined) row.active_until = changes.activeUntil ?? null;
       if (changes.sortOrder !== undefined) row.sort_order = changes.sortOrder;
+      if (changes.rotationIntervalMs !== undefined) row.rotation_interval_ms = changes.rotationIntervalMs;
+      if (changes.transitionEffect !== undefined) row.transition_effect = changes.transitionEffect;
+      if (changes.fitMode !== undefined) row.fit_mode = changes.fitMode;
       const { data, error } = await client
         .from(MEDIA_TABLE)
         .update(row)
         .eq("id", id)
-        .select("id, slot_id, media_asset_id, client_id, href, alt_text, active, active_from, active_until, sort_order, created_by, created_at, updated_at, media_assets(public_url, alt_text)")
+        .select(MEDIA_COLUMNS)
         .single();
       if (error) throw new Error(error.message);
       return mediaToDomain(data as unknown as MediaRow);
