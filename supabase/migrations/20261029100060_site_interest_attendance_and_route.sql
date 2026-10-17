@@ -1,3 +1,10 @@
+-- RENOMEADA em 17/10/2026 (de 20261014020555 para 20261029100060):
+-- o UPDATE abaixo lê converted_client_id/converted_subscription_id/
+-- converted_receivable_id, colunas criadas por
+-- 20261029100050_site_interest_conversion_links.sql (também renomeada
+-- nesta auditoria) — precisa continuar rodando DEPOIS dela. Nunca
+-- aplicada a nenhum banco real; só o nome do arquivo mudou, conteúdo
+-- idêntico.
 alter table public.site_interest_requests
   add column if not exists route_reference text,
   add column if not exists location_url text,

@@ -3,6 +3,14 @@
 -- apenas). Depende de public.media_assets (20260921100700) e
 -- public.clients (20261011100000).
 --
+-- RENOMEADA em 17/10/2026 (de 20261029100200 para 20261014000000):
+-- o arquivo original tinha nome/timestamp POSTERIOR aos 5 arquivos que
+-- fazem ALTER TABLE nestas mesmas tabelas (20261014015734 a
+-- 20261015030545) — em ordem de nome de arquivo, os ALTER rodariam
+-- antes deste CREATE TABLE e falhariam (tabela inexistente). Este
+-- arquivo nunca foi aplicado a nenhum banco real; só o nome do arquivo
+-- mudou, conteúdo idêntico.
+--
 -- AUDITORIA PRÉVIA (resumo, ver relatório da tarefa): hoje as 6
 -- posições são um array hardcoded em apps/site/src/components/site/
 -- adSlots.ts, imagens como arquivo estático em /public/uploads/anuncios.
