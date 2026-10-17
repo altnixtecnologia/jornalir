@@ -1,3 +1,11 @@
+-- RENOMEADA em 17/10/2026 (de 20261016235500 para 20261017100020,
+-- preparação de publicação): referencia contract_documents/
+-- institutional_contracts, criadas só em
+-- 20261017100000_financeiro_contas_a_receber.sql — a ordem antiga
+-- (23:55 de 16/10, antes das 10h de 17/10) faria um fresh install falhar
+-- com "relation does not exist". Nunca aplicada a nenhum banco real sob o
+-- nome antigo (create table if not exists já idempotente).
+--
 -- Etapa 5B: convites de assinatura eletrônica para PDFs contratuais.
 -- Tokens jamais são gravados em claro. Dados privados acessíveis apenas ao
 -- servidor com role administrativa, após validação da sessão OU do token.

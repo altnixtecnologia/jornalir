@@ -1,7 +1,12 @@
 -- Patrocinadores do site — as 6 posições laterais do portal público
 -- (Fase 6 da rodada "Comercial completo"). NÃO aplicada ainda (local
--- apenas). Depende de public.media_assets (20260921100700) e
--- public.clients (20261011100000).
+-- apenas). Depende de public.media_assets (20260921100700). O comentário
+-- original citava "public.clients (20261011100000)" — esse arquivo nunca
+-- existiu (stale: o cadastro mestre real é 20261014110000_clients.sql,
+-- que só roda DEPOIS deste); por isso a FK de site_ad_media.client_id
+-- para clients foi retirada de dentro deste CREATE TABLE e adicionada
+-- depois, em 20261014110050_site_ad_media_client_fk.sql (logo após
+-- clients existir) — ver nota nesse arquivo.
 --
 -- RENOMEADA em 17/10/2026 (de 20261029100200 para 20261014000000):
 -- o arquivo original tinha nome/timestamp POSTERIOR aos 5 arquivos que
@@ -9,7 +14,8 @@
 -- 20261015030545) — em ordem de nome de arquivo, os ALTER rodariam
 -- antes deste CREATE TABLE e falhariam (tabela inexistente). Este
 -- arquivo nunca foi aplicado a nenhum banco real; só o nome do arquivo
--- mudou, conteúdo idêntico.
+-- mudou, conteúdo idêntico (exceto a FK de client_id, retirada agora
+-- pelo motivo acima).
 --
 -- AUDITORIA PRÉVIA (resumo, ver relatório da tarefa): hoje as 6
 -- posições são um array hardcoded em apps/site/src/components/site/
@@ -133,7 +139,7 @@ create table public.site_ad_media (
   slot_id uuid not null references public.site_ad_slots (id) on delete cascade,
 
   media_asset_id uuid not null references public.media_assets (id),
-  client_id uuid references public.clients (id),
+  client_id uuid, -- FK para public.clients adicionada depois (ver 20261014110050_site_ad_media_client_fk.sql) — clients só existe depois deste arquivo.
   href text,
   alt_text text,
 

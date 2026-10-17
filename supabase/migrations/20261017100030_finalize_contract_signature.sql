@@ -1,3 +1,9 @@
+-- RENOMEADA em 17/10/2026 (de 20261016235700 para 20261017100030,
+-- preparação de publicação): mesma razão das migrations de assinatura de
+-- contrato vizinhas — reposicionada para depois de contract_documents/
+-- contract_signature_invitations existirem. create or replace function é
+-- idempotente; nunca aplicada a nenhum banco real sob o nome antigo.
+--
 -- Commit de assinatura e comprovante em uma transação, invocado apenas
 -- pelo servidor com service_role. Não aceita identidade/timestamp do cliente.
 create or replace function public.finalize_contract_signature(

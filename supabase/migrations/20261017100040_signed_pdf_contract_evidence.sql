@@ -1,3 +1,9 @@
+-- RENOMEADA em 17/10/2026 (de 20261017000000 para 20261017100040,
+-- preparação de publicação): depende de contract_documents/
+-- contract_signature_invitations existirem primeiro. add column if not
+-- exists já idempotente; nunca aplicada a nenhum banco real sob o nome
+-- antigo.
+--
 -- Versao consolidada do PDF, sem substituir o original e seu comprovante.
 alter table public.contract_signature_invitations
   add column if not exists signed_document_id uuid references public.contract_documents(id) on delete set null,
