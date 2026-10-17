@@ -33,7 +33,7 @@ async function requireFinanceAccess(): Promise<string> {
 export type PublicSignatureInvite = Pick<
   SignatureInvitation,
   "id" | "contract_id" | "document_id" | "signer_name" | "signer_email" |
-  "signer_phone" | "status" | "expires_at" | "signed_at" | "created_at" | "receipt_document_id" | "signed_document_id"
+  "signer_phone" | "status" | "expires_at" | "signed_at" | "created_at" | "receipt_document_id" | "signed_document_id" | "notification_channel" | "notification_status" | "notification_message_id"
 >;
 
 export async function listSignatureInvitationsAction(contractId: string): Promise<Result<{ invitations: PublicSignatureInvite[] }>> {
@@ -41,7 +41,7 @@ export async function listSignatureInvitationsAction(contractId: string): Promis
     await requireFinanceAccess();
     const admin = createSupabaseAdminClient();
     const { data, error } = await admin.from("contract_signature_invitations")
-      .select("id,contract_id,document_id,signer_name,signer_email,signer_phone,status,expires_at,signed_at,created_at,receipt_document_id,signed_document_id")
+      .select("id,contract_id,document_id,signer_name,signer_email,signer_phone,status,expires_at,signed_at,created_at,receipt_document_id,signed_document_id,notification_channel,notification_status,notification_message_id")
       .eq("contract_id", contractId).order("created_at", { ascending: false }).limit(100);
     if (error) throw error;
     return { ok: true, invitations: (data ?? []) as PublicSignatureInvite[] };
