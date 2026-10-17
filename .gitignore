@@ -22,3 +22,4 @@ scripts/legacy-audit/checkpoints/
 # Logs por arquivo da migração R2 (grandes demais / só operacionais)
 scripts/r2-migration/output/
 scripts/r2-webp-optimize/output/
+.env*
