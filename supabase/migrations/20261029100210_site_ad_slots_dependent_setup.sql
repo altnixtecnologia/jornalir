@@ -11,23 +11,24 @@
 -- Conteúdo idêntico ao de cada um, só reunido e reposicionado. Idempotente.
 
 -- (1) 20261014015734 — rotação/efeito/formato por posição + view de mídia pública.
+--
+-- ATENÇÃO DE SEGURANÇA (verificação pré-aplicação, 17/10/2026): o arquivo
+-- original fazia, depois do ADD COLUMN, um UPDATE incondicional copiando
+-- o valor de public.site_ad_settings (singleton global) para TODAS as 6
+-- posições — um backfill histórico de UMA VEZ só, da época em que esta
+-- configuração era só global. Reaplicar esse UPDATE agora sobrescreveria
+-- qualquer customização por posição feita depois pelo painel
+-- (SiteAdSlotsPanel.tsx já permite tempo/efeito/formato próprios por
+-- posição). Confirmado por amostragem de dados reais (restauração de
+-- teste do backup de 17/10/2026): as 6 posições já têm
+-- rotation_interval_ms/transition_effect/fit_mode preenchidos — o
+-- backfill histórico (ou o próprio DEFAULT da coluna) já aconteceu.
+-- Por isso o UPDATE foi retirado desta migration de reconciliação — só o
+-- ADD COLUMN (idempotente, nunca sobrescreve valor existente) permanece.
 alter table public.site_ad_slots
   add column if not exists rotation_interval_ms integer not null default 10000,
   add column if not exists transition_effect text not null default 'fade',
   add column if not exists fit_mode text not null default 'contain';
-
-update public.site_ad_slots
-set
-  rotation_interval_ms = coalesce(
-    (select rotation_interval_ms from public.site_ad_settings order by updated_at desc limit 1),
-    rotation_interval_ms
-  ),
-  transition_effect = case
-    when coalesce((select transition_effect from public.site_ad_settings order by updated_at desc limit 1), 'fade')
-         in ('fade','slide-left','slide-up','zoom-in','crossfade')
-      then coalesce((select transition_effect from public.site_ad_settings order by updated_at desc limit 1), 'fade')
-    else 'fade'
-  end;
 
 alter table public.site_ad_slots
   drop constraint if exists site_ad_slots_rotation_interval_ms_check,
