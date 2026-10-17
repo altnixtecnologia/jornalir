@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ClientNotFoundError } from "@ir/core";
-import { CLIENT_KIND_LABELS, CLIENT_ROLE_LABELS, clientDisplayName, computeReceivableDueFlag, RECEIVABLE_SOURCE_TYPE_LABELS } from "@ir/types";
+import { CLIENT_KIND_LABELS, CLIENT_ROLE_LABELS, clientDisplayName, computeReceivableDueFlag, CONTRACT_STATUS_LABELS, RECEIVABLE_SOURCE_TYPE_LABELS } from "@ir/types";
 import { ModuleHeader } from "../../../../components/admin/ModuleHeader";
 import { getClientService } from "../../../../composition/clientes";
 import { getSubscriptionService } from "../../../../composition/assinaturas";
@@ -176,6 +176,18 @@ export default async function ClienteDetailPage({ params }: { params: { id: stri
             {availableCredits.map((credit) => (
               <li key={credit.id}>
                 {formatAmount(credit.balance)} disponível — origem: {RECEIVABLE_SOURCE_TYPE_LABELS[credit.sourceType]}, criado em {formatDate(credit.createdAt)} (usado: {formatAmount(credit.totalApplied)} de {formatAmount(credit.originalAmount)})
+              </li>
+            ))}
+          </ul>
+        ) : null}
+        {contracts.length > 0 ? (
+          <ul className="helper-text" style={{ marginTop: "8px" }}>
+            {contracts.map((contract) => (
+              <li key={contract.id}>
+                <Link className="materia-title-link" href={`/sistema/financeiro/contratos/${contract.id}`}>
+                  {contract.reference}
+                </Link>
+                {" "}— {CONTRACT_STATUS_LABELS[contract.status]}
               </li>
             ))}
           </ul>
