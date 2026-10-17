@@ -16,6 +16,7 @@ import { ModuleHeader } from "../../../../../components/admin/ModuleHeader";
 import { ReceivablesList } from "../../../../../features/financeiro/ReceivablesList";
 import { ContractDocumentsPanel } from "../../../../../features/financeiro/ContractDocumentsPanel";
 import { ContractSignaturesPanel } from "../../../../../features/financeiro/ContractSignaturesPanel";
+import { isWhatsappSignatureTemplateConfigured } from "../../../../../lib/financeiro/whatsappCloudProvider";
 import { listSignatureInvitationsAction } from "../signature-actions";
 import { ContractAmendmentsPanel } from "../../../../../features/financeiro/ContractAmendmentsPanel";
 import { ContractCommitmentOrdersPanel } from "../../../../../features/financeiro/ContractCommitmentOrdersPanel";
@@ -238,7 +239,7 @@ export default async function ContractDetailPage({ params }: { params: { id: str
 
       <ContractDocumentsPanel contractId={contract.id} documents={documents} />
       <ContractSignaturesPanel contractId={contract.id} documents={documents}
-        invitations={signatureInvitations} />
+        invitations={signatureInvitations} whatsappEnabled={isWhatsappSignatureTemplateConfigured()} />
 
       <ContractAmendmentsPanel contractId={contract.id} amendments={amendments} documents={documents} />
 
