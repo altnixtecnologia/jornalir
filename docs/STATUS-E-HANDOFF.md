@@ -154,6 +154,36 @@ Riscos de regressão: nenhum identificado nas mudanças feitas (só correção d
 Próximo lote: aguardando autorização do usuário.
 ```
 
+## Lote — Preparação do banco para publicação (17/10/2026, commit 00051fd)
+
+```
+Objetivo: validar TODAS as migrations locais contra o histórico real do
+Supabase remoto (leitura apenas) e testar a sequência completa num banco
+local descartável antes de qualquer aplicação remota.
+
+ACHADO CRÍTICO: o histórico remoto (supabase_migrations.schema_migrations)
+não corresponde aos nomes de arquivo locais atuais — várias migrations
+foram renomeadas/editadas no passado sem `migration repair`. O banco
+remoto em si está consistente (confirmado via `supabase db dump --schema
+public`); o problema só afeta um FRESH INSTALL (banco novo do zero), que
+falhava em 9 pontos por dependência fora de ordem. Corrigido via extração/
+reposicionamento de SQL idempotente + rename de arquivos nunca aplicados
+sob o nome atual (6 migrations de assinatura de contrato) — detalhes no
+commit 00051fd. Também corrigido: major_version do config.toml (15 -> 17,
+remoto real é Postgres 17) e uma lacuna real (staff_can_see_module/
+staff_module_visibility existiam no remoto sem NENHUMA migration local
+correspondente — reconstruída fielmente a partir do dump).
+
+Testado: `supabase start` do zero (Docker local, projeto isolado) aplicou
+as 126 migrations sem erro; dados fictícios confirmaram constraints/FKs/
+view com COALESCE/RPCs. Suite completa (101+23+29) continua passando.
+
+Nenhuma migration foi aplicada ao Supabase remoto; nenhum dado real foi
+alterado; nenhum push/deploy realizado. Ver relatório completo entregue
+ao usuário nesta sessão para a lista exata das 23 migrations pendentes e
+os comandos de aplicação controlada propostos (ainda não autorizados).
+```
+
 ## Lote — Implementação efetiva: Aniversariantes, Publicidade, Migrations (17/10/2026)
 
 ```
