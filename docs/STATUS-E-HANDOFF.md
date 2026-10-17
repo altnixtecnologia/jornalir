@@ -7,9 +7,9 @@
 - Repositório `altnixtecnologia/jornalir`, monorepo (`apps/site`, `apps/sistema`, `packages`, `supabase`).
 - Pasta **oficial**: `C:\Users\caber\OneDrive\Altnix\Projetos\Informativo Regional\Site-sistema`.
 - Branch local oficial: `consolidacao-local-20261016`.
-- Último HEAD **confirmado em 17/10/2026 (verificação direta, não só relato)**: `4ebd0d8` (implementação efetiva Aniversariantes/Publicidade/Migrations — ver lote abaixo).
-- Sequência completa de commits locais confirmados: `ba3955f` (cliente/contratos) → `f8a3783` (certificado NFS-e) → `36e3276` (parametrização municipal) → `1c32734` (404/loading público) → `c4c02d5` (lote 2) → `61c944d` (lote 3) → `31798c8` (instalação da memória permanente de governança) → `7ee1ee2` (vercel.json) → `d89f6ed` (método ~3 tópicos + confirmação Vercel) → `71448d1` (Aniversariantes/Usuários-Menus/Publicidade, auditoria) → `d7781f0` (correção doc) → `3301471` (fix ordem de migrations) → `734fecf` (Publicidade per-imagem) → `4ebd0d8` (Aniversariantes: fundação/foto/edição manual).
-- **Confirmado por `git fetch origin` (17/10/2026, leitura apenas — sem pull/merge/rebase):** `consolidacao-local-20261016` está **7 commits à frente de `origin/consolidacao-local-20261016`, em fast-forward limpo, sem divergência** (o remoto é ancestral direto do local). `origin/release/contratos-nfse-integracao-20261016` e `origin/frontend-integracao-20261008` (branch padrão do repo) já estão totalmente contidos no local. **Ainda não sincronizado com o GitHub** — ver seção "Sincronização com GitHub" abaixo antes de fazer push.
+- Último HEAD **confirmado em 17/10/2026 (verificação direta, não só relato)**: ver lote "Preparação do banco" abaixo para o HEAD exato.
+- Sequência completa de commits locais confirmados: `ba3955f` (cliente/contratos) → `f8a3783` (certificado NFS-e) → `36e3276` (parametrização municipal) → `1c32734` (404/loading público) → `c4c02d5` (lote 2) → `61c944d` (lote 3) → `31798c8` (instalação da memória permanente de governança) → `7ee1ee2` (vercel.json) → `d89f6ed` (método ~3 tópicos + confirmação Vercel) → `71448d1` (Aniversariantes/Usuários-Menus/Publicidade, auditoria) → `d7781f0` (correção doc) → `3301471` (fix ordem de migrations) → `734fecf` (Publicidade per-imagem) → `4ebd0d8` (Aniversariantes: fundação/foto/edição manual) → `a8e95b8` (docs) → `00051fd` (fix fresh-install) → `8d1253a` (docs) → ver lote abaixo para os commits de reconciliação.
+- **Sincronização com GitHub:** `a8e95b8` e anteriores já estão em `origin/consolidacao-local-20261016` (push confirmado em 17/10/2026). Os commits posteriores (`00051fd`, `8d1253a` e os do lote de reconciliação abaixo) **ainda não foram enviados** — nenhum novo push foi autorizado nesta sessão.
 - Pastas preservadas **somente referência**: `Site-sistema-ANTIGO-BACKUP`, `Site-sistema-painel`, `jornalir-consolidacao-local`.
 - Remoto no GitHub **não tem** os commits locais listados acima (confirmado, não presumido). Não usar `git pull` ou checkout remoto sem inspecionar diferenças.
 
@@ -182,6 +182,58 @@ Nenhuma migration foi aplicada ao Supabase remoto; nenhum dado real foi
 alterado; nenhum push/deploy realizado. Ver relatório completo entregue
 ao usuário nesta sessão para a lista exata das 23 migrations pendentes e
 os comandos de aplicação controlada propostos (ainda não autorizados).
+```
+
+## Lote — Reconciliação do histórico de migrations (17/10/2026)
+
+```
+Objetivo: reconciliar os números 23/126/120 e confirmar via supabase
+migration list + db push --dry-run (sem aplicar nada) a lista exata do
+que seria realmente executado.
+
+RECONCILIAÇÃO DOS NÚMEROS:
+- 126 = total de arquivos .sql em supabase/migrations/ (ls | wc -l).
+- 120 = total de versões distintas registradas como aplicadas no
+  schema_migrations remoto (102 com nome local correspondente + 18
+  "órfãs" — versão aplicada sob um nome que não existe mais localmente,
+  por renomeações antigas nunca reconciliadas com `migration repair`).
+- 102 (local=remote) + 24 (só local, sem contrapartida remota) = 126.
+- Dos 24 "só local": 8 são mudança genuinamente nova (nunca executada,
+  nem sob outro nome) e 16 são conteúdo que JÁ existe no remoto sob um
+  nome diferente (idêntico ou reconstruído fielmente a partir do schema
+  real) — destes 16, 15 são no-op seguro se reaplicados (idempotentes) e
+  1 (site_ad_media_client_fk) adiciona uma FK que de fato ainda não
+  existe no remoto. O relatório anterior desta sessão citou "23" por
+  engano (contagem inconsistente) — 24 é o número correto.
+
+CORREÇÃO REAL REALIZADA: 20261014000000_site_ad_slots.sql tinha 3 CREATE
+TABLE + 7 CREATE POLICY + 3 CREATE TRIGGER + 2 CREATE VIEW + 2 INSERT sem
+nenhuma guarda de idempotência — o conteúdo já existe no remoto sob o
+nome antigo (20261029100200), então um push real falharia com "relation/
+policy/trigger already exists". Adicionado IF NOT EXISTS/DROP...IF
+EXISTS/CREATE OR REPLACE/ON CONFLICT em tudo, sem mudar estrutura nem
+comportamento. Re-testado: fresh install do zero (Docker local) continua
+aplicando as 126 migrations sem erro; suíte completa (101+23+29) continua
+passando.
+
+IMPEDIMENTO CONFIRMADO: `supabase db push --dry-run` (mesmo --dry-run,
+mesmo --include-all) se recusa a rodar enquanto existirem as 18 versões
+"órfãs" no histórico remoto — o próprio CLI exige `supabase migration
+repair --status reverted <18 versões>` antes de simular qualquer push.
+Como `migration repair` foi explicitamente proibido nesta sessão, o
+dry-run não pôde ser executado de fato; a lista abaixo foi derivada de
+`supabase migration list` (leitura confirmada) e das correções acima.
+
+LISTA EXATA que db push tentaria marcar como aplicada (24, numa aplicação
+futura após repair): as 8 novas de fato (20261029100600 a 20261029101300)
++ as 16 que já existem no remoto sob outro nome (20261014000000,
+20261014110050, 20261014214500, 20261017100010/020/030/040/050/060,
+20261027100120/150/160/450, 20261028100050, 20261029100050/100060).
+
+Testes: typecheck/build não afetados (só SQL). Suíte completa 153/153.
+
+Nenhum db push real, nenhum migration repair, nenhuma alteração no
+Supabase remoto, nenhum push no GitHub, nenhum deploy.
 ```
 
 ## Lote — Implementação efetiva: Aniversariantes, Publicidade, Migrations (17/10/2026)

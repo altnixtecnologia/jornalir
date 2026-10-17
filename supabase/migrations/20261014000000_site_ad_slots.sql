@@ -13,9 +13,20 @@
 -- fazem ALTER TABLE nestas mesmas tabelas (20261014015734 a
 -- 20261015030545) — em ordem de nome de arquivo, os ALTER rodariam
 -- antes deste CREATE TABLE e falhariam (tabela inexistente). Este
--- arquivo nunca foi aplicado a nenhum banco real; só o nome do arquivo
--- mudou, conteúdo idêntico (exceto a FK de client_id, retirada agora
--- pelo motivo acima).
+-- arquivo nunca foi aplicado a nenhum banco real SOB ESTE NOME; só o
+-- nome do arquivo mudou, conteúdo idêntico (exceto a FK de client_id,
+-- retirada agora pelo motivo acima).
+--
+-- TORNADA IDEMPOTENTE em 17/10/2026 (preparação de publicação):
+-- `supabase migration list` confirmou que o CONTEÚDO deste arquivo já
+-- está aplicado no remoto sob o nome antigo (20261029100200) — as 3
+-- tabelas/triggers/policies/views já existem lá. Sem guardas, um
+-- `supabase db push` tentaria recriá-las sob este nome novo e falharia
+-- ("relation already exists"). Todo CREATE TABLE/TRIGGER/POLICY/VIEW/
+-- INSERT abaixo ganhou IF NOT EXISTS/DROP...IF EXISTS/CREATE OR REPLACE/
+-- ON CONFLICT — mesmo padrão já usado no resto do projeto (ver
+-- 20261014124630_site_ads_managed_slot_persistence.sql). Nenhuma mudança
+-- de estrutura/comportamento, só idempotência.
 --
 -- AUDITORIA PRÉVIA (resumo, ver relatório da tarefa): hoje as 6
 -- posições são um array hardcoded em apps/site/src/components/site/
@@ -38,7 +49,7 @@
 -- efeito diferente por imagem).
 -- ==================================================================
 
-create table public.site_ad_settings (
+create table if not exists public.site_ad_settings (
   id uuid primary key default gen_random_uuid(),
 
   rotation_interval_ms int not null default 10000 check (rotation_interval_ms >= 2000 and rotation_interval_ms <= 120000),
@@ -54,6 +65,7 @@ create table public.site_ad_settings (
 comment on table public.site_ad_settings is
   'Configuração GLOBAL de rotação/efeito dos 6 slots de patrocinadores do site — singleton por convenção de aplicação (getCurrent() busca a linha mais recente, nunca um id fixo). Um único efeito vale para todos os slots.';
 
+drop trigger if exists site_ad_settings_set_updated_at on public.site_ad_settings;
 create trigger site_ad_settings_set_updated_at
   before update on public.site_ad_settings
   for each row
@@ -61,16 +73,19 @@ create trigger site_ad_settings_set_updated_at
 
 alter table public.site_ad_settings enable row level security;
 
+drop policy if exists site_ad_settings_select_staff on public.site_ad_settings;
 create policy site_ad_settings_select_staff
   on public.site_ad_settings for select
   to authenticated
   using (public.is_active_staff());
 
+drop policy if exists site_ad_settings_insert_staff on public.site_ad_settings;
 create policy site_ad_settings_insert_staff
   on public.site_ad_settings for insert
   to authenticated
   with check (public.is_active_staff());
 
+drop policy if exists site_ad_settings_update_staff on public.site_ad_settings;
 create policy site_ad_settings_update_staff
   on public.site_ad_settings for update
   to authenticated
@@ -79,7 +94,9 @@ create policy site_ad_settings_update_staff
 
 -- Seed — sempre precisa existir exatamente uma linha (singleton por
 -- convenção), nunca "configuração indefinida" pro site público ler.
-insert into public.site_ad_settings (rotation_interval_ms, transition_effect) values (10000, 'fade');
+insert into public.site_ad_settings (rotation_interval_ms, transition_effect)
+select 10000, 'fade'
+where not exists (select 1 from public.site_ad_settings);
 
 -- Leitura pública: NUNCA via RLS direta na tabela-base (mesmo princípio
 -- de public_articles/public_article_media, ver 20260930100000) — uma
@@ -92,7 +109,7 @@ insert into public.site_ad_settings (rotation_interval_ms, transition_effect) va
 -- identificador estável (1..6), nunca o id interno.
 -- ==================================================================
 
-create table public.site_ad_slots (
+create table if not exists public.site_ad_slots (
   id uuid primary key default gen_random_uuid(),
   slot_number int not null unique check (slot_number between 1 and 6),
   active boolean not null default true,
@@ -104,6 +121,7 @@ create table public.site_ad_slots (
 comment on table public.site_ad_slots is
   'As 6 posições fixas de publicidade lateral do site (3 esquerda + 3 direita no desktop; pares 1+2/3+4/5+6 no mobile — ver apps/site/src/components/site/AdSlotColumn.tsx/AdSlotPairRow.tsx, layout nunca alterado). slot_number é o identificador estável.';
 
+drop trigger if exists site_ad_slots_set_updated_at on public.site_ad_slots;
 create trigger site_ad_slots_set_updated_at
   before update on public.site_ad_slots
   for each row
@@ -111,18 +129,21 @@ create trigger site_ad_slots_set_updated_at
 
 alter table public.site_ad_slots enable row level security;
 
+drop policy if exists site_ad_slots_select_staff on public.site_ad_slots;
 create policy site_ad_slots_select_staff
   on public.site_ad_slots for select
   to authenticated
   using (public.is_active_staff());
 
+drop policy if exists site_ad_slots_update_staff on public.site_ad_slots;
 create policy site_ad_slots_update_staff
   on public.site_ad_slots for update
   to authenticated
   using (public.is_active_staff())
   with check (public.is_active_staff());
 
-insert into public.site_ad_slots (slot_number) values (1), (2), (3), (4), (5), (6);
+insert into public.site_ad_slots (slot_number) values (1), (2), (3), (4), (5), (6)
+  on conflict (slot_number) do nothing;
 
 -- ==================================================================
 -- 3) PLAYLIST DE CADA SLOT — várias mídias por posição, com ordem e
@@ -134,7 +155,7 @@ insert into public.site_ad_slots (slot_number) values (1), (2), (3), (4), (5), (
 -- lugar, ex. uma matéria) — mesmo princípio de article_media.
 -- ==================================================================
 
-create table public.site_ad_media (
+create table if not exists public.site_ad_media (
   id uuid primary key default gen_random_uuid(),
   slot_id uuid not null references public.site_ad_slots (id) on delete cascade,
 
@@ -158,10 +179,11 @@ create table public.site_ad_media (
 comment on table public.site_ad_media is
   'Uma imagem dentro da playlist de um slot — media_asset_id é a mesma tabela/pipeline (R2) usada no resto do sistema, nunca um storage novo. client_id ("patrocinador") é só identificação opcional, nunca gera obrigação financeira. Remover esta linha nunca apaga o media_asset (pode estar em uso em outro lugar).';
 
-create index site_ad_media_slot_id_idx on public.site_ad_media (slot_id);
-create index site_ad_media_media_asset_id_idx on public.site_ad_media (media_asset_id);
-create index site_ad_media_client_id_idx on public.site_ad_media (client_id) where client_id is not null;
+create index if not exists site_ad_media_slot_id_idx on public.site_ad_media (slot_id);
+create index if not exists site_ad_media_media_asset_id_idx on public.site_ad_media (media_asset_id);
+create index if not exists site_ad_media_client_id_idx on public.site_ad_media (client_id) where client_id is not null;
 
+drop trigger if exists site_ad_media_set_updated_at on public.site_ad_media;
 create trigger site_ad_media_set_updated_at
   before update on public.site_ad_media
   for each row
@@ -181,6 +203,7 @@ begin
 end;
 $$;
 
+drop trigger if exists site_ad_media_set_actor on public.site_ad_media;
 create trigger site_ad_media_set_actor
   before insert on public.site_ad_media
   for each row
@@ -188,16 +211,19 @@ create trigger site_ad_media_set_actor
 
 alter table public.site_ad_media enable row level security;
 
+drop policy if exists site_ad_media_select_staff on public.site_ad_media;
 create policy site_ad_media_select_staff
   on public.site_ad_media for select
   to authenticated
   using (public.is_active_staff());
 
+drop policy if exists site_ad_media_insert_staff on public.site_ad_media;
 create policy site_ad_media_insert_staff
   on public.site_ad_media for insert
   to authenticated
   with check (public.is_active_staff());
 
+drop policy if exists site_ad_media_update_staff on public.site_ad_media;
 create policy site_ad_media_update_staff
   on public.site_ad_media for update
   to authenticated
@@ -207,6 +233,7 @@ create policy site_ad_media_update_staff
 -- DELETE real — mesmo princípio de article_media (remover uma imagem da
 -- playlist é uma operação normal e reversível pelo usuário, nunca
 -- precisa de "soft delete"; o media_asset em si nunca é afetado).
+drop policy if exists site_ad_media_delete_staff on public.site_ad_media;
 create policy site_ad_media_delete_staff
   on public.site_ad_media for delete
   to authenticated
@@ -221,7 +248,7 @@ create policy site_ad_media_delete_staff
 -- mídia desativada/fora do período/de slot inativo.
 -- ==================================================================
 
-create view public.public_site_ad_settings as
+create or replace view public.public_site_ad_settings as
   select rotation_interval_ms, transition_effect
   from public.site_ad_settings
   order by updated_at desc
@@ -229,7 +256,7 @@ create view public.public_site_ad_settings as
 
 grant select on public.public_site_ad_settings to anon;
 
-create view public.public_site_ad_media as
+create or replace view public.public_site_ad_media as
   select
     s.slot_number,
     m.id,
