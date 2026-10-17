@@ -158,7 +158,7 @@ export async function requestSignerEmailCodeAction(token: string): Promise<Resul
     const supabase = createSupabaseServerClient();
     const { error } = await supabase.auth.signInWithOtp({
       email: invitation.signer_email,
-      options: { shouldCreateUser: true },
+      options: { shouldCreateUser: true, data: { account_purpose: "contract_signer", signature_invitation_id: invitation.id } },
     });
     if (error) return { error: "Não foi possível enviar o código agora. Verifique o limite do serviço de e-mail e tente novamente." };
     return { ok: true, sent: true };
