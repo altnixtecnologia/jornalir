@@ -20,6 +20,7 @@ export interface ClientInput {
   stateRegistration?: string;
   responsibleName?: string;
   responsibleCpf?: string;
+  foundingDate?: string;
   phonePrimary?: string;
   phoneSecondary?: string;
   whatsapp?: string;
@@ -63,6 +64,7 @@ function normalizeFields(input: ClientInput): Omit<NewClientRecord, "status" | "
     stateRegistration: isIndividual ? undefined : trimOrUndefined(input.stateRegistration),
     responsibleName: isIndividual ? undefined : trimOrUndefined(input.responsibleName),
     responsibleCpf: isIndividual ? undefined : onlyDigits(input.responsibleCpf) || undefined,
+    foundingDate: isIndividual ? undefined : input.foundingDate || undefined,
     phonePrimary: onlyDigits(input.phonePrimary) || undefined,
     phoneSecondary: onlyDigits(input.phoneSecondary) || undefined,
     whatsapp: onlyDigits(input.whatsapp) || undefined,

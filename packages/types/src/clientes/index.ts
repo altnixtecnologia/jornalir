@@ -65,6 +65,8 @@ export interface Client {
   stateRegistration?: string;
   responsibleName?: string;
   responsibleCpf?: string;
+  /** Data de fundação — só preenchível para kind "company" (ver clients_founding_date_only_company). Usada pelo módulo Aniversariantes para destacar o aniversário de fundação da instituição; nunca confundida com birthDate (exclusivo de pessoa física). */
+  foundingDate?: string;
 
   // Contato — comum aos dois tipos
   phonePrimary?: string;

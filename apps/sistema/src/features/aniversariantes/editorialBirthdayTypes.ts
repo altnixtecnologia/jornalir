@@ -16,6 +16,7 @@ export interface EditorialBirthdayRow {
   notes: string | null;
   active: boolean;
   publish_in_print: boolean;
+  photo_media_asset_id: string | null;
 }
 export interface EditorialBirthdayMessage {
   birthday_entry_id: string;
@@ -24,6 +25,7 @@ export interface EditorialBirthdayMessage {
   family: string;
   opening: string;
   ending: string;
+  manually_edited?: boolean;
 }
 export interface EditorialBirthdayInput {
   id?: string;

@@ -11,9 +11,12 @@ export const dynamic = "force-dynamic";
 type ClientRow = {
   id:string;kind:string;status:string;
   full_name:string|null;company_name:string|null;trade_name:string|null;
-  birth_date:string|null;address_city:string|null;created_at:string|null;
+  birth_date:string|null;founding_date:string|null;address_city:string|null;created_at:string|null;
 };
-function makeGroups(clients:ClientRow[],records:(EditorialBirthdayRow & {created_at:string|null})[]):BirthdayGroup[] {
+function photoUrlOf(row:{photo_media_asset_id:string|null;media_assets?:{public_url:string|null}|null}):string|undefined{
+  return row.media_assets?.public_url||undefined;
+}
+function makeGroups(clients:ClientRow[],records:(EditorialBirthdayRow & {created_at:string|null;media_assets?:{public_url:string|null}|null})[]):BirthdayGroup[] {
   const groups:BirthdayGroup[]=[];
   const map=new Map<string,BirthdayGroup>();
   const masterEntries=new Map(records.filter(r=>r.source_client_id).map(r=>[r.source_client_id!,r]));
@@ -27,10 +30,21 @@ function makeGroups(clients:ClientRow[],records:(EditorialBirthdayRow & {created
       notes:saved?.notes||undefined,profession:saved?.profession||undefined,
       organization:saved?.organization||undefined,knownAs:saved?.known_as||undefined,
       messageContext:saved?.message_context||undefined,
+      photoUrl:saved?photoUrlOf(saved):undefined,
+    }:undefined;
+    // Fundação de instituição — conceito separado de principal (nunca um titular
+    // aniversariante): só existe para PJ com founding_date preenchido.
+    const foundingEntry:BirthdayEntry|undefined=!person&&c.founding_date?{
+      id:c.id,displayName:label,birthDate:c.founding_date,createdAt:c.created_at||undefined,city:c.address_city||"",
+      origin:"cadastro",active:true,publishInPrint:saved?.publish_in_print??false,isFounding:true,
+      notes:saved?.notes||undefined,profession:saved?.profession||undefined,
+      organization:saved?.organization||undefined,knownAs:saved?.known_as||undefined,
+      messageContext:saved?.message_context||undefined,
+      photoUrl:saved?photoUrlOf(saved):undefined,
     }:undefined;
     const group:BirthdayGroup={
       id:c.id,kind:person?"individual":"company",label,city:c.address_city||"",
-      principal,members:[],
+      principal,foundingEntry,members:[],
     };
     groups.push(group);map.set(group.id,group);
   }
@@ -44,6 +58,7 @@ function makeGroups(clients:ClientRow[],records:(EditorialBirthdayRow & {created
       notes:r.notes||undefined,profession:r.profession||undefined,
       organization:r.organization||undefined,knownAs:r.known_as||undefined,
       messageContext:r.message_context||undefined,
+      photoUrl:photoUrlOf(r),
     };
     const group=r.group_client_id?map.get(r.group_client_id):null;
     if(group)group.members.push(member);
@@ -74,18 +89,18 @@ export default async function AniversariantesPage():Promise<JSX.Element>{
   }
   const week=currentBirthdayWeekISO();
   const [clientResult,entryResult,messageResult]=await Promise.all([
-    db.from("clients").select("id,kind,status,full_name,company_name,trade_name,birth_date,address_city,created_at")
+    db.from("clients").select("id,kind,status,full_name,company_name,trade_name,birth_date,founding_date,address_city,created_at")
       .eq("status","active").order("created_at",{ascending:false}),
     db.from("birthday_entries").select(
-      "id,origin,source_client_id,group_client_id,display_name,birth_month,birth_day,birth_year,city,relationship,profession,organization,known_as,message_context,notes,active,publish_in_print,created_at"
+      "id,origin,source_client_id,group_client_id,display_name,birth_month,birth_day,birth_year,city,relationship,profession,organization,known_as,message_context,notes,active,publish_in_print,created_at,photo_media_asset_id,media_assets(public_url)"
     ).order("display_name"),
     db.from("birthday_edition_messages").select(
-      "birthday_entry_id,edition_week_start,message,family,opening,ending"
+      "birthday_entry_id,edition_week_start,message,family,opening,ending,manually_edited"
     ).eq("edition_week_start",week),
   ]);
   const error=clientResult.error||entryResult.error||messageResult.error;
   const clients=(clientResult.data||[]) as ClientRow[];
-  const entries=(entryResult.data||[]) as (EditorialBirthdayRow & {created_at:string|null})[];
+  const entries=(entryResult.data||[]) as unknown as (EditorialBirthdayRow & {created_at:string|null;media_assets:{public_url:string|null}|null})[];
   const messages=(messageResult.data||[]) as EditorialBirthdayMessage[];
   const groups=makeGroups(clients,entries);
   return <>

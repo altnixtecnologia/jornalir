@@ -12,6 +12,8 @@ import {
   extractSafeEditorialPhrase, formatEditorialDayLabel, generateBirthdayMessage,
 } from "../../../features/aniversariantes/messageGenerator";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { registerUploadedMediaAsset } from "../../../providers/supabase/mediaAssetRepository.supabase";
+import { InvalidImageUploadError, uploadOptimizedImageToR2 } from "../../../providers/r2/mediaStorage.r2";
 
 const PATH = "/sistema/aniversariantes";
 const UUID = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i;
@@ -31,6 +33,28 @@ async function permitted(): Promise<{ db: SupabaseClient; userId: string } | nul
 }
 function clean(value: string, length: number): string {
   return value.trim().slice(0, length);
+}
+
+/**
+ * Resolve o "aniversário" do cadastro mestre — nascimento para pessoa física,
+ * fundação para instituição (PJ). Nunca confunde os dois campos: cada kind só
+ * lê a sua própria data. Usado por setBirthdayPublication/
+ * prepareBirthdayEditionMessage (source "cliente") para tratar os dois casos
+ * com o mesmo fluxo, sem duplicar a lógica de vínculo editorial.
+ */
+function resolveMasterAnniversary(master: {
+  kind: string; full_name: string | null; company_name: string | null; trade_name: string | null;
+  birth_date: string | null; founding_date: string | null;
+}): { name: string; date: string } | null {
+  if (master.kind === "individual") {
+    if (!master.birth_date || !validBirthDate(master.birth_date)) return null;
+    return { name: master.full_name || "Pessoa sem nome", date: master.birth_date };
+  }
+  if (master.kind === "company") {
+    if (!master.founding_date || !validBirthDate(master.founding_date)) return null;
+    return { name: master.trade_name || master.company_name || "Empresa sem nome", date: master.founding_date };
+  }
+  return null;
 }
 
 export async function saveEditorialBirthday(input: EditorialBirthdayInput): Promise<ActionResult<{ id: string }>> {
@@ -120,12 +144,12 @@ export async function setBirthdayPublication(
   }
 
   const { data: master, error: masterError } = await db.from("clients")
-    .select("id,kind,status,full_name,birth_date,address_city").eq("id",id).maybeSingle();
-  if (masterError || !master || master.kind !== "individual" || master.status !== "active"
-    || !master.birth_date || !validBirthDate(master.birth_date)) {
-    return { error: "Nascimento indisponível. Verifique o cadastro da pessoa física." };
+    .select("id,kind,status,full_name,company_name,trade_name,birth_date,founding_date,address_city").eq("id",id).maybeSingle();
+  const anniversary = master && master.status === "active" ? resolveMasterAnniversary(master) : null;
+  if (masterError || !master || !anniversary) {
+    return { error: "Nascimento/fundação indisponível. Verifique o cadastro." };
   }
-  const [year,month,day] = master.birth_date.split("-").map(Number);
+  const [year,month,day] = anniversary.date.split("-").map(Number);
   const { data: existing, error: lookupError } = await db.from("birthday_entries")
     .select("id,source_client_id,origin").eq("id",id).maybeSingle();
   if (lookupError) return { error: "Não foi possível consultar a autorização editorial." };
@@ -135,7 +159,7 @@ export async function setBirthdayPublication(
   if (!existing) {
     const { error: insertError } = await db.from("birthday_entries").insert({
       id,source_client_id:id,group_client_id:id,origin:"cadastro",
-      display_name:master.full_name || "Pessoa sem nome",
+      display_name:anniversary.name,
       birth_year:year,birth_month:month,birth_day:day,city:master.address_city||null,
       active:true,publish_in_print:allowed,created_by:userId,
     });
@@ -153,7 +177,7 @@ export async function setBirthdayPublication(
   }
   const { data: saved, error } = await db.from("birthday_entries")
     .update({
-      publish_in_print:allowed, display_name:master.full_name||"Pessoa sem nome",
+      publish_in_print:allowed, display_name:anniversary.name,
       birth_year:year,birth_month:month,birth_day:day,city:master.address_city||null,
       updated_at:new Date().toISOString(),
     }).eq("id",id).eq("source_client_id",id).eq("origin","cadastro")
@@ -184,13 +208,13 @@ export async function prepareBirthdayEditionMessage(
 
   if (source === "cliente") {
     const { data: client, error: clientError } = await db.from("clients")
-      .select("id,kind,status,full_name,birth_date,address_city").eq("id",id).maybeSingle();
-    if (clientError || !client || client.kind !== "individual" || client.status !== "active"
-      || !client.birth_date || !validBirthDate(client.birth_date)) {
-      return { error: "Preencha primeiro o nascimento de uma pessoa física no Cadastro." };
+      .select("id,kind,status,full_name,company_name,trade_name,birth_date,founding_date,address_city").eq("id",id).maybeSingle();
+    const anniversary = client && client.status === "active" ? resolveMasterAnniversary(client) : null;
+    if (clientError || !client || !anniversary) {
+      return { error: "Preencha primeiro o nascimento (pessoa física) ou a fundação (instituição) no Cadastro." };
     }
-    name = client.full_name || "";
-    birthDate = client.birth_date;
+    name = anniversary.name;
+    birthDate = anniversary.date;
     city = client.address_city || "";
     // The linked editorial record reuses the UUID of its own master client, preventing
     // duplicate linked people on concurrent button clicks without any schema migration.
@@ -244,7 +268,7 @@ export async function prepareBirthdayEditionMessage(
     return { error: "A mensagem só pode ser preparada para aniversários da semana atual do jornal." };
   }
   const { data: previousRows, error: messageError } = await db.from("birthday_edition_messages")
-    .select("birthday_entry_id,edition_week_start,message,family,opening,ending")
+    .select("birthday_entry_id,edition_week_start,message,family,opening,ending,manually_edited")
     .eq("edition_week_start", currentWeek);
   if (messageError) return { error: "Não foi possível consultar as mensagens salvas." };
   const old = previousRows?.find(row => row.birthday_entry_id === entryId);
@@ -273,10 +297,84 @@ export async function prepareBirthdayEditionMessage(
   const { data: saved, error: savedError } = await db.from("birthday_edition_messages").upsert({
     birthday_entry_id: entryId, edition_week_start: currentWeek, edition_week_end: end,
     message: result.text, family: result.family, opening: result.opening, ending: result.ending,
+    // Gerar automaticamente (primeira vez ou "Trocar mensagem") sempre volta ao modo
+    // automático — edição manual (ver saveManualBirthdayMessage) é uma operação alternativa,
+    // nunca combinada com a última mensagem gerada.
+    manually_edited: false, message_override: null,
     updated_at: new Date().toISOString(),
   }, { onConflict:"birthday_entry_id,edition_week_start" })
-    .select("birthday_entry_id,edition_week_start,message,family,opening,ending").single();
+    .select("birthday_entry_id,edition_week_start,message,family,opening,ending,manually_edited").single();
   if (savedError || !saved) return { error: "Não foi possível registrar a mensagem desta edição." };
   revalidatePath(PATH);
   return { ok: true, data: saved as EditorialBirthdayMessage };
+}
+
+/** Sobrescreve manualmente o texto já preparado para a edição atual — nunca cria uma
+ * mensagem nova "do nada": exige que já exista uma mensagem automática preparada para
+ * esta pessoa/edição (mesma regra de "uma mensagem por aniversariante por edição"). */
+export async function saveManualBirthdayMessage(entryId: string, text: string): Promise<ActionResult<EditorialBirthdayMessage>> {
+  const caller = await permitted();
+  if (!caller) return { error: "Acesso não autorizado." };
+  if (!UUID.test(entryId)) return { error: "Identificador inválido." };
+  const trimmed = clean(text, 600);
+  if (!trimmed) return { error: "Informe uma mensagem de até 600 caracteres." };
+  const { db } = caller;
+  const currentWeek = currentBirthdayWeekISO();
+  const { data: existing, error: lookupError } = await db.from("birthday_edition_messages")
+    .select("birthday_entry_id").eq("birthday_entry_id", entryId).eq("edition_week_start", currentWeek).maybeSingle();
+  if (lookupError) return { error: "Não foi possível consultar a mensagem desta edição." };
+  if (!existing) return { error: "Prepare a mensagem automática desta semana antes de editar manualmente." };
+  const { data: saved, error } = await db.from("birthday_edition_messages").update({
+    message: trimmed, message_override: trimmed, manually_edited: true, updated_at: new Date().toISOString(),
+  }).eq("birthday_entry_id", entryId).eq("edition_week_start", currentWeek)
+    .select("birthday_entry_id,edition_week_start,message,family,opening,ending,manually_edited").single();
+  if (error || !saved) return { error: "Não foi possível salvar a edição manual da mensagem." };
+  revalidatePath(PATH);
+  return { ok: true, data: saved as EditorialBirthdayMessage };
+}
+
+const PHOTO_UUID = UUID;
+
+/** Foto de destaque opcional — reaproveita o mesmo pipeline de upload (R2 + media_assets)
+ * usado por Publicidade/Mídias, nunca um storage novo. Nunca altera o cadastro mestre. */
+export async function setBirthdayEntryPhoto(entryId: string, formData: FormData): Promise<ActionResult<{ photoUrl: string }>> {
+  const caller = await permitted();
+  if (!caller) return { error: "Acesso não autorizado." };
+  if (!PHOTO_UUID.test(entryId)) return { error: "Identificador inválido." };
+  const file = formData.get("file");
+  if (!(file instanceof File) || file.size === 0) return { error: "Selecione uma imagem." };
+  const { db } = caller;
+  const { data: entry, error: lookupError } = await db.from("birthday_entries").select("id,active").eq("id", entryId).maybeSingle();
+  if (lookupError || !entry || !entry.active) return { error: "Aniversariante editorial indisponível." };
+  try {
+    const uploaded = await uploadOptimizedImageToR2(file);
+    const asset = await registerUploadedMediaAsset(db, {
+      title: "Destaque — aniversariante",
+      storagePath: uploaded.storagePath,
+      publicUrl: uploaded.publicUrl,
+      fileName: uploaded.fileName,
+      mimeType: uploaded.mimeType,
+      width: uploaded.width,
+      height: uploaded.height,
+    });
+    const { error } = await db.from("birthday_entries")
+      .update({ photo_media_asset_id: asset.id, updated_at: new Date().toISOString() }).eq("id", entryId);
+    if (error) return { error: "Não foi possível salvar a foto de destaque." };
+    revalidatePath(PATH);
+    return { ok: true, data: { photoUrl: uploaded.publicUrl } };
+  } catch (uploadError) {
+    const message = uploadError instanceof InvalidImageUploadError ? uploadError.message : "Não foi possível enviar a imagem.";
+    return { error: message };
+  }
+}
+
+export async function removeBirthdayEntryPhoto(entryId: string): Promise<ActionResult> {
+  const caller = await permitted();
+  if (!caller) return { error: "Acesso não autorizado." };
+  if (!PHOTO_UUID.test(entryId)) return { error: "Identificador inválido." };
+  const { error } = await caller.db.from("birthday_entries")
+    .update({ photo_media_asset_id: null, updated_at: new Date().toISOString() }).eq("id", entryId);
+  if (error) return { error: "Não foi possível remover a foto de destaque." };
+  revalidatePath(PATH);
+  return { ok: true, data: undefined };
 }

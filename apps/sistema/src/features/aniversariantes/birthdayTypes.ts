@@ -14,10 +14,14 @@ export interface BirthdayEntry {
   id: string;
   /** Nome para publicação no jornal — pode divergir do nome do cadastro. */
   displayName: string;
-  /** "YYYY-MM-DD" — o ano pode ser fictício/desconhecido para familiares. */
+  /** "YYYY-MM-DD" — o ano pode ser fictício/desconhecido para familiares. Para um registro de fundação (isFounding), é a data de fundação, nunca um nascimento. */
   birthDate: string;
   /** Data do cadastro do registro, independente da data de nascimento. */
   createdAt?: string;
+  /** true = este registro representa o aniversário de FUNDAÇÃO de uma instituição (PJ), nunca um nascimento de pessoa. Controla só rótulos/textos da UI — nunca é combinado com relationship nem aparece em BirthdayGroup.principal (que continua exclusivo de pessoa física, "PJ nunca tem titular aniversariante"). */
+  isFounding?: boolean;
+  /** URL da foto de destaque opcional (photo_media_asset_id em birthday_entries) — ausente = sem destaque visual. */
+  photoUrl?: string;
   city: string;
   /** Preenchido para membros de um grupo (ex.: "Cônjuge", "Filho(a)", "Responsável"); ausente para o titular PF. */
   relationship?: string;
@@ -52,6 +56,8 @@ export interface BirthdayGroup {
   city?: string;
   /** Só existe quando kind === "individual" e o cadastro tem nascimento. PJ nunca tem titular aniversariante. */
   principal?: BirthdayEntry;
+  /** Só existe quando kind === "company" e o cadastro tem founding_date — conceito SEPARADO de principal, nunca um titular aniversariante (ver BirthdayEntry.isFounding). */
+  foundingEntry?: BirthdayEntry;
   /** Familiares (PF) ou pessoas relacionadas (PJ) — sempre origin "familiar" ou "manual". */
   members: BirthdayEntry[];
 }

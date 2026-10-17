@@ -3,7 +3,10 @@
 import { useEffect, useMemo, useRef, useState, type JSX } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { saveEditorialBirthday, setEditorialBirthdayActive, setBirthdayPublication, prepareBirthdayEditionMessage } from "../../app/sistema/aniversariantes/actions";
+import {
+  saveEditorialBirthday, setEditorialBirthdayActive, setBirthdayPublication, prepareBirthdayEditionMessage,
+  saveManualBirthdayMessage, setBirthdayEntryPhoto, removeBirthdayEntryPhoto,
+} from "../../app/sistema/aniversariantes/actions";
 import type { EditorialBirthdayInput, EditorialBirthdayMessage } from "./editorialBirthdayTypes";
 import {
   dayIndexWithinRange,
@@ -40,7 +43,7 @@ function emptyUsage(): UsageCounts {
   return { family: {}, opening: {}, ending: {} };
 }
 
-function trackUsage(usage: UsageCounts, state: EditionMessageState): void {
+function trackUsage(usage: UsageCounts, state: Pick<EditionMessageState, "family" | "opening" | "ending">): void {
   usage.family[state.family] = (usage.family[state.family] ?? 0) + 1;
   usage.opening[state.opening] = (usage.opening[state.opening] ?? 0) + 1;
   usage.ending[state.ending] = (usage.ending[state.ending] ?? 0) + 1;
@@ -60,6 +63,7 @@ interface EditionMessageState {
   family: string;
   opening: string;
   ending: string;
+  manuallyEdited: boolean;
 }
 
 interface EntryDraft {
@@ -158,6 +162,9 @@ function EntryRow({
   onDelete,
   editorial,
   onChangeMessage,
+  onSaveManualMessage,
+  onUploadPhoto,
+  onRemovePhoto,
   readonlyPrincipal = false,
   onTogglePublication,
   pending = false,
@@ -169,6 +176,9 @@ function EntryRow({
   onDelete: () => void;
   editorial: EditionMessageState | null;
   onChangeMessage: () => void;
+  onSaveManualMessage: (text: string) => void;
+  onUploadPhoto: (file: File) => void;
+  onRemovePhoto: () => void;
   readonlyPrincipal?: boolean;
   onTogglePublication?: () => void;
   pending?: boolean;
@@ -177,6 +187,9 @@ function EntryRow({
   const [draft, setDraft] = useState<EntryDraft>(() => draftFromEntry(entry));
   const [copied, setCopied] = useState(false);
   const [copyError, setCopyError] = useState(false);
+  const [editingMessage, setEditingMessage] = useState(false);
+  const [messageDraft, setMessageDraft] = useState("");
+  const photoInputRef = useRef<HTMLInputElement>(null);
 
   function startEdit(): void {
     setDraft(draftFromEntry(entry));
@@ -289,27 +302,51 @@ function EntryRow({
   }
 
   return (
-    <div className={`aniv-entry${highlighted ? " is-match" : ""}`}>
+    <div className={`aniv-entry${highlighted ? " is-match" : ""}${entry.photoUrl ? " aniv-entry--has-photo" : ""}`}>
       <div className="aniv-entry-main">
+        {entry.photoUrl ? (
+          <span className="aniv-entry-photo" title="Foto de destaque">
+            <img src={entry.photoUrl} alt={`Foto de destaque de ${entry.displayName}`} />
+          </span>
+        ) : null}
         <span className="aniv-entry-name">{entry.displayName}</span>
         {entry.relationship ? <span className="aniv-entry-relationship">{entry.relationship}</span> : null}
-        <span className="aniv-entry-date" title="Data de nascimento">{formatBirthDateShort(entry.birthDate)}</span>
+        <span className="aniv-entry-date" title={entry.isFounding ? "Data de fundação" : "Data de nascimento"}>{formatBirthDateShort(entry.birthDate)}</span>
         {entry.createdAt ? <span className="aniv-entry-created" title="Data em que o cadastro foi criado">Cadastrado em {new Date(entry.createdAt).toLocaleDateString("pt-BR", { timeZone: "America/Sao_Paulo" })}</span> : null}
         <span className="aniv-entry-city">{entry.city || "—"}</span>
         {entry.profession ? <span className="aniv-entry-profession">{entry.profession}</span> : null}
-        <span className="cadastro-role-badge">{ORIGIN_LABELS[entry.origin]}</span>
+        <span className="cadastro-role-badge">{entry.isFounding ? "Fundação" : ORIGIN_LABELS[entry.origin]}</span>
         {!entry.active ? <span className="status-pill status-pill--archived">Inativo</span> : null}
         <span className={`status-pill ${entry.publishInPrint ? "status-pill--published" : "status-pill--draft"}`}>
           {entry.publishInPrint ? "Publica" : "Não publica"}
         </span>
       </div>
       <div className="aniv-entry-row-actions no-print">
+        <input
+          ref={photoInputRef}
+          type="file"
+          accept="image/jpeg,image/png,image/webp,image/avif"
+          className="sr-only"
+          onChange={(e) => {
+            const file = e.target.files?.[0];
+            if (file) onUploadPhoto(file);
+            e.target.value = "";
+          }}
+        />
+        <button type="button" className="cadastros-btn-secondary" disabled={pending} onClick={() => photoInputRef.current?.click()}>
+          {entry.photoUrl ? "Trocar foto" : "Adicionar foto"}
+        </button>
+        {entry.photoUrl ? (
+          <button type="button" className="cadastros-btn-secondary" disabled={pending} onClick={onRemovePhoto}>
+            Remover foto
+          </button>
+        ) : null}
         {readonlyPrincipal ? (
           <>
             <button type="button" className="cadastros-btn-secondary" disabled={pending}
               onClick={onTogglePublication}>{entry.publishInPrint?"Desativar publicação":"Autorizar publicação"}</button>
             <Link href={`/sistema/clientes/${entry.id}/editar`} className="cadastros-btn-secondary">
-              Editar nascimento no cadastro
+              {entry.isFounding ? "Editar fundação no cadastro" : "Editar nascimento no cadastro"}
             </Link>
           </>
         ):(
@@ -326,20 +363,45 @@ function EntryRow({
       </div>
       {editorial ? (
         <div className="aniv-editorial no-print">
-          <p className="aniv-editorial-text">
-            Mensagem:
-            <br />
-            &ldquo;{editorial.text}&rdquo;
-          </p>
-          <div className="aniv-editorial-actions">
-            <button type="button" className="aniv-editorial-btn" onClick={onChangeMessage}>
-              Trocar mensagem
-            </button>
-            <button type="button" className="aniv-editorial-btn" onClick={copyMessage}>
-              {copied ? "Copiado ✓" : "Copiar mensagem"}
-            </button>
-            {copyError ? <span className="aniv-editorial-error">Não foi possível copiar.</span> : null}
-          </div>
+          {editingMessage ? (
+            <div className="aniv-editorial-manual-edit">
+              <textarea
+                rows={3}
+                value={messageDraft}
+                onChange={(e) => setMessageDraft(e.target.value)}
+                maxLength={600}
+              />
+              <div className="aniv-editorial-actions">
+                <button type="button" className="cadastros-btn-primary" disabled={pending || !messageDraft.trim()}
+                  onClick={() => { onSaveManualMessage(messageDraft.trim()); setEditingMessage(false); }}>
+                  Salvar texto
+                </button>
+                <button type="button" className="cadastros-btn-secondary" onClick={() => setEditingMessage(false)}>
+                  Cancelar
+                </button>
+              </div>
+            </div>
+          ) : (
+            <>
+              <p className="aniv-editorial-text">
+                Mensagem{editorial.manuallyEdited ? <span className="aniv-editorial-manual-badge"> (editada manualmente)</span> : null}:
+                <br />
+                &ldquo;{editorial.text}&rdquo;
+              </p>
+              <div className="aniv-editorial-actions">
+                <button type="button" className="aniv-editorial-btn" onClick={onChangeMessage}>
+                  Trocar mensagem
+                </button>
+                <button type="button" className="aniv-editorial-btn" onClick={() => { setMessageDraft(editorial.text); setEditingMessage(true); }}>
+                  Editar manualmente
+                </button>
+                <button type="button" className="aniv-editorial-btn" onClick={copyMessage}>
+                  {copied ? "Copiado ✓" : "Copiar mensagem"}
+                </button>
+                {copyError ? <span className="aniv-editorial-error">Não foi possível copiar.</span> : null}
+              </div>
+            </>
+          )}
         </div>
       ) : null}
     </div>
@@ -438,7 +500,7 @@ export function BirthdaysList({ localPreview, initialGroups = [], initialMessage
   const includeDialogRef = useRef<HTMLDialogElement>(null);
   const [editionMessages, setEditionMessages] = useState<Map<string, EditionMessageState>>(
     () => new Map(initialMessages.map(m=>[`${m.edition_week_start}::${m.birthday_entry_id}`,{
-      text:m.message,family:m.family,opening:m.opening,ending:m.ending,
+      text:m.message,family:m.family,opening:m.opening,ending:m.ending,manuallyEdited:Boolean(m.manually_edited),
     }]))
   );
   useEffect(()=>{
@@ -451,7 +513,7 @@ export function BirthdaysList({ localPreview, initialGroups = [], initialMessage
       const next=new Map(old);
       for(const m of initialMessages){
         const key=`${m.edition_week_start}::${m.birthday_entry_id}`;
-        next.set(key,{text:m.message,family:m.family,opening:m.opening,ending:m.ending});
+        next.set(key,{text:m.message,family:m.family,opening:m.opening,ending:m.ending,manuallyEdited:Boolean(m.manually_edited)});
       }
       return next;
     });
@@ -482,7 +544,7 @@ export function BirthdaysList({ localPreview, initialGroups = [], initialMessage
   const weekEntries = useMemo(() => {
     const out: Array<{ entry: BirthdayEntry; dayLabel: string }> = [];
     groups.forEach((group) => {
-      const candidates = [group.principal, ...group.members].filter((e): e is BirthdayEntry => e != null);
+      const candidates = [group.principal, group.foundingEntry, ...group.members].filter((e): e is BirthdayEntry => e != null);
       candidates.forEach((entry) => {
         const day = weekDays.find((d) => matchesDay(entry.birthDate, d));
         if (day) out.push({ entry, dayLabel: formatEditorialDayLabel(weekdayFull(day), day) });
@@ -521,7 +583,7 @@ export function BirthdaysList({ localPreview, initialGroups = [], initialMessage
         usedTexts.add(generated.text);
         trackUsage(usage, generated);
         previous = { family: generated.family, opening: generated.opening, ending: generated.ending };
-        next.set(key, generated);
+        next.set(key, { ...generated, manuallyEdited: false });
         changed = true;
       });
       return changed ? next : prev;
@@ -554,7 +616,7 @@ export function BirthdaysList({ localPreview, initialGroups = [], initialMessage
             setEditionMessages(prev=>{
               const m=new Map(prev);
               m.set(key,{text:result.data.message,family:result.data.family,
-                opening:result.data.opening,ending:result.data.ending});
+                opening:result.data.opening,ending:result.data.ending,manuallyEdited:Boolean(result.data.manually_edited)});
               return m;
             });
             setError(null);
@@ -583,7 +645,7 @@ export function BirthdaysList({ localPreview, initialGroups = [], initialMessage
         setEditionMessages(prev=>{
           const m=new Map(prev);
           m.set(key,{text:result.data.message,family:result.data.family,
-            opening:result.data.opening,ending:result.data.ending});
+            opening:result.data.opening,ending:result.data.ending,manuallyEdited:Boolean(result.data.manually_edited)});
           return m;
         });
         setNotice("Nova mensagem salva na edição.");
@@ -609,7 +671,7 @@ export function BirthdaysList({ localPreview, initialGroups = [], initialMessage
       const avoidPrevious: AvoidHints = current ? { family: current.family, opening: current.opening, ending: current.ending } : {};
       const generated = generateBirthdayMessage(profile, usedTexts, usage, avoidPrevious, `${key}::${Date.now()}`);
       const next = new Map(prev);
-      next.set(key, generated);
+      next.set(key, { ...generated, manuallyEdited: false });
       return next;
     });
   }
@@ -619,10 +681,42 @@ export function BirthdaysList({ localPreview, initialGroups = [], initialMessage
     return editionMessages.get(`${editionKey}::${entryId}`) ?? null;
   }
 
+  function saveManualMessage(entryId: string, text: string): void {
+    const key = `${editionKey}::${entryId}`;
+    if (!localPreview) {
+      if (busy) return;
+      setBusy(true); setError(null); setNotice(null);
+      void saveManualBirthdayMessage(entryId, text).then((result) => {
+        if ("error" in result) { setError(result.error); return; }
+        setEditionMessages((prev) => {
+          const m = new Map(prev);
+          m.set(key, {
+            text: result.data.message, family: result.data.family,
+            opening: result.data.opening, ending: result.data.ending,
+            manuallyEdited: Boolean(result.data.manually_edited),
+          });
+          return m;
+        });
+        setNotice("Mensagem editada manualmente.");
+        router.refresh();
+      }).catch(() => setError("Não foi possível salvar a edição manual."))
+        .finally(() => setBusy(false));
+      return;
+    }
+    setEditionMessages((prev) => {
+      const current = prev.get(key);
+      if (!current) return prev;
+      const next = new Map(prev);
+      next.set(key, { ...current, text, manuallyEdited: true });
+      return next;
+    });
+  }
+
   const cityOptions = useMemo(() => {
     const set = new Set<string>();
     groups.forEach((group) => {
       if (group.principal?.city) set.add(group.principal.city);
+      if (group.foundingEntry?.city) set.add(group.foundingEntry.city);
       group.members.forEach((member) => { if (member.city) set.add(member.city); });
     });
     return Array.from(set).sort((a, b) => a.localeCompare(b, "pt-BR"));
@@ -657,6 +751,7 @@ export function BirthdaysList({ localPreview, initialGroups = [], initialMessage
     const out: Array<{ entry: BirthdayEntry; group: BirthdayGroup; isPrincipal: boolean }> = [];
     groups.forEach((group) => {
       if (group.principal && entryMatchesAll(group.principal)) out.push({ entry: group.principal, group, isPrincipal: true });
+      if (group.foundingEntry && entryMatchesAll(group.foundingEntry)) out.push({ entry: group.foundingEntry, group, isPrincipal: true });
       group.members.forEach((member) => {
         if (entryMatchesAll(member)) out.push({ entry: member, group, isPrincipal: false });
       });
@@ -684,7 +779,7 @@ export function BirthdaysList({ localPreview, initialGroups = [], initialMessage
       return [...list].sort((a, b) => a.label.localeCompare(b.label, "pt-BR"));
     }
     function earliestIndex(group: BirthdayGroup): number {
-      const entries = [group.principal, ...group.members].filter((e): e is BirthdayEntry => e != null && entryMatchesAll(e));
+      const entries = [group.principal, group.foundingEntry, ...group.members].filter((e): e is BirthdayEntry => e != null && entryMatchesAll(e));
       const idxs = entries
         .map((e) => {
           if (selectedDay) return matchesDay(e.birthDate, selectedDay) ? 0 : Infinity;
@@ -703,7 +798,7 @@ export function BirthdaysList({ localPreview, initialGroups = [], initialMessage
   function dayCount(day: Date): number {
     let count = 0;
     groups.forEach((group) => {
-      const entries = [group.principal, ...group.members].filter((e): e is BirthdayEntry => Boolean(e));
+      const entries = [group.principal, group.foundingEntry, ...group.members].filter((e): e is BirthdayEntry => Boolean(e));
       entries.forEach((e) => {
         if (entryMatchesNonPeriod(e) && matchesDay(e.birthDate, day)) count += 1;
       });
@@ -737,6 +832,49 @@ export function BirthdaysList({ localPreview, initialGroups = [], initialMessage
     router.refresh();
     return true;
   }
+  // Foto de destaque é metadado editorial (nunca o cadastro mestre) — funciona para
+  // QUALQUER origem, inclusive entradas readonly (origin "cadastro"), ao contrário de
+  // updateEntry (que bloqueia edição de nascimento/fundação vindos do cadastro).
+  function applyPhotoToGroups(entryId: string, photoUrl: string | undefined): void {
+    setGroups((prev) => prev.map((group) => ({
+      ...group,
+      principal: group.principal?.id === entryId ? { ...group.principal, photoUrl } : group.principal,
+      foundingEntry: group.foundingEntry?.id === entryId ? { ...group.foundingEntry, photoUrl } : group.foundingEntry,
+      members: group.members.map((m) => (m.id === entryId ? { ...m, photoUrl } : m)),
+    })));
+  }
+  function uploadEntryPhoto(entryId: string, file: File): void {
+    if (localPreview) {
+      applyPhotoToGroups(entryId, URL.createObjectURL(file));
+      return;
+    }
+    if (busy) return;
+    setBusy(true); setError(null); setNotice(null);
+    const formData = new FormData();
+    formData.append("file", file);
+    void setBirthdayEntryPhoto(entryId, formData).then((result) => {
+      if ("error" in result) { setError(result.error); return; }
+      applyPhotoToGroups(entryId, result.data.photoUrl);
+      setNotice("Foto de destaque salva.");
+      router.refresh();
+    }).catch(() => setError("Não foi possível enviar a foto."))
+      .finally(() => setBusy(false));
+  }
+  function removeEntryPhoto(entryId: string): void {
+    if (localPreview) {
+      applyPhotoToGroups(entryId, undefined);
+      return;
+    }
+    if (busy) return;
+    setBusy(true); setError(null); setNotice(null);
+    void removeBirthdayEntryPhoto(entryId).then((result) => {
+      if ("error" in result) { setError(result.error); return; }
+      applyPhotoToGroups(entryId, undefined);
+      setNotice("Foto de destaque removida.");
+      router.refresh();
+    }).catch(() => setError("Não foi possível remover a foto."))
+      .finally(() => setBusy(false));
+  }
   function updateEntry(groupId: string, entryId: string, next: BirthdayEntry): void {
     if(!localPreview){
       if(next.origin==="cadastro"){setError("O nascimento deve ser editado no cadastro mestre.");return;}
@@ -751,6 +889,7 @@ export function BirthdaysList({ localPreview, initialGroups = [], initialMessage
     setGroups(prev=>prev.map(group=>{
       if(group.id!==groupId)return group;
       if(group.principal?.id===entryId)return {...group,principal:next};
+      if(group.foundingEntry?.id===entryId)return {...group,foundingEntry:next};
       return {...group,members:group.members.map(m=>m.id===entryId?next:m)};
     }));
   }
@@ -791,6 +930,8 @@ export function BirthdaysList({ localPreview, initialGroups = [], initialMessage
         ...group,
         principal:group.principal?.id===entry.id?
           {...group.principal,publishInPrint:result.data.published}:group.principal,
+        foundingEntry:group.foundingEntry?.id===entry.id?
+          {...group.foundingEntry,publishInPrint:result.data.published}:group.foundingEntry,
         members:group.members.map(m=>m.id===entry.id?
           {...m,publishInPrint:result.data.published}:m),
       })));
@@ -1017,6 +1158,7 @@ export function BirthdaysList({ localPreview, initialGroups = [], initialMessage
               const memberCount = group.members.length;
               const shownMembers=group.members;
               const showPrincipal=Boolean(group.principal);
+              const showFounding=Boolean(group.foundingEntry);
               return (
                 <div key={group.id} className="aniv-group">
                   <div className="aniv-group-header-row">
@@ -1033,12 +1175,18 @@ export function BirthdaysList({ localPreview, initialGroups = [], initialMessage
                           <span className="aniv-entry-date">{formatBirthDateShort(group.principal.birthDate)}</span>
                           <span className="aniv-entry-city">{group.principal.city}</span>
                         </>
+                      ) : group.foundingEntry ? (
+                        <>
+                          <span className="aniv-entry-date" title="Data de fundação">{formatBirthDateShort(group.foundingEntry.birthDate)}</span>
+                          <span className="aniv-entry-city">{group.foundingEntry.city}</span>
+                          <span className="aniv-group-meta">{memberCount} aniversariante(s) relacionado(s)</span>
+                        </>
                       ) : (
                         <span className="aniv-group-meta">{memberCount} aniversariante(s) relacionado(s)</span>
                       )}
                       {group.kind === "individual" ? <span className="cadastro-kind-hint">Origem: Cadastro</span> : null}
                     </button>
-                    {!group.principal && localPreview ? (
+                    {!group.principal && !group.foundingEntry && localPreview ? (
                       <button
                         type="button"
                         className="aniv-delete-btn"
@@ -1063,6 +1211,26 @@ export function BirthdaysList({ localPreview, initialGroups = [], initialMessage
                           onDelete={() => setDeleteTarget({ kind: "group", groupId: group.id, label: group.label, groupKind: group.kind, memberCount })}
                           editorial={editorialFor(group.principal.id)}
                           onChangeMessage={() => changeMessage(group.principal!.id)}
+                          onSaveManualMessage={(text) => saveManualMessage(group.principal!.id, text)}
+                          onUploadPhoto={(file) => uploadEntryPhoto(group.principal!.id, file)}
+                          onRemovePhoto={() => removeEntryPhoto(group.principal!.id)}
+                        />
+                      ) : null}
+                      {showFounding && group.foundingEntry ? (
+                        <EntryRow
+                          entry={group.foundingEntry}
+                          isPrincipal
+                          highlighted={Boolean(search.trim()) && fuzzyMatches(search, group.foundingEntry.displayName)}
+                          readonlyPrincipal={!localPreview && group.foundingEntry.origin==="cadastro"}
+                          pending={busy}
+                          onTogglePublication={()=>togglePublication(group.foundingEntry!)}
+                          onSave={(next) => updateEntry(group.id, group.foundingEntry!.id, next)}
+                          onDelete={() => setDeleteTarget({ kind: "group", groupId: group.id, label: group.label, groupKind: group.kind, memberCount })}
+                          editorial={editorialFor(group.foundingEntry.id)}
+                          onChangeMessage={() => changeMessage(group.foundingEntry!.id)}
+                          onSaveManualMessage={(text) => saveManualMessage(group.foundingEntry!.id, text)}
+                          onUploadPhoto={(file) => uploadEntryPhoto(group.foundingEntry!.id, file)}
+                          onRemovePhoto={() => removeEntryPhoto(group.foundingEntry!.id)}
                         />
                       ) : null}
                       {shownMembers.map((member) => (
@@ -1076,6 +1244,9 @@ export function BirthdaysList({ localPreview, initialGroups = [], initialMessage
                             onDelete={() => setDeleteTarget({ kind: "member", groupId: group.id, entryId: member.id, name: member.displayName, groupLabel: group.label })}
                             editorial={editorialFor(member.id)}
                             onChangeMessage={() => changeMessage(member.id)}
+                            onSaveManualMessage={(text) => saveManualMessage(member.id, text)}
+                            onUploadPhoto={(file) => uploadEntryPhoto(member.id, file)}
+                            onRemovePhoto={() => removeEntryPhoto(member.id)}
                           />
                         </div>
                       ))}

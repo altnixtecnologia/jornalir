@@ -43,7 +43,7 @@ const PREVIEW_CLIENTS: Client[] = [
 const TABLE = "clients";
 const COLUMNS =
   "id, internal_reference, kind, status, full_name, cpf, birth_date, company_name, trade_name, cnpj, " +
-  "state_registration, responsible_name, responsible_cpf, phone_primary, phone_secondary, whatsapp, email, fiscal_email, " +
+  "state_registration, responsible_name, responsible_cpf, founding_date, phone_primary, phone_secondary, whatsapp, email, fiscal_email, " +
   "municipal_registration, address_ibge_code, icms_status, " +
   "address_zip, address_street, address_number, address_complement, address_neighborhood, address_city, address_state, " +
   "notes, created_at, updated_at, client_roles(role)";
@@ -62,6 +62,7 @@ interface ClientRow {
   state_registration: string | null;
   responsible_name: string | null;
   responsible_cpf: string | null;
+  founding_date: string | null;
   phone_primary: string | null;
   phone_secondary: string | null;
   whatsapp: string | null;
@@ -107,6 +108,7 @@ function toDomain(row: ClientRow): Client {
     stateRegistration: row.state_registration ?? undefined,
     responsibleName: row.responsible_name ?? undefined,
     responsibleCpf: row.responsible_cpf ?? undefined,
+    foundingDate: row.founding_date ?? undefined,
     phonePrimary: row.phone_primary ?? undefined,
     phoneSecondary: row.phone_secondary ?? undefined,
     whatsapp: row.whatsapp ?? undefined,
@@ -144,6 +146,7 @@ function toClientJson(record: NewClientRecord | ClientChanges): Record<string, u
     state_registration: record.stateRegistration ?? null,
     responsible_name: record.responsibleName ?? null,
     responsible_cpf: record.responsibleCpf ?? null,
+    founding_date: record.foundingDate ?? null,
     phone_primary: record.phonePrimary ?? null,
     phone_secondary: record.phoneSecondary ?? null,
     whatsapp: record.whatsapp ?? null,

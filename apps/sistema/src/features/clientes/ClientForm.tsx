@@ -19,6 +19,7 @@ function payloadFromClient(client?: Client): ClientFormPayload {
     birthDate: client?.birthDate ?? "",
     companyName: client?.companyName ?? "",
     tradeName: client?.tradeName ?? "",
+    foundingDate: client?.foundingDate ?? "",
     cnpj: client?.cnpj ?? "",
     stateRegistration: client?.stateRegistration ?? "",
     responsibleName: client?.responsibleName ?? "",
@@ -230,8 +231,25 @@ export function ClientForm({ mode, client }: ClientFormProps): JSX.Element {
               <span className="field-label">CNPJ</span>
               <input type="text" value={payload.cnpj} onChange={(e) => set("cnpj", e.target.value)} placeholder="00.000.000/0000-00" />
             </label>
+            <label className="cadastro-field cadastro-field--span-2">
+              <span className="field-label">Fundação <span className="field-optional">(opcional)</span></span>
+              <span className="cadastro-date-compact">
+                <input type="date" value={payload.foundingDate} onChange={(e) => set("foundingDate", e.target.value)} />
+                {payload.foundingDate ? (
+                  <button
+                    type="button"
+                    className="cadastro-date-clear"
+                    onClick={() => set("foundingDate", "")}
+                    aria-label="Limpar data de fundação"
+                    title="Limpar data de fundação"
+                  >
+                    ×
+                  </button>
+                ) : null}
+              </span>
+            </label>
           </div>
-          <p className="helper-text">Inscrição estadual, responsável e dados fiscais ficam na aba Fiscal.</p>
+          <p className="helper-text">Fundação é usada pelo módulo de Aniversariantes para destacar o aniversário de fundação da instituição. Inscrição estadual, responsável e dados fiscais ficam na aba Fiscal.</p>
         </section>
       )}
 

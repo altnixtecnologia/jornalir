@@ -30,6 +30,7 @@ function toServiceInput(payload: ClientFormPayload): ClientInput {
     stateRegistration: payload.stateRegistration,
     responsibleName: payload.responsibleName,
     responsibleCpf: payload.responsibleCpf,
+    foundingDate: payload.foundingDate || undefined,
     phonePrimary: payload.phonePrimary,
     phoneSecondary: payload.phoneSecondary,
     whatsapp: payload.whatsapp,

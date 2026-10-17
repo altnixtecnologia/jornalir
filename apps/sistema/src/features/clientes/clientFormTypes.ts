@@ -13,6 +13,8 @@ export interface ClientFormPayload {
   stateRegistration: string;
   responsibleName: string;
   responsibleCpf: string;
+  /** Data de fundação — só exibida/enviada para kind "company" (ver clients_founding_date_only_company). Nunca confundida com birthDate (exclusivo de pessoa física). */
+  foundingDate: string;
   phonePrimary: string;
   phoneSecondary: string;
   whatsapp: string;
