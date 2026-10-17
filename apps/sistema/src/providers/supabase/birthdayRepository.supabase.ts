@@ -4,15 +4,13 @@ import type { BirthdayEntryChanges, BirthdayRepository, NewBirthdayEditionMessag
 import { isLocalPreviewEnabled } from "../../lib/auth/localPreview";
 
 /**
- * Adapter preparado para quando supabase/migrations/20261025100100_birthday_entries.sql
- * e 20261025100200_birthday_edition_messages.sql forem aplicadas remotamente.
- * NINGUÉM chama isto ainda — `BirthdaysList.tsx` continua 100% em memória
- * (preview), de propósito: o módulo não pode depender do Supabase enquanto
- * ele estiver bloqueado (402). Em modo preview, os métodos abaixo retornam
- * vazio/no-op em vez de tentar uma chamada real, mesmo princípio defensivo
- * de `clientRepository.supabase.ts` — só que aqui a lista de preview com
- * dados fictícios continua vivendo só em `birthdayPreviewData.ts`, nunca
- * duplicada neste provider.
+ * Adapter original para supabase/migrations/20261025100100_birthday_entries.sql
+ * e 20261025100200_birthday_edition_messages.sql. DESATUALIZADO — a tela
+ * real (`BirthdaysList.tsx`/`page.tsx`/`actions.ts`, em
+ * `apps/sistema/src/app/sistema/aniversariantes/`) já persiste direto no
+ * Supabase, sem passar por este provider. Nenhuma chamada real encontrada
+ * a este arquivo — não assumir, só por ele existir, que a persistência
+ * passa por aqui; conferir `actions.ts` primeiro.
  */
 
 const ENTRIES_TABLE = "birthday_entries";

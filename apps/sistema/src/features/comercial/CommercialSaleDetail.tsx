@@ -162,6 +162,14 @@ export function CommercialSaleDetail({
               <div className="form-field">
                 <span className="field-label">Publicidade</span>
                 <span>{sale.channel} — {sale.description}</span>
+                {sale.channel.trim().toLowerCase() === "website" ? (
+                  <span className="helper-text">
+                    Venda do canal site — esta tela não cria nem vincula o banner automaticamente.{" "}
+                    <Link className="materia-title-link" href="/sistema/configuracoes/patrocinadores">
+                      Configurar a posição/imagem em Publicidade
+                    </Link>
+                  </span>
+                ) : null}
               </div>
               <div className="form-field">
                 <span className="field-label">Período</span>

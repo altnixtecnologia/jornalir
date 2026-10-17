@@ -83,3 +83,73 @@ Decisões novas APROVADAS pelo usuário:
 Riscos de regressão:
 Próximo lote:
 ```
+
+## Lote — Aniversariantes, Usuários/Menus, Publicidade (17/10/2026)
+
+```
+Data: 17/10/2026
+Branch/HEAD: consolidacao-local-20261016 / (ver commit ao final desta seção)
+Objetivo autorizado: conferir e recuperar layout/comportamentos aprovados em 3 tópicos
+  (Aniversariantes, Usuários e Menus, Publicidade), corrigindo o que estiver incompleto.
+
+FEITO (com arquivos e evidência):
+- Auditoria de código real (3 agentes paralelos, só leitura) comparando cada módulo
+  linha a linha com ACORDOS-E-FONTE-DA-VERDADE.md e a auditoria geral, ANTES de
+  qualquer edição — nenhuma reimplementação do que já estava correto.
+- Aniversariantes: corrigidos comentários desatualizados e falsos em
+  packages/core/src/aniversariantes/birthday-repository.ts e
+  apps/sistema/src/providers/supabase/birthdayRepository.supabase.ts (afirmavam
+  que a tela era "100% em memória" — já persiste direto via actions.ts). Sem
+  mudança de comportamento, só corrige um risco real de regressão futura.
+- Publicidade: rótulo "Tempo por imagem" corrigido para "Tempo de rotação desta
+  posição" + texto explicativo (SiteAdSlotsPanel.tsx) — o campo sempre controlou
+  a posição inteira, nunca uma imagem individual; o rótulo antigo induzia a erro.
+- Publicidade: CommercialSaleDetail.tsx ganhou um link para
+  /sistema/configuracoes/patrocinadores quando a venda é channel="website",
+  mitigando (sem migration) a falta de rastreabilidade venda→banner real.
+- Usuários/Menus: nenhuma alteração de código — tudo já conferia com as decisões
+  aprovadas (ver VALIDADO LOCALMENTE).
+
+VALIDADO LOCALMENTE (testes e UX):
+- Usuários/Menus: U01/U03/U04 conferem 100% com o código (menu só módulos, sem
+  "Novo +" duplicado, bloqueio de módulo desativado também por URL direta via
+  middleware+RPC, mobile fecha ao clicar fora, signatário OTP nunca fica staff
+  ativo, nenhuma mistura das duas branches de permissões não mescladas).
+- Aniversariantes: A01/A02/A04 conferem 100% com o código (árvore/agrupamento,
+  filtros, Novo+, X hover/mobile, sem F5).
+- Publicidade: P01 confere 100%. P02/P04 tinham gaps reais, parcialmente
+  mitigados sem migration (ver FEITO); granularidade por imagem individual e
+  vínculo estrutural venda→banner continuam pendentes.
+- typecheck (@ir/sistema), build (@ir/sistema), suíte completa do monorepo:
+  147 testes (95+23+29), 0 falhas. Sem sessão autenticada disponível nesta
+  sessão — telas não conferidas visualmente logadas (mesma limitação já
+  registrada em sessões anteriores do AI_HANDOFF).
+
+VALIDADO EM SERVIÇO REAL (somente se autorizado): nenhum (não autorizado nesta etapa).
+
+NÃO VALIDADO / FALTA:
+- Conferência visual autenticada (desktop/mobile) dos três módulos.
+- Aniversariantes: dado de fundação de instituição (A01) — ausente, exige migration.
+- Publicidade: duração/efeito/ajuste por imagem individual e FK venda→banner —
+  exigem migration (não tocada neste lote).
+- U02: permissões granulares do Financeiro continuam um switch único — já
+  deliberadamente adiado (U03), não é uma pendência nova deste lote.
+
+Migrations pendentes: nenhuma tocada/criada/reordenada. Lista completa de
+  pendentes continua a mesma (ver seção acima) + achado NOVO (não corrigido):
+  as migrations de site_ad_slots/commercial_proposals têm ORDEM DE ARQUIVO
+  incompatível com suas dependências reais (ALTER antes do CREATE pela data
+  do nome) — precisam ser renomeadas/reordenadas num lote dedicado a migrations,
+  antes de qualquer aplicação futura. Nenhuma delas foi aplicada a banco real.
+
+Decisões novas APROVADAS pelo usuário: nenhuma — dois conflitos documentais
+  foram REGISTRADOS, não resolvidos (ver AUDITORIA-GERAL, seção 5, itens 9 e 10):
+  (a) Aniversariantes — "destaque com foto"/"edição manual" aprovados nos
+  acordos vs. migration que declara essas funcionalidades removidas por
+  "decisão final do módulo"; (b) achado da ordem de migrations acima.
+
+Riscos de regressão: nenhum identificado nas mudanças feitas (só correção de
+  comentário/rótulo/link, sem alteração de schema/comportamento/permissão).
+
+Próximo lote: aguardando autorização do usuário.
+```

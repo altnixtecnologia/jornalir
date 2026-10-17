@@ -258,8 +258,11 @@ function SlotCard({ slot }: { slot: SiteAdSlotWithMedia }): JSX.Element {
 
       <div className="site-ad-slot-settings">
         <label className="form-field">
-          <span className="field-label">Tempo por imagem</span>
+          <span className="field-label">Tempo de rotação desta posição</span>
           <div className="site-ad-seconds"><input type="number" min={2} max={120} value={seconds} onChange={(event) => setSeconds(event.target.value)} /><span>s</span></div>
+          <span className="helper-text">
+            Aplica-se a todas as imagens desta posição — ainda não é possível configurar um tempo diferente por imagem individual.
+          </span>
         </label>
         <label className="form-field">
           <span className="field-label">Transição</span>

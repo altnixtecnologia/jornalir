@@ -78,6 +78,12 @@
 
 **ALTA PRIORIDADE DE ACEITE VISUAL:** comparar com imagens e descrições aprovadas, autenticado em desktop e mobile. Relatório de branch/base não comprova o estado final mostrado ao usuário.
 
+**VERIFICADO EM 17/10/2026 (auditoria de código, sem sessão autenticada):** A01 (agrupamento/árvore/publicação individual), A02 (filtros, período quinta→quarta, dia/mês independente de ano) e A04 (Novo +, X hover/mobile, sem duplicar Retirar+X, sem F5) **conferem exatamente com o código atual** — `BirthdaysList.tsx`/`page.tsx`/`actions.ts`, ambas branches `release/aniversariantes-*` já são ancestrais do HEAD local. Dois achados que exigem decisão/registro, não resolvidos automaticamente:
+- **A01 — dado de fundação de instituição NÃO existe no banco.** A constraint `clients_identity_by_kind` (`20261014110000_clients.sql`) bloqueia qualquer data para `kind='company'`. Não há conflação (PJ nunca aparece como aniversariante), mas o direito concedido em A01 ("pode ter dado de fundação próprio") está ausente, exigindo nova coluna/migration — fora do escopo deste lote (migrations não tocadas).
+- **A03 — CONTRADIÇÃO DOCUMENTAL confirmada**, registrada na seção 5 abaixo: a migration `20261025100200_birthday_edition_messages.sql` declara "decisão final do módulo removeu" destaque com foto e edição manual de texto — direto em conflito com a redação de A03 aqui. Nenhuma das duas foi escolhida unilateralmente; aguardando esclarecimento do usuário.
+- Contagem real de modelos de mensagem: **44** (não ~36) — drift de número, não regressão (nunca ficou abaixo do mínimo).
+- Corrigido (sem mudança de comportamento): comentários desatualizados em `packages/core/src/aniversariantes/birthday-repository.ts` e `apps/sistema/src/providers/supabase/birthdayRepository.supabase.ts` afirmavam falsamente que a tela ainda era "100% em memória" — a persistência real já existe via `actions.ts`, direto no Supabase, sem passar por essas duas camadas (hoje órfãs/não chamadas). Risco real de regressão futura se alguém confiasse nesse comentário; comentário corrigido, arquivos não removidos (decisão de remoção não tomada nesta sessão).
+
 ### 3.4 Menus, usuários, permissões e autenticação
 
 **U01 — Navegação:** menu apenas módulos, `Novo +` dentro das telas (assinaturas e outros); mobile claro e recolhível ao clicar fora; módulo desativado não aparece nem é acessível via URL direta.
@@ -87,6 +93,8 @@
 **U03 — Conflitos técnicos:** branches `release/consolidacao-permissoes-20261016-lote1` e `release/finance-permissions-guards-20261015` diferem e não foram fundidas. Preservar e revisar **por último**, sem desfazer proteção que já existe, mas não deixar rotas vulneráveis enquanto espera.
 
 **U04 — Acesso de signatários:** cadastro criado para confirmar OTP de contrato não recebe automaticamente perfil de staff ativo. Testar realmente Auth trigger, middleware e RLS antes de produção.
+
+**VERIFICADO EM 17/10/2026 (auditoria de código):** U01, U03 e U04 **conferem exatamente** — menu só módulos, sem "Novo +" duplicado em nenhum lugar; `middleware.ts` bloqueia módulo desativado tanto no menu quanto por URL direta via RPC `staff_can_see_module` (nunca só client-side); mobile fecha ao clicar fora (`<dialog>` + handlers dedicados); as duas branches de permissões financeiras continuam genuinamente não mescladas, sem código misto/meio-aplicado no branch atual; `account_purpose=contract_signer` confirmado `profiles.active=false` ponta a ponta. **U02 — permissão granular do Financeiro continua ausente** (só um switch único `financeiro: true/false` em `staffPermissionsCatalog.ts`, sem flags separadas para criar/enviar PIX vs. baixar/cancelar) — isso é exatamente o que U03 já registra como deliberadamente adiado, não uma regressão nova; não implementado neste lote por estar fora do escopo autorizado. Item G03 "mensagens centrais ~5s" não tem componente de toast/snackbar compartilhado no código (cada tela mostra mensagem inline própria) — observação registrada, não corrigida (fora dos 3 tópicos autorizados deste lote).
 
 ### 3.5 Clientes, contatos e integração Altnix Informativo
 
@@ -159,6 +167,15 @@
 
 **P04 — Solicitações e propostas:** fluxo Assine/Anuncie integrado ao comercial, contratos e financeiro; acompanhar solicitação, lançamento, cliente, parcelas, anúncio e resultado, sem criar formulário que desaparece sem registrar.
 
+**VERIFICADO E PARCIALMENTE CORRIGIDO EM 17/10/2026 (auditoria de código):**
+- **P01 confere integralmente** — 6 posições fixas, esquerda/direita com `slot_number`/`sort_order` nunca confundidos, miniaturas, múltiplo upload, ativação/validade por imagem.
+- **P02 — gaps confirmados, parcialmente corrigidos sem migration:**
+  - Rótulo "Tempo por imagem" corrigido para "Tempo de rotação desta posição" + texto explicativo (`SiteAdSlotsPanel.tsx`) — o campo sempre controlou a posição inteira (coluna `rotation_interval_ms` em `site_ad_slots`), nunca por imagem individual; o rótulo antigo induzia a erro. **Duração/efeito/ajuste por imagem individual continuam pendentes — exigem nova coluna em `site_ad_media` e migration, fora do escopo autorizado deste lote.**
+  - Confirmado: só 6 das 10 opções de transição (`SiteAdTransitionEffect`, com CSS já implementado para as 10) estão liberadas na UI/constraint do banco (`SiteAdSlotTransitionEffect`, 6 valores) — "editor global de ~10 opções" não existe como editor único; é por posição, com 6 opções. Ampliar exige alterar a constraint (migration) — não feito.
+  - `fit_mode` (original/esticada) também é por posição, não por imagem — mesma limitação de granularidade.
+- **P04 — gap de rastreabilidade confirmado e mitigado sem migration:** nenhuma coluna liga `commercial_sales`/`commercial_proposals` ao banner real (`site_ad_slots`/`site_ad_media`) — uma venda `channel='website'` paga não aponta pra nenhuma posição configurada. Mitigação aplicada: `CommercialSaleDetail.tsx` agora mostra um link direto para `/sistema/configuracoes/patrocinadores` quando `channel` é "website", como lembrete ao operador. **Vínculo estrutural (FK) continua pendente — exigiria migration.**
+- **ACHADO NOVO, CRÍTICO, NÃO CORRIGIDO (migrations não tocadas por instrução explícita deste lote):** as migrations de publicidade/comercial têm **ordem de arquivo incompatível com suas dependências reais** — `20261029100200_site_ad_slots.sql` (adicionado ao git em 11/10) faz `CREATE TABLE site_ad_slots`/`site_ad_media`, mas os arquivos de 14-15/10 (`20261014015734`, `20261014022359`, `20261014124630`, `20261014124907`, `20261015030545`) fazem `ALTER TABLE` nessas mesmas tabelas com nomes de arquivo **anteriores** ao `CREATE TABLE` — em ordem de timestamp, as `ALTER` tentariam rodar antes da tabela existir e falhariam. Mesmo padrão entre `20261013043920_site_interest_conversion_links.sql` (referencia `commercial_proposals`) e `20261029100000_commercial_proposals.sql` (cria a tabela). **Nenhuma dessas migrations foi aplicada a nenhum banco real ainda** (confirmado pelos próprios comentários de cabeçalho "NÃO aplicada ainda") — mas precisam ser renomeadas/reordenadas antes de qualquer aplicação futura, em um lote dedicado a migrations, com autorização específica.
+
 ### 3.11 Apps, experiência mobile e Altnix Informativo
 
 **M01 — Portal e Sistema:** UX mobile clara, menus e permissões equivalentes ao desktop; apps Android/iOS futuros com push normal e alerta urgente com som/vibração, alarmes da agenda; acesso segmentado por perfil.
@@ -204,6 +221,8 @@
 6. **NFS-e:** mocks e PDF/testes de XML não equivalem à emissão, consulta ou cancelamento homologados.
 7. **Medidas editoriais/comerciais:** dimensões para arte eleitoral específica não substituem formato comercial padrão do jornal.
 8. **Fases antigas no `AI_HANDOFF`/`CURRENT-STATE`:** snapshots históricos úteis, não estado atual automaticamente.
+9. **NOVO (17/10/2026) — Aniversariantes: destaque com foto / edição manual de mensagem.** Esta auditoria (A03, seção 3.3) e `docs/ACORDOS-E-FONTE-DA-VERDADE.md` listam "destacar com foto quando houver" e "editar manualmente" como requisitos aprovados. A migration `supabase/migrations/20261025100200_birthday_edition_messages.sql` (comentário da tabela) declara que a "decisão final do módulo" **removeu** as duas funcionalidades, e o código atual (`BirthdaysList.tsx`) de fato não tem nem campo de foto nem texto editável — só "Trocar mensagem" (sorteia outro modelo) e "Copiar". **Não resolvido nesta sessão** — nenhuma das duas versões foi escolhida; precisa de confirmação direta do usuário sobre qual é a decisão vigente.
+10. **NOVO (17/10/2026) — ordem de arquivo das migrations de publicidade/comercial incompatível com dependências reais.** Ver seção 3.10 (P02/P04) — `20261029100200_site_ad_slots.sql` é alterado por arquivos com nome de data anterior (`20261014*`/`20261015*`); `20261013043920_site_interest_conversion_links.sql` referencia uma tabela só criada por `20261029100000_commercial_proposals.sql`. Nenhuma foi aplicada a banco real; precisam ser reordenadas/renomeadas antes de qualquer aplicação futura, em lote dedicado.
 
 ## 6. Roteiro de validação para cada lote do Claude
 

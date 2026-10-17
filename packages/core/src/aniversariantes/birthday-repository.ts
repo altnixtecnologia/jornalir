@@ -8,12 +8,15 @@ export type BirthdayEntryChanges = Partial<NewBirthdayEntryRecord>;
 export type NewBirthdayEditionMessageRecord = Omit<BirthdayEditionMessage, "id" | "createdAt" | "updatedAt">;
 
 /**
- * Contrato preparado para a futura persistência real de Aniversariantes
- * (ver supabase/migrations/20261025100100_birthday_entries.sql e
- * 20261025100200_birthday_edition_messages.sql). NINGUÉM na UI chama isto
- * ainda — `BirthdaysList.tsx` continua 100% em memória (preview), de
- * propósito, para não depender do Supabase enquanto ele estiver bloqueado.
- * Mesmo padrão de `ClientRepository`.
+ * Contrato original pensado para a persistência de Aniversariantes (ver
+ * supabase/migrations/20261025100100_birthday_entries.sql e
+ * 20261025100200_birthday_edition_messages.sql). DESATUALIZADO — a
+ * persistência real já existe e está em uso: `apps/sistema/.../
+ * aniversariantes/actions.ts` e `page.tsx` acessam `birthday_entries`/
+ * `birthday_edition_messages` DIRETO via Supabase, sem passar por esta
+ * interface nem por `birthdayRepository.supabase.ts`. Este arquivo ficou
+ * órfão (nenhuma chamada real) — nunca confiar nele para avaliar se a
+ * persistência existe; conferir sempre `actions.ts`.
  */
 export interface BirthdayRepository {
   list(): Promise<BirthdayEntry[]>;
