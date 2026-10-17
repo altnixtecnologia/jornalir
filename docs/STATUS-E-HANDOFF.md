@@ -236,6 +236,72 @@ Nenhum db push real, nenhum migration repair, nenhuma alteração no
 Supabase remoto, nenhum push no GitHub, nenhum deploy.
 ```
 
+## Lote — APLICAÇÃO REAL autorizada das migrations no Supabase (17/10/2026, 3ª rodada)
+
+```
+AUTORIZADO EXPRESSAMENTE pelo usuário: backup, verificação e aplicação
+real das 19 migrations pendentes contra o projeto remoto iqnzrpdccecgalqboeyf.
+
+BACKUP (antes de qualquer alteração): estrutura + dados de public e de
+auth/storage (dump explícito dos dois, já que o padrão do CLI os exclui),
+roles e histórico de migrations — tudo em
+`C:\Users\caber\OneDrive\Altnix\Projetos\Informativo Regional\backups-supabase\
+site-system-ir\2026-10-17\` (fora do Git), com checksums SHA-256 e README
+documentando cobertura exata. PITR está DESABILITADO neste projeto
+(confirmado via `supabase backups list`) — só backups diários da
+plataforma (último antes de hoje: 17/10 07:10 UTC). Arquivos físicos do
+Storage (bytes dos uploads) NÃO estão cobertos por nenhum dump de banco —
+limitação real, documentada, não resolvida nesta sessão. Teste de
+restauração feito com sucesso em ambiente isolado (Docker local).
+
+VERIFICAÇÃO PRÉ-APLICAÇÃO: reconfirmado `supabase migration list` e
+`db push --dry-run --include-all` — mesmas 19 migrations do lote
+anterior. Auditoria extra pedida pelo usuário ("as 11 de reconciliação
+são seguras sobre o estado REAL, não só fresh install?") encontrou e
+corrigiu 1 risco real: `site_ad_slots_dependent_setup.sql` tinha um
+UPDATE incondicional que reverteria customização por posição feita
+depois via painel — removido antes de aplicar.
+
+APLICAÇÃO REAL — 2 falhas reais encontradas e corrigidas em sequência
+(parei, avaliei o estado efetivamente aplicado via `migration list`,
+nunca reexecutei às cegas, nunca usei migration repair/db reset):
+  1. `contract_signature_family.sql`: "constraint already exists" — a
+     execução histórica real (fora de ordem de nome de arquivo) já tinha
+     criado a estrutura final completa; corrigido para só garantir o
+     estado final (CREATE TABLE IF NOT EXISTS com as constraints já na
+     definição, função direto na v2, nunca recriando a v1 removida).
+  2. `site_ad_slots_dependent_setup.sql`: "cannot drop columns from
+     view" — mesmo padrão; corrigido removendo a recriação da view
+     intermediária de 6 colunas, indo direto à versão final de 7.
+  Cada falha causou ROLLBACK AUTOMÁTICO completo e confirmado (nenhum
+  efeito parcial) antes da correção e nova tentativa.
+
+RESULTADO FINAL: as 19 migrations aplicadas com sucesso. `supabase
+migration list` confirma 139 locais = 139 remotas, 0 divergência.
+`db push --dry-run` confirma "Remote database is up to date."
+
+VALIDAÇÃO PÓS-APLICAÇÃO (leitura apenas, sem NFS-e/cobrança/mensagem
+real): dump de estrutura pós-push comparado ao pré-push — +3 tabelas
+(contract_signature_requests, nfse_cancellation_requests,
+contract_templates/versions), +2 policies, +5 funções, ZERO remoções.
+Dump de dados pós-push comparado linha-a-linha (contagem por tabela) ao
+pré-push — CONTAGEM IDÊNTICA em toda tabela com dados (23.440 artigos,
+44.791 mídias, 4 clientes, etc.) — zero perda, zero alteração indevida.
+Funções sensíveis (staff_can_see_module, is_active_staff,
+confirm_payment_charge, finalize_contract_signature) confirmadas
+presentes. Estruturas novas confirmadas: clients.founding_date,
+birthday_entries.photo_media_asset_id,
+birthday_edition_messages.manually_edited/message_override,
+site_ad_media.rotation_interval_ms/transition_effect/fit_mode,
+contract_signature_requests, nfse_cancellation_requests,
+claim_draft_transmission/release_draft_transmission.
+
+Nenhum push no GitHub, nenhum deploy na Vercel, nenhuma NFS-e/cobrança/
+mensagem real emitida. Commits locais: ver sequência de commits deste
+lote (fixes de idempotência aplicados DURANTE a operação, antes de cada
+nova tentativa).
+```
+
 ## Lote — Reconciliação definitiva do histórico de migrations (17/10/2026, 2ª rodada)
 
 ```
