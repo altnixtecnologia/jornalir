@@ -8,11 +8,12 @@ import {
 } from "../../app/sistema/financeiro/contratos/signature-actions";
 
 export function ContractSignaturesPanel({
-  contractId, documents, invitations,
+  contractId, documents, invitations, whatsappEnabled = false,
 }: {
   contractId: string;
   documents: ContractDocument[];
   invitations: PublicSignatureInvite[];
+  whatsappEnabled?: boolean;
 }): JSX.Element {
   const eligible = useMemo(
     () => documents.filter((item) =>
@@ -29,6 +30,8 @@ export function ContractSignaturesPanel({
   const [inviteLink, setInviteLink] = useState("");
   const [error, setError] = useState("");
   const [copied, setCopied] = useState(false);
+  const [sendWhatsapp, setSendWhatsapp] = useState(false);
+  const [whatsappOptIn, setWhatsappOptIn] = useState(false);
   const [createdInvitePhone, setCreatedInvitePhone] = useState("");
   const [createdInviteEmail, setCreatedInviteEmail] = useState("");
 
@@ -39,9 +42,11 @@ export function ContractSignaturesPanel({
       try {
         const result = await createSignatureInvitationAction({
           contractId, documentId, signerName: name, signerEmail: email, signerPhone: phone,
+          sendWhatsapp, operatorConfirmedOptIn: whatsappOptIn,
         });
         if ("error" in result) { setError(result.error); return; }
         setInviteLink(window.location.origin + result.urlPath);
+        if (result.deliveryError) setError("Convite criado, mas o envio automático falhou: " + result.deliveryError);
         setCreatedInvitePhone(phone.replace(/\D/g, ""));
         setCreatedInviteEmail(email.trim());
         setCopied(false);
@@ -49,9 +54,11 @@ export function ContractSignaturesPanel({
           id: result.invitationId, contract_id: contractId, document_id: documentId,
           signer_name: name.trim(), signer_email: email.trim(), signer_phone: phone.trim(),
           status: "pending", expires_at: new Date(Date.now() + 7 * 86400000).toISOString(),
+          notification_channel: sendWhatsapp ? "whatsapp" : "manual",
+          notification_status: sendWhatsapp && !result.deliveryError ? "accepted_by_meta" : sendWhatsapp ? "failed" : "not_sent",
           created_at: new Date().toISOString(), signed_at: null, receipt_document_id: null, signed_document_id: null,
         }, ...old]);
-        setName(""); setEmail(""); setPhone("");
+        setName(""); setEmail(""); setPhone(""); setSendWhatsapp(false); setWhatsappOptIn(false);
       } catch { setError("Não foi possível gerar o convite. Tente novamente."); }
     });
   }
@@ -101,9 +108,26 @@ export function ContractSignaturesPanel({
             <span className="field-label">WhatsApp com DDD (opcional)</span>
             <input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="48 99999-9999" />
           </label>
+          {whatsappEnabled ? (
+            <div className="form-field" style={{ gridColumn: "1 / -1" }}>
+              <label style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <input type="checkbox" checked={sendWhatsapp}
+                  onChange={(e) => setSendWhatsapp(e.target.checked)} />
+                Enviar convite automaticamente pelo template aprovado na Meta
+              </label>
+              {sendWhatsapp ? <label style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <input type="checkbox" checked={whatsappOptIn}
+                  onChange={(e) => setWhatsappOptIn(e.target.checked)} />
+                Confirmo que o destinatário autorizou receber este convite no WhatsApp.
+              </label> : null}
+            </div>
+          ) : <p className="helper-text" style={{ gridColumn: "1 / -1" }}>
+            Envio automático indisponível: configure e aprove o template de convite no WhatsApp Business.
+            Por enquanto, compartilhe o link manualmente.
+          </p>}
           <div className="form-actions">
             <button type="button" className="form-action-primary" onClick={sendInvite}
-              disabled={pending || !documentId || !name.trim() || !email.trim()}>
+              disabled={pending || !documentId || !name.trim() || !email.trim() || (sendWhatsapp && (!whatsappOptIn || !phone.trim()))}>
               {pending ? "Processando…" : "+ Criar convite de assinatura"}
             </button>
           </div>
@@ -138,7 +162,7 @@ export function ContractSignaturesPanel({
               <div className="destaques-item-body">
                 <span className="materia-title">{invite.signer_name}</span>
                 <span className="helper-text">
-                  {invite.signer_email} · {invite.status === "signed" ? "Assinado" :
+                  {invite.signer_email} · {invite.notification_status === "accepted_by_meta" ? "Envio aceito pela Meta · " : invite.notification_status === "failed" ? "Falha no envio automático · " : ""}{invite.status === "signed" ? "Assinado" :
                     invite.status === "revoked" ? "Revogado" : expired ? "Expirado" : "Aguardando assinatura"} ·
                   {" "}{new Date(invite.created_at).toLocaleDateString("pt-BR")}
                 </span>
