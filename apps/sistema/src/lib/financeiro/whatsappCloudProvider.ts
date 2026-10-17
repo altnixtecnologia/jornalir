@@ -133,3 +133,25 @@ export async function sendWhatsappPaymentConfirmedTemplate(input: {
     input.transactionId,
   ]);
 }
+
+/** Template separado, que deve ser aprovado pela Meta antes de habilitar. */
+export function isWhatsappSignatureTemplateConfigured(): boolean {
+  return isWhatsappCloudConfigured() && Boolean(process.env.WHATSAPP_SIGNATURE_INVITE_TEMPLATE?.trim());
+}
+
+export async function sendWhatsappSignatureInviteTemplate(input: {
+  toPhone: string;
+  signerName: string;
+  contractNumber: string;
+  invitationLink: string;
+}): Promise<WhatsappBillingTemplateResult> {
+  const template = (process.env.WHATSAPP_SIGNATURE_INVITE_TEMPLATE ?? "").trim();
+  if (!template) throw new Error("Configure primeiro um template de convite de assinatura aprovado na Meta.");
+  // Template pt_BR aprovado deve conter, na ordem:
+  // {{1}} nome do signatário; {{2}} contrato; {{3}} link privado.
+  return sendTemplate(input.toPhone, template, [
+    input.signerName,
+    input.contractNumber,
+    input.invitationLink,
+  ]);
+}

@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import type { NfseDraft, NfseIssuedNote, NfseTransmissionAttempt } from "@ir/types";
 import { NFSE_TRANSMISSION_STATUS_LABELS } from "@ir/types";
 import { transmitDraftAction } from "../../app/sistema/nfse/rascunhos/[id]/actions";
@@ -43,12 +44,14 @@ export function NfseTransmissionPanel({
   issuedNote,
   attempts,
   issuerConfigured,
+  blockingReasons = [],
   previewMode = false,
 }: {
   draft: NfseDraft;
   issuedNote: NfseIssuedNote | null;
   attempts: NfseTransmissionAttempt[];
   issuerConfigured: boolean;
+  blockingReasons?: string[];
   previewMode?: boolean;
 }): JSX.Element {
   const router = useRouter();
@@ -60,6 +63,10 @@ export function NfseTransmissionPanel({
   const [copied, setCopied] = useState(false);
 
   function handleTransmit(): void {
+    if (!previewMode) {
+      setError("Emissão nacional indisponível: a API oficial ainda não foi homologada neste sistema.");
+      return;
+    }
     setError(null);
     setResult(null);
     startTransition(async () => {
@@ -254,10 +261,28 @@ export function NfseTransmissionPanel({
         </div>
       ) : null}
 
-      {!reviewOpen ? (
+      {!previewMode ? (
+        <div className="form-field">
+          <p className="form-error" role="alert">
+            A transmissão real de NFS-e está bloqueada até a validação oficial da integração.
+            Nenhuma nota fiscal foi emitida a partir deste rascunho.
+          </p>
+          {blockingReasons.length > 0 ? (
+            <>
+              <h3>Pendências deste rascunho</h3>
+              <ul style={{ paddingLeft: "22px" }}>
+                {blockingReasons.map((reason) => <li key={reason}>{reason}</li>)}
+              </ul>
+            </>
+          ) : null}
+          <Link className="secondary-link" href="/sistema/nfse/configuracoes">
+            Revisar configuração fiscal e certificado
+          </Link>
+        </div>
+      ) : !reviewOpen ? (
         <div className="form-actions">
           <button type="button" className="form-action-primary" onClick={() => setReviewOpen(true)} disabled={pending}>
-            {previewMode ? "Emitir NFS-e (demonstração)" : "Enviar NFS-e"}
+            Emitir NFS-e (demonstração)
           </button>
         </div>
       ) : (

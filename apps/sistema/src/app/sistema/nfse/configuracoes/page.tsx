@@ -1,4 +1,5 @@
 import { ModuleHeader } from "../../../../components/admin/ModuleHeader";
+import { isSecretStoreConfigured } from "@ir/core/src/nfse/secret-store";
 import { NfseIssuerConfigForm } from "../../../../features/nfse/NfseIssuerConfigForm";
 import { getIssuerConfigService } from "../../../../composition/nfse";
 import { createSupabaseServerClient } from "../../../../lib/supabase/server";
@@ -26,7 +27,7 @@ export default async function NfseConfiguracoesPage(): Promise<JSX.Element> {
         title="Configurações fiscais"
         description="Prestador, regime/configuração fiscal, ambiente e certificado digital (metadata)."
       />
-      <NfseIssuerConfigForm initialConfig={initialConfig} />
+      <NfseIssuerConfigForm initialConfig={initialConfig} encryptionReady={isSecretStoreConfigured()} />
     </>
   );
 }

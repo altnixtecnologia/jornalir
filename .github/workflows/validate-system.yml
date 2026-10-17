@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - frontend-integracao-20261008
+      - release/contratos-nfse-integracao-20261016
     paths:
       - "apps/site/**"
       - "apps/sistema/**"
@@ -44,6 +45,9 @@ jobs:
 
       - name: Typecheck system
         run: npm run typecheck --workspace @ir/sistema
+
+      - name: Signed contract PDF smoke test
+        run: node apps/sistema/scripts/signatures-smoke.cjs
 
       - name: Build system
         run: npm run build --workspace @ir/sistema

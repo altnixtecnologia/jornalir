@@ -63,7 +63,7 @@ function toFormInput(config: Partial<NfseIssuerConfig> | undefined): IssuerConfi
  * vazio (sugerindo os dados da Informativo Regional só como
  * `defaultValue`, nunca persistidos até o usuário salvar).
  */
-export function NfseIssuerConfigForm({ initialConfig }: { initialConfig: NfseIssuerConfig | null }): JSX.Element {
+export function NfseIssuerConfigForm({ initialConfig, encryptionReady }: { initialConfig: NfseIssuerConfig | null; encryptionReady: boolean }): JSX.Element {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -236,7 +236,7 @@ export function NfseIssuerConfigForm({ initialConfig }: { initialConfig: NfseIss
         <p className="helper-text">
           Upload do PFX/P12 real — a senha só é usada no servidor pra abrir o arquivo e NUNCA é armazenada (nem em texto, nem em log). Só a chave privada/certificado, já extraídos, ficam guardados — criptografados (AES-256-GCM).
         </p>
-        <NfseCertificatePanel issuerCnpj={input.cnpj} />
+        <NfseCertificatePanel issuerCnpj={input.cnpj} encryptionReady={encryptionReady} />
         <p className="helper-text" style={{ marginTop: "0.75rem" }}>
           Campos legados abaixo (tipo/status/validade/referência) — mantidos só por compatibilidade com configurações antigas; o upload acima é a fonte de verdade a partir de agora.
         </p>
