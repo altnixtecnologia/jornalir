@@ -105,6 +105,50 @@ export async function revokeSignatureInvitationAction(
   }
 }
 
+/**
+ * Autentica o signatário pelo e-mail do convite através do Supabase Auth.
+ * Usa o e-mail persistido pelo operador, nunca um endereço enviado livre
+ * pelo navegador. Requer o template de e-mail com {{ .Token }} no Auth.
+ */
+export async function requestSignerEmailCodeAction(token: string): Promise<Result<{ sent: true }>> {
+  try {
+    const invitation = await findSignatureInvitation(token);
+    if (!invitation || !invitationIsPending(invitation)) {
+      return { error: "Convite não encontrado ou expirado." };
+    }
+    const supabase = createSupabaseServerClient();
+    const { error } = await supabase.auth.signInWithOtp({
+      email: invitation.signer_email,
+      options: { shouldCreateUser: true },
+    });
+    if (error) return { error: "Não foi possível enviar o código agora. Verifique o limite do serviço de e-mail e tente novamente." };
+    return { ok: true, sent: true };
+  } catch {
+    return { error: "Serviço de confirmação de e-mail indisponível." };
+  }
+}
+
+export async function verifySignerEmailCodeAction(token: string, code: string): Promise<Result<{ verified: true }>> {
+  try {
+    const invitation = await findSignatureInvitation(token);
+    if (!invitation || !invitationIsPending(invitation)) return { error: "Convite não encontrado ou expirado." };
+    const otp = code.replace(/\s/g, "");
+    if (!/^\d{6,8}$/.test(otp)) return { error: "Informe o código recebido por e-mail." };
+    const supabase = createSupabaseServerClient();
+    const { data, error } = await supabase.auth.verifyOtp({
+      email: invitation.signer_email,
+      token: otp,
+      type: "email",
+    });
+    if (error || data.user?.email?.toLowerCase() !== invitation.signer_email.toLowerCase()) {
+      return { error: "Código inválido ou expirado. Solicite um novo código." };
+    }
+    return { ok: true, verified: true };
+  } catch {
+    return { error: "Não foi possível confirmar o código." };
+  }
+}
+
 function sameName(a: string, b: string): boolean {
   const norm = (name: string) => name.normalize("NFKC").trim().replace(/\s+/g, " ").toLocaleLowerCase("pt-BR");
   return norm(a) === norm(b);
@@ -126,6 +170,11 @@ export async function completeSignatureInvitationAction(input: {
     if (!sameName(input.signerName, invitation.signer_name) ||
         input.signerEmail.trim().toLowerCase() !== invitation.signer_email.trim().toLowerCase()) {
       return { error: "Nome ou e-mail não corresponde ao destinatário deste convite." };
+    }
+    const verifiedClient = createSupabaseServerClient();
+    const { data: verifiedUser, error: verifiedError } = await verifiedClient.auth.getUser();
+    if (verifiedError || verifiedUser.user?.email?.toLowerCase() !== invitation.signer_email.toLowerCase()) {
+      return { error: "Confirme primeiro o código enviado ao e-mail do convite para assinar." };
     }
     const source = await findInvitationSource(invitation);
     if (!source) return { error: "PDF original não encontrado." };
