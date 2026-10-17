@@ -15,7 +15,7 @@ import type { Client, ClientKind } from "../clientes";
 export type NfseEnvironment = "homologation" | "production";
 export const NFSE_ENVIRONMENTS: readonly NfseEnvironment[] = ["homologation", "production"];
 export const NFSE_ENVIRONMENT_LABELS: Record<NfseEnvironment, string> = {
-  homologation: "Homologação",
+  homologation: "Produção Restrita",
   production: "Produção",
 };
 
@@ -304,6 +304,24 @@ export const NFSE_SUGGESTED_ISSUER_DEFAULTS = {
   state: "SC",
   ibgeCode: "4216404",
 } as const;
+
+/** Serviço de referência fornecido pelo prestador para a primeira consulta no ADN; não define alíquota ou regra municipal. */
+export const NFSE_INITIAL_SERVICE_REFERENCE = {
+  name: "Publicidade",
+  nationalTaxCode: "170601",
+  nbs: "1.1406.19.00",
+} as const;
+
+/** Resposta segura da consulta de parâmetros, sem certificado, chave ou material criptográfico. */
+export interface NfseMunicipalParametersResult {
+  environment: "restricted";
+  municipalityCode: string;
+  serviceCode: string;
+  competence: string;
+  fetchedAt: string;
+  agreement: Record<string, unknown>;
+  serviceParameters: Record<string, unknown>;
+}
 
 // --- Perfis de serviço ----------------------------------------------------
 

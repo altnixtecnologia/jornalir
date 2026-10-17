@@ -1,5 +1,6 @@
 import type { NfseEnvironment } from "@ir/types";
 import type { NationalNfseResponseEnvelope } from "./dps-builder";
+import { getNfseEnvironmentConfig } from "./environment";
 
 /**
  * Abstração de integração fiscal (Parte 2A, item 3) — nunca acopla a
@@ -15,7 +16,7 @@ export interface MunicipalParameters {
 }
 
 export interface NationalNfseProvider {
-  /** GET /parametros_municipais/{codigoMunicipio}/convenio */
+  /** GET /parametrizacao/{codigoMunicipio}/convenio */
   getMunicipalParameters(ibgeCode: string, environment: NfseEnvironment): Promise<MunicipalParameters>;
   /** POST /nfse (emissão síncrona) */
   transmitDps(signedDpsXml: string, environment: NfseEnvironment): Promise<NationalNfseResponseEnvelope>;
@@ -26,8 +27,9 @@ export interface NationalNfseProvider {
 }
 
 /**
- * Bases reais (Parte 2B, item "HTTP/mTLS") — confirmadas contra fontes
- * oficiais/corroboração cruzada (item 6 do prompt desta fase):
+ * Bases reais (Parte 2B, item "HTTP/mTLS") — centralizadas em
+ * `environment.ts` (item 3.2). Confirmadas contra fontes oficiais/
+ * corroboração cruzada:
  * - SEFIN Nacional (emissão/consulta de DPS/NFS-e): o Swagger ao vivo
  *   (`https://sefin.producaorestrita.nfse.gov.br/API/SefinNacional/`)
  *   exige certificado mTLS pra QUALQUER acesso, inclusive navegar a
@@ -37,36 +39,32 @@ export interface NationalNfseProvider {
  *   de corroboração cruzada entre duas fontes independentes (Manual de
  *   Conectividade SEFIN; resumos técnicos de integradores) — NUNCA
  *   inventados.
- * - ADN (parâmetros municipais/convênio): path documentado como
- *   `/parametrizacao/parametros_municipais/{codigoMunicipio}/convenio`,
- *   sob o host ADN (não SEFIN) — também bloqueado por rede/mTLS nesta
- *   sessão ao testar sem certificado.
+ * - ADN (parâmetros municipais/convênio/alíquota): path confirmado
+ *   (item 3.2, corroborado contra múltiplas fontes independentes —
+ *   manual oficial de contribuintes da ADN, bibliotecas de integração
+ *   de terceiros) como `/parametrizacao/{codigoMunicipio}/convenio` e
+ *   `/parametrizacao/{codigoMunicipio}/{codigoServico}/{competencia}/aliquota`,
+ *   sob o host ADN (não SEFIN). O prefixo `/parametros_municipais` é
+ *   um esquema ANTERIOR (manuais de 2025) e não é mais usado — a versão
+ *   anterior deste arquivo misturava os dois prefixos na mesma URL
+ *   (bug corrigido aqui).
  *
  * Nosso valor interno "homologation" corresponde, nesta fase, ao
  * ambiente real de PRODUÇÃO RESTRITA (RTC) — não existe uma distinção
  * de "homologação verdadeira" separada sendo usada aqui; produção real
  * nunca é chamada (ver isTransmissionEnvironmentAllowed em @ir/types).
  */
-const SEFIN_BASE_URLS: Record<NfseEnvironment, string> = {
-  homologation: "https://sefin.producaorestrita.nfse.gov.br/API/SefinNacional",
-  production: "https://sefin.nfse.gov.br/API/SefinNacional",
-};
-const ADN_BASE_URLS: Record<NfseEnvironment, string> = {
-  homologation: "https://adn.producaorestrita.nfse.gov.br",
-  production: "https://adn.nfse.gov.br",
-};
-
 export function buildMunicipalParametersUrl(ibgeCode: string, environment: NfseEnvironment): string {
-  return `${ADN_BASE_URLS[environment]}/parametrizacao/parametros_municipais/${ibgeCode}/convenio`;
+  return `${getNfseEnvironmentConfig(environment).municipalParametersBaseUrl}/${ibgeCode}/convenio`;
 }
 export function buildTransmitDpsUrl(environment: NfseEnvironment): string {
-  return `${SEFIN_BASE_URLS[environment]}/nfse`;
+  return `${getNfseEnvironmentConfig(environment).sefinBaseUrl}/nfse`;
 }
 export function buildNfseByAccessKeyUrl(accessKey: string, environment: NfseEnvironment): string {
-  return `${SEFIN_BASE_URLS[environment]}/nfse/${accessKey}`;
+  return `${getNfseEnvironmentConfig(environment).sefinBaseUrl}/nfse/${accessKey}`;
 }
 export function buildDpsByIdUrl(dpsId: string, environment: NfseEnvironment): string {
-  return `${SEFIN_BASE_URLS[environment]}/dps/${dpsId}`;
+  return `${getNfseEnvironmentConfig(environment).sefinBaseUrl}/dps/${dpsId}`;
 }
 
 /**
