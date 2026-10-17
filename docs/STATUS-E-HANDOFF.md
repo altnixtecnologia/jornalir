@@ -572,3 +572,46 @@ Autorização explícita do responsável: "JORNAL IR — SINCRONIZAÇÃO E PUBLI
 
 Próximo lote: aguardando autorização do usuário. Nenhum novo módulo foi iniciado
   nesta etapa, conforme instruído.
+
+## Lote — Aniversariantes: calendário semanal + personalização editorial de clientes (17/10/2026)
+
+Commit local: `418f77c`. Layout aprovado preservado; nenhum outro módulo alterado.
+
+- **Calendário semanal**: causa raiz confirmada — o seletor genérico `button { height:
+  36px }` em `globals.css` comprimia `.aniv-week-cta` e `.aniv-day-cell`. Corrigido com
+  `height: auto` + `min-height` específico para os dois componentes (52px/64px), sem
+  tocar a regra genérica nem outros botões. Lógica de "quinta→quarta" (`getNewspaperWeekRange`/
+  `listNewspaperWeekDays`) já estava correta — não precisou de correção, só a CSS.
+  "Semana do jornal" passou a ser o filtro inicial (`period` default alterado de `"all"`
+  para `"newspaper"` em `BirthdaysList.tsx`).
+- **Personalização editorial para clientes**: novo botão "Personalizar perfil e
+  mensagem" ao lado de "Editar nascimento/fundação no cadastro", com formulário
+  compacto (cargo/instituição/como é conhecido/informações para a mensagem). Nova
+  Server Action `savePersonalizedBirthdayProfile` (idempotente, nunca duplica o
+  vínculo) grava só esses campos em `birthday_entries`, sem tocar `clients` nem
+  nome/nascimento/fundação — `saveEditorialBirthday` continua bloqueando qualquer
+  edição de registro vinculado a cliente, por isso o novo botão usa um caminho
+  próprio (`savePersonalizedProfile` no componente).
+  - **Falha real corrigida**: `prepareBirthdayEditionMessage` (origem "cliente") nunca
+    lia `profession`/`organization`/`known_as`/`message_context` do registro editorial
+    já vinculado — ficavam sempre vazios na geração automática da mensagem, mesmo
+    quando a pessoa tinha fundação/instituição/apelido/contexto preenchidos via
+    `makeGroups` (que já os carregava para exibição, mas não para a geração). Corrigido
+    para carregar os mesmos campos antes de gerar o texto. Mensagens já preparadas ou
+    editadas manualmente continuam preservadas (comportamento `old && !regenerate`
+    inalterado).
+  - Cadastros extraordinários (familiares/manuais) e o formulário completo de edição
+    (nome/nascimento/cidade) continuam funcionando exatamente como antes.
+- Testes: typecheck limpo (`npm run typecheck --workspace @ir/sistema`), 101/101
+  testes de `packages/core` (não afetado, baseline confirmada), build de
+  `apps/sistema` concluído com sucesso. Nenhum teste automatizado dedicado cobre
+  `BirthdaysList.tsx`/`messageGenerator.ts` (não há script de teste em `apps/sistema`);
+  verificação funcional desta tela depende de sessão autenticada, não disponível nesta
+  sessão.
+
+Limitações reais: não foi possível verificar visualmente a correção do calendário
+  nem testar a persistência real do formulário de personalização em navegador (sem
+  sessão autenticada no ambiente local) — a correção foi verificada por leitura de
+  código/CSS e pelos tipos (`tsc`), não por teste funcional em tela.
+
+Próximo lote: aguardando autorização do usuário.
