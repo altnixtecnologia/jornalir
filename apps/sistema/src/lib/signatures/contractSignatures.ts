@@ -13,6 +13,7 @@ export type SignatureInvitation = {
   expires_at: string;
   signed_at: string | null;
   receipt_document_id: string | null;
+  signed_document_id: string | null;
   created_at: string;
 };
 
@@ -24,7 +25,7 @@ export async function findSignatureInvitation(token: string): Promise<SignatureI
   if (!/^[a-f0-9]{64}$/i.test(token)) return null;
   const admin = createSupabaseAdminClient();
   const { data, error } = await admin.from("contract_signature_invitations")
-    .select("id,contract_id,document_id,signer_name,signer_email,signer_phone,status,expires_at,signed_at,receipt_document_id,created_at")
+    .select("id,contract_id,document_id,signer_name,signer_email,signer_phone,status,expires_at,signed_at,receipt_document_id,signed_document_id,created_at")
     .eq("token_sha256", hashInvitationToken(token)).maybeSingle();
   if (error || !data) return null;
   return data as SignatureInvitation;
