@@ -187,6 +187,69 @@ export async function setBirthdayPublication(
   return { ok:true,data:{published:saved.publish_in_print} };
 }
 
+/** Personaliza cargo/instituição/apelido/contexto de uma pessoa já vinculada ao
+ * Cadastro mestre (origin "cadastro") para fins editoriais — nunca altera
+ * nome, nascimento/fundação ou qualquer dado do Cadastro mestre, por isso não
+ * reusa saveEditorialBirthday (que bloqueia qualquer edição de registro com
+ * source_client_id preenchido). Cria o vínculo editorial se ainda não existir
+ * (mesmo padrão idempotente de setBirthdayPublication/prepareBirthdayEditionMessage
+ * para "cliente"), sem nunca duplicar o aniversariante. */
+export async function savePersonalizedBirthdayProfile(
+  clientId: string,
+  input: { profession: string; organization: string; knownAs: string; messageContext: string },
+): Promise<ActionResult<{ id: string }>> {
+  const caller = await permitted();
+  if (!caller) return { error: "Acesso não autorizado ao módulo Aniversariantes." };
+  if (!UUID.test(clientId)) return { error: "Identificador de cliente inválido." };
+  const { db, userId } = caller;
+  const { data: master, error: masterError } = await db.from("clients")
+    .select("id,kind,status,full_name,company_name,trade_name,birth_date,founding_date,address_city")
+    .eq("id", clientId).maybeSingle();
+  const anniversary = master && master.status === "active" ? resolveMasterAnniversary(master) : null;
+  if (masterError || !master || !anniversary) {
+    return { error: "Nascimento/fundação indisponível. Verifique o cadastro." };
+  }
+  const [year, month, day] = anniversary.date.split("-").map(Number);
+  const profileFields = {
+    profession: clean(input.profession, 150) || null,
+    organization: clean(input.organization, 180) || null,
+    known_as: clean(input.knownAs, 120) || null,
+    message_context: clean(input.messageContext, 1500) || null,
+    updated_at: new Date().toISOString(),
+  };
+  const { data: existing, error: lookupError } = await db.from("birthday_entries")
+    .select("id,source_client_id,origin").eq("id", clientId).maybeSingle();
+  if (lookupError) return { error: "Não foi possível consultar o registro editorial." };
+  if (existing && (existing.source_client_id !== clientId || existing.origin !== "cadastro")) {
+    return { error: "Identificador editorial inconsistente; operação interrompida." };
+  }
+  if (!existing) {
+    const { error: insertError } = await db.from("birthday_entries").insert({
+      id: clientId, source_client_id: clientId, group_client_id: clientId,
+      origin: "cadastro", display_name: anniversary.name,
+      birth_year: year, birth_month: month, birth_day: day,
+      city: master.address_city || null, active: true, publish_in_print: false,
+      created_by: userId, ...profileFields,
+    });
+    if (insertError) {
+      const { data: concurrent } = await db.from("birthday_entries")
+        .select("source_client_id,origin").eq("id", clientId).maybeSingle();
+      if (!concurrent || concurrent.source_client_id !== clientId || concurrent.origin !== "cadastro") {
+        return { error: "Não foi possível salvar a personalização editorial." };
+      }
+    } else {
+      revalidatePath(PATH);
+      return { ok: true, data: { id: clientId } };
+    }
+  }
+  const { data: saved, error } = await db.from("birthday_entries").update(profileFields)
+    .eq("id", clientId).eq("source_client_id", clientId).eq("origin", "cadastro")
+    .select("id").maybeSingle();
+  if (error || !saved) return { error: "Não foi possível salvar a personalização editorial." };
+  revalidatePath(PATH);
+  return { ok: true, data: { id: saved.id } };
+}
+
 export async function prepareBirthdayEditionMessage(
   source: "cliente" | "editorial", id: string, regenerate = false,
 ): Promise<ActionResult<EditorialBirthdayMessage>> {
@@ -220,7 +283,8 @@ export async function prepareBirthdayEditionMessage(
     // duplicate linked people on concurrent button clicks without any schema migration.
     const [year, month, day] = birthDate.split("-").map(Number);
     const { data: existingEntry, error: lookupError } = await db.from("birthday_entries")
-      .select("id,origin,source_client_id,active").eq("id", id).maybeSingle();
+      .select("id,origin,source_client_id,active,profession,organization,known_as,message_context")
+      .eq("id", id).maybeSingle();
     if (lookupError) return { error: "Não foi possível localizar o registro editorial." };
     if (existingEntry && (existingEntry.origin !== "cadastro" || existingEntry.source_client_id !== id)) {
       return { error: "Identificador editorial inconsistente; operação interrompida." };
@@ -242,7 +306,14 @@ export async function prepareBirthdayEditionMessage(
       }
     } else {
       if (!existingEntry.active) return { error: "Registro editorial desativado." };
-      // Keep name and birth date synchronized with the client master.
+      // Carrega a personalização editorial já salva (cargo/instituição/apelido/contexto)
+      // para que a mensagem gerada automaticamente também a utilize — nunca sobrescrita aqui.
+      profession = existingEntry.profession || "";
+      organization = existingEntry.organization || "";
+      knownAs = existingEntry.known_as || "";
+      messageContext = existingEntry.message_context || "";
+      // Keep name and birth date synchronized with the client master — never touches the
+      // profile fields above, which belong exclusively to savePersonalizedBirthdayProfile.
       const { error } = await db.from("birthday_entries").update({
         display_name: name, birth_year: year, birth_month: month, birth_day: day,
         city: city || null, updated_at: new Date().toISOString(),

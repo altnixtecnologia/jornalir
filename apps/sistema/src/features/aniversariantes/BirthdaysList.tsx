@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   saveEditorialBirthday, setEditorialBirthdayActive, setBirthdayPublication, prepareBirthdayEditionMessage,
-  saveManualBirthdayMessage, setBirthdayEntryPhoto, removeBirthdayEntryPhoto,
+  saveManualBirthdayMessage, setBirthdayEntryPhoto, removeBirthdayEntryPhoto, savePersonalizedBirthdayProfile,
 } from "../../app/sistema/aniversariantes/actions";
 import type { EditorialBirthdayInput, EditorialBirthdayMessage } from "./editorialBirthdayTypes";
 import {
@@ -90,6 +90,25 @@ const ORIGIN_LABELS: Record<BirthdayOrigin, string> = {
   manual: "Manual",
 };
 
+/** Personalização editorial para pessoas já vinculadas ao Cadastro mestre
+ * (origin "cadastro") — nunca inclui nome/nascimento/fundação, que continuam
+ * exclusivos do Cadastro mestre. */
+interface EditorialProfilePatch {
+  profession: string;
+  organization: string;
+  knownAs: string;
+  messageContext: string;
+}
+
+function profilePatchFromEntry(entry: BirthdayEntry): EditorialProfilePatch {
+  return {
+    profession: entry.profession ?? "",
+    organization: entry.organization ?? "",
+    knownAs: entry.knownAs ?? "",
+    messageContext: entry.messageContext ?? "",
+  };
+}
+
 function draftFromEntry(entry: BirthdayEntry): EntryDraft {
   return {
     displayName: entry.displayName,
@@ -167,6 +186,7 @@ function EntryRow({
   onRemovePhoto,
   readonlyPrincipal = false,
   onTogglePublication,
+  onSaveProfile,
   pending = false,
 }: {
   entry: BirthdayEntry;
@@ -181,6 +201,7 @@ function EntryRow({
   onRemovePhoto: () => void;
   readonlyPrincipal?: boolean;
   onTogglePublication?: () => void;
+  onSaveProfile?: (patch: EditorialProfilePatch) => void;
   pending?: boolean;
 }): JSX.Element {
   const [editing, setEditing] = useState(false);
@@ -189,6 +210,8 @@ function EntryRow({
   const [copyError, setCopyError] = useState(false);
   const [editingMessage, setEditingMessage] = useState(false);
   const [messageDraft, setMessageDraft] = useState("");
+  const [personalizing, setPersonalizing] = useState(false);
+  const [profileDraft, setProfileDraft] = useState<EditorialProfilePatch>(() => profilePatchFromEntry(entry));
   const photoInputRef = useRef<HTMLInputElement>(null);
 
   function startEdit(): void {
@@ -212,6 +235,21 @@ function EntryRow({
       messageContext: draft.messageContext.trim() || undefined,
     });
     setEditing(false);
+  }
+
+  function startPersonalize(): void {
+    setProfileDraft(profilePatchFromEntry(entry));
+    setPersonalizing(true);
+  }
+
+  function saveProfile(): void {
+    onSaveProfile?.({
+      profession: profileDraft.profession.trim(),
+      organization: profileDraft.organization.trim(),
+      knownAs: profileDraft.knownAs.trim(),
+      messageContext: profileDraft.messageContext.trim(),
+    });
+    setPersonalizing(false);
   }
 
   async function copyMessage(): Promise<void> {
@@ -301,6 +339,43 @@ function EntryRow({
     );
   }
 
+  if (personalizing) {
+    return (
+      <div className="aniv-entry aniv-entry--editing aniv-entry--personalize">
+        <p className="helper-text">
+          Nome e {entry.isFounding ? "fundação" : "nascimento"} continuam exclusivos do Cadastro mestre — estes campos só
+          personalizam a mensagem de homenagem, sem alterar o cadastro.
+        </p>
+        <div className="cadastro-grid">
+          <label className="cadastro-field cadastro-field--span-3">
+            <span className="field-label">Cargo / função / atividade <span className="field-optional">(opcional)</span></span>
+            <input type="text" value={profileDraft.profession} placeholder="Ex.: Vereador, Empresário"
+              onChange={(e) => setProfileDraft((d) => ({ ...d, profession: e.target.value }))} />
+          </label>
+          <label className="cadastro-field cadastro-field--span-6">
+            <span className="field-label">Empresa / instituição <span className="field-optional">(opcional)</span></span>
+            <input type="text" value={profileDraft.organization} placeholder="Ex.: Câmara de Vereadores de São João do Sul"
+              onChange={(e) => setProfileDraft((d) => ({ ...d, organization: e.target.value }))} />
+          </label>
+          <label className="cadastro-field cadastro-field--span-3">
+            <span className="field-label">Como é conhecido <span className="field-optional">(opcional)</span></span>
+            <input type="text" value={profileDraft.knownAs}
+              onChange={(e) => setProfileDraft((d) => ({ ...d, knownAs: e.target.value }))} />
+          </label>
+          <label className="cadastro-field cadastro-field--span-12">
+            <span className="field-label">Informações para a mensagem <span className="field-optional">(opcional)</span></span>
+            <textarea rows={3} value={profileDraft.messageContext} placeholder="Ex.: Atua na comunidade e participa de projetos sociais."
+              onChange={(e) => setProfileDraft((d) => ({ ...d, messageContext: e.target.value }))} />
+          </label>
+        </div>
+        <div className="aniv-entry-actions">
+          <button type="button" className="cadastros-btn-primary" disabled={pending} onClick={saveProfile}>Salvar personalização</button>
+          <button type="button" className="cadastros-btn-secondary" onClick={() => setPersonalizing(false)}>Cancelar</button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className={`aniv-entry${highlighted ? " is-match" : ""}${entry.photoUrl ? " aniv-entry--has-photo" : ""}`}>
       <div className="aniv-entry-main">
@@ -348,6 +423,11 @@ function EntryRow({
             <Link href={`/sistema/clientes/${entry.id}/editar`} className="cadastros-btn-secondary">
               {entry.isFounding ? "Editar fundação no cadastro" : "Editar nascimento no cadastro"}
             </Link>
+            {onSaveProfile ? (
+              <button type="button" className="cadastros-btn-secondary" disabled={pending} onClick={startPersonalize}>
+                Personalizar perfil e mensagem
+              </button>
+            ) : null}
           </>
         ):(
           <>
@@ -487,7 +567,7 @@ export function BirthdaysList({ localPreview, initialGroups = [], initialMessage
   const [groups, setGroups] = useState<BirthdayGroup[]>(() => localPreview ? buildBirthdayPreviewSeed() : initialGroups);
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set());
   const [search, setSearch] = useState("");
-  const [period, setPeriod] = useState<PeriodFilter>("all");
+  const [period, setPeriod] = useState<PeriodFilter>("newspaper");
   const [weekReference, setWeekReference] = useState<Date>(() => todayISO ? new Date(todayISO+"T12:00:00") : new Date());
   const [selectedDay, setSelectedDay] = useState<Date | null>(null);
   const [customStart, setCustomStart] = useState("");
@@ -893,6 +973,28 @@ export function BirthdaysList({ localPreview, initialGroups = [], initialMessage
       return {...group,members:group.members.map(m=>m.id===entryId?next:m)};
     }));
   }
+  // Personalização editorial de uma pessoa já vinculada ao Cadastro mestre
+  // (origin "cadastro") — nunca toca nome/nascimento/fundação, por isso não
+  // passa pelo bloqueio de updateEntry nem usa saveEditorialBirthday (que
+  // rejeita qualquer edição de registro com source_client_id preenchido).
+  function savePersonalizedProfile(groupId: string, entryId: string, patch: EditorialProfilePatch): void {
+    if (!localPreview) {
+      if (busy) return;
+      setBusy(true); setError(null); setNotice(null);
+      void savePersonalizedBirthdayProfile(entryId, patch).then(result => {
+        if ("error" in result) { setError(result.error); return; }
+        setNotice("Personalização editorial salva.");
+        router.refresh();
+      }).catch(() => setError("Não foi possível salvar a personalização."))
+        .finally(() => setBusy(false));
+      return;
+    }
+    setGroups(prev => prev.map(group => {
+      if (group.id !== groupId) return group;
+      const apply = (e: BirthdayEntry | undefined): BirthdayEntry | undefined => (e && e.id === entryId ? { ...e, ...patch } : e);
+      return { ...group, principal: apply(group.principal), foundingEntry: apply(group.foundingEntry) };
+    }));
+  }
   function addMember(groupId:string,entry:BirthdayEntry):void{
     if(!localPreview){
       if(busy)return;
@@ -1208,6 +1310,7 @@ export function BirthdaysList({ localPreview, initialGroups = [], initialMessage
                           pending={busy}
                           onTogglePublication={()=>togglePublication(group.principal!)}
                           onSave={(next) => updateEntry(group.id, group.principal!.id, next)}
+                          onSaveProfile={(patch) => savePersonalizedProfile(group.id, group.principal!.id, patch)}
                           onDelete={() => setDeleteTarget({ kind: "group", groupId: group.id, label: group.label, groupKind: group.kind, memberCount })}
                           editorial={editorialFor(group.principal.id)}
                           onChangeMessage={() => changeMessage(group.principal!.id)}
@@ -1225,6 +1328,7 @@ export function BirthdaysList({ localPreview, initialGroups = [], initialMessage
                           pending={busy}
                           onTogglePublication={()=>togglePublication(group.foundingEntry!)}
                           onSave={(next) => updateEntry(group.id, group.foundingEntry!.id, next)}
+                          onSaveProfile={(patch) => savePersonalizedProfile(group.id, group.foundingEntry!.id, patch)}
                           onDelete={() => setDeleteTarget({ kind: "group", groupId: group.id, label: group.label, groupKind: group.kind, memberCount })}
                           editorial={editorialFor(group.foundingEntry.id)}
                           onChangeMessage={() => changeMessage(group.foundingEntry!.id)}
