@@ -18,7 +18,7 @@ export default async function AssistentePropostasPage(): Promise<JSX.Element> {
   const result = await listAssistantProposalsAction();
   return (
     <>
-      <ModuleHeader eyebrow="SISTEMA / ASSISTENTE IR"
+      <ModuleHeader eyebrow="JOIR / ASSISTENTE VIRTUAL"
         title="Propostas para aprovação"
         description="Revisão de sugestões da IA. Aprovar não executa mudanças em outros módulos."
         action={<Link className="btn btn-secondary" href="/sistema/assistente-ir">Conversar com IA</Link>} />
