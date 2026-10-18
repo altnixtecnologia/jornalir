@@ -16,7 +16,11 @@ export type AssistantReply = {
   model: string;
   sources: string[];
   usage: { inputTokens: number | null; outputTokens: number | null };
-} | { error: string };
+} | {
+  error: string;
+  provider?: "openai" | "anthropic";
+  model?: string;
+};
 
 const AUDIT_ID = "00000000-0000-4000-8000-000000000201";
 const DATA_MODULES = ["financeiro", "site", "agenda", "clientes", "editorial", "aniversariantes", "contratos", "fiscal"] as const;
@@ -227,6 +231,39 @@ export async function getAssistantUsageAction(): Promise<
   }
 }
 
+/** Traduz SOMENTE categorias conhecidas da API. Nunca devolve corpos brutos, prompts ou cabeçalhos. */
+function describeProviderFailure(status: number, body: unknown, provider: "openai" | "anthropic"): string {
+  const root = body && typeof body === "object" ? body as Record<string, unknown> : {};
+  const detail = root.error && typeof root.error === "object"
+    ? root.error as Record<string, unknown> : {};
+  const rawMessage = typeof detail.message === "string" ? detail.message.toLowerCase() : "";
+  const type = typeof detail.type === "string" && /^[a-z_]{3,55}$/.test(detail.type)
+    ? detail.type : null;
+  const name = provider === "anthropic" ? "Claude / Anthropic" : "OpenAI / GPT";
+  const prefix = `${name}: HTTP ${status}${type ? ` (${type})` : ""}.`;
+  if (/credit balance|insufficient.quota|out of credits|no credits|not enough credit/i.test(rawMessage)) {
+    return `${prefix} O saldo da API parece insuficiente. Verifique créditos no painel do provedor.`;
+  }
+  if (/spending limit|spend limit|budget|usage limit|monthly limit/i.test(rawMessage)) {
+    return `${prefix} O limite de gastos da conta ou do workspace pode ter sido atingido.`;
+  }
+  if (/model.*(not found|does not exist|not available|not permitted|invalid)|invalid model/i.test(rawMessage)) {
+    return `${prefix} O modelo escolhido não está disponível para esta chave. Consulte os modelos habilitados.`;
+  }
+  if (/max_tokens|too many tokens|input_tokens|token limit/i.test(rawMessage)) {
+    return `${prefix} A API rejeitou um parâmetro de tokens da solicitação.`;
+  }
+  if (status === 401 || status === 403) {
+    return `${prefix} Falha de autenticação ou permissão. Confira a chave e o acesso ao endpoint.`;
+  }
+  if (status === 402) return `${prefix} Problema com faturamento da API.`;
+  if (status === 429) return `${prefix} Limite de chamadas/tokens ou saldo atingido.`;
+  if (status === 400) {
+    return `${prefix} Solicitação rejeitada. Pode ser formato/parâmetro ou limite de gastos. Verifique o faturamento da API.`;
+  }
+  return `${prefix} Requisição rejeitada pelo provedor. Confira status e permissões da API.`;
+}
+
 /** Conversa explicitamente iniciada pelo owner. Sem jobs, escrita nos módulos ou compartilhamento de dados pessoais. */
 export async function askAssistantAction(message: string, prior: AssistantTurn[]): Promise<AssistantReply> {
   let userId: string | null = null;
@@ -294,11 +331,13 @@ export async function askAssistantAction(message: string, prior: AssistantTurn[]
     }
 
     if (!response.ok) {
-      const hint = response.status === 401 || response.status === 403
-        ? "Confira a chave e o acesso ao modelo."
-        : response.status === 429 ? "Limite ou saldo da API atingido."
-        : "Confira disponibilidade e permissões da API.";
-      return { error: `A API respondeu HTTP ${response.status}. ${hint}` };
+      // Não disponibilizar o texto bruto retornado pelo provedor: pode incluir contexto sensível.
+      let errorBody: unknown = null;
+      try { errorBody = await response.json(); } catch { /* resposta vazia ou não JSON */ }
+      return {
+        error: describeProviderFailure(response.status, errorBody, provider),
+        provider, model,
+      };
     }
 
     const body: unknown = await response.json();
