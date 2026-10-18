@@ -199,8 +199,8 @@ export function AiAssistantSettingsPanel({ initial }: { initial: AiSettingsSnaps
 
       <section className="form-section">
         <h2>Provedor e modelo</h2>
-        <div className="form-grid">
-          <label className="form-field">
+        <div style={{ display: "flex", flexWrap: "wrap", alignItems: "flex-end", gap: 12 }}>
+          <label className="form-field" style={{ flex: "0 1 250px", minWidth: 180, maxWidth: "100%" }}>
             <span className="field-label">Provedor</span>
             <select value={form.provider} disabled={unavailable || busy}
               onChange={(event) => selectProvider(event.target.value as AiProvider)}>
@@ -208,7 +208,7 @@ export function AiAssistantSettingsPanel({ initial }: { initial: AiSettingsSnaps
               <option value="anthropic">Anthropic / Claude</option>
             </select>
           </label>
-          <label className="form-field">
+          <label className="form-field" style={{ flex: "0 1 330px", minWidth: 220, maxWidth: "100%" }}>
             <span className="field-label">Modelo do provedor</span>
             <select value={form.model} disabled={unavailable || busy}
               onChange={(event) => { setForm((old) => ({ ...old, model: event.target.value })); clearFeedback(); }}>
@@ -218,17 +218,20 @@ export function AiAssistantSettingsPanel({ initial }: { initial: AiSettingsSnaps
                 </option>
               ))}
             </select>
-            <span className="helper-text">Novas versões da API aparecem como sugestões automaticamente. Sua escolha nunca é alterada sozinha.</span>
-            <div style={{ marginTop: 8 }}>
-              <button type="button" className="btn btn-secondary"
-                disabled={unavailable || busy || !keys[form.provider] || !initial.encryptionAvailable}
-                onClick={() => void refreshCatalog(form.provider)}>Atualizar modelos disponíveis</button>
-            </div>
-            <span className="helper-text" role="status">
-              {keys[form.provider] ? (catalogStatus[form.provider] || "Consultando catálogo ao abrir a tela.") : "Cadastre uma chave para consultar modelos disponíveis na sua conta."}
-            </span>
           </label>
+          <button type="button" className="btn btn-secondary"
+            style={{ flex: "0 0 auto", whiteSpace: "nowrap" }}
+            disabled={unavailable || busy || !keys[form.provider] || !initial.encryptionAvailable}
+            onClick={() => void refreshCatalog(form.provider)}>
+            Atualizar modelos
+          </button>
         </div>
+        <p className="helper-text" style={{ marginTop: 8, marginBottom: 4 }}>
+          Novos modelos disponíveis na API aparecem como sugestões. A escolha atual nunca muda automaticamente.
+        </p>
+        <p className="helper-text" role="status">
+          {keys[form.provider] ? (catalogStatus[form.provider] || "Consultando catálogo ao abrir a tela.") : "Cadastre uma chave para consultar modelos disponíveis na sua conta."}
+        </p>
         <div className="form-grid" style={{ marginTop: 14 }}>
           <div>
             <span className="field-label">Chave OpenAI</span>
