@@ -762,3 +762,10 @@ O ChatGPT abriu `feature/assistente-ir-base-20261018` a partir desse SHA e imple
 - Preview de leitor/site público não foi desenvolvido; só futuramente poderá acessar material público, nunca dados privados do administrador.
 - Workflow `39131917195` em avaliação; acionamento temporário `9baff8c` revertido em `93ece9d`; conferir conclusão.
 - Produção: `d92625f`; atualizações deste lote e feedback dos botões NÃO publicadas. Após CI, obter autorização para único deploy, homologar o visual/feedback da API e o salvamento geral (nenhuma chave precisa ser cadastrada de novo).
+
+## 18/10/2026 — JoIR — cartões de chaves OpenAI e Claude (aguardando deploy)
+
+- Nova solicitação: status lado a lado e destacado: OpenAI / GPT e Anthropic / Claude, indicando cadastrada/não cadastrada e provedor efetivamente salvo em uso. Pode salvar ambas as chaves no cofre; a JoIR usa apenas uma API de cada vez, conforme configuração global salva. Não há escolha por módulo nem execução paralela.
+- UI ajustada em `apps/sistema/src/features/configuracoes/AiAssistantSettingsPanel.tsx` commit `d7390f2`, cartões responsivos lado a lado no desktop e um abaixo do outro no celular, sem revelar segredos.
+- CI em `https://github.com/altnixtecnologia/jornalir/actions/runs/39132372563` aguardando confirmação; CI habilitado temporariamente em `6498f1d2` e restaurado em `052610bd`.
+- Produção não alterada (`d92625f`). Mudanças de JoIR, layout compacto do provedor, feedback de conexão e cartões de status aguardam publicação agrupada quando autorizada.
