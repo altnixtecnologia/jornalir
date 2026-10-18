@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useMemo, useRef, useState } from "react";
-import { useEffect } from "react";
+import { useEffect, type MouseEvent } from "react";
 import { useParams } from "next/navigation";
 import dynamic from "next/dynamic";
 import { SiteHeader } from "../../../../components/site/SiteHeader";
@@ -118,6 +118,15 @@ export default function JornalOnlineReaderPage(): JSX.Element {
 
   const driveFileId = edition?.id.startsWith("drive-") ? edition.id.replace("drive-", "") : "";
   const pdfRenderUrl = driveFileId ? `/api/jornal-online/drive-file?id=${driveFileId}` : (edition?.pdfPath ?? "");
+  function handleBackClick(event: MouseEvent<HTMLAnchorElement>): void {
+    // Em tela cheia, "Voltar" deve primeiro sair da tela cheia em vez de
+    // navegar por baixo dela (evita o usuário ficar "preso" visualmente).
+    if (document.fullscreenElement) {
+      event.preventDefault();
+      void document.exitFullscreen();
+    }
+  }
+
   async function toggleFullscreen(): Promise<void> {
     const el = frameWrapRef.current;
     if (!el) return;
@@ -213,7 +222,7 @@ export default function JornalOnlineReaderPage(): JSX.Element {
             <p className="text-sm" style={{ color: "var(--site-muted)" }}>{edition.dateLabel}</p>
           </div>
           <div className="flex flex-wrap gap-2">
-            <Link href="/jornal-online" className={secondaryButtonClass} style={secondaryButtonStyle}>
+            <Link href="/jornal-online" onClick={handleBackClick} className={secondaryButtonClass} style={secondaryButtonStyle}>
               Voltar ao acervo
             </Link>
             {hasCalameoSource ? (
@@ -276,7 +285,12 @@ export default function JornalOnlineReaderPage(): JSX.Element {
           </div>
         )}
 
-        <div ref={frameWrapRef}>
+        <div
+          ref={frameWrapRef}
+          // No celular, cancela o padding do site-shell para a leitura
+          // ocupar a largura inteira da tela (modo "página cheia").
+          className={isMobile ? "-mx-4" : undefined}
+        >
           {isMobile ? (
             <MobilePdfReader pdfUrl={pdfRenderUrl} title={edition.title} />
           ) : (

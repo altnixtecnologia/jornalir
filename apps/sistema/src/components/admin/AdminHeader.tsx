@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Fragment, useEffect } from "react";
+import { useEffect } from "react";
 import { usePathname } from "next/navigation";
 import { clientesNavGroup, configuracoesNavGroup, editorialNavGroup, financeiroNavGroup, nfseNavGroup, commercialNavGroup } from "../../lib/navigation";
 import { useAuth } from "../../lib/auth/AuthProvider";
@@ -190,26 +190,49 @@ export function AdminHeader({ onOpenMenu }: { onOpenMenu: () => void }): JSX.Ele
                 Configurações <span className="app-nav-caret" aria-hidden="true">▾</span>
               </summary>
               <div className="app-nav-panel">
-                {configuracoesNavGroup.links
-                  .filter((link) => !link.ownerOnly || (profile?.active && profile.role === "owner"))
-                  .map((link, index, visible) => (
-                    <Fragment key={link.href}>
-                      {link.group && (index === 0 || visible[index - 1]?.group !== link.group) ? (
-                        <div role="heading" aria-level={3}
-                          style={{ padding: "12px 12px 4px", fontSize: 11, fontWeight: 700, letterSpacing: ".04em" }}>
-                          {link.group}
-                        </div>
-                      ) : null}
+                {(() => {
+                  const visible = configuracoesNavGroup.links.filter(
+                    (link) => !link.ownerOnly || (profile?.active && profile.role === "owner"),
+                  );
+                  const rendered: JSX.Element[] = [];
+                  for (let index = 0; index < visible.length; index += 1) {
+                    const link = visible[index];
+                    if (link.group) {
+                      if (visible[index - 1]?.group === link.group) continue; // já renderizado no bloco do grupo.
+                      const groupLinks = visible.filter((item) => item.group === link.group);
+                      rendered.push(
+                        // Submenu recolhível (fechado por padrão) — evita o bloco
+                        // JoIR poluir "Configurações" sempre expandido (18/10/2026).
+                        <details key={link.group} className="app-nav-subgroup">
+                          <summary className="app-nav-subgroup-summary">{link.group}</summary>
+                          {groupLinks.map((groupLink) => (
+                            <Link
+                              key={groupLink.href}
+                              href={groupLink.href}
+                              className={`app-nav-panel-link${groupLink.primary ? " is-primary" : ""}`}
+                              style={{ paddingLeft: 26 }}
+                              onClick={closeNavDropdowns}
+                            >
+                              {groupLink.label}
+                            </Link>
+                          ))}
+                        </details>,
+                      );
+                      continue;
+                    }
+                    rendered.push(
                       <Link
+                        key={link.href}
                         href={link.href}
                         className={`app-nav-panel-link${link.primary ? " is-primary" : ""}`}
-                        style={link.group ? { paddingLeft: 26 } : undefined}
                         onClick={closeNavDropdowns}
                       >
                         {link.label}
-                      </Link>
-                    </Fragment>
-                  ))}
+                      </Link>,
+                    );
+                  }
+                  return rendered;
+                })()}
               </div>
             </details>
           ) : null}

@@ -186,14 +186,29 @@ export function MobileNav({ onNavigate }: { onNavigate: () => void }): JSX.Eleme
                   {group.label}<span className="mobile-nav-count">{group.links.length}</span>
                 </summary>
                 <div className="mobile-nav-group-links">
-                  {group.links.map((link, index) => (
-                    <Fragment key={link.href}>
-                      {link.group && (index === 0 || group.links[index - 1]?.group !== link.group) ? (
-                        <p className="mobile-nav-subheading" style={{ margin: "12px 0 4px" }}>{link.group}</p>
-                      ) : null}
-                      {renderLink(link, group.planned)}
-                    </Fragment>
-                  ))}
+                  {(() => {
+                    const items: JSX.Element[] = [];
+                    for (let index = 0; index < group.links.length; index += 1) {
+                      const link = group.links[index];
+                      if (link.group) {
+                        if (group.links[index - 1]?.group === link.group) continue;
+                        const subLinks = group.links.filter((item) => item.group === link.group);
+                        items.push(
+                          // Submenu recolhível (fechado por padrão), mesmo
+                          // princípio do dropdown de topo (18/10/2026).
+                          <details key={link.group} className="mobile-nav-subgroup">
+                            <summary className="mobile-nav-subheading" style={{ margin: "12px 0 4px", cursor: "pointer" }}>
+                              {link.group}
+                            </summary>
+                            {subLinks.map((subLink) => renderLink(subLink, group.planned))}
+                          </details>,
+                        );
+                        continue;
+                      }
+                      items.push(<Fragment key={link.href}>{renderLink(link, group.planned)}</Fragment>);
+                    }
+                    return items;
+                  })()}
                 </div>
               </details>
           ))}

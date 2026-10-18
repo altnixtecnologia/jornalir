@@ -63,7 +63,6 @@ export default function JornalOnlinePage(): JSX.Element {
 
   const sourceEditions: OnlineEdition[] =
     remoteEditions.length > 0 ? remoteEditions : calameoEditions.map((edition) => ({ ...edition }));
-  const latestEdition = sourceEditions[0];
 
   const editions = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -76,29 +75,19 @@ export default function JornalOnlinePage(): JSX.Element {
   return (
     <main className="min-h-screen" style={{ background: "var(--site-bg)" }}>
       <SiteHeader />
-      <section className="site-shell py-7">
+      <section className="site-shell py-5 md:py-7">
         <div
-          className="rounded-2xl border p-5 shadow-sm"
+          className="rounded-2xl border p-4 shadow-sm md:p-5"
           style={{ borderColor: "var(--site-line)", background: "var(--site-surface)" }}
         >
-          <h1 className="font-editorial text-4xl">Jornal Online</h1>
-          <p className="mt-2" style={{ color: "var(--site-muted)" }}>
-            Edições do Informativo Regional em leitura digital, com acesso ao PDF oficial.
-          </p>
-          <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
+          <div className="flex flex-wrap items-baseline justify-between gap-2">
+            <h1 className="font-editorial text-2xl md:text-4xl">Jornal Online</h1>
             <p className="text-xs" style={{ color: "var(--site-muted)" }}>
-              Fonte: {remoteLoaded ? sourceLabel : "Carregando…"}
+              {remoteLoaded ? sourceLabel : "Carregando…"}
             </p>
-            <Link
-              href={latestEdition ? `/jornal-online/${latestEdition.id}` : "/jornal-online"}
-              className="text-xs font-semibold hover:underline"
-              style={{ color: "var(--brand-red)" }}
-            >
-              Ler última edição
-            </Link>
           </div>
 
-          <div className="mt-5 grid gap-3 lg:grid-cols-[1fr_auto]">
+          <div className="mt-4 grid gap-3 lg:grid-cols-[1fr_auto]">
             <label
               className="group flex items-center gap-2 rounded-xl border px-3 py-2.5 focus-within:border-[color:var(--brand-red)]"
               style={{ borderColor: "var(--site-line)", background: "var(--site-surface)" }}
@@ -139,7 +128,10 @@ export default function JornalOnlinePage(): JSX.Element {
                   className="mb-3 overflow-hidden rounded-lg border"
                   style={{ borderColor: "var(--site-line)", background: "var(--site-bg)" }}
                 >
-                  <div className="relative aspect-[3/4] w-full overflow-hidden">
+                  <div className="group relative aspect-[3/4] w-full overflow-hidden">
+                    <Link href={`/jornal-online/${edition.id}`} aria-label={`Ler ${edition.title}`} className="absolute inset-0 z-10">
+                      <span className="sr-only">Ler {edition.title}</span>
+                    </Link>
                     {edition.coverUrl ? (
                       <img
                         src={edition.coverUrl}
@@ -175,31 +167,36 @@ export default function JornalOnlinePage(): JSX.Element {
                         className="pointer-events-none h-full w-full"
                         aria-hidden="true"
                       />
-                    )}                  </div>
+                    )}
+                    {/* Botões sobrepostos na capa (clicar na capa também abre a edição) —
+                        scrim escuro + contorno/sombra garantem contraste em qualquer cor de capa. */}
+                    <div
+                      className="pointer-events-none absolute inset-x-0 bottom-0 z-20 flex items-center gap-2 p-2.5"
+                      style={{ background: "linear-gradient(to top, rgba(0,0,0,.72), rgba(0,0,0,0) 85%)" }}
+                    >
+                      <Link
+                        href={`/jornal-online/${edition.id}`}
+                        className="pointer-events-auto rounded-md px-2.5 py-1.5 text-xs font-bold text-white shadow-[0_1px_3px_rgba(0,0,0,.6)] ring-1 ring-white/40"
+                        style={{ background: "var(--brand-navy)" }}
+                      >
+                        Ler edição
+                      </Link>
+                      <Link
+                        href={edition.sourceUrl ?? edition.pdfPath}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="pointer-events-auto rounded-md bg-white/90 px-2.5 py-1.5 text-xs font-bold text-black shadow-[0_1px_3px_rgba(0,0,0,.6)] ring-1 ring-black/10"
+                      >
+                        PDF
+                      </Link>
+                    </div>
+                  </div>
                 </div>
                 <p className="text-xs font-semibold uppercase tracking-wider" style={{ color: "var(--site-muted)" }}>
                   {edition.category}
                 </p>
                 <h3 className="mt-1 text-base font-semibold">{edition.title}</h3>
                 <p className="mt-1 text-sm" style={{ color: "var(--site-muted)" }}>{edition.dateLabel}</p>
-                <div className="mt-4 flex gap-2">
-                  <Link
-                    href={`/jornal-online/${edition.id}`}
-                    className="rounded px-3 py-2 text-sm font-semibold text-white"
-                    style={{ background: "var(--brand-navy)" }}
-                  >
-                    Ler edição
-                  </Link>
-                  <Link
-                    href={edition.sourceUrl ?? edition.pdfPath}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="rounded border px-3 py-2 text-sm font-semibold"
-                    style={{ borderColor: "var(--site-line)" }}
-                  >
-                    PDF
-                  </Link>
-                </div>
               </article>
             ))}
           </div>
