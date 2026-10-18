@@ -107,6 +107,24 @@ export async function getAssistantCredentialsForModule(
   };
 }
 
+/** Exclusivo para teste manual de conexao autorizado pelo proprietario.
+ * Este acesso nao altera o modo do assistente nem permite uso operacional
+ * quando ele esta desligado; nao deve ser chamado por agentes ou cron. */
+export async function getAssistantCredentialForConnectionTest(
+  provider: AiProvider,
+): Promise<string> {
+  if (!hasServiceRoleKey() || (provider !== "openai" && provider !== "anthropic")) {
+    throw new AssistantConfigurationError("Cofre do Assistente IR indisponivel.");
+  }
+  const db = createSupabaseAdminClient();
+  const { data, error } = await db.from("ai_provider_credentials")
+    .select("encrypted_key").eq("provider", provider).maybeSingle();
+  if (error || !data?.encrypted_key) {
+    throw new AssistantConfigurationError("Cadastre primeiro a chave deste provedor.");
+  }
+  return decryptAssistantKey(data.encrypted_key);
+}
+
 export async function isAssistantConfiguredForModule(moduleKey: AiModuleKey): Promise<boolean> {
   try { await getAssistantCredentialsForModule(moduleKey); return true; } catch { return false; }
 }
