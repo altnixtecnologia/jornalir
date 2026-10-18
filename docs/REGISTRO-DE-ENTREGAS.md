@@ -271,3 +271,10 @@ modelos originais. Homenagens criadas por IA sao individuais e opcionais.
 - Verificação de código por inspeção; CI `https://github.com/altnixtecnologia/jornalir/actions/runs/39135212430` acionado temporariamente em `d64bec8`, gatilho extra já revertido em `c6b3a1b`; aguardar resultado final.
 - Nenhuma nova publicação Vercel, alteração no banco, alteração de segredos ou VS Code. Produção segue `ad8724048bddcabfb38211fe7bd60d956d2d1b7c`. Após CI, pedir autorização de publicação; para esclarecer causa HTTP400, pedir print somente de saldo/limite da Anthropic ou testar uma geração única com o diagnóstico novo, sem compartilhar credenciais.
 - Pendência UI de destaque/agrupamento visual das linhas dos módulos já registrada previamente e ainda não abordada neste lote.
+
+## 2026-10-18 — CI validado para painel com provedor ativo e diagnóstico do HTTP 400
+
+- GitHub Actions run `39135212430`, commit funcional + trigger `d64bec8e`, terminado **SUCCESS**. Workflow conferiu TypeScript, build Next.js dos apps e testes existentes de PDF/contratos.
+- Depois desse SHA só foi removido o gatilho de CI temporário (`c6b3a1b`) e os docs atualizados; nenhum código executável adicional.
+- Link: `https://github.com/altnixtecnologia/jornalir/actions/runs/39135212430`.
+- **Sem deploy**: QA visual e diagnóstico de retorno de API ainda dependem de publicação autorizada. O HTTP 400 anterior não se torna automaticamente esclarecido porque o CI passou.
