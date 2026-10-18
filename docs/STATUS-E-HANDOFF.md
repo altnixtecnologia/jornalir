@@ -754,3 +754,11 @@ O ChatGPT abriu `feature/assistente-ir-base-20261018` a partir desse SHA e imple
 - Corrigido na branch `feature/assistente-ir-base-20261018`: `df1b1e8` feedback de salvar/testar junto ao botão e aviso de alterações não salvas; `5bebcf8`, `79039ef`, `30d9d62` subgrupo visual Assistente IR desktop/mobile, sem rebatizar personalidade.
 - CI `https://github.com/altnixtecnologia/jornalir/actions/runs/39131103349`: SUCCESS (SHA `833fd83`). Gatilho CI temporário removido em `f22b621`.
 - **Pendente:** a correção **não foi publicada**. Usuário decide nome público sugerido `Íris` e autoriza futuro deploy, após o qual validar feedback da UI, salvamento efetivo das configurações, geração de texto e limites. Nenhuma alteração no VS Code, banco ou segredo neste lote.
+
+## 18/10/2026 — JoIR: controles compactos e identidade visual (sem deploy)
+
+- O usuário pediu "Provedor | Modelo | Atualizar modelos" na mesma linha e sugeriu nome `JoIR` para o assistente que futuramente atenderá leitores.
+- Código na branch `feature/assistente-ir-base-20261018`: `86ca1c3` ajusta o layout flexível e responsivo; `a5c9da4` a `ba6debb` alteram somente o nome apresentado para `JoIR` nas telas privadas, menu/subgrupo e instrução de identidade das respostas (rotas e APIs preservadas).
+- Preview de leitor/site público não foi desenvolvido; só futuramente poderá acessar material público, nunca dados privados do administrador.
+- Workflow `39131917195` em avaliação; acionamento temporário `9baff8c` revertido em `93ece9d`; conferir conclusão.
+- Produção: `d92625f`; atualizações deste lote e feedback dos botões NÃO publicadas. Após CI, obter autorização para único deploy, homologar o visual/feedback da API e o salvamento geral (nenhuma chave precisa ser cadastrada de novo).
