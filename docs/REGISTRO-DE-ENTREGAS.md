@@ -306,3 +306,9 @@ modelos originais. Homenagens criadas por IA sao individuais e opcionais.
 P0: (1) criar e revisar uma matéria real no sistema, publicar e confirmar no site sua URL, ordenação, capa/galeria, editoria e exibição mobile/desktop; (2) verificar destaques 8/3/7/4 e que matérias rascunho/agendadas nunca vazem; (3) cadastrar, ordenar e controlar tempo/efeito e validade de patrocinadores das 6 posições, verificar fallback legado e exibição celular/tablet/desktop; (4) testar notícia individual, busca/paginação, navegação, links, compartilhamento, erros 404, acessibilidade e SEO; (5) conferir jornal online e assinatura/anúncios, PDFs e visualizadores, integrações básicas e R2/Range; (6) definir domínio final, HTTPS/redirect, sitemap/robots e publicar em única janela autorizada.
 P1: performance/Core Web Vitals, alertas de erros, painel de estatísticas, vínculo venda comercial→mídia, jornal público integrado às redes e push, revisão visual fina e homologação por usuário.
 - **Não chamar site 100% homologado só por build**. Próxima ação: confirmar CI e completar auditoria P0 das rotas/editorial/ads; entregar relatório pequeno e solicitar teste acompanhado com sessão de proprietário no sistema, sem inventar material editorial.
+
+## CI FINAL DO LOTE SITE — 39137183679
+
+- GitHub Actions `Validate project`: `https://github.com/altnixtecnologia/jornalir/actions/runs/39137183679`, SHA funcional + gatilho `1048d04`: **SUCCESS**. Typecheck e build site, typecheck/build sistema e smoke de contrato e PDF concluídos.
+- Workflow temporário restaurado em `beb4292`; commits posteriores são **somente documentação**, sem mudança de código executável.
+- Continuam pendentes testes visuais responsivos com navegador, testes autenticados de matéria e patrocinadores, dados atuais, decisão sobre quatro posições com anúncios antigos, sitemap/robots e lançamento final. **Nenhum deploy realizado.**
