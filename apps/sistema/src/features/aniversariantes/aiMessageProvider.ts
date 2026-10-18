@@ -14,10 +14,12 @@
  */
 import type { PersonProfile } from "./messageGenerator";
 
-export function isAiConfigured(): boolean {
-  const provider = process.env.BIRTHDAY_AI_PROVIDER;
-  const key = process.env.BIRTHDAY_AI_API_KEY;
-  return (provider === "openai" || provider === "anthropic") && Boolean(key && key.trim());
+import {
+  AssistantConfigurationError, getAssistantCredentialsForModule, isAssistantConfiguredForModule,
+} from "../../lib/ai/assistantConfig";
+
+export async function isAiConfigured(): Promise<boolean> {
+  return isAssistantConfiguredForModule("aniversariantes");
 }
 
 const SYSTEM_PROMPT = `Você escreve homenagens de aniversário curtas (2 a 3 frases, até 420 caracteres) para a coluna social de um jornal regional brasileiro (Jornal IR).
@@ -92,17 +94,20 @@ async function callAnthropic(apiKey: string, model: string, userPrompt: string):
  * configuração estiver ausente ou o provedor falhar — o chamador decide como
  * informar o operador (nunca derruba as outras opções do modal). */
 export async function generateMessageWithAI(profile: PersonProfile, styleExamples: string[]): Promise<string> {
-  const provider = process.env.BIRTHDAY_AI_PROVIDER;
-  const apiKey = process.env.BIRTHDAY_AI_API_KEY;
-  if (!apiKey || !apiKey.trim()) {
-    throw new AiMessageError("A geração por IA depende de configuração (chave de API não definida).");
+  // A configuracao central verifica interruptor geral, permissao do modulo e
+  // chave cifrada antes de qualquer request externo. Nao usar env legado como
+  // bypass: desativar no painel deve bloquear a chamada no servidor.
+  let credentials: Awaited<ReturnType<typeof getAssistantCredentialsForModule>>;
+  try {
+    credentials = await getAssistantCredentialsForModule("aniversariantes");
+  } catch (error) {
+    throw new AiMessageError(
+      error instanceof AssistantConfigurationError ? error.message : "Assistente IR nao configurado.",
+    );
   }
   const userPrompt = buildUserPrompt(profile, styleExamples);
-  if (provider === "openai") {
-    return callOpenAI(apiKey, process.env.BIRTHDAY_AI_MODEL || "gpt-4o-mini", userPrompt);
+  if (credentials.provider === "openai") {
+    return callOpenAI(credentials.apiKey, credentials.model, userPrompt);
   }
-  if (provider === "anthropic") {
-    return callAnthropic(apiKey, process.env.BIRTHDAY_AI_MODEL || "claude-haiku-4-5", userPrompt);
-  }
-  throw new AiMessageError("A geração por IA depende de configuração (provedor não definido).");
+  return callAnthropic(credentials.apiKey, credentials.model, userPrompt);
 }
