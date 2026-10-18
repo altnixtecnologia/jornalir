@@ -5,6 +5,8 @@ import Link from "next/link";
 import { askAssistantAction, getAssistantUsageAction } from "../../app/sistema/assistente-ir/actions";
 import type { AiUsageSummary } from "../../app/sistema/assistente-ir/actions";
 import type { AssistantTurn } from "../../app/sistema/assistente-ir/actions";
+import { saveAssistantProposalAction } from "../../app/sistema/assistente-ir/propostas/actions";
+import type { AiModuleKey } from "./aiSettingsTypes";
 
 const QUESTIONS = [
   "Faça um resumo do que está pendente hoje.",
@@ -15,14 +17,17 @@ const QUESTIONS = [
 
 type Message = AssistantTurn & { sources?: string[]; model?: string; usage?: string };
 
-export function AiAssistantChatPanel({ enabled, modules }: {
-  enabled: boolean; modules: string[];
+export function AiAssistantChatPanel({ enabled, modules, moduleChoices }: {
+  enabled: boolean; modules: string[]; moduleChoices: Array<{ key: AiModuleKey; label: string }>;
 }): JSX.Element {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [usage, setUsage] = useState<AiUsageSummary | null>(null);
   const [usageError, setUsageError] = useState<string | null>(null);
+  const [proposalDraft, setProposalDraft] = useState<{ title: string; rationale: string } | null>(null);
+  const [proposalModule, setProposalModule] = useState<AiModuleKey>(moduleChoices[0]?.key ?? "editorial");
+  const [proposalStatus, setProposalStatus] = useState<string | null>(null);
   const [busy, startTransition] = useTransition();
   const canUse = enabled && modules.length > 0;
 
@@ -33,6 +38,17 @@ export function AiAssistantChatPanel({ enabled, modules }: {
       const result = await getAssistantUsageAction();
       if ("error" in result) setUsageError(result.error);
       else setUsage(result.data);
+    });
+  }
+
+  function saveProposal(): void {
+    if (!proposalDraft || busy) return;
+    setProposalStatus(null);
+    startTransition(async () => {
+      const result = await saveAssistantProposalAction({ module: proposalModule, ...proposalDraft });
+      if ("error" in result) { setProposalStatus(result.error); return; }
+      setProposalDraft(null);
+      setProposalStatus("Sugestão registrada na central de aprovações. Nenhuma ação foi executada.");
     });
   }
 
@@ -107,11 +123,54 @@ export function AiAssistantChatPanel({ enabled, modules }: {
                 {item.usage ? ` · ${item.usage}` : ""}
               </p>
             ) : null}
+            {item.role === "assistant" ? (
+              <button type="button" className="btn btn-secondary" style={{ marginTop: 10 }}
+                disabled={busy}
+                onClick={() => {
+                  setProposalDraft({
+                    title: item.content.trim().split("\n")[0].slice(0, 100) || "Sugestão do Assistente IR",
+                    rationale: item.content.slice(0, 1800),
+                  });
+                  setProposalStatus(null);
+                }}>Preparar proposta para revisão</button>
+            ) : null}
           </div>
         ))}
       </div>
       {busy ? <p role="status" className="helper-text">Consultando a IA, aguarde...</p> : null}
       {error ? <p className="form-error" role="alert">{error}</p> : null}
+      {proposalDraft ? (
+        <div className="quick-access-card" style={{ marginBottom: 18 }}>
+          <strong>Registrar sugestão para aprovação</strong>
+          <p className="helper-text">Revise o texto antes de salvar. A aprovação posterior não executa ações.</p>
+          <label className="form-field">
+            <span className="field-label">Módulo</span>
+            <select value={proposalModule} disabled={busy}
+              onChange={(event) => setProposalModule(event.target.value as AiModuleKey)}>
+              {moduleChoices.map((module) =>
+                <option key={module.key} value={module.key}>{module.label}</option>)}
+            </select>
+          </label>
+          <label className="form-field">
+            <span className="field-label">Título</span>
+            <input maxLength={180} value={proposalDraft.title} disabled={busy}
+              onChange={(event) => setProposalDraft((old) => old ? { ...old, title: event.target.value } : old)} />
+          </label>
+          <label className="form-field">
+            <span className="field-label">Descrição para revisão</span>
+            <textarea rows={5} maxLength={1800} value={proposalDraft.rationale} disabled={busy}
+              onChange={(event) => setProposalDraft((old) => old ? { ...old, rationale: event.target.value } : old)} />
+          </label>
+          <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 10 }}>
+            <button type="button" className="btn btn-primary" onClick={saveProposal} disabled={busy}>Salvar proposta</button>
+            <button type="button" className="btn btn-secondary" onClick={() => setProposalDraft(null)} disabled={busy}>Cancelar</button>
+          </div>
+        </div>
+      ) : null}
+      {proposalStatus ? <p role="status" className="helper-text">{proposalStatus}</p> : null}
+      <p className="helper-text">
+        <Link href="/sistema/assistente-ir/propostas">Ver central de propostas e aprovações</Link>
+      </p>
       <form onSubmit={(event) => { event.preventDefault(); ask(input); }}>
         <label className="form-field">
           <span className="field-label">Sua pergunta ou instrução</span>
