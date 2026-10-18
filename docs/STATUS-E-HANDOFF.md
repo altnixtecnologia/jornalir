@@ -769,3 +769,12 @@ O ChatGPT abriu `feature/assistente-ir-base-20261018` a partir desse SHA e imple
 - UI ajustada em `apps/sistema/src/features/configuracoes/AiAssistantSettingsPanel.tsx` commit `d7390f2`, cartões responsivos lado a lado no desktop e um abaixo do outro no celular, sem revelar segredos.
 - CI em `https://github.com/altnixtecnologia/jornalir/actions/runs/39132372563` aguardando confirmação; CI habilitado temporariamente em `6498f1d2` e restaurado em `052610bd`.
 - Produção não alterada (`d92625f`). Mudanças de JoIR, layout compacto do provedor, feedback de conexão e cartões de status aguardam publicação agrupada quando autorizada.
+
+## JoIR publicado 18/10/2026 — pós-deploy e próximos testes
+
+- Última produção `controle.altnix.com.br`: commit `ad8724048bddcabfb38211fe7bd60d956d2d1b7c`, deploy Vercel `dpl_A5sniiEiPKuRscHj18yVL6zBdgAq` **READY**, domínio/alias verificado sem erro, projeto `jornalir-sistema`.
+- Branch fonte: `feature/assistente-ir-base-20261018`. Em comparação com produção anterior `d92625f`, todos os 29 commits adicionais de JoIR em 12 arquivos foram publicados; nenhuma migration necessária. CI automatizado SUCCESS `39132372563`.
+- Funcionalidades JoIR incluídas: menus agrupados, nome, layout compacto Provedor | Modelo | Atualizar, cartões OpenAI/Claude e escolha de provedor único, mensagens de confirmação de chaves/conexão, switch com aviso de alteração não persistida, conversa com IA, auditoria de tokens, central de propostas sem execução de tarefas.
+- Consultas banco após publicação: só há credencial OpenAI; Anthropic não cadastrada. Configuração global `enabled=false`, modelo `gpt-4o-mini`, TODOS os módulos `off`. OpenAI teve autenticação API HTTP 200 anteriormente; geração de texto REAL ainda não validada.
+- Próximo passo é **homologação com login owner**, NÃO refazer código: entrar em `https://controle.altnix.com.br/sistema/configuracoes/assistente-ir`; opcionalmente registrar chave Claude e testar; ligar JoIR, habilitar módulo em Assistido e clicar salvar no fim da página; abrir `/sistema/assistente-ir`, perguntar, conferir tokens e erro; revisar central de propostas; testar a visualização em desktop/mobile. Sem atualização adicional na Vercel até apontar falha concreta.
+- Restrições: IA ainda não roda tarefas agendadas/autônomas ou executa mutações sensíveis; chatbot para leitores do portal não foi implementado. Site público, Supabase, segredos, branch oficial VS Code intocados no deploy.
