@@ -322,3 +322,9 @@ P1: performance/Core Web Vitals, alertas de erros, painel de estatísticas, vín
 - CI GitHub Actions `39138671694` iniciado com gatilho temporário `82213fd` e gatilho padrão restaurado em `245f136`. Conferir conclusão antes de marcar testes aprovados.
 - Estado: somente GitHub branch `feature/site-lancamento-editorial-publicidade-20261018`. Sem deploy no site/sistema, sem alterações na base, configurações de anúncios, chaves, VS Code e sem colaboração simultânea Claude. A Claude receberá PRIMEIRO apenas instrução para sincronizar a branch inteira, e aguardar relatório.
 - Pendente: verificar visualmente em PC e tela pequena depois de publicação autorizada, com modo edição e botões de ordenação testados.
+
+## VALIDAÇÃO APROVADA — correção visual da tabela Editorias
+
+- GitHub Actions run `39138671694`, SHA de código + gatilho CI `82213fda`: **SUCCESS** (typecheck/build apps/site e apps/sistema; smoke contratos e PDFs). URL: `https://github.com/altnixtecnologia/jornalir/actions/runs/39138671694`.
+- Workflow normal foi restaurado em `245f136`, e commits subsequentes alteraram apenas documentação. O código corrigido validado permanece o mesmo.
+- **Nenhuma publicação**: para validar divisórias com navegação real é necessário deploy posterior autorizado, seguido de inspeção na página editorias, inclusive linha em edição e reordenação. Não foi feita alteração no Supabase, VS Code ou anúncios.
