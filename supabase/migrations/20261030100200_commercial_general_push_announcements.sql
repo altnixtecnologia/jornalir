@@ -28,6 +28,17 @@ alter table public.site_push_subscriptions add constraint site_push_has_consent
 -- notícias normais (24h) — avisos gerais não são "urgentes", mas também
 -- não devem ser entregues dias depois de preparados.
 -- ==================================================================
+-- A regra anterior aceita apenas ordinary/urgent no portal; permitir a
+-- categoria administrative SEM alterar a restrição do app interno.
+alter table public.notification_events
+  drop constraint if exists notification_events_target_scope;
+alter table public.notification_events
+  add constraint notification_events_target_scope check (
+    ((app_kind = 'sistema') and (target_profile_id is not null))
+    or ((app_kind = 'site') and (target_profile_id is null)
+      and (kind in ('ordinary','urgent','administrative')))
+  );
+
 create or replace function public.queue_site_push_event()
 returns trigger language plpgsql security definer set search_path=''
 as $$
@@ -148,3 +159,82 @@ create policy commercial_announcements_admin_all
   to authenticated
   using (public.is_active_admin_or_owner())
   with check (public.is_active_admin_or_owner());
+
+
+-- Evento e histórico devem ser gravados na MESMA transação, com bloqueio
+-- da linha de rascunho, impedindo dois envios por cliques simultâneos.
+-- notification_events NÃO autoriza INSERT para authenticated; somente o
+-- servidor protegido por env flag usa esta RPC com chave service_role.
+create or replace function public.dispatch_commercial_announcement(
+  p_announcement_id uuid,
+  p_request_id uuid,
+  p_actor_id uuid
+)
+returns uuid
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_draft public.commercial_announcements%rowtype;
+  v_event_id uuid;
+  v_key text;
+begin
+  if coalesce(auth.role(), '') <> 'service_role' then
+    raise exception 'Operação permitida apenas ao servidor.';
+  end if;
+  if not exists (
+    select 1 from public.profiles
+    where id=p_actor_id and active and role in ('owner','admin')
+  ) then
+    raise exception 'Administrador inválido.';
+  end if;
+
+  select * into v_draft from public.commercial_announcements
+  where id = p_announcement_id for update;
+  if not found then
+    raise exception 'Aviso não encontrado.';
+  end if;
+  if v_draft.status = 'sent' then
+    return v_draft.notification_event_id;
+  end if;
+  if v_draft.status <> 'draft' then
+    raise exception 'Estado inválido para o envio.';
+  end if;
+
+  -- Chave estável POR AVISO, não por clique. Retries/concor­rência
+  -- jamais podem gerar um segundo evento para o mesmo aviso.
+  v_key := 'commercial-announcement:' || p_announcement_id::text;
+  insert into public.notification_events (
+    app_kind,kind,title,body,href,scheduled_at,dedupe_key
+  ) values (
+    'site','administrative',v_draft.title,v_draft.body,
+    coalesce(v_draft.href,'/'),now(),v_key
+  )
+  on conflict (dedupe_key) do nothing
+  returning id into v_event_id;
+
+  if v_event_id is null then
+    select id into v_event_id from public.notification_events
+    where dedupe_key=v_key;
+  end if;
+  if v_event_id is null then
+    raise exception 'Não foi possível localizar o evento de envio.';
+  end if;
+
+  update public.commercial_announcements
+  set status='sent',
+      notification_event_id=v_event_id,
+      send_request_id=p_request_id,
+      sent_by=p_actor_id,
+      sent_at=now()
+  where id=p_announcement_id;
+
+  return v_event_id;
+end;
+$$;
+
+revoke all on function public.dispatch_commercial_announcement(uuid,uuid,uuid)
+  from public, anon, authenticated;
+grant execute on function public.dispatch_commercial_announcement(uuid,uuid,uuid)
+  to service_role;

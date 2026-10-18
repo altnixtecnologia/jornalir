@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { createClient } from "@supabase/supabase-js";
 import { createSupabaseServerClient } from "../../../../lib/supabase/server";
 
 const PATH = "/sistema/publicidade/avisos";
@@ -14,6 +15,15 @@ async function requireAdmin() {
   if (!profile?.active) return null;
   if (profile.role !== "owner" && profile.role !== "admin") return null;
   return { db, userId: auth.user.id };
+}
+
+/** Chave privilegiada SOMENTE no servidor, após checagem de owner/admin.
+ * Nunca expor SUPABASE_SERVICE_ROLE_KEY ao cliente. */
+function privilegedPushDb() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!url || !key) return null;
+  return createClient(url, key, { auth: { persistSession: false, autoRefreshToken: false } });
 }
 
 function clean(value: string, length: number): string {
@@ -58,7 +68,10 @@ export async function getAnnouncementDeliveryStats(notificationEventId: string |
   const caller = await requireAdmin();
   if (!caller) return { error: "Acesso não autorizado." };
   if (!notificationEventId) return { ok: true, data: { pending: 0, sent: 0, failed: 0, expired: 0 } };
-  const { data, error } = await caller.db.from("site_push_deliveries").select("status").eq("event_id", notificationEventId);
+  // Tabela privada: authenticated não possui SELECT nesta fila.
+  const privileged = privilegedPushDb();
+  if (!privileged) return { error: "Servidor de notificações não configurado." };
+  const { data, error } = await privileged.from("site_push_deliveries").select("status").eq("event_id", notificationEventId);
   if (error) return { error: "Não foi possível consultar o resultado da entrega." };
   const stats = { pending: 0, sent: 0, failed: 0, expired: 0 };
   for (const row of data ?? []) {
@@ -127,33 +140,19 @@ export async function confirmAnnouncementSendAction(input: {
     return { error: "Envio real de Avisos gerais ainda está desligado — aguardando integração/testes do aplicativo e autorização explícita." };
   }
 
-  const { db, userId } = caller;
-  const { data: draft, error: draftError } = await db.from("commercial_announcements")
-    .select("id,title,body,href,status").eq("id", input.id).maybeSingle();
-  if (draftError || !draft) return { error: "Aviso não encontrado." };
-  if (draft.status !== "draft") return { error: "Este aviso já foi enviado." };
-
-  const { data: event, error: eventError } = await db.from("notification_events").upsert({
-    app_kind: "site", kind: "administrative",
-    title: draft.title, body: draft.body, href: draft.href || "/",
-    scheduled_at: new Date().toISOString(),
-    dedupe_key: "commercial-announcement:" + input.requestId,
-  }, { onConflict: "dedupe_key", ignoreDuplicates: true })
-    .select("id").maybeSingle();
-  if (eventError) return { error: "Falha ao preparar o envio: " + eventError.message };
-
-  // ignoreDuplicates não retorna a linha quando já existia (reenvio do mesmo
-  // request_id) — busca pelo dedupe_key para obter o id de qualquer forma,
-  // nunca cria um segundo evento para o mesmo clique.
-  const eventId = event?.id ?? (await db.from("notification_events").select("id")
-    .eq("dedupe_key", "commercial-announcement:" + input.requestId).maybeSingle()).data?.id;
-  if (!eventId) return { error: "Não foi possível confirmar o envio." };
-
-  const { error: updateError } = await db.from("commercial_announcements").update({
-    status: "sent", notification_event_id: eventId, send_request_id: input.requestId,
-    sent_by: userId, sent_at: new Date().toISOString(),
-  }).eq("id", input.id).eq("status", "draft");
-  if (updateError) return { error: "Envio preparado, mas não foi possível atualizar o histórico. Confira em Avisos." };
+  // O servidor é o único autorizado a criar eventos push, e só após
+  // confirmar a flag explicitamente. A RPC marca o aviso e cria o evento
+  // atomicamente com lock e dedupe_key vinculada ao ID do aviso.
+  const privileged = privilegedPushDb();
+  if (!privileged) return { error: "Servidor de notificações não configurado." };
+  const { data: eventId, error } = await privileged.rpc("dispatch_commercial_announcement", {
+    p_announcement_id: input.id,
+    p_request_id: input.requestId,
+    p_actor_id: caller.userId,
+  });
+  if (error || typeof eventId !== "string") {
+    return { error: "Não foi possível confirmar o aviso. Verifique o histórico antes de tentar novamente." };
+  }
 
   revalidatePath(PATH);
   return { ok: true, data: { notificationEventId: eventId } };
