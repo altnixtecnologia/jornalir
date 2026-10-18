@@ -33,11 +33,21 @@ export interface AiSettingsSnapshot extends AiSettingsInput {
   encryptionAvailable: boolean;
   backendAvailable: boolean;
   pendingApprovals: number;
+  /** Diagnósticos sem divulgar segredos. */
+  encryptionHint?: string | null;
+  backendHint?: string | null;
 }
 
 export const AI_DEFAULT_MODELS: Record<AiProvider, string> = {
   openai: "gpt-4o-mini",
   anthropic: "claude-haiku-4-5",
+};
+
+/** Opções iniciais de fallback. A lista é enriquecida automaticamente pelo
+ * catálogo oficial da conta ao abrir esta tela, quando a chave já foi salva. */
+export const AI_SUGGESTED_MODELS: Record<AiProvider, readonly string[]> = {
+  openai: ["gpt-4o-mini", "gpt-4o", "gpt-4.1-mini", "gpt-4.1"],
+  anthropic: ["claude-haiku-4-5", "claude-sonnet-4-5", "claude-opus-4-1"],
 };
 
 export function readAiModes(value: unknown): Record<AiModuleKey, AiModuleMode> {
