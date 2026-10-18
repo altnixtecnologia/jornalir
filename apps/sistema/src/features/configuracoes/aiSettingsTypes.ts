@@ -54,3 +54,17 @@ export function readAiModes(value: unknown): Record<AiModuleKey, AiModuleMode> {
 export function validAiMode(value: unknown): value is AiModuleMode {
   return value === "off" || value === "assistido" || value === "autonomo";
 }
+
+/** Apenas metricas agregadas; nao exportar nomes, contatos ou dados fiscais
+ * para o navegador de configuracoes da IA. Valores nulos = modulo desligado. */
+export interface AiOperationalBrief {
+  generatedAt: string;
+  financeiro: null | {
+    overdueCount: number;
+    overdueAmount: number;
+    receivedTodayCount: number;
+    receivedTodayAmount: number;
+  };
+  site: null | { unattendedRequests: number };
+  agenda: null | { scheduledToday: number; scheduledNextSevenDays: number };
+}
