@@ -95,7 +95,7 @@ export default async function NoticiaDetalhePage({ params }: { params: { slug: s
                 bodyHtml={current.body}
               />
 
-              <div className="mt-10 md:hidden">
+              <div className="mt-10 xl:hidden">
                 <AdSlotPairRow slots={mobilePair} />
               </div>
             </div>
