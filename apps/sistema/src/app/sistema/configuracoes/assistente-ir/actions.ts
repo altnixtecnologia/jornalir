@@ -148,6 +148,58 @@ export async function testAssistantConnectionAction(
   }
 }
 
+/** Catálogo atualizado da conta do proprietário. Consulta somente os IDs públicos
+ * disponíveis na API oficial; não envia dados do sistema ou informações pessoais.
+ * Nunca seleciona ou muda de modelo sem o proprietário salvar a escolha. */
+export async function listAssistantModelsAction(
+  provider: AiProvider,
+): Promise<{ ok: true; models: string[]; checkedAt: string } | { error: string }> {
+  try {
+    await requireOwner();
+    if (!validateProvider(provider)) return { error: "Provedor inválido." };
+    const apiKey = await getAssistantCredentialForConnectionTest(provider);
+    const url = provider === "openai"
+      ? "https://api.openai.com/v1/models"
+      : "https://api.anthropic.com/v1/models?limit=100";
+    const headers: Record<string, string> = provider === "openai"
+      ? { authorization: `Bearer ${apiKey}` }
+      : { "x-api-key": apiKey, "anthropic-version": "2023-06-01" };
+    let response: Response;
+    try {
+      response = await fetch(url, {
+        method: "GET", headers, cache: "no-store", signal: AbortSignal.timeout(10000),
+      });
+    } catch {
+      return { error: "Não foi possível consultar o catálogo de modelos. Tente novamente." };
+    }
+    if (!response.ok) {
+      return { error: `Catálogo indisponível (HTTP ${response.status}). Confira a chave e as permissões da API.` };
+    }
+    const payload: unknown = await response.json();
+    const rows = payload && typeof payload === "object" && "data" in payload
+      ? (payload as { data?: unknown }).data : null;
+    if (!Array.isArray(rows)) return { error: "O catálogo retornou um formato desconhecido." };
+    const models = rows
+      .filter((item): item is { id: string; created?: number; created_at?: string } =>
+        !!item && typeof item === "object" && typeof item.id === "string")
+      .filter((item) => /^[A-Za-z0-9._:/-]{2,100}$/.test(item.id))
+      .filter((item) => provider === "openai"
+        ? /^(gpt-|chatgpt-|o[1-9](?:-|$))/i.test(item.id)
+        : /^claude-/i.test(item.id))
+      .sort((a, b) => {
+        const when = (m: { created?: number; created_at?: string }): number =>
+          typeof m.created === "number" ? m.created * 1000 :
+          typeof m.created_at === "string" ? Date.parse(m.created_at) || 0 : 0;
+        return when(b) - when(a) || b.id.localeCompare(a.id);
+      })
+      .map((item) => item.id)
+      .slice(0, 100);
+    return { ok: true, models, checkedAt: new Date().toISOString() };
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : "Falha ao consultar os modelos." };
+  }
+}
+
 /** Resumo sob demanda, sem enviar dados para OpenAI/Claude. Todos os acessos
  * usam a sessao do owner, com RLS, e respeitam o interruptor geral e os
  * modos por modulo. Somente metricas agregadas, sem dados pessoais. */
