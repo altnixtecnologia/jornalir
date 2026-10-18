@@ -1598,3 +1598,93 @@ ainda aguardando autorização separada (herdado do lote anterior); (e)
 nenhum teste manual em dispositivo real Android foi feito nesta rodada para
 os ajustes de pinch-zoom/tela cheia — recomendado validar no APK já
 assinado antes de considerar o item 4 definitivamente fechado.
+
+## LOTE — Safe-area (câmera/status bar) e indicadores do destaque (18/10/2026, commit `b147e3d`)
+
+A partir do estado local preservado (sem reset/pull destrutivo; branch
+`feature/site-lancamento-editorial-publicidade-20261018` seguiu 4→5 commits
+à frente do GitHub após este lote, nenhum push). **Não repetiu** o trabalho
+já feito nos commits `3daa32b`/`2458aec` (submenu JoIR, cabeçalho/cards do
+Jornal Online, botão Voltar) — apenas conferiu e, quando necessário,
+complementou.
+
+**1. Causa raiz do conteúdo escondido sob a câmera/barra de status
+encontrada e corrigida:** faltava `viewport-fit=cover` no `viewport` export
+de `apps/site/src/app/layout.tsx`. Sem isso, `env(safe-area-inset-*)`
+resolvia sempre para `0` no WebView do app/Safari — todo o CSS de
+safe-area que já existia em vários pontos do site (menu mobile, botão
+Voltar global, modais, WhatsApp flutuante) ficava **inerte** nesse
+contexto. Com o `viewport-fit=cover` ligado, esse CSS pré-existente passa
+a funcionar de fato. Confirmado que isso **não afeta o navegador comum**
+(desktop/sem notch): `env()` sem recurso resolve para `0px` nesses casos,
+preservando o layout atual lá.
+- `.site-header` (globals.css) passou a somar `env(safe-area-inset-top)`
+  ao próprio `padding-top` — o fundo continua colado no topo (tela
+  cheia), só o conteúdo (logo, busca, menu) desce para não ficar atrás da
+  câmera/ilha dinâmica/barra de status.
+- A barra fixa do leitor de PDF mobile (`MobilePdfReader.tsx`, "Página X de
+  Y" + zoom) tinha `sticky top-0`, igual ao `.site-header` — as duas
+  disputavam o topo da tela quando a página rolava. Corrigida para ficar
+  por baixo do header (`top: calc(58px + env(safe-area-inset-top))`), não
+  por cima.
+- Android nativo (`styles.xml`): `windowLayoutInDisplayCutoutMode=shortEdges`
+  adicionado aos 3 temas (`AppTheme`, `AppTheme.NoActionBar`,
+  `AppTheme.NoActionBarLaunch`), coerente com o tratamento via CSS —
+  permite o app continuar "tela cheia" até a área do notch, deixando a
+  página web responsável por manter o conteúdo interativo fora dela.
+  Validado recompilando os recursos do Gradle localmente (`processDebugResources`,
+  após limpar `app/build` — pasta gerada/gitignorada que estava com lock
+  de uma execução anterior); **nenhum APK novo foi gerado nesta etapa**.
+
+**2. Indicadores "Deslizar"/"Rolar" no destaque:** mantida a animação e
+posição atuais do indicador "deslize" (`PublicFeaturedHero.tsx`); somado
+contorno preto discreto (`-webkit-text-stroke`) ao texto e às setas `‹ ›`,
+além do `text-shadow` que já existia, para não desaparecer em fotos muito
+claras. Criado novo indicador "Rolar ↓" no rodapé do destaque (mobile),
+reaproveitando o espaço de respiro que o `padding-bottom` do `.hero-copy`
+já reservava abaixo do texto — não sobrepõe título/subtítulo/meta, nem os
+pontos/setas de navegação (que ficam no topo/centro). Some com
+fade suave ao detectar `scrollY > 4px` e não volta a aparecer. Nenhuma
+mudança na composição da imagem do destaque.
+
+**3. Conferência do Jornal Online (sem refazer o lote anterior):** capa
+clicável, botões sobrepostos com contraste e botão Voltar saindo da tela
+cheia primeiro — todos já corrigidos no lote anterior, revisados aqui só
+de leitura, sem alteração de código. Adicionalmente corrigida a disputa de
+`sticky top-0` da barra do leitor (ver item 1) e a nova `padding-top` do
+header, que juntas eliminam o cenário de controle escondido sob a barra
+superior. Pinch-to-zoom com dois dedos já estava habilitado via
+`touchAction: "pan-x pan-y pinch-zoom"` (não exclusivo dos botões +/−);
+não foi necessário trocar o visualizador de PDF.
+
+**4. Próxima versão Android:** nome, `applicationId`/`appId`
+(`com.jornalir`) e keystore de distribuição **não foram alterados**.
+**Nenhum APK novo foi publicado/gerado** nesta etapa — por instrução
+explícita, aguardando aprovação dos ajustes antes de compilar uma eventual
+`v.00.01`/`versionCode=2` (mesma assinatura). O APK `v.00.00` já publicado
+no R2 permanece como está.
+
+**Arquivos alterados:** `apps/site/src/app/layout.tsx`,
+`apps/site/src/app/globals.css`,
+`apps/site/src/components/site/MobilePdfReader.tsx`,
+`apps/site/src/components/site/public/PublicFeaturedHero.tsx`,
+`apps/mobile/android/app/src/main/res/values/styles.xml`.
+
+**Testes reais executados:** `npm run typecheck --workspace @ir/site`
+(limpo), `npm run build --workspace @ir/site` (18 rotas geradas com
+sucesso), `./gradlew :app:processDebugResources` no módulo Android (limpo,
+confirma que os novos itens de tema são aceitos pelo Gradle).
+**Testes NÃO executados/mocks:** nenhuma validação visual em aparelho ou
+emulador Android real (nenhum dispositivo/emulador conectado nesta
+sessão — `adb devices` retornou lista vazia); o comportamento do
+`env(safe-area-inset-*)` dentro do WebView real do app e o resultado
+visual do indicador "Rolar" e do header/leitor seguem **pendentes de
+validação visual em dispositivo físico ou emulador** antes de uma
+decisão de publicar nova versão.
+
+**Pendências para a próxima etapa:** validar visualmente em dispositivo
+Android real (idealmente um com câmera furo/notch) o header, o menu
+mobile, o Jornal Online e o leitor de PDF; decidir, após essa validação,
+se compila `v.00.01`; demais pendências (ícone do app, FCM, migração para
+storage, registro do release no painel) continuam as mesmas do lote
+anterior.
