@@ -10,14 +10,34 @@
 -- Estado inicial FALSE (desativado) — nunca liga sozinho. A política de
 -- UPDATE desta tabela continua ampla (staff, já existente desde
 -- 20261012201321_site_offer_settings.sql, cobre todas as colunas de preço);
--- a restrição "só administrador" para ESTA coluna específica vive na
--- aplicação (Server Action que checa profiles.role = owner/admin antes de
--- gravar), mesmo princípio já usado para birthday_message_templates — RLS
--- do Postgres não faz checagem granular por coluna sem grants separados, o
--- que seria desproporcional para uma única coluna boolean numa tabela cujas
--- outras colunas já são staff-editable de propósito.
+-- a Server Action limita a alteração aos administradores e este arquivo
+-- reforça a mesma regra no próprio banco com um trigger. A policy UPDATE
+-- de preços permanece staff-wide, mas alterar assine_enabled requer
+-- owner/admin inclusive em chamadas diretas à API do Supabase.
 alter table public.site_offer_settings
   add column if not exists assine_enabled boolean not null default false;
+
+-- Proteção independente da interface: a policy de UPDATE da tabela permite
+-- que funcionários atualizem valores comerciais. Impedir alteração do
+-- interruptor Assine por um operador mesmo usando diretamente a API REST.
+-- O predicado compara OLD/NEW para não afetar alterações normais de preços.
+create or replace function public.enforce_assine_admin_update()
+returns trigger language plpgsql set search_path = ''
+as $
+begin
+  if new.assine_enabled is distinct from old.assine_enabled
+     and not public.is_active_admin_or_owner() then
+    raise exception 'Somente administradores podem alterar a visibilidade do Assine.';
+  end if;
+  return new;
+end;
+$;
+
+drop trigger if exists site_offer_settings_assine_admin_guard on public.site_offer_settings;
+create trigger site_offer_settings_assine_admin_guard
+  before update on public.site_offer_settings
+  for each row execute function public.enforce_assine_admin_update();
+
 
 comment on column public.site_offer_settings.assine_enabled is
   'Controla se a página pública /assine (que também reúne Anuncie) fica visível no cabeçalho/menus e acessível diretamente, e se aceita novas solicitações via submit_site_interest_request_v4. false = oculta e bloqueada (estado inicial, seguro — nunca liga sozinho por falha de leitura). Alterado só por admin/owner, nunca por operator (checagem na aplicação); cadastro/exibição de patrocinadores e demais funcionalidades comerciais são independentes e não são afetados por esta coluna.';

@@ -50,8 +50,27 @@ end $$;
 create or replace function public.claim_site_push_deliveries(p_limit integer default 20)
 returns table(delivery_id uuid,event_id uuid,subscription_id uuid)
 language plpgsql security definer set search_path=''
-as $$
+as $
 begin
+ -- Preservar o processamento de encerramento da versão anterior da função:
+ -- envios vencidos não podem ficar pendentes indefinidamente.
+ update public.site_push_deliveries d
+   set status='expired', last_error='Prazo de envio encerrado'
+ from public.notification_events e
+ where e.id=d.event_id and e.app_kind='site'
+   and d.status='pending'
+   and (
+     (e.kind='urgent' and e.scheduled_at < now()-interval '1 hour')
+     or (e.kind in ('ordinary','administrative') and e.scheduled_at < now()-interval '24 hours')
+   );
+
+ -- Uma entrega interrompida não é reenviada automaticamente: a resposta
+ -- anterior pode ter chegado ao aparelho mesmo sem confirmação no servidor.
+ update public.site_push_deliveries d
+   set status='failed',
+       last_error='Envio interrompido ou resultado incerto; não reenviar automaticamente'
+ where d.status='sending' and d.attempted_at < now()-interval '5 minutes';
+
  return query
  with picked as (
    select d.id
