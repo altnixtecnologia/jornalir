@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { getFinancialOverviewSupabase } from "../../../../providers/supabase/financialOverview.supabase";
+import { isLocalPreviewEnabled } from "../../../../lib/auth/localPreview";
 import { createSupabaseServerClient } from "../../../../lib/supabase/server";
 import { createSupabaseAdminClient, hasServiceRoleKey } from "../../../../lib/supabase/admin";
 import { recordAuditEventSupabase } from "../../../../providers/supabase/auditEvents.supabase";
@@ -154,6 +155,7 @@ export async function getAssistantOperationalBriefAction():
   Promise<{ ok: true; data: AiOperationalBrief } | { error: string }> {
   try {
     const { db } = await requireOwner();
+    if (isLocalPreviewEnabled()) return { error: "Resumo com dados reais indisponivel no modo de demonstracao." };
     const { data: config, error } = await db.from("ai_assistant_settings")
       .select("enabled,module_modes").eq("id", 1).maybeSingle();
     if (error || !config) return { error: "A configuracao do Assistente IR ainda nao esta disponivel." };
