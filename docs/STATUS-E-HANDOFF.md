@@ -633,7 +633,7 @@ Layout aprovado preservado; nenhum outro módulo alterado. Nenhuma migration apl
   (agora expostos via `listTemplateSummaries()`/`renderTemplateByKey()`, agrupados por
   família com rótulos amigáveis em `FAMILY_LABELS`) + modelos adicionais do
   administrador. Nova tabela `birthday_message_templates` (migration
-  `20261030100100_birthday_message_templates.sql`, local, não aplicada) — RLS: leitura
+  `20261018030124_birthday_message_templates.sql`, local, não aplicada) — RLS: leitura
   por qualquer staff ativo, escrita (criar/editar) só admin/owner
   (`is_active_admin_or_owner()`), mesma convenção do projeto. **Decisão de escopo**: os
   44 modelos originais permanecem hardcoded e NUNCA editáveis (preserva o
@@ -715,7 +715,7 @@ Próximo lote: aguardando autorização do usuário.
 
 O usuário confirmou que o Codex sincronizou a branch oficial `consolidacao-local-20261016` até `a3d506ad6053a4cc54fb3f0ac5b26250591435d5`, com um único push fast-forward e sem deploy. Essa confirmação substitui os snapshots antigos deste arquivo que ainda falam em commits não enviados.
 
-O ChatGPT abriu `feature/assistente-ir-base-20261018` a partir desse SHA e implementou uma PRIMEIRA ETAPA apenas em branch isolada: configuração do provedor OpenAI/Claude, cofre criptografado, modos por módulo, interruptor geral server-side, página de proprietário, estrutura de solicitações de aprovação ainda SEM executor e integração do gerador individual de homenagens com a nova configuração. A migration `20261030100200_ai_assistant_base.sql` NÃO foi aplicada. Ainda não há chaves, jobs autônomos, aprovações executáveis ou testes autenticados/build dessa branch. A integração com Vercel/produção não foi feita.
+O ChatGPT abriu `feature/assistente-ir-base-20261018` a partir desse SHA e implementou uma PRIMEIRA ETAPA apenas em branch isolada: configuração do provedor OpenAI/Claude, cofre criptografado, modos por módulo, interruptor geral server-side, página de proprietário, estrutura de solicitações de aprovação ainda SEM executor e integração do gerador individual de homenagens com a nova configuração. A migration `20261018030210_ai_assistant_base.sql` NÃO foi aplicada. Ainda não há chaves, jobs autônomos, aprovações executáveis ou testes autenticados/build dessa branch. A integração com Vercel/produção não foi feita.
 
 **Registro de cada commit e roteiro de sincronização:** `docs/REGISTRO-DE-ENTREGAS.md`. Não repetir todo o trabalho nem integrar parcialmente. Primeiro verificar `git status -sb`, `git fetch origin` e os dois históricos; se fast-forward seguro, incorporar todos os commits na pasta oficial e então rodar typecheck/build/testes. Nunca alterar backups/branches antigas nem aplicar migrations sem autorização.
 
@@ -727,3 +727,12 @@ O ChatGPT abriu `feature/assistente-ir-base-20261018` a partir desse SHA e imple
 - Nenhuma migration remota, deploy ou sincronizacao do VS Code efetuada.
 - Necessita integrar HEAD completo da feature quando Claude/Codex retornar, compilar, testar RLS e exercitar com login real.
 - **Commits individuais e pendencias:** `docs/REGISTRO-DE-ENTREGAS.md` (sempre consultar a versao MAIS NOVA pelo HEAD remoto).
+
+
+## Publicação de produção autorizada — 18/10/2026 (Assistente IR / Aniversariantes)
+
+- **PRODUÇÃO REAL:** `controle.altnix.com.br` aponta para Vercel `dpl_4eLiZNh8J5JRdrBz3xjxRewbTi2c` (READY), código SHA `948060c18c47158cb4e8f8f8acf2c201ef876237`, origem `feature/assistente-ir-base-20261018`. Build Next/TypeScript terminou com sucesso. Site público não foi republicado.
+- **SUPABASE REAL:** 2 migrations aplicadas e verificadas — `20261018030124_birthday_message_templates.sql` e `20261018030210_ai_assistant_base.sql` (versões conforme lista real do Supabase; arquivos SQL renomeados na branch feature no commit `20295a0` sem mudar seu conteúdo).
+- **VERCEL SECRETS:** `AI_CONFIG_ENCRYPTION_KEY` configurada pelo proprietário como Sensitive em Production, presença verificada; valor não acessado. Chaves OpenAI/Anthropic serão cadastradas pelo proprietário no painel, NÃO recebidas no chat. Assistente IR desativado por padrão.
+- **PENDENTE TESTAR:** autenticação e fluxos reais Aniversariantes, modelos editoriais e IA; permissões de owner, escrita de segredos cifrados e troca de provedores, resumo operacional, integrações. Nenhum teste E2E autenticado ainda. Nenhuma automação autônoma implantada.
+- **OPERACIONAL:** não atualizar o VS Code até o próximo uso de Claude ou Codex. Consultar `docs/REGISTRO-DE-ENTREGAS.md` (contém todos os commits e ID de deploy). Novo trabalho em feature não altera versão já publicada sem outro deploy autorizado.
