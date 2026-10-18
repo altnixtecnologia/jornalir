@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { Fragment, useEffect, useRef, useState } from "react";
 import {
   assinaturasNavGroup,
   clientesNavGroup,
@@ -110,7 +110,7 @@ export function MobileNav({ onNavigate }: { onNavigate: () => void }): JSX.Eleme
   const uniqueResults = new Map<string, AdminNavLink>();
   for (const group of visibleGroups.filter((item) => !item.planned)) {
     for (const link of group.links) {
-      if (normalize(group.label + " " + link.label).includes(query)) uniqueResults.set(link.href, link);
+      if (normalize(group.label + " " + (link.group || "") + " " + link.label).includes(query)) uniqueResults.set(link.href, link);
     }
   }
   const searchResults = Array.from(uniqueResults.values());
@@ -121,6 +121,7 @@ export function MobileNav({ onNavigate }: { onNavigate: () => void }): JSX.Eleme
       href={link.href}
       onClick={close}
       className={"mobile-nav-link" + (link.primary ? " is-primary" : "") + (planned ? " mobile-nav-link--planned" : "")}
+      style={link.group ? { paddingLeft: 28 } : undefined}
       aria-current={isActive(pathname, link.href) ? "page" : undefined}
     >
       {link.label}
@@ -185,7 +186,14 @@ export function MobileNav({ onNavigate }: { onNavigate: () => void }): JSX.Eleme
                   {group.label}<span className="mobile-nav-count">{group.links.length}</span>
                 </summary>
                 <div className="mobile-nav-group-links">
-                  {group.links.map((link) => renderLink(link, group.planned))}
+                  {group.links.map((link, index) => (
+                    <Fragment key={link.href}>
+                      {link.group && (index === 0 || group.links[index - 1]?.group !== link.group) ? (
+                        <p className="mobile-nav-subheading" style={{ margin: "12px 0 4px" }}>{link.group}</p>
+                      ) : null}
+                      {renderLink(link, group.planned)}
+                    </Fragment>
+                  ))}
                 </div>
               </details>
           ))}
