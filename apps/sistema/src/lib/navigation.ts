@@ -111,6 +111,8 @@ export interface AdminNavLink {
   href: string;
   /** Destaca o item como ação principal do dia a dia (ex.: Nova matéria). */
   primary?: boolean;
+  /** Somente para o proprietário ativo. */
+  ownerOnly?: boolean;
 }
 
 export interface AdminNavGroup {
@@ -184,6 +186,7 @@ export const configuracoesNavGroup: AdminNavGroup = {
   label: "Configurações",
   links: [
     { label: "Usuários", href: "/sistema/usuarios" },
+    { label: "Assistente IR — Inteligência artificial", href: "/sistema/configuracoes/assistente-ir", ownerOnly: true },
     { label: "Patrocinadores do site", href: "/sistema/configuracoes/patrocinadores" },
     { label: "Notificações push", href: "/sistema/configuracoes/notificacoes-push" },
     { label: "Valores da página Assine", href: "/sistema/configuracoes/valores-assine" },
