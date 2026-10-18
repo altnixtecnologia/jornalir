@@ -41,6 +41,10 @@ export async function saveAndroidAppReleaseAction(input: {
       if (Number.isFinite(actualLength) && actualLength > 0 && actualLength !== size) {
         return { error: "O tamanho informado não corresponde ao arquivo no R2." };
       }
+      const mime = (response.headers.get("content-type") || "").toLowerCase().split(";")[0].trim();
+      if (mime && !["application/vnd.android.package-archive", "application/octet-stream"].includes(mime)) {
+        return { error: "O arquivo publicado no R2 não parece ser um APK Android." };
+      }
     } catch {
       return { error: "Não foi possível confirmar o APK no R2. Publicação cancelada." };
     }
@@ -51,6 +55,10 @@ export async function saveAndroidAppReleaseAction(input: {
   if (oldError || !existing) return { error: "Cadastro de versões indisponível. Confira a migration." };
   if (input.published && existing.published && versionCode < existing.version_code) {
     return { error: "O código da versão nova não pode ser menor que o já publicado." };
+  }
+  if (input.published && existing.published && versionCode === existing.version_code
+      && existing.version_label !== versionLabel) {
+    return { error: "Uma nova versão do APK precisa incrementar seu código interno Android." };
   }
   const now = new Date().toISOString();
   const { error } = await db.from("mobile_app_releases").update({
