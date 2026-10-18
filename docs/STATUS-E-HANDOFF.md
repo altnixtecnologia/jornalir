@@ -1490,3 +1490,27 @@ aplicada/mensagem real nesta etapa.
   existem em produção, não presumir); revisar/testar as duas telas novas com
   sessão autenticada real.
 - Aguardando conferência do responsável antes de qualquer implantação.
+
+## APK PILOTO JORNAL IR v.00.00 — compilado, assinado e publicado no R2 (18/10/2026)
+
+Sincronizado primeiro (ff-only, `e1f4478`, 5 commits trazidos do ChatGPT: toggle
+Assine reforçado no banco, RPC de avisos administrativos, página/migration de
+versões do app, correção de MIME do APK). Detalhes completos em
+`docs/APK-PILOTO-VERSOES-JORNAL-IR.md` (seção "Resultado da compilação/publicação").
+
+**Resumo:** `apps/mobile/package.json` corrigido (dependências do Capacitor
+agora declaradas); keystore de release real gerado e guardado fora do
+repositório; `assembleRelease` compilado e **assinado de verdade**
+(`apksigner verify` = Verifies: true); `com.jornalir` / `versionCode=1` /
+`versionName=v.00.00` confirmados via `aapt`; 3.151.468 bytes, SHA-256
+`bf223cd5df13125b1fda392916397c95b9d55eebc6e30ccf5e1ca412a6126529`; enviado ao
+bucket R2 real (`jornalir-media`) sem sobrescrever nada; download íntegro
+confirmado (hash do arquivo baixado = hash original).
+
+**Link direto para instalação:**
+`https://pub-3d61ff8f7b474fcdbaa936f006ba2bf4.r2.dev/aplicativos/android/jornal-ir-v.00.00.apk`
+
+Commit local `269c0ea`. **Não aplicada** a migration de versões, **não**
+registrado no painel `/sistema/configuracoes/aplicativo`, **não** liberado o
+botão em `/aplicativo`, **nenhum** push/deploy — por instrução explícita,
+aguardando autorização separada para essa próxima etapa.
