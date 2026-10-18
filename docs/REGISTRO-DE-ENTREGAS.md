@@ -150,3 +150,23 @@ modelos originais. Homenagens criadas por IA sao individuais e opcionais.
 - Orientado proprietário a gerar novo segredo de 32 bytes Base64 **localmente** (PowerShell), copiar por clipboard e substituir somente a variável `AI_CONFIG_ENCRYPTION_KEY` em Vercel Production sem colar valores em chat. O usuário ainda não confirmou execução.
 - Após alteração do segredo, é necessária nova publicação para injetar a variável no runtime. NÃO fazer deploy sem autorização; preferir a próxima publicação agrupada dos ajustes do menu e UX (chave/modelos/switch).
 - Nenhuma edição no banco, deploy ou segredo feita pelo agente neste diagnóstico.
+
+## 2026-10-18 — Assistente IR: conversa com IA e leituras de módulos (em desenvolvimento, SEM produção)
+
+- Proprietário exigiu concluir efetivamente a IA, sem confundir estrutura inicial com funcionalidade pronta. Continuação ocorre exclusivamente na branch `feature/assistente-ir-base-20261018`, mantendo pasta VS Code e branch oficial local intocadas.
+- Foram criados e integrados:
+  - `6fbcb4c` — `apps/sistema/src/app/sistema/assistente-ir/actions.ts`: pergunta real ao provedor configurado (OpenAI Responses / Anthropic Messages), owner autenticado e ativo, cofre no servidor, global ON e módulo ON, histórico limitado, RLS do usuário, resumos Financeiro/Site/Agenda, sem comandos de escrita; rate/timeout por chamada, extração de resposta e contagem de tokens em auditoria (sem perguntas/respostas em log).
+  - `bdecf21` — `apps/sistema/src/features/configuracoes/AiAssistantChatPanel.tsx`: interface de conversa com mensagens, atalhos, erros e fontes de consulta.
+  - `18e73b4` — `apps/sistema/src/app/sistema/assistente-ir/page.tsx`: página `/sistema/assistente-ir` protegida por autenticação owner.
+  - `38795d5` — menu de Configurações com Conversar + Configurar para owner; desktop e mobile usam navegação compartilhada.
+  - `5102e8d` — acesso à conversa a partir das Configurações.
+  - `99a8c78` — botão de conversa no painel de configurações e limpeza de consulta duplicada de catálogo.
+  - `62e270c` — histórico agregado de tokens nos últimos sete dias por modelo a partir de `audit_events`, filtrado por owner e RLS.
+  - `e74377d` — UI de consulta de uso manual, sem histórico de perguntas no servidor.
+  - `1ef6a34` — contagens agregadas adicionais de Clientes, Editorial, Aniversariantes, Contratos e Fiscal (total oito módulos). Sem nomes, CPF/CNPJ, dados de cliente ou textos internos enviados às APIs.
+  - `51be8d3` — restrições no prompt para respostas ancoradas exclusivamente nos dados agregados disponíveis.
+- Este é um **assistente de conversa e leitura**. Escrever em outros módulos, enviar WhatsApp, baixar PIX, publicar notícias, emitir NFS-e ou executar tarefas automaticamente **NÃO foi implementado**. A central de propostas/execução e rotinas autônomas continuam como lacunas reais. NÃO anunciar como concluídas.
+- Para validar sem deploy Vercel: `be803e5` incluiu temporariamente a branch do Assistente no gatilho do workflow GitHub `validate-system.yml` (typecheck + build e smoke de contratos). Execuções iniciadas em `https://github.com/altnixtecnologia/jornalir/actions`; conferir resultado final e remover gatilho extra se causar múltiplas execuções. `apps/sistema/vercel.json` segue `git.deploymentEnabled: false`.
+- Produção ainda aponta para `948060c`; alterações presentes SOMENTE no GitHub feature. Nenhuma chave de API cadastrada ou chamada real OpenAI/Claude; nenhuma mudança no banco, migrations ou configuração Vercel neste lote.
+- Bloqueio em produção: `AI_CONFIG_ENCRYPTION_KEY` existe no ambiente Production mas a tela indica cofre inválido/indisponível; usuário foi orientado a gerar 32 bytes Base64 localmente e editar somente a variável, porém **ainda não confirmou execução**. Valor NÃO foi lido. Após correção, será preciso novo deploy AUTORIZADO para o runtime.
+- Próximos critérios para dizer pronto: CI completo OK na versão final; conferir variável no runtime, cadastrar e testar cada API, efetuar geração real em cada provedor, testar RLS owner/não-owner, falhas de chave e saldo, selecionar modelo, habilitar módulos, conferir oito contagens e auditar consumo; somente depois autorizar publicação e homologar. Novas operações mutáveis e jobs exigem revisão separada de escopo e proteção.
