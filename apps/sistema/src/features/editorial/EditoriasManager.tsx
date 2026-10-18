@@ -145,7 +145,7 @@ export function EditoriasManager({ sections }: EditoriasManagerProps): JSX.Eleme
       ) : null}
 
       <div className="materias-table-wrap">
-        <table className="materias-table">
+        <table className="materias-table editorias-table">
           <thead>
             <tr>
               <th>Ordem</th>
@@ -221,7 +221,7 @@ export function EditoriasManager({ sections }: EditoriasManagerProps): JSX.Eleme
                     </>
                   ) : (
                     <>
-                      <td className="materia-title">{section.name}</td>
+                      <td><span className="materia-title">{section.name}</span></td>
                       <td className="materia-reference">{section.slug}</td>
                       <td>{section.description ?? "—"}</td>
                       <td>
