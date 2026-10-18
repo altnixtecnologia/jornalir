@@ -19,7 +19,7 @@ export type AssistantReply = {
 } | { error: string };
 
 const AUDIT_ID = "00000000-0000-4000-8000-000000000201";
-const DATA_MODULES = ["financeiro", "site", "agenda"] as const;
+const DATA_MODULES = ["financeiro", "site", "agenda", "clientes", "editorial", "aniversariantes", "contratos", "fiscal"] as const;
 const SYSTEM_RULES = [
   "Você é o Assistente IR do sistema administrativo do Jornal Informativo Regional.",
   "Responda em português claro, objetivamente, sem inventar dados, resultados ou acesso a funções.",
@@ -103,6 +103,36 @@ async function operationalContext(
       compromissos_proximos_sete_dias_incluindo_hoje: weekResult.count,
     };
     sources.push("Agenda — compromissos agregados");
+  }
+
+  // Apenas contagens agregadas; nunca enviar nomes, documentos, dados pessoais ou textos internos.
+  // O banco aplica RLS com a sessão do proprietário. Falhas são rotuladas como indisponíveis.
+  const counts: Array<{ module: AiModuleKey; table: string; label: string; key: string }> = [
+    { module: "clientes", table: "clients", label: "Clientes — quantidade cadastrada", key: "clientes_cadastrados" },
+    { module: "editorial", table: "articles", label: "Editorial — matérias não arquivadas", key: "materias_nao_arquivadas" },
+    { module: "aniversariantes", table: "birthday_entries", label: "Aniversariantes — registros", key: "aniversariantes_cadastrados" },
+    { module: "contratos", table: "institutional_contracts", label: "Contratos — contratos institucionais", key: "contratos_institucionais" },
+    { module: "fiscal", table: "nfse_drafts", label: "Fiscal — rascunhos de NFS-e", key: "rascunhos_nfse" },
+  ];
+  for (const item of counts) {
+    if (modes[item.module] === "off") continue;
+    let query = db.from(item.table).select("id", { count: "exact", head: true });
+    if (item.module === "editorial") query = query.is("archived_at", null);
+    const { count, error } = await query;
+    if (error || count === null) {
+      context[item.module] = { indisponivel: true };
+    } else {
+      context[item.module] = { [item.key]: count };
+      sources.push(item.label);
+    }
+  }
+  if (modes.fiscal !== "off") {
+    const { count, error } = await db.from("nfse_issued_notes")
+      .select("id", { count: "exact", head: true });
+    if (!error && count !== null) {
+      context.fiscal = { ...(context.fiscal as Record<string, unknown>), notas_registradas: count };
+      sources.push("Fiscal — notas registradas");
+    }
   }
   return { context, sources };
 }
