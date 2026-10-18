@@ -1062,3 +1062,101 @@ repositório Git, pasta `output/` gitignored).
   se estão completas); Lote 3/4 do plano original (Web Push/app nativo, QA de
   publicidade 6 posições) continuam em aberto e sem relação com esta importação.
 - Aguardando novas instruções do proprietário.
+
+## CORREÇÃO VISUAL — tela de edição de matéria (18/10/2026)
+
+Branch `feature/site-lancamento-editorial-publicidade-20261018`, sem push/deploy.
+Único arquivo alterado: `apps/sistema/src/app/globals.css` (CSS puro, nenhuma
+lógica/JSX tocada).
+
+### Causa raiz real (confirmada renderizando a tela, não só lendo o código)
+
+Montei um harness HTML isolado com o CSS real compilado (`npx tailwindcss`) e o
+JSX exato dos 5 campos + linha de mídia, e screenshotei via Playwright
+(instalado/desinstalado temporariamente) antes e depois — confirmação visual, não
+suposição.
+
+- **Causa #1 (a real, pelos 5 campos)**: `apps/sistema/src/app/globals.css` já
+  tinha uma regra `.article-form input[type="text"], .article-form select, ...`
+  com `padding: 11px 12px` e `font-size: 14px`, mas **nunca declarava a própria
+  `height`** — por isso herdava `height: 36px` da linha de base genérica do
+  arquivo. Conta: 36px − 2px de borda − 22px de padding = **12px de altura útil**
+  para texto de 14px → corte vertical real, confirmado no screenshot (o texto
+  aparecia como um traço/ponto irreconhecível). Isso explica exatamente os 5
+  campos relatados (Assunto/editoria, Abrangência, Data e hora, Destaque,
+  Notificação) — todos batem com o seletor dessa regra.
+- **Causa #2 (agravante em `<select>`)**: nenhum `<select>` do sistema tinha
+  `appearance: none` — o navegador/SO decide sozinho o padding/posicionamento
+  interno do texto fechado do combobox nativo, o que piora o corte em alguns
+  navegadores/SO de forma imprevisível pelo CSS.
+- **Causa #3 (botão do olho)**: `.article-media-view` (34×34px) não tinha
+  `display:flex;align-items:center;justify-content:center` — o emoji "👁" ficava
+  posicionado pela métrica de linha default da fonte, não centralizado na caixa.
+  `.compact-clear-button` (o "×" de limpar data) tinha `height: 38px`, 2px
+  diferente do padrão de 36px — pequena mas real inconsistência de alinhamento.
+
+### Correção aplicada
+
+1. `.article-form input[type="text"|datetime-local]:not([type]), .article-form select`
+   ganharam `height: 44px; line-height: 20px;` explícitos (44 − 2 borda − 22
+   padding = 20px, igual ao `line-height` — centralização exata, sem depender de
+   herança). `.article-form textarea` ficou de fora de propósito (sem uso real
+   neste formulário hoje — o corpo é um editor próprio).
+2. `.article-form select` (só dentro do formulário de matéria — **nunca** o
+   `select` genérico nem `.form-field select`, usado em outras 52 telas) ganhou
+   `appearance: none` + seta própria (SVG inline, mesmo tom de `--ink`),
+   assumindo o controle total do visual em vez de depender do navegador/SO.
+   Escopo deliberadamente estreito para não arriscar nenhuma das outras telas
+   (`.materias-table select`, `.cadastros-pagesize select` etc. já têm seu
+   próprio `padding` e ganhariam uma seta sobreposta ao texto se o reset fosse
+   global).
+3. `.article-media-view` (botão do olho) e `.compact-clear-button` (botão "×")
+   ganharam `display:flex;align-items:center;justify-content:center` — centraliza
+   o conteúdo (emoji/símbolo) dentro da própria caixa, independente da métrica da
+   fonte. `.compact-clear-button` também passou a usar a mesma altura do input de
+   data ao lado (44px, antes 38px — nem igual ao próprio input nem ao padrão do
+   resto do sistema).
+4. Também reforçada a linha de base GENÉRICA (`input`/`select` fora de
+   `.article-form`, usada em todo o resto do sistema): `line-height: 34px` (igual
+   ao content-box de `height: 36px`) — aditivo, nunca remove nada, melhora a
+   centralização em qualquer tela que já usasse só a altura genérica, sem mudar
+   padding/largura/cor de ninguém.
+
+### Por que o `appearance:none` ficou escopado (não global)
+
+Cheguei a testar um reset global de `select` primeiro; o harness mostrou que o
+texto de TODOS os selects do sistema sumia (virava um traço ilegível) porque
+várias telas mais antigas (`.materias-table select`, `.cadastros-pagesize select`
+etc.) já têm seu próprio `padding`/`height` pensados para o visual nativo do
+navegador — aplicar `appearance:none` ali sem ajustar cada uma quebraria essas 52
+outras telas. Corrigido restringindo a `.article-form select` antes de prosseguir
+— nenhuma outra tela foi tocada.
+
+### Testes
+
+- Harness visual (HTML + CSS real compilado + Playwright): confirmado "antes"
+  (texto cortado/ilegível, exatamente como a captura do usuário) e "depois" (texto
+  completo, centralizado, seta consistente, botão do olho perfeitamente
+  centralizado e alinhado com "Remover") nos 5 campos + linha de mídia.
+- `npm run typecheck --workspace @ir/sistema`: limpo.
+- `npm run build --workspace @ir/sistema`: concluído com sucesso.
+- Mudança é só CSS (nenhum `.tsx` alterado) — o mesmo `ArticleForm.tsx` é
+  reaproveitado por matéria nova e por matéria importada do legado (mesmo
+  componente, sem variação de layout por origem), então a correção vale para os
+  dois casos automaticamente. Blocos "Publicação", "Assunto e localidade" e
+  "Imagens da matéria" são exatamente os blocos corrigidos.
+- **Não testado** (sem sessão autenticada nesta sessão): abrir a tela real
+  logado no navegador para conferir pixel a pixel contra a captura original do
+  usuário — a validação foi via harness isolado com o CSS/JSX reais, não a
+  aplicação rodando. Recomendo conferência visual rápida pelo responsável antes
+  de prosseguir para a próxima etapa de homologação.
+
+### O que falta na homologação visual (próxima etapa, aguardando autorização)
+
+- Páginas públicas das matérias importadas do legado (56 publicadas no lote
+  anterior).
+- Homepage/notícias do portal público.
+- Patrocinadores (6 posições, 2 imagens cada).
+- Comportamento responsivo desktop/tablet/mobile em todas as telas acima.
+- Conferência da própria tela de matéria (este lote) com sessão autenticada real,
+  em complemento ao harness isolado.

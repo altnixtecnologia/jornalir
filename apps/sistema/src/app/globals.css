@@ -100,16 +100,28 @@ button:disabled {
   cursor: not-allowed;
   opacity: 0.6;
 }
+/* `line-height` igual à altura do content-box (36px de height, border-box,
+   1px de borda em cima/embaixo = 34px) é o jeito confiável de centralizar
+   verticalmente o texto de UMA linha em qualquer navegador/SO — sem isto, o
+   texto fica sujeito ao `line-height` herdado (normal/1.x do body), que em
+   alguns motores de renderização de formulário (ex.: o `<select>` nativo em
+   certos navegadores/SO) soma à altura do widget e corta o texto na borda
+   em vez de centralizar (achado real de 18/10/2026, não hipotético — campos
+   Assunto/Abrangência/Data e hora/Destaque/Notificação da tela de matéria
+   apareciam com texto cortado verticalmente). */
 input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]),
 select {
   height: 36px;
+  min-height: 36px;
   padding: 0 10px;
+  line-height: 34px;
   font-family: inherit;
   font-size: 12px;
   color: var(--ink);
   border: 1px solid var(--line);
   border-radius: 3px;
   background: #fffefa;
+  vertical-align: middle;
 }
 textarea {
   min-height: 72px;
@@ -2006,6 +2018,16 @@ textarea:focus {
   color: var(--muted);
   font-variant-numeric: tabular-nums;
 }
+/* CAUSA REAL do corte de texto (achado em 18/10/2026, confirmado
+   renderizando a tela real, não só lendo o CSS): esta regra já definia
+   `padding: 11px 12px` (22px verticais) mas nunca declarava a própria
+   `height`, então herdava o `height: 36px` da linha de base genérica (ver
+   topo do arquivo) — 36px - 2px de borda - 22px de padding sobra só 12px
+   de altura útil para um texto de 14px, cortando o conteúdo. `input`/
+   `select` ganham a altura que o padding de 14px realmente precisa; a
+   `textarea` (hoje sem uso real neste formulário — o corpo é um editor
+   próprio, nunca um `<textarea>`) continua sem `height` fixo de propósito,
+   para nunca travar um campo que deveria crescer com o conteúdo. */
 .article-form input[type="text"],
 .article-form input:not([type]),
 .article-form input[type="datetime-local"],
@@ -2019,6 +2041,38 @@ textarea:focus {
   font-family: inherit;
   color: var(--ink);
   background: #fffefa;
+}
+.article-form input[type="text"],
+.article-form input:not([type]),
+.article-form input[type="datetime-local"],
+.article-form select {
+  height: 44px;
+  line-height: 20px;
+}
+/* `<select>` sem `appearance: none` deixa o SO/navegador decidir o
+   padding/posicionamento interno do texto fechado — depender disso foi
+   uma causa adicional real do corte em alguns navegadores/SO nos campos
+   Assunto/Abrangência/Destaque/Notificação (18/10/2026). Escopado a
+   `.article-form select` (não ao `select` genérico nem a `.form-field
+   select`, usado em 52 outras telas): várias telas mais antigas já têm seu
+   próprio `padding` para select (ex.: `.materias-table select`,
+   `.cadastros-pagesize select`) e ganhariam uma seta sobreposta ao texto se
+   este reset de aparência alcançasse elas — nunca alterar outras telas sem
+   necessidade (restrição explícita desta tarefa). Precisa vir DEPOIS da
+   regra de padding acima (mesma especificidade — a ordem no arquivo decide
+   o empate) para que `padding-right` não seja sobrescrito de volta. */
+.article-form select {
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  padding-right: 30px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='%23202b29' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='4 6 8 10 12 6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+  background-size: 12px 12px;
+}
+.article-form select:disabled {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='%2366706b' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='4 6 8 10 12 6'/%3E%3C/svg%3E");
 }
 .article-form input:focus,
 .article-form select:focus,
@@ -3836,12 +3890,16 @@ button.secondary-link {
   white-space: nowrap;
 }
 .article-media-view {
+  display: flex;
+  align-items: center;
+  justify-content: center;
   width: 34px;
   height: 34px;
   border: 1px solid var(--line);
   border-radius: 4px;
   background: #fff;
   font-size: 15px;
+  line-height: 1;
   cursor: pointer;
 }
 @media (max-width: 900px) {
@@ -4683,8 +4741,15 @@ button.secondary-link {
   min-width: 0;
 }
 .compact-clear-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
   width: 34px;
-  height: 38px;
+  /* `.compact-datetime` só é usado dentro de `.article-form` (único
+     consumidor no projeto) — mesma altura do `input[type=datetime-local]`
+     ao lado (44px, ver regra de `.article-form input` acima), nunca os
+     36px genéricos de botão. */
+  height: 44px;
   border: 1px solid var(--line);
   border-radius: 4px;
   background: #fff;
