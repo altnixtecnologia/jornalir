@@ -1,4 +1,6 @@
+import type { Metadata } from "next";
 import Link from "next/link";
+import { cache } from "react";
 import { notFound } from "next/navigation";
 import { formatDateBR } from "../../../../components/site/date";
 import { AdSlotColumn } from "../../../../components/site/AdSlotColumn";
@@ -15,10 +17,45 @@ import { getPublicSiteAds } from "../../../../lib/public/siteAdsService";
 // qualquer minuto (cron de agendamento, Fase 30).
 export const dynamic = "force-dynamic";
 
+// Mesma leitura para a página e suas tags de compartilhamento no request.
+const loadArticle = cache(getPublicArticleBySlug);
+
+function getArticleDescription(subtitle: string | undefined, body: string): string {
+  // Remove marcação HTML antes de usar texto em metadados. Jamais inserir HTML cru.
+  const text = (subtitle || body).replace(/<[^>]*>/g, " ").replace(/\\s+/g, " ").trim();
+  return text.slice(0, 190) || "Notícias e informações do Informativo Regional.";
+}
+
+export async function generateMetadata({ params }: { params: { slug: string } }): Promise<Metadata> {
+  const article = await loadArticle(params.slug);
+  if (!article) return { title: "Matéria não encontrada | Informativo Regional", robots: { index: false } };
+  const description = getArticleDescription(article.subtitle, article.body);
+  const canonical = `/noticias/${encodeURIComponent(article.slug)}`;
+  const image = article.cover?.url
+    ? [{ url: article.cover.url, alt: article.cover.altText || article.title }]
+    : undefined;
+  return {
+    title: `${article.title} | Informativo Regional`,
+    description,
+    alternates: { canonical },
+    openGraph: {
+      type: "article", url: canonical, siteName: "Informativo Regional",
+      title: article.title, description,
+      publishedTime: article.publishedAt,
+      ...(image ? { images: image } : {}),
+    },
+    twitter: {
+      card: image ? "summary_large_image" : "summary",
+      title: article.title, description,
+      ...(image ? { images: image } : {}),
+    },
+  };
+}
+
 const PHASE_OFFSET_STEP_MS = 1200;
 
 export default async function NoticiaDetalhePage({ params }: { params: { slug: string } }): Promise<JSX.Element> {
-  const current = await getPublicArticleBySlug(params.slug);
+  const current = await loadArticle(params.slug);
   if (!current) notFound();
 
   const [readAlso, siteAds] = await Promise.all([getReadAlso(current, 4), getPublicSiteAds()]);
