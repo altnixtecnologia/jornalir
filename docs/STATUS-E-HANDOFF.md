@@ -736,3 +736,13 @@ O ChatGPT abriu `feature/assistente-ir-base-20261018` a partir desse SHA e imple
 - **VERCEL SECRETS:** `AI_CONFIG_ENCRYPTION_KEY` configurada pelo proprietário como Sensitive em Production, presença verificada; valor não acessado. Chaves OpenAI/Anthropic serão cadastradas pelo proprietário no painel, NÃO recebidas no chat. Assistente IR desativado por padrão.
 - **PENDENTE TESTAR:** autenticação e fluxos reais Aniversariantes, modelos editoriais e IA; permissões de owner, escrita de segredos cifrados e troca de provedores, resumo operacional, integrações. Nenhum teste E2E autenticado ainda. Nenhuma automação autônoma implantada.
 - **OPERACIONAL:** não atualizar o VS Code até o próximo uso de Claude ou Codex. Consultar `docs/REGISTRO-DE-ENTREGAS.md` (contém todos os commits e ID de deploy). Novo trabalho em feature não altera versão já publicada sem outro deploy autorizado.
+
+## 18/10/2026 — CONTINUIDADE IA: conversa, módulos e propostas (ainda sem deploy)
+
+- Branch: `feature/assistente-ir-base-20261018` (somente GitHub; VS Code e `consolidacao-local-20261016` intocados).
+- Produção Vercel continua em `948060c`, anterior às melhorias do menu/chaves/modelos/switch e à conversa IA.
+- Implementado desde essa publicação: menu Assistente IR owner desktop/mobile, lista de modelos com catálogo API, cofre com diagnóstico visível, chave digitável, switch Liga/Desliga, nova conversa real `/sistema/assistente-ir` com OpenAI Responses / Anthropic Messages, síntese agregada de oito módulos permitidos com RLS, auditoria de tokens, central `/sistema/assistente-ir/propostas` para registrar/aprovar/recusar sugestões SEM executar operações.
+- Camada de proteção: proprietário ativo e autenticação validada em Server Actions, global ON + módulo ON + cofre, limites de entrada e saída, timeout, nenhum dado individual enviado automaticamente, logs de auditoria sem texto pessoal, nenhum operador pode ler segredo.
+- CI: workflow `validate-system.yml` temporariamente habilitado para a branch e removido posteriormente (`be803e5`, `fcee156`); primeiros builds passaram, conferir workflow mais recente `39129277867` antes de declarar a versão final validada.
+- FALTAM: confirmação da troca/validade de `AI_CONFIG_ENCRYPTION_KEY` no runtime da Vercel (variável existe mas o código publicou mensagem de cofre indisponível), cadastro das chaves nas configurações, teste com APIs reais, testes owner/RLS com sessão, CI final e publicação com autorização. **Rotinas autônomas com agendamento e executores que alteram outros módulos ainda não foram implementados**. A aprovação de proposta é só revisão.
+- Documentação com todos os commits, critérios de teste e sequência: `docs/REGISTRO-DE-ENTREGAS.md` (consultar HEAD vigente).
