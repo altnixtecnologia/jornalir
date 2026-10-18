@@ -116,3 +116,14 @@ modelos originais. Homenagens criadas por IA sao individuais e opcionais.
 - **HOMOLOGAÇÃO:** build Next/TS completo na Vercel passou; testes autenticados de páginas/actions, operações no banco, chaves de API OpenAI/Claude, fluxos Aniversariantes/clientes e UX completa **ainda não ocorreram** e serão feitos pelo proprietário. Não confundir READY com homologação.
 - **SHA publicado != HEAD atual da branch:** após iniciar o deploy, ajustes somente de nomes dos arquivos SQL e documentação foram registrados na feature. O código implantado corresponde a `948060c`. Quando Claude/Codex voltar a desenvolver, sincronizar HEAD INTEIRO da feature, incluindo renomeação `20295a0` e registro desta publicação.
 - **Atenção:** Assistente IR continua desligado e não executa jobs automáticos, cobranças, mensagens ou decisões. O proprietário poderá cadastrar as chaves em Configurações → Assistente IR e ativar manualmente, depois de conferir o login. Consumo das APIs é cobrado separadamente das assinaturas ChatGPT/Claude.
+
+## 2026-10-18 — Correção de navegação Assistente IR (não publicada)
+
+- Problema observado em produção: dropdown Configurações não mostrava Assistente IR mesmo após Ctrl+Shift+F5; a entrada havia sido adicionada somente na página `/sistema/configuracoes`, não ao menu de navegação compartilhado.
+- Diagnóstico confirmado no SHA publicado `948060c`: `configuracoesNavGroup` não continha o link. Banco Supabase consultado em modo leitura: o perfil do proprietário encontra-se `owner` e `active=true`; não foi necessário alterar permissões ou dados.
+- Correção aplicada APENAS à branch `feature/assistente-ir-base-20261018`, mantendo os controles por papel:
+  - `a10f39f`: registra link em `apps/sistema/src/lib/navigation.ts` com `ownerOnly: true`.
+  - `0c04813`: filtra o dropdown desktop em `apps/sistema/src/components/admin/AdminHeader.tsx`.
+  - `f31bb81`: filtra menu e busca mobile em `apps/sistema/src/components/admin/MobileNav.tsx`.
+- Status: alteração somente em GitHub, NÃO publicada, NÃO sincronizada no VS Code, sem migrations, sem alteração de produção ou segredo. Inspeção estática efetuada; typecheck, build e teste funcional da nova navegação PENDENTES.
+- Próximo passo: proprietário pode testar o Assistente IR JÁ PUBLICADO pelo URL direto `https://controle.altnix.com.br/sistema/configuracoes/assistente-ir`. Verificar se abre e se o cofre está disponível; cadastrar chaves somente na interface, sem compartilhar no chat. Para o menu aparecer será necessário um NOVO deploy após validação e autorização, idealmente junto de outras correções do lote.
