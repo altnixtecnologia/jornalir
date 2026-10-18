@@ -27,6 +27,10 @@ export function SitePushPreferences(): JSX.Element {
   const [publicKey, setPublicKey] = useState("");
   const [ordinary, setOrdinary] = useState(true);
   const [urgent, setUrgent] = useState(true);
+  // Avisos gerais (institucional/comercial) é uma categoria SEPARADA das
+  // notícias e exige consentimento explícito — nunca pré-marcada por padrão
+  // (18/10/2026), diferente de ordinary/urgent.
+  const [general, setGeneral] = useState(false);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
 
@@ -45,9 +49,10 @@ export function SitePushPreferences(): JSX.Element {
         const saved = localStorage.getItem(PREFERENCES_KEY);
         if (saved) {
           try {
-            const prefs = JSON.parse(saved) as { ordinary?: boolean; urgent?: boolean };
+            const prefs = JSON.parse(saved) as { ordinary?: boolean; urgent?: boolean; general?: boolean };
             if (typeof prefs.ordinary === "boolean") setOrdinary(prefs.ordinary);
             if (typeof prefs.urgent === "boolean") setUrgent(prefs.urgent);
+            if (typeof prefs.general === "boolean") setGeneral(prefs.general);
           } catch {
             // Preferências locais inválidas não devem impedir o cadastro.
             localStorage.removeItem(PREFERENCES_KEY);
@@ -78,8 +83,8 @@ export function SitePushPreferences(): JSX.Element {
   async function activate(): Promise<void> {
     if (busy || !publicKey) return;
     setMessage(null);
-    if (!ordinary && !urgent) {
-      setMessage("Escolha ao menos um tipo de notícia.");
+    if (!ordinary && !urgent && !general) {
+      setMessage("Escolha ao menos um tipo de aviso.");
       return;
     }
     setBusy(true);
@@ -112,12 +117,12 @@ export function SitePushPreferences(): JSX.Element {
         body: JSON.stringify({
           subscription: { endpoint: subscription.endpoint, keys: payload.keys },
           managementToken: token,
-          ordinary, urgent, platform: platform(),
+          ordinary, urgent, general, platform: platform(),
         }),
       });
       const result = await response.json() as { error?: string; ok?: boolean };
       if (!response.ok || !result.ok) throw new Error(result.error || "Cadastro recusado");
-      localStorage.setItem(PREFERENCES_KEY, JSON.stringify({ ordinary, urgent }));
+      localStorage.setItem(PREFERENCES_KEY, JSON.stringify({ ordinary, urgent, general }));
       setStatus("active");
       setMessage("Preferências registradas. Você poderá receber notícias quando houver novos envios.");
     } catch (error) {
@@ -168,6 +173,10 @@ export function SitePushPreferences(): JSX.Element {
         <label className="flex cursor-pointer items-start gap-3 rounded-lg border p-3">
           <input type="checkbox" checked={urgent} onChange={(e) => setUrgent(e.target.checked)} className="mt-1 h-5 w-5" disabled={busy} />
           <span><strong>Notícias urgentes</strong><small className="mt-1 block">Alertas importantes, com vibração quando o aparelho permitir.</small></span>
+        </label>
+        <label className="flex cursor-pointer items-start gap-3 rounded-lg border p-3">
+          <input type="checkbox" checked={general} onChange={(e) => setGeneral(e.target.checked)} className="mt-1 h-5 w-5" disabled={busy} />
+          <span><strong>Avisos gerais</strong><small className="mt-1 block">Mensagens institucionais/comerciais do Jornal IR, separadas das notícias — opcional.</small></span>
         </label>
       </div>
       {status === "checking" ? <p className="text-sm">Verificando compatibilidade...</p> : null}

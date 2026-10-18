@@ -1311,3 +1311,182 @@ resto do projeto.
    carrega.
 
 Aguardando revisão do responsável antes de qualquer push/deploy/aplicação de migration.
+
+## COMERCIAL/ASSINATURAS — AVISOS SEPARADOS + APP PILOTO ANDROID (18/10/2026)
+
+Branch `feature/site-lancamento-editorial-publicidade-20261018`, HEAD anterior
+`2f91d6a` (confirmado = remoto `980eca2`, nada perdido). Sem push/deploy/migration
+aplicada/mensagem real nesta etapa.
+
+### Item 2 — Comercial → Avisos gerais (push), separado de notícias
+
+- **Nova categoria de consentimento** `administrative_enabled` em
+  `site_push_subscriptions` (migration nova, não aplicada) — independente de
+  `ordinary_enabled`/`urgent_enabled`. Default `false`: exige opt-in explícito
+  (checkbox desmarcado por padrão em `SitePushPreferences.tsx`, diferente de
+  notícias normais/urgentes que já vêm marcadas).
+- `kind='administrative'` em `notification_events` já existia no CHECK
+  constraint desde a fundação do sistema (`20261015153801`), mas nunca tinha
+  sido implementado ponta a ponta — reaproveitado em vez de inventar um novo
+  valor. Trigger `queue_site_push_event()` e `claim_site_push_deliveries()`
+  atualizados para incluir esse kind (migration nova); `processSiteDeliveries`
+  do cron (`apps/sistema/src/app/api/cron/push/route.ts`) corrigido para
+  checar a coluna de consentimento certa por kind (antes, qualquer kind
+  diferente de "urgent" caía incorretamente em `ordinary_enabled`).
+- **Nova tabela** `commercial_announcements` (rascunho/revisão/histórico) —
+  sem ela, não dava para "salvar rascunho" sem já disparar a fila real
+  (inserir em `notification_events` aciona o trigger na hora). Só ao
+  "Confirmar envio" a aplicação insere em `notification_events` de verdade.
+- **Tela nova** `/sistema/publicidade/avisos` (menu Comercial → "Avisos
+  gerais"): compor (título/mensagem/link opcional) → salvar rascunho →
+  revisar com **prévia de celular** → confirmar envio. Histórico com status
+  rascunho/enviado. Acesso restrito a owner/admin (RLS própria + checagem na
+  Server Action). Proteção contra envio duplicado: `send_request_id` único +
+  `dedupe_key` em `notification_events` (mesmo padrão já usado por
+  `EditorialPushSender.tsx`).
+- **Envio real DESLIGADO de propósito**: `confirmAnnouncementSendAction`
+  recusa com mensagem clara a menos que `COMMERCIAL_PUSH_SEND_ENABLED=true`
+  esteja definida — não configurada em lugar nenhum ainda. Rascunho/revisão/
+  prévia funcionam normalmente mesmo assim.
+- Arquivos: `supabase/migrations/20261030100200_commercial_general_push_announcements.sql`;
+  `apps/sistema/src/app/sistema/publicidade/avisos/{actions.ts,page.tsx}`;
+  `apps/sistema/src/features/publicidade/AvisosGeraisPanel.tsx`;
+  `apps/sistema/src/app/api/cron/push/route.ts`;
+  `apps/sistema/src/app/api/public/push/route.ts`;
+  `apps/site/src/components/site/public/SitePushPreferences.tsx`;
+  `apps/sistema/src/lib/navigation.ts`.
+
+### Item 3 — Assinaturas → Avisos de vencimento (WhatsApp), processo manual
+
+- **Nova tela** `/sistema/assinaturas/avisos-vencimento` (menu Assinaturas):
+  1) filtro flexível (mês atual/próximo/período personalizado) sobre
+     `subscriptions.status='active'` + `next_due_date` real (nunca inventa
+     data; `due_day` só usado para sinalizar divergência, nunca para calcular
+     vencimento sozinho) → 2) "Selecionar todos" → 3) "Transferir
+     selecionados" para uma **lista editável** → 4) busca para adicionar
+     outros clientes, remover individualmente, telefone exibido com aviso de
+     inválido/duplicado, **um destinatário por cliente** mesmo com várias
+     assinaturas (nunca duplica aviso) → 5) modelo de mensagem editável com
+     `{{cliente}}`/`{{assinatura}}`/`{{mes_ano}}` (nunca o dia, por pedido
+     explícito) → 6) prévia personalizada + contagem final → 7) salvar
+     rascunho / confirmar envio (manual, com confirmação) → histórico por
+     lote, com resultado por destinatário.
+- **Duas tabelas novas** (migration não aplicada):
+  `subscription_due_reminder_batches` (lote) e
+  `subscription_due_reminder_recipients` (um por cliente, `unique(batch_id,
+  client_id)` no banco — proteção estrutural contra duplicar, não só na
+  aplicação). RLS própria, admin/owner.
+- **Integração WhatsApp/Meta verificada, não presumida**: código real já
+  existe (`apps/sistema/src/lib/financeiro/whatsappCloudProvider.ts`, usado
+  hoje para cobrança/confirmação de pagamento/convite de assinatura de
+  contrato) — `isWhatsappCloudConfigured()` checa
+  `WHATSAPP_ACCESS_TOKEN`/`WHATSAPP_PHONE_NUMBER_ID`. **Nenhuma dessas
+  variáveis está definida em `.env.local` nesta sessão** (confirmado por
+  grep) — não é possível afirmar se está operacional em produção/Vercel sem
+  acesso a esse painel. Novo template **separado**,
+  `isWhatsappDueReminderTemplateConfigured()` /
+  `sendWhatsappDueReminderTemplate()`, lendo `WHATSAPP_DUE_REMINDER_TEMPLATE`
+  — nunca reaproveita `pagamento_confirmado`/`confirmacao_pagamento_ir`, como
+  exigido.
+- **Envio real DESLIGADO em duas camadas**: exige
+  `WHATSAPP_DUE_REMINDER_SEND_ENABLED=true` **e**
+  `WHATSAPP_DUE_REMINDER_TEMPLATE` configurado — nenhum dos dois presente.
+  Nenhuma mensagem real foi ou pode ser enviada nesta sessão.
+- **Limitação real documentada**: não existe no cadastro de clientes um campo
+  dedicado de "autorização de contato" (LGPD/opt-in) — a tela usa a
+  presença de `whatsapp`/`phone_primary` como proxy ("sem telefone válido"),
+  não um consentimento registrado à parte. Registrado aqui em vez de
+  inventado um campo novo sem pedido explícito.
+- Melhorias futuras registradas na própria tela (não implementadas, por
+  pedido explícito): link individual de pagamento no WhatsApp, acesso por
+  CPF com verificação segura de identidade, QR Code PIX/copia-e-cola via
+  Asaas — nunca expor dado financeiro só com CPF.
+- Arquivos: `supabase/migrations/20261030100300_subscription_due_reminders.sql`;
+  `apps/sistema/src/app/sistema/assinaturas/avisos-vencimento/{actions.ts,page.tsx}`;
+  `apps/sistema/src/features/assinaturas/DueReminderPanel.tsx`;
+  `apps/sistema/src/lib/financeiro/whatsappCloudProvider.ts` (2 funções novas);
+  `apps/sistema/src/lib/navigation.ts`.
+
+### Item 4 — Aplicativo piloto Android
+
+- **Ambiente verificado, não presumido**: Java 17 e 21 instalados; Android
+  SDK completo encontrado em `%LOCALAPPDATA%\Android\Sdk` (platform-tools,
+  build-tools 30–36, platforms 33–36) — `ANDROID_HOME` não estava
+  definido no shell desta sessão, mas o SDK em si está presente e funcional
+  (`adb version` respondeu). Gradle não instalado globalmente, mas o
+  `gradlew` (wrapper) do próprio projeto resolve isso sozinho.
+- **Scaffold real criado**: `apps/mobile/` (Capacitor + plataforma Android
+  gerada via `npx cap add android`), `appId=br.com.jornalir.app`. `server.url`
+  aponta para o portal **já publicado** (`https://jornalir.vercel.app`) — o
+  app NUNCA duplica a base de matérias, sempre mostra o conteúdo real e atual
+  do site (pedido explícito do usuário).
+- **APK de debug gerado de verdade**: `./gradlew assembleDebug` concluído com
+  sucesso (precisou `JAVA_HOME` apontando para o JDK 21 — o 17 falha com
+  "invalid source release: 21"). Resultado:
+  `apps/mobile/android/app/build/outputs/apk/debug/app-debug.apk` (~4 MB,
+  **local, não versionado** — `.gitignore` do próprio Capacitor já exclui
+  `*.apk`/`build/`). Instalável por transferência direta do arquivo
+  ("sem Play Store"), nunca testado em aparelho real nesta sessão (restrição
+  explícita "não modificar aparelhos").
+- **O que FALTA, sem inventar que está pronto**:
+  1. **Push nativo (FCM)**: não wireado. Exige um projeto Firebase próprio
+     (`google-services.json`) — é a criação de um **novo serviço/conta**,
+     fora do que posso decidir sozinho ("não contratar serviços sem
+     autorização"). Sem isso, o app funciona como WebView do site (inclusive
+     recebendo Web Push via o Service Worker do PWA quando aberto), mas não
+     tem canal nativo de notificação em segundo plano/fechado.
+  2. **3 preferências independentes (normal/urgente/avisos gerais) no app
+     nativo**: ainda não implementadas — dependem do FCM estar wireado
+     primeiro (a UI web já existe em `SitePushPreferences.tsx`, reaproveitável
+     depois).
+  3. **Som exclusivo para urgentes**: depende de FCM + canais de notificação
+     Android nativos (`NotificationChannel`), não implementado ainda.
+  4. **Ícones/splash reais do Jornal IR**: o scaffold usa os assets padrão do
+     Capacitor (não a marca real) — substituição é rápida, mas não feita
+     nesta etapa (fora do pedido específico deste lote).
+  5. **Assinatura de release/Play Store**: fora de escopo nesta fase
+     ("sem Play Store").
+  6. Não testado em nenhum aparelho real (nem emulador) — só a build
+     (compilação) foi validada.
+- Próximo passo recomendável, quando autorizado: (a) decidir sobre criar o
+  projeto Firebase (serviço gratuito, mas uma conta/projeto novo mesmo
+  assim); (b) ícone/nome definitivos; (c) instalar o APK debug gerado em um
+  aparelho de teste real para validar abertura de notícia/navegação.
+
+### Item 5 — Segurança, testes e entrega
+
+- Autenticação/permissões: todas as 3 novas telas/ações exigem
+  `owner`/`admin` (nunca `operator`) — checado tanto na Server Action quanto,
+  para as 2 tabelas novas, na própria RLS (`is_active_admin_or_owner()`).
+  `commercial_announcements`/`subscription_due_reminder_*` com RLS própria
+  (diferente do `site_offer_settings`, onde a restrição fica só na
+  aplicação por causa das ~20 colunas de preço já staff-editable).
+- Idempotência: `dedupe_key`/`send_request_id` (avisos gerais),
+  `unique(batch_id, client_id)` no banco (avisos de vencimento) — ambos
+  impedem duplicar envio mesmo com duplo clique/nova tentativa.
+- Isolamento de destinatários: avisos gerais (push, leitores anônimos do
+  site/app) e avisos de vencimento (WhatsApp, assinantes identificados) usam
+  tabelas, categorias de consentimento e canais totalmente separados, como
+  exigido — nenhum dado de um módulo vaza para o outro.
+- `npm run typecheck` (site + sistema): limpo. `npm run build` (site +
+  sistema): concluído com sucesso (73 páginas em `apps/sistema`, 17 em
+  `apps/site`). `npm run test --workspace @ir/core`: 103/103 (baseline, não
+  afetado). `apps/mobile` não tem suíte de testes (projeto novo, só
+  compilação Gradle validada).
+- **Migrations preparadas, NÃO aplicadas**:
+  `20261030100200_commercial_general_push_announcements.sql`,
+  `20261030100300_subscription_due_reminders.sql`.
+- Variáveis de ambiente novas que precisarão existir antes de qualquer envio
+  real (nenhuma definida ainda): `COMMERCIAL_PUSH_SEND_ENABLED`,
+  `WHATSAPP_DUE_REMINDER_TEMPLATE`, `WHATSAPP_DUE_REMINDER_SEND_ENABLED`.
+
+### Ponto de continuidade
+
+- Branch/HEAD: `feature/site-lancamento-editorial-publicidade-20261018` —
+  commits locais a seguir (ver `git log`); nenhum push realizado.
+- Pendências desta etapa: decidir Firebase para o app Android; aprovar
+  template `WHATSAPP_DUE_REMINDER_TEMPLATE` na Meta; configurar
+  `WHATSAPP_ACCESS_TOKEN`/`WHATSAPP_PHONE_NUMBER_ID` (confirmar se já
+  existem em produção, não presumir); revisar/testar as duas telas novas com
+  sessão autenticada real.
+- Aguardando conferência do responsável antes de qualquer implantação.

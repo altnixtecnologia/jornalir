@@ -85,7 +85,10 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   try {
     const data = await parseBody(request);
     if (!validSubscription(data.subscription) || !validToken(data.managementToken)) return json({ error: "Assinatura inválida" }, 400, origin);
-    if (typeof data.ordinary !== "boolean" || typeof data.urgent !== "boolean" || (!data.ordinary && !data.urgent)) return json({ error: "Selecione ao menos um tipo de notícia" }, 400, origin);
+    const general = typeof data.general === "boolean" ? data.general : false;
+    if (typeof data.ordinary !== "boolean" || typeof data.urgent !== "boolean" || (!data.ordinary && !data.urgent && !general)) {
+      return json({ error: "Selecione ao menos um tipo de aviso" }, 400, origin);
+    }
     const token = data.managementToken;
     const subscription = data.subscription;
     const ip = request.headers.get("x-vercel-forwarded-for") || request.headers.get("x-forwarded-for")?.split(",")[0] || "unknown";
@@ -102,7 +105,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     const row = {
       endpoint: subscription.endpoint, subscription_payload: subscription,
       management_hash: managementHash,
-      ordinary_enabled: data.ordinary, urgent_enabled: data.urgent,
+      ordinary_enabled: data.ordinary, urgent_enabled: data.urgent, administrative_enabled: general,
       enabled: true, platform, updated_at: new Date().toISOString(),
     };
     const saved = existing
@@ -123,7 +126,8 @@ export async function DELETE(request: NextRequest): Promise<NextResponse> {
     const managementHash = createHash("sha256").update("site-push:" + body.managementToken).digest("hex");
     const db = service();
     const { error } = await db.from("site_push_subscriptions").update({
-      enabled: false, ordinary_enabled: false, urgent_enabled: false, updated_at: new Date().toISOString(),
+      enabled: false, ordinary_enabled: false, urgent_enabled: false, administrative_enabled: false,
+      updated_at: new Date().toISOString(),
     }).eq("endpoint", body.endpoint).eq("management_hash", managementHash);
     if (error) return json({ error: "Não foi possível desativar" }, 500, origin);
     return json({ ok: true }, 200, origin);

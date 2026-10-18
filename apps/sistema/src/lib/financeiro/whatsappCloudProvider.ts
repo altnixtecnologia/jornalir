@@ -134,6 +134,33 @@ export async function sendWhatsappPaymentConfirmedTemplate(input: {
   ]);
 }
 
+/** Template SEPARADO para avisos de vencimento de Assinaturas — nunca
+ * reaproveita "pagamento_confirmado"/confirmacao_pagamento_ir (finalidade
+ * diferente), pedido explícito do usuário em 18/10/2026. Exige aprovação
+ * própria na Meta antes de habilitar, mesmo princípio do convite de
+ * assinatura de contrato. */
+export function isWhatsappDueReminderTemplateConfigured(): boolean {
+  return isWhatsappCloudConfigured() && Boolean(process.env.WHATSAPP_DUE_REMINDER_TEMPLATE?.trim());
+}
+
+export async function sendWhatsappDueReminderTemplate(input: {
+  toPhone: string;
+  clientName: string;
+  subscriptionLabel: string;
+  dueMonthLabel: string;
+}): Promise<WhatsappBillingTemplateResult> {
+  const template = (process.env.WHATSAPP_DUE_REMINDER_TEMPLATE ?? "").trim();
+  if (!template) throw new Error("Configure primeiro um template de aviso de vencimento aprovado na Meta.");
+  // Template pt_BR a aprovar, na ordem: {{1}} nome do cliente;
+  // {{2}} tipo de assinatura; {{3}} mês/ano de vencimento (nunca o dia —
+  // pedido explícito do usuário, já que o dia-base pode mudar por feriado).
+  return sendTemplate(input.toPhone, template, [
+    input.clientName,
+    input.subscriptionLabel,
+    input.dueMonthLabel,
+  ]);
+}
+
 /** Template separado, que deve ser aprovado pela Meta antes de habilitar. */
 export function isWhatsappSignatureTemplateConfigured(): boolean {
   return isWhatsappCloudConfigured() && Boolean(process.env.WHATSAPP_SIGNATURE_INVITE_TEMPLATE?.trim());

@@ -148,6 +148,7 @@ export const assinaturasNavGroup: AdminNavGroup = {
   label: "Assinaturas",
   links: [
     { label: "Assinaturas", href: "/sistema/assinaturas" },
+    { label: "Avisos de vencimento", href: "/sistema/assinaturas/avisos-vencimento" },
   ],
 };
 
@@ -170,6 +171,7 @@ export const commercialNavGroup: AdminNavGroup = {
     { label: "Propostas/Orçamentos", href: "/sistema/publicidade/propostas" },
     { label: "Vendas", href: "/sistema/publicidade/vendas" },
     { label: "Produtos/serviços", href: "/sistema/publicidade/produtos" },
+    { label: "Avisos gerais", href: "/sistema/publicidade/avisos" },
   ],
 };
 

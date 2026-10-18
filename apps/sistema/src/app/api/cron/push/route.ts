@@ -38,7 +38,15 @@ function asSubscription(device: PushDevice): WebPushSubscription {
 
 
 type SiteDelivery = { delivery_id: string; event_id: string; subscription_id: string };
-type SiteSubscription = { id: string; endpoint: string; subscription_payload: unknown; enabled: boolean; ordinary_enabled: boolean; urgent_enabled: boolean };
+type SiteSubscription = {
+  id: string; endpoint: string; subscription_payload: unknown; enabled: boolean;
+  ordinary_enabled: boolean; urgent_enabled: boolean; administrative_enabled: boolean;
+};
+function siteOptedIn(kind: string, subscriber: SiteSubscription): boolean {
+  if (kind === "urgent") return subscriber.urgent_enabled;
+  if (kind === "administrative") return subscriber.administrative_enabled;
+  return subscriber.ordinary_enabled;
+}
 
 async function processSiteDeliveries(db: SupabaseClient): Promise<{ siteClaimed: number; siteSent: number; siteFailed: number }> {
   const { data, error } = await db.rpc("claim_site_push_deliveries", { p_limit: 20 });
@@ -51,12 +59,12 @@ async function processSiteDeliveries(db: SupabaseClient): Promise<{ siteClaimed:
     try {
       const [eventResult, subscriberResult] = await Promise.all([
         db.from("notification_events").select("title,body,href,kind,dedupe_key").eq("id", claim.event_id).maybeSingle(),
-        db.from("site_push_subscriptions").select("id,endpoint,subscription_payload,enabled,ordinary_enabled,urgent_enabled").eq("id", claim.subscription_id).maybeSingle(),
+        db.from("site_push_subscriptions").select("id,endpoint,subscription_payload,enabled,ordinary_enabled,urgent_enabled,administrative_enabled").eq("id", claim.subscription_id).maybeSingle(),
       ]);
       const event = eventResult.data;
       const subscriber = subscriberResult.data as SiteSubscription | null;
       if (eventResult.error || subscriberResult.error || !event || !subscriber) throw new Error("Evento ou assinatura indisponível");
-      if (!subscriber.enabled || (event.kind === "urgent" ? !subscriber.urgent_enabled : !subscriber.ordinary_enabled)) {
+      if (!subscriber.enabled || !siteOptedIn(event.kind, subscriber)) {
         await db.from("site_push_deliveries").update({ status: "expired", last_error: "Preferência desativada" }).eq("id", claim.delivery_id);
         return;
       }
