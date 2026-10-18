@@ -24,3 +24,7 @@ Entregar de cada vez FEITO/FALTA/BLOQUEIOS e testes reais versus mocks.
 **Proibido sem autorização explícita:** push, deploy Vercel, migrations remotas, cobrança real, WhatsApp/e-mail reais, nota fiscal real, alteração de segredos/`.env`, mudanças destrutivas, alterações nas pastas antigas ou merge aleatório de branches. Não confundir compilação com funcionalidade homologada. **Deploys Preview automáticos por commit/branch não são desejados** — ver `apps/sistema/vercel.json`/`apps/site/vercel.json` (`git.deploymentEnabled`) e a seção de deploy em `docs/ACORDOS-E-FONTE-DA-VERDADE.md`.
 
 Se outros arquivos `CLAUDE.md` já existirem ao instalar estas instruções, **não sobrescrevê-los**; mesclar cuidadosamente preservando regras antigas e adicionar referências aos docs.
+
+## Alternância de agentes — Assistente IR (18/10/2026)
+
+Antes de iniciar novo lote, ler também `docs/REGISTRO-DE-ENTREGAS.md`, fazer `git fetch origin` e conferir a branch `feature/assistente-ir-base-20261018`. A branch oficial local NÃO recebe automaticamente os commits do ChatGPT; integrar TODOS os commits da feature por fast-forward apenas com worktree limpa e histórico compatível. Um agente por vez no projeto, nunca dois operadores escrevendo simultaneamente. Não fazer deploy, migration remota ou alteração de segredos sem autorização.
