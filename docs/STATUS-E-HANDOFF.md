@@ -718,3 +718,12 @@ O usuário confirmou que o Codex sincronizou a branch oficial `consolidacao-loca
 O ChatGPT abriu `feature/assistente-ir-base-20261018` a partir desse SHA e implementou uma PRIMEIRA ETAPA apenas em branch isolada: configuração do provedor OpenAI/Claude, cofre criptografado, modos por módulo, interruptor geral server-side, página de proprietário, estrutura de solicitações de aprovação ainda SEM executor e integração do gerador individual de homenagens com a nova configuração. A migration `20261030100200_ai_assistant_base.sql` NÃO foi aplicada. Ainda não há chaves, jobs autônomos, aprovações executáveis ou testes autenticados/build dessa branch. A integração com Vercel/produção não foi feita.
 
 **Registro de cada commit e roteiro de sincronização:** `docs/REGISTRO-DE-ENTREGAS.md`. Não repetir todo o trabalho nem integrar parcialmente. Primeiro verificar `git status -sb`, `git fetch origin` e os dois históricos; se fast-forward seguro, incorporar todos os commits na pasta oficial e então rodar typecheck/build/testes. Nunca alterar backups/branches antigas nem aplicar migrations sem autorização.
+
+## Assistente IR — lote 2 GitHub (18/10/2026)
+
+- Feito em branch separada: teste MANUAL das chaves OpenAI/Claude via endpoint de listagem de modelos; resumo sob demanda e somente leitura (Financeiro/solicitacoes Site/Agenda), sujeito ao interruptor geral e aos controles por modulo, sem chamadas de IA.
+- Foi adicionada protecao para nao tratar dados de demonstracao como dados reais.
+- Nenhuma automacao, aprovacao executavel, dado pessoal em prompt, alteracao financeira ou notificacao automatica implantada.
+- Nenhuma migration remota, deploy ou sincronizacao do VS Code efetuada.
+- Necessita integrar HEAD completo da feature quando Claude/Codex retornar, compilar, testar RLS e exercitar com login real.
+- **Commits individuais e pendencias:** `docs/REGISTRO-DE-ENTREGAS.md` (sempre consultar a versao MAIS NOVA pelo HEAD remoto).
