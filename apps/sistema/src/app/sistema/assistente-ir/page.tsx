@@ -27,6 +27,7 @@ export default async function AssistenteIrPage(): Promise<JSX.Element> {
         title="JoIR" description="Converse com a IA usando os módulos autorizados, sem permitir execuções automáticas."
         action={<Link className="btn btn-secondary" href="/sistema/configuracoes/assistente-ir">Configurar IA</Link>} />
       <AiAssistantChatPanel enabled={state.enabled && state.backendAvailable && state.encryptionAvailable}
+        activeProvider={state.provider} activeModel={state.model}
         modules={enabledModules} moduleChoices={enabledChoices} />
     </>
   );
