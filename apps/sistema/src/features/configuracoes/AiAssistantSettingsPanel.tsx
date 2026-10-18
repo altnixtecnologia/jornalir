@@ -232,16 +232,46 @@ export function AiAssistantSettingsPanel({ initial }: { initial: AiSettingsSnaps
         <p className="helper-text" role="status">
           {keys[form.provider] ? (catalogStatus[form.provider] || "Consultando catálogo ao abrir a tela.") : "Cadastre uma chave para consultar modelos disponíveis na sua conta."}
         </p>
-        <div className="form-grid" style={{ marginTop: 14 }}>
-          <div>
-            <span className="field-label">Chave OpenAI</span>
-            <div className="helper-text">{keys.openai ? "Armazenada no cofre" : "Não configurada"}</div>
-          </div>
-          <div>
-            <span className="field-label">Chave Anthropic</span>
-            <div className="helper-text">{keys.anthropic ? "Armazenada no cofre" : "Não configurada"}</div>
-          </div>
+        <div aria-label="Situação das chaves dos provedores"
+          style={{ display: "flex", flexWrap: "wrap", gap: 12, maxWidth: 850, marginTop: 16 }}>
+          {([
+            { key: "openai" as const, label: "OpenAI / GPT" },
+            { key: "anthropic" as const, label: "Anthropic / Claude" },
+          ]).map((item) => {
+            const configured = keys[item.key];
+            const activeOnServer = savedSettings.enabled && savedSettings.provider === item.key;
+            const selectedInForm = form.provider === item.key;
+            return (
+              <div key={item.key} className="quick-access-card" style={{
+                flex: "1 1 290px", minWidth: 0, padding: "14px 16px",
+                border: configured ? "1px solid #81b9a0" : "1px solid #c8ced6",
+                borderRadius: 10,
+              }}>
+                <strong style={{ display: "block", marginBottom: 8 }}>{item.label}</strong>
+                <div role="status" style={{
+                  display: "flex", alignItems: "center", gap: 8,
+                  fontWeight: 700, color: configured ? "#14764f" : "inherit",
+                }}>
+                  <span aria-hidden="true" style={{ fontSize: 18, lineHeight: 1 }}>
+                    {configured ? "✓" : "○"}
+                  </span>
+                  {configured ? "Chave cadastrada" : "Chave não cadastrada"}
+                </div>
+                <p className="helper-text" style={{ margin: "8px 0 0" }}>
+                  {activeOnServer
+                    ? "Provedor em uso pela JoIR."
+                    : selectedInForm
+                      ? "Selecionado no formulário. Para ativar, salve as configurações gerais."
+                      : "Pode ser configurado e testado independentemente."}
+                </p>
+              </div>
+            );
+          })}
         </div>
+        <p className="helper-text" style={{ marginTop: 8 }}>
+          Você pode manter as duas chaves cadastradas. A JoIR utiliza um provedor por vez,
+          conforme a configuração geral salva. Cadastrar uma chave não ativa o serviço.
+        </p>
         <label className="form-field" style={{ marginTop: 14, maxWidth: 600 }}>
           <span className="field-label">Cadastrar ou substituir chave de {form.provider === "openai" ? "OpenAI" : "Anthropic"}</span>
           <input
