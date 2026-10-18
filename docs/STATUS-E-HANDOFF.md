@@ -1688,3 +1688,118 @@ mobile, o Jornal Online e o leitor de PDF; decidir, após essa validação,
 se compila `v.00.01`; demais pendências (ícone do app, FCM, migração para
 storage, registro do release no painel) continuam as mesmas do lote
 anterior.
+
+## LOTE — Central de notificações do leitor (18/10/2026, commit `3e49dad`)
+
+A partir do estado local preservado (branch
+`feature/site-lancamento-editorial-publicidade-20261018`, sem reset/pull
+destrutivo; todos os commits anteriores, inclusive APK assinado/piloto,
+preservados). Nenhum push, deploy, migration aplicada ou notificação real
+enviada nesta etapa.
+
+**Decisão de arquitetura (antes de codar):** levantamento completo da
+infraestrutura existente confirmou que já existe um pipeline real de push
+anônimo (`site_push_subscriptions` / `notification_events` com
+`app_kind='site'`, `kind` em `ordinary`/`urgent`/`administrative` /
+`site_push_deliveries`), já RLS-fechado e só acessível via
+`/api/public/push` (hoje hospedado em `apps/sistema`, chamado pelo site em
+`controle.altnix.com.br`). A central de notificações **não cria um segundo
+sistema de disparo** — ela só passou a *ler* o que já é publicado de
+verdade nesse pipeline. Rascunhos do módulo Comercial → Avisos gerais
+(`commercial_announcements.status='draft'`) nunca chegam a
+`notification_events`, logo nunca aparecem no sininho — só o que foi
+realmente confirmado/enviado (`status='sent'`) ou publicado pelo fluxo
+editorial.
+
+**Gap identificado e não resolvido nesta etapa (fora do pedido original):**
+a publicação de uma matéria (`articles.status='published'`) hoje **não**
+insere automaticamente em `notification_events` no pipeline atual — só o
+gatilho legado (`notification_outbox`, tabela antiga, não lida por nenhum
+código em produção) reage à publicação. Ou seja: a central de
+notificações já está pronta para mostrar notícias, mas **nenhuma notícia
+é inserida automaticamente nela hoje** — só os avisos gerais/comerciais
+confirmados manualmente pelo módulo Comercial → Avisos. Fica registrado
+para decisão do usuário: reativar/recriar o gatilho editorial→
+`notification_events`, ou manter avisos gerais como único canal por
+enquanto.
+
+**1. Backend (`apps/sistema`, mesmo host do `/api/public/push`):**
+- `apps/sistema/src/lib/publicApi/cors.ts` (novo): CORS extraído do
+  `/api/public/push` para reaproveitar sem duplicar a lógica de segurança
+  (allow-list de origem, headers). `push/route.ts` foi refatorado para
+  importar daqui, sem mudança de comportamento.
+- `apps/sistema/src/app/api/public/notifications/route.ts` (novo): `GET`
+  lista os avisos reais de `app_kind='site'` (até 40, mais recentes
+  primeiro), filtrando por categoria conforme o opt-in salvo em
+  `site_push_subscriptions` quando o leitor já tem cadastro (mesmo hash);
+  sem cadastro, usa os mesmos padrões do formulário de preferências
+  (notícias do dia/urgentes sim, avisos gerais não). `POST` marca um aviso
+  como lido. Identidade = **o mesmo management token anônimo** já usado em
+  `/api/public/push` (`sha256("site-push:"+token)`) — sem exigir login,
+  sem expor chave de serviço, sem tabela nova de identidade. Se a tabela
+  `site_notification_reads` ainda não existir (migration não aplicada), o
+  `GET` degrada mostrando tudo como não lido em vez de falhar, e o `POST`
+  responde `503` explicando que depende da migration.
+
+**2. Migration preparada, NÃO aplicada:**
+`supabase/migrations/20261030100500_site_notification_reads.sql` — cria
+`site_notification_reads` (hash do dispositivo + id do evento + data de
+leitura), RLS fechada para `anon`/`authenticated` (só `service_role`, mesmo
+modelo de `site_push_subscriptions`), mais dois índices de apoio. **Sem
+esta migration aplicada, o `POST` de marcar como lido responde 503** — a
+central continua funcional para listar/abrir avisos, só o estado de
+"lido" persistente no servidor fica pendente até a aplicação autorizada.
+
+**3. Frontend (`apps/site`):** novo diretório
+`components/site/public/notifications/`:
+- `NotificationCenterContext.tsx`: busca o feed uma vez ao montar e a cada
+  2 min, calcula não lidas, controla abertura do painel, marca como lida
+  (otimista no cliente + `POST` ao servidor) e a visibilidade do
+  flutuante (só aparece com não lida; `sessionStorage` lembra que o leitor
+  ocultou nesta sessão, mas **reaparece se chegar uma notificação nova**
+  que não existia antes do ocultar — exatamente como pedido).
+- `HeaderNotificationBell.tsx`: sininho fixo e discreto, sem animação,
+  com contador; usado no header desktop (ao lado da busca) e no topo
+  mobile (ao lado da logo/busca/menu).
+- `FloatingNotificationBell.tsx`: só renderiza quando há não lida;
+  arrastável (clampado dentro da tela via `pointermove`, distingue
+  arraste de toque para não abrir o painel por engano), balanço de ~2s ao
+  aparecer (`prefers-reduced-motion` desliga a animação), X próprio que
+  oculta só nesta sessão sem marcar nada como lido, posicionado acima do
+  botão do WhatsApp (que já ocupa o canto inferior direito em todas as
+  larguras) para não sobrepor, e some junto com o WhatsApp quando o menu
+  ou a busca mobile estão abertos (evita duplicação visual com o sininho
+  fixo do header, que fica atrás do painel/backdrop).
+- `NotificationPanel.tsx`: lista compacta (categoria/título/hora/resumo);
+  clique em notícia abre a matéria e marca como lida; clique em aviso
+  geral/institucional expande o texto ali mesmo e marca como lida; estado
+  vazio; fecha por X, clique fora ou Esc.
+- `SiteHeader.tsx`: sininho inserido nos dois cabeçalhos (desktop/mobile).
+  Correção adicional pedida no item 5 do lote: o botão de fechar ("X") do
+  menu mobile deixou de depender só do hambúrguer no header, fixo no topo
+  real da tela — agora o painel do menu (`.ir-mobile-menu`, que abre como
+  bottom sheet) tem seu próprio botão de fechar **sticky dentro do
+  painel** (`.ir-mobile-menu-brand` virou `position: sticky; top:0`),
+  sempre visível ao rolar a lista de links, sem precisar arrastar nada.
+
+**Testes reais executados:** `npm run typecheck` e `npm run build` em
+`@ir/site` e `@ir/sistema` — ambos limpos, incluindo a nova rota
+`/api/public/notifications` aparecendo compilada no build do `@ir/sistema`.
+**Não testado (mock/pendente):** nenhuma chamada real ao
+`controle.altnix.com.br/api/public/notifications` foi feita (endpoint só
+existe local/não publicado ainda); nenhuma validação visual em navegador
+ou app real do sininho/painel/flutuante/drag; a migration não foi
+aplicada, então o `POST` de marcar como lido retorna 503 em produção até
+ser autorizada e aplicada; nenhum evento de notícia chega automaticamente
+ao painel hoje (ver gap do item acima) — só avisos gerais confirmados
+manualmente.
+
+**Pendências para a próxima etapa:** (a) decidir e aplicar a migration
+`20261030100500_site_notification_reads.sql` (autorização separada); (b)
+decidir se/como reativar a inserção automática de `notification_events`
+na publicação de matérias (gap pré-existente, não criado por este lote);
+(c) validar visualmente em navegador/APK: posição do flutuante vs.
+WhatsApp, drag, balanço, badge, painel, botão de fechar do menu mobile;
+(d) demais pendências herdadas dos lotes anteriores (ícone do app, FCM,
+migração das edições para storage, registro do release no painel)
+continuam as mesmas.
