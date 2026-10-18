@@ -1514,3 +1514,87 @@ Commit local `269c0ea`. **Não aplicada** a migration de versões, **não**
 registrado no painel `/sistema/configuracoes/aplicativo`, **não** liberado o
 botão em `/aplicativo`, **nenhum** push/deploy — por instrução explícita,
 aguardando autorização separada para essa próxima etapa.
+
+## LOTE UX — Menu JoIR e refinamento do Jornal Online no app (18/10/2026, commit `3daa32b`)
+
+A partir do estado local preservado (nenhum reset, nenhum commit perdido,
+inclusive os commits do APK assinado/piloto). Branch
+`feature/site-lancamento-editorial-publicidade-20261018`, sem push/deploy.
+
+**1. Menu JoIR (sistema):** o bloco "JoIR — Assistente Virtual" em
+Configurações deixou de ficar sempre expandido. Agora é um submenu
+`<details>` fechado por padrão, tanto no dropdown de topo (desktop,
+`AdminHeader.tsx`) quanto no menu mobile (`MobileNav.tsx`), com CSS novo em
+`globals.css` (`.app-nav-subgroup` / `.mobile-nav-subgroup`) reaproveitando
+o mesmo estilo de seta/hover já usado nos outros `<details>` do sistema. A
+lógica é genérica por `link.group` — qualquer outro grupo futuro (não só o
+JoIR) herda o mesmo comportamento recolhível automaticamente. Os 3 itens
+(Conversar / Propostas e aprovações / Configurar assistente) continuam
+intactos dentro do submenu. `npm run typecheck --workspace @ir/sistema`:
+**passou limpo**.
+
+**2. Jornal Online — cabeçalho (site/app):** removido o parágrafo
+explicativo e o link "Ler última edição" (redundante, já que a edição mais
+nova já aparece primeiro na lista); cabeçalho mais compacto no celular
+(menos padding, H1 menor, fonte da listagem ao lado do título em vez de
+rótulo "Fonte:").
+
+**3. Jornal Online — cards de edição:** a capa inteira agora é clicável
+(abre a edição); os botões "Ler edição" e "PDF" passaram a ficar
+sobrepostos na parte inferior da capa, com um scrim escuro em gradiente +
+sombra/anel de contorno, garantindo contraste legível em capas de qualquer
+cor. Ordem (mais recente primeiro) não foi alterada — já vinha da API.
+
+**4. Jornal Online — leitor/zoom:** no leitor (`[id]/page.tsx`), o botão
+"Voltar ao acervo" agora sai da tela cheia primeiro (se estiver ativa) em
+vez de navegar por baixo dela. No celular, a área de leitura passou a
+ocupar a largura inteira da tela (cancela o padding do `site-shell`) para
+um modo de leitura mais "de página cheia". O pinch-to-zoom nativo
+(`touchAction: "pan-x pan-y pinch-zoom"` em `MobilePdfReader.tsx`) já
+estava habilitado e já é citado primeiro no texto de ajuda; os controles
++/− continuam existindo apenas como complemento (ajustam a resolução do
+canvas renderizado, o que o pinch por si só não faz). Não foi necessário
+trocar o visualizador de PDF (pdfjs-dist + canvas já é a abordagem mais
+confiável no mobile).
+
+**5. Preparação para storage:** revisado `/api/jornal-online/editions`
+(route.ts) — já busca `pdf_url`/`cover_url` da tabela `newspaper_editions`
+como URLs públicas quaisquer (não está acoplado ao Google Drive legado, que
+é só o fallback via `/api/jornal-online/drive`). **Nenhuma mudança de
+código foi necessária**: quando as edições forem movidas para o storage
+nesta semana, basta os novos registros em `newspaper_editions` apontarem
+`pdf_url`/`cover_url` para a nova URL — a página e o leitor continuam
+funcionando sem alteração.
+
+**6. APK/identificadores:** confirmado sem alteração — nome "Jornal IR",
+`applicationId`/`appId` = `com.jornalir`, `versionName=v.00.00`,
+`signingConfig` de release intacto (`apps/mobile/android/app/build.gradle`,
+`apps/mobile/capacitor.config.ts`). **Pendência real identificada (não
+corrigida agora, fora do escopo deste lote):** o ícone do app
+(`mipmap-*/ic_launcher*`, `drawable-v24/ic_launcher_foreground.xml`) ainda é
+o ícone padrão de template do Capacitor/Android Studio (fundo branco,
+vetor genérico de ~1,9 KB) — precisa de um ícone próprio do Jornal IR antes
+de qualquer publicação em Google Play / Apple App Store. Nenhuma
+publicação em loja foi iniciada, por instrução explícita.
+
+**Arquivos alterados:** `apps/sistema/src/app/globals.css`,
+`apps/sistema/src/components/admin/AdminHeader.tsx`,
+`apps/sistema/src/components/admin/MobileNav.tsx`,
+`apps/site/src/app/(public)/jornal-online/page.tsx`,
+`apps/site/src/app/(public)/jornal-online/[id]/page.tsx`.
+
+**Commit local:** `3daa32b` (`feat(ux): submenu recolhivel do JoIR e
+refinamento do Jornal Online no app`). Nenhum push, nenhum deploy, nenhuma
+migration aplicada, nenhuma mudança destrutiva. Todos os commits
+anteriores (inclusive APK assinado/piloto) preservados.
+
+**Pendências reais para o app ficar "redondo":** (a) ícone próprio do app
+(ver item 6); (b) FCM/push nativo ainda não conectado (projeto Firebase
+próprio pendente, já registrado no lote anterior); (c) migração das edições
+para storage ainda não executada (planejada para esta semana, código já
+preparado); (d) registro do release do APK no painel
+`/sistema/configuracoes/aplicativo` e liberação do botão em `/aplicativo`
+ainda aguardando autorização separada (herdado do lote anterior); (e)
+nenhum teste manual em dispositivo real Android foi feito nesta rodada para
+os ajustes de pinch-zoom/tela cheia — recomendado validar no APK já
+assinado antes de considerar o item 4 definitivamente fechado.
