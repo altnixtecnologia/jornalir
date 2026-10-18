@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useTransition } from "react";
+import Link from "next/link";
 import {
   saveAssistantProviderKeyAction, updateAssistantSettingsAction,
   testAssistantConnectionAction, getAssistantOperationalBriefAction, listAssistantModelsAction,
@@ -91,7 +92,6 @@ export function AiAssistantSettingsPanel({ initial }: { initial: AiSettingsSnaps
       const result = await saveAssistantProviderKeyAction(provider, newKey);
       if ("error" in result) { setError(result.error); return; }
       setKeys((old) => ({ ...old, [provider]: true }));
-      if (keys[provider]) void refreshCatalog(provider);
       setNewKey("");
       setMessage("Chave salva de forma criptografada no servidor. O valor não será exibido novamente.");
     });
@@ -313,7 +313,8 @@ export function AiAssistantSettingsPanel({ initial }: { initial: AiSettingsSnaps
 
       {error ? <p className="form-error" role="alert">{error}</p> : null}
       {message ? <p role="status" className="helper-text">{message}</p> : null}
-      <div style={{ display: "flex", justifyContent: "flex-end", padding: "12px 0" }}>
+      <div style={{ display: "flex", gap: 12, justifyContent: "flex-end", flexWrap: "wrap", padding: "12px 0" }}>
+        <Link className="btn btn-secondary" href="/sistema/assistente-ir">Abrir conversa</Link>
         <button type="button" className="btn btn-primary"
           disabled={unavailable || busy} onClick={saveSettings}>
           {busy ? "Aguarde..." : "Salvar configurações do Assistente IR"}
