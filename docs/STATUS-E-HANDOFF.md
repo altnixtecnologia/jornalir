@@ -746,3 +746,11 @@ O ChatGPT abriu `feature/assistente-ir-base-20261018` a partir desse SHA e imple
 - CI: workflow `validate-system.yml` temporariamente habilitado para a branch e removido posteriormente (`be803e5`, `fcee156`); primeiros builds passaram, conferir workflow mais recente `39129277867` antes de declarar a versão final validada.
 - FALTAM: confirmação da troca/validade de `AI_CONFIG_ENCRYPTION_KEY` no runtime da Vercel (variável existe mas o código publicou mensagem de cofre indisponível), cadastro das chaves nas configurações, teste com APIs reais, testes owner/RLS com sessão, CI final e publicação com autorização. **Rotinas autônomas com agendamento e executores que alteram outros módulos ainda não foram implementados**. A aprovação de proposta é só revisão.
 - Documentação com todos os commits, critérios de teste e sequência: `docs/REGISTRO-DE-ENTREGAS.md` (consultar HEAD vigente).
+
+## 18/10/2026 — Diagnóstico confirmado da conexão GPT e navegação de Assistente IR
+
+- Chave OpenAI armazenada no cofre. Logs de auditoria no Supabase confirmam dois testes de autenticação OpenAI com **HTTP 200** em 13:12:03Z e 13:12:22Z. Resultado não aparecia próximo ao botão, pois UI exibiu confirmação apenas no rodapé das configurações.
+- Banco `ai_assistant_settings.enabled=false`: visual do botão "LIGADO" era apenas estado local pendente; salvar todas as configurações no final da página para persistir, inclusive modo por módulo.
+- Corrigido na branch `feature/assistente-ir-base-20261018`: `df1b1e8` feedback de salvar/testar junto ao botão e aviso de alterações não salvas; `5bebcf8`, `79039ef`, `30d9d62` subgrupo visual Assistente IR desktop/mobile, sem rebatizar personalidade.
+- CI `https://github.com/altnixtecnologia/jornalir/actions/runs/39131103349`: SUCCESS (SHA `833fd83`). Gatilho CI temporário removido em `f22b621`.
+- **Pendente:** a correção **não foi publicada**. Usuário decide nome público sugerido `Íris` e autoriza futuro deploy, após o qual validar feedback da UI, salvamento efetivo das configurações, geração de texto e limites. Nenhuma alteração no VS Code, banco ou segredo neste lote.
