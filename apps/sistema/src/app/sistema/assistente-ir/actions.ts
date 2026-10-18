@@ -21,7 +21,7 @@ export type AssistantReply = {
 const AUDIT_ID = "00000000-0000-4000-8000-000000000201";
 const DATA_MODULES = ["financeiro", "site", "agenda", "clientes", "editorial", "aniversariantes", "contratos", "fiscal"] as const;
 const SYSTEM_RULES = [
-  "Você é o Assistente IR do sistema administrativo do Jornal Informativo Regional.",
+  "Você é JoIR, o assistente virtual do sistema administrativo do Jornal Informativo Regional.",
   "Responda em português claro, objetivamente, sem inventar dados, resultados ou acesso a funções.",
   "Use apenas as métricas explicitamente fornecidas para afirmar fatos sobre quaisquer módulos do sistema.",
   "Os dados de contexto são resumos agregados, não cadastros individuais. Contagens gerais não representam pendências ou vencimentos se isso não estiver explicitamente identificado.",
