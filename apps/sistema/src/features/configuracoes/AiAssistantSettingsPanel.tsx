@@ -3,11 +3,12 @@
 import { useState, useTransition } from "react";
 import {
   saveAssistantProviderKeyAction, updateAssistantSettingsAction,
+  testAssistantConnectionAction, getAssistantOperationalBriefAction,
 } from "../../app/sistema/configuracoes/assistente-ir/actions";
 import {
   AI_DEFAULT_MODELS, AI_MODULES,
 } from "./aiSettingsTypes";
-import type { AiModuleKey, AiModuleMode, AiProvider, AiSettingsInput, AiSettingsSnapshot } from "./aiSettingsTypes";
+import type { AiModuleKey, AiModuleMode, AiProvider, AiSettingsInput, AiSettingsSnapshot, AiOperationalBrief } from "./aiSettingsTypes";
 
 const MODES: ReadonlyArray<{ value: AiModuleMode; label: string }> = [
   { value: "off", label: "Desligado" },
@@ -22,6 +23,7 @@ export function AiAssistantSettingsPanel({ initial }: { initial: AiSettingsSnaps
   });
   const [keys, setKeys] = useState({ ...initial.configuredKeys });
   const [newKey, setNewKey] = useState("");
+  const [brief, setBrief] = useState<AiOperationalBrief | null>(null);
   const [busy, startTransition] = useTransition();
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -34,11 +36,13 @@ export function AiAssistantSettingsPanel({ initial }: { initial: AiSettingsSnaps
       model: value === old.provider ? old.model : AI_DEFAULT_MODELS[value],
     }));
     setNewKey("");
+    setBrief(null);
     clearFeedback();
   }
 
   function changeMode(key: AiModuleKey, value: AiModuleMode): void {
     setForm((old) => ({ ...old, modes: { ...old.modes, [key]: value } }));
+    setBrief(null);
     clearFeedback();
   }
 
@@ -63,6 +67,30 @@ export function AiAssistantSettingsPanel({ initial }: { initial: AiSettingsSnaps
     });
   }
 
+  function testConnection(): void {
+    clearFeedback();
+    startTransition(async () => {
+      const result = await testAssistantConnectionAction(form.provider);
+      if ("error" in result) { setError(result.error); return; }
+      setMessage(result.message);
+    });
+  }
+
+  function requestBrief(): void {
+    clearFeedback();
+    setBrief(null);
+    startTransition(async () => {
+      const result = await getAssistantOperationalBriefAction();
+      if ("error" in result) { setError(result.error); return; }
+      setBrief(result.data);
+      setMessage("Resumo atualizado a partir dos dados do sistema. Nenhuma chamada de IA foi realizada.");
+    });
+  }
+
+  function money(value: number): string {
+    return value.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+  }
+
   const unavailable = !initial.backendAvailable;
   return (
     <>
@@ -81,7 +109,7 @@ export function AiAssistantSettingsPanel({ initial }: { initial: AiSettingsSnaps
         <label style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 12 }}>
           <input
             type="checkbox" checked={form.enabled} disabled={unavailable || busy}
-            onChange={(event) => { setForm((old) => ({ ...old, enabled: event.target.checked })); clearFeedback(); }}
+            onChange={(event) => { setForm((old) => ({ ...old, enabled: event.target.checked })); setBrief(null); clearFeedback(); }}
           />
           <strong>{form.enabled ? "Assistente ativado" : "Assistente desativado"}</strong>
         </label>
@@ -136,6 +164,12 @@ export function AiAssistantSettingsPanel({ initial }: { initial: AiSettingsSnaps
         <button type="button" className="btn btn-secondary" style={{ marginTop: 12 }}
           disabled={unavailable || busy || !initial.encryptionAvailable || !newKey.trim()}
           onClick={saveKey}>Salvar chave do provedor selecionado</button>
+        <button type="button" className="btn btn-secondary" style={{ margin: "12px 0 0 10px" }}
+          disabled={unavailable || busy || !keys[form.provider]}
+          onClick={testConnection}>Testar conexão com {form.provider === "openai" ? "OpenAI" : "Claude"}</button>
+        <p className="helper-text">
+          Teste manual de autenticação, sem gerar mensagem; não ativa o assistente nem confirma que o modelo escolhido está liberado.
+        </p>
       </section>
 
       <section className="form-section">
@@ -163,6 +197,48 @@ export function AiAssistantSettingsPanel({ initial }: { initial: AiSettingsSnaps
             </div>
           ))}
         </div>
+      </section>
+
+      <section className="form-section">
+        <h2>Resumo operacional</h2>
+        <p className="helper-text">
+          Consulta manual e somente leitura dos módulos ligados. Os números vêm do sistema,
+          sem análise de IA, envio de alertas ou alterações em clientes e cobranças.
+        </p>
+        <button type="button" className="btn btn-secondary"
+          disabled={unavailable || busy || !form.enabled}
+          onClick={requestBrief}>Atualizar resumo</button>
+        {brief ? (
+          <div style={{ marginTop: 14 }}>
+            <p className="helper-text">
+              Consultado em {new Date(brief.generatedAt).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" })}.
+            </p>
+            <ul className="quick-access-grid">
+              {brief.financeiro ? <li><div className="quick-access-card">
+                <span className="quick-access-label">Financeiro</span>
+                <span className="quick-access-description">
+                  {brief.financeiro.overdueCount} título(s) vencido(s): {money(brief.financeiro.overdueAmount)}.
+                </span>
+                <span className="helper-text">
+                  Hoje: {brief.financeiro.receivedTodayCount} recebimento(s), {money(brief.financeiro.receivedTodayAmount)}.
+                </span>
+              </div></li> : null}
+              {brief.site ? <li><div className="quick-access-card">
+                <span className="quick-access-label">Pedidos do site</span>
+                <span className="quick-access-description">
+                  {brief.site.unattendedRequests} solicitação(ões) sem atendimento.
+                </span>
+              </div></li> : null}
+              {brief.agenda ? <li><div className="quick-access-card">
+                <span className="quick-access-label">Agenda</span>
+                <span className="quick-access-description">
+                  {brief.agenda.scheduledToday} compromisso(s) hoje,
+                  {" "}{brief.agenda.scheduledNextSevenDays} nos próximos sete dias (incluindo hoje).
+                </span>
+              </div></li> : null}
+            </ul>
+          </div>
+        ) : null}
       </section>
 
       <section className="form-section">
