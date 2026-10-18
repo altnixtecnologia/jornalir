@@ -79,3 +79,20 @@ modelos originais. Homenagens criadas por IA sao individuais e opcionais.
 - A branch `consolidacao-local-20261016` continua intacta no GitHub enquanto o ChatGPT trabalha isoladamente, salvo nova autorização.
 - Este registro complementa o procedimento anterior e elimina qualquer interpretação de que seria necessário sincronizar o VS Code imediatamente após cada lote do ChatGPT.
 - Commits de documentação desta decisão na branch de feature: CLAUDE.md e AGENTS.md foram atualizados; a versão vigente é sempre identificada pelo HEAD remoto da branch, não por uma lista estática.
+
+## 2026-10-18 — ChatGPT, lote 2: conexão e resumo operacional (GitHub somente)
+
+- Branch mantida: `feature/assistente-ir-base-20261018`. Branch oficial local/VS Code NAO sincronizada (decisao do proprietario).
+- Commits deste lote, na ordem:
+  - `00a0e5e` — funcao server-only para ler a credencial cifrada exclusivamente no teste manual do proprietario.
+  - `0b0e2a7` — Server Action de teste da chave OpenAI/Anthropic; GET de modelos, timeout 10 s, auditoria de sucesso/HTTP; sem geracao de texto e sem alterar interruptor global.
+  - `2fbcb8a` — tipos do resumo agregado (sem nomes/telefones/documentos).
+  - `c6f8220` — action de resumo sob demanda, somente owner, com RLS do usuario; consulta Financeiro, pedidos do Site e Agenda APENAS se global/modulo ativados; zero chamadas de IA.
+  - `ddb6a2e` — tela de configuracoes com botoes "Testar conexao" e "Atualizar resumo", indicadores e tratamento de erro.
+  - `f5596f3` — impede apresentar dados de demonstracao como dados reais no resumo.
+- **Nenhuma API foi chamada na conta do usuario; nenhum envio, cobranca, cancelamento, publicacao ou automacao**.
+- **Validacao efetuada:** inspecao estatica dos arquivos e refs por GitHub connector; checagem de estrutura e dependencias por leitura.
+- **NAO validado:** typecheck, Next build, testes de seguranca Supabase/RLS, uso autenticado, chaves reais, endpoints externos. O ambiente de teste isolado nao tem acesso de rede ao GitHub e nao representa VS Code. Nao afirmar que esta homologado.
+- As migrations `20261030100100_birthday_message_templates.sql` e `20261030100200_ai_assistant_base.sql` seguem pendentes; nenhum remoto alterado.
+- **Proxima retomada:** integrar HEAD INTEIRO da branch feature quando o usuario voltar a usar Claude ou Codex; nao cherry-pick apenas os 6 commits deste lote. Rodar typecheck/build, auditar os controles de acesso e autenticar os fluxos antes de producao.
+- Melhorias futuras (NAO implementadas): agente autonomo agendado, resumos proativos, central de decisoes com aprovacao reautenticada, atendimento inteligente ao site, importacao editorial assistida por IA, historico de custo.
