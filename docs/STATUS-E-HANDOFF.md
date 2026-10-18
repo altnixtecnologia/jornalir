@@ -994,3 +994,71 @@ foi só em código de aplicação (scripts + `packages/core`).
   Depois, revisão editorial manual de cada rascunho antes de publicar individualmente
   (cada "Publicar" vai preservar a data original, graças ao fix desta etapa).
 - Nenhuma matéria foi criada, nenhuma mídia enviada ao R2, nenhum push/deploy.
+
+## LOTE 3 — IMPORTAÇÃO REAL executada (18/10/2026) — 56 matérias publicadas
+
+**Decisão definitiva do proprietário** (reverteu a decisão temporária do Lote 2):
+as matérias novas do sync incremental nascem `status=published` direto —
+comportamento histórico das importações do site legado. Commit de código
+`7b68bfd` (novo flag `--publish-recent`, explícito, nunca default implícito —
+sem ele o script continua em `draft` mesmo com `--commit`). Preflight re-executado
+contra o site real ANTES da importação: números idênticos aos dois dry-runs
+anteriores (240 encontrados, 61 candidatas, 5 existentes, 56 novas elegíveis, 0
+exceções/revisão/quarentena) — sem mudanças no acervo legado entre as execuções,
+autorizado seguir para a importação real.
+
+### Importação real executada
+
+Comando: `node --env-file=.env.local scripts/legacy-audit/sync-recent.mjs --commit --publish-recent`
+(sem `--reconcile-existing` — as 5 matérias já existentes propositalmente fora).
+
+```json
+{ "imported": 56, "skippedExisting": 0, "failedArticles": 0,
+  "uploadedImages": 168, "reusedImages": 0, "alreadyLinkedImages": 0,
+  "correctedImages": 0, "failedImages": 0 }
+```
+
+**0 falhas, 0 matérias puladas, 0 imagens com falha.** Relatório completo salvo em
+`scripts/legacy-audit/output/sync-recent-2026-10-18T16-31-40-512Z.json` (fora do
+repositório Git, pasta `output/` gitignored).
+
+### Verificação final obrigatória (consulta direta ao Supabase, não presumida)
+
+| # | Item | Resultado |
+|---|---|---|
+| 1 | Matérias criadas com `status=published` | **56 novas** (confirmado: `articles` com `status=published` subiu de 23.365 para 23.421 — delta exato +56; `article_external_sources` do provider subiu de 23.440 para 23.496 — delta exato +56, nenhuma duplicada) |
+| 2 | Aparecem na visualização pública | **61/61** (as 56 novas + as 5 já existentes) presentes na view `public_articles` (que filtra `status=published`) |
+| 3 | Datas originais preservadas | **0 divergências** — `articles.published_at` idêntico a `article_external_sources.original_published_at` em todas as 61 linhas da janela (11/10 a 17/10) |
+| 4 | Referência à origem no site antigo | **61/61** com `origin=legacy_site` + linha em `article_external_sources` (URL, `external_id`, `original_published_at`) |
+| 5 | Imagens importadas e vinculadas | **168 imagens enviadas ao R2 e vinculadas** às 56 novas matérias (0 falhas); todas as 61 matérias da janela têm pelo menos 1 imagem vinculada (193 vínculos totais na janela, incluindo os 25 já existentes das 5 antigas, nunca tocados nesta execução) |
+| 6 | As 5 matérias existentes permaneceram intactas | **Confirmado** — `updated_at` de cada uma das 5 idêntico ao valor capturado ANTES da importação (snapshot comparado byte a byte); nenhuma delas foi processada nesta execução (log confirma: "5 matéria(s) já existente(s) NÃO serão tocadas") |
+| 7 | Notificações/destaques | **0 notificações, 0 destaques** — todas as 61 com `notification_mode=none`; 0 linhas em `article_placements` para qualquer uma das 61 |
+
+### Exemplos de URLs publicadas (amostra, não a lista completa)
+
+- `/noticias/campanha-crianca-feliz-promoveu-tarde-de-brincadeiras-e-diversao-em-sao-joao-do--15486424` — nova
+- Lista completa de títulos/URLs de origem das 56 já estava em
+  `docs/LEGADO-DRY-RUN-sync-recent-20261018.md` (gerado no Lote 1) — os slugs reais
+  no novo portal seguem o mesmo título, com sufixo do `external_id` do legado.
+
+### O que NÃO foi feito (fora do escopo autorizado)
+
+- Nenhum push no GitHub, nenhum deploy na Vercel.
+- Nenhuma alteração em qualquer outra funcionalidade do site/sistema.
+- Nenhuma notificação disparada (confirmado na verificação, item 7).
+- As 5 matérias existentes não foram reconciliadas (mídia/vínculos) — ficou de fora
+  de propósito (`--reconcile-existing` não usado); seguem exatamente como estavam.
+
+### Ponto de continuidade
+
+- Branch/HEAD: `feature/site-lancamento-editorial-publicidade-20261018`, commits
+  locais `18c15c5` (Lote 1), `fcf71c1` (Lote 2), `7b68bfd` (Lote 3 código) — mais este
+  commit de documentação. **Nenhum push realizado.**
+- Lote 1/2/3 do plano de importação do site legado (`docs/PLANO-APP-PUSH-E-SINCRONIZACAO-MATERIAS-20261018.md`)
+  concluído com sucesso: 56 matérias recentes do site antigo agora publicadas no novo
+  portal, sem duplicação, sem perda de data, sem afetar as 5 já existentes.
+- Pendente (não solicitado ainda): decidir se as 5 matérias existentes precisam de
+  reconciliação de mídia (25 imagens já vinculadas anteriormente — não investigado
+  se estão completas); Lote 3/4 do plano original (Web Push/app nativo, QA de
+  publicidade 6 posições) continuam em aberto e sem relação com esta importação.
+- Aguardando novas instruções do proprietário.

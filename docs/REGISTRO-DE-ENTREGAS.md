@@ -328,3 +328,26 @@ P1: performance/Core Web Vitals, alertas de erros, painel de estatísticas, vín
 - GitHub Actions run `39138671694`, SHA de código + gatilho CI `82213fda`: **SUCCESS** (typecheck/build apps/site e apps/sistema; smoke contratos e PDFs). URL: `https://github.com/altnixtecnologia/jornalir/actions/runs/39138671694`.
 - Workflow normal foi restaurado em `245f136`, e commits subsequentes alteraram apenas documentação. O código corrigido validado permanece o mesmo.
 - **Nenhuma publicação**: para validar divisórias com navegação real é necessário deploy posterior autorizado, seguido de inspeção na página editorias, inclusive linha em edição e reordenação. Não foi feita alteração no Supabase, VS Code ou anúncios.
+
+## IMPORTAÇÃO REAL — 56 matérias do site legado publicadas (18/10/2026, Lotes 1-3)
+
+- Branch `feature/site-lancamento-editorial-publicidade-20261018`, commits de código
+  `18c15c5`/`fcf71c1`/`7b68bfd` (sync incremental reaproveitado de
+  `scripts/legacy-audit/`, nenhum importador novo). Dois dry-runs confirmaram os
+  mesmos números antes da execução real: 240 itens no legado, 61 candidatas, 5 já
+  existentes, 56 novas elegíveis, 0 exceções/revisão/quarentena.
+- Decisão definitiva do proprietário: as novas entram `status=published` direto
+  (comportamento histórico das importações do legado), via novo flag explícito
+  `--publish-recent` (nunca default implícito).
+- **Importação real executada** (`--commit --publish-recent`): 56 matérias criadas,
+  168 imagens enviadas ao R2 e vinculadas, **0 falhas**. As 5 matérias já existentes
+  não foram tocadas (`--reconcile-existing` não usado).
+- Verificação direta no Supabase confirmou: 56 novas com `status=published` (delta
+  exato +56 em `articles` e em `article_external_sources`, sem duplicata); 61/61
+  visíveis na view pública; 0 divergências entre `published_at` e a data original do
+  legado; 61/61 com referência de origem (URL/ID/data); 5 existentes com `updated_at`
+  idêntico ao snapshot anterior à importação (intactas); 0 notificações e 0
+  destaques criados.
+- Nenhum push no GitHub, nenhum deploy na Vercel, nenhuma outra funcionalidade
+  alterada. Relatório completo e evidências em `docs/STATUS-E-HANDOFF.md`, seção
+  "LOTE 3".
