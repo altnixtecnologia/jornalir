@@ -17,8 +17,9 @@ export default async function AssistenteIrPage(): Promise<JSX.Element> {
     .select("role,active").eq("id", user.id).maybeSingle();
   if (!profile?.active || profile.role !== "owner") redirect("/sistema?acesso=negado");
   const state = await loadAssistantOwnerSnapshot();
-  const enabledModules = AI_MODULES.filter((item) => state.modes[item.key] !== "off")
-    .map((item) => item.label);
+  const enabledChoices = AI_MODULES.filter((item) => state.modes[item.key] !== "off")
+    .map((item) => ({ key: item.key, label: item.label }));
+  const enabledModules = enabledChoices.map((item) => item.label);
 
   return (
     <>
@@ -26,7 +27,7 @@ export default async function AssistenteIrPage(): Promise<JSX.Element> {
         title="Assistente IR" description="Converse com a IA usando os módulos autorizados, sem permitir execuções automáticas."
         action={<Link className="btn btn-secondary" href="/sistema/configuracoes/assistente-ir">Configurar IA</Link>} />
       <AiAssistantChatPanel enabled={state.enabled && state.backendAvailable && state.encryptionAvailable}
-        modules={enabledModules} />
+        modules={enabledModules} moduleChoices={enabledChoices} />
     </>
   );
 }
