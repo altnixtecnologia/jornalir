@@ -145,6 +145,58 @@ function usageFrom(body: unknown, provider: "openai" | "anthropic") {
   };
 }
 
+export type AiUsageSummary = {
+  requests: number;
+  inputTokens: number;
+  outputTokens: number;
+  providers: { provider: string; model: string; requests: number; tokens: number }[];
+  since: string;
+};
+
+/** Consumo registrado em audit_events (estimativa de tokens, não valor faturado). */
+export async function getAssistantUsageAction(): Promise<
+  { ok: true; data: AiUsageSummary } | { error: string }
+> {
+  try {
+    if (isLocalPreviewEnabled()) return { error: "Histórico indisponível na demonstração." };
+    const db = createSupabaseServerClient();
+    const { data: { user }, error: authError } = await db.auth.getUser();
+    if (authError || !user) return { error: "Faça login novamente." };
+    const { data: profile } = await db.from("profiles")
+      .select("role,active").eq("id", user.id).maybeSingle();
+    if (!profile?.active || profile.role !== "owner") return { error: "Acesso reservado ao proprietário." };
+    const since = new Date(Date.now() - 7 * 86400000).toISOString();
+    const { data, error } = await db.from("audit_events")
+      .select("metadata,created_at").eq("entity_type", "ai_assistant_chat")
+      .eq("action", "generation").eq("user_id", user.id)
+      .gte("created_at", since).order("created_at", { ascending: false }).limit(500);
+    if (error) return { error: "Não foi possível consultar o histórico de tokens." };
+    const providers = new Map<string, { provider: string; model: string; requests: number; tokens: number }>();
+    let inputTokens = 0;
+    let outputTokens = 0;
+    for (const row of data ?? []) {
+      const meta = row.metadata && typeof row.metadata === "object" ? row.metadata as Record<string, unknown> : {};
+      const provider = meta.provider === "anthropic" ? "Claude" : "OpenAI";
+      const model = typeof meta.model === "string" ? meta.model : "não informado";
+      const inbound = typeof meta.inputTokens === "number" && meta.inputTokens >= 0 ? meta.inputTokens : 0;
+      const outbound = typeof meta.outputTokens === "number" && meta.outputTokens >= 0 ? meta.outputTokens : 0;
+      inputTokens += inbound;
+      outputTokens += outbound;
+      const key = provider + "/" + model;
+      const found = providers.get(key) ?? { provider, model, requests: 0, tokens: 0 };
+      found.requests += 1;
+      found.tokens += inbound + outbound;
+      providers.set(key, found);
+    }
+    return { ok: true, data: {
+      requests: (data ?? []).length, inputTokens, outputTokens,
+      providers: [...providers.values()].sort((a, b) => b.tokens - a.tokens), since,
+    } };
+  } catch {
+    return { error: "Não foi possível consultar o histórico de uso da IA." };
+  }
+}
+
 /** Conversa explicitamente iniciada pelo owner. Sem jobs, escrita nos módulos ou compartilhamento de dados pessoais. */
 export async function askAssistantAction(message: string, prior: AssistantTurn[]): Promise<AssistantReply> {
   let userId: string | null = null;
