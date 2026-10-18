@@ -24,6 +24,13 @@ export function AiAssistantSettingsPanel({ initial }: { initial: AiSettingsSnaps
   });
   const [keys, setKeys] = useState({ ...initial.configuredKeys });
   const [newKey, setNewKey] = useState("");
+  const [savedSettings, setSavedSettings] = useState<AiSettingsInput>({
+    enabled: initial.enabled, provider: initial.provider, model: initial.model,
+    modes: { ...initial.modes },
+  });
+  const [credentialFeedback, setCredentialFeedback] = useState<
+    { kind: "working" | "success" | "error"; text: string; provider: AiProvider } | null
+  >(null);
   const [catalog, setCatalog] = useState<Record<AiProvider, string[]>>({ openai: [], anthropic: [] });
   const [catalogStatus, setCatalogStatus] = useState<Record<AiProvider, string>>({ openai: "", anthropic: "" });
   const [brief, setBrief] = useState<AiOperationalBrief | null>(null);
@@ -56,6 +63,9 @@ export function AiAssistantSettingsPanel({ initial }: { initial: AiSettingsSnaps
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [form.provider, keys.openai, keys.anthropic, initial.backendAvailable, initial.encryptionAvailable]);
 
+  const hasUnsavedSettings =
+    JSON.stringify(form) !== JSON.stringify(savedSettings);
+
   const availableModels = Array.from(new Set([
     form.model, ...catalog[form.provider], ...AI_SUGGESTED_MODELS[form.provider],
   ].filter(Boolean)));
@@ -66,6 +76,7 @@ export function AiAssistantSettingsPanel({ initial }: { initial: AiSettingsSnaps
       model: value === old.provider ? old.model : AI_DEFAULT_MODELS[value],
     }));
     setNewKey("");
+    setCredentialFeedback(null);
     setBrief(null);
     clearFeedback();
   }
@@ -81,6 +92,7 @@ export function AiAssistantSettingsPanel({ initial }: { initial: AiSettingsSnaps
     startTransition(async () => {
       const result = await updateAssistantSettingsAction(form);
       if ("error" in result) { setError(result.error); return; }
+      setSavedSettings({ ...form, modes: { ...form.modes } });
       setMessage("Configurações salvas. O servidor verificará esses controles antes de qualquer chamada à IA.");
     });
   }
@@ -88,21 +100,44 @@ export function AiAssistantSettingsPanel({ initial }: { initial: AiSettingsSnaps
   function saveKey(): void {
     clearFeedback();
     const provider = form.provider;
+    const keyToSave = newKey;
+    setCredentialFeedback({ kind: "working", provider, text: "Salvando chave de API no cofre seguro..." });
     startTransition(async () => {
-      const result = await saveAssistantProviderKeyAction(provider, newKey);
-      if ("error" in result) { setError(result.error); return; }
-      setKeys((old) => ({ ...old, [provider]: true }));
-      setNewKey("");
-      setMessage("Chave salva de forma criptografada no servidor. O valor não será exibido novamente.");
+      try {
+        const result = await saveAssistantProviderKeyAction(provider, keyToSave);
+        if ("error" in result) {
+          setCredentialFeedback({ kind: "error", provider, text: result.error });
+          return;
+        }
+        setKeys((old) => ({ ...old, [provider]: true }));
+        setNewKey("");
+        setCredentialFeedback({ kind: "success", provider,
+          text: "Chave salva e armazenada com criptografia. Por segurança, o campo fica vazio após salvar." });
+      } catch {
+        setCredentialFeedback({ kind: "error", provider,
+          text: "Erro inesperado ao salvar. A chave não foi confirmada; verifique antes de tentar novamente." });
+      }
     });
   }
 
   function testConnection(): void {
     clearFeedback();
+    const provider = form.provider;
+    setCredentialFeedback({ kind: "working", provider, text: "Testando a autenticação da API, aguarde..." });
     startTransition(async () => {
-      const result = await testAssistantConnectionAction(form.provider);
-      if ("error" in result) { setError(result.error); return; }
-      setMessage(result.message);
+      try {
+        const result = await testAssistantConnectionAction(provider);
+        if ("error" in result) {
+          setCredentialFeedback({ kind: "error", provider, text: result.error });
+          return;
+        }
+        setCredentialFeedback({ kind: "success", provider,
+          text: result.message + " Teste concluído em " +
+            new Date().toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" }) + "." });
+      } catch {
+        setCredentialFeedback({ kind: "error", provider,
+          text: "Falha de comunicação ao testar a API. Nenhum resultado foi confirmado; tente novamente." });
+      }
     });
   }
 
@@ -152,7 +187,12 @@ export function AiAssistantSettingsPanel({ initial }: { initial: AiSettingsSnaps
             }} />
             {form.enabled ? "LIGADO — Desligar" : "DESLIGADO — Ligar"}
           </button>
-          <p className="helper-text">A mudança só entra em vigor ao clicar em Salvar configurações.</p>
+          <p className="helper-text">
+            {hasUnsavedSettings
+              ? "Alterações ainda NÃO salvas no servidor. O botão acima representa apenas sua escolha atual."
+              : `Estado salvo no servidor: ${savedSettings.enabled ? "LIGADO" : "DESLIGADO"}.`}
+            {hasUnsavedSettings ? <> <a href="#assistente-ir-salvar">Ir para Salvar configurações</a>.</> : null}
+          </p>
         </div>
         <p className="helper-text">Desligar bloqueia novas chamadas no servidor. Não substitui a confirmação para cada ação sensível.</p>
       </section>
@@ -225,8 +265,22 @@ export function AiAssistantSettingsPanel({ initial }: { initial: AiSettingsSnaps
         <button type="button" className="btn btn-secondary" style={{ margin: "12px 0 0 10px" }}
           disabled={unavailable || busy || !keys[form.provider]}
           onClick={testConnection}>Testar conexão com {form.provider === "openai" ? "OpenAI" : "Claude"}</button>
+        {credentialFeedback && credentialFeedback.provider === form.provider ? (
+          <div role={credentialFeedback.kind === "error" ? "alert" : "status"}
+            aria-live={credentialFeedback.kind === "error" ? "assertive" : "polite"}
+            style={{
+              borderRadius: 8, border: "1px solid currentColor",
+              padding: "12px 14px", marginTop: 12, marginBottom: 8,
+              maxWidth: 750, fontWeight: 600,
+              color: credentialFeedback.kind === "error" ? "#b42318" : "inherit",
+            }}>
+            {credentialFeedback.kind === "working" ? "⏳ " : credentialFeedback.kind === "success" ? "✓ " : "Atenção: "}
+            {credentialFeedback.text}
+          </div>
+        ) : null}
         <p className="helper-text">
-          Teste manual de autenticação, sem gerar mensagem; não ativa o assistente nem confirma que o modelo escolhido está liberado.
+          O teste verifica apenas a autenticação com a API. O campo de chave fica vazio depois de salvar
+          porque a credencial não pode ser recuperada pelo navegador. Nenhum teste gera uma mensagem.
         </p>
       </section>
 
@@ -313,7 +367,7 @@ export function AiAssistantSettingsPanel({ initial }: { initial: AiSettingsSnaps
 
       {error ? <p className="form-error" role="alert">{error}</p> : null}
       {message ? <p role="status" className="helper-text">{message}</p> : null}
-      <div style={{ display: "flex", gap: 12, justifyContent: "flex-end", flexWrap: "wrap", padding: "12px 0" }}>
+      <div id="assistente-ir-salvar" style={{ display: "flex", gap: 12, justifyContent: "flex-end", flexWrap: "wrap", padding: "12px 0" }}>
         <Link className="btn btn-secondary" href="/sistema/assistente-ir">Abrir conversa</Link>
         <button type="button" className="btn btn-primary"
           disabled={unavailable || busy} onClick={saveSettings}>
