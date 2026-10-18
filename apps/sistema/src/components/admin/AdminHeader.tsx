@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect } from "react";
+import { Fragment, useEffect } from "react";
 import { usePathname } from "next/navigation";
 import { clientesNavGroup, configuracoesNavGroup, editorialNavGroup, financeiroNavGroup, nfseNavGroup, commercialNavGroup } from "../../lib/navigation";
 import { useAuth } from "../../lib/auth/AuthProvider";
@@ -52,7 +52,7 @@ export function AdminHeader({ onOpenMenu }: { onOpenMenu: () => void }): JSX.Ele
   const isFinanceiro = pathname.startsWith("/sistema/financeiro");
   const isPublicidade = pathname.startsWith("/sistema/publicidade");
   const isNfse = pathname.startsWith("/sistema/nfse");
-  const isConfiguracoes = pathname.startsWith("/sistema/usuarios") || pathname.startsWith("/sistema/configuracoes");
+  const isConfiguracoes = pathname.startsWith("/sistema/usuarios") || pathname.startsWith("/sistema/configuracoes") || pathname.startsWith("/sistema/assistente-ir");
   const canManageUsers = Boolean(profile?.active && (profile.role === "owner" || profile.role === "admin"));
 
   return (
@@ -190,16 +190,26 @@ export function AdminHeader({ onOpenMenu }: { onOpenMenu: () => void }): JSX.Ele
                 Configurações <span className="app-nav-caret" aria-hidden="true">▾</span>
               </summary>
               <div className="app-nav-panel">
-                {configuracoesNavGroup.links.filter((link) => !link.ownerOnly || (profile?.active && profile.role === "owner")).map((link) => (
-                  <Link
-                    key={link.href}
-                    href={link.href}
-                    className={`app-nav-panel-link${link.primary ? " is-primary" : ""}`}
-                    onClick={closeNavDropdowns}
-                  >
-                    {link.label}
-                  </Link>
-                ))}
+                {configuracoesNavGroup.links
+                  .filter((link) => !link.ownerOnly || (profile?.active && profile.role === "owner"))
+                  .map((link, index, visible) => (
+                    <Fragment key={link.href}>
+                      {link.group && (index === 0 || visible[index - 1]?.group !== link.group) ? (
+                        <div role="heading" aria-level={3}
+                          style={{ padding: "12px 12px 4px", fontSize: 11, fontWeight: 700, letterSpacing: ".04em" }}>
+                          {link.group}
+                        </div>
+                      ) : null}
+                      <Link
+                        href={link.href}
+                        className={`app-nav-panel-link${link.primary ? " is-primary" : ""}`}
+                        style={link.group ? { paddingLeft: 26 } : undefined}
+                        onClick={closeNavDropdowns}
+                      >
+                        {link.label}
+                      </Link>
+                    </Fragment>
+                  ))}
               </div>
             </details>
           ) : null}
