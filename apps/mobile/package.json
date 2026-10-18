@@ -1,12 +1,18 @@
 {
   "name": "mobile",
   "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
+  "private": true,
+  "description": "Jornal IR — app piloto Android (Capacitor), instalação por APK, sem Play Store nesta fase.",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "sync": "cap sync android",
+    "build:debug": "cd android && ./gradlew assembleDebug"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC"
+  "dependencies": {
+    "@capacitor/android": "7.6.9",
+    "@capacitor/core": "7.6.9"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "7.6.9"
+  },
+  "license": "UNLICENSED"
 }
