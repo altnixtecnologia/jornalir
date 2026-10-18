@@ -13,7 +13,7 @@ que a branch de producao ou a pasta local contem o ultimo desenvolvimento.
   `20d515d`, `3fa4caf`, `418f77c`, `3df9431`, `018f213`, `a3d506a`.
 - Nenhum deploy Vercel; nenhuma migration remota; `main` nao alterada.
 - Homenagens, relatorio semanal e vinculacao aniversariantes/clientes em codigo;
-  migration `20261030100100_birthday_message_templates.sql` ainda pendente.
+  migration `20261018030124_birthday_message_templates.sql` ainda pendente.
 - Testes anteriores: relatados pelo Claude (typecheck, build e 101 testes);
   sem homologacao funcional com usuario autenticado.
 
@@ -40,7 +40,7 @@ que a branch de producao ou a pasta local contem o ultimo desenvolvimento.
 - **REGRA ANTI-OMISSAO:** o comando de integracao e do HEAD COMPLETO da branch feature
   (nao cherry-pick manual dos commits listados). O ultimo commit deste registro
   tambem faz parte do mesmo intervalo e deve ser incluido.
-- **Migration nova PENDENTE**: `supabase/migrations/20261030100200_ai_assistant_base.sql`; NAO foi aplicada.
+- **Migration nova PENDENTE**: `supabase/migrations/20261018030210_ai_assistant_base.sql`; NAO foi aplicada.
 - **Env nova PENDENTE**: `AI_CONFIG_ENCRYPTION_KEY` (32 bytes aleatorios codificados em base64), somente no servidor;
   chave `SUPABASE_SERVICE_ROLE_KEY` existente continua necessaria para acesso ao cofre.
   As chaves OpenAI/Anthropic serao cadastradas na UI depois do rollout seguro.
@@ -93,6 +93,26 @@ modelos originais. Homenagens criadas por IA sao individuais e opcionais.
 - **Nenhuma API foi chamada na conta do usuario; nenhum envio, cobranca, cancelamento, publicacao ou automacao**.
 - **Validacao efetuada:** inspecao estatica dos arquivos e refs por GitHub connector; checagem de estrutura e dependencias por leitura.
 - **NAO validado:** typecheck, Next build, testes de seguranca Supabase/RLS, uso autenticado, chaves reais, endpoints externos. O ambiente de teste isolado nao tem acesso de rede ao GitHub e nao representa VS Code. Nao afirmar que esta homologado.
-- As migrations `20261030100100_birthday_message_templates.sql` e `20261030100200_ai_assistant_base.sql` seguem pendentes; nenhum remoto alterado.
+- As migrations `20261018030124_birthday_message_templates.sql` e `20261018030210_ai_assistant_base.sql` seguem pendentes; nenhum remoto alterado.
 - **Proxima retomada:** integrar HEAD INTEIRO da branch feature quando o usuario voltar a usar Claude ou Codex; nao cherry-pick apenas os 6 commits deste lote. Rodar typecheck/build, auditar os controles de acesso e autenticar os fluxos antes de producao.
 - Melhorias futuras (NAO implementadas): agente autonomo agendado, resumos proativos, central de decisoes com aprovacao reautenticada, atendimento inteligente ao site, importacao editorial assistida por IA, historico de custo.
+
+
+## 2026-10-18 — PUBLICAÇÃO AUTORIZADA (sistema administrativo)
+
+**Autorizações:** proprietário solicitou publicação de produção e, em seguida, autorizou expressamente aplicar duas migrations e criar/configurar a chave de criptografia interna. Proprietário confirmou criação da variável no painel da Vercel.
+
+**Banco Supabase** `site-system-ir` (`iqnzrpdccecgalqboeyf`):
+- Migration `birthday_message_templates` aplicada com sucesso. Versão REAL registrada pelo Supabase: `20261018030124`.
+- Migration `ai_assistant_base` aplicada com sucesso. Versão REAL registrada pelo Supabase: `20261018030210`.
+- Foram verificadas a existência das tabelas e RLS. A tabela `ai_provider_credentials` não concede SELECT/INSERT/UPDATE/DELETE para o papel authenticated. O Assistente IR tem `enabled=false` inicialmente; nenhuma chave API ou aprovação cadastrada.
+- Os arquivos SQL foram **renomeados sem alterar conteúdo** em commit `20295a0`, para usar as mesmas versões de migrations que o Supabase realmente registrou (evita reaplicação por divergência de nome do arquivo no futuro). Os nomes anteriores `20261030100100_...` e `20261030100200_...` não devem ser reutilizados. A versão REAL do banco, e não o comentário antigo dentro do SQL, determina se a migration foi aplicada.
+
+**Vercel:** projeto `jornalir-sistema`, somente Production. `AI_CONFIG_ENCRYPTION_KEY` confirmada como variável do tipo Sensitive para Production; sem revelar o valor. `SUPABASE_SERVICE_ROLE_KEY` já existente, não alterada. Nenhuma variável de Asaas/WhatsApp/NFS-e modificada.
+- Prévia compilada: `dpl_5VV52g4aD93nzWH4Wex1tFR8y6RX`, READY, SHA `948060c18c47158cb4e8f8f8acf2c201ef876237`.
+- **Deploy de produção:** `dpl_4eLiZNh8J5JRdrBz3xjxRewbTi2c`, READY, SHA EXATO `948060c18c47158cb4e8f8f8acf2c201ef876237`, branch `feature/assistente-ir-base-20261018`.
+- Domínio oficial `https://controle.altnix.com.br` confirmado por Vercel apontando exatamente ao deploy acima. Smoke HTTP de `/sistema/configuracoes/assistente-ir` chegou à página de login sem sessão, demonstrando que a proteção de login segue em vigor.
+- Site público `jornalir` não recebeu deploy; VS Code, `consolidacao-local-20261016` e `main` intocados.
+- **HOMOLOGAÇÃO:** build Next/TS completo na Vercel passou; testes autenticados de páginas/actions, operações no banco, chaves de API OpenAI/Claude, fluxos Aniversariantes/clientes e UX completa **ainda não ocorreram** e serão feitos pelo proprietário. Não confundir READY com homologação.
+- **SHA publicado != HEAD atual da branch:** após iniciar o deploy, ajustes somente de nomes dos arquivos SQL e documentação foram registrados na feature. O código implantado corresponde a `948060c`. Quando Claude/Codex voltar a desenvolver, sincronizar HEAD INTEIRO da feature, incluindo renomeação `20295a0` e registro desta publicação.
+- **Atenção:** Assistente IR continua desligado e não executa jobs automáticos, cobranças, mensagens ou decisões. O proprietário poderá cadastrar as chaves em Configurações → Assistente IR e ativar manualmente, depois de conferir o login. Consumo das APIs é cobrado separadamente das assinaturas ChatGPT/Claude.
