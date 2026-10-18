@@ -40,7 +40,7 @@ export function AiAssistantProposalsPanel({ initial }: {
   return (
     <section className="form-section form-section--first">
       <p className="helper-text">
-        Aqui são avaliadas sugestões criadas pelo Assistente IR ou registradas por você.
+        Aqui são avaliadas sugestões criadas pelo JoIR ou registradas por você.
         <strong> Aprovar não envia mensagens, não movimenta dinheiro, não publica matérias
         e não altera cadastros.</strong> Essas operações precisam de fluxo de execução separado e autorizado.
       </p>
