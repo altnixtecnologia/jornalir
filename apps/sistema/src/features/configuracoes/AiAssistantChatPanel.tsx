@@ -6,7 +6,7 @@ import { askAssistantAction, getAssistantUsageAction } from "../../app/sistema/a
 import type { AiUsageSummary } from "../../app/sistema/assistente-ir/actions";
 import type { AssistantTurn } from "../../app/sistema/assistente-ir/actions";
 import { saveAssistantProposalAction } from "../../app/sistema/assistente-ir/propostas/actions";
-import type { AiModuleKey } from "./aiSettingsTypes";
+import type { AiModuleKey, AiProvider } from "./aiSettingsTypes";
 
 const QUESTIONS = [
   "Faça um resumo do que está pendente hoje.",
@@ -17,8 +17,12 @@ const QUESTIONS = [
 
 type Message = AssistantTurn & { sources?: string[]; model?: string; usage?: string };
 
-export function AiAssistantChatPanel({ enabled, modules, moduleChoices }: {
-  enabled: boolean; modules: string[]; moduleChoices: Array<{ key: AiModuleKey; label: string }>;
+export function AiAssistantChatPanel({ enabled, modules, moduleChoices, activeProvider, activeModel }: {
+  enabled: boolean;
+  activeProvider: AiProvider;
+  activeModel: string;
+  modules: string[];
+  moduleChoices: Array<{ key: AiModuleKey; label: string }>;
 }): JSX.Element {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
@@ -85,6 +89,25 @@ export function AiAssistantChatPanel({ enabled, modules, moduleChoices }: {
 
   return (
     <section className="form-section form-section--first" aria-label="Conversa com JoIR">
+      <div className="quick-access-card" style={{
+        marginBottom: 16, padding: "12px 16px", display: "flex",
+        alignItems: "center", flexWrap: "wrap", gap: 12,
+      }}>
+        <div style={{ flex: "1 1 260px", minWidth: 0 }}>
+          <span className="field-label">IA EM USO NESTA CONVERSA</span>
+          <p style={{ fontWeight: 700, margin: "5px 0 3px" }}>
+            {activeProvider === "anthropic" ? "Anthropic / Claude" : "OpenAI / GPT"}
+            {" · "}
+            <span style={{ overflowWrap: "anywhere" }}>{activeModel}</span>
+          </p>
+          <p className="helper-text" style={{ margin: 0 }}>
+            Configuração salva no servidor quando você abriu a página. Se mudar o provedor, atualize a conversa.
+          </p>
+        </div>
+        <Link href="/sistema/configuracoes/assistente-ir" className="btn btn-secondary">
+          Alterar provedor
+        </Link>
+      </div>
       {!enabled ? (
         <p className="form-error" role="alert">
           O JoIR está desligado. <Link href="/sistema/configuracoes/assistente-ir">Configure a chave e ligue o serviço</Link>.
