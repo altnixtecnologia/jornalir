@@ -79,7 +79,9 @@ export function MobileNav({ onNavigate }: { onNavigate: () => void }): JSX.Eleme
     setOpenGroup(null);
   }, [pathname]);
   const canManageUsers = profile?.role === "owner" || profile?.role === "admin";
-  const canSeeLink = (href: string): boolean => {
+  const canSeeLink = (link: AdminNavLink): boolean => {
+    if (link.ownerOnly && (!profile?.active || profile.role !== "owner")) return false;
+    const href = link.href;
     const path = href.split("?")[0];
     if (path.startsWith("/sistema/agenda")) return href.includes("view=pauta") ? pautaRead : agendaRead;
     for (const [prefix, key] of [
@@ -96,9 +98,9 @@ export function MobileNav({ onNavigate }: { onNavigate: () => void }): JSX.Eleme
   };
   const visibleGroups = GROUPS
     .filter((group) => !group.restricted || canManageUsers)
-    .map((group) => ({ ...group, links: group.links.filter((link) => canSeeLink(link.href)) }))
+    .map((group) => ({ ...group, links: group.links.filter((link) => canSeeLink(link)) }))
     .filter((group) => group.links.length > 0);
-  const quickLinks = SHORTCUTS.filter((link) => canSeeLink(link.href));
+  const quickLinks = SHORTCUTS.filter((link) => canSeeLink(link));
   const query = normalize(search);
   const close = (): void => {
     setSearch("");
