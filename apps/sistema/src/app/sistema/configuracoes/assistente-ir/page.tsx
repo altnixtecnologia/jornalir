@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { ModuleHeader } from "../../../../components/admin/ModuleHeader";
 import { AiAssistantSettingsPanel } from "../../../../features/configuracoes/AiAssistantSettingsPanel";
@@ -22,6 +23,7 @@ export default async function AssistantIrSettingsPage(): Promise<JSX.Element> {
         eyebrow="CONFIGURAÇÕES / INTELIGÊNCIA ARTIFICIAL"
         title="Assistente IR"
         description="Controle do proprietário: provedores, módulos e autonomia. Nenhuma operação sensível é executada sem aprovação."
+        action={<Link className="btn btn-secondary" href="/sistema/assistente-ir">Abrir conversa com IA</Link>}
       />
       <AiAssistantSettingsPanel initial={values} />
     </>
