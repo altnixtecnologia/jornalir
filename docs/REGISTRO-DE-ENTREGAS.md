@@ -312,3 +312,13 @@ P1: performance/Core Web Vitals, alertas de erros, painel de estatísticas, vín
 - GitHub Actions `Validate project`: `https://github.com/altnixtecnologia/jornalir/actions/runs/39137183679`, SHA funcional + gatilho `1048d04`: **SUCCESS**. Typecheck e build site, typecheck/build sistema e smoke de contrato e PDF concluídos.
 - Workflow temporário restaurado em `beb4292`; commits posteriores são **somente documentação**, sem mudança de código executável.
 - Continuam pendentes testes visuais responsivos com navegador, testes autenticados de matéria e patrocinadores, dados atuais, decisão sobre quatro posições com anúncios antigos, sitemap/robots e lançamento final. **Nenhum deploy realizado.**
+
+## CORREÇÃO EDITORIAS — tabela desalinhada na listagem 18/10/2026
+
+- Proprietário enviou captura do módulo `/sistema/editorial/editorias` com divisórias desalinhadas e colunas do nome se comportando como linhas separadas.
+- Causa encontrada no código: `<td className="materia-title">...` usava a classe compartilhada `.materia-title { display: block; }` em uma **célula HTML `td`**, substituindo o `display: table-cell` esperado. Isso rompe o layout tabular e o alinhamento visual dos contornos.
+- `190c42a`: corrige apenas `EditoriasManager.tsx`, colocando `<span className="materia-title">...</span>` **dentro** do `td`, mantendo nome, ordenação, ID, ações, status e modo edição inalterados; acrescenta classe específica `editorias-table`.
+- `653112d`: `apps/sistema/src/app/globals.css` adiciona regra CSS específica `.editorias-table tbody td { vertical-align: middle; }` para alinhar controles/textos na mesma faixa, inclusive edição inline. Nenhuma alteração no estilo genérico de outras tabelas.
+- CI GitHub Actions `39138671694` iniciado com gatilho temporário `82213fd` e gatilho padrão restaurado em `245f136`. Conferir conclusão antes de marcar testes aprovados.
+- Estado: somente GitHub branch `feature/site-lancamento-editorial-publicidade-20261018`. Sem deploy no site/sistema, sem alterações na base, configurações de anúncios, chaves, VS Code e sem colaboração simultânea Claude. A Claude receberá PRIMEIRO apenas instrução para sincronizar a branch inteira, e aguardar relatório.
+- Pendente: verificar visualmente em PC e tela pequena depois de publicação autorizada, com modo edição e botões de ordenação testados.
