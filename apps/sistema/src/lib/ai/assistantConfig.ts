@@ -24,6 +24,16 @@ export function hasAssistantEncryptionKey(): boolean {
   try { encryptionKey(); return true; } catch { return false; }
 }
 
+/** Estado sem o segredo: a interface pode explicar por que a chave está bloqueada. */
+function getEncryptionHint(): string | null {
+  if (!process.env.AI_CONFIG_ENCRYPTION_KEY) {
+    return "AI_CONFIG_ENCRYPTION_KEY não encontrada no ambiente de produção da aplicação.";
+  }
+  return hasAssistantEncryptionKey()
+    ? null
+    : "AI_CONFIG_ENCRYPTION_KEY está presente, mas precisa conter exatamente 32 bytes codificados em base64.";
+}
+
 /** AES-256-GCM: IV novo por gravação, tag autenticada; nunca salvar texto puro. */
 export function encryptAssistantKey(secret: string): string {
   const iv = randomBytes(12);
@@ -51,15 +61,23 @@ export async function loadAssistantOwnerSnapshot(): Promise<AiSettingsSnapshot> 
     enabled: false, provider: "openai", model: AI_DEFAULT_MODELS.openai,
     modes: { ...DEFAULT_AI_MODULE_MODES }, configuredKeys: { openai: false, anthropic: false },
     encryptionAvailable: hasAssistantEncryptionKey(), backendAvailable: false, pendingApprovals: 0,
+    encryptionHint: getEncryptionHint(), backendHint: null,
   };
-  if (!hasServiceRoleKey()) return defaults;
+  if (!hasServiceRoleKey()) {
+    return { ...defaults, backendHint: "SUPABASE_SERVICE_ROLE_KEY ausente no servidor da aplicação." };
+  }
   const db = createSupabaseAdminClient();
   const [settings, credentials, approvals] = await Promise.all([
     db.from("ai_assistant_settings").select("enabled,provider,model,module_modes").eq("id", 1).maybeSingle(),
     db.from("ai_provider_credentials").select("provider"),
     db.from("ai_approval_requests").select("id", { count: "exact", head: true }).eq("status", "pending"),
   ]);
-  if (settings.error || !settings.data || credentials.error || approvals.error) return defaults;
+  if (settings.error || !settings.data || credentials.error || approvals.error) {
+    return {
+      ...defaults,
+      backendHint: "A consulta às tabelas de configuração da IA falhou. Verifique os logs do servidor e as migrations.",
+    };
+  }
   return {
     enabled: Boolean(settings.data.enabled),
     provider: settings.data.provider === "anthropic" ? "anthropic" : "openai",
@@ -71,6 +89,8 @@ export async function loadAssistantOwnerSnapshot(): Promise<AiSettingsSnapshot> 
     },
     encryptionAvailable: hasAssistantEncryptionKey(),
     backendAvailable: true,
+    encryptionHint: getEncryptionHint(),
+    backendHint: null,
     pendingApprovals: approvals.count ?? 0,
   };
 }
