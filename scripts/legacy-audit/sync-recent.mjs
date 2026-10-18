@@ -38,6 +38,15 @@ const OUTPUT_DIR = path.join(AUDIT_DIR, "output");
 const CATEGORIES = Object.keys(CATEGORY_TO_SECTION_SLUG).filter((c) => c !== "classificados");
 const MAX_PAGES_PER_CATEGORY = 30; // válvula de segurança — nunca deveria chegar perto disso num sync incremental real.
 
+// DECISÃO APROVADA (18/10/2026): matérias novas sincronizadas por ESTE script
+// SEMPRE entram como rascunho ("draft") — nunca publicadas automaticamente,
+// diferente da migração histórica (migrate.mjs), que preserva status=published
+// de propósito (conteúdo que já esteve público por anos). Constante literal
+// (não lida de env/CLI) para não poder ser mudada por engano por um parâmetro
+// ausente ou mal passado — ver assertValidTargetStatus em lib/importer.mjs,
+// que rejeita qualquer chamada sem um valor explícito e válido.
+const SYNC_RECENT_TARGET_STATUS = "draft";
+
 const args = Object.fromEntries(
   process.argv.slice(2).map((arg) => {
     const [key, value] = arg.replace(/^--/, "").split("=");
@@ -46,6 +55,9 @@ const args = Object.fromEntries(
 );
 const COMMIT = Boolean(args.commit);
 const RPS = args.rps ? Number(args.rps) : 4;
+// Item 4 (18/10/2026): por padrão, --commit NUNCA toca as matérias já
+// existentes (só reconcilia mídia delas se isto for passado explicitamente).
+const RECONCILE_EXISTING = Boolean(args["reconcile-existing"]);
 
 function todayIso() {
   return new Date().toISOString().slice(0, 10);
@@ -257,7 +269,24 @@ async function main() {
   const reportPath = path.join(OUTPUT_DIR, `sync-recent-${new Date().toISOString().replace(/[:.]/g, "-")}.json`);
 
   if (!COMMIT) {
-    await writeFile(reportPath, JSON.stringify({ mode: "preflight", preflight }, null, 2), "utf8");
+    // Simula item a item (sem gravar nada) exatamente a chamada que o
+    // --commit faria, inclusive o guard de targetStatus — confirma por
+    // execução real (não só por leitura de código) que as novas elegíveis
+    // seriam criadas como rascunho, nunca publicadas (item do Lote 2,
+    // 18/10/2026). existingReconcileList nunca entra aqui (seria
+    // "reconciliaria", não "criaria" — e de qualquer forma preflight nunca
+    // chama a RPC de qualquer jeito).
+    log("\n== SIMULAÇÃO DRY-RUN (item a item, nada gravado) ==");
+    const dryRunBatchStats = { imported: 0, skippedExisting: 0 };
+    for (const { candidate: c, detail } of eligibleList) {
+      await importCandidate(sb, c, detail, {
+        sectionCache: new Map(), localityId: null, throttle, log,
+        dryRun: true, batchStats: dryRunBatchStats, imageExceptionsFile: null,
+        targetStatus: SYNC_RECENT_TARGET_STATUS, callerLabel: "sync-recent.mjs (preflight)",
+      });
+    }
+    log(`Confirmado: ${eligibleList.length} matéria(s) seriam criadas com status="${SYNC_RECENT_TARGET_STATUS}" — nenhuma publicação automática.`);
+    await writeFile(reportPath, JSON.stringify({ mode: "preflight", preflight, targetStatus: SYNC_RECENT_TARGET_STATUS }, null, 2), "utf8");
     log(`\nPreflight salvo em: ${reportPath}`);
     log("Nada foi gravado (modo preflight). Rode com --commit para importar as novas elegíveis.");
     return;
@@ -280,14 +309,17 @@ async function main() {
   };
   const failures = [];
 
-  // Novas elegíveis: importCandidate cria a matéria (RPC) e reconcilia a
-  // mídia. Já existentes na janela: importCandidate detecta existingId e
-  // SÓ reconcilia mídia/vínculos — nunca recria, nunca sobrescreve título/
-  // corpo/data (requisito 7; comportamento já embutido em importCandidate,
-  // ver lib/importer.mjs). É exatamente isso que permite uma reexecução
-  // reparar mídia que falhou parcialmente numa execução anterior, sem
-  // duplicar matéria nem vínculo.
-  const toProcess = [...eligibleList, ...existingReconcileList];
+  // Novas elegíveis: importCandidate cria a matéria (RPC, status=rascunho —
+  // ver SYNC_RECENT_TARGET_STATUS) e reconcilia a mídia. Já existentes na
+  // janela: importCandidate detectaria existingId e SÓ reconciliaria
+  // mídia/vínculos (nunca recria, nunca sobrescreve título/corpo/data) — mas
+  // essa reconciliação fica de FORA por padrão (pedido explícito de
+  // 18/10/2026: "separar as novas das existentes, não alterar mídia das 5
+  // sem autorização posterior"). Só entra com --reconcile-existing explícito.
+  const toProcess = RECONCILE_EXISTING ? [...eligibleList, ...existingReconcileList] : [...eligibleList];
+  if (!RECONCILE_EXISTING && existingReconcileList.length > 0) {
+    log(`\n[info] ${existingReconcileList.length} matéria(s) já existente(s) NÃO serão tocadas nesta execução (sem --reconcile-existing).`);
+  }
   for (const { candidate: c, detail } of toProcess) {
     try {
       await importCandidate(sb, c, detail, {
@@ -298,6 +330,8 @@ async function main() {
         dryRun: false,
         batchStats: stats,
         imageExceptionsFile,
+        targetStatus: SYNC_RECENT_TARGET_STATUS,
+        callerLabel: "sync-recent.mjs",
       });
     } catch (error) {
       stats.failedArticles += 1;

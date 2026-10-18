@@ -883,3 +883,114 @@ confirmar que publicação direta é aceitável para este lote específico.
   `docs/LEGADO-DRY-RUN-sync-recent-20261018.md` linha por linha (ou amostra) e a
   decisão sobre o achado crítico antes de autorizar `--commit`.
 - Pendências dos lotes anteriores (Web Push/app nativo, QA de publicidade 6 posições, domínio final do site) permanecem em aberto, sem relação com este lote — ver seções "APP / PUSH / IMPORTAÇÃO" e "CONTINUIDADE SITE PÚBLICO" acima.
+
+## LOTE 2 — Importador corrigido para RASCUNHO + testes (18/10/2026, sem --commit)
+
+Decisão aprovada pelo usuário: todas as matérias novas do sync incremental entram
+como `status="draft"`, nunca publicadas automaticamente. Resolve o achado crítico do
+Lote 1. **Nenhuma importação real executada** — só preparação, testes locais e novo
+dry-run, exatamente como autorizado.
+
+### Arquivos modificados
+
+- `scripts/legacy-audit/lib/importer.mjs`: `importCandidate` agora exige
+  `opts.targetStatus` ("draft" ou "published") e `opts.callerLabel` — **rejeita
+  imediatamente** (antes de qualquer leitura/escrita no Supabase) se o valor estiver
+  ausente ou inválido (item 1 e item 5 da tarefa). `published_at` continua sendo a
+  data ORIGINAL da matéria (nunca a da importação), agora preservada também quando
+  `targetStatus="draft"` — é isso que permite ao item 2 funcionar (ver abaixo).
+- `scripts/legacy-audit/sync-recent.mjs`: define `SYNC_RECENT_TARGET_STATUS = "draft"`
+  como constante literal (nunca lida de CLI/env, para não poder ser trocada por
+  parâmetro ausente/errado); passa a chamar `importCandidate` com esse valor. Novo
+  flag `--reconcile-existing`: por padrão, as 5 matérias já existentes **não são
+  tocadas** em `--commit` nenhum (item 4) — só entram se esse flag for passado
+  explicitamente numa execução futura e autorizada separadamente. O modo preflight
+  (sem `--commit`) agora também SIMULA item a item a criação (dry-run real via
+  `importCandidate({dryRun:true,...})`), confirmando por execução — não só por
+  leitura de código — que cada uma das 56 entraria como rascunho. Corrigido também um
+  bug de efeito colateral (reexecução indevida de `main()` ao importar
+  `findCutoff`/`crawlCategoryRecent` de outro script) com uma guarda de entry-point.
+- `scripts/legacy-audit/migrate.mjs`: atualizado para passar
+  `targetStatus: "published"` explicitamente (migração histórica — acervo que já
+  esteve público por anos, decisão arquitetural preexistente e preservada, nunca
+  rascunho) — sem isso, o novo guard em `importCandidate` bloquearia até o
+  importador histórico.
+- `packages/core/src/editorial/article-service.ts`: **item 2** —
+  `ArticleService.publishNow()` agora preserva `publishedAt` já existente em vez de
+  sempre sobrescrever com "agora". Antes desta correção, quando um editor aprovasse e
+  clicasse "Publicar" num rascunho importado do legado, a data original seria
+  perdida e substituída pela data do clique. Verificado que isso NÃO afeta nenhum
+  fluxo existente: rascunho manual e importação de PDF nunca chegam com
+  `publishedAt` pré-definido (confirmado lendo `ArticleService.saveDraft`/
+  `importAsDraft` e a RPC de PDF, `pdf_import_atomicity_and_safety.sql`), então o
+  comportamento de ambos continua idêntico (usa "agora" por não ter data prévia).
+- Testes novos: `scripts/legacy-audit/lib/importer.test.mjs` (6 casos, `node --test`,
+  script `npm test` adicionado a `scripts/legacy-audit/package.json`) e
+  `packages/core/test/article-service-publish-date.test.ts` (2 casos, adicionado ao
+  script `test` de `packages/core/package.json`).
+
+### Resultados dos testes (rodados localmente, sem rede/Supabase/R2 reais nos testes)
+
+- `scripts/legacy-audit`: **6/6** — cobre: `targetStatus` ausente/inválido rejeita
+  antes de tocar o banco; dry-run nunca chama a RPC; `targetStatus="draft"` grava
+  `status=draft` e preserva a data original em `published_at`
+  (`article_external_sources.original_published_at` bate exatamente com
+  `articles.published_at`); `targetStatus="published"` (uso exclusivo da migração
+  histórica) continua funcionando; uma chamada mal configurada nunca chega a tocar
+  uma matéria já existente.
+- `packages/core`: **103/103** (101 da baseline + 2 novos) — `publishNow` usa "agora"
+  quando não há data prévia (comportamento de sempre, sem mudança); `publishNow`
+  preserva a data original quando ela já existe (caso novo, legado).
+- `npm run typecheck` (site + sistema): limpo. `npm run build` (site + sistema):
+  concluído com sucesso, sem erros.
+
+### Novo dry-run (confirmação pedida pelo usuário)
+
+Executado de novo contra o site legado real (sem `--commit`): mesmos números do Lote
+1 (240 encontrados, 61 candidatas, 5 já existentes, 56 novas elegíveis, 0 revisão/
+quarentena/rejeitadas — nenhuma mudança no acervo legado entre as duas execuções).
+A nova simulação item a item imprimiu, para cada uma das 56, a linha
+`[dry-run] criaria (status=draft) matéria "..."` — confirmação real de que TODAS
+entrariam como rascunho, nenhuma publicada automaticamente. **Nada foi gravado**
+(mesmo arquivo de preflight, `mode: "preflight"`, sem RPC/R2 chamados). As 5
+matérias já existentes não foram processadas nesta simulação (só as novas elegíveis
+passam por `importCandidate` no modo preflight) — permanecem **intactas**, sem
+nenhuma leitura/escrita de mídia ou dado além da detecção de existência já feita no
+Lote 1.
+
+### Confirmações pedidas pelo usuário
+
+1. ✅ Importador corrigido: `status: "draft"` explícito, sem depender do default da função SQL.
+2. ✅ Data original preservada em `article_external_sources.original_published_at` E
+   agora também corretamente mantida quando a matéria for aprovada/publicada depois
+   (fix em `ArticleService.publishNow`).
+3. ✅ Confirmado (leitura de código + teste): nenhum destaque (`article_placements`
+   nunca recebe linha pelo importador), nenhuma notificação push
+   (`notification_mode` nunca é setado pelo importador, fica no default `'none'`),
+   nenhuma publicação automática (`status=draft`, invisível na view pública
+   `public_articles`, que filtra `where status = 'published'`).
+4. ✅ As 56 novas e as 5 existentes agora têm caminhos de código SEPARADOS; as 5
+   existentes só seriam tocadas com `--reconcile-existing` explícito, não usado nesta
+   sessão — permanecem intactas.
+5. ✅ Proteção implementada e testada: `targetStatus` ausente/inválido interrompe a
+   execução ANTES de qualquer chamada ao Supabase/RPC, em qualquer chamador.
+
+### Migrações necessárias
+
+**Nenhuma.** O schema já suporta `status='draft'` com `published_at` preenchido
+(nenhuma CHECK constraint liga as duas colunas) e `origin='legacy_site'` já é um
+valor aceito desde `20261001100000_legacy_migration_preparation.sql`. Toda a correção
+foi só em código de aplicação (scripts + `packages/core`).
+
+### Ponto de continuidade — NÃO PERDER
+
+- Branch/HEAD após este lote: `feature/site-lancamento-editorial-publicidade-20261018`
+  (commit local deste lote a seguir; ver `git log` para o SHA exato — nenhum push
+  feito).
+- **Próximo passo, só após nova autorização explícita:** rodar
+  `node --env-file=.env.local scripts/legacy-audit/sync-recent.mjs --commit` para
+  criar de verdade as 56 matérias como rascunho (as 5 existentes continuam de fora,
+  a menos que `--reconcile-existing` seja explicitamente autorizado em separado).
+  Depois, revisão editorial manual de cada rascunho antes de publicar individualmente
+  (cada "Publicar" vai preservar a data original, graças ao fix desta etapa).
+- Nenhuma matéria foi criada, nenhuma mídia enviada ao R2, nenhum push/deploy.

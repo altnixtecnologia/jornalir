@@ -6,7 +6,8 @@
   "description": "Coletor read-only do site legado (informativoregional.net) — auditoria (Fase 34) — e motor de migração por lotes (Fase 35+). migrate.mjs só grava no Supabase quando chamado com --commit e credenciais explícitas.",
   "scripts": {
     "audit": "node audit.mjs",
-    "migrate": "node migrate.mjs"
+    "migrate": "node migrate.mjs",
+    "test": "node --test lib/*.test.mjs"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1145.0",

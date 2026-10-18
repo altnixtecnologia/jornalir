@@ -324,7 +324,16 @@ async function runImport(eligiblePairs, preflightSummary, log) {
     if (attempted >= LIMIT) break;
     attempted += 1;
     try {
-      await importCandidate(sb, c, detail, { sectionCache, localityId, throttle, log, dryRun, batchStats, imageExceptionsFile: IMAGE_EXCEPTIONS_FILE });
+      // Migração histórica (acervo que já esteve público por anos no site
+      // legado) — status=published preservado de propósito, igual sempre
+      // foi (ver nota de ArticleService.importLegacyArticle sobre a mesma
+      // decisão). Nunca "draft" aqui: diferente de sync-recent.mjs, que
+      // sincroniza conteúdo recente ainda não revisado pela redação.
+      await importCandidate(sb, c, detail, {
+        sectionCache, localityId, throttle, log, dryRun, batchStats,
+        imageExceptionsFile: IMAGE_EXCEPTIONS_FILE,
+        targetStatus: "published", callerLabel: "migrate.mjs (lote histórico)",
+      });
     } catch (error) {
       batchStats.failedArticles += 1;
       log(`  [ERRO] ${c.primary.url}: ${error.message}`);

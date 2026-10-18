@@ -155,10 +155,21 @@ export class ArticleService {
     return updated;
   }
 
+  /**
+   * Publica agora. Preserva `publishedAt` se a matéria já chegou com uma
+   * data própria (sync incremental do site legado, Lote 2, 18/10/2026: um
+   * rascunho importado já nasce com `published_at` = a data ORIGINAL da
+   * matéria no site antigo, nunca null) — só usa "agora" quando não havia
+   * nenhuma data prévia, que é o comportamento de sempre para toda matéria
+   * escrita manualmente ou importada de PDF (ambas sempre chegam com
+   * `publishedAt` null até este método rodar). Nenhuma mudança de
+   * comportamento para esses dois casos já existentes.
+   */
   async publishNow(id: string, _audit: AuditContext): Promise<Article> {
+    const current = await this.getById(id);
     const updated = await this.articles.update(id, {
       status: "published",
-      publishedAt: new Date().toISOString(),
+      publishedAt: current.publishedAt ?? new Date().toISOString(),
       scheduledAt: undefined,
     });
     if (updated.placement.type !== "none") {

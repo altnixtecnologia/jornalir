@@ -385,8 +385,24 @@ export async function reconcileArticleImages(sb, articleId, expectedRefs, { arti
  * está completa. `opts.imageExceptionsFile` é opcional (passa adiante pra
  * reconcileArticleImages).
  */
+// Únicos valores aceitos para o status da matéria recém-criada — nunca um
+// default implícito (item 5, proteção contra execução incorreta). Qualquer
+// outro valor (undefined, string vazia, typo) interrompe a importação
+// imediatamente, ANTES de qualquer chamada de rede/RPC.
+const ALLOWED_TARGET_STATUSES = new Set(["draft", "published"]);
+
+function assertValidTargetStatus(targetStatus, callerLabel) {
+  if (!ALLOWED_TARGET_STATUSES.has(targetStatus)) {
+    throw new Error(
+      `importCandidate: opts.targetStatus inválido ou ausente (recebido: ${JSON.stringify(targetStatus)}) ao chamar de "${callerLabel ?? "desconhecido"}". ` +
+        `Valores aceitos: "draft" ou "published" — nunca um padrão implícito, para impedir publicação acidental.`,
+    );
+  }
+}
+
 export async function importCandidate(sb, c, detail, opts) {
-  const { sectionCache, localityId, throttle, log, dryRun, batchStats, imageExceptionsFile } = opts;
+  const { sectionCache, localityId, throttle, log, dryRun, batchStats, imageExceptionsFile, targetStatus, callerLabel } = opts;
+  assertValidTargetStatus(targetStatus, callerLabel);
   const sectionSlug = CATEGORY_TO_SECTION_SLUG[c.primary.category];
   const slug = stableSlug(c.primary);
   const refs = detail ? collectImageRefs(detail) : [];
@@ -396,12 +412,17 @@ export async function importCandidate(sb, c, detail, opts) {
   let wasExisting = Boolean(existingId);
 
   if (dryRun) {
-    log(`  [dry-run] ${wasExisting ? "reconciliaria" : "criaria"} matéria "${detail?.title || c.primary.title}" (${slug}) em ${sectionSlug}, imagens=${refs.length}`);
+    log(`  [dry-run] ${wasExisting ? "reconciliaria" : `criaria (status=${targetStatus})`} matéria "${detail?.title || c.primary.title}" (${slug}) em ${sectionSlug}, imagens=${refs.length}`);
   } else if (!wasExisting) {
     const sectionId = await resolveSectionId(sb, sectionSlug, sectionCache);
     // Data/hora original preservada de verdade — nunca um horário
     // inventado. A precisão real (datetime vs. date_only) vai em
-    // raw_metadata para nunca ficar escondida atrás do timestamp.
+    // raw_metadata para nunca ficar escondida atrás do timestamp. Preservada
+    // em articles.published_at MESMO quando targetStatus="draft" (rascunho
+    // com data original já preenchida) — é o que permite
+    // ArticleService.publishNow() nunca sobrescrever essa data quando um
+    // editor aprovar/publicar esta matéria depois (ver nota em
+    // packages/core/src/editorial/article-service.ts).
     const detailParsed = parseBrDateTime(detail?.publishedRaw) ?? { dateIso: c.publishedIso, time: null, precision: "date_only" };
     const publishedAtIso = toPublishedAtIso(detailParsed);
     const hash = sourceHash(c.primary, detail);
@@ -414,7 +435,7 @@ export async function importCandidate(sb, c, detail, opts) {
         body: detail?.bodyHtml || "",
         section_id: sectionId,
         locality_id: localityId,
-        status: "published",
+        status: targetStatus,
         origin: "legacy_site",
         published_at: publishedAtIso,
         author_name: detail?.sourceLabel || null,
