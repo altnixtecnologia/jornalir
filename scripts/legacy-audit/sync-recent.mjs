@@ -11,12 +11,21 @@
 // lib/pipeline.mjs) — nenhuma regra duplicada ou reimplementada aqui.
 //
 // Modos:
-//   (sem --commit)  preflight — não grava nada, só mostra o que faria.
-//   --commit        importa de verdade só as matérias novas elegíveis.
+//   (sem --commit)        preflight — não grava nada, só mostra o que faria.
+//   --commit              importa de verdade só as matérias novas elegíveis,
+//                         como status=draft (padrão defensivo).
+//   --commit --publish-recent
+//                         importa de verdade já como status=published —
+//                         decisão definitiva do proprietário (18/10/2026,
+//                         Lote 3): comportamento histórico das importações
+//                         do legado. Exige a flag explícita; sem ela,
+//                         permanece draft mesmo com --commit.
+//   --reconcile-existing  (com --commit) também reconcilia mídia das
+//                         matérias já existentes na janela — fora do padrão.
 //
 // Uso:
 //   node --env-file=.env.local scripts/legacy-audit/sync-recent.mjs
-//   node --env-file=.env.local scripts/legacy-audit/sync-recent.mjs --commit
+//   node --env-file=.env.local scripts/legacy-audit/sync-recent.mjs --commit --publish-recent
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -38,15 +47,6 @@ const OUTPUT_DIR = path.join(AUDIT_DIR, "output");
 const CATEGORIES = Object.keys(CATEGORY_TO_SECTION_SLUG).filter((c) => c !== "classificados");
 const MAX_PAGES_PER_CATEGORY = 30; // válvula de segurança — nunca deveria chegar perto disso num sync incremental real.
 
-// DECISÃO APROVADA (18/10/2026): matérias novas sincronizadas por ESTE script
-// SEMPRE entram como rascunho ("draft") — nunca publicadas automaticamente,
-// diferente da migração histórica (migrate.mjs), que preserva status=published
-// de propósito (conteúdo que já esteve público por anos). Constante literal
-// (não lida de env/CLI) para não poder ser mudada por engano por um parâmetro
-// ausente ou mal passado — ver assertValidTargetStatus em lib/importer.mjs,
-// que rejeita qualquer chamada sem um valor explícito e válido.
-const SYNC_RECENT_TARGET_STATUS = "draft";
-
 const args = Object.fromEntries(
   process.argv.slice(2).map((arg) => {
     const [key, value] = arg.replace(/^--/, "").split("=");
@@ -58,6 +58,20 @@ const RPS = args.rps ? Number(args.rps) : 4;
 // Item 4 (18/10/2026): por padrão, --commit NUNCA toca as matérias já
 // existentes (só reconcilia mídia delas se isto for passado explicitamente).
 const RECONCILE_EXISTING = Boolean(args["reconcile-existing"]);
+
+// DECISÃO DEFINITIVA DO PROPRIETÁRIO (18/10/2026, Lote 3): o comportamento
+// histórico das importações do site legado é nascer `published` (conteúdo
+// que já esteve público por anos lá, mesmo princípio de migrate.mjs/
+// ArticleService.importLegacyArticle) — reverte a decisão temporária do
+// Lote 2 (draft), que havia sido aplicada por segurança até confirmação
+// explícita. NUNCA um default implícito: "published" só é usado com
+// --publish-recent explícito na linha de comando (a própria "confirmação
+// para execução real" exigida); sem essa flag, o script continua
+// defensivamente em "draft" — ver assertValidTargetStatus em
+// lib/importer.mjs, que de qualquer forma rejeita qualquer chamada sem um
+// valor explícito e válido, não dependendo nunca do default da função SQL.
+const PUBLISH_RECENT = Boolean(args["publish-recent"]);
+const SYNC_RECENT_TARGET_STATUS = PUBLISH_RECENT ? "published" : "draft";
 
 function todayIso() {
   return new Date().toISOString().slice(0, 10);
@@ -175,7 +189,7 @@ async function main() {
   const log = (...m) => console.log(...m);
   const sb = supabaseAdmin(); // leitura precisa de service role mesmo no preflight.
 
-  log(`== sync-recent — sincronização incremental do site legado (commit=${COMMIT}) ==`);
+  log(`== sync-recent — sincronização incremental do site legado (commit=${COMMIT}, targetStatus=${SYNC_RECENT_TARGET_STATUS}${PUBLISH_RECENT ? " [--publish-recent confirmado]" : " [sem --publish-recent — permanece draft]"}) ==`);
 
   const { lastExisting, cutoffDateIso } = await findCutoff(sb);
   log(`Última matéria já existente: "${lastExisting.title}" (${lastExisting.originalPublishedAt}) — ${lastExisting.url}`);
@@ -285,7 +299,7 @@ async function main() {
         targetStatus: SYNC_RECENT_TARGET_STATUS, callerLabel: "sync-recent.mjs (preflight)",
       });
     }
-    log(`Confirmado: ${eligibleList.length} matéria(s) seriam criadas com status="${SYNC_RECENT_TARGET_STATUS}" — nenhuma publicação automática.`);
+    log(`Confirmado: ${eligibleList.length} matéria(s) seriam criadas com status="${SYNC_RECENT_TARGET_STATUS}".`);
     await writeFile(reportPath, JSON.stringify({ mode: "preflight", preflight, targetStatus: SYNC_RECENT_TARGET_STATUS }, null, 2), "utf8");
     log(`\nPreflight salvo em: ${reportPath}`);
     log("Nada foi gravado (modo preflight). Rode com --commit para importar as novas elegíveis.");

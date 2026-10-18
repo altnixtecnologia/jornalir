@@ -118,7 +118,7 @@ test("importCandidate com targetStatus='draft' grava status=draft E preserva a d
   assert.equal(batchStats.imported, 1);
 });
 
-test("importCandidate com targetStatus='published' (uso exclusivo da migração histórica) continua funcionando", async () => {
+test("importCandidate com targetStatus='published' (migração histórica OU sync-recent.mjs com --publish-recent, Lote 3) grava status=published", async () => {
   const sb = makeSbMock({ existingArticleId: null });
   const sectionCache = new Map([["geral", "section-geral-id"]]);
   const batchStats = { imported: 0, skippedExisting: 0 };
