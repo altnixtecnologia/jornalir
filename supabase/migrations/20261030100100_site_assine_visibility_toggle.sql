@@ -23,7 +23,7 @@ alter table public.site_offer_settings
 -- O predicado compara OLD/NEW para não afetar alterações normais de preços.
 create or replace function public.enforce_assine_admin_update()
 returns trigger language plpgsql set search_path = ''
-as $
+as $$
 begin
   if new.assine_enabled is distinct from old.assine_enabled
      and not public.is_active_admin_or_owner() then
@@ -31,7 +31,7 @@ begin
   end if;
   return new;
 end;
-$;
+$$;
 
 drop trigger if exists site_offer_settings_assine_admin_guard on public.site_offer_settings;
 create trigger site_offer_settings_assine_admin_guard

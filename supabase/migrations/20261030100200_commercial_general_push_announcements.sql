@@ -61,7 +61,7 @@ end $$;
 create or replace function public.claim_site_push_deliveries(p_limit integer default 20)
 returns table(delivery_id uuid,event_id uuid,subscription_id uuid)
 language plpgsql security definer set search_path=''
-as $
+as $$
 begin
  -- Preservar o processamento de encerramento da versão anterior da função:
  -- envios vencidos não podem ficar pendentes indefinidamente.
