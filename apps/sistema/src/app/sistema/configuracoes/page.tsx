@@ -16,6 +16,7 @@ export default async function ConfiguracoesPage(): Promise<JSX.Element> {
           <Link className="materia-title-link" href="/sistema/usuarios">Usuários</Link>
           {isOwner ? <Link className="materia-title-link" href="/sistema/configuracoes/assistente-ir">Assistente IR — Inteligência artificial</Link> : null}
           <Link className="materia-title-link" href="/sistema/configuracoes/patrocinadores">Patrocinadores do site</Link>
+          <Link className="materia-title-link" href="/sistema/configuracoes/aplicativo">Aplicativo Jornal IR — versões e APK</Link>
           <Link className="materia-title-link" href="/sistema/configuracoes/valores-assine">Valores da página Assine</Link>
         </div>
       </section>
