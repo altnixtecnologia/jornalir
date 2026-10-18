@@ -140,3 +140,13 @@ modelos originais. Homenagens criadas por IA sao individuais e opcionais.
 - Observação: a API oferece modelos à conta, não necessariamente detecta toda novidade global. Sem alteração automática do modelo configurado. Não existem jobs periódicos para avisos proativos de lançamentos nesta etapa.
 - Verificação realizada: inspeção estática dos quatro arquivos da feature via GitHub; nenhuma compilação TS/Next, teste autenticado, teste de API real, gravação de segredo ou deploy. NÃO anunciar como funcional em produção.
 - Próximos passos: confirmar erro do cofre/backend na UI nova; se cofre estiver inválido, corrigir `AI_CONFIG_ENCRYPTION_KEY` no ambiente seguro sem revelar segredo (avaliar e pedir autorização antes de substituir). Executar typecheck/build e testes de owner/perfil antes de publicar em lote autorizado; registrar novo SHA e testar cadastro de chave, lista de modelos, persistência do switch e conexão. Nenhum push em branch oficial, VS Code ou produção nesta entrega.
+
+## 2026-10-18 — Screenshot de produção: cofre desabilitado, diagnóstico sem alterar segredos
+
+- Proprietário enviou captura da tela publicada mostrando as duas chaves não configuradas, campo de chave inacessível e aviso legado `Cofre indisponível: configure AI_CONFIG_ENCRYPTION_KEY...`.
+- Diagnóstico confirmado no código publicado `948060c`: `hasAssistantEncryptionKey()` retorna false se a variável de ambiente não existir no runtime ou se, decodificada de Base64, não tiver exatamente 32 bytes. Não é causado pelo interruptor geral da IA.
+- Metadados Vercel (valores de segredos NÃO consultados): `AI_CONFIG_ENCRYPTION_KEY` Sensitive presente no target Production e criada antes do deploy `dpl_4eLiZNh8J5JRdrBz3xjxRewbTi2c` READY; `SUPABASE_SERVICE_ROLE_KEY` também consta em Production. Portanto, suspeita de formato incorreto, mas não confirmada sem diagnóstico em runtime.
+- Consulta somente leitura ao Supabase: `public.ai_provider_credentials` permanece com 0 registros. Nenhuma credencial cifrada depende da chave de criptografia atual.
+- Orientado proprietário a gerar novo segredo de 32 bytes Base64 **localmente** (PowerShell), copiar por clipboard e substituir somente a variável `AI_CONFIG_ENCRYPTION_KEY` em Vercel Production sem colar valores em chat. O usuário ainda não confirmou execução.
+- Após alteração do segredo, é necessária nova publicação para injetar a variável no runtime. NÃO fazer deploy sem autorização; preferir a próxima publicação agrupada dos ajustes do menu e UX (chave/modelos/switch).
+- Nenhuma edição no banco, deploy ou segredo feita pelo agente neste diagnóstico.
