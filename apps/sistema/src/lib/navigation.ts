@@ -187,6 +187,7 @@ export const configuracoesNavGroup: AdminNavGroup = {
   links: [
     { label: "Usuários", href: "/sistema/usuarios" },
     { label: "Assistente IR — Conversar", href: "/sistema/assistente-ir", ownerOnly: true },
+    { label: "Assistente IR — Aprovações", href: "/sistema/assistente-ir/propostas", ownerOnly: true },
     { label: "Configurar Assistente IR", href: "/sistema/configuracoes/assistente-ir", ownerOnly: true },
     { label: "Patrocinadores do site", href: "/sistema/configuracoes/patrocinadores" },
     { label: "Notificações push", href: "/sistema/configuracoes/notificacoes-push" },
