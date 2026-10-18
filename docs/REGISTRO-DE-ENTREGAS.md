@@ -278,3 +278,31 @@ modelos originais. Homenagens criadas por IA sao individuais e opcionais.
 - Depois desse SHA só foi removido o gatilho de CI temporário (`c6b3a1b`) e os docs atualizados; nenhum código executável adicional.
 - Link: `https://github.com/altnixtecnologia/jornalir/actions/runs/39135212430`.
 - **Sem deploy**: QA visual e diagnóstico de retorno de API ainda dependem de publicação autorizada. O HTTP 400 anterior não se torna automaticamente esclarecido porque o CI passou.
+
+## SITE PÚBLICO — PRIMEIRO LOTE PARA LANÇAMENTO (18/10/2026)
+
+**Prioridade alterada pelo proprietário:** preservar a JoIR sem novos gastos; concentrar desenvolvimento na estreia do site Jornal Informativo Regional, especialmente publicação editorial e publicidade. O sistema administrativo será desenvolvido/testado até o início do uso previsto para 2027, mas não bloqueará a estreia do site exceto pelas integrações de publicação e anúncios.
+
+### Base verificada antes de alterar
+- GitHub `altnixtecnologia/jornalir` monorepo, apps independentes `apps/site` e `apps/sistema`. Branch nova `feature/site-lancamento-editorial-publicidade-20261018`, criada como derivação da `feature/assistente-ir-base-20261018` para não misturar novos commits de site à branch congelada da JoIR.
+- Site público Vercel projeto `jornalir`, domínio `jornalir.vercel.app`: deploy Production `dpl_7KQH8kBA8MpW5XnHFQCJe4tghmk2` `READY`, SHA `354e7837f54921d7227897a6acef543dfb145e8f`; diferença desse SHA até a branch anterior: **nenhum arquivo em `apps/site/` modificado**. Sistema administrativo de produção independente `controle.altnix.com.br` mantém seu próprio deploy.
+- Banco Supabase `site-system-ir` em leitura: `public_articles` tem 23.365 matérias visíveis publicamente; `public_article_placements` 8 mainCover, 3 highlightStrip, 7 latestNews, 4 localSpotlight; última data publicada é `2026-10-12T00:10Z`. Não confirma qualidade editorial/capas individuais, apenas dados disponíveis na view.
+- Publicidade: 6 posições ativas no view `public_site_ad_slots`. Somente posições 1 e 2 têm mídias públicas gerenciadas via painel (2 cada); posições 3–6 estão `managed_by_panel=false` e `has_media=false`, portanto em `siteAdsService.ts` recorrem aos anúncios LEGADOS de `apps/site/public/uploads/anuncios/` como fallback. Conferir com proprietário validade e patrocinadores antigos antes do lançamento. Nenhuma publicidade foi alterada no banco.
+- `apps/site/vercel.json` mantém `git.deploymentEnabled=false`; houve várias tentativas de preview `CANCELED` no projeto site nos commits anteriores da JoIR. Evitar deploys sucessivos por commit e publicar somente em lote autorizado.
+- Ferramenta de visualização externa não conseguiu abrir o domínio público, mas Vercel confirmou produção READY. Não afirmar que UX desktop/mobile foi homologada.
+
+### Código entregue exclusivamente na branch de site
+1. `300fcee` — homepage: três faixas de pares de anúncios deixam de desaparecer em tablets (`md:hidden` → `xl:hidden`), enquanto as colunas laterais seguem exclusivas do `xl`.
+2. `a969768` — página de matéria: primeiro par publicitário também aparece em tablet (`md:hidden` → `xl:hidden`).
+3. `e1ddf1a` — links de patrocinadores marcados `rel="sponsored noopener noreferrer"` sem alterar URLs nem comportamento de rotação.
+4. `672b02e` — página individual de notícia recebe metadados SEO dinâmicos baseados apenas na matéria publicada: título, descrição textual, canonical, OpenGraph, Twitter preview e imagem de capa quando disponível; URL não existente `noindex`. Usa `cache()` React para evitar dupla leitura entre metadata e render da página no mesmo request.
+5. `ff5f876` — `metadataBase` global usa `NEXT_PUBLIC_SITE_URL` quando definido, com fallback `https://jornalir.vercel.app`; atualizar env quando houver domínio definitivo.
+
+- CI GitHub Actions `Validate project` acionado uma única vez via gatilho temporário `1048d04` (run `39137183679`) e branch do workflow restaurada em `beb4292`. Conferir resultado final antes de considerar compilação aprovada. NÃO houve novo deploy de produção nem alteração no banco, credenciais ou VS Code.
+- O ajuste de tablet NÃO muda regra de 6 posições nem tempo/efeito/formato por imagem. Na página de matéria o celular/tablet ainda mostra somente posições 1–2; decidir explicitamente com usuário se pares 3–4 e 5–6 devem ser apresentados também nas matérias (padrão atual do projeto). Não mudar publicidade aprovada silenciosamente.
+- Também existe `AdSenseSlot.tsx` com reserva expandível contendo texto "integração futura". Verificar decisão editorial para retirar o placeholder do lançamento ou substituí-lo por anúncio real; não alterar layout aprovado sem decisão.
+
+### Critérios reais para liberar lançamento (a executar em lotes)
+P0: (1) criar e revisar uma matéria real no sistema, publicar e confirmar no site sua URL, ordenação, capa/galeria, editoria e exibição mobile/desktop; (2) verificar destaques 8/3/7/4 e que matérias rascunho/agendadas nunca vazem; (3) cadastrar, ordenar e controlar tempo/efeito e validade de patrocinadores das 6 posições, verificar fallback legado e exibição celular/tablet/desktop; (4) testar notícia individual, busca/paginação, navegação, links, compartilhamento, erros 404, acessibilidade e SEO; (5) conferir jornal online e assinatura/anúncios, PDFs e visualizadores, integrações básicas e R2/Range; (6) definir domínio final, HTTPS/redirect, sitemap/robots e publicar em única janela autorizada.
+P1: performance/Core Web Vitals, alertas de erros, painel de estatísticas, vínculo venda comercial→mídia, jornal público integrado às redes e push, revisão visual fina e homologação por usuário.
+- **Não chamar site 100% homologado só por build**. Próxima ação: confirmar CI e completar auditoria P0 das rotas/editorial/ads; entregar relatório pequeno e solicitar teste acompanhado com sessão de proprietário no sistema, sem inventar material editorial.
