@@ -84,10 +84,10 @@ export function AiAssistantChatPanel({ enabled, modules, moduleChoices }: {
   }
 
   return (
-    <section className="form-section form-section--first" aria-label="Conversa com Assistente IR">
+    <section className="form-section form-section--first" aria-label="Conversa com JoIR">
       {!enabled ? (
         <p className="form-error" role="alert">
-          O Assistente IR está desligado. <Link href="/sistema/configuracoes/assistente-ir">Configure a chave e ligue o serviço</Link>.
+          O JoIR está desligado. <Link href="/sistema/configuracoes/assistente-ir">Configure a chave e ligue o serviço</Link>.
         </p>
       ) : null}
       {enabled && !modules.length ? (
@@ -113,7 +113,7 @@ export function AiAssistantChatPanel({ enabled, modules, moduleChoices }: {
         ) : messages.map((item, index) => (
           <div key={index} className="quick-access-card"
             style={{ maxWidth: "min(100%, 940px)", marginLeft: item.role === "user" ? "auto" : 0 }}>
-            <strong>{item.role === "user" ? "Você" : "Assistente IR"}</strong>
+            <strong>{item.role === "user" ? "Você" : "JoIR"}</strong>
             <p style={{ whiteSpace: "pre-wrap", overflowWrap: "anywhere", marginTop: 8, marginBottom: 0 }}>
               {item.content}
             </p>
@@ -128,7 +128,7 @@ export function AiAssistantChatPanel({ enabled, modules, moduleChoices }: {
                 disabled={busy}
                 onClick={() => {
                   setProposalDraft({
-                    title: item.content.trim().split("\n")[0].slice(0, 100) || "Sugestão do Assistente IR",
+                    title: item.content.trim().split("\n")[0].slice(0, 100) || "Sugestão do JoIR",
                     rationale: item.content.slice(0, 1800),
                   });
                   setProposalStatus(null);
