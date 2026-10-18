@@ -161,7 +161,7 @@ export function AiAssistantSettingsPanel({ initial }: { initial: AiSettingsSnaps
     <>
       {!initial.backendAvailable ? (
         <p className="form-error" role="alert">
-          Configuração ainda indisponível. É necessário aplicar a migration do Assistente IR e configurar o Supabase no servidor.
+          Configuração ainda indisponível. É necessário aplicar a migration do JoIR e configurar o Supabase no servidor.
           Nenhum módulo de IA será executado até lá.
         </p>
       ) : null}
@@ -173,7 +173,7 @@ export function AiAssistantSettingsPanel({ initial }: { initial: AiSettingsSnaps
         </p>
         <div style={{ marginTop: 12 }}>
           <button type="button" role="switch" aria-checked={form.enabled}
-            aria-label="Ligar ou desligar o Assistente IR"
+            aria-label="Ligar ou desligar o JoIR"
             className={`btn ${form.enabled ? "btn-primary" : "btn-secondary"}`}
             style={{ borderRadius: 999, display: "inline-flex", alignItems: "center", gap: 10 }}
             disabled={unavailable || busy}
@@ -374,7 +374,7 @@ export function AiAssistantSettingsPanel({ initial }: { initial: AiSettingsSnaps
         <Link className="btn btn-secondary" href="/sistema/assistente-ir">Abrir conversa</Link>
         <button type="button" className="btn btn-primary"
           disabled={unavailable || busy} onClick={saveSettings}>
-          {busy ? "Aguarde..." : "Salvar configurações do Assistente IR"}
+          {busy ? "Aguarde..." : "Salvar configurações do JoIR"}
         </button>
       </div>
       <p className="helper-text">
