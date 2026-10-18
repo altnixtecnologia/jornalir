@@ -1497,6 +1497,12 @@ textarea:focus {
 .materias-table tbody tr:hover {
   background: #f7f8f3;
 }
+/* Editorias: manter células na mesma faixa, inclusive modo edição.
+   O nome da editoria usa .materia-title num span dentro do td,
+   pois a classe tem display:block e não deve alterar o layout de table-cell. */
+.editorias-table tbody td {
+  vertical-align: middle;
+}
 .materia-reference {
   font-variant-numeric: tabular-nums;
   color: var(--muted);
