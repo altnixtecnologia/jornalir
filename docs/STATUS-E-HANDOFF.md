@@ -824,3 +824,62 @@ O ChatGPT abriu `feature/assistente-ir-base-20261018` a partir desse SHA e imple
 - Workflows validados em `https://github.com/altnixtecnologia/jornalir/actions/runs/39138671694` (conferir resultado); gatilho temporário já restaurado. Sem deploy, banco ou VS Code alterados.
 - Usuário NÃO havia enviado comando de sincronização à Claude. Foi reenviado integralmente nesta conversa, apontando para `feature/site-lancamento-editorial-publicidade-20261018` e docs. Etapa Claude 0: somente status/remote/fetch/ancestralidade/ff-only seguro, parar se divergências ou arquivos locais, relatório, aguardar autorização. **NÃO iniciar importação no mesmo comando**.
 - Continuação após relatório Claude: inspecionar se toda branch chegou ao VS Code e só depois orientar Claude a reaproveitar rotina anterior de importação incremental do site oficial antigo, comparando notícias faltantes até última publicada. Patrocinadores já têm 2 imagens em cada slot (12 total).
+
+## LOTE 1 — Dry-run do sync incremental do site legado (18/10/2026)
+
+**Branch/HEAD após este lote:** `feature/site-lancamento-editorial-publicidade-20261018`, HEAD `980eca20e2c681f17f1246048b3547d6341b71f2` (fast-forward trazido no início deste lote; só 1 commit de documentação à frente do relatado anteriormente, `28fc8711`).
+
+- **Reaproveitado o importador incremental existente**, exatamente como instruído — nenhuma rotina nova de coleta/dedup/classificação foi criada. Usados `scripts/legacy-audit/sync-recent.mjs` (preflight, sem `--commit`) e sua biblioteca (`lib/importer.mjs`, `lib/pipeline.mjs`, `lib/identity.mjs`, `lib/parse.mjs`, `lib/batches.mjs`, `lib/integrity.mjs`).
+- Única mudança de código: 2 palavras-chave `export` adicionadas a `findCutoff`/`crawlCategoryRecent` em `sync-recent.mjs` (nenhuma mudança de comportamento) + guarda de entry-point (`if (import.meta.url === pathToFileURL(process.argv[1]).href)`) para esse arquivo não re-executar seu próprio `main()` quando importado por outro script — sem a guarda, importar as duas funções disparava um preflight completo duplicado como efeito colateral (detectado nesta sessão; **ambas as execuções concordaram exatamente nos números**, então não houve risco de dado incorreto, só trabalho duplicado).
+- Novo script **somente leitura** `scripts/legacy-audit/report-sync-recent.mjs` (mesmo padrão documentado em `lib/pipeline.mjs`: "scripts de relatório humano, report-*.mjs") — serializa por matéria o que o preflight original não grava em arquivo: título, data/hora original, editoria legada→destino, URL de origem, situação no banco novo, imagens e inconsistências. Gera `docs/LEGADO-DRY-RUN-sync-recent-20261018.md` (753 linhas) + JSON completo em `scripts/legacy-audit/output/` (gitignored).
+- **`npm install` executado em `scripts/legacy-audit/`** (node_modules local estava ausente; dependências já declaradas em `package.json`/`package-lock.json` existentes, nenhuma adicionada).
+
+### Resultado do dry-run (18/10/2026, ~15h UTC)
+
+| Métrica | Valor |
+|---|---|
+| Última matéria já existente no banco (corte do sync) | "BALNEÁRIO ROSA DO MAR PROMOVE FESTA EM HOMENAGEM AO DIA DAS CRIANÇAS EM PASSO DE TORRES" — 11/10/2026 21:10:00Z |
+| Período comparado no site legado | 11/10/2026 a 17/10/2026 (mais recente encontrado no instante da coleta) |
+| Itens encontrados no legado (todas as editorias, antes de deduplicar) | 240 |
+| Candidatas únicas no intervalo | 61 |
+| **Já existem no banco novo** (só mídia a reconciliar, nunca recriadas) | **5** |
+| **Novas elegíveis para importar** | **56** |
+| Precisam de revisão manual | 0 |
+| Em quarentena editorial | 0 |
+| Rejeitadas (falha de busca) | 0 |
+| Exceções de data | 0 |
+
+Relatório completo (cronológico, por matéria): `docs/LEGADO-DRY-RUN-sync-recent-20261018.md`. Editorias cobertas: geral, esportes, política, saúde, sociais, agricultura, policia, colunistas (4 subcategorias) — `classificados` corretamente excluída (nunca importada automaticamente, mesma regra de sempre). Nenhum INSERT/UPDATE/DELETE no Supabase, nenhum upload/exclusão no R2, nenhuma publicação, nenhuma notificação, nenhum push, nenhum deploy.
+
+### ACHADO CRÍTICO — `--commit` publica direto, NÃO cria rascunho (precisa decisão antes do Lote 2)
+
+Verificado no código (não presumido): `scripts/legacy-audit/lib/importer.mjs` linha ~417 chama a RPC
+`legacy_import_article` passando explicitamente `status: "published"`; a própria RPC
+(`supabase/migrations/20261003100000_legacy_import_atomic_rpc.sql`, linha 41) usa
+`coalesce(article->>'status', 'published')` — ou seja, mesmo sem esse campo o padrão
+já seria "published". **Isso contradiz o texto do
+`docs/PLANO-APP-PUSH-E-SINCRONIZACAO-MATERIAS-20261018.md`** ("gerar RASCUNHO no CMS
+do novo portal... não publicar automaticamente") e a própria instrução desta tarefa
+("sem... publicar automaticamente"). Rodar `sync-recent.mjs --commit` hoje publicaria
+as 56 matérias **direto ao vivo no site público**, sem etapa de revisão.
+Comparar com `supabase/migrations/20261012100000_pdf_import_atomicity_and_safety.sql`
+(fluxo de importação de PDF do jornal impresso), cuja RPC hardcoda `status=draft`
+propositalmente ("status/origin/... hardcoded (rascunho...)") — ou seja, existe
+precedente no próprio projeto de um fluxo "importa como rascunho" que o importador
+do site legado NÃO segue.
+**Nenhuma mudança de código foi feita para corrigir isto** (fora do escopo desta
+etapa, só dry-run/relatório) — decisão do usuário necessária antes do Lote 2: (a)
+ajustar o importador para `status: "draft"` antes de qualquer `--commit`, ou (b)
+confirmar que publicação direta é aceitável para este lote específico.
+
+### Ponto de continuidade — NÃO PERDER
+
+- **Próximo passo, só após autorização explícita do usuário E resolução do achado
+  crítico acima:** rodar `sync-recent.mjs --commit` para importar as 56 matérias
+  elegíveis (cria a matéria + reconcilia mídia das 5 já existentes) — ver
+  `docs/PLANO-APP-PUSH-E-SINCRONIZACAO-MATERIAS-20261018.md`, Lote 2.
+- O usuário pediu para **conferir os resultados primeiro** antes de qualquer
+  importação real — aguardar revisão do relatório
+  `docs/LEGADO-DRY-RUN-sync-recent-20261018.md` linha por linha (ou amostra) e a
+  decisão sobre o achado crítico antes de autorizar `--commit`.
+- Pendências dos lotes anteriores (Web Push/app nativo, QA de publicidade 6 posições, domínio final do site) permanecem em aberto, sem relação com este lote — ver seções "APP / PUSH / IMPORTAÇÃO" e "CONTINUIDADE SITE PÚBLICO" acima.

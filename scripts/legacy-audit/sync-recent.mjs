@@ -19,7 +19,7 @@
 //   node --env-file=.env.local scripts/legacy-audit/sync-recent.mjs --commit
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { fetchText, createRateLimiter } from "./lib/http.mjs";
 import { parseListingItems, parseListingMeta, parseArticlePage } from "./lib/parse.mjs";
 import { PROVIDER } from "./lib/identity.mjs";
@@ -61,7 +61,7 @@ function addDays(dateIso, days) {
  * Ignora registros com original_published_at NULO (nunca pode virar a
  * "última data" por ausência de valor — um NULL ordenado por engano pra
  * frente/trás faria o corte ficar errado em qualquer direção). */
-async function findCutoff(sb) {
+export async function findCutoff(sb) {
   const { data: lastSource, error } = await sb
     .from("article_external_sources")
     .select("article_id, original_published_at, source_url, external_id")
@@ -110,7 +110,7 @@ async function findCutoff(sb) {
  * anda PRA TRÁS, parando assim que uma página inteira (até o item mais
  * recente dela, o último do array) já é mais velha que o corte.
  */
-async function crawlCategoryRecent(category, cutoffDateIso, throttle, log) {
+export async function crawlCategoryRecent(category, cutoffDateIso, throttle, log) {
   await throttle();
   const metaUrl = `${BASE}/${category}/?pagina=1&filtro=antigos`;
   const metaRes = await fetchText(metaUrl);
@@ -321,7 +321,14 @@ async function main() {
   log(`\nRelatório salvo em: ${reportPath}`);
 }
 
-main().catch((error) => {
-  console.error("Falha no sync-recent:", error);
-  process.exitCode = 1;
-});
+// Guarda de entry-point: executa main() só quando este arquivo é o script
+// chamado diretamente (node sync-recent.mjs). Sem isto, importar
+// findCutoff/crawlCategoryRecent de outro script (ex.: report-sync-recent.mjs,
+// para reaproveitar a mesma descoberta sem duplicar lógica) disparava um
+// segundo preflight completo como efeito colateral do próprio import.
+if (import.meta.url === pathToFileURL(process.argv[1]).href) {
+  main().catch((error) => {
+    console.error("Falha no sync-recent:", error);
+    process.exitCode = 1;
+  });
+}
