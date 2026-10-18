@@ -190,7 +190,7 @@ export function AdminHeader({ onOpenMenu }: { onOpenMenu: () => void }): JSX.Ele
                 Configurações <span className="app-nav-caret" aria-hidden="true">▾</span>
               </summary>
               <div className="app-nav-panel">
-                {configuracoesNavGroup.links.map((link) => (
+                {configuracoesNavGroup.links.filter((link) => !link.ownerOnly || (profile?.active && profile.role === "owner")).map((link) => (
                   <Link
                     key={link.href}
                     href={link.href}
