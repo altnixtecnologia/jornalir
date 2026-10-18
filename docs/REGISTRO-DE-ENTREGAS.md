@@ -226,3 +226,11 @@ modelos originais. Homenagens criadas por IA sao individuais e opcionais.
 - A mudança posterior do workflow `93ece9d` apenas retirou o disparo temporário do CI e os commits posteriores são de documentação; os arquivos de aplicação permanecem os validados.
 - Link de evidência: `https://github.com/altnixtecnologia/jornalir/actions/runs/39131917195`.
 - Resultado comprovado: compilação; NÃO teste responsivo visual em navegador nem homologação real de IA neste lote. Nenhuma nova publicação Vercel; usuário deve autorizar deploy agrupado.
+
+## 2026-10-18 — Cartões separados para estado das chaves OpenAI/Claude (não publicado)
+
+- Solicitado pelo proprietário: mostrar status de ambas as chaves lado a lado, em destaque, para distinguir quando estão cadastradas ou não, e esclarecer se as duas trabalham ao mesmo tempo.
+- Arquitetura vigente: podem ficar cadastradas simultaneamente no mesmo cofre, mas somente `ai_assistant_settings.provider` (global) é usado por chamada. Cadastrar credencial não muda o provedor ativo; trocar e ligar exigem salvar configurações. Troca automática/per-module ou envio simultâneo a dois provedores NÃO está implementado.
+- Commit `d7390f2`: em `AiAssistantSettingsPanel.tsx` substitui duas legendas discretas por dois cartões na mesma linha em desktop, com `flex-wrap` responsivo em mobile; estados evidentes `Chave cadastrada` ou `Chave não cadastrada` e distinção `Provedor em uso pela JoIR` (baseado na configuração salva), `Selecionado no formulário` e `Pode ser configurado e testado independentemente`. Atualiza no estado React após salvar chave, não mostra nem expõe credenciais.
+- CI `39132372563` disparado pelo commit temporário `6498f1d2`; disparo extra do workflow removido em `052610bd`; verificar resultado final. Os commits posteriores à alteração de UI são apenas CI e documentação.
+- Nenhum deploy, alteração do cofre, mudança no Supabase ou sincronização VS Code neste lote. Produção conserva `d92625f`. Pendências anteriores de JoIR/layout/feedback continuam aguardando autorização de deploy em lote.
