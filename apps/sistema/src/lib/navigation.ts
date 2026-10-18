@@ -113,6 +113,8 @@ export interface AdminNavLink {
   primary?: boolean;
   /** Somente para o proprietário ativo. */
   ownerOnly?: boolean;
+  /** Agrupamento visual para recursos relacionados, sem mudar permissões. */
+  group?: string;
 }
 
 export interface AdminNavGroup {
@@ -186,9 +188,9 @@ export const configuracoesNavGroup: AdminNavGroup = {
   label: "Configurações",
   links: [
     { label: "Usuários", href: "/sistema/usuarios" },
-    { label: "Assistente IR — Conversar", href: "/sistema/assistente-ir", ownerOnly: true },
-    { label: "Assistente IR — Aprovações", href: "/sistema/assistente-ir/propostas", ownerOnly: true },
-    { label: "Configurar Assistente IR", href: "/sistema/configuracoes/assistente-ir", ownerOnly: true },
+    { label: "Conversar", href: "/sistema/assistente-ir", ownerOnly: true, group: "Assistente IR" },
+    { label: "Propostas e aprovações", href: "/sistema/assistente-ir/propostas", ownerOnly: true, group: "Assistente IR" },
+    { label: "Configurar assistente", href: "/sistema/configuracoes/assistente-ir", ownerOnly: true, group: "Assistente IR" },
     { label: "Patrocinadores do site", href: "/sistema/configuracoes/patrocinadores" },
     { label: "Notificações push", href: "/sistema/configuracoes/notificacoes-push" },
     { label: "Valores da página Assine", href: "/sistema/configuracoes/valores-assine" },
