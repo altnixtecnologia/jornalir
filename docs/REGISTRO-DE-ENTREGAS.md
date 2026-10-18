@@ -183,3 +183,11 @@ modelos originais. Homenagens criadas por IA sao individuais e opcionais.
 - Aprovar significa SOMENTE marcar conteúdo para revisão humana, **não executa** ações reais (não envia, não publica, não movimenta valores). Futuros executores devem ter contratos/guardas de permissão próprios e autorização específica.
 - GitHub Actions foi acionado temporariamente por `be803e5`; várias execuções de CI disparadas por commits de código. Primeiros workflows passaram `typecheck`, `build`, testes de contratos; execuções posteriores precisam ser consultadas. Gatilho temporário da branch foi removido em `fcee156`, restaurando o workflow anterior. Nenhum deploy Vercel.
 - Ponto de parada atual: aguardar CI da versão com central de propostas; corrigir eventuais erros em nova branch, e depois validar o cofre, cadastrar credenciais OpenAI/Claude e executar testes autenticados E2E antes de publicação. Rotinas automáticas/cron e executores mutáveis ainda NÃO foram implementados.
+
+## 2026-10-18 — VERIFICAÇÃO CI DA VERSÃO FINAL DO LOTE
+
+- Workflow GitHub Actions `Validate project`, execução `39129277867`, SHA `73e413efb826fb10f0b5584e0928dd763e3697e0`: **SUCCESS**. Inclui typecheck/build site, typecheck/build sistema, dois smoke tests de PDF/contratos. URL: `https://github.com/altnixtecnologia/jornalir/actions/runs/39129277867`.
+- Falha `39129248861` foi apenas de versão intermediária (`a1e05e5`): a página ainda não passava prop `moduleChoices`. Corrigido em `5a9fe57`; últimas execuções `39129262629` e `39129277867` SUCCESS.
+- Gatilho extra do CI foi retirado da branch em `fcee156`; commits posteriores somente de documentação. Não existe novo código de aplicação depois do SHA aprovado em CI.
+- Comparação posterior: branch feature 34 commits à frente de `948060c`, nenhum atrás, 18 arquivos alterados. Produção continua `948060c` READY; nenhum deploy feito neste lote.
+- **Limites do teste:** CI comprovou compilação e scripts citados, não credenciais reais, uso autenticado da UI, geração OpenAI/Claude nem fluxo de aprovação no Supabase. Ainda exige chave de cofre válida, cadastro de chaves, testes reais e autorização de deploy.
