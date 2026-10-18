@@ -170,3 +170,16 @@ modelos originais. Homenagens criadas por IA sao individuais e opcionais.
 - Produção ainda aponta para `948060c`; alterações presentes SOMENTE no GitHub feature. Nenhuma chave de API cadastrada ou chamada real OpenAI/Claude; nenhuma mudança no banco, migrations ou configuração Vercel neste lote.
 - Bloqueio em produção: `AI_CONFIG_ENCRYPTION_KEY` existe no ambiente Production mas a tela indica cofre inválido/indisponível; usuário foi orientado a gerar 32 bytes Base64 localmente e editar somente a variável, porém **ainda não confirmou execução**. Valor NÃO foi lido. Após correção, será preciso novo deploy AUTORIZADO para o runtime.
 - Próximos critérios para dizer pronto: CI completo OK na versão final; conferir variável no runtime, cadastrar e testar cada API, efetuar geração real em cada provedor, testar RLS owner/não-owner, falhas de chave e saldo, selecionar modelo, habilitar módulos, conferir oito contagens e auditar consumo; somente depois autorizar publicação e homologar. Novas operações mutáveis e jobs exigem revisão separada de escopo e proteção.
+
+## 2026-10-18 — Central de propostas do Assistente IR (branch, SEM produção)
+
+- Estrutura da tabela `ai_approval_requests` já existe no Supabase. Sem nova migration ou escrita no banco real nesta etapa.
+- `3c934f8`: actions exclusivas do owner para criar proposta manual a partir da IA em módulo habilitado, listar pendentes/histórico e aprovar/recusar em atualização condicionada ao status pendente. Usam admin server-side somente APÓS autenticar owner; auditoria sem conteúdo nem segredos.
+- `edd177c`: interface de revisão de propostas com indicadores de estado, conteúdo e decisão explícita.
+- `9bbe4c8`: página `/sistema/assistente-ir/propostas` protegida (owner).
+- `a1e05e5`: na conversa, preparar sugestão para revisão com edição de título, texto e módulo, salvar sob clique explícito.
+- `5a9fe57`: passa opções de módulos ligados da página para a conversa.
+- `73e413e`: navegação owner para a central de propostas.
+- Aprovar significa SOMENTE marcar conteúdo para revisão humana, **não executa** ações reais (não envia, não publica, não movimenta valores). Futuros executores devem ter contratos/guardas de permissão próprios e autorização específica.
+- GitHub Actions foi acionado temporariamente por `be803e5`; várias execuções de CI disparadas por commits de código. Primeiros workflows passaram `typecheck`, `build`, testes de contratos; execuções posteriores precisam ser consultadas. Gatilho temporário da branch foi removido em `fcee156`, restaurando o workflow anterior. Nenhum deploy Vercel.
+- Ponto de parada atual: aguardar CI da versão com central de propostas; corrigir eventuais erros em nova branch, e depois validar o cofre, cadastrar credenciais OpenAI/Claude e executar testes autenticados E2E antes de publicação. Rotinas automáticas/cron e executores mutáveis ainda NÃO foram implementados.
