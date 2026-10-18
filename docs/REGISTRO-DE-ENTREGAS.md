@@ -70,3 +70,12 @@ que a branch de producao ou a pasta local contem o ultimo desenvolvimento.
 
 **Regra de prioridade:** manter o layout de Aniversariantes aprovado e os 44
 modelos originais. Homenagens criadas por IA sao individuais e opcionais.
+
+## 2026-10-18 — Decisão operacional do proprietário: NÃO sincronizar VS Code agora
+
+- Durante o desenvolvimento pelo ChatGPT, as alterações ficam na branch GitHub `feature/assistente-ir-base-20261018`; **nenhuma atualização deve ser feita na pasta local `Site-sistema` neste intervalo**.
+- O ChatGPT registra, a cada entrega, branch, SHA/commits, arquivos, testes, migrations e pendências neste arquivo.
+- **Somente quando o usuário voltar a usar Claude Code ou Codex** será feita a sincronização no VS Code, como **primeira tarefa**, após inspecionar o estado local. Deve-se integrar o HEAD inteiro da branch de trabalho, não uma lista parcial de cherry-picks.
+- A branch `consolidacao-local-20261016` continua intacta no GitHub enquanto o ChatGPT trabalha isoladamente, salvo nova autorização.
+- Este registro complementa o procedimento anterior e elimina qualquer interpretação de que seria necessário sincronizar o VS Code imediatamente após cada lote do ChatGPT.
+- Commits de documentação desta decisão na branch de feature: CLAUDE.md e AGENTS.md foram atualizados; a versão vigente é sempre identificada pelo HEAD remoto da branch, não por uma lista estática.
