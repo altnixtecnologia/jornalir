@@ -16,3 +16,7 @@ Quando este arquivo for instalado em um repositório que já possua `AGENTS.md`,
 ## Handoff ChatGPT/Claude/Codex — 18/10/2026
 
 Consultar `docs/REGISTRO-DE-ENTREGAS.md` ANTES de editar. Um agente por vez no mesmo projeto. Ao retomar no VS Code, fazer fetch e inspecionar a branch `feature/assistente-ir-base-20261018` (base `a3d506a`), preservando todos os commits e a branch oficial local. O registro indica a integração segura por fast-forward quando possível e os bloqueios de migration, configuração e testes. Sem deploy ou alteração remota de banco sem autorização explícita.
+
+## Regra de sincronização sob demanda — 18/10/2026
+
+Por decisão expressa do proprietário, o ChatGPT desenvolve na branch remota e registra commits em `docs/REGISTRO-DE-ENTREGAS.md`, **sem atualizar o VS Code no meio do trabalho**. A sincronização de `Site-sistema` será realizada **somente na próxima sessão em que Claude Code ou Codex efetivamente forem usados**. Nesse início, conferir HEAD/status, executar fetch, incorporar TODOS os commits da branch correta com segurança e testar, sem perder trabalho local. Não realizar pull/merge preventivo, push da branch oficial, migrations ou deploys por conta própria.
