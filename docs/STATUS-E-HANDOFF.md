@@ -778,3 +778,9 @@ O ChatGPT abriu `feature/assistente-ir-base-20261018` a partir desse SHA e imple
 - Consultas banco após publicação: só há credencial OpenAI; Anthropic não cadastrada. Configuração global `enabled=false`, modelo `gpt-4o-mini`, TODOS os módulos `off`. OpenAI teve autenticação API HTTP 200 anteriormente; geração de texto REAL ainda não validada.
 - Próximo passo é **homologação com login owner**, NÃO refazer código: entrar em `https://controle.altnix.com.br/sistema/configuracoes/assistente-ir`; opcionalmente registrar chave Claude e testar; ligar JoIR, habilitar módulo em Assistido e clicar salvar no fim da página; abrir `/sistema/assistente-ir`, perguntar, conferir tokens e erro; revisar central de propostas; testar a visualização em desktop/mobile. Sem atualização adicional na Vercel até apontar falha concreta.
 - Restrições: IA ainda não roda tarefas agendadas/autônomas ou executa mutações sensíveis; chatbot para leitores do portal não foi implementado. Site público, Supabase, segredos, branch oficial VS Code intocados no deploy.
+
+## 18/10/2026 — Próximo passo HTTP 400 JoIR: persistir OpenAI ativo
+
+- Problema de confusão entre provedor escolhido na UI e provedor SALVO: screenshot mostra `OpenAI / GPT` selecionado, mas cartão `Claude em uso pela JoIR`; banco confirma `enabled=true, provider=anthropic, model=claude-haiku-4-5`, apenas `agenda` e `site` assistidos. Ambos segredos já salvos.
+- Nova chave OpenAI salvada 14:02:53Z, autenticação do catálogo testada HTTP 200 14:02:58Z. Conversa HTTP 400 vista antes, potencialmente da Anthropic; não repetir armazenamento de segredos e não atribuir origem incorreta.
+- Próximo teste sem código/deploy: selecionar OpenAI e gpt-4o-mini, clicar SALVAR CONFIGURAÇÕES no fim, recarregar, confirmar cartão OpenAI em uso, testar prompt curto. Se erro persistir, diagnosticar HTTP da geração pelo provedor realmente salvo, sem expor API keys.
