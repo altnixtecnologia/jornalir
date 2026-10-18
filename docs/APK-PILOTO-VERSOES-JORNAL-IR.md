@@ -1,11 +1,17 @@
 # Jornal IR — APK piloto e controle de versões
 
 ## O que foi preparado
-- Versão inicial **v.00.00** (Android versionCode 1, package `br.com.jornalir.app`).
+- Versão inicial **v.00.00** (Android versionCode 1, package `com.jornalir`).
 - Configurações > Aplicativo Jornal IR: controla versão atual, download, integridade e publicação.
 - Site público `/aplicativo`: informa a versão e disponibiliza um botão **somente** quando houver APK validado e marcado como publicado.
 - Meta-dados em `public.mobile_app_releases` (migration `20261030100400_mobile_app_android_release.sql`, inicial `published=false`). Nenhum APK é liberado pela criação da tabela.
 - Os arquivos APK **não** entram no repositório; usar bucket R2 público do Jornal IR, na pasta `aplicativos/android/` com nome versionado.
+
+## Identificador Android definitivo
+
+- `applicationId`, `namespace` e Capacitor `appId`: **`com.jornalir`**; nome que aparece na tela inicial: **Jornal IR**.
+- Mudança feita antes da distribuição da primeira versão. O APK debug compilado anteriormente com `br.com.jornalir.app` NÃO representa mais este projeto; **recompilar** depois de sincronizar a branch.
+- Evitar alterar esse identificador depois de publicar: o Android o trata como outro aplicativo, impossibilitando uma atualização simples.
 
 ## Procedimento de liberação da v.00.00
 1. Aplique a migration no Supabase **após autorização**. Implemente/site/sistema primeiro em ambiente de testes.

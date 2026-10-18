@@ -1,4 +1,4 @@
-package br.com.jornalir.app;
+package com.jornalir;
 
 import com.getcapacitor.BridgeActivity;
 

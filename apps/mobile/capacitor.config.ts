@@ -7,7 +7,7 @@ import type { CapacitorConfig } from "@capacitor/cli";
 // Nenhuma credencial/segredo aqui; FCM (push nativo) ainda não está
 // conectado (precisa de um projeto Firebase próprio, ver relatório do lote).
 const config: CapacitorConfig = {
-  appId: "br.com.jornalir.app",
+  appId: "com.jornalir",
   appName: "Jornal IR",
   webDir: "www",
   server: {
