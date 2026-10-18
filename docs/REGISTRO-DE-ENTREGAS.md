@@ -32,6 +32,14 @@ que a branch de producao ou a pasta local contem o ultimo desenvolvimento.
   - `e864115`: entrada na pagina Configuracoes, visivel somente ao owner.
   - `00c7d0d`: gerador de homenagens usa controle central em vez das antigas variaveis BIRTHDAY_AI_*.
   - `8d738df`: comentario atualizado no provedor de mensagens.
+- Commits complementares de documentacao (tambem precisam ser integrados):
+  - `4cd4c5b`: criou este registro.
+  - `9d54b8a`: instrucao de retomada no AGENTS.md.
+  - `efd5a03`: atualizou STATUS-E-HANDOFF.md.
+  - `44024dc`: instrucao de retomada no CLAUDE.md.
+- **REGRA ANTI-OMISSAO:** o comando de integracao e do HEAD COMPLETO da branch feature
+  (nao cherry-pick manual dos commits listados). O ultimo commit deste registro
+  tambem faz parte do mesmo intervalo e deve ser incluido.
 - **Migration nova PENDENTE**: `supabase/migrations/20261030100200_ai_assistant_base.sql`; NAO foi aplicada.
 - **Env nova PENDENTE**: `AI_CONFIG_ENCRYPTION_KEY` (32 bytes aleatorios codificados em base64), somente no servidor;
   chave `SUPABASE_SERVICE_ROLE_KEY` existente continua necessaria para acesso ao cofre.
