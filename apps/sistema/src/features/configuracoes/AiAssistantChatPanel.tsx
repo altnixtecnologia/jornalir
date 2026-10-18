@@ -2,7 +2,8 @@
 
 import { useState, useTransition } from "react";
 import Link from "next/link";
-import { askAssistantAction } from "../../app/sistema/assistente-ir/actions";
+import { askAssistantAction, getAssistantUsageAction } from "../../app/sistema/assistente-ir/actions";
+import type { AiUsageSummary } from "../../app/sistema/assistente-ir/actions";
 import type { AssistantTurn } from "../../app/sistema/assistente-ir/actions";
 
 const QUESTIONS = [
@@ -20,8 +21,20 @@ export function AiAssistantChatPanel({ enabled, modules }: {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [usage, setUsage] = useState<AiUsageSummary | null>(null);
+  const [usageError, setUsageError] = useState<string | null>(null);
   const [busy, startTransition] = useTransition();
   const canUse = enabled && modules.length > 0;
+
+  function loadUsage(): void {
+    if (busy) return;
+    setUsageError(null);
+    startTransition(async () => {
+      const result = await getAssistantUsageAction();
+      if ("error" in result) setUsageError(result.error);
+      else setUsage(result.data);
+    });
+  }
 
   function ask(raw: string): void {
     const text = raw.trim();
@@ -47,6 +60,7 @@ export function AiAssistantChatPanel({ enabled, modules }: {
           sources: result.sources, model: `${result.provider} / ${result.model}`,
           usage: metadata,
         }]);
+        setUsage(null);
       } catch {
         setError("Não foi possível consultar a IA. Tente novamente sem reenviar a pergunta anterior.");
       }
@@ -122,6 +136,27 @@ export function AiAssistantChatPanel({ enabled, modules }: {
         Cada envio utiliza a API paga do provedor escolhido. A página não grava suas mensagens;
         fechar ou recarregar a página encerra esta conversa.
       </p>
+      <div className="quick-access-card" style={{ marginTop: 18 }}>
+        <strong>Consumo da IA — últimos sete dias</strong>
+        <p className="helper-text">
+          Contagem registrada pelo sistema, não representa cobrança real. Não inclui usos em outros aplicativos.
+        </p>
+        <button type="button" className="btn btn-secondary" onClick={loadUsage}
+          disabled={busy}>Consultar uso</button>
+        {usageError ? <p className="form-error" role="alert">{usageError}</p> : null}
+        {usage ? (
+          <div style={{ marginTop: 10 }}>
+            <p>{usage.requests} solicitação(ões) · {usage.inputTokens} tokens de entrada · {usage.outputTokens} de saída</p>
+            {usage.providers.map((entry) => (
+              <p className="helper-text" key={entry.provider + entry.model}>
+                {entry.provider} / {entry.model}: {entry.requests} pedido(s), {entry.tokens} tokens
+              </p>
+            ))}
+            <p className="helper-text">Máximo das 500 solicitações mais recentes nos últimos sete dias.</p>
+          </div>
+        ) : null}
+      </div>
+
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 14 }}>
         {QUESTIONS.map((question) => (
           <button type="button" className="btn btn-secondary" key={question}
