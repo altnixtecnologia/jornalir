@@ -5,7 +5,7 @@ import { createSupabaseServerClient } from "../../../../lib/supabase/server";
 import { createSupabaseAdminClient, hasServiceRoleKey } from "../../../../lib/supabase/admin";
 import { recordAuditEventSupabase } from "../../../../providers/supabase/auditEvents.supabase";
 import {
-  encryptAssistantKey, hasAssistantEncryptionKey,
+  encryptAssistantKey, hasAssistantEncryptionKey, getAssistantCredentialForConnectionTest,
 } from "../../../../lib/ai/assistantConfig";
 import {
   AI_MODULES, validAiMode,
@@ -102,5 +102,46 @@ export async function saveAssistantProviderKeyAction(
     return { ok: true };
   } catch (error) {
     return { error: error instanceof Error ? error.message : "Nao foi possivel salvar a chave." };
+  }
+}
+
+/** Teste EXPLICITO do proprietario, sem chamada de geracao nem
+ * cobrança do sistema. Consulta somente endpoint de listagem de modelos.
+ * Funciona mesmo com assistente desligado, sem ativa-lo. */
+export async function testAssistantConnectionAction(
+  provider: AiProvider,
+): Promise<{ ok: true; message: string } | { error: string }> {
+  try {
+    const { db, userId } = await requireOwner();
+    if (!validateProvider(provider)) return { error: "Provedor invalido." };
+    const apiKey = await getAssistantCredentialForConnectionTest(provider);
+    const url = provider === "openai"
+      ? "https://api.openai.com/v1/models?limit=1"
+      : "https://api.anthropic.com/v1/models?limit=1";
+    const headers: Record<string, string> = provider === "openai"
+      ? { authorization: `Bearer ${apiKey}` }
+      : { "x-api-key": apiKey, "anthropic-version": "2023-06-01" };
+    let response: Response;
+    try {
+      response = await fetch(url, {
+        method: "GET", headers, cache: "no-store", signal: AbortSignal.timeout(10000),
+      });
+    } catch {
+      return { error: "Nao foi possivel conectar ao provedor em ate 10 segundos. Confira rede e acesso da API." };
+    }
+    const ok = response.ok;
+    // NUNCA devolve corpo de erro de terceiros, pois pode conter dados internos.
+    const status = response.status;
+    await recordAuditEventSupabase(db, {
+      userId, entityType: "ai_provider_credentials", entityId: AUDIT_ID,
+      action: "connection_test",
+      metadata: { provider, success: ok, status },
+    });
+    if (!ok) {
+      return { error: `O provedor retornou HTTP ${status}. Confira a chave e permissoes da conta de API.` };
+    }
+    return { ok: true, message: `Conexao com ${provider === "openai" ? "OpenAI" : "Claude"} autenticada. Nenhuma mensagem foi gerada.` };
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : "Falha ao testar a conexao." };
   }
 }
