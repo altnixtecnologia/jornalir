@@ -4,6 +4,9 @@ import { ServiceWorkerRegister } from "../components/ServiceWorkerRegister";
 import { SiteFooter } from "../components/site/SiteFooter";
 import { WhatsAppFloatingButton } from "../components/site/WhatsAppFloatingButton";
 import { MobileBackButton } from "../components/site/MobileBackButton";
+import { NotificationCenterProvider } from "../components/site/public/notifications/NotificationCenterContext";
+import { FloatingNotificationBell } from "../components/site/public/notifications/FloatingNotificationBell";
+import { NotificationPanel } from "../components/site/public/notifications/NotificationPanel";
 import "./globals.css";
 
 const headline = Merriweather({ subsets: ["latin"], variable: "--font-headline", weight: ["700", "900"] });
@@ -47,9 +50,13 @@ export default function RootLayout({ children }: { children: React.ReactNode }):
       <body className="font-[family-name:var(--font-body)]">
         <ServiceWorkerRegister />
         <MobileBackButton />
-        {children}
-        <SiteFooter />
-        <WhatsAppFloatingButton />
+        <NotificationCenterProvider>
+          {children}
+          <SiteFooter />
+          <WhatsAppFloatingButton />
+          <FloatingNotificationBell />
+          <NotificationPanel />
+        </NotificationCenterProvider>
       </body>
     </html>
   );

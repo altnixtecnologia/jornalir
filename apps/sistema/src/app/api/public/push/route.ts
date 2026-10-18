@@ -2,32 +2,10 @@ import "server-only";
 import { createHash, createHmac } from "node:crypto";
 import { createClient } from "@supabase/supabase-js";
 import { NextRequest, NextResponse } from "next/server";
+import { corsOrigin, corsHeaders, corsJson as json } from "../../../../lib/publicApi/cors";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-
-function allowedOrigins(): Set<string> {
-  const configured = (process.env.PUSH_ALLOWED_SITE_ORIGINS || "").split(/[,;\s]+/).filter(Boolean);
-  return new Set(["https://jornalir.vercel.app", ...configured].map((value) => {
-    try { return new URL(value).origin; } catch { return ""; }
-  }).filter(Boolean));
-}
-function corsOrigin(request: NextRequest): string | null {
-  const origin = request.headers.get("origin");
-  return origin && allowedOrigins().has(origin) ? origin : null;
-}
-function corsHeaders(origin: string): HeadersInit {
-  return {
-    "Access-Control-Allow-Origin": origin,
-    "Access-Control-Allow-Methods": "GET, POST, DELETE, OPTIONS",
-    "Access-Control-Allow-Headers": "Content-Type",
-    "Vary": "Origin",
-    "Cache-Control": "no-store",
-  };
-}
-function json(data: unknown, status: number, origin: string): NextResponse {
-  return NextResponse.json(data, { status, headers: corsHeaders(origin) });
-}
 function validSubscription(value: unknown): value is { endpoint: string; keys: { p256dh: string; auth: string } } {
   if (!value || typeof value !== "object") return false;
   const sub = value as { endpoint?: unknown; keys?: { p256dh?: unknown; auth?: unknown } };

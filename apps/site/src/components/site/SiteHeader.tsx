@@ -6,6 +6,7 @@ import type { MouseEvent } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { socialLinks } from "./siteSettings";
 import { MobileSearchOverlay } from "./MobileSearchOverlay";
+import { HeaderNotificationBell } from "./public/notifications/HeaderNotificationBell";
 import { listPublicSections } from "../../lib/public/publicContentService";
 import { getSiteAssineEnabled } from "../../lib/public/siteOfferSettingsService";
 import type { PublicSection } from "../../lib/public/types";
@@ -313,6 +314,8 @@ export function SiteHeader({ emphasized = false }: { active?: string; emphasized
             </svg>
           </Link>
 
+          <HeaderNotificationBell />
+
           <div className="flex items-center gap-1.5">
             {socialIcons.map((social) => (
               <a
@@ -351,6 +354,8 @@ export function SiteHeader({ emphasized = false }: { active?: string; emphasized
         </Link>
 
         <div className="ir-mobile-header-actions">
+          <HeaderNotificationBell className="ir-mobile-notif-bell" />
+
           <button type="button" aria-label="Buscar" className="icon-btn" onClick={openMobileSearch}>
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <circle cx="11" cy="11" r="7" />
@@ -384,12 +389,20 @@ export function SiteHeader({ emphasized = false }: { active?: string; emphasized
         <div id="ir-mobile-menu-panel" ref={mobilePanelRef} className="ir-mobile-menu" role="dialog" aria-modal="true" aria-label="Menu">
           <div className="ir-mobile-menu-brand">
             <img src="/brand/logo-escrita.png" alt="Informativo Regional" />
-            <button type="button" className="icon-btn ir-mobile-menu-search" aria-label="Buscar no site" onClick={openMobileSearch}>
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <circle cx="11" cy="11" r="7" />
-                <path d="m21 21-4.3-4.3" />
-              </svg>
-            </button>
+            <div className="ir-mobile-menu-brand-actions">
+              <button type="button" className="icon-btn ir-mobile-menu-search" aria-label="Buscar no site" onClick={openMobileSearch}>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <circle cx="11" cy="11" r="7" />
+                  <path d="m21 21-4.3-4.3" />
+                </svg>
+              </button>
+              {/* Fixo dentro do painel (sticky), sempre visível ao rolar o
+                  menu — o antigo "X" só existia no header, acima do painel
+                  que abre por baixo, ficando "alto demais" (18/10/2026). */}
+              <button type="button" className="icon-btn ir-mobile-menu-close" aria-label="Fechar menu" onClick={() => setOpen(false)}>
+                ✕
+              </button>
+            </div>
           </div>
 
           <p className="ir-mobile-group-label">Acessos</p>
