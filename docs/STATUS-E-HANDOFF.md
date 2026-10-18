@@ -615,3 +615,98 @@ Limitações reais: não foi possível verificar visualmente a correção do cal
   código/CSS e pelos tipos (`tsc`), não por teste funcional em tela.
 
 Próximo lote: aguardando autorização do usuário.
+
+## Lote — Homenagens individuais, relatório padrão do jornal e vinculação cliente↔aniversariante (17/10/2026)
+
+Layout aprovado preservado; nenhum outro módulo alterado. Nenhuma migration aplicada
+  no Supabase remoto, nenhum push/deploy.
+
+### 1. Homenagens individuais (modal)
+
+- Novo botão "Homenagem" em cada aniversariante, abre um `<dialog>` compacto com:
+  **Outra sugestão** (reaproveita `prepareBirthdayEditionMessage`/regenerate), **Editar
+  texto** (reaproveita `saveManualBirthdayMessage`), **Criar com IA** (nova),
+  **Ver modelos** (nova), **Copiar mensagem** (existente). O bloco inline anterior
+  (Trocar mensagem/Editar manualmente/Copiar) foi mantido como estava — o modal é
+  aditivo, não substitui nada já aprovado.
+- **"Ver modelos"**: biblioteca com os 44 modelos originais de `messageGenerator.ts`
+  (agora expostos via `listTemplateSummaries()`/`renderTemplateByKey()`, agrupados por
+  família com rótulos amigáveis em `FAMILY_LABELS`) + modelos adicionais do
+  administrador. Nova tabela `birthday_message_templates` (migration
+  `20261030100100_birthday_message_templates.sql`, local, não aplicada) — RLS: leitura
+  por qualquer staff ativo, escrita (criar/editar) só admin/owner
+  (`is_active_admin_or_owner()`), mesma convenção do projeto. **Decisão de escopo**: os
+  44 modelos originais permanecem hardcoded e NUNCA editáveis (preserva o
+  comportamento/testes existentes); "gerenciar modelos" cria/edita só os adicionais.
+- **"Criar com IA"**: novo módulo `aiMessageProvider.ts`, chamado só a partir de uma
+  Server Action (`generateBirthdayMessageWithAI`) — a pedido explícito do operador
+  para UMA pessoa, nunca em lote. Provedor configurável via `BIRTHDAY_AI_PROVIDER`
+  (`openai`|`anthropic`) + `BIRTHDAY_AI_API_KEY` (+ `BIRTHDAY_AI_MODEL` opcional) — a
+  chave nunca é exposta ao navegador. **Sem chave configurada nesta sessão** (nenhuma
+  variável foi definida) — a UI informa a limitação ("depende de configuração") e as
+  demais opções do modal continuam 100% funcionais; não testado contra uma API real.
+- Regras verificadas por leitura de código + script de verificação ad hoc
+  (`tsx`, rodado e descartado): os 44 modelos originais continuam disponíveis; duas
+  pessoas na mesma edição recebem mensagens distintas; "Outra sugestão"/"Ver
+  modelos"/"Criar com IA" para uma pessoa nunca tocam a linha de outra (cada
+  operação faz `upsert` só na própria `birthday_entry_id`); edição manual
+  (`manually_edited`) nunca é sobrescrita automaticamente.
+
+### 2. Relatório semanal — padrão do jornal
+
+- Reescrito para o formato exato aprovado: três colunas DATA | NOME | CIDADE (uma
+  linha por pessoa, sem título obrigatório, sem separador por dia), ordem cronológica
+  e, dentro da data, alfabética. Semana editorial quinta→quarta preservada
+  (`newspaperRange`). Nunca inclui a mensagem de homenagem. Continua respeitando só
+  "ativo" + "autorizado a publicar" (`publishInPrint`), sem exigir mensagem
+  preparada — nenhuma mudança nessa regra.
+- Novo botão "Copiar relação (tabulada)" — copia `DATA\tNOME\tCIDADE` por linha via
+  clipboard, para colar direto na diagramação. "Gerar relatório" (impressão) mantido.
+
+### 3. Vinculação entre aniversariantes e clientes
+
+- Nova tela de busca na aba "Família e aniversários" do cadastro de cliente (PF, modo
+  edição): botão "Buscar aniversariantes existentes" chama a nova action
+  `findBirthdayCandidates` — compara dia/mês de nascimento (sempre exato) + nome
+  normalizado/tolerante a erro (reaproveita `fuzzyMatches`/`normalizeForSearch` de
+  `lib/fuzzySearch.ts`, já usado na busca da tela de Aniversariantes), cidade só como
+  reforço de ordenação (nunca filtro obrigatório — muitos registros não têm ano de
+  nascimento). **Nunca vincula automaticamente** — só lista candidatos para
+  confirmação manual ("Vincular a este cadastro").
+- Nova action `linkBirthdayEntryToClient`: ao confirmar, cria a linha "cadastro"
+  definitiva (mesmo padrão `id = source_client_id = group_client_id = client.id` usado
+  em todo o módulo), copiando profissão/instituição/apelido/contexto/notas/foto do
+  registro antigo; migra o histórico de `birthday_edition_messages` para a nova linha
+  (`UPDATE birthday_entry_id`, nunca perde mensagens já preparadas/editadas); só então
+  marca o registro antigo como `active=false` (soft delete — **nunca** `DELETE`
+  físico, nunca sobrescreve). Qualquer falha no meio do caminho deixa o registro
+  antigo intacto e informa para revisão manual, em vez de arriscar perda de dados.
+- Cliente sem correspondência encontrada: nenhuma mudança necessária — a arquitetura
+  já expõe automaticamente qualquer cliente PF com nascimento em Aniversariantes
+  (`makeGroups`/`prepareBirthdayEditionMessage`), sem entrada manual duplicada; só
+  confirmado que esse comportamento já existia e permanece.
+- **Limitação real**: a importação em lote da lista externa (ainda não recebida) não
+  foi implementada nesta etapa, por pedido explícito do usuário ("decidiremos juntos
+  o formato"). A busca/vinculação é só a preparação individual, cliente por cliente.
+  Modo "criar cliente" mostra um aviso ("disponível após salvar") em vez de buscar
+  candidatos — vincular exige um `clientId` real.
+
+### 4. Testes e verificação
+
+- Typecheck limpo (`npm run typecheck --workspace @ir/sistema`), build de
+  `apps/sistema` concluído com sucesso, 101/101 testes de `packages/core`
+  (não afetado, baseline confirmada).
+- Script de verificação ad hoc do `messageGenerator.ts` (via `tsx`, criado e apagado
+  nesta sessão — `apps/sistema` não tem script de teste configurado): confirma as 44
+  mensagens originais, mensagens distintas para duas pessoas, "trocar mensagem" sem
+  repetir o próprio texto anterior, substituição de placeholders de modelo
+  customizado, e elegibilidade de modelo específico.
+- **Não testado** (sem sessão autenticada nem Supabase local nesta sessão): persistência
+  real em banco das novas actions (`pickBirthdayMessageTemplate`,
+  `generateBirthdayMessageWithAI`, `savePersonalizedBirthdayProfile`,
+  `findBirthdayCandidates`, `linkBirthdayEntryToClient`, CRUD de
+  `birthday_message_templates`), geração real por IA (sem chave configurada), e o
+  fluxo completo de vinculação ponta a ponta em tela. Essas verificações dependem de
+  teste autenticado pelo responsável.
+
+Próximo lote: aguardando autorização do usuário.
