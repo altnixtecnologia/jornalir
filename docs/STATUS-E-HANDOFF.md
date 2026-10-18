@@ -1160,3 +1160,154 @@ outras telas. Corrigido restringindo a `.article-form select` antes de prossegui
 - Comportamento responsivo desktop/tablet/mobile em todas as telas acima.
 - Conferência da própria tela de matéria (este lote) com sessão autenticada real,
   em complemento ao harness isolado.
+
+## HOMOLOGAÇÃO DO LANÇAMENTO — 5 itens (18/10/2026)
+
+Branch `feature/site-lancamento-editorial-publicidade-20261018`, sem push/deploy.
+Nenhuma matéria/patrocinador alterado no Supabase; nenhuma migration aplicada.
+
+### Item 1 — Conferência da tela de matérias (correção `dca57d5`)
+
+- **Não foi possível validar com sessão autenticada real** nesta sessão (sem
+  login disponível) — exatamente a limitação já registrada no lote anterior.
+  Reconferido o que dá para confirmar sem sessão: o CSS corrigido está presente e
+  intacto em `apps/sistema/src/app/globals.css` (`.article-form input/select`
+  com `height:44px`/`line-height:20px`; `.article-form select` com
+  `appearance:none` e seta própria; `.article-media-view`/`.compact-clear-button`
+  com `display:flex` centralizado); `typecheck`/`build` de `apps/sistema` limpos
+  nesta sessão (ver abaixo). **Pendente**: abrir a tela real logado e comparar
+  pixel a pixel, por decisão do responsável.
+
+### Item 2 — Notícias no site público (verificação direta no Supabase, somente leitura)
+
+- Amostra de 6 das 56 matérias importadas (as mais antigas da janela, 11–12/10):
+  todas `status=published`, `published_at` íntegro (datas originais, sem
+  divergência), **100% visíveis em `public_articles`** (view pública real),
+  todas com capa (1 imagem) e galeria (0 a 19 imagens, variando por matéria
+  real), slugs limpos, URLs em `/noticias/<slug>` bem formadas.
+- Destaques/homepage (`article_placements`, não tocado pela importação):
+  `mainCover=10`, `highlightStrip=4`, `latestNews=8`, `localSpotlight=5` — todos
+  populados, nenhum zerado; confirma que a importação (que nunca grava em
+  `article_placements`, ver Lote 3) não afetou os destaques existentes, como
+  esperado pelas regras editoriais já em vigor.
+- **Não testado** (sem navegador/sessão): renderização visual real da
+  homepage/listagem de notícias, abertura de uma matéria importada na tela,
+  responsivo. Recomendo conferência visual rápida pelo responsável antes do
+  lançamento.
+
+### Item 3 — Patrocinadores (verificação direta no Supabase, somente leitura)
+
+- **6/6 posições ativas, 2 imagens cada** (`site_ad_media` com `active=true`),
+  `managed_by_panel=true` em todas (nenhum fallback legado). Rotação/efeito
+  configurados individualmente por posição (confirmado: `fade`, `fade`,
+  `zoom-in`, `slide-left`, `crossfade`, `slide-up` — nunca o mesmo efeito
+  repetido artificialmente, cada posição com o que foi configurado de fato),
+  todas com `fit_mode=contain` (preserva proporção) e `rotation_interval_ms=10000`.
+- **Não testado** (sem navegador): rotação individual rodando de verdade na
+  tela, nem a confirmação visual de que a ordem esquerda/direita das 6 posições
+  nunca troca em desktop/tablet/mobile — depende de sessão/navegador real.
+
+### Item 4 — Controle de ativação do Assine (implementado, testado localmente)
+
+**Decisão de reaproveitamento**: nova coluna `assine_enabled` em
+`site_offer_settings` (registro único já existente, usado pelos preços da
+página `/assine`) — nenhuma tabela nova, alteração mínima pedida pelo usuário.
+
+**Arquivos modificados/criados:**
+- `supabase/migrations/20261030100100_site_assine_visibility_toggle.sql` (NOVA,
+  NÃO aplicada): coluna `assine_enabled boolean not null default false` +
+  `create or replace function submit_site_interest_request_v4(...)` com a MESMA
+  assinatura/corpo de sempre, só acrescentando um guard no início
+  (`raise exception` se `assine_enabled` não for `true`) — única chamadora desta
+  função no projeto é `AssineConfigurator.tsx` (confirmado por grep), então o
+  bloqueio nunca afeta publicidade/patrocinadores/financeiro/NFS-e, que usam
+  tabelas e funções totalmente separadas.
+- `apps/site/src/lib/public/siteOfferSettingsService.ts`: nova
+  `getSiteAssineEnabled()` — consulta enxuta (só a coluna, não a linha de
+  preços inteira, já que isto é lido no cabeçalho de TODA página pública).
+  **Falha-fechado de propósito**: qualquer erro, ausência de linha ou valor
+  diferente de `true` retorna `false` — nunca liga sozinho.
+- `apps/site/src/components/site/SiteHeader.tsx`: novo hook `useAssineEnabled()`
+  (mesmo padrão do `useHeaderSections()` já existente, client-side, sem exigir
+  mudança nas 20 páginas que renderizam `<SiteHeader>`); os 3 `<Link href="/assine">`
+  (desktop, cabeçalho mobile, menu mobile) só renderizam quando `enabled=true`;
+  estado inicial `false` (oculto) até a consulta responder.
+- `apps/site/src/app/(public)/assine/page.tsx`: `notFound()` logo no início do
+  componente quando `assineEnabled` é falso — acesso direto à URL vira 404 (usa
+  a página `not-found.tsx` já existente no projeto), antes mesmo de carregar
+  preços/configurador.
+- `apps/sistema/src/app/sistema/configuracoes/valores-assine/actions.ts`: nova
+  `setAssineEnabledAction` — checa `profiles.role` (só `owner`/`admin`; nunca
+  `operator`) antes de gravar, grava `assine_enabled`, registra evento de
+  auditoria (reaproveita `recordAuditEventSupabase`, mesmo padrão já usado
+  pelos preços — "auditável" sem nenhuma infraestrutura nova).
+- `apps/sistema/src/features/configuracoes/AssineVisibilityToggle.tsx` (NOVO):
+  switch "Ativado/Desativado" com rótulo "Exibir Assine no site", mensagem de
+  erro explícita se a gravação falhar (nunca finge sucesso).
+- `apps/sistema/src/app/sistema/configuracoes/valores-assine/page.tsx`: passa a
+  selecionar `assine_enabled` e monta o novo toggle acima do painel de preços
+  existente (mesma tela, pedido de reaproveitar a configuração existente do
+  site).
+
+**Confirmações pedidas pelo usuário:**
+1. ✅ Configuração clara "Exibir Assine no site" com ativar/desativar — feito.
+2. ✅ Estado inicial desativado (`default false` na coluna nova) — feito.
+3. ✅ Só administrador (owner/admin) pode alterar — checado na Server Action,
+   `operator` recebe erro explícito.
+4. ✅ Persistida no Supabase, auditável, sem exigir novo deploy a cada
+   ativação/desativação — é uma leitura em tempo real (`force-dynamic` na
+   página pública + fetch client-side no cabeçalho), nunca cacheada
+   estaticamente.
+5. ✅ Oculta nos 3 pontos pedidos (cabeçalho desktop, cabeçalho mobile, menu
+   mobile) — nenhum outro link direto a `/assine` foi encontrado no site
+   público (grep confirmado).
+6. ✅ Acesso direto a `/assine` bloqueado (404) quando desativado.
+7. ✅ `submit_site_interest_request_v4` recusa novas solicitações quando
+   desativado, sem afetar nenhuma outra funcionalidade comercial (única
+   chamadora confirmada).
+8. ✅ Cadastro/exibição de patrocinadores nunca tocado por esta mudança
+   (arquivos/tabelas totalmente distintos).
+9. ✅ Falha-fechado: qualquer erro de leitura mantém Assine oculto, nunca ativa
+   sozinho — implementado em 3 camadas (serviço público, página `/assine`,
+   leitura administrativa).
+
+**Limitação real, documentada sem maquiagem**: a RLS de `site_offer_settings`
+continua com `UPDATE` amplo para qualquer staff ativo (política já existente,
+usada pelos campos de preço) — a restrição "só admin" para a coluna
+`assine_enabled` especificamente vive só na Server Action, não há uma policy de
+banco separada por coluna. Mesmo princípio já usado para
+`birthday_message_templates` nesta mesma sessão/projeto; uma policy por coluna
+seria desproporcional para um único boolean numa tabela cujas outras ~20
+colunas já são staff-editable de propósito. Quem tiver acesso direto ao banco
+(fora da aplicação) não está sujeito a essa checagem — risco aceito, igual ao
+resto do projeto.
+
+### Item 5 — Testes e documentação
+
+- `npm run typecheck` (site + sistema): limpo.
+- `npm run build` (site + sistema): concluído com sucesso, sem erros.
+- `npm run test --workspace @ir/core`: 103/103 (baseline, não afetado por este
+  lote).
+- Verificação read-only direta no Supabase para os itens 2/3/4 (ver acima) —
+  nenhuma escrita de dados de matéria/patrocinador.
+- Confirmado no banco real: a coluna `assine_enabled` **ainda não existe**
+  (`column site_offer_settings.assine_enabled does not exist`) — migration
+  genuinamente não aplicada, como instruído.
+- Não há suíte de testes automatizados para `apps/site`/`apps/sistema` neste
+  projeto (só `packages/core` e `scripts/legacy-audit` têm `npm test`) — mesma
+  limitação já registrada nos lotes anteriores desta sessão.
+
+**Sequência de implantação (quando autorizado):**
+1. Aplicar `supabase/migrations/20261030100100_site_assine_visibility_toggle.sql`
+   no Supabase remoto — **sem isso, a tela `/sistema/configuracoes/valores-assine`
+   quebra** (a query já pede a coluna `assine_enabled`, que não existirá até a
+   migration rodar). Migration é aditiva/idempotente (`add column if not exists`),
+   segura para rodar a qualquer momento antes do deploy de código.
+2. Só depois, deploy do código desta branch (site + sistema).
+3. Conferir no painel que o toggle aparece como "Desativado" (estado inicial
+   seguro) e que `/assine` responde 404 no site publicado.
+4. Quando o responsável decidir lançar o Assine: ativar pelo painel (sem novo
+   deploy) e confirmar no site que o botão aparece nos 3 pontos e a página
+   carrega.
+
+Aguardando revisão do responsável antes de qualquer push/deploy/aplicação de migration.

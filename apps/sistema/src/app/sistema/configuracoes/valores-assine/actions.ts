@@ -49,6 +49,40 @@ function parseOptionalMoney(label: string, value: string): number | null {
   return parseRequiredMoney(label, value);
 }
 
+/** Liga/desliga a página pública /assine (que também reúne Anuncie) — só
+ * admin/owner, pedido explícito do usuário em 18/10/2026. A policy de
+ * UPDATE de `site_offer_settings` é ampla (staff, para os campos de preço);
+ * esta checagem de papel é o controle fino específico desta coluna, mesmo
+ * princípio já usado em outras configurações administrativas do projeto. */
+export async function setAssineEnabledAction(enabled: boolean): Promise<ActionResult> {
+  try {
+    const client = createSupabaseServerClient();
+    const { data: auth, error: authError } = await client.auth.getUser();
+    if (authError || !auth.user) throw new Error("Sessão inválida. Faça login novamente.");
+    const { data: profile } = await client.from("profiles").select("role,active").eq("id", auth.user.id).maybeSingle();
+    if (!profile?.active) throw new Error("Conta inativa. Faça login novamente.");
+    if (profile.role !== "owner" && profile.role !== "admin") {
+      throw new Error("Só administradores podem ativar ou desativar o Assine no site.");
+    }
+
+    const { error } = await client.from("site_offer_settings").update({ assine_enabled: enabled }).eq("id", 1);
+    if (error) throw new Error(error.message);
+
+    await recordAuditEventSupabase(client, {
+      userId: auth.user.id,
+      entityType: "site_offer_settings",
+      entityId: SITE_OFFER_SETTINGS_AUDIT_ID,
+      action: "update",
+      metadata: { assine_enabled: enabled },
+    });
+
+    revalidatePath("/sistema/configuracoes/valores-assine");
+    return { ok: true };
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : "Não foi possível alterar a visibilidade do Assine." };
+  }
+}
+
 export async function updateSiteOfferSettingsAction(
   input: SiteOfferSettingsFormInput,
 ): Promise<ActionResult> {

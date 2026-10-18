@@ -1,10 +1,15 @@
+import { notFound } from "next/navigation";
 import { SiteHeader } from "../../../components/site/SiteHeader";
 import { AssineConfigurator } from "../../../components/site/public/AssineConfigurator";
-import { getPublicSiteOfferSettings } from "../../../lib/public/siteOfferSettingsService";
+import { getPublicSiteOfferSettings, getSiteAssineEnabled } from "../../../lib/public/siteOfferSettingsService";
 
 export const dynamic = "force-dynamic";
 
 export default async function AssinePage(): Promise<JSX.Element> {
+  // Falha-fechado: se a leitura da configuração falhar, getSiteAssineEnabled()
+  // já retorna false — nunca permite acesso direto por causa de um erro de
+  // leitura (18/10/2026).
+  if (!(await getSiteAssineEnabled())) notFound();
   const offerSettings = await getPublicSiteOfferSettings();
 
   return (

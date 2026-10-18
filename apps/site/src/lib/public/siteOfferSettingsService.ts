@@ -125,3 +125,28 @@ export async function getPublicSiteOfferSettings(): Promise<PublicSiteOfferSetti
     return DEFAULT_SITE_OFFER_SETTINGS;
   }
 }
+
+/**
+ * Controla se a página pública `/assine` (que também reúne Anuncie) fica
+ * visível no site — pedido explícito do usuário em 18/10/2026. Consulta
+ * própria e enxuta (nunca a linha inteira de preços) porque isto é lido no
+ * cabeçalho de TODA página pública, não só em `/assine`.
+ *
+ * Falha-fechado de propósito: qualquer erro, ausência de linha ou valor
+ * inesperado retorna `false` — a configuração nunca "liga sozinha" por
+ * causa de uma falha de leitura.
+ */
+export async function getSiteAssineEnabled(): Promise<boolean> {
+  try {
+    const client = getPublicSupabaseClient();
+    const { data, error } = await client
+      .from("site_offer_settings")
+      .select("assine_enabled")
+      .eq("id", 1)
+      .maybeSingle();
+    if (error || !data) return false;
+    return (data as { assine_enabled: boolean | null }).assine_enabled === true;
+  } catch {
+    return false;
+  }
+}

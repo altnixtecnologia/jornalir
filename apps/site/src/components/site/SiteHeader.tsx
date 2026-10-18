@@ -7,6 +7,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { socialLinks } from "./siteSettings";
 import { MobileSearchOverlay } from "./MobileSearchOverlay";
 import { listPublicSections } from "../../lib/public/publicContentService";
+import { getSiteAssineEnabled } from "../../lib/public/siteOfferSettingsService";
 import type { PublicSection } from "../../lib/public/types";
 
 interface NavLink {
@@ -54,6 +55,29 @@ function overflowTierClass(index: number): string {
   return "block";
 }
 
+/** Falha-fechado: começa (e permanece, se a consulta falhar) oculto —
+ * nunca mostra o CTA "Assine" sem confirmação explícita de que a página
+ * está habilitada (18/10/2026). */
+function useAssineEnabled(): boolean {
+  const [enabled, setEnabled] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    getSiteAssineEnabled()
+      .then((value) => {
+        if (!cancelled) setEnabled(value);
+      })
+      .catch(() => {
+        if (!cancelled) setEnabled(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  return enabled;
+}
+
 function useHeaderSections(): NavLink[] {
   const [sections, setSections] = useState<PublicSection[] | null>(null);
 
@@ -82,6 +106,7 @@ export function SiteHeader({ emphasized = false }: { active?: string; emphasized
   const pathname = usePathname();
   const router = useRouter();
   const sectionLinks = useHeaderSections();
+  const assineEnabled = useAssineEnabled();
   const mobileTriggerRef = useRef<HTMLButtonElement>(null);
   const mobilePanelRef = useRef<HTMLDivElement>(null);
   const wasOpenRef = useRef(false);
@@ -303,18 +328,22 @@ export function SiteHeader({ emphasized = false }: { active?: string; emphasized
             ))}
           </div>
 
-          <Link href="/assine" className="nav-pill nav-pill--solid">
-            Assine
-          </Link>
+          {assineEnabled ? (
+            <Link href="/assine" className="nav-pill nav-pill--solid">
+              Assine
+            </Link>
+          ) : null}
         </div>
       </div>
 
       {/* Mobile: Assine à esquerda, IR centralizado, busca + menu à direita. */}
       <div className="site-shell ir-mobile-header h-[58px] lg:hidden">
         <div className="ir-mobile-header-left">
-          <Link href="/assine" className="nav-pill nav-pill--solid mobile-assine-cta">
-            Assine
-          </Link>
+          {assineEnabled ? (
+            <Link href="/assine" className="nav-pill nav-pill--solid mobile-assine-cta">
+              Assine
+            </Link>
+          ) : null}
         </div>
 
         <Link href="/" aria-label="Informativo Regional" className="ir-mobile-header-logo">
@@ -399,9 +428,13 @@ export function SiteHeader({ emphasized = false }: { active?: string; emphasized
           </div>
 
           <div className="mt-5 flex items-center justify-between">
-            <Link href="/assine" className="nav-pill nav-pill--solid">
-              Assine
-            </Link>
+            {assineEnabled ? (
+              <Link href="/assine" className="nav-pill nav-pill--solid">
+                Assine
+              </Link>
+            ) : (
+              <span aria-hidden="true" />
+            )}
             <div className="flex items-center gap-2">
               {socialIcons.map((social) => (
                 <a
