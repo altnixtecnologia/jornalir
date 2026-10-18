@@ -44,5 +44,5 @@ export function AdSlotUnit({
   );
 
   const unitClassName = variant === "pair" ? "ad-slot-unit ad-slot-unit--compact" : "ad-slot-unit";
-  return <div className={unitClassName}>{current.href ? <a href={current.href} target="_blank" rel="noreferrer">{content}</a> : content}</div>;
+  return <div className={unitClassName}>{current.href ? <a href={current.href} target="_blank" rel="sponsored noopener noreferrer">{content}</a> : content}</div>;
 }
