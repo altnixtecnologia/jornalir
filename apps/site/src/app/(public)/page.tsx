@@ -95,9 +95,9 @@ export default async function HomePage(): Promise<JSX.Element> {
           <div className="hidden xl:block"><AdSlotColumn slots={leftAdSlots} side="left" /></div>
 
           <div className="min-w-0">
-            <div className="mb-7 md:hidden"><AdSlotPairRow slots={mobilePairs[0]} /></div>
+            <div className="mb-7 xl:hidden"><AdSlotPairRow slots={mobilePairs[0]} /></div>
             <PublicLatestNewsList items={latestNews} />
-            <div className="mt-1 md:hidden"><AdSlotPairRow slots={mobilePairs[1]} /></div>
+            <div className="mt-1 xl:hidden"><AdSlotPairRow slots={mobilePairs[1]} /></div>
           </div>
 
           <div className="hidden xl:block"><AdSlotColumn slots={rightAdSlots} side="right" /></div>
@@ -105,7 +105,7 @@ export default async function HomePage(): Promise<JSX.Element> {
 
         <hr className="divider mt-10" />
         <div className="pt-10"><PublicLocalSpotlight items={localSpotlight} /></div>
-        <div className="mt-8 pb-4 md:hidden"><AdSlotPairRow slots={mobilePairs[2]} /></div>
+        <div className="mt-8 pb-4 xl:hidden"><AdSlotPairRow slots={mobilePairs[2]} /></div>
       </section>
     </main>
   );
