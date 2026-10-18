@@ -163,8 +163,14 @@ export function MobilePdfReader({ pdfUrl, title }: { pdfUrl: string; title: stri
   return (
     <section aria-label={`Leitor de ${title}`} className="rounded-xl border" style={{ borderColor: "var(--site-line)" }}>
       <div
-        className="sticky top-0 z-20 flex items-center justify-between gap-2 border-b px-2 py-2 backdrop-blur"
-        style={{ borderColor: "var(--site-line)", background: "rgba(255,255,255,.94)" }}
+        className="sticky z-20 flex items-center justify-between gap-2 border-b px-2 py-2 backdrop-blur"
+        style={{
+          borderColor: "var(--site-line)",
+          background: "rgba(255,255,255,.94)",
+          // Abaixo do SiteHeader (sticky top:0 também), não sobre ele —
+          // evita duas barras disputando o topo da tela (18/10/2026).
+          top: "calc(58px + env(safe-area-inset-top, 0px))",
+        }}
       >
         <span className="text-xs font-semibold">
           Página {page} de {pdf.numPages}

@@ -21,10 +21,21 @@ export function PublicFeaturedHero({ items }: { items: PublicArticle[] }): JSX.E
   const [index, setIndex] = useState(0);
   const [isMobile, setIsMobile] = useState(false);
   const [orientations, setOrientations] = useState<Record<string, ImageOrientation>>({});
+  const [showScrollHint, setShowScrollHint] = useState(true);
   const stageRef = useRef<HTMLDivElement>(null);
   const touchStartXRef = useRef<number | null>(null);
   const touchStartYRef = useRef<number | null>(null);
   const suppressClickRef = useRef(false);
+
+  useEffect(() => {
+    // "Rolar" some assim que o usuário começar a rolar a página — não
+    // volta a aparecer depois (hint de primeira impressão, não um controle).
+    function onScroll(): void {
+      if (window.scrollY > 4) setShowScrollHint(false);
+    }
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
 
   useEffect(() => {
     const media = window.matchMedia("(max-width: 767px)");
@@ -215,6 +226,16 @@ export function PublicFeaturedHero({ items }: { items: PublicArticle[] }): JSX.E
             />
           </Link>
         </div>
+      </div>
+
+      <div
+        className={`hero-scroll-hint pointer-events-none absolute inset-x-0 bottom-0 z-20 flex justify-center md:hidden ${showScrollHint ? "" : "is-hidden"}`}
+        style={{ paddingBottom: "calc(10px + env(safe-area-inset-bottom, 0px))" }}
+        aria-hidden="true"
+      >
+        <span className="hero-scroll-label">
+          Rolar <span className="hero-scroll-arrow">↓</span>
+        </span>
       </div>
 
       {items.length > 1 ? (

@@ -35,7 +35,10 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#30305c"
+  themeColor: "#30305c",
+  // Sem isto, env(safe-area-inset-*) resolve para 0 no WebView/Safari — o
+  // CSS que já existia para notch/status bar ficava sem efeito (18/10/2026).
+  viewportFit: "cover"
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }): JSX.Element {
