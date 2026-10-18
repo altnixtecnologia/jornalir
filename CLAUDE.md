@@ -28,3 +28,9 @@ Se outros arquivos `CLAUDE.md` já existirem ao instalar estas instruções, **n
 ## Alternância de agentes — Assistente IR (18/10/2026)
 
 Antes de iniciar novo lote, ler também `docs/REGISTRO-DE-ENTREGAS.md`, fazer `git fetch origin` e conferir a branch `feature/assistente-ir-base-20261018`. A branch oficial local NÃO recebe automaticamente os commits do ChatGPT; integrar TODOS os commits da feature por fast-forward apenas com worktree limpa e histórico compatível. Um agente por vez no projeto, nunca dois operadores escrevendo simultaneamente. Não fazer deploy, migration remota ou alteração de segredos sem autorização.
+
+## REGRA APROVADA — sincronizar o VS Code SOMENTE ao voltar a usar Claude/Codex (18/10/2026)
+
+Enquanto o ChatGPT estiver trabalhando diretamente no GitHub, **NÃO pedir nem realizar sincronização do VS Code/OneDrive a cada commit**. Ele trabalha somente em branch própria e registra TODOS os commits e pendências em `docs/REGISTRO-DE-ENTREGAS.md`. A pasta local `Site-sistema` permanece intocada nesse período.
+
+**Somente quando o usuário decidir iniciar nova sessão do Claude Code ou Codex**, a PRIMEIRA tarefa do agente será conferir os arquivos e o Git local, fazer `git fetch origin`, ler o registro de entregas, e então incorporar a totalidade da branch do ChatGPT de forma segura (fast-forward quando cabível). Verificar conflitos, testar e registrar novo HEAD. Nunca sincronizar parcialmente, nunca descartar mudanças locais, nunca fazer deploy automático. A sincronização local não é pré-requisito para o ChatGPT continuar programando no GitHub.
