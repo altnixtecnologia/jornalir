@@ -5,12 +5,10 @@
  * API nunca é enviada ao navegador. Provedor configurável via variável de
  * ambiente, sem nenhuma chave hardcoded.
  *
- * Variáveis de ambiente (nenhuma obrigatória — sem configuração, a função
- * isAiConfigured() retorna false e a UI informa a limitação, sem quebrar as
- * outras opções do modal):
- *   BIRTHDAY_AI_PROVIDER = "openai" | "anthropic"
- *   BIRTHDAY_AI_API_KEY  = chave do provedor escolhido
- *   BIRTHDAY_AI_MODEL    = opcional; usa um padrão razoável se ausente
+ * A configuracao e carregada da area Configuracoes > Assistente IR, via
+ * getAssistantCredentialsForModule("aniversariantes").
+ * O interruptor geral e a permissao do modulo sao checados no servidor;
+ * variaveis BIRTHDAY_AI_* legadas NAO contornam o interruptor.
  */
 import type { PersonProfile } from "./messageGenerator";
 
