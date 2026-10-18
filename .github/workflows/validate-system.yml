@@ -5,6 +5,7 @@ on:
     branches:
       - frontend-integracao-20261008
       - release/contratos-nfse-integracao-20261016
+      - feature/assistente-ir-base-20261018
     paths:
       - "apps/site/**"
       - "apps/sistema/**"
