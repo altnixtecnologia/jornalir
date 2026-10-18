@@ -234,3 +234,10 @@ modelos originais. Homenagens criadas por IA sao individuais e opcionais.
 - Commit `d7390f2`: em `AiAssistantSettingsPanel.tsx` substitui duas legendas discretas por dois cartões na mesma linha em desktop, com `flex-wrap` responsivo em mobile; estados evidentes `Chave cadastrada` ou `Chave não cadastrada` e distinção `Provedor em uso pela JoIR` (baseado na configuração salva), `Selecionado no formulário` e `Pode ser configurado e testado independentemente`. Atualiza no estado React após salvar chave, não mostra nem expõe credenciais.
 - CI `39132372563` disparado pelo commit temporário `6498f1d2`; disparo extra do workflow removido em `052610bd`; verificar resultado final. Os commits posteriores à alteração de UI são apenas CI e documentação.
 - Nenhum deploy, alteração do cofre, mudança no Supabase ou sincronização VS Code neste lote. Produção conserva `d92625f`. Pendências anteriores de JoIR/layout/feedback continuam aguardando autorização de deploy em lote.
+
+## 2026-10-18 — CI aprovado: cartões de status OpenAI e Claude
+
+- Execução GitHub Actions `39132372563` (SHA `6498f1d2`) finalizada com **SUCCESS**; verificados typecheck e build dos apps site/sistema, scripts smoke de assinatura e PDF de contrato.
+- Link: `https://github.com/altnixtecnologia/jornalir/actions/runs/39132372563`.
+- Alteração funcional do lote: `d7390f2` somente UI. Depois do SHA validado, `052610bd` restaurou o workflow e os demais commits alteraram somente docs.
+- Não há teste E2E de layout com navegador autenticado nem publicação deste lote. Em produção permanece o último deploy de `d92625f`, aguardando autorização para publicação agrupada de melhorias de JoIR.
