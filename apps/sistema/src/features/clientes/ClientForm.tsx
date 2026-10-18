@@ -9,6 +9,75 @@ import type { ClientFormPayload } from "./clientFormTypes";
 import { PhoneField } from "./PhoneField";
 import { Tabs, type TabItem } from "../../components/admin/Tabs";
 import { lookupCep } from "../../lib/cep";
+import {
+  findBirthdayCandidates, linkBirthdayEntryToClient,
+} from "../../app/sistema/aniversariantes/actions";
+import type { BirthdayCandidate } from "../../app/sistema/aniversariantes/actions";
+
+/** Busca+vinculação de aniversariantes já existentes (ver aba "Família e
+ * aniversários") — pedido explícito do usuário em 17/10/2026, para
+ * aproveitar uma lista grande de aniversariantes sem duplicar o cadastro de
+ * clientes. Nunca vincula sozinho: só sugere candidatos para confirmação. */
+function BirthdayCandidateSearch({
+  clientId, fullName, birthDate, city,
+}: { clientId: string; fullName: string; birthDate: string; city: string }): JSX.Element {
+  const router = useRouter();
+  const [candidates, setCandidates] = useState<BirthdayCandidate[] | null>(null);
+  const [searching, setSearching] = useState(false);
+  const [linkingId, setLinkingId] = useState<string | null>(null);
+  const [message, setMessage] = useState<string | null>(null);
+
+  function search(): void {
+    if (!fullName.trim() || !birthDate) {
+      setMessage("Informe nome completo e nascimento antes de buscar.");
+      return;
+    }
+    setSearching(true); setMessage(null);
+    void findBirthdayCandidates(fullName, birthDate, city).then((result) => {
+      if ("error" in result) { setMessage(result.error); return; }
+      setCandidates(result.data);
+      if (result.data.length === 0) setMessage("Nenhum aniversariante existente parece corresponder a esta pessoa.");
+    }).catch(() => setMessage("Não foi possível buscar aniversariantes existentes."))
+      .finally(() => setSearching(false));
+  }
+
+  function link(candidateId: string): void {
+    setLinkingId(candidateId); setMessage(null);
+    void linkBirthdayEntryToClient(candidateId, clientId).then((result) => {
+      if ("error" in result) { setMessage(result.error); return; }
+      setCandidates((prev) => prev?.filter((c) => c.id !== candidateId) ?? null);
+      setMessage("Vinculado ao cadastro mestre, preservando dados editoriais, fotos e histórico de mensagens.");
+      router.refresh();
+    }).catch(() => setMessage("Não foi possível concluir a vinculação."))
+      .finally(() => setLinkingId(null));
+  }
+
+  return (
+    <div>
+      <button type="button" className="cadastros-btn-secondary" disabled={searching} onClick={search}>
+        {searching ? "Buscando…" : "Buscar aniversariantes existentes"}
+      </button>
+      {message ? <p className="helper-text">{message}</p> : null}
+      {candidates && candidates.length > 0 ? (
+        <ul className="cadastro-family-tree">
+          {candidates.map((candidate) => (
+            <li key={candidate.id}>
+              {candidate.displayName}
+              {candidate.relationship ? ` — ${candidate.relationship}` : ""}
+              {" — "}{new Date(`${candidate.birthDate}T00:00:00`).toLocaleDateString("pt-BR")}
+              {candidate.city ? ` — ${candidate.city}` : ""}
+              {" "}
+              <button type="button" className="cadastros-btn-secondary" disabled={linkingId === candidate.id}
+                onClick={() => link(candidate.id)}>
+                {linkingId === candidate.id ? "Vinculando…" : "Vincular a este cadastro"}
+              </button>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+    </div>
+  );
+}
 
 function payloadFromClient(client?: Client): ClientFormPayload {
   return {
@@ -451,11 +520,32 @@ export function ClientForm({ mode, client }: ClientFormProps): JSX.Element {
         )}
         {isIndividual && payload.birthDate ? (
           <p className="helper-text">
-            Com nascimento informado, este cadastro poderá futuramente alimentar <strong>Aniversariantes</strong> automaticamente
-            (ação explícita "Atualizar a partir do cadastro" — ainda não implementada; nenhuma sincronização automática).
+            Com nascimento informado, este cadastro já fica disponível automaticamente em <strong>Aniversariantes</strong>,
+            sem nenhum cadastro manual duplicado.
           </p>
         ) : null}
       </div>
+
+      {isIndividual ? (
+        <section className="form-section" style={{ marginTop: "16px" }}>
+          <h2>Aniversariantes já existentes</h2>
+          <p className="helper-text">
+            Procura, na base editorial de Aniversariantes, pessoas já cadastradas manualmente (familiares/pessoas
+            relacionadas) que podem ser esta mesma pessoa — útil para aproveitar listas antigas sem duplicar cadastro.
+            Compara nome, dia/mês de nascimento e cidade; nunca vincula automaticamente, só sugere para confirmação.
+          </p>
+          {mode === "create" ? (
+            <p className="helper-text">Disponível após salvar este cadastro — abra aqui novamente para localizar aniversariantes existentes.</p>
+          ) : (
+            <BirthdayCandidateSearch
+              clientId={client!.id}
+              fullName={payload.fullName}
+              birthDate={payload.birthDate}
+              city={payload.addressCity}
+            />
+          )}
+        </section>
+      ) : null}
 
       <h2 style={{ marginTop: "16px" }}>{isIndividual ? "Familiares / pessoas relacionadas" : "Pessoas relacionadas / aniversariantes"}</h2>
       <p className="helper-text">

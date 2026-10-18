@@ -9,8 +9,12 @@ import type {
   EditorialBirthdayInput, EditorialBirthdayMessage,
 } from "../../../features/aniversariantes/editorialBirthdayTypes";
 import {
-  extractSafeEditorialPhrase, formatEditorialDayLabel, generateBirthdayMessage,
+  customTemplateEligible, extractSafeEditorialPhrase, formatEditorialDayLabel, generateBirthdayMessage,
+  renderCustomTemplate, renderTemplateByKey,
 } from "../../../features/aniversariantes/messageGenerator";
+import type { GeneratedMessage, PersonProfile, UsageCounts } from "../../../features/aniversariantes/messageGenerator";
+import { AiMessageError, generateMessageWithAI, isAiConfigured } from "../../../features/aniversariantes/aiMessageProvider";
+import { fuzzyMatches, normalizeForSearch } from "../../../lib/fuzzySearch";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { registerUploadedMediaAsset } from "../../../providers/supabase/mediaAssetRepository.supabase";
 import { InvalidImageUploadError, uploadOptimizedImageToR2 } from "../../../providers/r2/mediaStorage.r2";
@@ -33,6 +37,21 @@ async function permitted(): Promise<{ db: SupabaseClient; userId: string } | nul
 }
 function clean(value: string, length: number): string {
   return value.trim().slice(0, length);
+}
+
+/** Checagem de staff ativo SEM exigir acesso ao módulo Aniversariantes —
+ * usada pela vinculação cliente<->aniversariante, chamada a partir da tela
+ * de Clientes (qualquer staff ativo pode ter acesso a Clientes sem
+ * necessariamente ter acesso a Aniversariantes). `permitted()` continua
+ * exclusivo das ações do próprio módulo Aniversariantes. */
+async function activeStaff(): Promise<{ db: SupabaseClient; userId: string } | null> {
+  const db = createSupabaseServerClient();
+  const { data: auth, error } = await db.auth.getUser();
+  if (error || !auth.user) return null;
+  const { data: profile } = await db.from("profiles").select("role,active").eq("id", auth.user.id).maybeSingle();
+  if (!profile?.active) return null;
+  if (profile.role !== "owner" && profile.role !== "admin" && profile.role !== "operator") return null;
+  return { db, userId: auth.user.id };
 }
 
 /**
@@ -250,15 +269,27 @@ export async function savePersonalizedBirthdayProfile(
   return { ok: true, data: { id: saved.id } };
 }
 
-export async function prepareBirthdayEditionMessage(
-  source: "cliente" | "editorial", id: string, regenerate = false,
-): Promise<ActionResult<EditorialBirthdayMessage>> {
-  const caller = await permitted();
-  if (!caller) return { error: "Acesso não autorizado." };
-  if (!UUID.test(id) || (source !== "cliente" && source !== "editorial")) {
-    return { error: "Origem inválida." };
-  }
-  const { db, userId } = caller;
+interface EditorialSubject {
+  entryId: string;
+  name: string;
+  city: string;
+  profession: string;
+  organization: string;
+  knownAs: string;
+  messageContext: string;
+  dateLabel: string;
+}
+
+/** Resolve nome/data/cidade/perfil editorial de um aniversariante, criando o
+ * vínculo editorial (origin "cadastro") se ainda não existir — mesma lógica
+ * usada por prepareBirthdayEditionMessage, agora reaproveitada também por
+ * pickBirthdayMessageTemplate e generateBirthdayMessageWithAI (nunca
+ * duplicada entre as três). Só aceita aniversários da semana atual do jornal
+ * — a mensagem (de qualquer origem: automática, modelo escolhido ou IA) só
+ * existe para a edição em curso. */
+async function resolveEditorialSubject(
+  db: SupabaseClient, userId: string, source: "cliente" | "editorial", id: string,
+): Promise<{ error: string } | EditorialSubject> {
   const currentWeek = currentBirthdayWeekISO();
   let entryId = id;
   let name = "";
@@ -338,14 +369,30 @@ export async function prepareBirthdayEditionMessage(
   if (!birthdayWithinEdition(birthDate, currentWeek)) {
     return { error: "A mensagem só pode ser preparada para aniversários da semana atual do jornal." };
   }
-  const { data: previousRows, error: messageError } = await db.from("birthday_edition_messages")
+  const dateForBirthday = editionDays(currentWeek).find(d=>d.slice(5)===birthDate.slice(5))!;
+  const targetDay = new Date(dateForBirthday + "T12:00:00Z");
+  const weekdays = ["DOMINGO","SEGUNDA-FEIRA","TERÇA-FEIRA","QUARTA-FEIRA","QUINTA-FEIRA","SEXTA-FEIRA","SÁBADO"];
+  return {
+    entryId, name, city, profession, organization, knownAs, messageContext,
+    dateLabel: formatEditorialDayLabel(weekdays[targetDay.getUTCDay()], targetDay),
+  };
+}
+
+/** Lê as mensagens já salvas na edição ATUAL inteira (para evitar repetição
+ * estrutural/textual entre pessoas) — mesmo princípio usado por
+ * prepareBirthdayEditionMessage, agora compartilhado com pickBirthdayMessageTemplate
+ * e generateBirthdayMessageWithAI. */
+async function readEditionUsage(db: SupabaseClient, entryId: string): Promise<
+  { error: string } | { currentWeek: string; old?: EditorialBirthdayMessage; usedTexts: Set<string>; usage: UsageCounts }
+> {
+  const currentWeek = currentBirthdayWeekISO();
+  const { data: previousRows, error } = await db.from("birthday_edition_messages")
     .select("birthday_entry_id,edition_week_start,message,family,opening,ending,manually_edited")
     .eq("edition_week_start", currentWeek);
-  if (messageError) return { error: "Não foi possível consultar as mensagens salvas." };
-  const old = previousRows?.find(row => row.birthday_entry_id === entryId);
-  if (old && !regenerate) return { ok: true, data: old as EditorialBirthdayMessage };
+  if (error) return { error: "Não foi possível consultar as mensagens salvas." };
+  const old = previousRows?.find(row => row.birthday_entry_id === entryId) as EditorialBirthdayMessage | undefined;
   const usedTexts = new Set<string>();
-  const usage = { family: {} as Record<string,number>, opening: {} as Record<string,number>, ending: {} as Record<string,number> };
+  const usage: UsageCounts = { family: {}, opening: {}, ending: {} };
   for (const row of previousRows ?? []) {
     if (row.birthday_entry_id === entryId) continue;
     usedTexts.add(row.message);
@@ -354,30 +401,198 @@ export async function prepareBirthdayEditionMessage(
     usage.ending[row.ending] = (usage.ending[row.ending] ?? 0) + 1;
   }
   if (old) usedTexts.add(old.message);
-  const dateForBirthday = editionDays(currentWeek).find(d=>d.slice(5)===birthDate.slice(5))!;
-  const targetDay = new Date(dateForBirthday + "T12:00:00Z");
-  const weekdays = ["DOMINGO","SEGUNDA-FEIRA","TERÇA-FEIRA","QUARTA-FEIRA","QUINTA-FEIRA","SEXTA-FEIRA","SÁBADO"];
-  const result = generateBirthdayMessage({
-    name, city: city || undefined, profession: profession || undefined,
-    organization: organization || undefined, knownAs: knownAs || undefined,
-    editorialPhrase: extractSafeEditorialPhrase(messageContext),
-    dateLabel: formatEditorialDayLabel(weekdays[targetDay.getUTCDay()],targetDay),
-  }, usedTexts, usage, old ? {family:old.family, opening:old.opening, ending:old.ending}: {},
-  `${currentWeek}::${entryId}::${regenerate ? Date.now() : 0}`);
+  return { currentWeek, old, usedTexts, usage };
+}
+
+/** Grava (upsert) a mensagem final desta edição para `entryId` — nunca cria
+ * uma segunda linha para a mesma pessoa/semana (onConflict), e nunca toca a
+ * linha de qualquer outra pessoa. Usado por prepareBirthdayEditionMessage,
+ * pickBirthdayMessageTemplate e generateBirthdayMessageWithAI. */
+async function upsertEditionMessage(
+  db: SupabaseClient, entryId: string, currentWeek: string, result: GeneratedMessage,
+): Promise<ActionResult<EditorialBirthdayMessage>> {
   const end = editionDays(currentWeek)[6];
-  const { data: saved, error: savedError } = await db.from("birthday_edition_messages").upsert({
+  const { data: saved, error } = await db.from("birthday_edition_messages").upsert({
     birthday_entry_id: entryId, edition_week_start: currentWeek, edition_week_end: end,
     message: result.text, family: result.family, opening: result.opening, ending: result.ending,
-    // Gerar automaticamente (primeira vez ou "Trocar mensagem") sempre volta ao modo
+    // Gerar automaticamente, trocar, escolher um modelo ou pedir à IA sempre volta ao modo
     // automático — edição manual (ver saveManualBirthdayMessage) é uma operação alternativa,
     // nunca combinada com a última mensagem gerada.
     manually_edited: false, message_override: null,
     updated_at: new Date().toISOString(),
   }, { onConflict:"birthday_entry_id,edition_week_start" })
     .select("birthday_entry_id,edition_week_start,message,family,opening,ending,manually_edited").single();
-  if (savedError || !saved) return { error: "Não foi possível registrar a mensagem desta edição." };
+  if (error || !saved) return { error: "Não foi possível registrar a mensagem desta edição." };
   revalidatePath(PATH);
   return { ok: true, data: saved as EditorialBirthdayMessage };
+}
+
+export async function prepareBirthdayEditionMessage(
+  source: "cliente" | "editorial", id: string, regenerate = false,
+): Promise<ActionResult<EditorialBirthdayMessage>> {
+  const caller = await permitted();
+  if (!caller) return { error: "Acesso não autorizado." };
+  if (!UUID.test(id) || (source !== "cliente" && source !== "editorial")) {
+    return { error: "Origem inválida." };
+  }
+  const { db, userId } = caller;
+  const subject = await resolveEditorialSubject(db, userId, source, id);
+  if ("error" in subject) return subject;
+  const usageResult = await readEditionUsage(db, subject.entryId);
+  if ("error" in usageResult) return usageResult;
+  const { currentWeek, old, usedTexts, usage } = usageResult;
+  if (old && !regenerate) return { ok: true, data: old };
+  const result = generateBirthdayMessage({
+    name: subject.name, city: subject.city || undefined, profession: subject.profession || undefined,
+    organization: subject.organization || undefined, knownAs: subject.knownAs || undefined,
+    editorialPhrase: extractSafeEditorialPhrase(subject.messageContext),
+    dateLabel: subject.dateLabel,
+  }, usedTexts, usage, old ? { family: old.family, opening: old.opening, ending: old.ending } : {},
+  `${currentWeek}::${subject.entryId}::${regenerate ? Date.now() : 0}`);
+  return upsertEditionMessage(db, subject.entryId, currentWeek, result);
+}
+
+/** "Outra sugestão"/escolha explícita de um modelo específico na biblioteca
+ * "Ver modelos" — nunca regenera por conta própria (sempre a pedido do
+ * operador para ESSA pessoa), nunca toca a mensagem de ninguém mais. */
+export async function pickBirthdayMessageTemplate(
+  source: "cliente" | "editorial", id: string, templateKey: string, templateSource: "builtin" | "custom",
+): Promise<ActionResult<EditorialBirthdayMessage>> {
+  const caller = await permitted();
+  if (!caller) return { error: "Acesso não autorizado." };
+  if (!UUID.test(id) || (source !== "cliente" && source !== "editorial")) return { error: "Origem inválida." };
+  const { db, userId } = caller;
+  const subject = await resolveEditorialSubject(db, userId, source, id);
+  if ("error" in subject) return subject;
+  const profile: PersonProfile = {
+    name: subject.name, city: subject.city || undefined, profession: subject.profession || undefined,
+    organization: subject.organization || undefined, knownAs: subject.knownAs || undefined,
+    editorialPhrase: extractSafeEditorialPhrase(subject.messageContext), dateLabel: subject.dateLabel,
+  };
+  let result: GeneratedMessage | null = null;
+  if (templateSource === "builtin") {
+    result = renderTemplateByKey(templateKey, profile);
+  } else {
+    if (!UUID.test(templateKey)) return { error: "Modelo inválido." };
+    const { data: tplRow, error } = await db.from("birthday_message_templates")
+      .select("id,family,body,needs_city,needs_profession,needs_organization,needs_known_as,needs_editorial_phrase")
+      .eq("id", templateKey).eq("active", true).maybeSingle();
+    if (error || !tplRow) return { error: "Modelo indisponível." };
+    const customTpl = {
+      id: tplRow.id, family: tplRow.family, body: tplRow.body,
+      needsCity: tplRow.needs_city, needsProfession: tplRow.needs_profession,
+      needsOrganization: tplRow.needs_organization, needsKnownAs: tplRow.needs_known_as,
+      needsEditorialPhrase: tplRow.needs_editorial_phrase,
+    };
+    if (!customTemplateEligible(customTpl, profile)) {
+      return { error: "Este modelo exige um dado que esta pessoa não possui (ex.: cidade, profissão ou instituição)." };
+    }
+    result = renderCustomTemplate(customTpl, profile);
+  }
+  if (!result) return { error: "Este modelo exige um dado que esta pessoa não possui, ou não existe mais." };
+  const usageResult = await readEditionUsage(db, subject.entryId);
+  if ("error" in usageResult) return usageResult;
+  return upsertEditionMessage(db, subject.entryId, usageResult.currentWeek, result);
+}
+
+/** "Criar com IA" — geração individual SOMENTE a pedido explícito do
+ * operador para ESSA pessoa; nunca chamada em lote/automaticamente. */
+export async function generateBirthdayMessageWithAI(
+  source: "cliente" | "editorial", id: string,
+): Promise<ActionResult<EditorialBirthdayMessage>> {
+  const caller = await permitted();
+  if (!caller) return { error: "Acesso não autorizado." };
+  if (!UUID.test(id) || (source !== "cliente" && source !== "editorial")) return { error: "Origem inválida." };
+  const { db, userId } = caller;
+  const subject = await resolveEditorialSubject(db, userId, source, id);
+  if ("error" in subject) return subject;
+  const usageResult = await readEditionUsage(db, subject.entryId);
+  if ("error" in usageResult) return usageResult;
+  const profile: PersonProfile = {
+    name: subject.name, city: subject.city || undefined, profession: subject.profession || undefined,
+    organization: subject.organization || undefined, knownAs: subject.knownAs || undefined,
+    editorialPhrase: extractSafeEditorialPhrase(subject.messageContext), dateLabel: subject.dateLabel,
+  };
+  let text: string;
+  try {
+    text = await generateMessageWithAI(profile, [...usageResult.usedTexts].slice(0, 3));
+  } catch (err) {
+    return { error: err instanceof AiMessageError ? err.message : "Não foi possível gerar a homenagem por IA." };
+  }
+  const trimmed = clean(text, 600);
+  if (!trimmed) return { error: "A IA não retornou um texto utilizável." };
+  return upsertEditionMessage(db, subject.entryId, usageResult.currentWeek, { text: trimmed, family: "ai", opening: "ai", ending: "ai" });
+}
+
+export async function isBirthdayAiConfigured(): Promise<boolean> {
+  const caller = await permitted();
+  if (!caller) return false;
+  return isAiConfigured();
+}
+
+export interface BirthdayMessageTemplateRow {
+  id: string; family: string; body: string;
+  needsCity: boolean; needsProfession: boolean; needsOrganization: boolean;
+  needsKnownAs: boolean; needsEditorialPhrase: boolean; active: boolean;
+}
+
+/** Lista os modelos ADICIONAIS gerenciados pelo administrador — os 44 modelos
+ * originais (sempre disponíveis) vêm de messageGenerator.listTemplateSummaries(),
+ * nunca desta tabela. Visível a toda a equipe com acesso ao módulo. */
+export async function listBirthdayMessageTemplates(): Promise<ActionResult<BirthdayMessageTemplateRow[]>> {
+  const caller = await permitted();
+  if (!caller) return { error: "Acesso não autorizado." };
+  const { data, error } = await caller.db.from("birthday_message_templates")
+    .select("id,family,body,needs_city,needs_profession,needs_organization,needs_known_as,needs_editorial_phrase,active")
+    .eq("active", true).order("created_at", { ascending: false });
+  if (error) return { error: "Não foi possível carregar os modelos adicionais." };
+  return {
+    ok: true,
+    data: (data ?? []).map((r) => ({
+      id: r.id, family: r.family, body: r.body, active: r.active,
+      needsCity: r.needs_city, needsProfession: r.needs_profession,
+      needsOrganization: r.needs_organization, needsKnownAs: r.needs_known_as,
+      needsEditorialPhrase: r.needs_editorial_phrase,
+    })),
+  };
+}
+
+/** Cria ou edita um modelo adicional — só admin/owner (policy no banco já
+ * bloqueia qualquer outro papel; aqui a checagem é só para dar um erro claro
+ * antes de depender só do banco recusar). */
+export async function saveBirthdayMessageTemplate(input: {
+  id?: string; family: string; body: string;
+  needsCity: boolean; needsProfession: boolean; needsOrganization: boolean;
+  needsKnownAs: boolean; needsEditorialPhrase: boolean;
+}): Promise<ActionResult<{ id: string }>> {
+  const caller = await permitted();
+  if (!caller) return { error: "Acesso não autorizado." };
+  const { data: profile } = await caller.db.from("profiles").select("role").eq("id", caller.userId).maybeSingle();
+  if (profile?.role !== "owner" && profile?.role !== "admin") {
+    return { error: "Só administradores podem gerenciar os modelos adicionais." };
+  }
+  const body = clean(input.body, 600);
+  if (!body) return { error: "Informe o texto do modelo (até 600 caracteres)." };
+  if (input.id && !UUID.test(input.id)) return { error: "Identificador de modelo inválido." };
+  const fields = {
+    family: clean(input.family, 60) || "custom", body,
+    needs_city: Boolean(input.needsCity), needs_profession: Boolean(input.needsProfession),
+    needs_organization: Boolean(input.needsOrganization), needs_known_as: Boolean(input.needsKnownAs),
+    needs_editorial_phrase: Boolean(input.needsEditorialPhrase),
+    updated_at: new Date().toISOString(),
+  };
+  if (input.id) {
+    const { data, error } = await caller.db.from("birthday_message_templates").update(fields)
+      .eq("id", input.id).select("id").maybeSingle();
+    if (error || !data) return { error: "Não foi possível salvar as alterações do modelo." };
+    revalidatePath(PATH);
+    return { ok: true, data: { id: data.id } };
+  }
+  const { data, error } = await caller.db.from("birthday_message_templates")
+    .insert({ ...fields, created_by: caller.userId }).select("id").single();
+  if (error || !data) return { error: "Não foi possível criar o modelo." };
+  revalidatePath(PATH);
+  return { ok: true, data: { id: data.id } };
 }
 
 /** Sobrescreve manualmente o texto já preparado para a edição atual — nunca cria uma
@@ -448,4 +663,119 @@ export async function removeBirthdayEntryPhoto(entryId: string): Promise<ActionR
   if (error) return { error: "Não foi possível remover a foto de destaque." };
   revalidatePath(PATH);
   return { ok: true, data: undefined };
+}
+
+export interface BirthdayCandidate {
+  id: string; displayName: string; birthDate: string; city: string;
+  origin: "familiar" | "manual"; relationship: string | null;
+}
+
+/** Procura aniversariantes editoriais JÁ EXISTENTES (familiares/manuais,
+ * ainda sem cadastro mestre próprio) que podem ser a MESMA pessoa de um
+ * cliente sendo criado/editado — pedido explícito do usuário em 17/10/2026,
+ * para aproveitar uma lista grande de aniversariantes sem duplicar cadastro.
+ * Critério: dia/mês de nascimento igual (sempre disponível) + nome
+ * razoavelmente parecido (normalizado, tolera acento/abreviação/erro de
+ * digitação) — cidade é só reforço, nunca obrigatória (muitos registros não
+ * têm ano de nascimento, e o enunciado do usuário pede para considerar isso).
+ * NUNCA vincula sozinho — só sugere candidatos para confirmação manual. */
+export async function findBirthdayCandidates(
+  fullName: string, birthDate: string, city: string,
+): Promise<ActionResult<BirthdayCandidate[]>> {
+  const caller = await activeStaff();
+  if (!caller) return { error: "Acesso não autorizado." };
+  if (!fullName.trim() || !validBirthDate(birthDate)) return { ok: true, data: [] };
+  const [, month, day] = birthDate.split("-").map(Number);
+  const { data, error } = await caller.db.from("birthday_entries")
+    .select("id,display_name,birth_month,birth_day,birth_year,city,origin,relationship")
+    .is("source_client_id", null)
+    .eq("active", true)
+    .eq("birth_month", month)
+    .eq("birth_day", day)
+    .in("origin", ["familiar", "manual"]);
+  if (error) return { error: "Não foi possível buscar aniversariantes existentes." };
+  const nameNorm = normalizeForSearch(fullName);
+  const candidates = (data ?? [])
+    .filter((row) => fuzzyMatches(nameNorm, row.display_name) || fuzzyMatches(row.display_name, nameNorm))
+    .map((row) => ({
+      id: row.id as string,
+      displayName: row.display_name as string,
+      birthDate: `${row.birth_year ?? 2000}-${String(row.birth_month).padStart(2, "0")}-${String(row.birth_day).padStart(2, "0")}`,
+      city: (row.city as string | null) || "",
+      origin: row.origin as "familiar" | "manual",
+      relationship: row.relationship as string | null,
+    }))
+    // Mesma cidade primeiro (reforço, nunca filtro obrigatório — ver comentário acima).
+    .sort((a, b) => {
+      const aCity = city && a.city && normalizeForSearch(a.city) === normalizeForSearch(city) ? 0 : 1;
+      const bCity = city && b.city && normalizeForSearch(b.city) === normalizeForSearch(city) ? 0 : 1;
+      return aCity - bCity;
+    });
+  return { ok: true, data: candidates };
+}
+
+/** Confirma a vinculação manual: o aniversariante editorial `entryId`
+ * (familiar/manual, ainda sem cadastro mestre) É a mesma pessoa do cliente
+ * `clientId` recém-criado/editado. NUNCA apaga nem sobrescreve o registro
+ * antigo — cria a linha "cadastro" definitiva (mesmo padrão de id=clientId
+ * usado em todo o módulo), migra o histórico de mensagens
+ * (birthday_edition_messages) para ela, preserva foto/profissão/instituição/
+ * apelido/contexto/notas, e só então marca o registro antigo como inativo
+ * (soft delete, nunca DELETE). Se algo falhar no meio do caminho, o registro
+ * antigo permanece ativo e nada é perdido — resolução segura de conflito
+ * estrutural, conforme pedido explícito do usuário. */
+export async function linkBirthdayEntryToClient(entryId: string, clientId: string): Promise<ActionResult<{ id: string }>> {
+  const caller = await activeStaff();
+  if (!caller) return { error: "Acesso não autorizado." };
+  if (!UUID.test(entryId) || !UUID.test(clientId)) return { error: "Identificador inválido." };
+  const { db, userId } = caller;
+
+  const { data: client, error: clientError } = await db.from("clients")
+    .select("id,kind,status,full_name,company_name,trade_name,birth_date,founding_date,address_city")
+    .eq("id", clientId).maybeSingle();
+  if (clientError || !client || client.status !== "active" || client.kind !== "individual") {
+    return { error: "Cliente pessoa física não encontrado ou inativo." };
+  }
+  const anniversary = resolveMasterAnniversary(client);
+  if (!anniversary) return { error: "Preencha primeiro o nascimento no cadastro do cliente." };
+
+  const { data: old, error: oldError } = await db.from("birthday_entries")
+    .select("id,source_client_id,origin,active,city,profession,organization,known_as,message_context,notes,publish_in_print,photo_media_asset_id")
+    .eq("id", entryId).maybeSingle();
+  if (oldError || !old || old.source_client_id || old.origin === "cadastro" || !old.active) {
+    return { error: "Aniversariante indisponível para vinculação (já vinculado ou inativo)." };
+  }
+  const { data: alreadyLinked } = await db.from("birthday_entries").select("id").eq("id", clientId).maybeSingle();
+  if (alreadyLinked) return { error: "Este cliente já possui um vínculo editorial — abra Aniversariantes para revisar." };
+
+  const [year, month, day] = anniversary.date.split("-").map(Number);
+  const { error: insertError } = await db.from("birthday_entries").insert({
+    id: clientId, source_client_id: clientId, group_client_id: clientId,
+    origin: "cadastro", display_name: anniversary.name,
+    birth_year: year, birth_month: month, birth_day: day,
+    city: client.address_city || old.city || null, active: true,
+    publish_in_print: old.publish_in_print, created_by: userId,
+    profession: old.profession, organization: old.organization, known_as: old.known_as,
+    message_context: old.message_context, notes: old.notes, photo_media_asset_id: old.photo_media_asset_id,
+  });
+  if (insertError) return { error: "Não foi possível criar o vínculo com o cadastro mestre." };
+
+  // Migra o histórico de mensagens já preparadas/editadas para a nova linha
+  // — nunca perde o que já foi publicado/editado manualmente.
+  const { error: migrateMessagesError } = await db.from("birthday_edition_messages")
+    .update({ birthday_entry_id: clientId }).eq("birthday_entry_id", entryId);
+  if (migrateMessagesError) {
+    return { error: "Vínculo criado, mas não foi possível migrar o histórico de mensagens. Revise manualmente em Aniversariantes." };
+  }
+
+  // Soft delete do registro antigo — nunca DELETE físico, nunca sobrescreve o
+  // conteúdo (já copiado acima para a nova linha).
+  const { error: deactivateError } = await db.from("birthday_entries")
+    .update({ active: false, updated_at: new Date().toISOString() }).eq("id", entryId);
+  if (deactivateError) {
+    return { error: "Vínculo criado, mas não foi possível arquivar o registro antigo. Revise manualmente em Aniversariantes." };
+  }
+  revalidatePath(PATH);
+  revalidatePath("/sistema/clientes");
+  return { ok: true, data: { id: clientId } };
 }

@@ -240,3 +240,100 @@ export function generateBirthdayMessage(
 export function formatEditorialDayLabel(weekdayFullUpper: string, day: Date): string {
   return `${weekdayFullUpper.toLowerCase()} (${String(day.getDate()).padStart(2, "0")})`;
 }
+
+/** Rótulo editorial amigável de cada família de modelo — só para a tela "Ver
+ * modelos" agrupar visualmente; nunca exibido na mensagem publicada. */
+export const FAMILY_LABELS: Record<string, string> = {
+  plain: "Simples",
+  date: "Com a data da semana",
+  city_leads: "Cidade em destaque",
+  person_city: "Pessoa e cidade",
+  profession_leads: "Profissão em destaque",
+  profession_city: "Profissão e cidade",
+  profession_org: "Profissão e instituição",
+  known_as: "Como é conhecido",
+  editorial_phrase: "Frase editorial",
+  custom: "Modelos do administrador",
+};
+
+export interface TemplateSummary {
+  /** Índice estável dentro de TEMPLATES nesta versão do código — usado só
+   * para a seleção explícita de "Ver modelos" ser aplicada imediatamente
+   * (nunca persistido como referência permanente fora desta requisição). */
+  key: string;
+  family: string;
+  familyLabel: string;
+  /** Pré-visualização com dados de exemplo, só para a biblioteca de modelos. */
+  preview: string;
+  needs: TemplateNeeds;
+}
+
+const PREVIEW_PROFILE: PersonProfile = {
+  name: "Maria Aparecida",
+  city: "Santa Rosa do Sul",
+  profession: "Empresária",
+  organization: "Câmara de Vereadores",
+  knownAs: "Cida",
+  editorialPhrase: "Integrante da Associação Comercial",
+  dateLabel: "quinta-feira (16)",
+};
+
+/** Lista os 44 modelos originais com pré-visualização, para a tela "Ver
+ * modelos" — nunca usado para gerar a mensagem publicada (ver renderTemplateByKey). */
+export function listTemplateSummaries(): TemplateSummary[] {
+  return TEMPLATES.map((tpl, index) => ({
+    key: String(index),
+    family: tpl.family,
+    familyLabel: FAMILY_LABELS[tpl.family] ?? tpl.family,
+    preview: tpl.render(PREVIEW_PROFILE),
+    needs: tpl.needs,
+  }));
+}
+
+/** Renderiza um modelo específico (escolhido na biblioteca "Ver modelos")
+ * para `profile` real — null se o modelo não existir mais ou não for
+ * compatível com os dados disponíveis da pessoa. */
+export function renderTemplateByKey(key: string, profile: PersonProfile): GeneratedMessage | null {
+  const index = Number(key);
+  const tpl = Number.isInteger(index) ? TEMPLATES[index] : undefined;
+  if (!tpl || !eligible(tpl, profile)) return null;
+  return { text: tpl.render(profile), family: tpl.family, opening: tpl.opening, ending: tpl.ending };
+}
+
+/** Modelo customizado (gerenciado pelo administrador) — texto livre com
+ * placeholders {{name}}/{{city}}/{{profession}}/{{organization}}/{{knownAs}}/
+ * {{editorialPhrase}}/{{dateLabel}}, substituição literal (nunca template
+ * engine/eval). Campos ausentes tornam o placeholder vazio. */
+export interface CustomTemplate {
+  id: string;
+  family: string;
+  body: string;
+  needsCity: boolean;
+  needsProfession: boolean;
+  needsOrganization: boolean;
+  needsKnownAs: boolean;
+  needsEditorialPhrase: boolean;
+}
+
+export function customTemplateEligible(tpl: CustomTemplate, p: PersonProfile): boolean {
+  if (tpl.needsCity && !p.city) return false;
+  if (tpl.needsProfession && !p.profession) return false;
+  if (tpl.needsOrganization && !(p.profession && p.organization)) return false;
+  if (tpl.needsKnownAs && !p.knownAs) return false;
+  if (tpl.needsEditorialPhrase && !p.editorialPhrase) return false;
+  return true;
+}
+
+export function renderCustomTemplate(tpl: CustomTemplate, profile: PersonProfile): GeneratedMessage {
+  const text = tpl.body
+    .replaceAll("{{name}}", profile.name)
+    .replaceAll("{{city}}", profile.city ?? "")
+    .replaceAll("{{profession}}", profile.profession ?? "")
+    .replaceAll("{{organization}}", profile.organization ?? "")
+    .replaceAll("{{knownAs}}", profile.knownAs ?? "")
+    .replaceAll("{{editorialPhrase}}", profile.editorialPhrase ?? "")
+    .replaceAll("{{dateLabel}}", profile.dateLabel ?? "")
+    .replace(/\s{2,}/g, " ")
+    .trim();
+  return { text, family: tpl.family || "custom", opening: "custom", ending: "custom" };
+}

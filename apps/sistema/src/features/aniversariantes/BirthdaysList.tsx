@@ -6,8 +6,12 @@ import { useRouter } from "next/navigation";
 import {
   saveEditorialBirthday, setEditorialBirthdayActive, setBirthdayPublication, prepareBirthdayEditionMessage,
   saveManualBirthdayMessage, setBirthdayEntryPhoto, removeBirthdayEntryPhoto, savePersonalizedBirthdayProfile,
+  pickBirthdayMessageTemplate, generateBirthdayMessageWithAI, isBirthdayAiConfigured,
+  listBirthdayMessageTemplates, saveBirthdayMessageTemplate,
 } from "../../app/sistema/aniversariantes/actions";
+import type { BirthdayMessageTemplateRow } from "../../app/sistema/aniversariantes/actions";
 import type { EditorialBirthdayInput, EditorialBirthdayMessage } from "./editorialBirthdayTypes";
+import { FAMILY_LABELS, listTemplateSummaries, renderTemplateByKey, type TemplateSummary } from "./messageGenerator";
 import {
   dayIndexWithinRange,
   formatBirthDateShort,
@@ -187,6 +191,14 @@ function EntryRow({
   readonlyPrincipal = false,
   onTogglePublication,
   onSaveProfile,
+  onPickTemplate,
+  onGenerateAI,
+  aiConfigured = false,
+  aiBusy = false,
+  customTemplates = [],
+  canManageTemplates = false,
+  onSaveCustomTemplate,
+  onReloadCustomTemplates,
   pending = false,
 }: {
   entry: BirthdayEntry;
@@ -202,6 +214,14 @@ function EntryRow({
   readonlyPrincipal?: boolean;
   onTogglePublication?: () => void;
   onSaveProfile?: (patch: EditorialProfilePatch) => void;
+  onPickTemplate?: (templateKey: string, templateSource: "builtin" | "custom") => void;
+  onGenerateAI?: () => void;
+  aiConfigured?: boolean;
+  aiBusy?: boolean;
+  customTemplates?: BirthdayMessageTemplateRow[];
+  canManageTemplates?: boolean;
+  onSaveCustomTemplate?: (input: CustomTemplateFormInput) => Promise<boolean>;
+  onReloadCustomTemplates?: () => void;
   pending?: boolean;
 }): JSX.Element {
   const [editing, setEditing] = useState(false);
@@ -212,7 +232,17 @@ function EntryRow({
   const [messageDraft, setMessageDraft] = useState("");
   const [personalizing, setPersonalizing] = useState(false);
   const [profileDraft, setProfileDraft] = useState<EditorialProfilePatch>(() => profilePatchFromEntry(entry));
+  const [homenagemOpen, setHomenagemOpen] = useState(false);
+  const [homenagemView, setHomenagemView] = useState<"message" | "models" | "manage">("message");
+  const homenagemDialogRef = useRef<HTMLDialogElement>(null);
   const photoInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    const dialog = homenagemDialogRef.current;
+    if (!dialog) return;
+    if (homenagemOpen && !dialog.open) { setHomenagemView("message"); dialog.showModal(); }
+    if (!homenagemOpen && dialog.open) dialog.close();
+  }, [homenagemOpen]);
 
   function startEdit(): void {
     setDraft(draftFromEntry(entry));
@@ -411,6 +441,11 @@ function EntryRow({
         <button type="button" className="cadastros-btn-secondary" disabled={pending} onClick={() => photoInputRef.current?.click()}>
           {entry.photoUrl ? "Trocar foto" : "Adicionar foto"}
         </button>
+        {onPickTemplate ? (
+          <button type="button" className="cadastros-btn-secondary" disabled={pending} onClick={() => setHomenagemOpen(true)}>
+            Homenagem
+          </button>
+        ) : null}
         {entry.photoUrl ? (
           <button type="button" className="cadastros-btn-secondary" disabled={pending} onClick={onRemovePhoto}>
             Remover foto
@@ -483,6 +518,273 @@ function EntryRow({
             </>
           )}
         </div>
+      ) : null}
+      {onPickTemplate ? (
+        <dialog ref={homenagemDialogRef} className="ir-modal ir-modal--form" aria-labelledby="homenagem-title"
+          onCancel={(e) => { e.preventDefault(); setHomenagemOpen(false); }}>
+          <h2 id="homenagem-title">Homenagem — {entry.displayName}</h2>
+          {homenagemView === "message" ? (
+            <div className="aniv-homenagem-message">
+              {editorial ? (
+                <>
+                  <p className="aniv-editorial-text">
+                    Mensagem{editorial.manuallyEdited ? <span className="aniv-editorial-manual-badge"> (editada manualmente)</span> : null}:
+                    <br />
+                    &ldquo;{editorial.text}&rdquo;
+                  </p>
+                  {editingMessage ? (
+                    <div className="aniv-editorial-manual-edit">
+                      <textarea rows={3} value={messageDraft} onChange={(e) => setMessageDraft(e.target.value)} maxLength={600} />
+                      <div className="aniv-editorial-actions">
+                        <button type="button" className="cadastros-btn-primary" disabled={pending || !messageDraft.trim()}
+                          onClick={() => { onSaveManualMessage(messageDraft.trim()); setEditingMessage(false); }}>
+                          Salvar texto
+                        </button>
+                        <button type="button" className="cadastros-btn-secondary" onClick={() => setEditingMessage(false)}>Cancelar</button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="aniv-editorial-actions">
+                      <button type="button" className="aniv-editorial-btn" disabled={pending} onClick={onChangeMessage}>Outra sugestão</button>
+                      <button type="button" className="aniv-editorial-btn" disabled={pending}
+                        onClick={() => { setMessageDraft(editorial.text); setEditingMessage(true); }}>
+                        Editar texto
+                      </button>
+                      <button type="button" className="aniv-editorial-btn" disabled={pending || aiBusy || !onGenerateAI}
+                        onClick={onGenerateAI} title={aiConfigured ? "" : "Depende de configuração do provedor de IA no servidor"}>
+                        {aiBusy ? "Gerando…" : "Criar com IA"}
+                      </button>
+                      <button type="button" className="aniv-editorial-btn" onClick={() => setHomenagemView("models")}>Ver modelos</button>
+                      <button type="button" className="aniv-editorial-btn" onClick={copyMessage}>{copied ? "Copiado ✓" : "Copiar mensagem"}</button>
+                      {copyError ? <span className="aniv-editorial-error">Não foi possível copiar.</span> : null}
+                    </div>
+                  )}
+                  {!aiConfigured ? (
+                    <p className="helper-text">
+                      "Criar com IA" depende de configuração do provedor no servidor (variáveis BIRTHDAY_AI_PROVIDER/BIRTHDAY_AI_API_KEY) — as demais opções continuam funcionando normalmente.
+                    </p>
+                  ) : null}
+                </>
+              ) : (
+                <p className="helper-text">Nenhuma mensagem preparada ainda para a edição atual desta pessoa.</p>
+              )}
+            </div>
+          ) : null}
+          {homenagemView === "models" ? (
+            <HomenagemModelLibrary
+              entry={entry}
+              customTemplates={customTemplates}
+              canManageTemplates={canManageTemplates}
+              pending={pending}
+              onBack={() => setHomenagemView("message")}
+              onManage={() => setHomenagemView("manage")}
+              onPick={(key, source) => { onPickTemplate(key, source); setHomenagemView("message"); }}
+            />
+          ) : null}
+          {homenagemView === "manage" && onSaveCustomTemplate ? (
+            <HomenagemTemplateManager
+              customTemplates={customTemplates}
+              onBack={() => setHomenagemView("models")}
+              onSave={async (input) => { const ok = await onSaveCustomTemplate(input); if (ok) onReloadCustomTemplates?.(); return ok; }}
+            />
+          ) : null}
+          <div className="aniv-entry-actions" style={{ marginTop: "16px" }}>
+            <button type="button" className="cadastros-btn-secondary" onClick={() => setHomenagemOpen(false)}>Fechar</button>
+          </div>
+        </dialog>
+      ) : null}
+    </div>
+  );
+}
+
+interface CustomTemplateFormInput {
+  id?: string; family: string; body: string;
+  needsCity: boolean; needsProfession: boolean; needsOrganization: boolean;
+  needsKnownAs: boolean; needsEditorialPhrase: boolean;
+}
+
+/** Biblioteca "Ver modelos" — os 44 modelos originais (sempre disponíveis,
+ * agrupados por família) + os modelos adicionais do administrador. Nunca
+ * modifica os 44 originais. */
+function HomenagemModelLibrary({
+  entry, customTemplates, canManageTemplates, pending, onBack, onManage, onPick,
+}: {
+  entry: BirthdayEntry;
+  customTemplates: BirthdayMessageTemplateRow[];
+  canManageTemplates: boolean;
+  pending: boolean;
+  onBack: () => void;
+  onManage: () => void;
+  onPick: (key: string, source: "builtin" | "custom") => void;
+}): JSX.Element {
+  const summaries = useMemo(() => listTemplateSummaries(), []);
+  const grouped = useMemo(() => {
+    const map = new Map<string, TemplateSummary[]>();
+    for (const s of summaries) {
+      const list = map.get(s.family) ?? [];
+      list.push(s);
+      map.set(s.family, list);
+    }
+    return [...map.entries()];
+  }, [summaries]);
+
+  function builtinEligible(needs: TemplateSummary["needs"]): boolean {
+    if (needs.city && !entry.city) return false;
+    if (needs.profession && !entry.profession) return false;
+    if (needs.organization && !(entry.profession && entry.organization)) return false;
+    if (needs.knownAs && !entry.knownAs) return false;
+    if (needs.editorialPhrase && !entry.messageContext) return false;
+    return true;
+  }
+  function customEligible(tpl: BirthdayMessageTemplateRow): boolean {
+    if (tpl.needsCity && !entry.city) return false;
+    if (tpl.needsProfession && !entry.profession) return false;
+    if (tpl.needsOrganization && !(entry.profession && entry.organization)) return false;
+    if (tpl.needsKnownAs && !entry.knownAs) return false;
+    if (tpl.needsEditorialPhrase && !entry.messageContext) return false;
+    return true;
+  }
+
+  return (
+    <div className="aniv-model-library">
+      {customTemplates.length > 0 ? (
+        <>
+          <h3 className="aniv-model-group-title">{FAMILY_LABELS.custom}</h3>
+          <ul className="aniv-model-list">
+            {customTemplates.map((tpl) => {
+              const eligible = customEligible(tpl);
+              return (
+                <li key={tpl.id} className="aniv-model-item">
+                  <p>{tpl.body}</p>
+                  <button type="button" className="cadastros-btn-secondary" disabled={pending || !eligible}
+                    title={eligible ? "" : "Exige um dado que esta pessoa não possui"}
+                    onClick={() => onPick(tpl.id, "custom")}>
+                    Usar este modelo
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        </>
+      ) : null}
+      {grouped.map(([family, items]) => (
+        <div key={family}>
+          <h3 className="aniv-model-group-title">{FAMILY_LABELS[family] ?? family}</h3>
+          <ul className="aniv-model-list">
+            {items.map((tpl) => {
+              const eligible = builtinEligible(tpl.needs);
+              return (
+                <li key={tpl.key} className="aniv-model-item">
+                  <p>{tpl.preview}</p>
+                  <button type="button" className="cadastros-btn-secondary" disabled={pending || !eligible}
+                    title={eligible ? "" : "Exige um dado que esta pessoa não possui"}
+                    onClick={() => onPick(tpl.key, "builtin")}>
+                    Usar este modelo
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      ))}
+      <div className="aniv-entry-actions">
+        <button type="button" className="cadastros-btn-secondary" onClick={onBack}>Voltar</button>
+        {canManageTemplates ? (
+          <button type="button" className="cadastros-btn-secondary" onClick={onManage}>Gerenciar modelos</button>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+/** Gerenciamento (criar/editar) dos modelos adicionais — permissão
+ * administrativa é validada pelo servidor (policy no banco + checagem na
+ * action); aqui só evitamos mostrar o formulário a quem claramente não é
+ * admin, mas o botão "Gerenciar modelos" só aparece quando canManageTemplates. */
+function HomenagemTemplateManager({
+  customTemplates, onBack, onSave,
+}: {
+  customTemplates: BirthdayMessageTemplateRow[];
+  onBack: () => void;
+  onSave: (input: CustomTemplateFormInput) => Promise<boolean>;
+}): JSX.Element {
+  const blank: CustomTemplateFormInput = {
+    family: "", body: "", needsCity: false, needsProfession: false,
+    needsOrganization: false, needsKnownAs: false, needsEditorialPhrase: false,
+  };
+  const [draft, setDraft] = useState<CustomTemplateFormInput>(blank);
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+
+  async function submit(): Promise<void> {
+    if (!draft.body.trim()) return;
+    setSaving(true); setSaveError(null);
+    const ok = await onSave(draft);
+    setSaving(false);
+    if (ok) setDraft(blank);
+    else setSaveError("Não foi possível salvar — confira se sua conta tem permissão de administrador.");
+  }
+
+  return (
+    <div className="aniv-model-manager">
+      <p className="helper-text">
+        Modelos adicionais usam placeholders: <code>{"{{name}}"}</code> <code>{"{{city}}"}</code>{" "}
+        <code>{"{{profession}}"}</code> <code>{"{{organization}}"}</code> <code>{"{{knownAs}}"}</code>{" "}
+        <code>{"{{editorialPhrase}}"}</code> <code>{"{{dateLabel}}"}</code>.
+      </p>
+      <div className="cadastro-grid">
+        <label className="cadastro-field cadastro-field--span-3">
+          <span className="field-label">Rótulo/família <span className="field-optional">(opcional)</span></span>
+          <input type="text" value={draft.family} onChange={(e) => setDraft((d) => ({ ...d, family: e.target.value }))} />
+        </label>
+        <label className="cadastro-field cadastro-field--span-12">
+          <span className="field-label">Texto do modelo</span>
+          <textarea rows={3} value={draft.body} maxLength={600}
+            onChange={(e) => setDraft((d) => ({ ...d, body: e.target.value }))} />
+        </label>
+      </div>
+      <div className="aniv-entry-switches">
+        {([
+          ["needsCity", "Exige cidade"],
+          ["needsProfession", "Exige cargo/profissão"],
+          ["needsOrganization", "Exige profissão + instituição"],
+          ["needsKnownAs", "Exige apelido"],
+          ["needsEditorialPhrase", "Exige contexto editorial"],
+        ] as const).map(([key, label]) => (
+          <button key={key} type="button" role="switch" aria-checked={draft[key]}
+            className={`switch-control${draft[key] ? " is-on" : ""}`}
+            onClick={() => setDraft((d) => ({ ...d, [key]: !d[key] }))}>
+            <span className="switch-track" aria-hidden="true"><span className="switch-thumb" /></span>
+            <span>{label}</span>
+          </button>
+        ))}
+      </div>
+      {saveError ? <p className="form-error" role="alert">{saveError}</p> : null}
+      <div className="aniv-entry-actions">
+        <button type="button" className="cadastros-btn-primary" disabled={saving || !draft.body.trim()} onClick={submit}>
+          {saving ? "Salvando…" : draft.id ? "Salvar alterações" : "Adicionar modelo"}
+        </button>
+        <button type="button" className="cadastros-btn-secondary" onClick={onBack}>Voltar</button>
+      </div>
+      {customTemplates.length > 0 ? (
+        <>
+          <h3 className="aniv-model-group-title">Modelos adicionais existentes</h3>
+          <ul className="aniv-model-list">
+            {customTemplates.map((tpl) => (
+              <li key={tpl.id} className="aniv-model-item">
+                <p>{tpl.body}</p>
+                <button type="button" className="cadastros-btn-secondary"
+                  onClick={() => setDraft({
+                    id: tpl.id, family: tpl.family, body: tpl.body, needsCity: tpl.needsCity,
+                    needsProfession: tpl.needsProfession, needsOrganization: tpl.needsOrganization,
+                    needsKnownAs: tpl.needsKnownAs, needsEditorialPhrase: tpl.needsEditorialPhrase,
+                  })}>
+                  Editar
+                </button>
+              </li>
+            ))}
+          </ul>
+        </>
       ) : null}
     </div>
   );
@@ -578,6 +880,20 @@ export function BirthdaysList({ localPreview, initialGroups = [], initialMessage
   const [deleteTarget, setDeleteTarget] = useState<DeleteTarget | null>(null);
   const [includeOpen, setIncludeOpen] = useState(false);
   const includeDialogRef = useRef<HTMLDialogElement>(null);
+  const [aiConfigured, setAiConfigured] = useState(false);
+  const [customTemplates, setCustomTemplates] = useState<BirthdayMessageTemplateRow[]>([]);
+  useEffect(() => {
+    if (localPreview) return;
+    void isBirthdayAiConfigured().then(setAiConfigured).catch(() => setAiConfigured(false));
+    void reloadCustomTemplates();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- só uma vez, ao montar.
+  }, [localPreview]);
+  function reloadCustomTemplates(): Promise<void> {
+    if (localPreview) return Promise.resolve();
+    return listBirthdayMessageTemplates().then((result) => {
+      if ("ok" in result) setCustomTemplates(result.data);
+    }).catch(() => undefined);
+  }
   const [editionMessages, setEditionMessages] = useState<Map<string, EditionMessageState>>(
     () => new Map(initialMessages.map(m=>[`${m.edition_week_start}::${m.birthday_entry_id}`,{
       text:m.message,family:m.family,opening:m.opening,ending:m.ending,manuallyEdited:Boolean(m.manually_edited),
@@ -754,6 +1070,76 @@ export function BirthdaysList({ localPreview, initialGroups = [], initialMessage
       next.set(key, { ...generated, manuallyEdited: false });
       return next;
     });
+  }
+
+  /** "Ver modelos" -> "Usar este modelo" para UMA pessoa — nunca toca a
+   * mensagem de ninguém mais, mesmo princípio de changeMessage. */
+  function pickTemplateFor(entryId: string, templateKey: string, templateSource: "builtin" | "custom"): void {
+    const found = weekEntries.find((w) => w.entry.id === entryId);
+    if (!found) return;
+    const key = `${editionKey}::${entryId}`;
+    if (!localPreview) {
+      if (busy) return;
+      setBusy(true); setError(null); setNotice(null);
+      void pickBirthdayMessageTemplate(
+        found.entry.origin === "cadastro" ? "cliente" : "editorial", entryId, templateKey, templateSource,
+      ).then((result) => {
+        if ("error" in result) { setError(result.error); return; }
+        persisted.current.add(key);
+        setEditionMessages((prev) => {
+          const m = new Map(prev);
+          m.set(key, { text: result.data.message, family: result.data.family,
+            opening: result.data.opening, ending: result.data.ending, manuallyEdited: Boolean(result.data.manually_edited) });
+          return m;
+        });
+        setNotice("Modelo aplicado e salvo na edição.");
+        router.refresh();
+      }).catch(() => setError("Não foi possível aplicar o modelo escolhido."))
+        .finally(() => setBusy(false));
+      return;
+    }
+    const profile = resolveProfile(found.entry, found.dayLabel);
+    const generated = templateSource === "builtin" ? renderTemplateByKey(templateKey, profile) : null;
+    if (!generated) { setError("Este modelo exige um dado que esta pessoa não possui."); return; }
+    setEditionMessages((prev) => {
+      const next = new Map(prev);
+      next.set(key, { ...generated, manuallyEdited: false });
+      return next;
+    });
+  }
+
+  /** "Criar com IA" — a pedido explícito do operador para UMA pessoa só. */
+  function generateAIFor(entryId: string): void {
+    if (localPreview) { setError("Geração por IA não está disponível na visualização de demonstração."); return; }
+    const found = weekEntries.find((w) => w.entry.id === entryId);
+    if (!found || busy) return;
+    const key = `${editionKey}::${entryId}`;
+    setBusy(true); setError(null); setNotice(null);
+    void generateBirthdayMessageWithAI(found.entry.origin === "cadastro" ? "cliente" : "editorial", entryId)
+      .then((result) => {
+        if ("error" in result) { setError(result.error); return; }
+        persisted.current.add(key);
+        setEditionMessages((prev) => {
+          const m = new Map(prev);
+          m.set(key, { text: result.data.message, family: result.data.family,
+            opening: result.data.opening, ending: result.data.ending, manuallyEdited: Boolean(result.data.manually_edited) });
+          return m;
+        });
+        setNotice("Homenagem gerada por IA e salva na edição.");
+        router.refresh();
+      }).catch(() => setError("Não foi possível gerar a homenagem por IA."))
+      .finally(() => setBusy(false));
+  }
+
+  async function saveCustomTemplate(input: {
+    id?: string; family: string; body: string; needsCity: boolean; needsProfession: boolean;
+    needsOrganization: boolean; needsKnownAs: boolean; needsEditorialPhrase: boolean;
+  }): Promise<boolean> {
+    if (localPreview) return false;
+    const result = await saveBirthdayMessageTemplate(input);
+    if ("error" in result) { setError(result.error); return false; }
+    setNotice("Modelo salvo.");
+    return true;
   }
 
   function editorialFor(entryId: string): EditionMessageState | null {
@@ -1093,35 +1479,42 @@ export function BirthdaysList({ localPreview, initialGroups = [], initialMessage
     setSelectedDay(null);
   }
 
-  // --- Relatório (editorial — pessoas, nunca a árvore administrativa) ---
-  const reportSections = useMemo(() => {
-    const printable=matchingFlat.filter(item=>item.entry.active && item.entry.publishInPrint);
-    if (!activeRange && !(period === "newspaper" && selectedDay)) {
-      const sorted = [...printable].sort((a, b) => {
-        const am = Number(a.entry.birthDate.slice(5, 7)) * 100 + Number(a.entry.birthDate.slice(8, 10));
-        const bm = Number(b.entry.birthDate.slice(5, 7)) * 100 + Number(b.entry.birthDate.slice(8, 10));
-        return am !== bm ? am - bm : a.entry.displayName.localeCompare(b.entry.displayName, "pt-BR");
-      });
-      return [{ label: null as string | null, entries: sorted.map((m) => m.entry) }];
+  // --- Relatório semanal (editorial — pessoas, nunca a árvore administrativa) ---
+  // Padrão aprovado: DATA | NOME | CIDADE, uma pessoa por linha, ordem
+  // cronológica e, dentro da data, alfabética — SEM título obrigatório e SEM
+  // separador por dia (ver docs/ACORDOS-E-FONTE-DA-VERDADE.md, pedido de
+  // 17/10/2026). Nunca inclui a mensagem de homenagem. Respeita só "ativo" e
+  // "autorizado a publicar" — nunca exige mensagem preparada.
+  const reportRange = useMemo(() => {
+    if (selectedDay) return { start: selectedDay, end: selectedDay };
+    if (period === "newspaper") return newspaperRange;
+    return activeRange;
+  }, [selectedDay, period, newspaperRange, activeRange]);
+  const reportRows = useMemo(() => {
+    const printable = matchingFlat.filter((item) => item.entry.active && item.entry.publishInPrint);
+    const withDay = printable
+      .map(({ entry }) => {
+        if (!reportRange) return { entry, dayIndex: 0 };
+        const idx = dayIndexWithinRange(entry.birthDate, reportRange.start, reportRange.end);
+        return idx === null ? null : { entry, dayIndex: idx };
+      })
+      .filter((x): x is { entry: BirthdayEntry; dayIndex: number } => x !== null);
+    return withDay.sort((a, b) => (
+      a.dayIndex !== b.dayIndex ? a.dayIndex - b.dayIndex : a.entry.displayName.localeCompare(b.entry.displayName, "pt-BR")
+    )).map((x) => x.entry);
+  }, [matchingFlat, reportRange]);
+
+  const [reportCopied, setReportCopied] = useState(false);
+  async function copyReport(): Promise<void> {
+    const text = reportRows.map((entry) => `${formatBirthDateShort(entry.birthDate)}\t${entry.displayName}\t${entry.city || ""}`).join("\n");
+    try {
+      await navigator.clipboard.writeText(text);
+      setReportCopied(true);
+      window.setTimeout(() => setReportCopied(false), 1800);
+    } catch {
+      setError("Não foi possível copiar a relação.");
     }
-    const range = selectedDay ? { start: selectedDay, end: selectedDay } : activeRange!;
-    const byDate = new Map<string, { date: Date; entries: BirthdayEntry[] }>();
-    printable.forEach(({ entry }) => {
-      const idx = selectedDay ? 0 : dayIndexWithinRange(entry.birthDate, range.start, range.end);
-      if (idx === null) return;
-      const date = new Date(range.start);
-      date.setDate(date.getDate() + idx);
-      const key = date.toDateString();
-      if (!byDate.has(key)) byDate.set(key, { date, entries: [] });
-      byDate.get(key)!.entries.push(entry);
-    });
-    return Array.from(byDate.values())
-      .sort((a, b) => a.date.getTime() - b.date.getTime())
-      .map(({ date, entries }) => ({
-        label: `${weekdayFull(date)} — ${formatDateShort(date)}`,
-        entries: [...entries].sort((a, b) => a.displayName.localeCompare(b.displayName, "pt-BR")),
-      }));
-  }, [matchingFlat, activeRange, selectedDay, period]);
+  }
 
   const totalPeople = matchingFlat.length;
   const totalGroups = visibleGroups.length;
@@ -1246,6 +1639,9 @@ export function BirthdaysList({ localPreview, initialGroups = [], initialMessage
               <button type="button" className="cadastros-btn-secondary" onClick={clearFilters}>
                 Limpar filtros
               </button>
+              <button type="button" className="cadastros-btn-secondary" onClick={copyReport}>
+                {reportCopied ? "Copiado ✓" : "Copiar relação (tabulada)"}
+              </button>
               <button type="button" className="cadastros-btn-primary" onClick={() => window.print()}>
                 Gerar relatório
               </button>
@@ -1317,6 +1713,14 @@ export function BirthdaysList({ localPreview, initialGroups = [], initialMessage
                           onSaveManualMessage={(text) => saveManualMessage(group.principal!.id, text)}
                           onUploadPhoto={(file) => uploadEntryPhoto(group.principal!.id, file)}
                           onRemovePhoto={() => removeEntryPhoto(group.principal!.id)}
+                          onPickTemplate={(key, src) => pickTemplateFor(group.principal!.id, key, src)}
+                          onGenerateAI={() => generateAIFor(group.principal!.id)}
+                          aiConfigured={aiConfigured}
+                          aiBusy={busy}
+                          customTemplates={customTemplates}
+                          canManageTemplates
+                          onSaveCustomTemplate={saveCustomTemplate}
+                          onReloadCustomTemplates={reloadCustomTemplates}
                         />
                       ) : null}
                       {showFounding && group.foundingEntry ? (
@@ -1335,6 +1739,14 @@ export function BirthdaysList({ localPreview, initialGroups = [], initialMessage
                           onSaveManualMessage={(text) => saveManualMessage(group.foundingEntry!.id, text)}
                           onUploadPhoto={(file) => uploadEntryPhoto(group.foundingEntry!.id, file)}
                           onRemovePhoto={() => removeEntryPhoto(group.foundingEntry!.id)}
+                          onPickTemplate={(key, src) => pickTemplateFor(group.foundingEntry!.id, key, src)}
+                          onGenerateAI={() => generateAIFor(group.foundingEntry!.id)}
+                          aiConfigured={aiConfigured}
+                          aiBusy={busy}
+                          customTemplates={customTemplates}
+                          canManageTemplates
+                          onSaveCustomTemplate={saveCustomTemplate}
+                          onReloadCustomTemplates={reloadCustomTemplates}
                         />
                       ) : null}
                       {shownMembers.map((member) => (
@@ -1351,6 +1763,14 @@ export function BirthdaysList({ localPreview, initialGroups = [], initialMessage
                             onSaveManualMessage={(text) => saveManualMessage(member.id, text)}
                             onUploadPhoto={(file) => uploadEntryPhoto(member.id, file)}
                             onRemovePhoto={() => removeEntryPhoto(member.id)}
+                            onPickTemplate={(key, src) => pickTemplateFor(member.id, key, src)}
+                            onGenerateAI={() => generateAIFor(member.id)}
+                            aiConfigured={aiConfigured}
+                            aiBusy={busy}
+                            customTemplates={customTemplates}
+                            canManageTemplates
+                            onSaveCustomTemplate={saveCustomTemplate}
+                            onReloadCustomTemplates={reloadCustomTemplates}
                           />
                         </div>
                       ))}
@@ -1364,33 +1784,21 @@ export function BirthdaysList({ localPreview, initialGroups = [], initialMessage
             {visibleGroups.length === 0 ? <p className="helper-text">Nenhum aniversariante encontrado com os filtros atuais.</p> : null}
           </div>
 
-          {/* Relatório — só existe no print (CSS @media print); na tela fica oculto. */}
+          {/* Relatório — só existe no print (CSS @media print); na tela fica oculto.
+              Padrão aprovado: DATA | NOME | CIDADE, sem título obrigatório, sem
+              separador por dia, ordem cronológica e, dentro da data, alfabética. */}
           <div className="aniv-print-report">
-            <h1>ANIVERSARIANTES</h1>
-            <p className="aniv-print-period">
-              {period === "all"
-                ? "Período: todos"
-                : period === "newspaper"
-                  ? `Período: ${formatDateLong(newspaperRange.start)} a ${formatDateLong(newspaperRange.end)}${selectedDay ? ` (dia: ${formatDateLong(selectedDay)})` : ""}`
-                  : activeRange
-                    ? period==="custom" ? `Período: ${customStart} a ${customEnd}` :
-                      `Período: ${formatDateLong(activeRange.start)} a ${formatDateLong(activeRange.end)}`
-                    : "Período personalizado incompleto"}
-            </p>
-            {reportSections.map((section, index) => (
-              <div key={section.label ?? `sec-${index}`} className="aniv-print-section">
-                {section.label ? <h2>{section.label}</h2> : null}
-                <ul>
-                  {section.entries.map((entry) => (
-                    <li key={entry.id}>
-                      {entry.displayName}
-                      {entry.city ? ` — ${entry.city}` : ""}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            ))}
-            <p className="aniv-print-total">Total autorizado: {matchingFlat.filter(m=>m.entry.active&&m.entry.publishInPrint).length} aniversariante(s)</p>
+            <table className="aniv-print-table">
+              <tbody>
+                {reportRows.map((entry) => (
+                  <tr key={entry.id}>
+                    <td className="aniv-print-col-date">{formatBirthDateShort(entry.birthDate)}</td>
+                    <td className="aniv-print-col-name">{entry.displayName}</td>
+                    <td className="aniv-print-col-city">{entry.city || ""}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
       </>
 
