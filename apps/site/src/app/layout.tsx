@@ -10,6 +10,8 @@ const headline = Merriweather({ subsets: ["latin"], variable: "--font-headline",
 const bodyFont = Source_Sans_3({ subsets: ["latin"], variable: "--font-body", weight: ["400", "600", "700"] });
 
 export const metadata: Metadata = {
+  // Padrão atual do portal. Ao adotar domínio oficial, definir NEXT_PUBLIC_SITE_URL.
+  metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL || "https://jornalir.vercel.app"),
   title: "Informativo Regional",
   description: "Portal de noticias regional",
   other: {
