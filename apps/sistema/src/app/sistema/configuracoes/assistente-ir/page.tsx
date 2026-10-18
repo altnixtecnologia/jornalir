@@ -21,7 +21,7 @@ export default async function AssistantIrSettingsPage(): Promise<JSX.Element> {
     <>
       <ModuleHeader
         eyebrow="CONFIGURAÇÕES / INTELIGÊNCIA ARTIFICIAL"
-        title="Assistente IR"
+        title="JoIR"
         description="Controle do proprietário: provedores, módulos e autonomia. Nenhuma operação sensível é executada sem aprovação."
         action={<Link className="btn btn-secondary" href="/sistema/assistente-ir">Abrir conversa com IA</Link>}
       />
