@@ -188,9 +188,9 @@ export const configuracoesNavGroup: AdminNavGroup = {
   label: "Configurações",
   links: [
     { label: "Usuários", href: "/sistema/usuarios" },
-    { label: "Conversar", href: "/sistema/assistente-ir", ownerOnly: true, group: "Assistente IR" },
-    { label: "Propostas e aprovações", href: "/sistema/assistente-ir/propostas", ownerOnly: true, group: "Assistente IR" },
-    { label: "Configurar assistente", href: "/sistema/configuracoes/assistente-ir", ownerOnly: true, group: "Assistente IR" },
+    { label: "Conversar", href: "/sistema/assistente-ir", ownerOnly: true, group: "JoIR — Assistente Virtual" },
+    { label: "Propostas e aprovações", href: "/sistema/assistente-ir/propostas", ownerOnly: true, group: "JoIR — Assistente Virtual" },
+    { label: "Configurar assistente", href: "/sistema/configuracoes/assistente-ir", ownerOnly: true, group: "JoIR — Assistente Virtual" },
     { label: "Patrocinadores do site", href: "/sistema/configuracoes/patrocinadores" },
     { label: "Notificações push", href: "/sistema/configuracoes/notificacoes-push" },
     { label: "Valores da página Assine", href: "/sistema/configuracoes/valores-assine" },
