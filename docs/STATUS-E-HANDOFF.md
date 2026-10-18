@@ -784,3 +784,10 @@ O ChatGPT abriu `feature/assistente-ir-base-20261018` a partir desse SHA e imple
 - Problema de confusão entre provedor escolhido na UI e provedor SALVO: screenshot mostra `OpenAI / GPT` selecionado, mas cartão `Claude em uso pela JoIR`; banco confirma `enabled=true, provider=anthropic, model=claude-haiku-4-5`, apenas `agenda` e `site` assistidos. Ambos segredos já salvos.
 - Nova chave OpenAI salvada 14:02:53Z, autenticação do catálogo testada HTTP 200 14:02:58Z. Conversa HTTP 400 vista antes, potencialmente da Anthropic; não repetir armazenamento de segredos e não atribuir origem incorreta.
 - Próximo teste sem código/deploy: selecionar OpenAI e gpt-4o-mini, clicar SALVAR CONFIGURAÇÕES no fim, recarregar, confirmar cartão OpenAI em uso, testar prompt curto. Se erro persistir, diagnosticar HTTP da geração pelo provedor realmente salvo, sem expor API keys.
+
+## 18/10/2026 — JoIR HTTP 400 Anthropic: contexto salvo e diagnóstico seguro pendentes de publicação
+
+- Banco confirmado: JoIR ligada, `provider=anthropic`, `model=claude-haiku-4-5`, módulos site e agenda Assistido; o HTTP 400 exibido era da Anthropic e não do GPT. Identificador de modelo é válido pela documentação da Claude API; causa exata não identificada. 400 pode indicar corpo inválido ou limite de gastos.
+- Branch `feature/assistente-ir-base-20261018` corrigiu: `9a94390` geração agora retorna diagnóstico seguro por tipo de erro sem expor resposta integral; `e0e1d61` + `2749c8d` exibem provedor/modelo salvos antes de o usuário enviar mensagem. CI `39135212430` pendente de resultado, gatilho extra de CI já removido.
+- Próximo passo: conferir final de CI, solicitar autorização de deploy, verificar visualmente faixa do provedor e testar uma única pergunta para obter classificação real do erro Anthropic; alternativamente verificar credits/spending limits em `https://platform.claude.com/settings/billing` sem mostrar detalhes de pagamento.
+- Produção `ad87240` não foi atualizada neste lote; evitar alterações de keys, migrações e VS Code.
