@@ -1803,3 +1803,228 @@ WhatsApp, drag, balanço, badge, painel, botão de fechar do menu mobile;
 (d) demais pendências herdadas dos lotes anteriores (ícone do app, FCM,
 migração das edições para storage, registro do release no painel)
 continuam as mesmas.
+
+## LOTE — Integração editorial↔notificações + auditoria de segurança (18/10/2026, commits `da2dd2e`/`490caec`)
+
+A partir do estado local preservado (branch
+`feature/site-lancamento-editorial-publicidade-20261018`; todos os
+commits anteriores, inclusive APK assinado/piloto, intactos). Nenhum
+push, deploy, migration aplicada, envio real ou matéria de teste no banco
+remoto. Testado num **Supabase local isolado** (`supabase start` +
+replay de todas as migrations, porta alternativa para não colidir com
+outro projeto Docker já em uso na máquina) — nunca tocou o projeto
+remoto; container local descartado ao final (`supabase stop`).
+
+### 1. Integração publicação de matéria -> notification_events
+
+Levantamento ANTES de codar confirmou: existem **três caminhos de código
+independentes** que levam `articles.status` a `'published'` —
+`ArticleService.publishNow()` (publicar manual), o job `pg_cron`
+`publish_due_scheduled_articles()` (matérias agendadas, roda fora da
+aplicação Next.js) e `ArticleService.importLegacyArticle()` (import
+direto, sem chamador real hoje). Os três já convergiam num único lugar: o
+gatilho `article_push_on_published` (existente desde 15/10, que até
+então só alimentava a `notification_outbox` legada, confirmado morta —
+nenhum código em produção a lê). Em vez de duplicar a lógica nos três
+lugares, só o CORPO desse gatilho foi trocado.
+
+**Nova migration (PENDENTE, não aplicada):**
+`20261030100600_article_publish_notification_events.sql` — substitui
+`queue_article_push_on_publish()` para inserir de verdade em
+`notification_events` (`app_kind='site'`, `kind` ordinary/urgent),
+mantendo o mesmo guard de idempotência (não refaz em matéria já
+publicada) e usando `dedupe_key := 'article-publish:'||id` com
+`on conflict do nothing` — mesmo padrão já usado por
+`dispatch_commercial_announcement`. Cria também
+`site_notification_feature_flags` (linha única,
+`article_publish_events_enabled boolean default false`), lida pelo
+próprio gatilho antes de inserir qualquer evento.
+
+**Trava "desligado por padrão" (pedido explícito do usuário):** como o
+`pg_cron` roda dentro do Postgres, fora da aplicação Next.js, uma
+variável de ambiente comum (como `COMMERCIAL_PUSH_SEND_ENABLED`) não
+alcançaria esse caminho — por isso a trava é uma configuração no próprio
+banco. Enquanto `article_publish_events_enabled=false` (estado inicial),
+**nenhuma matéria publicada gera evento**, em nenhum dos três caminhos —
+ativar isso é uma decisão separada (hoje só por `UPDATE` direto no banco;
+não foi criado um toggle no painel admin nesta etapa, por não ter sido
+pedido). Importante: ligar essa trava passa a ARMAR o pipeline de entrega
+real já existente (`/api/cron/push` -> Web Push de verdade para
+assinantes já inscritos), então ligá-la não é "só mostrar no sininho" —
+é decisão equivalente a autorizar envio real, e deve ser tratada como tal.
+
+**Testado de verdade (não só revisão de código), num Postgres local
+isolado, com fixtures descartáveis (nenhuma linha fica no banco remoto):**
+- Flag desligada (padrão): matéria "normal" publicada -> **0 eventos**. ✅
+- Matéria "sem notificação" publicada com flag LIGADA -> **0 eventos**
+  (nunca gera, independente da flag). ✅
+- Matéria "normal" publicada com flag ligada -> **1 evento**
+  `kind=ordinary`, `href=/noticias/<slug>` correto. ✅
+- Reeditar a matéria já publicada (título) e "republicar" (status para o
+  mesmo valor) -> continua **1 evento só**, nenhuma duplicata. ✅
+- Matéria "urgente" publicada -> `kind=urgent`. ✅
+- Matéria agendada cujo horário NÃO chegou -> o cron não toca, **0
+  eventos**, status continua `scheduled`. ✅
+- Matéria agendada cujo horário já passou -> o cron publica de verdade e
+  o MESMO gatilho gera **1 evento**, confirmando que o caminho do
+  agendador também está coberto sem duplicar lógica. ✅ Rodar o cron de
+  novo não duplica. ✅
+- Import direto com `status='published'` (caminho do import legado,
+  mesmo sem chamador real hoje) -> também gera evento pelo mesmo gatilho
+  (ponto de atenção registrado abaixo). ✅
+- Publicação que falha (transação com `ROLLBACK`) -> **0 eventos** e a
+  própria matéria nem existe — nunca aponta para conteúdo indisponível,
+  por construção (o gatilho só comita se a transação inteira comitar). ✅
+
+**Ponto de atenção para o futuro (não é bug, é característica a
+observar):** se `importLegacyArticle()` ganhar um chamador real algum
+dia (hoje não tem nenhum) enquanto a flag estiver ligada, uma importação
+em massa de matérias antigas geraria um evento de notificação por
+matéria — o mesmo comportamento que o gatilho legado já tinha, só que
+agora apontando para um pipeline que entrega de verdade. Vale revisar
+esse caso antes de reativar qualquer importador em massa com a flag
+ligada.
+
+**Bugs reais encontrados e corrigidos enquanto testava** (nenhum deles
+criado por este lote; pré-existiam em migrations já commitadas, nenhuma
+delas aplicada ainda): duas migrations (`20261030100100` e `20261030100200`)
+tinham um erro de sintaxe — abriam o corpo de uma função com `as $` (um
+dólar só) e fechavam com `$$;` (dois). Isso só seria descoberto no
+momento de aplicar de verdade; corrigido agora (commits `da2dd2e`/`490caec`
+— por engano de digitação de comando, o primeiro desses dois commits
+ficou com as mudanças deste lote coladas ao corpo errado; o segundo
+commit tem a nota explicando e os 2 arquivos de typo corretos).
+
+### 2. Revisão da central de notificações do leitor (sem refazer a interface)
+
+Conferido por revisão + leitura do código (sem precisar de dispositivo
+real para a maior parte):
+- Sininho fixo, flutuante (só com não lida), arrastar, animação, X,
+  contador — conferidos, batem com o pedido original, sem alteração de
+  interface.
+- Notícia abre a matéria e marca como lida; aviso geral expande e marca
+  como lido — confirmado no código (`NotificationPanel.tsx`).
+- Fechar o flutuante (X) não chama `markRead` em nada — confirmado, não
+  apaga nem marca nada como lido.
+- "Funciona para quem nunca autorizou push": confirmado por desenho — o
+  `GET /api/public/notifications` nunca exige um `managementToken`; sem
+  token, mostra notícias normais/urgentes com os mesmos padrões do
+  formulário de preferências (avisos gerais ficam ocultos até o leitor
+  optar). **A central e a permissão de push do Android/navegador são
+  mesmo recursos diferentes, como pedido** — nenhum código da central
+  chama `Notification.requestPermission()` ou toca no Service Worker de
+  push.
+
+**Limitação real de arquitetura encontrada (explicada antes de alterar
+qualquer coisa, como pedido):**
+1. Sem a migration `20261030100500` aplicada, a marcação de "lido" **não
+   persiste no servidor** — hoje, `POST` responde `503`. Corrigido nesta
+   etapa para nunca fingir sucesso: o `GET` agora devolve
+   `readTrackingAvailable:false` quando a tabela ainda não existe, e o
+   `POST` deixa isso explícito (`readPersistenceDegraded` no contexto,
+   com um aviso visível no painel: *"O registro de 'lido' ainda está
+   sendo preparado neste servidor..."*). Antes desta correção, a falha
+   era engolida silenciosamente — era exatamente o "sucesso falso" que o
+   usuário pediu para evitar.
+2. A identidade do leitor (`jornalir_push_management_token`) vive só no
+   `localStorage` daquele navegador/instalação do app — é a mesma
+   limitação que já existia para a assinatura de push (não é uma
+   regressão deste lote). Consequência: o mesmo leitor usando o site no
+   navegador do celular E o app instalado é tratado como **dois
+   dispositivos diferentes** (sem correlação entre eles); dentro do
+   próprio app instalado (Capacitor/WebView), o `localStorage` é
+   persistente entre reaberturas — não é afetado pelo limite de 7 dias do
+   Safari (ITP), que só se aplica a abas de navegador comum, não ao
+   WebView do app. Nenhuma mudança no modelo de identificação foi feita
+   — fica para decisão do usuário se isso precisa de uma solução de
+   sincronização entre dispositivos no futuro (fora do escopo deste lote).
+
+### 3. Auditoria de segurança — resultado
+
+Revisão de código + **testes reais no Postgres local isolado** (não só
+leitura):
+- `management_hash` isola por dispositivo de verdade: criei leitura para
+  um hash fictício e confirmei que só aparece para aquele hash — sem
+  cruzamento entre leitores. ✅
+- `anon` e `authenticated` recebem **erro de permissão** (não apenas RLS
+  silenciosa) ao tentar ler `site_notification_reads`,
+  `site_notification_feature_flags` diretamente — testado de verdade
+  (`SET ROLE anon; SELECT ...` -> `permission denied`). ✅
+- As RPCs novas (`claim_site_notifications_action`) e as já existentes
+  (`queue_article_push_on_publish`) **não são executáveis por `anon`
+  diretamente** — testado (`SET ROLE anon; SELECT public.<rpc>(...)` ->
+  `permission denied`). ✅
+- Nenhuma chave de serviço é devolvida ao navegador em nenhuma resposta
+  das rotas — confirmado por leitura de `route.ts`. A chave VAPID pública
+  (que é pública por natureza do protocolo Web Push) é o único "segredo"
+  exposto, e já era antes deste lote.
+- **Gap de rate limit encontrado e corrigido:** `/api/public/notifications`
+  não tinha limite de tentativas (ao contrário de `/api/public/push`, que
+  já usava `claim_site_push_registration`). Nova migration **PENDENTE**
+  `20261030100700_site_notifications_rate_limit.sql` cria um limite
+  dedicado (`claim_site_notifications_action`, 120/hora por hash de IP,
+  cota própria — não reaproveita a de registro de push). Testado de
+  verdade: 3 chamadas liberadas com limite 3, a 4ª bloqueada
+  (`false`). ✅ Antes da migration ser aplicada, a rota detecta a função
+  ausente e segue sem bloquear (degrada em vez de derrubar a central).
+- Categorias (`ordinary`/`urgent`/`administrative`) seguem com
+  preferências independentes, herdadas de `site_push_subscriptions`
+  quando existe; sem cadastro, avisos gerais ficam ocultos por padrão —
+  nenhuma categoria sem consentimento é "entregue" nem mesmo exibida na
+  central.
+- Nenhum rascunho aparece: `commercial_announcements.status='draft'`
+  nunca é inserido em `notification_events`; a nova integração editorial
+  só insere na transição real para `published`, nunca em `draft`/
+  `adjusting`/`scheduled` ainda não vencido/`archived`.
+- A migration nova (`20261030100600`) não libera nada por engano:
+  `site_notification_feature_flags` tem RLS com `revoke all` de
+  `anon`/`authenticated` (testado), a função que a lê é
+  `security definer` mas só é alcançável via o próprio gatilho (não é
+  uma RPC pública) e já tinha `revoke all` desde antes.
+
+### 4. Migrations pendentes — ordem de aplicação recomendada
+
+Nenhuma foi aplicada. Ordem recomendada (a ordem de timestamp já reflete
+isso; nenhuma dependência cruzada rígida entre elas, mas mantém o lote
+coerente):
+1. `20261030100100_site_assine_visibility_toggle.sql` (typo corrigido
+   nesta etapa — lote anterior ao de notificações).
+2. `20261030100200_commercial_general_push_announcements.sql` (idem).
+3. `20261030100300_subscription_due_reminders.sql` / `20261030100400_mobile_app_android_release.sql` (lotes anteriores, sem relação com este).
+4. `20261030100500_site_notification_reads.sql` (central de notificações — leitura/estado de lido).
+5. `20261030100600_article_publish_notification_events.sql` (integração editorial, flag desligada por padrão).
+6. `20261030100700_site_notifications_rate_limit.sql` (rate limit da central).
+
+**Configuração de servidor necessária quando for autorizado testar envio
+real:** `UPDATE public.site_notification_feature_flags SET article_publish_events_enabled = true;`
+— nenhum toggle de painel foi criado para isso nesta etapa.
+
+### 5. Testes executados vs. pendentes
+
+**Reais, executados:** `npm run typecheck` e `npm run build` em
+`@ir/site` e `@ir/sistema` (ambos limpos); as 13+ verificações descritas
+no item 1/3 acima, feitas num Postgres local isolado via
+`supabase start` (replay de TODAS as migrations do projeto, inclusive as
+novas), nunca contra o projeto remoto, container descartado ao final.
+
+**Não testado / mock / pendente:** nenhuma chamada real feita ao
+`controle.altnix.com.br` em produção; nenhuma validação visual em
+navegador/app real da central (herdado do lote anterior); nenhum envio
+real de push foi disparado ou testado ponta a ponta (fora do escopo
+autorizado desta etapa); a migration de leitura (`...100500`) e a de rate
+limit (`...100700`) continuam sem persistência real em produção até
+aplicadas.
+
+### Pronto para homologação coordenada?
+
+**Tecnicamente sim, do ponto de vista de código** — `@ir/site` e
+`@ir/sistema` compilam e buildam limpos com todas as mudanças dos últimos
+4 lotes (JoIR/Jornal Online, safe-area/destaque, central de notificações,
+integração editorial). **Mas NÃO antes de**: (a) autorizar e aplicar as 5
+migrations pendentes listadas no item 4, na ordem indicada; (b) decidir
+se/quando ligar `article_publish_events_enabled` (lembrando que isso arma
+o envio real, não é inofensivo); (c) validar visualmente em
+navegador/dispositivo real os ajustes visuais dos lotes anteriores (JoIR,
+Jornal Online, safe-area, sininhos) — nenhum teste manual em tela real
+foi feito em nenhum desses lotes ainda. Nenhuma publicação foi executada
+nesta etapa.
