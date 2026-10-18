@@ -219,3 +219,10 @@ modelos originais. Homenagens criadas por IA sao individuais e opcionais.
 - Workflow de CI da branch temporariamente ligado no commit `9baff8c`, execução `39131917195`, e restaurado em `93ece9d`, sem alterar aplicação depois do início do teste. Verificar o resultado do CI antes de marcar aprovado.
 - **Ainda não publicado**: produção permanece `d92625f`. VS Code/branch oficial local não tocados. Sem migrations, chamadas à API ou alterações de credenciais.
 - Próximo passo: conferir typecheck/build/CI, aguardar autorização explícita para único deploy agrupado com as correções anteriores de feedback; após publicar, testar autenticação e geração de texto em sessão owner, e confirmar nome definitivo público antes de integrá-lo ao portal.
+
+## 2026-10-18 — CI confirmado para JoIR e campos na mesma linha
+
+- GitHub Actions `Validate project`, execução `39131917195`, SHA `9baff8cf8af244975d5974aaf0b6458a0aa6455a`: **SUCCESS** (typecheck/build sistema e site, smoke de PDFs e contratos).
+- A mudança posterior do workflow `93ece9d` apenas retirou o disparo temporário do CI e os commits posteriores são de documentação; os arquivos de aplicação permanecem os validados.
+- Link de evidência: `https://github.com/altnixtecnologia/jornalir/actions/runs/39131917195`.
+- Resultado comprovado: compilação; NÃO teste responsivo visual em navegador nem homologação real de IA neste lote. Nenhuma nova publicação Vercel; usuário deve autorizar deploy agrupado.
