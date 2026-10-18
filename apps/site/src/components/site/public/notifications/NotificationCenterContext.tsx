@@ -25,6 +25,10 @@ interface NotificationCenterState {
   loaded: boolean;
   panelOpen: boolean;
   floatingVisible: boolean;
+  /** true = o servidor não tem onde persistir "lido" ainda (migration
+   * pendente) — a central funciona, mas o estado de leitura pode não
+   * sobreviver a um recarregamento. Nunca escondido do leitor. */
+  readPersistenceDegraded: boolean;
   openPanel: () => void;
   closePanel: () => void;
   markRead: (id: string) => void;
@@ -38,6 +42,7 @@ export function NotificationCenterProvider({ children }: { children: ReactNode }
   const [loaded, setLoaded] = useState(false);
   const [panelOpen, setPanelOpen] = useState(false);
   const [hiddenThisSession, setHiddenThisSession] = useState(false);
+  const [readPersistenceDegraded, setReadPersistenceDegraded] = useState(false);
   const lastUnreadIdsRef = useRef<Set<string>>(new Set());
 
   const fetchFeed = useCallback(async () => {
@@ -46,8 +51,9 @@ export function NotificationCenterProvider({ children }: { children: ReactNode }
       const url = token ? `${ENDPOINT}?managementToken=${encodeURIComponent(token)}` : ENDPOINT;
       const response = await fetch(url, { cache: "no-store" });
       if (!response.ok) return;
-      const data = (await response.json()) as { ok?: boolean; items?: NotificationItem[] };
+      const data = (await response.json()) as { ok?: boolean; items?: NotificationItem[]; readTrackingAvailable?: boolean };
       if (!data.ok || !Array.isArray(data.items)) return;
+      if (data.readTrackingAvailable === false) setReadPersistenceDegraded(true);
 
       // Se chegou um aviso não lido novo (que não existia na última
       // leitura), o flutuante volta a poder aparecer mesmo que o leitor
@@ -97,9 +103,16 @@ export function NotificationCenterProvider({ children }: { children: ReactNode }
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ managementToken: token, eventId: id }),
-    }).catch(() => {
-      // Estado local já refletiu a leitura; novo fetchFeed tentará de novo depois.
-    });
+    })
+      .then((response) => {
+        // 503 = migration pendente: a marcação não persiste no servidor.
+        // Nunca finge sucesso silenciosamente — avisa a central.
+        if (response.status === 503) setReadPersistenceDegraded(true);
+      })
+      .catch(() => {
+        // Falha de rede: estado local já refletiu a leitura; próximo
+        // fetchFeed tenta de novo. Não é o mesmo caso de "sem persistência".
+      });
   }, []);
 
   const dismissFloatingForSession = useCallback(() => {
@@ -120,12 +133,24 @@ export function NotificationCenterProvider({ children }: { children: ReactNode }
       loaded,
       panelOpen,
       floatingVisible: unreadCount > 0 && !hiddenThisSession && !panelOpen,
+      readPersistenceDegraded,
       openPanel,
       closePanel,
       markRead,
       dismissFloatingForSession,
     }),
-    [items, unreadCount, loaded, panelOpen, hiddenThisSession, openPanel, closePanel, markRead, dismissFloatingForSession],
+    [
+      items,
+      unreadCount,
+      loaded,
+      panelOpen,
+      hiddenThisSession,
+      readPersistenceDegraded,
+      openPanel,
+      closePanel,
+      markRead,
+      dismissFloatingForSession,
+    ],
   );
 
   return <NotificationCenterContext.Provider value={value}>{children}</NotificationCenterContext.Provider>;

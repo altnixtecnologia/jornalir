@@ -1,5 +1,5 @@
 import "server-only";
-import { createHash } from "node:crypto";
+import { createHash, createHmac } from "node:crypto";
 import { createClient } from "@supabase/supabase-js";
 import { NextRequest, NextResponse } from "next/server";
 import { corsOrigin, corsHeaders, corsJson as json } from "../../../../lib/publicApi/cors";
@@ -13,7 +13,8 @@ export const dynamic = "force-dynamic";
 // Identidade do leitor = mesmo management token anônimo já usado em
 // /api/public/push (localStorage, sem login) — mesmo hash
 // sha256("site-push:" + token), para que os dois endpoints reconheçam o
-// mesmo dispositivo.
+// mesmo dispositivo. Nenhuma tabela aqui é legível/gravável direto pelo
+// navegador (RLS fechada); tudo passa por este endpoint com service_role.
 
 const TOKEN_RE = /^[a-zA-Z0-9_-]{32,128}$/;
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -35,9 +36,31 @@ function managementHash(token: string): string {
   return createHash("sha256").update("site-push:" + token).digest("hex");
 }
 
-/** Linha não existe ainda = migration 20261030100500 pendente de aplicação. */
+/** code 42P01 = relation ainda não existe (migration pendente). */
 function isMissingRelation(error: { code?: string } | null): boolean {
   return error?.code === "42P01";
+}
+
+/** code 42883 = função ainda não existe (migration do rate limit pendente). */
+function isMissingFunction(error: { code?: string } | null): boolean {
+  return error?.code === "42883";
+}
+
+/**
+ * Rate limit por IP-hash, dedicado a esta rota (não reaproveita a cota de
+ * registro de push, que é para outra finalidade). Se a migration ainda não
+ * foi aplicada ou a chave de HMAC não está configurada, não bloqueia —
+ * degrada para "sem limite" em vez de derrubar a central inteira; uma vez
+ * aplicada a migration, passa a valer de verdade.
+ */
+async function checkRateLimit(db: ReturnType<typeof service>, request: NextRequest): Promise<boolean> {
+  const secret = process.env.CRON_SECRET;
+  if (!secret) return true;
+  const ip = request.headers.get("x-vercel-forwarded-for") || request.headers.get("x-forwarded-for")?.split(",")[0] || "unknown";
+  const ipHash = createHmac("sha256", secret).update("site-notifications:" + ip).digest("hex");
+  const { data, error } = await db.rpc("claim_site_notifications_action", { p_client_hash: ipHash, p_limit: 120 });
+  if (error) return isMissingFunction(error) || isMissingRelation(error);
+  return data === true;
 }
 
 export async function OPTIONS(request: NextRequest): Promise<NextResponse> {
@@ -55,10 +78,13 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
 
   try {
     const db = service();
+    if (!(await checkRateLimit(db, request))) return json({ error: "Muitas tentativas. Tente mais tarde." }, 429, origin);
 
     // Preferências do leitor (se já existir cadastro de push para este
     // hash); sem cadastro, usa os mesmos padrões do formulário de
     // preferências: notícias do dia e urgentes sim, avisos gerais não.
+    // A consulta funciona igual com ou sem token — ver avisos NUNCA exige
+    // ter autorizado push antes.
     let allowed: Record<SiteKind, boolean> = { ordinary: true, urgent: true, administrative: false };
     if (tokenParam) {
       const hash = managementHash(tokenParam);
@@ -89,6 +115,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     const visible = (events ?? []).filter((event) => allowed[event.kind as SiteKind] !== false);
 
     let readIds = new Set<string>();
+    let readTrackingAvailable = true;
     if (tokenParam && visible.length > 0) {
       const hash = managementHash(tokenParam);
       const { data: reads, error: readsError } = await db
@@ -96,10 +123,15 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
         .select("event_id")
         .eq("management_hash", hash)
         .in("event_id", visible.map((event) => event.id));
-      // Migration ainda não aplicada: trata tudo como não lido (degrada
-      // sem quebrar a central), em vez de falhar a requisição inteira.
-      if (!readsError) readIds = new Set((reads ?? []).map((row) => row.event_id as string));
-      else if (!isMissingRelation(readsError)) return json({ error: "Não foi possível carregar o estado de leitura" }, 500, origin);
+      if (!readsError) {
+        readIds = new Set((reads ?? []).map((row) => row.event_id as string));
+      } else if (isMissingRelation(readsError)) {
+        // Migration ainda não aplicada: trata tudo como não lido, mas avisa
+        // o cliente explicitamente — nunca finge que o estado persiste.
+        readTrackingAvailable = false;
+      } else {
+        return json({ error: "Não foi possível carregar o estado de leitura" }, 500, origin);
+      }
     }
 
     const items = visible.map((event) => ({
@@ -112,7 +144,11 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       read: readIds.has(event.id as string),
     }));
 
-    return json({ ok: true, items, unreadCount: items.filter((item) => !item.read).length }, 200, origin);
+    return json(
+      { ok: true, items, unreadCount: items.filter((item) => !item.read).length, readTrackingAvailable },
+      200,
+      origin,
+    );
   } catch {
     return json({ error: "Serviço de notificações indisponível" }, 500, origin);
   }
@@ -134,6 +170,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     }
 
     const db = service();
+    if (!(await checkRateLimit(db, request))) return json({ error: "Muitas tentativas. Tente mais tarde." }, 429, origin);
+
     const hash = managementHash(body.managementToken);
     const { error } = await db
       .from("site_notification_reads")

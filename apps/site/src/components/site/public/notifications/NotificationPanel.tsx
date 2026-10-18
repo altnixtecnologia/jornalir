@@ -23,7 +23,7 @@ const KIND_LABEL: Record<NotificationItem["kind"], string> = {
 };
 
 export function NotificationPanel(): JSX.Element | null {
-  const { items, panelOpen, closePanel, markRead } = useNotificationCenter();
+  const { items, panelOpen, closePanel, markRead, readPersistenceDegraded } = useNotificationCenter();
   const [expanded, setExpanded] = useState<NotificationItem | null>(null);
   const router = useRouter();
   const panelRef = useRef<HTMLDivElement>(null);
@@ -70,6 +70,12 @@ export function NotificationPanel(): JSX.Element | null {
             ✕
           </button>
         </div>
+
+        {readPersistenceDegraded ? (
+          <p className="notif-panel-degraded">
+            O registro de "lido" ainda está sendo preparado neste servidor — pode voltar a marcar como novo depois de recarregar.
+          </p>
+        ) : null}
 
         {expanded ? (
           <div className="notif-panel-expanded">
