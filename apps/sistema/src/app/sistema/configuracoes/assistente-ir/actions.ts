@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { getFinancialOverviewSupabase } from "../../../../providers/supabase/financialOverview.supabase";
 import { createSupabaseServerClient } from "../../../../lib/supabase/server";
 import { createSupabaseAdminClient, hasServiceRoleKey } from "../../../../lib/supabase/admin";
 import { recordAuditEventSupabase } from "../../../../providers/supabase/auditEvents.supabase";
@@ -8,10 +9,10 @@ import {
   encryptAssistantKey, hasAssistantEncryptionKey, getAssistantCredentialForConnectionTest,
 } from "../../../../lib/ai/assistantConfig";
 import {
-  AI_MODULES, validAiMode,
+  AI_MODULES, validAiMode, readAiModes,
 } from "../../../../features/configuracoes/aiSettingsTypes";
 import type {
-  AiProvider, AiSettingsInput,
+  AiProvider, AiSettingsInput, AiOperationalBrief,
 } from "../../../../features/configuracoes/aiSettingsTypes";
 
 const PATH = "/sistema/configuracoes/assistente-ir";
@@ -143,5 +144,78 @@ export async function testAssistantConnectionAction(
     return { ok: true, message: `Conexao com ${provider === "openai" ? "OpenAI" : "Claude"} autenticada. Nenhuma mensagem foi gerada.` };
   } catch (error) {
     return { error: error instanceof Error ? error.message : "Falha ao testar a conexao." };
+  }
+}
+
+/** Resumo sob demanda, sem enviar dados para OpenAI/Claude. Todos os acessos
+ * usam a sessao do owner, com RLS, e respeitam o interruptor geral e os
+ * modos por modulo. Somente metricas agregadas, sem dados pessoais. */
+export async function getAssistantOperationalBriefAction():
+  Promise<{ ok: true; data: AiOperationalBrief } | { error: string }> {
+  try {
+    const { db } = await requireOwner();
+    const { data: config, error } = await db.from("ai_assistant_settings")
+      .select("enabled,module_modes").eq("id", 1).maybeSingle();
+    if (error || !config) return { error: "A configuracao do Assistente IR ainda nao esta disponivel." };
+    if (!config.enabled) return { error: "Ative o Assistente IR para consultar os modulos habilitados." };
+    const modes = readAiModes(config.module_modes);
+    if (["financeiro", "site", "agenda"].every((key) =>
+      modes[key as "financeiro" | "site" | "agenda"] === "off")) {
+      return { error: "Ative Financeiro, Pedidos do site ou Agenda para consultar o resumo." };
+    }
+
+    const parts = new Intl.DateTimeFormat("en-US", {
+      timeZone: "America/Sao_Paulo", day: "2-digit", month: "2-digit", year: "numeric",
+    }).formatToParts(new Date());
+    const dateParts = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+    const today = `${dateParts.year}-${dateParts.month}-${dateParts.day}`;
+    const endDate = new Date(`${today}T12:00:00Z`);
+    endDate.setUTCDate(endDate.getUTCDate() + 6);
+    const nextSevenEnd = endDate.toISOString().slice(0, 10);
+
+    const financeiro: AiOperationalBrief["financeiro"] = modes.financeiro === "off"
+      ? null : await (async () => {
+        const overview = await getFinancialOverviewSupabase(db, {
+          today, periodStart: today, periodEnd: today, monthStart: today, monthEnd: today,
+        });
+        return {
+          overdueCount: overview.overdueCount,
+          overdueAmount: overview.totalOverdueAmount,
+          receivedTodayCount: overview.receivedToday.count,
+          receivedTodayAmount: overview.receivedToday.amount,
+        };
+      })();
+    let site: AiOperationalBrief["site"] = null;
+    if (modes.site !== "off") {
+      const { count, error: countError } = await db.from("site_interest_requests")
+        .select("id", { count: "exact", head: true })
+        .in("status", ["new", "contacted"]).is("attended_at", null);
+      if (countError || count === null) throw new Error("Nao foi possivel conferir as solicitacoes do site.");
+      site = { unattendedRequests: count };
+    }
+
+    let agenda: AiOperationalBrief["agenda"] = null;
+    if (modes.agenda !== "off") {
+      const [todayResult, weekResult] = await Promise.all([
+        db.from("agenda_events").select("id", { count: "exact", head: true })
+          .eq("status", "scheduled").eq("event_date", today),
+        db.from("agenda_events").select("id", { count: "exact", head: true })
+          .eq("status", "scheduled").gte("event_date", today).lte("event_date", nextSevenEnd),
+      ]);
+      if (todayResult.error || weekResult.error || todayResult.count === null || weekResult.count === null) {
+        throw new Error("Nao foi possivel conferir a Agenda.");
+      }
+      agenda = {
+        scheduledToday: todayResult.count,
+        scheduledNextSevenDays: weekResult.count,
+      };
+    }
+
+    return { ok: true, data: { generatedAt: new Date().toISOString(), financeiro, site, agenda } };
+  } catch (error) {
+    return {
+      error: error instanceof Error
+        ? error.message : "Nao foi possivel preparar o resumo operacional.",
+    };
   }
 }
