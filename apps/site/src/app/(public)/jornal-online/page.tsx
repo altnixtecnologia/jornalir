@@ -31,7 +31,7 @@ export default function JornalOnlinePage(): JSX.Element {
         const archiveData = (await archiveResponse.json()) as { ok?: boolean; items?: OnlineEdition[] };
         if (archiveData?.ok && Array.isArray(archiveData.items) && archiveData.items.length > 0) {
           setRemoteEditions(archiveData.items);
-          setSourceLabel("Acervo oficial");
+          setSourceLabel("Jornal Informativo Regional");
           return;
         }
 
@@ -39,13 +39,13 @@ export default function JornalOnlinePage(): JSX.Element {
         const driveData = (await driveResponse.json()) as { ok?: boolean; items?: OnlineEdition[] };
         if (driveData?.ok && Array.isArray(driveData.items) && driveData.items.length > 0) {
           setRemoteEditions(driveData.items);
-          setSourceLabel("Acervo legado");
+          setSourceLabel("Jornal Informativo Regional");
           return;
         }
 
-        setSourceLabel("Acervo local");
+        setSourceLabel("Jornal Informativo Regional");
       } catch {
-        setSourceLabel("Acervo local");
+        setSourceLabel("Jornal Informativo Regional");
       } finally {
         setRemoteLoaded(true);
       }
