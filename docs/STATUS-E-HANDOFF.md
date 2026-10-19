@@ -2028,3 +2028,87 @@ navegador/dispositivo real os ajustes visuais dos lotes anteriores (JoIR,
 Jornal Online, safe-area, sininhos) — nenhum teste manual em tela real
 foi feito em nenhum desses lotes ainda. Nenhuma publicação foi executada
 nesta etapa.
+
+## SINCRONIZAÇÃO GITHUB — 11 commits enviados (18/10/2026)
+
+Push único, fast-forward, autorizado explicitamente, só para
+`feature/site-lancamento-editorial-publicidade-20261018`
+(`e1f4478..2056c75`). Verificado antes: `git fetch`, ancestralidade
+confirmada, working tree limpo, `vercel.json` de ambos os apps com
+`git.deploymentEnabled=false` e inalterados nesses 11 commits, único
+workflow do GitHub Actions não dispara nesta branch. Depois do push: SHA
+remoto = SHA local (`2056c75`), `origin/main` inalterada (`9a2ae7b`),
+nenhum dos 11 commits alcança `main`. Nenhuma migration aplicada, nenhum
+deploy, nenhuma mudança no Supabase remoto.
+
+## LOTE — Correções de duplicidade/data/segurança na central (18/10/2026, commit `b2d6942`)
+
+Pedido pelo usuário após revisar as sete migrations e a central já
+sincronizadas no GitHub, antes de autorizar a aplicação remota. Três
+correções pontuais, **nenhuma delas exigiu criar ou alterar migration**
+— todas em código de aplicação (`apps/sistema`, `apps/site`). As sete
+migrations pendentes continuam exatamente como estavam;
+`article_publish_events_enabled` continua `false`.
+
+**1. Duplicidade entre envio manual e gatilho automático:** o envio
+manual existente (`EditorialPushSender.tsx` /
+`enqueueSitePushAction`, dedupe `site-editorial:<requestId>`) e o
+gatilho automático do lote anterior (dedupe `article-publish:<id>`)
+podiam gerar dois avisos para a mesma matéria se os dois caminhos fossem
+usados. Corrigido: ao detectar que o link manual aponta para
+`/noticias/<slug>` de uma matéria que já tem um evento automático,
+`enqueueSitePushAction` recusa o envio e devolve um aviso explicando o
+motivo; o administrador pode confirmar explicitamente (novo campo
+`confirm_duplicate`, mesmo padrão do `confirm()` já usado para
+"urgente") para enviar mesmo assim. Nenhuma das duas idempotências
+originais foi alterada (`article-publish` continua
+`on conflict do nothing`; `site-editorial` continua upsert
+`ignoreDuplicates` por `requestId`).
+
+**2. Visibilidade por data:** `GET /api/public/notifications` agora
+filtra `scheduled_at<=agora` — um evento agendado para o futuro nunca
+aparece no feed antes da hora. Eventos internos (`app_kind='sistema'`)
+já ficavam de fora (filtro `app_kind='site'` já existia); rascunhos do
+Comercial → Avisos (`commercial_announcements.status='draft'`) nunca
+chegam a `notification_events`, então também já ficavam de fora.
+
+**3. Segurança da central:** o `managementToken` deixou de ir em query
+string no `GET` — agora vai em cabeçalho (`X-Notification-Token`), fora
+de logs de acesso, histórico do navegador e `Referer`; CORS atualizado
+para permitir esse cabeçalho (`cors.ts`, compartilhado com
+`/api/public/push`). Antes de marcar como lido, o `POST` agora confirma
+que o evento é `app_kind='site'` (nunca um evento interno), já está
+liberado (`scheduled_at<=agora`) e que a categoria é uma das que aquele
+dispositivo pode ver — mesma lógica de preferências do `GET`, extraída
+para uma função compartilhada (`allowedKindsFor`). Nenhuma permissão de
+push do sistema operacional é exigida para nada disso (confirmado:
+nenhum código da central chama a API de permissão de notificação).
+
+**Testado de verdade, num Supabase local isolado** (mesmo processo dos
+lotes anteriores — `supabase start` com portas alternativas, nunca
+tocou o projeto remoto nem o outro projeto Docker local já em execução
+na máquina; descartado ao final): duplicidade detectada corretamente ao
+simular a consulta real; evento futuro excluído do feed filtrado (e
+confirmado que, sem o filtro, ele apareceria — prova de que o filtro é
+quem protege); pré-checagem de marcar como lido aceita um evento
+real/site/vencido, rejeita um evento interno (`app_kind='sistema'`) e
+rejeita um evento futuro; categoria `administrative` confirmada negada
+por padrão sem cadastro de push; isolamento entre hashes de dispositivo
+e bloqueio de leitura direta por `anon` reconfirmados (ambos já tinham
+sido testados no lote anterior, repetidos aqui por segurança).
+`npm run typecheck`/`build` em `@ir/site` e `@ir/sistema`: ambos limpos.
+
+**Arquivos alterados:** `apps/sistema/src/app/api/public/notifications/route.ts`,
+`apps/sistema/src/app/sistema/configuracoes/notificacoes-push/actions.ts`,
+`apps/sistema/src/app/sistema/configuracoes/notificacoes-push/EditorialPushSender.tsx`,
+`apps/sistema/src/lib/publicApi/cors.ts`,
+`apps/site/src/components/site/public/notifications/NotificationCenterContext.tsx`.
+
+**Commit local:** `b2d6942`. Nenhum push, deploy, migration, envio real
+ou APK nesta etapa — aguardando decisão do usuário sobre sincronizar
+este commit e sobre aplicar as sete migrations.
+
+**Ordem das sete migrations (sem alteração desde o lote anterior):**
+100100 → 100200 → 100300 → 100400 → 100500 → 100600 → 100700. Todas já
+versionadas no GitHub (commit `2056c75`, verificado nesse push). Nenhuma
+aplicada ao Supabase remoto.
