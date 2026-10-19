@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useEffect, useRef, useState } from "react";
+import { usePathname, useRouter } from "next/navigation";
 
 // Preferências de push NATIVO (FCM via Capacitor), só dentro do app
 // Android instalado — nunca aparece/ativa no site aberto num navegador
@@ -23,6 +23,8 @@ import { useRouter } from "next/navigation";
 const INSTALLATION_ID_KEY = "jornalir_native_push_installation_id";
 const MANAGEMENT_TOKEN_KEY = "jornalir_native_push_management_token";
 const SUBSCRIBED_KEY = "jornalir_native_push_subscribed";
+const WELCOME_CHOICE_KEY = "jornalir_native_push_welcome_choice_v1";
+const PREFERENCES_KEY = "jornalir_native_push_preferences_v1";
 const CHANNEL_NORMAL = "jornal_ir_normal_v1";
 const CHANNEL_URGENT = "jornal_ir_urgente_v1";
 const FCM_ENDPOINT = "https://controle.altnix.com.br/api/public/push/fcm";
@@ -70,6 +72,10 @@ export function NativePushPreferences(): JSX.Element | null {
   const [urgent, setUrgent] = useState(true);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const [showWelcome, setShowWelcome] = useState(false);
+  const [listenersReady, setListenersReady] = useState(false);
+  const prefsRef = useRef({ ordinary: true, urgent: true });
+  const pathname = usePathname();
   const router = useRouter();
 
   useEffect(() => {
@@ -80,6 +86,23 @@ export function NativePushPreferences(): JSX.Element | null {
         if (!Capacitor.isNativePlatform()) return;
         if (cancelled) return;
         setIsNative(true);
+        // Manter escolhas anteriores, inclusive se o usuário desativou um
+        // dos canais. O SDK pode renovar o token a qualquer momento.
+        try {
+          const savedPrefs = localStorage.getItem(PREFERENCES_KEY);
+          if (savedPrefs) {
+            const parsed: unknown = JSON.parse(savedPrefs);
+            if (parsed && typeof parsed === "object" &&
+                "ordinary" in parsed && "urgent" in parsed &&
+                typeof parsed.ordinary === "boolean" && typeof parsed.urgent === "boolean") {
+              prefsRef.current = { ordinary: parsed.ordinary, urgent: parsed.urgent };
+              setOrdinary(parsed.ordinary);
+              setUrgent(parsed.urgent);
+            }
+          }
+        } catch {
+          // Em armazenamento restrito, preferências padrão; não bloquear o app.
+        }
 
         // Status público: enquanto o backend não liberar o cadastro
         // (registrationAvailable=false), não oferecemos "Ativar" — evita
@@ -117,6 +140,17 @@ export function NativePushPreferences(): JSX.Element | null {
         } else {
           setStatus("ready");
         }
+
+        // Apenas no app nativo, primeira abertura e após confirmação de
+        // disponibilidade do servidor. Nunca chamar requestPermissions()
+        // daqui: o diálogo oficial só aparece após toque em "Ativar".
+        if (!alreadySubscribed && permission.receive !== "denied") {
+          try {
+            if (!localStorage.getItem(WELCOME_CHOICE_KEY)) setShowWelcome(true);
+          } catch {
+            // Sem persistência, não arriscar oferecer a mesma tela sempre.
+          }
+        }
       } catch {
         if (!cancelled) setStatus("unavailable");
       }
@@ -134,13 +168,14 @@ export function NativePushPreferences(): JSX.Element | null {
     let actionHandle: { remove: () => void } | undefined;
     let receivedHandle: { remove: () => void } | undefined;
     let errorHandle: { remove: () => void } | undefined;
+    let cancelled = false;
 
     void (async () => {
       const { PushNotifications } = await import("@capacitor/push-notifications");
       const { LocalNotifications } = await import("@capacitor/local-notifications");
 
       registrationHandle = await PushNotifications.addListener("registration", (token) => {
-        void registerWithBackend(token.value, { ordinary, urgent });
+        void registerWithBackend(token.value, prefsRef.current);
       });
 
       errorHandle = await PushNotifications.addListener("registrationError", () => {
@@ -174,11 +209,19 @@ export function NativePushPreferences(): JSX.Element | null {
       // backend envia.
       actionHandle = await PushNotifications.addListener("pushNotificationActionPerformed", (action) => {
         const href = action.notification.data?.href;
-        if (typeof href === "string" && href.startsWith("/")) router.push(href);
+        if (typeof href === "string" && /^\\/noticias\\/[a-z0-9-]+\\/?$/i.test(href)) router.push(href);
       });
-    })();
+      if (!cancelled) setListenersReady(true);
+    })().catch(() => {
+      if (!cancelled) {
+        setListenersReady(false);
+        setMessage("Não foi possível iniciar o serviço nativo de notificações.");
+      }
+    });
 
     return () => {
+      cancelled = true;
+      setListenersReady(false);
       registrationHandle?.remove();
       actionHandle?.remove();
       receivedHandle?.remove();
@@ -227,6 +270,7 @@ export function NativePushPreferences(): JSX.Element | null {
 
   async function activate(): Promise<void> {
     if (busy) return;
+    if (!listenersReady) { setMessage("Aguarde a preparação das notificações."); return; }
     if (!ordinary && !urgent) {
       setMessage("Escolha ao menos um tipo de aviso.");
       return;
@@ -281,8 +325,12 @@ export function NativePushPreferences(): JSX.Element | null {
   }
 
   async function updatePreferences(nextOrdinary: boolean, nextUrgent: boolean): Promise<void> {
+    prefsRef.current = { ordinary: nextOrdinary, urgent: nextUrgent };
     setOrdinary(nextOrdinary);
     setUrgent(nextUrgent);
+    try {
+      localStorage.setItem(PREFERENCES_KEY, JSON.stringify(prefsRef.current));
+    } catch { /* Armazenamento opcional; o servidor continua sendo a referência. */ }
     if (status !== "active") return;
     try {
       const { PushNotifications } = await import("@capacitor/push-notifications");
@@ -297,9 +345,54 @@ export function NativePushPreferences(): JSX.Element | null {
     }
   }
 
+  function dismissWelcome(choice: "accepted" | "declined"): void {
+    try { localStorage.setItem(WELCOME_CHOICE_KEY, choice); }
+    catch { /* Não exibir a caixa novamente nesta sessão. */ }
+    setShowWelcome(false);
+    if (choice === "accepted") void activate();
+  }
+
   if (!isNative) return null;
 
   return (
+    <>
+      {showWelcome && status === "ready" ? (
+        <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/60 px-4 py-6"
+          role="presentation">
+          <section role="dialog" aria-modal="true" aria-labelledby="push-welcome-title"
+            aria-describedby="push-welcome-description"
+            className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl"
+            style={{ color: "var(--brand-navy)" }}>
+            <p className="text-sm font-bold uppercase tracking-wide" style={{ color: "var(--site-muted)" }}>
+              Jornal IR
+            </p>
+            <h2 id="push-welcome-title" className="mt-2 text-2xl font-bold">
+              Receba notícias no seu celular
+            </h2>
+            <p id="push-welcome-description" className="mt-3 text-base leading-relaxed">
+              Ative os avisos de novas matérias e notícias urgentes do Jornal IR.
+              Você poderá escolher os tipos de alerta ou desativá-los depois.
+            </p>
+            <div className="mt-6 grid gap-3">
+              <button type="button" disabled={busy || !listenersReady}
+                onClick={() => dismissWelcome("accepted")}
+                className="rounded-xl px-4 py-3 font-bold text-white disabled:opacity-60"
+                style={{ background: "var(--brand-navy)" }}>
+                {listenersReady ? "Ativar notificações" : "Preparando notificações..."}
+              </button>
+              <button type="button" onClick={() => dismissWelcome("declined")}
+                className="rounded-xl border px-4 py-3 font-semibold"
+                style={{ borderColor: "var(--site-line)" }}>
+                Agora não
+              </button>
+            </div>
+            <p className="mt-4 text-center text-xs" style={{ color: "var(--site-muted)" }}>
+              Só solicitaremos a permissão do Android se você tocar em Ativar.
+            </p>
+          </section>
+        </div>
+      ) : null}
+      {pathname === "/notificacoes" ? (
     <section className="mx-auto my-6 max-w-2xl rounded-xl border bg-white p-5 shadow-sm sm:p-7" style={{ borderColor: "var(--site-line)" }}>
       <h2 className="text-xl font-bold">Notificações do aplicativo</h2>
       <p className="mt-2 text-sm leading-relaxed" style={{ color: "var(--site-muted)" }}>
@@ -321,7 +414,7 @@ export function NativePushPreferences(): JSX.Element | null {
       {status === "preparing" ? <p className="text-sm">Notificações do aplicativo ainda em preparação — volte em breve.</p> : null}
       {status === "blocked" ? <p className="text-sm">Notificações bloqueadas nas configurações do Android para este app.</p> : null}
       {status === "ready" ? (
-        <button type="button" disabled={busy} onClick={() => void activate()} className="rounded-lg bg-[#30305c] px-5 py-3 font-semibold text-white">
+        <button type="button" disabled={busy || !listenersReady} onClick={() => { dismissWelcome("accepted"); }} className="rounded-lg bg-[#30305c] px-5 py-3 font-semibold text-white">
           {busy ? "Ativando..." : "Ativar avisos no aplicativo"}
         </button>
       ) : null}
@@ -335,5 +428,7 @@ export function NativePushPreferences(): JSX.Element | null {
       ) : null}
       {message ? <p role="status" className="mt-3 text-sm">{message}</p> : null}
     </section>
+      ) : null}
+    </>
   );
 }

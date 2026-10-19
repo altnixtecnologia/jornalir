@@ -1,6 +1,5 @@
 import { SiteHeader } from "../../../components/site/SiteHeader";
 import { SitePushPreferences } from "../../../components/site/public/SitePushPreferences";
-import { NativePushPreferences } from "../../../components/site/public/NativePushPreferences";
 export const metadata = {
   title: "Notificações do Jornal IR",
   description: "Escolha os avisos que deseja receber do Informativo Regional.",
@@ -14,7 +13,6 @@ export default function NotificacoesPage(): JSX.Element {
         {/* NativePushPreferences só renderiza algo dentro do app Android
             instalado (Capacitor.isNativePlatform()); no navegador comum
             fica null e só o Web Push abaixo aparece (19/10/2026). */}
-        <NativePushPreferences />
         <SitePushPreferences />
       </div>
     </main>
