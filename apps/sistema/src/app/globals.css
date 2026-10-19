@@ -5245,3 +5245,27 @@ button.secondary-link {
     height: 36px;
   }
 }
+
+
+/* Hotfix 19/10/2026 — Matérias > Publicação: o select nativo cortava
+   verticalmente o texto por herdar height:36px e padding:11px 12px.
+   Escopo restrito ao formulário editorial; não altera outros módulos. */
+.article-form input[type="text"],
+.article-form input:not([type]),
+.article-form input[type="datetime-local"],
+.article-form select {
+  box-sizing: border-box;
+  height: 44px;
+  min-height: 44px;
+  line-height: 20px;
+}
+.article-form select {
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  padding: 0 32px 0 12px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='%23202b29' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='4 6 8 10 12 6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+  background-size: 12px 12px;
+}
