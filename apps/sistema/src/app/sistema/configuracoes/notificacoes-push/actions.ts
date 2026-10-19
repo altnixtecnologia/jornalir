@@ -38,6 +38,19 @@ export async function enqueueSitePushAction(form: FormData): Promise<PushActionR
     if (!dbUrl || !key) return { error: "Notificações não configuradas no servidor." };
     const db = createClient(dbUrl, key, { auth: { persistSession: false, autoRefreshToken: false } });
 
+    // Desativado por padrão em produção até a inscrição e homologação de
+    // aparelhos. Nunca tratar a seleção no editor como autorização de envio.
+    if (process.env.EDITORIAL_PUSH_MANUAL_ENABLED !== "true") {
+      return { error: "Envio de notificações em preparação. Nenhum aviso foi enviado ou incluído na fila." };
+    }
+    const preferenceColumn = kind === "urgent" ? "urgent_enabled" : "ordinary_enabled";
+    const { count: eligible, error: countError } = await db.from("site_push_subscriptions")
+      .select("id", { count: "exact", head: true })
+      .eq("enabled", true)
+      .eq(preferenceColumn, true);
+    if (countError) return { error: "Não foi possível conferir os dispositivos inscritos. Nenhum envio realizado." };
+    if (!eligible) return { error: "Nenhum dispositivo inscrito e autorizado para este tipo de notificação. Nenhum aviso foi enfileirado." };
+
     // Evita dois avisos acidentais para a mesma matéria quando o gatilho
     // automático de publicação (article_publish_events_enabled) e este
     // envio manual são usados para o mesmo link — sem impedir um reenvio
