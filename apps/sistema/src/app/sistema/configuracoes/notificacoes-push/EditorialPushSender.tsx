@@ -19,7 +19,7 @@ export function EditorialPushSender({ prefill, enabled, eligibleByKind }: {
   const eligibleCount = eligibleByKind[kind];
   const [title, setTitle] = useState(prefill?.title ?? "");
   const [body, setBody] = useState(prefill?.body ?? "");
-  const [href, setHref] = useState(prefill?.href ?? "/");
+  const [href, setHref] = useState(prefill?.href ?? "");
   const [requestId, setRequestId] = useState("");
   useEffect(() => setRequestId(crypto.randomUUID()), []);
   const [message, setMessage] = useState<string | null>(null);
@@ -56,7 +56,7 @@ export function EditorialPushSender({ prefill, enabled, eligibleByKind }: {
       setRequestId(crypto.randomUUID());
       setTitle("");
       setBody("");
-      setHref("/");
+      setHref("");
     });
   }
   return (
@@ -88,7 +88,7 @@ export function EditorialPushSender({ prefill, enabled, eligibleByKind }: {
       </label>
       <label className="form-field">
         <span className="field-label">Link interno da notícia</span>
-        <input value={href} maxLength={500} required onChange={(event) => setHref(event.target.value)} disabled={pending} placeholder="/noticia/exemplo" />
+        <input value={href} maxLength={500} required onChange={(event) => setHref(event.target.value)} disabled={pending} placeholder="/noticias/exemplo" />
       </label>
       <button type="submit" className="form-action-primary" disabled={pending || !requestId || !enabled || eligibleCount === 0}>{pending ? "Preparando..." : kind === "urgent" ? "Preparar aviso urgente" : "Preparar notificação"}</button>
       {message ? <p role="status" className="helper-text">{message}</p> : null}
