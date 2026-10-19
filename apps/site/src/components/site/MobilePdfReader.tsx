@@ -167,8 +167,13 @@ export function MobilePdfReader({ pdfUrl, title, fullscreen = false }: { pdfUrl:
       return Math.hypot(x, y);
     };
 
+    let lastTap: { time: number; x: number; y: number } | null = null;
+    let singleTouchStart: { x: number; y: number; moved: boolean } | null = null;
+
     const startPinch = (event: TouchEvent): void => {
       if (event.touches.length !== 2) return;
+      lastTap = null;
+      singleTouchStart = null;
       const bounds = viewport.getBoundingClientRect();
       const centerX = (event.touches[0].clientX + event.touches[1].clientX) / 2 - bounds.left;
       const centerY = (event.touches[0].clientY + event.touches[1].clientY) / 2 - bounds.top;
@@ -208,15 +213,85 @@ export function MobilePdfReader({ pdfUrl, title, fullscreen = false }: { pdfUrl:
       setZoom(nextZoom);
     };
 
-    viewport.addEventListener("touchstart", startPinch, { passive: true });
-    viewport.addEventListener("touchmove", movePinch, { passive: false });
-    viewport.addEventListener("touchend", finishPinch, { passive: true });
-    viewport.addEventListener("touchcancel", finishPinch, { passive: true });
+    const onTouchStart = (event: TouchEvent): void => {
+      if (event.touches.length === 2) {
+        startPinch(event);
+      } else if (event.touches.length === 1) {
+        const touch = event.touches[0];
+        singleTouchStart = { x: touch.clientX, y: touch.clientY, moved: false };
+      }
+    };
+
+    const onTouchMove = (event: TouchEvent): void => {
+      if (event.touches.length === 2) {
+        movePinch(event);
+      } else if (event.touches.length === 1 && singleTouchStart) {
+        const touch = event.touches[0];
+        if (Math.hypot(touch.clientX - singleTouchStart.x, touch.clientY - singleTouchStart.y) > 12) {
+          singleTouchStart.moved = true;
+        }
+      }
+    };
+
+    const onTouchEnd = (event: TouchEvent): void => {
+      const wasPinching = pinchRef.current !== null;
+      finishPinch(event);
+      if (wasPinching || event.touches.length > 0) {
+        singleTouchStart = null;
+        lastTap = null;
+        return;
+      }
+
+      const touch = event.changedTouches[0];
+      if (!touch || !singleTouchStart || singleTouchStart.moved) {
+        singleTouchStart = null;
+        lastTap = null;
+        return;
+      }
+      singleTouchStart = null;
+      const now = Date.now();
+      const isDoubleTap = lastTap !== null
+        && now - lastTap.time <= 320
+        && Math.hypot(touch.clientX - lastTap.x, touch.clientY - lastTap.y) <= 32;
+      if (!isDoubleTap) {
+        lastTap = { time: now, x: touch.clientX, y: touch.clientY };
+        return;
+      }
+
+      lastTap = null;
+      if (event.cancelable) event.preventDefault();
+      const previousZoom = zoomRef.current;
+      const nextZoom = previousZoom < 1.25 ? 1.5 : 1;
+      const bounds = viewport.getBoundingClientRect();
+      const x = touch.clientX - bounds.left;
+      const y = touch.clientY - bounds.top;
+      const contentX = (viewport.scrollLeft + x) / previousZoom;
+      const contentY = (viewport.scrollTop + y) / previousZoom;
+      zoomRef.current = nextZoom;
+      pages.style.setProperty("--ir-pdf-display-width", `${nextZoom * 100}%`);
+      setZoom(nextZoom);
+      window.requestAnimationFrame(() => {
+        if (!viewport.isConnected) return;
+        viewport.scrollLeft = contentX * nextZoom - x;
+        viewport.scrollTop = contentY * nextZoom - y;
+      });
+    };
+
+    const onTouchCancel = (event: TouchEvent): void => {
+      finishPinch(event);
+      singleTouchStart = null;
+      lastTap = null;
+    };
+
+    viewport.addEventListener("touchstart", onTouchStart, { passive: true });
+    viewport.addEventListener("touchmove", onTouchMove, { passive: false });
+    viewport.addEventListener("touchend", onTouchEnd, { passive: false });
+    viewport.addEventListener("touchcancel", onTouchCancel, { passive: true });
     return () => {
-      viewport.removeEventListener("touchstart", startPinch);
-      viewport.removeEventListener("touchmove", movePinch);
-      viewport.removeEventListener("touchend", finishPinch);
-      viewport.removeEventListener("touchcancel", finishPinch);
+      viewport.removeEventListener("touchstart", onTouchStart);
+      viewport.removeEventListener("touchmove", onTouchMove);
+      viewport.removeEventListener("touchend", onTouchEnd);
+      viewport.removeEventListener("touchcancel", onTouchCancel);
       pinchRef.current = null;
     };
   }, [pdf]);
