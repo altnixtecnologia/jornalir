@@ -79,8 +79,10 @@ function MobilePdfPage({
       ref={wrapRef}
       className="mx-auto mb-3 overflow-hidden rounded-md border bg-white shadow-sm"
       style={{
-        width: `${Math.round(zoom * 100)}%`,
-        maxWidth: zoom <= 1 ? "100%" : "none",
+        // A largura usa uma variável atualizada durante a pinça, sem forçar
+        // nova renderização PDF.js a cada movimento do dedo.
+        width: "var(--ir-pdf-display-width, 100%)",
+        maxWidth: "none",
         borderColor: "var(--site-line)",
         minHeight: nearViewport ? undefined : `${Math.round(aspectRatio * 100)}vw`,
       }}
@@ -107,11 +109,96 @@ function MobilePdfPage({
   );
 }
 
-export function MobilePdfReader({ pdfUrl, title }: { pdfUrl: string; title: string }): JSX.Element {
+export function MobilePdfReader({ pdfUrl, title, fullscreen = false }: { pdfUrl: string; title: string; fullscreen?: boolean }): JSX.Element {
   const [pdf, setPdf] = useState<PDFDocumentProxy | null>(null);
   const [page, setPage] = useState(1);
   const [zoom, setZoom] = useState(1);
   const [error, setError] = useState<string | null>(null);
+  const viewportRef = useRef<HTMLDivElement | null>(null);
+  const pagesRef = useRef<HTMLDivElement | null>(null);
+  const zoomRef = useRef(1);
+  const pinchRef = useRef<{
+    distance: number;
+    startZoom: number;
+    displayZoom: number;
+    anchorX: number;
+    anchorY: number;
+    contentX: number;
+    contentY: number;
+  } | null>(null);
+
+  // Zoom de tela e zoom de renderização são separados: ao mover os dedos,
+  // só alteramos o tamanho CSS; PDF.js renderiza em alta definição uma vez
+  // quando a pinça termina. Evita telas brancas/piscadas no Android.
+  useEffect(() => {
+    zoomRef.current = zoom;
+    pagesRef.current?.style.setProperty("--ir-pdf-display-width", `${zoom * 100}%`);
+  }, [zoom, pdf]);
+
+  useEffect(() => {
+    const viewport = viewportRef.current;
+    const pages = pagesRef.current;
+    if (!viewport || !pages || !pdf) return;
+
+    const distanceBetween = (touches: TouchList): number => {
+      const x = touches[0].clientX - touches[1].clientX;
+      const y = touches[0].clientY - touches[1].clientY;
+      return Math.hypot(x, y);
+    };
+
+    const startPinch = (event: TouchEvent): void => {
+      if (event.touches.length !== 2) return;
+      const bounds = viewport.getBoundingClientRect();
+      const centerX = (event.touches[0].clientX + event.touches[1].clientX) / 2 - bounds.left;
+      const centerY = (event.touches[0].clientY + event.touches[1].clientY) / 2 - bounds.top;
+      const currentZoom = zoomRef.current;
+      pinchRef.current = {
+        distance: Math.max(1, distanceBetween(event.touches)),
+        startZoom: currentZoom,
+        displayZoom: currentZoom,
+        anchorX: centerX,
+        anchorY: centerY,
+        contentX: (viewport.scrollLeft + centerX) / currentZoom,
+        contentY: (viewport.scrollTop + centerY) / currentZoom,
+      };
+    };
+
+    const movePinch = (event: TouchEvent): void => {
+      if (event.touches.length !== 2) return;
+      if (!pinchRef.current) startPinch(event);
+      const state = pinchRef.current;
+      if (!state) return;
+      // Listener nativo não passivo: impedir zoom do WebView, que ampliaria
+      // todo o site em vez de ampliar as páginas do jornal.
+      if (event.cancelable) event.preventDefault();
+      const nextZoom = Math.max(1, Math.min(3, state.startZoom * distanceBetween(event.touches) / state.distance));
+      state.displayZoom = nextZoom;
+      pages.style.setProperty("--ir-pdf-display-width", `${nextZoom * 100}%`);
+      viewport.scrollLeft = state.contentX * nextZoom - state.anchorX;
+      viewport.scrollTop = state.contentY * nextZoom - state.anchorY;
+    };
+
+    const finishPinch = (event: TouchEvent): void => {
+      if (event.touches.length >= 2 || !pinchRef.current) return;
+      const finished = pinchRef.current;
+      pinchRef.current = null;
+      const nextZoom = Number(finished.displayZoom.toFixed(2));
+      zoomRef.current = nextZoom;
+      setZoom(nextZoom);
+    };
+
+    viewport.addEventListener("touchstart", startPinch, { passive: true });
+    viewport.addEventListener("touchmove", movePinch, { passive: false });
+    viewport.addEventListener("touchend", finishPinch, { passive: true });
+    viewport.addEventListener("touchcancel", finishPinch, { passive: true });
+    return () => {
+      viewport.removeEventListener("touchstart", startPinch);
+      viewport.removeEventListener("touchmove", movePinch);
+      viewport.removeEventListener("touchend", finishPinch);
+      viewport.removeEventListener("touchcancel", finishPinch);
+      pinchRef.current = null;
+    };
+  }, [pdf]);
 
   useEffect(() => {
     let cancelled = false;
@@ -131,6 +218,7 @@ export function MobilePdfReader({ pdfUrl, title }: { pdfUrl: string; title: stri
         if (!cancelled) {
           setPdf(loaded);
           setPage(1);
+          setZoom(1);
         }
       } catch {
         if (!cancelled) setError("Não foi possível carregar esta edição.");
@@ -161,7 +249,11 @@ export function MobilePdfReader({ pdfUrl, title }: { pdfUrl: string; title: stri
   }
 
   return (
-    <section aria-label={`Leitor de ${title}`} className="rounded-xl border" style={{ borderColor: "var(--site-line)" }}>
+    <section
+      aria-label={`Leitor de ${title}`}
+      className="rounded-xl border"
+      style={{ borderColor: "var(--site-line)", height: fullscreen ? "100%" : undefined, display: "flex", flexDirection: "column", minHeight: 0 }}
+    >
       <div
         className="sticky z-20 flex items-center justify-between gap-2 border-b px-2 py-2 backdrop-blur"
         style={{
@@ -169,7 +261,7 @@ export function MobilePdfReader({ pdfUrl, title }: { pdfUrl: string; title: stri
           background: "rgba(255,255,255,.94)",
           // Abaixo do SiteHeader (sticky top:0 também), não sobre ele —
           // evita duas barras disputando o topo da tela (18/10/2026).
-          top: "calc(58px + env(safe-area-inset-top, 0px))",
+          top: fullscreen ? "0px" : "calc(58px + env(safe-area-inset-top, 0px))",
         }}
       >
         <span className="text-xs font-semibold">
@@ -207,10 +299,23 @@ export function MobilePdfReader({ pdfUrl, title }: { pdfUrl: string; title: stri
         </div>
       </div>
 
-      <div className="max-h-[82vh] overflow-auto bg-zinc-200 p-2" style={{ touchAction: "pan-x pan-y pinch-zoom" }}>
-        {Array.from({ length: pdf.numPages }, (_, index) => (
-          <MobilePdfPage key={index} pdf={pdf} index={index} zoom={zoom} onVisible={setPage} />
-        ))}
+      <div
+        ref={viewportRef}
+        className="overflow-auto bg-zinc-200 p-2"
+        style={{
+          maxHeight: fullscreen ? "none" : "82vh",
+          flex: fullscreen ? "1 1 auto" : undefined,
+          minHeight: 0,
+          // Deixa o dedo deslizar, mas a pinça é tratada pelo leitor.
+          touchAction: "pan-x pan-y",
+          overscrollBehavior: "contain",
+        }}
+      >
+        <div ref={pagesRef} style={{ ["--ir-pdf-display-width" as string]: `${zoom * 100}%` }}>
+          {Array.from({ length: pdf.numPages }, (_, index) => (
+            <MobilePdfPage key={index} pdf={pdf} index={index} zoom={zoom} onVisible={setPage} />
+          ))}
+        </div>
       </div>
     </section>
   );
