@@ -1,6 +1,7 @@
 import { AdSenseSlot } from "../../components/site/AdSenseSlot";
 import { AdSlotColumn } from "../../components/site/AdSlotColumn";
 import { AdSlotPairRow } from "../../components/site/AdSlotPairRow";
+import { GlobalAdRotation } from "../../components/site/GlobalAdRotation";
 import type { AdSlot } from "../../components/site/adSlots";
 import { SiteHeader } from "../../components/site/SiteHeader";
 import { PublicFeaturedHero } from "../../components/site/public/PublicFeaturedHero";
@@ -91,21 +92,23 @@ export default async function HomePage(): Promise<JSX.Element> {
       <div className="site-shell"><hr className="divider my-6" /></div>
 
       <section className="site-shell">
-        <div className="home-latest-news-grid grid grid-cols-1 gap-10 xl:grid-cols-[170px_minmax(0,1fr)_170px] 2xl:grid-cols-[200px_minmax(0,1fr)_200px] xl:items-start">
-          <div className="hidden xl:block"><AdSlotColumn slots={leftAdSlots} side="left" /></div>
+        <GlobalAdRotation slots={adSlots}>
+          <div className="home-latest-news-grid grid grid-cols-1 gap-10 xl:grid-cols-[170px_minmax(0,1fr)_170px] 2xl:grid-cols-[200px_minmax(0,1fr)_200px] xl:items-start">
+            <div className="hidden xl:block"><AdSlotColumn slots={leftAdSlots} side="left" /></div>
 
-          <div className="min-w-0">
-            <div className="mb-7 xl:hidden"><AdSlotPairRow slots={mobilePairs[0]} /></div>
-            <PublicLatestNewsList items={latestNews} />
-            <div className="mt-1 xl:hidden"><AdSlotPairRow slots={mobilePairs[1]} /></div>
+            <div className="min-w-0">
+              <div className="mb-7 xl:hidden"><AdSlotPairRow slots={mobilePairs[0]} /></div>
+              <PublicLatestNewsList items={latestNews} />
+              <div className="mt-1 xl:hidden"><AdSlotPairRow slots={mobilePairs[1]} /></div>
+            </div>
+
+            <div className="hidden xl:block"><AdSlotColumn slots={rightAdSlots} side="right" /></div>
           </div>
 
-          <div className="hidden xl:block"><AdSlotColumn slots={rightAdSlots} side="right" /></div>
-        </div>
-
-        <hr className="divider mt-10" />
-        <div className="pt-10"><PublicLocalSpotlight items={localSpotlight} /></div>
-        <div className="mt-8 pb-4 xl:hidden"><AdSlotPairRow slots={mobilePairs[2]} /></div>
+          <hr className="divider mt-10" />
+          <div className="pt-10"><PublicLocalSpotlight items={localSpotlight} /></div>
+          <div className="mt-8 pb-4 xl:hidden"><AdSlotPairRow slots={mobilePairs[2]} /></div>
+        </GlobalAdRotation>
       </section>
     </main>
   );
