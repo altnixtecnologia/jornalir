@@ -52,3 +52,9 @@ Separar **inscrição**, **teste individual** e **envio geral**. O aplicativo An
 - A tela `/notificacoes` é agora acessível pelo botão `Ativar ou configurar avisos` dentro do sininho no site e no app Android (WebView).
 - CSS do cabeçalho mobile ajustado para colunas `minmax(0,1fr) auto minmax(0,1fr)`, corrigindo a logo IR deslocada mostrada pelo proprietário. Alteração restrita ao site.
 - Necessita conferência visual no aparelho instalado, sem novo APK. Este ajuste teve publicação separada da implantação inicial FCM; conferir SHA mais novo do site em produção.
+
+## Publicação final da correção visual/navegação
+- Site `jornalir` **Production READY**: `dpl_7gK3Qm1XUVBez9XYRzJzA7iyDAe1`, SHA `1ac98985ea14ee927ab60d7292476b48f0ea25f4`; compilação Next.js e checagem de tipos concluídas.
+- Sistema `jornalir-sistema` permanece **Production READY** `dpl_D9tcK1o2rmYgpv4wn5BetYwEQ5E4`, SHA `10afa95865083511b5194b2aa063d9addf298141`.
+- Smoke da URL de inscrição `https://jornalir.vercel.app/notificacoes` retornou HTTP 200; não substitui teste dentro do WebView.
+- O código está na branch `feature/fcm-servidor-homologacao-20261019`; após este relatório, o HEAD possui somente documentação adicional. Claude deve fazer `git fetch` e integrar **todo o histórico** antes de continuar localmente, sem sobrescrever commits locais.

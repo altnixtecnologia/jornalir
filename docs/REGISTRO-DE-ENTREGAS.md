@@ -386,3 +386,7 @@ P1: performance/Core Web Vitals, alertas de erros, painel de estatísticas, vín
 - Migration FCM aplicada em produção com versão real `20261019202943`. Nome do arquivo GitHub alinhado à versão aplicada; não reaplicar migration antiga `20261030101100`.
 - Android pode consentir e se cadastrar em `/notificacoes`; testes FCM individuais via painel owner/admin; envio editorial e worker geral desligados. Zero push enviado durante implantação.
 - Handoff detalhado: `docs/FCM-ANDROID-SERVIDOR-DEPLOY-20261019.md`. Claude deverá sincronizar branch inteira no VS Code depois de examinar commits locais, sem reset/force-push, e testar normal+urgente no aparelho antes de liberar envio geral.
+
+## 2026-10-19 — Ajuste de sininho e cabeçalho Android publicado
+- Site Production READY `dpl_7gK3Qm1XUVBez9XYRzJzA7iyDAe1` no SHA `1ac98985ea14ee927ab60d7292476b48f0ea25f4`. Cabeçalho IR centralizado por grid simétrico, ação no sininho para `/notificacoes`. Backend permanece `dpl_D9tcK1o2rmYgpv4wn5BetYwEQ5E4`.
+- Smoke HTTP 200 na página pública; **precisa validação visual e de inscrição no aparelho real**. Zero disparos realizados durante a implantação.
