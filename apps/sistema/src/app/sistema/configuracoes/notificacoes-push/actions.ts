@@ -29,8 +29,10 @@ export async function enqueueSitePushAction(form: FormData): Promise<PushActionR
     if (kind !== "ordinary" && kind !== "urgent") return { error: "Tipo inválido." };
     if (!title || title.length > 110) return { error: "Título obrigatório, até 110 caracteres." };
     if (!body || body.length > 320) return { error: "Texto obrigatório, até 320 caracteres." };
-    if (!href.startsWith("/") || href.startsWith("//") || href.includes("\\") || /[\r\n]/.test(href) || href.length > 500) {
-      return { error: "Informe um link interno do jornal, começando com /." };
+    // O mesmo link precisa funcionar no portal e no app Android FCM.
+    // O worker nativo só permite abrir matérias, não URLs arbitrárias.
+    if (!ARTICLE_HREF_RE.test(href) || href.length > 500) {
+      return { error: "Informe o link de uma matéria no formato /noticias/nome-da-materia." };
     }
     if (!/^[a-f0-9-]{36}$/i.test(requestId)) return { error: "Identificador do envio inválido." };
     const dbUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -44,12 +46,25 @@ export async function enqueueSitePushAction(form: FormData): Promise<PushActionR
       return { error: "Envio de notificações em preparação. Nenhum aviso foi enviado ou incluído na fila." };
     }
     const preferenceColumn = kind === "urgent" ? "urgent_enabled" : "ordinary_enabled";
-    const { count: eligible, error: countError } = await db.from("site_push_subscriptions")
+    const { count: webEligible, error: webError } = await db.from("site_push_subscriptions")
       .select("id", { count: "exact", head: true })
       .eq("enabled", true)
       .eq(preferenceColumn, true);
-    if (countError) return { error: "Não foi possível conferir os dispositivos inscritos. Nenhum envio realizado." };
-    if (!eligible) return { error: "Nenhum dispositivo inscrito e autorizado para este tipo de notificação. Nenhum aviso foi enfileirado." };
+    if (webError) return { error: "Não foi possível conferir os inscritos Web Push. Nenhum aviso foi enfileirado." };
+
+    // Tokens FCM não são assinaturas VAPID: contam separadamente e apenas
+    // quando a entrega nativa estiver autorizada e configurada.
+    let nativeEligible = 0;
+    if (process.env.NATIVE_FCM_DELIVERY_ENABLED === "true") {
+      const native = await db.from("native_push_devices")
+        .select("id", { count: "exact", head: true })
+        .eq("enabled", true).eq(preferenceColumn, true);
+      if (native.error) return { error: "Não foi possível conferir aparelhos Android. Nenhum aviso foi enfileirado." };
+      nativeEligible = native.count ?? 0;
+    }
+    if ((webEligible ?? 0) + nativeEligible === 0) {
+      return { error: "Nenhum leitor inscrito e autorizado para avisos deste tipo (Web/Android). Nenhum aviso foi enfileirado." };
+    }
 
     // Evita dois avisos acidentais para a mesma matéria quando o gatilho
     // automático de publicação (article_publish_events_enabled) e este

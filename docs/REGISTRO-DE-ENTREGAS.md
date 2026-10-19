@@ -351,3 +351,13 @@ P1: performance/Core Web Vitals, alertas de erros, painel de estatísticas, vín
 - Nenhum push no GitHub, nenhum deploy na Vercel, nenhuma outra funcionalidade
   alterada. Relatório completo e evidências em `docs/STATUS-E-HANDOFF.md`, seção
   "LOTE 3".
+
+## 2026-10-19 — ChatGPT, revisão final do backend FCM (somente branch)
+
+- Branch `feature/backend-fcm-notificacoes-20261019` isolada da Claude e da `main`.
+- Quatro correções de código em sequência: `40217a3` (reenvio duplicado no formulário), `2fd3261` (janela de 24h e última atividade antes de enviar FCM), `4886e02` (URL editorial compatível com Android), `f6e0e49` (formulário usa link correto). Documentação no commit `607866c`.
+- Conferência estática de oito invariantes passou: alias FCM, guards de cadastro/entrega, URL `/noticias/<slug>`, reenvio sob transição e TTL. **Não equivale a typecheck/build ou envio real.**
+- Supabase `site-system-ir` sem migrations 20261030... aplicadas, sem tabelas `native_push_*`, sem inscrições/eventos na conferência. Nunca aplicar todas as migrations em bloco sem verificar efeitos; `20261030100100` deixa `assine_enabled=false` por padrão.
+- Vercel `jornalir-sistema`: `CRON_SECRET` existe, variáveis Firebase/FCM ausentes. Nenhuma variável alterada. Todas as flags de disparo seguem desligadas.
+- Claude relatou Android v.00.02 build debug OK, áudio original validado e projeto Google Cloud `jornal-ir-app`; integração Firebase ainda bloqueada (HTTP 403 em addFirebase). Os seis commits locais da Claude (HEAD relatado `4d0d49e`) ainda **não foram enviados** à branch remota `feature/site-lancamento-editorial-publicidade-20261018`. Não forçar merge antes de receber o HEAD completo.
+- Nenhum deploy/migration/disparo real. APK release e E2E ainda pendentes. O Jornal Online/PDFs foi explicitamente colocado em espera pelo proprietário.
