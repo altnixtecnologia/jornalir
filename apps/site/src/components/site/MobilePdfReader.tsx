@@ -43,29 +43,50 @@ function MobilePdfPage({
     let renderTask: ReturnType<Awaited<ReturnType<PDFDocumentProxy["getPage"]>>["render"]> | null = null;
 
     async function render(): Promise<void> {
-      const page = await pdf.getPage(index + 1);
-      if (cancelled) return;
-
-      const viewport = page.getViewport({ scale: 1.55 * zoom });
-      setAspectRatio(viewport.height / viewport.width);
-      const canvas = canvasRef.current;
-      if (!canvas) return;
-      const context = canvas.getContext("2d", { alpha: false });
-      if (!context) return;
-
-      canvas.width = Math.ceil(viewport.width);
-      canvas.height = Math.ceil(viewport.height);
-      renderTask = page.render({ canvasContext: context, viewport });
       try {
+        const page = await pdf.getPage(index + 1);
+        if (cancelled) return;
+
+        // Limitar o canvas para não esgotar a memória no WebView Android
+        // durante o zoom de páginas grandes.
+        const base = page.getViewport({ scale: 1 });
+        const maxScale = Math.sqrt(8_000_000 / Math.max(1, base.width * base.height));
+        const viewport = page.getViewport({ scale: Math.min(1.55 * zoom, maxScale) });
+        const ratio = viewport.height / viewport.width;
+        setAspectRatio((current) => Math.abs(current - ratio) < 0.001 ? current : ratio);
+
+        // Renderizar fora da tela primeiro: não apagar/reescalar o canvas
+        // visível enquanto o PDF.js prepara o próximo nível de zoom.
+        const buffer = document.createElement("canvas");
+        buffer.width = Math.ceil(viewport.width);
+        buffer.height = Math.ceil(viewport.height);
+        const bufferContext = buffer.getContext("2d", { alpha: false });
+        if (!bufferContext || !canvasRef.current) return;
+        renderTask = page.render({ canvasContext: bufferContext, viewport });
         await renderTask.promise;
+        if (cancelled) return;
+
+        const visible = canvasRef.current;
+        const visibleContext = visible?.getContext("2d", { alpha: false });
+        if (!visible || !visibleContext) return;
+        // Limpar e desenhar acontece sincronamente no mesmo frame; a
+        // imagem antiga permanece visível até esta substituição.
+        visible.width = buffer.width;
+        visible.height = buffer.height;
+        visibleContext.drawImage(buffer, 0, 0);
       } catch (error) {
-        if (!cancelled) throw error;
+        if (!cancelled) {
+          console.warn("Não foi possível atualizar a nitidez desta página do PDF.", error);
+        }
       }
     }
 
-    void render();
+    // A pinça atualiza apenas CSS enquanto se move; esperar uma pausa curta
+    // evita re-renderizar dezenas de páginas a cada ajuste do zoom.
+    const timer = window.setTimeout(() => { void render(); }, 140);
     return () => {
       cancelled = true;
+      window.clearTimeout(timer);
       try {
         renderTask?.cancel();
       } catch {
