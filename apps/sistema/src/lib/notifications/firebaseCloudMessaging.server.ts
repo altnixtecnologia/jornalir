@@ -71,10 +71,16 @@ async function accessToken(): Promise<string> {
 export async function sendFcmToAndroid(input: {
   token: string; eventId: string; kind: "ordinary" | "urgent";
   title: string; body: string; href: string;
-}): Promise<FcmSendResult> {
+}, options?: { isolatedTest?: boolean }): Promise<FcmSendResult> {
   const { projectId } = credentials();
-  if (process.env.NATIVE_FCM_DELIVERY_ENABLED !== "true") {
-    throw new Error("Envios FCM desativados até homologação.");
+  // Testes só pelo painel autorizado e para um token isolado. O worker geral
+  // nunca usa isolatedTest e permanece bloqueado até homologação final.
+  if (options?.isolatedTest) {
+    if (process.env.NATIVE_FCM_TEST_SEND_ENABLED !== "true") {
+      throw new Error("Teste FCM desativado.");
+    }
+  } else if (process.env.NATIVE_FCM_DELIVERY_ENABLED !== "true") {
+    throw new Error("Envios gerais FCM desativados até homologação.");
   }
   if (!/^[a-zA-Z0-9:_-]{40,4096}$/.test(input.token)) {
     throw new Error("Token FCM inválido.");

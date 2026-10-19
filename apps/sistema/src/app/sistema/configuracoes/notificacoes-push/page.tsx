@@ -3,6 +3,7 @@ import { createClient } from "@supabase/supabase-js";
 import { ModuleHeader } from "../../../../components/admin/ModuleHeader";
 import { createSupabaseServerClient } from "../../../../lib/supabase/server";
 import { EditorialPushSender, type EditorialPushPrefill } from "./EditorialPushSender";
+import { NativeFcmTestPanel, type NativeFcmTestDevice } from "./NativeFcmTestPanel";
 
 export const dynamic = "force-dynamic";
 
@@ -36,6 +37,8 @@ export default async function PushEditorialPage({
 
   const enabled = process.env.EDITORIAL_PUSH_MANUAL_ENABLED === "true";
   const nativeDeliveryEnabled = process.env.NATIVE_FCM_DELIVERY_ENABLED === "true";
+  const nativeTestEnabled = process.env.NATIVE_FCM_TEST_SEND_ENABLED === "true";
+  let testDevices: NativeFcmTestDevice[] = [];
   const eligibleByKind = { ordinary: 0, urgent: 0 };
   const counts = { web: 0, native: 0, fcmAccepted: 0, fcmFailed: 0, fcmPending: 0 };
   let nativeSchemaReady = false;
@@ -63,6 +66,15 @@ export default async function PushEditorialPage({
         eligibleByKind.urgent += (native.data ?? []).filter((row) => row.urgent_enabled).length;
       }
     }
+    if (nativeTestEnabled && nativeSchemaReady) {
+      const { data: testRows } = await db.from("native_push_devices")
+        .select("id,ordinary_enabled,urgent_enabled,last_seen_at")
+        .eq("enabled", true).order("last_seen_at", { ascending: false }).limit(20);
+      testDevices = (testRows ?? []).map((row) => ({
+        id: row.id, ordinary: row.ordinary_enabled, urgent: row.urgent_enabled,
+        lastSeenAt: row.last_seen_at,
+      }));
+    }
     if (!deliveries.error) {
       counts.fcmAccepted = (deliveries.data ?? []).filter((row) => row.status === "sent").length;
       counts.fcmFailed = (deliveries.data ?? []).filter((row) => ["failed", "uncertain", "expired"].includes(row.status)).length;
@@ -89,6 +101,7 @@ export default async function PushEditorialPage({
           Entrega nativa: {nativeDeliveryEnabled ? "habilitada" : "DESATIVADA"}.
         </p>
       </section>
+      <NativeFcmTestPanel enabled={nativeTestEnabled} devices={testDevices} />
       <EditorialPushSender prefill={prefill} enabled={enabled} eligibleByKind={eligibleByKind} />
     </>
   );
