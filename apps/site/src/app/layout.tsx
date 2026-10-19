@@ -5,7 +5,6 @@ import { SiteFooter } from "../components/site/SiteFooter";
 import { WhatsAppFloatingButton } from "../components/site/WhatsAppFloatingButton";
 import { MobileBackButton } from "../components/site/MobileBackButton";
 import { NotificationCenterProvider } from "../components/site/public/notifications/NotificationCenterContext";
-import { FloatingNotificationBell } from "../components/site/public/notifications/FloatingNotificationBell";
 import { NotificationPanel } from "../components/site/public/notifications/NotificationPanel";
 import "./globals.css";
 
@@ -54,7 +53,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }):
           {children}
           <SiteFooter />
           <WhatsAppFloatingButton />
-          <FloatingNotificationBell />
           <NotificationPanel />
         </NotificationCenterProvider>
       </body>
