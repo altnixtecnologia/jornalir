@@ -29,8 +29,10 @@ export async function enqueueSitePushAction(form: FormData): Promise<PushActionR
     if (kind !== "ordinary" && kind !== "urgent") return { error: "Tipo inválido." };
     if (!title || title.length > 110) return { error: "Título obrigatório, até 110 caracteres." };
     if (!body || body.length > 320) return { error: "Texto obrigatório, até 320 caracteres." };
-    if (!href.startsWith("/") || href.startsWith("//") || href.includes("\\") || /[\r\n]/.test(href) || href.length > 500) {
-      return { error: "Informe um link interno do jornal, começando com /." };
+    // O mesmo link precisa funcionar no portal e no app Android FCM.
+    // O worker nativo só permite abrir matérias, não URLs arbitrárias.
+    if (!ARTICLE_HREF_RE.test(href) || href.length > 500) {
+      return { error: "Informe o link de uma matéria no formato /noticias/nome-da-materia." };
     }
     if (!/^[a-f0-9-]{36}$/i.test(requestId)) return { error: "Identificador do envio inválido." };
     const dbUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
