@@ -9,6 +9,9 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@capacitor/core": "7.6.9",
+    "@capacitor/local-notifications": "7.0.7",
+    "@capacitor/push-notifications": "7.0.7",
     "@ir/config": "*",
     "@ir/mocks": "*",
     "@ir/types": "*",
