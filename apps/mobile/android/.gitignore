@@ -62,8 +62,9 @@ keystore.properties
 .externalNativeBuild
 .cxx/
 
-# Google Services (e.g. APIs or Firebase)
-# google-services.json
+# Google Services (e.g. APIs or Firebase) — NUNCA versionar: é específico
+# do projeto Firebase real do Jornal IR (19/10/2026), fica só local.
+google-services.json
 
 # Freeline
 freeline.py
