@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import { Fragment, useEffect, useRef, useState } from "react";
 import {
   assinaturasNavGroup,
@@ -49,13 +49,19 @@ function normalize(text: string): string {
   return text.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
 }
 
-function isActive(pathname: string, href: string): boolean {
-  const [route] = href.split("?");
+function isActive(pathname: string, href: string, currentView: "agenda" | "pauta"): boolean {
+  const [route, query] = href.split("?");
+  if (route === "/sistema/agenda") {
+    const view = new URLSearchParams(query ?? "").get("view") === "pauta" ? "pauta" : "agenda";
+    return pathname === route && currentView === view;
+  }
   return pathname === route || (route !== "/sistema" && pathname.startsWith(route + "/"));
 }
 
 export function MobileNav({ onNavigate }: { onNavigate: () => void }): JSX.Element {
   const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const currentView = searchParams.get("view") === "pauta" ? "pauta" : "agenda";
   const { profile } = useAuth();
   const { agendaRead, pautaRead } = useAgendaPautaReadAccess();
   const { hasModule } = useStaffModuleVisibility();
@@ -122,7 +128,7 @@ export function MobileNav({ onNavigate }: { onNavigate: () => void }): JSX.Eleme
       onClick={close}
       className={"mobile-nav-link" + (link.primary ? " is-primary" : "") + (planned ? " mobile-nav-link--planned" : "")}
       style={link.group ? { paddingLeft: 28 } : undefined}
-      aria-current={isActive(pathname, link.href) ? "page" : undefined}
+      aria-current={isActive(pathname, link.href, currentView) ? "page" : undefined}
     >
       {link.label}
     </Link>
@@ -160,7 +166,7 @@ export function MobileNav({ onNavigate }: { onNavigate: () => void }): JSX.Eleme
                   href={link.href}
                   onClick={close}
                   className="mobile-nav-quick-link"
-                  aria-current={isActive(pathname, link.href) ? "page" : undefined}
+                  aria-current={isActive(pathname, link.href, currentView) ? "page" : undefined}
                 >
                   {link.label}
                 </Link>
