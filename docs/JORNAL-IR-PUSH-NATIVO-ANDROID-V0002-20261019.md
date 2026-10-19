@@ -161,4 +161,56 @@ condicionou isso a "Firebase e assinatura estarem corretos" — a
 assinatura está (mesmo certificado da v.00.01, confirmado), o Firebase
 não está. Build de verificação (`assembleDebug`) continua passando
 limpo com o áudio real já embutido; `assembleRelease` fica pendente
-dessa decisão (posso gerar a qualquer momento, só avisar). 
+dessa decisão (posso gerar a qualquer momento, só avisar).
+
+## Tentativa real de provisionar o Firebase via CLI (19/10/2026)
+
+Com o login do Firebase CLI já concluído pelo usuário
+(`altnixtecnologia@gmail.com`), tentei criar o projeto Firebase de ponta
+a ponta por conta própria, sem pedir mais nada ao usuário até esbarrar
+num bloqueio real.
+
+**Progresso conseguido:**
+- `firebase projects:list` → nenhum projeto Firebase existia.
+- `firebase projects:create jornal-ir-app --display-name "Jornal IR"` →
+  o projeto **Google Cloud** foi criado com sucesso
+  (`projectId=jornal-ir-app`, `projectNumber=752286899316`,
+  `lifecycleState=ACTIVE`), e o usuário já é `roles/owner` nele
+  (confirmado via `getIamPolicy`).
+- O passo seguinte, `addFirebase` (que transforma o projeto GCP comum
+  num projeto Firebase de verdade), falhou com `403 PERMISSION_DENIED`
+  genérico.
+- Diagnostiquei mais fundo: a Firebase Management API
+  (`firebase.googleapis.com`) estava **desabilitada** nesse projeto
+  recém-criado — habilitei via Service Usage API
+  (`services/firebase.googleapis.com:enable`), confirmei `state:
+  ENABLED` logo depois, e tentei `addFirebase` de novo. **Mesmo erro
+  403.**
+- Única diferença restante encontrada entre este projeto e um projeto
+  Firebase "normal": `cloudbilling.googleapis.com` mostra
+  `billingEnabled: false` e `billingAccounts: []` — **esta conta Google
+  não tem nenhuma conta de faturamento cadastrada**, nem vinculada a
+  este projeto. O plano gratuito (Spark) do Firebase, usado por FCM,
+  normalmente não exige faturamento — mas o comportamento observado
+  (403 genérico, mesmo com API habilitada e papel de Owner confirmado)
+  é consistente com checagens internas do Google que às vezes dependem
+  disso para chamadas feitas via API/CLI "headless", mesmo que a
+  interface do Console não peça o mesmo.
+- Não tentei (e não devo tentar) criar ou vincular uma conta de
+  faturamento — isso exige um método de pagamento real, uma decisão e
+  um dado financeiro que só o proprietário pode fornecer.
+
+**Projeto deixado como está:** `jornal-ir-app` (Google Cloud) existe,
+está ativo, não tem nada cobrável configurado, e pode ser reaproveitado
+— não é necessário apagá-lo nem criar outro.
+
+**Única ação que ainda falta, agora bem mais específica do que antes:**
+abrir https://console.firebase.google.com, clicar em "Adicionar
+projeto", escolher o projeto Google Cloud já existente **jornal-ir-app**
+(em vez de criar um novo do zero) e seguir o assistente até o fim — a
+interface do Console lida com qualquer verificação extra
+(faturamento/telefone/termos) de forma interativa, o que uma chamada de
+API não consegue fazer sozinha. Depois disso, com o projeto
+efetivamente "Firebase", o resto (cadastrar o app Android `com.jornalir`,
+pegar o `google-services.json`, gerar a conta de serviço) pode ser
+concluído novamente por CLI/API sem mais nenhuma ação manual. 
