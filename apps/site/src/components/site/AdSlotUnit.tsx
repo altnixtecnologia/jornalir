@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
 import type { AdSlot } from "./adSlots";
+import { useRotatingAdAtPosition } from "./GlobalAdRotation";
 
 export function AdSlotUnit({
   slot,
@@ -10,26 +10,10 @@ export function AdSlotUnit({
   slot: AdSlot;
   variant?: "column" | "pair";
 }): JSX.Element | null {
-  const [index, setIndex] = useState(0);
-
-  useEffect(() => {
-    setIndex(0);
-  }, [slot.id, slot.creatives.length]);
-
-  const current = useMemo(() => slot.creatives[index] ?? slot.creatives[0], [index, slot.creatives]);
-
-  // Cada imagem controla sua própria duração (current.rotateMs) — nunca um intervalo fixo
-  // compartilhado pela posição. O primeiro ciclo soma o deslocamento de fase (phaseOffsetMs)
-  // pra evitar que todas as posições troquem de imagem exatamente no mesmo instante.
-  useEffect(() => {
-    if (slot.creatives.length <= 1 || !current) return;
-    const phase = index === 0 ? Math.max(0, slot.phaseOffsetMs) : 0;
-    const timeoutId = window.setTimeout(() => {
-      setIndex((prev) => (prev + 1) % slot.creatives.length);
-    }, Math.max(2000, current.rotateMs) + phase);
-    return () => window.clearTimeout(timeoutId);
-  }, [current, index, slot.creatives.length, slot.phaseOffsetMs]);
-
+  // O grupo exibido muda de posição de forma coordenada; o tempo e o índice
+  // da imagem são controlados globalmente para não reiniciar a cada mudança.
+  const displayedSlot = useRotatingAdAtPosition(slot);
+  const current = displayedSlot.creatives[0];
   if (!current) return null;
 
   const fitClass = current.fitMode === "stretch" ? " ad-slot-img--stretch" : "";
@@ -44,5 +28,9 @@ export function AdSlotUnit({
   );
 
   const unitClassName = variant === "pair" ? "ad-slot-unit ad-slot-unit--compact" : "ad-slot-unit";
-  return <div className={unitClassName}>{current.href ? <a href={current.href} target="_blank" rel="sponsored noopener noreferrer">{content}</a> : content}</div>;
+  return (
+    <div className={unitClassName}>
+      {current.href ? <a href={current.href} target="_blank" rel="sponsored noopener noreferrer">{content}</a> : content}
+    </div>
+  );
 }
