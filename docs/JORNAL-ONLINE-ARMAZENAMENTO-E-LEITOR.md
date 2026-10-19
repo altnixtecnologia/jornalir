@@ -139,3 +139,19 @@ Página impressa: **25 × 36 cm**
 - Cartão de visita: **8,4 × 6 cm**
 
 O formato Padrão e o 1/4 têm praticamente a mesma proporção; o Padrão é apenas menor.
+
+
+## Decisão atualizada em 19/10/2026 — bucket exclusivo autorizado
+
+O proprietário aprovou criar **um bucket R2 Standard exclusivo** para as edições digitais, na **mesma conta Cloudflare**, com o nome proposto `jornal-ir-edicoes`. Isso separa administração, credenciais, permissões e eventuais políticas dos PDFs em relação às mídias existentes; **não** cria uma franquia gratuita adicional (os 10 GB-mês gratuitos são por conta, não por bucket).
+
+**Etapa de preparação, não publicação:** verificar a conta/buckets atuais e criar o bucket novo com Wrangler ou pelo painel, sem apagar ou mover objetos antigos, sem fazer os PDFs existentes públicos e sem importar nada enquanto o proprietário organiza os arquivos no Dropbox. Usar classe **Standard** (não Infrequent Access) para evitar taxas de recuperação dos PDFs acessados frequentemente.
+
+- Confirmar no código a utilização real de `R2_EDITIONS_BUCKET` e `R2_EDITIONS_PUBLIC_BASE_URL`; a previsão documental por si só não garante que todas as rotas estejam conectadas.
+- Credenciais de leitura/escrita do bucket devem ter escopo mínimo; preservar `R2_BUCKET`, `R2_ACCESS_KEY_ID` e `R2_SECRET_ACCESS_KEY` já usados pelo site. Nunca sobrescrever as credenciais existentes.
+- Preparar futuramente um domínio público/caminho de download para `jornal-ir-edicoes` e regras CORS para PDF.js. O bucket é **privado ao criar**; não tornar público antes de validar o domínio e a política de acesso ao acervo.
+- As edições continuam com registros de metadados no Supabase, arquivo PDF e miniatura da capa no R2, conforme a arquitetura aprovada; não criar upload através da Vercel para PDFs grandes.
+- Validar integridade SHA-256, edição/ano, capa e duplicidade na importação futura; preservar cópia original no Dropbox até a conferência.
+- **Não executar migração dos PDFs antes do aviso do proprietário.**
+
+Status em 19/10: **decisão autorizada; criação física do bucket ainda depende de acesso autenticado à conta Cloudflare**, que não está conectada diretamente a este ChatGPT.
