@@ -19,3 +19,11 @@
 - O código e a migration para gatilho `20261030100600_article_publish_notification_events.sql` já existem, com `article_publish_events_enabled=false` até liberação.
 - A rota geral FCM segue protegida por `NATIVE_FCM_DELIVERY_ENABLED=false` e a migration `20261030100600` depende de migrações anteriores de notificação (conferir `20261030100500`, sem aplicar indiscriminadamente todas).
 - Fazer homologação cuidadosa antes de ativar envios automáticos, preservando a preferência editorial.
+
+## Publicação do onboarding e observações de QA
+- **Site em produção** a partir do commit `88a01653724d72e2431de84141798315c61de03c`, deploy `dpl_5LKi5gxA69a1eFS6T32bwpmsbSM3` READY.
+- Preview anterior `dpl_DCkvHp1bGCG46tmWDFd5vZTQGwvr` READY após correção de sintaxe do regex de navegação. Tentativa prévia `dpl_5q9GgsySaTJvZRfmjNoAVUAcGaTW` falhou no build e **não foi publicada**.
+- HTTPS `https://jornalir.vercel.app/notificacoes` respondeu 200. Compilação Next.js e verificação TypeScript passaram na Vercel. Não foi possível simular o WebView Android real nesta execução; confirmar em dispositivo após atualização do site.
+- **Não** foi feita alteração em `apps/mobile`, nova compilação de APK, Supabase, backend FCM ou flags da Vercel do sistema. Registro e teste individual anteriores continuam como estavam.
+- Protocolo de aceite: novo aparelho ainda não inscrito → abrir Jornal IR → painel de primeira abertura → "Ativar notificações" → prompt SO Android → resposta do Firebase → `native_push_devices` mostra um novo aparelho; "Agora não" não volta a mostrar o painel; usuários já inscritos não veem a caixa; notificação normal/urgente chega mesmo quando o leitor está em páginas além de /notificacoes.
+- O pedido posterior do proprietário é ter envio automático normal/urgente ao publicar; essa implantação ainda **não ativou** o gatilho editorial nem o envio nativo geral.

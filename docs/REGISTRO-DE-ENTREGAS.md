@@ -390,3 +390,8 @@ P1: performance/Core Web Vitals, alertas de erros, painel de estatísticas, vín
 ## 2026-10-19 — Ajuste de sininho e cabeçalho Android publicado
 - Site Production READY `dpl_7gK3Qm1XUVBez9XYRzJzA7iyDAe1` no SHA `1ac98985ea14ee927ab60d7292476b48f0ea25f4`. Cabeçalho IR centralizado por grid simétrico, ação no sininho para `/notificacoes`. Backend permanece `dpl_D9tcK1o2rmYgpv4wn5BetYwEQ5E4`.
 - Smoke HTTP 200 na página pública; **precisa validação visual e de inscrição no aparelho real**. Zero disparos realizados durante a implantação.
+
+## 2026-10-19 — Primeira abertura de notificações Android
+- Site publicado READY `dpl_5LKi5gxA69a1eFS6T32bwpmsbSM3`, SHA `88a01653724d72e2431de84141798315c61de03c` na branch `feature/ativacao-inicial-notificacoes-20261019`.
+- Diálogo de consentimento no primeiro acesso nativo; "Agora não" persistente; solicitação da permissão somente após toque; listeners FCM globais; preferências do usuário persistidas. API e flags de push geral não alteradas. Documentação detalhada `docs/ANDROID-PRIMEIRA-ABERTURA-PUSH-20261019.md`.
+- Requisito editorial ratificado pelo proprietário: seleção Sem/Normal/Urgente deve enviar push automaticamente na transição para publicado, também pelo agendador, sem dupla entrega em edição/republicação; **ainda não ativado em produção**.
