@@ -1370,12 +1370,13 @@ body {
   background: rgba(201, 151, 0, 0.12);
 }
 
-/* Mobile fechado: ordem visual fixa Assine | IR | busca + menu. */
+/* Mobile fechado: preservar espaço para o botão de menu inclusive em
+   WebViews estreitas, fontes ampliadas e telas com recortes laterais. */
 .ir-mobile-header {
   display: grid;
-  grid-template-columns: minmax(74px, 1fr) auto minmax(88px, 1fr);
+  grid-template-columns: minmax(0, 1fr) auto max-content;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
 }
 .ir-mobile-header-left {
   justify-self: start;
@@ -1399,6 +1400,35 @@ body {
   display: flex;
   align-items: center;
   gap: 4px;
+  min-width: max-content;
+  flex-shrink: 0;
+}
+.ir-mobile-header-actions > button,
+.ir-mobile-header .ir-mobile-trigger {
+  flex-shrink: 0;
+}
+@media (max-width: 359px) {
+  .ir-mobile-header {
+    gap: 4px;
+  }
+  /* O acesso a Assine permanece no menu, mas nunca esconde o hambúrguer. */
+  .ir-mobile-header .mobile-assine-cta {
+    display: none;
+  }
+}
+/* Em tablets/TV boxes com toque e viewport >=1024px, as classes
+   Tailwind lg:hidden ocultavam o único hambúrguer; mostrar a navegação
+   de toque em vez do menu desktop, que pode extrapolar a largura útil. */
+@media (min-width: 1024px) and (hover: none) and (pointer: coarse) {
+  .site-header > .site-shell.hidden.lg\\:flex {
+    display: none !important;
+  }
+  .site-header .ir-mobile-header.lg\\:hidden {
+    display: grid !important;
+  }
+  .site-header .ir-mobile-layer.lg\\:hidden {
+    display: block !important;
+  }
 }
 .ir-mobile-menu-brand {
   display: flex;
