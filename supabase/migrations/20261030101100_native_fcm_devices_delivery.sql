@@ -114,7 +114,9 @@ begin
     and e.scheduled_at between now() - interval '24 hours' and now()
   order by e.scheduled_at desc
   limit 3000
-  on conflict (event_id, device_id) do nothing;
+  -- Sem alvo nominal: evita ambiguidade PL/pgSQL entre nomes de parâmetros
+  -- OUT (event_id/device_id) e os nomes das colunas do índice único.
+  on conflict do nothing;
 
   return query
   with eligible as (
