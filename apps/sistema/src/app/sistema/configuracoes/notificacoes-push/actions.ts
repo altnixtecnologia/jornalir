@@ -3,7 +3,12 @@ import "server-only";
 import { createClient } from "@supabase/supabase-js";
 import { createSupabaseServerClient } from "../../../../lib/supabase/server";
 
-export type PushActionResult = { ok?: true; error?: string };
+export type PushActionResult = { ok?: true; error?: string; needsDuplicateConfirm?: true };
+
+/** Mesmo padrão de URL usado por /noticias/[slug] e pelo gatilho
+ * article-publish:<id> — para saber se o link manual aponta para uma
+ * matéria que já pode ter sido notificada automaticamente. */
+const ARTICLE_HREF_RE = /^\/noticias\/([a-z0-9-]+)\/?$/i;
 
 export async function enqueueSitePushAction(form: FormData): Promise<PushActionResult> {
   try {
@@ -20,6 +25,7 @@ export async function enqueueSitePushAction(form: FormData): Promise<PushActionR
     const body = String(form.get("body") || "").trim();
     const href = String(form.get("href") || "").trim();
     const requestId = String(form.get("request_id") || "").trim();
+    const confirmDuplicate = form.get("confirm_duplicate") === "1";
     if (kind !== "ordinary" && kind !== "urgent") return { error: "Tipo inválido." };
     if (!title || title.length > 110) return { error: "Título obrigatório, até 110 caracteres." };
     if (!body || body.length > 320) return { error: "Texto obrigatório, até 320 caracteres." };
@@ -31,6 +37,24 @@ export async function enqueueSitePushAction(form: FormData): Promise<PushActionR
     const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
     if (!dbUrl || !key) return { error: "Notificações não configuradas no servidor." };
     const db = createClient(dbUrl, key, { auth: { persistSession: false, autoRefreshToken: false } });
+
+    // Evita dois avisos acidentais para a mesma matéria quando o gatilho
+    // automático de publicação (article_publish_events_enabled) e este
+    // envio manual são usados para o mesmo link — sem impedir um reenvio
+    // intencional, desde que o administrador confirme explicitamente.
+    const articleMatch = href.match(ARTICLE_HREF_RE);
+    if (articleMatch && !confirmDuplicate) {
+      const { data: article } = await db.from("articles").select("id").eq("slug", articleMatch[1]).maybeSingle();
+      if (article) {
+        const { data: existing } = await db
+          .from("notification_events")
+          .select("id")
+          .eq("dedupe_key", "article-publish:" + article.id)
+          .maybeSingle();
+        if (existing) return { error: "Esta matéria já gerou um aviso automático ao ser publicada.", needsDuplicateConfirm: true };
+      }
+    }
+
     const result = await db.from("notification_events").upsert({
       app_kind: "site", kind, title, body, href,
       scheduled_at: new Date().toISOString(),

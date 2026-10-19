@@ -31,7 +31,9 @@ export function corsHeaders(origin: string): HeadersInit {
   return {
     "Access-Control-Allow-Origin": origin,
     "Access-Control-Allow-Methods": "GET, POST, DELETE, OPTIONS",
-    "Access-Control-Allow-Headers": "Content-Type",
+    // X-Notification-Token: identidade anônima do leitor via cabeçalho, não
+    // via query string, para GET de /api/public/notifications (18/10/2026).
+    "Access-Control-Allow-Headers": "Content-Type, X-Notification-Token",
     Vary: "Origin",
     "Cache-Control": "no-store",
   };

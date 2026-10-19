@@ -48,8 +48,12 @@ export function NotificationCenterProvider({ children }: { children: ReactNode }
   const fetchFeed = useCallback(async () => {
     try {
       const token = getManagementToken();
-      const url = token ? `${ENDPOINT}?managementToken=${encodeURIComponent(token)}` : ENDPOINT;
-      const response = await fetch(url, { cache: "no-store" });
+      // Cabeçalho, nunca query string — não fica em log de acesso, histórico
+      // do navegador nem é repassado via Referer (18/10/2026).
+      const response = await fetch(ENDPOINT, {
+        cache: "no-store",
+        headers: token ? { "X-Notification-Token": token } : undefined,
+      });
       if (!response.ok) return;
       const data = (await response.json()) as { ok?: boolean; items?: NotificationItem[]; readTrackingAvailable?: boolean };
       if (!data.ok || !Array.isArray(data.items)) return;

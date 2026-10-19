@@ -12,19 +12,25 @@ export function EditorialPushSender(): JSX.Element {
   useEffect(() => setRequestId(crypto.randomUUID()), []);
   const [message, setMessage] = useState<string | null>(null);
 
-  function submit(event: FormEvent<HTMLFormElement>): void {
+  function submit(event: FormEvent<HTMLFormElement>, confirmDuplicate = false): void {
     event.preventDefault();
     if (pending || !requestId) return;
-    if (kind === "urgent" && !window.confirm("Confirmar notificação URGENTE para os leitores inscritos?")) return;
+    if (kind === "urgent" && !confirmDuplicate && !window.confirm("Confirmar notificação URGENTE para os leitores inscritos?")) return;
     const data = new FormData();
     data.set("kind", kind);
     data.set("title", title);
     data.set("body", body);
     data.set("href", href);
     data.set("request_id", requestId);
+    if (confirmDuplicate) data.set("confirm_duplicate", "1");
     setMessage(null);
     startTransition(async () => {
       const result = await enqueueSitePushAction(data);
+      if (result.needsDuplicateConfirm) {
+        if (window.confirm(result.error + " Enviar mesmo assim?")) submit(event, true);
+        else setMessage("Envio cancelado — a matéria já havia sido notificada automaticamente.");
+        return;
+      }
       if (result.error) {
         setMessage(result.error);
         return;
@@ -38,7 +44,10 @@ export function EditorialPushSender(): JSX.Element {
   }
   return (
     <form className="form-section" onSubmit={submit}>
-      <p className="helper-text">A ação é manual. Nenhuma matéria é enviada automaticamente ao publicar. O envio requer inscritos e o agendador push ativo.</p>
+      <p className="helper-text">
+        A ação é manual. O envio requer inscritos e o agendador push ativo. Se a matéria já notificou automaticamente ao
+        ser publicada, o sistema avisa antes de enviar de novo.
+      </p>
       <label className="form-field">
         <span className="field-label">Tipo de notificação</span>
         <select value={kind} onChange={(event) => setKind(event.target.value as "ordinary" | "urgent")} disabled={pending}>

@@ -15,12 +15,15 @@ export const dynamic = "force-dynamic";
 // sha256("site-push:" + token), para que os dois endpoints reconheçam o
 // mesmo dispositivo. Nenhuma tabela aqui é legível/gravável direto pelo
 // navegador (RLS fechada); tudo passa por este endpoint com service_role.
+// Token sempre via cabeçalho X-Notification-Token, nunca em query string
+// (não fica em log de acesso/histórico do navegador/Referer) — 18/10/2026.
 
 const TOKEN_RE = /^[a-zA-Z0-9_-]{32,128}$/;
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const FEED_LIMIT = 40;
 
 type SiteKind = "ordinary" | "urgent" | "administrative";
+type AllowedKinds = Record<SiteKind, boolean>;
 
 function service() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -34,6 +37,11 @@ function service() {
 
 function managementHash(token: string): string {
   return createHash("sha256").update("site-push:" + token).digest("hex");
+}
+
+function tokenFromHeader(request: NextRequest): string {
+  const value = request.headers.get("x-notification-token") || "";
+  return TOKEN_RE.test(value) ? value : "";
 }
 
 /** code 42P01 = relation ainda não existe (migration pendente). */
@@ -63,6 +71,31 @@ async function checkRateLimit(db: ReturnType<typeof service>, request: NextReque
   return data === true;
 }
 
+/**
+ * Preferências do leitor (se já existir cadastro de push para este hash);
+ * sem cadastro, usa os mesmos padrões do formulário de preferências:
+ * notícias do dia e urgentes sim, avisos gerais não. Ver avisos NUNCA
+ * exige ter autorizado push antes — funciona igual com ou sem token.
+ */
+async function allowedKindsFor(db: ReturnType<typeof service>, token: string): Promise<AllowedKinds> {
+  const defaults: AllowedKinds = { ordinary: true, urgent: true, administrative: false };
+  if (!token) return defaults;
+  const hash = managementHash(token);
+  const { data: subscription } = await db
+    .from("site_push_subscriptions")
+    .select("ordinary_enabled,urgent_enabled,administrative_enabled")
+    .eq("management_hash", hash)
+    .order("updated_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (!subscription) return defaults;
+  return {
+    ordinary: Boolean(subscription.ordinary_enabled),
+    urgent: Boolean(subscription.urgent_enabled),
+    administrative: Boolean(subscription.administrative_enabled),
+  };
+}
+
 export async function OPTIONS(request: NextRequest): Promise<NextResponse> {
   const origin = corsOrigin(request);
   if (!origin) return NextResponse.json({ error: "Origem não permitida" }, { status: 403 });
@@ -73,41 +106,23 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   const origin = corsOrigin(request);
   if (!origin) return NextResponse.json({ error: "Origem não permitida" }, { status: 403 });
 
-  const tokenParam = request.nextUrl.searchParams.get("managementToken") || "";
-  if (tokenParam && !TOKEN_RE.test(tokenParam)) return json({ error: "Identificador inválido" }, 400, origin);
+  const token = tokenFromHeader(request);
 
   try {
     const db = service();
     if (!(await checkRateLimit(db, request))) return json({ error: "Muitas tentativas. Tente mais tarde." }, 429, origin);
 
-    // Preferências do leitor (se já existir cadastro de push para este
-    // hash); sem cadastro, usa os mesmos padrões do formulário de
-    // preferências: notícias do dia e urgentes sim, avisos gerais não.
-    // A consulta funciona igual com ou sem token — ver avisos NUNCA exige
-    // ter autorizado push antes.
-    let allowed: Record<SiteKind, boolean> = { ordinary: true, urgent: true, administrative: false };
-    if (tokenParam) {
-      const hash = managementHash(tokenParam);
-      const { data: subscription } = await db
-        .from("site_push_subscriptions")
-        .select("ordinary_enabled,urgent_enabled,administrative_enabled")
-        .eq("management_hash", hash)
-        .order("updated_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
-      if (subscription) {
-        allowed = {
-          ordinary: Boolean(subscription.ordinary_enabled),
-          urgent: Boolean(subscription.urgent_enabled),
-          administrative: Boolean(subscription.administrative_enabled),
-        };
-      }
-    }
+    const allowed = await allowedKindsFor(db, token);
 
+    // Só eventos de verdade liberados ao leitor: app_kind='site' (nunca os
+    // internos do sistema, app_kind='sistema') e scheduled_at já vencido
+    // (nunca um aviso agendado para o futuro, ainda não liberado).
+    const nowIso = new Date().toISOString();
     const { data: events, error: eventsError } = await db
       .from("notification_events")
       .select("id,kind,title,body,href,scheduled_at")
       .eq("app_kind", "site")
+      .lte("scheduled_at", nowIso)
       .order("scheduled_at", { ascending: false })
       .limit(FEED_LIMIT);
     if (eventsError) return json({ error: "Não foi possível carregar avisos" }, 500, origin);
@@ -116,8 +131,8 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
 
     let readIds = new Set<string>();
     let readTrackingAvailable = true;
-    if (tokenParam && visible.length > 0) {
-      const hash = managementHash(tokenParam);
+    if (token && visible.length > 0) {
+      const hash = managementHash(token);
       const { data: reads, error: readsError } = await db
         .from("site_notification_reads")
         .select("event_id")
@@ -171,6 +186,25 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
     const db = service();
     if (!(await checkRateLimit(db, request))) return json({ error: "Muitas tentativas. Tente mais tarde." }, 429, origin);
+
+    // Antes de marcar como lido, confirma que o evento é mesmo do portal
+    // público (nunca um evento interno do sistema), que já está liberado
+    // (scheduled_at não no futuro) e que a categoria é uma das que este
+    // dispositivo tem acesso — nunca permite "ler" um aviso que a central
+    // nunca mostraria a ele.
+    const { data: event, error: eventError } = await db
+      .from("notification_events")
+      .select("id,kind,app_kind,scheduled_at")
+      .eq("id", body.eventId)
+      .maybeSingle();
+    if (eventError) return json({ error: "Não foi possível verificar o aviso" }, 500, origin);
+    if (!event || event.app_kind !== "site" || new Date(event.scheduled_at as string) > new Date()) {
+      return json({ error: "Aviso não disponível" }, 404, origin);
+    }
+    const allowed = await allowedKindsFor(db, body.managementToken);
+    if (allowed[event.kind as SiteKind] === false) {
+      return json({ error: "Aviso não disponível para este dispositivo" }, 403, origin);
+    }
 
     const hash = managementHash(body.managementToken);
     const { error } = await db
