@@ -32,8 +32,10 @@ async function bodyObject(request: NextRequest): Promise<Record<string, unknown>
   return result as Record<string, unknown>;
 }
 
-function hashManagement(id: string, token: string, secret: string): string {
-  return createHmac("sha256", secret).update("native-push:" + id + ":" + token).digest("hex");
+function hashManagement(id: string, token: string): string {
+  // Segredo local com entropia >= 256 bits: hash unidirecional estável mesmo
+  // quando CRON_SECRET for rotacionado (evita perder o vínculo dos aparelhos).
+  return createHash("sha256").update("native-push:" + id + ":" + token).digest("hex");
 }
 function hashFcm(token: string): string {
   return createHash("sha256").update(token).digest("hex");
@@ -94,7 +96,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     if (rate.error) return reply({ error: "Estrutura de inscrições Android ainda não instalada." }, 503, origin);
     if (rate.data !== true) return reply({ error: "Muitas tentativas. Tente novamente mais tarde." }, 429, origin);
 
-    const managementHash = hashManagement(data.installationId, data.managementToken, secret);
+    const managementHash = hashManagement(data.installationId, data.managementToken);
     const fcmTokenHash = hashFcm(data.fcmToken);
     const [byId, byToken] = await Promise.all([
       db.from("native_push_devices").select("id,management_hash,enabled").eq("installation_id", data.installationId).maybeSingle(),
@@ -147,7 +149,7 @@ export async function DELETE(request: NextRequest): Promise<NextResponse> {
     const { data: rows, error } = await db.from("native_push_devices").update({
       enabled: false, ordinary_enabled: false, urgent_enabled: false, updated_at: new Date().toISOString(),
     }).eq("installation_id", data.installationId)
-      .eq("management_hash", hashManagement(data.installationId, data.managementToken, secret))
+      .eq("management_hash", hashManagement(data.installationId, data.managementToken))
       .select("id");
     if (error) return reply({ error: "Falha ao desativar este aparelho." }, 500, origin);
     if (!rows?.length) return reply({ error: "Instalação não encontrada ou não autorizada." }, 404, origin);
