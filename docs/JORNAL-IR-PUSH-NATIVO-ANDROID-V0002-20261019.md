@@ -31,6 +31,72 @@
 - O cron de Web Push atual NÃO entrega automaticamente tokens nativos FCM; requer worker/emissor FCM próprio.
 - Não habilitar `EDITORIAL_PUSH_MANUAL_ENABLED` nem `article_publish_events_enabled` sem teste controlado com aparelho inscrito.
 
+## Resultado da implementação — Claude, apps/mobile (19/10/2026, commit `be6b77f`)
+
+**Sincronização:** fast-forward de `ee42cc4` sobre o estado anterior
+(`89cdc3a`) sem conflitos; nada descartado.
+
+**Áudio urgente:** conferido — `jornal_ir_urgente.ogg` **não está** em
+`res/raw/`, nem no repositório. Não foi substituído por outro som. Nota
+detalhada em `apps/mobile/LEIA-ME-AUDIO-URGENTE-PENDENTE.md` (caminho,
+SHA-256 esperado, aviso sobre canais imutáveis).
+
+**Implementado:**
+- `@capacitor/push-notifications@7.0.7` + `@capacitor/local-notifications@7.0.7`
+  (compatíveis com `@capacitor/core@7.6.9`).
+- `JornalIrApplication.java`: cria `jornal_ir_normal_v1` (som padrão) e
+  `jornal_ir_urgente_v1` (importância alta, vibração, som pelo nome do
+  recurso — nunca por `R.raw.*`, então compila mesmo sem o áudio) em
+  `Application.onCreate()`, cobrindo o caso de processo iniciado só para
+  entrega em segundo plano.
+- Manifest: `POST_NOTIFICATIONS`, `VIBRATE`,
+  `default_notification_channel_id` como rede de segurança.
+- `NativePushPreferences.tsx` (apps/site, só ativo dentro do app via
+  `Capacitor.isNativePlatform()`): permissão, registro de token,
+  liga/desliga normal/urgente separado, exibição manual em primeiro
+  plano (`LocalNotifications.schedule`, obrigatório — Android não mostra
+  notificação FCM sozinho com o app aberto), toque abre `data.href` via
+  `pushNotificationActionPerformed`, desativar/revogar local.
+- `google-services` já estava condicional no `app/build.gradle` (`if
+  (file('google-services.json').exists())`) — confirmado funcionando:
+  `./gradlew assembleDebug` compilou com sucesso sem o arquivo.
+
+**Depende de Firebase/backend (bloqueado, fora deste escopo):**
+1. Projeto Firebase Android `com.jornalir` + `google-services.json` real
+   em `apps/mobile/android/app/` — sem isso, `PushNotifications.register()`
+   falha silenciosamente no aparelho (listener `registrationError`),
+   nunca trava o app.
+2. Endpoint de backend `POST/DELETE .../api/public/push/fcm` (contrato
+   já chamado pelo cliente, propositalmente igual ao padrão de
+   `/api/public/push` já existente para Web Push):
+   - `POST {token, platform:"android", ordinary, urgent}` → registra/
+     atualiza token + preferências.
+   - `DELETE {token}` → desativa.
+   - Envio real (payload FCM com `data.kind` "ordinary"/"urgent",
+     `data.href`, `android_channel_id` = `jornal_ir_normal_v1` ou
+     `jornal_ir_urgente_v1`) — fila/worker FCM, análogo ao cron de Web
+     Push existente, mas usando a Admin SDK/API do Firebase. Cabe à
+     branch `feature/backend-fcm-notificacoes-20261019`.
+   - Sem o endpoint, o cliente falha a chamada de forma tratada (mensagem
+     "servidor ainda sendo preparado"), nunca mostra "ativo" de mentira.
+3. Apagar duplicidade entre canais: não é um problema HOJE dentro do
+   WebView do app (push do navegador não funciona dentro do WebView do
+   Capacitor — API ausente), só é risco se o mesmo backend decidir
+   disparar Web Push E FCM para o mesmo evento/pessoa; cabe ao backend
+   (idempotência por pessoa/evento), não ao cliente.
+
+**Compilação:** `./gradlew assembleDebug` com sucesso (build de
+verificação local, não assinado, não distribuído). `versionCode` 2→3,
+`versionName` v.00.01→v.00.02 — preparação, **nenhum build de release
+gerado nem distribuído**. `typecheck`/`build` de `@ir/site`: limpos.
+
+**Próximos passos para gerar/testar o APK:** (a) decidir sobre o áudio
+ausente; (b) criar o projeto Firebase e obter `google-services.json`
+real; (c) aplicar a migration/backend do FCM (branch separada); (d) só
+então compilar `assembleRelease` com o keystore existente (mesmo
+certificado da v.00.01), testar em aparelho real nos 3 estados (aberto/
+segundo plano/fechado) antes de qualquer distribuição.
+
 ## Verificações de aceitação
 - Disparo normal e urgente são botões/ações manuais de usuário autorizado, distintos de apenas publicar uma matéria.
 - Zero destinatários = nenhuma entrega/enfileiramento e mensagem explícita.
