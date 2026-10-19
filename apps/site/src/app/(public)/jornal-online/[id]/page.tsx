@@ -39,7 +39,10 @@ export default function JornalOnlineReaderPage(): JSX.Element {
   const [isMobile, setIsMobile] = useState(false);
   const [showScrollTop, setShowScrollTop] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [fallbackFullscreen, setFallbackFullscreen] = useState(false);
   const frameWrapRef = useRef<HTMLDivElement | null>(null);
+  const fullscreenHistoryEntryRef = useRef(false);
+  const readerFullscreen = isFullscreen || fallbackFullscreen;
 
   useEffect(() => {
     void (async () => {
@@ -89,10 +92,47 @@ export default function JornalOnlineReaderPage(): JSX.Element {
   }, []);
 
   useEffect(() => {
-    const onFullscreenChange = (): void => setIsFullscreen(Boolean(document.fullscreenElement));
+    const onFullscreenChange = (): void => {
+      const active = Boolean(document.fullscreenElement);
+      setIsFullscreen(active);
+      // Android pode sair do fullscreen nativo pelo botão Voltar.
+      // Nesse caso, consumimos a entrada temporária do histórico também.
+      if (!active && fullscreenHistoryEntryRef.current && window.history.state?.__irPdfFullscreen) {
+        fullscreenHistoryEntryRef.current = false;
+        window.history.back();
+      }
+    };
+    const onPopState = (): void => {
+      // Entrada de histórico própria do leitor: Voltar sai da tela cheia,
+      // sem abandonar o Jornal Online nem fechar o aplicativo Capacitor.
+      if (!fullscreenHistoryEntryRef.current) return;
+      fullscreenHistoryEntryRef.current = false;
+      if (document.fullscreenElement) void document.exitFullscreen().catch(() => undefined);
+      setFallbackFullscreen(false);
+      setIsFullscreen(false);
+    };
+    const onKeyDown = (event: KeyboardEvent): void => {
+      if (event.key !== "Escape" && event.key !== "Backspace") return;
+      if (!document.fullscreenElement && !fullscreenHistoryEntryRef.current) return;
+      event.preventDefault();
+      void closeReaderFullscreen();
+    };
     document.addEventListener("fullscreenchange", onFullscreenChange);
-    return () => document.removeEventListener("fullscreenchange", onFullscreenChange);
+    window.addEventListener("popstate", onPopState);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("fullscreenchange", onFullscreenChange);
+      window.removeEventListener("popstate", onPopState);
+      document.removeEventListener("keydown", onKeyDown);
+    };
   }, []);
+
+  useEffect(() => {
+    if (!fallbackFullscreen) return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => { document.body.style.overflow = previousOverflow; };
+  }, [fallbackFullscreen]);
 
   const edition = useMemo<OnlineEdition | undefined>(() => {
     const remote = remoteEditions.find((item) => item.id === id);
@@ -119,25 +159,43 @@ export default function JornalOnlineReaderPage(): JSX.Element {
   const driveFileId = edition?.id.startsWith("drive-") ? edition.id.replace("drive-", "") : "";
   const pdfRenderUrl = driveFileId ? `/api/jornal-online/drive-file?id=${driveFileId}` : (edition?.pdfPath ?? "");
   function handleBackClick(event: MouseEvent<HTMLAnchorElement>): void {
-    // Em tela cheia, "Voltar" deve primeiro sair da tela cheia em vez de
-    // navegar por baixo dela (evita o usuário ficar "preso" visualmente).
-    if (document.fullscreenElement) {
+    if (document.fullscreenElement || fallbackFullscreen) {
       event.preventDefault();
-      void document.exitFullscreen();
+      void closeReaderFullscreen();
     }
   }
 
+  async function closeReaderFullscreen(): Promise<void> {
+    // Primeiro desarmar a entrada de histórico; a saída nativa gera outro
+    // fullscreenchange, que não deve disparar um segundo history.back().
+    const hadHistoryEntry = fullscreenHistoryEntryRef.current;
+    fullscreenHistoryEntryRef.current = false;
+    if (document.fullscreenElement) {
+      try { await document.exitFullscreen(); } catch { /* Segue com o modo normal. */ }
+    }
+    setFallbackFullscreen(false);
+    setIsFullscreen(false);
+    if (hadHistoryEntry && window.history.state?.__irPdfFullscreen) window.history.back();
+  }
+
   async function toggleFullscreen(): Promise<void> {
+    if (readerFullscreen || document.fullscreenElement) {
+      await closeReaderFullscreen();
+      return;
+    }
     const el = frameWrapRef.current;
     if (!el) return;
+    // Voltar físico do Android sempre tem uma entrada para consumir antes
+    // de sair da página. Funciona tanto no fullscreen nativo quanto no CSS.
+    window.history.pushState({ ...window.history.state, __irPdfFullscreen: true }, "", window.location.href);
+    fullscreenHistoryEntryRef.current = true;
     try {
-      if (!document.fullscreenElement) {
-        await el.requestFullscreen();
-        return;
-      }
-      await document.exitFullscreen();
+      await el.requestFullscreen();
+      setIsFullscreen(true);
     } catch {
-      window.open(edition?.sourceUrl ?? edition?.pdfPath ?? "", "_blank", "noopener,noreferrer");
+      // Alguns WebViews não suportam a API nativa. Em vez de abrir um PDF
+      // em outra janela sem saída, usamos um overlay com o mesmo botão Sair.
+      setFallbackFullscreen(true);
     }
   }
 
@@ -252,9 +310,9 @@ export default function JornalOnlineReaderPage(): JSX.Element {
               onClick={toggleFullscreen}
               className={primaryButtonClass}
               style={primaryButtonStyle}
-              aria-pressed={isMobile ? undefined : isFullscreen}
+              aria-pressed={readerFullscreen}
             >
-              {isFullscreen ? "Sair da tela cheia" : "Tela cheia"}
+              {readerFullscreen ? "Sair da tela cheia" : "Tela cheia"}
             </button>
           </div>
         </div>
@@ -287,12 +345,31 @@ export default function JornalOnlineReaderPage(): JSX.Element {
 
         <div
           ref={frameWrapRef}
-          // No celular, cancela o padding do site-shell para a leitura
-          // ocupar a largura inteira da tela (modo "página cheia").
-          className={isMobile ? "-mx-4" : undefined}
+          // A saída fica DENTRO do elemento fullscreen. Antes estava fora,
+          // invisível quando a WebView expandia o PDF.
+          className={readerFullscreen ? "fixed inset-0 z-[100] overflow-hidden" : isMobile ? "-mx-4" : undefined}
+          style={readerFullscreen ? {
+            height: "100dvh",
+            width: "100vw",
+            background: "#e5e7eb",
+            display: "flex",
+            flexDirection: "column",
+            paddingTop: "calc(54px + env(safe-area-inset-top, 0px))",
+          } : undefined}
         >
+          {readerFullscreen ? (
+            <button
+              type="button"
+              onClick={() => void closeReaderFullscreen()}
+              aria-label="Sair da tela cheia e continuar no Jornal Online"
+              className="absolute right-3 z-[110] rounded-full px-4 py-2 text-sm font-bold text-white shadow-lg"
+              style={{ top: "calc(8px + env(safe-area-inset-top, 0px))", background: "var(--brand-navy)" }}
+            >
+              × Sair da tela cheia
+            </button>
+          ) : null}
           {isMobile ? (
-            <MobilePdfReader pdfUrl={pdfRenderUrl} title={edition.title} />
+            <MobilePdfReader pdfUrl={pdfRenderUrl} title={edition.title} fullscreen={readerFullscreen} />
           ) : (
             <FlipbookReader pdfUrl={pdfRenderUrl} title={edition.title} zoomPercent={zoom} />
           )}
