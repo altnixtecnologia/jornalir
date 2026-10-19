@@ -28,7 +28,7 @@
 - `main` NÃO alterada; nenhuma mudança no APK.
 
 ## Testes e implantação
-- Uma compilação de preview foi solicitada à Vercel para `jornalir-sistema` (deploy `dpl_eCZ134w9usqKBY6mb8WB2RMPAAS5`). Conferir estado final antes de promover.
+- Compilação de preview Vercel do `jornalir-sistema` **READY**: deploy `dpl_eCZ134w9usqKBY6mb8WB2RMPAAS5`, URL `https://jornalir-sistema-jtyu2226s-cristians-projects-34074cc3.vercel.app`. Build aprovado; validação visual mobile autenticada e aceitação do usuário ainda pendentes.
 - Nenhum deploy de produção das correções realizado nesta branch na hora desta documentação; publicação exige build READY e aceitação no mobile.
 - Após publicar: abrir `/sistema/editorial/materias` num celular, verificar cartões com e sem filtros; abrir Agenda e Pauta na barra inferior, confirmar apenas o item correspondente marcado; verificar menu expandido; garantir desktop preservado.
 - Não há como comprovar visualmente o funcionamento autenticado do celular sem uma sessão de teste.
