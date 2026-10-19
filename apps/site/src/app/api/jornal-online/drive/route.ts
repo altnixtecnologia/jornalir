@@ -23,7 +23,7 @@ function parseDriveFolderHtml(html: string): DriveEdition[] {
     items.push({
       id: `drive-${fileId}`,
       title: `Informativo Regional - ${cleanTitle}`,
-      dateLabel: "Acervo Drive",
+      dateLabel: "", // Nunca expor detalhes do provedor ao leitor.
       category: "Edição Semanal",
       pdfPath: `https://drive.google.com/file/d/${fileId}/preview`,
       sourceUrl: `https://drive.google.com/file/d/${fileId}/view`,
