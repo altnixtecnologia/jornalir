@@ -1,14 +1,37 @@
 "use client";
 
 import Link from "next/link";
-import { useRef, type ReactNode } from "react";
-import { usePathname, useRouter } from "next/navigation";
+import { Suspense, useRef, type ReactNode } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { AdminHeader } from "./AdminHeader";
 import { MobileNav } from "./MobileNav";
 import { useAuth } from "../../lib/auth/AuthProvider";
 import { getInitials } from "../../lib/auth/accountDisplay";
 import { useAgendaPautaReadAccess } from "../../lib/permissions/useAgendaPautaReadAccess";
 import { useStaffModuleVisibility } from "../../lib/permissions/useStaffModuleVisibility";
+
+
+function AgendaPautaBottomLinks({ agendaRead, pautaRead }: { agendaRead: boolean; pautaRead: boolean }): JSX.Element {
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const currentView = searchParams.get("view") === "pauta" ? "pauta" : "agenda";
+  const inAgenda = pathname === "/sistema/agenda";
+
+  return (
+    <>
+      {agendaRead ? (
+        <Link href="/sistema/agenda?view=agenda" aria-current={inAgenda && currentView === "agenda" ? "page" : undefined}>
+          <span aria-hidden="true">▦</span><small>Agenda</small>
+        </Link>
+      ) : null}
+      {pautaRead ? (
+        <Link href="/sistema/agenda?view=pauta" aria-current={inAgenda && currentView === "pauta" ? "page" : undefined}>
+          <span aria-hidden="true">☷</span><small>Pauta</small>
+        </Link>
+      ) : null}
+    </>
+  );
+}
 
 export function AdminShell({ children, previewMode = false }: { children: ReactNode; previewMode?: boolean }): JSX.Element {
   const menuRef = useRef<HTMLDialogElement>(null);
@@ -47,7 +70,7 @@ export function AdminShell({ children, previewMode = false }: { children: ReactN
               ×
             </button>
           </div>
-          <MobileNav onNavigate={closeMenu} />
+          <Suspense fallback={null}><MobileNav onNavigate={closeMenu} /></Suspense>
           <div className="mobile-nav-footer">
             {profile ? (
               <div className="mobile-nav-account">
@@ -78,16 +101,7 @@ export function AdminShell({ children, previewMode = false }: { children: ReactN
           <Link href="/sistema" aria-current={pathname === "/sistema" ? "page" : undefined}>
             <span aria-hidden="true">⌂</span><small>Início</small>
           </Link>
-          {agendaRead ? (
-            <Link href="/sistema/agenda?view=agenda" aria-current={pathname.startsWith("/sistema/agenda") ? "page" : undefined}>
-              <span aria-hidden="true">▦</span><small>Agenda</small>
-            </Link>
-          ) : null}
-          {pautaRead ? (
-            <Link href="/sistema/agenda?view=pauta">
-              <span aria-hidden="true">☷</span><small>Pauta</small>
-            </Link>
-          ) : null}
+          <Suspense fallback={null}><AgendaPautaBottomLinks agendaRead={agendaRead} pautaRead={pautaRead} /></Suspense>
           {hasModule("editorial") ? (
             <Link href="/sistema/editorial/materias" aria-current={pathname.startsWith("/sistema/editorial/materias") ? "page" : undefined}>
               <span aria-hidden="true">▤</span><small>Matérias</small>
