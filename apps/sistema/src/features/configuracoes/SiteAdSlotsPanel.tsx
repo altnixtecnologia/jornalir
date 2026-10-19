@@ -121,20 +121,13 @@ function MediaSettingsRow({
           </select>
         </div>
       ) : (
-        <span className="helper-text">Usa o tempo/efeito/formato da posição.</span>
+        <span className="helper-text">Usa o tempo/efeito/formato do grupo.</span>
       )}
       <button type="button" className="cadastros-btn-secondary" onClick={save} disabled={pending}>
         {saved ? "Salvo ✓" : "Salvar imagem"}
       </button>
     </div>
   );
-}
-
-function slotIdentity(slotNumber: number): { position: number; side: "Esquerda" | "Direita" } {
-  return {
-    position: Math.ceil(slotNumber / 2),
-    side: slotNumber % 2 === 1 ? "Esquerda" : "Direita",
-  };
 }
 
 function SlotCard({ slot }: { slot: SiteAdSlotWithMedia }): JSX.Element {
@@ -149,7 +142,6 @@ function SlotCard({ slot }: { slot: SiteAdSlotWithMedia }): JSX.Element {
   const [message, setMessage] = useState<string | null>(null);
   const [uploadProgress, setUploadProgress] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
-  const identity = slotIdentity(slot.slotNumber);
 
   // Revoga as URLs somente ao retirá-las, trocar a seleção ou desmontar o
   // componente. Não revogue todas a cada mudança do estado de prévias:
@@ -290,7 +282,7 @@ function SlotCard({ slot }: { slot: SiteAdSlotWithMedia }): JSX.Element {
   }
 
   function remove(id: string): void {
-    if (!window.confirm("Remover esta imagem desta posição?")) return;
+    if (!window.confirm("Remover esta imagem deste grupo?")) return;
     startTransition(async () => {
       const result = await removeSiteAdMediaAction(id);
       if (result && "error" in result) {
@@ -322,7 +314,7 @@ function SlotCard({ slot }: { slot: SiteAdSlotWithMedia }): JSX.Element {
     <article className="site-ad-slot-card">
       <div className="site-ad-slot-head">
         <div>
-          <h3>Posição {identity.position} - {identity.side}</h3>
+          <h3>Grupo {slot.slotNumber}</h3>
           <span className={"status-pill " + (slot.active ? "status-pill--published" : "status-pill--archived")}>
             {slot.active ? "Ativa" : "Desativada"}
           </span>
@@ -334,10 +326,10 @@ function SlotCard({ slot }: { slot: SiteAdSlotWithMedia }): JSX.Element {
 
       <div className="site-ad-slot-settings">
         <label className="form-field">
-          <span className="field-label">Tempo de rotação desta posição (padrão)</span>
+          <span className="field-label">Tempo de exibição deste grupo (padrão)</span>
           <div className="site-ad-seconds"><input type="number" min={2} max={120} value={seconds} onChange={(event) => setSeconds(event.target.value)} /><span>s</span></div>
           <span className="helper-text">
-            Vale para toda imagem desta posição que não tiver uma configuração própria (ver cada miniatura abaixo).
+            Vale para as imagens deste grupo sem duração própria. Os grupos circulam por todas as posições do site.
           </span>
         </label>
         <label className="form-field">
@@ -352,12 +344,12 @@ function SlotCard({ slot }: { slot: SiteAdSlotWithMedia }): JSX.Element {
             {(Object.keys(SITE_AD_FIT_MODE_LABELS) as SiteAdFitMode[]).map((item) => <option key={item} value={item}>{SITE_AD_FIT_MODE_LABELS[item]}</option>)}
           </select>
         </label>
-        <button type="button" className="form-action-primary" onClick={saveSettings} disabled={pending}>Salvar posição</button>
+        <button type="button" className="form-action-primary" onClick={saveSettings} disabled={pending}>Salvar grupo</button>
       </div>
 
       <div className="site-ad-upload">
         <div>
-          <strong>Imagens desta posição</strong>
+          <strong>Imagens deste grupo</strong>
           <p className="helper-text">Envio múltiplo · R2 público · convertido para WebP com qualidade 70%.</p>
         </div>
         <input
@@ -415,7 +407,7 @@ function SlotCard({ slot }: { slot: SiteAdSlotWithMedia }): JSX.Element {
               <div className="site-ad-thumb-image">
                 <img src={media.imageUrl} alt={media.altText ?? media.mediaAssetAltText ?? "Publicidade"} style={{ objectFit: previewObjectFit }} />
                 <span>{index + 1}</span>
-                <button type="button" className="site-ad-image-remove" aria-label={"Excluir imagem " + (index + 1) + " desta posição"} title="Excluir imagem" onClick={() => remove(media.id)} disabled={pending}>×</button>
+                <button type="button" className="site-ad-image-remove" aria-label={"Excluir imagem " + (index + 1) + " deste grupo"} title="Excluir imagem" onClick={() => remove(media.id)} disabled={pending}>×</button>
               </div>
               <div className="site-ad-thumb-actions">
                 <button type="button" onClick={() => move(index, -1)} disabled={pending || index === 0} aria-label="Mover para cima">↑</button>
@@ -437,24 +429,16 @@ function SlotCard({ slot }: { slot: SiteAdSlotWithMedia }): JSX.Element {
 }
 
 export function SiteAdSlotsPanel({ slots }: { slots: SiteAdSlotWithMedia[] }): JSX.Element {
-  const left = slots.filter((slot) => slot.slotNumber % 2 === 1).sort((a, b) => a.slotNumber - b.slotNumber);
-  const right = slots.filter((slot) => slot.slotNumber % 2 === 0).sort((a, b) => a.slotNumber - b.slotNumber);
+  const groups = [...slots].sort((a, b) => a.slotNumber - b.slotNumber);
 
   return (
     <div className="site-ad-manager">
       <section>
         <div className="site-ad-side-heading">
-          <div><p className="eyebrow">LADO ESQUERDO</p><h2>Posições 1, 2 e 3</h2></div>
-          <span>cada posição gira apenas as próprias imagens</span>
+          <div><p className="eyebrow">PATROCINADORES</p><h2>Grupos de anúncios</h2></div>
+          <span>Cada grupo mantém sua lista de imagens, mas circula por todas as seis posições visuais do site.</span>
         </div>
-        <div className="site-ad-side-grid">{left.map((slot) => <SlotCard key={slot.id} slot={slot} />)}</div>
-      </section>
-      <section>
-        <div className="site-ad-side-heading">
-          <div><p className="eyebrow">LADO DIREITO</p><h2>Posições 1, 2 e 3</h2></div>
-          <span>configuração independente por posição</span>
-        </div>
-        <div className="site-ad-side-grid">{right.map((slot) => <SlotCard key={slot.id} slot={slot} />)}</div>
+        <div className="site-ad-side-grid">{groups.map((slot) => <SlotCard key={slot.id} slot={slot} />)}</div>
       </section>
     </div>
   );
