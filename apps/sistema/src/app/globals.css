@@ -5465,3 +5465,10 @@ button.secondary-link {
     margin-top: 6px;
   }
 }
+
+/* Hotfix mobile 19/10/2026: this query must follow the later base .materias-cards
+   { display: none } declaration, otherwise both table and cards are hidden. */
+@media (max-width: 720px) {
+  .materias-table-wrap { display: none; }
+  .materias-cards { display: flex; }
+}
