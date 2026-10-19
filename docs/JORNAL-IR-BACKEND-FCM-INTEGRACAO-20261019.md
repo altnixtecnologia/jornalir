@@ -68,3 +68,21 @@ Resposta 200 `{ok:true,subscribed:false}`. Qualquer falha de rede deve deixar o 
 - [ ] Auditoria diferencia aceito pelo Firebase de recebido/exibido/lido.
 - [ ] Teste de revogação garante nenhum novo aviso.
 - [ ] Somente após tudo, considerar liberar avisos para leitores e publicar APK, sem sobrescrever versões antigas.
+
+## Revisão adicional de 19/10 — apenas branch (sem deploy ou migration)
+
+Correções preparadas no backend/painel após auditoria estática:
+- `40217a3`: no envio manual, confirmar duplicidade repete a Server Action dentro da mesma transição; antes o segundo `submit()` era bloqueado por `pending=true`. A idempotência do `request_id` continua.
+- `2fd3261`: o worker FCM verifica novamente a idade do evento (máximo 24h) e atividade recente do dispositivo (60 dias) antes de enviar; lotes reservados e atrasados deixam de ser entregues fora da janela.
+- `4886e02`: a ação de envio manual só aceita URL de notícia `/noticias/<slug>`, padrão exigido pelo worker Android. Links de outras páginas eram enfileirados, mas descartados pelo FCM.
+- `f6e0e49`: campo de link no painel começa vazio e mostra exemplo correto `/noticias/exemplo`.
+
+**Validação:** trechos e diffs revisados diretamente no GitHub; compilação/typecheck do sistema e testes E2E não foram executados nesta sessão GitHub-only. Claude relatou `assembleDebug` de `com.jornalir` versionCode 3 com áudio verificado no APK, mas seus commits permanecem locais até autorização de push. Somente após sua sincronização e integração é possível build conjunto.
+
+**Banco:** projeto Supabase `site-system-ir` consultado em leitura. Na conferência, `notification_events=0`, `site_push_subscriptions=0`, e as tabelas `native_push_*` não existem. Migrations `20261030100100` a `20261030101100` estão pendentes. A primeira delas acrescenta o interruptor `assine_enabled` com `default false`: aplicar todo o lote indiscriminadamente pode desativar o fluxo /assine. Revisar dependências/rollout individualmente; não alterar banco sem autorização.
+
+**Vercel:** `jornalir-sistema` possui `CRON_SECRET` em Production. Variáveis `FIREBASE_PROJECT_ID`, `FIREBASE_CLIENT_EMAIL`, `FIREBASE_PRIVATE_KEY` e controles `NATIVE_FCM_*` não estavam configuradas na conferência. Deixar `NATIVE_FCM_REGISTRATION_ENABLED`, `NATIVE_FCM_DELIVERY_ENABLED` e `EDITORIAL_PUSH_MANUAL_ENABLED` desligadas até homologação.
+
+**Firebase:** Claude relatou projeto Google Cloud `jornal-ir-app`, ainda com erro 403 na etapa `addFirebase`. Não inferir exigência de cobrança apenas do HTTP 403; verificar console Google e detalhes da falha. Não criar um segundo projeto sem confirmar o primeiro.
+
+**Próxima etapa:** receber o HEAD completo da branch Claude; integrar e validar `apps/mobile`+`apps/site`+`apps/sistema`; estabelecer projeto Firebase, migrações e envs; só depois pedir autorização separada para deploy e testes com destinatário consentido.
