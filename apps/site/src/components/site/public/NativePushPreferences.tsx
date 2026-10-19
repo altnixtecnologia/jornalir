@@ -209,7 +209,7 @@ export function NativePushPreferences(): JSX.Element | null {
       // backend envia.
       actionHandle = await PushNotifications.addListener("pushNotificationActionPerformed", (action) => {
         const href = action.notification.data?.href;
-        if (typeof href === "string" && /^\\/noticias\\/[a-z0-9-]+\\/?$/i.test(href)) router.push(href);
+        if (typeof href === "string" && /^\/noticias\/[a-z0-9-]+\/?$/i.test(href)) router.push(href);
       });
       if (!cancelled) setListenersReady(true);
     })().catch(() => {
