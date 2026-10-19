@@ -9,13 +9,14 @@ export interface EditorialPushPrefill {
   kind: "ordinary" | "urgent";
 }
 
-export function EditorialPushSender({ prefill, enabled, eligibleCount }: {
+export function EditorialPushSender({ prefill, enabled, eligibleByKind }: {
   prefill?: EditorialPushPrefill;
   enabled: boolean;
-  eligibleCount: number;
+  eligibleByKind: { ordinary: number; urgent: number };
 }): JSX.Element {
   const [pending, startTransition] = useTransition();
   const [kind, setKind] = useState<"ordinary" | "urgent">(prefill?.kind ?? "ordinary");
+  const eligibleCount = eligibleByKind[kind];
   const [title, setTitle] = useState(prefill?.title ?? "");
   const [body, setBody] = useState(prefill?.body ?? "");
   const [href, setHref] = useState(prefill?.href ?? "/");
