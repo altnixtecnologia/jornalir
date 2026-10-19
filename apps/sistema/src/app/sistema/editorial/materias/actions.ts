@@ -12,6 +12,7 @@ import {
 } from "../../../../features/editorial/articleFormTypes";
 import { isDefaultTextStyle } from "../../../../features/editorial/textStyle";
 import { getAuditContext } from "../../../../lib/auth/getAuditContext";
+import { recordAuditEventSupabase } from "../../../../providers/supabase/auditEvents.supabase";
 
 const LIST_PATH = "/sistema/editorial/materias";
 
@@ -19,6 +20,22 @@ type ActionResult = { error: string } | void;
 
 function toErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : "Não foi possível salvar a matéria.";
+}
+
+/** Auditoria não pode travar a ação principal — se a gravação do log
+ * falhar, a matéria já foi salva/publicada; só registra o erro no console. */
+async function logArticleEvent(
+  client: ReturnType<typeof createSupabaseServerClient>,
+  actorId: string,
+  articleId: string,
+  action: string,
+  metadata: Record<string, unknown>,
+): Promise<void> {
+  try {
+    await recordAuditEventSupabase(client, { userId: actorId, entityType: "articles", entityId: articleId, action, metadata });
+  } catch (error) {
+    console.error("Falha ao registrar auditoria da matéria:", error instanceof Error ? error.message : error);
+  }
 }
 
 function buildPlacement(payload: ArticleFormPayload): EditorialPlacement {
@@ -97,6 +114,7 @@ export async function createArticle(
       AUDIT,
     );
     articleId = created.id;
+    await logArticleEvent(client, AUDIT.actorId, articleId, "create", { title: created.title, status: "draft" });
     if (pautaId && /^[0-9a-f-]{36}$/i.test(pautaId)) {
       const { data: linkedPauta, error: linkError } = await client
         .from("weekly_pauta_items")
@@ -124,12 +142,18 @@ export async function createArticle(
 
     if (intent === "publish") {
       await articleService.publishNow(articleId, AUDIT);
+      await logArticleEvent(client, AUDIT.actorId, articleId, "publish", { title: payload.title.trim(), statusChange: "Rascunho → Publicado" });
     } else if (intent === "schedule") {
       await articleService.schedule(
         articleId,
         { scheduledAt: payload.scheduledAt, placement, notificationMode: payload.notificationMode },
         AUDIT,
       );
+      await logArticleEvent(client, AUDIT.actorId, articleId, "schedule", {
+        title: payload.title.trim(),
+        statusChange: "Rascunho → Agendado",
+        scheduledAt: payload.scheduledAt,
+      });
     }
   } catch (error) {
     return { error: toErrorMessage(error) };
@@ -171,16 +195,26 @@ export async function updateArticle(
       ...(editionPageNumber !== undefined ? { editionPageNumber } : {}),
     };
 
+    const statusLabel: Record<string, string> = {
+      draft: "Rascunho", adjusting: "Em ajuste", scheduled: "Agendado", published: "Publicado", archived: "Arquivado",
+    };
+    const title = payload.title.trim();
+
     if (intent === "draft") {
       await articleService.updateDraft(
         id,
         { ...baseChanges, status: "draft", publishedAt: undefined, scheduledAt: undefined },
         AUDIT,
       );
+      await logArticleEvent(client, AUDIT.actorId, id, "update", {
+        title,
+        ...(current.status !== "draft" ? { statusChange: `${statusLabel[current.status]} → Rascunho` } : {}),
+      });
     } else if (intent === "save") {
       // Editar uma matéria publicada/agendada/arquivada não deve mudar seu
       // status nem sua data só por salvar conteúdo.
       await articleService.updateDraft(id, baseChanges, AUDIT);
+      await logArticleEvent(client, AUDIT.actorId, id, "update", { title });
     } else if (intent === "publish") {
       await articleService.updateDraft(
         id,
@@ -191,6 +225,9 @@ export async function updateArticle(
       // original. "Publicar agora" só cria published_at ao sair de outro status.
       if (current.status !== "published") {
         await articleService.publishNow(id, AUDIT);
+        await logArticleEvent(client, AUDIT.actorId, id, "publish", { title, statusChange: `${statusLabel[current.status]} → Publicado` });
+      } else {
+        await logArticleEvent(client, AUDIT.actorId, id, "update", { title });
       }
     } else {
       // Coloca em scheduled já no mesmo salvamento de conteúdo para uma
@@ -201,6 +238,9 @@ export async function updateArticle(
         { scheduledAt: payload.scheduledAt, placement, notificationMode: payload.notificationMode },
         AUDIT,
       );
+      await logArticleEvent(client, AUDIT.actorId, id, "schedule", {
+        title, statusChange: `${statusLabel[current.status]} → Agendado`, scheduledAt: payload.scheduledAt,
+      });
     }
   } catch (error) {
     return { error: toErrorMessage(error) };
@@ -213,7 +253,12 @@ export async function archiveArticle(id: string): Promise<ActionResult> {
   try {
     const client = createSupabaseServerClient();
     const AUDIT = await getAuditContext(client);
-    await getArticleService(client).archive(id, AUDIT);
+    const articleService = getArticleService(client);
+    const current = await articleService.getById(id);
+    await articleService.archive(id, AUDIT);
+    // "Arquivar" é a única forma de remoção de matéria no sistema hoje —
+    // não existe exclusão definitiva (nunca apagar o rastro).
+    await logArticleEvent(client, AUDIT.actorId, id, "archive", { title: current.title, statusChange: `${current.status} → archived` });
   } catch (error) {
     return { error: toErrorMessage(error) };
   }

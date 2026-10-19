@@ -5359,3 +5359,109 @@ button.secondary-link {
     height: 36px;
   }
 }
+
+/* ===================================================================
+   Auditoria e Atividades (/sistema/configuracoes/auditoria) — 18/10/2026.
+   =================================================================== */
+.audit-sort-bar {
+  margin: 8px 0 10px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.audit-sort-link {
+  font-weight: 600;
+  color: var(--muted);
+}
+.audit-sort-link.is-active {
+  color: var(--text);
+  text-decoration: underline;
+}
+.audit-events-row {
+  cursor: pointer;
+}
+.audit-events-row:focus-visible {
+  outline: 2px solid var(--brand-red, #b02a2a);
+  outline-offset: -2px;
+}
+.audit-events-entity-id {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11px;
+  color: var(--muted);
+}
+.audit-result-badge {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 2px 10px;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.audit-result-sucesso {
+  background: #e6f4ea;
+  color: #1e7a37;
+}
+.audit-result-falha {
+  background: #fbe4e4;
+  color: #a62626;
+}
+.audit-result-ignorado {
+  background: #eef1f6;
+  color: var(--muted);
+}
+.audit-detail-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 40px 16px;
+  background: rgba(10, 12, 20, 0.45);
+  overflow-y: auto;
+}
+.audit-detail-modal {
+  width: 100%;
+  max-width: 560px;
+  background: #fff;
+  border-radius: 12px;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.3);
+}
+.audit-detail-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--line);
+}
+.audit-detail-header h2 {
+  font-size: 15px;
+  font-weight: 700;
+}
+.audit-detail-list {
+  padding: 16px 20px 22px;
+  display: grid;
+  grid-template-columns: 140px 1fr;
+  gap: 8px 12px;
+  font-size: 13px;
+}
+.audit-detail-list dt {
+  font-weight: 700;
+  color: var(--muted);
+}
+.audit-detail-list dd {
+  margin: 0;
+  word-break: break-word;
+}
+.audit-detail-extra {
+  display: contents;
+}
+@media (max-width: 640px) {
+  .audit-detail-list {
+    grid-template-columns: 1fr;
+  }
+  .audit-detail-list dt {
+    margin-top: 6px;
+  }
+}

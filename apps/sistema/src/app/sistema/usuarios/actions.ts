@@ -2,6 +2,7 @@
 
 import { createSupabaseAdminClient, hasServiceRoleKey } from "../../../lib/supabase/admin";
 import { createSupabaseServerClient } from "../../../lib/supabase/server";
+import { recordAuditEventSupabase } from "../../../providers/supabase/auditEvents.supabase";
 
 export type InviteRole = "operator" | "admin";
 type ActionResult = { ok: true } | { error: string };
@@ -67,6 +68,18 @@ export async function inviteUser(email: string, role: InviteRole): Promise<Actio
     }
   }
 
+  try {
+    await recordAuditEventSupabase(supabase, {
+      userId: user.id,
+      entityType: "users",
+      entityId: invited.user.id,
+      action: "invite",
+      metadata: { email: trimmedEmail, role },
+    });
+  } catch (error) {
+    console.error("Falha ao registrar auditoria de convite de usuário:", error instanceof Error ? error.message : error);
+  }
+
   return { ok: true };
 }
 
@@ -110,5 +123,18 @@ export async function sendPasswordResetForUser(profileId: string): Promise<Actio
   ).toString();
   const { error: resetError } = await admin.auth.resetPasswordForEmail(email, { redirectTo });
   if (resetError) return { error: "Não foi possível enviar o link. Confira a configuração de e-mail e tente novamente." };
+
+  try {
+    await recordAuditEventSupabase(supabase, {
+      userId: auth.user.id,
+      entityType: "users",
+      entityId: profileId,
+      action: "password_reset_requested",
+      metadata: {},
+    });
+  } catch (error) {
+    console.error("Falha ao registrar auditoria de redefinição de senha:", error instanceof Error ? error.message : error);
+  }
+
   return { ok: true };
 }

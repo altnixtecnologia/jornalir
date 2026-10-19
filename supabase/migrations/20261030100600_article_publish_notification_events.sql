@@ -84,6 +84,17 @@ begin
   from public.site_notification_feature_flags
   limit 1;
   if not coalesce(v_enabled, false) then
+    -- Decisão automática registrada mesmo quando ignorada (pedido de
+    -- auditoria explícito: "incluindo falhas e ações ignoradas").
+    -- user_id null = ação do sistema, não de uma pessoa (18/10/2026).
+    insert into public.audit_events (user_id, entity_type, entity_id, action, metadata)
+    values (
+      null, 'articles', new.id, 'notification_skipped',
+      jsonb_build_object(
+        'title', left(new.title, 140), 'notificationMode', v_mode,
+        'reason', 'article_publish_events_enabled=false', 'origin', 'trigger:queue_article_push_on_publish'
+      )
+    );
     return new; -- Desativado por padrão até autorização explícita.
   end if;
 
@@ -104,6 +115,12 @@ begin
   )
   on conflict (dedupe_key) do nothing;
 
+  insert into public.audit_events (user_id, entity_type, entity_id, action, metadata)
+  values (
+    null, 'articles', new.id, 'notification_dispatched',
+    jsonb_build_object('title', left(new.title, 140), 'kind', v_kind, 'href', '/noticias/' || new.slug, 'origin', 'trigger:queue_article_push_on_publish')
+  );
+
   return new;
 end;
 $$;
@@ -111,7 +128,7 @@ $$;
 revoke all on function public.queue_article_push_on_publish() from public, anon, authenticated;
 
 comment on function public.queue_article_push_on_publish() is
-  'Gera notification_events (app_kind=site) quando uma matéria entra de verdade em status=published com notification_mode normal/urgent. Idempotente via dedupe_key (''article-publish:''||id) e via guard de transição (não refaz em matéria já publicada). Desligado por padrão (site_notification_feature_flags.article_publish_events_enabled=false) até autorização explícita de testar envio real. Substitui o comportamento anterior desta mesma trigger, que inserção na notification_outbox legada (nenhum código em produção a lê).';
+  'Gera notification_events (app_kind=site) quando uma matéria entra de verdade em status=published com notification_mode normal/urgent. Idempotente via dedupe_key (''article-publish:''||id) e via guard de transição (não refaz em matéria já publicada). Desligado por padrão (site_notification_feature_flags.article_publish_events_enabled=false) até autorização explícita de testar envio real. Substitui o comportamento anterior desta mesma trigger, que inserção na notification_outbox legada (nenhum código em produção a lê). Também registra em audit_events (user_id null = ação automática) tanto a decisão de notificar (notification_dispatched) quanto a de ignorar por estar desligado (notification_skipped) — 18/10/2026.';
 
 -- A trigger já existe (article_push_on_published, AFTER INSERT OR UPDATE OF
 -- status) desde 20261015080000 — só a função mudou de corpo acima, então
