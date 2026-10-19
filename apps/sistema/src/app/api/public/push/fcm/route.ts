@@ -4,4 +4,7 @@
  * Apenas as variáveis NATIVE_FCM_REGISTRATION_ENABLED e
  * NATIVE_FCM_DELIVERY_ENABLED podem liberar o fluxo.
  */
-export { GET, POST, DELETE, OPTIONS, dynamic, runtime } from "../../native-push/route";
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
+export { GET, POST, DELETE, OPTIONS } from "../../native-push/route";
