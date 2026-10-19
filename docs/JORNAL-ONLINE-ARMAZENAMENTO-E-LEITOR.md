@@ -155,3 +155,20 @@ O proprietário aprovou criar **um bucket R2 Standard exclusivo** para as ediç�
 - **Não executar migração dos PDFs antes do aviso do proprietário.**
 
 Status em 19/10: **decisão autorizada; criação física do bucket ainda depende de acesso autenticado à conta Cloudflare**, que não está conectada diretamente a este ChatGPT.
+
+
+## Correção técnica de 19/10/2026 — credenciais isoladas por bucket
+
+Inspeção do código real em `apps/sistema/src/providers/r2/editionArchive.r2.ts` mostrou que **não bastava configurar apenas `R2_EDITIONS_BUCKET`**: o cliente S3 e a geração de URLs de upload PUT ainda usavam `R2_ACCESS_KEY_ID`/`R2_SECRET_ACCESS_KEY`, credenciais restritas ao bucket de fotos. Foi corrigido no commit `5e3697e` (sem deploy).
+
+Configuração para o novo bucket de PDFs:
+- `R2_EDITIONS_BUCKET=jornal-ir-edicoes`
+- `R2_EDITIONS_ACCESS_KEY_ID`: **credencial R2 nova**, com acesso apenas ao bucket `jornal-ir-edicoes`, guardada como variável sensível, nunca no repositório.
+- `R2_EDITIONS_SECRET_ACCESS_KEY`: segredo correspondente, sensível.
+- `R2_EDITIONS_PUBLIC_BASE_URL`: **somente depois** de configurar e testar o domínio público próprio do bucket. Não usar `R2_PUBLIC_BASE_URL` do bucket de fotos para PDFs.
+
+O mesmo módulo agora usa essas credenciais no cliente S3 **e na assinatura de URLs PUT**. Se `R2_EDITIONS_BUCKET` aponta para bucket diferente, exige as credenciais novas e a URL pública correta: não reutiliza silenciosamente a conta antiga. Se o bucket exclusivo não for configurado, mantém compatibilidade integral com o fluxo antigo de edições no bucket de mídias, sem interferir nas fotos. `isEditionR2ArchiveConfigured()` sinaliza falso enquanto faltar configuração obrigatória.
+
+**Ordem segura:** (1) autenticar Cloudflare; (2) criar bucket privado; (3) criar token R2 S3 restrito a ele; (4) associar domínio público com CORS e validar; (5) configurar as quatro variáveis na Vercel; (6) testar sem alterar o acervo existente; (7) importar PDFs apenas quando o proprietário avisar. A criação do bucket não constitui publicação dos PDFs.
+
+O ajuste de código foi auditado estaticamente. Typecheck/build e prova de upload separado ainda dependem da revisão/teste local pela Claude. Não colocar `R2_EDITIONS_BUCKET` na Vercel antes de configurar também as outras três variáveis.
