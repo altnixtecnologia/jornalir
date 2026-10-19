@@ -213,4 +213,60 @@ interface do Console lida com qualquer verificação extra
 API não consegue fazer sozinha. Depois disso, com o projeto
 efetivamente "Firebase", o resto (cadastrar o app Android `com.jornalir`,
 pegar o `google-services.json`, gerar a conta de serviço) pode ser
-concluído novamente por CLI/API sem mais nenhuma ação manual. 
+concluído novamente por CLI/API sem mais nenhuma ação manual.
+
+## Firebase concluído — Claude (19/10/2026, commits `d182968`+)
+
+O usuário adicionou o Firebase ao projeto pelo Console (ficou
+`jornal-ir-app-5c6e2`, não o `jornal-ir-app` que eu tinha criado antes
+por API — aquele projeto Google Cloud antigo ficou órfão, inerte, sem
+custo; pode ser apagado quando quiserem, não é urgente).
+
+Com isso resolvido, concluí por CLI/API sem mais nenhuma ação manual:
+- App Android `com.jornalir` cadastrado no projeto
+  (`appId=1:71181001920:android:8b2450ff403a3abac1b925`).
+- Cloud Messaging API (`fcm.googleapis.com`) confirmada habilitada.
+- `google-services.json` real baixado e instalado em
+  `apps/mobile/android/app/` — conferido: `package_name=com.jornalir`,
+  `project_id=jornal-ir-app-5c6e2`. **Corrigido um descuido do template**:
+  o `.gitignore` do Android trazia essa linha comentada por padrão
+  (`# google-services.json`); descomentei antes de qualquer outra coisa
+  — confirmado que o arquivo real nunca entra no Git.
+- Build de depuração recompilado com o Firebase de verdade: o plugin
+  `google-services` agora processa o arquivo (task
+  `processDebugGoogleServices` rodou, gerou
+  `google_app_id`/`gcm_defaultSenderId`/`project_id` corretos nos
+  recursos) — confirma que o app vai conseguir pedir um token FCM real
+  pela primeira vez, uma vez instalado num aparelho.
+- **APK de release v.00.02 compilado e assinado** (condição anterior —
+  "Firebase e assinatura corretos" — agora satisfeita): `com.jornalir`,
+  versionCode 3, versionName v.00.02, 4.024.205 bytes, SHA-256
+  `f489a6a801185eac74be7cfcad300548240f236dc9a8284cd45e943c5eee37fa`.
+  `apksigner verify`: válido (exit 0), certificado SHA-256
+  `4710157434aba17d3e1b34cf5851af65b89d0895041999e6b40d0a3487066d20` —
+  **idêntico ao da v.00.01**, confirma mesma chave/certificado, app
+  instalável como atualização sem precisar desinstalar. `zipalign -c`:
+  OK. Cópia local em `..\releases-mobile\jornal-ir-v.00.02.apk` — v.00.00
+  e v.00.01 preservadas ao lado, nada sobrescrito. **Nada enviado ao R2,
+  nada publicado, nada distribuído.**
+
+**Único passo que fiquei parado, aguardando decisão do usuário:** gerar
+a conta de serviço server-only (`FIREBASE_PROJECT_ID`/
+`FIREBASE_CLIENT_EMAIL`/`FIREBASE_PRIVATE_KEY`) exige criar uma
+credencial nova e sensível (uma chave privada que, se vazada, permite
+enviar push em nome do projeto) — o classificador de permissões desta
+sessão bloqueou essa ação específica automaticamente, pedindo
+autorização explícita antes de prosseguir. Eu já tinha preparado tudo:
+- Papel certo identificado (`roles/firebasecloudmessaging.admin` —
+  "Firebase Cloud Messaging API Admin", só permissão de enviar
+  mensagens, nada de admin geral do projeto — exatamente o "menor
+  privilégio" pedido).
+- Plano: criar uma service account dedicada (`fcm-sender@jornal-ir-app-5c6e2.iam.gserviceaccount.com`),
+  conceder só esse papel, gerar uma chave JSON e salvar fora do
+  repositório (mesma pasta `keys-mobile/` do keystore Android) — nunca
+  imprimir o conteúdo da chave em lugar nenhum.
+- Isso ainda não foi executado. Se o usuário autorizar explicitamente
+  (ou preferir gerar essa chave direto no Console do Firebase/GCP,
+  IAM & Admin → Contas de serviço → `fcm-sender` → Chaves → Adicionar
+  chave → JSON), eu termino de preparar o arquivo final para o ChatGPT
+  configurar na Vercel, sem nunca expor o conteúdo da chave no chat. 
