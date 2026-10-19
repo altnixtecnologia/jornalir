@@ -621,6 +621,25 @@ export function ArticleForm({
                     <option key={option} value={option}>{notificationLabels[option]}</option>
                   ))}
                 </select>
+                <p className="helper-text" style={{ marginTop: 8 }}>
+                  Esta seleção registra a preferência editorial. Salvar ou republicar
+                  uma matéria já publicada não envia notificação.
+                </p>
+                {article?.status === "published" ? (
+                  isDirty ? (
+                    <p className="helper-text">Salve as alterações antes de preparar uma notificação.</p>
+                  ) : (
+                    <a
+                      href={`/sistema/configuracoes/notificacoes-push?article_id=${encodeURIComponent(article.id)}&kind=${notificationMode === "urgent" ? "urgent" : "ordinary"}`}
+                      className="form-action-primary"
+                      style={{ display: "inline-flex", alignItems: "center", width: "auto", marginTop: 8, padding: "0 12px", textDecoration: "none" }}
+                    >
+                      Preparar notificação manual
+                    </a>
+                  )
+                ) : (
+                  <p className="helper-text">Para avisar os leitores, publique a matéria e depois prepare o aviso manualmente.</p>
+                )}
               </div>
             </section>
           </div>
