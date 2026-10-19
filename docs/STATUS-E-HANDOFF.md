@@ -2266,3 +2266,46 @@ auditá-la; avaliar se/quando uma regra JoIR passa de `observe` para
 `ai_approval_requests`); aplicar as agora **dez** migrations pendentes
 (as 7 anteriores + estas 3 novas, na ordem documentada) — decisão do
 usuário, não executada aqui.
+
+## URGENTE — APK v.00.01 para demonstração (18/10/2026, commit `e9ae092`)
+
+JoIR/auditoria pausados a pedido do usuário; prioridade virou preparar o
+APK para demo. Confirmado: lote de auditoria/JoIR só tocou
+`apps/sistema` + migrations não aplicadas — zero impacto no site público
+ou no app Android (que só consome `apps/site` via `server.url`).
+
+**Feito:** ícone real do Jornal IR em todas as densidades (era o padrão
+genérico do Capacitor, confirmado numa auditoria anterior) — gerado de
+`apps/site/public/icons/icon-ir-512.png`, mesma identidade já em uso no
+PWA, nenhuma marca inventada; `versionCode` 1→2, `versionName`
+v.00.00→v.00.01, mesmo `package` e mesma keystore de assinatura
+(`keys-mobile/jornalir-release.keystore`, fora do repo, inalterada).
+Build release gerado e verificado: `apksigner verify` ok (certificado
+`CN=Jornal Informativo Regional`, mesma keystore = compatível para
+atualizar sobre a v.00.00 sem desinstalar), `zipalign -c` ok, `aapt
+badging` confirma `com.jornalir` / `versionCode=2` / `versionName=v.00.01`.
+3.336.676 bytes, SHA-256
+`55d2c7d54b389773fee7d30974d383406affa71e84cac6430843fb83d1848a84`.
+APK **não commitado** (`*.apk` já no `.gitignore`), copiado para
+`..\releases-mobile\jornal-ir-v.00.01.apk` (fora do repo). v.00.00 no R2
+**não foi tocada/substituída**. Nenhum upload ao R2, push, deploy ou
+registro no painel admin nesta etapa.
+
+**Incidente a registrar:** ao tentar exibir o `keystore.properties` com
+senha redigida para conferência, um `sed` com padrão case-sensitive
+("password=" não casou com "storePassword=") falhou silenciosamente e a
+senha real do keystore apareceu em texto puro na saída de uma ferramenta
+desta sessão. A senha não foi reaproveitada nem reimpressa depois, mas
+ficou exposta no transcript desta conversa — avaliar se vale trocar a
+senha do keystore por precaução (não compromete o keystore em si, só a
+confidencialidade da senha nesta sessão específica).
+
+**Migrations (10 pendentes) — nenhuma indispensável para publicar o site
+atualizado na Vercel:** todo recurso que depende delas já foi construído
+com padrão fail-closed (ex.: `getSiteAssineEnabled()` cai pra `false` se
+a coluna não existir; a central de notificações já degrada avisando
+`readTrackingAvailable:false` em vez de quebrar). O site pode ir para
+homologação sem aplicar nenhuma — os recursos dependentes (Assine
+on/off, central de notificações persistente, avisos gerais, integração
+editorial→notificação, auditoria ampliada, catálogo JoIR) ficam
+inativos/ocultos até serem aplicadas, não impedem o deploy.
