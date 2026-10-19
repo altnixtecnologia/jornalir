@@ -47,3 +47,8 @@ Separar **inscrição**, **teste individual** e **envio geral**. O aplicativo An
 - O convite de instalação adicionado no site só aparece após `mobile_app_releases` registrar versão publicada; a migration `20261030100400` ainda não foi aplicada. Não confundir site 200 com botão APK liberado pelo painel. O APK direto v.00.02 está no R2 e continua acessível pelo endereço já validado.
 - Corrigir alinhamento central da logo mobile (solicitado após instalação) em lote visual separado, verificando no Android sem regenerar APK. Não assumir que a alteração de layout foi feita neste lote.
 - **Segurança pendente:** relatório Claude informou exposição de `.env.local` em transcript. Planejar rotação de credenciais comprometidas sem copiar segredos nem derrubar serviços. Revogar `cfat_` órfão e credenciais desnecessárias conforme inventário e autorização; não limpar ou rotacionar indiscriminadamente.
+
+## Ajuste de navegação e cabeçalho antes da homologação Android
+- A tela `/notificacoes` é agora acessível pelo botão `Ativar ou configurar avisos` dentro do sininho no site e no app Android (WebView).
+- CSS do cabeçalho mobile ajustado para colunas `minmax(0,1fr) auto minmax(0,1fr)`, corrigindo a logo IR deslocada mostrada pelo proprietário. Alteração restrita ao site.
+- Necessita conferência visual no aparelho instalado, sem novo APK. Este ajuste teve publicação separada da implantação inicial FCM; conferir SHA mais novo do site em produção.

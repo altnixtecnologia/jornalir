@@ -107,6 +107,16 @@ export function NotificationPanel(): JSX.Element | null {
             ))}
           </ul>
         )}
+        <div className="border-t px-4 py-3" style={{ borderColor: "var(--site-line)" }}>
+          <button
+            type="button"
+            className="w-full rounded-lg px-4 py-3 text-sm font-bold text-white"
+            style={{ background: "var(--brand-navy)" }}
+            onClick={() => { closePanel(); router.push("/notificacoes"); }}
+          >
+            Ativar ou configurar avisos
+          </button>
+        </div>
       </div>
     </div>
   );
