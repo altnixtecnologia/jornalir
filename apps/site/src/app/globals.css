@@ -1420,13 +1420,13 @@ body {
    Tailwind lg:hidden ocultavam o único hambúrguer; mostrar a navegação
    de toque em vez do menu desktop, que pode extrapolar a largura útil. */
 @media (min-width: 1024px) and (hover: none) and (pointer: coarse) {
-  .site-header > .site-shell.hidden.lg\\:flex {
+  .site-header > .site-shell.hidden {
     display: none !important;
   }
-  .site-header .ir-mobile-header.lg\\:hidden {
+  .site-header .ir-mobile-header {
     display: grid !important;
   }
-  .site-header .ir-mobile-layer.lg\\:hidden {
+  .site-header .ir-mobile-layer {
     display: block !important;
   }
 }
