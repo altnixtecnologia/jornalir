@@ -4,6 +4,7 @@ import { ServiceWorkerRegister } from "../components/ServiceWorkerRegister";
 import { SiteFooter } from "../components/site/SiteFooter";
 import { WhatsAppFloatingButton } from "../components/site/WhatsAppFloatingButton";
 import { MobileBackButton } from "../components/site/MobileBackButton";
+import { AppInstallInvitation } from "../components/site/AppInstallInvitation";
 import { NotificationCenterProvider } from "../components/site/public/notifications/NotificationCenterContext";
 import { NotificationPanel } from "../components/site/public/notifications/NotificationPanel";
 import "./globals.css";
@@ -54,6 +55,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }):
           <SiteFooter />
           <WhatsAppFloatingButton />
           <NotificationPanel />
+          <AppInstallInvitation />
         </NotificationCenterProvider>
       </body>
     </html>

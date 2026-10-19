@@ -5,8 +5,8 @@ import { getPublishedAndroidRelease } from "../../../lib/public/mobileAppRelease
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 export const metadata: Metadata = {
-  title: "Aplicativo Jornal IR — Android",
-  description: "Acompanhe a disponibilidade do aplicativo piloto do Jornal Informativo Regional para Android.",
+  title: "Aplicativo Jornal IR — Download para Android",
+  description: "Baixe o aplicativo oficial do Jornal Informativo Regional para Android.",
 };
 
 function formatSize(bytes: number): string {
@@ -23,7 +23,7 @@ export default async function AplicativoPage(): Promise<JSX.Element> {
           <div className="px-6 py-8 text-white sm:px-10 sm:py-10" style={{ background: "linear-gradient(135deg,#23234d,#3d3d70)" }}>
             <div className="mb-4 flex items-center gap-3">
               <img src="/brand/logo-ir.png" alt="Jornal IR" className="h-11 w-auto object-contain" />
-              <span className="rounded-full border border-white/40 px-3 py-1 text-xs font-semibold">Android · Piloto</span>
+              <span className="rounded-full border border-white/40 px-3 py-1 text-xs font-semibold">Aplicativo Jornal IR · Android</span>
             </div>
             <h1 className="font-editorial text-3xl font-bold sm:text-4xl">Jornal IR no seu celular</h1>
             <p className="mt-3 max-w-xl text-sm leading-relaxed text-white/85 sm:text-base">
@@ -54,16 +54,14 @@ export default async function AplicativoPage(): Promise<JSX.Element> {
               </>
             ) : (
               <div className="rounded-xl border p-5" style={{ borderColor: "var(--site-line)" }}>
-                <p className="font-bold">O piloto está sendo preparado.</p>
+                <p className="font-bold">O download será disponibilizado em breve.</p>
                 <p className="mt-2 text-sm leading-relaxed" style={{ color: "var(--site-muted)" }}>
-                  O download será disponibilizado aqui assim que o APK estiver compilado, verificado e hospedado.
-                  Ainda não há instalador liberado.
+                  Assim que o aplicativo estiver disponível, o botão para baixar aparecerá nesta página.
                 </p>
               </div>
             )}
             <p className="text-xs leading-relaxed" style={{ color: "var(--site-muted)" }}>
-              Esta é uma versão piloto para testes, fora da Google Play. A versão para iPhone e a publicação nas lojas serão avaliadas depois.
-              Notificações nativas e som de alertas urgentes ainda dependem de testes e integração.
+              Baixe o aplicativo somente pelos links oficiais do Jornal IR. Em breve, também teremos os links para Google Play e App Store.
             </p>
           </div>
         </div>

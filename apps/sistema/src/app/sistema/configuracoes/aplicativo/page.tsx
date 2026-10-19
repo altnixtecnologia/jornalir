@@ -20,7 +20,7 @@ export default async function AplicativoConfiguracoesPage(): Promise<JSX.Element
   return (
     <>
       <ModuleHeader eyebrow="CONFIGURAÇÕES" title="Aplicativo Jornal IR"
-        description="Versão piloto Android, situação do download e controle de disponibilização do APK." />
+        description="Versões do aplicativo Android, link de download e controle de publicação." />
       {error || !release ? (
         <section className="form-section form-section--first">
           <h2>Versão v.00.00 — em preparação</h2>

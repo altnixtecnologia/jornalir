@@ -195,6 +195,7 @@ export const configuracoesNavGroup: AdminNavGroup = {
     { label: "Configurar assistente", href: "/sistema/configuracoes/assistente-ir", ownerOnly: true, group: "JoIR — Assistente Virtual" },
     { label: "Patrocinadores do site", href: "/sistema/configuracoes/patrocinadores" },
     { label: "Notificações push", href: "/sistema/configuracoes/notificacoes-push" },
+    { label: "Aplicativo Jornal IR", href: "/sistema/configuracoes/aplicativo" },
     { label: "Valores da página Assine", href: "/sistema/configuracoes/valores-assine" },
     { label: "Cobranças / Asaas", href: "/sistema/configuracoes/cobrancas" },
     { label: "Auditoria e Atividades", href: "/sistema/configuracoes/auditoria" },

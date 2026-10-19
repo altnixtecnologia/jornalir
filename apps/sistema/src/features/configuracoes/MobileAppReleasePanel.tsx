@@ -45,7 +45,7 @@ export function MobileAppReleasePanel({ initial }: Props): JSX.Element {
 
   return (
     <section className="form-section form-section--first">
-      <h2>Android — Piloto</h2>
+      <h2>Android — distribuição do aplicativo</h2>
       <p className="helper-text">A página pública é <a href="https://jornalir.vercel.app/aplicativo" target="_blank" rel="noreferrer" className="materia-title-link">/aplicativo</a>. Nenhum APK é anunciado enquanto o status estiver desativado.</p>
       <div className="form-grid">
         <label><span className="field-label">Versão exibida</span>
