@@ -115,7 +115,9 @@ export async function sendFcmToAndroid(input: {
     error?: { status?: string; details?: Array<{ errorCode?: string }> };
   };
   const code = raw.error?.details?.find((detail) => detail.errorCode)?.errorCode || raw.error?.status;
-  const expired = code === "UNREGISTERED" || response.status === 404;
+  // Um HTTP 404 também pode significar projeto Firebase mal configurado;
+  // só desativar o aparelho quando o FCM confirmar token UNREGISTERED.
+  const expired = code === "UNREGISTERED";
   return {
     ok: response.ok && Boolean(raw.name),
     status: response.status,
