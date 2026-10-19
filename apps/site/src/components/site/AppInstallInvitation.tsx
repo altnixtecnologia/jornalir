@@ -31,8 +31,11 @@ export function AppInstallInvitation(): JSX.Element | null {
   useEffect(() => {
     // O APK é Android. Não pedir instalação no desktop, iPhone, dentro do
     // aplicativo Capacitor ou em um site instalado como PWA.
-    if (!/Android/i.test(navigator.userAgent) || isInsideAppOrStandalone() ||
-        pathname === "/aplicativo" || pathname.startsWith("/sistema")) return;
+    if (pathname === "/aplicativo" || pathname.startsWith("/sistema")) {
+      setDownloadUrl(null);
+      return;
+    }
+    if (!/Android/i.test(navigator.userAgent) || isInsideAppOrStandalone()) return;
 
     try {
       if (sessionStorage.getItem(SEEN_THIS_VISIT) === "1" ||
@@ -94,7 +97,7 @@ export function AppInstallInvitation(): JSX.Element | null {
         <div>
           <p className="text-xs font-bold uppercase tracking-wide" style={{ color: "var(--brand-red)" }}>Jornal IR no celular</p>
           <h2 className="mt-1 text-lg font-extrabold leading-snug text-slate-900">Acompanhe nossa região pelo aplicativo!</h2>
-          <p className="mt-1 text-sm leading-relaxed text-slate-600">Acesse as notícias e receba nossos avisos diretamente no Android.</p>
+          <p className="mt-1 text-sm leading-relaxed text-slate-600">Leia notícias e acompanhe as novidades da região diretamente no Android.</p>
         </div>
       </div>
       <div className="mt-4 flex flex-wrap items-center gap-2">
