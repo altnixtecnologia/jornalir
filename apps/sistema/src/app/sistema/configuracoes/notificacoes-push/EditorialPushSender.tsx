@@ -37,11 +37,16 @@ export function EditorialPushSender({ prefill, enabled, eligibleByKind }: {
     if (confirmDuplicate) data.set("confirm_duplicate", "1");
     setMessage(null);
     startTransition(async () => {
-      const result = await enqueueSitePushAction(data);
+      let result = await enqueueSitePushAction(data);
       if (result.needsDuplicateConfirm) {
-        if (window.confirm(result.error + " Enviar mesmo assim?")) submit(event, true);
-        else setMessage("Envio cancelado — a matéria já havia sido notificada automaticamente.");
-        return;
+        if (!window.confirm((result.error || "Esta matéria já foi notificada.") + " Enviar mesmo assim?")) {
+          setMessage("Envio cancelado — a matéria já havia sido notificada automaticamente.");
+          return;
+        }
+        // A confirmação ocorre dentro da mesma transição. Chamar submit()
+        // novamente aqui falharia porque pending ainda está true.
+        data.set("confirm_duplicate", "1");
+        result = await enqueueSitePushAction(data);
       }
       if (result.error) {
         setMessage(result.error);
