@@ -5,6 +5,7 @@ const OAUTH_ENDPOINT = "https://oauth2.googleapis.com/token";
 const FCM_SCOPE = "https://www.googleapis.com/auth/firebase.messaging";
 
 let cachedToken: { token: string; expiresAt: number } | null = null;
+let refreshingToken: Promise<string> | null = null;
 
 export type FcmSendResult = {
   ok: boolean;
@@ -31,31 +32,37 @@ export function isNativeFcmConfigured(): boolean {
 
 async function accessToken(): Promise<string> {
   if (cachedToken && Date.now() < cachedToken.expiresAt - 120_000) return cachedToken.token;
-  const { email, privateKey } = credentials();
-  const now = Math.floor(Date.now() / 1000);
-  const header = Buffer.from(JSON.stringify({ alg: "RS256", typ: "JWT" })).toString("base64url");
-  const claims = Buffer.from(JSON.stringify({
-    iss: email, scope: FCM_SCOPE, aud: OAUTH_ENDPOINT, iat: now, exp: now + 3600,
-  })).toString("base64url");
-  const unsigned = header + "." + claims;
-  const signer = createSign("RSA-SHA256");
-  signer.update(unsigned);
-  signer.end();
-  const signed = unsigned + "." + signer.sign(privateKey).toString("base64url");
-  const body = new URLSearchParams({
-    grant_type: "urn:ietf:params:oauth:grant-type:jwt-bearer",
-    assertion: signed,
-  });
-  const response = await fetch(OAUTH_ENDPOINT, {
-    method: "POST", body,
-    headers: { "content-type": "application/x-www-form-urlencoded" },
-    cache: "no-store", signal: AbortSignal.timeout(10000),
-  });
-  if (!response.ok) throw new Error("Falha na autenticação do Firebase (" + response.status + ").");
-  const result = await response.json() as { access_token?: string; expires_in?: number };
-  if (!result.access_token || !result.expires_in) throw new Error("Resposta de autenticação FCM incompleta.");
-  cachedToken = { token: result.access_token, expiresAt: Date.now() + Math.min(3600, result.expires_in) * 1000 };
-  return result.access_token;
+  // Dez mensagens no mesmo lote não devem solicitar dez credenciais OAuth.
+  if (refreshingToken) return refreshingToken;
+  refreshingToken = (async () => {
+    const { email, privateKey } = credentials();
+    const now = Math.floor(Date.now() / 1000);
+    const header = Buffer.from(JSON.stringify({ alg: "RS256", typ: "JWT" })).toString("base64url");
+    const claims = Buffer.from(JSON.stringify({
+      iss: email, scope: FCM_SCOPE, aud: OAUTH_ENDPOINT, iat: now, exp: now + 3600,
+    })).toString("base64url");
+    const unsigned = header + "." + claims;
+    const signer = createSign("RSA-SHA256");
+    signer.update(unsigned);
+    signer.end();
+    const signed = unsigned + "." + signer.sign(privateKey).toString("base64url");
+    const body = new URLSearchParams({
+      grant_type: "urn:ietf:params:oauth:grant-type:jwt-bearer",
+      assertion: signed,
+    });
+    const response = await fetch(OAUTH_ENDPOINT, {
+      method: "POST", body,
+      headers: { "content-type": "application/x-www-form-urlencoded" },
+      cache: "no-store", signal: AbortSignal.timeout(10000),
+    });
+    if (!response.ok) throw new Error("Falha na autenticação do Firebase (" + response.status + ").");
+    const result = await response.json() as { access_token?: string; expires_in?: number };
+    if (!result.access_token || !result.expires_in) throw new Error("Resposta de autenticação FCM incompleta.");
+    cachedToken = { token: result.access_token, expiresAt: Date.now() + Math.min(3600, result.expires_in) * 1000 };
+    return result.access_token;
+  })();
+  try { return await refreshingToken; }
+  finally { refreshingToken = null; }
 }
 
 /** Enviar a um único token FCM (nunca logar o token ou a credencial).
