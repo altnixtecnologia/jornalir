@@ -74,16 +74,21 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       }
       const event = eventQuery.data as EventRow;
       const device = deviceQuery.data as DeviceRow;
+      const now = Date.now();
+      const scheduledAt = new Date(event.scheduled_at).getTime();
       const eligible = event.app_kind === "site" &&
         (event.kind === "ordinary" || event.kind === "urgent") &&
         device.enabled &&
         (event.kind === "urgent" ? device.urgent_enabled : device.ordinary_enabled) &&
-        new Date(event.scheduled_at).getTime() >= new Date(device.consented_at).getTime() &&
-        new Date(event.scheduled_at).getTime() <= Date.now() &&
+        scheduledAt >= new Date(device.consented_at).getTime() &&
+        scheduledAt <= now &&
+        // A fila pode atrasar após o claim: não entregar eventos vencidos.
+        scheduledAt >= now - 24 * 60 * 60 * 1000 &&
+        new Date(device.last_seen_at).getTime() >= now - 60 * 24 * 60 * 60 * 1000 &&
         /^\/noticias\/[a-z0-9-]+\/?$/i.test(event.href || "");
       if (!eligible) {
         skipped++;
-        await finish("expired", "Preferência desativada ou URL incompatível");
+        await finish("expired", "Evento vencido, preferência desativada ou URL incompatível");
         return;
       }
       const result = await sendFcmToAndroid({
