@@ -86,3 +86,12 @@ Correções preparadas no backend/painel após auditoria estática:
 **Firebase:** Claude relatou projeto Google Cloud `jornal-ir-app`, ainda com erro 403 na etapa `addFirebase`. Não inferir exigência de cobrança apenas do HTTP 403; verificar console Google e detalhes da falha. Não criar um segundo projeto sem confirmar o primeiro.
 
 **Próxima etapa:** receber o HEAD completo da branch Claude; integrar e validar `apps/mobile`+`apps/site`+`apps/sistema`; estabelecer projeto Firebase, migrações e envs; só depois pedir autorização separada para deploy e testes com destinatário consentido.
+
+## Atualização — Firebase Android validado pela Claude em 19/10/2026
+
+**Fonte: relatório da Claude repassado pelo proprietário (ainda sem verificação independente do APK local).**
+- Projeto Firebase real: `jornal-ir-app-5c6e2` (não confundir com o identificador inicial de Google Cloud `jornal-ir-app`). Android `com.jornalir` cadastrado; Cloud Messaging API v1 habilitada; `google-services.json` no PC, ignorado pelo Git.
+- APK `v.00.02` / versionCode `3` relatado como assinado com o certificado original; tamanho 4.024.205 bytes; SHA-256 `f489a6a801185eac74be7cfcad300548240f236dc9a8284cd45e943c5eee37fa`. Áudio urgente validado e empacotado. **Ainda não publicado, nem testado com push real.**
+- **Bloqueio restante:** criação de conta de serviço exclusiva para FCM (`roles/firebasecloudmessaging.admin` no projeto correto) e geração de credencial sensível, dependentes de autorização expressa do proprietário. Não disponibilizar chave em ChatGPT, GitHub, APK, logs ou OneDrive; armazenar somente em ambiente seguro do servidor.
+- Somente depois de configurar `FIREBASE_PROJECT_ID=jornal-ir-app-5c6e2`, `FIREBASE_CLIENT_EMAIL` e `FIREBASE_PRIVATE_KEY` na Vercel e da migration revisada, habilitar **cadastro** para um único aparelho autorizado na homologação. Entrega e envios editoriais permanecem desabilitados até teste e autorização separada.
+- Claude informou oito commits locais à frente do GitHub; **não integrar antes de esses commits chegarem à branch remota**, preservando a `main` e os trabalhos nas branches.
