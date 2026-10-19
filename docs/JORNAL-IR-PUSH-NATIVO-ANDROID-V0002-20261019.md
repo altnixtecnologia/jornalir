@@ -103,4 +103,62 @@ segundo plano/fechado) antes de qualquer distribuição.
 - Provar recebimento em Android com app ABERTO, SEGUNDO PLANO e FECHADO, incluindo som distinto e toque levando à matéria correta.
 - Confirmar canal e som nas configurações do Android, com opção de desativar normal e urgente separadamente.
 - Auditar uma mensagem por evento/dispositivo, sem duplicação PWA/FCM.
-- Reportar SHA, logs relevantes sem segredos, versões, APK SHA, riscos e os bloqueios de credencial. 
+- Reportar SHA, logs relevantes sem segredos, versões, APK SHA, riscos e os bloqueios de credencial.
+
+## Conclusão da parte Android — Claude (19/10/2026, commits `57619e8`/`5bea80b`)
+
+**Áudio urgente: RESOLVIDO.** `jornal_ir_urgente.ogg` confirmado em
+`res/raw/` — 33.056 bytes, SHA-256
+`81b4fa057e1172023170e2205011bef8b75b416726bf4fee8d2ab78dfd34ce99`,
+batendo exatamente com o esperado. Verificado também **dentro do APK
+compilado** (extraído de volta do zip e re-conferido o hash) — o aapt
+empacota sem alterar o conteúdo. `aapt dump resources` confirma
+`com.jornalir:raw/jornal_ir_urgente` existe no pacote. Nenhuma mudança de
+código foi necessária: `JornalIrApplication.java` já resolvia o som pelo
+nome do recurso (não por `R.raw.*`), exatamente pensado para este
+cenário — o canal `jornal_ir_urgente_v1` passa a usar o som real
+automaticamente, sem precisar recompilar nada além do próprio APK.
+
+**Cliente FCM: realinhado ao contrato real do backend.** Lido
+diretamente `apps/sistema/src/app/api/public/native-push/route.ts` da
+branch `feature/backend-fcm-notificacoes-20261019` (sem fazer merge) —
+`NativePushPreferences.tsx` corrigido para usar `installationId` (UUID)
++ `managementToken` (segredo local) como identidade, `fcmToken`/
+`ordinary`/`urgent`/`consented` no corpo, consulta `GET` antes de
+oferecer "Ativar" (`registrationAvailable`), `data.event_id` deduplicando
+a notificação local em primeiro plano. Nenhuma incompatibilidade de
+contrato encontrada.
+
+**Firebase: BLOQUEADO — exige uma ação humana que não pode ser feita por
+mim.** Não existe projeto Firebase para o Jornal IR nem
+`google-services.json` em lugar nenhum desta máquina. Criar um projeto
+Firebase (ou vincular `com.jornalir` a um existente) exige autenticação
+real numa Conta Google — um fluxo OAuth interativo no navegador que só o
+dono da conta pode completar; não há nenhuma credencial Firebase/GCP já
+armazenada neste computador para reaproveitar, e eu nunca devo pedir ou
+manusear a senha/login do Google do usuário. `firebase-tools` **não**
+está instalado nesta máquina (mas está disponível via npm, não precisa
+de nada especial para instalar — só a autenticação depois é que é o
+bloqueio real).
+
+**Única ação necessária do usuário para destravar isto:**
+1. Rodar, uma única vez, num terminal deste computador (fora desta
+   sessão, já que precisa abrir o navegador para o login do Google):
+   ```
+   npx firebase-tools@15 login
+   ```
+   (ou `login:ci` para gerar um token reutilizável sem precisar logar de
+   novo depois).
+2. Depois disso, com uma sessão do Firebase CLI autenticada nesta
+   máquina, uma próxima etapa pode ser concluída de ponta a ponta sem
+   mais nenhuma ação manual: criar/vincular o projeto Firebase, cadastrar
+   o app Android `com.jornalir`, habilitar a Cloud Messaging API v1, e
+   baixar o `google-services.json` real para
+   `apps/mobile/android/app/`.
+
+**APK de release:** ainda **não gerado**. A própria instrução do usuário
+condicionou isso a "Firebase e assinatura estarem corretos" — a
+assinatura está (mesmo certificado da v.00.01, confirmado), o Firebase
+não está. Build de verificação (`assembleDebug`) continua passando
+limpo com o áudio real já embutido; `assembleRelease` fica pendente
+dessa decisão (posso gerar a qualquer momento, só avisar). 
