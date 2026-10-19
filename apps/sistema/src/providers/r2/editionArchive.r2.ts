@@ -27,36 +27,59 @@ function requiredEnv(name: string): string {
   return value;
 }
 
+/** Edições podem usar bucket/credenciais próprios. Nunca misturar chaves:
+ * as chaves antigas de fotos podem ter escopo limitado ao bucket R2_BUCKET.
+ * Exigir configurações exclusivas para um bucket de edições diferente.
+ */
+function hasDedicatedEditionBucket(): boolean {
+  const editions = env("R2_EDITIONS_BUCKET");
+  return Boolean(editions && editions !== env("R2_BUCKET"));
+}
+
+function editionCredentials(): { accessKeyId: string; secretAccessKey: string } {
+  if (hasDedicatedEditionBucket()) {
+    return {
+      accessKeyId: requiredEnv("R2_EDITIONS_ACCESS_KEY_ID"),
+      secretAccessKey: requiredEnv("R2_EDITIONS_SECRET_ACCESS_KEY"),
+    };
+  }
+  // Compatibilidade: edição no mesmo bucket de mídias usa chaves existentes.
+  return {
+    accessKeyId: env("R2_EDITIONS_ACCESS_KEY_ID") ?? requiredEnv("R2_ACCESS_KEY_ID"),
+    secretAccessKey: env("R2_EDITIONS_SECRET_ACCESS_KEY") ?? requiredEnv("R2_SECRET_ACCESS_KEY"),
+  };
+}
+
 function r2Client(): S3Client {
   return new S3Client({
     region: "auto",
     endpoint: requiredEnv("R2_ENDPOINT"),
-    credentials: {
-      accessKeyId: requiredEnv("R2_ACCESS_KEY_ID"),
-      secretAccessKey: requiredEnv("R2_SECRET_ACCESS_KEY"),
-    },
+    credentials: editionCredentials(),
   });
 }
 
 function bucket(): string {
-  // No início usaremos o mesmo bucket R2 já operacional para mídias,
-  // isolando as edições pelo prefixo jornal-online/. Se no futuro o acervo
-  // merecer bucket próprio, basta definir R2_EDITIONS_BUCKET sem mudar código.
   return env("R2_EDITIONS_BUCKET") ?? requiredEnv("R2_BUCKET");
 }
 
 function publicBase(): string {
-  return (env("R2_EDITIONS_PUBLIC_BASE_URL") ?? requiredEnv("R2_PUBLIC_BASE_URL")).replace(/\/$/, "");
+  // A URL pública do bucket de fotos nunca pode representar o bucket novo.
+  const base = hasDedicatedEditionBucket()
+    ? requiredEnv("R2_EDITIONS_PUBLIC_BASE_URL")
+    : env("R2_EDITIONS_PUBLIC_BASE_URL") ?? requiredEnv("R2_PUBLIC_BASE_URL");
+  return base.replace(/\/$/, "");
 }
 
 export function isEditionR2ArchiveConfigured(): boolean {
-  return Boolean(
-    env("R2_ENDPOINT") &&
-      env("R2_ACCESS_KEY_ID") &&
-      env("R2_SECRET_ACCESS_KEY") &&
-      (env("R2_EDITIONS_BUCKET") || env("R2_BUCKET")) &&
-      (env("R2_EDITIONS_PUBLIC_BASE_URL") || env("R2_PUBLIC_BASE_URL")),
-  );
+  try {
+    requiredEnv("R2_ENDPOINT");
+    bucket();
+    editionCredentials();
+    publicBase();
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 export async function ensureEditionR2CorsConfigured(): Promise<void> {
@@ -163,8 +186,7 @@ function formatAmzDate(date: Date): { amzDate: string; dateStamp: string } {
  */
 function presignPutUrl(key: string, expiresSeconds = 900): string {
   const endpoint = new URL(requiredEnv("R2_ENDPOINT"));
-  const accessKeyId = requiredEnv("R2_ACCESS_KEY_ID");
-  const secretAccessKey = requiredEnv("R2_SECRET_ACCESS_KEY");
+  const { accessKeyId, secretAccessKey } = editionCredentials();
   const region = "auto";
   const service = "s3";
   const host = `${bucket()}.${endpoint.host}`;
