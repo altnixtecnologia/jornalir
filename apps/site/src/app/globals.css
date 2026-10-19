@@ -1406,11 +1406,10 @@ body {
   min-height: 42px;
   margin-bottom: 12px;
   padding-right: 52px;
-  /* Sticky dentro do próprio painel (que tem overflow-y:auto) — o botão
-     de fechar nunca sai da vista ao rolar a lista de links (18/10/2026). */
-  position: sticky;
-  top: 0;
-  z-index: 5;
+  /* A marca faz parte do fluxo rolável do painel. Não fixar com sticky:
+     isso sobrepunha "Acessos" e os botões ao rolar no Android. O botão
+     de fechar permanece separado no cabeçalho do site. */
+  position: static;
   background: var(--site-surface);
   padding-top: 2px;
 }
