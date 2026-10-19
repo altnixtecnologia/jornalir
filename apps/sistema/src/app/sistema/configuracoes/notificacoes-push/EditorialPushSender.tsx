@@ -2,19 +2,30 @@
 import { useEffect, useState, useTransition, type FormEvent } from "react";
 import { enqueueSitePushAction } from "./actions";
 
-export function EditorialPushSender(): JSX.Element {
+export interface EditorialPushPrefill {
+  title: string;
+  body: string;
+  href: string;
+  kind: "ordinary" | "urgent";
+}
+
+export function EditorialPushSender({ prefill, enabled, eligibleCount }: {
+  prefill?: EditorialPushPrefill;
+  enabled: boolean;
+  eligibleCount: number;
+}): JSX.Element {
   const [pending, startTransition] = useTransition();
-  const [kind, setKind] = useState<"ordinary" | "urgent">("ordinary");
-  const [title, setTitle] = useState("");
-  const [body, setBody] = useState("");
-  const [href, setHref] = useState("/");
+  const [kind, setKind] = useState<"ordinary" | "urgent">(prefill?.kind ?? "ordinary");
+  const [title, setTitle] = useState(prefill?.title ?? "");
+  const [body, setBody] = useState(prefill?.body ?? "");
+  const [href, setHref] = useState(prefill?.href ?? "/");
   const [requestId, setRequestId] = useState("");
   useEffect(() => setRequestId(crypto.randomUUID()), []);
   const [message, setMessage] = useState<string | null>(null);
 
   function submit(event: FormEvent<HTMLFormElement>, confirmDuplicate = false): void {
     event.preventDefault();
-    if (pending || !requestId) return;
+    if (pending || !requestId || !enabled || eligibleCount === 0) return;
     if (kind === "urgent" && !confirmDuplicate && !window.confirm("Confirmar notificação URGENTE para os leitores inscritos?")) return;
     const data = new FormData();
     data.set("kind", kind);
@@ -35,7 +46,7 @@ export function EditorialPushSender(): JSX.Element {
         setMessage(result.error);
         return;
       }
-      setMessage("Notificação incluída na fila. Apenas dispositivos inscritos e que autorizaram este tipo poderão recebê-la.");
+      setMessage("Aviso preparado e incluído na fila, ainda não entregue. Acompanhe as entregas no painel de notificações.");
       setRequestId(crypto.randomUUID());
       setTitle("");
       setBody("");
@@ -45,8 +56,14 @@ export function EditorialPushSender(): JSX.Element {
   return (
     <form className="form-section" onSubmit={submit}>
       <p className="helper-text">
-        A ação é manual. O envio requer inscritos e o agendador push ativo. Se a matéria já notificou automaticamente ao
-        ser publicada, o sistema avisa antes de enviar de novo.
+        A publicação da matéria NÃO envia este aviso. O disparo é separado e manual,
+        depende de dispositivos inscritos, agendador ativo e liberação após homologação.
+        O sistema exige confirmação adicional para notícias urgentes.
+      </p>
+      <p className="helper-text" role="status">
+        {enabled
+          ? `Inscritos elegíveis: ${eligibleCount}. O aviso só poderá ser preparado se houver pelo menos um destinatário.`
+          : "Envio temporariamente desativado para homologação. Nenhuma notificação será disparada por esta tela."}
       </p>
       <label className="form-field">
         <span className="field-label">Tipo de notificação</span>
@@ -67,7 +84,7 @@ export function EditorialPushSender(): JSX.Element {
         <span className="field-label">Link interno da notícia</span>
         <input value={href} maxLength={500} required onChange={(event) => setHref(event.target.value)} disabled={pending} placeholder="/noticia/exemplo" />
       </label>
-      <button type="submit" className="form-action-primary" disabled={pending || !requestId}>{pending ? "Preparando..." : kind === "urgent" ? "Preparar aviso urgente" : "Preparar notificação"}</button>
+      <button type="submit" className="form-action-primary" disabled={pending || !requestId || !enabled || eligibleCount === 0}>{pending ? "Preparando..." : kind === "urgent" ? "Preparar aviso urgente" : "Preparar notificação"}</button>
       {message ? <p role="status" className="helper-text">{message}</p> : null}
     </form>
   );
