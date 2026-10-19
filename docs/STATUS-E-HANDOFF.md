@@ -2112,3 +2112,157 @@ este commit e sobre aplicar as sete migrations.
 100100 → 100200 → 100300 → 100400 → 100500 → 100600 → 100700. Todas já
 versionadas no GitHub (commit `2056c75`, verificado nesse push). Nenhuma
 aplicada ao Supabase remoto.
+
+## LOTE — Auditoria ampliada + tela de consulta + catálogo JoIR (18/10/2026, commit `91570c9`)
+
+Primeiro lote da "evolução do JoIR como assistente operacional sem API
+paga" + "auditoria completa do Jornal IR", conforme pedido explícito —
+parado aqui para revisão, como instruído ("parar após o primeiro lote
+funcional"). Branch `feature/site-lancamento-editorial-publicidade-20261018`,
+commits `b2d6942`/`3528ef2` anteriores preservados. Nenhum push nesta
+etapa (branch 3 à frente do GitHub agora).
+
+**O que já existia (reaproveitado, não duplicado):** `public.audit_events`
+já existe desde a Fase P (migration original `20260921101000_audit_events.sql`)
+— log imutável (sem policy de UPDATE/DELETE para nenhum papel, nem
+owner), RLS: owner/admin leem tudo, qualquer staff ativo insere só em
+seu próprio nome (`user_id = auth.uid()`, nunca forjável). O helper
+`recordAuditEventSupabase` (`apps/sistema/src/providers/supabase/auditEvents.supabase.ts`)
+já era o ponto único de gravação, usado por ~20 pontos do sistema
+(NFS-e, publicidade, financeiro/cobranças, configurações, propostas do
+JoIR). **Nada disso foi recriado** — só estendido.
+
+**Gap real encontrado:** `ArticleService` (packages/core) recebe
+`AuditContext` em todos os métodos (`saveDraft`, `updateDraft`,
+`publishNow`, `schedule`, `archive`) mas o parâmetro é literalmente
+`_audit` (prefixo de "não usado") — comentário no próprio código:
+"nesta fase mock nenhum log é gravado". Ou seja: **matérias nunca foram
+auditadas**, apesar do contexto já estar sendo passado desde sempre.
+`editorial/destaques/actions.ts` (fixar/desafixar/reordenar destaque)
+também não tinha nenhuma chamada de auditoria. Esses dois eram
+exatamente os pontos que o usuário pediu primeiro ("Matérias:
+criação, edição, publicação, agendamento, arquivamento, exclusão e
+alterações de destaque").
+
+**1. Cobertura ampliada:**
+- `editorial/materias/actions.ts`: `createArticle`/`updateArticle`/
+  `archiveArticle` agora chamam `recordAuditEventSupabase` depois de
+  cada operação real (nunca antes — se a operação falhar, nada é
+  gravado). Metadata inclui `title` e, quando há transição de status,
+  `statusChange: "Rascunho → Publicado"` etc., exatamente no formato
+  pedido. "Exclusão" não existe como funcionalidade real no sistema hoje
+  (confirmado: nenhum DELETE de matéria em nenhum lugar) — mapeada para
+  "arquivamento", a única forma de remoção existente.
+- `editorial/destaques/actions.ts`: fixar/desafixar/remover do destaque
+  e reordenação agora geram evento (`action: update_placement` /
+  `reorder_placement`).
+- `usuarios/actions.ts`: convite de usuário (`invite`) e solicitação de
+  redefinição de senha (`password_reset_requested`) agora geram evento.
+  **Pendência real, não construída agora:** não existe hoje no código
+  nenhuma ação de ativar/bloquear usuário ou trocar papel (só convite e
+  reset de senha) — não há nada para auditar nesse ponto específico até
+  essa funcionalidade ser criada; registrado para quando for pedida.
+- Dois pontos de banco (fora do alcance de qualquer Server Action)
+  passam a registrar com `user_id = null` (ação do sistema, nunca de
+  uma pessoa — "distinguir eventos automáticos do usuário que
+  autorizou", pedido explícito): `public.publish_due_scheduled_articles()`
+  (pg_cron, matéria agendada publicada automaticamente) e
+  `public.queue_article_push_on_publish()` (gatilho de notificação
+  editorial do lote anterior — agora registra tanto quando dispara
+  (`notification_dispatched`) quanto quando ignora por a flag estar
+  desligada (`notification_skipped`), satisfazendo "incluindo falhas e
+  ações ignoradas").
+- **Módulos ainda pendentes** (não tocados neste lote, por decisão
+  explícita de ir em lotes controlados): agenda/tarefas,
+  assinaturas/operações financeiras específicas (cobranças/Asaas já
+  tinham cobertura prévia, mas o módulo de Assinaturas em si não foi
+  revisado), app/versões (já cobertas antes, revisado só por
+  referência), integrações externas (Asaas, WhatsApp) alem do que já
+  existia.
+
+**2. Nova tela `/sistema/configuracoes/auditoria` ("Auditoria e
+Atividades"):** acesso owner/admin, mesmo guard de página usado em
+`configuracoes/aplicativo` e NFS-e (`profile.active && role in
+(owner,admin)`, com redirect), reforçado pela RLS já existente da
+própria tabela (mesmo sem o guard de página, ninguém abaixo de
+owner/admin conseguiria ler uma linha). Link adicionado em
+`configuracoesNavGroup` (`navigation.ts`) — aparece só para quem já vê o
+menu Configurações (operador nunca vê essa seção, confirmado no código
+do header). Tabela com data/hora, responsável, módulo, acontecimento em
+português claro (nunca SQL/JSON bruto — tradução feita em
+`auditEventPresentation.ts`, com fallback humanizado para qualquer
+entidade/ação ainda não mapeada), registro afetado (id truncado) e
+resultado (badge Sucesso/Falha/Ignorado). Ordenação por clique no
+cabeçalho (data/hora, módulo, acontecimento) com indicador visual (▲/▼);
+busca livre (ação, módulo, título dentro do metadata); filtros
+combináveis (módulo, ação, origem usuário/automática, resultado,
+período) — tudo via querystring, sem JavaScript extra para o filtro
+básico; paginação no servidor (`listAuditEventsAdminPageSupabase`, nunca
+busca tudo de uma vez); visualização detalhada em modal (client
+component `AuditEventsTable.tsx`), com todos os campos do metadata
+traduzidos; botão "Limpar filtros". Visual reaproveita exatamente as
+classes já usadas em Contas a Receber (`materias-toolbar`,
+`materias-table`, `PaginatedNav`, `ModuleHeader`) — nenhum componente
+novo de layout inventado.
+
+**3. JoIR — catálogo de regras (primeira fase, sem API paga):** nova
+tabela `joir_automation_rules` — catálogo de regras determinísticas
+(`observe`/`prepare`/`approve_required`/`auto_execute_allowed`), toda
+regra nasce `enabled=false`. **Trava redundante no próprio banco**
+(constraint `joir_automation_rules_no_auto_exec_yet`): nenhuma regra da
+categoria `auto_execute_allowed` pode estar habilitada nesta fase, de
+nenhum módulo — testado de verdade (inserir uma regra assim falha com
+erro de constraint). Isso cobre por construção, não só por convenção,
+"não publicar matéria, não alterar valor financeiro, não enviar
+mensagem externa, não cobrar, não alterar registro sensível sem
+autorização" — mesmo que alguém tentasse marcar uma regra assim
+diretamente no banco, falharia. 4 regras iniciais cadastradas, todas
+`observe`/`prepare`/`approve_required` (nunca executam nada sozinhas):
+assinaturas próximas do vencimento, tarefas/pauta atrasadas, matérias
+com pendências editoriais, revisão de notificações editoriais ignoradas.
+RLS: só owner lê/atualiza (mesmo padrão das outras telas de JoIR);
+inserir/remover regra do catálogo só por `service_role` (catálogo
+versionado em migration, não editável por tela nesta fase). **Nenhuma
+automação de verdade roda ainda** — este lote só prepara o catálogo e a
+trava de segurança; execução real é etapa futura, com simulação/teste
+antes de qualquer `enabled=true`.
+
+**Migrations preparadas, NÃO aplicadas** (nenhuma delas tocou RLS nem
+dado existente): `20261030100800_audit_scheduled_publish.sql` (estende
+`publish_due_scheduled_articles`), `20261030100900_joir_automation_rules.sql`
+(catálogo novo), `20261030101000_audit_events_viewer_indexes.sql`
+(índices de apoio, zero mudança de comportamento). A migration
+`20261030100600` (do lote anterior, também ainda não aplicada) foi
+**editada** para acrescentar o log de decisão automática — sem mudar
+nada do que já fazia.
+
+**Testado de verdade, num Supabase local isolado** (mesmo processo dos
+lotes anteriores — nunca tocou o remoto nem o outro projeto Docker local
+em execução na máquina; descartado ao final): as 4 regras JoIR nascem
+desligadas; inserir uma regra `auto_execute_allowed` habilitada falha
+com erro de constraint; publicar uma matéria agendada via
+`publish_due_scheduled_articles()` gera o evento de auditoria certo;
+publicar com a flag de notificação desligada gera `notification_skipped`
+com o motivo certo, ligada gera `notification_dispatched` com
+kind/href certos; os filtros da tela (módulo, origem, resultado, busca
+livre) testados contra consultas reais via `@supabase/supabase-js`
+(não só leitura de código) — incluindo um bug real de sintaxe
+encontrado e corrigido (`metadata::text` não é aceito dentro de uma
+árvore `or()` pelo PostgREST; trocado para `metadata->>title`); join com
+`profiles` traz o nome do responsável corretamente; RLS confirmada por
+teste real (JWT assinado manualmente, não só leitura das policies):
+owner lê todo o log mas **não consegue** `UPDATE` nem `DELETE` (nem
+owner — confirmado tentando de verdade e checando que a linha não
+mudou), operador não lê o log nem o catálogo JoIR, operador **não
+consegue** inserir um evento forjando o `user_id` de outra pessoa
+(RLS rejeita). `npm run typecheck`/`build` de `@ir/sistema`: limpo.
+
+**Pendências para a próxima rodada (não iniciadas, por decisão de ir em
+lotes):** estender auditoria a agenda/tarefas e demais módulos
+financeiros ainda não cobertos; construir a funcionalidade de
+ativar/bloquear usuário e trocar papel (hoje não existe) antes de poder
+auditá-la; avaliar se/quando uma regra JoIR passa de `observe` para
+`approve_required` de verdade (gerando uma proposta real em
+`ai_approval_requests`); aplicar as agora **dez** migrations pendentes
+(as 7 anteriores + estas 3 novas, na ordem documentada) — decisão do
+usuário, não executada aqui.
