@@ -15,7 +15,7 @@ export default async function SiteAdSlotsPage(): Promise<JSX.Element> {
       <ModuleHeader
         eyebrow="CONFIGURAÇÕES / PATROCINADORES DO SITE"
         title="Patrocinadores do site"
-        description="Seis posições fixas: três à esquerda e três à direita. Carregue as imagens de cada posição e defina como elas rodam."
+        description="Organize as imagens em seis grupos. No site, os grupos circulam automaticamente entre as três fileiras, nos lados esquerdo e direito, mantendo o tempo e os efeitos configurados por imagem."
       />
       <SiteAdSlotsPanel slots={slots} />
     </>
