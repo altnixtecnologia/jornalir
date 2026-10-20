@@ -98,10 +98,6 @@ function AssigneeChecks({
   );
 }
 
-function weekEventOptions(events: AgendaEventItem[], weekStart: string, weekEnd: string): AgendaEventItem[] {
-  return events.filter((event) => event.eventDate >= weekStart && event.eventDate <= weekEnd && event.status !== "cancelled");
-}
-
 export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspaceProps): JSX.Element {
   const router = useRouter();
   const realtimeClient = useMemo(() => createSupabaseBrowserClient(), []);
@@ -185,7 +181,7 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
     data.pautaItems.filter((item) =>
       item.status === "pending" && item.responsibleProfileId === data.currentUserId && !item.agendaEventId).length;
   const weekDays = Array.from({ length: 7 }, (_, index) => addDays(data.weekStart, index));
-  const weekEvents = weekEventOptions(data.events, data.weekStart, data.weekEnd);
+  const initialPautaDate = data.today >= data.weekStart && data.today <= data.weekEnd ? data.today : data.weekStart;
   const monthEventCount = data.events.filter((event) => event.eventDate >= data.monthStart && event.eventDate <= data.monthEnd).length;
   const pautaItems = responsibleFilter
     ? data.pautaItems.filter((item) => item.responsibleProfileId === responsibleFilter)
@@ -276,7 +272,7 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
         >
           <input type="hidden" name="week_start" value={item.weekStart} />
           <input type="hidden" name="updated_at" value={item.updatedAt} />
-          <label className="agenda-field agenda-field-wide"><span>O que precisa ser feito?</span><input name="title" required maxLength={240} defaultValue={item.title} /></label>
+          <label className="agenda-field agenda-field-wide"><span>O que precisa ser feito?</span><input name="title" required maxLength={180} defaultValue={item.title} /></label>
           <label className="agenda-field">
             <span>Responsável</span>
             <select name="responsible_profile_id" defaultValue={item.responsibleProfileId ?? ""}>
@@ -286,19 +282,11 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
           </label>
           <label className="agenda-field">
             <span>Dia</span>
-            <select name="due_date" defaultValue={item.dueDate ?? ""}>
-              <option value="">Sem dia definido</option>
+            <select name="due_date" defaultValue={item.dueDate ?? item.weekStart} required>
               {weekDays.map((day) => <option key={day} value={day}>{longDate(day)}</option>)}
             </select>
           </label>
           <label className="agenda-field"><span>Horário</span><input name="due_time" type="time" defaultValue={item.dueTime ?? ""} /></label>
-          <label className="agenda-field">
-            <span>Vincular à agenda</span>
-            <select name="agenda_event_id" defaultValue={item.agendaEventId ?? ""}>
-              <option value="">Sem vínculo</option>
-              {weekEvents.map((agendaEvent) => <option key={agendaEvent.id} value={agendaEvent.id}>{shortDate(agendaEvent.eventDate)} · {agendaEvent.title}</option>)}
-            </select>
-          </label>
           <label className="agenda-field agenda-field-wide"><span>Observação</span><textarea name="description" maxLength={4000} defaultValue={item.description ?? ""} /></label>
           <div className="agenda-form-actions"><button type="submit" className="agenda-primary" disabled={isPending}>Salvar alterações</button></div>
         </form>
@@ -414,7 +402,7 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
                                 onClick={() => run(() => completeMyAgendaAssignmentAction(item.id), "Sua parte foi concluída.")}>✓ Concluir minha parte</button>
                             ) : null}
                             {data.access.agendaWrite ? <button type="button" disabled={isPending} onClick={() => run(() => setAgendaEventStatusAction(item.id, "completed"), "Compromisso concluído pela administração.")}>{item.assignees.length ? "✓ Concluir todos" : "✓ Concluir"}</button> : null}
-                            {data.access.pautaWrite ? <button type="button" disabled={isPending} onClick={() => run(() => createPautaFromAgendaEventAction(item.id), "Compromisso enviado para a pauta.")}>+ Pauta</button> : null}
+                            {data.access.pautaWrite && item.eventKind !== "editorial" ? <button type="button" disabled={isPending} onClick={() => run(() => createPautaFromAgendaEventAction(item.id), "Compromisso incluído na pauta.")}>+ Incluir na Pauta</button> : null}
                             {data.access.agendaWrite ? <button type="button" className="is-danger-soft" disabled={isPending} onClick={() => run(() => setAgendaEventStatusAction(item.id, "cancelled"), "Compromisso cancelado.")}>Cancelar</button> : null}
                           </>
                         ) : data.access.agendaWrite ? (
@@ -471,14 +459,15 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
 
           {data.access.pautaWrite ? <details className="pauta-create-panel" id="pauta-create-panel"><summary>+ Nova pauta <span>Toque para cadastrar</span></summary><form
             className="pauta-quick-form"
+            key={data.weekStart}
             onSubmit={(event) => {
               event.preventDefault();
               const form = event.currentTarget;
-              run(() => createPautaItemAction(new FormData(form)), "Item adicionado à pauta.", () => form.reset());
+              run(() => createPautaItemAction(new FormData(form)), "Pauta criada e sincronizada com a Agenda.", () => form.reset());
             }}
           >
             <input type="hidden" name="week_start" value={data.weekStart} />
-            <label className="agenda-field pauta-title-field"><span>O que precisa ser feito?</span><input name="title" required maxLength={240} placeholder="Ex.: Cobrir sessão da Câmara" /></label>
+            <label className="agenda-field pauta-title-field"><span>O que precisa ser feito?</span><input name="title" required maxLength={180} placeholder="Ex.: Cobrir sessão da Câmara" /></label>
             <label className="agenda-field">
               <span>Responsável</span>
               <select name="responsible_profile_id" defaultValue={data.currentUserId}>
@@ -488,21 +477,13 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
             </label>
             <label className="agenda-field">
               <span>Dia</span>
-              <select name="due_date" defaultValue="">
-                <option value="">Sem dia definido</option>
+              <select name="due_date" defaultValue={initialPautaDate} required>
                 {weekDays.map((day) => <option key={day} value={day}>{longDate(day)}</option>)}
               </select>
             </label>
             <label className="agenda-field"><span>Horário</span><input name="due_time" type="time" /></label>
-            <label className="agenda-field">
-              <span>Vincular à agenda</span>
-              <select name="agenda_event_id" defaultValue="">
-                <option value="">Sem vínculo</option>
-                {weekEvents.map((item) => <option key={item.id} value={item.id}>{shortDate(item.eventDate)} · {item.title}</option>)}
-              </select>
-            </label>
             <label className="agenda-field pauta-note-field"><span>Observação</span><input name="description" maxLength={4000} placeholder="Opcional" /></label>
-            <button type="submit" className="agenda-primary" disabled={isPending}>+ Adicionar</button>
+            <button type="submit" className="agenda-primary" disabled={isPending}>+ Criar na Agenda e Pauta</button>
           </form></details> : null}
 
           {pautaItems.length ? (
@@ -510,21 +491,29 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
               {pautaItems.map((item) => {
                 const done = item.status === "completed";
                 const cancelled = item.status === "cancelled";
+                const myAssignment = item.assignees.find((person) => person.id === data.currentUserId);
+                const canCompleteOwn = !done && !cancelled && Boolean(myAssignment && !myAssignment.completedAt);
                 return (
                   <article key={item.id} style={{ borderLeftColor: personColor(item.responsibleProfileId ?? "") }} className={"pauta-item" + (done ? " is-done" : "") + (cancelled ? " is-cancelled" : "")}>
-                    {(data.access.pautaWrite || (item.responsibleProfileId === data.currentUserId && !done && !cancelled)) ? <button type="button" className="pauta-check"
+                    {(data.access.pautaWrite || canCompleteOwn) ? <button type="button" className="pauta-check"
                       aria-label={done ? "Reabrir item" : "Concluir minha pauta"} disabled={isPending || cancelled}
                       onClick={() => run(
                         () => done ? setPautaItemStatusAction(item.id, "pending")
-                          : data.access.pautaWrite ? setPautaItemStatusAction(item.id, "completed") : completeMyPautaItemAction(item.id),
+                          : data.access.pautaWrite && !canCompleteOwn ? setPautaItemStatusAction(item.id, "completed") : completeMyPautaItemAction(item.id),
                         done ? "Item reaberto." : "Item concluído.",
                       )}>{done ? "✓" : ""}</button> : <span className="pauta-check-placeholder" aria-hidden="true">{done ? "✓" : ""}</span>}
                     <div className="pauta-item-content">
-                      <div className="pauta-item-topline"><strong>{item.title}</strong><span className="agenda-assignee-chip" style={{ borderColor: personColor(item.responsibleProfileId ?? ""), color: personColor(item.responsibleProfileId ?? "") }}>{item.responsibleName ?? "Sem responsável"}</span></div>
+                      <div className="pauta-item-topline"><strong>{item.title}</strong><span className="agenda-assignee-row">
+                          {item.assignees.length ? item.assignees.map((person) => (
+                            <span key={person.id} className="agenda-assignee-chip" style={{ borderColor: personColor(person.id), color: personColor(person.id) }}>
+                              {person.completedAt ? "✓ " : ""}{person.name}
+                            </span>
+                          )) : <span className="agenda-assignee-chip">Sem responsável</span>}
+                        </span></div>
                       <div className="pauta-item-meta">
                         <span>{item.dueDate ? longDate(item.dueDate) : "Sem dia definido"}</span>
-                        {item.dueTime ? <span>{item.dueTime}</span> : null}
-                        {item.agendaEventTitle ? <span>Agenda: {item.agendaEventTitle}</span> : null}
+                        {item.dueTime ? <span>{item.dueTime}h</span> : null}
+                        <span>{done ? "Concluída" : cancelled ? "Cancelada" : item.assignees.some((person) => person.completedAt) ? "Em andamento" : "Pendente"}</span>
                       </div>
                       {item.description ? <p>{item.description}</p> : null}
                       {item.articleId ? (
