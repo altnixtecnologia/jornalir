@@ -20,3 +20,10 @@
 ## Não alterar
 Sem banco, migrations, APK, Firebase, R2, Vercel sistema ou cadastro de versão. Atualização via site público.
 Claude Code deve git status / git fetch e preservar stash/commits locais; não reset/force nem deploy duplicado.
+## Produção verificada em 20/10/2026
+- Preview inicial `dpl_8r5W2w8WvXKX3FVXcduU7GCvikxA` falhou por tipo de temporizador `ReturnType<typeof setTimeout>` incompatível com `window.setTimeout`; corrigido antes do deploy final.
+- Preview final Vercel **READY** `dpl_B4bxRRvZ8sDH1WfoMPbechKXaXme`. Next build e validação TypeScript passaram.
+- **Production READY** no projeto `jornalir`, deployment `dpl_4qqTbLGj73UCDAp1A5N6HPJPHKUm`, código SHA `0a12656ca71f03c05e6473b3ec98133fbb5bfb41`.
+- Endereço oficial `https://jornalir.vercel.app`: home HTTP 200, bloco Últimas Notícias presente e sem texto "Ler matéria"; artigo real 19º BPM HTTP 200 e botão "Compartilhar" presente; `/aplicativo` HTTP 200 ainda mostra corretamente "Aguardando liberação do APK".
+- **Ainda pendente teste funcional no aparelho real** da animação, abertura e Web Share Instagram/nativo. HTML 200 e build não comprovam que o Android forneça um alvo Instagram no menu; fallback de cópia preservado.
+- APK v.00.03 permanece **homologação**; nenhum envio ao R2 oficial nem registro publicado pela entrega; releases e automações FCM intocados.

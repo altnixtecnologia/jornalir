@@ -415,3 +415,11 @@ P1: performance/Core Web Vitals, alertas de erros, painel de estatísticas, vín
 - Em `feature/android-back-navigation-v0003-20261020` criado `scripts/r2-webp-optimize/publish-android.mjs` e handoff `docs/CLAUDE-RELEASE-COMPLETO-V0003-20261020.md`.
 - Fluxo valida assinatura original, versionCode4, integridade do R2; libera Supabase e testa botão do site na mesma execução. Sem assinatura local nem APK ainda; production status permanece `published=false`.
 - Rodar no VS Code via Claude Code após compilar v.00.03 release e testar por cima da v.00.02; publicação no site é parte obrigatória do mesmo trabalho.
+
+## 2026-10-20 — Splash 2,5s, Últimas Notícias e compartilhamento
+- Site production `dpl_4qqTbLGj73UCDAp1A5N6HPJPHKUm` READY, código `0a12656ca71f03c05e6473b3ec98133fbb5bfb41`. Feature `feature/splash-noticias-compartilhar-20261020`.
+- Splash do WebView reduzido para 2,5s, mais 720ms de revelação do portal (scale/blur/fade); permanece web, não nativo do Android. No Chrome não aparece.
+- Últimas Notícias: sem Ler matéria, foto e título principal abrem matéria; títulos laterais são links, números continuam trocando seleção; rotação intacta.
+- Compartilhar junto aos dados da notícia: Copiar link, WhatsApp, Facebook, Instagram (Web Share nativo se suportado ou copiar para Direct), Mais opções nativas; metadados OG preservados.
+- Conferidos 200 no site oficial início/notícia/versões; pendente QA no Android (Instagram pode não aceitar publicação de URL em Stories/feed).
+- Claude local: buscar branch com `git fetch`, preservar commits/stash, integrar sem force/reset; não fazer deploy duplicado; APK v.00.03 segue em homologação.
