@@ -95,7 +95,7 @@ export async function loadAgendaWorkspaceData(focusDate: string): Promise<Agenda
     supabase.from("profiles").select("id, name, role").eq("active", true).order("name", { ascending: true }),
     supabase
       .from("agenda_events")
-      .select("id, title, description, event_date, start_time, end_time, location, status, reminder_minutes, updated_at")
+      .select("id, title, description, event_date, start_time, end_time, location, status, reminder_minutes, event_kind, completed_at, updated_at")
       .gte("event_date", eventRangeStart)
       .lte("event_date", eventRangeEnd)
       .order("event_date", { ascending: true })
@@ -150,29 +150,36 @@ export async function loadAgendaWorkspaceData(focusDate: string): Promise<Agenda
     startTime: trimDbTime(event.start_time),
     endTime: trimDbTime(event.end_time),
     reminderMinutes: event.reminder_minutes,
+    eventKind: event.event_kind as AgendaEventItem["eventKind"],
+    completedAt: event.completed_at,
     updatedAt: event.updated_at,
     location: event.location,
     status: event.status as AgendaEventItem["status"],
     assignees: assigneesByEvent.get(event.id) ?? [],
   }));
-  const eventTitle = new Map(events.map((event) => [event.id, event.title]));
+  const eventById = new Map(events.map((event) => [event.id, event]));
 
-  const pautaItems: WeeklyPautaItem[] = (pautaResult.data ?? []).map((item) => ({
+  const pautaItems: WeeklyPautaItem[] = (pautaResult.data ?? []).map((item) => {
+    const linked = item.agenda_event_id ? eventById.get(item.agenda_event_id) : undefined;
+    const responsible = linked?.assignees.find((person) => person.id === item.responsible_profile_id) ?? linked?.assignees[0];
+    return {
     id: item.id,
-    weekStart: item.week_start,
-    title: item.title,
-    description: item.description,
-    dueDate: item.due_date,
-    dueTime: trimDbTime(item.due_time),
-    responsibleProfileId: item.responsible_profile_id,
-    responsibleName: item.responsible_profile_id ? profileName.get(item.responsible_profile_id) ?? null : null,
+    weekStart: linked ? startOfWeek(linked.eventDate) : item.week_start,
+    title: linked?.title ?? item.title,
+    description: linked?.description ?? item.description,
+    dueDate: linked?.eventDate ?? item.due_date,
+    dueTime: linked?.startTime ?? trimDbTime(item.due_time),
+    responsibleProfileId: responsible?.id ?? item.responsible_profile_id,
+    responsibleName: responsible?.name ?? (item.responsible_profile_id ? profileName.get(item.responsible_profile_id) ?? null : null),
     agendaEventId: item.agenda_event_id,
-    agendaEventTitle: item.agenda_event_id ? eventTitle.get(item.agenda_event_id) ?? null : null,
+    agendaEventTitle: linked?.title ?? null,
     articleId: item.article_id,
-    status: item.status as WeeklyPautaItem["status"],
-    completedAt: item.completed_at,
-    updatedAt: item.updated_at,
-  }));
+    status: linked ? (linked.status === "scheduled" ? "pending" : linked.status) : item.status as WeeklyPautaItem["status"],
+    completedAt: linked?.completedAt ?? item.completed_at,
+    assignees: linked?.assignees ?? [],
+    updatedAt: linked?.updatedAt ?? item.updated_at,
+  };
+  });
 
   return {
     focusDate,
