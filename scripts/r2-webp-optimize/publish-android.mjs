@@ -37,6 +37,7 @@ async function buildTool(name) {
   let folders=[];
   try{folders=(await readdir(dir)).filter(x=>/^[0-9]+(\.[0-9]+)+$/.test(x)).sort((a,b)=>b.localeCompare(a,undefined,{numeric:true}));}catch{}
   if(!folders.length)return name;
+  if(name==="apksigner" && process.platform==="win32")return join(dir,folders[0],"lib","apksigner.jar");
   return join(dir,folders[0],name+(process.platform==="win32"?".exe":""));
 }
 function run(name,binary,parameters){
@@ -65,7 +66,9 @@ async function runRelease(){
   const info=dump.match(/package:\s+name='([^']+)'\s+versionCode='([^']+)'\s+versionName='([^']+)'/);
   if(!info||info[1]!==PACKAGE||Number(info[2])!==versionCode||info[3]!==version)
     fail("Identificador, versionCode ou versionName do APK incorretos.");
-  const signature=run("apksigner",apksigner,["verify","--print-certs",path]);
+  const signerJar=apksigner.toLowerCase().endsWith(".jar");
+  const signature=run("apksigner",signerJar?"java":apksigner,
+    signerJar?["-jar",apksigner,"verify","--print-certs",path]:["verify","--print-certs",path]);
   const signHash=signature.match(/Signer #1 certificate SHA-256 digest:\s*([0-9a-f:]+)/i)?.[1]?.replace(/:/g,"").toLowerCase();
   if(signHash!==EXPECTED_CERT)fail("CERTIFICADO DIFERENTE DA v.00.02: não pode atualizar celulares instalados.");
   run("zipalign",zipalign,["-c","-v","4",path]);
