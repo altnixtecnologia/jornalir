@@ -101,16 +101,16 @@ function validatePautaPayload(formData: FormData):
       dueDate: string;
       dueTime: string;
       description: string;
-      responsibleProfileId: string;
+      assigneeIds: string[];
     } {
   const title = value(formData, "title");
   const weekStart = value(formData, "week_start");
   const dueDate = value(formData, "due_date");
   const dueTime = value(formData, "due_time");
   const description = value(formData, "description");
-  const responsibleProfileId = value(formData, "responsible_profile_id");
+  const assigneeIds = values(formData, "assignee_profile_ids");
 
-  if (!title || title.length > 240) return { error: "Informe o que precisa ser feito." };
+  if (!title || title.length > 180) return { error: "Informe um título com até 180 caracteres." };
   if (!validDate(weekStart) || startOfWeek(weekStart) !== weekStart) return { error: "Semana inválida." };
   if (dueDate && (!validDate(dueDate) || dueDate < weekStart || dueDate > addDays(weekStart, 6))) {
     return { error: "O dia precisa estar dentro da semana selecionada." };
@@ -118,7 +118,7 @@ function validatePautaPayload(formData: FormData):
   if (!dueDate) return { error: "Escolha um dia para a pauta. Todos os itens entram na Agenda." };
   if (!validTime(dueTime)) return { error: "Horário inválido." };
   if (description.length > 4000) return { error: "Observação muito longa." };
-  return { title, weekStart, dueDate, dueTime, description, responsibleProfileId };
+  return { title, weekStart, dueDate, dueTime, description, assigneeIds };
 }
 
 function refreshAgenda(): void {
@@ -229,13 +229,13 @@ export async function createPautaItemAction(formData: FormData): Promise<AgendaA
   if ("error" in input) return input;
   try {
     const { supabase } = await requireActiveUser();
-    if (input.responsibleProfileId) await validateActiveProfiles(supabase, [input.responsibleProfileId]);
+    await validateActiveProfiles(supabase, input.assigneeIds);
     const { data, error } = await supabase.rpc("create_editorial_pauta_event", {
       p_title: input.title,
       p_description: input.description || null,
       p_event_date: input.dueDate,
       p_start_time: input.dueTime || null,
-      p_profile_id: input.responsibleProfileId || null,
+      p_profile_ids: input.assigneeIds,
     });
     if (error || !data) return { error: error?.message ?? "Não foi possível criar a pauta na Agenda." };
     refreshAgenda();
@@ -251,14 +251,14 @@ export async function updatePautaItemAction(itemId: string, formData: FormData):
   if ("error" in input) return input;
   try {
     const { supabase } = await requireActiveUser();
-    if (input.responsibleProfileId) await validateActiveProfiles(supabase, [input.responsibleProfileId]);
+    await validateActiveProfiles(supabase, input.assigneeIds);
     const { data, error } = await supabase.rpc("update_editorial_pauta_event", {
       p_pauta_id: itemId,
       p_title: input.title,
       p_description: input.description || null,
       p_event_date: input.dueDate,
       p_start_time: input.dueTime || null,
-      p_profile_id: input.responsibleProfileId || null,
+      p_profile_ids: input.assigneeIds,
       p_expected_updated_at: value(formData, "updated_at"),
     });
     if (error || !data) return { error: error?.message ?? "A pauta foi alterada por outra pessoa. Atualize antes de salvar." };
