@@ -30,3 +30,12 @@ O APK Capacitor usa server.url=https://jornalir.vercel.app e o site oficial em p
 
 ## Handoff Claude
 Claude possui três commits locais e stash preservado. Primeiro git status e git fetch, preservar worktree, integrar com merge ou cherry-pick limpo `feature/android-back-fix-menu-version-splash-20261020` e `feature/download-apk-pagina-oficial-20261020`; nunca git reset --hard/force. Não recompilar v.00.03 desnecessariamente. Só liberar APK oficial após QA Android satisfatório do site publicado. `apps/site` será testado primeiro por Vercel e publicado na hospedagem oficial depois do build READY.
+
+## Publicação efetuada em produção
+- Preview Vercel `dpl_BP2FHk3YvMWcdJsZD6SKHb2Mwd2G` READY; primeiro preview `dpl_HQpkpGwq8ikSAJqHUQkvLUNsQ9dq` falhou apenas por TypeScript de temporizador, corrigido antes do deploy.
+- **Site Production READY** `dpl_92JwMwv3PMejbCG1WF3baFTVPp3s`, SHA de código `6e289c2d1770f2b085eebd9b6371588f6741a270`, branch `feature/android-back-fix-menu-version-splash-20261020`.
+- Domínio oficial `https://jornalir.vercel.app/`, `/noticias` e `/aplicativo` HTTP 200 verificados; página APK manteve mensagem correta `Aguardando liberação do APK`.
+- O site **agora realmente contém o listener Android**; a versão anterior do portal não continha, o que tornava o teste v.00.03 inviável.
+- **QA Android pendente:** splash, App.getInfo, fechar galeria antes de sair da matéria, X do menu, confirmação de saída sem histórico, fluxo push. Build/HTTP 200 não provam gesto no aparelho.
+- O APK de homologação v.00.03 assinado permanece intacto no R2; `mobile_app_releases.published=false` permanece até passar nos testes. Não gerar novo APK, não enviar produção do app ou alterar Firebase.
+- Claude local possui commits ainda não enviados e stash de centralização no mobile: antes de integração verificar `git status`, `git fetch`, merge seletivo e SEM reset/force. Não sobrescrever branch principal/local. Após testes no Android, concluir liberação via publicador `scripts/r2-webp-optimize/publish-android.mjs --commit`, com verificação de integridade.
