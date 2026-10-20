@@ -186,7 +186,7 @@ export async function updateAgendaEventAction(eventId: string, formData: FormDat
     const { supabase } = await requireActiveUser();
     await validateActiveProfiles(supabase, input.assigneeIds);
     // Uma transação grava a edição e todos os responsáveis.
-    const { data: updated, error } = await supabase.rpc("update_agenda_event_with_assignees", {
+    const { data: updated, error } = await supabase.rpc("update_agenda_event_with_assignees_checked", {
       p_event_id: eventId,
       p_title: input.title,
       p_description: input.description || null,
@@ -196,6 +196,7 @@ export async function updateAgendaEventAction(eventId: string, formData: FormDat
       p_location: input.location || null,
       p_reminder_minutes: input.reminderMinutes,
       p_profile_ids: input.assigneeIds,
+      p_expected_updated_at: value(formData, "updated_at"),
     });
     if (error || !updated) return { error: error?.message ?? "Compromisso não encontrado ou sem permissão." };
     refreshAgenda();
@@ -267,9 +268,10 @@ export async function updatePautaItemAction(itemId: string, formData: FormData):
         agenda_event_id: input.agendaEventId || null,
       })
       .eq("id", itemId)
+      .eq("updated_at", value(formData, "updated_at"))
       .select("id")
       .maybeSingle();
-    if (error || !updated) return { error: error?.message ?? "Pauta nao encontrada ou sem permissao." };
+    if (error || !updated) return { error: error?.message ?? "A pauta foi alterada por outra pessoa. Atualize a tela antes de salvar." };
     refreshAgenda();
     return { ok: true };
   } catch (error) {
