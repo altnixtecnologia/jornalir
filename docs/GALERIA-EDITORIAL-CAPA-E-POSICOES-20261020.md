@@ -19,3 +19,11 @@ O usuário carregou 33 fotos; sua capa favorita ficou numa das últimas posiçõ
 - Drag and drop confirma linha-alvo na borda correta, sem precisar acertar área estreita.
 - Conferir mobile e desktop; testar formulário com capa, sem capa, 1 e 33 fotos.
 - Repositório no Windows: Claude deve `git status` e `git fetch` antes de integrar, preservando mudanças locais; nenhum reset/force-push. Não reaplicar migrações antigas.
+
+## Validação realizada
+- Build preview 1 `dpl_FwLyydEDtsvfkxMEBca771QGx1kY`: compilou código mas parou em types porque `ImportCandidateReview.tsx` também usa o picker compartilhado. **Não publicado**.
+- Correção incluída para `ImportCandidateReview.tsx` (também passa `onMoveToPosition` usando o helper novo).
+- Build preview 2 `dpl_2DfxEPx8vMCCJ4FvVE5mgTW7jthu`: **READY** no SHA `8cb77dc4b4ab0657cebb584af7c5dd71625e3fa3`; compilação Next.js e TypeScript passaram. Preview protegido: `https://jornalir-sistema-joijvxkg4-cristians-projects-34074cc3.vercel.app`.
+- **Não houve publicação em produção do sistema nem mudanças no banco**. O site público permanece na implantação anterior `feature/notificacoes-ambiente-android-20261019`, independente desta alteração.
+- **Ainda falta teste humano das interações** em uma matéria com 33 fotos reais, salvar e reabrir; o build READY não prova comportamento visual ou persistência ao salvar.
+- Após homologação, publicar o sistema em um lote controlado e registrar o SHA. Claude Code pode fazer fetch desta branch (checar `git status` primeiro; não reset/force).
