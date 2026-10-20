@@ -46,3 +46,9 @@
 - Por fim, abrir `https://jornalir.vercel.app/aplicativo` sem sessão e **confirmar que o botão Baixar aplicativo para Android (APK) realmente aparece e baixa o arquivo correto**; conferir SHA-256 do download.
 - Se não houver acesso ao R2/keystore/admin, informar explicitamente o bloqueio e não declarar pronto; `published` deve continuar `false`. Não publicar link falso ou v.00.02 que só existia localmente.
 - Handoff completo e critérios técnicos: `docs/APK-PUBLICACAO-AUTOMATICA-NA-PAGINA-20261020.md` na branch do site `feature/download-apk-pagina-oficial-20261020`. 
+
+## Publicador integrado criado em 20/10/2026
+- **Já existe código para automatizar a etapa que faltava** em `scripts/r2-webp-optimize/publish-android.mjs` (branch desta feature). O publicador verifica pacote, code, versão, APK ZIP, assinatura release oficial, alinhamento, SHA-256, objeto no R2, download público integral e depois marca `mobile_app_releases.published=true`; só então confere o botão na página oficial.
+- Usa as mesmas dependências do `scripts/r2-webp-optimize/package.json` e as variáveis locais de R2 + Supabase já usadas nas rotinas de mídia; nunca enviar credenciais para o ChatGPT.
+- Primeiro executar sem `--commit` para validar; após QA real no Android, repetir com `--commit` para upload, cadastro e conferência. Consulte `docs/CLAUDE-RELEASE-COMPLETO-V0003-20261020.md`.
+- **Código sintaticamente verificado**, porém ainda não executado no computador (não há assinatura original, credenciais, SDK Android/R2 acessíveis neste ambiente). Não confundir script pronto com APK liberado.

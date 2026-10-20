@@ -410,3 +410,8 @@ P1: performance/Core Web Vitals, alertas de erros, painel de estatísticas, vín
 - Branch `feature/android-back-navigation-v0003-20261020`, SHA de código `16610398414664a88e65c77470909dbbb821274c`; preview Vercel READY `dpl_pwUUSJNqiDfEp3cGDwNdM676MmqG`, build Next/TypeScript e HTTP 200; Production **inalterada** em `b190a2677d574752ef1d8dc2005385d42f103040`.
 - **Pendente**: Claude Code local deve `git fetch`, integrar preservando local, `npm install` (atualizar package-lock), `npx cap sync android`, compilar `assembleRelease` com keystore original, verificar certificado e testar botão/gesto Android em celulares reais, FCM normal/urgente. Só depois enviar APK para R2 e liberar versão no painel. Não há novo APK distribuído.
 - Plano e cuidados completos em `docs/ANDROID-VOLTAR-CONFIRMAR-SAIDA-V0003-20261020.md`. Não sobrescrever trabalho local/branch main, não fazer force/reset, não atualizar dispositivos remotos sem aprovação.
+
+## 2026-10-20 — Publicador de APK v.00.03 preparado
+- Em `feature/android-back-navigation-v0003-20261020` criado `scripts/r2-webp-optimize/publish-android.mjs` e handoff `docs/CLAUDE-RELEASE-COMPLETO-V0003-20261020.md`.
+- Fluxo valida assinatura original, versionCode4, integridade do R2; libera Supabase e testa botão do site na mesma execução. Sem assinatura local nem APK ainda; production status permanece `published=false`.
+- Rodar no VS Code via Claude Code após compilar v.00.03 release e testar por cima da v.00.02; publicação no site é parte obrigatória do mesmo trabalho.
