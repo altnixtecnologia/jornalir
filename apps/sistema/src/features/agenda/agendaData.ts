@@ -128,7 +128,8 @@ export async function loadAgendaWorkspaceData(focusDate: string): Promise<Agenda
     const assignments = await supabase
       .from("agenda_event_assignees")
       .select("event_id, profile_id, completed_at")
-      .in("event_id", eventIds);
+      .in("event_id", eventIds)
+      .eq("assignment_type", "responsible");
     if (assignments.error) throw new Error(assignments.error.message);
     assignmentRows = assignments.data ?? [];
   }
