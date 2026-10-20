@@ -242,3 +242,55 @@ drop trigger if exists agenda_manager_grants_audit_change on public.agenda_manag
 create trigger agenda_manager_grants_audit_change
   after insert or update or delete on public.agenda_manager_grants
   for each row execute function public.audit_agenda_change();
+
+
+-- Consulta opcional dos logs para operadores: concedida apenas pelo proprietario.
+create table if not exists public.audit_viewer_grants (
+  profile_id uuid primary key references public.profiles(id) on delete cascade,
+  can_view boolean not null default false,
+  granted_by uuid references public.profiles(id),
+  updated_at timestamptz not null default now()
+);
+alter table public.audit_viewer_grants enable row level security;
+revoke all on public.audit_viewer_grants from anon, authenticated;
+grant select,insert,update,delete on public.audit_viewer_grants to authenticated;
+
+create policy audit_viewer_grants_select on public.audit_viewer_grants
+  for select to authenticated using (
+    profile_id=(select auth.uid()) or (select public.is_active_admin_or_owner())
+  );
+create policy audit_viewer_grants_insert on public.audit_viewer_grants
+  for insert to authenticated with check (
+    (select public.is_active_owner()) and exists(
+      select 1 from public.profiles p where p.id=profile_id and p.active and p.role='operator'
+    )
+  );
+create policy audit_viewer_grants_update on public.audit_viewer_grants
+  for update to authenticated using ((select public.is_active_owner()))
+  with check ((select public.is_active_owner()) and exists(
+      select 1 from public.profiles p where p.id=profile_id and p.role='operator'
+  ));
+create policy audit_viewer_grants_delete on public.audit_viewer_grants
+  for delete to authenticated using ((select public.is_active_owner()));
+
+create or replace function public.can_read_audit_log()
+returns boolean language sql stable security definer set search_path = ''
+as $$
+ select public.is_active_admin_or_owner()
+   or exists (
+     select 1 from public.profiles p
+     join public.audit_viewer_grants g on g.profile_id=p.id
+     where p.id=(select auth.uid()) and p.active and p.role='operator' and g.can_view
+   );
+$$;
+revoke all on function public.can_read_audit_log() from public,anon;
+grant execute on function public.can_read_audit_log() to authenticated;
+
+drop policy if exists audit_events_select_admin_owner on public.audit_events;
+create policy audit_events_select_admin_owner on public.audit_events
+  for select to authenticated using ((select public.can_read_audit_log()));
+
+drop trigger if exists audit_viewer_grants_change on public.audit_viewer_grants;
+create trigger audit_viewer_grants_change
+  after insert or update or delete on public.audit_viewer_grants
+  for each row execute function public.audit_agenda_change();
