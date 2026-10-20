@@ -78,7 +78,7 @@ create trigger agenda_events_sync_editorial_pauta
 
 -- Cadastro da Pauta sempre cria compromisso na Agenda + responsavel, na mesma transacao.
 create or replace function public.create_editorial_pauta_event(
-  p_title text,p_description text,p_event_date date,p_start_time time,p_profile_id uuid
+  p_title text,p_description text,p_event_date date,p_start_time time,p_profile_ids uuid[]
 ) returns uuid language plpgsql security invoker set search_path=''
 as $$
 declare v_event uuid; v_pauta uuid;
@@ -86,34 +86,35 @@ begin
   if not public.is_agenda_manager() then raise exception 'Sem permissão para criar pautas'; end if;
   if p_title is null or length(btrim(p_title)) not between 1 and 180 or p_event_date is null
   then raise exception 'Informe título (até 180 caracteres) e dia válido'; end if;
-  if p_profile_id is not null and not exists (
-    select 1 from public.profiles where id=p_profile_id and active
-  ) then raise exception 'Responsável inativo ou inexistente'; end if;
+  if exists (select 1 from unnest(coalesce(p_profile_ids,array[]::uuid[])) ids(id)
+    left join public.profiles p on p.id=ids.id and p.active
+    where p.id is null) then raise exception 'Responsável inativo ou inexistente'; end if;
 
   insert into public.agenda_events(
     title,description,event_date,start_time,event_kind,reminder_minutes
   ) values(btrim(p_title),p_description,p_event_date,p_start_time,'editorial',null)
   returning id into v_event;
-  if p_profile_id is not null then
-    insert into public.agenda_event_assignees(event_id,profile_id)
-    values(v_event,p_profile_id);
-  end if;
+  insert into public.agenda_event_assignees(event_id,profile_id)
+  select v_event,ids.id from (
+    select distinct unnest(coalesce(p_profile_ids,array[]::uuid[])) id
+  ) ids;
   insert into public.weekly_pauta_items(
     week_start,title,description,due_date,due_time,responsible_profile_id,agenda_event_id
   ) values (
     date_trunc('week',p_event_date::timestamp)::date,
-    btrim(p_title),p_description,p_event_date,p_start_time,p_profile_id,v_event
+    btrim(p_title),p_description,p_event_date,p_start_time,
+    (select min(id) from unnest(coalesce(p_profile_ids,array[]::uuid[])) ids(id)),v_event
   ) returning id into v_pauta;
   return v_pauta;
 end $$;
-revoke all on function public.create_editorial_pauta_event(text,text,date,time,uuid) from public,anon;
-grant execute on function public.create_editorial_pauta_event(text,text,date,time,uuid) to authenticated;
+revoke all on function public.create_editorial_pauta_event(text,text,date,time,uuid[]) from public,anon;
+grant execute on function public.create_editorial_pauta_event(text,text,date,time,uuid[]) to authenticated;
 
 -- A edição atua APENAS em Agenda; o espelho é mantido pelo trigger.
 -- Controle otimista impede sobrescrever alterações de colegas.
 create or replace function public.update_editorial_pauta_event(
   p_pauta_id uuid,p_title text,p_description text,p_event_date date,
-  p_start_time time,p_profile_id uuid,p_expected_updated_at timestamptz
+  p_start_time time,p_profile_ids uuid[],p_expected_updated_at timestamptz
 ) returns boolean language plpgsql security invoker set search_path=''
 as $$
 declare v_event uuid; v_previous timestamptz;
@@ -129,9 +130,9 @@ begin
   if v_previous is distinct from p_expected_updated_at then
     raise exception 'Este compromisso foi alterado por outra pessoa. Atualize antes de salvar.';
   end if;
-  if p_profile_id is not null and not exists (
-    select 1 from public.profiles where id=p_profile_id and active
-  ) then raise exception 'Responsável inativo ou inexistente'; end if;
+  if exists (select 1 from unnest(coalesce(p_profile_ids,array[]::uuid[])) ids(id)
+    left join public.profiles p on p.id=ids.id and p.active
+    where p.id is null) then raise exception 'Responsável inativo ou inexistente'; end if;
 
   update public.agenda_events set
     title=btrim(p_title),description=p_description,event_date=p_event_date,
@@ -140,19 +141,19 @@ begin
 
   delete from public.agenda_event_assignees
   where event_id=v_event and assignment_type='responsible'
-    and (p_profile_id is null or profile_id<>p_profile_id);
-  if p_profile_id is not null then
-    insert into public.agenda_event_assignees(event_id,profile_id,assignment_type)
-    values(v_event,p_profile_id,'responsible')
-    on conflict(event_id,profile_id) do nothing;
-  end if;
+    and not (profile_id=any(coalesce(p_profile_ids,array[]::uuid[])));
+  insert into public.agenda_event_assignees(event_id,profile_id,assignment_type)
+  select v_event,ids.id,'responsible' from (
+    select distinct unnest(coalesce(p_profile_ids,array[]::uuid[])) id
+  ) ids on conflict(event_id,profile_id) do nothing;
   update public.weekly_pauta_items
-  set responsible_profile_id=p_profile_id where id=p_pauta_id
-    and responsible_profile_id is distinct from p_profile_id;
+  set responsible_profile_id=(
+    select min(id) from unnest(coalesce(p_profile_ids,array[]::uuid[])) ids(id)
+  ) where id=p_pauta_id;
   return true;
 end $$;
-revoke all on function public.update_editorial_pauta_event(uuid,text,text,date,time,uuid,timestamptz) from public,anon;
-grant execute on function public.update_editorial_pauta_event(uuid,text,text,date,time,uuid,timestamptz) to authenticated;
+revoke all on function public.update_editorial_pauta_event(uuid,text,text,date,time,uuid[],timestamptz) from public,anon;
+grant execute on function public.update_editorial_pauta_event(uuid,text,text,date,time,uuid[],timestamptz) to authenticated;
 
 -- Um compromisso geral pode passar a compor a pauta, sem duplicar Agenda.
 create or replace function public.add_agenda_event_to_pauta(p_event_id uuid)
