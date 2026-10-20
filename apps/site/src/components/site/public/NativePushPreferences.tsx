@@ -400,7 +400,7 @@ export function NativePushPreferences(): JSX.Element | null {
                 style={{ background: "var(--brand-navy)" }}>
                 {listenersReady ? "Ativar notificações" : "Preparando notificações..."}
               </button>
-              <button type="button" onClick={() => dismissWelcome("declined")}
+              <button type="button" data-ir-back-dismiss onClick={() => dismissWelcome("declined")}
                 className="rounded-xl border px-4 py-3 font-semibold"
                 style={{ borderColor: "var(--site-line)" }}>
                 Agora não
