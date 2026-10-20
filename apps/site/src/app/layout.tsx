@@ -4,6 +4,7 @@ import { ServiceWorkerRegister } from "../components/ServiceWorkerRegister";
 import { SiteFooter } from "../components/site/SiteFooter";
 import { WhatsAppFloatingButton } from "../components/site/WhatsAppFloatingButton";
 import { MobileBackButton } from "../components/site/MobileBackButton";
+import { AndroidOpeningScreen } from "../components/site/AndroidOpeningScreen";
 import { AppInstallInvitation } from "../components/site/AppInstallInvitation";
 import { NativePushPreferences } from "../components/site/public/NativePushPreferences";
 import { NotificationCenterProvider } from "../components/site/public/notifications/NotificationCenterContext";
@@ -50,6 +51,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }):
     <html lang="pt-BR" suppressHydrationWarning className={`${headline.variable} ${bodyFont.variable}`}>
       <body className="font-[family-name:var(--font-body)]">
         <ServiceWorkerRegister />
+        <AndroidOpeningScreen />
         <MobileBackButton />
         <NotificationCenterProvider>
           {children}

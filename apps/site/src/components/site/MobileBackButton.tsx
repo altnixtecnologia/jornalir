@@ -9,7 +9,6 @@ const DISMISS_SELECTORS = [
   ".notif-panel-expanded .notif-panel-back",
   ".notif-panel .notif-panel-close",
   "body.ir-mobile-search-open .mobile-search-backdrop",
-  "body.ir-mobile-menu-open .ir-mobile-backdrop",
 ] as const;
 
 function visible(node: HTMLElement): boolean {
@@ -19,7 +18,10 @@ function visible(node: HTMLElement): boolean {
 }
 
 function dismissTopLayer(): boolean {
-  // Galeria, detalhes do sininho, busca e menu têm prioridade sobre páginas.
+  // Por decisão editorial, o botão Voltar NÃO fecha o menu lateral.
+  // O leitor fecha usando o próprio X visível. Também não navega por trás.
+  if (document.body.classList.contains("ir-mobile-menu-open")) return true;
+  // Galeria, notificações e busca devem fechar antes de trocar de página.
   // O primeiro alvo visível fecha apenas UMA camada por pressão do botão.
   const order = [
     ...DISMISS_SELECTORS.slice(0, 3),
@@ -121,7 +123,7 @@ export function MobileBackButton(): JSX.Element {
       router.replace("/");
       return;
     }
-    if (Capacitor.isNativePlatform() && Capacitor.isPluginAvailable("App")) {
+    if (Capacitor.isNativePlatform() && nativeReady) {
       exitPromptRef.current = true;
       setExitPrompt(true);
     }

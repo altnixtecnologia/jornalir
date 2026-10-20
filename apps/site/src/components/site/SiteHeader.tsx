@@ -7,6 +7,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { socialLinks } from "./siteSettings";
 import { MobileSearchOverlay } from "./MobileSearchOverlay";
 import { HeaderNotificationBell } from "./public/notifications/HeaderNotificationBell";
+import { InstalledAndroidVersion } from "./InstalledAndroidVersion";
 import { listPublicSections } from "../../lib/public/publicContentService";
 import { getSiteAssineEnabled } from "../../lib/public/siteOfferSettingsService";
 import type { PublicSection } from "../../lib/public/types";
@@ -436,14 +437,15 @@ export function SiteHeader({ emphasized = false }: { active?: string; emphasized
             ))}
           </div>
 
-          <div className="mt-5 flex items-center justify-between">
-            {assineEnabled ? (
-              <Link href="/assine" className="nav-pill nav-pill--solid">
-                Assine
-              </Link>
-            ) : (
-              <span aria-hidden="true" />
-            )}
+          <div className="mt-5 flex items-center justify-between gap-3">
+            <div className="flex min-w-0 flex-col items-start gap-2">
+              <InstalledAndroidVersion />
+              {assineEnabled ? (
+                <Link href="/assine" className="nav-pill nav-pill--solid">
+                  Assine
+                </Link>
+              ) : null}
+            </div>
             <div className="flex items-center gap-2">
               {socialIcons.map((social) => (
                 <a
