@@ -32,3 +32,17 @@ A seleção **Sem notificação / Normal / Urgente** no editor de matérias tem 
 
 ## Sincronização Claude
 Branch `feature/push-automatico-editorial-20261019`; preservar checkout local e os commits próprios da Claude (fetch + comparação, nunca reset nem force). Não repetir migrações aplicadas com versão diferente. Conferir ledger remoto e documentos antes de migrations/push/deploy.
+
+## Migrações aplicadas e teste transacional (20/10/2026, 00:15 UTC)
+Três migrações realmente aplicadas ao Supabase Jornal IR (`iqnzrpdccecgalqboeyf`), com estas versões do ledger remoto:
+- `20261020001444_site_notification_reads.sql` (antes `20261030100500_site_notification_reads.sql`);
+- `20261020001449_article_publish_notification_events.sql` (antes `20261030100600_article_publish_notification_events.sql`);
+- `20261020001452_site_notifications_rate_limit.sql` (antes `20261030100700_site_notifications_rate_limit.sql`).
+
+**Os arquivos foram RENOMEADOS no GitHub, com SQL idêntico ao aplicado. NÃO reaplicar os nomes antigos ao sincronizar.** As migrations `20261030100100` a `20261030100400` e `20261030100800` a `20261030101000` continuam pendentes e não devem ser aplicadas neste lote.
+
+Verificações no remoto: tabelas `site_notification_reads`, `site_notifications_rate_limits`, `site_notification_feature_flags` existem; trigger `article_push_on_published` instalado; corpo escreve `public.notification_events`, nunca `notification_outbox` antiga; flag de envio automático ainda `false`.
+
+Teste de integração com transação SQL desfeita por `ROLLBACK`: criado um modelo TEMPORÁRIO de matéria com trigger real; simulados rascunho, PDF, agendamento, opções `none`/`normal`/`urgent`; verificou 0 eventos antes de publicar, 3 após as publicações elegíveis e 3 mesmo após salvar de novo, arquivar e republicar (sem duplicação); tipo `ordinary`/`urgent`, `app_kind=site` e `/noticias/<slug>` conferidos. Após rollback: 0 eventos reais, 0 deliveries reais e flag permaneceu `false`. Nenhuma matéria de teste entrou em produção.
+
+O disparo geral deve ser habilitado apenas após site/sistema READY e validação do cron existente. A experiência real de entrega/som no Android depende do aparelho; status `sent` significa aceito pelo Firebase, não comprova que o som tocou.
