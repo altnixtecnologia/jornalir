@@ -2309,3 +2309,7 @@ homologação sem aplicar nenhuma — os recursos dependentes (Assine
 on/off, central de notificações persistente, avisos gerais, integração
 editorial→notificação, auditoria ampliada, catálogo JoIR) ficam
 inativos/ocultos até serem aplicadas, não impedem o deploy.
+
+
+## 20/10/2026 — Branch ChatGPT de Agenda/Pauta e auditoria (primeira etapa, NÃO homologada)
+Nova branch remota `feature/agenda-mobile-sync-auditoria-20261020` baseada em `be3e61da`. UX mobile, cores por pessoa, baixa individual, dono e admins habilitados para editar/reabrir, consulta de logs concedida individualmente, canal Realtime e proteção de edições concorrentes. Migração `20261020155100_agenda_team_permissions_progress_audit.sql` é apenas arquivo Git; NÃO aplicada ao `site-system-ir`. Banco e produção seguem inalterados nesta etapa. Ler `docs/AGENDA_EQUIPE_MOBILE_AUDITORIA_HANDOFF_20261020.md` ANTES de integrar localmente. NÃO concluir unificação Pauta/Agenda nem auditoria geral como prontas: são pendências expressas. Sem typecheck/build/E2E real realizados nesta sessão de conector. Claude/Codex deve buscar a branch inteira com `git fetch` somente ao retomar uso local; conferir mudanças/worktrees, preservar história e não publicar sem autorização.
