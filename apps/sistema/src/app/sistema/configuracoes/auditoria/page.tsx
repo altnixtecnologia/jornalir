@@ -53,8 +53,8 @@ export default async function AuditoriaPage({
     data: { user },
   } = await client.auth.getUser();
   if (!user) redirect("/login");
-  const { data: profile } = await client.from("profiles").select("active,role").eq("id", user.id).maybeSingle();
-  if (!profile?.active || !["owner", "admin"].includes(profile.role)) redirect("/sistema");
+  const permission = await client.rpc("can_read_audit_log");
+  if (permission.error || permission.data !== true) redirect("/sistema");
 
   const q = one(searchParams?.q).trim();
   const entityType = one(searchParams?.entityType);
