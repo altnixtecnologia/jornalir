@@ -78,6 +78,25 @@ export function NativePushPreferences(): JSX.Element | null {
   const prefsRef = useRef({ ordinary: true, urgent: true });
   const pathname = usePathname();
   const router = useRouter();
+  const [settingsMount, setSettingsMount] = useState<HTMLElement | null>(null);
+
+  // O componente permanece global (listeners FCM ativos em qualquer rota).
+  // A área da página pode montar depois dele; observar o contêiner evita
+  // perder o painel em celulares mais lentos e durante a hidratação.
+  useEffect(() => {
+    if (pathname !== "/notificacoes") {
+      setSettingsMount(null);
+      return;
+    }
+    const findMount = () => {
+      const node = document.getElementById("native-push-settings-panel");
+      setSettingsMount((previous) => previous === node ? previous : node);
+    };
+    findMount();
+    const observer = new MutationObserver(findMount);
+    observer.observe(document.body, { childList: true, subtree: true });
+    return () => observer.disconnect();
+  }, [pathname]);
 
   useEffect(() => {
     let cancelled = false;
@@ -393,10 +412,7 @@ export function NativePushPreferences(): JSX.Element | null {
           </section>
         </div>
       ) : null}
-      {pathname === "/notificacoes" &&
-       typeof document !== "undefined" &&
-       document.getElementById("native-push-settings-panel")
-        ? createPortal(
+      {pathname === "/notificacoes" && settingsMount ? createPortal(
     <section className="mx-auto my-6 max-w-2xl rounded-xl border bg-white p-5 shadow-sm sm:p-7" style={{ borderColor: "var(--site-line)" }}>
       <h2 className="text-xl font-bold">Notificações do aplicativo</h2>
       <p className="mt-2 text-sm leading-relaxed" style={{ color: "var(--site-muted)" }}>
@@ -432,7 +448,7 @@ export function NativePushPreferences(): JSX.Element | null {
       ) : null}
       {message ? <p role="status" className="mt-3 text-sm">{message}</p> : null}
     </section>,
-        document.getElementById("native-push-settings-panel")!,
+        settingsMount,
       ) : null}
     </>
   );
