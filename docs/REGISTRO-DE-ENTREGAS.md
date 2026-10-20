@@ -423,3 +423,11 @@ P1: performance/Core Web Vitals, alertas de erros, painel de estatísticas, vín
 - Compartilhar junto aos dados da notícia: Copiar link, WhatsApp, Facebook, Instagram (Web Share nativo se suportado ou copiar para Direct), Mais opções nativas; metadados OG preservados.
 - Conferidos 200 no site oficial início/notícia/versões; pendente QA no Android (Instagram pode não aceitar publicação de URL em Stories/feed).
 - Claude local: buscar branch com `git fetch`, preservar commits/stash, integrar sem force/reset; não fazer deploy duplicado; APK v.00.03 segue em homologação.
+
+
+## 2026-10-20 — Agenda/Pauta móvel, baixa individual, permissões e auditoria — PRIMEIRA ETAPA (sem deploy)
+- Branch remota `feature/agenda-mobile-sync-auditoria-20261020`, criada da `feature/splash-noticias-compartilhar-20261020`, base `be3e61daaf83a4a26a0cea1b344b8f1e645bcf7e`. Não mesclada à main, nem integrada ao VS Code.
+- Primeira etapa em código: UX mobile, filtros/cores estáveis por responsável, botões de concluir própria participação, status gerais restritos a owner/admin liberado, indicação de progresso por pessoa, Supabase Realtime com reconciliação, aviso de alterações remotas em formulários abertos, histórico protegido e autorização separada de leitura de logs.
+- Migration preparada `20261020155100_agenda_team_permissions_progress_audit.sql`, **NÃO aplicada**. RLS e RPCs novas dependem de homologação de banco e aplicação juntas. O histórico transacional desta etapa cobre Agenda/Pauta e concessões; auditoria de todos os módulos continua pendente.
+- **Nenhuma alteração na produção, nenhum APK, nenhum deploy, nenhum teste real em telefone, nenhum typecheck/build local executado nesta sessão.** Arquivos e plano de teste documentados em `docs/AGENDA_EQUIPE_MOBILE_AUDITORIA_HANDOFF_20261020.md`.
+- Próxima sessão Claude/Codex: `git status -sb`, `git fetch origin`, ler handoff, comparar branches e incorporar sem sobrescrever trabalhos locais. Não resetar/forçar, não publicar ou aplicar migration sem autorização. Faltam unificação completa Agenda↔Pauta, auditoria global, teste local/RLS, notificações e app de equipe.
