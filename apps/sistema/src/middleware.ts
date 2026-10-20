@@ -72,10 +72,19 @@ export async function middleware(request: NextRequest): Promise<NextResponse> {
     // ocultar a opção do menu. A RPC confere o perfil ativo no banco.
     const privileged = profile.role === "owner" || profile.role === "admin";
     const matches = (prefix: string): boolean => pathname === prefix || pathname.startsWith(prefix + "/");
+    const isAuditRead = matches("/sistema/configuracoes/auditoria");
     const adminOnly = matches("/sistema/usuarios")
       || matches("/sistema/configuracoes") || matches("/sistema/nfse");
     if (adminOnly && !privileged) {
-      return NextResponse.redirect(new URL("/sistema?erro=sem-permissao", request.url), 303);
+      // Histórico: operadores podem consultar SOMENTE quando o proprietário
+      // conceder acesso. O middleware e a página validam a mesma RPC.
+      if (!isAuditRead) {
+        return NextResponse.redirect(new URL("/sistema?erro=sem-permissao", request.url), 303);
+      }
+      const { data: canReadAudit, error: auditError } = await supabase.rpc("can_read_audit_log");
+      if (auditError || canReadAudit !== true) {
+        return NextResponse.redirect(new URL("/sistema?erro=sem-permissao", request.url), 303);
+      }
     }
 
     let moduleKey: string | null = null;
@@ -85,8 +94,11 @@ export async function middleware(request: NextRequest): Promise<NextResponse> {
     else if (matches("/sistema/assinaturas")) moduleKey = "assinaturas";
     else if (matches("/sistema/publicidade") || matches("/sistema/anuncios") || matches("/sistema/patrocinadores")) moduleKey = "publicidade";
     else if (matches("/sistema/aniversariantes")) moduleKey = "aniversariantes";
+    // A Agenda/Pauta é coletiva: todos os membros ATIVOS têm leitura.
+    // Criar/editar/cancelar/baixar continuam protegidos pela RLS e RPCs.
+    // Não reutilizar staff_can_see_module (matriz antiga) para bloqueá-los.
     else if (matches("/sistema/agenda") || matches("/agenda")) {
-      moduleKey = request.nextUrl.searchParams.get("view") === "pauta" ? "pauta" : "agenda";
+      moduleKey = null;
     }
     if (moduleKey && !privileged) {
       const { data: allowed, error: permissionError } = await supabase.rpc(
