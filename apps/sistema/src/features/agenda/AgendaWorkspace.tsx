@@ -107,6 +107,7 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
   const realtimeClient = useMemo(() => createSupabaseBrowserClient(), []);
   const [selectedDate, setSelectedDate] = useState(data.focusDate);
   const [realtimeState, setRealtimeState] = useState<"connecting" | "online" | "offline">("connecting");
+  const [remoteChanges, setRemoteChanges] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [responsibleFilter, setResponsibleFilter] = useState("");
   const [isPending, startTransition] = useTransition();
@@ -118,6 +119,11 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
   useEffect(() => {
     let pendingRefresh: ReturnType<typeof setTimeout> | undefined;
     const refresh = () => {
+      // Nao descartar campos ainda nao salvos quando colegas atualizam o banco.
+      if (document.querySelector(".agenda-inline-edit[open],.agenda-create-panel[open],.pauta-create-panel[open]")) {
+        setRemoteChanges(true);
+        return;
+      }
       if (pendingRefresh) clearTimeout(pendingRefresh);
       pendingRefresh = setTimeout(() => router.refresh(), 450);
     };
@@ -224,6 +230,7 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
       }
       reset?.();
       setMessage(success);
+      setRemoteChanges(false);
       router.refresh();
     });
   }
@@ -240,6 +247,7 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
             run(() => updateAgendaEventAction(item.id, new FormData(form)), "Compromisso atualizado.");
           }}
         >
+          <input type="hidden" name="updated_at" value={item.updatedAt} />
           <label className="agenda-field agenda-field-wide"><span>Compromisso</span><input name="title" required maxLength={180} defaultValue={item.title} /></label>
           <label className="agenda-field"><span>Data</span><input name="event_date" type="date" required defaultValue={item.eventDate} /></label>
           <label className="agenda-field"><span>Início</span><input name="start_time" type="time" defaultValue={item.startTime ?? ""} /></label>
@@ -267,6 +275,7 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
           }}
         >
           <input type="hidden" name="week_start" value={item.weekStart} />
+          <input type="hidden" name="updated_at" value={item.updatedAt} />
           <label className="agenda-field agenda-field-wide"><span>O que precisa ser feito?</span><input name="title" required maxLength={240} defaultValue={item.title} /></label>
           <label className="agenda-field">
             <span>Responsável</span>
@@ -328,6 +337,12 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
         ) : null}
       </div>
 
+      {remoteChanges ? (
+        <div className="agenda-remote-notice" role="status">
+          A equipe atualizou a agenda. Salve ou feche o formulário antes de atualizar.
+          <button type="button" onClick={() => { setRemoteChanges(false); router.refresh(); }}>Atualizar agora</button>
+        </div>
+      ) : null}
       {message ? <div className="agenda-feedback" role="status">{message}</div> : null}
 
       {initialView === "agenda" && data.access.agendaRead ? (
