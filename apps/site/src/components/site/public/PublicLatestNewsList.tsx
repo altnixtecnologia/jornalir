@@ -77,7 +77,8 @@ export function PublicLatestNewsList({ items }: { items: PublicArticle[] }): JSX
 
       <div className="grid grid-cols-1 items-start gap-8 lg:grid-cols-[1.05fr_0.95fr]">
         <div ref={activeStoryRef} key={selected.id} className="reveal-up">
-          <div className="relative aspect-[4/3] w-full overflow-hidden rounded-sm bg-[color:var(--site-bg)]">
+          <Link href={`/noticias/${selected.slug}`} aria-label={`Abrir matéria: ${selected.title}`}
+            className="group block relative aspect-[4/3] w-full overflow-hidden rounded-sm bg-[color:var(--site-bg)] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[color:var(--brand-red)]">
             {selected.cover?.url ? (
               <div className="h-full w-full bg-contain bg-center bg-no-repeat" style={{ backgroundImage: `url(${selected.cover.url})` }} />
             ) : (
@@ -85,21 +86,16 @@ export function PublicLatestNewsList({ items }: { items: PublicArticle[] }): JSX
                 <span className="font-editorial text-3xl font-bold text-white/25">IR</span>
               </div>
             )}
-          </div>
+          </Link>
           <div className="latest-news-active mt-6">
             <p className="kicker">{selected.sectionName}</p>
             <h3 className="mt-2 font-editorial text-[26px] font-bold leading-tight text-[color:var(--site-text)] md:text-[30px]">
-              {selected.title}
+              <Link href={`/noticias/${selected.slug}`}
+                className="transition-colors hover:text-[color:var(--brand-red)] focus-visible:underline">{selected.title}</Link>
             </h3>
             {selected.subtitle ? (
               <p className="mt-2 text-[15px] leading-snug text-[color:var(--site-muted)]">{selected.subtitle}</p>
             ) : null}
-            <Link
-              href={`/noticias/${selected.slug}`}
-              className="mt-4 inline-flex items-center gap-1.5 text-sm font-bold text-[color:var(--brand-red)] hover:gap-2.5"
-            >
-              Ler matéria <span aria-hidden="true">→</span>
-            </Link>
           </div>
         </div>
 
@@ -108,39 +104,30 @@ export function PublicLatestNewsList({ items }: { items: PublicArticle[] }): JSX
             const isActive = i === selectedIndex;
 
             return (
-              <li key={item.id}>
-                <button
-                  type="button"
-                  onClick={() => selectManually(i)}
-                  aria-pressed={isActive}
-                  className={`group flex w-full items-start gap-4 border-l-2 py-4 pl-3 text-left transition-colors ${
-                    isActive ? "border-[color:var(--brand-red)]" : "border-transparent"
-                  }`}
-                >
-                  <span
-                    className={`font-editorial text-xl font-bold leading-none transition-colors ${
-                      isActive
-                        ? "text-[color:var(--brand-red)]"
-                        : "text-[color:var(--site-line)] group-hover:text-[color:var(--brand-red)]"
-                    }`}
-                  >
-                    {String(i + 1).padStart(2, "0")}
-                  </span>
-                  <div className="min-w-0">
-                    <p className="text-[10px] font-bold uppercase tracking-wide text-[color:var(--site-muted)]">
-                      {item.sectionName} · {formatDateBR(item.publishedAt)}
-                    </p>
-                    <h4
-                      className={`mt-1 text-base font-semibold leading-snug transition-colors ${
-                        isActive
-                          ? "text-[color:var(--brand-red)]"
-                          : "text-[color:var(--site-text)] group-hover:text-[color:var(--brand-red)]"
-                      }`}
-                    >
-                      {item.title}
-                    </h4>
-                  </div>
+              <li key={item.id} className={`flex items-start gap-3 border-l-2 py-4 pl-2 transition-colors ${
+                isActive ? "border-[color:var(--brand-red)]" : "border-transparent"
+              }`}>
+                <button type="button" onClick={() => selectManually(i)}
+                  aria-pressed={isActive} aria-label={`Destacar notícia ${i + 1}: ${item.title}`}
+                  title="Mostrar no destaque"
+                  className={`shrink-0 min-h-11 min-w-9 rounded-md text-left font-editorial text-xl font-bold leading-none transition-colors focus-visible:outline-2 focus-visible:outline-[color:var(--brand-red)] ${
+                    isActive ? "text-[color:var(--brand-red)]" : "text-[color:var(--site-muted)] hover:text-[color:var(--brand-red)]"
+                  }`}>
+                  {String(i + 1).padStart(2, "0")}
                 </button>
+                <div className="min-w-0 pt-1">
+                  <p className="text-[10px] font-bold uppercase tracking-wide text-[color:var(--site-muted)]">
+                    {item.sectionName} · {formatDateBR(item.publishedAt)}
+                  </p>
+                  <h4 className="mt-1 text-base font-semibold leading-snug">
+                    <Link href={`/noticias/${item.slug}`}
+                      className={`transition-colors hover:text-[color:var(--brand-red)] focus-visible:underline ${
+                        isActive ? "text-[color:var(--brand-red)]" : "text-[color:var(--site-text)]"
+                      }`}>
+                      {item.title}
+                    </Link>
+                  </h4>
+                </div>
               </li>
             );
           })}

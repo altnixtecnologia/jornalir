@@ -2113,3 +2113,24 @@ body {
     padding-top: max(36px, calc(env(safe-area-inset-top, 0px) + 14px));
   }
 }
+
+/* Transição de abertura Android — portal emerge suavemente do centro. */
+body.ir-portal-reveal main {
+  animation: ir-portal-enter 720ms cubic-bezier(.16, 1, .3, 1) both;
+  transform-origin: center center;
+}
+.ir-opening-leaving {
+  animation: ir-opening-exit 720ms cubic-bezier(.22, .7, .32, 1) both;
+  pointer-events: none;
+}
+@keyframes ir-portal-enter {
+  from { opacity: .45; transform: scale(.92); filter: blur(5px); }
+  to { opacity: 1; transform: scale(1); filter: blur(0); }
+}
+@keyframes ir-opening-exit {
+  from { opacity: 1; transform: scale(1); }
+  to { opacity: 0; transform: scale(1.065); }
+}
+@media (prefers-reduced-motion: reduce) {
+  body.ir-portal-reveal main, .ir-opening-leaving { animation-duration: 80ms; }
+}

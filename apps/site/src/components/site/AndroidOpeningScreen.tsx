@@ -3,18 +3,22 @@
 import { useEffect, useState } from "react";
 import { Capacitor } from "@capacitor/core";
 
-const MIN_DURATION_MS = 5000;
+const MIN_DURATION_MS = 2500;
+const MAX_WAIT_MS = 5000;
+const EXIT_DURATION_MS = 720;
 
 /**
  * Abertura visual do Jornal IR somente dentro do APK Capacitor.
  * Nunca aparece ao mudar de notícia/rota nem no site Chrome/PWA.
  * Porcentagem mede a animação de apresentação, não tráfego de rede.
- * O conteúdo já carregado aguarda pelo menos cinco segundos; uma página
- * ainda em carregamento mantém 95% até document.readyState=complete.
+ * O portal espera ~2,5 segundos, até 5 segundos caso a página ainda não
+ * esteja pronta. O encerramento revela o conteúdo por escala + fade.
+ * É uma apresentação do WebView, NÃO o splash nativo do Android.
  */
 export function AndroidOpeningScreen(): JSX.Element | null {
   const [percent, setPercent] = useState(0);
   const [show, setShow] = useState(false);
+  const [leaving, setLeaving] = useState(false);
 
   useEffect(() => {
     if (!Capacitor.isNativePlatform()) return;
@@ -29,14 +33,20 @@ export function AndroidOpeningScreen(): JSX.Element | null {
     const timer = window.setInterval(() => {
       if (!active || completed) return;
       const elapsed = Date.now() - started;
-      const prepared = document.readyState === "complete";
+      const prepared = document.readyState === "complete" || elapsed >= MAX_WAIT_MS;
       if (elapsed >= MIN_DURATION_MS && prepared) {
         completed = true;
         setPercent(100);
+        setLeaving(true);
+        document.body.classList.add("ir-portal-reveal");
         hideTimer = window.setTimeout(() => {
-          if (active) setShow(false);
+          if (active) {
+            setShow(false);
+            setLeaving(false);
+          }
+          document.body.classList.remove("ir-portal-reveal");
           document.body.style.overflow = previousOverflow;
-        }, 180);
+        }, EXIT_DURATION_MS);
         window.clearInterval(timer);
       } else {
         // A barra é de apresentação; não informa percentual real de download.
@@ -47,13 +57,14 @@ export function AndroidOpeningScreen(): JSX.Element | null {
       active = false;
       window.clearInterval(timer);
       if (hideTimer) window.clearTimeout(hideTimer);
+      document.body.classList.remove("ir-portal-reveal");
       document.body.style.overflow = previousOverflow;
     };
   }, []);
 
   if (!show) return null;
   return (
-    <div className="fixed inset-0 z-[16000] flex h-screen w-screen flex-col items-center justify-between overflow-hidden bg-[#282754] px-6 text-white"
+    <div className={`fixed inset-0 z-[16000] flex h-screen w-screen flex-col items-center justify-between overflow-hidden bg-[#282754] px-6 text-white ${leaving ? "ir-opening-leaving" : ""}`}
          style={{ height: "100dvh", paddingTop: "max(68px, env(safe-area-inset-top, 0px))", paddingBottom: "max(56px, env(safe-area-inset-bottom, 0px))" }}
          role="status" aria-label="Iniciando Jornal IR" aria-live="off">
       <div className="flex w-full flex-1 items-center justify-center">
