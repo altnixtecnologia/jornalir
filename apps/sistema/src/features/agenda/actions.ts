@@ -212,7 +212,10 @@ export async function setAgendaEventStatusAction(
   if (!eventId) return { error: "Compromisso inválido." };
   try {
     const { supabase } = await requireActiveUser();
-    const { data, error } = await supabase.from("agenda_events").update({ status }).eq("id", eventId).select("id").maybeSingle();
+    const { data, error } = await supabase.rpc("set_agenda_status_managed", {
+      p_event_id: eventId,
+      p_status: status,
+    });
     if (error || !data) return { error: error?.message ?? "Compromisso nao encontrado ou sem permissao." };
     refreshAgenda();
     return { ok: true };
@@ -281,7 +284,10 @@ export async function setPautaItemStatusAction(
   if (!itemId) return { error: "Item inválido." };
   try {
     const { supabase } = await requireActiveUser();
-    const { data, error } = await supabase.from("weekly_pauta_items").update({ status }).eq("id", itemId).select("id").maybeSingle();
+    const { data, error } = await supabase.rpc("set_pauta_status_managed", {
+      p_item_id: itemId,
+      p_status: status,
+    });
     if (error || !data) return { error: error?.message ?? "Pauta nao encontrada ou sem permissao." };
     refreshAgenda();
     return { ok: true };
@@ -334,5 +340,34 @@ export async function createPautaFromAgendaEventAction(eventId: string): Promise
     return { ok: true };
   } catch (error) {
     return { error: error instanceof Error ? error.message : "Não foi possível enviar o compromisso para a pauta." };
+  }
+}
+
+/** Apenas o responsavel pode concluir sua propria participacao.
+ * O banco encerra o compromisso quando todos os responsaveis concluem.
+ */
+export async function completeMyAgendaAssignmentAction(eventId: string): Promise<AgendaActionResult> {
+  if (!eventId) return { error: "Compromisso inválido." };
+  try {
+    const { supabase } = await requireActiveUser();
+    const { data, error } = await supabase.rpc("complete_my_agenda_assignment", { p_event_id: eventId });
+    if (error || !data) return { error: error?.message ?? "Não foi possível concluir sua participação." };
+    refreshAgenda();
+    return { ok: true };
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : "Não foi possível concluir sua participação." };
+  }
+}
+
+export async function completeMyPautaItemAction(itemId: string): Promise<AgendaActionResult> {
+  if (!itemId) return { error: "Pauta inválida." };
+  try {
+    const { supabase } = await requireActiveUser();
+    const { data, error } = await supabase.rpc("complete_my_pauta_item", { p_item_id: itemId });
+    if (error || !data) return { error: error?.message ?? "Não foi possível concluir a pauta." };
+    refreshAgenda();
+    return { ok: true };
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : "Não foi possível concluir a pauta." };
   }
 }
