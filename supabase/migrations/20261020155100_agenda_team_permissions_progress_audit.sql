@@ -294,3 +294,49 @@ drop trigger if exists audit_viewer_grants_change on public.audit_viewer_grants;
 create trigger audit_viewer_grants_change
   after insert or update or delete on public.audit_viewer_grants
   for each row execute function public.audit_agenda_change();
+
+
+-- Conflitos de edicao: bloqueio otimista com versao updated_at.
+-- Nao perde baixas de responsaveis que permanecerem atribuidos.
+create or replace function public.update_agenda_event_with_assignees_checked(
+  p_event_id uuid,p_title text,p_description text,p_event_date date,
+  p_start_time time,p_end_time time,p_location text,p_reminder_minutes integer,
+  p_profile_ids uuid[],p_expected_updated_at timestamptz
+) returns boolean language plpgsql security invoker set search_path=''
+as $$
+declare v_current timestamptz;
+begin
+  if not public.is_agenda_manager() then raise exception 'Sem permissao para editar compromissos'; end if;
+  select updated_at into v_current from public.agenda_events where id=p_event_id for update;
+  if not found then raise exception 'Compromisso nao encontrado'; end if;
+  if v_current is distinct from p_expected_updated_at then
+    raise exception 'Este compromisso foi alterado por outra pessoa. Atualize antes de salvar.';
+  end if;
+  if exists (
+    select 1 from unnest(coalesce(p_profile_ids,array[]::uuid[])) ids(id)
+    left join public.profiles p on p.id=ids.id and p.active
+    where p.id is null
+  ) then raise exception 'Responsavel inexistente ou inativo'; end if;
+
+  update public.agenda_events set
+    title=p_title,description=p_description,event_date=p_event_date,
+    start_time=p_start_time,end_time=p_end_time,location=p_location,
+    reminder_minutes=p_reminder_minutes,updated_by=auth.uid(),updated_at=now()
+  where id=p_event_id;
+
+  delete from public.agenda_event_assignees
+  where event_id=p_event_id and not (profile_id=any(coalesce(p_profile_ids,array[]::uuid[])));
+
+  insert into public.agenda_event_assignees(event_id,profile_id,assignment_type)
+  select p_event_id,ids.id,'responsible'
+  from (select distinct unnest(coalesce(p_profile_ids,array[]::uuid[])) as id) ids
+  where not exists (
+    select 1 from public.agenda_event_assignees a
+    where a.event_id=p_event_id and a.profile_id=ids.id
+  );
+  return true;
+end $$;
+revoke all on function public.update_agenda_event_with_assignees_checked(uuid,text,text,date,time,time,text,integer,uuid[],timestamptz)
+  from public,anon;
+grant execute on function public.update_agenda_event_with_assignees_checked(uuid,text,text,date,time,time,text,integer,uuid[],timestamptz)
+  to authenticated;
