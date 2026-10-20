@@ -26,3 +26,10 @@ Continuar a feature `feature/android-back-navigation-v0003-20261020` e integrar 
 - Depois: portal exibe versão liberada e botão real, arquivo responde HTTP 200 e hash conferido.
 - Migração aplicada uma única vez, tabelas protegidas com RLS.
 - APK assinado com o mesmo certificado para atualizar sem desinstalar.
+
+## Publicação confirmada em produção
+- Vercel `jornalir`: deploy `dpl_CLik5MjFUXPM9iiMW1aLzy8drfdc` READY, SHA de código `0b99bfbe6c7a9c1587032d232b75331347af1dc7`.
+- HTTP 200 real em `https://jornalir.vercel.app/aplicativo`, mostra `Aguardando liberação do APK` e `Nenhum APK está liberado`; texto `v.00.00 — em preparação` foi removido.
+- Supabase production: `android`, `v.00.03`, `version_code=4`, `published=false`, `apk_url=null`. Sem download até arquivo real verificado.
+- Backend `jornalir-sistema` já tinha tela de `Configurações → Aplicativo Jornal IR` e `saveAndroidAppReleaseAction`; **não foi redeployado**, preservando as melhorias recentes da galeria editorial. Tabela aplicada torna o painel operacional.
+- Claude tem requisito obrigatório também no `docs/ANDROID-VOLTAR-CONFIRMAR-SAIDA-V0003-20261020.md` da branch `feature/android-back-navigation-v0003-20261020`, head após documentação `0b0eec0939d56d8958938216d32a3284680ab66a`.
