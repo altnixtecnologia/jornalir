@@ -12,7 +12,16 @@ update public.agenda_events e set event_kind='editorial'
 from public.weekly_pauta_items p
 where p.agenda_event_id=e.id and e.event_kind <> 'editorial';
 
-do $$
+-- Nunca truncar silenciosamente pautas legadas com titulos acima do limite da Agenda.
+do $
+begin
+  if exists (select 1 from public.weekly_pauta_items
+             where agenda_event_id is null and char_length(title)>180) then
+    raise exception 'Há pautas antigas com títulos maiores que 180 caracteres. Revisar antes de migrar, sem truncar dados.';
+  end if;
+end $;
+
+do $
 declare p record; v_event uuid;
 begin
   for p in
@@ -25,7 +34,7 @@ begin
       created_by,updated_by,created_at,event_kind,reminder_minutes
     )
     values (
-      left(p.title,180),p.description,coalesce(p.due_date,p.week_start),
+      p.title,p.description,coalesce(p.due_date,p.week_start),
       p.due_time,case p.status when 'completed' then 'completed'
         when 'cancelled' then 'cancelled' else 'scheduled' end,
       p.completed_at,p.created_by,p.updated_by,p.created_at,'editorial',null
@@ -103,7 +112,7 @@ begin
   ) values (
     date_trunc('week',p_event_date::timestamp)::date,
     btrim(p_title),p_description,p_event_date,p_start_time,
-    (select min(id) from unnest(coalesce(p_profile_ids,array[]::uuid[])) ids(id)),v_event
+    (select id from unnest(coalesce(p_profile_ids,array[]::uuid[])) ids(id) order by id limit 1),v_event
   ) returning id into v_pauta;
   return v_pauta;
 end $$;
@@ -148,7 +157,7 @@ begin
   ) ids on conflict(event_id,profile_id) do nothing;
   update public.weekly_pauta_items
   set responsible_profile_id=(
-    select min(id) from unnest(coalesce(p_profile_ids,array[]::uuid[])) ids(id)
+    select id from unnest(coalesce(p_profile_ids,array[]::uuid[])) ids(id) order by id limit 1
   ) where id=p_pauta_id;
   return true;
 end $$;
