@@ -18,3 +18,9 @@ Data: 20/10/2026.
 
 ## Claude
 Trabalho isolado na branch `feature/ajustes-hero-mobile-versao-20261020`. Claude possui commits locais e stash; antes de sincronizar: `git status`, `git fetch`, integrar somente mudanças necessárias (sem reset/force), não fazer push/deploy duplicado. Atualizações do app v.00.03 por cima da v.00.02 continuam em homologação até aprovação dos gestos de Voltar, galeria e diálogo de saída.
+
+## Publicação em produção
+- Build preview `dpl_7D1NdW9oKqiQPKXUZmypDGd3NMe2` READY, tipos Next.js aprovados.
+- Site `jornalir.vercel.app` **Production READY**, deploy `dpl_5PmDkC4JyFnPTsuyxtgURcAv1zs6`, SHA `a6268382ae7d28e8af03ef21562a630599f78d9b`.
+- HTTP 200 confirmado na home e na notícia `19o-bpm-recebe-38-policiais-militares-temporarios-para-reforcar-o-policiamento-n-15486878`.
+- **Ainda precisa teste visual mobile**: notch, foto 19º BPM no carrossel em destaque, versão no rodapé do menu, áudio/push e retorno Android v.00.03. Splash mantida provisória até aprovação e posterior implementação nativa. APK v.00.03 segue em homologação, não liberar até aceite.
