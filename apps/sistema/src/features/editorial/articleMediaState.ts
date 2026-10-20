@@ -26,6 +26,8 @@ function reindexGallery(media: ArticleMedia[]): ArticleMedia[] {
  */
 export function setCoverMedia(media: ArticleMedia[], mediaAssetId: string): ArticleMedia[] {
   const previousCover = media.find((item) => item.role === "cover");
+  const nextCover = media.find((item) => item.mediaAssetId === mediaAssetId);
+  if (previousCover?.mediaAssetId === mediaAssetId) return media;
   const withoutNewCoverOrOldCover = media.filter(
     (item) => item.mediaAssetId !== mediaAssetId && item.role !== "cover",
   );
@@ -37,7 +39,9 @@ export function setCoverMedia(media: ArticleMedia[], mediaAssetId: string): Arti
       ? [{ ...previousCover, role: "gallery", order: 0 }]
       : [];
   const renumberedGallery = [...promotedOldCover, ...gallery].map((item, index) => ({ ...item, order: index }));
-  return [{ mediaAssetId, role: "cover", order: 0 }, ...renumberedGallery];
+  // Preservar legenda/crédito específico da matéria ao promover uma
+  // imagem da galeria; a foto anterior continua como primeira da galeria.
+  return [{ ...(nextCover ?? { mediaAssetId }), role: "cover", order: 0 }, ...renumberedGallery];
 }
 
 function normalizeOrderedMedia(items: ArticleMedia[]): ArticleMedia[] {
@@ -127,5 +131,28 @@ export function reorderArticleMedia(
 
   const insertionIndex = targetIndex + (placement === "after" ? 1 : 0);
   ordered.splice(insertionIndex, 0, dragged);
+  return normalizeOrderedMedia(ordered);
+}
+
+
+// Movimento por posição absoluta, para listas longas (30+ fotos) sem
+// depender de arrastar uma imagem por toda a página. Índice 0 = capa;
+// índices 1...N = galeria. Mantém ID, legenda, crédito e demais metadados.
+export function moveArticleMediaToPosition(
+  media: ArticleMedia[],
+  mediaAssetId: string,
+  targetPosition: number,
+): ArticleMedia[] {
+  const cover = media.find((item) => item.role === "cover");
+  const gallery = media
+    .filter((item) => item.role === "gallery")
+    .sort((a, b) => a.order - b.order);
+  const ordered = [...(cover ? [cover] : []), ...gallery];
+  const sourceIndex = ordered.findIndex((item) => item.mediaAssetId === mediaAssetId);
+  if (sourceIndex === -1 || !Number.isInteger(targetPosition) ||
+      targetPosition < 0 || targetPosition >= ordered.length ||
+      sourceIndex === targetPosition) return media;
+  const [item] = ordered.splice(sourceIndex, 1);
+  ordered.splice(targetPosition, 0, item);
   return normalizeOrderedMedia(ordered);
 }

@@ -12,6 +12,7 @@ interface ArticleMediaPickerProps {
   onAddToGallery: (mediaAssetId: string) => void;
   onRemoveFromGallery: (mediaAssetId: string) => void;
   onReorderMedia: (draggedMediaAssetId: string, targetMediaAssetId: string, placement: "before" | "after") => void;
+  onMoveToPosition: (mediaAssetId: string, position: number) => void;
   onSetCaption: (mediaAssetId: string, caption: string) => void;
   onSetCredit: (mediaAssetId: string, credit: string) => void;
   /** Chamado com as mídias recém-cadastradas — quem usa decide se some com a capa/galeria automaticamente. */
@@ -28,6 +29,7 @@ export function ArticleMediaPicker({
   onAddToGallery,
   onRemoveFromGallery,
   onReorderMedia,
+  onMoveToPosition,
   onSetCaption,
   onSetCredit,
   onFilesUploaded,
@@ -56,6 +58,7 @@ export function ArticleMediaPicker({
   const [uploading, startUpload] = useTransition();
   const [dragActive, setDragActive] = useState(false);
   const [draggedMediaId, setDraggedMediaId] = useState<string | null>(null);
+  const [dropIndicator, setDropIndicator] = useState<{ id: string; placement: "before" | "after" } | null>(null);
   const [lastUploadNotice, setLastUploadNotice] = useState<string | null>(null);
   const [uploadDialog, setUploadDialog] = useState<{
     total: number;
@@ -280,6 +283,12 @@ export function ArticleMediaPicker({
         {orderedMedia.length === 0 ? (
           <p className="helper-text">Nenhuma imagem vinculada a esta matéria.</p>
         ) : (
+          <>
+          <p className="helper-text article-media-help">
+            <strong>Escolha a capa em um clique</strong> usando a estrela ☆ ao lado da foto,
+            ou use <strong>Mover para</strong> para escolher uma posição diretamente.
+            Arrastar continua opcional.
+          </p>
           <ol className="article-media-list">
             {orderedMedia.map((item, index) => {
               const asset = assetById.get(item.mediaAssetId);
@@ -289,11 +298,19 @@ export function ArticleMediaPicker({
               return (
                 <li
                   key={item.mediaAssetId}
-                  className={`article-media-row ${draggedMediaId === item.mediaAssetId ? "is-dragging" : ""}`}
+                  className={`article-media-row ${draggedMediaId === item.mediaAssetId ? "is-dragging" : ""} ${dropIndicator?.id === item.mediaAssetId ? (dropIndicator.placement === "before" ? "is-drop-before" : "is-drop-after") : ""}`}
                   onDragOver={(event) => {
                     if (!draggedMediaId || draggedMediaId === item.mediaAssetId) return;
                     event.preventDefault();
                     event.dataTransfer.dropEffect = "move";
+                    const bounds = event.currentTarget.getBoundingClientRect();
+                    const placement = event.clientY > bounds.top + bounds.height / 2 ? "after" : "before";
+                    if (dropIndicator?.id !== item.mediaAssetId || dropIndicator.placement !== placement) {
+                      setDropIndicator({ id: item.mediaAssetId, placement });
+                    }
+                  }}
+                  onDragLeave={(event) => {
+                    if (!event.currentTarget.contains(event.relatedTarget as Node)) setDropIndicator(null);
                   }}
                   onDrop={(event) => {
                     event.preventDefault();
@@ -302,6 +319,7 @@ export function ArticleMediaPicker({
                     const placement = event.clientY > bounds.top + bounds.height / 2 ? "after" : "before";
                     onReorderMedia(draggedMediaId, item.mediaAssetId, placement);
                     setDraggedMediaId(null);
+                    setDropIndicator(null);
                   }}
                 >
                   <button
@@ -313,7 +331,7 @@ export function ArticleMediaPicker({
                       event.dataTransfer.effectAllowed = "move";
                       event.dataTransfer.setData("text/plain", item.mediaAssetId);
                     }}
-                    onDragEnd={() => setDraggedMediaId(null)}
+                    onDragEnd={() => { setDraggedMediaId(null); setDropIndicator(null); }}
                     aria-label={`Arrastar ${asset.reference} para reordenar`}
                     title="Arraste para reordenar"
                   >
@@ -327,9 +345,37 @@ export function ArticleMediaPicker({
 
                   <div className="article-media-info">
                     <span className="materia-reference">{asset.reference}</span>
-                    <span className="article-media-position">
-                      {isCover ? "Imagem principal" : `Galeria · posição ${index}`}
-                    </span>
+                    <div className="article-media-position-line">
+                      <span className="article-media-position">
+                        {isCover ? "Imagem principal" : `Galeria · posição ${index}`}
+                      </span>
+                      {!isCover ? (
+                        <button
+                          type="button"
+                          className="article-media-set-cover"
+                          onClick={() => onSetCover(item.mediaAssetId)}
+                          title="Definir esta imagem como capa"
+                          aria-label={`Tornar ${asset.reference} a imagem principal da matéria`}
+                        >
+                          ☆ <span>Tornar capa</span>
+                        </button>
+                      ) : <span className="article-media-current-cover" title="Imagem principal selecionada">★ Capa</span>}
+                    </div>
+                    <label className="article-media-move-label">
+                      Mover para
+                      <select
+                        className="article-media-position-select"
+                        aria-label={`Mover ${asset.reference} para a posição desejada`}
+                        value={index}
+                        onChange={(event) => onMoveToPosition(item.mediaAssetId, Number(event.target.value))}
+                      >
+                        {orderedMedia.map((_, position) => (
+                          <option key={position} value={position}>
+                            {position === 0 ? "Imagem principal (capa)" : `Galeria · posição ${position}`}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
                   </div>
 
                   <input
@@ -371,6 +417,7 @@ export function ArticleMediaPicker({
               );
             })}
           </ol>
+          </>
         )}
       </div>
 

@@ -19,6 +19,7 @@ import { createLocality } from "../../app/sistema/editorial/localidades/actions"
 import type { ArticleFormIntent, ArticleFormPayload } from "./articleFormTypes";
 import {
   addGalleryMedia,
+  moveArticleMediaToPosition,
   reorderArticleMedia,
   removeCoverMedia,
   removeGalleryMedia,
@@ -472,6 +473,9 @@ export function ArticleForm({
             onRemoveFromGallery={(id) => setMedia((prev) => removeGalleryMedia(prev, id))}
             onReorderMedia={(draggedId, targetId, placement) =>
               setMedia((prev) => reorderArticleMedia(prev, draggedId, targetId, placement))
+            }
+            onMoveToPosition={(id, position) =>
+              setMedia((prev) => moveArticleMediaToPosition(prev, id, position))
             }
             onSetCaption={(id, caption) => setMedia((prev) => setMediaCaption(prev, id, caption))}
             onSetCredit={(id, credit) => setMedia((prev) => setMediaCredit(prev, id, credit))}
