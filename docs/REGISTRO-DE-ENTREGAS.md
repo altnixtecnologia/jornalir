@@ -403,3 +403,11 @@ P1: performance/Core Web Vitals, alertas de erros, painel de estatísticas, vín
 - Ambiente Production `NATIVE_FCM_DELIVERY_ENABLED=true` e flag banco `site_notification_feature_flags.article_publish_events_enabled=true`; cron HTTP 200, `nativePush.enabled=true`, a cada minuto. Nenhum evento gerado retroativamente, 3 inscrições Android e 0 Web ativas na conferência.
 - UI Matérias explica envio automático e remove botão manual inativo. Matéria importada do PDF/rascunho usa o mesmo gatilho quando for publicada, com Normal ou Urgente selecionado.
 - **Pendente de aceite real**: matéria publicada real Normal/Urgente -> entrega FCM e teste de som/abertura no celular. Handoff detalhado `docs/NOTIFICACOES-AUTOMATICAS-EDITORIAL-20261020.md`. Sincronizar branch inteira, preservar alterações locais Claude, nunca reset/force, não fazer novo deploy ou migrations sem autorização.
+
+## 2026-10-19 — Correção da tela de notificações no Android
+- Depois de screenshot da equipe, corrigimos tela `/notificacoes` para exibir painel FCM nativo apenas quando ponte Capacitor existe; no Chrome exibir apenas Web Push. Se ponte Android estiver ausente ou for PWA/atalho, orientar explicitamente em vez de "seu navegador não suporta". O botão Voltar não cobre mais o título em mobile.
+- `NativePushPreferences` continua único/global e agora injeta painel dentro da página via portal React e MutationObserver; dependência de tipos local adicionada.
+- Site Production READY `dpl_76YDDHLe3aVjM8nH5XaQ4pLEmFcG`, SHA `68b300e78bbd8472412acd73c54e341e4a0cdaac`.
+- Próximo teste: esposa abre Jornal IR **via ícone do APK**, sino → configurar: deve ver "Notificações do aplicativo" e botão/canais nativos, sem menção a iPhone/navegador; se aparecer aviso de ponte indisponível ou atalho do site, identificar tipo de instalação e diagnosticar dispositivo antes de alterar APK.
+- A causa de fechamento/recarregamento da rota não foi confirmada; não atribuir com certeza ao Web Push ou Service Worker sem logs/reprodução.
+- GitHub handoff: `docs/NOTIFICACOES-ANDROID-PORTAL-BROWSER-20261019.md` na branch `feature/notificacoes-ambiente-android-20261019`. Claude deve buscar branch após checar alterações locais e integrar sem reset/force; não gerar APK novo neste lote.

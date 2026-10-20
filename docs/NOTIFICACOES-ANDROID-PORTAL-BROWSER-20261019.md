@@ -17,3 +17,10 @@ Captura Android mostrava apenas o formulário **"Receba notícias no celular"** 
 - **QA obrigatório**: APK Android v.00.02 em dois modelos; em /notificacoes deve haver apenas "Notificações do aplicativo" + Normal/Urgente e "Avisos ativos"/"Ativar"; sem aviso de iPhone ou navegador não suportado. Testar permissão e registro FCM, retorno pela seta, primeiro acesso e aberturas subsequentes; navegador Chrome mostra somente configurações Web Push; Google app / WebView sem Capacitor mostra aviso de ambiente inadequado. Nunca confundir estado local "ativo" com recebimento de push real.
 - Não afirmar que fechamentos de tela foram corrigidos até obter reproduções/logcat. Ao persistir, coletar apenas logs não sensíveis da Activity/JS antes de mudanças adicionais.
 - Branch de trabalho para Claude: `feature/notificacoes-ambiente-android-20261019`. Primeiro `git status`, `git fetch`, preservar arquivos locais e commits Claude, integrar com fast-forward/merge limpo sem reset e sem force.
+
+## Publicação efetuada
+- Branch `feature/notificacoes-ambiente-android-20261019`.
+- Site **Production READY** `dpl_76YDDHLe3aVjM8nH5XaQ4pLEmFcG`, código SHA `68b300e78bbd8472412acd73c54e341e4a0cdaac`.
+- Build prévio READY `dpl_FMHAr1QPQZMBmZLxtkcUTPsv5iyZ`; primeira tentativa `dpl_EYkzBsd2BatSsfKvFM9Noz9oPVvG` falhou apenas por ausência de tipo `react-dom`, corrigido antes da produção por `apps/site/src/types/react-dom.d.ts`.
+- Smoke: `https://jornalir.vercel.app/notificacoes` HTTP 200; alias oficial aponta para o deployment READY. **Ainda pendente testar no Android real** para determinar se há ponte Capacitor ou se o atalho é PWA/WebView.
+- Nenhuma atualização de APK, Vercel sistema, Supabase, env ou envio FCM neste lote.
