@@ -1,9 +1,11 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
+  completeMyAgendaAssignmentAction,
+  completeMyPautaItemAction,
   createAgendaEventAction,
   createPautaFromAgendaEventAction,
   createPautaItemAction,
@@ -13,6 +15,7 @@ import {
   updatePautaItemAction,
 } from "./actions";
 import type { AgendaEventItem, AgendaWorkspaceData, WeeklyPautaItem } from "./agendaTypes";
+import { createSupabaseBrowserClient } from "../../lib/supabase/browser";
 
 interface AgendaWorkspaceProps {
   data: AgendaWorkspaceData;
@@ -46,6 +49,19 @@ function longDate(value: string): string {
 function monthLabel(value: string): string {
   const text = parseDate(value).toLocaleDateString("pt-BR", { month: "long", year: "numeric" });
   return text.charAt(0).toUpperCase() + text.slice(1);
+}
+
+/**
+ * Cor deterministica derivada do UUID: mesmo responsavel, mesma cor
+ * no computador e no aplicativo, sem depender da ordem de cadastro.
+ */
+function personColor(id: string): string {
+  if (!id) return "hsl(215 18% 48%)";
+  let hash = 2166136261;
+  for (let index = 0; index < id.length; index += 1) {
+    hash = Math.imul(hash ^ id.charCodeAt(index), 16777619);
+  }
+  return `hsl(${(hash >>> 0) % 360} 62% 38%)`;
 }
 
 function statusLabel(status: string): string {
@@ -88,10 +104,42 @@ function weekEventOptions(events: AgendaEventItem[], weekStart: string, weekEnd:
 
 export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspaceProps): JSX.Element {
   const router = useRouter();
+  const realtimeClient = useMemo(() => createSupabaseBrowserClient(), []);
   const [selectedDate, setSelectedDate] = useState(data.focusDate);
+  const [realtimeState, setRealtimeState] = useState<"connecting" | "online" | "offline">("connecting");
   const [message, setMessage] = useState<string | null>(null);
   const [responsibleFilter, setResponsibleFilter] = useState("");
   const [isPending, startTransition] = useTransition();
+
+  useEffect(() => setSelectedDate(data.focusDate), [data.focusDate]);
+
+  // Atualizacao em tempo real + reconciliacao ao voltar ao navegador.
+  // A regra de acesso continua sendo a RLS do Supabase, nao o canal.
+  useEffect(() => {
+    let pendingRefresh: ReturnType<typeof setTimeout> | undefined;
+    const refresh = () => {
+      if (pendingRefresh) clearTimeout(pendingRefresh);
+      pendingRefresh = setTimeout(() => router.refresh(), 450);
+    };
+    const channel = realtimeClient.channel("agenda-equipe-" + data.currentUserId)
+      .on("postgres_changes", { event: "*", schema: "public", table: "agenda_events" }, refresh)
+      .on("postgres_changes", { event: "*", schema: "public", table: "agenda_event_assignees" }, refresh)
+      .on("postgres_changes", { event: "*", schema: "public", table: "weekly_pauta_items" }, refresh)
+      .subscribe((status) => {
+        if (status === "SUBSCRIBED") setRealtimeState("online");
+        if (status === "CHANNEL_ERROR" || status === "TIMED_OUT" || status === "CLOSED") setRealtimeState("offline");
+      });
+    const onFocus = () => refresh();
+    const onVisibility = () => { if (document.visibilityState === "visible") refresh(); };
+    window.addEventListener("focus", onFocus);
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => {
+      if (pendingRefresh) clearTimeout(pendingRefresh);
+      window.removeEventListener("focus", onFocus);
+      document.removeEventListener("visibilitychange", onVisibility);
+      void realtimeClient.removeChannel(channel);
+    };
+  }, [data.currentUserId, realtimeClient, router]);
 
   const days = useMemo(() => {
     const month = parseDate(data.focusDate);
@@ -124,6 +172,12 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
   }, [filteredEvents]);
 
   const selectedEvents = eventsByDate.get(selectedDate) ?? [];
+  const todayCount = filteredEvents.filter((event) => event.eventDate === data.today && event.status !== "cancelled").length;
+  const ownPending = data.events.filter((event) =>
+    event.status === "scheduled" && event.assignees.some((person) =>
+      person.id === data.currentUserId && !person.completedAt)).length +
+    data.pautaItems.filter((item) =>
+      item.status === "pending" && item.responsibleProfileId === data.currentUserId && !item.agendaEventId).length;
   const weekDays = Array.from({ length: 7 }, (_, index) => addDays(data.weekStart, index));
   const weekEvents = weekEventOptions(data.events, data.weekStart, data.weekEnd);
   const monthEventCount = data.events.filter((event) => event.eventDate >= data.monthStart && event.eventDate <= data.monthEnd).length;
@@ -140,6 +194,16 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
     date.setDate(1);
     date.setMonth(date.getMonth() + delta);
     navigate("agenda", ymd(date));
+  }
+
+  function openCreate(): void {
+    const id = initialView === "agenda" ? "agenda-create-panel" : "pauta-create-panel";
+    const node = document.getElementById(id);
+    if (!node) return;
+    if (node instanceof HTMLDetailsElement) node.open = true;
+    node.scrollIntoView({ behavior: "smooth", block: "center" });
+    const input = node.querySelector<HTMLInputElement>('input[name="title"]');
+    if (input) window.setTimeout(() => input.focus({ preventScroll: true }), 280);
   }
 
   function moveWeek(delta: number): void {
@@ -235,6 +299,15 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
 
   return (
     <section className="agenda-workspace">
+      <div className="agenda-quick-overview" aria-label="Resumo dos compromissos">
+        <div><span>Hoje</span><strong>{todayCount}</strong><small>compromissos</small></div>
+        <div><span>Minha fila</span><strong>{ownPending}</strong><small>pendências</small></div>
+        <div className="agenda-quick-sync" title="Atualizacao automatica e sincronizacao ao retomar a aba">
+          <span className={"agenda-sync-dot is-" + realtimeState} />
+          <strong>{realtimeState === "online" ? "Sincronizado" : realtimeState === "connecting" ? "Conectando" : "Reconectando"}</strong>
+          <small>{realtimeState === "online" ? "Equipe atualizada" : "Atualiza ao reconectar"}</small>
+        </div>
+      </div>
       <div className="agenda-topbar">
         <div className="agenda-tabs" role="tablist" aria-label="Agenda e pauta">
           {data.access.agendaRead ? <button type="button" className={initialView === "agenda" ? "is-active" : ""} onClick={() => navigate("agenda", data.focusDate)}>Agenda</button> : null}
@@ -250,6 +323,9 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
             ))}
           </select>
         </label>
+        {(initialView === "agenda" ? data.access.agendaWrite : data.access.pautaWrite) ? (
+          <button type="button" className="agenda-top-add" onClick={openCreate}>+ Novo</button>
+        ) : null}
       </div>
 
       {message ? <div className="agenda-feedback" role="status">{message}</div> : null}
@@ -279,6 +355,9 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
                   <button type="button" key={day.value} className={classes.join(" ")} onClick={() => setSelectedDate(day.value)}>
                     <span className="agenda-day-number">{day.day}</span>
                     {activeEvents.length ? <span className="agenda-day-count">{activeEvents.length}</span> : null}
+                    {activeEvents.length ? <span className="agenda-day-colors" aria-hidden="true">
+                      {activeEvents.slice(0, 4).map((event) => <i key={event.id} style={{ background: personColor(event.assignees[0]?.id ?? "") }} />)}
+                    </span> : null}
                   </button>
                 );
               })}
@@ -292,29 +371,40 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
               {selectedEvents.length ? (
                 <div className="agenda-events-list">
                   {selectedEvents.map((item) => (
-                    <article key={item.id} className={"agenda-event-card is-" + item.status}>
+                    <article key={item.id} className={"agenda-event-card is-" + item.status}
+                      style={{ borderLeftColor: personColor(item.assignees[0]?.id ?? "") }}>
                       <div className="agenda-event-main">
-                        <div className="agenda-event-time">{item.startTime ?? "—"}{item.endTime ? <small>até {item.endTime}</small> : null}</div>
+                        <div className="agenda-event-time">{item.startTime ? item.startTime + "h" : "—"}{item.endTime ? <small>até {item.endTime}h</small> : null}</div>
                         <div>
                           <h3>{item.title}</h3>
                           <div className="agenda-event-meta">
                             {item.location ? <span>{item.location}</span> : null}
-                            {item.assignees.length ? <span>{item.assignees.map((person) => person.name).join(", ")}</span> : <span>Sem responsável</span>}
-                            <span>{statusLabel(item.status)}</span>
+                            {item.assignees.length ? <span className="agenda-assignee-row">
+                              {item.assignees.map((person) => (
+                                <span className="agenda-assignee-chip" key={person.id} style={{ borderColor: personColor(person.id), color: personColor(person.id) }}>
+                                  {person.completedAt ? "✓ " : ""}{person.name}
+                                </span>
+                              ))}
+                            </span> : <span>Sem responsável</span>}
+                            <span className="agenda-event-state">{statusLabel(item.status)}{item.assignees.length > 1 ? ` · ${item.assignees.filter((person) => person.completedAt).length}/${item.assignees.length} concluídos` : ""}</span>
                           </div>
-                          {item.description ? <p>{item.description}</p> : null}
+                          {item.description ? <details className="agenda-event-details"><summary>Visualizar detalhes</summary><p>{item.description}</p></details> : null}
                         </div>
                       </div>
-                      {(data.access.agendaWrite || data.access.pautaWrite) ? <div className="agenda-event-actions">
+                      {(data.access.agendaWrite || item.assignees.some((person) => person.id === data.currentUserId)) ? <div className="agenda-event-actions">
                         {item.status === "scheduled" ? (
                           <>
-                            {data.access.agendaWrite ? <button type="button" disabled={isPending} onClick={() => run(() => setAgendaEventStatusAction(item.id, "completed"), "Compromisso concluído.")}>✓ Concluir</button> : null}
+                            {item.assignees.some((person) => person.id === data.currentUserId && !person.completedAt) ? (
+                              <button type="button" className="agenda-complete-button" disabled={isPending}
+                                onClick={() => run(() => completeMyAgendaAssignmentAction(item.id), "Sua parte foi concluída.")}>✓ Concluir minha parte</button>
+                            ) : null}
+                            {data.access.agendaWrite && !item.assignees.length ? <button type="button" disabled={isPending} onClick={() => run(() => setAgendaEventStatusAction(item.id, "completed"), "Compromisso concluído.")}>✓ Concluir</button> : null}
                             {data.access.pautaWrite ? <button type="button" disabled={isPending} onClick={() => run(() => createPautaFromAgendaEventAction(item.id), "Compromisso enviado para a pauta.")}>+ Pauta</button> : null}
                             {data.access.agendaWrite ? <button type="button" className="is-danger-soft" disabled={isPending} onClick={() => run(() => setAgendaEventStatusAction(item.id, "cancelled"), "Compromisso cancelado.")}>Cancelar</button> : null}
                           </>
-                        ) : (
-                          data.access.agendaWrite ? <button type="button" disabled={isPending} onClick={() => run(() => setAgendaEventStatusAction(item.id, "scheduled"), "Compromisso reaberto.")}>Reabrir</button> : null
-                        )}
+                        ) : data.access.agendaWrite ? (
+                          <button type="button" disabled={isPending} onClick={() => run(() => setAgendaEventStatusAction(item.id, "scheduled"), "Compromisso reaberto.")}>Reabrir</button>
+                        ) : null}
                       </div> : null}
                       {data.access.agendaWrite ? <EventEdit item={item} /> : null}
                     </article>
@@ -323,8 +413,8 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
               ) : <div className="agenda-empty">Nenhum compromisso neste dia.</div>}
             </div>
 
-            {data.access.agendaWrite ? <details className="agenda-create-panel" open>
-              <summary>Novo compromisso</summary>
+            {data.access.agendaWrite ? <details className="agenda-create-panel" id="agenda-create-panel">
+              <summary>+ Novo compromisso <span>Toque para cadastrar</span></summary>
               <form
                 className="agenda-form"
                 onSubmit={(event) => {
@@ -364,7 +454,7 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
             <span>{pautaItems.filter((item) => item.status === "pending").length} pendente(s)</span>
           </div>
 
-          {data.access.pautaWrite ? <form
+          {data.access.pautaWrite ? <details className="pauta-create-panel" id="pauta-create-panel"><summary>+ Nova pauta <span>Toque para cadastrar</span></summary><form
             className="pauta-quick-form"
             onSubmit={(event) => {
               event.preventDefault();
@@ -398,7 +488,7 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
             </label>
             <label className="agenda-field pauta-note-field"><span>Observação</span><input name="description" maxLength={4000} placeholder="Opcional" /></label>
             <button type="submit" className="agenda-primary" disabled={isPending}>+ Adicionar</button>
-          </form> : null}
+          </form></details> : null}
 
           {pautaItems.length ? (
             <div className="pauta-list">
@@ -406,10 +496,16 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
                 const done = item.status === "completed";
                 const cancelled = item.status === "cancelled";
                 return (
-                  <article key={item.id} className={"pauta-item" + (done ? " is-done" : "") + (cancelled ? " is-cancelled" : "")}>
-                    {data.access.pautaWrite ? <button type="button" className="pauta-check" aria-label={done ? "Reabrir item" : "Concluir item"} disabled={isPending || cancelled} onClick={() => run(() => setPautaItemStatusAction(item.id, done ? "pending" : "completed"), done ? "Item reaberto." : "Item concluído.")}>{done ? "✓" : ""}</button> : null}
+                  <article key={item.id} style={{ borderLeftColor: personColor(item.responsibleProfileId ?? "") }} className={"pauta-item" + (done ? " is-done" : "") + (cancelled ? " is-cancelled" : "")}>
+                    {(data.access.pautaWrite || (item.responsibleProfileId === data.currentUserId && !done && !cancelled)) ? <button type="button" className="pauta-check"
+                      aria-label={done ? "Reabrir item" : "Concluir minha pauta"} disabled={isPending || cancelled}
+                      onClick={() => run(
+                        () => done ? setPautaItemStatusAction(item.id, "pending")
+                          : data.access.pautaWrite ? setPautaItemStatusAction(item.id, "completed") : completeMyPautaItemAction(item.id),
+                        done ? "Item reaberto." : "Item concluído.",
+                      )}>{done ? "✓" : ""}</button> : <span className="pauta-check-placeholder" aria-hidden="true">{done ? "✓" : ""}</span>}
                     <div className="pauta-item-content">
-                      <div className="pauta-item-topline"><strong>{item.title}</strong><span>{item.responsibleName ?? "Sem responsável"}</span></div>
+                      <div className="pauta-item-topline"><strong>{item.title}</strong><span className="agenda-assignee-chip" style={{ borderColor: personColor(item.responsibleProfileId ?? ""), color: personColor(item.responsibleProfileId ?? "") }}>{item.responsibleName ?? "Sem responsável"}</span></div>
                       <div className="pauta-item-meta">
                         <span>{item.dueDate ? longDate(item.dueDate) : "Sem dia definido"}</span>
                         {item.dueTime ? <span>{item.dueTime}</span> : null}
