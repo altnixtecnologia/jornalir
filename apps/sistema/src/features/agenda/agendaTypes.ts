@@ -46,7 +46,7 @@ export interface AgendaWorkspaceData {
   weekStart: string;
   weekEnd: string;
   currentUserId: string;
-  access: { agendaRead: boolean; agendaWrite: boolean; pautaRead: boolean; pautaWrite: boolean };
+  access: { agendaRead: boolean; agendaWrite: boolean; pautaRead: boolean; pautaWrite: boolean; editorialLinkAccess: boolean };
   profiles: AgendaProfile[];
   events: AgendaEventItem[];
   pautaItems: WeeklyPautaItem[];
