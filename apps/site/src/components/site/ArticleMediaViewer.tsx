@@ -59,8 +59,8 @@ export function ArticleMediaViewer({
 
       <div className="article-body mt-8" dangerouslySetInnerHTML={{ __html: bodyHtml }} />
 
-      {gallery.length > 0 ? (
-        <div id="article-gallery" className="mt-10 scroll-mt-24">
+      {totalPhotos > 0 ? (
+        <div id="article-gallery" className={gallery.length > 0 ? "mt-10 scroll-mt-24" : ""}>
           <ArticleGallery
             images={combined}
             thumbnailStart={cover ? 1 : 0}
