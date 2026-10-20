@@ -395,3 +395,11 @@ P1: performance/Core Web Vitals, alertas de erros, painel de estatísticas, vín
 - Site publicado READY `dpl_5LKi5gxA69a1eFS6T32bwpmsbSM3`, SHA `88a01653724d72e2431de84141798315c61de03c` na branch `feature/ativacao-inicial-notificacoes-20261019`.
 - Diálogo de consentimento no primeiro acesso nativo; "Agora não" persistente; solicitação da permissão somente após toque; listeners FCM globais; preferências do usuário persistidas. API e flags de push geral não alteradas. Documentação detalhada `docs/ANDROID-PRIMEIRA-ABERTURA-PUSH-20261019.md`.
 - Requisito editorial ratificado pelo proprietário: seleção Sem/Normal/Urgente deve enviar push automaticamente na transição para publicado, também pelo agendador, sem dupla entrega em edição/republicação; **ainda não ativado em produção**.
+
+## 2026-10-20 — Push automático por publicação: ATIVADO em produção
+- **Sistema** Production READY `dpl_Htm1iaAVYwQahZ7jXRCA4K2f7axJ` SHA `67dc34e923f99818c8d53be6d362b95717ba97ae`, release `feature/push-automatico-editorial-20261019`. Site público não redeployado.
+- 3 migrations aplicadas com versões reais 20261020001444, 20261020001449, 20261020001452, arquivos SQL renomeados na branch para refletir ledger. NÃO duplicar/reaplicar no VS Code.
+- Gatilho agora envia `articles` status→published / mode normal,urgent para `notification_events`, não outbox antiga. Documentado e testado em transação rollback: 0 antes, 3 depois, sem duplicata ao editar/republicar, sem persistir eventos fictícios.
+- Ambiente Production `NATIVE_FCM_DELIVERY_ENABLED=true` e flag banco `site_notification_feature_flags.article_publish_events_enabled=true`; cron HTTP 200, `nativePush.enabled=true`, a cada minuto. Nenhum evento gerado retroativamente, 3 inscrições Android e 0 Web ativas na conferência.
+- UI Matérias explica envio automático e remove botão manual inativo. Matéria importada do PDF/rascunho usa o mesmo gatilho quando for publicada, com Normal ou Urgente selecionado.
+- **Pendente de aceite real**: matéria publicada real Normal/Urgente -> entrega FCM e teste de som/abertura no celular. Handoff detalhado `docs/NOTIFICACOES-AUTOMATICAS-EDITORIAL-20261020.md`. Sincronizar branch inteira, preservar alterações locais Claude, nunca reset/force, não fazer novo deploy ou migrations sem autorização.
