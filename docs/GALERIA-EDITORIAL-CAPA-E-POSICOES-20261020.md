@@ -27,3 +27,10 @@ O usuário carregou 33 fotos; sua capa favorita ficou numa das últimas posiçõ
 - **Não houve publicação em produção do sistema nem mudanças no banco**. O site público permanece na implantação anterior `feature/notificacoes-ambiente-android-20261019`, independente desta alteração.
 - **Ainda falta teste humano das interações** em uma matéria com 33 fotos reais, salvar e reabrir; o build READY não prova comportamento visual ou persistência ao salvar.
 - Após homologação, publicar o sistema em um lote controlado e registrar o SHA. Claude Code pode fazer fetch desta branch (checar `git status` primeiro; não reset/force).
+
+## Publicação em produção após solicitação do usuário
+- A melhoria já foi publicada no sistema oficial `controle.altnix.com.br`.
+- Projeto Vercel `jornalir-sistema`, deploy **Production READY** `dpl_7zyynR1LyrQSQdwUrg8UVhVGvsYt`, SHA de código `8cb77dc4b4ab0657cebb584af7c5dd71625e3fa3`.
+- O alias oficial foi verificado apontando para esse deployment READY, não depende de Ctrl+Shift+F5 para receber nova versão.
+- Continuam necessários testes humanos de capa de 33 fotos, mudança de posição, salvar/reabrir; build passou, mas não substitui validação de UX pelo editorial.
+- Não houve alteração de banco, migrações, Firebase nem APK.
