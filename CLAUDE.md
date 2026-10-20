@@ -38,3 +38,7 @@ Enquanto o ChatGPT estiver trabalhando diretamente no GitHub, **NÃO pedir nem r
 
 ## Handoff remoto pendente — Agenda/Pauta (20/10/2026)
 Na **próxima sessão local do Claude Code/Codex**, ler `docs/AGENDA_EQUIPE_MOBILE_AUDITORIA_HANDOFF_20261020.md` e buscar a branch remota `feature/agenda-mobile-sync-auditoria-20261020`. Primeiro verificar `pwd`, `git status -sb`, branch, HEAD e worktrees; preservar alterações locais e as branches dos outros agentes. Não integrar parcialmente nem sobrescrever; não fazer migrations remotas, push adicional ou Vercel deploy sem autorização. O usuário exige atualização local somente ao voltar a usar Claude/Codex. O ChatGPT **não** atualizou a pasta local.
+
+
+## Novo lote remoto depois do seu relatório (20/10/2026)
+A Claude validou a **primeira etapa** da Agenda em checkout local isolado no HEAD `b53bb06`. O ChatGPT fez depois a **segunda etapa** de unificação Agenda↔Pauta na mesma branch remota, com nova migration `20261020162000_agenda_pauta_unified_source.sql` (a primeira migration `20261020155100...` permanece pendente). Ao retomar Claude/Codex, executar fetch e ler `docs/AGENDA_EQUIPE_MOBILE_AUDITORIA_HANDOFF_20261020.md`; os testes anteriores não homologam a segunda etapa. Preservar os 4 commits Android e stash; não aplicar migrations remotas ou fazer Vercel deploy sem pedido expresso.
