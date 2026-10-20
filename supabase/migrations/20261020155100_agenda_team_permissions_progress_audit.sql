@@ -201,7 +201,8 @@ begin
   v_new := case when TG_OP='DELETE' then null else to_jsonb(NEW) end;
   v_entity := TG_TABLE_NAME;
   v_id := coalesce((v_new->>'id')::uuid,(v_old->>'id')::uuid,
-                   (v_new->>'event_id')::uuid,(v_old->>'event_id')::uuid);
+                   (v_new->>'event_id')::uuid,(v_old->>'event_id')::uuid,
+                   (v_new->>'profile_id')::uuid,(v_old->>'profile_id')::uuid);
   v_old := v_old - 'description' - 'created_at' - 'updated_at';
   v_new := v_new - 'description' - 'created_at' - 'updated_at';
   if TG_OP='UPDATE' and v_old=v_new then return NEW; end if;
@@ -236,3 +237,8 @@ begin
     end if;
   end loop;
 end $$;
+
+drop trigger if exists agenda_manager_grants_audit_change on public.agenda_manager_grants;
+create trigger agenda_manager_grants_audit_change
+  after insert or update or delete on public.agenda_manager_grants
+  for each row execute function public.audit_agenda_change();
