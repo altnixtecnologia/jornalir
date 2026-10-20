@@ -52,6 +52,10 @@ begin
   end loop;
 end $$;
 
+-- Após migrar o legado, impedir novos itens de Pauta sem um compromisso.
+alter table public.weekly_pauta_items
+  add constraint weekly_pauta_agenda_required check (agenda_event_id is not null);
+
 -- As colunas espelhadas da pauta sao snapshots de compatibilidade, jamais
 -- a fonte de verdade. Atualizar automaticamente quando a Agenda muda.
 create or replace function public.sync_pauta_snapshot_from_agenda()
