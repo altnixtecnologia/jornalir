@@ -123,8 +123,8 @@ export function ArticleGallery({
     closeButtonRef.current?.focus({ preventScroll: true });
     function handleKey(event: KeyboardEvent): void {
       if (event.key === "Escape") { event.preventDefault(); closePhoto(); }
-      else if (event.key === "ArrowRight") { event.preventDefault(); goTo(openIndex + 1); }
-      else if (event.key === "ArrowLeft") { event.preventDefault(); goTo(openIndex - 1); }
+      else if (event.key === "ArrowRight") { event.preventDefault(); goTo((openIndex ?? 0) + 1); }
+      else if (event.key === "ArrowLeft") { event.preventDefault(); goTo((openIndex ?? 0) - 1); }
       else if (event.key === "+" || event.key === "=") { event.preventDefault(); zoomBy(1.5); }
       else if (event.key === "-") { event.preventDefault(); zoomBy(1 / 1.5); }
     }
