@@ -99,3 +99,12 @@
 - Revisão das duas branches de permissões financeiras granulares, deliberadamente deixada para etapa posterior.
 - Conferir comportamento 404/streaming do Next.js e meta robots, não alterar só porque resposta HTTP 200 pode ocorrer durante streaming.
 - Controlar deploys automáticos de prévia: o time Vercel encontrou consumo elevado de cota; **não foi confirmada a desativação dos previews**.
+
+
+## 20/10/2026 — Decisões aprovadas para Agenda/Pauta/auditoria
+- Todos os colaboradores ativos podem ver compromissos de todos, com identificação por cor atribuída a cada pessoa. Agenda/Pauta devem convergir para um único registro, sem ligação manual/duplicata no estado final.
+- Cada colaborador conclui a própria parte; múltiplos responsáveis devem progredir separadamente. Proprietário e administradores **explicitamente autorizados** alteram, cancelam e reabrem pendências de qualquer pessoa.
+- Mobile prioritário: criar, visualizar, editar quando autorizado, filtrar, concluir com poucos toques; sincronização entre dispositivos sem recarregar manualmente ou perder alterações não salvas.
+- Controle completo de modificações no `controle.altnix.com.br`: auditoria imutável por usuário/módulo/data, log de ações automáticas, antes/depois quando seguro, nunca registrar credenciais. Proprietário e admins consultam; operadores apenas quando liberados. Este é um REQUISITO, não uma afirmação de cobertura atual.
+- Aplicativo administrativo futuro separado do portal público, com notificações de tarefas e opção de vibração, observando limitações do Android/iOS.
+- Primeiro lote em branch remota não publicada: `docs/AGENDA_EQUIPE_MOBILE_AUDITORIA_HANDOFF_20261020.md`. Implementar/homologar sem perder o que existe; não tocar produção ou VS Code sem autorização e integração segura.
