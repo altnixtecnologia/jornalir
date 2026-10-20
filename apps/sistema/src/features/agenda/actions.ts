@@ -102,7 +102,6 @@ function validatePautaPayload(formData: FormData):
       dueTime: string;
       description: string;
       responsibleProfileId: string;
-      agendaEventId: string;
     } {
   const title = value(formData, "title");
   const weekStart = value(formData, "week_start");
@@ -110,16 +109,16 @@ function validatePautaPayload(formData: FormData):
   const dueTime = value(formData, "due_time");
   const description = value(formData, "description");
   const responsibleProfileId = value(formData, "responsible_profile_id");
-  const agendaEventId = value(formData, "agenda_event_id");
 
   if (!title || title.length > 240) return { error: "Informe o que precisa ser feito." };
   if (!validDate(weekStart) || startOfWeek(weekStart) !== weekStart) return { error: "Semana inválida." };
   if (dueDate && (!validDate(dueDate) || dueDate < weekStart || dueDate > addDays(weekStart, 6))) {
     return { error: "O dia precisa estar dentro da semana selecionada." };
   }
+  if (!dueDate) return { error: "Escolha um dia para a pauta. Todos os itens entram na Agenda." };
   if (!validTime(dueTime)) return { error: "Horário inválido." };
   if (description.length > 4000) return { error: "Observação muito longa." };
-  return { title, weekStart, dueDate, dueTime, description, responsibleProfileId, agendaEventId };
+  return { title, weekStart, dueDate, dueTime, description, responsibleProfileId };
 }
 
 function refreshAgenda(): void {
@@ -228,24 +227,21 @@ export async function setAgendaEventStatusAction(
 export async function createPautaItemAction(formData: FormData): Promise<AgendaActionResult> {
   const input = validatePautaPayload(formData);
   if ("error" in input) return input;
-
   try {
     const { supabase } = await requireActiveUser();
     if (input.responsibleProfileId) await validateActiveProfiles(supabase, [input.responsibleProfileId]);
-    const { error } = await supabase.from("weekly_pauta_items").insert({
-      week_start: input.weekStart,
-      title: input.title,
-      description: input.description || null,
-      due_date: input.dueDate || null,
-      due_time: input.dueTime || null,
-      responsible_profile_id: input.responsibleProfileId || null,
-      agenda_event_id: input.agendaEventId || null,
+    const { data, error } = await supabase.rpc("create_editorial_pauta_event", {
+      p_title: input.title,
+      p_description: input.description || null,
+      p_event_date: input.dueDate,
+      p_start_time: input.dueTime || null,
+      p_profile_id: input.responsibleProfileId || null,
     });
-    if (error) return { error: error.message };
+    if (error || !data) return { error: error?.message ?? "Não foi possível criar a pauta na Agenda." };
     refreshAgenda();
     return { ok: true };
   } catch (error) {
-    return { error: error instanceof Error ? error.message : "Não foi possível adicionar a pauta." };
+    return { error: error instanceof Error ? error.message : "Não foi possível criar a pauta." };
   }
 }
 
@@ -253,25 +249,19 @@ export async function updatePautaItemAction(itemId: string, formData: FormData):
   if (!itemId) return { error: "Item inválido." };
   const input = validatePautaPayload(formData);
   if ("error" in input) return input;
-
   try {
     const { supabase } = await requireActiveUser();
     if (input.responsibleProfileId) await validateActiveProfiles(supabase, [input.responsibleProfileId]);
-    const { data: updated, error } = await supabase
-      .from("weekly_pauta_items")
-      .update({
-        title: input.title,
-        description: input.description || null,
-        due_date: input.dueDate || null,
-        due_time: input.dueTime || null,
-        responsible_profile_id: input.responsibleProfileId || null,
-        agenda_event_id: input.agendaEventId || null,
-      })
-      .eq("id", itemId)
-      .eq("updated_at", value(formData, "updated_at"))
-      .select("id")
-      .maybeSingle();
-    if (error || !updated) return { error: error?.message ?? "A pauta foi alterada por outra pessoa. Atualize a tela antes de salvar." };
+    const { data, error } = await supabase.rpc("update_editorial_pauta_event", {
+      p_pauta_id: itemId,
+      p_title: input.title,
+      p_description: input.description || null,
+      p_event_date: input.dueDate,
+      p_start_time: input.dueTime || null,
+      p_profile_id: input.responsibleProfileId || null,
+      p_expected_updated_at: value(formData, "updated_at"),
+    });
+    if (error || !data) return { error: error?.message ?? "A pauta foi alterada por outra pessoa. Atualize antes de salvar." };
     refreshAgenda();
     return { ok: true };
   } catch (error) {
@@ -302,42 +292,8 @@ export async function createPautaFromAgendaEventAction(eventId: string): Promise
   if (!eventId) return { error: "Compromisso inválido." };
   try {
     const { supabase } = await requireActiveUser();
-    const eventResult = await supabase
-      .from("agenda_events")
-      .select("id, title, event_date, start_time")
-      .eq("id", eventId)
-      .maybeSingle();
-    if (eventResult.error || !eventResult.data) {
-      return { error: eventResult.error?.message ?? "Compromisso não encontrado." };
-    }
-
-    const assignmentResult = await supabase
-      .from("agenda_event_assignees")
-      .select("profile_id")
-      .eq("event_id", eventId)
-      .eq("assignment_type", "responsible")
-      .limit(1);
-    if (assignmentResult.error) return { error: assignmentResult.error.message };
-
-    const existingResult = await supabase
-      .from("weekly_pauta_items")
-      .select("id")
-      .eq("agenda_event_id", eventId)
-      .neq("status", "cancelled")
-      .limit(1);
-    if (existingResult.error) return { error: existingResult.error.message };
-    if ((existingResult.data ?? []).length) return { error: "Esse compromisso já está ligado à pauta." };
-
-    const event = eventResult.data;
-    const { error } = await supabase.from("weekly_pauta_items").insert({
-      week_start: startOfWeek(event.event_date),
-      title: event.title,
-      due_date: event.event_date,
-      due_time: event.start_time,
-      responsible_profile_id: assignmentResult.data?.[0]?.profile_id ?? null,
-      agenda_event_id: event.id,
-    });
-    if (error) return { error: error.code === "23505" ? "Esse compromisso já está ligado a uma pauta ativa." : error.message };
+    const { data, error } = await supabase.rpc("add_agenda_event_to_pauta", { p_event_id: eventId });
+    if (error || !data) return { error: error?.message ?? "Não foi possível marcar o compromisso como pauta." };
     refreshAgenda();
     return { ok: true };
   } catch (error) {
