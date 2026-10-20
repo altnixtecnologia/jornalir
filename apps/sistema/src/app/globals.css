@@ -5561,3 +5561,7 @@ button.secondary-link {
   .agenda-form,.pauta-inline-edit .agenda-form{grid-template-columns:minmax(0,1fr);gap:11px}
   .agenda-field-wide,.agenda-form-actions{grid-column:1}
 }
+
+.agenda-remote-notice{position:sticky;top:10px;z-index:18;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;padding:10px 13px;background:#fff9ed;border:1px solid #e8d3a1;border-radius:9px;color:#825615;font-size:12px;font-weight:700}
+.agenda-remote-notice button{min-height:36px;padding:6px 12px;color:#825615;background:#fff;border-color:#d1ad67;font-weight:800}
+@media(max-width:560px){.agenda-remote-notice button{width:100%;min-height:44px}}
