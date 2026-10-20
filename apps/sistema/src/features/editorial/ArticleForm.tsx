@@ -628,17 +628,9 @@ export function ArticleForm({
                   Salvar edições de matérias já publicadas não repete o aviso.
                 </p>
                 {article?.status === "published" ? (
-                  isDirty ? (
-                    <p className="helper-text">Salve as alterações antes de preparar uma notificação.</p>
-                  ) : (
-                    <a
-                      href={`/sistema/configuracoes/notificacoes-push?article_id=${encodeURIComponent(article.id)}&kind=${notificationMode === "urgent" ? "urgent" : "ordinary"}`}
-                      className="form-action-primary"
-                      style={{ display: "inline-flex", alignItems: "center", width: "auto", marginTop: 8, padding: "0 12px", textDecoration: "none" }}
-                    >
-                      Enviar aviso excepcional
-                    </a>
-                  )
+                  <p className="helper-text">
+                    Esta matéria já está publicada. Salvar alterações não reenvia o aviso anterior.
+                  </p>
                 ) : (
                   <p className="helper-text">O aviso selecionado será disparado ao publicar, sem nenhuma etapa adicional.</p>
                 )}
