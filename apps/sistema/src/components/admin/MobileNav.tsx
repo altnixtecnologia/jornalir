@@ -15,6 +15,7 @@ import {
 } from "../../lib/navigation";
 import { useAuth } from "../../lib/auth/AuthProvider";
 import { useAgendaPautaReadAccess } from "../../lib/permissions/useAgendaPautaReadAccess";
+import { useAuditReadAccess } from "../../lib/permissions/useAuditReadAccess";
 import { useStaffModuleVisibility } from "../../lib/permissions/useStaffModuleVisibility";
 
 type MobileGroup = { label: string; links: AdminNavLink[]; restricted?: boolean; planned?: boolean };
@@ -58,6 +59,7 @@ export function MobileNav({ onNavigate }: { onNavigate: () => void }): JSX.Eleme
   const pathname = usePathname();
   const { profile } = useAuth();
   const { agendaRead, pautaRead } = useAgendaPautaReadAccess();
+  const auditRead = useAuditReadAccess();
   const { hasModule } = useStaffModuleVisibility();
   const [search, setSearch] = useState("");
   const [openGroup, setOpenGroup] = useState<string | null>(null);
@@ -96,7 +98,7 @@ export function MobileNav({ onNavigate }: { onNavigate: () => void }): JSX.Eleme
     }
     return true;
   };
-  const visibleGroups = GROUPS
+  const visibleGroups = [...GROUPS, ...(auditRead && !canManageUsers ? [{ label: "Atividades", links: [{ label: "Histórico de atividades", href: "/sistema/configuracoes/auditoria" }] }] : [])]
     .filter((group) => !group.restricted || canManageUsers)
     .map((group) => ({ ...group, links: group.links.filter((link) => canSeeLink(link)) }))
     .filter((group) => group.links.length > 0);
