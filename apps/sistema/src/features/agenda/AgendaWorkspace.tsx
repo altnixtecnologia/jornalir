@@ -413,7 +413,7 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
                               <button type="button" className="agenda-complete-button" disabled={isPending}
                                 onClick={() => run(() => completeMyAgendaAssignmentAction(item.id), "Sua parte foi concluída.")}>✓ Concluir minha parte</button>
                             ) : null}
-                            {data.access.agendaWrite && !item.assignees.length ? <button type="button" disabled={isPending} onClick={() => run(() => setAgendaEventStatusAction(item.id, "completed"), "Compromisso concluído.")}>✓ Concluir</button> : null}
+                            {data.access.agendaWrite ? <button type="button" disabled={isPending} onClick={() => run(() => setAgendaEventStatusAction(item.id, "completed"), "Compromisso concluído pela administração.")}>{item.assignees.length ? "✓ Concluir todos" : "✓ Concluir"}</button> : null}
                             {data.access.pautaWrite ? <button type="button" disabled={isPending} onClick={() => run(() => createPautaFromAgendaEventAction(item.id), "Compromisso enviado para a pauta.")}>+ Pauta</button> : null}
                             {data.access.agendaWrite ? <button type="button" className="is-danger-soft" disabled={isPending} onClick={() => run(() => setAgendaEventStatusAction(item.id, "cancelled"), "Compromisso cancelado.")}>Cancelar</button> : null}
                           </>
