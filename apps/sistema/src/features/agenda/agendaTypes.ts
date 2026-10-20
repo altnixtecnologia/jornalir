@@ -12,6 +12,8 @@ export interface AgendaEventItem {
   startTime: string | null;
   endTime: string | null;
   reminderMinutes: number | null;
+  eventKind: "general" | "editorial";
+  completedAt: string | null;
   updatedAt: string;
   location: string | null;
   status: "scheduled" | "completed" | "cancelled";
@@ -32,6 +34,7 @@ export interface WeeklyPautaItem {
   articleId: string | null;
   status: "pending" | "completed" | "cancelled";
   completedAt: string | null;
+  assignees: (AgendaProfile & { completedAt: string | null })[];
   updatedAt: string;
 }
 
