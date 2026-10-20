@@ -1,11 +1,9 @@
 apply plugin: 'com.android.application'
 
-// Assinatura SEPARADA do app público — lê de
-// keystore.properties LOCAL (nunca commitado, ver .gitignore e
-// keys-mobile/LEIA-ME-BACKUP-KEYSTORE.md fora do repositório). Sem esse
-// arquivo (ex.: outro computador sem o keystore configurado ainda), a
-// release simplesmente não assina — nunca inventa uma assinatura nem quebra
-// o build de debug.
+// Assinatura SEPARADA do app público. Criar novo keystore exclusivo
+// e configurar um keystore.properties LOCAL (nunca commitado).
+// Sem esse arquivo a release não fica assinada; debug continua disponível.
+// NÃO reutilizar a chave/keystore do Jornal IR público.
 def keystorePropertiesFile = rootProject.file("keystore.properties")
 def keystoreProperties = new Properties()
 def hasReleaseSigning = keystorePropertiesFile.exists()

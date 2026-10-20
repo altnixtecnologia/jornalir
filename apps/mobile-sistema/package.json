@@ -5,7 +5,8 @@
   "description": "IR Controle — app administrativo Android (WebView Capacitor + alarmes nativos).",
   "scripts": {
     "sync": "cap sync android",
-    "build:debug": "cd android && ./gradlew assembleDebug"
+    "build:debug": "cd android && ./gradlew assembleDebug",
+    "build:debug:win": "cd android && gradlew.bat assembleDebug"
   },
   "dependencies": {
     "@capacitor/android": "7.6.9",

@@ -108,3 +108,11 @@
 - Controle completo de modificações no `controle.altnix.com.br`: auditoria imutável por usuário/módulo/data, log de ações automáticas, antes/depois quando seguro, nunca registrar credenciais. Proprietário e admins consultam; operadores apenas quando liberados. Este é um REQUISITO, não uma afirmação de cobertura atual.
 - Aplicativo administrativo futuro separado do portal público, com notificações de tarefas e opção de vibração, observando limitações do Android/iOS.
 - Primeiro lote em branch remota não publicada: `docs/AGENDA_EQUIPE_MOBILE_AUDITORIA_HANDOFF_20261020.md`. Implementar/homologar sem perder o que existe; não tocar produção ou VS Code sem autorização e integração segura.
+
+
+## 20/10/2026 — Novo app administrativo IR Controle (fundação Android)
+- Criada branch isolada \`feature/ir-controle-mobile-android-20261020\` derivada da branch já publicada da Agenda. Código inicial em \`apps/mobile-sistema\`, applicationId \`com.jornalir.controle\`, appName \`IR Controle\`. App público \`apps/mobile\` (\`com.jornalir\`) intocado.
+- Capacitor 7 abre HTTPS \`controle.altnix.com.br\` na WebView, sem cópia de código da interface ou banco. Java Application cria cinco canais nativos distintos de alerta interno/Agenda: som, vibração, ambos e silencioso.
+- Permissões de notificação Android 13+ e capacidade de solicitar alarme exato Android 12+ declaradas, mas nem permissão foi solicitada ao usuário nem horário foi agendado; respeitar DND e política Android/Google Play. Backup desativado para área administrativa. Ícones provisoriamente iguais ao jornal, com etiqueta distinta.
+- **Primeira etapa SOMENTE de estrutura:** SEM APK compilado, SEM FCM da equipe, SEM envio/recebimento de avisos, SEM agendamento local funcional, SEM app instalado/distribuído, SEM mudança Supabase/Vercel. Não declarar lembretes funcionando.
+- Próximas tarefas: sincronização local não destrutiva com Claude/Codex quando retomada; npm install/lockfile, cap sync, debug APK, Firebase Android app **próprio**, login por WebView, preferências individuais som/vibração/ambos/silêncio, push por usuário ativo, alarmes locais sincronizados e deduplicados, QA Android fechado/reiniciado/offline. Ver \`docs/IR-CONTROLE-APP-ARQUITETURA-20261020.md\`.
