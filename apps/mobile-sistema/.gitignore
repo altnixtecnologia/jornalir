@@ -1,0 +1,4 @@
+node_modules
+www/dist
+# APKs e arquivos locais
+package-lock.json

@@ -1,0 +1,21 @@
+{
+  "name": "@ir/mobile-sistema",
+  "version": "0.0.1",
+  "private": true,
+  "description": "IR Controle — app administrativo Android (WebView Capacitor + alarmes nativos).",
+  "scripts": {
+    "sync": "cap sync android",
+    "build:debug": "cd android && ./gradlew assembleDebug"
+  },
+  "dependencies": {
+    "@capacitor/android": "7.6.9",
+    "@capacitor/app": "7.1.0",
+    "@capacitor/core": "7.6.9",
+    "@capacitor/local-notifications": "7.0.7",
+    "@capacitor/push-notifications": "7.0.7"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "7.6.9"
+  },
+  "license": "UNLICENSED"
+}

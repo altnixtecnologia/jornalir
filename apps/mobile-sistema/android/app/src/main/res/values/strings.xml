@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">IR Controle</string>
+    <string name="title_activity_main">IR Controle</string>
+    <string name="package_name">com.jornalir.controle</string>
+    <string name="custom_url_scheme">com.jornalir.controle</string>
+</resources>
