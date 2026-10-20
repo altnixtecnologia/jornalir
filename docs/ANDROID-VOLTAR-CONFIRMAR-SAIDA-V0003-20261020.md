@@ -28,3 +28,12 @@
 - Não foi possível assinar APK no ambiente de ferramentas conectadas: keystore é local do usuário e NUNCA deve ser enviado à conversa ou GitHub.
 - Sem APK v.00.03 instalado, a captura de hardware Back e diálogo nativo não podem ser homologados, embora o site possa compilar.
 - Não mexer em Supabase, Firebase, notificações automáticas, produção do sistema ou outros aplicativos.
+
+## Estado desta entrega (20/10/2026)
+- Código pronto na branch `feature/android-back-navigation-v0003-20261020`; SHA testado no preview: `16610398414664a88e65c77470909dbbb821274c`.
+- Preview inicial `dpl_CznkdvqoE8UVgWbuphoCVz1GM5qP` READY, e preview final `dpl_pwUUSJNqiDfEp3cGDwNdM676MmqG` **READY**; Next build, TypeScript e 19 páginas compiladas.
+- HTTP 200 em preview `https://jornalir-mlivfppw8-cristians-projects-34074cc3.vercel.app/`. Site oficial ainda aponta ao SHA anterior `b190a2677d574752ef1d8dc2005385d42f103040`, production `dpl_F4eKaJ4mCQCkwYQeVdkE2kiyre1n`. **NÃO foi publicado em produção**, aguardando APK assinado e QA Android.
+- Correção adicional de histórico: distinguir popstate real do Next.js de um novo clique no logo "Início". Quando o leitor clica no logo, voltar ao início é uma nova entrada do histórico; não se deve apagar a matéria anterior, evitando exibir "Sair?" antes da hora.
+- O teste de build não demonstra ainda o comportamento do botão físico em dispositivos; testar com o APK assinado por CLAUDE LOCAL e relatar resultados. Não há APK v.00.03 criado ou distribuído por este trabalho.
+- O lockfile raiz `package-lock.json` permanece desatualizado com a nova dependência; sincronizar e commitar via `npm install` antes de compilar localmente. Não rodar `npm ci` antes disso.
+- O Android Gradle já registra manualmente o plugin, mas rodar `npx cap sync android` depois da instalação é necessário para confirmar a geração dos arquivos pela ferramenta.
