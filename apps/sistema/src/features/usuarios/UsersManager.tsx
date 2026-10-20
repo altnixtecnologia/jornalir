@@ -8,9 +8,7 @@ import { inviteUser, sendPasswordResetForUser } from "../../app/sistema/usuarios
 import { ConfirmDialog } from "../../components/admin/ConfirmDialog";
 import { STAFF_MODULES, type StaffModuleKey } from "../../lib/permissions/staffPermissionsCatalog";
 
-type ModuleName = "agenda" | "pauta";
-type PermissionLevel = "none" | "read" | "write";
-interface PermissionRow { profile_id: string; module_name: ModuleName; can_read: boolean; can_write: boolean; }
+interface AgendaManagerGrantRow { profile_id: string; can_manage: boolean; }
 interface VisibilityRow { profile_id: string; module_key: StaffModuleKey; enabled: boolean; }
 
 interface UserRow {
@@ -37,7 +35,7 @@ export function UsersManager(): JSX.Element {
   const { profile } = useAuth();
   const client = useMemo(() => createSupabaseBrowserClient(), []);
   const [users, setUsers] = useState<UserRow[] | null>(null);
-  const [modulePermissions, setModulePermissions] = useState<PermissionRow[]>([]);
+  const [agendaManagerGrants, setAgendaManagerGrants] = useState<AgendaManagerGrantRow[]>([]);
   const [moduleVisibility, setModuleVisibility] = useState<VisibilityRow[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
@@ -50,20 +48,19 @@ export function UsersManager(): JSX.Element {
   const isAdmin = profile?.role === "admin";
 
   async function reload(): Promise<void> {
-    const [profilesResult, permissionsResult, visibilityResult] = await Promise.all([
+    const [profilesResult, visibilityResult, agendaManagersResult] = await Promise.all([
       client.from("profiles").select("id, name, role, active, created_at").order("created_at", { ascending: true }),
-      client.from("staff_module_permissions").select("profile_id,module_name,can_read,can_write"),
       client.from("staff_module_visibility").select("profile_id,module_key,enabled"),
+      client.from("agenda_manager_grants").select("profile_id,can_manage"),
     ]);
-    if (profilesResult.error || permissionsResult.error || visibilityResult.error) {
-      setError(profilesResult.error?.message ?? permissionsResult.error?.message
-        ?? visibilityResult.error?.message
-        ?? "Não foi possível carregar os usuários.");
+    if (profilesResult.error || visibilityResult.error || agendaManagersResult.error) {
+      setError(profilesResult.error?.message ?? visibilityResult.error?.message
+        ?? agendaManagersResult.error?.message ?? "Não foi possível carregar os usuários.");
       return;
     }
     setUsers((profilesResult.data ?? []) as UserRow[]);
-    setModulePermissions((permissionsResult.data ?? []) as PermissionRow[]);
     setModuleVisibility((visibilityResult.data ?? []) as VisibilityRow[]);
+    setAgendaManagerGrants((agendaManagersResult.data ?? []) as AgendaManagerGrantRow[]);
   }
 
   useEffect(() => {
@@ -146,29 +143,23 @@ export function UsersManager(): JSX.Element {
     setMessage("Link para redefinir a senha enviado por e-mail para " + target.name + ".");
   }
 
-  function permissionLevel(profileId: string, moduleName: ModuleName): PermissionLevel {
-    const row = modulePermissions.find((permission) => permission.profile_id === profileId && permission.module_name === moduleName);
-    return row?.can_write ? "write" : row?.can_read ? "read" : "none";
-  }
-
-  async function saveModulePermission(target: UserRow, moduleName: ModuleName, level: PermissionLevel): Promise<void> {
-    if (target.role !== "operator" || !canManage(target)) return;
+  async function setAgendaManagerGrant(target: UserRow, enabled: boolean): Promise<void> {
+    if (!isOwner || target.role !== "admin" || !target.active || pending || !profile) return;
     setError(null);
     setMessage(null);
     setPending(true);
-    const { error: saveError } = await client.from("staff_module_permissions").upsert({
+    const { error: saveError } = await client.from("agenda_manager_grants").upsert({
       profile_id: target.id,
-      module_name: moduleName,
-      can_read: level !== "none",
-      can_write: level === "write",
+      can_manage: enabled,
+      granted_by: profile.id,
       updated_at: new Date().toISOString(),
-    }, { onConflict: "profile_id,module_name" });
+    }, { onConflict: "profile_id" });
     setPending(false);
     if (saveError) {
-      setError("Não foi possível salvar a permissão: " + saveError.message);
+      setError("Não foi possível alterar a autorização da Agenda: " + saveError.message);
       return;
     }
-    setMessage("Permissões atualizadas para " + target.name + ".");
+    setMessage((enabled ? "Gestão liberada para " : "Gestão revogada de ") + target.name + ".");
     await reload();
   }
 
@@ -362,27 +353,33 @@ export function UsersManager(): JSX.Element {
 
       <section className="form-section">
         <h2>Permissões por usuário e módulo</h2>
-        <p className="helper-text">Proprietário e administradores mantêm acesso integral. Para operadores, configure individualmente Agenda e Pauta: sem acesso, somente leitura ou edição. O bloqueio também retira os atalhos correspondentes da navegação.</p>
-        <p className="helper-text">Selecione os módulos visíveis para cada operador. Um módulo desativado desaparece dos menus e tem acesso direto bloqueado. NFS-e e Configurações permanecem exclusivos da administração. As ações específicas do Financeiro serão revisadas na etapa de segurança. Ativar/Desativar acima controla a conta inteira.</p>
+        <p className="helper-text">
+          Agenda e Pauta são compartilhadas: todos os usuários ativos podem visualizar a equipe
+          e concluir as próprias tarefas. A edição geral é exclusiva do proprietário e dos
+          administradores autorizados pelo proprietário.
+        </p>
+        <div className="inline-form">
+          <strong>Administradores autorizados a gerenciar Agenda e Pauta</strong>
+          <p className="helper-text">Somente o proprietário libera ou revoga este poder. A baixa individual continua disponível para responsáveis comuns.</p>
+          {(users ?? []).filter((user) => user.role === "admin").map((user) => (
+            <label key={user.id} className="staff-permission-choice">
+              <input type="checkbox"
+                checked={agendaManagerGrants.some((grant) => grant.profile_id === user.id && grant.can_manage)}
+                disabled={pending || !isOwner || !user.active}
+                onChange={(event) => void setAgendaManagerGrant(user, event.target.checked)}
+              />
+              <span>{user.name} · {user.active ? "ativo" : "inativo"} · pode criar, editar, cancelar e reabrir</span>
+            </label>
+          ))}
+          {(users ?? []).every((user) => user.role !== "admin") ? <p className="helper-text">Nenhum administrador cadastrado ainda.</p> : null}
+        </div>
+        <p className="helper-text">
+          Os demais módulos continuam com visibilidade individual. Desativar um módulo o oculta
+          do menu e bloqueia seu acesso pelas permissões do servidor.
+        </p>
         {(users ?? []).filter((user) => user.role === "operator").map((user) => (
           <div key={user.id} className="inline-form">
             <strong>{user.name} {user.active ? "" : "(inativo)"}</strong>
-            <div className="form-grid">
-              {(["agenda", "pauta"] as ModuleName[]).map((moduleName) => (
-                <label className="form-field" key={moduleName}>
-                  <span className="field-label">{moduleName === "agenda" ? "Agenda" : "Pauta da semana"}</span>
-                  <select
-                    value={permissionLevel(user.id, moduleName)}
-                    disabled={pending || !canManage(user)}
-                    onChange={(event) => void saveModulePermission(user, moduleName, event.target.value as PermissionLevel)}
-                  >
-                    <option value="none">Sem acesso</option>
-                    <option value="read">Somente visualizar</option>
-                    <option value="write">Visualizar e editar</option>
-                  </select>
-                </label>
-              ))}
-            </div>
             <h3>Módulos disponíveis</h3>
             <p className="helper-text">Desmarque o módulo para removê-lo dos menus deste operador.</p>
             <div className="staff-permissions-grid">
