@@ -7,6 +7,7 @@ import { AdSlotColumn } from "../../../../components/site/AdSlotColumn";
 import { AdSlotPairRow } from "../../../../components/site/AdSlotPairRow";
 import type { AdSlot } from "../../../../components/site/adSlots";
 import { ArticleMediaViewer } from "../../../../components/site/ArticleMediaViewer";
+import { ArticleShareActions } from "../../../../components/site/ArticleShareActions";
 import { PublicReadAlsoCard } from "../../../../components/site/public/PublicReadAlsoCard";
 import { SiteHeader } from "../../../../components/site/SiteHeader";
 import { estimateReadingMinutes, readingTimeLabel } from "../../../../components/site/readingTime";
@@ -124,6 +125,7 @@ export default async function NoticiaDetalhePage({ params }: { params: { slug: s
                 {current.localityName ? ` · ${current.localityName}` : ""}
                 {current.urgent ? " · Urgente" : ""}
               </p>
+              <ArticleShareActions title={current.title} slug={current.slug} />
 
               <ArticleMediaViewer
                 cover={current.cover ? { url: current.cover.url, caption: current.cover.caption, credit: current.cover.credit } : undefined}
