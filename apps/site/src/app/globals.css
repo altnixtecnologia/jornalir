@@ -384,11 +384,6 @@ body {
   from { background-position: left center; }
   to { background-position: right center; }
 }
-@keyframes hero-mobile-breathe {
-  from { transform: scale(1); }
-  to { transform: scale(1.105); }
-}
-
 .hero-parallax {
   transform: translate3d(var(--hero-px, 0px), var(--hero-py, 0px), 0);
   transition: transform 260ms ease-out;
@@ -1621,8 +1616,11 @@ body {
     -webkit-text-stroke: 0.4px rgba(0, 0, 0, 0.5);
   }
 }
+/* Zoom-out progressivo: aproxima no começo e termina com a foto inteira
+   encostando nas bordas horizontais disponíveis (background-size:contain).
+   Especialmente importante em retratos pequenos como capa de 777x1024. */
 @keyframes hero-mobile-breathe {
-  from { transform: scale(1.115); }
+  from { transform: scale(1.40); }
   to { transform: scale(1); }
 }
 @keyframes hero-swipe-hint {
@@ -2102,5 +2100,16 @@ body {
   .notification-settings-title {
     padding-left: 48px;
     min-height: 40px;
+  }
+}
+
+/* Posição da logo flutuante da manchete: folga extra abaixo da câmera/notch.
+   Só muda o destaque principal no celular; evita cobrir o sensor frontal. */
+.hero-safe-logo {
+  padding-top: max(18px, env(safe-area-inset-top, 0px));
+}
+@media (max-width: 767px) {
+  .hero-safe-logo {
+    padding-top: max(36px, calc(env(safe-area-inset-top, 0px) + 14px));
   }
 }

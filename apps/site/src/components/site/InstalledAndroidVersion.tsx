@@ -15,7 +15,7 @@ export function InstalledAndroidVersion(): JSX.Element | null {
       .then(({ App }) => App.getInfo())
       .then((info) => {
         if (live && info.id === "com.jornalir") {
-          setVersion(`${info.version} · build ${info.build}`);
+          setVersion(info.version);
         }
       })
       .catch(() => {

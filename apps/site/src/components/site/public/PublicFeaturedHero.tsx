@@ -217,7 +217,7 @@ export function PublicFeaturedHero({ items }: { items: PublicArticle[] }): JSX.E
           );
         })}
 
-        <div className="site-shell pointer-events-none absolute inset-x-0 top-0 z-30 flex items-start pt-[max(18px,env(safe-area-inset-top))]">
+        <div className="hero-safe-logo site-shell pointer-events-none absolute inset-x-0 top-0 z-30 flex items-start">
           <Link href="/" aria-label="Informativo Regional" className="pointer-events-auto inline-flex">
             <img
               src="/brand/logo-escrita.png"
