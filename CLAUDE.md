@@ -34,3 +34,7 @@ Antes de iniciar novo lote, ler também `docs/REGISTRO-DE-ENTREGAS.md`, fazer `g
 Enquanto o ChatGPT estiver trabalhando diretamente no GitHub, **NÃO pedir nem realizar sincronização do VS Code/OneDrive a cada commit**. Ele trabalha somente em branch própria e registra TODOS os commits e pendências em `docs/REGISTRO-DE-ENTREGAS.md`. A pasta local `Site-sistema` permanece intocada nesse período.
 
 **Somente quando o usuário decidir iniciar nova sessão do Claude Code ou Codex**, a PRIMEIRA tarefa do agente será conferir os arquivos e o Git local, fazer `git fetch origin`, ler o registro de entregas, e então incorporar a totalidade da branch do ChatGPT de forma segura (fast-forward quando cabível). Verificar conflitos, testar e registrar novo HEAD. Nunca sincronizar parcialmente, nunca descartar mudanças locais, nunca fazer deploy automático. A sincronização local não é pré-requisito para o ChatGPT continuar programando no GitHub.
+
+
+## Handoff remoto pendente — Agenda/Pauta (20/10/2026)
+Na **próxima sessão local do Claude Code/Codex**, ler `docs/AGENDA_EQUIPE_MOBILE_AUDITORIA_HANDOFF_20261020.md` e buscar a branch remota `feature/agenda-mobile-sync-auditoria-20261020`. Primeiro verificar `pwd`, `git status -sb`, branch, HEAD e worktrees; preservar alterações locais e as branches dos outros agentes. Não integrar parcialmente nem sobrescrever; não fazer migrations remotas, push adicional ou Vercel deploy sem autorização. O usuário exige atualização local somente ao voltar a usar Claude/Codex. O ChatGPT **não** atualizou a pasta local.
