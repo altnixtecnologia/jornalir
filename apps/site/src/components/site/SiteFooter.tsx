@@ -83,11 +83,16 @@ export async function SiteFooter(): Promise<JSX.Element> {
       </div>
 
       <div className="border-t border-[color:var(--site-line)]">
-        <div className="site-shell flex flex-col gap-1 py-3 text-xs text-[color:var(--site-muted)] md:flex-row md:items-center md:justify-between">
+        <div className="site-shell flex flex-col items-center gap-2 py-3 text-center text-xs text-[color:var(--site-muted)] lg:grid lg:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] lg:items-center lg:gap-4 lg:text-left">
           <p>© {new Date().getFullYear()} Informativo Regional. Todos os direitos reservados.</p>
-          <p>
+          <nav className="flex items-center justify-center gap-2 whitespace-nowrap" aria-label="Privacidade e proteção de dados">
+            <Link href="/privacidade#direitos" className="hover:text-[color:var(--brand-red)] focus-visible:underline">LGPD</Link>
+            <span aria-hidden="true">·</span>
+            <Link href="/privacidade" className="hover:text-[color:var(--brand-red)] focus-visible:underline">Política de Privacidade</Link>
+          </nav>
+          <p className="lg:text-right">
             Desenvolvido por{" "}
-            <a href="https://altnix.com.br" target="_blank" rel="noreferrer" className="font-semibold text-[color:var(--site-text)] hover:text-[color:var(--brand-red)]">
+            <a href="https://altnix.com.br" target="_blank" rel="noopener noreferrer" className="font-semibold text-[color:var(--site-text)] hover:text-[color:var(--brand-red)]">
               Altnix Tecnologia
             </a>
           </p>
