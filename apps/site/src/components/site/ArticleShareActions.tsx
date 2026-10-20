@@ -35,7 +35,7 @@ export function ArticleShareActions({ title, slug }: Props): JSX.Element {
   const [expanded, setExpanded] = useState(false);
   const [message, setMessage] = useState("");
   const root = useRef<HTMLDivElement>(null);
-  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const timer = useRef<number | null>(null);
   const articleUrl = PUBLIC_ORIGIN + "/noticias/" + encodeURIComponent(slug);
   const shareText = title + "\n" + articleUrl;
   const whatsappUrl = "https://api.whatsapp.com/send?text=" + encodeURIComponent(shareText);
