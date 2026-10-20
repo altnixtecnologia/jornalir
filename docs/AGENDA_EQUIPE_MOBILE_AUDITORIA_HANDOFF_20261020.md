@@ -38,3 +38,33 @@ Base `be3e61daaf83a4a26a0cea1b344b8f1e645bcf7e` da feature do portal.
 - **Cores únicas configuráveis**: primeira etapa usa cor determinística por ID; se duas cores ficarem muito parecidas, evoluir para alocação persistida com unicidade e contraste.
 - Lembretes pessoais, confirmação de recebimento, vibração e app administrativo independente; completar com homologação de notificação em dispositivo.
 - Nenhum build/teste E2E foi executado nesta sessão remota; Vercel produção, Supabase produção e Android não foram alterados.
+
+
+## Segunda etapa nesta mesma branch (20/10/2026, após retorno da Claude)
+
+A Claude sincronizou a primeira etapa até `b53bb06` em checkout isolado, preservou branch Android v.00.03 e stash. Reportou `npm install` OK, typecheck @ir/sistema e @ir/site OK e build @ir/sistema OK. **Esses testes NÃO incluem o segundo lote abaixo**, que recebeu novos commits GitHub DEPOIS do relatório.
+
+### O que foi acrescentado em código remoto
+- Nova migration `supabase/migrations/20261020162000_agenda_pauta_unified_source.sql`, executável **SOMENTE DEPOIS** da `20261020155100_agenda_team_permissions_progress_audit.sql`. **Nenhuma foi aplicada ao banco remoto.**
+- `agenda_events.event_kind` identifica pautas editoriais; toda pauta tem `agenda_event_id` obrigatório. Registros antigos sem vínculo são migrados para Agenda sem exclusão de IDs, vínculos de matérias ou timestamps editoriais; títulos acima de 180 bloqueiam a migração em vez de sofrer truncamento silencioso.
+- `weekly_pauta_items` continua com `article_id`, `sort_order` e IDs históricos; os campos que se repetem são **snapshots de compatibilidade**, atualizados automaticamente por trigger a partir da Agenda (fonte de verdade).
+- RPCs com transações: `create_editorial_pauta_event`, `update_editorial_pauta_event` (verifica `updated_at`), `add_agenda_event_to_pauta`. Múltiplos responsáveis são recebidos em array e tratados em `agenda_event_assignees`.
+- Conclusão/reabertura de Pauta utiliza a MESMA situação/baixa de Agenda via `complete_my_agenda_assignment` e `set_agenda_status_managed`; não há duas conclusões concorrentes.
+- Interface: **remove o seletor “Vincular à agenda”**, exige dia e cria automaticamente na Agenda; criação e edição com múltiplos responsáveis; cartões mostram cores, marcações individuais e avanço; botão “Incluir na Pauta” só aparece para compromissos gerais.
+- Ações e tipos da Pauta passam a ler dados de Agenda como autoridade. Protegido o atalho “Criar matéria desta pauta” para operadores com módulo editorial habilitado, mesmo sem poder administrativo sobre Agenda.
+- Acesso de operador autorizado aos logs também aparece no menu desktop (além do mobile).
+
+### Testes OBRIGATÓRIOS antes de migrar ou publicar
+- Nova rodada de `npm run typecheck --workspace @ir/sistema`, `npm run typecheck --workspace @ir/site`, `npm run build --workspace @ir/sistema`. Testes anteriores da Claude cobriam somente o lote 1.
+- Exercitar migrations **ambas em sequência** num banco de testes isolado; simular pautas pré-existentes independentes, vinculadas, canceladas, concluídas e com matéria vinculada; verificar backfill preservando `id`, `article_id` e histórico.
+- Duas sessões diferentes: criar, editar e concluir individualmente com 2+ responsáveis; confirmar que o segundo usuário não sobrescreve edição do primeiro; verificar status idêntico na Agenda e na Pauta.
+- Validar permissão de owner, admin liberado/não liberado, operador responsável/não responsável, operador editorial com direito de iniciar matéria, operador com e sem auditoria.
+- Mobile 360px, 390px e 768px; edição/cadastro, rolagem, tap targets, reconexão, cor fixa de todos.
+- Conferir que o cron de lembretes Telegram continua lendo a Agenda e que pautas com horário sem `reminder_minutes` não geram notificações não solicitadas.
+- Identificar e corrigir eventuais falhas SQL e TypeScript ANTES de qualquer deploy/migration de produção. Não confundir revisão estática remota com validação real.
+
+### Ainda não entregue
+Auditoria transversal de **todos** os módulos do Controle Altnix, notificações/despertador pessoais/vibração, app da equipe separado e homologação real. A migração global de auditoria exige inventário de tabelas e serviços para evitar vazamento de CPF, tokens ou dados financeiros nos snapshots. Nenhum deploy/migration Supabase na produção foi autorizado ou executado neste lote.
+
+### Sincronização da Claude após o segundo lote
+Claude Code está com HEAD local da primeira etapa `b53bb06`; quando o usuário decidir retomar, `git status -sb`, `git fetch origin`, comparar branch `feature/agenda-mobile-sync-auditoria-20261020` e trazer TODOS os novos commits preservando branch de Android e stash; apenas fast-forward se limpeza e ancestralidade confirmadas, senão worktree/merge revisado. Nenhum reset/force. Não fazer push adicional, preview/deploy, migration remota ou mudanças Android sem autorização.
