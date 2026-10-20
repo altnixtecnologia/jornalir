@@ -10,3 +10,11 @@
 - Página é uma descrição operacional inicial, não parecer jurídico. Validar com o responsável editorial/assessoria e atualizar quando mudarem provedores, fluxo de coleta ou regras de tratamento.
 - Nenhuma alteração em backend, banco, cookies de terceiros, Supabase, Asaas, notificações ou APK.
 - Referência pública ANPD: https://www.gov.br/anpd/pt-br/centrais-de-conteudo/materiais-educativos-e-publicacoes/guia_orientativo_cookies_e_protecao_de_dados_pessoais e https://www.gov.br/anpd/pt-br/assuntos/titular-de-dados/direito-dos-titulares
+
+## Publicação em produção e verificações
+- Site Vercel `jornalir` **Production READY** `dpl_75dgAUF2UjZS7mC6qRjWv2782MP5`, SHA de código `9272665a62e7bb40b2382064842fba2785e6125b`, branch `feature/privacidade-lgpd-rodape-20261020`.
+- Preview inicial `dpl_w4VmQebumLfKn9odsadpt9Awxoaf` READY.
+- Smoke oficial: `https://jornalir.vercel.app/privacidade` HTTP 200, título e email presentes, direitos LGPD e links do rodapé confirmados no HTML; home HTTP 200 e links para `/privacidade` e `/privacidade#direitos` presentes.
+- Rodapé posiciona links no centro por CSS grid a partir do desktop, empilhado com alinhamento central nas telas menores. Ainda recomendável conferência visual em Android/desktop.
+- Em paralelo a melhoria da galeria foi publicada no sistema `controle.altnix.com.br` Production READY `dpl_7zyynR1LyrQSQdwUrg8UVhVGvsYt`, SHA `8cb77dc4b4ab0657cebb584af7c5dd71625e3fa3`, branch separada `feature/galeria-editorial-ordem-capa-20261019`. **Não confundir nem sobrescrever as duas branches**: Claude deve trazer ambas ao checkout local após verificar `git status`, nunca reset/force; comparar as ancestrais e consolidar de forma limpa.
+- A política é um texto operacional revisável, não parecer jurídico ou validação definitiva de compliance. Auditar futuros trackers e armazenamentos antes de habilitar tecnologias opcionais. CNPJ/DPO não foram inventados.
