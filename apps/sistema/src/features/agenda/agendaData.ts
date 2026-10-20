@@ -123,22 +123,22 @@ export async function loadAgendaWorkspaceData(focusDate: string): Promise<Agenda
   const profileName = new Map(profiles.map((profile) => [profile.id, profile.name]));
   const eventIds = (eventsResult.data ?? []).map((event) => event.id);
 
-  let assignmentRows: Array<{ event_id: string; profile_id: string }> = [];
+  let assignmentRows: Array<{ event_id: string; profile_id: string; completed_at: string | null }> = [];
   if (eventIds.length) {
     const assignments = await supabase
       .from("agenda_event_assignees")
-      .select("event_id, profile_id")
+      .select("event_id, profile_id, completed_at")
       .in("event_id", eventIds);
     if (assignments.error) throw new Error(assignments.error.message);
     assignmentRows = assignments.data ?? [];
   }
 
-  const assigneesByEvent = new Map<string, AgendaProfile[]>();
+  const assigneesByEvent = new Map<string, (AgendaProfile & { completedAt: string | null })[]>();
   for (const assignment of assignmentRows) {
     const profile = profiles.find((item) => item.id === assignment.profile_id);
     if (!profile) continue;
     const list = assigneesByEvent.get(assignment.event_id) ?? [];
-    list.push(profile);
+    list.push({ ...profile, completedAt: assignment.completed_at });
     assigneesByEvent.set(assignment.event_id, list);
   }
 
