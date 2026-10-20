@@ -20,7 +20,7 @@ export function AndroidOpeningScreen(): JSX.Element | null {
     if (!Capacitor.isNativePlatform()) return;
     let active = true;
     let completed = false;
-    let hideTimer: ReturnType<typeof setTimeout> | null = null;
+    let hideTimer: number | null = null;
     const started = Date.now();
     const previousOverflow = document.body.style.overflow;
     setShow(true);
