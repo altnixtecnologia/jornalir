@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import { clientesNavGroup, configuracoesNavGroup, editorialNavGroup, financeiroNavGroup, nfseNavGroup, commercialNavGroup } from "../../lib/navigation";
 import { useAuth } from "../../lib/auth/AuthProvider";
 import { useAgendaPautaReadAccess } from "../../lib/permissions/useAgendaPautaReadAccess";
+import { useAuditReadAccess } from "../../lib/permissions/useAuditReadAccess";
 import { useStaffModuleVisibility } from "../../lib/permissions/useStaffModuleVisibility";
 import { AccountMenu } from "./AccountMenu";
 import { AdminNotificationBell } from "./AdminNotificationBell";
@@ -42,6 +43,7 @@ export function AdminHeader({ onOpenMenu }: { onOpenMenu: () => void }): JSX.Ele
   }, [pathname]);
   const { profile } = useAuth();
   const { agendaRead, pautaRead } = useAgendaPautaReadAccess();
+  const auditRead = useAuditReadAccess();
   const { hasModule } = useStaffModuleVisibility();
   const isHome = pathname === "/sistema";
   const isEditorial = pathname.startsWith("/sistema/editorial");
@@ -184,6 +186,12 @@ export function AdminHeader({ onOpenMenu }: { onOpenMenu: () => void }): JSX.Ele
             </details>
           ) : null}
 
+          {auditRead && !canManageUsers ? (
+            <Link href="/sistema/configuracoes/auditoria" className="app-nav-link"
+              aria-current={pathname === "/sistema/configuracoes/auditoria" ? "page" : undefined}>
+              Atividades
+            </Link>
+          ) : null}
           {canManageUsers ? (
             <details className="app-nav-dropdown" data-nav-dropdown name="app-nav-dropdown">
               <summary className={`app-nav-link app-nav-summary${isConfiguracoes ? " is-active" : ""}`}>
