@@ -622,8 +622,10 @@ export function ArticleForm({
                   ))}
                 </select>
                 <p className="helper-text" style={{ marginTop: 8 }}>
-                  Esta seleção registra a preferência editorial. Salvar ou republicar
-                  uma matéria já publicada não envia notificação.
+                  Na primeira publicação, o sistema envia automaticamente o aviso
+                  selecionado (Normal ou Urgente). Sem notificação não envia nada.
+                  Matérias agendadas avisam somente quando entrarem no ar.
+                  Salvar edições de matérias já publicadas não repete o aviso.
                 </p>
                 {article?.status === "published" ? (
                   isDirty ? (
@@ -634,11 +636,11 @@ export function ArticleForm({
                       className="form-action-primary"
                       style={{ display: "inline-flex", alignItems: "center", width: "auto", marginTop: 8, padding: "0 12px", textDecoration: "none" }}
                     >
-                      Preparar notificação manual
+                      Enviar aviso excepcional
                     </a>
                   )
                 ) : (
-                  <p className="helper-text">Para avisar os leitores, publique a matéria e depois prepare o aviso manualmente.</p>
+                  <p className="helper-text">O aviso selecionado será disparado ao publicar, sem nenhuma etapa adicional.</p>
                 )}
               </div>
             </section>
