@@ -88,6 +88,7 @@ export async function loadAgendaWorkspaceData(focusDate: string): Promise<Agenda
     agendaWrite: permissionResults[1].data === true,
     pautaRead: permissionResults[2].data === true,
     pautaWrite: permissionResults[3].data === true,
+    editorialLinkAccess: false,
   };
   if (!access.agendaRead && !access.pautaRead) redirect("/sistema");
 
@@ -114,6 +115,14 @@ export async function loadAgendaWorkspaceData(focusDate: string): Promise<Agenda
   if (profilesResult.error) throw new Error(profilesResult.error.message);
   if (eventsResult.error) throw new Error(eventsResult.error.message);
   if (pautaResult.error) throw new Error(pautaResult.error.message);
+
+  const me = (profilesResult.data ?? []).find((profile) => profile.id === user.id);
+  access.editorialLinkAccess = Boolean(me && (me.role === "owner" || me.role === "admin"));
+  if (me?.role === "operator") {
+    const visibility = await supabase.from("staff_module_visibility")
+      .select("enabled").eq("profile_id", user.id).eq("module_key", "editorial").maybeSingle();
+    access.editorialLinkAccess = !visibility.error && visibility.data?.enabled === true;
+  }
 
   const profiles: AgendaProfile[] = (profilesResult.data ?? []).map((profile) => ({
     id: profile.id,
