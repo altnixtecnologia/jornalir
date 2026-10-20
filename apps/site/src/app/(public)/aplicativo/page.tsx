@@ -32,8 +32,10 @@ export default async function AplicativoPage(): Promise<JSX.Element> {
           </div>
           <div className="space-y-5 p-6 sm:p-10">
             <div className="flex flex-wrap items-center gap-3">
-              <span className="text-sm font-bold">Versão disponível</span>
-              <span className="rounded-lg bg-slate-100 px-3 py-1 text-sm font-semibold">{release?.versionLabel ?? "v.00.00 — em preparação"}</span>
+              <span className="text-sm font-bold">{release ? "Versão disponível para download" : "Situação do aplicativo Android"}</span>
+              <span className="rounded-lg bg-slate-100 px-3 py-1 text-sm font-semibold">
+                {release?.versionLabel ?? "Aguardando liberação do APK"}
+              </span>
             </div>
             {release ? (
               <>
@@ -54,9 +56,10 @@ export default async function AplicativoPage(): Promise<JSX.Element> {
               </>
             ) : (
               <div className="rounded-xl border p-5" style={{ borderColor: "var(--site-line)" }}>
-                <p className="font-bold">O download será disponibilizado em breve.</p>
+                <p className="font-bold">Nenhum APK está liberado para download neste momento.</p>
                 <p className="mt-2 text-sm leading-relaxed" style={{ color: "var(--site-muted)" }}>
-                  Assim que o aplicativo estiver disponível, o botão para baixar aparecerá nesta página.
+                  A próxima versão aparecerá aqui automaticamente quando o arquivo oficial estiver assinado,
+                  verificado e liberado pelo Jornal IR. Não será necessário procurar outro link ou atualizar esta página manualmente.
                 </p>
               </div>
             )}
