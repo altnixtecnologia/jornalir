@@ -431,3 +431,11 @@ P1: performance/Core Web Vitals, alertas de erros, painel de estatísticas, vín
 - Migration preparada `20261020155100_agenda_team_permissions_progress_audit.sql`, **NÃO aplicada**. RLS e RPCs novas dependem de homologação de banco e aplicação juntas. O histórico transacional desta etapa cobre Agenda/Pauta e concessões; auditoria de todos os módulos continua pendente.
 - **Nenhuma alteração na produção, nenhum APK, nenhum deploy, nenhum teste real em telefone, nenhum typecheck/build local executado nesta sessão.** Arquivos e plano de teste documentados em `docs/AGENDA_EQUIPE_MOBILE_AUDITORIA_HANDOFF_20261020.md`.
 - Próxima sessão Claude/Codex: `git status -sb`, `git fetch origin`, ler handoff, comparar branches e incorporar sem sobrescrever trabalhos locais. Não resetar/forçar, não publicar ou aplicar migration sem autorização. Faltam unificação completa Agenda↔Pauta, auditoria global, teste local/RLS, notificações e app de equipe.
+
+
+## 2026-10-20 — Segunda etapa da Agenda/Pauta unificada (GitHub, NÃO publicada)
+Após a Claude validar typecheck/build **da primeira etapa somente**, o ChatGPT continuou a mesma branch `feature/agenda-mobile-sync-auditoria-20261020`, sem tocar VS Code ou produção.
+- Migration nova `20261020162000_agenda_pauta_unified_source.sql`: backfill conservador de pautas antigas para a Agenda e manutenção dos IDs/vínculos de matérias; Agenda como única fonte de título/data/descrição/status; triggers atualizam snapshots de compatibilidade; criação/edição de pautas atomizadas por RPCs; vários responsáveis; baixa compartilhada e segurança/versão contra edição simultânea. Depende de `20261020155100_agenda_team_permissions_progress_audit.sql`.
+- Aplicação: retirado campo “Vincular à agenda”; pauta sempre registrada na Agenda; cartões refletem atualizações e baixa individual; preservado “Criar matéria” para operadores com módulo editorial; histórico de auditoria autorizado visível também no desktop.
+- Conferência estática dos nomes das funções, links e formulário: OK. **Sem build/typecheck/E2E/execução SQL neste segundo lote**; Claude deve fazer. Supabase e Vercel continuam inalterados; handoff atualizado em `docs/AGENDA_EQUIPE_MOBILE_AUDITORIA_HANDOFF_20261020.md`.
+- Ainda pendente: auditoria completa dos demais módulos, avisos pessoais, alertas/vibração, app administrativo, migrações de homologação e QA real.
