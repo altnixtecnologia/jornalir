@@ -227,3 +227,29 @@ begin
 end $$;
 revoke all on function public.set_pauta_status_managed(uuid,text) from public,anon;
 grant execute on function public.set_pauta_status_managed(uuid,text) to authenticated;
+
+
+-- Um responsavel incluido/removido na Agenda reflete no indice editorial.
+-- Participantes convidados nao entram na baixa de tarefas.
+create or replace function public.sync_pauta_primary_assignee()
+returns trigger language plpgsql security definer set search_path=''
+as $$
+declare v_event uuid; v_primary uuid;
+begin
+  v_event := case when tg_op='DELETE' then old.event_id else new.event_id end;
+  if tg_op='UPDATE' and old.event_id is distinct from new.event_id then
+    raise exception 'Não é permitido mover uma atribuição de compromisso por UPDATE';
+  end if;
+  select a.profile_id into v_primary
+  from public.agenda_event_assignees a
+  where a.event_id=v_event and a.assignment_type='responsible'
+  order by a.profile_id limit 1;
+  update public.weekly_pauta_items
+  set responsible_profile_id=v_primary
+  where agenda_event_id=v_event and responsible_profile_id is distinct from v_primary;
+  return coalesce(new,old);
+end $$;
+drop trigger if exists pauta_primary_assignee_sync on public.agenda_event_assignees;
+create trigger pauta_primary_assignee_sync
+  after insert or update or delete on public.agenda_event_assignees
+  for each row execute function public.sync_pauta_primary_assignee();
