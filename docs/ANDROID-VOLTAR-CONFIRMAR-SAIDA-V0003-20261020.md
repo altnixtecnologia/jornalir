@@ -37,3 +37,12 @@
 - O teste de build não demonstra ainda o comportamento do botão físico em dispositivos; testar com o APK assinado por CLAUDE LOCAL e relatar resultados. Não há APK v.00.03 criado ou distribuído por este trabalho.
 - O lockfile raiz `package-lock.json` permanece desatualizado com a nova dependência; sincronizar e commitar via `npm install` antes de compilar localmente. Não rodar `npm ci` antes disso.
 - O Android Gradle já registra manualmente o plugin, mas rodar `npx cap sync android` depois da instalação é necessário para confirmar a geração dos arquivos pela ferramenta.
+
+## ENTREGA OBRIGATÓRIA NO MESMO LOTE — DOWNLOAD DA v.00.03 NO SITE (20/10/2026)
+**O usuário exigiu que a geração do APK e a disponibilização no site ocorram juntas**, sem precisar pedir separadamente.
+- O Supabase de produção já recebeu a migration `20261020141318_mobile_app_android_release`, e o cadastro `android` está preparado em `version_label=v.00.03`, `version_code=4`, `published=false`. A migration antiga `20261030100400_mobile_app_android_release.sql` NÃO deve ser executada de novo.
+- A alteração do site público para eliminar `v.00.00 — em preparação` está na branch independente `feature/download-apk-pagina-oficial-20261020`. Trazer o commit correspondente com merge seguro depois de verificar `git status`; não perder a feature de Voltar nem galeria/LGPD.
+- Na **mesma tarefa**: compilar APK release v.00.03 com a **mesma assinatura**, confirmar FCM/áudio, executar testes de Voltar/Cancelar/Sair, enviar ao R2 com nome imutável `aplicativos/android/jornal-ir-v.00.03.apk`, verificar arquivo e SHA-256, **cadastrar e liberar no sistema** `https://controle.altnix.com.br/sistema/configuracoes/aplicativo` com versão 4, URL, bytes, hash e notas.
+- Por fim, abrir `https://jornalir.vercel.app/aplicativo` sem sessão e **confirmar que o botão Baixar aplicativo para Android (APK) realmente aparece e baixa o arquivo correto**; conferir SHA-256 do download.
+- Se não houver acesso ao R2/keystore/admin, informar explicitamente o bloqueio e não declarar pronto; `published` deve continuar `false`. Não publicar link falso ou v.00.02 que só existia localmente.
+- Handoff completo e critérios técnicos: `docs/APK-PUBLICACAO-AUTOMATICA-NA-PAGINA-20261020.md` na branch do site `feature/download-apk-pagina-oficial-20261020`. 
