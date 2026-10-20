@@ -66,6 +66,7 @@ export function ArticleGallery({
   const panLastRef = useRef<Point | null>(null);
   const lastTapRef = useRef<{ at: number; point: Point } | null>(null);
   const hadMultiplePointersRef = useRef(false);
+  const lastPointerTypeRef = useRef<string>("mouse");
   const returnFocusRef = useRef<HTMLElement | null>(null);
   const thumbnails = images.slice(thumbnailStart);
 
@@ -133,10 +134,6 @@ export function ArticleGallery({
       window.removeEventListener("keydown", handleKey);
       document.body.style.overflow = previousOverflow;
       document.body.style.overscrollBehavior = previousOverscroll;
-      // Called on close and on image changes: avoid scrolling the article on changes.
-      if (openIndex !== null && returnFocusRef.current) {
-        // Restoring focus only matters after the lightbox closes.
-      }
     };
     // goTo/zoomBy intentionally use the fresh active index at each effect rerun.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -204,6 +201,7 @@ export function ArticleGallery({
     if (event.pointerType === "mouse" && event.button !== 0) return;
     const p = { x: event.clientX, y: event.clientY };
     pointersRef.current.set(event.pointerId, p);
+    lastPointerTypeRef.current = event.pointerType;
     event.currentTarget.setPointerCapture(event.pointerId);
     if (pointersRef.current.size >= 2) {
       hadMultiplePointersRef.current = true;
@@ -335,7 +333,9 @@ export function ArticleGallery({
             onPointerCancel={onPointerCancel}
             onDoubleClick={(event) => {
               // Desktop double-click; touch double tap is handled in onPointerUp.
-              if (event.detail === 2) zoomAt(zoomRef.current.scale > 1 ? 1 : 2.5, { x: event.clientX, y: event.clientY });
+              if (event.detail === 2 && lastPointerTypeRef.current === "mouse") {
+                zoomAt(zoomRef.current.scale > 1 ? 1 : 2.5, { x: event.clientX, y: event.clientY });
+              }
             }}>
             <img key={active.url + String(openIndex)} ref={imageRef}
               src={active.url} alt={active.caption ?? "Fotografia da matéria"}
