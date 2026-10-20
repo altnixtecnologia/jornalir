@@ -12,6 +12,7 @@ export interface AgendaEventItem {
   startTime: string | null;
   endTime: string | null;
   reminderMinutes: number | null;
+  updatedAt: string;
   location: string | null;
   status: "scheduled" | "completed" | "cancelled";
   assignees: (AgendaProfile & { completedAt: string | null })[];
@@ -31,6 +32,7 @@ export interface WeeklyPautaItem {
   articleId: string | null;
   status: "pending" | "completed" | "cancelled";
   completedAt: string | null;
+  updatedAt: string;
 }
 
 export interface AgendaWorkspaceData {
