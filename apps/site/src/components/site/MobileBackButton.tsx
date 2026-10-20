@@ -8,7 +8,6 @@ const DISMISS_SELECTORS = [
   ".lightbox-backdrop .lightbox-close",
   ".notif-panel-expanded .notif-panel-back",
   ".notif-panel .notif-panel-close",
-  "#push-welcome-title ~ * [data-ir-back-dismiss]",
   "body.ir-mobile-search-open .mobile-search-backdrop",
   "body.ir-mobile-menu-open .ir-mobile-backdrop",
 ] as const;
@@ -25,7 +24,7 @@ function dismissTopLayer(): boolean {
   const order = [
     ...DISMISS_SELECTORS.slice(0, 3),
     '[aria-labelledby="push-welcome-title"] [data-ir-back-dismiss]',
-    ...DISMISS_SELECTORS.slice(4),
+    ...DISMISS_SELECTORS.slice(3),
   ];
   for (const selector of order) {
     const node = document.querySelector<HTMLElement>(selector);
@@ -49,13 +48,16 @@ function dismissTopLayer(): boolean {
   return false;
 }
 
-function recordRoute(stack: string[], route: string): string[] {
+function recordRoute(stack: string[], route: string, fromBrowserHistory: boolean): string[] {
   if (!route) return stack;
   if (stack.length === 0) return [route];
   if (stack[stack.length - 1] === route) return stack;
-  // Navegação para trás ou para entrada já conhecida: sem ciclos artificiais.
-  const previous = stack.lastIndexOf(route);
-  if (previous >= 0) return stack.slice(0, previous + 1);
+  if (fromBrowserHistory) {
+    // Um popstate real volta no histórico existente. Clicar no logo para
+    // voltar ao início, em contraste, é um PUSH e não deve apagar a matéria.
+    const previous = stack.lastIndexOf(route);
+    if (previous >= 0) return stack.slice(0, previous + 1);
+  }
   return [...stack, route];
 }
 
@@ -68,6 +70,7 @@ export function MobileBackButton(): JSX.Element {
   const pathname = usePathname();
   const router = useRouter();
   const stackRef = useRef<string[]>([]);
+  const popStateRef = useRef(false);
   const [exitPrompt, setExitPrompt] = useState(false);
   const exitPromptRef = useRef(false);
   const [nativeReady, setNativeReady] = useState(false);
@@ -75,8 +78,15 @@ export function MobileBackButton(): JSX.Element {
   const cancelButtonRef = useRef<HTMLButtonElement>(null);
 
   // Registrar a primeira rota mesmo quando o APK é aberto pelo push.
-  stackRef.current = recordRoute(stackRef.current, pathname || "/");
+  stackRef.current = recordRoute(stackRef.current, pathname || "/", popStateRef.current);
+  popStateRef.current = false;
   exitPromptRef.current = exitPrompt;
+
+  useEffect(() => {
+    const markBack = () => { popStateRef.current = true; };
+    window.addEventListener("popstate", markBack);
+    return () => window.removeEventListener("popstate", markBack);
+  }, []);
 
   useEffect(() => {
     if (!exitPrompt) return;
