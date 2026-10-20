@@ -14,7 +14,7 @@ export interface AgendaEventItem {
   reminderMinutes: number | null;
   location: string | null;
   status: "scheduled" | "completed" | "cancelled";
-  assignees: AgendaProfile[];
+  assignees: (AgendaProfile & { completedAt: string | null })[];
 }
 
 export interface WeeklyPautaItem {
