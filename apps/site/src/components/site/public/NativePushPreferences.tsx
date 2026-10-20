@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
+import { createPortal } from "react-dom";
 
 // Preferências de push NATIVO (FCM via Capacitor), só dentro do app
 // Android instalado — nunca aparece/ativa no site aberto num navegador
@@ -392,7 +393,10 @@ export function NativePushPreferences(): JSX.Element | null {
           </section>
         </div>
       ) : null}
-      {pathname === "/notificacoes" ? (
+      {pathname === "/notificacoes" &&
+       typeof document !== "undefined" &&
+       document.getElementById("native-push-settings-panel")
+        ? createPortal(
     <section className="mx-auto my-6 max-w-2xl rounded-xl border bg-white p-5 shadow-sm sm:p-7" style={{ borderColor: "var(--site-line)" }}>
       <h2 className="text-xl font-bold">Notificações do aplicativo</h2>
       <p className="mt-2 text-sm leading-relaxed" style={{ color: "var(--site-muted)" }}>
@@ -427,7 +431,8 @@ export function NativePushPreferences(): JSX.Element | null {
         </div>
       ) : null}
       {message ? <p role="status" className="mt-3 text-sm">{message}</p> : null}
-    </section>
+    </section>,
+        document.getElementById("native-push-settings-panel")!,
       ) : null}
     </>
   );

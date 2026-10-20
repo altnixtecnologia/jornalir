@@ -2020,3 +2020,12 @@ body {
   line-height: 1.55;
   white-space: pre-wrap;
 }
+
+
+/* Notificações: o voltar flutuante não pode encobrir o título no mobile. */
+@media (max-width: 1023px) {
+  .notification-settings-title {
+    padding-left: 48px;
+    min-height: 40px;
+  }
+}

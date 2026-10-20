@@ -1,5 +1,5 @@
 import { SiteHeader } from "../../../components/site/SiteHeader";
-import { SitePushPreferences } from "../../../components/site/public/SitePushPreferences";
+import { NotificationEnvironmentSettings } from "../../../components/site/public/NotificationEnvironmentSettings";
 export const metadata = {
   title: "Notificações do Jornal IR",
   description: "Escolha os avisos que deseja receber do Informativo Regional.",
@@ -9,11 +9,11 @@ export default function NotificacoesPage(): JSX.Element {
     <main className="min-h-screen" style={{ background: "var(--site-bg)" }}>
       <SiteHeader />
       <div className="site-shell py-6">
-        <h1 className="text-2xl font-bold">Notificações do Jornal IR</h1>
-        {/* NativePushPreferences só renderiza algo dentro do app Android
-            instalado (Capacitor.isNativePlatform()); no navegador comum
-            fica null e só o Web Push abaixo aparece (19/10/2026). */}
-        <SitePushPreferences />
+        <h1 className="notification-settings-title text-2xl font-bold">Notificações do Jornal IR</h1>
+        {/* Android Capacitor: renderiza somente o painel nativo (montado
+            globalmente para receber FCM em qualquer página). Navegadores:
+            mostram somente Web Push. Nunca misturar as duas interfaces. */}
+        <NotificationEnvironmentSettings />
       </div>
     </main>
   );
