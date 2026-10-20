@@ -13,15 +13,15 @@ from public.weekly_pauta_items p
 where p.agenda_event_id=e.id and e.event_kind <> 'editorial';
 
 -- Nunca truncar silenciosamente pautas legadas com titulos acima do limite da Agenda.
-do $
+do $$$
 begin
   if exists (select 1 from public.weekly_pauta_items
              where agenda_event_id is null and char_length(title)>180) then
     raise exception 'Há pautas antigas com títulos maiores que 180 caracteres. Revisar antes de migrar, sem truncar dados.';
   end if;
-end $;
+end $$$;
 
-do $
+do $$$
 declare p record; v_event uuid;
 begin
   for p in
