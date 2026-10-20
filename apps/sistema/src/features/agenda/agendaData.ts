@@ -95,14 +95,14 @@ export async function loadAgendaWorkspaceData(focusDate: string): Promise<Agenda
     supabase.from("profiles").select("id, name, role").eq("active", true).order("name", { ascending: true }),
     supabase
       .from("agenda_events")
-      .select("id, title, description, event_date, start_time, end_time, location, status, reminder_minutes")
+      .select("id, title, description, event_date, start_time, end_time, location, status, reminder_minutes, updated_at")
       .gte("event_date", eventRangeStart)
       .lte("event_date", eventRangeEnd)
       .order("event_date", { ascending: true })
       .order("start_time", { ascending: true, nullsFirst: false }),
     supabase
       .from("weekly_pauta_items")
-      .select("id, week_start, title, description, due_date, due_time, responsible_profile_id, agenda_event_id, article_id, status, completed_at")
+      .select("id, week_start, title, description, due_date, due_time, responsible_profile_id, agenda_event_id, article_id, status, completed_at, updated_at")
       .eq("week_start", weekStart)
       .order("status", { ascending: false })
       .order("due_date", { ascending: true, nullsFirst: false })
@@ -150,6 +150,7 @@ export async function loadAgendaWorkspaceData(focusDate: string): Promise<Agenda
     startTime: trimDbTime(event.start_time),
     endTime: trimDbTime(event.end_time),
     reminderMinutes: event.reminder_minutes,
+    updatedAt: event.updated_at,
     location: event.location,
     status: event.status as AgendaEventItem["status"],
     assignees: assigneesByEvent.get(event.id) ?? [],
@@ -170,6 +171,7 @@ export async function loadAgendaWorkspaceData(focusDate: string): Promise<Agenda
     articleId: item.article_id,
     status: item.status as WeeklyPautaItem["status"],
     completedAt: item.completed_at,
+    updatedAt: item.updated_at,
   }));
 
   return {
