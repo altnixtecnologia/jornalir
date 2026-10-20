@@ -9,6 +9,7 @@ import { ConfirmDialog } from "../../components/admin/ConfirmDialog";
 import { STAFF_MODULES, type StaffModuleKey } from "../../lib/permissions/staffPermissionsCatalog";
 
 interface AgendaManagerGrantRow { profile_id: string; can_manage: boolean; }
+interface AuditViewerGrantRow { profile_id: string; can_view: boolean; }
 interface VisibilityRow { profile_id: string; module_key: StaffModuleKey; enabled: boolean; }
 
 interface UserRow {
@@ -36,6 +37,7 @@ export function UsersManager(): JSX.Element {
   const client = useMemo(() => createSupabaseBrowserClient(), []);
   const [users, setUsers] = useState<UserRow[] | null>(null);
   const [agendaManagerGrants, setAgendaManagerGrants] = useState<AgendaManagerGrantRow[]>([]);
+  const [auditViewerGrants, setAuditViewerGrants] = useState<AuditViewerGrantRow[]>([]);
   const [moduleVisibility, setModuleVisibility] = useState<VisibilityRow[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
@@ -48,19 +50,21 @@ export function UsersManager(): JSX.Element {
   const isAdmin = profile?.role === "admin";
 
   async function reload(): Promise<void> {
-    const [profilesResult, visibilityResult, agendaManagersResult] = await Promise.all([
+    const [profilesResult, visibilityResult, agendaManagersResult, auditViewersResult] = await Promise.all([
       client.from("profiles").select("id, name, role, active, created_at").order("created_at", { ascending: true }),
       client.from("staff_module_visibility").select("profile_id,module_key,enabled"),
       client.from("agenda_manager_grants").select("profile_id,can_manage"),
+      client.from("audit_viewer_grants").select("profile_id,can_view"),
     ]);
-    if (profilesResult.error || visibilityResult.error || agendaManagersResult.error) {
+    if (profilesResult.error || visibilityResult.error || agendaManagersResult.error || auditViewersResult.error) {
       setError(profilesResult.error?.message ?? visibilityResult.error?.message
-        ?? agendaManagersResult.error?.message ?? "Não foi possível carregar os usuários.");
+        ?? agendaManagersResult.error?.message ?? auditViewersResult.error?.message ?? "Não foi possível carregar os usuários.");
       return;
     }
     setUsers((profilesResult.data ?? []) as UserRow[]);
     setModuleVisibility((visibilityResult.data ?? []) as VisibilityRow[]);
     setAgendaManagerGrants((agendaManagersResult.data ?? []) as AgendaManagerGrantRow[]);
+    setAuditViewerGrants((auditViewersResult.data ?? []) as AuditViewerGrantRow[]);
   }
 
   useEffect(() => {
@@ -160,6 +164,26 @@ export function UsersManager(): JSX.Element {
       return;
     }
     setMessage((enabled ? "Gestão liberada para " : "Gestão revogada de ") + target.name + ".");
+    await reload();
+  }
+
+  async function setAuditViewerGrant(target: UserRow, enabled: boolean): Promise<void> {
+    if (!isOwner || target.role !== "operator" || pending || !profile) return;
+    setError(null);
+    setMessage(null);
+    setPending(true);
+    const { error: saveError } = await client.from("audit_viewer_grants").upsert({
+      profile_id: target.id,
+      can_view: enabled,
+      granted_by: profile.id,
+      updated_at: new Date().toISOString(),
+    }, { onConflict: "profile_id" });
+    setPending(false);
+    if (saveError) {
+      setError("Não foi possível salvar o acesso à auditoria: " + saveError.message);
+      return;
+    }
+    setMessage((enabled ? "Auditoria liberada para " : "Auditoria bloqueada para ") + target.name + ".");
     await reload();
   }
 
@@ -380,6 +404,16 @@ export function UsersManager(): JSX.Element {
         {(users ?? []).filter((user) => user.role === "operator").map((user) => (
           <div key={user.id} className="inline-form">
             <strong>{user.name} {user.active ? "" : "(inativo)"}</strong>
+            <h3>Auditoria / Histórico de atividades</h3>
+            <p className="helper-text">Somente o proprietário pode liberar a consulta ao histórico. Operadores autorizados apenas visualizam os registros.</p>
+            <label className="staff-permission-choice">
+              <input type="checkbox"
+                checked={auditViewerGrants.some((grant) => grant.profile_id === user.id && grant.can_view)}
+                disabled={pending || !isOwner || !user.active}
+                onChange={(event) => void setAuditViewerGrant(user, event.target.checked)}
+              />
+              <span>Permitir consulta aos logs do sistema</span>
+            </label>
             <h3>Módulos disponíveis</h3>
             <p className="helper-text">Desmarque o módulo para removê-lo dos menus deste operador.</p>
             <div className="staff-permissions-grid">
