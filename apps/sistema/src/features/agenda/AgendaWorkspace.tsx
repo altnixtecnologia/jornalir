@@ -273,13 +273,7 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
           <input type="hidden" name="week_start" value={item.weekStart} />
           <input type="hidden" name="updated_at" value={item.updatedAt} />
           <label className="agenda-field agenda-field-wide"><span>O que precisa ser feito?</span><input name="title" required maxLength={180} defaultValue={item.title} /></label>
-          <label className="agenda-field">
-            <span>Responsável</span>
-            <select name="responsible_profile_id" defaultValue={item.responsibleProfileId ?? ""}>
-              <option value="">Sem responsável</option>
-              {data.profiles.map((profile) => <option key={profile.id} value={profile.id}>{profile.name}</option>)}
-            </select>
-          </label>
+          <div className="agenda-field-wide"><AssigneeChecks profiles={data.profiles} selectedIds={item.assignees.map((person) => person.id)} /></div>
           <label className="agenda-field">
             <span>Dia</span>
             <select name="due_date" defaultValue={item.dueDate ?? item.weekStart} required>
@@ -468,13 +462,7 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
           >
             <input type="hidden" name="week_start" value={data.weekStart} />
             <label className="agenda-field pauta-title-field"><span>O que precisa ser feito?</span><input name="title" required maxLength={180} placeholder="Ex.: Cobrir sessão da Câmara" /></label>
-            <label className="agenda-field">
-              <span>Responsável</span>
-              <select name="responsible_profile_id" defaultValue={data.currentUserId}>
-                <option value="">Sem responsável</option>
-                {data.profiles.map((profile) => <option key={profile.id} value={profile.id}>{profile.name}</option>)}
-              </select>
-            </label>
+            <div className="agenda-field-wide"><AssigneeChecks profiles={data.profiles} currentUserId={data.currentUserId} /></div>
             <label className="agenda-field">
               <span>Dia</span>
               <select name="due_date" defaultValue={initialPautaDate} required>
