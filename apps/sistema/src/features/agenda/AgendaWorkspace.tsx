@@ -380,7 +380,10 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
                 if (day.value === selectedDate) classes.push("is-selected");
                 if (day.value === data.today) classes.push("is-today");
                 return (
-                  <button type="button" key={day.value} className={classes.join(" ")} onClick={() => setSelectedDate(day.value)}>
+                  <button type="button" key={day.value} className={classes.join(" ")} onClick={() => {
+                    if (day.value < data.monthStart || day.value > data.monthEnd) navigate("agenda", day.value);
+                    else setSelectedDate(day.value);
+                  }}>
                     <span className="agenda-day-number">{day.day}</span>
                     {activeEvents.length ? <span className="agenda-day-count">{activeEvents.length}</span> : null}
                     {activeEvents.length ? <span className="agenda-day-colors" aria-hidden="true">
