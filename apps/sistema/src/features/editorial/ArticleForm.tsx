@@ -318,7 +318,14 @@ export function ArticleForm({
         <div className="article-step-layout">
           <div className="article-step-main">
             <section className="form-section form-section--first" aria-labelledby="identificacao-title">
-              <h2 id="identificacao-title">Matéria</h2>
+              <div className="article-step-topline">
+                <h2 id="identificacao-title">Matéria</h2>
+                <button type="button" className="form-action-primary article-next-top"
+                  disabled={pending}
+                  onClick={() => mode === "create" ? handleAction("draft", "imagens") : setActiveTab("imagens")}>
+                  {pending ? "Salvando…" : mode === "create" ? "Salvar e ir para imagens →" : "Continuar para imagens →"}
+                </button>
+              </div>
               <p className="helper-text article-step-intro">
                 Escreva primeiro o conteúdo e classifique o assunto. Depois salve para seguir às imagens.
               </p>
@@ -482,6 +489,11 @@ export function ArticleForm({
               <p className="eyebrow">ETAPA 2</p>
               <h2 id="imagens-title">Imagens</h2>
             </div>
+            <button type="button" className="form-action-primary article-next-top"
+              disabled={pending}
+              onClick={() => setActiveTab("publicacao")}>
+              Continuar para publicação e destaque →
+            </button>
           </div>
           <ArticleMediaPicker
             mediaAssets={availableMediaAssets}
