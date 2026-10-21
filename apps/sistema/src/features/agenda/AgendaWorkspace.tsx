@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition, type CSSProperties } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
@@ -70,7 +70,18 @@ function statusLabel(status: string): string {
   return "Agendado";
 }
 
-function AssigneeChecks({
+function initials(name: string): string {
+  const names = name.trim().split(/\s+/).filter(Boolean);
+  return names.length > 1
+    ? (names[0][0] + names[names.length - 1][0]).toLocaleUpperCase("pt-BR")
+    : names[0]?.slice(0, 2).toLocaleUpperCase("pt-BR") ?? "?";
+}
+
+/** Seleção de equipe estilo lista de pessoas, com anel e visto no avatar.
+ * Inputs nativos ficam visualmente ocultos, mas continuam acessíveis
+ * e são enviados pelo FormData, sem alterar banco ou permissões.
+ */
+function AssigneePicker({
   profiles,
   selectedIds,
   currentUserId,
@@ -81,23 +92,23 @@ function AssigneeChecks({
 }): JSX.Element {
   const selected = new Set(selectedIds ?? (currentUserId ? [currentUserId] : []));
   return (
-    <fieldset className="agenda-assignees">
+    <fieldset className="agenda-assignees agenda-assignee-picker">
       <legend>Responsáveis</legend>
-      {profiles.length === 0 ? <span className="helper-text">Nenhum usuário ativo.</span> : profiles.map((profile) => (
-        <label key={profile.id}>
-          <input
-            type="checkbox"
-            name="assignee_profile_ids"
-            value={profile.id}
-            defaultChecked={selected.has(profile.id)}
-          />
-          <span>{profile.name}</span>
-        </label>
-      ))}
+      <div className="agenda-assignee-options">
+        {profiles.length === 0 ? <span className="helper-text">Nenhum usuário ativo.</span> : profiles.map((profile) => (
+          <label key={profile.id} className="agenda-person-option">
+            <input type="checkbox" name="assignee_profile_ids" value={profile.id} defaultChecked={selected.has(profile.id)} />
+            <span className="agenda-person-avatar"
+              style={{ "--person-color": personColor(profile.id) } as CSSProperties} aria-hidden="true">
+              {initials(profile.name)}<i>✓</i>
+            </span>
+            <span className="agenda-person-name">{profile.name}</span>
+          </label>
+        ))}
+      </div>
     </fieldset>
   );
 }
-
 
 /** Um unico seletor nativo de dia e horario no mobile.
  * Mantem as duas chaves historicas aceitas pelas actions do Supabase.
@@ -300,14 +311,23 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
         >
           <input type="hidden" name="updated_at" value={item.updatedAt} />
           <label className="agenda-field agenda-field-wide"><span>Compromisso</span><input name="title" required maxLength={180} defaultValue={item.title} /></label>
-          <label className="agenda-field"><span>Data</span><input name="event_date" type="date" required defaultValue={item.eventDate} /></label>
-          <label className="agenda-field"><span>Início</span><input name="start_time" type="time" defaultValue={item.startTime ?? ""} /></label>
-          <label className="agenda-field"><span>Fim</span><input name="end_time" type="time" defaultValue={item.endTime ?? ""} /></label>
+          <div className="agenda-datetime-row">
+            <label className="agenda-field"><span>Data</span><input name="event_date" type="date" required defaultValue={item.eventDate} /></label>
+            <label className="agenda-field"><span>Início</span><input name="start_time" type="time" defaultValue={item.startTime ?? ""} /></label>
+            <label className="agenda-field"><span>Fim</span><input name="end_time" type="time" defaultValue={item.endTime ?? ""} /></label>
+          </div>
           <label className="agenda-field"><span>Lembrete no grupo Telegram</span><select name="reminder_minutes" defaultValue={item.reminderMinutes === null ? "off" : String(item.reminderMinutes)}><option value="off">Sem lembrete</option><option value="0">No horário</option><option value="5">5 min antes</option><option value="10">10 min antes</option><option value="15">15 min antes</option><option value="30">30 min antes</option><option value="60">1 hora antes</option><option value="120">2 horas antes</option><option value="1440">1 dia antes</option></select></label>
           <label className="agenda-field agenda-field-wide"><span>Local</span><input name="location" maxLength={240} defaultValue={item.location ?? ""} /></label>
           <label className="agenda-field agenda-field-wide"><span>Observação</span><textarea name="description" maxLength={4000} defaultValue={item.description ?? ""} /></label>
-          <div className="agenda-field-wide"><AssigneeChecks profiles={data.profiles} selectedIds={item.assignees.map((profile) => profile.id)} /></div>
-          <div className="agenda-form-actions"><button type="submit" className="agenda-primary" disabled={isPending}>Salvar alterações</button></div>
+          <div className="agenda-field-wide"><AssigneePicker profiles={data.profiles} selectedIds={item.assignees.map((profile) => profile.id)} /></div>
+          <div className="agenda-form-actions agenda-edit-actions">
+            <button type="submit" className="agenda-primary" disabled={isPending}>Salvar</button>
+            <button type="button" className="agenda-close-edit" disabled={isPending} onClick={(event) => {
+              event.currentTarget.closest("form")?.reset();
+              const details = event.currentTarget.closest("details");
+              if (details instanceof HTMLDetailsElement) details.open = false;
+            }}>Fechar</button>
+          </div>
         </form>
       </details>
     );
@@ -328,10 +348,17 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
           <input type="hidden" name="week_start" value={item.weekStart} />
           <input type="hidden" name="updated_at" value={item.updatedAt} />
           <label className="agenda-field agenda-field-wide"><span>O que precisa ser feito?</span><input name="title" required maxLength={180} defaultValue={item.title} /></label>
-          <div className="agenda-field-wide"><AssigneeChecks profiles={data.profiles} selectedIds={item.assignees.map((person) => person.id)} /></div>
+          <div className="agenda-field-wide"><AssigneePicker profiles={data.profiles} selectedIds={item.assignees.map((person) => person.id)} /></div>
           <PautaDateTimeField initialDate={item.dueDate ?? item.weekStart} initialTime={item.dueTime} weekStart={item.weekStart} weekEnd={addDays(item.weekStart, 6)} />
           <label className="agenda-field agenda-field-wide"><span>Observação</span><textarea name="description" maxLength={4000} defaultValue={item.description ?? ""} /></label>
-          <div className="agenda-form-actions"><button type="submit" className="agenda-primary" disabled={isPending}>Salvar alterações</button></div>
+          <div className="agenda-form-actions agenda-edit-actions">
+            <button type="submit" className="agenda-primary" disabled={isPending}>Salvar</button>
+            <button type="button" className="agenda-close-edit" disabled={isPending} onClick={(event) => {
+              event.currentTarget.closest("form")?.reset();
+              const details = event.currentTarget.closest("details");
+              if (details instanceof HTMLDetailsElement) details.open = false;
+            }}>Fechar</button>
+          </div>
         </form>
       </details>
     );
@@ -501,14 +528,16 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
                 }}
               >
                 <label className="agenda-field agenda-field-wide"><span>Compromisso</span><input name="title" required maxLength={180} placeholder="Ex.: Sessão da Câmara" /></label>
-                <label className="agenda-field"><span>Data</span><input name="event_date" type="date" value={selectedDate} onChange={(e) => setSelectedDate(e.target.value)} required /></label>
-                <label className="agenda-field"><span>Início</span><input name="start_time" type="time" /></label>
-                <label className="agenda-field"><span>Fim</span><input name="end_time" type="time" /></label>
+                <div className="agenda-datetime-row">
+                  <label className="agenda-field"><span>Data</span><input name="event_date" type="date" value={selectedDate} onChange={(e) => setSelectedDate(e.target.value)} required /></label>
+                  <label className="agenda-field"><span>Início</span><input name="start_time" type="time" /></label>
+                  <label className="agenda-field"><span>Fim</span><input name="end_time" type="time" /></label>
+                </div>
                 <label className="agenda-field"><span>Lembrete no grupo Telegram</span><select name="reminder_minutes" defaultValue="30"><option value="off">Sem lembrete</option><option value="0">No horário</option><option value="5">5 min antes</option><option value="10">10 min antes</option><option value="15">15 min antes</option><option value="30">30 min antes</option><option value="60">1 hora antes</option><option value="120">2 horas antes</option><option value="1440">1 dia antes</option></select></label>
                 <label className="agenda-field"><span>Repetir compromisso</span><select name="recurrence" defaultValue="none"><option value="none">Não repetir</option><option value="weekly4">Semanal · 4 ocorrências</option><option value="weekly12">Semanal · 12 ocorrências</option><option value="monthly3">Mensal · 3 ocorrências</option></select></label>
                 <label className="agenda-field agenda-field-wide"><span>Local</span><input name="location" maxLength={240} placeholder="Opcional" /></label>
                 <label className="agenda-field agenda-field-wide"><span>Observação</span><textarea name="description" maxLength={4000} placeholder="Informações úteis para a equipe" /></label>
-                <div className="agenda-field-wide"><AssigneeChecks profiles={data.profiles} currentUserId={data.currentUserId} /></div>
+                <div className="agenda-field-wide"><AssigneePicker profiles={data.profiles} currentUserId={data.currentUserId} /></div>
                 <div className="agenda-form-actions"><button type="submit" className="agenda-primary" disabled={isPending}>{isPending ? "Salvando..." : "Adicionar compromisso"}</button></div>
               </form>
             </details> : null}
@@ -538,7 +567,7 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
           >
             <input type="hidden" name="week_start" value={data.weekStart} />
             <label className="agenda-field pauta-title-field"><span>O que precisa ser feito?</span><input name="title" required maxLength={180} placeholder="Ex.: Cobrir sessão da Câmara" /></label>
-            <div className="agenda-field-wide"><AssigneeChecks profiles={data.profiles} currentUserId={data.currentUserId} /></div>
+            <div className="agenda-field-wide"><AssigneePicker profiles={data.profiles} currentUserId={data.currentUserId} /></div>
             <PautaDateTimeField initialDate={initialPautaDate} initialTime={null} weekStart={data.weekStart} weekEnd={data.weekEnd} required />
             <label className="agenda-field pauta-note-field"><span>Observação</span><input name="description" maxLength={4000} placeholder="Opcional" /></label>
             <button type="submit" className="agenda-primary" disabled={isPending}>+ Criar na Agenda e Pauta</button>
