@@ -79,12 +79,12 @@ export function AdminShell({ children, previewMode = false }: { children: ReactN
             <span aria-hidden="true">⌂</span><small>Início</small>
           </Link>
           {agendaRead ? (
-            <Link href="/sistema/agenda?view=agenda" aria-current={pathname.startsWith("/sistema/agenda") ? "page" : undefined}>
+            <Link href="/sistema/agenda" aria-current={pathname === "/sistema/agenda" ? "page" : undefined}>
               <span aria-hidden="true">▦</span><small>Agenda</small>
             </Link>
           ) : null}
           {pautaRead ? (
-            <Link href="/sistema/agenda?view=pauta">
+            <Link href="/sistema/pauta" aria-current={pathname === "/sistema/pauta" ? "page" : undefined}>
               <span aria-hidden="true">☷</span><small>Pauta</small>
             </Link>
           ) : null}
