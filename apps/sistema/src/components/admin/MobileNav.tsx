@@ -22,8 +22,8 @@ type MobileGroup = { label: string; links: AdminNavLink[]; restricted?: boolean;
 
 const GROUPS: MobileGroup[] = [
   { label: "Redação", links: [
-    { label: "Agenda", href: "/sistema/agenda?view=agenda" },
-    { label: "Pauta da semana", href: "/sistema/agenda?view=pauta" },
+    { label: "Agenda", href: "/sistema/agenda" },
+    { label: "Pauta da semana", href: "/sistema/pauta" },
     ...editorialNavGroup.links,
   ] },
   { label: clientesNavGroup.label, links: [
@@ -38,8 +38,8 @@ const GROUPS: MobileGroup[] = [
 ];
 
 const SHORTCUTS: AdminNavLink[] = [
-  { label: "Agenda", href: "/sistema/agenda?view=agenda" },
-  { label: "Pauta", href: "/sistema/agenda?view=pauta" },
+  { label: "Agenda", href: "/sistema/agenda" },
+  { label: "Pauta", href: "/sistema/pauta" },
   { label: "Matérias", href: "/sistema/editorial/materias" },
   { label: "Solicitações", href: "/sistema/publicidade/solicitacoes" },
   { label: "Notificações", href: "/sistema/notificacoes" },
@@ -85,7 +85,8 @@ export function MobileNav({ onNavigate }: { onNavigate: () => void }): JSX.Eleme
     if (link.ownerOnly && (!profile?.active || profile.role !== "owner")) return false;
     const href = link.href;
     const path = href.split("?")[0];
-    if (path.startsWith("/sistema/agenda")) return href.includes("view=pauta") ? pautaRead : agendaRead;
+    if (path.startsWith("/sistema/agenda")) return agendaRead;
+    if (path.startsWith("/sistema/pauta")) return pautaRead;
     for (const [prefix, key] of [
       ["/sistema/editorial", "editorial"],
       ["/sistema/clientes", "clientes"],
