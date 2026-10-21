@@ -107,7 +107,7 @@ export default async function MateriasPage({
   ]);
 
   return (
-    <>
+    <div className="materias-mobile-page">
       <ModuleHeader
         eyebrow="EDITORIAL / MATÉRIAS"
         title="Matérias"
@@ -129,6 +129,6 @@ export default async function MateriasPage({
         totalPages={articlePage.totalPages}
         filters={filters}
       />
-    </>
+    </div>
   );
 }

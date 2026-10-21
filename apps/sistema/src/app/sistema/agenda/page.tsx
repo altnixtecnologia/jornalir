@@ -1,4 +1,4 @@
-import Link from "next/link";
+import { redirect } from "next/navigation";
 import { ModuleHeader } from "../../../components/admin/ModuleHeader";
 import { AgendaWorkspace } from "../../../features/agenda/AgendaWorkspace";
 import { loadAgendaWorkspaceData, normalizeAgendaDate } from "../../../features/agenda/agendaData";
@@ -13,20 +13,25 @@ export default async function AgendaPage({
   searchParams?: Record<string, string | string[] | undefined>;
 }): Promise<JSX.Element> {
   const focusDate = normalizeAgendaDate(one(searchParams?.date));
-  let initialView: "agenda" | "pauta" = one(searchParams?.view) === "pauta" ? "pauta" : "agenda";
   const data = await loadAgendaWorkspaceData(focusDate);
-  if (initialView === "agenda" && !data.access.agendaRead) initialView = "pauta";
-  if (initialView === "pauta" && !data.access.pautaRead) initialView = "agenda";
+
+  // Links antigos (?view=pauta) continuam funcionando, mas cada seção possui
+  // sua própria rota para destacar corretamente a navegação inferior.
+  if (one(searchParams?.view) === "pauta" && data.access.pautaRead) {
+    redirect("/sistema/pauta?date=" + focusDate);
+  }
+  if (!data.access.agendaRead) {
+    redirect("/sistema/pauta?date=" + focusDate);
+  }
 
   return (
-    <>
+    <div className="agenda-mobile-page">
       <ModuleHeader
         eyebrow="REDAÇÃO / ORGANIZAÇÃO"
-        title="Agenda e pauta"
-        description="Compromissos da equipe e pauta operacional da semana, no mesmo lugar."
-        action={<Link className="header-action" href={"/agenda?view=" + initialView + "&date=" + focusDate}>Abrir modo agenda</Link>}
+        title="Agenda"
+        description="Compromissos da equipe em um só lugar."
       />
-      <AgendaWorkspace data={data} initialView={initialView} basePath="/sistema/agenda" />
-    </>
+      <AgendaWorkspace data={data} initialView="agenda" basePath="/sistema/agenda" />
+    </div>
   );
 }
