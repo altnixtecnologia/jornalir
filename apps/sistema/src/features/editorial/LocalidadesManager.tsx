@@ -29,7 +29,7 @@ const UFS: { code: string; name: string }[] = [
 ];
 
 const SCOPE_OPTIONS: LocalityScope[] = ["city", "state", "region", "country", "general"];
-const EMPTY: LocalityPayload = { name: "", slug: "", scope: "city", stateCode: "SC" };
+const EMPTY: LocalityPayload = { name: "", slug: "", scope: "city", stateCode: null };
 const TOP_SLUGS = ["santa-catarina", "rio-grande-do-sul", "brasil"];
 
 function normalizeText(value: string): string {
@@ -79,7 +79,7 @@ function Editor({
           <span>Tipo</span>
           <select value={form.scope} onChange={(event) => {
             const scope = event.target.value as LocalityScope;
-            setForm({ ...form, scope, stateCode: scope === "city" || scope === "state" ? form.stateCode || "SC" : null });
+            setForm({ ...form, scope, stateCode: scope === "city" || scope === "state" ? form.stateCode : null });
           }}>
             {SCOPE_OPTIONS.map((scope) => (
               <option key={scope} value={scope}>{localityScopeLabels[scope]}</option>
