@@ -14,4 +14,4 @@ export const UFS: { code: string; name: string }[] = [
   { code: "RR", name: "Roraima" }, { code: "SC", name: "Santa Catarina" },
   { code: "SP", name: "São Paulo" }, { code: "SE", name: "Sergipe" },
   { code: "TO", name: "Tocantins" },
-];;
+];
