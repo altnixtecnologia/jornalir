@@ -106,6 +106,7 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
   const [remoteChanges, setRemoteChanges] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [responsibleFilter, setResponsibleFilter] = useState("");
+  const [isMonthExpanded, setIsMonthExpanded] = useState(false);
   const [isPending, startTransition] = useTransition();
 
   useEffect(() => setSelectedDate(data.focusDate), [data.focusDate]);
@@ -174,6 +175,10 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
   }, [filteredEvents]);
 
   const selectedEvents = eventsByDate.get(selectedDate) ?? [];
+  // Navegacao semanal no celular: o mes completo continua disponivel sob demanda.
+  const selectedWeekday = (parseDate(selectedDate).getDay() + 6) % 7;
+  const selectedWeekStart = addDays(selectedDate, -selectedWeekday);
+  const selectedWeekDays = Array.from({ length: 7 }, (_, index) => addDays(selectedWeekStart, index));
   const todayCount = filteredEvents.filter((event) => event.eventDate === data.today && event.status !== "cancelled").length;
   const ownPending = data.events.filter((event) =>
     event.status === "scheduled" && event.assignees.some((person) =>
@@ -184,11 +189,14 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
   const initialPautaDate = data.today >= data.weekStart && data.today <= data.weekEnd ? data.today : data.weekStart;
   const monthEventCount = data.events.filter((event) => event.eventDate >= data.monthStart && event.eventDate <= data.monthEnd).length;
   const pautaItems = responsibleFilter
-    ? data.pautaItems.filter((item) => item.responsibleProfileId === responsibleFilter)
+    ? data.pautaItems.filter((item) => item.responsibleProfileId === responsibleFilter || item.assignees.some((person) => person.id === responsibleFilter))
     : data.pautaItems;
 
   function navigate(view: "agenda" | "pauta", date: string): void {
-    router.push(basePath + "?view=" + view + "&date=" + date);
+    const path = basePath === "/sistema/agenda"
+      ? (view === "pauta" ? "/sistema/pauta" : "/sistema/agenda")
+      : basePath + "?view=" + view;
+    router.push(path + (path.includes("?") ? "&date=" : "?date=") + date);
   }
 
   function moveMonth(delta: number): void {
@@ -295,18 +303,18 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
         <div><span>Minha fila</span><strong>{ownPending}</strong><small>pendências</small></div>
         <div className="agenda-quick-sync" title="Atualizacao automatica e sincronizacao ao retomar a aba">
           <span className={"agenda-sync-dot is-" + realtimeState} />
-          <strong>{realtimeState === "online" ? "Sincronizado" : realtimeState === "connecting" ? "Conectando" : "Reconectando"}</strong>
-          <small>{realtimeState === "online" ? "Equipe atualizada" : "Atualiza ao reconectar"}</small>
+          <strong>{realtimeState === "online" ? "Ao vivo" : realtimeState === "connecting" ? "Conectando" : "Sem conexão em tempo real"}</strong>
+          <small>{realtimeState === "online" ? "Atualização em tempo real ativa" : "Atualiza ao reconectar"}</small>
         </div>
       </div>
       <div className="agenda-topbar">
-        <div className="agenda-tabs" role="tablist" aria-label="Agenda e pauta">
+        {basePath === "/agenda" ? <div className="agenda-tabs" role="tablist" aria-label="Agenda e pauta">
           {data.access.agendaRead ? <button type="button" className={initialView === "agenda" ? "is-active" : ""} onClick={() => navigate("agenda", data.focusDate)}>Agenda</button> : null}
           {data.access.pautaRead ? <button type="button" className={initialView === "pauta" ? "is-active" : ""} onClick={() => navigate("pauta", data.focusDate)}>Pauta da semana</button> : null}
-        </div>
+        </div> : null}
         <label className="agenda-person-filter">
           <span>Mostrar</span>
-          <select value={responsibleFilter} onChange={(event) => setResponsibleFilter(event.target.value)}>
+          <select aria-label="Filtrar por responsável" value={responsibleFilter} onChange={(event) => setResponsibleFilter(event.target.value)}>
             <option value="">Toda a equipe</option>
             <option value={data.currentUserId}>Somente meus itens</option>
             {data.profiles.filter((profile) => profile.id !== data.currentUserId).map((profile) => (
@@ -315,7 +323,7 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
           </select>
         </label>
         {(initialView === "agenda" ? data.access.agendaWrite : data.access.pautaWrite) ? (
-          <button type="button" className="agenda-top-add" onClick={openCreate}>+ Novo</button>
+          <button type="button" className="agenda-top-add" onClick={openCreate}>{initialView === "agenda" ? "+ Compromisso" : "+ Nova pauta"}</button>
         ) : null}
       </div>
 
@@ -335,11 +343,34 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
               <div>
                 <strong>{monthLabel(data.focusDate)}</strong>
                 <span>{monthEventCount} compromisso{monthEventCount === 1 ? "" : "s"} no mês</span>
+                <button type="button" className="agenda-month-toggle" aria-expanded={isMonthExpanded} aria-controls="agenda-month-detail" onClick={() => setIsMonthExpanded((expanded) => !expanded)}>{isMonthExpanded ? "Fechar mês" : "Ver mês"}</button>
               </div>
               <button type="button" onClick={() => moveMonth(1)} aria-label="Próximo mês">›</button>
             </div>
 
-            <div className="agenda-weekdays">{["SEG", "TER", "QUA", "QUI", "SEX", "SÁB", "DOM"].map((day) => <span key={day}>{day}</span>)}</div>
+            <div className="agenda-week-strip" aria-label="Semana selecionada">
+              <button type="button" className="agenda-week-step" aria-label="Semana anterior" onClick={() => navigate("agenda", addDays(selectedDate, -7))}>‹</button>
+              <div className="agenda-week-dates">
+                {selectedWeekDays.map((day, index) => {
+                  const count = (eventsByDate.get(day) ?? []).filter((event) => event.status !== "cancelled").length;
+                  return (
+                    <button type="button" key={day} aria-label={longDate(day)} aria-pressed={selectedDate === day}
+                      className={"agenda-week-date" + (selectedDate === day ? " is-selected" : "") + (day === data.today ? " is-today" : "")}
+                      onClick={() => {
+                        if (day < data.monthStart || day > data.monthEnd) navigate("agenda", day);
+                        else setSelectedDate(day);
+                      }}>
+                      <small>{["S", "T", "Q", "Q", "S", "S", "D"][index]}</small>
+                      <strong>{parseDate(day).getDate()}</strong>
+                      {count > 0 ? <i aria-label={count + " compromissos"} /> : null}
+                    </button>
+                  );
+                })}
+              </div>
+              <button type="button" className="agenda-week-step" aria-label="Próxima semana" onClick={() => navigate("agenda", addDays(selectedDate, 7))}>›</button>
+            </div>
+            <div id="agenda-month-detail" className={"agenda-month-detail" + (isMonthExpanded ? " is-expanded" : "")}>
+              <div className="agenda-weekdays">{["SEG", "TER", "QUA", "QUI", "SEX", "SÁB", "DOM"].map((day) => <span key={day}>{day}</span>)}</div>
             <div className="agenda-month-grid">
               {days.map((day) => {
                 const dayEvents = eventsByDate.get(day.value) ?? [];
@@ -358,6 +389,7 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
                   </button>
                 );
               })}
+            </div>
             </div>
             <button type="button" className="agenda-today-button" onClick={() => navigate("agenda", data.today)}>Hoje</button>
           </div>
