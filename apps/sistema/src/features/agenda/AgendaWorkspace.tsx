@@ -627,8 +627,6 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
                       {item.description ? <p>{item.description}</p> : null}
                       {item.articleId ? (
                         <Link href={"/sistema/editorial/materias/" + item.articleId} className="agenda-link-materia">Abrir matéria vinculada ↗</Link>
-                      ) : data.access.editorialLinkAccess ? (
-                        <Link href={"/sistema/editorial/materias/nova?pauta=" + encodeURIComponent(item.id)} className="agenda-link-materia">+ Criar matéria desta pauta</Link>
                       ) : null}
                       {data.access.pautaWrite ? <PautaEdit item={item} /> : null}
                     </div>
