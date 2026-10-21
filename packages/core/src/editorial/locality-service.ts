@@ -7,6 +7,7 @@ export interface CreateLocalityInput {
   /** Gerada a partir do nome quando ausente. */
   slug?: string;
   scope: LocalityScope;
+  stateCode?: string | null;
   active?: boolean;
 }
 
@@ -14,6 +15,17 @@ export interface UpdateLocalityInput {
   name?: string;
   slug?: string;
   scope?: LocalityScope;
+  stateCode?: string | null;
+}
+
+const UF_CODES = new Set(["AC", "AL", "AP", "AM", "BA", "CE", "DF", "ES", "GO", "MA", "MT", "MS", "MG", "PA", "PB", "PR", "PE", "PI", "RJ", "RN", "RS", "RO", "RR", "SC", "SP", "SE", "TO"]);
+
+/** Cidades/estados devem ter UF, demais abrangencias nao. */
+function normalizeGeoState(scope: LocalityScope, code: string | null | undefined): string | null {
+  if (scope !== "city" && scope !== "state") return null;
+  const value = (code || "").trim().toUpperCase();
+  if (!UF_CODES.has(value)) throw new Error("Selecione um estado válido para esta abrangência.");
+  return value;
 }
 
 function slugify(value: string): string {
@@ -54,21 +66,28 @@ export class LocalityService {
   }
 
   async create(input: CreateLocalityInput): Promise<Locality> {
-    const slug = slugify(input.slug || input.name);
+    const stateCode = normalizeGeoState(input.scope, input.stateCode);
+    // Novas cidades incluem UF no identificador para permitir homonimos;
+    // slugs existentes nao sao reescritos pela migration.
+    const slug = slugify(input.slug || (input.scope === "city" && stateCode ? input.name + "-" + stateCode : input.name));
     await this.assertSlugAvailable(slug);
 
     const record: NewLocalityRecord = {
       name: input.name.trim(),
       slug,
       scope: input.scope,
+      stateCode,
       active: input.active ?? true,
     };
     return this.localities.create(record);
   }
 
   async update(id: string, input: UpdateLocalityInput): Promise<Locality> {
-    await this.assertExists(id);
-    const changes: LocalityChanges = {};
+    const current = await this.localities.getById(id);
+    if (!current) throw new LocalityNotFoundError(id);
+    const scope = input.scope ?? current.scope;
+    const stateCode = normalizeGeoState(scope, input.stateCode === undefined ? current.stateCode : input.stateCode);
+    const changes: LocalityChanges = { stateCode };
     if (input.name !== undefined) changes.name = input.name.trim();
     if (input.scope !== undefined) changes.scope = input.scope;
     if (input.slug !== undefined || input.name !== undefined) {
