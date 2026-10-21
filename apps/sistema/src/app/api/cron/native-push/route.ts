@@ -7,10 +7,10 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 type Claimed = { delivery_id: string; event_id: string; device_id: string };
-type EventRow = { id: string; title: string; body: string; href: string | null; kind: string; app_kind: string; scheduled_at: string };
+type EventRow = { id: string; title: string; body: string; href: string | null; kind: string; app_kind: string; scheduled_at: string; geo_scope: string; geo_state_code: string | null; geo_locality_id: string | null };
 type DeviceRow = {
   id: string; fcm_token: string; enabled: boolean;
-  ordinary_enabled: boolean; urgent_enabled: boolean;
+  ordinary_enabled: boolean; urgent_enabled: boolean; geo_mode: string; geo_city_ids: string[];
   consented_at: string; last_seen_at: string;
 };
 
@@ -64,8 +64,8 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
 
     try {
       const [eventQuery, deviceQuery] = await Promise.all([
-        db.from("notification_events").select("id,title,body,href,kind,app_kind,scheduled_at").eq("id", item.event_id).maybeSingle(),
-        db.from("native_push_devices").select("id,fcm_token,enabled,ordinary_enabled,urgent_enabled,consented_at,last_seen_at").eq("id", item.device_id).maybeSingle(),
+        db.from("notification_events").select("id,title,body,href,kind,app_kind,scheduled_at,geo_scope,geo_state_code,geo_locality_id").eq("id", item.event_id).maybeSingle(),
+        db.from("native_push_devices").select("id,fcm_token,enabled,ordinary_enabled,urgent_enabled,geo_mode,geo_city_ids,consented_at,last_seen_at").eq("id", item.device_id).maybeSingle(),
       ]);
       if (eventQuery.error || deviceQuery.error || !eventQuery.data || !deviceQuery.data) {
         failed++;
@@ -74,9 +74,23 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       }
       const event = eventQuery.data as EventRow;
       const device = deviceQuery.data as DeviceRow;
+      // Preferências podem ter mudado depois de a fila reservar um envio.
+      // Revalidar antes do FCM impede disparo à cidade/UF desmarcada.
+      let geoMatches = device.geo_mode === "all" ||
+        ["general", "country", "region"].includes(event.geo_scope);
+      if (!geoMatches && device.geo_mode === "selected") {
+        if (event.geo_scope === "city") {
+          geoMatches = Boolean(event.geo_locality_id && device.geo_city_ids.includes(event.geo_locality_id));
+        } else if (event.geo_scope === "state" && event.geo_state_code && device.geo_city_ids.length) {
+          const { data: sameState, error: stateError } = await db.from("localities")
+            .select("id").in("id", device.geo_city_ids)
+            .eq("scope", "city").eq("state_code", event.geo_state_code).limit(1);
+          geoMatches = !stateError && Boolean(sameState?.length);
+        }
+      }
       const now = Date.now();
       const scheduledAt = new Date(event.scheduled_at).getTime();
-      const eligible = event.app_kind === "site" &&
+      const eligible = geoMatches && event.app_kind === "site" &&
         (event.kind === "ordinary" || event.kind === "urgent") &&
         device.enabled &&
         (event.kind === "urgent" ? device.urgent_enabled : device.ordinary_enabled) &&
