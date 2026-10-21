@@ -354,6 +354,7 @@ export function MateriasList({
         </>
       )}
 
+      {total > 0 ? <p className="materias-mobile-page-count" role="status">Página {page} de {totalPages} · {total.toLocaleString("pt-BR")} matérias</p> : null}
       <PaginationControls page={page} totalPages={totalPages} buildHref={buildHref} />
     </>
   );
