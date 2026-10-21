@@ -1,6 +1,7 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import type { Locality, LocalityScope } from "@ir/types";
 import {
   createLocality, setLocalityActive, updateLocality, type LocalityPayload,
@@ -98,7 +99,7 @@ function Editor({
       <div className="geo-destination-preview">
         <strong>Quem receberá o aviso?</strong>
         <span>{audienceText(form)}</span>
-        <small>A publicação só envia notificação quando o editor selecionar Normal ou Urgente.</small>
+        <small>Prévia da regra planejada; o filtro geográfico de entregas será ativado em etapa própria.</small>
       </div>
       <details className="geo-advanced">
         <summary>Opções avançadas: identificador</summary>
@@ -127,7 +128,8 @@ export function LocalidadesManager({ localities }: Props): JSX.Element {
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<ScopeFilter>("all");
   const [error, setError] = useState<string | null>(null);
-  const [pending, startTransition] = useTransition();
+  const [pending, setPending] = useState(false);
+  const router = useRouter();
 
   const top = TOP_SLUGS.map((slug) => localities.find((locality) => locality.slug === slug)).filter((value): value is Locality => Boolean(value));
   const filtered = useMemo(() => localities.filter((item) => {
@@ -155,23 +157,27 @@ export function LocalidadesManager({ localities }: Props): JSX.Element {
     setForm({name:locality.name,slug:locality.slug,scope:locality.scope,stateCode:locality.stateCode ?? null});
     setEditingId(locality.id); setCreating(false); setError(null);
   }
-  function save(): void {
+  async function save(): Promise<void> {
     if (pending) return;
-    setError(null);
-    const action = editingId ? updateLocality(editingId, form) : createLocality(form);
-    startTransition(async () => {
-      const result = await action;
+    setPending(true); setError(null);
+    try {
+      const result = editingId ? await updateLocality(editingId, form) : await createLocality(form);
       if ("error" in result) setError(result.error);
-      else close();
-    });
+      else { close(); router.refresh(); }
+    } catch {
+      setError("Não foi possível salvar. Tente novamente.");
+    } finally { setPending(false); }
   }
-  function toggle(locality: Locality): void {
+  async function toggle(locality: Locality): Promise<void> {
     if (pending) return;
-    setError(null);
-    startTransition(async () => {
+    setPending(true); setError(null);
+    try {
       const result = await setLocalityActive(locality.id, !locality.active);
       if ("error" in result) setError(result.error);
-    });
+      else router.refresh();
+    } catch {
+      setError("Não foi possível alterar o status. Tente novamente.");
+    } finally { setPending(false); }
   }
 
   return (
