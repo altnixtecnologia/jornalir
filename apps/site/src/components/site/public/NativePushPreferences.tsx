@@ -26,6 +26,9 @@ const MANAGEMENT_TOKEN_KEY = "jornalir_native_push_management_token";
 const SUBSCRIBED_KEY = "jornalir_native_push_subscribed";
 const WELCOME_CHOICE_KEY = "jornalir_native_push_welcome_choice_v1";
 const PREFERENCES_KEY = "jornalir_native_push_preferences_v1";
+const GEO_PREFERENCES_KEY = "jornalir_native_push_geo_preferences_v1";
+type GeoPreference = { mode: "all" | "selected"; cityIds: string[] };
+type GeoCity = { id: string; name: string; stateCode: string };
 const CHANNEL_NORMAL = "jornal_ir_normal_v1";
 const CHANNEL_URGENT = "jornal_ir_urgente_v1";
 const FCM_ENDPOINT = "https://controle.altnix.com.br/api/public/push/fcm";
@@ -71,6 +74,10 @@ export function NativePushPreferences(): JSX.Element | null {
   const [status, setStatus] = useState<Status>("checking");
   const [ordinary, setOrdinary] = useState(true);
   const [urgent, setUrgent] = useState(true);
+  const [geoMode, setGeoMode] = useState<GeoPreference["mode"]>("all");
+  const [chosenCities, setChosenCities] = useState<string[]>([]);
+  const [cities, setCities] = useState<GeoCity[]>([]);
+  const geoRef = useRef<GeoPreference>({ mode: "all", cityIds: [] });
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [showWelcome, setShowWelcome] = useState(false);
@@ -109,6 +116,17 @@ export function NativePushPreferences(): JSX.Element | null {
         // Manter escolhas anteriores, inclusive se o usuário desativou um
         // dos canais. O SDK pode renovar o token a qualquer momento.
         try {
+          const savedGeo = localStorage.getItem(GEO_PREFERENCES_KEY);
+          if (savedGeo) {
+            const parsed = JSON.parse(savedGeo) as Partial<GeoPreference>;
+            if (parsed.mode === "selected" && Array.isArray(parsed.cityIds)) {
+              const valid = parsed.cityIds.filter((id): id is string => typeof id === "string");
+              if (valid.length) {
+                geoRef.current = { mode: "selected", cityIds: valid };
+                setGeoMode("selected"); setChosenCities(valid);
+              }
+            }
+          }
           const savedPrefs = localStorage.getItem(PREFERENCES_KEY);
           if (savedPrefs) {
             const parsed: unknown = JSON.parse(savedPrefs);
@@ -131,7 +149,8 @@ export function NativePushPreferences(): JSX.Element | null {
         try {
           const statusResponse = await fetch(FCM_ENDPOINT, { method: "GET", cache: "no-store" });
           if (statusResponse.ok) {
-            const body = (await statusResponse.json()) as { registrationAvailable?: boolean };
+            const body = (await statusResponse.json()) as { registrationAvailable?: boolean; cities?: GeoCity[] };
+            if (Array.isArray(body.cities)) setCities(body.cities.filter((city) => typeof city?.id === "string" && typeof city?.name === "string" && typeof city?.stateCode === "string"));
             registrationAvailable = body.registrationAvailable === true;
           }
         } catch {
@@ -267,6 +286,8 @@ export function NativePushPreferences(): JSX.Element | null {
           fcmToken,
           ordinary: prefs.ordinary,
           urgent: prefs.urgent,
+          geoMode: geoRef.current.mode,
+          cityIds: geoRef.current.cityIds,
           consented: true,
         }),
       });
@@ -291,6 +312,10 @@ export function NativePushPreferences(): JSX.Element | null {
   async function activate(): Promise<void> {
     if (busy) return;
     if (!listenersReady) { setMessage("Aguarde a preparação das notificações."); return; }
+    if (geoRef.current.mode === "selected" && geoRef.current.cityIds.length === 0) {
+      setMessage("Escolha pelo menos uma cidade ou selecione Todas.");
+      return;
+    }
     if (!ordinary && !urgent) {
       setMessage("Escolha ao menos um tipo de aviso.");
       return;
@@ -365,7 +390,71 @@ export function NativePushPreferences(): JSX.Element | null {
     }
   }
 
+  function setGeo(mode: GeoPreference["mode"], ids: string[]): void {
+    const value: GeoPreference = { mode, cityIds: mode === "all" ? [] : [...new Set(ids)] };
+    geoRef.current = value;
+    setGeoMode(value.mode);
+    setChosenCities(value.cityIds);
+    try { localStorage.setItem(GEO_PREFERENCES_KEY, JSON.stringify(value)); } catch { /* storage opcional */ }
+  }
+
+  function geoChooser(): JSX.Element {
+    const states = [...new Set(cities.map((city) => city.stateCode))].sort();
+    return (
+      <div className="mt-4 rounded-xl border p-3" style={{ borderColor: "var(--site-line)" }}>
+        <p className="mb-2 text-sm font-bold">De onde deseja receber notícias?</p>
+        <div className="grid grid-cols-2 gap-2">
+          <button type="button" aria-pressed={geoMode === "all"}
+            className={"rounded-lg border px-2 py-3 text-sm font-semibold " + (geoMode === "all" ? "border-[#30305c] bg-[#eaeafa]" : "")}
+            onClick={() => setGeo("all", [])}>Todas as cidades</button>
+          <button type="button" aria-pressed={geoMode === "selected"}
+            className={"rounded-lg border px-2 py-3 text-sm font-semibold " + (geoMode === "selected" ? "border-[#30305c] bg-[#eaeafa]" : "")}
+            onClick={() => setGeo("selected", chosenCities)}>Escolher cidades</button>
+        </div>
+        {geoMode === "selected" ? (
+          <div className="mt-3 max-h-44 overflow-y-auto">
+            {states.map((state) => (
+              <div key={state} className="mb-3">
+                <strong className="block pb-1 text-xs">{state}</strong>
+                <div className="flex flex-wrap gap-2">
+                  {cities.filter((city) => city.stateCode === state).map((city) => {
+                    const picked = chosenCities.includes(city.id);
+                    return <button key={city.id} type="button" aria-pressed={picked}
+                      className={"rounded-full border px-3 py-2 text-xs font-semibold " +
+                        (picked ? "border-[#30305c] bg-[#30305c] text-white" : "border-gray-300 bg-white")}
+                      onClick={() => setGeo("selected",
+                        picked ? chosenCities.filter((id) => id !== city.id) : [...chosenCities, city.id])}>
+                      {picked ? "✓ " : ""}{city.name}
+                    </button>;
+                  })}
+                </div>
+              </div>
+            ))}
+            {cities.length === 0 ? <p className="text-xs">Cidades indisponíveis no momento. Selecione Todas.</p> : null}
+          </div>
+        ) : null}
+        <p className="mt-2 text-xs" style={{ color: "var(--site-muted)" }}>
+          Notícias estaduais de SC ou RS chegam se você acompanhar alguma cidade do estado.
+          Região, Brasil e Geral chegam a todos que ativaram o respectivo tipo de aviso.
+        </p>
+      </div>
+    );
+  }
+
+  async function saveGeoChoices(): Promise<void> {
+    if (geoMode === "selected" && chosenCities.length === 0) {
+      setMessage("Selecione uma cidade para salvar."); return;
+    }
+    setMessage("Atualizando suas cidades...");
+    await updatePreferences(ordinary, urgent);
+  }
+
   function dismissWelcome(choice: "accepted" | "declined"): void {
+    if (choice === "accepted" && geoRef.current.mode === "selected" &&
+      geoRef.current.cityIds.length === 0) {
+      setMessage("Escolha ao menos uma cidade ou selecione Todas.");
+      return;
+    }
     try { localStorage.setItem(WELCOME_CHOICE_KEY, choice); }
     catch { /* Não exibir a caixa novamente nesta sessão. */ }
     setShowWelcome(false);
@@ -393,7 +482,9 @@ export function NativePushPreferences(): JSX.Element | null {
               Ative os avisos de novas matérias e notícias urgentes do Jornal IR.
               Você poderá escolher os tipos de alerta ou desativá-los depois.
             </p>
-            <div className="mt-6 grid gap-3">
+            {geoChooser()}
+            {message ? <p className="mt-2 text-xs text-red-700" role="alert">{message}</p> : null}
+            <div className="mt-4 grid gap-3">
               <button type="button" disabled={busy || !listenersReady}
                 onClick={() => dismissWelcome("accepted")}
                 className="rounded-xl px-4 py-3 font-bold text-white disabled:opacity-60"
@@ -429,6 +520,10 @@ export function NativePushPreferences(): JSX.Element | null {
           <span><strong>Notícias urgentes</strong><small className="mt-1 block">Alertas importantes, com som e vibração próprios.</small></span>
         </label>
       </div>
+      {geoChooser()}
+      {status === "active" ? <button type="button" disabled={busy}
+        className="mt-3 rounded-lg border px-4 py-2 text-sm font-bold"
+        onClick={() => void saveGeoChoices()}>Salvar cidades escolhidas</button> : null}
       {status === "checking" ? <p className="text-sm">Verificando...</p> : null}
       {status === "unavailable" ? <p className="text-sm">Serviço de notificações indisponível neste momento.</p> : null}
       {status === "preparing" ? <p className="text-sm">Notificações do aplicativo ainda em preparação — volte em breve.</p> : null}
