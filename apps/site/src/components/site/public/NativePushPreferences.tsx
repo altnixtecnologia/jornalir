@@ -470,7 +470,7 @@ export function NativePushPreferences(): JSX.Element | null {
           role="presentation">
           <section role="dialog" aria-modal="true" aria-labelledby="push-welcome-title"
             aria-describedby="push-welcome-description"
-            className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl"
+            className="w-full max-w-md max-h-[94dvh] overflow-y-auto rounded-2xl bg-white p-5 shadow-2xl"
             style={{ color: "var(--brand-navy)" }}>
             <p className="text-sm font-bold uppercase tracking-wide" style={{ color: "var(--site-muted)" }}>
               Jornal IR
