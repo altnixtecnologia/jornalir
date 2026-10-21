@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import { clientesNavGroup, configuracoesNavGroup, editorialNavGroup, financeiroNavGroup, nfseNavGroup, commercialNavGroup } from "../../lib/navigation";
 import { useAuth } from "../../lib/auth/AuthProvider";
@@ -20,6 +20,14 @@ function closeNavDropdowns(): void {
 
 export function AdminHeader({ onOpenMenu }: { onOpenMenu: () => void }): JSX.Element {
   const pathname = usePathname();
+  const [nativeMobile, setNativeMobile] = useState(false);
+  useEffect(() => {
+    const bridge = (window as Window & { Capacitor?: { isNativePlatform?: () => boolean; getPlatform?: () => string } }).Capacitor;
+    const inNativeApp = bridge?.isNativePlatform?.() === true || bridge?.getPlatform?.() === "android";
+    // WebView em versões antigas sem ponte: manter distância da câmera.
+    const inAndroidWebView = /Android/i.test(navigator.userAgent) && /;\s*wv[);]/i.test(navigator.userAgent);
+    setNativeMobile(inNativeApp || inAndroidWebView);
+  }, []);
 
   useEffect(() => {
     // <details> não fecha sozinho ao clicar fora da lista.
@@ -58,7 +66,7 @@ export function AdminHeader({ onOpenMenu }: { onOpenMenu: () => void }): JSX.Ele
   const canManageUsers = Boolean(profile?.active && (profile.role === "owner" || profile.role === "admin"));
 
   return (
-    <header className="app-header">
+    <header className={"app-header" + (nativeMobile ? " is-native-mobile" : "")}>
       <div className="app-header-inner">
         <Link href="/sistema" className="app-brand" aria-label="Informativo Regional — início">
           <img src="/brand/logo-escrita.png" alt="Informativo Regional" className="app-brand-logo" />
@@ -247,8 +255,8 @@ export function AdminHeader({ onOpenMenu }: { onOpenMenu: () => void }): JSX.Ele
 
         </nav>
 
+        <div className="ir-header-bell"><AdminNotificationBell /></div>
         <div className="app-header-actions">
-          <AdminNotificationBell />
           <AccountMenu />
           <button
             type="button"
