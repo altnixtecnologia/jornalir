@@ -71,6 +71,7 @@ export class LocalityService {
     // slugs existentes nao sao reescritos pela migration.
     const slug = slugify(input.slug || (input.scope === "city" && stateCode ? input.name + "-" + stateCode : input.name));
     await this.assertSlugAvailable(slug);
+    await this.assertUniqueState(input.scope, stateCode);
 
     const record: NewLocalityRecord = {
       name: input.name.trim(),
@@ -87,6 +88,7 @@ export class LocalityService {
     if (!current) throw new LocalityNotFoundError(id);
     const scope = input.scope ?? current.scope;
     const stateCode = normalizeGeoState(scope, input.stateCode === undefined ? current.stateCode : input.stateCode);
+    await this.assertUniqueState(scope, stateCode, id);
     const changes: LocalityChanges = { stateCode };
     if (input.name !== undefined) changes.name = input.name.trim();
     if (input.scope !== undefined) changes.scope = input.scope;
@@ -103,6 +105,14 @@ export class LocalityService {
   async setActive(id: string, active: boolean): Promise<Locality> {
     await this.assertExists(id);
     return this.localities.update(id, { active });
+  }
+
+  private async assertUniqueState(scope: LocalityScope, uf: string | null, ignoreId?: string): Promise<void> {
+    if (scope !== "state" || !uf) return;
+    const rows = await this.localities.list();
+    if (rows.some((row) => row.scope === "state" && row.stateCode === uf && row.id !== ignoreId)) {
+      throw new Error("Este estado já está cadastrado. Edite o registro existente.");
+    }
   }
 
   private async assertExists(id: string): Promise<void> {
