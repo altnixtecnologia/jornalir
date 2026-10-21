@@ -2,6 +2,7 @@ import "server-only";
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { GET as runPushCron } from "../push/route";
+import { GET as runNativePushCron } from "../native-push/route";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -130,9 +131,10 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   if (!secret || request.headers.get("authorization") !== "Bearer " + secret) {
     return NextResponse.json({ error: "Não autorizado." }, { status: 401 });
   }
-  const [telegram, push] = await Promise.allSettled([
+  const [telegram, push, nativePush] = await Promise.allSettled([
     sendTelegramReminders(request),
     runPushCron(request),
+    runNativePushCron(request),
   ]);
 
   let telegramResult: Record<string, unknown>;
@@ -149,7 +151,14 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   } else {
     pushResult = { status: "unavailable", enabled: false };
   }
-  return NextResponse.json({ ...telegramResult, push: pushResult }, {
+  let nativeResult: Record<string, unknown>;
+  if (nativePush.status === "fulfilled") {
+    nativeResult = await nativePush.value.json() as Record<string, unknown>;
+    if (!nativePush.value.ok) nativeResult.status = nativePush.value.status;
+  } else {
+    nativeResult = { enabled: false, status: "unavailable", acceptedByFcm: 0 };
+  }
+  return NextResponse.json({ ...telegramResult, push: pushResult, nativePush: nativeResult }, {
     headers: { "Cache-Control": "no-store" },
   });
 }
