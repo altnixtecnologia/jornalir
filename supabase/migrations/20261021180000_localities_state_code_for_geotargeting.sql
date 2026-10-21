@@ -50,6 +50,11 @@ end $do$;
 create index if not exists localities_scope_state_code_idx
   on public.localities (scope, state_code, active);
 
+-- Um unico cadastro para cada estado: evita SC/RS duplicados.
+create unique index if not exists localities_one_state_per_uf_idx
+  on public.localities (state_code)
+  where scope = 'state';
+
 comment on column public.localities.state_code is
   'UF da cidade ou estado (SC, RS etc.). Nula para Região/País/Geral. '
   'Usada pelo backend para direcionar push aos leitores interessados.';
