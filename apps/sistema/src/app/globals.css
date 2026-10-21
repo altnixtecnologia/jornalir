@@ -5754,3 +5754,120 @@ button.secondary-link {
     grid-column:1/-1;min-width:0
   }
 }
+
+
+/* IR Controle: seletor de pessoas e ações 21/10 */
+.agenda-assignee-picker{
+  border:0;background:transparent;border-radius:0;
+  padding:0;margin:0;min-width:0
+}
+.agenda-assignee-picker legend{
+  margin:0 0 7px;padding:0;font-size:11px;
+  font-weight:800;text-transform:uppercase;color:var(--muted)
+}
+.agenda-assignee-options{
+  display:flex;align-items:flex-start;gap:11px;
+  overflow-x:auto;overflow-y:hidden;max-width:100%;
+  padding:4px 3px 8px;scrollbar-width:thin;
+  -webkit-overflow-scrolling:touch
+}
+.agenda-assignee-picker .agenda-person-option{
+  display:flex;flex:0 0 auto;flex-direction:column;align-items:center;
+  gap:5px;position:relative;min-width:72px;max-width:120px;
+  margin:0;padding:1px 2px 3px;cursor:pointer;text-align:center
+}
+.agenda-person-option>input{
+  position:absolute;opacity:0;width:1px;height:1px;
+  overflow:hidden;pointer-events:none
+}
+.agenda-person-avatar{
+  position:relative;display:flex;align-items:center;justify-content:center;
+  width:42px;height:42px;flex:0 0 42px;
+  border:2px solid transparent;border-radius:50%;
+  color:var(--person-color);background:color-mix(in srgb,var(--person-color) 12%,white);
+  font-size:13px;font-weight:850;letter-spacing:.2px;
+  transition:border-color .12s ease,box-shadow .12s ease,background .12s ease
+}
+.agenda-person-avatar i{
+  position:absolute;right:-4px;bottom:-3px;
+  display:none;align-items:center;justify-content:center;
+  width:17px;height:17px;font-size:11px;font-style:normal;font-weight:900;
+  color:#fff;background:var(--person-color);
+  border:2px solid #fff;border-radius:50%;
+}
+.agenda-person-name{
+  display:block;max-width:115px;min-width:0;
+  font-size:11px;font-weight:600;line-height:1.25;
+  overflow-wrap:anywhere;color:var(--muted);
+  text-align:center
+}
+.agenda-person-option input:checked~.agenda-person-avatar{
+  border-color:var(--person-color);box-shadow:0 0 0 3px color-mix(in srgb,var(--person-color) 16%,transparent);
+  background:color-mix(in srgb,var(--person-color) 20%,white)
+}
+.agenda-person-option input:checked~.agenda-person-avatar i{display:flex}
+.agenda-person-option input:checked~.agenda-person-name{
+  color:var(--ink);font-weight:800
+}
+.agenda-person-option input:focus-visible~.agenda-person-avatar{
+  outline:3px solid #7b91ed;outline-offset:4px
+}
+.agenda-datetime-row{
+  grid-column:1/-1;display:grid;
+  grid-template-columns:minmax(0,1.5fr) repeat(2,minmax(0,1fr));
+  align-items:end;gap:9px;min-width:0
+}
+.agenda-datetime-row .agenda-field{min-width:0}
+.agenda-datetime-row .agenda-field input{
+  box-sizing:border-box;width:100%;min-width:0;max-width:100%;
+  font-variant-numeric:tabular-nums
+}
+.agenda-edit-actions{display:flex;gap:8px;align-items:center}
+.agenda-edit-actions button{min-height:42px;min-width:90px}
+.agenda-close-edit{
+  color:var(--ink);background:#fffefa;border:1px solid var(--line);
+  border-radius:8px;font-weight:750
+}
+.agenda-event-secondary{display:flex;justify-content:flex-end;margin:2px 0 0}
+.agenda-event-secondary button{
+  min-height:34px;padding:5px 8px;border:0;background:transparent;
+  color:var(--brand);font-size:11px;font-weight:800
+}
+@media(max-width:760px){
+  .agenda-mobile-page .agenda-datetime-row{
+    grid-column:1/-1;grid-template-columns:minmax(0,1.5fr) repeat(2,minmax(0,1fr));
+    gap:6px;min-width:0
+  }
+  .agenda-mobile-page .agenda-datetime-row .agenda-field input{
+    font-size:12px;min-height:42px;height:42px;
+    padding:6px 2px
+  }
+  .agenda-mobile-page .agenda-datetime-row .agenda-field>span{
+    font-size:10px;white-space:nowrap
+  }
+  .agenda-mobile-page .agenda-edit-actions{
+    grid-column:1/-1;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));
+    gap:8px;justify-content:stretch
+  }
+  .agenda-mobile-page .agenda-edit-actions button{
+    width:100%;min-width:0;min-height:44px
+  }
+  .agenda-mobile-page .agenda-assignee-picker{
+    grid-column:1/-1;border:0;padding:0;background:transparent
+  }
+  .agenda-mobile-page .agenda-assignee-options{gap:8px}
+  .agenda-mobile-page .agenda-event-actions.is-manager{
+    display:grid;grid-template-columns:repeat(2,minmax(0,1fr));
+    gap:7px;padding:0;margin-top:9px
+  }
+  .agenda-mobile-page .agenda-event-actions.is-manager button{
+    width:100%;min-height:44px;min-width:0;
+    padding:7px 5px;font-size:11px;line-height:1.25
+  }
+  .agenda-mobile-page .agenda-event-actions.is-manager .agenda-manager-cancel{
+    grid-column:1/-1;color:#922d2d;background:#fffafa;
+    border:1px solid #e3bcbc
+  }
+  .agenda-mobile-page .agenda-event-actions.is-member{display:flex}
+  .agenda-mobile-page .agenda-event-actions.is-member button{flex:1}
+}
