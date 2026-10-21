@@ -10,6 +10,7 @@ export const dynamic = "force-dynamic";
 const INSTALLATION_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const MANAGEMENT_TOKEN = /^[a-zA-Z0-9_-]{32,128}$/;
 const FCM_TOKEN = /^[a-zA-Z0-9:_-]{40,4096}$/;
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 function dbClient() {
   if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
@@ -62,10 +63,14 @@ export async function OPTIONS(request: NextRequest): Promise<NextResponse> {
 export async function GET(request: NextRequest): Promise<NextResponse> {
   const origin = corsOrigin(request);
   if (!origin) return NextResponse.json({ error: "Origem não autorizada" }, { status: 403 });
+  const result = await dbClient().from("localities")
+    .select("id,name,state_code").eq("scope","city").eq("active",true).order("name");
   return reply({
     platform: "android",
     registrationAvailable: process.env.NATIVE_FCM_REGISTRATION_ENABLED === "true",
     deliveryEnabled: process.env.NATIVE_FCM_DELIVERY_ENABLED === "true",
+    cities: result.error ? [] : (result.data || []).filter((row) => Boolean(row.state_code))
+      .map((row) => ({ id: row.id, name: row.name, stateCode: row.state_code })),
   }, 200, origin);
 }
 
@@ -90,7 +95,22 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     if (!data.ordinary && !data.urgent) {
       return reply({ error: "Ative ao menos um tipo de aviso ou use a opção Desativar." }, 400, origin);
     }
+    // Quem já havia ativado push permanece no modo "todas" até escolher cidades.
+    const geoMode = data.geoMode === "selected" ? "selected" : "all";
+    const cityIds = geoMode === "selected" ? data.cityIds : [];
+    if (!Array.isArray(cityIds) || (geoMode === "selected" && (cityIds.length === 0 || cityIds.length > 100)) ||
+        cityIds.some((value) => typeof value !== "string" || !UUID.test(value)) ||
+        new Set(cityIds).size !== cityIds.length) {
+      return reply({ error: "Selecione uma ou mais cidades válidas." }, 400, origin);
+    }
     const db = dbClient();
+    if (geoMode === "selected") {
+      const { data: validCities, error: cityError } = await db.from("localities")
+        .select("id").eq("scope", "city").eq("active", true).in("id", cityIds as string[]);
+      if (cityError || validCities?.length !== cityIds.length) {
+        return reply({ error: "Uma ou mais cidades não estão disponíveis." }, 400, origin);
+      }
+    }
     const ipHash = createHmac("sha256", secret).update("native-push-rate:" + clientIp(request)).digest("hex");
     const rate = await db.rpc("claim_native_push_registration", { p_client_hash: ipHash });
     if (rate.error) return reply({ error: "Estrutura de inscrições Android ainda não instalada." }, 503, origin);
@@ -115,6 +135,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       platform: "android",
       ordinary_enabled: data.ordinary,
       urgent_enabled: data.urgent,
+      geo_mode: geoMode,
+      geo_city_ids: cityIds,
       enabled: true,
       last_seen_at: now,
       updated_at: now,
@@ -127,7 +149,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       if (save.error.code === "23505") return reply({ error: "Cadastro concorrente: tente novamente." }, 409, origin);
       return reply({ error: "Falha ao registrar o aparelho para notificações." }, 500, origin);
     }
-    return reply({ ok: true, subscribed: true, ordinary: data.ordinary, urgent: data.urgent }, 200, origin);
+    return reply({ ok: true, subscribed: true, ordinary: data.ordinary, urgent: data.urgent, geoMode, cityIds }, 200, origin);
   } catch {
     return reply({ error: "Não foi possível registrar este aparelho." }, 400, origin);
   }
