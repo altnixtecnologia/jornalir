@@ -98,6 +98,53 @@ function AssigneeChecks({
   );
 }
 
+
+/** Um unico seletor nativo de dia e horario no mobile.
+ * Mantem as duas chaves historicas aceitas pelas actions do Supabase.
+ * Registros antigos sem hora continuam sem hora ate serem editados.
+ */
+function PautaDateTimeField({
+  initialDate,
+  initialTime,
+  weekStart,
+  weekEnd,
+  required = false,
+}: {
+  initialDate: string;
+  initialTime: string | null;
+  weekStart: string;
+  weekEnd: string;
+  required?: boolean;
+}): JSX.Element {
+  return (
+    <div className="agenda-field pauta-datetime-field">
+      <label htmlFor={required ? "new-pauta-date-time" : undefined}>
+        Data e horário{required ? "" : " (opcional alterar)"}
+      </label>
+      <input name="due_date" type="hidden" defaultValue={initialDate} />
+      <input name="due_time" type="hidden" defaultValue={initialTime ?? ""} />
+      <input
+        id={required ? "new-pauta-date-time" : undefined}
+        type="datetime-local"
+        aria-label="Selecionar data e horário da pauta"
+        min={weekStart + "T00:00"}
+        max={weekEnd + "T23:59"}
+        defaultValue={initialTime ? initialDate + "T" + initialTime.slice(0, 5) : ""}
+        required={required}
+        onChange={(event) => {
+          const value = event.currentTarget.value;
+          const form = event.currentTarget.form;
+          const date = form?.elements.namedItem("due_date") as HTMLInputElement | null;
+          const time = form?.elements.namedItem("due_time") as HTMLInputElement | null;
+          if (date) date.value = value.length >= 10 ? value.slice(0, 10) : initialDate;
+          if (time) time.value = value.length >= 16 ? value.slice(11, 16) : "";
+        }}
+      />
+      {!required && !initialTime ? <small>Esta pauta ainda não possui horário definido.</small> : null}
+    </div>
+  );
+}
+
 export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspaceProps): JSX.Element {
   const router = useRouter();
   const realtimeClient = useMemo(() => createSupabaseBrowserClient(), []);
@@ -282,13 +329,7 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
           <input type="hidden" name="updated_at" value={item.updatedAt} />
           <label className="agenda-field agenda-field-wide"><span>O que precisa ser feito?</span><input name="title" required maxLength={180} defaultValue={item.title} /></label>
           <div className="agenda-field-wide"><AssigneeChecks profiles={data.profiles} selectedIds={item.assignees.map((person) => person.id)} /></div>
-          <label className="agenda-field">
-            <span>Dia</span>
-            <select name="due_date" defaultValue={item.dueDate ?? item.weekStart} required>
-              {weekDays.map((day) => <option key={day} value={day}>{longDate(day)}</option>)}
-            </select>
-          </label>
-          <label className="agenda-field"><span>Horário</span><input name="due_time" type="time" defaultValue={item.dueTime ?? ""} /></label>
+          <PautaDateTimeField initialDate={item.dueDate ?? item.weekStart} initialTime={item.dueTime} weekStart={item.weekStart} weekEnd={addDays(item.weekStart, 6)} />
           <label className="agenda-field agenda-field-wide"><span>Observação</span><textarea name="description" maxLength={4000} defaultValue={item.description ?? ""} /></label>
           <div className="agenda-form-actions"><button type="submit" className="agenda-primary" disabled={isPending}>Salvar alterações</button></div>
         </form>
@@ -498,13 +539,7 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
             <input type="hidden" name="week_start" value={data.weekStart} />
             <label className="agenda-field pauta-title-field"><span>O que precisa ser feito?</span><input name="title" required maxLength={180} placeholder="Ex.: Cobrir sessão da Câmara" /></label>
             <div className="agenda-field-wide"><AssigneeChecks profiles={data.profiles} currentUserId={data.currentUserId} /></div>
-            <label className="agenda-field">
-              <span>Dia</span>
-              <select name="due_date" defaultValue={initialPautaDate} required>
-                {weekDays.map((day) => <option key={day} value={day}>{longDate(day)}</option>)}
-              </select>
-            </label>
-            <label className="agenda-field"><span>Horário</span><input name="due_time" type="time" /></label>
+            <PautaDateTimeField initialDate={initialPautaDate} initialTime={null} weekStart={data.weekStart} weekEnd={data.weekEnd} required />
             <label className="agenda-field pauta-note-field"><span>Observação</span><input name="description" maxLength={4000} placeholder="Opcional" /></label>
             <button type="submit" className="agenda-primary" disabled={isPending}>+ Criar na Agenda e Pauta</button>
           </form></details> : null}
