@@ -47,7 +47,7 @@ export function AdminHeader({ onOpenMenu }: { onOpenMenu: () => void }): JSX.Ele
   const { hasModule } = useStaffModuleVisibility();
   const isHome = pathname === "/sistema";
   const isEditorial = pathname.startsWith("/sistema/editorial");
-  const isAgenda = pathname.startsWith("/sistema/agenda");
+  const isAgenda = pathname.startsWith("/sistema/agenda") || pathname.startsWith("/sistema/pauta");
   const isClientes = pathname.startsWith("/sistema/clientes");
   const isAniversariantes = pathname.startsWith("/sistema/aniversariantes");
   const isAssinaturas = pathname.startsWith("/sistema/assinaturas");
@@ -91,7 +91,7 @@ export function AdminHeader({ onOpenMenu }: { onOpenMenu: () => void }): JSX.Ele
 
           {agendaRead || pautaRead ? (
             <Link
-              href={agendaRead ? "/sistema/agenda?view=agenda" : "/sistema/agenda?view=pauta"}
+              href={agendaRead ? "/sistema/agenda" : "/sistema/pauta"}
               className="app-nav-link"
               aria-current={isAgenda ? "page" : undefined}
             >
