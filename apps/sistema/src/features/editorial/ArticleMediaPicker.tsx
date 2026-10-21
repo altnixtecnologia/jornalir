@@ -5,11 +5,12 @@ import { ArticleImageEditorModal } from "./ArticleImageEditorModal";
 import { PreUploadImageCrop } from "./PreUploadImageCrop";
 import styles from "./ArticleMediaPicker.module.css";
 
-type MediaIcon = "view" | "edit" | "remove" | "help";
+type MediaIcon = "view" | "edit" | "replace" | "remove" | "help";
 function MediaActionIcon({ kind }: { kind: MediaIcon }): JSX.Element {
   const shapes: Record<MediaIcon, JSX.Element> = {
     view: <><path d="M2 12s3.7-6 10-6 10 6 10 6-3.7 6-10 6-10-6-10-6Z" /><circle cx="12" cy="12" r="3" /></>,
     edit: <><path d="M6 2v5H2M18 22v-5h4M8 5h9a2 2 0 0 1 2 2v9M16 19H7a2 2 0 0 1-2-2V8" /><path d="M8 13h7v6H8z" /></>,
+    replace: <><path d="M20 7H8l3-3M8 7l3 3M4 17h12l-3-3M16 17l-3 3" /><path d="M17 4h3v6M7 20H4v-6" /></>,
     remove: <><path d="M3 6h18M8 6V4h8v2M6 6l1 15h10l1-15M10 10v7M14 10v7" /></>,
     help: <><circle cx="12" cy="12" r="10" /><path d="M12 11v6M12 7h.01" /></>,
   };
@@ -75,6 +76,7 @@ export function ArticleMediaPicker({
     file: File;
   } | null>(null);
   const [editLoading, setEditLoading] = useState(false);
+  const [replacing, setReplacing] = useState<string | null>(null);
   const [editError, setEditError] = useState<string | null>(null);
   const [showActionHelp, setShowActionHelp] = useState(false);
   const [draggedMediaId, setDraggedMediaId] = useState<string | null>(null);
@@ -190,6 +192,29 @@ export function ArticleMediaPicker({
       setEditError(error instanceof Error ? error.message : "Não foi possível carregar a imagem.");
     } finally {
       setEditLoading(false);
+    }
+  }
+
+  async function replaceImage(
+    item: ArticleMedia,
+    selected: File | undefined,
+  ): Promise<void> {
+    if (!selected || uploading || replacing) return;
+    setEditError(null);
+    setReplacing(item.mediaAssetId);
+    try {
+      const data = new FormData();
+      data.append("files", selected);
+      const result = await uploadMediaAssets(data);
+      if ("error" in result) throw new Error(result.error);
+      const asset = result.assets[0];
+      if (!asset) throw new Error("A imagem substituta não foi confirmada pelo servidor.");
+      onReplaceMediaAsset({ role: item.role, order: item.order }, asset);
+      setLastUploadNotice("Imagem substituída na matéria. Salve para confirmar a alteração.");
+    } catch (error) {
+      setEditError(error instanceof Error ? error.message : "Falha ao substituir a imagem.");
+    } finally {
+      setReplacing(null);
     }
   }
 
@@ -360,6 +385,7 @@ export function ArticleMediaPicker({
           <p className={styles.actionLegend} role="status">
             <MediaActionIcon kind="view" /> Visualizar
             <MediaActionIcon kind="edit" /> Ajustar / recortar
+            <MediaActionIcon kind="replace" /> Substituir
             <MediaActionIcon kind="remove" /> Retirar da matéria
           </p>
         ) : null}
@@ -436,19 +462,34 @@ export function ArticleMediaPicker({
                   />
 
                   <div className="article-media-row-actions">
-                    <button type="button" className="article-media-view" disabled={editLoading || uploading}
+                    <button type="button" className="article-media-view" disabled={editLoading || uploading || Boolean(replacing)}
                       onClick={() => setViewerTarget({ role: item.role, order: item.order, mediaAssetId: item.mediaAssetId })}
                       aria-label={`Visualizar ${asset.reference}`} title="Visualizar imagem">
                       <MediaActionIcon kind="view" />
                     </button>
                     <button type="button" className="article-media-view article-media-crop"
-                      disabled={editLoading || uploading}
+                      disabled={editLoading || uploading || Boolean(replacing)}
                       onClick={() => void startEdit(item, asset)}
                       aria-label={`Ajustar ou recortar ${asset.reference}`} title="Ajustar e recortar imagem">
                       <MediaActionIcon kind="edit" />
                     </button>
+                    <input type="file" id={"replace-image-" + item.mediaAssetId}
+                      accept="image/jpeg,image/png,image/webp,image/avif,image/gif,.avif"
+                      className="visually-hidden" disabled={editLoading || uploading || Boolean(replacing)}
+                      aria-label={`Selecionar foto para substituir ${asset.reference}`}
+                      onChange={(event) => {
+                        const replacement = event.currentTarget.files?.[0];
+                        event.currentTarget.value = "";
+                        void replaceImage(item, replacement);
+                      }} />
+                    <button type="button" className="article-media-view"
+                      disabled={editLoading || uploading || Boolean(replacing)}
+                      onClick={() => document.getElementById("replace-image-" + item.mediaAssetId)?.click()}
+                      aria-label={`Substituir ${asset.reference} por outra foto`} title="Substituir imagem">
+                      <MediaActionIcon kind="replace" />
+                    </button>
                     <button type="button" className="article-media-view article-media-remove"
-                      disabled={editLoading || uploading}
+                      disabled={editLoading || uploading || Boolean(replacing)}
                       onClick={() => (isCover ? onRemoveCover() : onRemoveFromGallery(item.mediaAssetId))}
                       aria-label={`Remover ${asset.reference} desta matéria`} title="Remover da matéria">
                       <MediaActionIcon kind="remove" />
