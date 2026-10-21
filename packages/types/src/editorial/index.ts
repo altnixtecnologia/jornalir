@@ -20,6 +20,8 @@ export interface Locality {
   slug: string;
   name: string;
   scope: LocalityScope;
+  /** UF vinculada a cidades/estados, p.ex. SC, RS; nula para Brasil/Geral/Região. */
+  stateCode?: string | null;
   active: boolean;
 }
 
