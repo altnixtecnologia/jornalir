@@ -491,21 +491,43 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
                           {item.description ? <details className="agenda-event-details"><summary>Visualizar detalhes</summary><p>{item.description}</p></details> : null}
                         </div>
                       </div>
-                      {(data.access.agendaWrite || item.assignees.some((person) => person.id === data.currentUserId)) ? <div className="agenda-event-actions">
-                        {item.status === "scheduled" ? (
-                          <>
-                            {item.assignees.some((person) => person.id === data.currentUserId && !person.completedAt) ? (
-                              <button type="button" className="agenda-complete-button" disabled={isPending}
-                                onClick={() => run(() => completeMyAgendaAssignmentAction(item.id), "Sua parte foi concluída.")}>✓ Concluir minha parte</button>
-                            ) : null}
-                            {data.access.agendaWrite ? <button type="button" disabled={isPending} onClick={() => run(() => setAgendaEventStatusAction(item.id, "completed"), "Compromisso concluído pela administração.")}>{item.assignees.length ? "✓ Concluir todos" : "✓ Concluir"}</button> : null}
-                            {data.access.pautaWrite && item.eventKind !== "editorial" ? <button type="button" disabled={isPending} onClick={() => run(() => createPautaFromAgendaEventAction(item.id), "Compromisso incluído na pauta.")}>+ Incluir na Pauta</button> : null}
-                            {data.access.agendaWrite ? <button type="button" className="is-danger-soft" disabled={isPending} onClick={() => run(() => setAgendaEventStatusAction(item.id, "cancelled"), "Compromisso cancelado.")}>Cancelar</button> : null}
-                          </>
-                        ) : data.access.agendaWrite ? (
-                          <button type="button" disabled={isPending} onClick={() => run(() => setAgendaEventStatusAction(item.id, "scheduled"), "Compromisso reaberto.")}>Reabrir</button>
-                        ) : null}
-                      </div> : null}
+                      {(data.access.agendaWrite || item.assignees.some((person) => person.id === data.currentUserId)) ? (
+                        <div className={"agenda-event-actions" + (data.access.agendaWrite ? " is-manager" : " is-member")}>
+                          {item.status === "scheduled" ? (
+                            <>
+                              {item.assignees.some((person) => person.id === data.currentUserId && !person.completedAt) ? (
+                                <button type="button" className="agenda-complete-button" disabled={isPending}
+                                  onClick={() => run(() => completeMyAgendaAssignmentAction(item.id), "Sua parte foi concluída.")}>
+                                  ✓ {data.access.agendaWrite ? "Concluir minha parte" : "Concluir"}
+                                </button>
+                              ) : null}
+                              {data.access.agendaWrite ? (
+                                <>
+                                  <button type="button" className="agenda-manager-finish" disabled={isPending}
+                                    onClick={() => run(() => setAgendaEventStatusAction(item.id, "completed"), "Compromisso encerrado pela administração.")}>
+                                    ✓ Encerrar compromisso
+                                  </button>
+                                  <button type="button" className="agenda-manager-cancel" disabled={isPending}
+                                    onClick={() => run(() => setAgendaEventStatusAction(item.id, "cancelled"), "Compromisso cancelado.")}>
+                                    Cancelar
+                                  </button>
+                                </>
+                              ) : null}
+                            </>
+                          ) : data.access.agendaWrite ? (
+                            <button type="button" disabled={isPending}
+                              onClick={() => run(() => setAgendaEventStatusAction(item.id, "scheduled"), "Compromisso reaberto.")}>Reabrir</button>
+                          ) : null}
+                        </div>
+                      ) : null}
+                      {item.status === "scheduled" && data.access.pautaWrite && item.eventKind !== "editorial" ? (
+                        <div className="agenda-event-secondary">
+                          <button type="button" disabled={isPending}
+                            onClick={() => run(() => createPautaFromAgendaEventAction(item.id), "Compromisso incluído na pauta.")}>
+                            + Incluir na Pauta
+                          </button>
+                        </div>
+                      ) : null}
                       {data.access.agendaWrite ? <EventEdit item={item} /> : null}
                     </article>
                   ))}
