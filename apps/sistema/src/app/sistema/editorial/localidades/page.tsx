@@ -9,9 +9,9 @@ export default async function LocalidadesPage(): Promise<JSX.Element> {
   return (
     <>
       <ModuleHeader
-        eyebrow="EDITORIAL / LOCALIDADES"
-        title="Localidades"
-        description="Cidade, região ou abrangência geral — sempre independente da editoria."
+        eyebrow="EDITORIAL / ABRANGÊNCIAS"
+        title="Abrangências"
+        description="Cadastre cidades, estados e coberturas amplas. Escolha a UF quando necessário."
       />
       <LocalidadesManager localities={localities} />
     </>
