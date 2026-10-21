@@ -10,10 +10,11 @@ const RATIOS: { id: Ratio; ratio: number | null }[] = [
 ];
 interface Props {
   file: File; index: number; total: number;
-  onCrop: (file: File) => void; onOriginal: () => void; onCancel: () => void;
+  onCrop: (file: File) => void | Promise<void>; onOriginal: () => void; onCancel: () => void;
+  mode?: "before-upload" | "after-upload";
 }
 type Pt = { x: number; y: number };
-export function PreUploadImageCrop({ file, index, total, onCrop, onOriginal, onCancel }: Props): JSX.Element {
+export function PreUploadImageCrop({ file, index, total, onCrop, onOriginal, onCancel, mode = "before-upload" }: Props): JSX.Element {
   const [src, setSrc] = useState("");
   const [size, setSize] = useState<Pt | null>(null);
   const [viewport, setViewport] = useState<Pt>({ x: 560, y: 360 });
@@ -134,7 +135,7 @@ export function PreUploadImageCrop({ file, index, total, onCrop, onOriginal, onC
         Math.min(sw,size.x),Math.min(sh,size.y),0,0,canvas.width,canvas.height);
       const blob=await new Promise<Blob>((resolve,reject)=>
         canvas.toBlob((data)=>data?resolve(data):reject(new Error("Não foi possível gerar o recorte.")),"image/jpeg",0.9));
-      onCrop(new File([blob],file.name.replace(/\.[^.]+$/,"")+"-recortada.jpg",{type:"image/jpeg"}));
+      await onCrop(new File([blob],file.name.replace(/\.[^.]+$/,"")+"-recortada.jpg",{type:"image/jpeg"}));
     } catch (cause) {setError(cause instanceof Error?cause.message:"Falha no recorte.");}
     finally {setBusy(false);}
   }
@@ -142,9 +143,9 @@ export function PreUploadImageCrop({ file, index, total, onCrop, onOriginal, onC
   return <div className={styles.backdrop}>
     <section className={styles.modal} role="dialog" aria-modal="true" aria-labelledby="crop-before-upload-title">
       <header className={styles.header}>
-        <div><small>PREPARAR IMAGEM {index+1} DE {total}</small>
+        <div><small>{mode === "after-upload" ? "AJUSTAR IMAGEM ENVIADA" : `PREPARAR IMAGEM ${index+1} DE ${total}`}</small>
           <h2 id="crop-before-upload-title" title={file.name}>{file.name}</h2></div>
-        <button type="button" onClick={onCancel} disabled={busy} aria-label="Cancelar seleção">✕</button>
+        <button type="button" onClick={onCancel} disabled={busy} aria-label="Fechar edição da imagem">✕</button>
       </header>
       <p className={styles.hint}>Arraste para enquadrar, faça zoom com dois dedos ou use os controles abaixo.</p>
       <div ref={viewRef} className={styles.viewport} onPointerDown={down} onPointerMove={move}
@@ -177,10 +178,10 @@ export function PreUploadImageCrop({ file, index, total, onCrop, onOriginal, onC
       </div>
       {error ? <p className={styles.error} role="alert">{error}</p>:null}
       <footer className={styles.footer}>
-        <button type="button" disabled={busy} onClick={onCancel}>Cancelar envio</button>
-        <button type="button" disabled={busy} onClick={onOriginal}>Usar original</button>
+        <button type="button" disabled={busy} onClick={onCancel}>{mode === "after-upload" ? "Fechar" : "Cancelar envio"}</button>
+        <button type="button" disabled={busy} onClick={onOriginal}>{mode === "after-upload" ? "Manter original" : "Usar original"}</button>
         <button type="button" disabled={busy||!size} className={styles.primary} onClick={()=>void apply()}>
-          {busy?"Preparando…":"Aplicar recorte"}</button>
+          {busy ? "Salvando…" : mode === "after-upload" ? "Salvar recorte" : "Aplicar recorte"}</button>
       </footer>
     </section>
   </div>;
