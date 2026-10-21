@@ -6000,3 +6000,42 @@ button.secondary-link {
   .app-header-inner .account-initials{flex-shrink:0}
   .app-header-inner .account-menu-panel{right:0;left:auto;max-width:calc(100vw - 24px)}
 }
+
+/* Editorial 21/10: atalhos de avanço no topo, imagens com ações sem texto. */
+.article-step-topline,.article-step-heading{
+  display:flex;align-items:center;justify-content:space-between;
+  gap:12px;min-width:0
+}
+.article-step-topline h2,.article-step-heading h2{margin:0;min-width:0}
+.article-step-topline .article-next-top,.article-step-heading .article-next-top{
+  min-height:42px;padding:10px 13px;border-radius:7px;
+  margin-left:auto;white-space:normal;text-align:center;line-height:1.3;
+  font-size:12px;font-weight:800;flex-shrink:0
+}
+.article-media-row-actions{gap:5px}
+.article-media-row-actions .article-media-view{
+  display:inline-grid;place-items:center;flex:0 0 auto;
+  min-width:36px;width:36px;height:36px;min-height:36px;
+  border:1px solid var(--line);border-radius:7px;
+  background:#fff;color:var(--brand);padding:7px
+}
+.article-media-row-actions .article-media-view:focus-visible,
+.article-media-row-actions .article-media-view:hover{
+  outline:2px solid var(--brand);outline-offset:1px;background:#f1f2f9
+}
+.article-media-row-actions .article-media-remove{
+  border-color:#e8caca;color:#a12f36
+}
+.article-media-row-actions button:disabled{opacity:.45;cursor:wait}
+@media(max-width:760px){
+  .article-step-topline,.article-step-heading{gap:8px}
+  .article-step-topline h2,.article-step-heading h2{font-size:18px}
+  .article-step-topline .article-next-top,.article-step-heading .article-next-top{
+    flex:0 1 auto;max-width:65%;font-size:11px;
+    padding:8px 9px;min-height:44px
+  }
+  .article-media-row-actions{display:flex;flex-wrap:nowrap;gap:6px}
+  .article-media-row-actions .article-media-view{
+    min-height:44px;height:44px;min-width:44px;width:44px
+  }
+}
