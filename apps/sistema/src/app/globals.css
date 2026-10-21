@@ -5565,3 +5565,131 @@ button.secondary-link {
 .agenda-remote-notice{position:sticky;top:10px;z-index:18;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;padding:10px 13px;background:#fff9ed;border:1px solid #e8d3a1;border-radius:9px;color:#825615;font-size:12px;font-weight:700}
 .agenda-remote-notice button{min-height:36px;padding:6px 12px;color:#825615;background:#fff;border-color:#d1ad67;font-weight:800}
 @media(max-width:560px){.agenda-remote-notice button{width:100%;min-height:44px}}
+
+
+/* IR Controle - Agenda/Pauta compacta (mobile, branch de homologacao).
+   Apenas estas duas telas; nao altera o layout desktop dos demais modulos. */
+.agenda-month-toggle,.agenda-week-strip{display:none}
+@media(max-width:760px){
+  .agenda-mobile-page{min-width:0}
+  .agenda-mobile-page .module-header{margin:0 0 8px;gap:0;align-items:center}
+  .agenda-mobile-page .module-header .eyebrow,
+  .agenda-mobile-page .module-description{display:none}
+  .agenda-mobile-page .module-header h1{font-size:20px;line-height:1.18;font-weight:800;margin:0}
+  .agenda-mobile-page .agenda-workspace{gap:8px}
+  .agenda-mobile-page .agenda-quick-overview{display:flex;gap:0;align-items:center;border-bottom:1px solid var(--line);padding:0 0 7px}
+  .agenda-mobile-page .agenda-quick-overview>div{
+    flex:0 1 auto;min-width:0;display:flex;flex-direction:row;align-items:center;
+    gap:5px;padding:2px 9px 2px 0;border:0;border-radius:0;box-shadow:none;
+    background:transparent;white-space:nowrap
+  }
+  .agenda-mobile-page .agenda-quick-overview>div+div{padding-left:9px;border-left:1px solid var(--line)}
+  .agenda-mobile-page .agenda-quick-overview>div>span:first-child{font-size:11px;font-weight:600}
+  .agenda-mobile-page .agenda-quick-overview strong{font-size:13px;line-height:1.2;font-weight:800}
+  .agenda-mobile-page .agenda-quick-overview small{display:none}
+  .agenda-mobile-page .agenda-quick-overview .agenda-quick-sync{
+    padding:2px 0 2px 9px;gap:5px;flex:1;justify-content:flex-end;
+    overflow:hidden
+  }
+  .agenda-mobile-page .agenda-quick-sync strong{font-size:10px;overflow:hidden;text-overflow:ellipsis}
+  .agenda-mobile-page .agenda-sync-dot{
+    position:static;flex:0 0 8px;width:8px;height:8px
+  }
+  .agenda-mobile-page .agenda-topbar{
+    display:grid;grid-template-columns:minmax(0,1fr) auto;
+    align-items:center;gap:8px;padding:0;border:0;border-radius:0;background:transparent
+  }
+  .agenda-mobile-page .agenda-person-filter{display:block;min-width:0}
+  .agenda-mobile-page .agenda-person-filter>span{display:none}
+  .agenda-mobile-page .agenda-person-filter select{
+    width:100%;max-width:none;min-width:0;min-height:42px;height:42px;
+    padding:0 10px;font-size:13px;border-radius:8px;
+    text-transform:none
+  }
+  .agenda-mobile-page .agenda-top-add{
+    min-height:42px;height:42px;padding:0 12px;border-radius:8px;font-size:12px
+  }
+  .agenda-mobile-page .agenda-layout{gap:8px}
+  .agenda-mobile-page .agenda-calendar-card,
+  .agenda-mobile-page .agenda-day-panel,
+  .agenda-mobile-page .pauta-layout{
+    padding:9px;border-radius:9px;box-shadow:none
+  }
+  .agenda-mobile-page .agenda-calendar-head{gap:6px;justify-content:center}
+  .agenda-mobile-page .agenda-calendar-head>button{display:none}
+  .agenda-mobile-page .agenda-calendar-head>div{
+    width:100%;display:flex;align-items:center;justify-content:space-between;
+    gap:6px;text-align:left
+  }
+  .agenda-mobile-page .agenda-calendar-head strong{font-size:13px}
+  .agenda-mobile-page .agenda-calendar-head span{display:none}
+  .agenda-mobile-page .agenda-month-toggle{
+    display:inline-flex;align-items:center;justify-content:center;
+    font-size:11px;color:var(--brand);font-weight:750;
+    border:0;background:transparent;padding:4px 7px;height:32px
+  }
+  .agenda-mobile-page .agenda-week-strip{
+    display:grid;grid-template-columns:29px minmax(0,1fr) 29px;
+    gap:3px;align-items:center;margin-top:5px
+  }
+  .agenda-mobile-page .agenda-week-step{
+    min-width:0;width:29px;min-height:44px;padding:0 1px;
+    border:0;background:transparent;color:var(--brand);font-size:22px
+  }
+  .agenda-mobile-page .agenda-week-dates{
+    display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:2px;min-width:0
+  }
+  .agenda-mobile-page .agenda-week-date{
+    display:flex;flex-direction:column;align-items:center;justify-content:center;
+    gap:2px;min-width:0;min-height:49px;height:auto;padding:4px 0;
+    border:1px solid transparent;border-radius:7px;background:#f6f6f3;
+    color:var(--ink)
+  }
+  .agenda-mobile-page .agenda-week-date small{font-size:10px;font-weight:700;color:var(--muted)}
+  .agenda-mobile-page .agenda-week-date strong{font-size:13px;font-weight:750}
+  .agenda-mobile-page .agenda-week-date.is-selected{
+    background:#ececf5;border-color:var(--brand);color:var(--brand)
+  }
+  .agenda-mobile-page .agenda-week-date.is-today strong{color:var(--brand-red)}
+  .agenda-mobile-page .agenda-week-date i{width:5px;height:5px;border-radius:50%;background:var(--brand)}
+  .agenda-mobile-page .agenda-month-detail{display:none}
+  .agenda-mobile-page .agenda-month-detail.is-expanded{display:block}
+  .agenda-mobile-page .agenda-day{min-height:45px}
+  .agenda-mobile-page .agenda-today-button{
+    display:block;margin:5px 0 0 auto;padding:0 8px;height:30px;
+    min-height:30px;font-size:11px;background:transparent
+  }
+  .agenda-mobile-page .agenda-section-title .eyebrow{display:none}
+  .agenda-mobile-page .agenda-section-title h2{
+    margin:0;font-size:13px;line-height:1.35
+  }
+  .agenda-mobile-page .agenda-events-list{margin-top:7px;gap:6px}
+  .agenda-mobile-page .agenda-event-card{padding:9px;border-radius:8px;box-shadow:none}
+  .agenda-mobile-page .agenda-event-main{grid-template-columns:52px minmax(0,1fr);gap:7px}
+  .agenda-mobile-page .agenda-event-time{font-size:12px}
+  .agenda-mobile-page .agenda-event-meta{gap:4px 7px}
+  .agenda-mobile-page .agenda-event-actions{gap:6px}
+  .agenda-mobile-page .agenda-event-actions button{min-height:40px}
+  .agenda-mobile-page .agenda-empty{padding:14px 8px;font-size:12px}
+  .agenda-mobile-page .agenda-create-panel:not([open]),
+  .agenda-mobile-page .pauta-create-panel:not([open]){display:none}
+  .agenda-mobile-page .agenda-create-panel[open],
+  .agenda-mobile-page .pauta-create-panel[open]{
+    display:block;margin:8px 0;border-radius:9px;box-shadow:none
+  }
+  .agenda-mobile-page .agenda-create-panel>summary,
+  .agenda-mobile-page .pauta-create-panel>summary{min-height:42px;padding:9px 12px}
+  .agenda-mobile-page .pauta-layout{display:flex;flex-direction:column;gap:7px}
+  .agenda-mobile-page .pauta-week-head{margin:0;max-width:none;gap:6px}
+  .agenda-mobile-page .pauta-week-head .eyebrow{display:none}
+  .agenda-mobile-page .pauta-week-head h2{font-size:15px;margin:0}
+  .agenda-mobile-page .pauta-week-head button{min-height:40px;width:40px}
+  .agenda-mobile-page .pauta-actions-row{margin:0;gap:8px;font-size:11px}
+  .agenda-mobile-page .pauta-actions-row button{
+    height:34px;min-height:34px;padding:0 10px;font-size:11px
+  }
+  .agenda-mobile-page .pauta-list{margin-top:1px;gap:6px}
+  .agenda-mobile-page .pauta-item{padding:8px;gap:7px;border-radius:8px}
+  .agenda-mobile-page .pauta-item-topline{gap:5px}
+  .agenda-mobile-page .pauta-item-meta{gap:3px 8px}
+}
