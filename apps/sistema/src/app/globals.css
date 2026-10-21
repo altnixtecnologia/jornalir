@@ -5973,3 +5973,30 @@ button.secondary-link {
   .geo-list-actions{flex-basis:100%;justify-content:flex-end}
   .geo-list-actions button{min-height:36px}
 }
+
+/* IR Controle: barra compacta segura acima da câmera no Android (21/10). */
+.ir-header-bell{display:flex;align-items:center;justify-content:center}
+@media(max-width:760px){
+  .app-header-inner{
+    display:grid;
+    grid-template-columns:minmax(0,1fr) 48px minmax(0,1fr);
+    gap:4px;align-items:center;
+    padding:6px 14px;min-height:58px
+  }
+  .app-header.is-native-mobile .app-header-inner{
+    padding-top:max(28px,env(safe-area-inset-top,0px));
+  }
+  .app-header-inner>.app-brand{
+    grid-column:1;justify-self:start;min-width:0;margin-right:0
+  }
+  .app-header-inner .app-brand-logo{width:auto;max-width:100%;height:30px;object-fit:contain}
+  .app-header-inner>.ir-header-bell{grid-column:2;justify-self:center}
+  .app-header-inner>.app-header-actions{grid-column:3;justify-self:end;margin-left:0}
+  .app-header-inner>.app-header-actions>.menu-button{display:none}
+  .app-header-inner .account-menu-trigger{
+    padding:3px;min-width:42px;min-height:42px;border-radius:50%
+  }
+  .app-header-inner .account-menu-name,.app-header-inner .account-menu-caret{display:none}
+  .app-header-inner .account-initials{flex-shrink:0}
+  .app-header-inner .account-menu-panel{right:0;left:auto;max-width:calc(100vw - 24px)}
+}
