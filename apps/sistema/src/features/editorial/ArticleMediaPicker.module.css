@@ -273,3 +273,23 @@
     gap: 3px;
   }
 }
+
+/* Ações pós-upload: ícones compactos, ajuda tocável e tooltips nativos no PC. */
+.mediaListHeading{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.mediaListHeading p{margin:0}
+.helpButton{
+ display:grid;place-items:center;width:34px;height:34px;flex:0 0 34px;
+ border:1px solid var(--line);border-radius:50%;color:var(--brand);
+ background:#fff;cursor:pointer
+}
+.actionLegend{
+ display:flex;align-items:center;gap:7px;flex-wrap:wrap;
+ padding:9px 10px;border-radius:7px;margin:7px 0;
+ background:#f2f3fa;color:var(--ink);font-size:11px;line-height:1.5
+}
+.actionLegend svg{width:15px;height:15px;margin-left:6px;color:var(--brand)}
+.actionLegend svg:first-child{margin-left:0}
+@media(hover:none),(pointer:coarse){
+ .helpButton{width:44px;height:44px;flex-basis:44px}
+ .actionLegend{font-size:12px}
+}
