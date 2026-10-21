@@ -5,6 +5,20 @@ import { ArticleImageEditorModal } from "./ArticleImageEditorModal";
 import { PreUploadImageCrop } from "./PreUploadImageCrop";
 import styles from "./ArticleMediaPicker.module.css";
 
+type MediaIcon = "view" | "edit" | "remove" | "help";
+function MediaActionIcon({ kind }: { kind: MediaIcon }): JSX.Element {
+  const shapes: Record<MediaIcon, JSX.Element> = {
+    view: <><path d="M2 12s3.7-6 10-6 10 6 10 6-3.7 6-10 6-10-6-10-6Z" /><circle cx="12" cy="12" r="3" /></>,
+    edit: <><path d="M6 2v5H2M18 22v-5h4M8 5h9a2 2 0 0 1 2 2v9M16 19H7a2 2 0 0 1-2-2V8" /><path d="M8 13h7v6H8z" /></>,
+    remove: <><path d="M3 6h18M8 6V4h8v2M6 6l1 15h10l1-15M10 10v7M14 10v7" /></>,
+    help: <><circle cx="12" cy="12" r="10" /><path d="M12 11v6M12 7h.01" /></>,
+  };
+  return <svg aria-hidden="true" width="19" height="19" viewBox="0 0 24 24"
+    fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+    {shapes[kind]}
+  </svg>;
+}
+
 interface ArticleMediaPickerProps {
   mediaAssets: MediaAsset[];
   media: ArticleMedia[];
@@ -56,7 +70,13 @@ export function ArticleMediaPicker({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploading, startUpload] = useTransition();
   const [dragActive, setDragActive] = useState(false);
-  const [preparing, setPreparing] = useState<{ files: File[]; ready: File[]; index: number } | null>(null);
+  const [editingTarget, setEditingTarget] = useState<{
+    target: { role: ArticleMediaRole; order: number };
+    file: File;
+  } | null>(null);
+  const [editLoading, setEditLoading] = useState(false);
+  const [editError, setEditError] = useState<string | null>(null);
+  const [showActionHelp, setShowActionHelp] = useState(false);
   const [draggedMediaId, setDraggedMediaId] = useState<string | null>(null);
   const [lastUploadNotice, setLastUploadNotice] = useState<string | null>(null);
   const [uploadDialog, setUploadDialog] = useState<{
@@ -148,45 +168,69 @@ export function ArticleMediaPicker({
     });
   }
 
-  function startPreparing(files: File[]): void {
-    if (files.length === 0 || preparing || uploading) return;
-    setLastUploadNotice(null);
-    setPreparing({ files, ready: [], index: 0 });
+  async function startEdit(
+    item: ArticleMedia,
+    asset: MediaAsset,
+  ): Promise<void> {
+    if (editLoading || uploading) return;
+    setEditError(null);
+    setEditLoading(true);
+    try {
+      // A mídia já foi convertida e armazenada no R2. Reaproveitamos
+      // o proxy autorizado existente para poder recortar em canvas.
+      const response = await fetch("/api/media-proxy?url=" + encodeURIComponent(asset.url), {
+        cache: "no-store",
+      });
+      if (!response.ok) throw new Error("Não foi possível abrir a foto para ajuste.");
+      const blob = await response.blob();
+      if (!blob.type.startsWith("image/")) throw new Error("Este arquivo não é uma imagem editável.");
+      const file = new File([blob], asset.name || "imagem-enviada.jpg", { type: blob.type });
+      setEditingTarget({ target: { role: item.role, order: item.order }, file });
+    } catch (error) {
+      setEditError(error instanceof Error ? error.message : "Não foi possível carregar a imagem.");
+    } finally {
+      setEditLoading(false);
+    }
   }
 
-  function acceptPrepared(file: File): void {
-    if (!preparing || uploading) return;
-    const ready = [...preparing.ready, file];
-    if (preparing.index + 1 >= preparing.files.length) {
-      setPreparing(null);
-      uploadFiles(ready);
-    } else setPreparing({ ...preparing, ready, index: preparing.index + 1 });
+  async function saveEditedImage(file: File): Promise<void> {
+    if (!editingTarget) return;
+    const formData = new FormData();
+    formData.append("files", file);
+    const result = await uploadMediaAssets(formData);
+    if ("error" in result) throw new Error(result.error);
+    const asset = result.assets[0];
+    if (!asset) throw new Error("O servidor não confirmou o salvamento do recorte.");
+    // Não sobrescreve o original; substitui apenas o vínculo na matéria.
+    onReplaceMediaAsset(editingTarget.target, asset);
+    setEditingTarget(null);
+    setLastUploadNotice("Imagem ajustada. Salve a matéria para confirmar a alteração.");
   }
 
   function handleFilesSelected(event: React.ChangeEvent<HTMLInputElement>): void {
     const files = Array.from(event.target.files ?? []);
     event.target.value = "";
-    startPreparing(files);
+    uploadFiles(files);
   }
 
   function handleDrop(event: React.DragEvent<HTMLLabelElement>): void {
     event.preventDefault();
     setDragActive(false);
     if (uploading) return;
-    startPreparing(Array.from(event.dataTransfer.files));
+    uploadFiles(Array.from(event.dataTransfer.files));
   }
 
   return (
     <div className="media-picker">
-      {preparing ? (
+      {editingTarget ? (
         <PreUploadImageCrop
-          key={preparing.index}
-          file={preparing.files[preparing.index]}
-          index={preparing.index}
-          total={preparing.files.length}
-          onCrop={acceptPrepared}
-          onOriginal={() => acceptPrepared(preparing.files[preparing.index])}
-          onCancel={() => setPreparing(null)}
+          mode="after-upload"
+          file={editingTarget.file}
+          index={0}
+          total={1}
+          onCrop={saveEditedImage}
+          onOriginal={() => setEditingTarget(null)}
+          onCancel={() => setEditingTarget(null)}
         />
       ) : null}
       <div className="media-picker-section">
@@ -214,13 +258,13 @@ export function ArticleMediaPicker({
             multiple
             className="visually-hidden"
             onChange={handleFilesSelected}
-            disabled={uploading || Boolean(preparing)}
+            disabled={uploading}
           />
           <span className={styles.dropIcon} aria-hidden="true">↑</span>
           <span className={styles.dropTitle}>{uploading ? "Processando fotos…" : "Arraste as fotos aqui"}</span>
-          <span className={styles.dropSubtitle}>ou toque para selecionar no celular · recorte antes de enviar</span>
+          <span className={styles.dropSubtitle}>ou toque para selecionar · envio em lote, sem edição obrigatória</span>
           <span className={styles.selectButton}>{uploading ? "Aguarde…" : "Selecionar fotos"}</span>
-          <span className={styles.formatHint}>JPEG, PNG, WebP, AVIF ou GIF · até 8 MB por arquivo · recorte livre, 1:1, 4:3, 16:9, 3:4 e 9:16</span>
+          <span className={styles.formatHint}>JPEG, PNG, WebP, AVIF ou GIF · até 8 MB por arquivo · ajuste opcional depois do envio</span>
         </label>
         {lastUploadNotice ? <p className={styles.lastUploadNotice}>{lastUploadNotice}</p> : null}
       </div>
@@ -304,7 +348,23 @@ export function ArticleMediaPicker({
       ) : null}
 
       <div className="media-picker-section">
-        <p className="field-label">Imagens da matéria ({totalPhotos})</p>
+        <div className={styles.mediaListHeading}>
+          <p className="field-label">Imagens da matéria ({totalPhotos})</p>
+          <button className={styles.helpButton} type="button"
+            aria-label="Explicar ícones das fotos" aria-expanded={showActionHelp}
+            onClick={() => setShowActionHelp((value) => !value)} title="O que fazem os ícones?">
+            <MediaActionIcon kind="help" />
+          </button>
+        </div>
+        {showActionHelp ? (
+          <p className={styles.actionLegend} role="status">
+            <MediaActionIcon kind="view" /> Visualizar
+            <MediaActionIcon kind="edit" /> Ajustar / recortar
+            <MediaActionIcon kind="remove" /> Retirar da matéria
+          </p>
+        ) : null}
+        {editLoading ? <p className="helper-text" role="status">Abrindo imagem para ajuste…</p> : null}
+        {editError ? <p className="form-error" role="alert">{editError}</p> : null}
         {orderedMedia.length === 0 ? (
           <p className="helper-text">Nenhuma imagem vinculada a esta matéria.</p>
         ) : (
@@ -376,23 +436,22 @@ export function ArticleMediaPicker({
                   />
 
                   <div className="article-media-row-actions">
-                    <button
-                      type="button"
-                      className="article-media-view"
-                      onClick={() =>
-                        setViewerTarget({ role: item.role, order: item.order, mediaAssetId: item.mediaAssetId })
-                      }
-                      aria-label={`Ver ${asset.reference} em tamanho grande`}
-                      title="Ver em tamanho grande"
-                    >
-                      👁
+                    <button type="button" className="article-media-view" disabled={editLoading || uploading}
+                      onClick={() => setViewerTarget({ role: item.role, order: item.order, mediaAssetId: item.mediaAssetId })}
+                      aria-label={`Visualizar ${asset.reference}`} title="Visualizar imagem">
+                      <MediaActionIcon kind="view" />
                     </button>
-                    <button
-                      type="button"
-                      className="media-remove-button article-media-remove"
+                    <button type="button" className="article-media-view article-media-crop"
+                      disabled={editLoading || uploading}
+                      onClick={() => void startEdit(item, asset)}
+                      aria-label={`Ajustar ou recortar ${asset.reference}`} title="Ajustar e recortar imagem">
+                      <MediaActionIcon kind="edit" />
+                    </button>
+                    <button type="button" className="article-media-view article-media-remove"
+                      disabled={editLoading || uploading}
                       onClick={() => (isCover ? onRemoveCover() : onRemoveFromGallery(item.mediaAssetId))}
-                    >
-                      Remover
+                      aria-label={`Remover ${asset.reference} desta matéria`} title="Remover da matéria">
+                      <MediaActionIcon kind="remove" />
                     </button>
                   </div>
                 </li>
