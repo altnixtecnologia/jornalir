@@ -2,6 +2,7 @@ import { useRef, useState, useTransition } from "react";
 import type { ArticleMedia, ArticleMediaRole, MediaAsset } from "@ir/types";
 import { searchMediaLibrary, uploadMediaAssets } from "../../app/sistema/editorial/midias/actions";
 import { ArticleImageEditorModal } from "./ArticleImageEditorModal";
+import { PreUploadImageCrop } from "./PreUploadImageCrop";
 import styles from "./ArticleMediaPicker.module.css";
 
 interface ArticleMediaPickerProps {
@@ -55,6 +56,7 @@ export function ArticleMediaPicker({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploading, startUpload] = useTransition();
   const [dragActive, setDragActive] = useState(false);
+  const [preparing, setPreparing] = useState<{ files: File[]; ready: File[]; index: number } | null>(null);
   const [draggedMediaId, setDraggedMediaId] = useState<string | null>(null);
   const [lastUploadNotice, setLastUploadNotice] = useState<string | null>(null);
   const [uploadDialog, setUploadDialog] = useState<{
@@ -146,21 +148,47 @@ export function ArticleMediaPicker({
     });
   }
 
+  function startPreparing(files: File[]): void {
+    if (files.length === 0 || preparing || uploading) return;
+    setLastUploadNotice(null);
+    setPreparing({ files, ready: [], index: 0 });
+  }
+
+  function acceptPrepared(file: File): void {
+    if (!preparing || uploading) return;
+    const ready = [...preparing.ready, file];
+    if (preparing.index + 1 >= preparing.files.length) {
+      setPreparing(null);
+      uploadFiles(ready);
+    } else setPreparing({ ...preparing, ready, index: preparing.index + 1 });
+  }
+
   function handleFilesSelected(event: React.ChangeEvent<HTMLInputElement>): void {
     const files = Array.from(event.target.files ?? []);
     event.target.value = "";
-    uploadFiles(files);
+    startPreparing(files);
   }
 
   function handleDrop(event: React.DragEvent<HTMLLabelElement>): void {
     event.preventDefault();
     setDragActive(false);
     if (uploading) return;
-    uploadFiles(Array.from(event.dataTransfer.files));
+    startPreparing(Array.from(event.dataTransfer.files));
   }
 
   return (
     <div className="media-picker">
+      {preparing ? (
+        <PreUploadImageCrop
+          key={preparing.index}
+          file={preparing.files[preparing.index]}
+          index={preparing.index}
+          total={preparing.files.length}
+          onCrop={acceptPrepared}
+          onOriginal={() => acceptPrepared(preparing.files[preparing.index])}
+          onCancel={() => setPreparing(null)}
+        />
+      ) : null}
       <div className="media-picker-section">
         <p className="field-label">Adicionar fotos</p>
         <label
@@ -186,13 +214,13 @@ export function ArticleMediaPicker({
             multiple
             className="visually-hidden"
             onChange={handleFilesSelected}
-            disabled={uploading}
+            disabled={uploading || Boolean(preparing)}
           />
           <span className={styles.dropIcon} aria-hidden="true">↑</span>
           <span className={styles.dropTitle}>{uploading ? "Processando fotos…" : "Arraste as fotos aqui"}</span>
-          <span className={styles.dropSubtitle}>ou clique para selecionar no computador</span>
+          <span className={styles.dropSubtitle}>ou toque para selecionar no celular · recorte antes de enviar</span>
           <span className={styles.selectButton}>{uploading ? "Aguarde…" : "Selecionar fotos"}</span>
-          <span className={styles.formatHint}>JPEG, PNG, WebP, AVIF ou GIF · até 8 MB por arquivo</span>
+          <span className={styles.formatHint}>JPEG, PNG, WebP, AVIF ou GIF · até 8 MB por arquivo · recorte livre, 1:1, 4:3, 16:9, 3:4 e 9:16</span>
         </label>
         {lastUploadNotice ? <p className={styles.lastUploadNotice}>{lastUploadNotice}</p> : null}
       </div>
