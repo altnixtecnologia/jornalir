@@ -29,6 +29,10 @@ export function PreUploadImageCrop({ file, index, total, onCrop, onOriginal, onC
   const viewRef = useRef<HTMLDivElement>(null);
   const fingers = useRef(new Map<number, Pt>());
   const initialGesture = useRef<{ distance: number; zoom: number; origin: Pt } | null>(null);
+  const onCancelRef = useRef(onCancel);
+  const busyRef = useRef(busy);
+  onCancelRef.current = onCancel;
+  busyRef.current = busy;
 
   useEffect(() => {
     const url = URL.createObjectURL(file);
@@ -53,6 +57,46 @@ export function PreUploadImageCrop({ file, index, total, onCrop, onOriginal, onC
     document.body.style.overflow = "hidden";
     return () => { document.body.style.overflow = old; };
   }, []);
+
+  // Cria uma entrada temporária no histórico para o Voltar do Android:
+  // a primeira ação Voltar fecha somente o editor, preservando a matéria
+  // e seu rascunho. A entrada sai também ao fechar por botão ou salvar.
+  useEffect(() => {
+    if (mode !== "after-upload") return;
+    const marker = "ir-crop-" + Date.now() + "-" + Math.random().toString(36).slice(2);
+    const previous = window.history.state as Record<string, unknown> | null;
+    let pushed = false;
+    try {
+      window.history.pushState({ ...(previous || {}), __ir_crop_modal: marker }, "", window.location.href);
+      pushed = true;
+    } catch {
+      // Se um WebView não permitir pushState, o botão Fechar continua disponível.
+    }
+    function handleBack(): void {
+      if (!pushed) return;
+      if (busyRef.current) {
+        // Salvar em andamento: não abandonar a imagem na metade do envio.
+        window.history.pushState({ ...(window.history.state || {}), __ir_crop_modal: marker }, "", window.location.href);
+        return;
+      }
+      onCancelRef.current();
+    }
+    function handleEscape(event: KeyboardEvent): void {
+      if (event.key === "Escape" && !busyRef.current) {
+        event.preventDefault();
+        onCancelRef.current();
+      }
+    }
+    window.addEventListener("popstate", handleBack);
+    window.addEventListener("keydown", handleEscape);
+    return () => {
+      window.removeEventListener("popstate", handleBack);
+      window.removeEventListener("keydown", handleEscape);
+      if (pushed && window.history.state?.__ir_crop_modal === marker) {
+        window.history.back();
+      }
+    };
+  }, [mode]);
 
   const fit = size ? Math.min(viewport.x / size.x, viewport.y / size.y) : 1;
   const fittedW = (size?.x || viewport.x) * fit;
