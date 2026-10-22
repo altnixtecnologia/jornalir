@@ -5,6 +5,7 @@ import type { ContractTemplate, ContractTemplateVariable } from "@ir/types";
 import { ContractTemplateNotFoundError, ContractTemplateValidationError } from "@ir/core";
 import { getContractTemplateService } from "../../../../composition/financeiro";
 import { createSupabaseServerClient } from "../../../../lib/supabase/server";
+import { checkFinanceAction } from "../../../../lib/permissions/checkFinanceAction";
 
 const LIST_PATH = "/sistema/financeiro/modelos-contrato";
 type Result<T = never> = { error: string } | ({ ok: true } & T);
@@ -52,6 +53,8 @@ export interface ContractTemplateFormInput {
 }
 
 export async function createContractTemplateAction(input: ContractTemplateFormInput): Promise<Result<{ template: ContractTemplate }>> {
+  const permissionError = await checkFinanceAction("contratos_editar");
+  if (permissionError) return { error: permissionError };
   try {
     await requireFinanceAccess();
     const template = await getContractTemplateService(createSupabaseServerClient()).create(input);
@@ -66,6 +69,8 @@ export async function createContractTemplateAction(input: ContractTemplateFormIn
 export async function createContractTemplateVersionAction(
   groupId: string, input: ContractTemplateFormInput,
 ): Promise<Result<{ template: ContractTemplate }>> {
+  const permissionError = await checkFinanceAction("contratos_editar");
+  if (permissionError) return { error: permissionError };
   try {
     await requireFinanceAccess();
     const template = await getContractTemplateService(createSupabaseServerClient()).createNewVersion(groupId, input);
@@ -78,6 +83,8 @@ export async function createContractTemplateVersionAction(
 
 /** "Duplicar" — cria um modelo (grupo) independente, nunca uma versão do original. */
 export async function duplicateContractTemplateAction(sourceId: string, titleOverride?: string): Promise<Result<{ template: ContractTemplate }>> {
+  const permissionError = await checkFinanceAction("contratos_editar");
+  if (permissionError) return { error: permissionError };
   try {
     await requireFinanceAccess();
     const template = await getContractTemplateService(createSupabaseServerClient()).duplicate(sourceId, titleOverride);
@@ -89,6 +96,8 @@ export async function duplicateContractTemplateAction(sourceId: string, titleOve
 }
 
 export async function setContractTemplateActiveAction(id: string, active: boolean): Promise<Result<{ template: ContractTemplate }>> {
+  const permissionError = await checkFinanceAction("contratos_editar");
+  if (permissionError) return { error: permissionError };
   try {
     await requireFinanceAccess();
     const template = await getContractTemplateService(createSupabaseServerClient()).setActive(id, active);
