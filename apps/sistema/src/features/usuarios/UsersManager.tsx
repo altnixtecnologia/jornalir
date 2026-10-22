@@ -4,13 +4,15 @@ import { useEffect, useMemo, useState } from "react";
 import { createSupabaseBrowserClient } from "../../lib/supabase/browser";
 import { useAuth, type AuthRole } from "../../lib/auth/AuthProvider";
 import { ROLE_LABELS } from "../../lib/auth/accountDisplay";
-import { inviteUser, sendPasswordResetForUser } from "../../app/sistema/usuarios/actions";
+import { inviteUser, listUserInvitationStatuses, sendPasswordResetForUser } from "../../app/sistema/usuarios/actions";
 import { ConfirmDialog } from "../../components/admin/ConfirmDialog";
-import { STAFF_MODULES, type StaffModuleKey } from "../../lib/permissions/staffPermissionsCatalog";
+import { STAFF_FINANCE_ACTIONS, STAFF_MODULES, type StaffFinanceActionKey, type StaffModuleKey } from "../../lib/permissions/staffPermissionsCatalog";
 
 interface AgendaManagerGrantRow { profile_id: string; can_manage: boolean; }
 interface AuditViewerGrantRow { profile_id: string; can_view: boolean; }
 interface VisibilityRow { profile_id: string; module_key: StaffModuleKey; enabled: boolean; }
+interface FinanceGrantRow { profile_id: string; action_key: StaffFinanceActionKey; allowed: boolean; }
+interface InvitationStatus { id: string; pending: boolean; }
 
 interface UserRow {
   id: string;
@@ -39,6 +41,10 @@ export function UsersManager(): JSX.Element {
   const [agendaManagerGrants, setAgendaManagerGrants] = useState<AgendaManagerGrantRow[]>([]);
   const [auditViewerGrants, setAuditViewerGrants] = useState<AuditViewerGrantRow[]>([]);
   const [moduleVisibility, setModuleVisibility] = useState<VisibilityRow[]>([]);
+  const [financeGrants, setFinanceGrants] = useState<FinanceGrantRow[]>([]);
+  const [invitationStatuses, setInvitationStatuses] = useState<InvitationStatus[] | null>(null);
+  const [invitationWarning, setInvitationWarning] = useState("");
+  const [editingUserId, setEditingUserId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
@@ -50,21 +56,31 @@ export function UsersManager(): JSX.Element {
   const isAdmin = profile?.role === "admin";
 
   async function reload(): Promise<void> {
-    const [profilesResult, visibilityResult, agendaManagersResult, auditViewersResult] = await Promise.all([
+    const [profilesResult, visibilityResult, agendaManagersResult, auditViewersResult, financeResult, invitationsResult] = await Promise.all([
       client.from("profiles").select("id, name, role, active, created_at").order("created_at", { ascending: true }),
       client.from("staff_module_visibility").select("profile_id,module_key,enabled"),
       client.from("agenda_manager_grants").select("profile_id,can_manage"),
       client.from("audit_viewer_grants").select("profile_id,can_view"),
+      client.from("staff_finance_action_permissions").select("profile_id,action_key,allowed"),
+      listUserInvitationStatuses(),
     ]);
-    if (profilesResult.error || visibilityResult.error || agendaManagersResult.error || auditViewersResult.error) {
+    if (profilesResult.error || visibilityResult.error || agendaManagersResult.error || auditViewersResult.error || financeResult.error) {
       setError(profilesResult.error?.message ?? visibilityResult.error?.message
-        ?? agendaManagersResult.error?.message ?? auditViewersResult.error?.message ?? "Não foi possível carregar os usuários.");
+        ?? agendaManagersResult.error?.message ?? auditViewersResult.error?.message ?? financeResult.error?.message ?? "Não foi possível carregar os usuários.");
       return;
     }
     setUsers((profilesResult.data ?? []) as UserRow[]);
     setModuleVisibility((visibilityResult.data ?? []) as VisibilityRow[]);
     setAgendaManagerGrants((agendaManagersResult.data ?? []) as AgendaManagerGrantRow[]);
     setAuditViewerGrants((auditViewersResult.data ?? []) as AuditViewerGrantRow[]);
+    setFinanceGrants((financeResult.data ?? []) as FinanceGrantRow[]);
+    if ("ok" in invitationsResult) {
+      setInvitationStatuses(invitationsResult.statuses);
+      setInvitationWarning("");
+    } else {
+      setInvitationStatuses(null);
+      setInvitationWarning(invitationsResult.error);
+    }
   }
 
   useEffect(() => {
@@ -185,6 +201,35 @@ export function UsersManager(): JSX.Element {
     }
     setMessage((enabled ? "Auditoria liberada para " : "Auditoria bloqueada para ") + target.name + ".");
     await reload();
+  }
+
+  function invitationPending(userId: string): boolean {
+    return invitationStatuses?.find((entry) => entry.id === userId)?.pending === true;
+  }
+
+  function userStatus(user: UserRow): { label: string; style: string } {
+    if (!user.active) return { label: "Inativo", style: "archived" };
+    if (!invitationStatuses) return { label: "A verificar", style: "scheduled" };
+    if (invitationPending(user.id)) return { label: "Convite pendente", style: "adjusting" };
+    return { label: "Ativo", style: "published" };
+  }
+
+  function financeAllowed(userId: string, key: StaffFinanceActionKey): boolean {
+    return financeGrants.some((item) => item.profile_id === userId && item.action_key === key && item.allowed);
+  }
+
+  async function saveFinancePermission(target: UserRow, key: StaffFinanceActionKey, allowed: boolean): Promise<void> {
+    if (target.role !== "operator" || !canManage(target) || !isModuleEnabled(target.id, "financeiro")) return;
+    setPending(true);
+    setError(null);
+    setMessage(null);
+    const { error: saveError } = await client.from("staff_finance_action_permissions").upsert({
+      profile_id: target.id, action_key: key, allowed, updated_at: new Date().toISOString(),
+    }, { onConflict: "profile_id,action_key" });
+    if (saveError) setError("Erro ao salvar autorização financeira: " + saveError.message);
+    else setMessage("Permissão atualizada para " + target.name + ".");
+    await reload();
+    setPending(false);
   }
 
   function isModuleEnabled(userId: string, key: StaffModuleKey): boolean {
