@@ -12,6 +12,14 @@ on:
       - "package.json"
       - "package-lock.json"
       - ".github/workflows/validate-system.yml"
+  pull_request:
+    branches:
+      - feature/abrangencias-geo-notificacoes-20261021
+    paths:
+      - "apps/sistema/**"
+      - "packages/**"
+      - "supabase/migrations/**"
+      - ".github/workflows/validate-system.yml"
   workflow_dispatch:
 
 permissions:
@@ -45,6 +53,9 @@ jobs:
 
       - name: Typecheck system
         run: npm run typecheck --workspace @ir/sistema
+
+      - name: Testar itens e valores da venda comercial
+        run: npx tsx --conditions=react-server --test packages/core/test/commercial-sale-snapshot.test.ts
 
       - name: Signed contract PDF smoke test
         run: node apps/sistema/scripts/signatures-smoke.cjs
