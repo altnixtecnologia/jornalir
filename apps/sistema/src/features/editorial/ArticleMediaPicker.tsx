@@ -566,9 +566,9 @@ export function ArticleMediaPicker({
             const isInGallery = gallery.some((item) => item.mediaAssetId === asset.id);
             return (
               <div key={asset.id} className="library-item">
-                <img src={asset.url} alt={asset.altText ?? asset.reference} />
-                <span className="materia-title">{asset.name}</span>
-                <span className="materia-reference">{asset.reference}</span>
+                <img src={asset.url} alt={asset.altText ?? asset.name ?? asset.reference}
+                  title={asset.name || asset.reference} />
+                <span className="materia-reference" title={asset.reference}>{asset.reference}</span>
                 <div className="library-item-actions">
                   <button
                     type="button"
