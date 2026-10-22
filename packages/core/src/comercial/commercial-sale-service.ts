@@ -1,4 +1,4 @@
-import { canTransitionCommercialSaleStatus, type CommercialCondition, type CommercialSale, type CommercialSaleStatus, type CommercialSaleItemSnapshot } from "@ir/types";
+import { canTransitionCommercialSaleStatus, computeProposalItemTotal, type CommercialCondition, type CommercialSale, type CommercialSaleStatus, type CommercialSaleItemSnapshot } from "@ir/types";
 import type {
   CommercialSaleChanges,
   CommercialSaleListQuery,
@@ -114,8 +114,10 @@ export class CommercialSaleService {
         !item.description.trim() || !item.productName.trim() ||
         !Number.isFinite(item.quantity) || item.quantity <= 0 ||
         !Number.isFinite(item.unitPrice) || item.unitPrice < 0 ||
+        !item.sourceProposalItemId ||
         !Number.isFinite(item.discountAmount) || item.discountAmount < 0 ||
-        !Number.isFinite(item.totalAmount) || item.totalAmount < 0
+        !Number.isFinite(item.totalAmount) || item.totalAmount < 0 ||
+        Math.abs(computeProposalItemTotal(item) - item.totalAmount) > 0.009
       )) throw new CommercialSaleValidationError("A proposta possui itens inválidos.");
       const total = Math.round(record.itemsSnapshot.reduce((sum, item) => sum + item.totalAmount, 0) * 100) / 100;
       if (Math.abs(total - record.amount) > 0.009) {
