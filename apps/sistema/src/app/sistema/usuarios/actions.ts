@@ -4,6 +4,9 @@ import { createSupabaseAdminClient, hasServiceRoleKey } from "../../../lib/supab
 import { createSupabaseServerClient } from "../../../lib/supabase/server";
 import { recordAuditEventSupabase } from "../../../providers/supabase/auditEvents.supabase";
 
+const SISTEMA_BASE_URL = process.env.NEXT_PUBLIC_SISTEMA_URL ??
+  (process.env.NODE_ENV === "production" ? "https://controle.altnix.com.br" : "http://localhost:3001");
+
 export type InviteRole = "operator" | "admin";
 type ActionResult = { ok: true } | { error: string };
 
@@ -50,7 +53,7 @@ export async function inviteUser(email: string, role: InviteRole): Promise<Actio
 
   const admin = createSupabaseAdminClient();
   const { data: invited, error: inviteError } = await admin.auth.admin.inviteUserByEmail(trimmedEmail, {
-    redirectTo: `${process.env.NEXT_PUBLIC_SISTEMA_URL ?? "http://localhost:3001"}/definir-senha`,
+    redirectTo: `${SISTEMA_BASE_URL}/definir-senha`,
   });
   if (inviteError || !invited.user) {
     return { error: "Não foi possível enviar o convite. Confira o e-mail e tente novamente." };
@@ -119,7 +122,7 @@ export async function sendPasswordResetForUser(profileId: string): Promise<Actio
 
   const redirectTo = new URL(
     "/definir-senha?recovery=1",
-    process.env.NEXT_PUBLIC_SISTEMA_URL ?? "http://localhost:3001",
+    SISTEMA_BASE_URL,
   ).toString();
   const { error: resetError } = await admin.auth.resetPasswordForEmail(email, { redirectTo });
   if (resetError) return { error: "Não foi possível enviar o link. Confira a configuração de e-mail e tente novamente." };
