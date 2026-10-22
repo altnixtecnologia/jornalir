@@ -60,6 +60,35 @@ export function ArticleImageEditorModal({ asset, onClose, onSaved }: ArticleImag
   const imgRef = useRef<HTMLImageElement>(null);
   const dragState = useRef<{ startX: number; startY: number; startPan: { x: number; y: number } } | null>(null);
   const resizeState = useRef<{ startX: number; startY: number; startSize: { w: number; h: number } } | null>(null);
+  const onCloseRef = useRef(onClose);
+  const savingRef = useRef(saving);
+  onCloseRef.current = onClose;
+  savingRef.current = saving;
+
+  // Android/WebView: a primeira ação Voltar deve fechar a visualização,
+  // jamais sair da página da matéria deixando dados não salvos para trás.
+  useEffect(() => {
+    const marker = "ir-image-viewer-" + Date.now() + "-" + Math.random().toString(36).slice(2);
+    let pushed = false;
+    try {
+      window.history.pushState({ ...(window.history.state || {}), __ir_image_viewer: marker }, "", window.location.href);
+      pushed = true;
+    } catch { /* botão Fechar permanece disponível em navegadores restritos */ }
+    function handleBack(): void {
+      if (!pushed) return;
+      if (savingRef.current) {
+        window.history.pushState({ ...(window.history.state || {}), __ir_image_viewer: marker }, "", window.location.href);
+        return;
+      }
+      onCloseRef.current();
+    }
+    window.addEventListener("popstate", handleBack);
+    return () => {
+      window.removeEventListener("popstate", handleBack);
+      if (pushed && window.history.state?.__ir_image_viewer === marker) window.history.back();
+    };
+  }, []);
+
 
   // Trava o scroll da página por trás enquanto o modal está aberto.
   useEffect(() => {
