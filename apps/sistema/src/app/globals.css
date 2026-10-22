@@ -6089,3 +6089,20 @@ button.secondary-link {
 @media(max-width:330px){
  .library-grid{grid-template-columns:repeat(1,minmax(0,1fr))}
 }
+
+/* Destino editorial não é bloqueado: ações vão aos formulários corretos. */
+.destino-edit-actions{
+ display:flex;flex-direction:column;align-items:stretch;gap:7px;
+ border-top:1px solid var(--line);margin-top:12px;padding-top:10px
+}
+.destino-edit-actions button{
+ display:flex;align-items:center;justify-content:center;
+ border:1px solid var(--line);background:#fff;border-radius:8px;
+ min-height:40px;padding:8px 10px;line-height:1.3;
+ font-size:11px;font-weight:750;color:var(--brand);
+ cursor:pointer
+}
+.destino-edit-actions button:focus-visible,
+.destino-edit-actions button:hover{
+ background:#f4f4fa;outline:2px solid var(--brand);outline-offset:1px
+}
