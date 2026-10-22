@@ -293,3 +293,30 @@
  .helpButton{width:44px;height:44px;flex-basis:44px}
  .actionLegend{font-size:12px}
 }
+
+/* Ajuda sobre ícones: balão sobreposto, sem empurrar fotos para baixo. */
+.helpAnchor{position:relative;flex:0 0 auto}
+.helpPopover{
+ position:absolute;z-index:60;right:0;top:calc(100% + 9px);
+ width:max-content;min-width:215px;max-width:min(295px,calc(100vw - 26px));
+ padding:11px 13px;border:1px solid #d5d7e5;border-radius:11px;
+ background:#fff;color:var(--ink);box-shadow:0 12px 34px #181b3c30;
+ text-align:left
+}
+.helpPopover::before{
+ content:"";position:absolute;top:-7px;right:14px;width:12px;height:12px;
+ background:#fff;transform:rotate(45deg);border-top:1px solid #d5d7e5;
+ border-left:1px solid #d5d7e5
+}
+.helpPopoverHead{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:8px}
+.helpPopoverHead strong{font-size:12px;font-weight:800}
+.helpPopoverHead button{
+ display:grid;place-items:center;width:28px;height:28px;border:0;background:transparent;
+ border-radius:7px;font-size:19px;color:var(--muted)
+}
+.helpPopoverRow{
+ display:flex;align-items:center;gap:9px;min-height:34px;font-size:12px;
+ border-top:1px solid #f1f1f5
+}
+.helpPopoverRow svg{color:var(--brand);flex:0 0 19px}
+.helpPopoverRow:last-child svg{color:#a12f36}
