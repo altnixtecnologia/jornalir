@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, useTransition, type CSSProperties } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition, type CSSProperties } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
@@ -16,6 +16,9 @@ import {
 } from "./actions";
 import type { AgendaEventItem, AgendaWorkspaceData, WeeklyPautaItem } from "./agendaTypes";
 import { createSupabaseBrowserClient } from "../../lib/supabase/browser";
+
+// Alterar aqui se a equipe precisar de sincronizacao mais rapida/lenta.
+const AGENDA_MIN_SYNC_INTERVAL_MS = 60_000;
 
 interface AgendaWorkspaceProps {
   data: AgendaWorkspaceData;
@@ -182,6 +185,7 @@ function PautaDateTimeField({
 export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspaceProps): JSX.Element {
   const router = useRouter();
   const realtimeClient = useMemo(() => createSupabaseBrowserClient(), []);
+  const lastSyncAtRef = useRef(Date.now());
   const [selectedDate, setSelectedDate] = useState(data.focusDate);
   const [localClock, setLocalClock] = useState(() => nowInAgendaTimezone());
   const [realtimeState, setRealtimeState] = useState<"connecting" | "online" | "offline">("connecting");
@@ -200,33 +204,67 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
     return () => { window.clearInterval(timer); window.removeEventListener("focus", refreshClock); };
   }, []);
 
-  // Atualizacao em tempo real + reconciliacao ao voltar ao navegador.
-  // A regra de acesso continua sendo a RLS do Supabase, nao o canal.
+  // Recebe avisos em tempo real, mas agrupa as consultas da Agenda em ate 1 por minuto.
+  // Sem alteracoes, nao ha polling; a RLS do Supabase continua protegendo os dados.
   useEffect(() => {
     let pendingRefresh: ReturnType<typeof setTimeout> | undefined;
+    let subscribedOnce = false;
+    const isEditing = () =>
+      Boolean(document.querySelector(".agenda-inline-edit[open],.agenda-create-panel[open],.pauta-create-panel[open]"));
+
     const refresh = () => {
-      // Nao descartar campos ainda nao salvos quando colegas atualizam o banco.
-      if (document.querySelector(".agenda-inline-edit[open],.agenda-create-panel[open],.pauta-create-panel[open]")) {
+      pendingRefresh = undefined;
+      if (document.visibilityState !== "visible") return;
+      if (isEditing()) {
+        // Preservar os dados que o usuario ainda nao salvou.
         setRemoteChanges(true);
         return;
       }
-      if (pendingRefresh) clearTimeout(pendingRefresh);
-      pendingRefresh = setTimeout(() => router.refresh(), 450);
+      // Uma acao local pode ter recarregado a pagina depois que o timer foi agendado.
+      const remaining = AGENDA_MIN_SYNC_INTERVAL_MS - (Date.now() - lastSyncAtRef.current);
+      if (remaining > 0) {
+        pendingRefresh = setTimeout(refresh, remaining);
+        return;
+      }
+      lastSyncAtRef.current = Date.now();
+      router.refresh();
+    };
+    const scheduleRefresh = () => {
+      if (document.visibilityState !== "visible") return;
+      if (isEditing()) {
+        setRemoteChanges(true);
+        return;
+      }
+      if (pendingRefresh !== undefined) return;
+      const delay = Math.max(0, AGENDA_MIN_SYNC_INTERVAL_MS - (Date.now() - lastSyncAtRef.current));
+      pendingRefresh = setTimeout(refresh, delay);
     };
     const channel = realtimeClient.channel("agenda-equipe-" + data.currentUserId)
-      .on("postgres_changes", { event: "*", schema: "public", table: "agenda_events" }, refresh)
-      .on("postgres_changes", { event: "*", schema: "public", table: "agenda_event_assignees" }, refresh)
-      .on("postgres_changes", { event: "*", schema: "public", table: "weekly_pauta_items" }, refresh)
+      .on("postgres_changes", { event: "*", schema: "public", table: "agenda_events" }, scheduleRefresh)
+      .on("postgres_changes", { event: "*", schema: "public", table: "agenda_event_assignees" }, scheduleRefresh)
+      .on("postgres_changes", { event: "*", schema: "public", table: "weekly_pauta_items" }, scheduleRefresh)
       .subscribe((status) => {
-        if (status === "SUBSCRIBED") setRealtimeState("online");
+        if (status === "SUBSCRIBED") {
+          setRealtimeState("online");
+          // Reconciliar alteracoes perdidas durante uma desconexao, sem polling continuo.
+          if (subscribedOnce) scheduleRefresh();
+          subscribedOnce = true;
+        }
         if (status === "CHANNEL_ERROR" || status === "TIMED_OUT" || status === "CLOSED") setRealtimeState("offline");
       });
-    const onFocus = () => refresh();
-    const onVisibility = () => { if (document.visibilityState === "visible") refresh(); };
+    // Ao voltar a aba, verificar novamente com o mesmo limite de 1 minuto.
+    const onFocus = () => scheduleRefresh();
+    const onVisibility = () => {
+      if (document.visibilityState === "visible") scheduleRefresh();
+      else if (pendingRefresh !== undefined) {
+        clearTimeout(pendingRefresh);
+        pendingRefresh = undefined;
+      }
+    };
     window.addEventListener("focus", onFocus);
     document.addEventListener("visibilitychange", onVisibility);
     return () => {
-      if (pendingRefresh) clearTimeout(pendingRefresh);
+      if (pendingRefresh !== undefined) clearTimeout(pendingRefresh);
       window.removeEventListener("focus", onFocus);
       document.removeEventListener("visibilitychange", onVisibility);
       void realtimeClient.removeChannel(channel);
@@ -333,6 +371,7 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
       reset?.();
       setMessage(success);
       setRemoteChanges(false);
+      lastSyncAtRef.current = Date.now();
       router.refresh();
     });
   }
@@ -411,8 +450,8 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
         <div><span>Minha fila</span><strong>{ownPending}</strong><small>pendências</small></div>
         <div className="agenda-quick-sync" title="Atualizacao automatica e sincronizacao ao retomar a aba">
           <span className={"agenda-sync-dot is-" + realtimeState} />
-          <strong>{realtimeState === "online" ? "Ao vivo" : realtimeState === "connecting" ? "Conectando" : "Sem conexão em tempo real"}</strong>
-          <small>{realtimeState === "online" ? "Atualização em tempo real ativa" : "Atualiza ao reconectar"}</small>
+          <strong>{realtimeState === "online" ? "Sincronizado" : realtimeState === "connecting" ? "Conectando" : "Sem conexão em tempo real"}</strong>
+          <small>{realtimeState === "online" ? "Atualiza no máximo 1 vez por minuto" : "Verifica ao reconectar ou voltar à aba"}</small>
         </div>
       </div>
       {overdueEvents.length || overduePauta.length ? (
@@ -456,8 +495,8 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
 
       {remoteChanges ? (
         <div className="agenda-remote-notice" role="status">
-          A equipe atualizou a agenda. Salve ou feche o formulário antes de atualizar.
-          <button type="button" onClick={() => { setRemoteChanges(false); router.refresh(); }}>Atualizar agora</button>
+          A sincronização automática foi adiada para preservar suas alterações. Salve ou feche o formulário antes de atualizar.
+          <button type="button" onClick={() => { setRemoteChanges(false); lastSyncAtRef.current = Date.now(); router.refresh(); }}>Atualizar agora</button>
         </div>
       ) : null}
       {message ? <div className="agenda-feedback" role="status">{message}</div> : null}
