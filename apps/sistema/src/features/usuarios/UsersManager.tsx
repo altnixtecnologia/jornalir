@@ -306,8 +306,8 @@ export function UsersManager(): JSX.Element {
       {message ? <p className="helper-text">{message}</p> : null}
 
       {invitationWarning ? <p className="helper-text" role="status">A situação dos convites não pôde ser conferida: {invitationWarning}</p> : null}
-      <div className="materias-table-wrap">
-        <table className="materias-table">
+      <div className="materias-table-wrap usuarios-table-wrap">
+        <table className="materias-table usuarios-table">
           <thead>
             <tr>
               <th>Nome</th>
@@ -322,7 +322,7 @@ export function UsersManager(): JSX.Element {
               const manageable = canManage(user);
               return (
                 <tr key={user.id}>
-                  <td className="materia-title">{user.name}</td>
+                  <td><span className="usuarios-cell-name">{user.name}</span></td>
                   <td>
                     {user.role === "owner" ? (
                       <span className="status-pill status-pill--published">{ROLE_LABELS.owner}</span>
@@ -340,7 +340,7 @@ export function UsersManager(): JSX.Element {
                     {user.role === "owner" ? (
                       <span className="helper-text">Sem ações — proprietário</span>
                     ) : manageable ? (
-                      <div className="candidate-row-actions">
+                      <div className="candidate-row-actions usuarios-row-actions">
                         {isOwner ? (
                           <button
                             type="button"
