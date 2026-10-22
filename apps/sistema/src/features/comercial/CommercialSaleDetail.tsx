@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import type { CommercialCondition, CommercialProduct, CommercialProposal, CommercialSale, CommercialSaleFinancialStatus, CommercialSaleStatus, NfseDraft } from "@ir/types";
 import {
+  COMMERCIAL_CHANNEL_LABELS,
   COMMERCIAL_CONDITIONS,
   COMMERCIAL_CONDITION_LABELS,
   COMMERCIAL_SALE_FINANCIAL_STATUS_LABELS,
@@ -76,6 +77,7 @@ export function CommercialSaleDetail({
   const [generateResults, setGenerateResults] = useState<GenerateFinanceiroResult[] | null>(null);
 
   const financeiroGenerated = receivables.some((r) => r.status !== "cancelled");
+  const snapshotLocked = Boolean(sale.itemsSnapshot?.length);
   const remainingInstallments = sale.installmentsCount - receivables.filter((r) => r.status !== "cancelled").length;
   const nextStatuses = COMMERCIAL_SALE_STATUS_TRANSITIONS[sale.status];
 
@@ -216,7 +218,7 @@ export function CommercialSaleDetail({
           <div className="form-grid">
             <label className="form-field">
               <span className="field-label">Produto/canal (catálogo) <span className="field-optional">(opcional)</span></span>
-              <select value={input.productId} onChange={(event) => set("productId", event.target.value)} disabled={pending}>
+              <select value={input.productId} onChange={(event) => set("productId", event.target.value)} disabled={pending || snapshotLocked}>
                 <option value="">— Nenhum —</option>
                 {products.map((product) => (
                   <option key={product.id} value={product.id}>
@@ -235,25 +237,25 @@ export function CommercialSaleDetail({
             </label>
             <label className="form-field">
               <span className="field-label">Data inicial</span>
-              <input type="date" value={input.startDate} onChange={(event) => set("startDate", event.target.value)} disabled={pending} />
+              <input type="date" value={input.startDate} onChange={(event) => set("startDate", event.target.value)} disabled={pending || snapshotLocked} />
             </label>
             <label className="form-field">
               <span className="field-label">Data final <span className="field-optional">(opcional)</span></span>
-              <input type="date" value={input.endDate} onChange={(event) => set("endDate", event.target.value)} disabled={pending} />
+              <input type="date" value={input.endDate} onChange={(event) => set("endDate", event.target.value)} disabled={pending || snapshotLocked} />
               {financeiroGenerated ? (
                 <span className="helper-text">Período de veiculação — editar aqui não altera o vencimento dos títulos já gerados.</span>
               ) : null}
             </label>
             <label className="form-field">
               <span className="field-label">Valor{financeiroGenerated ? " (bloqueado — Financeiro já gerado)" : ""}</span>
-              <input type="number" min="0" step="0.01" value={input.amount} onChange={(event) => set("amount", event.target.value)} disabled={pending || financeiroGenerated} />
+              <input type="number" min="0" step="0.01" value={input.amount} onChange={(event) => set("amount", event.target.value)} disabled={pending || financeiroGenerated || snapshotLocked} />
             </label>
             <label className="form-field">
               <span className="field-label">Condição comercial{financeiroGenerated ? " (bloqueado — Financeiro já gerado)" : ""}</span>
               <select
                 value={input.commercialCondition}
                 onChange={(event) => set("commercialCondition", event.target.value as CommercialCondition)}
-                disabled={pending || financeiroGenerated}
+                disabled={pending || financeiroGenerated || snapshotLocked}
               >
                 {COMMERCIAL_CONDITIONS.map((value) => (
                   <option key={value} value={value}>
@@ -270,7 +272,7 @@ export function CommercialSaleDetail({
                   min="1"
                   value={input.installmentsCount}
                   onChange={(event) => set("installmentsCount", event.target.value)}
-                  disabled={pending || financeiroGenerated}
+                  disabled={pending || financeiroGenerated || snapshotLocked}
                 />
               </label>
             ) : null}
@@ -289,6 +291,41 @@ export function CommercialSaleDetail({
           </div>
         )}
       </section>
+
+      {sale.itemsSnapshot?.length ? (
+        <section className="form-section">
+          <h2>Serviços desta contratação</h2>
+          <p className="helper-text">
+            Condições individuais preservadas da proposta original. Alterações posteriores no catálogo
+            não mudam estes valores. As datas de execução de cada serviço deverão ser conferidas
+            antes da emissão de um contrato jurídico.
+          </p>
+          <div className="materias-table-wrap">
+            <table className="materias-table">
+              <thead><tr>
+                <th>Produto / modalidade</th><th>Descrição</th><th>Quantidade</th>
+                <th>Unitário</th><th>Desconto</th><th>Total</th>
+              </tr></thead>
+              <tbody>
+                {[...sale.itemsSnapshot].sort((a, b) => a.sortOrder - b.sortOrder).map((item) => (
+                  <tr key={item.sourceProposalItemId}>
+                    <td><strong>{item.productName}</strong><div className="helper-text">{COMMERCIAL_CHANNEL_LABELS[item.serviceChannel]}</div></td>
+                    <td>{item.description}</td>
+                    <td>{item.quantity}</td>
+                    <td>{formatAmount(item.unitPrice)}</td>
+                    <td>{formatAmount(item.discountAmount)}</td>
+                    <td>{formatAmount(item.totalAmount)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <p className="helper-text">
+            Origem: {proposal ? <Link className="materia-title-link" href={`/sistema/publicidade/propostas/${proposal.id}`}>proposta {proposal.reference}</Link> : "proposta vinculada à venda"}.
+            A geração de contrato e a assinatura ainda serão integradas numa próxima etapa.
+          </p>
+        </section>
+      ) : null}
 
       <section className="form-section">
         <h2>Financeiro vinculado</h2>
