@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, useTransition, type CSSProperties } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition, type CSSProperties } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
@@ -16,6 +16,9 @@ import {
 } from "./actions";
 import type { AgendaEventItem, AgendaWorkspaceData, WeeklyPautaItem } from "./agendaTypes";
 import { createSupabaseBrowserClient } from "../../lib/supabase/browser";
+
+// Alterar aqui se a equipe precisar de sincronizacao mais rapida/lenta.
+const AGENDA_MIN_SYNC_INTERVAL_MS = 60_000;
 
 interface AgendaWorkspaceProps {
   data: AgendaWorkspaceData;
@@ -64,10 +67,33 @@ function personColor(id: string): string {
   return `hsl(${(hash >>> 0) % 360} 62% 38%)`;
 }
 
-function statusLabel(status: string): string {
+function nowInAgendaTimezone(): string {
+  const parts = new Intl.DateTimeFormat("sv-SE", {
+    timeZone: "America/Sao_Paulo",
+    year: "numeric", month: "2-digit", day: "2-digit",
+    hour: "2-digit", minute: "2-digit", hourCycle: "h23",
+  }).formatToParts(new Date());
+  const values = Object.fromEntries(parts.map(({ type, value }) => [type, value]));
+  return values.year + "-" + values.month + "-" + values.day
+    + "T" + values.hour + ":" + values.minute;
+}
+
+function eventOverdue(event: AgendaEventItem, now: string): boolean {
+  if (event.status !== "scheduled") return false;
+  // Eventos sem horário vencem ao terminar o dia.
+  const cutoff = event.endTime || event.startTime || "23:59";
+  return event.eventDate + "T" + cutoff < now;
+}
+
+function pautaOverdue(item: WeeklyPautaItem, now: string): boolean {
+  if (item.status !== "pending" || !item.dueDate) return false;
+  return item.dueDate + "T" + (item.dueTime || "23:59") < now;
+}
+
+function statusLabel(status: string, overdue = false): string {
   if (status === "completed") return "Concluído";
   if (status === "cancelled") return "Cancelado";
-  return "Agendado";
+  return overdue ? "Atrasado" : "Agendado";
 }
 
 function initials(name: string): string {
@@ -156,10 +182,46 @@ function PautaDateTimeField({
   );
 }
 
+// Apenas para o cadastro de compromissos: preserva os seletores nativos
+// de data/hora, com um botao independente para limpar o valor.
+function ClearableScheduleInput({
+  name, label, type, defaultValue, required = false,
+}: {
+  name: "event_date" | "start_time" | "end_time";
+  label: string;
+  type: "date" | "time";
+  defaultValue?: string;
+  required?: boolean;
+}): JSX.Element {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const inputId = "agenda-new-" + name;
+  return (
+    <div className={"agenda-field agenda-schedule-" + (name === "event_date" ? "date" : name === "start_time" ? "start" : "end")}>
+      <label htmlFor={inputId}>{label}</label>
+      <div className="agenda-clear-input">
+        <input ref={inputRef} id={inputId} name={name} type={type} defaultValue={defaultValue} required={required} />
+        <button
+          type="button"
+          className="agenda-clear-input-button"
+          aria-label={"Limpar " + label.toLowerCase()}
+          title={"Limpar " + label.toLowerCase()}
+          onClick={() => {
+            if (!inputRef.current) return;
+            inputRef.current.value = "";
+            inputRef.current.focus();
+          }}
+        >×</button>
+      </div>
+    </div>
+  );
+}
+
 export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspaceProps): JSX.Element {
   const router = useRouter();
   const realtimeClient = useMemo(() => createSupabaseBrowserClient(), []);
+  const lastSyncAtRef = useRef(Date.now());
   const [selectedDate, setSelectedDate] = useState(data.focusDate);
+  const [localClock, setLocalClock] = useState(() => nowInAgendaTimezone());
   const [realtimeState, setRealtimeState] = useState<"connecting" | "online" | "offline">("connecting");
   const [remoteChanges, setRemoteChanges] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
@@ -168,34 +230,75 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
   const [isPending, startTransition] = useTransition();
 
   useEffect(() => setSelectedDate(data.focusDate), [data.focusDate]);
+  // Muda de "Agendado" para "Atrasado" sem exigir F5, inclusive à meia-noite.
+  useEffect(() => {
+    const refreshClock = () => setLocalClock(nowInAgendaTimezone());
+    const timer = window.setInterval(refreshClock, 30_000);
+    window.addEventListener("focus", refreshClock);
+    return () => { window.clearInterval(timer); window.removeEventListener("focus", refreshClock); };
+  }, []);
 
-  // Atualizacao em tempo real + reconciliacao ao voltar ao navegador.
-  // A regra de acesso continua sendo a RLS do Supabase, nao o canal.
+  // Recebe avisos em tempo real, mas agrupa as consultas da Agenda em ate 1 por minuto.
+  // Sem alteracoes, nao ha polling; a RLS do Supabase continua protegendo os dados.
   useEffect(() => {
     let pendingRefresh: ReturnType<typeof setTimeout> | undefined;
+    let subscribedOnce = false;
+    const isEditing = () =>
+      Boolean(document.querySelector(".agenda-inline-edit[open],.agenda-create-panel[open],.pauta-create-panel[open]"));
+
     const refresh = () => {
-      // Nao descartar campos ainda nao salvos quando colegas atualizam o banco.
-      if (document.querySelector(".agenda-inline-edit[open],.agenda-create-panel[open],.pauta-create-panel[open]")) {
+      pendingRefresh = undefined;
+      if (document.visibilityState !== "visible") return;
+      if (isEditing()) {
+        // Preservar os dados que o usuario ainda nao salvou.
         setRemoteChanges(true);
         return;
       }
-      if (pendingRefresh) clearTimeout(pendingRefresh);
-      pendingRefresh = setTimeout(() => router.refresh(), 450);
+      // Uma acao local pode ter recarregado a pagina depois que o timer foi agendado.
+      const remaining = AGENDA_MIN_SYNC_INTERVAL_MS - (Date.now() - lastSyncAtRef.current);
+      if (remaining > 0) {
+        pendingRefresh = setTimeout(refresh, remaining);
+        return;
+      }
+      lastSyncAtRef.current = Date.now();
+      router.refresh();
+    };
+    const scheduleRefresh = () => {
+      if (document.visibilityState !== "visible") return;
+      if (isEditing()) {
+        setRemoteChanges(true);
+        return;
+      }
+      if (pendingRefresh !== undefined) return;
+      const delay = Math.max(0, AGENDA_MIN_SYNC_INTERVAL_MS - (Date.now() - lastSyncAtRef.current));
+      pendingRefresh = setTimeout(refresh, delay);
     };
     const channel = realtimeClient.channel("agenda-equipe-" + data.currentUserId)
-      .on("postgres_changes", { event: "*", schema: "public", table: "agenda_events" }, refresh)
-      .on("postgres_changes", { event: "*", schema: "public", table: "agenda_event_assignees" }, refresh)
-      .on("postgres_changes", { event: "*", schema: "public", table: "weekly_pauta_items" }, refresh)
+      .on("postgres_changes", { event: "*", schema: "public", table: "agenda_events" }, scheduleRefresh)
+      .on("postgres_changes", { event: "*", schema: "public", table: "agenda_event_assignees" }, scheduleRefresh)
+      .on("postgres_changes", { event: "*", schema: "public", table: "weekly_pauta_items" }, scheduleRefresh)
       .subscribe((status) => {
-        if (status === "SUBSCRIBED") setRealtimeState("online");
+        if (status === "SUBSCRIBED") {
+          setRealtimeState("online");
+          // Reconciliar alteracoes perdidas durante uma desconexao, sem polling continuo.
+          if (subscribedOnce) scheduleRefresh();
+          subscribedOnce = true;
+        }
         if (status === "CHANNEL_ERROR" || status === "TIMED_OUT" || status === "CLOSED") setRealtimeState("offline");
       });
-    const onFocus = () => refresh();
-    const onVisibility = () => { if (document.visibilityState === "visible") refresh(); };
+    // Ao voltar a aba, verificar novamente com o mesmo limite de 1 minuto.
+    const onFocus = () => scheduleRefresh();
+    const onVisibility = () => {
+      if (document.visibilityState === "visible") scheduleRefresh();
+      else if (pendingRefresh !== undefined) {
+        clearTimeout(pendingRefresh);
+        pendingRefresh = undefined;
+      }
+    };
     window.addEventListener("focus", onFocus);
     document.addEventListener("visibilitychange", onVisibility);
     return () => {
-      if (pendingRefresh) clearTimeout(pendingRefresh);
+      if (pendingRefresh !== undefined) clearTimeout(pendingRefresh);
       window.removeEventListener("focus", onFocus);
       document.removeEventListener("visibilitychange", onVisibility);
       void realtimeClient.removeChannel(channel);
@@ -237,7 +340,16 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
   const selectedWeekday = (parseDate(selectedDate).getDay() + 6) % 7;
   const selectedWeekStart = addDays(selectedDate, -selectedWeekday);
   const selectedWeekDays = Array.from({ length: 7 }, (_, index) => addDays(selectedWeekStart, index));
-  const todayCount = filteredEvents.filter((event) => event.eventDate === data.today && event.status !== "cancelled").length;
+  const todayCount = filteredEvents.filter((event) => event.eventDate === localClock.slice(0, 10) && event.status !== "cancelled").length;
+  const overdueEvents = filteredEvents.filter((event) => eventOverdue(event, localClock));
+  // Uma pauta ligada a um compromisso visível representa a mesma pendência:
+  // não duplicar no aviso, sem excluir nem alterar os registros do banco.
+  const visibleEventIds = new Set(filteredEvents.map((event) => event.id));
+  const overduePauta = data.pautaItems.filter((item) =>
+    pautaOverdue(item, localClock)
+    && (!responsibleFilter || item.responsibleProfileId === responsibleFilter
+      || item.assignees.some((person) => person.id === responsibleFilter))
+    && (!item.agendaEventId || !visibleEventIds.has(item.agendaEventId)));
   const ownPending = data.events.filter((event) =>
     event.status === "scheduled" && event.assignees.some((person) =>
       person.id === data.currentUserId && !person.completedAt)).length +
@@ -293,6 +405,7 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
       reset?.();
       setMessage(success);
       setRemoteChanges(false);
+      lastSyncAtRef.current = Date.now();
       router.refresh();
     });
   }
@@ -371,10 +484,29 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
         <div><span>Minha fila</span><strong>{ownPending}</strong><small>pendências</small></div>
         <div className="agenda-quick-sync" title="Atualizacao automatica e sincronizacao ao retomar a aba">
           <span className={"agenda-sync-dot is-" + realtimeState} />
-          <strong>{realtimeState === "online" ? "Ao vivo" : realtimeState === "connecting" ? "Conectando" : "Sem conexão em tempo real"}</strong>
-          <small>{realtimeState === "online" ? "Atualização em tempo real ativa" : "Atualiza ao reconectar"}</small>
+          <strong>{realtimeState === "online" ? "Conectado" : realtimeState === "connecting" ? "Conectando" : "Sem conexão em tempo real"}</strong>
+          <small>{realtimeState === "online" ? "Atualiza no máximo 1 vez por minuto" : "Verifica ao reconectar ou voltar à aba"}</small>
         </div>
       </div>
+      {overdueEvents.length || overduePauta.length ? (
+        <div className="agenda-overdue-notice" role="status" aria-live="polite">
+          <span aria-hidden="true">⚠</span>
+          <span>
+            <strong>{overdueEvents.length + overduePauta.length} pendência(s) atrasada(s)</strong>
+            <small>Compromissos e pautas que passaram do prazo sem conclusão.</small>
+          </span>
+          <button type="button"
+            onClick={() => {
+              if (overdueEvents.length) {
+                const first = overdueEvents[0].eventDate;
+                if (first < data.monthStart || first > data.monthEnd) navigate("agenda", first);
+                else setSelectedDate(first);
+              } else if (overduePauta.length) {
+                navigate("pauta", overduePauta[0].dueDate || data.today);
+              }
+            }}>Ver atrasados</button>
+        </div>
+      ) : null}
       <div className="agenda-topbar">
         {basePath === "/agenda" ? <div className="agenda-tabs" role="tablist" aria-label="Agenda e pauta">
           {data.access.agendaRead ? <button type="button" className={initialView === "agenda" ? "is-active" : ""} onClick={() => navigate("agenda", data.focusDate)}>Agenda</button> : null}
@@ -397,8 +529,8 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
 
       {remoteChanges ? (
         <div className="agenda-remote-notice" role="status">
-          A equipe atualizou a agenda. Salve ou feche o formulário antes de atualizar.
-          <button type="button" onClick={() => { setRemoteChanges(false); router.refresh(); }}>Atualizar agora</button>
+          A sincronização automática foi adiada para preservar suas alterações. Salve ou feche o formulário antes de atualizar.
+          <button type="button" onClick={() => { setRemoteChanges(false); lastSyncAtRef.current = Date.now(); router.refresh(); }}>Atualizar agora</button>
         </div>
       ) : null}
       {message ? <div className="agenda-feedback" role="status">{message}</div> : null}
@@ -471,7 +603,7 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
               {selectedEvents.length ? (
                 <div className="agenda-events-list">
                   {selectedEvents.map((item) => (
-                    <article key={item.id} className={"agenda-event-card is-" + item.status}
+                    <article key={item.id} className={"agenda-event-card is-" + item.status + (eventOverdue(item, localClock) ? " is-overdue" : "")}
                       style={{ borderLeftColor: personColor(item.assignees[0]?.id ?? "") }}>
                       <div className="agenda-event-main">
                         <div className="agenda-event-time">{item.startTime ? item.startTime + "h" : "—"}{item.endTime ? <small>até {item.endTime}h</small> : null}</div>
@@ -486,7 +618,10 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
                                 </span>
                               ))}
                             </span> : <span>Sem responsável</span>}
-                            <span className="agenda-event-state">{statusLabel(item.status)}{item.assignees.length > 1 ? ` · ${item.assignees.filter((person) => person.completedAt).length}/${item.assignees.length} concluídos` : ""}</span>
+                            <span className={"agenda-event-state" + (eventOverdue(item, localClock) ? " is-overdue" : "")}>
+                              {eventOverdue(item, localClock) ? "⚠ " : ""}{statusLabel(item.status, eventOverdue(item, localClock))}
+                              {item.assignees.length > 1 ? ` · ${item.assignees.filter((person) => person.completedAt).length}/${item.assignees.length} concluídos` : ""}
+                            </span>
                           </div>
                           {item.description ? <details className="agenda-event-details"><summary>Visualizar detalhes</summary><p>{item.description}</p></details> : null}
                         </div>
@@ -508,8 +643,13 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
                                     ✓ Encerrar compromisso
                                   </button>
                                   <button type="button" className="agenda-manager-cancel" disabled={isPending}
-                                    onClick={() => run(() => setAgendaEventStatusAction(item.id, "cancelled"), "Compromisso cancelado.")}>
-                                    Cancelar
+                                    aria-label={"Cancelar compromisso: " + item.title}
+                                    title="Cancelar compromisso"
+                                    onClick={() => {
+                                      if (!window.confirm("Cancelar o compromisso \"" + item.title + "\"?")) return;
+                                      run(() => setAgendaEventStatusAction(item.id, "cancelled"), "Compromisso cancelado.");
+                                    }}>
+                                    ×
                                   </button>
                                 </>
                               ) : null}
@@ -550,13 +690,13 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
                 }}
               >
                 <label className="agenda-field agenda-field-wide"><span>Compromisso</span><input name="title" required maxLength={180} placeholder="Ex.: Sessão da Câmara" /></label>
-                <div className="agenda-datetime-row">
-                  <label className="agenda-field"><span>Data</span><input name="event_date" type="date" value={selectedDate} onChange={(e) => setSelectedDate(e.target.value)} required /></label>
-                  <label className="agenda-field"><span>Início</span><input name="start_time" type="time" /></label>
-                  <label className="agenda-field"><span>Fim</span><input name="end_time" type="time" /></label>
+                <div className="agenda-event-schedule-row">
+                  <ClearableScheduleInput key={"date-" + selectedDate} name="event_date" label="Data" type="date" defaultValue={selectedDate} required />
+                  <ClearableScheduleInput name="start_time" label="Início" type="time" />
+                  <ClearableScheduleInput name="end_time" label="Fim" type="time" />
+                  <label className="agenda-field agenda-schedule-reminder"><span>Lembrete Telegram</span><select name="reminder_minutes" defaultValue="30"><option value="off">Sem lembrete</option><option value="0">No horário</option><option value="5">5 min antes</option><option value="10">10 min antes</option><option value="15">15 min antes</option><option value="30">30 min antes</option><option value="60">1 hora antes</option><option value="120">2 horas antes</option><option value="1440">1 dia antes</option></select></label>
+                  <label className="agenda-field agenda-schedule-recurrence"><span>Repetir compromisso</span><select name="recurrence" defaultValue="none"><option value="none">Não repetir</option><option value="weekly4">Semanal · 4 ocorrências</option><option value="weekly12">Semanal · 12 ocorrências</option><option value="monthly3">Mensal · 3 ocorrências</option></select></label>
                 </div>
-                <label className="agenda-field"><span>Lembrete no grupo Telegram</span><select name="reminder_minutes" defaultValue="30"><option value="off">Sem lembrete</option><option value="0">No horário</option><option value="5">5 min antes</option><option value="10">10 min antes</option><option value="15">15 min antes</option><option value="30">30 min antes</option><option value="60">1 hora antes</option><option value="120">2 horas antes</option><option value="1440">1 dia antes</option></select></label>
-                <label className="agenda-field"><span>Repetir compromisso</span><select name="recurrence" defaultValue="none"><option value="none">Não repetir</option><option value="weekly4">Semanal · 4 ocorrências</option><option value="weekly12">Semanal · 12 ocorrências</option><option value="monthly3">Mensal · 3 ocorrências</option></select></label>
                 <label className="agenda-field agenda-field-wide"><span>Local</span><input name="location" maxLength={240} placeholder="Opcional" /></label>
                 <label className="agenda-field agenda-field-wide"><span>Observação</span><textarea name="description" maxLength={4000} placeholder="Informações úteis para a equipe" /></label>
                 <div className="agenda-field-wide"><AssigneePicker profiles={data.profiles} currentUserId={data.currentUserId} /></div>
@@ -622,13 +762,13 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
                       <div className="pauta-item-meta">
                         <span>{item.dueDate ? longDate(item.dueDate) : "Sem dia definido"}</span>
                         {item.dueTime ? <span>{item.dueTime}h</span> : null}
-                        <span>{done ? "Concluída" : cancelled ? "Cancelada" : item.assignees.some((person) => person.completedAt) ? "Em andamento" : "Pendente"}</span>
+                        <span className={pautaOverdue(item, localClock) ? "is-overdue" : ""}>
+                          {done ? "Concluída" : cancelled ? "Cancelada" : pautaOverdue(item, localClock) ? "⚠ Atrasada" : item.assignees.some((person) => person.completedAt) ? "Em andamento" : "Pendente"}
+                        </span>
                       </div>
                       {item.description ? <p>{item.description}</p> : null}
                       {item.articleId ? (
                         <Link href={"/sistema/editorial/materias/" + item.articleId} className="agenda-link-materia">Abrir matéria vinculada ↗</Link>
-                      ) : data.access.editorialLinkAccess ? (
-                        <Link href={"/sistema/editorial/materias/nova?pauta=" + encodeURIComponent(item.id)} className="agenda-link-materia">+ Criar matéria desta pauta</Link>
                       ) : null}
                       {data.access.pautaWrite ? <PautaEdit item={item} /> : null}
                     </div>

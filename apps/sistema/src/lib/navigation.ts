@@ -132,7 +132,7 @@ export const editorialNavGroup: AdminNavGroup = {
     { label: "Importar do jornal impresso", href: "/sistema/editorial/importar-pdf" },
     { label: "Edições", href: "/sistema/editorial/edicoes" },
     { label: "Editorias", href: "/sistema/editorial/editorias" },
-    { label: "Localidades", href: "/sistema/editorial/localidades" },
+    { label: "Abrangências", href: "/sistema/editorial/localidades" },
     { label: "Mídias", href: "/sistema/editorial/midias" },
   ],
 };

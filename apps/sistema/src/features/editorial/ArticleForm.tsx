@@ -41,6 +41,7 @@ import {
   placementLabels,
 } from "./editorialLabels";
 import { DEFAULT_TEXT_STYLE, textStyleToCss } from "./textStyle";
+import { UFS } from "./geoStates";
 import { fromDatetimeLocalValue, toDatetimeLocalValue } from "../../lib/datetimeLocal";
 
 const LIST_HREF = "/sistema/editorial/materias";
@@ -123,13 +124,14 @@ export function ArticleForm({
   const [showNewLocality, setShowNewLocality] = useState(false);
   const [newLocalityName, setNewLocalityName] = useState("");
   const [newLocalityScope, setNewLocalityScope] = useState<LocalityScope>("city");
+  const [newLocalityUf, setNewLocalityUf] = useState("");
   const [newLocalityError, setNewLocalityError] = useState<string | null>(null);
   const [creatingLocality, startCreatingLocality] = useTransition();
 
   function handleCreateLocality(): void {
     setNewLocalityError(null);
     startCreatingLocality(async () => {
-      const result = await createLocality({ name: newLocalityName, scope: newLocalityScope });
+      const result = await createLocality({ name: newLocalityName, scope: newLocalityScope, stateCode: newLocalityScope === "city" || newLocalityScope === "state" ? newLocalityUf : null });
       if ("error" in result) {
         setNewLocalityError(result.error);
         return;
@@ -137,6 +139,7 @@ export function ArticleForm({
       setLocalityOptions((current) => [...current, result.locality]);
       setLocalityId(result.locality.id);
       setNewLocalityName("");
+      setNewLocalityUf("");
       setShowNewLocality(false);
     });
   }
@@ -145,9 +148,17 @@ export function ArticleForm({
   const selectedSection = sections.find((section) => section.id === sectionId);
   const selectedLocality = localityOptions.find((locality) => locality.id === localityId);
   const availableSections = sections.filter((section) => section.active || section.id === article?.sectionId);
-  const availableLocalities = localityOptions.filter(
-    (locality) => locality.active || locality.id === article?.localityId,
-  );
+  const availableLocalities = localityOptions
+    // Manter Geral para matérias legadas, mas não oferecê-lo como novo
+    // escopo amplo (agora são SC, RS e Brasil).
+    .filter((locality) => (locality.active && locality.scope !== "general") || locality.id === article?.localityId)
+    .sort((a, b) => {
+      const priority = ["santa-catarina", "rio-grande-do-sul", "brasil"];
+      const aIndex = priority.indexOf(a.slug);
+      const bIndex = priority.indexOf(b.slug);
+      if (aIndex >= 0 || bIndex >= 0) return (aIndex >= 0 ? aIndex : 99) - (bIndex >= 0 ? bIndex : 99);
+      return a.name.localeCompare(b.name, "pt-BR");
+    });
 
   const publicationLine = (() => {
     if (scheduledAt) return `Programada para ${formatDateTime(fromDatetimeLocalValue(scheduledAt))}`;
@@ -307,7 +318,14 @@ export function ArticleForm({
         <div className="article-step-layout">
           <div className="article-step-main">
             <section className="form-section form-section--first" aria-labelledby="identificacao-title">
-              <h2 id="identificacao-title">Matéria</h2>
+              <div className="article-step-topline">
+                <h2 id="identificacao-title">Matéria</h2>
+                <button type="button" className="form-action-primary article-next-top"
+                  disabled={pending}
+                  onClick={() => mode === "create" ? handleAction("draft", "imagens") : setActiveTab("imagens")}>
+                  {pending ? "Salvando…" : mode === "create" ? "Salvar e ir para imagens →" : "Continuar para imagens →"}
+                </button>
+              </div>
               <p className="helper-text article-step-intro">
                 Escreva primeiro o conteúdo e classifique o assunto. Depois salve para seguir às imagens.
               </p>
@@ -368,7 +386,7 @@ export function ArticleForm({
                 <select id="field-locality" value={localityId} onChange={(event) => setLocalityId(event.target.value)}>
                   <option value="">Selecione a abrangência</option>
                   {availableLocalities.map((locality) => (
-                    <option key={locality.id} value={locality.id}>{locality.name}</option>
+                    <option key={locality.id} value={locality.id}>{locality.name}{locality.stateCode && locality.scope === "city" ? " · " + locality.stateCode : ""}{locality.scope === "general" ? " (histórico)" : ""}</option>
                   ))}
                 </select>
                 <button
@@ -401,6 +419,15 @@ export function ArticleForm({
                         </select>
                       </label>
                     </div>
+                    {(newLocalityScope === "city" || newLocalityScope === "state") ? (
+                      <label className="form-field" style={{ marginTop: 8 }}>
+                        <span className="field-label">UF</span>
+                        <select required value={newLocalityUf} onChange={(event) => setNewLocalityUf(event.target.value)}>
+                          <option value="">Selecione o estado</option>
+                          {UFS.map((uf) => <option key={uf.code} value={uf.code}>{uf.code} · {uf.name}</option>)}
+                        </select>
+                      </label>
+                    ) : null}
                     {newLocalityError ? (
                       <p className="form-error" role="alert">{newLocalityError}</p>
                     ) : null}
@@ -409,7 +436,7 @@ export function ArticleForm({
                         type="button"
                         className="form-action-primary"
                         onClick={handleCreateLocality}
-                        disabled={creatingLocality || !newLocalityName.trim()}
+                        disabled={creatingLocality || !newLocalityName.trim() || ((newLocalityScope === "city" || newLocalityScope === "state") && !newLocalityUf)}
                       >
                         {creatingLocality ? "Cadastrando…" : "Cadastrar e selecionar"}
                       </button>
@@ -462,6 +489,11 @@ export function ArticleForm({
               <p className="eyebrow">ETAPA 2</p>
               <h2 id="imagens-title">Imagens</h2>
             </div>
+            <button type="button" className="form-action-primary article-next-top"
+              disabled={pending}
+              onClick={() => setActiveTab("publicacao")}>
+              Continuar para publicação e destaque →
+            </button>
           </div>
           <ArticleMediaPicker
             mediaAssets={availableMediaAssets}
@@ -649,6 +681,13 @@ export function ArticleForm({
               publicationLine={publicationLine}
               editionLine={edition ? editionPageLabel(edition.title, article?.editionPageNumber) : null}
               digitalEditionUrl={edition?.pdfUrl}
+              onEditClassification={() => {
+                setActiveTab("conteudo");
+                window.scrollTo({ top: 0, behavior: "smooth" });
+              }}
+              onEditPublication={() => {
+                document.getElementById("field-placement")?.focus({ preventScroll: false });
+              }}
             />
             {article ? (
               <div className="article-reference-box">

@@ -17,6 +17,7 @@ export interface LocalityPayload {
   name: string;
   slug?: string;
   scope: LocalityScope;
+  stateCode?: string | null;
 }
 
 export async function createLocality(payload: LocalityPayload): Promise<ActionResult> {

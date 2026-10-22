@@ -10,18 +10,27 @@ import { setAssineEnabledAction } from "../../app/sistema/configuracoes/valores-
 export function AssineVisibilityToggle({ initialEnabled }: { initialEnabled: boolean }): JSX.Element {
   const [enabled, setEnabled] = useState(initialEnabled);
   const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
   function toggle(): void {
     const next = !enabled;
     setError(null);
+    setSuccess(null);
     startTransition(async () => {
-      const result = await setAssineEnabledAction(next);
-      if (result && "error" in result) {
-        setError(result.error);
-        return;
+      try {
+        const result = await setAssineEnabledAction(next);
+        if ("error" in result) {
+          setError(result.error);
+          return;
+        }
+        setEnabled(next);
+        setSuccess(next
+          ? "Assine ativado. O botão e a página serão exibidos ao atualizar o portal."
+          : "Assine desativado. O portal deixará de oferecer novas solicitações.");
+      } catch {
+        setError("Não foi possível salvar. Confira a conexão e tente novamente.");
       }
-      setEnabled(next);
     });
   }
 
@@ -49,6 +58,7 @@ export function AssineVisibilityToggle({ initialEnabled }: { initialEnabled: boo
           <span>{pending ? "Salvando…" : enabled ? "Ativado" : "Desativado"}</span>
         </button>
       </div>
+      {success ? <p className="form-success" role="status">{success}</p> : null}
       {error ? <p className="form-error" role="alert">{error}</p> : null}
     </section>
   );

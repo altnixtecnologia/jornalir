@@ -1,6 +1,6 @@
 -- Controle de ativação do "Assine" no site público — pedido explícito do
--- usuário em 18/10/2026. NÃO aplicada ainda (local apenas, regra de trabalho
--- vigente: preparar/testar agora, aplicar só com autorização separada).
+-- usuário em 18/10/2026. Aplicada à produção em 22/10/2026,
+-- registrada como versão 20261022072614 no Supabase.
 --
 -- Reaproveita `site_offer_settings` (registro único já usado para os preços
 -- da página /assine) em vez de criar uma tabela nova — alteração mínima,

@@ -13,6 +13,8 @@ export interface DestinoEditorialProps {
   editionLine?: string | null;
   /** Presente e com URL real = link ativo; ausente = nunca inventamos a URL. */
   digitalEditionUrl?: string;
+  onEditClassification?: () => void;
+  onEditPublication?: () => void;
 }
 
 /**
@@ -30,6 +32,8 @@ export function DestinoEditorial({
   publicationLine,
   editionLine,
   digitalEditionUrl,
+  onEditClassification,
+  onEditPublication,
 }: DestinoEditorialProps): JSX.Element {
   const hasPlacement = placementType !== "none";
 
@@ -83,6 +87,20 @@ export function DestinoEditorial({
           </li>
         ) : null}
       </ul>
+      {onEditClassification || onEditPublication ? (
+        <div className="destino-edit-actions">
+          {onEditClassification ? (
+            <button type="button" onClick={onEditClassification}>
+              Alterar assunto e abrangência
+            </button>
+          ) : null}
+          {onEditPublication ? (
+            <button type="button" onClick={onEditPublication}>
+              Alterar publicação e notificações
+            </button>
+          ) : null}
+        </div>
+      ) : null}
     </div>
   );
 }

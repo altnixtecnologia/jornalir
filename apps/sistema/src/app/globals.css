@@ -5871,3 +5871,332 @@ button.secondary-link {
   .agenda-mobile-page .agenda-event-actions.is-member{display:flex}
   .agenda-mobile-page .agenda-event-actions.is-member button{flex:1}
 }
+
+
+/* Jornal IR — editor e lista compactos de Abrangências (21/10/2026) */
+.geo-manager{display:flex;flex-direction:column;gap:14px;min-width:0}
+.geo-toolbar{display:flex;justify-content:space-between;align-items:center;gap:12px}
+.geo-toolbar>div{display:flex;flex-direction:column;gap:2px}
+.geo-toolbar strong{font-size:16px;color:var(--ink)}
+.geo-toolbar small,.geo-footnote{font-size:12px;color:var(--muted);line-height:1.4}
+.geo-new,.geo-save{
+  display:inline-flex;align-items:center;justify-content:center;
+  border:1px solid var(--brand);background:var(--brand);color:#fff;
+  padding:9px 14px;border-radius:8px;min-height:42px;
+  font-weight:800;white-space:nowrap
+}
+.geo-broad{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+.geo-broad-item{
+  display:flex;align-items:center;gap:10px;min-width:0;border:1px solid var(--line);
+  background:#fffefa;border-radius:11px;padding:12px;
+}
+.geo-broad-item>span{
+  flex:0 0 39px;display:flex;align-items:center;justify-content:center;
+  border-radius:10px;background:#e8edf5;color:var(--brand);
+  height:39px;font-size:13px;font-weight:850
+}
+.geo-broad-item>div{display:flex;flex:1;flex-direction:column;gap:2px;min-width:0}
+.geo-broad-item strong{font-size:12px;line-height:1.3;overflow-wrap:anywhere}
+.geo-broad-item small{font-size:11px;color:var(--muted)}
+.geo-broad-item button,.geo-list-actions button{
+  border:1px solid var(--line);background:#fff;border-radius:7px;
+  font-weight:700;color:var(--ink);font-size:12px;
+  padding:7px 10px;min-height:37px
+}
+.geo-editor{
+  display:flex;flex-direction:column;gap:12px;padding:15px;
+  background:#fffefa;border:1px solid var(--line);border-radius:11px
+}
+.geo-editor-head{display:flex;align-items:center;justify-content:space-between}
+.geo-editor-head strong{font-size:15px}
+.geo-editor-head button{background:transparent;border:0;color:var(--muted);font-size:22px;min-width:40px;min-height:40px}
+.geo-form-grid{display:grid;grid-template-columns:minmax(0,2fr) repeat(2,minmax(0,1fr));gap:10px;align-items:end}
+.geo-field{display:flex;flex-direction:column;gap:5px;min-width:0}
+.geo-field span{font-size:11px;color:var(--muted);font-weight:800}
+.geo-field input,.geo-field select,.geo-find input,.geo-find select{
+  box-sizing:border-box;width:100%;min-width:0;max-width:100%;min-height:43px;
+  border:1px solid var(--line);background:#fff;color:var(--ink);
+  border-radius:7px;padding:9px 10px;font-size:13px
+}
+.geo-destination-preview{
+  display:flex;flex-direction:column;gap:3px;padding:10px 11px;
+  background:#f2f5f9;border-left:3px solid var(--brand);
+  border-radius:7px;color:var(--ink)
+}
+.geo-destination-preview strong{font-size:12px}
+.geo-destination-preview span{font-size:12px;line-height:1.45}
+.geo-destination-preview small{font-size:11px;color:var(--muted)}
+.geo-advanced{border:0;padding:0}
+.geo-advanced summary{color:var(--brand);font-size:12px;font-weight:700;cursor:pointer}
+.geo-advanced[open] .geo-field{margin-top:9px}
+.geo-advanced small{font-size:11px;color:var(--muted)}
+.geo-form-actions{display:flex;gap:8px}
+.geo-form-actions button{min-height:42px;min-width:92px;border-radius:8px;font-size:13px}
+.geo-close{border:1px solid var(--line);background:#fff;color:var(--ink);font-weight:700}
+.geo-error{padding:10px 12px;border:1px solid #e8b5b5;border-radius:7px;color:#8e2828;background:#fff7f7;font-size:13px}
+.geo-find{display:grid;grid-template-columns:minmax(0,1fr) 180px;gap:9px;min-width:0}
+.geo-list{display:flex;flex-direction:column;gap:6px}
+.geo-list-item{
+  display:flex;align-items:center;gap:10px;
+  border:1px solid var(--line);border-radius:9px;
+  background:#fffefa;padding:11px 12px
+}
+.geo-list-item.is-editing{border-color:var(--brand)}
+.geo-list-main{display:flex;flex:1;flex-direction:column;gap:3px;min-width:0}
+.geo-list-main strong{font-size:13px;font-weight:750;color:var(--ink)}
+.geo-list-main span{font-size:11px;color:var(--muted)}
+.geo-state{font-size:11px;color:var(--muted);font-weight:700}
+.geo-state.is-active{color:#23724e}
+.geo-list-actions{display:flex;gap:6px}
+.geo-empty{font-size:13px;color:var(--muted);padding:15px 10px;text-align:center}
+@media(max-width:880px){
+  .geo-broad{grid-template-columns:repeat(3,minmax(0,1fr))}
+  .geo-broad-item{flex-wrap:wrap}
+  .geo-broad-item button{flex:1}
+}
+@media(max-width:640px){
+  .geo-manager{gap:10px}
+  .geo-toolbar strong{font-size:14px}
+  .geo-broad{grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}
+  .geo-broad-item{padding:9px 7px;gap:4px;flex-direction:column;text-align:center}
+  .geo-broad-item>span{width:36px;height:32px;flex:0 0 32px;font-size:12px}
+  .geo-broad-item strong{font-size:11px}
+  .geo-broad-item small{font-size:10px}
+  .geo-broad-item button{width:100%;min-height:34px;padding:5px 7px}
+  .geo-editor{padding:11px;gap:10px}
+  .geo-form-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+  .geo-form-grid .geo-name{grid-column:1/-1}
+  .geo-find{grid-template-columns:minmax(0,1fr) 132px;gap:6px}
+  .geo-find input,.geo-find select{font-size:12px;padding:7px}
+  .geo-list-item{gap:6px;flex-wrap:wrap;padding:9px}
+  .geo-list-main{flex-basis:63%}
+  .geo-list-actions{flex-basis:100%;justify-content:flex-end}
+  .geo-list-actions button{min-height:36px}
+}
+
+/* IR Controle: barra compacta segura acima da câmera no Android (21/10). */
+.ir-header-bell{display:flex;align-items:center;justify-content:center}
+@media(max-width:760px){
+  .app-header-inner{
+    display:grid;
+    grid-template-columns:minmax(0,1fr) 48px minmax(0,1fr);
+    gap:4px;align-items:center;
+    padding:6px 14px;min-height:58px
+  }
+  .app-header.is-native-mobile .app-header-inner{
+    padding-top:max(28px,env(safe-area-inset-top,0px));
+  }
+  .app-header-inner>.app-brand{
+    grid-column:1;justify-self:start;min-width:0;margin-right:0
+  }
+  .app-header-inner .app-brand-logo{width:auto;max-width:100%;height:30px;object-fit:contain}
+  .app-header-inner>.ir-header-bell{grid-column:2;justify-self:center}
+  .app-header-inner>.app-header-actions{grid-column:3;justify-self:end;margin-left:0}
+  .app-header-inner>.app-header-actions>.menu-button{display:none}
+  .app-header-inner .account-menu-trigger{
+    padding:3px;min-width:42px;min-height:42px;border-radius:50%
+  }
+  .app-header-inner .account-menu-name,.app-header-inner .account-menu-caret{display:none}
+  .app-header-inner .account-initials{flex-shrink:0}
+  .app-header-inner .account-menu-panel{right:0;left:auto;max-width:calc(100vw - 24px)}
+}
+
+/* Editorial 21/10: atalhos de avanço no topo, imagens com ações sem texto. */
+.article-step-topline,.article-step-heading{
+  display:flex;align-items:center;justify-content:space-between;
+  gap:12px;min-width:0
+}
+.article-step-topline h2,.article-step-heading h2{margin:0;min-width:0}
+.article-step-topline .article-next-top,.article-step-heading .article-next-top{
+  min-height:42px;padding:10px 13px;border-radius:7px;
+  margin-left:auto;white-space:normal;text-align:center;line-height:1.3;
+  font-size:12px;font-weight:800;flex-shrink:0
+}
+.article-media-row-actions{gap:5px}
+.article-media-row-actions .article-media-view{
+  display:inline-grid;place-items:center;flex:0 0 auto;
+  min-width:36px;width:36px;height:36px;min-height:36px;
+  border:1px solid var(--line);border-radius:7px;
+  background:#fff;color:var(--brand);padding:7px
+}
+.article-media-row-actions .article-media-view:focus-visible,
+.article-media-row-actions .article-media-view:hover{
+  outline:2px solid var(--brand);outline-offset:1px;background:#f1f2f9
+}
+.article-media-row-actions .article-media-remove{
+  border-color:#e8caca;color:#a12f36
+}
+.article-media-row-actions button:disabled{opacity:.45;cursor:wait}
+@media(max-width:760px){
+  .article-step-topline,.article-step-heading{gap:8px}
+  .article-step-topline h2,.article-step-heading h2{font-size:18px}
+  .article-step-topline .article-next-top,.article-step-heading .article-next-top{
+    flex:0 1 auto;max-width:65%;font-size:11px;
+    padding:8px 9px;min-height:44px
+  }
+  .article-media-row-actions{display:flex;flex-wrap:nowrap;gap:6px}
+  .article-media-row-actions .article-media-view{
+    min-height:44px;height:44px;min-width:44px;width:44px
+  }
+}
+
+/* Transição de rotas: resposta visual imediata durante SSR / rede lenta. */
+.ir-route-loading{
+  position:relative;display:flex;flex-direction:column;gap:12px;
+  min-height:360px;max-width:100%;padding:14px 0 18px;
+}
+.ir-route-loading-bar{
+  position:absolute;left:-16px;right:-16px;top:-14px;
+  height:3px;background:linear-gradient(90deg,#30305c,#9697cb,#30305c);
+  background-size:180% 100%;animation:ir-loading-stripe 1.2s ease-in-out infinite;
+}
+.ir-route-loading-header,.ir-route-loading-line,.ir-route-loading-panel{
+  border-radius:9px;background:linear-gradient(110deg,#ececf1 10%,#f7f7fa 35%,#ececf1 65%);
+  background-size:220% 100%;animation:ir-loading-shine 1.6s ease-in-out infinite;
+}
+.ir-route-loading-header{width:min(44%,280px);height:36px;margin-bottom:9px}
+.ir-route-loading-line{width:min(90%,740px);height:15px}
+.ir-route-loading-line.is-short{width:min(57%,450px)}
+.ir-route-loading-panel{width:100%;height:175px;margin-top:8px}
+.ir-route-loading-caption{font-size:12px;color:var(--muted);padding:5px 0}
+@keyframes ir-loading-shine{to{background-position-x:-220%}}
+@keyframes ir-loading-stripe{to{background-position-x:180%}}
+@media(prefers-reduced-motion:reduce){
+  .ir-route-loading-bar,.ir-route-loading-header,
+  .ir-route-loading-line,.ir-route-loading-panel{animation:none}
+}
+
+/* Acervo editorial: IDs legíveis; nomes de arquivo não ocupam os cartões. */
+.library-grid{
+  grid-template-columns:repeat(auto-fill,minmax(min(100%,160px),1fr));
+  min-width:0
+}
+.library-item{min-width:0;max-width:100%;overflow:hidden;border-radius:8px}
+.library-item img{width:100%;max-width:100%;object-fit:cover}
+.library-item .materia-reference{
+  display:block;min-width:0;max-width:100%;width:100%;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+  font-size:10px;line-height:1.5
+}
+.library-item-actions{min-width:0}
+.library-item-actions button{min-width:0;width:100%;overflow-wrap:anywhere}
+@media(max-width:760px){
+ .library-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+ .library-item{padding:9px;gap:9px}
+ .library-item img{height:auto;aspect-ratio:4/3;object-fit:cover}
+ .library-item-actions button{min-height:42px;font-size:11px}
+}
+@media(max-width:330px){
+ .library-grid{grid-template-columns:repeat(1,minmax(0,1fr))}
+}
+
+/* Destino editorial não é bloqueado: ações vão aos formulários corretos. */
+.destino-edit-actions{
+ display:flex;flex-direction:column;align-items:stretch;gap:7px;
+ border-top:1px solid var(--line);margin-top:12px;padding-top:10px
+}
+.destino-edit-actions button{
+ display:flex;align-items:center;justify-content:center;
+ border:1px solid var(--line);background:#fff;border-radius:8px;
+ min-height:40px;padding:8px 10px;line-height:1.3;
+ font-size:11px;font-weight:750;color:var(--brand);
+ cursor:pointer
+}
+.destino-edit-actions button:focus-visible,
+.destino-edit-actions button:hover{
+ background:#f4f4fa;outline:2px solid var(--brand);outline-offset:1px
+}
+
+/* Agenda: atraso visível + cancelamento compacto sem ocupar linha inteira. */
+.agenda-overdue-notice{
+  display:flex;align-items:center;gap:10px;margin:6px 0 10px;
+  padding:10px 12px;border:1px solid #eac0a5;border-left:4px solid #bd6423;
+  background:#fff8f0;color:#773f14;border-radius:9px;min-width:0
+}
+.agenda-overdue-notice>span:nth-child(2){display:flex;flex:1;flex-direction:column;gap:3px;min-width:0}
+.agenda-overdue-notice strong{font-size:12px}
+.agenda-overdue-notice small{font-size:11px;color:#875731}
+.agenda-overdue-notice button{
+  border:1px solid #d9ab81;background:#fff;border-radius:7px;
+  min-height:36px;padding:7px 10px;font-size:11px;font-weight:800;color:#804117
+}
+.agenda-event-state.is-overdue,.pauta-item-meta .is-overdue{
+  color:#a34a13;font-weight:850
+}
+.agenda-event-card.is-overdue{
+  border-color:#e7bd97;border-left-color:#d47733!important;
+  background:#fffaf4
+}
+.agenda-event-actions.is-manager{
+  display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr) 40px;
+  gap:7px;padding-left:82px
+}
+.agenda-event-actions.is-manager button{min-width:0;min-height:40px;font-size:11px}
+.agenda-event-actions.is-manager .agenda-manager-cancel{
+  grid-column:auto;display:grid;place-items:center;
+  width:40px;min-width:40px;max-width:40px;min-height:40px;
+  padding:0;border:1px solid #e6c9c9;border-radius:8px;
+  color:#a53535;background:#fff9f9;font-size:25px;font-weight:500;
+}
+.agenda-event-actions.is-manager .agenda-manager-cancel:hover{
+  background:#fee8e8;border-color:#c78a8a
+}
+@media(max-width:760px){
+ .agenda-mobile-page .agenda-event-actions.is-manager{
+   display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr) 40px;
+   gap:6px;padding-left:0
+ }
+ .agenda-mobile-page .agenda-event-actions.is-manager button{
+   min-width:0;min-height:44px;width:100%;padding:7px 6px;font-size:11px
+ }
+ .agenda-mobile-page .agenda-event-actions.is-manager .agenda-manager-cancel{
+   grid-column:auto;width:40px;min-width:40px;max-width:40px;
+   padding:0;font-size:24px
+ }
+ .agenda-overdue-notice{gap:7px;padding:8px}
+ .agenda-overdue-notice button{white-space:nowrap;padding:6px 8px}
+}
+
+
+/* Agenda: cadastro compacto em uma unica linha (data, inicio, fim, Telegram e repeticao).
+   Container queries consideram a largura do formulario, nao apenas da janela. */
+.agenda-create-panel{container-type:inline-size}
+.agenda-event-schedule-row{
+  grid-column:1/-1;display:grid;min-width:0;align-items:end;gap:8px;
+  grid-template-columns:minmax(0,1.18fr) minmax(0,.88fr) minmax(0,.88fr) minmax(0,1.22fr) minmax(0,1.30fr)
+}
+.agenda-event-schedule-row .agenda-field{min-width:0}
+.agenda-event-schedule-row .agenda-field>label{
+  color:var(--muted);font-size:10px;font-weight:800;
+  text-transform:uppercase;white-space:nowrap
+}
+.agenda-event-schedule-row .agenda-field>select{
+  width:100%;min-width:0;max-width:100%;padding-inline:7px;font-size:12px
+}
+.agenda-clear-input{
+  display:flex;align-items:center;min-width:0;height:44px;
+  background:#fff;border:1px solid var(--line);border-radius:5px;overflow:hidden
+}
+.agenda-event-schedule-row .agenda-clear-input input{
+  flex:1 1 0;width:100%;min-width:0;min-height:0;height:100%;
+  border:0;border-radius:0;background:transparent;outline:0;
+  padding:4px 0 4px 5px;font-size:12px;font-variant-numeric:tabular-nums
+}
+.agenda-clear-input:focus-within{outline:2px solid var(--brand);outline-offset:1px}
+.agenda-event-schedule-row .agenda-clear-input-button{
+  flex:0 0 23px;min-width:23px;width:23px;height:100%;min-height:0;
+  border:0;border-left:1px solid var(--line);border-radius:0;padding:0;
+  display:flex;align-items:center;justify-content:center;
+  background:#fffefa;color:var(--muted);font-size:19px;cursor:pointer
+}
+.agenda-event-schedule-row .agenda-clear-input-button:hover{background:#f6f5f9;color:var(--ink)}
+@container (max-width:700px){
+  .agenda-event-schedule-row{grid-template-columns:repeat(6,minmax(0,1fr))}
+  .agenda-schedule-date,.agenda-schedule-start,.agenda-schedule-end{grid-column:span 2}
+  .agenda-schedule-reminder,.agenda-schedule-recurrence{grid-column:span 3}
+}
+@container (max-width:440px){
+  .agenda-schedule-date{grid-column:1/-1}
+  .agenda-schedule-start,.agenda-schedule-end{grid-column:span 3}
+  .agenda-schedule-reminder,.agenda-schedule-recurrence{grid-column:span 3}
+}

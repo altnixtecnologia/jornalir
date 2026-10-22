@@ -8,7 +8,7 @@ export const dynamic = "force-dynamic";
 const TIMEZONE = "America/Sao_Paulo";
 const MAX_SEND_PER_RUN = 20;
 
-type AgendaEvent = { id: string; title: string; event_date: string; start_time: string | null; reminder_minutes: number | null };
+type AgendaEvent = { id: string; title: string; event_date: string; start_time: string | null; end_time: string | null; reminder_minutes: number | null };
 type PushEvent = { id: string; app_kind: string; kind: string; title: string; body: string; href: string | null; target_profile_id: string | null; dedupe_key: string | null; scheduled_at: string };
 type PushDevice = { id: string; profile_id: string; subscription_endpoint: string; subscription_payload: unknown };
 type PushPreference = { profile_id: string; ordinary_enabled: boolean; urgent_enabled: boolean; agenda_enabled: boolean };
@@ -118,35 +118,62 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
 
   // Cria uma notificação específica para cada responsável, nunca um alerta
   // global com dados privados da Agenda.
+  const yesterday = addMinutes(date + "T00:00", -1440).slice(0,10);
   const { data: events, error: agendaError } = await db.from("agenda_events")
-    .select("id,title,event_date,start_time,reminder_minutes")
+    .select("id,title,event_date,start_time,end_time,reminder_minutes")
     .eq("status", "scheduled")
-    .gte("event_date", date).lte("event_date", tomorrow);
+    .gte("event_date", yesterday).lte("event_date", tomorrow);
   if (agendaError) return NextResponse.json({ error: "Falha na consulta da Agenda" }, { status: 500 });
 
   let queued = 0;
+  let overdueQueued = 0;
   let failed = 0;
   for (const agenda of (events ?? []) as AgendaEvent[]) {
-    if (!agenda.start_time || agenda.reminder_minutes === null) continue;
-    const due = addMinutes(agenda.event_date + "T" + agenda.start_time.slice(0, 5), -agenda.reminder_minutes);
-    if (due > now || addMinutes(due, 10) <= now) continue;
+    const dateTime = agenda.event_date + "T" + (agenda.start_time?.slice(0,5) || "00:00");
+    const reminderAt = agenda.start_time && agenda.reminder_minutes !== null
+      ? addMinutes(dateTime, -agenda.reminder_minutes) : null;
+
+    // Sem fim: tolerância de 15 min após o início. Com fim: 10 min após
+    // o encerramento. Sem horário: 08:00h do dia seguinte, não à meia-noite.
+    const overdueAt = agenda.end_time
+      ? addMinutes(agenda.event_date + "T" + agenda.end_time.slice(0,5),10)
+      : agenda.start_time ? addMinutes(dateTime,15)
+      : addMinutes(agenda.event_date + "T08:00",1440);
+    const isReminderDue = reminderAt !== null && reminderAt <= now
+      && addMinutes(reminderAt,10) > now;
+    // Janela de 60 min impede reenvio de todo o acervo vencido após deploy.
+    const isOverdueDue = overdueAt <= now && addMinutes(overdueAt,60) > now;
+    if (!isReminderDue && !isOverdueDue) continue;
+
     const { data: assigned, error: assignedError } = await db.from("agenda_event_assignees")
-      .select("profile_id").eq("event_id", agenda.id);
+      .select("profile_id,completed_at").eq("event_id", agenda.id)
+      .eq("assignment_type","responsible");
     if (assignedError) { failed++; continue; }
     for (const recipient of assigned ?? []) {
-      const eventKey = ["agenda", agenda.id, due, recipient.profile_id].join(":");
-      const { error } = await db.from("notification_events").upsert({
-        app_kind: "sistema",
-        kind: "agenda",
-        target_profile_id: recipient.profile_id,
-        title: "📅 " + agenda.title.slice(0, 110),
-        body: "Compromisso: " + agenda.event_date.split("-").reverse().join("/") + " às " + agenda.start_time.slice(0, 5) + "h",
-        href: "/sistema/agenda?date=" + encodeURIComponent(agenda.event_date),
-        dedupe_key: eventKey,
-        scheduled_at: new Date().toISOString(),
-      }, { onConflict: "dedupe_key", ignoreDuplicates: true });
-      if (error) failed++;
-      else queued++;
+      if (recipient.completed_at) continue; // Responsável já concluiu.
+      for (const category of (["reminder","overdue"] as const)) {
+        if (category === "reminder" && !isReminderDue) continue;
+        if (category === "overdue" && !isOverdueDue) continue;
+        const timeKey = category === "overdue" ? overdueAt : reminderAt!;
+        const eventKey = ["agenda",category,agenda.id,timeKey,recipient.profile_id].join(":");
+        const { error } = await db.from("notification_events").upsert({
+          app_kind: "sistema",
+          kind: "agenda",
+          target_profile_id: recipient.profile_id,
+          title: (category === "overdue" ? "⚠ Compromisso atrasado: " : "📅 ")
+            + agenda.title.slice(0,105),
+          body: category === "overdue"
+            ? "O prazo terminou. Abra a Agenda para concluir ou reagendar."
+            : "Compromisso: " + agenda.event_date.split("-").reverse().join("/")
+              + " às " + agenda.start_time?.slice(0,5) + "h",
+          href: "/sistema/agenda?date=" + encodeURIComponent(agenda.event_date),
+          dedupe_key: eventKey,
+          scheduled_at: new Date().toISOString(),
+        }, { onConflict: "dedupe_key", ignoreDuplicates: true });
+        if (error) failed++;
+        else if (category === "overdue") overdueQueued++;
+        else queued++;
+      }
     }
   }
 
@@ -165,7 +192,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   const activeDevices = (devices ?? []) as PushDevice[];
   if (activeDevices.length === 0) {
     const site = await processSiteDeliveries(db);
-    return NextResponse.json({ queued, sent: 0, failed, devices: 0, ...site });
+    return NextResponse.json({ queued, overdueQueued, sent: 0, failed, devices: 0, ...site });
   }
   const profileIds = [...new Set(activeDevices.map((x) => x.profile_id))];
   const [preferenceResult, activeResult] = await Promise.all([
@@ -221,5 +248,5 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     }
   }
   const site = await processSiteDeliveries(db);
-  return NextResponse.json({ queued, claimed, sent, failed, devices: activeDevices.length, ...site });
+  return NextResponse.json({ queued, overdueQueued, claimed, sent, failed, devices: activeDevices.length, ...site });
 }

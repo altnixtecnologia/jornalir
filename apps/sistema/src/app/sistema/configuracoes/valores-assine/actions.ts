@@ -65,8 +65,15 @@ export async function setAssineEnabledAction(enabled: boolean): Promise<ActionRe
       throw new Error("Só administradores podem ativar ou desativar o Assine no site.");
     }
 
-    const { error } = await client.from("site_offer_settings").update({ assine_enabled: enabled }).eq("id", 1);
+    // O UPDATE sem .select() pode ter 0 linhas afetadas por RLS e, mesmo
+    // assim, não retornar erro. Confirmar o valor efetivamente gravado.
+    const { data: saved, error } = await client.from("site_offer_settings")
+      .update({ assine_enabled: enabled }).eq("id", 1)
+      .select("assine_enabled").single();
     if (error) throw new Error(error.message);
+    if (!saved || saved.assine_enabled !== enabled) {
+      throw new Error("O banco não confirmou a alteração. Atualize a página e tente novamente.");
+    }
 
     await recordAuditEventSupabase(client, {
       userId: auth.user.id,
@@ -115,8 +122,18 @@ export async function updateSiteOfferSettingsAction(
       led_sjs_4x2_combo_discount: parseRequiredMoney("Desconto do painel 4x2 m da entrada de São João do Sul", input.ledSjs4x2ComboDiscount),
     };
 
-    const { error } = await client.from("site_offer_settings").update(values).eq("id", 1);
+    // Confirmar escrita real: UPDATE pode retornar sucesso com 0 linhas por RLS.
+    const { data: saved, error } = await client.from("site_offer_settings")
+      .update(values).eq("id", 1)
+      .select("id,annual_subscription_price,print_standard_price,led_sjs_1x2_price")
+      .single();
     if (error) throw new Error(error.message);
+    if (!saved || saved.id !== 1 ||
+        (saved.annual_subscription_price === null ? null : Number(saved.annual_subscription_price)) !== values.annual_subscription_price ||
+        Number(saved.print_standard_price) !== values.print_standard_price ||
+        Number(saved.led_sjs_1x2_price) !== values.led_sjs_1x2_price) {
+      throw new Error("O banco não confirmou os valores. Atualize a página e tente novamente.");
+    }
 
     await recordAuditEventSupabase(client, {
       userId: audit.actorId,

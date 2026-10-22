@@ -4,11 +4,11 @@ import type { LocalityChanges, LocalityRepository, NewLocalityRecord } from "@ir
 import { isLocalPreviewEnabled } from "../../lib/auth/localPreview";
 
 const PREVIEW_LOCALITIES: Locality[] = [
-  { id: "preview-sjs", slug: "sao-joao-do-sul", name: "São João do Sul", scope: "city", active: true },
-  { id: "preview-sc", slug: "santa-catarina", name: "Santa Catarina", scope: "state", active: true },
+  { id: "preview-sjs", slug: "sao-joao-do-sul", name: "São João do Sul", scope: "city", stateCode: "SC", active: true },
+  { id: "preview-sc", slug: "santa-catarina", name: "Santa Catarina", scope: "state", stateCode: "SC", active: true },
 ];
 
-const COLUMNS = "id, name, slug, scope, active";
+const COLUMNS = "id, name, slug, scope, state_code, active";
 const TABLE = "localities";
 
 interface LocalityRow {
@@ -16,17 +16,14 @@ interface LocalityRow {
   name: string;
   slug: string;
   scope: Locality["scope"];
+  state_code: string | null;
   active: boolean;
 }
 
-/**
- * `public.localities` também tem `parent_id`/`sort_order` (schema da Fase
- * 17), sem equivalente no tipo `Locality` do domínio — não selecionados
- * aqui, então nunca aparecem na UI. Nenhuma mudança de schema necessária:
- * o domínio simplesmente ainda não usa esses dois campos.
- */
+/** `parent_id` e `sort_order` ficam fora deste cadastro editorial. A UF
+ * `state_code` pertence à localidade e orientará a entrega geográfica. */
 function toDomain(row: LocalityRow): Locality {
-  return { id: row.id, name: row.name, slug: row.slug, scope: row.scope, active: row.active };
+  return { id: row.id, name: row.name, slug: row.slug, scope: row.scope, stateCode: row.state_code, active: row.active };
 }
 
 export function createLocalityRepositorySupabase(client: SupabaseClient): LocalityRepository {
@@ -48,7 +45,7 @@ export function createLocalityRepositorySupabase(client: SupabaseClient): Locali
     async create(record: NewLocalityRecord) {
       const { data, error } = await client
         .from(TABLE)
-        .insert({ name: record.name, slug: record.slug, scope: record.scope, active: record.active })
+        .insert({ name: record.name, slug: record.slug, scope: record.scope, state_code: record.stateCode ?? null, active: record.active })
         .select(COLUMNS)
         .single();
       if (error) throw new Error(error.message);
@@ -60,6 +57,7 @@ export function createLocalityRepositorySupabase(client: SupabaseClient): Locali
       if (changes.name !== undefined) patch.name = changes.name;
       if (changes.slug !== undefined) patch.slug = changes.slug;
       if (changes.scope !== undefined) patch.scope = changes.scope;
+      if (changes.stateCode !== undefined) patch.state_code = changes.stateCode;
       if (changes.active !== undefined) patch.active = changes.active;
 
       const { data, error } = await client.from(TABLE).update(patch).eq("id", id).select(COLUMNS).single();
