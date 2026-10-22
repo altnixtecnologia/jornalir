@@ -305,6 +305,7 @@ export function UsersManager(): JSX.Element {
       ) : null}
       {message ? <p className="helper-text">{message}</p> : null}
 
+      {invitationWarning ? <p className="helper-text" role="status">A situação dos convites não pôde ser conferida: {invitationWarning}</p> : null}
       <div className="materias-table-wrap">
         <table className="materias-table">
           <thead>
@@ -330,8 +331,8 @@ export function UsersManager(): JSX.Element {
                     )}
                   </td>
                   <td>
-                    <span className={`status-pill status-pill--${user.active ? "published" : "archived"}`}>
-                      {user.active ? "Ativo" : "Inativo"}
+                    <span className={`status-pill status-pill--${userStatus(user).style}`}>
+                      {userStatus(user).label}
                     </span>
                   </td>
                   <td>{formatDate(user.created_at)}</td>
@@ -349,7 +350,9 @@ export function UsersManager(): JSX.Element {
                             {user.role === "admin" ? "Rebaixar a operador" : "Promover a admin"}
                           </button>
                         ) : null}
-                        <button type="button" onClick={() => setResetTarget(user)} disabled={pending}>
+                        <button type="button" onClick={() => setEditingUserId((id) => id === user.id ? null : user.id)} disabled={pending}>
+                          {editingUserId === user.id ? "Fechar permissões" : "Editar permissões"}
+                        </button>                        <button type="button" onClick={() => setResetTarget(user)} disabled={pending}>
                           Redefinir senha
                         </button>
                         <button type="button" onClick={() => toggleActive(user)} disabled={pending}>
@@ -373,8 +376,8 @@ export function UsersManager(): JSX.Element {
           return (
             <li key={user.id} className="materia-card materia-card--static">
               <div className="materia-card-head">
-                <span className={`status-pill status-pill--${user.active ? "published" : "archived"}`}>
-                  {user.active ? "Ativo" : "Inativo"}
+                <span className={`status-pill status-pill--${userStatus(user).style}`}>
+                  {userStatus(user).label}
                 </span>
                 <span className="materia-reference">{formatDate(user.created_at)}</span>
               </div>
@@ -394,7 +397,9 @@ export function UsersManager(): JSX.Element {
                         {user.role === "admin" ? "Rebaixar a operador" : "Promover a admin"}
                       </button>
                     ) : null}
-                    <button type="button" onClick={() => setResetTarget(user)} disabled={pending}>
+                    <button type="button" onClick={() => setEditingUserId((id) => id === user.id ? null : user.id)} disabled={pending}>
+                      {editingUserId === user.id ? "Fechar permissões" : "Editar permissões"}
+                    </button>                    <button type="button" onClick={() => setResetTarget(user)} disabled={pending}>
                       Redefinir senha
                     </button>
                     <button type="button" onClick={() => toggleActive(user)} disabled={pending}>
@@ -446,7 +451,8 @@ export function UsersManager(): JSX.Element {
           Os demais módulos continuam com visibilidade individual. Desativar um módulo o oculta
           do menu e bloqueia seu acesso pelas permissões do servidor.
         </p>
-        {(users ?? []).filter((user) => user.role === "operator").map((user) => (
+        {!editingUserId ? <p className="helper-text">Clique em "Editar permissões" na linha de um operador para configurar módulos e ações liberadas.</p> : null}
+        {(users ?? []).filter((user) => user.role === "operator" && user.id === editingUserId).map((user) => (
           <div key={user.id} className="inline-form">
             <strong>{user.name} {user.active ? "" : "(inativo)"}</strong>
             <h3>Auditoria / Histórico de atividades</h3>
@@ -471,6 +477,28 @@ export function UsersManager(): JSX.Element {
                     onChange={(event) => void saveModuleVisibility(user, item.key, event.target.checked)}
                   />
                   <span>{item.label}</span>
+                </label>
+              ))}
+            </div>
+            <h3>Ações do Financeiro</h3>
+            <p className="helper-text">
+              Acesso ao módulo e autorização de ações são diferentes. Desmarcado significa negado.
+              Criar um título NÃO permite dar baixa, cancelar, estornar ou exportar. Não existe exclusão
+              definitiva de lançamentos: use cancelamento conforme a autorização.
+            </p>
+            {!isModuleEnabled(user.id, "financeiro")
+              ? <p className="helper-text">Ative primeiro o módulo Financeiro para configurar suas ações.</p>
+              : null}
+            <div className="staff-permissions-grid">
+              {STAFF_FINANCE_ACTIONS.map((item) => (
+                <label key={item.key} className="staff-permission-choice">
+                  <input
+                    type="checkbox"
+                    checked={financeAllowed(user.id, item.key)}
+                    disabled={pending || !canManage(user) || !isModuleEnabled(user.id, "financeiro")}
+                    onChange={(event) => void saveFinancePermission(user, item.key, event.target.checked)}
+                  />
+                  <span>{item.group} · {item.label}</span>
                 </label>
               ))}
             </div>
