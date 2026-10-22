@@ -6156,3 +6156,47 @@ button.secondary-link {
  .agenda-overdue-notice{gap:7px;padding:8px}
  .agenda-overdue-notice button{white-space:nowrap;padding:6px 8px}
 }
+
+
+/* Agenda: cadastro compacto em uma unica linha (data, inicio, fim, Telegram e repeticao).
+   Container queries consideram a largura do formulario, nao apenas da janela. */
+.agenda-create-panel{container-type:inline-size}
+.agenda-event-schedule-row{
+  grid-column:1/-1;display:grid;min-width:0;align-items:end;gap:8px;
+  grid-template-columns:minmax(0,1.18fr) minmax(0,.88fr) minmax(0,.88fr) minmax(0,1.22fr) minmax(0,1.30fr)
+}
+.agenda-event-schedule-row .agenda-field{min-width:0}
+.agenda-event-schedule-row .agenda-field>label{
+  color:var(--muted);font-size:10px;font-weight:800;
+  text-transform:uppercase;white-space:nowrap
+}
+.agenda-event-schedule-row .agenda-field>select{
+  width:100%;min-width:0;max-width:100%;padding-inline:7px;font-size:12px
+}
+.agenda-clear-input{
+  display:flex;align-items:center;min-width:0;height:44px;
+  background:#fff;border:1px solid var(--line);border-radius:5px;overflow:hidden
+}
+.agenda-event-schedule-row .agenda-clear-input input{
+  flex:1 1 0;width:100%;min-width:0;min-height:0;height:100%;
+  border:0;border-radius:0;background:transparent;outline:0;
+  padding:4px 0 4px 5px;font-size:12px;font-variant-numeric:tabular-nums
+}
+.agenda-clear-input:focus-within{outline:2px solid var(--brand);outline-offset:1px}
+.agenda-event-schedule-row .agenda-clear-input-button{
+  flex:0 0 23px;min-width:23px;width:23px;height:100%;min-height:0;
+  border:0;border-left:1px solid var(--line);border-radius:0;padding:0;
+  display:flex;align-items:center;justify-content:center;
+  background:#fffefa;color:var(--muted);font-size:19px;cursor:pointer
+}
+.agenda-event-schedule-row .agenda-clear-input-button:hover{background:#f6f5f9;color:var(--ink)}
+@container (max-width:700px){
+  .agenda-event-schedule-row{grid-template-columns:repeat(6,minmax(0,1fr))}
+  .agenda-schedule-date,.agenda-schedule-start,.agenda-schedule-end{grid-column:span 2}
+  .agenda-schedule-reminder,.agenda-schedule-recurrence{grid-column:span 3}
+}
+@container (max-width:440px){
+  .agenda-schedule-date{grid-column:1/-1}
+  .agenda-schedule-start,.agenda-schedule-end{grid-column:span 3}
+  .agenda-schedule-reminder,.agenda-schedule-recurrence{grid-column:span 3}
+}
