@@ -52,6 +52,35 @@ descrição, valor unitário, desconto, total e referência ao item de origem.
 6. Confirmar vendas antigas e venda avulsa sem regressão; testar cobrança.
 7. Não ativar geração e envio de contratos automaticamente nesta etapa.
 
+## Nova modalidade: locação de equipamentos
+
+O catálogo comercial já identifica `equipment_rental` como canal próprio
+(sem criar um segundo cadastro de clientes/produtos). A modalidade é
+preparatória: **não gera contrato válido automaticamente** antes de os
+campos abaixo serem implementados e os modelos revisados juridicamente.
+
+Dados obrigatórios do termo de locação:
+
+- Qualificação do locador/locatário e de representantes (Cadastro de clientes).
+- Inventário por item, etiqueta/patrimônio, marca, modelo e número de série.
+- Quantidade, acessórios, fotos e estado/avarias no termo de entrega.
+- Datas e horários de retirada/entrega e devolução, local e responsável.
+- Preço por diária, semana ou mês, franquias/tolerância, caução ou garantia
+  quando contratada, vencimentos e encargos aprovados.
+- Responsabilidades por instalação, transporte, energia, uso permitido,
+  danos, perda, furto, quebra, reparos, manutenção e seguro (se aplicável).
+- Procedimento de vistoria de devolução, atraso, prorrogação, multa
+  proporcional e restituição/compensação da caução, se houver.
+- Termos de uso e de responsabilidade por dados pessoais tratados pelos
+  dispositivos, se a locação envolver armazenamento ou captação de imagens.
+- Checklist/recibo de entrega e devolução **separado do PDF jurídico**,
+  mas vinculado à mesma contratação e à assinatura de cada parte.
+
+**Regra:** um item do catálogo não substitui o inventário de equipamentos
+efetivamente entregues. Antes da assinatura final precisamos de ficha
+individual do equipamento e de termo de vistoria, com histórico imutável.
+Cláusulas e cobrança de perdas/danos dependem de revisão jurídica.
+
 ## Etapa 2 — contratos das três origens, sem reescrever o assinador
 
 Criar ligação versionada entre o contrato e os itens de assinaturas/vendas.
