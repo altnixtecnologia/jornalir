@@ -681,6 +681,13 @@ export function ArticleForm({
               publicationLine={publicationLine}
               editionLine={edition ? editionPageLabel(edition.title, article?.editionPageNumber) : null}
               digitalEditionUrl={edition?.pdfUrl}
+              onEditClassification={() => {
+                setActiveTab("conteudo");
+                window.scrollTo({ top: 0, behavior: "smooth" });
+              }}
+              onEditPublication={() => {
+                document.getElementById("field-placement")?.focus({ preventScroll: false });
+              }}
             />
             {article ? (
               <div className="article-reference-box">
