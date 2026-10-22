@@ -10,9 +10,17 @@ comment on column public.commercial_sales.items_snapshot is
 alter table public.commercial_sales
   add constraint commercial_sales_items_snapshot_array_chk
   check (
-    items_snapshot is null
-    or (jsonb_typeof(items_snapshot) = 'array' and jsonb_array_length(items_snapshot) > 0)
+    case
+      when items_snapshot is null then true
+      when jsonb_typeof(items_snapshot) = 'array' then jsonb_array_length(items_snapshot) > 0
+      else false
+    end
   );
+
+-- Um pedido aprovado so pode originar uma venda. Evita duplicacao
+-- mesmo quando dois operadores convertem a proposta ao mesmo tempo.
+create unique index if not exists commercial_sales_proposal_once_idx
+  on public.commercial_sales (proposal_id) where proposal_id is not null;
 
 -- Uma edicao posterior dos produtos/planos nunca reescreve as condicoes
 -- de uma venda ja convertida. Cada alteracao contratual exigira novo
