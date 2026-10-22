@@ -65,8 +65,15 @@ export async function setAssineEnabledAction(enabled: boolean): Promise<ActionRe
       throw new Error("Só administradores podem ativar ou desativar o Assine no site.");
     }
 
-    const { error } = await client.from("site_offer_settings").update({ assine_enabled: enabled }).eq("id", 1);
+    // O UPDATE sem .select() pode ter 0 linhas afetadas por RLS e, mesmo
+    // assim, não retornar erro. Confirmar o valor efetivamente gravado.
+    const { data: saved, error } = await client.from("site_offer_settings")
+      .update({ assine_enabled: enabled }).eq("id", 1)
+      .select("assine_enabled").single();
     if (error) throw new Error(error.message);
+    if (!saved || saved.assine_enabled !== enabled) {
+      throw new Error("O banco não confirmou a alteração. Atualize a página e tente novamente.");
+    }
 
     await recordAuditEventSupabase(client, {
       userId: auth.user.id,
