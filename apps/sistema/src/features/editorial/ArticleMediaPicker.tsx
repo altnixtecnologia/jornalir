@@ -1,4 +1,4 @@
-import { useRef, useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import type { ArticleMedia, ArticleMediaRole, MediaAsset } from "@ir/types";
 import { searchMediaLibrary, uploadMediaAssets } from "../../app/sistema/editorial/midias/actions";
 import { ArticleImageEditorModal } from "./ArticleImageEditorModal";
@@ -79,6 +79,24 @@ export function ArticleMediaPicker({
   const [replacing, setReplacing] = useState<string | null>(null);
   const [editError, setEditError] = useState<string | null>(null);
   const [showActionHelp, setShowActionHelp] = useState(false);
+  const helpAnchorRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!showActionHelp) return;
+    function closeOutside(event: PointerEvent): void {
+      if (event.target instanceof Node && !helpAnchorRef.current?.contains(event.target)) {
+        setShowActionHelp(false);
+      }
+    }
+    function closeEscape(event: KeyboardEvent): void {
+      if (event.key === "Escape") setShowActionHelp(false);
+    }
+    document.addEventListener("pointerdown", closeOutside);
+    document.addEventListener("keydown", closeEscape);
+    return () => {
+      document.removeEventListener("pointerdown", closeOutside);
+      document.removeEventListener("keydown", closeEscape);
+    };
+  }, [showActionHelp]);
   const [draggedMediaId, setDraggedMediaId] = useState<string | null>(null);
   const [lastUploadNotice, setLastUploadNotice] = useState<string | null>(null);
   const [uploadDialog, setUploadDialog] = useState<{
@@ -375,20 +393,31 @@ export function ArticleMediaPicker({
       <div className="media-picker-section">
         <div className={styles.mediaListHeading}>
           <p className="field-label">Imagens da matéria ({totalPhotos})</p>
-          <button className={styles.helpButton} type="button"
-            aria-label="Explicar ícones das fotos" aria-expanded={showActionHelp}
-            onClick={() => setShowActionHelp((value) => !value)} title="O que fazem os ícones?">
-            <MediaActionIcon kind="help" />
-          </button>
+          <div className={styles.helpAnchor} ref={helpAnchorRef}>
+            <button className={styles.helpButton} type="button"
+              aria-label="O que fazem os ícones das fotos?"
+              aria-controls="article-image-actions-help"
+              aria-expanded={showActionHelp}
+              onClick={() => setShowActionHelp((value) => !value)}
+              title="Ajuda sobre os ícones">
+              <MediaActionIcon kind="help" />
+            </button>
+            {showActionHelp ? (
+              <div id="article-image-actions-help" className={styles.helpPopover}
+                role="dialog" aria-label="Funções dos ícones">
+                <div className={styles.helpPopoverHead}>
+                  <strong>Funções das fotos</strong>
+                  <button type="button" onClick={() => setShowActionHelp(false)}
+                    aria-label="Fechar ajuda" title="Fechar">×</button>
+                </div>
+                <div className={styles.helpPopoverRow}><MediaActionIcon kind="view" /><span>Visualizar</span></div>
+                <div className={styles.helpPopoverRow}><MediaActionIcon kind="edit" /><span>Ajustar / recortar</span></div>
+                <div className={styles.helpPopoverRow}><MediaActionIcon kind="replace" /><span>Substituir</span></div>
+                <div className={styles.helpPopoverRow}><MediaActionIcon kind="remove" /><span>Remover da matéria</span></div>
+              </div>
+            ) : null}
+          </div>
         </div>
-        {showActionHelp ? (
-          <p className={styles.actionLegend} role="status">
-            <MediaActionIcon kind="view" /> Visualizar
-            <MediaActionIcon kind="edit" /> Ajustar / recortar
-            <MediaActionIcon kind="replace" /> Substituir
-            <MediaActionIcon kind="remove" /> Retirar da matéria
-          </p>
-        ) : null}
         {editLoading ? <p className="helper-text" role="status">Abrindo imagem para ajuste…</p> : null}
         {editError ? <p className="form-error" role="alert">{editError}</p> : null}
         {orderedMedia.length === 0 ? (
