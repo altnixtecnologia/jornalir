@@ -450,7 +450,7 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
         <div><span>Minha fila</span><strong>{ownPending}</strong><small>pendências</small></div>
         <div className="agenda-quick-sync" title="Atualizacao automatica e sincronizacao ao retomar a aba">
           <span className={"agenda-sync-dot is-" + realtimeState} />
-          <strong>{realtimeState === "online" ? "Sincronizado" : realtimeState === "connecting" ? "Conectando" : "Sem conexão em tempo real"}</strong>
+          <strong>{realtimeState === "online" ? "Conectado" : realtimeState === "connecting" ? "Conectando" : "Sem conexão em tempo real"}</strong>
           <small>{realtimeState === "online" ? "Atualiza no máximo 1 vez por minuto" : "Verifica ao reconectar ou voltar à aba"}</small>
         </div>
       </div>
