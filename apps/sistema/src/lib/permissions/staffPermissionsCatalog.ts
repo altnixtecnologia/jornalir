@@ -8,6 +8,7 @@ export const STAFF_MODULES = [
   { key: "financeiro", label: "Financeiro" },
   { key: "assinaturas", label: "Assinaturas" },
   { key: "publicidade", label: "Comercial" },
+  { key: "nfse", label: "NFS-e" },
   { key: "aniversariantes", label: "Aniversariantes" },
 ] as const;
 export type StaffModuleKey = (typeof STAFF_MODULES)[number]["key"];
