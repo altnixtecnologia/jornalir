@@ -9,6 +9,7 @@ import {
   RECEIVABLE_STATUSES,
 } from "@ir/types";
 import { createSupabaseServerClient } from "../../../../../lib/supabase/server";
+import { checkFinanceAction } from "../../../../../lib/permissions/checkFinanceAction";
 import { listAllReceivablesForReportSupabase, listAppliedCreditsByReceivableSupabase } from "../../../../../providers/supabase/receivableRepository.supabase";
 import { getClientService } from "../../../../../composition/clientes";
 
@@ -42,6 +43,8 @@ function clientDoc(client: { kind: "individual" | "company"; cpf?: string; cnpj?
  * só não pode ser executada/validada contra dados reais agora.
  */
 export async function GET(request: NextRequest): Promise<NextResponse> {
+  const permissionError = await checkFinanceAction("relatorios_exportar");
+  if (permissionError) return NextResponse.json({ error: permissionError }, { status: 403 });
   const params = request.nextUrl.searchParams;
   const supabase = createSupabaseServerClient();
 
