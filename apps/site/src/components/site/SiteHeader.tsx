@@ -65,15 +65,21 @@ function useAssineEnabled(): boolean {
 
   useEffect(() => {
     let cancelled = false;
-    getSiteAssineEnabled()
-      .then((value) => {
-        if (!cancelled) setEnabled(value);
-      })
-      .catch(() => {
-        if (!cancelled) setEnabled(false);
-      });
+    const refresh = () => {
+      getSiteAssineEnabled()
+        .then((value) => { if (!cancelled) setEnabled(value); })
+        .catch(() => { if (!cancelled) setEnabled(false); });
+    };
+    refresh();
+    // Reconsulta ao retornar ao portal, inclusive após trocar o Assine
+    // no sistema, sem exigir que o usuário feche o aplicativo.
+    window.addEventListener("focus", refresh);
+    const onVisibility = () => { if (document.visibilityState === "visible") refresh(); };
+    document.addEventListener("visibilitychange", onVisibility);
     return () => {
       cancelled = true;
+      window.removeEventListener("focus", refresh);
+      document.removeEventListener("visibilitychange", onVisibility);
     };
   }, []);
 
