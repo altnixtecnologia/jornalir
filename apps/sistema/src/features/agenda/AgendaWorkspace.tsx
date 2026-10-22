@@ -408,6 +408,21 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
           <small>{realtimeState === "online" ? "Atualização em tempo real ativa" : "Atualiza ao reconectar"}</small>
         </div>
       </div>
+      {overdueEvents.length || overduePauta.length ? (
+        <div className="agenda-overdue-notice" role="status" aria-live="polite">
+          <span aria-hidden="true">⚠</span>
+          <span>
+            <strong>{overdueEvents.length + overduePauta.length} pendência(s) atrasada(s)</strong>
+            <small>Compromissos e pautas que passaram do prazo sem conclusão.</small>
+          </span>
+          {overdueEvents.length ? <button type="button"
+            onClick={() => {
+              const first = overdueEvents[0].eventDate;
+              if (first < data.monthStart || first > data.monthEnd) navigate("agenda", first);
+              else setSelectedDate(first);
+            }}>Ver atrasados</button> : null}
+        </div>
+      ) : null}
       <div className="agenda-topbar">
         {basePath === "/agenda" ? <div className="agenda-tabs" role="tablist" aria-label="Agenda e pauta">
           {data.access.agendaRead ? <button type="button" className={initialView === "agenda" ? "is-active" : ""} onClick={() => navigate("agenda", data.focusDate)}>Agenda</button> : null}
