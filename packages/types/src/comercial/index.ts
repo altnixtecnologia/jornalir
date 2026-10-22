@@ -3,14 +3,15 @@
 // nenhum nome/CPF/CNPJ/telefone/e-mail/endereço é duplicado aqui, mesmo
 // princípio já usado em Assinaturas/NFS-e/Financeiro.
 
-export type CommercialChannel = "newspaper" | "website" | "led_panel" | "social_media" | "package" | "other";
-export const COMMERCIAL_CHANNELS: readonly CommercialChannel[] = ["newspaper", "website", "led_panel", "social_media", "package", "other"];
+export type CommercialChannel = "newspaper" | "website" | "led_panel" | "social_media" | "package" | "equipment_rental" | "other";
+export const COMMERCIAL_CHANNELS: readonly CommercialChannel[] = ["newspaper", "website", "led_panel", "social_media", "package", "equipment_rental", "other"];
 export const COMMERCIAL_CHANNEL_LABELS: Record<CommercialChannel, string> = {
   newspaper: "Jornal impresso",
   website: "Site",
   led_panel: "Painel LED",
   social_media: "Redes sociais",
   package: "Pacote/combinado",
+  equipment_rental: "Locação de equipamentos",
   other: "Outro",
 };
 
