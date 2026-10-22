@@ -270,7 +270,14 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
   const selectedWeekDays = Array.from({ length: 7 }, (_, index) => addDays(selectedWeekStart, index));
   const todayCount = filteredEvents.filter((event) => event.eventDate === localClock.slice(0, 10) && event.status !== "cancelled").length;
   const overdueEvents = filteredEvents.filter((event) => eventOverdue(event, localClock));
-  const overduePauta = data.pautaItems.filter((item) => pautaOverdue(item, localClock));
+  // Uma pauta ligada a um compromisso visível representa a mesma pendência:
+  // não duplicar no aviso, sem excluir nem alterar os registros do banco.
+  const visibleEventIds = new Set(filteredEvents.map((event) => event.id));
+  const overduePauta = data.pautaItems.filter((item) =>
+    pautaOverdue(item, localClock)
+    && (!responsibleFilter || item.responsibleProfileId === responsibleFilter
+      || item.assignees.some((person) => person.id === responsibleFilter))
+    && (!item.agendaEventId || !visibleEventIds.has(item.agendaEventId)));
   const ownPending = data.events.filter((event) =>
     event.status === "scheduled" && event.assignees.some((person) =>
       person.id === data.currentUserId && !person.completedAt)).length +
@@ -415,12 +422,16 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
             <strong>{overdueEvents.length + overduePauta.length} pendência(s) atrasada(s)</strong>
             <small>Compromissos e pautas que passaram do prazo sem conclusão.</small>
           </span>
-          {overdueEvents.length ? <button type="button"
+          <button type="button"
             onClick={() => {
-              const first = overdueEvents[0].eventDate;
-              if (first < data.monthStart || first > data.monthEnd) navigate("agenda", first);
-              else setSelectedDate(first);
-            }}>Ver atrasados</button> : null}
+              if (overdueEvents.length) {
+                const first = overdueEvents[0].eventDate;
+                if (first < data.monthStart || first > data.monthEnd) navigate("agenda", first);
+                else setSelectedDate(first);
+              } else if (overduePauta.length) {
+                navigate("pauta", overduePauta[0].dueDate || data.today);
+              }
+            }}>Ver atrasados</button>
         </div>
       ) : null}
       <div className="agenda-topbar">
