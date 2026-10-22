@@ -182,6 +182,40 @@ function PautaDateTimeField({
   );
 }
 
+// Apenas para o cadastro de compromissos: preserva os seletores nativos
+// de data/hora, com um botao independente para limpar o valor.
+function ClearableScheduleInput({
+  name, label, type, defaultValue, required = false,
+}: {
+  name: "event_date" | "start_time" | "end_time";
+  label: string;
+  type: "date" | "time";
+  defaultValue?: string;
+  required?: boolean;
+}): JSX.Element {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const inputId = "agenda-new-" + name;
+  return (
+    <div className={"agenda-field agenda-schedule-" + (name === "event_date" ? "date" : name === "start_time" ? "start" : "end")}>
+      <label htmlFor={inputId}>{label}</label>
+      <div className="agenda-clear-input">
+        <input ref={inputRef} id={inputId} name={name} type={type} defaultValue={defaultValue} required={required} />
+        <button
+          type="button"
+          className="agenda-clear-input-button"
+          aria-label={"Limpar " + label.toLowerCase()}
+          title={"Limpar " + label.toLowerCase()}
+          onClick={() => {
+            if (!inputRef.current) return;
+            inputRef.current.value = "";
+            inputRef.current.focus();
+          }}
+        >×</button>
+      </div>
+    </div>
+  );
+}
+
 export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspaceProps): JSX.Element {
   const router = useRouter();
   const realtimeClient = useMemo(() => createSupabaseBrowserClient(), []);
@@ -656,13 +690,13 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
                 }}
               >
                 <label className="agenda-field agenda-field-wide"><span>Compromisso</span><input name="title" required maxLength={180} placeholder="Ex.: Sessão da Câmara" /></label>
-                <div className="agenda-datetime-row">
-                  <label className="agenda-field"><span>Data</span><input name="event_date" type="date" value={selectedDate} onChange={(e) => setSelectedDate(e.target.value)} required /></label>
-                  <label className="agenda-field"><span>Início</span><input name="start_time" type="time" /></label>
-                  <label className="agenda-field"><span>Fim</span><input name="end_time" type="time" /></label>
+                <div className="agenda-event-schedule-row">
+                  <ClearableScheduleInput key={"date-" + selectedDate} name="event_date" label="Data" type="date" defaultValue={selectedDate} required />
+                  <ClearableScheduleInput name="start_time" label="Início" type="time" />
+                  <ClearableScheduleInput name="end_time" label="Fim" type="time" />
+                  <label className="agenda-field agenda-schedule-reminder"><span>Lembrete Telegram</span><select name="reminder_minutes" defaultValue="30"><option value="off">Sem lembrete</option><option value="0">No horário</option><option value="5">5 min antes</option><option value="10">10 min antes</option><option value="15">15 min antes</option><option value="30">30 min antes</option><option value="60">1 hora antes</option><option value="120">2 horas antes</option><option value="1440">1 dia antes</option></select></label>
+                  <label className="agenda-field agenda-schedule-recurrence"><span>Repetir compromisso</span><select name="recurrence" defaultValue="none"><option value="none">Não repetir</option><option value="weekly4">Semanal · 4 ocorrências</option><option value="weekly12">Semanal · 12 ocorrências</option><option value="monthly3">Mensal · 3 ocorrências</option></select></label>
                 </div>
-                <label className="agenda-field"><span>Lembrete no grupo Telegram</span><select name="reminder_minutes" defaultValue="30"><option value="off">Sem lembrete</option><option value="0">No horário</option><option value="5">5 min antes</option><option value="10">10 min antes</option><option value="15">15 min antes</option><option value="30">30 min antes</option><option value="60">1 hora antes</option><option value="120">2 horas antes</option><option value="1440">1 dia antes</option></select></label>
-                <label className="agenda-field"><span>Repetir compromisso</span><select name="recurrence" defaultValue="none"><option value="none">Não repetir</option><option value="weekly4">Semanal · 4 ocorrências</option><option value="weekly12">Semanal · 12 ocorrências</option><option value="monthly3">Mensal · 3 ocorrências</option></select></label>
                 <label className="agenda-field agenda-field-wide"><span>Local</span><input name="location" maxLength={240} placeholder="Opcional" /></label>
                 <label className="agenda-field agenda-field-wide"><span>Observação</span><textarea name="description" maxLength={4000} placeholder="Informações úteis para a equipe" /></label>
                 <div className="agenda-field-wide"><AssigneePicker profiles={data.profiles} currentUserId={data.currentUserId} /></div>
