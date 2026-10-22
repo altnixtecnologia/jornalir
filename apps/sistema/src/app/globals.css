@@ -6106,3 +6106,53 @@ button.secondary-link {
 .destino-edit-actions button:hover{
  background:#f4f4fa;outline:2px solid var(--brand);outline-offset:1px
 }
+
+/* Agenda: atraso visível + cancelamento compacto sem ocupar linha inteira. */
+.agenda-overdue-notice{
+  display:flex;align-items:center;gap:10px;margin:6px 0 10px;
+  padding:10px 12px;border:1px solid #eac0a5;border-left:4px solid #bd6423;
+  background:#fff8f0;color:#773f14;border-radius:9px;min-width:0
+}
+.agenda-overdue-notice>span:nth-child(2){display:flex;flex:1;flex-direction:column;gap:3px;min-width:0}
+.agenda-overdue-notice strong{font-size:12px}
+.agenda-overdue-notice small{font-size:11px;color:#875731}
+.agenda-overdue-notice button{
+  border:1px solid #d9ab81;background:#fff;border-radius:7px;
+  min-height:36px;padding:7px 10px;font-size:11px;font-weight:800;color:#804117
+}
+.agenda-event-state.is-overdue,.pauta-item-meta .is-overdue{
+  color:#a34a13;font-weight:850
+}
+.agenda-event-card.is-overdue{
+  border-color:#e7bd97;border-left-color:#d47733!important;
+  background:#fffaf4
+}
+.agenda-event-actions.is-manager{
+  display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr) 40px;
+  gap:7px;padding-left:82px
+}
+.agenda-event-actions.is-manager button{min-width:0;min-height:40px;font-size:11px}
+.agenda-event-actions.is-manager .agenda-manager-cancel{
+  grid-column:auto;display:grid;place-items:center;
+  width:40px;min-width:40px;max-width:40px;min-height:40px;
+  padding:0;border:1px solid #e6c9c9;border-radius:8px;
+  color:#a53535;background:#fff9f9;font-size:25px;font-weight:500;
+}
+.agenda-event-actions.is-manager .agenda-manager-cancel:hover{
+  background:#fee8e8;border-color:#c78a8a
+}
+@media(max-width:760px){
+ .agenda-mobile-page .agenda-event-actions.is-manager{
+   display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr) 40px;
+   gap:6px;padding-left:0
+ }
+ .agenda-mobile-page .agenda-event-actions.is-manager button{
+   min-width:0;min-height:44px;width:100%;padding:7px 6px;font-size:11px
+ }
+ .agenda-mobile-page .agenda-event-actions.is-manager .agenda-manager-cancel{
+   grid-column:auto;width:40px;min-width:40px;max-width:40px;
+   padding:0;font-size:24px
+ }
+ .agenda-overdue-notice{gap:7px;padding:8px}
+ .agenda-overdue-notice button{white-space:nowrap;padding:6px 8px}
+}
