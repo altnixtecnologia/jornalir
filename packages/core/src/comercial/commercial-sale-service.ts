@@ -1,4 +1,4 @@
-import { canTransitionCommercialSaleStatus, type CommercialCondition, type CommercialSale, type CommercialSaleStatus } from "@ir/types";
+import { canTransitionCommercialSaleStatus, type CommercialCondition, type CommercialSale, type CommercialSaleStatus, type CommercialSaleItemSnapshot } from "@ir/types";
 import type {
   CommercialSaleChanges,
   CommercialSaleListQuery,
@@ -9,6 +9,12 @@ import { CommercialSaleNotFoundError } from "./commercial-sale-repository";
 
 export class CommercialSaleValidationError extends Error {}
 export class CommercialSaleStatusTransitionError extends Error {}
+/** Mantem o documento futuro coerente com os itens da proposta ja aceita. */
+export class CommercialSaleSnapshotLockedError extends Error {
+  constructor() {
+    super("Esta venda veio de uma proposta com varios itens. Para alterar valores, cliente ou vigencia, revise a negociacao e formalize nova versao/aditivo; os itens originais permanecem preservados.");
+  }
+}
 /** "Alteração após gerar Financeiro" (item 14 da tarefa original, auditoria
  * de integridade posterior) — nunca atualiza silenciosamente um campo que
  * mudaria a IDENTIDADE financeira da negociação (quem paga, quanto, em
@@ -35,6 +41,7 @@ export interface CommercialSaleInput {
   clientId: string;
   /** Preenchido só quando a venda nasce de uma proposta convertida — nunca editável depois de criada. */
   proposalId?: string;
+  itemsSnapshot?: CommercialSaleItemSnapshot[];
   productId?: string;
   channel: string;
   description: string;
@@ -55,6 +62,7 @@ function normalize(input: CommercialSaleInput, status: CommercialSaleStatus): Ne
   return {
     clientId: input.clientId,
     proposalId: trimOrUndefined(input.proposalId),
+    ...(input.itemsSnapshot === undefined ? {} : { itemsSnapshot: input.itemsSnapshot }),
     productId: trimOrUndefined(input.productId),
     channel: input.channel.trim(),
     description: input.description.trim(),
@@ -98,6 +106,22 @@ export class CommercialSaleService {
   async register(input: CommercialSaleInput): Promise<CommercialSale> {
     const record = normalize(input, "proposal");
     assertValid(record);
+    if (record.itemsSnapshot !== undefined) {
+      if (!record.proposalId || record.itemsSnapshot.length === 0) {
+        throw new CommercialSaleValidationError("Os itens da venda devem vir de uma proposta válida.");
+      }
+      if (record.itemsSnapshot.some((item) =>
+        !item.description.trim() || !item.productName.trim() ||
+        !Number.isFinite(item.quantity) || item.quantity <= 0 ||
+        !Number.isFinite(item.unitPrice) || item.unitPrice < 0 ||
+        !Number.isFinite(item.discountAmount) || item.discountAmount < 0 ||
+        !Number.isFinite(item.totalAmount) || item.totalAmount < 0
+      )) throw new CommercialSaleValidationError("A proposta possui itens inválidos.");
+      const total = Math.round(record.itemsSnapshot.reduce((sum, item) => sum + item.totalAmount, 0) * 100) / 100;
+      if (Math.abs(total - record.amount) > 0.009) {
+        throw new CommercialSaleValidationError("O total da venda não corresponde à soma dos serviços da proposta.");
+      }
+    }
     return this.repository.create(record);
   }
 
@@ -106,6 +130,17 @@ export class CommercialSaleService {
     const changes: CommercialSaleChanges = normalize(input, current.status);
     assertValid(changes as Pick<NewCommercialSaleRecord, "clientId" | "channel" | "description" | "startDate" | "amount" | "endDate">);
 
+    if (current.itemsSnapshot?.length && (
+      changes.clientId !== current.clientId ||
+      changes.amount !== current.amount ||
+      changes.commercialCondition !== current.commercialCondition ||
+      changes.startDate !== current.startDate ||
+      changes.endDate !== current.endDate ||
+      changes.productId !== current.productId
+    )) throw new CommercialSaleSnapshotLockedError();
+
+    // O snapshot pertence a origem e so pode ser gravado na criacao da venda.
+    delete changes.itemsSnapshot;
     if (options.financeiroGenerated) {
       if (changes.clientId !== current.clientId) throw new CommercialSaleFinanceiroAlreadyGeneratedError("clientId");
       if (changes.amount !== current.amount) throw new CommercialSaleFinanceiroAlreadyGeneratedError("amount");
