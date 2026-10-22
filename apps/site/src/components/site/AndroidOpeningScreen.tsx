@@ -5,14 +5,14 @@ import { Capacitor } from "@capacitor/core";
 
 const MIN_DURATION_MS = 2500;
 const MAX_WAIT_MS = 5000;
-const EXIT_DURATION_MS = 720;
+const EXIT_DURATION_MS = 1080;
 
 /**
  * Abertura visual do Jornal IR somente dentro do APK Capacitor.
  * Nunca aparece ao mudar de notícia/rota nem no site Chrome/PWA.
  * Porcentagem mede a animação de apresentação, não tráfego de rede.
  * O portal espera ~2,5 segundos, até 5 segundos caso a página ainda não
- * esteja pronta. O encerramento revela o conteúdo por escala + fade.
+ * esteja pronta. A revelação dura 1080ms com zoom e fade suaves.
  * É uma apresentação do WebView, NÃO o splash nativo do Android.
  */
 export function AndroidOpeningScreen(): JSX.Element | null {
@@ -64,7 +64,7 @@ export function AndroidOpeningScreen(): JSX.Element | null {
 
   if (!show) return null;
   return (
-    <div className={`fixed inset-0 z-[16000] flex h-screen w-screen flex-col items-center justify-between overflow-hidden bg-[#282754] px-6 text-white ${leaving ? "ir-opening-leaving" : ""}`}
+    <div className={`ir-opening-layer fixed inset-0 z-[16000] flex h-screen w-screen flex-col items-center justify-between overflow-hidden bg-[#282754] px-6 text-white ${leaving ? "ir-opening-leaving" : ""}`}
          style={{ height: "100dvh", paddingTop: "max(68px, env(safe-area-inset-top, 0px))", paddingBottom: "max(56px, env(safe-area-inset-bottom, 0px))" }}
          role="status" aria-label="Iniciando Jornal IR" aria-live="off">
       <div className="flex w-full flex-1 items-center justify-center">
