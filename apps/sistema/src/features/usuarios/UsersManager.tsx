@@ -350,11 +350,11 @@ export function UsersManager(): JSX.Element {
                             {user.role === "admin" ? "Rebaixar a operador" : "Promover a admin"}
                           </button>
                         ) : null}
-                        <button type="button" onClick={() => setEditingUserId((id) => id === user.id ? null : user.id)} disabled={pending}>
+                        {user.role === "operator" ? <button type="button" onClick={() => setEditingUserId((id) => id === user.id ? null : user.id)} disabled={pending}>
                           {editingUserId === user.id ? "Fechar permissões" : "Editar permissões"}
                         </button>                        <button type="button" onClick={() => setResetTarget(user)} disabled={pending}>
                           Redefinir senha
-                        </button>
+                        </button> : null}
                         <button type="button" onClick={() => toggleActive(user)} disabled={pending}>
                           {user.active ? "Desativar" : "Ativar"}
                         </button>
@@ -397,11 +397,11 @@ export function UsersManager(): JSX.Element {
                         {user.role === "admin" ? "Rebaixar a operador" : "Promover a admin"}
                       </button>
                     ) : null}
-                    <button type="button" onClick={() => setEditingUserId((id) => id === user.id ? null : user.id)} disabled={pending}>
+                    {user.role === "operator" ? <button type="button" onClick={() => setEditingUserId((id) => id === user.id ? null : user.id)} disabled={pending}>
                       {editingUserId === user.id ? "Fechar permissões" : "Editar permissões"}
                     </button>                    <button type="button" onClick={() => setResetTarget(user)} disabled={pending}>
                       Redefinir senha
-                    </button>
+                    </button> : null}
                     <button type="button" onClick={() => toggleActive(user)} disabled={pending}>
                       {user.active ? "Desativar" : "Ativar"}
                     </button>
