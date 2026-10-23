@@ -4,13 +4,16 @@ import { useEffect, useMemo, useState } from "react";
 import { createSupabaseBrowserClient } from "../../lib/supabase/browser";
 import { useAuth, type AuthRole } from "../../lib/auth/AuthProvider";
 import { ROLE_LABELS } from "../../lib/auth/accountDisplay";
-import { inviteUser, sendPasswordResetForUser } from "../../app/sistema/usuarios/actions";
+import { inviteUser, listUserInvitationStatuses, sendPasswordResetForUser } from "../../app/sistema/usuarios/actions";
 import { ConfirmDialog } from "../../components/admin/ConfirmDialog";
-import { STAFF_MODULES, type StaffModuleKey } from "../../lib/permissions/staffPermissionsCatalog";
+import { STAFF_FINANCE_ACTIONS, STAFF_MODULE_ACTIONS, STAFF_MODULES, type StaffFinanceActionKey, type StaffModuleActionKey, type StaffActionModule, type StaffModuleKey } from "../../lib/permissions/staffPermissionsCatalog";
 
 interface AgendaManagerGrantRow { profile_id: string; can_manage: boolean; }
 interface AuditViewerGrantRow { profile_id: string; can_view: boolean; }
 interface VisibilityRow { profile_id: string; module_key: StaffModuleKey; enabled: boolean; }
+interface FinanceGrantRow { profile_id: string; action_key: StaffFinanceActionKey; allowed: boolean; }
+interface ModuleActionGrantRow { profile_id: string; module_key: StaffActionModule; action_key: StaffModuleActionKey; allowed: boolean; }
+interface InvitationStatus { id: string; pending: boolean; }
 
 interface UserRow {
   id: string;
@@ -39,6 +42,11 @@ export function UsersManager(): JSX.Element {
   const [agendaManagerGrants, setAgendaManagerGrants] = useState<AgendaManagerGrantRow[]>([]);
   const [auditViewerGrants, setAuditViewerGrants] = useState<AuditViewerGrantRow[]>([]);
   const [moduleVisibility, setModuleVisibility] = useState<VisibilityRow[]>([]);
+  const [financeGrants, setFinanceGrants] = useState<FinanceGrantRow[]>([]);
+  const [moduleActionGrants, setModuleActionGrants] = useState<ModuleActionGrantRow[]>([]);
+  const [invitationStatuses, setInvitationStatuses] = useState<InvitationStatus[] | null>(null);
+  const [invitationWarning, setInvitationWarning] = useState("");
+  const [editingUserId, setEditingUserId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
@@ -50,21 +58,33 @@ export function UsersManager(): JSX.Element {
   const isAdmin = profile?.role === "admin";
 
   async function reload(): Promise<void> {
-    const [profilesResult, visibilityResult, agendaManagersResult, auditViewersResult] = await Promise.all([
+    const [profilesResult, visibilityResult, agendaManagersResult, auditViewersResult, financeResult, moduleActionsResult, invitationsResult] = await Promise.all([
       client.from("profiles").select("id, name, role, active, created_at").order("created_at", { ascending: true }),
       client.from("staff_module_visibility").select("profile_id,module_key,enabled"),
       client.from("agenda_manager_grants").select("profile_id,can_manage"),
       client.from("audit_viewer_grants").select("profile_id,can_view"),
+      client.from("staff_finance_action_permissions").select("profile_id,action_key,allowed"),
+      client.from("staff_module_action_permissions").select("profile_id,module_key,action_key,allowed"),
+      listUserInvitationStatuses(),
     ]);
-    if (profilesResult.error || visibilityResult.error || agendaManagersResult.error || auditViewersResult.error) {
+    if (profilesResult.error || visibilityResult.error || agendaManagersResult.error || auditViewersResult.error || financeResult.error || moduleActionsResult.error) {
       setError(profilesResult.error?.message ?? visibilityResult.error?.message
-        ?? agendaManagersResult.error?.message ?? auditViewersResult.error?.message ?? "Não foi possível carregar os usuários.");
+        ?? agendaManagersResult.error?.message ?? auditViewersResult.error?.message ?? financeResult.error?.message ?? moduleActionsResult.error?.message ?? "Não foi possível carregar os usuários.");
       return;
     }
     setUsers((profilesResult.data ?? []) as UserRow[]);
     setModuleVisibility((visibilityResult.data ?? []) as VisibilityRow[]);
     setAgendaManagerGrants((agendaManagersResult.data ?? []) as AgendaManagerGrantRow[]);
     setAuditViewerGrants((auditViewersResult.data ?? []) as AuditViewerGrantRow[]);
+    setFinanceGrants((financeResult.data ?? []) as FinanceGrantRow[]);
+    setModuleActionGrants((moduleActionsResult.data ?? []) as ModuleActionGrantRow[]);
+    if ("ok" in invitationsResult) {
+      setInvitationStatuses(invitationsResult.statuses);
+      setInvitationWarning("");
+    } else {
+      setInvitationStatuses(null);
+      setInvitationWarning(invitationsResult.error);
+    }
   }
 
   useEffect(() => {
@@ -187,6 +207,57 @@ export function UsersManager(): JSX.Element {
     await reload();
   }
 
+  function invitationPending(userId: string): boolean {
+    return invitationStatuses?.find((entry) => entry.id === userId)?.pending === true;
+  }
+
+  function userStatus(user: UserRow): { label: string; style: string } {
+    if (!user.active) return { label: "Inativo", style: "archived" };
+    if (!invitationStatuses) return { label: "A verificar", style: "scheduled" };
+    if (invitationPending(user.id)) return { label: "Convite pendente", style: "adjusting" };
+    return { label: "Ativo", style: "published" };
+  }
+
+  function financeAllowed(userId: string, key: StaffFinanceActionKey): boolean {
+    return financeGrants.some((item) => item.profile_id === userId && item.action_key === key && item.allowed);
+  }
+
+  async function saveFinancePermission(target: UserRow, key: StaffFinanceActionKey, allowed: boolean): Promise<void> {
+    if (target.role !== "operator" || !canManage(target) || !isModuleEnabled(target.id, "financeiro")) return;
+    setPending(true);
+    setError(null);
+    setMessage(null);
+    const { error: saveError } = await client.from("staff_finance_action_permissions").upsert({
+      profile_id: target.id, action_key: key, allowed, updated_at: new Date().toISOString(),
+    }, { onConflict: "profile_id,action_key" });
+    if (saveError) setError("Erro ao salvar autorização financeira: " + saveError.message);
+    else setMessage("Permissão atualizada para " + target.name + ".");
+    await reload();
+    setPending(false);
+  }
+
+  function moduleActionAllowed(userId: string, module: StaffActionModule, key: StaffModuleActionKey): boolean {
+    return moduleActionGrants.some((grant) =>
+      grant.profile_id === userId && grant.module_key === module && grant.action_key === key && grant.allowed);
+  }
+
+  async function saveModuleActionPermission(
+    target: UserRow, module: StaffActionModule, key: StaffModuleActionKey, allowed: boolean,
+  ): Promise<void> {
+    if (target.role !== "operator" || !canManage(target) || !isModuleEnabled(target.id, module)) return;
+    setPending(true);
+    setError(null);
+    setMessage(null);
+    const { error: saveError } = await client.from("staff_module_action_permissions").upsert({
+      profile_id: target.id, module_key: module, action_key: key, allowed,
+      updated_at: new Date().toISOString(),
+    }, { onConflict: "profile_id,module_key,action_key" });
+    if (saveError) setError("Erro ao salvar ação do módulo: " + saveError.message);
+    else setMessage("Permissão atualizada para " + target.name + ".");
+    await reload();
+    setPending(false);
+  }
+
   function isModuleEnabled(userId: string, key: StaffModuleKey): boolean {
     return moduleVisibility.some((item) =>
       item.profile_id === userId && item.module_key === key && item.enabled);
@@ -260,8 +331,9 @@ export function UsersManager(): JSX.Element {
       ) : null}
       {message ? <p className="helper-text">{message}</p> : null}
 
-      <div className="materias-table-wrap">
-        <table className="materias-table">
+      {invitationWarning ? <p className="helper-text" role="status">A situação dos convites não pôde ser conferida: {invitationWarning}</p> : null}
+      <div className="materias-table-wrap usuarios-table-wrap">
+        <table className="materias-table usuarios-table">
           <thead>
             <tr>
               <th>Nome</th>
@@ -276,7 +348,7 @@ export function UsersManager(): JSX.Element {
               const manageable = canManage(user);
               return (
                 <tr key={user.id}>
-                  <td className="materia-title">{user.name}</td>
+                  <td><span className="usuarios-cell-name">{user.name}</span></td>
                   <td>
                     {user.role === "owner" ? (
                       <span className="status-pill status-pill--published">{ROLE_LABELS.owner}</span>
@@ -285,8 +357,8 @@ export function UsersManager(): JSX.Element {
                     )}
                   </td>
                   <td>
-                    <span className={`status-pill status-pill--${user.active ? "published" : "archived"}`}>
-                      {user.active ? "Ativo" : "Inativo"}
+                    <span className={`status-pill status-pill--${userStatus(user).style}`}>
+                      {userStatus(user).label}
                     </span>
                   </td>
                   <td>{formatDate(user.created_at)}</td>
@@ -294,7 +366,7 @@ export function UsersManager(): JSX.Element {
                     {user.role === "owner" ? (
                       <span className="helper-text">Sem ações — proprietário</span>
                     ) : manageable ? (
-                      <div className="candidate-row-actions">
+                      <div className="candidate-row-actions usuarios-row-actions">
                         {isOwner ? (
                           <button
                             type="button"
@@ -304,6 +376,9 @@ export function UsersManager(): JSX.Element {
                             {user.role === "admin" ? "Rebaixar a operador" : "Promover a admin"}
                           </button>
                         ) : null}
+                        {user.role === "operator" ? <button type="button" onClick={() => setEditingUserId((id) => id === user.id ? null : user.id)} disabled={pending}>
+                          {editingUserId === user.id ? "Fechar permissões" : "Editar permissões"}
+                        </button> : null}
                         <button type="button" onClick={() => setResetTarget(user)} disabled={pending}>
                           Redefinir senha
                         </button>
@@ -328,8 +403,8 @@ export function UsersManager(): JSX.Element {
           return (
             <li key={user.id} className="materia-card materia-card--static">
               <div className="materia-card-head">
-                <span className={`status-pill status-pill--${user.active ? "published" : "archived"}`}>
-                  {user.active ? "Ativo" : "Inativo"}
+                <span className={`status-pill status-pill--${userStatus(user).style}`}>
+                  {userStatus(user).label}
                 </span>
                 <span className="materia-reference">{formatDate(user.created_at)}</span>
               </div>
@@ -349,7 +424,10 @@ export function UsersManager(): JSX.Element {
                         {user.role === "admin" ? "Rebaixar a operador" : "Promover a admin"}
                       </button>
                     ) : null}
-                    <button type="button" onClick={() => setResetTarget(user)} disabled={pending}>
+                    {user.role === "operator" ? <button type="button" onClick={() => setEditingUserId((id) => id === user.id ? null : user.id)} disabled={pending}>
+                      {editingUserId === user.id ? "Fechar permissões" : "Editar permissões"}
+                    </button> : null}
+                        <button type="button" onClick={() => setResetTarget(user)} disabled={pending}>
                       Redefinir senha
                     </button>
                     <button type="button" onClick={() => toggleActive(user)} disabled={pending}>
@@ -401,7 +479,8 @@ export function UsersManager(): JSX.Element {
           Os demais módulos continuam com visibilidade individual. Desativar um módulo o oculta
           do menu e bloqueia seu acesso pelas permissões do servidor.
         </p>
-        {(users ?? []).filter((user) => user.role === "operator").map((user) => (
+        {!editingUserId ? <p className="helper-text">Clique em "Editar permissões" na linha de um operador para configurar módulos e ações liberadas.</p> : null}
+        {(users ?? []).filter((user) => user.role === "operator" && user.id === editingUserId).map((user) => (
           <div key={user.id} className="inline-form">
             <strong>{user.name} {user.active ? "" : "(inativo)"}</strong>
             <h3>Auditoria / Histórico de atividades</h3>
@@ -426,6 +505,55 @@ export function UsersManager(): JSX.Element {
                     onChange={(event) => void saveModuleVisibility(user, item.key, event.target.checked)}
                   />
                   <span>{item.label}</span>
+                </label>
+              ))}
+            </div>
+            <h3>Ações de cada módulo</h3>
+            <p className="helper-text">
+              A caixa do módulo permite consultar e acessar a área. As ações abaixo liberam
+              operações específicas, independentemente umas das outras. Desmarcado = negado.
+            </p>
+            {STAFF_MODULES.filter((mod) => mod.key !== "financeiro").map((mod) => {
+              const actions = STAFF_MODULE_ACTIONS.filter((action) => action.module === mod.key);
+              if (!actions.length) return null;
+              return (
+                <div key={mod.key} className="staff-permissions-section">
+                  <strong>{mod.label}</strong>
+                  {!isModuleEnabled(user.id, mod.key) ? <span className="helper-text">Ative o módulo acima para permitir estas operações.</span> : null}
+                  <div className="staff-permissions-grid">
+                    {actions.map((action) => (
+                      <label key={action.key} className="staff-permission-choice">
+                        <input type="checkbox"
+                          checked={moduleActionAllowed(user.id, action.module, action.key)}
+                          disabled={pending || !canManage(user) || !isModuleEnabled(user.id, action.module) || ("adminOnly" in action && action.adminOnly === true)}
+                          onChange={(event) => void saveModuleActionPermission(user, action.module, action.key, event.target.checked)}
+                        />
+                        <span>{action.label}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
+            <h3>Ações do Financeiro</h3>
+            <p className="helper-text">
+              Acesso ao módulo e autorização de ações são diferentes. Desmarcado significa negado.
+              Criar um título NÃO permite dar baixa, cancelar, estornar ou exportar. Não existe exclusão
+              definitiva de lançamentos: use cancelamento conforme a autorização.
+            </p>
+            {!isModuleEnabled(user.id, "financeiro")
+              ? <p className="helper-text">Ative primeiro o módulo Financeiro para configurar suas ações.</p>
+              : null}
+            <div className="staff-permissions-grid">
+              {STAFF_FINANCE_ACTIONS.map((item) => (
+                <label key={item.key} className="staff-permission-choice">
+                  <input
+                    type="checkbox"
+                    checked={financeAllowed(user.id, item.key)}
+                    disabled={pending || !canManage(user) || !isModuleEnabled(user.id, "financeiro")}
+                    onChange={(event) => void saveFinancePermission(user, item.key, event.target.checked)}
+                  />
+                  <span>{item.group} · {item.label}</span>
                 </label>
               ))}
             </div>

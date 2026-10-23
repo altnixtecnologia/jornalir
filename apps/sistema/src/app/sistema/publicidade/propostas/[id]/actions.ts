@@ -5,6 +5,7 @@ import type { CommercialProposalStatus } from "@ir/types";
 import { computeProposalTotal } from "@ir/types";
 import { getCommercialProposalService, getCommercialSaleService } from "../../../../../composition/comercial";
 import { createSupabaseServerClient } from "../../../../../lib/supabase/server";
+import { checkModuleAction } from "../../../../../lib/permissions/checkModuleAction";
 import { getAuditContext } from "../../../../../lib/auth/getAuditContext";
 import { recordAuditEventSupabase } from "../../../../../providers/supabase/auditEvents.supabase";
 import { toCommercialProposalServiceInput, type CommercialProposalFormInput } from "../commercialProposalFormTypes";
@@ -20,6 +21,8 @@ function listPath(id: string): string {
 }
 
 export async function updateCommercialProposalAction(id: string, input: CommercialProposalFormInput): Promise<{ error: string } | void> {
+  const permissionError = await checkModuleAction("publicidade", "propostas_editar");
+  if (permissionError) return { error: permissionError };
   try {
     const client = createSupabaseServerClient();
     const AUDIT = await getAuditContext(client);
@@ -33,7 +36,13 @@ export async function updateCommercialProposalAction(id: string, input: Commerci
 }
 
 export async function changeCommercialProposalStatusAction(id: string, to: CommercialProposalStatus): Promise<{ error: string } | void> {
-  try {
+  const permissionError = await checkModuleAction("publicidade", "propostas_editar");
+  if (permissionError) return { error: permissionError };
+  try {  if (to === "approved") {
+    const approvalError = await checkModuleAction("publicidade", "propostas_aprovar");
+    if (approvalError) return { error: approvalError };
+  }
+
     const client = createSupabaseServerClient();
     const AUDIT = await getAuditContext(client);
     await getCommercialProposalService(client).changeStatus(id, to);
@@ -46,6 +55,8 @@ export async function changeCommercialProposalStatusAction(id: string, to: Comme
 }
 
 export async function duplicateCommercialProposalAction(id: string): Promise<{ error: string } | { id: string }> {
+  const permissionError = await checkModuleAction("publicidade", "propostas_criar");
+  if (permissionError) return { error: permissionError };
   try {
     const client = createSupabaseServerClient();
     const AUDIT = await getAuditContext(client);
@@ -67,6 +78,8 @@ export async function duplicateCommercialProposalAction(id: string): Promise<{ e
  * própria venda (Fase 4).
  */
 export async function convertCommercialProposalToSaleAction(id: string): Promise<{ error: string } | { saleId: string }> {
+  const permissionError = await checkModuleAction("publicidade", "propostas_aprovar");
+  if (permissionError) return { error: permissionError };
   try {
     const client = createSupabaseServerClient();
     const AUDIT = await getAuditContext(client);

@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import type { SubscriptionInput } from "@ir/core";
 import { getSubscriptionService } from "../../../composition/assinaturas";
 import { createSupabaseServerClient } from "../../../lib/supabase/server";
+import { checkModuleAction } from "../../../lib/permissions/checkModuleAction";
 import { parseAmount, parseDueDay, validateSubscriptionPayload, type SubscriptionFormPayload } from "../../../features/assinaturas/subscriptionFormTypes";
 
 const LIST_PATH = "/sistema/assinaturas";
@@ -52,6 +53,8 @@ function toServiceInput(payload: SubscriptionFormPayload): SubscriptionInput {
 }
 
 export async function createSubscription(payload: SubscriptionFormPayload): Promise<ActionResult> {
+  const permissionError = await checkModuleAction("assinaturas", "assinaturas_criar");
+  if (permissionError) return { error: permissionError };
   const validationError = validateSubscriptionPayload(payload);
   if (validationError) return { error: validationError };
 
@@ -67,6 +70,8 @@ export async function createSubscription(payload: SubscriptionFormPayload): Prom
 }
 
 export async function updateSubscription(id: string, payload: SubscriptionFormPayload): Promise<ActionResult> {
+  const permissionError = await checkModuleAction("assinaturas", "assinaturas_editar");
+  if (permissionError) return { error: permissionError };
   const validationError = validateSubscriptionPayload(payload);
   if (validationError) return { error: validationError };
 
@@ -88,6 +93,8 @@ export async function updateSubscription(id: string, payload: SubscriptionFormPa
  * ArticleForm.handleBack pra descartar o Router Cache ao voltar).
  */
 export async function suspendSubscriptionAction(id: string): Promise<ActionResult> {
+  const permissionError = await checkModuleAction("assinaturas", "assinaturas_suspender");
+  if (permissionError) return { error: permissionError };
   try {
     await getSubscriptionService(createSupabaseServerClient()).suspend(id);
   } catch (error) {
@@ -98,6 +105,8 @@ export async function suspendSubscriptionAction(id: string): Promise<ActionResul
 }
 
 export async function reactivateSubscriptionAction(id: string): Promise<ActionResult> {
+  const permissionError = await checkModuleAction("assinaturas", "assinaturas_suspender");
+  if (permissionError) return { error: permissionError };
   try {
     await getSubscriptionService(createSupabaseServerClient()).reactivate(id);
   } catch (error) {
@@ -108,6 +117,8 @@ export async function reactivateSubscriptionAction(id: string): Promise<ActionRe
 }
 
 export async function cancelSubscriptionAction(id: string, reason: string): Promise<ActionResult> {
+  const permissionError = await checkModuleAction("assinaturas", "assinaturas_cancelar");
+  if (permissionError) return { error: permissionError };
   try {
     await getSubscriptionService(createSupabaseServerClient()).cancel(id, reason);
   } catch (error) {

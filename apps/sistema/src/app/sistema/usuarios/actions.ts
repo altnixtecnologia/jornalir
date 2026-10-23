@@ -4,6 +4,9 @@ import { createSupabaseAdminClient, hasServiceRoleKey } from "../../../lib/supab
 import { createSupabaseServerClient } from "../../../lib/supabase/server";
 import { recordAuditEventSupabase } from "../../../providers/supabase/auditEvents.supabase";
 
+const SISTEMA_BASE_URL = process.env.NEXT_PUBLIC_SISTEMA_URL ??
+  (process.env.NODE_ENV === "production" ? "https://controle.altnix.com.br" : "http://localhost:3001");
+
 export type InviteRole = "operator" | "admin";
 type ActionResult = { ok: true } | { error: string };
 
@@ -50,7 +53,7 @@ export async function inviteUser(email: string, role: InviteRole): Promise<Actio
 
   const admin = createSupabaseAdminClient();
   const { data: invited, error: inviteError } = await admin.auth.admin.inviteUserByEmail(trimmedEmail, {
-    redirectTo: `${process.env.NEXT_PUBLIC_SISTEMA_URL ?? "http://localhost:3001"}/definir-senha`,
+    redirectTo: `${SISTEMA_BASE_URL}/definir-senha`,
   });
   if (inviteError || !invited.user) {
     return { error: "Não foi possível enviar o convite. Confira o e-mail e tente novamente." };
@@ -119,7 +122,7 @@ export async function sendPasswordResetForUser(profileId: string): Promise<Actio
 
   const redirectTo = new URL(
     "/definir-senha?recovery=1",
-    process.env.NEXT_PUBLIC_SISTEMA_URL ?? "http://localhost:3001",
+    SISTEMA_BASE_URL,
   ).toString();
   const { error: resetError } = await admin.auth.resetPasswordForEmail(email, { redirectTo });
   if (resetError) return { error: "Não foi possível enviar o link. Confira a configuração de e-mail e tente novamente." };
@@ -137,4 +140,36 @@ export async function sendPasswordResetForUser(profileId: string): Promise<Actio
   }
 
   return { ok: true };
+}
+
+/**
+ * O convite cria imediatamente auth.users e profiles(active=true), mas
+ * isto NAO significa que a pessoa aceitou o e-mail. A confirmacao vem
+ * exclusivamente do Supabase Auth, nao de campos controlados no browser.
+ * Apenas owner/admin leem a situacao dos convites; expomos so ID/status.
+ */
+export async function listUserInvitationStatuses(): Promise<
+  { ok: true; statuses: Array<{ id: string; pending: boolean }> } | { error: string }
+> {
+  const client = createSupabaseServerClient();
+  const { data: auth, error: authError } = await client.auth.getUser();
+  if (authError || !auth.user) return { error: "Sessão inválida." };
+  const { data: requester, error: profileError } = await client.from("profiles")
+    .select("role,active").eq("id", auth.user.id).maybeSingle();
+  if (profileError || !requester?.active || !["owner","admin"].includes(requester.role)) {
+    return { error: "Sem permissão para consultar convites." };
+  }
+  if (!hasServiceRoleKey()) return { error: "Consulta de convites indisponível neste ambiente." };
+  const admin = createSupabaseAdminClient();
+  const statuses: Array<{ id: string; pending: boolean }> = [];
+  const perPage = 200;
+  for (let page = 1; page <= 30; page += 1) {
+    const { data, error } = await admin.auth.admin.listUsers({ page, perPage });
+    if (error || !data) return { error: "Não foi possível conferir o aceite dos convites." };
+    statuses.push(...data.users.map((u) => ({
+      id: u.id, pending: !u.email_confirmed_at,
+    })));
+    if (data.users.length < perPage) return { ok: true, statuses };
+  }
+  return { error: "Lista de contas excedeu o limite de consulta. Revise a paginação." };
 }
