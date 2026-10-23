@@ -290,3 +290,38 @@ rescisão e integração financeira sem cobrança duplicada.
 **Importante:** não considerar uma prévia PDF aprovação legal. Antes de
 assinar, o responsável deverá revisar o teor jurídico de cada
 modalidade e confirmar as condições exibidas.
+
+## Etapa 2E — escolha automática por modalidade (23/10/2026)
+
+**Implementada na branch integrada, SEM produção.**
+
+- `20261110100000_commercial_contract_auto_templates.sql`: preparação da venda
+  seleciona automaticamente, quando inequívoco, o **último modelo ativo**
+  de `commercial_combined` para pacote único ou
+  `commercial_<serviceChannel>` por serviço individual.
+- Sem modelo específico disponível, admite `commercial_generic`
+  **somente para documentos individuais**; com catálogo ambíguo ou
+  inexistente, deixa a escolha pendente de conferência.
+- Uma proposta com **um** serviço sugere um documento individual;
+  vários serviços sugerem documento combinado, alterável no formulário.
+- Ao alternar combinado/separado, `set_commercial_contract_document_mode`
+  remove os vínculos antigos ainda em rascunho e recalcula os modelos
+  apropriados numa transação. Itens e valores negociados ficam intactos.
+- A chamada repetida de preparação não cria pacote duplicado nem
+  substitui modelo já escolhido manualmente. Testado em
+  `tests/security/commercial-auto-contract-assertions.sql`.
+- **Estado atual:** o pacote nasce ao acionar a preparação da contratação
+  sobre uma venda aprovada/ativa. A criação completamente autônoma no
+  instante em que a venda é aprovada ainda precisa ser integrada ao
+  fluxo de aprovação comercial, respeitando permissões — não declarar
+  que isso já acontece.
+- O catálogo do Supabase real foi consultado SOMENTE em leitura em
+  23/10/2026: `contract_templates` retornou **zero modelos**. Portanto
+  a escolha é automática no código, mas não poderá ser concretizada
+  em produção antes de cadastrar e revisar juridicamente os modelos
+  oficiais por tipo de serviço.
+- Nenhum PDF jurídico/assinatura é gerado sem modelo e dados completos.
+
+**Atenção:** seleção automática de um modelo ativo não substitui
+a aprovação do texto jurídico, conferência da qualificação das partes
+nem o consentimento do cliente.
