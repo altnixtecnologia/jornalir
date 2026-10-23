@@ -494,3 +494,31 @@ reais e sem assinatura eletrônica comercial habilitada.**
 - Histórico de eventos aparece na venda apenas para revisores autorizados.
 - Verificação automatizada confirma ausência de permissões anônimas,
   proibição de escrita direta e trigger de aprovação em banco descartável.
+
+## Etapa 3D — preparação versionada de signatários (23/10/2026)
+
+- Migration **somente no GitHub**:
+  `20261112100000_commercial_signer_preparation.sql`, posterior às
+  migrations de aprovação e documentos comerciais.
+- `commercial_signature_preparations` + `commercial_signature_participants`
+  guardam lista privada vinculada ao PDF emitido. São **listas para
+  conferência**, sem tokens, e-mails enviados, aceite, OTP ou assinatura.
+- Deve haver 2 a 10 pessoas, ao menos um representante da CONTRATANTE
+  e um da CONTRATADA, com e-mails diferentes. Testes TypeScript cobrem
+  normalização de nomes, e-mail, telefone, papéis e limites.
+- Novo formulário em `/sistema/publicidade/vendas/[id]`: adicionar
+  testemunhas, registrar contatos e corrigir listas com histórico.
+  Nova lista substitui a vigente, sem apagar versões anteriores. A RPC
+  em uma transação bloqueia o PDF e grava todos os signatários juntos.
+- A RPC `prepare_commercial_signature_participants` exige sessão ativa
+  e permissão comercial granular, e valida que o PDF pertença a pacote
+  juridicamente aprovado. Inserções diretas são proibidas.
+- Histórico anterior é marcado `superseded`, mas jamais eliminado.
+  Uma preparação `draft` por PDF tem índice único parcial, evitando
+  concorrência de listas vigentes.
+- A fase posterior será convite individual com token protegido, confirmação
+  por e-mail/OTP, consentimento, ordem/múltiplos signatários, documento
+  assinado e recibos imutáveis, verificação e reenvio. NÃO conectar
+  `contract_signature_invitations` institucional por atalho.
+- CI: execução de testes de validação de signatários e verificação de RLS
+  no replay completo do Supabase descartável. Ainda **sem E2E real**.

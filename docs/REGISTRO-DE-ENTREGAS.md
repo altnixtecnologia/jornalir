@@ -478,3 +478,25 @@ A versão de sistema da Agenda/Pauta foi publicada na Vercel PRODUCTION, deploym
   branch, HEAD, worktrees e stashes; fazer fetch, comparar história e integrar
   o conjunto todo sem sobrescrever arquivos locais. Não forçar merge, não
   aplicar migrations, não dar push da branch principal ou deploy sem aprovação.
+
+## 23/10/2026 — Continuidade PR #15: signatários comerciais + estrela de capa
+
+- Branch `feature/homologacao-integrada-ir-20261023` permanece a
+  única branch alterada pelo ChatGPT neste lote, sem merges nem deploy.
+- Banco de preparação comercial isolado, com versionamento de listas
+  `draft/superseded`, uma vigente por PDF e RPC atômica protegida.
+  A aplicação oferece cadastro e correção de representantes/ testemunhas.
+  **NENHUMA assinatura real, convite, cobrança ou envio foi efetuado.**
+- Editorial: restaurado botão estrela nas imagens vinculadas à matéria
+  para promover foto da galeria à capa. A capa anterior permanece na
+  galeria, preservando legenda/crédito. Escolha de capa identificada
+  pelo papel `cover`, não por índice 0. Adicionados testes.
+  **Crop mobile não foi alterado.**
+- Workflows do GitHub `Validate project`, `Finance RLS sandbox` e
+  `Supabase complete migration rehearsal` foram atualizados para cobrir
+  estes fluxos. Conferir o SHA final antes de considerar o lote aprovado.
+- Pendências: assinatura comercial completa e E2E autenticado;
+  usuários/SMTP de ativação; recorte desktop; limites Supabase Pro;
+  demais integrações e QA geral. Produção e banco remoto intactos.
+- Na próxima sessão Claude/Codex, apenas então sincronizar o VS Code
+  mediante `git fetch` e reconciliação segura, como já combinado.
