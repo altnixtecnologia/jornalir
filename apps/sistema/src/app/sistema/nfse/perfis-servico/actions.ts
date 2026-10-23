@@ -33,7 +33,7 @@ export interface ServiceProfileFormInput {
 }
 
 export async function createServiceProfileAction(input: ServiceProfileFormInput): Promise<ActionResult> {
-  const permissionError = await checkModuleAction("nfse", "configuracoes_gerenciar");
+  const permissionError = await checkModuleAction("nfse", "perfis_servico_gerenciar");
   if (permissionError) return { error: permissionError };
   try {
     const client = createSupabaseServerClient();
@@ -47,7 +47,7 @@ export async function createServiceProfileAction(input: ServiceProfileFormInput)
 }
 
 export async function updateServiceProfileAction(id: string, input: ServiceProfileFormInput): Promise<ActionResult> {
-  const permissionError = await checkModuleAction("nfse", "configuracoes_gerenciar");
+  const permissionError = await checkModuleAction("nfse", "perfis_servico_gerenciar");
   if (permissionError) return { error: permissionError };
   try {
     const client = createSupabaseServerClient();
@@ -62,7 +62,7 @@ export async function updateServiceProfileAction(id: string, input: ServiceProfi
 
 /** "Excluir" um perfil é sempre desativar (item 5) — nunca uma remoção real. */
 export async function deactivateServiceProfileAction(id: string): Promise<ActionResult> {
-  const permissionError = await checkModuleAction("nfse", "configuracoes_gerenciar");
+  const permissionError = await checkModuleAction("nfse", "perfis_servico_gerenciar");
   if (permissionError) return { error: permissionError };
   try {
     const client = createSupabaseServerClient();
@@ -76,7 +76,7 @@ export async function deactivateServiceProfileAction(id: string): Promise<Action
 }
 
 export async function reactivateServiceProfileAction(id: string): Promise<ActionResult> {
-  const permissionError = await checkModuleAction("nfse", "configuracoes_gerenciar");
+  const permissionError = await checkModuleAction("nfse", "perfis_servico_gerenciar");
   if (permissionError) return { error: permissionError };
   try {
     const client = createSupabaseServerClient();
