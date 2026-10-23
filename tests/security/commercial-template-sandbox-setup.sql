@@ -1,15 +1,16 @@
 -- Tabela fictícia estritamente para ensaio isolado da seleção de modelos.
 -- No Supabase real, contract_templates já existe via migrations anteriores.
-create table public.contract_templates (
- id uuid primary key,
- group_id uuid not null,
- version integer not null,
- title text not null,
- category text,
- content text not null,
- active boolean not null default true,
- unique(group_id,version)
-);
+-- A suite financeira já possui um stub de contract_templates (id).
+-- Completar apenas as colunas necessárias, preservando a RLS do stub.
+alter table public.contract_templates
+  add column group_id uuid,
+  add column version integer,
+  add column title text,
+  add column category text,
+  add column content text,
+  add column active boolean not null default true;
+create unique index contract_templates_group_version_sandbox
+  on public.contract_templates(group_id,version);
 grant select on public.contract_templates to authenticated;
 insert into public.contract_templates (id,group_id,version,title,category,content,active) values
  ('c0000000-0000-0000-0000-000000000001','c0000000-0000-0000-0000-000000000001',1,'Contrato de pacote v1','commercial_combined','Cláusulas teste 1',true),
