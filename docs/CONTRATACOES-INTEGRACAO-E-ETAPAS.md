@@ -165,3 +165,48 @@ contrato nem movimenta dinheiro por conta própria.
 **Próximo bloco:** cabeçalho de contratação comercial, itemizações por origem,
 versões do documento, revisão dos prazos por serviço, vinculação à assinatura
 eletrônica e inclusão da locação em modelos juridicamente revisados.
+
+## Etapa 2A — preparação por serviço e opção de documento único/separado (23/10/2026)
+
+**Em desenvolvimento na PR #15, NÃO aplicado ao Supabase remoto nem publicado:**
+
+- Migration `20261108100000_commercial_contract_packages.sql` cria
+  `commercial_contract_packages` (venda/cliente do cadastro mestre, uma
+  contratação por venda, opção `combined` ou `separate`) e
+  `commercial_contract_services` (item histórico imutável, modalidade,
+  início e término individual, local, objeto/entrega e condições).
+- RPC `prepare_commercial_contract` realiza tudo numa transação.
+  Duas chamadas concorrentes não duplicam a contratação da venda;
+  propostas com múltiplos itens mantêm todos; venda legada gera item
+  derivado dos valores históricos, sem inventar datas.
+- A tela de detalhe da venda tem nova seção de preparação para selecionar
+  contrato único ou separados e preencher cada serviço individualmente.
+- Permissões próprias `publicidade.contratos_preparar` e
+  `publicidade.contratos_revisar`, negadas por padrão e verificadas na
+  Server Action e no banco. Ação de revisão exige objeto, data de início,
+  data de término e local obrigatório de LED/locação em TODOS os serviços.
+- Rascunhos podem voltar da revisão para ajustes por usuário autorizado.
+  Preços, canais e itens de origem não são editáveis; revisão não equivale
+  a contrato jurídico aprovado, assinado ou emitido.
+- Testes de segurança no PostgreSQL descartável cobrem conjunto único vs.
+  separado, ausência de dados, permissão de revisão, imutabilidade e
+  módulo oculto. Reconstrução completa do banco permanece necessária.
+
+**Ainda PENDENTE para concluir o módulo:**
+1. Campos específicos por modalidade (impresso, site, LED, assinatura e
+   locação) com validação de nomes, prazos, frequência, local, responsáveis
+   e obrigações, usando os cadastros existentes.
+2. Catálogo de modelos jurídicos por modalidade e modelo de pacote;
+   revisão jurídica formal das cláusulas pelo responsável legal.
+3. Documentos individuais ou combinado efetivamente renderizados em PDF
+   paginado, vinculados à contratação, com versionamento e revisão antes
+   de geração — não usar `institutional_contracts` como venda comercial.
+4. Adaptar assinador já existente para a nova origem comercial,
+   assinatura de vários signatários, consentimento, arquivo privado e
+   evidências, preservando contratos institucionais e seus PDFs.
+5. Roteiro de ativação sem duplicar receivables/PIX, vinculação ao
+   cliente, reenvio, cancelamento/aditivos e aceite manual de ponta a ponta.
+
+**Segurança:** qualquer cláusula/prazo não confirmado deve permanecer vazio
+e impedir emissão; nenhum documento jurídico ou cobrança é gerado
+automaticamente no estágio de preparação.
