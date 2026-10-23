@@ -40,7 +40,7 @@ create policy commercial_contract_review_events_read
         or public.staff_can_see_module('financeiro'));
 
 create or replace function public.guard_commercial_legal_approval()
-returns trigger language plpgsql security definer set search_path='' as $
+returns trigger language plpgsql security definer set search_path='' as $guard$
 begin
   if tg_op='UPDATE' then
     if old.status='legal_approved' then
@@ -94,7 +94,7 @@ begin
   end if;
   return new;
 end;
-$$;
+$guard$;
 create trigger commercial_package_legal_approval_guard
 before update on public.commercial_contract_packages
 for each row execute function public.guard_commercial_legal_approval();
