@@ -13,7 +13,7 @@ declare
 begin
   -- Chamadas diretas à função SECURITY DEFINER precisam conferir a ação
   -- específica; RLS de clients não cobre alterações feitas pelo owner da RPC.
-  if auth.role() <> 'service_role' then
+  if auth.role() is distinct from 'service_role' then
     if (select auth.uid()) is null or
        not public.staff_can_module_action(
          'clientes', case when p_id is null then 'clientes_criar' else 'clientes_editar' end
