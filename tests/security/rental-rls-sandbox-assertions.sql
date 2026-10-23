@@ -53,6 +53,20 @@ values('b1000000-0000-0000-0000-000000000002',
 
 update public.rental_bookings set status='reserved'
  where id='b1000000-0000-0000-0000-000000000001';
+do $test$
+declare rejected boolean:=false;
+begin
+ begin
+  update public.rental_assets set serial_number='SERIE-FALSIFICADA'
+  where id='b0000000-0000-0000-0000-000000000001';
+ exception when others then rejected:=true;
+ end;
+ if not rejected then
+  raise exception 'Identidade do equipamento foi reescrita após reservar.';
+ end if;
+end;
+$test$;
+
 
 do $test$
 declare rejected boolean:=false;
