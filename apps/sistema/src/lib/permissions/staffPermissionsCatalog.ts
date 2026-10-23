@@ -65,7 +65,8 @@ export const STAFF_MODULE_ACTIONS = [
   { module: "nfse", key: "rascunhos_editar", label: "Editar rascunhos fiscais" },
   { module: "nfse", key: "notas_emitir", label: "Emitir NFS-e (somente administração)", adminOnly: true },
   { module: "nfse", key: "notas_cancelar", label: "Cancelar NFS-e (somente administração)", adminOnly: true },
-  { module: "nfse", key: "configuracoes_gerenciar", label: "Configurações fiscais e certificados" },
+  { module: "nfse", key: "perfis_servico_gerenciar", label: "Gerenciar perfis de serviço" },
+  { module: "nfse", key: "configuracoes_gerenciar", label: "Configurações do emissor e certificado (somente administração)", adminOnly: true },
   { module: "aniversariantes", key: "aniversariantes_gerenciar", label: "Cadastrar, editar e retirar aniversariantes" },
   { module: "aniversariantes", key: "mensagens_gerenciar", label: "Gerenciar mensagens e modelos" },
 ] as const;
