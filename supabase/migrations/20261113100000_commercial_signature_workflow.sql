@@ -161,7 +161,7 @@ begin
   or v.verified_at is null or v.verified_at<now()-interval '20 minutes' then
    raise exception 'Convite sem confirmação recente do e-mail.' using errcode='42501';
  end if;
- if v.locked_by is not null and v.locked_by<>v.iid
+ if v.locked_by is not null
   and v.locked_at>now()-interval '5 minutes' then
    raise exception 'Outra assinatura está sendo concluída.' using errcode='55P03';
  end if;
