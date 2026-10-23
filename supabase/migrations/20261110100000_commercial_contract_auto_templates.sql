@@ -184,7 +184,7 @@ grant execute on function public.set_commercial_contract_document_mode(uuid,text
 -- para approved/active, não cria novamente ao editar uma venda ativa.
 create or replace function public.create_commercial_draft_on_approval()
 returns trigger language plpgsql security definer set search_path=''
-as $
+as $$
 declare
  v_package_id uuid;
  v_mode text;
@@ -243,7 +243,7 @@ begin
  end if;
  return new;
 end;
-$;
+$$;
 create trigger commercial_sales_prepare_contract_draft
 after insert or update of status on public.commercial_sales
 for each row execute function public.create_commercial_draft_on_approval();
