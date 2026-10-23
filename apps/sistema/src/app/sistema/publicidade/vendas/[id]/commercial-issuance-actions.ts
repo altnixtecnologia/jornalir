@@ -80,7 +80,7 @@ export async function reopenCommercialLegalReviewAction(
     const actor=await getAuditContext(supabase);
     const sale=requireId(saleId),pkg=requireId(packageId);
     const {data,error}=await supabase.from("commercial_contract_packages")
-      .update({status:"draft",updated_at:new Date().toISOString()})
+      .update({status:"draft",approval_note:clean,updated_at:new Date().toISOString()})
       .eq("id",pkg).eq("commercial_sale_id",sale).eq("status","legal_approved")
       .select("id").maybeSingle();
     if(error||!data) throw new Error(error?.message??"Contratação emitida ou não reabrível.");
