@@ -51,6 +51,16 @@ begin
   end;
   if not rejected then raise exception 'Criador alterou valor do título.'; end if;
 
+  -- Criar título não permite lançar descontos disfarçados de ajustes.
+  rejected := false;
+  begin
+    insert into public.receivable_adjustments(id,receivable_id,amount,adjustment_type)
+      values('30000000-0000-0000-0000-000000000001',
+             '10000000-0000-0000-0000-000000000002',25,'manual_discount');
+  exception when others then rejected:=true;
+  end;
+  if not rejected then raise exception 'Criador aplicou desconto sem direito.'; end if;
+
   rejected := false;
   begin
     insert into public.receivable_receipts(id,receivable_id,amount)
@@ -93,6 +103,10 @@ begin
   exception when others then rejected:=true;
   end;
   if not rejected then raise exception 'Operador quitou título sem recibo.'; end if;
+  -- Com autorização para gerar Pix, não é permitido criá-lo já pago.
+  -- O grant de pix_gerar vem depois da checagem da baixa, para não
+  -- interferir nos demais direitos do teste.
+
 
   insert into public.receivable_receipts(id,receivable_id,amount)
     values('20000000-0000-0000-0000-000000000002',
