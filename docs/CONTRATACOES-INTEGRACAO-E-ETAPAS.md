@@ -347,3 +347,37 @@ nem o consentimento do cliente.
   hash e ligação comercial ao assinador e ao histórico do cliente, sem duplicar
   títulos financeiros nem alterar os contratos institucionais.
 - Nenhuma migration remota ou publicação foi executada nesta etapa.
+
+## Continuidade obrigatória — escopo aprovado (23/10/2026)
+
+A PR #15 é homologação, não liberação de produção. Não confundir **prévia
+não assinável** com emissão definitiva ou aprovação jurídica.
+
+### Ordem de entrega preservada
+1. **Contratos comerciais:** qualificação completa das partes, modelos jurídicos
+   ativos revisados/aprovados, modalidades individual/combinada, parâmetros por
+   serviço, PDF definitivo privado e imutável com evidências, vínculo ao cliente,
+   assinador com múltiplos signatários, convites, reenvios e histórico. Preservar
+   contratos institucionais; não criar contrato artificial para contornar o
+   assinador atual. Sem cobranças duplicadas.
+2. **Integração das origens:** assinaturas, locação e Comercial/Financeiro,
+   com relacionamento aos serviços e títulos existentes, sem duplicar clientes.
+3. **Usuários/ativação:** exibir nome cadastrado (não prefixo do e-mail),
+   adicionar campo de nome e investigar e-mails de convite/ativação e SMTP.
+4. **Editorial:** restaurar a estrela de seleção de capa; melhorar o recorte
+   de imagens **exclusivamente no desktop**; mobile permanece como está.
+5. **Supabase Pro:** verificar limites antigos locais de upload, quotas,
+   SMTP/Auth, tamanho real suportado e erro concreto. Plano Pro não implica
+   entrega automática de e-mails. Testar com cautela antes de publicação.
+6. **Teste e publicação:** comparar telas e fluxos aprovados, testes desktop/
+   mobile, Auth/RLS, integrações e documentos; somente então preparar release
+   consolidada com autorização de publicação.
+
+### Etapa 2G — validação do valor histórico antes da minuta
+- `commercialContractPreview.ts` bloqueia preparação da minuta com valor
+  total inválido ou valor negociado do item ausente/inválido, em vez de
+  representar um item com valor indefinido.
+- Acrescentados testes para esses dois bloqueios.
+- Ainda faltam execução de testes em CI, revisão funcional autenticada,
+  validação jurídica, integração do assinador comercial e emissão definitiva.
+- Não foram criados documentos assináveis, cobranças ou migrations nesta etapa.
