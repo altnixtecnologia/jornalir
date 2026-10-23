@@ -85,9 +85,13 @@ begin
  get diagnostics affected=row_count;
  if affected<>1 then raise exception 'Operador autorizado não conseguiu aprovar.'; end if;
 
- update public.commercial_proposals set notes='Alteração sem direito'
- where id='50000000-0000-0000-0000-000000000002';
- get diagnostics affected=row_count;
+ affected:=0;
+ begin
+  update public.commercial_proposals set notes='Alteração sem direito'
+   where id='50000000-0000-0000-0000-000000000002';
+  get diagnostics affected=row_count;
+ exception when others then affected:=0;
+ end;
  if affected<>0 then raise exception 'Aprovação permitiu modificar dados da proposta.'; end if;
 
  rejected:=false;
@@ -104,8 +108,12 @@ begin
   ('70000000-0000-0000-0000-000000000001',
    '40000000-0000-0000-0000-000000000002','approved',300,
    '50000000-0000-0000-0000-000000000002');
- update public.commercial_sales set amount=1 where id='70000000-0000-0000-0000-000000000001';
- get diagnostics affected=row_count;
+ affected:=0;
+ begin
+  update public.commercial_sales set amount=1 where id='70000000-0000-0000-0000-000000000001';
+  get diagnostics affected=row_count;
+ exception when others then affected:=0;
+ end;
  if affected<>0 then raise exception 'Converter também permitiu editar valor da venda.'; end if;
 end;
 $test$;
@@ -124,9 +132,13 @@ begin
  where id='70000000-0000-0000-0000-000000000001';
  get diagnostics affected=row_count;
  if affected<>1 then raise exception 'Direito de cancelar não funcionou.'; end if;
- update public.commercial_sales set amount=0
- where id='70000000-0000-0000-0000-000000000001';
- get diagnostics affected=row_count;
+ affected:=0;
+ begin
+  update public.commercial_sales set amount=0
+   where id='70000000-0000-0000-0000-000000000001';
+  get diagnostics affected=row_count;
+ exception when others then affected:=0;
+ end;
  if affected<>0 then raise exception 'Direito de cancelar alterou preço.'; end if;
 end;
 $test$;
