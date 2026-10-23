@@ -60,10 +60,15 @@ begin
   end;
   if not rejected then raise exception 'Criador fez baixa sem autorização.'; end if;
 
-  update public.receivables set status='cancelled'
-    where id='10000000-0000-0000-0000-000000000002';
-  get diagnostics n=row_count;
-  if n<>0 then raise exception 'Cancelamento sem direito foi executado.'; end if;
+  rejected:=false;
+  n:=0;
+  begin
+    update public.receivables set status='cancelled'
+      where id='10000000-0000-0000-0000-000000000002';
+    get diagnostics n=row_count;
+  exception when others then rejected:=true;
+  end;
+  if not rejected and n<>0 then raise exception 'Cancelamento sem direito foi executado.'; end if;
 end;
 $test$;
 
@@ -107,8 +112,11 @@ begin
   end;
   if not rejected then raise exception 'Permitido recebimento acima do saldo.'; end if;
 
-  update public.receivables set status='cancelled'
-    where id='10000000-0000-0000-0000-000000000002';
+  begin
+    update public.receivables set status='cancelled'
+      where id='10000000-0000-0000-0000-000000000002';
+  exception when others then null;
+  end;
   if (select status from public.receivables
       where id='10000000-0000-0000-0000-000000000002')='cancelled' then
     raise exception 'Operador cancelou com permissão apenas de baixa.';
