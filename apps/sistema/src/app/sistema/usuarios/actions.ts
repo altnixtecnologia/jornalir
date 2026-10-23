@@ -8,6 +8,31 @@ const SISTEMA_BASE_URL = process.env.NEXT_PUBLIC_SISTEMA_URL ??
   (process.env.NODE_ENV === "production" ? "https://controle.altnix.com.br" : "http://localhost:3001");
 
 export type InviteRole = "operator" | "admin";
+function validateDisplayName(value: string): string | null {
+  const clean = value.trim().replace(/\s+/g, " ");
+  if (clean.length < 3 || clean.length > 120 || !/[\p{L}]/u.test(clean) || clean.includes("@")) return null;
+  return clean;
+}
+
+function validEmail(value: string): boolean {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value) && value.length <= 254;
+}
+
+/** Todos os atos administrativos validam novamente a pessoa logada. */
+async function requireUserManager(): Promise<
+  { id: string; role: "owner" | "admin" } | { error: string }
+> {
+  const supabase = createSupabaseServerClient();
+  const { data: auth, error: authError } = await supabase.auth.getUser();
+  if (authError || !auth.user) return { error: "Sessão inválida. Faça login novamente." };
+  const { data: profile, error } = await supabase.from("profiles")
+    .select("role,active").eq("id", auth.user.id).maybeSingle();
+  if (error || !profile?.active || !["owner", "admin"].includes(profile.role)) {
+    return { error: "Sem permissão para administrar usuários." };
+  }
+  return { id: auth.user.id, role: profile.role as "owner" | "admin" };
+}
+
 type ActionResult = { ok: true } | { error: string };
 
 /**
@@ -19,9 +44,11 @@ type ActionResult = { ok: true } | { error: string };
  * nunca no navegador) — não sequestra a sessão de quem convida, diferente
  * de `signUp()`/`signInWithOtp()` do lado do cliente.
  */
-export async function inviteUser(email: string, role: InviteRole): Promise<ActionResult> {
-  const trimmedEmail = email.trim();
-  if (!trimmedEmail) return { error: "Informe o e-mail da pessoa a convidar." };
+export async function inviteUser(email: string, name: string, role: InviteRole): Promise<ActionResult> {
+  const trimmedEmail = email.trim().toLowerCase();
+  if (!validEmail(trimmedEmail)) return { error: "Informe um e-mail válido." };
+  const displayName = validateDisplayName(name);
+  if (!displayName) return { error: "Informe o nome real do usuário (3 a 120 caracteres)." };
   if (role !== "operator" && role !== "admin") return { error: "Papel inválido." };
 
   const supabase = createSupabaseServerClient();
@@ -53,10 +80,28 @@ export async function inviteUser(email: string, role: InviteRole): Promise<Actio
 
   const admin = createSupabaseAdminClient();
   const { data: invited, error: inviteError } = await admin.auth.admin.inviteUserByEmail(trimmedEmail, {
+    data: { name: displayName },
     redirectTo: `${SISTEMA_BASE_URL}/definir-senha`,
   });
   if (inviteError || !invited.user) {
-    return { error: "Não foi possível enviar o convite. Confira o e-mail e tente novamente." };
+    console.error("Erro Supabase Auth ao convidar:", inviteError?.code ?? "unknown");
+    if (inviteError?.message?.toLowerCase().includes("already") ||
+        inviteError?.message?.toLowerCase().includes("registered")) {
+      return { error: "Este e-mail já possui cadastro. Se o convite estiver pendente, use 'Reenviar acesso' na lista." };
+    }
+    if (inviteError?.status === 429) {
+      return { error: "Limite de envio de e-mails atingido no Supabase. Aguarde e confira o SMTP em Authentication." };
+    }
+    return { error: "O Supabase não aceitou o convite. Confira o SMTP, limites de envio e URLs de redirecionamento no Supabase Auth." };
+  }
+
+  // O trigger lê raw_user_meta_data.name. Garantir também o nome na
+  // tabela de perfis, sem depender da escrita inicial via trigger.
+  const { error: nameError } = await admin.from("profiles")
+    .update({ name: displayName }).eq("id", invited.user.id);
+  if (nameError) {
+    console.error("Falha ao salvar nome do convidado:", nameError.code);
+    return { error: "Convite solicitado, mas houve erro ao salvar o nome. Edite o perfil do usuário na lista." };
   }
 
   // O trigger de auth.users já criou o profile como "operator". Promover a
@@ -77,7 +122,7 @@ export async function inviteUser(email: string, role: InviteRole): Promise<Actio
       entityType: "users",
       entityId: invited.user.id,
       action: "invite",
-      metadata: { email: trimmedEmail, role },
+      metadata: { role, nameProvided: true },
     });
   } catch (error) {
     console.error("Falha ao registrar auditoria de convite de usuário:", error instanceof Error ? error.message : error);
@@ -86,6 +131,80 @@ export async function inviteUser(email: string, role: InviteRole): Promise<Actio
   return { ok: true };
 }
 
+
+/**
+ * Permite cadastrar/corrigir o nome real sem alterar as permissões
+ * nem o estado de confirmação do Supabase Auth.
+ */
+export async function updateManagedUserName(profileId: string, name: string): Promise<ActionResult> {
+  const manager = await requireUserManager();
+  if ("error" in manager) return manager;
+  const clean = validateDisplayName(name);
+  if (!clean) return { error: "Informe um nome real válido (3 a 120 caracteres)." };
+  const admin = createSupabaseAdminClient();
+  if (!hasServiceRoleKey()) return { error: "Administração indisponível neste ambiente." };
+  const client = createSupabaseServerClient();
+  const { data: target, error: targetError } = await client.from("profiles")
+    .select("role").eq("id", profileId).maybeSingle();
+  if (targetError || !target || target.role === "owner" ||
+      (manager.role === "admin" && target.role !== "operator")) {
+    return { error: "Sem permissão para editar o nome desta pessoa." };
+  }
+  const { error } = await admin.from("profiles").update({ name: clean })
+    .eq("id", profileId);
+  if (error) return { error: "Falha ao atualizar o nome do perfil." };
+
+  // Sincroniza metadata para futuras integrações sem mudar auth.email.
+  const { error: metadataError } = await admin.auth.admin.updateUserById(profileId, {
+    user_metadata: { name: clean },
+  });
+  if (metadataError) {
+    console.error("Falha ao sincronizar nome no Auth:", metadataError.code);
+    return { error: "Nome atualizado no sistema, mas não foi possível sincronizar os dados do Auth. Tente novamente." };
+  }
+  await recordAuditEventSupabase(client, {
+    userId: manager.id, entityType: "users", entityId: profileId,
+    action: "update_name", metadata: { nameProvided: true },
+  }).catch(e => console.error("Falha auditoria nome:", e instanceof Error ? e.message : "unknown"));
+  return { ok: true };
+}
+
+/**
+ * O Supabase não fornece reenvio explícito de convite já registrado
+ * pela mesma API. Para conta pendente, solicita um NOVO e-mail de
+ * definição de senha pelo fluxo recovery, sem aprovar e-mail manualmente.
+ * Nunca entrega tokens ao admin e nunca afirma que chegou ao destinatário.
+ */
+export async function resendPendingUserAccess(profileId: string): Promise<ActionResult> {
+  const manager = await requireUserManager();
+  if ("error" in manager) return manager;
+  if (!hasServiceRoleKey()) return { error: "Serviço de envio indisponível." };
+  const client = createSupabaseServerClient();
+  const { data: target, error: targetError } = await client.from("profiles")
+    .select("role").eq("id", profileId).maybeSingle();
+  if (targetError || !target || target.role === "owner" ||
+      (manager.role === "admin" && target.role !== "operator")) {
+    return { error: "Sem permissão para reenviar acesso desta pessoa." };
+  }
+  const admin = createSupabaseAdminClient();
+  const { data: account, error: lookupError } = await admin.auth.admin.getUserById(profileId);
+  if (lookupError || !account.user?.email) return { error: "E-mail da conta não localizado." };
+  if (account.user.email_confirmed_at) return { error: "A pessoa já confirmou o e-mail. Utilize redefinir senha, se necessário." };
+  if (!account.user.invited_at) return { error: "Conta sem convite anterior. Verifique o cadastro antes de solicitar reenvio." };
+
+  const redirectTo = new URL("/definir-senha?recovery=1", SISTEMA_BASE_URL).toString();
+  const { error: sendError } = await admin.auth.resetPasswordForEmail(account.user.email, { redirectTo });
+  if (sendError) {
+    console.error("Supabase Auth reenvio de acesso:", sendError.code ?? "unknown");
+    if (sendError.status === 429) return { error: "Limite de e-mails atingido. Aguarde e confira as configurações de SMTP no Supabase." };
+    return { error: "O Supabase recusou o reenvio. Verifique SMTP, limites de envio e URL autorizada." };
+  }
+  await recordAuditEventSupabase(client, {
+    userId: manager.id, entityType: "users", entityId: profileId,
+    action: "access_email_resent", metadata: { via: "recovery", pending: true },
+  }).catch(e => console.error("Falha auditoria reenvio:", e instanceof Error ? e.message : "unknown"));
+  return { ok: true };
+}
 
 /**
  * Recuperação assistida: admins enviam um link, nunca definem nem recebem
