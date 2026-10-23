@@ -9,7 +9,7 @@ create policy contract_templates_select_staff on public.contract_templates
  using(
     public.staff_can_see_module('financeiro')
     or (
-      lower(coalesce(category,'')) like 'commercial\\_%' escape '\\'
+      left(lower(coalesce(category,'')),11) = 'commercial_'
       and (public.staff_can_module_action('publicidade','contratos_preparar')
            or public.staff_can_module_action('publicidade','contratos_revisar'))
     )
