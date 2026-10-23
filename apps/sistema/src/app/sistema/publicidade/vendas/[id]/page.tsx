@@ -144,7 +144,7 @@ export default async function CommercialSaleDetailPage({ params }: { params: { i
         preparations={(signerPreparationsResult?.data??[]).map(p=>({
           id:p.id,document_id:p.document_id,status:p.status,
         }))}
-        requests={(signatureRequestsResult?.data??[]) as CommercialRequestView[]}
+        requests={(signatureRequestsResult?.data??[]) as unknown as CommercialRequestView[]}
         canReview={canReview.data===true}
       />
     </>
