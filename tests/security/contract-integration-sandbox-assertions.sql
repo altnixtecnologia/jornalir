@@ -10,7 +10,7 @@ insert into public.commercial_products(id,name,channel)
 
 do $check$
 declare
-  original jsonb := '[{"sourceProposalItemId":"x-1","productName":"Locação de projetor","serviceChannel":"equipment_rental","quantity":2,"unitPrice":100,"discountAmount":0,"totalAmount":200,"sortOrder":0},{"sourceProposalItemId":"x-2","productName":"LED","serviceChannel":"led_panel","quantity":1,"unitPrice":300,"discountAmount":25,"totalAmount":275,"sortOrder":1}]'::jsonb;
+  original jsonb := '[{"sourceProposalItemId":"x-1","productId":"a0000000-0000-0000-0000-000000000001","productName":"Locação de projetor","serviceChannel":"equipment_rental","quantity":2,"unitPrice":100,"discountAmount":0,"totalAmount":200,"sortOrder":0},{"sourceProposalItemId":"x-2","productName":"LED","serviceChannel":"led_panel","quantity":1,"unitPrice":300,"discountAmount":25,"totalAmount":275,"sortOrder":1}]'::jsonb;
   rejected boolean;
 begin
   insert into public.commercial_sales(id,client_id,proposal_id,status,amount,items_snapshot)
