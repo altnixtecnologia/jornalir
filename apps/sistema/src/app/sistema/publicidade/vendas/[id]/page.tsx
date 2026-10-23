@@ -4,6 +4,7 @@ import { CommercialSaleNotFoundError } from "@ir/core";
 import { ModuleHeader } from "../../../../../components/admin/ModuleHeader";
 import { CommercialSaleDetail } from "../../../../../features/comercial/CommercialSaleDetail";
 import { CommercialContractPreparationPanel, type CommercialContractServiceView } from "../../../../../features/comercial/CommercialContractPreparationPanel";
+import { CommercialSignersPreparationPanel, type CommercialSignerPreparation } from "../../../../../features/comercial/CommercialSignersPreparationPanel";
 import { getCommercialProductService, getCommercialProposalService, getCommercialSaleService } from "../../../../../composition/comercial";
 import { getClientService } from "../../../../../composition/clientes";
 import { getDraftService } from "../../../../../composition/nfse";
@@ -75,6 +76,12 @@ export default async function CommercialSaleDetailPage({ params }: { params: { i
       .select("id,event_type,note,occurred_at")
       .eq("package_id",pkg.id).order("occurred_at",{ascending:false})
     : null;
+  const signerPreparationsResult = pkg && canReview.data === true
+    ? await supabase.from("commercial_signature_preparations")
+      .select("id,document_id,status,commercial_signature_participants(id,signer_role,signer_name,signer_email,signing_order)")
+      .in("document_id",(issuedDocumentsResult?.data??[]).map(document=>document.id).length
+        ? (issuedDocumentsResult?.data??[]).map(document=>document.id) : ["00000000-0000-0000-0000-000000000000"])
+    : null;
   const financialStatus = deriveCommercialSaleFinancialStatus(receivables);
 
   return (
@@ -113,6 +120,15 @@ export default async function CommercialSaleDetailPage({ params }: { params: { i
           values: (custom_values ?? {}) as Record<string,string>,
         }))}
         loadError={contractLoadError ?? issuedDocumentsResult?.error?.message ?? reviewEventsResult?.error?.message}
+      />
+      <CommercialSignersPreparationPanel
+        saleId={sale.id}
+        documents={(issuedDocumentsResult?.data??[]).map(document=>({
+          id:document.id,title:document.title,
+        }))}
+        preparations={(signerPreparationsResult?.data??[]) as CommercialSignerPreparation[]}
+        canReview={canReview.data===true}
+        loadError={signerPreparationsResult?.error?.message}
       />
     </>
   );
