@@ -1,6 +1,19 @@
 -- Etapa 2C: modelos jurídicos versionados para contratação comercial.
 -- NÃO emite PDFs, NÃO aprova cláusulas automaticamente e NÃO toca
 -- no assinador/contratos institucionais.
+-- Leitura compartilhada e cuidadosamente restrita: operadores comerciais
+-- só enxergam MODELOS COMERCIAIS; institucionais continuam Financeiro.
+drop policy if exists contract_templates_select_staff on public.contract_templates;
+create policy contract_templates_select_staff on public.contract_templates
+ for select to authenticated
+ using(
+    public.staff_can_see_module('financeiro')
+    or (
+      lower(coalesce(category,'')) like 'commercial\\_%' escape '\\'
+      and (public.staff_can_module_action('publicidade','contratos_preparar')
+           or public.staff_can_module_action('publicidade','contratos_revisar'))
+    )
+ );
 create table public.commercial_contract_template_assignments (
  id uuid primary key default gen_random_uuid(),
  package_id uuid not null references public.commercial_contract_packages(id) on delete restrict,
