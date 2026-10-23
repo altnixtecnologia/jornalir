@@ -47,6 +47,7 @@ export function buildCommercialContractPreview(input: CommercialPreviewInput): C
   const missing: string[] = [];
   if (!normal(input.reference)) missing.push("Referência da venda");
   if (!normal(input.clientName)) missing.push("Nome do contratante");
+  if (!Number.isFinite(input.amount) || input.amount < 0) missing.push("Valor total da venda");
   if (!Array.isArray(input.services) || input.services.length === 0) {
     return { documents: [], missing: ["Serviços contratados"] };
   }
@@ -60,6 +61,10 @@ export function buildCommercialContractPreview(input: CommercialPreviewInput): C
     if (!normal(service.service_scope)) missing.push(label + ": objeto/entregas");
     if (["led_panel", "equipment_rental"].includes(service.service_channel) && !normal(service.service_location)) {
       missing.push(label + ": local de prestação");
+    }
+    const itemAmount = service.source_snapshot?.totalAmount;
+    if (typeof itemAmount !== "number" || !Number.isFinite(itemAmount) || itemAmount < 0) {
+      missing.push(label + ": valor negociado");
     }
     const quantity = service.source_snapshot?.quantity;
     const quantityText = typeof quantity === "number" && Number.isFinite(quantity) ? String(quantity) : "CONFERIR";
