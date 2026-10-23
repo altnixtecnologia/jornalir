@@ -31,17 +31,17 @@ drop policy if exists nfse_transmission_attempts_update_admin_owner on public.nf
 drop policy if exists nfse_service_profiles_select_admin_owner on public.nfse_service_profiles;
 create policy nfse_service_profiles_select_staff on public.nfse_service_profiles for SELECT to authenticated using ((public.is_active_staff() and (public.staff_can_see_module('nfse'))));
 drop policy if exists nfse_service_profiles_insert_admin_owner on public.nfse_service_profiles;
-create policy nfse_service_profiles_insert_staff on public.nfse_service_profiles for INSERT to authenticated with check ((public.is_active_staff() and (public.staff_can_module_action('nfse','configuracoes_gerenciar'))));
+create policy nfse_service_profiles_insert_staff on public.nfse_service_profiles for INSERT to authenticated with check ((public.is_active_staff() and (public.staff_can_module_action('nfse','perfis_servico_gerenciar'))));
 drop policy if exists nfse_service_profiles_update_admin_owner on public.nfse_service_profiles;
-create policy nfse_service_profiles_update_staff on public.nfse_service_profiles for UPDATE to authenticated using ((public.is_active_staff() and (public.staff_can_module_action('nfse','configuracoes_gerenciar')))) with check ((public.is_active_staff() and (public.staff_can_module_action('nfse','configuracoes_gerenciar'))));
+create policy nfse_service_profiles_update_staff on public.nfse_service_profiles for UPDATE to authenticated using ((public.is_active_staff() and (public.staff_can_module_action('nfse','perfis_servico_gerenciar')))) with check ((public.is_active_staff() and (public.staff_can_module_action('nfse','perfis_servico_gerenciar'))));
 
 -- nfse_issuer_configs
 drop policy if exists nfse_issuer_configs_select_admin_owner on public.nfse_issuer_configs;
 create policy nfse_issuer_configs_select_staff on public.nfse_issuer_configs for SELECT to authenticated using ((public.is_active_staff() and (public.staff_can_see_module('nfse'))));
 drop policy if exists nfse_issuer_configs_insert_admin_owner on public.nfse_issuer_configs;
-create policy nfse_issuer_configs_insert_staff on public.nfse_issuer_configs for INSERT to authenticated with check ((public.is_active_staff() and (public.staff_can_module_action('nfse','configuracoes_gerenciar'))));
+create policy nfse_issuer_configs_insert_staff on public.nfse_issuer_configs for INSERT to authenticated with check ((public.is_active_staff() and (public.is_active_admin_or_owner())));
 drop policy if exists nfse_issuer_configs_update_admin_owner on public.nfse_issuer_configs;
-create policy nfse_issuer_configs_update_staff on public.nfse_issuer_configs for UPDATE to authenticated using ((public.is_active_staff() and (public.staff_can_module_action('nfse','configuracoes_gerenciar')))) with check ((public.is_active_staff() and (public.staff_can_module_action('nfse','configuracoes_gerenciar'))));
+create policy nfse_issuer_configs_update_staff on public.nfse_issuer_configs for UPDATE to authenticated using ((public.is_active_staff() and (public.is_active_admin_or_owner()))) with check ((public.is_active_staff() and (public.is_active_admin_or_owner())));
 
 -- nfse_cancellation_requests
 drop policy if exists nfse_cancellation_requests_select_admin_owner on public.nfse_cancellation_requests;
