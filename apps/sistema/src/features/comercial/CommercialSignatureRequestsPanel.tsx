@@ -1,7 +1,7 @@
 "use client";
 import {useState,useTransition} from "react";
 import {useRouter} from "next/navigation";
-import {createCommercialInvitationsAction} from "../../app/sistema/publicidade/vendas/[id]/commercial-signature-invitation-actions";
+import {createCommercialInvitationsAction,reissueCommercialInvitationAction} from "../../app/sistema/publicidade/vendas/[id]/commercial-signature-invitation-actions";
 
 export interface CommercialRequestView {
  id:string;preparation_id:string;status:string;completed_at:string|null;
@@ -16,9 +16,21 @@ export function CommercialSignatureRequestsPanel({saleId,preparations,requests,c
 }):JSX.Element|null {
  const router=useRouter(),[pending,startTransition]=useTransition();
  const [error,setError]=useState("");
+ const [reissueId,setReissueId]=useState<string|null>(null);
+ const [reason,setReason]=useState("");
  const [confirmed,setConfirmed]=useState<string|null>(null);
  const [links,setLinks]=useState<Array<{name:string;urlPath:string}>>([]);
  if(!canReview||preparations.length===0) return null;
+ function reissue(invitationId:string):void{
+  setError("");setLinks([]);
+  startTransition(async()=>{
+   const result=await reissueCommercialInvitationAction(saleId,invitationId,reason);
+   if("error" in result){setError(result.error);return;}
+   setReissueId(null);setReason("");
+   setLinks([{name:result.name,urlPath:result.urlPath}]);
+   router.refresh();
+  });
+ }
  function begin(id:string):void{
   setError("");setLinks([]);
   startTransition(async()=>{
@@ -56,6 +68,21 @@ export function CommercialSignatureRequestsPanel({saleId,preparations,requests,c
        {" "}{inv.commercial_signature_participants.signer_name}
        {" "}— {inv.status==="signed"?"Assinado":inv.status==="revoked"?"Revogado":
        Date.parse(inv.expires_at)<=Date.now()?"Expirado":"Aguardando assinatura"}
+       {inv.status==="pending" ? (
+        reissueId===inv.id ? <div className="form-field">
+         <label>Justificativa da substituição do link
+          <textarea value={reason} maxLength={1000} disabled={pending}
+           onChange={e=>setReason(e.target.value)}/>
+         </label>
+         <button type="button" disabled={pending||reason.trim().length<20}
+          onClick={()=>reissue(inv.id)}>Revogar anterior e criar novo link</button>
+         <button type="button" disabled={pending} onClick={()=>setReissueId(null)}>Cancelar</button>
+        </div> :
+        <button type="button" disabled={pending}
+         onClick={()=>{setReissueId(inv.id);setReason("");}}>
+         Substituir link (revoga o anterior)
+        </button>
+       ):null}
       </li>)}</ul>
     </> : <>
      <label className="form-field">
