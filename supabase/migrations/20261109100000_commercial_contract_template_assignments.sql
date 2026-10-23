@@ -129,7 +129,7 @@ for each row execute function public.enforce_commercial_package_mode_locked();
 -- A revisão não declara aprovação jurídica, apenas inicia conferência.
 create or replace function public.enforce_commercial_review_has_templates()
 returns trigger language plpgsql set search_path=''
-as $
+as $$
 begin
  if new.status='pending_legal_review' and old.status='draft' then
    if old.document_mode='combined' then
@@ -152,7 +152,7 @@ begin
  end if;
  return new;
 end;
-$;
+$$;
 create trigger commercial_package_review_requires_templates
 before update on public.commercial_contract_packages
 for each row execute function public.enforce_commercial_review_has_templates();
