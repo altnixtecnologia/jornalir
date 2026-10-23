@@ -15,6 +15,7 @@ on:
       - "supabase/migrations/202611071*.sql"
       - "supabase/migrations/202611081*.sql"
       - "supabase/migrations/202611091*.sql"
+      - "supabase/migrations/202611101*.sql"
       - "tests/security/finance-rls-sandbox-*.sql"
       - "tests/security/module-rls-sandbox-*.sql"
       - "tests/security/editorial-rls-sandbox-*.sql"
@@ -23,6 +24,7 @@ on:
       - "tests/security/rental-rls-sandbox-*.sql"
       - "tests/security/commercial-contract-sandbox-*.sql"
       - "tests/security/commercial-template-sandbox-*.sql"
+      - "tests/security/commercial-auto-contract-*.sql"
       - ".github/workflows/finance-rls-sandbox.yml"
   workflow_dispatch:
 
@@ -144,3 +146,9 @@ jobs:
 
       - name: Testar seleção exclusiva de modelo por pacote ou serviço
         run: psql -v ON_ERROR_STOP=1 -f tests/security/commercial-template-sandbox-assertions.sql
+
+      - name: Ativar modelos automáticos no Comercial
+        run: psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261110100000_commercial_contract_auto_templates.sql
+
+      - name: Testar escolha automatizada por modalidade
+        run: psql -v ON_ERROR_STOP=1 -f tests/security/commercial-auto-contract-assertions.sql
