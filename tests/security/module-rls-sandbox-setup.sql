@@ -58,6 +58,16 @@ grant select,insert,update,delete on all tables in schema public to authenticate
 
 -- A conta do operador pode ver os três módulos, porém cada operação
 -- depende de uma concessão individual. O terceiro perfil tem convite pendente.
+-- Operador distinto, com SOMENTE assinatura: não herdará Clientes.
+insert into auth.users(id,email_confirmed_at) values
+ ('00000000-0000-0000-0000-000000000004',now());
+insert into public.profiles(id,role,active) values
+ ('00000000-0000-0000-0000-000000000004','operator',true);
+insert into public.staff_module_visibility(profile_id,module_key,enabled) values
+ ('00000000-0000-0000-0000-000000000004','assinaturas',true);
+insert into public.staff_module_action_permissions(profile_id,module_key,action_key,allowed)
+values('00000000-0000-0000-0000-000000000004','assinaturas','assinaturas_criar',true);
+
 insert into public.staff_module_visibility(profile_id,module_key,enabled) values
  ('00000000-0000-0000-0000-000000000002','clientes',true),
  ('00000000-0000-0000-0000-000000000002','assinaturas',true),
