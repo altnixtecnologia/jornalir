@@ -47,9 +47,9 @@ export default async function CommercialSaleDetailPage({ params }: { params: { i
   const [assignmentResult, templateResult] = pkg && (canPrepare.data === true || canReview.data === true)
     ? await Promise.all([
       supabase.from("commercial_contract_template_assignments")
-        .select("service_id,template_id").eq("package_id",pkg.id),
+        .select("service_id,template_id,custom_values").eq("package_id",pkg.id),
       supabase.from("contract_templates")
-        .select("id,group_id,version,title,category,active")
+        .select("id,group_id,version,title,category,active,variables")
         .like("category","commercial_%")
         .order("version",{ascending:false}),
     ]) : [null,null];
@@ -90,9 +90,13 @@ export default async function CommercialSaleDetailPage({ params }: { params: { i
         } : null}
         canPrepare={canPrepare.data === true}
         canReview={canReview.data === true}
-        templateOptions={templates.map(({id,title,category,version})=>({id,title,category:category??"",version}))}
-        templateAssignments={(assignmentResult?.data ?? []).map(({service_id,template_id})=>({
+        templateOptions={templates.map(({id,title,category,version,variables})=>({
+          id,title,category:category??"",version,
+          variables: (Array.isArray(variables) ? variables : []) as { key:string; label:string; required:boolean }[],
+        }))}
+        templateAssignments={(assignmentResult?.data ?? []).map(({service_id,template_id,custom_values})=>({
           serviceId:service_id??null,templateId:template_id,
+          values: (custom_values ?? {}) as Record<string,string>,
         }))}
         loadError={contractLoadError}
       />
