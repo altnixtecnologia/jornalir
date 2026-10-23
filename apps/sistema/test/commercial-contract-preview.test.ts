@@ -68,3 +68,10 @@ test("valor total inválido impede liberação da minuta", () => {
   const result = buildCommercialContractPreview({ ...sample, amount: Number.NaN });
   assert.ok(result.missing.includes("Valor total da venda"));
 });
+
+test("anexo jurídico final mantém valores e não imprime avisos da conferência",()=>{
+ const result=buildCommercialContractPreview(sample,{forLegalInstrument:true});
+ assert.equal(result.documents.length,1);
+ assert.doesNotMatch(result.documents[0].text,/NÃO ASSINAR|MINUTA DE CONFERÊNCIA/);
+ assert.match(result.documents[0].text,/R\\$\\s*475,00/);
+});

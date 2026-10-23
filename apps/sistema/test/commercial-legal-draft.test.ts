@@ -92,3 +92,15 @@ test("campo obrigatório pode vir da qualificação, nunca de substituição man
  assert.match(result.text,/12345678909/);
  assert.doesNotMatch(result.text,/00000000000/);
 });
+
+test("instrumento final não repete os avisos de minuta",()=>{
+ const result=renderCommercialLegalDraft({
+  templateText:"Serviço aceito por {{cliente.nome}}. {{servicos.resumo}}",
+  reference:"IR-300",clientName:"Empresa Ltda",totalPrice:"R$ 400,00",
+  document:{title:"Contrato",text:"Entregas aprovadas, sem aviso de minuta"},
+  final:true,
+ });
+ assert.deepEqual(result.missing,[]);
+ assert.doesNotMatch(result.text,/NÃO ASSINAR|DOCUMENTO NÃO EMITIDO/);
+ assert.match(result.text,/Empresa Ltda/);
+});
