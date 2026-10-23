@@ -45,6 +45,18 @@ begin
  insert into public.subscriptions(id,client_id,service_type,status,amount) values
   ('60000000-0000-0000-0000-000000000001',
    '40000000-0000-0000-0000-000000000002','impresso','active',120);
+ -- Criador de assinatura pode registrar papel 'assinante', mas não
+ -- atribuir outro papel comercial só porque tem acesso ao cadastro.
+ insert into public.client_roles(id,client_id,role) values
+  ('41000000-0000-0000-0000-000000000001','40000000-0000-0000-0000-000000000002','assinante');
+ rejected:=false;
+ begin
+  insert into public.client_roles(id,client_id,role) values
+   ('41000000-0000-0000-0000-000000000002','40000000-0000-0000-0000-000000000002','anunciante');
+ exception when others then rejected:=true;
+ end;
+ if not rejected then raise exception 'Assinaturas_criar atribuiu anunciante.'; end if;
+
  update public.subscriptions set amount=15
    where id='60000000-0000-0000-0000-000000000001';
  get diagnostics affected=row_count;
@@ -103,6 +115,15 @@ begin
  end;
  if not rejected then raise exception 'Item inserido após aprovação.'; end if;
 
+ -- Nem uma permissão de aprovar pode reabrir/retroceder estados.
+ rejected:=false;
+ begin
+  update public.commercial_proposals set status='draft'
+   where id='50000000-0000-0000-0000-000000000002';
+ exception when others then rejected:=true;
+ end;
+ if not rejected then raise exception 'Proposta aprovada voltou a rascunho.'; end if;
+
  -- Após aprovação, conversão pode gravar venda sem liberar edição genérica.
  insert into public.commercial_sales(id,client_id,status,amount,proposal_id) values
   ('70000000-0000-0000-0000-000000000001',
@@ -140,6 +161,16 @@ begin
  exception when others then affected:=0;
  end;
  if affected<>0 then raise exception 'Direito de cancelar alterou preço.'; end if;
+ -- Venda cancelada é terminal, inclusive para operador que pode cancelar.
+ begin
+  update public.commercial_sales set status='active'
+    where id='70000000-0000-0000-0000-000000000001';
+ exception when others then null;
+ end;
+ if (select status from public.commercial_sales
+      where id='70000000-0000-0000-0000-000000000001') <> 'cancelled' then
+   raise exception 'Venda cancelada foi reativada.';
+ end if;
 end;
 $test$;
 
