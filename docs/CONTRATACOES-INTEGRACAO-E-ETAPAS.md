@@ -451,3 +451,32 @@ NÃO publicar e NÃO encaminhar arquivos a signatários reais.**
   órfão, verificação de conteúdo e aprovação jurídica dos modelos reais.
 - Sem publicação final ou autorização para assinar, os PDFs são apenas
   **documentos preparados para assinatura**, não contratos celebrados.
+
+## Etapa 3B — cliente, retorno para correção e qualificação no texto (23/10/2026)
+
+**Código na PR #15, sem migração remota, sem aprovação jurídica dos modelos
+reais e sem assinatura eletrônica comercial habilitada.**
+
+- O cadastro mestre `/sistema/clientes/[id]` mostra contratações comerciais
+  e PDFs privados para usuários com permissão, sem duplicar cliente e sem
+  contar documentos comerciais como institucionais.
+- Revisor pode reabrir uma aprovação anterior para `draft` com motivo
+  (auditável) apenas **antes do primeiro PDF emitido**. Havendo qualquer
+  emissão, o banco impede alteração; futuras revisões exigirão aditivo.
+- A compilação de PDF definitivo só aceita modelos contendo identificação
+  textual da contratada e qualificação completa do cliente. Campos declarados
+  no formulário que não aparecem no texto não bastam. Qualificação da
+  contratada deve ser preenchida pelo revisor, nunca inventada.
+- Download exige sessão/permissão e compara SHA-256 do arquivo com o
+  registro imutável. O bucket de contratos não é público.
+- Workflows completos passaram até o commit `6613ff5a`; as alterações
+  subsequentes nos requisitos textuais têm execução de CI independente.
+- **Limitações de emissão:** PDF comercial não é documento assinado.
+  Ainda faltam adaptação do assinador para origem comercial, consentimento,
+  múltiplos participantes, evidência consolidada e regras de reenvio.
+  Upload concluído com falha posterior no banco pode deixar objeto
+  privado órfão, identificado no erro para reconciliação administrativa.
+  Isso precisa de ensaio de concorrência e recuperação antes de produção.
+- **Publicação:** não aplicar a migration `20261111100000` em produção
+  isoladamente; revisar junto com todas as migrations pendentes da PR #15,
+  testar fluxo autenticado e exigir autorização de publicação.
