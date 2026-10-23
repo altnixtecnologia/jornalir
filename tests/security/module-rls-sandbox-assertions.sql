@@ -45,6 +45,8 @@ begin
  insert into public.subscriptions(id,client_id,service_type,status,amount) values
   ('60000000-0000-0000-0000-000000000001',
    '40000000-0000-0000-0000-000000000002','impresso','active',120);
+ -- Teste com OUTRO operador, que possui somente 'assinaturas_criar'.
+ perform set_config('request.jwt.claim.sub','00000000-0000-0000-0000-000000000004',false);
  -- Criador de assinatura pode registrar papel 'assinante', mas não
  -- atribuir outro papel comercial só porque tem acesso ao cadastro.
  insert into public.client_roles(id,client_id,role) values
@@ -56,6 +58,7 @@ begin
  exception when others then rejected:=true;
  end;
  if not rejected then raise exception 'Assinaturas_criar atribuiu anunciante.'; end if;
+ perform set_config('request.jwt.claim.sub','00000000-0000-0000-0000-000000000002',false);
 
  update public.subscriptions set amount=15
    where id='60000000-0000-0000-0000-000000000001';
