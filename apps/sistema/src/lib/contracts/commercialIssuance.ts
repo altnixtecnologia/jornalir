@@ -8,6 +8,7 @@ import {
   buildCommercialContractPreview, type CommercialServiceForPreview,
 } from "./commercialContractPreview";
 import { renderCommercialLegalDraft } from "./commercialLegalDraft";
+import { CONTRACTOR_FIELDS, missingCommercialLegalParties } from "./commercialPartyRequirements";
 
 export interface IssuableCommercialDocument {
   serviceId: string | null;
@@ -90,10 +91,7 @@ export async function compileCommercialDocuments(
 
   // A qualificação da prestadora deve ser declarada expressamente pelo
   // modelo e conferida por pessoa autorizada; nunca presumir CNPJ/endereço.
-  const contractorKeys = [
-    "contratada.razao_social","contratada.cnpj",
-    "contratada.endereco","contratada.representante",
-  ];
+  const contractorKeys = [...CONTRACTOR_FIELDS];
   return selected.map(slot=>{
     const model=modelMap.get(slot.binding!.template_id);
     if(!model || !model.active ||
@@ -108,9 +106,9 @@ export async function compileCommercialDocuments(
     const variables=Array.isArray(model.variables)
       ? model.variables as Array<{key:string;label:string;required:boolean}> : [];
     const declared=new Set(variables.map(v=>v.key));
-    const absent=contractorKeys.filter(key=>!declared.has(key));
+    const absent=missingCommercialLegalParties(model.content, [...declared]);
     if(absent.length) {
-      throw new Error("O modelo "+model.title+" não declara a qualificação da contratada: "+absent.join(", ")+".");
+      throw new Error("O modelo "+model.title+" não identifica corretamente as partes: "+absent.join(", ")+".");
     }
     const rendered=renderCommercialLegalDraft({
       templateText:model.content,reference:sale.reference,
