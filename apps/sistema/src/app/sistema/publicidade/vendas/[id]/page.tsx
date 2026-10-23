@@ -135,6 +135,7 @@ export default async function CommercialSaleDetailPage({ params }: { params: { i
           id:document.id,title:document.title,
         }))}
         preparations={(signerPreparationsResult?.data??[]) as CommercialSignerPreparation[]}
+        lockedPreparationIds={(signatureRequestsResult?.data??[]).map(r=>r.preparation_id)}
         canReview={canReview.data===true}
         loadError={signerPreparationsResult?.error?.message}
       />

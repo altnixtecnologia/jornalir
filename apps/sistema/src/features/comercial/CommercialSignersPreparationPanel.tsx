@@ -33,11 +33,12 @@ const defaultSigners:CommercialSignerDraft[]=[
 ];
 
 export function CommercialSignersPreparationPanel({
-  saleId,documents,preparations,canReview,loadError,
+  saleId,documents,preparations,lockedPreparationIds,canReview,loadError,
 }:{
   saleId:string;
   documents:IssuedDocument[];
   preparations:CommercialSignerPreparation[];
+  lockedPreparationIds:string[];
   canReview:boolean;
   loadError?:string;
 }):JSX.Element|null {
@@ -73,7 +74,8 @@ export function CommercialSignersPreparationPanel({
       <p className="helper-text">
         Uma lista versionada para cada PDF emitido, com representantes da contratante,
         contratada e testemunhas opcionais. Esta etapa registra os nomes para
-        conferência — não envia e-mails, WhatsApp, links, OTP ou solicita assinatura.
+        conferência. Antes de iniciar a rodada, é possível corrigir a lista;
+        após criar os convites ela fica bloqueada para proteger os documentos.
         Os contratos institucionais continuam no módulo próprio.
       </p>
       {loadError ? <p className="form-error" role="alert">{loadError}</p>:null}
@@ -82,6 +84,7 @@ export function CommercialSignersPreparationPanel({
       {documents.map(doc=>{
         const previous=preparations.find(prep=>prep.document_id===doc.id);
         const editing=current===doc.id;
+        const locked=previous?lockedPreparationIds.includes(previous.id):false;
         return (
           <div key={doc.id} className="inline-form">
             <strong>{doc.title}</strong>
@@ -98,7 +101,7 @@ export function CommercialSignersPreparationPanel({
                       {person.signer_role}: {person.signer_name} · {person.signer_email}
                     </li>)}
                 </ul>
-                <button type="button" disabled={pending || Boolean(loadError)}
+                <button type="button" disabled={pending || Boolean(loadError) || locked}
                   onClick={()=>{
                     const entries=previous.commercial_signature_participants.slice()
                       .sort((a,b)=>a.signing_order-b.signing_order)
@@ -110,7 +113,7 @@ export function CommercialSignersPreparationPanel({
                     setSigners(entries);setCurrent(doc.id);
                     setError("");setNotice("");
                   }}>
-                  Corrigir participantes (preservar versão anterior)
+                  {locked ? "Rodada iniciada — participantes bloqueados" : "Corrigir participantes (preservar versão anterior)"}
                 </button>
               </>
             ) : editing ? (
