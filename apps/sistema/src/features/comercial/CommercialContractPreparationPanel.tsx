@@ -105,9 +105,10 @@ function currency(value: unknown): string {
 }
 
 export function CommercialContractPreparationPanel({
-  saleId, saleStatus, defaultMode, pkg, canPrepare, canReview, templateOptions, templateAssignments, loadError,
+  saleId, clientId, saleStatus, defaultMode, pkg, canPrepare, canReview, templateOptions, templateAssignments, loadError,
 }: {
   saleId: string;
+  clientId: string;
   saleStatus: string;
   defaultMode: "combined" | "separate";
   pkg: CommercialContractPackageView | null;
@@ -162,6 +163,12 @@ export function CommercialContractPreparationPanel({
         Os preços e os itens são recuperados da venda original. Confira datas, modalidades e condições de
         cada serviço antes de encaminhar à revisão jurídica. Esta etapa NÃO emite PDF, envia cobrança
         ou solicita assinatura.
+      </p>
+      <p className="helper-text">
+        A qualificação jurídica é recuperada do cadastro único, sem redigitação.
+        {" "}<a href={"/sistema/clientes/" + clientId + "/editar"}>
+          Conferir CPF/CNPJ, razão social, representante e endereço do cliente
+        </a>.
       </p>
       {loadError ? <p role="alert" className="form-error">{loadError}</p> : null}
       {error ? <p role="alert" className="form-error">{error}</p> : null}

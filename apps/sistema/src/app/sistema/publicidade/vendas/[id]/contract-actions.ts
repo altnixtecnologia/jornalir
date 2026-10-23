@@ -164,7 +164,8 @@ export async function reviewCommercialContractAction(
       if (sale.clientId !== pkg.client_id) throw new Error("Cliente divergente na contratação.");
       const qualification = qualifyCommercialClient(customer);
       const preview = buildCommercialContractPreview({
-        reference: sale.reference, clientName: clientDisplayName(customer),
+        reference: sale.reference,
+        clientName: qualification.variables["cliente.nome"] || clientDisplayName(customer),
         amount: sale.amount, mode: pkg.document_mode as "combined" | "separate",
         services: (items ?? []) as CommercialServiceForPreview[],
       });

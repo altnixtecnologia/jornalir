@@ -94,7 +94,7 @@ export async function GET(
     if (newer?.length) return fail("A versão jurídica selecionada foi substituída. Revise o modelo.",422);
 
     const preview = buildCommercialContractPreview({
-      reference:sale.reference,clientName:clientDisplayName(client),
+      reference:sale.reference,clientName:qualification.variables["cliente.nome"],
       amount:sale.amount,mode,services:entries as CommercialServiceForPreview[],
     });
     if (preview.missing.length) {
