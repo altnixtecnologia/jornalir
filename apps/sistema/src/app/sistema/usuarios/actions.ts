@@ -141,8 +141,8 @@ export async function updateManagedUserName(profileId: string, name: string): Pr
   if ("error" in manager) return manager;
   const clean = validateDisplayName(name);
   if (!clean) return { error: "Informe um nome real válido (3 a 120 caracteres)." };
-  const admin = createSupabaseAdminClient();
   if (!hasServiceRoleKey()) return { error: "Administração indisponível neste ambiente." };
+  const admin = createSupabaseAdminClient();
   const client = createSupabaseServerClient();
   const { data: target, error: targetError } = await client.from("profiles")
     .select("role").eq("id", profileId).maybeSingle();
@@ -192,16 +192,38 @@ export async function resendPendingUserAccess(profileId: string): Promise<Action
   if (account.user.email_confirmed_at) return { error: "A pessoa já confirmou o e-mail. Utilize redefinir senha, se necessário." };
   if (!account.user.invited_at) return { error: "Conta sem convite anterior. Verifique o cadastro antes de solicitar reenvio." };
 
-  const redirectTo = new URL("/definir-senha?recovery=1", SISTEMA_BASE_URL).toString();
-  const { error: sendError } = await admin.auth.resetPasswordForEmail(account.user.email, { redirectTo });
-  if (sendError) {
-    console.error("Supabase Auth reenvio de acesso:", sendError.code ?? "unknown");
-    if (sendError.status === 429) return { error: "Limite de e-mails atingido. Aguarde e confira as configurações de SMTP no Supabase." };
-    return { error: "O Supabase recusou o reenvio. Verifique SMTP, limites de envio e URL autorizada." };
+  // Tentar um novo convite para conta ainda não confirmada. Algumas
+  // configurações do Auth devolvem "already registered" nesse caso;
+  // somente nesse caso pedir um link de recuperação, que leva à mesma
+  // tela segura de escolha de senha sem expor token ao administrador.
+  const { data: profile } = await client.from("profiles")
+    .select("name").eq("id", profileId).maybeSingle();
+  const { error: reinviteError } = await admin.auth.admin.inviteUserByEmail(account.user.email, {
+    data: { name: profile?.name || account.user.user_metadata?.name || "" },
+    redirectTo: new URL("/definir-senha", SISTEMA_BASE_URL).toString(),
+  });
+  let via: "invite" | "recovery" = "invite";
+  if (reinviteError) {
+    const text = reinviteError.message?.toLowerCase() ?? "";
+    const duplicate = text.includes("already") || text.includes("registered") || text.includes("exists");
+    if (!duplicate) {
+      console.error("Supabase Auth reenvio de convite:", reinviteError.code ?? "unknown");
+      return { error: reinviteError.status === 429
+        ? "Limite de e-mails atingido. Aguarde e confira a configuração SMTP."
+        : "Não foi possível solicitar o novo convite. Verifique as configurações SMTP e o registro do Supabase Auth." };
+    }
+    via = "recovery";
+    const redirectTo = new URL("/definir-senha?recovery=1", SISTEMA_BASE_URL).toString();
+    const { error: sendError } = await admin.auth.resetPasswordForEmail(account.user.email, { redirectTo });
+    if (sendError) {
+      console.error("Supabase Auth reenvio de acesso:", sendError.code ?? "unknown");
+      if (sendError.status === 429) return { error: "Limite de e-mails atingido. Aguarde e confira as configurações de SMTP no Supabase." };
+      return { error: "O Supabase recusou o reenvio. Verifique SMTP, limites de envio e URL autorizada." };
+    }
   }
   await recordAuditEventSupabase(client, {
     userId: manager.id, entityType: "users", entityId: profileId,
-    action: "access_email_resent", metadata: { via: "recovery", pending: true },
+    action: "access_email_resent", metadata: { via, pending: true },
   }).catch(e => console.error("Falha auditoria reenvio:", e instanceof Error ? e.message : "unknown"));
   return { ok: true };
 }
