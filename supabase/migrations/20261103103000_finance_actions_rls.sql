@@ -235,6 +235,82 @@ drop trigger if exists payment_charges_guard_action on public.payment_charges;
 create trigger payment_charges_guard_action before update on public.payment_charges
 for each row execute function public.enforce_payment_charge_updates();
 
+-- Não permitir criar títulos já pagos/cancelados diretamente pela API:
+-- seus saldos/estornos precisam ter documentação no livro financeiro.
+create or replace function public.enforce_receivable_insert_state()
+returns trigger language plpgsql set search_path=''
+as $
+begin
+  if (select auth.uid()) is not null
+    and not public.is_active_admin_or_owner()
+    and new.status <> 'open' then
+    raise exception 'Novo título deve iniciar em aberto.' using errcode='42501';
+  end if;
+  return new;
+end;
+$;
+drop trigger if exists receivables_guard_initial_state on public.receivables;
+create trigger receivables_guard_initial_state before insert on public.receivables
+for each row execute function public.enforce_receivable_insert_state();
+
+-- Registrar recebimento requer saldo e um título não cancelado.
+-- Bloqueio do título evita dois lançamentos concorrentes acima do saldo.
+create or replace function public.enforce_receipt_insert_balance()
+returns trigger language plpgsql set search_path=''
+as $
+declare
+  v_receivable public.receivables%rowtype;
+  v_received numeric;
+  v_adjusted numeric;
+begin
+  if (select auth.uid()) is null or public.is_active_admin_or_owner() then
+    return new;
+  end if;
+  if new.amount is null or new.amount<=0 or new.reversed_at is not null then
+    raise exception 'Recebimento inválido.' using errcode='23514';
+  end if;
+  select * into v_receivable from public.receivables
+    where id=new.receivable_id for update;
+  if v_receivable.id is null or v_receivable.status='cancelled' then
+    raise exception 'Título inválido para recebimento.' using errcode='42501';
+  end if;
+  select coalesce(sum(amount),0) into v_received from public.receivable_receipts
+    where receivable_id=new.receivable_id and reversed_at is null;
+  select coalesce(sum(amount),0) into v_adjusted from public.receivable_adjustments
+    where receivable_id=new.receivable_id and reversed_at is null;
+  if new.amount > v_receivable.original_amount-v_received-v_adjusted+0.005 then
+    raise exception 'Recebimento acima do saldo: use o fluxo de crédito excedente.' using errcode='23514';
+  end if;
+  return new;
+end;
+$;
+drop trigger if exists receivable_receipts_guard_amount on public.receivable_receipts;
+create trigger receivable_receipts_guard_amount before insert on public.receivable_receipts
+for each row execute function public.enforce_receipt_insert_balance();
+
+-- Proteção adicional dos créditos: não reescrever origem, valor ou cliente
+-- de crédito existente por UPDATE direto.
+create or replace function public.enforce_credit_reversal_only()
+returns trigger language plpgsql set search_path=''
+as $
+begin
+  if (select auth.uid()) is null or public.is_active_admin_or_owner() then
+    return new;
+  end if;
+  if (to_jsonb(new) - 'reversed_at' - 'reversed_by' - 'reversal_reason') is distinct from
+      (to_jsonb(old) - 'reversed_at' - 'reversed_by' - 'reversal_reason')
+      or old.reversed_at is not null
+      or new.reversed_at is null
+      or nullif(btrim(new.reversal_reason),'') is null then
+    raise exception 'Crédito imutável; somente estorno justificado é permitido.' using errcode='42501';
+  end if;
+  return new;
+end;
+$;
+drop trigger if exists client_credits_guard_reversal on public.client_credits;
+create trigger client_credits_guard_reversal before update on public.client_credits
+for each row execute function public.enforce_credit_reversal_only();
+
 -- Verificação de instalação: erro em caso de política antiga ainda presente
 -- nos 13 recursos financeiros protegidos acima.
 do $audit$
