@@ -8,9 +8,11 @@ on:
       - "supabase/migrations/202611031*.sql"
       - "supabase/migrations/202611041*.sql"
       - "supabase/migrations/202611051*.sql"
+      - "supabase/migrations/202611061*.sql"
       - "tests/security/finance-rls-sandbox-*.sql"
       - "tests/security/module-rls-sandbox-*.sql"
       - "tests/security/editorial-rls-sandbox-*.sql"
+      - "tests/security/nfse-rls-sandbox-*.sql"
       - ".github/workflows/finance-rls-sandbox.yml"
   workflow_dispatch:
 
@@ -87,3 +89,12 @@ jobs:
 
       - name: Testar edição, publicação, convites e acesso aos RPCs
         run: psql -v ON_ERROR_STOP=1 -f tests/security/editorial-rls-sandbox-assertions.sql
+
+      - name: Montar banco fiscal de teste
+        run: psql -v ON_ERROR_STOP=1 -f tests/security/nfse-rls-sandbox-setup.sql
+
+      - name: Aplicar RLS de rascunhos da NFS-e
+        run: psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261106100000_nfse_operator_drafts_rls.sql
+
+      - name: Testar delegação e proteção de certificado
+        run: psql -v ON_ERROR_STOP=1 -f tests/security/nfse-rls-sandbox-assertions.sql
