@@ -1,0 +1,203 @@
+"use client";
+
+import { useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
+import {
+  prepareCommercialContractAction,
+  reviewCommercialContractAction,
+  setCommercialContractModeAction,
+  updateCommercialContractTermsAction,
+} from "../../app/sistema/publicidade/vendas/[id]/contract-actions";
+
+export interface CommercialContractServiceView {
+  id: string;
+  item_ordinal: number;
+  source_snapshot: Record<string, unknown>;
+  service_channel: string;
+  service_title: string;
+  starts_on: string | null;
+  ends_on: string | null;
+  service_location: string | null;
+  service_scope: string | null;
+  execution_conditions: string | null;
+}
+export interface CommercialContractPackageView {
+  id: string;
+  document_mode: "combined" | "separate";
+  status: "draft" | "pending_legal_review";
+  services: CommercialContractServiceView[];
+}
+
+const modeNames = {
+  combined: "Contrato único com todos os serviços",
+  separate: "Documentos separados por serviço",
+};
+function currency(value: unknown): string {
+  if (typeof value !== "number" || !Number.isFinite(value)) return "Valor não registrado";
+  return value.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+}
+
+export function CommercialContractPreparationPanel({
+  saleId, saleStatus, pkg, canPrepare, canReview, loadError,
+}: {
+  saleId: string;
+  saleStatus: string;
+  pkg: CommercialContractPackageView | null;
+  canPrepare: boolean;
+  canReview: boolean;
+  loadError?: string;
+}): JSX.Element {
+  const router = useRouter();
+  const [pending, startTransition] = useTransition();
+  const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
+  const [mode, setMode] = useState<"combined" | "separate">(pkg?.document_mode ?? "combined");
+
+  function submit(action: Promise<{ error: string } | { ok: true; packageId: string }>, message: string): void {
+    startTransition(async () => {
+      setError(""); setNotice("");
+      try {
+        const result = await action;
+        if ("error" in result) { setError(result.error); return; }
+        setNotice(message);
+        router.refresh();
+      } catch (reason) {
+        setError(reason instanceof Error ? reason.message : "Não foi possível concluir a operação.");
+      }
+    });
+  }
+
+  return (
+    <section className="form-section" aria-labelledby="contratacao-servicos">
+      <h2 id="contratacao-servicos">Contratação dos serviços</h2>
+      <p className="helper-text">
+        Os preços e os itens são recuperados da venda original. Confira datas, modalidades e condições de
+        cada serviço antes de encaminhar à revisão jurídica. Esta etapa NÃO emite PDF, envia cobrança
+        ou solicita assinatura.
+      </p>
+      {loadError ? <p role="alert" className="form-error">{loadError}</p> : null}
+      {error ? <p role="alert" className="form-error">{error}</p> : null}
+      {notice ? <p role="status" className="helper-text">{notice}</p> : null}
+      {!pkg ? (
+        <>
+          {["approved", "active"].includes(saleStatus) ? (
+            canPrepare && !loadError ? (
+              <div className="inline-form">
+                <label className="form-field">
+                  <span className="field-label">Como serão organizados os documentos?</span>
+                  <select value={mode} onChange={(event) => setMode(event.target.value as typeof mode)}>
+                    <option value="combined">{modeNames.combined}</option>
+                    <option value="separate">{modeNames.separate}</option>
+                  </select>
+                </label>
+                <div className="form-actions">
+                  <button type="button" disabled={pending} onClick={() =>
+                    submit(prepareCommercialContractAction(saleId, mode), "Rascunho preparado com os itens originais da venda.")
+                  }>Preparar contratação</button>
+                </div>
+              </div>
+            ) : <p className="helper-text">A preparação exige permissão específica no módulo Comercial.</p>
+          ) : <p className="helper-text">Aprovação da venda obrigatória para preparar o contrato.</p>}
+        </>
+      ) : (
+        <div className="inline-form">
+          <p>
+            <strong>{pkg.status === "draft" ? "Rascunho em preparação" : "Aguardando revisão jurídica"}</strong>
+            {" · "}
+            {modeNames[pkg.document_mode]}
+          </p>
+          {pkg.status === "draft" && canPrepare ? (
+            <div className="form-grid">
+              <label className="form-field">
+                <span className="field-label">Forma de documentação</span>
+                <select value={mode} onChange={(event) => setMode(event.target.value as typeof mode)}>
+                  <option value="combined">{modeNames.combined}</option>
+                  <option value="separate">{modeNames.separate}</option>
+                </select>
+              </label>
+              <div className="form-field">
+                <span className="field-label">Agrupamento</span>
+                <button type="button" disabled={pending || mode === pkg.document_mode} onClick={() =>
+                  submit(setCommercialContractModeAction(pkg.id, saleId, mode), "Forma de documentação atualizada.")
+                }>Salvar escolha</button>
+              </div>
+            </div>
+          ) : null}
+          {pkg.services.map((service) => {
+            const snapshot = service.source_snapshot;
+            const price = snapshot.totalAmount;
+            const needsLocation = ["led_panel", "equipment_rental"].includes(service.service_channel);
+            return (
+              <form
+                key={service.id}
+                className="form-section"
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  const fd = new FormData(event.currentTarget);
+                  submit(updateCommercialContractTermsAction(pkg.id, saleId, {
+                    serviceId: service.id,
+                    startsOn: String(fd.get("startsOn") || ""),
+                    endsOn: String(fd.get("endsOn") || ""),
+                    location: String(fd.get("location") || ""),
+                    scope: String(fd.get("scope") || ""),
+                    executionConditions: String(fd.get("conditions") || ""),
+                  }), "Condições do serviço salvas.");
+                }}
+              >
+                <h3>{service.item_ordinal + 1}. {service.service_title}</h3>
+                <p className="helper-text">
+                  Modalidade: {service.service_channel} · {currency(price)}
+                  {" · "}Quantidade: {typeof snapshot.quantity === "number" ? snapshot.quantity : "a conferir"}
+                </p>
+                <div className="form-grid">
+                  <label className="form-field"><span className="field-label">Início do serviço</span>
+                    <input type="date" name="startsOn" defaultValue={service.starts_on ?? ""} disabled={!canPrepare || pkg.status !== "draft"}/>
+                  </label>
+                  <label className="form-field"><span className="field-label">Fim do serviço</span>
+                    <input type="date" name="endsOn" defaultValue={service.ends_on ?? ""} disabled={!canPrepare || pkg.status !== "draft"}/>
+                  </label>
+                  <label className="form-field"><span className="field-label">
+                    Local de prestação {needsLocation ? "(obrigatório)" : "(se aplicável)"}
+                  </span>
+                    <input type="text" name="location" maxLength={500} defaultValue={service.service_location ?? ""}
+                      disabled={!canPrepare || pkg.status !== "draft"} />
+                  </label>
+                </div>
+                <label className="form-field"><span className="field-label">Objeto e entregas deste serviço</span>
+                  <textarea name="scope" rows={3} maxLength={4000} defaultValue={service.service_scope ?? ""}
+                    disabled={!canPrepare || pkg.status !== "draft"} />
+                </label>
+                <label className="form-field"><span className="field-label">Condições adicionais aprovadas</span>
+                  <textarea name="conditions" rows={2} maxLength={4000} defaultValue={service.execution_conditions ?? ""}
+                    disabled={!canPrepare || pkg.status !== "draft"} />
+                </label>
+                {pkg.status === "draft" && canPrepare ? (
+                  <div className="form-actions">
+                    <button type="submit" disabled={pending}>Salvar serviço</button>
+                  </div>
+                ) : null}
+              </form>
+            );
+          })}
+          {canReview ? (
+            <div className="form-actions">
+              {pkg.status === "draft" ? (
+                <button type="button" disabled={pending} onClick={() =>
+                  submit(reviewCommercialContractAction(pkg.id, saleId, "pending_legal_review"), "Encaminhado para revisão jurídica.")
+                }>Encaminhar para revisão jurídica</button>
+              ) : (
+                <button type="button" disabled={pending} onClick={() =>
+                  submit(reviewCommercialContractAction(pkg.id, saleId, "draft"), "Devolvido para ajustes.")
+                }>Devolver para ajustes</button>
+              )}
+            </div>
+          ) : null}
+          <p className="helper-text">
+            Revisão jurídica é uma etapa interna, não uma assinatura. Nenhum modelo de cláusulas
+            será considerado aprovado sem validação e sem o documento final vinculado ao cliente.
+          </p>
+        </div>
+      )}
+    </section>
+  );
+}
