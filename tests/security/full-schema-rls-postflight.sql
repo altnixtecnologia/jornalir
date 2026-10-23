@@ -106,6 +106,26 @@ begin
      and not t.tgisinternal) then
    raise exception 'Falta proteção do rascunho fiscal.';
  end if;
+ if to_regclass('public.commercial_signature_requests') is null or
+    to_regclass('public.commercial_signature_invitations') is null then
+   raise exception 'Rodadas e convites comerciais não foram criados.';
+ end if;
+ if has_table_privilege('anon','public.commercial_signature_invitations','SELECT')
+    or has_table_privilege('authenticated','public.commercial_signature_invitations','INSERT')
+    or has_table_privilege('authenticated','public.commercial_signature_invitations','UPDATE')
+    or has_table_privilege('authenticated','public.commercial_signature_requests','UPDATE') then
+   raise exception 'Convite comercial exposto para escrita/leitura não autorizada.';
+ end if;
+ if has_function_privilege('anon','public.create_commercial_signature_request(uuid,jsonb)','EXECUTE')
+    or has_function_privilege('authenticated','public.claim_commercial_signature_turn(text,uuid)','EXECUTE')
+    or has_function_privilege('authenticated','public.finalize_commercial_signature(text,uuid,text,text,text,text,jsonb)','EXECUTE')
+    or has_function_privilege('anon','public.reissue_commercial_signature_invitation(uuid,text,text)','EXECUTE') then
+   raise exception 'RPC privilegiada de assinatura comercial indevidamente exposta.';
+ end if;
+ if not exists(select 1 from pg_policies where schemaname='storage'
+    and tablename='objects' and policyname='contract_docs_storage_select_commercial_signed_staff') then
+   raise exception 'Evidências finais sem política de leitura restrita.';
+ end if;
  if to_regclass('public.commercial_signature_preparations') is null
     or to_regclass('public.commercial_signature_participants') is null then
    raise exception 'Preparação comercial de signatários ausente.';
