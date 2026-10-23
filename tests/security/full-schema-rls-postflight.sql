@@ -67,6 +67,17 @@ begin
    raise exception 'Falta proteção da publicação editorial.';
  end if;
 
+ if to_regclass('public.commercial_contract_packages') is null
+    or to_regclass('public.commercial_contract_services') is null then
+   raise exception 'Estrutura de contratação comercial ausente.';
+ end if;
+ if not exists(select 1 from pg_proc where pronamespace='public'::regnamespace
+   and proname='prepare_commercial_contract') then
+   raise exception 'Função transacional de preparação de contratos ausente.';
+ end if;
+ if has_function_privilege('anon','public.prepare_commercial_contract(uuid,text)','EXECUTE') then
+   raise exception 'Preparação de contrato exposta ao público.';
+ end if;
  if to_regclass('public.rental_assets') is null or
     to_regclass('public.rental_bookings') is null or
     to_regclass('public.rental_inspection_events') is null then
