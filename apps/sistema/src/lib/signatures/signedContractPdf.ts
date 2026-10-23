@@ -11,6 +11,7 @@ export interface SignedPdfInput {
   originalSha256: string;
   invitationId: string;
   consentVersion?: string;
+  sourceIsCumulative?: boolean;
 }
 
 function safeText(s: string): string {
@@ -54,7 +55,7 @@ export async function buildSignedContractPdf(input: SignedPdfInput): Promise<Uin
   page.drawImage(img, { x: 60 + (470 - img.width * scale) / 2,
     y: 350 + (155 - img.height * scale) / 2,
     width: img.width * scale, height: img.height * scale });
-  line("SHA-256 do arquivo original:", 288, 10, true);
+  line(input.sourceIsCumulative ? "SHA-256 do PDF base desta assinatura:" : "SHA-256 do arquivo original:", 288, 10, true);
   line(input.originalSha256, 270, 9);
   line("Convite: " + input.invitationId, 236, 9);
   line("A imagem e o hash demonstram o registro de aceite; nao equivalem,", 193, 10);
