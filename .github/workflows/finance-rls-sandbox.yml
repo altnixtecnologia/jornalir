@@ -7,6 +7,7 @@ on:
     paths:
       - "supabase/migrations/202610311*.sql"
       - "supabase/migrations/202611011*.sql"
+      - "supabase/migrations/202611021*.sql"
       - "supabase/migrations/202611031*.sql"
       - "supabase/migrations/202611041*.sql"
       - "supabase/migrations/202611051*.sql"
@@ -59,6 +60,9 @@ jobs:
 
       - name: Reproduzir roles e politicas antigas sem dados reais
         run: psql -v ON_ERROR_STOP=1 -f tests/security/finance-rls-sandbox-setup.sql
+
+      - name: Aplicar schema real da matriz de permissoes
+        run: psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261102100000_staff_module_action_permissions.sql
 
       - name: Aplicar regras de convite confirmado
         run: psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261103100000_confirmed_staff_authorization.sql
