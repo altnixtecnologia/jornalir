@@ -239,7 +239,7 @@ for each row execute function public.enforce_payment_charge_updates();
 -- seus saldos/estornos precisam ter documentação no livro financeiro.
 create or replace function public.enforce_receivable_insert_state()
 returns trigger language plpgsql set search_path=''
-as $
+as $$
 begin
   if (select auth.uid()) is not null
     and not public.is_active_admin_or_owner()
@@ -248,7 +248,7 @@ begin
   end if;
   return new;
 end;
-$;
+$$;
 drop trigger if exists receivables_guard_initial_state on public.receivables;
 create trigger receivables_guard_initial_state before insert on public.receivables
 for each row execute function public.enforce_receivable_insert_state();
@@ -257,7 +257,7 @@ for each row execute function public.enforce_receivable_insert_state();
 -- Bloqueio do título evita dois lançamentos concorrentes acima do saldo.
 create or replace function public.enforce_receipt_insert_balance()
 returns trigger language plpgsql set search_path=''
-as $
+as $$
 declare
   v_receivable public.receivables%rowtype;
   v_received numeric;
@@ -283,7 +283,7 @@ begin
   end if;
   return new;
 end;
-$;
+$$;
 drop trigger if exists receivable_receipts_guard_amount on public.receivable_receipts;
 create trigger receivable_receipts_guard_amount before insert on public.receivable_receipts
 for each row execute function public.enforce_receipt_insert_balance();
@@ -292,7 +292,7 @@ for each row execute function public.enforce_receipt_insert_balance();
 -- de crédito existente por UPDATE direto.
 create or replace function public.enforce_credit_reversal_only()
 returns trigger language plpgsql set search_path=''
-as $
+as $$
 begin
   if (select auth.uid()) is null or public.is_active_admin_or_owner() then
     return new;
@@ -306,7 +306,7 @@ begin
   end if;
   return new;
 end;
-$;
+$$;
 drop trigger if exists client_credits_guard_reversal on public.client_credits;
 create trigger client_credits_guard_reversal before update on public.client_credits
 for each row execute function public.enforce_credit_reversal_only();
