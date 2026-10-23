@@ -197,6 +197,14 @@ export function CommercialContractPreparationPanel({
               )}
             />
           ) : null}
+          {pkg.document_mode === "combined" &&
+            templateAssignments.some(binding => binding.serviceId === null) ? (
+              <p className="helper-text">
+                <a href={"/sistema/publicidade/vendas/" + saleId + "/conferencia-pdf"}>
+                  Baixar minuta PDF para conferência (não assinável)
+                </a>
+              </p>
+          ) : null}
           {pkg.services.map((service) => {
             const snapshot = service.source_snapshot;
             const price = snapshot.totalAmount;
@@ -260,6 +268,15 @@ export function CommercialContractPreparationPanel({
                   <textarea name="conditions" rows={2} maxLength={4000} defaultValue={service.execution_conditions ?? ""}
                     disabled={!canPrepare || pkg.status !== "draft"} />
                 </label>
+                {pkg.document_mode === "separate" &&
+                  templateAssignments.some(binding => binding.serviceId === service.id) ? (
+                    <p className="helper-text">
+                      <a href={"/sistema/publicidade/vendas/" + saleId
+                          + "/conferencia-pdf?service=" + encodeURIComponent(service.id)}>
+                        Baixar minuta PDF individual (não assinável)
+                      </a>
+                    </p>
+                ) : null}
                 {pkg.status === "draft" && canPrepare ? (
                   <div className="form-actions">
                     <button type="submit" disabled={pending}>Salvar serviço</button>
@@ -308,6 +325,8 @@ export function CommercialContractPreparationPanel({
             </div>
           ) : null}
           <p className="helper-text">
+            A minuta PDF é temporária, marcada como não assinável. Se um modelo tiver
+            campos personalizados sem valor, o download será bloqueado e mostrará os campos faltantes.
             Revisão jurídica é uma etapa interna, não uma assinatura. Nenhum modelo de cláusulas
             será considerado aprovado sem validação e sem o documento final vinculado ao cliente.
           </p>
