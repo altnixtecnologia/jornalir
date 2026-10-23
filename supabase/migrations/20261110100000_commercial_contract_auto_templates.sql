@@ -192,7 +192,9 @@ declare
  v_ordinal bigint;
 begin
  if new.status not in ('approved','active') then return new; end if;
- if TG_OP='UPDATE' and old.status in ('approved','active') then return new; end if;
+ if TG_OP='UPDATE' then
+   if old.status in ('approved','active') then return new; end if;
+ end if;
  if exists(select 1 from public.commercial_contract_packages
            where commercial_sale_id=new.id) then return new; end if;
 
