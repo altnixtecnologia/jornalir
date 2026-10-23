@@ -68,6 +68,9 @@ jobs:
       - name: Testar preço individual e preço total dos contratos
         run: npx tsx --test apps/sistema/test/commercial-document-amount.test.ts
 
+      - name: Testar identificação jurídica das partes no modelo
+        run: npx tsx --test apps/sistema/test/commercial-party-requirements.test.ts
+
       - name: Signed contract PDF smoke test
         run: node apps/sistema/scripts/signatures-smoke.cjs
 
