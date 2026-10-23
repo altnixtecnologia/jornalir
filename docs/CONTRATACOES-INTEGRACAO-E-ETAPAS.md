@@ -381,3 +381,22 @@ não assinável** com emissão definitiva ou aprovação jurídica.
 - Ainda faltam execução de testes em CI, revisão funcional autenticada,
   validação jurídica, integração do assinador comercial e emissão definitiva.
 - Não foram criados documentos assináveis, cobranças ou migrations nesta etapa.
+
+## Etapa 2H — conferência jurídica com qualificação e valores por documento (23/10/2026)
+
+- Validação centralizada de PF/PJ a partir de `clients`: nome/razão social,
+  CPF/CNPJ, responsável legal quando PJ, CPF do responsável e endereço completo.
+  Pendências são apresentadas na conferência e impedem a minuta PDF e o
+  encaminhamento prematuro à revisão pelo formulário (sem inventar dados).
+- Placeholders legais `cliente.nome`, `cliente.documento`, `cliente.endereco`,
+  `cliente.representante`, `cliente.representante_cpf`, `cliente.qualificacao`
+  vêm do cadastro; não são editáveis nos valores livres do modelo.
+- `venda.valor` no documento INDIVIDUAL considera somente o item histórico
+  daquela prestação; no documento COMBINADO considera a venda completa.
+  O sistema não redistribui descontos nem cria títulos financeiros.
+- Minutas são sempre **não assináveis** e temporárias; nenhum PDF privado
+  definitivo/convite de assinatura é emitido por essa etapa.
+- Critérios ainda a homologar: testes de build, casos com cliente sem
+  documentos/endereço, vendas com descontos e modelos ativos por modalidade.
+  A aprovação jurídica, emissão definitiva e assinador comercial continuam
+  explicitamente bloqueados até implementação e testes próprios.

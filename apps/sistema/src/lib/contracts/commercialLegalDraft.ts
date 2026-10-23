@@ -12,12 +12,14 @@ export function renderCommercialLegalDraft(input: {
   totalPrice: string;
   document: CommercialPreviewDocument;
   values?: Record<string, string>;
+  qualification?: Record<string, string>;
 }): { text: string; missing: string[] } {
   const predefined: Record<string,string> = {
     "cliente.nome": input.clientName.trim(),
     "venda.referencia": input.reference.trim(),
     "venda.valor": input.totalPrice.trim(),
     "servicos.resumo": input.document.text.trim(),
+    ...input.qualification,
   };
   const missing = new Set<string>();
   const allowedCustom = input.values ?? {};

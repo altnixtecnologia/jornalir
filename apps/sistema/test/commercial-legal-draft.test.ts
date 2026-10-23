@@ -58,3 +58,16 @@ test("valor informado no cadastro prevalece sobre substituição manual",()=>{
  assert.match(result.text,/Cliente Autêntico/);
  assert.doesNotMatch(result.text,/Nome alterado/);
 });
+
+test("variáveis legais do cadastro mestre prevalecem sobre campos livres",()=>{
+ const result=renderCommercialLegalDraft({
+  templateText:"{{cliente.nome}} | {{cliente.documento}} | {{cliente.endereco}}",
+  reference:"IR-200",clientName:"Nome fantasia",totalPrice:"R$ 275,00",document,
+  qualification:{"cliente.nome":"Razão Social Ltda.","cliente.documento":"11222333000181",
+    "cliente.endereco":"Rua Principal, 12"},
+  values:{"cliente.nome":"Falso","cliente.documento":"00000000000000"},
+ });
+ assert.deepEqual(result.missing,[]);
+ assert.match(result.text,/Razão Social Ltda\. \| 11222333000181 \| Rua Principal, 12/);
+ assert.doesNotMatch(result.text,/Falso|00000000000000/);
+});

@@ -9,6 +9,7 @@ import {
   buildCommercialContractPreview, type CommercialServiceForPreview,
 } from "../../../../../../lib/contracts/commercialContractPreview";
 import { renderCommercialLegalDraft } from "../../../../../../lib/contracts/commercialLegalDraft";
+import { qualifyCommercialClient } from "../../../../../../lib/contracts/commercialQualification";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -54,6 +55,10 @@ export async function GET(
       ]);
     if (servicesError || assignmentsError) return fail("Não foi possível conferir os serviços e modelos.",500);
     if (sale.clientId !== pkg.client_id) return fail("Cliente da venda não corresponde à contratação.",409);
+    const qualification = qualifyCommercialClient(client);
+    if (qualification.missing.length) {
+      return fail("Complete a qualificação jurídica no cadastro do cliente: " + qualification.missing.join("; "),422);
+    }
 
     const mode = pkg.document_mode as "combined" | "separate";
     const entries = services ?? [];
@@ -100,8 +105,11 @@ export async function GET(
     const text = renderCommercialLegalDraft({
       templateText:template.content, reference:sale.reference,
       clientName:clientDisplayName(client),
-      totalPrice:sale.amount.toLocaleString("pt-BR",{style:"currency",currency:"BRL"}),
+      totalPrice:(mode === "combined"
+        ? sale.amount : entries[serviceIndex]?.source_snapshot?.totalAmount as number)
+        .toLocaleString("pt-BR",{style:"currency",currency:"BRL"}),
       document,
+      qualification:qualification.variables,
       values:(selected.custom_values ?? {}) as Record<string,string>,
     });
     if (text.missing.length) {

@@ -8,6 +8,7 @@ import { recordAuditEventSupabase } from "../../../../../providers/supabase/audi
 import { getClientService } from "../../../../../composition/clientes";
 import { getCommercialSaleService } from "../../../../../composition/comercial";
 import { clientDisplayName } from "@ir/types";
+import { qualifyCommercialClient } from "../../../../../lib/contracts/commercialQualification";
 import {
   buildCommercialContractPreview, type CommercialPreviewResult,
   type CommercialServiceForPreview,
@@ -145,6 +146,29 @@ export async function reviewCommercialContractAction(
   try {
     const client = createSupabaseServerClient();
     const actor = await getAuditContext(client);
+    if (to === "pending_legal_review") {
+      const { data: pkg, error: pkgError } = await client.from("commercial_contract_packages")
+        .select("id,client_id,document_mode").eq("id", id(packageId))
+        .eq("commercial_sale_id", id(saleId)).eq("status", "draft").maybeSingle();
+      if (pkgError || !pkg) throw new Error(pkgError?.message ?? "Contratação indisponível para revisão.");
+      const { data: items, error: itemsError } = await client.from("commercial_contract_services")
+        .select("item_ordinal,service_title,service_channel,source_snapshot,starts_on,ends_on,service_location,service_scope,execution_conditions")
+        .eq("package_id", pkg.id).order("item_ordinal");
+      if (itemsError) throw new Error(itemsError.message);
+      const [sale, customer] = await Promise.all([
+        getCommercialSaleService(client).getById(saleId),
+        getClientService(client).getById(pkg.client_id),
+      ]);
+      if (sale.clientId !== pkg.client_id) throw new Error("Cliente divergente na contratação.");
+      const qualification = qualifyCommercialClient(customer);
+      const preview = buildCommercialContractPreview({
+        reference: sale.reference, clientName: clientDisplayName(customer),
+        amount: sale.amount, mode: pkg.document_mode as "combined" | "separate",
+        services: (items ?? []) as CommercialServiceForPreview[],
+      });
+      const missing = [...qualification.missing, ...preview.missing];
+      if (missing.length) throw new Error("Corrija antes de encaminhar à revisão: " + missing.join("; "));
+    }
     const { data, error } = await client.from("commercial_contract_packages")
       .update({ status: to, updated_at: new Date().toISOString() })
       .eq("id", id(packageId)).eq("commercial_sale_id", id(saleId))
@@ -183,11 +207,14 @@ export async function previewCommercialContractAction(
       getClientService(client).getById(pkg.client_id),
     ]);
     if (sale.clientId !== pkg.client_id) throw new Error("Cliente da contratação não corresponde à venda.");
-    return { ok: true, preview: buildCommercialContractPreview({
+    const preview = buildCommercialContractPreview({
       reference: sale.reference, clientName: clientDisplayName(customer),
       amount: sale.amount, mode: pkg.document_mode as "combined" | "separate",
       services: (services ?? []) as CommercialServiceForPreview[],
-    }) };
+    });
+    return { ok: true, preview: {
+      ...preview, missing: [...preview.missing, ...qualifyCommercialClient(customer).missing],
+    } };
   } catch (error) { return { error: error instanceof Error ? error.message : "Erro ao conferir contratação." }; }
 }
 

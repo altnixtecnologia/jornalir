@@ -42,7 +42,11 @@ interface CommercialTemplateBinding {
   templateId: string;
   values: Record<string,string>;
 }
-const AUTO_FIELDS = new Set(["cliente.nome","venda.referencia","venda.valor","servicos.resumo"]);
+const AUTO_FIELDS = new Set([
+  "cliente.nome", "cliente.documento", "cliente.endereco",
+  "cliente.representante", "cliente.representante_cpf", "cliente.qualificacao",
+  "venda.referencia", "venda.valor", "servicos.resumo",
+]);
 function TemplateChoice({
   heading, options, selected, initialValues, disabled, onSave,
 }: {
