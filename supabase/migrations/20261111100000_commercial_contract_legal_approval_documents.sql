@@ -24,7 +24,20 @@ returns trigger language plpgsql set search_path='' as $$
 begin
   if tg_op='UPDATE' then
     if old.status='legal_approved' then
-      raise exception 'Contratação aprovada é imutável; emita os documentos ou registre novo aditivo.'
+      -- Correção controlada ANTES da primeira emissão: nenhum PDF/evidência
+      -- pode ser apagado ou refeito. Após a emissão, só aditivo.
+      if new.status='draft' and
+         public.staff_can_module_action('publicidade','contratos_revisar')
+         and not exists(
+           select 1 from public.commercial_contract_documents d
+           where d.package_id=old.id
+         ) then
+        new.approved_by:=null;
+        new.approved_at:=null;
+        new.approval_note:=null;
+        return new;
+      end if;
+      raise exception 'Contratação aprovada é imutável após emissão; use aditivo.'
         using errcode='42501';
     end if;
     if new.status='legal_approved' then
