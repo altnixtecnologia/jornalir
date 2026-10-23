@@ -6,6 +6,7 @@ import { ClientDuplicateFieldError } from "@ir/core";
 import type { ClientInput } from "@ir/core";
 import { getClientService } from "../../../composition/clientes";
 import { createSupabaseServerClient } from "../../../lib/supabase/server";
+import { checkModuleAction } from "../../../lib/permissions/checkModuleAction";
 import { validateClientPayload, type ClientFormPayload } from "../../../features/clientes/clientFormTypes";
 
 const LIST_PATH = "/sistema/clientes";
@@ -55,6 +56,8 @@ function toServiceInput(payload: ClientFormPayload): ClientInput {
  * sucesso, e redirect() nunca retorna de verdade.
  */
 export async function createClient(payload: ClientFormPayload): Promise<ActionResult> {
+  const permissionError = await checkModuleAction("clientes", "clientes_criar");
+  if (permissionError) return { error: permissionError };
   const validationError = validateClientPayload(payload);
   if (validationError) return { error: validationError };
 
@@ -70,6 +73,8 @@ export async function createClient(payload: ClientFormPayload): Promise<ActionRe
 }
 
 export async function updateClient(id: string, payload: ClientFormPayload): Promise<ActionResult> {
+  const permissionError = await checkModuleAction("clientes", "clientes_editar");
+  if (permissionError) return { error: permissionError };
   const validationError = validateClientPayload(payload);
   if (validationError) return { error: validationError };
 
