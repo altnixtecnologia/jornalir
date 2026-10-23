@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
+import { useRef, useState } from "react";
 import {
  createRentalAssetAction,changeRentalAssetStatusAction,createRentalBookingAction,
  changeRentalBookingStatusAction,recordRentalInspectionAction,
@@ -39,7 +39,8 @@ export function RentalOperationsPanel({assets,products,sales,bookings,inspection
  assets:Asset[];products:Product[];sales:Sale[];bookings:Booking[];inspections:Inspection[];permissions:Actions;
 }):JSX.Element {
  const router=useRouter();
- const [pending,startTransition]=useTransition();
+ const [pending,setPending]=useState(false);
+ const busy=useRef(false);
  const [message,setMessage]=useState("");
  const [error,setError]=useState("");
  const [inspectionBooking,setInspectionBooking]=useState("");
@@ -53,15 +54,17 @@ export function RentalOperationsPanel({assets,products,sales,bookings,inspection
     && sale.items_snapshot.some(v=>v&&typeof v==="object"&&"serviceChannel" in v&&v.serviceChannel==="equipment_rental");
  });
 
- function run(action:Promise<{error:string}|{ok:true}>,success:string):void {
-  startTransition(async()=>{
-   setError("");setMessage("");
+ function run(action:Promise<{error:string}|{ok:true}>,success:string,onSuccess?:()=>void):void {
+  if(busy.current)return;
+  busy.current=true;setPending(true);setError("");setMessage("");
+  void (async()=>{
    try{
     const response=await action;
-    if("error" in response) setError(response.error);
-    else{setMessage(success);router.refresh();}
+    if("error" in response)setError(response.error);
+    else{setMessage(success);onSuccess?.();router.refresh();}
    }catch(ex){setError(errorMessage(ex));}
-  });
+   finally{busy.current=false;setPending(false);}
+  })();
  }
  function registerAsset(ev:React.FormEvent<HTMLFormElement>):void{
   ev.preventDefault();const f=new FormData(ev.currentTarget);
@@ -91,8 +94,7 @@ export function RentalOperationsPanel({assets,products,sales,bookings,inspection
    bookingId:inspectionBooking,kind:inspectionKind,
    conditionNotes:field(f,"conditionNotes"),accessoriesChecklist:field(f,"accessories"),
    acknowledgedBy:field(f,"acknowledgedBy")
-  }),"Vistoria registrada e preservada no histórico.");
-  setInspectionBooking("");
+  }),"Vistoria registrada e preservada no histórico.",()=>setInspectionBooking(""));
  }
  const inputStyle:React.CSSProperties={width:"100%",minWidth:0};
  const formGrid:React.CSSProperties={display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(175px,1fr))",gap:12};
