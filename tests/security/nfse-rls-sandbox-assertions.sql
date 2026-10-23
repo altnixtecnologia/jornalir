@@ -79,13 +79,23 @@ $tests$;
 -- Permissão para gerenciar configuração permite perfil, mas não certificados.
 reset role;
 insert into public.staff_module_action_permissions(profile_id,module_key,action_key,allowed)
- values('00000000-0000-0000-0000-000000000002','nfse','configuracoes_gerenciar',true);
+ values('00000000-0000-0000-0000-000000000002','nfse','perfis_servico_gerenciar',true);
 set role authenticated;
 select set_config('request.jwt.claim.sub','00000000-0000-0000-0000-000000000002',false);
 insert into public.nfse_service_profiles(id,name)
  values('90000000-0000-0000-0000-000000000006','Perfil fictício');
-insert into public.nfse_issuer_configs(id,company_name)
- values('90000000-0000-0000-0000-000000000007','Empresa exemplo');
+do $tests$
+declare rejected boolean;
+begin
+ rejected:=false;
+ begin
+   insert into public.nfse_issuer_configs(id,company_name)
+    values('90000000-0000-0000-0000-000000000007','Empresa exemplo');
+ exception when others then rejected:=true;
+ end;
+ if not rejected then raise exception 'Perfil de serviço alterou dados do emissor.'; end if;
+end;
+$tests$;
 do $tests$
 begin
  if (select count(*) from public.nfse_certificates)<>0 then
