@@ -10,6 +10,9 @@ import {
   setCommercialContractModeAction,
   updateCommercialContractTermsAction,
 } from "../../app/sistema/publicidade/vendas/[id]/contract-actions";
+import {
+  approveCommercialLegalReviewAction, issueCommercialContractDocumentsAction,
+} from "../../app/sistema/publicidade/vendas/[id]/commercial-issuance-actions";
 
 export interface CommercialContractServiceView {
   id: string;
@@ -26,10 +29,18 @@ export interface CommercialContractServiceView {
 export interface CommercialContractPackageView {
   id: string;
   document_mode: "combined" | "separate";
-  status: "draft" | "pending_legal_review";
+  status: "draft" | "pending_legal_review" | "legal_approved";
   services: CommercialContractServiceView[];
 }
 
+interface CommercialIssuedDocumentView {
+  id: string;
+  service_id: string | null;
+  title: string;
+  template_version: number;
+  sha256: string;
+  issued_at: string;
+}
 interface CommercialTemplateOption {
   id: string;
   title: string;
@@ -105,7 +116,7 @@ function currency(value: unknown): string {
 }
 
 export function CommercialContractPreparationPanel({
-  saleId, clientId, saleStatus, defaultMode, pkg, canPrepare, canReview, templateOptions, templateAssignments, loadError,
+  saleId, clientId, saleStatus, defaultMode, pkg, canPrepare, canReview, templateOptions, templateAssignments, issuedDocuments, loadError,
 }: {
   saleId: string;
   clientId: string;
@@ -116,6 +127,7 @@ export function CommercialContractPreparationPanel({
   canReview: boolean;
   templateOptions: CommercialTemplateOption[];
   templateAssignments: CommercialTemplateBinding[];
+  issuedDocuments: CommercialIssuedDocumentView[];
   loadError?: string;
 }): JSX.Element {
   const router = useRouter();
@@ -125,6 +137,8 @@ export function CommercialContractPreparationPanel({
   const [mode, setMode] = useState<"combined" | "separate">(pkg?.document_mode ?? defaultMode);
   const [preview, setPreview] = useState<{ documents: { title: string; text: string }[]; missing: string[] } | null>(null);
   const [previewBusy, setPreviewBusy] = useState(false);
+  const [legalChecked, setLegalChecked] = useState(false);
+  const [legalNote, setLegalNote] = useState("");
 
   async function showPreview(): Promise<void> {
     if (!pkg || previewBusy) return;
@@ -161,8 +175,9 @@ export function CommercialContractPreparationPanel({
         O modelo é selecionado automaticamente pelo tipo de serviço quando a contratação é preparada.
         Você só precisa conferir as condições; se não houver uma opção inequívoca, o sistema pedirá uma escolha.
         Os preços e os itens são recuperados da venda original. Confira datas, modalidades e condições de
-        cada serviço antes de encaminhar à revisão jurídica. Esta etapa NÃO emite PDF, envia cobrança
-        ou solicita assinatura.
+        cada serviço antes de encaminhar à revisão jurídica. A emissão definitiva é uma ação posterior,
+        exclusiva de revisor autorizado após confirmação jurídica. Nenhuma etapa gera cobrança
+        ou solicita assinatura automaticamente.
       </p>
       <p className="helper-text">
         A qualificação jurídica é recuperada do cadastro único, sem redigitação.
@@ -197,7 +212,7 @@ export function CommercialContractPreparationPanel({
       ) : (
         <div className="inline-form">
           <p>
-            <strong>{pkg.status === "draft" ? "Rascunho em preparação" : "Aguardando revisão jurídica"}</strong>
+            <strong>{pkg.status === "draft" ? "Rascunho em preparação" : pkg.status === "legal_approved" ? "Conferência jurídica aprovada" : "Aguardando revisão jurídica"}</strong>
             {" · "}
             {modeNames[pkg.document_mode]}
           </p>
@@ -327,11 +342,70 @@ export function CommercialContractPreparationPanel({
                 <button type="button" disabled={pending} onClick={() =>
                   submit(reviewCommercialContractAction(pkg.id, saleId, "pending_legal_review"), "Encaminhado para revisão jurídica.")
                 }>Encaminhar para revisão jurídica</button>
-              ) : (
+              ) : pkg.status === "pending_legal_review" ? (
                 <button type="button" disabled={pending} onClick={() =>
                   submit(reviewCommercialContractAction(pkg.id, saleId, "draft"), "Devolvido para ajustes.")
                 }>Devolver para ajustes</button>
-              )}
+              ) : null}
+            </div>
+          ) : null}
+          {pkg.status === "pending_legal_review" && canReview ? (
+            <div className="form-section">
+              <h3>Confirmação jurídica por revisor</h3>
+              <p className="helper-text">
+                Confira o conteúdo completo de todos os modelos, a qualificação das partes,
+                os prazos, valores, cláusulas e obrigações. Esta decisão ficará registrada e
+                bloqueará edições posteriores; aprovação automática não é permitida.
+              </p>
+              <label className="form-field">
+                <span className="field-label">Registro da conferência jurídica</span>
+                <textarea rows={3} maxLength={1000} value={legalNote}
+                  disabled={pending} onChange={event=>setLegalNote(event.target.value)}
+                  placeholder="Identifique a conferência realizada e os documentos analisados..." />
+              </label>
+              <label className="form-field">
+                <input type="checkbox" checked={legalChecked} disabled={pending}
+                  onChange={event=>setLegalChecked(event.target.checked)} />
+                {" "}Confirmo pessoalmente que revisei e aprovei os modelos e condições para emissão.
+              </label>
+              <div className="form-actions">
+                <button type="button"
+                  disabled={pending || !legalChecked || legalNote.trim().length < 20}
+                  onClick={()=>submit(approveCommercialLegalReviewAction(
+                    pkg.id,saleId,legalChecked,legalNote
+                  ),"Conferência jurídica registrada. Documentos prontos para emissão controlada.")}>
+                  Registrar aprovação jurídica
+                </button>
+              </div>
+            </div>
+          ) : null}
+          {pkg.status === "legal_approved" && canReview ? (
+            <div className="form-section">
+              <h3>Emissão dos PDFs comerciais</h3>
+              <p className="helper-text">
+                Gera arquivos privados e imutáveis, vinculados a esta venda. Documentos
+                já registrados não são substituídos. Emissão não é assinatura e não cria cobranças.
+              </p>
+              <button type="button" disabled={pending}
+                onClick={()=>submit(issueCommercialContractDocumentsAction(pkg.id,saleId),
+                  "Emissão processada. Confira os documentos registrados abaixo.")}>
+                Emitir documentos aprovados
+              </button>
+            </div>
+          ) : null}
+          {issuedDocuments.length > 0 ? (
+            <div className="form-section">
+              <h3>Documentos emitidos ({issuedDocuments.length})</h3>
+              {issuedDocuments.map(doc=>(
+                <p key={doc.id} className="helper-text">
+                  <a href={"/sistema/publicidade/vendas/"+saleId+"/documentos/"+doc.id}>
+                    {doc.title} · versão {doc.template_version} · PDF privado
+                  </a>
+                  {" "}— emitido em {new Date(doc.issued_at).toLocaleDateString("pt-BR")}
+                </p>
+              ))}
+              <p className="helper-text">Documentos emitidos ainda não estão assinados.
+                A integração de assinaturas comerciais será homologada separadamente.</p>
             </div>
           ) : null}
           <div className="form-actions">

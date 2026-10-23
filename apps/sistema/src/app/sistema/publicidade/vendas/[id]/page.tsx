@@ -65,6 +65,11 @@ export default async function CommercialSaleDetailPage({ params }: { params: { i
     ?? assignmentResult?.error?.message ?? templateResult?.error?.message
     ?? canPrepare.error?.message ?? canReview.error?.message;
 
+  const issuedDocumentsResult = pkg && canReview.data === true
+    ? await supabase.from("commercial_contract_documents")
+      .select("id,service_id,title,template_version,sha256,issued_at")
+      .eq("package_id", pkg.id).order("issued_at", {ascending:false})
+    : null;
   const financialStatus = deriveCommercialSaleFinancialStatus(receivables);
 
   return (
@@ -87,11 +92,12 @@ export default async function CommercialSaleDetailPage({ params }: { params: { i
         pkg={pkg && !contractLoadError ? {
           id: pkg.id,
           document_mode: pkg.document_mode as "combined" | "separate",
-          status: pkg.status as "draft" | "pending_legal_review",
+          status: pkg.status as "draft" | "pending_legal_review" | "legal_approved",
           services: (termsResult?.data ?? []) as CommercialContractServiceView[],
         } : null}
         canPrepare={canPrepare.data === true}
         canReview={canReview.data === true}
+        issuedDocuments={issuedDocumentsResult?.data ?? []}
         templateOptions={templates.map(({id,title,category,version,variables})=>({
           id,title,category:category??"",version,
           variables: (Array.isArray(variables) ? variables : []) as { key:string; label:string; required:boolean }[],
@@ -100,7 +106,7 @@ export default async function CommercialSaleDetailPage({ params }: { params: { i
           serviceId:service_id??null,templateId:template_id,
           values: (custom_values ?? {}) as Record<string,string>,
         }))}
-        loadError={contractLoadError}
+        loadError={contractLoadError ?? issuedDocumentsResult?.error?.message}
       />
     </>
   );
