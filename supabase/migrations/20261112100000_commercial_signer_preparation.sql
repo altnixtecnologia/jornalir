@@ -2,11 +2,18 @@
 -- Estruturas exclusivamente comerciais; documentos institucionais intactos.
 create table public.commercial_signature_preparations (
  id uuid primary key default gen_random_uuid(),
- document_id uuid not null unique references public.commercial_contract_documents(id) on delete restrict,
- status text not null default 'draft' check (status='draft'),
+ document_id uuid not null references public.commercial_contract_documents(id) on delete restrict,
+ status text not null default 'draft' check (status in ('draft','superseded')),
+ superseded_at timestamptz,
+ constraint commercial_signers_superseded_consistency check(
+   (status='draft' and superseded_at is null) or
+   (status='superseded' and superseded_at is not null)
+ ),
  created_by uuid not null references public.profiles(id) on delete restrict,
  created_at timestamptz not null default now()
 );
+create unique index commercial_signature_one_current_preparation
+ on public.commercial_signature_preparations(document_id) where status='draft';
 create table public.commercial_signature_participants (
  id uuid primary key default gen_random_uuid(),
  preparation_id uuid not null references public.commercial_signature_preparations(id) on delete restrict,
@@ -72,11 +79,11 @@ begin
    raise exception 'Somente contrato com revisão jurídica aprovada pode preparar assinatura.'
     using errcode='23514';
  end if;
- if exists(select 1 from public.commercial_signature_preparations
-           where document_id=p_document_id) then
-   raise exception 'Este documento já possui preparação de signatários. Não crie outra sem revisão.'
-    using errcode='23505';
- end if;
+ -- Lista anterior permanece registrada, mas deixa de ser a vigente.
+ -- FOR UPDATE no PDF serializa revisões do mesmo documento.
+ update public.commercial_signature_preparations
+   set status='superseded',superseded_at=now()
+   where document_id=p_document_id and status='draft';
 
  insert into public.commercial_signature_preparations(document_id,created_by)
  values(p_document_id,auth.uid()) returning id into v_preparation;
@@ -115,4 +122,4 @@ revoke all on function public.prepare_commercial_signature_participants(uuid,jso
 grant execute on function public.prepare_commercial_signature_participants(uuid,jsonb) to authenticated;
 
 comment on table public.commercial_signature_preparations is
- 'Lista privada e imutável de signatários propostos para PDF comercial já emitido. Não cria convite nem assina. A ativação da assinatura exige outro fluxo auditado.';
+ 'Histórico privado de versões dos signatários propostos para PDF comercial já emitido. Não cria convite nem assina. A ativação da assinatura exige outro fluxo auditado.';
