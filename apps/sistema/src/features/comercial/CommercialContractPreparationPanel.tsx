@@ -35,34 +35,54 @@ interface CommercialTemplateOption {
   title: string;
   category: string;
   version: number;
+  variables: { key: string; label: string; required: boolean }[];
 }
 interface CommercialTemplateBinding {
   serviceId: string | null;
   templateId: string;
+  values: Record<string,string>;
 }
+const AUTO_FIELDS = new Set(["cliente.nome","venda.referencia","venda.valor","servicos.resumo"]);
 function TemplateChoice({
-  heading, options, selected, disabled, onSave,
+  heading, options, selected, initialValues, disabled, onSave,
 }: {
   heading: string; options: CommercialTemplateOption[]; selected: string;
-  disabled: boolean; onSave: (id: string | null) => void;
+  initialValues: Record<string,string>; disabled: boolean;
+  onSave: (id: string | null, values: Record<string,string>) => void;
 }): JSX.Element {
   const [choice, setChoice] = useState(selected);
+  const [values, setValues] = useState<Record<string,string>>({...initialValues});
+  const template = options.find(o => o.id === choice);
+  const variables = template?.variables.filter(v => !AUTO_FIELDS.has(v.key)) ?? [];
+  const same = choice === selected && JSON.stringify(values) === JSON.stringify(initialValues);
   return (
-    <div className="form-grid">
-      <label className="form-field">
-        <span className="field-label">{heading}</span>
-        <select value={choice} disabled={disabled} onChange={(e) => setChoice(e.target.value)}>
-          <option value="">Nenhum modelo selecionado</option>
-          {options.map(t => <option key={t.id} value={t.id}>
-            {t.title} · v{t.version}
-          </option>)}
-        </select>
-      </label>
-      <div className="form-field">
-        <span className="field-label">Modelo jurídico</span>
-        <button type="button" disabled={disabled || choice === selected}
-          onClick={() => onSave(choice || null)}>Salvar modelo</button>
+    <div className="inline-form">
+      <div className="form-grid">
+        <label className="form-field">
+          <span className="field-label">{heading}</span>
+          <select value={choice} disabled={disabled} onChange={(e) => {
+            setChoice(e.target.value);
+            setValues(e.target.value === selected ? {...initialValues} : {});
+          }}>
+            <option value="">Nenhum modelo selecionado</option>
+            {options.map(t => <option key={t.id} value={t.id}>
+              {t.title} · v{t.version}
+            </option>)}
+          </select>
+        </label>
+        <div className="form-field">
+          <span className="field-label">Modelo jurídico e variáveis</span>
+          <button type="button" disabled={disabled || same}
+            onClick={() => onSave(choice || null, values)}>Salvar modelo e campos</button>
+        </div>
       </div>
+      {variables.map(variable => (
+        <label className="form-field" key={variable.key}>
+          <span className="field-label">{variable.label}{variable.required ? " (obrigatório para gerar PDF)" : ""}</span>
+          <input type="text" maxLength={2000} disabled={disabled} value={values[variable.key] ?? ""}
+            onChange={(e) => setValues(old => ({...old, [variable.key]: e.target.value}))}/>
+        </label>
+      ))}
       {options.length === 0 ? (
         <p className="helper-text">Não há modelos ativos da categoria correspondente.
           Cadastre um modelo versionado na área de Modelos de contrato antes de gerar o PDF.</p>
@@ -190,9 +210,10 @@ export function CommercialContractPreparationPanel({
               heading="Modelo jurídico do contrato único"
               options={templateOptions.filter(t => t.category.toLowerCase() === "commercial_combined")}
               selected={templateAssignments.find(b => b.serviceId === null)?.templateId ?? ""}
+              initialValues={templateAssignments.find(b => b.serviceId === null)?.values ?? {}}
               disabled={!canPrepare || pkg.status !== "draft" || pending}
-              onSave={(templateId) => submit(
-                saveCommercialContractTemplateAction(pkg.id, saleId, null, templateId),
+              onSave={(templateId, values) => submit(
+                saveCommercialContractTemplateAction(pkg.id, saleId, null, templateId, values),
                 "Modelo vinculado à contratação para revisão.",
               )}
             />
@@ -239,9 +260,10 @@ export function CommercialContractPreparationPanel({
                       ["commercial_generic", "commercial_" + service.service_channel.toLowerCase()].includes(t.category.toLowerCase())
                     )}
                     selected={templateAssignments.find(b => b.serviceId === service.id)?.templateId ?? ""}
+                    initialValues={templateAssignments.find(b => b.serviceId === service.id)?.values ?? {}}
                     disabled={!canPrepare || pkg.status !== "draft" || pending}
-                    onSave={(templateId) => submit(
-                      saveCommercialContractTemplateAction(pkg.id, saleId, service.id, templateId),
+                    onSave={(templateId, values) => submit(
+                      saveCommercialContractTemplateAction(pkg.id, saleId, service.id, templateId, values),
                       "Modelo individual vinculado à contratação.",
                     )}
                   />
