@@ -129,3 +129,39 @@ publicamente. Não confundir assinatura eletrônica com ICP-Brasil/PAdES.
 **Não aplicar migration nem enviar automaticamente contratos/cobranças reais
 sem homologação.** O objetivo é reutilizar módulos atuais, com controle
 de escopo e publicações consolidadas.
+
+
+## Etapa 1B — Inventário de locação e rastreabilidade (23/10/2026)
+
+**Implementado apenas na branch integrada, NÃO no banco de produção:**
+
+- Migration `20261107100000_rental_assets_bookings_inspections.sql`: cria
+  `rental_assets`, `rental_bookings`, `rental_inspection_events`.
+- Cadastro físico por equipamento, ligado a `commercial_products` com
+  `channel=equipment_rental`. Etiqueta/patrimônio únicos, número de série,
+  marca, modelo, acessórios, condição e estado disponível/manutenção/retirado.
+- Reservas ligadas a `commercial_sales` aprovado/ativo com item de **mesmo
+  produto de locação** negociado, sem repetir cadastro do cliente.
+- Datas e HORAS de retirada e devolução, responsável, local, diária, total,
+  caução e observações. Sem campos presumidos.
+- Proteção de `EXCLUDE USING gist` para impedir agendamentos confirmados
+  sobrepostos do mesmo equipamento em concorrência.
+- Vistoria textual antes da retirada e devolução; registro de acessórios,
+  responsável, status e eventos imutáveis. Edição/DELETE da prova são bloqueados.
+- Proíbe cancelar uma venda com equipamento emprestado ou reservado e
+  encaminhar aparelho reservado para manutenção/baixa.
+- Regras de RLS separadas para cadastrar equipamento, gerir reservas e lançar
+  vistorias. Link no menu Comercial `/sistema/publicidade/locacoes`.
+- Testes de RLS em PostgreSQL descartável e ensaio de todo o schema Supabase
+  local, sem acesso ao banco remoto.
+
+**Não entregue ainda:** fotos privadas com bucket protegido e thumbnails,
+assinatura do termo de entrega/devolução, vistoria com anexos,
+faturamento/regras de caução, multas de atraso, prorrogação, integração
+documental com `contract_templates` e assinador, cláusulas legais validadas,
+aprovação do cliente, revisão jurídica. O botão de locação NÃO emite
+contrato nem movimenta dinheiro por conta própria.
+
+**Próximo bloco:** cabeçalho de contratação comercial, itemizações por origem,
+versões do documento, revisão dos prazos por serviço, vinculação à assinatura
+eletrônica e inclusão da locação em modelos juridicamente revisados.
