@@ -81,7 +81,7 @@ export function buildCommercialContractPreview(input: CommercialPreviewInput, op
   });
   const common = [
     ...(options.forLegalInstrument ? [] : [DRAFT_NOTICE]),
-    "Venda:  + (normal(input.reference) || "PENDENTE"),
+    "Venda: " + (normal(input.reference) || "PENDENTE"),
     "Contratante: " + (normal(input.clientName) || "PENDENTE"),
   ].join("\n");
   const documents = input.mode === "combined"
