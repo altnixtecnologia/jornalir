@@ -525,7 +525,7 @@ export function UsersManager(): JSX.Element {
                       <label key={action.key} className="staff-permission-choice">
                         <input type="checkbox"
                           checked={moduleActionAllowed(user.id, action.module, action.key)}
-                          disabled={pending || !canManage(user) || !isModuleEnabled(user.id, action.module)}
+                          disabled={pending || !canManage(user) || !isModuleEnabled(user.id, action.module) || ("adminOnly" in action && action.adminOnly === true)}
                           onChange={(event) => void saveModuleActionPermission(user, action.module, action.key, event.target.checked)}
                         />
                         <span>{action.label}</span>
