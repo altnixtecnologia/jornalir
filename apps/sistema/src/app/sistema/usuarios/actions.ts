@@ -100,7 +100,7 @@ export async function inviteUser(email: string, name: string, role: InviteRole):
   const { data: namedProfile, error: nameError } = await admin.from("profiles")
     .update({ name: displayName }).eq("id", invited.user.id).select("id").maybeSingle();
   if (nameError || !namedProfile) {
-    console.error("Falha ao salvar nome do convidado:", nameError.code);
+    console.error("Falha ao salvar nome do convidado:", nameError?.code ?? "profile_not_found");
     return { error: "Convite solicitado, mas houve erro ao salvar o nome. Edite o perfil do usuário na lista." };
   }
 
