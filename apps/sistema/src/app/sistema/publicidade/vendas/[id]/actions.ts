@@ -9,6 +9,7 @@ import { getReceivableService } from "../../../../../composition/financeiro";
 import { getDraftService } from "../../../../../composition/nfse";
 import { getClientService } from "../../../../../composition/clientes";
 import { createSupabaseServerClient } from "../../../../../lib/supabase/server";
+import { checkModuleAction } from "../../../../../lib/permissions/checkModuleAction";
 import { getAuditContext } from "../../../../../lib/auth/getAuditContext";
 import { recordAuditEventSupabase } from "../../../../../providers/supabase/auditEvents.supabase";
 import { listReceivablesForCommercialSalesSupabase } from "../../../../../providers/supabase/receivableRepository.supabase";
@@ -28,6 +29,8 @@ function listPath(id: string): string {
 }
 
 export async function updateCommercialSaleAction(id: string, input: CommercialSaleFormInput): Promise<{ error: string } | void> {
+  const permissionError = await checkModuleAction("publicidade", "vendas_editar");
+  if (permissionError) return { error: permissionError };
   try {
     const client = createSupabaseServerClient();
     const AUDIT = await getAuditContext(client);
@@ -43,6 +46,8 @@ export async function updateCommercialSaleAction(id: string, input: CommercialSa
 }
 
 export async function changeCommercialSaleStatusAction(id: string, to: CommercialSaleStatus): Promise<{ error: string } | void> {
+  const permissionError = await checkModuleAction("publicidade", "vendas_editar");
+  if (permissionError) return { error: permissionError };
   try {
     const client = createSupabaseServerClient();
     const AUDIT = await getAuditContext(client);
@@ -57,6 +62,8 @@ export async function changeCommercialSaleStatusAction(id: string, to: Commercia
 
 /** Nunca apaga fisicamente — só status=cancelled; títulos já gerados continuam existindo e rastreáveis (item 15). */
 export async function cancelCommercialSaleAction(id: string): Promise<{ error: string } | void> {
+  const permissionError = await checkModuleAction("publicidade", "vendas_cancelar");
+  if (permissionError) return { error: permissionError };
   try {
     const client = createSupabaseServerClient();
     const AUDIT = await getAuditContext(client);
@@ -82,6 +89,8 @@ export interface GenerateFinanceiroResult {
  * autoritativa (ver ReceivableService.registerFromCommercialSale).
  */
 export async function generateCommercialSaleFinanceiroAction(id: string, firstDueDate: string): Promise<{ results: GenerateFinanceiroResult[] } | { error: string }> {
+  const permissionError = await checkModuleAction("publicidade", "vendas_editar");
+  if (permissionError) return { error: permissionError };
   try {
     const client = createSupabaseServerClient();
     const AUDIT = await getAuditContext(client);
@@ -142,6 +151,8 @@ export async function generateCommercialSaleFinanceiroAction(id: string, firstDu
  * venda (DraftDuplicateOriginError + índice único no banco).
  */
 export async function createNfseDraftFromSaleAction(id: string): Promise<{ error: string } | { draftId: string }> {
+  const permissionError = await checkModuleAction("publicidade", "vendas_editar");
+  if (permissionError) return { error: permissionError };
   try {
     const client = createSupabaseServerClient();
     const AUDIT = await getAuditContext(client);
