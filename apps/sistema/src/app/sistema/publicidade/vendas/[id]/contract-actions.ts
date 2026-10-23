@@ -160,8 +160,11 @@ export async function reviewCommercialContractAction(
 export async function previewCommercialContractAction(
   packageId: string, saleId: string,
 ): Promise<{ ok: true; preview: CommercialPreviewResult } | { error: string }> {
-  const denied = await checkModuleAction("publicidade", "contratos_preparar");
-  if (denied) return { error: denied };
+  const [prepareDenied, reviewDenied] = await Promise.all([
+    checkModuleAction("publicidade", "contratos_preparar"),
+    checkModuleAction("publicidade", "contratos_revisar"),
+  ]);
+  if (prepareDenied && reviewDenied) return { error: "Sem permissão para conferir documentos comerciais." };
   try {
     const client = createSupabaseServerClient();
     const { data: pkg, error: pkgError } = await client.from("commercial_contract_packages")
