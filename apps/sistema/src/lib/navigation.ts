@@ -171,6 +171,7 @@ export const commercialNavGroup: AdminNavGroup = {
     { label: "Propostas/Orçamentos", href: "/sistema/publicidade/propostas" },
     { label: "Vendas", href: "/sistema/publicidade/vendas" },
     { label: "Produtos/serviços", href: "/sistema/publicidade/produtos" },
+    { label: "Equipamentos e locações", href: "/sistema/publicidade/locacoes" },
     { label: "Avisos gerais", href: "/sistema/publicidade/avisos" },
   ],
 };
