@@ -107,7 +107,8 @@ export async function completeCommercialSignatureAction(input:{
    signerName:person.signer_name,signerEmail:person.signer_email,
    documentName:source.document_title,contractNumber:source.request_id,
    signedAt,originalSha256:originalHash,invitationId:source.invitation_id,
-   jpegBytes:jpeg,jpegWidth:jpegInfo.width??640,jpegHeight:jpegInfo.height??240,
+   consentVersion:"commercial-v1",
+   consentVersion:"commercial-v1",jpegBytes:jpeg,jpegWidth:jpegInfo.width??640,jpegHeight:jpegInfo.height??240,
   });
   const signed=await buildSignedContractPdf({
    originalBytes:bytes,signatureJpeg:jpeg,documentName:source.document_title,

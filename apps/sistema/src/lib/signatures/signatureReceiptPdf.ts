@@ -9,6 +9,7 @@ export interface ReceiptPdfInput {
   signedAt: string;
   originalSha256: string;
   invitationId: string;
+  consentVersion?: string;
   jpegBytes: Buffer;
   jpegWidth: number;
   jpegHeight: number;
@@ -33,7 +34,7 @@ export function buildSignatureReceiptPdf(input: ReceiptPdfInput): Buffer {
     [45, 704, 11, "Signatario: " + input.signerName.slice(0, 90)],
     [45, 681, 11, "E-mail informado: " + input.signerEmail.slice(0, 90)],
     [45, 658, 11, "Aceite em: " + new Date(input.signedAt).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" }) + " (Brasilia)"],
-    [45, 634, 10, "Consentimento: visualizacao do documento e assinatura eletronica - versao contract-v1"],
+    [45, 634, 10, "Consentimento: visualizacao do documento e assinatura eletronica - versao " + (input.consentVersion ?? "contract-v1")],
     [45, 610, 10, "Identificador da solicitacao: " + input.invitationId],
     [45, 570, 11, "Representacao grafica da assinatura:"],
     [45, 313, 10, "SHA-256 do PDF original:"],
