@@ -92,7 +92,7 @@ export function CommercialSignersPreparationPanel({
               <>
                 <p className="helper-text">
                   Lista registrada — {previous.commercial_signature_participants.length}
-                  {" "}participante(s). Aguarda integração do assinador eletrônico comercial.
+                  {" "}participante(s). Confira e inicie uma rodada de assinaturas no painel abaixo.
                 </p>
                 <ul className="helper-text">
                   {previous.commercial_signature_participants
