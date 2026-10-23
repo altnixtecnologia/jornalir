@@ -480,3 +480,17 @@ reais e sem assinatura eletrônica comercial habilitada.**
 - **Publicação:** não aplicar a migration `20261111100000` em produção
   isoladamente; revisar junto com todas as migrations pendentes da PR #15,
   testar fluxo autenticado e exigir autorização de publicação.
+
+## Etapa 3C — histórico jurídico transacional (23/10/2026)
+
+- `commercial_contract_review_events` guarda aprovação/reabertura,
+  justificativa, ator e data de forma imutável, gravado no mesmo comando
+  transacional que altera a contratação.
+- A função trigger responsável é restrita, valida a permissão real do
+  revisor e não tem `EXECUTE` público. Não existe acesso direto de escrita
+  aos eventos via API.
+- Reabrir depois da primeira emissão é proibido. Sem emissão, só com
+  nova justificativa de no mínimo 20 caracteres.
+- Histórico de eventos aparece na venda apenas para revisores autorizados.
+- Verificação automatizada confirma ausência de permissões anônimas,
+  proibição de escrita direta e trigger de aprovação em banco descartável.

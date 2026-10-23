@@ -106,6 +106,16 @@ begin
      and not t.tgisinternal) then
    raise exception 'Falta proteção do rascunho fiscal.';
  end if;
+ if to_regclass('public.commercial_contract_review_events') is null then
+   raise exception 'Histórico jurídico imutável ausente.';
+ end if;
+ if has_table_privilege('authenticated','public.commercial_contract_review_events','INSERT')
+    or has_table_privilege('anon','public.commercial_contract_review_events','SELECT') then
+   raise exception 'Permissões do histórico jurídico estão excessivas.';
+ end if;
+ if has_function_privilege('authenticated','public.guard_commercial_legal_approval()','EXECUTE') then
+   raise exception 'Função privilegiada de aprovação exposta como RPC.';
+ end if;
  if to_regclass('public.commercial_contract_documents') is null then
    raise exception 'Documentos comerciais privados ausentes.';
  end if;
