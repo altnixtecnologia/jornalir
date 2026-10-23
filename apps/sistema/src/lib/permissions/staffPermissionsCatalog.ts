@@ -64,6 +64,8 @@ export const STAFF_MODULE_ACTIONS = [
   { module: "publicidade", key: "locacao_equipamentos_gerenciar", label: "Cadastrar e manter equipamentos para locação" },
   { module: "publicidade", key: "locacao_reservas_gerenciar", label: "Criar e acompanhar reservas de locação" },
   { module: "publicidade", key: "locacao_vistorias_registrar", label: "Registrar vistorias de entrega/devolução" },
+  { module: "publicidade", key: "contratos_preparar", label: "Preparar documentos comerciais e seus prazos" },
+  { module: "publicidade", key: "contratos_revisar", label: "Encaminhar contratos para revisão jurídica" },
   { module: "nfse", key: "rascunhos_criar", label: "Criar rascunhos fiscais" },
   { module: "nfse", key: "rascunhos_editar", label: "Editar rascunhos fiscais" },
   { module: "nfse", key: "notas_emitir", label: "Emitir NFS-e (somente administração)", adminOnly: true },
