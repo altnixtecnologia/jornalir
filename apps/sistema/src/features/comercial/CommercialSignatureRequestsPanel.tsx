@@ -62,12 +62,28 @@ export function CommercialSignatureRequestsPanel({saleId,preparations,requests,c
     {request ? <>
      <strong>{request.status==="completed"?"Todos assinaram":
       request.status==="pending"?"Assinaturas pendentes":"Rodada cancelada"}</strong>
+     {request.status==="completed" ? (
+      <p><a className="secondary-link" href={"/sistema/publicidade/vendas/"+saleId+
+       "/assinaturas/"+request.id+"/documento?tipo=final"}>
+       Baixar PDF comercial final com todas as assinaturas
+      </a></p>
+     ):null}
      <ul className="helper-text">{request.commercial_signature_invitations.map(inv=>
       <li key={inv.id}>
        {inv.commercial_signature_participants.signer_role}:
        {" "}{inv.commercial_signature_participants.signer_name}
        {" "}— {inv.status==="signed"?"Assinado":inv.status==="revoked"?"Revogado":
        Date.parse(inv.expires_at)<=Date.now()?"Expirado":"Aguardando assinatura"}
+       {inv.status==="signed" ? <span>
+        {" · "}<a href={"/sistema/publicidade/vendas/"+saleId+
+         "/assinaturas/"+request.id+"/documento?tipo=comprovante&convite="+inv.id}>
+         Comprovante
+        </a>
+        {" · "}<a href={"/sistema/publicidade/vendas/"+saleId+
+         "/assinaturas/"+request.id+"/documento?tipo=assinado&convite="+inv.id}>
+         PDF com este aceite
+        </a>
+       </span>:null}
        {inv.status==="pending" ? (
         reissueId===inv.id ? <div className="form-field">
          <label>Justificativa da substituição do link
