@@ -68,9 +68,24 @@ export async function GET(
     if (!selected) return fail("Escolha um modelo jurídico antes de gerar a prévia.",422);
 
     const {data:template,error:templateError} = await supabase.from("contract_templates")
-      .select("id,title,version,category,content,variables")
+      .select("id,title,version,category,content,variables,active,group_id")
       .eq("id",selected.template_id).maybeSingle();
     if (templateError || !template) return fail("Modelo jurídico indisponível.",422);
+    // Não apresentar como conferível uma versão jurídica já desativada,
+    // superada por outra versão, ou de modalidade incorreta.
+    const allowedCategory = mode === "combined"
+      ? "commercial_combined"
+      : "commercial_" + String(entries[serviceIndex]?.service_channel ?? "").trim().toLowerCase();
+    const category = String(template.category ?? "").trim().toLowerCase();
+    if (!template.active || (category !== allowedCategory &&
+        !(mode === "separate" && category === "commercial_generic"))) {
+      return fail("Modelo jurídico inativo ou incompatível com a modalidade.",422);
+    }
+    const { data: newer, error: newerError } = await supabase.from("contract_templates")
+      .select("id").eq("group_id", template.group_id)
+      .gt("version", template.version).limit(1);
+    if (newerError) return fail("Não foi possível conferir a versão jurídica.",500);
+    if (newer?.length) return fail("A versão jurídica selecionada foi substituída. Revise o modelo.",422);
 
     const preview = buildCommercialContractPreview({
       reference:sale.reference,clientName:clientDisplayName(client),
