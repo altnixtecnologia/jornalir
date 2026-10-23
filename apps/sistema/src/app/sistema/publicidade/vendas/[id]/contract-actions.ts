@@ -76,11 +76,14 @@ export async function setCommercialContractModeAction(
     if (mode !== "combined" && mode !== "separate") throw new Error("Agrupamento inválido.");
     const client = createSupabaseServerClient();
     const actor = await getAuditContext(client);
-    const { data, error } = await client.from("commercial_contract_packages")
-      .update({ document_mode: mode, updated_at: new Date().toISOString() })
-      .eq("id", id(packageId)).eq("commercial_sale_id", id(saleId))
-      .eq("status", "draft").select("id").maybeSingle();
-    if (error || !data) throw new Error(error?.message ?? "A contratação precisa estar em rascunho.");
+    const { data: current, error: currentError } = await client.from("commercial_contract_packages")
+      .select("id").eq("id", id(packageId)).eq("commercial_sale_id", id(saleId))
+      .eq("status", "draft").maybeSingle();
+    if (currentError || !current) throw new Error(currentError?.message ?? "A contratação precisa estar em rascunho.");
+    const { error } = await client.rpc("set_commercial_contract_document_mode", {
+      p_package_id: current.id, p_mode: mode,
+    });
+    if (error) throw new Error("Não foi possível atualizar a documentação automática: " + error.message);
     await recordAuditEventSupabase(client, {
       userId: actor.actorId, entityType: "commercial_contract_package",
       entityId: packageId, action: "set_document_mode", metadata: { mode },
