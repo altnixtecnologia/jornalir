@@ -442,3 +442,39 @@ Após a Claude validar typecheck/build **da primeira etapa somente**, o ChatGPT 
 
 ## 20/10/2026 — AGENDA E PAUTA PUBLICADAS: ESTADO FINAL CONFIRMADO
 A versão de sistema da Agenda/Pauta foi publicada na Vercel PRODUCTION, deployment `dpl_7BZUuoRTtNr7xDZ5uS3tjvYPwLgY`, commit de código `46c0f17595f4404f9874a6b1a9fbb518b74730b9`, status READY, domínio `controle.altnix.com.br` confirmado. Staging READY `dpl_2PoV84isbHBgpqQuXkWjemzseMgK` do mesmo commit. Três migrations foram APLICADAS com sucesso no projeto Supabase `site-system-ir` na seguinte ordem e com as versões reais do ledger: `20261020204050_agenda_team_permissions_progress_audit_20261020`, `20261020204121_agenda_pauta_unified_source_20261020`, `20261020204306_agenda_internal_trigger_exec_hardening_20261020`. Os arquivos SQL do GitHub foram renomeados para os mesmos nomes/versões reais neste commit para evitar reexecução inadvertida. NUNCA reaplicar estes SQLs no projeto remoto; conferir sempre o ledger primeiro. A primeira e segunda migrations foram também verificadas juntas em transação com ROLLBACK, com testes reversíveis de criação de pauta, conclusão individual, reabertura, edição, sincronização e auditoria; dados de teste não persistiram. A produção tinha 0 pautas/0 agendas antes da publicação e manteve 0 ao fim das migrations. Realtime habilitado nas 3 tabelas. Execução direta das três funções de trigger foi revogada para `anon` e `authenticated`, verificado por `has_function_privilege`. Build Next.js e TypeScript aprovados no staging e produção. Sem testes com múltiplos usuários ou celulares reais autenticados. Claude deve FAZER FETCH da branch para incorporar renomeação e documentação e preservar a branch Android v.00.03 e stash; não executar migration/deploy adicionais sem autorização. Auditoria de todos os módulos, notificações pessoais e app administrativo ainda pendentes.
+
+## 23/10/2026 — PR #15: emissão comercial protegida e trilha jurídica (NÃO PUBLICADA)
+
+- **Branch remota:** `feature/homologacao-integrada-ir-20261023`, PR #15,
+  base `feature/abrangencias-geo-notificacoes-20261021`. Não incorporada à
+  produção, ao Supabase remoto nem à worktree oficial do VS Code.
+- Evolução da preparação de contratos comerciais: conferência jurídica de
+  cliente PF/PJ, qualificação obrigatória de ambas as partes, valor por serviço
+  vs. pacote, modelo jurídico atual e campos obrigatórios preenchidos. Minutas
+  continuam marcadas como NÃO ASSINÁVEIS.
+- **NOVO:** aprovação por revisor com justificativa, histórico transacional
+  `commercial_contract_review_events`, PDFs definitivos privados em
+  `commercial_contract_documents` com versão do modelo, SHA-256,
+  imutabilidade e download autenticado. Ficha do cliente mostra o vínculo.
+- **Reabertura:** somente antes de existir primeiro PDF emitido, com motivo
+  preservado no histórico. Após emissão não há alteração/destruição da
+  evidência; futuros ajustes devem ser aditivos.
+- **Migration nova, somente no GitHub:** 
+  `20261111100000_commercial_contract_legal_approval_documents.sql`.
+  NÃO APLICAR ao `site-system-ir` de produção antes de homologar todas as
+  migrations da PR e realizar backup/rollback.
+- **Integração ainda pendente:** assinatura eletrônica comercial com
+  consentimento, convites/OTP/múltiplos signatários, comprovantes, reenvio,
+  aditivos, e idempotência/reconciliação para falha após upload. Assinador
+  institucional NÃO foi modificado e não aceita documentos comerciais ainda.
+- **Testes:** builds, TypeScript e Supabase descartável verificados via GitHub
+  Actions ao longo dos lotes; conferir resultado do SHA mais recente da PR
+  antes de considerar CI final verde. Nenhum teste ponta a ponta com pessoas
+  autenticadas em banco de homologação real foi realizado.
+- **Outras pendências aprovadas preservadas:** usuários e convite/SMTP;
+  estrela de capa da matéria; recorte desktop sem mexer no mobile;
+  limites/validações de upload Supabase Pro; depois teste geral e publicação.
+- **Claude/Codex local:** ao retornar, verificar pasta `Site-sistema`,
+  branch, HEAD, worktrees e stashes; fazer fetch, comparar história e integrar
+  o conjunto todo sem sobrescrever arquivos locais. Não forçar merge, não
+  aplicar migrations, não dar push da branch principal ou deploy sem aprovação.
