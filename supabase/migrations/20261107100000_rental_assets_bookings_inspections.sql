@@ -89,9 +89,14 @@ begin
   raise exception 'O aparelho deve estar vinculado a produto do canal locação.'
     using errcode='23514';
  end if;
- if TG_OP='UPDATE' and old.product_id is distinct from new.product_id
+ if TG_OP='UPDATE'
+   and (old.product_id is distinct from new.product_id
+     or old.asset_code is distinct from new.asset_code
+     or old.brand is distinct from new.brand
+     or old.model is distinct from new.model
+     or old.serial_number is distinct from new.serial_number)
    and exists (select 1 from public.rental_bookings where asset_id=old.id) then
-  raise exception 'Produto de equipamento com histórico de locação é imutável.'
+  raise exception 'Identificação/serie de aparelho com histórico de locação é imutável.'
     using errcode='23514';
  end if;
  if TG_OP='UPDATE' and new.status<>'available' and old.status='available'
