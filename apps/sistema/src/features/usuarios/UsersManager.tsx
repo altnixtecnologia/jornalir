@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { createSupabaseBrowserClient } from "../../lib/supabase/browser";
 import { useAuth, type AuthRole } from "../../lib/auth/AuthProvider";
 import { ROLE_LABELS } from "../../lib/auth/accountDisplay";
-import { inviteUser, listUserInvitationStatuses, sendPasswordResetForUser } from "../../app/sistema/usuarios/actions";
+import { inviteUser, listUserInvitationStatuses, sendPasswordResetForUser, updateManagedUserName, resendPendingUserAccess } from "../../app/sistema/usuarios/actions";
 import { ConfirmDialog } from "../../components/admin/ConfirmDialog";
 import { STAFF_FINANCE_ACTIONS, STAFF_MODULE_ACTIONS, STAFF_MODULES, type StaffFinanceActionKey, type StaffModuleActionKey, type StaffActionModule, type StaffModuleKey } from "../../lib/permissions/staffPermissionsCatalog";
 
@@ -51,6 +51,9 @@ export function UsersManager(): JSX.Element {
   const [message, setMessage] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
   const [inviteEmail, setInviteEmail] = useState("");
+  const [inviteName, setInviteName] = useState("");
+  const [editingNameId, setEditingNameId] = useState<string | null>(null);
+  const [editingName, setEditingName] = useState("");
   const [inviteRole, setInviteRole] = useState<"operator" | "admin">("operator");
   const [resetTarget, setResetTarget] = useState<UserRow | null>(null);
 
@@ -133,6 +136,7 @@ export function UsersManager(): JSX.Element {
   }
 
   async function handleInvite(): Promise<void> {
+    if (inviteName.trim().length < 3) { setError("Informe o nome real da pessoa."); return; }
     if (!inviteEmail.trim()) {
       setError("Informe o e-mail da pessoa a convidar.");
       return;
@@ -140,15 +144,45 @@ export function UsersManager(): JSX.Element {
     setError(null);
     setMessage(null);
     setPending(true);
-    const result = await inviteUser(inviteEmail.trim(), inviteRole);
+    const result = await inviteUser(inviteEmail.trim(), inviteName.trim(), inviteRole);
     setPending(false);
     if ("error" in result) {
       setError(result.error);
       return;
     }
     setInviteEmail("");
-    setMessage("Convite enviado por e-mail. A pessoa define a própria senha ao acessar o link.");
+    setInviteName("");
+    setMessage("Convite aceito pelo Supabase para envio. A conta só poderá acessar após confirmar o e-mail; confira também a caixa de spam.");
     await reload();
+  }
+
+  async function saveUserName(target: UserRow): Promise<void> {
+    if (pending || !canManage(target)) return;
+    setPending(true); setError(null); setMessage(null);
+    try {
+      const result = await updateManagedUserName(target.id, editingName);
+      if ("error" in result) setError(result.error);
+      else {
+        setEditingNameId(null);
+        setMessage("Nome real atualizado para " + editingName.trim() + ".");
+        await reload();
+      }
+    } catch {
+      setError("Não foi possível atualizar o nome. Tente novamente.");
+    } finally { setPending(false); }
+  }
+
+  async function resendAccess(target: UserRow): Promise<void> {
+    if (pending || !canManage(target) || !invitationPending(target.id)) return;
+    setPending(true); setError(null); setMessage(null);
+    try {
+      const result = await resendPendingUserAccess(target.id);
+      if ("error" in result) setError(result.error);
+      else setMessage("Novo e-mail de definição de senha solicitado para " + target.name +
+        ". Confirme o recebimento com a pessoa (inclusive spam).");
+    } catch {
+      setError("Não foi possível solicitar o envio do e-mail. Confira a configuração do SMTP.");
+    } finally { setPending(false); }
   }
 
   async function confirmPasswordReset(): Promise<void> {
@@ -298,6 +332,12 @@ export function UsersManager(): JSX.Element {
         </p>
         <div className="form-grid">
           <label className="form-field">
+            <span className="field-label">Nome completo</span>
+            <input type="text" autoComplete="name" required minLength={3} maxLength={120}
+              value={inviteName} onChange={(event) => setInviteName(event.target.value)}
+              placeholder="Nome e sobrenome da pessoa" />
+          </label>
+          <label className="form-field">
             <span className="field-label">E-mail</span>
             <input
               type="email"
@@ -332,6 +372,9 @@ export function UsersManager(): JSX.Element {
       {message ? <p className="helper-text">{message}</p> : null}
 
       {invitationWarning ? <p className="helper-text" role="status">A situação dos convites não pôde ser conferida: {invitationWarning}</p> : null}
+      <p className="helper-text">"Convite pendente" significa que o e-mail ainda não foi confirmado; não é um acesso ativo.
+        O botão "Reenviar acesso" envia um novo link de definição de senha. Envio aceito pelo Supabase não garante entrega na caixa postal.
+        Se não chegar, verifique o SMTP, limites, domínio do remetente e pasta de spam.</p>
       <div className="materias-table-wrap usuarios-table-wrap">
         <table className="materias-table usuarios-table">
           <thead>
@@ -378,6 +421,10 @@ export function UsersManager(): JSX.Element {
                         ) : null}
                         {user.role === "operator" ? <button type="button" onClick={() => setEditingUserId((id) => id === user.id ? null : user.id)} disabled={pending}>
                           {editingUserId === user.id ? "Fechar permissões" : "Editar permissões"}
+                        </button> : null}
+                        <button type="button" onClick={() => { setEditingNameId(user.id); setEditingName(user.name); }} disabled={pending}>Editar nome</button>
+                        {invitationPending(user.id) ? <button type="button" onClick={() => void resendAccess(user)} disabled={pending}>
+                          Reenviar acesso
                         </button> : null}
                         <button type="button" onClick={() => setResetTarget(user)} disabled={pending}>
                           Redefinir senha
@@ -427,6 +474,12 @@ export function UsersManager(): JSX.Element {
                     {user.role === "operator" ? <button type="button" onClick={() => setEditingUserId((id) => id === user.id ? null : user.id)} disabled={pending}>
                       {editingUserId === user.id ? "Fechar permissões" : "Editar permissões"}
                     </button> : null}
+                    <button type="button" onClick={() => { setEditingNameId(user.id); setEditingName(user.name); }} disabled={pending}>
+                      Editar nome
+                    </button>
+                    {invitationPending(user.id) ? <button type="button" onClick={() => void resendAccess(user)} disabled={pending}>
+                      Reenviar acesso
+                    </button> : null}
                         <button type="button" onClick={() => setResetTarget(user)} disabled={pending}>
                       Redefinir senha
                     </button>
@@ -440,6 +493,23 @@ export function UsersManager(): JSX.Element {
           );
         })}
       </ul>
+
+      {editingNameId ? (
+        <div className="inline-form" style={{ marginBottom: 16 }}>
+          <label className="form-field">
+            <span className="field-label">Nome real do usuário</span>
+            <input type="text" autoComplete="off" maxLength={120} minLength={3}
+              value={editingName} onChange={(event) => setEditingName(event.target.value)} />
+          </label>
+          <div className="form-actions">
+            <button type="button" className="form-action-primary" disabled={pending || editingName.trim().length < 3}
+              onClick={() => { const user = users?.find((entry) => entry.id === editingNameId); if (user) void saveUserName(user); }}>
+              {pending ? "Salvando…" : "Salvar nome"}
+            </button>
+            <button type="button" disabled={pending} onClick={() => setEditingNameId(null)}>Cancelar</button>
+          </div>
+        </div>
+      ) : null}
 
       <ConfirmDialog
         open={Boolean(resetTarget)}
