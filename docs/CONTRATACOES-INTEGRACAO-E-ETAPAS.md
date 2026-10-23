@@ -210,3 +210,33 @@ eletrônica e inclusão da locação em modelos juridicamente revisados.
 **Segurança:** qualquer cláusula/prazo não confirmado deve permanecer vazio
 e impedir emissão; nenhum documento jurídico ou cobrança é gerado
 automaticamente no estágio de preparação.
+
+
+## Etapa 2B — conferência de documento sem emitir contrato (23/10/2026)
+
+- Prévia somente leitura em `apps/sistema/src/lib/contracts/commercialContractPreview.ts`,
+  disponível na tela da venda. Seleção `combined` gera uma conferência
+  com todos os serviços; `separate` gera uma conferência por serviço.
+- Busca do cadastro mestre do cliente e venda dentro da Server Action; serviços
+  e condições vêm dos itens originais e prazos salvos. Valor total da venda
+  não é recalculado para aparentar um preço novo.
+- Lista cada campo obrigatório em falta, sem inventar início/fim, local,
+  objeto ou cláusulas. A conferência sempre identifica
+  **MINUTA SEM VALIDADE CONTRATUAL — NÃO ASSINAR**.
+- Nada é enviado para assinatura ou salvo no Storage nesta etapa. O revisor
+  tem acesso de leitura à conferência com permissão `contratos_revisar`,
+  mesmo sem poder editar os dados. A prévia é descartada após salvar
+  alterações para impedir informação desatualizada.
+- Testes em `apps/sistema/test/commercial-contract-preview.test.ts`
+  para pacote único, documentos separados, lacunas e ausência de serviços,
+  incluídos no pipeline TypeScript/Build.
+- Próxima fase permanece: selecionar modelos jurídicos versionados e
+  aprovados, completar variáveis e assinantes, produzir PDF privado
+  imutável, associar ao cadastro e adaptar o assinador.
+
+**Pendências futuras registradas para não se perderem:**
+- #16 — restaurar estrelinha de capa na matéria e melhorar seleção
+  direta do recorte **somente no desktop**, preservando mobile;
+- #17 — revisão final de SMTP/convites e quotas do Supabase Pro;
+  organização `Suporte Altnix` confirmada no plano Pro, mas envio
+  de Auth continua dependendo do serviço SMTP e entregabilidade.
