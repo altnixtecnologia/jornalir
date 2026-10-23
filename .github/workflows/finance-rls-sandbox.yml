@@ -13,12 +13,14 @@ on:
       - "supabase/migrations/202611051*.sql"
       - "supabase/migrations/202611061*.sql"
       - "supabase/migrations/202611071*.sql"
+      - "supabase/migrations/202611081*.sql"
       - "tests/security/finance-rls-sandbox-*.sql"
       - "tests/security/module-rls-sandbox-*.sql"
       - "tests/security/editorial-rls-sandbox-*.sql"
       - "tests/security/nfse-rls-sandbox-*.sql"
       - "tests/security/contract-integration-sandbox-*.sql"
       - "tests/security/rental-rls-sandbox-*.sql"
+      - "tests/security/commercial-contract-sandbox-*.sql"
       - ".github/workflows/finance-rls-sandbox.yml"
   workflow_dispatch:
 
@@ -125,3 +127,9 @@ jobs:
 
       - name: Validar reservas, conflitos e vistorias
         run: psql -v ON_ERROR_STOP=1 -f tests/security/rental-rls-sandbox-assertions.sql
+
+      - name: Aplicar pacote comercial para contratos multiplos
+        run: psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261108100000_commercial_contract_packages.sql
+
+      - name: Testar documento unico ou separado e revisao
+        run: psql -v ON_ERROR_STOP=1 -f tests/security/commercial-contract-sandbox-assertions.sql
