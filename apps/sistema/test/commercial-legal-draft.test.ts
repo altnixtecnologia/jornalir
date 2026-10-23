@@ -35,3 +35,26 @@ test("marcadores malformados bloqueiam PDF",()=>{
  });
  assert.deepEqual(result.missing,["marcadores inválidos no modelo"]);
 });
+
+test("não libera minuta se faltar identificação do cliente, venda ou valor",()=>{
+ const result=renderCommercialLegalDraft({
+  templateText:"Documento: {{servicos.resumo}}.", reference:" ",clientName:"",
+  totalPrice:"",document,
+ });
+ assert.deepEqual(result.missing,["cliente.nome","venda.referencia","venda.valor"]);
+});
+test("marcadores de outras sintaxes também bloqueiam a minuta",()=>{
+ const result=renderCommercialLegalDraft({
+  templateText:"Valor {% venda.valor %}.",reference:"IR-200",
+  clientName:"Cliente Teste",totalPrice:"R$ 275,00",document,
+ });
+ assert.deepEqual(result.missing,["marcadores inválidos no modelo"]);
+});
+test("valor informado no cadastro prevalece sobre substituição manual",()=>{
+ const result=renderCommercialLegalDraft({
+  templateText:"{{cliente.nome}}",reference:"IR-200",clientName:"Cliente Autêntico",
+  totalPrice:"R$ 275,00",document,values:{"cliente.nome":"Nome alterado"},
+ });
+ assert.match(result.text,/Cliente Autêntico/);
+ assert.doesNotMatch(result.text,/Nome alterado/);
+});
