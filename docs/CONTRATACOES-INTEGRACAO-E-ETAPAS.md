@@ -310,11 +310,16 @@ modalidade e confirmar as condições exibidas.
 - A chamada repetida de preparação não cria pacote duplicado nem
   substitui modelo já escolhido manualmente. Testado em
   `tests/security/commercial-auto-contract-assertions.sql`.
-- **Estado atual:** o pacote nasce ao acionar a preparação da contratação
-  sobre uma venda aprovada/ativa. A criação completamente autônoma no
-  instante em que a venda é aprovada ainda precisa ser integrada ao
-  fluxo de aprovação comercial, respeitando permissões — não declarar
-  que isso já acontece.
+- **Criação automática:** o trigger `commercial_sales_prepare_contract_draft`
+  cria o rascunho e suas condições históricas no momento em que a venda
+  entra em `approved`/`active` (sem emitir PDF ou assinar). Propõe um
+  contrato combinado para vários itens e um individual para item único.
+  Quando o operador possui `contratos_preparar`, vincula também os
+  modelos automaticamente. Se o aprovador não tem essa permissão, cria
+  apenas o rascunho; um preparador autorizado completa os modelos depois.
+  A alteração de outros campos em venda já aprovada não duplica o pacote.
+  Contratos de vendas antigas permanecem disponíveis para preparação
+  manual/idempotente, sem migração retroativa em massa.
 - O catálogo do Supabase real foi consultado SOMENTE em leitura em
   23/10/2026: `contract_templates` retornou **zero modelos**. Portanto
   a escolha é automática no código, mas não poderá ser concretizada
