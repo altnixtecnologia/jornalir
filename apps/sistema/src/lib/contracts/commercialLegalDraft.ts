@@ -21,6 +21,8 @@ export function renderCommercialLegalDraft(input: {
   };
   const missing = new Set<string>();
   const allowedCustom = input.values ?? {};
+  // Campos do cadastro mestre prevalecem sobre valores livres do operador.
+  // Entradas livres só complementam variáveis não reservadas.
   const rendered = input.templateText.replace(/\{\{([a-zA-Z0-9_.-]+)\}\}/g, (_match,key:string) => {
     const known = Object.prototype.hasOwnProperty.call(predefined,key);
     const custom = Object.prototype.hasOwnProperty.call(allowedCustom,key);
@@ -30,7 +32,14 @@ export function renderCommercialLegalDraft(input: {
   });
   // Modelos que contêm marcação malformada ou tokens não suportados não
   // podem gerar um PDF assinável nem uma minuta sem alerta.
-  if (rendered.includes("{{") || rendered.includes("}}")) missing.add("marcadores inválidos no modelo");
+  // Detectar delimitadores isolados, aninhados ou inválidos, inclusive espaços.
+  if (rendered.includes("{{") || rendered.includes("}}") || rendered.includes("{%") || rendered.includes("%}")) {
+    missing.add("marcadores inválidos no modelo");
+  }
+  // Sem nome ou referência válidos não há qualificação mínima da minuta.
+  if (!input.clientName.trim()) missing.add("cliente.nome");
+  if (!input.reference.trim()) missing.add("venda.referencia");
+  if (!input.totalPrice.trim()) missing.add("venda.valor");
   if (!input.templateText.trim()) missing.add("conteúdo do modelo");
   if (!input.document.text.trim()) missing.add("detalhes dos serviços");
   const text = [
