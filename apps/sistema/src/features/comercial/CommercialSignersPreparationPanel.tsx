@@ -18,6 +18,7 @@ export interface PreparedCommercialSigner {
   signer_role:string;
   signer_name:string;
   signer_email:string;
+  signer_phone:string|null;
   signing_order:number;
 }
 export interface CommercialSignerPreparation {
@@ -70,7 +71,7 @@ export function CommercialSignersPreparationPanel({
     <section className="form-section">
       <h2>Preparação dos signatários comerciais</h2>
       <p className="helper-text">
-        Uma lista separada para cada PDF emitido, com representantes da contratante,
+        Uma lista versionada para cada PDF emitido, com representantes da contratante,
         contratada e testemunhas opcionais. Esta etapa registra os nomes para
         conferência — não envia e-mails, WhatsApp, links, OTP ou solicita assinatura.
         Os contratos institucionais continuam no módulo próprio.
@@ -84,7 +85,7 @@ export function CommercialSignersPreparationPanel({
         return (
           <div key={doc.id} className="inline-form">
             <strong>{doc.title}</strong>
-            {previous ? (
+            {previous && !editing ? (
               <>
                 <p className="helper-text">
                   Lista registrada — {previous.commercial_signature_participants.length}
@@ -97,6 +98,20 @@ export function CommercialSignersPreparationPanel({
                       {person.signer_role}: {person.signer_name} · {person.signer_email}
                     </li>)}
                 </ul>
+                <button type="button" disabled={pending || Boolean(loadError)}
+                  onClick={()=>{
+                    const entries=previous.commercial_signature_participants.slice()
+                      .sort((a,b)=>a.signing_order-b.signing_order)
+                      .map(row=>({
+                        role:row.signer_role as CommercialSignerRole,
+                        name:row.signer_name,email:row.signer_email,
+                        phone:row.signer_phone??"",
+                      }));
+                    setSigners(entries);setCurrent(doc.id);
+                    setError("");setNotice("");
+                  }}>
+                  Corrigir participantes (preservar versão anterior)
+                </button>
               </>
             ) : editing ? (
               <>
@@ -138,7 +153,7 @@ export function CommercialSignersPreparationPanel({
                     Adicionar testemunha
                   </button>
                   <button type="button" disabled={pending}
-                    onClick={()=>save(doc.id)}>Salvar lista para conferência</button>
+                    onClick={()=>save(doc.id)}>{previous ? "Salvar nova versão" : "Salvar lista para conferência"}</button>
                   <button type="button" disabled={pending}
                     onClick={()=>setCurrent(null)}>Cancelar</button>
                 </div>
