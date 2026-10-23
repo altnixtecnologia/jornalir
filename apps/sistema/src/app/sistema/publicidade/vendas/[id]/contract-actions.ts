@@ -194,6 +194,7 @@ export async function previewCommercialContractAction(
  */
 export async function saveCommercialContractTemplateAction(
   packageId: string, saleId: string, serviceId: string | null, templateId: string | null,
+  customValues: Record<string,string> = {},
 ): Promise<ActionResult> {
   const denied = await checkModuleAction("publicidade", "contratos_preparar");
   if (denied) return { error: denied };
@@ -217,15 +218,32 @@ export async function saveCommercialContractTemplateAction(
 
     if (templateId) {
       const value = id(templateId);
+      const { data: template, error: templateError } = await client.from("contract_templates")
+        .select("variables").eq("id",value).maybeSingle();
+      if (templateError || !template) throw new Error("Modelo jurídico não está disponível.");
+      const keys = new Set(
+        (Array.isArray(template.variables) ? template.variables : [])
+          .map(v => typeof v?.key === "string" ? v.key : "").filter(Boolean)
+      );
+      const variables: Record<string,string> = {};
+      if (Object.keys(customValues).length > 50) throw new Error("Há campos personalizados demais.");
+      for (const [key, raw] of Object.entries(customValues)) {
+        if (!keys.has(key) || !/^[a-zA-Z0-9_.-]{1,120}$/.test(key) ||
+            typeof raw !== "string" || raw.length > 2000) {
+          throw new Error("Um dos campos personalizados do modelo é inválido.");
+        }
+        variables[key] = raw.trim();
+      }
+      if (JSON.stringify(variables).length > 12000) throw new Error("Dados do modelo muito extensos.");
       if (current) {
         const { data, error } = await client.from("commercial_contract_template_assignments")
-          .update({ template_id: value, updated_at: new Date().toISOString() })
+          .update({ template_id: value, custom_values: variables, updated_at: new Date().toISOString() })
           .eq("id", current.id).select("id").maybeSingle();
         if (error || !data) throw new Error(error?.message ?? "Vínculo de modelo não atualizado.");
       } else {
         const { data, error } = await client.from("commercial_contract_template_assignments")
           .insert({ package_id: pkg.id, service_id: serviceId ? id(serviceId) : null,
-            template_id: value, assigned_by: actor.actorId }).select("id").maybeSingle();
+            template_id: value, custom_values: variables, assigned_by: actor.actorId }).select("id").maybeSingle();
         if (error || !data) throw new Error(error?.message ?? "Modelo não vinculado.");
       }
     } else if (current) {
