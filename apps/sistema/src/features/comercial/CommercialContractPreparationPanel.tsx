@@ -12,6 +12,7 @@ import {
 } from "../../app/sistema/publicidade/vendas/[id]/contract-actions";
 import {
   approveCommercialLegalReviewAction, issueCommercialContractDocumentsAction,
+  reopenCommercialLegalReviewAction,
 } from "../../app/sistema/publicidade/vendas/[id]/commercial-issuance-actions";
 
 export interface CommercialContractServiceView {
@@ -139,6 +140,7 @@ export function CommercialContractPreparationPanel({
   const [previewBusy, setPreviewBusy] = useState(false);
   const [legalChecked, setLegalChecked] = useState(false);
   const [legalNote, setLegalNote] = useState("");
+  const [reopenNote, setReopenNote] = useState("");
 
   async function showPreview(): Promise<void> {
     if (!pkg || previewBusy) return;
@@ -390,6 +392,26 @@ export function CommercialContractPreparationPanel({
                 onClick={()=>submit(issueCommercialContractDocumentsAction(pkg.id,saleId),
                   "Emissão processada. Confira os documentos registrados abaixo.")}>
                 Emitir documentos aprovados
+              </button>
+            </div>
+          ) : null}
+          {pkg.status === "legal_approved" && canReview && issuedDocuments.length === 0 ? (
+            <div className="form-section">
+              <h3>Correção antes da emissão</h3>
+              <p className="helper-text">
+                Se um modelo ou condição precisar de ajuste, reabra o rascunho
+                justificando a decisão. Após qualquer PDF emitido, a aprovação
+                fica bloqueada para alterações e será necessário aditivo.
+              </p>
+              <label className="form-field">
+                <span className="field-label">Justificativa da reabertura</span>
+                <textarea rows={2} maxLength={1000} value={reopenNote}
+                  disabled={pending} onChange={event=>setReopenNote(event.target.value)}/>
+              </label>
+              <button type="button" disabled={pending || reopenNote.trim().length < 20}
+                onClick={()=>submit(reopenCommercialLegalReviewAction(pkg.id,saleId,reopenNote),
+                  "Aprovação reaberta antes da emissão; ajuste e encaminhe novamente.")}>
+                Reabrir para ajustes
               </button>
             </div>
           ) : null}
