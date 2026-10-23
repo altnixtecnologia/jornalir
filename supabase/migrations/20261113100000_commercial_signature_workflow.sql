@@ -163,10 +163,15 @@ begin
   and v.locked_at>now()-interval '5 minutes' then
    raise exception 'Outra assinatura está sendo concluída.' using errcode='55P03';
  end if;
- select count(*) into v_preceding from public.commercial_signature_invitations other
- join public.commercial_signature_participants p on p.id=other.participant_id
- where other.request_id=v.request_id and p.signing_order<v.signing_order
-   and other.status<>'signed';
+ select count(*) into v_preceding from public.commercial_signature_participants p
+ join public.commercial_signature_preparations prep on prep.id=p.preparation_id
+ join public.commercial_signature_requests req on req.preparation_id=prep.id
+ where req.id=v.request_id and p.signing_order<v.signing_order
+ and not exists (
+   select 1 from public.commercial_signature_invitations done
+   where done.request_id=v.request_id and done.participant_id=p.id
+   and done.status='signed'
+ );
  if v_preceding<>0 then
    raise exception 'Aguarde os signatários anteriores nesta rodada.' using errcode='23514';
  end if;
@@ -276,6 +281,46 @@ create trigger commercial_signature_preparation_started_guard
  before update on public.commercial_signature_preparations
  for each row execute function public.guard_commercial_signature_preparation_changes();
 revoke all on function public.guard_commercial_signature_preparation_changes() from public,anon,authenticated;
+
+-- Reemissão manual por responsável autorizado. O token antigo é revogado
+-- e a nova cadeia preserva o identificador anterior e uma justificativa.
+alter table public.commercial_signature_invitations
+ add column reissue_reason text;
+
+create or replace function public.reissue_commercial_signature_invitation(
+ p_invitation_id uuid,p_new_token_hash text,p_reason text
+) returns uuid language plpgsql security definer set search_path='' as $reissue$
+declare v_inv record;v_new uuid;
+begin
+ if auth.uid() is null or not public.staff_can_module_action('publicidade','contratos_revisar') then
+   raise exception 'Ação restrita a revisor comercial.' using errcode='42501';
+ end if;
+ if p_new_token_hash !~ '^[a-f0-9]{64}
+ 'Tokens individuais com hash e evidências de aceite OTP. Sem vínculo institucional. Arquivos privados e hashes, não ICP-Brasil.';
+ or length(btrim(coalesce(p_reason,''))) not between 20 and 1000 then
+   raise exception 'Novo token ou justificativa inválidos.' using errcode='23514';
+ end if;
+ select i.id,i.request_id,i.participant_id,i.status,r.status as request_status
+ into v_inv from public.commercial_signature_invitations i
+ join public.commercial_signature_requests r on r.id=i.request_id
+ where i.id=p_invitation_id for update of i,r;
+ if not found or v_inv.status<>'pending' or v_inv.request_status<>'pending' then
+   raise exception 'Apenas convite pendente pode ser substituído.' using errcode='23514';
+ end if;
+ update public.commercial_signature_invitations set
+  status='revoked',reissue_reason=btrim(p_reason)
+  where id=v_inv.id;
+ insert into public.commercial_signature_invitations(
+  request_id,participant_id,previous_invitation_id,token_sha256,expires_at
+ ) values(v_inv.request_id,v_inv.participant_id,v_inv.id,p_new_token_hash,
+          now()+interval '7 days') returning id into v_new;
+ return v_new;
+end;
+$reissue$;
+revoke all on function public.reissue_commercial_signature_invitation(uuid,text,text)
+ from public,anon;
+grant execute on function public.reissue_commercial_signature_invitation(uuid,text,text)
+ to authenticated;
 
 comment on table public.commercial_signature_invitations is
  'Tokens individuais com hash e evidências de aceite OTP. Sem vínculo institucional. Arquivos privados e hashes, não ICP-Brasil.';
