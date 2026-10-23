@@ -12,11 +12,13 @@ on:
       - "supabase/migrations/202611041*.sql"
       - "supabase/migrations/202611051*.sql"
       - "supabase/migrations/202611061*.sql"
+      - "supabase/migrations/202611071*.sql"
       - "tests/security/finance-rls-sandbox-*.sql"
       - "tests/security/module-rls-sandbox-*.sql"
       - "tests/security/editorial-rls-sandbox-*.sql"
       - "tests/security/nfse-rls-sandbox-*.sql"
       - "tests/security/contract-integration-sandbox-*.sql"
+      - "tests/security/rental-rls-sandbox-*.sql"
       - ".github/workflows/finance-rls-sandbox.yml"
   workflow_dispatch:
 
@@ -114,3 +116,12 @@ jobs:
 
       - name: Verificar pacotes multissservico, precos e imutabilidade
         run: psql -v ON_ERROR_STOP=1 -f tests/security/contract-integration-sandbox-assertions.sql
+
+      - name: Preparar registro de equipamentos em ambiente isolado
+        run: psql -v ON_ERROR_STOP=1 -f tests/security/rental-rls-sandbox-setup.sql
+
+      - name: Aplicar estrutura operacional de locação
+        run: psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261107100000_rental_assets_bookings_inspections.sql
+
+      - name: Validar reservas, conflitos e vistorias
+        run: psql -v ON_ERROR_STOP=1 -f tests/security/rental-rls-sandbox-assertions.sql
