@@ -73,5 +73,5 @@ test("anexo jurídico final mantém valores e não imprime avisos da conferênci
  const result=buildCommercialContractPreview(sample,{forLegalInstrument:true});
  assert.equal(result.documents.length,1);
  assert.doesNotMatch(result.documents[0].text,/NÃO ASSINAR|MINUTA DE CONFERÊNCIA/);
- assert.match(result.documents[0].text,/R\\$\\s*475,00/);
+ assert.match(result.documents[0].text,/R\$\s*475,00/);
 });
