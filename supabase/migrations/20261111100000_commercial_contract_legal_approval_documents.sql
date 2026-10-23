@@ -19,8 +19,28 @@ alter table public.commercial_contract_packages
         and approved_at is null and approval_note is null)
   );
 
+-- Eventos de aprovação/reabertura persistem mesmo quando a contratação
+-- retorna ao rascunho. INSERT exclusivo do trigger privilegiado e guardado.
+create table public.commercial_contract_review_events (
+  id uuid primary key default gen_random_uuid(),
+  package_id uuid not null references public.commercial_contract_packages(id) on delete restrict,
+  event_type text not null check(event_type in ('approved','reopened')),
+  note text not null check(length(btrim(note)) between 20 and 1000),
+  actor_id uuid not null references public.profiles(id) on delete restrict,
+  occurred_at timestamptz not null default now()
+);
+create index commercial_contract_review_events_package_idx
+  on public.commercial_contract_review_events(package_id,occurred_at);
+alter table public.commercial_contract_review_events enable row level security;
+revoke all on public.commercial_contract_review_events from public,anon,authenticated;
+grant select on public.commercial_contract_review_events to authenticated;
+create policy commercial_contract_review_events_read
+  on public.commercial_contract_review_events for select to authenticated
+  using(public.staff_can_module_action('publicidade','contratos_revisar')
+        or public.staff_can_see_module('financeiro'));
+
 create or replace function public.guard_commercial_legal_approval()
-returns trigger language plpgsql set search_path='' as $$
+returns trigger language plpgsql security definer set search_path='' as $
 begin
   if tg_op='UPDATE' then
     if old.status='legal_approved' then
@@ -32,6 +52,14 @@ begin
            select 1 from public.commercial_contract_documents d
            where d.package_id=old.id
          ) then
+        if new.approval_note is not distinct from old.approval_note or
+           length(btrim(coalesce(new.approval_note,''))) not between 20 and 1000 then
+          raise exception 'Justificativa nova obrigatória ao reabrir aprovação.'
+            using errcode='23514';
+        end if;
+        insert into public.commercial_contract_review_events(
+          package_id,event_type,note,actor_id
+        ) values(old.id,'reopened',btrim(new.approval_note),auth.uid());
         new.approved_by:=null;
         new.approved_at:=null;
         new.approval_note:=null;
@@ -55,6 +83,9 @@ begin
         raise exception 'Sessão autenticada obrigatória.' using errcode='42501';
       end if;
       new.approved_at:=now();
+      insert into public.commercial_contract_review_events(
+        package_id,event_type,note,actor_id
+      ) values(new.id,'approved',btrim(new.approval_note),new.approved_by);
     elsif new.approved_by is distinct from old.approved_by or
           new.approved_at is distinct from old.approved_at or
           new.approval_note is distinct from old.approval_note then
@@ -67,6 +98,9 @@ $$;
 create trigger commercial_package_legal_approval_guard
 before update on public.commercial_contract_packages
 for each row execute function public.guard_commercial_legal_approval();
+-- A função trigger executa com permissões elevadas só para inserir histórico;
+-- nenhuma pessoa pode chamá-la via API RPC ou escrever eventos diretamente.
+revoke all on function public.guard_commercial_legal_approval() from public,anon,authenticated;
 
 -- PDF original nunca é atualizado/excluído. Cada serviço tem um documento,
 -- ou um documento único com service_id NULL para todos os serviços.
