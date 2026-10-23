@@ -2,8 +2,8 @@
 
 import { revalidatePath } from "next/cache";
 import type { CommercialProposalStatus } from "@ir/types";
-import { computeProposalTotal } from "@ir/types";
-import { getCommercialProposalService, getCommercialSaleService } from "../../../../../composition/comercial";
+import { computeProposalItemTotal, computeProposalTotal } from "@ir/types";
+import { getCommercialProductService, getCommercialProposalService, getCommercialSaleService } from "../../../../../composition/comercial";
 import { createSupabaseServerClient } from "../../../../../lib/supabase/server";
 import { checkModuleAction } from "../../../../../lib/permissions/checkModuleAction";
 import { getAuditContext } from "../../../../../lib/auth/getAuditContext";
@@ -89,13 +89,38 @@ export async function convertCommercialProposalToSaleAction(id: string): Promise
     if (proposal.status !== "approved") return { error: "Só é possível converter uma proposta aprovada." };
 
     const total = computeProposalTotal(proposal.items);
-    const firstItemWithProduct = proposal.items.find((item) => item.productId);
+    // Uma unica leitura do catalogo: guarda o NOME e a MODALIDADE que
+    // existiam ao aprovar a proposta, sem depender de edicoes futuras.
+    const products = await getCommercialProductService(client).list();
+    const catalog = new Map(products.map((product) => [product.id, product]));
+    const itemsSnapshot = proposal.items.map((item) => {
+      const product = item.productId ? catalog.get(item.productId) : undefined;
+      if (item.productId && !product) {
+        throw new Error("Produto da proposta não encontrado no catálogo. Confira o cadastro antes de converter.");
+      }
+      return {
+        sourceProposalItemId: item.id,
+        productId: item.productId,
+        productName: product?.name ?? item.description,
+        serviceChannel: product?.channel ?? ("other" as const),
+        description: item.description,
+        quantity: item.quantity,
+        unitPrice: item.unitPrice,
+        discountAmount: item.discountAmount,
+        totalAmount: computeProposalItemTotal(item),
+        sortOrder: item.sortOrder,
+      };
+    });
+    const firstItemWithProduct = proposal.items.length === 1 ? proposal.items[0] : undefined;
     const sale = await getCommercialSaleService(client).register({
       clientId: proposal.clientId,
       proposalId: proposal.id,
+      itemsSnapshot,
       productId: firstItemWithProduct?.productId,
-      channel: "Proposta convertida",
-      description: `Convertido da proposta ${proposal.reference}`,
+      channel: proposal.items.length === 1 ? (itemsSnapshot[0]?.productName ?? "Publicidade") : "Pacote de serviços",
+      description: proposal.items.length === 1
+        ? itemsSnapshot[0].description
+        : `${proposal.items.length} serviços da proposta ${proposal.reference}`,
       startDate: new Date().toISOString().slice(0, 10),
       amount: total,
       commercialCondition: proposal.commercialCondition,
