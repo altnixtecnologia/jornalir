@@ -53,6 +53,9 @@ jobs:
       - name: Typecheck system
         run: npm run typecheck --workspace @ir/sistema
 
+      - name: Testar pacotes comerciais e historico de servicos
+        run: npx tsx --test packages/core/test/commercial-sale-snapshot.test.ts
+
       - name: Signed contract PDF smoke test
         run: node apps/sistema/scripts/signatures-smoke.cjs
 
