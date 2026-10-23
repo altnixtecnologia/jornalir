@@ -5,6 +5,7 @@ import { ModuleHeader } from "../../../../../components/admin/ModuleHeader";
 import { CommercialSaleDetail } from "../../../../../features/comercial/CommercialSaleDetail";
 import { CommercialContractPreparationPanel, type CommercialContractServiceView } from "../../../../../features/comercial/CommercialContractPreparationPanel";
 import { CommercialSignersPreparationPanel, type CommercialSignerPreparation } from "../../../../../features/comercial/CommercialSignersPreparationPanel";
+import {CommercialSignatureRequestsPanel, type CommercialRequestView} from "../../../../../features/comercial/CommercialSignatureRequestsPanel";
 import { getCommercialProductService, getCommercialProposalService, getCommercialSaleService } from "../../../../../composition/comercial";
 import { getClientService } from "../../../../../composition/clientes";
 import { getDraftService } from "../../../../../composition/nfse";
@@ -83,6 +84,12 @@ export default async function CommercialSaleDetailPage({ params }: { params: { i
       .in("document_id",(issuedDocumentsResult?.data??[]).map(document=>document.id).length
         ? (issuedDocumentsResult?.data??[]).map(document=>document.id) : ["00000000-0000-0000-0000-000000000000"])
     : null;
+  const preparationIds=(signerPreparationsResult?.data??[]).map(p=>p.id);
+  const signatureRequestsResult=canReview.data===true && preparationIds.length
+    ? await supabase.from("commercial_signature_requests")
+      .select("id,preparation_id,status,completed_at,commercial_signature_invitations(id,participant_id,status,expires_at,signed_at,commercial_signature_participants(signer_name,signer_role,signer_email))")
+      .in("preparation_id",preparationIds)
+    : null;
   const financialStatus = deriveCommercialSaleFinancialStatus(receivables);
 
   return (
@@ -130,6 +137,14 @@ export default async function CommercialSaleDetailPage({ params }: { params: { i
         preparations={(signerPreparationsResult?.data??[]) as CommercialSignerPreparation[]}
         canReview={canReview.data===true}
         loadError={signerPreparationsResult?.error?.message}
+      />
+      <CommercialSignatureRequestsPanel
+        saleId={sale.id}
+        preparations={(signerPreparationsResult?.data??[]).map(p=>({
+          id:p.id,document_id:p.document_id,status:p.status,
+        }))}
+        requests={(signatureRequestsResult?.data??[]) as CommercialRequestView[]}
+        canReview={canReview.data===true}
       />
     </>
   );
