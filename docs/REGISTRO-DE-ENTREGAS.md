@@ -500,3 +500,17 @@ A versão de sistema da Agenda/Pauta foi publicada na Vercel PRODUCTION, deploym
   demais integrações e QA geral. Produção e banco remoto intactos.
 - Na próxima sessão Claude/Codex, apenas então sincronizar o VS Code
   mediante `git fetch` e reconciliação segura, como já combinado.
+
+## 23/10/2026 — Ajuste adicional de recorte EXCLUSIVO do desktop
+
+- `ArticleImageEditorModal.tsx` e CSS: zoom fino por roda do mouse/
+  trackpad somente quando `(min-width: 768px) and (pointer: fine)`,
+  controle deslizante 100–400% com passo de 10% e alça do recorte maior
+  somente no desktop. A tela, os gestos e o layout de recorte **mobile não
+  foram alterados**. Nunca modificar a foto original: criar derivada.
+- `ArticleMediaPicker.tsx`: botão estrela devolvido às fotos já vinculadas,
+  com `aria-pressed` e identificação correta da capa por `role=cover`.
+  A função de promoção mantém foto anterior na galeria com metadados.
+- Teste automatizado adicionado para a regra de troca de capa.
+- **Pendente QA visual real**: zoom/arrastar/alça no Chrome desktop e
+  comparação mobile para detectar regressão. Não publicado.
