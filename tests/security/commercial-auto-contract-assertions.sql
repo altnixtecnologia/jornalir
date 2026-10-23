@@ -75,7 +75,7 @@ $check$;
 -- Nenhum modelo ativo compatível: ficar pendente, sem inventar contrato.
 reset role;
 update public.contract_templates set active=false
- where category='commercial_combined';
+ where category in ('commercial_combined','commercial_generic');
 set role authenticated;
 select set_config('request.jwt.claim.sub','00000000-0000-0000-0000-000000000002',false);
 do $check$
