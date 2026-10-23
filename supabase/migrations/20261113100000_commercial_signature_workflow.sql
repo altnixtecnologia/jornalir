@@ -48,9 +48,11 @@ revoke all on public.commercial_signature_invitations from public,anon,authentic
 grant select on public.commercial_signature_requests to authenticated;
 grant select on public.commercial_signature_invitations to authenticated;
 create policy commercial_signature_requests_staff on public.commercial_signature_requests
- for select to authenticated using(public.staff_can_module_action('publicidade','contratos_revisar'));
+ for select to authenticated using(public.staff_can_module_action('publicidade','contratos_revisar')
+  or public.staff_can_see_module('financeiro'));
 create policy commercial_signature_invitations_staff on public.commercial_signature_invitations
- for select to authenticated using(public.staff_can_module_action('publicidade','contratos_revisar'));
+ for select to authenticated using(public.staff_can_module_action('publicidade','contratos_revisar')
+  or public.staff_can_see_module('financeiro'));
 
 create or replace function public.create_commercial_signature_request(
  p_preparation_id uuid,p_invites jsonb
@@ -321,6 +323,15 @@ revoke all on function public.reissue_commercial_signature_invitation(uuid,text,
  from public,anon;
 grant execute on function public.reissue_commercial_signature_invitation(uuid,text,text)
  to authenticated;
+
+-- Evidências comerciais são privadas; leitura só por colaboradores
+-- explicitamente autorizados. Não abre edição, remoção ou publicação.
+create policy contract_docs_storage_select_commercial_signed_staff
+ on storage.objects for select to authenticated
+ using(bucket_id='contract-documents'
+  and (storage.foldername(name))[1]='commercial-signatures'
+  and (public.staff_can_module_action('publicidade','contratos_revisar')
+       or public.staff_can_see_module('financeiro')));
 
 comment on table public.commercial_signature_invitations is
  'Tokens individuais com hash e evidências de aceite OTP. Sem vínculo institucional. Arquivos privados e hashes, não ICP-Brasil.';
