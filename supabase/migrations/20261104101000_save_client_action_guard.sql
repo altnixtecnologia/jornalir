@@ -89,7 +89,7 @@ begin
 
   return v_id;
 end;
-$function$
+$function$;
 
 revoke all on function public.save_client(uuid,jsonb,text[]) from public,anon;
 grant execute on function public.save_client(uuid,jsonb,text[]) to authenticated,service_role;
