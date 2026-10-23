@@ -76,6 +76,7 @@ export function CommercialContractPreparationPanel({
         const result = await action;
         if ("error" in result) { setError(result.error); return; }
         setNotice(message);
+        setPreview(null); // conteúdo mudou; não exibir minuta desatualizada
         router.refresh();
       } catch (reason) {
         setError(reason instanceof Error ? reason.message : "Não foi possível concluir a operação.");
@@ -209,7 +210,7 @@ export function CommercialContractPreparationPanel({
             </div>
           ) : null}
           <div className="form-actions">
-            <button type="button" disabled={pending || previewBusy || !canPrepare}
+            <button type="button" disabled={pending || previewBusy || (!canPrepare && !canReview)}
               onClick={() => void showPreview()}>
               {previewBusy ? "Montando conferência…" : "Visualizar conferência dos serviços"}
             </button>
