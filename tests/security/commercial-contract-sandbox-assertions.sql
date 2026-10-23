@@ -127,7 +127,7 @@ $test$;
 -- Sem visibilidade no Comercial não há permissão para preparar documento.
 reset role;
 update public.staff_module_visibility set enabled=false
- where profile_id='00000000-0000-0000-0000-000000000002' and module_key='publicidade';
+ where profile_id='00000000-0000-0000-0000-000000000002' and module_key in ('publicidade','financeiro');
 set role authenticated;
 select set_config('request.jwt.claim.sub','00000000-0000-0000-0000-000000000002',false);
 do $test$
