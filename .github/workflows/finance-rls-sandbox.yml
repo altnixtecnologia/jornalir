@@ -5,6 +5,8 @@ on:
     branches:
       - feature/abrangencias-geo-notificacoes-20261021
     paths:
+      - "supabase/migrations/202610311*.sql"
+      - "supabase/migrations/202611011*.sql"
       - "supabase/migrations/202611031*.sql"
       - "supabase/migrations/202611041*.sql"
       - "supabase/migrations/202611051*.sql"
@@ -13,6 +15,7 @@ on:
       - "tests/security/module-rls-sandbox-*.sql"
       - "tests/security/editorial-rls-sandbox-*.sql"
       - "tests/security/nfse-rls-sandbox-*.sql"
+      - "tests/security/contract-integration-sandbox-*.sql"
       - ".github/workflows/finance-rls-sandbox.yml"
   workflow_dispatch:
 
@@ -98,3 +101,12 @@ jobs:
 
       - name: Testar delegação e proteção de certificado
         run: psql -v ON_ERROR_STOP=1 -f tests/security/nfse-rls-sandbox-assertions.sql
+
+      - name: Aplicar snapshot historico de vendas
+        run: psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261031100000_commercial_sale_items_snapshot.sql
+
+      - name: Habilitar catalogo de locacao de equipamentos
+        run: psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261101100000_commercial_equipment_rental_channel.sql
+
+      - name: Verificar pacotes multissservico, precos e imutabilidade
+        run: psql -v ON_ERROR_STOP=1 -f tests/security/contract-integration-sandbox-assertions.sql
