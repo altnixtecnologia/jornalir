@@ -1,0 +1,133 @@
+"use server";
+
+import { createHash, randomUUID } from "node:crypto";
+import { revalidatePath } from "next/cache";
+import { createSupabaseServerClient } from "../../../../../lib/supabase/server";
+import { checkModuleAction } from "../../../../../lib/permissions/checkModuleAction";
+import { getAuditContext } from "../../../../../lib/auth/getAuditContext";
+import { recordAuditEventSupabase } from "../../../../../providers/supabase/auditEvents.supabase";
+import { compileCommercialDocuments } from "../../../../../lib/contracts/commercialIssuance";
+import { buildContractTemplatePdf } from "../../../../../lib/contracts/contractTemplatePdf";
+
+const BUCKET = "contract-documents";
+const MAX_BYTES = 4 * 1024 * 1024;
+const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+type Result<T = never> = { error: string } | ({ ok: true } & T);
+function requireId(value:string):string {
+  if (!uuid.test(value)) throw new Error("Identificador inválido.");
+  return value;
+}
+function toError(error:unknown):string {
+  return error instanceof Error ? error.message : "Falha ao processar documentos comerciais.";
+}
+function refresh(saleId:string):void {
+  revalidatePath("/sistema/publicidade/vendas/"+saleId);
+}
+
+/** O revisor atesta expressamente a conferência jurídica, não a aplicação. */
+export async function approveCommercialLegalReviewAction(
+  packageId:string,saleId:string,confirmed:boolean,note:string,
+):Promise<Result<{packageId:string}>> {
+  const denied=await checkModuleAction("publicidade","contratos_revisar");
+  if(denied) return {error:denied};
+  if(confirmed!==true) return {error:"Confirme pessoalmente a conferência do conteúdo jurídico."};
+  const reason=note.trim();
+  if(reason.length<20 || reason.length>1000) {
+    return {error:"Descreva a conferência jurídica (20 a 1000 caracteres)."};
+  }
+  try {
+    const supabase=createSupabaseServerClient();
+    const actor=await getAuditContext(supabase);
+    const sale=requireId(saleId),pkg=requireId(packageId);
+    // Compila TODOS os instrumentos antes de aceitar a transição. Não
+    // confia no estado antigo da prévia nem nos valores enviados pela UI.
+    await compileCommercialDocuments(supabase,sale,pkg,"pending_legal_review");
+    const {data,error}=await supabase.from("commercial_contract_packages")
+      .update({status:"legal_approved",approval_note:reason,updated_at:new Date().toISOString()})
+      .eq("id",pkg).eq("commercial_sale_id",sale).eq("status","pending_legal_review")
+      .select("id").maybeSingle();
+    if(error || !data) throw new Error(error?.message ?? "A revisão mudou. Atualize a página.");
+    try {
+      await recordAuditEventSupabase(supabase,{
+        userId:actor.actorId,entityType:"commercial_contract_package",entityId:pkg,
+        action:"legal_approval",metadata:{saleId:sale,confirmed:true},
+      });
+    } catch(error) {
+      console.error("Auditoria complementar indisponível:",toError(error));
+    }
+    refresh(sale);
+    return {ok:true,packageId:pkg};
+  } catch(error) { return {error:toError(error)}; }
+}
+
+/**
+ * Emite um PDF NOVO por documento aprovado. Reexecutável: ignora os já
+ * registrados com a mesma versão, não substitui nem remove evidências.
+ * Não emite cobranças, convites ou assinaturas.
+ */
+export async function issueCommercialContractDocumentsAction(
+  packageId:string,saleId:string,
+):Promise<Result<{packageId:string;issued:number;existing:number}>> {
+  const denied=await checkModuleAction("publicidade","contratos_revisar");
+  if(denied) return {error:denied};
+  let issued=0;
+  try {
+    const supabase=createSupabaseServerClient();
+    const actor=await getAuditContext(supabase);
+    const sale=requireId(saleId),pkg=requireId(packageId);
+    const documents=await compileCommercialDocuments(supabase,sale,pkg,"legal_approved");
+    const {data:stored,error:storedError}=await supabase
+      .from("commercial_contract_documents")
+      .select("id,service_id,template_id,template_version").eq("package_id",pkg);
+    if(storedError) throw new Error("Não foi possível conferir emissões anteriores: "+storedError.message);
+    let existing=0;
+    for(const doc of documents) {
+      const prior=(stored??[]).find(row=>row.service_id===doc.serviceId);
+      if(prior) {
+        if(prior.template_id!==doc.templateId || prior.template_version!==doc.templateVersion) {
+          throw new Error("Há documento anterior com outra versão. Revise o histórico antes de prosseguir.");
+        }
+        existing++;
+        continue;
+      }
+      const id=randomUUID();
+      const path="commercial-contracts/"+pkg+"/"+id+".pdf";
+      const pdf=await buildContractTemplatePdf({
+        title:doc.templateTitle,content:doc.text,contractReference:sale,
+        templateTitle:doc.templateTitle,templateVersion:doc.templateVersion,
+        generatedAt:new Date().toISOString(),
+      });
+      if(pdf.byteLength===0 || pdf.byteLength>MAX_BYTES) {
+        throw new Error("PDF inválido ou acima de 4 MB: "+doc.templateTitle);
+      }
+      const sha256=createHash("sha256").update(pdf).digest("hex");
+      const {error:uploadError}=await supabase.storage.from(BUCKET).upload(path,pdf,{
+        contentType:"application/pdf",cacheControl:"0",upsert:false,
+      });
+      if(uploadError) throw new Error("Não foi possível salvar PDF privado: "+uploadError.message);
+      const {error:insertError}=await supabase.from("commercial_contract_documents").insert({
+        id,package_id:pkg,service_id:doc.serviceId,template_id:doc.templateId,
+        template_version:doc.templateVersion,file_reference:path,sha256,
+        size_bytes:pdf.byteLength,title:doc.templateTitle,issued_by:actor.actorId,
+      });
+      if(insertError) {
+        // Sem DELETE de evidência privada: nunca apagar arquivo para
+        // ocultar falha de banco. Reportar para reconciliação controlada.
+        throw new Error("PDF salvo mas sem registro; concilie o arquivo "+id+" antes de repetir: "+insertError.message);
+      }
+      issued++;
+      try {
+        await recordAuditEventSupabase(supabase,{
+          userId:actor.actorId,entityType:"commercial_contract_document",entityId:id,
+          action:"issue_pdf",metadata:{saleId:sale,packageId:pkg,templateId:doc.templateId},
+        });
+      } catch(error) { console.error("Auditoria complementar indisponível:",toError(error)); }
+    }
+    refresh(sale);
+    return {ok:true,packageId:pkg,issued,existing};
+  } catch(error) {
+    if(issued) refresh(saleId);
+    return {error:toError(error)};
+  }
+}
