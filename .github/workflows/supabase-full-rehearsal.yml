@@ -7,6 +7,7 @@ on:
     paths:
       - "supabase/migrations/**"
       - "supabase/config.toml"
+      - "tests/security/full-schema-rls-postflight.sql"
       - ".github/workflows/supabase-full-rehearsal.yml"
   workflow_dispatch:
 
@@ -32,6 +33,16 @@ jobs:
 
       - name: Replay all schema migrations from scratch
         run: supabase db reset --local --no-seed
+
+      - name: Conferir politicas no esquema completo
+        env:
+          PGPASSWORD: postgres
+        run: |
+          if ! command -v psql >/dev/null; then
+            sudo apt-get update -qq && sudo apt-get install -qq -y postgresql-client
+          fi
+          psql -h 127.0.0.1 -p 54322 -U postgres -d postgres \
+            -v ON_ERROR_STOP=1 -f tests/security/full-schema-rls-postflight.sql
 
       - name: Confirm schema tables and functions
         run: |
