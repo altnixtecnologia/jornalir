@@ -564,3 +564,31 @@ enviar OTP, não aplicar migrations no projeto remoto e não fazer deploy.**
 - A suíte CI cobre TypeScript, compilação Next, migrations do Supabase
   local e restrições RLS. Ela não substitui assinatura real com duas
   identidades nem envio real de e-mail.
+
+## 23/10/2026 — FECHAMENTO DO BLOCO DE ASSINATURA COMERCIAL EM CÓDIGO
+
+- **Último commit de código:** `be2c450f0c272700578b308a3d1250ac5e166e71`.
+- **CI GitHub, exato commit acima:**
+  - `Validate project` — **SUCCESS** (`40038569813`).
+  - `Finance RLS sandbox` — **SUCCESS** (`40038569803`).
+  - `Supabase complete migration rehearsal` — **SUCCESS** (`40038569805`).
+  - Rebuild desde o zero com as migrations `20261111100000`,
+    `20261112100000` e `20261113100000` no Supabase descartável.
+- Assinatura comercial agora contempla: convites separados sem envio
+  automático, tokens de 256 bits apenas com hash persistido, links por
+  destinatário, OTP e identidade verificada pelo Supabase Auth, consentimento
+  `commercial-v1`, assinatura gráfica, PDF cumulativo sequencial,
+  recibos individuais, SHA-256, histórico na venda e no cliente, downloads
+  privados e reemissão manual auditável que revoga o token anterior.
+- A regra de concorrência bloqueia assinaturas simultâneas até do mesmo
+  convite. Preparação já iniciada não pode ser alterada. Contas a receber,
+  cobranças e contratos institucionais preservados.
+- **Ainda não homologado com pessoas reais**: testar 2-3 signatários
+  independentes, convite expirado, reenvio, OTP/SMTP, falha parcial de
+  storage e reconciliação dos objetos órfãos. Cláusulas e consentimento
+  carecem de aprovação jurídica. O método NÃO é PAdES/ICP-Brasil.
+- **Sem banco remoto, produção ou envio real**: PR #15 aberta,
+  branch não incorporada à main, sem Vercel production deploy.
+- Pendências de outros blocos preservadas: usuários/ativação por e-mail,
+  Supabase Pro/uploads, QA visual do recorte desktop/mobile e publicação
+  consolidada só após autorização.
