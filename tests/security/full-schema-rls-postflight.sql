@@ -67,6 +67,21 @@ begin
    raise exception 'Falta proteção da publicação editorial.';
  end if;
 
+ if to_regclass('public.rental_assets') is null or
+    to_regclass('public.rental_bookings') is null or
+    to_regclass('public.rental_inspection_events') is null then
+   raise exception 'Inventário/reservas/vistorias ausentes na base integrada.';
+ end if;
+ if not exists (select 1 from pg_constraint c
+  join pg_class t on t.oid=c.conrelid
+  where t.relname='rental_bookings' and c.conname='rental_bookings_no_overlap' and c.contype='x') then
+   raise exception 'Bloqueio contra dupla reserva de equipamento ausente.';
+ end if;
+ if not exists(select 1 from pg_trigger t join pg_class c on c.oid=t.tgrelid
+  where c.relname='rental_inspection_events' and t.tgname='rental_inspections_validate'
+  and not t.tgisinternal) then
+   raise exception 'Vistoria sem proteção contra alterações.';
+ end if;
  if not exists (select 1 from pg_trigger t join pg_class c on t.tgrelid=c.oid
      where c.relname='nfse_drafts' and t.tgname='nfse_drafts_guard_operator_fields'
      and not t.tgisinternal) then
