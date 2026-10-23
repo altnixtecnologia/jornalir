@@ -101,10 +101,11 @@ function currency(value: unknown): string {
 }
 
 export function CommercialContractPreparationPanel({
-  saleId, saleStatus, pkg, canPrepare, canReview, templateOptions, templateAssignments, loadError,
+  saleId, saleStatus, defaultMode, pkg, canPrepare, canReview, templateOptions, templateAssignments, loadError,
 }: {
   saleId: string;
   saleStatus: string;
+  defaultMode: "combined" | "separate";
   pkg: CommercialContractPackageView | null;
   canPrepare: boolean;
   canReview: boolean;
@@ -116,7 +117,7 @@ export function CommercialContractPreparationPanel({
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
-  const [mode, setMode] = useState<"combined" | "separate">(pkg?.document_mode ?? "combined");
+  const [mode, setMode] = useState<"combined" | "separate">(pkg?.document_mode ?? defaultMode);
   const [preview, setPreview] = useState<{ documents: { title: string; text: string }[]; missing: string[] } | null>(null);
   const [previewBusy, setPreviewBusy] = useState(false);
 
@@ -152,6 +153,8 @@ export function CommercialContractPreparationPanel({
     <section className="form-section" aria-labelledby="contratacao-servicos">
       <h2 id="contratacao-servicos">Contratação dos serviços</h2>
       <p className="helper-text">
+        O modelo é selecionado automaticamente pelo tipo de serviço quando a contratação é preparada.
+        Você só precisa conferir as condições; se não houver uma opção inequívoca, o sistema pedirá uma escolha.
         Os preços e os itens são recuperados da venda original. Confira datas, modalidades e condições de
         cada serviço antes de encaminhar à revisão jurídica. Esta etapa NÃO emite PDF, envia cobrança
         ou solicita assinatura.
