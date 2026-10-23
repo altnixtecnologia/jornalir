@@ -240,3 +240,53 @@ automaticamente no estágio de preparação.
 - #17 — revisão final de SMTP/convites e quotas do Supabase Pro;
   organização `Suporte Altnix` confirmada no plano Pro, mas envio
   de Auth continua dependendo do serviço SMTP e entregabilidade.
+
+## Etapa 2C — seleção de modelos jurídicos por documento (23/10/2026)
+
+**Implementado somente na branch PR #15. Ainda NÃO publicado:**
+
+- Migração `20261109100000_commercial_contract_template_assignments.sql`
+  vincula cada contratação comercial a modelo jurídico **versionado**,
+  escolhido explicitamente: modelo `commercial_combined` para o
+  documento único; modelo `commercial_<canal>` ou `commercial_generic`
+  para cada serviço nos documentos separados.
+- RLS deixa os operadores do Comercial lerem SOMENTE modelos da categoria
+  comercial; os institucionais permanecem restritos ao Financeiro.
+- Rejeita versões antigas, modelos inativos, categorias incompatíveis,
+  origem de venda diferente, duplicidade por serviço e alterações após
+  encaminhamento à revisão jurídica.
+- A revisão não pode começar sem modelo do pacote ou de TODOS os itens,
+  nem com dados operacionais obrigatórios pendentes.
+- A interface da venda permite selecionar, substituir ou remover vínculo
+  em rascunho e preencher valores personalizados declarados no modelo.
+  Texto e versão do próprio modelo continuam imutáveis.
+
+## Etapa 2D — PDF de minuta para conferência (23/10/2026)
+
+- Rota autenticada `/sistema/publicidade/vendas/[id]/conferencia-pdf`
+  gera **PDF temporário** com modelo versionado + anexo operacional da
+  venda, de modo `combined` ou por `?service=<uuid>`.
+- Reutiliza o renderizador PDF `buildContractTemplatePdf`, mas NÃO salva
+  no Storage, NÃO cria assinatura, NÃO cria cobrança e NÃO gera contrato
+  válido para assinatura.
+- Texto exibe avisos explícitos **MINUTA PARA CONFERÊNCIA JURÍDICA — NÃO
+  ASSINAR** e proíbe geração se faltar objeto, prazo, local obrigatório,
+  valor ou placeholder do modelo. Só substitui variáveis declaradas,
+  nunca inventa cláusulas ou executa expressões do template.
+- Controles separados para leitura e edição; formulário de campos
+  personalizados permite informar condições não presentes no cliente,
+  mas exige que sejam explicitamente preenchidas e conferidas.
+- Incluídos testes de placeholders (`commercial-legal-draft.test.ts`)
+  e de RLS/modelos (`commercial-template-sandbox-assertions.sql`).
+
+**Próxima fase, AINDA NÃO entregue:** modelo/variáveis comerciais que
+incluam qualificação legal completa da empresa e do cliente (CNPJ/CPF,
+endereços, responsáveis, obrigações e vencimentos por modalidade), aceite
+e aprovação jurídica formal, documento definitivo imutável com hash,
+armazenamento privado e link no cliente, consentimento/assinatura
+eletrônica com múltiplos signatários, comprovantes, reenvio, aditivos,
+rescisão e integração financeira sem cobrança duplicada.
+
+**Importante:** não considerar uma prévia PDF aprovação legal. Antes de
+assinar, o responsável deverá revisar o teor jurídico de cada
+modalidade e confirmar as condições exibidas.
