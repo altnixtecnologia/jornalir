@@ -23,7 +23,7 @@ returns boolean language sql stable as $$select true$$;
 create or replace function public.staff_can_finance_action(text)
 returns boolean language sql stable as $$select true$$;
 
-create table public.receivables (id uuid primary key, original_amount numeric not null default 100, status text not null default 'open', updated_at timestamptz default now());
+create table public.receivables (id uuid primary key, client_id uuid, original_amount numeric not null default 100, status text not null default 'open', updated_at timestamptz default now());
 alter table public.receivables enable row level security;
 create policy receivables_select_staff on public.receivables for select to authenticated using (public.is_active_staff());
 create policy receivables_insert_staff on public.receivables for insert to authenticated with check (public.is_active_staff());
@@ -35,7 +35,7 @@ create policy receivable_receipts_select_staff on public.receivable_receipts for
 create policy receivable_receipts_insert_staff on public.receivable_receipts for insert to authenticated with check (public.is_active_staff());
 create policy receivable_receipts_update_staff on public.receivable_receipts for update to authenticated using (public.is_active_staff()) with check (public.is_active_staff());
 create policy finance_read_requires_module on public.receivable_receipts for select to authenticated using (public.staff_can_see_module('financeiro'));
-create table public.receivable_adjustments (id uuid primary key, receivable_id uuid, amount numeric, reversed_at timestamptz, reversed_by uuid, reversal_reason text);
+create table public.receivable_adjustments (id uuid primary key, receivable_id uuid, amount numeric, adjustment_type text, credit_id uuid, reversed_at timestamptz, reversed_by uuid, reversal_reason text);
 alter table public.receivable_adjustments enable row level security;
 create policy receivable_adjustments_select_staff on public.receivable_adjustments for select to authenticated using (public.is_active_staff());
 create policy receivable_adjustments_insert_staff on public.receivable_adjustments for insert to authenticated with check (public.is_active_staff());
