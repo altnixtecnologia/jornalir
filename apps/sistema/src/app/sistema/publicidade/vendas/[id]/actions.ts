@@ -48,7 +48,11 @@ export async function updateCommercialSaleAction(id: string, input: CommercialSa
 export async function changeCommercialSaleStatusAction(id: string, to: CommercialSaleStatus): Promise<{ error: string } | void> {
   const permissionError = await checkModuleAction("publicidade", "vendas_editar");
   if (permissionError) return { error: permissionError };
-  try {
+  try {  if (to === "cancelled") {
+    const cancelError = await checkModuleAction("publicidade", "vendas_cancelar");
+    if (cancelError) return { error: cancelError };
+  }
+
     const client = createSupabaseServerClient();
     const AUDIT = await getAuditContext(client);
     await getCommercialSaleService(client).changeStatus(id, to);
