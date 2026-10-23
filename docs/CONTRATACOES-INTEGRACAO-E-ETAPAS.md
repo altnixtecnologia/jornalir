@@ -330,3 +330,20 @@ modalidade e confirmar as condições exibidas.
 **Atenção:** seleção automática de um modelo ativo não substitui
 a aprovação do texto jurídico, conferência da qualificação das partes
 nem o consentimento do cliente.
+
+
+## Etapa 2F — proteção de minuta contra regressão de modelos (23/10/2026)
+
+- Commit `aa5ee459` na PR #15: a rota da prévia PDF também confere se o
+  modelo jurídico está ativo, se é compatível com a modalidade e se não há
+  versão posterior do mesmo grupo. Antes, a validação era feita na seleção,
+  mas o modelo podia mudar entre a escolha e a conferência.
+- Trata-se de proteção de **minuta não assinável**; não constitui aprovação
+  jurídica nem habilita emissão definitiva.
+- **Validação restante:** executar TypeScript, testes e integração em banco
+  descartável com modelo ativado, desativado, substituído e incompatível.
+- **Próxima implementação:** fluxo formal de aprovação jurídica por versão,
+  qualificação obrigatória de ambas as partes, emissão privada imutável com
+  hash e ligação comercial ao assinador e ao histórico do cliente, sem duplicar
+  títulos financeiros nem alterar os contratos institucionais.
+- Nenhuma migration remota ou publicação foi executada nesta etapa.
