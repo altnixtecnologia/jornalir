@@ -187,3 +187,57 @@ export async function previewCommercialContractAction(
     }) };
   } catch (error) { return { error: error instanceof Error ? error.message : "Erro ao conferir contratação." }; }
 }
+
+/**
+ * Escolha explícita de modelo jurídico versionado para pacote inteiro
+ * ou para o serviço individual. Não equivale à aprovação jurídica.
+ */
+export async function saveCommercialContractTemplateAction(
+  packageId: string, saleId: string, serviceId: string | null, templateId: string | null,
+): Promise<ActionResult> {
+  const denied = await checkModuleAction("publicidade", "contratos_preparar");
+  if (denied) return { error: denied };
+  try {
+    const client = createSupabaseServerClient();
+    const actor = await getAuditContext(client);
+    const { data: pkg, error: pkgError } = await client.from("commercial_contract_packages")
+      .select("id,document_mode").eq("id", id(packageId))
+      .eq("commercial_sale_id", id(saleId)).eq("status", "draft").maybeSingle();
+    if (pkgError || !pkg) throw new Error(pkgError?.message ?? "Contratação fechada ou inexistente.");
+    if (pkg.document_mode === "combined" && serviceId !== null)
+      throw new Error("Contrato único não recebe modelos por serviço.");
+    if (pkg.document_mode === "separate" && serviceId === null)
+      throw new Error("Selecione um serviço para atribuir o modelo individual.");
+
+    let query = client.from("commercial_contract_template_assignments")
+      .select("id").eq("package_id", pkg.id);
+    query = serviceId === null ? query.is("service_id", null) : query.eq("service_id", id(serviceId));
+    const { data: current, error: lookupError } = await query.maybeSingle();
+    if (lookupError) throw new Error(lookupError.message);
+
+    if (templateId) {
+      const value = id(templateId);
+      if (current) {
+        const { data, error } = await client.from("commercial_contract_template_assignments")
+          .update({ template_id: value, updated_at: new Date().toISOString() })
+          .eq("id", current.id).select("id").maybeSingle();
+        if (error || !data) throw new Error(error?.message ?? "Vínculo de modelo não atualizado.");
+      } else {
+        const { data, error } = await client.from("commercial_contract_template_assignments")
+          .insert({ package_id: pkg.id, service_id: serviceId ? id(serviceId) : null,
+            template_id: value, assigned_by: actor.actorId }).select("id").maybeSingle();
+        if (error || !data) throw new Error(error?.message ?? "Modelo não vinculado.");
+      }
+    } else if (current) {
+      const { error } = await client.from("commercial_contract_template_assignments")
+        .delete().eq("id", current.id);
+      if (error) throw new Error(error.message);
+    }
+    await recordAuditEventSupabase(client, {
+      userId: actor.actorId, entityType: "commercial_contract_package", entityId: pkg.id,
+      action: "set_template", metadata: { saleId, serviceId, templateId },
+    });
+    updateSalePage(saleId);
+    return { ok: true, packageId };
+  } catch (error) { return errorOf(error); }
+}
