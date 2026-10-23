@@ -297,9 +297,7 @@ begin
  if auth.uid() is null or not public.staff_can_module_action('publicidade','contratos_revisar') then
    raise exception 'Ação restrita a revisor comercial.' using errcode='42501';
  end if;
- if p_new_token_hash !~ '^[a-f0-9]{64}
- 'Tokens individuais com hash e evidências de aceite OTP. Sem vínculo institucional. Arquivos privados e hashes, não ICP-Brasil.';
- or length(btrim(coalesce(p_reason,''))) not between 20 and 1000 then
+ if p_new_token_hash !~ '^[a-f0-9]{64}$' or length(btrim(coalesce(p_reason,''))) not between 20 and 1000 then
    raise exception 'Novo token ou justificativa inválidos.' using errcode='23514';
  end if;
  select i.id,i.request_id,i.participant_id,i.status,r.status as request_status
