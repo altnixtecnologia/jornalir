@@ -167,7 +167,7 @@ export async function listUserInvitationStatuses(): Promise<
     const { data, error } = await admin.auth.admin.listUsers({ page, perPage });
     if (error || !data) return { error: "Não foi possível conferir o aceite dos convites." };
     statuses.push(...data.users.map((u) => ({
-      id: u.id, pending: Boolean(u.invited_at && !u.email_confirmed_at),
+      id: u.id, pending: !u.email_confirmed_at,
     })));
     if (data.users.length < perPage) return { ok: true, statuses };
   }
