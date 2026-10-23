@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
   prepareCommercialContractAction,
+  saveCommercialContractTemplateAction,
   previewCommercialContractAction,
   reviewCommercialContractAction,
   setCommercialContractModeAction,
@@ -29,6 +30,47 @@ export interface CommercialContractPackageView {
   services: CommercialContractServiceView[];
 }
 
+interface CommercialTemplateOption {
+  id: string;
+  title: string;
+  category: string;
+  version: number;
+}
+interface CommercialTemplateBinding {
+  serviceId: string | null;
+  templateId: string;
+}
+function TemplateChoice({
+  heading, options, selected, disabled, onSave,
+}: {
+  heading: string; options: CommercialTemplateOption[]; selected: string;
+  disabled: boolean; onSave: (id: string | null) => void;
+}): JSX.Element {
+  const [choice, setChoice] = useState(selected);
+  return (
+    <div className="form-grid">
+      <label className="form-field">
+        <span className="field-label">{heading}</span>
+        <select value={choice} disabled={disabled} onChange={(e) => setChoice(e.target.value)}>
+          <option value="">Nenhum modelo selecionado</option>
+          {options.map(t => <option key={t.id} value={t.id}>
+            {t.title} · v{t.version}
+          </option>)}
+        </select>
+      </label>
+      <div className="form-field">
+        <span className="field-label">Modelo jurídico</span>
+        <button type="button" disabled={disabled || choice === selected}
+          onClick={() => onSave(choice || null)}>Salvar modelo</button>
+      </div>
+      {options.length === 0 ? (
+        <p className="helper-text">Não há modelos ativos da categoria correspondente.
+          Cadastre um modelo versionado na área de Modelos de contrato antes de gerar o PDF.</p>
+      ) : null}
+    </div>
+  );
+}
+
 const modeNames = {
   combined: "Contrato único com todos os serviços",
   separate: "Documentos separados por serviço",
@@ -39,13 +81,15 @@ function currency(value: unknown): string {
 }
 
 export function CommercialContractPreparationPanel({
-  saleId, saleStatus, pkg, canPrepare, canReview, loadError,
+  saleId, saleStatus, pkg, canPrepare, canReview, templateOptions, templateAssignments, loadError,
 }: {
   saleId: string;
   saleStatus: string;
   pkg: CommercialContractPackageView | null;
   canPrepare: boolean;
   canReview: boolean;
+  templateOptions: CommercialTemplateOption[];
+  templateAssignments: CommercialTemplateBinding[];
   loadError?: string;
 }): JSX.Element {
   const router = useRouter();
@@ -140,6 +184,19 @@ export function CommercialContractPreparationPanel({
               </div>
             </div>
           ) : null}
+          {pkg.document_mode === "combined" ? (
+            <TemplateChoice
+              key={"combined-" + (templateAssignments.find(b => b.serviceId === null)?.templateId ?? "")}
+              heading="Modelo jurídico do contrato único"
+              options={templateOptions.filter(t => t.category.toLowerCase() === "commercial_combined")}
+              selected={templateAssignments.find(b => b.serviceId === null)?.templateId ?? ""}
+              disabled={!canPrepare || pkg.status !== "draft" || pending}
+              onSave={(templateId) => submit(
+                saveCommercialContractTemplateAction(pkg.id, saleId, null, templateId),
+                "Modelo vinculado à contratação para revisão.",
+              )}
+            />
+          ) : null}
           {pkg.services.map((service) => {
             const snapshot = service.source_snapshot;
             const price = snapshot.totalAmount;
@@ -166,6 +223,21 @@ export function CommercialContractPreparationPanel({
                   Modalidade: {service.service_channel} · {currency(price)}
                   {" · "}Quantidade: {typeof snapshot.quantity === "number" ? snapshot.quantity : "a conferir"}
                 </p>
+                {pkg.document_mode === "separate" ? (
+                  <TemplateChoice
+                    key={service.id + "-" + (templateAssignments.find(b => b.serviceId === service.id)?.templateId ?? "")}
+                    heading="Modelo jurídico para este serviço"
+                    options={templateOptions.filter(t =>
+                      ["commercial_generic", "commercial_" + service.service_channel.toLowerCase()].includes(t.category.toLowerCase())
+                    )}
+                    selected={templateAssignments.find(b => b.serviceId === service.id)?.templateId ?? ""}
+                    disabled={!canPrepare || pkg.status !== "draft" || pending}
+                    onSave={(templateId) => submit(
+                      saveCommercialContractTemplateAction(pkg.id, saleId, service.id, templateId),
+                      "Modelo individual vinculado à contratação.",
+                    )}
+                  />
+                ) : null}
                 <div className="form-grid">
                   <label className="form-field"><span className="field-label">Início do serviço</span>
                     <input type="date" name="startsOn" defaultValue={service.starts_on ?? ""} disabled={!canPrepare || pkg.status !== "draft"}/>
