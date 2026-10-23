@@ -55,3 +55,16 @@ test("documento sem serviços não é dado como pronto", () => {
   assert.deepEqual(result.missing, ["Serviços contratados"]);
   assert.equal(result.documents.length, 0);
 });
+
+test("valor de item ausente impede liberação da minuta", () => {
+  const broken = { ...sample, services: [
+    { ...sample.services[0], source_snapshot: { quantity: 1 } },
+  ] };
+  const result = buildCommercialContractPreview(broken);
+  assert.ok(result.missing.some(value => value.includes("valor negociado")));
+});
+
+test("valor total inválido impede liberação da minuta", () => {
+  const result = buildCommercialContractPreview({ ...sample, amount: Number.NaN });
+  assert.ok(result.missing.includes("Valor total da venda"));
+});
