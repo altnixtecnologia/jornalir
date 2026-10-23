@@ -17,7 +17,10 @@ drop policy if exists clients_delete_staff on public.clients;
 drop policy if exists client_roles_select_staff on public.client_roles;
 create policy client_roles_select_staff on public.client_roles for SELECT to authenticated using ((public.is_active_staff() and (public.staff_can_see_module('clientes') or public.staff_can_see_module('assinaturas') or public.staff_can_see_module('publicidade') or public.staff_can_see_module('financeiro'))));
 drop policy if exists client_roles_insert_staff on public.client_roles;
-create policy client_roles_insert_staff on public.client_roles for INSERT to authenticated with check ((public.is_active_staff() and (public.staff_can_module_action('clientes','clientes_criar') or public.staff_can_module_action('clientes','clientes_editar') or public.staff_can_module_action('assinaturas','assinaturas_criar') or public.staff_can_module_action('publicidade','vendas_criar') or public.staff_can_module_action('publicidade','propostas_aprovar'))));
+create policy client_roles_insert_staff on public.client_roles for INSERT to authenticated with check ((public.is_active_staff() and (public.staff_can_module_action('clientes','clientes_criar') or public.staff_can_module_action('clientes','clientes_editar')
+  or (role='assinante' and public.staff_can_module_action('assinaturas','assinaturas_criar'))
+  or (role='anunciante' and (public.staff_can_module_action('publicidade','vendas_criar')
+    or public.staff_can_module_action('publicidade','propostas_aprovar'))))));
 drop policy if exists client_roles_update_staff on public.client_roles;
 create policy client_roles_update_staff on public.client_roles for UPDATE to authenticated using ((public.is_active_staff() and (public.staff_can_module_action('clientes','clientes_editar')))) with check ((public.is_active_staff() and (public.staff_can_module_action('clientes','clientes_editar'))));
 drop policy if exists client_roles_delete_staff on public.client_roles;
@@ -122,6 +125,13 @@ begin
     raise exception 'Sem permissão para editar condições da proposta.' using errcode='42501';
   end if;
   if new.status is distinct from old.status then
+    if not (
+      (old.status='draft' and new.status in ('sent','approved','rejected','archived'))
+      or (old.status='sent' and new.status in ('approved','rejected','archived'))
+      or (old.status in ('approved','rejected') and new.status='archived')
+    ) then
+      raise exception 'Transição de proposta não permitida.' using errcode='23514';
+    end if;
     if new.status='approved' then
       if not public.staff_can_module_action('publicidade','propostas_aprovar') then
         raise exception 'Sem permissão para aprovar proposta.' using errcode='42501';
@@ -194,6 +204,14 @@ begin
     raise exception 'Origem da venda é imutável.' using errcode='42501';
   end if;
   if new.status is distinct from old.status then
+    if not (
+      (old.status='proposal' and new.status in ('approved','active','cancelled'))
+      or (old.status='approved' and new.status in ('active','completed','cancelled'))
+      or (old.status='active' and new.status in ('completed','cancelled'))
+      or (old.status='completed' and new.status='cancelled')
+    ) then
+      raise exception 'Transição de venda não permitida.' using errcode='23514';
+    end if;
     if old.status='cancelled' then
       raise exception 'Venda cancelada não pode ser reativada.' using errcode='42501';
     elsif new.status='cancelled' then
