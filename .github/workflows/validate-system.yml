@@ -62,6 +62,12 @@ jobs:
       - name: Testar renderização da minuta comercial
         run: npx tsx --test apps/sistema/test/commercial-legal-draft.test.ts
 
+      - name: Testar qualificação jurídica de clientes
+        run: npx tsx --test apps/sistema/test/commercial-qualification.test.ts
+
+      - name: Testar preço individual e preço total dos contratos
+        run: npx tsx --test apps/sistema/test/commercial-document-amount.test.ts
+
       - name: Signed contract PDF smoke test
         run: node apps/sistema/scripts/signatures-smoke.cjs
 
