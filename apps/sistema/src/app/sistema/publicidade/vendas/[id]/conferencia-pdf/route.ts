@@ -10,6 +10,7 @@ import {
 } from "../../../../../../lib/contracts/commercialContractPreview";
 import { renderCommercialLegalDraft } from "../../../../../../lib/contracts/commercialLegalDraft";
 import { qualifyCommercialClient } from "../../../../../../lib/contracts/commercialQualification";
+import { commercialDocumentAmount } from "../../../../../../lib/contracts/commercialDocumentAmount";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -105,8 +106,7 @@ export async function GET(
     const text = renderCommercialLegalDraft({
       templateText:template.content, reference:sale.reference,
       clientName:clientDisplayName(client),
-      totalPrice:(mode === "combined"
-        ? sale.amount : entries[serviceIndex]?.source_snapshot?.totalAmount as number)
+      totalPrice:commercialDocumentAmount(mode,sale.amount,entries[serviceIndex]?.source_snapshot)
         .toLocaleString("pt-BR",{style:"currency",currency:"BRL"}),
       document,
       qualification:qualification.variables,

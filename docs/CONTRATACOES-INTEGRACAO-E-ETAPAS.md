@@ -414,3 +414,11 @@ não assinável** com emissão definitiva ou aprovação jurídica.
   escolha em rascunho. Encaminhar não significa aprovação do modelo.
 - Esta proteção é aditiva ao RLS/trigger e precisa de ensaio autenticado na
   homologação. Não gera contrato definitivo nem cria signatários.
+
+## Etapa 2J — fonte única de preços por documento
+
+- `commercialDocumentAmount()` resolve valores do histórico de venda de modo
+  único e é usada tanto na rota PDF quanto na revisão jurídica.
+- Documento combinado usa o total aprovado; documento individual usa apenas
+  o valor negociado do item correspondente, sem rateio ou nova cobrança.
+- Testes cobrem vendas mistas, valores numéricos válidos, valor ausente e NaN.

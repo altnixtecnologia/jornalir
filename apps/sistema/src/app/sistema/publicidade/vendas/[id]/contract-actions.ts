@@ -10,6 +10,7 @@ import { getCommercialSaleService } from "../../../../../composition/comercial";
 import { clientDisplayName } from "@ir/types";
 import { qualifyCommercialClient } from "../../../../../lib/contracts/commercialQualification";
 import { renderCommercialLegalDraft } from "../../../../../lib/contracts/commercialLegalDraft";
+import { commercialDocumentAmount } from "../../../../../lib/contracts/commercialDocumentAmount";
 import {
   buildCommercialContractPreview, type CommercialPreviewResult,
   type CommercialServiceForPreview,
@@ -177,10 +178,10 @@ export async function reviewCommercialContractAction(
         .select("service_id,template_id,custom_values").eq("package_id", pkg.id);
       if (bindingError) throw new Error(bindingError.message);
       const docs = pkg.document_mode === "combined"
-        ? [{ index: 0, serviceId: null as string | null, channel: "combined", price: sale.amount }]
+        ? [{ index: 0, serviceId: null as string | null, channel: "combined", price: commercialDocumentAmount("combined",sale.amount) }]
         : (items ?? []).map((item, index) => ({
             index, serviceId: item.id as string, channel: item.service_channel as string,
-            price: item.source_snapshot?.totalAmount as number,
+            price: commercialDocumentAmount("separate",sale.amount,item.source_snapshot),
           }));
       const selected = docs.map(slot => ({
         ...slot, binding: (bindings ?? []).find(row => row.service_id === slot.serviceId),
