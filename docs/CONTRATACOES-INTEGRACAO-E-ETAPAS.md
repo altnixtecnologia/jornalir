@@ -400,3 +400,17 @@ não assinável** com emissão definitiva ou aprovação jurídica.
   documentos/endereço, vendas com descontos e modelos ativos por modalidade.
   A aprovação jurídica, emissão definitiva e assinador comercial continuam
   explicitamente bloqueados até implementação e testes próprios.
+
+## Etapa 2I — revisão comercial sem campos jurídicos faltantes (23/10/2026)
+
+- Modelo jurídico com variável declarada `required=true` agora precisa ter
+  valor não vazio, mesmo que o corpo do modelo não faça referência ao campo.
+- A Server Action de encaminhamento à revisão confere, para **todos** os
+  serviços/documentos: modelo correspondente, versão ativa e atual,
+  categoria compatível, qualificação jurídica, valores e preenchimento de
+  marcadores obrigatórios. Não basta existir vínculo no banco.
+- A rota da minuta em PDF aplica a mesma validação de variáveis declaradas.
+- Alterações de modelo após vínculo impedem conferência, exigindo nova
+  escolha em rascunho. Encaminhar não significa aprovação do modelo.
+- Esta proteção é aditiva ao RLS/trigger e precisa de ensaio autenticado na
+  homologação. Não gera contrato definitivo nem cria signatários.

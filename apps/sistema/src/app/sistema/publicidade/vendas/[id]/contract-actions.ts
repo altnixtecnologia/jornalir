@@ -9,6 +9,7 @@ import { getClientService } from "../../../../../composition/clientes";
 import { getCommercialSaleService } from "../../../../../composition/comercial";
 import { clientDisplayName } from "@ir/types";
 import { qualifyCommercialClient } from "../../../../../lib/contracts/commercialQualification";
+import { renderCommercialLegalDraft } from "../../../../../lib/contracts/commercialLegalDraft";
 import {
   buildCommercialContractPreview, type CommercialPreviewResult,
   type CommercialServiceForPreview,
@@ -152,7 +153,7 @@ export async function reviewCommercialContractAction(
         .eq("commercial_sale_id", id(saleId)).eq("status", "draft").maybeSingle();
       if (pkgError || !pkg) throw new Error(pkgError?.message ?? "Contratação indisponível para revisão.");
       const { data: items, error: itemsError } = await client.from("commercial_contract_services")
-        .select("item_ordinal,service_title,service_channel,source_snapshot,starts_on,ends_on,service_location,service_scope,execution_conditions")
+        .select("id,item_ordinal,service_title,service_channel,source_snapshot,starts_on,ends_on,service_location,service_scope,execution_conditions")
         .eq("package_id", pkg.id).order("item_ordinal");
       if (itemsError) throw new Error(itemsError.message);
       const [sale, customer] = await Promise.all([
@@ -168,6 +169,62 @@ export async function reviewCommercialContractAction(
       });
       const missing = [...qualification.missing, ...preview.missing];
       if (missing.length) throw new Error("Corrija antes de encaminhar à revisão: " + missing.join("; "));
+      // Conferir TODOS os documentos e variáveis antes da transição.
+      // O trigger do banco também exige vínculos, mas não valida valores
+      // textuais preenchidos no modelo. Nada aqui aprova cláusulas.
+      const { data: bindings, error: bindingError } = await client
+        .from("commercial_contract_template_assignments")
+        .select("service_id,template_id,custom_values").eq("package_id", pkg.id);
+      if (bindingError) throw new Error(bindingError.message);
+      const docs = pkg.document_mode === "combined"
+        ? [{ index: 0, serviceId: null as string | null, channel: "combined", price: sale.amount }]
+        : (items ?? []).map((item, index) => ({
+            index, serviceId: item.id as string, channel: item.service_channel as string,
+            price: item.source_snapshot?.totalAmount as number,
+          }));
+      const selected = docs.map(slot => ({
+        ...slot, binding: (bindings ?? []).find(row => row.service_id === slot.serviceId),
+      }));
+      if (selected.some(slot => !slot.binding) || (bindings ?? []).length !== docs.length) {
+        throw new Error("Selecione um modelo jurídico para cada documento antes da revisão.");
+      }
+      const templateIds = [...new Set(selected.map(slot => slot.binding!.template_id))];
+      const { data: modelRows, error: modelError } = await client.from("contract_templates")
+        .select("id,title,group_id,version,category,active,content,variables").in("id", templateIds);
+      if (modelError || (modelRows ?? []).length !== templateIds.length) {
+        throw new Error(modelError?.message ?? "Um modelo jurídico não está disponível.");
+      }
+      const models = new Map((modelRows ?? []).map(model => [model.id, model]));
+      const groupIds = [...new Set((modelRows ?? []).map(model => model.group_id))];
+      const { data: versions, error: versionError } = await client.from("contract_templates")
+        .select("group_id,version").in("group_id", groupIds);
+      if (versionError) throw new Error("Falha ao conferir a versão jurídica: " + versionError.message);
+      for (const slot of selected) {
+        const model = models.get(slot.binding!.template_id);
+        if (!model || !model.active ||
+          (versions ?? []).some(version => version.group_id === model.group_id && version.version > model.version)) {
+          throw new Error("Modelo jurídico inativo ou substituído. Retorne ao rascunho e revise a seleção.");
+        }
+        const category = String(model.category ?? "").trim().toLowerCase();
+        const expected = "commercial_" + slot.channel.trim().toLowerCase();
+        if (category !== expected && !(pkg.document_mode === "separate" && category === "commercial_generic")) {
+          throw new Error("Modelo jurídico incompatível com a modalidade " + slot.channel + ".");
+        }
+        const draft = renderCommercialLegalDraft({
+          templateText: model.content,
+          reference: sale.reference,
+          clientName: qualification.variables["cliente.nome"],
+          totalPrice: slot.price.toLocaleString("pt-BR",{style:"currency",currency:"BRL"}),
+          document: preview.documents[slot.index],
+          qualification: qualification.variables,
+          values: (slot.binding!.custom_values ?? {}) as Record<string,string>,
+          requiredVariables: Array.isArray(model.variables)
+            ? model.variables as Array<{key:string;label:string;required:boolean}> : [],
+        });
+        if (draft.missing.length) {
+          throw new Error("Modelo " + model.title + ": preencha " + draft.missing.join(", ") + ".");
+        }
+      }
     }
     const { data, error } = await client.from("commercial_contract_packages")
       .update({ status: to, updated_at: new Date().toISOString() })

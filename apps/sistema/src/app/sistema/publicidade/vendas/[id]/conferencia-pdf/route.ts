@@ -111,6 +111,8 @@ export async function GET(
       document,
       qualification:qualification.variables,
       values:(selected.custom_values ?? {}) as Record<string,string>,
+      requiredVariables:Array.isArray(template.variables)
+        ? template.variables as Array<{key:string;label:string;required:boolean}> : [],
     });
     if (text.missing.length) {
       return fail("Há campos no modelo que precisam ser preenchidos: " + text.missing.join(", "),422);

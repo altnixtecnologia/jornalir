@@ -71,3 +71,24 @@ test("variáveis legais do cadastro mestre prevalecem sobre campos livres",()=>{
  assert.match(result.text,/Razão Social Ltda\. \| 11222333000181 \| Rua Principal, 12/);
  assert.doesNotMatch(result.text,/Falso|00000000000000/);
 });
+
+test("campo do modelo marcado obrigatório bloqueia mesmo se não estiver no texto",()=>{
+ const result=renderCommercialLegalDraft({
+  templateText:"Contrato de prestação",reference:"IR-200",clientName:"Cliente",
+  totalPrice:"R$ 275,00",document,
+  requiredVariables:[{key:"prazo.pagamento",label:"Prazo de pagamento",required:true}],
+ });
+ assert.deepEqual(result.missing,["Prazo de pagamento"]);
+});
+test("campo obrigatório pode vir da qualificação, nunca de substituição manual",()=>{
+ const result=renderCommercialLegalDraft({
+  templateText:"{{cliente.documento}}",reference:"IR-200",clientName:"Cliente",
+  totalPrice:"R$ 275,00",document,
+  qualification:{"cliente.documento":"12345678909"},
+  values:{"cliente.documento":"00000000000"},
+  requiredVariables:[{key:"cliente.documento",label:"CPF/CNPJ",required:true}],
+ });
+ assert.deepEqual(result.missing,[]);
+ assert.match(result.text,/12345678909/);
+ assert.doesNotMatch(result.text,/00000000000/);
+});

@@ -13,6 +13,7 @@ export function renderCommercialLegalDraft(input: {
   document: CommercialPreviewDocument;
   values?: Record<string, string>;
   qualification?: Record<string, string>;
+  requiredVariables?: Array<{ key: string; label: string; required: boolean }>;
 }): { text: string; missing: string[] } {
   const predefined: Record<string,string> = {
     "cliente.nome": input.clientName.trim(),
@@ -32,6 +33,14 @@ export function renderCommercialLegalDraft(input: {
     if (!value?.trim()) missing.add(key);
     return value?.trim() ?? "";
   });
+  // Verifica campos marcados como obrigatórios mesmo quando o texto do
+  // modelo não faz referência explícita a eles (evita checklist falso).
+  for (const variable of input.requiredVariables ?? []) {
+    if (!variable.required) continue;
+    const value = Object.prototype.hasOwnProperty.call(predefined, variable.key)
+      ? predefined[variable.key] : allowedCustom[variable.key];
+    if (typeof value !== "string" || !value.trim()) missing.add(variable.label || variable.key);
+  }
   // Modelos que contêm marcação malformada ou tokens não suportados não
   // podem gerar um PDF assinável nem uma minuta sem alerta.
   // Detectar delimitadores isolados, aninhados ou inválidos, inclusive espaços.
