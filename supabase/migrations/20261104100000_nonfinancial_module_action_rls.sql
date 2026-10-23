@@ -113,6 +113,8 @@ create or replace function public.enforce_commercial_proposal_actions()
 returns trigger language plpgsql set search_path=''
 as $$
 begin
+  -- Mesmo lock dos itens: aprovação e edição de itens não se cruzam.
+  perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(new.id::text,8371));
   if (select auth.uid()) is null or public.is_active_admin_or_owner() then return new; end if;
   if (to_jsonb(new) - 'status' - 'converted_sale_id' - 'updated_by' - 'updated_at')
     is distinct from (to_jsonb(old) - 'status' - 'converted_sale_id' - 'updated_by' - 'updated_at')
@@ -150,8 +152,12 @@ as $$
 declare v_parent public.commercial_proposals%rowtype;
 begin
   if (select auth.uid()) is null or public.is_active_admin_or_owner() then return coalesce(new,old); end if;
+  -- Lock transacional compatível com permissão somente de CRIAR;
+  -- SELECT FOR UPDATE exigiria política de UPDATE no cabeçalho.
+  perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(
+    (case when TG_OP='DELETE' then old.proposal_id else new.proposal_id end)::text,8371));
   select * into v_parent from public.commercial_proposals
-    where id=case when TG_OP='DELETE' then old.proposal_id else new.proposal_id end for update;
+    where id=case when TG_OP='DELETE' then old.proposal_id else new.proposal_id end;
   if v_parent.id is null or v_parent.status not in ('draft','sent') then
     raise exception 'Itens de proposta aprovada/arquivada não podem ser alterados.' using errcode='42501';
   end if;
