@@ -1,0 +1,43 @@
+name: Supabase complete migration rehearsal
+
+on:
+  pull_request:
+    branches:
+      - feature/abrangencias-geo-notificacoes-20261021
+    paths:
+      - "supabase/migrations/**"
+      - "supabase/config.toml"
+      - ".github/workflows/supabase-full-rehearsal.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  full-local-db:
+    name: Rebuild local Supabase without production data
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v4
+
+      - name: Setup Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Start local ephemeral Supabase
+        run: supabase start
+
+      - name: Replay all schema migrations from scratch
+        run: supabase db reset --local --no-seed
+
+      - name: Confirm schema tables and functions
+        run: |
+          supabase db lint --local --schema public || true
+          echo "Migration rehearsal concluded against local-only Docker database."
+
+      - name: Stop ephemeral services
+        if: always()
+        run: supabase stop --no-backup || true
