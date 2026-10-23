@@ -14,6 +14,7 @@ export function renderCommercialLegalDraft(input: {
   values?: Record<string, string>;
   qualification?: Record<string, string>;
   requiredVariables?: Array<{ key: string; label: string; required: boolean }>;
+  final?: boolean;
 }): { text: string; missing: string[] } {
   const predefined: Record<string,string> = {
     "cliente.nome": input.clientName.trim(),
@@ -54,8 +55,10 @@ export function renderCommercialLegalDraft(input: {
   if (!input.templateText.trim()) missing.add("conteúdo do modelo");
   if (!input.document.text.trim()) missing.add("detalhes dos serviços");
   const text = [
-    "MINUTA PARA CONFERÊNCIA JURÍDICA — NÃO ASSINAR",
-    "DOCUMENTO NÃO EMITIDO; NÃO CONSTITUI CONTRATO CELEBRADO.",
+    ...(input.final ? [] : [
+      "MINUTA PARA CONFERÊNCIA JURÍDICA — NÃO ASSINAR",
+      "DOCUMENTO NÃO EMITIDO; NÃO CONSTITUI CONTRATO CELEBRADO.",
+    ]),
     rendered,
     "ANEXO OPERACIONAL — DADOS DA VENDA E DOS SERVIÇOS",
     input.document.text,

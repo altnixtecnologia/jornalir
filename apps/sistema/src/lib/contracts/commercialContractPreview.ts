@@ -43,7 +43,7 @@ const DRAFT_NOTICE =
   "Cláusulas jurídicas, responsabilidades, rescisão, multa, foro e aceite " +
   "devem ser aprovados e inseridos no modelo jurídico versionado antes da emissão.";
 
-export function buildCommercialContractPreview(input: CommercialPreviewInput): CommercialPreviewResult {
+export function buildCommercialContractPreview(input: CommercialPreviewInput, options: { forLegalInstrument?: boolean } = {}): CommercialPreviewResult {
   const missing: string[] = [];
   if (!normal(input.reference)) missing.push("Referência da venda");
   if (!normal(input.clientName)) missing.push("Nome do contratante");
@@ -80,8 +80,8 @@ export function buildCommercialContractPreview(input: CommercialPreviewInput): C
     ].join("\n");
   });
   const common = [
-    DRAFT_NOTICE,
-    "Venda: " + (normal(input.reference) || "PENDENTE"),
+    ...(options.forLegalInstrument ? [] : [DRAFT_NOTICE]),
+    "Venda:  + (normal(input.reference) || "PENDENTE"),
     "Contratante: " + (normal(input.clientName) || "PENDENTE"),
   ].join("\n");
   const documents = input.mode === "combined"
