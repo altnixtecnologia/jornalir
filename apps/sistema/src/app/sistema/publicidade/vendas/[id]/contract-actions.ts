@@ -266,13 +266,14 @@ export async function previewCommercialContractAction(
       getClientService(client).getById(pkg.client_id),
     ]);
     if (sale.clientId !== pkg.client_id) throw new Error("Cliente da contratação não corresponde à venda.");
+    const qualification = qualifyCommercialClient(customer);
     const preview = buildCommercialContractPreview({
-      reference: sale.reference, clientName: clientDisplayName(customer),
+      reference: sale.reference, clientName: qualification.variables["cliente.nome"],
       amount: sale.amount, mode: pkg.document_mode as "combined" | "separate",
       services: (services ?? []) as CommercialServiceForPreview[],
     });
     return { ok: true, preview: {
-      ...preview, missing: [...preview.missing, ...qualifyCommercialClient(customer).missing],
+      ...preview, missing: [...preview.missing, ...qualification.missing],
     } };
   } catch (error) { return { error: error instanceof Error ? error.message : "Erro ao conferir contratação." }; }
 }
