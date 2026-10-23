@@ -78,7 +78,8 @@ export default async function CommercialSaleDetailPage({ params }: { params: { i
     : null;
   const signerPreparationsResult = pkg && canReview.data === true
     ? await supabase.from("commercial_signature_preparations")
-      .select("id,document_id,status,commercial_signature_participants(id,signer_role,signer_name,signer_email,signing_order)")
+      .select("id,document_id,status,commercial_signature_participants(id,signer_role,signer_name,signer_email,signer_phone,signing_order)")
+      .eq("status","draft")
       .in("document_id",(issuedDocumentsResult?.data??[]).map(document=>document.id).length
         ? (issuedDocumentsResult?.data??[]).map(document=>document.id) : ["00000000-0000-0000-0000-000000000000"])
     : null;
