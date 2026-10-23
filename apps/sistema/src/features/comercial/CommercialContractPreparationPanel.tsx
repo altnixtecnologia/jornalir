@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
   prepareCommercialContractAction,
+  previewCommercialContractAction,
   reviewCommercialContractAction,
   setCommercialContractModeAction,
   updateCommercialContractTermsAction,
@@ -52,6 +53,21 @@ export function CommercialContractPreparationPanel({
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [mode, setMode] = useState<"combined" | "separate">(pkg?.document_mode ?? "combined");
+  const [preview, setPreview] = useState<{ documents: { title: string; text: string }[]; missing: string[] } | null>(null);
+  const [previewBusy, setPreviewBusy] = useState(false);
+
+  async function showPreview(): Promise<void> {
+    if (!pkg || previewBusy) return;
+    setPreviewBusy(true); setError(""); setNotice(""); setPreview(null);
+    try {
+      const result = await previewCommercialContractAction(pkg.id, saleId);
+      if ("error" in result) setError(result.error);
+      else setPreview(result.preview);
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Não foi possível montar a prévia.");
+    } finally { setPreviewBusy(false); }
+  }
+
 
   function submit(action: Promise<{ error: string } | { ok: true; packageId: string }>, message: string): void {
     startTransition(async () => {
@@ -190,6 +206,32 @@ export function CommercialContractPreparationPanel({
                   submit(reviewCommercialContractAction(pkg.id, saleId, "draft"), "Devolvido para ajustes.")
                 }>Devolver para ajustes</button>
               )}
+            </div>
+          ) : null}
+          <div className="form-actions">
+            <button type="button" disabled={pending || previewBusy || !canPrepare}
+              onClick={() => void showPreview()}>
+              {previewBusy ? "Montando conferência…" : "Visualizar conferência dos serviços"}
+            </button>
+          </div>
+          {preview ? (
+            <div className="form-section" aria-live="polite">
+              <h3>Prévia operacional — NÃO É CONTRATO PARA ASSINATURA</h3>
+              <p className="helper-text">Nenhum PDF ou documento foi salvo. Os preços vêm da venda e os prazos são específicos de cada serviço.</p>
+              {preview.missing.length > 0 ? (
+                <div role="status">
+                  <strong>Campos pendentes ({preview.missing.length})</strong>
+                  <ul>{preview.missing.map((item, index) => <li key={index}>{item}</li>)}</ul>
+                </div>
+              ) : <p className="helper-text">Dados operacionais conferidos. Ainda faltam cláusulas jurídicas e modelo aprovado.</p>}
+              {preview.documents.map((doc, index) => (
+                <div key={index} className="form-section">
+                  <strong>{doc.title}</strong>
+                  <pre style={{ whiteSpace: "pre-wrap", overflowWrap: "anywhere", fontFamily: "inherit", lineHeight: 1.6 }}>
+                    {doc.text}
+                  </pre>
+                </div>
+              ))}
             </div>
           ) : null}
           <p className="helper-text">
