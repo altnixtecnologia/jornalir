@@ -522,3 +522,45 @@ reais e sem assinatura eletrônica comercial habilitada.**
   `contract_signature_invitations` institucional por atalho.
 - CI: execução de testes de validação de signatários e verificação de RLS
   no replay completo do Supabase descartável. Ainda **sem E2E real**.
+
+## Etapa 3E — assinatura comercial completa em código (23/10/2026)
+
+**PR #15 apenas homologação. Não utilizar com destinatários reais, não
+enviar OTP, não aplicar migrations no projeto remoto e não fazer deploy.**
+
+- Migration `20261113100000_commercial_signature_workflow.sql` cria
+  `commercial_signature_requests` e `commercial_signature_invitations`
+  SEPARADAS de `institutional_contracts` e seus convites.
+- Revisor comercial gera de uma a dez referências individuais para
+  participantes já conferidos. O token criptograficamente aleatório
+  de 32 bytes é devolvido uma única vez ao operador; somente SHA-256
+  fica no banco. Link é manual, nunca enviado automaticamente.
+- Convite só serve dentro de sete dias e enquanto a rodada estiver
+  pendente. O signatário lê o PDF privado original cujo hash é conferido,
+  recebe OTP pelo e-mail cadastrado e confirma código usando Supabase Auth
+  com template `{{ .Token }}`. Uma sessão com e-mail diferente é rejeitada.
+- Confirmação é gravada por função exclusiva `service_role` com identidade
+  do Auth; válida por até 20 minutos. Aceite exige identidade, consentimento
+  explícito e imagem não vazia da assinatura.
+- RPCs de reivindicação/finalização bloqueiam simultaneidade e forçam
+  ordem de signatários. Cada PDF posterior inclui a evidência de todos
+  os participantes que assinaram antes. Só a última assinatura marca a
+  rodada `completed`.
+- Evidências: imagem JPEG, comprovante PDF, versão cumulativa assinada e
+  SHA-256, metadados técnicos e data de aceite. Não há certificação PAdES
+  ou ICP-Brasil. O PDF jurídico original permanece intocado.
+- Rota interna restrita baixa PDF final, comprovantes por participante e
+  PDFs de cada aceite, verificando hash. O storage permanece privado.
+- Substituição de links é manual: revoga token anterior, exige motivo
+  e preserva `previous_invitation_id`/justificativa. Convite assinado
+  não pode ser reemitido. Configuração de WhatsApp não é utilizada neste
+  fluxo até ter opt-in e template aprovados.
+- Requisitos de produção (ainda pendentes): ensaios end-to-end reais
+  autenticados em **homologação** com dois signatários, token expirado,
+  reemissão e concorrência; confirmar SMTP/Auth OTP, limites por IP,
+  resiliência de uploads órfãos após falha parcial, retenção/LGPD e
+  revisão jurídica dos contratos e texto de consentimento. Só depois
+  liberar uso e assinaturas reais.
+- A suíte CI cobre TypeScript, compilação Next, migrations do Supabase
+  local e restrições RLS. Ela não substitui assinatura real com duas
+  identidades nem envio real de e-mail.

@@ -514,3 +514,25 @@ A versão de sistema da Agenda/Pauta foi publicada na Vercel PRODUCTION, deploym
 - Teste automatizado adicionado para a regra de troca de capa.
 - **Pendente QA visual real**: zoom/arrastar/alça no Chrome desktop e
   comparação mobile para detectar regressão. Não publicado.
+
+## 23/10/2026 — PR #15, fluxo comercial de assinatura eletrônica (isolado)
+
+- Implementado na branch `feature/homologacao-integrada-ir-20261023`.
+  Arquivos: `supabase/migrations/20261113100000_commercial_signature_workflow.sql`,
+  `apps/sistema/src/lib/signatures/commercialSignatures.ts`,
+  `apps/sistema/src/app/assinar-contrato-comercial/`,
+  `apps/sistema/src/app/api/assinar-contrato-comercial/`,
+  `apps/sistema/src/features/comercial/CommercialContractSignerCanvas.tsx`,
+  `CommercialSignatureRequestsPanel.tsx` e novas rotas de evidências.
+- Fluxo: revisor confere PDF e participantes -> cria rodada de convites
+  individuais -> operador copia link uma única vez (sem envio) ->
+  signatário confere PDF original, recebe OTP e confirma o e-mail ->
+  desenha assinatura e aceita termo -> serviço gera comprovante e PDF
+  cumulativo com SHA-256 -> próximo signatário pode assinar ->
+  último conclui rodada. Links podem ser substituídos com justificativa;
+  os anteriores são revogados.
+- Dados institucionais permanecem separados. Não produz PIX, faturas,
+  envios automáticos, NFSe ou efeitos externos.
+- **Condição de entrega:** aguardar três workflows verdes do commit
+  final; ensaio de assinaturas reais em homologação e revisão jurídica
+  ainda necessários. Migrar em produção/publicar só com autorização.
