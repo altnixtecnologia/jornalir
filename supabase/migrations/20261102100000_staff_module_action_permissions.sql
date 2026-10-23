@@ -14,7 +14,7 @@ create table if not exists public.staff_module_action_permissions (
     (module_key = 'editorial' and action_key in ('materias_criar', 'materias_editar', 'materias_publicar', 'materias_arquivar', 'midias_gerenciar', 'edicoes_gerenciar'))
     or     (module_key = 'clientes' and action_key in ('clientes_criar', 'clientes_editar'))
     or     (module_key = 'assinaturas' and action_key in ('assinaturas_criar', 'assinaturas_editar', 'assinaturas_suspender', 'assinaturas_cancelar'))
-    or     (module_key = 'publicidade' and action_key in ('produtos_gerenciar', 'propostas_criar', 'propostas_editar', 'propostas_aprovar', 'vendas_criar', 'vendas_editar', 'vendas_cancelar'))
+    or     (module_key = 'publicidade' and action_key in ('produtos_gerenciar', 'propostas_criar', 'propostas_editar', 'propostas_aprovar', 'vendas_criar', 'vendas_editar', 'vendas_cancelar', 'locacao_equipamentos_gerenciar', 'locacao_reservas_gerenciar', 'locacao_vistorias_registrar'))
     or     (module_key = 'nfse' and action_key in ('rascunhos_criar', 'rascunhos_editar', 'notas_emitir', 'notas_cancelar', 'configuracoes_gerenciar', 'perfis_servico_gerenciar'))
     or     (module_key = 'aniversariantes' and action_key in ('aniversariantes_gerenciar', 'mensagens_gerenciar'))
   )
