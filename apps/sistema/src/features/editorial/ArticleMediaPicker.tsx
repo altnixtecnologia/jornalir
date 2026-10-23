@@ -5,7 +5,7 @@ import { ArticleImageEditorModal } from "./ArticleImageEditorModal";
 import { PreUploadImageCrop } from "./PreUploadImageCrop";
 import styles from "./ArticleMediaPicker.module.css";
 
-type MediaIcon = "view" | "edit" | "replace" | "remove" | "help";
+type MediaIcon = "view" | "edit" | "replace" | "remove" | "help" | "cover";
 function MediaActionIcon({ kind }: { kind: MediaIcon }): JSX.Element {
   const shapes: Record<MediaIcon, JSX.Element> = {
     view: <><path d="M2 12s3.7-6 10-6 10 6 10 6-3.7 6-10 6-10-6-10-6Z" /><circle cx="12" cy="12" r="3" /></>,
@@ -13,6 +13,7 @@ function MediaActionIcon({ kind }: { kind: MediaIcon }): JSX.Element {
     replace: <><path d="M20 7H8l3-3M8 7l3 3M4 17h12l-3-3M16 17l-3 3" /><path d="M17 4h3v6M7 20H4v-6" /></>,
     remove: <><path d="M3 6h18M8 6V4h8v2M6 6l1 15h10l1-15M10 10v7M14 10v7" /></>,
     help: <><circle cx="12" cy="12" r="10" /><path d="M12 11v6M12 7h.01" /></>,
+    cover: <path d="m12 2 3.1 6.3 7 1-5.05 4.92 1.2 6.96L12 17.9l-6.25 3.28 1.2-6.96L1.9 9.3l7-1L12 2Z" />,
   };
   return <svg aria-hidden="true" width="19" height="19" viewBox="0 0 24 24"
     fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
@@ -410,6 +411,7 @@ export function ArticleMediaPicker({
                   <button type="button" onClick={() => setShowActionHelp(false)}
                     aria-label="Fechar ajuda" title="Fechar">×</button>
                 </div>
+                <div className={styles.helpPopoverRow}><MediaActionIcon kind="cover" /><span>Definir como capa da matéria</span></div>
                 <div className={styles.helpPopoverRow}><MediaActionIcon kind="view" /><span>Visualizar</span></div>
                 <div className={styles.helpPopoverRow}><MediaActionIcon kind="edit" /><span>Ajustar / recortar</span></div>
                 <div className={styles.helpPopoverRow}><MediaActionIcon kind="replace" /><span>Substituir</span></div>
@@ -427,7 +429,7 @@ export function ArticleMediaPicker({
             {orderedMedia.map((item, index) => {
               const asset = assetById.get(item.mediaAssetId);
               if (!asset) return null;
-              const isCover = index === 0;
+              const isCover = item.role === "cover";
 
               return (
                 <li
@@ -491,6 +493,14 @@ export function ArticleMediaPicker({
                   />
 
                   <div className="article-media-row-actions">
+                    <button type="button" className="article-media-view article-media-cover-action"
+                      aria-pressed={isCover}
+                      aria-label={isCover ? `Capa atual: ${asset.reference}` : `Definir ${asset.reference} como capa`}
+                      title={isCover ? "Esta é a capa da matéria" : "Definir esta foto como capa"}
+                      disabled={isCover || editLoading || uploading || Boolean(replacing)}
+                      onClick={() => onSetCover(item.mediaAssetId)}>
+                      <MediaActionIcon kind="cover" />
+                    </button>
                     <button type="button" className="article-media-view" disabled={editLoading || uploading || Boolean(replacing)}
                       onClick={() => setViewerTarget({ role: item.role, order: item.order, mediaAssetId: item.mediaAssetId })}
                       aria-label={`Visualizar ${asset.reference}`} title="Visualizar imagem">
