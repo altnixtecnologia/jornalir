@@ -44,7 +44,25 @@ export default async function CommercialSaleDetailPage({ params }: { params: { i
       .select("id,item_ordinal,source_snapshot,service_channel,service_title,starts_on,ends_on,service_location,service_scope,execution_conditions")
       .eq("package_id", pkg.id).order("item_ordinal")
     : null;
+  const [assignmentResult, templateResult] = pkg && (canPrepare.data === true || canReview.data === true)
+    ? await Promise.all([
+      supabase.from("commercial_contract_template_assignments")
+        .select("service_id,template_id").eq("package_id",pkg.id),
+      supabase.from("contract_templates")
+        .select("id,group_id,version,title,category,active")
+        .like("category","commercial_%")
+        .order("version",{ascending:false}),
+    ]) : [null,null];
+  // Somente a versão mais recente de cada família de modelos pode
+  // ser selecionada. A RLS e o trigger repetem esta validação.
+  const templateFamilies = new Set<string>();
+  const templates = (templateResult?.data ?? []).filter(template => {
+    if (templateFamilies.has(template.group_id)) return false;
+    templateFamilies.add(template.group_id);
+    return template.active === true;
+  });
   const contractLoadError = contractResult.error?.message ?? termsResult?.error?.message
+    ?? assignmentResult?.error?.message ?? templateResult?.error?.message
     ?? canPrepare.error?.message ?? canReview.error?.message;
 
   const financialStatus = deriveCommercialSaleFinancialStatus(receivables);
@@ -72,6 +90,10 @@ export default async function CommercialSaleDetailPage({ params }: { params: { i
         } : null}
         canPrepare={canPrepare.data === true}
         canReview={canReview.data === true}
+        templateOptions={templates.map(({id,title,category,version})=>({id,title,category:category??"",version}))}
+        templateAssignments={(assignmentResult?.data ?? []).map(({service_id,template_id})=>({
+          serviceId:service_id??null,templateId:template_id,
+        }))}
         loadError={contractLoadError}
       />
     </>
