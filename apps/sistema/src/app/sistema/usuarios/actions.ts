@@ -159,8 +159,9 @@ export async function updateManagedUserName(profileId: string, name: string): Pr
     user_metadata: { name: clean },
   });
   if (metadataError) {
+    // profiles.name é a fonte de verdade do painel. Uma falha secundária
+    // do Auth não deve esconder uma alteração que já foi persistida.
     console.error("Falha ao sincronizar nome no Auth:", metadataError.code);
-    return { error: "Nome atualizado no sistema, mas não foi possível sincronizar os dados do Auth. Tente novamente." };
   }
   await recordAuditEventSupabase(client, {
     userId: manager.id, entityType: "users", entityId: profileId,
