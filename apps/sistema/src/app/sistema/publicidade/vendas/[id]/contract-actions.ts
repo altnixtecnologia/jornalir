@@ -5,6 +5,13 @@ import { createSupabaseServerClient } from "../../../../../lib/supabase/server";
 import { checkModuleAction } from "../../../../../lib/permissions/checkModuleAction";
 import { getAuditContext } from "../../../../../lib/auth/getAuditContext";
 import { recordAuditEventSupabase } from "../../../../../providers/supabase/auditEvents.supabase";
+import { getClientService } from "../../../../../composition/clientes";
+import { getCommercialSaleService } from "../../../../../composition/comercial";
+import { clientDisplayName } from "@ir/types";
+import {
+  buildCommercialContractPreview, type CommercialPreviewResult,
+  type CommercialServiceForPreview,
+} from "../../../../../lib/contracts/commercialContractPreview";
 
 type ActionResult = { error: string } | { ok: true; packageId: string };
 const SALES_PATH = "/sistema/publicidade/vendas";
@@ -147,4 +154,33 @@ export async function reviewCommercialContractAction(
     updateSalePage(saleId);
     return { ok: true, packageId };
   } catch (error) { return errorOf(error); }
+}
+
+/** Não grava documentos, não chama PDF ou assinador; somente retorna conferência. */
+export async function previewCommercialContractAction(
+  packageId: string, saleId: string,
+): Promise<{ ok: true; preview: CommercialPreviewResult } | { error: string }> {
+  const denied = await checkModuleAction("publicidade", "contratos_preparar");
+  if (denied) return { error: denied };
+  try {
+    const client = createSupabaseServerClient();
+    const { data: pkg, error: pkgError } = await client.from("commercial_contract_packages")
+      .select("id,commercial_sale_id,client_id,document_mode")
+      .eq("id", id(packageId)).eq("commercial_sale_id", id(saleId)).maybeSingle();
+    if (pkgError || !pkg) throw new Error(pkgError?.message ?? "Contratação não encontrada.");
+    const { data: services, error: listError } = await client.from("commercial_contract_services")
+      .select("item_ordinal,service_title,service_channel,source_snapshot,starts_on,ends_on,service_location,service_scope,execution_conditions")
+      .eq("package_id",pkg.id).order("item_ordinal");
+    if (listError) throw new Error(listError.message);
+    const [sale, customer] = await Promise.all([
+      getCommercialSaleService(client).getById(saleId),
+      getClientService(client).getById(pkg.client_id),
+    ]);
+    if (sale.clientId !== pkg.client_id) throw new Error("Cliente da contratação não corresponde à venda.");
+    return { ok: true, preview: buildCommercialContractPreview({
+      reference: sale.reference, clientName: clientDisplayName(customer),
+      amount: sale.amount, mode: pkg.document_mode as "combined" | "separate",
+      services: (services ?? []) as CommercialServiceForPreview[],
+    }) };
+  } catch (error) { return { error: error instanceof Error ? error.message : "Erro ao conferir contratação." }; }
 }
