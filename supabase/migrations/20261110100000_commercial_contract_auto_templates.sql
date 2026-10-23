@@ -179,5 +179,72 @@ $$;
 revoke all on function public.set_commercial_contract_document_mode(uuid,text) from public,anon;
 grant execute on function public.set_commercial_contract_document_mode(uuid,text) to authenticated;
 
+-- A aprovação da venda prepara o RASCUNHO automaticamente, sem emitir
+-- contrato jurídico ou assinatura. Esse trigger só reage à transição
+-- para approved/active, não cria novamente ao editar uma venda ativa.
+create or replace function public.create_commercial_draft_on_approval()
+returns trigger language plpgsql security definer set search_path=''
+as $
+declare
+ v_package_id uuid;
+ v_mode text;
+ v_item jsonb;
+ v_ordinal bigint;
+begin
+ if new.status not in ('approved','active') then return new; end if;
+ if TG_OP='UPDATE' and old.status in ('approved','active') then return new; end if;
+ if exists(select 1 from public.commercial_contract_packages
+           where commercial_sale_id=new.id) then return new; end if;
+
+ v_mode:=case
+   when new.items_snapshot is not null
+      and pg_catalog.jsonb_array_length(new.items_snapshot)>1
+   then 'combined' else 'separate' end;
+ insert into public.commercial_contract_packages(
+   commercial_sale_id,client_id,document_mode,created_by
+ ) values (new.id,new.client_id,v_mode,auth.uid())
+ on conflict (commercial_sale_id) do nothing returning id into v_package_id;
+ if v_package_id is null then return new; end if;
+ if new.items_snapshot is not null then
+   for v_item,v_ordinal in
+     select value,ordinality from pg_catalog.jsonb_array_elements(new.items_snapshot) with ordinality
+   loop
+     insert into public.commercial_contract_services(
+       package_id,item_ordinal,source_snapshot,service_channel,service_title
+     ) values(
+       v_package_id,(v_ordinal-1)::integer,v_item,
+       coalesce(nullif(v_item->>'serviceChannel',''),'other'),
+       coalesce(nullif(v_item->>'productName',''),
+                nullif(v_item->>'description',''),'Serviço sem nome')
+     );
+   end loop;
+ else
+   insert into public.commercial_contract_services(
+     package_id,item_ordinal,source_snapshot,service_channel,service_title
+   ) values(
+     v_package_id,0,
+     pg_catalog.jsonb_build_object(
+       'origin','single_sale','productId',new.product_id,
+       'description',new.description,'serviceChannel',new.channel,
+       'totalAmount',new.amount,'quantity',1),
+     coalesce(new.channel,'other'),
+     coalesce(nullif(new.description,''),'Venda avulsa')
+   );
+ end if;
+
+ -- A autorização comercial de aprovar a venda não pressupõe permissão
+ -- para editar contratos. O rascunho nasce para ambos os perfis;
+ -- o modelo é atribuído quando o mesmo operador tem permissão de
+ -- preparação, senão quando um preparador abrir/retomar a contratação.
+ if public.staff_can_module_action('publicidade','contratos_preparar') then
+   perform public.assign_commercial_contract_default_templates(v_package_id);
+ end if;
+ return new;
+end;
+$;
+create trigger commercial_sales_prepare_contract_draft
+after insert or update of status on public.commercial_sales
+for each row execute function public.create_commercial_draft_on_approval();
+
 comment on function public.assign_commercial_contract_default_templates(uuid) is
  'Sugere automaticamente modelo ativo da ultima versao pelo serviço, sem substituir escolha humana; ambiguidades ficam pendentes.';
