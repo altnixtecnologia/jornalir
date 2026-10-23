@@ -34,6 +34,12 @@ export interface CommercialContractPackageView {
   services: CommercialContractServiceView[];
 }
 
+interface CommercialReviewEventView {
+  id: string;
+  event_type: "approved" | "reopened";
+  note: string;
+  occurred_at: string;
+}
 interface CommercialIssuedDocumentView {
   id: string;
   service_id: string | null;
@@ -117,7 +123,7 @@ function currency(value: unknown): string {
 }
 
 export function CommercialContractPreparationPanel({
-  saleId, clientId, saleStatus, defaultMode, pkg, canPrepare, canReview, templateOptions, templateAssignments, issuedDocuments, loadError,
+  saleId, clientId, saleStatus, defaultMode, pkg, canPrepare, canReview, templateOptions, templateAssignments, issuedDocuments, reviewEvents, loadError,
 }: {
   saleId: string;
   clientId: string;
@@ -129,6 +135,7 @@ export function CommercialContractPreparationPanel({
   templateOptions: CommercialTemplateOption[];
   templateAssignments: CommercialTemplateBinding[];
   issuedDocuments: CommercialIssuedDocumentView[];
+  reviewEvents: CommercialReviewEventView[];
   loadError?: string;
 }): JSX.Element {
   const router = useRouter();
@@ -413,6 +420,20 @@ export function CommercialContractPreparationPanel({
                   "Aprovação reaberta antes da emissão; ajuste e encaminhe novamente.")}>
                 Reabrir para ajustes
               </button>
+            </div>
+          ) : null}
+          {canReview && reviewEvents.length > 0 ? (
+            <div className="form-section">
+              <h3>Histórico da conferência jurídica</h3>
+              <ul className="helper-text">
+                {reviewEvents.map(event=>(
+                  <li key={event.id}>
+                    {event.event_type === "approved" ? "Aprovação" : "Reabertura para correções"}
+                    {" "}— {new Date(event.occurred_at).toLocaleString("pt-BR")}:
+                    {" "}{event.note}
+                  </li>
+                ))}
+              </ul>
             </div>
           ) : null}
           {issuedDocuments.length > 0 ? (

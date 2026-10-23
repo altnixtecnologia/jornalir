@@ -70,6 +70,11 @@ export default async function CommercialSaleDetailPage({ params }: { params: { i
       .select("id,service_id,title,template_version,sha256,issued_at")
       .eq("package_id", pkg.id).order("issued_at", {ascending:false})
     : null;
+  const reviewEventsResult = pkg && canReview.data === true
+    ? await supabase.from("commercial_contract_review_events")
+      .select("id,event_type,note,occurred_at")
+      .eq("package_id",pkg.id).order("occurred_at",{ascending:false})
+    : null;
   const financialStatus = deriveCommercialSaleFinancialStatus(receivables);
 
   return (
@@ -98,6 +103,7 @@ export default async function CommercialSaleDetailPage({ params }: { params: { i
         canPrepare={canPrepare.data === true}
         canReview={canReview.data === true}
         issuedDocuments={issuedDocumentsResult?.data ?? []}
+        reviewEvents={reviewEventsResult?.data ?? []}
         templateOptions={templates.map(({id,title,category,version,variables})=>({
           id,title,category:category??"",version,
           variables: (Array.isArray(variables) ? variables : []) as { key:string; label:string; required:boolean }[],
@@ -106,7 +112,7 @@ export default async function CommercialSaleDetailPage({ params }: { params: { i
           serviceId:service_id??null,templateId:template_id,
           values: (custom_values ?? {}) as Record<string,string>,
         }))}
-        loadError={contractLoadError ?? issuedDocumentsResult?.error?.message}
+        loadError={contractLoadError ?? issuedDocumentsResult?.error?.message ?? reviewEventsResult?.error?.message}
       />
     </>
   );
