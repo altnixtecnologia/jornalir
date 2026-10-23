@@ -13,7 +13,7 @@ interface AuditViewerGrantRow { profile_id: string; can_view: boolean; }
 interface VisibilityRow { profile_id: string; module_key: StaffModuleKey; enabled: boolean; }
 interface FinanceGrantRow { profile_id: string; action_key: StaffFinanceActionKey; allowed: boolean; }
 interface ModuleActionGrantRow { profile_id: string; module_key: StaffActionModule; action_key: StaffModuleActionKey; allowed: boolean; }
-interface InvitationStatus { id: string; pending: boolean; }
+interface InvitationStatus { id: string; pending: boolean; email: string; }
 
 interface UserRow {
   id: string;
@@ -241,6 +241,8 @@ export function UsersManager(): JSX.Element {
     await reload();
   }
 
+  function userEmail(userId: string): string { return invitationStatuses?.find((s) => s.id === userId)?.email ?? ""; }
+
   function invitationPending(userId: string): boolean {
     return invitationStatuses?.find((entry) => entry.id === userId)?.pending === true;
   }
@@ -391,7 +393,7 @@ export function UsersManager(): JSX.Element {
               const manageable = canManage(user);
               return (
                 <tr key={user.id}>
-                  <td><span className="usuarios-cell-name">{user.name}</span></td>
+                  <td><span className="usuarios-cell-name">{user.name}</span>{userEmail(user.id) ? <span className="helper-text" style={{ display: "block" }}>{userEmail(user.id)}</span> : null}</td>
                   <td>
                     {user.role === "owner" ? (
                       <span className="status-pill status-pill--published">{ROLE_LABELS.owner}</span>
@@ -456,6 +458,7 @@ export function UsersManager(): JSX.Element {
                 <span className="materia-reference">{formatDate(user.created_at)}</span>
               </div>
               <span className="materia-card-title">{user.name}</span>
+              {userEmail(user.id) ? <span className="helper-text">{userEmail(user.id)}</span> : null}
               <span className="materia-subtitle">{ROLE_LABELS[user.role]}</span>
               <div className="materia-card-foot">
                 {user.role === "owner" ? (
