@@ -74,6 +74,9 @@ jobs:
       - name: Testar lista e papéis de signatários comerciais
         run: npx tsx --test apps/sistema/test/commercial-signers.test.ts
 
+      - name: Testar troca de capa da matéria
+        run: npx tsx --test apps/sistema/test/article-cover-choice.test.ts
+
       - name: Signed contract PDF smoke test
         run: node apps/sistema/scripts/signatures-smoke.cjs
 
