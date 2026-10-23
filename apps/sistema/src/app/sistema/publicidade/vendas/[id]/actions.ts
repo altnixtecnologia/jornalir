@@ -10,6 +10,7 @@ import { getDraftService } from "../../../../../composition/nfse";
 import { getClientService } from "../../../../../composition/clientes";
 import { createSupabaseServerClient } from "../../../../../lib/supabase/server";
 import { checkModuleAction } from "../../../../../lib/permissions/checkModuleAction";
+import { checkFinanceAction } from "../../../../../lib/permissions/checkFinanceAction";
 import { getAuditContext } from "../../../../../lib/auth/getAuditContext";
 import { recordAuditEventSupabase } from "../../../../../providers/supabase/auditEvents.supabase";
 import { listReceivablesForCommercialSalesSupabase } from "../../../../../providers/supabase/receivableRepository.supabase";
@@ -95,6 +96,8 @@ export interface GenerateFinanceiroResult {
 export async function generateCommercialSaleFinanceiroAction(id: string, firstDueDate: string): Promise<{ results: GenerateFinanceiroResult[] } | { error: string }> {
   const permissionError = await checkModuleAction("publicidade", "vendas_editar");
   if (permissionError) return { error: permissionError };
+  const financeError = await checkFinanceAction("titulos_criar");
+  if (financeError) return { error: financeError };
   try {
     const client = createSupabaseServerClient();
     const AUDIT = await getAuditContext(client);
@@ -157,6 +160,8 @@ export async function generateCommercialSaleFinanceiroAction(id: string, firstDu
 export async function createNfseDraftFromSaleAction(id: string): Promise<{ error: string } | { draftId: string }> {
   const permissionError = await checkModuleAction("publicidade", "vendas_editar");
   if (permissionError) return { error: permissionError };
+  const nfseError = await checkModuleAction("nfse", "rascunhos_criar");
+  if (nfseError) return { error: nfseError };
   try {
     const client = createSupabaseServerClient();
     const AUDIT = await getAuditContext(client);
