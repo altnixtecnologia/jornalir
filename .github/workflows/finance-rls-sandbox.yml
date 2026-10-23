@@ -6,7 +6,9 @@ on:
       - feature/abrangencias-geo-notificacoes-20261021
     paths:
       - "supabase/migrations/202611031*.sql"
+      - "supabase/migrations/202611041*.sql"
       - "tests/security/finance-rls-sandbox-*.sql"
+      - "tests/security/module-rls-sandbox-*.sql"
       - ".github/workflows/finance-rls-sandbox.yml"
   workflow_dispatch:
 
@@ -59,3 +61,15 @@ jobs:
 
       - name: Testar concessoes/negativas/baixa sem usar producao
         run: psql -v ON_ERROR_STOP=1 -f tests/security/finance-rls-sandbox-assertions.sql
+
+      - name: Montar tabelas isoladas de Clientes, Assinaturas e Comercial
+        run: psql -v ON_ERROR_STOP=1 -f tests/security/module-rls-sandbox-setup.sql
+
+      - name: Aplicar regras granulares dos módulos
+        run: psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261104100000_nonfinancial_module_action_rls.sql
+
+      - name: Proteger função privilegiada de cadastro de cliente
+        run: psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261104101000_save_client_action_guard.sql
+
+      - name: Testar bloqueios e operações por módulo
+        run: psql -v ON_ERROR_STOP=1 -f tests/security/module-rls-sandbox-assertions.sql
