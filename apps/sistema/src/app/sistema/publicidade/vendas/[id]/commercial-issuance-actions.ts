@@ -51,11 +51,45 @@ export async function approveCommercialLegalReviewAction(
     try {
       await recordAuditEventSupabase(supabase,{
         userId:actor.actorId,entityType:"commercial_contract_package",entityId:pkg,
-        action:"legal_approval",metadata:{saleId:sale,confirmed:true},
+        action:"legal_approval",metadata:{saleId:sale,confirmed:true,reviewNote:reason},
       });
     } catch(error) {
       console.error("Auditoria complementar indisponível:",toError(error));
     }
+    refresh(sale);
+    return {ok:true,packageId:pkg};
+  } catch(error) { return {error:toError(error)}; }
+}
+
+/**
+ * Revisão foi aprovada, mas o modelo precisou de ajustes ANTES da primeira
+ * emissão. O trigger nega retorno se existir qualquer documento emitido.
+ * O evento de aprovação anterior permanece na auditoria do sistema.
+ */
+export async function reopenCommercialLegalReviewAction(
+  packageId:string,saleId:string,reason:string,
+):Promise<Result<{packageId:string}>> {
+  const denied=await checkModuleAction("publicidade","contratos_revisar");
+  if(denied) return {error:denied};
+  const clean=reason.trim();
+  if(clean.length<20 || clean.length>1000) {
+    return {error:"Justifique a reabertura da conferência (20 a 1000 caracteres)."};
+  }
+  try {
+    const supabase=createSupabaseServerClient();
+    const actor=await getAuditContext(supabase);
+    const sale=requireId(saleId),pkg=requireId(packageId);
+    const {data,error}=await supabase.from("commercial_contract_packages")
+      .update({status:"draft",updated_at:new Date().toISOString()})
+      .eq("id",pkg).eq("commercial_sale_id",sale).eq("status","legal_approved")
+      .select("id").maybeSingle();
+    if(error||!data) throw new Error(error?.message??"Contratação emitida ou não reabrível.");
+    try {
+      await recordAuditEventSupabase(supabase,{
+        userId:actor.actorId,entityType:"commercial_contract_package",entityId:pkg,
+        action:"reopen_legal_review",metadata:{saleId:sale,reason:clean},
+      });
+    } catch(error) { console.error("Auditoria complementar indisponível:",toError(error)); }
     refresh(sale);
     return {ok:true,packageId:pkg};
   } catch(error) { return {error:toError(error)}; }
