@@ -1,4 +1,5 @@
 -- Dados 100% fictícios para validar as permissões fora do Supabase.
+do $ begin create role service_role nologin; exception when duplicate_object then null; end $;
 -- Executar após finance-rls-sandbox-setup.sql.
 create or replace function auth.role() returns text language sql stable as $$
   select current_setting('request.jwt.claim.role',true)
