@@ -42,3 +42,38 @@ export async function createCommercialInvitationsAction(
   }))};
  }catch(e){return {error:e instanceof Error?e.message:"Falha ao criar convites."};}
 }
+
+/** Reenvio manual: o usuário recebe um link novo; o antigo perde a validade. */
+export async function reissueCommercialInvitationAction(
+ saleId:string,invitationId:string,reason:string,
+):Promise<{error:string}|{ok:true;name:string;urlPath:string}> {
+ const denied=await checkModuleAction("publicidade","contratos_revisar");
+ if(denied) return {error:denied};
+ if(!UUID.test(saleId)||!UUID.test(invitationId))
+  return {error:"Identificadores inválidos."};
+ if(reason.trim().length<20||reason.trim().length>1000)
+  return {error:"Justifique a substituição do convite em 20 a 1000 caracteres."};
+ try {
+  const db=createSupabaseServerClient();
+  const {data:pkg,error:pkgError}=await db.from("commercial_contract_packages")
+   .select("id").eq("commercial_sale_id",saleId).eq("status","legal_approved").maybeSingle();
+  if(pkgError||!pkg) throw new Error("Venda indisponível para assinatura.");
+  const {data:invite,error:inviteError}=await db.from("commercial_signature_invitations")
+   .select("id,request_id,status,commercial_signature_participants(signer_name),commercial_signature_requests(preparation_id,commercial_signature_preparations(document_id,commercial_contract_documents(package_id)))")
+   .eq("id",invitationId).eq("status","pending").maybeSingle();
+  if(inviteError||!invite) throw new Error("Convite não está pendente.");
+  const relation=invite.commercial_signature_requests as unknown as {
+   commercial_signature_preparations:{commercial_contract_documents:{package_id:string}};
+  };
+  if(relation.commercial_signature_preparations.commercial_contract_documents.package_id!==pkg.id)
+   throw new Error("Convite não pertence à venda.");
+  const token=randomBytes(32).toString("hex");
+  const {error}=await db.rpc("reissue_commercial_signature_invitation",{
+   p_invitation_id:invitationId,p_new_token_hash:commercialTokenHash(token),p_reason:reason.trim(),
+  });
+  if(error) throw new Error(error.message);
+  revalidatePath("/sistema/publicidade/vendas/"+saleId);
+  const person=invite.commercial_signature_participants as unknown as {signer_name:string};
+  return {ok:true,name:person.signer_name,urlPath:"/assinar-contrato-comercial/"+token};
+ }catch(e){return {error:e instanceof Error?e.message:"Falha ao reemitir link comercial."};}
+}
