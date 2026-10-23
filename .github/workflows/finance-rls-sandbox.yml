@@ -14,6 +14,7 @@ on:
       - "supabase/migrations/202611061*.sql"
       - "supabase/migrations/202611071*.sql"
       - "supabase/migrations/202611081*.sql"
+      - "supabase/migrations/202611091*.sql"
       - "tests/security/finance-rls-sandbox-*.sql"
       - "tests/security/module-rls-sandbox-*.sql"
       - "tests/security/editorial-rls-sandbox-*.sql"
@@ -21,6 +22,7 @@ on:
       - "tests/security/contract-integration-sandbox-*.sql"
       - "tests/security/rental-rls-sandbox-*.sql"
       - "tests/security/commercial-contract-sandbox-*.sql"
+      - "tests/security/commercial-template-sandbox-*.sql"
       - ".github/workflows/finance-rls-sandbox.yml"
   workflow_dispatch:
 
@@ -133,3 +135,12 @@ jobs:
 
       - name: Testar documento unico ou separado e revisao
         run: psql -v ON_ERROR_STOP=1 -f tests/security/commercial-contract-sandbox-assertions.sql
+
+      - name: Criar modelos comerciais simulados
+        run: psql -v ON_ERROR_STOP=1 -f tests/security/commercial-template-sandbox-setup.sql
+
+      - name: Vincular modelos jurídicos versionados
+        run: psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261109100000_commercial_contract_template_assignments.sql
+
+      - name: Testar seleção exclusiva de modelo por pacote ou serviço
+        run: psql -v ON_ERROR_STOP=1 -f tests/security/commercial-template-sandbox-assertions.sql
