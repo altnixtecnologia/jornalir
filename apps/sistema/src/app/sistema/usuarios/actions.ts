@@ -290,7 +290,7 @@ export async function sendPasswordResetForUser(profileId: string): Promise<Actio
  * Apenas owner/admin leem a situacao dos convites; expomos so ID/status.
  */
 export async function listUserInvitationStatuses(): Promise<
-  { ok: true; statuses: Array<{ id: string; pending: boolean }> } | { error: string }
+  { ok: true; statuses: Array<{ id: string; pending: boolean; email: string }> } | { error: string }
 > {
   const client = createSupabaseServerClient();
   const { data: auth, error: authError } = await client.auth.getUser();
@@ -302,13 +302,13 @@ export async function listUserInvitationStatuses(): Promise<
   }
   if (!hasServiceRoleKey()) return { error: "Consulta de convites indisponível neste ambiente." };
   const admin = createSupabaseAdminClient();
-  const statuses: Array<{ id: string; pending: boolean }> = [];
+  const statuses: Array<{ id: string; pending: boolean; email: string }> = [];
   const perPage = 200;
   for (let page = 1; page <= 30; page += 1) {
     const { data, error } = await admin.auth.admin.listUsers({ page, perPage });
     if (error || !data) return { error: "Não foi possível conferir o aceite dos convites." };
     statuses.push(...data.users.map((u) => ({
-      id: u.id, pending: !u.email_confirmed_at,
+      id: u.id, pending: !u.email_confirmed_at, email: u.email ?? "",
     })));
     if (data.users.length < perPage) return { ok: true, statuses };
   }
