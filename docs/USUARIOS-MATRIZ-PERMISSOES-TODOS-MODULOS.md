@@ -42,3 +42,52 @@ condição necessária, mas não suficiente, para cada operação.
 7. Layout Usuários: TD não pode conter `display:block` da classe `materia-title` (desalinhava colunas no desktop). Verificar responsividade e botões em 360/768/desktop.
 
 **Não confundir criação da matriz no banco com autorização efetiva em todas as rotas.**
+
+
+## Bloco validado em 23/10 — RLS de Clientes/Assinaturas/Comercial
+
+Migrations preparadas (ainda **NÃO aplicadas no Supabase de produção**):
+
+1. `20261104100000_nonfinancial_module_action_rls.sql`:
+   substitui SELECT/INSERT/UPDATE/DELETE permissivos antigos em
+   `clients`, `client_roles`, `subscriptions`, `commercial_products`,
+   `commercial_proposals`, `commercial_proposal_items` e `commercial_sales`.
+   Acesso de leitura de clientes é permitido por módulos relacionados que
+   legitimamente dependem do cadastro único (Assinaturas, Comercial, Financeiro,
+   NFS-e), sem permitir alteração cadastral.
+2. `20261104101000_save_client_action_guard.sql`:
+   corrige autorização da RPC `save_client` (SECURITY DEFINER);
+   a criação exige `clientes_criar` e a edição exige `clientes_editar`.
+   Chamadas de serviço têm exceção explícita pela função original de integração.
+3. Triggers de transições: valores/datas de assinatura não podem ser alterados
+   com mera permissão de suspensão; uma proposta aprovada não retrocede para
+   rascunho; uma venda cancelada não reativa. O catálogo de produtos permanece
+   acessível para consulta às áreas relacionadas, mas sua manutenção exige
+   `produtos_gerenciar`.
+4. Os itens da proposta usam lock consultivo transacional no mesmo identificador
+   da aprovação, para evitar corrida entre mudar status e alterar itens.
+5. Inserção de `client_roles` por Assinaturas só autoriza papel `assinante`;
+   Vendas/Comercial só autoriza `anunciante`; gestores de Clientes podem
+   atribuir os demais papéis previstos.
+
+**Teste automatizado:** o workflow `Finance RLS sandbox` foi ampliado para
+rodar `module-rls-sandbox-setup.sql` e
+`module-rls-sandbox-assertions.sql` num PostgreSQL temporário. Simula
+operadores diferentes com apenas criação de clientes, assinatura, aprovação
+de propostas ou cancelamento de vendas, além de convite não confirmado,
+módulo oculto e proprietário. Nenhum registro da produção é alterado.
+
+### Homologação ainda obrigatória
+
+- Testar as migrations em projeto/branch Supabase de homologação com o esquema
+  completo, incluindo triggers existentes `save_client`, promoção automática
+  de papel `assinante`/`anunciante`, cobrança de assinatura, conversão de
+  propostas e rotas de leitura do Financeiro/NFS-e.
+- Auditar e restringir também as RLS de Editorial, mídias, NFS-e e
+  Aniversariantes; os guards de Server Actions não substituem RLS.
+- Verificar com usuário real que nenhuma função, view, Storage policy
+  ou RPC exposta permite contornar a permissão escolhida na tela.
+- Garantir compatibilidade entre esta PR e a PR #11 de contratações
+  combinadas/locação antes do merge; aplicar migrações antes do novo frontend.
+- Não publicar novos controles de permissões antes de homologação e revisão
+  de rotas e automações. Admin/proprietário continuam com acesso integral.
