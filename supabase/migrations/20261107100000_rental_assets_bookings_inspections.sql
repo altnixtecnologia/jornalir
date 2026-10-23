@@ -94,10 +94,10 @@ begin
   raise exception 'Produto de equipamento com histórico de locação é imutável.'
     using errcode='23514';
  end if;
- if TG_OP='UPDATE' and new.status='retired' and old.status<>'retired'
+ if TG_OP='UPDATE' and new.status<>'available' and old.status='available'
    and exists(select 1 from public.rental_bookings
               where asset_id=old.id and status in ('reserved','checked_out')) then
-  raise exception 'Não é possível desativar equipamento reservado ou emprestado.'
+  raise exception 'Equipamento com reserva ativa não pode entrar em manutenção ou ser desativado.'
     using errcode='23514';
  end if;
  return new;
@@ -131,12 +131,13 @@ begin
    (v_sale.items_snapshot is not null and exists (
      select 1 from jsonb_array_elements(v_sale.items_snapshot) as item
      where item->>'serviceChannel'='equipment_rental'
+       and item->>'productId'=v_asset.product_id::text
    )) or (v_sale.product_id is not null and exists (
-     select 1 from public.commercial_products cp where cp.id=v_sale.product_id
+     select 1 from public.commercial_products cp where cp.id=v_sale.product_id and cp.id=v_asset.product_id
      and cp.channel='equipment_rental'
    ))
  ) then
-   raise exception 'A venda não possui item de locação de equipamentos.'
+   raise exception 'A venda não contém este produto de locação; confira os itens contratados.'
      using errcode='23514';
  end if;
 
