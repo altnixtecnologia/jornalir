@@ -106,6 +106,29 @@ begin
      and not t.tgisinternal) then
    raise exception 'Falta proteção do rascunho fiscal.';
  end if;
+ if to_regclass('public.commercial_signature_preparations') is null
+    or to_regclass('public.commercial_signature_participants') is null then
+   raise exception 'Preparação comercial de signatários ausente.';
+ end if;
+ if has_table_privilege('anon','public.commercial_signature_preparations','SELECT')
+    or has_table_privilege('authenticated','public.commercial_signature_preparations','INSERT')
+    or has_table_privilege('authenticated','public.commercial_signature_participants','UPDATE')
+    or has_table_privilege('authenticated','public.commercial_signature_participants','DELETE') then
+   raise exception 'Preparação de signatários com acesso excessivo.';
+ end if;
+ if has_function_privilege('anon',
+      'public.prepare_commercial_signature_participants(uuid,jsonb)','EXECUTE')
+    or not has_function_privilege('authenticated',
+      'public.prepare_commercial_signature_participants(uuid,jsonb)','EXECUTE') then
+   raise exception 'Privilégios de preparação comercial incorretos.';
+ end if;
+ if not exists(
+   select 1 from pg_policies
+   where schemaname='public' and tablename='commercial_signature_participants'
+     and policyname='commercial_signature_participants_read'
+ ) then
+   raise exception 'Participantes comerciais sem RLS de leitura.';
+ end if;
  if to_regclass('public.commercial_contract_review_events') is null then
    raise exception 'Histórico jurídico imutável ausente.';
  end if;
