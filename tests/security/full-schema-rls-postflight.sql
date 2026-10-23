@@ -106,6 +106,33 @@ begin
      and not t.tgisinternal) then
    raise exception 'Falta proteção do rascunho fiscal.';
  end if;
+ if to_regclass('public.commercial_contract_documents') is null then
+   raise exception 'Documentos comerciais privados ausentes.';
+ end if;
+ if has_table_privilege('anon','public.commercial_contract_documents','SELECT') or
+    has_table_privilege('authenticated','public.commercial_contract_documents','UPDATE') or
+    has_table_privilege('authenticated','public.commercial_contract_documents','DELETE') then
+   raise exception 'Registro de evidências comerciais com permissões excessivas.';
+ end if;
+ if not exists (select 1 from pg_trigger t join pg_class c on c.oid=t.tgrelid
+   where c.relname='commercial_contract_documents'
+     and t.tgname='commercial_contract_documents_guard' and not t.tgisinternal) then
+   raise exception 'Registro comercial sem guarda de imutabilidade.';
+ end if;
+ if not exists(select 1 from pg_trigger t join pg_class c on c.oid=t.tgrelid
+   where c.relname='commercial_contract_packages'
+     and t.tgname='commercial_package_legal_approval_guard' and not t.tgisinternal) then
+   raise exception 'Aprovação comercial sem conferência humana protegida.';
+ end if;
+ if not exists (select 1 from pg_policies
+   where schemaname='storage' and tablename='objects'
+   and policyname='contract_docs_storage_insert_commercial_reviewer') then
+   raise exception 'Storage comercial sem permissão específica controlada.';
+ end if;
+ if exists (select 1 from storage.buckets
+   where id='contract-documents' and public=true) then
+   raise exception 'Documentos contratuais estão em bucket público.';
+ end if;
 end;
 $check$;
 select 'PASSOU: esquema integral e políticas essenciais' as resultado;

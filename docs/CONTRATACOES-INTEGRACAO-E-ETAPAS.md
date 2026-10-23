@@ -422,3 +422,32 @@ não assinável** com emissão definitiva ou aprovação jurídica.
 - Documento combinado usa o total aprovado; documento individual usa apenas
   o valor negociado do item correspondente, sem rateio ou nova cobrança.
 - Testes cobrem vendas mistas, valores numéricos válidos, valor ausente e NaN.
+
+## Etapa 3A — emissão comercial com aprovação humana (23/10/2026)
+
+**Somente homologação na PR #15. NÃO aplicar a migration no Supabase remoto,
+NÃO publicar e NÃO encaminhar arquivos a signatários reais.**
+
+- Migration `20261111100000_commercial_contract_legal_approval_documents.sql`:
+  adiciona estado `legal_approved` condicionado a revisor autorizado,
+  confirmação explícita e justificativa registrada. Estado aprovado é
+  imutável; ajustes posteriores exigirão fluxo próprio de aditivo.
+- Novos `commercial_contract_documents` (não institucionais), com caminho
+  privado, SHA-256, versão jurídica, serviço ou documento combinado,
+  responsável pela emissão e controles RLS/trigger de imutabilidade.
+- A emissão só ocorre com modelos comercialmente compatíveis, atuais,
+  qualificação de cliente PF/PJ e prestadora explicitamente declarada
+  em cada modelo (`contratada.razao_social`, `contratada.cnpj`,
+  `contratada.endereco`, `contratada.representante`).
+- Emissão reexecutável não sobrescreve documento já registrado, não
+  cria PIX/recebíveis e não vincula documentos a `institutional_contracts`.
+- PDFs finais não exibem avisos de minuta; minutas antigas permanecem
+  visivelmente NÃO ASSINÁVEIS. Download verifica hash e permissões.
+- A etapa NÃO habilita assinatura eletrônica comercial: o assinador
+  existente continua exclusivo dos documentos institucionais.
+- Critério de aceite ainda pendente: teste real com usuário revisor em
+  ambiente de homologação, emissão de 1 documento combinado e 2 separados,
+  download autenticado, conflito concorrente, recuperação de upload
+  órfão, verificação de conteúdo e aprovação jurídica dos modelos reais.
+- Sem publicação final ou autorização para assinar, os PDFs são apenas
+  **documentos preparados para assinatura**, não contratos celebrados.
