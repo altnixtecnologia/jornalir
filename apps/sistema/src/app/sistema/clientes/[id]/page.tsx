@@ -66,6 +66,17 @@ export default async function ClienteDetailPage({ params }: { params: { id: stri
       .select("id,package_id,title,template_version,sha256,issued_at")
       .in("package_id",packageIds).order("issued_at",{ascending:false})
     : {data:[],error:null};
+  const commercialDocumentIds=(commercialDocuments??[]).map(doc=>doc.id);
+  const {data:commercialPreps,error:commercialPrepsError}=commercialDocumentIds.length
+    ? await supabase.from("commercial_signature_preparations")
+      .select("id,document_id").in("document_id",commercialDocumentIds)
+    : {data:[],error:null};
+  const commercialPrepIds=(commercialPreps??[]).map(prep=>prep.id);
+  const {data:commercialSignatureRequests,error:signatureRequestsError}=commercialPrepIds.length
+    ? await supabase.from("commercial_signature_requests")
+      .select("id,preparation_id,status,completed_at")
+      .in("preparation_id",commercialPrepIds)
+    : {data:[],error:null};
   const activeSubscriptions = subscriptions.filter((subscription) => subscription.status === "active").length;
   const totalOpen = receivables.filter((item) => item.status === "open" || item.status === "partially_paid").reduce((sum, item) => sum + item.balance, 0);
   const totalOverdue = receivables
@@ -213,7 +224,7 @@ export default async function ClienteDetailPage({ params }: { params: { id: stri
       {canSeeCommercialContracts ? (
         <section className="form-section">
           <h2>Contratações e documentos comerciais</h2>
-          {commercialError || documentsError ? (
+          {commercialError || documentsError || commercialPrepsError || signatureRequestsError ? (
             <p role="alert" className="form-error">
               Não foi possível consultar o histórico comercial nesta sessão.
             </p>
@@ -235,15 +246,24 @@ export default async function ClienteDetailPage({ params }: { params: { id: stri
                     </p>
                     {documents.length ? (
                       <ul className="helper-text">
-                        {documents.map(doc=>(
-                          <li key={doc.id}>
+                        {documents.map(doc=>{
+                          const preparation=(commercialPreps??[]).find(p=>p.document_id===doc.id);
+                          const request=(commercialSignatureRequests??[]).find(r=>r.preparation_id===preparation?.id);
+                          return <li key={doc.id}>
                             <Link href={"/sistema/publicidade/vendas/"+pkg.commercial_sale_id+
                               "/documentos/"+doc.id}>
                               {doc.title} · versão {doc.template_version} · PDF privado
                             </Link>
-                            {" "}— emitido em {formatDate(doc.issued_at)}. Ainda não assinado.
-                          </li>
-                        ))}
+                            {" "}— emitido em {formatDate(doc.issued_at)}.
+                            {request?.status==="completed" ? (
+                              <Link href={"/sistema/publicidade/vendas/"+pkg.commercial_sale_id+
+                                "/assinaturas/"+request.id+"/documento?tipo=final"}>
+                                {" "}Baixar PDF assinado por todos
+                              </Link>
+                            ) : request?.status==="pending" ?
+                              " Assinaturas em andamento." : " Aguardando assinaturas."}
+                          </li>;
+                        })}
                       </ul>
                     ) : <p className="helper-text">Nenhum PDF definitivo emitido nesta contratação.</p>}
                     {commercialReviewer.data===true ? (
