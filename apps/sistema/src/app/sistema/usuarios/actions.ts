@@ -97,9 +97,9 @@ export async function inviteUser(email: string, name: string, role: InviteRole):
 
   // O trigger lê raw_user_meta_data.name. Garantir também o nome na
   // tabela de perfis, sem depender da escrita inicial via trigger.
-  const { error: nameError } = await admin.from("profiles")
-    .update({ name: displayName }).eq("id", invited.user.id);
-  if (nameError) {
+  const { data: namedProfile, error: nameError } = await admin.from("profiles")
+    .update({ name: displayName }).eq("id", invited.user.id).select("id").maybeSingle();
+  if (nameError || !namedProfile) {
     console.error("Falha ao salvar nome do convidado:", nameError.code);
     return { error: "Convite solicitado, mas houve erro ao salvar o nome. Edite o perfil do usuário na lista." };
   }
@@ -150,9 +150,9 @@ export async function updateManagedUserName(profileId: string, name: string): Pr
       (manager.role === "admin" && target.role !== "operator")) {
     return { error: "Sem permissão para editar o nome desta pessoa." };
   }
-  const { error } = await admin.from("profiles").update({ name: clean })
-    .eq("id", profileId);
-  if (error) return { error: "Falha ao atualizar o nome do perfil." };
+  const { data: changed, error } = await admin.from("profiles").update({ name: clean })
+    .eq("id", profileId).select("id").maybeSingle();
+  if (error || !changed) return { error: "Falha ao atualizar o nome do perfil." };
 
   // Sincroniza metadata para futuras integrações sem mudar auth.email.
   const { error: metadataError } = await admin.auth.admin.updateUserById(profileId, {
