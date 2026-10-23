@@ -11,7 +11,6 @@ create table public.profiles(id uuid primary key,role text,active boolean);
 create table public.agenda_manager_grants(profile_id uuid,can_manage boolean);
 create table public.staff_module_visibility(profile_id uuid,module_key text,enabled boolean);
 create table public.staff_finance_action_permissions(profile_id uuid,action_key text,allowed boolean);
-create table public.staff_module_action_permissions(profile_id uuid,module_key text,action_key text,allowed boolean);
 create or replace function public.has_staff_module_access(text,boolean)
 returns boolean language sql stable as $$select false$$;
 create or replace function public.is_active_staff()
@@ -96,8 +95,7 @@ grant usage on schema auth,public to authenticated;
 grant execute on function auth.uid() to authenticated;
 grant select on auth.users to authenticated;
 grant select on public.profiles,public.agenda_manager_grants,
- public.staff_module_visibility,public.staff_finance_action_permissions,
- public.staff_module_action_permissions to authenticated;
+ public.staff_module_visibility,public.staff_finance_action_permissions to authenticated;
 grant select,insert,update,delete on all tables in schema public to authenticated;
 
 -- Owner ativo + operador confirmado + operador convidado não confirmado.
