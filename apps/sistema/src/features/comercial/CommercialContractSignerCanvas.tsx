@@ -85,7 +85,7 @@ export function CommercialContractSignerCanvas({
     startTransition(async () => {
       try {
         const result = await completeCommercialSignatureAction({
-          token, signerName: fullName, signerEmail, consent, imageDataUrl,
+          token, name: fullName, email: signerEmail, consent, imageDataUrl,
         });
         if ("error" in result) { setError(result.error); return; }
         setSigned(true);
