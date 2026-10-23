@@ -125,6 +125,38 @@ create trigger commercial_package_mode_with_template_guard
 before update on public.commercial_contract_packages
 for each row execute function public.enforce_commercial_package_mode_locked();
 
+-- Encaminhamento à revisão exige a seleção efetiva do(s) modelo(s).
+-- A revisão não declara aprovação jurídica, apenas inicia conferência.
+create or replace function public.enforce_commercial_review_has_templates()
+returns trigger language plpgsql set search_path=''
+as $
+begin
+ if new.status='pending_legal_review' and old.status='draft' then
+   if old.document_mode='combined' then
+     if (select count(*) from public.commercial_contract_template_assignments
+         where package_id=old.id and service_id is null) <> 1 then
+       raise exception 'Selecione o modelo do contrato único antes da revisão.'
+         using errcode='23514';
+     end if;
+   elsif exists (
+      select 1 from public.commercial_contract_services s
+      where s.package_id=old.id and not exists (
+        select 1 from public.commercial_contract_template_assignments a
+         where a.package_id=old.id and a.service_id=s.id
+      )
+   ) or not exists (select 1 from public.commercial_contract_services s
+                    where s.package_id=old.id) then
+     raise exception 'Selecione um modelo jurídico para cada serviço antes da revisão.'
+       using errcode='23514';
+   end if;
+ end if;
+ return new;
+end;
+$;
+create trigger commercial_package_review_requires_templates
+before update on public.commercial_contract_packages
+for each row execute function public.enforce_commercial_review_has_templates();
+
 alter table public.commercial_contract_template_assignments enable row level security;
 revoke all on public.commercial_contract_template_assignments from anon;
 grant select,insert,update,delete on public.commercial_contract_template_assignments to authenticated;
