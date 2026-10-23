@@ -48,7 +48,7 @@ drop policy if exists finance_read_requires_module on public.client_credits;
 drop policy if exists client_credits_select_staff on public.client_credits;
 create policy client_credits_select_staff on public.client_credits for select to authenticated using (public.staff_can_see_module('financeiro'));
 drop policy if exists client_credits_insert_staff on public.client_credits;
-create policy client_credits_insert_staff on public.client_credits for insert to authenticated with check ((public.staff_can_finance_action('recebimentos_baixar') or public.staff_can_finance_action('creditos_aplicar') or public.staff_can_finance_action('titulos_criar')));
+create policy client_credits_insert_staff on public.client_credits for insert to authenticated with check (public.staff_can_finance_action('recebimentos_baixar'));
 drop policy if exists client_credits_update_staff on public.client_credits;
 create policy client_credits_update_staff on public.client_credits for update to authenticated using (public.staff_can_finance_action('recebimentos_estornar')) with check (public.staff_can_finance_action('recebimentos_estornar'));
 
@@ -310,6 +310,95 @@ $$;
 drop trigger if exists client_credits_guard_reversal on public.client_credits;
 create trigger client_credits_guard_reversal before update on public.client_credits
 for each row execute function public.enforce_credit_reversal_only();
+
+
+-- Aplicação de crédito passa por validação de origem, saldo e tipo de ajuste.
+-- Criar título não concede o direito de conceder desconto avulso.
+create or replace function public.enforce_adjustment_insert_rules()
+returns trigger language plpgsql set search_path=''
+as $$
+declare
+  v_receivable public.receivables%rowtype;
+  v_credit public.client_credits%rowtype;
+  v_used numeric := 0;
+  v_receipts numeric := 0;
+  v_adjustments numeric := 0;
+begin
+  if (select auth.uid()) is null or public.is_active_admin_or_owner() then
+    return new;
+  end if;
+  if new.amount is null or new.amount<=0 or new.reversed_at is not null then
+    raise exception 'Ajuste financeiro inválido.' using errcode='23514';
+  end if;
+
+  if new.adjustment_type='credit_applied' then
+    if not (public.staff_can_finance_action('creditos_aplicar')
+      or public.staff_can_finance_action('titulos_criar')) then
+      raise exception 'Sem permissão para aplicar crédito.' using errcode='42501';
+    end if;
+    if new.credit_id is null then
+      raise exception 'Ajuste de crédito exige referência ao crédito.' using errcode='23514';
+    end if;
+    -- A RPC aplica crédito sob lock nesta mesma ordem.
+    select * into v_credit from public.client_credits
+      where id=new.credit_id for update;
+    if v_credit.id is null or v_credit.reversed_at is not null then
+      raise exception 'Crédito inválido/estornado.' using errcode='23514';
+    end if;
+    select coalesce(sum(amount),0) into v_used
+      from public.receivable_adjustments
+      where credit_id=new.credit_id and reversed_at is null;
+    if v_used+new.amount>v_credit.original_amount+0.005 then
+      raise exception 'Valor supera o saldo do crédito.' using errcode='23514';
+    end if;
+  elsif new.adjustment_type='settlement_difference' then
+    if not public.staff_can_finance_action('recebimentos_quitar_diferenca') then
+      raise exception 'Sem permissão para quitar com diferença.' using errcode='42501';
+    end if;
+  elsif not public.staff_can_finance_action('ajustes_criar') then
+    raise exception 'Sem permissão para criar ajustes/descontos.' using errcode='42501';
+  end if;
+
+  select * into v_receivable from public.receivables
+    where id=new.receivable_id for update;
+  if v_receivable.id is null or v_receivable.status='cancelled' then
+    raise exception 'Título inválido para ajuste.' using errcode='42501';
+  end if;
+  if new.adjustment_type='credit_applied' and
+     v_credit.client_id is distinct from v_receivable.client_id then
+    raise exception 'Crédito pertence a outro cliente.' using errcode='23514';
+  end if;
+  select coalesce(sum(amount),0) into v_receipts
+    from public.receivable_receipts
+    where receivable_id=new.receivable_id and reversed_at is null;
+  select coalesce(sum(amount),0) into v_adjustments
+    from public.receivable_adjustments
+    where receivable_id=new.receivable_id and reversed_at is null;
+  if new.amount>v_receivable.original_amount-v_receipts-v_adjustments+0.005 then
+    raise exception 'Ajuste acima do saldo.' using errcode='23514';
+  end if;
+  return new;
+end;
+$$;
+drop trigger if exists receivable_adjustments_guard_insert on public.receivable_adjustments;
+create trigger receivable_adjustments_guard_insert before insert on public.receivable_adjustments
+for each row execute function public.enforce_adjustment_insert_rules();
+
+create or replace function public.enforce_payment_charge_insert_state()
+returns trigger language plpgsql set search_path=''
+as $$
+begin
+  if (select auth.uid()) is not null
+    and not public.is_active_admin_or_owner()
+    and (new.status<>'pending' or new.amount is null or new.amount<=0) then
+    raise exception 'Nova cobrança deve iniciar pendente e com valor positivo.' using errcode='23514';
+  end if;
+  return new;
+end;
+$$;
+drop trigger if exists payment_charges_guard_initial_state on public.payment_charges;
+create trigger payment_charges_guard_initial_state before insert on public.payment_charges
+for each row execute function public.enforce_payment_charge_insert_state();
 
 -- Verificação de instalação: erro em caso de política antiga ainda presente
 -- nos 13 recursos financeiros protegidos acima.
