@@ -47,7 +47,9 @@ export function buildCommercialContractPreview(input: CommercialPreviewInput): C
   const missing: string[] = [];
   if (!normal(input.reference)) missing.push("Referência da venda");
   if (!normal(input.clientName)) missing.push("Nome do contratante");
-  if (!Array.isArray(input.services) || input.services.length === 0) missing.push("Serviços contratados");
+  if (!Array.isArray(input.services) || input.services.length === 0) {
+    return { documents: [], missing: ["Serviços contratados"] };
+  }
   if (!["combined", "separate"].includes(input.mode)) throw new Error("Modalidade de documento inválida.");
   const ordered = [...(input.services ?? [])].sort((a, b) => a.item_ordinal - b.item_ordinal);
   const sections = ordered.map((service, i) => {
