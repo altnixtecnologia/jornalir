@@ -67,6 +67,14 @@ begin
    raise exception 'Falta proteção da publicação editorial.';
  end if;
 
+ if to_regclass('public.commercial_contract_template_assignments') is null then
+   raise exception 'Vínculo de modelos jurídicos comerciais ausente.';
+ end if;
+ if not exists (select 1 from pg_trigger t join pg_class c on t.tgrelid=c.oid
+   where c.relname='commercial_contract_template_assignments'
+   and t.tgname='commercial_template_assignments_validate' and not t.tgisinternal) then
+   raise exception 'Modelos comerciais sem validação de categoria/versão.';
+ end if;
  if to_regclass('public.commercial_contract_packages') is null
     or to_regclass('public.commercial_contract_services') is null then
    raise exception 'Estrutura de contratação comercial ausente.';
