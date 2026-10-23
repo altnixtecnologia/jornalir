@@ -50,6 +50,22 @@ export default async function ClienteDetailPage({ params }: { params: { id: stri
     getReceivableService(supabase).list({ clientId: client.id }),
     getClientCreditService(supabase).list({ clientId: client.id, availableOnly: true }),
   ]);
+  const [commercialReviewer, financeModule] = await Promise.all([
+    supabase.rpc("staff_can_module_action",{p_module:"publicidade",p_action:"contratos_revisar"}),
+    supabase.rpc("staff_can_see_module",{p_module:"financeiro"}),
+  ]);
+  const canSeeCommercialContracts = commercialReviewer.data === true || financeModule.data === true;
+  const {data:commercialPackages,error:commercialError} = canSeeCommercialContracts
+    ? await supabase.from("commercial_contract_packages")
+      .select("id,commercial_sale_id,status,document_mode,approved_at")
+      .eq("client_id",client.id).order("created_at",{ascending:false})
+    : {data:[],error:null};
+  const packageIds=(commercialPackages??[]).map(pkg=>pkg.id);
+  const {data:commercialDocuments,error:documentsError}=packageIds.length
+    ? await supabase.from("commercial_contract_documents")
+      .select("id,package_id,title,template_version,sha256,issued_at")
+      .in("package_id",packageIds).order("issued_at",{ascending:false})
+    : {data:[],error:null};
   const activeSubscriptions = subscriptions.filter((subscription) => subscription.status === "active").length;
   const totalOpen = receivables.filter((item) => item.status === "open" || item.status === "partially_paid").reduce((sum, item) => sum + item.balance, 0);
   const totalOverdue = receivables
@@ -192,8 +208,57 @@ export default async function ClienteDetailPage({ params }: { params: { id: stri
             ))}
           </ul>
         ) : null}
-        <p className="helper-text">Publicidade e histórico de relacionamento vão aparecer aqui em fases futuras.</p>
+        <p className="helper-text">Os documentos comerciais emitidos são consultados na seção abaixo e não são somados aos contratos institucionais.</p>
       </section>
+      {canSeeCommercialContracts ? (
+        <section className="form-section">
+          <h2>Contratações e documentos comerciais</h2>
+          {commercialError || documentsError ? (
+            <p role="alert" className="form-error">
+              Não foi possível consultar o histórico comercial nesta sessão.
+            </p>
+          ) : (commercialPackages??[]).length === 0 ? (
+            <p className="helper-text">Nenhuma contratação comercial vinculada a este cliente.</p>
+          ) : (
+            <div>
+              {(commercialPackages??[]).map(pkg=>{
+                const documents=(commercialDocuments??[]).filter(doc=>doc.package_id===pkg.id);
+                return (
+                  <div key={pkg.id} className="form-section">
+                    <strong>Venda comercial · {pkg.document_mode === "combined"
+                      ? "Documento único" : "Documentos por serviço"}</strong>
+                    <p className="helper-text">
+                      Situação: {pkg.status === "legal_approved"
+                        ? "Conferência jurídica aprovada"
+                        : pkg.status === "pending_legal_review"
+                          ? "Pendente de revisão jurídica" : "Em preparação"}
+                    </p>
+                    {documents.length ? (
+                      <ul className="helper-text">
+                        {documents.map(doc=>(
+                          <li key={doc.id}>
+                            <Link href={"/sistema/publicidade/vendas/"+pkg.commercial_sale_id+
+                              "/documentos/"+doc.id}>
+                              {doc.title} · versão {doc.template_version} · PDF privado
+                            </Link>
+                            {" "}— emitido em {formatDate(doc.issued_at)}. Ainda não assinado.
+                          </li>
+                        ))}
+                      </ul>
+                    ) : <p className="helper-text">Nenhum PDF definitivo emitido nesta contratação.</p>}
+                    {commercialReviewer.data===true ? (
+                      <Link className="secondary-link"
+                        href={"/sistema/publicidade/vendas/"+pkg.commercial_sale_id}>
+                        Abrir contratação comercial
+                      </Link>
+                    ) : null}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </section>
+      ) : null}
     </>
   );
 }
