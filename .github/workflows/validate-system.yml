@@ -59,6 +59,9 @@ jobs:
       - name: Testar conferencia de contratos comerciais
         run: npx tsx --test apps/sistema/test/commercial-contract-preview.test.ts
 
+      - name: Testar renderização da minuta comercial
+        run: npx tsx --test apps/sistema/test/commercial-legal-draft.test.ts
+
       - name: Signed contract PDF smoke test
         run: node apps/sistema/scripts/signatures-smoke.cjs
 
