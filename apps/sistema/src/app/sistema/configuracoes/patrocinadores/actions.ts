@@ -131,8 +131,8 @@ export async function reorderSiteAdMediaAction(slotId: string, orderedMediaIds: 
   revalidatePath(LIST_PATH);
 }
 
-// Gestão MANUAL do anúncio de cortesia no portal. Nenhuma baixa financeira
-// pode disparar esta operação automaticamente sem vínculo explícito de venda.
+// Patrocinadores do portal são bônus gratuitos e SEM vínculo de cliente,
+// venda ou cobrança. Somente gestão manual da visibilidade da imagem.
 export async function updateSiteAdMediaPublicationAction(
   id: string,
   changes: SiteAdPublicationInput,
@@ -144,11 +144,7 @@ export async function updateSiteAdMediaPublicationAction(
   try{
     const normalized=validateSiteAdPublication(changes);
     const client=createSupabaseServerClient();
-    await getSiteAdSlotService(client).updateMedia(id,{
-      active:normalized.active,
-      activeFrom:normalized.activeFrom??null,
-      activeUntil:normalized.activeUntil??null,
-    });
+    await getSiteAdSlotService(client).updateMedia(id,{active:normalized.active});
   }catch(error){return {error:toErrorMessage(error)};}
   revalidatePath(LIST_PATH);
 }
