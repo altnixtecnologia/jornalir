@@ -46,14 +46,32 @@ $func$;
 -- mais nova: ambas exigem a mesma autorização de colaborador.
 create or replace function public.is_active_admin()
 returns boolean language sql stable security definer set search_path='' as $func$
- select public.is_active_admin_or_owner();
+ select exists(
+  select 1 from public.staff_memberships m
+  join public.profiles p on p.id=m.profile_id
+  join auth.users u on u.id=p.id
+  where p.id=(select auth.uid()) and p.active
+   and p.role='admin' and u.email_confirmed_at is not null
+ );
+$func$;
+create or replace function public.is_active_owner()
+returns boolean language sql stable security definer set search_path='' as $func$
+ select exists(
+  select 1 from public.staff_memberships m
+  join public.profiles p on p.id=m.profile_id
+  join auth.users u on u.id=p.id
+  where p.id=(select auth.uid()) and p.active
+   and p.role='owner' and u.email_confirmed_at is not null
+ );
 $func$;
 revoke all on function public.is_active_staff() from public,anon;
 revoke all on function public.is_active_admin_or_owner() from public,anon;
 revoke all on function public.is_active_admin() from public,anon;
+revoke all on function public.is_active_owner() from public,anon;
 grant execute on function public.is_active_staff() to authenticated;
 grant execute on function public.is_active_admin_or_owner() to authenticated;
 grant execute on function public.is_active_admin() to authenticated;
+grant execute on function public.is_active_owner() to authenticated;
 
 create policy staff_memberships_read on public.staff_memberships
  for select to authenticated using(
