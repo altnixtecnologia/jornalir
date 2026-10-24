@@ -106,6 +106,11 @@ begin
      and not t.tgisinternal) then
    raise exception 'Falta proteção do rascunho fiscal.';
  end if;
+ if has_function_privilege('anon','public.reserve_commercial_signature_otp(text)','EXECUTE')
+    or has_function_privilege('authenticated','public.reserve_commercial_signature_otp(text)','EXECUTE')
+    or not has_function_privilege('service_role','public.reserve_commercial_signature_otp(text)','EXECUTE') then
+   raise exception 'Limite OTP comercial não protegido por service_role.';
+ end if;
  if to_regclass('public.commercial_signature_attempts') is null then
    raise exception 'Tentativas de assinatura comercial não registradas.';
  end if;
