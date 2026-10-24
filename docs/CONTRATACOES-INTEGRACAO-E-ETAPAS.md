@@ -608,3 +608,12 @@ links no código, mesmo com CI verde, não comprova entrega de e-mail.
 
 Buckets atuais de Supabase Storage e seus limites não se confundem com o
 arquivo público de edições no Cloudflare R2 (100 MiB no aplicativo).
+
+## 24/10/2026 — Módulo contratos: recuperação de assinatura e limitação OTP
+
+- **Somente PR #15:** migration `20261116100000_commercial_signature_attempt_recovery.sql` cria `commercial_signature_attempts` com tentativa por convite, identidade, SHA-256 da base e da assinatura e horário persistido. RPC `begin_commercial_signature_attempt` aceita somente `service_role` e convite recentemente verificado, com lock válido.
+- O fluxo de assinatura agora grava a tentativa antes do Storage, consulta se JPEG/comprovante/PDF assinado já existem e **reutiliza** os mesmos arquivos, sem `upsert`, após erro no meio. JPEG prévio só pode ser reaproveitado quando corresponde ao hash da tentativa; PDF privado reutilizado tem cabeçalho e hash conferidos. Se houve erro de rede, não presume arquivo ausente; se houve divergência de evidência, exige reconciliação controlada, sem deletar nem sobrescrever.
+- Função `finalize_commercial_signature` exige tentativa persistida, documento base e identidade com hashes correspondentes. Nenhum efeito em contratos institucionais ou cobranças.
+- `reserve_commercial_signature_otp`: intervalo mínimo 60 segundos por convite; no máximo oito solicitações em 24 horas, verificação transacional antes do envio Auth. É uma limitação do convite além dos limites globais do Supabase. Só `service_role` chama a RPC; não registra envio bem-sucedido ou entrega.
+- Testes `commercial-evidence-recovery.test.ts`: reaproveitamento sem duplicação, falha no segundo arquivo, falha no terceiro, hash divergente, storage offline e ausência de evidência. Workflow CI e postflight RLS incluem esses pontos.
+- **Ainda requer homologação externa:** 2 ou mais assinantes reais de teste, SMTP/OTP, falha de upload injetada em ambiente de homologação e verificação dos três arquivos efetivos antes de uso real. Aditivos contratuais, revisão jurídica/operacional e emissão fiscal são fluxos separados; não confundir este lote com liberação de produção.
