@@ -247,19 +247,13 @@ export async function sendPasswordResetForUser(profileId: string): Promise<Actio
   const membership=await requireManagedStaffTarget(profileId);
   if("error" in membership) return membership;
 
-  const supabase = createSupabaseServerClient();
-  const { data: auth, error: authError } = await supabase.auth.getUser();
-  if (authError || !auth.user) return { error: "Sessão inválida. Faça login novamente." };
-
-  const { data: requester, error: requesterError } = await supabase
-    .from("profiles").select("role, active").eq("id", auth.user.id).maybeSingle();
-  if (requesterError || !requester?.active || !["owner", "admin"].includes(requester.role)) {
-    return { error: "Você não tem permissão para redefinir senhas de usuários." };
-  }
+  const manager=await requireUserManager();
+  if("error" in manager) return manager;
+  const supabase=createSupabaseServerClient();
   const { data: target, error: targetError } = await supabase
     .from("profiles").select("role").eq("id", profileId).maybeSingle();
   if (targetError || !target || target.role === "owner" ||
-      (requester.role === "admin" && target.role !== "operator")) {
+      (manager.role === "admin" && target.role !== "operator")) {
     return { error: "Você não tem permissão para redefinir a senha deste usuário." };
   }
   if (!hasServiceRoleKey()) {
@@ -280,7 +274,7 @@ export async function sendPasswordResetForUser(profileId: string): Promise<Actio
 
   try {
     await recordAuditEventSupabase(supabase, {
-      userId: auth.user.id,
+      userId: manager.id,
       entityType: "users",
       entityId: profileId,
       action: "password_reset_requested",
@@ -302,14 +296,9 @@ export async function sendPasswordResetForUser(profileId: string): Promise<Actio
 export async function listUserInvitationStatuses(): Promise<
   { ok: true; statuses: Array<{ id: string; pending: boolean; confirmed: boolean; invited: boolean; email: string }> } | { error: string }
 > {
-  const client = createSupabaseServerClient();
-  const { data: auth, error: authError } = await client.auth.getUser();
-  if (authError || !auth.user) return { error: "Sessão inválida." };
-  const { data: requester, error: profileError } = await client.from("profiles")
-    .select("role,active").eq("id", auth.user.id).maybeSingle();
-  if (profileError || !requester?.active || !["owner","admin"].includes(requester.role)) {
-    return { error: "Sem permissão para consultar convites." };
-  }
+  const manager=await requireUserManager();
+  if("error" in manager) return manager;
+  const client=createSupabaseServerClient();
   if (!hasServiceRoleKey()) return { error: "Consulta de convites indisponível neste ambiente." };
   const admin = createSupabaseAdminClient();
   const {data:memberships,error:membershipError}=await client.from("staff_memberships")
