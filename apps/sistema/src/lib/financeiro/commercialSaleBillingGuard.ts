@@ -6,7 +6,7 @@ import type {CommercialSale} from "@ir/types";
  */
 export function validateCommercialSaleForBilling(
  sale:Pick<CommercialSale,"status"|"commercialCondition"|"amount"|"installmentsCount">,
- firstDueDate:string,
+ firstDueDate:string,issueDate?:string,
 ):string|null {
  if(sale.status==="proposal"||sale.status==="cancelled")
   return "Somente vendas aprovadas, ativas ou concluídas podem gerar títulos. Propostas e vendas canceladas não geram cobrança.";
@@ -25,6 +25,8 @@ export function validateCommercialSaleForBilling(
  const date=new Date(Date.UTC(year,month-1,day));
  if(date.getUTCFullYear()!==year||date.getUTCMonth()!==month-1||date.getUTCDate()!==day)
   return "Vencimento da primeira parcela é uma data inexistente.";
+ if(issueDate && firstDueDate<issueDate)
+  return "O vencimento da primeira parcela não pode ser anterior à data de emissão do título.";
  return null;
 }
 

@@ -11,6 +11,7 @@ import { getClientService } from "../../../../../composition/clientes";
 import { createSupabaseServerClient } from "../../../../../lib/supabase/server";
 import { checkModuleAction } from "../../../../../lib/permissions/checkModuleAction";
 import { checkFinanceAction } from "../../../../../lib/permissions/checkFinanceAction";
+import { todayInSaoPauloISO } from "../../../../../lib/date/saoPauloDate";
 import { inspectExistingCommercialInstallment,validateCommercialSaleForBilling } from "../../../../../lib/financeiro/commercialSaleBillingGuard";
 import { getAuditContext } from "../../../../../lib/auth/getAuditContext";
 import { recordAuditEventSupabase } from "../../../../../providers/supabase/auditEvents.supabase";
@@ -106,7 +107,8 @@ export async function generateCommercialSaleFinanceiroAction(id: string, firstDu
     const sale = await getCommercialSaleService(client).getById(id);
     // Nunca faturar proposta/cancelada, cortesia, zero ou data inválida.
     // Revalidar no servidor antes da primeira inserção.
-    const billingError=validateCommercialSaleForBilling(sale,firstDueDate);
+    const issueDate=todayInSaoPauloISO();
+    const billingError=validateCommercialSaleForBilling(sale,firstDueDate,issueDate);
     if(billingError) return {error:billingError};
     const drafts = generateCommercialSaleInstallments(sale, firstDueDate);
     const receivableService = getReceivableService(client);
@@ -136,7 +138,7 @@ export async function generateCommercialSaleFinanceiroAction(id: string, firstDu
           commercialSaleId: sale.id,
           installmentNumber: draft.installmentNumber,
           originalAmount: draft.amount,
-          issueDate: new Date().toISOString().slice(0, 10),
+          issueDate,
           dueDate: draft.dueDate,
         });
         results.push({ installmentNumber: draft.installmentNumber, ok: true });

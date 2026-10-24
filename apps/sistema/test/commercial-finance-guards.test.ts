@@ -50,3 +50,8 @@ test("não substituir parcela já paga, cancelada ou com outro vencimento",()=>{
  assert.match(inspectExistingCommercialInstallment(draft,{...existing,status:"paid",originalAmount:100},"cliente-1").error??"",/valor ou vencimento/);
  assert.match(inspectExistingCommercialInstallment(draft,{...existing,status:"paid",clientId:"outra"},"cliente-1").error??"",/outra negociação/);
 });
+
+test("vencimento não pode anteceder emissão em São Paulo",()=>{
+ assert.equal(validateCommercialSaleForBilling(sale,"2026-10-24","2026-10-24"),null);
+ assert.match(validateCommercialSaleForBilling(sale,"2026-10-23","2026-10-24")??"",/anterior à data de emissão/);
+});
