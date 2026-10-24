@@ -150,3 +150,55 @@ revoke all on function public.finalize_commercial_signature(text,uuid,text,text,
  from public,anon,authenticated;
 grant execute on function public.finalize_commercial_signature(text,uuid,text,text,text,text,jsonb)
  to service_role;
+
+-- Evita envio repetido de códigos a partir de um link vazado.
+-- Esta reserva atômica é anterior à chamada externa ao Supabase Auth.
+alter table public.commercial_signature_invitations
+ add column last_otp_requested_at timestamptz,
+ add column otp_requests_count integer not null default 0
+   check (otp_requests_count between 0 and 8),
+ add column otp_window_started_at timestamptz;
+
+create or replace function public.reserve_commercial_signature_otp(
+ p_token_sha256 text
+) returns void language plpgsql security definer set search_path='' as $otp_reserve$
+declare v_inv record;v_count integer;
+begin
+ if auth.role() is distinct from 'service_role' then
+  raise exception 'Somente serviço.' using errcode='42501';
+ end if;
+ if p_token_sha256 !~ '^[a-f0-9]{64}$' then
+  raise exception 'Convite inválido.' using errcode='23514';
+ end if;
+ select i.id,i.status,i.expires_at,i.last_otp_requested_at,
+   i.otp_requests_count,i.otp_window_started_at,r.status as request_status
+ into v_inv
+ from public.commercial_signature_invitations i
+ join public.commercial_signature_requests r on r.id=i.request_id
+ where i.token_sha256=p_token_sha256 for update of i;
+ if not found or v_inv.status<>'pending'
+   or v_inv.request_status<>'pending' or v_inv.expires_at<=now() then
+  raise exception 'Convite indisponível.' using errcode='23514';
+ end if;
+ if v_inv.last_otp_requested_at > now()-interval '60 seconds' then
+  raise exception 'Aguarde um minuto antes de solicitar novo código.'
+   using errcode='23514';
+ end if;
+ v_count:=case when v_inv.otp_window_started_at is null
+  or v_inv.otp_window_started_at<=now()-interval '24 hours'
+  then 0 else v_inv.otp_requests_count end;
+ if v_count>=8 then
+  raise exception 'Limite diário de códigos atingido para este convite.'
+   using errcode='23514';
+ end if;
+ update public.commercial_signature_invitations
+  set last_otp_requested_at=now(),
+   otp_window_started_at=case when v_count=0 then now()
+     else v_inv.otp_window_started_at end,
+   otp_requests_count=v_count+1 where id=v_inv.id;
+end;
+$otp_reserve$;
+revoke all on function public.reserve_commercial_signature_otp(text)
+ from public,anon,authenticated;
+grant execute on function public.reserve_commercial_signature_otp(text)
+ to service_role;
