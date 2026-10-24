@@ -11,15 +11,15 @@
 - Versões idênticas presentes em ambos: **149**.
 - Versões **somente no remoto**: **3**.
 - Arquivos **ainda sem aquela versão no remoto**: **46**.
-- As 3 versões remotas possuem **o mesmo nome** de arquivos locais com identificadores de versão diferentes. **Isso NÃO demonstra SQL idêntico nem permite marcar a versão como aplicada automaticamente.**
+- **Verificação adicional (somente leitura):** as 3 versões remotas com timestamps diferentes têm **SQL literalmente idêntico** aos correspondentes arquivos locais (mesmo número de caracteres: 2.443, 2.551 e 6.292; comparação do texto completo após normalização de CRLF/trim). Não são três alterações de schema inéditas. Restam **43 arquivos cujo conteúdo ainda não consta como versão executada no remoto**, mais **3 versões já aplicadas sob outro identificador**. **NÃO marcar/alterar o ledger nem reaplicar esses três scripts sem plano aprovado**, pois carimbos distintos ainda causam colisão operacional.
 
-## Três correspondências prováveis, NÃO aprovadas
+## Três SQL idênticos confirmados (versões divergentes ainda NÃO conciliadas)
 
-| Versão/nome no banco real | Possível arquivo correspondente no Git | Status |
+| Versão/nome no banco real | Arquivo com SQL idêntico no Git | Status |
 |---|---|---|
-| `20261020141318_mobile_app_android_release` | `20261030100400_mobile_app_android_release.sql` | **Conferir SQL/consequências antes de qualquer alteração** |
-| `20261021220137_localities_state_code_for_geotargeting` | `20261021180000_localities_state_code_for_geotargeting.sql` | **Conferir SQL/consequências antes de qualquer alteração** |
-| `20261021220149_native_push_geographic_routing` | `20261021190000_native_push_geographic_routing.sql` | **Conferir SQL/consequências antes de qualquer alteração** |
+| `20261020141318_mobile_app_android_release` | `20261030100400_mobile_app_android_release.sql` | **SQL igual; resolver numeração/histórico apenas com plano revisado** |
+| `20261021220137_localities_state_code_for_geotargeting` | `20261021180000_localities_state_code_for_geotargeting.sql` | **SQL igual; resolver numeração/histórico apenas com plano revisado** |
+| `20261021220149_native_push_geographic_routing` | `20261021190000_native_push_geographic_routing.sql` | **SQL igual; resolver numeração/histórico apenas com plano revisado** |
 
 ## Arquivos locais ainda sem a respectiva versão aplicada (46)
 
@@ -70,11 +70,11 @@
 - `20261120250000_agenda_event_invitees.sql`
 - `20261120260000_client_digital_export_approval.sql`
 
-**Observação:** as três versões com nomes equivalentes estão **incluídas** nos 46 arquivos não registrados. O conjunto completo não deve ser tratado como 46 migrações efetivamente inéditas antes da conciliação. Outros arquivos incluem NFS-e, cujo módulo foi **adiado para depois da publicação**, mas a interdependência de schema exige análise: não remover/aplicar SQL isoladamente sem auditoria.
+**Observação:** as três versões comprovadamente idênticas estão **incluídas** nos 46 arquivos sem o mesmo número no remoto; por isso são **43 novos conteúdos a avaliar + 3 aliases de versão a conciliar**, nunca 46 scripts para executar indiscriminadamente. SQL idêntico não implica permissão para manipular o histórico automaticamente. Outros arquivos incluem NFS-e, cujo módulo foi **adiado para depois da publicação**, mas a interdependência de schema exige análise: não remover/aplicar SQL isoladamente sem auditoria.
 
 ## Protocolo obrigatório (somente antes do GO)
 
-1. Conferir a tabela `supabase_migrations.schema_migrations` por **leitura** e comparar, para as 3 versões equivalentes apenas pelo nome, o SQL efetivamente executado com o SQL versionado na branch (sem assumir que timestamp/filename é evidência suficiente).
+1. **Já conferido em leitura:** SQL das três versões alternativas coincide exatamente com o arquivo local. Documentar essa prova e avaliar procedimento suportado para reconciliar o ledger, com backup e revisão separada. Não reexecutar nem reparar histórico automaticamente.
 2. Identificar dependências e alterações destrutivas das demais migrations; preparar sequência de ensaio em **clone/sandbox**, sem bancos reais ou chaves Production.
 3. Fazer inventário e teste de restauração de backups/objetos R2 e validar roteiro de rollback. Não editar a tabela de migration ledger para fazê-la "bater".
 4. Executar o utilitário read-only `scripts/release/migration-preflight.mjs` contra uma exportação **atualizada** de `{"migrations":[{"version":"...","name":"..."}]}`. A ferramenta não acessa DB, não altera histórico e sinaliza divergência com exit code 2.
