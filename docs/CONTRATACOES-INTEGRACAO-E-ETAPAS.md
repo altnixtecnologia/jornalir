@@ -637,3 +637,19 @@ arquivo público de edições no Cloudflare R2 (100 MiB no aplicativo).
   objetos de evidência para auditoria.
 - Exigir três workflows verdes para SHA de código final e ensaio
   autenticado em ambiente separado com SMTP de teste antes de uso real.
+
+### Emissão de PDF original idempotente — 24/10/2026
+
+- `commercialDocumentId(packageId, serviceId)` deriva UUID v8 determinístico
+  por pacote e serviço (ou documento combinado), evitando criar novo
+  caminho em cada retry. Nenhum serviço de cobrança é acionado.
+- `issueCommercialContractDocumentsAction` usa `persistCommercialEvidence`
+  no bucket privado `contract-documents`: recupera PDF de emissão anterior
+  cujo upload concluiu mas o INSERT falhou, valida PDF, grava o hash real e
+  recusa alterações destrutivas. Se outra requisição registrou o documento,
+  só aceita idênticos serviço, modelo, versão, SHA e caminho.
+- Rastreia `recovered=true` na auditoria complementar. Teste de UUIDs
+  estáveis e de separação por serviço/contratação integrado ao CI.
+- **Limitação:** arquivos órfãos criados por versões antigas que usavam
+  UUIDs aleatórios continuam exigindo conciliação manual; a mudança
+  não apaga nem varre storage histórico automaticamente.
