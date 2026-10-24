@@ -232,3 +232,10 @@ Evitar declarar um módulo encerrado só porque a infraestrutura de CI está ver
 - Inclusão extraordinária e familiar passa a aguardar **confirmação do servidor** antes de fechar formulário; em duplicidade/erro, nome/data e demais informações continuam preenchidos para correção. Botões de salvar/cancelar ficam bloqueados durante o envio, evitando duplo clique.
 - Mensagens existentes e seus modelos (incluindo modelos personalizados) foram **preservados**, sem alterar textos aprovados. Relatório segue DATA | NOME | CIDADE; fotos de destaque e filtros da Semana do Jornal permanecem.
 - Código deve passar CI do sistema e schema descartável. Homologação manual do layout real (PC/mobile, impressão e histórico com dados legados) continua como verificação final do módulo antes do release.
+
+### Módulo 8 — bloco A, verificação de configurações e patrocinadores (24/10)
+
+- A página pública Assine/Anuncie já possui `getSiteAssineEnabled` com leitura fail-closed, bloqueio de submissões no banco e trigger de acesso somente admin/owner para modificar `assine_enabled`; **não foi recriada nem duplicada** essa infraestrutura.
+- As seis posições de anúncios já existem com configuração por grupo e imagem, rotação, efeitos, formatos, upload otimizado e lista de imagens. A revisão encontrou um problema localizado: `MediaSettingsRow` exibia `Salvo ✓` **antes do resultado da Server Action**.
+- A configuração por imagem agora aguarda resposta confirmada: o protocolo original da action é `void` em sucesso e `{error}` em falha. O indicador de sucesso só aparece após a conclusão, a ação desabilita o botão durante o envio e informa falha sem mentir sobre gravação. Não alterou o tipo de arquivo, temporizador, rotação ou quantidade de posições.
+- Ainda falta no bloco A homologar PC/mobile as seis posições e ativação/desativação do Assine contra a configuração aplicada no site. Bloco B posterior: vigência, vinculação comercial, inadimplência/suspensão e contratos. Não criar cobrança automática nem alterar dados remotos.

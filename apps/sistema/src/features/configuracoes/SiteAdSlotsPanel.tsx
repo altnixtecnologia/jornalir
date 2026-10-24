@@ -78,7 +78,7 @@ function MediaSettingsRow({
 }: {
   media: SiteAdMediaWithAsset;
   pending: boolean;
-  onSave: (changes: { rotationIntervalMs: number | null; transitionEffect: SiteAdSlotTransitionEffect | null; fitMode: SiteAdFitMode | null }) => void;
+  onSave: (changes: { rotationIntervalMs: number | null; transitionEffect: SiteAdSlotTransitionEffect | null; fitMode: SiteAdFitMode | null }) => Promise<boolean>;
 }): JSX.Element {
   const hasOverride = media.rotationIntervalMs != null || media.transitionEffect != null || media.fitMode != null;
   const [custom, setCustom] = useState(hasOverride);
@@ -86,17 +86,30 @@ function MediaSettingsRow({
   const [effect, setEffect] = useState<SiteAdSlotTransitionEffect>(media.transitionEffect ?? "fade");
   const [fitMode, setFitMode] = useState<SiteAdFitMode>(media.fitMode ?? "contain");
   const [saved, setSaved] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  function save(): void {
+  async function save(): Promise<void> {
+    if (saving || pending) return;
     setSaved(false);
-    if (!custom) {
-      onSave({ rotationIntervalMs: null, transitionEffect: null, fitMode: null });
-    } else {
-      const value = Math.max(2, Math.min(120, Number(seconds) || 10)) * 1000;
-      onSave({ rotationIntervalMs: value, transitionEffect: effect, fitMode });
+    setError(null);
+    setSaving(true);
+    try {
+      const changes = !custom
+        ? { rotationIntervalMs: null, transitionEffect: null, fitMode: null }
+        : {
+            rotationIntervalMs: Math.max(2, Math.min(120, Number(seconds) || 10)) * 1000,
+            transitionEffect: effect,
+            fitMode,
+          };
+      const confirmed = await onSave(changes);
+      if (confirmed) setSaved(true);
+      else setError("O servidor não confirmou a alteração. Confira a mensagem do grupo e tente novamente.");
+    } catch {
+      setError("Falha de conexão. As configurações anteriores foram preservadas.");
+    } finally {
+      setSaving(false);
     }
-    setSaved(true);
-    window.setTimeout(() => setSaved(false), 1800);
   }
 
   return (
@@ -123,9 +136,10 @@ function MediaSettingsRow({
       ) : (
         <span className="helper-text">Usa o tempo/efeito/formato do grupo.</span>
       )}
-      <button type="button" className="cadastros-btn-secondary" onClick={save} disabled={pending}>
-        {saved ? "Salvo ✓" : "Salvar imagem"}
+      <button type="button" className="cadastros-btn-secondary" onClick={() => void save()} disabled={pending || saving}>
+        {saving ? "Salvando…" : saved ? "Salvo ✓" : "Salvar imagem"}
       </button>
+      {error ? <p role="alert" className="form-error">{error}</p> : null}
     </div>
   );
 }
@@ -293,19 +307,25 @@ function SlotCard({ slot }: { slot: SiteAdSlotWithMedia }): JSX.Element {
     });
   }
 
-  function updateMediaSettings(
+  async function updateMediaSettings(
     id: string,
     changes: { rotationIntervalMs: number | null; transitionEffect: SiteAdSlotTransitionEffect | null; fitMode: SiteAdFitMode | null },
-  ): void {
+  ): Promise<boolean> {
     setMessage(null);
-    startTransition(async () => {
+    try {
       const result = await updateSiteAdMediaSettingsAction(id, changes);
+      // Server Action histórica devolve void no sucesso; apenas
+      // {error} identifica falha (não inverter este protocolo).
       if (result && "error" in result) {
         setMessage(result.error);
-        return;
+        return false;
       }
       router.refresh();
-    });
+      return true;
+    } catch {
+      setMessage("Falha de conexão ao salvar imagem. Confira antes de repetir.");
+      return false;
+    }
   }
 
   const previewObjectFit = fitMode === "stretch" ? "fill" : "contain";
