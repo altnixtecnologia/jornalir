@@ -272,3 +272,8 @@ A confirmação do Jornal IR prevalece sobre o plano anterior: **os seis espaço
 - Revisadas RPCs `SECURITY DEFINER` para repetir a mesma checagem de permissão no banco, não só na Server Action. RLS para POST de lotes/candidatos e PATCH de candidato exige permissão granular. Sem alterar algoritmo de extração nem conteúdo dos rascunhos.
 - `create_pdf_import_batch` ganhou forma com argumento explícito `p_force`; chamada antiga de 7 argumentos permanece compatível e delega para `force=false`. O banco trava por edição+SHA-256 durante inserção e bloqueia corrida entre importações do MESMO arquivo, mas permite **reprocessar mesmo assim** mediante confirmação intencional na interface. Preservada gravação atômica de lote + candidatos.
 - Ainda exigem homologação R2 real, revisão de importação textual e leitor final PC/mobile. 
+
+### Proteção contra reenvio do PDF oficial (edição já possui capa)
+
+- O navegador calcula SHA-256 antes de pedir PUT assinado do R2. O servidor compara o hash com o PDF oficial da mesma edição e evita criar mais objetos quando a capa já está arquivada. Edição com capa ausente pode ser reenviada para reparo. Teste de SHA e ausência de capa foi incluído no CI.
+- A finalização faz conferência adicional do hash; se o vínculo falhar, tenta limpar apenas as duas chaves de upload geradas para aquela tentativa, nunca o PDF vinculado. Não houve leitura nem apagamento no R2 real.

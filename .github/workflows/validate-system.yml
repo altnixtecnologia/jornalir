@@ -80,6 +80,9 @@ jobs:
       - name: Testar isolamento de chaves PDF/capa e upload direto da edição
         run: npx tsx --test apps/sistema/test/edition-direct-upload-keys.test.ts
 
+      - name: Testar deduplicação do upload oficial de PDFs
+        run: npx tsx --test apps/sistema/test/edition-upload-dedup.test.ts
+
       - name: Testar troca de capa da matéria
         run: npx tsx --test apps/sistema/test/article-cover-choice.test.ts
 

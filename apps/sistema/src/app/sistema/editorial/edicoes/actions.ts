@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import {checkModuleAction} from "../../../../lib/permissions/checkModuleAction";
 import {isEditionDirectUploadPair} from "../../../../lib/editorial/editionDirectUploadKeys";
+import {isDuplicateEditionUpload} from "../../../../lib/editorial/editionUploadDedup";
 import type { NewspaperEdition } from "@ir/types";
 import { getNewspaperEditionService } from "../../../../composition/editorial";
 import { createSupabaseServerClient } from "../../../../lib/supabase/server";
@@ -135,9 +136,11 @@ export async function prepareEditionR2UploadAction(
   editionId: string,
   fileName: string,
   fileSize: number,
+  sha256: string,
 ): Promise<PrepareEditionUploadResult> {
   try {
     if (!fileName.toLowerCase().endsWith(".pdf")) return { error: "Selecione um arquivo PDF." };
+    if(!/^[a-f0-9]{64}$/i.test(sha256))return {error:"Hash do PDF inválido."};
     if (!Number.isFinite(fileSize) || fileSize <= 0 || fileSize > MAX_EDITION_PDF_BYTES) {
       return { error: `O PDF precisa ter até ${MAX_EDITION_PDF_BYTES / 1024 / 1024} MB.` };
     }
@@ -146,6 +149,8 @@ export async function prepareEditionR2UploadAction(
     const client = await requireStaffClient();
     const edition = await getNewspaperEditionService(client).getById(editionId);
     if (!edition) return { error: "Edição não encontrada." };
+    if(isDuplicateEditionUpload(edition,sha256))
+      return {error:"Este PDF já está arquivado nesta edição com capa. Não é necessário reenviar."};
 
     await ensureEditionR2CorsConfigured();
 
@@ -194,6 +199,9 @@ export async function finalizeEditionR2UploadAction(
   try {
     const edition = await getNewspaperEditionService(client).getById(editionId);
     if (!edition) return { error: "Edição não encontrada." };
+    // Verificação adicional após os PUTs, sem regravar objeto idêntico.
+    if(isDuplicateEditionUpload(edition,input.sha256))
+      return {error:"Este PDF já consta nesta edição. Reabra o cadastro para conferir."};
 
     const options = { editionNumber: edition.editionNumber, publicationDate: edition.publicationDate };
     if (!isEditionDirectUploadPair(input.pdfKey,input.coverKey,edition.editionNumber,edition.publicationDate)) {
