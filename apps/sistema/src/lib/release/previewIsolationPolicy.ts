@@ -1,16 +1,33 @@
-/** Proteção adicional contra vazamento/acesso de banco privilegiado nos
- * deployments da Vercel que não são Production.
- *
- * Mesmo que uma variável de Preview receba acidentalmente uma service_role
- * real no futuro, Admin API não deve utilizá-la. Reabilitar ambientes de
- * homologação exige arquitetura de credenciais revisada separadamente.
- *
- * Não confundir com VERCEL_TARGET_ENV: o único target com uso permitido
- * nesta primeira publicação é VERCEL_ENV=production (ou dev local sem
- * sinalizador da plataforma, para testes controlados).
+/** Barreira de segurança entre Vercel Preview e o banco real.
+ * Toda habilitação de homologação exige um Supabase não produtivo, com
+ * referência EXATA. O banco Production nunca é uma opção de Preview.
+ * Não hospedar testes usando dados reais copiados de clientes.
  */
+export const PRODUCTION_SUPABASE_REF = "iqnzrpdccecgalqboeyf" as const;
+
+export type HomologationIdentity = {
+  vercelEnv?: string;
+  homologationEnabled?: string;
+  homologationProjectRef?: string;
+  supabaseUrl?: string;
+};
+
+export function isIsolatedHomologation(input: HomologationIdentity): boolean {
+  if (input.vercelEnv !== "preview") return false;
+  if (input.homologationEnabled !== "true") return false;
+  const ref = input.homologationProjectRef?.toLowerCase() ?? "";
+  if (!/^[a-z0-9]{20}$/.test(ref) || ref === PRODUCTION_SUPABASE_REF) return false;
+  if (typeof input.supabaseUrl !== "string") return false;
+  // Canonical HTTPS only, no username, password, path, query or alternative host.
+  return input.supabaseUrl === `https://${ref}.supabase.co`
+    || input.supabaseUrl === `https://${ref}.supabase.co/`;
+}
+
 export function canUseSupabaseAdminCredentials(
   vercelEnv: string | undefined,
+  environment: Omit<HomologationIdentity, "vercelEnv"> = {},
 ): boolean {
-  return !vercelEnv || vercelEnv === "production";
+  // Node local sem Vercel usa configurações locais de forma explícita.
+  if (!vercelEnv || vercelEnv === "production") return true;
+  return isIsolatedHomologation({ vercelEnv, ...environment });
 }
