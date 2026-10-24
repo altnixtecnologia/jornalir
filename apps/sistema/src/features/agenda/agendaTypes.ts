@@ -40,6 +40,15 @@ export interface WeeklyPautaItem {
   updatedAt: string;
 }
 
+/** Convites a compromissos ainda agendados, inclusive fora do mês em tela. */
+export interface PendingMeetingInvitation {
+  eventId: string;
+  title: string;
+  eventDate: string;
+  startTime: string | null;
+  location: string | null;
+}
+
 export interface AgendaWorkspaceData {
   focusDate: string;
   today: string;
@@ -51,5 +60,6 @@ export interface AgendaWorkspaceData {
   access: { agendaRead: boolean; agendaWrite: boolean; pautaRead: boolean; pautaWrite: boolean; editorialLinkAccess: boolean };
   profiles: AgendaProfile[];
   events: AgendaEventItem[];
+  pendingInvitations: PendingMeetingInvitation[];
   pautaItems: WeeklyPautaItem[];
 }

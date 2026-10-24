@@ -2,7 +2,7 @@ import "server-only";
 import { redirect } from "next/navigation";
 
 import { createSupabaseServerClient } from "../../lib/supabase/server";
-import type { AgendaEventItem, AgendaProfile, AgendaWorkspaceData, WeeklyPautaItem } from "./agendaTypes";
+import type { AgendaEventItem, AgendaProfile, AgendaWorkspaceData, PendingMeetingInvitation, WeeklyPautaItem } from "./agendaTypes";
 
 export const AGENDA_TIMEZONE = "America/Sao_Paulo";
 
@@ -130,6 +130,28 @@ export async function loadAgendaWorkspaceData(focusDate: string): Promise<Agenda
     role: profile.role,
   }));
   const profileName = new Map(profiles.map((profile) => [profile.id, profile.name]));
+
+  // Visível mesmo quando a reunião for no próximo mês. Somente convites
+  // do próprio usuário, RLS ativa e compromisso ainda agendado.
+  const myInvites=await supabase.from("agenda_event_invitees")
+    .select("event_id").eq("profile_id",user.id).eq("status","pending")
+    .order("invited_at",{ascending:false}).limit(50);
+  if(myInvites.error)throw new Error(myInvites.error.message);
+  let pendingInvitations:PendingMeetingInvitation[]=[];
+  const pendingIds=[...new Set((myInvites.data??[]).map(row=>row.event_id))];
+  if(pendingIds.length){
+    const meetings=await supabase.from("agenda_events")
+      .select("id,title,event_date,start_time,location")
+      .in("id",pendingIds).eq("status","scheduled")
+      .eq("event_kind","general").gte("event_date",today)
+      .order("event_date",{ascending:true})
+      .order("start_time",{ascending:true,nullsFirst:false});
+    if(meetings.error)throw new Error(meetings.error.message);
+    pendingInvitations=(meetings.data??[]).map(item=>({
+      eventId:item.id,title:item.title,eventDate:item.event_date,
+      startTime:trimDbTime(item.start_time),location:item.location,
+    }));
+  }
   const eventIds = (eventsResult.data ?? []).map((event) => event.id);
 
   let invitationRows: Array<{ event_id: string; profile_id: string; status: string; responded_at: string | null }> = [];
@@ -222,6 +244,7 @@ export async function loadAgendaWorkspaceData(focusDate: string): Promise<Agenda
     access,
     profiles,
     events,
+    pendingInvitations,
     pautaItems,
   };
 }

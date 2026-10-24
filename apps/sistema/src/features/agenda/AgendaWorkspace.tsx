@@ -506,6 +506,36 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
 
   return (
     <section className="agenda-workspace">
+      {data.pendingInvitations.length > 0 ? (
+        <section className="agenda-overdue-notice" aria-labelledby="pending-meetings-title">
+          <div>
+            <strong id="pending-meetings-title">
+              {data.pendingInvitations.length} convite(s) de reunião aguardando sua resposta
+            </strong>
+            <p className="helper-text">Confirme sua presença ou recuse, inclusive para reuniões de outros meses.</p>
+            {data.pendingInvitations.map(invitation=>(
+              <div key={invitation.eventId} className="agenda-event-meta">
+                <span>
+                  {invitation.title} · {shortDate(invitation.eventDate)}
+                  {invitation.startTime ? " · "+invitation.startTime+"h" : ""}
+                  {invitation.location ? " · "+invitation.location : ""}
+                </span>
+                {data.access.agendaRead ? (
+                  <Link href={"/sistema/agenda?date="+invitation.eventDate}>Ver reunião</Link>
+                ):null}
+                <button type="button" disabled={isPending}
+                  onClick={()=>run(()=>respondAgendaInvitationAction(invitation.eventId,"accepted"),"Presença confirmada.")}>
+                  Aceitar
+                </button>
+                <button type="button" disabled={isPending}
+                  onClick={()=>run(()=>respondAgendaInvitationAction(invitation.eventId,"declined"),"Recusa registrada.")}>
+                  Recusar
+                </button>
+              </div>
+            ))}
+          </div>
+        </section>
+      ):null}
       <div className="agenda-quick-overview" aria-label="Resumo dos compromissos">
         <div><span>Hoje</span><strong>{todayCount}</strong><small>compromissos</small></div>
         <div><span>Minha fila</span><strong>{ownPending}</strong><small>pendências</small></div>

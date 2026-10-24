@@ -292,3 +292,9 @@ A confirmação do Jornal IR prevalece sobre o plano anterior: **os seis espaço
 - Gestão de participantes de compromisso geral existente na tela Agenda, com caixa de seleção da equipe ativa; salvar por RPC transacional sem remover respostas de quem permanece convidado. O organizador consulta status por nome e cada convidado responde com o próprio login.
 - RLS de leitura apenas colaborador convidado ou gestor; INSERT/UPDATE/DELETE diretos vedados e RPCs `set_agenda_event_invitees` e `respond_agenda_event_invitation` verificam gestor/identidade no banco. Compromissos cancelados/concluídos não aceitam novos convites nem novas respostas.
 - **Não emite mensagens**. A notificação interna, Telegram, push e lembretes individualizados continuam no bloco B; aqui a tela informa explicitamente que o convite ainda não é um e-mail enviado. Não altera sessão de Câmara, pauta semanal nem status de tarefas.
+
+
+### Módulo 7 — convites de reunião visíveis fora do mês
+- Convites individuais já têm RPC transacional com respostas `pending`/`accepted`/`declined`, sem relação com conclusão de tarefas. O teste do módulo validou ACL e idempotência em PostgreSQL descartável; erro de ambiguidade `event_id` corrigido no teste.
+- O painel agora apresenta **minhas confirmações pendentes** na Agenda/Pauta mesmo quando a reunião é de outro mês: busca limitada dos convites da própria sessão, consulta apenas compromissos gerais ainda agendados com data de hoje em diante, link à reunião e botões Aceitar/Recusar sem sair do painel.
+- Este aviso é **interno**, não envia e-mail, WhatsApp, Telegram nem push. Entrega externa de notificações é o próximo bloco, sujeito à configuração dos canais e homologação.
