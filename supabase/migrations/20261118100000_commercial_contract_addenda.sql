@@ -176,6 +176,16 @@ create unique index commercial_contract_docs_service_unique
  on public.commercial_contract_documents(package_id,service_id)
  where service_id is not null and addendum_id is null;
 
+-- Quem prepara aditivos precisa ver a identidade/documento fonte.
+-- O download do PDF original permanece restrito pelo RLS de Storage.
+drop policy if exists commercial_documents_read on public.commercial_contract_documents;
+create policy commercial_documents_read on public.commercial_contract_documents
+ for select to authenticated using(
+  public.staff_can_module_action('publicidade','contratos_preparar')
+  or public.staff_can_module_action('publicidade','contratos_revisar')
+  or public.staff_can_see_module('financeiro')
+);
+
 create or replace function public.guard_commercial_document_evidence()
 returns trigger language plpgsql set search_path='' as $guard_document$
 declare
