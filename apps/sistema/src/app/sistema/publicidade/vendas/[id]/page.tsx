@@ -87,7 +87,7 @@ export default async function CommercialSaleDetailPage({ params }: { params: { i
   const preparationIds=(signerPreparationsResult?.data??[]).map(p=>p.id);
   const signatureRequestsResult=canReview.data===true && preparationIds.length
     ? await supabase.from("commercial_signature_requests")
-      .select("id,preparation_id,status,completed_at,commercial_signature_invitations(id,participant_id,status,expires_at,signed_at,commercial_signature_participants(signer_name,signer_role,signer_email))")
+      .select("id,preparation_id,status,completed_at,commercial_signature_invitations(id,participant_id,status,expires_at,signed_at,commercial_signature_participants(signer_name,signer_role,signer_email),commercial_signature_attempts(created_at))")
       .in("preparation_id",preparationIds)
     : null;
   const financialStatus = deriveCommercialSaleFinancialStatus(receivables);
