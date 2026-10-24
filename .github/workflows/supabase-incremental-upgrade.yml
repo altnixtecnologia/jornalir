@@ -28,8 +28,8 @@ jobs:
         with:
           version: 2.120.0
 
-      # A production possui 152 migrations no ledger. Três carimbos remotos
-      # são aliases SQL-idênticos aos arquivos da branch. Criamos o MESMO
+      # A production possui 152 migrations no ledger. Três arquivos locais foram
+      # renomeados aos carimbos remotos SQL-idênticos. Criamos o MESMO
       # estado-base em Docker isolado e só então ensaiamos o upgrade.
       # NÃO usar --linked, db push, nem chaves do projeto Production.
       - name: Preparar baseline local de 152 migrations, sem tocar o remoto
@@ -40,7 +40,7 @@ jobs:
           for file in supabase/migrations/*.sql; do
             name="${file##*/}"
             version="${name%%_*}"
-            if [[ "$version" > "20261029101300" && "$version" != "20261030100400" ]]; then
+            if [[ "$version" > "20261029101300" ]]; then
               mv "$file" /tmp/jornalir-pending-migrations/
             fi
           done
@@ -73,7 +73,7 @@ jobs:
           test "$(find supabase/migrations -maxdepth 1 -name '*.sql' | wc -l)" -eq 195
 
       - name: Apply only the pending migrations to EXISTING local data
-        run: supabase migration up --local --include-all
+        run: supabase migration up --local
 
       - name: Verify preserved historical data and invitation safeguards
         env:
