@@ -1,4 +1,4 @@
-import type {CommercialSale,CommercialSaleStatus} from "@ir/types";
+import type {CommercialSale} from "@ir/types";
 
 /** Valida a VENDA antes de inserir qualquer título; a constraint do banco
  * continua sendo o controle definitivo contra parcelas duplicadas.
@@ -8,9 +8,8 @@ export function validateCommercialSaleForBilling(
  sale:Pick<CommercialSale,"status"|"commercialCondition"|"amount"|"installmentsCount">,
  firstDueDate:string,
 ):string|null {
- if(!(["approved","active","completed"] satisfies CommercialSaleStatus[]).includes(
-  sale.status as "approved"|"active"|"completed",
- )) return "Somente vendas aprovadas, ativas ou concluídas podem gerar títulos. Propostas e vendas canceladas não geram cobrança.";
+ if(sale.status==="proposal"||sale.status==="cancelled")
+  return "Somente vendas aprovadas, ativas ou concluídas podem gerar títulos. Propostas e vendas canceladas não geram cobrança.";
  if(sale.commercialCondition==="courtesy")
   return "Negociação em cortesia não gera títulos nem cobrança Pix.";
  if(!Number.isFinite(sale.amount)||sale.amount<=0)
@@ -39,4 +38,23 @@ export function validateChargeReceivableLink(
  if(charge.receivableId!==receivable.id || charge.clientId!==receivable.clientId)
   return "A cobrança Pix não pertence ao título e cliente selecionados.";
  return null;
+}
+
+/** Evita gerar uma segunda parcela para o mesmo histórico (inclusive
+ * quando o título anterior foi cancelado). Reutilizar somente dados
+ * iguais aos originalmente gerados; não alterar valor ou vencimento.
+ */
+export function inspectExistingCommercialInstallment(
+ draft:{amount:number;dueDate:string;installmentNumber:number},
+ existing:{status:string;originalAmount:number;dueDate:string;installmentNumber?:number;clientId:string},
+ saleClientId:string,
+):{alreadyGenerated:boolean;error?:string} {
+ if(existing.status==="cancelled") return {alreadyGenerated:false,
+  error:`Parcela ${draft.installmentNumber} cancelada anteriormente. Reabra o título no Financeiro ou revise a negociação; não crie uma duplicata.`};
+ if(existing.clientId!==saleClientId||existing.installmentNumber!==draft.installmentNumber)
+  return {alreadyGenerated:false,error:"Parcela existente pertence a outra negociação. Conciliação necessária."};
+ if(Math.round(existing.originalAmount*100)!==Math.round(draft.amount*100)
+   ||existing.dueDate!==draft.dueDate)
+  return {alreadyGenerated:false,error:`Parcela ${draft.installmentNumber} já foi emitida com valor ou vencimento diferente. Preserve-a e ajuste a venda pelo Financeiro.`};
+ return {alreadyGenerated:true};
 }
