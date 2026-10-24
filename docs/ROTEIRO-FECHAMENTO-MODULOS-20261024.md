@@ -23,7 +23,7 @@ Não usar a PR como release direta.
 | 4 | Editor de matérias, mídias e portal | Estrela da capa, recorte desktop, lista e leitura do portal | Comparação visual aprovada, fluxo editorial com autenticação, galeria, uploads R2, página do artigo, SEO, transição de abertura e compartilhamento |
 | 5 | Jornal Online e importação de PDF | Arquivo R2 e extração em rascunhos; limite atual até 100 MiB | Upload real/capa/leitor desktop-mobile, Range/CORS, duplicatas e relação com edição sem segundo upload |
 | 6 | Aniversariantes | Telas e gerador existentes | Layout aprovado e mensagens personalizadas; filtros por dia/mês; instituições/CNPJ; Novo+; eliminação de duplicações/scroll e atualização sem F5 |
-| 7 | Agenda/Pauta e notificações | Compromissos, tarefas e sincronização UI | Convites de reunião por pessoa com aceito/recusado/pendente; Telegram entrega real; lembretes individuais/gerais, push e sininho |
+| 7 | Agenda/Pauta e notificações | Convites por pessoa, aceite/recusa, lembrete Web Push individual, prevenção de duplicidade, revalidação de convites e compromissos, sino com pendências privadas; Telegram de grupo existente preservado | **Pendente:** homologar envio Web Push em dispositivo autorizado e Telegram em ambiente de teste, validar push opt-in/VAPID, cron, UX PC/mobile e receber aceite/recusa por usuário de teste; sem DM Telegram/WhatsApp/e-mail novos |
 | 8 | Publicidade e planos | Slots, rotação, efeitos e imagens configuráveis | Veiculação 6 slots desktop/mobile, validade, contratos, Assine/Anuncie, inadimplência/suspensão e coerência dos dados |
 | 9 | NFS-e nacional | Estrutura de certificado, XML e preparação | Ambiente oficial/município, XSD, transmissão, consulta/cancelamento; sem emissão real sem autorização |
 | 10 | Cadastros integrados | Cliente mestre Jornal definido | Sincronização jornal→Altnix Informativo SOMENTE para clientes digitais, sem interferir em players, mídia/OTA |
@@ -298,3 +298,15 @@ A confirmação do Jornal IR prevalece sobre o plano anterior: **os seis espaço
 - Convites individuais já têm RPC transacional com respostas `pending`/`accepted`/`declined`, sem relação com conclusão de tarefas. O teste do módulo validou ACL e idempotência em PostgreSQL descartável; erro de ambiguidade `event_id` corrigido no teste.
 - O painel agora apresenta **minhas confirmações pendentes** na Agenda/Pauta mesmo quando a reunião é de outro mês: busca limitada dos convites da própria sessão, consulta apenas compromissos gerais ainda agendados com data de hoje em diante, link à reunião e botões Aceitar/Recusar sem sair do painel.
 - Este aviso é **interno**, não envia e-mail, WhatsApp, Telegram nem push. Entrega externa de notificações é o próximo bloco, sujeito à configuração dos canais e homologação.
+
+
+### Módulo 7 — bloco B: fechamento de código, sem liberação de produção (24/10)
+
+- Os convites internos existentes continuam isolados de `agenda_event_assignees` (convidado não equivale a responsável); respostas e controle de acesso permanecem transacionais.
+- O cron Web Push existente prepara convite `kind=agenda` por destinatário; somente convite pendente de reunião geral futura, dentro de janela de 24h, com chave única por convite. Nenhum e-mail, WhatsApp ou Telegram individual é disparado.
+- Antes do Web Push, verifica membership, e-mail confirmado, perfil ativo, preferências e dispositivo. Convites aceitos/recusados/revogados, reuniões canceladas, reagendadas para o passado ou expiradas não enviam aviso antigo.
+- Responsáveis e convidados que aceitaram a reunião recebem os lembretes de evento sem duplicidade. Somente responsáveis podem receber alerta de tarefa atrasada. Um segundo filtro compara situação atual, tipo de vínculo, horário e status com a chave de cada aviso já enfileirado.
+- O sino administrativo conta os convites pendentes do próprio usuário (consulta autenticada + RLS) sem publicar o conteúdo em `admin_notifications`, que é compartilhado; a página de notificações apresenta a lista privada e conduz à Agenda para aceitar/recusar. Consulta reutilizada no calendário e na central.
+- Teste automatizado `apps/sistema/test/agenda-invitation-push.test.ts` cobre chave única, expiração, aceite, recusa, revogação, alteração de data, conclusão, responsável vs convidado e envio sem regressão de atrasos. CI e testes SQL seguem na PR #15.
+- **Não declarar entregue no celular nem publicar sem homologação externa:** verificar no navegador/Android, permissão concedida/negada, carregamento do sino, centro de notificações, cron VAPID, Telegram de grupo, janela temporal, usuário sem acesso, aceite/recusa e edição concorrente. A ausência do canal Web Push não pode impedir a confirmação interna do convite.
+- PR em draft; sem execução de migrações reais, merge, deploy ou disparo para destinatários reais. Próximos módulos aguardam aval expresso.
