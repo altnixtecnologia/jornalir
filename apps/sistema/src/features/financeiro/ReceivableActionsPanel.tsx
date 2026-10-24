@@ -60,6 +60,11 @@ export function ReceivableActionsPanel({ receivable, receipts, adjustments, staf
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const paymentOperationId = useRef<string | null>(null);
+  const adjustmentOperationId = useRef<string | null>(null);
+  function currentAdjustmentOperationId(): string {
+    if (!adjustmentOperationId.current) adjustmentOperationId.current = crypto.randomUUID();
+    return adjustmentOperationId.current;
+  }
   // Mesmo UUID no retry de falha de rede; só renova para uma nova operação.
   function currentPaymentOperationId(): string {
     if (!paymentOperationId.current) paymentOperationId.current = crypto.randomUUID();
@@ -92,6 +97,7 @@ export function ReceivableActionsPanel({ receivable, receipts, adjustments, staf
 
   function resetForms(): void {
     paymentOperationId.current = null;
+    adjustmentOperationId.current = null;
     setReceiptAmount("");
     setReceiptReference("");
     setReceiptNotes("");
@@ -148,7 +154,10 @@ export function ReceivableActionsPanel({ receivable, receipts, adjustments, staf
               </button>
             ) : null}
             {activeForm !== "adjustment" ? (
-              <button type="button" onClick={() => setActiveForm("adjustment")} disabled={pending || receivable.balance <= 0}>
+              <button type="button" onClick={() => {
+                adjustmentOperationId.current = null;
+                setActiveForm("adjustment");
+              }} disabled={pending || receivable.balance <= 0}>
                 Lançar abatimento
               </button>
             ) : null}
@@ -330,7 +339,7 @@ export function ReceivableActionsPanel({ receivable, receipts, adjustments, staf
               <span className="field-label">Tipo</span>
               <select value={adjustmentType} onChange={(event) => setAdjustmentType(event.target.value as AdjustmentType)}>
                 {/* credit_applied nunca aparece aqui — só é gravado pela aplicação automática/manual de crédito, nunca pelo abatimento manual (ver ReceivableService.addAdjustment). */}
-                {ADJUSTMENT_TYPES.filter((type) => type !== "credit_applied").map((type) => (
+                {ADJUSTMENT_TYPES.filter((type) => type === "discount").map((type) => (
                   <option key={type} value={type}>
                     {ADJUSTMENT_TYPE_LABELS[type]}
                   </option>
@@ -363,6 +372,7 @@ export function ReceivableActionsPanel({ receivable, receipts, adjustments, staf
                 onClick={() =>
                   run(() =>
                     addAdjustmentAction(receivable.id, {
+                      operationId: currentAdjustmentOperationId(),
                       amount: adjustmentAmount,
                       adjustmentType,
                       reason: adjustmentReason,

@@ -192,6 +192,7 @@ export async function settleWithDifferenceAction(receivableId: string, input: Se
 }
 
 export interface AdjustmentFormInput {
+  operationId?: string;
   amount: string;
   adjustmentType: AdjustmentType;
   reason: string;
@@ -203,6 +204,7 @@ export async function addAdjustmentAction(receivableId: string, input: Adjustmen
   const permissionError = await checkFinanceAction("ajustes_criar");
   if (permissionError) return { error: permissionError };
   try {
+    if (isLocalPreviewEnabled()) {
     await getReceivableService(createSupabaseServerClient()).addAdjustment(receivableId, {
       amount: parseAmount(input.amount),
       adjustmentType: input.adjustmentType,
@@ -210,6 +212,20 @@ export async function addAdjustmentAction(receivableId: string, input: Adjustmen
       authorizedByProfileId: input.authorizedByProfileId || undefined,
       notes: input.notes,
     });
+    } else {
+      if (!input.operationId || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(input.operationId))
+        return { error: "Identificador do abatimento inválido; reabra o formulário." };
+      const { error } = await createSupabaseServerClient().rpc("record_manual_receivable_adjustment", {
+        p_operation_id: input.operationId,
+        p_receivable_id: receivableId,
+        p_amount: parseAmount(input.amount),
+        p_adjustment_type: input.adjustmentType,
+        p_reason: input.reason,
+        p_authorized_by: input.authorizedByProfileId || null,
+        p_notes: input.notes || null,
+      });
+      if (error) throw new Error(error.message);
+    }
   } catch (error) {
     return { error: toErrorMessage(error) };
   }

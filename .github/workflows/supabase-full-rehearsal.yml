@@ -58,6 +58,13 @@ jobs:
           psql -h 127.0.0.1 -p 54322 -U postgres -d postgres \
             -v ON_ERROR_STOP=1 -f tests/security/manual-composition-atomic-postflight.sql
 
+      - name: Testar desconto atomico, idempotencia e autorizacao
+        env:
+          PGPASSWORD: postgres
+        run: |
+          psql -h 127.0.0.1 -p 54322 -U postgres -d postgres \
+            -v ON_ERROR_STOP=1 -f tests/security/manual-adjustment-atomic-postflight.sql
+
       - name: Confirm schema tables and functions
         run: |
           supabase db lint --local --schema public || true

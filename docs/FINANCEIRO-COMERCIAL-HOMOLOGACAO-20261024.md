@@ -146,3 +146,9 @@ Atualização local de cobrança para `cancelled` exige `WHERE status='pending'`
 - Fora do preview, `payCompositionAction` agora invoca a RPC em vez de gravar título por título. `CompositionPaymentPanel` mantém UUID estável em retries de rede, renovado ao fechar/reabrir ou após sucesso. Preview continua sem integração externa.
 - Teste em banco descartável no CI: pagamentos por ordem, saldo excedente, retry, origem cruzada, permissão, lista incompleta e acesso negado à gravação direta do ledger. Não mexer no Supabase remoto antes de homologação.
 - Ainda pendentes neste Módulo 3: abatimentos avulsos e estornos completamente transacionais, cenários reais de concorrência PostgreSQL em sessões paralelas e fluxos Asaas/Meta Sandbox.
+
+### Abatimento avulso: transação e permissão granular
+
+- `record_manual_receivable_adjustment` substitui o caminho de gravações separadas da action `addAdjustmentAction` (fora do preview). Bloqueia título, recalcula saldo, insere histórico, atualiza situação e grava operação idempotente em uma transação. Falhas fazem rollback integral; UUID persistente no formulário protege retry após timeout.
+- Permissão `ajustes_criar` permite **somente `discount`**. `settlement_difference` continua exclusivo do fluxo `recebimentos_quitar_diferenca`, impedindo que um operador com direito de desconto substitua o privilégio de quitação. `credit_applied` continua reservado ao crédito do cliente. A tela de abatimentos remove o tipo 'diferença dispensada' deste formulário.
+- `manual_adjustment_operations` é imutável para usuários comuns e registra autor e vínculo com abatimento; teste no Supabase efêmero cobre limite de saldo, reenvio, permissão negada, tipo indevido e status. Estornos continuam pendentes para revisão própria.
