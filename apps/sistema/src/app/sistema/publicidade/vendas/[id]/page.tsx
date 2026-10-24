@@ -139,7 +139,7 @@ export default async function CommercialSaleDetailPage({ params }: { params: { i
         saleId={sale.id}
         originalDocuments={(issuedDocumentsResult?.data??[])
           .filter(doc=>!doc.addendum_id).map(doc=>({id:doc.id,title:doc.title}))}
-        addenda={(addendaResult?.data??[]) as CommercialAddendumView[]}
+        addenda={(addendaResult?.data??[]) as unknown as CommercialAddendumView[]}
         canPrepare={canPrepare.data===true}
         canReview={canReview.data===true}
         loadError={addendaResult?.error?.message}
