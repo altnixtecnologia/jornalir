@@ -252,7 +252,13 @@ async function notifyPaymentReceived(input: {
 export async function POST(request: Request): Promise<Response> {
   // Um endpoint Preview não é destino legítimo de webhooks reais e não
   // deve modificar cobranças/recebimentos, mesmo com token válido.
-  if(!canProcessAsaasWebhook({vercelEnv:process.env.VERCEL_ENV}))
+  if(!canProcessAsaasWebhook({
+    vercelEnv: process.env.VERCEL_ENV,
+    asaasEnvironment: process.env.ASAAS_ENV,
+    homologationEnabled: process.env.IR_HOMOLOGATION_ENABLED,
+    homologationProjectRef: process.env.IR_HOMOLOGATION_SUPABASE_REF,
+    supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL,
+  }))
     return NextResponse.json({error:"Webhook indisponível neste ambiente."},{status:404});
   const expectedToken = getAsaasWebhookToken();
   if (!expectedToken || !hasServiceRoleKey()) {
