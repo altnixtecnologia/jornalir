@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { createSupabaseBrowserClient } from "../../lib/supabase/browser";
 import { useAuth, type AuthRole } from "../../lib/auth/AuthProvider";
 import { ROLE_LABELS } from "../../lib/auth/accountDisplay";
+import { hasRealStaffName, staffNameLabel } from "../../lib/auth/userIdentity";
 import { inviteUser, listUserInvitationStatuses, sendPasswordResetForUser, updateManagedUserName, resendPendingUserAccess } from "../../app/sistema/usuarios/actions";
 import { ConfirmDialog } from "../../components/admin/ConfirmDialog";
 import { STAFF_FINANCE_ACTIONS, STAFF_MODULE_ACTIONS, STAFF_MODULES, type StaffFinanceActionKey, type StaffModuleActionKey, type StaffActionModule, type StaffModuleKey } from "../../lib/permissions/staffPermissionsCatalog";
@@ -13,7 +14,7 @@ interface AuditViewerGrantRow { profile_id: string; can_view: boolean; }
 interface VisibilityRow { profile_id: string; module_key: StaffModuleKey; enabled: boolean; }
 interface FinanceGrantRow { profile_id: string; action_key: StaffFinanceActionKey; allowed: boolean; }
 interface ModuleActionGrantRow { profile_id: string; module_key: StaffActionModule; action_key: StaffModuleActionKey; allowed: boolean; }
-interface InvitationStatus { id: string; pending: boolean; email: string; }
+interface InvitationStatus { id: string; pending: boolean; confirmed: boolean; invited: boolean; email: string; }
 
 interface UserRow {
   id: string;
@@ -198,7 +199,7 @@ export function UsersManager(): JSX.Element {
       setError(result.error);
       return;
     }
-    setMessage("Link para redefinir a senha enviado por e-mail para " + target.name + ".");
+    setMessage("Solicitação de redefinição aceita pelo Supabase para " + userName(target) + ". Confirme o recebimento com a pessoa.");
   }
 
   async function setAgendaManagerGrant(target: UserRow, enabled: boolean): Promise<void> {
@@ -242,6 +243,10 @@ export function UsersManager(): JSX.Element {
   }
 
   function userEmail(userId: string): string { return invitationStatuses?.find((s) => s.id === userId)?.email ?? ""; }
+  function userName(target:UserRow):string {return staffNameLabel(target.name,userEmail(target.id));}
+  function nameNeedsReview(target:UserRow):boolean {
+    return !hasRealStaffName(target.name,userEmail(target.id));
+  }
 
   function invitationPending(userId: string): boolean {
     return invitationStatuses?.find((entry) => entry.id === userId)?.pending === true;
@@ -251,6 +256,9 @@ export function UsersManager(): JSX.Element {
     if (!user.active) return { label: "Inativo", style: "archived" };
     if (!invitationStatuses) return { label: "A verificar", style: "scheduled" };
     if (invitationPending(user.id)) return { label: "Convite pendente", style: "adjusting" };
+    const auth=invitationStatuses.find((item)=>item.id===user.id);
+    if(!auth) return {label:"Verificar no Auth",style:"scheduled"};
+    if(!auth.confirmed) return {label:"E-mail não confirmado",style:"adjusting"};
     return { label: "Ativo", style: "published" };
   }
 
@@ -374,9 +382,13 @@ export function UsersManager(): JSX.Element {
       {message ? <p className="helper-text">{message}</p> : null}
 
       {invitationWarning ? <p className="helper-text" role="status">A situação dos convites não pôde ser conferida: {invitationWarning}</p> : null}
-      <p className="helper-text">"Convite pendente" significa que o e-mail ainda não foi confirmado; não é um acesso ativo.
-        O botão "Reenviar acesso" envia um novo link de definição de senha. Envio aceito pelo Supabase não garante entrega na caixa postal.
-        Se não chegar, verifique o SMTP, limites, domínio do remetente e pasta de spam.</p>
+      <p className="helper-text">"Convite pendente" significa que há convite sem confirmação;
+        "E-mail não confirmado" identifica outras contas que ainda não confirmaram endereço.
+        O Supabase aceitar uma solicitação não comprova entrega nem leitura da mensagem.
+        Para endereços externos à equipe do projeto, configure SMTP próprio em Supabase:
+        Authentication → SMTP Settings; confira também Auth Logs, Rate Limits,
+        Authentication → URL Configuration e a pasta de spam.
+        O plano Pro não configura SMTP automaticamente.</p>
       <div className="materias-table-wrap usuarios-table-wrap">
         <table className="materias-table usuarios-table">
           <thead>
@@ -393,7 +405,7 @@ export function UsersManager(): JSX.Element {
               const manageable = canManage(user);
               return (
                 <tr key={user.id}>
-                  <td><span className="usuarios-cell-name">{user.name}</span>{userEmail(user.id) ? <span className="helper-text" style={{ display: "block" }}>{userEmail(user.id)}</span> : null}</td>
+                  <td><span className="usuarios-cell-name">{userName(user)}</span>{nameNeedsReview(user) ? <span className="helper-text" style={{ display: "block" }}>Nome cadastral pendente de revisão</span> : null}{userEmail(user.id) ? <span className="helper-text" style={{ display: "block" }}>{userEmail(user.id)}</span> : null}</td>
                   <td>
                     {user.role === "owner" ? (
                       <span className="status-pill status-pill--published">{ROLE_LABELS.owner}</span>
@@ -457,7 +469,8 @@ export function UsersManager(): JSX.Element {
                 </span>
                 <span className="materia-reference">{formatDate(user.created_at)}</span>
               </div>
-              <span className="materia-card-title">{user.name}</span>
+              <span className="materia-card-title">{userName(user)}</span>
+              {nameNeedsReview(user) ? <span className="helper-text">Nome cadastral pendente de revisão</span> : null}
               {userEmail(user.id) ? <span className="helper-text">{userEmail(user.id)}</span> : null}
               <span className="materia-subtitle">{ROLE_LABELS[user.role]}</span>
               <div className="materia-card-foot">
