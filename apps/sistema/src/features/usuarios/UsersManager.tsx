@@ -153,16 +153,21 @@ export function UsersManager(): JSX.Element {
     setError(null);
     setMessage(null);
     setPending(true);
-    const result = await inviteUser(inviteEmail.trim(), inviteName.trim(), inviteRole);
-    setPending(false);
-    if ("error" in result) {
-      setError(result.error);
-      return;
+    try {
+      const result = await inviteUser(inviteEmail.trim(), inviteName.trim(), inviteRole);
+      if ("error" in result) {
+        setError(result.error);
+        return;
+      }
+      setInviteEmail("");
+      setInviteName("");
+      setMessage("Solicitação de convite aceita pelo Supabase. A entrega ainda depende do SMTP e da confirmação pelo destinatário.");
+      await reload();
+    } catch {
+      setError("Falha ao solicitar convite. Verifique Auth Logs, SMTP e URL de retorno antes de tentar novamente.");
+    } finally {
+      setPending(false);
     }
-    setInviteEmail("");
-    setInviteName("");
-    setMessage("Convite aceito pelo Supabase para envio. A conta só poderá acessar após confirmar o e-mail; confira também a caixa de spam.");
-    await reload();
   }
 
   async function saveUserName(target: UserRow): Promise<void> {

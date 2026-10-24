@@ -93,3 +93,10 @@ Checklist indispensável de homologação: signatário externo confirma OTP,
 consegue visualizar/assinar PDF e receber status de conclusão; uma tentativa
 de abrir o painel pela mesma sessão é negada. Administrador pode revogar
 permissões sem derrubar sessões válidas de signatários.
+
+## 24/10 — endurecimento de links Auth sem envio real
+
+- Todos os fluxos de convite, reenvio e redefinição usam `staffAuthRedirectUrl`. Em produção somente `https://controle.altnix.com.br/definir-senha` e `?recovery=1` são aceitos; configurações com HTTP externo, domínio de preview, parâmetros, caminho ou credenciais são negadas **antes** de pedir e-mail ao Auth. Isso impede extravio do link de recuperação por configuração errada de `NEXT_PUBLIC_SISTEMA_URL`.
+- Em ambiente local permite `http://localhost`/127.0.0.1; URLs públicas de desenvolvimento exigem HTTPS. Testes dedicados verificam os casos negativos.
+- `UsersManager.handleInvite` agora limpa `pending` mesmo em falha da ação/rede e não confunde solicitação aceita pelo Auth com entrega confirmada.
+- **Ainda obrigatório externamente:** configurar SMTP próprio, autenticar remetente, revisar URLs autorizadas no painel Supabase, testar convite real apenas com e-mail de homologação e conferir `email_confirmed_at`/logs/bounces. Não houve qualquer e-mail disparado por estas alterações.

@@ -5,9 +5,15 @@ import { createSupabaseServerClient } from "../../../lib/supabase/server";
 import { recordAuditEventSupabase } from "../../../providers/supabase/auditEvents.supabase";
 import { normalizeStaffName } from "../../../lib/auth/userIdentity";
 import { describeAuthMailError } from "../../../lib/auth/authMailDiagnostics";
+import { staffAuthRedirectUrl } from "../../../lib/auth/staffAuthRedirect";
 
-const SISTEMA_BASE_URL = process.env.NEXT_PUBLIC_SISTEMA_URL ??
-  (process.env.NODE_ENV === "production" ? "https://controle.altnix.com.br" : "http://localhost:3001");
+function authCallbackUrl(recovery = false): string {
+  return staffAuthRedirectUrl({
+    configuredBaseUrl: process.env.NEXT_PUBLIC_SISTEMA_URL,
+    production: process.env.NODE_ENV === "production",
+    recovery,
+  });
+}
 
 export type InviteRole = "operator" | "admin";
 
@@ -67,10 +73,14 @@ export async function inviteUser(email: string, name: string, role: InviteRole):
     };
   }
 
+  let redirectTo: string;
+  try { redirectTo = authCallbackUrl(); }
+  catch (error) { return { error: error instanceof Error ? error.message : "URL de convite inválida." }; }
+
   const admin = createSupabaseAdminClient();
   const { data: invited, error: inviteError } = await admin.auth.admin.inviteUserByEmail(trimmedEmail, {
     data: { name: displayName },
-    redirectTo: `${SISTEMA_BASE_URL}/definir-senha`,
+    redirectTo,
   });
   if (inviteError || !invited.user) {
     console.error("Erro Supabase Auth ao convidar:", inviteError?.code ?? "unknown");
@@ -199,6 +209,16 @@ export async function resendPendingUserAccess(profileId: string): Promise<Action
   if (account.user.email_confirmed_at) return { error: "A pessoa já confirmou o e-mail. Utilize redefinir senha, se necessário." };
   if (!account.user.invited_at) return { error: "Conta sem convite anterior. Verifique o cadastro antes de solicitar reenvio." };
 
+  // Validar AMBOS os destinos antes de fazer qualquer envio.
+  let inviteRedirect: string;
+  let recoveryRedirect: string;
+  try {
+    inviteRedirect = authCallbackUrl();
+    recoveryRedirect = authCallbackUrl(true);
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : "URL de acesso inválida." };
+  }
+
   // Tentar um novo convite para conta ainda não confirmada. Algumas
   // configurações do Auth devolvem "already registered" nesse caso;
   // somente nesse caso pedir um link de recuperação, que leva à mesma
@@ -207,7 +227,7 @@ export async function resendPendingUserAccess(profileId: string): Promise<Action
     .select("name").eq("id", profileId).maybeSingle();
   const { error: reinviteError } = await admin.auth.admin.inviteUserByEmail(account.user.email, {
     data: { name: profile?.name || account.user.user_metadata?.name || "" },
-    redirectTo: new URL("/definir-senha", SISTEMA_BASE_URL).toString(),
+    redirectTo: inviteRedirect,
   });
   let via: "invite" | "recovery" = "invite";
   if (reinviteError) {
@@ -220,8 +240,7 @@ export async function resendPendingUserAccess(profileId: string): Promise<Action
         : describeAuthMailError(reinviteError,"invite") };
     }
     via = "recovery";
-    const redirectTo = new URL("/definir-senha?recovery=1", SISTEMA_BASE_URL).toString();
-    const { error: sendError } = await admin.auth.resetPasswordForEmail(account.user.email, { redirectTo });
+    const { error: sendError } = await admin.auth.resetPasswordForEmail(account.user.email, { redirectTo: recoveryRedirect });
     if (sendError) {
       console.error("Supabase Auth reenvio de acesso:", sendError.code ?? "unknown");
       if (sendError.status === 429) return { error: "Limite de e-mails atingido. Aguarde e confira as configurações de SMTP no Supabase." };
@@ -264,10 +283,9 @@ export async function sendPasswordResetForUser(profileId: string): Promise<Actio
   const email = targetAccount.user?.email;
   if (lookupError || !email) return { error: "Não foi possível localizar o e-mail deste usuário." };
 
-  const redirectTo = new URL(
-    "/definir-senha?recovery=1",
-    SISTEMA_BASE_URL,
-  ).toString();
+  let redirectTo: string;
+  try { redirectTo = authCallbackUrl(true); }
+  catch (error) { return { error: error instanceof Error ? error.message : "URL de recuperação inválida." }; }
   const { error: resetError } = await admin.auth.resetPasswordForEmail(email, { redirectTo });
   if (resetError) return { error: describeAuthMailError(resetError,"recovery") };
 
