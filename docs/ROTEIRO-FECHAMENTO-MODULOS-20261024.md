@@ -247,3 +247,9 @@ Evitar declarar um módulo encerrado só porque a infraestrutura de CI está ver
 - Alteração exige ação `publicidade/vendas_editar` no servidor; trigger no Postgres impede que usuário sem essa permissão modifique ativo/vigência por API REST direta. Não altera clientes nem baixa Pix.
 - **Futuro Altnix Informativo: somente após Jornal IR estabilizado.** O benefício do site e a venda comercial são domínios separados. Suspensão por inadimplência *não pode* se basear em dívida genérica do cliente. Exigir contrato/serviço/venda/título + mídia/playlist/tela com vínculo inequívoco, tolerância de atraso explicitamente aprovada, intervenção/override humano, logs, reversão após pagamento confirmado, idempotência e sincronização segura com equipamento OFFLINE. Nada a enviar aos players nesta fase.
 - Módulo 8 ainda requer testes manuais do portal, financeiro comercial e contratos antes da publicação; não declarar integração com Altnix concluída.
+
+### Patrocinadores — fechamento das permissões (24/10)
+
+- As seis Server Actions de configurar grupo, ativar grupo, enviar, editar imagem, retirar e reordenar agora exigem `publicidade/vendas_editar` (mesma permissão que a pausa manual nova).
+- A página administrativa valida essa permissão antes de renderizar. Migration restringe INSERT/UPDATE/DELETE de `site_ad_media` e UPDATE de `site_ad_slots` pela RLS; consultas públicas das views ficam intactas.
+- Isso impede um operador apenas autenticado de contornar o menu do sistema e modificar anúncios pela API direta. Testar especificamente owner/admin, operador habilitado, operador sem publicidade e cliente anon antes do release.
