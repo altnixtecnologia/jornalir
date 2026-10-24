@@ -1,7 +1,7 @@
 "use client";
 import { todayInSaoPauloISO } from "../../lib/date/saoPauloDate";
 
-import { useMemo, useState, useTransition } from "react";
+import { useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import type { AdjustmentType, PaymentMethod, ReceivableAdjustment, ReceivableReceipt, ReceivableWithBalance } from "@ir/types";
 import { ADJUSTMENT_TYPE_LABELS, ADJUSTMENT_TYPES, PAYMENT_METHOD_LABELS, PAYMENT_METHODS, isReversed } from "@ir/types";
@@ -59,6 +59,12 @@ interface ReceivableActionsPanelProps {
 export function ReceivableActionsPanel({ receivable, receipts, adjustments, staff, hasOlderOpenBalance }: ReceivableActionsPanelProps): JSX.Element {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
+  const paymentOperationId = useRef<string | null>(null);
+  // Mesmo UUID no retry de falha de rede; só renova para uma nova operação.
+  function currentPaymentOperationId(): string {
+    if (!paymentOperationId.current) paymentOperationId.current = crypto.randomUUID();
+    return paymentOperationId.current;
+  }
   const [error, setError] = useState<string | null>(null);
   const [activeForm, setActiveForm] = useState<"none" | "receipt" | "settle" | "adjustment">("none");
 
@@ -85,6 +91,7 @@ export function ReceivableActionsPanel({ receivable, receipts, adjustments, staf
   }
 
   function resetForms(): void {
+    paymentOperationId.current = null;
     setReceiptAmount("");
     setReceiptReference("");
     setReceiptNotes("");
@@ -218,6 +225,7 @@ export function ReceivableActionsPanel({ receivable, receipts, adjustments, staf
                       reference: receiptReference,
                       notes: receiptNotes,
                       receivedByProfileId: receivedBy,
+                      operationId: currentPaymentOperationId(),
                     }),
                   )
                 }
@@ -295,6 +303,7 @@ export function ReceivableActionsPanel({ receivable, receipts, adjustments, staf
                       reference: receiptReference,
                       notes: receiptNotes,
                       receivedByProfileId: receivedBy,
+                      operationId: currentPaymentOperationId(),
                       reason: settleReason,
                       authorizedByProfileId: settleAuthorizedBy,
                     }),

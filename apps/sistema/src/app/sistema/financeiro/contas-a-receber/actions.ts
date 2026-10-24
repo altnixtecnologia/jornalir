@@ -117,12 +117,32 @@ export interface ReceiptFormInput {
   reference: string;
   notes: string;
   receivedByProfileId: string;
+  operationId?: string;
+}
+
+async function recordManualPaymentAtomically(
+  receivableId: string, input: ReceiptFormInput, mode: "receipt" | "settlement",
+  reason?: string, authorizedByProfileId?: string
+): Promise<void> {
+  if (!input.operationId || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(input.operationId))
+    throw new Error("Identificador da operação ausente. Reabra o formulário.");
+  const db = createSupabaseServerClient();
+  const { error } = await db.rpc("record_manual_receivable_payment", {
+    p_operation_id: input.operationId, p_receivable_id: receivableId,
+    p_amount: parseAmount(input.amount), p_received_at: input.receivedAt,
+    p_payment_method: input.paymentMethod || null,
+    p_reference: input.reference || null, p_notes: input.notes || null,
+    p_received_by: input.receivedByProfileId || null, p_mode: mode,
+    p_reason: reason || null, p_authorized_by: authorizedByProfileId || null,
+  });
+  if (error) throw new Error(error.message);
 }
 
 export async function addReceiptAction(receivableId: string, input: ReceiptFormInput): Promise<ActionResult> {
   const permissionError = await checkFinanceAction("recebimentos_baixar");
   if (permissionError) return { error: permissionError };
   try {
+    if (isLocalPreviewEnabled()) {
     await getReceivableService(createSupabaseServerClient()).addReceipt(receivableId, {
       amount: parseAmount(input.amount),
       receivedAt: input.receivedAt,
@@ -131,6 +151,9 @@ export async function addReceiptAction(receivableId: string, input: ReceiptFormI
       notes: input.notes,
       receivedByProfileId: input.receivedByProfileId || undefined,
     });
+    } else {
+      await recordManualPaymentAtomically(receivableId, input, "receipt");
+    }
   } catch (error) {
     return { error: toErrorMessage(error) };
   }
@@ -147,6 +170,7 @@ export async function settleWithDifferenceAction(receivableId: string, input: Se
   const permissionError = await checkFinanceAction("recebimentos_quitar_diferenca");
   if (permissionError) return { error: permissionError };
   try {
+    if (isLocalPreviewEnabled()) {
     await getReceivableService(createSupabaseServerClient()).settleWithDifference(receivableId, {
       receivedAmount: parseAmount(input.amount),
       receivedAt: input.receivedAt,
@@ -157,6 +181,9 @@ export async function settleWithDifferenceAction(receivableId: string, input: Se
       reason: input.reason,
       authorizedByProfileId: input.authorizedByProfileId || undefined,
     });
+    } else {
+      await recordManualPaymentAtomically(receivableId, input, "settlement", input.reason, input.authorizedByProfileId);
+    }
   } catch (error) {
     return { error: toErrorMessage(error) };
   }

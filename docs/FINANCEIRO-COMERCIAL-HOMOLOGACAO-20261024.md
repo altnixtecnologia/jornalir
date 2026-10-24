@@ -130,3 +130,9 @@ A tela Pix oferece `Consultar cobrança existente no Asaas` quando existe reserv
 ### Guarda adicional de corrida cancelamento vs recebimento
 
 Atualização local de cobrança para `cancelled` exige `WHERE status='pending'` mesmo usando `service_role`; uma confirmação que venceu a corrida jamais deve ser sobrescrita por um DELETE tardio. O webhook `PAYMENT_OVERDUE`/`PAYMENT_DELETED` também usa UPDATE condicional e evita notificar falsamente um cancelamento se o status mudou entre leitura e escrita. Registros locais com vinculação remota já estabelecida recusam nova substituição do ID Asaas. Homologar estes interleavings no sandbox.
+
+### Recebimento manual e quitação com diferença (24/10)
+
+- Adicionada `record_manual_receivable_payment`, RPC transacional com `FOR UPDATE` no título e permissões distintas `recebimentos_baixar` / `recebimentos_quitar_diferenca`. Recibo, crédito excedente, abatimento da quitação e status do título são gravados juntos ou desfeitos juntos.
+- `manual_receivable_operations` mantém operação imutável por UUID da tela, com snapshot/autor, retornando a mesma operação no retry e recusando UUID reaproveitado com dados alterados. Formulários guardam UUID até sucesso/cancelamento.
+- Preview mantém o comportamento anterior. Pendente homologação autenticada com falhas de rede e recebimentos concorrentes; `payCompositionAction`, descontos avulsos e estornos ainda são multietapa e pertencem à próxima frente do Módulo 3.
