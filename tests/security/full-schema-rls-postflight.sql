@@ -281,6 +281,13 @@ begin
     or public.is_active_owner() or public.is_active_admin_or_owner() then
     raise exception 'SEGURANÇA: perfil sem membership acessou o painel.';
   end if;
+  -- Somente após a vinculação administrativa de colaborador, este perfil
+  -- já confirmado pode executar ações de staff de operador.
+  insert into public.staff_memberships(profile_id) values(v_id);
+  if not public.is_active_staff() or public.is_active_admin()
+     or public.is_active_owner() or public.is_active_admin_or_owner() then
+    raise exception 'SEGURANÇA: membership não liberou apenas o operador correto.';
+  end if;
 end;
 $auth_user_regression$;
 rollback;
