@@ -564,3 +564,42 @@ A versão de sistema da Agenda/Pauta foi publicada na Vercel PRODUCTION, deploym
 - Pendências de outros blocos preservadas: usuários/ativação por e-mail,
   Supabase Pro/uploads, QA visual do recorte desktop/mobile e publicação
   consolidada só após autorização.
+
+## 23/10/2026 — Revisão de usuários, convites SMTP e segurança de signatários
+
+- Telas de usuários já tinham nome no convite, edição de nome e reenvio.
+  Correções: `userIdentity.ts` assinala perfis antigos criados com o
+  prefixo do e-mail como **Nome não informado**, sem inventar dados;
+  UI distingue convite pendente, conta sem e-mail confirmado e
+  conta confirmada. Novos convites salvam nome real em `profiles`.
+- `authMailDiagnostics.ts` trata limitação SMTP padrão, rate limit,
+  URL de retorno, conta existente, sem afirmar que uma mensagem foi entregue.
+  `/definir-senha` agora aguarda `onAuthStateChange`, pois o link pode
+  entregar a sessão após o primeiro `getSession`.
+- **Proteção importante:** migration
+  `20261115100000_auth_invitation_default_inactive.sql` muda o trigger
+  `handle_new_auth_user()` para todo usuário novo nascer com
+  `profiles.active=false`, mesmo que `user_metadata` declare
+  `account_purpose=staff_invite` (metadados não autorizam acesso).
+  `inviteUser` ativa explicitamente somente após convite do administrador;
+  signatário comercial criado por OTP continua inativo e não ganha acesso.
+  Banco remoto atual NÃO foi alterado.
+- Teste no Supabase descartável tenta criar usuário com metadata falsificada
+  de funcionário e exige perfil inativo. Também há testes unitários de
+  nomes reais e mensagens do Auth, executados pelo workflow de validação.
+- **SMTP ainda requer homologação real**: configurar/confirmar SMTP externo
+  em Authentication > SMTP Settings, Authentication > URL Configuration,
+  template de convite e recovery; realizar envio controlado para
+  destinatário de teste e verificar recebimento, clique e escolha de senha.
+  Nada foi enviado para usuários reais pelo ChatGPT.
+- Auditoria read-only de storage no projeto `site-system-ir`:
+  `edition-pdfs` (legado Supabase) 50 MiB, `article-media` 8 MiB,
+  `contract-documents` 10 MiB, `contract-signatures` 1 MiB.
+  **Fluxo atual de upload da edição** usa R2 direto pelo navegador
+  (`editionArchive.r2.ts`) até 100 MiB, com `prepareEditionR2UploadAction`
+  e checagens por HEAD e assinatura PDF. Fotos usam outro bucket R2 e
+  limite 8 MiB. Não aumentar bucket antigo por reflexo.
+  Em Pro há dois limites de Supabase Storage: global e por bucket;
+  plano não reconfigura limites automaticamente.
+- Sem push na main, sem deploy, sem changes em Supabase remoto e sem
+  e-mails enviados. Revisar status CI do HEAD antes do aceite.

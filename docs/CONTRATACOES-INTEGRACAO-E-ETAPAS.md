@@ -592,3 +592,19 @@ enviar OTP, não aplicar migrations no projeto remoto e não fazer deploy.**
 - Pendências de outros blocos preservadas: usuários/ativação por e-mail,
   Supabase Pro/uploads, QA visual do recorte desktop/mobile e publicação
   consolidada só após autorização.
+
+## Dependências transversais — Usuários/Auth/Storage (23/10/2026)
+
+O assinador comercial usa o Supabase Auth para OTP por e-mail. A migration
+`20261115100000_auth_invitation_default_inactive.sql` é condição
+obrigatória da assinatura comercial: o cadastro automático de qualquer
+conta Auth, incluindo signatários externos, deve criar `profiles.active=false`.
+A ativação interna acontece somente após convite administrativo autorizado,
+nunca por metadata enviada pelo próprio usuário. Homologar usuário interno
+ativo após convite e signatário externo sem acesso administrativo.
+
+SMTP/OTP real ainda é uma dependência operacional. A criação de tokens e
+links no código, mesmo com CI verde, não comprova entrega de e-mail.
+
+Buckets atuais de Supabase Storage e seus limites não se confundem com o
+arquivo público de edições no Cloudflare R2 (100 MiB no aplicativo).
