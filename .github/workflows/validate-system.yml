@@ -77,6 +77,9 @@ jobs:
       - name: Testar aniversarios com ano opcional e validacao de datas
         run: npx tsx --test apps/sistema/test/birthday-date-input.test.ts
 
+      - name: Testar isolamento de chaves PDF/capa e upload direto da edição
+        run: npx tsx --test apps/sistema/test/edition-direct-upload-keys.test.ts
+
       - name: Testar troca de capa da matéria
         run: npx tsx --test apps/sistema/test/article-cover-choice.test.ts
 

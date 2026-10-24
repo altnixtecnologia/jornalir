@@ -257,3 +257,11 @@ Evitar declarar um módulo encerrado só porque a infraestrutura de CI está ver
 ### Correção de escopo — patrocinadores são somente bônus gratuitos (24/10/2026)
 
 A confirmação do Jornal IR prevalece sobre o plano anterior: **os seis espaços de patrocinadores no portal não pertencem ao financeiro, não exigem cadastro do cliente e são incluídos/removidos manualmente.** A tela não apresenta agendamento nem expiração por data. Apenas o indicador manual `active` de cada imagem e de seu grupo governa a vitrine. A migration `20261120220000_site_ads_manual_only.sql` preserva o conjunto atualmente visível ao migrar: prazos já vencidos/futuros passam a pausa; campos antigos de data são limpos, e a view pública publica apenas o que for explicitamente marcado ativo. Não cria cobrança, contrato, notificação nem vínculo no Altnix Informativo. Gestão de cobranças do Altnix continua **exclusivamente futura**, na issue #18 para mídias pagas vinculadas ao respectivo serviço.
+
+### Módulo 5 — bloco A, integridade no upload e acesso a edições
+
+- Fluxo já existente: navegador→PUT assinado R2 (PDF/capa)→validação HEAD→metadados da mesma edição; sem novo storage.
+- Corrigida possibilidade de `abandonEditionR2UploadAction` apagar o PDF oficial existente por receber qualquer chave com o mesmo prefixo. Limpeza aceita somente par PDF+WebP de um **mesmo UUID gerado pelo upload** e nunca apaga arquivo atualmente vinculado. Erro ambíguo após finalização deixa o arquivo intacto até conferir o vínculo no banco, evitando perda irreversível.
+- Criar/editar/inativar edição e preparar/finalizar/cancelar upload agora exigem a mesma permissão `editorial/edicoes_gerenciar`, inclusive diretamente na RLS do acervo, não só no menu. A leitura pública não muda.
+- Teste `edition-direct-upload-keys.test.ts` verifica isolamento por UUID e edição, recusa chaves legadas/arbitrárias e prevenção de exclusão por caminho genérico.
+- Ainda faltam homologação de envio de PDF e capa no R2 de testes, importação/duplicidade, reader mobile/flipbook e Range/CORS.
