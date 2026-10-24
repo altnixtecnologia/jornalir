@@ -28,6 +28,8 @@
 
 **Risco:** views executam sob privilégios do criador em vez de RLS do leitor. As views `public_articles`, `public_article_media`, `public_site_ad_media` etc. compõem a vitrine pública intencional. No Git a view `public_site_ad_slots` foi inclusive ajustada historicamente para `security_invoker=false`. **NÃO mudar em massa para `security_invoker=true`**: isso poderia quebrar o portal se as tabelas base não tiverem RLS/GRANT de leitura pública equivalentes.
 
+**Conferência adicional de RLS/grants no banco REAL (somente leitura):** as oito views listadas têm `SELECT` para `anon`. Todas usam comportamento `SECURITY DEFINER` por padrão, exceto `public_site_ad_slots` que explicita `security_invoker=false`. As nove tabelas de origem inspecionadas (`articles`, `article_media`, `article_placements`, `editorial_sections`, `localities`, `media_assets`, `site_ad_media`, `site_ad_slots`, `site_ad_settings`) têm RLS ligado e **nenhuma policy explícita para `anon`**. Isso sustenta a necessidade da camada pública filtrada, mas exige revisão de seleção de colunas e filtros de cada view. Mudar a view para `security_invoker=true` sem políticas públicas equivalentes poderia resultar em portal sem matérias e patrocinadores; NÃO aplicar alteração automática.
+
 **Plano de correção posterior, com ensaio:** para cada view, mapear as tabelas base, política `SELECT anon`/authenticated, colunas visíveis, filtros de publicado/ativo, dados privados e `security_invoker`; adicionar testes anônimos para vazamento de rascunho, cliente e financeiro; só aplicar alteração de view/RLS quando testes de portal e admin garantirem o mesmo contrato público.
 
 ## Funções privilegiadas
