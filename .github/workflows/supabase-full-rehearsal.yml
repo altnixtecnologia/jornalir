@@ -72,6 +72,13 @@ jobs:
           psql -h 127.0.0.1 -p 54322 -U postgres -d postgres \
             -v ON_ERROR_STOP=1 -f tests/security/manual-reversal-atomic-postflight.sql
 
+      - name: Testar protecao contra creditos forjados e reversao
+        env:
+          PGPASSWORD: postgres
+        run: |
+          psql -h 127.0.0.1 -p 54322 -U postgres -d postgres \
+            -v ON_ERROR_STOP=1 -f tests/security/client-credit-ledger-postflight.sql
+
       - name: Confirm schema tables and functions
         run: |
           supabase db lint --local --schema public || true

@@ -160,3 +160,11 @@ Atualização local de cobrança para `cancelled` exige `WHERE status='pending'`
 - `reverse_receivable_receipt_safe` bloqueia baixa ligada a `payment_charges.receipt_id`, crédito originado daquele recibo (`client_credits.origin_receipt_id`) e recibo de quitação com diferença; estas operações exigem conciliação coordenada, não estorno isolado.
 - `reverse_receivable_adjustment_safe` trava crédito antes do título quando `adjustment_type=credit_applied` (mesma ordem da RPC `apply_client_credit`), devolvendo saldo ao crédito pela própria view. Não permite estorno isolado da diferença em quitação especial.
 - Testes no Supabase efêmero contemplam vínculo cruzado, permissão, reversão repetida, crédito originário, histórico e negativa de PATCH direto. **Atenção:** INSERT direto nas duas tabelas e UPDATE direto no próprio título ainda precisam revisão/hardening posterior, sem prejudicar a RPC de crédito e as operações automáticas existentes.
+
+### Endurecimento do ledger financeiro (24/10/2026)
+
+- Removidos INSERT diretos por authenticated/anon nas tabelas `receivable_receipts`, `receivable_adjustments` e `client_credits`, assim como UPDATE direto de `client_credits`. Isso impede falsificação de recibos/créditos e aplicação sem passar pela transação validada.
+- `apply_client_credit` agora é `SECURITY DEFINER` com verificação **explícita** de `creditos_aplicar` (transferência manual entre origens) ou `titulos_criar` (aplicação automática restrita à **mesma origem**). Continua travando crédito primeiro e título depois e respeitando saldo por liquidação.
+- `reverse_client_credit_safe`: permissão `recebimentos_estornar`, bloqueio caso haja aplicações não estornadas ou vínculo com cobrança Asaas (exige conciliação). Em seguida o crédito originado de recebimento manual pode ser estornado e, depois, o recibo origem pode ser estornado pela RPC específica, sem excluir histórico. Código do repositório de créditos deixa de usar PATCH direto.
+- Teste de integração no banco efêmero valida estorno/aplicação, vínculo e negativas de escrita direta no ledger; o status do título continua atualizado transacionalmente.
+- **Pendente antes de liberar financeiro para uso real:** revisar UPDATE genérico de `receivables` (status e valores) para não contornar regras via PostgREST; homologar Pix/Asaas e reversões especiais com operadores reais e valores controlados.

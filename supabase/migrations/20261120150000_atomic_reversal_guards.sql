@@ -39,7 +39,7 @@ begin
  -- Bloqueio de origens que exigem conciliação além de remover receipt.
  if exists(select 1 from public.payment_charges pc where pc.receipt_id=rec.id)
  then raise exception 'Recebimento vinculado a Pix: concilie no Asaas antes do estorno.' using errcode='22023'; end if;
- if exists(select 1 from public.client_credits c where c.origin_receipt_id=rec.id)
+ if exists(select 1 from public.client_credits c where c.origin_receipt_id=rec.id and c.reversed_at is null)
  then raise exception 'Recebimento originou crédito: concilie o crédito antes do estorno.' using errcode='22023'; end if;
  if exists(select 1 from public.manual_receivable_operations m
            where m.receipt_id=rec.id and m.operation_type='settlement')

@@ -111,6 +111,16 @@ begin
     or not has_function_privilege('service_role','public.reserve_commercial_signature_otp(text)','EXECUTE') then
    raise exception 'Limite OTP comercial não protegido por service_role.';
  end if;
+ if to_regprocedure('public.reverse_client_credit_safe(uuid,text)') is null then
+   raise exception 'Estorno de crédito seguro não está disponível.';
+ end if;
+ if has_table_privilege('authenticated','public.receivable_receipts','INSERT')
+   or has_table_privilege('authenticated','public.receivable_adjustments','INSERT')
+   or has_table_privilege('authenticated','public.client_credits','INSERT')
+   or has_table_privilege('authenticated','public.client_credits','UPDATE')
+   or has_function_privilege('anon','public.apply_client_credit(uuid,uuid,numeric,text,uuid)','EXECUTE') then
+   raise exception 'Ledger permite escrita direta ou aplicação anônima.';
+ end if;
  if to_regprocedure('public.reverse_receivable_receipt_safe(uuid,uuid,text)') is null
     or to_regprocedure('public.reverse_receivable_adjustment_safe(uuid,uuid,text)') is null then
    raise exception 'Estornos transacionais não estão disponíveis.';
