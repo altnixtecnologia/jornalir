@@ -19,8 +19,8 @@ function mock(remote:"cancelled"|"paid"|"pending",failCancel:boolean,failLookup=
   createCharge:async()=>{throw new Error("não criar")},
   cancelCharge:async()=>{cancelCount++;if(failCancel)throw new Error("timeout provedor");},
   getCharge:async()=>{if(failLookup)throw new Error("sem conexão");
-   return {provider:"asaas",providerChargeId:"asaas-1",pixCopyPaste:"",status:remote}
-    as PixChargeProviderResult;
+   return {provider:"asaas",providerChargeId:"asaas-1",
+    pixCopyPaste:"",status:remote} as PixChargeProviderResult;
   },
  } satisfies PixProvider;
  return {service:new PaymentChargeService(repo,provider),
