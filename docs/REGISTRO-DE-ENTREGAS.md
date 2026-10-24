@@ -761,3 +761,15 @@ suposição ou autoativados.
   concorrência e idempotência de efeitos externos constam em
   `docs/FINANCEIRO-COMERCIAL-HOMOLOGACAO-20261024.md`.
 - PR #15 aberta; sem merge, deploy, aplicação de migrations no remoto.
+
+## 24/10/2026 — Módulo 10: escopo corrigido e bloqueio de integração externa
+
+- **Decisão confirmada pelo proprietário:** concluir exclusivamente o **Jornal IR** com cadastro mestre, contratos, contas a receber e cobranças. **Não alterar o Altnix Informativo nesta fase.**
+- A parte que futuramente autorizará/suspenderá mídias do Altnix só será integrada, homologada e publicada em **um único lote posterior**, quando o Jornal estiver organizado e o responsável autorizar expressamente. O patrocinador gratuito do portal não participa desse controle.
+- **Auditoria do existente:** `public.clients`, `commercial_sales.client_id`, `commercial_contract_packages.client_id`, `commercial_contract_services.id`, `receivables.client_id` e serviços financeiro/comercial já existem; **não foram duplicados**.
+- Pré-autorização de exportação `client_digital_export_permissions` permanece apenas interna. A UI agora diz expressamente que a conexão remota está desligada. A rota `/api/integrations/altnix/clients` retorna **503 incondicional** enquanto `ALTNIX_CLIENT_EXPORT_RELEASED=false`; segredo e variável de ambiente não removem a trava. Teste automatizado verifica o valor.
+- Guia vigente: `docs/ALTNIX-INFORMATIVO-SYNC-FUTURO.md`. Guia anterior com cópia bidirecional foi marcado SUPERADO: `docs/INTEGRACAO-CADASTROS-ALTNIX-JORNALIR.md`.
+- **Informação para próximos agentes:** em inspeção anterior houve criação de branch experimental `feature/jornalir-clientes-integrados-20261024` no **repositório separado** Altnix Informativo, mas não foi mesclada nem publicada. **NÃO USAR, NÃO CONTINUAR E NÃO PUBLICAR ESSA BRANCH**, salvo nova autorização expressa. A partir da correção de escopo, nenhuma alteração adicional naquele repositório.
+- Não executar migrations remotas; sem comunicação com dispositivos, mídias, players, cobrança real, Webhook ou publicação. PR #15 em draft.
+- **Pendências reais:** testar integrações financeiras do Jornal em ambientes de homologação, verificar vínculo entre venda/serviço/título, especificar alvos de veiculação para a issue #18 e só então abrir outro lote de integração remota com backup, consentimento e plano de reversão. Testes de CI não substituem essas etapas.
+
