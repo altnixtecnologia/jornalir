@@ -35,11 +35,24 @@ begin
    raise exception 'Ações da NFS-e fora da matriz real.';
  end if;
 
+ -- Política de segurança de 24/10: impedir regressão das ACLs restritas
+ -- no hotfix do projeto real e em qualquer futura recriação de funções.
  if has_function_privilege('anon','public.publish_due_scheduled_articles()','EXECUTE')
     or has_function_privilege('authenticated','public.publish_due_scheduled_articles()','EXECUTE')
     or has_function_privilege('anon','public.save_client(uuid,jsonb,text[])','EXECUTE')
-    or has_function_privilege('anon','public.legacy_import_article(jsonb,jsonb)','EXECUTE') then
-   raise exception 'Função privilegiada ainda exposta na API.';
+    or has_function_privilege('anon','public.legacy_import_article(jsonb,jsonb)','EXECUTE')
+    or has_function_privilege('anon','public.convert_import_candidate_to_draft(uuid,text,text,text,uuid,uuid,integer,jsonb)','EXECUTE')
+    or has_function_privilege('anon','public.create_pdf_import_batch(uuid,text,text,integer,integer[],jsonb,jsonb)','EXECUTE')
+    or has_function_privilege('anon','public.merge_import_candidates(uuid,uuid[],text,uuid[])','EXECUTE')
+    or has_function_privilege('anon','public.split_import_candidate(uuid,text,text,text)','EXECUTE')
+    or has_function_privilege('anon','public.reserve_next_dps_number(uuid,text,text)','EXECUTE')
+    or has_function_privilege('anon','public.sync_site_offer_settings_to_commercial_products()','EXECUTE')
+    or has_function_privilege('authenticated','public.sync_site_offer_settings_to_commercial_products()','EXECUTE') then
+   raise exception 'SEGURANÇA: função privilegiada voltou a ficar executável por role indevida.';
+ end if;
+ if not has_function_privilege('authenticated','public.save_client(uuid,jsonb,text[])','EXECUTE')
+    or not has_function_privilege('service_role','public.publish_due_scheduled_articles()','EXECUTE') then
+   raise exception 'SEGURANÇA: permissões legítimas de staff/service_role foram perdidas.';
  end if;
 
  if not exists (select 1 from pg_class c join pg_namespace n on n.oid=c.relnamespace
