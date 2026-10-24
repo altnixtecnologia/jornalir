@@ -149,9 +149,9 @@ begin
  if c.origin_payment_charge_id is not null then
    raise exception 'Crédito vinculado ao Asaas: conciliação externa necessária.' using errcode='22023';
  end if;
- select coalesce(sum(amount),0) into used_amount
-  from public.receivable_adjustments
-  where credit_id=c.id and reversed_at is null;
+ select coalesce(sum(a.amount),0) into used_amount
+  from public.receivable_adjustments a
+  where a.credit_id=c.id and a.reversed_at is null;
  if used_amount>0 then
   raise exception 'Crédito já aplicado. Reverta primeiro as aplicações vinculadas.' using errcode='22023';
  end if;
