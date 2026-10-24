@@ -9,6 +9,7 @@ import {
   buildBillingMessagePreviewAction,
   buildPaymentConfirmationPreviewAction,
   cancelPixChargeAction,
+  reconcilePixReservationAction,
   confirmPixChargeAction,
   createPixChargeAction,
   sendBillingMessageAction,
@@ -240,10 +241,17 @@ export function PixChargePanel({
             {pendingCharge.expiresAt ? ` · expira em ${formatDateTime(pendingCharge.expiresAt)}` : ""}
           </div>
           {awaitingAsaasReconciliation ? (
-            <p role="alert" className="form-error" style={{ gridColumn: "1 / -1" }}>
-              Criação Pix em processamento ou com resultado incerto no Asaas. Não envie, cancele
-              nem gere outra cobrança antes da conferência pelo Financeiro.
-            </p>
+            <div style={{ gridColumn: "1 / -1" }}>
+              <p role="alert" className="form-error">
+                Criação Pix em processamento ou com resultado incerto no Asaas. Não envie, cancele
+                nem gere outra cobrança antes da conferência pelo Financeiro.
+              </p>
+              <button type="button" disabled={pending}
+                onClick={() => run(() => reconcilePixReservationAction(pendingCharge.id, receivableId))}>
+                Consultar cobrança existente no Asaas
+              </button>
+              <p className="helper-text">Consulta apenas: não cria cobrança nova. Se não encontrar, a reserva permanece bloqueada.</p>
+            </div>
           ) : null}
           {!awaitingAsaasReconciliation ? <div
             style={{ gridColumn: "1 / -1", border: "1px dashed var(--line)", borderRadius: "4px", padding: "14px", display: "flex", gap: "16px", flexWrap: "wrap", alignItems: "flex-start" }}

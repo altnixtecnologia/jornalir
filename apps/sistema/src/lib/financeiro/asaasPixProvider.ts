@@ -285,6 +285,32 @@ export function createAsaasPixProvider(client: SupabaseClient): PixProvider {
       };
     },
 
+    async findActiveChargeForReceivable(request: CreatePixChargeRequest): Promise<PixChargeProviderResult | null> {
+      const settings = await loadSettings(client);
+      const existing = await findExistingActivePayment(settings, `receivable:${request.receivableId}`);
+      if (!existing) return null; // Sem prova remota, não autorizar novo POST.
+      if (existing.billingType && existing.billingType.toUpperCase() !== "PIX")
+        throw new Error("Referência Asaas aponta para cobrança de outra modalidade.");
+      // A conferência de valor deve ser obrigatória. Se o Asaas não
+      // devolveu value, não anexar cobrança incerta ao recebível.
+      if (typeof existing.value !== "number" ||
+          !Number.isFinite(existing.value) ||
+          Math.abs(existing.value - request.amount) > 0.005)
+        throw new Error("Valor remoto não confere com a reserva Pix; concilie manualmente.");
+      let qr: AsaasPixQrCode = {};
+      if (mapStatus(existing.status) === "pending") {
+        qr = await asaasFetch<AsaasPixQrCode>(settings, `/payments/${existing.id}/pixQrCode`, { method: "GET" });
+        await validatePixPayload(settings, qr.payload ?? "");
+      }
+      return {
+        provider: "asaas",
+        providerChargeId: existing.id,
+        pixCopyPaste: qr.payload ?? "",
+        expiresAt: existing.dueDate ? `${existing.dueDate}T23:59:59-03:00` : undefined,
+        status: mapStatus(existing.status),
+      };
+    },
+
     async getCharge(providerChargeId: string): Promise<PixChargeProviderResult> {
       const settings = await loadSettings(client);
       const payment = await asaasFetch<AsaasPayment>(settings, `/payments/${providerChargeId}`, { method: "GET" });

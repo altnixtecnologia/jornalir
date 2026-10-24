@@ -64,3 +64,27 @@ test("timeout após reserva bloqueia reenvio e cancelamento sem conciliação", 
   assert.equal(posted, 1);
   assert.equal(pending?.providerChargeId, undefined);
 });
+
+
+test("conciliação consulta cobrança remota sem POST e preserva reserva quando ausente", async () => {
+  let posted = 0, lookedUp = 0, updates = 0;
+  const reserved = {
+    id: "reserved-1", receivableId: "r1", clientId: "c1", provider: "asaas",
+    status: "pending", amount: 100, createdAt: "2026-10-24", updatedAt: "2026-10-24",
+  } as PaymentCharge;
+  const repo = {
+    getById: async () => reserved,
+    update: async (_id: string, changes: object) => { updates++; return { ...reserved, ...changes }; },
+  } as unknown as PaymentChargeRepository;
+  const provider = {
+    createCharge: async () => { posted++; throw new Error("POST proibido"); },
+    findActiveChargeForReceivable: async () => { lookedUp++; return null; },
+    cancelCharge: async () => {},
+    getCharge: async () => { throw new Error("not used"); },
+  } satisfies PixProvider;
+  const svc = new PaymentChargeService(repo, provider, true);
+  await assert.rejects(svc.reconcilePixReservation("reserved-1"), /preservada/);
+  assert.equal(lookedUp, 1);
+  assert.equal(posted, 0);
+  assert.equal(updates, 0);
+});

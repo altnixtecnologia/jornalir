@@ -413,6 +413,24 @@ export async function createPixChargeAction(
   return { ok: true };
 }
 
+export async function reconcilePixReservationAction(chargeId: string, receivableId: string): Promise<ActionResult> {
+  const permissionError = await checkFinanceAction("pix_gerar");
+  if (permissionError) return { error: permissionError };
+  try {
+    const client = createSupabaseServerClient();
+    const charges = getPaymentChargeService(client);
+    const [charge, receivable] = await Promise.all([
+      charges.getById(chargeId), getReceivableService(client).getById(receivableId),
+    ]);
+    const mismatch = validateChargeReceivableLink(charge, receivable);
+    if (mismatch) return { error: mismatch };
+    await charges.reconcilePixReservation(chargeId);
+    revalidatePath(`${LIST_PATH}/${receivableId}`);
+  } catch (error) {
+    return { error: toErrorMessage(error) };
+  }
+}
+
 export async function cancelPixChargeAction(chargeId: string, receivableId: string, reason: string): Promise<ActionResult> {
   const permissionError = await checkFinanceAction("pix_cancelar");
   if (permissionError) return { error: permissionError };

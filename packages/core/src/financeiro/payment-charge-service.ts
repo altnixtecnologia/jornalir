@@ -114,6 +114,35 @@ export class PaymentChargeService {
     return created;
   }
 
+  /** Recuperação segura: consulta o Asaas, jamais cria cobrança externa.
+   * Reserva fica intacta se não houver prova de cobrança remota. */
+  async reconcilePixReservation(id: string): Promise<PaymentCharge> {
+    const reserved = await this.getById(id);
+    if (reserved.provider !== "asaas" || reserved.status !== "pending" || reserved.providerChargeId)
+      throw new Error("Este registro não possui reserva Pix pendente de conciliação.");
+    if (!this.provider.findActiveChargeForReceivable)
+      throw new Error("Provedor não oferece consulta de recuperação de cobrança.");
+    const remote = await this.provider.findActiveChargeForReceivable({
+      receivableId: reserved.receivableId,
+      clientId: reserved.clientId,
+      amount: reserved.amount,
+      description: reserved.description,
+      expiresAt: reserved.expiresAt,
+    });
+    if (!remote)
+      throw new Error("Cobrança não encontrada no Asaas. A reserva foi preservada; concilie manualmente antes de liberar outra tentativa.");
+    if (remote.provider !== "asaas" || remote.status === "failed")
+      throw new Error("Cobrança remota com situação incompatível. Concilie antes de alterar a reserva.");
+    // Se já foi paga, o pagamento só é registrado pela RPC com service_role
+    // no webhook autenticado. Não gerar receipt pela sessão do operador.
+    return this.charges.update(id, {
+      providerChargeId: remote.providerChargeId,
+      status: remote.status === "paid" ? "pending" : remote.status,
+      pixCopyPaste: remote.pixCopyPaste,
+      expiresAt: remote.expiresAt,
+    });
+  }
+
   async cancelPixCharge(id: string, input: CancelPixChargeInput): Promise<PaymentCharge> {
     const charge = await this.getById(id);
     if(charge.status==="paid")
