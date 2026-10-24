@@ -40,9 +40,8 @@ begin
   or p_amount is null or p_amount<=0 or p_amount<>round(p_amount,2)
   or p_amount>9999999999.99 or p_mode is null or p_mode not in ('receipt','settlement')
  then raise exception 'Dados do recebimento inválidos.' using errcode='22023'; end if;
- if not case when p_mode='receipt'
-   then public.staff_can_finance_action('recebimentos_baixar')
-   else public.staff_can_finance_action('recebimentos_quitar_diferenca') end
+ if (p_mode='receipt' and coalesce(public.staff_can_finance_action('recebimentos_baixar'),false)=false)
+    or (p_mode='settlement' and coalesce(public.staff_can_finance_action('recebimentos_quitar_diferenca'),false)=false)
  then raise exception 'Sem permissão para receber.' using errcode='42501'; end if;
  if p_mode='settlement' and nullif(btrim(coalesce(p_reason,'')),'') is null
  then raise exception 'Motivo da diferença é obrigatório.' using errcode='22023'; end if;
