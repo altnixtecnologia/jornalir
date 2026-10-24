@@ -111,6 +111,20 @@ begin
     or not has_function_privilege('service_role','public.reserve_commercial_signature_otp(text)','EXECUTE') then
    raise exception 'Limite OTP comercial não protegido por service_role.';
  end if;
+ if to_regclass('public.staff_memberships') is null then
+   raise exception 'Memberships de colaboradores inexistentes.';
+ end if;
+ if has_table_privilege('anon','public.staff_memberships','SELECT')
+   or has_table_privilege('authenticated','public.staff_memberships','INSERT')
+   or has_table_privilege('authenticated','public.staff_memberships','UPDATE')
+   or has_table_privilege('authenticated','public.staff_memberships','DELETE') then
+   raise exception 'Memberships de colaboradores podem ser adulteradas.';
+ end if;
+ if not exists(select 1 from pg_policies
+  where schemaname='public' and tablename='staff_memberships'
+    and policyname='staff_memberships_read') then
+   raise exception 'Memberships não possuem RLS de leitura.';
+ end if;
  if to_regclass('public.commercial_contract_addenda') is null
    or to_regclass('public.commercial_contract_addendum_events') is null then
    raise exception 'Aditivos jurídicos e histórico ausentes.';
@@ -255,6 +269,16 @@ begin
   if not found or v_active is distinct from false
      or v_name is distinct from 'Teste Externo' then
     raise exception 'SEGURANÇA: token/signup criou perfil ativo ou perdeu nome.';
+  end if;
+  if exists(select 1 from public.staff_memberships where profile_id=v_id) then
+    raise exception 'SEGURANÇA: signup criou membership de staff sem convite administrativo.';
+  end if;
+  -- Mesmo se uma falha futura ativar profiles.active, o cadastro externo
+  -- não deve ter permissão sem membership.
+  update public.profiles set active=true where id=v_id;
+  perform set_config('request.jwt.claim.sub',v_id::text,true);
+  if public.is_active_staff() or public.is_active_admin() then
+    raise exception 'SEGURANÇA: perfil sem membership acessou o painel.';
   end if;
 end;
 $auth_user_regression$;
