@@ -77,6 +77,9 @@ jobs:
       - name: Testar troca de capa da matéria
         run: npx tsx --test apps/sistema/test/article-cover-choice.test.ts
 
+      - name: Testar acesso de funcionários e signatários externos
+        run: npx tsx --test apps/sistema/test/staff-access-policy.test.ts
+
       - name: Testar nomes do cadastro de usuários
         run: npx tsx --test apps/sistema/test/user-identity.test.ts
 
