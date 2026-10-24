@@ -23,9 +23,9 @@ export interface CancelPixChargeInput {
 /**
  * Ciclo de vida de uma cobrança Pix (criar/cancelar/confirmar) — nunca
  * chama o provedor real sem necessidade, nunca cria um receipt duplicado.
- * `confirmPixCharge` é a arquitetura preparada pra uma futura confirmação
- * (webhook do provedor real ou ação manual "Marcar como paga"); NENHUM
- * webhook real é implementado aqui (item 12/13 da tarefa). A atomicidade
+ * A confirmação real é acionada pelo webhook Asaas autenticado fora
+ * deste módulo de serviço. A ação demonstrativa de confirmação está
+ * restrita ao preview local. A atomicidade
  * sob concorrência (nunca duas baixas pra mesma cobrança) é garantida
  * pelo REPOSITÓRIO (RPC `confirm_payment_charge`, com lock de linha no
  * banco) — este service nunca monta o receipt em múltiplos passos
@@ -127,8 +127,8 @@ export class PaymentChargeService {
    * cobrança) acontece numa única chamada atômica no repositório (fora
    * do preview, a RPC `confirm_payment_charge` com lock de linha; em
    * preview, a simulação local equivalente). Preparado pra ser chamado
-   * por uma futura confirmação automática (webhook do provedor real) ou
-   * por uma ação manual; nenhuma das duas está implementada nesta fase.
+   * pelo webhook Asaas autenticado (service_role), ou simulada apenas
+   * no preview local. Não usar para baixa manual de cobrança real.
    */
   async confirmPixCharge(id: string, receivedAt: string, receivedByProfileId?: string): Promise<ConfirmChargeResult> {
     return this.charges.confirmCharge(id, { receivedAt, receivedByProfileId });

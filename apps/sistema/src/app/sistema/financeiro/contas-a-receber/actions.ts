@@ -437,12 +437,8 @@ export async function cancelPixChargeAction(chargeId: string, receivableId: stri
 }
 
 /**
- * SÓ existe pra demonstração em preview (SYSTEM_LOCAL_PREVIEW=1) — nenhum
- * webhook real confirma cobranças nesta fase. Fora do preview, o
- * composition ainda usa o PixProvider "indisponível", então esta ação
- * nunca é exposta pela UI (ver PixChargePanel: botão só aparece quando
- * localPreview=true). Delega ao mesmo PaymentChargeService.confirmPixCharge
- * que, fora do preview, chamaria a RPC atômica confirm_payment_charge.
+ * Ação de confirmação exclusivamente LOCAL. Em produção, o webhook
+ * Asaas autenticado usa a RPC com service_role, nunca esta Server Action.
  */
 export async function confirmPixChargeAction(
   chargeId: string,

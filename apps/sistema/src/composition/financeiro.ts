@@ -40,10 +40,9 @@ export function getClientCreditService(client: SupabaseClient): ClientCreditServ
 }
 
 /**
- * Nenhum provedor Pix real foi integrado ainda — em preview usa o adapter
- * de demonstração (createPixProviderPreview), fora do preview usa o
- * adapter "indisponível" (createPixProviderUnavailable), que recusa
- * qualquer chamada com uma mensagem honesta em vez de fingir sucesso.
+ * Preview utiliza adapter de demonstração; fora dele o provedor é
+ * Asaas, com habilitação/credenciais conferidas no servidor. Nunca
+ * criar cobrança remota a partir de ambiente sem permissão e configuração.
  */
 export function getPaymentChargeService(client: SupabaseClient): PaymentChargeService {
   const provider = isLocalPreviewEnabled() ? createPixProviderPreview() : createAsaasPixProvider(client);
