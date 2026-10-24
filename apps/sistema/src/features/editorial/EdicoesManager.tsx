@@ -155,7 +155,7 @@ export function EdicoesManager({ editions }: EdicoesManagerProps): JSX.Element {
         const prepared = await analyzePdf(file);
         setUploadStage(`PDF validado · ${prepared.pageCount} páginas · preparando R2…`);
 
-        const authorization = await prepareEditionR2UploadAction(editionId, file.name, file.size);
+        const authorization = await prepareEditionR2UploadAction(editionId, file.name, file.size, prepared.sha256);
         if ("error" in authorization) {
           setError(authorization.error);
           return;
@@ -189,6 +189,7 @@ export function EdicoesManager({ editions }: EdicoesManagerProps): JSX.Element {
         });
 
         if ("error" in finalized) {
+          await abandonEditionR2UploadAction(editionId,plan.pdf.key,plan.cover.key);
           setError(finalized.error);
           return;
         }

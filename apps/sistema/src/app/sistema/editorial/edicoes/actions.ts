@@ -1,6 +1,9 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import {checkModuleAction} from "../../../../lib/permissions/checkModuleAction";
+import {isEditionDirectUploadPair} from "../../../../lib/editorial/editionDirectUploadKeys";
+import {isDuplicateEditionUpload} from "../../../../lib/editorial/editionUploadDedup";
 import type { NewspaperEdition } from "@ir/types";
 import { getNewspaperEditionService } from "../../../../composition/editorial";
 import { createSupabaseServerClient } from "../../../../lib/supabase/server";
@@ -11,7 +14,6 @@ import {
   deleteEditionArchiveObject,
   getEditionArchivePublicUrl,
   ensureEditionR2CorsConfigured,
-  isEditionArchiveKeyFor,
   isEditionR2ArchiveConfigured,
   validateEditionCoverObject,
   validateEditionPdfObject,
@@ -44,6 +46,8 @@ function validate(payload: NewspaperEditionPayload): string | null {
 }
 
 export async function createEdition(payload: NewspaperEditionPayload): Promise<ActionResult> {
+  const permissionError = await checkModuleAction("editorial","edicoes_gerenciar");
+  if(permissionError)return {error:permissionError};
   const validationError = validate(payload);
   if (validationError) return { error: validationError };
   try {
@@ -62,6 +66,8 @@ export async function createEdition(payload: NewspaperEditionPayload): Promise<A
 }
 
 export async function updateEdition(id: string, payload: NewspaperEditionPayload): Promise<ActionResult> {
+  const permissionError = await checkModuleAction("editorial","edicoes_gerenciar");
+  if(permissionError)return {error:permissionError};
   const validationError = validate(payload);
   if (validationError) return { error: validationError };
   try {
@@ -80,6 +86,8 @@ export async function updateEdition(id: string, payload: NewspaperEditionPayload
 }
 
 export async function setEditionActive(id: string, active: boolean): Promise<ActionResult> {
+  const permissionError = await checkModuleAction("editorial","edicoes_gerenciar");
+  if(permissionError)return {error:permissionError};
   try {
     const edition = await getNewspaperEditionService(createSupabaseServerClient()).setActive(id, active);
     revalidatePath(LIST_PATH);
@@ -104,6 +112,8 @@ export interface FinalizeEditionUploadInput {
 }
 
 async function requireStaffClient() {
+  const permissionError=await checkModuleAction("editorial","edicoes_gerenciar");
+  if(permissionError)throw new Error(permissionError);
   const client = createSupabaseServerClient();
   const { data: auth, error: authError } = await client.auth.getUser();
   if (authError || !auth.user) throw new Error("Sessão expirada. Entre novamente no sistema.");
@@ -126,9 +136,11 @@ export async function prepareEditionR2UploadAction(
   editionId: string,
   fileName: string,
   fileSize: number,
+  sha256: string,
 ): Promise<PrepareEditionUploadResult> {
   try {
     if (!fileName.toLowerCase().endsWith(".pdf")) return { error: "Selecione um arquivo PDF." };
+    if(!/^[a-f0-9]{64}$/i.test(sha256))return {error:"Hash do PDF inválido."};
     if (!Number.isFinite(fileSize) || fileSize <= 0 || fileSize > MAX_EDITION_PDF_BYTES) {
       return { error: `O PDF precisa ter até ${MAX_EDITION_PDF_BYTES / 1024 / 1024} MB.` };
     }
@@ -137,6 +149,8 @@ export async function prepareEditionR2UploadAction(
     const client = await requireStaffClient();
     const edition = await getNewspaperEditionService(client).getById(editionId);
     if (!edition) return { error: "Edição não encontrada." };
+    if(isDuplicateEditionUpload(edition,sha256))
+      return {error:"Este PDF já está arquivado nesta edição com capa. Não é necessário reenviar."};
 
     await ensureEditionR2CorsConfigured();
 
@@ -159,13 +173,17 @@ export async function abandonEditionR2UploadAction(
     const client = await requireStaffClient();
     const edition = await getNewspaperEditionService(client).getById(editionId);
     if (!edition) return;
-    const options = { editionNumber: edition.editionNumber, publicationDate: edition.publicationDate };
-    if (isEditionArchiveKeyFor(pdfKey, options)) {
-      await deleteEditionArchiveObject(pdfKey).catch(() => undefined);
-    }
-    if (isEditionArchiveKeyFor(coverKey, options)) {
-      await deleteEditionArchiveObject(coverKey).catch(() => undefined);
-    }
+    // NUNCA excluir chaves publicadas nem nomes genéricos sob o prefixo.
+    if(!isEditionDirectUploadPair(pdfKey,coverKey,edition.editionNumber,edition.publicationDate))return;
+    const {data:attached,error:lookupError}=await client
+      .from("newspaper_editions")
+      .select("pdf_r2_key, cover_r2_key")
+      .eq("id",editionId).maybeSingle();
+    if(lookupError||!attached||attached.pdf_r2_key===pdfKey||attached.cover_r2_key===coverKey)return;
+    await Promise.all([
+      deleteEditionArchiveObject(pdfKey).catch(()=>undefined),
+      deleteEditionArchiveObject(coverKey).catch(()=>undefined),
+    ]);
   } catch {
     // Limpeza de tentativa incompleta é best-effort.
   }
@@ -181,10 +199,13 @@ export async function finalizeEditionR2UploadAction(
   try {
     const edition = await getNewspaperEditionService(client).getById(editionId);
     if (!edition) return { error: "Edição não encontrada." };
+    // Verificação adicional após os PUTs, sem regravar objeto idêntico.
+    if(isDuplicateEditionUpload(edition,input.sha256))
+      return {error:"Este PDF já consta nesta edição. Reabra o cadastro para conferir."};
 
     const options = { editionNumber: edition.editionNumber, publicationDate: edition.publicationDate };
-    if (!isEditionArchiveKeyFor(input.pdfKey, options) || !isEditionArchiveKeyFor(input.coverKey, options)) {
-      return { error: "Os arquivos enviados não pertencem a esta edição." };
+    if (!isEditionDirectUploadPair(input.pdfKey,input.coverKey,edition.editionNumber,edition.publicationDate)) {
+      return { error: "O PDF e a capa devem pertencer à mesma tentativa de upload desta edição." };
     }
     if (!/^[a-f0-9]{64}$/i.test(input.sha256)) return { error: "SHA-256 do PDF inválido." };
     if (!Number.isInteger(input.pageCount) || input.pageCount <= 0) return { error: "Quantidade de páginas inválida." };
@@ -229,10 +250,21 @@ export async function finalizeEditionR2UploadAction(
     return { ok: true, edition: updated };
   } catch (error) {
     if (!attached) {
-      await Promise.all([
-        deleteEditionArchiveObject(input.pdfKey).catch(() => undefined),
-        deleteEditionArchiveObject(input.coverKey).catch(() => undefined),
-      ]);
+      // Em falha ambígua, o banco pode já ter confirmado o vínculo.
+      // Na dúvida, manter o objeto é mais seguro que apagar um PDF oficial.
+      try {
+        const {data:current,error:lookupError}=await client.from("newspaper_editions")
+          .select("edition_number,publication_date,pdf_r2_key,cover_r2_key")
+          .eq("id",editionId).maybeSingle();
+        if(!lookupError&&current&&
+          isEditionDirectUploadPair(input.pdfKey,input.coverKey,current.edition_number,current.publication_date)&&
+          current.pdf_r2_key!==input.pdfKey&&current.cover_r2_key!==input.coverKey){
+          await Promise.all([
+            deleteEditionArchiveObject(input.pdfKey).catch(()=>undefined),
+            deleteEditionArchiveObject(input.coverKey).catch(()=>undefined),
+          ]);
+        }
+      }catch{/* falha ao conferir vínculo: não excluir arquivos */ }
     }
     return { error: toErrorMessage(error) };
   }

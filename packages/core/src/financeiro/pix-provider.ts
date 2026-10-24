@@ -43,6 +43,8 @@ export interface PixProvider {
   createCharge(request: CreatePixChargeRequest): Promise<PixChargeProviderResult>;
   getCharge(providerChargeId: string): Promise<PixChargeProviderResult>;
   cancelCharge(providerChargeId: string): Promise<void>;
+  /** Apenas consulta por externalReference; NUNCA faz POST de nova cobrança. */
+  findActiveChargeForReceivable?(request: CreatePixChargeRequest): Promise<PixChargeProviderResult | null>;
 }
 
 /** Sempre recusa — usada fora do preview até um provedor real ser escolhido e configurado. Nunca gera payload fictício fora do preview. */

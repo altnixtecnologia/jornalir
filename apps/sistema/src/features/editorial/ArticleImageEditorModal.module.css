@@ -186,3 +186,25 @@
     align-items: stretch;
   }
 }
+
+/* Ajustes de recorte apenas no desktop — layout móvel preservado. */
+.desktopZoom { display: none; }
+@media (min-width: 768px) and (pointer: fine) {
+  .desktopZoom {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 12px;
+    font-weight: 600;
+    white-space: nowrap;
+  }
+  .desktopZoom input[type="range"] { width: 152px; cursor: pointer; }
+  .desktopZoom output { min-width: 43px; font-variant-numeric: tabular-nums; }
+  .cropResizeHandle {
+    width: 24px;
+    height: 24px;
+    right: -12px;
+    bottom: -12px;
+    border-width: 3px;
+  }
+}

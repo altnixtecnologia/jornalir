@@ -1,67 +1,17 @@
-# Integração futura de cadastros — Altnix Informativo x JornalIR
+# Histórico de integração de cadastros — SUPERADO EM 24/10/2026
 
-## Objetivo
-Evitar digitação duplicada quando a mesma pessoa ou empresa existir nos dois sistemas.
+**NÃO IMPLEMENTAR O PLANO ANTIGO ABAIXO.**
 
-Exemplo real de uso: um cliente já cadastrado no Altnix Informativo precisa também existir no cadastro do JornalIR e, quando aplicável, participar da lista de aniversariantes. O operador deve poder localizar o cadastro existente e copiá-lo para o outro sistema.
+Este documento originalmente sugeria cópia manual nos dois sentidos (Altnix → Jornal IR e Jornal IR → Altnix), com dois cadastros independentes. Essa proposta **foi substituída** pela decisão explícita do proprietário em 24/10/2026:
 
-## Regra principal
-A integração será por **cópia explícita sob comando do operador**, não por sincronização automática contínua.
+- **Cadastro mestre e financeiro únicos no Jornal IR.**
+- Preparar primeiro **somente o Jornal IR**, sem consumir/escrever cadastros do Altnix.
+- Não mudar o repositório, banco, mídia, financeiro, players nem OTA do Altnix agora.
+- Não ligar exportação nem suspensão/liberação de mídias. Tudo isso será integrado e publicado **de uma vez, futuramente**, depois de revisar todos os módulos e obter autorização explícita.
+- A antiga ideia de botões "Copiar para Jornal IR" e sincronização bidirecional **não está aprovada** e não deve ser implementada por agentes.
+- Em Altnix Informativo, `public.clients` é o tenant, e `public.ad_clients` representa anunciantes. Nunca unir tabelas chamadas `clients` apenas por semelhança nominal.
 
-Cada sistema mantém:
-- seu próprio banco;
-- seu próprio UUID/ID primário;
-- suas regras de negócio;
-- seu histórico e auditoria.
+**Fonte normativa atual:**
+`docs/ALTNIX-INFORMATIVO-SYNC-FUTURO.md` e issue #18. Este arquivo fica somente como indicação da decisão substituída, para impedir que agentes repitam o planejamento errado.
 
-Ao copiar, o sistema de destino cria um novo registro com o ID do próprio banco. O ID de origem deve ser guardado apenas como referência de integração, nunca usado como PK no destino.
-
-## Fluxo desejado
-1. No cadastro/lista de clientes, oferecer ação como **"Copiar para JornalIR"** ou **"Importar do Altnix Informativo"**.
-2. Buscar o cadastro no sistema de origem.
-3. Antes de criar, procurar duplicidade no destino por CPF/CNPJ e, como apoio, telefone/e-mail.
-4. Mostrar uma prévia dos dados que serão copiados.
-5. Confirmado pelo operador, criar o registro no banco de destino.
-6. Salvar vínculo de origem/destino para auditoria e para evitar cópias duplicadas.
-
-## Dados comuns a copiar quando existirem
-- nome / razão social;
-- nome fantasia;
-- CPF/CNPJ;
-- telefone;
-- e-mail;
-- CEP;
-- rua;
-- número;
-- complemento;
-- cidade;
-- UF/região;
-- segmento;
-- outros campos comuns que existirem nos dois cadastros.
-
-Campos exclusivos continuam sendo preenchidos apenas no sistema correspondente.
-
-## Aniversariantes
-O JornalIR pode usar o cadastro copiado como base para sua lista de aniversariantes. Se a data de nascimento não existir no Altnix Informativo, ela deve ser complementada no JornalIR sem impedir a cópia dos demais dados.
-
-## Estrutura técnica sugerida
-Preferência por integração servidor-a-servidor autenticada, com endpoint específico e escopo mínimo, em vez de liberar acesso direto de um front-end ao banco do outro sistema.
-
-Sugestão de referência no destino:
-- `source_system`: `altnix_informativo` ou `jornalir`;
-- `source_record_id`: UUID do registro de origem;
-- `imported_at`;
-- opcionalmente `last_copied_at`.
-
-Uma tabela de mapeamento separada também é aceitável e pode ser preferível para não contaminar a tabela principal.
-
-## Fora de escopo por enquanto
-- sincronização automática em tempo real;
-- sobrescrever automaticamente dados já alterados no destino;
-- compartilhar o mesmo UUID entre os dois bancos;
-- excluir em cascata um cadastro no outro sistema.
-
-## Status
-**ANOTADO / NÃO IMPLEMENTADO.**
-
-Implementar quando o cadastro/CRM e a rotina de aniversariantes do JornalIR entrarem na fase de integração.
+**Estado:** nenhum envio ou conexão remota autorizada. A PR #15 do Jornal IR permanece draft. Uma branch experimental no Altnix está isolada e **não deve ser usada ou mesclada**, sem novo aval.

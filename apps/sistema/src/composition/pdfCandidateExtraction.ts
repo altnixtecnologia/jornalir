@@ -115,6 +115,7 @@ export interface ExtractCandidatesResult {
 export interface PdfBatchMeta {
   fileName?: string;
   fileHash?: string;
+  force?: boolean;
 }
 
 export async function extractCandidatesFromPdf(
@@ -141,6 +142,7 @@ export async function extractCandidatesFromPdf(
   const candidates = await importCandidateService.createBatch(records, {
     fileName: batchMeta?.fileName,
     fileHash: batchMeta?.fileHash,
+    force: batchMeta?.force ?? false,
     pageCount: result.pageCount,
     pagesWithoutText,
     warnings: result.warnings,

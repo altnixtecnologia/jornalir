@@ -7,6 +7,7 @@ import { buildTomadorSnapshotFromClient, clientDisplayName } from "@ir/types";
 import { getDraftService } from "../../../../composition/nfse";
 import { getClientService } from "../../../../composition/clientes";
 import { createSupabaseServerClient } from "../../../../lib/supabase/server";
+import { checkModuleAction } from "../../../../lib/permissions/checkModuleAction";
 import { getAuditContext } from "../../../../lib/auth/getAuditContext";
 import { recordAuditEventSupabase } from "../../../../providers/supabase/auditEvents.supabase";
 
@@ -120,6 +121,8 @@ function toServiceInput(input: DraftFormInput) {
 }
 
 export async function createDraftAction(input: DraftFormInput): Promise<{ error: string } | { ok: true; draftId: string }> {
+  const permissionError = await checkModuleAction("nfse", "rascunhos_criar");
+  if (permissionError) return { error: permissionError };
   try {
     const client = createSupabaseServerClient();
     const AUDIT = await getAuditContext(client);
@@ -133,6 +136,8 @@ export async function createDraftAction(input: DraftFormInput): Promise<{ error:
 }
 
 export async function updateDraftAction(id: string, input: DraftFormInput): Promise<ActionResult> {
+  const permissionError = await checkModuleAction("nfse", "rascunhos_editar");
+  if (permissionError) return { error: permissionError };
   try {
     const client = createSupabaseServerClient();
     const AUDIT = await getAuditContext(client);
@@ -160,6 +165,8 @@ export async function refreshTomadorSnapshotAction(
   clientId: string,
   draftId?: string,
 ): Promise<{ error: string } | { ok: true; tomador: TomadorSnapshotFormInput }> {
+  const permissionError = await checkModuleAction("nfse", "rascunhos_editar");
+  if (permissionError) return { error: permissionError };
   try {
     const client = createSupabaseServerClient();
     const current = await getClientService(client).getById(clientId);

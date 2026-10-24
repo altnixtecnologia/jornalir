@@ -46,8 +46,8 @@ export const adminModules: readonly AdminModule[] = [
   {
     slug: "nfse",
     label: "NFS-e",
-    description: "Configuração fiscal, perfis de serviço e rascunhos de NFS-e.",
-    planned: false,
+    description: "Etapa posterior à publicação inicial.",
+    planned: true,
   },
   {
     slug: "publicidade",
@@ -171,6 +171,7 @@ export const commercialNavGroup: AdminNavGroup = {
     { label: "Propostas/Orçamentos", href: "/sistema/publicidade/propostas" },
     { label: "Vendas", href: "/sistema/publicidade/vendas" },
     { label: "Produtos/serviços", href: "/sistema/publicidade/produtos" },
+    { label: "Equipamentos e locações", href: "/sistema/publicidade/locacoes" },
     { label: "Avisos gerais", href: "/sistema/publicidade/avisos" },
   ],
 };

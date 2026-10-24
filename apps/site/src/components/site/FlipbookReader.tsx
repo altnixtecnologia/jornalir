@@ -94,6 +94,7 @@ export function FlipbookReader({ pdfUrl, title, zoomPercent }: FlipbookReaderPro
   useEffect(() => {
     let cancelled = false;
     let loaded: PDFDocumentProxy | null = null;
+    let loadingTask: ReturnType<typeof getDocument> | null = null;
 
     async function load(): Promise<void> {
       try {
@@ -106,7 +107,12 @@ export function FlipbookReader({ pdfUrl, title, zoomPercent }: FlipbookReaderPro
           disableStream: false,
           rangeChunkSize: 262144,
         });
+        loadingTask=task;
         loaded = await task.promise;
+        if (cancelled) {
+          void loaded.destroy().catch(()=>undefined);
+          return;
+        }
         if (!cancelled) setPdf(loaded);
       } catch {
         if (!cancelled) setError("Não foi possível carregar o modo revista desta edição.");
@@ -116,7 +122,8 @@ export function FlipbookReader({ pdfUrl, title, zoomPercent }: FlipbookReaderPro
     void load();
     return () => {
       cancelled = true;
-      if (loaded) void loaded.destroy();
+      if (loadingTask) void loadingTask.destroy().catch(()=>undefined);
+      else if (loaded) void loaded.destroy().catch(()=>undefined);
     };
   }, [pdfUrl]);
 

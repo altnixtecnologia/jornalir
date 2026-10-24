@@ -12,6 +12,7 @@ import type {
 } from "@ir/types";
 import { getIssuerConfigService } from "../../../../composition/nfse";
 import { createSupabaseServerClient } from "../../../../lib/supabase/server";
+import { checkModuleAction } from "../../../../lib/permissions/checkModuleAction";
 import { getAuditContext } from "../../../../lib/auth/getAuditContext";
 import { recordAuditEventSupabase } from "../../../../providers/supabase/auditEvents.supabase";
 
@@ -56,6 +57,8 @@ export interface IssuerConfigFormInput {
  * confirmar salvando este formulário.
  */
 export async function saveIssuerConfigAction(input: IssuerConfigFormInput): Promise<ActionResult> {
+  const permissionError = await checkModuleAction("nfse", "configuracoes_gerenciar");
+  if (permissionError) return { error: permissionError };
   try {
     const client = createSupabaseServerClient();
     const AUDIT = await getAuditContext(client);

@@ -143,17 +143,16 @@ export function createClientCreditRepositorySupabase(client: SupabaseClient): Cl
     },
 
     async reverse(id: string, reversal: ClientCreditReversalInput) {
-      const { data, error } = await client
-        .from(TABLE)
-        .update({
-          reversed_at: new Date().toISOString(),
-          reversed_by: reversal.reversedByProfileId,
-          reversal_reason: reversal.reversalReason,
-        })
-        .eq("id", id)
-        .select(COLUMNS)
-        .single();
+      // O estorno real nunca aceita PATCH direto de client_credits.
+      // A RPC valida permissão, aplicações e origem Asaas sob lock.
+      const { error } = await client.rpc("reverse_client_credit_safe", {
+        p_credit_id: id,
+        p_reason: reversal.reversalReason,
+      });
       if (error) throw new Error(error.message);
+      const { data, error: readError } = await client
+        .from(TABLE).select(COLUMNS).eq("id", id).single();
+      if (readError) throw new Error(readError.message);
       return toDomain(data as unknown as ClientCreditRow);
     },
 

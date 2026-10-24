@@ -1,0 +1,125 @@
+name: Supabase complete migration rehearsal
+
+on:
+  pull_request:
+    branches:
+      - feature/abrangencias-geo-notificacoes-20261021
+    paths:
+      - "supabase/migrations/**"
+      - "supabase/config.toml"
+      - "tests/security/full-schema-rls-postflight.sql"
+      - ".github/workflows/supabase-full-rehearsal.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  full-local-db:
+    name: Rebuild local Supabase without production data
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v4
+
+      - name: Setup Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: 2.120.0
+
+      - name: Start local ephemeral Supabase
+        run: supabase start
+
+      - name: Replay all schema migrations from scratch
+        run: supabase db reset --local --no-seed
+
+      - name: Conferir politicas no esquema completo
+        env:
+          PGPASSWORD: postgres
+        run: |
+          if ! command -v psql >/dev/null; then
+            sudo apt-get update -qq && sudo apt-get install -qq -y postgresql-client
+          fi
+          psql -h 127.0.0.1 -p 54322 -U postgres -d postgres \
+            -v ON_ERROR_STOP=1 -f tests/security/full-schema-rls-postflight.sql
+
+      - name: Testar recebimento transacional, retry e quitação com diferença
+        env:
+          PGPASSWORD: postgres
+        run: |
+          psql -h 127.0.0.1 -p 54322 -U postgres -d postgres \
+            -v ON_ERROR_STOP=1 -f tests/security/manual-receivable-atomic-postflight.sql
+
+      - name: Testar composição financeira transacional e isolamento
+        env:
+          PGPASSWORD: postgres
+        run: |
+          psql -h 127.0.0.1 -p 54322 -U postgres -d postgres \
+            -v ON_ERROR_STOP=1 -f tests/security/manual-composition-atomic-postflight.sql
+
+      - name: Testar desconto atomico, idempotencia e autorizacao
+        env:
+          PGPASSWORD: postgres
+        run: |
+          psql -h 127.0.0.1 -p 54322 -U postgres -d postgres \
+            -v ON_ERROR_STOP=1 -f tests/security/manual-adjustment-atomic-postflight.sql
+
+      - name: Testar estornos atomicos e bloqueios Pix/credito
+        env:
+          PGPASSWORD: postgres
+        run: |
+          psql -h 127.0.0.1 -p 54322 -U postgres -d postgres \
+            -v ON_ERROR_STOP=1 -f tests/security/manual-reversal-atomic-postflight.sql
+
+      - name: Testar protecao contra creditos forjados e reversao
+        env:
+          PGPASSWORD: postgres
+        run: |
+          psql -h 127.0.0.1 -p 54322 -U postgres -d postgres \
+            -v ON_ERROR_STOP=1 -f tests/security/client-credit-ledger-postflight.sql
+
+      - name: Testar blindagem de status e valores dos titulos
+        env:
+          PGPASSWORD: postgres
+        run: |
+          psql -h 127.0.0.1 -p 54322 -U postgres -d postgres \
+            -v ON_ERROR_STOP=1 -f tests/security/receivable-write-guards-postflight.sql
+
+      - name: Testar protecao de cadastro duplicado de aniversariantes
+        env:
+          PGPASSWORD: postgres
+        run: |
+          psql -h 127.0.0.1 -p 54322 -U postgres -d postgres \
+            -v ON_ERROR_STOP=1 -f tests/security/birthday-duplicate-postflight.sql
+
+      - name: Testar autorização e idempotência de importação PDF
+        env:
+          PGPASSWORD: postgres
+        run: |
+          psql -h 127.0.0.1 -p 54322 -U postgres -d postgres \
+            -v ON_ERROR_STOP=1 -f tests/security/pdf-import-permissions-postflight.sql
+
+      - name: Testar convites internos e confirmação individual de reunião
+        env:
+          PGPASSWORD: postgres
+        run: |
+          psql -h 127.0.0.1 -p 54322 -U postgres -d postgres \
+            -v ON_ERROR_STOP=1 -f tests/security/agenda-invitees-postflight.sql
+
+      - name: Testar liberações digitais por administrador e revogação
+        env:
+          PGPASSWORD: postgres
+        run: |
+          psql -h 127.0.0.1 -p 54322 -U postgres -d postgres \
+            -v ON_ERROR_STOP=1 -f tests/security/client-digital-export-postflight.sql
+
+      - name: Validar SQL de todas as funções sem ignorar erros
+        run: supabase db lint --local --schema public
+
+      - name: Confirm schema tables and functions
+        run: echo "Migration rehearsal concluded against local-only Docker database."
+
+      - name: Stop ephemeral services
+        if: always()
+        run: supabase stop --no-backup || true

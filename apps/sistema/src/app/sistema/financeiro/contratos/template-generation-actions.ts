@@ -6,6 +6,7 @@ import { resolveTemplateVariables } from "@ir/core";
 import { getContractService, getContractTemplateService } from "../../../../composition/financeiro";
 import { getClientService } from "../../../../composition/clientes";
 import { createSupabaseServerClient } from "../../../../lib/supabase/server";
+import { checkFinanceAction } from "../../../../lib/permissions/checkFinanceAction";
 import { buildContractTemplatePdf } from "../../../../lib/contracts/contractTemplatePdf";
 
 const CONTRACT_BUCKET = "contract-documents";
@@ -65,6 +66,8 @@ export async function previewContractFromTemplateAction(input: {
 export async function generateContractFromTemplateAction(input: {
   contractId: string; templateId: string; customValues: Record<string, string>;
 }): Promise<Result<{ document: ContractDocument }>> {
+  const permissionError = await checkFinanceAction("contratos_editar");
+  if (permissionError) return { error: permissionError };
   try {
     await requireFinanceAccess();
     const supabase = createSupabaseServerClient();

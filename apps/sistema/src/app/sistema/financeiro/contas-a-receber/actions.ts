@@ -8,6 +8,8 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { getPaymentChargeService, getReceivableService } from "../../../../composition/financeiro";
 import { getClientService } from "../../../../composition/clientes";
 import { createSupabaseServerClient } from "../../../../lib/supabase/server";
+import { checkFinanceAction } from "../../../../lib/permissions/checkFinanceAction";
+import { validateChargeReceivableLink } from "../../../../lib/financeiro/commercialSaleBillingGuard";
 import { todayInSaoPauloISO } from "../../../../lib/date/saoPauloDate";
 import { getAuditContext } from "../../../../lib/auth/getAuditContext";
 import { isLocalPreviewEnabled, LOCAL_PREVIEW_PROFILE } from "../../../../lib/auth/localPreview";
@@ -52,6 +54,8 @@ function toServiceInput(payload: ReceivableFormPayload): ReceivableInput {
 }
 
 export async function createReceivable(payload: ReceivableFormPayload): Promise<ActionResult> {
+  const permissionError = await checkFinanceAction("titulos_criar");
+  if (permissionError) return { error: permissionError };
   const validationError = validateReceivablePayload(payload);
   if (validationError) return { error: validationError };
 
@@ -67,6 +71,8 @@ export async function createReceivable(payload: ReceivableFormPayload): Promise<
 }
 
 export async function updateReceivable(id: string, payload: ReceivableFormPayload): Promise<ActionResult> {
+  const permissionError = await checkFinanceAction("titulos_editar");
+  if (permissionError) return { error: permissionError };
   const validationError = validateReceivablePayload(payload);
   if (validationError) return { error: validationError };
 
@@ -81,6 +87,8 @@ export async function updateReceivable(id: string, payload: ReceivableFormPayloa
 }
 
 export async function cancelReceivableAction(id: string): Promise<ActionResult> {
+  const permissionError = await checkFinanceAction("titulos_cancelar");
+  if (permissionError) return { error: permissionError };
   try {
     await getReceivableService(createSupabaseServerClient()).cancel(id);
   } catch (error) {
@@ -91,6 +99,8 @@ export async function cancelReceivableAction(id: string): Promise<ActionResult> 
 }
 
 export async function reopenReceivableAction(id: string): Promise<ActionResult> {
+  const permissionError = await checkFinanceAction("titulos_reabrir");
+  if (permissionError) return { error: permissionError };
   try {
     await getReceivableService(createSupabaseServerClient()).reopen(id);
   } catch (error) {
@@ -107,10 +117,32 @@ export interface ReceiptFormInput {
   reference: string;
   notes: string;
   receivedByProfileId: string;
+  operationId?: string;
+}
+
+async function recordManualPaymentAtomically(
+  receivableId: string, input: ReceiptFormInput, mode: "receipt" | "settlement",
+  reason?: string, authorizedByProfileId?: string
+): Promise<void> {
+  if (!input.operationId || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(input.operationId))
+    throw new Error("Identificador da operação ausente. Reabra o formulário.");
+  const db = createSupabaseServerClient();
+  const { error } = await db.rpc("record_manual_receivable_payment", {
+    p_operation_id: input.operationId, p_receivable_id: receivableId,
+    p_amount: parseAmount(input.amount), p_received_at: input.receivedAt,
+    p_payment_method: input.paymentMethod || null,
+    p_reference: input.reference || null, p_notes: input.notes || null,
+    p_received_by: input.receivedByProfileId || null, p_mode: mode,
+    p_reason: reason || null, p_authorized_by: authorizedByProfileId || null,
+  });
+  if (error) throw new Error(error.message);
 }
 
 export async function addReceiptAction(receivableId: string, input: ReceiptFormInput): Promise<ActionResult> {
+  const permissionError = await checkFinanceAction("recebimentos_baixar");
+  if (permissionError) return { error: permissionError };
   try {
+    if (isLocalPreviewEnabled()) {
     await getReceivableService(createSupabaseServerClient()).addReceipt(receivableId, {
       amount: parseAmount(input.amount),
       receivedAt: input.receivedAt,
@@ -119,6 +151,9 @@ export async function addReceiptAction(receivableId: string, input: ReceiptFormI
       notes: input.notes,
       receivedByProfileId: input.receivedByProfileId || undefined,
     });
+    } else {
+      await recordManualPaymentAtomically(receivableId, input, "receipt");
+    }
   } catch (error) {
     return { error: toErrorMessage(error) };
   }
@@ -132,7 +167,10 @@ export interface SettleWithDifferenceFormInput extends ReceiptFormInput {
 }
 
 export async function settleWithDifferenceAction(receivableId: string, input: SettleWithDifferenceFormInput): Promise<ActionResult> {
+  const permissionError = await checkFinanceAction("recebimentos_quitar_diferenca");
+  if (permissionError) return { error: permissionError };
   try {
+    if (isLocalPreviewEnabled()) {
     await getReceivableService(createSupabaseServerClient()).settleWithDifference(receivableId, {
       receivedAmount: parseAmount(input.amount),
       receivedAt: input.receivedAt,
@@ -143,6 +181,9 @@ export async function settleWithDifferenceAction(receivableId: string, input: Se
       reason: input.reason,
       authorizedByProfileId: input.authorizedByProfileId || undefined,
     });
+    } else {
+      await recordManualPaymentAtomically(receivableId, input, "settlement", input.reason, input.authorizedByProfileId);
+    }
   } catch (error) {
     return { error: toErrorMessage(error) };
   }
@@ -151,6 +192,7 @@ export async function settleWithDifferenceAction(receivableId: string, input: Se
 }
 
 export interface AdjustmentFormInput {
+  operationId?: string;
   amount: string;
   adjustmentType: AdjustmentType;
   reason: string;
@@ -159,7 +201,10 @@ export interface AdjustmentFormInput {
 }
 
 export async function addAdjustmentAction(receivableId: string, input: AdjustmentFormInput): Promise<ActionResult> {
+  const permissionError = await checkFinanceAction("ajustes_criar");
+  if (permissionError) return { error: permissionError };
   try {
+    if (isLocalPreviewEnabled()) {
     await getReceivableService(createSupabaseServerClient()).addAdjustment(receivableId, {
       amount: parseAmount(input.amount),
       adjustmentType: input.adjustmentType,
@@ -167,6 +212,20 @@ export async function addAdjustmentAction(receivableId: string, input: Adjustmen
       authorizedByProfileId: input.authorizedByProfileId || undefined,
       notes: input.notes,
     });
+    } else {
+      if (!input.operationId || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(input.operationId))
+        return { error: "Identificador do abatimento inválido; reabra o formulário." };
+      const { error } = await createSupabaseServerClient().rpc("record_manual_receivable_adjustment", {
+        p_operation_id: input.operationId,
+        p_receivable_id: receivableId,
+        p_amount: parseAmount(input.amount),
+        p_adjustment_type: input.adjustmentType,
+        p_reason: input.reason,
+        p_authorized_by: input.authorizedByProfileId || null,
+        p_notes: input.notes || null,
+      });
+      if (error) throw new Error(error.message);
+    }
   } catch (error) {
     return { error: toErrorMessage(error) };
   }
@@ -175,6 +234,7 @@ export async function addAdjustmentAction(receivableId: string, input: Adjustmen
 }
 
 export interface CompositionPaymentFormInput {
+  operationId?: string;
   amount: string;
   receivedAt: string;
   paymentMethod: PaymentMethod | "";
@@ -194,7 +254,10 @@ export interface CompositionPaymentFormInput {
  * (addReceiptAction), mas é uma ação separada e consciente.
  */
 export async function payCompositionAction(receivableIdsOldestFirst: string[], input: CompositionPaymentFormInput): Promise<ActionResult> {
+  const permissionError = await checkFinanceAction("recebimentos_baixar");
+  if (permissionError) return { error: permissionError };
   try {
+    if (isLocalPreviewEnabled()) {
     await getReceivableService(createSupabaseServerClient()).payAcrossReceivables(receivableIdsOldestFirst, {
       amount: parseAmount(input.amount),
       receivedAt: input.receivedAt,
@@ -203,6 +266,23 @@ export async function payCompositionAction(receivableIdsOldestFirst: string[], i
       notes: input.notes,
       receivedByProfileId: input.receivedByProfileId || undefined,
     });
+    } else {
+      if (!input.operationId || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(input.operationId))
+        return { error: "Identificador do pagamento inválido. Reabra o formulário." };
+      if (receivableIdsOldestFirst.length < 2 || receivableIdsOldestFirst.length > 50)
+        return { error: "Uma composição precisa de 2 a 50 títulos válidos." };
+      const { error } = await createSupabaseServerClient().rpc("record_manual_composition_payment", {
+        p_operation_id: input.operationId,
+        p_receivable_ids: receivableIdsOldestFirst,
+        p_amount: parseAmount(input.amount),
+        p_received_at: input.receivedAt,
+        p_payment_method: input.paymentMethod || null,
+        p_reference: input.reference || null,
+        p_notes: input.notes || null,
+        p_received_by: input.receivedByProfileId || null,
+      });
+      if (error) throw new Error(error.message);
+    }
   } catch (error) {
     return { error: toErrorMessage(error) };
   }
@@ -217,6 +297,8 @@ export async function payCompositionAction(receivableIdsOldestFirst: string[], i
  * diferentes (a automática nunca cruza).
  */
 export async function applyCreditManuallyAction(receivableId: string, creditId: string, amount: number): Promise<ActionResult> {
+  const permissionError = await checkFinanceAction("creditos_aplicar");
+  if (permissionError) return { error: permissionError };
   try {
     const client = createSupabaseServerClient();
     const AUDIT = await getAuditContext(client);
@@ -229,10 +311,19 @@ export async function applyCreditManuallyAction(receivableId: string, creditId: 
 }
 
 export async function reverseReceiptAction(receivableId: string, receiptId: string, reason: string): Promise<ActionResult> {
+  const permissionError = await checkFinanceAction("recebimentos_estornar");
+  if (permissionError) return { error: permissionError };
   try {
     const client = createSupabaseServerClient();
-    const AUDIT = await getAuditContext(client);
-    await getReceivableService(client).reverseReceipt(receivableId, receiptId, AUDIT.actorId, reason);
+    if (isLocalPreviewEnabled()) {
+      const AUDIT = await getAuditContext(client);
+      await getReceivableService(client).reverseReceipt(receivableId, receiptId, AUDIT.actorId, reason);
+    } else {
+      const { error } = await client.rpc("reverse_receivable_receipt_safe", {
+        p_receivable_id: receivableId, p_receipt_id: receiptId, p_reason: reason,
+      });
+      if (error) throw new Error(error.message);
+    }
   } catch (error) {
     return { error: toErrorMessage(error) };
   }
@@ -241,10 +332,19 @@ export async function reverseReceiptAction(receivableId: string, receiptId: stri
 }
 
 export async function reverseAdjustmentAction(receivableId: string, adjustmentId: string, reason: string): Promise<ActionResult> {
+  const permissionError = await checkFinanceAction("ajustes_estornar");
+  if (permissionError) return { error: permissionError };
   try {
     const client = createSupabaseServerClient();
-    const AUDIT = await getAuditContext(client);
-    await getReceivableService(client).reverseAdjustment(receivableId, adjustmentId, AUDIT.actorId, reason);
+    if (isLocalPreviewEnabled()) {
+      const AUDIT = await getAuditContext(client);
+      await getReceivableService(client).reverseAdjustment(receivableId, adjustmentId, AUDIT.actorId, reason);
+    } else {
+      const { error } = await client.rpc("reverse_receivable_adjustment_safe", {
+        p_receivable_id: receivableId, p_adjustment_id: adjustmentId, p_reason: reason,
+      });
+      if (error) throw new Error(error.message);
+    }
   } catch (error) {
     return { error: toErrorMessage(error) };
   }
@@ -262,6 +362,8 @@ export async function reverseAdjustmentAction(receivableId: string, adjustmentId
 export async function generateReceivableFromSubscriptionAction(
   payload: ReceivableFormPayload,
 ): Promise<{ error: string } | { ok: true; receivableId: string }> {
+  const permissionError = await checkFinanceAction("titulos_criar");
+  if (permissionError) return { error: permissionError };
   const validationError = validateReceivablePayload(payload);
   if (validationError) return { error: validationError };
   try {
@@ -291,6 +393,8 @@ export interface BatchGenerationItemResult {
 export async function generateReceivablesForSubscriptionPeriodAction(
   payloads: ReceivableFormPayload[],
 ): Promise<{ results: BatchGenerationItemResult[] }> {
+  const permissionError = await checkFinanceAction("titulos_criar");
+  if (permissionError) return { results: payloads.map((payload) => ({ competencyDate: payload.competencyDate, ok: false, error: permissionError })) };
   const client = createSupabaseServerClient();
   const service = getReceivableService(client);
   const results: BatchGenerationItemResult[] = [];
@@ -331,6 +435,8 @@ export async function createPixChargeAction(
   clientId: string,
   input: PixChargeFormInput,
 ): Promise<{ error: string } | { ok: true }> {
+  const permissionError = await checkFinanceAction("pix_gerar");
+  if (permissionError) return { error: permissionError };
   const amount = parseAmount(input.amount);
   if (!Number.isFinite(amount) || amount <= 0) return { error: "Informe um valor válido para a cobrança." };
   if (amount < 5) return { error: "O Asaas exige cobrança Pix mínima de R$ 5,00." };
@@ -383,11 +489,41 @@ export async function createPixChargeAction(
   return { ok: true };
 }
 
-export async function cancelPixChargeAction(chargeId: string, receivableId: string, reason: string): Promise<ActionResult> {
+export async function reconcilePixReservationAction(chargeId: string, receivableId: string): Promise<ActionResult> {
+  const permissionError = await checkFinanceAction("pix_gerar");
+  if (permissionError) return { error: permissionError };
   try {
     const client = createSupabaseServerClient();
+    const charges = getPaymentChargeService(client);
+    const [charge, receivable] = await Promise.all([
+      charges.getById(chargeId), getReceivableService(client).getById(receivableId),
+    ]);
+    const mismatch = validateChargeReceivableLink(charge, receivable);
+    if (mismatch) return { error: mismatch };
+    await charges.reconcilePixReservation(chargeId);
+    revalidatePath(`${LIST_PATH}/${receivableId}`);
+  } catch (error) {
+    return { error: toErrorMessage(error) };
+  }
+}
+
+export async function cancelPixChargeAction(chargeId: string, receivableId: string, reason: string): Promise<ActionResult> {
+  const permissionError = await checkFinanceAction("pix_cancelar");
+  if (permissionError) return { error: permissionError };
+  try {
+    const client = createSupabaseServerClient();
+    const charges=getPaymentChargeService(client);
+    // O navegador informa os dois IDs; conferi-los com os registros reais
+    // antes de chamar DELETE no Asaas. Nunca cancelar cobrança de outro título.
+    const [charge,receivable]=await Promise.all([
+      charges.getById(chargeId),getReceivableService(client).getById(receivableId),
+    ]);
+    const mismatch=validateChargeReceivableLink(charge,receivable);
+    if(mismatch) return {error:mismatch};
+    if(!reason.trim() || reason.trim().length<8)
+      return {error:"Informe um motivo de cancelamento com pelo menos 8 caracteres."};
     const cancelledByProfileId = await resolveActorId(client);
-    await getPaymentChargeService(client).cancelPixCharge(chargeId, { cancelledByProfileId, cancellationReason: reason });
+    await charges.cancelPixCharge(chargeId, { cancelledByProfileId, cancellationReason: reason.trim() });
   } catch (error) {
     return { error: toErrorMessage(error) };
   }
@@ -395,21 +531,31 @@ export async function cancelPixChargeAction(chargeId: string, receivableId: stri
 }
 
 /**
- * SÓ existe pra demonstração em preview (SYSTEM_LOCAL_PREVIEW=1) — nenhum
- * webhook real confirma cobranças nesta fase. Fora do preview, o
- * composition ainda usa o PixProvider "indisponível", então esta ação
- * nunca é exposta pela UI (ver PixChargePanel: botão só aparece quando
- * localPreview=true). Delega ao mesmo PaymentChargeService.confirmPixCharge
- * que, fora do preview, chamaria a RPC atômica confirm_payment_charge.
+ * Ação de confirmação exclusivamente LOCAL. Em produção, o webhook
+ * Asaas autenticado usa a RPC com service_role, nunca esta Server Action.
  */
 export async function confirmPixChargeAction(
   chargeId: string,
   receivableId: string,
 ): Promise<{ error: string } | { ok: true; overpaymentAmount: number }> {
+  // A função existe apenas para simulação de apresentação. A confirmação
+  // real vem EXCLUSIVAMENTE do webhook validado, via service_role,
+  // e de sua RPC transacional. Uma chamada fabricada à Server Action
+  // jamais deve confirmar pagamento financeiro real.
+  if(!isLocalPreviewEnabled())
+    return {error:"Confirmação de Pix é automática pelo Asaas; esta ação só existe na demonstração local."};
+  const permissionError = await checkFinanceAction("recebimentos_baixar");
+  if (permissionError) return { error: permissionError };
   try {
     const client = createSupabaseServerClient();
+    const charges=getPaymentChargeService(client);
+    const [charge,receivable]=await Promise.all([
+      charges.getById(chargeId),getReceivableService(client).getById(receivableId),
+    ]);
+    const mismatch=validateChargeReceivableLink(charge,receivable);
+    if(mismatch) return {error:mismatch};
     const receivedByProfileId = await resolveActorId(client);
-    const result = await getPaymentChargeService(client).confirmPixCharge(chargeId, new Date().toISOString().slice(0, 10), receivedByProfileId);
+    const result = await charges.confirmPixCharge(chargeId, new Date().toISOString().slice(0, 10), receivedByProfileId);
     revalidatePath(`${LIST_PATH}/${receivableId}`);
     return { ok: true, overpaymentAmount: result.overpaymentAmount };
   } catch (error) {
@@ -428,6 +574,8 @@ export async function sendBillingMessageAction(
   clientId: string,
   message: string,
 ): Promise<{ error: string } | { ok: true; status: "sent" | "simulated" }> {
+  const permissionError = await checkFinanceAction("pix_enviar");
+  if (permissionError) return { error: permissionError };
   const client = createSupabaseServerClient();
   let toPhone = "";
   let createdByProfileId: string | undefined;
@@ -447,6 +595,8 @@ export async function sendBillingMessageAction(
     if (!toPhone) return { error: "Cadastro sem WhatsApp." };
 
     const pendingCharge = charges.find((charge) => charge.status === "pending");
+    if (pendingCharge?.provider === "asaas" && !pendingCharge.providerChargeId)
+      return { error: "Criação Pix pendente de conciliação no Asaas; envio bloqueado." };
     if (!pendingCharge?.publicToken) {
       return { error: "Gere uma cobrança Pix antes de enviar ao cliente." };
     }
@@ -513,6 +663,8 @@ export async function buildBillingMessagePreviewAction(
       paymentUrl?: string;
     }
 > {
+  const permissionError = await checkFinanceAction("pix_enviar");
+  if (permissionError) return { error: permissionError };
   try {
     const client = createSupabaseServerClient();
     const receivable = await getReceivableService(client).getById(receivableId);
@@ -521,6 +673,8 @@ export async function buildBillingMessagePreviewAction(
       getPaymentChargeService(client).listForReceivable(receivableId),
     ]);
     const pendingCharge = charges.find((charge) => charge.status === "pending");
+    if (pendingCharge?.provider === "asaas" && !pendingCharge.providerChargeId)
+      return { error: "Aguarde a conciliação da cobrança Pix com o Asaas." };
     const paymentUrl = pendingCharge?.publicToken
       ? `https://controle.altnix.com.br/pagamento/${pendingCharge.publicToken}`
       : undefined;
@@ -562,6 +716,8 @@ export async function buildPaymentConfirmationPreviewAction(
       whatsappHref?: string;
     }
 > {
+  const permissionError = await checkFinanceAction("pix_enviar");
+  if (permissionError) return { error: permissionError };
   try {
     const client = createSupabaseServerClient();
     const receivable = await getReceivableService(client).getById(receivableId);
@@ -600,6 +756,8 @@ export async function buildPaymentConfirmationPreviewAction(
 export async function sendPaymentConfirmationAction(
   receivableId: string,
 ): Promise<{ error: string } | { ok: true; status: "sent" }> {
+  const permissionError = await checkFinanceAction("pix_enviar");
+  if (permissionError) return { error: permissionError };
   const client = createSupabaseServerClient();
   let toPhone = "";
   let clientId = "";
@@ -686,6 +844,8 @@ export interface InstallmentPayload extends ReceivableFormPayload {
 export async function generateContractInstallmentsAction(
   payloads: InstallmentPayload[],
 ): Promise<{ results: BatchGenerationItemResult[] }> {
+  const permissionError = await checkFinanceAction("titulos_criar");
+  if (permissionError) return { results: payloads.map((payload) => ({ competencyDate: payload.competencyDate, ok: false, error: permissionError })) };
   const client = createSupabaseServerClient();
   const service = getReceivableService(client);
   const results: BatchGenerationItemResult[] = [];

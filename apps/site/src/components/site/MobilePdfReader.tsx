@@ -28,7 +28,9 @@ function MobilePdfPage({
     const observer = new IntersectionObserver(
       (entries) => {
         const entry = entries[0];
-        if (entry.isIntersecting) setNearViewport(true);
+        // Ao sair da janela de pré-carregamento, desmontar o canvas.
+        // Caso contrário a leitura de dezenas de páginas esgota a RAM Android.
+        setNearViewport(entry.isIntersecting);
         if (entry.intersectionRatio >= 0.35) onVisible(index + 1);
       },
       { rootMargin: "900px 0px", threshold: [0, 0.35, 0.7] },
@@ -299,6 +301,7 @@ export function MobilePdfReader({ pdfUrl, title, fullscreen = false }: { pdfUrl:
   useEffect(() => {
     let cancelled = false;
     let loaded: PDFDocumentProxy | null = null;
+    let loadingTask: ReturnType<typeof getDocument> | null = null;
 
     async function load(): Promise<void> {
       try {
@@ -310,7 +313,12 @@ export function MobilePdfReader({ pdfUrl, title, fullscreen = false }: { pdfUrl:
           disableStream: false,
           rangeChunkSize: 262144,
         });
+        loadingTask=task;
         loaded = await task.promise;
+        if (cancelled) {
+          void loaded.destroy().catch(()=>undefined);
+          return;
+        }
         if (!cancelled) {
           setPdf(loaded);
           setPage(1);
@@ -324,7 +332,8 @@ export function MobilePdfReader({ pdfUrl, title, fullscreen = false }: { pdfUrl:
     void load();
     return () => {
       cancelled = true;
-      if (loaded) void loaded.destroy();
+      if (loadingTask) void loadingTask.destroy().catch(()=>undefined);
+      else if (loaded) void loaded.destroy().catch(()=>undefined);
     };
   }, [pdfUrl]);
 

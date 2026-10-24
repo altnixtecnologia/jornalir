@@ -21,7 +21,7 @@ const DEFAULT: Flags = {
 const OPTIONS: { id: keyof Flags; label: string; description: string }[] = [
   { id: "ordinary_enabled", label: "Avisos administrativos", description: "Futuras notificações sobre atividades do sistema." },
   { id: "urgent_enabled", label: "Avisos importantes", description: "Alertas relevantes do jornal, quando esse canal estiver ativo." },
-  { id: "agenda_enabled", label: "Lembretes da Agenda", description: "Lembretes dos compromissos atribuídos a você." },
+  { id: "agenda_enabled", label: "Avisos da Agenda", description: "Lembretes de tarefas e convites individuais para reuniões, no dispositivo em que você ativar o Web Push." },
   { id: "sound_enabled", label: "Permitir som", description: "Quando compatível com as permissões do celular." },
   { id: "vibration_enabled", label: "Permitir vibração", description: "Quando o sistema operacional e o dispositivo permitirem." },
 ];

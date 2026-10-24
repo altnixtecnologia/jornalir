@@ -6200,3 +6200,34 @@ button.secondary-link {
   .agenda-schedule-start,.agenda-schedule-end{grid-column:span 3}
   .agenda-schedule-reminder,.agenda-schedule-recurrence{grid-column:span 3}
 }
+
+/* Usuarios: celulas alinhadas, sem transformar TD em display:block
+   (a regra generica .materia-title provocava quebra da tabela). */
+.usuarios-table{
+  table-layout:fixed;
+  min-width:960px;
+}
+.usuarios-table th:nth-child(1){width:24%}
+.usuarios-table th:nth-child(2){width:15%}
+.usuarios-table th:nth-child(3){width:12%}
+.usuarios-table th:nth-child(4){width:13%}
+.usuarios-table th:nth-child(5){width:36%}
+.usuarios-table tbody td{
+  vertical-align:middle;
+  overflow-wrap:anywhere;
+}
+.usuarios-cell-name{
+  display:block;
+  font-weight:600;
+  line-height:1.4;
+}
+.usuarios-row-actions{
+  display:flex;
+  gap:8px 14px;
+  align-items:center;
+  flex-wrap:wrap;
+}
+.usuarios-row-actions button{
+  line-height:1.4;
+  white-space:nowrap;
+}

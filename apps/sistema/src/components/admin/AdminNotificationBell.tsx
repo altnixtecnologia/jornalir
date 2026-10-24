@@ -13,7 +13,17 @@ export function AdminNotificationBell(): JSX.Element {
     let cancelled = false;
 
     async function refresh(): Promise<void> {
-      const [requests, notifications] = await Promise.all([
+      const auth = await client.auth.getUser();
+      const mine = auth.data.user?.id;
+      // O sino contabiliza apenas convites da sessão, nunca convites de
+      // outro colaborador nem os registros globais de push.
+      const todayParts = new Intl.DateTimeFormat("en-US", {
+        timeZone: "America/Sao_Paulo", year: "numeric",
+        month: "2-digit", day: "2-digit",
+      }).formatToParts(new Date());
+      const local = Object.fromEntries(todayParts.map((x) => [x.type, x.value]));
+      const today = [local.year, local.month, local.day].join("-");
+      const [requests, notifications, invitations] = await Promise.all([
         client
           .from("site_interest_requests")
           .select("id", { count: "exact", head: true })
@@ -22,10 +32,24 @@ export function AdminNotificationBell(): JSX.Element {
           .from("admin_notifications")
           .select("id", { count: "exact", head: true })
           .is("read_at", null),
+        mine ? client.from("agenda_event_invitees")
+          .select("event_id").eq("profile_id", mine).eq("status", "pending")
+          .order("invited_at", { ascending: false }).limit(50)
+          : Promise.resolve({ data: [] as Array<{ event_id: string }> }),
       ]);
-
+      const ids = [...new Set((invitations.data ?? []).map((item) => item.event_id))];
+      let ownPendingCount = 0;
+      if (ids.length > 0) {
+        // Mesma regra da tela Agenda, sem depender de join embutido
+        // nem contar reuniões canceladas/antigas.
+        const meetings = await client.from("agenda_events")
+          .select("id", { count: "exact", head: true })
+          .in("id", ids).eq("status", "scheduled")
+          .eq("event_kind", "general").gte("event_date", today);
+        ownPendingCount = meetings.error ? 0 : (meetings.count ?? 0);
+      }
       if (!cancelled) {
-        setCount((requests.count ?? 0) + (notifications.count ?? 0));
+        setCount((requests.count ?? 0) + (notifications.count ?? 0) + ownPendingCount);
       }
     }
 

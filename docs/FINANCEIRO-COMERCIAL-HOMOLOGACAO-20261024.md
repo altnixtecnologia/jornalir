@@ -1,0 +1,200 @@
+# Módulo 3 — Financeiro e Comercial: auditoria de integração
+Data: 24/10/2026. PR #15, branch `feature/homologacao-integrada-ir-20261023`.
+
+## Entregas em código nesta etapa
+
+1. Venda só pode gerar Financeiro após aprovação, no estado `approved`,
+   `active` ou `completed`. Proposta, cancelada, cortesia, valor zero,
+   quantidade de parcelas errada, parcela menor que R$ 0,01 e data
+   inválida são bloqueadas **antes da primeira inserção**.
+2. Repetir geração parcial de parcelas consulta os lançamentos da venda.
+   Parcela existente com mesmo número/cliente/valor/vencimento é
+   reconhecida como `já existente`, sem criar segunda cobrança.
+   Parcela cancelada, com vencimento ou valor divergente **não** é
+   recriada automaticamente: reabrir ou ajustar no Financeiro preservando
+   histórico. A venda é considerada com Financeiro gerado mesmo que todos
+   os títulos estejam cancelados; impede alteração indevida da identidade
+   financeira contratada.
+3. Cancelamento Pix verifica no servidor se a cobrança pertence ao
+   recebível E ao cliente selecionados, em vez de confiar em IDs da URL
+   ou enviados pela tela. Exige motivo registrado.
+4. Confirmação de Pix de demonstração é negada na Server Action quando
+   `SYSTEM_LOCAL_PREVIEW` não está habilitado. A baixa real é feita
+   pelo webhook Asaas autenticado e pela RPC transacional
+   `confirm_payment_charge` com `service_role`.
+5. Após timeout de cancelamento no Asaas, consulta situação remota:
+   somente `cancelled`/`expired` autoriza continuar a atualização
+   local. Se estiver pago ou a consulta falhar, **não** marca a cobrança
+   como cancelada sem prova.
+6. Se o provedor recuperar uma cobrança **já paga** antes de persistir
+   o registro local, grava como `pending` com referência Asaas
+   verdadeira; espera webhook com `service_role`. Nunca tenta
+   dar baixa pela sessão de operador com `pix_gerar`.
+7. Testes automatizados: `commercial-finance-guards.test.ts`,
+   `payment-charge-cancellation.test.ts` e
+   `payment-charge-recovery.test.ts`, invocados pelo workflow
+   `validate-system.yml`.
+
+## Comportamento que já existia e foi preservado
+
+- Geração de título de venda tem índice único por
+  `commercial_sale_id,installment_number`, nunca apaga histórico.
+- Créditos excedentes do pagamento Pix confirmado são registrados em
+  `client_credits` pela RPC atômica; no recebimento que excede saldo
+  não deve nascer recibo maior que saldo.
+- Cancelar venda não apaga parcelas pagas; a UI fornece acesso ao
+  Financeiro para conciliação.
+- A reserva de locação exige venda comercial aprovada/ativa; bloqueia
+  sobreposição da mesma máquina e exige vistorias para retirada/devolução.
+  Caução e aluguel não geram outra cobrança por si só: o Financeiro
+  deriva da venda negociada e deve ser conciliado antes de criar títulos.
+- Permissões dos operadores separadas: `pix_gerar`, `pix_enviar`,
+  `pix_cancelar`, `recebimentos_baixar`, `recebimentos_estornar`,
+  `creditos_aplicar`, `titulos_criar`, etc. Sem visibilidade do
+  Financeiro, autorização de ação isolada não basta.
+- Asaas e WhatsApp **já possuem** implementações reais no código;
+  qualquer comentário legado dizendo que estão apenas planejados
+  está desatualizado. Integração real somente quando chaves/configuração
+  apropriadas e módulos estiverem homologados.
+
+## Testes reais que NÃO foram realizados nesta sessão
+
+Não fazer cobrança real por conta própria. Em ambiente Asaas SANDBOX
+com cliente fictício, titular de testes e sem números telefônicos reais:
+
+1. Criar proposta com vários produtos e converter uma única venda.
+   Rejeitar criação indevida de segunda venda; cancelar proposta e
+   confirmar que não gera título.
+2. Com venda aprovada, gerar 3 parcelas. Interromper entre 1ª e 2ª;
+   repetir, conferir que primeira é reconhecida e só restantes nascem;
+   não recriar parcela cancelada, quitada ou com valor diferente.
+3. Testar operador que **gera/envia Pix**, mas não pode **cancelar,
+   estornar nem dar baixa**. Tentar URL direta, Server Action forjada e
+   tabela no PostgREST para comprovar RLS.
+4. Gerar Pix Asaas SANDBOX, conferir QR e copia/cola no link externo,
+   validar payload, webhook com token correto e errado, duplicação,
+   liquidação, crédito excedente e impossibilidade de baixa manual
+   por operador sem permissão.
+5. Simular timeout Asaas no cancelamento, pagamento próximo à revogação
+   e reenvio do mesmo webhook (sem recibos ou créditos duplicados).
+6. Confirmar WhatsApp de cobrança e pagamento com template Meta aprovado,
+   opt-in e destinatário de teste. Não assumir entrega só por status 200.
+7. Revisar assinaturas/locações: título só pela origem negociada, caução
+   separada, reserva com vistorias e impedimento de dupla locação.
+8. Testar devolução/estorno parcial com crédito de origem consistente,
+   histórico e permissões de acesso.
+9. Não aplicar migrations no Supabase remoto, nem gerar cobranças ou
+   enviar mensagens reais antes da autorização explícita.
+
+## Pontos para próximo subbloco
+
+- Revisar mecanismo de concorrência Asaas: duas solicitações simultâneas
+  antes do registro local podem atingir o provedor. A consulta por
+  `externalReference` ajuda a recuperar após timeout, mas não é uma
+  reserva transacional remota. Homologar proteção contra duplicidade em
+  ambiente de teste e não presumir idempotência inexistente.
+- Notificações WhatsApp emitidas durante reprocessamento de webhook:
+  conferir idempotência dos efeitos externos e log durável.
+- Reconciliar vendas canceladas com veiculação de anúncios/assinaturas
+  sem criar cobrança automática ou apagar evidência.
+- Validar condições `trade`, `bailment`, `other` para cada acordo:
+  contrato/jurídico define o que é realmente faturável; a regra atual
+  impede cortesia, mas **não** decide automaticamente se permuta/comodato
+  exige título. Requer aprovação comercial explícita.
+
+## Status
+Bloco de proteções implementado na PR, pendente resultado final de CI
+da versão mais recente e homologação real Asaas/Meta/operadores.
+**Não afirmar que o módulo inteiro está em produção ou homologado.**
+
+### Adendo: data de emissão
+
+A data de emissão de títulos originados de venda é
+`todayInSaoPauloISO()`, e a primeira data de vencimento não pode
+ser anterior a ela. A mesma data é usada para todas as parcelas
+criadas naquela operação, sem divergência UTC perto da meia-noite.
+
+## Continuação 24/10 — concorrência Pix / webhook e envio Meta (PR #15)
+
+- Antes da chamada externa Asaas, `PaymentChargeService` cria reserva `payment_charges` pendente sem id remoto. O índice único por título impede que dois cliques concorrentes cheguem ao POST remoto. Se houver timeout/falha antes de persistir o id Asaas, a reserva permanece: **não cancelar, enviar link nem repetir o POST automaticamente**. Conciliar manualmente a cobrança remota pelo `externalReference=receivable:<uuid>` e regularizar o vínculo/documentar eventual inexistência remota antes de desbloquear.
+- O adaptador preview não usa reserva remota. Testes de concorrência e timeout em `payment-charge-creation-concurrency.test.ts`.
+- `billing_webhook_events` possui token/lease de processamento exclusivo por evento. A entrega simultânea espera reenvio (HTTP 503) e só a vencedora grava `processed_at`. Lease de 15 minutos para recuperação pós-crash.
+- `billing_notification_dispatches`: uma reserva única `(payment_charge_id,notification_kind)` ANTES de chamar a Meta; duplicatas de webhook não reenviam. Falhas/timeout Meta ficam `uncertain` para conferência manual, pois é impossível provar que a Meta não enviou. Registros `billing_message_logs` e notificações continuam auxiliares.
+- Migrations locais novas: `20261120100000_finance_webhook_dispatch_idempotency.sql` e `20261120110000_payment_charge_update_restricted.sql`. A segunda impede INSERT/PATCH direto de `payment_charges` por colaboradores autenticados (inclusive admin). Criação/finalização feitas pela Server Action com service_role, após checar `pix_gerar` e validar cliente/saldo; baixa apenas pela RPC idempotente service_role.
+- O sistema ainda exige homologação real **Asaas Sandbox**, falhas intercaladas, créditos/estornos, Meta/WhatsApp em ambiente controlado e liberação segura de reservas abandonadas após conferência. Nenhum envio real foi feito; não aplicar as migrations remotamente sem autorização.
+
+### Recuperação sem emissão duplicada
+
+A tela Pix oferece `Consultar cobrança existente no Asaas` quando existe reserva local pendente sem ID do provedor. A nova action `reconcilePixReservationAction` exige `pix_gerar` e verifica título/cliente; a consulta externa usa **somente GET** por `externalReference`, exige modalidade PIX, valor idêntico e QR válido para pendências, depois vincula o ID remoto ao registro reservado. Não encontra => mantém bloqueio; não faz novo POST nem cancela a reserva automaticamente. Se retornar pago, somente webhook autenticado/service_role realiza a baixa. Sem Asaas sandbox e casos de rede reais, esse fluxo continua pendente de homologação operacional.
+
+### Guarda adicional de corrida cancelamento vs recebimento
+
+Atualização local de cobrança para `cancelled` exige `WHERE status='pending'` mesmo usando `service_role`; uma confirmação que venceu a corrida jamais deve ser sobrescrita por um DELETE tardio. O webhook `PAYMENT_OVERDUE`/`PAYMENT_DELETED` também usa UPDATE condicional e evita notificar falsamente um cancelamento se o status mudou entre leitura e escrita. Registros locais com vinculação remota já estabelecida recusam nova substituição do ID Asaas. Homologar estes interleavings no sandbox.
+
+### Recebimento manual e quitação com diferença (24/10)
+
+- Adicionada `record_manual_receivable_payment`, RPC transacional com `FOR UPDATE` no título e permissões distintas `recebimentos_baixar` / `recebimentos_quitar_diferenca`. Recibo, crédito excedente, abatimento da quitação e status do título são gravados juntos ou desfeitos juntos.
+- `manual_receivable_operations` mantém operação imutável por UUID da tela, com snapshot/autor, retornando a mesma operação no retry e recusando UUID reaproveitado com dados alterados. Formulários guardam UUID até sucesso/cancelamento.
+- Preview mantém o comportamento anterior. Pendente homologação autenticada com falhas de rede e recebimentos concorrentes; `payCompositionAction`, descontos avulsos e estornos ainda são multietapa e pertencem à próxima frente do Módulo 3.
+
+- Revisão de segurança adicional: `manual_receivable_operations` agora só aceita INSERT pela RPC `SECURITY DEFINER` após conferência de permissão; operadores não podem forjar antecipadamente registros de idempotência via PostgREST.
+
+### Composição de vários títulos — etapa transacional isolada (24/10/2026)
+
+- `record_manual_composition_payment` valida sessão/permissão de baixa, UUID da operação, até 50 títulos únicos, mesmo cliente e mesma origem (assinatura ou contrato), lista completa de títulos anteriores e ordem de vencimento; retorna erro explícito para seleção obsoleta, cruzamento de contratos e manipulação de ordem.
+- Adquire row locks **sempre pela ordem dos UUIDs** para reduzir deadlocks entre composições concorrentes; distribui o valor em ordem financeira com limite de saldo por título, registra `receivable_receipts`, atualiza o status e cria crédito do excedente **na mesma transação**. `manual_composition_operations` grava snapshot e lista dos recibos com chave idempotente; mesmo UUID/snapshot retorna mesmos resultados sem duplicar.
+- Fora do preview, `payCompositionAction` agora invoca a RPC em vez de gravar título por título. `CompositionPaymentPanel` mantém UUID estável em retries de rede, renovado ao fechar/reabrir ou após sucesso. Preview continua sem integração externa.
+- Teste em banco descartável no CI: pagamentos por ordem, saldo excedente, retry, origem cruzada, permissão, lista incompleta e acesso negado à gravação direta do ledger. Não mexer no Supabase remoto antes de homologação.
+- Ainda pendentes neste Módulo 3: abatimentos avulsos e estornos completamente transacionais, cenários reais de concorrência PostgreSQL em sessões paralelas e fluxos Asaas/Meta Sandbox.
+
+### Abatimento avulso: transação e permissão granular
+
+- `record_manual_receivable_adjustment` substitui o caminho de gravações separadas da action `addAdjustmentAction` (fora do preview). Bloqueia título, recalcula saldo, insere histórico, atualiza situação e grava operação idempotente em uma transação. Falhas fazem rollback integral; UUID persistente no formulário protege retry após timeout.
+- Permissão `ajustes_criar` permite **somente `discount`**. `settlement_difference` continua exclusivo do fluxo `recebimentos_quitar_diferenca`, impedindo que um operador com direito de desconto substitua o privilégio de quitação. `credit_applied` continua reservado ao crédito do cliente. A tela de abatimentos remove o tipo 'diferença dispensada' deste formulário.
+- `manual_adjustment_operations` é imutável para usuários comuns e registra autor e vínculo com abatimento; teste no Supabase efêmero cobre limite de saldo, reenvio, permissão negada, tipo indevido e status. Estornos continuam pendentes para revisão própria.
+
+### Estornos — auditoria de segurança (24/10/2026)
+
+- Novas RPCs `reverse_receivable_receipt_safe` e `reverse_receivable_adjustment_safe` validam permissão específica e vínculo entre título/registro, fazem UPDATE dos campos de estorno e recálculo do status na **mesma transação**. Estorno repetido pelo mesmo operador e motivo é idempotente; estorno por outro operador/motivo sinaliza já realizado.
+- Revogado UPDATE direto em `receivable_receipts` e `receivable_adjustments` para usuários autenticados; somente o serviço privilegiado e as RPCs validadas atualizam o histórico. Nenhum DELETE de histórico.
+- `reverse_receivable_receipt_safe` bloqueia baixa ligada a `payment_charges.receipt_id`, crédito originado daquele recibo (`client_credits.origin_receipt_id`) e recibo de quitação com diferença; estas operações exigem conciliação coordenada, não estorno isolado.
+- `reverse_receivable_adjustment_safe` trava crédito antes do título quando `adjustment_type=credit_applied` (mesma ordem da RPC `apply_client_credit`), devolvendo saldo ao crédito pela própria view. Não permite estorno isolado da diferença em quitação especial.
+- Testes no Supabase efêmero contemplam vínculo cruzado, permissão, reversão repetida, crédito originário, histórico e negativa de PATCH direto. **Atenção:** INSERT direto nas duas tabelas e UPDATE direto no próprio título ainda precisam revisão/hardening posterior, sem prejudicar a RPC de crédito e as operações automáticas existentes.
+
+### Endurecimento do ledger financeiro (24/10/2026)
+
+- Removidos INSERT diretos por authenticated/anon nas tabelas `receivable_receipts`, `receivable_adjustments` e `client_credits`, assim como UPDATE direto de `client_credits`. Isso impede falsificação de recibos/créditos e aplicação sem passar pela transação validada.
+- `apply_client_credit` agora é `SECURITY DEFINER` com verificação **explícita** de `creditos_aplicar` (transferência manual entre origens) ou `titulos_criar` (aplicação automática restrita à **mesma origem**). Continua travando crédito primeiro e título depois e respeitando saldo por liquidação.
+- `reverse_client_credit_safe`: permissão `recebimentos_estornar`, bloqueio caso haja aplicações não estornadas ou vínculo com cobrança Asaas (exige conciliação). Em seguida o crédito originado de recebimento manual pode ser estornado e, depois, o recibo origem pode ser estornado pela RPC específica, sem excluir histórico. Código do repositório de créditos deixa de usar PATCH direto.
+- Teste de integração no banco efêmero valida estorno/aplicação, vínculo e negativas de escrita direta no ledger; o status do título continua atualizado transacionalmente.
+- **Pendente antes de liberar financeiro para uso real:** revisar UPDATE genérico de `receivables` (status e valores) para não contornar regras via PostgREST; homologar Pix/Asaas e reversões especiais com operadores reais e valores controlados.
+
+### Blindagem de títulos: status/valor/origem (P0 publicação)
+
+- Revogado UPDATE geral de `receivables` de `authenticated`/anon; o `ReceivableRepository.update` escreve via `service_role` **somente do servidor**, depois das ações protegidas por `checkFinanceAction`. Todo acesso à leitura continua sob as RLS já existentes.
+- Trigger bloqueia INSERT de título já marcado como `paid`/cancelled por authenticated sem histórico. Outra trigger impede mudança de pagador, origem, competência e valor de títulos com recibos/ajustes, inclusive por conta privilegiada; também bloqueia cancelamento de título com baixa/abatimento não estornado ou cobrança Pix pendente.
+- `ReceivableService.update/cancel` aplica validação adicional para feedback amigável, além do bloqueio autoritativo da trigger no PostgreSQL. Há teste de negativas do PATCH, status pago fictício, preservação de dados econômicos e atualização legítima de observações no banco descartável.
+- Ainda é obrigatório revisar efeitos em ações de contrato/comercial/locação e homologar Asaas Sandbox antes de deploy real. 
+
+
+## Revisão operacional de locação — equipamento em posse de cliente
+
+- A migration `20261120180000_rental_in_hand_integrity.sql` impede dois checkouts ativos do mesmo patrimônio, **mesmo com períodos previstos diferentes**. Durante confirmação da reserva o banco serializa o equipamento e exige devolução efetiva antes de reservar novamente.
+- Bloqueada a transição da venda para `completed` com reservas `reserved` ou `checked_out`. Para histórico antigo de venda já concluída, permitido apenas devolver item retirado ou cancelar reserva pendente.
+- A verificação de reserva adquire lock da venda comercial para evitar transição concorrente que a deixe cancelada/concluída com uma reserva ativa.
+- Tela exclui equipamentos retirados da seleção e diferencia explicitamente a caução contratual de receita recebida; nenhum faturamento, pagamento ou estorno automático é criado.
+- Teste de CI reproduz reserva futura após fim do período original, venda ainda com patrimônio entregue, liberação após devolução e impedimento de concluir com reservas abertas.
+
+
+### Faturamento de condições não monetárias — bloqueio P0
+
+- `validateCommercialSaleForBilling` bloqueia geração automática de títulos nas condições `trade` (permuta), `bailment` (comodato) e `other` (sem definição de obrigação monetária), além da cortesia já bloqueada, mesmo se um valor estiver preenchido. Somente condições monetárias `cash` e `installments` podem seguir os controles usuais de autorização financeira, saldo, vencimento e idempotência.
+- A tela de venda explica a restrição sem apresentar botão de emitir títulos indevidos. Para faturar parte monetária de um acordo misto, formalizar nova condição e revisar a documentação comercial. A caução contratual não se confunde com receita.
+- Teste `commercial-finance-guards.test.ts` cobre negativas em permuta/comodato/outro e preserva geração à vista/parcelada.
+
+### Gate P0 — impedir Asaas produção em Vercel Preview (24/10)
+
+- Inspeção **somente de metadados** do projeto Vercel `jornalir-sistema` encontrou o nome da variável `ASAAS_API_KEY_PRODUCTION` também atribuída ao target `preview`. **O valor da chave não foi consultado** nem copiado. Isto é um risco caso alguma configuração coloque o fornecedor em produção durante testes.
+- `getAsaasApiKey('production')` agora exige simultaneamente `VERCEL_ENV=production` e `NODE_ENV=production`, mesmo se o secret estiver presente em Preview; sem fallback para chave legada. O endpoint do webhook Asaas em Preview retorna 404 antes de consultar token ou gravar evento com `service_role`.
+- Teste do CI valida cenários Preview/Production/dev e inexistência de bypass. **Recomendação operacional antes do deploy:** remover a chave LIVE do target Preview na Vercel e manter sandbox em ambiente isolado, conferindo o valor de `ASAAS_ENV` em interface secreta, sem colar credenciais em documentação/chat.
+- Este bloqueio não homologa API nem dispara Pix real; a homologação Asaas SANDBOX, inclusive webhooks, deve usar endpoint de teste isolado de produção, nunca o domínio Preview ligado ao banco de clientes.

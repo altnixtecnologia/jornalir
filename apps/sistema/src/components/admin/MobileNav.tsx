@@ -17,6 +17,7 @@ import { useAuth } from "../../lib/auth/AuthProvider";
 import { useAgendaPautaReadAccess } from "../../lib/permissions/useAgendaPautaReadAccess";
 import { useAuditReadAccess } from "../../lib/permissions/useAuditReadAccess";
 import { useStaffModuleVisibility } from "../../lib/permissions/useStaffModuleVisibility";
+import { NFSE_AVAILABLE_IN_THIS_RELEASE } from "../../lib/release/releasePolicy";
 
 type MobileGroup = { label: string; links: AdminNavLink[]; restricted?: boolean; planned?: boolean };
 
@@ -33,7 +34,7 @@ const GROUPS: MobileGroup[] = [
   { label: assinaturasNavGroup.label, links: assinaturasNavGroup.links },
   { label: financeiroNavGroup.label, links: financeiroNavGroup.links },
   { label: commercialNavGroup.label, links: commercialNavGroup.links },
-  { label: "Fiscal (NFS-e)", links: nfseNavGroup.links, restricted: true },
+  ...(NFSE_AVAILABLE_IN_THIS_RELEASE ? [{ label: "Fiscal (NFS-e)", links: nfseNavGroup.links, restricted: true }] : []),
   { label: configuracoesNavGroup.label, links: configuracoesNavGroup.links, restricted: true },
 ];
 

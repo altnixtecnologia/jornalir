@@ -1,5 +1,7 @@
 import "server-only";
 
+import {canUseAsaasProductionApi} from "./asaasRuntimePolicy";
+
 export type AsaasEnvironment = "sandbox" | "production";
 
 export function getConfiguredAsaasEnvironment(): AsaasEnvironment | undefined {
@@ -18,6 +20,11 @@ export function getConfiguredAsaasEnvironment(): AsaasEnvironment | undefined {
  * o mesmo ambiente solicitado — nunca presume produção/sandbox.
  */
 export function getAsaasApiKey(environment: AsaasEnvironment): string | undefined {
+  // Mesmo que a chave LIVE esteja configurada em Preview, ela NUNCA
+  // poderá autenticar chamadas à API real. Sem fallback silencioso.
+  if(environment==="production"&&!canUseAsaasProductionApi({
+    vercelEnv:process.env.VERCEL_ENV,nodeEnv:process.env.NODE_ENV,
+  }))return undefined;
   const specific =
     environment === "sandbox"
       ? process.env.ASAAS_API_KEY_SANDBOX

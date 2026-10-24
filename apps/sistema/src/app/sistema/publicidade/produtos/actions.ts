@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import type { CommercialChannel } from "@ir/types";
 import { getCommercialProductService } from "../../../../composition/comercial";
 import { createSupabaseServerClient } from "../../../../lib/supabase/server";
+import { checkModuleAction } from "../../../../lib/permissions/checkModuleAction";
 import { getAuditContext } from "../../../../lib/auth/getAuditContext";
 import { recordAuditEventSupabase } from "../../../../providers/supabase/auditEvents.supabase";
 
@@ -33,6 +34,8 @@ function toServiceInput(input: CommercialProductFormInput) {
 }
 
 export async function createCommercialProductAction(input: CommercialProductFormInput): Promise<ActionResult> {
+  const permissionError = await checkModuleAction("publicidade", "produtos_gerenciar");
+  if (permissionError) return { error: permissionError };
   try {
     const client = createSupabaseServerClient();
     const AUDIT = await getAuditContext(client);
@@ -45,6 +48,8 @@ export async function createCommercialProductAction(input: CommercialProductForm
 }
 
 export async function updateCommercialProductAction(id: string, input: CommercialProductFormInput): Promise<ActionResult> {
+  const permissionError = await checkModuleAction("publicidade", "produtos_gerenciar");
+  if (permissionError) return { error: permissionError };
   try {
     const client = createSupabaseServerClient();
     const AUDIT = await getAuditContext(client);
@@ -58,6 +63,8 @@ export async function updateCommercialProductAction(id: string, input: Commercia
 
 /** "Excluir" um produto é sempre desativar — nunca uma remoção real (mesmo princípio dos Perfis de serviço da NFS-e). */
 export async function deactivateCommercialProductAction(id: string): Promise<ActionResult> {
+  const permissionError = await checkModuleAction("publicidade", "produtos_gerenciar");
+  if (permissionError) return { error: permissionError };
   try {
     const client = createSupabaseServerClient();
     const AUDIT = await getAuditContext(client);
@@ -70,6 +77,8 @@ export async function deactivateCommercialProductAction(id: string): Promise<Act
 }
 
 export async function reactivateCommercialProductAction(id: string): Promise<ActionResult> {
+  const permissionError = await checkModuleAction("publicidade", "produtos_gerenciar");
+  if (permissionError) return { error: permissionError };
   try {
     const client = createSupabaseServerClient();
     const AUDIT = await getAuditContext(client);

@@ -3,6 +3,10 @@ import { clientDisplayName, deriveCommercialSaleFinancialStatus } from "@ir/type
 import { CommercialSaleNotFoundError } from "@ir/core";
 import { ModuleHeader } from "../../../../../components/admin/ModuleHeader";
 import { CommercialSaleDetail } from "../../../../../features/comercial/CommercialSaleDetail";
+import { CommercialContractPreparationPanel, type CommercialContractServiceView } from "../../../../../features/comercial/CommercialContractPreparationPanel";
+import { CommercialSignersPreparationPanel, type CommercialSignerPreparation } from "../../../../../features/comercial/CommercialSignersPreparationPanel";
+import {CommercialSignatureRequestsPanel, type CommercialRequestView} from "../../../../../features/comercial/CommercialSignatureRequestsPanel";
+import {CommercialAddendaPanel, type CommercialAddendumView} from "../../../../../features/comercial/CommercialAddendaPanel";
 import { getCommercialProductService, getCommercialProposalService, getCommercialSaleService } from "../../../../../composition/comercial";
 import { getClientService } from "../../../../../composition/clientes";
 import { getDraftService } from "../../../../../composition/nfse";
@@ -30,6 +34,68 @@ export default async function CommercialSaleDetailPage({ params }: { params: { i
     sale.proposalId ? getCommercialProposalService(supabase).getById(sale.proposalId).catch(() => null) : Promise.resolve(null),
   ]);
 
+  const [contractResult, canPrepare, canReview] = await Promise.all([
+    supabase.from("commercial_contract_packages")
+      .select("id,document_mode,status")
+      .eq("commercial_sale_id", sale.id).maybeSingle(),
+    supabase.rpc("staff_can_module_action", { p_module: "publicidade", p_action: "contratos_preparar" }),
+    supabase.rpc("staff_can_module_action", { p_module: "publicidade", p_action: "contratos_revisar" }),
+  ]);
+  const pkg = contractResult.data;
+  const termsResult = pkg
+    ? await supabase.from("commercial_contract_services")
+      .select("id,item_ordinal,source_snapshot,service_channel,service_title,starts_on,ends_on,service_location,service_scope,execution_conditions")
+      .eq("package_id", pkg.id).order("item_ordinal")
+    : null;
+  const [assignmentResult, templateResult] = pkg && (canPrepare.data === true || canReview.data === true)
+    ? await Promise.all([
+      supabase.from("commercial_contract_template_assignments")
+        .select("service_id,template_id,custom_values").eq("package_id",pkg.id),
+      supabase.from("contract_templates")
+        .select("id,group_id,version,title,category,active,variables")
+        .like("category","commercial_%")
+        .order("version",{ascending:false}),
+    ]) : [null,null];
+  // Somente a versão mais recente de cada família de modelos pode
+  // ser selecionada. A RLS e o trigger repetem esta validação.
+  const templateFamilies = new Set<string>();
+  const templates = (templateResult?.data ?? []).filter(template => {
+    if (templateFamilies.has(template.group_id)) return false;
+    templateFamilies.add(template.group_id);
+    return template.active === true;
+  });
+  const contractLoadError = contractResult.error?.message ?? termsResult?.error?.message
+    ?? assignmentResult?.error?.message ?? templateResult?.error?.message
+    ?? canPrepare.error?.message ?? canReview.error?.message;
+
+  const issuedDocumentsResult = pkg && (canReview.data === true || canPrepare.data === true)
+    ? await supabase.from("commercial_contract_documents")
+      .select("id,service_id,title,template_version,sha256,issued_at,addendum_id")
+      .eq("package_id", pkg.id).order("issued_at", {ascending:false})
+    : null;
+  const addendaResult = pkg && (canReview.data===true || canPrepare.data===true)
+    ? await supabase.from("commercial_contract_addenda")
+      .select("id,original_document_id,addendum_number,title,reason,legal_text,status,last_return_note,commercial_contract_addendum_events(id,event_type,note,created_at)")
+      .eq("package_id",pkg.id).order("created_at",{ascending:false})
+    : null;
+  const reviewEventsResult = pkg && canReview.data === true
+    ? await supabase.from("commercial_contract_review_events")
+      .select("id,event_type,note,occurred_at")
+      .eq("package_id",pkg.id).order("occurred_at",{ascending:false})
+    : null;
+  const signerPreparationsResult = pkg && canReview.data === true
+    ? await supabase.from("commercial_signature_preparations")
+      .select("id,document_id,status,commercial_signature_participants(id,signer_role,signer_name,signer_email,signer_phone,signing_order)")
+      .eq("status","draft")
+      .in("document_id",(issuedDocumentsResult?.data??[]).map(document=>document.id).length
+        ? (issuedDocumentsResult?.data??[]).map(document=>document.id) : ["00000000-0000-0000-0000-000000000000"])
+    : null;
+  const preparationIds=(signerPreparationsResult?.data??[]).map(p=>p.id);
+  const signatureRequestsResult=canReview.data===true && preparationIds.length
+    ? await supabase.from("commercial_signature_requests")
+      .select("id,preparation_id,status,completed_at,commercial_signature_invitations(id,participant_id,status,expires_at,signed_at,commercial_signature_participants(signer_name,signer_role,signer_email),commercial_signature_attempts(created_at))")
+      .in("preparation_id",preparationIds)
+    : null;
   const financialStatus = deriveCommercialSaleFinancialStatus(receivables);
 
   return (
@@ -43,6 +109,58 @@ export default async function CommercialSaleDetailPage({ params }: { params: { i
         financialStatus={financialStatus}
         nfseDraft={nfseDraft}
         proposal={proposal}
+      />
+      <CommercialContractPreparationPanel
+        saleId={sale.id}
+        clientId={client.id}
+        saleStatus={sale.status}
+        defaultMode={(sale.itemsSnapshot?.length ?? 1) > 1 ? "combined" : "separate"}
+        pkg={pkg && !contractLoadError ? {
+          id: pkg.id,
+          document_mode: pkg.document_mode as "combined" | "separate",
+          status: pkg.status as "draft" | "pending_legal_review" | "legal_approved",
+          services: (termsResult?.data ?? []) as CommercialContractServiceView[],
+        } : null}
+        canPrepare={canPrepare.data === true}
+        canReview={canReview.data === true}
+        issuedDocuments={(issuedDocumentsResult?.data ?? []).filter(doc=>!doc.addendum_id)}
+        reviewEvents={reviewEventsResult?.data ?? []}
+        templateOptions={templates.map(({id,title,category,version,variables})=>({
+          id,title,category:category??"",version,
+          variables: (Array.isArray(variables) ? variables : []) as { key:string; label:string; required:boolean }[],
+        }))}
+        templateAssignments={(assignmentResult?.data ?? []).map(({service_id,template_id,custom_values})=>({
+          serviceId:service_id??null,templateId:template_id,
+          values: (custom_values ?? {}) as Record<string,string>,
+        }))}
+        loadError={contractLoadError ?? issuedDocumentsResult?.error?.message ?? reviewEventsResult?.error?.message}
+      />
+      <CommercialAddendaPanel
+        saleId={sale.id}
+        originalDocuments={(issuedDocumentsResult?.data??[])
+          .filter(doc=>!doc.addendum_id).map(doc=>({id:doc.id,title:doc.title}))}
+        addenda={(addendaResult?.data??[]) as unknown as CommercialAddendumView[]}
+        canPrepare={canPrepare.data===true}
+        canReview={canReview.data===true}
+        loadError={addendaResult?.error?.message}
+      />
+      <CommercialSignersPreparationPanel
+        saleId={sale.id}
+        documents={(issuedDocumentsResult?.data??[]).map(document=>({
+          id:document.id,title:document.title,
+        }))}
+        preparations={(signerPreparationsResult?.data??[]) as CommercialSignerPreparation[]}
+        lockedPreparationIds={(signatureRequestsResult?.data??[]).map(r=>r.preparation_id)}
+        canReview={canReview.data===true}
+        loadError={signerPreparationsResult?.error?.message}
+      />
+      <CommercialSignatureRequestsPanel
+        saleId={sale.id}
+        preparations={(signerPreparationsResult?.data??[]).map(p=>({
+          id:p.id,document_id:p.document_id,status:p.status,
+        }))}
+        requests={(signatureRequestsResult?.data??[]) as unknown as CommercialRequestView[]}
+        canReview={canReview.data===true}
       />
     </>
   );

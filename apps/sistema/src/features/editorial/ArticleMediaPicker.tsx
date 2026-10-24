@@ -3,9 +3,10 @@ import type { ArticleMedia, ArticleMediaRole, MediaAsset } from "@ir/types";
 import { searchMediaLibrary, uploadMediaAssets } from "../../app/sistema/editorial/midias/actions";
 import { ArticleImageEditorModal } from "./ArticleImageEditorModal";
 import { PreUploadImageCrop } from "./PreUploadImageCrop";
+import { DesktopArticleImageCrop } from "./DesktopArticleImageCrop";
 import styles from "./ArticleMediaPicker.module.css";
 
-type MediaIcon = "view" | "edit" | "replace" | "remove" | "help";
+type MediaIcon = "view" | "edit" | "replace" | "remove" | "help" | "cover";
 function MediaActionIcon({ kind }: { kind: MediaIcon }): JSX.Element {
   const shapes: Record<MediaIcon, JSX.Element> = {
     view: <><path d="M2 12s3.7-6 10-6 10 6 10 6-3.7 6-10 6-10-6-10-6Z" /><circle cx="12" cy="12" r="3" /></>,
@@ -13,6 +14,7 @@ function MediaActionIcon({ kind }: { kind: MediaIcon }): JSX.Element {
     replace: <><path d="M20 7H8l3-3M8 7l3 3M4 17h12l-3-3M16 17l-3 3" /><path d="M17 4h3v6M7 20H4v-6" /></>,
     remove: <><path d="M3 6h18M8 6V4h8v2M6 6l1 15h10l1-15M10 10v7M14 10v7" /></>,
     help: <><circle cx="12" cy="12" r="10" /><path d="M12 11v6M12 7h.01" /></>,
+    cover: <path d="m12 2 3.1 6.3 7 1-5.05 4.92 1.2 6.96L12 17.9l-6.25 3.28 1.2-6.96L1.9 9.3l7-1L12 2Z" />,
   };
   return <svg aria-hidden="true" width="19" height="19" viewBox="0 0 24 24"
     fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
@@ -76,6 +78,15 @@ export function ArticleMediaPicker({
     file: File;
   } | null>(null);
   const [editLoading, setEditLoading] = useState(false);
+  const [useDesktopCrop,setUseDesktopCrop]=useState(false);
+  // Apenas mouse/trackpad em PC. O crop e os gestos mobile permanecem
+  // inteiramente no componente original PreUploadImageCrop.
+  useEffect(()=>{
+    const query=window.matchMedia("(min-width: 768px) and (pointer: fine)");
+    const check=()=>setUseDesktopCrop(query.matches);
+    check();query.addEventListener("change",check);
+    return ()=>query.removeEventListener("change",check);
+  },[]);
   const [replacing, setReplacing] = useState<string | null>(null);
   const [editError, setEditError] = useState<string | null>(null);
   const [showActionHelp, setShowActionHelp] = useState(false);
@@ -266,15 +277,24 @@ export function ArticleMediaPicker({
   return (
     <div className="media-picker">
       {editingTarget ? (
-        <PreUploadImageCrop
-          mode="after-upload"
-          file={editingTarget.file}
-          index={0}
-          total={1}
-          onCrop={saveEditedImage}
-          onOriginal={() => setEditingTarget(null)}
-          onCancel={() => setEditingTarget(null)}
-        />
+        useDesktopCrop ? (
+          <DesktopArticleImageCrop
+            file={editingTarget.file}
+            onCrop={saveEditedImage}
+            onOriginal={() => setEditingTarget(null)}
+            onCancel={() => setEditingTarget(null)}
+          />
+        ) : (
+          <PreUploadImageCrop
+            mode="after-upload"
+            file={editingTarget.file}
+            index={0}
+            total={1}
+            onCrop={saveEditedImage}
+            onOriginal={() => setEditingTarget(null)}
+            onCancel={() => setEditingTarget(null)}
+          />
+        )
       ) : null}
       <div className="media-picker-section">
         <p className="field-label">Adicionar fotos</p>
@@ -410,6 +430,7 @@ export function ArticleMediaPicker({
                   <button type="button" onClick={() => setShowActionHelp(false)}
                     aria-label="Fechar ajuda" title="Fechar">×</button>
                 </div>
+                <div className={styles.helpPopoverRow}><MediaActionIcon kind="cover" /><span>Definir como capa da matéria</span></div>
                 <div className={styles.helpPopoverRow}><MediaActionIcon kind="view" /><span>Visualizar</span></div>
                 <div className={styles.helpPopoverRow}><MediaActionIcon kind="edit" /><span>Ajustar / recortar</span></div>
                 <div className={styles.helpPopoverRow}><MediaActionIcon kind="replace" /><span>Substituir</span></div>
@@ -427,7 +448,7 @@ export function ArticleMediaPicker({
             {orderedMedia.map((item, index) => {
               const asset = assetById.get(item.mediaAssetId);
               if (!asset) return null;
-              const isCover = index === 0;
+              const isCover = item.role === "cover";
 
               return (
                 <li
@@ -463,8 +484,16 @@ export function ArticleMediaPicker({
                     ⋮⋮
                   </button>
 
-                  <div className="article-media-thumb-wrap">
+                  <div className={`article-media-thumb-wrap ${styles.coverThumbWrapper}`}>
                     <img src={asset.url} alt={asset.altText ?? asset.reference} />
+                    <button type="button" className={styles.coverThumbAction}
+                      aria-pressed={isCover}
+                      aria-label={isCover ? `Capa selecionada: ${asset.reference}` : `Definir ${asset.reference} como capa`}
+                      title={isCover ? "Foto de capa selecionada" : "Clique na estrela para escolher esta foto como capa"}
+                      disabled={isCover || editLoading || uploading || Boolean(replacing)}
+                      onClick={() => onSetCover(item.mediaAssetId)}>
+                      <MediaActionIcon kind="cover" />
+                    </button>
                     {isCover ? <span className="article-media-cover-badge">CAPA</span> : null}
                   </div>
 
@@ -491,7 +520,7 @@ export function ArticleMediaPicker({
                   />
 
                   <div className="article-media-row-actions">
-                    <button type="button" className="article-media-view" disabled={editLoading || uploading || Boolean(replacing)}
+                     <button type="button" className="article-media-view" disabled={editLoading || uploading || Boolean(replacing)}
                       onClick={() => setViewerTarget({ role: item.role, order: item.order, mediaAssetId: item.mediaAssetId })}
                       aria-label={`Visualizar ${asset.reference}`} title="Visualizar imagem">
                       <MediaActionIcon kind="view" />

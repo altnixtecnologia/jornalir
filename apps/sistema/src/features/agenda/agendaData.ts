@@ -2,7 +2,7 @@ import "server-only";
 import { redirect } from "next/navigation";
 
 import { createSupabaseServerClient } from "../../lib/supabase/server";
-import type { AgendaEventItem, AgendaProfile, AgendaWorkspaceData, WeeklyPautaItem } from "./agendaTypes";
+import type { AgendaEventItem, AgendaProfile, AgendaWorkspaceData, PendingMeetingInvitation, WeeklyPautaItem } from "./agendaTypes";
 
 export const AGENDA_TIMEZONE = "America/Sao_Paulo";
 
@@ -60,6 +60,36 @@ function monthBounds(value: string): { start: string; end: string } {
 
 function trimDbTime(value: string | null): string | null {
   return value ? value.slice(0, 5) : null;
+}
+
+/** Convites individuais com RLS (a própria sessão), reutilizados no painel
+ * e na central de notificações. Nunca tratar como aviso administrativo global.
+ */
+export async function loadMyPendingMeetingInvitations(
+  supabase: import("@supabase/supabase-js").SupabaseClient,
+  userId: string,
+  today: string = todayInAgendaTimezone(),
+): Promise<PendingMeetingInvitation[]> {
+  const myInvites = await supabase.from("agenda_event_invitees")
+    .select("event_id").eq("profile_id", userId).eq("status", "pending")
+    .order("invited_at", { ascending: false }).limit(50);
+  if (myInvites.error) throw new Error(myInvites.error.message);
+  const pendingIds = [...new Set((myInvites.data ?? []).map((row) => row.event_id))];
+  if (!pendingIds.length) return [];
+  const meetings = await supabase.from("agenda_events")
+    .select("id,title,event_date,start_time,location")
+    .in("id", pendingIds).eq("status", "scheduled")
+    .eq("event_kind", "general").gte("event_date", today)
+    .order("event_date", { ascending: true })
+    .order("start_time", { ascending: true, nullsFirst: false });
+  if (meetings.error) throw new Error(meetings.error.message);
+  return (meetings.data ?? []).map((item) => ({
+    eventId: item.id,
+    title: item.title,
+    eventDate: item.event_date,
+    startTime: trimDbTime(item.start_time),
+    location: item.location,
+  }));
 }
 
 export async function loadAgendaWorkspaceData(focusDate: string): Promise<AgendaWorkspaceData> {
@@ -130,8 +160,17 @@ export async function loadAgendaWorkspaceData(focusDate: string): Promise<Agenda
     role: profile.role,
   }));
   const profileName = new Map(profiles.map((profile) => [profile.id, profile.name]));
+
+  const pendingInvitations = await loadMyPendingMeetingInvitations(supabase, user.id, today);
   const eventIds = (eventsResult.data ?? []).map((event) => event.id);
 
+  let invitationRows: Array<{ event_id: string; profile_id: string; status: string; responded_at: string | null }> = [];
+  if(eventIds.length){
+    const invitations=await supabase.from("agenda_event_invitees")
+      .select("event_id,profile_id,status,responded_at").in("event_id",eventIds);
+    if(invitations.error)throw new Error(invitations.error.message);
+    invitationRows=invitations.data??[];
+  }
   let assignmentRows: Array<{ event_id: string; profile_id: string; completed_at: string | null }> = [];
   if (eventIds.length) {
     const assignments = await supabase
@@ -152,6 +191,18 @@ export async function loadAgendaWorkspaceData(focusDate: string): Promise<Agenda
     assigneesByEvent.set(assignment.event_id, list);
   }
 
+  const inviteesByEvent=new Map<string,AgendaEventItem["invitees"]>();
+  for(const row of invitationRows){
+    const profile=profiles.find(p=>p.id===row.profile_id);
+    if(!profile)continue;
+    const invitation={
+      ...profile,response:row.status as "pending"|"accepted"|"declined",
+      respondedAt:row.responded_at,
+    };
+    const invitees=inviteesByEvent.get(row.event_id)??[];
+    invitees.push(invitation);
+    inviteesByEvent.set(row.event_id,invitees);
+  }
   const events: AgendaEventItem[] = (eventsResult.data ?? []).map((event) => ({
     id: event.id,
     title: event.title,
@@ -166,6 +217,7 @@ export async function loadAgendaWorkspaceData(focusDate: string): Promise<Agenda
     location: event.location,
     status: event.status as AgendaEventItem["status"],
     assignees: assigneesByEvent.get(event.id) ?? [],
+    invitees: inviteesByEvent.get(event.id) ?? [],
   }));
   const eventById = new Map(events.map((event) => [event.id, event]));
 
@@ -202,6 +254,7 @@ export async function loadAgendaWorkspaceData(focusDate: string): Promise<Agenda
     access,
     profiles,
     events,
+    pendingInvitations,
     pautaItems,
   };
 }

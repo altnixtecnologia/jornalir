@@ -329,3 +329,40 @@ export async function completeMyPautaItemAction(itemId: string): Promise<AgendaA
     return { error: error instanceof Error ? error.message : "Não foi possível concluir a pauta." };
   }
 }
+
+
+/** Gestão manual de convidados: preserva respostas dos nomes mantidos. */
+export async function setAgendaMeetingInviteesAction(
+ eventId:string,profileIds:string[],
+):Promise<AgendaActionResult>{
+ if(!eventId||profileIds.length>50)return {error:"Convites inválidos."};
+ try{
+   const {supabase}=await requireActiveUser();
+   const {error}=await supabase.rpc("set_agenda_event_invitees",{
+     p_event_id:eventId,p_profile_ids:[...new Set(profileIds)],
+   });
+   if(error)return {error:error.message};
+   refreshAgenda();
+   return {ok:true};
+ }catch(error){
+   return {error:error instanceof Error?error.message:"Não foi possível atualizar convidados."};
+ }
+}
+
+/** Só o próprio convidado confirma; não conclui tarefa do responsável. */
+export async function respondAgendaInvitationAction(
+ eventId:string,response:"accepted"|"declined",
+):Promise<AgendaActionResult>{
+ if(!eventId||!["accepted","declined"].includes(response))return {error:"Resposta inválida."};
+ try{
+   const {supabase}=await requireActiveUser();
+   const {data,error}=await supabase.rpc("respond_agenda_event_invitation",{
+     p_event_id:eventId,p_response:response,
+   });
+   if(error||data!==true)return {error:error?.message??"Convite não encontrado ou indisponível."};
+   refreshAgenda();
+   return {ok:true};
+ }catch(error){
+   return {error:error instanceof Error?error.message:"Não foi possível responder ao convite."};
+ }
+}

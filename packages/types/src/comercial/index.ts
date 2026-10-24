@@ -3,14 +3,15 @@
 // nenhum nome/CPF/CNPJ/telefone/e-mail/endereço é duplicado aqui, mesmo
 // princípio já usado em Assinaturas/NFS-e/Financeiro.
 
-export type CommercialChannel = "newspaper" | "website" | "led_panel" | "social_media" | "package" | "other";
-export const COMMERCIAL_CHANNELS: readonly CommercialChannel[] = ["newspaper", "website", "led_panel", "social_media", "package", "other"];
+export type CommercialChannel = "newspaper" | "website" | "led_panel" | "social_media" | "package" | "equipment_rental" | "other";
+export const COMMERCIAL_CHANNELS: readonly CommercialChannel[] = ["newspaper", "website", "led_panel", "social_media", "package", "equipment_rental", "other"];
 export const COMMERCIAL_CHANNEL_LABELS: Record<CommercialChannel, string> = {
   newspaper: "Jornal impresso",
   website: "Site",
   led_panel: "Painel LED",
   social_media: "Redes sociais",
   package: "Pacote/combinado",
+  equipment_rental: "Locação de equipamentos",
   other: "Outro",
 };
 
@@ -62,12 +63,33 @@ export interface CommercialProduct {
   updatedAt: string;
 }
 
+/**
+ * Itens da proposta congelados na conversao para venda. Nao dependa de
+ * commercial_products ou da proposta editada para reconstituir condicoes
+ * historicas de uma futura contratacao/assinatura.
+ */
+export interface CommercialSaleItemSnapshot {
+  sourceProposalItemId: string;
+  productId?: string;
+  productName: string;
+  /** Canal do produto no momento da conversao (LED, jornal, site etc.). */
+  serviceChannel: CommercialChannel;
+  description: string;
+  quantity: number;
+  unitPrice: number;
+  discountAmount: number;
+  totalAmount: number;
+  sortOrder: number;
+}
+
 export interface CommercialSale {
   id: string;
   reference: string;
   clientId: string;
   /** Proposta de origem, quando a venda nasceu de uma conversão (ver CommercialProposal.convertedSaleId) — nunca obrigatório. */
   proposalId?: string;
+  /** Itens individuais congelados no instante da conversao; sem itens para venda avulsa. */
+  itemsSnapshot?: CommercialSaleItemSnapshot[];
   /** Só rastreabilidade ao catálogo — nunca a fonte de verdade da venda já fechada (ver `channel`). */
   productId?: string;
   /** Snapshot de texto (rótulo do canal no momento da venda) — mesmo princípio de NfseTomadorSnapshot: nunca recalculado via join obrigatório ao catálogo. */

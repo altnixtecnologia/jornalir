@@ -9,6 +9,10 @@ import { getReceivableService } from "../../../../../composition/financeiro";
 import { getDraftService } from "../../../../../composition/nfse";
 import { getClientService } from "../../../../../composition/clientes";
 import { createSupabaseServerClient } from "../../../../../lib/supabase/server";
+import { checkModuleAction } from "../../../../../lib/permissions/checkModuleAction";
+import { checkFinanceAction } from "../../../../../lib/permissions/checkFinanceAction";
+import { todayInSaoPauloISO } from "../../../../../lib/date/saoPauloDate";
+import { inspectExistingCommercialInstallment,validateCommercialSaleForBilling } from "../../../../../lib/financeiro/commercialSaleBillingGuard";
 import { getAuditContext } from "../../../../../lib/auth/getAuditContext";
 import { recordAuditEventSupabase } from "../../../../../providers/supabase/auditEvents.supabase";
 import { listReceivablesForCommercialSalesSupabase } from "../../../../../providers/supabase/receivableRepository.supabase";
@@ -28,11 +32,13 @@ function listPath(id: string): string {
 }
 
 export async function updateCommercialSaleAction(id: string, input: CommercialSaleFormInput): Promise<{ error: string } | void> {
+  const permissionError = await checkModuleAction("publicidade", "vendas_editar");
+  if (permissionError) return { error: permissionError };
   try {
     const client = createSupabaseServerClient();
     const AUDIT = await getAuditContext(client);
     const existing = await listReceivablesForCommercialSalesSupabase(client, [id]);
-    const financeiroGenerated = existing.some((r) => r.status !== "cancelled");
+    const financeiroGenerated = existing.length > 0;
     await getCommercialSaleService(client).update(id, toCommercialSaleServiceInput(input), { financeiroGenerated });
     await recordAuditEventSupabase(client, { userId: AUDIT.actorId, entityType: ENTITY_TYPE, entityId: id, action: "update" });
   } catch (error) {
@@ -43,7 +49,13 @@ export async function updateCommercialSaleAction(id: string, input: CommercialSa
 }
 
 export async function changeCommercialSaleStatusAction(id: string, to: CommercialSaleStatus): Promise<{ error: string } | void> {
-  try {
+  const permissionError = await checkModuleAction("publicidade", "vendas_editar");
+  if (permissionError) return { error: permissionError };
+  try {  if (to === "cancelled") {
+    const cancelError = await checkModuleAction("publicidade", "vendas_cancelar");
+    if (cancelError) return { error: cancelError };
+  }
+
     const client = createSupabaseServerClient();
     const AUDIT = await getAuditContext(client);
     await getCommercialSaleService(client).changeStatus(id, to);
@@ -57,6 +69,8 @@ export async function changeCommercialSaleStatusAction(id: string, to: Commercia
 
 /** Nunca apaga fisicamente — só status=cancelled; títulos já gerados continuam existindo e rastreáveis (item 15). */
 export async function cancelCommercialSaleAction(id: string): Promise<{ error: string } | void> {
+  const permissionError = await checkModuleAction("publicidade", "vendas_cancelar");
+  if (permissionError) return { error: permissionError };
   try {
     const client = createSupabaseServerClient();
     const AUDIT = await getAuditContext(client);
@@ -72,6 +86,7 @@ export async function cancelCommercialSaleAction(id: string): Promise<{ error: s
 export interface GenerateFinanceiroResult {
   installmentNumber: number;
   ok: boolean;
+  alreadyGenerated?: boolean;
   error?: string;
 }
 
@@ -82,20 +97,38 @@ export interface GenerateFinanceiroResult {
  * autoritativa (ver ReceivableService.registerFromCommercialSale).
  */
 export async function generateCommercialSaleFinanceiroAction(id: string, firstDueDate: string): Promise<{ results: GenerateFinanceiroResult[] } | { error: string }> {
+  const permissionError = await checkModuleAction("publicidade", "vendas_editar");
+  if (permissionError) return { error: permissionError };
+  const financeError = await checkFinanceAction("titulos_criar");
+  if (financeError) return { error: financeError };
   try {
     const client = createSupabaseServerClient();
     const AUDIT = await getAuditContext(client);
     const sale = await getCommercialSaleService(client).getById(id);
-    // Cortesia nunca gera cobrança — nem um título de R$ 0,00 só pra
-    // representar a negociação (item 5 da auditoria de integridade).
-    if (sale.commercialCondition === "courtesy") {
-      return { error: "Negociação em cortesia — sem cobrança, nenhum título a gerar." };
-    }
+    // Nunca faturar proposta/cancelada, cortesia, zero ou data inválida.
+    // Revalidar no servidor antes da primeira inserção.
+    const issueDate=todayInSaoPauloISO();
+    const billingError=validateCommercialSaleForBilling(sale,firstDueDate,issueDate);
+    if(billingError) return {error:billingError};
     const drafts = generateCommercialSaleInstallments(sale, firstDueDate);
     const receivableService = getReceivableService(client);
+    const existing=await listReceivablesForCommercialSalesSupabase(client,[id]);
+    const byNumber=new Map(existing.map(r=>[r.installmentNumber,r]));
 
     const results: GenerateFinanceiroResult[] = [];
     for (const draft of drafts) {
+      const prior=byNumber.get(draft.installmentNumber);
+      if(prior){
+        const inspection=inspectExistingCommercialInstallment(
+          draft,prior,sale.clientId,
+        );
+        results.push({installmentNumber:draft.installmentNumber,
+          ok:inspection.alreadyGenerated,
+          alreadyGenerated:inspection.alreadyGenerated,
+          error:inspection.error,
+        });
+        continue;
+      }
       try {
         await receivableService.registerFromCommercialSale({
           clientId: sale.clientId,
@@ -105,12 +138,28 @@ export async function generateCommercialSaleFinanceiroAction(id: string, firstDu
           commercialSaleId: sale.id,
           installmentNumber: draft.installmentNumber,
           originalAmount: draft.amount,
-          issueDate: new Date().toISOString().slice(0, 10),
+          issueDate,
           dueDate: draft.dueDate,
         });
         results.push({ installmentNumber: draft.installmentNumber, ok: true });
       } catch (error) {
-        results.push({ installmentNumber: draft.installmentNumber, ok: false, error: toErrorMessage(error) });
+        // Outro operador pode ter gerado a mesma parcela na corrida.
+        // Se ela existir, só considerar sucesso caso valores e vencimento
+        // correspondam exatamente à venda e não esteja cancelada.
+        const after=await listReceivablesForCommercialSalesSupabase(client,[id]);
+        const concurrent=after.find(r=>r.installmentNumber===draft.installmentNumber);
+        if(concurrent){
+          const inspection=inspectExistingCommercialInstallment(
+            draft,concurrent,sale.clientId,
+          );
+          results.push({installmentNumber:draft.installmentNumber,
+            ok:inspection.alreadyGenerated,alreadyGenerated:inspection.alreadyGenerated,
+            error:inspection.error,
+          });
+        }else{
+          results.push({ installmentNumber:draft.installmentNumber,ok:false,
+            error:toErrorMessage(error) });
+        }
       }
     }
 
@@ -119,7 +168,7 @@ export async function generateCommercialSaleFinanceiroAction(id: string, firstDu
       entityType: ENTITY_TYPE,
       entityId: id,
       action: "generate_financeiro",
-      metadata: { generated: results.filter((r) => r.ok).length },
+      metadata: { generated: results.filter((r) => r.ok&&!r.alreadyGenerated).length, alreadyPresent: results.filter(r=>r.alreadyGenerated).length, failed: results.filter(r=>!r.ok).length },
     });
 
     revalidatePath(listPath(id));
@@ -142,6 +191,10 @@ export async function generateCommercialSaleFinanceiroAction(id: string, firstDu
  * venda (DraftDuplicateOriginError + índice único no banco).
  */
 export async function createNfseDraftFromSaleAction(id: string): Promise<{ error: string } | { draftId: string }> {
+  const permissionError = await checkModuleAction("publicidade", "vendas_editar");
+  if (permissionError) return { error: permissionError };
+  const nfseError = await checkModuleAction("nfse", "rascunhos_criar");
+  if (nfseError) return { error: nfseError };
   try {
     const client = createSupabaseServerClient();
     const AUDIT = await getAuditContext(client);

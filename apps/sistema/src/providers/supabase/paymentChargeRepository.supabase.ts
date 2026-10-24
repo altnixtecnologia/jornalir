@@ -1,7 +1,8 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { ClientCreditWithBalance, PaymentCharge, PaymentChargeProvider, PaymentChargeStatus } from "@ir/types";
-import type { ConfirmChargeInput, ConfirmChargeResult, NewPaymentChargeRecord, PaymentChargeChanges, PaymentChargeRepository } from "@ir/core";
+import { PaymentChargeAlreadyPendingError, type ConfirmChargeInput, type ConfirmChargeResult, type NewPaymentChargeRecord, type PaymentChargeChanges, type PaymentChargeRepository } from "@ir/core";
 import { isLocalPreviewEnabled } from "../../lib/auth/localPreview";
+import { createSupabaseAdminClient } from "../../lib/supabase/admin";
 import { PREVIEW_RECEIVABLES, PREVIEW_RECEIPTS } from "./receivableRepository.supabase";
 import { PREVIEW_CLIENT_CREDITS } from "./clientCreditRepository.supabase";
 
@@ -143,7 +144,12 @@ export function createPaymentChargeRepositorySupabase(client: SupabaseClient): P
         previewCharges.push(charge);
         return charge;
       }
-      const { data, error } = await client.from(TABLE).insert(toRow(record)).select(COLUMNS).single();
+      // Nunca expor INSERT direto de cobrança ao operador (nem ao admin).
+      // A Server Action validou pix_gerar, cliente, saldo e título antes
+      // de chamar este repositório; só ela usa a chave service_role.
+      const writer = createSupabaseAdminClient();
+      const { data, error } = await writer.from(TABLE).insert(toRow(record)).select(COLUMNS).single();
+      if (error?.code === "23505") throw new PaymentChargeAlreadyPendingError();
       if (error) throw new Error(error.message);
       return toDomain(data as unknown as PaymentChargeRow);
     },
@@ -155,8 +161,30 @@ export function createPaymentChargeRepositorySupabase(client: SupabaseClient): P
         previewCharges[index] = { ...previewCharges[index], ...changes, updatedAt: new Date().toISOString() };
         return previewCharges[index];
       }
-      const { data, error } = await client.from(TABLE).update(toRow(changes)).eq("id", id).select(COLUMNS).single();
+      // A atualização real (finalização da reserva e cancelamento conciliado)
+      // ocorre apenas no servidor, após checkFinanceAction e conferência remota.
+      // O banco recusa UPDATE direto por authenticated, inclusive admin.
+      const writer = createSupabaseAdminClient();
+      let query = writer.from(TABLE).update(toRow(changes)).eq("id", id);
+      // Cancelamento vs recebimento concorrente: jamais rebaixar 'paid'
+      // para 'cancelled', mesmo quando o Asaas respondeu ao DELETE antes
+      // de um webhook confirmar o pagamento.
+      if (changes.status === "cancelled") query = query.eq("status", "pending");
+      // Reserva só aceita anexar a cobrança remota enquanto ainda não
+      // vinculada. Um webhook/conciliador concorrente não perde o vínculo.
+      if (changes.providerChargeId) query = query.is("provider_charge_id", null);
+      const { data, error } = await query.select(COLUMNS).maybeSingle();
       if (error) throw new Error(error.message);
+      if (!data) {
+        const { data: latest, error: readError } = await writer.from(TABLE)
+          .select("status,provider_charge_id").eq("id", id).maybeSingle();
+        if (readError) throw new Error(readError.message);
+        if (latest?.status === "paid")
+          throw new Error("Cobrança já paga durante a operação. Não é permitido cancelar nem substituir sua referência.");
+        if (latest?.provider_charge_id && changes.providerChargeId)
+          throw new Error("Cobrança já vinculada por outra conciliação. Atualize a tela.");
+        throw new Error("Cobrança mudou durante a operação. Atualize a tela antes de continuar.");
+      }
       return toDomain(data as unknown as PaymentChargeRow);
     },
 

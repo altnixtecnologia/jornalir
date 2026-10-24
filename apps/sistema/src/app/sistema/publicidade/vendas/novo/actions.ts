@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { getCommercialSaleService } from "../../../../../composition/comercial";
 import { createSupabaseServerClient } from "../../../../../lib/supabase/server";
+import { checkModuleAction } from "../../../../../lib/permissions/checkModuleAction";
 import { getAuditContext } from "../../../../../lib/auth/getAuditContext";
 import { recordAuditEventSupabase } from "../../../../../providers/supabase/auditEvents.supabase";
 import { toCommercialSaleServiceInput, type CommercialSaleFormInput } from "../commercialSaleFormTypes";
@@ -14,6 +15,8 @@ function toErrorMessage(error: unknown): string {
 }
 
 export async function createCommercialSaleAction(input: CommercialSaleFormInput): Promise<{ error: string } | { id: string }> {
+  const permissionError = await checkModuleAction("publicidade", "vendas_criar");
+  if (permissionError) return { error: permissionError };
   try {
     const client = createSupabaseServerClient();
     const AUDIT = await getAuditContext(client);

@@ -8,6 +8,7 @@ import { getIssuerConfigService, getCertificateService } from "../../../../compo
 import { createSupabaseServerClient } from "../../../../lib/supabase/server";
 import { getAuditContext } from "../../../../lib/auth/getAuditContext";
 import { recordAuditEventSupabase } from "../../../../providers/supabase/auditEvents.supabase";
+import { NFSE_AVAILABLE_IN_THIS_RELEASE, NFSE_POSTPONED_MESSAGE } from "../../../../lib/release/releasePolicy";
 
 const PATH = "/sistema/nfse/configuracoes";
 const ENTITY_TYPE = "nfse_certificate";
@@ -35,6 +36,7 @@ function toErrorMessage(error: unknown): string {
  * erro, a mensagem nunca inclui a senha/conteúdo do arquivo.
  */
 export async function uploadCertificateAction(formData: FormData): Promise<ActionResult> {
+  if (!NFSE_AVAILABLE_IN_THIS_RELEASE) return { error: NFSE_POSTPONED_MESSAGE };
   const file = formData.get("pfxFile");
   const password = formData.get("password");
 
@@ -78,6 +80,7 @@ export async function uploadCertificateAction(formData: FormData): Promise<Actio
 }
 
 export async function getActiveCertificateAction(): Promise<NfseCertificateInfo | null> {
+  if (!NFSE_AVAILABLE_IN_THIS_RELEASE) return null;
   const client = createSupabaseServerClient();
   await requireFiscalAdmin(client);
   const issuerConfigService = getIssuerConfigService(client);

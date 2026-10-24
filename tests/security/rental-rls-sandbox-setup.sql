@@ -1,0 +1,16 @@
+-- Teste em PostgreSQL descartável após o teste de contrato combinado.
+-- Fixture reduzida das tabelas comerciais já criadas pela suite de RLS.
+create schema if not exists extensions;
+alter table public.commercial_sales add column product_id uuid;
+alter table public.commercial_sales add column channel text;
+alter table public.commercial_sales add column description text;
+grant select,insert,update on public.commercial_sales,public.commercial_products to authenticated;
+insert into public.staff_module_action_permissions(profile_id,module_key,action_key,allowed) values
+('00000000-0000-0000-0000-000000000002','publicidade','locacao_equipamentos_gerenciar',true),
+('00000000-0000-0000-0000-000000000002','publicidade','locacao_reservas_gerenciar',true),
+('00000000-0000-0000-0000-000000000002','publicidade','locacao_vistorias_registrar',true);
+
+-- O bloco anterior encerra testes ocultando o Comercial; reabilitar
+-- explicitamente o módulo no setup isolado da locação.
+update public.staff_module_visibility set enabled=true
+where profile_id='00000000-0000-0000-0000-000000000002' and module_key='publicidade';
