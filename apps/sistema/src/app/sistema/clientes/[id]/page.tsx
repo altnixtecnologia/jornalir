@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { ClientNotFoundError } from "@ir/core";
 import { CLIENT_KIND_LABELS, CLIENT_ROLE_LABELS, clientDisplayName, computeReceivableDueFlag, CONTRACT_STATUS_LABELS, RECEIVABLE_SOURCE_TYPE_LABELS } from "@ir/types";
 import { ModuleHeader } from "../../../../components/admin/ModuleHeader";
+import { DigitalExportControl } from "../../../../features/clientes/DigitalExportControl";
 import { getClientService } from "../../../../composition/clientes";
 import { getSubscriptionService } from "../../../../composition/assinaturas";
 import { getContractService, getReceivableService, getClientCreditService } from "../../../../composition/financeiro";
@@ -55,6 +56,11 @@ export default async function ClienteDetailPage({ params }: { params: { id: stri
     supabase.rpc("staff_can_see_module",{p_module:"financeiro"}),
   ]);
   const canSeeCommercialContracts = commercialReviewer.data === true || financeModule.data === true;
+  const { data: canApproveDigital } = await supabase.rpc("is_active_admin_or_owner");
+  const { data: exportPermission } = canApproveDigital === true
+    ? await supabase.from("client_digital_export_permissions").select("enabled")
+      .eq("client_id", client.id).maybeSingle()
+    : { data: null };
   const {data:commercialPackages,error:commercialError} = canSeeCommercialContracts
     ? await supabase.from("commercial_contract_packages")
       .select("id,commercial_sale_id,status,document_mode,approved_at")
@@ -169,6 +175,12 @@ export default async function ClienteDetailPage({ params }: { params: { id: stri
           </div>
         )}
       </section>
+
+      {canApproveDigital === true ? (
+        <DigitalExportControl clientId={client.id}
+          initiallyEnabled={exportPermission?.enabled === true}
+          clientActive={client.status === "active"} />
+      ) : null}
 
       <section className="form-section">
         <h2>Observações</h2>
