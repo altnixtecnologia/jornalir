@@ -191,3 +191,10 @@ Atualização local de cobrança para `cancelled` exige `WHERE status='pending'`
 - `validateCommercialSaleForBilling` bloqueia geração automática de títulos nas condições `trade` (permuta), `bailment` (comodato) e `other` (sem definição de obrigação monetária), além da cortesia já bloqueada, mesmo se um valor estiver preenchido. Somente condições monetárias `cash` e `installments` podem seguir os controles usuais de autorização financeira, saldo, vencimento e idempotência.
 - A tela de venda explica a restrição sem apresentar botão de emitir títulos indevidos. Para faturar parte monetária de um acordo misto, formalizar nova condição e revisar a documentação comercial. A caução contratual não se confunde com receita.
 - Teste `commercial-finance-guards.test.ts` cobre negativas em permuta/comodato/outro e preserva geração à vista/parcelada.
+
+### Gate P0 — impedir Asaas produção em Vercel Preview (24/10)
+
+- Inspeção **somente de metadados** do projeto Vercel `jornalir-sistema` encontrou o nome da variável `ASAAS_API_KEY_PRODUCTION` também atribuída ao target `preview`. **O valor da chave não foi consultado** nem copiado. Isto é um risco caso alguma configuração coloque o fornecedor em produção durante testes.
+- `getAsaasApiKey('production')` agora exige simultaneamente `VERCEL_ENV=production` e `NODE_ENV=production`, mesmo se o secret estiver presente em Preview; sem fallback para chave legada. O endpoint do webhook Asaas em Preview retorna 404 antes de consultar token ou gravar evento com `service_role`.
+- Teste do CI valida cenários Preview/Production/dev e inexistência de bypass. **Recomendação operacional antes do deploy:** remover a chave LIVE do target Preview na Vercel e manter sandbox em ambiente isolado, conferindo o valor de `ASAAS_ENV` em interface secreta, sem colar credenciais em documentação/chat.
+- Este bloqueio não homologa API nem dispara Pix real; a homologação Asaas SANDBOX, inclusive webhooks, deve usar endpoint de teste isolado de produção, nunca o domínio Preview ligado ao banco de clientes.

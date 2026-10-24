@@ -5,6 +5,7 @@ import { NextResponse } from "next/server";
 import { getPaymentChargeService } from "../../../../../composition/financeiro";
 import { createSupabaseAdminClient, hasServiceRoleKey } from "../../../../../lib/supabase/admin";
 import { getAsaasWebhookToken } from "../../../../../lib/financeiro/asaasWebhookConfig";
+import { canProcessAsaasWebhook } from "../../../../../lib/financeiro/asaasRuntimePolicy";
 import { createAsaasPixProvider } from "../../../../../lib/financeiro/asaasPixProvider";
 import {
   isWhatsappCloudConfigured,
@@ -249,6 +250,10 @@ async function notifyPaymentReceived(input: {
 }
 
 export async function POST(request: Request): Promise<Response> {
+  // Um endpoint Preview não é destino legítimo de webhooks reais e não
+  // deve modificar cobranças/recebimentos, mesmo com token válido.
+  if(!canProcessAsaasWebhook({vercelEnv:process.env.VERCEL_ENV}))
+    return NextResponse.json({error:"Webhook indisponível neste ambiente."},{status:404});
   const expectedToken = getAsaasWebhookToken();
   if (!expectedToken || !hasServiceRoleKey()) {
     return NextResponse.json({ error: "Integração de cobrança não configurada." }, { status: 503 });

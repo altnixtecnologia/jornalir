@@ -107,6 +107,9 @@ jobs:
       - name: Testar bloqueio de cobranças comerciais e vínculo Pix
         run: npx tsx --test apps/sistema/test/commercial-finance-guards.test.ts
 
+      - name: Testar isolamento da API Asaas LIVE entre Vercel Preview e Production
+        run: npx tsx --test apps/sistema/test/asaas-runtime-policy.test.ts
+
       - name: Testar identificadores estáveis dos PDFs comerciais
         run: npx tsx --test apps/sistema/test/commercial-document-identity.test.ts
 
