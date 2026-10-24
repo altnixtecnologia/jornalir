@@ -19,6 +19,13 @@ export async function sendCommercialSignatureOtpAction(token:string):Promise<Res
  try{
   const invite=await findCommercialInvitation(token);
   if(!invite||!commercialInvitationPending(invite)) return {error:"Convite expirado ou indisponível."};
+  // Registrar a tentativa ANTES do envio, para bloquear spam de OTP
+  // mesmo com múltiplas requisições simultâneas do mesmo link.
+  const admin=createSupabaseAdminClient();
+  const {error:rateError}=await admin.rpc("reserve_commercial_signature_otp",{
+   p_token_sha256:commercialTokenHash(token),
+  });
+  if(rateError) return {error:rateError.message};
   const db=createSupabaseServerClient();
   const {error}=await db.auth.signInWithOtp({
    email:invite.commercial_signature_participants.signer_email,
