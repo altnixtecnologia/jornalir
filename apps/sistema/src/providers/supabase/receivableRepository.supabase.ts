@@ -19,6 +19,7 @@ import type {
   ReversalInput,
 } from "@ir/core";
 import { isLocalPreviewEnabled } from "../../lib/auth/localPreview";
+import { createSupabaseAdminClient } from "../../lib/supabase/admin";
 
 const TABLE = "receivables";
 const VIEW = "receivables_with_balance";
@@ -293,7 +294,10 @@ export function createReceivableRepositorySupabase(client: SupabaseClient): Rece
     },
 
     async update(id, changes) {
-      const { data, error } = await client.from(TABLE).update(toRow(changes)).eq("id", id).select(COLUMNS).single();
+      // Somente ações do servidor que verificaram checkFinanceAction.
+      // PATCH financeiro direto por authenticated foi revogado no banco.
+      const writer = createSupabaseAdminClient();
+      const { data, error } = await writer.from(TABLE).update(toRow(changes)).eq("id", id).select(COLUMNS).single();
       if (error) throw new Error(error.message);
       return toDomain(data as unknown as ReceivableRow);
     },

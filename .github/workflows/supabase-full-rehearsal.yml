@@ -79,6 +79,13 @@ jobs:
           psql -h 127.0.0.1 -p 54322 -U postgres -d postgres \
             -v ON_ERROR_STOP=1 -f tests/security/client-credit-ledger-postflight.sql
 
+      - name: Testar blindagem de status e valores dos titulos
+        env:
+          PGPASSWORD: postgres
+        run: |
+          psql -h 127.0.0.1 -p 54322 -U postgres -d postgres \
+            -v ON_ERROR_STOP=1 -f tests/security/receivable-write-guards-postflight.sql
+
       - name: Confirm schema tables and functions
         run: |
           supabase db lint --local --schema public || true

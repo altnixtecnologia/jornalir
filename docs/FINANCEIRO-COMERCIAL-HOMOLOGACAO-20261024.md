@@ -168,3 +168,10 @@ Atualização local de cobrança para `cancelled` exige `WHERE status='pending'`
 - `reverse_client_credit_safe`: permissão `recebimentos_estornar`, bloqueio caso haja aplicações não estornadas ou vínculo com cobrança Asaas (exige conciliação). Em seguida o crédito originado de recebimento manual pode ser estornado e, depois, o recibo origem pode ser estornado pela RPC específica, sem excluir histórico. Código do repositório de créditos deixa de usar PATCH direto.
 - Teste de integração no banco efêmero valida estorno/aplicação, vínculo e negativas de escrita direta no ledger; o status do título continua atualizado transacionalmente.
 - **Pendente antes de liberar financeiro para uso real:** revisar UPDATE genérico de `receivables` (status e valores) para não contornar regras via PostgREST; homologar Pix/Asaas e reversões especiais com operadores reais e valores controlados.
+
+### Blindagem de títulos: status/valor/origem (P0 publicação)
+
+- Revogado UPDATE geral de `receivables` de `authenticated`/anon; o `ReceivableRepository.update` escreve via `service_role` **somente do servidor**, depois das ações protegidas por `checkFinanceAction`. Todo acesso à leitura continua sob as RLS já existentes.
+- Trigger bloqueia INSERT de título já marcado como `paid`/cancelled por authenticated sem histórico. Outra trigger impede mudança de pagador, origem, competência e valor de títulos com recibos/ajustes, inclusive por conta privilegiada; também bloqueia cancelamento de título com baixa/abatimento não estornado ou cobrança Pix pendente.
+- `ReceivableService.update/cancel` aplica validação adicional para feedback amigável, além do bloqueio autoritativo da trigger no PostgreSQL. Há teste de negativas do PATCH, status pago fictício, preservação de dados econômicos e atualização legítima de observações no banco descartável.
+- Ainda é obrigatório revisar efeitos em ações de contrato/comercial/locação e homologar Asaas Sandbox antes de deploy real. 

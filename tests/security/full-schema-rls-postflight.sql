@@ -111,6 +111,9 @@ begin
     or not has_function_privilege('service_role','public.reserve_commercial_signature_otp(text)','EXECUTE') then
    raise exception 'Limite OTP comercial não protegido por service_role.';
  end if;
+ if has_table_privilege('authenticated','public.receivables','UPDATE') then
+   raise exception 'Operador consegue alterar status/valor diretamente via PATCH.';
+ end if;
  if to_regprocedure('public.reverse_client_credit_safe(uuid,text)') is null then
    raise exception 'Estorno de crédito seguro não está disponível.';
  end if;
