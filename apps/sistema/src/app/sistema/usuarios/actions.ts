@@ -84,6 +84,15 @@ export async function inviteUser(email: string, name: string, role: InviteRole):
     return { error: describeAuthMailError(inviteError,"invite") };
   }
 
+  // Autorizar colaborador explicitamente. OTP/assinaturas externas nunca
+  // inserem registro em staff_memberships e não podem entrar no painel.
+  const {error:membershipError}=await admin.from("staff_memberships").insert({
+    profile_id:invited.user.id,invited_by:manager.id,
+  });
+  if(membershipError){
+    console.error("Erro na autorização do colaborador:",membershipError.code);
+    return {error:"Convite solicitado, mas colaborador não autorizado. Conta permanece inativa; solicite conferência administrativa."};
+  }
   // Novos perfis começam INATIVOS pelo trigger. Somente aqui, depois
   // da autenticação de owner/admin e convite aceito pelo Auth,
   // habilitar staff explicitamente e gravar o nome real.
@@ -93,7 +102,7 @@ export async function inviteUser(email: string, name: string, role: InviteRole):
     .select("id").maybeSingle();
   if (nameError || !namedProfile) {
     console.error("Falha ao salvar nome do convidado:", nameError?.code ?? "profile_not_found");
-    return { error: "Convite solicitado, mas houve erro ao salvar o nome. Edite o perfil do usuário na lista." };
+    return { error: "Convite solicitado, mas a conta ficou inativa por falha de autorização. Solicite correção administrativa." };
   }
 
 
@@ -113,6 +122,18 @@ export async function inviteUser(email: string, name: string, role: InviteRole):
 }
 
 
+async function requireManagedStaffTarget(profileId:string):Promise<
+ {ok:true}|{error:string}
+> {
+ if(!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(profileId))
+  return {error:"Usuário inválido."};
+ const client=createSupabaseServerClient();
+ const {data,error}=await client.from("staff_memberships")
+   .select("profile_id").eq("profile_id",profileId).maybeSingle();
+ if(error||!data) return {error:"Conta externa não é colaborador autorizado do painel."};
+ return {ok:true};
+}
+
 /**
  * Permite cadastrar/corrigir o nome real sem alterar as permissões
  * nem o estado de confirmação do Supabase Auth.
@@ -120,6 +141,8 @@ export async function inviteUser(email: string, name: string, role: InviteRole):
 export async function updateManagedUserName(profileId: string, name: string): Promise<ActionResult> {
   const manager = await requireUserManager();
   if ("error" in manager) return manager;
+  const membership=await requireManagedStaffTarget(profileId);
+  if("error" in membership) return membership;
   const clean = normalizeStaffName(name);
   if (!clean) return { error: "Informe um nome real válido (3 a 120 caracteres)." };
   if (!hasServiceRoleKey()) return { error: "Administração indisponível neste ambiente." };
@@ -160,6 +183,8 @@ export async function updateManagedUserName(profileId: string, name: string): Pr
 export async function resendPendingUserAccess(profileId: string): Promise<ActionResult> {
   const manager = await requireUserManager();
   if ("error" in manager) return manager;
+  const membership=await requireManagedStaffTarget(profileId);
+  if("error" in membership) return membership;
   if (!hasServiceRoleKey()) return { error: "Serviço de envio indisponível." };
   const client = createSupabaseServerClient();
   const { data: target, error: targetError } = await client.from("profiles")
@@ -218,6 +243,9 @@ export async function sendPasswordResetForUser(profileId: string): Promise<Actio
   if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(profileId)) {
     return { error: "Usuário inválido." };
   }
+
+  const membership=await requireManagedStaffTarget(profileId);
+  if("error" in membership) return membership;
 
   const supabase = createSupabaseServerClient();
   const { data: auth, error: authError } = await supabase.auth.getUser();
@@ -284,12 +312,17 @@ export async function listUserInvitationStatuses(): Promise<
   }
   if (!hasServiceRoleKey()) return { error: "Consulta de convites indisponível neste ambiente." };
   const admin = createSupabaseAdminClient();
+  const {data:memberships,error:membershipError}=await client.from("staff_memberships")
+    .select("profile_id");
+  if(membershipError||!memberships)
+    return {error:"Não foi possível consultar colaboradores autorizados."};
+  const staffIds=new Set(memberships.map(m=>m.profile_id));
   const statuses: Array<{ id: string; pending: boolean; confirmed: boolean; invited: boolean; email: string }> = [];
   const perPage = 200;
   for (let page = 1; page <= 30; page += 1) {
     const { data, error } = await admin.auth.admin.listUsers({ page, perPage });
     if (error || !data) return { error: "Não foi possível conferir o aceite dos convites." };
-    statuses.push(...data.users.map((u) => ({
+    statuses.push(...data.users.filter(u=>staffIds.has(u.id)).map((u) => ({
       id: u.id, pending: Boolean(u.invited_at && !u.email_confirmed_at),
       confirmed: Boolean(u.email_confirmed_at), invited: Boolean(u.invited_at), email: u.email ?? "",
     })));
