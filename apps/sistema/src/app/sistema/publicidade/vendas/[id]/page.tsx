@@ -6,6 +6,7 @@ import { CommercialSaleDetail } from "../../../../../features/comercial/Commerci
 import { CommercialContractPreparationPanel, type CommercialContractServiceView } from "../../../../../features/comercial/CommercialContractPreparationPanel";
 import { CommercialSignersPreparationPanel, type CommercialSignerPreparation } from "../../../../../features/comercial/CommercialSignersPreparationPanel";
 import {CommercialSignatureRequestsPanel, type CommercialRequestView} from "../../../../../features/comercial/CommercialSignatureRequestsPanel";
+import {CommercialAddendaPanel, type CommercialAddendumView} from "../../../../../features/comercial/CommercialAddendaPanel";
 import { getCommercialProductService, getCommercialProposalService, getCommercialSaleService } from "../../../../../composition/comercial";
 import { getClientService } from "../../../../../composition/clientes";
 import { getDraftService } from "../../../../../composition/nfse";
@@ -67,10 +68,15 @@ export default async function CommercialSaleDetailPage({ params }: { params: { i
     ?? assignmentResult?.error?.message ?? templateResult?.error?.message
     ?? canPrepare.error?.message ?? canReview.error?.message;
 
-  const issuedDocumentsResult = pkg && canReview.data === true
+  const issuedDocumentsResult = pkg && (canReview.data === true || canPrepare.data === true)
     ? await supabase.from("commercial_contract_documents")
-      .select("id,service_id,title,template_version,sha256,issued_at")
+      .select("id,service_id,title,template_version,sha256,issued_at,addendum_id")
       .eq("package_id", pkg.id).order("issued_at", {ascending:false})
+    : null;
+  const addendaResult = pkg && (canReview.data===true || canPrepare.data===true)
+    ? await supabase.from("commercial_contract_addenda")
+      .select("id,original_document_id,addendum_number,title,reason,legal_text,status")
+      .eq("package_id",pkg.id).order("created_at",{ascending:false})
     : null;
   const reviewEventsResult = pkg && canReview.data === true
     ? await supabase.from("commercial_contract_review_events")
@@ -117,7 +123,7 @@ export default async function CommercialSaleDetailPage({ params }: { params: { i
         } : null}
         canPrepare={canPrepare.data === true}
         canReview={canReview.data === true}
-        issuedDocuments={issuedDocumentsResult?.data ?? []}
+        issuedDocuments={(issuedDocumentsResult?.data ?? []).filter(doc=>!doc.addendum_id)}
         reviewEvents={reviewEventsResult?.data ?? []}
         templateOptions={templates.map(({id,title,category,version,variables})=>({
           id,title,category:category??"",version,
@@ -128,6 +134,15 @@ export default async function CommercialSaleDetailPage({ params }: { params: { i
           values: (custom_values ?? {}) as Record<string,string>,
         }))}
         loadError={contractLoadError ?? issuedDocumentsResult?.error?.message ?? reviewEventsResult?.error?.message}
+      />
+      <CommercialAddendaPanel
+        saleId={sale.id}
+        originalDocuments={(issuedDocumentsResult?.data??[])
+          .filter(doc=>!doc.addendum_id).map(doc=>({id:doc.id,title:doc.title}))}
+        addenda={(addendaResult?.data??[]) as CommercialAddendumView[]}
+        canPrepare={canPrepare.data===true}
+        canReview={canReview.data===true}
+        loadError={addendaResult?.error?.message}
       />
       <CommercialSignersPreparationPanel
         saleId={sale.id}

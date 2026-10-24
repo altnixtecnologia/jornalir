@@ -114,7 +114,7 @@ export async function issueCommercialContractDocumentsAction(
     const documents=await compileCommercialDocuments(supabase,sale,pkg,"legal_approved");
     const {data:stored,error:storedError}=await supabase
       .from("commercial_contract_documents")
-      .select("id,service_id,template_id,template_version").eq("package_id",pkg);
+      .select("id,service_id,template_id,template_version").eq("package_id",pkg).is("addendum_id",null);
     if(storedError) throw new Error("Não foi possível conferir emissões anteriores: "+storedError.message);
     let existing=0;
     for(const doc of documents) {
