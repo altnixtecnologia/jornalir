@@ -110,6 +110,7 @@ export default async function AniversariantesPage():Promise<JSX.Element>{
     {error ? <p className="form-error" role="alert">
       Não foi possível carregar os registros de aniversário. Tente novamente.
     </p> : <BirthdaysList localPreview={false} initialGroups={groups}
-        initialMessages={messages} initialWeekStart={week} todayISO={brazilTodayISO()}/>}
+        initialMessages={messages} initialWeekStart={week} todayISO={brazilTodayISO()}
+        canManageTemplates={profile.role==="owner"||profile.role==="admin"}/>}
   </>;
 }

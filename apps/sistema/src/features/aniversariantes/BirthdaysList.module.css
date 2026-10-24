@@ -31,3 +31,14 @@
 .root :global(.aniv-entry-row-actions) a,.root :global(.aniv-entry-row-actions) button{flex:1 1 145px}
 }
 @media(max-width:380px){.root :global(.cadastros-filters-bar){grid-template-columns:minmax(0,1fr)}}
+
+/* Ativa a malha compacta original do módulo, que agora recebe styles.root. */
+@media (hover:hover) and (pointer:fine) and (min-width:681px){
+  .root :global(.aniv-entry-remove){opacity:0;pointer-events:none;transition:opacity .15s}
+  .root :global(.aniv-entry:hover .aniv-entry-remove),
+  .root :global(.aniv-entry:focus-within .aniv-entry-remove){opacity:1;pointer-events:auto}
+}
+/* X fixo no mobile, acionável com toque, como no layout aprovado. */
+@media (hover:none),(pointer:coarse),(max-width:680px){
+  .root :global(.aniv-entry-remove){opacity:1;pointer-events:auto;min-width:40px;min-height:40px}
+}

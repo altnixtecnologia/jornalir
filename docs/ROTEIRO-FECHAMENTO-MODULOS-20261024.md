@@ -222,3 +222,13 @@ Evitar declarar um módulo encerrado só porque a infraestrutura de CI está ver
 - Banco bloqueia inclusões ou reativações concorrentes de pessoa editorial com mesmo grupo, nome normalizado e dia/mês; não mexe em duplicatas legadas automaticamente. Identidades diferentes com mesma data são permitidas.
 - Ao confirmar salvamento, estado React é atualizado sem exigir F5; `router.refresh()` reconcilia IDs e snapshots. Listagem expandida respeita filtros também nas pessoas filhas, evitando exibir aniversariantes de fora da semana selecionada.
 - Testes de função, duplicidade em PostgreSQL temporário e build geral adicionados ao CI. **Ainda falta bloco B (layout/mensagens) e teste visual antes de marcar o módulo 6 concluído.**
+
+### Módulo 6 — bloco B: layout aprovado e cadastros sem perda de dados
+
+- Importado e aplicado o CSS modular `BirthdaysList.module.css` ao container real. A malha compacta e responsiva já prevista passa a funcionar sem recriar o layout antigo. A árvore não tem scroll interno; apenas o formulário modal de edição mantém sua própria rolagem, preservando botões de salvar.
+- Botão único `Novo +` integrado na linha da Semana do Jornal; formulário já inclui criação independente/extraordinária e vínculo a PF/PJ. Removida a antiga faixa redundante `+ Novo aniversariante`.
+- Ação de retirar em cada linha aparece ao passar mouse/foco no PC e permanece fixa/tocável em celular. Arquivamento não exclui `clients`, respeita soft-delete.
+- Gerenciamento dos modelos de homenagem exibido apenas a admin/owner; operador ainda pode usar modelos permitidos, mas não editar bibliotecas administrativas. A proteção server-side por permissão permanece.
+- Inclusão extraordinária e familiar passa a aguardar **confirmação do servidor** antes de fechar formulário; em duplicidade/erro, nome/data e demais informações continuam preenchidos para correção. Botões de salvar/cancelar ficam bloqueados durante o envio, evitando duplo clique.
+- Mensagens existentes e seus modelos (incluindo modelos personalizados) foram **preservados**, sem alterar textos aprovados. Relatório segue DATA | NOME | CIDADE; fotos de destaque e filtros da Semana do Jornal permanecem.
+- Código deve passar CI do sistema e schema descartável. Homologação manual do layout real (PC/mobile, impressão e histórico com dados legados) continua como verificação final do módulo antes do release.
