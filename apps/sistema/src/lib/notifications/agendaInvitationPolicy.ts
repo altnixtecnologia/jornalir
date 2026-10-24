@@ -68,3 +68,18 @@ export function agendaInvitationStillPending(
     Number.isFinite(Date.parse(match[3])) &&
     Date.parse(match[3]) === Date.parse(invite.invited_at);
 }
+
+/** O convidado que aceitou recebe lembrete de reunião, mas não alerta de tarefa atrasada. */
+export function agendaReminderRecipients(
+  assigned: Array<{ profile_id: string; completed_at: string | null }>,
+  accepted: Array<{ profile_id: string }>,
+): Array<{ profile_id: string; completed_at: string | null; meetingOnly: boolean }> {
+  const responsible = assigned.map((p) => ({ ...p, meetingOnly: false }));
+  const seen = new Set(assigned.map((p) => p.profile_id));
+  for (const attendee of accepted) {
+    if (seen.has(attendee.profile_id)) continue;
+    seen.add(attendee.profile_id);
+    responsible.push({ profile_id: attendee.profile_id, completed_at: null, meetingOnly: true });
+  }
+  return responsible;
+}
