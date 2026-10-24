@@ -6,6 +6,8 @@ import {
   agendaInvitationStillPending,
   agendaReminderRecipients,
   buildAgendaInvitationNotification,
+  currentAgendaReminderPush,
+  type AgendaReminderMeeting,
   type AgendaInvitationMeeting,
   type AgendaInvitationRow,
 } from "../../../../lib/notifications/agendaInvitationPolicy";
@@ -306,6 +308,35 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
         pushTitle = currentInvite.title;
         pushBody = currentInvite.body;
         pushHref = currentInvite.href;
+      }
+      if (event.kind === "agenda" &&
+          /^agenda:(reminder|overdue):/.test(event.dedupe_key || "")) {
+        const match = /^agenda:(reminder|overdue):([0-9a-f-]{36}):/.exec(event.dedupe_key || "");
+        if (!match) continue;
+        const [meetingResult, assignmentResult, inviteResult] = await Promise.all([
+          db.from("agenda_events")
+            .select("title,event_date,start_time,end_time,reminder_minutes,status,event_kind")
+            .eq("id", match[2]).maybeSingle(),
+          db.from("agenda_event_assignees")
+            .select("completed_at").eq("event_id", match[2])
+            .eq("profile_id", device.profile_id).eq("assignment_type", "responsible").maybeSingle(),
+          db.from("agenda_event_invitees")
+            .select("status").eq("event_id", match[2])
+            .eq("profile_id", device.profile_id).maybeSingle(),
+        ]);
+        if (meetingResult.error || assignmentResult.error || inviteResult.error) {
+          failed++;
+          continue;
+        }
+        const current = currentAgendaReminderPush(
+          event.dedupe_key!, device.profile_id,
+          meetingResult.data as AgendaReminderMeeting | null,
+          assignmentResult.data, inviteResult.data?.status ?? null, localNow(),
+        );
+        if (!current) continue;
+        pushTitle = current.title;
+        pushBody = current.body;
+        pushHref = current.href;
       }
       const { error: claimError } = await db.from("notification_deliveries")
         .insert({ event_id: event.id, device_id: device.id, status: "pending", attempts: 1, last_attempt_at: new Date().toISOString() });
