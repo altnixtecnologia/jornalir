@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   buildAgendaInvitationNotification,
   agendaInvitationStillPending,
+  agendaReminderRecipients,
 } from "../src/lib/notifications/agendaInvitationPolicy";
 
 const now = "2026-10-24T18:50:00.000Z";
@@ -45,4 +46,18 @@ test("revalidação do envio falha fechada para resposta, mudança de convite ou
   assert.equal(agendaInvitationStillPending(key,invite.profile_id,{status:"pending",invited_at:"2026-10-24T18:49:00Z"},meeting),false);
   assert.equal(agendaInvitationStillPending(key,invite.event_id,{status:"pending",invited_at:invite.invited_at},meeting),false);
   assert.equal(agendaInvitationStillPending(key,invite.profile_id,{status:"pending",invited_at:invite.invited_at},{...meeting,status:"cancelled"}),false);
+});
+
+test("lembrete reúne responsáveis e convidados que aceitaram sem duplicar destinatário", () => {
+  const recipients = agendaReminderRecipients(
+    [{ profile_id: "responsavel", completed_at: null },
+     { profile_id: "mesma-pessoa", completed_at: null }],
+    [{ profile_id: "mesma-pessoa" }, { profile_id: "convidado" },
+     { profile_id: "convidado" }],
+  );
+  assert.deepEqual(recipients, [
+    { profile_id: "responsavel", completed_at: null, meetingOnly: false },
+    { profile_id: "mesma-pessoa", completed_at: null, meetingOnly: false },
+    { profile_id: "convidado", completed_at: null, meetingOnly: true },
+  ]);
 });
