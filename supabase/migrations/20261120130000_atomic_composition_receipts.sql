@@ -48,7 +48,6 @@ as $fn$
 declare
   v_id uuid;
   v_count integer;
-  v_ord integer;
   v_title public.receivables;
   v_target public.receivables;
   v_existing public.manual_composition_operations;
