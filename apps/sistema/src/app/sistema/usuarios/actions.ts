@@ -3,16 +3,13 @@
 import { createSupabaseAdminClient, hasServiceRoleKey } from "../../../lib/supabase/admin";
 import { createSupabaseServerClient } from "../../../lib/supabase/server";
 import { recordAuditEventSupabase } from "../../../providers/supabase/auditEvents.supabase";
+import { normalizeStaffName } from "../../../lib/auth/userIdentity";
+import { describeAuthMailError } from "../../../lib/auth/authMailDiagnostics";
 
 const SISTEMA_BASE_URL = process.env.NEXT_PUBLIC_SISTEMA_URL ??
   (process.env.NODE_ENV === "production" ? "https://controle.altnix.com.br" : "http://localhost:3001");
 
 export type InviteRole = "operator" | "admin";
-function validateDisplayName(value: string): string | null {
-  const clean = value.trim().replace(/\s+/g, " ");
-  if (clean.length < 3 || clean.length > 120 || !/[\p{L}]/u.test(clean) || clean.includes("@")) return null;
-  return clean;
-}
 
 function validEmail(value: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value) && value.length <= 254;
@@ -47,7 +44,7 @@ type ActionResult = { ok: true } | { error: string };
 export async function inviteUser(email: string, name: string, role: InviteRole): Promise<ActionResult> {
   const trimmedEmail = email.trim().toLowerCase();
   if (!validEmail(trimmedEmail)) return { error: "Informe um e-mail válido." };
-  const displayName = validateDisplayName(name);
+  const displayName = normalizeStaffName(name);
   if (!displayName) return { error: "Informe o nome real do usuário (3 a 120 caracteres)." };
   if (role !== "operator" && role !== "admin") return { error: "Papel inválido." };
 
@@ -92,7 +89,7 @@ export async function inviteUser(email: string, name: string, role: InviteRole):
     if (inviteError?.status === 429) {
       return { error: "Limite de envio de e-mails atingido no Supabase. Aguarde e confira o SMTP em Authentication." };
     }
-    return { error: "O Supabase não aceitou o convite. Confira o SMTP, limites de envio e URLs de redirecionamento no Supabase Auth." };
+    return { error: describeAuthMailError(inviteError,"invite") };
   }
 
   // O trigger lê raw_user_meta_data.name. Garantir também o nome na
@@ -139,7 +136,7 @@ export async function inviteUser(email: string, name: string, role: InviteRole):
 export async function updateManagedUserName(profileId: string, name: string): Promise<ActionResult> {
   const manager = await requireUserManager();
   if ("error" in manager) return manager;
-  const clean = validateDisplayName(name);
+  const clean = normalizeStaffName(name);
   if (!clean) return { error: "Informe um nome real válido (3 a 120 caracteres)." };
   if (!hasServiceRoleKey()) return { error: "Administração indisponível neste ambiente." };
   const admin = createSupabaseAdminClient();
@@ -211,7 +208,7 @@ export async function resendPendingUserAccess(profileId: string): Promise<Action
       console.error("Supabase Auth reenvio de convite:", reinviteError.code ?? "unknown");
       return { error: reinviteError.status === 429
         ? "Limite de e-mails atingido. Aguarde e confira a configuração SMTP."
-        : "Não foi possível solicitar o novo convite. Verifique as configurações SMTP e o registro do Supabase Auth." };
+        : describeAuthMailError(reinviteError,"invite") };
     }
     via = "recovery";
     const redirectTo = new URL("/definir-senha?recovery=1", SISTEMA_BASE_URL).toString();
@@ -219,7 +216,7 @@ export async function resendPendingUserAccess(profileId: string): Promise<Action
     if (sendError) {
       console.error("Supabase Auth reenvio de acesso:", sendError.code ?? "unknown");
       if (sendError.status === 429) return { error: "Limite de e-mails atingido. Aguarde e confira as configurações de SMTP no Supabase." };
-      return { error: "O Supabase recusou o reenvio. Verifique SMTP, limites de envio e URL autorizada." };
+      return { error: describeAuthMailError(sendError,"recovery") };
     }
   }
   await recordAuditEventSupabase(client, {
@@ -267,7 +264,7 @@ export async function sendPasswordResetForUser(profileId: string): Promise<Actio
     SISTEMA_BASE_URL,
   ).toString();
   const { error: resetError } = await admin.auth.resetPasswordForEmail(email, { redirectTo });
-  if (resetError) return { error: "Não foi possível enviar o link. Confira a configuração de e-mail e tente novamente." };
+  if (resetError) return { error: describeAuthMailError(resetError,"recovery") };
 
   try {
     await recordAuditEventSupabase(supabase, {
@@ -291,7 +288,7 @@ export async function sendPasswordResetForUser(profileId: string): Promise<Actio
  * Apenas owner/admin leem a situacao dos convites; expomos so ID/status.
  */
 export async function listUserInvitationStatuses(): Promise<
-  { ok: true; statuses: Array<{ id: string; pending: boolean; email: string }> } | { error: string }
+  { ok: true; statuses: Array<{ id: string; pending: boolean; confirmed: boolean; invited: boolean; email: string }> } | { error: string }
 > {
   const client = createSupabaseServerClient();
   const { data: auth, error: authError } = await client.auth.getUser();
@@ -303,13 +300,14 @@ export async function listUserInvitationStatuses(): Promise<
   }
   if (!hasServiceRoleKey()) return { error: "Consulta de convites indisponível neste ambiente." };
   const admin = createSupabaseAdminClient();
-  const statuses: Array<{ id: string; pending: boolean; email: string }> = [];
+  const statuses: Array<{ id: string; pending: boolean; confirmed: boolean; invited: boolean; email: string }> = [];
   const perPage = 200;
   for (let page = 1; page <= 30; page += 1) {
     const { data, error } = await admin.auth.admin.listUsers({ page, perPage });
     if (error || !data) return { error: "Não foi possível conferir o aceite dos convites." };
     statuses.push(...data.users.map((u) => ({
-      id: u.id, pending: !u.email_confirmed_at, email: u.email ?? "",
+      id: u.id, pending: Boolean(u.invited_at && !u.email_confirmed_at),
+      confirmed: Boolean(u.email_confirmed_at), invited: Boolean(u.invited_at), email: u.email ?? "",
     })));
     if (data.users.length < perPage) return { ok: true, statuses };
   }
