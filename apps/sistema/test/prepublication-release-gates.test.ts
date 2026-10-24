@@ -4,7 +4,7 @@ import { readFileSync } from "node:fs";
 import { NFSE_AVAILABLE_IN_THIS_RELEASE, NFSE_POSTPONED_MESSAGE } from "../src/lib/release/releasePolicy";
 import { ALTNIX_CLIENT_EXPORT_RELEASED } from "../src/lib/integrations/altnixDigitalClientContract";
 import { adminModules } from "../src/lib/navigation";
-import { canUseSupabaseAdminCredentials } from "../src/lib/release/previewIsolationPolicy";
+import { canUseSupabaseAdminCredentials, isIsolatedHomologation, PRODUCTION_SUPABASE_REF } from "../src/lib/release/previewIsolationPolicy";
 
 function source(path: string): string {
   return readFileSync(new URL("../src/" + path, import.meta.url), "utf8");
@@ -39,15 +39,33 @@ test("consulta remota Altnix falha antes de qualquer verificação de secret/amb
   assert.ok(gate >= 0 && env > gate);
 });
 
-test("service_role não pode ser utilizada em Preview, Staging ou Development da Vercel", () => {
-  assert.equal(canUseSupabaseAdminCredentials("preview"), false);
-  assert.equal(canUseSupabaseAdminCredentials("staging"), false);
-  assert.equal(canUseSupabaseAdminCredentials("development"), false);
+test("Preview só obtém service_role com projeto sandbox identificado exatamente", () => {
+  const stagingRef = "abcdefghijklmnopqrst";
+  const ok = {
+    homologationEnabled: "true",
+    homologationProjectRef: stagingRef,
+    supabaseUrl: `https://${stagingRef}.supabase.co`,
+  };
+  for (const env of ["preview", "staging", "development", "test"]) {
+    assert.equal(canUseSupabaseAdminCredentials(env), false);
+  }
+  assert.equal(canUseSupabaseAdminCredentials("preview", ok), true);
   assert.equal(canUseSupabaseAdminCredentials("production"), true);
-  assert.equal(canUseSupabaseAdminCredentials(undefined), true); // Dev local controlado.
-  // Teste de regressão: os dois caminhos de Admin API consultam a proteção,
-  // e não basta ocultar o botão do cliente.
+  assert.equal(canUseSupabaseAdminCredentials(undefined), true); // Dev local configurado.
+  assert.equal(isIsolatedHomologation({ ...ok, vercelEnv: "preview" }), true);
+  for (const bad of [
+    { ...ok, homologationEnabled: "false" },
+    { ...ok, homologationProjectRef: PRODUCTION_SUPABASE_REF,
+      supabaseUrl: `https://${PRODUCTION_SUPABASE_REF}.supabase.co` },
+    { ...ok, supabaseUrl: `https://${PRODUCTION_SUPABASE_REF}.supabase.co` },
+    { ...ok, supabaseUrl: `http://${stagingRef}.supabase.co` },
+    { ...ok, supabaseUrl: `https://${stagingRef}.supabase.co.attacker.invalid` },
+    { ...ok, supabaseUrl: `https://${stagingRef}.supabase.co/rest/v1` },
+    { ...ok, supabaseUrl: `https://${stagingRef}.supabase.co?token=1` },
+    { ...ok, homologationProjectRef: "" },
+  ]) assert.equal(canUseSupabaseAdminCredentials("preview", bad), false);
   const admin = source("lib/supabase/admin.ts");
-  assert.match(admin, /return canUseSupabaseAdminCredentials\(process\.env\.VERCEL_ENV\)/);
-  assert.match(admin, /if \(!canUseSupabaseAdminCredentials\(process\.env\.VERCEL_ENV\)\)/);
+  assert.match(admin, /canUseSupabaseAdminCredentials\(process\.env\.VERCEL_ENV/);
+  assert.match(admin, /IR_HOMOLOGATION_SUPABASE_REF/);
+  assert.match(admin, /IR_HOMOLOGATION_ENABLED/);
 });
