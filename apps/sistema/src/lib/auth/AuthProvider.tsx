@@ -16,7 +16,7 @@ export interface AuthProfile {
   createdAt: string;
 }
 
-export type AuthStatus = "loading" | "authenticated" | "unauthenticated" | "inactive";
+export type AuthStatus = "loading" | "authenticated" | "unauthenticated" | "inactive" | "unconfirmed";
 
 interface AuthContextValue {
   status: AuthStatus;
@@ -58,10 +58,14 @@ export function AuthProvider({
       // identidade real antes de disponibilizar menus do painel.
       const {data:identity,error:identityError}=await client.auth.getUser();
       if(cancelled) return;
-      if(identityError || identity.user?.id!==userId ||
-         !identity.user.email_confirmed_at){
+      if(identityError||identity.user?.id!==userId){
         setProfile(null);
-        setStatus("inactive");
+        setStatus("unauthenticated");
+        return;
+      }
+      if(!identity.user.email_confirmed_at){
+        setProfile(null);
+        setStatus("unconfirmed");
         return;
       }
       const { data, error } = await client

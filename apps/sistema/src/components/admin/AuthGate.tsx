@@ -18,6 +18,8 @@ export function AuthGate({ children }: { children: ReactNode }): JSX.Element | n
       window.location.replace("/login?erro=sessao");
     } else if (status === "inactive") {
       window.location.replace("/login?erro=inativo");
+    } else if(status==="unconfirmed"){
+      window.location.replace("/login?erro=pendente");
     }
   }, [status]);
 

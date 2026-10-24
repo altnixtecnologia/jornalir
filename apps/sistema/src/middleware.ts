@@ -83,7 +83,7 @@ export async function middleware(request: NextRequest): Promise<NextResponse> {
       return response;
     }
     if (!eligible) {
-      const reason=user?"inativo":"sessao";
+      const reason=!user?"sessao":!user.email_confirmed_at?"pendente":"inativo";
       return NextResponse.redirect(new URL("/login?erro="+reason,request.url));
     }
 
