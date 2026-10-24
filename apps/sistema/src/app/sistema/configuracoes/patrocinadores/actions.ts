@@ -1,6 +1,8 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { checkModuleAction } from "../../../../lib/permissions/checkModuleAction";
+import { validateSiteAdPublication, type SiteAdPublicationInput } from "../../../../features/configuracoes/siteAdPublicationPolicy";
 import type { SiteAdFitMode, SiteAdSlotTransitionEffect } from "@ir/types";
 import { getSiteAdSlotService } from "../../../../composition/siteAds";
 import { createSupabaseServerClient } from "../../../../lib/supabase/server";
@@ -114,5 +116,27 @@ export async function reorderSiteAdMediaAction(slotId: string, orderedMediaIds: 
   } catch (error) {
     return { error: toErrorMessage(error) };
   }
+  revalidatePath(LIST_PATH);
+}
+
+// Gestão MANUAL do anúncio de cortesia no portal. Nenhuma baixa financeira
+// pode disparar esta operação automaticamente sem vínculo explícito de venda.
+export async function updateSiteAdMediaPublicationAction(
+  id: string,
+  changes: SiteAdPublicationInput,
+): Promise<{ error: string } | void> {
+  const permissionError = await checkModuleAction("publicidade","vendas_editar");
+  if(permissionError)return {error:permissionError};
+  if(!/^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i.test(id))
+    return {error:"Identificador de mídia inválido."};
+  try{
+    const normalized=validateSiteAdPublication(changes);
+    const client=createSupabaseServerClient();
+    await getSiteAdSlotService(client).updateMedia(id,{
+      active:normalized.active,
+      activeFrom:normalized.activeFrom??null,
+      activeUntil:normalized.activeUntil??null,
+    });
+  }catch(error){return {error:toErrorMessage(error)};}
   revalidatePath(LIST_PATH);
 }

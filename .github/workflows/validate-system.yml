@@ -113,6 +113,9 @@ jobs:
       - name: Testar isolamento da API Asaas LIVE entre Vercel Preview e Production
         run: npx tsx --test apps/sistema/test/asaas-runtime-policy.test.ts
 
+      - name: Testar vigência e suspensão manual de patrocinadores
+        run: npx tsx --test apps/sistema/test/site-ad-publication.test.ts
+
       - name: Testar identificadores estáveis dos PDFs comerciais
         run: npx tsx --test apps/sistema/test/commercial-document-identity.test.ts
 

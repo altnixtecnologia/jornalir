@@ -2,6 +2,8 @@
 
 import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import { SiteAdPublicationRow } from "./SiteAdPublicationRow";
+import type { SiteAdPublicationInput } from "./siteAdPublicationPolicy";
 import type {
   SiteAdFitMode,
   SiteAdMediaWithAsset,
@@ -18,6 +20,7 @@ import {
   reorderSiteAdMediaAction,
   toggleSiteAdSlotActiveAction,
   updateSiteAdMediaSettingsAction,
+  updateSiteAdMediaPublicationAction,
   updateSiteAdSlotSettingsAction,
   uploadSiteAdImagesAction,
 } from "../../app/sistema/configuracoes/patrocinadores/actions";
@@ -328,6 +331,22 @@ function SlotCard({ slot }: { slot: SiteAdSlotWithMedia }): JSX.Element {
     }
   }
 
+  async function updatePublication(id:string,changes:SiteAdPublicationInput):Promise<{error:string}|void>{
+    setMessage(null);
+    try{
+      const response=await updateSiteAdMediaPublicationAction(id,changes);
+      if(response && "error" in response){
+        setMessage(response.error);
+        return response;
+      }
+      router.refresh();
+    }catch{
+      const error="Falha ao salvar período de veiculação. Verifique antes de repetir.";
+      setMessage(error);
+      return {error};
+    }
+  }
+
   const previewObjectFit = fitMode === "stretch" ? "fill" : "contain";
 
   return (
@@ -437,6 +456,11 @@ function SlotCard({ slot }: { slot: SiteAdSlotWithMedia }): JSX.Element {
                 media={media}
                 pending={pending}
                 onSave={(changes) => updateMediaSettings(media.id, changes)}
+              />
+              <SiteAdPublicationRow
+                media={media}
+                pending={pending || uploading}
+                onSave={(changes)=>updatePublication(media.id,changes)}
               />
             </div>
           ))}
