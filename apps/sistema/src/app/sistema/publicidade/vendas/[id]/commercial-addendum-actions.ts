@@ -130,6 +130,10 @@ export async function issueCommercialAddendumAction(
   if(existing){
    if(existing.id!==id || existing.file_reference!==path)
     throw new Error("Documento do aditivo foi emitido com outro identificador. Requer conferência.");
+   await persistCommercialEvidence(supabase,{
+    bucket:"contract-documents",path,format:"application/pdf",
+    expectedSha256:existing.sha256,
+   });
    return {ok:true,documentId:id,reused:true};
   }
   const content=[
