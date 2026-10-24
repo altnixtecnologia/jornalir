@@ -125,6 +125,9 @@ jobs:
       - name: Testar contrato de clientes digitais Jornal IR → Altnix
         run: npx tsx --test apps/sistema/test/altnix-digital-client-contract.test.ts
 
+      - name: Verificar gates da primeira publicação (NFS-e depois, Altnix desligado)
+        run: npx tsx --test apps/sistema/test/prepublication-release-gates.test.ts
+
       - name: Testar convites individuais da Agenda (Web Push, resposta e cancelamento)
         run: npx tsx --test apps/sistema/test/agenda-invitation-push.test.ts
 
