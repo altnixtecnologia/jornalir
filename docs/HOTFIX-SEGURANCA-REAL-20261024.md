@@ -42,6 +42,26 @@ O registro de `ASAAS_API_KEY_PRODUCTION` era separado entre `production` e `prev
 
 **Não houve redeploy.** Builds Preview **anteriores** ainda podem conter seu ambiente antigo até que sejam substituídos/invalidados. O marcador inerte não garante remoção retrospectiva do segredo antigo desses builds, e o mero fato de a chave ter sido disponibilizada em Preview justifica **rotacionar a chave real no provedor Asaas** em etapa autorizada, verificar possíveis requisições indevidas e atualizar SOMENTE o valor do registro Production. Essa rotação **não foi feita aqui** por não haver integração autorizada com a conta Asaas. Não colocar credenciais em documentação nem em mensagens.
 
+## 3.1 Vercel Preview — isolamento do Supabase e controle de acesso (APLICADO)
+
+Auditoria de metadados e leitura comparativa das URLs (sem expor as chaves) confirmou que **o projeto `jornalir-sistema` em Preview apontava à mesma URL Supabase de Production**. Isso permitiria a qualquer código de Preview, se obtivesse credenciais, operar contra o banco verdadeiro.
+
+**Correção aplicada exclusivamente nas variáveis Preview do sistema:**
+
+- `SUPABASE_SERVICE_ROLE_KEY`: registro Preview `TWGzeglCzDIfC8re`, trocado por placeholder inutilizável;
+- `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`: registro Preview `TD45gaGYtusXs5vk`, trocado por placeholder inutilizável;
+- `NEXT_PUBLIC_SUPABASE_URL`: registro Preview `Z7g42JGXyItWM9dU`, apontado a `https://supabase-preview-disabled.invalid`.
+
+**Verificação:** a URL de Preview é diferente da URL Production e corresponde ao destino `.invalid`; os três registros separados de Production (`LwVYorbHFW5FpqvC`, `fubKHef2IgxJMduK`, `0vDzkrEy5KeLTnSd`) preservaram seus identificadores e timestamps originais. Nenhum valor de `service_role` foi exibido ou publicado.
+
+**Resultado intencional:** novos Previews do sistema não conseguem acessar o banco real. Para que Preview volte a funcionar, configurar **projeto Supabase sandbox separado**, com credenciais próprias e políticas testadas. Nunca devolver o banco Production ao escopo Preview.
+
+**Defesa no código da PR #15:** `apps/sistema/src/lib/release/previewIsolationPolicy.ts` implementa gate `canUseSupabaseAdminCredentials`. `apps/sistema/src/lib/supabase/admin.ts` agora nega `hasServiceRoleKey()` e `createSupabaseAdminClient()` sempre que `VERCEL_ENV` é diferente de `production` (dev local continua controlado separadamente). Teste automatizado foi acrescentado em `apps/sistema/test/prepublication-release-gates.test.ts` para impedir regressão. **Código ainda em PR draft, não publicado:** a garantia imediata para Preview vem da neutralização das variáveis de ambiente.
+
+**Deployments antigos:** Vercel listou várias execuções anteriores `READY`, inclusive Preview. O conector não dispõe de cancelamento para deployments já `READY` (cancelamento só interrompe builds em andamento). Foi ativada **Vercel Authentication `ssoProtection: { enabled:true, deploymentType:'preview' }`** nos dois projetos, `jornalir` e `jornalir-sistema`, e o estado foi confirmado por nova leitura. **Production não foi colocado sob autenticação extra.** A Vercel Authentication limita os Previews a membros da equipe, inclusive links anteriores, mas não garante revogação de qualquer credencial que tenha sido copiada anteriormente. Revisar rotação das chaves com processo de contingência.
+
+**Nota:** o histórico de migrations do Supabase continuou em **152 versões** após os hotfixes, confirmando que nenhuma migration remota foi registrada/aplicada por engano.
+
 ## 4. O que NÃO foi alterado
 
 - Sem emissão de cobranças, mudança de valores, envio WhatsApp/e-mail, criação de usuários reais de teste ou edição de cadastros.
