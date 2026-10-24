@@ -112,3 +112,39 @@ processo externo. Depois de fechar, avançar módulo 2 e registrar novo estado.
   emissão→assinatura de aditivo com usuário preparador e revisor distintos.
 - O texto jurídico precisa de revisão responsável; regex e CI não
   constituem aprovação legal. Nenhuma emissão/assinatura real autorizada.
+
+
+## 24/10/2026 — Módulo 2: controles de acesso e convites (homologação)
+
+- `20261119100000_staff_membership_authorization.sql` cria
+  `staff_memberships` para separar operadores/administradores de
+  signatários externos do Auth; somente o fluxo administrativo com
+  service_role cria membership. Backfill conservador de owner/admin
+  e contas já convidadas via Supabase Auth.
+- `is_active_staff`, `is_active_admin`, `is_active_owner` e
+  `is_active_admin_or_owner` passam a exigir perfil ativo,
+  membership e e-mail confirmado. Helpers de menu/financeiro continuam
+  usando essas autorizações centrais.
+- Middleware autentica com `getUser`, exige autorização da RPC,
+  falha fechada se não houver Supabase e evita loop entre login/painel.
+  UI distingue `pendente` de `inativo`.
+- `inviteUser` só é aceito por owner/admin confirmado, com autorização
+  criada antes de ativar conta; nome, papel e status na mesma atualização.
+  Lista administrativa filtra memberships; não expõe signatários externos.
+  E-mail/reenvio/recuperação respeitam membership de destino.
+- `AuthProvider` só apresenta conteúdo interno para staff confirmado.
+  Administrador não pode ativar colaborador sem confirmação de e-mail;
+  RLS exige a mesma condição.
+- `staff-access-policy.test.ts` testa ausência de sessão, OTP externo,
+  confirmação pendente, perfil desativado e acessos por papel.
+  O sandbox cria conta externa com metadata falsa, verifica ausência
+  de membership e impede acesso mesmo se `profiles.active=true`.
+- **Não alterar cadastros reais**: nomes derivados do início do e-mail
+  precisam ser informados pelo responsável, sem suposições. O projeto
+  `site-system-ir` possuía dois convites não confirmados na última
+  consulta de leitura.
+- **SMTP ainda é pendência de homologação operacional**: escolher
+  provedor, configurar SMTP e autenticação de domínio no Supabase Auth,
+  URLs de convite/recovery, teste de entrega em caixa controlada.
+  `docs/USUARIOS-AUTH-EMAIL-CHECKLIST-20261024.md` contém roteiro.
+- Sem merge/deploy, sem envio real e sem alteração no Supabase remoto.
