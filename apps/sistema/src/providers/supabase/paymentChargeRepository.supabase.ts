@@ -165,8 +165,26 @@ export function createPaymentChargeRepositorySupabase(client: SupabaseClient): P
       // ocorre apenas no servidor, após checkFinanceAction e conferência remota.
       // O banco recusa UPDATE direto por authenticated, inclusive admin.
       const writer = createSupabaseAdminClient();
-      const { data, error } = await writer.from(TABLE).update(toRow(changes)).eq("id", id).select(COLUMNS).single();
+      let query = writer.from(TABLE).update(toRow(changes)).eq("id", id);
+      // Cancelamento vs recebimento concorrente: jamais rebaixar 'paid'
+      // para 'cancelled', mesmo quando o Asaas respondeu ao DELETE antes
+      // de um webhook confirmar o pagamento.
+      if (changes.status === "cancelled") query = query.eq("status", "pending");
+      // Reserva só aceita anexar a cobrança remota enquanto ainda não
+      // vinculada. Um webhook/conciliador concorrente não perde o vínculo.
+      if (changes.providerChargeId) query = query.is("provider_charge_id", null);
+      const { data, error } = await query.select(COLUMNS).maybeSingle();
       if (error) throw new Error(error.message);
+      if (!data) {
+        const { data: latest, error: readError } = await writer.from(TABLE)
+          .select("status,provider_charge_id").eq("id", id).maybeSingle();
+        if (readError) throw new Error(readError.message);
+        if (latest?.status === "paid")
+          throw new Error("Cobrança já paga durante a operação. Não é permitido cancelar nem substituir sua referência.");
+        if (latest?.provider_charge_id && changes.providerChargeId)
+          throw new Error("Cobrança já vinculada por outra conciliação. Atualize a tela.");
+        throw new Error("Cobrança mudou durante a operação. Atualize a tela antes de continuar.");
+      }
       return toDomain(data as unknown as PaymentChargeRow);
     },
 

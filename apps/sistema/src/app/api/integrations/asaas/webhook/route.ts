@@ -409,15 +409,24 @@ export async function POST(request: Request): Promise<Response> {
     } else if (eventType === "PAYMENT_OVERDUE") {
       if (charge.status === "pending") {
         await createAsaasPixProvider(admin).cancelCharge(providerChargeId);
-        const { error } = await admin
+        const { data: cancelled, error } = await admin
           .from("payment_charges")
           .update({
             status: "cancelled",
             cancelled_at: new Date().toISOString(),
             cancellation_reason: "Cobrança vencida; removida automaticamente do Asaas.",
           })
-          .eq("id", charge.id);
+          .eq("id", charge.id).eq("status", "pending")
+          .select("id").maybeSingle();
         if (error) throw new Error(error.message);
+        if (!cancelled) {
+          // Pagamento webhook ganhou a corrida: jamais registrar cancelamento.
+          await markEvent(eventId, processingToken, {
+            processed_at: new Date().toISOString(),
+            error_message: "Cancelamento ignorado: cobrança já mudou de status durante o processamento.",
+          });
+          return NextResponse.json({ ok: true, ignored: true });
+        }
         const context = await loadPaymentContext(charge.receivable_id as string);
         const reference = context.receivable.internal_reference || context.receivable.description || "Título financeiro";
         await createPanelNotification({
@@ -431,15 +440,23 @@ export async function POST(request: Request): Promise<Response> {
       }
     } else if (eventType === "PAYMENT_DELETED") {
       if (charge.status === "pending") {
-        const { error } = await admin
+        const { data: cancelled, error } = await admin
           .from("payment_charges")
           .update({
             status: "cancelled",
             cancelled_at: new Date().toISOString(),
             cancellation_reason: "Cobrança removida no Asaas.",
           })
-          .eq("id", charge.id);
+          .eq("id", charge.id).eq("status", "pending")
+          .select("id").maybeSingle();
         if (error) throw new Error(error.message);
+        if (!cancelled) {
+          await markEvent(eventId, processingToken, {
+            processed_at: new Date().toISOString(),
+            error_message: "Exclusão ignorada: pagamento/status modificado antes da atualização.",
+          });
+          return NextResponse.json({ ok: true, ignored: true });
+        }
         const context = await loadPaymentContext(charge.receivable_id as string);
         const reference = context.receivable.internal_reference || context.receivable.description || "Título financeiro";
         await createPanelNotification({

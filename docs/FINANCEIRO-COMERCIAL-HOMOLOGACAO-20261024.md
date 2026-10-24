@@ -126,3 +126,7 @@ criadas naquela operação, sem divergência UTC perto da meia-noite.
 ### Recuperação sem emissão duplicada
 
 A tela Pix oferece `Consultar cobrança existente no Asaas` quando existe reserva local pendente sem ID do provedor. A nova action `reconcilePixReservationAction` exige `pix_gerar` e verifica título/cliente; a consulta externa usa **somente GET** por `externalReference`, exige modalidade PIX, valor idêntico e QR válido para pendências, depois vincula o ID remoto ao registro reservado. Não encontra => mantém bloqueio; não faz novo POST nem cancela a reserva automaticamente. Se retornar pago, somente webhook autenticado/service_role realiza a baixa. Sem Asaas sandbox e casos de rede reais, esse fluxo continua pendente de homologação operacional.
+
+### Guarda adicional de corrida cancelamento vs recebimento
+
+Atualização local de cobrança para `cancelled` exige `WHERE status='pending'` mesmo usando `service_role`; uma confirmação que venceu a corrida jamais deve ser sobrescrita por um DELETE tardio. O webhook `PAYMENT_OVERDUE`/`PAYMENT_DELETED` também usa UPDATE condicional e evita notificar falsamente um cancelamento se o status mudou entre leitura e escrita. Registros locais com vinculação remota já estabelecida recusam nova substituição do ID Asaas. Homologar estes interleavings no sandbox.
