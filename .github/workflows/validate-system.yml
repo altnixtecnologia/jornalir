@@ -83,6 +83,9 @@ jobs:
       - name: Testar deduplicação do upload oficial de PDFs
         run: npx tsx --test apps/sistema/test/edition-upload-dedup.test.ts
 
+      - name: Testar mesclagem de acervo R2, Drive e PDFs locais
+        run: npx tsx --test apps/site/test/jornal-online-merge.test.ts
+
       - name: Testar troca de capa da matéria
         run: npx tsx --test apps/sistema/test/article-cover-choice.test.ts
 

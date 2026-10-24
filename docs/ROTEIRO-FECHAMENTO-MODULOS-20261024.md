@@ -277,3 +277,11 @@ A confirmação do Jornal IR prevalece sobre o plano anterior: **os seis espaço
 
 - O navegador calcula SHA-256 antes de pedir PUT assinado do R2. O servidor compara o hash com o PDF oficial da mesma edição e evita criar mais objetos quando a capa já está arquivada. Edição com capa ausente pode ser reenviada para reparo. Teste de SHA e ausência de capa foi incluído no CI.
 - A finalização faz conferência adicional do hash; se o vínculo falhar, tenta limpar apenas as duas chaves de upload geradas para aquela tentativa, nunca o PDF vinculado. Não houve leitura nem apagamento no R2 real.
+
+### Módulo 5 — bloco B, acervo e leitores (revisão de regressões)
+
+- Listagem do Jornal Online deixou de descartar acervo Drive/local assim que R2 devolve uma edição. Agora consulta R2 e Drive em paralelo, acrescenta PDFs locais e prefere a edição oficial se houver número coincidente. Números apenas inferidos por padrões explícitos de “Edição 700” ou “IR 700”; título genérico não causa deduplicação indevida. Teste com acervo misto no CI.
+- Página da edição também utiliza a mesma mesclagem; se ambas as APIs falharem não confunde indisponibilidade com edição inexistente. PDFs legados permanecem acessíveis por seus links antigos.
+- O leitor mobile deixa de manter todos os canvas em memória: páginas fora do viewport expandido voltam a placeholders e liberam a imagem; ao aproximar, renderizam outra vez. Isso protege Android com pouca RAM em jornal de dezenas de páginas.
+- O carregamento PDF.js dos leitores mobile e desktop agora cancela a tarefa de rede ao trocar de edição ou desmontar o componente; não deixa download pendente consumindo recursos.
+- **Pendente para homologação completa:** navegação/zoom/tela cheia real no PC/Android, configuração CORS/Range no R2 de edições e PDFs do acervo de produção. Não declarar testes manuais concluídos por CI.

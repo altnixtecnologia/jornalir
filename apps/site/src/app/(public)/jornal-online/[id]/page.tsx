@@ -7,6 +7,7 @@ import { useParams } from "next/navigation";
 import dynamic from "next/dynamic";
 import { SiteHeader } from "../../../../components/site/SiteHeader";
 import { calameoEditions } from "../../../../components/site/calameoEditions";
+import {mergeNewspaperEditions} from "../../../../lib/public/jornalOnlineEditionMerge";
 
 const FlipbookReader = dynamic(
   () => import("../../../../components/site/FlipbookReader").then((m) => m.FlipbookReader),
@@ -65,12 +66,11 @@ export default function JornalOnlineReaderPage(): JSX.Element {
             ? (driveResult.value.items as OnlineEdition[])
             : [];
 
-        const merged = new Map<string, OnlineEdition>();
-        for (const item of [...archiveItems, ...driveItems]) {
-          if (!merged.has(item.id)) merged.set(item.id, item);
-        }
-        setRemoteEditions(Array.from(merged.values()));
-        setRemoteStatus("ready");
+        setRemoteEditions(mergeNewspaperEditions(archiveItems,driveItems,
+          calameoEditions.map(item=>({...item}))));
+        const archiveOk=archiveResult.status==="fulfilled"&&archiveResult.value?.ok===true;
+        const driveOk=driveResult.status==="fulfilled"&&driveResult.value?.ok===true;
+        setRemoteStatus(archiveOk||driveOk?"ready":"error");
       } catch {
         setRemoteStatus("error");
       }
