@@ -62,6 +62,36 @@ function trimDbTime(value: string | null): string | null {
   return value ? value.slice(0, 5) : null;
 }
 
+/** Convites individuais com RLS (a própria sessão), reutilizados no painel
+ * e na central de notificações. Nunca tratar como aviso administrativo global.
+ */
+export async function loadMyPendingMeetingInvitations(
+  supabase: import("@supabase/supabase-js").SupabaseClient,
+  userId: string,
+  today: string = todayInAgendaTimezone(),
+): Promise<PendingMeetingInvitation[]> {
+  const myInvites = await supabase.from("agenda_event_invitees")
+    .select("event_id").eq("profile_id", userId).eq("status", "pending")
+    .order("invited_at", { ascending: false }).limit(50);
+  if (myInvites.error) throw new Error(myInvites.error.message);
+  const pendingIds = [...new Set((myInvites.data ?? []).map((row) => row.event_id))];
+  if (!pendingIds.length) return [];
+  const meetings = await supabase.from("agenda_events")
+    .select("id,title,event_date,start_time,location")
+    .in("id", pendingIds).eq("status", "scheduled")
+    .eq("event_kind", "general").gte("event_date", today)
+    .order("event_date", { ascending: true })
+    .order("start_time", { ascending: true, nullsFirst: false });
+  if (meetings.error) throw new Error(meetings.error.message);
+  return (meetings.data ?? []).map((item) => ({
+    eventId: item.id,
+    title: item.title,
+    eventDate: item.event_date,
+    startTime: trimDbTime(item.start_time),
+    location: item.location,
+  }));
+}
+
 export async function loadAgendaWorkspaceData(focusDate: string): Promise<AgendaWorkspaceData> {
   const supabase = createSupabaseServerClient();
   const today = todayInAgendaTimezone();
@@ -131,27 +161,7 @@ export async function loadAgendaWorkspaceData(focusDate: string): Promise<Agenda
   }));
   const profileName = new Map(profiles.map((profile) => [profile.id, profile.name]));
 
-  // Visível mesmo quando a reunião for no próximo mês. Somente convites
-  // do próprio usuário, RLS ativa e compromisso ainda agendado.
-  const myInvites=await supabase.from("agenda_event_invitees")
-    .select("event_id").eq("profile_id",user.id).eq("status","pending")
-    .order("invited_at",{ascending:false}).limit(50);
-  if(myInvites.error)throw new Error(myInvites.error.message);
-  let pendingInvitations:PendingMeetingInvitation[]=[];
-  const pendingIds=[...new Set((myInvites.data??[]).map(row=>row.event_id))];
-  if(pendingIds.length){
-    const meetings=await supabase.from("agenda_events")
-      .select("id,title,event_date,start_time,location")
-      .in("id",pendingIds).eq("status","scheduled")
-      .eq("event_kind","general").gte("event_date",today)
-      .order("event_date",{ascending:true})
-      .order("start_time",{ascending:true,nullsFirst:false});
-    if(meetings.error)throw new Error(meetings.error.message);
-    pendingInvitations=(meetings.data??[]).map(item=>({
-      eventId:item.id,title:item.title,eventDate:item.event_date,
-      startTime:trimDbTime(item.start_time),location:item.location,
-    }));
-  }
+  const pendingInvitations = await loadMyPendingMeetingInvitations(supabase, user.id, today);
   const eventIds = (eventsResult.data ?? []).map((event) => event.id);
 
   let invitationRows: Array<{ event_id: string; profile_id: string; status: string; responded_at: string | null }> = [];
