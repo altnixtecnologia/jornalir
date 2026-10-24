@@ -76,11 +76,11 @@ export function DesktopArticleImageCrop({file,onCrop,onOriginal,onCancel}:Props)
    let w=clamp(Math.abs(p.x-anchor.x),.035,maxW);
    let h=clamp(Math.abs(p.y-anchor.y),.035,maxH);
    if(aspect&&natural.w>0&&natural.h>0){
-     // Cantos preservam proporção real, incluindo a razão da foto.
-     const wanted=w*natural.w/(aspect*natural.h);
-     if(wanted>h) h=Math.min(maxH,wanted);
-     w=Math.min(maxW,h*aspect*natural.h/natural.w);
-     h=w*natural.w/(aspect*natural.h);
+     // Redimensionamento responde ao movimento horizontal OU vertical.
+     // Limites sempre na imagem original, preservando a razão desejada.
+     const heightToWidth=aspect*natural.h/natural.w;
+     w=Math.min(maxW,maxH*heightToWidth,Math.max(w,h*heightToWidth));
+     h=w/heightToWidth;
    }
    w=clamp(w,Math.min(.035,maxW),maxW);
    h=clamp(h,Math.min(.035,maxH),maxH);
@@ -107,7 +107,7 @@ export function DesktopArticleImageCrop({file,onCrop,onOriginal,onCancel}:Props)
      return;
    }
    if(state.kind==="draw"){
-     const corner:Corner=(p.x>=state.start.x?"e":"w")+(p.y>=state.start.y?"s":"n") as Corner;
+     const corner:Corner=((p.y>=state.start.y?"s":"n")+(p.x>=state.start.x?"e":"w")) as Corner;
      setSelection(rectangleFromAnchor(state.start,p,corner));
      return;
    }
