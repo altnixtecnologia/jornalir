@@ -48,6 +48,7 @@ export function RentalOperationsPanel({assets,products,sales,bookings,inspection
  const [saleId,setSaleId]=useState("");
  const [assetId,setAssetId]=useState("");
 
+ const assetsCheckedOut=new Set(bookings.filter(b=>b.status==="checked_out").map(b=>b.asset_id));
  const eligibleSales=sales.filter(sale=>sale.status==="approved"||sale.status==="active").filter(sale=>{
   if (sale.product_id && assets.some(a=>a.product_id===sale.product_id)) return true;
   return Array.isArray(sale.items_snapshot)
@@ -150,6 +151,7 @@ export function RentalOperationsPanel({assets,products,sales,bookings,inspection
    <section>
     <h2>2. Reserva vinculada à venda</h2>
     <p className="helper-text">A venda precisa estar aprovada/ativa e conter um serviço de locação. Os valores e períodos são informados explicitamente.</p>
+    <p className="helper-text">A caução é garantia contratual, não é pagamento recebido nem reembolso concluído. Movimentações de caução devem ser conferidas e registradas separadamente para não duplicar o faturamento da venda.</p>
     {permissions.bookings?(
      <form onSubmit={book} style={{display:"grid",gap:12}}>
       <div style={formGrid}>
@@ -162,7 +164,7 @@ export function RentalOperationsPanel({assets,products,sales,bookings,inspection
        <label>Equipamento
         <select name="assetId" required style={inputStyle} value={assetId} onChange={e=>setAssetId(e.target.value)}>
          <option value="">Selecione um patrimônio</option>
-         {assets.filter(a=>a.status==="available").map(a=><option key={a.id} value={a.id}>{a.asset_code} · {a.brand} {a.model}</option>)}
+         {assets.filter(a=>a.status==="available"&&!assetsCheckedOut.has(a.id)).map(a=><option key={a.id} value={a.id}>{a.asset_code} · {a.brand} {a.model}</option>)}
         </select>
        </label>
        <label>Retirada<input style={inputStyle} required name="startAt" type="datetime-local"/></label>
@@ -190,6 +192,7 @@ export function RentalOperationsPanel({assets,products,sales,bookings,inspection
       const hasReturn=inspections.some(i=>i.booking_id===b.id&&i.event_kind==="return");
       return <div key={b.id} style={{border:"1px solid var(--color-border,#ccc)",padding:14,borderRadius:8}}>
        <strong>{asset?.asset_code||b.asset_id} · {statuses[b.status]}</strong>
+       {b.status==="checked_out"?<p role="status" className="helper-text">Equipamento retirado e ainda não devolvido. O prazo previsto não libera nova reserva; registre vistoria e devolução.</p>:null}
        <p className="helper-text">Venda {sales.find(s=>s.id===b.commercial_sale_id)?.internal_reference||b.commercial_sale_id}</p>
        <p>{format(b.start_at)} até {format(b.end_at)} · {b.contact_person} · R$ {Number(b.agreed_total).toFixed(2)}</p>
        <p className="helper-text">Retirada: {b.collection_location} · Devolução: {b.return_location} · Vistoria retirada: {hasCheckout?"registrada":"pendente"} · devolução: {hasReturn?"registrada":"pendente"}</p>

@@ -129,6 +129,9 @@ jobs:
       - name: Aplicar estrutura operacional de locação
         run: psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261107100000_rental_assets_bookings_inspections.sql
 
+      - name: Blindar reservas e devolucoes com equipamento retirado
+        run: psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261120180000_rental_in_hand_integrity.sql
+
       - name: Validar reservas, conflitos e vistorias
         run: psql -v ON_ERROR_STOP=1 -f tests/security/rental-rls-sandbox-assertions.sql
 

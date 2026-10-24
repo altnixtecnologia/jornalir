@@ -175,3 +175,12 @@ Atualização local de cobrança para `cancelled` exige `WHERE status='pending'`
 - Trigger bloqueia INSERT de título já marcado como `paid`/cancelled por authenticated sem histórico. Outra trigger impede mudança de pagador, origem, competência e valor de títulos com recibos/ajustes, inclusive por conta privilegiada; também bloqueia cancelamento de título com baixa/abatimento não estornado ou cobrança Pix pendente.
 - `ReceivableService.update/cancel` aplica validação adicional para feedback amigável, além do bloqueio autoritativo da trigger no PostgreSQL. Há teste de negativas do PATCH, status pago fictício, preservação de dados econômicos e atualização legítima de observações no banco descartável.
 - Ainda é obrigatório revisar efeitos em ações de contrato/comercial/locação e homologar Asaas Sandbox antes de deploy real. 
+
+
+## Revisão operacional de locação — equipamento em posse de cliente
+
+- A migration `20261120180000_rental_in_hand_integrity.sql` impede dois checkouts ativos do mesmo patrimônio, **mesmo com períodos previstos diferentes**. Durante confirmação da reserva o banco serializa o equipamento e exige devolução efetiva antes de reservar novamente.
+- Bloqueada a transição da venda para `completed` com reservas `reserved` ou `checked_out`. Para histórico antigo de venda já concluída, permitido apenas devolver item retirado ou cancelar reserva pendente.
+- A verificação de reserva adquire lock da venda comercial para evitar transição concorrente que a deixe cancelada/concluída com uma reserva ativa.
+- Tela exclui equipamentos retirados da seleção e diferencia explicitamente a caução contratual de receita recebida; nenhum faturamento, pagamento ou estorno automático é criado.
+- Teste de CI reproduz reserva futura após fim do período original, venda ainda com patrimônio entregue, liberação após devolução e impedimento de concluir com reservas abertas.

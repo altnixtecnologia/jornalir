@@ -101,6 +101,39 @@ insert into public.rental_inspection_events(id,booking_id,event_kind,condition_n
 update public.rental_bookings set status='checked_out'
  where id='b1000000-0000-0000-0000-000000000001';
 
+-- A data prevista termina, mas a posse física não: reserva futura
+-- somente depois da vistoria e devolução efetiva.
+insert into public.rental_bookings(id,commercial_sale_id,asset_id,start_at,end_at,
+ collection_location,return_location,contact_person,daily_rate,agreed_total,deposit_amount)
+values('b1000000-0000-0000-0000-000000000003',
+ 'a1000000-0000-0000-0000-000000000001',
+ 'b0000000-0000-0000-0000-000000000001',
+ '2026-11-10T12:00:00Z','2026-11-12T12:00:00Z',
+ 'Retirada futura','Devolução futura','Outro cliente fictício',150,300,0);
+do $test$
+declare rejected boolean:=false;
+begin
+ begin
+  update public.rental_bookings set status='reserved'
+   where id='b1000000-0000-0000-0000-000000000003';
+ exception when check_violation then rejected:=true;
+ end;
+ if not rejected then raise exception 'Prazo vencido liberou aparelho ainda retirado.'; end if;
+end;
+$test$;
+
+do $test$
+declare rejected boolean:=false;
+begin
+ begin
+  update public.commercial_sales set status='completed'
+   where id='a1000000-0000-0000-0000-000000000001';
+ exception when check_violation then rejected:=true;
+ end;
+ if not rejected then raise exception 'Venda concluída com aparelho não devolvido.'; end if;
+end;
+$test$;
+
 do $test$
 declare rejected boolean:=false;
 begin
@@ -147,9 +180,23 @@ insert into public.rental_inspection_events(id,booking_id,event_kind,condition_n
 update public.rental_bookings set status='returned'
  where id='b1000000-0000-0000-0000-000000000001';
 
--- Após devolução, outra reserva pode ocupar o mesmo intervalo já encerrado.
+-- Depois de devolução/vistoria, confirmar novas reservas.
 update public.rental_bookings set status='reserved'
  where id='b1000000-0000-0000-0000-000000000002';
+update public.rental_bookings set status='reserved'
+ where id='b1000000-0000-0000-0000-000000000003';
+
+do $test$
+declare rejected boolean:=false;
+begin
+ begin
+  update public.commercial_sales set status='completed'
+   where id='a1000000-0000-0000-0000-000000000001';
+ exception when check_violation then rejected:=true;
+ end;
+ if not rejected then raise exception 'Venda concluída com reserva ainda pendente.'; end if;
+end;
+$test$;
 
 -- Operador perde leitura e operações se o módulo deixar de ser visível.
 reset role;
