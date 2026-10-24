@@ -603,3 +603,19 @@ A versão de sistema da Agenda/Pauta foi publicada na Vercel PRODUCTION, deploym
   plano não reconfigura limites automaticamente.
 - Sem push na main, sem deploy, sem changes em Supabase remoto e sem
   e-mails enviados. Revisar status CI do HEAD antes do aceite.
+
+### Observação de produção (somente consulta, 23/10/2026)
+
+Consulta agregada de `site-system-ir` (sem revelar e-mails ou nomes):
+**3 perfis**, dos quais **2 perfis têm `name` igual ao prefixo do e-mail**,
+**2 convites continuam sem confirmação de e-mail**, e **2 perfis têm
+`active=true` apesar de `email_confirmed_at` nulo**. A RLS atual
+confere a confirmação real do e-mail para operações internas; `active`
+sozinho não prova acesso.
+
+A origem exata da não entrega ainda não pode ser afirmada sem
+verificar SMTP/fluxo com caixas postais de teste. Nenhum dado de usuário
+foi alterado no banco remoto. A nova regra `active=false` vale somente
+após aplicação futura da migration em homologação/produção autorizada.
+Perfis legados serão revisados pela interface, não renomeados por
+suposição ou autoativados.
