@@ -4,6 +4,7 @@ import { readFileSync } from "node:fs";
 import { NFSE_AVAILABLE_IN_THIS_RELEASE, NFSE_POSTPONED_MESSAGE } from "../src/lib/release/releasePolicy";
 import { ALTNIX_CLIENT_EXPORT_RELEASED } from "../src/lib/integrations/altnixDigitalClientContract";
 import { adminModules } from "../src/lib/navigation";
+import { canUseSupabaseAdminCredentials } from "../src/lib/release/previewIsolationPolicy";
 
 function source(path: string): string {
   return readFileSync(new URL("../src/" + path, import.meta.url), "utf8");
@@ -36,4 +37,17 @@ test("consulta remota Altnix falha antes de qualquer verificação de secret/amb
   const gate = remote.indexOf("if (!ALTNIX_CLIENT_EXPORT_RELEASED)");
   const env = remote.indexOf('process.env.ALTNIX_CLIENT_SYNC_ENABLED !== "true"',gate);
   assert.ok(gate >= 0 && env > gate);
+});
+
+test("service_role não pode ser utilizada em Preview, Staging ou Development da Vercel", () => {
+  assert.equal(canUseSupabaseAdminCredentials("preview"), false);
+  assert.equal(canUseSupabaseAdminCredentials("staging"), false);
+  assert.equal(canUseSupabaseAdminCredentials("development"), false);
+  assert.equal(canUseSupabaseAdminCredentials("production"), true);
+  assert.equal(canUseSupabaseAdminCredentials(undefined), true); // Dev local controlado.
+  // Teste de regressão: os dois caminhos de Admin API consultam a proteção,
+  // e não basta ocultar o botão do cliente.
+  const admin = source("lib/supabase/admin.ts");
+  assert.match(admin, /return canUseSupabaseAdminCredentials\(process\.env\.VERCEL_ENV\)/);
+  assert.match(admin, /if \(!canUseSupabaseAdminCredentials\(process\.env\.VERCEL_ENV\)\)/);
 });
