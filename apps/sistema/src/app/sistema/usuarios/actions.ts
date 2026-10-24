@@ -24,9 +24,14 @@ async function requireUserManager(): Promise<
   if (authError || !auth.user) return { error: "Sessão inválida. Faça login novamente." };
   const { data: profile, error } = await supabase.from("profiles")
     .select("role,active").eq("id", auth.user.id).maybeSingle();
-  if (error || !profile?.active || !["owner", "admin"].includes(profile.role)) {
+  if (error || !profile?.active || !["owner", "admin"].includes(profile.role)
+      || !auth.user.email_confirmed_at) {
     return { error: "Sem permissão para administrar usuários." };
   }
+  const {data:confirmedManager,error:grantError}=
+    await supabase.rpc("is_active_admin_or_owner");
+  if(grantError||confirmedManager!==true)
+    return {error:"Confirme seu e-mail e sua autorização administrativa."};
   return { id: auth.user.id, role: profile.role as "owner" | "admin" };
 }
 
@@ -48,25 +53,12 @@ export async function inviteUser(email: string, name: string, role: InviteRole):
   if (!displayName) return { error: "Informe o nome real do usuário (3 a 120 caracteres)." };
   if (role !== "operator" && role !== "admin") return { error: "Papel inválido." };
 
-  const supabase = createSupabaseServerClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return { error: "Sessão inválida. Faça login novamente." };
-
-  const { data: requester } = await supabase
-    .from("profiles")
-    .select("role, active")
-    .eq("id", user.id)
-    .maybeSingle();
-
-  if (!requester || !requester.active) return { error: "Conta inativa." };
-  if (requester.role !== "owner" && requester.role !== "admin") {
-    return { error: "Você não tem permissão para convidar usuários." };
+  const manager=await requireUserManager();
+  if("error" in manager) return manager;
+  if(role==="admin" && manager.role!=="owner") {
+    return {error:"Somente o proprietário pode convidar administradores."};
   }
-  if (role === "admin" && requester.role !== "owner") {
-    return { error: "Somente o proprietário pode convidar administradores." };
-  }
+  const supabase=createSupabaseServerClient();
 
   if (!hasServiceRoleKey()) {
     return {
@@ -96,27 +88,18 @@ export async function inviteUser(email: string, name: string, role: InviteRole):
   // da autenticação de owner/admin e convite aceito pelo Auth,
   // habilitar staff explicitamente e gravar o nome real.
   const { data: namedProfile, error: nameError } = await admin.from("profiles")
-    .update({ name: displayName, active: true }).eq("id", invited.user.id).select("id").maybeSingle();
+    .update({name:displayName,role,active:true})
+    .eq("id",invited.user.id).eq("active",false)
+    .select("id").maybeSingle();
   if (nameError || !namedProfile) {
     console.error("Falha ao salvar nome do convidado:", nameError?.code ?? "profile_not_found");
     return { error: "Convite solicitado, mas houve erro ao salvar o nome. Edite o perfil do usuário na lista." };
   }
 
-  // O trigger de auth.users já criou o profile como "operator". Promover a
-  // admin é um segundo passo, agora possível de verdade (diferente do
-  // signInWithOtp anterior) porque a Admin API devolve o id do usuário
-  // criado — usamos o cliente admin (service_role) para não depender da
-  // RLS de profiles nesta escrita pontual.
-  if (role === "admin") {
-    const { error: promoteError } = await admin.from("profiles").update({ role: "admin" }).eq("id", invited.user.id);
-    if (promoteError) {
-      return { error: "Convite enviado, mas não foi possível definir o papel como Administrador. Promova manualmente na lista." };
-    }
-  }
 
   try {
     await recordAuditEventSupabase(supabase, {
-      userId: user.id,
+      userId: manager.id,
       entityType: "users",
       entityId: invited.user.id,
       action: "invite",
