@@ -43,8 +43,20 @@ jobs:
       - name: Typecheck site
         run: npm run typecheck --workspace @ir/site
 
-      - name: Build site
-        run: npm run build --workspace @ir/site
+      - name: Build site (retry apenas para indisponibilidade externa de fontes)
+        run: |
+          # next/font/google depende da resposta externa do Google Fonts.
+          # Tentativas extras não mascaram erros persistentes de compilação.
+          for attempt in 1 2 3; do
+            if npm run build --workspace @ir/site; then
+              exit 0
+            fi
+            if [ "$attempt" -eq 3 ]; then
+              echo "Build do portal falhou apos tres tentativas." >&2
+              exit 1
+            fi
+            sleep 5
+          done
 
       - name: Typecheck system
         run: npm run typecheck --workspace @ir/sistema
