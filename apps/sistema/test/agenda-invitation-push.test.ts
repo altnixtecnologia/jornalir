@@ -4,6 +4,7 @@ import {
   buildAgendaInvitationNotification,
   agendaInvitationStillPending,
   agendaReminderRecipients,
+  currentAgendaReminderPush,
 } from "../src/lib/notifications/agendaInvitationPolicy";
 
 const now = "2026-10-24T18:50:00.000Z";
@@ -60,4 +61,35 @@ test("lembrete reúne responsáveis e convidados que aceitaram sem duplicar dest
     { profile_id: "mesma-pessoa", completed_at: null, meetingOnly: false },
     { profile_id: "convidado", completed_at: null, meetingOnly: true },
   ]);
+});
+
+const baseReminder = {
+  title: "Reunião da redação",
+  event_date: "2026-10-25",
+  start_time: "10:00:00",
+  end_time: "11:00:00",
+  reminder_minutes: 30,
+  status: "scheduled",
+  event_kind: "general",
+};
+const recipient = "33333333-3333-4333-8333-333333333333";
+const reminderKey = "agenda:reminder:11111111-1111-4111-8111-111111111111:2026-10-25T09:30:" + recipient;
+const overdueKey = "agenda:overdue:11111111-1111-4111-8111-111111111111:2026-10-25T11:10:" + recipient;
+
+test("lembrete é entregue ao convidado aceito, nunca cria alerta de atraso ao convidado", () => {
+  const reminder = currentAgendaReminderPush(reminderKey, recipient, baseReminder, null, "accepted", "2026-10-25T09:31");
+  assert.match(reminder?.title || "", /Reunião da redação/);
+  assert.equal(currentAgendaReminderPush(reminderKey, recipient, baseReminder, null, "declined", "2026-10-25T09:31"), null);
+  assert.equal(currentAgendaReminderPush(overdueKey, recipient, baseReminder, null, "accepted", "2026-10-25T11:11"), null);
+});
+
+test("lembrete obsoleto é bloqueado após edição, cancelamento ou conclusão", () => {
+  const active = { completed_at: null };
+  assert.equal(currentAgendaReminderPush(reminderKey, recipient, {...baseReminder,status:"cancelled"}, active, null,"2026-10-25T09:31"),null);
+  assert.equal(currentAgendaReminderPush(reminderKey, recipient, {...baseReminder,start_time:"12:00:00"}, active, null,"2026-10-25T09:31"),null);
+  assert.equal(currentAgendaReminderPush(reminderKey, recipient, baseReminder,{completed_at:"2026-10-25T08:00:00Z"},null,"2026-10-25T09:31"),null);
+  assert.equal(currentAgendaReminderPush(reminderKey, recipient, baseReminder,active,null,"2026-10-25T09:41"),null);
+  assert.equal(currentAgendaReminderPush(reminderKey, invite.profile_id, baseReminder,active,null,"2026-10-25T09:31"),null);
+  assert.equal(currentAgendaReminderPush(reminderKey, recipient, {...baseReminder,title:"Novo título"},active,null,"2026-10-25T09:31")?.title,"📅 Novo título");
+  assert.match(currentAgendaReminderPush(overdueKey, recipient, baseReminder,active,null,"2026-10-25T11:11")?.title || "",/atrasado/);
 });
