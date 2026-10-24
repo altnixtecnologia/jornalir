@@ -76,9 +76,10 @@ export function CommercialSaleDetail({
   const [firstDueDate, setFirstDueDate] = useState(sale.startDate);
   const [generateResults, setGenerateResults] = useState<GenerateFinanceiroResult[] | null>(null);
 
-  const financeiroGenerated = receivables.some((r) => r.status !== "cancelled");
+  const financeiroGenerated = receivables.length > 0;
   const snapshotLocked = Boolean(sale.itemsSnapshot?.length);
-  const remainingInstallments = sale.installmentsCount - receivables.filter((r) => r.status !== "cancelled").length;
+  const remainingInstallments = Math.max(0,sale.installmentsCount -
+    new Set(receivables.map(r=>r.installmentNumber).filter(n=>n!=null)).size);
   const nextStatuses = COMMERCIAL_SALE_STATUS_TRANSITIONS[sale.status];
 
   function set<K extends keyof CommercialSaleFormInput>(key: K, value: CommercialSaleFormInput[K]): void {
@@ -372,7 +373,7 @@ export function CommercialSaleDetail({
           <p className="helper-text" style={{ marginTop: "12px" }}>
             Negociação em cortesia — sem cobrança, nenhum título a gerar.
           </p>
-        ) : remainingInstallments > 0 && sale.status !== "cancelled" ? (
+        ) : remainingInstallments > 0 && ["approved","active","completed"].includes(sale.status) ? (
           <div style={{ marginTop: "12px" }}>
             <div className="form-grid">
               <label className="form-field">
@@ -389,7 +390,7 @@ export function CommercialSaleDetail({
               <ul className="helper-text">
                 {generateResults.map((result) => (
                   <li key={result.installmentNumber}>
-                    Parcela {result.installmentNumber}: {result.ok ? "gerada com sucesso" : `não gerada — ${result.error}`}
+                    Parcela {result.installmentNumber}: {result.alreadyGenerated ? "já existente, conferida sem duplicação" : result.ok ? "gerada com sucesso" : `não gerada — ${result.error}`}
                   </li>
                 ))}
               </ul>

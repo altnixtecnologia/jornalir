@@ -11,7 +11,7 @@ import { getClientService } from "../../../../../composition/clientes";
 import { createSupabaseServerClient } from "../../../../../lib/supabase/server";
 import { checkModuleAction } from "../../../../../lib/permissions/checkModuleAction";
 import { checkFinanceAction } from "../../../../../lib/permissions/checkFinanceAction";
-import { validateCommercialSaleForBilling } from "../../../../../lib/financeiro/commercialSaleBillingGuard";
+import { inspectExistingCommercialInstallment,validateCommercialSaleForBilling } from "../../../../../lib/financeiro/commercialSaleBillingGuard";
 import { getAuditContext } from "../../../../../lib/auth/getAuditContext";
 import { recordAuditEventSupabase } from "../../../../../providers/supabase/auditEvents.supabase";
 import { listReceivablesForCommercialSalesSupabase } from "../../../../../providers/supabase/receivableRepository.supabase";
@@ -37,7 +37,7 @@ export async function updateCommercialSaleAction(id: string, input: CommercialSa
     const client = createSupabaseServerClient();
     const AUDIT = await getAuditContext(client);
     const existing = await listReceivablesForCommercialSalesSupabase(client, [id]);
-    const financeiroGenerated = existing.some((r) => r.status !== "cancelled");
+    const financeiroGenerated = existing.length > 0;
     await getCommercialSaleService(client).update(id, toCommercialSaleServiceInput(input), { financeiroGenerated });
     await recordAuditEventSupabase(client, { userId: AUDIT.actorId, entityType: ENTITY_TYPE, entityId: id, action: "update" });
   } catch (error) {
@@ -85,6 +85,7 @@ export async function cancelCommercialSaleAction(id: string): Promise<{ error: s
 export interface GenerateFinanceiroResult {
   installmentNumber: number;
   ok: boolean;
+  alreadyGenerated?: boolean;
   error?: string;
 }
 
@@ -109,9 +110,23 @@ export async function generateCommercialSaleFinanceiroAction(id: string, firstDu
     if(billingError) return {error:billingError};
     const drafts = generateCommercialSaleInstallments(sale, firstDueDate);
     const receivableService = getReceivableService(client);
+    const existing=await listReceivablesForCommercialSalesSupabase(client,[id]);
+    const byNumber=new Map(existing.map(r=>[r.installmentNumber,r]));
 
     const results: GenerateFinanceiroResult[] = [];
     for (const draft of drafts) {
+      const prior=byNumber.get(draft.installmentNumber);
+      if(prior){
+        const inspection=inspectExistingCommercialInstallment(
+          draft,prior,sale.clientId,
+        );
+        results.push({installmentNumber:draft.installmentNumber,
+          ok:inspection.alreadyGenerated,
+          alreadyGenerated:inspection.alreadyGenerated,
+          error:inspection.error,
+        });
+        continue;
+      }
       try {
         await receivableService.registerFromCommercialSale({
           clientId: sale.clientId,
@@ -126,7 +141,23 @@ export async function generateCommercialSaleFinanceiroAction(id: string, firstDu
         });
         results.push({ installmentNumber: draft.installmentNumber, ok: true });
       } catch (error) {
-        results.push({ installmentNumber: draft.installmentNumber, ok: false, error: toErrorMessage(error) });
+        // Outro operador pode ter gerado a mesma parcela na corrida.
+        // Se ela existir, só considerar sucesso caso valores e vencimento
+        // correspondam exatamente à venda e não esteja cancelada.
+        const after=await listReceivablesForCommercialSalesSupabase(client,[id]);
+        const concurrent=after.find(r=>r.installmentNumber===draft.installmentNumber);
+        if(concurrent){
+          const inspection=inspectExistingCommercialInstallment(
+            draft,concurrent,sale.clientId,
+          );
+          results.push({installmentNumber:draft.installmentNumber,
+            ok:inspection.alreadyGenerated,alreadyGenerated:inspection.alreadyGenerated,
+            error:inspection.error,
+          });
+        }else{
+          results.push({ installmentNumber:draft.installmentNumber,ok:false,
+            error:toErrorMessage(error) });
+        }
       }
     }
 
@@ -135,7 +166,7 @@ export async function generateCommercialSaleFinanceiroAction(id: string, firstDu
       entityType: ENTITY_TYPE,
       entityId: id,
       action: "generate_financeiro",
-      metadata: { generated: results.filter((r) => r.ok).length },
+      metadata: { generated: results.filter((r) => r.ok&&!r.alreadyGenerated).length, alreadyPresent: results.filter(r=>r.alreadyGenerated).length, failed: results.filter(r=>!r.ok).length },
     });
 
     revalidatePath(listPath(id));
