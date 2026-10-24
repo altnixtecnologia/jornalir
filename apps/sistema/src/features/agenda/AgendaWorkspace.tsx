@@ -457,7 +457,7 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
           .filter((id):id is string=>typeof id==="string");
         run(()=>setAgendaMeetingInviteesAction(item.id,ids),"Convidados atualizados no sistema.");
       }}>
-        <p className="helper-text">Convite interno: o participante poderá aceitar ou recusar na Agenda. Nenhum e-mail ou Telegram é enviado nesta etapa.</p>
+        <p className="helper-text">Os convidados podem aceitar ou recusar na Agenda. Quem ativou o Web Push e os avisos da Agenda poderá receber uma notificação individual; não é enviado e-mail nem mensagem individual no Telegram.</p>
         <fieldset className="agenda-assignees">
           <legend>Convidados da reunião</legend>
           <div className="agenda-assignee-options">
