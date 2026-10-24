@@ -16,6 +16,7 @@ create table public.commercial_contract_addenda (
  approved_by uuid references public.profiles(id) on delete restrict,
  approved_at timestamptz,
  approval_note text,
+ last_return_note text check(last_return_note is null or length(btrim(last_return_note)) between 20 and 1000),
  unique(original_document_id,addendum_number),
  check(
   (status='legal_approved' and approved_by is not null and approved_at is not null
@@ -110,6 +111,7 @@ begin
     raise exception 'Aditivo precisa qualificar as partes e conter texto jurídico completo.'
      using errcode='23514';
    end if;
+   new.last_return_note:=null;
    insert into public.commercial_contract_addendum_events(addendum_id,event_type,note,actor_id)
     values(old.id,'submitted','Encaminhado para conferência jurídica',auth.uid());
   end if;
@@ -122,8 +124,11 @@ begin
     or new.legal_text is distinct from old.legal_text then
     raise exception 'Retorne para rascunho antes de editar o conteúdo.' using errcode='23514';
    end if;
+   if length(btrim(coalesce(new.last_return_note,''))) not between 20 and 1000 then
+    raise exception 'Justifique a devolução do aditivo em 20 a 1000 caracteres.' using errcode='23514';
+   end if;
    insert into public.commercial_contract_addendum_events(addendum_id,event_type,note,actor_id)
-    values(old.id,'returned','Devolvido para ajustes do conteúdo',auth.uid());
+    values(old.id,'returned',btrim(new.last_return_note),auth.uid());
   elsif new.status='legal_approved' then
    if not public.staff_can_module_action('publicidade','contratos_revisar') then
     raise exception 'Aprovação jurídica restrita.' using errcode='42501';
