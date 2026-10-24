@@ -370,9 +370,17 @@ begin
   -- Somente após a vinculação administrativa de colaborador, este perfil
   -- já confirmado pode executar ações de staff de operador.
   insert into public.staff_memberships(profile_id) values(v_id);
+  -- Mesmo com membership concedida, e-mail ainda não confirmado NUNCA
+  -- pode liberar função SECURITY DEFINER ou entrada no painel.
+  update auth.users set email_confirmed_at=null where id=v_id;
+  if public.is_active_staff() or public.is_active_admin()
+     or public.is_active_owner() or public.is_active_admin_or_owner() then
+    raise exception 'SEGURANÇA: membership liberou operador sem e-mail confirmado.';
+  end if;
+  update auth.users set email_confirmed_at=now() where id=v_id;
   if not public.is_active_staff() or public.is_active_admin()
      or public.is_active_owner() or public.is_active_admin_or_owner() then
-    raise exception 'SEGURANÇA: membership não liberou apenas o operador correto.';
+    raise exception 'SEGURANÇA: membership e e-mail confirmado não liberaram somente operador.';
   end if;
 end;
 $auth_user_regression$;
