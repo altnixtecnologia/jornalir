@@ -9,6 +9,7 @@ import { getPaymentChargeService, getReceivableService } from "../../../../compo
 import { getClientService } from "../../../../composition/clientes";
 import { createSupabaseServerClient } from "../../../../lib/supabase/server";
 import { checkFinanceAction } from "../../../../lib/permissions/checkFinanceAction";
+import { validateChargeReceivableLink } from "../../../../lib/financeiro/commercialSaleBillingGuard";
 import { todayInSaoPauloISO } from "../../../../lib/date/saoPauloDate";
 import { getAuditContext } from "../../../../lib/auth/getAuditContext";
 import { isLocalPreviewEnabled, LOCAL_PREVIEW_PROFILE } from "../../../../lib/auth/localPreview";
@@ -417,8 +418,18 @@ export async function cancelPixChargeAction(chargeId: string, receivableId: stri
   if (permissionError) return { error: permissionError };
   try {
     const client = createSupabaseServerClient();
+    const charges=getPaymentChargeService(client);
+    // O navegador informa os dois IDs; conferi-los com os registros reais
+    // antes de chamar DELETE no Asaas. Nunca cancelar cobrança de outro título.
+    const [charge,receivable]=await Promise.all([
+      charges.getById(chargeId),getReceivableService(client).getById(receivableId),
+    ]);
+    const mismatch=validateChargeReceivableLink(charge,receivable);
+    if(mismatch) return {error:mismatch};
+    if(!reason.trim() || reason.trim().length<8)
+      return {error:"Informe um motivo de cancelamento com pelo menos 8 caracteres."};
     const cancelledByProfileId = await resolveActorId(client);
-    await getPaymentChargeService(client).cancelPixCharge(chargeId, { cancelledByProfileId, cancellationReason: reason });
+    await charges.cancelPixCharge(chargeId, { cancelledByProfileId, cancellationReason: reason.trim() });
   } catch (error) {
     return { error: toErrorMessage(error) };
   }
@@ -437,12 +448,24 @@ export async function confirmPixChargeAction(
   chargeId: string,
   receivableId: string,
 ): Promise<{ error: string } | { ok: true; overpaymentAmount: number }> {
+  // A função existe apenas para simulação de apresentação. A confirmação
+  // real vem EXCLUSIVAMENTE do webhook validado, via service_role,
+  // e de sua RPC transacional. Uma chamada fabricada à Server Action
+  // jamais deve confirmar pagamento financeiro real.
+  if(!isLocalPreviewEnabled())
+    return {error:"Confirmação de Pix é automática pelo Asaas; esta ação só existe na demonstração local."};
   const permissionError = await checkFinanceAction("recebimentos_baixar");
   if (permissionError) return { error: permissionError };
   try {
     const client = createSupabaseServerClient();
+    const charges=getPaymentChargeService(client);
+    const [charge,receivable]=await Promise.all([
+      charges.getById(chargeId),getReceivableService(client).getById(receivableId),
+    ]);
+    const mismatch=validateChargeReceivableLink(charge,receivable);
+    if(mismatch) return {error:mismatch};
     const receivedByProfileId = await resolveActorId(client);
-    const result = await getPaymentChargeService(client).confirmPixCharge(chargeId, new Date().toISOString().slice(0, 10), receivedByProfileId);
+    const result = await charges.confirmPixCharge(chargeId, new Date().toISOString().slice(0, 10), receivedByProfileId);
     revalidatePath(`${LIST_PATH}/${receivableId}`);
     return { ok: true, overpaymentAmount: result.overpaymentAmount };
   } catch (error) {

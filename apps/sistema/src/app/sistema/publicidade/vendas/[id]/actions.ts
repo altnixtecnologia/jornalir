@@ -11,6 +11,7 @@ import { getClientService } from "../../../../../composition/clientes";
 import { createSupabaseServerClient } from "../../../../../lib/supabase/server";
 import { checkModuleAction } from "../../../../../lib/permissions/checkModuleAction";
 import { checkFinanceAction } from "../../../../../lib/permissions/checkFinanceAction";
+import { validateCommercialSaleForBilling } from "../../../../../lib/financeiro/commercialSaleBillingGuard";
 import { getAuditContext } from "../../../../../lib/auth/getAuditContext";
 import { recordAuditEventSupabase } from "../../../../../providers/supabase/auditEvents.supabase";
 import { listReceivablesForCommercialSalesSupabase } from "../../../../../providers/supabase/receivableRepository.supabase";
@@ -102,11 +103,10 @@ export async function generateCommercialSaleFinanceiroAction(id: string, firstDu
     const client = createSupabaseServerClient();
     const AUDIT = await getAuditContext(client);
     const sale = await getCommercialSaleService(client).getById(id);
-    // Cortesia nunca gera cobrança — nem um título de R$ 0,00 só pra
-    // representar a negociação (item 5 da auditoria de integridade).
-    if (sale.commercialCondition === "courtesy") {
-      return { error: "Negociação em cortesia — sem cobrança, nenhum título a gerar." };
-    }
+    // Nunca faturar proposta/cancelada, cortesia, zero ou data inválida.
+    // Revalidar no servidor antes da primeira inserção.
+    const billingError=validateCommercialSaleForBilling(sale,firstDueDate);
+    if(billingError) return {error:billingError};
     const drafts = generateCommercialSaleInstallments(sale, firstDueDate);
     const receivableService = getReceivableService(client);
 
