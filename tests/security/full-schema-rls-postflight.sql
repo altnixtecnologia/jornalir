@@ -106,6 +106,23 @@ begin
      and not t.tgisinternal) then
    raise exception 'Falta proteção do rascunho fiscal.';
  end if;
+ if to_regclass('public.commercial_signature_attempts') is null then
+   raise exception 'Tentativas de assinatura comercial não registradas.';
+ end if;
+ if has_table_privilege('anon','public.commercial_signature_attempts','SELECT')
+   or has_table_privilege('authenticated','public.commercial_signature_attempts','INSERT')
+   or has_table_privilege('authenticated','public.commercial_signature_attempts','UPDATE')
+   or has_table_privilege('authenticated','public.commercial_signature_attempts','DELETE') then
+   raise exception 'Tentativas comerciais com privilégios diretos indevidos.';
+ end if;
+ if has_function_privilege('anon',
+    'public.begin_commercial_signature_attempt(uuid,uuid,text,text)','EXECUTE')
+   or has_function_privilege('authenticated',
+    'public.begin_commercial_signature_attempt(uuid,uuid,text,text)','EXECUTE')
+   or not has_function_privilege('service_role',
+    'public.begin_commercial_signature_attempt(uuid,uuid,text,text)','EXECUTE') then
+   raise exception 'RPC de recuperação exposta a cliente sem autorização.';
+ end if;
  if to_regclass('public.commercial_signature_requests') is null or
     to_regclass('public.commercial_signature_invitations') is null then
    raise exception 'Rodadas e convites comerciais não foram criados.';
