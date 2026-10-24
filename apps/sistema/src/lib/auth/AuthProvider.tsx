@@ -83,8 +83,11 @@ export function AuthProvider({
       }
       const {data:staffAllowed,error:staffError}=await client.rpc("is_active_staff");
       if (!data.active || staffError || staffAllowed!==true) {
-        await client.auth.signOut();
-        if (cancelled) return;
+        // O AuthProvider envolve TODO o app, inclusive as páginas públicas
+        // dos signatários comerciais/institucionais. NUNCA desconectar
+        // automaticamente aqui: o mesmo e-mail/sessão do OTP é necessário
+        // para assinar. Middleware + RLS bloqueiam o painel; AuthGate só
+        // impede renderização interna. Logout é decisão explícita do usuário.
         setProfile(null);
         setStatus("inactive");
         return;
