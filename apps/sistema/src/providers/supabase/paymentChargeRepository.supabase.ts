@@ -144,7 +144,11 @@ export function createPaymentChargeRepositorySupabase(client: SupabaseClient): P
         previewCharges.push(charge);
         return charge;
       }
-      const { data, error } = await client.from(TABLE).insert(toRow(record)).select(COLUMNS).single();
+      // Nunca expor INSERT direto de cobrança ao operador (nem ao admin).
+      // A Server Action validou pix_gerar, cliente, saldo e título antes
+      // de chamar este repositório; só ela usa a chave service_role.
+      const writer = createSupabaseAdminClient();
+      const { data, error } = await writer.from(TABLE).insert(toRow(record)).select(COLUMNS).single();
       if (error?.code === "23505") throw new PaymentChargeAlreadyPendingError();
       if (error) throw new Error(error.message);
       return toDomain(data as unknown as PaymentChargeRow);

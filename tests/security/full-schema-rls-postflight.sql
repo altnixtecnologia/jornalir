@@ -122,8 +122,10 @@ begin
     or has_table_privilege('anon','public.billing_notification_dispatches','SELECT') then
    raise exception 'Operador pode adulterar reserva do WhatsApp.';
  end if;
- if has_table_privilege('authenticated','public.payment_charges','UPDATE') then
-   raise exception 'Pix permite PATCH direto por usuário autenticado.';
+ if has_table_privilege('authenticated','public.payment_charges','UPDATE')
+    or has_table_privilege('authenticated','public.payment_charges','INSERT')
+    or has_table_privilege('anon','public.payment_charges','INSERT') then
+   raise exception 'Pix permite escrita direta por usuário fora do servidor.';
  end if;
  if not exists(select 1 from information_schema.columns
    where table_schema='public' and table_name='billing_webhook_events' and column_name='processing_token') then
