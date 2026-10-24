@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { toAltnixDigitalClient, sanitizeDigitalClientSearch } from "../src/lib/integrations/altnixDigitalClientContract";
+import { ALTNIX_CLIENT_EXPORT_RELEASED, toAltnixDigitalClient, sanitizeDigitalClientSearch } from "../src/lib/integrations/altnixDigitalClientContract";
 
 const data = {
   id: "11111111-1111-4111-8111-111111111111",
@@ -36,4 +36,10 @@ test("busca rejeita filtro sem conteúdo e neutraliza sintaxe da query", () => {
   assert.equal(sanitizeDigitalClientSearch("*"),null);
   assert.equal(sanitizeDigitalClientSearch("a"),null);
   assert.equal(sanitizeDigitalClientSearch("  Maria, (x)  "),"Maria x");
+});
+
+test("integração remota não foi liberada neste release, independentemente de ambiente", () => {
+  // A rota consulta esta trava ANTES de segredo, env, sessão e banco.
+  // Alterar o valor exige revisão e autorização específica no release futuro.
+  assert.equal(ALTNIX_CLIENT_EXPORT_RELEASED, false);
 });
