@@ -79,10 +79,13 @@ export class PaymentChargeService {
     });
 
     if (providerResult.status === "paid") {
-      const confirmed = await this.charges.confirmCharge(created.id, {
-        receivedAt: new Date().toISOString().slice(0, 10),
-      });
-      return confirmed.charge;
+      // Recuperação de uma cobrança previamente recebida no Asaas:
+      // usuário com autorização apenas de "gerar Pix" NÃO pode nem deve
+      // invocar confirm_payment_charge via sessão comum (a RPC requer
+      // service_role). Persistir como pending para que o webhook autenticado
+      // execute a liquidação automática transacional. Isso preserva a
+      // referência remota para conciliação em vez de falhar após o INSERT.
+      return created;
     }
 
     return created;
