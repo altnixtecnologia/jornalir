@@ -57,6 +57,16 @@
 - **Vercel `jornalir`:** R2 listado só para Preview; confirmar dependência do portal em Production antes de copiar/criar envs. Auto-deploy Git não foi confirmado pelas consultas; exigir inspeção no dashboard.
 - **Ferramenta de liberação sem credenciais:** `scripts/release/migration-preflight.mjs --remote /caminho/historico.json`. Aceita somente metadados `version/name`, não executa SQL nem se conecta ao banco, sinaliza drift com código 2. Testes puros `scripts/release/migration-preflight.test.mjs` no CI. O relatório do script não substitui revisão manual nem backup.
 
+
+## C.2 — Mitigações emergenciais APLICADAS no ambiente real
+
+Após autorização específica do proprietário, foram **corrigidos** os dois principais vetores imediatos encontrados no banco:
+1. **Nove RPCs privilegiadas** deixaram de ser executáveis por `anon`; entre elas `save_client`, `legacy_import_article`, PDF/importação, `publish_due_scheduled_articles` e `reserve_next_dps_number`. As ACLs reais foram conferidas novamente, preservando trabalho autenticado/service_role. Supabase Advisors: 41 → 32 alertas anônimos (restam trigger helpers e formulários deliberadamente públicos, ainda sob revisão).
+2. **Novos Auth users agora nascem `operator,active=false`**, por substituição segura de `handle_new_auth_user` com o corpo já versionado na migration futura. Perfis existentes preservados.
+3. **Credencial Asaas LIVE no Preview** foi neutralizada substituindo APENAS o valor da variável Preview-only por marcador inválido; registro Production intacto. **Chave antiga deve ser rotacionada no Asaas**: Preview deploys antigos não são automaticamente invalidados pela edição.
+
+O registro detalhado das mudanças **de fato realizadas no remoto**, as provas pós-aplicação, impactos, limitações e roteiro de continuidade estão em `docs/HOTFIX-SEGURANCA-REAL-20261024.md`. Nenhuma dessas ações aplica automaticamente as 43 migrations de release, liberta NFS-e, autoriza Altnix ou substitui testes reais de login. **GO continua bloqueado** até fechar os outros requisitos.
+
 ## D. GO/NO-GO e notas de continuidade
 
 - **NO-GO** enquanto houver falha de CI no SHA final, divergência de branches não conciliada, migrations não conferidas, autorização real faltando ou teste operacional crítico pendente.
