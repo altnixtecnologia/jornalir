@@ -1,5 +1,6 @@
 import "server-only";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import { canUseSupabaseAdminCredentials } from "../release/previewIsolationPolicy";
 
 /**
  * Cliente administrativo (Admin API do Supabase) — a ÚNICA função deste
@@ -14,10 +15,16 @@ import { createClient, type SupabaseClient } from "@supabase/supabase-js";
  * de quebrar — nunca lançamos aqui como em `createSupabaseClient()`.
  */
 export function hasServiceRoleKey(): boolean {
-  return Boolean(process.env.SUPABASE_SERVICE_ROLE_KEY);
+  // Segurança: Preview/Staging na Vercel NUNCA usam credencial privilegiada,
+  // mesmo que a variável tenha sido configurada por engano.
+  return canUseSupabaseAdminCredentials(process.env.VERCEL_ENV)
+    && Boolean(process.env.SUPABASE_SERVICE_ROLE_KEY);
 }
 
 export function createSupabaseAdminClient(): SupabaseClient {
+  if (!canUseSupabaseAdminCredentials(process.env.VERCEL_ENV)) {
+    throw new Error("Admin API desativada fora do ambiente Production da Vercel.");
+  }
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
