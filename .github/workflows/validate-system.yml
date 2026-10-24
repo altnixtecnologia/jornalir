@@ -83,6 +83,9 @@ jobs:
       - name: Testar diagnósticos do e-mail de ativação
         run: npx tsx --test apps/sistema/test/auth-mail-diagnostics.test.ts
 
+      - name: Testar recuperação de evidências comerciais após falha parcial
+        run: npx tsx --test apps/sistema/test/commercial-evidence-recovery.test.ts
+
       - name: Signed contract PDF smoke test
         run: node apps/sistema/scripts/signatures-smoke.cjs
 
