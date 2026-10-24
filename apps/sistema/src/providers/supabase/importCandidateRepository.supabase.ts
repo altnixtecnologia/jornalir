@@ -174,6 +174,7 @@ export function createImportCandidateRepositorySupabase(client: SupabaseClient):
         p_pages_without_text: batchMeta?.pagesWithoutText ?? [],
         p_warnings: batchMeta?.warnings ?? [],
         p_candidates: records.map(recordToRow),
+        p_force: batchMeta?.force === true,
       });
       if (error) throw new Error(error.message);
       return ((data ?? []) as CandidateRow[]).map(toDomain);

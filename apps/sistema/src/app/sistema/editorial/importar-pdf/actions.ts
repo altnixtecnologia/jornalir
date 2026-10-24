@@ -2,6 +2,7 @@
 
 import { createHash } from "node:crypto";
 import { revalidatePath } from "next/cache";
+import {checkModuleAction} from "../../../../lib/permissions/checkModuleAction";
 import type { ArticleMedia } from "@ir/types";
 import { getImportCandidateService, getNewspaperEditionService } from "../../../../composition/editorial";
 import { extractCandidatesFromPdf } from "../../../../composition/pdfCandidateExtraction";
@@ -53,6 +54,8 @@ export async function generateCandidates(
   editionId: string,
   formData: FormData,
 ): Promise<{ error: string } | DuplicatePdfResult | GenerateCandidatesResult> {
+  const permissionError=await checkModuleAction("editorial","edicoes_gerenciar");
+  if(permissionError)return {error:permissionError};
   if (!editionId) return { error: "Selecione uma edição." };
 
   const file = formData.get("pdf");
@@ -88,6 +91,7 @@ export async function generateCandidates(
     const result = await extractCandidatesFromPdf(editionId, buffer, candidateService, {
       fileName: file.name,
       fileHash,
+      force,
     });
     if (result.candidates.length === 0) {
       return {
@@ -124,6 +128,8 @@ export async function generateCandidatesFromArchivedPdf(
   editionId: string,
   force = false,
 ): Promise<{ error: string } | DuplicatePdfResult | GenerateCandidatesResult> {
+  const permissionError=await checkModuleAction("editorial","edicoes_gerenciar");
+  if(permissionError)return {error:permissionError};
   if (!editionId) return { error: "Selecione uma edição." };
 
   try {
@@ -156,6 +162,7 @@ export async function generateCandidatesFromArchivedPdf(
     const result = await extractCandidatesFromPdf(editionId, buffer, candidateService, {
       fileName,
       fileHash,
+      force,
     });
     if (result.candidates.length === 0) {
       return {
@@ -181,6 +188,8 @@ export async function generateCandidatesFromArchivedPdf(
 }
 
 export async function discardCandidate(id: string): Promise<ActionResult> {
+  const permissionError=await checkModuleAction("editorial","materias_editar");
+  if(permissionError)return {error:permissionError};
   try {
     await getImportCandidateService(createSupabaseServerClient()).discard(id);
   } catch (error) {
@@ -194,6 +203,8 @@ export async function discardCandidate(id: string): Promise<ActionResult> {
  * (`pending`) — nunca restaura um que foi absorvido por merge (ver
  * ImportCandidateService.restore). */
 export async function restoreCandidate(id: string): Promise<ActionResult> {
+  const permissionError=await checkModuleAction("editorial","materias_editar");
+  if(permissionError)return {error:permissionError};
   try {
     await getImportCandidateService(createSupabaseServerClient()).restore(id);
   } catch (error) {
@@ -210,6 +221,8 @@ export async function mergeCandidates(
   if (secondaryIds.length === 0) {
     return { error: "Selecione ao menos dois candidatos para mesclar." };
   }
+  const permissionError=await checkModuleAction("editorial","materias_editar");
+  if(permissionError)return {error:permissionError};
   try {
     await getImportCandidateService(createSupabaseServerClient()).merge(primaryId, secondaryIds);
   } catch (error) {
@@ -226,6 +239,8 @@ export interface SplitResult {
 }
 
 export async function splitCandidate(id: string): Promise<{ error: string } | SplitResult> {
+  const permissionError=await checkModuleAction("editorial","materias_editar");
+  if(permissionError)return {error:permissionError};
   try {
     const { first, second } = await getImportCandidateService(createSupabaseServerClient()).split(id);
     revalidatePath(IMPORT_PATH);
@@ -246,6 +261,8 @@ export interface ReviewFormInput {
 }
 
 export async function keepCandidate(id: string, changes: ReviewFormInput): Promise<ActionResult> {
+  const permissionError=await checkModuleAction("editorial","materias_editar");
+  if(permissionError)return {error:permissionError};
   try {
     await getImportCandidateService(createSupabaseServerClient()).keep(id, changes);
   } catch (error) {
@@ -269,6 +286,8 @@ export async function convertCandidate(
   id: string,
   input: ConvertCandidateInput,
 ): Promise<{ error: string } | ConvertResult> {
+  const permissionError=await checkModuleAction("editorial","materias_criar");
+  if(permissionError)return {error:permissionError};
   try {
     const client = createSupabaseServerClient();
     const AUDIT = await getAuditContext(client);

@@ -265,3 +265,10 @@ A confirmação do Jornal IR prevalece sobre o plano anterior: **os seis espaço
 - Criar/editar/inativar edição e preparar/finalizar/cancelar upload agora exigem a mesma permissão `editorial/edicoes_gerenciar`, inclusive diretamente na RLS do acervo, não só no menu. A leitura pública não muda.
 - Teste `edition-direct-upload-keys.test.ts` verifica isolamento por UUID e edição, recusa chaves legadas/arbitrárias e prevenção de exclusão por caminho genérico.
 - Ainda faltam homologação de envio de PDF e capa no R2 de testes, importação/duplicidade, reader mobile/flipbook e Range/CORS.
+
+### Módulo 5 — importação PDF, segurança e concorrência
+
+- As ações de extrair/reprocessar lotes verificam permissão `editorial/edicoes_gerenciar`; divisão, mescla, descarte, restauração e edição de candidato verificam `editorial/materias_editar`; converter candidato em **rascunho** exige `editorial/materias_criar`. Nada é publicado automaticamente.
+- Revisadas RPCs `SECURITY DEFINER` para repetir a mesma checagem de permissão no banco, não só na Server Action. RLS para POST de lotes/candidatos e PATCH de candidato exige permissão granular. Sem alterar algoritmo de extração nem conteúdo dos rascunhos.
+- `create_pdf_import_batch` ganhou forma com argumento explícito `p_force`; chamada antiga de 7 argumentos permanece compatível e delega para `force=false`. O banco trava por edição+SHA-256 durante inserção e bloqueia corrida entre importações do MESMO arquivo, mas permite **reprocessar mesmo assim** mediante confirmação intencional na interface. Preservada gravação atômica de lote + candidatos.
+- Ainda exigem homologação R2 real, revisão de importação textual e leitor final PC/mobile. 

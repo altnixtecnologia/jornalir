@@ -93,6 +93,13 @@ jobs:
           psql -h 127.0.0.1 -p 54322 -U postgres -d postgres \
             -v ON_ERROR_STOP=1 -f tests/security/birthday-duplicate-postflight.sql
 
+      - name: Testar autorização e idempotência de importação PDF
+        env:
+          PGPASSWORD: postgres
+        run: |
+          psql -h 127.0.0.1 -p 54322 -U postgres -d postgres \
+            -v ON_ERROR_STOP=1 -f tests/security/pdf-import-permissions-postflight.sql
+
       - name: Confirm schema tables and functions
         run: |
           supabase db lint --local --schema public || true
