@@ -50,3 +50,13 @@ test("repetir cancelamento local já concluído é idempotente",async()=>{
  assert.equal(t.cancellations,1);
  assert.equal(t.updates,1);
 });
+
+test("tentativa de cancelar cobrança Pix já quitada não executa o provedor",async()=>{
+ const t=mock("pending",false);
+ await t.service.cancelPixCharge("id-1",args);
+ const charge=await t.service.getById("id-1");
+ Object.assign(charge,{status:"paid"});
+ await assert.rejects(t.service.cancelPixCharge("id-1",args),/já paga/);
+ assert.equal(t.cancellations,1);
+ assert.equal(t.updates,1);
+});

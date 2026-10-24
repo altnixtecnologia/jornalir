@@ -93,7 +93,9 @@ export class PaymentChargeService {
 
   async cancelPixCharge(id: string, input: CancelPixChargeInput): Promise<PaymentCharge> {
     const charge = await this.getById(id);
-    if (charge.status !== "pending") return charge;
+    if(charge.status==="paid")
+      throw new Error("Cobrança Pix já paga: não é permitido cancelá-la. Use a conciliação/estorno financeiro apropriado.");
+    if(charge.status!=="pending") return charge;
     if(charge.providerChargeId){
       try {
         await this.provider.cancelCharge(charge.providerChargeId);
