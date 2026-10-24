@@ -17,12 +17,20 @@ import { canUseSupabaseAdminCredentials } from "../release/previewIsolationPolic
 export function hasServiceRoleKey(): boolean {
   // Segurança: Preview/Staging na Vercel NUNCA usam credencial privilegiada,
   // mesmo que a variável tenha sido configurada por engano.
-  return canUseSupabaseAdminCredentials(process.env.VERCEL_ENV)
+  return canUseSupabaseAdminCredentials(process.env.VERCEL_ENV, {
+    homologationEnabled: process.env.IR_HOMOLOGATION_ENABLED,
+    homologationProjectRef: process.env.IR_HOMOLOGATION_SUPABASE_REF,
+    supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL,
+  })
     && Boolean(process.env.SUPABASE_SERVICE_ROLE_KEY);
 }
 
 export function createSupabaseAdminClient(): SupabaseClient {
-  if (!canUseSupabaseAdminCredentials(process.env.VERCEL_ENV)) {
+  if (!canUseSupabaseAdminCredentials(process.env.VERCEL_ENV, {
+    homologationEnabled: process.env.IR_HOMOLOGATION_ENABLED,
+    homologationProjectRef: process.env.IR_HOMOLOGATION_SUPABASE_REF,
+    supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL,
+  })) {
     throw new Error("Admin API desativada fora do ambiente Production da Vercel.");
   }
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
