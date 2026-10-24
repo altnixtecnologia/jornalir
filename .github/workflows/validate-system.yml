@@ -49,6 +49,9 @@ jobs:
       - name: Typecheck system
         run: npm run typecheck --workspace @ir/sistema
 
+      - name: Testar pré-voo de migrações sem escrita no Supabase
+        run: node --test scripts/release/migration-preflight.test.mjs
+
       - name: Testar pacotes comerciais e historico de servicos
         run: npx tsx --test packages/core/test/commercial-sale-snapshot.test.ts
 
