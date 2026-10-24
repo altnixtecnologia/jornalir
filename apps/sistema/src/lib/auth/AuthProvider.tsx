@@ -77,7 +77,8 @@ export function AuthProvider({
         setStatus("unauthenticated");
         return;
       }
-      if (!data.active) {
+      const {data:staffAllowed,error:staffError}=await client.rpc("is_active_staff");
+      if (!data.active || staffError || staffAllowed!==true) {
         await client.auth.signOut();
         if (cancelled) return;
         setProfile(null);
