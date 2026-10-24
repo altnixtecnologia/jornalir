@@ -25,9 +25,9 @@ Não usar a PR como release direta.
 | 6 | Aniversariantes | Telas e gerador existentes | Layout aprovado e mensagens personalizadas; filtros por dia/mês; instituições/CNPJ; Novo+; eliminação de duplicações/scroll e atualização sem F5 |
 | 7 | Agenda/Pauta e notificações | Convites por pessoa, aceite/recusa, lembrete Web Push individual, prevenção de duplicidade, revalidação de convites e compromissos, sino com pendências privadas; Telegram de grupo existente preservado | **Pendente:** homologar envio Web Push em dispositivo autorizado e Telegram em ambiente de teste, validar push opt-in/VAPID, cron, UX PC/mobile e receber aceite/recusa por usuário de teste; sem DM Telegram/WhatsApp/e-mail novos |
 | 8 | Publicidade e planos | Slots, rotação, efeitos e imagens configuráveis | Veiculação 6 slots desktop/mobile, validade, contratos, Assine/Anuncie, inadimplência/suspensão e coerência dos dados |
-| 9 | NFS-e nacional | Estrutura de certificado, XML e preparação | Ambiente oficial/município, XSD, transmissão, consulta/cancelamento; sem emissão real sem autorização |
+| 9 | NFS-e nacional — **DEPOIS DA PUBLICAÇÃO** | Implementação preservada; menus, acesso ao módulo e ações fiscais bloqueados por código nesta primeira versão | Retomar somente após portal/sistema publicados e estabilizados, com homologação e autorização fiscal próprias |
 | 10 | Clientes e cobrança centralizados no Jornal | Cliente mestre, venda/serviço, contrato, títulos e cobranças identificados no Jornal; pré-autorização interna de cadastro digital com API remota **travada em código** | Somente **preparação no Jornal** nesta fase. Integração real com Altnix, cadastro remoto e suspensão/liberação de mídias só em lote futuro com autorização explícita, após homologação financeira completa; sem tocar outro repositório. Issue #18 |
-| 11 | Homologação geral e publicação | GitHub Actions demonstram build/RLS/replay em sandbox | Comparar worktree local e branches, backups, controlar previews Vercel, plano de rollback e QA autenticado; autorização explícita para publicar |
+| 11 | Pré-publicação e homologação geral — **MÓDULO ATUAL** | CI, política de release para NFS-e/Altnix, auditoria da divergência Git e checklist GO/NO-GO em `docs/PRE-PUBLICACAO-IR-20261024.md` | Branch de release, comparação do remoto, Vercel, migrations/backups, SMTP/Asaas/R2/Web Push e QA autenticado; sem deploy sem aval |
 
 ## Bloco em execução: 1 — Contratos
 
@@ -210,8 +210,9 @@ Ordem operacional de **fechamento**, não da lista numérica:
 2. **Módulo 8 Publicidade/Assine** — bloco A: chave Assine/Anuncie, slots e regras de apresentação; bloco B: veiculação/vigência/contratos/suspensão e QA.
 3. **Módulo 5 Jornal Online/PDF** — bloco A: upload/duplicidade/importação; bloco B: leitor desktop/mobile e Range/CORS.
 4. **Módulo 7 Agenda/Pauta** — bloco A: tarefas/reuniões/convites; bloco B: alertas, notificações, Telegram/push.
-5. **Módulo 10 Clientes integrados** — contrato de dados, regras de cliente digital, sincronização segura e testes cruzados com Altnix Informativo. Sem tocar players ou OTA.
-6. **Módulo 9 NFS-e Nacional** — mais complexo por município, certificado e homologação fiscal externa: deixar por último, sem emissão real sem aprovação.
+5. **Módulo 10 Clientes do Jornal** — cadastro mestre, cobrança/serviços e somente preparação interna; nenhuma integração real com Altnix até autorização futura e lote coordenado.
+6. **Módulo 11 Pré-publicação** — conferir todos os gates, release e reversão; publicar apenas com aval expresso do proprietário.
+7. **Módulo 9 NFS-e Nacional** — **somente depois da publicação inicial**, com release próprio e homologação fiscal externa; sem emissão real sem aprovação.
 
 Evitar declarar um módulo encerrado só porque a infraestrutura de CI está verde. As alterações abaixo são **correções de requisitos já combinados**, sem recursos extras.
 
@@ -324,3 +325,11 @@ O proprietário determinou: **não mexer no Altnix Informativo; centralizar cada
 - Depois de concluir o Jornal IR: homologar Asaas Sandbox e permissões, revisar relações cliente/venda/serviço/título, identificar alvos reais de mídia, política de carência/contestação, plano de backup/reversão e testes em equipamentos de laboratório. Somente **depois do aval específico**, abrir lote conjunto da integração.
 - Estado: **parte preparatória do Jornal IR em código; integração remota NÃO IMPLEMENTADA/ATIVADA; homologação real pendente**. PR #15 segue em draft, sem deploy e sem alterações remotas.
 
+
+### Módulo 11 — auditoria técnica pré-publicação, 24/10/2026
+
+- O proprietário decidiu **adiar NFS-e até depois da publicação**. Código fiscal preservado: `NFSE_AVAILABLE_IN_THIS_RELEASE=false` oculta NFS-e dos menus, nega rota no middleware, bloqueia Server Actions de módulo e guarda ações excepcionais (certificado/parametrização). O CI valida essas travas junto à API Altnix fechada.
+- A **PR #15 é draft**, baseada em branch de trabalho, não `main`. GitHub mostrou 446 commits à frente da base da PR e uma `main` divergente com commit documental exclusivo ligado à proposta bilateral superada. **Não fazer merge direto em produção.**
+- CI verificável ≠ homologação real. SMTP/e-mail, assinaturas, Asaas/Pix, R2, Web Push/Telegram e UX PC/Android exigem teste operacional controlado. Não considerar liberados sem evidência.
+- Não aplicar migrations na produção sem inventário, backup e ensaio de rollback. Conferir Settings→Git dos dois projetos Vercel `jornalir` e `jornalir-sistema`; `git.deploymentEnabled=false` no repositório não confirma o estado do dashboard.
+- **Fonte central de release:** `docs/PRE-PUBLICACAO-IR-20261024.md`, com gates GO/NO-GO, testes obrigatórios, ordem de execução e reversão. A publicação depende de aval separado.
