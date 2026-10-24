@@ -86,6 +86,9 @@ jobs:
       - name: Testar bloqueio de PDF comercial até confirmação do e-mail
         run: npx tsx --test apps/sistema/test/commercial-document-access.test.ts
 
+      - name: Testar identificadores estáveis dos PDFs comerciais
+        run: npx tsx --test apps/sistema/test/commercial-document-identity.test.ts
+
       - name: Testar recuperação de evidências comerciais após falha parcial
         run: npx tsx --test apps/sistema/test/commercial-evidence-recovery.test.ts
 
