@@ -205,13 +205,14 @@ begin
  end if;
  if new.addendum_id is not null then
   select a.id,a.package_id,a.status,original.service_id,
-   original.template_id,original.template_version
+   original.template_id,original.template_version,a.title
   into v_amend
   from public.commercial_contract_addenda a
   join public.commercial_contract_documents original on original.id=a.original_document_id
   where a.id=new.addendum_id for update of a;
   if not found or v_amend.package_id is distinct from new.package_id
    or v_amend.status<>'legal_approved'
+   or new.title is distinct from v_amend.title
    or new.service_id is distinct from v_amend.service_id
    or new.template_id is distinct from v_amend.template_id
    or new.template_version is distinct from v_amend.template_version then
