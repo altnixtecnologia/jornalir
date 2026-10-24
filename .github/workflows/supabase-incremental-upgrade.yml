@@ -73,7 +73,7 @@ jobs:
           test "$(find supabase/migrations -maxdepth 1 -name '*.sql' | wc -l)" -eq 195
 
       - name: Apply only the pending migrations to EXISTING local data
-        run: supabase migration up --local
+        run: supabase migration up --local --include-all
 
       - name: Verify preserved historical data and invitation safeguards
         env:
