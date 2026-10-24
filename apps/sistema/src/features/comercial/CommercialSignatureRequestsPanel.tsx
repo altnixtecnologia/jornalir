@@ -7,6 +7,7 @@ export interface CommercialRequestView {
  id:string;preparation_id:string;status:string;completed_at:string|null;
  commercial_signature_invitations:Array<{
   id:string;participant_id:string;status:string;expires_at:string;signed_at:string|null;
+  commercial_signature_attempts?:{created_at:string}|null;
   commercial_signature_participants:{signer_name:string;signer_role:string;signer_email:string};
  }>;
 }
@@ -74,6 +75,12 @@ export function CommercialSignatureRequestsPanel({saleId,preparations,requests,c
        {" "}{inv.commercial_signature_participants.signer_name}
        {" "}— {inv.status==="signed"?"Assinado":inv.status==="revoked"?"Revogado":
        Date.parse(inv.expires_at)<=Date.now()?"Expirado":"Aguardando assinatura"}
+       {inv.status==="pending" && inv.commercial_signature_attempts ? (
+        <span className="helper-text">
+         {" "}· Tentativa iniciada: se houve falha, o destinatário pode retomar pelo
+         mesmo link; evidências já salvas serão verificadas e reaproveitadas.
+        </span>
+       ):null}
        {inv.status==="signed" ? <span>
         {" · "}<a href={"/sistema/publicidade/vendas/"+saleId+
          "/assinaturas/"+request.id+"/documento?tipo=comprovante&convite="+inv.id}>
