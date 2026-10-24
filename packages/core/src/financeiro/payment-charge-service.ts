@@ -35,6 +35,7 @@ export class PaymentChargeService {
   constructor(
     private readonly charges: PaymentChargeRepository,
     private readonly provider: PixProvider,
+    private readonly reserveRemoteCreation = false,
   ) {}
 
   async getById(id: string): Promise<PaymentCharge> {
@@ -50,7 +51,25 @@ export class PaymentChargeService {
   /** Por padrão o valor sugerido é o saldo total do título (item 23) — quem chama decide se envia um valor menor (cobrança parcial). */
   async createPixCharge(input: CreatePixChargeInput): Promise<PaymentCharge> {
     const existing = await this.charges.findPendingForReceivable(input.receivableId);
-    if (existing) throw new PaymentChargeAlreadyPendingError();
+    if (existing) {
+      if (existing.provider === "asaas" && !existing.providerChargeId)
+        throw new Error("Cobrança Pix ainda não conciliada. Confira no Asaas antes de tentar novamente; não gere outra cobrança.");
+      throw new PaymentChargeAlreadyPendingError();
+    }
+
+    // A reserva disputa o índice UNIQUE do banco ANTES de qualquer POST
+    // ao Asaas. Falha ambígua conserva a reserva, exigindo conciliação.
+    const reservation = this.reserveRemoteCreation
+      ? await this.charges.create({
+          receivableId: input.receivableId,
+          clientId: input.clientId,
+          provider: "asaas",
+          amount: input.amount,
+          description: input.description,
+          expiresAt: input.expiresAt,
+          status: "pending",
+        })
+      : null;
 
     const providerResult = await this.provider.createCharge({
       receivableId: input.receivableId,
@@ -66,7 +85,7 @@ export class PaymentChargeService {
     // passa pela MESMA confirmação atômica usada pelo webhook. Assim o
     // receipt e o saldo do título nunca ficam para trás de um status
     // "paid" gravado isoladamente.
-    const created = await this.charges.create({
+    const values = {
       receivableId: input.receivableId,
       clientId: input.clientId,
       provider: providerResult.provider,
@@ -76,7 +95,10 @@ export class PaymentChargeService {
       status: providerResult.status === "paid" ? "pending" : providerResult.status,
       pixCopyPaste: providerResult.pixCopyPaste,
       expiresAt: providerResult.expiresAt,
-    });
+    };
+    const created = reservation
+      ? await this.charges.update(reservation.id, values)
+      : await this.charges.create(values);
 
     if (providerResult.status === "paid") {
       // Recuperação de uma cobrança previamente recebida no Asaas:
@@ -96,6 +118,9 @@ export class PaymentChargeService {
     if(charge.status==="paid")
       throw new Error("Cobrança Pix já paga: não é permitido cancelá-la. Use a conciliação/estorno financeiro apropriado.");
     if(charge.status!=="pending") return charge;
+    // Sem ID externo não existe prova de que o Asaas não tenha emitido.
+    if(charge.provider === "asaas" && !charge.providerChargeId)
+      throw new Error("Pix sem conciliação no Asaas. Confira a cobrança remota antes de cancelar ou emitir outra.");
     if(charge.providerChargeId){
       try {
         await this.provider.cancelCharge(charge.providerChargeId);

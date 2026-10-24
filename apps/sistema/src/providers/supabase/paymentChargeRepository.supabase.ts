@@ -1,6 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { ClientCreditWithBalance, PaymentCharge, PaymentChargeProvider, PaymentChargeStatus } from "@ir/types";
-import type { ConfirmChargeInput, ConfirmChargeResult, NewPaymentChargeRecord, PaymentChargeChanges, PaymentChargeRepository } from "@ir/core";
+import { PaymentChargeAlreadyPendingError, type ConfirmChargeInput, type ConfirmChargeResult, type NewPaymentChargeRecord, type PaymentChargeChanges, type PaymentChargeRepository } from "@ir/core";
 import { isLocalPreviewEnabled } from "../../lib/auth/localPreview";
 import { PREVIEW_RECEIVABLES, PREVIEW_RECEIPTS } from "./receivableRepository.supabase";
 import { PREVIEW_CLIENT_CREDITS } from "./clientCreditRepository.supabase";
@@ -144,6 +144,7 @@ export function createPaymentChargeRepositorySupabase(client: SupabaseClient): P
         return charge;
       }
       const { data, error } = await client.from(TABLE).insert(toRow(record)).select(COLUMNS).single();
+      if (error?.code === "23505") throw new PaymentChargeAlreadyPendingError();
       if (error) throw new Error(error.message);
       return toDomain(data as unknown as PaymentChargeRow);
     },

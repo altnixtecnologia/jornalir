@@ -77,6 +77,7 @@ export function PixChargePanel({
   const [detailChargeId, setDetailChargeId] = useState<string | null>(null);
 
   const pendingCharge = charges.find((c) => c.status === "pending") ?? null;
+  const awaitingAsaasReconciliation = Boolean(pendingCharge?.provider === "asaas" && !pendingCharge.providerChargeId);
 
   async function copyPixPayload(payload: string): Promise<void> {
     if (!payload) {
@@ -238,7 +239,13 @@ export function PixChargePanel({
             · {formatAmount(pendingCharge.amount)}
             {pendingCharge.expiresAt ? ` · expira em ${formatDateTime(pendingCharge.expiresAt)}` : ""}
           </div>
-          <div
+          {awaitingAsaasReconciliation ? (
+            <p role="alert" className="form-error" style={{ gridColumn: "1 / -1" }}>
+              Criação Pix em processamento ou com resultado incerto no Asaas. Não envie, cancele
+              nem gere outra cobrança antes da conferência pelo Financeiro.
+            </p>
+          ) : null}
+          {!awaitingAsaasReconciliation ? <div
             style={{ gridColumn: "1 / -1", border: "1px dashed var(--line)", borderRadius: "4px", padding: "14px", display: "flex", gap: "16px", flexWrap: "wrap", alignItems: "flex-start" }}
           >
             <div
@@ -275,9 +282,11 @@ export function PixChargePanel({
               </p>
             </div>
           </div>
+          : null}
           <div className="form-actions" style={{ gridColumn: "1 / -1" }}>
             <button
               type="button"
+              disabled={awaitingAsaasReconciliation}
               onClick={() => void copyPixPayload(pendingCharge.pixCopyPaste ?? "")}
             >
               {copied ? "Copiado ✓" : "Copiar Pix"}
@@ -292,7 +301,7 @@ export function PixChargePanel({
                 Abrir página de pagamento
               </a>
             ) : null}
-            <button type="button" onClick={openSendPreview} disabled={pending}>
+            <button type="button" onClick={openSendPreview} disabled={pending || awaitingAsaasReconciliation}>
               Enviar ao cliente
             </button>
             {localPreview ? (
@@ -300,7 +309,7 @@ export function PixChargePanel({
                 Confirmar pagamento (demonstração)
               </button>
             ) : null}
-            <button type="button" className="media-remove-button" onClick={() => setCancelTarget(pendingCharge)} disabled={pending}>
+            <button type="button" className="media-remove-button" onClick={() => setCancelTarget(pendingCharge)} disabled={pending || awaitingAsaasReconciliation}>
               Cancelar cobrança
             </button>
           </div>

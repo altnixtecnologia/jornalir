@@ -46,7 +46,7 @@ export function getClientCreditService(client: SupabaseClient): ClientCreditServ
  */
 export function getPaymentChargeService(client: SupabaseClient): PaymentChargeService {
   const provider = isLocalPreviewEnabled() ? createPixProviderPreview() : createAsaasPixProvider(client);
-  return new PaymentChargeService(createPaymentChargeRepositorySupabase(client), provider);
+  return new PaymentChargeService(createPaymentChargeRepositorySupabase(client), provider, !isLocalPreviewEnabled());
 }
 
 /** Mesmo princípio de getPaymentChargeService: preview simula, fora do preview recusa honestamente até um provedor WhatsApp ser configurado. */

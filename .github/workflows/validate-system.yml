@@ -92,6 +92,9 @@ jobs:
       - name: Testar recuperação de cobrança Asaas já paga sem baixa pelo operador
         run: npx tsx --test packages/core/test/payment-charge-recovery.test.ts
 
+      - name: Testar concorrência na criação de Pix antes do Asaas
+        run: npx tsx --test packages/core/test/payment-charge-creation-concurrency.test.ts
+
       - name: Testar recuperação segura de cancelamento Pix no Asaas
         run: npx tsx --test packages/core/test/payment-charge-cancellation.test.ts
 

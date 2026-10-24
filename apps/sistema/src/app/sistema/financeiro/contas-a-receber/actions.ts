@@ -501,6 +501,8 @@ export async function sendBillingMessageAction(
     if (!toPhone) return { error: "Cadastro sem WhatsApp." };
 
     const pendingCharge = charges.find((charge) => charge.status === "pending");
+    if (pendingCharge?.provider === "asaas" && !pendingCharge.providerChargeId)
+      return { error: "Criação Pix pendente de conciliação no Asaas; envio bloqueado." };
     if (!pendingCharge?.publicToken) {
       return { error: "Gere uma cobrança Pix antes de enviar ao cliente." };
     }
@@ -577,6 +579,8 @@ export async function buildBillingMessagePreviewAction(
       getPaymentChargeService(client).listForReceivable(receivableId),
     ]);
     const pendingCharge = charges.find((charge) => charge.status === "pending");
+    if (pendingCharge?.provider === "asaas" && !pendingCharge.providerChargeId)
+      return { error: "Aguarde a conciliação da cobrança Pix com o Asaas." };
     const paymentUrl = pendingCharge?.publicToken
       ? `https://controle.altnix.com.br/pagamento/${pendingCharge.publicToken}`
       : undefined;
