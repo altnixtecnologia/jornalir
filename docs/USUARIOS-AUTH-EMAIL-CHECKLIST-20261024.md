@@ -77,3 +77,19 @@ profile for forçado a ativo dentro de transação reversível.
 Não aplicar migrations no Supabase remoto nem publicar na Vercel sem
 autorização. Não sincronizar `main` nem VS Code local sem conferir
 divergência de branches.
+
+## Proteção do OTP externo sem desconexão indevida
+
+`RootProviders` envolve o app inteiro, inclusive a rota pública de
+assinaturas; **não** executar `auth.signOut()` automaticamente quando
+um usuário autenticado não pertence a `staff_memberships`.
+O `AuthProvider` marca o acesso interno como `inactive`, o
+`AuthGate` bloqueia a UI e o middleware/RLS negam rotas
+`/sistema/*` e `/agenda/*`, mas o signatário mantém sua sessão
+Auth confirmada para completar `/assinar-contrato-comercial/:token`
+e ver o PDF pelo endpoint que exige `verified_user_id`.
+
+Checklist indispensável de homologação: signatário externo confirma OTP,
+consegue visualizar/assinar PDF e receber status de conclusão; uma tentativa
+de abrir o painel pela mesma sessão é negada. Administrador pode revogar
+permissões sem derrubar sessões válidas de signatários.
