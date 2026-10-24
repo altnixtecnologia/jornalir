@@ -89,6 +89,9 @@ jobs:
       - name: Testar bloqueio de PDF comercial até confirmação do e-mail
         run: npx tsx --test apps/sistema/test/commercial-document-access.test.ts
 
+      - name: Testar recuperação segura de cancelamento Pix no Asaas
+        run: npx tsx --test packages/core/test/payment-charge-cancellation.test.ts
+
       - name: Testar bloqueio de cobranças comerciais e vínculo Pix
         run: npx tsx --test apps/sistema/test/commercial-finance-guards.test.ts
 
