@@ -217,9 +217,9 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       // UNIQUE(dedupe_key) evita novos avisos ao repetir o cron.
       const result = await db.from("notification_events").upsert(notification, {
         onConflict: "dedupe_key", ignoreDuplicates: true,
-      });
+      }).select("id");
       if (result.error) failed++;
-      else invitationsQueued++;
+      else invitationsQueued += result.data?.length ?? 0;
     }
   }
 
