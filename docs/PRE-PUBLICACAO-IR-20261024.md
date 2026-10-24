@@ -48,6 +48,14 @@
 7. **Somente após GO explícito:** aplicar migrations autorizadas na sequência ensaiada, publicar site e sistema na ordem aprovada, executar smoke test autenticado e acompanhar logs; reversão pronta se algum gate falhar.
 8. Após o portal e sistema estabilizarem: abrir uma **etapa separada de NFS-e** para desenvolvimento/homologação fiscal. Integração completa com Altnix somente depois de toda estrutura de cobranças e mídia ter sido aprovada, por um único lote coordenado.
 
+## C.1 — Auditoria conectada do ambiente real (leitura, 24/10/2026)
+
+- **Supabase `site-system-ir`:** 152 versões de migrations registradas, 195 arquivos `.sql` na PR, 149 versões coincidentes. Das 46 versões locais sem carimbo idêntico, **3 correspondem a SQL exatamente igual no remoto sob timestamp diferente**; restam **43 arquivos de conteúdo novo** ainda não instalados. **Não aplicar `db push`**: conciliar aliases, sequência, impacto, plano de restauração e aprovação antes. Inventário completo em `docs/RELEASE-MIGRATIONS-REMOTE-20261024.md`.
+- **Supabase Security Advisors, estado remoto atual:** 8 views `SECURITY DEFINER` com alerta ERROR; 41 funções privilegiadas disponíveis a `anon` e 51 a `authenticated` (algumas intencionalmente públicas), 16 funções com search_path mutável, 20 tabelas com RLS sem policy e proteção de senha vazada desativada. Há necessidade de revisão **sem alteração cega que quebre o portal**. Metadados e documentação de correção em `docs/SUPABASE-SEGURANCA-REAL-20261024.md`.
+- **Vercel `jornalir-sistema`:** `ASAAS_API_KEY_PRODUCTION` está atribuída também ao escopo **Preview**, apesar de existir guarda de código. **NO-GO** até que um administrador retire a variável desse escopo com autorização, preserve somente a atribuição de Production e valide sandbox isolado. Nenhum segredo foi lido.
+- **Vercel `jornalir`:** R2 listado só para Preview; confirmar dependência do portal em Production antes de copiar/criar envs. Auto-deploy Git não foi confirmado pelas consultas; exigir inspeção no dashboard.
+- **Ferramenta de liberação sem credenciais:** `scripts/release/migration-preflight.mjs --remote /caminho/historico.json`. Aceita somente metadados `version/name`, não executa SQL nem se conecta ao banco, sinaliza drift com código 2. Testes puros `scripts/release/migration-preflight.test.mjs` no CI. O relatório do script não substitui revisão manual nem backup.
+
 ## D. GO/NO-GO e notas de continuidade
 
 - **NO-GO** enquanto houver falha de CI no SHA final, divergência de branches não conciliada, migrations não conferidas, autorização real faltando ou teste operacional crítico pendente.
