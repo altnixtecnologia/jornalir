@@ -75,7 +75,7 @@ export default async function CommercialSaleDetailPage({ params }: { params: { i
     : null;
   const addendaResult = pkg && (canReview.data===true || canPrepare.data===true)
     ? await supabase.from("commercial_contract_addenda")
-      .select("id,original_document_id,addendum_number,title,reason,legal_text,status")
+      .select("id,original_document_id,addendum_number,title,reason,legal_text,status,last_return_note,commercial_contract_addendum_events(id,event_type,note,created_at)")
       .eq("package_id",pkg.id).order("created_at",{ascending:false})
     : null;
   const reviewEventsResult = pkg && canReview.data === true

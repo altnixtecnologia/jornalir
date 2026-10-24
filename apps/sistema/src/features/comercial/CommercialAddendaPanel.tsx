@@ -10,6 +10,10 @@ export interface CommercialAddendumView{
  id:string;original_document_id:string;addendum_number:number;
  title:string;reason:string;legal_text:string;
  status:"draft"|"pending_legal_review"|"legal_approved";
+ last_return_note:string|null;
+ commercial_contract_addendum_events?:Array<{
+  id:string;event_type:string;note:string;created_at:string;
+ }>;
 }
 interface OriginalView{id:string;title:string;}
 const empty={title:"",reason:"",legalText:""};
@@ -86,6 +90,17 @@ export function CommercialAddendaPanel({saleId,originalDocuments,addenda,canPrep
      "Aguardando conferência jurídica":"Conferência jurídica aprovada"} ·
      contrato original {item.original_document_id.slice(0,8)}
    </p>
+   {item.status==="draft" && item.last_return_note ? (
+     <p role="status" className="helper-text">Devolvido para ajustes:
+      {" "}{item.last_return_note}</p>
+   ):null}
+   {item.commercial_contract_addendum_events?.length ? (
+     <details><summary>Histórico da revisão jurídica</summary>
+      <ul>{item.commercial_contract_addendum_events.slice()
+       .sort((a,b)=>Date.parse(b.created_at)-Date.parse(a.created_at))
+       .map(event=><li key={event.id}>{event.event_type}: {event.note}</li>)}</ul>
+     </details>
+   ):null}
    <p><a href={"/sistema/publicidade/vendas/"+saleId+"/aditivos/"+item.id+"/previa"}
      target="_blank" rel="noreferrer">Abrir prévia PDF — NÃO ASSINAR</a></p>
    {item.status==="draft" && canPrepare ? (

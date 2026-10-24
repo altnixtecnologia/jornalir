@@ -54,7 +54,8 @@ create policy commercial_addenda_edit on public.commercial_contract_addenda for 
  with check(public.staff_can_module_action('publicidade','contratos_preparar')
     or public.staff_can_module_action('publicidade','contratos_revisar'));
 create policy commercial_addendum_events_read on public.commercial_contract_addendum_events for select to authenticated
- using(public.staff_can_module_action('publicidade','contratos_revisar')
+ using(public.staff_can_module_action('publicidade','contratos_preparar')
+   or public.staff_can_module_action('publicidade','contratos_revisar')
    or public.staff_can_see_module('financeiro'));
 
 create or replace function public.guard_commercial_addendum()
