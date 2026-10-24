@@ -1,6 +1,7 @@
 import {NextResponse} from "next/server";
 import {createHash} from "node:crypto";
 import {createSupabaseAdminClient} from "../../../../../lib/supabase/admin";
+import {createSupabaseServerClient} from "../../../../../lib/supabase/server";
 import {findCommercialInvitation,commercialInvitationPending} from "../../../../../lib/signatures/commercialSignatures";
 export const dynamic="force-dynamic";
 export const runtime="nodejs";
@@ -8,6 +9,15 @@ export async function GET(_req:Request,{params}:{params:{token:string}}):Promise
  const denied=()=>NextResponse.json({error:"Documento indisponível."},{status:404,headers:{"Cache-Control":"no-store","Referrer-Policy":"no-referrer"}});
  const invite=await findCommercialInvitation(params.token);
  if(!invite||!commercialInvitationPending(invite)) return denied();
+ // URL de convite NÃO concede acesso direto ao conteúdo privado.
+ // O destinatário precisa ter confirmado o OTP e possuir a sessão
+ // autenticada do mesmo e-mail/UUID registrado nesta ligação.
+ if(!invite.verified_user_id || !invite.verified_at) return denied();
+ const client=createSupabaseServerClient();
+ const {data:user,error:authError}=await client.auth.getUser();
+ if(authError||!user.user || user.user.id!==invite.verified_user_id
+   ||user.user.email?.toLowerCase()!==
+     invite.commercial_signature_participants.signer_email.toLowerCase()) return denied();
  const doc=invite.commercial_signature_requests.commercial_signature_preparations.commercial_contract_documents;
  if(!doc.file_reference.startsWith("commercial-contracts/"+doc.package_id+"/")) return denied();
  const admin=createSupabaseAdminClient();

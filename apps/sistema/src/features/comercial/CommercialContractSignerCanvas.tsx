@@ -107,10 +107,17 @@ export function CommercialContractSignerCanvas({
       <p>Documento: <strong>{documentName}</strong></p>
       <p className="helper-text">
         Convite para {name}. Válido até {new Date(expiresAt).toLocaleString("pt-BR")}.
-        Leia o PDF completo antes de continuar.
+        Confirme seu e-mail para liberar a leitura do PDF antes de assinar.
       </p>
-      <iframe src={"/api/assinar-contrato-comercial/" + token + "/documento"}
-        title="Documento original para assinatura" style={{ width: "100%", height: "min(66vh,720px)", border: "1px solid #ccc" }} />
+      {otpVerified ? (
+        <iframe src={"/api/assinar-contrato-comercial/" + token + "/documento"}
+          title="Documento original para assinatura"
+          style={{ width: "100%", height: "min(66vh,720px)", border: "1px solid #ccc" }} />
+      ) : (
+        <p className="helper-text" role="status">
+          Visualização protegida: o PDF será liberado após confirmar o código enviado ao seu e-mail.
+        </p>
+      )}
       <label className="form-field" style={{ display: "block", marginTop: 20 }}>
         <span className="field-label">Seu nome completo, como consta no convite</span>
         <input value={fullName} onChange={(e) => setFullName(e.target.value)} maxLength={180}
