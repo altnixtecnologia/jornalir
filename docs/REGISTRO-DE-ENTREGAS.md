@@ -619,3 +619,20 @@ foi alterado no banco remoto. A nova regra `active=false` vale somente
 após aplicação futura da migration em homologação/produção autorizada.
 Perfis legados serão revisados pela interface, não renomeados por
 suposição ou autoativados.
+
+### Aceite automatizado do bloco de usuários/Auth (23/10/2026)
+
+- **Commit final de código:** `32677c702a2d969640b8120784dd5a4f90583323`.
+- GitHub Actions para esse SHA:
+  - `Validate project`: **success**, execução `40046457425`.
+  - `Finance RLS sandbox`: **success**, execução `40046457475`.
+  - `Supabase complete migration rehearsal`: **success**, execução `40046457378`.
+- Os dois testes unitários novos passaram. O replay descartável confirmou
+  o cadastro de Auth com metadata falsificada como perfil INATIVO.
+- Bloco de **código** concluído. Pendente de operação: SMTP personalizado,
+  configuração de URLs/template do Auth, recebimento real do convite,
+  recuperação de senha e revisão do nome dos dois perfis antigos.
+- Edições do jornal: upload atual R2 com limite de 100 MiB; bucket Supabase
+  legado mantém 50 MiB, não afeta esse fluxo novo. Não alterado.
+- PR aberta, sem merge/deploy/migration remota; não disparar envio real
+  até homologação operacional autorizada.
