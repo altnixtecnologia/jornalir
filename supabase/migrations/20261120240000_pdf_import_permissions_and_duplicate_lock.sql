@@ -259,84 +259,23 @@ declare
   v_batch_id uuid;
   v_rows jsonb;
 begin
-  if auth.role() = 'authenticated'
-     and not coalesce(public.staff_can_module_action('editorial','edicoes_gerenciar'),false) then
-    raise exception 'Sem permissão para esta operação de importação PDF.' using errcode='42501';
+  if auth.role() = 'authenticated' and
+     not coalesce(public.staff_can_module_action('editorial','edicoes_gerenciar'),false) then
+    raise exception 'Sem permissão para importação PDF.' using errcode='42501';
   end if;
   if auth.role() = 'authenticated' and not public.is_active_staff() then
     raise exception 'create_pdf_import_batch: apenas staff ativo pode criar lotes de importação';
   end if;
 
   if p_file_hash is not null then
-    if p_file_hash !~ '^[A-Fa-f0-9]{64}
-    newspaper_edition_id, source_file_name, file_hash, page_count, pages_without_text, warnings
-  ) values (
-    p_newspaper_edition_id,
-    p_source_file_name,
-    p_file_hash,
-    p_page_count,
-    coalesce(p_pages_without_text, '{}'::integer[]),
-    coalesce(p_warnings, '[]'::jsonb)
-  )
-  returning id into v_batch_id;
-
-  if p_candidates is not null and jsonb_array_length(p_candidates) > 0 then
-    with inserted as (
-      insert into public.pdf_import_candidates (
-        batch_id, newspaper_edition_id, page_number,
-        suggested_title, suggested_subtitle, suggested_body,
-        suggested_section_id, suggested_locality_id, suggested_media_ids,
-        extraction_method, extraction_warnings, low_confidence_title,
-        possible_continuation, possible_advertisement, page_coverage,
-        source_blocks, page_width, page_height, status
-      )
-      -- newspaper_edition_id e status NUNCA vêm do jsonb do cliente — esta
-      -- função é security definer, então um payload malicioso/malformado
-      -- não pode colocar um candidato em outra edição nem nascer com um
-      -- status diferente de 'pending' (ex.: 'converted' direto, pulando
-      -- toda a barreira de revisão). Os dois são sempre os literais
-      -- correspondentes ao parâmetro/estado inicial — qualquer valor em
-      -- c->>'newspaper_edition_id' ou c->>'status' é ignorado.
-      select
-        v_batch_id,
-        p_newspaper_edition_id,
-        nullif(c->>'page_number', '')::integer,
-        c->>'suggested_title',
-        c->>'suggested_subtitle',
-        c->>'suggested_body',
-        nullif(c->>'suggested_section_id', '')::uuid,
-        nullif(c->>'suggested_locality_id', '')::uuid,
-        coalesce(
-          (select array_agg(elem)::uuid[] from jsonb_array_elements_text(coalesce(c->'suggested_media_ids', '[]'::jsonb)) elem),
-          '{}'::uuid[]
-        ),
-        nullif(c->>'extraction_method', ''),
-        coalesce(c->'extraction_warnings', '[]'::jsonb),
-        coalesce((c->>'low_confidence_title')::boolean, false),
-        coalesce((c->>'possible_continuation')::boolean, false),
-        coalesce((c->>'possible_advertisement')::boolean, false),
-        c->'page_coverage',
-        coalesce(c->'source_blocks', '[]'::jsonb),
-        nullif(c->>'page_width', '')::numeric,
-        nullif(c->>'page_height', '')::numeric,
-        'pending'
-      from jsonb_array_elements(p_candidates) as c
-      returning *
-    )
-    select jsonb_agg(to_jsonb(inserted) order by inserted.created_at) into v_rows from inserted;
-  end if;
-
-  return coalesce(v_rows, '[]'::jsonb);
-end;
-$$; then
+    if p_file_hash !~ '^[A-Fa-f0-9]{64}$' then
       raise exception 'Hash do PDF inválido.' using errcode='22023';
     end if;
-    -- Lock por edição+hash impede dois HTTP requests concorrentes de
-    -- criar lotes idênticos após ambos terem passado o pré-check.
     perform pg_catalog.pg_advisory_xact_lock(
-      pg_catalog.hashtextextended(p_newspaper_edition_id::text||':'||lower(p_file_hash),0)
+      pg_catalog.hashtextextended(
+        p_newspaper_edition_id::text||':'||lower(p_file_hash),0)
     );
-    if not coalesce(p_force,false) and exists (
+    if not coalesce(p_force,false) and exists(
       select 1 from public.pdf_import_batches b
       where b.newspaper_edition_id=p_newspaper_edition_id
         and lower(b.file_hash)=lower(p_file_hash)
