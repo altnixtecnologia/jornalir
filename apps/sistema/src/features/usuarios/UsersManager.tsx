@@ -62,21 +62,25 @@ export function UsersManager(): JSX.Element {
   const isAdmin = profile?.role === "admin";
 
   async function reload(): Promise<void> {
-    const [profilesResult, visibilityResult, agendaManagersResult, auditViewersResult, financeResult, moduleActionsResult, invitationsResult] = await Promise.all([
+    const [profilesResult, visibilityResult, agendaManagersResult, auditViewersResult, financeResult, moduleActionsResult, membershipsResult, invitationsResult] = await Promise.all([
       client.from("profiles").select("id, name, role, active, created_at").order("created_at", { ascending: true }),
       client.from("staff_module_visibility").select("profile_id,module_key,enabled"),
       client.from("agenda_manager_grants").select("profile_id,can_manage"),
       client.from("audit_viewer_grants").select("profile_id,can_view"),
       client.from("staff_finance_action_permissions").select("profile_id,action_key,allowed"),
       client.from("staff_module_action_permissions").select("profile_id,module_key,action_key,allowed"),
+      client.from("staff_memberships").select("profile_id"),
       listUserInvitationStatuses(),
     ]);
-    if (profilesResult.error || visibilityResult.error || agendaManagersResult.error || auditViewersResult.error || financeResult.error || moduleActionsResult.error) {
+    if (profilesResult.error || visibilityResult.error || agendaManagersResult.error || auditViewersResult.error || financeResult.error || moduleActionsResult.error || membershipsResult.error) {
       setError(profilesResult.error?.message ?? visibilityResult.error?.message
-        ?? agendaManagersResult.error?.message ?? auditViewersResult.error?.message ?? financeResult.error?.message ?? moduleActionsResult.error?.message ?? "Não foi possível carregar os usuários.");
+        ?? agendaManagersResult.error?.message ?? auditViewersResult.error?.message ?? financeResult.error?.message ?? moduleActionsResult.error?.message ?? membershipsResult.error?.message ?? "Não foi possível carregar os usuários.");
       return;
     }
-    setUsers((profilesResult.data ?? []) as UserRow[]);
+    // Signatários externos do Auth possuem profile técnico, mas não são
+    // colaboradores e não devem aparecer na administração de usuários.
+    const staffIds=new Set((membershipsResult.data??[]).map(m=>m.profile_id));
+    setUsers((profilesResult.data??[]).filter(profile=>staffIds.has(profile.id)) as UserRow[]);
     setModuleVisibility((visibilityResult.data ?? []) as VisibilityRow[]);
     setAgendaManagerGrants((agendaManagersResult.data ?? []) as AgendaManagerGrantRow[]);
     setAuditViewerGrants((auditViewersResult.data ?? []) as AuditViewerGrantRow[]);
@@ -108,6 +112,10 @@ export function UsersManager(): JSX.Element {
   }
 
   async function toggleActive(target: UserRow): Promise<void> {
+    if(!target.active && invitationStatuses?.find(s=>s.id===target.id)?.confirmed!==true){
+      setError("Não é possível habilitar o painel antes da confirmação do e-mail do colaborador.");
+      return;
+    }
     setError(null);
     setMessage(null);
     setPending(true);
