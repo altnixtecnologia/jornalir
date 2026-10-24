@@ -277,7 +277,8 @@ begin
   -- não deve ter permissão sem membership.
   update public.profiles set active=true where id=v_id;
   perform set_config('request.jwt.claim.sub',v_id::text,true);
-  if public.is_active_staff() or public.is_active_admin() then
+  if public.is_active_staff() or public.is_active_admin()
+    or public.is_active_owner() or public.is_active_admin_or_owner() then
     raise exception 'SEGURANÇA: perfil sem membership acessou o painel.';
   end if;
 end;
