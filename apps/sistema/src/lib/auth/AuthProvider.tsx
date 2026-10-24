@@ -3,6 +3,7 @@
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { createSupabaseBrowserClient } from "../supabase/browser";
 import { LOCAL_PREVIEW_PROFILE } from "./localPreview";
+import {staffNameLabel} from "./userIdentity";
 
 export type AuthRole = "owner" | "admin" | "operator";
 
@@ -74,7 +75,7 @@ export function AuthProvider({
       }
       setProfile({
         id: data.id,
-        name: data.name,
+        name: staffNameLabel(data.name,email),
         email: email ?? "",
         role: data.role as AuthRole,
         active: data.active,
