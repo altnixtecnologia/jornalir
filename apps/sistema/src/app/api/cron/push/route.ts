@@ -4,6 +4,7 @@ import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { sendWebPush, type WebPushSubscription } from "../../../../lib/notifications/webPush.server";
 import {
   agendaInvitationStillPending,
+  agendaReminderRecipients,
   buildAgendaInvitationNotification,
   type AgendaInvitationMeeting,
   type AgendaInvitationRow,
@@ -155,11 +156,21 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       .select("profile_id,completed_at").eq("event_id", agenda.id)
       .eq("assignment_type","responsible");
     if (assignedError) { failed++; continue; }
-    for (const recipient of assigned ?? []) {
+    // Reuniões: quem confirmou a presença também recebe o lembrete
+    // individual. Somente responsáveis recebem alerta de tarefa atrasada.
+    let acceptedGuests: Array<{ profile_id: string }> = [];
+    if (isReminderDue) {
+      const invited = await db.from("agenda_event_invitees")
+        .select("profile_id").eq("event_id", agenda.id).eq("status", "accepted");
+      if (invited.error) { failed++; continue; }
+      acceptedGuests = invited.data ?? [];
+    }
+    const recipients = agendaReminderRecipients(assigned ?? [], acceptedGuests);
+    for (const recipient of recipients) {
       if (recipient.completed_at) continue; // Responsável já concluiu.
       for (const category of (["reminder","overdue"] as const)) {
         if (category === "reminder" && !isReminderDue) continue;
-        if (category === "overdue" && !isOverdueDue) continue;
+        if (category === "overdue" && (!isOverdueDue || recipient.meetingOnly)) continue;
         const timeKey = category === "overdue" ? overdueAt : reminderAt!;
         const eventKey = ["agenda",category,agenda.id,timeKey,recipient.profile_id].join(":");
         const { error } = await db.from("notification_events").upsert({
