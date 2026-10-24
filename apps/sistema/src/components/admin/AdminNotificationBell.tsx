@@ -33,15 +33,23 @@ export function AdminNotificationBell(): JSX.Element {
           .select("id", { count: "exact", head: true })
           .is("read_at", null),
         mine ? client.from("agenda_event_invitees")
-          .select("event_id,agenda_events!inner(id)", { count: "exact", head: true })
-          .eq("profile_id", mine).eq("status", "pending")
-          .eq("agenda_events.status", "scheduled")
-          .eq("agenda_events.event_kind", "general")
-          .gte("agenda_events.event_date", today) : Promise.resolve({ count: 0 }),
+          .select("event_id").eq("profile_id", mine).eq("status", "pending")
+          .order("invited_at", { ascending: false }).limit(50)
+          : Promise.resolve({ data: [] as Array<{ event_id: string }> }),
       ]);
-
+      const ids = [...new Set((invitations.data ?? []).map((item) => item.event_id))];
+      let ownPendingCount = 0;
+      if (ids.length > 0) {
+        // Mesma regra da tela Agenda, sem depender de join embutido
+        // nem contar reuniões canceladas/antigas.
+        const meetings = await client.from("agenda_events")
+          .select("id", { count: "exact", head: true })
+          .in("id", ids).eq("status", "scheduled")
+          .eq("event_kind", "general").gte("event_date", today);
+        ownPendingCount = meetings.error ? 0 : (meetings.count ?? 0);
+      }
       if (!cancelled) {
-        setCount((requests.count ?? 0) + (notifications.count ?? 0) + (invitations.count ?? 0));
+        setCount((requests.count ?? 0) + (notifications.count ?? 0) + ownPendingCount);
       }
     }
 
