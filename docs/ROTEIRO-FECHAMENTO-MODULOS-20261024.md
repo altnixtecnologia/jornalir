@@ -188,3 +188,9 @@ permissões sem derrubar sessões válidas de signatários.
   concorrência e idempotência de efeitos externos constam em
   `docs/FINANCEIRO-COMERCIAL-HOMOLOGACAO-20261024.md`.
 - PR #15 aberta; sem merge, deploy, aplicação de migrations no remoto.
+
+### Editorial PC — seleção de capa por estrela na miniatura
+
+- A ação `onSetCover` já existia, mas a estrela estava na fileira de ações lateral e não sobre a foto; a ação foi movida para dentro de cada miniatura vinculada à matéria.
+- Estrela tem `aria-pressed`, preenchimento amarelo na capa selecionada, texto acessível e mantém `setCoverMedia` como a única rotina de mudança. Capa anterior vira galeria, sem duplicatas; ordem preservada, e salvamento da matéria utiliza o payload editorial atual. Testes existentes `article-cover-choice.test.ts` continuam cobrindo unicidade, capa anterior, legenda e crédito.
+- Não muda o fluxo de crop mobile, upload, tipos de mídias ou backend. Novo crop com seleção direta no PC continua pendente para outro commit isolado; não considerar issue #16 concluída apenas com a estrela.

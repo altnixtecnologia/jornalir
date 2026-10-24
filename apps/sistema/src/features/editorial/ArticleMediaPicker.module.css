@@ -320,3 +320,22 @@
 }
 .helpPopoverRow svg{color:var(--brand);flex:0 0 19px}
 .helpPopoverRow:last-child svg{color:#a12f36}
+
+/* A estrela pertence à foto, não à fileira de ações. Não altera editor mobile. */
+.coverThumbWrapper{position:relative;isolation:isolate}
+.coverThumbAction{
+ position:absolute;z-index:5;right:5px;top:5px;
+ display:grid;place-items:center;
+ width:34px;height:34px;padding:0;
+ border:1px solid #dfd5aa;border-radius:9px;
+ color:#715415;background:#fff9e6;
+ box-shadow:0 2px 10px #0005;cursor:pointer;
+ transition:background .14s ease,transform .14s ease
+}
+.coverThumbAction svg{width:20px;height:20px;stroke:currentColor}
+.coverThumbAction[aria-pressed="true"]{background:#f7d878;color:#694604;border-color:#c7a245;cursor:default}
+.coverThumbAction[aria-pressed="true"] svg{fill:#f7c547}
+.coverThumbAction:not(:disabled):hover{background:#ffecac;transform:scale(1.06)}
+.coverThumbAction:focus-visible{outline:3px solid #30305c;outline-offset:2px}
+.coverThumbAction:disabled:not([aria-pressed="true"]){opacity:.65;cursor:wait}
+@media (pointer:coarse){.coverThumbAction{width:40px;height:40px}}

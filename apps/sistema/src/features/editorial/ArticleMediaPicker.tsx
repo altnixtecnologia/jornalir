@@ -465,8 +465,16 @@ export function ArticleMediaPicker({
                     ⋮⋮
                   </button>
 
-                  <div className="article-media-thumb-wrap">
+                  <div className={`article-media-thumb-wrap ${styles.coverThumbWrapper}`}>
                     <img src={asset.url} alt={asset.altText ?? asset.reference} />
+                    <button type="button" className={styles.coverThumbAction}
+                      aria-pressed={isCover}
+                      aria-label={isCover ? `Capa selecionada: ${asset.reference}` : `Definir ${asset.reference} como capa`}
+                      title={isCover ? "Foto de capa selecionada" : "Clique na estrela para escolher esta foto como capa"}
+                      disabled={isCover || editLoading || uploading || Boolean(replacing)}
+                      onClick={() => onSetCover(item.mediaAssetId)}>
+                      <MediaActionIcon kind="cover" />
+                    </button>
                     {isCover ? <span className="article-media-cover-badge">CAPA</span> : null}
                   </div>
 
@@ -493,15 +501,7 @@ export function ArticleMediaPicker({
                   />
 
                   <div className="article-media-row-actions">
-                    <button type="button" className="article-media-view article-media-cover-action"
-                      aria-pressed={isCover}
-                      aria-label={isCover ? `Capa atual: ${asset.reference}` : `Definir ${asset.reference} como capa`}
-                      title={isCover ? "Esta é a capa da matéria" : "Definir esta foto como capa"}
-                      disabled={isCover || editLoading || uploading || Boolean(replacing)}
-                      onClick={() => onSetCover(item.mediaAssetId)}>
-                      <MediaActionIcon kind="cover" />
-                    </button>
-                    <button type="button" className="article-media-view" disabled={editLoading || uploading || Boolean(replacing)}
+                     <button type="button" className="article-media-view" disabled={editLoading || uploading || Boolean(replacing)}
                       onClick={() => setViewerTarget({ role: item.role, order: item.order, mediaAssetId: item.mediaAssetId })}
                       aria-label={`Visualizar ${asset.reference}`} title="Visualizar imagem">
                       <MediaActionIcon kind="view" />
