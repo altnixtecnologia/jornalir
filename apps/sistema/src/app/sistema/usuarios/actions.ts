@@ -92,10 +92,11 @@ export async function inviteUser(email: string, name: string, role: InviteRole):
     return { error: describeAuthMailError(inviteError,"invite") };
   }
 
-  // O trigger lê raw_user_meta_data.name. Garantir também o nome na
-  // tabela de perfis, sem depender da escrita inicial via trigger.
+  // Novos perfis começam INATIVOS pelo trigger. Somente aqui, depois
+  // da autenticação de owner/admin e convite aceito pelo Auth,
+  // habilitar staff explicitamente e gravar o nome real.
   const { data: namedProfile, error: nameError } = await admin.from("profiles")
-    .update({ name: displayName }).eq("id", invited.user.id).select("id").maybeSingle();
+    .update({ name: displayName, active: true }).eq("id", invited.user.id).select("id").maybeSingle();
   if (nameError || !namedProfile) {
     console.error("Falha ao salvar nome do convidado:", nameError?.code ?? "profile_not_found");
     return { error: "Convite solicitado, mas houve erro ao salvar o nome. Edite o perfil do usuário na lista." };

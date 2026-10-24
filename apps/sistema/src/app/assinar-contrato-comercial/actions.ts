@@ -22,7 +22,7 @@ export async function sendCommercialSignatureOtpAction(token:string):Promise<Res
   const db=createSupabaseServerClient();
   const {error}=await db.auth.signInWithOtp({
    email:invite.commercial_signature_participants.signer_email,
-   options:{shouldCreateUser:true},
+   options:{shouldCreateUser:true,data:{account_purpose:"contract_signer",signature_kind:"commercial"}},
   });
   if(error) return {error:"Não foi possível enviar o código. Confira SMTP e limites do Supabase Auth."};
   return {ok:true,sent:true};
