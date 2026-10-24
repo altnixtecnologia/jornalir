@@ -244,11 +244,10 @@ export async function sendPasswordResetForUser(profileId: string): Promise<Actio
     return { error: "Usuário inválido." };
   }
 
-  const membership=await requireManagedStaffTarget(profileId);
-  if("error" in membership) return membership;
-
   const manager=await requireUserManager();
   if("error" in manager) return manager;
+  const membership=await requireManagedStaffTarget(profileId);
+  if("error" in membership) return membership;
   const supabase=createSupabaseServerClient();
   const { data: target, error: targetError } = await supabase
     .from("profiles").select("role").eq("id", profileId).maybeSingle();
@@ -288,8 +287,9 @@ export async function sendPasswordResetForUser(profileId: string): Promise<Actio
 }
 
 /**
- * O convite cria imediatamente auth.users e profiles(active=true), mas
- * isto NAO significa que a pessoa aceitou o e-mail. A confirmacao vem
+ * O convite cria auth.users e um profile técnico inativo. Após autorização
+ * administrativa, o perfil interno pode receber active=true, mas isto
+ * NÃO significa que a pessoa aceitou o e-mail. A confirmação vem
  * exclusivamente do Supabase Auth, nao de campos controlados no browser.
  * Apenas owner/admin leem a situacao dos convites; expomos so ID/status.
  */
