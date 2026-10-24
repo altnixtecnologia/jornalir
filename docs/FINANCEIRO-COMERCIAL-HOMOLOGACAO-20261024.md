@@ -138,3 +138,11 @@ Atualização local de cobrança para `cancelled` exige `WHERE status='pending'`
 - Preview mantém o comportamento anterior. Pendente homologação autenticada com falhas de rede e recebimentos concorrentes; `payCompositionAction`, descontos avulsos e estornos ainda são multietapa e pertencem à próxima frente do Módulo 3.
 
 - Revisão de segurança adicional: `manual_receivable_operations` agora só aceita INSERT pela RPC `SECURITY DEFINER` após conferência de permissão; operadores não podem forjar antecipadamente registros de idempotência via PostgREST.
+
+### Composição de vários títulos — etapa transacional isolada (24/10/2026)
+
+- `record_manual_composition_payment` valida sessão/permissão de baixa, UUID da operação, até 50 títulos únicos, mesmo cliente e mesma origem (assinatura ou contrato), lista completa de títulos anteriores e ordem de vencimento; retorna erro explícito para seleção obsoleta, cruzamento de contratos e manipulação de ordem.
+- Adquire row locks **sempre pela ordem dos UUIDs** para reduzir deadlocks entre composições concorrentes; distribui o valor em ordem financeira com limite de saldo por título, registra `receivable_receipts`, atualiza o status e cria crédito do excedente **na mesma transação**. `manual_composition_operations` grava snapshot e lista dos recibos com chave idempotente; mesmo UUID/snapshot retorna mesmos resultados sem duplicar.
+- Fora do preview, `payCompositionAction` agora invoca a RPC em vez de gravar título por título. `CompositionPaymentPanel` mantém UUID estável em retries de rede, renovado ao fechar/reabrir ou após sucesso. Preview continua sem integração externa.
+- Teste em banco descartável no CI: pagamentos por ordem, saldo excedente, retry, origem cruzada, permissão, lista incompleta e acesso negado à gravação direta do ledger. Não mexer no Supabase remoto antes de homologação.
+- Ainda pendentes neste Módulo 3: abatimentos avulsos e estornos completamente transacionais, cenários reais de concorrência PostgreSQL em sessões paralelas e fluxos Asaas/Meta Sandbox.

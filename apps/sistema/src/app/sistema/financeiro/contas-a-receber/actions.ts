@@ -218,6 +218,7 @@ export async function addAdjustmentAction(receivableId: string, input: Adjustmen
 }
 
 export interface CompositionPaymentFormInput {
+  operationId?: string;
   amount: string;
   receivedAt: string;
   paymentMethod: PaymentMethod | "";
@@ -240,6 +241,7 @@ export async function payCompositionAction(receivableIdsOldestFirst: string[], i
   const permissionError = await checkFinanceAction("recebimentos_baixar");
   if (permissionError) return { error: permissionError };
   try {
+    if (isLocalPreviewEnabled()) {
     await getReceivableService(createSupabaseServerClient()).payAcrossReceivables(receivableIdsOldestFirst, {
       amount: parseAmount(input.amount),
       receivedAt: input.receivedAt,
@@ -248,6 +250,23 @@ export async function payCompositionAction(receivableIdsOldestFirst: string[], i
       notes: input.notes,
       receivedByProfileId: input.receivedByProfileId || undefined,
     });
+    } else {
+      if (!input.operationId || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(input.operationId))
+        return { error: "Identificador do pagamento inválido. Reabra o formulário." };
+      if (receivableIdsOldestFirst.length < 2 || receivableIdsOldestFirst.length > 50)
+        return { error: "Uma composição precisa de 2 a 50 títulos válidos." };
+      const { error } = await createSupabaseServerClient().rpc("record_manual_composition_payment", {
+        p_operation_id: input.operationId,
+        p_receivable_ids: receivableIdsOldestFirst,
+        p_amount: parseAmount(input.amount),
+        p_received_at: input.receivedAt,
+        p_payment_method: input.paymentMethod || null,
+        p_reference: input.reference || null,
+        p_notes: input.notes || null,
+        p_received_by: input.receivedByProfileId || null,
+      });
+      if (error) throw new Error(error.message);
+    }
   } catch (error) {
     return { error: toErrorMessage(error) };
   }

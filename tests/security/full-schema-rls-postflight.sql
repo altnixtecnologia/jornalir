@@ -111,6 +111,16 @@ begin
     or not has_function_privilege('service_role','public.reserve_commercial_signature_otp(text)','EXECUTE') then
    raise exception 'Limite OTP comercial não protegido por service_role.';
  end if;
+ if to_regclass('public.manual_composition_operations') is null
+    or to_regprocedure('public.record_manual_composition_payment(uuid,uuid[],numeric,date,text,text,text,uuid)') is null then
+   raise exception 'Composição financeira sem RPC/ledger transacionais.';
+ end if;
+ if has_table_privilege('authenticated','public.manual_composition_operations','INSERT')
+    or has_table_privilege('authenticated','public.manual_composition_operations','UPDATE')
+    or has_table_privilege('anon','public.manual_composition_operations','SELECT')
+    or has_function_privilege('anon','public.record_manual_composition_payment(uuid,uuid[],numeric,date,text,text,text,uuid)','EXECUTE') then
+   raise exception 'Composição exposta a escrita/leitura não autorizada.';
+ end if;
  if to_regclass('public.manual_receivable_operations') is null
     or to_regprocedure('public.record_manual_receivable_payment(uuid,uuid,numeric,date,text,text,text,uuid,text,text,uuid)') is null then
    raise exception 'Falta recebimento manual transacional com idempotência.';

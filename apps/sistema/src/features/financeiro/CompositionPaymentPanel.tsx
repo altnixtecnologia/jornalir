@@ -1,7 +1,7 @@
 "use client";
 import { todayInSaoPauloISO } from "../../lib/date/saoPauloDate";
 
-import { useState, useTransition } from "react";
+import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import type { PaymentMethod } from "@ir/types";
 import { PAYMENT_METHODS, PAYMENT_METHOD_LABELS } from "@ir/types";
@@ -31,6 +31,11 @@ export function CompositionPaymentPanel({
 }): JSX.Element {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
+  const operationId = useRef<string | null>(null);
+  function currentOperationId(): string {
+    if (!operationId.current) operationId.current = crypto.randomUUID();
+    return operationId.current;
+  }
   const [error, setError] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
   const [amount, setAmount] = useState(totalDue > 0 ? totalDue.toFixed(2).replace(".", ",") : "");
@@ -45,6 +50,7 @@ export function CompositionPaymentPanel({
     startTransition(async () => {
       try {
         const result = await payCompositionAction(receivableIdsOldestFirst, {
+          operationId: currentOperationId(),
           amount,
           receivedAt,
           paymentMethod,
@@ -56,6 +62,7 @@ export function CompositionPaymentPanel({
           setError(result.error);
           return;
         }
+        operationId.current = null;
         setOpen(false);
         router.refresh();
       } catch {
@@ -67,7 +74,10 @@ export function CompositionPaymentPanel({
   if (!open) {
     return (
       <div className="form-actions">
-        <button type="button" className="form-action-primary" onClick={() => setOpen(true)}>
+        <button type="button" className="form-action-primary" onClick={() => {
+          operationId.current = null;
+          setOpen(true);
+        }}>
           Registrar recebimento (quita o mais antigo primeiro)
         </button>
       </div>
@@ -124,7 +134,10 @@ export function CompositionPaymentPanel({
         <button type="button" className="form-action-primary" onClick={handleConfirm} disabled={pending}>
           {pending ? "Registrando…" : "Confirmar recebimento"}
         </button>
-        <button type="button" onClick={() => setOpen(false)} disabled={pending}>
+        <button type="button" onClick={() => {
+          operationId.current = null;
+          setOpen(false);
+        }} disabled={pending}>
           Cancelar
         </button>
       </div>
