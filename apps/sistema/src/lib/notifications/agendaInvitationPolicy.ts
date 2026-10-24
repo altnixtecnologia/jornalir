@@ -83,3 +83,59 @@ export function agendaReminderRecipients(
   }
   return responsible;
 }
+
+/** Determina se um lembrete anteriormente enfileirado ainda é válido.
+ * Regras de autorização/consentimento do dispositivo continuam no cron.
+ */
+export type AgendaReminderMeeting = {
+  title: string;
+  event_date: string;
+  start_time: string | null;
+  end_time: string | null;
+  reminder_minutes: number | null;
+  status: string;
+  event_kind: string;
+};
+
+function shiftLocalMinute(local: string, delta: number): string {
+  const date = new Date(local + ":00Z");
+  date.setUTCMinutes(date.getUTCMinutes() + delta);
+  return date.toISOString().slice(0, 16);
+}
+
+export function currentAgendaReminderPush(
+  dedupeKey: string,
+  recipientId: string,
+  event: AgendaReminderMeeting | null,
+  assignment: { completed_at: string | null } | null,
+  invitationStatus: string | null,
+  nowLocal: string,
+): { title: string; body: string; href: string } | null {
+  const key = /^agenda:(reminder|overdue):([0-9a-f-]{36}):(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}):([0-9a-f-]{36})$/i.exec(dedupeKey);
+  if (!key || key[4] !== recipientId || !event || event.status !== "scheduled") return null;
+  const category = key[1];
+  const isResponsible = Boolean(assignment && !assignment.completed_at);
+  const guestOnly = !assignment && event.event_kind === "general" && invitationStatus === "accepted";
+  if (!isResponsible && !(category === "reminder" && guestOnly)) return null;
+
+  const dateTime = event.event_date + "T" + (event.start_time?.slice(0, 5) || "00:00");
+  const reminderAt = event.start_time && event.reminder_minutes !== null
+    ? shiftLocalMinute(dateTime, -event.reminder_minutes) : null;
+  const overdueAt = event.end_time
+    ? shiftLocalMinute(event.event_date + "T" + event.end_time.slice(0, 5), 10)
+    : event.start_time ? shiftLocalMinute(dateTime, 15)
+    : shiftLocalMinute(event.event_date + "T08:00", 1440);
+  const expected = category === "reminder" ? reminderAt : overdueAt;
+  const windowMinutes = category === "reminder" ? 10 : 60;
+  if (!expected || expected !== key[3] || expected > nowLocal ||
+      shiftLocalMinute(expected, windowMinutes) <= nowLocal) return null;
+
+  return {
+    title: (category === "overdue" ? "⚠ Compromisso atrasado: " : "📅 ") + event.title.slice(0, 105),
+    body: category === "overdue"
+      ? "O prazo terminou. Abra a Agenda para concluir ou reagendar."
+      : "Compromisso: " + event.event_date.split("-").reverse().join("/")
+        + " às " + event.start_time!.slice(0, 5) + "h",
+    href: "/sistema/agenda?date=" + encodeURIComponent(event.event_date),
+  };
+}
