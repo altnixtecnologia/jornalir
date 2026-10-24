@@ -9,10 +9,10 @@ import {
 } from "../../lib/signatures/commercialSignatures";
 import {buildSignatureReceiptPdf} from "../../lib/signatures/signatureReceiptPdf";
 import {buildSignedContractPdf} from "../../lib/signatures/signedContractPdf";
+import {persistCommercialEvidence,sha256Evidence} from "../../lib/signatures/commercialEvidenceStorage";
 
 type Result<T=never>={error:string}|({ok:true}&T);
 const BUCKET="contract-documents";
-const SIGN_BUCKET="contract-signatures";
 function normalized(name:string):string {return name.normalize("NFKC").trim().replace(/\s+/g," ").toLocaleLowerCase("pt-BR");}
 
 export async function sendCommercialSignatureOtpAction(token:string):Promise<Result<{sent:true}>> {
@@ -101,35 +101,56 @@ export async function completeCommercialSignatureAction(input:{
   const originalHash=createHash("sha256").update(bytes).digest("hex");
   if(!bytes.subarray(0,5).equals(Buffer.from("%PDF-"))||originalHash!==source.source_sha256)
    throw new Error("Integridade do PDF base não confirmada.");
-  const signedAt=new Date().toISOString();
-  const jpegInfo=await sharp(jpeg).metadata();
-  const receipt=buildSignatureReceiptPdf({
+  // A tentativa fica persistida ANTES de qualquer upload. Se a função
+  // falhar após gravar um ou dois arquivos, a próxima chamada retoma
+  // o mesmo instante de aceite e a mesma assinatura, sem sobrescrever.
+  const proposedSignatureHash=sha256Evidence(jpeg);
+  const {data:attemptRows,error:attemptError}=await admin.rpc(
+   "begin_commercial_signature_attempt",{
+    p_invitation_id:source.invitation_id,
+    p_signer_user_id:user.user.id,
+    p_source_sha256:originalHash,
+    p_signature_sha256:proposedSignatureHash,
+   });
+  if(attemptError||!Array.isArray(attemptRows)||!attemptRows[0])
+   throw new Error(attemptError?.message??"Não foi possível recuperar a tentativa de assinatura.");
+  const attempt=attemptRows[0] as {signature_hash:string;accepted_at:string};
+  const signedAt=new Date(attempt.accepted_at).toISOString();
+  const jpegPath="commercial/"+source.invitation_id+".jpg";
+  const base="commercial-signatures/"+source.request_id+"/"+source.invitation_id;
+  const receiptPath=base+"-receipt.pdf";
+  const signedPath=base+"-signed.pdf";
+  const originalJpeg=await persistCommercialEvidence(admin,{
+    bucket:"contract-signatures",path:jpegPath,format:"image/jpeg",
+    candidate:proposedSignatureHash===attempt.signature_hash?jpeg:undefined,
+    expectedSha256:attempt.signature_hash,
+  });
+  const signatureBytes=originalJpeg.bytes;
+  const jpegInfo=await sharp(signatureBytes).metadata();
+  const receiptCandidate=buildSignatureReceiptPdf({
    signerName:person.signer_name,signerEmail:person.signer_email,
    documentName:source.document_title,contractNumber:source.request_id,
    signedAt,originalSha256:originalHash,invitationId:source.invitation_id,
-   consentVersion:"commercial-v1",sourceIsCumulative:true,jpegBytes:jpeg,jpegWidth:jpegInfo.width??640,jpegHeight:jpegInfo.height??240,
+   consentVersion:"commercial-v1",sourceIsCumulative:true,
+   jpegBytes:signatureBytes,jpegWidth:jpegInfo.width??640,jpegHeight:jpegInfo.height??240,
   });
-  const signed=await buildSignedContractPdf({
-   originalBytes:bytes,signatureJpeg:jpeg,documentName:source.document_title,
+  const receipt=await persistCommercialEvidence(admin,{
+   bucket:BUCKET,path:receiptPath,format:"application/pdf",
+   candidate:receiptCandidate,
+  });
+  const signedCandidate=await buildSignedContractPdf({
+   originalBytes:bytes,signatureJpeg:signatureBytes,documentName:source.document_title,
    signerName:person.signer_name,signerEmail:person.signer_email,
    signedAt,originalSha256:originalHash,invitationId:source.invitation_id,
    consentVersion:"commercial-v1",sourceIsCumulative:true,
   });
-  if(signed.byteLength>10*1024*1024) throw new Error("PDF assinado excede 10 MB.");
-  const base="commercial-signatures/"+source.request_id+"/"+source.invitation_id;
-  const jpegPath="commercial/"+source.invitation_id+".jpg";
-  const receiptPath=base+"-receipt.pdf";
-  const signedPath=base+"-signed.pdf";
-  for(const file of [
-   {bucket:SIGN_BUCKET,path:jpegPath,bytes:jpeg,type:"image/jpeg"},
-   {bucket:BUCKET,path:receiptPath,bytes:receipt,type:"application/pdf"},
-   {bucket:BUCKET,path:signedPath,bytes:signed,type:"application/pdf"},
-  ]){
-   const {error:uploadError}=await admin.storage.from(file.bucket).upload(file.path,file.bytes,{
-    contentType:file.type,cacheControl:"0",upsert:false,
-   });
-   if(uploadError) throw new Error("Evidência não gravada; solicite reconciliação. "+uploadError.message);
-  }
+  if(signedCandidate.byteLength>10*1024*1024)
+    throw new Error("PDF assinado excede 10 MB.");
+  const signed=await persistCommercialEvidence(admin,{
+   bucket:BUCKET,path:signedPath,format:"application/pdf",candidate:signedCandidate,
+  });
+  if(signed.bytes.length>10*1024*1024)
+   throw new Error("PDF previamente armazenado excede 10 MB.");
   const h=headers(),ip=h.get("x-real-ip")??h.get("x-forwarded-for")?.split(",")[0]?.trim()??"";
   const audit={
    acceptedAt:signedAt,method:"verified-email-otp-and-graphical-consent",
@@ -138,9 +159,9 @@ export async function completeCommercialSignatureAction(input:{
   };
   const final=await admin.rpc("finalize_commercial_signature",{
    p_token_sha256:hash,p_auth_user_id:user.user.id,p_original_sha256:originalHash,
-   p_signature_sha256:createHash("sha256").update(jpeg).digest("hex"),
-   p_receipt_sha256:createHash("sha256").update(receipt).digest("hex"),
-   p_signed_sha256:createHash("sha256").update(signed).digest("hex"),p_audit:audit,
+   p_signature_sha256:originalJpeg.sha256,
+   p_receipt_sha256:receipt.sha256,
+   p_signed_sha256:signed.sha256,p_audit:audit,
   });
   if(final.error) throw new Error("Arquivos salvos, mas finalização pendente de reconciliação: "+final.error.message);
   return {ok:true,completed:final.data===true};
