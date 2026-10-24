@@ -106,3 +106,10 @@ com cliente fictício, titular de testes e sem números telefônicos reais:
 Bloco de proteções implementado na PR, pendente resultado final de CI
 da versão mais recente e homologação real Asaas/Meta/operadores.
 **Não afirmar que o módulo inteiro está em produção ou homologado.**
+
+### Adendo: data de emissão
+
+A data de emissão de títulos originados de venda é
+`todayInSaoPauloISO()`, e a primeira data de vencimento não pode
+ser anterior a ela. A mesma data é usada para todas as parcelas
+criadas naquela operação, sem divergência UTC perto da meia-noite.

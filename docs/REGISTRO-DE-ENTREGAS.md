@@ -737,3 +737,27 @@ suposição ou autoativados.
   URLs de convite/recovery, teste de entrega em caixa controlada.
   `docs/USUARIOS-AUTH-EMAIL-CHECKLIST-20261024.md` contém roteiro.
 - Sem merge/deploy, sem envio real e sem alteração no Supabase remoto.
+
+## 24/10/2026 — Financeiro/Comercial: proteção de cobrança e recuperações
+
+- A geração do financeiro da venda agora é restrita a venda aprovada,
+  ativa ou concluída, sem cortesia, parcelas zeradas ou data inválida;
+  a data de emissão/vencimento usa o calendário de São Paulo.
+- Reexecução após falha parcial reconhece parcelas da mesma venda,
+  cliente, número, valor e vencimento sem duplicar. Título cancelado não
+  é substituído, e histórico impede alteração da identidade financeira
+  original, mesmo se todas as parcelas foram canceladas.
+- Cancelar Pix exige vínculo verificado entre cobrança/título/cliente e
+  justificativa. Timeout do Asaas só é reconciliado após consulta da
+  situação remota; pagamento confirmado nunca vira cancelamento.
+- A Server Action de confirmação demonstrativa está bloqueada fora
+  do preview; recuperação de cobrança já paga pelo Asaas grava referência
+  e espera webhook autenticado, sem usar baixa por sessão do operador.
+- CI cobre guarda de venda, datas, duplicação e retorno de chamada Pix
+  sob falha de rede. Nenhuma cobrança Asaas ou WhatsApp real disparada.
+- **Pendente operacional:** Asaas sandbox com webhook, Meta WhatsApp
+  de teste, permissões granularmente exercitadas com perfis de operador,
+  conciliação de saldo/crédito, locações e anúncios; cuidados de
+  concorrência e idempotência de efeitos externos constam em
+  `docs/FINANCEIRO-COMERCIAL-HOMOLOGACAO-20261024.md`.
+- PR #15 aberta; sem merge, deploy, aplicação de migrations no remoto.

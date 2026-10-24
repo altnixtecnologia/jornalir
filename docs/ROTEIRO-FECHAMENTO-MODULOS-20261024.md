@@ -19,7 +19,7 @@ Não usar a PR como release direta.
 |---|---|---|---|
 | 1 | Contratos e assinatura comercial | PDFs versionados, revisão, múltiplos signatários e comprovantes; novo registro persistente de tentativa, retomada de storage, anti-spam de OTP, download restrito após validação de e-mail, token sem indexação | Homologar SMTP/OTP e 2–3 signatários com falha injetada; aprovar modelos jurídicos; fluxo de aditivos implementado em código, pendente homologação real |
 | 2 | Usuários e acesso | Nome real, recuperação de senha, permissões, novos perfis inativos e diagnósticos SMTP | Envio e recebimento real; dois nomes antigos e convites pendentes; permissões de operador testadas autenticadas |
-| 3 | Financeiro e comercial | Origens de vendas, propostas, recebíveis e guardas granulares | Jornada com parcelas, PIX homologado, créditos, baixa, Asaas/webhooks, locações sem duplicidade, cobranças e suspensão de veiculação |
+| 3 | Financeiro e comercial | Origens de vendas, propostas, recebíveis e guardas granulares | Guardas e reexecução de parcelas/Pix codificadas; pendem sandbox Asaas/WhatsApp, créditos, baixa, locações e veiculação |
 | 4 | Editor de matérias, mídias e portal | Estrela da capa, recorte desktop, lista e leitura do portal | Comparação visual aprovada, fluxo editorial com autenticação, galeria, uploads R2, página do artigo, SEO, transição de abertura e compartilhamento |
 | 5 | Jornal Online e importação de PDF | Arquivo R2 e extração em rascunhos; limite atual até 100 MiB | Upload real/capa/leitor desktop-mobile, Range/CORS, duplicatas e relação com edição sem segundo upload |
 | 6 | Aniversariantes | Telas e gerador existentes | Layout aprovado e mensagens personalizadas; filtros por dia/mês; instituições/CNPJ; Novo+; eliminação de duplicações/scroll e atualização sem F5 |
@@ -164,3 +164,27 @@ Checklist indispensável de homologação: signatário externo confirma OTP,
 consegue visualizar/assinar PDF e receber status de conclusão; uma tentativa
 de abrir o painel pela mesma sessão é negada. Administrador pode revogar
 permissões sem derrubar sessões válidas de signatários.
+
+## 24/10/2026 — Financeiro/Comercial: proteção de cobrança e recuperações
+
+- A geração do financeiro da venda agora é restrita a venda aprovada,
+  ativa ou concluída, sem cortesia, parcelas zeradas ou data inválida;
+  a data de emissão/vencimento usa o calendário de São Paulo.
+- Reexecução após falha parcial reconhece parcelas da mesma venda,
+  cliente, número, valor e vencimento sem duplicar. Título cancelado não
+  é substituído, e histórico impede alteração da identidade financeira
+  original, mesmo se todas as parcelas foram canceladas.
+- Cancelar Pix exige vínculo verificado entre cobrança/título/cliente e
+  justificativa. Timeout do Asaas só é reconciliado após consulta da
+  situação remota; pagamento confirmado nunca vira cancelamento.
+- A Server Action de confirmação demonstrativa está bloqueada fora
+  do preview; recuperação de cobrança já paga pelo Asaas grava referência
+  e espera webhook autenticado, sem usar baixa por sessão do operador.
+- CI cobre guarda de venda, datas, duplicação e retorno de chamada Pix
+  sob falha de rede. Nenhuma cobrança Asaas ou WhatsApp real disparada.
+- **Pendente operacional:** Asaas sandbox com webhook, Meta WhatsApp
+  de teste, permissões granularmente exercitadas com perfis de operador,
+  conciliação de saldo/crédito, locações e anúncios; cuidados de
+  concorrência e idempotência de efeitos externos constam em
+  `docs/FINANCEIRO-COMERCIAL-HOMOLOGACAO-20261024.md`.
+- PR #15 aberta; sem merge, deploy, aplicação de migrations no remoto.
