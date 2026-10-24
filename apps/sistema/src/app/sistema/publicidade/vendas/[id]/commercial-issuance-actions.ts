@@ -1,6 +1,5 @@
 "use server";
 
-import { createHash, randomUUID } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { createSupabaseServerClient } from "../../../../../lib/supabase/server";
 import { checkModuleAction } from "../../../../../lib/permissions/checkModuleAction";
@@ -8,6 +7,8 @@ import { getAuditContext } from "../../../../../lib/auth/getAuditContext";
 import { recordAuditEventSupabase } from "../../../../../providers/supabase/auditEvents.supabase";
 import { compileCommercialDocuments } from "../../../../../lib/contracts/commercialIssuance";
 import { buildContractTemplatePdf } from "../../../../../lib/contracts/contractTemplatePdf";
+import { commercialDocumentId } from "../../../../../lib/contracts/commercialDocumentIdentity";
+import { persistCommercialEvidence } from "../../../../../lib/signatures/commercialEvidenceStorage";
 
 const BUCKET = "contract-documents";
 const MAX_BYTES = 4 * 1024 * 1024;
@@ -125,7 +126,7 @@ export async function issueCommercialContractDocumentsAction(
         existing++;
         continue;
       }
-      const id=randomUUID();
+      const id=commercialDocumentId(pkg,doc.serviceId);
       const path="commercial-contracts/"+pkg+"/"+id+".pdf";
       const pdf=await buildContractTemplatePdf({
         title:doc.templateTitle,content:doc.text,contractReference:sale,
@@ -135,26 +136,42 @@ export async function issueCommercialContractDocumentsAction(
       if(pdf.byteLength===0 || pdf.byteLength>MAX_BYTES) {
         throw new Error("PDF inválido ou acima de 4 MB: "+doc.templateTitle);
       }
-      const sha256=createHash("sha256").update(pdf).digest("hex");
-      const {error:uploadError}=await supabase.storage.from(BUCKET).upload(path,pdf,{
-        contentType:"application/pdf",cacheControl:"0",upsert:false,
+      // O mesmo serviço da mesma contratação recebe sempre o mesmo UUID.
+      // Se o PDF foi salvo e o INSERT falhou, o Storage contém o documento
+      // anterior. Recuperar seus bytes, NUNCA substituir silenciosamente.
+      const storedFile=await persistCommercialEvidence(supabase,{
+        bucket:BUCKET,path,format:"application/pdf",candidate:pdf,
       });
-      if(uploadError) throw new Error("Não foi possível salvar PDF privado: "+uploadError.message);
+      const sha256=storedFile.sha256;
+      if(storedFile.bytes.length>MAX_BYTES)
+        throw new Error("PDF privado anteriormente salvo ultrapassa 4 MB.");
       const {error:insertError}=await supabase.from("commercial_contract_documents").insert({
         id,package_id:pkg,service_id:doc.serviceId,template_id:doc.templateId,
         template_version:doc.templateVersion,file_reference:path,sha256,
-        size_bytes:pdf.byteLength,title:doc.templateTitle,issued_by:actor.actorId,
+        size_bytes:storedFile.bytes.length,title:doc.templateTitle,issued_by:actor.actorId,
       });
       if(insertError) {
-        // Sem DELETE de evidência privada: nunca apagar arquivo para
-        // ocultar falha de banco. Reportar para reconciliação controlada.
-        throw new Error("PDF salvo mas sem registro; concilie o arquivo "+id+" antes de repetir: "+insertError.message);
+        // Concorrência: outra requisição pode ter registrado o mesmo PDF.
+        // Aceitar somente o documento equivalente, nunca reatribuir
+        // template/versão ou sobrescrever bytes.
+        const {data:concurrent}=await supabase.from("commercial_contract_documents")
+          .select("id,service_id,template_id,template_version,sha256,file_reference")
+          .eq("id",id).maybeSingle();
+        if(concurrent && concurrent.service_id===doc.serviceId
+          && concurrent.template_id===doc.templateId
+          && concurrent.template_version===doc.templateVersion
+          && concurrent.sha256===sha256
+          && concurrent.file_reference===path){
+          existing++;
+          continue;
+        }
+        throw new Error("PDF privado salvo mas não registrado; a recuperação exige conferência: "+insertError.message);
       }
       issued++;
       try {
         await recordAuditEventSupabase(supabase,{
           userId:actor.actorId,entityType:"commercial_contract_document",entityId:id,
-          action:"issue_pdf",metadata:{saleId:sale,packageId:pkg,templateId:doc.templateId},
+          action:"issue_pdf",metadata:{saleId:sale,packageId:pkg,templateId:doc.templateId,recovered:storedFile.reused},
         });
       } catch(error) { console.error("Auditoria complementar indisponível:",toError(error)); }
     }
