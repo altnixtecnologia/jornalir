@@ -315,8 +315,15 @@ export async function reverseReceiptAction(receivableId: string, receiptId: stri
   if (permissionError) return { error: permissionError };
   try {
     const client = createSupabaseServerClient();
-    const AUDIT = await getAuditContext(client);
-    await getReceivableService(client).reverseReceipt(receivableId, receiptId, AUDIT.actorId, reason);
+    if (isLocalPreviewEnabled()) {
+      const AUDIT = await getAuditContext(client);
+      await getReceivableService(client).reverseReceipt(receivableId, receiptId, AUDIT.actorId, reason);
+    } else {
+      const { error } = await client.rpc("reverse_receivable_receipt_safe", {
+        p_receivable_id: receivableId, p_receipt_id: receiptId, p_reason: reason,
+      });
+      if (error) throw new Error(error.message);
+    }
   } catch (error) {
     return { error: toErrorMessage(error) };
   }
@@ -329,8 +336,15 @@ export async function reverseAdjustmentAction(receivableId: string, adjustmentId
   if (permissionError) return { error: permissionError };
   try {
     const client = createSupabaseServerClient();
-    const AUDIT = await getAuditContext(client);
-    await getReceivableService(client).reverseAdjustment(receivableId, adjustmentId, AUDIT.actorId, reason);
+    if (isLocalPreviewEnabled()) {
+      const AUDIT = await getAuditContext(client);
+      await getReceivableService(client).reverseAdjustment(receivableId, adjustmentId, AUDIT.actorId, reason);
+    } else {
+      const { error } = await client.rpc("reverse_receivable_adjustment_safe", {
+        p_receivable_id: receivableId, p_adjustment_id: adjustmentId, p_reason: reason,
+      });
+      if (error) throw new Error(error.message);
+    }
   } catch (error) {
     return { error: toErrorMessage(error) };
   }

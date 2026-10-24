@@ -111,6 +111,16 @@ begin
     or not has_function_privilege('service_role','public.reserve_commercial_signature_otp(text)','EXECUTE') then
    raise exception 'Limite OTP comercial não protegido por service_role.';
  end if;
+ if to_regprocedure('public.reverse_receivable_receipt_safe(uuid,uuid,text)') is null
+    or to_regprocedure('public.reverse_receivable_adjustment_safe(uuid,uuid,text)') is null then
+   raise exception 'Estornos transacionais não estão disponíveis.';
+ end if;
+ if has_table_privilege('authenticated','public.receivable_receipts','UPDATE')
+   or has_table_privilege('authenticated','public.receivable_adjustments','UPDATE')
+   or has_function_privilege('anon','public.reverse_receivable_receipt_safe(uuid,uuid,text)','EXECUTE')
+   or has_function_privilege('anon','public.reverse_receivable_adjustment_safe(uuid,uuid,text)','EXECUTE') then
+    raise exception 'Estorno exposto a PATCH direto ou anon.';
+ end if;
  if to_regclass('public.manual_adjustment_operations') is null
     or to_regprocedure('public.record_manual_receivable_adjustment(uuid,uuid,numeric,text,text,uuid,text)') is null then
    raise exception 'Desconto manual não possui operação transacional.';
