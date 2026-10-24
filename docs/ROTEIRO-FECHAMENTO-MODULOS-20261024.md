@@ -285,3 +285,10 @@ A confirmação do Jornal IR prevalece sobre o plano anterior: **os seis espaço
 - O leitor mobile deixa de manter todos os canvas em memória: páginas fora do viewport expandido voltam a placeholders e liberam a imagem; ao aproximar, renderizam outra vez. Isso protege Android com pouca RAM em jornal de dezenas de páginas.
 - O carregamento PDF.js dos leitores mobile e desktop agora cancela a tarefa de rede ao trocar de edição ou desmontar o componente; não deixa download pendente consumindo recursos.
 - **Pendente para homologação completa:** navegação/zoom/tela cheia real no PC/Android, configuração CORS/Range no R2 de edições e PDFs do acervo de produção. Não declarar testes manuais concluídos por CI.
+
+### Módulo 7 — bloco A: convite e confirmação de reunião (24/10/2026)
+
+- Mantidas as tabelas/funções existentes de tarefas e `agenda_event_assignees`; criado `agenda_event_invitees` separado com resposta individual `pending/accepted/declined`, data, autor e trilha. Concluir responsabilidade **não** equivale a confirmar presença.
+- Gestão de participantes de compromisso geral existente na tela Agenda, com caixa de seleção da equipe ativa; salvar por RPC transacional sem remover respostas de quem permanece convidado. O organizador consulta status por nome e cada convidado responde com o próprio login.
+- RLS de leitura apenas colaborador convidado ou gestor; INSERT/UPDATE/DELETE diretos vedados e RPCs `set_agenda_event_invitees` e `respond_agenda_event_invitation` verificam gestor/identidade no banco. Compromissos cancelados/concluídos não aceitam novos convites nem novas respostas.
+- **Não emite mensagens**. A notificação interna, Telegram, push e lembretes individualizados continuam no bloco B; aqui a tela informa explicitamente que o convite ainda não é um e-mail enviado. Não altera sessão de Câmara, pauta semanal nem status de tarefas.

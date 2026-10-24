@@ -13,6 +13,8 @@ import {
   setPautaItemStatusAction,
   updateAgendaEventAction,
   updatePautaItemAction,
+  setAgendaMeetingInviteesAction,
+  respondAgendaInvitationAction,
 } from "./actions";
 import type { AgendaEventItem, AgendaWorkspaceData, WeeklyPautaItem } from "./agendaTypes";
 import { createSupabaseBrowserClient } from "../../lib/supabase/browser";
@@ -446,6 +448,31 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
     );
   }
 
+  function InviteesEditor({item}:{item:AgendaEventItem}):JSX.Element{
+    return <details className="agenda-inline-edit">
+      <summary>Convidar para reunião · {item.invitees.length} pessoa(s)</summary>
+      <form className="agenda-form" onSubmit={event=>{
+        event.preventDefault();
+        const ids=[...new FormData(event.currentTarget).getAll("invitee_ids")]
+          .filter((id):id is string=>typeof id==="string");
+        run(()=>setAgendaMeetingInviteesAction(item.id,ids),"Convidados atualizados no sistema.");
+      }}>
+        <p className="helper-text">Convite interno: o participante poderá aceitar ou recusar na Agenda. Nenhum e-mail ou Telegram é enviado nesta etapa.</p>
+        <fieldset className="agenda-assignees">
+          <legend>Convidados da reunião</legend>
+          <div className="agenda-assignee-options">
+            {data.profiles.map(profile=><label key={profile.id} className="agenda-person-option">
+              <input type="checkbox" name="invitee_ids" value={profile.id}
+                defaultChecked={item.invitees.some(inv=>inv.id===profile.id)}/>
+              <span className="agenda-person-name">{profile.name}</span>
+            </label>)}
+          </div>
+        </fieldset>
+        <button type="submit" className="agenda-primary" disabled={isPending}>Salvar convidados</button>
+      </form>
+    </details>;
+  }
+
   function PautaEdit({ item }: { item: WeeklyPautaItem }): JSX.Element {
     return (
       <details className="agenda-inline-edit pauta-inline-edit">
@@ -624,6 +651,18 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
                             </span>
                           </div>
                           {item.description ? <details className="agenda-event-details"><summary>Visualizar detalhes</summary><p>{item.description}</p></details> : null}
+                          {item.invitees.length ? <div className="agenda-event-meta" aria-label="Confirmações de reunião">
+                            {item.invitees.map(person=><span key={person.id} className="agenda-assignee-chip">
+                              {person.name}: {person.response==="accepted"?"aceitou":person.response==="declined"?"recusou":"pendente"}
+                            </span>)}
+                          </div>:null}
+                          {item.status==="scheduled" && item.invitees.some(person=>person.id===data.currentUserId)?
+                            <div className="agenda-event-actions">
+                              <button disabled={isPending} type="button"
+                               onClick={()=>run(()=>respondAgendaInvitationAction(item.id,"accepted"),"Presença confirmada.")}>Aceitar convite</button>
+                              <button disabled={isPending} type="button"
+                               onClick={()=>run(()=>respondAgendaInvitationAction(item.id,"declined"),"Recusa registrada.")}>Recusar convite</button>
+                            </div>:null}
                         </div>
                       </div>
                       {(data.access.agendaWrite || item.assignees.some((person) => person.id === data.currentUserId)) ? (
@@ -669,6 +708,8 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
                         </div>
                       ) : null}
                       {data.access.agendaWrite ? <EventEdit item={item} /> : null}
+                      {data.access.agendaWrite && item.eventKind==="general" && item.status==="scheduled"
+                        ? <InviteesEditor item={item}/> : null}
                     </article>
                   ))}
                 </div>

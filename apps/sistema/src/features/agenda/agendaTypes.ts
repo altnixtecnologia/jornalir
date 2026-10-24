@@ -18,6 +18,8 @@ export interface AgendaEventItem {
   location: string | null;
   status: "scheduled" | "completed" | "cancelled";
   assignees: (AgendaProfile & { completedAt: string | null })[];
+  /** Confirmação de presença de reunião, independente de tarefa concluída. */
+  invitees: (AgendaProfile & { response: "pending" | "accepted" | "declined"; respondedAt: string | null })[];
 }
 
 export interface WeeklyPautaItem {
