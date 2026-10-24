@@ -16,6 +16,8 @@ export interface BirthdayEntry {
   displayName: string;
   /** "YYYY-MM-DD" — o ano pode ser fictício/desconhecido para familiares. Para um registro de fundação (isFounding), é a data de fundação, nunca um nascimento. */
   birthDate: string;
+  /** false = data recorrente informada sem ano; 2000 no birthDate é só projeção bissexta. */
+  birthYearKnown?: boolean;
   /** Data do cadastro do registro, independente da data de nascimento. */
   createdAt?: string;
   /** true = este registro representa o aniversário de FUNDAÇÃO de uma instituição (PJ), nunca um nascimento de pessoa. Controla só rótulos/textos da UI — nunca é combinado com relationship nem aparece em BirthdayGroup.principal (que continua exclusivo de pessoa física, "PJ nunca tem titular aniversariante"). */

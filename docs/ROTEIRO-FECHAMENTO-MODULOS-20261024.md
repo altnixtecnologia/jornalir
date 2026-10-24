@@ -201,3 +201,24 @@ permissões sem derrubar sessões válidas de signatários.
 - A geometria utiliza coordenadas normalizadas referentes à **foto original** e produz uma derivada JPEG sem sobrescrever original ou outras galerias. Arquivo somente substitui o vínculo após o upload existente confirmar a derivada. Testes de geometria no CI verificam aspect ratio, limites e extração correta de pixels.
 - O componente `PreUploadImageCrop` permanece inalterado para celular/tablet/toque e em contextos que não são PC. O novo editor não instala pacote npm nem altera migrações ou Storage.
 - Teste de UI em navegador real (mouse, resize, upload, salvar, reabrir, recortes verticais e horizontais) ainda exige homologação manual antes do deploy.
+
+
+## Plano de conclusão 5–10 por menor esforço (sem criar escopo novo)
+
+Ordem operacional de **fechamento**, não da lista numérica:
+1. **Módulo 6 Aniversariantes** — bloco A: datas sem ano, duplicatas, atualização imediata, filtros e relatório; bloco B: layout aprovado, Novo+, mensagens/modelos e teste de uso. Só marcar fechado depois de B e de QA visual.
+2. **Módulo 8 Publicidade/Assine** — bloco A: chave Assine/Anuncie, slots e regras de apresentação; bloco B: veiculação/vigência/contratos/suspensão e QA.
+3. **Módulo 5 Jornal Online/PDF** — bloco A: upload/duplicidade/importação; bloco B: leitor desktop/mobile e Range/CORS.
+4. **Módulo 7 Agenda/Pauta** — bloco A: tarefas/reuniões/convites; bloco B: alertas, notificações, Telegram/push.
+5. **Módulo 10 Clientes integrados** — contrato de dados, regras de cliente digital, sincronização segura e testes cruzados com Altnix Informativo. Sem tocar players ou OTA.
+6. **Módulo 9 NFS-e Nacional** — mais complexo por município, certificado e homologação fiscal externa: deixar por último, sem emissão real sem aprovação.
+
+Evitar declarar um módulo encerrado só porque a infraestrutura de CI está verde. As alterações abaixo são **correções de requisitos já combinados**, sem recursos extras.
+
+### Módulo 6 — bloco A: integridade editorial (24/10/2026)
+
+- O banco já aceitava `birth_year NULL`, mas formulário exigia ano; inclusão/edição agora usa DD/MM e ano opcional. `2000` é apenas projeção bissexta para cálculo da semana, e `birthYearKnown=false` grava NULL de verdade. Um nascimento real em 2000 continua distinguível. Uma data 29/02 com ano real não bissexto é rejeitada.
+- Edição dos registros existentes não deve preencher o ano NULL com 2000 acidentalmente. O nome/dia/mês da instituição no cadastro mestre continuam separados e somente leitura no módulo editorial.
+- Banco bloqueia inclusões ou reativações concorrentes de pessoa editorial com mesmo grupo, nome normalizado e dia/mês; não mexe em duplicatas legadas automaticamente. Identidades diferentes com mesma data são permitidas.
+- Ao confirmar salvamento, estado React é atualizado sem exigir F5; `router.refresh()` reconcilia IDs e snapshots. Listagem expandida respeita filtros também nas pessoas filhas, evitando exibir aniversariantes de fora da semana selecionada.
+- Testes de função, duplicidade em PostgreSQL temporário e build geral adicionados ao CI. **Ainda falta bloco B (layout/mensagens) e teste visual antes de marcar o módulo 6 concluído.**

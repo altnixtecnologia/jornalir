@@ -31,6 +31,8 @@ export interface EditorialBirthdayInput {
   id?: string;
   displayName: string;
   birthDate: string;
+  /** false = armazenar birth_year NULL, nunca um ano fictício. */
+  birthYearKnown?: boolean;
   city: string;
   groupClientId: string | null;
   relationship: string;

@@ -83,7 +83,9 @@ export async function saveEditorialBirthday(input: EditorialBirthdayInput): Prom
   const caller = await permitted();
   if (!caller) return { error: "Acesso não autorizado ao módulo Aniversariantes." };
   const name = clean(input.displayName, 180);
-  if (!name || !validBirthDate(input.birthDate) || input.displayName.length > 180) {
+  if (!name || !validBirthDate(input.birthDate) || input.displayName.length > 180
+    || (input.birthYearKnown !== undefined && typeof input.birthYearKnown !== "boolean")
+    || (input.birthYearKnown === false && !input.birthDate.startsWith("2000-"))) {
     return { error: "Informe nome e uma data de nascimento válida." };
   }
   if (input.groupClientId && !UUID.test(input.groupClientId)) return { error: "Grupo de cliente inválido." };
@@ -102,7 +104,7 @@ export async function saveEditorialBirthday(input: EditorialBirthdayInput): Prom
     source_client_id: null,
     origin,
     display_name: name,
-    birth_year: year, birth_month: month, birth_day: day,
+    birth_year: input.birthYearKnown === false ? null : year, birth_month: month, birth_day: day,
     city: clean(input.city, 120) || null,
     relationship: clean(input.relationship, 100) || null,
     profession: clean(input.profession, 150) || null,
@@ -119,13 +121,17 @@ export async function saveEditorialBirthday(input: EditorialBirthdayInput): Prom
     const { data: updated, error } = await db.from("birthday_entries").update(fields)
       .eq("id", input.id).is("source_client_id", null)
       .select("id").maybeSingle();
+    if (error?.code === "23505") return { error: "Este nome e data já estão cadastrados neste grupo." };
     if (error || !updated) return { error: "Não foi possível atualizar. Confira o registro e suas permissões." };
     revalidatePath(PATH);
     return { ok: true, data: { id: updated.id } };
   }
   const { data: created, error } = await db.from("birthday_entries")
     .insert({ ...fields, active: true, created_by: userId }).select("id").single();
-  if (error || !created) return { error: "Não foi possível salvar este aniversariante." };
+  if (error || !created) {
+    if (error?.code === "23505") return { error: "Já existe um aniversariante com esse nome e dia/mês neste grupo. Confira antes de incluir novamente." };
+    return { error: "Não foi possível salvar este aniversariante." };
+  }
   revalidatePath(PATH);
   return { ok: true, data: { id: created.id } };
 }
