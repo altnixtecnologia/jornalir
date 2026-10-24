@@ -17,21 +17,22 @@ export function DigitalExportControl({
       else {
         setEnabled(!enabled);
         setMessage(!enabled
-          ? "Cadastro liberado para consulta digital. Nenhuma mídia ou cobrança foi modificada."
-          : "Autorização revogada. O cadastro não aparece mais na consulta digital.");
+          ? "Pré-autorização registrada para etapa futura. A comunicação com o Altnix segue desligada."
+          : "Pré-autorização revogada. Nenhum dado foi enviado ao Altnix.");
       }
     });
   }
   return <section className="form-section">
     <h2>Integração de cadastro digital — Altnix Informativo</h2>
     <p className="helper-text">
-      Liberação individual e manual para consulta de identidade, contato e endereço.
-      Não cria mídia, contrato, cobrança, playlist, tela ou cadastro no outro sistema.
+      Apenas registra a pré-autorização interna de identidade, contato e endereço para uma etapa futura.
+      A integração com o Altnix Informativo está DESLIGADA, mesmo com pré-autorização.
+      Não envia dados nem cria mídia, contrato, cobrança, playlist ou equipamento.
     </p>
-    <p className="helper-text">Estado: <strong>{enabled ? "Liberado para consulta" : "Não liberado"}</strong></p>
+    <p className="helper-text">Estado: <strong>{enabled ? "Pré-autorizado; conexão desligada" : "Sem pré-autorização; conexão desligada"}</strong></p>
     <button type="button" className="form-action-primary"
       disabled={pending || (!enabled && !clientActive)} onClick={change}>
-      {pending ? "Salvando..." : enabled ? "Revogar compartilhamento" : "Liberar compartilhamento"}
+      {pending ? "Salvando..." : enabled ? "Revogar pré-autorização" : "Pré-autorizar para integração futura"}
     </button>
     {!clientActive && !enabled ? <p className="helper-text">Ative o cliente antes de liberar dados.</p> : null}
     {message ? <p role="status" className="helper-text">{message}</p> : null}
