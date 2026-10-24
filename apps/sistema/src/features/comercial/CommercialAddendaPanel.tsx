@@ -86,6 +86,8 @@ export function CommercialAddendaPanel({saleId,originalDocuments,addenda,canPrep
      "Aguardando conferência jurídica":"Conferência jurídica aprovada"} ·
      contrato original {item.original_document_id.slice(0,8)}
    </p>
+   <p><a href={"/sistema/publicidade/vendas/"+saleId+"/aditivos/"+item.id+"/previa"}
+     target="_blank" rel="noreferrer">Abrir prévia PDF — NÃO ASSINAR</a></p>
    {item.status==="draft" && canPrepare ? (
     editing===item.id ? <>
      <label className="form-field"><span className="field-label">Título</span>
