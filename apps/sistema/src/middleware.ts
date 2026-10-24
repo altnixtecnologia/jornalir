@@ -2,6 +2,7 @@ import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import { isLocalPreviewEnabled } from "./lib/auth/localPreview";
 import { canEnterStaffPanel } from "./lib/auth/staffAccessPolicy";
+import { NFSE_AVAILABLE_IN_THIS_RELEASE } from "./lib/release/releasePolicy";
 
 /**
  * Proteção real de `/sistema/*` — server-side, antes de qualquer conteúdo
@@ -91,6 +92,10 @@ export async function middleware(request: NextRequest): Promise<NextResponse> {
     const privileged=profile?.role==="owner"||profile?.role==="admin";
     const matches=(prefix:string):boolean =>
       pathname===prefix||pathname.startsWith(prefix+"/");
+    // A NFS-e foi adiada até após o release: barrar acesso direto também.
+    if (!NFSE_AVAILABLE_IN_THIS_RELEASE && matches("/sistema/nfse")) {
+      return NextResponse.redirect(new URL("/sistema?modulo=nfse-adiado", request.url), 303);
+    }
     const adminOnly=matches("/sistema/usuarios") ||
       matches("/sistema/configuracoes") || matches("/sistema/nfse");
     if(adminOnly&&!privileged){
