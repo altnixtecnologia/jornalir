@@ -665,3 +665,39 @@ suposição ou autoativados.
   objetos de evidência para auditoria.
 - Exigir três workflows verdes para SHA de código final e ensaio
   autenticado em ambiente separado com SMTP de teste antes de uso real.
+
+
+## 24/10/2026 — Contratos: aditivos comerciais após o PDF original
+
+- Migration `20261118100000_commercial_contract_addenda.sql`: registra
+  `commercial_contract_addenda`, histórico `commercial_contract_addendum_events`
+  e adiciona `addendum_id` a `commercial_contract_documents`. Apenas
+  documentos originais contam para os índices únicos da modalidade combinada
+  ou individual. Aditivos podem coexistir sem alterar o original.
+- A criação exige permissão `publicidade.contratos_preparar`,
+  pacote jurídico aprovado e documento original emitido. SQL numera o
+  aditivo por contrato e preserva origem; não aceita origem em outro
+  pacote nem utilizar aditivo como documento original.
+- Rascunho pode ser editado, depois encaminhado a revisor autorizado.
+  A aprovação exige texto legal suficiente, CONTRATANTE/CONTRATADA,
+  indicação de ADITIVO e justificativa humana de 20 a 1000 caracteres.
+  Devolução preserva justificativa na trilha e a exibe ao preparador.
+  Depois da aprovação o texto é imutável.
+- Prévia PDF identificada claramente como **MINUTA — NÃO ASSINAR**
+  com acesso interno, antes de aprovação.
+- Emissão após aprovação: PDF novo separado com texto aprovado,
+  referência e SHA-256 do original, caminho privado e ID determinístico
+  por aditivo. Arquivo/registro são reutilizados ou verificados na
+  reexecução, sem apagar evidência nem criar cobrança.
+- Após emitir, o PDF aparece junto aos documentos da venda e pode ter
+  preparação de signatários, OTP, aceite e comprovante **exclusivamente
+  no assinador comercial já implementado**.
+- Contratos antigos emitidos/assinados não são editados; aditivo
+  também não altera valores, parcelas, PIX ou cobrança por conta própria.
+  Qualquer efeito financeiro exige fluxo comercial/financeiro explícito.
+- Testes: novo índice original-vs-aditivo, RLS de aprovação/eventos,
+  guardas, compilação TypeScript/Next e reconstrução integral de migrations.
+  O ensaio humano ainda precisa confirmar rascunho→devolução→aprovação→
+  emissão→assinatura de aditivo com usuário preparador e revisor distintos.
+- O texto jurídico precisa de revisão responsável; regex e CI não
+  constituem aprovação legal. Nenhuma emissão/assinatura real autorizada.

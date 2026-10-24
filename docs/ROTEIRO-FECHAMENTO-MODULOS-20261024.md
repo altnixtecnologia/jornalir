@@ -17,7 +17,7 @@ Não usar a PR como release direta.
 
 | Ordem | Módulo | Estado de programação | Bloqueio real para fechamento |
 |---|---|---|---|
-| 1 | Contratos e assinatura comercial | PDFs versionados, revisão, múltiplos signatários e comprovantes; novo registro persistente de tentativa, retomada de storage, anti-spam de OTP, download restrito após validação de e-mail, token sem indexação | Homologar SMTP/OTP e 2–3 signatários com falha injetada; aprovar modelos jurídicos; fluxo de aditivos ainda não implementado de ponta a ponta |
+| 1 | Contratos e assinatura comercial | PDFs versionados, revisão, múltiplos signatários e comprovantes; novo registro persistente de tentativa, retomada de storage, anti-spam de OTP, download restrito após validação de e-mail, token sem indexação | Homologar SMTP/OTP e 2–3 signatários com falha injetada; aprovar modelos jurídicos; fluxo de aditivos implementado em código, pendente homologação real |
 | 2 | Usuários e acesso | Nome real, recuperação de senha, permissões, novos perfis inativos e diagnósticos SMTP | Envio e recebimento real; dois nomes antigos e convites pendentes; permissões de operador testadas autenticadas |
 | 3 | Financeiro e comercial | Origens de vendas, propostas, recebíveis e guardas granulares | Jornada com parcelas, PIX homologado, créditos, baixa, Asaas/webhooks, locações sem duplicidade, cobranças e suspensão de veiculação |
 | 4 | Editor de matérias, mídias e portal | Estrela da capa, recorte desktop, lista e leitura do portal | Comparação visual aprovada, fluxo editorial com autenticação, galeria, uploads R2, página do artigo, SEO, transição de abertura e compartilhamento |
@@ -76,3 +76,39 @@ processo externo. Depois de fechar, avançar módulo 2 e registrar novo estado.
 - **Limitação:** arquivos órfãos criados por versões antigas que usavam
   UUIDs aleatórios continuam exigindo conciliação manual; a mudança
   não apaga nem varre storage histórico automaticamente.
+
+
+## 24/10/2026 — Contratos: aditivos comerciais após o PDF original
+
+- Migration `20261118100000_commercial_contract_addenda.sql`: registra
+  `commercial_contract_addenda`, histórico `commercial_contract_addendum_events`
+  e adiciona `addendum_id` a `commercial_contract_documents`. Apenas
+  documentos originais contam para os índices únicos da modalidade combinada
+  ou individual. Aditivos podem coexistir sem alterar o original.
+- A criação exige permissão `publicidade.contratos_preparar`,
+  pacote jurídico aprovado e documento original emitido. SQL numera o
+  aditivo por contrato e preserva origem; não aceita origem em outro
+  pacote nem utilizar aditivo como documento original.
+- Rascunho pode ser editado, depois encaminhado a revisor autorizado.
+  A aprovação exige texto legal suficiente, CONTRATANTE/CONTRATADA,
+  indicação de ADITIVO e justificativa humana de 20 a 1000 caracteres.
+  Devolução preserva justificativa na trilha e a exibe ao preparador.
+  Depois da aprovação o texto é imutável.
+- Prévia PDF identificada claramente como **MINUTA — NÃO ASSINAR**
+  com acesso interno, antes de aprovação.
+- Emissão após aprovação: PDF novo separado com texto aprovado,
+  referência e SHA-256 do original, caminho privado e ID determinístico
+  por aditivo. Arquivo/registro são reutilizados ou verificados na
+  reexecução, sem apagar evidência nem criar cobrança.
+- Após emitir, o PDF aparece junto aos documentos da venda e pode ter
+  preparação de signatários, OTP, aceite e comprovante **exclusivamente
+  no assinador comercial já implementado**.
+- Contratos antigos emitidos/assinados não são editados; aditivo
+  também não altera valores, parcelas, PIX ou cobrança por conta própria.
+  Qualquer efeito financeiro exige fluxo comercial/financeiro explícito.
+- Testes: novo índice original-vs-aditivo, RLS de aprovação/eventos,
+  guardas, compilação TypeScript/Next e reconstrução integral de migrations.
+  O ensaio humano ainda precisa confirmar rascunho→devolução→aprovação→
+  emissão→assinatura de aditivo com usuário preparador e revisor distintos.
+- O texto jurídico precisa de revisão responsável; regex e CI não
+  constituem aprovação legal. Nenhuma emissão/assinatura real autorizada.
