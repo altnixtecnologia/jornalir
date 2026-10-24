@@ -114,10 +114,11 @@ jobs:
           psql -h 127.0.0.1 -p 54322 -U postgres -d postgres \
             -v ON_ERROR_STOP=1 -f tests/security/client-digital-export-postflight.sql
 
+      - name: Validar SQL de todas as funções sem ignorar erros
+        run: supabase db lint --local --schema public
+
       - name: Confirm schema tables and functions
-        run: |
-          supabase db lint --local --schema public || true
-          echo "Migration rehearsal concluded against local-only Docker database."
+        run: echo "Migration rehearsal concluded against local-only Docker database."
 
       - name: Stop ephemeral services
         if: always()
