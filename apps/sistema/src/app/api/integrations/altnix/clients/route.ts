@@ -2,7 +2,7 @@ import "server-only";
 import { createHash, timingSafeEqual } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { createSupabaseAdminClient } from "../../../../../lib/supabase/admin";
-import { sanitizeDigitalClientSearch, toAltnixDigitalClient, type ExportableJornalClient } from "../../../../../lib/integrations/altnixDigitalClientContract";
+import { ALTNIX_CLIENT_EXPORT_RELEASED, sanitizeDigitalClientSearch, toAltnixDigitalClient, type ExportableJornalClient } from "../../../../../lib/integrations/altnixDigitalClientContract";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -27,6 +27,12 @@ function secretValid(request: NextRequest): boolean {
  * key no browser. Disponível só após ativação manual em ambiente homologado.
  */
 export async function GET(request: NextRequest): Promise<NextResponse> {
+  // Este bloqueio exige mudança de código deliberada em release futuro.
+  // Nem segredo válido nem variável de ambiente podem ligar a integração
+  // acidentalmente antes da homologação e do aval do proprietário.
+  if (!ALTNIX_CLIENT_EXPORT_RELEASED) {
+    return respond({ error: "Integração Jornal IR–Altnix ainda não autorizada para ativação." }, 503);
+  }
   if (process.env.ALTNIX_CLIENT_SYNC_ENABLED !== "true") {
     return respond({ error: "Integração de clientes desativada." }, 503);
   }
