@@ -278,6 +278,9 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       if (!activeProfiles.has(device.profile_id)) continue;
       const pref = preferences.get(device.profile_id);
       if (!pref || !optedIn(event.kind, pref)) continue;
+      let pushTitle = event.title;
+      let pushBody = event.body;
+      let pushHref = event.href || "/sistema/notificacoes";
       // Entre a formação da fila e a entrega, o convidado pode ter aceitado,
       // recusado ou perdido o convite. Validar novamente antes do envio.
       if (event.dedupe_key?.startsWith("agenda:invite:")) {
@@ -286,13 +289,23 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
         const [invitation, meeting, confirmed] = await Promise.all([
           db.from("agenda_event_invitees").select("status,invited_at")
             .eq("event_id", parts[1]).eq("profile_id", device.profile_id).maybeSingle(),
-          db.from("agenda_events").select("status,event_kind")
+          db.from("agenda_events").select("id,title,status,event_kind,event_date,start_time")
             .eq("id", parts[1]).maybeSingle(),
           db.auth.admin.getUserById(device.profile_id),
         ]);
         if (invitation.error || meeting.error || confirmed.error) { failed++; continue; }
         if (!confirmed.data?.user?.email_confirmed_at ||
             !agendaInvitationStillPending(event.dedupe_key, device.profile_id, invitation.data, meeting.data)) continue;
+        // A data, o horário e o título podem ter sido alterados pelo
+        // organizador. Nunca enviar o texto antigo nem reunião vencida.
+        const currentInvite = buildAgendaInvitationNotification({
+          event_id: parts[1], profile_id: device.profile_id,
+          invited_at: invitation.data!.invited_at, status: invitation.data!.status,
+        }, meeting.data as AgendaInvitationMeeting, new Date().toISOString(), localNow());
+        if (!currentInvite) continue;
+        pushTitle = currentInvite.title;
+        pushBody = currentInvite.body;
+        pushHref = currentInvite.href;
       }
       const { error: claimError } = await db.from("notification_deliveries")
         .insert({ event_id: event.id, device_id: device.id, status: "pending", attempts: 1, last_attempt_at: new Date().toISOString() });
@@ -301,8 +314,8 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       claimed++;
       try {
         const result = await sendWebPush(asSubscription(device), {
-          title: event.title, body: event.body, kind: event.kind,
-          href: event.href || "/sistema/notificacoes", tag: event.dedupe_key || event.id,
+          title: pushTitle, body: pushBody, kind: event.kind,
+          href: pushHref, tag: event.dedupe_key || event.id,
         });
         await db.from("notification_deliveries").update({
           status: result.ok ? "sent" : result.expired ? "expired" : "failed",
