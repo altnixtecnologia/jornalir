@@ -1,6 +1,5 @@
-import "server-only";
 import {createHash} from "node:crypto";
-import {createSupabaseAdminClient} from "../supabase/admin";
+import type {createSupabaseAdminClient} from "../supabase/admin";
 
 type EvidenceFormat="application/pdf"|"image/jpeg";
 interface EvidenceInput {
