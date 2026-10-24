@@ -80,6 +80,22 @@ O Advisor identificou **41** entradas de funções `SECURITY DEFINER` executáve
 
 **Risco e triagem:** para cada função anotar tipo de uso (trigger interno, API pública deliberada, RPC administrativa), `SECURITY DEFINER/INVOKER`, `EXECUTE` efetivo para `anon/authenticated`, `search_path`, controle de `auth.uid()` e membership/role dentro do próprio SQL. Revogar `EXECUTE` somente nas funções realmente internas, com teste de dependências de triggers e servidor; funções de busca públicas, como `search_public_articles`, não devem ser bloqueadas sem substituto validado.
 
+## Prioridade crítica confirmada: RPCs sensíveis ainda executáveis por `anon`
+
+Em consulta read-only `has_function_privilege('anon', ... ,'EXECUTE')`, o projeto real retornou `true` para:
+- `public.save_client(uuid,jsonb,text[])` (RPC de criação/edição de clientes);
+- `public.legacy_import_article(jsonb,jsonb)` (importação de matéria legada);
+- `public.publish_due_scheduled_articles()` (publicação de agendadas).
+
+**Inspeção do SQL remoto:** as duas primeiras são `SECURITY DEFINER` e a autorização escrita no corpo verifica `is_active_staff()` **somente no ramo `auth.role()='authenticated'`**, portanto chamadas `anon` não entram nessa condição. A terceira é `SECURITY DEFINER` sem tal guarda. **Isso é uma falha real de autorização/exposição da RPC**, ainda que o resultado efetivo de cada possível chamada não tenha sido testado para evitar escrita/alteração de dados. Não executar PoC no projeto real.
+
+**Correções JÁ EXISTENTES na PR #15 e ainda não aplicadas ao remoto:**
+- `20261104101000_save_client_action_guard.sql`: refaz autorização e `REVOKE ALL ... FROM PUBLIC, anon`, `GRANT` só para staff autenticado/service_role;
+- `20261105100000_editorial_privileged_rpc_guards.sql`: aplica guarda de importação, revoga `anon` da importação legada e restringe `publish_due_scheduled_articles` somente ao service_role;
+- `tests/security/full-schema-rls-postflight.sql` contém assertivas explícitas de que `anon` **não possui EXECUTE** nesses três pontos; tais testes **PASSAM em banco efêmero com todas as migrations da PR**, mas o remoto atual ainda não está nessa condição.
+
+**PRIORIDADE PARA RESPONSÁVEL:** avaliar **correção emergencial segregada**, com backup, revisão de dependências, janela e autorização específica, sem aguardar necessariamente todas as 43 migrations da publicação. Não replicar a migração integral desordenadamente em produção e não editar o ledger para falsear estado. Como mitigação, o plano pode isolar apenas os `REVOKE`/guardas que não quebram clientes legítimos, mas isso precisa de revisão e teste em clone **antes de qualquer DDL remoto**.
+
 ## Política Auth
 
 O Advisor sinalizou **proteção contra senhas vazadas desabilitada**. Verificar no painel do Supabase Auth a disponibilidade e ativação apropriada, sem alterar configurações da conta por este registro: [guia de senha comprometida](https://supabase.com/docs/guides/auth/password-security#password-strength-and-leaked-password-protection).
