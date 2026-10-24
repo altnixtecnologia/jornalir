@@ -26,7 +26,7 @@ Não usar a PR como release direta.
 | 7 | Agenda/Pauta e notificações | Convites por pessoa, aceite/recusa, lembrete Web Push individual, prevenção de duplicidade, revalidação de convites e compromissos, sino com pendências privadas; Telegram de grupo existente preservado | **Pendente:** homologar envio Web Push em dispositivo autorizado e Telegram em ambiente de teste, validar push opt-in/VAPID, cron, UX PC/mobile e receber aceite/recusa por usuário de teste; sem DM Telegram/WhatsApp/e-mail novos |
 | 8 | Publicidade e planos | Slots, rotação, efeitos e imagens configuráveis | Veiculação 6 slots desktop/mobile, validade, contratos, Assine/Anuncie, inadimplência/suspensão e coerência dos dados |
 | 9 | NFS-e nacional | Estrutura de certificado, XML e preparação | Ambiente oficial/município, XSD, transmissão, consulta/cancelamento; sem emissão real sem autorização |
-| 10 | Cadastros integrados | Cliente mestre Jornal definido | Sincronização jornal→Altnix Informativo SOMENTE para clientes digitais, sem interferir em players, mídia/OTA |
+| 10 | Clientes e cobrança centralizados no Jornal | Cliente mestre, venda/serviço, contrato, títulos e cobranças identificados no Jornal; pré-autorização interna de cadastro digital com API remota **travada em código** | Somente **preparação no Jornal** nesta fase. Integração real com Altnix, cadastro remoto e suspensão/liberação de mídias só em lote futuro com autorização explícita, após homologação financeira completa; sem tocar outro repositório. Issue #18 |
 | 11 | Homologação geral e publicação | GitHub Actions demonstram build/RLS/replay em sandbox | Comparar worktree local e branches, backups, controlar previews Vercel, plano de rollback e QA autenticado; autorização explícita para publicar |
 
 ## Bloco em execução: 1 — Contratos
@@ -310,3 +310,17 @@ A confirmação do Jornal IR prevalece sobre o plano anterior: **os seis espaço
 - Teste automatizado `apps/sistema/test/agenda-invitation-push.test.ts` cobre chave única, expiração, aceite, recusa, revogação, alteração de data, conclusão, responsável vs convidado e envio sem regressão de atrasos. CI e testes SQL seguem na PR #15.
 - **Não declarar entregue no celular nem publicar sem homologação externa:** verificar no navegador/Android, permissão concedida/negada, carregamento do sino, centro de notificações, cron VAPID, Telegram de grupo, janela temporal, usuário sem acesso, aceite/recusa e edição concorrente. A ausência do canal Web Push não pode impedir a confirmação interna do convite.
 - PR em draft; sem execução de migrações reais, merge, deploy ou disparo para destinatários reais. Próximos módulos aguardam aval expresso.
+
+### Módulo 10 — decisão operacional final de 24/10/2026 (preparação somente Jornal IR)
+
+O proprietário determinou: **não mexer no Altnix Informativo; centralizar cadastros e cobranças no Jornal IR; integrar e publicar toda a parte que controla mídias apenas quando tudo estiver concluído e revisado**.
+
+- Revisados `public.clients` (mestre), `commercial_sales.client_id`, `commercial_contract_packages.client_id`, `commercial_contract_services.id` (linha/serviço estável), `receivables.client_id` e mecanismos de cobrança: **já existem** no Jornal; não duplicar nem criar segunda fonte de verdade.
+- O vínculo Serviço → mídia/playlist/tela, com alvo e período inequívocos, **não está pronto e não deve ser suposto**. A issue #18 reserva esse contrato e a política financeira de suspensão para o futuro; não criar trigger financeiro→player agora.
+- `client_digital_export_permissions` permanece pré-aprovação **local**, não sincronização. A UI explica que não ativa Altnix; `/api/integrations/altnix/clients` ganhou trava estática `ALTNIX_CLIENT_EXPORT_RELEASED=false`, anterior até à checagem de env/segredo. Habilitação requer alteração revisada no futuro; CI testa que a trava segue falsa nesta PR.
+- O roteiro antigo de sincronização bidirecional em `docs/INTEGRACAO-CADASTROS-ALTNIX-JORNALIR.md` foi formalmente marcado **SUPERADO**. `docs/ALTNIX-INFORMATIVO-SYNC-FUTURO.md` passa a ser a fonte normativa detalhada.
+- Durante investigação anterior existiu uma branch experimental do Altnix (`feature/jornalir-clientes-integrados-20261024`) **não mesclada/publicada**. Fica explicitamente excluída do escopo atual; **não continuar, não usar e não publicar** sem nova autorização. Não houve alteração na main/produção Altnix nessa investigação.
+- **Patrocinadores grátis do portal** ficam inteiramente separados de financeiro e mídia paga. Atraso financeiro de um contrato não pode suspender todas as mídias de um cliente nem outra linha de serviço.
+- Depois de concluir o Jornal IR: homologar Asaas Sandbox e permissões, revisar relações cliente/venda/serviço/título, identificar alvos reais de mídia, política de carência/contestação, plano de backup/reversão e testes em equipamentos de laboratório. Somente **depois do aval específico**, abrir lote conjunto da integração.
+- Estado: **parte preparatória do Jornal IR em código; integração remota NÃO IMPLEMENTADA/ATIVADA; homologação real pendente**. PR #15 segue em draft, sem deploy e sem alterações remotas.
+
