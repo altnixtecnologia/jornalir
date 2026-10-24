@@ -136,3 +136,5 @@ Atualização local de cobrança para `cancelled` exige `WHERE status='pending'`
 - Adicionada `record_manual_receivable_payment`, RPC transacional com `FOR UPDATE` no título e permissões distintas `recebimentos_baixar` / `recebimentos_quitar_diferenca`. Recibo, crédito excedente, abatimento da quitação e status do título são gravados juntos ou desfeitos juntos.
 - `manual_receivable_operations` mantém operação imutável por UUID da tela, com snapshot/autor, retornando a mesma operação no retry e recusando UUID reaproveitado com dados alterados. Formulários guardam UUID até sucesso/cancelamento.
 - Preview mantém o comportamento anterior. Pendente homologação autenticada com falhas de rede e recebimentos concorrentes; `payCompositionAction`, descontos avulsos e estornos ainda são multietapa e pertencem à próxima frente do Módulo 3.
+
+- Revisão de segurança adicional: `manual_receivable_operations` agora só aceita INSERT pela RPC `SECURITY DEFINER` após conferência de permissão; operadores não podem forjar antecipadamente registros de idempotência via PostgREST.

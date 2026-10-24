@@ -13,24 +13,21 @@ create table public.manual_receivable_operations (
 );
 alter table public.manual_receivable_operations enable row level security;
 revoke all on public.manual_receivable_operations from public,anon,authenticated;
-grant select,insert on public.manual_receivable_operations to authenticated;
+grant select on public.manual_receivable_operations to authenticated;
 grant select,insert,update on public.manual_receivable_operations to service_role;
 create policy manual_receivable_operations_read on public.manual_receivable_operations
  for select to authenticated using (
  public.staff_can_see_module('financeiro') and
  (created_by=(select auth.uid()) or public.is_active_admin_or_owner()));
-create policy manual_receivable_operations_insert on public.manual_receivable_operations
- for insert to authenticated with check (created_by=(select auth.uid()) and
- ((operation_type='receipt' and public.staff_can_finance_action('recebimentos_baixar'))
- or (operation_type='settlement' and public.staff_can_finance_action('recebimentos_quitar_diferenca'))));
-
+-- INSERT exclusivo da RPC SECURITY DEFINER após checagem de permissão;
+-- operador não pode fabricar registro de idempotência.
 create function public.record_manual_receivable_payment(
  p_operation_id uuid,p_receivable_id uuid,p_amount numeric,p_received_at date,
  p_payment_method text,p_reference text,p_notes text,p_received_by uuid,
  p_mode text,p_reason text,p_authorized_by uuid
 )
 returns table(receipt_id uuid,adjustment_id uuid,credit_id uuid,applied_amount numeric,credit_amount numeric)
-language plpgsql set search_path=public as $fn$
+language plpgsql security definer set search_path=public as $fn$
 declare
  t public.receivables;
  previous public.manual_receivable_operations;

@@ -116,6 +116,7 @@ begin
    raise exception 'Falta recebimento manual transacional com idempotência.';
  end if;
  if has_table_privilege('anon','public.manual_receivable_operations','SELECT')
+    or has_table_privilege('authenticated','public.manual_receivable_operations','INSERT')
     or has_table_privilege('authenticated','public.manual_receivable_operations','UPDATE')
     or has_table_privilege('authenticated','public.manual_receivable_operations','DELETE')
     or has_function_privilege('anon','public.record_manual_receivable_payment(uuid,uuid,numeric,date,text,text,text,uuid,text,text,uuid)','EXECUTE') then
