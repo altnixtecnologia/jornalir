@@ -645,3 +645,23 @@ suposição ou autoativados.
 - `reserve_commercial_signature_otp`: intervalo mínimo 60 segundos por convite; no máximo oito solicitações em 24 horas, verificação transacional antes do envio Auth. É uma limitação do convite além dos limites globais do Supabase. Só `service_role` chama a RPC; não registra envio bem-sucedido ou entrega.
 - Testes `commercial-evidence-recovery.test.ts`: reaproveitamento sem duplicação, falha no segundo arquivo, falha no terceiro, hash divergente, storage offline e ausência de evidência. Workflow CI e postflight RLS incluem esses pontos.
 - **Ainda requer homologação externa:** 2 ou mais assinantes reais de teste, SMTP/OTP, falha de upload injetada em ambiente de homologação e verificação dos três arquivos efetivos antes de uso real. Aditivos contratuais, revisão jurídica/operacional e emissão fiscal são fluxos separados; não confundir este lote com liberação de produção.
+
+### Complemento de segurança e critérios de aceite — 24/10/2026
+
+- A rota de download do PDF por link de assinatura não aceita apenas
+  posse do token: exige e-mail verificado por OTP no convite, UUID da
+  sessão autenticada igual ao `verified_user_id` e e-mail igual ao do
+  participante. A tela passa a liberar o `iframe` somente após OTP.
+- `commercialDocumentAccess.ts` e teste simulam token vazado, acesso
+  anônimo, outra sessão/e-mail e convite não pendente. Next configura
+  `Referrer-Policy: no-referrer`, `Cache-Control: private, no-store`
+  e `X-Robots-Tag: noindex, nofollow, noarchive` para as páginas de
+  convites comerciais, evitando indexação e encaminhamento do token.
+- Ao reenviar/substituir convite, o SQL agora verifica o mutex de
+  assinatura e recusa revogação durante a gravação das evidências.
+- O painel do revisor mostra se houve tentativa de assinatura iniciada
+  e orienta a recuperação pelo mesmo link. Tokens não são recuperáveis
+  a partir dos hashes; novo link revoga o anterior e preserva os
+  objetos de evidência para auditoria.
+- Exigir três workflows verdes para SHA de código final e ensaio
+  autenticado em ambiente separado com SMTP de teste antes de uso real.
