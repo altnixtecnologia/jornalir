@@ -91,7 +91,25 @@ export class PaymentChargeService {
   async cancelPixCharge(id: string, input: CancelPixChargeInput): Promise<PaymentCharge> {
     const charge = await this.getById(id);
     if (charge.status !== "pending") return charge;
-    if (charge.providerChargeId) await this.provider.cancelCharge(charge.providerChargeId);
+    if(charge.providerChargeId){
+      try {
+        await this.provider.cancelCharge(charge.providerChargeId);
+      } catch(error){
+        // Após timeout, o Asaas pode ter cancelado remotamente sem que
+        // a atualização local tenha ocorrido. Nunca presumir sucesso:
+        // consultar o estado remoto e aceitar SOMENTE cancelado.
+        let remoteStatus: "pending"|"paid"|"expired"|"cancelled"|"failed"|undefined;
+        try {
+          const remote=await this.provider.getCharge(charge.providerChargeId);
+          remoteStatus=remote.status;
+        } catch {
+          // Sem prova do cancelamento não mudar o registro local.
+        }
+        if(remoteStatus==="paid")
+          throw new Error("Cobrança já recebida no Asaas; não é possível cancelá-la. Aguarde a conciliação do pagamento.");
+        if(remoteStatus!=="cancelled"&&remoteStatus!=="expired") throw error;
+      }
+    }
     return this.charges.update(id, {
       status: "cancelled",
       cancelledAt: new Date().toISOString(),
