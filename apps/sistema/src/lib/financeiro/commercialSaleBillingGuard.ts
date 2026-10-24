@@ -20,7 +20,7 @@ export function validateCommercialSaleForBilling(
  if(Math.round(sale.amount*100)<sale.installmentsCount)
   return "Valor insuficiente: alguma parcela ficaria abaixo de R$ 0,01.";
  if(!/^\d{4}-\d{2}-\d{2}$/.test(firstDueDate))
-  return "Informe o vencimento da primeira parcela no formato DD/MM/AAAA.";
+  return "Selecione uma data de vencimento válida para a primeira parcela.";
  const [year,month,day]=firstDueDate.split("-").map(Number);
  const date=new Date(Date.UTC(year,month-1,day));
  if(date.getUTCFullYear()!==year||date.getUTCMonth()!==month-1||date.getUTCDate()!==day)
