@@ -189,3 +189,32 @@ begin
 end;
 $check$;
 select 'PASSOU: esquema integral e políticas essenciais' as resultado;
+
+-- Ensaio de segurança só no Supabase descartável: metadata do OTP/signup
+-- NUNCA ativa um operador, mesmo se alguém fingir ser "staff_invite".
+-- ROLLBACK assegura que nenhum usuário de teste permaneça.
+begin;
+do $auth_user_regression$
+declare
+  v_id uuid := gen_random_uuid();
+  v_active boolean;
+  v_name text;
+begin
+  insert into auth.users (
+    id, instance_id, aud, role, email, email_confirmed_at, raw_user_meta_data
+  ) values (
+    v_id, '00000000-0000-0000-0000-000000000000',
+    'authenticated','authenticated',
+    'signup-security-'||v_id::text||'@example.invalid',now(),
+    '{"account_purpose":"staff_invite","name":"Teste Externo"}'::jsonb
+  );
+  select active,name into v_active,v_name
+    from public.profiles where id=v_id;
+  if not found or v_active is distinct from false
+     or v_name is distinct from 'Teste Externo' then
+    raise exception 'SEGURANÇA: token/signup criou perfil ativo ou perdeu nome.';
+  end if;
+end;
+$auth_user_regression$;
+rollback;
+select 'PASSOU: novos signatários/Auth users não ganham acesso staff' as resultado;
