@@ -300,12 +300,15 @@ begin
  if p_new_token_hash !~ '^[a-f0-9]{64}$' or length(btrim(coalesce(p_reason,''))) not between 20 and 1000 then
    raise exception 'Novo token ou justificativa inválidos.' using errcode='23514';
  end if;
- select i.id,i.request_id,i.participant_id,i.status,r.status as request_status
+ select i.id,i.request_id,i.participant_id,i.status,r.status as request_status,r.locked_by,r.locked_at
  into v_inv from public.commercial_signature_invitations i
  join public.commercial_signature_requests r on r.id=i.request_id
  where i.id=p_invitation_id for update of i,r;
  if not found or v_inv.status<>'pending' or v_inv.request_status<>'pending' then
    raise exception 'Apenas convite pendente pode ser substituído.' using errcode='23514';
+ end if;
+ if v_inv.locked_by is not null and v_inv.locked_at > now()-interval '5 minutes' then
+   raise exception 'Assinatura em andamento; aguarde para trocar o link.' using errcode='55P03';
  end if;
  update public.commercial_signature_invitations set
   status='revoked',reissue_reason=btrim(p_reason)
