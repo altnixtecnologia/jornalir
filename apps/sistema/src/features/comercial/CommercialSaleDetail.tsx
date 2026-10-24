@@ -373,6 +373,12 @@ export function CommercialSaleDetail({
           <p className="helper-text" style={{ marginTop: "12px" }}>
             Negociação em cortesia — sem cobrança, nenhum título a gerar.
           </p>
+        ) : ["trade","bailment","other"].includes(sale.commercialCondition) ? (
+          <p className="helper-text" role="status" style={{ marginTop: "12px" }}>
+            Permuta, comodato ou condição especial: a geração automática de títulos está bloqueada.
+            Registre e aprove separadamente a obrigação monetária e sua documentação antes de faturar.
+            Caução de locação não equivale a receita recebida.
+          </p>
         ) : remainingInstallments > 0 && ["approved","active","completed"].includes(sale.status) ? (
           <div style={{ marginTop: "12px" }}>
             <div className="form-grid">

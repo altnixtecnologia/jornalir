@@ -184,3 +184,10 @@ Atualização local de cobrança para `cancelled` exige `WHERE status='pending'`
 - A verificação de reserva adquire lock da venda comercial para evitar transição concorrente que a deixe cancelada/concluída com uma reserva ativa.
 - Tela exclui equipamentos retirados da seleção e diferencia explicitamente a caução contratual de receita recebida; nenhum faturamento, pagamento ou estorno automático é criado.
 - Teste de CI reproduz reserva futura após fim do período original, venda ainda com patrimônio entregue, liberação após devolução e impedimento de concluir com reservas abertas.
+
+
+### Faturamento de condições não monetárias — bloqueio P0
+
+- `validateCommercialSaleForBilling` bloqueia geração automática de títulos nas condições `trade` (permuta), `bailment` (comodato) e `other` (sem definição de obrigação monetária), além da cortesia já bloqueada, mesmo se um valor estiver preenchido. Somente condições monetárias `cash` e `installments` podem seguir os controles usuais de autorização financeira, saldo, vencimento e idempotência.
+- A tela de venda explica a restrição sem apresentar botão de emitir títulos indevidos. Para faturar parte monetária de um acordo misto, formalizar nova condição e revisar a documentação comercial. A caução contratual não se confunde com receita.
+- Teste `commercial-finance-guards.test.ts` cobre negativas em permuta/comodato/outro e preserva geração à vista/parcelada.

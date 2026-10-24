@@ -18,6 +18,15 @@ test("não criar Financeiro para proposta, venda cancelada ou cortesia",()=>{
   assert.match(validateCommercialSaleForBilling({...sale,status},"2026-11-30")??"",/não geram cobrança/);
  assert.match(validateCommercialSaleForBilling({...sale,commercialCondition:"courtesy"},"2026-11-30")??"",/cortesia/);
 });
+test("permuta, comodato e outras condições não geram boleto/Pix por engano",()=>{
+ for(const condition of ["trade","bailment","other"] as const){
+  const error=validateCommercialSaleForBilling({...sale,commercialCondition:condition},"2026-11-30");
+  assert.match(error??"",/não geram cobrança automaticamente/);
+ }
+ assert.equal(validateCommercialSaleForBilling({...sale,commercialCondition:"cash",installmentsCount:1},"2026-11-30"),null);
+ assert.equal(validateCommercialSaleForBilling({...sale,commercialCondition:"installments"},"2026-11-30"),null);
+});
+
 test("zero, valor menor que o número de parcelas e quantidades inválidas são rejeitados",()=>{
  for(const values of [
   {amount:0},{amount:-1},{amount:Number.NaN},{amount:0.02,installmentsCount:3},

@@ -12,6 +12,8 @@ export function validateCommercialSaleForBilling(
   return "Somente vendas aprovadas, ativas ou concluídas podem gerar títulos. Propostas e vendas canceladas não geram cobrança.";
  if(sale.commercialCondition==="courtesy")
   return "Negociação em cortesia não gera títulos nem cobrança Pix.";
+ if(sale.commercialCondition==="trade" || sale.commercialCondition==="bailment" || sale.commercialCondition==="other")
+  return "Permuta, comodato e condições comerciais não monetárias ou indefinidas não geram cobrança automaticamente. Formalize e aprove a parcela monetária como negociação à vista ou parcelada antes de faturar.";
  if(!Number.isFinite(sale.amount)||sale.amount<=0)
   return "Venda sem valor financeiro positivo. Revise a condição comercial antes de gerar cobranças.";
  if(!Number.isSafeInteger(sale.installmentsCount)||sale.installmentsCount<1
