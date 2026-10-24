@@ -122,6 +122,9 @@ jobs:
       - name: Testar isolamento da API Asaas LIVE entre Vercel Preview e Production
         run: npx tsx --test apps/sistema/test/asaas-runtime-policy.test.ts
 
+      - name: Testar contrato de clientes digitais Jornal IR → Altnix
+        run: npx tsx --test apps/sistema/test/altnix-digital-client-contract.test.ts
+
       - name: Testar convites individuais da Agenda (Web Push, resposta e cancelamento)
         run: npx tsx --test apps/sistema/test/agenda-invitation-push.test.ts
 
