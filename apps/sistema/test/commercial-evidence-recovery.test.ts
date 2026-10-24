@@ -97,3 +97,23 @@ test("sem JPEG anterior e com hash divergente exige recuperação controlada",as
  }),/hash registrado/);
  assert.equal(store.uploads,0);
 });
+
+test("falha ao gravar PDF final: tentativa reusa JPEG e comprovante sem apagar histórico",async()=>{
+ const store=memoryStorage();store.failAt(3);
+ const entries=[
+  {bucket:"contract-signatures" as const,path:"commercial/last.jpg",format:"image/jpeg" as const,candidate:jpeg},
+  {bucket:"contract-documents" as const,path:"commercial-signatures/r/last-receipt.pdf",format:"application/pdf" as const,candidate:pdf},
+  {bucket:"contract-documents" as const,path:"commercial-signatures/r/last-signed.pdf",format:"application/pdf" as const,candidate:otherPdf},
+ ];
+ for(const file of entries.slice(0,2)) await persistCommercialEvidence(store.admin,file);
+ await assert.rejects(persistCommercialEvidence(store.admin,entries[2]),/Falha ao gravar/);
+ assert.equal(store.objects.size,2);
+ const first=await persistCommercialEvidence(store.admin,entries[0]);
+ const second=await persistCommercialEvidence(store.admin,entries[1]);
+ const third=await persistCommercialEvidence(store.admin,entries[2]);
+ assert.equal(first.reused,true);
+ assert.equal(second.reused,true);
+ assert.equal(third.reused,false);
+ assert.equal(store.objects.size,3);
+ assert.equal(store.uploads,4);
+});
