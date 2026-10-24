@@ -2,6 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { ClientCreditWithBalance, PaymentCharge, PaymentChargeProvider, PaymentChargeStatus } from "@ir/types";
 import { PaymentChargeAlreadyPendingError, type ConfirmChargeInput, type ConfirmChargeResult, type NewPaymentChargeRecord, type PaymentChargeChanges, type PaymentChargeRepository } from "@ir/core";
 import { isLocalPreviewEnabled } from "../../lib/auth/localPreview";
+import { createSupabaseAdminClient } from "../../lib/supabase/admin";
 import { PREVIEW_RECEIVABLES, PREVIEW_RECEIPTS } from "./receivableRepository.supabase";
 import { PREVIEW_CLIENT_CREDITS } from "./clientCreditRepository.supabase";
 
@@ -156,7 +157,11 @@ export function createPaymentChargeRepositorySupabase(client: SupabaseClient): P
         previewCharges[index] = { ...previewCharges[index], ...changes, updatedAt: new Date().toISOString() };
         return previewCharges[index];
       }
-      const { data, error } = await client.from(TABLE).update(toRow(changes)).eq("id", id).select(COLUMNS).single();
+      // A atualização real (finalização da reserva e cancelamento conciliado)
+      // ocorre apenas no servidor, após checkFinanceAction e conferência remota.
+      // O banco recusa UPDATE direto por authenticated, inclusive admin.
+      const writer = createSupabaseAdminClient();
+      const { data, error } = await writer.from(TABLE).update(toRow(changes)).eq("id", id).select(COLUMNS).single();
       if (error) throw new Error(error.message);
       return toDomain(data as unknown as PaymentChargeRow);
     },

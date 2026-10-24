@@ -111,6 +111,24 @@ begin
     or not has_function_privilege('service_role','public.reserve_commercial_signature_otp(text)','EXECUTE') then
    raise exception 'Limite OTP comercial não protegido por service_role.';
  end if;
+ if to_regclass('public.billing_notification_dispatches') is null
+    or not exists(select 1 from pg_constraint
+      where conrelid='public.billing_notification_dispatches'::regclass
+        and conname='billing_notification_dispatches_once' and contype='u') then
+   raise exception 'Reserva idempotente do WhatsApp ausente.';
+ end if;
+ if has_table_privilege('authenticated','public.billing_notification_dispatches','UPDATE')
+    or has_table_privilege('authenticated','public.billing_notification_dispatches','INSERT')
+    or has_table_privilege('anon','public.billing_notification_dispatches','SELECT') then
+   raise exception 'Operador pode adulterar reserva do WhatsApp.';
+ end if;
+ if has_table_privilege('authenticated','public.payment_charges','UPDATE') then
+   raise exception 'Pix permite PATCH direto por usuário autenticado.';
+ end if;
+ if not exists(select 1 from information_schema.columns
+   where table_schema='public' and table_name='billing_webhook_events' and column_name='processing_token') then
+   raise exception 'Webhook não possui token para bloquear concorrência.';
+ end if;
  if to_regclass('public.staff_memberships') is null then
    raise exception 'Memberships de colaboradores inexistentes.';
  end if;

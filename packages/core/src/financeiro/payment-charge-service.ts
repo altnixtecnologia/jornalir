@@ -3,6 +3,7 @@ import {
   PaymentChargeAlreadyPendingError,
   PaymentChargeNotFoundError,
   type ConfirmChargeResult,
+  type NewPaymentChargeRecord,
   type PaymentChargeRepository,
 } from "./payment-charge-repository";
 import type { CreatePixChargeRequest, PixProvider } from "./pix-provider";
@@ -85,7 +86,7 @@ export class PaymentChargeService {
     // passa pela MESMA confirmação atômica usada pelo webhook. Assim o
     // receipt e o saldo do título nunca ficam para trás de um status
     // "paid" gravado isoladamente.
-    const values = {
+    const values: NewPaymentChargeRecord = {
       receivableId: input.receivableId,
       clientId: input.clientId,
       provider: providerResult.provider,

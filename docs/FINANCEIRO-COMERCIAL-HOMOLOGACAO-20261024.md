@@ -113,3 +113,12 @@ A data de emissão de títulos originados de venda é
 `todayInSaoPauloISO()`, e a primeira data de vencimento não pode
 ser anterior a ela. A mesma data é usada para todas as parcelas
 criadas naquela operação, sem divergência UTC perto da meia-noite.
+
+## Continuação 24/10 — concorrência Pix / webhook e envio Meta (PR #15)
+
+- Antes da chamada externa Asaas, `PaymentChargeService` cria reserva `payment_charges` pendente sem id remoto. O índice único por título impede que dois cliques concorrentes cheguem ao POST remoto. Se houver timeout/falha antes de persistir o id Asaas, a reserva permanece: **não cancelar, enviar link nem repetir o POST automaticamente**. Conciliar manualmente a cobrança remota pelo `externalReference=receivable:<uuid>` e regularizar o vínculo/documentar eventual inexistência remota antes de desbloquear.
+- O adaptador preview não usa reserva remota. Testes de concorrência e timeout em `payment-charge-creation-concurrency.test.ts`.
+- `billing_webhook_events` possui token/lease de processamento exclusivo por evento. A entrega simultânea espera reenvio (HTTP 503) e só a vencedora grava `processed_at`. Lease de 15 minutos para recuperação pós-crash.
+- `billing_notification_dispatches`: uma reserva única `(payment_charge_id,notification_kind)` ANTES de chamar a Meta; duplicatas de webhook não reenviam. Falhas/timeout Meta ficam `uncertain` para conferência manual, pois é impossível provar que a Meta não enviou. Registros `billing_message_logs` e notificações continuam auxiliares.
+- Migrations locais novas: `20261120100000_finance_webhook_dispatch_idempotency.sql` e `20261120110000_payment_charge_update_restricted.sql`. A segunda impede PATCH direto de `payment_charges` por colaboradores autenticados (inclusive o status pago), preservando finalização pelo servidor e RPC de baixa service_role.
+- O sistema ainda exige homologação real **Asaas Sandbox**, falhas intercaladas, créditos/estornos, Meta/WhatsApp em ambiente controlado e liberação segura de reservas abandonadas após conferência. Nenhum envio real foi feito; não aplicar as migrations remotamente sem autorização.
