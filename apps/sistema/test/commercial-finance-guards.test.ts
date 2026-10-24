@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
- validateCommercialSaleForBilling,validateChargeReceivableLink,
+ validateCommercialSaleForBilling,validateChargeReceivableLink,inspectExistingCommercialInstallment,
 } from "../src/lib/financeiro/commercialSaleBillingGuard";
 import type {CommercialSale} from "@ir/types";
 
@@ -35,4 +35,18 @@ test("cancelar/confirmar uma cobrança de outro título ou cliente é proibido",
  assert.equal(validateChargeReceivableLink(charge,rec),null);
  assert.ok(validateChargeReceivableLink({...charge,receivableId:"titulo-2"},rec));
  assert.ok(validateChargeReceivableLink({...charge,clientId:"cliente-2"},rec));
+});
+
+test("parcela existente com valores idênticos é reconhecida sem nova emissão",()=>{
+ const draft={installmentNumber:2,amount:33.33,dueDate:"2026-12-15"};
+ const existing={...draft,originalAmount:draft.amount,status:"open",clientId:"cliente-1"};
+ assert.deepEqual(inspectExistingCommercialInstallment(draft,existing,"cliente-1"),{alreadyGenerated:true});
+});
+test("não substituir parcela já paga, cancelada ou com outro vencimento",()=>{
+ const draft={installmentNumber:1,amount:200,dueDate:"2026-12-15"};
+ const existing={...draft,originalAmount:200,status:"cancelled",clientId:"cliente-1"};
+ assert.match(inspectExistingCommercialInstallment(draft,existing,"cliente-1").error??"",/cancelada/);
+ assert.match(inspectExistingCommercialInstallment(draft,{...existing,status:"paid",dueDate:"2027-01-15"},"cliente-1").error??"",/valor ou vencimento/);
+ assert.match(inspectExistingCommercialInstallment(draft,{...existing,status:"paid",originalAmount:100},"cliente-1").error??"",/valor ou vencimento/);
+ assert.match(inspectExistingCommercialInstallment(draft,{...existing,status:"paid",clientId:"outra"},"cliente-1").error??"",/outra negociação/);
 });
