@@ -111,6 +111,26 @@ begin
     or not has_function_privilege('service_role','public.reserve_commercial_signature_otp(text)','EXECUTE') then
    raise exception 'Limite OTP comercial não protegido por service_role.';
  end if;
+ if to_regclass('public.commercial_contract_addenda') is null
+   or to_regclass('public.commercial_contract_addendum_events') is null then
+   raise exception 'Aditivos jurídicos e histórico ausentes.';
+ end if;
+ if has_table_privilege('anon','public.commercial_contract_addenda','SELECT')
+   or has_table_privilege('anon','public.commercial_contract_addendum_events','SELECT')
+   or has_table_privilege('authenticated','public.commercial_contract_addendum_events','INSERT')
+   or has_table_privilege('authenticated','public.commercial_contract_addendum_events','DELETE') then
+   raise exception 'Histórico de aditivos permite operação indevida.';
+ end if;
+ if not exists(select 1 from pg_trigger t join pg_class c on c.oid=t.tgrelid
+  where c.relname='commercial_contract_addenda'
+   and t.tgname='commercial_addenda_guard' and not t.tgisinternal) then
+   raise exception 'Termo aditivo sem trigger de revisão jurídica.';
+ end if;
+ if not exists(select 1 from pg_indexes
+  where schemaname='public' and indexname='commercial_contract_docs_combined_unique'
+   and indexdef like '%addendum_id IS NULL%') then
+   raise exception 'Documentos originais e aditivos não estão separados no índice.';
+ end if;
  if to_regclass('public.commercial_signature_attempts') is null then
    raise exception 'Tentativas de assinatura comercial não registradas.';
  end if;
