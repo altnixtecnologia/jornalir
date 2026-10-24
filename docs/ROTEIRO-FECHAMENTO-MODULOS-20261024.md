@@ -194,3 +194,10 @@ permissões sem derrubar sessões válidas de signatários.
 - A ação `onSetCover` já existia, mas a estrela estava na fileira de ações lateral e não sobre a foto; a ação foi movida para dentro de cada miniatura vinculada à matéria.
 - Estrela tem `aria-pressed`, preenchimento amarelo na capa selecionada, texto acessível e mantém `setCoverMedia` como a única rotina de mudança. Capa anterior vira galeria, sem duplicatas; ordem preservada, e salvamento da matéria utiliza o payload editorial atual. Testes existentes `article-cover-choice.test.ts` continuam cobrindo unicidade, capa anterior, legenda e crédito.
 - Não muda o fluxo de crop mobile, upload, tipos de mídias ou backend. Novo crop com seleção direta no PC continua pendente para outro commit isolado; não considerar issue #16 concluída apenas com a estrela.
+
+### Editor de recorte direto — somente PC (24/10)
+
+- Adicionado `DesktopArticleImageCrop`, acionado exclusivamente por `matchMedia('(min-width: 768px) and (pointer: fine)')` ao editar imagem já enviada. A seleção aparece diretamente sobre a foto: arrastar área nova, mover quadro, redimensionar pelos quatro cantos, proporções livre/1:1/4:3/16:9/3:4/9:16, prévia sem distorção e confirmação/cancelamento explícitos.
+- A geometria utiliza coordenadas normalizadas referentes à **foto original** e produz uma derivada JPEG sem sobrescrever original ou outras galerias. Arquivo somente substitui o vínculo após o upload existente confirmar a derivada. Testes de geometria no CI verificam aspect ratio, limites e extração correta de pixels.
+- O componente `PreUploadImageCrop` permanece inalterado para celular/tablet/toque e em contextos que não são PC. O novo editor não instala pacote npm nem altera migrações ou Storage.
+- Teste de UI em navegador real (mouse, resize, upload, salvar, reabrir, recortes verticais e horizontais) ainda exige homologação manual antes do deploy.

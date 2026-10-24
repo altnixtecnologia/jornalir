@@ -3,6 +3,7 @@ import type { ArticleMedia, ArticleMediaRole, MediaAsset } from "@ir/types";
 import { searchMediaLibrary, uploadMediaAssets } from "../../app/sistema/editorial/midias/actions";
 import { ArticleImageEditorModal } from "./ArticleImageEditorModal";
 import { PreUploadImageCrop } from "./PreUploadImageCrop";
+import { DesktopArticleImageCrop } from "./DesktopArticleImageCrop";
 import styles from "./ArticleMediaPicker.module.css";
 
 type MediaIcon = "view" | "edit" | "replace" | "remove" | "help" | "cover";
@@ -77,6 +78,15 @@ export function ArticleMediaPicker({
     file: File;
   } | null>(null);
   const [editLoading, setEditLoading] = useState(false);
+  const [useDesktopCrop,setUseDesktopCrop]=useState(false);
+  // Apenas mouse/trackpad em PC. O crop e os gestos mobile permanecem
+  // inteiramente no componente original PreUploadImageCrop.
+  useEffect(()=>{
+    const query=window.matchMedia("(min-width: 768px) and (pointer: fine)");
+    const check=()=>setUseDesktopCrop(query.matches);
+    check();query.addEventListener("change",check);
+    return ()=>query.removeEventListener("change",check);
+  },[]);
   const [replacing, setReplacing] = useState<string | null>(null);
   const [editError, setEditError] = useState<string | null>(null);
   const [showActionHelp, setShowActionHelp] = useState(false);
@@ -267,15 +277,24 @@ export function ArticleMediaPicker({
   return (
     <div className="media-picker">
       {editingTarget ? (
-        <PreUploadImageCrop
-          mode="after-upload"
-          file={editingTarget.file}
-          index={0}
-          total={1}
-          onCrop={saveEditedImage}
-          onOriginal={() => setEditingTarget(null)}
-          onCancel={() => setEditingTarget(null)}
-        />
+        useDesktopCrop ? (
+          <DesktopArticleImageCrop
+            file={editingTarget.file}
+            onCrop={saveEditedImage}
+            onOriginal={() => setEditingTarget(null)}
+            onCancel={() => setEditingTarget(null)}
+          />
+        ) : (
+          <PreUploadImageCrop
+            mode="after-upload"
+            file={editingTarget.file}
+            index={0}
+            total={1}
+            onCrop={saveEditedImage}
+            onOriginal={() => setEditingTarget(null)}
+            onCancel={() => setEditingTarget(null)}
+          />
+        )
       ) : null}
       <div className="media-picker-section">
         <p className="field-label">Adicionar fotos</p>
