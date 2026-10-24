@@ -35,6 +35,6 @@ export function toAltnixDigitalClient(record: ExportableJornalClient): AltnixDig
 }
 
 export function sanitizeDigitalClientSearch(search: string): string | null {
-  const cleaned = search.trim().replace(/[^\p{L}\p{N}\s-]/gu, " ").replace(/\s+/g, " ");
+  const cleaned = search.trim().replace(/[^\p{L}\p{N}\s-]/gu, " ").replace(/\s+/g, " ").trim();
   return cleaned.length >= 2 && cleaned.length <= 70 ? cleaned : null;
 }
