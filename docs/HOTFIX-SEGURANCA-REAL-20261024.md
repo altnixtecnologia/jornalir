@@ -80,3 +80,20 @@ Auditoria de metadados e leitura comparativa das URLs (sem expor as chaves) conf
 6. Habilitar/verificar proteção contra senhas vazadas em Supabase Auth pelo painel autorizado e validar restrições de signup; esta integração não possui ferramenta de alteração Auth Config no momento.
 
 **Fontes de continuidade:** PR #15; `docs/PRE-PUBLICACAO-IR-20261024.md`; `docs/RELEASE-MIGRATIONS-REMOTE-20261024.md`; `docs/SUPABASE-SEGURANCA-REAL-20261024.md`.
+
+## 6. Pré-homologação: isolamento adicional de segredos em Preview (24/10/2026)
+
+Após autorização para preparar o sistema para homologação, foram aplicados ajustes adicionais **exclusivamente em variáveis de ambiente e proteção dos Previews**:
+
+- **`jornalir` Preview (portal):** `NEXT_PUBLIC_SUPABASE_URL` passou a `https://supabase-preview-disabled.invalid` e a chave publicável do Preview foi neutralizada. O site ainda não possui banco de homologação; Production não foi modificada.
+- **`jornalir` Preview:** as cinco variáveis `R2_*` tiveram valores inutilizáveis para impedir acesso ao acervo por builds novos.
+- **`jornalir-sistema` Preview:** as cinco `R2_*` e `WHATSAPP_TOKEN` foram neutralizadas. Banco Preview e chave Asaas LIVE já haviam sido neutralizados no hotfix anterior.
+- **`jornalir-sistema`:** os registros antes compartilhados entre Preview/Production `ASAAS_WEBHOOK_TOKEN`, `NFSE_CERTIFICATE_MASTER_KEY`, `PUSH_VAPID_PRIVATE_KEY`, `ASAAS_ENV` e `WHATSAPP_PHONE_NUMBER_ID` foram restringidos ao alvo **Production**, preservando valores existentes (não foram descriptografados/alterados). Novos Previews precisam configurar valores exclusivamente sandbox. Isso **não** rotaciona chaves antigas já entregues a builds anteriores.
+- `ssoProtection` Preview permanece ligada para ambos os projetos, sem interferir no domínio Production.
+- **Não houve deploy** das branches e nenhum dado do Supabase, R2, mídia, cobrança ou Altnix foi modificado nessas correções Vercel.
+
+**Observação de CI e próximo estágio:** a base de código ganhou gate `isIsolatedHomologation` que só habilita `service_role` em Preview com `IR_HOMOLOGATION_ENABLED=true`, `IR_HOMOLOGATION_SUPABASE_REF` diferente de `iqnzrpdccecgalqboeyf` e URL exata daquele sandbox. Webhook de Asaas em Preview exige adicionalmente `ASAAS_ENV=sandbox`. O gate é NEGATIVO por padrão. A configuração detalhada e a matriz de testes estão em `docs/HOMOLOGACAO-IR-AMBIENTE-E-ROTEIRO-20261024.md`.
+
+**Custo de recurso Supabase isolado:** tentativa de criar branch de desenvolvimento retornou necessidade de `confirm_cost_id`; valor informado pela plataforma foi US$0,01344/h. **Nenhum branch/novo projeto foi criado** — aguarda autorização de custo do usuário. Sem sandbox aprovado, não ativar Preview de homologação nem usá-lo em testes reais.
+
+**Observação de schema:** o lint PL/pgSQL da branch detectou sombra da variável de loop `v_ord` em `record_manual_composition_payment`. Foi removida somente a declaração redundante, preservando os dois loops; o CI agora executa `supabase db lint --local --schema public` sem `|| true`, falhando se surgirem novos erros.
