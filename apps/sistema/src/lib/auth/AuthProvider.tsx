@@ -53,6 +53,17 @@ export function AuthProvider({
     let cancelled = false;
 
     async function loadProfile(userId: string, email: string | undefined): Promise<void> {
+      // A sessão local pode ter sido criada por OTP externo, inclusive um
+      // signatário, ou ainda não ter e-mail confirmado. getUser confirma
+      // identidade real antes de disponibilizar menus do painel.
+      const {data:identity,error:identityError}=await client.auth.getUser();
+      if(cancelled) return;
+      if(identityError || identity.user?.id!==userId ||
+         !identity.user.email_confirmed_at){
+        setProfile(null);
+        setStatus("inactive");
+        return;
+      }
       const { data, error } = await client
         .from("profiles")
         .select("id, name, role, active, created_at")
