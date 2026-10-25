@@ -7,6 +7,7 @@ import { createMutualTlsDispatcher } from "@ir/core/src/nfse/mutual-tls";
 import { getCertificateService, getIssuerConfigService } from "../../../../composition/nfse";
 import { createSupabaseServerClient } from "../../../../lib/supabase/server";
 import { recordAuditEventSupabase } from "../../../../providers/supabase/auditEvents.supabase";
+import { NFSE_AVAILABLE_IN_THIS_RELEASE, NFSE_POSTPONED_MESSAGE } from "../../../../lib/release/releasePolicy";
 
 export type MunicipalParametersActionResult =
   | { ok: true; data: NfseMunicipalParametersResult }
@@ -46,6 +47,7 @@ function toAdnCompetence(competenceDate: string): string {
  * consulta (ação, ator, entidade) SEM registrar nenhum segredo.
  */
 export async function querySaoJoaoDoSulParametersAction(competenceDate: string): Promise<MunicipalParametersActionResult> {
+  if (!NFSE_AVAILABLE_IN_THIS_RELEASE) return { ok: false, code: "NFSE_POSTPONED", error: NFSE_POSTPONED_MESSAGE };
   const sessionClient = createSupabaseServerClient();
   let dispatcher: ReturnType<typeof createMutualTlsDispatcher> | undefined;
   try {

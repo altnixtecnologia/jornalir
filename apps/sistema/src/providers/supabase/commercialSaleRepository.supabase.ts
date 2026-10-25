@@ -1,11 +1,11 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { CommercialCondition, CommercialSale, CommercialSaleStatus } from "@ir/types";
+import type { CommercialCondition, CommercialSale, CommercialSaleStatus, CommercialSaleItemSnapshot } from "@ir/types";
 import type { CommercialSaleChanges, CommercialSaleListQuery, CommercialSaleRepository, NewCommercialSaleRecord } from "@ir/core";
 import { isLocalPreviewEnabled } from "../../lib/auth/localPreview";
 
 const TABLE = "commercial_sales";
 const COLUMNS =
-  "id, internal_reference, client_id, proposal_id, product_id, channel, description, start_date, end_date, amount, " +
+  "id, internal_reference, client_id, proposal_id, items_snapshot, product_id, channel, description, start_date, end_date, amount, " +
   "commercial_condition, installments_count, status, notes, created_by, updated_by, created_at, updated_at";
 
 interface SaleRow {
@@ -13,6 +13,7 @@ interface SaleRow {
   internal_reference: string;
   client_id: string;
   proposal_id: string | null;
+  items_snapshot: CommercialSaleItemSnapshot[] | null;
   product_id: string | null;
   channel: string;
   description: string;
@@ -35,6 +36,7 @@ function toDomain(row: SaleRow): CommercialSale {
     reference: row.internal_reference,
     clientId: row.client_id,
     proposalId: row.proposal_id ?? undefined,
+    itemsSnapshot: row.items_snapshot ?? undefined,
     productId: row.product_id ?? undefined,
     channel: row.channel,
     description: row.description,
@@ -56,6 +58,7 @@ function toRow(record: NewCommercialSaleRecord | CommercialSaleChanges): Record<
   const row: Record<string, unknown> = {};
   if (record.clientId !== undefined) row.client_id = record.clientId;
   if (record.proposalId !== undefined) row.proposal_id = record.proposalId ?? null;
+  if (record.itemsSnapshot !== undefined) row.items_snapshot = record.itemsSnapshot;
   if (record.productId !== undefined) row.product_id = record.productId ?? null;
   if (record.channel !== undefined) row.channel = record.channel;
   if (record.description !== undefined) row.description = record.description;

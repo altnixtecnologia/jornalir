@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import type { EditorialPlacement, EditorialTextStyle } from "@ir/types";
 import { getArticleService } from "../../../../composition/editorial";
 import { createSupabaseServerClient } from "../../../../lib/supabase/server";
+import { checkModuleAction } from "../../../../lib/permissions/checkModuleAction";
 import {
   validateArticlePayload,
   type ArticleFormIntent,
@@ -80,6 +81,12 @@ export async function createArticle(
   returnTab?: ArticleEditorTab,
   pautaId?: string,
 ): Promise<ActionResult> {
+  const permissionError = await checkModuleAction("editorial", "materias_criar");
+  if (permissionError) return { error: permissionError };
+  if (intent === "publish" || intent === "schedule") {
+    const publishPermission = await checkModuleAction("editorial", "materias_publicar");
+    if (publishPermission) return { error: publishPermission };
+  }
   const validationError = validateArticlePayload(payload, intent);
   if (validationError) return { error: validationError };
 
@@ -168,6 +175,12 @@ export async function updateArticle(
   intent: ArticleFormIntent,
   returnTab?: ArticleEditorTab,
 ): Promise<ActionResult> {
+  const permissionError = await checkModuleAction("editorial", "materias_editar");
+  if (permissionError) return { error: permissionError };
+  if (intent === "publish" || intent === "schedule") {
+    const publishPermission = await checkModuleAction("editorial", "materias_publicar");
+    if (publishPermission) return { error: publishPermission };
+  }
   const validationError = validateArticlePayload(payload, intent);
   if (validationError) return { error: validationError };
 
@@ -250,6 +263,8 @@ export async function updateArticle(
 }
 
 export async function archiveArticle(id: string): Promise<ActionResult> {
+  const permissionError = await checkModuleAction("editorial", "materias_arquivar");
+  if (permissionError) return { error: permissionError };
   try {
     const client = createSupabaseServerClient();
     const AUDIT = await getAuditContext(client);

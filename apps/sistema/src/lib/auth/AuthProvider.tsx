@@ -3,6 +3,7 @@
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { createSupabaseBrowserClient } from "../supabase/browser";
 import { LOCAL_PREVIEW_PROFILE } from "./localPreview";
+import {staffNameLabel} from "./userIdentity";
 
 export type AuthRole = "owner" | "admin" | "operator";
 
@@ -15,7 +16,7 @@ export interface AuthProfile {
   createdAt: string;
 }
 
-export type AuthStatus = "loading" | "authenticated" | "unauthenticated" | "inactive";
+export type AuthStatus = "loading" | "authenticated" | "unauthenticated" | "inactive" | "unconfirmed";
 
 interface AuthContextValue {
   status: AuthStatus;
@@ -52,6 +53,21 @@ export function AuthProvider({
     let cancelled = false;
 
     async function loadProfile(userId: string, email: string | undefined): Promise<void> {
+      // A sessão local pode ter sido criada por OTP externo, inclusive um
+      // signatário, ou ainda não ter e-mail confirmado. getUser confirma
+      // identidade real antes de disponibilizar menus do painel.
+      const {data:identity,error:identityError}=await client.auth.getUser();
+      if(cancelled) return;
+      if(identityError||identity.user?.id!==userId){
+        setProfile(null);
+        setStatus("unauthenticated");
+        return;
+      }
+      if(!identity.user.email_confirmed_at){
+        setProfile(null);
+        setStatus("unconfirmed");
+        return;
+      }
       const { data, error } = await client
         .from("profiles")
         .select("id, name, role, active, created_at")
@@ -65,16 +81,20 @@ export function AuthProvider({
         setStatus("unauthenticated");
         return;
       }
-      if (!data.active) {
-        await client.auth.signOut();
-        if (cancelled) return;
+      const {data:staffAllowed,error:staffError}=await client.rpc("is_active_staff");
+      if (!data.active || staffError || staffAllowed!==true) {
+        // O AuthProvider envolve TODO o app, inclusive as páginas públicas
+        // dos signatários comerciais/institucionais. NUNCA desconectar
+        // automaticamente aqui: o mesmo e-mail/sessão do OTP é necessário
+        // para assinar. Middleware + RLS bloqueiam o painel; AuthGate só
+        // impede renderização interna. Logout é decisão explícita do usuário.
         setProfile(null);
         setStatus("inactive");
         return;
       }
       setProfile({
         id: data.id,
-        name: data.name,
+        name: staffNameLabel(data.name,email),
         email: email ?? "",
         role: data.role as AuthRole,
         active: data.active,

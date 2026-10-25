@@ -26,7 +26,7 @@ function makeGroups(clients:ClientRow[],records:(EditorialBirthdayRow & {created
     const saved=masterEntries.get(c.id);
     const principal:BirthdayEntry|undefined=person&&c.birth_date?{
       id:c.id,displayName:label,birthDate:c.birth_date,createdAt:c.created_at||undefined,city:c.address_city||"",
-      origin:"cadastro",active:true,publishInPrint:saved?.publish_in_print??false,
+      origin:"cadastro",active:true,publishInPrint:saved?.publish_in_print??false,birthYearKnown:true,
       notes:saved?.notes||undefined,profession:saved?.profession||undefined,
       organization:saved?.organization||undefined,knownAs:saved?.known_as||undefined,
       messageContext:saved?.message_context||undefined,
@@ -36,7 +36,7 @@ function makeGroups(clients:ClientRow[],records:(EditorialBirthdayRow & {created
     // aniversariante): só existe para PJ com founding_date preenchido.
     const foundingEntry:BirthdayEntry|undefined=!person&&c.founding_date?{
       id:c.id,displayName:label,birthDate:c.founding_date,createdAt:c.created_at||undefined,city:c.address_city||"",
-      origin:"cadastro",active:true,publishInPrint:saved?.publish_in_print??false,isFounding:true,
+      origin:"cadastro",active:true,publishInPrint:saved?.publish_in_print??false,birthYearKnown:true,isFounding:true,
       notes:saved?.notes||undefined,profession:saved?.profession||undefined,
       organization:saved?.organization||undefined,knownAs:saved?.known_as||undefined,
       messageContext:saved?.message_context||undefined,
@@ -53,6 +53,7 @@ function makeGroups(clients:ClientRow[],records:(EditorialBirthdayRow & {created
     const member:BirthdayEntry={
       id:r.id,displayName:r.display_name,createdAt:r.created_at||undefined,
       birthDate:`${r.birth_year??2000}-${String(r.birth_month).padStart(2,"0")}-${String(r.birth_day).padStart(2,"0")}`,
+      birthYearKnown:r.birth_year!==null,
       city:r.city||"",relationship:r.relationship||undefined,
       origin:r.origin,active:r.active,publishInPrint:r.publish_in_print,
       notes:r.notes||undefined,profession:r.profession||undefined,
@@ -109,6 +110,7 @@ export default async function AniversariantesPage():Promise<JSX.Element>{
     {error ? <p className="form-error" role="alert">
       Não foi possível carregar os registros de aniversário. Tente novamente.
     </p> : <BirthdaysList localPreview={false} initialGroups={groups}
-        initialMessages={messages} initialWeekStart={week} todayISO={brazilTodayISO()}/>}
+        initialMessages={messages} initialWeekStart={week} todayISO={brazilTodayISO()}
+        canManageTemplates={profile.role==="owner"||profile.role==="admin"}/>}
   </>;
 }

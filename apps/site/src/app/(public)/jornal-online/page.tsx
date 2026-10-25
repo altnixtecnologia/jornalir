@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { SiteHeader } from "../../../components/site/SiteHeader";
 import { calameoEditions } from "../../../components/site/calameoEditions";
+import {mergeNewspaperEditions} from "../../../lib/public/jornalOnlineEditionMerge";
 
 interface OnlineEdition {
   id: string;
@@ -25,31 +26,25 @@ export default function JornalOnlinePage(): JSX.Element {
   const [showScrollTop, setShowScrollTop] = useState(false);
 
   useEffect(() => {
-    void (async () => {
-      try {
-        const archiveResponse = await fetch("/api/jornal-online/editions", { cache: "no-store" });
-        const archiveData = (await archiveResponse.json()) as { ok?: boolean; items?: OnlineEdition[] };
-        if (archiveData?.ok && Array.isArray(archiveData.items) && archiveData.items.length > 0) {
-          setRemoteEditions(archiveData.items);
-          setSourceLabel("Acervo oficial");
-          return;
-        }
-
-        const driveResponse = await fetch("/api/jornal-online/drive", { cache: "no-store" });
-        const driveData = (await driveResponse.json()) as { ok?: boolean; items?: OnlineEdition[] };
-        if (driveData?.ok && Array.isArray(driveData.items) && driveData.items.length > 0) {
-          setRemoteEditions(driveData.items);
-          setSourceLabel("Acervo legado");
-          return;
-        }
-
-        setSourceLabel("Acervo local");
-      } catch {
-        setSourceLabel("Acervo local");
-      } finally {
-        setRemoteLoaded(true);
-      }
+    let mounted=true;
+    void (async ()=>{
+      const [r2,drive]=await Promise.allSettled([
+        fetch("/api/jornal-online/editions",{cache:"no-store"}).then(r=>r.json()),
+        fetch("/api/jornal-online/drive",{cache:"no-store"}).then(r=>r.json()),
+      ]);
+      if(!mounted)return;
+      const official=r2.status==="fulfilled"&&r2.value?.ok&&Array.isArray(r2.value.items)
+        ?r2.value.items as OnlineEdition[]:[];
+      const legacy=drive.status==="fulfilled"&&drive.value?.ok&&Array.isArray(drive.value.items)
+        ?drive.value.items as OnlineEdition[]:[];
+      // A chegada de uma edição R2 NUNCA deve ocultar o restante do acervo.
+      setRemoteEditions(mergeNewspaperEditions(official,legacy,
+        calameoEditions.map(e=>({...e}))));
+      setSourceLabel(official.length?"Acervo oficial + histórico":
+        legacy.length?"Acervo histórico":"Acervo local");
+      setRemoteLoaded(true);
     })();
+    return ()=>{mounted=false;};
   }, []);
 
   useEffect(() => {

@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createSupabaseServerClient } from "../../../lib/supabase/server";
+import { checkModuleAction } from "../../../lib/permissions/checkModuleAction";
 import {
   birthdayWithinEdition, currentBirthdayWeekISO, editionDays, validBirthDate,
 } from "../../../features/aniversariantes/birthdayWeek";
@@ -77,10 +78,14 @@ function resolveMasterAnniversary(master: {
 }
 
 export async function saveEditorialBirthday(input: EditorialBirthdayInput): Promise<ActionResult<{ id: string }>> {
+  const permissionError = await checkModuleAction("aniversariantes", "aniversariantes_gerenciar");
+  if (permissionError) return { error: permissionError };
   const caller = await permitted();
   if (!caller) return { error: "Acesso não autorizado ao módulo Aniversariantes." };
   const name = clean(input.displayName, 180);
-  if (!name || !validBirthDate(input.birthDate) || input.displayName.length > 180) {
+  if (!name || !validBirthDate(input.birthDate) || input.displayName.length > 180
+    || (input.birthYearKnown !== undefined && typeof input.birthYearKnown !== "boolean")
+    || (input.birthYearKnown === false && !input.birthDate.startsWith("2000-"))) {
     return { error: "Informe nome e uma data de nascimento válida." };
   }
   if (input.groupClientId && !UUID.test(input.groupClientId)) return { error: "Grupo de cliente inválido." };
@@ -99,7 +104,7 @@ export async function saveEditorialBirthday(input: EditorialBirthdayInput): Prom
     source_client_id: null,
     origin,
     display_name: name,
-    birth_year: year, birth_month: month, birth_day: day,
+    birth_year: input.birthYearKnown === false ? null : year, birth_month: month, birth_day: day,
     city: clean(input.city, 120) || null,
     relationship: clean(input.relationship, 100) || null,
     profession: clean(input.profession, 150) || null,
@@ -116,18 +121,24 @@ export async function saveEditorialBirthday(input: EditorialBirthdayInput): Prom
     const { data: updated, error } = await db.from("birthday_entries").update(fields)
       .eq("id", input.id).is("source_client_id", null)
       .select("id").maybeSingle();
+    if (error?.code === "23505") return { error: "Este nome e data já estão cadastrados neste grupo." };
     if (error || !updated) return { error: "Não foi possível atualizar. Confira o registro e suas permissões." };
     revalidatePath(PATH);
     return { ok: true, data: { id: updated.id } };
   }
   const { data: created, error } = await db.from("birthday_entries")
     .insert({ ...fields, active: true, created_by: userId }).select("id").single();
-  if (error || !created) return { error: "Não foi possível salvar este aniversariante." };
+  if (error || !created) {
+    if (error?.code === "23505") return { error: "Já existe um aniversariante com esse nome e dia/mês neste grupo. Confira antes de incluir novamente." };
+    return { error: "Não foi possível salvar este aniversariante." };
+  }
   revalidatePath(PATH);
   return { ok: true, data: { id: created.id } };
 }
 
 export async function setEditorialBirthdayActive(id: string, active: boolean): Promise<ActionResult> {
+  const permissionError = await checkModuleAction("aniversariantes", "aniversariantes_gerenciar");
+  if (permissionError) return { error: permissionError };
   const caller = await permitted();
   if (!caller) return { error: "Acesso não autorizado." };
   if (!UUID.test(id)) return { error: "Identificador inválido." };
@@ -145,6 +156,8 @@ export async function setEditorialBirthdayActive(id: string, active: boolean): P
 export async function setBirthdayPublication(
   source: "cliente" | "editorial", id: string, allowed: boolean,
 ): Promise<ActionResult<{ published: boolean }>> {
+  const permissionError = await checkModuleAction("aniversariantes", "aniversariantes_gerenciar");
+  if (permissionError) return { error: permissionError };
   const caller = await permitted();
   if (!caller) return { error: "Acesso não autorizado ao módulo Aniversariantes." };
   if (!UUID.test(id) || (source !== "cliente" && source !== "editorial") || typeof allowed !== "boolean") {
@@ -217,6 +230,8 @@ export async function savePersonalizedBirthdayProfile(
   clientId: string,
   input: { profession: string; organization: string; knownAs: string; messageContext: string },
 ): Promise<ActionResult<{ id: string }>> {
+  const permissionError = await checkModuleAction("aniversariantes", "aniversariantes_gerenciar");
+  if (permissionError) return { error: permissionError };
   const caller = await permitted();
   if (!caller) return { error: "Acesso não autorizado ao módulo Aniversariantes." };
   if (!UUID.test(clientId)) return { error: "Identificador de cliente inválido." };
@@ -430,6 +445,8 @@ async function upsertEditionMessage(
 export async function prepareBirthdayEditionMessage(
   source: "cliente" | "editorial", id: string, regenerate = false,
 ): Promise<ActionResult<EditorialBirthdayMessage>> {
+  const permissionError = await checkModuleAction("aniversariantes", "mensagens_gerenciar");
+  if (permissionError) return { error: permissionError };
   const caller = await permitted();
   if (!caller) return { error: "Acesso não autorizado." };
   if (!UUID.test(id) || (source !== "cliente" && source !== "editorial")) {
@@ -458,6 +475,8 @@ export async function prepareBirthdayEditionMessage(
 export async function pickBirthdayMessageTemplate(
   source: "cliente" | "editorial", id: string, templateKey: string, templateSource: "builtin" | "custom",
 ): Promise<ActionResult<EditorialBirthdayMessage>> {
+  const permissionError = await checkModuleAction("aniversariantes", "mensagens_gerenciar");
+  if (permissionError) return { error: permissionError };
   const caller = await permitted();
   if (!caller) return { error: "Acesso não autorizado." };
   if (!UUID.test(id) || (source !== "cliente" && source !== "editorial")) return { error: "Origem inválida." };
@@ -500,6 +519,8 @@ export async function pickBirthdayMessageTemplate(
 export async function generateBirthdayMessageWithAI(
   source: "cliente" | "editorial", id: string,
 ): Promise<ActionResult<EditorialBirthdayMessage>> {
+  const permissionError = await checkModuleAction("aniversariantes", "mensagens_gerenciar");
+  if (permissionError) return { error: permissionError };
   const caller = await permitted();
   if (!caller) return { error: "Acesso não autorizado." };
   if (!UUID.test(id) || (source !== "cliente" && source !== "editorial")) return { error: "Origem inválida." };
@@ -565,6 +586,8 @@ export async function saveBirthdayMessageTemplate(input: {
   needsCity: boolean; needsProfession: boolean; needsOrganization: boolean;
   needsKnownAs: boolean; needsEditorialPhrase: boolean;
 }): Promise<ActionResult<{ id: string }>> {
+  const permissionError = await checkModuleAction("aniversariantes", "mensagens_gerenciar");
+  if (permissionError) return { error: permissionError };
   const caller = await permitted();
   if (!caller) return { error: "Acesso não autorizado." };
   const { data: profile } = await caller.db.from("profiles").select("role").eq("id", caller.userId).maybeSingle();
@@ -599,6 +622,8 @@ export async function saveBirthdayMessageTemplate(input: {
  * mensagem nova "do nada": exige que já exista uma mensagem automática preparada para
  * esta pessoa/edição (mesma regra de "uma mensagem por aniversariante por edição"). */
 export async function saveManualBirthdayMessage(entryId: string, text: string): Promise<ActionResult<EditorialBirthdayMessage>> {
+  const permissionError = await checkModuleAction("aniversariantes", "mensagens_gerenciar");
+  if (permissionError) return { error: permissionError };
   const caller = await permitted();
   if (!caller) return { error: "Acesso não autorizado." };
   if (!UUID.test(entryId)) return { error: "Identificador inválido." };
@@ -624,6 +649,8 @@ const PHOTO_UUID = UUID;
 /** Foto de destaque opcional — reaproveita o mesmo pipeline de upload (R2 + media_assets)
  * usado por Publicidade/Mídias, nunca um storage novo. Nunca altera o cadastro mestre. */
 export async function setBirthdayEntryPhoto(entryId: string, formData: FormData): Promise<ActionResult<{ photoUrl: string }>> {
+  const permissionError = await checkModuleAction("aniversariantes", "aniversariantes_gerenciar");
+  if (permissionError) return { error: permissionError };
   const caller = await permitted();
   if (!caller) return { error: "Acesso não autorizado." };
   if (!PHOTO_UUID.test(entryId)) return { error: "Identificador inválido." };
@@ -655,6 +682,8 @@ export async function setBirthdayEntryPhoto(entryId: string, formData: FormData)
 }
 
 export async function removeBirthdayEntryPhoto(entryId: string): Promise<ActionResult> {
+  const permissionError = await checkModuleAction("aniversariantes", "aniversariantes_gerenciar");
+  if (permissionError) return { error: permissionError };
   const caller = await permitted();
   if (!caller) return { error: "Acesso não autorizado." };
   if (!PHOTO_UUID.test(entryId)) return { error: "Identificador inválido." };
@@ -725,6 +754,8 @@ export async function findBirthdayCandidates(
  * antigo permanece ativo e nada é perdido — resolução segura de conflito
  * estrutural, conforme pedido explícito do usuário. */
 export async function linkBirthdayEntryToClient(entryId: string, clientId: string): Promise<ActionResult<{ id: string }>> {
+  const permissionError = await checkModuleAction("aniversariantes", "aniversariantes_gerenciar");
+  if (permissionError) return { error: permissionError };
   const caller = await activeStaff();
   if (!caller) return { error: "Acesso não autorizado." };
   if (!UUID.test(entryId) || !UUID.test(clientId)) return { error: "Identificador inválido." };

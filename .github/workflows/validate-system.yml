@@ -12,6 +12,9 @@ on:
       - "package.json"
       - "package-lock.json"
       - ".github/workflows/validate-system.yml"
+  pull_request:
+    branches:
+      - feature/abrangencias-geo-notificacoes-20261021
   workflow_dispatch:
 
 permissions:
@@ -31,20 +34,122 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          node-version: "24"
           cache: npm
 
-      - name: Install dependencies
-        run: npm ci
+      - name: Install dependencies (lockfile obrigatório)
+        run: npm ci --no-audit --no-fund
 
       - name: Typecheck site
         run: npm run typecheck --workspace @ir/site
 
-      - name: Build site
-        run: npm run build --workspace @ir/site
+      - name: Build site (retry apenas para indisponibilidade externa de fontes)
+        run: |
+          # next/font/google depende da resposta externa do Google Fonts.
+          # Tentativas extras não mascaram erros persistentes de compilação.
+          for attempt in 1 2 3; do
+            if npm run build --workspace @ir/site; then
+              exit 0
+            fi
+            if [ "$attempt" -eq 3 ]; then
+              echo "Build do portal falhou apos tres tentativas." >&2
+              exit 1
+            fi
+            sleep 5
+          done
 
       - name: Typecheck system
         run: npm run typecheck --workspace @ir/sistema
+
+      - name: Testar pré-voo de migrações sem escrita no Supabase
+        run: node --test scripts/release/migration-preflight.test.mjs
+
+      - name: Testar pacotes comerciais e historico de servicos
+        run: npx tsx --test packages/core/test/commercial-sale-snapshot.test.ts
+
+      - name: Testar conferencia de contratos comerciais
+        run: npx tsx --test apps/sistema/test/commercial-contract-preview.test.ts
+
+      - name: Testar renderização da minuta comercial
+        run: npx tsx --test apps/sistema/test/commercial-legal-draft.test.ts
+
+      - name: Testar qualificação jurídica de clientes
+        run: npx tsx --test apps/sistema/test/commercial-qualification.test.ts
+
+      - name: Testar preço individual e preço total dos contratos
+        run: npx tsx --test apps/sistema/test/commercial-document-amount.test.ts
+
+      - name: Testar identificação jurídica das partes no modelo
+        run: npx tsx --test apps/sistema/test/commercial-party-requirements.test.ts
+
+      - name: Testar lista e papéis de signatários comerciais
+        run: npx tsx --test apps/sistema/test/commercial-signers.test.ts
+
+      - name: Testar aniversarios com ano opcional e validacao de datas
+        run: npx tsx --test apps/sistema/test/birthday-date-input.test.ts
+
+      - name: Testar isolamento de chaves PDF/capa e upload direto da edição
+        run: npx tsx --test apps/sistema/test/edition-direct-upload-keys.test.ts
+
+      - name: Testar deduplicação do upload oficial de PDFs
+        run: npx tsx --test apps/sistema/test/edition-upload-dedup.test.ts
+
+      - name: Testar mesclagem de acervo R2, Drive e PDFs locais
+        run: npx tsx --test apps/site/test/jornal-online-merge.test.ts
+
+      - name: Testar troca de capa da matéria
+        run: npx tsx --test apps/sistema/test/article-cover-choice.test.ts
+
+      - name: Testar seleção de crop desktop sem distorção
+        run: npx tsx --test apps/sistema/test/desktop-article-crop.test.ts
+
+      - name: Testar acesso de funcionários e signatários externos
+        run: npx tsx --test apps/sistema/test/staff-access-policy.test.ts
+
+      - name: Testar nomes do cadastro de usuários
+        run: npx tsx --test apps/sistema/test/user-identity.test.ts
+
+      - name: Testar diagnósticos do e-mail de ativação
+        run: npx tsx --test apps/sistema/test/auth-mail-diagnostics.test.ts
+
+      - name: Testar destino seguro de convites e recuperação
+        run: npx tsx --test apps/sistema/test/staff-auth-redirect.test.ts
+
+      - name: Testar bloqueio de PDF comercial até confirmação do e-mail
+        run: npx tsx --test apps/sistema/test/commercial-document-access.test.ts
+
+      - name: Testar recuperação de cobrança Asaas já paga sem baixa pelo operador
+        run: npx tsx --test packages/core/test/payment-charge-recovery.test.ts
+
+      - name: Testar concorrência na criação de Pix antes do Asaas
+        run: npx tsx --test packages/core/test/payment-charge-creation-concurrency.test.ts
+
+      - name: Testar recuperação segura de cancelamento Pix no Asaas
+        run: npx tsx --test packages/core/test/payment-charge-cancellation.test.ts
+
+      - name: Testar bloqueio de cobranças comerciais e vínculo Pix
+        run: npx tsx --test apps/sistema/test/commercial-finance-guards.test.ts
+
+      - name: Testar isolamento da API Asaas LIVE entre Vercel Preview e Production
+        run: npx tsx --test apps/sistema/test/asaas-runtime-policy.test.ts
+
+      - name: Testar contrato de clientes digitais Jornal IR → Altnix
+        run: npx tsx --test apps/sistema/test/altnix-digital-client-contract.test.ts
+
+      - name: Verificar gates da primeira publicação (NFS-e depois, Altnix desligado)
+        run: npx tsx --test apps/sistema/test/prepublication-release-gates.test.ts
+
+      - name: Testar convites individuais da Agenda (Web Push, resposta e cancelamento)
+        run: npx tsx --test apps/sistema/test/agenda-invitation-push.test.ts
+
+      - name: Testar vigência e suspensão manual de patrocinadores
+        run: npx tsx --test apps/sistema/test/site-ad-publication.test.ts
+
+      - name: Testar identificadores estáveis dos PDFs comerciais
+        run: npx tsx --test apps/sistema/test/commercial-document-identity.test.ts
+
+      - name: Testar recuperação de evidências comerciais após falha parcial
+        run: npx tsx --test apps/sistema/test/commercial-evidence-recovery.test.ts
 
       - name: Signed contract PDF smoke test
         run: node apps/sistema/scripts/signatures-smoke.cjs

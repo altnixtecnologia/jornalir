@@ -5,6 +5,7 @@ import { headers } from "next/headers";
 import { revalidatePath } from "next/cache";
 import sharp from "sharp";
 import { createSupabaseServerClient } from "../../../../lib/supabase/server";
+import { checkFinanceAction } from "../../../../lib/permissions/checkFinanceAction";
 import { createSupabaseAdminClient } from "../../../../lib/supabase/admin";
 import {
   claimSignatureTurn, findSignatureInvitation, hashInvitationToken,
@@ -75,6 +76,8 @@ export async function createSignatureInvitationAction(input: {
   /** Preenchido só quando este convite é um REENVIO de um convite anterior revogado/expirado do mesmo documento/signatário (Item 5, Lote 2, Tarefa 2). */
   previousInvitationId?: string;
 }): Promise<Result<{ invitationId: string; urlPath: string; deliveryError?: string }>> {
+  const permissionError = await checkFinanceAction("contratos_editar");
+  if (permissionError) return { error: permissionError };
   try {
     const actorId = await requireFinanceAccess();
     const signerName = input.signerName.trim().replace(/\s+/g, " ").slice(0, 180);
@@ -180,6 +183,8 @@ export async function createSignatureRequestAction(input: {
   requestId: string;
   invitations: Array<{ invitationId: string; signerName: string; urlPath: string; deliveryError?: string }>;
 }>> {
+  const permissionError = await checkFinanceAction("contratos_editar");
+  if (permissionError) return { error: permissionError };
   try {
     const actorId = await requireFinanceAccess();
     if (input.signers.length < 2) return { error: "Informe ao menos dois signatários para uma rodada com múltiplos signatários." };
@@ -282,6 +287,8 @@ export async function createSignatureRequestAction(input: {
 export async function revokeSignatureInvitationAction(
   contractId: string, invitationId: string,
 ): Promise<Result<{ revoked: true }>> {
+  const permissionError = await checkFinanceAction("contratos_editar");
+  if (permissionError) return { error: permissionError };
   try {
     await requireFinanceAccess();
     const admin = createSupabaseAdminClient();

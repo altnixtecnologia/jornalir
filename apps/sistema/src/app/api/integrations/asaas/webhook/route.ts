@@ -1,10 +1,11 @@
 import "server-only";
 
-import { timingSafeEqual } from "crypto";
+import { randomUUID, timingSafeEqual } from "crypto";
 import { NextResponse } from "next/server";
 import { getPaymentChargeService } from "../../../../../composition/financeiro";
 import { createSupabaseAdminClient, hasServiceRoleKey } from "../../../../../lib/supabase/admin";
 import { getAsaasWebhookToken } from "../../../../../lib/financeiro/asaasWebhookConfig";
+import { canProcessAsaasWebhook } from "../../../../../lib/financeiro/asaasRuntimePolicy";
 import { createAsaasPixProvider } from "../../../../../lib/financeiro/asaasPixProvider";
 import {
   isWhatsappCloudConfigured,
@@ -47,11 +48,15 @@ function receivedDate(payment: AsaasWebhookPayment | undefined): string {
 
 async function markEvent(
   eventId: string,
+  processingToken: string,
   values: { processed_at?: string | null; error_message?: string | null },
 ): Promise<void> {
   const admin = createSupabaseAdminClient();
-  const { error } = await admin.from("billing_webhook_events").update(values).eq("id", eventId);
-  if (error) throw new Error(error.message);
+  const { data, error } = await admin.from("billing_webhook_events")
+    .update({ ...values, processing_token: null, processing_at: null })
+    .eq("id", eventId).eq("processing_token", processingToken)
+    .select("id").maybeSingle();
+  if (error || !data) throw new Error(error?.message ?? "Evento assumido por outro processador; resultado não atualizado.");
 }
 
 function money(value: number): string {
@@ -128,6 +133,7 @@ async function loadPaymentContext(receivableId: string): Promise<{
 
 async function notifyPaymentReceived(input: {
   eventId: string;
+  chargeId: string;
   receivableId: string;
   amount: number;
   paymentMethodLabel: string;
@@ -146,7 +152,7 @@ async function notifyPaymentReceived(input: {
     message: `${clientName} • ${amountLabel} • ${reference}`,
     href,
     entityId: receivable.id,
-    eventKey: `asaas:${input.eventId}:payment_received`,
+    eventKey: `asaas:charge:${input.chargeId}:payment_received`,
   });
 
   const toPhone = client.whatsapp || client.phone_primary || "";
@@ -157,7 +163,7 @@ async function notifyPaymentReceived(input: {
       message: `${clientName} não possui WhatsApp/telefone cadastrado para confirmar o pagamento de ${amountLabel}.`,
       href,
       entityId: receivable.id,
-      eventKey: `asaas:${input.eventId}:whatsapp_no_phone`,
+      eventKey: `asaas:charge:${input.chargeId}:whatsapp_no_phone`,
     });
     return;
   }
@@ -169,11 +175,32 @@ async function notifyPaymentReceived(input: {
       message: `Pagamento de ${amountLabel} confirmado, mas a WhatsApp Cloud API ainda não está configurada no JornalIR.`,
       href,
       entityId: receivable.id,
-      eventKey: `asaas:${input.eventId}:whatsapp_not_configured`,
+      eventKey: `asaas:charge:${input.chargeId}:whatsapp_not_configured`,
     });
     return;
   }
 
+  // Reserva durável ANTES do envio à Meta. O índice único por cobrança
+  // impede reenvios em webhooks diferentes, simultâneos ou após crash.
+  // Se a Meta responder timeout depois de enviar, NÃO repetimos
+  // automaticamente: a situação permanece incerta para conciliação.
+  const { data: dispatch, error: claimError } = await admin
+    .from("billing_notification_dispatches")
+    .upsert({
+      payment_charge_id: input.chargeId,
+      notification_kind: "payment_confirmed",
+      receivable_id: receivable.id,
+      client_id: client.id,
+      to_phone: toPhone,
+      status: "sending",
+    }, { onConflict: "payment_charge_id,notification_kind", ignoreDuplicates: true })
+    .select("id").maybeSingle();
+  if (claimError) throw new Error("Falha na reserva idempotente do WhatsApp: " + claimError.message);
+  if (!dispatch) return; // Outra entrega já reservou esta confirmação.
+
+  const message = `Pagamento confirmado: ${amountLabel} • ${reference} • ${input.paymentMethodLabel} • Transação ${input.providerTransactionId}`;
+  let providerMessageId: string | null = null;
+  let sendError: string | null = null;
   try {
     const sent = await sendWhatsappPaymentConfirmedTemplate({
       toPhone,
@@ -183,45 +210,56 @@ async function notifyPaymentReceived(input: {
       paymentMethodLabel: input.paymentMethodLabel,
       transactionId: input.providerTransactionId,
     });
-
-    const { error: logError } = await admin.from("billing_message_logs").insert({
-      receivable_id: receivable.id,
-      client_id: client.id,
-      channel: "whatsapp",
-      to_phone: toPhone,
-      message: `Pagamento confirmado: ${amountLabel} • ${reference} • ${input.paymentMethodLabel} • Transação ${input.providerTransactionId}`,
-      status: "sent",
-      provider_message_id: sent.providerMessageId ?? null,
-      error_message: null,
-      created_by: null,
-    });
-    if (logError) throw new Error(logError.message);
+    providerMessageId = sent.providerMessageId ?? null;
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Falha ao enviar confirmação pelo WhatsApp.";
-    await admin.from("billing_message_logs").insert({
-      receivable_id: receivable.id,
-      client_id: client.id,
-      channel: "whatsapp",
-      to_phone: toPhone,
-      message: `Pagamento confirmado: ${amountLabel} • ${reference} • ${input.paymentMethodLabel} • Transação ${input.providerTransactionId}`,
-      status: "failed",
-      provider_message_id: null,
-      error_message: message.slice(0, 1000),
-      created_by: null,
-    });
+    sendError = (error instanceof Error ? error.message : "Falha ao enviar confirmação pelo WhatsApp.").slice(0, 1000);
+  }
 
+  const { error: dispatchError } = await admin.from("billing_notification_dispatches")
+    .update({
+      status: sendError ? "uncertain" : "sent",
+      provider_message_id: providerMessageId,
+      error_message: sendError,
+      finished_at: new Date().toISOString(),
+    }).eq("id", dispatch.id);
+  if (dispatchError) throw new Error("Envio reservado, mas falhou o registro do resultado: " + dispatchError.message);
+
+  const { error: logError } = await admin.from("billing_message_logs").insert({
+    receivable_id: receivable.id,
+    client_id: client.id,
+    channel: "whatsapp",
+    to_phone: toPhone,
+    message,
+    status: sendError ? "failed" : "sent",
+    provider_message_id: providerMessageId,
+    error_message: sendError,
+    created_by: null,
+  });
+  // Reserva sempre prevalece sobre log auxiliar: jamais reenviar só
+  // porque um INSERT de auditoria falhou após a Meta aceitar a mensagem.
+  if (sendError || logError) {
     await createPanelNotification({
       kind: "whatsapp_failed",
-      title: "Falha ao confirmar pagamento no WhatsApp",
-      message: `${clientName} • ${amountLabel} • ${message}`,
+      title: sendError ? "Envio WhatsApp precisa de conciliação" : "Falha no log de envio WhatsApp",
+      message: `${clientName} • ${amountLabel} • ${sendError ?? logError?.message ?? "Verifique o registro do envio."} (não reenviar automaticamente)`,
       href,
       entityId: receivable.id,
-      eventKey: `asaas:${input.eventId}:whatsapp_failed`,
+      eventKey: `asaas:charge:${input.chargeId}:whatsapp_reconcile`,
     });
   }
 }
 
 export async function POST(request: Request): Promise<Response> {
+  // Um endpoint Preview não é destino legítimo de webhooks reais e não
+  // deve modificar cobranças/recebimentos, mesmo com token válido.
+  if(!canProcessAsaasWebhook({
+    vercelEnv: process.env.VERCEL_ENV,
+    asaasEnvironment: process.env.ASAAS_ENV,
+    homologationEnabled: process.env.IR_HOMOLOGATION_ENABLED,
+    homologationProjectRef: process.env.IR_HOMOLOGATION_SUPABASE_REF,
+    supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL,
+  }))
+    return NextResponse.json({error:"Webhook indisponível neste ambiente."},{status:404});
   const expectedToken = getAsaasWebhookToken();
   if (!expectedToken || !hasServiceRoleKey()) {
     return NextResponse.json({ error: "Integração de cobrança não configurada." }, { status: 503 });
@@ -293,9 +331,30 @@ export async function POST(request: Request): Promise<Response> {
     }
   }
 
+  // Claim atômico por evento: uma entrega concorrente não pode
+  // processar duas vezes o mesmo evento enquanto a primeira está ativa.
+  // Lease de 15 minutos cobre interrupção abrupta da função serverless.
+  const processingToken = randomUUID();
+  const staleBefore = new Date(Date.now() - 15 * 60_000).toISOString();
+  const { data: claimed, error: claimError } = await admin
+    .from("billing_webhook_events")
+    .update({ processing_token: processingToken, processing_at: new Date().toISOString() })
+    .eq("id", eventId).is("processed_at", null)
+    .or(`processing_token.is.null,processing_at.lt.${staleBefore}`)
+    .select("id").maybeSingle();
+  if (claimError) return NextResponse.json({ error: "Falha ao reservar evento." }, { status: 500 });
+  if (!claimed) {
+    const { data: current, error } = await admin.from("billing_webhook_events")
+      .select("processed_at").eq("id", eventId).single();
+    if (error) return NextResponse.json({ error: "Falha ao consultar evento." }, { status: 500 });
+    return current?.processed_at
+      ? NextResponse.json({ ok: true, duplicate: true })
+      : NextResponse.json({ error: "Evento em processamento; reenviar depois." }, { status: 503 });
+  }
+
   try {
     if (!providerChargeId) {
-      await markEvent(eventId, {
+      await markEvent(eventId, processingToken, {
         processed_at: new Date().toISOString(),
         error_message: "Evento sem payment.id; nenhuma cobrança local alterada.",
       });
@@ -326,7 +385,7 @@ export async function POST(request: Request): Promise<Response> {
           .maybeSingle();
         if (receivableError) throw new Error(receivableError.message);
         if (receivable) {
-          await markEvent(eventId, {
+          await markEvent(eventId, processingToken, {
             processed_at: null,
             error_message: "Cobrança local ainda não persistida; aguardando reenvio do Asaas.",
           });
@@ -337,7 +396,7 @@ export async function POST(request: Request): Promise<Response> {
       // A mesma conta Asaas pode conter cobranças de outros sistemas.
       // Se não aponta para um título do JornalIR, reconhece com 200 para
       // não interromper a fila compartilhada do provedor.
-      await markEvent(eventId, {
+      await markEvent(eventId, processingToken, {
         processed_at: new Date().toISOString(),
         error_message: "Cobrança Asaas não pertence ao JornalIR; evento ignorado.",
       });
@@ -352,6 +411,7 @@ export async function POST(request: Request): Promise<Response> {
       );
       await notifyPaymentReceived({
         eventId,
+        chargeId: charge.id as string,
         receivableId: charge.receivable_id as string,
         amount: Number(charge.amount ?? 0),
         paymentMethodLabel: paymentMethodLabel(payload.payment),
@@ -360,15 +420,24 @@ export async function POST(request: Request): Promise<Response> {
     } else if (eventType === "PAYMENT_OVERDUE") {
       if (charge.status === "pending") {
         await createAsaasPixProvider(admin).cancelCharge(providerChargeId);
-        const { error } = await admin
+        const { data: cancelled, error } = await admin
           .from("payment_charges")
           .update({
             status: "cancelled",
             cancelled_at: new Date().toISOString(),
             cancellation_reason: "Cobrança vencida; removida automaticamente do Asaas.",
           })
-          .eq("id", charge.id);
+          .eq("id", charge.id).eq("status", "pending")
+          .select("id").maybeSingle();
         if (error) throw new Error(error.message);
+        if (!cancelled) {
+          // Pagamento webhook ganhou a corrida: jamais registrar cancelamento.
+          await markEvent(eventId, processingToken, {
+            processed_at: new Date().toISOString(),
+            error_message: "Cancelamento ignorado: cobrança já mudou de status durante o processamento.",
+          });
+          return NextResponse.json({ ok: true, ignored: true });
+        }
         const context = await loadPaymentContext(charge.receivable_id as string);
         const reference = context.receivable.internal_reference || context.receivable.description || "Título financeiro";
         await createPanelNotification({
@@ -382,15 +451,23 @@ export async function POST(request: Request): Promise<Response> {
       }
     } else if (eventType === "PAYMENT_DELETED") {
       if (charge.status === "pending") {
-        const { error } = await admin
+        const { data: cancelled, error } = await admin
           .from("payment_charges")
           .update({
             status: "cancelled",
             cancelled_at: new Date().toISOString(),
             cancellation_reason: "Cobrança removida no Asaas.",
           })
-          .eq("id", charge.id);
+          .eq("id", charge.id).eq("status", "pending")
+          .select("id").maybeSingle();
         if (error) throw new Error(error.message);
+        if (!cancelled) {
+          await markEvent(eventId, processingToken, {
+            processed_at: new Date().toISOString(),
+            error_message: "Exclusão ignorada: pagamento/status modificado antes da atualização.",
+          });
+          return NextResponse.json({ ok: true, ignored: true });
+        }
         const context = await loadPaymentContext(charge.receivable_id as string);
         const reference = context.receivable.internal_reference || context.receivable.description || "Título financeiro";
         await createPanelNotification({
@@ -406,19 +483,19 @@ export async function POST(request: Request): Promise<Response> {
       // Não altera o recebimento automaticamente: estorno financeiro precisa
       // manter trilha própria e pode envolver valor parcial. O evento fica
       // registrado para conciliação sem bloquear a fila do Asaas.
-      await markEvent(eventId, {
+      await markEvent(eventId, processingToken, {
         processed_at: new Date().toISOString(),
         error_message: "Estorno recebido do Asaas; requer conciliação no Financeiro.",
       });
       return NextResponse.json({ ok: true, manualReconciliation: true });
     }
 
-    await markEvent(eventId, { processed_at: new Date().toISOString(), error_message: null });
+    await markEvent(eventId, processingToken, { processed_at: new Date().toISOString(), error_message: null });
     return NextResponse.json({ ok: true });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Falha ao processar webhook.";
     try {
-      await markEvent(eventId, { error_message: message.slice(0, 1000), processed_at: null });
+      await markEvent(eventId, processingToken, { error_message: message.slice(0, 1000), processed_at: null });
     } catch {
       // Mantém a resposta de erro original; o Asaas poderá reenviar o evento.
     }

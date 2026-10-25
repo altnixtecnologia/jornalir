@@ -2,6 +2,15 @@ import "server-only";
 import { NextRequest, NextResponse } from "next/server";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { sendWebPush, type WebPushSubscription } from "../../../../lib/notifications/webPush.server";
+import {
+  agendaInvitationStillPending,
+  agendaReminderRecipients,
+  buildAgendaInvitationNotification,
+  currentAgendaReminderPush,
+  type AgendaReminderMeeting,
+  type AgendaInvitationMeeting,
+  type AgendaInvitationRow,
+} from "../../../../lib/notifications/agendaInvitationPolicy";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -149,11 +158,21 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       .select("profile_id,completed_at").eq("event_id", agenda.id)
       .eq("assignment_type","responsible");
     if (assignedError) { failed++; continue; }
-    for (const recipient of assigned ?? []) {
+    // Reuniões: quem confirmou a presença também recebe o lembrete
+    // individual. Somente responsáveis recebem alerta de tarefa atrasada.
+    let acceptedGuests: Array<{ profile_id: string }> = [];
+    if (isReminderDue) {
+      const invited = await db.from("agenda_event_invitees")
+        .select("profile_id").eq("event_id", agenda.id).eq("status", "accepted");
+      if (invited.error) { failed++; continue; }
+      acceptedGuests = invited.data ?? [];
+    }
+    const recipients = agendaReminderRecipients(assigned ?? [], acceptedGuests);
+    for (const recipient of recipients) {
       if (recipient.completed_at) continue; // Responsável já concluiu.
       for (const category of (["reminder","overdue"] as const)) {
         if (category === "reminder" && !isReminderDue) continue;
-        if (category === "overdue" && !isOverdueDue) continue;
+        if (category === "overdue" && (!isOverdueDue || recipient.meetingOnly)) continue;
         const timeKey = category === "overdue" ? overdueAt : reminderAt!;
         const eventKey = ["agenda",category,agenda.id,timeKey,recipient.profile_id].join(":");
         const { error } = await db.from("notification_events").upsert({
@@ -177,6 +196,46 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     }
   }
 
+  // O convite é privado: gerar uma notificação para cada pessoa convidada,
+  // nunca notificar o grupo todo. Lotes antigos não são disparados depois
+  // de um período de indisponibilidade do cron.
+  const invitationSince = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+  const { data: inviteRows, error: inviteError } = await db.from("agenda_event_invitees")
+    .select("event_id,profile_id,invited_at,status")
+    .eq("status", "pending").gte("invited_at", invitationSince)
+    .order("invited_at", { ascending: false }).limit(200);
+  if (inviteError) return NextResponse.json({ error: "Falha ao consultar convites da Agenda" }, { status: 500 });
+  const invitations = (inviteRows ?? []) as AgendaInvitationRow[];
+  let invitationsQueued = 0;
+  if (invitations.length) {
+    const meetingIds = [...new Set(invitations.map((i) => i.event_id))];
+    const invitedIds = [...new Set(invitations.map((i) => i.profile_id))];
+    const [meetingsResult, profilesResult, staffResult] = await Promise.all([
+      db.from("agenda_events").select("id,title,event_date,start_time,status,event_kind")
+        .in("id", meetingIds).eq("status", "scheduled").eq("event_kind", "general"),
+      db.from("profiles").select("id").in("id", invitedIds).eq("active", true),
+      db.from("staff_memberships").select("profile_id").in("profile_id", invitedIds),
+    ]);
+    if (meetingsResult.error || profilesResult.error || staffResult.error) {
+      return NextResponse.json({ error: "Falha ao validar destinatários dos convites" }, { status: 500 });
+    }
+    const meetings = new Map(((meetingsResult.data ?? []) as AgendaInvitationMeeting[]).map((m) => [m.id, m]));
+    const profiles = new Set((profilesResult.data ?? []).map((p) => p.id));
+    const staff = new Set((staffResult.data ?? []).map((p) => p.profile_id));
+    const nowIso = new Date().toISOString();
+    for (const invite of invitations) {
+      if (!profiles.has(invite.profile_id) || !staff.has(invite.profile_id)) continue;
+      const notification = buildAgendaInvitationNotification(invite, meetings.get(invite.event_id), nowIso, localNow());
+      if (!notification) continue;
+      // UNIQUE(dedupe_key) evita novos avisos ao repetir o cron.
+      const result = await db.from("notification_events").upsert(notification, {
+        onConflict: "dedupe_key", ignoreDuplicates: true,
+      }).select("id");
+      if (result.error) failed++;
+      else invitationsQueued += result.data?.length ?? 0;
+    }
+  }
+
   // Eventos recentes primeiro para evitar que os anteriores já processados
   // bloqueiem a fila. O claim UNIQUE protege de execução concorrente.
   const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
@@ -192,20 +251,22 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   const activeDevices = (devices ?? []) as PushDevice[];
   if (activeDevices.length === 0) {
     const site = await processSiteDeliveries(db);
-    return NextResponse.json({ queued, overdueQueued, sent: 0, failed, devices: 0, ...site });
+    return NextResponse.json({ queued, overdueQueued, invitationsQueued, sent: 0, failed, devices: 0, ...site });
   }
   const profileIds = [...new Set(activeDevices.map((x) => x.profile_id))];
-  const [preferenceResult, activeResult] = await Promise.all([
+  const [preferenceResult, activeResult, staffResult] = await Promise.all([
     db.from("notification_preferences")
       .select("profile_id,ordinary_enabled,urgent_enabled,agenda_enabled")
       .eq("app_kind", "sistema").in("profile_id", profileIds),
     db.from("profiles").select("id").eq("active", true).in("id", profileIds),
+    db.from("staff_memberships").select("profile_id").in("profile_id", profileIds),
   ]);
-  if (preferenceResult.error || activeResult.error) {
+  if (preferenceResult.error || activeResult.error || staffResult.error) {
     return NextResponse.json({ error: "Falha ao verificar permissões" }, { status: 500 });
   }
   const preferences = new Map(((preferenceResult.data ?? []) as PushPreference[]).map((v) => [v.profile_id, v]));
-  const activeProfiles = new Set((activeResult.data ?? []).map((v) => v.id));
+  const staffIds = new Set((staffResult.data ?? []).map((v) => v.profile_id));
+  const activeProfiles = new Set((activeResult.data ?? []).filter((v) => staffIds.has(v.id)).map((v) => v.id));
   let sent = 0;
   let claimed = 0;
   outer: for (const event of (pushEvents ?? []) as PushEvent[]) {
@@ -219,6 +280,64 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       if (!activeProfiles.has(device.profile_id)) continue;
       const pref = preferences.get(device.profile_id);
       if (!pref || !optedIn(event.kind, pref)) continue;
+      let pushTitle = event.title;
+      let pushBody = event.body;
+      let pushHref = event.href || "/sistema/notificacoes";
+      // Entre a formação da fila e a entrega, o convidado pode ter aceitado,
+      // recusado ou perdido o convite. Validar novamente antes do envio.
+      if (event.dedupe_key?.startsWith("agenda:invite:")) {
+        const parts = /^agenda:invite:([0-9a-f-]{36}):([0-9a-f-]{36}):(.+)$/i.exec(event.dedupe_key);
+        if (!parts || parts[2] !== device.profile_id) continue;
+        const [invitation, meeting, confirmed] = await Promise.all([
+          db.from("agenda_event_invitees").select("status,invited_at")
+            .eq("event_id", parts[1]).eq("profile_id", device.profile_id).maybeSingle(),
+          db.from("agenda_events").select("id,title,status,event_kind,event_date,start_time")
+            .eq("id", parts[1]).maybeSingle(),
+          db.auth.admin.getUserById(device.profile_id),
+        ]);
+        if (invitation.error || meeting.error || confirmed.error) { failed++; continue; }
+        if (!confirmed.data?.user?.email_confirmed_at ||
+            !agendaInvitationStillPending(event.dedupe_key, device.profile_id, invitation.data, meeting.data)) continue;
+        // A data, o horário e o título podem ter sido alterados pelo
+        // organizador. Nunca enviar o texto antigo nem reunião vencida.
+        const currentInvite = buildAgendaInvitationNotification({
+          event_id: parts[1], profile_id: device.profile_id,
+          invited_at: invitation.data!.invited_at, status: invitation.data!.status,
+        }, meeting.data as AgendaInvitationMeeting, new Date().toISOString(), localNow());
+        if (!currentInvite) continue;
+        pushTitle = currentInvite.title;
+        pushBody = currentInvite.body;
+        pushHref = currentInvite.href;
+      }
+      if (event.kind === "agenda" &&
+          /^agenda:(reminder|overdue):/.test(event.dedupe_key || "")) {
+        const match = /^agenda:(reminder|overdue):([0-9a-f-]{36}):/.exec(event.dedupe_key || "");
+        if (!match) continue;
+        const [meetingResult, assignmentResult, inviteResult] = await Promise.all([
+          db.from("agenda_events")
+            .select("title,event_date,start_time,end_time,reminder_minutes,status,event_kind")
+            .eq("id", match[2]).maybeSingle(),
+          db.from("agenda_event_assignees")
+            .select("completed_at").eq("event_id", match[2])
+            .eq("profile_id", device.profile_id).eq("assignment_type", "responsible").maybeSingle(),
+          db.from("agenda_event_invitees")
+            .select("status").eq("event_id", match[2])
+            .eq("profile_id", device.profile_id).maybeSingle(),
+        ]);
+        if (meetingResult.error || assignmentResult.error || inviteResult.error) {
+          failed++;
+          continue;
+        }
+        const current = currentAgendaReminderPush(
+          event.dedupe_key!, device.profile_id,
+          meetingResult.data as AgendaReminderMeeting | null,
+          assignmentResult.data, inviteResult.data?.status ?? null, localNow(),
+        );
+        if (!current) continue;
+        pushTitle = current.title;
+        pushBody = current.body;
+        pushHref = current.href;
+      }
       const { error: claimError } = await db.from("notification_deliveries")
         .insert({ event_id: event.id, device_id: device.id, status: "pending", attempts: 1, last_attempt_at: new Date().toISOString() });
       if (claimError?.code === "23505") continue;
@@ -226,8 +345,8 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       claimed++;
       try {
         const result = await sendWebPush(asSubscription(device), {
-          title: event.title, body: event.body, kind: event.kind,
-          href: event.href || "/sistema/notificacoes", tag: event.dedupe_key || event.id,
+          title: pushTitle, body: pushBody, kind: event.kind,
+          href: pushHref, tag: event.dedupe_key || event.id,
         });
         await db.from("notification_deliveries").update({
           status: result.ok ? "sent" : result.expired ? "expired" : "failed",
@@ -248,5 +367,5 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     }
   }
   const site = await processSiteDeliveries(db);
-  return NextResponse.json({ queued, overdueQueued, claimed, sent, failed, devices: activeDevices.length, ...site });
+  return NextResponse.json({ queued, overdueQueued, invitationsQueued, claimed, sent, failed, devices: activeDevices.length, ...site });
 }

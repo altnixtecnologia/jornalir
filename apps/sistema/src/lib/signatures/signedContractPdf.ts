@@ -10,6 +10,8 @@ export interface SignedPdfInput {
   signedAt: string;
   originalSha256: string;
   invitationId: string;
+  consentVersion?: string;
+  sourceIsCumulative?: boolean;
 }
 
 function safeText(s: string): string {
@@ -45,7 +47,7 @@ export async function buildSignedContractPdf(input: SignedPdfInput): Promise<Uin
   line("Email confirmado: " + input.signerEmail, 645);
   const time = new Date(input.signedAt).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" });
   line("Data de aceite: " + time + " (Brasilia)", 618);
-  line("Versao do consentimento: contract-v1", 591);
+  line("Versao do consentimento: " + (input.consentVersion ?? "contract-v1"), 591);
   line("Representacao grafica da assinatura:", 549, 12, true);
   page.drawRectangle({ x: 47, y: 332, width: 501, height: 187, borderWidth: 1, borderColor: rgb(0.82,0.85,0.88) });
   const img = await pdf.embedJpg(input.signatureJpeg);
@@ -53,7 +55,7 @@ export async function buildSignedContractPdf(input: SignedPdfInput): Promise<Uin
   page.drawImage(img, { x: 60 + (470 - img.width * scale) / 2,
     y: 350 + (155 - img.height * scale) / 2,
     width: img.width * scale, height: img.height * scale });
-  line("SHA-256 do arquivo original:", 288, 10, true);
+  line(input.sourceIsCumulative ? "SHA-256 do PDF base desta assinatura:" : "SHA-256 do arquivo original:", 288, 10, true);
   line(input.originalSha256, 270, 9);
   line("Convite: " + input.invitationId, 236, 9);
   line("A imagem e o hash demonstram o registro de aceite; nao equivalem,", 193, 10);

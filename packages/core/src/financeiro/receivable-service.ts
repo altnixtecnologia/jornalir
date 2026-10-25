@@ -223,10 +223,23 @@ export class ReceivableService {
     const current = await this.getById(id);
     const changes: ReceivableChanges = normalize(input);
     assertValidReceivable(changes as Pick<NewReceivableRecord, "clientId" | "description" | "originalAmount" | "issueDate" | "dueDate">);
-    // Edição geral nunca reabre um título cancelado nem muda status —
-    // só as ações dedicadas (recebimento/abatimento/estorno/cancelar)
-    // tocam esse campo.
-    void current;
+    // Após qualquer histórico financeiro, origem/cliente/valor ficam
+    // imutáveis; a trigger replica o mesmo bloqueio inclusive para
+    // operações privilegiadas e elimina corrida entre revisão e baixa.
+    if ((current.totalReceived > 0 || current.totalAdjustments > 0 || current.status === "paid") &&
+        (changes.originalAmount !== current.originalAmount ||
+         changes.clientId !== current.clientId ||
+         changes.sourceType !== current.sourceType ||
+         changes.sourceId !== current.sourceId ||
+         changes.subscriptionId !== current.subscriptionId ||
+         changes.contractId !== current.contractId ||
+         changes.commercialSaleId !== current.commercialSaleId ||
+         changes.installmentNumber !== current.installmentNumber ||
+         changes.issueDate !== current.issueDate ||
+         changes.competencyDate !== current.competencyDate)) {
+      throw new ReceivableValidationError("Título com histórico financeiro: valor, pagador e origem não podem ser alterados.");
+    }
+    // Edição geral nunca altera status: só ações específicas.
     const { status: _status, ...changesWithoutStatus } = changes;
     return this.receivables.update(id, changesWithoutStatus);
   }
@@ -234,6 +247,8 @@ export class ReceivableService {
   async cancel(id: string): Promise<Receivable> {
     const current = await this.getById(id);
     if (current.status === "cancelled") return current;
+    if (current.totalReceived > 0 || current.totalAdjustments > 0 || current.status === "paid")
+      throw new ReceivableValidationError("Título com histórico de recebimentos ou abatimentos exige conciliação antes de cancelar.");
     return this.receivables.update(id, { status: "cancelled" });
   }
 

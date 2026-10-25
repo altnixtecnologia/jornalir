@@ -32,6 +32,8 @@ import {
 } from "./birthdayTypes";
 import { buildBirthdayPreviewSeed } from "./birthdayPreviewData";
 import { fuzzyMatches } from "../../lib/fuzzySearch";
+import {parseBirthdayDateInput,dayMonthInputFromBirthday,yearInputFromBirthday} from "./birthdayDateInput";
+import styles from "./BirthdaysList.module.css";
 
 import { ConfirmDialog } from "../../components/admin/ConfirmDialog";
 import {
@@ -73,6 +75,7 @@ interface EditionMessageState {
 interface EntryDraft {
   displayName: string;
   birthDate: string;
+  birthYearKnown?: boolean;
   city: string;
   relationship: string;
   active: boolean;
@@ -117,6 +120,7 @@ function draftFromEntry(entry: BirthdayEntry): EntryDraft {
   return {
     displayName: entry.displayName,
     birthDate: entry.birthDate,
+    birthYearKnown: entry.birthYearKnown,
     city: entry.city,
     relationship: entry.relationship ?? "",
     active: entry.active,
@@ -226,6 +230,9 @@ function EntryRow({
 }): JSX.Element {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState<EntryDraft>(() => draftFromEntry(entry));
+  const [editDayMonth,setEditDayMonth]=useState(()=>dayMonthInputFromBirthday(entry.birthDate));
+  const [editYear,setEditYear]=useState(()=>yearInputFromBirthday(entry.birthDate,entry.birthYearKnown));
+  const [dateError,setDateError]=useState("");
   const [copied, setCopied] = useState(false);
   const [copyError, setCopyError] = useState(false);
   const [editingMessage, setEditingMessage] = useState(false);
@@ -246,14 +253,21 @@ function EntryRow({
 
   function startEdit(): void {
     setDraft(draftFromEntry(entry));
+    setEditDayMonth(dayMonthInputFromBirthday(entry.birthDate));
+    setEditYear(yearInputFromBirthday(entry.birthDate,entry.birthYearKnown));
+    setDateError("");
     setEditing(true);
   }
 
   function save(): void {
+    const birthdayDate=parseBirthdayDateInput(editDayMonth,editYear);
+    if(!birthdayDate){setDateError("Informe DD/MM válido e, se souber, o ano com quatro dígitos.");return;}
+    setDateError("");
     onSave({
       ...entry,
       displayName: draft.displayName.trim() || entry.displayName,
-      birthDate: draft.birthDate || entry.birthDate,
+      birthDate: birthdayDate.birthDate,
+      birthYearKnown: birthdayDate.birthYearKnown,
       city: draft.city,
       relationship: isPrincipal ? undefined : draft.relationship || undefined,
       active: draft.active,
@@ -311,8 +325,12 @@ function EntryRow({
             </label>
           ) : null}
           <label className={`cadastro-field ${isPrincipal ? "cadastro-field--span-2" : "cadastro-field--span-2"}`}>
-            <span className="field-label">Nascimento</span>
-            <input type="date" value={draft.birthDate} onChange={(e) => setDraft((d) => ({ ...d, birthDate: e.target.value }))} />
+            <span className="field-label">Dia/mês (DD/MM)</span>
+            <input type="text" inputMode="numeric" maxLength={5} placeholder="DD/MM" value={editDayMonth} onChange={(e)=>setEditDayMonth(e.target.value)} />
+          </label>
+          <label className="cadastro-field cadastro-field--span-2">
+            <span className="field-label">Ano (opcional)</span>
+            <input type="text" inputMode="numeric" maxLength={4} placeholder="Se souber" value={editYear} onChange={(e)=>setEditYear(e.target.value)} />
           </label>
           <label className={`cadastro-field ${isPrincipal ? "cadastro-field--span-3" : "cadastro-field--span-2"}`}>
             <span className="field-label">Cidade para publicação</span>
@@ -361,6 +379,7 @@ function EntryRow({
             <span>Publicar no jornal</span>
           </button>
         </div>
+        {dateError?<p className="form-error" role="alert">{dateError}</p>:null}
         <div className="aniv-entry-actions">
           <button type="button" className="cadastros-btn-primary" disabled={pending} onClick={save}>Salvar alterações</button>
           <button type="button" className="cadastros-btn-secondary" onClick={() => setEditing(false)}>Cancelar</button>
@@ -790,28 +809,38 @@ function HomenagemTemplateManager({
   );
 }
 
-function AddMemberForm({ kind, onAdd, localPreview }: { kind: "individual" | "company"; onAdd: (entry: BirthdayEntry) => void; localPreview: boolean }): JSX.Element {
+function AddMemberForm({ kind, onAdd, localPreview }: { kind: "individual" | "company"; onAdd: (entry: BirthdayEntry) => Promise<boolean>; localPreview: boolean }): JSX.Element {
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
   const [relationship, setRelationship] = useState("");
-  const [birthDate, setBirthDate] = useState("");
+  const [dayMonth,setDayMonth]=useState("");
+  const [year,setYear]=useState("");
+  const [dateError,setDateError]=useState("");
   const [city, setCity] = useState("");
+  const [saving,setSaving]=useState(false);
 
-  function submit(): void {
-    if (!name.trim() || !birthDate) return;
-    onAdd({
+  async function submit():Promise<void> {
+    if(saving)return;
+    const parsed=parseBirthdayDateInput(dayMonth,year);
+    if(!name.trim()||!parsed){setDateError("Informe o nome e o dia/mês válido. O ano é opcional.");return;}
+    setDateError("");
+    setSaving(true);
+    let success=false;
+    try{success=await onAdd({
       id: `local-${Date.now()}-${Math.round(Math.random() * 1000)}`,
       displayName: name.trim(),
-      birthDate,
+      birthDate:parsed.birthDate,
+      birthYearKnown:parsed.birthYearKnown,
       city: city.trim(),
       relationship: relationship.trim() || undefined,
       origin: kind === "individual" ? "familiar" : "manual",
       active: true,
       publishInPrint: false,
-    });
+    });}catch{success=false;}finally{setSaving(false);}
+    if(!success){setDateError("Não foi possível incluir. Verifique os dados e tente novamente.");return;}
     setName("");
     setRelationship("");
-    setBirthDate("");
+    setDayMonth("");setYear("");
     setCity("");
     setOpen(false);
   }
@@ -837,30 +866,37 @@ function AddMemberForm({ kind, onAdd, localPreview }: { kind: "individual" | "co
           <input type="text" value={relationship} onChange={(e) => setRelationship(e.target.value)} placeholder={kind === "individual" ? "Cônjuge, Filho(a)..." : "Responsável, Sócio..."} />
         </label>
         <label className="cadastro-field cadastro-field--span-2">
-          <span className="field-label">Nascimento</span>
-          <input type="date" value={birthDate} onChange={(e) => setBirthDate(e.target.value)} />
+          <span className="field-label">Dia/mês (DD/MM)</span>
+          <input type="text" inputMode="numeric" maxLength={5} placeholder="DD/MM" value={dayMonth} onChange={(e)=>setDayMonth(e.target.value)} />
+        </label>
+        <label className="cadastro-field cadastro-field--span-2">
+          <span className="field-label">Ano (opcional)</span>
+          <input type="text" inputMode="numeric" maxLength={4} placeholder="Se souber" value={year} onChange={(e)=>setYear(e.target.value)} />
         </label>
         <label className="cadastro-field cadastro-field--span-3">
           <span className="field-label">Cidade</span>
           <input type="text" value={city} onChange={(e) => setCity(e.target.value)} />
         </label>
       </div>
+      {dateError?<p className="form-error" role="alert">{dateError}</p>:null}
       <div className="aniv-entry-actions">
-        <button type="button" className="cadastros-btn-primary" onClick={submit}>{localPreview ? "Adicionar (preview)" : "Salvar pessoa"}</button>
-        <button type="button" className="cadastros-btn-secondary" onClick={() => setOpen(false)}>Cancelar</button>
+        <button type="button" className="cadastros-btn-primary" disabled={saving} onClick={()=>void submit()}>{saving?"Salvando…":localPreview ? "Adicionar (preview)" : "Salvar pessoa"}</button>
+        <button type="button" className="cadastros-btn-secondary" disabled={saving} onClick={() => setOpen(false)}>Cancelar</button>
       </div>
     </div>
   );
 }
 
-export function BirthdaysList({ localPreview, initialGroups = [], initialMessages = [], initialWeekStart = "", todayISO = "" }: {
+export function BirthdaysList({ localPreview, initialGroups = [], initialMessages = [], initialWeekStart = "", todayISO = "", canManageTemplates = false }: {
   localPreview: boolean;
   initialGroups?: BirthdayGroup[];
   initialMessages?: EditorialBirthdayMessage[];
   initialWeekStart?: string;
   todayISO?: string;
+  canManageTemplates?: boolean;
 }): JSX.Element {
   const router=useRouter();
+  const templatesAllowed=localPreview || canManageTemplates;
   const [busy,setBusy]=useState(false);
   const [error,setError]=useState<string|null>(null);
   const [notice,setNotice]=useState<string|null>(null);
@@ -1289,14 +1325,17 @@ export function BirthdaysList({ localPreview, initialGroups = [], initialMessage
       relationship:entry.relationship||"",profession:entry.profession||"",
       organization:entry.organization||"",knownAs:entry.knownAs||"",
       messageContext:entry.messageContext||"",notes:entry.notes||"",
+      birthYearKnown:entry.birthYearKnown,
       publishInPrint:entry.publishInPrint,active:entry.active,
     };
   }
-  async function saveRealEntry(entry:BirthdayEntry,groupId:string|null):Promise<boolean>{
+  async function saveRealEntry(entry:BirthdayEntry,groupId:string|null):Promise<string|null>{
     const result=await saveEditorialBirthday(editorialInput(entry,groupId));
-    if("error" in result){setError(result.error);return false;}
+    if("error" in result){setError(result.error);return null;}
+    // router.refresh busca snapshots do banco, sem exigir F5 do navegador;
+    // o estado local também é atualizado ao confirmar a gravação.
     router.refresh();
-    return true;
+    return result.data.id;
   }
   // Foto de destaque é metadado editorial (nunca o cadastro mestre) — funciona para
   // QUALQUER origem, inclusive entradas readonly (origin "cadastro"), ao contrário de
@@ -1347,7 +1386,15 @@ export function BirthdaysList({ localPreview, initialGroups = [], initialMessage
       if(busy)return;
       setBusy(true);setError(null);setNotice(null);
       void saveRealEntry(next,groupId).then(saved=>{
-        if(saved)setNotice("Aniversariante atualizado no banco.");
+        if(saved){
+          setGroups(prev=>prev.map(group=>{
+            if(group.id!==groupId)return group;
+            if(group.principal?.id===entryId)return {...group,principal:next};
+            if(group.foundingEntry?.id===entryId)return {...group,foundingEntry:next};
+            return {...group,members:group.members.map(m=>m.id===entryId?next:m)};
+          }));
+          setNotice("Aniversariante atualizado.");
+        }
       }).catch(()=>setError("Não foi possível salvar este registro."))
         .finally(()=>setBusy(false));
       return;
@@ -1381,32 +1428,44 @@ export function BirthdaysList({ localPreview, initialGroups = [], initialMessage
       return { ...group, principal: apply(group.principal), foundingEntry: apply(group.foundingEntry) };
     }));
   }
-  function addMember(groupId:string,entry:BirthdayEntry):void{
-    if(!localPreview){
-      if(busy)return;
-      setBusy(true);setError(null);setNotice(null);
-      void saveRealEntry(entry,groupId).then(saved=>{
-        if(saved)setNotice("Aniversariante vinculado e salvo.");
-      }).catch(()=>setError("Falha ao incluir aniversariante."))
-        .finally(()=>setBusy(false));
-      return;
+  async function addMember(groupId:string,entry:BirthdayEntry):Promise<boolean>{
+    if(localPreview){
+      setGroups(prev=>prev.map(g=>g.id===groupId?{...g,members:[...g.members,entry]}:g));
+      return true;
     }
-    setGroups(prev=>prev.map(g=>g.id===groupId?{...g,members:[...g.members,entry]}:g));
+    if(busy)return false;
+    setBusy(true);setError(null);setNotice(null);
+    try{
+      const saved=await saveRealEntry(entry,groupId);
+      if(!saved)return false;
+      setGroups(prev=>prev.map(group=>group.id===groupId?{
+        ...group,members:group.members.some(m=>m.id===saved)?group.members:
+          [...group.members,{...entry,id:saved}]
+      }:group));
+      setNotice("Aniversariante incluído.");
+      return true;
+    }catch{setError("Falha ao incluir aniversariante.");return false;}
+    finally{setBusy(false);}
   }
-  function addIndependent(entry:BirthdayEntry):void{
-    if(!localPreview){
-      if(busy)return;
-      setBusy(true);setError(null);setNotice(null);
-      void saveRealEntry(entry,null).then(saved=>{
-        if(saved)setNotice("Aniversariante excepcional salvo.");
-      }).catch(()=>setError("Falha ao incluir aniversariante."))
-        .finally(()=>setBusy(false));
-      return;
+  async function addIndependent(entry:BirthdayEntry):Promise<boolean>{
+    if(localPreview){
+      setGroups(prev=>[...prev,{id:`local-group-${Date.now()}`,
+        kind:"individual",label:entry.displayName,city:entry.city,principal:entry,members:[]}]);
+      return true;
     }
-    setGroups(prev=>[...prev,{
-      id:`local-group-${Date.now()}`,kind:"individual",
-      label:entry.displayName,city:entry.city,principal:entry,members:[],
-    }]);
+    if(busy)return false;
+    setBusy(true);setError(null);setNotice(null);
+    try{
+      const saved=await saveRealEntry(entry,null);
+      if(!saved)return false;
+      setGroups(prev=>prev.some(g=>g.id===`exception:${saved}`)?prev:[...prev,{
+        id:`exception:${saved}`,kind:"individual",label:entry.displayName,city:entry.city,
+        principal:{...entry,id:saved},members:[],
+      }]);
+      setNotice("Novo aniversariante incluído.");
+      return true;
+    }catch{setError("Falha ao incluir aniversariante.");return false;}
+    finally{setBusy(false);}
   }
   function togglePublication(entry:BirthdayEntry):void{
     if(localPreview||busy)return;
@@ -1539,16 +1598,10 @@ export function BirthdaysList({ localPreview, initialGroups = [], initialMessage
   }
 
   return (
-    <div className="aniv-module">
+    <div className={`aniv-module ${styles.root}`}>
       <>
         {error?<p className="form-error" role="alert">{error}</p>:null}
         {notice?<p className="helper-text" role="status">{notice}</p>:null}
-          <div className="aniv-header-row no-print">
-            <button type="button" className="cadastros-btn-primary" onClick={() => setIncludeOpen(true)}>
-              + Novo aniversariante
-            </button>
-          </div>
-
           <div className="aniv-week-cta-row no-print">
             <button type="button" className={`aniv-week-cta${period === "newspaper" ? " is-active" : ""}`} onClick={activateNewspaperWeek}>
               <strong>SEMANA DO JORNAL</strong>
@@ -1561,6 +1614,10 @@ export function BirthdaysList({ localPreview, initialGroups = [], initialMessage
                 <button type="button" className="cadastros-btn-secondary" onClick={() => shiftWeek(1)}>Próxima semana ›</button>
               </div>
             ) : null}
+            <button type="button" className="cadastros-btn-primary aniv-create-birthday"
+              title="Novo aniversariante, familiar ou caso extraordinário" onClick={() => setIncludeOpen(true)}>
+              Novo +
+            </button>
           </div>
 
           {period === "newspaper" ? (
@@ -1654,9 +1711,11 @@ export function BirthdaysList({ localPreview, initialGroups = [], initialMessage
             {visibleGroups.map((group) => {
               const isOpen = expanded.has(group.id);
               const memberCount = group.members.length;
-              const shownMembers=group.members;
-              const showPrincipal=Boolean(group.principal);
-              const showFounding=Boolean(group.foundingEntry);
+              // Filtros aplicados também aos itens da árvore expandida:
+              // não exibir pessoas de fora da semana sob um grupo que tem só um match.
+              const shownMembers=group.members.filter(entryMatchesAll);
+              const showPrincipal=Boolean(group.principal && entryMatchesAll(group.principal));
+              const showFounding=Boolean(group.foundingEntry && entryMatchesAll(group.foundingEntry));
               return (
                 <div key={group.id} className="aniv-group">
                   <div className="aniv-group-header-row">
@@ -1718,7 +1777,7 @@ export function BirthdaysList({ localPreview, initialGroups = [], initialMessage
                           aiConfigured={aiConfigured}
                           aiBusy={busy}
                           customTemplates={customTemplates}
-                          canManageTemplates
+                          canManageTemplates={templatesAllowed}
                           onSaveCustomTemplate={saveCustomTemplate}
                           onReloadCustomTemplates={reloadCustomTemplates}
                         />
@@ -1744,7 +1803,7 @@ export function BirthdaysList({ localPreview, initialGroups = [], initialMessage
                           aiConfigured={aiConfigured}
                           aiBusy={busy}
                           customTemplates={customTemplates}
-                          canManageTemplates
+                          canManageTemplates={templatesAllowed}
                           onSaveCustomTemplate={saveCustomTemplate}
                           onReloadCustomTemplates={reloadCustomTemplates}
                         />
@@ -1768,7 +1827,7 @@ export function BirthdaysList({ localPreview, initialGroups = [], initialMessage
                             aiConfigured={aiConfigured}
                             aiBusy={busy}
                             customTemplates={customTemplates}
-                            canManageTemplates
+                            canManageTemplates={templatesAllowed}
                             onSaveCustomTemplate={saveCustomTemplate}
                             onReloadCustomTemplates={reloadCustomTemplates}
                           />
@@ -1807,10 +1866,10 @@ export function BirthdaysList({ localPreview, initialGroups = [], initialMessage
           localPreview={localPreview}
           groups={groups}
           onCancel={() => setIncludeOpen(false)}
-          onSubmit={(linkGroupId, entry) => {
-            if(linkGroupId)addMember(linkGroupId,entry);
-            else addIndependent(entry);
-            setIncludeOpen(false);
+          onSubmit={async(linkGroupId,entry)=>{
+            const saved=linkGroupId?await addMember(linkGroupId,entry):await addIndependent(entry);
+            if(saved)setIncludeOpen(false);
+            return saved;
           }}
         />
       </dialog>
@@ -1861,10 +1920,12 @@ function IncludeForm({
   groups: BirthdayGroup[];
   localPreview: boolean;
   onCancel: () => void;
-  onSubmit: (linkGroupId: string | null, entry: BirthdayEntry) => void;
+  onSubmit: (linkGroupId: string | null, entry: BirthdayEntry) => Promise<boolean>;
 }): JSX.Element {
   const [name, setName] = useState("");
-  const [birthDate, setBirthDate] = useState("");
+  const [dayMonth,setDayMonth]=useState("");
+  const [year,setYear]=useState("");
+  const [dateError,setDateError]=useState("");
   const [cityValue, setCityValue] = useState("");
   const [linkGroupId, setLinkGroupId] = useState<string>("");
   const [relationship, setRelationship] = useState("");
@@ -1874,15 +1935,22 @@ function IncludeForm({
   const [messageContext, setMessageContext] = useState("");
   const [publishInPrint, setPublishInPrint] = useState(false);
   const [notes, setNotes] = useState("");
+  const [saving,setSaving]=useState(false);
 
-  function submit(): void {
-    if (!name.trim() || !birthDate) return;
+  async function submit():Promise<void> {
+    if(saving)return;
+    const parsed=parseBirthdayDateInput(dayMonth,year);
+    if(!name.trim()||!parsed){setDateError("Preencha nome e dia/mês válido. O ano pode ficar em branco.");return;}
+    setDateError("");
     const targetGroup = groups.find((g) => g.id === linkGroupId);
     const origin: BirthdayOrigin = !linkGroupId ? "manual" : targetGroup?.kind === "individual" ? "familiar" : "manual";
-    onSubmit(linkGroupId || null, {
+    setSaving(true);
+    let success=false;
+    try{success=await onSubmit(linkGroupId || null, {
       id: `local-${Date.now()}`,
       displayName: name.trim(),
-      birthDate,
+      birthDate:parsed.birthDate,
+      birthYearKnown:parsed.birthYearKnown,
       city: cityValue.trim(),
       relationship: linkGroupId ? relationship.trim() || undefined : undefined,
       origin,
@@ -1893,7 +1961,8 @@ function IncludeForm({
       organization: organization.trim() || undefined,
       knownAs: knownAs.trim() || undefined,
       messageContext: messageContext.trim() || undefined,
-    });
+    });}catch{success=false;}finally{setSaving(false);}
+    if(!success)setDateError("Não foi possível salvar. Verifique os dados e tente novamente.");
   }
 
   return (
@@ -1907,8 +1976,12 @@ function IncludeForm({
             <input type="text" value={name} onChange={(e) => setName(e.target.value)} autoFocus />
           </label>
           <label className="cadastro-field cadastro-field--span-3">
-            <span className="field-label">Data de nascimento</span>
-            <input type="date" value={birthDate} onChange={(e) => setBirthDate(e.target.value)} />
+            <span className="field-label">Dia/mês da data</span>
+            <input type="text" inputMode="numeric" maxLength={5} placeholder="DD/MM" value={dayMonth} onChange={(e)=>setDayMonth(e.target.value)} />
+          </label>
+          <label className="cadastro-field cadastro-field--span-2">
+            <span className="field-label">Ano (opcional)</span>
+            <input type="text" inputMode="numeric" maxLength={4} placeholder="Se souber" value={year} onChange={(e)=>setYear(e.target.value)} />
           </label>
           <label className="cadastro-field cadastro-field--span-3">
             <span className="field-label">Cidade</span>
@@ -1959,9 +2032,10 @@ function IncludeForm({
           </button>
         </div>
       </div>
+      {dateError?<p className="form-error" role="alert">{dateError}</p>:null}
       <div className="ir-confirm-actions">
-        <button type="button" onClick={onCancel}>Cancelar</button>
-        <button type="button" className="form-action-primary" onClick={submit}>Salvar aniversariante</button>
+        <button type="button" disabled={saving} onClick={onCancel}>Cancelar</button>
+        <button type="button" disabled={saving} className="form-action-primary" onClick={()=>void submit()}>{saving?"Salvando…":"Salvar aniversariante"}</button>
       </div>
     </div>
   );

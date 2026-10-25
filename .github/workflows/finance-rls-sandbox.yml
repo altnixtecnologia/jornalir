@@ -1,0 +1,157 @@
+name: Finance RLS sandbox
+
+on:
+  pull_request:
+    branches:
+      - feature/abrangencias-geo-notificacoes-20261021
+    paths:
+      - "supabase/migrations/202610311*.sql"
+      - "supabase/migrations/202611011*.sql"
+      - "supabase/migrations/202611021*.sql"
+      - "supabase/migrations/202611031*.sql"
+      - "supabase/migrations/202611041*.sql"
+      - "supabase/migrations/202611051*.sql"
+      - "supabase/migrations/202611061*.sql"
+      - "supabase/migrations/202611071*.sql"
+      - "supabase/migrations/202611081*.sql"
+      - "supabase/migrations/202611091*.sql"
+      - "supabase/migrations/202611101*.sql"
+      - "tests/security/finance-rls-sandbox-*.sql"
+      - "tests/security/module-rls-sandbox-*.sql"
+      - "tests/security/editorial-rls-sandbox-*.sql"
+      - "tests/security/nfse-rls-sandbox-*.sql"
+      - "tests/security/contract-integration-sandbox-*.sql"
+      - "tests/security/rental-rls-sandbox-*.sql"
+      - "tests/security/commercial-contract-sandbox-*.sql"
+      - "tests/security/commercial-template-sandbox-*.sql"
+      - "tests/security/commercial-auto-contract-*.sql"
+      - ".github/workflows/finance-rls-sandbox.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  finance-rls-isolated:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: postgres
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      PGHOST: localhost
+      PGPORT: "5432"
+      PGUSER: postgres
+      PGPASSWORD: postgres
+      PGDATABASE: postgres
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: PostgreSQL client
+        run: |
+          if ! command -v psql >/dev/null; then
+            sudo apt-get update -qq
+            sudo apt-get install -y -qq postgresql-client
+          fi
+
+      - name: Reproduzir roles e politicas antigas sem dados reais
+        run: psql -v ON_ERROR_STOP=1 -f tests/security/finance-rls-sandbox-setup.sql
+
+      - name: Aplicar schema real da matriz de permissoes
+        run: psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261102100000_staff_module_action_permissions.sql
+
+      - name: Aplicar regras de convite confirmado
+        run: psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261103100000_confirmed_staff_authorization.sql
+
+      - name: Aplicar RLS e guardas financeiros
+        run: psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261103103000_finance_actions_rls.sql
+
+      - name: Testar concessoes/negativas/baixa sem usar producao
+        run: psql -v ON_ERROR_STOP=1 -f tests/security/finance-rls-sandbox-assertions.sql
+
+      - name: Montar tabelas isoladas de Clientes, Assinaturas e Comercial
+        run: psql -v ON_ERROR_STOP=1 -f tests/security/module-rls-sandbox-setup.sql
+
+      - name: Aplicar regras granulares dos módulos
+        run: psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261104100000_nonfinancial_module_action_rls.sql
+
+      - name: Proteger função privilegiada de cadastro de cliente
+        run: psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261104101000_save_client_action_guard.sql
+
+      - name: Testar bloqueios e operações por módulo
+        run: psql -v ON_ERROR_STOP=1 -f tests/security/module-rls-sandbox-assertions.sql
+
+      - name: Montar notícias e aniversariantes fictícios
+        run: psql -v ON_ERROR_STOP=1 -f tests/security/editorial-rls-sandbox-setup.sql
+
+      - name: Proteger RPCs privilegiadas e publicação automática
+        run: psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261105100000_editorial_privileged_rpc_guards.sql
+
+      - name: Aplicar permissões editoriais e de aniversários
+        run: psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261105101000_editorial_birthdays_rls.sql
+
+      - name: Testar edição, publicação, convites e acesso aos RPCs
+        run: psql -v ON_ERROR_STOP=1 -f tests/security/editorial-rls-sandbox-assertions.sql
+
+      - name: Montar banco fiscal de teste
+        run: psql -v ON_ERROR_STOP=1 -f tests/security/nfse-rls-sandbox-setup.sql
+
+      - name: Aplicar RLS de rascunhos da NFS-e
+        run: psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261106100000_nfse_operator_drafts_rls.sql
+
+      - name: Testar delegação e proteção de certificado
+        run: psql -v ON_ERROR_STOP=1 -f tests/security/nfse-rls-sandbox-assertions.sql
+
+      - name: Aplicar snapshot historico de vendas
+        run: psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261031100000_commercial_sale_items_snapshot.sql
+
+      - name: Habilitar catalogo de locacao de equipamentos
+        run: psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261101100000_commercial_equipment_rental_channel.sql
+
+      - name: Verificar pacotes multissservico, precos e imutabilidade
+        run: psql -v ON_ERROR_STOP=1 -f tests/security/contract-integration-sandbox-assertions.sql
+
+      - name: Preparar registro de equipamentos em ambiente isolado
+        run: psql -v ON_ERROR_STOP=1 -f tests/security/rental-rls-sandbox-setup.sql
+
+      - name: Aplicar estrutura operacional de locação
+        run: psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261107100000_rental_assets_bookings_inspections.sql
+
+      - name: Blindar reservas e devolucoes com equipamento retirado
+        run: psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261120180000_rental_in_hand_integrity.sql
+
+      - name: Validar reservas, conflitos e vistorias
+        run: psql -v ON_ERROR_STOP=1 -f tests/security/rental-rls-sandbox-assertions.sql
+
+      - name: Aplicar pacote comercial para contratos multiplos
+        run: psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261108100000_commercial_contract_packages.sql
+
+      - name: Testar documento unico ou separado e revisao
+        run: psql -v ON_ERROR_STOP=1 -f tests/security/commercial-contract-sandbox-assertions.sql
+
+      - name: Criar modelos comerciais simulados
+        run: psql -v ON_ERROR_STOP=1 -f tests/security/commercial-template-sandbox-setup.sql
+
+      - name: Vincular modelos jurídicos versionados
+        run: psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261109100000_commercial_contract_template_assignments.sql
+
+      - name: Testar seleção exclusiva de modelo por pacote ou serviço
+        run: psql -v ON_ERROR_STOP=1 -f tests/security/commercial-template-sandbox-assertions.sql
+
+      - name: Ativar modelos automáticos no Comercial
+        run: psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261110100000_commercial_contract_auto_templates.sql
+
+      - name: Testar escolha automatizada por modalidade
+        run: psql -v ON_ERROR_STOP=1 -f tests/security/commercial-auto-contract-assertions.sql

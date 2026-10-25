@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { ModuleHeader } from "../../../components/admin/ModuleHeader";
 import { createSupabaseServerClient } from "../../../lib/supabase/server";
+import { loadMyPendingMeetingInvitations } from "../../../features/agenda/agendaData";
+import type { PendingMeetingInvitation } from "../../../features/agenda/agendaTypes";
 import {
   markAllNotificationsReadAction,
   markNotificationReadAction,
@@ -30,6 +32,17 @@ export default async function NotificationsPage(): Promise<JSX.Element> {
         .limit(50),
     ]);
 
+  const auth = await client.auth.getUser();
+  let invitations: PendingMeetingInvitation[] = [];
+  let invitationError: string | null = null;
+  if (auth.data.user?.id) {
+    try {
+      invitations = await loadMyPendingMeetingInvitations(client, auth.data.user.id);
+    } catch (error) {
+      invitationError = error instanceof Error ? error.message : "Falha ao consultar convites.";
+    }
+  }
+
   // Uma falha de leitura não deve derrubar toda a página de notificações.
   // Mantenha as seções independentes e mostre o problema para diagnóstico.
 
@@ -40,21 +53,22 @@ export default async function NotificationsPage(): Promise<JSX.Element> {
       <ModuleHeader
         eyebrow="SISTEMA / NOTIFICAÇÕES"
         title="Notificações"
-        description="Pagamentos, alertas financeiros e solicitações novas do site."
+        description="Convites da Agenda, pagamentos, alertas financeiros e solicitações do site."
       />
 
-      {notificationError || requestError ? (
+      {notificationError || requestError || invitationError ? (
         <div role="alert" className="inline-form" style={{ marginBottom: 16 }}>
           <strong>Não foi possível carregar todos os avisos.</strong>
           {notificationError ? <p>Eventos do sistema: {notificationError.message}</p> : null}
           {requestError ? <p>Solicitações do site: {requestError.message}</p> : null}
+          {invitationError ? <p>Convites da Agenda: {invitationError}</p> : null}
           <p className="helper-text">Atualize a página para tentar novamente. Nenhum registro foi alterado.</p>
         </div>
       ) : null}
 
       <div className="materias-toolbar">
         <span className="materias-count">
-          {unread} notificação(ões) não lida(s) · {requests?.length ?? 0} solicitação(ões) nova(s)
+          {unread} notificação(ões) não lida(s) · {requests?.length ?? 0} solicitação(ões) nova(s) · {invitations.length} convite(s) pendente(s)
         </span>
         {unread > 0 ? (
           <form action={markAllNotificationsReadAction}>
@@ -62,6 +76,29 @@ export default async function NotificationsPage(): Promise<JSX.Element> {
           </form>
         ) : null}
       </div>
+
+      {invitations.length > 0 ? (
+        <section className="inline-form" style={{ marginBottom: 18 }}>
+          <h2 style={{ marginTop: 0 }}>Convites de reuniões aguardando resposta</h2>
+          <p className="helper-text">Somente seus convites. Abra a Agenda para aceitar ou recusar.</p>
+          <div style={{ display: "grid", gap: 8 }}>
+            {invitations.map((invitation) => (
+              <Link key={invitation.eventId}
+                href={"/agenda?date=" + encodeURIComponent(invitation.eventDate)}
+                style={{ display: "block", border: "1px solid var(--line)", borderRadius: 8,
+                  padding: 12, textDecoration: "none", color: "inherit" }}>
+                <strong>{invitation.title}</strong>
+                <div className="helper-text">
+                  {invitation.eventDate.split("-").reverse().join("/")}
+                  {invitation.startTime ? " · " + invitation.startTime + "h" : ""}
+                  {invitation.location ? " · " + invitation.location : ""}
+                  {" · Abrir para responder"}
+                </div>
+              </Link>
+            ))}
+          </div>
+        </section>
+      ) : null}
 
       {(requests?.length ?? 0) > 0 ? (
         <section className="inline-form" style={{ marginBottom: 18 }}>

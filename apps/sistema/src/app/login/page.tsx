@@ -38,7 +38,9 @@ function LoginForm(): JSX.Element {
   useEffect(() => {
     const errorCode = searchParams.get("erro");
     if (errorCode === "inativo") {
-      setError("Sua conta está inativa. Fale com um administrador do painel.");
+      setError("Seu acesso ao painel não está autorizado ou foi desativado. Consulte a administração.");
+    } else if(errorCode==="pendente"){
+      setError("Seu e-mail ainda não foi confirmado. Abra o convite enviado ou solicite novo acesso à administração.");
     } else if (errorCode === "sessao") {
       setError("Sua sessão expirou. Entre novamente para continuar.");
     }
@@ -78,7 +80,9 @@ function LoginForm(): JSX.Element {
     });
     setPending(false);
     if (signInError) {
-      setError("E-mail ou senha inválidos.");
+      setError(signInError.code==="email_not_confirmed"
+       ? "Confirme o e-mail pelo convite recebido antes de entrar."
+       : "E-mail ou senha inválidos.");
       return;
     }
     router.push("/sistema");

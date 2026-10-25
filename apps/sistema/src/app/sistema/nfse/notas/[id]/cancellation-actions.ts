@@ -8,6 +8,7 @@ import {
 } from "@ir/core";
 import { getCancellationService } from "../../../../../composition/nfse";
 import { createSupabaseServerClient } from "../../../../../lib/supabase/server";
+import { checkModuleAction } from "../../../../../lib/permissions/checkModuleAction";
 
 type Result<T = never> = { error: string } | ({ ok: true } & T);
 
@@ -23,6 +24,8 @@ async function requireFiscalAdmin(client: ReturnType<typeof createSupabaseServer
 }
 
 export async function listCancellationHistoryAction(issuedNoteId: string): Promise<Result<{ requests: NfseCancellationRequest[] }>> {
+  const permissionError = await checkModuleAction("nfse", "notas_cancelar");
+  if (permissionError) return { error: permissionError };
   try {
     const client = createSupabaseServerClient();
     await requireFiscalAdmin(client);
@@ -38,6 +41,8 @@ export async function requestCancellationAction(input: {
   justificationCode: 1 | 2 | 9;
   justificationText: string;
 }): Promise<Result<{ request: NfseCancellationRequest }>> {
+  const permissionError = await checkModuleAction("nfse", "notas_cancelar");
+  if (permissionError) return { error: permissionError };
   try {
     const client = createSupabaseServerClient();
     const actorId = await requireFiscalAdmin(client);

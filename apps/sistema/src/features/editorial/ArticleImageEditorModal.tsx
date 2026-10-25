@@ -108,6 +108,21 @@ export function ArticleImageEditorModal({ asset, onClose, onSaved }: ArticleImag
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [onClose, saving]);
 
+  // Controle de zoom por mouse/trackpad somente no desktop.
+  // Listener non-passive evita rolar a página durante o ajuste da imagem.
+  useEffect(() => {
+    const node=viewportRef.current;
+    if(!node) return;
+    const wheel=(event:WheelEvent):void=>{
+      if(!window.matchMedia("(min-width: 768px) and (pointer: fine)").matches) return;
+      event.preventDefault();
+      setScale(value=>Math.max(MIN_SCALE,Math.min(MAX_SCALE,
+        Math.round((value+(event.deltaY>0?-0.1:0.1))*10)/10)));
+    };
+    node.addEventListener("wheel",wheel,{passive:false});
+    return ()=>node.removeEventListener("wheel",wheel);
+  }, []);
+
   function resetView(): void {
     setScale(1);
     setRotation(0);
@@ -354,6 +369,13 @@ export function ArticleImageEditorModal({ asset, onClose, onSaved }: ArticleImag
             </button>
           </div>
 
+          <label className={styles.desktopZoom}>
+            <span>Zoom preciso</span>
+            <input type="range" min={MIN_SCALE} max={MAX_SCALE} step="0.1"
+              value={scale} onChange={event=>setScale(Number(event.target.value))}
+              disabled={saving} aria-label="Zoom preciso no computador"/>
+            <output>{Math.round(scale*100)}%</output>
+          </label>
           <div className={styles.toolGroup}>
             {mode === "crop" ? (
               <>

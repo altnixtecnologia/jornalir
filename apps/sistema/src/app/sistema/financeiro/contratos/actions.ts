@@ -6,6 +6,7 @@ import type { ContractDocumentType, ContractDocumentExtractedData } from "@ir/ty
 import type { ContractInput } from "@ir/core";
 import { getContractService } from "../../../../composition/financeiro";
 import { createSupabaseServerClient } from "../../../../lib/supabase/server";
+import { checkFinanceAction } from "../../../../lib/permissions/checkFinanceAction";
 import { parseAmount, validateContractPayload, type ContractFormPayload } from "../../../../features/financeiro/contractFormTypes";
 import { extractContractDocumentData, type ContractDocumentExtractionResult } from "../../../../lib/financeiro/contractDocumentExtraction";
 
@@ -107,6 +108,8 @@ export async function createContractWithDocument(
   pendingDocument?: PendingDocumentInput,
   documentFormData?: FormData,
 ): Promise<ActionResult> {
+  const permissionError = await checkFinanceAction("contratos_criar");
+  if (permissionError) return { error: permissionError };
   const validationError = validateContractPayload(payload);
   if (validationError) return { error: validationError };
 
@@ -161,6 +164,8 @@ export async function createContractWithDocument(
 }
 
 export async function createContract(payload: ContractFormPayload): Promise<ActionResult> {
+  const permissionError = await checkFinanceAction("contratos_criar");
+  if (permissionError) return { error: permissionError };
   const validationError = validateContractPayload(payload);
   if (validationError) return { error: validationError };
 
@@ -176,6 +181,8 @@ export async function createContract(payload: ContractFormPayload): Promise<Acti
 }
 
 export async function updateContract(id: string, payload: ContractFormPayload): Promise<ActionResult> {
+  const permissionError = await checkFinanceAction("contratos_editar");
+  if (permissionError) return { error: permissionError };
   const validationError = validateContractPayload(payload);
   if (validationError) return { error: validationError };
 
@@ -204,6 +211,8 @@ export interface ContractDocumentFormInput {
  * só acontece se o usuário revisar e chamar updateContract explicitamente.
  */
 export async function addContractDocumentAction(contractId: string, input: ContractDocumentFormInput): Promise<ActionResult> {
+  const permissionError = await checkFinanceAction("contratos_editar");
+  if (permissionError) return { error: permissionError };
   try {
     await getContractService(createSupabaseServerClient()).addDocument(contractId, {
       documentType: input.documentType,
@@ -222,6 +231,8 @@ export async function addContractDocumentAction(contractId: string, input: Contr
 
 /** Anexa PDF real, imutável e privado a contrato já existente. */
 export async function uploadContractDocumentAction(contractId: string, formData: FormData): Promise<ActionResult> {
+  const permissionError = await checkFinanceAction("contratos_editar");
+  if (permissionError) return { error: permissionError };
   const file = formData.get("file");
   if (!(file instanceof File)) return { error: "Escolha um PDF antes de salvar." };
   const validationError = validateContractPdf(file);
@@ -273,6 +284,8 @@ export interface ContractAmendmentFormInput {
  * aditivos registrados. `amount` pode ser negativo (redução).
  */
 export async function addContractAmendmentAction(contractId: string, input: ContractAmendmentFormInput): Promise<ActionResult> {
+  const permissionError = await checkFinanceAction("contratos_editar");
+  if (permissionError) return { error: permissionError };
   const amount = parseAmount(input.amount);
   if (amount === undefined || amount === 0) return { error: "Informe um valor de aditivo válido (diferente de zero)." };
   try {
@@ -306,6 +319,8 @@ export interface CommitmentOrderFormInput {
  * presume que todo título exige um.
  */
 export async function addCommitmentOrderAction(contractId: string, input: CommitmentOrderFormInput): Promise<ActionResult> {
+  const permissionError = await checkFinanceAction("contratos_editar");
+  if (permissionError) return { error: permissionError };
   try {
     await getContractService(createSupabaseServerClient()).addCommitmentOrder(contractId, {
       number: input.number,

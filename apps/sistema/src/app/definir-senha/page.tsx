@@ -25,16 +25,34 @@ export default function DefinirSenhaPage(): JSX.Element {
   const [done, setDone] = useState(false);
 
   useEffect(() => {
+    let active=true;
     const recovery = new URLSearchParams(window.location.search).get("recovery") === "1";
     setIsRecovery(recovery);
-    client.auth.getSession().then(({ data }) => {
-      setReady(Boolean(data.session));
-      if (!data.session) {
-        setError(recovery
-          ? "Link de recuperação inválido ou expirado. Solicite outro na tela de login."
-          : "Link de convite inválido ou expirado. Peça um novo convite a um administrador.");
+    // O Supabase pode processar o fragmento da URL e gravar a sessão
+    // DEPOIS do primeiro getSession(). Escutar o evento evita declarar
+    // falsamente um convite inválido nesse intervalo.
+    const {data:listener}=client.auth.onAuthStateChange((_event,session)=>{
+      if(!active) return;
+      if(session?.user){
+        setReady(true);
+        setError(null);
       }
     });
+    void client.auth.getSession().then(({data,error})=>{
+      if(!active) return;
+      if(data.session?.user){
+        setReady(true);
+        setError(null);
+      }else if(error){
+        setError("Não foi possível verificar o link. Confira a conexão e solicite outro se necessário.");
+      }else{
+        // Ainda pode ocorrer um evento SIGNED_IN após o getSession.
+        setError(recovery
+          ? "Aguardando confirmação do link de recuperação. Se ele expirou, solicite outro na tela de login."
+          : "Aguardando confirmação do convite. Se ele expirou, solicite novo convite ao administrador.");
+      }
+    });
+    return ()=>{active=false;listener.subscription.unsubscribe();};
   }, [client]);
 
   async function handleSubmit(event: FormEvent): Promise<void> {

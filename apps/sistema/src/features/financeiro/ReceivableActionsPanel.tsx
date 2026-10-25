@@ -1,7 +1,7 @@
 "use client";
 import { todayInSaoPauloISO } from "../../lib/date/saoPauloDate";
 
-import { useMemo, useState, useTransition } from "react";
+import { useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import type { AdjustmentType, PaymentMethod, ReceivableAdjustment, ReceivableReceipt, ReceivableWithBalance } from "@ir/types";
 import { ADJUSTMENT_TYPE_LABELS, ADJUSTMENT_TYPES, PAYMENT_METHOD_LABELS, PAYMENT_METHODS, isReversed } from "@ir/types";
@@ -59,6 +59,17 @@ interface ReceivableActionsPanelProps {
 export function ReceivableActionsPanel({ receivable, receipts, adjustments, staff, hasOlderOpenBalance }: ReceivableActionsPanelProps): JSX.Element {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
+  const paymentOperationId = useRef<string | null>(null);
+  const adjustmentOperationId = useRef<string | null>(null);
+  function currentAdjustmentOperationId(): string {
+    if (!adjustmentOperationId.current) adjustmentOperationId.current = crypto.randomUUID();
+    return adjustmentOperationId.current;
+  }
+  // Mesmo UUID no retry de falha de rede; só renova para uma nova operação.
+  function currentPaymentOperationId(): string {
+    if (!paymentOperationId.current) paymentOperationId.current = crypto.randomUUID();
+    return paymentOperationId.current;
+  }
   const [error, setError] = useState<string | null>(null);
   const [activeForm, setActiveForm] = useState<"none" | "receipt" | "settle" | "adjustment">("none");
 
@@ -85,6 +96,8 @@ export function ReceivableActionsPanel({ receivable, receipts, adjustments, staf
   }
 
   function resetForms(): void {
+    paymentOperationId.current = null;
+    adjustmentOperationId.current = null;
     setReceiptAmount("");
     setReceiptReference("");
     setReceiptNotes("");
@@ -141,7 +154,10 @@ export function ReceivableActionsPanel({ receivable, receipts, adjustments, staf
               </button>
             ) : null}
             {activeForm !== "adjustment" ? (
-              <button type="button" onClick={() => setActiveForm("adjustment")} disabled={pending || receivable.balance <= 0}>
+              <button type="button" onClick={() => {
+                adjustmentOperationId.current = null;
+                setActiveForm("adjustment");
+              }} disabled={pending || receivable.balance <= 0}>
                 Lançar abatimento
               </button>
             ) : null}
@@ -218,6 +234,7 @@ export function ReceivableActionsPanel({ receivable, receipts, adjustments, staf
                       reference: receiptReference,
                       notes: receiptNotes,
                       receivedByProfileId: receivedBy,
+                      operationId: currentPaymentOperationId(),
                     }),
                   )
                 }
@@ -295,6 +312,7 @@ export function ReceivableActionsPanel({ receivable, receipts, adjustments, staf
                       reference: receiptReference,
                       notes: receiptNotes,
                       receivedByProfileId: receivedBy,
+                      operationId: currentPaymentOperationId(),
                       reason: settleReason,
                       authorizedByProfileId: settleAuthorizedBy,
                     }),
@@ -321,7 +339,7 @@ export function ReceivableActionsPanel({ receivable, receipts, adjustments, staf
               <span className="field-label">Tipo</span>
               <select value={adjustmentType} onChange={(event) => setAdjustmentType(event.target.value as AdjustmentType)}>
                 {/* credit_applied nunca aparece aqui — só é gravado pela aplicação automática/manual de crédito, nunca pelo abatimento manual (ver ReceivableService.addAdjustment). */}
-                {ADJUSTMENT_TYPES.filter((type) => type !== "credit_applied").map((type) => (
+                {ADJUSTMENT_TYPES.filter((type) => type === "discount").map((type) => (
                   <option key={type} value={type}>
                     {ADJUSTMENT_TYPE_LABELS[type]}
                   </option>
@@ -354,6 +372,7 @@ export function ReceivableActionsPanel({ receivable, receipts, adjustments, staf
                 onClick={() =>
                   run(() =>
                     addAdjustmentAction(receivable.id, {
+                      operationId: currentAdjustmentOperationId(),
                       amount: adjustmentAmount,
                       adjustmentType,
                       reason: adjustmentReason,

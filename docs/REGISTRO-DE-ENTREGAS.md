@@ -442,3 +442,374 @@ Após a Claude validar typecheck/build **da primeira etapa somente**, o ChatGPT 
 
 ## 20/10/2026 — AGENDA E PAUTA PUBLICADAS: ESTADO FINAL CONFIRMADO
 A versão de sistema da Agenda/Pauta foi publicada na Vercel PRODUCTION, deployment `dpl_7BZUuoRTtNr7xDZ5uS3tjvYPwLgY`, commit de código `46c0f17595f4404f9874a6b1a9fbb518b74730b9`, status READY, domínio `controle.altnix.com.br` confirmado. Staging READY `dpl_2PoV84isbHBgpqQuXkWjemzseMgK` do mesmo commit. Três migrations foram APLICADAS com sucesso no projeto Supabase `site-system-ir` na seguinte ordem e com as versões reais do ledger: `20261020204050_agenda_team_permissions_progress_audit_20261020`, `20261020204121_agenda_pauta_unified_source_20261020`, `20261020204306_agenda_internal_trigger_exec_hardening_20261020`. Os arquivos SQL do GitHub foram renomeados para os mesmos nomes/versões reais neste commit para evitar reexecução inadvertida. NUNCA reaplicar estes SQLs no projeto remoto; conferir sempre o ledger primeiro. A primeira e segunda migrations foram também verificadas juntas em transação com ROLLBACK, com testes reversíveis de criação de pauta, conclusão individual, reabertura, edição, sincronização e auditoria; dados de teste não persistiram. A produção tinha 0 pautas/0 agendas antes da publicação e manteve 0 ao fim das migrations. Realtime habilitado nas 3 tabelas. Execução direta das três funções de trigger foi revogada para `anon` e `authenticated`, verificado por `has_function_privilege`. Build Next.js e TypeScript aprovados no staging e produção. Sem testes com múltiplos usuários ou celulares reais autenticados. Claude deve FAZER FETCH da branch para incorporar renomeação e documentação e preservar a branch Android v.00.03 e stash; não executar migration/deploy adicionais sem autorização. Auditoria de todos os módulos, notificações pessoais e app administrativo ainda pendentes.
+
+## 23/10/2026 — PR #15: emissão comercial protegida e trilha jurídica (NÃO PUBLICADA)
+
+- **Branch remota:** `feature/homologacao-integrada-ir-20261023`, PR #15,
+  base `feature/abrangencias-geo-notificacoes-20261021`. Não incorporada à
+  produção, ao Supabase remoto nem à worktree oficial do VS Code.
+- Evolução da preparação de contratos comerciais: conferência jurídica de
+  cliente PF/PJ, qualificação obrigatória de ambas as partes, valor por serviço
+  vs. pacote, modelo jurídico atual e campos obrigatórios preenchidos. Minutas
+  continuam marcadas como NÃO ASSINÁVEIS.
+- **NOVO:** aprovação por revisor com justificativa, histórico transacional
+  `commercial_contract_review_events`, PDFs definitivos privados em
+  `commercial_contract_documents` com versão do modelo, SHA-256,
+  imutabilidade e download autenticado. Ficha do cliente mostra o vínculo.
+- **Reabertura:** somente antes de existir primeiro PDF emitido, com motivo
+  preservado no histórico. Após emissão não há alteração/destruição da
+  evidência; futuros ajustes devem ser aditivos.
+- **Migration nova, somente no GitHub:** 
+  `20261111100000_commercial_contract_legal_approval_documents.sql`.
+  NÃO APLICAR ao `site-system-ir` de produção antes de homologar todas as
+  migrations da PR e realizar backup/rollback.
+- **Integração ainda pendente:** assinatura eletrônica comercial com
+  consentimento, convites/OTP/múltiplos signatários, comprovantes, reenvio,
+  aditivos, e idempotência/reconciliação para falha após upload. Assinador
+  institucional NÃO foi modificado e não aceita documentos comerciais ainda.
+- **Testes:** builds, TypeScript e Supabase descartável verificados via GitHub
+  Actions ao longo dos lotes; conferir resultado do SHA mais recente da PR
+  antes de considerar CI final verde. Nenhum teste ponta a ponta com pessoas
+  autenticadas em banco de homologação real foi realizado.
+- **Outras pendências aprovadas preservadas:** usuários e convite/SMTP;
+  estrela de capa da matéria; recorte desktop sem mexer no mobile;
+  limites/validações de upload Supabase Pro; depois teste geral e publicação.
+- **Claude/Codex local:** ao retornar, verificar pasta `Site-sistema`,
+  branch, HEAD, worktrees e stashes; fazer fetch, comparar história e integrar
+  o conjunto todo sem sobrescrever arquivos locais. Não forçar merge, não
+  aplicar migrations, não dar push da branch principal ou deploy sem aprovação.
+
+## 23/10/2026 — Continuidade PR #15: signatários comerciais + estrela de capa
+
+- Branch `feature/homologacao-integrada-ir-20261023` permanece a
+  única branch alterada pelo ChatGPT neste lote, sem merges nem deploy.
+- Banco de preparação comercial isolado, com versionamento de listas
+  `draft/superseded`, uma vigente por PDF e RPC atômica protegida.
+  A aplicação oferece cadastro e correção de representantes/ testemunhas.
+  **NENHUMA assinatura real, convite, cobrança ou envio foi efetuado.**
+- Editorial: restaurado botão estrela nas imagens vinculadas à matéria
+  para promover foto da galeria à capa. A capa anterior permanece na
+  galeria, preservando legenda/crédito. Escolha de capa identificada
+  pelo papel `cover`, não por índice 0. Adicionados testes.
+  **Crop mobile não foi alterado.**
+- Workflows do GitHub `Validate project`, `Finance RLS sandbox` e
+  `Supabase complete migration rehearsal` foram atualizados para cobrir
+  estes fluxos. Conferir o SHA final antes de considerar o lote aprovado.
+- Pendências: assinatura comercial completa e E2E autenticado;
+  usuários/SMTP de ativação; recorte desktop; limites Supabase Pro;
+  demais integrações e QA geral. Produção e banco remoto intactos.
+- Na próxima sessão Claude/Codex, apenas então sincronizar o VS Code
+  mediante `git fetch` e reconciliação segura, como já combinado.
+
+## 23/10/2026 — Ajuste adicional de recorte EXCLUSIVO do desktop
+
+- `ArticleImageEditorModal.tsx` e CSS: zoom fino por roda do mouse/
+  trackpad somente quando `(min-width: 768px) and (pointer: fine)`,
+  controle deslizante 100–400% com passo de 10% e alça do recorte maior
+  somente no desktop. A tela, os gestos e o layout de recorte **mobile não
+  foram alterados**. Nunca modificar a foto original: criar derivada.
+- `ArticleMediaPicker.tsx`: botão estrela devolvido às fotos já vinculadas,
+  com `aria-pressed` e identificação correta da capa por `role=cover`.
+  A função de promoção mantém foto anterior na galeria com metadados.
+- Teste automatizado adicionado para a regra de troca de capa.
+- **Pendente QA visual real**: zoom/arrastar/alça no Chrome desktop e
+  comparação mobile para detectar regressão. Não publicado.
+
+## 23/10/2026 — PR #15, fluxo comercial de assinatura eletrônica (isolado)
+
+- Implementado na branch `feature/homologacao-integrada-ir-20261023`.
+  Arquivos: `supabase/migrations/20261113100000_commercial_signature_workflow.sql`,
+  `apps/sistema/src/lib/signatures/commercialSignatures.ts`,
+  `apps/sistema/src/app/assinar-contrato-comercial/`,
+  `apps/sistema/src/app/api/assinar-contrato-comercial/`,
+  `apps/sistema/src/features/comercial/CommercialContractSignerCanvas.tsx`,
+  `CommercialSignatureRequestsPanel.tsx` e novas rotas de evidências.
+- Fluxo: revisor confere PDF e participantes -> cria rodada de convites
+  individuais -> operador copia link uma única vez (sem envio) ->
+  signatário confere PDF original, recebe OTP e confirma o e-mail ->
+  desenha assinatura e aceita termo -> serviço gera comprovante e PDF
+  cumulativo com SHA-256 -> próximo signatário pode assinar ->
+  último conclui rodada. Links podem ser substituídos com justificativa;
+  os anteriores são revogados.
+- Dados institucionais permanecem separados. Não produz PIX, faturas,
+  envios automáticos, NFSe ou efeitos externos.
+- **Condição de entrega:** aguardar três workflows verdes do commit
+  final; ensaio de assinaturas reais em homologação e revisão jurídica
+  ainda necessários. Migrar em produção/publicar só com autorização.
+
+## 23/10/2026 — FECHAMENTO DO BLOCO DE ASSINATURA COMERCIAL EM CÓDIGO
+
+- **Último commit de código:** `be2c450f0c272700578b308a3d1250ac5e166e71`.
+- **CI GitHub, exato commit acima:**
+  - `Validate project` — **SUCCESS** (`40038569813`).
+  - `Finance RLS sandbox` — **SUCCESS** (`40038569803`).
+  - `Supabase complete migration rehearsal` — **SUCCESS** (`40038569805`).
+  - Rebuild desde o zero com as migrations `20261111100000`,
+    `20261112100000` e `20261113100000` no Supabase descartável.
+- Assinatura comercial agora contempla: convites separados sem envio
+  automático, tokens de 256 bits apenas com hash persistido, links por
+  destinatário, OTP e identidade verificada pelo Supabase Auth, consentimento
+  `commercial-v1`, assinatura gráfica, PDF cumulativo sequencial,
+  recibos individuais, SHA-256, histórico na venda e no cliente, downloads
+  privados e reemissão manual auditável que revoga o token anterior.
+- A regra de concorrência bloqueia assinaturas simultâneas até do mesmo
+  convite. Preparação já iniciada não pode ser alterada. Contas a receber,
+  cobranças e contratos institucionais preservados.
+- **Ainda não homologado com pessoas reais**: testar 2-3 signatários
+  independentes, convite expirado, reenvio, OTP/SMTP, falha parcial de
+  storage e reconciliação dos objetos órfãos. Cláusulas e consentimento
+  carecem de aprovação jurídica. O método NÃO é PAdES/ICP-Brasil.
+- **Sem banco remoto, produção ou envio real**: PR #15 aberta,
+  branch não incorporada à main, sem Vercel production deploy.
+- Pendências de outros blocos preservadas: usuários/ativação por e-mail,
+  Supabase Pro/uploads, QA visual do recorte desktop/mobile e publicação
+  consolidada só após autorização.
+
+## 23/10/2026 — Revisão de usuários, convites SMTP e segurança de signatários
+
+- Telas de usuários já tinham nome no convite, edição de nome e reenvio.
+  Correções: `userIdentity.ts` assinala perfis antigos criados com o
+  prefixo do e-mail como **Nome não informado**, sem inventar dados;
+  UI distingue convite pendente, conta sem e-mail confirmado e
+  conta confirmada. Novos convites salvam nome real em `profiles`.
+- `authMailDiagnostics.ts` trata limitação SMTP padrão, rate limit,
+  URL de retorno, conta existente, sem afirmar que uma mensagem foi entregue.
+  `/definir-senha` agora aguarda `onAuthStateChange`, pois o link pode
+  entregar a sessão após o primeiro `getSession`.
+- **Proteção importante:** migration
+  `20261115100000_auth_invitation_default_inactive.sql` muda o trigger
+  `handle_new_auth_user()` para todo usuário novo nascer com
+  `profiles.active=false`, mesmo que `user_metadata` declare
+  `account_purpose=staff_invite` (metadados não autorizam acesso).
+  `inviteUser` ativa explicitamente somente após convite do administrador;
+  signatário comercial criado por OTP continua inativo e não ganha acesso.
+  Banco remoto atual NÃO foi alterado.
+- Teste no Supabase descartável tenta criar usuário com metadata falsificada
+  de funcionário e exige perfil inativo. Também há testes unitários de
+  nomes reais e mensagens do Auth, executados pelo workflow de validação.
+- **SMTP ainda requer homologação real**: configurar/confirmar SMTP externo
+  em Authentication > SMTP Settings, Authentication > URL Configuration,
+  template de convite e recovery; realizar envio controlado para
+  destinatário de teste e verificar recebimento, clique e escolha de senha.
+  Nada foi enviado para usuários reais pelo ChatGPT.
+- Auditoria read-only de storage no projeto `site-system-ir`:
+  `edition-pdfs` (legado Supabase) 50 MiB, `article-media` 8 MiB,
+  `contract-documents` 10 MiB, `contract-signatures` 1 MiB.
+  **Fluxo atual de upload da edição** usa R2 direto pelo navegador
+  (`editionArchive.r2.ts`) até 100 MiB, com `prepareEditionR2UploadAction`
+  e checagens por HEAD e assinatura PDF. Fotos usam outro bucket R2 e
+  limite 8 MiB. Não aumentar bucket antigo por reflexo.
+  Em Pro há dois limites de Supabase Storage: global e por bucket;
+  plano não reconfigura limites automaticamente.
+- Sem push na main, sem deploy, sem changes em Supabase remoto e sem
+  e-mails enviados. Revisar status CI do HEAD antes do aceite.
+
+### Observação de produção (somente consulta, 23/10/2026)
+
+Consulta agregada de `site-system-ir` (sem revelar e-mails ou nomes):
+**3 perfis**, dos quais **2 perfis têm `name` igual ao prefixo do e-mail**,
+**2 convites continuam sem confirmação de e-mail**, e **2 perfis têm
+`active=true` apesar de `email_confirmed_at` nulo**. A RLS atual
+confere a confirmação real do e-mail para operações internas; `active`
+sozinho não prova acesso.
+
+A origem exata da não entrega ainda não pode ser afirmada sem
+verificar SMTP/fluxo com caixas postais de teste. Nenhum dado de usuário
+foi alterado no banco remoto. A nova regra `active=false` vale somente
+após aplicação futura da migration em homologação/produção autorizada.
+Perfis legados serão revisados pela interface, não renomeados por
+suposição ou autoativados.
+
+### Aceite automatizado do bloco de usuários/Auth (23/10/2026)
+
+- **Commit final de código:** `32677c702a2d969640b8120784dd5a4f90583323`.
+- GitHub Actions para esse SHA:
+  - `Validate project`: **success**, execução `40046457425`.
+  - `Finance RLS sandbox`: **success**, execução `40046457475`.
+  - `Supabase complete migration rehearsal`: **success**, execução `40046457378`.
+- Os dois testes unitários novos passaram. O replay descartável confirmou
+  o cadastro de Auth com metadata falsificada como perfil INATIVO.
+- Bloco de **código** concluído. Pendente de operação: SMTP personalizado,
+  configuração de URLs/template do Auth, recebimento real do convite,
+  recuperação de senha e revisão do nome dos dois perfis antigos.
+- Edições do jornal: upload atual R2 com limite de 100 MiB; bucket Supabase
+  legado mantém 50 MiB, não afeta esse fluxo novo. Não alterado.
+- PR aberta, sem merge/deploy/migration remota; não disparar envio real
+  até homologação operacional autorizada.
+
+## 24/10/2026 — Módulo contratos: recuperação de assinatura e limitação OTP
+
+- **Somente PR #15:** migration `20261116100000_commercial_signature_attempt_recovery.sql` cria `commercial_signature_attempts` com tentativa por convite, identidade, SHA-256 da base e da assinatura e horário persistido. RPC `begin_commercial_signature_attempt` aceita somente `service_role` e convite recentemente verificado, com lock válido.
+- O fluxo de assinatura agora grava a tentativa antes do Storage, consulta se JPEG/comprovante/PDF assinado já existem e **reutiliza** os mesmos arquivos, sem `upsert`, após erro no meio. JPEG prévio só pode ser reaproveitado quando corresponde ao hash da tentativa; PDF privado reutilizado tem cabeçalho e hash conferidos. Se houve erro de rede, não presume arquivo ausente; se houve divergência de evidência, exige reconciliação controlada, sem deletar nem sobrescrever.
+- Função `finalize_commercial_signature` exige tentativa persistida, documento base e identidade com hashes correspondentes. Nenhum efeito em contratos institucionais ou cobranças.
+- `reserve_commercial_signature_otp`: intervalo mínimo 60 segundos por convite; no máximo oito solicitações em 24 horas, verificação transacional antes do envio Auth. É uma limitação do convite além dos limites globais do Supabase. Só `service_role` chama a RPC; não registra envio bem-sucedido ou entrega.
+- Testes `commercial-evidence-recovery.test.ts`: reaproveitamento sem duplicação, falha no segundo arquivo, falha no terceiro, hash divergente, storage offline e ausência de evidência. Workflow CI e postflight RLS incluem esses pontos.
+- **Ainda requer homologação externa:** 2 ou mais assinantes reais de teste, SMTP/OTP, falha de upload injetada em ambiente de homologação e verificação dos três arquivos efetivos antes de uso real. Aditivos contratuais, revisão jurídica/operacional e emissão fiscal são fluxos separados; não confundir este lote com liberação de produção.
+
+### Complemento de segurança e critérios de aceite — 24/10/2026
+
+- A rota de download do PDF por link de assinatura não aceita apenas
+  posse do token: exige e-mail verificado por OTP no convite, UUID da
+  sessão autenticada igual ao `verified_user_id` e e-mail igual ao do
+  participante. A tela passa a liberar o `iframe` somente após OTP.
+- `commercialDocumentAccess.ts` e teste simulam token vazado, acesso
+  anônimo, outra sessão/e-mail e convite não pendente. Next configura
+  `Referrer-Policy: no-referrer`, `Cache-Control: private, no-store`
+  e `X-Robots-Tag: noindex, nofollow, noarchive` para as páginas de
+  convites comerciais, evitando indexação e encaminhamento do token.
+- Ao reenviar/substituir convite, o SQL agora verifica o mutex de
+  assinatura e recusa revogação durante a gravação das evidências.
+- O painel do revisor mostra se houve tentativa de assinatura iniciada
+  e orienta a recuperação pelo mesmo link. Tokens não são recuperáveis
+  a partir dos hashes; novo link revoga o anterior e preserva os
+  objetos de evidência para auditoria.
+- Exigir três workflows verdes para SHA de código final e ensaio
+  autenticado em ambiente separado com SMTP de teste antes de uso real.
+
+
+## 24/10/2026 — Contratos: aditivos comerciais após o PDF original
+
+- Migration `20261118100000_commercial_contract_addenda.sql`: registra
+  `commercial_contract_addenda`, histórico `commercial_contract_addendum_events`
+  e adiciona `addendum_id` a `commercial_contract_documents`. Apenas
+  documentos originais contam para os índices únicos da modalidade combinada
+  ou individual. Aditivos podem coexistir sem alterar o original.
+- A criação exige permissão `publicidade.contratos_preparar`,
+  pacote jurídico aprovado e documento original emitido. SQL numera o
+  aditivo por contrato e preserva origem; não aceita origem em outro
+  pacote nem utilizar aditivo como documento original.
+- Rascunho pode ser editado, depois encaminhado a revisor autorizado.
+  A aprovação exige texto legal suficiente, CONTRATANTE/CONTRATADA,
+  indicação de ADITIVO e justificativa humana de 20 a 1000 caracteres.
+  Devolução preserva justificativa na trilha e a exibe ao preparador.
+  Depois da aprovação o texto é imutável.
+- Prévia PDF identificada claramente como **MINUTA — NÃO ASSINAR**
+  com acesso interno, antes de aprovação.
+- Emissão após aprovação: PDF novo separado com texto aprovado,
+  referência e SHA-256 do original, caminho privado e ID determinístico
+  por aditivo. Arquivo/registro são reutilizados ou verificados na
+  reexecução, sem apagar evidência nem criar cobrança.
+- Após emitir, o PDF aparece junto aos documentos da venda e pode ter
+  preparação de signatários, OTP, aceite e comprovante **exclusivamente
+  no assinador comercial já implementado**.
+- Contratos antigos emitidos/assinados não são editados; aditivo
+  também não altera valores, parcelas, PIX ou cobrança por conta própria.
+  Qualquer efeito financeiro exige fluxo comercial/financeiro explícito.
+- Testes: novo índice original-vs-aditivo, RLS de aprovação/eventos,
+  guardas, compilação TypeScript/Next e reconstrução integral de migrations.
+  O ensaio humano ainda precisa confirmar rascunho→devolução→aprovação→
+  emissão→assinatura de aditivo com usuário preparador e revisor distintos.
+- O texto jurídico precisa de revisão responsável; regex e CI não
+  constituem aprovação legal. Nenhuma emissão/assinatura real autorizada.
+
+
+## 24/10/2026 — Módulo 2: controles de acesso e convites (homologação)
+
+- `20261119100000_staff_membership_authorization.sql` cria
+  `staff_memberships` para separar operadores/administradores de
+  signatários externos do Auth; somente o fluxo administrativo com
+  service_role cria membership. Backfill conservador de owner/admin
+  e contas já convidadas via Supabase Auth.
+- `is_active_staff`, `is_active_admin`, `is_active_owner` e
+  `is_active_admin_or_owner` passam a exigir perfil ativo,
+  membership e e-mail confirmado. Helpers de menu/financeiro continuam
+  usando essas autorizações centrais.
+- Middleware autentica com `getUser`, exige autorização da RPC,
+  falha fechada se não houver Supabase e evita loop entre login/painel.
+  UI distingue `pendente` de `inativo`.
+- `inviteUser` só é aceito por owner/admin confirmado, com autorização
+  criada antes de ativar conta; nome, papel e status na mesma atualização.
+  Lista administrativa filtra memberships; não expõe signatários externos.
+  E-mail/reenvio/recuperação respeitam membership de destino.
+- `AuthProvider` só apresenta conteúdo interno para staff confirmado.
+  Administrador não pode ativar colaborador sem confirmação de e-mail;
+  RLS exige a mesma condição.
+- `staff-access-policy.test.ts` testa ausência de sessão, OTP externo,
+  confirmação pendente, perfil desativado e acessos por papel.
+  O sandbox cria conta externa com metadata falsa, verifica ausência
+  de membership e impede acesso mesmo se `profiles.active=true`.
+- **Não alterar cadastros reais**: nomes derivados do início do e-mail
+  precisam ser informados pelo responsável, sem suposições. O projeto
+  `site-system-ir` possuía dois convites não confirmados na última
+  consulta de leitura.
+- **SMTP ainda é pendência de homologação operacional**: escolher
+  provedor, configurar SMTP e autenticação de domínio no Supabase Auth,
+  URLs de convite/recovery, teste de entrega em caixa controlada.
+  `docs/USUARIOS-AUTH-EMAIL-CHECKLIST-20261024.md` contém roteiro.
+- Sem merge/deploy, sem envio real e sem alteração no Supabase remoto.
+
+## 24/10/2026 — Financeiro/Comercial: proteção de cobrança e recuperações
+
+- A geração do financeiro da venda agora é restrita a venda aprovada,
+  ativa ou concluída, sem cortesia, parcelas zeradas ou data inválida;
+  a data de emissão/vencimento usa o calendário de São Paulo.
+- Reexecução após falha parcial reconhece parcelas da mesma venda,
+  cliente, número, valor e vencimento sem duplicar. Título cancelado não
+  é substituído, e histórico impede alteração da identidade financeira
+  original, mesmo se todas as parcelas foram canceladas.
+- Cancelar Pix exige vínculo verificado entre cobrança/título/cliente e
+  justificativa. Timeout do Asaas só é reconciliado após consulta da
+  situação remota; pagamento confirmado nunca vira cancelamento.
+- A Server Action de confirmação demonstrativa está bloqueada fora
+  do preview; recuperação de cobrança já paga pelo Asaas grava referência
+  e espera webhook autenticado, sem usar baixa por sessão do operador.
+- CI cobre guarda de venda, datas, duplicação e retorno de chamada Pix
+  sob falha de rede. Nenhuma cobrança Asaas ou WhatsApp real disparada.
+- **Pendente operacional:** Asaas sandbox com webhook, Meta WhatsApp
+  de teste, permissões granularmente exercitadas com perfis de operador,
+  conciliação de saldo/crédito, locações e anúncios; cuidados de
+  concorrência e idempotência de efeitos externos constam em
+  `docs/FINANCEIRO-COMERCIAL-HOMOLOGACAO-20261024.md`.
+- PR #15 aberta; sem merge, deploy, aplicação de migrations no remoto.
+
+## 24/10/2026 — Módulo 10: escopo corrigido e bloqueio de integração externa
+
+- **Decisão confirmada pelo proprietário:** concluir exclusivamente o **Jornal IR** com cadastro mestre, contratos, contas a receber e cobranças. **Não alterar o Altnix Informativo nesta fase.**
+- A parte que futuramente autorizará/suspenderá mídias do Altnix só será integrada, homologada e publicada em **um único lote posterior**, quando o Jornal estiver organizado e o responsável autorizar expressamente. O patrocinador gratuito do portal não participa desse controle.
+- **Auditoria do existente:** `public.clients`, `commercial_sales.client_id`, `commercial_contract_packages.client_id`, `commercial_contract_services.id`, `receivables.client_id` e serviços financeiro/comercial já existem; **não foram duplicados**.
+- Pré-autorização de exportação `client_digital_export_permissions` permanece apenas interna. A UI agora diz expressamente que a conexão remota está desligada. A rota `/api/integrations/altnix/clients` retorna **503 incondicional** enquanto `ALTNIX_CLIENT_EXPORT_RELEASED=false`; segredo e variável de ambiente não removem a trava. Teste automatizado verifica o valor.
+- Guia vigente: `docs/ALTNIX-INFORMATIVO-SYNC-FUTURO.md`. Guia anterior com cópia bidirecional foi marcado SUPERADO: `docs/INTEGRACAO-CADASTROS-ALTNIX-JORNALIR.md`.
+- **Informação para próximos agentes:** em inspeção anterior houve criação de branch experimental `feature/jornalir-clientes-integrados-20261024` no **repositório separado** Altnix Informativo, mas não foi mesclada nem publicada. **NÃO USAR, NÃO CONTINUAR E NÃO PUBLICAR ESSA BRANCH**, salvo nova autorização expressa. A partir da correção de escopo, nenhuma alteração adicional naquele repositório.
+- Não executar migrations remotas; sem comunicação com dispositivos, mídias, players, cobrança real, Webhook ou publicação. PR #15 em draft.
+- **Pendências reais:** testar integrações financeiras do Jornal em ambientes de homologação, verificar vínculo entre venda/serviço/título, especificar alvos de veiculação para a issue #18 e só então abrir outro lote de integração remota com backup, consentimento e plano de reversão. Testes de CI não substituem essas etapas.
+
+
+## 24/10/2026 — Módulo 11: pré-publicação (bloco A — travas e reprodutibilidade)
+
+- **Decisão nova do usuário:** NFS-e **somente depois de publicar** o portal e sistema. Não executar testes nem integrar emissão fiscal agora. Integração com Altnix Informativo também permanece para lote posterior expressamente aprovado; não tocar Altnix, mídia, playlists ou aparelhos. PR #15 continua draft, sem merge, deploy ou `db push`.
+- **Código de release:** `apps/sistema/src/lib/release/releasePolicy.ts` fixa `NFSE_AVAILABLE_IN_THIS_RELEASE=false` e mensagem de adiamento; `middleware.ts`, `checkModuleAction.ts`, `AdminHeader.tsx`, `MobileNav.tsx` e `navigation.ts` fecham menus, URL e ações. As Server Actions fiscais excepcionais de certificado e parametrização também verificam a trava antes de qualquer operação. Código fiscal existente preservado.
+- `ALTNIX_CLIENT_EXPORT_RELEASED=false` no Jornal continua bloqueando o endpoint remanescente mesmo com segredo/flag configurados. Teste `apps/sistema/test/prepublication-release-gates.test.ts` integra o CI para prevenir liberação acidental das duas integrações.
+- **Divergência Git verificada:** PR #15 tem base `feature/abrangencias-geo-notificacoes-20261021`; à época da auditoria, estava 446 commits à frente da base, ~243 arquivos modificados. `main` estava divergente com commit documental antigo de integração bilateral (superado). **Não mesclar diretamente para produção** sem comparação final e reconciliação.
+- **Vercel leitura apenas:** `jornalir` e `jornalir-sistema` existem, os domínios estão associados; projeto site mostrou última execução consultada `CANCELED` e painel `READY`, ambos sem target Production no retorno. Isso não comprova configuração atual do auto-deploy e nem atualização dos domínios.
+- **Problema real de CI corrigido:** `npm ci` falhava por entrada ausente `@capacitor/app@7.1.0` no lockfile do workspace `apps/mobile`; inserido registro do pacote com SHA-512 e alterado `.github/workflows/validate-system.yml` para exigir `npm ci` sem fallback para `npm install`. A instalação estrita passou no ensaio de CI do commit `84f7a233`.
+- **Instabilidade externa identificada:** `supabase/setup-cli@v1` com `version: latest` falhou por `rate limit exceeded`. CLI fixada em `2.120.0` no `supabase-full-rehearsal.yml`; validar novamente em runner. Rebuild completo já passou em commits anteriores.
+- **Fonte definitiva para handoff e publicação:** `docs/PRE-PUBLICACAO-IR-20261024.md`, com checklist por módulo, gates de produção, backups, Vercel, diferenças Git, validação operacional, rollback e condição GO/NO-GO.
+- **Não validado ainda por esta auditoria:** SMTP em caixa real, Asaas/PIX e Meta em sandbox, upload R2 real, push Android, UI autenticada PC/mobile, testes assinador com vários signatários, conferência de migrations instaladas no banco remoto, Vercel Git toggle e estado exato do VS Code local. Não reportar "publicável" com base apenas em CI.
+
+## 24/10/2026 — Módulo 11: bloco B, auditoria real SOMENTE LEITURA
+
+- **Projeto correto identificado:** Supabase `site-system-ir` (não `altnix-informativo`). Conector `list_migrations` consultado sem executar qualquer alteração.
+- **Histórico de migrations:** banco real tem 152 versões; branch 195 SQL. Coincidem 149 números; 3 versões remotas têm mesmo conteúdo SQL EXATO de arquivos da branch com timestamps diferentes (2.443/2.551/6.292 caracteres). Restam 43 conteúdos novos de migrations não registrados, além da conciliação das 3 versões divergentes. **Nenhum `db push`, `migration repair` ou alteração da tabela de histórico foi feito.**
+- Relatório completo em `docs/RELEASE-MIGRATIONS-REMOTE-20261024.md`, verificador **somente leitura** `scripts/release/migration-preflight.mjs`, testes unitários em `scripts/release/migration-preflight.test.mjs` e etapa no CI de `.github/workflows/validate-system.yml`. A ferramenta **não executa SQL** e bloqueia saída sem análise no caso de drift.
+- **Advisors de segurança do Supabase remoto:** 8 views públicas marcadas `security_definer_view` (ERROR), 41 execuções de funções `SECURITY DEFINER` para `anon`, 51 para `authenticated`, 16 rotinas com `search_path` mutável, 20 tabelas com RLS sem policy e proteção de senha vazada desligada. Avisos não equivalem a vulnerabilidade confirmada; auditar por papel e não trocar views públicas de forma indiscriminada. Registro com nomes e links de remediação em `docs/SUPABASE-SEGURANCA-REAL-20261024.md`.
+- **Vercel somente metadados, segredos NÃO lidos:** `ASAAS_API_KEY_PRODUCTION` está indevidamente direcionada também a Preview no `jornalir-sistema`. **Pendência de correção humana/autorizar alteração do escopo** antes do release. A guarda de código Asaas não justifica manter a chave LIVE em Preview. R2 do portal `jornalir` aparece em Preview, a necessidade em Production ainda exige inspeção. Toggle de deploy Git permanece não confirmado.
+- **Status de release:** PENDENTE/NO-GO. Não foram feitos deploy, merge, backup/restore em real, alteração de environments, grants SQL, execução fiscal, cobrança real ou comunicação com Altnix Informativo. NFS-e continua pós-publicação; Altnix só lote conjunto futuro autorizado.
+
+## 24/10/2026 — HOTFIX REAL DE SEGURANÇA (com autorização explícita)
+
+- **No Supabase REAL `site-system-ir`, aplicado e verificado:** `REVOKE EXECUTE` de `PUBLIC/anon` para **nove RPCs internas**. `anon` sem execução das 9; operações legítimas `authenticated` mantidas e jobs internos service_role preservados. Não houve mutação de dados de cliente/matéria, `db push` ou reparo no histórico de migrações. Security Advisors `anon_security_definer_function_executable` caiu de **41 para 32**.
+- **Na função de gatilho real `handle_new_auth_user`:** adotado o corpo idêntico à futura migration `20261115100000_auth_invitation_default_inactive.sql` para impedir operador ativo em signup novo. Verificado `operator,active=false`; 1 owner ativo e 2 operadores existentes preservados, sem alterar perfis anteriores.
+- **Na Vercel `jornalir-sistema`:** o registro **Preview-only** de `ASAAS_API_KEY_PRODUCTION` recebeu valor inerte; registro Production separado intacto. Não houve deploy. **Rotação da credencial Asaas no provedor e invalidação de deployments Preview antigos são recomendações pendentes**.
+- **No Git:** reforçado `tests/security/full-schema-rls-postflight.sql` com regressão das nove RPCs. Documentação técnica/rollback/risco residual está em **`docs/HOTFIX-SEGURANCA-REAL-20261024.md`**.
+- Este hotfix **não equivale** à implantação das 43 migrations pendentes, do cadastro `staff_memberships` ou dos testes operacionais de publicação. Não tocar no repositório Altnix, NFS-e, produção de site ou cobranças reais.
+
+## 24/10/2026 — Preparação de homologação e segurança (continuidade)
+
+- **PR #15 draft; SEM merge, deploy ou NFS-e/Altnix Informativo.** A reconstrução de banco e os builds seguem pelo GitHub Actions; teste operacional em ambiente online ainda pendente.
+- **CI SQL tornou-se rigoroso:** warning `v_ord` duplicado removido da migration `20261120130000_atomic_composition_receipts.sql`, preservando a regra dos loops; workflow `supabase-full-rehearsal.yml` agora executa `supabase db lint --local --schema public` **sem `|| true`**. O ensaio do schema com lint rigoroso passou no commit `29bc4b385`.
+- **Exceção de homologação segura implementada:** `previewIsolationPolicy.ts` só permite Admin API em Vercel Preview com `IR_HOMOLOGATION_ENABLED=true`, referência `IR_HOMOLOGATION_SUPABASE_REF` válida e distinta da Production `iqnzrpdccecgalqboeyf`, e URL `https://<ref>.supabase.co` exata. O webhook Asaas em Preview só será habilitado quando `ASAAS_ENV=sandbox` e o mesmo banco isolado forem confirmados. Tudo fica negado por padrão; testes rejeitam projeto de produção/URL falsa.
+- **Vercel — ações reais em Preview:** desativadas variáveis de R2 nos dois projetos, WhatsApp Token exclusivo do sistema Preview e Supabase Preview do site `jornalir` (URL .invalid + chave inerte), além das anteriores de Supabase Preview do painel e chave Asaas Production Preview. Registros compartilhados `ASAAS_WEBHOOK_TOKEN`, `NFSE_CERTIFICATE_MASTER_KEY`, `PUSH_VAPID_PRIVATE_KEY`, `ASAAS_ENV` e `WHATSAPP_PHONE_NUMBER_ID` agora têm target **somente Production**, valor preservado. Vercel Authentication Preview mantida em ambos projetos; Production não foi modificada por essas configurações. Novos Previews não podem acessar banco/R2/WhatsApp reais. Links antigos ainda exigem revisão e rotação das chaves potencialmente expostas.
+- **Supabase REAL — hotfix adicional de autorização:** 4 funções `is_active_staff`, `is_active_admin_or_owner`, `is_active_admin`, `is_active_owner` redefinidas transacionalmente para exigir `auth.uid()`, `profiles.active`, role correta **e `auth.users.email_confirmed_at IS NOT NULL`**. Funções mantêm `SECURITY DEFINER` e `search_path=''`, sem alterar perfis. Teste transacional confirmou owner ativo e confirmado = permitido, operador ativo sem e-mail confirmado = negado, identidade nula = negada. A migration futura de `staff_memberships` tornará a guarda ainda mais forte.
+- **Testes Git adicionais:** `tests/security/full-schema-rls-postflight.sql` passa a exigir e-mail confirmado mesmo após adicionar membership de operador no banco efêmero. Nenhum usuário real de teste criado.
+- **Banco exclusivo de homologação PENDENTE por custo:** Supabase recusou criar branch sem `confirm_cost_id`. Valor da organização informado: **US$0,01344/h (cerca de US$0,32 por 24h de recurso ligado)**. Não foi solicitada confirmação de custo, nenhuma filial foi criada e nenhum teste comercial/operacional foi disparado. Para iniciar homologação online é necessária aprovação explícita desse custo, posterior configuração de credenciais/SMTP/R2/Asaas Sandbox e criação de usuários **fictícios**.
+- **Manual de implantação de homologação e matriz de 11 blocos:** `docs/HOMOLOGACAO-IR-AMBIENTE-E-ROTEIRO-20261024.md`. Nada no Altnix Informativo ou na `main` do Jornal IR foi alterado; PR #15 permanece DRAFT.

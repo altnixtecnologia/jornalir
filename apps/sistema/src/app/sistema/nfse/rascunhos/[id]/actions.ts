@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { getTransmissionService } from "../../../../../composition/nfse";
 import { createSupabaseServerClient } from "../../../../../lib/supabase/server";
+import { checkModuleAction } from "../../../../../lib/permissions/checkModuleAction";
 import { getAuditContext } from "../../../../../lib/auth/getAuditContext";
 import { recordAuditEventSupabase } from "../../../../../providers/supabase/auditEvents.supabase";
 import { isLocalPreviewEnabled } from "../../../../../lib/auth/localPreview";
@@ -37,6 +38,8 @@ export interface TransmitDraftActionResult {
  * `nfse_transmission_attempts` (item 13).
  */
 export async function transmitDraftAction(draftId: string): Promise<TransmitDraftActionResult> {
+  const permissionError = await checkModuleAction("nfse", "notas_emitir");
+  if (permissionError) return { error: permissionError };
   const supabase = createSupabaseServerClient();
   let AUDIT;
   try {

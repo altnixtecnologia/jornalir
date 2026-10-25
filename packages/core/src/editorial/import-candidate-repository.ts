@@ -19,6 +19,8 @@ export type ImportCandidateChanges = Partial<
 export interface ImportBatchMetadata {
   fileName?: string;
   fileHash?: string;
+  /** Reprocessamento explícito, confirmado pela interface. */
+  force?: boolean;
   pageCount?: number;
   pagesWithoutText?: number[];
   warnings?: string[];

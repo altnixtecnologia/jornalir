@@ -260,6 +260,9 @@ export function createSiteAdSlotRepositorySupabase(client: SupabaseClient): Site
             slot.media[index] = {
               ...slot.media[index],
               ...changes,
+              // null no update limpa a vigência; o domínio expõe undefined.
+              activeFrom: changes.activeFrom === null ? undefined : changes.activeFrom ?? slot.media[index].activeFrom,
+              activeUntil: changes.activeUntil === null ? undefined : changes.activeUntil ?? slot.media[index].activeUntil,
               rotationIntervalMs: changes.rotationIntervalMs === null ? undefined : changes.rotationIntervalMs ?? slot.media[index].rotationIntervalMs,
               transitionEffect: changes.transitionEffect === null ? undefined : changes.transitionEffect ?? slot.media[index].transitionEffect,
               fitMode: changes.fitMode === null ? undefined : changes.fitMode ?? slot.media[index].fitMode,
