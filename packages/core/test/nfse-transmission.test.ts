@@ -348,11 +348,11 @@ test("ajuste de segurança: bloqueio do provider real nunca é tratado como 'unc
 
 // Parte 2B — guarda central de prontidão (readiness.ts), exposta via checkReadiness().
 
-test("checkReadiness: fixture completa (Parte 2C — regTrib configurado, XSD real validando) -> ready=true", async () => {
+test("checkReadiness: XSD antigo de julho não libera emissão com schema de outubro vigente", async () => {
   const { service, dpsSequences } = makeService({ providerBehavior: "authorize" });
   const readiness = await service.checkReadiness("draft-1");
-  assert.deepEqual(readiness.missing, []);
-  assert.equal(readiness.ready, true);
+  assert.ok(readiness.missing.some((item) => item.includes("Pacote XSD") && item.includes("20261020")));
+  assert.equal(readiness.ready, false);
   // checkReadiness nunca reserva um número de DPS de verdade.
   assert.equal(dpsSequences.calls, 0);
 });
