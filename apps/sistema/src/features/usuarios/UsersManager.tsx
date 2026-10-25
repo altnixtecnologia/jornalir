@@ -202,7 +202,7 @@ export function UsersManager(): JSX.Element {
   function openUserEditor(target: UserRow): void {
     if (pending || !canManage(target)) return;
     setEditingTarget(target);
-    setEditingName(target.name);
+    setEditingName(hasRealStaffName(target.name, userEmail(target.id)) ? target.name : "");
     setEditingEmail(userEmail(target.id));
     setEditError("");
     setError(null);
