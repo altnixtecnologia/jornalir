@@ -466,7 +466,7 @@ export function UsersManager(): JSX.Element {
           Envia um convite por e-mail (processado no servidor — nunca troca a sua sessão). A pessoa define
           a própria senha ao acessar o link e depois entra normalmente por e-mail e senha.
         </p>
-        <div className="form-grid">
+        <div className="form-grid usuarios-invite-grid">
           <label className="form-field">
             <span className="field-label">Nome completo</span>
             <input type="text" autoComplete="name" required minLength={3} maxLength={120}
@@ -493,7 +493,7 @@ export function UsersManager(): JSX.Element {
             </select>
           </label>
         </div>
-        <div className="form-actions">
+        <div className="form-actions usuarios-invite-actions">
           <button type="button" className="form-action-primary" onClick={handleInvite} disabled={pending}>
             Convidar
           </button>
