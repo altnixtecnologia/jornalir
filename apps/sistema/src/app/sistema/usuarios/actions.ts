@@ -3,7 +3,7 @@
 import { createSupabaseAdminClient, hasServiceRoleKey } from "../../../lib/supabase/admin";
 import { createSupabaseServerClient } from "../../../lib/supabase/server";
 import { recordAuditEventSupabase } from "../../../providers/supabase/auditEvents.supabase";
-import { normalizeStaffName } from "../../../lib/auth/userIdentity";
+import { hasRealStaffName, normalizeStaffName } from "../../../lib/auth/userIdentity";
 import { describeAuthMailError } from "../../../lib/auth/authMailDiagnostics";
 import { staffAuthRedirectUrl } from "../../../lib/auth/staffAuthRedirect";
 
@@ -159,7 +159,7 @@ export async function updateManagedUserDetails(
 
   const cleanName = normalizeStaffName(name);
   const cleanEmail = email.trim().toLowerCase();
-  if (!cleanName) return { error: "Informe nome completo válido (3 a 120 caracteres)." };
+  if (!cleanName || !hasRealStaffName(cleanName, cleanEmail)) return { error: "Informe o nome real do usuário, não o prefixo do e-mail." };
   if (!validEmail(cleanEmail)) return { error: "Informe um e-mail válido." };
 
   const client = createSupabaseServerClient();
