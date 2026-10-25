@@ -1,5 +1,15 @@
 # NFS-e Nacional — arquitetura do módulo
 
+> **Revisão 25/10/2026 — estado de segurança atual:** esta arquitetura contém
+> descrições históricas da Parte 2A anteriores à implementação de certificado A1,
+> assinatura com `xml-crypto` e validação XSD com `xmllint-wasm`. A fonte do
+> status de conclusão agora é [NFSE-FINALIZACAO-20261025.md](./NFSE-FINALIZACAO-20261025.md).
+> Embora a validação XSD seja **real**, ela utiliza o pacote vendorizado de
+> **27/07/2026**, que foi sucedido pelo oficial **20/10/2026** para Produção
+> Restrita. Por isso, a prontidão fiscal deve indicar **bloqueio**, mesmo se
+> uma fixture passar no XSD antigo. Emissão real permanece desabilitada.
+
+
 Status: **Parte 1 + Parte 2A implementadas** (base, configurações fiscais,
 perfis de serviço, rascunhos com snapshot, e a arquitetura completa de
 emissão — DPS, assinatura, transmissão, autorização/rejeição). **Nenhuma
