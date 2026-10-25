@@ -6321,3 +6321,17 @@ button.secondary-link {
   .usuarios-edit-modal{padding: 18px 14px}
   .usuarios-edit-modal .usuarios-edit-actions button{flex: 1 1 auto;min-height: 42px}
 }
+
+/* Convite de usuários: três campos na mesma linha no desktop, sem alterar a edição de usuários. */
+.usuarios-invite-grid{
+  grid-template-columns: minmax(0, 1.25fr) minmax(0, 1.25fr) minmax(145px, .45fr);
+  gap: 12px 16px;
+}
+.usuarios-invite-grid > .form-field{ min-width: 0; }
+.usuarios-invite-grid input,
+.usuarios-invite-grid select{ width: 100%; min-width: 0; }
+.usuarios-invite-actions{ justify-content: flex-end; }
+@media(max-width: 780px){
+  .usuarios-invite-grid{ grid-template-columns: minmax(0, 1fr); }
+  .usuarios-invite-actions{ justify-content: flex-start; }
+}
