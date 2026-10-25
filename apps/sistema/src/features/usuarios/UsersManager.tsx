@@ -225,7 +225,7 @@ export function UsersManager(): JSX.Element {
       setEditError("Informe o nome completo (3 a 120 caracteres).");
       return;
     }
-    if (!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email) || email.length > 254) {
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 254) {
       setEditError("Informe um endereço de e-mail válido.");
       return;
     }
