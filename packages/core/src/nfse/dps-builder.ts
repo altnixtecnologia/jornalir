@@ -25,10 +25,15 @@ function federalInscriptionTag(kind: "individual" | "company", cpf: string | und
   return kind === "individual" ? tag("CPF", cpf) : tag("CNPJ", cnpj);
 }
 
-/** TSDateTimeUTC (XSD oficial) exige offset explícito (ex.: "-03:00"), nunca "Z", e sem milissegundos. Assume America/Sao_Paulo (-03:00, sem horário de verão desde 2019) — único fuso usado pelo negócio (SC). */
-function formatDhEmi(date: Date): string {
-  const iso = date.toISOString().replace(/\.\d{3}Z$/, "");
-  return `${iso}-03:00`;
+/** Hora fiscal de São João do Sul/SC: instante UTC convertido para UTC-03:00.
+ * Nunca apenas substituir o sufixo "Z" por "-03:00" — isso alteraria
+ * o instante em três horas e pode trocar o dia fiscal próximo à meia-noite.
+ * Hora oficial vigente de SC em 2026: UTC-03, sem horário de verão. */
+export function formatDhEmi(date: Date): string {
+  if (!Number.isFinite(date.getTime())) throw new Error("Data de emissão inválida.");
+  const localWallClock = new Date(date.getTime() - 3 * 60 * 60 * 1000)
+    .toISOString().replace(/\.\d{3}Z$/, "");
+  return `${localWallClock}-03:00`;
 }
 
 /** Remove tudo que não é dígito — formatação de entrada (ex.: NBS digitado como "1.1406.19.00"), nunca inventa/completa o valor. */
