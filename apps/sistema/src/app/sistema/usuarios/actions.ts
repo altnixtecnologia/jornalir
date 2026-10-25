@@ -144,6 +144,79 @@ async function requireManagedStaffTarget(profileId:string):Promise<
  return {ok:true};
 }
 
+/** Atualização administrativa de nome e e-mail, somente de colaboradores do painel.
+ * A operação no Auth é server-side e não dispara convites; o SMTP precisa
+ * estar funcional para que um convite pendente possa ser reenviado.
+ */
+export async function updateManagedUserDetails(
+  profileId: string, name: string, email: string,
+): Promise<{ ok: true; emailChanged: boolean } | { error: string }> {
+  const manager = await requireUserManager();
+  if ("error" in manager) return manager;
+  const membership = await requireManagedStaffTarget(profileId);
+  if ("error" in membership) return membership;
+  if (!hasServiceRoleKey()) return { error: "Administração indisponível neste ambiente." };
+
+  const cleanName = normalizeStaffName(name);
+  const cleanEmail = email.trim().toLowerCase();
+  if (!cleanName) return { error: "Informe nome completo válido (3 a 120 caracteres)." };
+  if (!validEmail(cleanEmail)) return { error: "Informe um e-mail válido." };
+
+  const client = createSupabaseServerClient();
+  const { data: profile, error: profileError } = await client.from("profiles")
+    .select("role,name").eq("id", profileId).maybeSingle();
+  if (profileError || !profile || profile.role === "owner"
+      || (manager.role === "admin" && profile.role !== "operator")) {
+    return { error: "Sem permissão para editar os dados desta pessoa." };
+  }
+
+  const admin = createSupabaseAdminClient();
+  const { data: account, error: lookupError } = await admin.auth.admin.getUserById(profileId);
+  if (lookupError || !account.user?.email) return { error: "Não foi possível conferir a conta no Supabase Auth." };
+  const originalEmail = account.user.email.toLowerCase();
+  const emailChanged = originalEmail !== cleanEmail;
+  const originalName = profile.name;
+
+  if (originalName === cleanName && !emailChanged) return { ok: true, emailChanged: false };
+
+  // Atualiza primeiro o perfil. Se Auth falhar, tenta desfazer somente
+  // esta mudança sem tocar no papel, ativação, convite ou confirmação.
+  const { data: changed, error: changeError } = await admin.from("profiles")
+    .update({ name: cleanName })
+    .eq("id", profileId).eq("role", profile.role)
+    .select("id").maybeSingle();
+  if (changeError || !changed) return { error: "Não foi possível atualizar o nome do colaborador." };
+
+  const { error: authError } = await admin.auth.admin.updateUserById(profileId, {
+    ...(emailChanged ? { email: cleanEmail } : {}),
+    user_metadata: { ...(account.user.user_metadata ?? {}), name: cleanName },
+  });
+  if (authError) {
+    const { error: rollbackError } = await admin.from("profiles")
+      .update({ name: originalName }).eq("id", profileId);
+    if (rollbackError) {
+      console.error("Falha ao restaurar nome após erro no Auth:", rollbackError.code);
+      return { error: "Auth recusou a alteração e não foi possível restaurar o nome anterior. Refaça a conferência antes de tentar novamente." };
+    }
+    const duplicate = authError.message?.toLowerCase().includes("already") ||
+      authError.message?.toLowerCase().includes("registered") ||
+      authError.message?.toLowerCase().includes("exists");
+    return { error: duplicate
+      ? "Este e-mail já pertence a outra conta."
+      : "Não foi possível atualizar os dados no Supabase Auth. Nenhum convite foi enviado." };
+  }
+
+  // Nunca forçar email_confirmed_at, email_confirm ou gerar token.
+  await recordAuditEventSupabase(client, {
+    userId: manager.id, entityType: "users", entityId: profileId,
+    action: "update_user_details", metadata: {
+      nameChanged: originalName !== cleanName, emailChanged,
+    },
+  }).catch(e => console.error("Falha auditoria edição de usuário:", e instanceof Error ? e.message : "unknown"));
+
+  return { ok: true, emailChanged };
+}
+
 /**
  * Permite cadastrar/corrigir o nome real sem alterar as permissões
  * nem o estado de confirmação do Supabase Auth.
