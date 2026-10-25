@@ -1,4 +1,4 @@
-import { isIbsCbsSimplesRegimeApplicable, isValidDpsSeriesFormat, type NfseCertificateInfo, type NfseIssuerConfig } from "@ir/types";
+import { NFSE_SCHEMA_PACKAGE_HOMOLOGATION, NFSE_SCHEMA_PACKAGE_REQUIRED_HOMOLOGATION, isIbsCbsSimplesRegimeApplicable, isValidDpsSeriesFormat, type NfseCertificateInfo, type NfseIssuerConfig } from "@ir/types";
 
 /**
  * Guarda CENTRAL de prontidão pra emissão real em homologação/Produção
@@ -34,6 +34,12 @@ export interface HomologationReadinessResult {
 
 export function checkHomologationReadiness(input: HomologationReadinessInput): HomologationReadinessResult {
   const missing: string[] = [];
+
+  // Uma DPS aprovada pelo XSD de julho NÃO comprova conformidade ao de outubro.
+  // Falha fechada: a revisão/vendorização real dos arquivos oficiais é obrigatória.
+  if (NFSE_SCHEMA_PACKAGE_HOMOLOGATION !== NFSE_SCHEMA_PACKAGE_REQUIRED_HOMOLOGATION) {
+    missing.push(`Pacote XSD de homologação desatualizado: instalado ${NFSE_SCHEMA_PACKAGE_HOMOLOGATION}; exigido ${NFSE_SCHEMA_PACKAGE_REQUIRED_HOMOLOGATION}. Atualizar e validar antes de emitir.`);
+  }
 
   if (!input.issuerConfig) {
     missing.push("Configuração fiscal do prestador");
