@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import type { DpsBuildInput } from "@ir/types";
 import { validateDpsAgainstOfficialXsd } from "../src/nfse/xsd-validator";
-import { buildDpsXml } from "../src/nfse/dps-builder";
+import { buildDpsXml, formatDhEmi } from "../src/nfse/dps-builder";
 
 /**
  * DPS completa do cenário operacional inicial do Jornal IR (Parte 2C,
@@ -62,4 +62,20 @@ test("sem Simples Nacional configurado no prestador, buildDpsXml omite regTrib e
   const result = await validateDpsAgainstOfficialXsd(xml);
   assert.equal(result.valid, false);
   assert.ok(result.errors.some((error) => error.includes("regTrib") || error.includes("prest")));
+});
+
+test("dhEmi preserva o instante UTC na conversão para São João do Sul (UTC-03)", () => {
+  const utc = new Date("2026-10-25T01:15:32.000Z");
+  const issued = formatDhEmi(utc);
+  assert.equal(issued, "2026-10-24T22:15:32-03:00");
+  assert.equal(new Date(issued).toISOString(), utc.toISOString());
+});
+
+test("dhEmi também converte corretamente a hora durante o dia", () => {
+  const utc = new Date("2026-10-25T17:30:05.000Z");
+  assert.equal(formatDhEmi(utc), "2026-10-25T14:30:05-03:00");
+});
+
+test("dhEmi rejeita uma data inválida", () => {
+  assert.throws(() => formatDhEmi(new Date(Number.NaN)), /Data de emissão inválida/);
 });
