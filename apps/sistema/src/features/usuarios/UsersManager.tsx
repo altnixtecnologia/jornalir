@@ -9,6 +9,25 @@ import { inviteUser, listUserInvitationStatuses, sendPasswordResetForUser, updat
 import { ConfirmDialog } from "../../components/admin/ConfirmDialog";
 import { STAFF_FINANCE_ACTIONS, STAFF_MODULE_ACTIONS, STAFF_MODULES, type StaffFinanceActionKey, type StaffModuleActionKey, type StaffActionModule, type StaffModuleKey } from "../../lib/permissions/staffPermissionsCatalog";
 
+
+type UserActionIconName = "edit" | "promote" | "demote" | "permissions" | "access" | "password" | "disable" | "enable";
+
+function UserActionIcon({ name }: { name: UserActionIconName }): JSX.Element {
+  return (
+    <svg aria-hidden="true" focusable="false" width="19" height="19" viewBox="0 0 24 24"
+      fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      {name === "edit" ? <><path d="M4 20l4.5-1 10.8-10.8a2.1 2.1 0 0 0-3-3L5.5 16 4 20Z" /><path d="m15.5 6 3 3" /></> : null}
+      {name === "promote" ? <><circle cx="12" cy="12" r="9" /><path d="M12 8v8M8 12h8" /></> : null}
+      {name === "demote" ? <><circle cx="12" cy="12" r="9" /><path d="M8 12h8" /></> : null}
+      {name === "permissions" ? <><path d="M4 6h7m4 0h5M4 12h3m4 0h9M4 18h10m4 0h2" /><circle cx="13" cy="6" r="2" /><circle cx="9" cy="12" r="2" /><circle cx="16" cy="18" r="2" /></> : null}
+      {name === "access" ? <><rect x="3" y="5" width="18" height="14" rx="2" /><path d="m3 7 9 7 9-7" /><path d="M16 16h4m-2-2 2 2-2 2" /></> : null}
+      {name === "password" ? <><rect x="5" y="11" width="14" height="10" rx="2" /><path d="M8 11V7a4 4 4 0 0 1 8 0v4M12 15v2" /></> : null}
+      {name === "disable" ? <><path d="M12 3v9" /><path d="M7.3 5.6a9 9 0 1 0 9.4 0" /></> : null}
+      {name === "enable" ? <><circle cx="12" cy="12" r="9" /><path d="m8 12 3 3 5-6" /></> : null}
+    </svg>
+  );
+}
+
 interface AgendaManagerGrantRow { profile_id: string; can_manage: boolean; }
 interface AuditViewerGrantRow { profile_id: string; can_view: boolean; }
 interface VisibilityRow { profile_id: string; module_key: StaffModuleKey; enabled: boolean; }
@@ -337,6 +356,54 @@ export function UsersManager(): JSX.Element {
     setPending(false);
   }
 
+
+  // Mesmo conjunto de ações e mesma ordem no desktop e no celular.
+  function renderUserActions(user: UserRow): JSX.Element {
+    const roleLabel = user.role === "admin" ? "Rebaixar a operador" : "Promover a admin";
+    const permissionsLabel = editingUserId === user.id ? "Fechar permissões" : "Editar permissões";
+    const activeLabel = user.active ? "Desativar" : "Ativar";
+    return (
+      <div className="usuarios-row-actions">
+        <button type="button" className="usuarios-action-button"
+          title="Editar nome do usuário" aria-label={"Editar nome de " + userName(user)}
+          onClick={() => { setEditingNameId(user.id); setEditingName(user.name); }} disabled={pending}>
+          <UserActionIcon name="edit" /><span>Editar</span>
+        </button>
+        {isOwner ? (
+          <button type="button" className="usuarios-action-button" title={roleLabel}
+            aria-label={roleLabel + ": " + userName(user)}
+            onClick={() => changeRole(user, user.role === "admin" ? "operator" : "admin")} disabled={pending}>
+            <UserActionIcon name={user.role === "admin" ? "demote" : "promote"} /><span>{roleLabel}</span>
+          </button>
+        ) : null}
+        {user.role === "operator" ? (
+          <button type="button" className="usuarios-action-button" title={permissionsLabel}
+            aria-label={permissionsLabel + ": " + userName(user)}
+            onClick={() => setEditingUserId((id) => id === user.id ? null : user.id)} disabled={pending}>
+            <UserActionIcon name="permissions" /><span>{permissionsLabel}</span>
+          </button>
+        ) : null}
+        {invitationPending(user.id) ? (
+          <button type="button" className="usuarios-action-button" title="Reenviar convite de acesso"
+            aria-label={"Reenviar acesso para " + userName(user)}
+            onClick={() => void resendAccess(user)} disabled={pending}>
+            <UserActionIcon name="access" /><span>Reenviar acesso</span>
+          </button>
+        ) : null}
+        <button type="button" className="usuarios-action-button" title="Enviar link para redefinir senha"
+          aria-label={"Redefinir senha de " + userName(user)}
+          onClick={() => setResetTarget(user)} disabled={pending}>
+          <UserActionIcon name="password" /><span>Redefinir senha</span>
+        </button>
+        <button type="button" className={"usuarios-action-button" + (user.active ? " usuarios-action-button--danger" : "")}
+          title={activeLabel + " usuário"} aria-label={activeLabel + ": " + userName(user)}
+          onClick={() => toggleActive(user)} disabled={pending}>
+          <UserActionIcon name={user.active ? "disable" : "enable"} /><span>{activeLabel}</span>
+        </button>
+      </div>
+    );
+  }
+
   if (!profile || (!isOwner && !isAdmin)) {
     return <p className="helper-text">Você não tem permissão para gerenciar usuários.</p>;
   }
@@ -436,30 +503,7 @@ export function UsersManager(): JSX.Element {
                     {user.role === "owner" ? (
                       <span className="helper-text">Sem ações — proprietário</span>
                     ) : manageable ? (
-                      <div className="candidate-row-actions usuarios-row-actions">
-                        {isOwner ? (
-                          <button
-                            type="button"
-                            onClick={() => changeRole(user, user.role === "admin" ? "operator" : "admin")}
-                            disabled={pending}
-                          >
-                            {user.role === "admin" ? "Rebaixar a operador" : "Promover a admin"}
-                          </button>
-                        ) : null}
-                        {user.role === "operator" ? <button type="button" onClick={() => setEditingUserId((id) => id === user.id ? null : user.id)} disabled={pending}>
-                          {editingUserId === user.id ? "Fechar permissões" : "Editar permissões"}
-                        </button> : null}
-                        <button type="button" onClick={() => { setEditingNameId(user.id); setEditingName(user.name); }} disabled={pending}>Editar nome</button>
-                        {invitationPending(user.id) ? <button type="button" onClick={() => void resendAccess(user)} disabled={pending}>
-                          Reenviar acesso
-                        </button> : null}
-                        <button type="button" onClick={() => setResetTarget(user)} disabled={pending}>
-                          Redefinir senha
-                        </button>
-                        <button type="button" onClick={() => toggleActive(user)} disabled={pending}>
-                          {user.active ? "Desativar" : "Ativar"}
-                        </button>
-                      </div>
+                      renderUserActions(user)
                     ) : (
                       <span className="helper-text">—</span>
                     )}
@@ -490,32 +534,7 @@ export function UsersManager(): JSX.Element {
                 {user.role === "owner" ? (
                   <span className="helper-text">Sem ações — proprietário</span>
                 ) : manageable ? (
-                  <>
-                    {isOwner ? (
-                      <button
-                        type="button"
-                        onClick={() => changeRole(user, user.role === "admin" ? "operator" : "admin")}
-                        disabled={pending}
-                      >
-                        {user.role === "admin" ? "Rebaixar a operador" : "Promover a admin"}
-                      </button>
-                    ) : null}
-                    {user.role === "operator" ? <button type="button" onClick={() => setEditingUserId((id) => id === user.id ? null : user.id)} disabled={pending}>
-                      {editingUserId === user.id ? "Fechar permissões" : "Editar permissões"}
-                    </button> : null}
-                    <button type="button" onClick={() => { setEditingNameId(user.id); setEditingName(user.name); }} disabled={pending}>
-                      Editar nome
-                    </button>
-                    {invitationPending(user.id) ? <button type="button" onClick={() => void resendAccess(user)} disabled={pending}>
-                      Reenviar acesso
-                    </button> : null}
-                        <button type="button" onClick={() => setResetTarget(user)} disabled={pending}>
-                      Redefinir senha
-                    </button>
-                    <button type="button" onClick={() => toggleActive(user)} disabled={pending}>
-                      {user.active ? "Desativar" : "Ativar"}
-                    </button>
-                  </>
+                  renderUserActions(user)
                 ) : null}
               </div>
             </li>
