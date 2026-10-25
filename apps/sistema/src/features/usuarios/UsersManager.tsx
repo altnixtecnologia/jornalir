@@ -1,11 +1,11 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { createSupabaseBrowserClient } from "../../lib/supabase/browser";
 import { useAuth, type AuthRole } from "../../lib/auth/AuthProvider";
 import { ROLE_LABELS } from "../../lib/auth/accountDisplay";
 import { hasRealStaffName, staffNameLabel } from "../../lib/auth/userIdentity";
-import { inviteUser, listUserInvitationStatuses, sendPasswordResetForUser, updateManagedUserName, resendPendingUserAccess } from "../../app/sistema/usuarios/actions";
+import { inviteUser, listUserInvitationStatuses, sendPasswordResetForUser, updateManagedUserDetails, resendPendingUserAccess } from "../../app/sistema/usuarios/actions";
 import { ConfirmDialog } from "../../components/admin/ConfirmDialog";
 import { STAFF_FINANCE_ACTIONS, STAFF_MODULE_ACTIONS, STAFF_MODULES, type StaffFinanceActionKey, type StaffModuleActionKey, type StaffActionModule, type StaffModuleKey } from "../../lib/permissions/staffPermissionsCatalog";
 
@@ -21,7 +21,7 @@ function UserActionIcon({ name }: { name: UserActionIconName }): JSX.Element {
       {name === "demote" ? <><circle cx="12" cy="12" r="9" /><path d="M8 12h8" /></> : null}
       {name === "permissions" ? <><path d="M4 6h7m4 0h5M4 12h3m4 0h9M4 18h10m4 0h2" /><circle cx="13" cy="6" r="2" /><circle cx="9" cy="12" r="2" /><circle cx="16" cy="18" r="2" /></> : null}
       {name === "access" ? <><rect x="3" y="5" width="18" height="14" rx="2" /><path d="m3 7 9 7 9-7" /><path d="M16 16h4m-2-2 2 2-2 2" /></> : null}
-      {name === "password" ? <><rect x="5" y="11" width="14" height="10" rx="2" /><path d="M8 11V7a4 4 4 0 0 1 8 0v4M12 15v2" /></> : null}
+      {name === "password" ? <><rect x="5" y="11" width="14" height="10" rx="2" /><path d="M8 11V8C8 2.5 16 2.5 16 8V11" /><path d="M12 15v2" /></> : null}
       {name === "disable" ? <><path d="M12 3v9" /><path d="M7.3 5.6a9 9 0 1 0 9.4 0" /></> : null}
       {name === "enable" ? <><circle cx="12" cy="12" r="9" /><path d="m8 12 3 3 5-6" /></> : null}
     </svg>
@@ -72,13 +72,23 @@ export function UsersManager(): JSX.Element {
   const [pending, setPending] = useState(false);
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteName, setInviteName] = useState("");
-  const [editingNameId, setEditingNameId] = useState<string | null>(null);
+  const [editingTarget, setEditingTarget] = useState<UserRow | null>(null);
   const [editingName, setEditingName] = useState("");
+  const [editingEmail, setEditingEmail] = useState("");
+  const [editError, setEditError] = useState("");
+  const editDialogRef = useRef<HTMLDialogElement>(null);
   const [inviteRole, setInviteRole] = useState<"operator" | "admin">("operator");
   const [resetTarget, setResetTarget] = useState<UserRow | null>(null);
 
   const isOwner = profile?.role === "owner";
   const isAdmin = profile?.role === "admin";
+
+  useEffect(() => {
+    const dialog = editDialogRef.current;
+    if (!dialog) return;
+    if (editingTarget && !dialog.open) dialog.showModal();
+    if (!editingTarget && dialog.open) dialog.close();
+  }, [editingTarget]);
 
   async function reload(): Promise<void> {
     const [profilesResult, visibilityResult, agendaManagersResult, auditViewersResult, financeResult, moduleActionsResult, membershipsResult, invitationsResult] = await Promise.all([
@@ -189,20 +199,56 @@ export function UsersManager(): JSX.Element {
     }
   }
 
-  async function saveUserName(target: UserRow): Promise<void> {
+  function openUserEditor(target: UserRow): void {
     if (pending || !canManage(target)) return;
-    setPending(true); setError(null); setMessage(null);
+    setEditingTarget(target);
+    setEditingName(target.name);
+    setEditingEmail(userEmail(target.id));
+    setEditError("");
+    setError(null);
+    setMessage(null);
+  }
+
+  function closeUserEditor(): void {
+    if (!pending) {
+      setEditingTarget(null);
+      setEditError("");
+    }
+  }
+
+  async function saveUserDetails(): Promise<void> {
+    const target = editingTarget;
+    if (!target || pending || !canManage(target)) return;
+    const name = editingName.trim();
+    const email = editingEmail.trim().toLowerCase();
+    if (name.length < 3 || name.length > 120) {
+      setEditError("Informe o nome completo (3 a 120 caracteres).");
+      return;
+    }
+    if (!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email) || email.length > 254) {
+      setEditError("Informe um endereço de e-mail válido.");
+      return;
+    }
+    setPending(true);
+    setEditError("");
+    setError(null);
+    setMessage(null);
     try {
-      const result = await updateManagedUserName(target.id, editingName);
-      if ("error" in result) setError(result.error);
-      else {
-        setEditingNameId(null);
-        setMessage("Nome real atualizado para " + editingName.trim() + ".");
-        await reload();
+      const result = await updateManagedUserDetails(target.id, name, email);
+      if ("error" in result) {
+        setEditError(result.error);
+        return;
       }
+      await reload();
+      setEditingTarget(null);
+      setMessage(result.emailChanged
+        ? "Nome e e-mail atualizados. O endereço de login foi alterado diretamente, sem envio de convite. Confirme o endereço com a pessoa; contas pendentes ainda dependem de convite e SMTP."
+        : "Dados do usuário atualizados.");
     } catch {
-      setError("Não foi possível atualizar o nome. Tente novamente.");
-    } finally { setPending(false); }
+      setEditError("Falha ao atualizar usuário. Consulte os registros do sistema antes de tentar novamente.");
+    } finally {
+      setPending(false);
+    }
   }
 
   async function resendAccess(target: UserRow): Promise<void> {
@@ -357,7 +403,7 @@ export function UsersManager(): JSX.Element {
   }
 
 
-  // Mesmo conjunto de ações e mesma ordem no desktop e no celular.
+  // Ações compactas somente no desktop. Mobile conserva os botões de texto.
   function renderUserActions(user: UserRow): JSX.Element {
     const roleLabel = user.role === "admin" ? "Rebaixar a operador" : "Promover a admin";
     const permissionsLabel = editingUserId === user.id ? "Fechar permissões" : "Editar permissões";
@@ -365,8 +411,8 @@ export function UsersManager(): JSX.Element {
     return (
       <div className="usuarios-row-actions">
         <button type="button" className="usuarios-action-button"
-          title="Editar nome do usuário" aria-label={"Editar nome de " + userName(user)}
-          onClick={() => { setEditingNameId(user.id); setEditingName(user.name); }} disabled={pending}>
+          title="Editar dados do usuário" aria-label={"Editar dados de " + userName(user)}
+          onClick={() => openUserEditor(user)} disabled={pending}>
           <UserActionIcon name="edit" /><span>Editar</span>
         </button>
         {isOwner ? (
@@ -547,8 +593,8 @@ export function UsersManager(): JSX.Element {
                     {user.role === "operator" ? <button type="button" onClick={() => setEditingUserId((id) => id === user.id ? null : user.id)} disabled={pending}>
                       {editingUserId === user.id ? "Fechar permissões" : "Editar permissões"}
                     </button> : null}
-                    <button type="button" onClick={() => { setEditingNameId(user.id); setEditingName(user.name); }} disabled={pending}>
-                      Editar nome
+                    <button type="button" onClick={() => openUserEditor(user)} disabled={pending}>
+                      Editar
                     </button>
                     {invitationPending(user.id) ? <button type="button" onClick={() => void resendAccess(user)} disabled={pending}>
                       Reenviar acesso
@@ -567,22 +613,47 @@ export function UsersManager(): JSX.Element {
         })}
       </ul>
 
-      {editingNameId ? (
-        <div className="inline-form" style={{ marginBottom: 16 }}>
-          <label className="form-field">
-            <span className="field-label">Nome real do usuário</span>
-            <input type="text" autoComplete="off" maxLength={120} minLength={3}
-              value={editingName} onChange={(event) => setEditingName(event.target.value)} />
-          </label>
-          <div className="form-actions">
-            <button type="button" className="form-action-primary" disabled={pending || editingName.trim().length < 3}
-              onClick={() => { const user = users?.find((entry) => entry.id === editingNameId); if (user) void saveUserName(user); }}>
-              {pending ? "Salvando…" : "Salvar nome"}
-            </button>
-            <button type="button" disabled={pending} onClick={() => setEditingNameId(null)}>Cancelar</button>
+      <dialog
+        ref={editDialogRef}
+        className="ir-modal ir-modal--form usuarios-edit-modal"
+        aria-labelledby="usuarios-edit-title"
+        onCancel={(event) => { if (pending) event.preventDefault(); else closeUserEditor(); }}
+        onClick={(event) => { if (event.target === editDialogRef.current) closeUserEditor(); }}
+      >
+        <form onSubmit={(event) => { event.preventDefault(); void saveUserDetails(); }}>
+          <h2 id="usuarios-edit-title">Editar dados do usuário</h2>
+          <p className="helper-text">Preencha os dados obrigatórios do colaborador.</p>
+          <div className="usuarios-edit-fields">
+            <label className="form-field">
+              <span className="field-label">Nome completo *</span>
+              <input type="text" autoComplete="name" minLength={3} maxLength={120}
+                required autoFocus disabled={pending} value={editingName}
+                onChange={(event) => { setEditingName(event.target.value); setEditError(""); }}
+                placeholder="Nome e sobrenome" />
+            </label>
+            <label className="form-field">
+              <span className="field-label">E-mail *</span>
+              <input type="email" autoComplete="email" maxLength={254}
+                required disabled={pending} value={editingEmail}
+                onChange={(event) => { setEditingEmail(event.target.value); setEditError(""); }}
+                placeholder="nome@exemplo.com" />
+            </label>
           </div>
-        </div>
-      ) : null}
+          <div className="usuarios-edit-meta">
+            <span><strong>Papel:</strong> {editingTarget ? ROLE_LABELS[editingTarget.role] : "—"}</span>
+            <span><strong>Status:</strong> {editingTarget ? userStatus(editingTarget).label : "—"}</span>
+            <span><strong>Criado em:</strong> {editingTarget ? formatDate(editingTarget.created_at) : "—"}</span>
+          </div>
+          <p className="helper-text">O e-mail é o endereço de login. Sua alteração não envia convite nem confirma automaticamente o recebimento. Convites pendentes continuam sujeitos às configurações de SMTP.</p>
+          {editError ? <p className="form-error" role="alert">{editError}</p> : null}
+          <div className="usuarios-edit-actions">
+            <button type="button" onClick={closeUserEditor} disabled={pending}>Cancelar</button>
+            <button type="submit" className="form-action-primary" disabled={pending || !editingName.trim() || !editingEmail.trim()}>
+              {pending ? "Salvando…" : "Salvar alterações"}
+            </button>
+          </div>
+        </form>
+      </dialog>
 
       <ConfirmDialog
         open={Boolean(resetTarget)}
