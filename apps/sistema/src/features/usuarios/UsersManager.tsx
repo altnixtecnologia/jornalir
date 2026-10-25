@@ -534,7 +534,32 @@ export function UsersManager(): JSX.Element {
                 {user.role === "owner" ? (
                   <span className="helper-text">Sem ações — proprietário</span>
                 ) : manageable ? (
-                  renderUserActions(user)
+                  <>
+                    {isOwner ? (
+                      <button
+                        type="button"
+                        onClick={() => changeRole(user, user.role === "admin" ? "operator" : "admin")}
+                        disabled={pending}
+                      >
+                        {user.role === "admin" ? "Rebaixar a operador" : "Promover a admin"}
+                      </button>
+                    ) : null}
+                    {user.role === "operator" ? <button type="button" onClick={() => setEditingUserId((id) => id === user.id ? null : user.id)} disabled={pending}>
+                      {editingUserId === user.id ? "Fechar permissões" : "Editar permissões"}
+                    </button> : null}
+                    <button type="button" onClick={() => { setEditingNameId(user.id); setEditingName(user.name); }} disabled={pending}>
+                      Editar nome
+                    </button>
+                    {invitationPending(user.id) ? <button type="button" onClick={() => void resendAccess(user)} disabled={pending}>
+                      Reenviar acesso
+                    </button> : null}
+                        <button type="button" onClick={() => setResetTarget(user)} disabled={pending}>
+                      Redefinir senha
+                    </button>
+                    <button type="button" onClick={() => toggleActive(user)} disabled={pending}>
+                      {user.active ? "Desativar" : "Ativar"}
+                    </button>
+                  </>
                 ) : null}
               </div>
             </li>
