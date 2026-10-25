@@ -43,15 +43,24 @@ export function NfseCertificatePanel({ issuerCnpj, encryptionReady }: { issuerCn
     event.preventDefault();
     if (!encryptionReady) { setError("Cofre criptográfico não configurado."); return; }
     setError(null);
-    const formData = new FormData(event.currentTarget);
+    // React só garante currentTarget durante o tratamento síncrono do evento.
+    // Guarde a referência antes de iniciar a operação assíncrona; sem isso,
+    // currentTarget pode ser null após o upload e o formulário quebra.
+    const form = event.currentTarget;
+    const formData = new FormData(form);
     startTransition(async () => {
-      const result = await uploadCertificateAction(formData);
-      if ("error" in result) {
-        setError(result.error);
-        return;
+      try {
+        const result = await uploadCertificateAction(formData);
+        if ("error" in result) {
+          setError(result.error);
+          return;
+        }
+        setCertificate(result.certificate);
+        form.reset(); // limpa arquivo PFX e senha digitada; nunca persiste segredo no navegador
+        setShowPassword(false);
+      } catch {
+        setError("Falha na comunicação com o servidor ao salvar o certificado. Confira a configuração e tente novamente.");
       }
-      setCertificate(result.certificate);
-      event.currentTarget.reset();
     });
   }
 
