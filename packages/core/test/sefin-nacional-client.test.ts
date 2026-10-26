@@ -6,12 +6,14 @@ import { SefinNacionalClient } from "../src/nfse/sefin-nacional-client";
 import { NfseIntegrationError } from "../src/nfse/integration-errors";
 import { parseAuthorizationResponse, parseRejectionResponse } from "../src/nfse/dps-builder";
 
-const SIGNED_DPS_XML = "<DPS><infDPS Id=\"DPS4216404199999999999999999999900001000000000001\"></infDPS></DPS>";
+const ISSUER_CNPJ = "23970969000190";
+const SIGNED_DPS_XML =
+  `<DPS><infDPS Id="DPS4216404199999999999999999999900001000000000001"><prest><CNPJ>${ISSUER_CNPJ}</CNPJ></prest></infDPS></DPS>`;
 
-function fakeNfseXml(): string {
+function fakeNfseXml(cnpj: string = ISSUER_CNPJ): string {
   return (
     '<NFSe versao="1.01"><infNFSe Id="NFS42164041199999999999999999900000000012026100001"><nNFSe>12</nNFSe>' +
-    "<dhProc>2026-10-25T12:00:00Z</dhProc></infNFSe></NFSe>"
+    `<dhProc>2026-10-25T12:00:00Z</dhProc><emit><CNPJ>${cnpj}</CNPJ></emit></infNFSe></NFSe>`
   );
 }
 
@@ -68,6 +70,22 @@ test("transmitDps: sem chaveAcesso na resposta -> falha fechado, NUNCA deriva do
   await mock.close();
 });
 
+test("transmitDps: NFS-e retornada de um CNPJ diferente do prestador que enviou a DPS nunca é aceita — associação prestador/DPS verificada (auditoria estrutural 26/10/2026, item 3)", async () => {
+  const mock = new MockAgent();
+  mock.disableNetConnect();
+  const pool = mock.get("https://sefin.producaorestrita.nfse.gov.br");
+  pool.intercept({ path: "/API/SefinNacional/nfse", method: "POST" }).reply(200, {
+    chaveAcesso: "421640419999999999999999999990000000001202610",
+    nfseXmlGZipB64: gzipSync(Buffer.from(fakeNfseXml("00000000000191"), "utf8")).toString("base64"),
+  });
+  const client = new SefinNacionalClient(mock, 2_000, () => undefined);
+  await assert.rejects(
+    () => client.transmitDps(SIGNED_DPS_XML, "homologation"),
+    (error: unknown) => error instanceof NfseIntegrationError && error.code === "NFSE_INVALID_RESPONSE" && error.message.includes("CNPJ diferente"),
+  );
+  await mock.close();
+});
+
 test("transmitDps: rejeição real (E999) — interpreta erros[0].Codigo/Descricao exatamente como visto em produção restrita", async () => {
   const mock = new MockAgent();
   mock.disableNetConnect();
@@ -98,15 +116,29 @@ test("transmitDps: aceita também a capitalização codigo/descricao (segunda fo
   await mock.close();
 });
 
-test("transmitDps: rejeição sem corpo JSON interpretável nunca trava — devolve UNKNOWN em vez de lançar erro genérico", async () => {
+test("transmitDps: rejeição sem corpo JSON interpretável NUNCA vira rejeição fiscal definitiva — lança erro tipado (vira 'uncertain' no TransmissionService), nunca finge uma decisão da SEFIN que não existiu (auditoria estrutural 26/10/2026, item 3)", async () => {
   const mock = new MockAgent();
   mock.disableNetConnect();
   const pool = mock.get("https://sefin.producaorestrita.nfse.gov.br");
   pool.intercept({ path: "/API/SefinNacional/nfse", method: "POST" }).reply(500, "erro interno do gateway");
   const client = new SefinNacionalClient(mock, 2_000, () => undefined);
-  const envelope = await client.transmitDps(SIGNED_DPS_XML, "homologation");
-  assert.equal(envelope.status, "rejected");
-  assert.equal(envelope.rejection?.code, "UNKNOWN");
+  await assert.rejects(
+    () => client.transmitDps(SIGNED_DPS_XML, "homologation"),
+    (error: unknown) => error instanceof NfseIntegrationError && error.code === "NFSE_INVALID_RESPONSE",
+  );
+  await mock.close();
+});
+
+test("transmitDps: HTTP não-2xx com JSON válido mas sem campo 'erros' reconhecível TAMBÉM nunca vira rejeição fiscal definitiva — lança erro tipado", async () => {
+  const mock = new MockAgent();
+  mock.disableNetConnect();
+  const pool = mock.get("https://sefin.producaorestrita.nfse.gov.br");
+  pool.intercept({ path: "/API/SefinNacional/nfse", method: "POST" }).reply(503, { message: "Serviço temporariamente indisponível" });
+  const client = new SefinNacionalClient(mock, 2_000, () => undefined);
+  await assert.rejects(
+    () => client.transmitDps(SIGNED_DPS_XML, "homologation"),
+    (error: unknown) => error instanceof NfseIntegrationError && error.code === "NFSE_INVALID_RESPONSE" && error.httpStatus === 503,
+  );
   await mock.close();
 });
 

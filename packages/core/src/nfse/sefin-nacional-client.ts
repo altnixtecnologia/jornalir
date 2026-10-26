@@ -77,7 +77,7 @@ export class SefinNacionalClient {
     });
 
     if (status >= 200 && status < 300) {
-      return this.parseAuthorizedEnvelope(body);
+      return this.parseAuthorizedEnvelope(body, signedDpsXml);
     }
     return this.parseRejectionEnvelope(body, status);
   }
@@ -171,7 +171,7 @@ export class SefinNacionalClient {
     return { status: "rejected", rejection };
   }
 
-  private parseAuthorizedEnvelope(body: string): NationalNfseResponseEnvelope {
+  private parseAuthorizedEnvelope(body: string, signedDpsXml: string): NationalNfseResponseEnvelope {
     const json = this.parseJson(body);
     const nfseXmlGZipB64 = typeof json.nfseXmlGZipB64 === "string" ? json.nfseXmlGZipB64 : undefined;
     if (!nfseXmlGZipB64) {
@@ -180,6 +180,12 @@ export class SefinNacionalClient {
     const nfseXml = gunzipSync(Buffer.from(nfseXmlGZipB64, "base64")).toString("utf8");
     const accessKey = this.extractAccessKey(json, nfseXml);
     const { nfseNumber, issuedAt } = this.extractNfseFields(nfseXml);
+    // Auditoria estrutural (26/10/2026, item 3 — "validar... associação com prestador/DPS"):
+    // a NFS-e autorizada embute o emitente (TCEmitente/CNPJ, sempre antes do <DPS> embutido no
+    // mesmo documento, ver tiposComplexos_v1.01.xsd) — confirma que a resposta corresponde ao
+    // MESMO prestador da DPS que acabamos de enviar, nunca aceitando uma resposta de outro CNPJ
+    // por engano/corrupção. Falha fechada (NFSE_INVALID_RESPONSE, vira "uncertain") se não bater.
+    this.assertSamePrestador(signedDpsXml, nfseXml);
     return {
       status: "authorized",
       accessKey,
@@ -189,16 +195,45 @@ export class SefinNacionalClient {
     };
   }
 
+  private assertSamePrestador(signedDpsXml: string, nfseXml: string): void {
+    const sentCnpj = new DOMParser().parseFromString(signedDpsXml, "text/xml").getElementsByTagName("CNPJ")[0]?.textContent?.trim();
+    const returnedCnpj = new DOMParser().parseFromString(nfseXml, "text/xml").getElementsByTagName("CNPJ")[0]?.textContent?.trim();
+    if (!sentCnpj || !returnedCnpj) {
+      throw new NfseIntegrationError("NFSE_INVALID_RESPONSE", "Não foi possível confirmar o CNPJ do prestador na DPS enviada ou na NFS-e retornada — associação prestador/DPS não verificável.");
+    }
+    if (sentCnpj !== returnedCnpj) {
+      throw new NfseIntegrationError("NFSE_INVALID_RESPONSE", `A NFS-e retornada pertence a um CNPJ diferente do prestador que transmitiu a DPS (enviado ${sentCnpj}, retornado ${returnedCnpj}) — resposta nunca aceita.`);
+    }
+  }
+
+  /**
+   * Auditoria estrutural (26/10/2026, item 3 — "uma resposta inválida,
+   * inesperada ou incompleta da SEFIN nunca pode virar rejeição
+   * definitiva"): um HTTP não-2xx SEM corpo JSON interpretável ou SEM
+   * nenhum detalhe de erro reconhecível NÃO é prova de que a SEFIN
+   * tomou uma decisão fiscal — pode ser um erro de infraestrutura
+   * (gateway, 503, proxy devolvendo HTML) que nunca chegou a avaliar a
+   * DPS. Antes, este método "inventava" uma rejeição com código
+   * "UNKNOWN" nesses casos, que `TransmissionService` tratava como
+   * definitiva (rascunho liberado pra edição, como se a SEFIN tivesse
+   * de fato rejeitado). Agora LANÇA um erro (`NfseIntegrationError`),
+   * que o chamador já trata como "uncertain" (mesmo caminho de
+   * timeout/falha de rede) — nunca uma rejeição fiscal fingida. Só
+   * retorna `{status:"rejected"}` quando há um detalhe de erro REAL e
+   * reconhecível no corpo.
+   */
   private parseRejectionEnvelope(body: string, status: number): NationalNfseResponseEnvelope {
     let json: Record<string, unknown>;
     try {
       json = this.parseJson(body);
     } catch {
-      return { status: "rejected", rejection: { code: "UNKNOWN", message: `HTTP ${status} sem corpo JSON interpretável.` } };
+      throw new NfseIntegrationError("NFSE_INVALID_RESPONSE", `HTTP ${status} sem corpo JSON interpretável — não é uma rejeição fiscal confirmada, resultado incerto.`, status);
     }
     const erros = Array.isArray(json.erros) ? json.erros : [];
     const first = erros[0] as { Codigo?: unknown; Descricao?: unknown; codigo?: unknown; descricao?: unknown } | undefined;
-    if (!first) return { status: "rejected", rejection: { code: "UNKNOWN", message: `HTTP ${status} sem detalhe de rejeição.` } };
+    if (!first) {
+      throw new NfseIntegrationError("NFSE_INVALID_RESPONSE", `HTTP ${status} sem detalhe de rejeição reconhecível — não é uma rejeição fiscal confirmada, resultado incerto.`, status);
+    }
     // Duas fontes independentes convergiram em capitalizações diferentes
     // (Codigo/Descricao vs codigo/descricao) — aceita ambas, nunca assume.
     const code = String(first.Codigo ?? first.codigo ?? "UNKNOWN");
