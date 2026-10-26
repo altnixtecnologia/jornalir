@@ -727,6 +727,12 @@ export interface NfseTransmissionAttempt {
    * eventual reconciliação). Necessário pra consultDps()/reconciliação
    * sem depender de nada que possa variar com o tempo. */
   dpsId?: string;
+  /** XML assinado da DPS no momento da tentativa (auditoria funcional
+   * 26/10/2026) — snapshot imutável, nunca re-montado/re-assinado
+   * depois. Necessário pra `resolvePendingAttemptWithAccessKey()`
+   * completar o registro fiscal com fidelidade real à DPS original,
+   * sem gerar um dhEmi/assinatura diferentes do que foi transmitido. */
+  signedDpsXml?: string;
   dpsSeries?: string;
   dpsNumber?: number;
   environment: NfseEnvironment;
