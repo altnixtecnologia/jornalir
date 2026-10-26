@@ -18,7 +18,8 @@ export interface NfseRequestLog {
 
 export type NfseLogger = (entry: NfseRequestLog) => void;
 
-const defaultLogger: NfseLogger = (entry) => {
+/** Reexportado (sefin-nacional-client.ts usa o mesmo formato de log). */
+export const defaultNfseLogger: NfseLogger = (entry) => {
   const method = entry.errorCode ? console.warn : console.info;
   method("[nfse]", entry);
 };
@@ -51,7 +52,7 @@ export class NfseMunicipalParametersClient {
   constructor(
     private readonly dispatcher: Dispatcher,
     private readonly timeoutMs = 15_000,
-    private readonly logger: NfseLogger = defaultLogger,
+    private readonly logger: NfseLogger = defaultNfseLogger,
   ) {}
 
   async queryMunicipalityAndService(input: {

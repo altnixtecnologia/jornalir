@@ -95,6 +95,18 @@ export class RealTransmissionNotReadyError extends Error {
  * `fetch` global do Node é implementado sobre `undici`) — só a
  * conexão TLS do cliente; nunca a chave privada chega à aplicação de
  * outra forma.
+ *
+ * (Bloco B, 25/10/2026) O CLIENTE REAL que construiria/interpretaria
+ * cada requisição JÁ EXISTE e está testado de forma independente:
+ * `SefinNacionalClient` (sefin-nacional-client.ts) — gzip+base64 do
+ * corpo, parsing das respostas de autorização/rejeição, consultas por
+ * chave/DPS, tudo corroborado por múltiplas fontes externas (ver
+ * comentário da classe). Esta classe NUNCA o instancia/chama de
+ * propósito: a guarda abaixo continua a única forma de "transmissão
+ * real bloqueada", sem depender de o cliente real existir ou não —
+ * religar significa trocar o corpo de cada método abaixo para delegar
+ * ao `SefinNacionalClient`, nunca remover esta classe nem o
+ * `RealTransmissionNotReadyError`.
  */
 export class FetchNationalNfseProvider implements NationalNfseProvider {
   constructor(private readonly mutualTlsAgent?: unknown) {}
