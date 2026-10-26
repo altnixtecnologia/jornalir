@@ -23,12 +23,13 @@ export const PREVIEW_TRANSMISSION_ATTEMPTS: NfseTransmissionAttempt[] = [
 
 const TABLE = "nfse_transmission_attempts";
 const COLUMNS =
-  "id, draft_id, dps_series, dps_number, environment, status, request_reference, response_summary, " +
+  "id, draft_id, dps_id, dps_series, dps_number, environment, status, request_reference, response_summary, " +
   "rejection_code, rejection_message, issued_note_id, created_by, created_at";
 
 interface AttemptRow {
   id: string;
   draft_id: string;
+  dps_id: string | null;
   dps_series: string | null;
   dps_number: number | null;
   environment: NfseEnvironment;
@@ -46,6 +47,7 @@ function toDomain(row: AttemptRow): NfseTransmissionAttempt {
   return {
     id: row.id,
     draftId: row.draft_id,
+    dpsId: row.dps_id ?? undefined,
     dpsSeries: row.dps_series ?? undefined,
     dpsNumber: row.dps_number !== null ? Number(row.dps_number) : undefined,
     environment: row.environment,
@@ -76,6 +78,7 @@ export function createTransmissionAttemptRepositorySupabase(client: SupabaseClie
         const attempt: NfseTransmissionAttempt = {
           id: `preview-tentativa-${Date.now()}`,
           draftId: record.draftId,
+          dpsId: record.dpsId,
           dpsSeries: record.dpsSeries,
           dpsNumber: record.dpsNumber,
           environment: record.environment,
@@ -94,6 +97,7 @@ export function createTransmissionAttemptRepositorySupabase(client: SupabaseClie
         .from(TABLE)
         .insert({
           draft_id: record.draftId,
+          dps_id: record.dpsId ?? null,
           dps_series: record.dpsSeries ?? null,
           dps_number: record.dpsNumber ?? null,
           environment: record.environment,

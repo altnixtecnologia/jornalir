@@ -253,6 +253,7 @@ export class TransmissionService {
     // retransmissão indevida.
     await this.attempts.create({
       draftId: draft.id,
+      dpsId,
       dpsSeries,
       dpsNumber,
       environment,
@@ -275,6 +276,7 @@ export class TransmissionService {
       // tentativa).
       const attempt = await this.attempts.create({
         draftId: draft.id,
+        dpsId,
         dpsSeries,
         dpsNumber,
         environment,
@@ -319,6 +321,7 @@ export class TransmissionService {
 
       const attempt = await this.attempts.create({
         draftId: draft.id,
+        dpsId,
         dpsSeries,
         dpsNumber,
         environment,
@@ -335,6 +338,7 @@ export class TransmissionService {
     const rejection = parseRejectionResponse(envelope) ?? { code: "UNKNOWN", message: "Rejeitada sem detalhe." };
     const attempt = await this.attempts.create({
       draftId: draft.id,
+      dpsId,
       dpsSeries,
       dpsNumber,
       environment,
@@ -356,6 +360,49 @@ export class TransmissionService {
   /** Consulta a NFS-e pela chave de acesso (item 15). */
   consultNfseByAccessKey(accessKey: string, environment: "homologation" | "production" = "homologation"): Promise<string> {
     return this.provider.getNfseByAccessKey(accessKey, environment);
+  }
+
+  /**
+   * Consulta de RECONCILIAÇÃO (auditoria estrutural, 26/10/2026, Bloco
+   * 1, item 3 — "implementar ou verificar consulta de reconciliação,
+   * sem retransmissão automática") pra uma tentativa "pending"/
+   * "uncertain" presa (processo morto no meio, timeout, etc.).
+   *
+   * NUNCA transmite nada: só consulta `GET /dps/{id}` (via
+   * `consultDps`, usando o `dpsId` gravado como snapshot na própria
+   * tentativa — nunca reconstruído da configuração atual) e devolve o
+   * resultado bruto pro chamador decidir.
+   *
+   * LIMITAÇÃO HONESTA, documentada também em sefin-nacional-client.ts:
+   * o formato exato do corpo de `GET /dps/{id}` não está confirmado
+   * contra uma fonte oficial com certificado real — por isso este
+   * método NUNCA tenta interpretar/parsear esse corpo pra decidir
+   * sozinho que a tentativa foi autorizada ou rejeitada (isso seria
+   * inventar um contrato não confirmado). Ele só informa SE a DPS foi
+   * encontrada (`found`) e devolve o corpo bruto (`rawBody`) — a
+   * resolução definitiva da tentativa (gravar "authorized"/"rejected")
+   * continua exigindo, no mínimo, decisão humana informada por esse
+   * resultado, nunca uma automação que adivinha o formato.
+   */
+  async reconcilePendingAttempt(draftId: string): Promise<{
+    hasUnresolvedAttempt: boolean;
+    attempt?: NfseTransmissionAttempt;
+    found?: boolean;
+    rawBody?: string | null;
+  }> {
+    const previousAttempts = await this.attempts.listByDraftId(draftId);
+    const latest = previousAttempts[0];
+    if (!latest || (latest.status !== "pending" && latest.status !== "uncertain")) {
+      return { hasUnresolvedAttempt: false };
+    }
+    if (!latest.dpsId) {
+      // Tentativas gravadas antes desta auditoria (26/10/2026) podem não ter dpsId —
+      // nunca reconstrói a partir da configuração atual (pode ter mudado); falha honesta.
+      return { hasUnresolvedAttempt: true, attempt: latest, found: undefined, rawBody: null };
+    }
+    const environment = latest.environment === "production" ? "production" : "homologation";
+    const rawBody = await this.consultDps(latest.dpsId, environment);
+    return { hasUnresolvedAttempt: true, attempt: latest, found: rawBody !== null, rawBody };
   }
 
   /**
