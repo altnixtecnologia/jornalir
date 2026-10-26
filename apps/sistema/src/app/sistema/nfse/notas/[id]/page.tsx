@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import Link from "next/link";
 import { ModuleHeader } from "../../../../../components/admin/ModuleHeader";
 import { createSupabaseServerClient } from "../../../../../lib/supabase/server";
 import { createIssuedNoteRepositorySupabase } from "../../../../../providers/supabase/nfseIssuedNoteRepository.supabase";
@@ -61,6 +62,15 @@ export default async function NfseNotaDetailPage({ params }: { params: { id: str
             <span>{note.competencyDate}</span>
           </div>
         </div>
+        {previewMode ? (
+          <p className="helper-text">DANFSe indisponível em modo demonstração — o XML desta nota é fictício, nunca um XML real retornado pela SEFIN.</p>
+        ) : (
+          <div className="form-actions">
+            <Link className="form-action-primary" href={`/sistema/nfse/notas/${note.id}/danfse`} target="_blank" rel="noopener noreferrer">
+              Baixar DANFSe
+            </Link>
+          </div>
+        )}
       </section>
       <NfseConsultationPanel accessKey={note.accessKey} />
       <NfseCancellationPanel issuedNoteId={note.id} history={history} />
