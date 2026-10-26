@@ -4,6 +4,7 @@ import { createSupabaseServerClient } from "../../../../../lib/supabase/server";
 import { createIssuedNoteRepositorySupabase } from "../../../../../providers/supabase/nfseIssuedNoteRepository.supabase";
 import { getDraftService, getCancellationService } from "../../../../../composition/nfse";
 import { NfseCancellationPanel } from "../../../../../features/nfse/NfseCancellationPanel";
+import { NfseConsultationPanel } from "../../../../../features/nfse/NfseConsultationPanel";
 
 function formatAmount(value: number): string {
   return value.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
@@ -52,6 +53,7 @@ export default async function NfseNotaDetailPage({ params }: { params: { id: str
           </div>
         </div>
       </section>
+      <NfseConsultationPanel accessKey={note.accessKey} />
       <NfseCancellationPanel issuedNoteId={note.id} history={history} />
     </>
   );
