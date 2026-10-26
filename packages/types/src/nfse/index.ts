@@ -277,12 +277,15 @@ export interface NfseCertificateInfo {
  * não precisamos do valor exato porque a transmissão em produção
  * continua bloqueada nesta fase (ver isTransmissionEnvironmentAllowed).
  */
-/** Versão EFETIVAMENTE vendorizada/testada no repositório — jamais atualizar sem trocar os XSD. */
-export const NFSE_SCHEMA_PACKAGE_HOMOLOGATION = "NFSe-ESQUEMAS_XSD-PRODREST-v1.01-20260727";
+/** Versão EFETIVAMENTE vendorizada/testada no repositório — jamais atualizar sem trocar os XSD.
+ * Tipada como `string` (não literal): as duas constantes devem poder convergir sem o
+ * TypeScript marcar a comparação em checkHomologationReadiness() como "sem overlap" —
+ * o fail-closed é uma checagem de RUNTIME deliberada, válida tanto divergindo quanto convergindo. */
+export const NFSE_SCHEMA_PACKAGE_HOMOLOGATION: string = "NFSe-ESQUEMAS_XSD-PRODREST-v1.01-20261020";
 /** Versão vigente informada pelo Portal NFS-e para Produção Restrita em 20/10/2026.
  * É deliberadamente distinta da versão vendorizada; a divergência bloqueia a prontidão.
  * Fonte: https://www.gov.br/nfse/pt-br/biblioteca/documentacao-tecnica/producao-restrita */
-export const NFSE_SCHEMA_PACKAGE_REQUIRED_HOMOLOGATION = "NFSe-ESQUEMAS_XSD-PRODREST-v1.01-20261020";
+export const NFSE_SCHEMA_PACKAGE_REQUIRED_HOMOLOGATION: string = "NFSe-ESQUEMAS_XSD-PRODREST-v1.01-20261020";
 
 /**
  * PENDENTE (revisão RTC/IBS-CBS, outubro/2026): a Reforma Tributária do

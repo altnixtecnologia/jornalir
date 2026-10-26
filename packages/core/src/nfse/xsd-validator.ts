@@ -14,14 +14,16 @@ import { validateXML } from "xmllint-wasm";
  * servidor, compatível com Node/Vercel.
  *
  * Esquema: pacote oficial vendorizado em
- * `./xsd/prodrest-v1.01-20260727/` (ver README.md lá — origem, versão,
- * checksum). `DPS_v1.01.xsd` é o esquema raiz pra validar uma DPS;
+ * `./xsd/prodrest-v1.01-20261020/` (ver README.md lá — origem, versão,
+ * checksum; o pacote anterior `prodrest-v1.01-20260727/` foi preservado
+ * para histórico auditável, mas não é mais o validado em runtime).
+ * `DPS_v1.01.xsd` é o esquema raiz pra validar uma DPS;
  * todos os demais arquivos do pacote são pré-carregados (`preload`)
  * pra resolver os `xs:import`/`xs:include` internos (ex.:
  * `xmldsig-core-schema.xsd`, `tiposComplexos_v1.01.xsd`).
  */
 
-const XSD_DIR = join(dirname(fileURLToPath(import.meta.url)), "xsd", "prodrest-v1.01-20260727");
+const XSD_DIR = join(dirname(fileURLToPath(import.meta.url)), "xsd", "prodrest-v1.01-20261020");
 const ROOT_SCHEMA_FILE = "DPS_v1.01.xsd";
 
 export interface XsdValidationResult {
