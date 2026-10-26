@@ -20,13 +20,14 @@ function makeTestKeyAndCert(): { privateKeyPem: string; certificatePem: string }
   return { privateKeyPem: forge.pki.privateKeyToPem(keys.privateKey), certificatePem: forge.pki.certificateToPem(cert) };
 }
 
-const SAMPLE_ACCESS_KEY = "421640" + "41999999999999" + "999999999990000000001202610001";
+// 9º caractere do Id ("PRE"+chave+tipo) cai em "2" — satisfaz também o regex do XSD pro atributo Id
+// (ver ressalva honesta em event-builder.ts), pra este teste focar só na assinatura, não na contradição externa do Id.
+const SAMPLE_ACCESS_KEY = "421640" + "99299999999999" + "999999999990000000001202610001";
 
 function makeSignedXml() {
   const xml = buildCancellationEventXml({
     accessKey: SAMPLE_ACCESS_KEY,
     authorCnpj: "23970969000190",
-    sequence: 1,
     justificationCode: 1,
     justificationText: "Erro de digitação no valor do serviço na emissão original.",
     environment: "homologation",

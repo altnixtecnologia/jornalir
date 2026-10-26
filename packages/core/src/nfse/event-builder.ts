@@ -3,70 +3,81 @@ import { tag } from "./xml-utils";
 
 /**
  * Builder do "Pedido de Registro de Evento" (TCPedRegEvt) — Bloco B,
- * item 2 (25/10/2026): cobre SÓ o evento de cancelamento (e101101),
- * que é o único evento que o Jornal IR precisa emitir como autor
- * (prestador). Os demais eventos do `xs:choice` de `TCInfPedReg`
- * (substituição, análise fiscal, confirmações/rejeições do tomador,
- * eventos de ofício da administração tributária) NÃO são deste
- * sistema — ou dependem de fluxos ainda não suportados (substituição)
- * ou são gerados pela própria administração/tomador, nunca pelo
- * prestador (ver `tiposEventos_v1.01.xsd`, `TCInfPedReg`).
+ * item 2 (25/10/2026, revisado 25/10/2026 na etapa de integração
+ * final): cobre SÓ o evento de cancelamento (e101101), que é o único
+ * evento que o Jornal IR precisa emitir como autor (prestador). Os
+ * demais eventos do `xs:choice` de `TCInfPedReg` (substituição, análise
+ * fiscal, confirmações/rejeições do tomador, eventos de ofício da
+ * administração tributária) NÃO são deste sistema — ou dependem de
+ * fluxos ainda não suportados (substituição) ou são gerados pela
+ * própria administração/tomador, nunca pelo prestador (ver
+ * `tiposEventos_v1.01.xsd`, `TCInfPedReg`).
  *
  * Estrutura/ordem dos elementos (`infPedReg`: tpAmb, verAplic,
  * dhEvento, CNPJAutor|CPFAutor, chNFSe, e101101{xDesc,cMotivo,xMotivo})
  * confirmada diretamente contra o XSD oficial vendorizado
  * (`xsd/prodrest-v1.01-20261020/tiposEventos_v1.01.xsd`,
- * `TCInfPedReg`/`TE101101`) — nunca inventada.
+ * `TCInfPedReg`/`TE101101`) e contra o "Manual de Integração Webservice
+ * NFS-e Padrão Nacional" oficial (v1.01, revisado 03/08/2026) — nunca
+ * inventada. O manual confirma inclusive que o campo `nPedRegEvento`
+ * NÃO faz parte de `infPedReg`/`TCInfPedReg` (consistente com o XSD
+ * vendorizado, que também não o tem) — ele só existe dentro da
+ * composição do `Id` do EVENTO (`TSIdEvento`, gerado pela própria
+ * SEFIN na resposta, nunca por nós) e do contador `nSeqEvento` em
+ * `TCInfEvento`.
  *
- * LIMITAÇÃO HONESTA (ver também sefin-nacional-client.ts): o atributo
- * `Id` de `infPedReg` segue o padrão `TSIdPedRegEvt` —
- * `PRE[0-9]{8}(1[0-9]{14}|2[0-9A-Z]{14})[0-9]{33}` (59 caracteres). A
- * documentação do XSD descreve a composição como "PRE" + Chave de
- * Acesso NFS-e + Tipo do evento + Número do Pedido de Registro do
- * Evento, mas essa descrição em prosa NÃO bate matematicamente com os
- * tamanhos fixos do próprio regex (chave de acesso tem 50 caracteres;
- * o regex só comporta 56 depois de "PRE", numa divisão 8+15+33 que não
- * é a mesma divisão 6+14+30 da chave). Sem acesso ao Swagger
- * autenticado por mTLS, não há como confirmar a composição semântica
- * exata byte a byte. `buildCancellationEventId` abaixo gera um valor
- * que SATISFAZ o regex (reaproveitando dígitos reais da chave de
- * acesso e a mesma convenção de tipo de inscrição 1=CPF/2=CNPJ já
- * confirmada em `buildDpsId`), mas a composição exata não está
- * confirmada e deve ser revista no dia da homologação real com acesso
- * à documentação autenticada — isso NUNCA bloqueia a preparação
- * estrutural do evento (o resto do XML é confirmado), mas bloqueia,
- * sim, o envio real (ver `CancellationSubmissionNotReadyError` em
- * cancellation-service.ts, que continua lançando incondicionalmente).
+ * COMPOSIÇÃO DO `Id` DE `infPedReg` (`TSIdPedRegEvt`, 59 caracteres,
+ * prefixo "PRE") — CORROBORADA por 3 fontes independentes nesta
+ * revisão: (1) o próprio Manual de Integração oficial, prosa literal:
+ * "'PRE' + Chave de Acesso NFS-e (50) + Tipo do evento (6)"; (2) um
+ * post no fórum ProjetoACBr relatando que, após a Nota Técnica/Anexo
+ * II de 27-28/12/2025, o campo `nPedRegEvento` foi REMOVIDO dessa
+ * composição (antes eram 62 caracteres, com o número do pedido; hoje
+ * são 59, sem ele); (3) o CHANGELOG/PR #10 do projeto open-source
+ * `Quantum-Tecnology/nfse-nacional` ("fix(xsd): XSDs oficiais da v1.01
+ * ... e cancelamento sem nPedRegEvento"), que descreve exatamente a
+ * mesma mudança e a mesma fórmula final (`PRE[0-9]{56}`, ou seja PRE +
+ * chave(50) + tipo do evento(6)). As 3 fontes convergem — isso
+ * SUBSTITUI a tentativa anterior desta função (que reaproveitava a
+ * convenção de `buildDpsId`, nunca confirmada para este campo
+ * especificamente).
+ *
+ * RESSALVA HONESTA que permanece (documentada pelo próprio projeto
+ * Quantum-Tecnology, não inventada aqui): o regex do XSD vendorizado
+ * para `TSIdPedRegEvt` — `PRE[0-9]{8}(1[0-9]{14}|2[0-9A-Z]{14})[0-9]{33}`
+ * — tem uma estrutura de classes de caracteres (dígito-dígito-flag+
+ * alfanumérico-dígito) que só por coincidência bate com a concatenação
+ * literal "PRE"+chave+tipo quando o 7º caractere da chave de acesso
+ * (1º caractere do seu trecho alfanumérico de 14) for literalmente "1"
+ * ou "2" — o próprio changelog do Quantum-Tecnology chama isso de
+ * contradição no XSD oficial. Não é um erro desta implementação: é uma
+ * inconsistência confirmada entre a PROSA do manual (que seguimos,
+ * porque é o que as implementações reais usam) e o REGEX do XSD vigente
+ * — resolver isso de vez depende de testar contra o validador real da
+ * SEFIN em homologação, o que esta fase não faz.
  */
 
 function onlyDigits(value: string): string {
   return value.replace(/\D/g, "");
 }
 
+/** Código de evento (6 caracteres) usado na composição do Id — "101101" pro cancelamento (TE101101/"e101101"), nunca um valor solto. */
+const CANCELLATION_EVENT_CODE = "101101";
+
 export interface CancellationEventIdInput {
+  /** Chave de Acesso NFS-e (TSChaveNFSe, 50 caracteres) — usada EXATAMENTE como veio, nunca só os dígitos (o trecho do meio é alfanumérico). */
   accessKey: string;
-  /** CNPJ do autor do evento (sempre o prestador neste sistema — nunca procurador). */
-  authorCnpj: string;
-  /** Número sequencial do pedido de registro de evento (nPedRegEvento) — 001 para o primeiro pedido desta nota. */
-  sequence: number;
 }
 
-/** Ver limitação honesta no comentário do módulo — regex-conformante, composição semântica não confirmada oficialmente. */
+/** Ver "COMPOSIÇÃO DO Id" no comentário do módulo — "PRE" + chave de acesso (50) + código do evento (6) = 59 caracteres. */
 export function buildCancellationEventId(input: CancellationEventIdInput): string {
-  const accessKeyDigits = onlyDigits(input.accessKey).padEnd(50, "0").slice(0, 50);
-  const first8 = accessKeyDigits.slice(0, 8);
-  const inscriptionTypeCode = "2"; // CNPJ, mesma convenção de buildDpsId (@ir/types)
-  const inscription = onlyDigits(input.authorCnpj).padStart(14, "0").slice(-14);
-  const remainingAccessKeyDigits = accessKeyDigits.slice(8, 38).padEnd(30, "0").slice(0, 30);
-  const sequence3 = String(input.sequence).padStart(3, "0").slice(-3);
-  const tail33 = `${remainingAccessKeyDigits}${sequence3}`.padEnd(33, "0").slice(0, 33);
-  return `PRE${first8}${inscriptionTypeCode}${inscription}${tail33}`;
+  const accessKey = input.accessKey.padEnd(50, "0").slice(0, 50);
+  return `PRE${accessKey}${CANCELLATION_EVENT_CODE}`;
 }
 
 export interface CancellationEventBuildInput {
   accessKey: string;
   authorCnpj: string;
-  sequence: number;
   justificationCode: 1 | 2 | 9;
   justificationText: string;
   environment: NfseEnvironment;
@@ -83,7 +94,7 @@ export interface CancellationEventBuildInput {
 export function buildCancellationEventXml(input: CancellationEventBuildInput): string {
   // TSDateTimeUTC exige TZD numérico (+hh:mm/-hh:mm) — "Z" literal não casa com o pattern do XSD.
   const dhEvento = (input.now ?? new Date()).toISOString().replace(/\.\d{3}Z$/, "+00:00");
-  const id = buildCancellationEventId({ accessKey: input.accessKey, authorCnpj: input.authorCnpj, sequence: input.sequence });
+  const id = buildCancellationEventId({ accessKey: input.accessKey });
 
   const e101101 = [
     `<xDesc>Cancelamento de NFS-e</xDesc>`,
