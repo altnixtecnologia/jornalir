@@ -164,6 +164,81 @@ test("resposta maior que o limite de segurança é rejeitada antes de qualquer p
   await mock.close();
 });
 
+test("submitCancellationEvent: registra evento — descompacta pedidoRegistroEventoXmlGZipB64 enviado, nunca confunde com dpsXmlGZipB64", async () => {
+  const mock = new MockAgent();
+  mock.disableNetConnect();
+  const pool = mock.get("https://sefin.producaorestrita.nfse.gov.br");
+  const SIGNED_EVENT_XML = "<pedRegEvento><infPedReg Id=\"PRE00000000299999999999999999900000000000000000000000000\"></infPedReg></pedRegEvento>";
+  let receivedBody = "";
+  pool
+    .intercept({
+      path: "/API/SefinNacional/nfse/421640419999999999999999999990000000001202610001/eventos",
+      method: "POST",
+      body: (body) => { receivedBody = String(body); return true; },
+    })
+    .reply(200, { eventoXmlGZipB64: gzipSync(Buffer.from("<evento>registrado</evento>", "utf8")).toString("base64") });
+
+  const client = new SefinNacionalClient(mock, 2_000, () => undefined);
+  const envelope = await client.submitCancellationEvent(SIGNED_EVENT_XML, "421640419999999999999999999990000000001202610001", "homologation");
+
+  const sentJson = JSON.parse(receivedBody) as Record<string, string>;
+  assert.ok(sentJson.pedidoRegistroEventoXmlGZipB64, "deve enviar pedidoRegistroEventoXmlGZipB64, nunca dpsXmlGZipB64");
+  assert.equal(sentJson.dpsXmlGZipB64, undefined);
+  const decompressedSent = gunzipSync(Buffer.from(sentJson.pedidoRegistroEventoXmlGZipB64, "base64")).toString("utf8");
+  assert.equal(decompressedSent, SIGNED_EVENT_XML);
+
+  assert.equal(envelope.status, "registered");
+  assert.equal(envelope.eventXml, "<evento>registrado</evento>");
+  await mock.close();
+});
+
+test("submitCancellationEvent: rejeição (erros[0]) interpretada igual à rejeição de emissão", async () => {
+  const mock = new MockAgent();
+  mock.disableNetConnect();
+  const pool = mock.get("https://sefin.producaorestrita.nfse.gov.br");
+  pool.intercept({ path: "/API/SefinNacional/nfse/CHAVE/eventos", method: "POST" }).reply(400, {
+    erros: [{ Codigo: "E999", Descricao: "Evento rejeitado." }],
+  });
+  const client = new SefinNacionalClient(mock, 2_000, () => undefined);
+  const envelope = await client.submitCancellationEvent("<pedRegEvento/>", "CHAVE", "homologation");
+  assert.equal(envelope.status, "rejected");
+  assert.deepEqual(envelope.rejection, { code: "E999", message: "Evento rejeitado." });
+  await mock.close();
+});
+
+test("getEventsByAccessKey: consulta sem filtro usa /eventos; com tipo usa /eventos/{tipo}", async () => {
+  const mock = new MockAgent();
+  mock.disableNetConnect();
+  const pool = mock.get("https://sefin.producaorestrita.nfse.gov.br");
+  pool.intercept({ path: "/API/SefinNacional/nfse/CHAVE/eventos", method: "GET" }).reply(200, "[]");
+  pool.intercept({ path: "/API/SefinNacional/nfse/CHAVE/eventos/e101101", method: "GET" }).reply(200, "[]");
+  const client = new SefinNacionalClient(mock, 2_000, () => undefined);
+  assert.equal(await client.getEventsByAccessKey("CHAVE", "homologation"), "[]");
+  assert.equal(await client.getEventsByAccessKey("CHAVE", "homologation", { eventType: "e101101" }), "[]");
+  await mock.close();
+});
+
+test("getEventsByAccessKey: 404 nunca é tratado como sucesso silencioso", async () => {
+  const mock = new MockAgent();
+  mock.disableNetConnect();
+  const pool = mock.get("https://sefin.producaorestrita.nfse.gov.br");
+  pool.intercept({ path: "/API/SefinNacional/nfse/CHAVE-SEM-EVENTOS/eventos", method: "GET" }).reply(404, {});
+  const client = new SefinNacionalClient(mock, 2_000, () => undefined);
+  await assert.rejects(
+    () => client.getEventsByAccessKey("CHAVE-SEM-EVENTOS", "homologation"),
+    (error: unknown) => error instanceof NfseIntegrationError && error.httpStatus === 404,
+  );
+  await mock.close();
+});
+
+test("submitCancellationEvent: produção continua bloqueada mesmo para o registro de eventos", async () => {
+  const mock = new MockAgent();
+  mock.disableNetConnect();
+  const client = new SefinNacionalClient(mock, 2_000, () => undefined);
+  await assert.rejects(() => client.submitCancellationEvent("<pedRegEvento/>", "CHAVE", "production"), /bloqueadas/);
+  await mock.close();
+});
+
 test("produção continua operacionalmente bloqueada mesmo para o cliente real (assertNfseOperationAllowed)", async () => {
   const mock = new MockAgent();
   mock.disableNetConnect();

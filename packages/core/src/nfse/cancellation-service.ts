@@ -20,13 +20,28 @@ export class CancellationAlreadyRequestedError extends Error {
 /**
  * O envio REAL do evento de cancelamento (e101101) ao Sistema Nacional
  * permanece bloqueado nesta fase — mesmo princípio de
- * RealTransmissionNotReadyError em national-nfse-provider.ts. Falta:
- * (1) confirmar o endpoint/formato exato de registro de evento contra
- * a documentação oficial com acesso ao Swagger autenticado por mTLS
- * (bloqueado sem certificado real nesta sessão); (2) homologação
- * completa do fluxo de emissão em si, do qual o cancelamento depende.
- * Até lá, esta operação fica só na preparação local (registro de
- * motivo/justificativa, ver requestCancellation).
+ * RealTransmissionNotReadyError em national-nfse-provider.ts.
+ *
+ * (Bloco B, item 2, 25/10/2026) As peças que construiriam/assinariam/
+ * transmitiriam o evento de cancelamento JÁ EXISTEM e estão testadas
+ * de forma independente: `buildCancellationEventXml`/
+ * `buildCancellationEventId` (event-builder.ts, estrutura confirmada
+ * contra `tiposEventos_v1.01.xsd` oficial, inclusive validação XSD
+ * real — ver `validatePedRegEventoAgainstOfficialXsd`),
+ * `signCancellationEventXml` (signature.ts, mesmo perfil de assinatura
+ * da DPS) e `SefinNacionalClient.submitCancellationEvent`/
+ * `getEventsByAccessKey` (sefin-nacional-client.ts, contrato REST
+ * corroborado por fontes independentes). Esta classe NUNCA as chama —
+ * `submitCancellation` abaixo continua lançando
+ * `CancellationSubmissionNotReadyError` incondicionalmente, ANTES de
+ * qualquer chance de montar/assinar/enviar o evento. Falta, para
+ * religar de verdade: (1) confirmar a composição exata do atributo
+ * `Id` de `infPedReg` contra documentação autenticada (ver limitação
+ * honesta documentada em event-builder.ts — o regex do XSD está
+ * satisfeito, mas a semântica dos dígitos não está confirmada); (2)
+ * homologação completa do fluxo de emissão em si, do qual o
+ * cancelamento depende. Até lá, esta operação fica só na preparação
+ * local (registro de motivo/justificativa, ver requestCancellation).
  */
 export class CancellationSubmissionNotReadyError extends Error {
   constructor() {
