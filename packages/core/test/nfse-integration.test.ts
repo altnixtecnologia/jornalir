@@ -26,7 +26,11 @@ test("configuração central separa Produção Restrita e Produção e mantém p
   assert.equal(getNfseEnvironmentConfig("homologation").label, "Produção Restrita");
   assert.equal(getNfseEnvironmentConfig("production").operationsEnabled, false);
   assert.equal(buildMunicipalParametersUrl("4216404", "homologation"), "https://adn.producaorestrita.nfse.gov.br/parametrizacao/4216404/convenio");
-  assert.equal(buildTransmitDpsUrl("production"), "https://sefin.nfse.gov.br/API/SefinNacional/nfse");
+  // Produção Restrita usa "/API/SefinNacional"; Produção usa "/SefinNacional" SEM "/API/" —
+  // paths DISTINTOS confirmados contra a própria página oficial gov.br/nfse (auditoria
+  // estrutural 26/10/2026, item 7) — nunca o mesmo prefixo nos dois ambientes.
+  assert.equal(buildTransmitDpsUrl("homologation"), "https://sefin.producaorestrita.nfse.gov.br/API/SefinNacional/nfse");
+  assert.equal(buildTransmitDpsUrl("production"), "https://sefin.nfse.gov.br/SefinNacional/nfse");
 });
 
 test("dispatcher mTLS é criado com certificado e chave válidos", async () => {
