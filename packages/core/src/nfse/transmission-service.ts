@@ -205,17 +205,6 @@ export class TransmissionService {
       throw new TransmissionValidationError(structuralCheck.issues);
     }
 
-    // NOTA: a guarda central de prontidão (readiness.ts, inclui a
-    // validação XSD real) é exposta separadamente via `checkReadiness()`
-    // — pra UI mostrar "Emissão em homologação ainda não está pronta" +
-    // itens faltantes (item 7 da Parte 2B). NÃO é chamada aqui dentro:
-    // o bloqueio de uma chamada real à API nacional já é feito de forma
-    // incondicional e independente por `RealTransmissionNotReadyError`
-    // (ver national-nfse-provider.ts) — nunca duplicado/contornável
-    // aqui. Mantém esta orquestração testável com um provider fake,
-    // sem depender de o builder já ser 100% conforme ao XSD oficial
-    // (gap conhecido, ver dps-builder.ts).
-
     // Certificado JÁ confirmado presente (passo 6) — SÓ AGORA decifra a chave privada (nunca antes).
     const keyMaterial = await this.certificates.getActiveSigningMaterial(issuerConfig.id);
     if (!keyMaterial) throw new CertificateNotConfiguredError();
@@ -226,6 +215,24 @@ export class TransmissionService {
       privateKeyPem: keyMaterial.privateKeyPem,
       certificatePem: keyMaterial.certificatePem,
     });
+
+    // VALIDAÇÃO XSD REAL NO CAMINHO OBRIGATÓRIO (auditoria estrutural,
+    // 26/10/2026, item 2): até aqui, a validação XSD oficial
+    // (`validateDpsAgainstOfficialXsd`) só era exposta via
+    // `checkReadiness()` — um diagnóstico VISUAL pra UI, nunca chamado
+    // de dentro de `transmit()`. Isso significava que, tecnicamente,
+    // nada IMPEDIA uma DPS estruturalmente inválida (mas que passasse
+    // pela checagem mínima de `validateDpsXmlStructure`) de chegar a
+    // `this.provider.transmitDps()`. Corrigido: valida o XML ASSINADO
+    // (o que de fato seria transmitido) contra o XSD oficial AQUI,
+    // sempre, antes de qualquer chamada externa — nunca contornável.
+    // `RealTransmissionNotReadyError` continua bloqueando de forma
+    // independente mesmo que esta validação passe; esta é uma camada
+    // adicional, nunca uma substituição daquela.
+    const xsdResult = await validateDpsAgainstOfficialXsd(signed.signedXml);
+    if (!xsdResult.valid) {
+      throw new TransmissionValidationError(xsdResult.errors.length > 0 ? xsdResult.errors : ["XML da DPS não passou na validação XSD oficial."]);
+    }
 
     // 14) transmitir
     const requestReference = randomUUID();

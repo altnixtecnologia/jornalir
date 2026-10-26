@@ -42,9 +42,13 @@ export function getCertificateService(): CertificateService {
 
 /**
  * Transmissão nacional (Parte 2A/2B) — nunca chamada de fato nesta
- * fase (XSD real ainda não valida a DPS gerada, ver dps-builder.ts/
- * xsd-validator.ts; `FetchNationalNfseProvider` bloqueia toda chamada
- * de propósito). Montada aqui já de ponta a ponta.
+ * fase (`FetchNationalNfseProvider` bloqueia toda chamada de
+ * propósito, independente de a DPS passar na validação XSD ou não).
+ * Desde a auditoria estrutural de 26/10/2026 (item 2), a validação
+ * XSD real É parte do caminho obrigatório de `TransmissionService.
+ * transmit()` — roda sempre, antes de qualquer chamada externa, nunca
+ * só no diagnóstico visual de `checkReadiness()` (ver
+ * transmission-service.ts). Montada aqui já de ponta a ponta.
  */
 export function getTransmissionService(client: SupabaseClient): TransmissionService {
   return new TransmissionService(
