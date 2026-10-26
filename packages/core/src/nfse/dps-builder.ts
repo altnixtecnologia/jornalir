@@ -133,7 +133,15 @@ export function buildDpsXml(input: DpsBuildInput): string {
   const serv = buildServ(input.fiscal, input.issuer.ibgeCode, input.serviceDescription);
   const valores = buildValores(input.serviceValue);
 
-  // Ordem exata conforme TCInfDPS (xsd/prodrest-v1.01-20260727/tiposComplexos_v1.01.xsd).
+  // Ordem exata conforme TCInfDPS (xsd/prodrest-v1.01-20261020/tiposComplexos_v1.01.xsd).
+  // `cMotivoEmisTI`/`chNFSeRej` continuam omitidos (minOccurs=0; só se
+  // aplicam quando o emitente é Tomador/Intermediário ou há rejeição
+  // prévia — este sistema sempre emite como Prestador, tpEmit="1").
+  // `finNFSe` é NOVO nesta revisão do schema (antes não fazia parte da
+  // sequência de infDPS) e é OBRIGATÓRIO (sem minOccurs="0") com um
+  // único valor válido em TSRTCFinNFSe: "0" (NFS-e regular) — não é uma
+  // suposição fiscal, é o único literal aceito pelo XSD para o caso que
+  // este sistema emite.
   const infDps = [
     tag("tpAmb", input.environment === "production" ? "1" : "2"),
     tag("dhEmi", dhEmi),
@@ -142,6 +150,7 @@ export function buildDpsXml(input: DpsBuildInput): string {
     tag("nDPS", String(input.dpsNumber)),
     tag("dCompet", input.competencyDate),
     tag("tpEmit", "1"),
+    tag("finNFSe", "0"),
     tag("cLocEmi", input.issuer.ibgeCode),
     `<prest>${prest}</prest>`,
     `<toma>${toma}</toma>`,
