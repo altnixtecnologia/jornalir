@@ -1,3 +1,4 @@
+import { DOMParser } from "@xmldom/xmldom";
 import type { DpsBuildInput } from "@ir/types";
 import { buildDpsId, NFSE_SIMPLES_NACIONAL_OPTION_CODES, NFSE_SPECIAL_TAX_REGIME_CODE_XSD_VALUES } from "@ir/types";
 import { tag } from "./xml-utils";
@@ -248,4 +249,34 @@ export function parseRejectionResponse(envelope: NationalNfseResponseEnvelope): 
   if (envelope.status !== "rejected") return null;
   if (!envelope.rejection) return { code: "UNKNOWN", message: "Rejeitada sem detalhe informado pelo Sistema Nacional." };
   return envelope.rejection;
+}
+
+/**
+ * Extrai `nNFSe`/`dhProc` de um XML de NFS-e já confirmado (auditoria
+ * funcional, 26/10/2026 — usado por
+ * `TransmissionService.resolvePendingAttemptWithAccessKey()` pra
+ * completar manualmente uma tentativa "pending"/"uncertain" depois de
+ * a chave de acesso ter sido confirmada por um canal humano/fora de
+ * banda, nunca parseada automaticamente de um formato não confirmado).
+ * MESMOS nomes de campo já confirmados e testados em
+ * `sefin-nacional-client.ts` (`extractNfseFields`, caminho real de
+ * autorização) — nunca um nome novo/inventado. Fail-closed: lança erro
+ * se os campos obrigatórios não existirem.
+ */
+export function extractNfseNumberAndIssuedAt(nfseXml: string): { nfseNumber: string; issuedAt: string } {
+  const doc = new DOMParser().parseFromString(nfseXml, "text/xml");
+  const nNFSe = doc.getElementsByTagName("nNFSe")[0]?.textContent?.trim();
+  const dhProc = doc.getElementsByTagName("dhProc")[0]?.textContent?.trim();
+  if (!nNFSe || !dhProc) {
+    throw new Error("XML da NFS-e sem nNFSe/dhProc — não corresponde ao esquema oficial esperado, nunca usado pra completar um registro fiscal.");
+  }
+  return { nfseNumber: nNFSe, issuedAt: dhProc };
+}
+
+/** Extrai o CNPJ do prestador na DPS/infDPS/prest (primeiro CNPJ do documento) — mesmo
+ * princípio de `assertSamePrestador` em sefin-nacional-client.ts, aplicado aqui pra
+ * confirmar que uma NFS-e consultada manualmente pertence ao MESMO prestador da DPS
+ * original antes de aceitar a regularização. */
+export function extractPrestadorCnpj(xml: string): string | undefined {
+  return new DOMParser().parseFromString(xml, "text/xml").getElementsByTagName("CNPJ")[0]?.textContent?.trim() || undefined;
 }

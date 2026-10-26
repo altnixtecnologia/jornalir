@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { buildDpsId, isTransmissionEnvironmentAllowed, isValidDpsSeriesFormat, type NfseCertificateInfo, type NfseDraft, type NfseIssuedNote, type NfseTransmissionAttempt } from "@ir/types";
-import { buildDpsXml, parseAuthorizationResponse, parseRejectionResponse, validateDpsXmlStructure } from "./dps-builder";
+import { buildDpsXml, extractNfseNumberAndIssuedAt, extractPrestadorCnpj, parseAuthorizationResponse, parseRejectionResponse, validateDpsXmlStructure } from "./dps-builder";
 import { signDpsXml } from "./signature";
 import { validateDpsAgainstOfficialXsd } from "./xsd-validator";
 import { checkHomologationReadiness } from "./readiness";
@@ -254,6 +254,11 @@ export class TransmissionService {
     await this.attempts.create({
       draftId: draft.id,
       dpsId,
+      // Auditoria funcional (26/10/2026): o XML ASSINADO exato também precisa ser
+      // durável aqui — uma regularização manual posterior (resolvePendingAttemptWithAccessKey)
+      // nunca pode remontar/re-assinar a DPS do zero (dhEmi/assinatura diferentes do que
+      // foi de fato transmitido quebrariam o vínculo fiel com a DPS original).
+      signedDpsXml: signed.signedXml,
       dpsSeries,
       dpsNumber,
       environment,
@@ -403,6 +408,105 @@ export class TransmissionService {
     const environment = latest.environment === "production" ? "production" : "homologation";
     const rawBody = await this.consultDps(latest.dpsId, environment);
     return { hasUnresolvedAttempt: true, attempt: latest, found: rawBody !== null, rawBody };
+  }
+
+  /**
+   * COMPLEMENTO à reconciliação (auditoria funcional, 26/10/2026):
+   * `reconcilePendingAttempt()` só CONSULTA — nunca regulariza nada,
+   * de propósito, porque o formato exato do corpo de `GET /dps/{id}`
+   * não está confirmado oficialmente (ver sefin-nacional-client.ts).
+   * Este método completa o registro fiscal de uma tentativa
+   * "pending"/"uncertain" de forma PERSISTENTE, mas só quando a chave
+   * de acesso real já foi confirmada por um canal humano/fora de banda
+   * (ex.: lendo o corpo bruto devolvido por `reconcilePendingAttempt`,
+   * ou o portal da SEFIN) — NUNCA tenta adivinhar/parsear
+   * automaticamente essa chave. A partir da chave já confirmada, usa
+   * o caminho JÁ TESTADO e confiável (`getNfseByAccessKey`, que
+   * decodifica `nfseXmlGZipB64` com nomes de campo confirmados) pra
+   * buscar o XML real e completar o registro com a MESMA lógica de
+   * `transmitClaimed()` — idempotência via `AlreadyIssuedError`
+   * (checada ANTES de qualquer chamada externa) + backstop da
+   * constraint UNIQUE, vínculo fiel com a DPS original (usa o
+   * `signedDpsXml`/`dpsId` gravados na própria tentativa, nunca
+   * remontados), e trilha de auditoria (nova linha "authorized",
+   * nunca edita a "pending").
+   */
+  async resolvePendingAttemptWithAccessKey(input: { draftId: string; accessKey: string }): Promise<TransmitDraftResult> {
+    // Idempotência — ANTES de qualquer chamada externa, mesmo princípio de transmitClaimed().
+    const existingIssued = await this.issuedNotes.getByDraftId(input.draftId);
+    if (existingIssued) throw new AlreadyIssuedError(input.draftId);
+
+    const previousAttempts = await this.attempts.listByDraftId(input.draftId);
+    const latest = previousAttempts[0];
+    if (!latest || (latest.status !== "pending" && latest.status !== "uncertain")) {
+      throw new Error(`Rascunho ${input.draftId} não tem tentativa "pending"/"uncertain" para regularizar.`);
+    }
+    if (!latest.dpsId || !latest.signedDpsXml || !latest.dpsSeries || latest.dpsNumber === undefined) {
+      throw new Error(
+        `A tentativa mais recente do rascunho ${input.draftId} não tem dpsId/signedDpsXml/série/número gravados (tentativa anterior à auditoria de 26/10/2026) — ` +
+          "não é possível regularizar com segurança sem remontar a DPS, o que quebraria o vínculo fiel com o que foi de fato transmitido.",
+      );
+    }
+
+    const draft = await this.drafts.getById(input.draftId);
+    if (!draft) throw new Error(`Rascunho não encontrado: ${input.draftId}`);
+    const issuerConfig = await this.issuerConfigs.getCurrent();
+    if (!issuerConfig) throw new TransmissionValidationError(["Configuração fiscal do prestador"]);
+
+    const nfseXml = await this.provider.getNfseByAccessKey(input.accessKey, latest.environment);
+
+    // Confirma que a NFS-e encontrada pertence ao MESMO prestador da DPS original —
+    // nunca aceita uma chave de acesso de outro CNPJ por engano (mesmo princípio de
+    // assertSamePrestador em sefin-nacional-client.ts, aplicado aqui na orquestração).
+    const sentCnpj = extractPrestadorCnpj(latest.signedDpsXml);
+    const returnedCnpj = extractPrestadorCnpj(nfseXml);
+    if (!sentCnpj || !returnedCnpj || sentCnpj !== returnedCnpj) {
+      throw new Error(
+        `A NFS-e encontrada pela chave de acesso informada não corresponde ao prestador da DPS original (enviado ${sentCnpj ?? "desconhecido"}, encontrado ${returnedCnpj ?? "desconhecido"}) — regularização recusada.`,
+      );
+    }
+
+    const { nfseNumber, issuedAt } = extractNfseNumberAndIssuedAt(nfseXml);
+
+    let issuedNote: NfseIssuedNote;
+    try {
+      issuedNote = await this.issuedNotes.create({
+        draftId: draft.id,
+        issuerConfigId: issuerConfig.id,
+        clientId: draft.clientId,
+        environment: latest.environment,
+        dpsSeries: latest.dpsSeries,
+        dpsNumber: latest.dpsNumber,
+        dpsId: latest.dpsId,
+        accessKey: input.accessKey,
+        nfseNumber,
+        issuedAt,
+        competencyDate: draft.competencyDate,
+        serviceValue: draft.serviceValue,
+        signedDpsXml: latest.signedDpsXml,
+        nfseXml,
+      });
+    } catch (error) {
+      if (error instanceof Error && error.message.toLowerCase().includes("draft_id")) {
+        throw new AlreadyIssuedError(draft.id);
+      }
+      throw error;
+    }
+
+    const attempt = await this.attempts.create({
+      draftId: draft.id,
+      dpsId: latest.dpsId,
+      signedDpsXml: latest.signedDpsXml,
+      dpsSeries: latest.dpsSeries,
+      dpsNumber: latest.dpsNumber,
+      environment: latest.environment,
+      status: "authorized",
+      requestReference: latest.requestReference,
+      responseSummary: `Regularizada manualmente após consulta de reconciliação — NFS-e ${nfseNumber} (chave de acesso confirmada por canal humano/fora de banda).`,
+      issuedNoteId: issuedNote.id,
+    });
+
+    return { outcome: "authorized", issuedNote, attempt };
   }
 
   /**

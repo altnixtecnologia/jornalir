@@ -503,6 +503,135 @@ test("auditoria estrutural (26/10/2026, Bloco 1): resposta autorizada recebida m
   assert.equal(issuedNotes.created.length, 1, "nunca duas NFS-e pro mesmo rascunho, mesmo com uma falha de gravação no meio do caminho");
 });
 
+// Auditoria funcional (26/10/2026) — resolvePendingAttemptWithAccessKey: completa de
+// forma PERSISTENTE (não só consulta, como reconcilePendingAttempt) uma tentativa
+// pending/uncertain, SEMPRE a partir de uma chave de acesso já confirmada por canal
+// humano/fora de banda — nunca parseando automaticamente o formato não confirmado de
+// GET /dps/{id}.
+function fakeAuthorizedNfseXml(cnpj: string, nfseNumber = "99"): string {
+  return (
+    '<NFSe versao="1.01"><infNFSe Id="NFS42164041999999999999999999900000000012026100099">' +
+    `<nNFSe>${nfseNumber}</nNFSe><cStat>100</cStat><dhProc>2026-10-25T12:00:00-03:00</dhProc>` +
+    `<emit><CNPJ>${cnpj}</CNPJ><xNome>INFORMATIVO REGIONAL LTDA</xNome></emit>` +
+    "</infNFSe></NFSe>"
+  );
+}
+
+async function makeStuckPendingAttempt(): Promise<{
+  drafts: FakeDraftRepository; issuerConfigs: FakeIssuerConfigRepository; dpsSequences: FakeDpsSequenceRepository;
+  issuedNotes: FakeIssuedNoteRepository; attempts: FakeTransmissionAttemptRepository; certificate: CertificateMaterialProvider;
+}> {
+  const drafts = new FakeDraftRepository(makeDraft());
+  const issuerConfigs = new FakeIssuerConfigRepository(makeIssuerConfig());
+  const dpsSequences = new FakeDpsSequenceRepository();
+  const issuedNotes = new FakeIssuedNoteRepository();
+  const attempts = new FakeTransmissionAttemptRepository();
+  attempts.listByDraftId = async (draftId: string) =>
+    attempts.created
+      .map((record, index): NfseTransmissionAttempt => ({ id: `attempt-${index + 1}`, createdAt: "2026-10-01T10:05:00Z", ...record }))
+      .filter((a) => a.draftId === draftId)
+      .reverse();
+  const certificate = makeConfiguredCertificateProvider();
+  const neverResolves = {
+    async getMunicipalParameters(): Promise<never> { throw new Error("not used"); },
+    transmitDps: () => new Promise<never>(() => {}),
+    async getNfseByAccessKey(): Promise<never> { throw new Error("not used"); },
+    async getDpsById(): Promise<string | null> { return null; },
+  };
+  const service = new TransmissionService(drafts, issuerConfigs, dpsSequences, issuedNotes, attempts, neverResolves, certificate);
+  void service.transmit({ draftId: "draft-1", isAdminOrOwner: true }).catch(() => {});
+  for (let waited = 0; waited < 100 && attempts.created.length === 0; waited += 1) {
+    await new Promise((resolve) => setTimeout(resolve, 20));
+  }
+  assert.equal(attempts.created[0]?.status, "pending", "pré-condição do teste: precisa existir uma tentativa 'pending' presa");
+  return { drafts, issuerConfigs, dpsSequences, issuedNotes, attempts, certificate };
+}
+
+test("resolvePendingAttemptWithAccessKey: regulariza DE FORMA PERSISTENTE uma tentativa presa — grava a issued note E a tentativa final, com o MESMO signedDpsXml/dpsId da tentativa original (vínculo fiel com a DPS)", async () => {
+  const { drafts, issuerConfigs, dpsSequences, issuedNotes, attempts, certificate } = await makeStuckPendingAttempt();
+  const pendingAttempt = attempts.created[0];
+
+  // Processo "reiniciado": novo TransmissionService, provider real (getNfseByAccessKey confirmado/testado).
+  const providerWithAccessKey = {
+    async getMunicipalParameters(): Promise<never> { throw new Error("not used"); },
+    async transmitDps(): Promise<never> { throw new Error("nunca deveria transmitir de novo"); },
+    async getNfseByAccessKey(key: string) { return fakeAuthorizedNfseXml("23970969000190"); },
+    async getDpsById(): Promise<string | null> { return null; },
+  };
+  const freshService = new TransmissionService(drafts, issuerConfigs, dpsSequences, issuedNotes, attempts, providerWithAccessKey, certificate);
+
+  const result = await freshService.resolvePendingAttemptWithAccessKey({ draftId: "draft-1", accessKey: "421640419999999999999999999990000000001202610" });
+
+  assert.equal(result.outcome, "authorized");
+  assert.equal(issuedNotes.created.length, 1);
+  assert.equal(issuedNotes.created[0].accessKey, "421640419999999999999999999990000000001202610");
+  assert.equal(issuedNotes.created[0].nfseNumber, "99");
+  assert.equal(issuedNotes.created[0].signedDpsXml, pendingAttempt.signedDpsXml, "o XML assinado gravado precisa ser EXATAMENTE o da tentativa original, nunca remontado");
+  assert.equal(issuedNotes.created[0].dpsId, pendingAttempt.dpsId);
+  assert.equal(attempts.created.length, 2);
+  assert.equal(attempts.created[1].status, "authorized");
+  assert.equal(attempts.created[1].dpsId, pendingAttempt.dpsId);
+  assert.equal(attempts.created[1].requestReference, pendingAttempt.requestReference, "mesmo requestReference liga a tentativa presa à regularização");
+});
+
+test("resolvePendingAttemptWithAccessKey: idempotência real — chamar duas vezes NUNCA gera duas NFS-e (constraint UNIQUE + checagem prévia)", async () => {
+  const { drafts, issuerConfigs, dpsSequences, issuedNotes, attempts, certificate } = await makeStuckPendingAttempt();
+  const providerWithAccessKey = {
+    async getMunicipalParameters(): Promise<never> { throw new Error("not used"); },
+    async transmitDps(): Promise<never> { throw new Error("not used"); },
+    async getNfseByAccessKey() { return fakeAuthorizedNfseXml("23970969000190"); },
+    async getDpsById(): Promise<string | null> { return null; },
+  };
+  const service = new TransmissionService(drafts, issuerConfigs, dpsSequences, issuedNotes, attempts, providerWithAccessKey, certificate);
+  const accessKey = "421640419999999999999999999990000000001202610";
+
+  await service.resolvePendingAttemptWithAccessKey({ draftId: "draft-1", accessKey });
+  await assert.rejects(() => service.resolvePendingAttemptWithAccessKey({ draftId: "draft-1", accessKey }), AlreadyIssuedError);
+  assert.equal(issuedNotes.created.length, 1, "a segunda chamada de regularização nunca pode gerar uma segunda NFS-e");
+});
+
+test("resolvePendingAttemptWithAccessKey: recusa a regularização se a NFS-e encontrada pertencer a um CNPJ diferente do prestador da DPS original — nunca aceita por engano", async () => {
+  const { drafts, issuerConfigs, dpsSequences, issuedNotes, attempts, certificate } = await makeStuckPendingAttempt();
+  const providerWithWrongCnpj = {
+    async getMunicipalParameters(): Promise<never> { throw new Error("not used"); },
+    async transmitDps(): Promise<never> { throw new Error("not used"); },
+    async getNfseByAccessKey() { return fakeAuthorizedNfseXml("00000000000191"); },
+    async getDpsById(): Promise<string | null> { return null; },
+  };
+  const service = new TransmissionService(drafts, issuerConfigs, dpsSequences, issuedNotes, attempts, providerWithWrongCnpj, certificate);
+  await assert.rejects(
+    () => service.resolvePendingAttemptWithAccessKey({ draftId: "draft-1", accessKey: "CHAVE-DE-OUTRO-PRESTADOR" }),
+    /não corresponde ao prestador/,
+  );
+  assert.equal(issuedNotes.created.length, 0, "nenhuma nota pode ser criada quando o CNPJ não bate");
+});
+
+test("resolvePendingAttemptWithAccessKey: sem tentativa pending/uncertain, nunca regulariza nada", async () => {
+  const { service } = makeService({ providerBehavior: "authorize" });
+  await assert.rejects(() => service.resolvePendingAttemptWithAccessKey({ draftId: "draft-1", accessKey: "QUALQUER" }), /não tem tentativa/);
+});
+
+test("resolvePendingAttemptWithAccessKey: tentativa antiga sem dpsId/signedDpsXml (anterior a esta auditoria) nunca é regularizada remontando a DPS — falha honesta", async () => {
+  const drafts = new FakeDraftRepository(makeDraft());
+  const issuerConfigs = new FakeIssuerConfigRepository(makeIssuerConfig());
+  const dpsSequences = new FakeDpsSequenceRepository();
+  const issuedNotes = new FakeIssuedNoteRepository();
+  const attempts = new FakeTransmissionAttemptRepository();
+  await attempts.create({ draftId: "draft-1", dpsSeries: "1", dpsNumber: 1, environment: "homologation", status: "uncertain", requestReference: "req-antigo" });
+  attempts.listByDraftId = async (draftId: string) =>
+    attempts.created
+      .map((record, index): NfseTransmissionAttempt => ({ id: `attempt-${index + 1}`, createdAt: "2026-10-01T10:05:00Z", ...record }))
+      .filter((a) => a.draftId === draftId)
+      .reverse();
+  const provider = new FakeNationalNfseProvider("authorize");
+  const certificate = makeConfiguredCertificateProvider();
+  const service = new TransmissionService(drafts, issuerConfigs, dpsSequences, issuedNotes, attempts, provider, certificate);
+  await assert.rejects(
+    () => service.resolvePendingAttemptWithAccessKey({ draftId: "draft-1", accessKey: "QUALQUER" }),
+    /não tem dpsId\/signedDpsXml/,
+  );
+});
+
 // Bloco B, item 3 (25/10/2026) — concorrência real: mutex, idempotência e auditoria.
 // Nunca usa fakes que só incrementam contador de chamadas (isso não prova nada sobre
 // ordem/exclusão real); cada teste abaixo dispara chamadas de verdade via Promise.all
