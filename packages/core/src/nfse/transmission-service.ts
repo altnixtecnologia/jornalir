@@ -101,12 +101,17 @@ export class TransmissionService {
     if (existingIssued) throw new AlreadyIssuedError(draft.id);
 
     // Nunca retransmite sem antes consultar o resultado real de uma
-    // tentativa anterior "uncertain" (falha de rede/timeout após o
-    // envio — pode ter sido autorizada do outro lado sem a aplicação
-    // saber). A tentativa mais recente é sempre a primeira de
-    // listByDraftId (ordenado por created_at desc).
+    // tentativa anterior "uncertain" OU "pending" (auditoria estrutural,
+    // 26/10/2026, item 1 — "o servidor pode cair DEPOIS de a SEFIN
+    // receber a DPS e ANTES de qualquer linha ser gravada"). "pending"
+    // só existe sem nunca virar "authorized"/"rejected"/"uncertain"
+    // quando o processo morreu entre reservar a DPS e interpretar a
+    // resposta — exatamente o cenário descoberto nesta auditoria; tratar
+    // igual a "uncertain" é a única opção segura (nunca sabemos se a
+    // SEFIN já recebeu/autorizou essa DPS). A tentativa mais recente é
+    // sempre a primeira de listByDraftId (ordenado por created_at desc).
     const previousAttempts = await this.attempts.listByDraftId(draft.id);
-    if (previousAttempts[0]?.status === "uncertain") {
+    if (previousAttempts[0]?.status === "uncertain" || previousAttempts[0]?.status === "pending") {
       throw new UnresolvedUncertainAttemptError(draft.id);
     }
 
@@ -224,6 +229,31 @@ export class TransmissionService {
 
     // 14) transmitir
     const requestReference = randomUUID();
+
+    // RASTREAMENTO DURÁVEL ANTES DA TRANSMISSÃO (auditoria estrutural,
+    // 26/10/2026, item 1 — CRÍTICO): grava "pending" com dpsSeries/
+    // dpsNumber/requestReference já conhecidos ANTES de chamar a SEFIN.
+    // Sem isto, um processo que morre depois de a SEFIN receber (e
+    // possivelmente autorizar) a DPS, mas antes de qualquer linha ser
+    // gravada, deixaria o sistema sem NENHUM registro dessa tentativa —
+    // uma próxima transmissão do mesmo rascunho reservaria OUTRO número
+    // de DPS e poderia gerar um duplicado fiscal real, sem o sistema
+    // nunca saber do primeiro envio. Com o "pending" gravado primeiro,
+    // mesmo a pior falha (processo morto entre a chamada de rede e a
+    // gravação do resultado) deixa um rastro: `previousAttempts[0]?.status
+    // === "pending"` (acima) bloqueia qualquer nova transmissão
+    // automática do mesmo rascunho até consulta manual — nunca
+    // retransmissão indevida.
+    await this.attempts.create({
+      draftId: draft.id,
+      dpsSeries,
+      dpsNumber,
+      environment,
+      status: "pending",
+      requestReference,
+      responseSummary: "Transmissão em andamento — DPS assinada e enviada à SEFIN Nacional, aguardando resposta.",
+    });
+
     let envelope;
     try {
       envelope = await this.provider.transmitDps(signed.signedXml, environment);

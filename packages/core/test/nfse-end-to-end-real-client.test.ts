@@ -200,7 +200,8 @@ test("fluxo completo ponta a ponta: rascunho -> DPS -> assinatura -> SefinNacion
   assert.equal(issuedNotes.created[0].accessKey, "421640419999999999999999999990000000001202610");
   assert.equal(issuedNotes.created[0].nfseNumber, "12");
   assert.equal(issuedNotes.created[0].nfseXml, fakeNfseXml());
-  assert.equal(attempts.created[0].status, "authorized");
+  assert.equal(attempts.created[0].status, "pending");
+  assert.equal(attempts.created[1].status, "authorized");
   await mock.close();
 });
 
@@ -218,7 +219,8 @@ test("fluxo completo: rejeição real (E999) nunca cria issued note, mesmo vindo
   assert.equal(result.outcome, "rejected");
   assert.equal(result.rejection?.code, "E999");
   assert.equal(issuedNotes.created.length, 0);
-  assert.equal(attempts.created[0].status, "rejected");
+  assert.equal(attempts.created[0].status, "pending");
+  assert.equal(attempts.created[1].status, "rejected");
   await mock.close();
 });
 
@@ -233,7 +235,8 @@ test("fluxo completo: timeout/falha de rede de verdade (sem resposta do MockAgen
 
   assert.equal(result.outcome, "uncertain");
   assert.equal(issuedNotes.created.length, 0);
-  assert.equal(attempts.created[0].status, "uncertain");
+  assert.equal(attempts.created[0].status, "pending");
+  assert.equal(attempts.created[1].status, "uncertain");
   await mock.close();
 });
 
@@ -250,7 +253,8 @@ test("fluxo completo: resposta de autorização sem chaveAcesso (inválida) tamb
 
   assert.equal(result.outcome, "uncertain");
   assert.equal(issuedNotes.created.length, 0);
-  assert.equal(attempts.created[0].status, "uncertain");
+  assert.equal(attempts.created[0].status, "pending");
+  assert.equal(attempts.created[1].status, "uncertain");
   await mock.close();
 });
 
