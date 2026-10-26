@@ -21,6 +21,7 @@ import {
   TransmissionValidationError,
   UnresolvedUncertainAttemptError,
   type CertificateMaterialProvider,
+  type TransmitDraftResult,
 } from "../src/nfse/transmission-service";
 
 function makeDraft(overrides: Partial<NfseDraft> = {}): NfseDraft {
@@ -344,6 +345,114 @@ test("ajuste de segurança: bloqueio do provider real nunca é tratado como 'unc
   await assert.rejects(() => service.transmit({ draftId: "draft-1", isAdminOrOwner: true }), RealTransmissionNotReadyError);
   assert.equal(attempts.created.length, 0);
   assert.equal(issuedNotes.created.length, 0);
+});
+
+// Bloco B, item 3 (25/10/2026) — concorrência real: mutex, idempotência e auditoria.
+// Nunca usa fakes que só incrementam contador de chamadas (isso não prova nada sobre
+// ordem/exclusão real); cada teste abaixo dispara chamadas de verdade via Promise.all
+// e observa o resultado FINAL (quantas issued notes/tentativas existem), não a ordem
+// das chamadas internas.
+
+test("mutex real: duas transmissões do MESMO rascunho disparadas ao mesmo tempo — só uma autoriza, nunca duas issued notes", async () => {
+  // Simula o mutex real (claim de linha no banco): só uma chamada pode estar "dentro"
+  // por vez; a segunda que tentar claim enquanto a primeira não liberou é rejeitada —
+  // mesmo contrato de DraftRepository.claimForTransmission (ver transmission-service.ts).
+  const drafts = new FakeDraftRepository(makeDraft());
+  let claimedBy: number | null = null;
+  let nextCaller = 0;
+  drafts.claimForTransmission = async () => {
+    const caller = ++nextCaller;
+    if (claimedBy !== null) throw new Error(`Este rascunho já está sendo transmitido agora (claim ativo de #${claimedBy}, tentativa de #${caller})`);
+    claimedBy = caller;
+  };
+  drafts.releaseTransmissionClaim = async () => {
+    claimedBy = null;
+  };
+  const issuerConfigs = new FakeIssuerConfigRepository(makeIssuerConfig());
+  const dpsSequences = new FakeDpsSequenceRepository();
+  const issuedNotes = new FakeIssuedNoteRepository();
+  const attempts = new FakeTransmissionAttemptRepository();
+  const provider = new FakeNationalNfseProvider("authorize");
+  const certificate = makeConfiguredCertificateProvider();
+  const service = new TransmissionService(drafts, issuerConfigs, dpsSequences, issuedNotes, attempts, provider, certificate);
+
+  const results = await Promise.allSettled([
+    service.transmit({ draftId: "draft-1", isAdminOrOwner: true }),
+    service.transmit({ draftId: "draft-1", isAdminOrOwner: true }),
+  ]);
+
+  const fulfilled = results.filter((r) => r.status === "fulfilled");
+  const rejected = results.filter((r) => r.status === "rejected");
+  assert.equal(fulfilled.length, 1, "exatamente uma das duas chamadas concorrentes deve ter sido autorizada");
+  assert.equal(rejected.length, 1, "a outra deve ter sido rejeitada pelo mutex, nunca silenciosamente ignorada");
+  assert.match((rejected[0] as PromiseRejectedResult).reason.message, /já está sendo transmitido/);
+  assert.equal(issuedNotes.created.length, 1, "nunca duas issued notes para o mesmo rascunho, mesmo sob concorrência real");
+  assert.equal(claimedBy, null, "o claim precisa estar liberado ao final, mesmo com uma das duas chamadas tendo lançado erro");
+});
+
+test("mutex é SEMPRE liberado mesmo quando a transmissão falha antes de chamar o provider (certificado ausente) — próxima chamada nunca fica bloqueada por um claim esquecido", async () => {
+  const drafts = new FakeDraftRepository(makeDraft());
+  let claimed = false;
+  drafts.claimForTransmission = async () => {
+    if (claimed) throw new Error("Este rascunho já está sendo transmitido agora");
+    claimed = true;
+  };
+  drafts.releaseTransmissionClaim = async () => {
+    claimed = false;
+  };
+  const issuerConfigs = new FakeIssuerConfigRepository(makeIssuerConfig());
+  const dpsSequences = new FakeDpsSequenceRepository();
+  const issuedNotes = new FakeIssuedNoteRepository();
+  const attempts = new FakeTransmissionAttemptRepository();
+  const provider = new FakeNationalNfseProvider("authorize");
+
+  // Primeira chamada: certificado ausente -> falha ANTES de reservar DPS/transmitir,
+  // mas o claim precisa ser liberado no finally (ver transmission-service.ts, transmit()).
+  const serviceWithoutCertificate = new TransmissionService(drafts, issuerConfigs, dpsSequences, issuedNotes, attempts, provider, makeUnconfiguredCertificateProvider());
+  await assert.rejects(() => serviceWithoutCertificate.transmit({ draftId: "draft-1", isAdminOrOwner: true }), CertificateNotConfiguredError);
+  assert.equal(claimed, false, "claim precisa estar liberado depois do erro");
+
+  // Segunda chamada, agora com certificado configurado: nunca deve ser bloqueada por um claim esquecido da primeira.
+  const serviceWithCertificate = new TransmissionService(drafts, issuerConfigs, dpsSequences, issuedNotes, attempts, provider, makeConfiguredCertificateProvider());
+  const result = await serviceWithCertificate.transmit({ draftId: "draft-1", isAdminOrOwner: true });
+  assert.equal(result.outcome, "authorized");
+});
+
+test("idempotência real (backstop da constraint UNIQUE): duas autorizações concorrentes pro mesmo rascunho — mesmo que o mutex falhasse/fosse burlado, nunca duas issued notes", async () => {
+  // Mutex deliberadamente NUNCA bloqueia aqui (claim sempre permitido) — testa só o
+  // backstop real (constraint UNIQUE em nfse_issued_notes.draft_id, ver
+  // FakeIssuedNoteRepository.create e o catch em transmitClaimed()), nunca o mutex em si.
+  const drafts = new FakeDraftRepository(makeDraft());
+  drafts.claimForTransmission = async () => {};
+  drafts.releaseTransmissionClaim = async () => {};
+  const issuerConfigs = new FakeIssuerConfigRepository(makeIssuerConfig());
+  const dpsSequences = new FakeDpsSequenceRepository();
+  const issuedNotes = new FakeIssuedNoteRepository();
+  const attempts = new FakeTransmissionAttemptRepository();
+  const provider = new FakeNationalNfseProvider("authorize");
+  const certificate = makeConfiguredCertificateProvider();
+  const service = new TransmissionService(drafts, issuerConfigs, dpsSequences, issuedNotes, attempts, provider, certificate);
+
+  const results = await Promise.allSettled([
+    service.transmit({ draftId: "draft-1", isAdminOrOwner: true }),
+    service.transmit({ draftId: "draft-1", isAdminOrOwner: true }),
+  ]);
+
+  const fulfilled = results.filter((r): r is PromiseFulfilledResult<TransmitDraftResult> => r.status === "fulfilled");
+  const rejected = results.filter((r) => r.status === "rejected");
+  assert.equal(issuedNotes.created.length, 1, "o backstop real (constraint UNIQUE) nunca deixa passar duas issued notes pro mesmo draft_id");
+  assert.equal(fulfilled.length, 1);
+  assert.equal(fulfilled[0].value.outcome, "authorized");
+  assert.equal(rejected.length, 1);
+  assert.ok((rejected[0] as PromiseRejectedResult).reason instanceof AlreadyIssuedError, "a segunda chamada precisa virar AlreadyIssuedError, nunca um erro genérico de banco exposto ao chamador");
+});
+
+test("auditoria: cada tentativa de transmissão bem-sucedida gera exatamente um registro em TransmissionAttemptRepository, nunca zero nem duplicado", async () => {
+  const { service, attempts, issuedNotes } = makeService({ providerBehavior: "authorize" });
+  await service.transmit({ draftId: "draft-1", isAdminOrOwner: true });
+  assert.equal(attempts.created.length, 1);
+  assert.equal(attempts.created[0].status, "authorized");
+  assert.equal(attempts.created[0].issuedNoteId, issuedNotes.created.length === 1 ? (await issuedNotes.getByDraftId("draft-1"))?.id : undefined);
 });
 
 // Parte 2B — guarda central de prontidão (readiness.ts), exposta via checkReadiness().
