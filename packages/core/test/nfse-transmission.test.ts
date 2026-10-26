@@ -237,8 +237,9 @@ test("autorização cria issued note e registra tentativa 'authorized' — nunca
   assert.equal(issuedNotes.created.length, 1);
   assert.equal(issuedNotes.created[0].accessKey, "ACCESSKEY123");
   assert.equal(issuedNotes.created[0].nfseNumber, "1");
-  assert.equal(attempts.created.length, 1);
-  assert.equal(attempts.created[0].status, "authorized");
+  assert.equal(attempts.created.length, 2);
+  assert.equal(attempts.created[0].status, "pending");
+  assert.equal(attempts.created[1].status, "authorized");
 });
 
 test("rejeição NUNCA cria issued note — rascunho continua rascunho", async () => {
@@ -246,9 +247,11 @@ test("rejeição NUNCA cria issued note — rascunho continua rascunho", async (
   const result = await service.transmit({ draftId: "draft-1", isAdminOrOwner: true });
   assert.equal(result.outcome, "rejected");
   assert.equal(issuedNotes.created.length, 0);
-  assert.equal(attempts.created.length, 1);
-  assert.equal(attempts.created[0].status, "rejected");
-  assert.equal(attempts.created[0].rejectionCode, "E123");
+  // "pending" (rastreamento durável ANTES de chamar a SEFIN, auditoria 26/10/2026) + "rejected" (resultado final).
+  assert.equal(attempts.created.length, 2);
+  assert.equal(attempts.created[0].status, "pending");
+  assert.equal(attempts.created[1].status, "rejected");
+  assert.equal(attempts.created[1].rejectionCode, "E123");
 });
 
 test("falha de rede/timeout vira 'uncertain' — NUNCA retransmite automaticamente nem cria issued note", async () => {
@@ -256,8 +259,9 @@ test("falha de rede/timeout vira 'uncertain' — NUNCA retransmite automaticamen
   const result = await service.transmit({ draftId: "draft-1", isAdminOrOwner: true });
   assert.equal(result.outcome, "uncertain");
   assert.equal(issuedNotes.created.length, 0);
-  assert.equal(attempts.created.length, 1);
-  assert.equal(attempts.created[0].status, "uncertain");
+  assert.equal(attempts.created.length, 2);
+  assert.equal(attempts.created[0].status, "pending");
+  assert.equal(attempts.created[1].status, "uncertain");
 });
 
 test("proteção contra emissão duplicada — rascunho que já tem issued note nunca transmite de novo", async () => {
@@ -343,8 +347,60 @@ test("ajuste de segurança: bloqueio do provider real nunca é tratado como 'unc
   const certificate = makeConfiguredCertificateProvider();
   const service = new TransmissionService(drafts, issuerConfigs, dpsSequences, issuedNotes, attempts, new FetchNationalNfseProvider(), certificate);
   await assert.rejects(() => service.transmit({ draftId: "draft-1", isAdminOrOwner: true }), RealTransmissionNotReadyError);
-  assert.equal(attempts.created.length, 0);
+  // Auditoria estrutural (26/10/2026, item 1): o "pending" é gravado ANTES de chamar o provider
+  // (rastreamento durável) — mesmo o bloqueio de release deixa esse rastro, nunca 0 tentativas.
+  // O erro de bloqueio continua propagando sem nunca virar "uncertain"/"authorized"/"rejected".
+  assert.equal(attempts.created.length, 1);
+  assert.equal(attempts.created[0].status, "pending");
   assert.equal(issuedNotes.created.length, 0);
+});
+
+test("auditoria estrutural (26/10/2026, item 1 — CRÍTICO): uma transmissão bem-sucedida grava 'pending' ANTES da linha final 'authorized' — nunca só a linha final", async () => {
+  const { service, attempts } = makeService({ providerBehavior: "authorize" });
+  await service.transmit({ draftId: "draft-1", isAdminOrOwner: true });
+  assert.equal(attempts.created.length, 2);
+  assert.equal(attempts.created[0].status, "pending");
+  assert.equal(attempts.created[1].status, "authorized");
+  assert.equal(attempts.created[0].dpsNumber, attempts.created[1].dpsNumber);
+  assert.equal(attempts.created[0].requestReference, attempts.created[1].requestReference, "mesmo requestReference liga as duas linhas da mesma tentativa");
+});
+
+test("auditoria estrutural (26/10/2026, item 1 — CRÍTICO): processo que nunca recebe resposta da SEFIN deixa 'pending' como rastro — próxima transmissão do mesmo rascunho é bloqueada até consulta manual, nunca retransmite sozinha", async () => {
+  // Simula o processo morrendo DEPOIS de enviar (SEFIN pode ter recebido/autorizado) e ANTES de
+  // qualquer outra linha ser gravada: um provider que nunca resolve/rejeita (pending puro).
+  const neverResolves = {
+    async getMunicipalParameters(): Promise<never> { throw new Error("not used"); },
+    transmitDps: () => new Promise<never>(() => {}),
+    async getNfseByAccessKey(): Promise<never> { throw new Error("not used"); },
+    async getDpsById(): Promise<string | null> { return null; },
+  };
+  const drafts = new FakeDraftRepository(makeDraft());
+  const issuerConfigs = new FakeIssuerConfigRepository(makeIssuerConfig());
+  const dpsSequences = new FakeDpsSequenceRepository();
+  const issuedNotes = new FakeIssuedNoteRepository();
+  const attempts = new FakeTransmissionAttemptRepository();
+  // listByDraftId do fake padrão é um stub fixo ([]) — aqui precisa refletir o que foi
+  // criado de verdade (mais recente primeiro), senão o teste não prova nada sobre o bloqueio real.
+  attempts.listByDraftId = async (draftId: string) =>
+    attempts.created
+      .map((record, index): NfseTransmissionAttempt => ({ id: `attempt-${index + 1}`, createdAt: "2026-10-01T10:05:00Z", ...record }))
+      .filter((a) => a.draftId === draftId)
+      .reverse();
+  const certificate = makeConfiguredCertificateProvider();
+  const service = new TransmissionService(drafts, issuerConfigs, dpsSequences, issuedNotes, attempts, neverResolves, certificate);
+
+  // Dispara a transmissão mas NUNCA espera ela terminar (simula o processo morrendo no meio).
+  void service.transmit({ draftId: "draft-1", isAdminOrOwner: true }).catch(() => {});
+  // Dá tempo pro "pending" ser gravado (ele é gravado de forma síncrona antes do await da rede).
+  await new Promise((resolve) => setTimeout(resolve, 10));
+  assert.equal(attempts.created.length, 1);
+  assert.equal(attempts.created[0].status, "pending");
+
+  // Um NOVO TransmissionService (simula um processo reiniciado) tentando o MESMO rascunho
+  // precisa ser bloqueado — nunca reservar outra DPS/retransmitir sozinho.
+  const freshService = new TransmissionService(drafts, issuerConfigs, dpsSequences, issuedNotes, attempts, new FakeNationalNfseProvider("authorize"), certificate);
+  await assert.rejects(() => freshService.transmit({ draftId: "draft-1", isAdminOrOwner: true }), UnresolvedUncertainAttemptError);
+  assert.equal(dpsSequences.calls, 1, "a segunda tentativa nunca pode reservar um novo número de DPS");
 });
 
 // Bloco B, item 3 (25/10/2026) — concorrência real: mutex, idempotência e auditoria.
@@ -418,6 +474,38 @@ test("mutex é SEMPRE liberado mesmo quando a transmissão falha antes de chamar
   assert.equal(result.outcome, "authorized");
 });
 
+test("auditoria estrutural (26/10/2026, item 1): falha ao LIBERAR o mutex depois de uma autorização bem-sucedida propaga o erro de liberação, mas NUNCA perde o resultado fiscal já gravado — a próxima tentativa vê AlreadyIssuedError, nunca duplica", async () => {
+  const drafts = new FakeDraftRepository(makeDraft());
+  drafts.claimForTransmission = async () => {};
+  drafts.releaseTransmissionClaim = async () => {
+    throw new Error("Falha de conexão com o banco ao liberar o mutex — simula o pior caso: autorizou, gravou, e só a liberação falhou.");
+  };
+  const issuerConfigs = new FakeIssuerConfigRepository(makeIssuerConfig());
+  const dpsSequences = new FakeDpsSequenceRepository();
+  const issuedNotes = new FakeIssuedNoteRepository();
+  const attempts = new FakeTransmissionAttemptRepository();
+  attempts.listByDraftId = async (draftId: string) =>
+    attempts.created
+      .map((record, index): NfseTransmissionAttempt => ({ id: `attempt-${index + 1}`, createdAt: "2026-10-01T10:05:00Z", ...record }))
+      .filter((a) => a.draftId === draftId)
+      .reverse();
+  const provider = new FakeNationalNfseProvider("authorize");
+  const certificate = makeConfiguredCertificateProvider();
+  const service = new TransmissionService(drafts, issuerConfigs, dpsSequences, issuedNotes, attempts, provider, certificate);
+
+  // A chamada em si rejeita (com o erro de liberação) — mas isso NUNCA significa que a
+  // transmissão falhou de verdade: os dados já foram gravados antes do finally executar.
+  await assert.rejects(() => service.transmit({ draftId: "draft-1", isAdminOrOwner: true }), /Falha de conexão/);
+  assert.equal(issuedNotes.created.length, 1, "a nota emitida precisa continuar gravada, mesmo com a liberação do mutex falhando depois");
+  assert.equal(attempts.created.some((a) => a.status === "authorized"), true);
+
+  // Uma tentativa seguinte (ex.: processo reiniciado, usuário tentando de novo por engano
+  // achando que falhou) NUNCA pode gerar uma segunda NFS-e pro mesmo rascunho.
+  drafts.releaseTransmissionClaim = async () => {};
+  await assert.rejects(() => service.transmit({ draftId: "draft-1", isAdminOrOwner: true }), AlreadyIssuedError);
+  assert.equal(issuedNotes.created.length, 1, "nunca duas notas emitidas pro mesmo rascunho, mesmo depois de uma falha de liberação do mutex");
+});
+
 test("idempotência real (backstop da constraint UNIQUE): duas autorizações concorrentes pro mesmo rascunho — mesmo que o mutex falhasse/fosse burlado, nunca duas issued notes", async () => {
   // Mutex deliberadamente NUNCA bloqueia aqui (claim sempre permitido) — testa só o
   // backstop real (constraint UNIQUE em nfse_issued_notes.draft_id, ver
@@ -447,12 +535,13 @@ test("idempotência real (backstop da constraint UNIQUE): duas autorizações co
   assert.ok((rejected[0] as PromiseRejectedResult).reason instanceof AlreadyIssuedError, "a segunda chamada precisa virar AlreadyIssuedError, nunca um erro genérico de banco exposto ao chamador");
 });
 
-test("auditoria: cada tentativa de transmissão bem-sucedida gera exatamente um registro em TransmissionAttemptRepository, nunca zero nem duplicado", async () => {
+test("auditoria: cada tentativa de transmissão bem-sucedida gera 'pending'+'authorized' em TransmissionAttemptRepository, nunca zero nem a linha final sem o rastro durável antes", async () => {
   const { service, attempts, issuedNotes } = makeService({ providerBehavior: "authorize" });
   await service.transmit({ draftId: "draft-1", isAdminOrOwner: true });
-  assert.equal(attempts.created.length, 1);
-  assert.equal(attempts.created[0].status, "authorized");
-  assert.equal(attempts.created[0].issuedNoteId, issuedNotes.created.length === 1 ? (await issuedNotes.getByDraftId("draft-1"))?.id : undefined);
+  assert.equal(attempts.created.length, 2);
+  assert.equal(attempts.created[0].status, "pending");
+  assert.equal(attempts.created[1].status, "authorized");
+  assert.equal(attempts.created[1].issuedNoteId, issuedNotes.created.length === 1 ? (await issuedNotes.getByDraftId("draft-1"))?.id : undefined);
 });
 
 // Parte 2B — guarda central de prontidão (readiness.ts), exposta via checkReadiness().
