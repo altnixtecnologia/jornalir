@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { buildDpsId, isTransmissionEnvironmentAllowed, isValidDpsSeriesFormat, type NfseCertificateInfo, type NfseDraft, type NfseIssuedNote, type NfseTransmissionAttempt } from "@ir/types";
-import { buildDpsXml, extractNfseNumberAndIssuedAt, extractPrestadorCnpj, parseAuthorizationResponse, parseRejectionResponse, validateDpsXmlStructure } from "./dps-builder";
+import { buildDpsXml, extractEmbeddedDpsIdentity, extractNfseNumberAndIssuedAt, extractPrestadorCnpj, parseAuthorizationResponse, parseRejectionResponse, validateDpsXmlStructure } from "./dps-builder";
 import { signDpsXml } from "./signature";
 import { validateDpsAgainstOfficialXsd } from "./xsd-validator";
 import { checkHomologationReadiness } from "./readiness";
@@ -431,7 +431,12 @@ export class TransmissionService {
    * remontados), e trilha de auditoria (nova linha "authorized",
    * nunca edita a "pending").
    */
-  async resolvePendingAttemptWithAccessKey(input: { draftId: string; accessKey: string }): Promise<TransmitDraftResult> {
+  async resolvePendingAttemptWithAccessKey(input: { draftId: string; accessKey: string; isAdminOrOwner: boolean }): Promise<TransmitDraftResult> {
+    // AUTORIZAÇÃO SERVER-SIDE (verificação funcional, 26/10/2026) — mesmo gate de
+    // transmit(), SEMPRE a primeira checagem: regularizar um registro fiscal é tão
+    // sensível quanto transmitir uma DPS nova, nunca pode ficar sem essa guarda.
+    if (!input.isAdminOrOwner) throw new TransmissionPermissionError("Sem permissão para regularizar NFS-e — só owner/admin.");
+
     // Idempotência — ANTES de qualquer chamada externa, mesmo princípio de transmitClaimed().
     const existingIssued = await this.issuedNotes.getByDraftId(input.draftId);
     if (existingIssued) throw new AlreadyIssuedError(input.draftId);
@@ -442,9 +447,15 @@ export class TransmissionService {
       throw new Error(`Rascunho ${input.draftId} não tem tentativa "pending"/"uncertain" para regularizar.`);
     }
     if (!latest.dpsId || !latest.signedDpsXml || !latest.dpsSeries || latest.dpsNumber === undefined) {
+      // CONFIRMAÇÃO OFICIAL AINDA NÃO REALIZÁVEL COM SEGURANÇA (verificação funcional,
+      // 26/10/2026): sem dpsId/signedDpsXml gravados, não há como confirmar o vínculo
+      // com a DPS original sem remontá-la (o que mudaria dhEmi/assinatura). A tentativa
+      // CONTINUA "pending"/"uncertain" — esta função nunca grava nada nesse caso,
+      // nunca regulariza automaticamente, bloqueio deliberado e permanente até que
+      // uma via de recuperação mais forte exista (fora do escopo desta verificação).
       throw new Error(
         `A tentativa mais recente do rascunho ${input.draftId} não tem dpsId/signedDpsXml/série/número gravados (tentativa anterior à auditoria de 26/10/2026) — ` +
-          "não é possível regularizar com segurança sem remontar a DPS, o que quebraria o vínculo fiel com o que foi de fato transmitido.",
+          "não é possível regularizar com segurança sem remontar a DPS, o que quebraria o vínculo fiel com o que foi de fato transmitido. A tentativa permanece pendente.",
       );
     }
 
@@ -455,14 +466,33 @@ export class TransmissionService {
 
     const nfseXml = await this.provider.getNfseByAccessKey(input.accessKey, latest.environment);
 
-    // Confirma que a NFS-e encontrada pertence ao MESMO prestador da DPS original —
-    // nunca aceita uma chave de acesso de outro CNPJ por engano (mesmo princípio de
-    // assertSamePrestador em sefin-nacional-client.ts, aplicado aqui na orquestração).
+    // VALIDAÇÃO DA RESPOSTA OFICIAL (verificação funcional, 26/10/2026 — "confirme que
+    // uma chave informada manualmente não permite autorizar qualquer nota"): confirmar
+    // o MESMO CNPJ não é suficiente — duas DPS reais do MESMO prestador têm `Id`s
+    // diferentes (série+número nunca se repetem, ver reserve_next_dps_number). Sem
+    // conferir o `Id` da DPS embutida na NFS-e encontrada contra o `dpsId` gravado na
+    // PRÓPRIA tentativa que está sendo regularizada, a chave de acesso de QUALQUER
+    // outra nota autorizada do mesmo prestador seria aceita por engano. Qualquer
+    // divergência (prestador, Id da DPS ou ambiente) recusa a regularização sem
+    // gravar nada — a tentativa original continua "pending"/"uncertain".
     const sentCnpj = extractPrestadorCnpj(latest.signedDpsXml);
     const returnedCnpj = extractPrestadorCnpj(nfseXml);
     if (!sentCnpj || !returnedCnpj || sentCnpj !== returnedCnpj) {
       throw new Error(
         `A NFS-e encontrada pela chave de acesso informada não corresponde ao prestador da DPS original (enviado ${sentCnpj ?? "desconhecido"}, encontrado ${returnedCnpj ?? "desconhecido"}) — regularização recusada.`,
+      );
+    }
+    const returnedDpsIdentity = extractEmbeddedDpsIdentity(nfseXml);
+    if (!returnedDpsIdentity.dpsId || returnedDpsIdentity.dpsId !== latest.dpsId) {
+      throw new Error(
+        `A NFS-e encontrada pela chave de acesso informada pertence a OUTRA DPS (esperado Id ${latest.dpsId}, encontrado ${returnedDpsIdentity.dpsId ?? "desconhecido"}) — ` +
+          "regularização recusada; a chave de acesso de outra nota, mesmo do mesmo prestador, nunca é aceita pra regularizar esta tentativa.",
+      );
+    }
+    const expectedTpAmb = latest.environment === "production" ? "1" : "2";
+    if (returnedDpsIdentity.tpAmb !== expectedTpAmb) {
+      throw new Error(
+        `A NFS-e encontrada foi emitida em um ambiente diferente do esperado (esperado tpAmb=${expectedTpAmb}, encontrado ${returnedDpsIdentity.tpAmb ?? "desconhecido"}) — regularização recusada.`,
       );
     }
 

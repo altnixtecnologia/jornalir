@@ -280,3 +280,26 @@ export function extractNfseNumberAndIssuedAt(nfseXml: string): { nfseNumber: str
 export function extractPrestadorCnpj(xml: string): string | undefined {
   return new DOMParser().parseFromString(xml, "text/xml").getElementsByTagName("CNPJ")[0]?.textContent?.trim() || undefined;
 }
+
+/**
+ * Extrai a IDENTIDADE da DPS embutida numa NFS-e autorizada (atributo
+ * `Id` de `infDPS`, formado por `buildDpsId` — único por município +
+ * tipo/inscrição + série + número — e `tpAmb`, formado no momento da
+ * emissão). Auditoria funcional (26/10/2026) — `resolvePendingAttemptWithAccessKey`
+ * usa isto pra confirmar que a NFS-e encontrada pela chave de acesso
+ * informada corresponde EXATAMENTE à DPS original da tentativa que
+ * está sendo regularizada (mesmo prestador NÃO basta: duas DPS reais
+ * do MESMO CNPJ têm `Id`s diferentes — confirmar o `Id` impede que a
+ * chave de acesso de OUTRA nota do mesmo prestador seja aceita por
+ * engano). Fail-closed: `dpsId`/`tpAmb` ausentes viram `undefined`,
+ * nunca um valor inventado — quem chama decide que isso é motivo de
+ * recusa.
+ */
+export function extractEmbeddedDpsIdentity(nfseXml: string): { dpsId?: string; tpAmb?: string } {
+  const doc = new DOMParser().parseFromString(nfseXml, "text/xml");
+  const infDPS = doc.getElementsByTagName("infDPS")[0];
+  if (!infDPS) return {};
+  const dpsId = infDPS.getAttribute("Id")?.trim() || undefined;
+  const tpAmb = doc.getElementsByTagName("tpAmb")[0]?.textContent?.trim() || undefined;
+  return { dpsId, tpAmb };
+}
