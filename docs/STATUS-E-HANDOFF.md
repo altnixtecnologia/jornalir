@@ -2356,3 +2356,15 @@ Depois do relatório dos Blocos B/C/D, o usuário pediu uma etapa adicional de i
 **Item 7 (interface) — gap real encontrado e corrigido (ainda sem commit nesta entrada, ver próximo commit):** em modo demonstração (`isLocalPreviewEnabled()`), a tela de transmissão (`NfseTransmissionPanel`, card "NFS-e emitida com sucesso") e as páginas `/sistema/nfse/notas` e `/sistema/nfse/notas/[id]` mostravam uma nota simulada com status "Autorizada" **sem nenhum marcador de demonstração** — exatamente o risco que o usuário apontou ("nenhuma simulação pode aparecer como nota oficialmente autorizada"). Corrigido: título/status/descrição agora mostram "(demonstração)" e um aviso explícito sempre que `previewMode`/`isLocalPreviewEnabled()` for verdadeiro.
 
 **Testes: 150/150 em `packages/core`. Typecheck limpo em `site`/`sistema`. Build de `sistema` em andamento/confirmado na mesma sessão.**
+
+## 26/10/2026 — NFS-e: revisão final de encerramento (mesma branch `fix/convite-nfse-finalizacao-20261025`)
+
+Revisão de encerramento pedida pelo usuário, sem refazer funcionalidades: commit `156a0b67`.
+
+- **Esquemas por ambiente:** confirmado e testado automaticamente que só existe o pacote `prodrest-*` (Produção Restrita) vendorizado, que nenhum caminho de código passa `environment:"production"` pro validador XSD, e que a transmissão real em Produção já está bloqueada em todas as guardas centrais. Documentada em `xsd-validator.ts` a obrigação de vendorizar/confirmar um pacote de Produção real separado antes de qualquer religamento futuro — nunca reaproveitar o de Produção Restrita silenciosamente.
+- **Religamento futuro documentado:** novo `docs/NFSE-RELIGAMENTO-FUTURO-20261026.md` — mapa exato de onde trocar `FetchNationalNfseProvider`→`SefinNacionalNationalNfseProvider` e injetar o `CancellationEventProvider` real na composição (`apps/sistema/src/composition/nfse.ts`), e a única pendência que depende só da SEFIN real (contradição do `Id` do evento de cancelamento).
+- **Bloqueio do flag confirmado:** `apps/sistema/test/prepublication-release-gates.test.ts` (pré-existente) já cobre middleware/checkModuleAction/nav/ações que bypassam o gate — roda limpo (5/5) via `npx tsx --test`, confirmado nesta revisão.
+- **Id do cancelamento:** confirmado que a documentação da contradição (prosa do manual vs. regex do XSD) permanece precisa e intacta em `event-builder.ts`.
+- **Revisão de commits:** nenhum segredo/certificado/arquivo temporário encontrado em nenhum commit desta branch (busca por padrões de chave privada/senha/service-role em todo o diff — zero ocorrências); nenhuma mudança fora do escopo fiscal/NFS-e.
+
+**152/152 testes de `packages/core` passam. Typecheck limpo. Build de `apps/sistema` confirmado com exit 0.**
