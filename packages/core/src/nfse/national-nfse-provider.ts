@@ -1,6 +1,7 @@
 import type { NfseEnvironment } from "@ir/types";
 import type { NationalNfseResponseEnvelope } from "./dps-builder";
 import { getNfseEnvironmentConfig } from "./environment";
+import type { SefinNacionalClient } from "./sefin-nacional-client";
 
 /**
  * Abstração de integração fiscal (Parte 2A, item 3) — nunca acopla a
@@ -131,5 +132,50 @@ export class FetchNationalNfseProvider implements NationalNfseProvider {
   async getDpsById(dpsId: string, environment: NfseEnvironment): Promise<string | null> {
     void buildDpsByIdUrl(dpsId, environment);
     throw new RealTransmissionNotReadyError();
+  }
+}
+
+/**
+ * Adaptador REAL (etapa de integração final, 25/10/2026, item 3 — "conectar
+ * o SefinNacionalClient ao TransmissionService... por meio de interfaces
+ * testáveis") — delega cada método do `NationalNfseProvider` diretamente ao
+ * `SefinNacionalClient` (sefin-nacional-client.ts), sem guarda nenhuma.
+ *
+ * Prova que a integração ponta a ponta FUNCIONA de verdade: qualquer teste
+ * pode montar um `TransmissionService` com esta classe (em vez de
+ * `FetchNationalNfseProvider`) e um `SefinNacionalClient` sobre `MockAgent`,
+ * e exercitar o fluxo completo rascunho → DPS → assinatura → transmissão →
+ * interpretação → nota emitida/rejeitada/incerta (ver
+ * `nfse-end-to-end-real-client.test.ts`).
+ *
+ * NUNCA é instanciada pela composição real do app
+ * (`apps/sistema/src/composition/nfse.ts` continua usando só
+ * `FetchNationalNfseProvider`, que bloqueia incondicionalmente) — esta
+ * classe existe apenas pra provar/testar que a integração está pronta,
+ * nunca pra contornar o bloqueio em produção. `getMunicipalParameters`
+ * continua bloqueado de propósito: nenhum caminho real chama esse método
+ * do `NationalNfseProvider` (a consulta de parâmetros municipais usa
+ * `NfseMunicipalParametersClient` diretamente, já real e já testado — ver
+ * `municipal-parameters-client.ts`), então não há o que conectar aqui sem
+ * inventar um uso que não existe.
+ */
+export class SefinNacionalNationalNfseProvider implements NationalNfseProvider {
+  constructor(private readonly client: SefinNacionalClient) {}
+
+  async getMunicipalParameters(ibgeCode: string, environment: NfseEnvironment): Promise<MunicipalParameters> {
+    void buildMunicipalParametersUrl(ibgeCode, environment);
+    throw new RealTransmissionNotReadyError();
+  }
+
+  transmitDps(signedDpsXml: string, environment: NfseEnvironment): Promise<NationalNfseResponseEnvelope> {
+    return this.client.transmitDps(signedDpsXml, environment);
+  }
+
+  getNfseByAccessKey(accessKey: string, environment: NfseEnvironment): Promise<string> {
+    return this.client.getNfseByAccessKey(accessKey, environment);
+  }
+
+  getDpsById(dpsId: string, environment: NfseEnvironment): Promise<string | null> {
+    return this.client.getDpsById(dpsId, environment);
   }
 }

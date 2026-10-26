@@ -46,13 +46,15 @@ export interface NationalEventResponseEnvelope {
  * `Id` sem confirmação. Precisa reconfirmação contra o Swagger real
  * (ou uma resposta real de Produção Restrita) antes de qualquer uso.
  *
- * Também não confirmado: a base URL exata inclui ou não o segmento
- * `/API/` (o comentário em national-nfse-provider.ts cita
- * `.../API/SefinNacional/` como testado empiricamente; um post de
- * fórum de 2026 usou `.../SefinNacional/nfse` sem `/API/` e recebeu
- * E999 — pode ser a causa do próprio erro do autor, não prova de URL
- * correta). `environment.ts` NÃO foi alterado por este motivo — a
- * configuração de URL já existente e documentada foi preservada.
+ * O segmento `/API/` da base URL (reforçado na etapa de integração
+ * final, 25/10/2026 — ver comentário completo em `environment.ts`) está
+ * agora corroborado por 3 fontes independentes: teste empírico desta
+ * sessão, a biblioteca open-source `pynfse-nacional` (lista exatamente
+ * `.../API/SefinNacional/docs/index` pro Swagger de homologação e
+ * produção) e um post de fórum com uma chamada real a
+ * `.../API/SefinNacional/nfse` que recebeu um erro FUNCIONAL de
+ * certificado (E4007), não um 404 — só acontece se o path existir e
+ * for roteado de verdade. `environment.ts` não precisou mudar.
  */
 export class SefinNacionalClient {
   constructor(

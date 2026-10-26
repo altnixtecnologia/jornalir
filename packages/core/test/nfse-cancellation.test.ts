@@ -121,3 +121,63 @@ test("submitCancellation nunca envia o cancelamento real nesta fase — sempre b
   const { service } = makeService();
   await assert.rejects(() => service.submitCancellation("cancellation-1"), CancellationSubmissionNotReadyError);
 });
+
+test("submitCancellation continua bloqueado incondicionalmente mesmo com um CancellationEventProvider real/desbloqueado injetado — a guarda nunca depende de o provider existir", async () => {
+  const issuedNotes = new FakeIssuedNoteRepository(ISSUED_NOTE);
+  const requests = new FakeCancellationRequestRepository();
+  let eventProviderCalled = false;
+  const unlockedEventProvider = {
+    async submitCancellationEvent() { eventProviderCalled = true; return { status: "registered" as const }; },
+    async getEventsByAccessKey() { eventProviderCalled = true; return "[]"; },
+  };
+  const service = new CancellationService(issuedNotes, requests, unlockedEventProvider);
+  await assert.rejects(() => service.submitCancellation("cancellation-1"), CancellationSubmissionNotReadyError);
+  assert.equal(eventProviderCalled, false, "o provider injetado nunca pode ser chamado — a guarda vem antes de qualquer uso dele");
+});
+
+// Etapa de integração final (25/10/2026), item 5 — idempotência real (backstop do índice único
+// idx_nfse_cancellation_one_active_per_note, migration 20261029100900), nunca só a checagem lógica.
+test("idempotência real: duas solicitações de cancelamento concorrentes pra mesma nota — só uma é criada, a outra vira CancellationAlreadyRequestedError (nunca um erro genérico de banco)", async () => {
+  const issuedNotes = new FakeIssuedNoteRepository(ISSUED_NOTE);
+  // Repositório realista: getActiveByIssuedNoteId deriva do próprio estado criado (nunca um
+  // campo manual), e create() reproduz o índice único parcial do banco de forma atômica.
+  class RealisticCancellationRequestRepository implements CancellationRequestRepository {
+    public created: NfseCancellationRequest[] = [];
+    async listByIssuedNoteId(issuedNoteId: string) { return this.created.filter((r) => r.issuedNoteId === issuedNoteId); }
+    async getActiveByIssuedNoteId(issuedNoteId: string) {
+      return this.created.find((r) => r.issuedNoteId === issuedNoteId && (r.status === "pending" || r.status === "submitted" || r.status === "confirmed")) ?? null;
+    }
+    async create(record: NewCancellationRequestRecord): Promise<NfseCancellationRequest> {
+      // Checagem+inserção SEM await entre elas (mesma atomicidade de um índice único real no
+      // banco, que é uma única operação indivisível) — com await no meio, as duas chamadas
+      // concorrentes veriam "nenhuma ativa" antes de qualquer uma inserir, e o teste de
+      // concorrência não provaria nada sobre o backstop real.
+      const alreadyActive = this.created.find(
+        (r) => r.issuedNoteId === record.issuedNoteId && (r.status === "pending" || r.status === "submitted" || r.status === "confirmed"),
+      );
+      if (alreadyActive) {
+        throw new Error('duplicate key value violates unique constraint "idx_nfse_cancellation_one_active_per_note"');
+      }
+      const created: NfseCancellationRequest = {
+        id: `cancellation-${this.created.length + 1}`, status: "pending",
+        requestedAt: "2026-10-25T10:00:00Z", createdAt: "2026-10-25T10:00:00Z", ...record,
+      };
+      this.created.push(created);
+      return created;
+    }
+  }
+  const requests = new RealisticCancellationRequestRepository();
+  const service = new CancellationService(issuedNotes, requests);
+
+  const results = await Promise.allSettled([
+    service.requestCancellation({ issuedNoteId: "note-1", justificationCode: 1, justificationText: "Primeira tentativa de cancelamento concorrente", isAdminOrOwner: true }),
+    service.requestCancellation({ issuedNoteId: "note-1", justificationCode: 2, justificationText: "Segunda tentativa de cancelamento concorrente", isAdminOrOwner: true }),
+  ]);
+
+  assert.equal(requests.created.length, 1, "nunca duas solicitações ativas pra mesma nota, mesmo sob concorrência real");
+  const fulfilled = results.filter((r) => r.status === "fulfilled");
+  const rejected = results.filter((r) => r.status === "rejected");
+  assert.equal(fulfilled.length, 1);
+  assert.equal(rejected.length, 1);
+  assert.ok((rejected[0] as PromiseRejectedResult).reason instanceof CancellationAlreadyRequestedError, "o erro de banco precisa ser traduzido, nunca exposto bruto ao chamador");
+});
