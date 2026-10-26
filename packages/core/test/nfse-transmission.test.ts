@@ -316,6 +316,19 @@ test("confirma owner/admin antes de qualquer outra etapa", async () => {
   assert.equal(dpsSequences.calls, 0);
 });
 
+test("auditoria estrutural (26/10/2026, item 2): sem Simples Nacional/regime especial configurado, a DPS passa a checagem estrutural mínima mas é bloqueada pela validação XSD REAL — antes de qualquer chamada externa, não só no diagnóstico visual (checkReadiness)", async () => {
+  // Mesmo cenário já confirmado em xsd-validator.test.ts ("sem Simples Nacional... a validação
+  // XSD real REJEITA") — a diferença aqui é que este teste prova que TRANSMIT() EM SI bloqueia,
+  // não só checkReadiness() (que é só diagnóstico pra UI, nunca estava no caminho obrigatório).
+  const issuerConfig = makeIssuerConfig({ simplesNacionalOption: undefined, specialTaxRegimeCode: undefined });
+  const { service, dpsSequences, attempts } = makeService({ issuerConfig, providerBehavior: "authorize" });
+  await assert.rejects(() => service.transmit({ draftId: "draft-1", isAdminOrOwner: true }), TransmissionValidationError);
+  // A DPS JÁ reservou um número antes de a validação XSD rodar (ordem atual do método) — mas
+  // nenhuma chamada ao provider, nenhuma "pending" e nenhuma nota emitida podem existir.
+  assert.equal(dpsSequences.calls, 1);
+  assert.equal(attempts.created.length, 0, "nunca grava 'pending' pra uma DPS que nem passou na validação XSD — nada foi/seria enviado");
+});
+
 test("série da DPS ausente na configuração bloqueia a transmissão", async () => {
   const issuerConfig = makeIssuerConfig({ dpsSeries: undefined });
   const { service, dpsSequences } = makeService({ issuerConfig, providerBehavior: "authorize" });
@@ -391,8 +404,11 @@ test("auditoria estrutural (26/10/2026, item 1 — CRÍTICO): processo que nunca
 
   // Dispara a transmissão mas NUNCA espera ela terminar (simula o processo morrendo no meio).
   void service.transmit({ draftId: "draft-1", isAdminOrOwner: true }).catch(() => {});
-  // Dá tempo pro "pending" ser gravado (ele é gravado de forma síncrona antes do await da rede).
-  await new Promise((resolve) => setTimeout(resolve, 10));
+  // Espera o "pending" aparecer (a validação XSD real — item 2 desta auditoria — roda ANTES
+  // dele e leva um tempo de verdade; nunca um sleep fixo que poderia dar falso positivo/negativo).
+  for (let attemptsWaited = 0; attemptsWaited < 100 && attempts.created.length === 0; attemptsWaited += 1) {
+    await new Promise((resolve) => setTimeout(resolve, 20));
+  }
   assert.equal(attempts.created.length, 1);
   assert.equal(attempts.created[0].status, "pending");
 
