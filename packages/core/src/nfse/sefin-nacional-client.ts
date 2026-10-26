@@ -10,6 +10,12 @@ import type { NationalNfseResponseEnvelope } from "./dps-builder";
 
 const MAX_RESPONSE_BYTES = 2 * 1024 * 1024;
 
+export interface NationalEventResponseEnvelope {
+  status: "registered" | "rejected";
+  eventXml?: string;
+  rejection?: { code: string; message: string };
+}
+
 /**
  * Cliente REAL da SEFIN Nacional (Bloco B) — contrato REST corroborado
  * por MÚLTIPLAS fontes independentes, já que o Swagger ao vivo exige
@@ -98,6 +104,69 @@ export class SefinNacionalClient {
     if (status === 404 || status === 403) return null;
     if (status < 200 || status >= 300) throw new NfseIntegrationError("NFSE_HTTP_ERROR", `A SEFIN Nacional respondeu com HTTP ${status} para a consulta de DPS.`, status);
     return body;
+  }
+
+  /**
+   * POST /nfse/{chaveAcesso}/eventos — registro de evento (Bloco B,
+   * item 2: cancelamento e101101 — ver event-builder.ts). Corpo/campos
+   * CORROBORADOS por DUAS fontes independentes (tópicos distintos,
+   * autores distintos, mesmo fórum ProjetoACBr — "Cancelamento NFS-e
+   * API Nacional" e um tópico posterior sobre o campo de envio):
+   * campo de envio `pedidoRegistroEventoXmlGZipB64` (gzip+base64 do
+   * `pedRegEvento` assinado no elemento `infPedReg` — NUNCA
+   * `dpsXmlGZipB64`, que é o campo de EMISSÃO; um desenvolvedor
+   * relatou exatamente esse erro de confusão), campo de retorno
+   * `eventoXmlGZipB64`. Mesma ressalva do resto da classe: sem acesso
+   * ao Swagger autenticado por mTLS, não há confirmação por manual
+   * oficial — revisar antes de qualquer envio real. Nunca chamado fora
+   * de `CancellationService`, que continua bloqueado incondicionalmente
+   * por `CancellationSubmissionNotReadyError` (cancellation-service.ts).
+   */
+  async submitCancellationEvent(signedPedRegEventoXml: string, accessKey: string, environment: NfseEnvironment): Promise<NationalEventResponseEnvelope> {
+    assertNfseOperationAllowed(environment);
+    const config = getNfseEnvironmentConfig(environment);
+    const pedidoRegistroEventoXmlGZipB64 = gzipSync(Buffer.from(signedPedRegEventoXml, "utf8")).toString("base64");
+
+    const { status, body } = await this.send("POST", `${config.sefinBaseUrl}/nfse/${encodeURIComponent(accessKey)}/eventos`, environment, "sefin-submit-cancellation-event", {
+      method: "POST",
+      body: JSON.stringify({ pedidoRegistroEventoXmlGZipB64 }),
+    });
+
+    if (status >= 200 && status < 300) return this.parseEventRegisteredEnvelope(body);
+    return this.parseEventRejectionEnvelope(body, status);
+  }
+
+  /** GET /nfse/{chaveAcesso}/eventos[/{tipoEvento}[/{numSeqEvento}]] —
+   * consulta de eventos já registrados para a NFS-e (rota confirmada no
+   * Manual dos Contribuintes oficial, ver comentário de
+   * `national-nfse-provider.ts`/handoff). Devolve o corpo bruto (pode
+   * ser lista de eventos) sem reinterpretar — quem chamar decide o que
+   * fazer; nunca usada fora de um fluxo ainda bloqueado. */
+  async getEventsByAccessKey(accessKey: string, environment: NfseEnvironment, filter?: { eventType?: string; sequence?: number }): Promise<string> {
+    assertNfseOperationAllowed(environment);
+    const config = getNfseEnvironmentConfig(environment);
+    const segments = [encodeURIComponent(accessKey), "eventos"];
+    if (filter?.eventType) segments.push(encodeURIComponent(filter.eventType));
+    if (filter?.eventType && filter.sequence !== undefined) segments.push(encodeURIComponent(String(filter.sequence)));
+    const { status, body } = await this.send("GET", `${config.sefinBaseUrl}/nfse/${segments.join("/")}`, environment, "sefin-query-events-by-access-key");
+    if (status === 404) throw new NfseIntegrationError("NFSE_HTTP_ERROR", "Nenhum evento encontrado para esta chave de acesso.", 404);
+    if (status < 200 || status >= 300) throw new NfseIntegrationError("NFSE_HTTP_ERROR", `A SEFIN Nacional respondeu com HTTP ${status} para a consulta de eventos.`, status);
+    return body;
+  }
+
+  private parseEventRegisteredEnvelope(body: string): NationalEventResponseEnvelope {
+    const json = this.parseJson(body);
+    const eventoXmlGZipB64 = typeof json.eventoXmlGZipB64 === "string" ? json.eventoXmlGZipB64 : undefined;
+    if (!eventoXmlGZipB64) {
+      throw new NfseIntegrationError("NFSE_INVALID_RESPONSE", "Resposta de registro de evento sem o campo eventoXmlGZipB64 esperado.");
+    }
+    const eventXml = gunzipSync(Buffer.from(eventoXmlGZipB64, "base64")).toString("utf8");
+    return { status: "registered", eventXml };
+  }
+
+  private parseEventRejectionEnvelope(body: string, status: number): NationalEventResponseEnvelope {
+    const { rejection } = this.parseRejectionEnvelope(body, status);
+    return { status: "rejected", rejection };
   }
 
   private parseAuthorizedEnvelope(body: string): NationalNfseResponseEnvelope {
