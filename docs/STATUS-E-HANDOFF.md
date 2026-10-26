@@ -2402,3 +2402,12 @@ Pedido do usuário: confirmar se `reconcilePendingAttempt` REGULARIZA de forma p
 - Migration `dps_id` (26/10) revalidada: `ADD COLUMN IF NOT EXISTS` nullable, sem NOT NULL/CHECK/FK, sem conflito de nome com `nfse_issued_notes.dps_id` (tabela diferente), imutabilidade herdada da ausência de política UPDATE na tabela (mesmo mecanismo já usado por todo o histórico de tentativas) — compatível com registros existentes (ficam `NULL`, tratados com falha honesta, nunca reconstruídos).
 
 **173/173 testes de `packages/core` + 115/115 de `apps/sistema` passam. Typecheck limpo.**
+
+## 26/10/2026 — NFS-e: verificação de segurança final de resolvePendingAttemptWithAccessKey, mesma branch
+
+Pedido do usuário: confirmar que uma chave de acesso informada manualmente não permite autorizar qualquer nota. **2 gaps reais confirmados e corrigidos (commit `497981f0`):**
+
+1. **Sem checagem de permissão nenhuma** — diferente de `transmit()`, o método não exigia `isAdminOrOwner`. Corrigido: mesma guarda, primeira checagem.
+2. **Só conferia o CNPJ do prestador** — a chave de acesso de QUALQUER outra nota real do mesmo prestador (CNPJ igual, DPS diferente) seria aceita por engano. Corrigido com `extractEmbeddedDpsIdentity` (novo em `dps-builder.ts`) — confere o `Id` exato da DPS embutida na NFS-e encontrada e o ambiente (`tpAmb`), não só o CNPJ. Qualquer divergência recusa sem gravar nada; a tentativa original permanece `pending`/`uncertain`.
+
+6 testes novos/atualizados provam as 4 verificações exigidas (resposta oficial, prestador, ambiente, DPS original) e a recusa específica de "chave de outra nota do mesmo prestador" (o caso mais sutil). **176/176 testes de `packages/core` + 115/115 de `apps/sistema` passam. Typecheck limpo.**
