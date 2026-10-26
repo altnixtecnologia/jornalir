@@ -114,7 +114,13 @@ export function NfseTransmissionPanel({
     return (
       <>
         <section className="form-section form-section--first">
-          <h2>NFS-e emitida com sucesso</h2>
+          <h2>NFS-e emitida com sucesso{previewMode ? " (demonstração)" : ""}</h2>
+          {previewMode ? (
+            <p className="form-error" role="alert">
+              Modo demonstração — esta NFS-e NUNCA foi transmitida ao Sistema Nacional. Número, chave de acesso e XML abaixo são
+              fictícios, gerados só pra esta simulação local.
+            </p>
+          ) : null}
           <div className="form-grid">
             <div className="form-field">
               <span className="field-label">Número</span>
@@ -122,7 +128,7 @@ export function NfseTransmissionPanel({
             </div>
             <div className="form-field">
               <span className="field-label">Status</span>
-              <span className="status-pill status-pill--published">Autorizada</span>
+              <span className="status-pill status-pill--published">{previewMode ? "Autorizada (demonstração)" : "Autorizada"}</span>
             </div>
             <div className="form-field">
               <span className="field-label">Chave de acesso</span>
