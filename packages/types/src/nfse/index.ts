@@ -277,7 +277,15 @@ export interface NfseCertificateInfo {
  * não precisamos do valor exato porque a transmissão em produção
  * continua bloqueada nesta fase (ver isTransmissionEnvironmentAllowed).
  */
-export const NFSE_SCHEMA_PACKAGE_HOMOLOGATION = "NFSe-ESQUEMAS_XSD-PRODREST-v1.01-20260727";
+/** Versão EFETIVAMENTE vendorizada/testada no repositório — jamais atualizar sem trocar os XSD.
+ * Tipada como `string` (não literal): as duas constantes devem poder convergir sem o
+ * TypeScript marcar a comparação em checkHomologationReadiness() como "sem overlap" —
+ * o fail-closed é uma checagem de RUNTIME deliberada, válida tanto divergindo quanto convergindo. */
+export const NFSE_SCHEMA_PACKAGE_HOMOLOGATION: string = "NFSe-ESQUEMAS_XSD-PRODREST-v1.01-20261020";
+/** Versão vigente informada pelo Portal NFS-e para Produção Restrita em 20/10/2026.
+ * É deliberadamente distinta da versão vendorizada; a divergência bloqueia a prontidão.
+ * Fonte: https://www.gov.br/nfse/pt-br/biblioteca/documentacao-tecnica/producao-restrita */
+export const NFSE_SCHEMA_PACKAGE_REQUIRED_HOMOLOGATION: string = "NFSe-ESQUEMAS_XSD-PRODREST-v1.01-20261020";
 
 /**
  * PENDENTE (revisão RTC/IBS-CBS, outubro/2026): a Reforma Tributária do
@@ -712,6 +720,19 @@ export const NFSE_TRANSMISSION_STATUS_LABELS: Record<NfseTransmissionStatus, str
 export interface NfseTransmissionAttempt {
   id: string;
   draftId: string;
+  /** Identificador completo da DPS (buildDpsId) — gravado como SNAPSHOT
+   * imutável no momento da tentativa (auditoria estrutural 26/10/2026,
+   * Bloco 1, item 2), nunca reconstruído depois a partir da configuração
+   * atual do emissor (que pode ter mudado entre a tentativa e uma
+   * eventual reconciliação). Necessário pra consultDps()/reconciliação
+   * sem depender de nada que possa variar com o tempo. */
+  dpsId?: string;
+  /** XML assinado da DPS no momento da tentativa (auditoria funcional
+   * 26/10/2026) — snapshot imutável, nunca re-montado/re-assinado
+   * depois. Necessário pra `resolvePendingAttemptWithAccessKey()`
+   * completar o registro fiscal com fidelidade real à DPS original,
+   * sem gerar um dhEmi/assinatura diferentes do que foi transmitido. */
+  signedDpsXml?: string;
   dpsSeries?: string;
   dpsNumber?: number;
   environment: NfseEnvironment;

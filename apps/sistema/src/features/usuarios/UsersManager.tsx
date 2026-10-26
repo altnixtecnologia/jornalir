@@ -77,6 +77,7 @@ export function UsersManager(): JSX.Element {
   const [editingEmail, setEditingEmail] = useState("");
   const [editError, setEditError] = useState("");
   const editDialogRef = useRef<HTMLDialogElement>(null);
+  const permissionsDialogRef = useRef<HTMLDialogElement>(null);
   const [inviteRole, setInviteRole] = useState<"operator" | "admin">("operator");
   const [resetTarget, setResetTarget] = useState<UserRow | null>(null);
 
@@ -89,6 +90,13 @@ export function UsersManager(): JSX.Element {
     if (editingTarget && !dialog.open) dialog.showModal();
     if (!editingTarget && dialog.open) dialog.close();
   }, [editingTarget]);
+
+  useEffect(() => {
+    const dialog = permissionsDialogRef.current;
+    if (!dialog) return;
+    if (editingUserId && !dialog.open) dialog.showModal();
+    if (!editingUserId && dialog.open) dialog.close();
+  }, [editingUserId]);
 
   async function reload(): Promise<void> {
     const [profilesResult, visibilityResult, agendaManagersResult, auditViewersResult, financeResult, moduleActionsResult, membershipsResult, invitationsResult] = await Promise.all([
@@ -214,6 +222,10 @@ export function UsersManager(): JSX.Element {
       setEditingTarget(null);
       setEditError("");
     }
+  }
+
+  function closePermissionsEditor(): void {
+    if (!pending) setEditingUserId(null);
   }
 
   async function saveUserDetails(): Promise<void> {
@@ -454,6 +466,8 @@ export function UsersManager(): JSX.Element {
     return <p className="helper-text">Você não tem permissão para gerenciar usuários.</p>;
   }
 
+  const permissionsTarget = (users ?? []).find((user) => user.id === editingUserId && user.role === "operator") ?? null;
+
   return (
     <>
       <div className="materias-toolbar">
@@ -466,7 +480,7 @@ export function UsersManager(): JSX.Element {
           Envia um convite por e-mail (processado no servidor — nunca troca a sua sessão). A pessoa define
           a própria senha ao acessar o link e depois entra normalmente por e-mail e senha.
         </p>
-        <div className="form-grid">
+        <div className="form-grid usuarios-invite-grid">
           <label className="form-field">
             <span className="field-label">Nome completo</span>
             <input type="text" autoComplete="name" required minLength={3} maxLength={120}
@@ -493,7 +507,7 @@ export function UsersManager(): JSX.Element {
             </select>
           </label>
         </div>
-        <div className="form-actions">
+        <div className="form-actions usuarios-invite-actions">
           <button type="button" className="form-action-primary" onClick={handleInvite} disabled={pending}>
             Convidar
           </button>
@@ -693,90 +707,131 @@ export function UsersManager(): JSX.Element {
           Os demais módulos continuam com visibilidade individual. Desativar um módulo o oculta
           do menu e bloqueia seu acesso pelas permissões do servidor.
         </p>
-        {!editingUserId ? <p className="helper-text">Clique em "Editar permissões" na linha de um operador para configurar módulos e ações liberadas.</p> : null}
-        {(users ?? []).filter((user) => user.role === "operator" && user.id === editingUserId).map((user) => (
-          <div key={user.id} className="inline-form">
-            <strong>{user.name} {user.active ? "" : "(inativo)"}</strong>
-            <h3>Auditoria / Histórico de atividades</h3>
-            <p className="helper-text">Somente o proprietário pode liberar a consulta ao histórico. Operadores autorizados apenas visualizam os registros.</p>
-            <label className="staff-permission-choice">
-              <input type="checkbox"
-                checked={auditViewerGrants.some((grant) => grant.profile_id === user.id && grant.can_view)}
-                disabled={pending || !isOwner || !user.active}
-                onChange={(event) => void setAuditViewerGrant(user, event.target.checked)}
-              />
-              <span>Permitir consulta aos logs do sistema</span>
-            </label>
-            <h3>Módulos disponíveis</h3>
-            <p className="helper-text">Desmarque o módulo para removê-lo dos menus deste operador.</p>
-            <div className="staff-permissions-grid">
-              {STAFF_MODULES.map((item) => (
-                <label key={item.key} className="staff-permission-choice">
-                  <input
-                    type="checkbox"
-                    checked={isModuleEnabled(user.id, item.key)}
-                    disabled={pending || !canManage(user)}
-                    onChange={(event) => void saveModuleVisibility(user, item.key, event.target.checked)}
-                  />
-                  <span>{item.label}</span>
-                </label>
-              ))}
-            </div>
-            <h3>Ações de cada módulo</h3>
-            <p className="helper-text">
-              A caixa do módulo permite consultar e acessar a área. As ações abaixo liberam
-              operações específicas, independentemente umas das outras. Desmarcado = negado.
-            </p>
-            {STAFF_MODULES.filter((mod) => mod.key !== "financeiro").map((mod) => {
-              const actions = STAFF_MODULE_ACTIONS.filter((action) => action.module === mod.key);
-              if (!actions.length) return null;
-              return (
-                <div key={mod.key} className="staff-permissions-section">
-                  <strong>{mod.label}</strong>
-                  {!isModuleEnabled(user.id, mod.key) ? <span className="helper-text">Ative o módulo acima para permitir estas operações.</span> : null}
-                  <div className="staff-permissions-grid">
-                    {actions.map((action) => (
-                      <label key={action.key} className="staff-permission-choice">
-                        <input type="checkbox"
-                          checked={moduleActionAllowed(user.id, action.module, action.key)}
-                          disabled={pending || !canManage(user) || !isModuleEnabled(user.id, action.module) || ("adminOnly" in action && action.adminOnly === true)}
-                          onChange={(event) => void saveModuleActionPermission(user, action.module, action.key, event.target.checked)}
-                        />
-                        <span>{action.label}</span>
-                      </label>
-                    ))}
-                  </div>
-                </div>
-              );
-            })}
-            <h3>Ações do Financeiro</h3>
-            <p className="helper-text">
-              Acesso ao módulo e autorização de ações são diferentes. Desmarcado significa negado.
-              Criar um título NÃO permite dar baixa, cancelar, estornar ou exportar. Não existe exclusão
-              definitiva de lançamentos: use cancelamento conforme a autorização.
-            </p>
-            {!isModuleEnabled(user.id, "financeiro")
-              ? <p className="helper-text">Ative primeiro o módulo Financeiro para configurar suas ações.</p>
-              : null}
-            <div className="staff-permissions-grid">
-              {STAFF_FINANCE_ACTIONS.map((item) => (
-                <label key={item.key} className="staff-permission-choice">
-                  <input
-                    type="checkbox"
-                    checked={financeAllowed(user.id, item.key)}
-                    disabled={pending || !canManage(user) || !isModuleEnabled(user.id, "financeiro")}
-                    onChange={(event) => void saveFinancePermission(user, item.key, event.target.checked)}
-                  />
-                  <span>{item.group} · {item.label}</span>
-                </label>
-              ))}
-            </div>
-          </div>
-        ))}
         {(users ?? []).filter((user) => user.role === "operator").length === 0
           ? <p className="helper-text">Ainda não há operadores cadastrados. Os controles aparecerão aqui quando um operador for convidado.</p>
-          : null}
+          : <p className="helper-text">Clique em "Editar permissões" na linha de um operador para configurar módulos e ações liberadas.</p>}
       </section>
+
+      <dialog
+        ref={permissionsDialogRef}
+        className="ir-modal ir-modal--form usuarios-permissions-modal"
+        aria-labelledby="usuarios-permissions-title"
+        onCancel={(event) => { if (pending) event.preventDefault(); else closePermissionsEditor(); }}
+        onClick={(event) => { if (event.target === permissionsDialogRef.current) closePermissionsEditor(); }}
+      >
+        {permissionsTarget ? (
+          <>
+            <div className="usuarios-permissions-head">
+              <div className="usuarios-permissions-head-info">
+                <h2 id="usuarios-permissions-title">{userName(permissionsTarget)}</h2>
+                <div className="usuarios-permissions-head-pills">
+                  <span className="status-pill status-pill--published">{ROLE_LABELS[permissionsTarget.role]}</span>
+                  <span className={`status-pill status-pill--${userStatus(permissionsTarget).style}`}>
+                    {userStatus(permissionsTarget).label}
+                  </span>
+                </div>
+              </div>
+              <button type="button" className="usuarios-permissions-close" aria-label="Fechar permissões"
+                onClick={closePermissionsEditor} disabled={pending}>
+                ×
+              </button>
+            </div>
+
+            <div className="usuarios-permissions-scroll">
+              <div className="usuarios-permissions-compact-row">
+                <label className="staff-permission-choice">
+                  <input type="checkbox"
+                    checked={auditViewerGrants.some((grant) => grant.profile_id === permissionsTarget.id && grant.can_view)}
+                    disabled={pending || !isOwner || !permissionsTarget.active}
+                    onChange={(event) => void setAuditViewerGrant(permissionsTarget, event.target.checked)}
+                  />
+                  <span>Permitir consulta aos logs do sistema (auditoria)</span>
+                </label>
+              </div>
+
+              <h3 className="usuarios-permissions-heading">Módulos disponíveis</h3>
+              <p className="helper-text">Desmarque o módulo para removê-lo dos menus deste operador.</p>
+              <div className="staff-permissions-grid staff-permissions-grid--modules">
+                {STAFF_MODULES.map((item) => (
+                  <label key={item.key} className="staff-permission-choice">
+                    <input
+                      type="checkbox"
+                      checked={isModuleEnabled(permissionsTarget.id, item.key)}
+                      disabled={pending || !canManage(permissionsTarget)}
+                      onChange={(event) => void saveModuleVisibility(permissionsTarget, item.key, event.target.checked)}
+                    />
+                    <span>{item.label}</span>
+                  </label>
+                ))}
+              </div>
+
+              <h3 className="usuarios-permissions-heading">Ações de cada módulo</h3>
+              <p className="helper-text">
+                A caixa do módulo permite consultar e acessar a área. As ações abaixo liberam
+                operações específicas, independentemente umas das outras. Desmarcado = negado.
+              </p>
+              {STAFF_MODULES.filter((mod) => mod.key !== "financeiro").map((mod) => {
+                const actions = STAFF_MODULE_ACTIONS.filter((action) => action.module === mod.key);
+                if (!actions.length) return null;
+                return (
+                  <details key={mod.key} className="staff-permissions-section">
+                    <summary>{mod.label}</summary>
+                    {!isModuleEnabled(permissionsTarget.id, mod.key) ? <span className="helper-text">Ative o módulo acima para permitir estas operações.</span> : null}
+                    <div className="staff-permissions-grid">
+                      {actions.map((action) => (
+                        <label key={action.key} className="staff-permission-choice">
+                          <input type="checkbox"
+                            checked={moduleActionAllowed(permissionsTarget.id, action.module, action.key)}
+                            disabled={pending || !canManage(permissionsTarget) || !isModuleEnabled(permissionsTarget.id, action.module) || ("adminOnly" in action && action.adminOnly === true)}
+                            onChange={(event) => void saveModuleActionPermission(permissionsTarget, action.module, action.key, event.target.checked)}
+                          />
+                          <span>{action.label}</span>
+                        </label>
+                      ))}
+                    </div>
+                  </details>
+                );
+              })}
+
+              <details className="staff-permissions-section">
+                <summary>Ações do Financeiro</summary>
+                <p className="helper-text">
+                  Acesso ao módulo e autorização de ações são diferentes. Desmarcado significa negado.
+                  Criar um título NÃO permite dar baixa, cancelar, estornar ou exportar. Não existe exclusão
+                  definitiva de lançamentos: use cancelamento conforme a autorização.
+                </p>
+                {!isModuleEnabled(permissionsTarget.id, "financeiro")
+                  ? <p className="helper-text">Ative primeiro o módulo Financeiro para configurar suas ações.</p>
+                  : null}
+                {Array.from(new Set(STAFF_FINANCE_ACTIONS.map((item) => item.group))).map((group) => (
+                  <div key={group} className="staff-permissions-subgroup">
+                    <strong className="staff-permissions-subgroup-title">{group}</strong>
+                    <div className="staff-permissions-grid">
+                      {STAFF_FINANCE_ACTIONS.filter((item) => item.group === group).map((item) => (
+                        <label key={item.key} className="staff-permission-choice">
+                          <input
+                            type="checkbox"
+                            checked={financeAllowed(permissionsTarget.id, item.key)}
+                            disabled={pending || !canManage(permissionsTarget) || !isModuleEnabled(permissionsTarget.id, "financeiro")}
+                            onChange={(event) => void saveFinancePermission(permissionsTarget, item.key, event.target.checked)}
+                          />
+                          <span>{item.label}</span>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </details>
+            </div>
+
+            <div className="usuarios-permissions-foot">
+              <button type="button" className="form-action-primary" onClick={closePermissionsEditor} disabled={pending}>
+                Fechar
+              </button>
+            </div>
+          </>
+        ) : null}
+      </dialog>
     </>
   );
 }

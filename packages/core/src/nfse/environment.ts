@@ -17,6 +17,22 @@ export interface NfseEnvironmentConfig {
  * NUNCA inventadas:
  * - SEFIN Nacional (emissão/consulta de DPS/NFS-e): exige certificado
  *   mTLS pra qualquer acesso, inclusive navegar a documentação.
+ *   CORRIGIDO na auditoria estrutural de 26/10/2026 (item 7 — "os
+ *   endereços de Produção Restrita e Produção são DISTINTOS, não o
+ *   mesmo path com host diferente"): confirmado ao ler diretamente a
+ *   página oficial `gov.br/nfse/.../apis-prod-restrita-e-producao`
+ *   (fonte primária, não um resumo de terceiro) que:
+ *   - Produção Restrita: `https://sefin.producaorestrita.nfse.gov.br/API/SefinNacional/...`
+ *     (COM o segmento `/API/`);
+ *   - Produção: `https://sefin.nfse.gov.br/SefinNacional/...`
+ *     (SEM o segmento `/API/` — path mais curto, não o mesmo prefixo
+ *     da Produção Restrita só com host trocado).
+ *   Confirmado por 2 buscas independentes (a própria página oficial +
+ *   um resumo de terceiro que cita a mesma distinção). A versão
+ *   anterior deste arquivo usava `/API/SefinNacional` nos DOIS
+ *   ambientes — corrigida aqui. Produção continua com
+ *   `operationsEnabled: false`, então esta correção não abre nenhuma
+ *   chamada real; é só preparação para quando for religado.
  * - ADN (parâmetros municipais/convênio/alíquota): o path atual é
  *   `/parametrizacao/{codigoMunicipio}/convenio` e
  *   `/parametrizacao/{codigoMunicipio}/{codigoServico}/{competencia}/aliquota`,
@@ -40,7 +56,9 @@ const NFSE_ENVIRONMENT_CONFIGS: Record<NfseEnvironment, NfseEnvironmentConfig> =
   production: {
     key: "production",
     label: "Produção",
-    sefinBaseUrl: "https://sefin.nfse.gov.br/API/SefinNacional",
+    // SEM "/API/" — path distinto do de Produção Restrita, confirmado contra a página oficial
+    // (ver comentário do módulo). Nunca "corrigir" isto de volta pra incluir "/API/" sem reconferir a fonte.
+    sefinBaseUrl: "https://sefin.nfse.gov.br/SefinNacional",
     municipalParametersBaseUrl: "https://adn.nfse.gov.br/parametrizacao",
     operationsEnabled: false,
   },

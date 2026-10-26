@@ -1,3 +1,4 @@
+import { DOMParser } from "@xmldom/xmldom";
 import type { DpsBuildInput } from "@ir/types";
 import { buildDpsId, NFSE_SIMPLES_NACIONAL_OPTION_CODES, NFSE_SPECIAL_TAX_REGIME_CODE_XSD_VALUES } from "@ir/types";
 import { tag } from "./xml-utils";
@@ -25,10 +26,15 @@ function federalInscriptionTag(kind: "individual" | "company", cpf: string | und
   return kind === "individual" ? tag("CPF", cpf) : tag("CNPJ", cnpj);
 }
 
-/** TSDateTimeUTC (XSD oficial) exige offset explícito (ex.: "-03:00"), nunca "Z", e sem milissegundos. Assume America/Sao_Paulo (-03:00, sem horário de verão desde 2019) — único fuso usado pelo negócio (SC). */
-function formatDhEmi(date: Date): string {
-  const iso = date.toISOString().replace(/\.\d{3}Z$/, "");
-  return `${iso}-03:00`;
+/** Hora fiscal de São João do Sul/SC: instante UTC convertido para UTC-03:00.
+ * Nunca apenas substituir o sufixo "Z" por "-03:00" — isso alteraria
+ * o instante em três horas e pode trocar o dia fiscal próximo à meia-noite.
+ * Hora oficial vigente de SC em 2026: UTC-03, sem horário de verão. */
+export function formatDhEmi(date: Date): string {
+  if (!Number.isFinite(date.getTime())) throw new Error("Data de emissão inválida.");
+  const localWallClock = new Date(date.getTime() - 3 * 60 * 60 * 1000)
+    .toISOString().replace(/\.\d{3}Z$/, "");
+  return `${localWallClock}-03:00`;
 }
 
 /** Remove tudo que não é dígito — formatação de entrada (ex.: NBS digitado como "1.1406.19.00"), nunca inventa/completa o valor. */
@@ -128,7 +134,15 @@ export function buildDpsXml(input: DpsBuildInput): string {
   const serv = buildServ(input.fiscal, input.issuer.ibgeCode, input.serviceDescription);
   const valores = buildValores(input.serviceValue);
 
-  // Ordem exata conforme TCInfDPS (xsd/prodrest-v1.01-20260727/tiposComplexos_v1.01.xsd).
+  // Ordem exata conforme TCInfDPS (xsd/prodrest-v1.01-20261020/tiposComplexos_v1.01.xsd).
+  // `cMotivoEmisTI`/`chNFSeRej` continuam omitidos (minOccurs=0; só se
+  // aplicam quando o emitente é Tomador/Intermediário ou há rejeição
+  // prévia — este sistema sempre emite como Prestador, tpEmit="1").
+  // `finNFSe` é NOVO nesta revisão do schema (antes não fazia parte da
+  // sequência de infDPS) e é OBRIGATÓRIO (sem minOccurs="0") com um
+  // único valor válido em TSRTCFinNFSe: "0" (NFS-e regular) — não é uma
+  // suposição fiscal, é o único literal aceito pelo XSD para o caso que
+  // este sistema emite.
   const infDps = [
     tag("tpAmb", input.environment === "production" ? "1" : "2"),
     tag("dhEmi", dhEmi),
@@ -137,6 +151,7 @@ export function buildDpsXml(input: DpsBuildInput): string {
     tag("nDPS", String(input.dpsNumber)),
     tag("dCompet", input.competencyDate),
     tag("tpEmit", "1"),
+    tag("finNFSe", "0"),
     tag("cLocEmi", input.issuer.ibgeCode),
     `<prest>${prest}</prest>`,
     `<toma>${toma}</toma>`,
@@ -234,4 +249,57 @@ export function parseRejectionResponse(envelope: NationalNfseResponseEnvelope): 
   if (envelope.status !== "rejected") return null;
   if (!envelope.rejection) return { code: "UNKNOWN", message: "Rejeitada sem detalhe informado pelo Sistema Nacional." };
   return envelope.rejection;
+}
+
+/**
+ * Extrai `nNFSe`/`dhProc` de um XML de NFS-e já confirmado (auditoria
+ * funcional, 26/10/2026 — usado por
+ * `TransmissionService.resolvePendingAttemptWithAccessKey()` pra
+ * completar manualmente uma tentativa "pending"/"uncertain" depois de
+ * a chave de acesso ter sido confirmada por um canal humano/fora de
+ * banda, nunca parseada automaticamente de um formato não confirmado).
+ * MESMOS nomes de campo já confirmados e testados em
+ * `sefin-nacional-client.ts` (`extractNfseFields`, caminho real de
+ * autorização) — nunca um nome novo/inventado. Fail-closed: lança erro
+ * se os campos obrigatórios não existirem.
+ */
+export function extractNfseNumberAndIssuedAt(nfseXml: string): { nfseNumber: string; issuedAt: string } {
+  const doc = new DOMParser().parseFromString(nfseXml, "text/xml");
+  const nNFSe = doc.getElementsByTagName("nNFSe")[0]?.textContent?.trim();
+  const dhProc = doc.getElementsByTagName("dhProc")[0]?.textContent?.trim();
+  if (!nNFSe || !dhProc) {
+    throw new Error("XML da NFS-e sem nNFSe/dhProc — não corresponde ao esquema oficial esperado, nunca usado pra completar um registro fiscal.");
+  }
+  return { nfseNumber: nNFSe, issuedAt: dhProc };
+}
+
+/** Extrai o CNPJ do prestador na DPS/infDPS/prest (primeiro CNPJ do documento) — mesmo
+ * princípio de `assertSamePrestador` em sefin-nacional-client.ts, aplicado aqui pra
+ * confirmar que uma NFS-e consultada manualmente pertence ao MESMO prestador da DPS
+ * original antes de aceitar a regularização. */
+export function extractPrestadorCnpj(xml: string): string | undefined {
+  return new DOMParser().parseFromString(xml, "text/xml").getElementsByTagName("CNPJ")[0]?.textContent?.trim() || undefined;
+}
+
+/**
+ * Extrai a IDENTIDADE da DPS embutida numa NFS-e autorizada (atributo
+ * `Id` de `infDPS`, formado por `buildDpsId` — único por município +
+ * tipo/inscrição + série + número — e `tpAmb`, formado no momento da
+ * emissão). Auditoria funcional (26/10/2026) — `resolvePendingAttemptWithAccessKey`
+ * usa isto pra confirmar que a NFS-e encontrada pela chave de acesso
+ * informada corresponde EXATAMENTE à DPS original da tentativa que
+ * está sendo regularizada (mesmo prestador NÃO basta: duas DPS reais
+ * do MESMO CNPJ têm `Id`s diferentes — confirmar o `Id` impede que a
+ * chave de acesso de OUTRA nota do mesmo prestador seja aceita por
+ * engano). Fail-closed: `dpsId`/`tpAmb` ausentes viram `undefined`,
+ * nunca um valor inventado — quem chama decide que isso é motivo de
+ * recusa.
+ */
+export function extractEmbeddedDpsIdentity(nfseXml: string): { dpsId?: string; tpAmb?: string } {
+  const doc = new DOMParser().parseFromString(nfseXml, "text/xml");
+  const infDPS = doc.getElementsByTagName("infDPS")[0];
+  if (!infDPS) return {};
+  const dpsId = infDPS.getAttribute("Id")?.trim() || undefined;
+  const tpAmb = doc.getElementsByTagName("tpAmb")[0]?.textContent?.trim() || undefined;
+  return { dpsId, tpAmb };
 }

@@ -14,27 +14,63 @@ import { validateXML } from "xmllint-wasm";
  * servidor, compatível com Node/Vercel.
  *
  * Esquema: pacote oficial vendorizado em
- * `./xsd/prodrest-v1.01-20260727/` (ver README.md lá — origem, versão,
- * checksum). `DPS_v1.01.xsd` é o esquema raiz pra validar uma DPS;
+ * `./xsd/prodrest-v1.01-20261020/` (ver README.md lá — origem, versão,
+ * checksum; o pacote anterior `prodrest-v1.01-20260727/` foi preservado
+ * para histórico auditável, mas não é mais o validado em runtime).
+ * `DPS_v1.01.xsd` é o esquema raiz pra validar uma DPS;
  * todos os demais arquivos do pacote são pré-carregados (`preload`)
  * pra resolver os `xs:import`/`xs:include` internos (ex.:
  * `xmldsig-core-schema.xsd`, `tiposComplexos_v1.01.xsd`).
+ *
+ * LIMITAÇÃO DELIBERADA, pra revisão final de encerramento (26/10/2026,
+ * item 1 — "esquemas separados por ambiente"): `prodrest-v1.01-20261020`
+ * é o esquema de PRODUÇÃO RESTRITA (RTC) — nosso único ambiente usado,
+ * sempre, em todo o sistema (`environment.ts`, `isTransmissionEnvironmentAllowed`
+ * em `@ir/types`). NÃO existe aqui — nem foi vendorizado, nem seria
+ * correto inventar sem fonte oficial confirmada — um pacote separado
+ * pro esquema de PRODUÇÃO REAL (que pode divergir do de Produção
+ * Restrita quando for publicado). Hoje isso não é um risco alcançável:
+ * nenhum código deste sistema jamais passa `environment: "production"`
+ * pra `validateDpsAgainstOfficialXsd`/`validatePedRegEventoAgainstOfficialXsd`
+ * (`transmission-service.ts` fixa `"homologation"` sempre, item 18; a
+ * própria transmissão real em produção já está bloqueada em
+ * `environment.ts`/`assertNfseOperationAllowed`). Mas é um lembrete
+ * OBRIGATÓRIO para quem reativar a emissão real no futuro: antes de
+ * habilitar `environment: "production"` em qualquer ponto do sistema,
+ * é preciso vendorizar e confirmar o pacote XSD oficial de Produção
+ * vigente naquela data (nunca reaproveitar silenciosamente o pacote de
+ * Produção Restrita, mesmo que pareçam idênticos).
  */
 
-const XSD_DIR = join(dirname(fileURLToPath(import.meta.url)), "xsd", "prodrest-v1.01-20260727");
+const XSD_DIR = join(dirname(fileURLToPath(import.meta.url)), "xsd", "prodrest-v1.01-20261020");
 const ROOT_SCHEMA_FILE = "DPS_v1.01.xsd";
+/** Esquema raiz do pedido de registro de evento (cancelamento e101101 inclusos) — mesmo pacote vendorizado da DPS. */
+const EVENT_ROOT_SCHEMA_FILE = "pedRegEvento_v1.01.xsd";
 
 export interface XsdValidationResult {
   valid: boolean;
   errors: string[];
 }
 
-function loadSchemaFiles(): { schema: { fileName: string; contents: string }; preload: { fileName: string; contents: string }[] } {
+function loadSchemaFiles(rootSchemaFile: string): { schema: { fileName: string; contents: string }; preload: { fileName: string; contents: string }[] } {
   const fileNames = readdirSync(XSD_DIR).filter((name) => name.endsWith(".xsd"));
   const files = fileNames.map((fileName) => ({ fileName, contents: readFileSync(join(XSD_DIR, fileName), "utf8") }));
-  const schema = files.find((file) => file.fileName === ROOT_SCHEMA_FILE);
-  if (!schema) throw new Error(`Esquema raiz ${ROOT_SCHEMA_FILE} não encontrado em ${XSD_DIR} — pacote XSD vendorizado incompleto/corrompido.`);
+  const schema = files.find((file) => file.fileName === rootSchemaFile);
+  if (!schema) throw new Error(`Esquema raiz ${rootSchemaFile} não encontrado em ${XSD_DIR} — pacote XSD vendorizado incompleto/corrompido.`);
   return { schema, preload: files };
+}
+
+async function validateAgainstSchema(xml: string, fileName: string, rootSchemaFile: string): Promise<XsdValidationResult> {
+  const { schema, preload } = loadSchemaFiles(rootSchemaFile);
+  const result = await validateXML({
+    xml: { fileName, contents: xml },
+    schema: { fileName: schema.fileName, contents: schema.contents },
+    preload: preload.filter((file) => file.fileName !== schema.fileName),
+  });
+  return {
+    valid: result.valid,
+    errors: result.errors.map((error) => error.message),
+  };
 }
 
 /**
@@ -45,14 +81,15 @@ function loadSchemaFiles(): { schema: { fileName: string; contents: string }; pr
  * é engolido silenciosamente.
  */
 export async function validateDpsAgainstOfficialXsd(xml: string): Promise<XsdValidationResult> {
-  const { schema, preload } = loadSchemaFiles();
-  const result = await validateXML({
-    xml: { fileName: "dps.xml", contents: xml },
-    schema: { fileName: schema.fileName, contents: schema.contents },
-    preload: preload.filter((file) => file.fileName !== schema.fileName),
-  });
-  return {
-    valid: result.valid,
-    errors: result.errors.map((error) => error.message),
-  };
+  return validateAgainstSchema(xml, "dps.xml", ROOT_SCHEMA_FILE);
+}
+
+/**
+ * Valida o XML (assinado ou não) do pedido de registro de evento
+ * (ex.: cancelamento e101101) contra `pedRegEvento_v1.01.xsd` do mesmo
+ * pacote vendorizado — mesmo princípio de `validateDpsAgainstOfficialXsd`,
+ * nunca finge sucesso em erro de resolução de schema.
+ */
+export async function validatePedRegEventoAgainstOfficialXsd(xml: string): Promise<XsdValidationResult> {
+  return validateAgainstSchema(xml, "pedRegEvento.xml", EVENT_ROOT_SCHEMA_FILE);
 }

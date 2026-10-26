@@ -42,6 +42,8 @@ export const NFSE_DPS_SIGNATURE_PROFILE = {
 } as const;
 
 const INF_DPS_XPATH = "//*[local-name(.)='infDPS']";
+/** Elemento assinado do pedido de registro de evento (ver assinatura de eventos abaixo). */
+const INF_PED_REG_XPATH = "//*[local-name(.)='infPedReg']";
 
 export interface DpsSigningInput {
   xml: string;
@@ -56,13 +58,7 @@ export interface DpsSigningResult {
   digestAlgorithm: string;
 }
 
-/**
- * Assina a DPS com o perfil oficial fixo (`NFSE_DPS_SIGNATURE_PROFILE`)
- * — enveloped, referenciando `infDPS` pelo `Id` já presente no XML.
- * Nunca loga/retorna a chave privada; o retorno só tem o XML assinado e
- * os identificadores (públicos) de algoritmo usados.
- */
-export function signDpsXml(input: DpsSigningInput): DpsSigningResult {
+function signElement(xml: string, xpath: string, input: { privateKeyPem: string; certificatePem: string }): DpsSigningResult {
   const sig = new SignedXml({
     privateKey: input.privateKeyPem,
     publicCert: input.certificatePem,
@@ -71,13 +67,13 @@ export function signDpsXml(input: DpsSigningInput): DpsSigningResult {
   });
 
   sig.addReference({
-    xpath: INF_DPS_XPATH,
+    xpath,
     transforms: [...NFSE_DPS_SIGNATURE_PROFILE.transforms],
     digestAlgorithm: NFSE_DPS_SIGNATURE_PROFILE.digestAlgorithm,
   });
 
-  sig.computeSignature(input.xml, {
-    location: { reference: INF_DPS_XPATH, action: "after" },
+  sig.computeSignature(xml, {
+    location: { reference: xpath, action: "after" },
   });
 
   return {
@@ -85,4 +81,34 @@ export function signDpsXml(input: DpsSigningInput): DpsSigningResult {
     signatureAlgorithm: NFSE_DPS_SIGNATURE_PROFILE.signatureAlgorithm,
     digestAlgorithm: NFSE_DPS_SIGNATURE_PROFILE.digestAlgorithm,
   };
+}
+
+/**
+ * Assina a DPS com o perfil oficial fixo (`NFSE_DPS_SIGNATURE_PROFILE`)
+ * — enveloped, referenciando `infDPS` pelo `Id` já presente no XML.
+ * Nunca loga/retorna a chave privada; o retorno só tem o XML assinado e
+ * os identificadores (públicos) de algoritmo usados.
+ */
+export function signDpsXml(input: DpsSigningInput): DpsSigningResult {
+  return signElement(input.xml, INF_DPS_XPATH, input);
+}
+
+/**
+ * Assina o pedido de registro de evento (`infPedReg`, ex.: cancelamento
+ * e101101 — ver event-builder.ts) — MESMO perfil de algoritmos da DPS
+ * (`NFSE_DPS_SIGNATURE_PROFILE`), só muda o elemento referenciado.
+ *
+ * STATUS: perfil reaproveitado por analogia estrutural ao XSD (`TCPedRegEvt`
+ * tem a mesma forma `infPedReg` + `ds:Signature` que `DPS` tem com
+ * `infDPS` + `ds:Signature`) e CORROBORADO por um relato de
+ * desenvolvedor com sucesso real em produção restrita (fórum
+ * ProjetoACBr, tópico "Cancelamento NFS-e API Nacional": "assinar
+ * usando o elemento infPedReg, comprimir com gzip, encodar pra b64 e
+ * chamar a eventos com POST") — NÃO é uma confirmação por manual
+ * oficial lido nesta sessão (o Swagger exige mTLS). Mesma ressalva de
+ * sefin-nacional-client.ts: revisar contra a documentação autenticada
+ * antes de qualquer envio real.
+ */
+export function signCancellationEventXml(input: DpsSigningInput): DpsSigningResult {
+  return signElement(input.xml, INF_PED_REG_XPATH, input);
 }

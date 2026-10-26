@@ -3,6 +3,7 @@ import { ModuleHeader } from "../../../../components/admin/ModuleHeader";
 import { createSupabaseServerClient } from "../../../../lib/supabase/server";
 import { createIssuedNoteRepositorySupabase } from "../../../../providers/supabase/nfseIssuedNoteRepository.supabase";
 import { getDraftService } from "../../../../composition/nfse";
+import { isLocalPreviewEnabled } from "../../../../lib/auth/localPreview";
 
 function formatAmount(value: number): string {
   return value.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
@@ -27,13 +28,18 @@ export default async function NfseNotasPage(): Promise<JSX.Element> {
   const supabase = createSupabaseServerClient();
   const [notes, drafts] = await Promise.all([createIssuedNoteRepositorySupabase(supabase).listAll(), getDraftService(supabase).list()]);
   const draftsById = new Map(drafts.map((draft) => [draft.id, draft]));
+  const previewMode = isLocalPreviewEnabled();
 
   return (
     <>
       <ModuleHeader
         eyebrow="NFS-e / NOTAS EMITIDAS"
         title="Notas emitidas"
-        description="NFS-e efetivamente autorizadas pelo Sistema Nacional — nunca simuladas."
+        description={
+          previewMode
+            ? "Modo demonstração ativo — as notas abaixo são SIMULADAS, nenhuma foi transmitida ao Sistema Nacional."
+            : "NFS-e efetivamente autorizadas pelo Sistema Nacional — nunca simuladas."
+        }
       />
 
       {notes.length === 0 ? (
@@ -70,7 +76,7 @@ export default async function NfseNotasPage(): Promise<JSX.Element> {
                     <td>{draft?.fiscal.cTribNac ?? "—"}</td>
                     <td>{formatAmount(note.serviceValue)}</td>
                     <td>
-                      <span className="status-pill status-pill--published">Autorizada</span>
+                      <span className="status-pill status-pill--published">{previewMode ? "Autorizada (demonstração)" : "Autorizada"}</span>
                     </td>
                     <td>{note.accessKey ?? "—"}</td>
                     <td>

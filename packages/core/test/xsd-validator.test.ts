@@ -1,8 +1,13 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { readdirSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import type { DpsBuildInput } from "@ir/types";
+import { isTransmissionEnvironmentAllowed } from "@ir/types";
 import { validateDpsAgainstOfficialXsd } from "../src/nfse/xsd-validator";
-import { buildDpsXml } from "../src/nfse/dps-builder";
+import { buildDpsXml, formatDhEmi } from "../src/nfse/dps-builder";
+import { assertNfseOperationAllowed } from "../src/nfse/environment";
 
 /**
  * DPS completa do cenário operacional inicial do Jornal IR (Parte 2C,
@@ -62,4 +67,38 @@ test("sem Simples Nacional configurado no prestador, buildDpsXml omite regTrib e
   const result = await validateDpsAgainstOfficialXsd(xml);
   assert.equal(result.valid, false);
   assert.ok(result.errors.some((error) => error.includes("regTrib") || error.includes("prest")));
+});
+
+test("dhEmi preserva o instante UTC na conversão para São João do Sul (UTC-03)", () => {
+  const utc = new Date("2026-10-25T01:15:32.000Z");
+  const issued = formatDhEmi(utc);
+  assert.equal(issued, "2026-10-24T22:15:32-03:00");
+  assert.equal(new Date(issued).toISOString(), utc.toISOString());
+});
+
+test("dhEmi também converte corretamente a hora durante o dia", () => {
+  const utc = new Date("2026-10-25T17:30:05.000Z");
+  assert.equal(formatDhEmi(utc), "2026-10-25T14:30:05-03:00");
+});
+
+test("dhEmi rejeita uma data inválida", () => {
+  assert.throws(() => formatDhEmi(new Date(Number.NaN)), /Data de emissão inválida/);
+});
+
+// Revisão final de encerramento (26/10/2026), item 1 — "confirme que os esquemas fiscais
+// estão separados por ambiente e que a versão de Produção Restrita de 20/10/2026 não será
+// utilizada indevidamente em produção antes de sua vigência". Ver limitação deliberada
+// documentada no topo de xsd-validator.ts.
+test("só existe um pacote XSD vendorizado ATIVO (prodrest-v1.01-20261020, Produção Restrita) — nenhum pacote de Produção real foi inventado/vendorizado sem fonte oficial", () => {
+  const xsdRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "src", "nfse", "xsd");
+  const packages = readdirSync(xsdRoot);
+  // "prodrest" = Produção Restrita, em TODOS os pacotes vendorizados (histórico incluso) — nunca um "prod"/"producao" sem o "rest".
+  for (const packageName of packages) {
+    assert.match(packageName, /^prodrest-/, `pacote XSD "${packageName}" não é de Produção Restrita — precisa de confirmação oficial antes de existir aqui`);
+  }
+});
+
+test("a transmissão real em Produção continua bloqueada em TODAS as guardas centrais — é isso que torna irrelevante não ter um pacote XSD de Produção real vendorizado ainda", () => {
+  assert.equal(isTransmissionEnvironmentAllowed("production"), false);
+  assert.throws(() => assertNfseOperationAllowed("production"), /bloqueadas/);
 });

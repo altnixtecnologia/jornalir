@@ -1,9 +1,12 @@
 import { notFound } from "next/navigation";
+import Link from "next/link";
 import { ModuleHeader } from "../../../../../components/admin/ModuleHeader";
 import { createSupabaseServerClient } from "../../../../../lib/supabase/server";
 import { createIssuedNoteRepositorySupabase } from "../../../../../providers/supabase/nfseIssuedNoteRepository.supabase";
 import { getDraftService, getCancellationService } from "../../../../../composition/nfse";
 import { NfseCancellationPanel } from "../../../../../features/nfse/NfseCancellationPanel";
+import { NfseConsultationPanel } from "../../../../../features/nfse/NfseConsultationPanel";
+import { isLocalPreviewEnabled } from "../../../../../lib/auth/localPreview";
 
 function formatAmount(value: number): string {
   return value.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
@@ -28,14 +31,22 @@ export default async function NfseNotaDetailPage({ params }: { params: { id: str
     getDraftService(supabase).getById(note.draftId),
     getCancellationService(supabase).listHistory(note.id),
   ]);
+  const previewMode = isLocalPreviewEnabled();
 
   return (
     <>
       <ModuleHeader
         eyebrow="NFS-e / NOTA EMITIDA"
-        title={"NFS-e " + (note.nfseNumber ?? note.dpsId)}
+        title={"NFS-e " + (note.nfseNumber ?? note.dpsId) + (previewMode ? " (demonstração)" : "")}
         description={draft ? "Tomador: " + draft.tomador.name : "Detalhe da nota autorizada."}
       />
+      {previewMode ? (
+        <section className="form-section form-section--first">
+          <p className="form-error" role="alert">
+            Modo demonstração — esta nota NUNCA foi transmitida ao Sistema Nacional. Número, chave de acesso e valores são fictícios.
+          </p>
+        </section>
+      ) : null}
       <section className="form-section form-section--first">
         <div className="form-grid">
           <div className="form-field">
@@ -51,7 +62,17 @@ export default async function NfseNotaDetailPage({ params }: { params: { id: str
             <span>{note.competencyDate}</span>
           </div>
         </div>
+        {previewMode ? (
+          <p className="helper-text">DANFSe indisponível em modo demonstração — o XML desta nota é fictício, nunca um XML real retornado pela SEFIN.</p>
+        ) : (
+          <div className="form-actions">
+            <Link className="form-action-primary" href={`/sistema/nfse/notas/${note.id}/danfse`} target="_blank" rel="noopener noreferrer">
+              Baixar DANFSe
+            </Link>
+          </div>
+        )}
       </section>
+      <NfseConsultationPanel accessKey={note.accessKey} />
       <NfseCancellationPanel issuedNoteId={note.id} history={history} />
     </>
   );
