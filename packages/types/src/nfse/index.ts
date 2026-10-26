@@ -720,6 +720,13 @@ export const NFSE_TRANSMISSION_STATUS_LABELS: Record<NfseTransmissionStatus, str
 export interface NfseTransmissionAttempt {
   id: string;
   draftId: string;
+  /** Identificador completo da DPS (buildDpsId) — gravado como SNAPSHOT
+   * imutável no momento da tentativa (auditoria estrutural 26/10/2026,
+   * Bloco 1, item 2), nunca reconstruído depois a partir da configuração
+   * atual do emissor (que pode ter mudado entre a tentativa e uma
+   * eventual reconciliação). Necessário pra consultDps()/reconciliação
+   * sem depender de nada que possa variar com o tempo. */
+  dpsId?: string;
   dpsSeries?: string;
   dpsNumber?: number;
   environment: NfseEnvironment;

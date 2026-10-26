@@ -411,12 +411,96 @@ test("auditoria estrutural (26/10/2026, item 1 — CRÍTICO): processo que nunca
   }
   assert.equal(attempts.created.length, 1);
   assert.equal(attempts.created[0].status, "pending");
+  assert.ok(attempts.created[0].dpsId, "o dpsId precisa estar gravado como snapshot imutável no próprio 'pending' (Bloco 1, item 2 desta auditoria)");
+  assert.ok(attempts.created[0].dpsId!.startsWith("DPS"));
 
   // Um NOVO TransmissionService (simula um processo reiniciado) tentando o MESMO rascunho
   // precisa ser bloqueado — nunca reservar outra DPS/retransmitir sozinho.
   const freshService = new TransmissionService(drafts, issuerConfigs, dpsSequences, issuedNotes, attempts, new FakeNationalNfseProvider("authorize"), certificate);
   await assert.rejects(() => freshService.transmit({ draftId: "draft-1", isAdminOrOwner: true }), UnresolvedUncertainAttemptError);
   assert.equal(dpsSequences.calls, 1, "a segunda tentativa nunca pode reservar um novo número de DPS");
+
+  // CONSULTA DE RECONCILIAÇÃO (Bloco 1, item 3): nunca retransmite — só consulta, usando o
+  // dpsId gravado na própria tentativa "pending", nunca reconstruído da configuração atual.
+  const reconciliation = await freshService.reconcilePendingAttempt("draft-1");
+  assert.equal(reconciliation.hasUnresolvedAttempt, true);
+  assert.equal(reconciliation.attempt?.status, "pending");
+  assert.equal(reconciliation.found, false, "o provider fake devolve null (DPS não encontrada) — reconciliação nunca inventa uma autorização");
+  assert.equal(dpsSequences.calls, 1, "reconcilePendingAttempt NUNCA reserva outro número de DPS nem transmite");
+});
+
+test("auditoria estrutural (26/10/2026, Bloco 1, item 3): reconcilePendingAttempt encontra a DPS na consulta mas NUNCA resolve a tentativa sozinho — devolve o corpo bruto, nunca inventa 'authorized'/'rejected' sem confirmação do formato oficial", async () => {
+  const drafts = new FakeDraftRepository(makeDraft());
+  const issuerConfigs = new FakeIssuerConfigRepository(makeIssuerConfig());
+  const dpsSequences = new FakeDpsSequenceRepository();
+  const issuedNotes = new FakeIssuedNoteRepository();
+  const attempts = new FakeTransmissionAttemptRepository();
+  attempts.listByDraftId = async (draftId: string) =>
+    attempts.created
+      .map((record, index): NfseTransmissionAttempt => ({ id: `attempt-${index + 1}`, createdAt: "2026-10-01T10:05:00Z", ...record }))
+      .filter((a) => a.draftId === draftId)
+      .reverse();
+  await attempts.create({ draftId: "draft-1", dpsId: "DPS4216404299999999999999999999900001000000000007", dpsSeries: "1", dpsNumber: 7, environment: "homologation", status: "uncertain", requestReference: "req-stuck" });
+  const foundBody = "corpo bruto da consulta — formato não confirmado oficialmente, nunca interpretado automaticamente";
+  const providerThatFindsIt = { async getMunicipalParameters(): Promise<never> { throw new Error("not used"); }, async transmitDps(): Promise<never> { throw new Error("not used"); }, async getNfseByAccessKey(): Promise<never> { throw new Error("not used"); }, async getDpsById() { return foundBody; } };
+  const certificate = makeConfiguredCertificateProvider();
+  const service = new TransmissionService(drafts, issuerConfigs, dpsSequences, issuedNotes, attempts, providerThatFindsIt, certificate);
+
+  const reconciliation = await service.reconcilePendingAttempt("draft-1");
+  assert.equal(reconciliation.found, true);
+  assert.equal(reconciliation.rawBody, foundBody);
+  // Nunca grava nada novo nem cria issued note sozinho — só informa o resultado bruto.
+  assert.equal(attempts.created.length, 1);
+  assert.equal(issuedNotes.created.length, 0);
+});
+
+test("auditoria estrutural (26/10/2026, Bloco 1): nenhuma chamada externa ocorre se a gravação do 'pending' falhar — falha limpa, nunca uma DPS enviada sem rastro", async () => {
+  const drafts = new FakeDraftRepository(makeDraft());
+  const issuerConfigs = new FakeIssuerConfigRepository(makeIssuerConfig());
+  const dpsSequences = new FakeDpsSequenceRepository();
+  const issuedNotes = new FakeIssuedNoteRepository();
+  const attempts = new FakeTransmissionAttemptRepository();
+  attempts.create = async () => { throw new Error("falha simulada de gravação no banco"); };
+  let providerCalled = false;
+  const provider = { async getMunicipalParameters(): Promise<never> { throw new Error("not used"); }, async transmitDps(): Promise<never> { providerCalled = true; throw new Error("nunca deveria ser chamado"); }, async getNfseByAccessKey(): Promise<never> { throw new Error("not used"); }, async getDpsById(): Promise<string | null> { return null; } };
+  const certificate = makeConfiguredCertificateProvider();
+  const service = new TransmissionService(drafts, issuerConfigs, dpsSequences, issuedNotes, attempts, provider, certificate);
+
+  await assert.rejects(() => service.transmit({ draftId: "draft-1", isAdminOrOwner: true }), /falha simulada de gravação/);
+  assert.equal(providerCalled, false, "se o 'pending' não puder ser gravado, a SEFIN nunca pode ser chamada — nunca envia sem rastro durável");
+});
+
+test("auditoria estrutural (26/10/2026, Bloco 1): resposta autorizada recebida mas a gravação da linha FINAL falha — a issued note já persistida garante que a próxima tentativa vire AlreadyIssuedError, nunca uma segunda NFS-e (transição atômica e rastreável)", async () => {
+  const drafts = new FakeDraftRepository(makeDraft());
+  const issuerConfigs = new FakeIssuerConfigRepository(makeIssuerConfig());
+  const dpsSequences = new FakeDpsSequenceRepository();
+  const issuedNotes = new FakeIssuedNoteRepository();
+  const attempts = new FakeTransmissionAttemptRepository();
+  attempts.listByDraftId = async (draftId: string) =>
+    attempts.created
+      .map((record, index): NfseTransmissionAttempt => ({ id: `attempt-${index + 1}`, createdAt: "2026-10-01T10:05:00Z", ...record }))
+      .filter((a) => a.draftId === draftId)
+      .reverse();
+  let creates = 0;
+  const realCreate = attempts.create.bind(attempts);
+  attempts.create = async (record) => {
+    creates += 1;
+    // A 1ª gravação ("pending") funciona; a 2ª (linha final "authorized") falha —
+    // simula uma queda bem no meio, DEPOIS de a nota já ter sido persistida.
+    if (creates === 2) throw new Error("falha simulada ao gravar a linha final");
+    return realCreate(record);
+  };
+  const provider = new FakeNationalNfseProvider("authorize");
+  const certificate = makeConfiguredCertificateProvider();
+  const service = new TransmissionService(drafts, issuerConfigs, dpsSequences, issuedNotes, attempts, provider, certificate);
+
+  await assert.rejects(() => service.transmit({ draftId: "draft-1", isAdminOrOwner: true }), /falha simulada ao gravar a linha final/);
+  assert.equal(issuedNotes.created.length, 1, "a NFS-e já foi autorizada e PRECISA continuar persistida mesmo com a falha de gravação do histórico");
+
+  // Uma tentativa seguinte (processo reiniciado) NUNCA pode gerar uma segunda NFS-e —
+  // a checagem de issued note (mais forte que a de 'pending') vem primeiro.
+  await assert.rejects(() => service.transmit({ draftId: "draft-1", isAdminOrOwner: true }), AlreadyIssuedError);
+  assert.equal(issuedNotes.created.length, 1, "nunca duas NFS-e pro mesmo rascunho, mesmo com uma falha de gravação no meio do caminho");
 });
 
 // Bloco B, item 3 (25/10/2026) — concorrência real: mutex, idempotência e auditoria.
