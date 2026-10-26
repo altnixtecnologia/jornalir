@@ -21,6 +21,25 @@ import { validateXML } from "xmllint-wasm";
  * todos os demais arquivos do pacote são pré-carregados (`preload`)
  * pra resolver os `xs:import`/`xs:include` internos (ex.:
  * `xmldsig-core-schema.xsd`, `tiposComplexos_v1.01.xsd`).
+ *
+ * LIMITAÇÃO DELIBERADA, pra revisão final de encerramento (26/10/2026,
+ * item 1 — "esquemas separados por ambiente"): `prodrest-v1.01-20261020`
+ * é o esquema de PRODUÇÃO RESTRITA (RTC) — nosso único ambiente usado,
+ * sempre, em todo o sistema (`environment.ts`, `isTransmissionEnvironmentAllowed`
+ * em `@ir/types`). NÃO existe aqui — nem foi vendorizado, nem seria
+ * correto inventar sem fonte oficial confirmada — um pacote separado
+ * pro esquema de PRODUÇÃO REAL (que pode divergir do de Produção
+ * Restrita quando for publicado). Hoje isso não é um risco alcançável:
+ * nenhum código deste sistema jamais passa `environment: "production"`
+ * pra `validateDpsAgainstOfficialXsd`/`validatePedRegEventoAgainstOfficialXsd`
+ * (`transmission-service.ts` fixa `"homologation"` sempre, item 18; a
+ * própria transmissão real em produção já está bloqueada em
+ * `environment.ts`/`assertNfseOperationAllowed`). Mas é um lembrete
+ * OBRIGATÓRIO para quem reativar a emissão real no futuro: antes de
+ * habilitar `environment: "production"` em qualquer ponto do sistema,
+ * é preciso vendorizar e confirmar o pacote XSD oficial de Produção
+ * vigente naquela data (nunca reaproveitar silenciosamente o pacote de
+ * Produção Restrita, mesmo que pareçam idênticos).
  */
 
 const XSD_DIR = join(dirname(fileURLToPath(import.meta.url)), "xsd", "prodrest-v1.01-20261020");
