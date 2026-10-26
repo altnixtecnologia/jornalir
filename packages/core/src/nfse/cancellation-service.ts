@@ -1,6 +1,7 @@
-import type { NfseCancellationRequest } from "@ir/types";
+import type { NfseCancellationRequest, NfseEnvironment } from "@ir/types";
 import type { CancellationRequestRepository } from "./cancellation-repository";
 import type { IssuedNoteRepository } from "./issued-note-repository";
+import type { NationalEventResponseEnvelope } from "./sefin-nacional-client";
 
 export class CancellationPermissionError extends Error {}
 export class IssuedNoteNotFoundError extends Error {
@@ -62,15 +63,61 @@ export interface RequestCancellationInput {
 }
 
 /**
+ * Interface testável (etapa de integração final, 25/10/2026, item 3)
+ * pro envio real do evento de cancelamento — `SefinNacionalClient`
+ * (sefin-nacional-client.ts) já satisfaz esta forma estruturalmente
+ * (seus métodos `submitCancellationEvent`/`getEventsByAccessKey` têm
+ * exatamente esta assinatura), então nenhum adaptador é necessário: um
+ * teste pode injetar um `SefinNacionalClient` real sobre `MockAgent`
+ * direto aqui. `CancellationService` só aceita a interface via DI —
+ * nunca importa `SefinNacionalClient` ela mesma, pra não acoplar a
+ * classe de domínio a undici/mTLS.
+ */
+export interface CancellationEventProvider {
+  submitCancellationEvent(signedPedRegEventoXml: string, accessKey: string, environment: NfseEnvironment): Promise<NationalEventResponseEnvelope>;
+  getEventsByAccessKey(accessKey: string, environment: NfseEnvironment, filter?: { eventType?: string; sequence?: number }): Promise<string>;
+}
+
+/**
+ * Implementação padrão (e única usada em produção) do
+ * `CancellationEventProvider` — bloqueia incondicionalmente, mesmo
+ * princípio de `RealTransmissionNotReadyError`
+ * (national-nfse-provider.ts). `CancellationService` recebe esta
+ * implementação por padrão; só um teste explícito injeta outra.
+ */
+export class CancellationEventNotReadyError extends Error {
+  constructor() {
+    super("Envio real do evento de cancelamento ao Sistema Nacional está bloqueado nesta fase — ver CancellationSubmissionNotReadyError.");
+  }
+}
+export class BlockedCancellationEventProvider implements CancellationEventProvider {
+  async submitCancellationEvent(): Promise<never> {
+    throw new CancellationEventNotReadyError();
+  }
+  async getEventsByAccessKey(): Promise<never> {
+    throw new CancellationEventNotReadyError();
+  }
+}
+
+/**
  * Preparação do cancelamento de NFS-e (Item 5, Lote 2, Tarefa 5) —
  * identifica a nota, confere permissão, valida e registra motivo/
  * justificativa, evita solicitações repetidas. NUNCA envia o
- * cancelamento de fato (ver CancellationSubmissionNotReadyError).
+ * cancelamento de fato (ver CancellationSubmissionNotReadyError) —
+ * `submitCancellation` abaixo lança esse erro INCONDICIONALMENTE, antes
+ * de tocar em `eventProvider`, mesmo que um `CancellationEventProvider`
+ * real (sem bloqueio) seja injetado — a guarda não depende de o
+ * provider real existir ou não (mesmo princípio de
+ * `FetchNationalNfseProvider`/`SefinNacionalNationalNfseProvider` em
+ * national-nfse-provider.ts). `eventProvider` existe só pra permitir
+ * testar a integração ponta a ponta (ver
+ * nfse-end-to-end-real-client.test.ts) sem abrir o bloqueio real.
  */
 export class CancellationService {
   constructor(
     private readonly issuedNotes: IssuedNoteRepository,
     private readonly requests: CancellationRequestRepository,
+    private readonly eventProvider: CancellationEventProvider = new BlockedCancellationEventProvider(),
   ) {}
 
   async requestCancellation(input: RequestCancellationInput): Promise<NfseCancellationRequest> {
@@ -91,15 +138,29 @@ export class CancellationService {
       throw new InvalidCancellationJustificationError("A justificativa precisa ter entre 15 e 255 caracteres.");
     }
 
+    // Checagem rápida (idêntica em espírito à de TransmissionService.transmit) — a proteção
+    // REAL contra duas solicitações ativas concorrentes é o índice único parcial do banco
+    // (idx_nfse_cancellation_one_active_per_note, ver migration 20261029100900), checado no
+    // catch abaixo. Sem mutex aqui de propósito: ao contrário da transmissão (que reserva
+    // número de DPS e chama a API nacional), preparar uma solicitação é só uma linha local —
+    // a constraint UNIQUE já é suficiente como único backstop (etapa de integração final,
+    // 25/10/2026, item 5 — "garantir idempotência... incluir os eventos de cancelamento").
     const active = await this.requests.getActiveByIssuedNoteId(input.issuedNoteId);
     if (active) throw new CancellationAlreadyRequestedError(input.issuedNoteId);
 
-    return this.requests.create({
-      issuedNoteId: input.issuedNoteId,
-      justificationCode: input.justificationCode,
-      justificationText,
-      requestedByProfileId: input.actorProfileId,
-    });
+    try {
+      return await this.requests.create({
+        issuedNoteId: input.issuedNoteId,
+        justificationCode: input.justificationCode,
+        justificationText,
+        requestedByProfileId: input.actorProfileId,
+      });
+    } catch (error) {
+      if (error instanceof Error && error.message.toLowerCase().includes("idx_nfse_cancellation_one_active_per_note")) {
+        throw new CancellationAlreadyRequestedError(input.issuedNoteId);
+      }
+      throw error;
+    }
   }
 
   async listHistory(issuedNoteId: string): Promise<NfseCancellationRequest[]> {

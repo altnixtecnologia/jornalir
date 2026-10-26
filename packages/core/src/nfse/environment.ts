@@ -16,7 +16,23 @@ export interface NfseEnvironmentConfig {
  * de integração de terceiros; guias técnicos de integradores),
  * NUNCA inventadas:
  * - SEFIN Nacional (emissão/consulta de DPS/NFS-e): exige certificado
- *   mTLS pra qualquer acesso, inclusive navegar a documentação.
+ *   mTLS pra qualquer acesso, inclusive navegar a documentação. O
+ *   segmento `/API/` (ex.: `.../API/SefinNacional/nfse`) foi reforçado
+ *   na etapa de integração final (25/10/2026) por 3 fontes
+ *   independentes que convergem: (1) confirmação empírica desta sessão
+ *   (o Swagger ao vivo só responde — mesmo que com erro de mTLS — sob
+ *   esse path); (2) a biblioteca open-source `pynfse-nacional` (GitHub,
+ *   roberto-mello) lista exatamente
+ *   `sefin.producaorestrita.nfse.gov.br/API/SefinNacional/docs/index`
+ *   (homologação) e `sefin.nfse.gov.br/API/SefinNacional/docs/index`
+ *   (produção) como os endereços do Swagger; (3) um post de fórum
+ *   (2026) relatando uma chamada real a
+ *   `.../API/SefinNacional/nfse` que retornou um erro FUNCIONAL
+ *   (`E4007 Não foi possível obter o certificado de cliente` — erro de
+ *   certificado, não 404), o que só acontece se o path em si existir e
+ *   for roteado corretamente pela SEFIN. Antes desta etapa, um post
+ *   isolado citando `.../SefinNacional/nfse` sem `/API/` era a única
+ *   fonte contrária — permanece sem corroboração independente.
  * - ADN (parâmetros municipais/convênio/alíquota): o path atual é
  *   `/parametrizacao/{codigoMunicipio}/convenio` e
  *   `/parametrizacao/{codigoMunicipio}/{codigoServico}/{competencia}/aliquota`,
