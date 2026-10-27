@@ -47,6 +47,13 @@ const ARTICLE_MEDIA_TABLE = "article_media";
 const ARTICLE_COLUMNS =
   "id, internal_reference, slug, title, title_style, subtitle, subtitle_style, body, section_id, locality_id, status, notification_mode, origin, author_name, newspaper_edition_id, newspaper_page, urgent, scheduled_at, published_at, archived_at, created_by, created_at, updated_at";
 
+// Listagem administrativa (milhares de linhas por página renderizada):
+// MateriasList nunca exibe o corpo da matéria, só a edição/detalhe precisa
+// dele — igual a ARTICLE_COLUMNS, sem `body`, pra não ler/transportar texto
+// grande que a tela não usa.
+const ARTICLE_LIST_COLUMNS =
+  "id, internal_reference, slug, title, title_style, subtitle, subtitle_style, section_id, locality_id, status, notification_mode, origin, author_name, newspaper_edition_id, newspaper_page, urgent, scheduled_at, published_at, archived_at, created_by, created_at, updated_at";
+
 interface ArticleRow {
   id: string;
   internal_reference: string;
@@ -559,9 +566,17 @@ export async function listArticlesAdminPageSupabase(
   const ascending = input.sortDir === "asc";
 
   const buildQuery = (page: number) => {
+    // count: "exact" fazia o Postgres contar, sob RLS, as ~23 mil linhas de
+    // `articles` a cada carregamento da página (SQLSTATE 57014 — statement
+    // timeout confirmado em produção em 26/10/2026). "estimated" usa as
+    // estatísticas do planner (ANALYZE) em vez de um COUNT(*) completo —
+    // instantâneo, ao custo de `total`/`totalPages` passarem a ser uma
+    // aproximação quando o resultado é grande, nunca um valor exato. Exato
+    // quando o filtro já reduz bastante o conjunto (estimativa converge pro
+    // valor real nesses casos). Documentado também em STATUS-E-HANDOFF.md.
     let query = client
       .from(ARTICLES_TABLE)
-      .select(ARTICLE_COLUMNS, { count: "exact" })
+      .select(ARTICLE_LIST_COLUMNS, { count: "estimated" })
       .order(SORT_COLUMN_TO_DB[sortBy], { ascending });
     // Desempate estável — evita a ordem "balançar" entre páginas quando a
     // coluna ativa repete valor (ex.: mesmo status/origem em várias linhas).
@@ -601,9 +616,15 @@ export async function listArticlesAdminPageSupabase(
 
   const total = count ?? 0;
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
-  const page = Math.min(requestedPage, totalPages);
-
-  if (page !== requestedPage) {
+  // `total`/`totalPages` vêm de uma contagem aproximada (count: "estimated"
+  // acima) — nunca usados para clampar a página pedida: uma subestimativa
+  // clamparia o usuário pra baixo e esconderia página(s) reais mais
+  // adiante. Só reage ao fato observado — a página pedida voltou vazia
+  // (ex.: usuário foi direto a uma página alta pela URL) — voltando pra
+  // página 1 em vez de renderizar uma tela vazia.
+  let page = requestedPage;
+  if ((data ?? []).length === 0 && requestedPage > 1) {
+    page = 1;
     const retry = await buildQuery(page);
     if (retry.error) throw new Error(retry.error.message);
     data = retry.data;
@@ -611,13 +632,25 @@ export async function listArticlesAdminPageSupabase(
 
   // O select é montado em runtime (embed condicional pra ordenar por
   // editoria/abrangência) — o TS não consegue inferir a forma da linha a
-  // partir de uma string dinâmica, então o cast passa por `unknown`.
-  const rows = (data ?? []) as unknown as ArticleRow[];
+  // partir de uma string dinâmica, então o cast passa por `unknown`. `body`
+  // não vem mais nesta consulta (ARTICLE_LIST_COLUMNS) — a listagem nunca
+  // exibe o corpo da matéria, só a edição/detalhe lê (ver
+  // ARTICLE_COLUMNS/getArticleById), então aqui ele chega vazio de
+  // propósito.
+  const rows = ((data ?? []) as unknown as Omit<ArticleRow, "body">[]).map((row) => ({
+    ...row,
+    body: "",
+  })) as ArticleRow[];
   const ids = rows.map((row) => row.id);
   const [placements, coverMedia] = await Promise.all([
     fetchActivePlacements(client, ids),
     fetchCoverMediaByArticle(client, ids),
   ]);
+
+  // Se a página devolvida está cheia e a contagem estimada diz que já é (ou
+  // passou) a última página, mantém a opção de avançar mais uma — evita que
+  // uma subestimativa esconda o botão "próxima" antes da hora.
+  const totalPagesForUi = rows.length === pageSize && page >= totalPages ? page + 1 : totalPages;
 
   return {
     articles: rows.map((row) =>
@@ -626,7 +659,7 @@ export async function listArticlesAdminPageSupabase(
     total,
     page,
     pageSize,
-    totalPages,
+    totalPages: totalPagesForUi,
   };
 }
 
