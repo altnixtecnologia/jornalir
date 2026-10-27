@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { createSupabaseBrowserClient } from "../../lib/supabase/browser";
 import { useAuth, type AuthRole } from "../../lib/auth/AuthProvider";
 import { ROLE_LABELS } from "../../lib/auth/accountDisplay";
@@ -8,6 +8,26 @@ import { hasRealStaffName, staffNameLabel } from "../../lib/auth/userIdentity";
 import { inviteUser, listUserInvitationStatuses, sendPasswordResetForUser, updateManagedUserDetails, resendPendingUserAccess } from "../../app/sistema/usuarios/actions";
 import { ConfirmDialog } from "../../components/admin/ConfirmDialog";
 import { STAFF_FINANCE_ACTIONS, STAFF_MODULE_ACTIONS, STAFF_MODULES, type StaffFinanceActionKey, type StaffModuleActionKey, type StaffActionModule, type StaffModuleKey } from "../../lib/permissions/staffPermissionsCatalog";
+import {
+  buildPermissionDraft,
+  moduleHasExistingActionConfig,
+  applyModuleActivation,
+  applyModuleDeactivation,
+  activateDefaultModules,
+  selectAllModuleActions,
+  clearModuleActions,
+  selectAllFinanceActions,
+  clearFinanceActions,
+  moduleActionsHaveCritical,
+  financeActionsHaveCritical,
+  countAllowedModuleActions,
+  countAllowedFinanceActions,
+  diffPermissionDraft,
+  isPermissionDiffEmpty,
+  moduleActionDraftKey,
+  type PermissionDraft,
+  type PermissionSnapshot,
+} from "../../lib/permissions/permissionsDraft";
 
 
 type UserActionIconName = "edit" | "promote" | "demote" | "permissions" | "access" | "password" | "disable" | "enable";
@@ -25,6 +45,76 @@ function UserActionIcon({ name }: { name: UserActionIconName }): JSX.Element {
       {name === "disable" ? <><path d="M12 3v9" /><path d="M7.3 5.6a9 9 0 1 0 9.4 0" /></> : null}
       {name === "enable" ? <><circle cx="12" cy="12" r="9" /><path d="m8 12 3 3 5-6" /></> : null}
     </svg>
+  );
+}
+
+/** Switch liga/desliga acessível — `<input type="checkbox">` real por baixo
+ * (teclado e leitor de tela funcionam de fábrica), apenas com aparência de
+ * trilho/bolinha. `role="switch"` + `aria-checked` descrevem a semântica
+ * real sem abandonar a caixa nativa. */
+function PermissionSwitch({
+  label, checked, disabled, onChange, className = "",
+}: {
+  label: ReactNode; checked: boolean; disabled?: boolean; onChange: (checked: boolean) => void; className?: string;
+}): JSX.Element {
+  return (
+    <label className={"ir-switch-row " + className}>
+      <input
+        type="checkbox"
+        className="ir-switch"
+        role="switch"
+        aria-checked={checked}
+        checked={checked}
+        disabled={disabled}
+        onChange={(event) => onChange(event.target.checked)}
+      />
+      <span className="ir-switch-track" aria-hidden="true"><span className="ir-switch-thumb" /></span>
+      <span className="ir-switch-label">{label}</span>
+    </label>
+  );
+}
+
+/** Cartão recolhível de um módulo: cabeçalho sempre visível com nome,
+ * contagem de ações liberadas e o switch de ativação; corpo (ações) só
+ * monta quando expandido. O switch fica fora do botão de expandir para
+ * nunca disparar os dois comportamentos com um único clique. */
+function ModulePermissionCard({
+  moduleKey, label, enabled, switchDisabled, releaseBlocked, allowedCount, totalCount,
+  expanded, onToggleExpanded, onToggleEnabled, children,
+}: {
+  moduleKey: string; label: string; enabled: boolean; switchDisabled: boolean; releaseBlocked?: boolean;
+  allowedCount: number; totalCount: number; expanded: boolean;
+  onToggleExpanded: () => void; onToggleEnabled: (enabled: boolean) => void; children: ReactNode;
+}): JSX.Element {
+  const bodyId = "perm-module-body-" + moduleKey;
+  const statusText = releaseBlocked
+    ? "Bloqueado pela política de release"
+    : enabled
+      ? allowedCount + " de " + totalCount + " ações liberadas"
+      : "Módulo desativado";
+  return (
+    <div className={"permission-module-card" + (enabled ? " permission-module-card--enabled" : "")}>
+      <div className="permission-module-card-head">
+        <button
+          type="button"
+          className="permission-module-card-toggle"
+          aria-expanded={expanded}
+          aria-controls={bodyId}
+          onClick={onToggleExpanded}
+        >
+          <span className={"permission-module-chevron" + (expanded ? " permission-module-chevron--open" : "")} aria-hidden="true">▸</span>
+          <span className="permission-module-card-label">{label}</span>
+        </button>
+        <span className="permission-module-card-count helper-text">{statusText}</span>
+        <PermissionSwitch
+          label={<span className="sr-only">{(enabled ? "Desativar " : "Ativar ") + label}</span>}
+          checked={enabled}
+          disabled={switchDisabled}
+          onChange={onToggleEnabled}
+        />
+      </div>
+      {expanded ? <div id={bodyId} className="permission-module-card-body">{children}</div> : null}
+    </div>
   );
 }
 
@@ -79,6 +169,10 @@ export function UsersManager(): JSX.Element {
   const editDialogRef = useRef<HTMLDialogElement>(null);
   const [inviteRole, setInviteRole] = useState<"operator" | "admin">("operator");
   const [resetTarget, setResetTarget] = useState<UserRow | null>(null);
+  const [permissionDraft, setPermissionDraft] = useState<PermissionDraft | null>(null);
+  const [expandedModules, setExpandedModules] = useState<Set<StaffModuleKey>>(new Set());
+  const [pendingSwitch, setPendingSwitch] = useState<{ target: string | null } | null>(null);
+  const [criticalConfirm, setCriticalConfirm] = useState<{ scope: "module"; moduleKey: StaffActionModule } | { scope: "finance" } | null>(null);
 
   const isOwner = profile?.role === "owner";
   const isAdmin = profile?.role === "admin";
@@ -90,7 +184,7 @@ export function UsersManager(): JSX.Element {
     if (!editingTarget && dialog.open) dialog.close();
   }, [editingTarget]);
 
-  async function reload(): Promise<void> {
+  async function reload(): Promise<{ moduleVisibility: VisibilityRow[]; moduleActionGrants: ModuleActionGrantRow[]; financeGrants: FinanceGrantRow[] } | void> {
     const [profilesResult, visibilityResult, agendaManagersResult, auditViewersResult, financeResult, moduleActionsResult, membershipsResult, invitationsResult] = await Promise.all([
       client.from("profiles").select("id, name, role, active, created_at").order("created_at", { ascending: true }),
       client.from("staff_module_visibility").select("profile_id,module_key,enabled"),
@@ -110,11 +204,14 @@ export function UsersManager(): JSX.Element {
     // colaboradores e não devem aparecer na administração de usuários.
     const staffIds=new Set((membershipsResult.data??[]).map(m=>m.profile_id));
     setUsers((profilesResult.data??[]).filter(profile=>staffIds.has(profile.id)) as UserRow[]);
-    setModuleVisibility((visibilityResult.data ?? []) as VisibilityRow[]);
+    const freshVisibility = (visibilityResult.data ?? []) as VisibilityRow[];
+    const freshModuleActions = (moduleActionsResult.data ?? []) as ModuleActionGrantRow[];
+    const freshFinance = (financeResult.data ?? []) as FinanceGrantRow[];
+    setModuleVisibility(freshVisibility);
     setAgendaManagerGrants((agendaManagersResult.data ?? []) as AgendaManagerGrantRow[]);
     setAuditViewerGrants((auditViewersResult.data ?? []) as AuditViewerGrantRow[]);
-    setFinanceGrants((financeResult.data ?? []) as FinanceGrantRow[]);
-    setModuleActionGrants((moduleActionsResult.data ?? []) as ModuleActionGrantRow[]);
+    setFinanceGrants(freshFinance);
+    setModuleActionGrants(freshModuleActions);
     if ("ok" in invitationsResult) {
       setInvitationStatuses(invitationsResult.statuses);
       setInvitationWarning("");
@@ -122,6 +219,7 @@ export function UsersManager(): JSX.Element {
       setInvitationStatuses(null);
       setInvitationWarning(invitationsResult.error);
     }
+    return { moduleVisibility: freshVisibility, moduleActionGrants: freshModuleActions, financeGrants: freshFinance };
   }
 
   useEffect(() => {
@@ -340,68 +438,164 @@ export function UsersManager(): JSX.Element {
     return { label: "Ativo", style: "published" };
   }
 
-  function financeAllowed(userId: string, key: StaffFinanceActionKey): boolean {
-    return financeGrants.some((item) => item.profile_id === userId && item.action_key === key && item.allowed);
+  /** Projeta os grants brutos (como vêm do Supabase, com profile_id) no
+   * formato de snapshot puro (sem profile_id) usado por `permissionsDraft`.
+   * Recebe as linhas como parâmetro (em vez de ler o state direto) para que
+   * o chamador possa montar o snapshot com dados recém-recarregados, sem
+   * depender de um closure desatualizado após `await reload()`. */
+  function snapshotFromRows(
+    userId: string, visibilityRows: VisibilityRow[], actionRows: ModuleActionGrantRow[], financeRows: FinanceGrantRow[],
+  ): PermissionSnapshot {
+    return {
+      moduleVisibility: visibilityRows.filter((row) => row.profile_id === userId).map((row) => ({ module_key: row.module_key, enabled: row.enabled })),
+      moduleActions: actionRows.filter((row) => row.profile_id === userId).map((row) => ({ module_key: row.module_key, action_key: row.action_key, allowed: row.allowed })),
+      financeActions: financeRows.filter((row) => row.profile_id === userId).map((row) => ({ action_key: row.action_key, allowed: row.allowed })),
+    };
   }
 
-  async function saveFinancePermission(target: UserRow, key: StaffFinanceActionKey, allowed: boolean): Promise<void> {
-    if (target.role !== "operator" || !canManage(target) || !isModuleEnabled(target.id, "financeiro")) return;
+  function buildSnapshotForUser(userId: string): PermissionSnapshot {
+    return snapshotFromRows(userId, moduleVisibility, moduleActionGrants, financeGrants);
+  }
+
+  const permissionsDirty = useMemo(() => {
+    if (!editingUserId || !permissionDraft) return false;
+    return !isPermissionDiffEmpty(diffPermissionDraft(buildSnapshotForUser(editingUserId), permissionDraft));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editingUserId, permissionDraft, moduleVisibility, moduleActionGrants, financeGrants]);
+
+  useEffect(() => {
+    function handleBeforeUnload(event: BeforeUnloadEvent): void {
+      if (!permissionsDirty) return;
+      event.preventDefault();
+      event.returnValue = "";
+    }
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+  }, [permissionsDirty]);
+
+  function applyEditTarget(userId: string | null): void {
+    setEditingUserId(userId);
+    setPermissionDraft(userId ? buildPermissionDraft(buildSnapshotForUser(userId)) : null);
+    setExpandedModules(new Set());
+    setCriticalConfirm(null);
+  }
+
+  function requestEditTarget(userId: string | null): void {
+    if (pending) return;
+    if (permissionsDirty) {
+      setPendingSwitch({ target: userId });
+      return;
+    }
+    applyEditTarget(userId);
+  }
+
+  function updateModuleEnabled(moduleKey: StaffModuleKey, enabled: boolean): void {
+    if (!editingUserId || !permissionDraft) return;
+    if (!enabled) {
+      setPermissionDraft(applyModuleDeactivation(permissionDraft, moduleKey));
+      return;
+    }
+    const hasExistingConfig = moduleHasExistingActionConfig(buildSnapshotForUser(editingUserId), moduleKey);
+    setPermissionDraft(applyModuleActivation(permissionDraft, moduleKey, { hasExistingConfig }));
+  }
+
+  function updateModuleAction(moduleKey: StaffActionModule, actionKey: StaffModuleActionKey, allowed: boolean): void {
+    if (!permissionDraft) return;
+    setPermissionDraft({ ...permissionDraft, moduleActions: { ...permissionDraft.moduleActions, [moduleActionDraftKey(moduleKey, actionKey)]: allowed } });
+  }
+
+  function updateFinanceAction(actionKey: StaffFinanceActionKey, allowed: boolean): void {
+    if (!permissionDraft) return;
+    setPermissionDraft({ ...permissionDraft, financeActions: { ...permissionDraft.financeActions, [actionKey]: allowed } });
+  }
+
+  function handleSelectAllModule(moduleKey: StaffActionModule): void {
+    if (!permissionDraft) return;
+    setPermissionDraft(selectAllModuleActions(permissionDraft, moduleKey, { includeCritical: false }));
+    if (moduleActionsHaveCritical(moduleKey)) setCriticalConfirm({ scope: "module", moduleKey });
+  }
+
+  function handleClearModule(moduleKey: StaffActionModule): void {
+    if (!permissionDraft) return;
+    setPermissionDraft(clearModuleActions(permissionDraft, moduleKey));
+  }
+
+  function handleSelectAllFinance(): void {
+    if (!permissionDraft) return;
+    setPermissionDraft(selectAllFinanceActions(permissionDraft, { includeCritical: false }));
+    if (financeActionsHaveCritical()) setCriticalConfirm({ scope: "finance" });
+  }
+
+  function handleClearFinance(): void {
+    if (!permissionDraft) return;
+    setPermissionDraft(clearFinanceActions(permissionDraft));
+  }
+
+  function confirmCriticalSelection(): void {
+    if (!permissionDraft || !criticalConfirm) return;
+    setPermissionDraft(
+      criticalConfirm.scope === "module"
+        ? selectAllModuleActions(permissionDraft, criticalConfirm.moduleKey, { includeCritical: true })
+        : selectAllFinanceActions(permissionDraft, { includeCritical: true }),
+    );
+    setCriticalConfirm(null);
+  }
+
+  function handleActivateDefaultModules(): void {
+    if (!editingUserId || !permissionDraft) return;
+    const snapshot = buildSnapshotForUser(editingUserId);
+    const hasExisting: Partial<Record<StaffModuleKey, boolean>> = {};
+    for (const mod of STAFF_MODULES) hasExisting[mod.key] = moduleHasExistingActionConfig(snapshot, mod.key);
+    setPermissionDraft(activateDefaultModules(permissionDraft, hasExisting));
+  }
+
+  async function savePermissions(): Promise<void> {
+    if (!editingUserId || !permissionDraft || pending) return;
+    const target = (users ?? []).find((item) => item.id === editingUserId);
+    if (!target) return;
+    const diff = diffPermissionDraft(buildSnapshotForUser(target.id), permissionDraft);
+    if (isPermissionDiffEmpty(diff)) {
+      applyEditTarget(null);
+      return;
+    }
     setPending(true);
     setError(null);
     setMessage(null);
-    const { error: saveError } = await client.from("staff_finance_action_permissions").upsert({
-      profile_id: target.id, action_key: key, allowed, updated_at: new Date().toISOString(),
-    }, { onConflict: "profile_id,action_key" });
-    if (saveError) setError("Erro ao salvar autorização financeira: " + saveError.message);
-    else setMessage("Permissão atualizada para " + target.name + ".");
-    await reload();
+    const now = new Date().toISOString();
+    const [visibilityResult, actionsResult, financeResult] = await Promise.all([
+      diff.visibility.length
+        ? client.from("staff_module_visibility").upsert(
+            diff.visibility.map((row) => ({ profile_id: target.id, module_key: row.module_key, enabled: row.enabled, updated_at: now })),
+            { onConflict: "profile_id,module_key" },
+          )
+        : Promise.resolve({ error: null }),
+      diff.moduleActions.length
+        ? client.from("staff_module_action_permissions").upsert(
+            diff.moduleActions.map((row) => ({ profile_id: target.id, module_key: row.module_key, action_key: row.action_key, allowed: row.allowed, updated_at: now })),
+            { onConflict: "profile_id,module_key,action_key" },
+          )
+        : Promise.resolve({ error: null }),
+      diff.financeActions.length
+        ? client.from("staff_finance_action_permissions").upsert(
+            diff.financeActions.map((row) => ({ profile_id: target.id, action_key: row.action_key, allowed: row.allowed, updated_at: now })),
+            { onConflict: "profile_id,action_key" },
+          )
+        : Promise.resolve({ error: null }),
+    ]);
+    const fresh = await reload();
+    const failures = [visibilityResult, actionsResult, financeResult].filter((result) => result.error);
     setPending(false);
+    if (failures.length > 0) {
+      setError(
+        "Não foi possível salvar " + failures.length + " de 3 grupos de permissões. " +
+        "O estado foi recarregado a partir do banco — revise e tente salvar novamente.",
+      );
+      if (fresh) setPermissionDraft(buildPermissionDraft(snapshotFromRows(target.id, fresh.moduleVisibility, fresh.moduleActionGrants, fresh.financeGrants)));
+      return;
+    }
+    setMessage("Permissões salvas para " + target.name + ".");
+    applyEditTarget(null);
   }
-
-  function moduleActionAllowed(userId: string, module: StaffActionModule, key: StaffModuleActionKey): boolean {
-    return moduleActionGrants.some((grant) =>
-      grant.profile_id === userId && grant.module_key === module && grant.action_key === key && grant.allowed);
-  }
-
-  async function saveModuleActionPermission(
-    target: UserRow, module: StaffActionModule, key: StaffModuleActionKey, allowed: boolean,
-  ): Promise<void> {
-    if (target.role !== "operator" || !canManage(target) || !isModuleEnabled(target.id, module)) return;
-    setPending(true);
-    setError(null);
-    setMessage(null);
-    const { error: saveError } = await client.from("staff_module_action_permissions").upsert({
-      profile_id: target.id, module_key: module, action_key: key, allowed,
-      updated_at: new Date().toISOString(),
-    }, { onConflict: "profile_id,module_key,action_key" });
-    if (saveError) setError("Erro ao salvar ação do módulo: " + saveError.message);
-    else setMessage("Permissão atualizada para " + target.name + ".");
-    await reload();
-    setPending(false);
-  }
-
-  function isModuleEnabled(userId: string, key: StaffModuleKey): boolean {
-    return moduleVisibility.some((item) =>
-      item.profile_id === userId && item.module_key === key && item.enabled);
-  }
-
-  async function saveModuleVisibility(target: UserRow, key: StaffModuleKey, enabled: boolean): Promise<void> {
-    if (target.role !== "operator" || !canManage(target)) return;
-    setPending(true);
-    setError(null);
-    setMessage(null);
-    const { error: saveError } = await client.from("staff_module_visibility").upsert({
-      profile_id: target.id,
-      module_key: key,
-      enabled,
-      updated_at: new Date().toISOString(),
-    }, { onConflict: "profile_id,module_key" });
-    if (saveError) setError("Erro ao salvar módulo: " + saveError.message);
-    else setMessage((enabled ? "Módulo habilitado" : "Módulo desabilitado") + " para " + target.name + ".");
-    await reload();
-    setPending(false);
-  }
-
 
   // Ações compactas somente no desktop. Mobile conserva os botões de texto.
   function renderUserActions(user: UserRow): JSX.Element {
@@ -425,7 +619,7 @@ export function UsersManager(): JSX.Element {
         {user.role === "operator" ? (
           <button type="button" className="usuarios-action-button" title={permissionsLabel}
             aria-label={permissionsLabel + ": " + userName(user)}
-            onClick={() => setEditingUserId((id) => id === user.id ? null : user.id)} disabled={pending}>
+            onClick={() => requestEditTarget(editingUserId === user.id ? null : user.id)} disabled={pending}>
             <UserActionIcon name="permissions" /><span>{permissionsLabel}</span>
           </button>
         ) : null}
@@ -590,7 +784,7 @@ export function UsersManager(): JSX.Element {
                         {user.role === "admin" ? "Rebaixar a operador" : "Promover a admin"}
                       </button>
                     ) : null}
-                    {user.role === "operator" ? <button type="button" onClick={() => setEditingUserId((id) => id === user.id ? null : user.id)} disabled={pending}>
+                    {user.role === "operator" ? <button type="button" onClick={() => requestEditTarget(editingUserId === user.id ? null : user.id)} disabled={pending}>
                       {editingUserId === user.id ? "Fechar permissões" : "Editar permissões"}
                     </button> : null}
                     <button type="button" onClick={() => openUserEditor(user)} disabled={pending}>
@@ -675,101 +869,132 @@ export function UsersManager(): JSX.Element {
           administradores autorizados pelo proprietário.
         </p>
         <div className="inline-form">
-          <strong>Administradores autorizados a gerenciar Agenda e Pauta</strong>
-          <p className="helper-text">Somente o proprietário libera ou revoga este poder. A baixa individual continua disponível para responsáveis comuns.</p>
+          <strong>Administradores autorizados a gerenciar Agenda e Pauta</strong>{" "}
+          <span className="status-pill status-pill--published">Salvo imediatamente</span>
+          <p className="helper-text">Somente o proprietário libera ou revoga este poder. A baixa individual continua disponível para responsáveis comuns. Cada switch abaixo grava direto no banco ao ser clicado — não depende do botão "Salvar permissões" nem é desfeito por "Cancelar".</p>
           {(users ?? []).filter((user) => user.role === "admin").map((user) => (
-            <label key={user.id} className="staff-permission-choice">
-              <input type="checkbox"
-                checked={agendaManagerGrants.some((grant) => grant.profile_id === user.id && grant.can_manage)}
-                disabled={pending || !isOwner || !user.active}
-                onChange={(event) => void setAgendaManagerGrant(user, event.target.checked)}
-              />
-              <span>{user.name} · {user.active ? "ativo" : "inativo"} · pode criar, editar, cancelar e reabrir</span>
-            </label>
+            <PermissionSwitch
+              key={user.id}
+              className="staff-permission-choice"
+              checked={agendaManagerGrants.some((grant) => grant.profile_id === user.id && grant.can_manage)}
+              disabled={pending || !isOwner || !user.active}
+              onChange={(checked) => void setAgendaManagerGrant(user, checked)}
+              label={<>{user.name} · {user.active ? "ativo" : "inativo"} · pode criar, editar, cancelar e reabrir</>}
+            />
           ))}
           {(users ?? []).every((user) => user.role !== "admin") ? <p className="helper-text">Nenhum administrador cadastrado ainda.</p> : null}
         </div>
         <p className="helper-text">
           Os demais módulos continuam com visibilidade individual. Desativar um módulo o oculta
-          do menu e bloqueia seu acesso pelas permissões do servidor.
+          do menu e bloqueia seu acesso pelas permissões do servidor; as escolhas de ações ficam
+          guardadas e voltam exatamente como estavam se o módulo for reativado depois.
         </p>
         {!editingUserId ? <p className="helper-text">Clique em "Editar permissões" na linha de um operador para configurar módulos e ações liberadas.</p> : null}
-        {(users ?? []).filter((user) => user.role === "operator" && user.id === editingUserId).map((user) => (
-          <div key={user.id} className="inline-form">
-            <strong>{user.name} {user.active ? "" : "(inativo)"}</strong>
-            <h3>Auditoria / Histórico de atividades</h3>
-            <p className="helper-text">Somente o proprietário pode liberar a consulta ao histórico. Operadores autorizados apenas visualizam os registros.</p>
-            <label className="staff-permission-choice">
-              <input type="checkbox"
-                checked={auditViewerGrants.some((grant) => grant.profile_id === user.id && grant.can_view)}
-                disabled={pending || !isOwner || !user.active}
-                onChange={(event) => void setAuditViewerGrant(user, event.target.checked)}
-              />
-              <span>Permitir consulta aos logs do sistema</span>
-            </label>
-            <h3>Módulos disponíveis</h3>
-            <p className="helper-text">Desmarque o módulo para removê-lo dos menus deste operador.</p>
-            <div className="staff-permissions-grid">
-              {STAFF_MODULES.map((item) => (
-                <label key={item.key} className="staff-permission-choice">
-                  <input
-                    type="checkbox"
-                    checked={isModuleEnabled(user.id, item.key)}
-                    disabled={pending || !canManage(user)}
-                    onChange={(event) => void saveModuleVisibility(user, item.key, event.target.checked)}
-                  />
-                  <span>{item.label}</span>
-                </label>
-              ))}
+        {(users ?? []).filter((user) => user.role === "operator" && user.id === editingUserId && permissionDraft).map((user) => (
+          <div key={user.id} className="inline-form permission-editor">
+            <div className="permission-editor-head">
+              <strong>{user.name} {user.active ? "" : "(inativo)"}</strong>
+              {permissionsDirty ? <span className="helper-text status-pill status-pill--adjusting" role="status">Há alterações não salvas</span> : null}
             </div>
-            <h3>Ações de cada módulo</h3>
+
+            <h3>Auditoria / Histórico de atividades</h3>{" "}
+            <span className="status-pill status-pill--published">Salvo imediatamente</span>
+            <p className="helper-text">Somente o proprietário pode liberar a consulta ao histórico. Operadores autorizados apenas visualizam os registros. Este switch grava direto no banco ao ser clicado — não depende do botão "Salvar permissões" nem é desfeito por "Cancelar", abaixo.</p>
+            <PermissionSwitch
+              className="staff-permission-choice"
+              checked={auditViewerGrants.some((grant) => grant.profile_id === user.id && grant.can_view)}
+              disabled={pending || !isOwner || !user.active}
+              onChange={(checked) => void setAuditViewerGrant(user, checked)}
+              label="Permitir consulta aos logs do sistema"
+            />
+
+            <div className="permission-editor-toolbar">
+              <h3>Módulos e ações</h3>{" "}
+              <span className="status-pill status-pill--adjusting">Rascunho local — exige "Salvar permissões"</span>
+              <button type="button" className="permission-bulk-button" disabled={pending || !canManage(user)} onClick={handleActivateDefaultModules}>
+                Ativar módulos (padrão)
+              </button>
+            </div>
             <p className="helper-text">
-              A caixa do módulo permite consultar e acessar a área. As ações abaixo liberam
-              operações específicas, independentemente umas das outras. Desmarcado = negado.
+              Diferente da Auditoria e da Agenda acima, nada aqui é gravado ao clicar: as mudanças de
+              módulos e ações ficam só nesta tela até você clicar em "Salvar permissões"; clicar em
+              "Cancelar" descarta apenas essas mudanças pendentes, sem afetar nada já salvo. O switch
+              do cartão ativa ou desativa o acesso ao módulo. Ao ativar pela primeira vez, as ações
+              operacionais padrão são marcadas automaticamente — nunca ações críticas, administrativas
+              ou da NFS-e. Expanda o cartão para revisar ou ajustar as ações.
             </p>
-            {STAFF_MODULES.filter((mod) => mod.key !== "financeiro").map((mod) => {
-              const actions = STAFF_MODULE_ACTIONS.filter((action) => action.module === mod.key);
-              if (!actions.length) return null;
+
+            {STAFF_MODULES.map((mod) => {
+              const isFinance = mod.key === "financeiro";
+              const actions = isFinance ? STAFF_FINANCE_ACTIONS : STAFF_MODULE_ACTIONS.filter((action) => action.module === mod.key);
+              const counts = isFinance ? countAllowedFinanceActions(permissionDraft!) : countAllowedModuleActions(permissionDraft!, mod.key);
+              const enabled = permissionDraft!.modules[mod.key] ?? false;
+              const expanded = expandedModules.has(mod.key);
+              const releaseBlocked = "releaseBlocked" in mod && mod.releaseBlocked === true;
               return (
-                <div key={mod.key} className="staff-permissions-section">
-                  <strong>{mod.label}</strong>
-                  {!isModuleEnabled(user.id, mod.key) ? <span className="helper-text">Ative o módulo acima para permitir estas operações.</span> : null}
-                  <div className="staff-permissions-grid">
-                    {actions.map((action) => (
-                      <label key={action.key} className="staff-permission-choice">
-                        <input type="checkbox"
-                          checked={moduleActionAllowed(user.id, action.module, action.key)}
-                          disabled={pending || !canManage(user) || !isModuleEnabled(user.id, action.module) || ("adminOnly" in action && action.adminOnly === true)}
-                          onChange={(event) => void saveModuleActionPermission(user, action.module, action.key, event.target.checked)}
-                        />
-                        <span>{action.label}</span>
-                      </label>
-                    ))}
-                  </div>
-                </div>
+                <ModulePermissionCard
+                  key={mod.key}
+                  moduleKey={mod.key}
+                  label={mod.label}
+                  enabled={enabled}
+                  releaseBlocked={releaseBlocked}
+                  switchDisabled={pending || !canManage(user)}
+                  allowedCount={counts.allowed}
+                  totalCount={counts.total}
+                  expanded={expanded}
+                  onToggleExpanded={() => setExpandedModules((prev) => {
+                    const next = new Set(prev);
+                    if (next.has(mod.key)) next.delete(mod.key); else next.add(mod.key);
+                    return next;
+                  })}
+                  onToggleEnabled={(checked) => updateModuleEnabled(mod.key, checked)}
+                >
+                  {!actions.length ? <p className="helper-text">Este módulo não possui ações adicionais — só a visibilidade acima.</p> : (
+                    <>
+                      {!enabled ? <p className="helper-text">Ative o módulo acima para liberar estas ações; as escolhas abaixo continuam guardadas mesmo desativado.</p> : null}
+                      <div className="permission-bulk-row">
+                        <button type="button" className="permission-bulk-button" disabled={pending || !canManage(user)}
+                          onClick={() => isFinance ? handleSelectAllFinance() : handleSelectAllModule(mod.key)}>
+                          Selecionar tudo
+                        </button>
+                        <button type="button" className="permission-bulk-button" disabled={pending || !canManage(user)}
+                          onClick={() => isFinance ? handleClearFinance() : handleClearModule(mod.key)}>
+                          Limpar seleção
+                        </button>
+                      </div>
+                      <div className="staff-permissions-grid">
+                        {isFinance ? STAFF_FINANCE_ACTIONS.map((action) => (
+                          <PermissionSwitch
+                            key={action.key}
+                            className="staff-permission-choice"
+                            checked={permissionDraft!.financeActions[action.key] === true}
+                            disabled={pending || !canManage(user)}
+                            onChange={(checked) => updateFinanceAction(action.key, checked)}
+                            label={<>{action.group} · {action.label}</>}
+                          />
+                        )) : STAFF_MODULE_ACTIONS.filter((action) => action.module === mod.key).map((action) => (
+                          <PermissionSwitch
+                            key={action.key}
+                            className="staff-permission-choice"
+                            checked={permissionDraft!.moduleActions[moduleActionDraftKey(action.module, action.key)] === true}
+                            disabled={pending || !canManage(user) || ("adminOnly" in action && action.adminOnly === true)}
+                            onChange={(checked) => updateModuleAction(action.module, action.key, checked)}
+                            label={action.label}
+                          />
+                        ))}
+                      </div>
+                    </>
+                  )}
+                </ModulePermissionCard>
               );
             })}
-            <h3>Ações do Financeiro</h3>
-            <p className="helper-text">
-              Acesso ao módulo e autorização de ações são diferentes. Desmarcado significa negado.
-              Criar um título NÃO permite dar baixa, cancelar, estornar ou exportar. Não existe exclusão
-              definitiva de lançamentos: use cancelamento conforme a autorização.
-            </p>
-            {!isModuleEnabled(user.id, "financeiro")
-              ? <p className="helper-text">Ative primeiro o módulo Financeiro para configurar suas ações.</p>
-              : null}
-            <div className="staff-permissions-grid">
-              {STAFF_FINANCE_ACTIONS.map((item) => (
-                <label key={item.key} className="staff-permission-choice">
-                  <input
-                    type="checkbox"
-                    checked={financeAllowed(user.id, item.key)}
-                    disabled={pending || !canManage(user) || !isModuleEnabled(user.id, "financeiro")}
-                    onChange={(event) => void saveFinancePermission(user, item.key, event.target.checked)}
-                  />
-                  <span>{item.group} · {item.label}</span>
-                </label>
-              ))}
+
+            <div className="permission-editor-actions">
+              <button type="button" title="Descarta só as mudanças de módulos e ações ainda não salvas nesta tela; Agenda e Auditoria acima já estão gravadas e não são afetadas."
+                onClick={() => requestEditTarget(null)} disabled={pending}>Cancelar</button>
+              <button type="button" className="form-action-primary" onClick={() => void savePermissions()} disabled={pending || !permissionsDirty}>
+                {pending ? "Salvando…" : "Salvar permissões"}
+              </button>
             </div>
           </div>
         ))}
@@ -777,6 +1002,31 @@ export function UsersManager(): JSX.Element {
           ? <p className="helper-text">Ainda não há operadores cadastrados. Os controles aparecerão aqui quando um operador for convidado.</p>
           : null}
       </section>
+
+      <ConfirmDialog
+        open={criticalConfirm !== null}
+        title="Incluir ações críticas na seleção?"
+        description={
+          <p>
+            "Selecionar tudo" também inclui operações críticas (cancelar vendas ou assinaturas,
+            estornar recebimento, cancelar cobrança Pix). Confirme para incluí-las também.
+          </p>
+        }
+        confirmLabel="Incluir ações críticas"
+        destructive
+        onConfirm={confirmCriticalSelection}
+        onCancel={() => setCriticalConfirm(null)}
+      />
+
+      <ConfirmDialog
+        open={pendingSwitch !== null}
+        title="Descartar alterações não salvas?"
+        description={<p>Há permissões alteradas e ainda não salvas para este operador. Continuar vai descartá-las.</p>}
+        confirmLabel="Descartar e continuar"
+        destructive
+        onConfirm={() => { if (pendingSwitch) applyEditTarget(pendingSwitch.target); setPendingSwitch(null); }}
+        onCancel={() => setPendingSwitch(null)}
+      />
     </>
   );
 }
