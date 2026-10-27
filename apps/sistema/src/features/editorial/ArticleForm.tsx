@@ -15,6 +15,7 @@ import type {
   NotificationMode,
 } from "@ir/types";
 import { archiveArticle, createArticle, updateArticle } from "../../app/sistema/editorial/materias/actions";
+import { notify } from "../../lib/feedback/notify";
 import { createLocality } from "../../app/sistema/editorial/localidades/actions";
 import type { ArticleFormIntent, ArticleFormPayload } from "./articleFormTypes";
 import {
@@ -114,7 +115,6 @@ export function ArticleForm({
   const [editionPageNumber, setEditionPageNumber] = useState(article?.editionPageNumber?.toString() ?? "");
   const [media, setMedia] = useState<ArticleMedia[]>(article?.media ?? []);
   const [availableMediaAssets, setAvailableMediaAssets] = useState<MediaAsset[]>(mediaAssets);
-  const [formError, setFormError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
   // Abrangência (Fase 49) — lista local para poder adicionar uma nova sem
@@ -253,7 +253,6 @@ export function ArticleForm({
   }
 
   function handleAction(intent: ArticleFormIntent, returnTab?: ArticleEditorTab): void {
-    setFormError(null);
     const payload = buildPayload();
     startTransition(async () => {
       const result =
@@ -261,7 +260,7 @@ export function ArticleForm({
           ? await updateArticle(article.id, payload, intent, returnTab)
           : await createArticle(payload, intent, returnTab, pautaId);
       if (result?.error) {
-        setFormError(result.error);
+        notify.error("Não foi possível salvar a matéria", result.error);
       } else {
         justSavedRef.current = true;
       }
@@ -275,10 +274,9 @@ export function ArticleForm({
   function handleArchive(): void {
     if (!article) return;
     if (!window.confirm("Arquivar esta matéria? Ela deixará de aparecer como conteúdo ativo.")) return;
-    setFormError(null);
     startTransition(async () => {
       const result = await archiveArticle(article.id);
-      if (result?.error) setFormError(result.error);
+      if (result?.error) notify.error("Não foi possível arquivar a matéria", result.error);
       else justSavedRef.current = true;
     });
   }
@@ -698,8 +696,6 @@ export function ArticleForm({
           </aside>
         </div>
       ) : null}
-
-      {formError ? <p className="form-error" role="alert">{formError}</p> : null}
 
       <div className="form-actions article-step-actions">
         {activeTab === "conteudo" ? (

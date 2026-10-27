@@ -3,6 +3,7 @@
 import { useMemo, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { createSupabaseBrowserClient } from "../../lib/supabase/browser";
+import { notify } from "../../lib/feedback/notify";
 
 /**
  * Formulário de definição/redefinição de senha (Fase 20 — correção de
@@ -39,7 +40,7 @@ export default function DefinirSenhaForm({
     const { error: updateError } = await client.auth.updateUser({ password });
     setPending(false);
     if (updateError) {
-      setError("Não foi possível definir a senha. Se o link expirou, solicite um novo.");
+      notify.error("Não foi possível definir a senha", "Se o link expirou, solicite um novo.");
       return;
     }
     setDone(true);

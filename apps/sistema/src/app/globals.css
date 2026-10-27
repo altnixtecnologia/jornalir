@@ -6356,6 +6356,142 @@ button.secondary-link {
   gap: 8px;
   margin-top: 20px;
 }
+/* Avisos flutuantes globais (toasts) — Fase 20. Mesma identidade visual do
+   resto do painel (cantos arredondados, sombra discreta, paleta de
+   sucesso/erro/aviso já usada em .status-pill/.form-error), num container
+   fixo que não bloqueia botões importantes. */
+.ir-toast-stack {
+  position: fixed;
+  top: 16px;
+  right: 16px;
+  z-index: 2000;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: min(380px, calc(100vw - 32px));
+  max-height: calc(100vh - 32px);
+  overflow: hidden;
+  pointer-events: none;
+}
+.ir-toast {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 14px 36px 16px 14px;
+  border-radius: 10px;
+  background: #fff;
+  border: 1px solid var(--line);
+  box-shadow: 0 14px 32px rgba(20, 32, 50, 0.16);
+  pointer-events: auto;
+  overflow: hidden;
+  animation: ir-toast-in 0.22s ease-out;
+}
+.ir-toast--closing {
+  animation: ir-toast-out 0.18s ease-in forwards;
+}
+.ir-toast-icon {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  margin-top: 2px;
+}
+.ir-toast-icon--success { background: #dcece2; color: #2f5c46; }
+.ir-toast-icon--error { background: #fbeae5; color: #8a3420; }
+.ir-toast-icon--warning { background: #f5e6c8; color: #8a5a1f; }
+.ir-toast-body { flex: 1; min-width: 0; }
+.ir-toast-title {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--ink);
+}
+.ir-toast-description {
+  margin: 4px 0 0;
+  font-size: 12px;
+  color: var(--muted);
+  line-height: 1.5;
+}
+.ir-toast-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 10px;
+}
+.ir-toast-ok {
+  border: 1px solid var(--line);
+  background: var(--paper);
+  color: var(--ink);
+  border-radius: 6px;
+  padding: 5px 14px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.ir-toast-ok:hover { background: #eceae2; }
+.ir-toast-close {
+  position: absolute;
+  top: 8px;
+  right: 10px;
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 4px;
+}
+.ir-toast-close:hover { background: rgba(0, 0, 0, 0.06); color: var(--ink); }
+.ir-toast-bar {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 3px;
+  background: transparent;
+  overflow: hidden;
+}
+.ir-toast-bar-fill {
+  height: 100%;
+  width: 100%;
+  background: #2f5c46;
+  transform-origin: left;
+  animation-name: ir-toast-bar-shrink;
+  animation-timing-function: linear;
+  animation-fill-mode: forwards;
+}
+@keyframes ir-toast-in {
+  from { opacity: 0; transform: translateY(-8px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes ir-toast-out {
+  from { opacity: 1; transform: translateY(0) scale(1); }
+  to { opacity: 0; transform: translateY(-6px) scale(0.98); }
+}
+@keyframes ir-toast-bar-shrink {
+  from { transform: scaleX(1); }
+  to { transform: scaleX(0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ir-toast, .ir-toast--closing, .ir-toast-bar-fill {
+    animation: none !important;
+    transition: none !important;
+  }
+}
+@media (max-width: 520px) {
+  .ir-toast-stack {
+    top: auto;
+    bottom: 12px;
+    left: 12px;
+    right: 12px;
+    width: auto;
+  }
+}
+
 @media(max-width: 520px){
   .usuarios-edit-modal{padding: 18px 14px}
   .usuarios-edit-modal .usuarios-edit-actions button{flex: 1 1 auto;min-height: 42px}

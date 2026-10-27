@@ -15,6 +15,7 @@ import {
   settleWithDifferenceAction,
 } from "../../app/sistema/financeiro/contas-a-receber/actions";
 import type { StaffOption } from "../../providers/supabase/staffRepository.supabase";
+import { notify } from "../../lib/feedback/notify";
 
 function formatAmount(value: number): string {
   return value.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
@@ -70,7 +71,6 @@ export function ReceivableActionsPanel({ receivable, receipts, adjustments, staf
     if (!paymentOperationId.current) paymentOperationId.current = crypto.randomUUID();
     return paymentOperationId.current;
   }
-  const [error, setError] = useState<string | null>(null);
   const [activeForm, setActiveForm] = useState<"none" | "receipt" | "settle" | "adjustment">("none");
 
   const [receiptAmount, setReceiptAmount] = useState("");
@@ -111,19 +111,22 @@ export function ReceivableActionsPanel({ receivable, receipts, adjustments, staf
     setActiveForm("none");
   }
 
-  function run(action: () => Promise<{ error: string } | void>): void {
-    setError(null);
+  function run(
+    action: () => Promise<{ error: string } | void>,
+    feedback: { successTitle: string; successDescription: string; errorTitle: string },
+  ): void {
     startTransition(async () => {
       try {
         const result = await action();
         if (result && "error" in result) {
-          setError(result.error);
+          notify.error(feedback.errorTitle, result.error);
           return;
         }
         resetForms();
+        notify.success(feedback.successTitle, feedback.successDescription);
         router.refresh();
       } catch {
-        setError("Não foi possível concluir a operação financeira. Confira a conexão e tente novamente.");
+        notify.error(feedback.errorTitle, "Não foi possível concluir a operação financeira. Confira a conexão e tente novamente.");
       }
     });
   }
@@ -139,7 +142,6 @@ export function ReceivableActionsPanel({ receivable, receipts, adjustments, staf
     <>
       <section className="form-section">
         <h2>Ações</h2>
-        {error ? <p className="form-error" role="alert">{error}</p> : null}
 
         {!isCancelled ? (
           <div className="form-actions">
@@ -161,13 +163,19 @@ export function ReceivableActionsPanel({ receivable, receipts, adjustments, staf
                 Lançar abatimento
               </button>
             ) : null}
-            <button type="button" className="media-remove-button" onClick={() => run(() => cancelReceivableAction(receivable.id))} disabled={pending}>
+            <button type="button" className="media-remove-button" onClick={() => run(
+              () => cancelReceivableAction(receivable.id),
+              { successTitle: "Título cancelado", successDescription: "O título foi cancelado.", errorTitle: "Não foi possível cancelar o título" },
+            )} disabled={pending}>
               Cancelar título
             </button>
           </div>
         ) : (
           <div className="form-actions">
-            <button type="button" onClick={() => run(() => reopenReceivableAction(receivable.id))} disabled={pending}>
+            <button type="button" onClick={() => run(
+              () => reopenReceivableAction(receivable.id),
+              { successTitle: "Título reaberto", successDescription: "O título voltou a ficar em aberto.", errorTitle: "Não foi possível reabrir o título" },
+            )} disabled={pending}>
               Reabrir título
             </button>
           </div>
@@ -236,6 +244,7 @@ export function ReceivableActionsPanel({ receivable, receipts, adjustments, staf
                       receivedByProfileId: receivedBy,
                       operationId: currentPaymentOperationId(),
                     }),
+                    { successTitle: "Recebimento registrado", successDescription: "O recebimento foi gravado neste título.", errorTitle: "Não foi possível registrar o recebimento" },
                   )
                 }
                 disabled={pending}
@@ -316,6 +325,7 @@ export function ReceivableActionsPanel({ receivable, receipts, adjustments, staf
                       reason: settleReason,
                       authorizedByProfileId: settleAuthorizedBy,
                     }),
+                    { successTitle: "Título quitado com diferença", successDescription: "O recebimento foi gravado e a diferença foi dispensada como abatimento.", errorTitle: "Não foi possível quitar com diferença" },
                   )
                 }
                 disabled={pending}
@@ -379,6 +389,7 @@ export function ReceivableActionsPanel({ receivable, receipts, adjustments, staf
                       authorizedByProfileId: adjustmentAuthorizedBy,
                       notes: adjustmentNotes,
                     }),
+                    { successTitle: "Abatimento lançado", successDescription: "O abatimento foi registrado neste título.", errorTitle: "Não foi possível lançar o abatimento" },
                   )
                 }
                 disabled={pending}
@@ -449,13 +460,15 @@ export function ReceivableActionsPanel({ receivable, receipts, adjustments, staf
                               const reason = window.prompt("Motivo do estorno:");
                               if (reason === null) return;
                               if (!reason.trim()) {
-                                setError("Informe o motivo do estorno.");
+                                notify.error("Estorno não lançado", "Informe o motivo do estorno.");
                                 return;
                               }
-                              run(() =>
-                                entry.kind === "receipt"
-                                  ? reverseReceiptAction(receivable.id, entry.item.id, reason)
-                                  : reverseAdjustmentAction(receivable.id, entry.item.id, reason),
+                              run(
+                                () =>
+                                  entry.kind === "receipt"
+                                    ? reverseReceiptAction(receivable.id, entry.item.id, reason)
+                                    : reverseAdjustmentAction(receivable.id, entry.item.id, reason),
+                                { successTitle: "Estorno registrado", successDescription: "O lançamento foi marcado como estornado.", errorTitle: "Não foi possível estornar" },
                               );
                             }}
                             disabled={pending}

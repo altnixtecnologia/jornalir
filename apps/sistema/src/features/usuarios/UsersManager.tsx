@@ -7,6 +7,7 @@ import { ROLE_LABELS } from "../../lib/auth/accountDisplay";
 import { hasRealStaffName, staffNameLabel } from "../../lib/auth/userIdentity";
 import { inviteUser, listUserInvitationStatuses, sendPasswordResetForUser, updateManagedUserDetails, resendPendingUserAccess } from "../../app/sistema/usuarios/actions";
 import { ConfirmDialog } from "../../components/admin/ConfirmDialog";
+import { notify } from "../../lib/feedback/notify";
 import { STAFF_FINANCE_ACTIONS, STAFF_MODULE_ACTIONS, STAFF_MODULES, type StaffFinanceActionKey, type StaffModuleActionKey, type StaffActionModule, type StaffModuleKey } from "../../lib/permissions/staffPermissionsCatalog";
 import {
   buildPermissionDraft,
@@ -157,8 +158,9 @@ export function UsersManager(): JSX.Element {
   const [invitationStatuses, setInvitationStatuses] = useState<InvitationStatus[] | null>(null);
   const [invitationWarning, setInvitationWarning] = useState("");
   const [editingUserId, setEditingUserId] = useState<string | null>(null);
+  // Só validação pré-vôo do formulário de convite (abaixo do próprio
+  // formulário); resultado de operação usa `notify` (avisos flutuantes).
   const [error, setError] = useState<string | null>(null);
-  const [message, setMessage] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteName, setInviteName] = useState("");
@@ -196,8 +198,8 @@ export function UsersManager(): JSX.Element {
       listUserInvitationStatuses(),
     ]);
     if (profilesResult.error || visibilityResult.error || agendaManagersResult.error || auditViewersResult.error || financeResult.error || moduleActionsResult.error || membershipsResult.error) {
-      setError(profilesResult.error?.message ?? visibilityResult.error?.message
-        ?? agendaManagersResult.error?.message ?? auditViewersResult.error?.message ?? financeResult.error?.message ?? moduleActionsResult.error?.message ?? membershipsResult.error?.message ?? "Não foi possível carregar os usuários.");
+      notify.error("Não foi possível carregar os usuários",
+        "Verifique sua conexão e recarregue a página. Se persistir, confira os registros do sistema.");
       return;
     }
     // Signatários externos do Auth possuem profile técnico, mas não são
@@ -240,11 +242,10 @@ export function UsersManager(): JSX.Element {
 
   async function toggleActive(target: UserRow): Promise<void> {
     if(!target.active && invitationStatuses?.find(s=>s.id===target.id)?.confirmed!==true){
-      setError("Não é possível habilitar o painel antes da confirmação do e-mail do colaborador.");
+      notify.error("Não é possível habilitar o acesso",
+        "Confirme o e-mail do colaborador antes de habilitar o painel para ele.");
       return;
     }
-    setError(null);
-    setMessage(null);
     setPending(true);
     const { error: updateError } = await client
       .from("profiles")
@@ -252,22 +253,24 @@ export function UsersManager(): JSX.Element {
       .eq("id", target.id);
     setPending(false);
     if (updateError) {
-      setError("Não foi possível alterar o status deste usuário.");
+      notify.error("Não foi possível alterar o status", "Verifique sua conexão e tente novamente.");
       return;
     }
+    notify.success(target.active ? "Acesso desativado" : "Acesso ativado",
+      userName(target) + (target.active ? " não pode mais entrar no painel." : " já pode entrar no painel."));
     await reload();
   }
 
   async function changeRole(target: UserRow, role: "admin" | "operator"): Promise<void> {
-    setError(null);
-    setMessage(null);
     setPending(true);
     const { error: updateError } = await client.from("profiles").update({ role }).eq("id", target.id);
     setPending(false);
     if (updateError) {
-      setError("Não foi possível alterar o papel deste usuário.");
+      notify.error("Não foi possível alterar o papel", "Verifique sua conexão e tente novamente.");
       return;
     }
+    notify.success("Papel atualizado",
+      userName(target) + " agora é " + (role === "admin" ? "administrador" : "operador") + ".");
     await reload();
   }
 
@@ -278,20 +281,22 @@ export function UsersManager(): JSX.Element {
       return;
     }
     setError(null);
-    setMessage(null);
+    const sentName = inviteName.trim();
     setPending(true);
     try {
-      const result = await inviteUser(inviteEmail.trim(), inviteName.trim(), inviteRole);
+      const result = await inviteUser(inviteEmail.trim(), sentName, inviteRole);
       if ("error" in result) {
-        setError(result.error);
+        notify.error("Convite não enviado", result.error);
         return;
       }
       setInviteEmail("");
       setInviteName("");
-      setMessage("Solicitação de convite aceita pelo Supabase. A entrega ainda depende do SMTP e da confirmação pelo destinatário.");
+      notify.success("Convite solicitado",
+        "O Supabase aceitou a solicitação de envio para " + sentName + ". A entrega ainda depende do serviço de e-mail.");
       await reload();
     } catch {
-      setError("Falha ao solicitar convite. Verifique Auth Logs, SMTP e URL de retorno antes de tentar novamente.");
+      notify.error("Convite não enviado",
+        "Verifique Auth Logs, SMTP e URL de retorno antes de tentar novamente.");
     } finally {
       setPending(false);
     }
@@ -303,8 +308,6 @@ export function UsersManager(): JSX.Element {
     setEditingName(hasRealStaffName(target.name, userEmail(target.id)) ? target.name : "");
     setEditingEmail(userEmail(target.id));
     setEditError("");
-    setError(null);
-    setMessage(null);
   }
 
   function closeUserEditor(): void {
@@ -329,8 +332,6 @@ export function UsersManager(): JSX.Element {
     }
     setPending(true);
     setEditError("");
-    setError(null);
-    setMessage(null);
     try {
       const result = await updateManagedUserDetails(target.id, name, email);
       if ("error" in result) {
@@ -339,9 +340,9 @@ export function UsersManager(): JSX.Element {
       }
       await reload();
       setEditingTarget(null);
-      setMessage(result.emailChanged
+      notify.success("Dados atualizados", result.emailChanged
         ? "Nome e e-mail atualizados. O endereço de login foi alterado diretamente, sem envio de convite. Confirme o endereço com a pessoa; contas pendentes ainda dependem de convite e SMTP."
-        : "Dados do usuário atualizados.");
+        : "Nome e e-mail de " + name + " foram atualizados.");
     } catch {
       setEditError("Falha ao atualizar usuário. Consulte os registros do sistema antes de tentar novamente.");
     } finally {
@@ -351,14 +352,17 @@ export function UsersManager(): JSX.Element {
 
   async function resendAccess(target: UserRow): Promise<void> {
     if (pending || !canManage(target) || !invitationPending(target.id)) return;
-    setPending(true); setError(null); setMessage(null);
+    setPending(true);
     try {
       const result = await resendPendingUserAccess(target.id);
-      if ("error" in result) setError(result.error);
-      else setMessage("Novo e-mail de definição de senha solicitado para " + target.name +
-        ". Confirme o recebimento com a pessoa (inclusive spam).");
+      if ("error" in result) {
+        notify.error("Reenvio não solicitado", result.error);
+      } else {
+        notify.success("Acesso reenviado", "Novo e-mail de definição de senha solicitado para " + target.name +
+          ". Confirme o recebimento com a pessoa (inclusive spam).");
+      }
     } catch {
-      setError("Não foi possível solicitar o envio do e-mail. Confira a configuração do SMTP.");
+      notify.error("Reenvio não solicitado", "Não foi possível solicitar o envio do e-mail. Confira a configuração do SMTP.");
     } finally { setPending(false); }
   }
 
@@ -366,22 +370,19 @@ export function UsersManager(): JSX.Element {
     const target = resetTarget;
     if (!target || !canManage(target) || pending) return;
     setPending(true);
-    setError(null);
-    setMessage(null);
     const result = await sendPasswordResetForUser(target.id);
     setPending(false);
     setResetTarget(null);
     if ("error" in result) {
-      setError(result.error);
+      notify.error("Redefinição não solicitada", result.error);
       return;
     }
-    setMessage("Solicitação de redefinição aceita pelo Supabase para " + userName(target) + ". Confirme o recebimento com a pessoa.");
+    notify.success("Redefinição solicitada",
+      "O pedido de envio do link de recuperação para " + userName(target) + " foi aceito pelo Supabase. Confirme o recebimento com a pessoa.");
   }
 
   async function setAgendaManagerGrant(target: UserRow, enabled: boolean): Promise<void> {
     if (!isOwner || target.role !== "admin" || !target.active || pending || !profile) return;
-    setError(null);
-    setMessage(null);
     setPending(true);
     const { error: saveError } = await client.from("agenda_manager_grants").upsert({
       profile_id: target.id,
@@ -391,17 +392,16 @@ export function UsersManager(): JSX.Element {
     }, { onConflict: "profile_id" });
     setPending(false);
     if (saveError) {
-      setError("Não foi possível alterar a autorização da Agenda: " + saveError.message);
+      notify.error("Não foi possível alterar a Agenda", "Verifique sua conexão e tente novamente.");
       return;
     }
-    setMessage((enabled ? "Gestão liberada para " : "Gestão revogada de ") + target.name + ".");
+    notify.success(enabled ? "Gestão da Agenda liberada" : "Gestão da Agenda revogada",
+      (enabled ? "Gestão liberada para " : "Gestão revogada de ") + target.name + ".");
     await reload();
   }
 
   async function setAuditViewerGrant(target: UserRow, enabled: boolean): Promise<void> {
     if (!isOwner || target.role !== "operator" || pending || !profile) return;
-    setError(null);
-    setMessage(null);
     setPending(true);
     const { error: saveError } = await client.from("audit_viewer_grants").upsert({
       profile_id: target.id,
@@ -411,10 +411,11 @@ export function UsersManager(): JSX.Element {
     }, { onConflict: "profile_id" });
     setPending(false);
     if (saveError) {
-      setError("Não foi possível salvar o acesso à auditoria: " + saveError.message);
+      notify.error("Não foi possível alterar a Auditoria", "Verifique sua conexão e tente novamente.");
       return;
     }
-    setMessage((enabled ? "Auditoria liberada para " : "Auditoria bloqueada para ") + target.name + ".");
+    notify.success(enabled ? "Acesso à Auditoria liberado" : "Acesso à Auditoria bloqueado",
+      (enabled ? "Auditoria liberada para " : "Auditoria bloqueada para ") + target.name + ".");
     await reload();
   }
 
@@ -559,8 +560,6 @@ export function UsersManager(): JSX.Element {
       return;
     }
     setPending(true);
-    setError(null);
-    setMessage(null);
     const now = new Date().toISOString();
     const [visibilityResult, actionsResult, financeResult] = await Promise.all([
       diff.visibility.length
@@ -586,14 +585,13 @@ export function UsersManager(): JSX.Element {
     const failures = [visibilityResult, actionsResult, financeResult].filter((result) => result.error);
     setPending(false);
     if (failures.length > 0) {
-      setError(
+      notify.error("Permissões não foram salvas",
         "Não foi possível salvar " + failures.length + " de 3 grupos de permissões. " +
-        "O estado foi recarregado a partir do banco — revise e tente salvar novamente.",
-      );
+        "O estado foi recarregado a partir do banco — revise e tente salvar novamente.");
       if (fresh) setPermissionDraft(buildPermissionDraft(snapshotFromRows(target.id, fresh.moduleVisibility, fresh.moduleActionGrants, fresh.financeGrants)));
       return;
     }
-    setMessage("Permissões salvas para " + target.name + ".");
+    notify.success("Permissões atualizadas", "As permissões de " + target.name + " foram salvas e já estão valendo.");
     applyEditTarget(null);
   }
 
@@ -699,7 +697,6 @@ export function UsersManager(): JSX.Element {
           {error}
         </p>
       ) : null}
-      {message ? <p className="helper-text">{message}</p> : null}
 
       {invitationWarning ? <p className="helper-text" role="status">A situação dos convites não pôde ser conferida: {invitationWarning}</p> : null}
       <p className="helper-text">"Convite pendente" significa que há convite sem confirmação;
