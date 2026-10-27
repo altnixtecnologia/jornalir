@@ -4,6 +4,7 @@ import { Suspense, useEffect, useMemo, useState, type FormEvent } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createSupabaseBrowserClient } from "../../lib/supabase/browser";
 import { useAuth } from "../../lib/auth/AuthProvider";
+import { staffAuthRedirectUrl } from "../../lib/auth/staffAuthRedirect";
 
 /**
  * Entrada do painel interno — tela de acesso, não uma landing page.
@@ -54,9 +55,19 @@ function LoginForm(): JSX.Element {
     setError(null);
     setResetRequested(false);
     setPending(true);
-    const { error: resetError } = await client.auth.resetPasswordForEmail(email.trim(), {
-      redirectTo: new URL("/definir-senha?recovery=1", window.location.origin).toString(),
-    });
+    let redirectTo: string;
+    try {
+      redirectTo = staffAuthRedirectUrl({
+        configuredBaseUrl: process.env.NEXT_PUBLIC_SISTEMA_URL,
+        production: process.env.NODE_ENV === "production",
+        recovery: true,
+      });
+    } catch {
+      setPending(false);
+      setError("Não foi possível solicitar a redefinição. Tente novamente.");
+      return;
+    }
+    const { error: resetError } = await client.auth.resetPasswordForEmail(email.trim(), { redirectTo });
     setPending(false);
     if (resetError) {
       setError("Não foi possível solicitar a redefinição. Tente novamente.");

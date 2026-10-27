@@ -2,6 +2,12 @@
  * Um erro de origem não pode enviar tokens para preview, HTTP ou hosts
  * arbitrários; a verificação ocorre ANTES de chamar o Supabase Auth.
  * Não identifica nem verifica a configuração SMTP do projeto.
+ *
+ * Sempre aponta para `/auth/confirm` (nunca direto para `/definir-senha`):
+ * é essa rota que troca `token_hash` por sessão real via `verifyOtp` antes
+ * de redirecionar. O tipo (`invite`/`recovery`) chega pela própria variável
+ * `{{ .Type }}` do template de e-mail do Supabase, não por este parâmetro —
+ * `recovery` é mantido só para não exigir mudança nos chamadores.
  */
 export function staffAuthRedirectUrl({
   configuredBaseUrl, production, recovery = false,
@@ -10,6 +16,7 @@ export function staffAuthRedirectUrl({
   production: boolean;
   recovery?: boolean;
 }): string {
+  void recovery;
   const base = configuredBaseUrl?.trim() ||
     (production ? "https://controle.altnix.com.br" : "http://localhost:3001");
   let url: URL;
@@ -31,6 +38,5 @@ export function staffAuthRedirectUrl({
       !(url.protocol === "http:" && ["localhost","127.0.0.1"].includes(url.hostname))) {
     throw new Error("Links de acesso HTTP só são permitidos para desenvolvimento local.");
   }
-  const path = recovery ? "/definir-senha?recovery=1" : "/definir-senha";
-  return new URL(path,url.origin).toString();
+  return new URL("/auth/confirm",url.origin).toString();
 }

@@ -2,11 +2,13 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { staffAuthRedirectUrl } from "../src/lib/auth/staffAuthRedirect";
 
-test("produção usa domínio oficial HTTPS e paths corretos",()=>{
+test("produção usa domínio oficial HTTPS e sempre a rota /auth/confirm",()=>{
  assert.equal(staffAuthRedirectUrl({production:true}),
-   "https://controle.altnix.com.br/definir-senha");
+   "https://controle.altnix.com.br/auth/confirm");
+ // invite e recovery levam ao mesmo /auth/confirm: o tipo vem do token do
+ // Supabase (`{{ .Type }}` no template), não deste parâmetro.
  assert.equal(staffAuthRedirectUrl({production:true,configuredBaseUrl:"https://controle.altnix.com.br/",recovery:true}),
-   "https://controle.altnix.com.br/definir-senha?recovery=1");
+   "https://controle.altnix.com.br/auth/confirm");
 });
 
 test("ambientes preview, HTTP e domínios externos são proibidos em produção",()=>{
@@ -25,8 +27,8 @@ test("nunca enviar tokens para URLs com query, credenciais ou caminhos",()=>{
 });
 
 test("desenvolvimento local usa HTTP localhost; externo exige HTTPS",()=>{
- assert.equal(staffAuthRedirectUrl({production:false}),"http://localhost:3001/definir-senha");
+ assert.equal(staffAuthRedirectUrl({production:false}),"http://localhost:3001/auth/confirm");
  assert.equal(staffAuthRedirectUrl({production:false,configuredBaseUrl:"http://127.0.0.1:3001",recovery:true}),
-  "http://127.0.0.1:3001/definir-senha?recovery=1");
+  "http://127.0.0.1:3001/auth/confirm");
  assert.throws(()=>staffAuthRedirectUrl({production:false,configuredBaseUrl:"http://example.com"}),/HTTP/);
 });
