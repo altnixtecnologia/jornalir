@@ -13,6 +13,7 @@ import {
   type NewspaperEditionPayload,
 } from "../../app/sistema/editorial/edicoes/actions";
 import { editionLabel, formatDate } from "./editorialLabels";
+import { notify } from "../../lib/feedback/notify";
 
 GlobalWorkerOptions.workerSrc = new URL("pdfjs-dist/build/pdf.worker.min.js", import.meta.url).toString();
 
@@ -48,7 +49,6 @@ export function EdicoesManager({ editions }: EdicoesManagerProps): JSX.Element {
   const [createForm, setCreateForm] = useState<NewspaperEditionPayload>(EMPTY_FORM);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editForm, setEditForm] = useState<NewspaperEditionPayload>(EMPTY_FORM);
-  const [error, setError] = useState<string | null>(null);
   const [uploadingId, setUploadingId] = useState<string | null>(null);
   const [uploadStage, setUploadStage] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
@@ -57,47 +57,47 @@ export function EdicoesManager({ editions }: EdicoesManagerProps): JSX.Element {
   const sorted = [...items].sort((a, b) => b.editionNumber - a.editionNumber);
 
   function startEdit(edition: NewspaperEdition): void {
-    setError(null);
     setShowCreate(false);
     setEditingId(edition.id);
     setEditForm(toFormValues(edition));
   }
 
   function handleCreate(): void {
-    setError(null);
     startTransition(async () => {
       const result = await createEdition(createForm);
       if ("error" in result) {
-        setError(result.error);
+        notify.error("Não foi possível criar a edição", result.error);
       } else {
         setItems((prev) => [...prev, result.edition]);
         setCreateForm(EMPTY_FORM);
         setShowCreate(false);
+        notify.success("Edição criada", "A edição " + editionLabel(result.edition) + " foi criada.");
       }
     });
   }
 
   function handleSaveEdit(id: string): void {
-    setError(null);
     startTransition(async () => {
       const result = await updateEdition(id, editForm);
       if ("error" in result) {
-        setError(result.error);
+        notify.error("Não foi possível salvar a edição", result.error);
       } else {
         setItems((prev) => prev.map((item) => (item.id === id ? result.edition : item)));
         setEditingId(null);
+        notify.success("Edição atualizada", "As alterações da edição foram salvas.");
       }
     });
   }
 
   function handleToggleActive(edition: NewspaperEdition): void {
-    setError(null);
     startTransition(async () => {
       const result = await setEditionActive(edition.id, !edition.active);
       if ("error" in result) {
-        setError(result.error);
+        notify.error("Não foi possível alterar a edição", result.error);
       } else {
         setItems((prev) => prev.map((item) => (item.id === edition.id ? result.edition : item)));
+        notify.success(edition.active ? "Edição inativada" : "Edição ativada",
+          "A edição " + editionLabel(edition) + (edition.active ? " foi inativada." : " foi ativada."));
       }
     });
   }
@@ -141,7 +141,6 @@ export function EdicoesManager({ editions }: EdicoesManagerProps): JSX.Element {
     event.target.value = "";
     if (!file) return;
 
-    setError(null);
     setUploadingId(editionId);
     setUploadStage("Preparando PDF e capa…");
 
@@ -157,7 +156,7 @@ export function EdicoesManager({ editions }: EdicoesManagerProps): JSX.Element {
 
         const authorization = await prepareEditionR2UploadAction(editionId, file.name, file.size, prepared.sha256);
         if ("error" in authorization) {
-          setError(authorization.error);
+          notify.error("Não foi possível enviar a edição", authorization.error);
           return;
         }
         plan = authorization.plan;
@@ -190,7 +189,7 @@ export function EdicoesManager({ editions }: EdicoesManagerProps): JSX.Element {
 
         if ("error" in finalized) {
           await abandonEditionR2UploadAction(editionId,plan.pdf.key,plan.cover.key);
-          setError(finalized.error);
+          notify.error("Não foi possível enviar a edição", finalized.error);
           return;
         }
 
@@ -201,7 +200,8 @@ export function EdicoesManager({ editions }: EdicoesManagerProps): JSX.Element {
         if (plan) {
           await abandonEditionR2UploadAction(editionId, plan.pdf.key, plan.cover.key);
         }
-        setError(uploadError instanceof Error ? uploadError.message : "Não foi possível enviar a edição.");
+        notify.error("Não foi possível enviar a edição",
+          uploadError instanceof Error ? uploadError.message : "Não foi possível enviar a edição.");
       } finally {
         setUploadingId(null);
       }
@@ -249,7 +249,6 @@ export function EdicoesManager({ editions }: EdicoesManagerProps): JSX.Element {
           onClick={() => {
             setShowCreate((value) => !value);
             setEditingId(null);
-            setError(null);
           }}
         >
           {showCreate ? "Cancelar" : "+ Nova edição"}
@@ -310,12 +309,6 @@ export function EdicoesManager({ editions }: EdicoesManagerProps): JSX.Element {
             </button>
           </div>
         </div>
-      ) : null}
-
-      {error ? (
-        <p className="form-error" role="alert">
-          {error}
-        </p>
       ) : null}
 
       {uploadStage ? (

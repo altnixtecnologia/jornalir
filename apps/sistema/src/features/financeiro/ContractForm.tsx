@@ -6,6 +6,7 @@ import type { Client, InstitutionalContract } from "@ir/types";
 import { CONTRACT_STATUS_LABELS, CONTRACT_STATUSES, clientDisplayName } from "@ir/types";
 import { createContract, updateContract } from "../../app/sistema/financeiro/contratos/actions";
 import type { ContractFormPayload } from "./contractFormTypes";
+import { notify } from "../../lib/feedback/notify";
 
 function payloadFromContract(contract?: InstitutionalContract, initialClientId?: string): ContractFormPayload {
   return {
@@ -48,7 +49,6 @@ export function ContractForm({ mode, contract, clients, initialClientId, value, 
   const [internalPayload, setInternalPayload] = useState<ContractFormPayload>(() => payloadFromContract(contract, initialClientId));
   const payload = value ?? internalPayload;
   const [clientFilter, setClientFilter] = useState("");
-  const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
   function set<K extends keyof ContractFormPayload>(key: K, fieldValue: ContractFormPayload[K]): void {
@@ -67,10 +67,9 @@ export function ContractForm({ mode, contract, clients, initialClientId, value, 
   }, [clients, clientFilter]);
 
   function handleSubmit(): void {
-    setError(null);
     startTransition(async () => {
       const result = mode === "create" ? await createContract(payload) : await updateContract(contract!.id, payload);
-      if (result && "error" in result) setError(result.error);
+      if (result && "error" in result) notify.error("Não foi possível salvar o contrato", result.error);
     });
   }
 
@@ -158,8 +157,6 @@ export function ContractForm({ mode, contract, clients, initialClientId, value, 
           <textarea rows={4} value={payload.notes} onChange={(event) => set("notes", event.target.value)} />
         </label>
       </section>
-
-      {error ? <p className="form-error" role="alert">{error}</p> : null}
 
       {!hideActions ? (
         <div className="form-actions">

@@ -5,6 +5,7 @@ import {
   confirmAnnouncementSendAction, deleteAnnouncementDraftAction, saveAnnouncementDraftAction,
   type CommercialAnnouncementRow,
 } from "../../app/sistema/publicidade/avisos/actions";
+import { notify } from "../../lib/feedback/notify";
 
 const STATUS_LABELS: Record<CommercialAnnouncementRow["status"], string> = {
   draft: "Rascunho",
@@ -31,24 +32,19 @@ export function AvisosGeraisPanel({
   const [history, setHistory] = useState(initialHistory);
   const [draft, setDraft] = useState(blankDraft());
   const [reviewing, setReviewing] = useState(false);
-  const [error, setError] = useState<string | null>(initialError);
-  const [notice, setNotice] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
   function startEdit(row: CommercialAnnouncementRow): void {
     if (row.status !== "draft") return;
     setDraft({ id: row.id, title: row.title, body: row.body, href: row.href ?? "" });
     setReviewing(false);
-    setError(null);
-    setNotice(null);
   }
 
   function saveDraft(): void {
-    setError(null); setNotice(null);
     startTransition(async () => {
       const result = await saveAnnouncementDraftAction(draft);
-      if ("error" in result) { setError(result.error); return; }
-      setNotice("Rascunho salvo.");
+      if ("error" in result) { notify.error("Rascunho não foi salvo", result.error); return; }
+      notify.success("Rascunho salvo", "O aviso foi salvo como rascunho.");
       setDraft((d) => ({ ...d, id: result.data.id }));
       setHistory((prev) => {
         const idx = prev.findIndex((r) => r.id === result.data.id);
@@ -67,25 +63,23 @@ export function AvisosGeraisPanel({
 
   function deleteDraft(id: string): void {
     if (!window.confirm("Excluir este rascunho? Esta ação não pode ser desfeita.")) return;
-    setError(null); setNotice(null);
     startTransition(async () => {
       const result = await deleteAnnouncementDraftAction(id);
-      if ("error" in result) { setError(result.error); return; }
+      if ("error" in result) { notify.error("Rascunho não foi excluído", result.error); return; }
       setHistory((prev) => prev.filter((r) => r.id !== id));
       if (draft.id === id) setDraft(blankDraft());
-      setNotice("Rascunho excluído.");
+      notify.success("Rascunho excluído", "O rascunho foi excluído.");
     });
   }
 
   function confirmSend(): void {
     if (!draft.id) return;
     if (!window.confirm(`Confirmar o envio deste aviso para todos os leitores inscritos em "Avisos gerais"?`)) return;
-    setError(null); setNotice(null);
     const requestId = crypto.randomUUID();
     startTransition(async () => {
       const result = await confirmAnnouncementSendAction({ id: draft.id!, requestId });
-      if ("error" in result) { setError(result.error); return; }
-      setNotice("Envio confirmado e incluído na fila de entrega.");
+      if ("error" in result) { notify.error("Envio não confirmado", result.error); return; }
+      notify.success("Envio confirmado", "O aviso foi incluído na fila de entrega.");
       setHistory((prev) => prev.map((r) => (r.id === draft.id ? { ...r, status: "sent", sentAt: new Date().toISOString() } : r)));
       setDraft(blankDraft());
       setReviewing(false);
@@ -174,14 +168,13 @@ export function AvisosGeraisPanel({
               </div>
             </>
           )}
-          {error ? <p className="form-error" role="alert">{error}</p> : null}
-          {notice ? <p className="helper-text" role="status">{notice}</p> : null}
         </section>
       </div>
 
       <aside className="article-step-aside">
         <section className="form-section form-section--compact" aria-labelledby="aviso-history-title">
           <h2 id="aviso-history-title">Histórico</h2>
+          {initialError ? <p className="form-error" role="alert">{initialError}</p> : null}
           {history.length === 0 ? <p className="helper-text">Nenhum aviso preparado ainda.</p> : null}
           <ul className="cadastro-family-tree">
             {history.map((row) => (

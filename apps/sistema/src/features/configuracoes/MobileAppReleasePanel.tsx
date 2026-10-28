@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { saveAndroidAppReleaseAction } from "../../app/sistema/configuracoes/aplicativo/actions";
+import { notify } from "../../lib/feedback/notify";
 
 type Props = {
   initial: {
@@ -21,25 +22,24 @@ export function MobileAppReleasePanel({ initial }: Props): JSX.Element {
   const [published, setPublished] = useState(initial.published);
   const [confirmed, setConfirmed] = useState(initial.published);
   const [currentUrl, setCurrentUrl] = useState(initial.published ? initial.apkUrl : "");
-  const [message, setMessage] = useState("");
   const [busy, startTransition] = useTransition();
 
   function save(nextPublished: boolean): void {
     if (nextPublished && !window.confirm("Confirmar que o APK foi testado e está pronto para download público?")) return;
-    setMessage("");
     startTransition(async () => {
       const result = await saveAndroidAppReleaseAction({
         versionLabel, versionCode: Number(versionCode), apkUrl, sha256,
         fileSizeBytes: size, releaseNotes: notes, published: nextPublished,
       });
       if ("error" in result) {
-        setMessage(result.error);
+        notify.error("Não foi possível salvar", result.error);
         return;
       }
       setPublished(nextPublished);
       setConfirmed(nextPublished);
       setCurrentUrl(nextPublished ? apkUrl : "");
-      setMessage(nextPublished ? "Versão liberada para download." : "Informações salvas. Download desativado.");
+      notify.success(nextPublished ? "Versão liberada" : "Informações salvas",
+        nextPublished ? "A versão foi liberada para download." : "Download desativado.");
     });
   }
 
@@ -67,7 +67,6 @@ export function MobileAppReleasePanel({ initial }: Props): JSX.Element {
         <button type="button" className="form-action-primary" disabled={busy} onClick={() => save(false)}>Salvar e deixar desativado</button>
         <button type="button" className="form-action-primary" disabled={busy} onClick={() => save(true)}>{published ? "Atualizar versão disponível" : "Liberar APK para download"}</button>
       </div>
-      {message ? <p role="status" className="helper-text">{message}</p> : null}
       <p className="helper-text">O link só será liberado depois que o APK real for enviado ao R2 e conferido. A página pública acompanha o registro do Supabase sem novo deploy.</p>
     </section>
   );

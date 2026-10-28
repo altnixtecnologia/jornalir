@@ -13,6 +13,7 @@ import {
   findBirthdayCandidates, linkBirthdayEntryToClient,
 } from "../../app/sistema/aniversariantes/actions";
 import type { BirthdayCandidate } from "../../app/sistema/aniversariantes/actions";
+import { notify } from "../../lib/feedback/notify";
 
 /** Busca+vinculação de aniversariantes já existentes (ver aba "Família e
  * aniversários") — pedido explícito do usuário em 17/10/2026, para
@@ -42,13 +43,13 @@ function BirthdayCandidateSearch({
   }
 
   function link(candidateId: string): void {
-    setLinkingId(candidateId); setMessage(null);
+    setLinkingId(candidateId);
     void linkBirthdayEntryToClient(candidateId, clientId).then((result) => {
-      if ("error" in result) { setMessage(result.error); return; }
+      if ("error" in result) { notify.error("Não foi possível vincular", result.error); return; }
       setCandidates((prev) => prev?.filter((c) => c.id !== candidateId) ?? null);
-      setMessage("Vinculado ao cadastro mestre, preservando dados editoriais, fotos e histórico de mensagens.");
+      notify.success("Aniversariante vinculado", "Vinculado ao cadastro mestre, preservando dados editoriais, fotos e histórico de mensagens.");
       router.refresh();
-    }).catch(() => setMessage("Não foi possível concluir a vinculação."))
+    }).catch(() => notify.error("Não foi possível vincular", "Não foi possível concluir a vinculação."))
       .finally(() => setLinkingId(null));
   }
 
@@ -125,7 +126,6 @@ interface ClientFormProps {
 export function ClientForm({ mode, client }: ClientFormProps): JSX.Element {
   const router = useRouter();
   const [payload, setPayload] = useState<ClientFormPayload>(() => payloadFromClient(client));
-  const [error, setError] = useState<string | null>(null);
   const [rolesError, setRolesError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
@@ -198,7 +198,6 @@ export function ClientForm({ mode, client }: ClientFormProps): JSX.Element {
   }, [payload.addressZip]);
 
   function handleSubmit(): void {
-    setError(null);
     if (payload.roles.length === 0) {
       setRolesError("Selecione ao menos um papel.");
       return;
@@ -206,7 +205,7 @@ export function ClientForm({ mode, client }: ClientFormProps): JSX.Element {
     setRolesError(null);
     startTransition(async () => {
       const result = mode === "create" ? await createClient(payload) : await updateClient(client!.id, payload);
-      if (result && "error" in result) setError(result.error);
+      if (result && "error" in result) notify.error("Não foi possível salvar o cadastro", result.error);
     });
   }
 
@@ -635,8 +634,6 @@ export function ClientForm({ mode, client }: ClientFormProps): JSX.Element {
   return (
     <div className="cadastro-form">
       <Tabs tabs={tabs} />
-
-      {error ? <p className="form-error" role="alert">{error}</p> : null}
 
       <div className="form-actions cadastro-actions">
         <button type="button" className="form-action-primary" onClick={handleSubmit} disabled={pending}>

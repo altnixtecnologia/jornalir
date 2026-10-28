@@ -11,6 +11,7 @@ import {
   updateCommercialProductAction,
   type CommercialProductFormInput,
 } from "../../app/sistema/publicidade/produtos/actions";
+import { notify } from "../../lib/feedback/notify";
 
 function emptyInput(): CommercialProductFormInput {
   return { name: "", channel: "newspaper", description: "", suggestedPrice: "" };
@@ -37,25 +38,21 @@ function formatAmount(value: number): string {
 export function CommercialProductsPanel({ products }: { products: CommercialProduct[] }): JSX.Element {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
-  const [error, setError] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | "new" | null>(null);
   const [input, setInput] = useState<CommercialProductFormInput>(emptyInput());
 
   function startCreate(): void {
     setInput(emptyInput());
     setEditingId("new");
-    setError(null);
   }
 
   function startEdit(product: CommercialProduct): void {
     setInput(toInput(product));
     setEditingId(product.id);
-    setError(null);
   }
 
   function cancel(): void {
     setEditingId(null);
-    setError(null);
   }
 
   function set<K extends keyof CommercialProductFormInput>(key: K, value: CommercialProductFormInput[K]): void {
@@ -63,14 +60,16 @@ export function CommercialProductsPanel({ products }: { products: CommercialProd
   }
 
   function save(): void {
-    setError(null);
+    const wasCreating = editingId === "new";
     startTransition(async () => {
       const result = editingId === "new" ? await createCommercialProductAction(input) : await updateCommercialProductAction(editingId as string, input);
       if (result && "error" in result) {
-        setError(result.error);
+        notify.error("Não foi possível salvar o produto", result.error);
         return;
       }
       setEditingId(null);
+      notify.success(wasCreating ? "Produto criado" : "Produto atualizado",
+        wasCreating ? "O produto foi adicionado ao catálogo." : "As alterações do produto foram salvas.");
       router.refresh();
     });
   }
@@ -79,9 +78,11 @@ export function CommercialProductsPanel({ products }: { products: CommercialProd
     startTransition(async () => {
       const result = product.active ? await deactivateCommercialProductAction(product.id) : await reactivateCommercialProductAction(product.id);
       if (result && "error" in result) {
-        setError(result.error);
+        notify.error("Não foi possível alterar o produto", result.error);
         return;
       }
+      notify.success(product.active ? "Produto desativado" : "Produto reativado",
+        product.name + (product.active ? " não aparece mais para novas vendas." : " voltou a aparecer para novas vendas."));
       router.refresh();
     });
   }
@@ -89,7 +90,6 @@ export function CommercialProductsPanel({ products }: { products: CommercialProd
   return (
     <section className="inline-form form-section form-section--first">
       <h2>Produtos/canais</h2>
-      {error ? <p className="form-error" role="alert">{error}</p> : null}
 
       {editingId === null ? (
         <div className="form-actions">

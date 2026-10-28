@@ -18,6 +18,7 @@ import {
 } from "./actions";
 import type { AgendaEventItem, AgendaWorkspaceData, WeeklyPautaItem } from "./agendaTypes";
 import { createSupabaseBrowserClient } from "../../lib/supabase/browser";
+import { notify } from "../../lib/feedback/notify";
 
 // Alterar aqui se a equipe precisar de sincronizacao mais rapida/lenta.
 const AGENDA_MIN_SYNC_INTERVAL_MS = 60_000;
@@ -226,7 +227,6 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
   const [localClock, setLocalClock] = useState(() => nowInAgendaTimezone());
   const [realtimeState, setRealtimeState] = useState<"connecting" | "online" | "offline">("connecting");
   const [remoteChanges, setRemoteChanges] = useState(false);
-  const [message, setMessage] = useState<string | null>(null);
   const [responsibleFilter, setResponsibleFilter] = useState("");
   const [isMonthExpanded, setIsMonthExpanded] = useState(false);
   const [isPending, startTransition] = useTransition();
@@ -397,15 +397,14 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
     success: string,
     reset?: () => void,
   ): void {
-    setMessage(null);
     startTransition(async () => {
       const result = await action();
       if ("error" in result) {
-        setMessage(result.error);
+        notify.error("Não foi possível concluir a ação na Agenda", result.error);
         return;
       }
       reset?.();
-      setMessage(success);
+      notify.success("Agenda atualizada", success);
       setRemoteChanges(false);
       lastSyncAtRef.current = Date.now();
       router.refresh();
@@ -590,8 +589,6 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
           <button type="button" onClick={() => { setRemoteChanges(false); lastSyncAtRef.current = Date.now(); router.refresh(); }}>Atualizar agora</button>
         </div>
       ) : null}
-      {message ? <div className="agenda-feedback" role="status">{message}</div> : null}
-
       {initialView === "agenda" && data.access.agendaRead ? (
         <div className="agenda-layout">
           <div className="agenda-calendar-card">

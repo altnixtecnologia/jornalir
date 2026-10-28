@@ -6,6 +6,7 @@ import {
  createRentalAssetAction,changeRentalAssetStatusAction,createRentalBookingAction,
  changeRentalBookingStatusAction,recordRentalInspectionAction,
 } from "../../app/sistema/publicidade/locacoes/actions";
+import { notify } from "../../lib/feedback/notify";
 
 type Asset = {
  id:string; product_id:string; asset_code:string; brand:string; model:string;
@@ -41,8 +42,6 @@ export function RentalOperationsPanel({assets,products,sales,bookings,inspection
  const router=useRouter();
  const [pending,setPending]=useState(false);
  const busy=useRef(false);
- const [message,setMessage]=useState("");
- const [error,setError]=useState("");
  const [inspectionBooking,setInspectionBooking]=useState("");
  const [inspectionKind,setInspectionKind]=useState<"checkout"|"return">("checkout");
  const [saleId,setSaleId]=useState("");
@@ -55,15 +54,19 @@ export function RentalOperationsPanel({assets,products,sales,bookings,inspection
     && sale.items_snapshot.some(v=>v&&typeof v==="object"&&"serviceChannel" in v&&v.serviceChannel==="equipment_rental");
  });
 
- function run(action:Promise<{error:string}|{ok:true}>,success:string,onSuccess?:()=>void):void {
+ function run(
+  action:Promise<{error:string}|{ok:true}>,
+  feedback:{successTitle:string;successDescription:string;errorTitle:string},
+  onSuccess?:()=>void,
+ ):void {
   if(busy.current)return;
-  busy.current=true;setPending(true);setError("");setMessage("");
+  busy.current=true;setPending(true);
   void (async()=>{
    try{
     const response=await action;
-    if("error" in response)setError(response.error);
-    else{setMessage(success);onSuccess?.();router.refresh();}
-   }catch(ex){setError(errorMessage(ex));}
+    if("error" in response)notify.error(feedback.errorTitle,response.error);
+    else{notify.success(feedback.successTitle,feedback.successDescription);onSuccess?.();router.refresh();}
+   }catch(ex){notify.error(feedback.errorTitle,errorMessage(ex));}
    finally{busy.current=false;setPending(false);}
   })();
  }
@@ -74,7 +77,7 @@ export function RentalOperationsPanel({assets,products,sales,bookings,inspection
    brand:field(f,"brand"),model:field(f,"model"),serialNumber:field(f,"serialNumber"),
    description:field(f,"description"),accessoryInventory:field(f,"accessoryInventory"),
    conditionNotes:field(f,"conditionNotes"),
-  }),"Equipamento cadastrado.");
+  }),{successTitle:"Equipamento cadastrado",successDescription:"O equipamento foi adicionado ao catálogo de locação.",errorTitle:"Não foi possível cadastrar o equipamento"});
  }
  function book(ev:React.FormEvent<HTMLFormElement>):void{
   ev.preventDefault();const f=new FormData(ev.currentTarget);
@@ -86,8 +89,8 @@ export function RentalOperationsPanel({assets,products,sales,bookings,inspection
     returnLocation:field(f,"returnLocation"),contactPerson:field(f,"contactPerson"),
     dailyRate:field(f,"dailyRate"),agreedTotal:field(f,"agreedTotal"),
     depositAmount:field(f,"depositAmount"),notes:field(f,"notes"),
-   }),"Reserva cadastrada em rascunho.");
-  } catch(ex){setError(errorMessage(ex));}
+   }),{successTitle:"Reserva cadastrada",successDescription:"A reserva foi criada em rascunho.",errorTitle:"Não foi possível cadastrar a reserva"});
+  } catch(ex){notify.error("Não foi possível cadastrar a reserva",errorMessage(ex));}
  }
  function inspect(ev:React.FormEvent<HTMLFormElement>):void{
   ev.preventDefault();const f=new FormData(ev.currentTarget);
@@ -95,7 +98,7 @@ export function RentalOperationsPanel({assets,products,sales,bookings,inspection
    bookingId:inspectionBooking,kind:inspectionKind,
    conditionNotes:field(f,"conditionNotes"),accessoriesChecklist:field(f,"accessories"),
    acknowledgedBy:field(f,"acknowledgedBy")
-  }),"Vistoria registrada e preservada no histórico.",()=>setInspectionBooking(""));
+  }),{successTitle:"Vistoria registrada",successDescription:"A vistoria foi preservada no histórico.",errorTitle:"Não foi possível registrar a vistoria"},()=>setInspectionBooking(""));
  }
  const inputStyle:React.CSSProperties={width:"100%",minWidth:0};
  const formGrid:React.CSSProperties={display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(175px,1fr))",gap:12};
@@ -105,8 +108,6 @@ export function RentalOperationsPanel({assets,products,sales,bookings,inspection
     Cadastro operacional. O contrato jurídico, comprovante assinado, fotos privadas e geração de cobrança só serão ativados após homologação.
     O cliente é obtido da venda existente; não há segundo cadastro.
    </p>
-   {error?<p role="alert" style={{color:"var(--color-danger,#a22121)"}}>{error}</p>:null}
-   {message?<p role="status">{message}</p>:null}
 
    <section>
     <h2>1. Inventário de aparelhos</h2>
@@ -138,7 +139,7 @@ export function RentalOperationsPanel({assets,products,sales,bookings,inspection
         <td>{a.asset_code}</td><td>{a.brand} {a.model}</td><td>{a.serial_number||"—"}</td>
         <td>{permissions.assets?(
          <select aria-label={"Estado "+a.asset_code} value={a.status} disabled={pending}
-          onChange={ev=>run(changeRentalAssetStatusAction(a.id,ev.target.value as Asset["status"]),"Estado do equipamento atualizado.")}>
+          onChange={ev=>run(changeRentalAssetStatusAction(a.id,ev.target.value as Asset["status"]),{successTitle:"Estado atualizado",successDescription:"O estado do equipamento "+a.asset_code+" foi atualizado.",errorTitle:"Não foi possível atualizar o estado"})}>
           <option value="available">Disponível</option><option value="maintenance">Manutenção</option><option value="retired">Desativado</option>
          </select>
         ):a.status}</td>
@@ -197,12 +198,12 @@ export function RentalOperationsPanel({assets,products,sales,bookings,inspection
        <p>{format(b.start_at)} até {format(b.end_at)} · {b.contact_person} · R$ {Number(b.agreed_total).toFixed(2)}</p>
        <p className="helper-text">Retirada: {b.collection_location} · Devolução: {b.return_location} · Vistoria retirada: {hasCheckout?"registrada":"pendente"} · devolução: {hasReturn?"registrada":"pendente"}</p>
        <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
-        {permissions.bookings&&b.status==="draft"?<button disabled={pending} onClick={()=>run(changeRentalBookingStatusAction(b.id,"reserved"),"Reserva confirmada.")}>Confirmar reserva</button>:null}
+        {permissions.bookings&&b.status==="draft"?<button disabled={pending} onClick={()=>run(changeRentalBookingStatusAction(b.id,"reserved"),{successTitle:"Reserva confirmada",successDescription:"A reserva foi confirmada.",errorTitle:"Não foi possível confirmar a reserva"})}>Confirmar reserva</button>:null}
         {permissions.inspections&&b.status==="reserved"&&!hasCheckout?<button disabled={pending} onClick={()=>{setInspectionBooking(b.id);setInspectionKind("checkout");}}>Registrar vistoria de entrega</button>:null}
-        {permissions.bookings&&b.status==="reserved"&&hasCheckout?<button disabled={pending} onClick={()=>run(changeRentalBookingStatusAction(b.id,"checked_out"),"Retirada confirmada.")}>Confirmar retirada</button>:null}
+        {permissions.bookings&&b.status==="reserved"&&hasCheckout?<button disabled={pending} onClick={()=>run(changeRentalBookingStatusAction(b.id,"checked_out"),{successTitle:"Retirada confirmada",successDescription:"A retirada do equipamento foi confirmada.",errorTitle:"Não foi possível confirmar a retirada"})}>Confirmar retirada</button>:null}
         {permissions.inspections&&b.status==="checked_out"&&!hasReturn?<button disabled={pending} onClick={()=>{setInspectionBooking(b.id);setInspectionKind("return");}}>Registrar vistoria de devolução</button>:null}
-        {permissions.bookings&&b.status==="checked_out"&&hasReturn?<button disabled={pending} onClick={()=>run(changeRentalBookingStatusAction(b.id,"returned"),"Devolução concluída.")}>Concluir devolução</button>:null}
-        {permissions.bookings&&(b.status==="draft"||b.status==="reserved")?<button disabled={pending} onClick={()=>run(changeRentalBookingStatusAction(b.id,"cancelled"),"Reserva cancelada.")}>Cancelar reserva</button>:null}
+        {permissions.bookings&&b.status==="checked_out"&&hasReturn?<button disabled={pending} onClick={()=>run(changeRentalBookingStatusAction(b.id,"returned"),{successTitle:"Devolução concluída",successDescription:"A devolução do equipamento foi registrada.",errorTitle:"Não foi possível concluir a devolução"})}>Concluir devolução</button>:null}
+        {permissions.bookings&&(b.status==="draft"||b.status==="reserved")?<button disabled={pending} onClick={()=>run(changeRentalBookingStatusAction(b.id,"cancelled"),{successTitle:"Reserva cancelada",successDescription:"A reserva foi cancelada.",errorTitle:"Não foi possível cancelar a reserva"})}>Cancelar reserva</button>:null}
        </div>
        {inspectionBooking===b.id&&permissions.inspections?(
         <form onSubmit={inspect} style={{display:"grid",gap:10,marginTop:12}}>

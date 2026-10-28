@@ -9,6 +9,7 @@ import type { ClientSearchResult } from "../../components/admin/clientSearchType
 import { createCommercialProposalAction } from "../../app/sistema/publicidade/propostas/novo/actions";
 import { updateCommercialProposalAction } from "../../app/sistema/publicidade/propostas/[id]/actions";
 import type { CommercialProposalFormInput, CommercialProposalItemFormInput } from "../../app/sistema/publicidade/propostas/commercialProposalFormTypes";
+import { notify } from "../../lib/feedback/notify";
 
 function formatAmount(value: number): string {
   return value.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
@@ -124,9 +125,11 @@ export function CommercialProposalForm({
           ? await createCommercialProposalAction({ ...input, clientId: client!.id })
           : await updateCommercialProposalAction(proposal!.id, input);
       if (result && "error" in result) {
-        setError(result.error);
+        notify.error("Não foi possível salvar a proposta", result.error);
         return;
       }
+      notify.success(mode === "create" ? "Proposta criada" : "Proposta atualizada",
+        mode === "create" ? "A proposta foi criada." : "As alterações da proposta foram salvas.");
       if (mode === "create" && result && "id" in result) {
         router.push(`/sistema/publicidade/propostas/${result.id}`);
         return;

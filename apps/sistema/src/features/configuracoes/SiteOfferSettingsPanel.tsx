@@ -5,6 +5,7 @@ import {
   updateSiteOfferSettingsAction,
   type SiteOfferSettingsFormInput,
 } from "../../app/sistema/configuracoes/valores-assine/actions";
+import { notify } from "../../lib/feedback/notify";
 
 export interface SiteOfferSettingsValues {
   annualSubscriptionPrice: number | null;
@@ -71,13 +72,9 @@ function toInput(values: SiteOfferSettingsValues): SiteOfferSettingsFormInput {
 export function SiteOfferSettingsPanel({ values }: { values: SiteOfferSettingsValues }): JSX.Element {
   const [input, setInput] = useState<SiteOfferSettingsFormInput>(() => toInput(values));
   const [pending, startTransition] = useTransition();
-  const [message, setMessage] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
 
   function set<K extends keyof SiteOfferSettingsFormInput>(key: K, value: SiteOfferSettingsFormInput[K]): void {
     setInput((current) => ({ ...current, [key]: value }));
-    setMessage(null);
-    setError(null);
   }
 
   function normalize(key: keyof SiteOfferSettingsFormInput): void {
@@ -87,8 +84,6 @@ export function SiteOfferSettingsPanel({ values }: { values: SiteOfferSettingsVa
   }
 
   function save(): void {
-    setMessage(null);
-    setError(null);
     startTransition(async () => {
       const normalizedInput = Object.fromEntries(
         Object.entries(input).map(([key, value]) => [key, value.trim() ? normalizeMoneyInput(value) : value]),
@@ -97,10 +92,10 @@ export function SiteOfferSettingsPanel({ values }: { values: SiteOfferSettingsVa
       setInput(normalizedInput);
       const result = await updateSiteOfferSettingsAction(normalizedInput);
       if ("error" in result) {
-        setError(result.error);
+        notify.error("Não foi possível salvar", result.error);
         return;
       }
-      setMessage("Valores e descontos atualizados.");
+      notify.success("Valores atualizados", "Os valores e descontos foram salvos.");
     });
   }
 
@@ -205,8 +200,6 @@ export function SiteOfferSettingsPanel({ values }: { values: SiteOfferSettingsVa
             {pending ? "Salvando..." : "Salvar valores e descontos"}
           </button>
         </div>
-        {message ? <p className="form-success" role="status">{message}</p> : null}
-        {error ? <p className="form-error" role="alert">{error}</p> : null}
       </section>
     </>
   );

@@ -18,6 +18,7 @@ import {
   convertCommercialProposalToSaleAction,
   duplicateCommercialProposalAction,
 } from "../../app/sistema/publicidade/propostas/[id]/actions";
+import { notify } from "../../lib/feedback/notify";
 
 function formatAmount(value: number): string {
   return value.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
@@ -48,7 +49,6 @@ export function CommercialProposalDetail({
 }): JSX.Element {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
-  const [error, setError] = useState<string | null>(null);
   const [editing, setEditing] = useState(false);
 
   const expired = isCommercialProposalExpired(proposal);
@@ -56,37 +56,37 @@ export function CommercialProposalDetail({
   const editable = proposal.status === "draft" || proposal.status === "sent";
 
   function handleChangeStatus(to: CommercialProposalStatus): void {
-    setError(null);
     startTransition(async () => {
       const result = await changeCommercialProposalStatusAction(proposal.id, to);
       if (result && "error" in result) {
-        setError(result.error);
+        notify.error("Não foi possível alterar o status", result.error);
         return;
       }
+      notify.success("Status atualizado", "A proposta agora está " + COMMERCIAL_PROPOSAL_STATUS_LABELS[to] + ".");
       router.refresh();
     });
   }
 
   function handleDuplicate(): void {
-    setError(null);
     startTransition(async () => {
       const result = await duplicateCommercialProposalAction(proposal.id);
       if ("error" in result) {
-        setError(result.error);
+        notify.error("Não foi possível duplicar a proposta", result.error);
         return;
       }
+      notify.success("Proposta duplicada", "Uma cópia da proposta foi criada.");
       router.push(`/sistema/publicidade/propostas/${result.id}`);
     });
   }
 
   function handleConvert(): void {
-    setError(null);
     startTransition(async () => {
       const result = await convertCommercialProposalToSaleAction(proposal.id);
       if ("error" in result) {
-        setError(result.error);
+        notify.error("Não foi possível converter em venda", result.error);
         return;
       }
+      notify.success("Proposta convertida em venda", "A venda foi criada a partir desta proposta.");
       router.push(`/sistema/publicidade/vendas/${result.saleId}`);
     });
   }
@@ -97,8 +97,6 @@ export function CommercialProposalDetail({
 
   return (
     <>
-      {error ? <p className="form-error" role="alert">{error}</p> : null}
-
       <section className="form-section form-section--first">
         <h2>Dados da proposta</h2>
         <div className="form-grid">

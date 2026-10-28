@@ -36,6 +36,7 @@ import {parseBirthdayDateInput,dayMonthInputFromBirthday,yearInputFromBirthday} 
 import styles from "./BirthdaysList.module.css";
 
 import { ConfirmDialog } from "../../components/admin/ConfirmDialog";
+import { notify } from "../../lib/feedback/notify";
 import {
   extractSafeEditorialPhrase,
   formatEditorialDayLabel,
@@ -900,6 +901,12 @@ export function BirthdaysList({ localPreview, initialGroups = [], initialMessage
   const [busy,setBusy]=useState(false);
   const [error,setError]=useState<string|null>(null);
   const [notice,setNotice]=useState<string|null>(null);
+  // Avisos flutuantes globais (Fase 20): esta tela tem muitos pontos de
+  // erro/sucesso pontuais; em vez de reescrever cada um, a ponte abaixo
+  // leva os mesmos `error`/`notice` já existentes para o `notify`, sem
+  // duplicar exibição (os blocos inline antigos foram removidos).
+  useEffect(() => { if (error) notify.error("Não foi possível concluir a operação", error); }, [error]);
+  useEffect(() => { if (notice) notify.success("Aniversariantes", notice); }, [notice]);
   const requested=useRef(new Set<string>());
   const persisted=useRef(new Set(initialMessages.map(m=>`${m.edition_week_start}::${m.birthday_entry_id}`)));
   const [groups, setGroups] = useState<BirthdayGroup[]>(() => localPreview ? buildBirthdayPreviewSeed() : initialGroups);
@@ -1600,8 +1607,6 @@ export function BirthdaysList({ localPreview, initialGroups = [], initialMessage
   return (
     <div className={`aniv-module ${styles.root}`}>
       <>
-        {error?<p className="form-error" role="alert">{error}</p>:null}
-        {notice?<p className="helper-text" role="status">{notice}</p>:null}
           <div className="aniv-week-cta-row no-print">
             <button type="button" className={`aniv-week-cta${period === "newspaper" ? " is-active" : ""}`} onClick={activateNewspaperWeek}>
               <strong>SEMANA DO JORNAL</strong>

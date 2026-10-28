@@ -24,6 +24,7 @@ import {
   updateSiteAdSlotSettingsAction,
   uploadSiteAdImagesAction,
 } from "../../app/sistema/configuracoes/patrocinadores/actions";
+import { notify } from "../../lib/feedback/notify";
 
 const MAX_PREPARED_BYTES = 2 * 1024 * 1024;
 const MAX_UPLOAD_SOURCE_BYTES = 40 * 1024 * 1024;
@@ -90,12 +91,10 @@ function MediaSettingsRow({
   const [fitMode, setFitMode] = useState<SiteAdFitMode>(media.fitMode ?? "contain");
   const [saved, setSaved] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
   async function save(): Promise<void> {
     if (saving || pending) return;
     setSaved(false);
-    setError(null);
     setSaving(true);
     try {
       const changes = !custom
@@ -107,9 +106,9 @@ function MediaSettingsRow({
           };
       const confirmed = await onSave(changes);
       if (confirmed) setSaved(true);
-      else setError("O servidor não confirmou a alteração. Confira a mensagem do grupo e tente novamente.");
+      else notify.error("Não foi possível salvar a imagem", "O servidor não confirmou a alteração. Confira a mensagem do grupo e tente novamente.");
     } catch {
-      setError("Falha de conexão. As configurações anteriores foram preservadas.");
+      notify.error("Não foi possível salvar a imagem", "Falha de conexão. As configurações anteriores foram preservadas.");
     } finally {
       setSaving(false);
     }
@@ -142,7 +141,6 @@ function MediaSettingsRow({
       <button type="button" className="cadastros-btn-secondary" onClick={() => void save()} disabled={pending || saving}>
         {saving ? "Salvando…" : saved ? "Salvo ✓" : "Salvar imagem"}
       </button>
-      {error ? <p role="alert" className="form-error">{error}</p> : null}
     </div>
   );
 }
@@ -156,7 +154,6 @@ function SlotCard({ slot }: { slot: SiteAdSlotWithMedia }): JSX.Element {
   const [effect, setEffect] = useState<SiteAdSlotTransitionEffect>(slot.transitionEffect);
   const [fitMode, setFitMode] = useState<SiteAdFitMode>(slot.fitMode);
   const [previews, setPreviews] = useState<{ file: File; url: string }[]>([]);
-  const [message, setMessage] = useState<string | null>(null);
   const [uploadProgress, setUploadProgress] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
 
@@ -169,7 +166,6 @@ function SlotCard({ slot }: { slot: SiteAdSlotWithMedia }): JSX.Element {
   }, []);
 
   function selectFiles(files: FileList | null): void {
-    setMessage(null);
     for (const url of previewUrlsRef.current) URL.revokeObjectURL(url);
     previewUrlsRef.current.clear();
     const selected = files ? Array.from(files).map((file) => {
@@ -182,7 +178,6 @@ function SlotCard({ slot }: { slot: SiteAdSlotWithMedia }): JSX.Element {
   }
 
   function removePreview(index: number): void {
-    setMessage(null);
     const removed = previews[index];
     if (removed) {
       URL.revokeObjectURL(removed.url);
@@ -192,25 +187,23 @@ function SlotCard({ slot }: { slot: SiteAdSlotWithMedia }): JSX.Element {
   }
 
   function saveSettings(): void {
-    setMessage(null);
     const value = Math.max(2, Math.min(120, Number(seconds) || 10)) * 1000;
     startTransition(async () => {
       const result = await updateSiteAdSlotSettingsAction(slot.id, value, effect, fitMode);
       if (result && "error" in result) {
-        setMessage(result.error);
+        notify.error("Não foi possível salvar a configuração", result.error);
         return;
       }
-      setMessage("Configuração salva.");
+      notify.success("Configuração salva", "As configurações do grupo foram salvas.");
       router.refresh();
     });
   }
 
   function toggle(): void {
-    setMessage(null);
     startTransition(async () => {
       const result = await toggleSiteAdSlotActiveAction(slot.id, !slot.active);
       if (result && "error" in result) {
-        setMessage(result.error);
+        notify.error("Não foi possível alterar o grupo", result.error);
         return;
       }
       router.refresh();
@@ -220,11 +213,10 @@ function SlotCard({ slot }: { slot: SiteAdSlotWithMedia }): JSX.Element {
   function upload(): void {
     if (uploading) return;
     if (!previews.length) {
-      setMessage("Selecione uma ou mais imagens.");
+      notify.error("Nenhuma imagem selecionada", "Selecione uma ou mais imagens antes de enviar.");
       return;
     }
     const selected = [...previews];
-    setMessage(null);
     setUploadProgress(null);
     setUploading(true);
     void (async () => {
@@ -260,11 +252,14 @@ function SlotCard({ slot }: { slot: SiteAdSlotWithMedia }): JSX.Element {
         }
       }
       setUploadProgress(null);
-      setMessage([
-        sent ? sent + " imagem(ns) enviada(s)." : "Nenhuma imagem enviada.",
-        ...warnings,
-        sent > 0 && warnings.length ? "Para repetir, selecione apenas as fotos que falharam." : "",
-      ].filter(Boolean).join(" "));
+      if (sent > 0 && warnings.length === 0) {
+        notify.success(sent + " imagem(ns) enviada(s)", "As imagens foram adicionadas ao grupo.");
+      } else if (sent > 0 && warnings.length > 0) {
+        notify.warning(sent + " imagem(ns) enviada(s), outras falharam",
+          [...warnings, "Para repetir, selecione apenas as fotos que falharam."].join(" "));
+      } else {
+        notify.error("Nenhuma imagem enviada", warnings.join(" ") || "Não foi possível enviar as imagens.");
+      }
       // Após um envio parcial, nunca permitir reenviar por engano as fotos
       // já gravadas. Para tentar de novo, selecione somente as que falharam.
       if (sent > 0) {
@@ -275,7 +270,7 @@ function SlotCard({ slot }: { slot: SiteAdSlotWithMedia }): JSX.Element {
       }
       router.refresh();
     })().catch((error: unknown) => {
-      setMessage(error instanceof Error ? error.message : "Não foi possível enviar as imagens.");
+      notify.error("Nenhuma imagem enviada", error instanceof Error ? error.message : "Não foi possível enviar as imagens.");
     }).finally(() => {
       setUploadProgress(null);
       setUploading(false);
@@ -291,7 +286,7 @@ function SlotCard({ slot }: { slot: SiteAdSlotWithMedia }): JSX.Element {
     startTransition(async () => {
       const result = await reorderSiteAdMediaAction(slot.id, ids);
       if (result && "error" in result) {
-        setMessage(result.error);
+        notify.error("Não foi possível reordenar", result.error);
         return;
       }
       router.refresh();
@@ -303,9 +298,10 @@ function SlotCard({ slot }: { slot: SiteAdSlotWithMedia }): JSX.Element {
     startTransition(async () => {
       const result = await removeSiteAdMediaAction(id);
       if (result && "error" in result) {
-        setMessage(result.error);
+        notify.error("Não foi possível remover a imagem", result.error);
         return;
       }
+      notify.success("Imagem removida", "A imagem foi removida deste grupo.");
       router.refresh();
     });
   }
@@ -314,35 +310,33 @@ function SlotCard({ slot }: { slot: SiteAdSlotWithMedia }): JSX.Element {
     id: string,
     changes: { rotationIntervalMs: number | null; transitionEffect: SiteAdSlotTransitionEffect | null; fitMode: SiteAdFitMode | null },
   ): Promise<boolean> {
-    setMessage(null);
+    // Erro é mostrado pelo próprio `SlotSettings` (chamador); evitar
+    // duplicar o mesmo aviso aqui.
     try {
       const result = await updateSiteAdMediaSettingsAction(id, changes);
       // Server Action histórica devolve void no sucesso; apenas
       // {error} identifica falha (não inverter este protocolo).
       if (result && "error" in result) {
-        setMessage(result.error);
         return false;
       }
       router.refresh();
       return true;
     } catch {
-      setMessage("Falha de conexão ao salvar imagem. Confira antes de repetir.");
       return false;
     }
   }
 
   async function updatePublication(id:string,changes:SiteAdPublicationInput):Promise<{error:string}|void>{
-    setMessage(null);
+    // Erro é mostrado pelo próprio `SiteAdPublicationRow` (chamador); evitar
+    // duplicar o mesmo aviso aqui.
     try{
       const response=await updateSiteAdMediaPublicationAction(id,changes);
       if(response && "error" in response){
-        setMessage(response.error);
         return response;
       }
       router.refresh();
     }catch{
       const error="Falha ao salvar período de veiculação. Verifique antes de repetir.";
-      setMessage(error);
       return {error};
     }
   }
@@ -437,7 +431,6 @@ function SlotCard({ slot }: { slot: SiteAdSlotWithMedia }): JSX.Element {
       </div>
 
       {uploadProgress ? <p role="status" className="helper-text site-ad-message">{uploadProgress}</p> : null}
-      {message ? <p role="status" className="helper-text site-ad-message">{message}</p> : null}
 
       {slot.media.length ? (
         <div className="site-ad-thumbnails">

@@ -25,6 +25,7 @@ import {
   type GenerateFinanceiroResult,
 } from "../../app/sistema/publicidade/vendas/[id]/actions";
 import type { CommercialSaleFormInput } from "../../app/sistema/publicidade/vendas/commercialSaleFormTypes";
+import { notify } from "../../lib/feedback/notify";
 
 function formatAmount(value: number): string {
   return value.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
@@ -69,7 +70,6 @@ export function CommercialSaleDetail({
 }): JSX.Element {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
-  const [error, setError] = useState<string | null>(null);
   const [editing, setEditing] = useState(false);
   const [input, setInput] = useState<CommercialSaleFormInput>(toInput(sale));
   const [confirmCancelOpen, setConfirmCancelOpen] = useState(false);
@@ -87,26 +87,26 @@ export function CommercialSaleDetail({
   }
 
   function saveEdit(): void {
-    setError(null);
     startTransition(async () => {
       const result = await updateCommercialSaleAction(sale.id, input);
       if (result && "error" in result) {
-        setError(result.error);
+        notify.error("Não foi possível salvar a venda", result.error);
         return;
       }
       setEditing(false);
+      notify.success("Venda atualizada", "As alterações da venda foram salvas.");
       router.refresh();
     });
   }
 
   function handleChangeStatus(to: CommercialSaleStatus): void {
-    setError(null);
     startTransition(async () => {
       const result = await changeCommercialSaleStatusAction(sale.id, to);
       if (result && "error" in result) {
-        setError(result.error);
+        notify.error("Não foi possível alterar o status", result.error);
         return;
       }
+      notify.success("Status atualizado", "A venda agora está " + COMMERCIAL_SALE_STATUS_LABELS[to] + ".");
       router.refresh();
     });
   }
@@ -116,33 +116,33 @@ export function CommercialSaleDetail({
     startTransition(async () => {
       const result = await cancelCommercialSaleAction(sale.id);
       if (result && "error" in result) {
-        setError(result.error);
+        notify.error("Não foi possível cancelar a venda", result.error);
         return;
       }
+      notify.success("Venda cancelada", "A venda foi cancelada.");
       router.refresh();
     });
   }
 
   function handleGenerateFinanceiro(): void {
-    setError(null);
     setGenerateResults(null);
     startTransition(async () => {
       const result = await generateCommercialSaleFinanceiroAction(sale.id, firstDueDate);
       if ("error" in result) {
-        setError(result.error);
+        notify.error("Não foi possível gerar o financeiro", result.error);
         return;
       }
       setGenerateResults(result.results);
+      notify.success("Financeiro gerado", "Os títulos desta venda foram gerados.");
       router.refresh();
     });
   }
 
   function handleCreateNfseDraft(): void {
-    setError(null);
     startTransition(async () => {
       const result = await createNfseDraftFromSaleAction(sale.id);
       if ("error" in result) {
-        setError(result.error);
+        notify.error("Não foi possível criar o rascunho de NFS-e", result.error);
         return;
       }
       router.push(`/sistema/nfse/rascunhos/${result.draftId}`);
@@ -151,7 +151,6 @@ export function CommercialSaleDetail({
 
   return (
     <div className="inline-form">
-      {error ? <p className="form-error" role="alert">{error}</p> : null}
 
       <section className="form-section form-section--first">
         <h2>Dados comerciais</h2>

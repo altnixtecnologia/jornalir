@@ -7,6 +7,7 @@ import {
   searchClientsForDueReminderAction,
   type DueReminderBatchRow, type DueReminderCandidate,
 } from "../../app/sistema/assinaturas/avisos-vencimento/actions";
+import { notify } from "../../lib/feedback/notify";
 
 const DEFAULT_TEMPLATE =
   "Olá, {{cliente}}! Passando para lembrar que sua assinatura ({{assinatura}}) do Jornal IR tem vencimento em {{mes_ano}}. Qualquer dúvida, é só responder esta mensagem.";
@@ -134,7 +135,7 @@ export function DueReminderPanel({
 
   function saveDraft(): void {
     if (recipients.length === 0) { setError("Adicione ao menos um destinatário antes de salvar."); return; }
-    setError(null); setNotice(null);
+    setError(null);
     startTransition(async () => {
       const result = await saveDueReminderDraftAction({
         id: batchId,
@@ -142,9 +143,9 @@ export function DueReminderPanel({
         messageTemplate: template,
         recipients: recipients.map((r) => ({ clientId: r.clientId, subscriptionIds: r.subscriptionIds, phone: r.phone })),
       });
-      if ("error" in result) { setError(result.error); return; }
+      if ("error" in result) { notify.error("Rascunho não foi salvo", result.error); return; }
       setBatchId(result.data.id);
-      setNotice("Rascunho salvo.");
+      notify.success("Rascunho salvo", "O lote de avisos de vencimento foi salvo.");
       void refreshHistory();
     });
   }
@@ -184,11 +185,12 @@ export function DueReminderPanel({
   function confirmSend(): void {
     if (!batchId) return;
     if (!window.confirm(`Confirmar o envio deste lote para ${recipients.length} destinatário(s)?`)) return;
-    setError(null); setNotice(null);
+    setError(null);
     startTransition(async () => {
       const result = await confirmDueReminderBatchSendAction(batchId);
-      if ("error" in result) { setError(result.error); return; }
-      setNotice(`Envio concluído: ${result.data.sent} enviado(s), ${result.data.failed} falha(s), ${result.data.skipped} ignorado(s) (telefone inválido).`);
+      if ("error" in result) { notify.error("Envio não concluído", result.error); return; }
+      notify.success("Envio concluído",
+        `${result.data.sent} enviado(s), ${result.data.failed} falha(s), ${result.data.skipped} ignorado(s) (telefone inválido).`);
       setOpenBatch({ id: batchId, status: "sent", sentStats: result.data });
     });
   }

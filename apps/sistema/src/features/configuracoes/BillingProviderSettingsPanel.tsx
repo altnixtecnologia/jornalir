@@ -6,6 +6,7 @@ import {
   testAsaasConnectionAction,
   updateBillingProviderSettingsAction,
 } from "../../app/sistema/configuracoes/cobrancas/actions";
+import { notify } from "../../lib/feedback/notify";
 
 export interface BillingProviderSettingsValues {
   environment: "sandbox" | "production";
@@ -33,44 +34,35 @@ export function BillingProviderSettingsPanel({ values }: { values: BillingProvid
   const [defaultDueDays, setDefaultDueDays] = useState(String(values.defaultDueDays));
   const [financeWhatsapp, setFinanceWhatsapp] = useState(values.financeWhatsapp);
   const [pending, startTransition] = useTransition();
-  const [message, setMessage] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
 
   const selectedKeyConfigured = environment === "sandbox" ? values.sandboxKeyConfigured : values.productionKeyConfigured;
 
   function testConnection(): void {
-    setMessage(null);
-    setError(null);
     startTransition(async () => {
       const result = await testAsaasConnectionAction(environment);
       if ("error" in result) {
-        setError(result.error);
+        notify.error("Conexão com o Asaas falhou", result.error);
         return;
       }
-      setMessage(`Conexão com o Asaas confirmada. Status geral da conta: ${result.generalStatus}.`);
+      notify.success("Conexão confirmada", `Conexão com o Asaas confirmada. Status geral da conta: ${result.generalStatus}.`);
     });
   }
 
   function provisionWebhook(): void {
-    setMessage(null);
-    setError(null);
     startTransition(async () => {
       const result = await provisionAsaasWebhookAction(environment);
       if ("error" in result) {
-        setError(result.error);
+        notify.error("Não foi possível configurar o webhook", result.error);
         return;
       }
-      setMessage(
+      notify.success(result.created ? "Webhook criado" : "Webhook atualizado",
         result.created
           ? `Webhook do Asaas criado com sucesso (${result.webhookId}).`
-          : `Webhook do Asaas atualizado com sucesso (${result.webhookId}).`,
-      );
+          : `Webhook do Asaas atualizado com sucesso (${result.webhookId}).`);
     });
   }
 
   function save(): void {
-    setMessage(null);
-    setError(null);
     startTransition(async () => {
       const result = await updateBillingProviderSettingsAction({
         environment,
@@ -83,10 +75,10 @@ export function BillingProviderSettingsPanel({ values }: { values: BillingProvid
         financeWhatsapp,
       });
       if ("error" in result) {
-        setError(result.error);
+        notify.error("Não foi possível salvar", result.error);
         return;
       }
-      setMessage("Configuração de cobranças atualizada.");
+      notify.success("Configuração atualizada", "A configuração de cobranças foi salva.");
     });
   }
 
@@ -177,8 +169,6 @@ export function BillingProviderSettingsPanel({ values }: { values: BillingProvid
             {pending ? "Salvando..." : "Salvar configuração"}
           </button>
         </div>
-        {message ? <p className="form-success">{message}</p> : null}
-        {error ? <p className="form-error">{error}</p> : null}
       </section>
     </>
   );

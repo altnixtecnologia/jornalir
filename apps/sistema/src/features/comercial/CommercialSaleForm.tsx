@@ -8,6 +8,7 @@ import { ClientPicker } from "../../components/admin/ClientPicker";
 import type { ClientSearchResult } from "../../components/admin/clientSearchTypes";
 import { createCommercialSaleAction } from "../../app/sistema/publicidade/vendas/novo/actions";
 import type { CommercialSaleFormInput } from "../../app/sistema/publicidade/vendas/commercialSaleFormTypes";
+import { notify } from "../../lib/feedback/notify";
 
 function emptyInput(): CommercialSaleFormInput {
   return {
@@ -62,9 +63,10 @@ export function CommercialSaleForm({ products }: { products: CommercialProduct[]
     startTransition(async () => {
       const result = await createCommercialSaleAction({ ...input, clientId: client.id });
       if ("error" in result) {
-        setError(result.error);
+        notify.error("Não foi possível criar a venda", result.error);
         return;
       }
+      notify.success("Venda criada", "A venda foi registrada.");
       router.push(`/sistema/publicidade/vendas/${result.id}`);
     });
   }

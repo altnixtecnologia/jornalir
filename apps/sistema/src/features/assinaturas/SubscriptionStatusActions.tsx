@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import type { Subscription } from "@ir/types";
 import { ConfirmDialog } from "../../components/admin/ConfirmDialog";
 import { cancelSubscriptionAction, reactivateSubscriptionAction, suspendSubscriptionAction } from "../../app/sistema/assinaturas/actions";
+import { notify } from "../../lib/feedback/notify";
 
 /**
  * Ações de transição de status na própria página de detalhe — nunca
@@ -20,19 +21,21 @@ import { cancelSubscriptionAction, reactivateSubscriptionAction, suspendSubscrip
 export function SubscriptionStatusActions({ subscription }: { subscription: Subscription }): JSX.Element | null {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
-  const [error, setError] = useState<string | null>(null);
   const [showCancelConfirm, setShowCancelConfirm] = useState(false);
   const [cancellationReason, setCancellationReason] = useState("");
 
-  function runAction(action: () => Promise<{ error: string } | void>): void {
-    setError(null);
+  function runAction(
+    action: () => Promise<{ error: string } | void>,
+    feedback: { successTitle: string; successDescription: string; errorTitle: string },
+  ): void {
     startTransition(async () => {
       const result = await action();
       if (result && "error" in result) {
-        setError(result.error);
+        notify.error(feedback.errorTitle, result.error);
         return;
       }
       setShowCancelConfirm(false);
+      notify.success(feedback.successTitle, feedback.successDescription);
       router.refresh();
     });
   }
@@ -42,15 +45,20 @@ export function SubscriptionStatusActions({ subscription }: { subscription: Subs
   return (
     <div className="form-section form-section--compact">
       <h2>Ações</h2>
-      {error ? <p className="form-error" role="alert">{error}</p> : null}
       <div className="form-actions">
         {subscription.status === "active" ? (
-          <button type="button" onClick={() => runAction(() => suspendSubscriptionAction(subscription.id))} disabled={pending}>
+          <button type="button" onClick={() => runAction(
+            () => suspendSubscriptionAction(subscription.id),
+            { successTitle: "Assinatura suspensa", successDescription: "A assinatura " + subscription.reference + " foi suspensa.", errorTitle: "Não foi possível suspender" },
+          )} disabled={pending}>
             Suspender
           </button>
         ) : null}
         {subscription.status === "suspended" ? (
-          <button type="button" onClick={() => runAction(() => reactivateSubscriptionAction(subscription.id))} disabled={pending}>
+          <button type="button" onClick={() => runAction(
+            () => reactivateSubscriptionAction(subscription.id),
+            { successTitle: "Assinatura reativada", successDescription: "A assinatura " + subscription.reference + " foi reativada.", errorTitle: "Não foi possível reativar" },
+          )} disabled={pending}>
             Reativar
           </button>
         ) : null}
@@ -80,7 +88,10 @@ export function SubscriptionStatusActions({ subscription }: { subscription: Subs
           </>
         }
         confirmLabel={pending ? "Cancelando…" : "Confirmar cancelamento"}
-        onConfirm={() => runAction(() => cancelSubscriptionAction(subscription.id, cancellationReason))}
+        onConfirm={() => runAction(
+          () => cancelSubscriptionAction(subscription.id, cancellationReason),
+          { successTitle: "Assinatura cancelada", successDescription: "A assinatura " + subscription.reference + " foi cancelada.", errorTitle: "Não foi possível cancelar" },
+        )}
         onCancel={() => setShowCancelConfirm(false)}
       />
     </div>

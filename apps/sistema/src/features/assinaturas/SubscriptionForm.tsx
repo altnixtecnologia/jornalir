@@ -13,6 +13,7 @@ import {
   computeNextDueDate,
 } from "@ir/types";
 import { createSubscription, updateSubscription } from "../../app/sistema/assinaturas/actions";
+import { notify } from "../../lib/feedback/notify";
 import { ClientPicker } from "../../components/admin/ClientPicker";
 import type { ClientSearchResult } from "../../components/admin/clientSearchTypes";
 import type { SubscriptionFormPayload } from "./subscriptionFormTypes";
@@ -66,7 +67,6 @@ export function SubscriptionForm({ mode, subscription, initialSelectedClient }: 
     payloadFromSubscription(subscription, initialSelectedClient?.id),
   );
   const [selectedClient, setSelectedClient] = useState<ClientSearchResult | null>(initialSelectedClient ?? null);
-  const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
   // Rastreia se o usuário já editou "Próximo vencimento" manualmente —
@@ -95,11 +95,10 @@ export function SubscriptionForm({ mode, subscription, initialSelectedClient }: 
     : ["active"];
 
   function handleSubmit(): void {
-    setError(null);
     startTransition(async () => {
       const result =
         mode === "create" ? await createSubscription(payload) : await updateSubscription(subscription!.id, payload);
-      if (result && "error" in result) setError(result.error);
+      if (result && "error" in result) notify.error("Não foi possível salvar a assinatura", result.error);
     });
   }
 
@@ -319,8 +318,6 @@ export function SubscriptionForm({ mode, subscription, initialSelectedClient }: 
           </label>
         </div>
       </section>
-
-      {error ? <p className="form-error" role="alert">{error}</p> : null}
 
       <div className="form-actions">
         <button type="button" className="form-action-primary" onClick={handleSubmit} disabled={pending}>

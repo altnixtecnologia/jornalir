@@ -2,23 +2,23 @@
 
 import { useState, useTransition } from "react";
 import { setClientDigitalExportAction } from "../../app/sistema/clientes/digital-export-actions";
+import { notify } from "../../lib/feedback/notify";
 
 export function DigitalExportControl({
   clientId, initiallyEnabled, clientActive,
 }: { clientId: string; initiallyEnabled: boolean; clientActive: boolean }): JSX.Element {
   const [enabled, setEnabled] = useState(initiallyEnabled);
   const [pending, start] = useTransition();
-  const [message, setMessage] = useState<string | null>(null);
   function change(): void {
-    setMessage(null);
     start(async () => {
       const result = await setClientDigitalExportAction(clientId, !enabled);
-      if ("error" in result) setMessage(result.error);
-      else {
+      if ("error" in result) {
+        notify.error("Não foi possível salvar", result.error);
+      } else {
         setEnabled(!enabled);
-        setMessage(!enabled
-          ? "Pré-autorização registrada para etapa futura. A comunicação com o Altnix segue desligada."
-          : "Pré-autorização revogada. Nenhum dado foi enviado ao Altnix.");
+        notify.success(!enabled ? "Pré-autorização registrada" : "Pré-autorização revogada", !enabled
+          ? "Registrada para etapa futura. A comunicação com o Altnix segue desligada."
+          : "Nenhum dado foi enviado ao Altnix.");
       }
     });
   }
@@ -35,6 +35,5 @@ export function DigitalExportControl({
       {pending ? "Salvando..." : enabled ? "Revogar pré-autorização" : "Pré-autorizar para integração futura"}
     </button>
     {!clientActive && !enabled ? <p className="helper-text">Ative o cliente antes de liberar dados.</p> : null}
-    {message ? <p role="status" className="helper-text">{message}</p> : null}
   </section>;
 }

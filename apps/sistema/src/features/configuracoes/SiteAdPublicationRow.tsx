@@ -4,6 +4,7 @@ import {useEffect,useState} from "react";
 import type {SiteAdMediaWithAsset} from "@ir/types";
 import {publicationStatus,validateSiteAdPublication,type SiteAdPublicationInput}
  from "./siteAdPublicationPolicy";
+import {notify} from "../../lib/feedback/notify";
 
 /** Imagem de cortesia: visível quando liberada MANUALMENTE, sem data nem fatura. */
 export function SiteAdPublicationRow({media,pending,onSave}:{
@@ -13,21 +14,20 @@ export function SiteAdPublicationRow({media,pending,onSave}:{
 }):JSX.Element{
  const [active,setActive]=useState(media.active);
  const [saving,setSaving]=useState(false);
- const [feedback,setFeedback]=useState<string|null>(null);
  const [saved,setSaved]=useState(false);
  useEffect(()=>setActive(media.active),[media.active]);
  async function save():Promise<void>{
   if(saving||pending)return;
-  setSaved(false);setFeedback(null);
+  setSaved(false);
   let changes:SiteAdPublicationInput;
   try{changes=validateSiteAdPublication({active});}
-  catch(e){setFeedback(e instanceof Error?e.message:"Situação inválida.");return;}
+  catch(e){notify.error("Situação inválida",e instanceof Error?e.message:"Situação inválida.");return;}
   setSaving(true);
   try{
    const result=await onSave(changes);
-   if(result&&"error" in result){setFeedback(result.error);return;}
+   if(result&&"error" in result){notify.error("Não foi possível salvar",result.error);return;}
    setSaved(true);
-  }catch{setFeedback("Falha de conexão. Confira a alteração antes de repetir.");}
+  }catch{notify.error("Não foi possível salvar","Falha de conexão. Confira a alteração antes de repetir.");}
   finally{setSaving(false);}
  }
  return <div className="site-ad-thumb-settings">
@@ -42,6 +42,5 @@ export function SiteAdPublicationRow({media,pending,onSave}:{
    disabled={pending||saving} onClick={()=>void save()}>
    {saving?"Salvando…":saved?"Salvo ✓":"Salvar exibição"}
   </button>
-  {feedback?<p role="alert" className="form-error">{feedback}</p>:null}
  </div>;
 }

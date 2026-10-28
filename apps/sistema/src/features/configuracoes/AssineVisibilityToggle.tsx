@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { setAssineEnabledAction } from "../../app/sistema/configuracoes/valores-assine/actions";
+import { notify } from "../../lib/feedback/notify";
 
 /** Liga/desliga a página pública /assine (que também reúne Anuncie) — pedido
  * explícito do usuário em 18/10/2026. Estado inicial sempre o que vier do
@@ -9,27 +10,23 @@ import { setAssineEnabledAction } from "../../app/sistema/configuracoes/valores-
  * último estado confirmado, nunca finge sucesso. */
 export function AssineVisibilityToggle({ initialEnabled }: { initialEnabled: boolean }): JSX.Element {
   const [enabled, setEnabled] = useState(initialEnabled);
-  const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
   function toggle(): void {
     const next = !enabled;
-    setError(null);
-    setSuccess(null);
     startTransition(async () => {
       try {
         const result = await setAssineEnabledAction(next);
         if ("error" in result) {
-          setError(result.error);
+          notify.error("Não foi possível salvar", result.error);
           return;
         }
         setEnabled(next);
-        setSuccess(next
-          ? "Assine ativado. O botão e a página serão exibidos ao atualizar o portal."
-          : "Assine desativado. O portal deixará de oferecer novas solicitações.");
+        notify.success(next ? "Assine ativado" : "Assine desativado", next
+          ? "O botão e a página serão exibidos ao atualizar o portal."
+          : "O portal deixará de oferecer novas solicitações.");
       } catch {
-        setError("Não foi possível salvar. Confira a conexão e tente novamente.");
+        notify.error("Não foi possível salvar", "Confira a conexão e tente novamente.");
       }
     });
   }
@@ -58,8 +55,6 @@ export function AssineVisibilityToggle({ initialEnabled }: { initialEnabled: boo
           <span>{pending ? "Salvando…" : enabled ? "Ativado" : "Desativado"}</span>
         </button>
       </div>
-      {success ? <p className="form-success" role="status">{success}</p> : null}
-      {error ? <p className="form-error" role="alert">{error}</p> : null}
     </section>
   );
 }
