@@ -8,6 +8,7 @@ import {
 import type {
   CommercialSignerDraft,CommercialSignerRole,
 } from "../../lib/contracts/commercialSigners";
+import {notify} from "../../lib/feedback/notify";
 
 interface IssuedDocument {
   id:string;
@@ -46,8 +47,6 @@ export function CommercialSignersPreparationPanel({
   const [pending,startTransition]=useTransition();
   const [current,setCurrent]=useState<string|null>(null);
   const [signers,setSigners]=useState<CommercialSignerDraft[]>(defaultSigners);
-  const [error,setError]=useState("");
-  const [notice,setNotice]=useState("");
   if(!canReview || documents.length===0) return null;
 
   function edit(index:number,key:keyof CommercialSignerDraft,value:string):void {
@@ -55,16 +54,15 @@ export function CommercialSignersPreparationPanel({
       ? {...row,[key]:value}:row));
   }
   function save(documentId:string):void {
-    setError("");setNotice("");
     startTransition(async()=>{
       try {
         const result=await prepareCommercialSignerListAction(saleId,documentId,signers);
-        if("error" in result) {setError(result.error);return;}
+        if("error" in result) {notify.error("Signatários não registrados",result.error);return;}
         setCurrent(null);
-        setNotice("Signatários registrados para conferência. Nenhum convite foi enviado.");
+        notify.success("Signatários registrados","Registrados para conferência. Nenhum convite foi enviado.");
         router.refresh();
       } catch(err) {
-        setError(err instanceof Error?err.message:"Falha ao salvar signatários.");
+        notify.error("Signatários não registrados",err instanceof Error?err.message:"Falha ao salvar signatários.");
       }
     });
   }
@@ -79,8 +77,6 @@ export function CommercialSignersPreparationPanel({
         Os contratos institucionais continuam no módulo próprio.
       </p>
       {loadError ? <p className="form-error" role="alert">{loadError}</p>:null}
-      {error ? <p className="form-error" role="alert">{error}</p>:null}
-      {notice ? <p className="helper-text" role="status">{notice}</p>:null}
       {documents.map(doc=>{
         const previous=preparations.find(prep=>prep.document_id===doc.id);
         const editing=current===doc.id;
@@ -111,7 +107,6 @@ export function CommercialSignersPreparationPanel({
                         phone:row.signer_phone??"",
                       }));
                     setSigners(entries);setCurrent(doc.id);
-                    setError("");setNotice("");
                   }}>
                   {locked ? "Rodada iniciada — participantes bloqueados" : "Corrigir participantes (preservar versão anterior)"}
                 </button>
@@ -165,7 +160,6 @@ export function CommercialSignersPreparationPanel({
               <button type="button" disabled={pending||Boolean(loadError)}
                 onClick={()=>{
                   setSigners(defaultSigners.map(s=>({...s})));setCurrent(doc.id);
-                  setError("");setNotice("");
                 }}>Preparar signatários deste PDF</button>
             )}
           </div>

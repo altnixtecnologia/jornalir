@@ -6,6 +6,7 @@ import type { ContractTemplate, ContractTemplateVariable } from "@ir/types";
 import {
   generateContractFromTemplateAction, previewContractFromTemplateAction,
 } from "../../app/sistema/financeiro/contratos/template-generation-actions";
+import { notify } from "../../lib/feedback/notify";
 
 /**
  * Fluxo: Selecionar modelo → Preencher dados → Conferir PDF → Gerar
@@ -21,7 +22,6 @@ export function ContractTemplateGenerationPanel({
   const [templateId, setTemplateId] = useState(templates[0]?.id ?? "");
   const [customValues, setCustomValues] = useState<Record<string, string>>({});
   const [preview, setPreview] = useState<{ resolvedContent: string; missingRequired: ContractTemplateVariable[] } | null>(null);
-  const [error, setError] = useState("");
   const [generatedName, setGeneratedName] = useState("");
 
   const selectedTemplate = templates.find((t) => t.id === templateId);
@@ -32,19 +32,18 @@ export function ContractTemplateGenerationPanel({
   }
 
   function runPreview(): void {
-    setError(""); setGeneratedName("");
+    setGeneratedName("");
     startTransition(async () => {
       const result = await previewContractFromTemplateAction({ contractId, templateId, customValues });
-      if ("error" in result) { setError(result.error); return; }
+      if ("error" in result) { notify.error("Não foi possível gerar a prévia", result.error); return; }
       setPreview({ resolvedContent: result.resolvedContent, missingRequired: result.missingRequired });
     });
   }
 
   function generate(): void {
-    setError("");
     startTransition(async () => {
       const result = await generateContractFromTemplateAction({ contractId, templateId, customValues });
-      if ("error" in result) { setError(result.error); return; }
+      if ("error" in result) { notify.error("Não foi possível gerar o documento", result.error); return; }
       setGeneratedName(result.document.name);
       setPreview(null);
       router.refresh();
@@ -70,7 +69,6 @@ export function ContractTemplateGenerationPanel({
         Os dados do cliente e do contrato já cadastrados são preenchidos automaticamente — nunca substitui o upload manual de PDF, é uma
         opção adicional.
       </p>
-      {error ? <p className="form-error" role="alert">{error}</p> : null}
       {generatedName ? <p className="helper-text"><strong>PDF gerado:</strong> {generatedName} — disponível na lista de documentos abaixo.</p> : null}
 
       <div className="form-grid">

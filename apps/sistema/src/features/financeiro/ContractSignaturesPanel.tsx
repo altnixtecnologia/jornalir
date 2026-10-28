@@ -6,6 +6,7 @@ import {
   createSignatureInvitationAction, createSignatureRequestAction, revokeSignatureInvitationAction,
   type PublicSignatureInvite, type SignatureRequest,
 } from "../../app/sistema/financeiro/contratos/signature-actions";
+import { notify } from "../../lib/feedback/notify";
 
 type DraftSigner = { name: string; email: string; phone: string };
 
@@ -65,7 +66,6 @@ export function ContractSignaturesPanel({
   }
 
   function sendSignatureRequest(): void {
-    setError("");
     setRequestLinks([]);
     startTransition(async () => {
       try {
@@ -76,10 +76,15 @@ export function ContractSignaturesPanel({
             sendWhatsapp: sendWhatsapp && Boolean(signer.phone), operatorConfirmedOptIn: whatsappOptIn,
           })),
         });
-        if ("error" in result) { setError(result.error); return; }
+        if ("error" in result) { notify.error("Rodada não criada", result.error); return; }
         const failedDeliveries = result.invitations.filter((item) => item.deliveryError);
         if (failedDeliveries.length > 0) {
-          setError("Rodada criada, mas o envio automático falhou para: " + failedDeliveries.map((item) => item.signerName).join(", "));
+          notify.warning("Rodada criada, envio automático falhou",
+            "Rodada criada, mas o envio automático falhou para: " + failedDeliveries.map((item) => item.signerName).join(", ") +
+            ". Compartilhe o link manualmente com essas pessoas.");
+        } else {
+          notify.success("Rodada de assinatura criada",
+            sendWhatsapp ? "Os convites foram aceitos para envio por WhatsApp." : "Os links de assinatura foram gerados.");
         }
         setRequestLinks(result.invitations.map((item) => ({
           signerName: item.signerName, urlPath: item.urlPath, deliveryError: item.deliveryError,
@@ -110,7 +115,6 @@ export function ContractSignaturesPanel({
   }
 
   function sendInvite(): void {
-    setError("");
     setInviteLink("");
     startTransition(async () => {
       try {
@@ -119,9 +123,13 @@ export function ContractSignaturesPanel({
           sendWhatsapp, operatorConfirmedOptIn: whatsappOptIn,
           previousInvitationId: resendOf || undefined,
         });
-        if ("error" in result) { setError(result.error); return; }
+        if ("error" in result) { notify.error("Convite não gerado", result.error); return; }
         setInviteLink(window.location.origin + result.urlPath);
-        if (result.deliveryError) setError("Convite criado, mas o envio automático falhou: " + result.deliveryError);
+        if (result.deliveryError) {
+          notify.warning("Convite criado, envio automático falhou", "Convite criado, mas o envio automático falhou: " + result.deliveryError + ". Compartilhe o link manualmente.");
+        } else {
+          notify.success("Convite gerado", sendWhatsapp ? "O convite foi aceito para envio por WhatsApp." : "O link de assinatura foi gerado.");
+        }
         setCreatedInvitePhone(phone.replace(/\D/g, ""));
         setCreatedInviteEmail(email.trim());
         setCopied(false);
@@ -135,19 +143,19 @@ export function ContractSignaturesPanel({
           created_at: new Date().toISOString(), signed_at: null, receipt_document_id: null, signed_document_id: null,
         }, ...old]);
         setName(""); setEmail(""); setPhone(""); setSendWhatsapp(false); setWhatsappOptIn(false); setResendOf("");
-      } catch { setError("Não foi possível gerar o convite. Tente novamente."); }
+      } catch { notify.error("Convite não gerado", "Não foi possível gerar o convite. Tente novamente."); }
     });
   }
 
   function revoke(invitationId: string): void {
     if (!window.confirm("Revogar este convite? O link deixará de funcionar.")) return;
-    setError("");
     startTransition(async () => {
       try {
         const result = await revokeSignatureInvitationAction(contractId, invitationId);
-        if ("error" in result) { setError(result.error); return; }
+        if ("error" in result) { notify.error("Convite não revogado", result.error); return; }
         setLocalInvites((old) => old.map((i) => i.id === invitationId ? { ...i, status: "revoked" } : i));
-      } catch { setError("Não foi possível revogar o convite."); }
+        notify.success("Convite revogado", "O link deixou de funcionar.");
+      } catch { notify.error("Convite não revogado", "Não foi possível revogar o convite."); }
     });
   }
 

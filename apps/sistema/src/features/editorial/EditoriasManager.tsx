@@ -9,6 +9,7 @@ import {
   updateSection,
   type EditorialSectionPayload,
 } from "../../app/sistema/editorial/editorias/actions";
+import { notify } from "../../lib/feedback/notify";
 
 interface EditoriasManagerProps {
   sections: EditorialSection[];
@@ -27,45 +28,49 @@ export function EditoriasManager({ sections }: EditoriasManagerProps): JSX.Eleme
   const [createForm, setCreateForm] = useState<EditorialSectionPayload>(EMPTY_FORM);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editForm, setEditForm] = useState<EditorialSectionPayload>(EMPTY_FORM);
-  const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
   const sorted = [...sections].sort((a, b) => a.order - b.order);
 
   function startEdit(section: EditorialSection): void {
-    setError(null);
     setShowCreate(false);
     setEditingId(section.id);
     setEditForm({ name: section.name, slug: section.slug, description: section.description ?? "" });
   }
 
   function handleCreate(): void {
-    setError(null);
     startTransition(async () => {
       const result = await createSection(createForm);
       if ("error" in result) {
-        setError(result.error);
+        notify.error("Não foi possível criar a editoria", result.error);
       } else {
         setCreateForm(EMPTY_FORM);
         setShowCreate(false);
+        notify.success("Editoria criada", "A editoria " + createForm.name + " foi criada.");
       }
     });
   }
 
   function handleSaveEdit(id: string): void {
-    setError(null);
     startTransition(async () => {
       const result = await updateSection(id, editForm);
-      if ("error" in result) setError(result.error);
-      else setEditingId(null);
+      if ("error" in result) notify.error("Não foi possível salvar a editoria", result.error);
+      else {
+        setEditingId(null);
+        notify.success("Editoria atualizada", "As alterações da editoria foram salvas.");
+      }
     });
   }
 
   function handleToggleActive(section: EditorialSection): void {
-    setError(null);
     startTransition(async () => {
       const result = await setSectionActive(section.id, !section.active);
-      if ("error" in result) setError(result.error);
+      if ("error" in result) {
+        notify.error("Não foi possível alterar a editoria", result.error);
+        return;
+      }
+      notify.success(section.active ? "Editoria desativada" : "Editoria ativada",
+        section.name + (section.active ? " foi desativada." : " foi ativada."));
     });
   }
 
@@ -75,10 +80,9 @@ export function EditoriasManager({ sections }: EditoriasManagerProps): JSX.Eleme
     const reordered = [...sorted];
     const [moved] = reordered.splice(index, 1);
     reordered.splice(targetIndex, 0, moved);
-    setError(null);
     startTransition(async () => {
       const result = await reorderSections(reordered.map((section) => section.id));
-      if ("error" in result) setError(result.error);
+      if ("error" in result) notify.error("Não foi possível reordenar", result.error);
     });
   }
 
@@ -92,7 +96,6 @@ export function EditoriasManager({ sections }: EditoriasManagerProps): JSX.Eleme
           onClick={() => {
             setShowCreate((value) => !value);
             setEditingId(null);
-            setError(null);
           }}
         >
           {showCreate ? "Cancelar" : "+ Nova editoria"}
@@ -136,12 +139,6 @@ export function EditoriasManager({ sections }: EditoriasManagerProps): JSX.Eleme
             </button>
           </div>
         </div>
-      ) : null}
-
-      {error ? (
-        <p className="form-error" role="alert">
-          {error}
-        </p>
       ) : null}
 
       <div className="materias-table-wrap">

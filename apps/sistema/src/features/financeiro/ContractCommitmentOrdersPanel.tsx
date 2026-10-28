@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import type { ContractCommitmentOrder, ContractDocument } from "@ir/types";
 import { CONTRACT_DOCUMENT_TYPE_LABELS } from "@ir/types";
 import { addCommitmentOrderAction } from "../../app/sistema/financeiro/contratos/actions";
+import { notify } from "../../lib/feedback/notify";
 
 function formatAmount(value?: number): string {
   if (value === undefined) return "—";
@@ -33,7 +34,6 @@ export function ContractCommitmentOrdersPanel({
 }): JSX.Element {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
-  const [error, setError] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
 
   const [number, setNumber] = useState("");
@@ -55,7 +55,6 @@ export function ContractCommitmentOrdersPanel({
   }
 
   function handleSave(): void {
-    setError(null);
     startTransition(async () => {
       const result = await addCommitmentOrderAction(contractId, {
         number,
@@ -67,10 +66,11 @@ export function ContractCommitmentOrdersPanel({
         notes,
       });
       if (result && "error" in result) {
-        setError(result.error);
+        notify.error("Não foi possível registrar o empenho", result.error);
         return;
       }
       resetForm();
+      notify.success("Empenho registrado", "O empenho foi registrado.");
       router.refresh();
     });
   }
@@ -83,7 +83,6 @@ export function ContractCommitmentOrdersPanel({
       <p className="helper-text">
         Um contrato pode ter nenhum, um empenho global ou vários ao longo da vigência — nenhum título é obrigado a ter empenho.
       </p>
-      {error ? <p className="form-error" role="alert">{error}</p> : null}
 
       {!showForm ? (
         <div className="form-actions">

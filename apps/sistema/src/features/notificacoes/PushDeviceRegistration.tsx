@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { createSupabaseBrowserClient } from "../../lib/supabase/browser";
 import { useAuth } from "../../lib/auth/AuthProvider";
 import { sendMyPushTestAction } from "./actions";
+import { notify } from "../../lib/feedback/notify";
 
 type Setup = "loading" | "unsupported" | "unconfigured" | "blocked" | "ready" | "active";
 
@@ -29,7 +30,6 @@ export function PushDeviceRegistration(): JSX.Element {
   const [setup, setSetup] = useState<Setup>("loading");
   const [key, setKey] = useState("");
   const [working, setWorking] = useState(false);
-  const [message, setMessage] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -79,13 +79,12 @@ export function PushDeviceRegistration(): JSX.Element {
   async function activate(): Promise<void> {
     if (!profile || !key || working || localPreview) return;
     setWorking(true);
-    setMessage(null);
     try {
       const registration = await navigator.serviceWorker.register("/sw.js", { scope: "/" });
       const permission = await Notification.requestPermission();
       if (permission !== "granted") {
         setSetup("blocked");
-        setMessage("O navegador não autorizou notificações. Você pode revisar a permissão nas configurações do dispositivo.");
+        notify.warning("Notificações bloqueadas", "O navegador não autorizou notificações. Você pode revisar a permissão nas configurações do dispositivo.");
         return;
       }
       let existing = await registration.pushManager.getSubscription();
@@ -109,9 +108,9 @@ export function PushDeviceRegistration(): JSX.Element {
       }, { onConflict: "app_kind,subscription_endpoint" });
       if (error) throw new Error(error.message);
       setSetup("active");
-      setMessage("Dispositivo registrado. O envio das notificações depende da ativação do serviço push.");
+      notify.success("Dispositivo registrado", "O envio das notificações depende da ativação do serviço push.");
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Não foi possível registrar este dispositivo.");
+      notify.error("Dispositivo não registrado", error instanceof Error ? error.message : "Não foi possível registrar este dispositivo.");
     } finally {
       setWorking(false);
     }
@@ -120,12 +119,12 @@ export function PushDeviceRegistration(): JSX.Element {
   async function sendTest(): Promise<void> {
     if (working || !profile) return;
     setWorking(true);
-    setMessage(null);
     try {
       const result = await sendMyPushTestAction(crypto.randomUUID());
-      setMessage(result.error ?? "Teste agendado. Se você permitiu avisos administrativos, deverá aparecer no aparelho após o próximo ciclo de envio.");
+      if (result.error) notify.error("Teste não agendado", result.error);
+      else notify.success("Teste agendado", "Se você permitiu avisos administrativos, deverá aparecer no aparelho após o próximo ciclo de envio.");
     } catch {
-      setMessage("Não foi possível agendar o teste.");
+      notify.error("Teste não agendado", "Não foi possível agendar o teste.");
     } finally {
       setWorking(false);
     }
@@ -134,7 +133,6 @@ export function PushDeviceRegistration(): JSX.Element {
   async function deactivate(): Promise<void> {
     if (!profile || working) return;
     setWorking(true);
-    setMessage(null);
     try {
       const registration = await navigator.serviceWorker.getRegistration("/");
       const subscription = await registration?.pushManager.getSubscription();
@@ -147,9 +145,9 @@ export function PushDeviceRegistration(): JSX.Element {
         await subscription.unsubscribe();
       }
       setSetup("ready");
-      setMessage("Este dispositivo foi desativado para notificações.");
+      notify.success("Dispositivo desativado", "Este dispositivo foi desativado para notificações.");
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Não foi possível desativar este dispositivo.");
+      notify.error("Não foi possível desativar", error instanceof Error ? error.message : "Não foi possível desativar este dispositivo.");
     } finally {
       setWorking(false);
     }
@@ -174,7 +172,6 @@ export function PushDeviceRegistration(): JSX.Element {
           </button>
         </div>
       ) : null}
-      {message ? <p role="status" className="helper-text">{message}</p> : null}
     </section>
   );
 }

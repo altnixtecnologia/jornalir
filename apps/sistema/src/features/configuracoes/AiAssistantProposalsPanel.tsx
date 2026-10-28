@@ -6,34 +6,30 @@ import {
   listAssistantProposalsAction, decideAssistantProposalAction,
 } from "../../app/sistema/assistente-ir/propostas/actions";
 import type { AssistantProposal } from "../../app/sistema/assistente-ir/propostas/actions";
+import { notify } from "../../lib/feedback/notify";
 
 export function AiAssistantProposalsPanel({ initial }: {
   initial: AssistantProposal[];
 }): JSX.Element {
   const [items, setItems] = useState(initial);
   const [busy, startTransition] = useTransition();
-  const [message, setMessage] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
   function reload(): void {
     if (busy) return;
-    setError(null);
     startTransition(async () => {
       const result = await listAssistantProposalsAction();
-      if ("error" in result) setError(result.error);
+      if ("error" in result) notify.error("Não foi possível atualizar", result.error);
       else setItems(result.data);
     });
   }
   function decide(item: AssistantProposal, status: "approved" | "rejected"): void {
     if (busy) return;
-    setMessage(null);
-    setError(null);
     startTransition(async () => {
       const result = await decideAssistantProposalAction(item.id, status);
-      if ("error" in result) { setError(result.error); return; }
+      if ("error" in result) { notify.error("Decisão não registrada", result.error); return; }
       setItems((old) => old.map((row) => row.id === item.id ? { ...row, status } : row));
-      setMessage(status === "approved"
-        ? "Sugestão aprovada para revisão humana. Nenhuma ação foi executada."
-        : "Sugestão recusada. Nenhuma ação foi executada.");
+      notify.success(status === "approved" ? "Sugestão aprovada" : "Sugestão recusada", status === "approved"
+        ? "Aprovada para revisão humana. Nenhuma ação foi executada."
+        : "Recusada. Nenhuma ação foi executada.");
     });
   }
   const statuses = { pending: "Pendente", approved: "Aprovada para revisão", rejected: "Recusada" };
@@ -50,8 +46,6 @@ export function AiAssistantProposalsPanel({ initial }: {
           {busy ? "Aguarde..." : "Atualizar propostas"}
         </button>
       </div>
-      {error ? <p className="form-error" role="alert">{error}</p> : null}
-      {message ? <p className="helper-text" role="status">{message}</p> : null}
       {!items.length ? <p className="helper-text">Não há sugestões registradas nesta central.</p> : null}
       <div style={{ display: "grid", gap: 12 }}>
         {items.map((item) => (

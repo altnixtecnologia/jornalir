@@ -5,6 +5,7 @@ import {
  createCommercialAddendumAction,saveCommercialAddendumDraftAction,
  transitionCommercialAddendumAction,issueCommercialAddendumAction,
 } from "../../app/sistema/publicidade/vendas/[id]/commercial-addendum-actions";
+import {notify} from "../../lib/feedback/notify";
 
 export interface CommercialAddendumView{
  id:string;original_document_id:string;addendum_number:number;
@@ -27,19 +28,16 @@ export function CommercialAddendaPanel({saleId,originalDocuments,addenda,canPrep
  const [editing,setEditing]=useState<string|null>(null);
  const [draft,setDraft]=useState(empty);
  const [notes,setNotes]=useState<Record<string,string>>({});
- const [error,setError]=useState("");
- const [notice,setNotice]=useState("");
  if(!canPrepare&&!canReview) return null;
  function run(task:()=>Promise<{error:string}|{ok:true}>,
    confirmation:string,onSuccess?:()=>void):void{
-  setError("");setNotice("");
   startTransition(async()=>{
    try{
     const result=await task();
-    if("error" in result){setError(result.error);return;}
+    if("error" in result){notify.error("Aditivo não processado",result.error);return;}
     onSuccess?.();
-    setNotice(confirmation);router.refresh();
-   }catch(err){setError(err instanceof Error?err.message:"Falha no aditivo.");}
+    notify.success("Aditivo atualizado",confirmation);router.refresh();
+   }catch(err){notify.error("Aditivo não processado",err instanceof Error?err.message:"Falha no aditivo.");}
   });
  }
  function updateNote(id:string,value:string):void{
@@ -52,8 +50,6 @@ export function CommercialAddendaPanel({saleId,originalDocuments,addenda,canPrep
    Exige conferência jurídica expressa antes de emitir; depois será
    assinado no painel comercial de signatários, sem gerar uma nova cobrança.</p>
   {loadError?<p className="form-error" role="alert">{loadError}</p>:null}
-  {error?<p className="form-error" role="alert">{error}</p>:null}
-  {notice?<p role="status" className="helper-text">{notice}</p>:null}
   {canPrepare && originalDocuments.length>0 ? <div className="inline-form">
    <h3>Novo aditivo</h3>
    <label className="form-field"><span className="field-label">Contrato original</span>

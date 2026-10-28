@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, useTransition, type PointerEvent as ReactPointerEvent } from "react";
 import type { MediaAsset } from "@ir/types";
 import { uploadMediaAssets } from "../../app/sistema/editorial/midias/actions";
+import { notify } from "../../lib/feedback/notify";
 import styles from "./ArticleImageEditorModal.module.css";
 
 type CropAspect = "free" | "1:1" | "4:3" | "16:9" | "3:4";
@@ -53,7 +54,6 @@ export function ArticleImageEditorModal({ asset, onClose, onSaved }: ArticleImag
   const [cropAspect, setCropAspect] = useState<CropAspect>("free");
   const [cropSize, setCropSize] = useState({ w: 1, h: 1 }); // fração do viewport (0-1)
   const [saving, startSaving] = useTransition();
-  const [error, setError] = useState<string | null>(null);
   const [savedNotice, setSavedNotice] = useState(false);
 
   const viewportRef = useRef<HTMLDivElement>(null);
@@ -251,7 +251,6 @@ export function ArticleImageEditorModal({ asset, onClose, onSaved }: ArticleImag
   }
 
   function handleSave(): void {
-    setError(null);
     setSavedNotice(false);
     startSaving(async () => {
       try {
@@ -262,12 +261,12 @@ export function ArticleImageEditorModal({ asset, onClose, onSaved }: ArticleImag
         formData.append("files", file);
         const result = await uploadMediaAssets(formData);
         if ("error" in result) {
-          setError(result.error);
+          notify.error("Edição não salva", result.error);
           return;
         }
         const [newAsset] = result.assets;
         if (!newAsset) {
-          setError("Não foi possível gerar a imagem editada.");
+          notify.error("Edição não salva", "Não foi possível gerar a imagem editada.");
           return;
         }
         setCurrentAsset(newAsset);
@@ -276,7 +275,7 @@ export function ArticleImageEditorModal({ asset, onClose, onSaved }: ArticleImag
         setSavedNotice(true);
         onSaved(newAsset);
       } catch (cause) {
-        setError(cause instanceof Error ? cause.message : "Não foi possível salvar a edição.");
+        notify.error("Edição não salva", cause instanceof Error ? cause.message : "Não foi possível salvar a edição.");
       }
     });
   }
@@ -401,8 +400,7 @@ export function ArticleImageEditorModal({ asset, onClose, onSaved }: ArticleImag
           </div>
         </div>
 
-        {error ? <p className={styles.errorNotice} role="alert">{error}</p> : null}
-        {savedNotice && !error ? <p className={styles.savedNotice}>Alterações salvas</p> : null}
+        {savedNotice ? <p className={styles.savedNotice}>Alterações salvas</p> : null}
 
         <footer className={styles.footer}>
           <button type="button" className={styles.secondaryAction} onClick={onClose} disabled={saving}>

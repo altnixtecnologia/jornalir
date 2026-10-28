@@ -6,6 +6,7 @@ import type { Client, InstitutionalContract, Receivable } from "@ir/types";
 import { RECEIVABLE_SOURCE_TYPES, RECEIVABLE_SOURCE_TYPE_LABELS, clientDisplayName } from "@ir/types";
 import { createReceivable, updateReceivable } from "../../app/sistema/financeiro/contas-a-receber/actions";
 import type { ReceivableFormPayload } from "./receivableFormTypes";
+import { notify } from "../../lib/feedback/notify";
 
 function formatMoneyInput(value: number): string {
   return value.toFixed(2).replace(".", ",");
@@ -56,7 +57,6 @@ export function ReceivableForm({ mode, receivable, clients, contracts, initialCl
   const router = useRouter();
   const [payload, setPayload] = useState<ReceivableFormPayload>(() => payloadFromReceivable(receivable, initialClientId, initialContractId));
   const [clientFilter, setClientFilter] = useState("");
-  const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
   function set<K extends keyof ReceivableFormPayload>(key: K, value: ReceivableFormPayload[K]): void {
@@ -75,10 +75,9 @@ export function ReceivableForm({ mode, receivable, clients, contracts, initialCl
   const selectedClient = clients.find((client) => client.id === payload.clientId);
 
   function handleSubmit(): void {
-    setError(null);
     startTransition(async () => {
       const result = mode === "create" ? await createReceivable(payload) : await updateReceivable(receivable!.id, payload);
-      if (result && "error" in result) setError(result.error);
+      if (result && "error" in result) notify.error("Não foi possível salvar o título", result.error);
     });
   }
 
@@ -210,8 +209,6 @@ export function ReceivableForm({ mode, receivable, clients, contracts, initialCl
           <textarea rows={4} value={payload.notes} onChange={(event) => set("notes", event.target.value)} />
         </label>
       </section>
-
-      {error ? <p className="form-error" role="alert">{error}</p> : null}
 
       <div className="form-actions">
         <button type="button" className="form-action-primary" onClick={handleSubmit} disabled={pending}>

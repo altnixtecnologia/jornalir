@@ -8,6 +8,7 @@ import {
 } from "../../app/sistema/editorial/localidades/actions";
 import { localityScopeLabels } from "./editorialLabels";
 import { UFS } from "./geoStates";
+import { notify } from "../../lib/feedback/notify";
 
 interface Props { localities: Locality[] }
 type ScopeFilter = "all" | LocalityScope;
@@ -113,7 +114,6 @@ export function LocalidadesManager({ localities }: Props): JSX.Element {
   const [form, setForm] = useState<LocalityPayload>(EMPTY);
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<ScopeFilter>("all");
-  const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
   const router = useRouter();
 
@@ -134,35 +134,45 @@ export function LocalidadesManager({ localities }: Props): JSX.Element {
   function close(): void {
     setCreating(false);
     setEditingId(null);
-    setError(null);
   }
   function startCreate(): void {
-    setForm({ ...EMPTY }); setCreating(true); setEditingId(null); setError(null);
+    setForm({ ...EMPTY }); setCreating(true); setEditingId(null);
   }
   function startEdit(locality: Locality): void {
     setForm({name:locality.name,slug:locality.slug,scope:locality.scope,stateCode:locality.stateCode ?? null});
-    setEditingId(locality.id); setCreating(false); setError(null);
+    setEditingId(locality.id); setCreating(false);
   }
   async function save(): Promise<void> {
     if (pending) return;
-    setPending(true); setError(null);
+    const wasCreating = !editingId;
+    setPending(true);
     try {
       const result = editingId ? await updateLocality(editingId, form) : await createLocality(form);
-      if ("error" in result) setError(result.error);
-      else { close(); router.refresh(); }
+      if ("error" in result) {
+        notify.error("Não foi possível salvar", result.error);
+      } else {
+        notify.success(wasCreating ? "Abrangência criada" : "Abrangência atualizada",
+          wasCreating ? "A abrangência foi criada." : "As alterações foram salvas.");
+        close(); router.refresh();
+      }
     } catch {
-      setError("Não foi possível salvar. Tente novamente.");
+      notify.error("Não foi possível salvar", "Não foi possível salvar. Tente novamente.");
     } finally { setPending(false); }
   }
   async function toggle(locality: Locality): Promise<void> {
     if (pending) return;
-    setPending(true); setError(null);
+    setPending(true);
     try {
       const result = await setLocalityActive(locality.id, !locality.active);
-      if ("error" in result) setError(result.error);
-      else router.refresh();
+      if ("error" in result) {
+        notify.error("Não foi possível alterar o status", result.error);
+      } else {
+        notify.success(locality.active ? "Abrangência desativada" : "Abrangência ativada",
+          locality.name + (locality.active ? " foi desativada." : " foi ativada."));
+        router.refresh();
+      }
     } catch {
-      setError("Não foi possível alterar o status. Tente novamente.");
+      notify.error("Não foi possível alterar o status", "Não foi possível alterar o status. Tente novamente.");
     } finally { setPending(false); }
   }
 
@@ -192,7 +202,6 @@ export function LocalidadesManager({ localities }: Props): JSX.Element {
         <Editor form={form} setForm={setForm} busy={pending}
           label={creating ? "Nova abrangência" : "Editar abrangência"} onSave={save} onClose={close} />
       ) : null}
-      {error ? <div className="geo-error" role="alert">{error}</div> : null}
 
       <div className="geo-find">
         <input type="search" aria-label="Buscar abrangências" value={query}

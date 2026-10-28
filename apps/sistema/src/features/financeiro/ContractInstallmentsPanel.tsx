@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import type { InstitutionalContract } from "@ir/types";
 import { generateContractInstallments, type InstallmentDraft } from "@ir/core";
 import { generateContractInstallmentsAction, type InstallmentPayload } from "../../app/sistema/financeiro/contas-a-receber/actions";
+import { notify } from "../../lib/feedback/notify";
 
 function formatDate(iso?: string): string {
   if (!iso) return "—";
@@ -95,10 +96,17 @@ export function ContractInstallmentsPanel({ contract }: { contract: Institutiona
 
   function confirm(): void {
     if (!drafts) return;
-    setError(null);
     startTransition(async () => {
       const { results: actionResults } = await generateContractInstallmentsAction(drafts.map((draft) => draftToPayload(draft)));
       setResults(actionResults);
+      const failed = actionResults.filter((item) => !item.ok).length;
+      if (failed === 0) {
+        notify.success("Parcelas geradas", actionResults.length + " parcela(s) geradas com sucesso.");
+      } else if (failed === actionResults.length) {
+        notify.error("Nenhuma parcela gerada", "Todas as " + failed + " parcelas falharam. Veja o detalhe abaixo.");
+      } else {
+        notify.warning("Parcelas geradas com falhas", failed + " de " + actionResults.length + " parcelas falharam. Veja o detalhe abaixo.");
+      }
       router.refresh();
     });
   }

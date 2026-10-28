@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { createSupabaseBrowserClient } from "../../lib/supabase/browser";
 import { useAuth } from "../../lib/auth/AuthProvider";
+import { notify } from "../../lib/feedback/notify";
 
 type Flags = {
   ordinary_enabled: boolean;
@@ -31,7 +32,6 @@ export function NotificationPreferences(): JSX.Element {
   const [flags, setFlags] = useState<Flags>(DEFAULT);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [message, setMessage] = useState<string | null>(null);
 
   useEffect(() => {
     if (!profile || localPreview) {
@@ -44,7 +44,7 @@ export function NotificationPreferences(): JSX.Element {
       .eq("profile_id", profile.id).eq("app_kind", "sistema").maybeSingle()
       .then(({ data, error }) => {
         if (cancelled) return;
-        if (error) setMessage("Não foi possível carregar as preferências: " + error.message);
+        if (error) notify.error("Não foi possível carregar as preferências", error.message);
         else if (data) setFlags(data as Flags);
         setLoading(false);
       });
@@ -54,14 +54,14 @@ export function NotificationPreferences(): JSX.Element {
   async function save(): Promise<void> {
     if (!profile || localPreview || saving) return;
     setSaving(true);
-    setMessage(null);
     const { error } = await client.from("notification_preferences").upsert({
       profile_id: profile.id,
       app_kind: "sistema",
       ...flags,
       updated_at: new Date().toISOString(),
     }, { onConflict: "profile_id,app_kind" });
-    setMessage(error ? "Erro ao salvar: " + error.message : "Preferências registradas.");
+    if (error) notify.error("Preferências não salvas", error.message);
+    else notify.success("Preferências salvas", "Suas preferências de notificação foram registradas.");
     setSaving(false);
   }
 
@@ -90,7 +90,6 @@ export function NotificationPreferences(): JSX.Element {
           </button>
         </>
       )}
-      {message ? <p role="status" className="helper-text">{message}</p> : null}
     </section>
   );
 }

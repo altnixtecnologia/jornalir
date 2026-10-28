@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import type { ClientCreditWithBalance } from "@ir/types";
 import { RECEIVABLE_SOURCE_TYPE_LABELS } from "@ir/types";
 import { applyCreditManuallyAction } from "../../app/sistema/financeiro/contas-a-receber/actions";
+import { notify } from "../../lib/feedback/notify";
 
 function formatAmount(value: number): string {
   return value.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
@@ -29,26 +30,25 @@ export function ReceivableCreditPanel({
 }): JSX.Element | null {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
-  const [error, setError] = useState<string | null>(null);
   const [selectedCreditId, setSelectedCreditId] = useState(availableCredits[0]?.id ?? "");
   const [amount, setAmount] = useState("");
 
   if (availableCredits.length === 0 || receivableBalance <= 0) return null;
 
   function handleApply(): void {
-    setError(null);
     const parsedAmount = Number(amount.replace(",", "."));
     startTransition(async () => {
       try {
         const result = await applyCreditManuallyAction(receivableId, selectedCreditId, parsedAmount);
         if (result && "error" in result) {
-          setError(result.error);
+          notify.error("Crédito não aplicado", result.error);
           return;
         }
         setAmount("");
+        notify.success("Crédito aplicado", "O crédito foi aplicado a este título.");
         router.refresh();
       } catch {
-        setError("Não foi possível aplicar o crédito. Confira a conexão e tente novamente.");
+        notify.error("Crédito não aplicado", "Não foi possível aplicar o crédito. Confira a conexão e tente novamente.");
       }
     });
   }
@@ -59,7 +59,6 @@ export function ReceivableCreditPanel({
       <p className="helper-text">
         Este cliente tem crédito de outra origem (nunca aplicado automaticamente aqui — aplicação manual explícita, sempre registrada).
       </p>
-      {error ? <p className="form-error" role="alert">{error}</p> : null}
       <div className="form-grid">
         <label className="form-field">
           <span className="field-label">Crédito</span>

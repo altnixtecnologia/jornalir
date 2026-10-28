@@ -26,6 +26,7 @@ import {
   suggestedIdsToArticleMedia,
 } from "./articleMediaState";
 import { editionPageLabel, importCandidateStatusLabels } from "./editorialLabels";
+import { notify } from "../../lib/feedback/notify";
 
 const EXTRACTION_METHOD_LABELS: Record<string, string> = {
   textLayer: "Camada de texto do PDF",
@@ -61,7 +62,6 @@ export function ImportCandidateReview({
     suggestedIdsToArticleMedia(candidate.suggestedMediaAssetIds ?? []),
   );
   const [availableMediaAssets, setAvailableMediaAssets] = useState<MediaAsset[]>(mediaAssets);
-  const [formError, setFormError] = useState<string | null>(null);
   const [savedMessage, setSavedMessage] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
@@ -86,7 +86,6 @@ export function ImportCandidateReview({
   }
 
   function clearMessages(): void {
-    setFormError(null);
     setSavedMessage(null);
   }
 
@@ -97,7 +96,7 @@ export function ImportCandidateReview({
         ...buildBaseFields(),
         mediaAssetIds: media.map((item) => item.mediaAssetId),
       });
-      if ("error" in result) setFormError(result.error);
+      if ("error" in result) notify.error("Não foi possível salvar", result.error);
       else setSavedMessage("Alterações salvas. O candidato continua pendente de revisão.");
     });
   }
@@ -107,7 +106,7 @@ export function ImportCandidateReview({
     clearMessages();
     startTransition(async () => {
       const result = await discardCandidate(candidate.id);
-      if ("error" in result) setFormError(result.error);
+      if ("error" in result) notify.error("Não foi possível descartar", result.error);
       else router.push(`/sistema/editorial/importar-pdf?edicao=${candidate.editionId}`);
     });
   }
@@ -123,7 +122,7 @@ export function ImportCandidateReview({
     clearMessages();
     startTransition(async () => {
       const result = await splitCandidate(candidate.id);
-      if ("error" in result) setFormError(result.error);
+      if ("error" in result) notify.error("Não foi possível dividir", result.error);
       else router.push(`/sistema/editorial/importar-pdf?edicao=${candidate.editionId}`);
     });
   }
@@ -132,7 +131,7 @@ export function ImportCandidateReview({
     clearMessages();
     startTransition(async () => {
       const result = await convertCandidate(candidate.id, { ...buildBaseFields(), media });
-      if ("error" in result) setFormError(result.error);
+      if ("error" in result) notify.error("Não foi possível converter em matéria", result.error);
       else router.push(`/sistema/editorial/materias/${result.articleId}`);
     });
   }
@@ -353,11 +352,6 @@ export function ImportCandidateReview({
         </section>
       ) : null}
 
-      {formError ? (
-        <p className="form-error" role="alert">
-          {formError}
-        </p>
-      ) : null}
       {savedMessage ? <p className="helper-text">{savedMessage}</p> : null}
 
       {isPending ? (

@@ -2,6 +2,7 @@
 import {useState,useTransition} from "react";
 import {useRouter} from "next/navigation";
 import {createCommercialInvitationsAction,reissueCommercialInvitationAction} from "../../app/sistema/publicidade/vendas/[id]/commercial-signature-invitation-actions";
+import {notify} from "../../lib/feedback/notify";
 
 export interface CommercialRequestView {
  id:string;preparation_id:string;status:string;completed_at:string|null;
@@ -16,28 +17,29 @@ export function CommercialSignatureRequestsPanel({saleId,preparations,requests,c
  requests:CommercialRequestView[];canReview:boolean;
 }):JSX.Element|null {
  const router=useRouter(),[pending,startTransition]=useTransition();
- const [error,setError]=useState("");
  const [reissueId,setReissueId]=useState<string|null>(null);
  const [reason,setReason]=useState("");
  const [confirmed,setConfirmed]=useState<string|null>(null);
  const [links,setLinks]=useState<Array<{name:string;urlPath:string}>>([]);
  if(!canReview||preparations.length===0) return null;
  function reissue(invitationId:string):void{
-  setError("");setLinks([]);
+  setLinks([]);
   startTransition(async()=>{
    const result=await reissueCommercialInvitationAction(saleId,invitationId,reason);
-   if("error" in result){setError(result.error);return;}
+   if("error" in result){notify.error("Reenvio não preparado",result.error);return;}
    setReissueId(null);setReason("");
    setLinks([{name:result.name,urlPath:result.urlPath}]);
+   notify.success("Novo link gerado","Copie o link antes de sair da página.");
    router.refresh();
   });
  }
  function begin(id:string):void{
-  setError("");setLinks([]);
+  setLinks([]);
   startTransition(async()=>{
    const result=await createCommercialInvitationsAction(saleId,id,confirmed===id);
-   if("error" in result){setError(result.error);return;}
+   if("error" in result){notify.error("Rodada não iniciada",result.error);return;}
    setConfirmed(null);setLinks(result.links);
+   notify.success("Rodada iniciada","Copie os links antes de sair da página.");
    router.refresh();
   });
  }
@@ -46,7 +48,6 @@ export function CommercialSignatureRequestsPanel({saleId,preparations,requests,c
   <p className="helper-text">Uma rodada por versão da lista. Links individuais aparecem
    uma única vez após a criação. Copie os links e encaminhe somente aos destinatários
    conferidos. Não há envio automático de e-mail ou WhatsApp.</p>
-  {error ? <p className="form-error" role="alert">{error}</p>:null}
   {links.length>0 ? <div className="form-section" role="status">
    <strong>Links gerados — copie antes de sair da página</strong>
    {links.map(link=><div key={link.urlPath} className="form-actions">

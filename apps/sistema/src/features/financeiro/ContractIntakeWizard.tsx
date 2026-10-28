@@ -5,6 +5,7 @@ import type { Client, ContractDocumentExtractedData, ContractDocumentType } from
 import { CONTRACT_DOCUMENT_TYPE_LABELS, CONTRACT_DOCUMENT_TYPES } from "@ir/types";
 import { analyzeContractDocumentAction, createContractWithDocument } from "../../app/sistema/financeiro/contratos/actions";
 import { ContractForm } from "./ContractForm";
+import { notify } from "../../lib/feedback/notify";
 import type { ContractFormPayload } from "./contractFormTypes";
 
 function emptyPayload(initialClientId?: string): ContractFormPayload {
@@ -73,7 +74,6 @@ export function ContractIntakeWizard({
 }): JSX.Element {
   const [step, setStep] = useState<WizardStep>(1);
   const [pending, startTransition] = useTransition();
-  const [error, setError] = useState<string | null>(null);
 
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [documentType, setDocumentType] = useState<ContractDocumentType>("contract");
@@ -96,7 +96,6 @@ export function ContractIntakeWizard({
 
   function handleAnalyze(): void {
     if (!selectedFile) return;
-    setError(null);
     setAnalyzing(true);
     const formData = new FormData();
     formData.append("file", selectedFile);
@@ -104,7 +103,7 @@ export function ContractIntakeWizard({
       const result = await analyzeContractDocumentAction(formData);
       setAnalyzing(false);
       if ("error" in result) {
-        setError(result.error);
+        notify.error("Não foi possível analisar o documento", result.error);
         return;
       }
       setHasTextLayer(result.hasTextLayer);
@@ -131,7 +130,6 @@ export function ContractIntakeWizard({
   }
 
   function handleSave(): void {
-    setError(null);
     startTransition(async () => {
       const documentData = new FormData();
       if (!skipDocument && selectedFile) documentData.append("file", selectedFile);
@@ -149,7 +147,7 @@ export function ContractIntakeWizard({
           : undefined,
         documentData,
       );
-      if (result && "error" in result) setError(result.error);
+      if (result && "error" in result) notify.error("Não foi possível criar o contrato", result.error);
     });
   }
 
@@ -167,8 +165,6 @@ export function ContractIntakeWizard({
           </span>
         </div>
       </section>
-
-      {error ? <p className="form-error" role="alert">{error}</p> : null}
 
       {step === 1 ? (
         <section className="form-section">

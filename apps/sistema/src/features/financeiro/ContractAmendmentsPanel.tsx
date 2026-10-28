@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import type { ContractAmendment, ContractDocument } from "@ir/types";
 import { CONTRACT_DOCUMENT_TYPE_LABELS } from "@ir/types";
 import { addContractAmendmentAction } from "../../app/sistema/financeiro/contratos/actions";
+import { notify } from "../../lib/feedback/notify";
 
 function formatAmount(value: number): string {
   return value.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
@@ -38,7 +39,6 @@ export function ContractAmendmentsPanel({
 }): JSX.Element {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
-  const [error, setError] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
 
   const [amount, setAmount] = useState("");
@@ -61,7 +61,6 @@ export function ContractAmendmentsPanel({
   }
 
   function handleSave(): void {
-    setError(null);
     startTransition(async () => {
       const result = await addContractAmendmentAction(contractId, {
         amount,
@@ -73,10 +72,11 @@ export function ContractAmendmentsPanel({
         notes,
       });
       if (result && "error" in result) {
-        setError(result.error);
+        notify.error("Não foi possível registrar o aditivo", result.error);
         return;
       }
       resetForm();
+      notify.success("Aditivo registrado", "O aditivo contratual foi registrado.");
       router.refresh();
     });
   }
@@ -89,7 +89,6 @@ export function ContractAmendmentsPanel({
       <p className="helper-text">
         Acréscimo (valor positivo) ou redução (valor negativo) de valor e/ou nova data final de vigência. Nunca altera o valor/vigência original do contrato — o histórico completo fica aqui.
       </p>
-      {error ? <p className="form-error" role="alert">{error}</p> : null}
 
       {!showForm ? (
         <div className="form-actions">

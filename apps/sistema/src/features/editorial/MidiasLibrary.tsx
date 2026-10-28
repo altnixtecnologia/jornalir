@@ -4,6 +4,7 @@ import { useMemo, useState, useTransition } from "react";
 import Link from "next/link";
 import type { MediaAsset } from "@ir/types";
 import { registerMedia, updateMedia, type MediaAssetPayload } from "../../app/sistema/editorial/midias/actions";
+import { notify } from "../../lib/feedback/notify";
 
 export interface MediaUsageRef {
   id: string;
@@ -42,8 +43,6 @@ export function MidiasLibrary({ mediaAssets, usageByMediaId }: MidiasLibraryProp
   const [showCreate, setShowCreate] = useState(false);
   const [createForm, setCreateForm] = useState<MediaAssetPayload>(EMPTY_FORM);
   const [editForm, setEditForm] = useState<MediaAssetPayload>(EMPTY_FORM);
-  const [error, setError] = useState<string | null>(null);
-  const [savedMessage, setSavedMessage] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
   const filtered = useMemo(() => {
@@ -67,33 +66,27 @@ export function MidiasLibrary({ mediaAssets, usageByMediaId }: MidiasLibraryProp
     setSelectedId(asset.id);
     setShowCreate(false);
     setEditForm(toFormValues(asset));
-    setError(null);
-    setSavedMessage(null);
   }
 
   function handleCreate(): void {
-    setError(null);
-    setSavedMessage(null);
     startTransition(async () => {
       const result = await registerMedia(createForm);
       if ("error" in result) {
-        setError(result.error);
+        notify.error("Mídia não cadastrada", result.error);
       } else {
         setCreateForm(EMPTY_FORM);
         setShowCreate(false);
-        setSavedMessage(`Mídia "${result.asset.name}" cadastrada.`);
+        notify.success("Mídia cadastrada", `Mídia "${result.asset.name}" cadastrada.`);
       }
     });
   }
 
   function handleSaveEdit(): void {
     if (!selected) return;
-    setError(null);
-    setSavedMessage(null);
     startTransition(async () => {
       const result = await updateMedia(selected.id, editForm);
-      if ("error" in result) setError(result.error);
-      else setSavedMessage("Alterações salvas.");
+      if ("error" in result) notify.error("Mídia não salva", result.error);
+      else notify.success("Mídia atualizada", "Alterações salvas.");
     });
   }
 
@@ -128,7 +121,6 @@ export function MidiasLibrary({ mediaAssets, usageByMediaId }: MidiasLibraryProp
           onClick={() => {
             setShowCreate((value) => !value);
             setSelectedId(null);
-            setError(null);
           }}
         >
           {showCreate ? "Cancelar" : "+ Nova mídia"}
@@ -207,13 +199,6 @@ export function MidiasLibrary({ mediaAssets, usageByMediaId }: MidiasLibraryProp
           </div>
         </div>
       ) : null}
-
-      {error ? (
-        <p className="form-error" role="alert">
-          {error}
-        </p>
-      ) : null}
-      {savedMessage && !error ? <p className="helper-text">{savedMessage}</p> : null}
 
       <div className="media-library-layout">
         {filtered.length === 0 ? (

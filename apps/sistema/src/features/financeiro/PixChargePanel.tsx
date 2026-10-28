@@ -15,6 +15,7 @@ import {
   sendBillingMessageAction,
   sendPaymentConfirmationAction,
 } from "../../app/sistema/financeiro/contas-a-receber/actions";
+import { notify } from "../../lib/feedback/notify";
 
 function formatAmount(value: number): string {
   return value.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
@@ -56,7 +57,6 @@ export function PixChargePanel({
 }): JSX.Element {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
-  const [error, setError] = useState<string | null>(null);
 
   const [showForm, setShowForm] = useState(false);
   const [amount, setAmount] = useState(String(receivableBalance.toFixed(2)).replace(".", ","));
@@ -82,7 +82,7 @@ export function PixChargePanel({
 
   async function copyPixPayload(payload: string): Promise<void> {
     if (!payload) {
-      setError("Código Pix indisponível.");
+      notify.error("Não foi possível copiar", "Código Pix indisponível.");
       return;
     }
     try {
@@ -102,35 +102,33 @@ export function PixChargePanel({
       setCopied(true);
       window.setTimeout(() => setCopied(false), 1800);
     } catch {
-      setError("Não foi possível copiar automaticamente. Selecione o código Pix e copie manualmente.");
+      notify.error("Não foi possível copiar", "Selecione o código Pix e copie manualmente.");
     }
   }
 
   function run(action: () => Promise<ActionOutcome>, onSuccess?: () => void): void {
-    setError(null);
     startTransition(async () => {
       try {
         const result = await action();
         if (result && "error" in result) {
-          setError(result.error);
+          notify.error("Operação Pix não concluída", result.error);
           return;
         }
         onSuccess?.();
         router.refresh();
       } catch {
-        setError("A operação Pix/WhatsApp falhou. Confira a conexão e tente novamente.");
+        notify.error("Operação Pix não concluída", "A operação Pix/WhatsApp falhou. Confira a conexão e tente novamente.");
       }
     });
   }
 
   /** Só visível quando localPreview=true (ver botão) — demonstra a confirmação (inclusive o excedente virando crédito, se houver), sem nenhuma chamada real. */
   function confirmDemo(chargeId: string): void {
-    setError(null);
     setConfirmFeedback(null);
     startTransition(async () => {
       const result = await confirmPixChargeAction(chargeId, receivableId);
       if ("error" in result) {
-        setError(result.error);
+        notify.error("Não foi possível confirmar (demonstração)", result.error);
         return;
       }
       setConfirmFeedback(
@@ -143,12 +141,11 @@ export function PixChargePanel({
   }
 
   async function openSendPreview(): Promise<void> {
-    setError(null);
     setSendFeedback(null);
     try {
       const result = await buildBillingMessagePreviewAction(receivableId);
       if ("error" in result) {
-        setError(result.error);
+        notify.error("Não foi possível preparar a mensagem", result.error);
         return;
       }
       setSendMode("charge");
@@ -157,17 +154,16 @@ export function PixChargePanel({
       setSendWhatsappHref(result.whatsappHref ?? null);
       setSendOpen(true);
     } catch {
-      setError("Não foi possível preparar a mensagem de cobrança. Tente novamente.");
+      notify.error("Não foi possível preparar a mensagem", "Não foi possível preparar a mensagem de cobrança. Tente novamente.");
     }
   }
 
   async function openPaymentConfirmationPreview(): Promise<void> {
-    setError(null);
     setSendFeedback(null);
     try {
       const result = await buildPaymentConfirmationPreviewAction(receivableId);
       if ("error" in result) {
-        setError(result.error);
+        notify.error("Não foi possível preparar a confirmação", result.error);
         return;
       }
       setSendMode("payment");
@@ -176,7 +172,7 @@ export function PixChargePanel({
       setSendWhatsappHref(result.whatsappHref ?? null);
       setSendOpen(true);
     } catch {
-      setError("Não foi possível preparar a confirmação do pagamento. Tente novamente.");
+      notify.error("Não foi possível preparar a confirmação", "Não foi possível preparar a confirmação do pagamento. Tente novamente.");
     }
   }
 
@@ -188,7 +184,6 @@ export function PixChargePanel({
           <strong>Demonstração (preview local) — nenhuma cobrança Pix real é criada, nenhum provedor é chamado.</strong>
         </p>
       ) : null}
-      {error ? <p className="form-error" role="alert">{error}</p> : null}
 
       {!pendingCharge && !showForm ? (
         <div className="form-actions">
@@ -221,7 +216,10 @@ export function PixChargePanel({
               className="form-action-primary"
               disabled={pending}
               onClick={() =>
-                run(() => createPixChargeAction(receivableId, clientId, { amount, description, expiresAt }), () => setShowForm(false))
+                run(() => createPixChargeAction(receivableId, clientId, { amount, description, expiresAt }), () => {
+                  setShowForm(false);
+                  notify.success("Cobrança Pix gerada", "A cobrança foi gerada.");
+                })
               }
             >
               {pending ? "Gerando…" : "Confirmar geração"}
@@ -247,7 +245,8 @@ export function PixChargePanel({
                 nem gere outra cobrança antes da conferência pelo Financeiro.
               </p>
               <button type="button" disabled={pending}
-                onClick={() => run(() => reconcilePixReservationAction(pendingCharge.id, receivableId))}>
+                onClick={() => run(() => reconcilePixReservationAction(pendingCharge.id, receivableId), () =>
+                  notify.success("Consulta concluída", "A consulta ao Asaas foi concluída."))}>
                 Consultar cobrança existente no Asaas
               </button>
               <p className="helper-text">Consulta apenas: não cria cobrança nova. Se não encontrar, a reserva permanece bloqueada.</p>
@@ -443,6 +442,7 @@ export function PixChargePanel({
             () => {
               setCancelTarget(null);
               setCancelReason("");
+              notify.success("Cobrança cancelada", "A cobrança Pix foi cancelada. O saldo do título não foi alterado.");
             },
           )
         }

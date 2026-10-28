@@ -11,6 +11,7 @@ import {
   generateReceivablesForSubscriptionPeriodAction,
 } from "../../app/sistema/financeiro/contas-a-receber/actions";
 import type { ReceivableFormPayload } from "./receivableFormTypes";
+import { notify } from "../../lib/feedback/notify";
 
 function formatAmount(value: number): string {
   return value.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
@@ -86,15 +87,15 @@ export function SubscriptionBillingPanel({
 
   function confirmSingle(): void {
     if (!singleDraft) return;
-    setError(null);
     startTransition(async () => {
       const result = await generateReceivableFromSubscriptionAction(draftToPayload(singleDraft));
       if ("error" in result) {
-        setError(result.error);
+        notify.error("Não foi possível gerar a cobrança", result.error);
         return;
       }
       setMode("none");
       setSingleDraft(null);
+      notify.success("Cobrança gerada", "A cobrança foi gerada.");
       router.refresh();
     });
   }
@@ -134,10 +135,17 @@ export function SubscriptionBillingPanel({
       setError("Selecione ao menos uma competência para gerar.");
       return;
     }
-    setError(null);
     startTransition(async () => {
       const { results } = await generateReceivablesForSubscriptionPeriodAction(selected.map((draft) => draftToPayload(draft)));
       setPeriodResults(results);
+      const failed = results.filter((item) => !item.ok).length;
+      if (failed === 0) {
+        notify.success("Cobranças geradas", results.length + " cobrança(s) geradas com sucesso.");
+      } else if (failed === results.length) {
+        notify.error("Nenhuma cobrança gerada", "Todas as " + failed + " cobranças falharam. Veja o detalhe abaixo.");
+      } else {
+        notify.warning("Cobranças geradas com falhas", failed + " de " + results.length + " cobranças falharam. Veja o detalhe abaixo.");
+      }
       router.refresh();
     });
   }

@@ -899,14 +899,13 @@ export function BirthdaysList({ localPreview, initialGroups = [], initialMessage
   const router=useRouter();
   const templatesAllowed=localPreview || canManageTemplates;
   const [busy,setBusy]=useState(false);
-  const [error,setError]=useState<string|null>(null);
-  const [notice,setNotice]=useState<string|null>(null);
-  // Avisos flutuantes globais (Fase 20): esta tela tem muitos pontos de
-  // erro/sucesso pontuais; em vez de reescrever cada um, a ponte abaixo
-  // leva os mesmos `error`/`notice` já existentes para o `notify`, sem
-  // duplicar exibição (os blocos inline antigos foram removidos).
-  useEffect(() => { if (error) notify.error("Não foi possível concluir a operação", error); }, [error]);
-  useEffect(() => { if (notice) notify.success("Aniversariantes", notice); }, [notice]);
+  // Avisos flutuantes globais (Fase 20, revisão de 28/10/2026): cada
+  // handler chama `notify.*` diretamente no momento do resultado, em vez de
+  // guardar texto em estado e depender de um `useEffect` — uma ponte por
+  // estado podia deixar de notificar uma segunda falha IDÊNTICA à anterior
+  // (React não re-renderiza quando o novo valor de string é igual ao
+  // atual, então o efeito nunca disparava de novo). Chamada direta garante
+  // exatamente um aviso por resultado de operação, sempre.
   const requested=useRef(new Set<string>());
   const persisted=useRef(new Set(initialMessages.map(m=>`${m.edition_week_start}::${m.birthday_entry_id}`)));
   const [groups, setGroups] = useState<BirthdayGroup[]>(() => localPreview ? buildBirthdayPreviewSeed() : initialGroups);
@@ -1047,7 +1046,9 @@ export function BirthdaysList({ localPreview, initialGroups = [], initialMessage
           );
           if("error" in result){
             requested.current.delete(key);
-            if(active)setError(result.error);
+            // Preparação silenciosa em segundo plano (não é ação do
+            // operador) — nunca um toast; só registro para diagnóstico.
+            console.error("Falha ao preparar mensagem de aniversário:",result.error);
             continue;
           }
           persisted.current.add(key);
@@ -1058,11 +1059,10 @@ export function BirthdaysList({ localPreview, initialGroups = [], initialMessage
                 opening:result.data.opening,ending:result.data.ending,manuallyEdited:Boolean(result.data.manually_edited)});
               return m;
             });
-            setError(null);
           }
         }catch{
           requested.current.delete(key);
-          if(active)setError("Falha ao preparar mensagens da semana.");
+          console.error("Falha ao preparar mensagens da semana.");
         }
       }
     })();
@@ -1075,11 +1075,11 @@ export function BirthdaysList({ localPreview, initialGroups = [], initialMessage
       const key=`${editionKey}::${entryId}`;
       const found=weekEntries.find(w=>w.entry.id===entryId);
       if(!found)return;
-      setBusy(true);setError(null);setNotice(null);
+      setBusy(true);
       void prepareBirthdayEditionMessage(
         found.entry.origin==="cadastro"?"cliente":"editorial",entryId,true
       ).then(result=>{
-        if("error" in result){setError(result.error);return;}
+        if("error" in result){notify.error("Mensagem não trocada",result.error);return;}
         persisted.current.add(key);
         setEditionMessages(prev=>{
           const m=new Map(prev);
@@ -1087,9 +1087,9 @@ export function BirthdaysList({ localPreview, initialGroups = [], initialMessage
             opening:result.data.opening,ending:result.data.ending,manuallyEdited:Boolean(result.data.manually_edited)});
           return m;
         });
-        setNotice("Nova mensagem salva na edição.");
+        notify.success("Mensagem atualizada","Nova mensagem salva na edição.");
         router.refresh();
-      }).catch(()=>setError("Não foi possível trocar a mensagem."))
+      }).catch(()=>notify.error("Mensagem não trocada","Não foi possível trocar a mensagem."))
         .finally(()=>setBusy(false));
       return;
     }
@@ -1123,11 +1123,11 @@ export function BirthdaysList({ localPreview, initialGroups = [], initialMessage
     const key = `${editionKey}::${entryId}`;
     if (!localPreview) {
       if (busy) return;
-      setBusy(true); setError(null); setNotice(null);
+      setBusy(true);
       void pickBirthdayMessageTemplate(
         found.entry.origin === "cadastro" ? "cliente" : "editorial", entryId, templateKey, templateSource,
       ).then((result) => {
-        if ("error" in result) { setError(result.error); return; }
+        if ("error" in result) { notify.error("Modelo não aplicado", result.error); return; }
         persisted.current.add(key);
         setEditionMessages((prev) => {
           const m = new Map(prev);
@@ -1135,15 +1135,15 @@ export function BirthdaysList({ localPreview, initialGroups = [], initialMessage
             opening: result.data.opening, ending: result.data.ending, manuallyEdited: Boolean(result.data.manually_edited) });
           return m;
         });
-        setNotice("Modelo aplicado e salvo na edição.");
+        notify.success("Modelo aplicado", "Modelo aplicado e salvo na edição.");
         router.refresh();
-      }).catch(() => setError("Não foi possível aplicar o modelo escolhido."))
+      }).catch(() => notify.error("Modelo não aplicado", "Não foi possível aplicar o modelo escolhido."))
         .finally(() => setBusy(false));
       return;
     }
     const profile = resolveProfile(found.entry, found.dayLabel);
     const generated = templateSource === "builtin" ? renderTemplateByKey(templateKey, profile) : null;
-    if (!generated) { setError("Este modelo exige um dado que esta pessoa não possui."); return; }
+    if (!generated) { notify.error("Modelo não aplicado", "Este modelo exige um dado que esta pessoa não possui."); return; }
     setEditionMessages((prev) => {
       const next = new Map(prev);
       next.set(key, { ...generated, manuallyEdited: false });
@@ -1153,14 +1153,14 @@ export function BirthdaysList({ localPreview, initialGroups = [], initialMessage
 
   /** "Criar com IA" — a pedido explícito do operador para UMA pessoa só. */
   function generateAIFor(entryId: string): void {
-    if (localPreview) { setError("Geração por IA não está disponível na visualização de demonstração."); return; }
+    if (localPreview) { notify.error("IA indisponível", "Geração por IA não está disponível na visualização de demonstração."); return; }
     const found = weekEntries.find((w) => w.entry.id === entryId);
     if (!found || busy) return;
     const key = `${editionKey}::${entryId}`;
-    setBusy(true); setError(null); setNotice(null);
+    setBusy(true);
     void generateBirthdayMessageWithAI(found.entry.origin === "cadastro" ? "cliente" : "editorial", entryId)
       .then((result) => {
-        if ("error" in result) { setError(result.error); return; }
+        if ("error" in result) { notify.error("Homenagem não gerada", result.error); return; }
         persisted.current.add(key);
         setEditionMessages((prev) => {
           const m = new Map(prev);
@@ -1168,9 +1168,9 @@ export function BirthdaysList({ localPreview, initialGroups = [], initialMessage
             opening: result.data.opening, ending: result.data.ending, manuallyEdited: Boolean(result.data.manually_edited) });
           return m;
         });
-        setNotice("Homenagem gerada por IA e salva na edição.");
+        notify.success("Homenagem gerada", "Homenagem gerada por IA e salva na edição.");
         router.refresh();
-      }).catch(() => setError("Não foi possível gerar a homenagem por IA."))
+      }).catch(() => notify.error("Homenagem não gerada", "Não foi possível gerar a homenagem por IA."))
       .finally(() => setBusy(false));
   }
 
@@ -1180,8 +1180,8 @@ export function BirthdaysList({ localPreview, initialGroups = [], initialMessage
   }): Promise<boolean> {
     if (localPreview) return false;
     const result = await saveBirthdayMessageTemplate(input);
-    if ("error" in result) { setError(result.error); return false; }
-    setNotice("Modelo salvo.");
+    if ("error" in result) { notify.error("Modelo não salvo", result.error); return false; }
+    notify.success("Modelo salvo", "O modelo de mensagem foi salvo.");
     return true;
   }
 
@@ -1194,9 +1194,9 @@ export function BirthdaysList({ localPreview, initialGroups = [], initialMessage
     const key = `${editionKey}::${entryId}`;
     if (!localPreview) {
       if (busy) return;
-      setBusy(true); setError(null); setNotice(null);
+      setBusy(true);
       void saveManualBirthdayMessage(entryId, text).then((result) => {
-        if ("error" in result) { setError(result.error); return; }
+        if ("error" in result) { notify.error("Edição não salva", result.error); return; }
         setEditionMessages((prev) => {
           const m = new Map(prev);
           m.set(key, {
@@ -1206,9 +1206,9 @@ export function BirthdaysList({ localPreview, initialGroups = [], initialMessage
           });
           return m;
         });
-        setNotice("Mensagem editada manualmente.");
+        notify.success("Mensagem editada", "Mensagem editada manualmente.");
         router.refresh();
-      }).catch(() => setError("Não foi possível salvar a edição manual."))
+      }).catch(() => notify.error("Edição não salva", "Não foi possível salvar a edição manual."))
         .finally(() => setBusy(false));
       return;
     }
@@ -1338,7 +1338,7 @@ export function BirthdaysList({ localPreview, initialGroups = [], initialMessage
   }
   async function saveRealEntry(entry:BirthdayEntry,groupId:string|null):Promise<string|null>{
     const result=await saveEditorialBirthday(editorialInput(entry,groupId));
-    if("error" in result){setError(result.error);return null;}
+    if("error" in result){notify.error("Não foi possível salvar o registro",result.error);return null;}
     // router.refresh busca snapshots do banco, sem exigir F5 do navegador;
     // o estado local também é atualizado ao confirmar a gravação.
     router.refresh();
@@ -1361,15 +1361,15 @@ export function BirthdaysList({ localPreview, initialGroups = [], initialMessage
       return;
     }
     if (busy) return;
-    setBusy(true); setError(null); setNotice(null);
+    setBusy(true);
     const formData = new FormData();
     formData.append("file", file);
     void setBirthdayEntryPhoto(entryId, formData).then((result) => {
-      if ("error" in result) { setError(result.error); return; }
+      if ("error" in result) { notify.error("Foto não enviada", result.error); return; }
       applyPhotoToGroups(entryId, result.data.photoUrl);
-      setNotice("Foto de destaque salva.");
+      notify.success("Foto salva", "Foto de destaque salva.");
       router.refresh();
-    }).catch(() => setError("Não foi possível enviar a foto."))
+    }).catch(() => notify.error("Foto não enviada", "Não foi possível enviar a foto."))
       .finally(() => setBusy(false));
   }
   function removeEntryPhoto(entryId: string): void {
@@ -1378,20 +1378,20 @@ export function BirthdaysList({ localPreview, initialGroups = [], initialMessage
       return;
     }
     if (busy) return;
-    setBusy(true); setError(null); setNotice(null);
+    setBusy(true);
     void removeBirthdayEntryPhoto(entryId).then((result) => {
-      if ("error" in result) { setError(result.error); return; }
+      if ("error" in result) { notify.error("Foto não removida", result.error); return; }
       applyPhotoToGroups(entryId, undefined);
-      setNotice("Foto de destaque removida.");
+      notify.success("Foto removida", "Foto de destaque removida.");
       router.refresh();
-    }).catch(() => setError("Não foi possível remover a foto."))
+    }).catch(() => notify.error("Foto não removida", "Não foi possível remover a foto."))
       .finally(() => setBusy(false));
   }
   function updateEntry(groupId: string, entryId: string, next: BirthdayEntry): void {
     if(!localPreview){
-      if(next.origin==="cadastro"){setError("O nascimento deve ser editado no cadastro mestre.");return;}
+      if(next.origin==="cadastro"){notify.error("Não é possível editar","O nascimento deve ser editado no cadastro mestre.");return;}
       if(busy)return;
-      setBusy(true);setError(null);setNotice(null);
+      setBusy(true);
       void saveRealEntry(next,groupId).then(saved=>{
         if(saved){
           setGroups(prev=>prev.map(group=>{
@@ -1400,9 +1400,9 @@ export function BirthdaysList({ localPreview, initialGroups = [], initialMessage
             if(group.foundingEntry?.id===entryId)return {...group,foundingEntry:next};
             return {...group,members:group.members.map(m=>m.id===entryId?next:m)};
           }));
-          setNotice("Aniversariante atualizado.");
+          notify.success("Aniversariante atualizado","Os dados foram atualizados.");
         }
-      }).catch(()=>setError("Não foi possível salvar este registro."))
+      }).catch(()=>notify.error("Não foi possível salvar","Não foi possível salvar este registro."))
         .finally(()=>setBusy(false));
       return;
     }
@@ -1420,12 +1420,12 @@ export function BirthdaysList({ localPreview, initialGroups = [], initialMessage
   function savePersonalizedProfile(groupId: string, entryId: string, patch: EditorialProfilePatch): void {
     if (!localPreview) {
       if (busy) return;
-      setBusy(true); setError(null); setNotice(null);
+      setBusy(true);
       void savePersonalizedBirthdayProfile(entryId, patch).then(result => {
-        if ("error" in result) { setError(result.error); return; }
-        setNotice("Personalização editorial salva.");
+        if ("error" in result) { notify.error("Personalização não salva", result.error); return; }
+        notify.success("Personalização salva", "Personalização editorial salva.");
         router.refresh();
-      }).catch(() => setError("Não foi possível salvar a personalização."))
+      }).catch(() => notify.error("Personalização não salva", "Não foi possível salvar a personalização."))
         .finally(() => setBusy(false));
       return;
     }
@@ -1441,7 +1441,7 @@ export function BirthdaysList({ localPreview, initialGroups = [], initialMessage
       return true;
     }
     if(busy)return false;
-    setBusy(true);setError(null);setNotice(null);
+    setBusy(true);
     try{
       const saved=await saveRealEntry(entry,groupId);
       if(!saved)return false;
@@ -1449,9 +1449,9 @@ export function BirthdaysList({ localPreview, initialGroups = [], initialMessage
         ...group,members:group.members.some(m=>m.id===saved)?group.members:
           [...group.members,{...entry,id:saved}]
       }:group));
-      setNotice("Aniversariante incluído.");
+      notify.success("Aniversariante incluído","Aniversariante incluído neste grupo.");
       return true;
-    }catch{setError("Falha ao incluir aniversariante.");return false;}
+    }catch{notify.error("Aniversariante não incluído","Falha ao incluir aniversariante.");return false;}
     finally{setBusy(false);}
   }
   async function addIndependent(entry:BirthdayEntry):Promise<boolean>{
@@ -1461,7 +1461,7 @@ export function BirthdaysList({ localPreview, initialGroups = [], initialMessage
       return true;
     }
     if(busy)return false;
-    setBusy(true);setError(null);setNotice(null);
+    setBusy(true);
     try{
       const saved=await saveRealEntry(entry,null);
       if(!saved)return false;
@@ -1469,17 +1469,17 @@ export function BirthdaysList({ localPreview, initialGroups = [], initialMessage
         id:`exception:${saved}`,kind:"individual",label:entry.displayName,city:entry.city,
         principal:{...entry,id:saved},members:[],
       }]);
-      setNotice("Novo aniversariante incluído.");
+      notify.success("Aniversariante incluído","Novo aniversariante incluído.");
       return true;
-    }catch{setError("Falha ao incluir aniversariante.");return false;}
+    }catch{notify.error("Aniversariante não incluído","Falha ao incluir aniversariante.");return false;}
     finally{setBusy(false);}
   }
   function togglePublication(entry:BirthdayEntry):void{
     if(localPreview||busy)return;
-    setBusy(true);setError(null);setNotice(null);
+    setBusy(true);
     void setBirthdayPublication(entry.origin==="cadastro"?"cliente":"editorial",
       entry.id,!entry.publishInPrint).then(result=>{
-      if("error" in result){setError(result.error);return;}
+      if("error" in result){notify.error("Não foi possível alterar a publicação",result.error);return;}
       setGroups(prev=>prev.map(group=>({
         ...group,
         principal:group.principal?.id===entry.id?
@@ -1489,9 +1489,10 @@ export function BirthdaysList({ localPreview, initialGroups = [], initialMessage
         members:group.members.map(m=>m.id===entry.id?
           {...m,publishInPrint:result.data.published}:m),
       })));
-      setNotice(result.data.published?"Publicação autorizada.":"Publicação desativada.");
+      notify.success(result.data.published?"Publicação autorizada":"Publicação desativada",
+        result.data.published?"Publicação autorizada.":"Publicação desativada.");
       router.refresh();
-    }).catch(()=>setError("Falha ao alterar publicação."))
+    }).catch(()=>notify.error("Não foi possível alterar a publicação","Falha ao alterar publicação."))
       .finally(()=>setBusy(false));
   }
   function confirmDelete():void{
@@ -1500,13 +1501,13 @@ export function BirthdaysList({ localPreview, initialGroups = [], initialMessage
       const group=groups.find(g=>g.id===deleteTarget.groupId);
       const entryId=deleteTarget.kind==="member"?deleteTarget.entryId:group?.principal?.id;
       if(!entryId||entryId===group?.id&&group?.principal?.origin==="cadastro"){
-        setError("Não é permitido arquivar o cadastro mestre.");setDeleteTarget(null);return;
+        notify.error("Não é permitido arquivar","Não é permitido arquivar o cadastro mestre.");setDeleteTarget(null);return;
       }
-      setBusy(true);setError(null);setNotice(null);
+      setBusy(true);
       void setEditorialBirthdayActive(entryId,false).then(result=>{
-        if("error" in result)setError(result.error);
-        else{setNotice("Registro editorial arquivado.");router.refresh();}
-      }).catch(()=>setError("Falha ao arquivar o registro."))
+        if("error" in result)notify.error("Não foi possível arquivar",result.error);
+        else{notify.success("Registro arquivado","Registro editorial arquivado.");router.refresh();}
+      }).catch(()=>notify.error("Não foi possível arquivar","Falha ao arquivar o registro."))
         .finally(()=>{setBusy(false);setDeleteTarget(null);});
       return;
     }
@@ -1578,7 +1579,7 @@ export function BirthdaysList({ localPreview, initialGroups = [], initialMessage
       setReportCopied(true);
       window.setTimeout(() => setReportCopied(false), 1800);
     } catch {
-      setError("Não foi possível copiar a relação.");
+      notify.error("Não foi possível copiar", "Não foi possível copiar a relação.");
     }
   }
 

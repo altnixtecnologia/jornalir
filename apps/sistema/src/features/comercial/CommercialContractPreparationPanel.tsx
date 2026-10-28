@@ -14,6 +14,7 @@ import {
   approveCommercialLegalReviewAction, issueCommercialContractDocumentsAction,
   reopenCommercialLegalReviewAction,
 } from "../../app/sistema/publicidade/vendas/[id]/commercial-issuance-actions";
+import { notify } from "../../lib/feedback/notify";
 
 export interface CommercialContractServiceView {
   id: string;
@@ -140,8 +141,6 @@ export function CommercialContractPreparationPanel({
 }): JSX.Element {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
-  const [error, setError] = useState("");
-  const [notice, setNotice] = useState("");
   const [mode, setMode] = useState<"combined" | "separate">(pkg?.document_mode ?? defaultMode);
   const [preview, setPreview] = useState<{ documents: { title: string; text: string }[]; missing: string[] } | null>(null);
   const [previewBusy, setPreviewBusy] = useState(false);
@@ -151,28 +150,27 @@ export function CommercialContractPreparationPanel({
 
   async function showPreview(): Promise<void> {
     if (!pkg || previewBusy) return;
-    setPreviewBusy(true); setError(""); setNotice(""); setPreview(null);
+    setPreviewBusy(true); setPreview(null);
     try {
       const result = await previewCommercialContractAction(pkg.id, saleId);
-      if ("error" in result) setError(result.error);
+      if ("error" in result) notify.error("Não foi possível montar a prévia", result.error);
       else setPreview(result.preview);
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : "Não foi possível montar a prévia.");
+      notify.error("Não foi possível montar a prévia", reason instanceof Error ? reason.message : "Não foi possível montar a prévia.");
     } finally { setPreviewBusy(false); }
   }
 
 
   function submit(action: Promise<{ error: string } | { ok: true; packageId: string }>, message: string): void {
     startTransition(async () => {
-      setError(""); setNotice("");
       try {
         const result = await action;
-        if ("error" in result) { setError(result.error); return; }
-        setNotice(message);
+        if ("error" in result) { notify.error("Não foi possível concluir a ação", result.error); return; }
+        notify.success("Contratação atualizada", message);
         setPreview(null); // conteúdo mudou; não exibir minuta desatualizada
         router.refresh();
       } catch (reason) {
-        setError(reason instanceof Error ? reason.message : "Não foi possível concluir a operação.");
+        notify.error("Não foi possível concluir a ação", reason instanceof Error ? reason.message : "Não foi possível concluir a operação.");
       }
     });
   }
@@ -195,8 +193,6 @@ export function CommercialContractPreparationPanel({
         </a>.
       </p>
       {loadError ? <p role="alert" className="form-error">{loadError}</p> : null}
-      {error ? <p role="alert" className="form-error">{error}</p> : null}
-      {notice ? <p role="status" className="helper-text">{notice}</p> : null}
       {!pkg ? (
         <>
           {["approved", "active"].includes(saleStatus) ? (

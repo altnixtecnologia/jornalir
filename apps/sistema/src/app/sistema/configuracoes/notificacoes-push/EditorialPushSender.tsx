@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState, useTransition, type FormEvent } from "react";
 import { enqueueSitePushAction } from "./actions";
+import { notify } from "../../../../lib/feedback/notify";
 
 export interface EditorialPushPrefill {
   title: string;
@@ -22,7 +23,6 @@ export function EditorialPushSender({ prefill, enabled, eligibleByKind }: {
   const [href, setHref] = useState(prefill?.href ?? "");
   const [requestId, setRequestId] = useState("");
   useEffect(() => setRequestId(crypto.randomUUID()), []);
-  const [message, setMessage] = useState<string | null>(null);
 
   function submit(event: FormEvent<HTMLFormElement>, confirmDuplicate = false): void {
     event.preventDefault();
@@ -35,12 +35,11 @@ export function EditorialPushSender({ prefill, enabled, eligibleByKind }: {
     data.set("href", href);
     data.set("request_id", requestId);
     if (confirmDuplicate) data.set("confirm_duplicate", "1");
-    setMessage(null);
     startTransition(async () => {
       let result = await enqueueSitePushAction(data);
       if (result.needsDuplicateConfirm) {
         if (!window.confirm((result.error || "Esta matéria já foi notificada.") + " Enviar mesmo assim?")) {
-          setMessage("Envio cancelado — a matéria já havia sido notificada automaticamente.");
+          notify.warning("Envio cancelado", "A matéria já havia sido notificada automaticamente.");
           return;
         }
         // A confirmação ocorre dentro da mesma transição. Chamar submit()
@@ -49,10 +48,10 @@ export function EditorialPushSender({ prefill, enabled, eligibleByKind }: {
         result = await enqueueSitePushAction(data);
       }
       if (result.error) {
-        setMessage(result.error);
+        notify.error("Aviso não enviado", result.error);
         return;
       }
-      setMessage("Aviso preparado e incluído na fila, ainda não entregue. Acompanhe as entregas no painel de notificações.");
+      notify.success("Aviso preparado", "Incluído na fila, ainda não entregue. Acompanhe as entregas no painel de notificações.");
       setRequestId(crypto.randomUUID());
       setTitle("");
       setBody("");
@@ -91,7 +90,6 @@ export function EditorialPushSender({ prefill, enabled, eligibleByKind }: {
         <input value={href} maxLength={500} required onChange={(event) => setHref(event.target.value)} disabled={pending} placeholder="/noticias/exemplo" />
       </label>
       <button type="submit" className="form-action-primary" disabled={pending || !requestId || !enabled || eligibleCount === 0}>{pending ? "Preparando..." : kind === "urgent" ? "Preparar aviso urgente" : "Preparar notificação"}</button>
-      {message ? <p role="status" className="helper-text">{message}</p> : null}
     </form>
   );
 }

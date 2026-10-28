@@ -5,6 +5,7 @@ import {
   generateCandidates,
   generateCandidatesFromArchivedPdf,
 } from "../../app/sistema/editorial/importar-pdf/actions";
+import { notify } from "../../lib/feedback/notify";
 
 interface GenerateCandidatesFormProps {
   editionId: string;
@@ -40,7 +41,6 @@ export function GenerateCandidatesForm({
 }: GenerateCandidatesFormProps): JSX.Element {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [fileName, setFileName] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState<DoneState | null>(null);
   const [duplicate, setDuplicate] = useState<DuplicateState | null>(null);
   const [pending, startTransition] = useTransition();
@@ -48,11 +48,10 @@ export function GenerateCandidatesForm({
   function handleGenerate(force = false): void {
     const file = fileInputRef.current?.files?.[0];
     if (!file && !archivedPdfAvailable) {
-      setError("Selecione um arquivo PDF.");
+      notify.error("Nenhum PDF selecionado", "Selecione um arquivo PDF.");
       return;
     }
 
-    setError(null);
     setDone(null);
     if (!force) setDuplicate(null);
 
@@ -67,7 +66,7 @@ export function GenerateCandidatesForm({
         : await generateCandidatesFromArchivedPdf(editionId, force);
 
       if ("error" in result) {
-        setError(result.error);
+        notify.error("Não foi possível extrair os candidatos", result.error);
       } else if ("duplicate" in result) {
         setDuplicate(result.previousBatch);
       } else {
@@ -114,11 +113,6 @@ export function GenerateCandidatesForm({
       <button type="button" className="header-action" onClick={() => handleGenerate(false)} disabled={pending}>
         {pending ? "Extraindo…" : archivedPdfAvailable && !fileName ? "Gerar candidatos do PDF arquivado" : "Gerar candidatos"}
       </button>
-      {error ? (
-        <p className="form-error" role="alert">
-          {error}
-        </p>
-      ) : null}
       {duplicate ? (
         <div className="form-error" role="alert">
           <p>

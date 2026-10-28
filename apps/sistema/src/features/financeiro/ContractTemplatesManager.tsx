@@ -7,6 +7,7 @@ import {
   createContractTemplateAction, createContractTemplateVersionAction, duplicateContractTemplateAction,
   listContractTemplateVersionsAction, setContractTemplateActiveAction, type ContractTemplateFormInput,
 } from "../../app/sistema/financeiro/modelos-contrato/actions";
+import { notify } from "../../lib/feedback/notify";
 
 type EditorState = {
   mode: "create" | "edit";
@@ -29,7 +30,6 @@ export function ContractTemplatesManager({ templates }: { templates: ContractTem
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [editor, setEditor] = useState<EditorState | null>(null);
-  const [error, setError] = useState("");
   const [historyFor, setHistoryFor] = useState<{ groupId: string; versions: ContractTemplate[] } | null>(null);
   const [newVarKey, setNewVarKey] = useState("");
   const [newVarLabel, setNewVarLabel] = useState("");
@@ -38,12 +38,10 @@ export function ContractTemplatesManager({ templates }: { templates: ContractTem
   const sorted = useMemo(() => [...templates].sort((a, b) => a.title.localeCompare(b.title, "pt-BR")), [templates]);
 
   function startCreate(): void {
-    setError("");
     setEditor({ ...EMPTY_EDITOR });
   }
 
   function startEdit(template: ContractTemplate): void {
-    setError("");
     setEditor({
       mode: "edit", groupId: template.groupId, title: template.title, description: template.description ?? "",
       category: template.category ?? "", content: template.content, variables: template.variables,
@@ -63,44 +61,46 @@ export function ContractTemplatesManager({ templates }: { templates: ContractTem
 
   function save(): void {
     if (!editor) return;
-    setError("");
+    const isNewVersion = editor.mode === "edit" && editor.groupId;
     const input: ContractTemplateFormInput = {
       title: editor.title, description: editor.description || undefined, category: editor.category || undefined,
       content: editor.content, variables: editor.variables,
     };
     startTransition(async () => {
-      const result = editor.mode === "edit" && editor.groupId
-        ? await createContractTemplateVersionAction(editor.groupId, input)
+      const result = isNewVersion
+        ? await createContractTemplateVersionAction(editor.groupId!, input)
         : await createContractTemplateAction(input);
-      if ("error" in result) { setError(result.error); return; }
+      if ("error" in result) { notify.error("Não foi possível salvar o modelo", result.error); return; }
       setEditor(null);
+      notify.success(isNewVersion ? "Nova versão salva" : "Modelo criado",
+        isNewVersion ? "Uma nova versão do modelo foi salva." : "O modelo foi criado.");
       router.refresh();
     });
   }
 
   function duplicate(template: ContractTemplate): void {
-    setError("");
     startTransition(async () => {
       const result = await duplicateContractTemplateAction(template.id);
-      if ("error" in result) { setError(result.error); return; }
+      if ("error" in result) { notify.error("Não foi possível duplicar o modelo", result.error); return; }
+      notify.success("Modelo duplicado", "Um modelo independente foi criado.");
       router.refresh();
     });
   }
 
   function toggleActive(template: ContractTemplate): void {
-    setError("");
     startTransition(async () => {
       const result = await setContractTemplateActiveAction(template.id, !template.active);
-      if ("error" in result) { setError(result.error); return; }
+      if ("error" in result) { notify.error("Não foi possível alterar o modelo", result.error); return; }
+      notify.success(template.active ? "Modelo desativado" : "Modelo ativado",
+        template.active ? "O modelo não aparece mais para novos contratos." : "O modelo voltou a aparecer para novos contratos.");
       router.refresh();
     });
   }
 
   function showHistory(template: ContractTemplate): void {
-    setError("");
     startTransition(async () => {
       const result = await listContractTemplateVersionsAction(template.groupId);
-      if ("error" in result) { setError(result.error); return; }
+      if ("error" in result) { notify.error("Não foi possível carregar o histórico", result.error); return; }
       setHistoryFor({ groupId: template.groupId, versions: result.versions });
     });
   }
@@ -108,7 +108,6 @@ export function ContractTemplatesManager({ templates }: { templates: ContractTem
   return (
     <>
       <section className="form-section form-section--first">
-        {error ? <p className="form-error" role="alert">{error}</p> : null}
         <div className="form-actions">
           <button type="button" className="form-action-primary" onClick={startCreate} disabled={pending}>+ Novo modelo</button>
         </div>

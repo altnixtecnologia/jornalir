@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import type { ContractDocument, ContractDocumentType } from "@ir/types";
 import { CONTRACT_DOCUMENT_TYPE_LABELS, CONTRACT_DOCUMENT_TYPES } from "@ir/types";
 import { uploadContractDocumentAction } from "../../app/sistema/financeiro/contratos/actions";
+import { notify } from "../../lib/feedback/notify";
 
 function formatDate(iso?: string): string {
   if (!iso) return "—";
@@ -65,13 +66,14 @@ export function ContractDocumentsPanel({ contractId, documents }: { contractId: 
       try {
         const result = await uploadContractDocumentAction(contractId, formData);
         if (result && "error" in result) {
-          setError(result.error);
+          notify.error("Documento não enviado", result.error);
           return;
         }
         resetForm();
+        notify.success("Documento enviado", "O documento foi anexado ao contrato.");
         router.refresh();
       } catch {
-        setError("Não foi possível enviar o PDF. Confira a conexão e tente novamente.");
+        notify.error("Documento não enviado", "Não foi possível enviar o PDF. Confira a conexão e tente novamente.");
       }
     });
   }

@@ -9,6 +9,7 @@ import {
   setPlacementPinnedAction,
 } from "../../app/sistema/editorial/destaques/actions";
 import { placementLabels, publicationDate } from "./editorialLabels";
+import { notify } from "../../lib/feedback/notify";
 
 type PlacementKey = Exclude<EditorialPlacementType, "none">;
 
@@ -22,7 +23,6 @@ interface DestaquesManagerProps {
 const BLOCK_ORDER: PlacementKey[] = ["mainCover", "highlightStrip", "latestNews", "localSpotlight"];
 
 export function DestaquesManager({ placements, sections, localities, mediaAssets }: DestaquesManagerProps): JSX.Element {
-  const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
   const [dragged, setDragged] = useState<{ type: PlacementKey; articleId: string } | null>(null);
 
@@ -36,10 +36,9 @@ export function DestaquesManager({ placements, sections, localities, mediaAssets
   }
 
   function handleTogglePinned(article: Article, activePinned: boolean): void {
-    setError(null);
     startTransition(async () => {
       const result = await setPlacementPinnedAction(article.id, !activePinned);
-      if ("error" in result) setError(result.error);
+      if ("error" in result) notify.error("Não foi possível fixar/soltar", result.error);
     });
   }
 
@@ -47,10 +46,9 @@ export function DestaquesManager({ placements, sections, localities, mediaAssets
     if (!window.confirm(`Remover "${article.title}" desta posição? A matéria continua publicada normalmente.`)) {
       return;
     }
-    setError(null);
     startTransition(async () => {
       const result = await removeFromPlacementAction(article.id);
-      if ("error" in result) setError(result.error);
+      if ("error" in result) notify.error("Não foi possível remover da posição", result.error);
     });
   }
 
@@ -66,21 +64,14 @@ export function DestaquesManager({ placements, sections, localities, mediaAssets
     if (targetIndex < 0) return;
     reordered.splice(targetIndex + (placement === "after" ? 1 : 0), 0, dragged.articleId);
     setDragged(null);
-    setError(null);
     startTransition(async () => {
       const result = await reorderPinnedPlacementAction(type, reordered);
-      if ("error" in result) setError(result.error);
+      if ("error" in result) notify.error("Não foi possível reordenar", result.error);
     });
   }
 
   return (
     <>
-      {error ? (
-        <p className="form-error" role="alert">
-          {error}
-        </p>
-      ) : null}
-
       <div className="destaques-grid">
         {BLOCK_ORDER.map((type) => {
           const articles = placements[type];

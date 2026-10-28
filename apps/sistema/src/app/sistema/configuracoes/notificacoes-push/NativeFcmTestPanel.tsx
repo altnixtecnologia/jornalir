@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { sendTestNativePushAction } from "./actions";
+import { notify } from "../../../../lib/feedback/notify";
 
 export type NativeFcmTestDevice = {
   id: string;
@@ -17,7 +18,6 @@ export function NativeFcmTestPanel({ enabled, devices }: {
   const [selected, setSelected] = useState(devices[0]?.id ?? "");
   const [kind, setKind] = useState<"ordinary" | "urgent">("ordinary");
   const [busy, startTransition] = useTransition();
-  const [message, setMessage] = useState("");
   const device = devices.find((d) => d.id === selected);
   const typeAllowed = Boolean(device && (kind === "urgent" ? device.urgent : device.ordinary));
 
@@ -25,14 +25,16 @@ export function NativeFcmTestPanel({ enabled, devices }: {
     if (!enabled || !device || !typeAllowed || busy) return;
     if (!window.confirm("Enviar UM teste " + (kind === "urgent" ? "URGENTE" : "NORMAL") +
       " somente ao aparelho " + device.id.slice(0, 8) + "…?")) return;
-    setMessage("");
     const form = new FormData();
     form.set("deviceId", device.id);
     form.set("kind", kind);
     startTransition(async () => {
       const result = await sendTestNativePushAction(form);
-      setMessage(result.ok ? "Mensagem aceita pelo Firebase para este aparelho. Verifique no Android." :
-        result.error || "Falha no teste.");
+      if (result.ok) {
+        notify.success("Teste aceito", "Mensagem aceita pelo Firebase para este aparelho. Verifique no Android.");
+      } else {
+        notify.error("Teste não enviado", result.error || "Falha no teste.");
+      }
     });
   }
 
@@ -50,7 +52,7 @@ export function NativeFcmTestPanel({ enabled, devices }: {
       {enabled && devices.length > 0 ? (
         <div className="form-grid">
           <label><span className="field-label">Aparelho de destino</span>
-            <select value={selected} onChange={(e) => { setSelected(e.target.value); setMessage(""); }} disabled={busy}>
+            <select value={selected} onChange={(e) => setSelected(e.target.value)} disabled={busy}>
               {devices.map((d) => (
                 <option key={d.id} value={d.id}>
                   {d.id.slice(0, 8)}… — visto {new Date(d.lastSeenAt).toLocaleString("pt-BR")}
@@ -59,7 +61,7 @@ export function NativeFcmTestPanel({ enabled, devices }: {
             </select>
           </label>
           <label><span className="field-label">Tipo do aviso</span>
-            <select value={kind} onChange={(e) => { setKind(e.target.value as "ordinary" | "urgent"); setMessage(""); }} disabled={busy}>
+            <select value={kind} onChange={(e) => setKind(e.target.value as "ordinary" | "urgent")} disabled={busy}>
               <option value="ordinary">Normal (som padrão)</option>
               <option value="urgent">Urgente (som personalizado)</option>
             </select>
@@ -72,7 +74,6 @@ export function NativeFcmTestPanel({ enabled, devices }: {
         </div>
       ) : null}
       {enabled && device && !typeAllowed ? <p className="helper-text">Este aparelho não autorizou avisos deste tipo.</p> : null}
-      {message ? <p className="helper-text" role="status">{message}</p> : null}
     </section>
   );
 }

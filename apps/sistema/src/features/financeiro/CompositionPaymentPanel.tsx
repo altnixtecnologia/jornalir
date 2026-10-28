@@ -7,6 +7,7 @@ import type { PaymentMethod } from "@ir/types";
 import { PAYMENT_METHODS, PAYMENT_METHOD_LABELS } from "@ir/types";
 import type { StaffOption } from "../../providers/supabase/staffRepository.supabase";
 import { payCompositionAction } from "../../app/sistema/financeiro/contas-a-receber/actions";
+import { notify } from "../../lib/feedback/notify";
 
 function formatAmount(value: number): string {
   return value.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
@@ -36,7 +37,6 @@ export function CompositionPaymentPanel({
     if (!operationId.current) operationId.current = crypto.randomUUID();
     return operationId.current;
   }
-  const [error, setError] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
   const [amount, setAmount] = useState(totalDue > 0 ? totalDue.toFixed(2).replace(".", ",") : "");
   const [receivedAt, setReceivedAt] = useState(() => todayInSaoPauloISO());
@@ -46,7 +46,6 @@ export function CompositionPaymentPanel({
   const [receivedBy, setReceivedBy] = useState("");
 
   function handleConfirm(): void {
-    setError(null);
     startTransition(async () => {
       try {
         const result = await payCompositionAction(receivableIdsOldestFirst, {
@@ -59,14 +58,15 @@ export function CompositionPaymentPanel({
           receivedByProfileId: receivedBy,
         });
         if (result && "error" in result) {
-          setError(result.error);
+          notify.error("Recebimento não registrado", result.error);
           return;
         }
         operationId.current = null;
         setOpen(false);
+        notify.success("Recebimento registrado", "O recebimento foi gravado, quitando o(s) título(s) mais antigo(s) primeiro.");
         router.refresh();
       } catch {
-        setError("Falha ao registrar recebimento. Verifique a conexão e tente novamente.");
+        notify.error("Recebimento não registrado", "Verifique a conexão e tente novamente.");
       }
     });
   }
@@ -86,7 +86,6 @@ export function CompositionPaymentPanel({
 
   return (
     <div>
-      {error ? <p className="form-error" role="alert">{error}</p> : null}
       <p className="helper-text">
         Este pagamento é distribuído automaticamente entre os {receivableIdsOldestFirst.length} título(s) acima, SEMPRE começando pelo mais antigo. Se sobrar valor depois de quitar todos, o excedente vira crédito desta mesma origem.
       </p>

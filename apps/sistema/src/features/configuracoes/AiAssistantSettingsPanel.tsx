@@ -10,6 +10,7 @@ import {
   AI_DEFAULT_MODELS, AI_MODULES, AI_SUGGESTED_MODELS,
 } from "./aiSettingsTypes";
 import type { AiModuleKey, AiModuleMode, AiProvider, AiSettingsInput, AiSettingsSnapshot, AiOperationalBrief } from "./aiSettingsTypes";
+import { notify } from "../../lib/feedback/notify";
 
 const MODES: ReadonlyArray<{ value: AiModuleMode; label: string }> = [
   { value: "off", label: "Desligado" },
@@ -35,10 +36,8 @@ export function AiAssistantSettingsPanel({ initial }: { initial: AiSettingsSnaps
   const [catalogStatus, setCatalogStatus] = useState<Record<AiProvider, string>>({ openai: "", anthropic: "" });
   const [brief, setBrief] = useState<AiOperationalBrief | null>(null);
   const [busy, startTransition] = useTransition();
-  const [message, setMessage] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
 
-  function clearFeedback(): void { setMessage(null); setError(null); }
+  function clearFeedback(): void { /* feedback de progresso dos provedores (credentialFeedback) é limpo separadamente */ }
 
   async function refreshCatalog(provider: AiProvider): Promise<void> {
     setCatalogStatus((old) => ({ ...old, [provider]: "Consultando modelos disponíveis na sua conta..." }));
@@ -91,9 +90,9 @@ export function AiAssistantSettingsPanel({ initial }: { initial: AiSettingsSnaps
     clearFeedback();
     startTransition(async () => {
       const result = await updateAssistantSettingsAction(form);
-      if ("error" in result) { setError(result.error); return; }
+      if ("error" in result) { notify.error("Configurações não salvas", result.error); return; }
       setSavedSettings({ ...form, modes: { ...form.modes } });
-      setMessage("Configurações salvas. O servidor verificará esses controles antes de qualquer chamada à IA.");
+      notify.success("Configurações salvas", "O servidor verificará esses controles antes de qualquer chamada à IA.");
     });
   }
 
@@ -146,9 +145,9 @@ export function AiAssistantSettingsPanel({ initial }: { initial: AiSettingsSnaps
     setBrief(null);
     startTransition(async () => {
       const result = await getAssistantOperationalBriefAction();
-      if ("error" in result) { setError(result.error); return; }
+      if ("error" in result) { notify.error("Resumo não atualizado", result.error); return; }
       setBrief(result.data);
-      setMessage("Resumo atualizado a partir dos dados do sistema. Nenhuma chamada de IA foi realizada.");
+      notify.success("Resumo atualizado", "Atualizado a partir dos dados do sistema. Nenhuma chamada de IA foi realizada.");
     });
   }
 
@@ -398,8 +397,6 @@ export function AiAssistantSettingsPanel({ initial }: { initial: AiSettingsSnaps
         </p>
       </section>
 
-      {error ? <p className="form-error" role="alert">{error}</p> : null}
-      {message ? <p role="status" className="helper-text">{message}</p> : null}
       <div id="assistente-ir-salvar" style={{ display: "flex", gap: 12, justifyContent: "flex-end", flexWrap: "wrap", padding: "12px 0" }}>
         <Link className="btn btn-secondary" href="/sistema/assistente-ir">Abrir conversa</Link>
         <button type="button" className="btn btn-primary"

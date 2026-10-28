@@ -6,6 +6,7 @@ import { askAssistantAction, getAssistantUsageAction } from "../../app/sistema/a
 import type { AiUsageSummary } from "../../app/sistema/assistente-ir/actions";
 import type { AssistantTurn } from "../../app/sistema/assistente-ir/actions";
 import { saveAssistantProposalAction } from "../../app/sistema/assistente-ir/propostas/actions";
+import { notify } from "../../lib/feedback/notify";
 import type { AiModuleKey, AiProvider } from "./aiSettingsTypes";
 
 const QUESTIONS = [
@@ -28,31 +29,27 @@ export function AiAssistantChatPanel({ enabled, modules, moduleChoices, activePr
   const [input, setInput] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [usage, setUsage] = useState<AiUsageSummary | null>(null);
-  const [usageError, setUsageError] = useState<string | null>(null);
   const [proposalDraft, setProposalDraft] = useState<{ title: string; rationale: string } | null>(null);
   const [proposalModule, setProposalModule] = useState<AiModuleKey>(moduleChoices[0]?.key ?? "editorial");
-  const [proposalStatus, setProposalStatus] = useState<string | null>(null);
   const [busy, startTransition] = useTransition();
   const canUse = enabled && modules.length > 0;
 
   function loadUsage(): void {
     if (busy) return;
-    setUsageError(null);
     startTransition(async () => {
       const result = await getAssistantUsageAction();
-      if ("error" in result) setUsageError(result.error);
+      if ("error" in result) notify.error("Não foi possível carregar o uso", result.error);
       else setUsage(result.data);
     });
   }
 
   function saveProposal(): void {
     if (!proposalDraft || busy) return;
-    setProposalStatus(null);
     startTransition(async () => {
       const result = await saveAssistantProposalAction({ module: proposalModule, ...proposalDraft });
-      if ("error" in result) { setProposalStatus(result.error); return; }
+      if ("error" in result) { notify.error("Sugestão não registrada", result.error); return; }
       setProposalDraft(null);
-      setProposalStatus("Sugestão registrada na central de aprovações. Nenhuma ação foi executada.");
+      notify.success("Sugestão registrada", "Registrada na central de aprovações. Nenhuma ação foi executada.");
     });
   }
 
@@ -154,7 +151,6 @@ export function AiAssistantChatPanel({ enabled, modules, moduleChoices, activePr
                     title: item.content.trim().split("\n")[0].slice(0, 100) || "Sugestão do JoIR",
                     rationale: item.content.slice(0, 1800),
                   });
-                  setProposalStatus(null);
                 }}>Preparar proposta para revisão</button>
             ) : null}
           </div>
@@ -190,7 +186,6 @@ export function AiAssistantChatPanel({ enabled, modules, moduleChoices, activePr
           </div>
         </div>
       ) : null}
-      {proposalStatus ? <p role="status" className="helper-text">{proposalStatus}</p> : null}
       <p className="helper-text">
         <Link href="/sistema/assistente-ir/propostas">Ver central de propostas e aprovações</Link>
       </p>
@@ -225,7 +220,6 @@ export function AiAssistantChatPanel({ enabled, modules, moduleChoices, activePr
         </p>
         <button type="button" className="btn btn-secondary" onClick={loadUsage}
           disabled={busy}>Consultar uso</button>
-        {usageError ? <p className="form-error" role="alert">{usageError}</p> : null}
         {usage ? (
           <div style={{ marginTop: 10 }}>
             <p>{usage.requests} solicitação(ões) · {usage.inputTokens} tokens de entrada · {usage.outputTokens} de saída</p>
