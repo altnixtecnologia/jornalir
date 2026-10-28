@@ -1,18 +1,20 @@
 # Lote 1 — Dry-run de sincronização do site legado (18/10/2026)
 
-Gerado em: 2026-10-18T15:13:22.507Z · SOMENTE LEITURA — nenhuma matéria/imagem foi gravada, nenhum `--commit` executado.
+Gerado em: 2026-10-28T14:20:40.410Z · SOMENTE LEITURA — nenhuma matéria/imagem foi gravada, nenhum `--commit` executado.
 
 ## Resumo
 
 | Métrica | Valor |
 |---|---|
-| Última matéria já existente no banco (corte do sync) | "BALNEÁRIO ROSA DO MAR PROMOVE FESTA EM HOMENAGEM AO DIA DAS CRIANÇAS EM PASSO DE TORRES" — 11/10/2026, 21:10:00 |
-| Data de corte usada na varredura | 11/10/2026 |
-| Período efetivamente comparado | 11/10/2026 a 17/10/2026 |
-| Itens encontrados no site (antes de deduplicar) | 240 |
-| Candidatas únicas no intervalo | 61 |
-| Já existem no banco novo (só mídia a reconciliar) | 5 |
-| **Novas elegíveis para importar** | **56** |
+| Última matéria já existente no banco (corte do sync) | "19º BPM RECEBE 38 POLICIAIS MILITARES TEMPORÁRIOS PARA REFORÇAR O POLICIAMENTO NA REGIÃO" — 17/10/2026, 12:51:00 |
+| Data de corte usada na varredura | 16/10/2026 |
+| Período efetivamente comparado | 16/10/2026 a 28/10/2026 |
+| Itens encontrados no site (antes de deduplicar) | 277 |
+| Candidatas únicas no intervalo | 102 |
+| Já existem no banco novo (só mídia a reconciliar) | 17 |
+| **Novas elegíveis para importar** | **80** |
+| Duplicata confirmada de matéria manual (fora da importação) | 5 |
+| Ambígua vs. matéria manual — revisão humana (fora da importação) | 0 |
 | Precisam de revisão manual | 0 |
 | Em quarentena editorial | 0 |
 | Rejeitadas (falha de busca) | 0 |
@@ -21,733 +23,1225 @@ Gerado em: 2026-10-18T15:13:22.507Z · SOMENTE LEITURA — nenhuma matéria/imag
 
 ## Matérias (ordem cronológica)
 
-### 1. MPSC CELEBRA TAC PARA REGULARIZAÇÃO DE LOTEAMENTO CLANDESTINO EM SÃO JOÃO DO SUL
+### 1. VALORIZAÇÃO DA HISTÓRIA E DA COOPERAÇÃO EM TORRES
 
 - **Status:** já existe (mídia a reconciliar)
-- **Data original (listagem, com hora real):** `11/10/2026 08:30` — data normalizada: 11/10/2026
-- **Editoria legada / destino:** geral → geral
-- **URL de origem:** https://www.informativoregional.net/geral/mpsc-celebra-tac-para-regularizacao-de-loteamento-clandestino-em-sao-joao-do-sul.15486390
-- **Situação no banco novo:** já existe (articles.id=f435eb6e-7f1f-4aaa-a508-0d838e72fef4)
-- **Imagens identificadas:** 2 (capa: https://suitacdn.cloud-bricks.net/fotos/15904514/file/desktop/Terreno%20sao%20joao%20do%20sul%2003.jpg?1791718374)
-- **Inconsistências:** nenhuma
-
----
-
-### 2. BALNEÁRIO ROSA DO MAR PROMOVE FESTA EM HOMENAGEM AO DIA DAS CRIANÇAS EM PASSO DE TORRES
-
-- **Status:** já existe (mídia a reconciliar)
-- **Data original (listagem, com hora real):** `11/10/2026 21:10` — data normalizada: 11/10/2026
-- **Editoria legada / destino:** geral → geral
-- **URL de origem:** https://www.informativoregional.net/geral/balneario-rosa-do-mar-promove-festa-em-homenagem-ao-dia-das-criancas-em-passo-de-torres.15486406
-- **Situação no banco novo:** já existe (articles.id=4042ab07-ee7a-4bd1-a7e1-a35eb85c3847)
-- **Imagens identificadas:** 9 (capa: https://suitacdn.cloud-bricks.net/fotos/15904562/file/desktop/WhatsApp%20Image%202026-10-11%20at%2020.41.35.jpeg?1791763988)
-- **Inconsistências:** nenhuma
-
----
-
-### 3. COMEÇOU O MUNICIPAL DE VOLEIBOL DE PASSO DE TORRES!
-
-- **Status:** já existe (mídia a reconciliar)
-- **Data original (listagem, com hora real):** `11/10/2026 08:24` — data normalizada: 11/10/2026
-- **Editoria legada / destino:** esportes → esporte
-- **URL de origem:** https://www.informativoregional.net/esportes/comecou-o-municipal-de-voleibol-de-passo-de-torres-.15486389
-- **Situação no banco novo:** já existe (articles.id=55f6073f-0af0-4c6e-acd9-4f05924d010b)
-- **Imagens identificadas:** 12 (capa: https://suitacdn.cloud-bricks.net/fotos/15904502/file/desktop/840102220_18069584603774559_8944016745783107763_n.jpg?1791717984)
-- **Inconsistências:** nenhuma
-
----
-
-### 4. ACIDENTE DE TRÂNSITO DEIXA RAPAZ FERIDO EM SANTA ROSA DO SUL
-
-- **Status:** já existe (mídia a reconciliar)
-- **Data original (listagem, com hora real):** `11/10/2026 11:18` — data normalizada: 11/10/2026
-- **Editoria legada / destino:** policia → policia
-- **URL de origem:** https://www.informativoregional.net/policia/acidente-de-transito-deixa-rapaz-ferido-em-santa-rosa-do-sul.15486397
-- **Situação no banco novo:** já existe (articles.id=84f06e86-6f62-41b6-a8c2-9259969930e7)
-- **Imagens identificadas:** 1 (capa: https://suitacdn.cloud-bricks.net/fotos/15904524/file/desktop/d985cf63-9a9c-480e-96ae-fcbc1346f8dd.jpeg?1791742102)
-- **Inconsistências:** nenhuma
-
----
-
-### 5. POLICIA MILITAR CUMPRE MANDADO DE PRISÃO CONTRA UM HOMEM DE 37 ANOS EM PRAIA GRANDE
-
-- **Status:** já existe (mídia a reconciliar)
-- **Data original (listagem, com hora real):** `11/10/2026 15:10` — data normalizada: 11/10/2026
-- **Editoria legada / destino:** policia → policia
-- **URL de origem:** https://www.informativoregional.net/policia/policia-militar-cumpre-mandado-de-prisao-contra-um-homem-de-37-anos-em-praia-grande.15486398
-- **Situação no banco novo:** já existe (articles.id=76795ad1-5550-44e4-9789-95b09eced972)
-- **Imagens identificadas:** 1 (capa: https://suitacdn.cloud-bricks.net/fotos/15904525/file/desktop/9b25d7b8-4f2c-4e3f-95d8-81c15b32a89e.jpeg?1791742289)
-- **Inconsistências:** nenhuma
-
----
-
-### 6. PRAIAS DO LITORAL NORTE GAÚCHO E EXTREMO SUL CATARINENSE RECEBEM GRANDE PÚBLICO NO FERIADÃO
-
-- **Status:** elegível para importar
-- **Data original (listagem, com hora real):** `12/10/2026 17:10` — data normalizada: 12/10/2026
-- **Editoria legada / destino:** geral → geral
-- **URL de origem:** https://www.informativoregional.net/geral/praias-do-litoral-norte-gaucho-e-extremo-sul-catarinense-recebem-grande-publico-no-feriadao.15486428
-- **Situação no banco novo:** não encontrada — candidata a nova matéria
-- **Imagens identificadas:** 1 (capa: https://suitacdn.cloud-bricks.net/fotos/15904704/file/desktop/47c72ff0-34ac-43a1-85bc-7f6d0e010bc4.jpg?1791835970)
-- **Inconsistências:** nenhuma
-
----
-
-### 7. SENAI ANUNCIA AUXÍLIO DE R$ 858 POR MÊS PARA QUEM FIZER CURSOS TÉCNICOS GRATUITOS
-
-- **Status:** elegível para importar
-- **Data original (listagem, com hora real):** `12/10/2026 17:14` — data normalizada: 12/10/2026
-- **Editoria legada / destino:** geral → geral
-- **URL de origem:** https://www.informativoregional.net/geral/senai-anuncia-auxilio-de-r-858-por-mes-para-quem-fizer-cursos-tecnicos-gratuitos.15486429
-- **Situação no banco novo:** não encontrada — candidata a nova matéria
-- **Imagens identificadas:** 1 (capa: https://suitacdn.cloud-bricks.net/fotos/15904705/file/desktop/SENAI.jpg?1791836131)
-- **Inconsistências:** nenhuma
-
----
-
-### 8. CAMPANHA CRIANÇA FELIZ PROMOVEU TARDE DE BRINCADEIRAS E DIVERSÃO EM SÃO JOÃO DO SUL
-
-- **Status:** elegível para importar
-- **Data original (listagem, com hora real):** `12/10/2026 16:23` — data normalizada: 12/10/2026
-- **Editoria legada / destino:** sociais → sociais
-- **URL de origem:** https://www.informativoregional.net/sociais/campanha-crianca-feliz-promoveu-tarde-de-brincadeiras-e-diversao-em-sao-joao-do-sul.15486424
-- **Situação no banco novo:** não encontrada — candidata a nova matéria
-- **Imagens identificadas:** 20 (capa: https://suitacdn.cloud-bricks.net/fotos/15904588/file/desktop/IMG_6947.JPG?1791833541)
-- **Inconsistências:** nenhuma
-
----
-
-### 9. IGREJA BATISTA VIDA EM CRISTO CELEBRA 15 ANOS DE FUNDAÇÃO EM SÃO JOÃO DO SUL
-
-- **Status:** elegível para importar
-- **Data original (listagem, com hora real):** `12/10/2026 16:42` — data normalizada: 12/10/2026
-- **Editoria legada / destino:** sociais → sociais
-- **URL de origem:** https://www.informativoregional.net/sociais/igreja-batista-vida-em-cristo-celebra-15-anos-de-fundacao-em-sao-joao-do-sul.15486425
-- **Situação no banco novo:** não encontrada — candidata a nova matéria
-- **Imagens identificadas:** 20 (capa: https://suitacdn.cloud-bricks.net/fotos/15904633/file/desktop/IMG_6865.JPG?1791835390)
-- **Inconsistências:** nenhuma
-
----
-
-### 10. PASSO DE TORRES RETOMA CAMPEONATO MUNICIPAL DE FUTSAL APÓS 13 ANOS
-
-- **Status:** elegível para importar
-- **Data original (listagem, com hora real):** `13/10/2026 08:23` — data normalizada: 13/10/2026
-- **Editoria legada / destino:** esportes → esporte
-- **URL de origem:** https://www.informativoregional.net/esportes/passo-de-torres-retoma-campeonato-municipal-de-futsal-apos-13-anos.15486454
-- **Situação no banco novo:** não encontrada — candidata a nova matéria
-- **Imagens identificadas:** 5 (capa: https://suitacdn.cloud-bricks.net/fotos/15904737/file/desktop/WhatsApp%20Image%202026-10-12%20at%2013.24.00%20%283%29.jpeg?1791890674)
-- **Inconsistências:** nenhuma
-
----
-
-### 11. IDOSO MORRE CARBONIZADO EM INCÊNDIO QUE DESTRUIU RESIDÊNCIA EM SANTA ROSA DO SUL
-
-- **Status:** elegível para importar
-- **Data original (listagem, com hora real):** `13/10/2026 08:35` — data normalizada: 13/10/2026
-- **Editoria legada / destino:** policia → policia
-- **URL de origem:** https://www.informativoregional.net/policia/idoso-morre-carbonizado-em-incendio-que-destruiu-residencia-em-santa-rosa-do-sul.15486456
-- **Situação no banco novo:** não encontrada — candidata a nova matéria
-- **Imagens identificadas:** 1 (capa: https://suitacdn.cloud-bricks.net/fotos/15904745/file/desktop/fogo%20casa.jpg?1791891374)
-- **Inconsistências:** nenhuma
-
----
-
-### 12. CEPRAG REÚNE MULHERES DE PRAIA GRANDE, SÃO JOÃO DO SUL E PASSO DE TORRES NO ENCONTRO ‘CEPRAG MULHER’
-
-- **Status:** elegível para importar
-- **Data original (listagem, com hora real):** `13/10/2026 09:36` — data normalizada: 13/10/2026
-- **Editoria legada / destino:** sociais → sociais
-- **URL de origem:** https://www.informativoregional.net/sociais/ceprag-reune-mulheres-de-praia-grande-sao-joao-do-sul-e-passo-de-torres-no-encontro-ceprag-mulher.15486463
-- **Situação no banco novo:** não encontrada — candidata a nova matéria
-- **Imagens identificadas:** 1 (capa: https://suitacdn.cloud-bricks.net/fotos/15904754/file/desktop/WhatsApp%20Image%202026-10-13%20at%2009.34.58.jpeg?1791895049)
-- **Inconsistências:** nenhuma
-
----
-
-### 13. SANTA ROSA DO SUL ENTREGA EQUIPAMENTOS AGRÍCOLAS ADQUIRIDOS COM EMENDA DE R$ 100 MIL
-
-- **Status:** elegível para importar
-- **Data original (listagem, com hora real):** `14/10/2026 17:31` — data normalizada: 14/10/2026
-- **Editoria legada / destino:** geral → geral
-- **URL de origem:** https://www.informativoregional.net/geral/santa-rosa-do-sul-entrega-equipamentos-agricolas-adquiridos-com-emenda-de-r-100-mil.15486645
-- **Situação no banco novo:** não encontrada — candidata a nova matéria
-- **Imagens identificadas:** 1 (capa: https://suitacdn.cloud-bricks.net/fotos/15905116/file/desktop/WhatsApp%20Image%202026-10-14%20at%2017.04.24.jpeg?1792009902)
-- **Inconsistências:** nenhuma
-
----
-
-### 14. PREFEITURA DE SÃO JOÃO DO SUL REALIZA ASSEMBLEIA PARA FORMAÇÃO DO CONSELHO MUNICIPAL DE TURISMO
-
-- **Status:** elegível para importar
-- **Data original (listagem, com hora real):** `14/10/2026 18:27` — data normalizada: 14/10/2026
-- **Editoria legada / destino:** geral → geral
-- **URL de origem:** https://www.informativoregional.net/geral/prefeitura-de-sao-joao-do-sul-realiza-assembleia-para-formacao-do-conselho-municipal-de-turismo.15486652
-- **Situação no banco novo:** não encontrada — candidata a nova matéria
-- **Imagens identificadas:** 8 (capa: https://suitacdn.cloud-bricks.net/fotos/15905134/file/desktop/WhatsApp%20Image%202026-10-14%20at%2018.15.52%20%281%29.jpeg?1792013554)
-- **Inconsistências:** nenhuma
-
----
-
-### 15. RODADA DA TAÇA JOÃO SELAU PADILHA É MARCADA POR VITÓRIAS DO SÃO MANUEL E DO CRUZ DE MALTA EM MAMPITUBA
-
-- **Status:** elegível para importar
-- **Data original (listagem, com hora real):** `14/10/2026 13:40` — data normalizada: 14/10/2026
-- **Editoria legada / destino:** esportes → esporte
-- **URL de origem:** https://www.informativoregional.net/esportes/rodada-da-taca-joao-selau-padilha-e-marcada-por-vitorias-do-sao-manuel-e-do-cruz-de-malta-em-mampituba.15486593
-- **Situação no banco novo:** não encontrada — candidata a nova matéria
-- **Imagens identificadas:** 2 (capa: https://suitacdn.cloud-bricks.net/fotos/15905022/file/desktop/WhatsApp%20Image%202026-10-14%20at%2010.20.33.jpeg?1791996203)
-- **Inconsistências:** nenhuma
-
----
-
-### 16. CORPO DE BOMBEIROS COMBATE INCÊNDIO EM SERRARIA N0 CENTRO DE PRAIA GRANDE
-
-- **Status:** elegível para importar
-- **Data original (listagem, com hora real):** `14/10/2026 15:12` — data normalizada: 14/10/2026
-- **Editoria legada / destino:** policia → policia
-- **URL de origem:** https://www.informativoregional.net/policia/corpo-de-bombeiros-combate-incendio-em-serraria-n0-centro-de-praia-grande.15486605
-- **Situação no banco novo:** não encontrada — candidata a nova matéria
-- **Imagens identificadas:** 2 (capa: https://suitacdn.cloud-bricks.net/fotos/15905033/file/desktop/WhatsApp%20Image%202026-10-14%20at%2015.08.23.jpeg?1792001602)
-- **Inconsistências:** nenhuma
-
----
-
-### 17. SECRETARIA MUNICIPAL DE EDUCAÇÃO REALIZA NOS DIAS 14 E 15 DE OUTUBRO A IX FEIRA DO LIVRO DE PRAIA GRANDE
-
-- **Status:** elegível para importar
-- **Data original (listagem, com hora real):** `14/10/2026 11:28` — data normalizada: 14/10/2026
-- **Editoria legada / destino:** sociais → sociais
-- **URL de origem:** https://www.informativoregional.net/sociais/secretaria-municipal-de-educacao-realiza-nos-dias-14-e-15-de-outubro-a-ix-feira-do-livro-de-praia-grande.15486569
-- **Situação no banco novo:** não encontrada — candidata a nova matéria
-- **Imagens identificadas:** 20 (capa: https://suitacdn.cloud-bricks.net/fotos/15904933/file/desktop/Capa.JPG?1791988141)
-- **Inconsistências:** nenhuma
-
----
-
-### 18. TRÂNSITO ENTRE CHAPADA DO MORRO BICUDO E RIO DE DENTRO, EM MAMPITUBA, ESTÁ TEMPORARIAMENTE INTERROMPIDO
-
-- **Status:** elegível para importar
-- **Data original (listagem, com hora real):** `15/10/2026 11:54` — data normalizada: 15/10/2026
-- **Editoria legada / destino:** geral → geral
-- **URL de origem:** https://www.informativoregional.net/geral/transito-entre-chapada-do-morro-bicudo-e-rio-de-dentro-em-mampituba-esta-temporariamente-interrompido.15486727
-- **Situação no banco novo:** não encontrada — candidata a nova matéria
-- **Imagens identificadas:** 1 (capa: https://suitacdn.cloud-bricks.net/fotos/15905261/file/desktop/Tr%C3%A2nsito%20%28Copy%29.jpeg?1792076097)
-- **Inconsistências:** nenhuma
-
----
-
-### 19. CONSTRUÇÃO DE CINCO GALERIAS DE DRENAGEM TEM INÍCIO NO MUNICÍPIO DE MAMPITUBA
-
-- **Status:** elegível para importar
-- **Data original (listagem, com hora real):** `15/10/2026 11:55` — data normalizada: 15/10/2026
-- **Editoria legada / destino:** geral → geral
-- **URL de origem:** https://www.informativoregional.net/geral/construcao-de-cinco-galerias-de-drenagem-tem-inicio-no-municipio-de-mampituba.15486728
-- **Situação no banco novo:** não encontrada — candidata a nova matéria
-- **Imagens identificadas:** 1 (capa: https://suitacdn.cloud-bricks.net/fotos/15905262/file/desktop/Faleria%20%28Copy%29.jpeg?1792076200)
-- **Inconsistências:** nenhuma
-
----
-
-### 20. INICIADA NA ÚLTIMA SEMANA EM MAMPITUBA  A OBRA DA PONTE DO RIO DA PANELA
-
-- **Status:** elegível para importar
-- **Data original (listagem, com hora real):** `15/10/2026 15:48` — data normalizada: 15/10/2026
-- **Editoria legada / destino:** geral → geral
-- **URL de origem:** https://www.informativoregional.net/geral/iniciada-na-ultima-semana-em-mampituba-a-obra-da-ponte-do-rio-da-panela.15486753
-- **Situação no banco novo:** não encontrada — candidata a nova matéria
-- **Imagens identificadas:** 1 (capa: https://suitacdn.cloud-bricks.net/fotos/15905296/file/desktop/rio%20da%20panela%20%28Copy%29.jpeg?1792090181)
-- **Inconsistências:** nenhuma
-
----
-
-### 21. PAVIMENTAÇÃO DO TRECHO 02 DA INTERPRAIAS TRAZ MAIS MOBILIDADE E QUALIDADE DE VIDA À POPULAÇÃO
-
-- **Status:** elegível para importar
-- **Data original (listagem, com hora real):** `15/10/2026 16:00` — data normalizada: 15/10/2026
-- **Editoria legada / destino:** geral → geral
-- **URL de origem:** https://www.informativoregional.net/geral/pavimentacao-do-trecho-02-da-interpraias-traz-mais-mobilidade-e-qualidade-de-vida-a-populacao.15486761
-- **Situação no banco novo:** não encontrada — candidata a nova matéria
-- **Imagens identificadas:** 2 (capa: https://suitacdn.cloud-bricks.net/fotos/15905304/file/desktop/Interpraia%20%28Copy%29.jpg?1792090961)
-- **Inconsistências:** nenhuma
-
----
-
-### 22. FIM DA ESCALA 6X1 AVANÇA NO SENADO E TRAZ EXPECTATIVA DE MAIS TEMPO PARA FAMÍLIA E SAÚDE
-
-- **Status:** elegível para importar
-- **Data original (listagem, com hora real):** `15/10/2026 17:18` — data normalizada: 15/10/2026
-- **Editoria legada / destino:** geral → geral
-- **URL de origem:** https://www.informativoregional.net/geral/fim-da-escala-6x1-avanca-no-senado-e-traz-expectativa-de-mais-tempo-para-familia-e-saude.15486773
-- **Situação no banco novo:** não encontrada — candidata a nova matéria
-- **Imagens identificadas:** 1 (capa: https://suitacdn.cloud-bricks.net/fotos/15905319/file/desktop/sem_titulo-9.jpeg?1792095613)
-- **Inconsistências:** nenhuma
-
----
-
-### 23. IGR CAMINHOS DOS CANYONS E SEBRAE/SC FORTALECEM A DIVULGAÇÃO DO TURISMO NO EXTREMO-SUL CATARINENSE
-
-- **Status:** elegível para importar
-- **Data original (listagem, com hora real):** `15/10/2026 10:38` — data normalizada: 15/10/2026
-- **Editoria legada / destino:** geral → geral
-- **URL de origem:** https://www.informativoregional.net/geral/igr-caminhos-dos-canyons-e-sebrae-sc-fortalecem-a-divulgacao-do-turismo-no-extremo-sul-catarinense.15486706
-- **Situação no banco novo:** não encontrada — candidata a nova matéria
-- **Imagens identificadas:** 3 (capa: https://suitacdn.cloud-bricks.net/fotos/15905226/file/desktop/C-MI5j7UsgpE_APaX9T4YJyvQJqU0kj3QcnA6DLDsfkkJ3nufF8u21ff2fQBiYRzr9Uy-02jLuKzBI4NPplMwF-LCH2s3bqI80h9_1ZY631RLDcEanjORkdfHRWac2UOD7qAHUm24eObIkImWFkCKmkbev66AIUOuAk8MJOumbVkl0LN8n3xLuTYM32nT9lX.jfif?1792071637)
-- **Inconsistências:** nenhuma
-
----
-
-### 24. PARÓQUIA SÃO SEBASTIÃO E SECRETARIA DE CULTURA PROMOVEM  TARDE ESPECIAL EM COMEMORAÇÃO AO DIA DAS CRIANÇAS
-
-- **Status:** elegível para importar
-- **Data original (listagem, com hora real):** `15/10/2026 10:56` — data normalizada: 15/10/2026
-- **Editoria legada / destino:** geral → geral
-- **URL de origem:** https://www.informativoregional.net/geral/paroquia-sao-sebastiao-e-secretaria-de-cultura-promovem-tarde-especial-em-comemoracao-ao-dia-das-criancas.15486710
-- **Situação no banco novo:** não encontrada — candidata a nova matéria
-- **Imagens identificadas:** 1 (capa: https://suitacdn.cloud-bricks.net/fotos/15905238/file/desktop/1%C2%BA%20de%20maio%201%20%28Copy%29.jpeg?1792072610)
-- **Inconsistências:** nenhuma
-
----
-
-### 25. CRIANÇAS DA REDE MUNICIPAL DE ENSINO DE PRAIA GRANDE VIVENCIAM UMA SEMANA MAIS DOCE E CHEIA DE CARINHO
-
-- **Status:** elegível para importar
-- **Data original (listagem, com hora real):** `15/10/2026 10:59` — data normalizada: 15/10/2026
-- **Editoria legada / destino:** geral → geral
-- **URL de origem:** https://www.informativoregional.net/geral/criancas-da-rede-municipal-de-ensino-de-praia-grande-vivenciam-uma-semana-mais-doce-e-cheia-de-carinho.15486712
-- **Situação no banco novo:** não encontrada — candidata a nova matéria
-- **Imagens identificadas:** 2 (capa: https://suitacdn.cloud-bricks.net/fotos/15905242/file/desktop/doces%20%28Copy%29.jpg?1792072821)
-- **Inconsistências:** nenhuma
-
----
-
-### 26. ASSISTÊNCIA SOCIAL E SAÚDE DE SANTA ROSA DO SUL PROMOVERAM AÇÃO DE VALORIZAÇÃO DA PESSOA IDOSA
-
-- **Status:** elegível para importar
-- **Data original (listagem, com hora real):** `15/10/2026 11:08` — data normalizada: 15/10/2026
-- **Editoria legada / destino:** geral → geral
-- **URL de origem:** https://www.informativoregional.net/geral/assistencia-social-e-saude-de-santa-rosa-do-sul-promoveram-acao-de-valorizacao-da-pessoa-idosa.15486714
-- **Situação no banco novo:** não encontrada — candidata a nova matéria
-- **Imagens identificadas:** 1 (capa: https://suitacdn.cloud-bricks.net/fotos/15905244/file/desktop/Idoso%201%20%28Copy%29.png?1792073345)
-- **Inconsistências:** nenhuma
-
----
-
-### 27. NOVA FÁTIMA, EM SÃO JOÃO DO SUL, SEDIA O 3º ENCONTRO DA FAMÍLIA MARINHO
-
-- **Status:** elegível para importar
-- **Data original (listagem, com hora real):** `15/10/2026 11:16` — data normalizada: 15/10/2026
-- **Editoria legada / destino:** geral → geral
-- **URL de origem:** https://www.informativoregional.net/geral/nova-fatima-em-sao-joao-do-sul-sedia-o-3o-encontro-da-familia-marinho.15486716
-- **Situação no banco novo:** não encontrada — candidata a nova matéria
-- **Imagens identificadas:** 4 (capa: https://suitacdn.cloud-bricks.net/fotos/15905246/file/desktop/familia%201%20%28Copy%29.jpg?1792074001)
-- **Inconsistências:** nenhuma
-
----
-
-### 28. PRAIA GRANDE SEDIA 2ª ECOSUMMIT E REÚNE PROFISSIONAIS DO TURISMO EM FEIRA NACIONAL
-
-- **Status:** elegível para importar
-- **Data original (listagem, com hora real):** `15/10/2026 11:23` — data normalizada: 15/10/2026
-- **Editoria legada / destino:** geral → geral
-- **URL de origem:** https://www.informativoregional.net/geral/praia-grande-sedia-2-ecosummit-e-reune-profissionais-do-turismo-em-feira-nacional.15486717
-- **Situação no banco novo:** não encontrada — candidata a nova matéria
-- **Imagens identificadas:** 4 (capa: https://suitacdn.cloud-bricks.net/fotos/15905251/file/desktop/WhatsApp%20Image%202026-10-15%20at%2011.22.47.jpeg?1792074264)
-- **Inconsistências:** nenhuma
-
----
-
-### 29. CAPACITAÇÃO DO PROLEEI REÚNE 180 PROFESSORES DA REDE MUNICIPAL DE ENSINO DE SANTA ROSA DO SUL
-
-- **Status:** elegível para importar
-- **Data original (listagem, com hora real):** `15/10/2026 11:30` — data normalizada: 15/10/2026
-- **Editoria legada / destino:** geral → geral
-- **URL de origem:** https://www.informativoregional.net/geral/capacitacao-do-proleei-reune-180-professores-da-rede-municipal-de-ensino-de-santa-rosa-do-sul.15486720
-- **Situação no banco novo:** não encontrada — candidata a nova matéria
-- **Imagens identificadas:** 1 (capa: https://suitacdn.cloud-bricks.net/fotos/15905254/file/desktop/Infantil%201%20%28Copy%29.png?1792074738)
-- **Inconsistências:** nenhuma
-
----
-
-### 30. QUIOSQUES DA BEIRA-MAR DE TORRES ESTÃO AUTORIZADOS A FUNCIONAR DESDE O DIA 10 DE OUTUBRO
-
-- **Status:** elegível para importar
-- **Data original (listagem, com hora real):** `15/10/2026 11:51` — data normalizada: 15/10/2026
-- **Editoria legada / destino:** geral → geral
-- **URL de origem:** https://www.informativoregional.net/geral/quiosques-da-beira-mar-de-torres-estao-autorizados-a-funcionar-desde-o-dia-10-de-outubro.15486724
-- **Situação no banco novo:** não encontrada — candidata a nova matéria
-- **Imagens identificadas:** 1 (capa: https://suitacdn.cloud-bricks.net/fotos/15905258/file/desktop/Praia%20%28Copy%29.jpg?1792075922)
-- **Inconsistências:** nenhuma
-
----
-
-### 31. CAMPEONATO MUNICIPAL DE FUTEBOL DE SÃO JOÃO DO SUL SEGUE COM BONS JOGOS
-
-- **Status:** elegível para importar
-- **Data original (listagem, com hora real):** `15/10/2026 11:27` — data normalizada: 15/10/2026
-- **Editoria legada / destino:** esportes → esporte
-- **URL de origem:** https://www.informativoregional.net/esportes/campeonato-municipal-de-futebol-de-sao-joao-do-sul-segue-com-bons-jogos.15486718
-- **Situação no banco novo:** não encontrada — candidata a nova matéria
-- **Imagens identificadas:** 1 (capa: https://suitacdn.cloud-bricks.net/fotos/15905252/file/desktop/campeonato%20sjs%20%28Copy%29.jpg?1792074494)
-- **Inconsistências:** nenhuma
-
----
-
-### 32. MARATORRES REÚNE MAIS DE 5 MIL ATLETAS EM TORRES
-
-- **Status:** elegível para importar
-- **Data original (listagem, com hora real):** `15/10/2026 15:51` — data normalizada: 15/10/2026
-- **Editoria legada / destino:** esportes → esporte
-- **URL de origem:** https://www.informativoregional.net/esportes/maratorres-reune-mais-de-5-mil-atletas-em-torres.15486755
-- **Situação no banco novo:** não encontrada — candidata a nova matéria
-- **Imagens identificadas:** 1 (capa: https://suitacdn.cloud-bricks.net/fotos/15905297/file/desktop/maratorres%20%28Copy%29.jpg?1792090314)
-- **Inconsistências:** nenhuma
-
----
-
-### 33. HOMEM É PRESO POR TRÁFICO DE DROGAS APÓS FUGA DA POLÍCIA EM SANTA ROSA DO SUL
-
-- **Status:** elegível para importar
-- **Data original (listagem, com hora real):** `15/10/2026 10:07` — data normalizada: 15/10/2026
-- **Editoria legada / destino:** policia → policia
-- **URL de origem:** https://www.informativoregional.net/policia/homem-e-preso-por-trafico-de-drogas-apos-fuga-da-policia-em-santa-rosa-do-sul.15486700
-- **Situação no banco novo:** não encontrada — candidata a nova matéria
-- **Imagens identificadas:** 1 (capa: https://suitacdn.cloud-bricks.net/fotos/15905221/file/desktop/WhatsApp%20Image%202026-10-15%20at%2007.47.01.jpeg?1792069713)
-- **Inconsistências:** nenhuma
-
----
-
-### 34. JOVEM DE 20 ANOS É PRESO POR TRÁFICO DE DROGAS EM PASSO DE TORRES
-
-- **Status:** elegível para importar
-- **Data original (listagem, com hora real):** `15/10/2026 10:14` — data normalizada: 15/10/2026
-- **Editoria legada / destino:** policia → policia
-- **URL de origem:** https://www.informativoregional.net/policia/jovem-de-20-anos-e-preso-por-trafico-de-drogas-em-passo-de-torres.15486702
-- **Situação no banco novo:** não encontrada — candidata a nova matéria
-- **Imagens identificadas:** 1 (capa: https://suitacdn.cloud-bricks.net/fotos/15905223/file/desktop/WhatsApp%20Image%202026-10-15%20at%2008.18.57.jpeg?1792070175)
-- **Inconsistências:** nenhuma
-
----
-
-### 35. 90 ACIDENTES SÃO REGISTRADOS EM SC DURANTE FERIADÃO DE NOSSA SENHORA APARECIDA
-
-- **Status:** elegível para importar
-- **Data original (listagem, com hora real):** `15/10/2026 10:53` — data normalizada: 15/10/2026
-- **Editoria legada / destino:** policia → policia
-- **URL de origem:** https://www.informativoregional.net/policia/90-acidentes-sao-registrados-em-sc-durante-feriadao-de-nossa-senhora-aparecida.15486709
-- **Situação no banco novo:** não encontrada — candidata a nova matéria
-- **Imagens identificadas:** 1 (capa: https://suitacdn.cloud-bricks.net/fotos/15905237/file/desktop/Opera%C3%A7%C3%A3o%200%20%28Copy%29.jpg?1792072461)
-- **Inconsistências:** nenhuma
-
----
-
-### 36. AÇÕES DA BRIGADA MILITAR RESULTAM NA APREENSÃO DE MAIS DE 2 KG DE DROGAS EM TRAMANDAÍ
-
-- **Status:** elegível para importar
-- **Data original (listagem, com hora real):** `15/10/2026 11:35` — data normalizada: 15/10/2026
-- **Editoria legada / destino:** policia → policia
-- **URL de origem:** https://www.informativoregional.net/policia/acoes-da-brigada-militar-resultam-na-apreensao-de-mais-de-2-kg-de-drogas-em-tramandai.15486721
-- **Situação no banco novo:** não encontrada — candidata a nova matéria
-- **Imagens identificadas:** 2 (capa: https://suitacdn.cloud-bricks.net/fotos/15905256/file/desktop/WhatsApp%20Image%202026-10-15%20at%2011.28.24.jpeg?1792074972)
-- **Inconsistências:** nenhuma
-
----
-
-### 37. SUPLENTE GUILHERME BRUNEL GOULART RETORNA  À CÂMARA MUNICIPAL DE VEREADORES DE PRAIA GRANDE
-
-- **Status:** elegível para importar
-- **Data original (listagem, com hora real):** `15/10/2026 10:57` — data normalizada: 15/10/2026
-- **Editoria legada / destino:** politica → politica
-- **URL de origem:** https://www.informativoregional.net/politica/suplente-guilherme-brunel-goulart-retorna-a-camara-municipal-de-vereadores-de-praia-grande.15486711
-- **Situação no banco novo:** não encontrada — candidata a nova matéria
-- **Imagens identificadas:** 2 (capa: https://suitacdn.cloud-bricks.net/fotos/15905240/file/desktop/C%C3%A2mara%20PK%20%282%29%20%28Copy%29.JPG?1792072717)
-- **Inconsistências:** nenhuma
-
----
-
-### 38. CÂMARA DE TORRES APROVA PROJETOS SOBRE PATINETES ELÉTRICOS, IPE SAÚDE E TÍTULO DE CIDADÃO EMÉRITO
-
-- **Status:** elegível para importar
-- **Data original (listagem, com hora real):** `15/10/2026 11:37` — data normalizada: 15/10/2026
-- **Editoria legada / destino:** politica → politica
-- **URL de origem:** https://www.informativoregional.net/politica/camara-de-torres-aprova-projetos-sobre-patinetes-eletricos-ipe-saude-e-titulo-de-cidadao-emerito.15486722
-- **Situação no banco novo:** não encontrada — candidata a nova matéria
-- **Imagens identificadas:** 1 (capa: https://suitacdn.cloud-bricks.net/fotos/15905257/file/desktop/c%C3%A2mara%20torres%201%20%28Copy%29.jpeg?1792075131)
-- **Inconsistências:** nenhuma
-
----
-
-### 39. SAÚDE MUNICIPAL DE SÃO JOÃO DO SUL SUBSTITUI FILA POR SISTEMA DIGITAL E MARCA 893 CONSULTAS PELO CELULAR EM UM DIA
-
-- **Status:** elegível para importar
-- **Data original (listagem, com hora real):** `15/10/2026 11:09` — data normalizada: 15/10/2026
-- **Editoria legada / destino:** saude → saude
-- **URL de origem:** https://www.informativoregional.net/saude/saude-municipal-de-sao-joao-do-sul-substitui-fila-por-sistema-digital-e-marca-893-consultas-pelo-celular-em-um-dia.15486715
-- **Situação no banco novo:** não encontrada — candidata a nova matéria
-- **Imagens identificadas:** 1 (capa: https://suitacdn.cloud-bricks.net/fotos/15905245/file/desktop/agendamento%20%28Copy%29.png?1792073517)
-- **Inconsistências:** nenhuma
-
----
-
-### 40. SECRETARIA MUNICIPAL DE SAÚDE DE TORRES PROMOVE NESTE SÁBADO (17),  O “DIA D” DO OUTUBRO ROSA
-
-- **Status:** elegível para importar
-- **Data original (listagem, com hora real):** `15/10/2026 11:52` — data normalizada: 15/10/2026
-- **Editoria legada / destino:** saude → saude
-- **URL de origem:** https://www.informativoregional.net/saude/secretaria-municipal-de-saude-de-torres-promove-neste-sabado-17--o-dia-d-do-outubro-rosa.15486726
-- **Situação no banco novo:** não encontrada — candidata a nova matéria
-- **Imagens identificadas:** 1 (capa: https://suitacdn.cloud-bricks.net/fotos/15905259/file/desktop/Mulher%20%28Copy%29.jpg?1792075976)
-- **Inconsistências:** nenhuma
-
----
-
-### 41. SECRETARIA MUNICIPAL DE EDUCAÇÃO DE SÃO JOÃO DO SUL PROMOVE NOITE DE HOMENAGEM E CONFRATERNIZAÇÃO
-
-- **Status:** elegível para importar
-- **Data original (listagem, com hora real):** `15/10/2026 15:28` — data normalizada: 15/10/2026
-- **Editoria legada / destino:** sociais → sociais
-- **URL de origem:** https://www.informativoregional.net/sociais/secretaria-municipal-de-educacao-de-sao-joao-do-sul-promove-noite-de-homenagem-e-confraternizacao.15486748
-- **Situação no banco novo:** não encontrada — candidata a nova matéria
-- **Imagens identificadas:** 9 (capa: https://suitacdn.cloud-bricks.net/fotos/15905289/file/desktop/WhatsApp%20Image%202026-10-15%20at%2014.11.29.jpeg?1792089072)
-- **Inconsistências:** nenhuma
-
----
-
-### 42. JOBI JOSÉ MACHADO É NOMEADO EM MAMPITUBA O NOVO DIRETOR DO DEMAEM
-
-- **Status:** elegível para importar
-- **Data original (listagem, com hora real):** `15/10/2026 15:55` — data normalizada: 15/10/2026
-- **Editoria legada / destino:** sociais → sociais
-- **URL de origem:** https://www.informativoregional.net/sociais/jobi-jose-machado-e-nomeado-em-mampituba-o-novo-diretor-do-demaem.15486758
-- **Situação no banco novo:** não encontrada — candidata a nova matéria
-- **Imagens identificadas:** 1 (capa: https://suitacdn.cloud-bricks.net/fotos/15905299/file/desktop/Demaem%20%20%28Copy%29.jpeg?1792090569)
-- **Inconsistências:** nenhuma
-
----
-
-### 43. MAIS DO QUE ENSINAR, UM ATO DE AMOR: UMA HOMENAGEM AO DIA DOS PROFESSORES
-
-- **Status:** elegível para importar
-- **Data original (listagem, com hora real):** `15/10/2026 10:48` — data normalizada: 15/10/2026
-- **Editoria legada / destino:** sociais → sociais
-- **URL de origem:** https://www.informativoregional.net/sociais/mais-do-que-ensinar-um-ato-de-amor-uma-homenagem-ao-dia-dos-professores.15486708
-- **Situação no banco novo:** não encontrada — candidata a nova matéria
-- **Imagens identificadas:** 1 (capa: https://suitacdn.cloud-bricks.net/fotos/15905230/file/desktop/betinho%20%28Copy%29.jpg?1792072184)
-- **Inconsistências:** nenhuma
-
----
-
-### 44. O PAPO É MEIO AMBIENTE POR: ROGER MACIEL BIÓLOGO
-
-- **Status:** elegível para importar
-- **Data original (listagem, com hora real):** `15/10/2026 16:08` — data normalizada: 15/10/2026
-- **Editoria legada / destino:** colunistas/outras → colunistas
-- **URL de origem:** https://www.informativoregional.net/colunistas/outras/o-papo-e-meio-ambiente-por-roger-maciel-biologo.15486763
-- **Situação no banco novo:** não encontrada — candidata a nova matéria
-- **Imagens identificadas:** 1 (capa: https://suitacdn.cloud-bricks.net/fotos/15905307/file/desktop/roger.jpg?1792091382)
-- **Inconsistências:** nenhuma
-
----
-
-### 45. VALORIZAÇÃO DA HISTÓRIA E DA COOPERAÇÃO EM TORRES
-
-- **Status:** elegível para importar
 - **Data original (listagem, com hora real):** `16/10/2026 09:24` — data normalizada: 16/10/2026
 - **Editoria legada / destino:** geral → geral
 - **URL de origem:** https://www.informativoregional.net/geral/valorizacao-da-historia-e-da-cooperacao-em-torres.15486801
-- **Situação no banco novo:** não encontrada — candidata a nova matéria
+- **Situação no banco novo:** já existe (articles.id=778f8782-31b7-4d40-99f4-19aabac59aec)
 - **Imagens identificadas:** 1 (capa: https://suitacdn.cloud-bricks.net/fotos/15905355/file/desktop/WhatsApp%20Image%202026-10-15%20at%2019.00.15.jpeg?1792153570)
 - **Inconsistências:** nenhuma
 
 ---
 
-### 46. PRAIA GRANDE INAUGURA CINE CLUBE ELDORADO DURANTE A IX FEIRA DO LIVRO
+### 2. PRAIA GRANDE INAUGURA CINE CLUBE ELDORADO DURANTE A IX FEIRA DO LIVRO
 
-- **Status:** elegível para importar
+- **Status:** já existe (mídia a reconciliar)
 - **Data original (listagem, com hora real):** `16/10/2026 09:55` — data normalizada: 16/10/2026
 - **Editoria legada / destino:** geral → geral
 - **URL de origem:** https://www.informativoregional.net/geral/praia-grande-inaugura-cine-clube-eldorado-durante-a-ix-feira-do-livro.15486807
-- **Situação no banco novo:** não encontrada — candidata a nova matéria
+- **Situação no banco novo:** já existe (articles.id=41a32f9f-6d9a-42ac-8828-048a66a79766)
 - **Imagens identificadas:** 4 (capa: https://suitacdn.cloud-bricks.net/fotos/15905368/file/desktop/848712694_18444985519133413_4485208047742046029_n.jpg?1792155423)
 - **Inconsistências:** nenhuma
 
 ---
 
-### 47. CONGRESSO PROMULGA EMENDA DO FIM DA 6X1; ESCALA 5X2 COMEÇA EM 60 DIAS
+### 3. CONGRESSO PROMULGA EMENDA DO FIM DA 6X1; ESCALA 5X2 COMEÇA EM 60 DIAS
 
-- **Status:** elegível para importar
+- **Status:** já existe (mídia a reconciliar)
 - **Data original (listagem, com hora real):** `16/10/2026 11:17` — data normalizada: 16/10/2026
 - **Editoria legada / destino:** geral → geral
 - **URL de origem:** https://www.informativoregional.net/geral/congresso-promulga-emenda-do-fim-da-6x1-escala-5x2-comeca-em-60-dias.15486823
-- **Situação no banco novo:** não encontrada — candidata a nova matéria
+- **Situação no banco novo:** já existe (articles.id=da33890b-7961-4b70-a696-ec5caa225bfe)
 - **Imagens identificadas:** 1 (capa: https://suitacdn.cloud-bricks.net/fotos/15905402/file/desktop/whatsapp_image_2026-10-16_at_10.32.59.jpg?1792160299)
 - **Inconsistências:** nenhuma
 
 ---
 
-### 48. TESLA APRESENTA CARRO ELÉTRICO CAPAZ DE VOAR E PROMETE ACELERAÇÃO IMPRESSIONANTE
+### 4. TESLA APRESENTA CARRO ELÉTRICO CAPAZ DE VOAR E PROMETE ACELERAÇÃO IMPRESSIONANTE
 
-- **Status:** elegível para importar
+- **Status:** já existe (mídia a reconciliar)
 - **Data original (listagem, com hora real):** `16/10/2026 13:54` — data normalizada: 16/10/2026
 - **Editoria legada / destino:** geral → geral
 - **URL de origem:** https://www.informativoregional.net/geral/tesla-apresenta-carro-eletrico-capaz-de-voar-e-promete-aceleracao-impressionante.15486827
-- **Situação no banco novo:** não encontrada — candidata a nova matéria
+- **Situação no banco novo:** já existe (articles.id=674cabd1-1c3e-4200-90ea-f35fc8fb725e)
 - **Imagens identificadas:** 6 (capa: https://suitacdn.cloud-bricks.net/fotos/15905409/file/desktop/zZpFS10iKzjhzRFoLVtDWSSFtZLIU1B36hYVKXSrd-Wko7FlNmwE2AYDUtw2d3WGmzaqPISL6ynV6BSCBqvh1_TED4lDdSUnHOPVdIEqOUFmT79QwIFwaaN2HhljRD4Ndn243EaHqyykeB5koVHBbEwCQmkg1UenFgjsIlibv_68JRMGZBtSHQR3d2CzJWwg.jfif?1792169713)
 - **Inconsistências:** nenhuma
 
 ---
 
-### 49. 122ª OPERAÇÃO FIOS E CABOS É REALIZADA EM ARROIO DO SAL
+### 5. 122ª OPERAÇÃO FIOS E CABOS É REALIZADA EM ARROIO DO SAL
 
-- **Status:** elegível para importar
+- **Status:** já existe (mídia a reconciliar)
 - **Data original (listagem, com hora real):** `16/10/2026 09:30` — data normalizada: 16/10/2026
 - **Editoria legada / destino:** policia → policia
 - **URL de origem:** https://www.informativoregional.net/policia/122-operacao-fios-e-cabos-e-realizada-em-arroio-do-sal.15486804
-- **Situação no banco novo:** não encontrada — candidata a nova matéria
+- **Situação no banco novo:** já existe (articles.id=45e35cb8-ca70-466d-aeb1-99914b584457)
 - **Imagens identificadas:** 5 (capa: https://suitacdn.cloud-bricks.net/fotos/15905361/file/desktop/WhatsApp%20Image%202026-10-15%20at%2018.46.35.jpeg?1792153898)
 - **Inconsistências:** nenhuma
 
 ---
 
-### 50. BM PRENDE TRÊS ADULTOS, APREENDE ADOLESCENTE, MAIS DE 1,5 KG DE DROGAS E RECUPERA MOTO FURTADA EM TORRES
+### 6. BM PRENDE TRÊS ADULTOS, APREENDE ADOLESCENTE, MAIS DE 1,5 KG DE DROGAS E RECUPERA MOTO FURTADA EM TORRES
 
-- **Status:** elegível para importar
+- **Status:** já existe (mídia a reconciliar)
 - **Data original (listagem, com hora real):** `16/10/2026 09:44` — data normalizada: 16/10/2026
 - **Editoria legada / destino:** policia → policia
 - **URL de origem:** https://www.informativoregional.net/policia/bm-prende-tres-adultos-apreende-adolescente-mais-de-1-5-kg-de-drogas-e-recupera-moto-furtada-em-torres.15486806
-- **Situação no banco novo:** não encontrada — candidata a nova matéria
+- **Situação no banco novo:** já existe (articles.id=566f531e-8e1f-48b2-942e-ff25ab987531)
 - **Imagens identificadas:** 1 (capa: https://suitacdn.cloud-bricks.net/fotos/15905365/file/desktop/851828923_18128692711838209_8416689075221043604_n.jpg?1792154874)
 - **Inconsistências:** nenhuma
 
 ---
 
-### 51. MOTORISTA PERDE O CONTROLE DE VEÍCULO E BATE CONTRA MURO EM SÃO JOÃO DO SUL
+### 7. MOTORISTA PERDE O CONTROLE DE VEÍCULO E BATE CONTRA MURO EM SÃO JOÃO DO SUL
 
-- **Status:** elegível para importar
+- **Status:** já existe (mídia a reconciliar)
 - **Data original (listagem, com hora real):** `16/10/2026 19:33` — data normalizada: 16/10/2026
 - **Editoria legada / destino:** policia → policia
 - **URL de origem:** https://www.informativoregional.net/policia/motorista-perde-o-controle-de-veiculo-e-bate-contra-muro-em-sao-joao-do-sul.15486856
-- **Situação no banco novo:** não encontrada — candidata a nova matéria
+- **Situação no banco novo:** já existe (articles.id=4f82cd59-f8cf-4c4b-a5d7-c9403df1c727)
 - **Imagens identificadas:** 1 (capa: https://suitacdn.cloud-bricks.net/fotos/15905446/file/desktop/carro%202.jpeg?1792190261)
 - **Inconsistências:** nenhuma
 
 ---
 
-### 52. ZÉ MILTON LEVA DEFESA DOS RIZICULTORES AO TJSC E PEDE SEGURANÇA JURÍDICA PARA O SETOR
+### 8. ZÉ MILTON LEVA DEFESA DOS RIZICULTORES AO TJSC E PEDE SEGURANÇA JURÍDICA PARA O SETOR
 
-- **Status:** elegível para importar
+- **Status:** já existe (mídia a reconciliar)
 - **Data original (listagem, com hora real):** `16/10/2026 10:00` — data normalizada: 16/10/2026
 - **Editoria legada / destino:** politica → politica
 - **URL de origem:** https://www.informativoregional.net/politica/ze-milton-leva-defesa-dos-rizicultores-ao-tjsc-e-pede-seguranca-juridica-para-o-setor.15486809
-- **Situação no banco novo:** não encontrada — candidata a nova matéria
+- **Situação no banco novo:** já existe (articles.id=c15ce40a-c3ba-4bee-8b5e-0c5a5b5af5d9)
 - **Imagens identificadas:** 1 (capa: https://suitacdn.cloud-bricks.net/fotos/15905371/file/desktop/WhatsApp%20Image%202026-10-16%20at%2009.57.13.jpeg?1792155699)
 - **Inconsistências:** nenhuma
 
 ---
 
-### 53. GLOBO REALIZA ENTREVISTAS COM PRESIDENCIÁVEIS E MARCA DEBATE PARA 23 DE OUTUBRO
+### 9. GLOBO REALIZA ENTREVISTAS COM PRESIDENCIÁVEIS E MARCA DEBATE PARA 23 DE OUTUBRO
 
-- **Status:** elegível para importar
+- **Status:** já existe (mídia a reconciliar)
 - **Data original (listagem, com hora real):** `16/10/2026 14:35` — data normalizada: 16/10/2026
 - **Editoria legada / destino:** politica → politica
 - **URL de origem:** https://www.informativoregional.net/politica/globo-realiza-entrevistas-com-presidenciaveis-e-marca-debate-para-23-de-outubro.15486832
-- **Situação no banco novo:** não encontrada — candidata a nova matéria
+- **Situação no banco novo:** já existe (articles.id=126902b1-f6ec-431f-9d84-b79defbd505e)
 - **Imagens identificadas:** 1 (capa: https://suitacdn.cloud-bricks.net/fotos/15905419/file/desktop/SgDItDflFpad3M5-qxsbETmsCSBNw8UnAtdGhjMB44Cly0tl9_djk2PiRg5DWSzlh7GDrRS88-TIFzq0LMu2pzb5-hWvO7AO55arIwZz6kZ1yVpqwr_DDcOPZ4aTW2abf3CPyPiabe5q7JkNw-Wr6A7-Rt7Ak7I6uXxn27KJ3Y11kDFFG6mV-QiSvkBFGsqi.jfif?1792172367)
 - **Inconsistências:** nenhuma
 
 ---
 
-### 54. PROJETO DA DEPUTADA GEOVANIA DE SÁ QUE ENSINA MANOBRA DE HEIMLICH PARA SALVAR BEBÊS É APROVADO E VAI À SANÇÃO PRESIDENCIAL
+### 10. PROJETO DA DEPUTADA GEOVANIA DE SÁ QUE ENSINA MANOBRA DE HEIMLICH PARA SALVAR BEBÊS É APROVADO E VAI À SANÇÃO PRESIDENCIAL
 
-- **Status:** elegível para importar
+- **Status:** já existe (mídia a reconciliar)
 - **Data original (listagem, com hora real):** `16/10/2026 16:52` — data normalizada: 16/10/2026
 - **Editoria legada / destino:** politica → politica
 - **URL de origem:** https://www.informativoregional.net/politica/projeto-da-deputada-geovania-de-sa-que-ensina-manobra-de-heimlich-para-salvar-bebes-e-aprovado-e-vai-a-sancao-presidencial.15486846
-- **Situação no banco novo:** não encontrada — candidata a nova matéria
+- **Situação no banco novo:** já existe (articles.id=436bb098-5245-4af6-b0e6-5aa676d08864)
 - **Imagens identificadas:** 1 (capa: https://suitacdn.cloud-bricks.net/fotos/15905435/file/desktop/WhatsApp%20Image%202026-10-16%20at%2016.48.47%20%281%29.jpeg?1792180413)
 - **Inconsistências:** nenhuma
 
 ---
 
-### 55. MUNICÍPIOS AMPLIAM ATENDIMENTOS E CIS-AMREC REGISTRA MAIS DE 20 MIL PROCEDIMENTOS NA SAÚDE DA MULHER
+### 11. MUNICÍPIOS AMPLIAM ATENDIMENTOS E CIS-AMREC REGISTRA MAIS DE 20 MIL PROCEDIMENTOS NA SAÚDE DA MULHER
 
-- **Status:** elegível para importar
+- **Status:** já existe (mídia a reconciliar)
 - **Data original (listagem, com hora real):** `16/10/2026 10:16` — data normalizada: 16/10/2026
 - **Editoria legada / destino:** saude → saude
 - **URL de origem:** https://www.informativoregional.net/saude/municipios-ampliam-atendimentos-e-cis-amrec-registra-mais-de-20-mil-procedimentos-na-saude-da-mulher.15486812
-- **Situação no banco novo:** não encontrada — candidata a nova matéria
+- **Situação no banco novo:** já existe (articles.id=84be7cc5-d24c-4f22-921a-9ba614516177)
 - **Imagens identificadas:** 1 (capa: https://suitacdn.cloud-bricks.net/fotos/15905377/file/desktop/WhatsApp%20Image%202026-10-16%20at%2009.50.19.jpeg?1792156643)
 - **Inconsistências:** nenhuma
 
 ---
 
-### 56. A CADA 72 SEGUNDOS, UMA PESSOA MORRE POR DOENÇA CARDIOVASCULAR NO PAÍS
+### 12. A CADA 72 SEGUNDOS, UMA PESSOA MORRE POR DOENÇA CARDIOVASCULAR NO PAÍS
 
-- **Status:** elegível para importar
+- **Status:** já existe (mídia a reconciliar)
 - **Data original (listagem, com hora real):** `16/10/2026 15:14` — data normalizada: 16/10/2026
 - **Editoria legada / destino:** saude → saude
 - **URL de origem:** https://www.informativoregional.net/saude/a-cada-72-segundos-uma-pessoa-morre-por-doenca-cardiovascular-no-pais.15486840
-- **Situação no banco novo:** não encontrada — candidata a nova matéria
+- **Situação no banco novo:** já existe (articles.id=e8673bf4-9019-457b-94ec-55f80ab76c0f)
 - **Imagens identificadas:** 1 (capa: https://suitacdn.cloud-bricks.net/fotos/15905425/file/desktop/coracao.webp?1792174570)
 - **Inconsistências:** nenhuma
 
 ---
 
-### 57. ATENÇÃO: INTERDIÇÃO TOTAL NA SERRA DO FAXINAL (SC-290)
+### 13. ATENÇÃO: INTERDIÇÃO TOTAL NA SERRA DO FAXINAL (SC-290)
 
-- **Status:** elegível para importar
+- **Status:** já existe (mídia a reconciliar)
 - **Data original (listagem, com hora real):** `16/10/2026 14:20` — data normalizada: 16/10/2026
 - **Editoria legada / destino:** sociais → sociais
 - **URL de origem:** https://www.informativoregional.net/sociais/atencao-interdicao-total-na-serra-do-faxinal-sc-290-.15486830
-- **Situação no banco novo:** não encontrada — candidata a nova matéria
+- **Situação no banco novo:** já existe (articles.id=72f16b7f-0df6-40fb-8e14-ba203dd16cf0)
 - **Imagens identificadas:** 1 (capa: https://suitacdn.cloud-bricks.net/fotos/15905415/file/desktop/851828849_17967461361077486_4600822887661386547_n.jpg?1792171389)
 - **Inconsistências:** nenhuma
 
 ---
 
-### 58. MORRINHOS DO SUL PROMOVE JANTAR DE CONFRATERNIZAÇÃO PARA PROFESSORES E FUNCIONÁRIOS PÚBLICOS DA EDUCAÇÃO
+### 14. MORRINHOS DO SUL PROMOVE JANTAR DE CONFRATERNIZAÇÃO PARA PROFESSORES E FUNCIONÁRIOS PÚBLICOS DA EDUCAÇÃO
 
-- **Status:** elegível para importar
+- **Status:** já existe (mídia a reconciliar)
 - **Data original (listagem, com hora real):** `17/10/2026 09:48` — data normalizada: 17/10/2026
 - **Editoria legada / destino:** geral → geral
 - **URL de origem:** https://www.informativoregional.net/geral/morrinhos-do-sul-promove-jantar-de-confraternizacao-para-professores-e-funcionarios-publicos-da-educacao.15486868
-- **Situação no banco novo:** não encontrada — candidata a nova matéria
+- **Situação no banco novo:** já existe (articles.id=ba9c0add-e844-4095-a502-6447b8a8cf6c)
 - **Imagens identificadas:** 8 (capa: https://suitacdn.cloud-bricks.net/fotos/15905493/file/desktop/prof.jpg?1792242209)
 - **Inconsistências:** nenhuma
 
 ---
 
-### 59. PRAIA GRANDE DESTACA POTENCIAL DA CULTURA PARA IMPULSIONAR O TURISMO DURANTE A ECOSUMMIT 2026
+### 15. PRAIA GRANDE DESTACA POTENCIAL DA CULTURA PARA IMPULSIONAR O TURISMO DURANTE A ECOSUMMIT 2026
 
-- **Status:** elegível para importar
+- **Status:** já existe (mídia a reconciliar)
 - **Data original (listagem, com hora real):** `17/10/2026 10:23` — data normalizada: 17/10/2026
 - **Editoria legada / destino:** geral → geral
 - **URL de origem:** https://www.informativoregional.net/geral/praia-grande-destaca-potencial-da-cultura-para-impulsionar-o-turismo-durante-a-ecosummit-2026.15486871
-- **Situação no banco novo:** não encontrada — candidata a nova matéria
+- **Situação no banco novo:** já existe (articles.id=67c895f8-40cd-4ab1-9a8c-55342080d1b0)
 - **Imagens identificadas:** 1 (capa: https://suitacdn.cloud-bricks.net/fotos/15905495/file/desktop/CULTURA.jpg?1792243465)
 - **Inconsistências:** nenhuma
 
 ---
 
-### 60. SAMAE ÁGUA DOS CANYONS ENTREGA NOVOS EPIS AOS COLABORADORES EM PRAIA GRANDE
+### 16. SAMAE ÁGUA DOS CANYONS ENTREGA NOVOS EPIS AOS COLABORADORES EM PRAIA GRANDE
 
-- **Status:** elegível para importar
+- **Status:** já existe (mídia a reconciliar)
 - **Data original (listagem, com hora real):** `17/10/2026 10:34` — data normalizada: 17/10/2026
 - **Editoria legada / destino:** geral → geral
 - **URL de origem:** https://www.informativoregional.net/geral/samae-agua-dos-canyons-entrega-novos-epis-aos-colaboradores-em-praia-grande.15486873
-- **Situação no banco novo:** não encontrada — candidata a nova matéria
+- **Situação no banco novo:** já existe (articles.id=b4b75a6b-2208-4658-adce-890efd895be1)
 - **Imagens identificadas:** 1 (capa: https://suitacdn.cloud-bricks.net/fotos/15905497/file/desktop/samae.jpg?1792244085)
 - **Inconsistências:** nenhuma
 
 ---
 
-### 61. 19º BPM RECEBE 38 POLICIAIS MILITARES TEMPORÁRIOS PARA REFORÇAR O POLICIAMENTO NA REGIÃO
+### 17. 19º BPM RECEBE 38 POLICIAIS MILITARES TEMPORÁRIOS PARA REFORÇAR O POLICIAMENTO NA REGIÃO
 
-- **Status:** elegível para importar
+- **Status:** já existe (mídia a reconciliar)
 - **Data original (listagem, com hora real):** `17/10/2026 12:51` — data normalizada: 17/10/2026
 - **Editoria legada / destino:** policia → policia
 - **URL de origem:** https://www.informativoregional.net/policia/19o-bpm-recebe-38-policiais-militares-temporarios-para-reforcar-o-policiamento-na-regiao.15486878
-- **Situação no banco novo:** não encontrada — candidata a nova matéria
+- **Situação no banco novo:** já existe (articles.id=18b122b3-1606-46de-a784-b65525448793)
 - **Imagens identificadas:** 4 (capa: https://suitacdn.cloud-bricks.net/fotos/15905508/file/desktop/IMG_0047.JPG.jpeg?1792252625)
+- **Inconsistências:** nenhuma
+
+---
+
+### 18. ELEIÇÕES: QUEM NÃO VOTOU NO PRIMEIRO TURNO PODE PARTICIPAR DO SEGUNDO
+
+- **Status:** elegível para importar
+- **Data original (listagem, com hora real):** `18/10/2026 13:37` — data normalizada: 18/10/2026
+- **Editoria legada / destino:** politica → politica
+- **URL de origem:** https://www.informativoregional.net/politica/eleicoes-quem-nao-votou-no-primeiro-turno-pode-participar-do-segundo.15486925
+- **Situação no banco novo:** não encontrada — candidata a nova matéria
+- **Imagens identificadas:** 1 (capa: https://suitacdn.cloud-bricks.net/fotos/15905583/file/desktop/elei.jpg?1792341622)
+- **Inconsistências:** nenhuma
+
+---
+
+### 19. PRAIA GRANDE ENCERRA 2º ECO SUMMIT COM MAIS DE 2 MIL PESSOAS E ANUNCIA NOVA EDIÇÃO PARA 2027
+
+- **Status:** elegível para importar
+- **Data original (listagem, com hora real):** `19/10/2026 10:22` — data normalizada: 19/10/2026
+- **Editoria legada / destino:** geral → geral
+- **URL de origem:** https://www.informativoregional.net/geral/praia-grande-encerra-2o-eco-summit-com-mais-de-2-mil-pessoas-e-anuncia-nova-edicao-para-2027.15486978
+- **Situação no banco novo:** não encontrada — candidata a nova matéria
+- **Imagens identificadas:** 5 (capa: https://suitacdn.cloud-bricks.net/fotos/15905671/file/desktop/WhatsApp%20Image%202026-10-19%20at%2010.16.50.jpeg?1792416255)
+- **Inconsistências:** nenhuma
+
+---
+
+### 20. SANTA ROSA DO SUL REALIZA 4º MUTIRÃO DE CASTRAÇÃO NESTE SÁBADO (24)
+
+- **Status:** elegível para importar
+- **Data original (listagem, com hora real):** `19/10/2026 14:19` — data normalizada: 19/10/2026
+- **Editoria legada / destino:** geral → geral
+- **URL de origem:** https://www.informativoregional.net/geral/santa-rosa-do-sul-realiza-4o-mutirao-de-castracao-neste-sabado-24-.15486998
+- **Situação no banco novo:** não encontrada — candidata a nova matéria
+- **Imagens identificadas:** 1 (capa: https://suitacdn.cloud-bricks.net/fotos/15905747/file/desktop/WhatsApp%20Image%202026-10-19%20at%2014.15.42.jpeg?1792430417)
+- **Inconsistências:** nenhuma
+
+---
+
+### 21. MORRINHOS DO SUL REALIZA AÇÃO ESPECIAL DE PREVENÇÃO DURANTE O OUTUBRO ROSA
+
+- **Status:** elegível para importar
+- **Data original (listagem, com hora real):** `19/10/2026 15:17` — data normalizada: 19/10/2026
+- **Editoria legada / destino:** geral → geral
+- **URL de origem:** https://www.informativoregional.net/geral/morrinhos-do-sul-realiza-acao-especial-de-prevencao-durante-o-outubro-rosa.15487010
+- **Situação no banco novo:** não encontrada — candidata a nova matéria
+- **Imagens identificadas:** 3 (capa: https://suitacdn.cloud-bricks.net/fotos/15905781/file/desktop/WhatsApp%20Image%202026-10-19%20at%2015.14.13.jpeg?1792433958)
+- **Inconsistências:** nenhuma
+
+---
+
+### 22. PRIMEIRA EDIÇÃO DO PROJETO NOSSA GENTE MOVIMENTA A VILA SÃO JOÃO, EM TORRES
+
+- **Status:** elegível para importar
+- **Data original (listagem, com hora real):** `19/10/2026 15:23` — data normalizada: 19/10/2026
+- **Editoria legada / destino:** geral → geral
+- **URL de origem:** https://www.informativoregional.net/geral/primeira-edicao-do-projeto-nossa-gente-movimenta-a-vila-sao-joao-em-torres.15487014
+- **Situação no banco novo:** não encontrada — candidata a nova matéria
+- **Imagens identificadas:** 8 (capa: https://suitacdn.cloud-bricks.net/fotos/15905789/file/desktop/855071616_1627299156098869_1685447491320210220_n.jpg?1792434427)
+- **Inconsistências:** nenhuma
+
+---
+
+### 23. CURSO DE COSTURA EM SANTA ROSA DO SUL UNE CAPACITAÇÃO E SOLIDARIEDADE
+
+- **Status:** elegível para importar
+- **Data original (listagem, com hora real):** `19/10/2026 15:53` — data normalizada: 19/10/2026
+- **Editoria legada / destino:** geral → geral
+- **URL de origem:** https://www.informativoregional.net/geral/curso-de-costura-em-santa-rosa-do-sul-une-capacitacao-e-solidariedade.15487020
+- **Situação no banco novo:** não encontrada — candidata a nova matéria
+- **Imagens identificadas:** 1 (capa: https://suitacdn.cloud-bricks.net/fotos/15905801/file/desktop/857765035_18123866435511436_511330427956829835_n.jpg?1792436053)
+- **Inconsistências:** nenhuma
+
+---
+
+### 24. SANTA CATARINA ENTREGA 533 TELAS INTERATIVAS ÀS ESCOLAS ESTADUAIS
+
+- **Status:** elegível para importar
+- **Data original (listagem, com hora real):** `19/10/2026 17:09` — data normalizada: 19/10/2026
+- **Editoria legada / destino:** geral → geral
+- **URL de origem:** https://www.informativoregional.net/geral/santa-catarina-entrega-533-telas-interativas-as-escolas-estaduais.15487043
+- **Situação no banco novo:** não encontrada — candidata a nova matéria
+- **Imagens identificadas:** 1 (capa: https://suitacdn.cloud-bricks.net/fotos/15905838/file/desktop/telas.jpg?1792440765)
+- **Inconsistências:** nenhuma
+
+---
+
+### 25. SANTA CATARINA AMANHECE COM TEMPERATURAS NEGATIVAS, MAS CALOR E TEMPORAIS VOLTAM AO LONGO DA SEMANA
+
+- **Status:** elegível para importar
+- **Data original (listagem, com hora real):** `19/10/2026 17:15` — data normalizada: 19/10/2026
+- **Editoria legada / destino:** geral → geral
+- **URL de origem:** https://www.informativoregional.net/geral/santa-catarina-amanhece-com-temperaturas-negativas-mas-calor-e-temporais-voltam-ao-longo-da-semana.15487045
+- **Situação no banco novo:** não encontrada — candidata a nova matéria
+- **Imagens identificadas:** 1 (capa: https://suitacdn.cloud-bricks.net/fotos/15905840/file/desktop/tempo.jpg?1792441050)
+- **Inconsistências:** nenhuma
+
+---
+
+### 26. PRAIA GRANDE CONQUISTA TÍTULOS NAS TRÊS CATEGORIAS DO REGIONAL LAVM DE FUTSAL FEMININO
+
+- **Status:** elegível para importar
+- **Data original (listagem, com hora real):** `19/10/2026 11:53` — data normalizada: 19/10/2026
+- **Editoria legada / destino:** esportes → esporte
+- **URL de origem:** https://www.informativoregional.net/esportes/praia-grande-conquista-titulos-nas-tres-categorias-do-regional-lavm-de-futsal-feminino.15486989
+- **Situação no banco novo:** não encontrada — candidata a nova matéria
+- **Imagens identificadas:** 3 (capa: https://suitacdn.cloud-bricks.net/fotos/15905726/file/desktop/WhatsApp%20Image%202026-10-19%20at%2011.50.55.jpeg?1792421651)
+- **Inconsistências:** nenhuma
+
+---
+
+### 27. HOMEM É DETIDO PELA POLICIA MILITAR DE SÃO JOÃO DO SUL COM ARMA DE FOGO E MUNIÇÕES
+
+- **Status:** elegível para importar
+- **Data original (listagem, com hora real):** `19/10/2026 09:03` — data normalizada: 19/10/2026
+- **Editoria legada / destino:** policia → policia
+- **URL de origem:** https://www.informativoregional.net/policia/homem-e-detido-pela-policia-militar-de-sao-joao-do-sul-com-arma-de-fogo-e-municoes.15486962
+- **Situação no banco novo:** não encontrada — candidata a nova matéria
+- **Imagens identificadas:** 1 (capa: https://suitacdn.cloud-bricks.net/fotos/15905650/file/desktop/WhatsApp%20Image%202026-10-19%20at%2008.46.43.jpeg?1792411648)
+- **Inconsistências:** nenhuma
+
+---
+
+### 28. SANTA CATARINA AMPLIA EFETIVO DA POLÍCIA PENAL EM 58%
+
+- **Status:** elegível para importar
+- **Data original (listagem, com hora real):** `19/10/2026 17:03` — data normalizada: 19/10/2026
+- **Editoria legada / destino:** policia → policia
+- **URL de origem:** https://www.informativoregional.net/policia/santa-catarina-amplia-efetivo-da-policia-penal-em-58-.15487042
+- **Situação no banco novo:** não encontrada — candidata a nova matéria
+- **Imagens identificadas:** 1 (capa: https://suitacdn.cloud-bricks.net/fotos/15905837/file/desktop/efetivo%20da%20policia.jpeg?1792440362)
+- **Inconsistências:** nenhuma
+
+---
+
+### 29. SANTA ROSA DO SUL LIDERA ÍNDICE DE PROGRESSO SOCIAL NA AMESC E SE DESTACA ESTADUAL E NACIONALMENTE
+
+- **Status:** elegível para importar
+- **Data original (listagem, com hora real):** `19/10/2026 09:58` — data normalizada: 19/10/2026
+- **Editoria legada / destino:** sociais → sociais
+- **URL de origem:** https://www.informativoregional.net/sociais/santa-rosa-do-sul-lidera-indice-de-progresso-social-na-amesc-e-se-destaca-estadual-e-nacionalmente.15486972
+- **Situação no banco novo:** não encontrada — candidata a nova matéria
+- **Imagens identificadas:** 2 (capa: https://suitacdn.cloud-bricks.net/fotos/15905661/file/desktop/WhatsApp%20Image%202026-10-19%20at%2009.50.23.jpeg?1792414869)
+- **Inconsistências:** nenhuma
+
+---
+
+### 30. SANTA ROSA DO SUL LIDERA ÍNDICE DE PROGRESSO SOCIAL NA AMESC E SE DESTACA ESTADUAL E NACIONALMENTE
+
+- **Status:** elegível para importar
+- **Data original (listagem, com hora real):** `19/10/2026 17:43` — data normalizada: 19/10/2026
+- **Editoria legada / destino:** sociais → sociais
+- **URL de origem:** https://www.informativoregional.net/sociais/santa-rosa-do-sul-lidera-indice-de-progresso-social-na-amesc-e-se-destaca-estadual-e-nacionalmente.15487051
+- **Situação no banco novo:** não encontrada — candidata a nova matéria
+- **Imagens identificadas:** 2 (capa: https://suitacdn.cloud-bricks.net/fotos/15905857/file/desktop/progresso%20social.jfif?1792442714)
+- **Inconsistências:** nenhuma
+
+---
+
+### 31. ENTIDADES DO AGRO CONTESTAM VOLTA DE LICENÇA PARA ARROZ EM SC
+
+- **Status:** elegível para importar
+- **Data original (listagem, com hora real):** `19/10/2026 16:58` — data normalizada: 19/10/2026
+- **Editoria legada / destino:** agricultura → agricultura
+- **URL de origem:** https://www.informativoregional.net/agricultura/entidades-do-agro-contestam-volta-de-licenca-para-arroz-em-sc.15487041
+- **Situação no banco novo:** não encontrada — candidata a nova matéria
+- **Imagens identificadas:** 1 (capa: https://suitacdn.cloud-bricks.net/fotos/15905836/file/desktop/agro.jpg?1792439968)
+- **Inconsistências:** nenhuma
+
+---
+
+### 32. SEMANA DAS TALHAS DE CANÁ INICIA NA PARÓQUIA SÃO JOÃO BATISTA EM SÃO JOÃO DO SUL
+
+- **Status:** duplicata de matéria manual (fora da importação)
+- **Data original (listagem, com hora real):** `19/10/2026 10:43` — data normalizada: 19/10/2026
+- **Editoria legada / destino:** sociais → sociais
+- **URL de origem:** https://www.informativoregional.net/sociais/semana-das-talhas-de-cana-inicia-na-paroquia-sao-joao-batista-em-sao-joao-do-sul.15486981
+- **Situação no banco novo:** duplicata de matéria manual (fora da importação)
+- **Imagens identificadas:** 20 (capa: https://suitacdn.cloud-bricks.net/fotos/15905678/file/desktop/capa.JPG?1792417441)
+- **Inconsistências:** nenhuma
+
+---
+
+### 33. CORREIOS BUSCA LOJISTAS PARCEIROS PARA IMPLANTAR NOVOS PONTOS DE COLETA EM SC
+
+- **Status:** elegível para importar
+- **Data original (listagem, com hora real):** `20/10/2026 17:49` — data normalizada: 20/10/2026
+- **Editoria legada / destino:** geral → geral
+- **URL de origem:** https://www.informativoregional.net/geral/correios-busca-lojistas-parceiros-para-implantar-novos-pontos-de-coleta-em-sc.15487175
+- **Situação no banco novo:** não encontrada — candidata a nova matéria
+- **Imagens identificadas:** 1 (capa: https://suitacdn.cloud-bricks.net/fotos/15906101/file/desktop/correios.jfif?1792529467)
+- **Inconsistências:** nenhuma
+
+---
+
+### 34. PASSO DE TORRES INICIA PAVIMENTAÇÃO DA RUA NEREU RAMOS, PRINCIPAL ACESSO AO ESTALEIRO
+
+- **Status:** elegível para importar
+- **Data original (listagem, com hora real):** `20/10/2026 09:03` — data normalizada: 20/10/2026
+- **Editoria legada / destino:** geral → geral
+- **URL de origem:** https://www.informativoregional.net/geral/passo-de-torres-inicia-pavimentacao-da-rua-nereu-ramos-principal-acesso-ao-estaleiro.15487087
+- **Situação no banco novo:** não encontrada — candidata a nova matéria
+- **Imagens identificadas:** 3 (capa: https://suitacdn.cloud-bricks.net/fotos/15905949/file/desktop/WhatsApp%20Image%202026-10-19%20at%2020.14.42.jpeg?1792498458)
+- **Inconsistências:** nenhuma
+
+---
+
+### 35. FABIANO LISKA REPRESENTA A APAE DE PRAIA GRANDE NO XIII FESTIVAL ESTADUAL NOSSA ARTE
+
+- **Status:** elegível para importar
+- **Data original (listagem, com hora real):** `20/10/2026 09:33` — data normalizada: 20/10/2026
+- **Editoria legada / destino:** geral → geral
+- **URL de origem:** https://www.informativoregional.net/geral/fabiano-liska-representa-a-apae-de-praia-grande-no-xiii-festival-estadual-nossa-arte.15487101
+- **Situação no banco novo:** não encontrada — candidata a nova matéria
+- **Imagens identificadas:** 3 (capa: https://suitacdn.cloud-bricks.net/fotos/15905973/file/desktop/859258066_18110708558184156_1639138383680654663_n.jpg?1792499716)
+- **Inconsistências:** nenhuma
+
+---
+
+### 36. SANTA ROSA DO SUL SE DESTACA ENTRE OS MAIORES FORNECEDORES DE MARACUJÁ À CEAGESP
+
+- **Status:** elegível para importar
+- **Data original (listagem, com hora real):** `20/10/2026 17:18` — data normalizada: 20/10/2026
+- **Editoria legada / destino:** geral → geral
+- **URL de origem:** https://www.informativoregional.net/geral/santa-rosa-do-sul-se-destaca-entre-os-maiores-fornecedores-de-maracuja-a-ceagesp.15487169
+- **Situação no banco novo:** não encontrada — candidata a nova matéria
+- **Imagens identificadas:** 1 (capa: https://suitacdn.cloud-bricks.net/fotos/15906093/file/desktop/maracuj%C3%A1.jfif?1792527616)
+- **Inconsistências:** nenhuma
+
+---
+
+### 37. NOVO INVESTIMENTO IMPULSIONA O DESENVOLVIMENTO E A INFRAESTRUTURA NA PRAIA REAL EM TORRES
+
+- **Status:** elegível para importar
+- **Data original (listagem, com hora real):** `20/10/2026 17:27` — data normalizada: 20/10/2026
+- **Editoria legada / destino:** geral → geral
+- **URL de origem:** https://www.informativoregional.net/geral/novo-investimento-impulsiona-o-desenvolvimento-e-a-infraestrutura-na-praia-real-em-torres.15487170
+- **Situação no banco novo:** não encontrada — candidata a nova matéria
+- **Imagens identificadas:** 1 (capa: https://suitacdn.cloud-bricks.net/fotos/15906094/file/desktop/investimento%20praia%20real.jpg?1792528134)
+- **Inconsistências:** nenhuma
+
+---
+
+### 38. PERÍODO PARA RENOVAÇÕES DE CADASTROS DE ESTUDANTES BENEFICIADOS PELOS PROGRAMAS UNIVERSIDADE GRATUITA E FUMDESC COMEÇA NESTA TERÇA-FEIRA
+
+- **Status:** elegível para importar
+- **Data original (listagem, com hora real):** `20/10/2026 17:35` — data normalizada: 20/10/2026
+- **Editoria legada / destino:** geral → geral
+- **URL de origem:** https://www.informativoregional.net/geral/periodo-para-renovacoes-de-cadastros-de-estudantes-beneficiados-pelos-programas-universidade-gratuita-e-fumdesc-comeca-nesta-terca-feira.15487172
+- **Situação no banco novo:** não encontrada — candidata a nova matéria
+- **Imagens identificadas:** 1 (capa: https://suitacdn.cloud-bricks.net/fotos/15906097/file/desktop/renova%C3%A7%C3%A3o%20de%20cadastro.jpg?1792528649)
+- **Inconsistências:** nenhuma
+
+---
+
+### 39. ESPORTE: CONHEÇA AS PROPOSTAS DE FLÁVIO BOLSONARO E LULA PARA A ÁREA
+
+- **Status:** elegível para importar
+- **Data original (listagem, com hora real):** `20/10/2026 15:22` — data normalizada: 20/10/2026
+- **Editoria legada / destino:** esportes → esporte
+- **URL de origem:** https://www.informativoregional.net/esportes/esporte-conheca-as-propostas-de-flavio-bolsonaro-e-lula-para-a-area.15487152
+- **Situação no banco novo:** não encontrada — candidata a nova matéria
+- **Imagens identificadas:** 1 (capa: https://suitacdn.cloud-bricks.net/fotos/15906062/file/desktop/cbf_anuncia_amistosos_da_selecao_feminina_em_palcos_da_copa_do_mundo.webp?1792520745)
+- **Inconsistências:** nenhuma
+
+---
+
+### 40. ESTADO PROMOVE AMPLIAÇÃO DE CIRURGIAS ORTOPÉDICAS E CARDÍACAS NO HOSPITAL SÃO JOSÉ EM CRICIÚMA
+
+- **Status:** elegível para importar
+- **Data original (listagem, com hora real):** `20/10/2026 18:04` — data normalizada: 20/10/2026
+- **Editoria legada / destino:** saude → saude
+- **URL de origem:** https://www.informativoregional.net/saude/estado-promove-ampliacao-de-cirurgias-ortopedicas-e-cardiacas-no-hospital-sao-jose-em-criciuma.15487177
+- **Situação no banco novo:** não encontrada — candidata a nova matéria
+- **Imagens identificadas:** 1 (capa: https://suitacdn.cloud-bricks.net/fotos/15906104/file/desktop/cirurgias.jpg?1792530293)
+- **Inconsistências:** nenhuma
+
+---
+
+### 41. CTG VIZINHOS DO RIO GRANDE DE PASSO DE TORRES PREPARA O IX RODEIO CRIOULO NACIONAL
+
+- **Status:** elegível para importar
+- **Data original (listagem, com hora real):** `20/10/2026 08:10` — data normalizada: 20/10/2026
+- **Editoria legada / destino:** sociais → sociais
+- **URL de origem:** https://www.informativoregional.net/sociais/ctg-vizinhos-do-rio-grande-de-passo-de-torres-prepara-o-ix-rodeio-crioulo-nacional.15487079
+- **Situação no banco novo:** não encontrada — candidata a nova matéria
+- **Imagens identificadas:** 2 (capa: https://suitacdn.cloud-bricks.net/fotos/15905923/file/desktop/Rodeio%201.jpg?1792527411)
+- **Inconsistências:** nenhuma
+
+---
+
+### 42. CAMPEONATO MUNICIPAL DE FUTEBOL DE MAMPITUBA CONHECE AS EQUIPES CLASSIFICADAS PARA A PRÓXIMA FASE
+
+- **Status:** duplicata de matéria manual (fora da importação)
+- **Data original (listagem, com hora real):** `20/10/2026 11:21` — data normalizada: 20/10/2026
+- **Editoria legada / destino:** esportes → esporte
+- **URL de origem:** https://www.informativoregional.net/esportes/campeonato-municipal-de-futebol-de-mampituba-conhece-as-equipes-classificadas-para-a-proxima-fase.15487112
+- **Situação no banco novo:** duplicata de matéria manual (fora da importação)
+- **Imagens identificadas:** 4 (capa: https://suitacdn.cloud-bricks.net/fotos/15905994/file/desktop/Disputa%20Intensa%20no%20Campo%20Gramado.png?1792506206)
+- **Inconsistências:** nenhuma
+
+---
+
+### 43. PREFEITURA DE PRAIA GRANDE REALIZA REUNIÃO SOBRE ALARGAMENTO E FUTURA PAVIMENTAÇÃO DA ESTRADA DA FORTALEZA
+
+- **Status:** elegível para importar
+- **Data original (listagem, com hora real):** `21/10/2026 08:08` — data normalizada: 21/10/2026
+- **Editoria legada / destino:** geral → geral
+- **URL de origem:** https://www.informativoregional.net/geral/prefeitura-de-praia-grande-realiza-reuniao-sobre-alargamento-e-futura-pavimentacao-da-estrada-da-fortaleza.15487201
+- **Situação no banco novo:** não encontrada — candidata a nova matéria
+- **Imagens identificadas:** 7 (capa: https://suitacdn.cloud-bricks.net/fotos/15906147/file/desktop/854188332_1403629631986420_2544991738367767785_n.jfif?1792581141)
+- **Inconsistências:** nenhuma
+
+---
+
+### 44. DIA NACIONAL DA ALIMENTAÇÃO NA ESCOLA: SANTA CATARINA PREVÊ MAIS DE R$ 450 MILHÕES PARA A NUTRIÇÃO DOS ESTUDANTES EM 2026
+
+- **Status:** elegível para importar
+- **Data original (listagem, com hora real):** `21/10/2026 08:29` — data normalizada: 21/10/2026
+- **Editoria legada / destino:** geral → geral
+- **URL de origem:** https://www.informativoregional.net/geral/dia-nacional-da-alimentacao-na-escola-santa-catarina-preve-mais-de-r-450-milhoes-para-a-nutricao-dos-estudantes-em-2026.15487203
+- **Situação no banco novo:** não encontrada — candidata a nova matéria
+- **Imagens identificadas:** 2 (capa: https://suitacdn.cloud-bricks.net/fotos/15906152/file/desktop/Merenda-na-EEB-Jose-Boiteux-Florianopolis-FOTO-Thiago-Kaue-SecomGOVSC-7-1024x683.jpg?1792582197)
+- **Inconsistências:** nenhuma
+
+---
+
+### 45. PREFEITURA DE TORRES E MORADORES UNEM FORÇAS PARA A PAVIMENTAÇÃO DA RUA FERNANDO MACHADO
+
+- **Status:** elegível para importar
+- **Data original (listagem, com hora real):** `21/10/2026 17:57` — data normalizada: 21/10/2026
+- **Editoria legada / destino:** geral → geral
+- **URL de origem:** https://www.informativoregional.net/geral/prefeitura-de-torres-e-moradores-unem-forcas-para-a-pavimentacao-da-rua-fernando-machado.15487302
+- **Situação no banco novo:** não encontrada — candidata a nova matéria
+- **Imagens identificadas:** 1 (capa: https://suitacdn.cloud-bricks.net/fotos/15906344/file/desktop/pavimenta%C3%A7%C3%A3o%20torres.jpg?1792616330)
+- **Inconsistências:** nenhuma
+
+---
+
+### 46. OPERAÇÃO RESULTA NA PRISÃO DE DOIS HOMENS POR TRÁFICO EM TORRES
+
+- **Status:** elegível para importar
+- **Data original (listagem, com hora real):** `21/10/2026 09:15` — data normalizada: 21/10/2026
+- **Editoria legada / destino:** policia → policia
+- **URL de origem:** https://www.informativoregional.net/policia/operacao-resulta-na-prisao-de-dois-homens-por-trafico-em-torres.15487214
+- **Situação no banco novo:** não encontrada — candidata a nova matéria
+- **Imagens identificadas:** 4 (capa: https://suitacdn.cloud-bricks.net/fotos/15906164/file/desktop/WhatsApp%20Image%202026-10-21%20at%2009.06.59.jpeg?1792585131)
+- **Inconsistências:** nenhuma
+
+---
+
+### 47. AMESC E SEBRAE/SC LEVAM EMPRESÁRIOS DO TURISMO À FESTURIS 2026
+
+- **Status:** duplicata de matéria manual (fora da importação)
+- **Data original (listagem, com hora real):** `21/10/2026 08:36` — data normalizada: 21/10/2026
+- **Editoria legada / destino:** geral → geral
+- **URL de origem:** https://www.informativoregional.net/geral/amesc-e-sebrae-sc-levam-empresarios-do-turismo-a-festuris-2026.15487207
+- **Situação no banco novo:** duplicata de matéria manual (fora da importação)
+- **Imagens identificadas:** 1 (capa: https://suitacdn.cloud-bricks.net/fotos/15906232/file/desktop/naWheIWo05RVTWM3QJb4ISluzA3o-2YmSwY2yTFpcdkgh2T6d9nY5_YTKFuJd8NkG7F8fo6imtJn8DZXQyCfPTfQYWGEbNX-LwB8zT83_t3TafhbNcpdf65eLyuLPT3dHMRb-gxV54JvMluzzd6xPMwsjJ1Y6M32POXQrozgT3Hfwpmhs9TaL0QW32-gW_5z.jfif?1792590842)
+- **Inconsistências:** nenhuma
+
+---
+
+### 48. LAVM ANUNCIA MUDANÇA TEMPORÁRIA NA PRESIDÊNCIA
+
+- **Status:** duplicata de matéria manual (fora da importação)
+- **Data original (listagem, com hora real):** `21/10/2026 14:41` — data normalizada: 21/10/2026
+- **Editoria legada / destino:** esportes → esporte
+- **URL de origem:** https://www.informativoregional.net/esportes/lavm-anuncia-mudanca-temporaria-na-presidencia.15487256
+- **Situação no banco novo:** duplicata de matéria manual (fora da importação)
+- **Imagens identificadas:** 1 (capa: https://suitacdn.cloud-bricks.net/fotos/15906260/file/desktop/WhatsApp%20Image%202026-10-21%20at%2014.01.55%20%281%29.jpeg?1792604514)
+- **Inconsistências:** nenhuma
+
+---
+
+### 49. GOVERNO DO ESTADO ASSUME GESTÃO DO HOSPITAL NOSSA SENHORA DOS NAVEGANTES, EM TORRES
+
+- **Status:** duplicata de matéria manual (fora da importação)
+- **Data original (listagem, com hora real):** `21/10/2026 15:04` — data normalizada: 21/10/2026
+- **Editoria legada / destino:** sociais → sociais
+- **URL de origem:** https://www.informativoregional.net/sociais/governo-do-estado-assume-gestao-do-hospital-nossa-senhora-dos-navegantes-em-torres.15487262
+- **Situação no banco novo:** duplicata de matéria manual (fora da importação)
+- **Imagens identificadas:** 4 (capa: https://suitacdn.cloud-bricks.net/fotos/15906273/file/desktop/858651330_1312679115270299_2447319890273808792_n.png?1792605951)
+- **Inconsistências:** nenhuma
+
+---
+
+### 50. FUTEBOL FEMININO DE SANTA ROSA DO SUL GARANTE VAGA NO ESTADUAL
+
+- **Status:** elegível para importar
+- **Data original (listagem, com hora real):** `22/10/2026 20:05` — data normalizada: 22/10/2026
+- **Editoria legada / destino:** geral → geral
+- **URL de origem:** https://www.informativoregional.net/geral/futebol-feminino-de-santa-rosa-do-sul-garante-vaga-no-estadual.15487410
+- **Situação no banco novo:** não encontrada — candidata a nova matéria
+- **Imagens identificadas:** 1 (capa: https://suitacdn.cloud-bricks.net/fotos/15906563/file/desktop/fut.jpeg?1792710448)
+- **Inconsistências:** nenhuma
+
+---
+
+### 51. PASSO DE TORRES É PREMIADO NO TROFÉU AÇORIANIDADE 2026 COM PROJETO “MEU BOIZINHO DE MAMÃO”
+
+- **Status:** elegível para importar
+- **Data original (listagem, com hora real):** `22/10/2026 20:21` — data normalizada: 22/10/2026
+- **Editoria legada / destino:** geral → geral
+- **URL de origem:** https://www.informativoregional.net/geral/passo-de-torres-e-premiado-no-trofeu-acorianidade-2026-com-projeto-meu-boizinho-de-mamao.15487412
+- **Situação no banco novo:** não encontrada — candidata a nova matéria
+- **Imagens identificadas:** 1 (capa: https://suitacdn.cloud-bricks.net/fotos/15906565/file/desktop/WhatsApp%20Image%202026-10-22%20at%2018.57.16.jpeg?1792711577)
+- **Inconsistências:** nenhuma
+
+---
+
+### 52. CAMPEONATO REGIONAL DE FUTSAL  CRESOL/LAVM ENCERRA COM GRANDES FINAIS
+
+- **Status:** elegível para importar
+- **Data original (listagem, com hora real):** `22/10/2026 16:11` — data normalizada: 22/10/2026
+- **Editoria legada / destino:** esportes → esporte
+- **URL de origem:** https://www.informativoregional.net/esportes/campeonato-regional-de-futsal-cresol-lavm-encerra-com-grandes-finais.15487383
+- **Situação no banco novo:** não encontrada — candidata a nova matéria
+- **Imagens identificadas:** 2 (capa: https://suitacdn.cloud-bricks.net/fotos/15906504/file/desktop/lavm%201%20%28Copy%29.jpg?1792696353)
+- **Inconsistências:** nenhuma
+
+---
+
+### 53. ATLETA REGINA LOTTHAMMER É VICE-CAMPEÃ  EM CAMPEONATO CATARINENSE DE MOUNTAIN BIKE
+
+- **Status:** elegível para importar
+- **Data original (listagem, com hora real):** `22/10/2026 16:38` — data normalizada: 22/10/2026
+- **Editoria legada / destino:** esportes → esporte
+- **URL de origem:** https://www.informativoregional.net/esportes/atleta-regina-lotthammer-e-vice-campea-em-campeonato-catarinense-de-mountain-bike.15487391
+- **Situação no banco novo:** não encontrada — candidata a nova matéria
+- **Imagens identificadas:** 2 (capa: https://suitacdn.cloud-bricks.net/fotos/15906515/file/desktop/regina%20%28Copy%29.jpeg?1792698259)
+- **Inconsistências:** nenhuma
+
+---
+
+### 54. XIV TAÇA CIDADE DE PRAIA GRANDE SEGUE COM JOGOS ACIRRADOS
+
+- **Status:** elegível para importar
+- **Data original (listagem, com hora real):** `22/10/2026 16:59` — data normalizada: 22/10/2026
+- **Editoria legada / destino:** esportes → esporte
+- **URL de origem:** https://www.informativoregional.net/esportes/xiv-taca-cidade-de-praia-grande-segue-com-jogos-acirrados.15487397
+- **Situação no banco novo:** não encontrada — candidata a nova matéria
+- **Imagens identificadas:** 1 (capa: https://suitacdn.cloud-bricks.net/fotos/15906523/file/desktop/ta%C3%A7a%20pk%201%20%28Copy%29.jpg?1792699451)
+- **Inconsistências:** nenhuma
+
+---
+
+### 55. BM PRENDE HOMEM POR TRÁFICO DE DROGAS EM TORRES
+
+- **Status:** elegível para importar
+- **Data original (listagem, com hora real):** `22/10/2026 16:04` — data normalizada: 22/10/2026
+- **Editoria legada / destino:** policia → policia
+- **URL de origem:** https://www.informativoregional.net/policia/bm-prende-homem-por-trafico-de-drogas-em-torres.15487379
+- **Situação no banco novo:** não encontrada — candidata a nova matéria
+- **Imagens identificadas:** 1 (capa: https://suitacdn.cloud-bricks.net/fotos/15906498/file/desktop/WhatsApp%20Image%202026-10-22%20at%2011.29.45%20%281%29.jpeg?1792695885)
+- **Inconsistências:** nenhuma
+
+---
+
+### 56. AVANÇOS EM OBRAS E SERVIÇOS SÃO COBRADOS DURANTE SESSÃO DA CÂMARA DE VEREADORES DE PASSO DE TORRES
+
+- **Status:** elegível para importar
+- **Data original (listagem, com hora real):** `22/10/2026 16:48` — data normalizada: 22/10/2026
+- **Editoria legada / destino:** politica → politica
+- **URL de origem:** https://www.informativoregional.net/politica/avancos-em-obras-e-servicos-sao-cobrados-durante-sessao-da-camara-de-vereadores-de-passo-de-torres.15487393
+- **Situação no banco novo:** não encontrada — candidata a nova matéria
+- **Imagens identificadas:** 1 (capa: https://suitacdn.cloud-bricks.net/fotos/15906517/file/desktop/C%C3%82MARA%20PASSO%20%284%29%20%28Copy%29.JPG?1792698581)
+- **Inconsistências:** nenhuma
+
+---
+
+### 57. ELEITORES VOLTAM ÀS URNAS NESTE DOMINGO (25) PARA ESCOLHER ENTRE FLÁVIO BOLSONARO E LULA
+
+- **Status:** elegível para importar
+- **Data original (listagem, com hora real):** `22/10/2026 16:07` — data normalizada: 22/10/2026
+- **Editoria legada / destino:** politica → politica
+- **URL de origem:** https://www.informativoregional.net/politica/eleitores-voltam-as-urnas-neste-domingo-25-para-escolher-entre-flavio-bolsonaro-e-lula.15487380
+- **Situação no banco novo:** não encontrada — candidata a nova matéria
+- **Imagens identificadas:** 1 (capa: https://suitacdn.cloud-bricks.net/fotos/15906499/file/desktop/elei%C3%A7%C3%B5es%201%20%28Copy%29.png?1792696138)
+- **Inconsistências:** nenhuma
+
+---
+
+### 58. SAÚDE DE SÃO JOÃO DO SUL PROMOVE “O DIA D”  DO OUTUBRO ROSA NO ESF DA VILA SANTA CATARINA
+
+- **Status:** elegível para importar
+- **Data original (listagem, com hora real):** `22/10/2026 16:36` — data normalizada: 22/10/2026
+- **Editoria legada / destino:** saude → saude
+- **URL de origem:** https://www.informativoregional.net/saude/saude-de-sao-joao-do-sul-promove-o-dia-d-do-outubro-rosa-no-esf-da-vila-santa-catarina.15487389
+- **Situação no banco novo:** não encontrada — candidata a nova matéria
+- **Imagens identificadas:** 1 (capa: https://suitacdn.cloud-bricks.net/fotos/15906514/file/desktop/Outubro%20%28Copy%29.png?1792697874)
+- **Inconsistências:** nenhuma
+
+---
+
+### 59. HAVAN CONFIRMA MEGALOJA EM TORRES (RS) COM INVESTIMENTO DE R$ 100 MILHÕES
+
+- **Status:** elegível para importar
+- **Data original (listagem, com hora real):** `22/10/2026 14:26` — data normalizada: 22/10/2026
+- **Editoria legada / destino:** sociais → sociais
+- **URL de origem:** https://www.informativoregional.net/sociais/havan-confirma-megaloja-em-torres-rs-com-investimento-de-r-100-milhoes.15487347
+- **Situação no banco novo:** não encontrada — candidata a nova matéria
+- **Imagens identificadas:** 6 (capa: https://suitacdn.cloud-bricks.net/fotos/15906434/file/desktop/havan.jfif?1792690403)
+- **Inconsistências:** nenhuma
+
+---
+
+### 60. OBRAS DO VIADUTO DO MORRO DOS CABRITOS AVANÇAM E SERRA DO FAXINAL SEGUE INTERDITADA ATÉ SEXTA-FEIRA
+
+- **Status:** elegível para importar
+- **Data original (listagem, com hora real):** `22/10/2026 14:38` — data normalizada: 22/10/2026
+- **Editoria legada / destino:** sociais → sociais
+- **URL de origem:** https://www.informativoregional.net/sociais/obras-do-viaduto-do-morro-dos-cabritos-avancam-e-serra-do-faxinal-segue-interditada-ate-sexta-feira.15487349
+- **Situação no banco novo:** não encontrada — candidata a nova matéria
+- **Imagens identificadas:** 5 (capa: https://suitacdn.cloud-bricks.net/fotos/15906441/file/desktop/obras%20serra.jfif?1792690952)
+- **Inconsistências:** nenhuma
+
+---
+
+### 61. HOSPITAL NOSSA SENHORA DE FÁTIMA PASSA A OPERAR COM OS PRIMEIROS ATENDIMENTOS NO COMPLEXO DE SAÚDE MENTAL
+
+- **Status:** elegível para importar
+- **Data original (listagem, com hora real):** `22/10/2026 16:19` — data normalizada: 22/10/2026
+- **Editoria legada / destino:** sociais → sociais
+- **URL de origem:** https://www.informativoregional.net/sociais/hospital-nossa-senhora-de-fatima-passa-a-operar-com-os-primeiros-atendimentos-no-complexo-de-saude-mental.15487386
+- **Situação no banco novo:** não encontrada — candidata a nova matéria
+- **Imagens identificadas:** 4 (capa: https://suitacdn.cloud-bricks.net/fotos/15906512/file/desktop/DJI_0177.JPG?1792697496)
+- **Inconsistências:** nenhuma
+
+---
+
+### 62. PASSO DE TORRES ABRE INSCRIÇÕES PARA SELEÇÃO DE ARTESÃOS E ARTISTAS DA CASA DO ARTESÃO
+
+- **Status:** elegível para importar
+- **Data original (listagem, com hora real):** `22/10/2026 17:08` — data normalizada: 22/10/2026
+- **Editoria legada / destino:** sociais → sociais
+- **URL de origem:** https://www.informativoregional.net/sociais/passo-de-torres-abre-inscricoes-para-selecao-de-artesaos-e-artistas-da-casa-do-artesao.15487399
+- **Situação no banco novo:** não encontrada — candidata a nova matéria
+- **Imagens identificadas:** 2 (capa: https://suitacdn.cloud-bricks.net/fotos/15906529/file/desktop/Artes%C3%A3o%20%28Copy%29.png?1792699772)
+- **Inconsistências:** nenhuma
+
+---
+
+### 63. PREFEITURA DE MORRINHOS DO SUL REALIZA MELHORIAS EM ESTRADAS DA COMUNIDADE DE COSTÃO
+
+- **Status:** elegível para importar
+- **Data original (listagem, com hora real):** `23/10/2026 16:26` — data normalizada: 23/10/2026
+- **Editoria legada / destino:** geral → geral
+- **URL de origem:** https://www.informativoregional.net/geral/prefeitura-de-morrinhos-do-sul-realiza-melhorias-em-estradas-da-comunidade-de-costao.15487487
+- **Situação no banco novo:** não encontrada — candidata a nova matéria
+- **Imagens identificadas:** 4 (capa: https://suitacdn.cloud-bricks.net/fotos/15906709/file/desktop/obras%20morrinhos.jfif?1792783945)
+- **Inconsistências:** nenhuma
+
+---
+
+### 64. OUTUBRO ROSA EM TORRES: ENCONTRO ESPECIAL PROMOVE CONSCIENTIZAÇÃO E CUIDADO COM A SAÚDE DA MULHER
+
+- **Status:** elegível para importar
+- **Data original (listagem, com hora real):** `23/10/2026 16:56` — data normalizada: 23/10/2026
+- **Editoria legada / destino:** geral → geral
+- **URL de origem:** https://www.informativoregional.net/geral/outubro-rosa-em-torres-encontro-especial-promove-conscientizacao-e-cuidado-com-a-saude-da-mulher.15487495
+- **Situação no banco novo:** não encontrada — candidata a nova matéria
+- **Imagens identificadas:** 6 (capa: https://suitacdn.cloud-bricks.net/fotos/15906723/file/desktop/outubro%20rosa%20torres.jpg?1792785563)
+- **Inconsistências:** nenhuma
+
+---
+
+### 65. POLÍCIA MILITAR ORGANIZA OPERAÇÃO PARA O 2° TURNO DAS ELEIÇÕES 2026
+
+- **Status:** elegível para importar
+- **Data original (listagem, com hora real):** `23/10/2026 17:03` — data normalizada: 23/10/2026
+- **Editoria legada / destino:** geral → geral
+- **URL de origem:** https://www.informativoregional.net/geral/policia-militar-organiza-operacao-para-o-2-turno-das-eleicoes-2026.15487496
+- **Situação no banco novo:** não encontrada — candidata a nova matéria
+- **Imagens identificadas:** 1 (capa: https://suitacdn.cloud-bricks.net/fotos/15906729/file/desktop/opera%C3%A7%C3%A3o%20segundo%20turno.jpeg?1792785921)
+- **Inconsistências:** nenhuma
+
+---
+
+### 66. ISMAEL SANT’ANA ASSUME INTERINAMENTE A PREFEITURA DE SÃO JOÃO DO SUL
+
+- **Status:** elegível para importar
+- **Data original (listagem, com hora real):** `23/10/2026 18:37` — data normalizada: 23/10/2026
+- **Editoria legada / destino:** geral → geral
+- **URL de origem:** https://www.informativoregional.net/geral/ismael-santana-assume-interinamente-a-prefeitura-de-sao-joao-do-sul.15487503
+- **Situação no banco novo:** não encontrada — candidata a nova matéria
+- **Imagens identificadas:** 20 (capa: https://suitacdn.cloud-bricks.net/fotos/15906784/file/desktop/IMG_8122.JPG?1792791775)
+- **Inconsistências:** nenhuma
+
+---
+
+### 67. MUNICÍPIO DE TORRES FIRMA PARCERIA COM A ADET PARA AQUISIÇÃO DE RECURSOS DE ACESSIBILIDADE
+
+- **Status:** elegível para importar
+- **Data original (listagem, com hora real):** `23/10/2026 09:08` — data normalizada: 23/10/2026
+- **Editoria legada / destino:** geral → geral
+- **URL de origem:** https://www.informativoregional.net/geral/municipio-de-torres-firma-parceria-com-a-adet-para-aquisicao-de-recursos-de-acessibilidade.15487442
+- **Situação no banco novo:** não encontrada — candidata a nova matéria
+- **Imagens identificadas:** 1 (capa: https://suitacdn.cloud-bricks.net/fotos/15906605/file/desktop/Deficiencia%20%28Copy%29.jpg?1792757453)
+- **Inconsistências:** nenhuma
+
+---
+
+### 68. MAMPITUBA INICIA MAIS UM TRECHO DE ASFALTAMENTO ATÉ ROÇA DA ESTÂNCIA
+
+- **Status:** elegível para importar
+- **Data original (listagem, com hora real):** `23/10/2026 09:11` — data normalizada: 23/10/2026
+- **Editoria legada / destino:** geral → geral
+- **URL de origem:** https://www.informativoregional.net/geral/mampituba-inicia-mais-um-trecho-de-asfaltamento-ate-roca-da-estancia.15487444
+- **Situação no banco novo:** não encontrada — candidata a nova matéria
+- **Imagens identificadas:** 1 (capa: https://suitacdn.cloud-bricks.net/fotos/15906607/file/desktop/Asfalto%20%28Copy%29.jpeg?1792757800)
+- **Inconsistências:** nenhuma
+
+---
+
+### 69. PASSO DE TORRES ADQUIRE TRÊS NOVOS VEÍCULOS PARA A SECRETARIA MUNICIPAL DE SAÚDE
+
+- **Status:** elegível para importar
+- **Data original (listagem, com hora real):** `23/10/2026 09:19` — data normalizada: 23/10/2026
+- **Editoria legada / destino:** geral → geral
+- **URL de origem:** https://www.informativoregional.net/geral/passo-de-torres-adquire-tres-novos-veiculos-para-a-secretaria-municipal-de-saude.15487446
+- **Situação no banco novo:** não encontrada — candidata a nova matéria
+- **Imagens identificadas:** 2 (capa: https://suitacdn.cloud-bricks.net/fotos/15906609/file/desktop/WhatsApp%20Image%202026-10-23%20at%2008.24.32.jpeg?1792758084)
+- **Inconsistências:** nenhuma
+
+---
+
+### 70. PREFEITURA MUNICIPAL DE MAMPITUBA INICIA  A CONSTRUÇÃO DA PONTE EM SANTA LUZIA
+
+- **Status:** elegível para importar
+- **Data original (listagem, com hora real):** `23/10/2026 09:36` — data normalizada: 23/10/2026
+- **Editoria legada / destino:** geral → geral
+- **URL de origem:** https://www.informativoregional.net/geral/prefeitura-municipal-de-mampituba-inicia-a-construcao-da-ponte-em-santa-luzia.15487450
+- **Situação no banco novo:** não encontrada — candidata a nova matéria
+- **Imagens identificadas:** 1 (capa: https://suitacdn.cloud-bricks.net/fotos/15906614/file/desktop/Ponte%20%28Copy%29.jpeg?1792759109)
+- **Inconsistências:** nenhuma
+
+---
+
+### 71. MAIS DE 400 ALUNOS SE FORMAM PELO PROERD EM TORRES
+
+- **Status:** elegível para importar
+- **Data original (listagem, com hora real):** `23/10/2026 15:50` — data normalizada: 23/10/2026
+- **Editoria legada / destino:** geral → geral
+- **URL de origem:** https://www.informativoregional.net/geral/mais-de-400-alunos-se-formam-pelo-proerd-em-torres.15487481
+- **Situação no banco novo:** não encontrada — candidata a nova matéria
+- **Imagens identificadas:** 6 (capa: https://suitacdn.cloud-bricks.net/fotos/15906703/file/desktop/proerd%20torres.jfif5.jfif?1792781723)
+- **Inconsistências:** nenhuma
+
+---
+
+### 72. SANTA ROSA DO SUL É CAMPEÃ INÉDITA DO REGIONAL DA LAVM FUTSAL SUB-15
+
+- **Status:** elegível para importar
+- **Data original (listagem, com hora real):** `23/10/2026 15:43` — data normalizada: 23/10/2026
+- **Editoria legada / destino:** esportes → esporte
+- **URL de origem:** https://www.informativoregional.net/esportes/santa-rosa-do-sul-e-campea-inedita-do-regional-da-lavm-futsal-sub-15.15487480
+- **Situação no banco novo:** não encontrada — candidata a nova matéria
+- **Imagens identificadas:** 1 (capa: https://suitacdn.cloud-bricks.net/fotos/15906697/file/desktop/860074510_18124290311511436_4287169009193968968_n.jpg?1792781110)
+- **Inconsistências:** nenhuma
+
+---
+
+### 73. HOMEM DE 25 ANOS DE IDADE É PRESO PELO CRIME DE TRÁFICO DE DROGAS EM PRAIA GRANDE
+
+- **Status:** elegível para importar
+- **Data original (listagem, com hora real):** `23/10/2026 09:28` — data normalizada: 23/10/2026
+- **Editoria legada / destino:** policia → policia
+- **URL de origem:** https://www.informativoregional.net/policia/homem-de-25-anos-de-idade-e-preso-pelo-crime-de-trafico-de-drogas-em-praia-grande.15487448
+- **Situação no banco novo:** não encontrada — candidata a nova matéria
+- **Imagens identificadas:** 1 (capa: https://suitacdn.cloud-bricks.net/fotos/15906612/file/desktop/WhatsApp%20Image%202026-10-23%20at%2008.10.28.jpeg?1792758541)
+- **Inconsistências:** nenhuma
+
+---
+
+### 74. POLÍCIA MILITAR RESGATA DUAS VÍTIMAS DE AGRESSÕES E APREENDE ARMAS DE FOGO EM PROPRIEDADE RURAL EM BALNEÁRIO GAIVOTA
+
+- **Status:** elegível para importar
+- **Data original (listagem, com hora real):** `23/10/2026 16:08` — data normalizada: 23/10/2026
+- **Editoria legada / destino:** policia → policia
+- **URL de origem:** https://www.informativoregional.net/policia/policia-militar-resgata-duas-vitimas-de-agressoes-e-apreende-armas-de-fogo-em-propriedade-rural-em-balneario-gaivota.15487484
+- **Situação no banco novo:** não encontrada — candidata a nova matéria
+- **Imagens identificadas:** 1 (capa: https://suitacdn.cloud-bricks.net/fotos/15906706/file/desktop/ocorrencia.jfif?1792782801)
+- **Inconsistências:** nenhuma
+
+---
+
+### 75. VEREADORES APRECIAM PROJETO DE LEI QUE  DENOMINA A PRAÇA DA IGREJA CATÓLICA DE BELA VISTA, EM SANTA ROSA DO SUL
+
+- **Status:** elegível para importar
+- **Data original (listagem, com hora real):** `23/10/2026 08:12` — data normalizada: 23/10/2026
+- **Editoria legada / destino:** politica → politica
+- **URL de origem:** https://www.informativoregional.net/politica/vereadores-apreciam-projeto-de-lei-que-denomina-a-praca-da-igreja-catolica-de-bela-vista-em-santa-rosa-do-sul.15487429
+- **Situação no banco novo:** não encontrada — candidata a nova matéria
+- **Imagens identificadas:** 1 (capa: https://suitacdn.cloud-bricks.net/fotos/15906588/file/desktop/C%C3%82MARA%20SANTA%20ROSA%201%20%28Copy%29.JPG?1792754052)
+- **Inconsistências:** nenhuma
+
+---
+
+### 76. LIBERADO EM SANTA ROSA DO SUL O SAQUE CALAMIDADE DO FGTS PARA OS TRABALHADORES DO MUNICÍPIO
+
+- **Status:** elegível para importar
+- **Data original (listagem, com hora real):** `23/10/2026 08:14` — data normalizada: 23/10/2026
+- **Editoria legada / destino:** sociais → sociais
+- **URL de origem:** https://www.informativoregional.net/sociais/liberado-em-santa-rosa-do-sul-o-saque-calamidade-do-fgts-para-os-trabalhadores-do-municipio.15487430
+- **Situação no banco novo:** não encontrada — candidata a nova matéria
+- **Imagens identificadas:** 1 (capa: https://suitacdn.cloud-bricks.net/fotos/15906589/file/desktop/Saque%20%28Copy%29.png?1792754134)
+- **Inconsistências:** nenhuma
+
+---
+
+### 77. ENCONTRO CEPRAG MULHER REÚNE CENTENAS DE MULHERES EM SÃO JOÃO DO SUL
+
+- **Status:** elegível para importar
+- **Data original (listagem, com hora real):** `23/10/2026 17:09` — data normalizada: 23/10/2026
+- **Editoria legada / destino:** sociais → sociais
+- **URL de origem:** https://www.informativoregional.net/sociais/encontro-ceprag-mulher-reune-centenas-de-mulheres-em-sao-joao-do-sul.15487497
+- **Situação no banco novo:** não encontrada — candidata a nova matéria
+- **Imagens identificadas:** 20 (capa: https://suitacdn.cloud-bricks.net/fotos/15906730/file/desktop/capa.JPG?1792786188)
+- **Inconsistências:** nenhuma
+
+---
+
+### 78. SEGURANÇA EM FOCO: POR MAJOR MARCELO FABER, POLICIAL MILITAR DE SANTA CATARINA
+
+- **Status:** elegível para importar
+- **Data original (listagem, com hora real):** `23/10/2026 09:40` — data normalizada: 23/10/2026
+- **Editoria legada / destino:** colunistas/outras → colunistas
+- **URL de origem:** https://www.informativoregional.net/colunistas/outras/seguranca-em-foco-por-major-marcelo-faber-policial-militar-de-santa-catarina.15487453
+- **Situação no banco novo:** não encontrada — candidata a nova matéria
+- **Imagens identificadas:** 1 (capa: https://suitacdn.cloud-bricks.net/fotos/15906615/file/desktop/major%20faber%201.JPG?1792759313)
+- **Inconsistências:** nenhuma
+
+---
+
+### 79. PROJETO EDUCACIONAL DE PRAIA GRANDE GANHA DESTAQUE EM EVENTO INTERNACIONAL
+
+- **Status:** elegível para importar
+- **Data original (listagem, com hora real):** `25/10/2026 07:38` — data normalizada: 25/10/2026
+- **Editoria legada / destino:** geral → geral
+- **URL de origem:** https://www.informativoregional.net/geral/projeto-educacional-de-praia-grande-ganha-destaque-em-evento-internacional.15487571
+- **Situação no banco novo:** não encontrada — candidata a nova matéria
+- **Imagens identificadas:** 4 (capa: https://suitacdn.cloud-bricks.net/fotos/15907014/file/desktop/860154656_1543055401189901_2523964248028837655_n.jpg?1792924792)
+- **Inconsistências:** nenhuma
+
+---
+
+### 80. TRIBUNAL REGIONAL ELEITORAL DESTACA TRANQUILIDADE NA VOTAÇÃO DO SEGUNDO TURNO DAS ELEIÇÕES 2026
+
+- **Status:** elegível para importar
+- **Data original (listagem, com hora real):** `25/10/2026 11:40` — data normalizada: 25/10/2026
+- **Editoria legada / destino:** geral → geral
+- **URL de origem:** https://www.informativoregional.net/geral/tribunal-regional-eleitoral-destaca-tranquilidade-na-votacao-do-segundo-turno-das-eleicoes-2026.15487582
+- **Situação no banco novo:** não encontrada — candidata a nova matéria
+- **Imagens identificadas:** 3 (capa: https://suitacdn.cloud-bricks.net/fotos/15907032/file/desktop/2aa9cbb7-b105-4bfe-909e-ef9bd5c04ff2.jpeg?1792939338)
+- **Inconsistências:** nenhuma
+
+---
+
+### 81. URNAS FORAM ABERTAS EM TODO O BRASIL PARA O 2º TURNO DAS ELEIÇÕES
+
+- **Status:** elegível para importar
+- **Data original (listagem, com hora real):** `25/10/2026 12:12` — data normalizada: 25/10/2026
+- **Editoria legada / destino:** geral → geral
+- **URL de origem:** https://www.informativoregional.net/geral/urnas-foram-abertas-em-todo-o-brasil-para-o-2o-turno-das-eleicoes.15487584
+- **Situação no banco novo:** não encontrada — candidata a nova matéria
+- **Imagens identificadas:** 1 (capa: https://suitacdn.cloud-bricks.net/fotos/15907038/file/desktop/50a5f6e8-992c-4e27-97e1-8ea308c4c82e.jpeg?1792941228)
+- **Inconsistências:** nenhuma
+
+---
+
+### 82. SUPLEMO TRIBUNAL FEDERAL ESTENDE VOTAÇÃO ATÉ 19:00H EM TODO O BRASIL, A PEDIDO DE LULA E FLÁVIO
+
+- **Status:** elegível para importar
+- **Data original (listagem, com hora real):** `25/10/2026 17:59` — data normalizada: 25/10/2026
+- **Editoria legada / destino:** geral → geral
+- **URL de origem:** https://www.informativoregional.net/geral/suplemo-tribunal-federal-estende-votacao-ate-19-00h-em-todo-o-brasil-a-pedido-de-lula-e-flavio.15487606
+- **Situação no banco novo:** não encontrada — candidata a nova matéria
+- **Imagens identificadas:** 1 (capa: https://suitacdn.cloud-bricks.net/fotos/15907066/file/desktop/73f5d371-a530-4ac4-b010-2eeeb2a3006d.jpeg?1792962017)
+- **Inconsistências:** nenhuma
+
+---
+
+### 83. CONCLUÍDA A APURAÇÃO DOS VOTOS PARA PRESIDENTE DA REPÚBLICA EM MUNICÍPIOS DO LITORAL NORTE GAÚCHO
+
+- **Status:** elegível para importar
+- **Data original (listagem, com hora real):** `25/10/2026 20:59` — data normalizada: 25/10/2026
+- **Editoria legada / destino:** geral → geral
+- **URL de origem:** https://www.informativoregional.net/geral/concluida-a-apuracao-dos-votos-para-presidente-da-republica-em-municipios-do-litoral-norte-gaucho.15487616
+- **Situação no banco novo:** não encontrada — candidata a nova matéria
+- **Imagens identificadas:** 1 (capa: https://suitacdn.cloud-bricks.net/fotos/15907075/file/desktop/54cbe028-46a9-4dd9-b5e1-70011c2e16d6.jpeg?1792972861)
+- **Inconsistências:** nenhuma
+
+---
+
+### 84. APURAÇÃO ENCERRADA PARA PRESIDENTE DA REPÚBLICA NOS MUNICÍPIOS DA COMARCA DE SANTA ROSA DO SUL
+
+- **Status:** elegível para importar
+- **Data original (listagem, com hora real):** `25/10/2026 21:01` — data normalizada: 25/10/2026
+- **Editoria legada / destino:** geral → geral
+- **URL de origem:** https://www.informativoregional.net/geral/apuracao-encerrada-para-presidente-da-republica-nos-municipios-da-comarca-de-santa-rosa-do-sul.15487617
+- **Situação no banco novo:** não encontrada — candidata a nova matéria
+- **Imagens identificadas:** 1 (capa: https://suitacdn.cloud-bricks.net/fotos/15907076/file/desktop/c17e64c3-72b7-4702-b711-a54c245c3073.jpeg?1792972969)
+- **Inconsistências:** nenhuma
+
+---
+
+### 85. POLÍCIA MILITAR RECUPERA MOTOCICLETA FURTADA E PRENDE SUSPEITO APÓS BUSCAS EM SÃO JOÃO DO SUL
+
+- **Status:** elegível para importar
+- **Data original (listagem, com hora real):** `25/10/2026 07:35` — data normalizada: 25/10/2026
+- **Editoria legada / destino:** policia → policia
+- **URL de origem:** https://www.informativoregional.net/policia/policia-militar-recupera-motocicleta-furtada-e-prende-suspeito-apos-buscas-em-sao-joao-do-sul.15487570
+- **Situação no banco novo:** não encontrada — candidata a nova matéria
+- **Imagens identificadas:** 1 (capa: https://suitacdn.cloud-bricks.net/fotos/15907010/file/desktop/WhatsApp%20Image%202026-10-24%20at%2021.50.56%20%281%29.jpeg?1792924570)
+- **Inconsistências:** nenhuma
+
+---
+
+### 86. 9º BPM REFORÇA O POLICIAMENTO NO SEGUNDO TURNO DAS ELEIÇÕES
+
+- **Status:** elegível para importar
+- **Data original (listagem, com hora real):** `25/10/2026 11:46` — data normalizada: 25/10/2026
+- **Editoria legada / destino:** policia → policia
+- **URL de origem:** https://www.informativoregional.net/policia/9o-bpm-reforca-o-policiamento-no-segundo-turno-das-eleicoes.15487583
+- **Situação no banco novo:** não encontrada — candidata a nova matéria
+- **Imagens identificadas:** 3 (capa: https://suitacdn.cloud-bricks.net/fotos/15907037/file/desktop/82ce63dc-cc06-4d3c-a9aa-7036c3ad06a3.jpeg?1792939719)
+- **Inconsistências:** nenhuma
+
+---
+
+### 87. ELEITORES VÃO ÀS URNAS NESTE DOMINGO (25) PARA ESCOLHER O PRESIDENTE DA REPÚBLICA
+
+- **Status:** elegível para importar
+- **Data original (listagem, com hora real):** `25/10/2026 07:43` — data normalizada: 25/10/2026
+- **Editoria legada / destino:** politica → politica
+- **URL de origem:** https://www.informativoregional.net/politica/eleitores-vao-as-urnas-neste-domingo-25-para-escolher-o-presidente-da-republica.15487573
+- **Situação no banco novo:** não encontrada — candidata a nova matéria
+- **Imagens identificadas:** 1 (capa: https://suitacdn.cloud-bricks.net/fotos/15907019/file/desktop/0d4a2062.webp?1792925109)
+- **Inconsistências:** nenhuma
+
+---
+
+### 88. LUIZ INÁCIO LULA DA SILVA (PT) É REELEITO PRESIDENTE DA REPÚBLICA APÓS UMA DISPUTA ACIRRADA NO SEGUNDO TURNO
+
+- **Status:** elegível para importar
+- **Data original (listagem, com hora real):** `25/10/2026 21:33` — data normalizada: 25/10/2026
+- **Editoria legada / destino:** politica → politica
+- **URL de origem:** https://www.informativoregional.net/politica/luiz-inacio-lula-da-silva-pt-e-reeleito-presidente-da-republica-apos-uma-disputa-acirrada-no-segundo-turno.15487620
+- **Situação no banco novo:** não encontrada — candidata a nova matéria
+- **Imagens identificadas:** 2 (capa: https://suitacdn.cloud-bricks.net/fotos/15907077/file/desktop/af3abdfa-b98d-4cae-8b00-4a83fa2f5c72.jpeg?1792974912)
+- **Inconsistências:** nenhuma
+
+---
+
+### 89. ESF CENTRAL DE SÃO JOÃO DO SUL ESTÁ PROMOVENDO O “DIA D” DO OUTUBRO ROSA, DEDICADO À SAÚDE DA MULHER
+
+- **Status:** elegível para importar
+- **Data original (listagem, com hora real):** `25/10/2026 07:40` — data normalizada: 25/10/2026
+- **Editoria legada / destino:** saude → saude
+- **URL de origem:** https://www.informativoregional.net/saude/esf-central-de-sao-joao-do-sul-esta-promovendo-o-dia-d-do-outubro-rosa-dedicado-a-saude-da-mulher.15487572
+- **Situação no banco novo:** não encontrada — candidata a nova matéria
+- **Imagens identificadas:** 4 (capa: https://suitacdn.cloud-bricks.net/fotos/15907018/file/desktop/WhatsApp%20Image%202026-10-24%20at%2015.41.06.jpeg?1792924875)
+- **Inconsistências:** nenhuma
+
+---
+
+### 90. PF INVESTIGA SE PROBLEMAS NA CIRCULAÇÃO DE ÔNIBUS PREJUDICARAM ELEITOR
+
+- **Status:** elegível para importar
+- **Data original (listagem, com hora real):** `26/10/2026 10:27` — data normalizada: 26/10/2026
+- **Editoria legada / destino:** geral → geral
+- **URL de origem:** https://www.informativoregional.net/geral/pf-investiga-se-problemas-na-circulacao-de-onibus-prejudicaram-eleitor.15487651
+- **Situação no banco novo:** não encontrada — candidata a nova matéria
+- **Imagens identificadas:** 1 (capa: https://suitacdn.cloud-bricks.net/fotos/15907118/file/desktop/toms5600.jpg?1793021321)
+- **Inconsistências:** nenhuma
+
+---
+
+### 91. AMESC E SEBRAE ORGANIZAM MISSÃO À FESTURIS COM EMPRESÁRIOS DO TURISMO REGIONAL
+
+- **Status:** elegível para importar
+- **Data original (listagem, com hora real):** `26/10/2026 22:36` — data normalizada: 26/10/2026
+- **Editoria legada / destino:** geral → geral
+- **URL de origem:** https://www.informativoregional.net/geral/amesc-e-sebrae-organizam-missao-a-festuris-com-empresarios-do-turismo-regional.15487719
+- **Situação no banco novo:** não encontrada — candidata a nova matéria
+- **Imagens identificadas:** 1 (capa: https://suitacdn.cloud-bricks.net/fotos/15907314/file/desktop/WhatsApp%20Image%202026-10-26%20at%2018.44.33.jpeg?1793065516)
+- **Inconsistências:** nenhuma
+
+---
+
+### 92. MPSC DENUNCIA PILOTO POR NEGLIGÊNCIA E IMPRUDÊNCIA EM TRAGÉDIA COM BALÃO EM PRAIA GRANDE
+
+- **Status:** elegível para importar
+- **Data original (listagem, com hora real):** `26/10/2026 13:54` — data normalizada: 26/10/2026
+- **Editoria legada / destino:** policia → policia
+- **URL de origem:** https://www.informativoregional.net/policia/mpsc-denuncia-piloto-por-negligencia-e-imprudencia-em-tragedia-com-balao-em-praia-grande.15487664
+- **Situação no banco novo:** não encontrada — candidata a nova matéria
+- **Imagens identificadas:** 1 (capa: https://suitacdn.cloud-bricks.net/fotos/15907154/file/desktop/bal%C3%A3o.webp?1793034049)
+- **Inconsistências:** nenhuma
+
+---
+
+### 93. SANTA ROSA DO SUL REALIZA O 3º MUTIRÃO DE CASTRAÇÃO DE 2026
+
+- **Status:** elegível para importar
+- **Data original (listagem, com hora real):** `26/10/2026 11:11` — data normalizada: 26/10/2026
+- **Editoria legada / destino:** sociais → sociais
+- **URL de origem:** https://www.informativoregional.net/sociais/santa-rosa-do-sul-realiza-o-3o-mutirao-de-castracao-de-2026.15487657
+- **Situação no banco novo:** não encontrada — candidata a nova matéria
+- **Imagens identificadas:** 16 (capa: https://suitacdn.cloud-bricks.net/fotos/15907145/file/desktop/867814815_18124892579511436_4428229338358045013_n.jpg?1793024024)
+- **Inconsistências:** nenhuma
+
+---
+
+### 94. TORRES REALIZA REUNIÃO COM SUPERVISORAS DO ENSINO FUNDAMENTAL
+
+- **Status:** elegível para importar
+- **Data original (listagem, com hora real):** `27/10/2026 10:34` — data normalizada: 27/10/2026
+- **Editoria legada / destino:** geral → geral
+- **URL de origem:** https://www.informativoregional.net/geral/torres-realiza-reuniao-com-supervisoras-do-ensino-fundamental.15487754
+- **Situação no banco novo:** não encontrada — candidata a nova matéria
+- **Imagens identificadas:** 5 (capa: https://suitacdn.cloud-bricks.net/fotos/15907394/file/desktop/868919124_18099747572404057_6820879285868837344_n.jpg?1793108789)
+- **Inconsistências:** nenhuma
+
+---
+
+### 95. NOVOS DEPUTADOS SÃO RECEPCIONADOS NA ASSEMBLEIA LEGISLATIVA DE SANTA CATARINA
+
+- **Status:** elegível para importar
+- **Data original (listagem, com hora real):** `27/10/2026 11:50` — data normalizada: 27/10/2026
+- **Editoria legada / destino:** geral → geral
+- **URL de origem:** https://www.informativoregional.net/geral/novos-deputados-sao-recepcionados-na-assembleia-legislativa-de-santa-catarina.15487764
+- **Situação no banco novo:** não encontrada — candidata a nova matéria
+- **Imagens identificadas:** 1 (capa: https://suitacdn.cloud-bricks.net/fotos/15907398/file/desktop/WhatsApp%20Image%202026-10-27%20at%2011.48.02.jpeg?1793112752)
+- **Inconsistências:** nenhuma
+
+---
+
+### 96. PREFEITURA DE TORRES ANTECIPA INÍCIO DAS AUTORIZAÇÕES PARA AMBULANTES DA BEIRA-MAR
+
+- **Status:** elegível para importar
+- **Data original (listagem, com hora real):** `27/10/2026 15:28` — data normalizada: 27/10/2026
+- **Editoria legada / destino:** geral → geral
+- **URL de origem:** https://www.informativoregional.net/geral/prefeitura-de-torres-antecipa-inicio-das-autorizacoes-para-ambulantes-da-beira-mar.15487782
+- **Situação no banco novo:** não encontrada — candidata a nova matéria
+- **Imagens identificadas:** 1 (capa: https://suitacdn.cloud-bricks.net/fotos/15907494/file/desktop/WhatsApp%20Image%202026-10-27%20at%2015.23.03.jpeg?1793125755)
+- **Inconsistências:** nenhuma
+
+---
+
+### 97. MUTIRÕES DE CASTRAÇÃO ATENDEM CERCA DE 350 ANIMAIS EM SANTA ROSA DO SUL EM 2026
+
+- **Status:** elegível para importar
+- **Data original (listagem, com hora real):** `27/10/2026 17:22` — data normalizada: 27/10/2026
+- **Editoria legada / destino:** geral → geral
+- **URL de origem:** https://www.informativoregional.net/geral/mutiroes-de-castracao-atendem-cerca-de-350-animais-em-santa-rosa-do-sul-em-2026.15487802
+- **Situação no banco novo:** não encontrada — candidata a nova matéria
+- **Imagens identificadas:** 4 (capa: https://suitacdn.cloud-bricks.net/fotos/15907547/file/desktop/castra%C3%A7%C3%A3o%20santa%20rosa.jfif1.jfif?1793132751)
+- **Inconsistências:** nenhuma
+
+---
+
+### 98. EX-GRÊMIO YURI MAMUTE SERÁ A GRANDE ATRAÇÃO DA ÚLTIMA RODADA DA 1ª FASE DA TAÇA JOÃO SELAU PADILHA DE MAMPITUBA
+
+- **Status:** elegível para importar
+- **Data original (listagem, com hora real):** `27/10/2026 15:21` — data normalizada: 27/10/2026
+- **Editoria legada / destino:** esportes → esporte
+- **URL de origem:** https://www.informativoregional.net/esportes/ex-gremio-yuri-mamute-sera-a-grande-atracao-da-ultima-rodada-da-1-fase-da-taca-joao-selau-padilha-de-mampituba.15487781
+- **Situação no banco novo:** não encontrada — candidata a nova matéria
+- **Imagens identificadas:** 2 (capa: https://suitacdn.cloud-bricks.net/fotos/15907493/file/desktop/WhatsApp%20Image%202026-10-27%20at%2015.14.04.jpeg?1793125420)
+- **Inconsistências:** nenhuma
+
+---
+
+### 99. POSSIBILIDADE DE CHUVAS ACIMA DA MÉDIA NOS PRÓXIMOS MESES ACENDE ALERTA PARA DESENVOLVIMENTO DO ARROZ EM SC
+
+- **Status:** elegível para importar
+- **Data original (listagem, com hora real):** `27/10/2026 17:13` — data normalizada: 27/10/2026
+- **Editoria legada / destino:** agricultura → agricultura
+- **URL de origem:** https://www.informativoregional.net/agricultura/possibilidade-de-chuvas-acima-da-media-nos-proximos-meses-acende-alerta-para-desenvolvimento-do-arroz-em-sc.15487800
+- **Situação no banco novo:** não encontrada — candidata a nova matéria
+- **Imagens identificadas:** 1 (capa: https://suitacdn.cloud-bricks.net/fotos/15907542/file/desktop/arroz.jfif?1793132244)
+- **Inconsistências:** nenhuma
+
+---
+
+### 100. AVANÇA SC PROMOVE WORKSHOP SOBRE INOVAÇÃO NA GESTÃO PÚBLICA NA AMESC
+
+- **Status:** elegível para importar
+- **Data original (listagem, com hora real):** `28/10/2026 08:51` — data normalizada: 28/10/2026
+- **Editoria legada / destino:** geral → geral
+- **URL de origem:** https://www.informativoregional.net/geral/avanca-sc-promove-workshop-sobre-inovacao-na-gestao-publica-na-amesc.15487842
+- **Situação no banco novo:** não encontrada — candidata a nova matéria
+- **Imagens identificadas:** 3 (capa: https://suitacdn.cloud-bricks.net/fotos/15907622/file/desktop/WhatsApp%20Image%202026-10-28%20at%2008.42.27.jpeg?1793188395)
+- **Inconsistências:** nenhuma
+
+---
+
+### 101. CORPO DE BOMBEIROS ATENDE INCÊNCIO EM INSDÚSTRIA DE BATATA PALHA EM SANTA ROSA DO SUL
+
+- **Status:** elegível para importar
+- **Data original (listagem, com hora real):** `28/10/2026 08:15` — data normalizada: 28/10/2026
+- **Editoria legada / destino:** policia → policia
+- **URL de origem:** https://www.informativoregional.net/policia/corpo-de-bombeiros-atende-incencio-em-insdustria-de-batata-palha-em-santa-rosa-do-sul.15487834
+- **Situação no banco novo:** não encontrada — candidata a nova matéria
+- **Imagens identificadas:** 2 (capa: https://suitacdn.cloud-bricks.net/fotos/15907602/file/desktop/WhatsApp%20Image%202026-10-28%20at%2006.09.03.jpeg?1793186172)
+- **Inconsistências:** nenhuma
+
+---
+
+### 102. ZÉ MILTON DEBATE EM BRASÍLIA A RENEGOCIAÇÃO DE DÍVIDAS DOS PRODUTORES RURAIS
+
+- **Status:** elegível para importar
+- **Data original (listagem, com hora real):** `28/10/2026 08:08` — data normalizada: 28/10/2026
+- **Editoria legada / destino:** politica → politica
+- **URL de origem:** https://www.informativoregional.net/politica/ze-milton-debate-em-brasilia-a-renegociacao-de-dividas-dos-produtores-rurais.15487832
+- **Situação no banco novo:** não encontrada — candidata a nova matéria
+- **Imagens identificadas:** 1 (capa: https://suitacdn.cloud-bricks.net/fotos/15907599/file/desktop/WhatsApp%20Image%202026-10-27%20at%2019.59.45.jpeg?1793185775)
 - **Inconsistências:** nenhuma
 

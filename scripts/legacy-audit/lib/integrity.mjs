@@ -38,7 +38,7 @@ export const QUARANTINED_CATEGORIES = new Set(["classificados"]);
 // por sair da quarentena.
 const REVIEWED_CATEGORIES = new Set(["agricultura"]);
 
-function normalizeTitle(text) {
+export function normalizeTitle(text) {
   return (text || "")
     .toLowerCase()
     .normalize("NFD")

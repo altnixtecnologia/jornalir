@@ -36,6 +36,7 @@ import { CATEGORY_TO_SECTION_SLUG } from "./lib/batches.mjs";
 import { parseBrDateTime } from "./lib/dates.mjs";
 import { dedupeByIdentity, filterByBatchRange, candidateKey, collectImageRefs, classifyCandidates } from "./lib/pipeline.mjs";
 import { supabaseAdmin, resolveGeralLocalityId, findExistingArticleId, importCandidate } from "./lib/importer.mjs";
+import { loadManualArticles, partitionEligibleAgainstManual } from "./lib/manual-guard.mjs";
 
 const BASE = "https://www.informativoregional.net";
 const AUDIT_DIR = fileURLToPath(new URL("./", import.meta.url));
@@ -242,7 +243,22 @@ async function main() {
     detailCache.set(key, parseArticlePage(text, c.primary.url));
   }
 
-  const { eligibleList, needsReviewList, quarantinedList, rejectedList } = classifyCandidates(newCandidates, detailCache);
+  const { eligibleList: classifiedEligibleList, needsReviewList, quarantinedList, rejectedList } = classifyCandidates(newCandidates, detailCache);
+
+  // Proteção mínima contra reimportar como "legado" uma matéria que já
+  // existe com origin='manual' (28/10/2026) — nunca descarta: só tira da
+  // lista "eligible" o que bate fortemente (título+data+conteúdo) e manda
+  // pra revisão (manualDuplicateList/manualAmbiguousList), preservadas no
+  // relatório. Ver lib/manual-guard.mjs.
+  const manualArticles = await loadManualArticles(sb);
+  const { finalEligible: eligibleList, manualDuplicateList, manualAmbiguousList } =
+    partitionEligibleAgainstManual(classifiedEligibleList, manualArticles, detailCache, candidateKey);
+  if (manualDuplicateList.length > 0 || manualAmbiguousList.length > 0) {
+    log(`\n[manual-guard] ${manualDuplicateList.length} candidata(s) confirmada(s) como duplicata de matéria manual (fora da importação); ${manualAmbiguousList.length} ambígua(s) (título+data batendo, conteúdo não confirmou — fora da importação, aguardando revisão humana).`);
+    for (const { candidate: c, manualMatch } of [...manualDuplicateList, ...manualAmbiguousList]) {
+      log(`    - "${c.primary.title}" (${c.publishedIso}) ~ manual "${manualMatch.manualTitle}" (slug=${manualMatch.manualSlug}) sinais=${JSON.stringify(manualMatch.signals)}`);
+    }
+  }
 
   // Existentes recentes a reconciliar: só as que conseguiram detalhe —
   // quem falhou entra em `detailFetchFailed` (nunca recria/sobrescreve
@@ -273,6 +289,8 @@ async function main() {
     needsReview: needsReviewList.length,
     quarantined: quarantinedList.length,
     rejected: rejectedList.length,
+    manualDuplicateConfirmed: manualDuplicateList.length,
+    manualAmbiguous: manualAmbiguousList.length,
     totalImagesInNewEligible: totalImagesNewEligible,
     totalImagesInExistingToReconcile: totalImagesExistingToReconcile,
   };
@@ -300,7 +318,11 @@ async function main() {
       });
     }
     log(`Confirmado: ${eligibleList.length} matéria(s) seriam criadas com status="${SYNC_RECENT_TARGET_STATUS}".`);
-    await writeFile(reportPath, JSON.stringify({ mode: "preflight", preflight, targetStatus: SYNC_RECENT_TARGET_STATUS }, null, 2), "utf8");
+    await writeFile(reportPath, JSON.stringify({
+      mode: "preflight", preflight, targetStatus: SYNC_RECENT_TARGET_STATUS,
+      manualDuplicateList: manualDuplicateList.map(({ candidate: c, manualMatch }) => ({ url: c.primary.url, title: c.primary.title, publishedIso: c.publishedIso, manualMatch })),
+      manualAmbiguousList: manualAmbiguousList.map(({ candidate: c, manualMatch }) => ({ url: c.primary.url, title: c.primary.title, publishedIso: c.publishedIso, manualMatch })),
+    }, null, 2), "utf8");
     log(`\nPreflight salvo em: ${reportPath}`);
     log("Nada foi gravado (modo preflight). Rode com --commit para importar as novas elegíveis.");
     return;
@@ -363,7 +385,11 @@ async function main() {
 
   await writeFile(
     reportPath,
-    JSON.stringify({ mode: "commit", preflight, importStats: stats, failures }, null, 2),
+    JSON.stringify({
+      mode: "commit", preflight, importStats: stats, failures,
+      manualDuplicateList: manualDuplicateList.map(({ candidate: c, manualMatch }) => ({ url: c.primary.url, title: c.primary.title, publishedIso: c.publishedIso, manualMatch })),
+      manualAmbiguousList: manualAmbiguousList.map(({ candidate: c, manualMatch }) => ({ url: c.primary.url, title: c.primary.title, publishedIso: c.publishedIso, manualMatch })),
+    }, null, 2),
     "utf8",
   );
   log(`\nRelatório salvo em: ${reportPath}`);

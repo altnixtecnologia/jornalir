@@ -15,6 +15,7 @@ import { parseArticlePage } from "./lib/parse.mjs";
 import { CATEGORY_TO_SECTION_SLUG } from "./lib/batches.mjs";
 import { dedupeByIdentity, filterByBatchRange, candidateKey, collectImageRefs, classifyCandidates } from "./lib/pipeline.mjs";
 import { supabaseAdmin, findExistingArticleId } from "./lib/importer.mjs";
+import { loadManualArticles, partitionEligibleAgainstManual } from "./lib/manual-guard.mjs";
 import { findCutoff, crawlCategoryRecent } from "./sync-recent.mjs";
 
 const AUDIT_DIR = fileURLToPath(new URL("./", import.meta.url));
@@ -91,13 +92,21 @@ async function main() {
     detailCache.set(candidateKey(c), parseArticlePage(text, c.primary.url));
   }
 
-  const { eligibleList, needsReviewList, quarantinedList, rejectedList } = classifyCandidates(newCandidates, detailCache);
+  const { eligibleList: classifiedEligibleList, needsReviewList, quarantinedList, rejectedList } = classifyCandidates(newCandidates, detailCache);
+
+  // Mesma proteção mínima usada pelo sync-recent.mjs real (lib/manual-guard.mjs)
+  // — o relatório precisa refletir exatamente o que o --commit faria.
+  const manualArticles = await loadManualArticles(sb);
+  const { finalEligible: eligibleList, manualDuplicateList, manualAmbiguousList } =
+    partitionEligibleAgainstManual(classifiedEligibleList, manualArticles, detailCache, candidateKey);
 
   const rows = [];
   for (const { c, existingArticleId } of existingRows) {
     rows.push(row("já existe (mídia a reconciliar)", c, detailCache.get(candidateKey(c)), { existingArticleId }));
   }
   for (const { candidate: c, detail } of eligibleList) rows.push(row("elegível para importar", c, detail));
+  for (const { candidate: c, detail, manualMatch } of manualDuplicateList) rows.push(row("duplicata de matéria manual (fora da importação)", c, detail, { manualMatch }));
+  for (const { candidate: c, detail, manualMatch } of manualAmbiguousList) rows.push(row("ambíguo vs. matéria manual — revisão humana (fora da importação)", c, detail, { manualMatch }));
   for (const { candidate: c, detail, reasons } of needsReviewList) rows.push(row("precisa revisão manual", c, detail, { reasons }));
   for (const { candidate: c, detail, reasons } of quarantinedList) rows.push(row("quarentena editorial", c, detail, { reasons }));
   for (const { candidate: c, detail, reasons } of rejectedList) rows.push(row("rejeitada", c, detail, { reasons }));
@@ -120,6 +129,8 @@ async function main() {
     dateExceptions: dateExceptions.length,
     alreadyExisting: existingRows.length,
     newEligible: eligibleList.length,
+    manualDuplicateConfirmed: manualDuplicateList.length,
+    manualAmbiguous: manualAmbiguousList.length,
     needsReview: needsReviewList.length,
     quarantined: quarantinedList.length,
     rejected: rejectedList.length,
@@ -144,6 +155,8 @@ Gerado em: ${new Date().toISOString()} · SOMENTE LEITURA — nenhuma matéria/i
 | Candidatas únicas no intervalo | ${summary.uniqueCandidatesInRange} |
 | Já existem no banco novo (só mídia a reconciliar) | ${summary.alreadyExisting} |
 | **Novas elegíveis para importar** | **${summary.newEligible}** |
+| Duplicata confirmada de matéria manual (fora da importação) | ${summary.manualDuplicateConfirmed} |
+| Ambígua vs. matéria manual — revisão humana (fora da importação) | ${summary.manualAmbiguous} |
 | Precisam de revisão manual | ${summary.needsReview} |
 | Em quarentena editorial | ${summary.quarantined} |
 | Rejeitadas (falha de busca) | ${summary.rejected} |
