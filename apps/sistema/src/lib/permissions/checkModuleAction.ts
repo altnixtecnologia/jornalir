@@ -10,8 +10,15 @@ import { NFSE_AVAILABLE_IN_THIS_RELEASE, NFSE_POSTPONED_MESSAGE } from "../relea
 export async function checkModuleAction(
   module: StaffActionModule, action: StaffModuleActionKey,
 ): Promise<string | null> {
-  // NFS-e adiada: nenhuma Server Action recebe permissão, mesmo admin/owner.
-  if (module === "nfse" && !NFSE_AVAILABLE_IN_THIS_RELEASE) return NFSE_POSTPONED_MESSAGE;
+  // NFS-e adiada: nenhuma Server Action de EMISSÃO recebe permissão, mesmo
+  // admin/owner. Única exceção: "configuracoes_gerenciar" (cadastro fiscal
+  // e certificado A1), que já é `adminOnly` no catálogo abaixo e nunca
+  // transmite nem consulta nada externamente — fica sujeita só à checagem
+  // normal de permissão (RPC `staff_can_module_action`), não ao bloqueio
+  // geral de emissão.
+  if (module === "nfse" && action !== "configuracoes_gerenciar" && !NFSE_AVAILABLE_IN_THIS_RELEASE) {
+    return NFSE_POSTPONED_MESSAGE;
+  }
   if (!STAFF_MODULE_ACTIONS.some((item) => item.module === module && item.key === action)) {
     return "Ação desconhecida para este módulo.";
   }

@@ -17,18 +17,33 @@ test("primeira publicação não habilita NFS-e nem Altnix por flag/segredo", ()
   assert.equal(adminModules.find((module) => module.slug === "nfse")?.planned, true);
 });
 
-test("rota fiscal, menus e autorização de Server Actions respeitam bloqueio", () => {
-  assert.match(source("middleware.ts"), /!NFSE_AVAILABLE_IN_THIS_RELEASE && matches\("\/sistema\/nfse"\)/);
-  assert.match(source("lib/permissions/checkModuleAction.ts"), /module === "nfse" && !NFSE_AVAILABLE_IN_THIS_RELEASE/);
+test("rota fiscal (emissão) e menus respeitam bloqueio — configuração fica liberada só pra admin/owner", () => {
+  const middleware = source("middleware.ts");
+  // Emissão (rascunhos/notas/perfis-servico/nova) continua barrada por URL pra todo mundo.
+  assert.match(middleware, /!NFSE_AVAILABLE_IN_THIS_RELEASE && matches\("\/sistema\/nfse"\) && !isNfseConfigPath/);
+  // /sistema/nfse/configuracoes só é liberada quando `privileged` (owner/admin); demais perfis continuam bloqueados.
+  assert.match(middleware, /!NFSE_AVAILABLE_IN_THIS_RELEASE && isNfseConfigPath && !privileged/);
+
+  const checkModuleAction = source("lib/permissions/checkModuleAction.ts");
+  // Toda Server Action de NFS-e continua bloqueada, EXCETO "configuracoes_gerenciar" (cadastro fiscal/certificado).
+  assert.match(checkModuleAction, /module === "nfse" && action !== "configuracoes_gerenciar" && !NFSE_AVAILABLE_IN_THIS_RELEASE/);
+
   assert.match(source("components/admin/AdminHeader.tsx"), /NFSE_AVAILABLE_IN_THIS_RELEASE && canManageUsers/);
-  assert.match(source("components/admin/MobileNav.tsx"), /NFSE_AVAILABLE_IN_THIS_RELEASE/);
+  const mobileNav = source("components/admin/MobileNav.tsx");
+  assert.match(mobileNav, /NFSE_AVAILABLE_IN_THIS_RELEASE/);
+  // Enquanto a emissão estiver adiada, o menu mobile mostra só o link de configuração (nunca rascunhos/notas/perfis-servico).
+  assert.match(mobileNav, /label: "Configurações", href: "\/sistema\/nfse\/configuracoes"/);
 });
 
-test("canais fiscais que não usam o gate geral também param antes de executar", () => {
+test("certificado A1 (upload/consulta local) libera admin/owner sem abrir chamada fiscal externa", () => {
   const cert = source("app/sistema/nfse/configuracoes/certificado-actions.ts");
   const municipality = source("app/sistema/nfse/configuracoes/parametrizacao-actions.ts");
-  assert.match(cert, /if \(!NFSE_AVAILABLE_IN_THIS_RELEASE\) return \{ error: NFSE_POSTPONED_MESSAGE \}/);
-  assert.match(cert, /if \(!NFSE_AVAILABLE_IN_THIS_RELEASE\) return null/);
+  // Upload/consulta do certificado nunca fazem chamada externa — não dependem mais do gate de release,
+  // só da checagem de papel (requireFiscalAdmin), reconferida no banco a cada chamada.
+  assert.ok(!cert.includes('from "../../../../lib/release/releasePolicy"'), "certificado-actions.ts não deve mais importar o gate de release");
+  const requireFiscalAdminCalls = cert.match(/await requireFiscalAdmin\(client\)/g) ?? [];
+  assert.equal(requireFiscalAdminCalls.length, 2, "uploadCertificateAction e getActiveCertificateAction devem reconferir o papel no banco");
+  // A consulta real de parâmetros municipais (chamada mTLS ao ADN) continua bloqueada, sem exceção.
   assert.match(municipality, /if \(!NFSE_AVAILABLE_IN_THIS_RELEASE\) return \{ ok: false/);
 });
 

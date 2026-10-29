@@ -92,8 +92,17 @@ export async function middleware(request: NextRequest): Promise<NextResponse> {
     const privileged=profile?.role==="owner"||profile?.role==="admin";
     const matches=(prefix:string):boolean =>
       pathname===prefix||pathname.startsWith(prefix+"/");
-    // A NFS-e foi adiada até após o release: barrar acesso direto também.
-    if (!NFSE_AVAILABLE_IN_THIS_RELEASE && matches("/sistema/nfse")) {
+    // A EMISSÃO de NFS-e foi adiada até após o release: barrar acesso
+    // direto a toda rota de emissão (notas, rascunhos, nova, perfis de
+    // serviço). A ÚNICA exceção é /sistema/nfse/configuracoes, que
+    // fica disponível só pra Proprietário/Admin ativo (checagem de
+    // `privileged` abaixo), pra permitir cadastro fiscal e certificado
+    // A1 antes da liberação de emissão — nunca abre rota de emissão.
+    const isNfseConfigPath = matches("/sistema/nfse/configuracoes");
+    if (!NFSE_AVAILABLE_IN_THIS_RELEASE && matches("/sistema/nfse") && !isNfseConfigPath) {
+      return NextResponse.redirect(new URL("/sistema?modulo=nfse-adiado", request.url), 303);
+    }
+    if (!NFSE_AVAILABLE_IN_THIS_RELEASE && isNfseConfigPath && !privileged) {
       return NextResponse.redirect(new URL("/sistema?modulo=nfse-adiado", request.url), 303);
     }
     const adminOnly=matches("/sistema/usuarios") ||

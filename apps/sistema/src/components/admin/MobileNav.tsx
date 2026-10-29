@@ -34,7 +34,11 @@ const GROUPS: MobileGroup[] = [
   { label: assinaturasNavGroup.label, links: assinaturasNavGroup.links },
   { label: financeiroNavGroup.label, links: financeiroNavGroup.links },
   { label: commercialNavGroup.label, links: commercialNavGroup.links },
-  ...(NFSE_AVAILABLE_IN_THIS_RELEASE ? [{ label: "Fiscal (NFS-e)", links: nfseNavGroup.links, restricted: true }] : []),
+  ...(NFSE_AVAILABLE_IN_THIS_RELEASE
+    ? [{ label: "Fiscal (NFS-e)", links: nfseNavGroup.links, restricted: true }]
+    // Emissão adiada: controle separado e restrito, só com o link de
+    // configuração/certificado — nunca os links de emissão.
+    : [{ label: "Fiscal (NFS-e)", links: [{ label: "Configurações", href: "/sistema/nfse/configuracoes" }], restricted: true }]),
   { label: configuracoesNavGroup.label, links: configuracoesNavGroup.links, restricted: true },
 ];
 

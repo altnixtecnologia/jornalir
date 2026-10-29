@@ -195,6 +195,16 @@ export function AdminHeader({ onOpenMenu }: { onOpenMenu: () => void }): JSX.Ele
             </details>
           ) : null}
 
+          {/* Emissão NFS-e adiada: controle separado e restrito, só pra
+              Proprietário/Admin, que mostra SÓ o link de configuração/
+              certificado — nunca os links de emissão (rascunhos, notas,
+              perfis de serviço), que ficam ocultos até a liberação. */}
+          {!NFSE_AVAILABLE_IN_THIS_RELEASE && canManageUsers ? (
+            <Link href="/sistema/nfse/configuracoes" className="app-nav-link">
+              NFS-e (config.)
+            </Link>
+          ) : null}
+
           {auditRead && !canManageUsers ? (
             <Link href="/sistema/configuracoes/auditoria" className="app-nav-link"
               aria-current={pathname === "/sistema/configuracoes/auditoria" ? "page" : undefined}>
