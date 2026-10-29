@@ -2472,3 +2472,19 @@ VERIFICAÇÃO PÓS-IMPORTAÇÃO (consultas diretas ao Supabase, read-only):
 ARQUIVOS ALTERADOS: `scripts/legacy-audit/lib/manual-guard.mjs` (novo), `scripts/legacy-audit/lib/manual-guard.test.mjs` (novo), `scripts/legacy-audit/lib/integrity.mjs` (export de `normalizeTitle`, zero mudança de comportamento), `scripts/legacy-audit/sync-recent.mjs` e `report-sync-recent.mjs` (chamada ao guard logo após `classifyCandidates`, nunca uma reescrita). Nenhuma migration, nenhuma alteração em `apps/sistema`/`apps/site`.
 
 FALTA/BLOQUEIOS: nenhum. Comentários sobre as 17 matérias já existentes na janela (mídia não reconciliada nesta execução, por decisão de escopo — sem `--reconcile-existing`) ficam disponíveis para uma execução futura, se autorizada. Sem push, merge, Preview, deploy, migration ou alteração remota — gravação feita só no Supabase/R2 já configurados do projeto, conforme autorização explícita do proprietário para esta importação específica.
+
+## 29/10/2026 — Segunda sincronização incremental (21 matérias importadas)
+
+Base: `1431b306` (mesma branch, HEAD confirmado, árvore limpa, branches/worktrees/stash preservados). Reutilizou `sync-recent.mjs`/`report-sync-recent.mjs` SEM nenhuma alteração de código — só executados de novo (a proteção `manual-guard.mjs` do lote anterior já está embutida neles).
+
+PREFLIGHT (os dois bateram exatamente, como no lote anterior): 178 itens encontrados no site · 30 candidatas únicas no intervalo 27/10 a 29/10/2026 · 9 já existentes (preservadas) · **21 elegíveis** · 0 duplicata/ambígua de matéria manual (esperado — as 5 manuais já foram todas confirmadas e excluídas no lote de 28/10, nenhuma colisão nova) · 0 em revisão, quarentena, rejeitada · 0 exceções de data.
+
+IMPORTAÇÃO REAL (`--commit --publish-recent`, autorizado): 21 matérias criadas, `status=published`, `notification_mode='none'`, `published_at` original preservada. 33 imagens enviadas ao R2, 0 falhas de imagem, 0 matérias com falha. As 9 já existentes e as 5 manuais não foram tocadas.
+
+VERIFICAÇÃO PÓS-IMPORTAÇÃO: `articles` total 23.602 (23.527 published + 75 archived) — 23.506 (published antes) + 21 = 23.527, confere exatamente. As 5 manuais continuam sem nenhuma linha em `article_external_sources`. Das 21 novas: 0 com `notification_mode`/`status`/`origin`/`published_at` incorretos, 0 títulos duplicados entre si. 33 vínculos em `article_media` — bate com `uploadedImages=33`. `notification_outbox`/`notification_events`/`audit_events` (dispatched ou skipped): 0 linhas novas.
+
+Observação (mesma classe já registrada no lote anterior, não é falha, não corrigida por não ter sido pedido): "ZÉ MILTON DEBATE EM BRASÍLIA A RENEGOCIAÇÃO DE DÍVIDAS DOS PRODUTORES RURAIS" apareceu de novo nesta leva (external_id `15487910`, editoria "sociais"), repetindo o título de uma matéria já importada no lote anterior sob outro `external_id` (`15487832`, editoria "politica") — o site legado republicou a mesma matéria com ID novo; tratada como candidata legítima e distinta pela identidade externa, igual a qualquer outro lote. A duplicata editorial identificada anteriormente (Santa Rosa do Sul/AMESC, lote de 28/10) não foi arquivada nem tocada, conforme instrução explícita.
+
+ARQUIVOS ALTERADOS: nenhum arquivo de código — só `docs/LEGADO-DRY-RUN-sync-recent-20261018.md` regenerado pelo próprio `report-sync-recent.mjs`.
+
+FALTA/BLOQUEIOS: nenhum. Sem push, merge, Preview, deploy, migration ou alteração remota. Próxima tarefa (NFS-e) não iniciada automaticamente, conforme pedido do proprietário.
