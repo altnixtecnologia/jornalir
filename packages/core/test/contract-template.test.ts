@@ -164,3 +164,30 @@ test("campo variável com chave inválida (fora do padrão) é rejeitado", async
     ContractTemplateValidationError,
   );
 });
+
+test("campo variável aceita um 'prefixo.sufixo' (ex.: contratada.cnpj) — exigido pela emissão de documentos comerciais", async () => {
+  // Achado real (Bloco 3, 01/11/2026): missingCommercialLegalParties (lib/contracts/commercialPartyRequirements.ts,
+  // apps/sistema) exige que o modelo declare contratada.razao_social/cnpj/endereco/representante em `variables` —
+  // sem essa aceitação aqui, nenhum modelo comercial jamais passaria pela tela de cadastro.
+  const service = new ContractTemplateService(new FakeContractTemplateRepository());
+  const template = await service.create({
+    title: "Modelo comercial",
+    content: "{{contratada.razao_social}} {{contratada.cnpj}} {{cliente.qualificacao}}",
+    variables: [
+      { key: "contratada.razao_social", label: "Razão social da contratada", required: true },
+      { key: "contratada.cnpj", label: "CNPJ da contratada", required: true },
+    ],
+  });
+  assert.equal(template.variables[0].key, "contratada.razao_social");
+});
+
+test("campo variável rejeita mais de um ponto, ponto nas pontas ou maiúsculas, mesmo com prefixo válido", async () => {
+  const service = new ContractTemplateService(new FakeContractTemplateRepository());
+  for (const key of ["a.b.c", ".contratada", "contratada.", "Contratada.cnpj", "contratada.CNPJ"]) {
+    await assert.rejects(
+      () => service.create({ title: "Modelo", content: `{{${key}}}`, variables: [{ key, label: "X", required: true }] }),
+      ContractTemplateValidationError,
+      `deveria rejeitar a chave "${key}"`,
+    );
+  }
+});

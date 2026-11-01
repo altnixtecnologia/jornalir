@@ -11,7 +11,17 @@ export interface ContractTemplateInput {
   variables: ContractTemplateVariable[];
 }
 
-const VARIABLE_KEY_RE = /^[a-z][a-z0-9_]{1,59}$/;
+// Aceita também UM "prefixo.sufixo" (ex.: "contratada.cnpj",
+// "cliente.representante_cpf") — mesmo padrão de CONTRACT_TEMPLATE_AUTO_FIELDS
+// e dos campos obrigatórios da contratada (CONTRACTOR_FIELDS, em
+// commercialPartyRequirements.ts). Achado real (Bloco 3, 01/11/2026):
+// a emissão de documentos comerciais (missingCommercialLegalParties)
+// EXIGE que o modelo declare "contratada.razao_social"/"contratada.cnpj"/
+// "contratada.endereco"/"contratada.representante" em `variables`, mas
+// a regex original (sem ponto) tornava isso impossível de salvar pela
+// tela — nenhum modelo comercial jamais teria passado por aqui. Nunca
+// aceita mais de um ponto (nunca "a.b.c") nem ponto nas pontas.
+const VARIABLE_KEY_RE = /^[a-z][a-z0-9_]{0,29}(?:\.[a-z][a-z0-9_]{0,29})?$/;
 
 function validate(input: ContractTemplateInput): void {
   if (!input.title.trim() || input.title.trim().length < 3) {
