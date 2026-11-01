@@ -6,10 +6,19 @@ import { getClientService } from "../../../../composition/clientes";
 import { getSubscriptionService } from "../../../../composition/assinaturas";
 import { getReceivableService } from "../../../../composition/financeiro";
 import { getCommercialProposalService } from "../../../../composition/comercial";
-import type { CommercialCondition } from "@ir/types";
 import { createSupabaseServerClient } from "../../../../lib/supabase/server";
+import { checkModuleAction } from "../../../../lib/permissions/checkModuleAction";
 import { getAuditContext } from "../../../../lib/auth/getAuditContext";
 import { recordAuditEventSupabase } from "../../../../providers/supabase/auditEvents.supabase";
+import {
+  onlyDigits,
+  todayInBrazil,
+  addDaysIso,
+  addYearsIso,
+  advertisingSelections,
+  subscriptionSelectionAmount,
+  commercialConditionFromPayment,
+} from "./siteInterestConversionHelpers";
 
 export type SiteInterestStatus = "new" | "contacted" | "converted" | "discarded";
 export type SiteInterestAvailability = "pending" | "approved" | "unavailable" | "needs_info";
@@ -56,82 +65,6 @@ function paths(): void {
   revalidatePath("/sistema/publicidade/solicitacoes");
   revalidatePath("/sistema/notificacoes");
   revalidatePath("/sistema");
-}
-
-function onlyDigits(value: string | null | undefined): string {
-  return (value ?? "").replace(/\D/g, "");
-}
-
-function todayInBrazil(): string {
-  const parts = new Intl.DateTimeFormat("en-US", {
-    timeZone: "America/Sao_Paulo",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).formatToParts(new Date());
-  const year = parts.find((part) => part.type === "year")?.value ?? "";
-  const month = parts.find((part) => part.type === "month")?.value ?? "";
-  const day = parts.find((part) => part.type === "day")?.value ?? "";
-  return `${year}-${month}-${day}`;
-}
-
-function addDaysIso(iso: string, days: number): string {
-  const date = new Date(`${iso}T12:00:00Z`);
-  date.setUTCDate(date.getUTCDate() + days);
-  return date.toISOString().slice(0, 10);
-}
-
-function addYearsIso(iso: string, years: number): string {
-  const date = new Date(`${iso}T12:00:00Z`);
-  date.setUTCFullYear(date.getUTCFullYear() + years);
-  return date.toISOString().slice(0, 10);
-}
-
-interface AdvertisingSelection {
-  id: string;
-  label: string;
-  price: number;
-  type: "print_ad" | "digital_ad";
-}
-
-function advertisingSelections(selections: unknown): AdvertisingSelection[] {
-  if (!Array.isArray(selections)) return [];
-  const result: AdvertisingSelection[] = [];
-
-  for (const selection of selections) {
-    if (!selection || typeof selection !== "object") continue;
-    const item = selection as Record<string, unknown>;
-    if (item.type !== "print_ad" && item.type !== "digital_ad") continue;
-
-    const label = typeof item.label === "string" && item.label.trim() ? item.label.trim() : String(item.id ?? "Publicidade");
-    let price = 0;
-    for (const key of ["finalPrice", "individualPrice", "price"]) {
-      const value = item[key];
-      if (value === null || value === undefined || value === "") continue;
-      const parsed = Number(value);
-      if (Number.isFinite(parsed) && parsed >= 0) {
-        price = parsed;
-        break;
-      }
-    }
-
-    result.push({
-      id: typeof item.id === "string" ? item.id : label,
-      label,
-      price,
-      type: item.type,
-    });
-  }
-
-  return result;
-}
-
-function commercialConditionFromPayment(
-  payment: SubscriptionInterestRow["payment_preference"],
-): CommercialCondition {
-  if (payment === "pix" || payment === "cash") return "cash";
-  if (payment === "boleto" || payment === "credit_card") return "installments";
-  return "other";
 }
 
 async function resolveOrCreateAdvertisingClient(
@@ -212,23 +145,6 @@ async function resolveOrCreateAdvertisingClient(
     roles: ["cliente"],
   });
   return created.id;
-}
-
-function subscriptionSelectionAmount(selections: unknown): number | null {
-  if (!Array.isArray(selections)) return null;
-  for (const selection of selections) {
-    if (!selection || typeof selection !== "object") continue;
-    const item = selection as Record<string, unknown>;
-    const isSubscription = item.type === "subscription" || item.kind === "subscription" || item.id === "annual-newspaper";
-    if (!isSubscription) continue;
-    for (const key of ["finalPrice", "individualPrice", "price"]) {
-      const value = item[key];
-      if (value === null || value === undefined || value === "") continue;
-      const parsed = Number(value);
-      if (Number.isFinite(parsed) && parsed >= 0) return parsed;
-    }
-  }
-  return null;
 }
 
 async function resolveOrCreateClient(
@@ -377,6 +293,17 @@ export async function updateSiteInterestStatusAction(
   status: SiteInterestStatus,
 ): Promise<void> {
   if (!VALID_STATUSES.includes(status)) return;
+  // "converted" nunca passa por aqui — só pelas ações dedicadas
+  // (convertSubscriptionInterestAction/convertAdvertisingInterestAction),
+  // que criam de fato o cliente + assinatura/proposta antes de marcar o
+  // status. Sem essa trava, dava pra marcar "convertida" sem nenhum
+  // vínculo comercial real (bug corrigido em 31/10/2026).
+  if (status === "converted") {
+    throw new Error("Use a ação de conversão específica (assinatura ou publicidade) — ela cria o cliente e o vínculo comercial antes de marcar como convertida.");
+  }
+
+  const permissionError = await checkModuleAction("publicidade", "solicitacoes_gerenciar");
+  if (permissionError) throw new Error(permissionError);
 
   const client = createSupabaseServerClient();
   const audit = await getAuditContext(client);
@@ -387,11 +314,7 @@ export async function updateSiteInterestStatusAction(
     reviewed_by: audit.actorId,
     reviewed_at: now,
   };
-  if (status === "converted") {
-    update.converted_at = now;
-    update.attended_at = now;
-    update.attended_by = audit.actorId;
-  } else if (status === "discarded") {
+  if (status === "discarded") {
     update.attended_at = now;
     update.attended_by = audit.actorId;
   }
@@ -415,6 +338,9 @@ export async function updateSiteInterestStatusAction(
 }
 
 export async function markSiteInterestAttendedAction(id: string): Promise<void> {
+  const permissionError = await checkModuleAction("publicidade", "solicitacoes_gerenciar");
+  if (permissionError) throw new Error(permissionError);
+
   const client = createSupabaseServerClient();
   const audit = await getAuditContext(client);
   const { data: current, error: currentError } = await client
@@ -461,6 +387,9 @@ export async function reviewSiteInterestAction(id: string, formData: FormData): 
   const adminNote = String(formData.get("adminNote") ?? "").trim();
   if (adminNote.length > 3000) throw new Error("Observação muito longa.");
 
+  const permissionError = await checkModuleAction("publicidade", "solicitacoes_gerenciar");
+  if (permissionError) throw new Error(permissionError);
+
   const client = createSupabaseServerClient();
   const audit = await getAuditContext(client);
   const { data: current, error: currentError } = await client
@@ -496,7 +425,114 @@ export async function reviewSiteInterestAction(id: string, formData: FormData): 
   paths();
 }
 
+interface EnsuredSubscription {
+  subscriptionId: string;
+  subscriptionReference: string;
+  receivableId: string;
+  receivableReference: string;
+}
+
+/**
+ * Cria (ou reaproveita, por idempotência via `originTag` nas notas) a
+ * assinatura + primeiro título financeiro de uma solicitação — extraído
+ * de `convertSubscriptionInterestAction` pra ser reaproveitado também
+ * pela conversão de pacotes mistos (`convertAdvertisingInterestAction`),
+ * sem duplicar a lógica.
+ */
+async function ensureSubscriptionAndReceivable(
+  supabase: ReturnType<typeof createSupabaseServerClient>,
+  row: SubscriptionInterestRow,
+  clientId: string,
+  amount: number,
+  originTag: string,
+  protocol: string,
+): Promise<EnsuredSubscription> {
+  const { data: existingSubscriptionRows, error: existingSubscriptionError } = await supabase
+    .from("subscriptions")
+    .select("id")
+    .ilike("notes", `%${originTag}%`)
+    .limit(2);
+  if (existingSubscriptionError) throw new Error(existingSubscriptionError.message);
+
+  let subscription =
+    existingSubscriptionRows && existingSubscriptionRows.length > 0
+      ? await getSubscriptionService(supabase).getById(existingSubscriptionRows[0].id as string)
+      : null;
+
+  if (!subscription) {
+    const startsAt = todayInBrazil();
+    subscription = await getSubscriptionService(supabase).register({
+      clientId,
+      serviceType: "impresso",
+      status: "active",
+      amount,
+      periodicity: "annual",
+      startsAt,
+      nextDueDate: addYearsIso(startsAt, 1),
+      print: {
+        copies: 1,
+        addressZip: row.address_zip ?? undefined,
+        addressStreet: row.address_street ?? undefined,
+        addressNumber: row.address_number ?? undefined,
+        addressComplement: row.address_complement ?? undefined,
+        addressNeighborhood: row.address_neighborhood ?? undefined,
+        addressCity: row.address_city ?? undefined,
+        addressState: row.address_state ?? undefined,
+      },
+      notes: [
+        originTag,
+        `Solicitação do site ${protocol}.`,
+        row.payment_preference ? `Preferência de pagamento informada: ${row.payment_preference}.` : null,
+        row.notes ? `Observação do assinante: ${row.notes}` : null,
+      ]
+        .filter(Boolean)
+        .join("\n"),
+    });
+  }
+
+  const receivableService = getReceivableService(supabase);
+  const existingReceivables = await receivableService.list({ subscriptionId: subscription.id });
+  let receivable = existingReceivables.find(
+    (item) => item.competencyDate === subscription!.startsAt || item.notes?.includes(originTag),
+  );
+
+  if (!receivable) {
+    const { data: settings } = await supabase
+      .from("billing_provider_settings")
+      .select("default_due_days")
+      .eq("id", 1)
+      .maybeSingle();
+    const dueDaysRaw = Number(settings?.default_due_days ?? 3);
+    const dueDays = Number.isFinite(dueDaysRaw) ? Math.max(0, Math.min(60, Math.floor(dueDaysRaw))) : 3;
+
+    const createdReceivable = await receivableService.registerFromSubscription({
+      clientId,
+      description: "Assinatura anual do Informativo Regional",
+      sourceType: "subscription",
+      sourceId: subscription.id,
+      sourceReference: `Assinatura ${subscription.reference}`,
+      subscriptionId: subscription.id,
+      originalAmount: amount,
+      issueDate: subscription.startsAt,
+      dueDate: addDaysIso(subscription.startsAt, dueDays),
+      competencyDate: subscription.startsAt,
+      notes: `${originTag} Gerada a partir da solicitação do site ${protocol}.`,
+    });
+    receivable = await receivableService.getById(createdReceivable.id);
+  }
+
+  return {
+    subscriptionId: subscription.id,
+    subscriptionReference: subscription.reference,
+    receivableId: receivable.id,
+    receivableReference: receivable.reference,
+  };
+}
+
 export async function convertSubscriptionInterestAction(id: string): Promise<ConvertSubscriptionInterestResult> {
+  const permissionError = await checkModuleAction("assinaturas", "assinaturas_criar");
+  if (permissionError) return { error: permissionError };
+
   const supabase = createSupabaseServerClient();
 
   try {
@@ -537,81 +573,10 @@ export async function convertSubscriptionInterestAction(id: string): Promise<Con
     const audit = await getAuditContext(supabase);
     const clientId = await resolveOrCreateClient(supabase, row);
 
-    const { data: existingSubscriptionRows, error: existingSubscriptionError } = await supabase
-      .from("subscriptions")
-      .select("id")
-      .ilike("notes", `%${originTag}%`)
-      .limit(2);
-    if (existingSubscriptionError) throw new Error(existingSubscriptionError.message);
+    const { subscriptionId, subscriptionReference, receivableId, receivableReference } =
+      await ensureSubscriptionAndReceivable(supabase, row, clientId, amount, originTag, protocol);
 
-    let subscription =
-      existingSubscriptionRows && existingSubscriptionRows.length > 0
-        ? await getSubscriptionService(supabase).getById(existingSubscriptionRows[0].id as string)
-        : null;
-
-    if (!subscription) {
-      const startsAt = todayInBrazil();
-      subscription = await getSubscriptionService(supabase).register({
-        clientId,
-        serviceType: "impresso",
-        status: "active",
-        amount,
-        periodicity: "annual",
-        startsAt,
-        nextDueDate: addYearsIso(startsAt, 1),
-        print: {
-          copies: 1,
-          addressZip: row.address_zip ?? undefined,
-          addressStreet: row.address_street ?? undefined,
-          addressNumber: row.address_number ?? undefined,
-          addressComplement: row.address_complement ?? undefined,
-          addressNeighborhood: row.address_neighborhood ?? undefined,
-          addressCity: row.address_city ?? undefined,
-          addressState: row.address_state ?? undefined,
-        },
-        notes: [
-          originTag,
-          `Solicitação do site ${protocol}.`,
-          row.payment_preference ? `Preferência de pagamento informada: ${row.payment_preference}.` : null,
-          row.notes ? `Observação do assinante: ${row.notes}` : null,
-        ]
-          .filter(Boolean)
-          .join("\n"),
-      });
-    }
-
-    const receivableService = getReceivableService(supabase);
-    const existingReceivables = await receivableService.list({ subscriptionId: subscription.id });
-    let receivable = existingReceivables.find(
-      (item) => item.competencyDate === subscription!.startsAt || item.notes?.includes(originTag),
-    );
-
-    if (!receivable) {
-      const { data: settings } = await supabase
-        .from("billing_provider_settings")
-        .select("default_due_days")
-        .eq("id", 1)
-        .maybeSingle();
-      const dueDaysRaw = Number(settings?.default_due_days ?? 3);
-      const dueDays = Number.isFinite(dueDaysRaw) ? Math.max(0, Math.min(60, Math.floor(dueDaysRaw))) : 3;
-
-      const createdReceivable = await receivableService.registerFromSubscription({
-        clientId,
-        description: "Assinatura anual do Informativo Regional",
-        sourceType: "subscription",
-        sourceId: subscription.id,
-        sourceReference: `Assinatura ${subscription.reference}`,
-        subscriptionId: subscription.id,
-        originalAmount: amount,
-        issueDate: subscription.startsAt,
-        dueDate: addDaysIso(subscription.startsAt, dueDays),
-        competencyDate: subscription.startsAt,
-        notes: `${originTag} Gerada a partir da solicitação do site ${protocol}.`,
-      });
-      receivable = await receivableService.getById(createdReceivable.id);
-    }
-
-    const conversionLine = `Assinatura convertida: ${subscription.reference}; financeiro: ${receivable.reference}.`;
+    const conversionLine = `Assinatura convertida: ${subscriptionReference}; financeiro: ${receivableReference}.`;
     const adminNote = [row.admin_note?.trim(), conversionLine].filter(Boolean).join("\n").slice(0, 3000);
 
     const { error: updateError } = await supabase
@@ -624,8 +589,8 @@ export async function convertSubscriptionInterestAction(id: string): Promise<Con
         // fila comercial além do tempo necessário para a contratação.
         document_number: null,
         converted_client_id: clientId,
-        converted_subscription_id: subscription.id,
-        converted_receivable_id: receivable.id,
+        converted_subscription_id: subscriptionId,
+        converted_receivable_id: receivableId,
         converted_at: new Date().toISOString(),
         attended_at: new Date().toISOString(),
         attended_by: audit.actorId,
@@ -642,10 +607,10 @@ export async function convertSubscriptionInterestAction(id: string): Promise<Con
       action: "convert_subscription",
       metadata: {
         clientId,
-        subscriptionId: subscription.id,
-        subscriptionReference: subscription.reference,
-        receivableId: receivable.id,
-        receivableReference: receivable.reference,
+        subscriptionId,
+        subscriptionReference,
+        receivableId,
+        receivableReference,
         amount,
       },
     });
@@ -654,13 +619,187 @@ export async function convertSubscriptionInterestAction(id: string): Promise<Con
     revalidatePath("/sistema/clientes");
     revalidatePath(`/sistema/clientes/${clientId}`);
     revalidatePath("/sistema/assinaturas");
-    revalidatePath(`/sistema/assinaturas/${subscription.id}`);
+    revalidatePath(`/sistema/assinaturas/${subscriptionId}`);
     revalidatePath("/sistema/financeiro");
     revalidatePath("/sistema/financeiro/contas-a-receber");
-    revalidatePath(`/sistema/financeiro/contas-a-receber/${receivable.id}`);
+    revalidatePath(`/sistema/financeiro/contas-a-receber/${receivableId}`);
 
-    return { ok: true, clientId, subscriptionId: subscription.id, receivableId: receivable.id };
+    return { ok: true, clientId, subscriptionId, receivableId };
   } catch (error) {
     return { error: error instanceof Error ? error.message : "Não foi possível converter a solicitação em assinatura." };
+  }
+}
+
+export type ConvertAdvertisingInterestResult =
+  | { error: string }
+  | { ok: true; clientId: string; proposalId: string; proposalReference: string; subscriptionId?: string };
+
+/**
+ * Conversão real de solicitações de publicidade e pacotes mistos —
+ * corrige o bug em que "Marcar convertida" só mudava o status, sem
+ * criar cliente, proposta ou (no caso misto) assinatura/financeiro
+ * (31/10/2026). Publicidade pura: cria cliente (sem exigir CPF/CNPJ
+ * ainda, igual à solicitação só de publicidade) + proposta comercial
+ * com os itens de publicidade, como pré-venda (nunca uma venda/
+ * contrato fechado automaticamente — isso continua exigindo a
+ * aprovação manual da proposta, mesmo fluxo já existente de Comercial).
+ * Pacote misto: usa o cliente com CPF/CNPJ (mesma regra da assinatura)
+ * e cria TAMBÉM a assinatura + primeiro título financeiro, reaproveitando
+ * `ensureSubscriptionAndReceivable`.
+ */
+export async function convertAdvertisingInterestAction(id: string): Promise<ConvertAdvertisingInterestResult> {
+  const permissionError = await checkModuleAction("publicidade", "solicitacoes_gerenciar");
+  if (permissionError) return { error: permissionError };
+
+  const supabase = createSupabaseServerClient();
+
+  try {
+    const { data, error } = await supabase
+      .from("site_interest_requests")
+      .select(
+        "id, request_type, name, phone, email, company, customer_kind, document_number, selections, estimated_total, notes, status, payment_preference, " +
+          "address_zip, address_street, address_number, address_complement, address_neighborhood, address_city, address_state, " +
+          "availability_status, approved_total, admin_note",
+      )
+      .eq("id", id)
+      .single();
+
+    if (error || !data) throw new Error(error?.message ?? "Solicitação não encontrada.");
+    const row = data as unknown as SubscriptionInterestRow;
+
+    if (row.request_type === "subscription") {
+      return { error: "Esta solicitação é somente de assinatura — use a conversão de assinatura." };
+    }
+    if (row.status === "converted") return { error: "Esta solicitação já foi convertida." };
+    if (row.status === "discarded") return { error: "Esta solicitação está descartada." };
+    if (row.availability_status !== "approved") {
+      return { error: "Aprove primeiro a disponibilidade antes de converter." };
+    }
+
+    const items = advertisingSelections(row.selections);
+    const subscriptionAmount = row.request_type === "mixed" ? subscriptionSelectionAmount(row.selections) : null;
+    if (items.length === 0 && (subscriptionAmount === null || subscriptionAmount <= 0)) {
+      return {
+        error: "Não foi possível identificar os itens de publicidade (ou assinatura) desta solicitação. Ajuste manualmente antes de converter.",
+      };
+    }
+
+    const protocol = row.id.slice(0, 8).toUpperCase();
+    const originTag = `[site-interest:${row.id}]`;
+    const audit = await getAuditContext(supabase);
+
+    // Pacote misto exige CPF/CNPJ (mesma regra da assinatura, já que
+    // cria uma assinatura de verdade); publicidade pura aceita cadastro
+    // sem documento fiscal ainda, igual ao comportamento já existente.
+    const clientId =
+      row.request_type === "mixed"
+        ? await resolveOrCreateClient(supabase, row)
+        : await resolveOrCreateAdvertisingClient(supabase, row);
+
+    let subscriptionId: string | undefined;
+    let receivableId: string | undefined;
+    if (subscriptionAmount !== null && subscriptionAmount > 0) {
+      const ensured = await ensureSubscriptionAndReceivable(supabase, row, clientId, subscriptionAmount, originTag, protocol);
+      subscriptionId = ensured.subscriptionId;
+      receivableId = ensured.receivableId;
+    }
+
+    let proposalId: string;
+    let proposalReference: string;
+
+    if (items.length > 0) {
+      const { data: existingProposalRows, error: existingProposalError } = await supabase
+        .from("commercial_proposals")
+        .select("id")
+        .ilike("internal_notes", `%${originTag}%`)
+        .limit(2);
+      if (existingProposalError) throw new Error(existingProposalError.message);
+
+      const proposalService = getCommercialProposalService(supabase);
+      const existingProposal =
+        existingProposalRows && existingProposalRows.length > 0
+          ? await proposalService.getById(existingProposalRows[0].id as string)
+          : null;
+
+      const proposal =
+        existingProposal ??
+        (await proposalService.register({
+          clientId,
+          proposalDate: todayInBrazil(),
+          commercialCondition: commercialConditionFromPayment(row.payment_preference),
+          notes: `Gerada a partir da solicitação do site ${protocol}.`,
+          internalNotes: originTag,
+          items: items.map((item) => ({
+            description: item.label,
+            quantity: 1,
+            unitPrice: item.price,
+            discountAmount: 0,
+          })),
+        }));
+
+      proposalId = proposal.id;
+      proposalReference = proposal.reference;
+    } else {
+      // Misto sem item de publicidade individualizado no payload (só
+      // valor total aprovado) — nunca inventa item de proposta. A
+      // assinatura já foi criada acima; grava o vínculo mesmo sem
+      // marcar "converted" (a parte de publicidade segue pendente),
+      // pra não deixar o link perdido nem arriscar duplicar a
+      // assinatura numa nova tentativa.
+      if (subscriptionId) {
+        const { error: partialUpdateError } = await supabase
+          .from("site_interest_requests")
+          .update({ converted_subscription_id: subscriptionId, converted_receivable_id: receivableId ?? null })
+          .eq("id", id);
+        if (partialUpdateError) throw new Error(partialUpdateError.message);
+      }
+      return { error: "Assinatura convertida, mas não foi possível identificar os itens de publicidade. Crie a proposta manualmente para concluir a parte comercial." };
+    }
+
+    const conversionLine = [
+      `Proposta comercial criada: ${proposalReference}.`,
+      subscriptionId ? `Assinatura convertida: ${subscriptionId}.` : null,
+    ]
+      .filter(Boolean)
+      .join(" ");
+    const adminNote = [row.admin_note?.trim(), conversionLine].filter(Boolean).join("\n").slice(0, 3000);
+
+    const { error: updateError } = await supabase
+      .from("site_interest_requests")
+      .update({
+        status: "converted",
+        admin_note: adminNote,
+        document_number: null,
+        converted_client_id: clientId,
+        converted_proposal_id: proposalId,
+        converted_subscription_id: subscriptionId ?? null,
+        converted_receivable_id: receivableId ?? null,
+        converted_at: new Date().toISOString(),
+        attended_at: new Date().toISOString(),
+        attended_by: audit.actorId,
+        reviewed_by: audit.actorId,
+        reviewed_at: new Date().toISOString(),
+      })
+      .eq("id", id);
+    if (updateError) throw new Error(updateError.message);
+
+    await recordAuditEventSupabase(supabase, {
+      userId: audit.actorId,
+      entityType: "site_interest_request",
+      entityId: id,
+      action: "convert_advertising",
+      metadata: { clientId, proposalId, proposalReference, subscriptionId },
+    });
+
+    paths();
+    revalidatePath("/sistema/clientes");
+    revalidatePath(`/sistema/clientes/${clientId}`);
+    revalidatePath("/sistema/publicidade/propostas");
+    revalidatePath(`/sistema/publicidade/propostas/${proposalId}`);
+    if (subscriptionId) revalidatePath("/sistema/assinaturas");
+
+    return { ok: true, clientId, proposalId, proposalReference, subscriptionId };
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : "Não foi possível converter a solicitação de publicidade." };
   }
 }

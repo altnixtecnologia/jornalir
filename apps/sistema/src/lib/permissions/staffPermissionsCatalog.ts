@@ -72,6 +72,7 @@ export const STAFF_MODULE_ACTIONS = [
   { module: "assinaturas", key: "assinaturas_suspender", label: "Suspender ou reativar assinaturas" },
   { module: "assinaturas", key: "assinaturas_cancelar", label: "Cancelar assinaturas", isCritical: true },
   { module: "publicidade", key: "produtos_gerenciar", label: "Criar e editar produtos/planos" },
+  { module: "publicidade", key: "solicitacoes_gerenciar", label: "Atender e converter solicitações do site", isDefault: true },
   { module: "publicidade", key: "propostas_criar", label: "Criar propostas", isDefault: true },
   { module: "publicidade", key: "propostas_editar", label: "Editar propostas", isDefault: true },
   { module: "publicidade", key: "propostas_aprovar", label: "Aprovar propostas e converter em vendas" },

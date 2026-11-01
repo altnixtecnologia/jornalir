@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { ModuleHeader } from "../../../../components/admin/ModuleHeader";
 import { ConvertSubscriptionInterestButton } from "../../../../features/publicidade/ConvertSubscriptionInterestButton";
+import { ConvertAdvertisingInterestButton } from "../../../../features/publicidade/ConvertAdvertisingInterestButton";
 import { createSupabaseServerClient } from "../../../../lib/supabase/server";
 import {
   markSiteInterestAttendedAction,
@@ -270,6 +271,10 @@ export default async function SiteInterestRequestsPage({
               row.request_type === "subscription" &&
               row.availability_status === "approved" &&
               !finalStatus;
+            const canConvertAdvertising =
+              row.request_type !== "subscription" &&
+              row.availability_status === "approved" &&
+              !finalStatus;
 
             return (
               <details key={row.id} className="interest-card">
@@ -326,6 +331,11 @@ export default async function SiteInterestRequestsPage({
                           </Link>
                         </p>
                       ) : null}
+                      {row.converted_proposal_id ? (
+                        <p className="helper-text">
+                          Proposta: <Link href={"/sistema/publicidade/propostas/" + row.converted_proposal_id}>ver proposta</Link>
+                        </p>
+                      ) : null}
                       {row.notes ? <><strong>Observação do cliente</strong><p className="helper-text">{row.notes}</p></> : null}
                       {row.admin_note ? <><strong>Observação interna</strong><p className="helper-text interest-note">{row.admin_note}</p></> : null}
                     </div>
@@ -364,8 +374,11 @@ export default async function SiteInterestRequestsPage({
                       {row.request_type === "subscription" && !finalStatus && row.availability_status !== "approved" ? (
                         <span className="helper-text">Aprove a rota antes de converter a assinatura.</span>
                       ) : null}
-                      {row.request_type !== "subscription" && !finalStatus ? (
-                        <form action={updateSiteInterestStatusAction.bind(null, row.id, "converted")}><button type="submit">Marcar convertida</button></form>
+                      {canConvertAdvertising ? (
+                        <ConvertAdvertisingInterestButton requestId={row.id} isMixed={row.request_type === "mixed"} />
+                      ) : null}
+                      {row.request_type !== "subscription" && !finalStatus && row.availability_status !== "approved" ? (
+                        <span className="helper-text">Aprove primeiro a disponibilidade antes de converter.</span>
                       ) : null}
                       {!finalStatus ? (
                         <form action={markSiteInterestAttendedAction.bind(null, row.id)}><button type="submit" className="form-action-primary">Marcar atendida</button></form>
