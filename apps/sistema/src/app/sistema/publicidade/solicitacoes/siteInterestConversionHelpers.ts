@@ -97,3 +97,24 @@ export function commercialConditionFromPayment(payment: SiteInterestPaymentPrefe
   if (payment === "boleto" || payment === "credit_card") return "installments";
   return "other";
 }
+
+/**
+ * Soma dos itens individuais (publicidade + assinatura, quando mista) —
+ * Bloco 2, item 3 (01/11/2026). Serve pra conferir se `approved_total`
+ * (um único valor pro pedido inteiro, definido na revisão) ainda bate
+ * com a soma real dos itens antes de converter; nunca usado pra ratear
+ * desconto automaticamente.
+ */
+export function advertisingItemsTotal(items: Pick<AdvertisingSelection, "price">[], subscriptionAmount: number | null): number {
+  return items.reduce((sum, item) => sum + item.price, 0) + (subscriptionAmount ?? 0);
+}
+
+/**
+ * true quando `approvedTotal` (se definido) diverge da soma real dos
+ * itens além de 1 centavo de tolerância — sinal de que a revisão
+ * aprovou um valor diferente da soma simples (ex.: desconto de combo)
+ * que a conversão não consegue ratear automaticamente.
+ */
+export function approvedTotalDivergesFromItems(approvedTotal: number | null, itemsTotal: number): boolean {
+  return approvedTotal !== null && Math.abs(approvedTotal - itemsTotal) > 0.01;
+}

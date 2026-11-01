@@ -8,6 +8,8 @@ import {
   advertisingSelections,
   subscriptionSelectionAmount,
   commercialConditionFromPayment,
+  advertisingItemsTotal,
+  approvedTotalDivergesFromItems,
 } from "../src/app/sistema/publicidade/solicitacoes/siteInterestConversionHelpers";
 
 test("onlyDigits remove tudo que não for dígito, inclusive string vazia/nula", () => {
@@ -74,4 +76,24 @@ test("commercialConditionFromPayment mapeia pix/cash para 'cash', boleto/credit_
   assert.equal(commercialConditionFromPayment("credit_card"), "installments");
   assert.equal(commercialConditionFromPayment("to_define"), "other");
   assert.equal(commercialConditionFromPayment(null), "other");
+});
+
+test("advertisingItemsTotal soma os itens de publicidade e, quando houver, a assinatura — nunca ignora nenhum dos dois", () => {
+  assert.equal(advertisingItemsTotal([{ price: 500 }, { price: 300 }], 180), 980);
+  assert.equal(advertisingItemsTotal([{ price: 500 }], null), 500);
+  assert.equal(advertisingItemsTotal([], 180), 180);
+  assert.equal(advertisingItemsTotal([], null), 0);
+});
+
+test("approvedTotalDivergesFromItems: Bloco 2 item 3 — bloqueia conversão quando o valor aprovado na revisão não bate mais com a soma real dos itens", () => {
+  // Sem valor aprovado definido ainda — nunca diverge (nada pra comparar).
+  assert.equal(approvedTotalDivergesFromItems(null, 980), false);
+  // Exatamente igual — não diverge.
+  assert.equal(approvedTotalDivergesFromItems(980, 980), false);
+  // Diferença de 1 centavo (arredondamento) — tolerada, não diverge.
+  assert.equal(approvedTotalDivergesFromItems(980.004, 980), false);
+  // Operador aprovou um valor com desconto de combo que os itens não refletem — diverge, bloqueia.
+  assert.equal(approvedTotalDivergesFromItems(900, 980), true);
+  // Itens foram editados depois da aprovação e agora somam mais — diverge, bloqueia.
+  assert.equal(approvedTotalDivergesFromItems(980, 1200), true);
 });

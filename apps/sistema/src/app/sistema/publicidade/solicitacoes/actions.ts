@@ -18,6 +18,8 @@ import {
   advertisingSelections,
   subscriptionSelectionAmount,
   commercialConditionFromPayment,
+  advertisingItemsTotal,
+  approvedTotalDivergesFromItems,
 } from "./siteInterestConversionHelpers";
 
 export type SiteInterestStatus = "new" | "contacted" | "converted" | "discarded";
@@ -425,6 +427,51 @@ export async function reviewSiteInterestAction(id: string, formData: FormData): 
   paths();
 }
 
+// Trava otimista contra duas conversões simultâneas da MESMA
+// solicitação (duplo clique, ou dois operadores ao mesmo tempo) —
+// Bloco 2, item 5 (01/11/2026). Sem isso, a checagem de idempotência
+// por `originTag` nas notas (ver ensureSubscriptionAndReceivable e a
+// busca de proposta em convertAdvertisingInterestAction) tem uma
+// corrida real: as duas chamadas concorrentes podem passar pela busca
+// "ainda não existe" antes de qualquer uma delas criar algo, cada uma
+// criando sua própria assinatura/proposta — só a última grava o
+// vínculo final, a primeira fica órfã sem nenhum erro visível.
+const CONVERSION_CLAIM_STALE_AFTER_MS = 2 * 60 * 1000;
+
+/**
+ * Marca atomicamente que esta conversão começou (UPDATE condicional —
+ * só afeta a linha se ainda não estiver convertida/descartada e não
+ * houver outra conversão em andamento, ou se a conversão anterior
+ * estiver "travada" há mais de 2 minutos, tratada como abandonada por
+ * falha parcial/crash do processo). Lança erro amigável se outra
+ * chamada já tiver a trava.
+ */
+async function claimConversion(
+  supabase: ReturnType<typeof createSupabaseServerClient>,
+  id: string,
+): Promise<void> {
+  const staleBefore = new Date(Date.now() - CONVERSION_CLAIM_STALE_AFTER_MS).toISOString();
+  const { data, error } = await supabase
+    .from("site_interest_requests")
+    .update({ conversion_started_at: new Date().toISOString() })
+    .eq("id", id)
+    .not("status", "in", "(converted,discarded)")
+    .or(`conversion_started_at.is.null,conversion_started_at.lt.${staleBefore}`)
+    .select("id");
+  if (error) throw new Error(error.message);
+  if (!data || data.length === 0) {
+    throw new Error("Esta solicitação já está sendo convertida (ou foi convertida) em outra operação. Atualize a página antes de tentar de novo.");
+  }
+}
+
+/** Libera a trava quando a conversão falha no meio do caminho — nunca bloqueia uma nova tentativa legítima por mais que o necessário (best-effort: se isso falhar, a trava só expira depois de CONVERSION_CLAIM_STALE_AFTER_MS). */
+async function releaseConversionClaim(
+  supabase: ReturnType<typeof createSupabaseServerClient>,
+  id: string,
+): Promise<void> {
+  await supabase.from("site_interest_requests").update({ conversion_started_at: null }).eq("id", id);
+}
+
 interface EnsuredSubscription {
   subscriptionId: string;
   subscriptionReference: string;
@@ -534,6 +581,7 @@ export async function convertSubscriptionInterestAction(id: string): Promise<Con
   if (permissionError) return { error: permissionError };
 
   const supabase = createSupabaseServerClient();
+  let claimed = false;
 
   try {
     const { data, error } = await supabase
@@ -567,6 +615,9 @@ export async function convertSubscriptionInterestAction(id: string): Promise<Con
     if (!Number.isFinite(amount) || amount <= 0) {
       return { error: "Defina um valor aprovado maior que zero antes de converter." };
     }
+
+    await claimConversion(supabase, id);
+    claimed = true;
 
     const protocol = row.id.slice(0, 8).toUpperCase();
     const originTag = `[site-interest:${row.id}]`;
@@ -626,6 +677,10 @@ export async function convertSubscriptionInterestAction(id: string): Promise<Con
 
     return { ok: true, clientId, subscriptionId, receivableId };
   } catch (error) {
+    // Falha parcial: se a trava já tinha sido tomada, libera pra não
+    // bloquear uma nova tentativa legítima além do necessário (ver
+    // claimConversion/CONVERSION_CLAIM_STALE_AFTER_MS acima).
+    if (claimed) await releaseConversionClaim(supabase, id);
     return { error: error instanceof Error ? error.message : "Não foi possível converter a solicitação em assinatura." };
   }
 }
@@ -652,6 +707,7 @@ export async function convertAdvertisingInterestAction(id: string): Promise<Conv
   if (permissionError) return { error: permissionError };
 
   const supabase = createSupabaseServerClient();
+  let claimed = false;
 
   try {
     const { data, error } = await supabase
@@ -683,6 +739,29 @@ export async function convertAdvertisingInterestAction(id: string): Promise<Conv
         error: "Não foi possível identificar os itens de publicidade (ou assinatura) desta solicitação. Ajuste manualmente antes de converter.",
       };
     }
+
+    // Bloco 2, item 3 (01/11/2026): a proposta/assinatura SEMPRE usa o
+    // preço de cada item individual de `selections`, nunca o
+    // `approved_total` (que é um único valor pro pedido inteiro,
+    // publicidade+assinatura somadas — não dá pra ratear automaticamente
+    // sem inventar uma regra comercial). Se o operador editou o valor
+    // aprovado durante a revisão (ex.: aplicou desconto de combo) e ele
+    // ficou divergente da soma dos itens, bloqueia a conversão em vez de
+    // criar o registro com valores desatualizados/divergentes — evita o
+    // caso real "aprovei X com desconto, mas o sistema cobrou a soma dos
+    // itens sem desconto".
+    const itemsTotal = advertisingItemsTotal(items, subscriptionAmount);
+    if (row.approved_total !== null && approvedTotalDivergesFromItems(row.approved_total, itemsTotal)) {
+      return {
+        error:
+          `O valor aprovado (R$ ${row.approved_total.toFixed(2)}) é diferente da soma dos itens da solicitação ` +
+          `(R$ ${itemsTotal.toFixed(2)}). A conversão usa o preço de cada item individualmente — ajuste os itens ` +
+          "ou o valor aprovado antes de converter, pra não gerar proposta/assinatura com valor divergente do aprovado.",
+      };
+    }
+
+    await claimConversion(supabase, id);
+    claimed = true;
 
     const protocol = row.id.slice(0, 8).toUpperCase();
     const originTag = `[site-interest:${row.id}]`;
@@ -749,9 +828,17 @@ export async function convertAdvertisingInterestAction(id: string): Promise<Conv
       if (subscriptionId) {
         const { error: partialUpdateError } = await supabase
           .from("site_interest_requests")
-          .update({ converted_subscription_id: subscriptionId, converted_receivable_id: receivableId ?? null })
+          .update({
+            converted_subscription_id: subscriptionId,
+            converted_receivable_id: receivableId ?? null,
+            // Libera a trava — essa é uma nova tentativa legítima
+            // (criar a proposta manualmente depois), não uma corrida.
+            conversion_started_at: null,
+          })
           .eq("id", id);
         if (partialUpdateError) throw new Error(partialUpdateError.message);
+      } else {
+        await releaseConversionClaim(supabase, id);
       }
       return { error: "Assinatura convertida, mas não foi possível identificar os itens de publicidade. Crie a proposta manualmente para concluir a parte comercial." };
     }
@@ -800,6 +887,7 @@ export async function convertAdvertisingInterestAction(id: string): Promise<Conv
 
     return { ok: true, clientId, proposalId, proposalReference, subscriptionId };
   } catch (error) {
+    if (claimed) await releaseConversionClaim(supabase, id);
     return { error: error instanceof Error ? error.message : "Não foi possível converter a solicitação de publicidade." };
   }
 }

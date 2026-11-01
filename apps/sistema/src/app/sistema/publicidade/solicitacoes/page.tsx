@@ -324,6 +324,11 @@ export default async function SiteInterestRequestsPage({
                       <strong>Atendimento</strong>
                       <p className="helper-text">Status: {statusLabel(row.status)}</p>
                       {row.attended_at ? <p className="helper-text">Atendida em {formatDate(row.attended_at)}</p> : null}
+                      {row.converted_subscription_id ? (
+                        <p className="helper-text">
+                          Assinatura: <Link href={"/sistema/assinaturas/" + row.converted_subscription_id}>ver assinatura</Link>
+                        </p>
+                      ) : null}
                       {row.converted_receivable_id ? (
                         <p className="helper-text">
                           Financeiro: <Link href={"/sistema/financeiro/contas-a-receber/" + row.converted_receivable_id}>
