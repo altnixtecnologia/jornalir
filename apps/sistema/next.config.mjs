@@ -1,5 +1,29 @@
 /** @type {import('next').NextConfig} */
+
+// Build local roda dentro de uma pasta sincronizada pelo OneDrive — dois
+// efeitos observados e corrigidos aqui (02/11/2026, falha de build local
+// relatada pelo usuário):
+// 1) a "Collecting page data" da rota /sistema/financeiro/contratos/[id]
+//    (a mais pesada do app em módulos importados) passa do timeout padrão
+//    de 60s só por I/O lento do OneDrive, não por um bug real — confirmado
+//    isolando a página compilada (require direto: ~0.3s) e repetindo o
+//    build com timeout maior, que passou dessa etapa.
+// 2) a etapa seguinte "Collecting build traces" (nodeFileTrace/@vercel/nft)
+//    falha de forma determinística com "UNKNOWN: unknown error, read"
+//    lendo arquivos via reparse point do OneDrive. Essa etapa só gera os
+//    .nft.json usados por `output: "standalone"`/runtime serverless, que
+//    este projeto não usa.
+//
+// Nenhum dos dois ajustes é desejável em produção (Vercel builda em
+// nuvem, sem OneDrive — lá o padrão do Next já funciona e deve ser
+// preservado intacto). Por isso ficam condicionados a uma variável
+// explícita de build local, nunca aplicados por padrão.
+const isLocalOneDriveBuild = process.env.IR_LOCAL_ONEDRIVE_BUILD === "1";
+
 const nextConfig = {
+  ...(isLocalOneDriveBuild
+    ? { staticPageGenerationTimeout: 180, outputFileTracing: false }
+    : {}),
   transpilePackages: ["@ir/ui", "@ir/types", "@ir/core", "@ir/mocks", "@ir/config", "@ir/pdf-extraction"],
   // Links de assinatura carregam tokens de acesso. Evitar indexação e
   // vazamento do token no cabeçalho Referer quando o navegador abre recursos.
