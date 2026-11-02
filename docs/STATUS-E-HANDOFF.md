@@ -2716,7 +2716,7 @@ Continuação da mesma branch/sessão, a partir do commit `a84ffd79`. Pedido do 
 
 **Colisão de nome corrigida (pedido explícito do usuário)**: `20261101100000_commercial_equipment_rental_channel.sql` (de outro agente, 22/10) e `20261101100000_contract_templates_seed_minutas.sql` (Bloco 3 desta sessão, 01/11) compartilhavam o MESMO prefixo de versão. `supabase migration list --linked` confirmou que a versão `20261101100000` já está aplicada remotamente — ligada ao arquivo `commercial_equipment_rental_channel.sql` (preservado, nunca tocado). O outro arquivo (`contract_templates_seed_minutas.sql`, nunca aplicado) foi **renomeado** para `20261101110000_contract_templates_seed_minutas.sql` (git mv, sem mudança de conteúdo) — a única correção segura possível, já que jamais se deve renomear uma migration já aplicada. Dois testes de integração (`bloco4-proposal-sale-document-signers-integration.test.ts`, `bloco4-subscription-contract-financeiro-integration.test.ts`) e um teste dedicado (`contract-templates-seed-minutas.test.ts`) liam esse caminho por nome literal — todos os três atualizados para o novo nome; suíte completa voltou a 199/199 depois do ajuste (tinha caído para 197/199 só por isso, nenhum bug de lógica).
 
-**Segunda colisão encontrada, NÃO corrigida (fora do pedido explícito, toca NFS-e — módulo sob restrição "não mexer")**: `20261026100000_nfse_transmission_attempts_dps_id.sql` e `20261026100000_subscription_assinante_role.sql` também compartilham o mesmo prefixo de versão. O ledger remoto confirma que a versão `20261026100000` já foi aplicada, mas `supabase migration list` não informa qual dos dois arquivos é o que está realmente no ar — só uma inspeção direta do schema remoto (coluna/estrutura específica de cada um) resolveria isso com certeza, e isso exigiria tocar numa área sob restrição NFS-e sem autorização para isso nesta sessão. **Risco real**: um `db push` normal pula qualquer versão já no ledger — ou seja, o arquivo "perdedor" desta colisão nunca será aplicado por um push comum, silenciosamente, até alguém renomeá-lo. Fica como bloqueio explícito antes de qualquer homologação que inclua essas duas áreas (ver plano de execução no fechamento desta sessão).
+**Segunda colisão encontrada, identificação pendente de confirmação externa no momento em que este parágrafo foi escrito** — ver a seção seguinte ("Lote seguro de publicação") para a resolução definitiva, feita depois, na mesma sessão, a partir de uma verificação independente do usuário direto no Supabase: `20261026100000_nfse_transmission_attempts_dps_id.sql` e `20261026100000_subscription_assinante_role.sql` compartilhavam o mesmo prefixo de versão; o ledger remoto confirma que a versão `20261026100000` já foi aplicada, mas o `supabase migration list` por si só não informava qual dos dois arquivos era o que estava realmente no ar.
 
 **Migrations `20261120310000`/`20261120320000` (Bloco D/E) — ordem e dependências revisadas, sem achado**: `310000` depende de `client_completion_tokens` (300000, mesmo lote, ordem correta), `birthday_entries`+consentimento (20261025100100 base, já aplicada remotamente, e 290000, do mesmo lote), `client_related_persons` (280000, mesmo lote) e `clients.family_members_confirmed_empty` (290000) — todas ordenadas corretamente antes dela. `320000` só altera o CHECK de `public.subscriptions.status` (tabela de 20261015100000, já aplicada remotamente) — sem dependência nova. Nenhuma colisão, nenhuma referência a objeto que não exista no momento em que cada uma rodaria.
 
@@ -2743,3 +2743,47 @@ ARQUIVOS: `supabase/migrations/20261101110000_contract_templates_seed_minutas.sq
 5. Testar em homologação, nesta ordem: gerar um link de teste → verificar OTP (precisa SMTP/SMS configurado no Supabase Auth do projeto de homologação) → completar cadastro → conferir Aniversariantes; gerar uma assinatura de teste → confirmar que fica `pending_formalization` sem título → ativar → gerar cobrança manualmente → confirmar que títulos/assinaturas antigos não foram tocados.
 
 FALTA/BLOQUEIOS: colisão `20261026100000` (NFS-e) não resolvida — bloqueia uma homologação/push seguro dessa faixa até identificada; decisão ainda pendente sobre quando reconciliar as ~15 entradas de documentação que diziam "não aplicada" pra migrations que já estão no ar (não é um risco de dado, só desatualização de registro). Nenhuma migration aplicada, nenhum OTP real enviado, nenhuma cobrança real gerada, nenhum dado de produção alterado, sem push/merge/Preview/deploy.
+
+## 02/11/2026 — Lote seguro de publicação: colisão de 26/10 identificada externamente, dry-run confirmado, nada aplicado
+
+Continuação da mesma sessão. O usuário fez uma verificação independente, só leitura, direto no Supabase de produção (`iqnzrpdccecgalqboeyf`) e confirmou: a versão `20261026100000` aplicada corresponde a `subscription_assinante_role` (função `ensure_subscriber_role` + trigger presentes); as colunas `nfse_transmission_attempts.dps_id`/`signed_dps_xml` **não existem** remotamente — ou seja, o arquivo "perdedor" da colisão é `20261026100000_nfse_transmission_attempts_dps_id.sql` (nunca aplicado), não `subscription_assinante_role.sql` (já aplicado, preservado). `20261026100100_nfse_transmission_attempts_signed_xml.sql` (depende de `dps_id`) também está pendente. Nenhuma nova investigação nem `supabase migration repair` foi necessária.
+
+**Preparação do lote seguro (sem aplicar nada)**: os dois arquivos de NFS-e foram **movidos** (git mv, conteúdo e nomes de arquivo intactos, nenhuma linha de SQL alterada) de `supabase/migrations/` para `supabase/migrations-postponed-nfse/` — uma pasta de espera, fora do diretório que a CLI/`db push` escaneia, exatamente para "manter as duas migrations de NFS-e adiadas, sem excluir seu conteúdo" enquanto se prepara um conjunto aplicável que não as inclua (pedido explícito do usuário). Nenhuma lógica, flag ou código de NFS-e foi tocado — é só reorganização de diretório, reversível com um `git mv` de volta. Nenhum outro arquivo referencia esses dois migrations por caminho (conferido por busca em `apps/`/`docs/`/`supabase/config.toml`), então a movimentação não quebra nada.
+
+**Confirmação por `supabase db push --linked --dry-run` (read-only, contra produção, nada aplicado)**:
+- **Antes** de mover os dois arquivos de NFS-e: a CLI recusou (`DbPushMissingRemoteError`) por eles estarem "antes" do último migration aplicado (`20261120260000`) sem `--include-all` — comportamento normal da CLI quando há migrations mais antigas ainda não aplicadas depois de um lote mais novo já ter subido fora de ordem (achado já registrado na seção anterior).
+- **Depois** de mover os dois arquivos: o mesmo dry-run (sem `--include-all`) ainda recusou, agora só por causa de `20261101110000_contract_templates_seed_minutas.sql` (também "antes" de `20261120260000`) — esperado, mesmo motivo.
+- Rodando com a flag compatível com a CLI instalada (v2.121.0) para esse cenário, `supabase db push --linked --dry-run --include-all`, a lista exata devolvida foi:
+  1. `20261101110000_contract_templates_seed_minutas.sql`
+  2. `20261120270000_site_interest_request_identification.sql`
+  3. `20261120280000_client_related_persons.sql`
+  4. `20261120290000_birthday_entries_consent_and_sync.sql`
+  5. `20261120300000_client_completion_tokens.sql`
+  6. `20261120310000_client_completion_public_flow.sql`
+  7. `20261120320000_subscription_pending_formalization.sql`
+
+  **Exatamente as 7 migrations esperadas pelo usuário — nenhuma migration de NFS-e, nenhuma outra surpresa.** Nada foi aplicado (`--dry-run` mantido em toda a sessão).
+
+**Dependências conferidas (reconfirmação, sem achado novo)**: todas as 7 dependem só de objetos já aplicados remotamente (`clients`, `birthday_entries` base, `subscriptions`, `client_related_persons` do próprio lote) ou de outra migration do mesmo lote, em ordem correta. Nenhuma depende de nada em `supabase/migrations-postponed-nfse/`.
+
+**Roteiro de publicação e homologação (preparado, nada executado)**:
+1. **Publicar** (quando autorizado): com as duas migrations de NFS-e fora de `supabase/migrations/` (já feito), `supabase db push --linked --include-all` aplicaria exatamente as 7 migrations listadas acima, na mesma ordem. Confirmar o dry-run mais uma vez imediatamente antes, por segurança (o ledger remoto pode mudar entre sessões).
+2. **Conceder permissão**: depois do push, conceder `assinaturas_ativar` explicitamente a cada operador que deva poder ativar assinaturas (ninguém ganha automaticamente).
+3. **Homologar Cadastro público** (`/complementar-cadastro/[token]`):
+   a. Gerar um link de teste em IR Controle (ação já existente, cópia manual).
+   b. Abrir o link; solicitar o código — exige SMTP (e-mail) ou provedor SMS (WhatsApp/telefone) configurado no Supabase Auth do projeto; sem isso, a ação retorna erro claro, nunca afirma envio.
+   c. Confirmar o código, completar nascimento/fundação, familiares ou pessoas vinculadas, consentimento de publicação.
+   d. Concluir e verificar: titular aparece em Aniversariantes (DD/MM) só se consentimento marcado; dado salvo sem duplicar cliente nem aniversariante.
+4. **Homologar Assinaturas**:
+   a. Gerar uma assinatura de teste (conversão de solicitação OU criação manual) — confirmar que nasce `pending_formalization`, sem título financeiro.
+   b. Tentar gerar cobrança antes de ativar — confirmar que é recusado.
+   c. Ativar (operador com `assinaturas_ativar`) — confirmar que nenhum título é criado pela própria ativação.
+   d. Gerar cobrança manualmente, já ativada — confirmar valores/vencimento revisados antes de confirmar.
+   e. Confirmar que assinaturas/títulos antigos (antes deste lote) permanecem inalterados.
+5. Só depois de 3 e 4 homologados, decidir se/quando enviar um link real a um cliente de verdade (fora do escopo de qualquer ação automática desta sessão).
+
+TESTES: nenhum teste novo nesta etapa (só confirmação via CLI real, read-only, contra produção) — reaproveita a suíte já validada na etapa anterior (`packages/core` 201/201, `apps/sistema` 199/199, `tsc` limpo, `next build` ok).
+
+ARQUIVOS: `supabase/migrations-postponed-nfse/{20261026100000_nfse_transmission_attempts_dps_id,20261026100100_nfse_transmission_attempts_signed_xml}.sql` (movidos de `supabase/migrations/`, git mv, conteúdo intacto).
+
+FALTA/BLOQUEIOS: nenhum para o lote de 7 migrations — dry-run confirmou exatamente o esperado. Pendências que seguem fora de qualquer execução automática: autorização explícita para o push de verdade; SMTP/SMS configurado no Supabase Auth antes de homologar o OTP; decisão de quando um futuro lote dedicado de NFS-e vai resolver o nome de `dps_id.sql` (hoje só isolado, ainda não renomeado) e retomar aquele módulo. Nenhuma migration aplicada, nenhum push/deploy/mensagem real, nenhum dado de produção alterado.
