@@ -92,6 +92,19 @@ export function subscriptionSelectionAmount(selections: unknown): number | null 
   return null;
 }
 
+/**
+ * Marcador de idempotência usado por `ensureSubscriptionAndReceivable`
+ * pra achar (em vez de duplicar) a assinatura já criada por uma
+ * conversão anterior da MESMA solicitação — extraída pra ser testável
+ * (pré-requisito pra "conversão repetida não duplica assinatura",
+ * Bloco E, 02/11/2026): precisa ser determinística (sempre a mesma
+ * marca pra um mesmo requestId) e nunca colidir entre solicitações
+ * diferentes.
+ */
+export function siteInterestConversionOriginTag(requestId: string): string {
+  return `[site-interest:${requestId}]`;
+}
+
 export function commercialConditionFromPayment(payment: SiteInterestPaymentPreference): CommercialCondition {
   if (payment === "pix" || payment === "cash") return "cash";
   if (payment === "boleto" || payment === "credit_card") return "installments";

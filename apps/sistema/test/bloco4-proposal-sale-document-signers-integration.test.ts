@@ -28,7 +28,7 @@ import { normalizeCommercialSigners } from "../src/lib/contracts/commercialSigne
  */
 function readCombinedMinuta(): { content: string; variables: Array<{ key: string; label: string; required: boolean }> } {
   const sql = readFileSync(
-    new URL("../../../supabase/migrations/20261101100000_contract_templates_seed_minutas.sql", import.meta.url),
+    new URL("../../../supabase/migrations/20261101110000_contract_templates_seed_minutas.sql", import.meta.url),
     "utf8",
   );
   const re = /'commercial_combined',\s*\n\s*(\$[a-zA-Z_]*\$)([\s\S]*?)\1,\s*\n\s*'(\[[\s\S]*?\])'::jsonb/;

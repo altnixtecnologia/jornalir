@@ -21,7 +21,7 @@ import type { ClientCreditRepository } from "@ir/core";
  */
 function readAssinaturasMinuta(): { content: string; } {
   const sql = readFileSync(
-    new URL("../../../supabase/migrations/20261101100000_contract_templates_seed_minutas.sql", import.meta.url),
+    new URL("../../../supabase/migrations/20261101110000_contract_templates_seed_minutas.sql", import.meta.url),
     "utf8",
   );
   const re = /'assinaturas',\s*\n\s*(\$[a-zA-Z_]*\$)([\s\S]*?)\1/;

@@ -1,6 +1,6 @@
 # Bloco 3 — Modelos de contrato: minutas reais, seleção automática e assinador (01/11/2026)
 
-**STATUS: MINUTAS PREPARADAS, NENHUMA APROVADA JURIDICAMENTE NEM ATIVA.** As 6 minutas pedidas foram escritas e verificadas contra o código real de validação do sistema (não só por leitura manual), mas estão como `active = false` na migration preparada (**não aplicada** remotamente): `supabase/migrations/20261101100000_contract_templates_seed_minutas.sql`. Nenhum dado fiscal real (CNPJ da Informativo Regional, por exemplo), valor ou condição comercial foi inventado — esses campos ficam como variáveis a preencher por documento emitido (`custom_values`), nunca gravados aqui.
+**STATUS: MINUTAS PREPARADAS, NENHUMA APROVADA JURIDICAMENTE NEM ATIVA.** As 6 minutas pedidas foram escritas e verificadas contra o código real de validação do sistema (não só por leitura manual), mas estão como `active = false` na migration preparada (**não aplicada** remotamente): `supabase/migrations/20261101110000_contract_templates_seed_minutas.sql`. Nenhum dado fiscal real (CNPJ da Informativo Regional, por exemplo), valor ou condição comercial foi inventado — esses campos ficam como variáveis a preencher por documento emitido (`custom_values`), nunca gravados aqui.
 
 ## 1. Categorias e variáveis — o que o sistema REALMENTE aceita (não as 4 "sugeridas")
 

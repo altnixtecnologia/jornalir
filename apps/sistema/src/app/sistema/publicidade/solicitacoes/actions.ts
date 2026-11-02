@@ -18,6 +18,7 @@ import {
   commercialConditionFromPayment,
   advertisingItemsTotal,
   approvedTotalDivergesFromItems,
+  siteInterestConversionOriginTag,
 } from "./siteInterestConversionHelpers";
 
 export type SiteInterestStatus = "new" | "contacted" | "converted" | "discarded";
@@ -607,7 +608,7 @@ export async function convertSubscriptionInterestAction(id: string, confirmed: b
     claimed = true;
 
     const protocol = row.id.slice(0, 8).toUpperCase();
-    const originTag = `[site-interest:${row.id}]`;
+    const originTag = siteInterestConversionOriginTag(row.id);
     const audit = await getAuditContext(supabase);
     const clientId = await resolveOrCreateClient(supabase, row);
 
@@ -754,7 +755,7 @@ export async function convertAdvertisingInterestAction(id: string, confirmed: bo
     claimed = true;
 
     const protocol = row.id.slice(0, 8).toUpperCase();
-    const originTag = `[site-interest:${row.id}]`;
+    const originTag = siteInterestConversionOriginTag(row.id);
     const audit = await getAuditContext(supabase);
 
     // Pacote misto exige CPF/CNPJ (mesma regra da assinatura, já que

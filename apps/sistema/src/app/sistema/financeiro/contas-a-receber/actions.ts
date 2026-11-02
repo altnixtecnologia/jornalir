@@ -11,6 +11,7 @@ import { getClientService } from "../../../../composition/clientes";
 import { createSupabaseServerClient } from "../../../../lib/supabase/server";
 import { checkFinanceAction } from "../../../../lib/permissions/checkFinanceAction";
 import { validateChargeReceivableLink } from "../../../../lib/financeiro/commercialSaleBillingGuard";
+import { validateSubscriptionForBilling } from "../../../../lib/financeiro/subscriptionBillingGuard";
 import { todayInSaoPauloISO } from "../../../../lib/date/saoPauloDate";
 import { getAuditContext } from "../../../../lib/auth/getAuditContext";
 import { isLocalPreviewEnabled, LOCAL_PREVIEW_PROFILE } from "../../../../lib/auth/localPreview";
@@ -373,9 +374,8 @@ export async function generateReceivableFromSubscriptionAction(
     // ainda "pendente de formalização" — a ativação é uma decisão
     // separada e expressa, que precisa vir ANTES da cobrança.
     const subscription = await getSubscriptionService(supabase).getById(payload.subscriptionId);
-    if (subscription.status === "pending_formalization") {
-      return { error: "Ative a assinatura antes de gerar cobrança — ela ainda está pendente de formalização." };
-    }
+    const billingError = validateSubscriptionForBilling(subscription.status);
+    if (billingError) return { error: billingError };
     const receivable = await getReceivableService(supabase).registerFromSubscription(toServiceInput(payload));
     revalidatePath(LIST_PATH);
     return { ok: true, receivableId: receivable.id };
@@ -414,12 +414,10 @@ export async function generateReceivablesForSubscriptionPeriodAction(
   const firstSubscriptionId = payloads[0]?.subscriptionId;
   if (firstSubscriptionId) {
     const subscription = await getSubscriptionService(client).getById(firstSubscriptionId);
-    if (subscription.status === "pending_formalization") {
+    const billingError = validateSubscriptionForBilling(subscription.status);
+    if (billingError) {
       return {
-        results: payloads.map((payload) => ({
-          competencyDate: payload.competencyDate, ok: false,
-          error: "Ative a assinatura antes de gerar cobrança — ela ainda está pendente de formalização.",
-        })),
+        results: payloads.map((payload) => ({ competencyDate: payload.competencyDate, ok: false, error: billingError })),
       };
     }
   }

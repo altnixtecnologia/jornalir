@@ -11,7 +11,7 @@ import { missingCommercialLegalParties } from "../src/lib/contracts/commercialPa
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const MIGRATION_PATH = resolve(
   __dirname,
-  "../../../supabase/migrations/20261101100000_contract_templates_seed_minutas.sql",
+  "../../../supabase/migrations/20261101110000_contract_templates_seed_minutas.sql",
 );
 
 /**

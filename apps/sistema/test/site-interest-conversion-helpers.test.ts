@@ -10,6 +10,7 @@ import {
   commercialConditionFromPayment,
   advertisingItemsTotal,
   approvedTotalDivergesFromItems,
+  siteInterestConversionOriginTag,
 } from "../src/app/sistema/publicidade/solicitacoes/siteInterestConversionHelpers";
 
 test("onlyDigits remove tudo que não for dígito, inclusive string vazia/nula", () => {
@@ -96,4 +97,17 @@ test("approvedTotalDivergesFromItems: Bloco 2 item 3 — bloqueia conversão qua
   assert.equal(approvedTotalDivergesFromItems(900, 980), true);
   // Itens foram editados depois da aprovação e agora somam mais — diverge, bloqueia.
   assert.equal(approvedTotalDivergesFromItems(980, 1200), true);
+});
+
+test("siteInterestConversionOriginTag (Bloco E, pré-homologação) é determinística por requestId e nunca colide entre solicitações diferentes", () => {
+  // Mesma solicitação, chamada duas vezes (ex.: duas tentativas de
+  // conversão) — sempre a MESMA marca, pra ensureSubscriptionAndReceivable
+  // conseguir achar a assinatura já criada em vez de duplicar.
+  assert.equal(siteInterestConversionOriginTag("req-1"), siteInterestConversionOriginTag("req-1"));
+  // Solicitações diferentes nunca produzem a mesma marca.
+  assert.notEqual(siteInterestConversionOriginTag("req-1"), siteInterestConversionOriginTag("req-2"));
+  // Um id que é prefixo textual de outro não pode ser confundido com ele
+  // (o colchete de fechamento "]" delimita o fim do id dentro da marca).
+  assert.notEqual(siteInterestConversionOriginTag("abc"), siteInterestConversionOriginTag("abcd"));
+  assert.equal(siteInterestConversionOriginTag("abc123"), "[site-interest:abc123]");
 });
