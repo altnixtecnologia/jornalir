@@ -320,21 +320,21 @@ export function AssineConfigurator({ settings }: { settings: PublicSiteOfferSett
       setError("Escolha a forma de pagamento que você prefere.");
       return;
     }
-    if (hasSubscription) {
-      if (customerKind === "individual" && !isValidCpf(documentNumber)) {
-        setError("Informe um CPF válido para a assinatura.");
+    if (customerKind === "individual" && !isValidCpf(documentNumber)) {
+      setError("Informe um CPF válido.");
+      return;
+    }
+    if (customerKind === "company") {
+      if (!company.trim()) {
+        setError("Informe a empresa/razão social.");
         return;
       }
-      if (customerKind === "company") {
-        if (!company.trim()) {
-          setError("Informe a empresa/razão social da assinatura.");
-          return;
-        }
-        if (!isValidCnpj(documentNumber)) {
-          setError("Informe um CNPJ válido para a assinatura.");
-          return;
-        }
+      if (!isValidCnpj(documentNumber)) {
+        setError("Informe um CNPJ válido.");
+        return;
       }
+    }
+    if (hasSubscription) {
       if (
         !addressZip.trim() ||
         !addressStreet.trim() ||
@@ -379,8 +379,8 @@ export function AssineConfigurator({ settings }: { settings: PublicSiteOfferSett
         p_address_neighborhood: hasSubscription ? addressNeighborhood.trim() : null,
         p_address_city: hasSubscription ? addressCity.trim() : null,
         p_address_state: hasSubscription ? addressState.trim().toUpperCase() : null,
-        p_customer_kind: hasSubscription ? customerKind : null,
-        p_document_number: hasSubscription ? onlyDigits(documentNumber) : null,
+        p_customer_kind: customerKind,
+        p_document_number: onlyDigits(documentNumber),
         p_route_reference: hasSubscription ? routeReference.trim() || null : null,
         p_location_url: hasSubscription ? locationUrl.trim() || null : null,
       });
@@ -670,45 +670,46 @@ export function AssineConfigurator({ settings }: { settings: PublicSiteOfferSett
                     <input value={email} onChange={(e) => setEmail(e.target.value)} type="email" className="w-full rounded-xl border px-4 py-3" style={{ borderColor: "var(--site-line)" }} />
                   </label>
                   <label className="text-sm">
-                    <span className="mb-1 block font-semibold">{hasSubscription && customerKind === "company" ? "Empresa / razão social *" : "Empresa/anunciante"}</span>
+                    <span className="mb-1 block font-semibold">{customerKind === "company" ? "Empresa / razão social *" : "Empresa/anunciante"}</span>
                     <input value={company} onChange={(e) => setCompany(e.target.value)} className="w-full rounded-xl border px-4 py-3" style={{ borderColor: "var(--site-line)" }} />
+                  </label>
+
+                  <div className="sm:col-span-2 mt-1 border-t pt-4" style={{ borderColor: "var(--site-line)" }}>
+                    <strong className="text-sm">Identificação</strong>
+                    <span className="mt-1 block text-[11px]" style={{ color: "var(--site-muted)" }}>
+                      O CPF/CNPJ é usado somente para identificar seu cadastro e não é compartilhado publicamente.
+                    </span>
+                  </div>
+                  <label className="text-sm">
+                    <span className="mb-1 block font-semibold">Tipo *</span>
+                    <select
+                      value={customerKind}
+                      onChange={(e) => {
+                        setCustomerKind(e.target.value as CustomerKind);
+                        setDocumentNumber("");
+                      }}
+                      className="w-full rounded-xl border px-4 py-3"
+                      style={{ borderColor: "var(--site-line)" }}
+                    >
+                      <option value="individual">Pessoa física</option>
+                      <option value="company">Empresa / pessoa jurídica</option>
+                    </select>
+                  </label>
+                  <label className="text-sm">
+                    <span className="mb-1 block font-semibold">{customerKind === "individual" ? "CPF *" : "CNPJ *"}</span>
+                    <input
+                      value={documentNumber}
+                      onChange={(e) => setDocumentNumber(e.target.value)}
+                      inputMode="numeric"
+                      autoComplete="off"
+                      placeholder={customerKind === "individual" ? "000.000.000-00" : "00.000.000/0000-00"}
+                      className="w-full rounded-xl border px-4 py-3"
+                      style={{ borderColor: "var(--site-line)" }}
+                    />
                   </label>
 
                   {hasSubscription ? (
                     <>
-                      <div className="sm:col-span-2 mt-1 border-t pt-4" style={{ borderColor: "var(--site-line)" }}>
-                        <strong className="text-sm">Dados do assinante</strong>
-                        <span className="mt-1 block text-[11px]" style={{ color: "var(--site-muted)" }}>
-                          O CPF/CNPJ é usado somente para cadastro e cobrança depois que a rota for aprovada.
-                        </span>
-                      </div>
-                      <label className="text-sm">
-                        <span className="mb-1 block font-semibold">Tipo *</span>
-                        <select
-                          value={customerKind}
-                          onChange={(e) => {
-                            setCustomerKind(e.target.value as CustomerKind);
-                            setDocumentNumber("");
-                          }}
-                          className="w-full rounded-xl border px-4 py-3"
-                          style={{ borderColor: "var(--site-line)" }}
-                        >
-                          <option value="individual">Pessoa física</option>
-                          <option value="company">Empresa / pessoa jurídica</option>
-                        </select>
-                      </label>
-                      <label className="text-sm">
-                        <span className="mb-1 block font-semibold">{customerKind === "individual" ? "CPF *" : "CNPJ *"}</span>
-                        <input
-                          value={documentNumber}
-                          onChange={(e) => setDocumentNumber(e.target.value)}
-                          inputMode="numeric"
-                          autoComplete="off"
-                          placeholder={customerKind === "individual" ? "000.000.000-00" : "00.000.000/0000-00"}
-                          className="w-full rounded-xl border px-4 py-3"
-                          style={{ borderColor: "var(--site-line)" }}
-                        />
-                      </label>
                       <div className="sm:col-span-2 mt-1 border-t pt-4" style={{ borderColor: "var(--site-line)" }}>
                         <strong className="text-sm">Endereço para verificar a rota de entrega</strong>
                         <span className="mt-1 block text-[11px] leading-relaxed" style={{ color: "var(--site-muted)" }}>

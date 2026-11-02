@@ -576,9 +576,19 @@ async function ensureSubscriptionAndReceivable(
   };
 }
 
-export async function convertSubscriptionInterestAction(id: string): Promise<ConvertSubscriptionInterestResult> {
+/**
+ * Bloco C (02/11/2026) — `confirmed` precisa ser `true`: representa que
+ * o operador já revisou cliente, serviço, valor e condições num resumo
+ * explícito na UI (ver ConvertSubscriptionInterestButton) antes deste
+ * clique. Defesa em profundidade — a Server Action nunca confia só na UI
+ * ter mostrado o resumo, confere de novo aqui.
+ */
+export async function convertSubscriptionInterestAction(id: string, confirmed: boolean): Promise<ConvertSubscriptionInterestResult> {
   const permissionError = await checkModuleAction("assinaturas", "assinaturas_criar");
   if (permissionError) return { error: permissionError };
+  if (confirmed !== true) {
+    return { error: "Confirme o resumo (cliente, serviço, valor e condições) antes de criar a assinatura." };
+  }
 
   const supabase = createSupabaseServerClient();
   let claimed = false;
@@ -702,9 +712,14 @@ export type ConvertAdvertisingInterestResult =
  * e cria TAMBÉM a assinatura + primeiro título financeiro, reaproveitando
  * `ensureSubscriptionAndReceivable`.
  */
-export async function convertAdvertisingInterestAction(id: string): Promise<ConvertAdvertisingInterestResult> {
+/** Bloco C (02/11/2026) — mesma exigência de confirmação explícita de
+ * cliente/serviço/valor/condições de convertSubscriptionInterestAction. */
+export async function convertAdvertisingInterestAction(id: string, confirmed: boolean): Promise<ConvertAdvertisingInterestResult> {
   const permissionError = await checkModuleAction("publicidade", "solicitacoes_gerenciar");
   if (permissionError) return { error: permissionError };
+  if (confirmed !== true) {
+    return { error: "Confirme o resumo (cliente, serviço, valor e condições) antes de converter." };
+  }
 
   const supabase = createSupabaseServerClient();
   let claimed = false;

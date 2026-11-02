@@ -375,12 +375,24 @@ export default async function SiteInterestRequestsPage({
                       {row.status === "new" ? (
                         <form action={updateSiteInterestStatusAction.bind(null, row.id, "contacted")}><button type="submit">Em atendimento</button></form>
                       ) : null}
-                      {canConvertSubscription ? <ConvertSubscriptionInterestButton requestId={row.id} /> : null}
+                      {canConvertSubscription ? (
+                        <ConvertSubscriptionInterestButton
+                          requestId={row.id}
+                          clientName={row.name}
+                          amount={row.approved_total ?? row.estimated_total ?? null}
+                          paymentPreference={row.payment_preference ?? null}
+                        />
+                      ) : null}
                       {row.request_type === "subscription" && !finalStatus && row.availability_status !== "approved" ? (
                         <span className="helper-text">Aprove a rota antes de converter a assinatura.</span>
                       ) : null}
                       {canConvertAdvertising ? (
-                        <ConvertAdvertisingInterestButton requestId={row.id} isMixed={row.request_type === "mixed"} />
+                        <ConvertAdvertisingInterestButton
+                          requestId={row.id}
+                          isMixed={row.request_type === "mixed"}
+                          clientName={row.name}
+                          approvedTotal={row.approved_total ?? row.estimated_total ?? null}
+                        />
                       ) : null}
                       {row.request_type !== "subscription" && !finalStatus && row.availability_status !== "approved" ? (
                         <span className="helper-text">Aprove primeiro a disponibilidade antes de converter.</span>

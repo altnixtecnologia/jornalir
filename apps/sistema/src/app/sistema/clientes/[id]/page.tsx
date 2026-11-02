@@ -4,6 +4,8 @@ import { ClientNotFoundError } from "@ir/core";
 import { CLIENT_KIND_LABELS, CLIENT_ROLE_LABELS, clientDisplayName, computeReceivableDueFlag, CONTRACT_STATUS_LABELS, RECEIVABLE_SOURCE_TYPE_LABELS } from "@ir/types";
 import { ModuleHeader } from "../../../../components/admin/ModuleHeader";
 import { DigitalExportControl } from "../../../../features/clientes/DigitalExportControl";
+import { FamilyAndRelatedPersonsControl } from "../../../../features/clientes/FamilyAndRelatedPersonsControl";
+import { CompletionLinkControl } from "../../../../features/clientes/CompletionLinkControl";
 import { getClientService } from "../../../../composition/clientes";
 import { getSubscriptionService } from "../../../../composition/assinaturas";
 import { getContractService, getReceivableService, getClientCreditService } from "../../../../composition/financeiro";
@@ -56,6 +58,45 @@ export default async function ClienteDetailPage({ params }: { params: { id: stri
     supabase.rpc("staff_can_see_module",{p_module:"financeiro"}),
   ]);
   const canSeeCommercialContracts = commercialReviewer.data === true || financeModule.data === true;
+  const [{ data: familyMemberRows }, { data: relatedPersonRows }, { data: clientFlagsRow }] = await Promise.all([
+    isIndividual
+      ? supabase
+          .from("birthday_entries")
+          .select("id, display_name, birth_month, birth_day, relationship, consent_status, is_minor")
+          .eq("group_client_id", client.id)
+          .eq("origin", "familiar")
+          .eq("active", true)
+          .order("created_at", { ascending: true })
+      : Promise.resolve({ data: [] as never[] }),
+    !isIndividual
+      ? supabase
+          .from("client_related_persons")
+          .select("id, full_name, role_type, cpf, phone, email")
+          .eq("client_id", client.id)
+          .eq("active", true)
+          .order("created_at", { ascending: true })
+      : Promise.resolve({ data: [] as never[] }),
+    supabase.from("clients").select("family_members_confirmed_empty").eq("id", client.id).maybeSingle(),
+  ]);
+  const familyMembers = (familyMemberRows ?? []).map((row: any) => ({
+    id: row.id as string,
+    displayName: row.display_name as string,
+    birthMonth: row.birth_month as number,
+    birthDay: row.birth_day as number,
+    relationship: row.relationship as string | null,
+    consentStatus: row.consent_status as "pending" | "granted" | "denied",
+    isMinor: row.is_minor as boolean | null,
+  }));
+  const relatedPersons = (relatedPersonRows ?? []).map((row: any) => ({
+    id: row.id as string,
+    fullName: row.full_name as string,
+    roleType: row.role_type as "responsavel" | "socio" | "colaborador" | "outro",
+    cpf: row.cpf as string | null,
+    phone: row.phone as string | null,
+    email: row.email as string | null,
+  }));
+  const familyConfirmedEmpty = Boolean((clientFlagsRow as { family_members_confirmed_empty?: boolean } | null)?.family_members_confirmed_empty);
+
   const { data: canApproveDigital } = await supabase.rpc("is_active_admin_or_owner");
   const { data: exportPermission } = canApproveDigital === true
     ? await supabase.from("client_digital_export_permissions").select("enabled")
@@ -181,6 +222,20 @@ export default async function ClienteDetailPage({ params }: { params: { id: stri
           initiallyEnabled={exportPermission?.enabled === true}
           clientActive={client.status === "active"} />
       ) : null}
+
+      <FamilyAndRelatedPersonsControl
+        clientId={client.id}
+        clientKind={client.kind}
+        familyMembers={familyMembers}
+        familyConfirmedEmpty={familyConfirmedEmpty}
+        relatedPersons={relatedPersons}
+      />
+
+      <CompletionLinkControl
+        clientId={client.id}
+        hasWhatsapp={Boolean(client.whatsapp?.trim())}
+        hasEmail={Boolean(client.email?.trim())}
+      />
 
       <section className="form-section">
         <h2>Observações</h2>
