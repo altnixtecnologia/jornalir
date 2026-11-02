@@ -35,6 +35,16 @@ const nextConfig = {
         {key: "X-Robots-Tag", value: "noindex, nofollow, noarchive"},
         {key: "Cache-Control", value: "private, no-store"},
       ],
+    }, {
+      // Bloco D (02/11/2026) — mesmo cuidado do link de assinatura comercial:
+      // o token de complementação cadastral também não pode ser indexado
+      // nem vazar no Referer de recursos abertos a partir da página.
+      source: "/complementar-cadastro/:token",
+      headers: [
+        {key: "Referrer-Policy", value: "no-referrer"},
+        {key: "X-Robots-Tag", value: "noindex, nofollow, noarchive"},
+        {key: "Cache-Control", value: "private, no-store"},
+      ],
     }];
   },
 
