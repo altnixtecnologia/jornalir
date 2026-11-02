@@ -922,6 +922,8 @@ export function BirthdaysList({ localPreview, initialGroups = [], initialMessage
   const [deleteTarget, setDeleteTarget] = useState<DeleteTarget | null>(null);
   const [includeOpen, setIncludeOpen] = useState(false);
   const includeDialogRef = useRef<HTMLDialogElement>(null);
+  const [reportOpen, setReportOpen] = useState(false);
+  const reportDialogRef = useRef<HTMLDialogElement>(null);
   const [aiConfigured, setAiConfigured] = useState(false);
   const [customTemplates, setCustomTemplates] = useState<BirthdayMessageTemplateRow[]>([]);
   useEffect(() => {
@@ -963,6 +965,13 @@ export function BirthdaysList({ localPreview, initialGroups = [], initialMessage
     if (includeOpen && !dialog.open) dialog.showModal();
     if (!includeOpen && dialog.open) dialog.close();
   }, [includeOpen]);
+
+  useEffect(() => {
+    const dialog = reportDialogRef.current;
+    if (!dialog) return;
+    if (reportOpen && !dialog.open) dialog.showModal();
+    if (!reportOpen && dialog.open) dialog.close();
+  }, [reportOpen]);
 
   const newspaperRange = useMemo(() => getNewspaperWeekRange(weekReference), [weekReference]);
   const weekDays = useMemo(() => listNewspaperWeekDays(newspaperRange), [newspaperRange]);
@@ -1702,8 +1711,8 @@ export function BirthdaysList({ localPreview, initialGroups = [], initialMessage
               <button type="button" className="cadastros-btn-secondary" onClick={clearFilters}>
                 Limpar filtros
               </button>
-              <button type="button" className="cadastros-btn-secondary" onClick={copyReport}>
-                {reportCopied ? "Copiado ✓" : "Copiar relação (tabulada)"}
+              <button type="button" className="cadastros-btn-secondary" onClick={() => { setReportCopied(false); setReportOpen(true); }}>
+                Gerar tabela
               </button>
               <button type="button" className="cadastros-btn-primary" onClick={() => window.print()}>
                 Gerar relatório
@@ -1866,6 +1875,43 @@ export function BirthdaysList({ localPreview, initialGroups = [], initialMessage
             </table>
           </div>
       </>
+
+      <dialog ref={reportDialogRef} className="ir-modal ir-modal--form" aria-labelledby="aniv-report-title"
+        onCancel={(e) => { e.preventDefault(); setReportOpen(false); }}>
+        <div className="p-5 sm:p-6">
+          <h2 id="aniv-report-title" className="text-lg font-semibold">Tabela de aniversariantes</h2>
+          <p className="mt-2 text-sm text-zinc-500">
+            {reportRows.length} aniversariante(s) dos filtros atuais, com publicação autorizada.
+            A cópia contém somente Data, Nome e Cidade, sem título ou mensagens.
+          </p>
+          <div className="mt-4 max-h-[55vh] overflow-auto rounded-lg border border-zinc-200 dark:border-zinc-700">
+            {reportRows.length > 0 ? (
+              <table className="w-full border-collapse text-left text-sm">
+                <thead>
+                  <tr className="border-b border-zinc-200 dark:border-zinc-700">
+                    <th className="px-3 py-2">Data</th><th className="px-3 py-2">Nome</th><th className="px-3 py-2">Cidade</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {reportRows.map((entry) => (
+                    <tr key={entry.id} className="border-b border-zinc-100 last:border-b-0 dark:border-zinc-800">
+                      <td className="whitespace-nowrap px-3 py-2">{formatBirthDateShort(entry.birthDate)}</td>
+                      <td className="px-3 py-2">{entry.displayName}</td>
+                      <td className="px-3 py-2">{entry.city || ""}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            ) : <p className="p-4 text-sm">Nenhum aniversariante autorizado encontrado com os filtros atuais.</p>}
+          </div>
+          <div className="mt-4 flex flex-wrap justify-end gap-2">
+            <button type="button" className="cadastros-btn-secondary" onClick={() => setReportOpen(false)}>Fechar</button>
+            <button type="button" className="cadastros-btn-primary" onClick={() => { void copyReport(); }} disabled={reportRows.length === 0}>
+              {reportCopied ? "Copiado ✓" : "Copiar tabela"}
+            </button>
+          </div>
+        </div>
+      </dialog>
 
       <dialog ref={includeDialogRef} className="ir-modal ir-modal--form" aria-labelledby="aniv-include-title" onCancel={(e) => { e.preventDefault(); setIncludeOpen(false); }}>
         <IncludeForm
