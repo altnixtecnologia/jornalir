@@ -199,6 +199,7 @@ export function SiteHeader({ emphasized = false }: { active?: string; emphasized
   const socialIcons = [
     { href: socialLinks.facebook, label: "Facebook", icon: "/brand/social-facebook.png" },
     { href: socialLinks.instagram, label: "Instagram", icon: "/brand/social-instagram.png" },
+    { href: socialLinks.youtube, label: "YouTube", icon: "/brand/social-youtube.png" },
     { href: socialLinks.whatsapp, label: "WhatsApp", icon: "/brand/social-whatsapp.png" },
   ];
 

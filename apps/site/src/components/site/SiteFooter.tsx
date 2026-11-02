@@ -64,6 +64,7 @@ export async function SiteFooter(): Promise<JSX.Element> {
             {[
               { href: socialLinks.facebook, icon: "/brand/social-facebook.png", label: "Facebook" },
               { href: socialLinks.instagram, icon: "/brand/social-instagram.png", label: "Instagram" },
+              { href: socialLinks.youtube, icon: "/brand/social-youtube.png", label: "YouTube" },
               { href: socialLinks.whatsapp, icon: "/brand/social-whatsapp.png", label: "WhatsApp" }
             ].map((social) => (
               <a
