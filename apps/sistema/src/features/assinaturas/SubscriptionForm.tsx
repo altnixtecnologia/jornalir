@@ -22,7 +22,9 @@ function payloadFromSubscription(subscription?: Subscription, initialClientId?: 
   return {
     clientId: subscription?.clientId ?? initialClientId ?? "",
     serviceType: subscription?.serviceType ?? "impresso",
-    status: subscription?.status ?? "active",
+    // Bloco E (02/11/2026): toda assinatura NOVA nasce "pendente de
+    // formalização" — nunca "active" direto na criação (ver allowedStatuses).
+    status: subscription?.status ?? "pending_formalization",
     amount: subscription ? String(subscription.amount) : "",
     periodicity: subscription?.periodicity ?? "monthly",
     startsAt: subscription?.startsAt ?? new Date().toISOString().slice(0, 10),
@@ -90,9 +92,13 @@ export function SubscriptionForm({ mode, subscription, initialSelectedClient }: 
   const isImpresso = payload.serviceType === "impresso";
   const isTv = payload.serviceType === "tv";
   const isCancelled = subscription?.status === "cancelled";
+  // Bloco E (02/11/2026): criar nunca ativa direto — o seletor de status
+  // só oferece "pendente de formalização" na criação; ativar é uma ação
+  // separada (ver SubscriptionStatusActions/activateSubscriptionAction),
+  // com permissão própria.
   const allowedStatuses: SubscriptionFormPayload["status"][] = subscription
     ? [subscription.status, ...SUBSCRIPTION_STATUS_TRANSITIONS[subscription.status]]
-    : ["active"];
+    : ["pending_formalization"];
 
   function handleSubmit(): void {
     startTransition(async () => {
@@ -305,6 +311,12 @@ export function SubscriptionForm({ mode, subscription, initialSelectedClient }: 
             {isCancelled ? (
               <span className="helper-text">Cancelada é definitiva — crie uma nova assinatura para retomar o serviço.</span>
             ) : null}
+            {mode === "create" ? (
+              <span className="helper-text">
+                A assinatura nasce pendente de formalização: nenhum serviço é ativado nem título financeiro é
+                gerado automaticamente. Ative e gere a cobrança depois, em ações separadas, na tela da assinatura.
+              </span>
+            ) : null}
           </label>
         </div>
       </section>
@@ -321,7 +333,7 @@ export function SubscriptionForm({ mode, subscription, initialSelectedClient }: 
 
       <div className="form-actions">
         <button type="button" className="form-action-primary" onClick={handleSubmit} disabled={pending}>
-          {pending ? "Salvando…" : mode === "create" ? "Criar assinatura" : "Salvar alterações"}
+          {pending ? "Salvando…" : mode === "create" ? "Gerar assinatura" : "Salvar alterações"}
         </button>
         <button type="button" onClick={() => router.back()} disabled={pending}>
           Cancelar

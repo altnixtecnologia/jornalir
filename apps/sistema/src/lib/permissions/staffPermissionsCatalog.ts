@@ -69,6 +69,10 @@ export const STAFF_MODULE_ACTIONS = [
   { module: "clientes", key: "clientes_editar", label: "Editar clientes", isDefault: true },
   { module: "assinaturas", key: "assinaturas_criar", label: "Contratar assinaturas", isDefault: true },
   { module: "assinaturas", key: "assinaturas_editar", label: "Alterar assinaturas", isDefault: true },
+  // Bloco E (02/11/2026): ativar uma assinatura "pendente de formalização"
+  // é uma ação separada da criação, com permissão própria — nunca presumida
+  // por quem só pode criar/editar.
+  { module: "assinaturas", key: "assinaturas_ativar", label: "Ativar assinaturas pendentes de formalização" },
   { module: "assinaturas", key: "assinaturas_suspender", label: "Suspender ou reativar assinaturas" },
   { module: "assinaturas", key: "assinaturas_cancelar", label: "Cancelar assinaturas", isCritical: true },
   { module: "publicidade", key: "produtos_gerenciar", label: "Criar e editar produtos/planos" },

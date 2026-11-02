@@ -6,11 +6,19 @@
 // (parcelas, boletos, baixa) entra aqui ainda.
 
 export type SubscriptionServiceType = "impresso" | "digital" | "tv";
-export type SubscriptionStatus = "active" | "suspended" | "cancelled";
+/** "pending_formalization" (Bloco E, 02/11/2026) — toda assinatura nasce
+ * assim: criar assinatura nunca ativa o serviço nem gera título
+ * automaticamente. A ativação (-> "active") exige ação expressa e
+ * separada de um funcionário autorizado (nunca presumida por assinatura
+ * de contrato ou recebimento de pagamento, isoladamente) — ver
+ * activateSubscriptionAction/assinaturas_ativar. Nunca é o destino de
+ * uma transição de volta (ver SUBSCRIPTION_STATUS_TRANSITIONS: só é
+ * origem, nunca destino). */
+export type SubscriptionStatus = "pending_formalization" | "active" | "suspended" | "cancelled";
 export type SubscriptionPeriodicity = "monthly" | "quarterly" | "semiannual" | "annual";
 
 export const SUBSCRIPTION_SERVICE_TYPES: readonly SubscriptionServiceType[] = ["impresso", "digital", "tv"];
-export const SUBSCRIPTION_STATUSES: readonly SubscriptionStatus[] = ["active", "suspended", "cancelled"];
+export const SUBSCRIPTION_STATUSES: readonly SubscriptionStatus[] = ["pending_formalization", "active", "suspended", "cancelled"];
 export const SUBSCRIPTION_PERIODICITIES: readonly SubscriptionPeriodicity[] = [
   "monthly",
   "quarterly",
@@ -25,6 +33,7 @@ export const SUBSCRIPTION_SERVICE_TYPE_LABELS: Record<SubscriptionServiceType, s
 };
 
 export const SUBSCRIPTION_STATUS_LABELS: Record<SubscriptionStatus, string> = {
+  pending_formalization: "Pendente de formalização",
   active: "Ativa",
   suspended: "Suspensa",
   cancelled: "Cancelada",
@@ -42,6 +51,7 @@ export const SUBSCRIPTION_PERIODICITY_LABELS: Record<SubscriptionPeriodicity, st
  * assinatura. Usada tanto pela validação de domínio quanto pela UI (pra
  * decidir quais ações de transição mostrar). */
 export const SUBSCRIPTION_STATUS_TRANSITIONS: Record<SubscriptionStatus, readonly SubscriptionStatus[]> = {
+  pending_formalization: ["active", "cancelled"],
   active: ["suspended", "cancelled"],
   suspended: ["active", "cancelled"],
   cancelled: [],

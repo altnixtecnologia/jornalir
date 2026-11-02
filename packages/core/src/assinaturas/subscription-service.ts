@@ -82,7 +82,11 @@ function normalize(input: SubscriptionInput): NewSubscriptionRecord {
   return {
     clientId: input.clientId,
     serviceType: input.serviceType,
-    status: input.status ?? "active",
+    // Bloco E (02/11/2026): toda assinatura nasce "pendente de
+    // formalização" por padrão — criar nunca ativa o serviço nem gera
+    // título automaticamente. Só nasce "active" quando o chamador passar
+    // isso explicitamente (ex.: migração manual de dados antigos).
+    status: input.status ?? "pending_formalization",
     amount: input.amount,
     periodicity: input.periodicity,
     startsAt: input.startsAt,
@@ -159,6 +163,14 @@ export class SubscriptionService {
       );
     }
     return this.subscriptions.update(id, { status: to, ...extra });
+  }
+
+  /** Ativação explícita (Bloco E) de uma assinatura "pendente de
+   * formalização" — nunca disparada automaticamente por assinatura de
+   * contrato ou recebimento de pagamento isoladamente; sempre uma ação
+   * própria e separada de um funcionário autorizado. */
+  activate(id: string): Promise<Subscription> {
+    return this.transition(id, "active");
   }
 
   suspend(id: string): Promise<Subscription> {

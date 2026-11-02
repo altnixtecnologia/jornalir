@@ -119,6 +119,15 @@
 - Familiares/pessoas vinculadas adicionados pelo próprio titular pela página pública usam as mesmas tabelas/regras já aprovadas no Bloco B (`birthday_entries`/`client_related_persons`); consentimento de publicação de cada familiar é individual e nunca presumido.
 - **Continua proibido enviar o link real ao cliente** nesta etapa — a ação de gerar o link (Bloco B) só devolve o caminho para a equipe copiar manualmente; a página pública agora existe e está pronta para homologação, mas o envio efetivo ainda não foi autorizado.
 
+## 02/11/2026 — Bloco E (Assinatura "pendente de formalização")
+
+- Novo status `pending_formalization` em `SubscriptionStatus` (`packages/types`) — **toda assinatura nova nasce assim**, nunca `active` direto. Decide a questão que ficou pendente do Bloco C.
+- Fluxo aprovado: funcionário seleciona/completa cliente → "Gerar assinatura" → confirma cliente/serviço/valor/condições → sistema cria a assinatura **pendente de formalização**, sem ativar serviço nem gerar título financeiro. `SubscriptionService.register()` (`packages/core`) passou a usar `pending_formalization` como default.
+- **Ativação é ação separada e expressa**, com permissão própria (`assinaturas_ativar`, distinta de `assinaturas_criar`): botão "Ativar assinatura" na tela de detalhe, só quando `status = pending_formalization`. Nunca presumida por assinatura de contrato ou recebimento de pagamento isoladamente.
+- **Geração de cobrança também é ação separada e expressa** (já existia como tal — `generateReceivableFromSubscriptionAction`/geração de período) e agora **recusa** gerar cobrança para uma assinatura ainda `pending_formalization`.
+- Caminhos de conversão revisados: `convertSubscriptionInterestAction`/`convertAdvertisingInterestAction` (Bloco C) passaram a criar a assinatura só como `pending_formalization`, **sem mais criar o primeiro título financeiro automaticamente** (antes criavam os dois juntos em `ensureSubscriptionAndReceivable`). Idempotência/trava de concorrência (`claimConversion`) preservadas sem alteração.
+- **Nenhuma migração retroativa**: assinaturas `active` existentes, títulos já recebidos, contratos e histórico permanecem intocados — a migration (`20261120320000_subscription_pending_formalization.sql`, **não aplicada**) só amplia o CHECK de status, sem UPDATE em linha nenhuma.
+
 ## 20/10/2026 — Decisões aprovadas para Agenda/Pauta/auditoria
 - Todos os colaboradores ativos podem ver compromissos de todos, com identificação por cor atribuída a cada pessoa. Agenda/Pauta devem convergir para um único registro, sem ligação manual/duplicata no estado final.
 - Cada colaborador conclui a própria parte; múltiplos responsáveis devem progredir separadamente. Proprietário e administradores **explicitamente autorizados** alteram, cancelam e reabrem pendências de qualquer pessoa.

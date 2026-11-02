@@ -92,6 +92,25 @@ export async function updateSubscription(id: string, payload: SubscriptionFormPa
  * (revalidatePath + router.refresh() no cliente, mesmo padrão já usado em
  * ArticleForm.handleBack pra descartar o Router Cache ao voltar).
  */
+/**
+ * Ativação explícita (Bloco E, 02/11/2026) de uma assinatura "pendente
+ * de formalização" — permissão própria (`assinaturas_ativar`), separada
+ * de `assinaturas_criar`. Nunca chamada automaticamente por nenhum outro
+ * fluxo (assinatura de contrato, confirmação de pagamento): sempre uma
+ * ação própria do funcionário autorizado, nesta tela.
+ */
+export async function activateSubscriptionAction(id: string): Promise<ActionResult> {
+  const permissionError = await checkModuleAction("assinaturas", "assinaturas_ativar");
+  if (permissionError) return { error: permissionError };
+  try {
+    await getSubscriptionService(createSupabaseServerClient()).activate(id);
+  } catch (error) {
+    return { error: toErrorMessage(error) };
+  }
+  revalidatePath(`${LIST_PATH}/${id}`);
+  revalidatePath(LIST_PATH);
+}
+
 export async function suspendSubscriptionAction(id: string): Promise<ActionResult> {
   const permissionError = await checkModuleAction("assinaturas", "assinaturas_suspender");
   if (permissionError) return { error: permissionError };

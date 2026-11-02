@@ -4,7 +4,6 @@ import { revalidatePath } from "next/cache";
 import { isValidCnpj, isValidCpf } from "@ir/core";
 import { getClientService } from "../../../../composition/clientes";
 import { getSubscriptionService } from "../../../../composition/assinaturas";
-import { getReceivableService } from "../../../../composition/financeiro";
 import { getCommercialProposalService } from "../../../../composition/comercial";
 import { createSupabaseServerClient } from "../../../../lib/supabase/server";
 import { checkModuleAction } from "../../../../lib/permissions/checkModuleAction";
@@ -13,7 +12,6 @@ import { recordAuditEventSupabase } from "../../../../providers/supabase/auditEv
 import {
   onlyDigits,
   todayInBrazil,
-  addDaysIso,
   addYearsIso,
   advertisingSelections,
   subscriptionSelectionAmount,
@@ -60,7 +58,11 @@ interface SubscriptionInterestRow {
 
 export type ConvertSubscriptionInterestResult =
   | { error: string }
-  | { ok: true; clientId: string; subscriptionId: string; receivableId: string };
+  // Bloco E (02/11/2026): a conversão só cria a assinatura, pendente de
+  // formalização — nunca mais cria título financeiro automaticamente
+  // (ativação e cobrança passaram a ser ações separadas e expressas,
+  // feitas depois na própria tela da assinatura).
+  | { ok: true; clientId: string; subscriptionId: string };
 
 function paths(): void {
   revalidatePath("/sistema/publicidade");
@@ -475,16 +477,24 @@ async function releaseConversionClaim(
 interface EnsuredSubscription {
   subscriptionId: string;
   subscriptionReference: string;
-  receivableId: string;
-  receivableReference: string;
 }
 
 /**
  * Cria (ou reaproveita, por idempotência via `originTag` nas notas) a
- * assinatura + primeiro título financeiro de uma solicitação — extraído
- * de `convertSubscriptionInterestAction` pra ser reaproveitado também
- * pela conversão de pacotes mistos (`convertAdvertisingInterestAction`),
- * sem duplicar a lógica.
+ * assinatura de uma solicitação — extraído de
+ * `convertSubscriptionInterestAction` pra ser reaproveitado também pela
+ * conversão de pacotes mistos (`convertAdvertisingInterestAction`), sem
+ * duplicar a lógica.
+ *
+ * Bloco E (02/11/2026): esta função só cria a ASSINATURA, sempre
+ * "pending_formalization" — NUNCA cria mais o primeiro título financeiro
+ * automaticamente (antes criava os dois juntos). "Criar assinatura não
+ * pode ativar serviço nem gerar títulos automaticamente" — ativação
+ * (`activateSubscriptionAction`) e geração de cobrança
+ * (`generateReceivableFromSubscriptionAction`, que agora recusa
+ * assinatura ainda pendente) continuam como ações separadas e expressas,
+ * feitas depois pelo funcionário autorizado, na própria tela da
+ * assinatura.
  */
 async function ensureSubscriptionAndReceivable(
   supabase: ReturnType<typeof createSupabaseServerClient>,
@@ -511,7 +521,7 @@ async function ensureSubscriptionAndReceivable(
     subscription = await getSubscriptionService(supabase).register({
       clientId,
       serviceType: "impresso",
-      status: "active",
+      status: "pending_formalization",
       amount,
       periodicity: "annual",
       startsAt,
@@ -537,42 +547,9 @@ async function ensureSubscriptionAndReceivable(
     });
   }
 
-  const receivableService = getReceivableService(supabase);
-  const existingReceivables = await receivableService.list({ subscriptionId: subscription.id });
-  let receivable = existingReceivables.find(
-    (item) => item.competencyDate === subscription!.startsAt || item.notes?.includes(originTag),
-  );
-
-  if (!receivable) {
-    const { data: settings } = await supabase
-      .from("billing_provider_settings")
-      .select("default_due_days")
-      .eq("id", 1)
-      .maybeSingle();
-    const dueDaysRaw = Number(settings?.default_due_days ?? 3);
-    const dueDays = Number.isFinite(dueDaysRaw) ? Math.max(0, Math.min(60, Math.floor(dueDaysRaw))) : 3;
-
-    const createdReceivable = await receivableService.registerFromSubscription({
-      clientId,
-      description: "Assinatura anual do Informativo Regional",
-      sourceType: "subscription",
-      sourceId: subscription.id,
-      sourceReference: `Assinatura ${subscription.reference}`,
-      subscriptionId: subscription.id,
-      originalAmount: amount,
-      issueDate: subscription.startsAt,
-      dueDate: addDaysIso(subscription.startsAt, dueDays),
-      competencyDate: subscription.startsAt,
-      notes: `${originTag} Gerada a partir da solicitação do site ${protocol}.`,
-    });
-    receivable = await receivableService.getById(createdReceivable.id);
-  }
-
   return {
     subscriptionId: subscription.id,
     subscriptionReference: subscription.reference,
-    receivableId: receivable.id,
-    receivableReference: receivable.reference,
   };
 }
 
@@ -634,10 +611,12 @@ export async function convertSubscriptionInterestAction(id: string, confirmed: b
     const audit = await getAuditContext(supabase);
     const clientId = await resolveOrCreateClient(supabase, row);
 
-    const { subscriptionId, subscriptionReference, receivableId, receivableReference } =
+    const { subscriptionId, subscriptionReference } =
       await ensureSubscriptionAndReceivable(supabase, row, clientId, amount, originTag, protocol);
 
-    const conversionLine = `Assinatura convertida: ${subscriptionReference}; financeiro: ${receivableReference}.`;
+    // Bloco E (02/11/2026): a assinatura nasce pendente de formalização —
+    // nenhum título financeiro é criado aqui (ver ensureSubscriptionAndReceivable).
+    const conversionLine = `Assinatura criada (pendente de formalização): ${subscriptionReference}. Ative e gere a cobrança em ações separadas, na tela da assinatura.`;
     const adminNote = [row.admin_note?.trim(), conversionLine].filter(Boolean).join("\n").slice(0, 3000);
 
     const { error: updateError } = await supabase
@@ -651,7 +630,7 @@ export async function convertSubscriptionInterestAction(id: string, confirmed: b
         document_number: null,
         converted_client_id: clientId,
         converted_subscription_id: subscriptionId,
-        converted_receivable_id: receivableId,
+        converted_receivable_id: null,
         converted_at: new Date().toISOString(),
         attended_at: new Date().toISOString(),
         attended_by: audit.actorId,
@@ -670,8 +649,6 @@ export async function convertSubscriptionInterestAction(id: string, confirmed: b
         clientId,
         subscriptionId,
         subscriptionReference,
-        receivableId,
-        receivableReference,
         amount,
       },
     });
@@ -681,11 +658,8 @@ export async function convertSubscriptionInterestAction(id: string, confirmed: b
     revalidatePath(`/sistema/clientes/${clientId}`);
     revalidatePath("/sistema/assinaturas");
     revalidatePath(`/sistema/assinaturas/${subscriptionId}`);
-    revalidatePath("/sistema/financeiro");
-    revalidatePath("/sistema/financeiro/contas-a-receber");
-    revalidatePath(`/sistema/financeiro/contas-a-receber/${receivableId}`);
 
-    return { ok: true, clientId, subscriptionId, receivableId };
+    return { ok: true, clientId, subscriptionId };
   } catch (error) {
     // Falha parcial: se a trava já tinha sido tomada, libera pra não
     // bloquear uma nova tentativa legítima além do necessário (ver
@@ -709,8 +683,9 @@ export type ConvertAdvertisingInterestResult =
  * contrato fechado automaticamente — isso continua exigindo a
  * aprovação manual da proposta, mesmo fluxo já existente de Comercial).
  * Pacote misto: usa o cliente com CPF/CNPJ (mesma regra da assinatura)
- * e cria TAMBÉM a assinatura + primeiro título financeiro, reaproveitando
- * `ensureSubscriptionAndReceivable`.
+ * e cria TAMBÉM a assinatura (pendente de formalização — Bloco E,
+ * 02/11/2026, nunca mais o título financeiro automaticamente),
+ * reaproveitando `ensureSubscriptionAndReceivable`.
  */
 /** Bloco C (02/11/2026) — mesma exigência de confirmação explícita de
  * cliente/serviço/valor/condições de convertSubscriptionInterestAction. */
@@ -791,11 +766,9 @@ export async function convertAdvertisingInterestAction(id: string, confirmed: bo
         : await resolveOrCreateAdvertisingClient(supabase, row);
 
     let subscriptionId: string | undefined;
-    let receivableId: string | undefined;
     if (subscriptionAmount !== null && subscriptionAmount > 0) {
       const ensured = await ensureSubscriptionAndReceivable(supabase, row, clientId, subscriptionAmount, originTag, protocol);
       subscriptionId = ensured.subscriptionId;
-      receivableId = ensured.receivableId;
     }
 
     let proposalId: string;
@@ -845,7 +818,7 @@ export async function convertAdvertisingInterestAction(id: string, confirmed: bo
           .from("site_interest_requests")
           .update({
             converted_subscription_id: subscriptionId,
-            converted_receivable_id: receivableId ?? null,
+            converted_receivable_id: null,
             // Libera a trava — essa é uma nova tentativa legítima
             // (criar a proposta manualmente depois), não uma corrida.
             conversion_started_at: null,
@@ -855,12 +828,12 @@ export async function convertAdvertisingInterestAction(id: string, confirmed: bo
       } else {
         await releaseConversionClaim(supabase, id);
       }
-      return { error: "Assinatura convertida, mas não foi possível identificar os itens de publicidade. Crie a proposta manualmente para concluir a parte comercial." };
+      return { error: "Assinatura criada (pendente de formalização), mas não foi possível identificar os itens de publicidade. Crie a proposta manualmente para concluir a parte comercial." };
     }
 
     const conversionLine = [
       `Proposta comercial criada: ${proposalReference}.`,
-      subscriptionId ? `Assinatura convertida: ${subscriptionId}.` : null,
+      subscriptionId ? `Assinatura criada (pendente de formalização): ${subscriptionId}.` : null,
     ]
       .filter(Boolean)
       .join(" ");
@@ -875,7 +848,7 @@ export async function convertAdvertisingInterestAction(id: string, confirmed: bo
         converted_client_id: clientId,
         converted_proposal_id: proposalId,
         converted_subscription_id: subscriptionId ?? null,
-        converted_receivable_id: receivableId ?? null,
+        converted_receivable_id: null,
         converted_at: new Date().toISOString(),
         attended_at: new Date().toISOString(),
         attended_by: audit.actorId,

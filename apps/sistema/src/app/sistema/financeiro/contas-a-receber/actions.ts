@@ -6,6 +6,7 @@ import type { PaymentMethod, AdjustmentType } from "@ir/types";
 import type { ReceivableInput } from "@ir/core";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { getPaymentChargeService, getReceivableService } from "../../../../composition/financeiro";
+import { getSubscriptionService } from "../../../../composition/assinaturas";
 import { getClientService } from "../../../../composition/clientes";
 import { createSupabaseServerClient } from "../../../../lib/supabase/server";
 import { checkFinanceAction } from "../../../../lib/permissions/checkFinanceAction";
@@ -367,7 +368,15 @@ export async function generateReceivableFromSubscriptionAction(
   const validationError = validateReceivablePayload(payload);
   if (validationError) return { error: validationError };
   try {
-    const receivable = await getReceivableService(createSupabaseServerClient()).registerFromSubscription(toServiceInput(payload));
+    const supabase = createSupabaseServerClient();
+    // Bloco E (02/11/2026): nunca gerar cobrança para uma assinatura
+    // ainda "pendente de formalização" — a ativação é uma decisão
+    // separada e expressa, que precisa vir ANTES da cobrança.
+    const subscription = await getSubscriptionService(supabase).getById(payload.subscriptionId);
+    if (subscription.status === "pending_formalization") {
+      return { error: "Ative a assinatura antes de gerar cobrança — ela ainda está pendente de formalização." };
+    }
+    const receivable = await getReceivableService(supabase).registerFromSubscription(toServiceInput(payload));
     revalidatePath(LIST_PATH);
     return { ok: true, receivableId: receivable.id };
   } catch (error) {
@@ -398,6 +407,22 @@ export async function generateReceivablesForSubscriptionPeriodAction(
   const client = createSupabaseServerClient();
   const service = getReceivableService(client);
   const results: BatchGenerationItemResult[] = [];
+
+  // Bloco E (02/11/2026): mesmo motivo de generateReceivableFromSubscriptionAction
+  // — nunca gerar cobrança de período para assinatura ainda pendente de
+  // formalização. Todos os itens do período são da mesma assinatura.
+  const firstSubscriptionId = payloads[0]?.subscriptionId;
+  if (firstSubscriptionId) {
+    const subscription = await getSubscriptionService(client).getById(firstSubscriptionId);
+    if (subscription.status === "pending_formalization") {
+      return {
+        results: payloads.map((payload) => ({
+          competencyDate: payload.competencyDate, ok: false,
+          error: "Ative a assinatura antes de gerar cobrança — ela ainda está pendente de formalização.",
+        })),
+      };
+    }
+  }
 
   for (const payload of payloads) {
     const validationError = validateReceivablePayload(payload);

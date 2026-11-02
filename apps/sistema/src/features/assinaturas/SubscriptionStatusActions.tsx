@@ -4,7 +4,7 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import type { Subscription } from "@ir/types";
 import { ConfirmDialog } from "../../components/admin/ConfirmDialog";
-import { cancelSubscriptionAction, reactivateSubscriptionAction, suspendSubscriptionAction } from "../../app/sistema/assinaturas/actions";
+import { activateSubscriptionAction, cancelSubscriptionAction, reactivateSubscriptionAction, suspendSubscriptionAction } from "../../app/sistema/assinaturas/actions";
 import { notify } from "../../lib/feedback/notify";
 
 /**
@@ -46,6 +46,14 @@ export function SubscriptionStatusActions({ subscription }: { subscription: Subs
     <div className="form-section form-section--compact">
       <h2>Ações</h2>
       <div className="form-actions">
+        {subscription.status === "pending_formalization" ? (
+          <button type="button" onClick={() => runAction(
+            () => activateSubscriptionAction(subscription.id),
+            { successTitle: "Assinatura ativada", successDescription: "A assinatura " + subscription.reference + " foi ativada e o serviço passa a vigorar.", errorTitle: "Não foi possível ativar" },
+          )} disabled={pending}>
+            Ativar assinatura
+          </button>
+        ) : null}
         {subscription.status === "active" ? (
           <button type="button" onClick={() => runAction(
             () => suspendSubscriptionAction(subscription.id),

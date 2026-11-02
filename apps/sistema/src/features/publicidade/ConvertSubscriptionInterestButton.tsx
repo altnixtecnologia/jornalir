@@ -14,11 +14,14 @@ const PAYMENT_LABELS: Record<string, string> = {
 };
 
 /**
- * Bloco C (02/11/2026) — a criação de assinatura (que já dispara o
- * primeiro título financeiro) só ocorre por ação expressa do operador,
- * com confirmação clara de cliente, serviço, valor e condições. O botão
- * passou a ter dois passos: primeiro clique mostra o resumo, segundo
- * clique confirma de verdade (confirmed=true na Server Action).
+ * Bloco C (02/11/2026) — a criação de assinatura só ocorre por ação
+ * expressa do operador, com confirmação clara de cliente, serviço,
+ * valor e condições. O botão tem dois passos: primeiro clique mostra o
+ * resumo, segundo clique confirma de verdade (confirmed=true na Server
+ * Action). Bloco E (02/11/2026): a assinatura nasce "pendente de
+ * formalização" — nunca ativa o serviço nem gera o primeiro título
+ * financeiro automaticamente; ativação e cobrança são ações separadas,
+ * feitas depois na própria tela da assinatura.
  */
 export function ConvertSubscriptionInterestButton({
   requestId,
@@ -43,7 +46,7 @@ export function ConvertSubscriptionInterestButton({
         setReviewing(false);
         return;
       }
-      notify.success("Assinatura criada", "A solicitação foi convertida em assinatura e o financeiro foi gerado.");
+      notify.success("Assinatura criada", "A assinatura foi criada como pendente de formalização. Ative e gere a cobrança em ações separadas, na tela da assinatura.");
       router.push(`/sistema/assinaturas/${result.subscriptionId}`);
       router.refresh();
     });
@@ -53,7 +56,7 @@ export function ConvertSubscriptionInterestButton({
     return (
       <div>
         <button type="button" className="form-action-primary" onClick={() => setReviewing(true)} disabled={pending}>
-          Criar assinatura + financeiro
+          Gerar assinatura
         </button>
       </div>
     );
@@ -66,7 +69,8 @@ export function ConvertSubscriptionInterestButton({
         <strong>assinatura anual do jornal impresso</strong>, valor{" "}
         <strong>{amount !== null ? money(amount) : "não definido"}</strong>, pagamento{" "}
         <strong>{paymentPreference ? PAYMENT_LABELS[paymentPreference] ?? paymentPreference : "a definir"}</strong>.
-        Esta ação cria a assinatura e já gera o primeiro título financeiro.
+        Esta ação cria a assinatura como pendente de formalização — nenhum serviço é ativado nem título
+        financeiro é gerado automaticamente. Ative e gere a cobrança depois, em ações separadas.
       </p>
       <div className="materias-toolbar-actions">
         <button type="button" className="form-action-primary" onClick={confirm} disabled={pending}>

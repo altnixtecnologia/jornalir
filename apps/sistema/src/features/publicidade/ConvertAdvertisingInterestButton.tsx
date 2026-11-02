@@ -37,7 +37,7 @@ export function ConvertAdvertisingInterestButton({
       notify.success(
         "Proposta criada",
         isMixed
-          ? "A solicitação foi convertida: assinatura + financeiro gerados e proposta comercial criada para a parte de publicidade."
+          ? "A solicitação foi convertida: assinatura criada como pendente de formalização (ative e gere a cobrança depois, em ações separadas) e proposta comercial criada para a parte de publicidade."
           : "A solicitação foi convertida em proposta comercial.",
       );
       router.push(`/sistema/publicidade/propostas/${result.proposalId}`);
@@ -60,7 +60,7 @@ export function ConvertAdvertisingInterestButton({
       <p className="helper-text">
         <strong>Confirme antes de criar:</strong> cliente <strong>{clientName}</strong>, valor aprovado{" "}
         <strong>{approvedTotal !== null ? money(approvedTotal) : "não definido"}</strong>.
-        {isMixed ? " Esta ação cria a assinatura + financeiro e a proposta comercial de publicidade." : " Esta ação cria a proposta comercial."}
+        {isMixed ? " Esta ação cria a assinatura (pendente de formalização, sem ativar serviço nem gerar cobrança) e a proposta comercial de publicidade." : " Esta ação cria a proposta comercial."}
       </p>
       <div className="materias-toolbar-actions">
         <button type="button" className="form-action-primary" onClick={confirm} disabled={pending}>
