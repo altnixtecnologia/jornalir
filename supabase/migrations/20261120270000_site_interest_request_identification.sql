@@ -15,6 +15,13 @@
 -- manual da equipe (mesmo princípio de resolveOrCreateClient em
 -- apps/sistema/.../solicitacoes/actions.ts, que já faz essa tolerância a
 -- duplicidade legada no momento da conversão).
+--
+-- Correção de regressão (03/11/2026): esta "create or replace" preserva
+-- INTEGRALMENTE a checagem de `site_offer_settings.assine_enabled` que já
+-- existe na função instalada em produção (20261022072614) — ela precisa
+-- continuar sendo a PRIMEIRA validação, antes de qualquer outra, para que
+-- o botão administrativo de habilitar/desabilitar o Assine não possa ser
+-- contornado por chamada direta à RPC.
 
 alter table public.site_interest_requests
   add column if not exists matched_client_id uuid references public.clients (id),
@@ -76,6 +83,12 @@ declare
   v_matched_client_id uuid;
   v_matched_count int;
 begin
+  if not exists (
+    select 1 from public.site_offer_settings where id = 1 and assine_enabled = true
+  ) then
+    raise exception 'As solicitações desta página estão temporariamente indisponíveis.';
+  end if;
+
   if p_request_type not in ('subscription','advertising','mixed') then
     raise exception 'Tipo de solicitação inválido.';
   end if;
@@ -177,4 +190,4 @@ grant execute on function public.submit_site_interest_request_v4(
 comment on function public.submit_site_interest_request_v4(
   text,text,text,text,text,jsonb,numeric,text,text,text,text,text,text,text,text,text,text,text,text,text
 ) is
-  'Entrada pública controlada de solicitações. V4+Bloco A (02/11/2026): CPF/CNPJ sempre obrigatórios (antes só com assinatura) e identificação silenciosa de cliente já cadastrado pelo documento (matched_client_id/matched_client_ambiguous), nunca exposta na resposta.';
+  'Entrada pública controlada de solicitações. V4+Bloco A (02/11/2026): CPF/CNPJ sempre obrigatórios (antes só com assinatura) e identificação silenciosa de cliente já cadastrado pelo documento (matched_client_id/matched_client_ambiguous), nunca exposta na resposta. Continua recusando com exceção quando site_offer_settings.assine_enabled = false (controle de 18/10/2026, preservado em 03/11/2026).';
