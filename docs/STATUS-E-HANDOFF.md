@@ -2835,3 +2835,32 @@ TESTES: `apps/sistema` 203/203 (199 anteriores + 4 novos do teste de regressão)
 ARQUIVOS: `supabase/migrations/20261120270000_site_interest_request_identification.sql` (checagem de `assine_enabled` restaurada), `apps/sistema/test/site-interest-request-assine-toggle-regression.test.ts` (novo).
 
 FALTA/BLOQUEIOS: nenhum impedimento técnico novo encontrado nesta etapa. Seguem pendentes de autorização explícita, em etapa futura: implantação real do portal (passo 1 do roteiro), push real das migrations (passo 2), implantação do IR Controle novo (passo 3), SMTP/SMS no Supabase Auth, cópia das variáveis de ambiente para Preview se necessário. Nenhuma migration aplicada, nenhum deploy/Preview real disparado, nenhuma solicitação/OTP/assinatura/cobrança real gerada, nenhum dado de produção alterado nesta etapa.
+
+## 03/11/2026 — ETAPA 1 da publicação: deployment de produção do portal preparado, SEM promoção de domínio
+
+**Pedido do usuário**: criar um deployment de produção real do projeto Vercel `jornalir` (portal), explicitamente SEM associá-lo ao domínio público, como primeiro passo do roteiro de implantação coordenada (portal novo → migrations → IR Controle novo) aprovado na etapa anterior.
+
+**Verificações antes do deploy**: working tree limpa, branch `solicitacoes-financeiro-contratos-irc-20261031`, HEAD `0df90b45`. `.vercel/project.json` (raiz e `apps/site`) confirma vínculo com `projectName: "jornalir"`, Root Directory `apps/site` (conferido também via `vercel project inspect` em etapa anterior), domínio atual `jornalir.vercel.app`.
+
+**Execução**: `vercel deploy --prod --skip-domain --yes`, rodado a partir da **raiz do monorepo** (uma primeira tentativa dentro de `apps/site` falhou com `"The specified Root Directory \"apps/site\" does not exist"`, porque o CLI, chamado de dentro do subdiretório, já envia aquele subdiretório como raiz do upload — a configuração do projeto espera receber o monorepo completo e resolver `apps/site` internamente; corrigido rodando da raiz).
+
+**Resultado do build**: sucesso. Next.js 14.2.33, `✓ Compiled successfully`, 19/19 páginas estáticas geradas, build completo em 1m48s, sem erros (só avisos esperados de `npm` e timeout intermitente de fonte do Google Fonts, sem impacto). `readyState: "READY"`, `target: "production"`, **`productionUrl: null`** — confirma que o domínio NÃO foi promovido/aliasado, conforme pedido.
+
+- **Deployment ID**: `dpl_CC46f5W12kysqex65B5mXuKT4a2L`
+- **URL própria do deployment**: `https://jornalir-pxg5xnpf1-cristians-projects-34074cc3.vercel.app`
+- **Inspector**: `https://vercel.com/cristians-projects-34074cc3/jornalir/CC46f5W12kysqex65B5mXuKT4a2L`
+- Deployment Protection ativa (`vercel_authentication`) — não acessível publicamente sem token, por padrão do projeto.
+
+**Confirmação de que o deployment usa o código/commit corretos**: `git status -sb` limpo e `HEAD = 0df90b45` no momento exato do deploy — o CLI envia o conteúdo real dos arquivos locais (sem uso de `vercel.json`/git integration, já que `deploymentEnabled: false`), então o upload corresponde exatamente a este commit. Confirmado por leitura de `git show 0df90b45:apps/site/src/components/site/public/AssineConfigurator.tsx` que o texto "CPF \*"/"CNPJ \*"/"Informe um CPF válido." está presente no código committed que foi enviado.
+
+**Verificação funcional (sem dados reais, sem submissão)**: usando `vercel curl` (gera um bypass token de Deployment Protection automaticamente) contra a página `/assine` do novo deployment, o resultado foi HTTP 200 servindo a página 404 do Next.js (`notFound()`), porque `apps/site/src/app/(public)/assine/page.tsx` consulta `getSiteAssineEnabled()` em tempo de requisição contra o Supabase de produção real e **hoje esse valor está `false`** (comportamento "falha-fechado" já existente desde 18/10/2026). Para confirmar que isso não é uma quebra introduzida por este deployment, a mesma verificação foi repetida contra o domínio de produção atualmente promovido (`https://jornalir.vercel.app/assine`) e devolveu **exatamente o mesmo 404** — ou seja, o novo deployment se comporta de forma idêntica à produção atual neste ponto, lendo corretamente a configuração real. A página inicial (`/`) do novo deployment respondeu HTTP 200 com conteúdo normal, confirmando que o build não está genericamente quebrado.
+
+**Compatibilidade da função RPC confirmada por leitura de código** (não por chamada real, conforme proibido nesta etapa): já verificado na etapa anterior e reconfirmado aqui — `AssineConfigurator.tsx` no commit `0df90b45` sempre envia `p_customer_kind`/`p_document_number` válidos para `submit_site_interest_request_v4`, e essa assinatura de parâmetros é idêntica entre a versão hoje instalada em produção e a nova (ainda não aplicada). Nenhuma chamada real à RPC foi feita nesta etapa.
+
+**Preservação do retorno**: o deployment de produção atualmente promovido (`dpl_EMhVZcZR52GNhL87PEASL5Rk3iNc`, alias `jornalir.vercel.app`) não foi tocado — nenhum alias foi alterado, nenhuma promoção foi executada.
+
+TESTES: nenhum teste de código novo nesta etapa (ação de infraestrutura/deploy). Build de produção real na Vercel é, em si, a validação desta etapa.
+
+ARQUIVOS: nenhum arquivo de código alterado nesta etapa — só a preparação do deployment.
+
+FALTA/BLOQUEIOS: nenhum impedimento técnico encontrado. Pendente de autorização explícita: promoção deste deployment ao domínio público (`vercel promote` ou `vercel deploy --prod` sem `--skip-domain`), que é o próximo passo do roteiro antes das 7 migrations. `site_offer_settings.assine_enabled` continua `false` em produção — isso é esperado e independente desta etapa (controla a visibilidade da página /assine tanto na produção atual quanto neste novo deployment).
