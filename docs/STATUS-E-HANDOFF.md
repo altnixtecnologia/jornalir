@@ -2864,3 +2864,36 @@ TESTES: nenhum teste de código novo nesta etapa (ação de infraestrutura/deplo
 ARQUIVOS: nenhum arquivo de código alterado nesta etapa — só a preparação do deployment.
 
 FALTA/BLOQUEIOS: nenhum impedimento técnico encontrado. Pendente de autorização explícita: promoção deste deployment ao domínio público (`vercel promote` ou `vercel deploy --prod` sem `--skip-domain`), que é o próximo passo do roteiro antes das 7 migrations. `site_offer_settings.assine_enabled` continua `false` em produção — isso é esperado e independente desta etapa (controla a visibilidade da página /assine tanto na produção atual quanto neste novo deployment).
+
+## 03/11/2026 — ETAPA 2 da publicação: deployment de produção do IR Controle preparado, SEM promoção de domínio (com correção de um erro de direcionamento no meio do caminho)
+
+**Pedido do usuário**: criar deployment de produção preparado (`--skip-domain`) exclusivamente do projeto `jornalir-sistema`, repetindo o procedimento validado na ETAPA 1.
+
+**Verificações antes do deploy**: working tree limpa, branch `solicitacoes-financeiro-contratos-irc-20261031`, HEAD `31b254c5`. `apps/sistema/.vercel/project.json` confirma `projectName: "jornalir-sistema"`; `vercel project inspect jornalir-sistema` reconfirma Root Directory `apps/sistema`. `apps/sistema/vercel.json` só tem `git.deploymentEnabled: false` — sem `crons` nem qualquer hook; `package.json` do app roda só `next build`; nenhum script do monorepo executa migration ou chamada externa no build.
+
+**Erro cometido e corrigido nesta etapa**: seguindo literalmente o procedimento validado na ETAPA 1 (`vercel deploy --prod --skip-domain --yes` a partir da raiz do monorepo), o primeiro comando criou um deployment de produção — mas no projeto **errado**: `jornalir` (portal), não `jornalir-sistema`. Causa: a raiz do monorepo tem seu próprio `.vercel/project.json` vinculado a `jornalir` (o mesmo projeto de `apps/site`, por isso a ETAPA 1 funcionou "por coincidência" ao rodar da raiz); `apps/sistema` tem um vínculo PRÓPRIO e diferente (`jornalir-sistema`), que não é usado quando o comando roda a partir da raiz sem indicar o projeto explicitamente. Resultado: um deployment de produção extra e indesejado foi criado no projeto `jornalir` — **id `dpl_32SxxibP2toksm7wGG4YLRCESX69`**, build de `apps/site` (rotas do portal, nada do sistema), `productionUrl: null` (nenhum domínio foi afetado, nenhum alias alterado, nada promovido — o erro foi só de destino do deployment, não de segurança/produção). Ele não foi excluído nesta etapa (exclusão de deployment não foi autorizada); fica registrado aqui para decisão do usuário (manter como lixo inofensivo ou remover depois).
+
+**Correção**: repetido o comando com `--project jornalir-sistema` explícito, ainda a partir da raiz do monorepo (necessário para que o Root Directory `apps/sistema` resolva corretamente dentro do upload). Resultado: `Deploying cristians-projects-34074cc3/jornalir-sistema` confirmado na saída, build real de `@ir/sistema@0.1.0`.
+
+**Resultado do build**: sucesso. Next.js 14.2.33, `✓ Compiled successfully`, "Linting and checking validity of types..." sem erros, 78/78 páginas geradas, build completo em ~1min. `readyState: "READY"`, `target: "production"`, **`productionUrl: null`**.
+
+- **Deployment ID**: `dpl_BYBipGsefkSocZUb4RiuWEqpvkUc`
+- **URL própria do deployment**: `https://jornalir-sistema-e09o2gef5-cristians-projects-34074cc3.vercel.app`
+- **Inspector**: `https://vercel.com/cristians-projects-34074cc3/jornalir-sistema/BYBipGsefkSocZUb4RiuWEqpvkUc`
+- **Commit**: `31b254c5` (working tree limpa confirmada antes do deploy).
+- Deployment Protection ativa (`vercel_authentication`).
+
+**Confirmação dos Blocos A–E, Aniversariantes e `/complementar-cadastro/[token]`** — pela lista de rotas do próprio build: `/complementar-cadastro/[token]` (3.63 kB), `/sistema/assinaturas`, `/sistema/assinaturas/[id]`, `/sistema/assinaturas/[id]/editar`, `/sistema/assinaturas/nova` (Bloco E), `/sistema/clientes`, `/sistema/clientes/[id]`, `/sistema/clientes/[id]/editar`, `/sistema/clientes/novo` (Blocos A/B/C/D), `/sistema/aniversariantes` (21.7 kB — patch do repertório/modal), `/assinar-contrato-comercial/[token]`, `/assinar-contrato/[token]`, `/pagamento/[token]` — todas presentes no manifesto de rotas do build.
+
+**Verificação não destrutiva, sem tokens/dados reais**: `vercel curl` em `/login` do novo deployment → HTTP 200, título "JornalIR | Sistema interno" confirmado. **Deliberadamente não** foi acessado `/complementar-cadastro/[token]` com nenhum token (nem fake) nem qualquer tela que dependa das tabelas/colunas das 7 migrations ainda não aplicadas (`client_completion_tokens`, `client_related_persons`, etc. não existem ainda no banco) — exatamente a restrição pedida ("não executar fluxos que dependam das migrations ainda pendentes").
+
+**Domínios confirmados intactos**:
+- `vercel inspect https://controle.altnix.com.br` → ainda resolve para `dpl_68cqZyrLAJwCewn6ZpwnDam2yzgG` (deployment antigo, intocado).
+- `vercel inspect https://jornalir.vercel.app` → ainda resolve para `dpl_EMhVZcZR52GNhL87PEASL5Rk3iNc` (deployment antigo do portal, preparado na ETAPA 1, intocado).
+- `curl https://controle.altnix.com.br/login` → HTTP 200 (domínio público respondendo normalmente, sem qualquer interrupção).
+
+TESTES: nenhum teste de código novo nesta etapa (ação de infraestrutura/deploy). TypeScript/lint já validados pelo próprio build da Vercel (etapa "Linting and checking validity of types", sem erros).
+
+ARQUIVOS: nenhum arquivo de código alterado nesta etapa.
+
+FALTA/BLOQUEIOS: nenhum impedimento técnico no deployment correto. Pendência registrada (não é bloqueio): decidir o que fazer com o deployment extra indesejado `dpl_32SxxibP2toksm7wGG4YLRCESX69` no projeto `jornalir` (não promovido, não aliasado, sem efeito em produção — só ocupa espaço na lista de deployments). Pendente de autorização explícita para os próximos passos do roteiro: aplicação das 7 migrations e, depois, promoção coordenada dos dois domínios. Nenhuma migration aplicada, nenhum domínio alterado, nenhuma permissão concedida, nenhum OTP/cobrança real, nenhum dado de produção alterado nesta etapa.
