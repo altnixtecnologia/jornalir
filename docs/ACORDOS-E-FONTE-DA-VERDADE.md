@@ -128,6 +128,12 @@
 - Caminhos de conversão revisados: `convertSubscriptionInterestAction`/`convertAdvertisingInterestAction` (Bloco C) passaram a criar a assinatura só como `pending_formalization`, **sem mais criar o primeiro título financeiro automaticamente** (antes criavam os dois juntos em `ensureSubscriptionAndReceivable`). Idempotência/trava de concorrência (`claimConversion`) preservadas sem alteração.
 - **Nenhuma migração retroativa**: assinaturas `active` existentes, títulos já recebidos, contratos e histórico permanecem intocados — a migration (`20261120320000_subscription_pending_formalization.sql`, **não aplicada**) só amplia o CHECK de status, sem UPDATE em linha nenhuma.
 
+## 03/11/2026 — Planejamento futuro: módulo de atendimento WhatsApp compartilhado (REGISTRO, NÃO IMPLEMENTAR AGORA)
+
+- Pedido do usuário (ETAPA 4 da pré-aplicação das migrations, registrado para planejamento futuro): um módulo simples de atendimento por WhatsApp compartilhado entre vários colaboradores, usando um número **DIFERENTE** do número já usado pela integração Cloud API existente (`apps/sistema/src/lib/financeiro/whatsappCloudProvider.ts`, `supabase/functions/enviar-cobranca-whatsapp`) — esse número continua exclusivo das mensagens automáticas de cobrança/assinatura/OTP, nunca deve ser usado para conversas manuais de atendimento.
+- Objetivo: múltiplos colaboradores atendendo pelo mesmo número de atendimento, com histórico compartilhado entre eles, identificação de qual colaborador respondeu cada mensagem, um responsável definido por conversa (atribuição/transferência) e visibilidade de pendências (conversas sem resposta/sem dono).
+- **Não implementado nesta etapa.** Nenhuma integração existente foi alterada, nenhum código novo foi escrito para isto. Fica só como requisito registrado para quando o usuário autorizar o planejamento/implementação deste módulo.
+
 ## 20/10/2026 — Decisões aprovadas para Agenda/Pauta/auditoria
 - Todos os colaboradores ativos podem ver compromissos de todos, com identificação por cor atribuída a cada pessoa. Agenda/Pauta devem convergir para um único registro, sem ligação manual/duplicata no estado final.
 - Cada colaborador conclui a própria parte; múltiplos responsáveis devem progredir separadamente. Proprietário e administradores **explicitamente autorizados** alteram, cancelam e reabrem pendências de qualquer pessoa.
@@ -135,3 +141,11 @@
 - Controle completo de modificações no `controle.altnix.com.br`: auditoria imutável por usuário/módulo/data, log de ações automáticas, antes/depois quando seguro, nunca registrar credenciais. Proprietário e admins consultam; operadores apenas quando liberados. Este é um REQUISITO, não uma afirmação de cobertura atual.
 - Aplicativo administrativo futuro separado do portal público, com notificações de tarefas e opção de vibração, observando limitações do Android/iOS.
 - Primeiro lote em branch remota não publicada: `docs/AGENDA_EQUIPE_MOBILE_AUDITORIA_HANDOFF_20261020.md`. Implementar/homologar sem perder o que existe; não tocar produção ou VS Code sem autorização e integração segura.
+
+## 03/11/2026 — DECISÃO REVISADA: módulo Aniversariantes simplificado, sem fluxo dedicado de consentimento editorial
+
+- Substitui a decisão de 03/11/2026 que criara o fluxo de "Registrar consentimento" (status/responsável/menor de idade) no lado EDITORIAL do módulo Aniversariantes.
+- O módulo só organiza homenagens no JORNAL IMPRESSO: nome, dia e mês do aniversariante (sem ano de nascimento, sem classificação de idade/menor). **Não há publicação automática no site ou nas redes sociais.**
+- Controle editorial volta a ser simples: "Incluir no jornal impresso / Retirar do jornal impresso", sempre uma decisão direta da equipe — sem telas, selos ou etapas adicionais de consentimento.
+- O fluxo PÚBLICO de cadastro complementar (titular/família autodeclarando consentimento de publicação, via página pública com token) **não foi alterado** e continua existindo normalmente — é um mecanismo independente, não afetado por esta decisão.
+- Cuidado legal com dados pessoais mantido: a simplificação não presume autorização "a partir de um cadastro" — é a equipe quem decide, de forma explícita e auditável pelo próprio log de alterações do registro, cada vez que inclui ou retira alguém do jornal impresso.

@@ -5,15 +5,32 @@
 -- autorização de publicação. O requisito aprovado é o oposto: "não
 -- presumir autorização de publicação, exigir preferência/consentimento
 -- apropriado, especialmente para menores". Acrescenta consent_status e
--- troca o default de publish_in_print para false; linhas já existentes
--- (nenhuma em produção, migration ainda não aplicada) não são afetadas
--- por ALTER COLUMN ... SET DEFAULT.
+-- troca o default de publish_in_print para false; ALTER COLUMN ... SET
+-- DEFAULT nunca afeta linhas já existentes (só grava o novo default para
+-- inserções futuras) — a correção necessária para a(s) linha(s) legada(s)
+-- já marcada(s) com publish_in_print=true está no UPDATE logo abaixo,
+-- achado por consulta real de produção em 03/11/2026 (ver nota).
 alter table public.birthday_entries
   add column if not exists consent_status text not null default 'pending',
   add column if not exists consent_recorded_by uuid references public.profiles (id),
   add column if not exists consent_recorded_at timestamptz,
   add column if not exists is_minor boolean,
   add column if not exists guardian_name text;
+
+-- Correção para dado legado (03/11/2026, achado por consulta real de
+-- produção: 1 linha com publish_in_print=true na data desta auditoria).
+-- NÃO presumimos consentimento a partir do valor atual de
+-- publish_in_print — isso repetiria o problema que esta migration existe
+-- para corrigir. Em vez disso, qualquer linha hoje marcada para
+-- publicação sem consentimento registrado como 'granted' é DESPUBLICADA
+-- (publish_in_print = false) aqui, preservando 100% dos demais dados
+-- (nome, data, relação, foto, notas etc.). A equipe precisa reconfirmar a
+-- publicação pelo fluxo normal — agora já sob a nova regra de
+-- consentimento explícito — para marcar publish_in_print como true de novo.
+update public.birthday_entries
+  set publish_in_print = false
+  where publish_in_print = true
+    and consent_status is distinct from 'granted';
 
 alter table public.birthday_entries
   drop constraint if exists birthday_entries_consent_status_valid,

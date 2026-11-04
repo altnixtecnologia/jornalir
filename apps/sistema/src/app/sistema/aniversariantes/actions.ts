@@ -150,8 +150,11 @@ export async function setEditorialBirthdayActive(id: string, active: boolean): P
   return { ok: true, data: undefined };
 }
 
-/** Autoriza ou retira a publicação sem alterar a data no cadastro mestre.
- * A data de nascimento, sozinha, nunca concede autorização editorial.
+/** Autoriza ou retira a publicação no jornal impresso, sem alterar a data no
+ * cadastro mestre. A data de nascimento, sozinha, nunca concede autorização
+ * editorial. Controle simples: incluir/retirar do jornal impresso é sempre
+ * uma decisão direta da equipe editorial (03/11/2026 — módulo simplificado;
+ * sem fluxo de consentimento, menor de idade ou classificação de idade).
  */
 export async function setBirthdayPublication(
   source: "cliente" | "editorial", id: string, allowed: boolean,
@@ -771,7 +774,7 @@ export async function linkBirthdayEntryToClient(entryId: string, clientId: strin
   if (!anniversary) return { error: "Preencha primeiro o nascimento no cadastro do cliente." };
 
   const { data: old, error: oldError } = await db.from("birthday_entries")
-    .select("id,source_client_id,origin,active,city,profession,organization,known_as,message_context,notes,publish_in_print,photo_media_asset_id")
+    .select("id,source_client_id,origin,active,city,profession,organization,known_as,message_context,notes,publish_in_print,photo_media_asset_id,consent_status,consent_recorded_by,consent_recorded_at,is_minor,guardian_name")
     .eq("id", entryId).maybeSingle();
   if (oldError || !old || old.source_client_id || old.origin === "cadastro" || !old.active) {
     return { error: "Aniversariante indisponível para vinculação (já vinculado ou inativo)." };
@@ -788,6 +791,10 @@ export async function linkBirthdayEntryToClient(entryId: string, clientId: strin
     publish_in_print: old.publish_in_print, created_by: userId,
     profession: old.profession, organization: old.organization, known_as: old.known_as,
     message_context: old.message_context, notes: old.notes, photo_media_asset_id: old.photo_media_asset_id,
+    // Consentimento é um atestado sobre A PESSOA, não sobre a linha — migra
+    // junto com o vínculo ao cadastro mestre, nunca reinicia como 'pending'.
+    consent_status: old.consent_status, consent_recorded_by: old.consent_recorded_by,
+    consent_recorded_at: old.consent_recorded_at, is_minor: old.is_minor, guardian_name: old.guardian_name,
   });
   if (insertError) return { error: "Não foi possível criar o vínculo com o cadastro mestre." };
 

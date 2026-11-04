@@ -2897,3 +2897,242 @@ TESTES: nenhum teste de código novo nesta etapa (ação de infraestrutura/deplo
 ARQUIVOS: nenhum arquivo de código alterado nesta etapa.
 
 FALTA/BLOQUEIOS: nenhum impedimento técnico no deployment correto. Pendência registrada (não é bloqueio): decidir o que fazer com o deployment extra indesejado `dpl_32SxxibP2toksm7wGG4YLRCESX69` no projeto `jornalir` (não promovido, não aliasado, sem efeito em produção — só ocupa espaço na lista de deployments). Pendente de autorização explícita para os próximos passos do roteiro: aplicação das 7 migrations e, depois, promoção coordenada dos dois domínios. Nenhuma migration aplicada, nenhum domínio alterado, nenhuma permissão concedida, nenhum OTP/cobrança real, nenhum dado de produção alterado nesta etapa.
+
+## 03/11/2026 — ETAPA 3.1/3.2: auditoria das 7 migrations pendentes, bloqueio real encontrado em `20261120290000` e correção implementada LOCALMENTE (sem aplicar nada)
+
+**ETAPA 3.1 (auditoria, somente leitura)**: reconferidas as 7 migrations pendentes (`20261101110000`, `20261120270000`–`20261120320000`) via `supabase migration list --linked`/`db push --linked --dry-run --include-all` — lista idêntica à já registrada no lote anterior, nenhuma surpresa, nenhuma de NFS-e. Dependências, RLS, GRANTs e SECURITY DEFINER de cada uma conferidos contra o schema já aplicado (tudo compatível). Achado de risco real: a consulta de leitura em produção (pedida pelo usuário) encontrou **1 linha em `public.birthday_entries` com `publish_in_print = true`**; como `consent_status` nasce `'pending'`, a nova constraint `birthday_entries_publish_requires_consent` da migration `20261120290000` rejeitaria essa linha legada e a migration falharia ao aplicar.
+
+**ETAPA 3.2 (correção local, aprovada pelo usuário)**:
+
+1. **Migration** `supabase/migrations/20261120290000_birthday_entries_consent_and_sync.sql`: inserido, entre a criação das colunas de consentimento e a `ADD CONSTRAINT`, o `UPDATE public.birthday_entries SET publish_in_print = false WHERE publish_in_print = true AND consent_status IS DISTINCT FROM 'granted'` exatamente como aprovado — despublica a linha legada sem apagar nenhum dado e sem nunca atribuir `consent_status = 'granted'` automaticamente (não presume consentimento).
+
+2. **Módulo Aniversariantes — consentimento explícito e auditável** (`apps/sistema/src/app/sistema/aniversariantes/actions.ts`):
+   - `setBirthdayPublication`: habilitar publicação (`allowed=true`) agora exige `consent_status = 'granted'` já registrado (origem "editorial" e "cliente"); nunca presume, nunca forja. Desabilitar continua sempre permitido. Erro claro ao operador quando falta consentimento.
+   - `saveEditorialBirthday`: nunca cria um aniversariante já publicado (não há consentimento possível antes de o registro existir); update só aceita `publishInPrint=true` se `consent_status` já for `'granted'`.
+   - Nova action `recordBirthdayConsent(source,id,{status,isMinor,guardianName})`: único ponto do código que pode gravar `consent_status='granted'`, sempre por confirmação explícita do operador; exige nome do responsável quando `isMinor=true`; `status='denied'` despublica imediatamente (`publish_in_print=false`) no mesmo passo — nunca mantém publicação sem consentimento concedido. Campos `consent_recorded_by`/`consent_recorded_at` preenchidos automaticamente (quem e quando).
+   - `linkBirthdayEntryToClient`: migra `consent_status`/`consent_recorded_by`/`consent_recorded_at`/`is_minor`/`guardian_name` do registro legado para o novo vínculo — nunca reinicia como `'pending'`.
+   - Tipos (`birthdayTypes.ts`, `editorialBirthdayTypes.ts`) e leitura (`page.tsx`, select SQL) atualizados para carregar os novos campos.
+   - UI (`BirthdaysList.tsx`): novo botão "Registrar consentimento" (todas as origens: cadastro/familiar/manual) abrindo painel com resultado (Concedido/Negado), checkbox "menor de idade" + nome do responsável (obrigatório se menor); novo selo de status (Pendente/Concedido/Negado) ao lado do selo de publicação existente. Nenhuma tela de módulo alheio tocada.
+
+**TESTES** (executados localmente, `npx tsx --test`):
+- Novos: `apps/sistema/test/birthday-entries-legacy-consent-regression.test.ts` (4 testes — confirma que o `UPDATE` de correção existe, nunca forja `'granted'`, roda depois da coluna existir e antes da constraint) e `apps/sistema/test/birthday-consent-actions-structure.test.ts` (9 testes — confirma estruturalmente, lendo o código real, que nenhuma função além de `recordBirthdayConsent` grava `'granted'`, que `setBirthdayPublication`/`saveEditorialBirthday` checam consentimento antes de publicar, que `denied` despublica, e que o vínculo com o cadastro mestre preserva o consentimento). **13/13 passam.**
+- Suíte completa de `apps/sistema/test` (41 arquivos, `tsx --test`): **204/206 passam**; as 2 falhas (`client-completion-tokens.test.ts`, `danfse-pdf.test.ts`) são de ambiente, pré-existentes e não relacionadas a este lote — `server-only` importado fora de um Server Component real, e módulo nativo `canvas` ausente para `pdfjs-dist` — confirmado pelo stack trace, nenhuma delas toca Aniversariantes/consentimento.
+- `tsc --noEmit` (`npm run typecheck --workspace @ir/sistema`): limpo, sem erros.
+- **Limitação explícita**: não há stack Postgres/Docker local disponível nesta máquina (`supabase status`/`docker ps` falham por falta do engine) — não foi possível aplicar de fato a migration corrigida contra uma cópia isolada do banco para confirmar a ausência do erro de constraint na prática. A confirmação é só estrutural/estática (leitura do SQL real), igual ao padrão já aceito no projeto para este tipo de teste; a validação definitiva só ocorre no dry-run/apply real contra o Supabase, quando autorizado.
+- Reconfirmado após a correção: `supabase db push --linked --dry-run --include-all` continua devolvendo exatamente as mesmas 7 migrations, nenhuma nova, nenhuma aplicada.
+
+**ARQUIVOS MODIFICADOS** (nenhum commit, nenhum push): `supabase/migrations/20261120290000_birthday_entries_consent_and_sync.sql`, `apps/sistema/src/app/sistema/aniversariantes/actions.ts`, `apps/sistema/src/app/sistema/aniversariantes/page.tsx`, `apps/sistema/src/features/aniversariantes/BirthdaysList.tsx`, `apps/sistema/src/features/aniversariantes/birthdayTypes.ts`, `apps/sistema/src/features/aniversariantes/editorialBirthdayTypes.ts`, `apps/sistema/src/app/globals.css` (novas classes `status-pill--consent-*`/`aniv-consent-minor`). Novos: `apps/sistema/test/birthday-entries-legacy-consent-regression.test.ts`, `apps/sistema/test/birthday-consent-actions-structure.test.ts`.
+
+**FALTA/BLOQUEIOS**: nenhuma migration aplicada, nenhum dado de produção alterado, nenhum commit/push/deploy. O deployment do IR Controle já preparado (`dpl_BYBipGsefkSocZUb4RiuWEqpvkUc`, commit `31b254c5`) **não contém** estas alterações — precisa de novo build/deployment, só mediante nova autorização, antes de ser considerado pronto para promoção. GO/NO-GO desta correção específica: **GO** (a migration volta a ser aplicável sem quebrar sobre o dado legado, sem perda de dados, sem presumir consentimento); o GO/NO-GO do lote completo de 7 migrations continua pendente da autorização de aplicação em si.
+
+## 03/11/2026 — ETAPA 4: pré-aplicação das 7 migrations, checklist final e achado operacional (nada aplicado)
+
+**1. Git**: branch `solicitacoes-financeiro-contratos-irc-20261031`, HEAD ainda `65675aa0`, working tree com exatamente os mesmos arquivos locais da ETAPA 3.2 modificados/novos, nada commitado, nada perdido.
+
+**2. Dry-run reconfirmado**: `supabase db push --linked --dry-run --include-all` devolve as mesmas 7 migrations (`20261101110000`, `20261120270000`–`20261120320000`), nenhuma nova, nada aplicado.
+
+**3. Revisão da migration corrigida**: `20261120290000` reconferida linha a linha — ordem certa (colunas → `UPDATE` de correção do dado legado → constraints), comentário inicial do arquivo também corrigido (estava desatualizado, dizia "nenhuma linha em produção"; agora reflete o achado real de 1 linha). As outras 6 migrations não foram alteradas nesta sessão; dependências já conferidas na ETAPA 3.1 continuam válidas (nenhuma referencia schema ainda inexistente).
+
+**4. Novas divergências**: `supabase migration list --linked` reconferido por completo (204 migrations locais) — só as mesmas 7 têm `remote` vazio; nenhuma das 197 já aplicadas mudou de estado.
+
+**5. Backup/recuperação**: `supabase backups list` — backup físico diário mais recente de **03/11/2026 07:07 UTC** (hoje), `walg_enabled: true`, `pitr_enabled: false`. Recuperação possível só para o início do dia, sem granularidade de ponto-no-tempo — qualquer escrita de hoje após 07:07 UTC não seria recuperável por este backup isoladamente.
+
+**Achado operacional (novo, relevante para a sequência de publicação)**: o módulo Aniversariantes já está em produção desde outubro (bem antes do conceito de consentimento existir), incluindo o botão "Autorizar publicação" que grava `publish_in_print=true` diretamente, sem nenhuma checagem de consentimento. O deployment atualmente publicado em `controle.altnix.com.br` (`dpl_68cqZyrLAJwCewn6ZpwnDam2yzgG`, criado 01/11) roda esse código antigo. **Se as migrations forem aplicadas antes da promoção do novo deployment (com o fluxo de consentimento), qualquer tentativa de um operador clicar em "Autorizar publicação" no site/sistema AINDA EM PRODUÇÃO (código antigo) falhará com um erro de banco (violação da nova constraint `birthday_entries_publish_requires_consent`), em vez da mensagem clara já implementada no código novo.** A própria linha legada (1 registro) é corrigida pela migration e não quebra; o risco é sobre NOVAS tentativas de publicação pelo operador durante a janela entre aplicar as migrations e promover o novo IR Controle. Recomendação: aplicar as migrations o mais próximo possível (mesma janela/sessão) da promoção do novo IR Controle, e avisar a equipe editorial para evitar usar "Autorizar publicação" em Aniversariantes nessa janela intermediária.
+
+**6. Coerência do fluxo de consentimento com as regras do banco**: conferido explicitamente — `recordBirthdayConsent` nunca grava `guardian_name` nulo quando `is_minor=true` (bate com `birthday_entries_guardian_required_for_minor`); `setBirthdayPublication`/`saveEditorialBirthday` só permitem `publish_in_print=true` quando `consent_status` já é `'granted'` (bate com `birthday_entries_publish_requires_consent`); `recordBirthdayConsent` só grava `'granted'` ou `'denied'`, nunca um valor fora de `birthday_entries_consent_status_valid`. Nenhuma divergência encontrada entre a aplicação e as constraints da migration corrigida.
+
+**7. Falhas ambientais da suíte** (`client-completion-tokens.test.ts`, `danfse-pdf.test.ts`): reconfirmadas — `server-only` lançando erro ao ser importado fora de um Server Component real do Next.js dentro do runner `tsx --test`, e módulo nativo `canvas` ausente para `pdfjs-dist`. Ambas são falhas de AMBIENTE de teste local (não existem no build real da Vercel, que já validou tipos/lint sem erro nas ETAPAs 1/2), não tocam nenhum arquivo deste lote, e não afetam a publicação nem a aplicação das migrations.
+
+**WhatsApp (registro para planejamento futuro, não implementado)**: módulo de atendimento compartilhado com número diferente da Cloud API de mensagens automáticas, registrado em `docs/ACORDOS-E-FONTE-DA-VERDADE.md` (seção 03/11/2026). Nenhum código alterado.
+
+### CHECKLIST FINAL DE APLICAÇÃO E VALIDAÇÃO PÓS-MIGRATION (preparado, aguardando autorização)
+1. Confirmar mais uma vez `supabase db push --linked --dry-run --include-all` imediatamente antes de aplicar (ledger pode mudar entre sessões).
+2. Aplicar com `supabase db push --linked --include-all` (ordem do próprio ledger, já validada).
+3. Verificar pós-apply: `select count(*) from public.birthday_entries where publish_in_print and consent_status is distinct from 'granted'` deve retornar **0** (confirma que a correção da linha legada funcionou).
+4. Rodar a suíte local novamente contra o schema real (quando possível) e os testes de regressão já criados.
+5. Build/deploy do novo IR Controle com o código desta correção (ainda não gerado) o mais próximo possível da aplicação das migrations, para minimizar a janela operacional descrita acima.
+6. Avisar a equipe editorial para evitar usar "Autorizar publicação" em Aniversariantes enquanto o IR Controle novo não estiver promovido.
+7. Só então seguir o roteiro já registrado: promoção coordenada dos dois domínios.
+
+**GO/NO-GO desta etapa**: **GO para aplicar as 7 migrations**, condicionado a (a) aceitar a janela operacional descrita acima (ou aplicar migrations e promover o IR Controle na mesma sessão/curto intervalo) e (b) nova autorização explícita do usuário para a aplicação em si — esta etapa foi só conferência, nenhuma migration foi aplicada, nenhum dado de produção foi alterado, nenhum commit/push/deploy foi feito.
+
+## 03/11/2026 — ETAPA 5: preparação da publicação coordenada (Portal + IR Controle), nada aplicado/promovido
+
+**1. Git**: branch `solicitacoes-financeiro-contratos-irc-20261031`, HEAD ainda `65675aa0`, todas as alterações locais da ETAPA 3.2 preservadas (9 arquivos modificados + 2 testes novos), nada commitado.
+
+**2. Diff revisado por completo**: confirmado que as 9 mudanças pertencem estritamente ao módulo de consentimento de Aniversariantes (`globals.css`, `actions.ts`, `page.tsx`, `BirthdaysList.tsx`, `birthdayTypes.ts`, `editorialBirthdayTypes.ts`, a migration corrigida, e os dois docs). Nenhuma mudança fora de escopo.
+
+**3. Build e testes**: `tsc --noEmit` limpo; os 13 testes de regressão de consentimento passam (13/13). `next build` local trava na fase "Collect build traces" com `Error: UNKNOWN: unknown error, read` — reproduzido 2x, mesmo índice de dependência — causa é o OneDrive (Files On-Demand) interferindo na leitura de arquivos durante o trace collection do Next.js nesta pasta sincronizada; **compilação, lint e geração das 78/78 páginas estáticas passam antes desse ponto** ("✓ Compiled successfully", "✓ Generating static pages (78/78)"), só a etapa final de empacotamento de funções serverless falha localmente. Isso é limitação de AMBIENTE local (mesma classe do Docker/Postgres já registrado), não do código — a build que importa de fato é a da Vercel (infraestrutura sem OneDrive), já validada com sucesso nas ETAPAs 1 e 2 para o commit anterior; será revalidada pela própria Vercel no momento do novo deployment.
+
+**4/5. Vercel — projeto e Root Directory confirmados sem expor segredos**: `apps/sistema/.vercel/project.json` aponta para `projectName: "jornalir-sistema"` (`prj_5fwCT7UK5I1Jc9BO4pZWLoa4jD4h`). Confirmado também via `vercel project ls` (jornalir-sistema → controle.altnix.com.br; jornalir → jornalir.vercel.app) e via `vercel inspect` do deployment preparado na ETAPA 2 (`dpl_BYBipGsefkSocZUb4RiuWEqpvkUc`, build concluído com as rotas certas, incluindo `agenda`), confirmando que o Root Directory efetivo usado foi `apps/sistema` (não a raiz do monorepo). `vercel env ls production` (apps/sistema) confirma que todas as variáveis necessárias já existem em Production (`NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `WHATSAPP_*`, `ASAAS_*`, `CRON_SECRET` etc.) — nenhum valor exposto (mostrados como "Hidden" ou blob encriptado pela própria Vercel). Ambos os domínios de produção reconfirmados intactos e apontando para os MESMOS deployments de antes desta sessão: `controle.altnix.com.br` → `dpl_68cqZyrLAJwCewn6ZpwnDam2yzgG` (criado 01/11); `jornalir.vercel.app` → `dpl_EMhVZcZR52GNhL87PEASL5Rk3iNc` (criado 01/11). Nada foi promovido.
+
+**6. Comandos exatos para o novo deployment (preparados, NÃO executados)**:
+```
+cd apps/sistema
+npx vercel deploy --prod --skip-domain --yes --scope team_ZeE622FeA1dvTu7aFLQwxpLF
+```
+`--skip-domain` evita qualquer alias/promoção automática de domínio — gera só um novo deployment com target production, sem tocar `controle.altnix.com.br`. O ID retornado deve ser conferido com `vercel inspect <novo-id>` antes de qualquer promoção. Para o portal, mesmo padrão a partir de `apps/site`.
+
+**7. Roteiro coordenado (preparado, aguardando autorização)**:
+1. Confirmar novamente, imediatamente antes de iniciar, `supabase db push --linked --dry-run --include-all` (ledger pode mudar entre sessões) e `supabase backups list` (idade do último backup).
+2. Avisar a equipe editorial: suspender temporariamente o uso de "Autorizar publicação" em Aniversariantes (único ponto de incompatibilidade identificado) até o aviso de liberação.
+3. Aplicar as 7 migrations: `supabase db push --linked --include-all`.
+4. Validar imediatamente: `select count(*) from public.birthday_entries where publish_in_print and consent_status is distinct from 'granted';` deve retornar 0.
+5. Gerar o novo deployment do IR Controle (comando acima) com o código desta correção; conferir `vercel inspect` (rotas, commit, status Ready).
+6. Gerar o novo deployment do Portal (mesmo padrão, `apps/site`), se também houver mudanças pendentes de promoção.
+7. Promover (alias) o IR Controle primeiro para `controle.altnix.com.br` — este é o lado que depende das migrations recém-aplicadas.
+8. Smoke test imediato no domínio promovido: abrir Aniversariantes, tentar "Registrar consentimento" (conceder e negar), confirmar que "Autorizar publicação" sem consentimento mostra a mensagem amigável (não erro de banco), conferir Blocos A-E e `/complementar-cadastro/[token]`.
+9. Só então promover o Portal, se aplicável, e repetir smoke test básico do lado do site.
+10. Avisar a equipe que a restrição temporária do passo 2 foi encerrada.
+
+**8. Rollback operacional e critérios de interrupção**: rollback de código (reverter alias para o deployment anterior) NÃO desfaz as migrations já aplicadas — schema e dados alterados pelas 7 migrations permanecem, mesmo que o alias volte ao deployment antigo. Interromper imediatamente e não prosseguir para a promoção se: (a) o `count(*)` de verificação pós-migration no passo 4 não retornar 0; (b) qualquer migration falhar a aplicar (erro de SQL); (c) o novo build falhar na Vercel (não no ambiente local, que já tem a limitação de OneDrive registrada); (d) o smoke test do passo 8 encontrar qualquer comportamento inesperado no fluxo de consentimento ou nos Blocos A-E. Se a interrupção ocorrer DEPOIS das migrations já aplicadas, a opção segura é seguir adiante com a promoção do novo deployment (que já é compatível com o schema novo) em vez de tentar reverter o schema — reverter o schema via nova migration corretiva, nunca via rollback de deployment.
+
+**9. Portal**: deployment do Portal já preparado anteriormente (ETAPA 1, `apps/site`), não promovido, domínio `jornalir.vercel.app` intacto apontando para `dpl_EMhVZcZR52GNhL87PEASL5Rk3iNc` (01/11). O Portal não depende de nenhuma das 7 migrations pendentes (nenhuma delas altera tabelas usadas pelo fluxo público do site além de `clients`/`birthday_entries`, já cobertas pela sequência acima) — pode ser promovido antes, junto ou depois do IR Controle sem risco de schema; a sequência recomendada (passo 7 antes do passo 9) é só para priorizar a validação do lado que tem a mudança de banco.
+
+**GO/NO-GO desta etapa**: **GO para seguir ao roteiro de aplicação+promoção coordenada**, condicionado a nova autorização explícita do usuário para cada ação de escrita (aplicar migrations, criar novo deployment, promover domínio). Nesta etapa: nenhuma migration foi aplicada, nenhum deployment novo foi criado, nenhum domínio foi promovido, nenhum commit/push foi feito — só build/testes locais e consultas de leitura à Vercel/Supabase.
+
+## 03/11/2026 — ETAPA 6: correção do método de deploy do monorepo e preparação final (nada aplicado/implantado)
+
+**1. Git**: branch `solicitacoes-financeiro-contratos-irc-20261031`, HEAD ainda `65675aa0`, mesmos 9 arquivos modificados + 2 testes novos da ETAPA 3.2, nada commitado.
+
+**2/3. CORREÇÃO IMPORTANTE ao comando proposto na ETAPA 5**: o comando então sugerido (`cd apps/sistema && vercel deploy --prod --skip-domain --yes`) estava ERRADO e teria falhado. Releitura do próprio histórico desta sessão (ETAPAs 1 e 2, acima) confirma o mecanismo exato: quando o CLI é chamado de DENTRO de `apps/sistema`/`apps/site`, aquele subdiretório já é enviado como a raiz do upload — e a configuração "Root Directory" do projeto na Vercel (`apps/sistema` para `jornalir-sistema`, `apps/site` para `jornalir`) tentaria resolver `apps/sistema/apps/sistema`, que não existe, e falharia com o erro "Root Directory apps/sistema does not exist" (já reproduzido e documentado nas ETAPAs 1/2). O método correto, já validado nas duas etapas anteriores: executar da RAIZ do monorepo, nunca de dentro do subdiretório. Além disso, o `.vercel/project.json` da RAIZ (e de `apps/site`) aponta para `projectName: "jornalir"` — por isso rodar da raiz SEM especificar o projeto explicitamente repete exatamente o erro de direcionamento da ETAPA 2. A flag `--project jornalir-sistema` explícita é obrigatória, não opcional.
+
+Tentativa de confirmar isso com um `vercel deploy --dry` (que só inspeciona, não cria deployment) a partir da raiz foi bloqueada pelo classificador de permissão do ambiente como "Production Deploy" — então a confirmação ficou só na análise do histórico documentado (ETAPAs 1/2) e na leitura dos arquivos de vínculo (`.vercel/project.json`), não em uma nova execução real.
+
+**4/5. Comando corrigido para o novo deployment do IR Controle** (contém as alterações locais de consentimento, NÃO reutiliza o deployment antigo):
+```
+npx vercel deploy --prod --skip-domain --yes --project jornalir-sistema --scope team_ZeE622FeA1dvTu7aFLQwxpLF
+```
+(executado a partir da RAIZ do monorepo — obrigatório). Isso faz o CLI enviar o working tree local atual (incluindo as mudanças de consentimento ainda não commitadas) e compilar do zero NA infraestrutura da Vercel — sem relação com a limitação de OneDrive do build local (ETAPA 5). A limitação local não é e não substitui prova de que o build remoto funciona; só o resultado real desse deployment (`readyState: "READY"`) prova isso, e ainda não foi gerado.
+
+**6. Verificação de rotas/artefatos planejada (sem executar funcionalidades dependentes das migrations)**: `vercel inspect <novo-id>` para confirmar `readyState: "READY"`, `target: "production"`, `productionUrl: null` (não promovido), e a lista de `Builds` com as rotas esperadas (`aniversariantes`, `complementar-cadastro/[token]`, `agenda`, Blocos A-E, 78 páginas). NÃO abrir a URL própria do deployment para usar "Registrar consentimento"/"Autorizar publicação" nele — o banco de produção ainda não tem as colunas/constraint novas, então qualquer leitura/escrita real nessas rotas falharia por causa do schema antigo, não por bug do código. Validação funcional real só depois da aplicação das migrations.
+
+**7. Backup/preservação de dados**: reconfirmado — `walg_enabled: true`, `pitr_enabled: false`, backup mais recente 03/11 07:07 UTC. Não existe comando de backup físico sob demanda no CLI (`supabase backups` só lista; um backup manual extra é ação do dashboard da Supabase, fora do alcance read-only desta auditoria). Como as 7 migrations são só aditivas e a única escrita de dado existente é o `UPDATE` de 1 linha já revisado (reversível, valor atual já documentado), a mitigação recomendada é: antes de aplicar, capturar localmente (read-only) um `select *` da linha afetada em `birthday_entries` e das tabelas tocadas pelas outras 6 migrations, como registro independente do backup diário.
+
+**8. Portal — não precisa recompilar**: confirmado via `git diff`/`git log` que `apps/site` não tem NENHUMA alteração (commitada ou local) desde o commit `0df90b45`, exatamente o commit do deployment já preparado na ETAPA 1 (domínio `jornalir.vercel.app` intacto). Esse deployment continua válido e pode ser promovido diretamente, sem novo build.
+
+**9. Comandos exatos consolidados**:
+```
+# 1) Novo deployment do IR Controle (com a correção de consentimento) — da RAIZ do monorepo:
+npx vercel deploy --prod --skip-domain --yes --project jornalir-sistema --scope team_ZeE622FeA1dvTu7aFLQwxpLF
+
+# 2) Verificação (sem promover):
+npx vercel inspect <novo-deployment-id> --scope team_ZeE622FeA1dvTu7aFLQwxpLF
+
+# 3) Portal: nenhum comando novo — reutilizar o deployment já preparado na ETAPA 1.
+```
+
+**10. Plano de operação em sequência** (preparado, aguardando autorização específica por passo): (a) criar e validar o novo deployment do IR Controle [autorização: criar deployment sem promoção]; (b) comunicar pausa operacional à equipe (suspender "Autorizar publicação"); (c) reconferir dry-run + backup e capturar o snapshot read-only do item 7; (d) aplicar as 7 migrations [autorização: aplicação real]; (e) validar schema (`count(*)=0`, constraints presentes); (f) promover o IR Controle [autorização: promoção de domínio]; (g) testes reais no domínio promovido (consentimento, Blocos A-E, `/complementar-cadastro/[token]`); (h) promover o Portal reutilizando o deployment da ETAPA 1 [autorização: promoção de domínio]; (i) liberar a equipe editorial.
+
+**GO/NO-GO desta etapa**: GO para seguir ao passo (a) — criar o novo deployment do IR Controle SEM promoção — mediante autorização explícita e específica para esse passo isolado; os demais passos continuam condicionados a autorizações próprias, uma a uma. Nesta etapa: nenhum deploy foi executado (tentativa de `--dry` bloqueada pelo classificador de permissão do ambiente), nenhuma migration aplicada, nenhum domínio alterado, nenhum commit/push, nenhuma configuração remota alterada.
+
+## 03/11/2026 — ETAPA 7: novo deployment do IR Controle criado e validado (com a correção de consentimento), SEM promoção
+
+**Autorização**: limitada e explícita só para criar+inspecionar este deployment; migrations e alias permanecem não autorizados.
+
+**1. Git**: branch `solicitacoes-financeiro-contratos-irc-20261031`, HEAD `65675aa0`, mesmas alterações locais da ETAPA 3.2 preservadas e não commitadas no momento do deploy.
+
+**2/3. Local de execução e projeto de destino**: comando executado da RAIZ do monorepo (não de dentro de `apps/sistema`). `.vercel/project.json` da raiz confirma `projectName: "jornalir"` (vínculo errado, por isso o `--project jornalir-sistema` explícito era obrigatório); `apps/sistema/.vercel/project.json` confirma `jornalir-sistema`. CLI `62.2.0` aceitou todas as flags do comando sem erro.
+
+**4. Comando executado**:
+```
+npx vercel deploy --prod --skip-domain --yes --project jornalir-sistema --scope team_ZeE622FeA1dvTu7aFLQwxpLF
+```
+
+**5. Destino confirmado na saída**: `Deploying cristians-projects-34074cc3/jornalir-sistema` — projeto correto, NÃO `jornalir`.
+
+**Resultado do build**: sucesso. Next.js 14.2.33, `✓ Compiled successfully`, 78/78 páginas estáticas geradas, rota `/sistema/aniversariantes` presente (22.7 kB — maior que antes por conter o novo código de consentimento), `/complementar-cadastro/[token]` presente, `agenda`/Blocos A-E presentes. Build completo em 55s (cache restaurado do deployment anterior `BYBipGsefkSocZUb4RiuWEqpvkUc`).
+
+**6. Inspeção confirmada**:
+- `readyState`: **READY**
+- `target`: **production**
+- `productionUrl`: **null** (não promovido)
+- Build sem erros
+- Rotas esperadas presentes (lista completa de ~90 rotas, incluindo as do módulo Aniversariantes e `complementar-cadastro/[token]`)
+- Código de consentimento incluído: o deploy via CLI envia o working tree local no momento da execução (não o HEAD do Git), portanto inclui as alterações não commitadas de `actions.ts`/`BirthdaysList.tsx`/`page.tsx`/tipos/`globals.css` da ETAPA 3.2. **Nota**: por isso este deployment não corresponde a um único commit SHA — a base foi HEAD `65675aa0` + working tree local no momento do upload.
+
+**Deployment criado**:
+- **ID**: `dpl_CoCiC7XxuCT3dYNA8KGMyPUfL8tb`
+- **URL própria**: `https://jornalir-sistema-ll5scmex4-cristians-projects-34074cc3.vercel.app`
+- **Inspector**: `https://vercel.com/cristians-projects-34074cc3/jornalir-sistema/CoCiC7XxuCT3dYNA8KGMyPUfL8tb`
+- **Target**: production / **productionUrl**: null / **readyState**: READY
+
+**7/8. Domínios de produção reconfirmados intactos**: `controle.altnix.com.br` → ainda `dpl_68cqZyrLAJwCewn6ZpwnDam2yzgG`; `jornalir.vercel.app` → ainda `dpl_EMhVZcZR52GNhL87PEASL5Rk3iNc`. Nenhum alias alterado.
+
+**9**: nenhum fluxo de cadastro complementar, consentimento ou assinatura foi executado na URL própria deste deployment (schema de produção ainda não tem as colunas/constraint novas).
+
+ARQUIVOS: nenhum arquivo de código alterado nesta etapa — só a criação e inspeção do deployment.
+
+FALTA/BLOQUEIOS: nenhum impedimento técnico. Pendente de autorização para a ETAPA 8 (aplicação das migrations e/ou promoção).
+
+## 03/11/2026 — ETAPA 8: AS 7 MIGRATIONS FORAM APLICADAS NO SUPABASE DE PRODUÇÃO (site-system-ir, iqnzrpdccecgalqboeyf)
+
+**Autorização**: explícita do usuário, condicionada à confirmação da janela operacional (confirmada pelo usuário antes de aplicar) e à disponibilidade de backup. Deployment `dpl_CoCiC7XxuCT3dYNA8KGMyPUfL8tb` (ETAPA 7) **NÃO foi promovido**.
+
+**1. Pré-checagem rápida**: dry-run reconfirmou as mesmas 7 migrations pendentes, nenhuma nova; arquivos corrigidos da ETAPA 3.2 intactos.
+
+**2. Janela operacional**: confirmada pelo usuário antes da aplicação (equipe editorial avisada para não usar "Autorizar publicação" em Aniversariantes).
+
+**3. Backup**: reconfirmado — `walg_enabled: true`, `pitr_enabled: false`, backup mais recente 03/11 07:07 UTC. Sem bloqueio adicional identificado.
+
+**4. Aplicação**: `supabase db push --linked --include-all` — as 7 migrations foram aplicadas em sequência sem erro: `20261101110000_contract_templates_seed_minutas`, `20261120270000_site_interest_request_identification`, `20261120280000_client_related_persons`, `20261120290000_birthday_entries_consent_and_sync`, `20261120300000_client_completion_tokens`, `20261120310000_client_completion_public_flow`, `20261120320000_subscription_pending_formalization`.
+
+**5. Divergências**: `supabase migration list --linked` reconferido por completo — todas as 204 migrations locais agora têm `remote` preenchido igual ao `local`; nenhuma mismatch restante.
+
+**6. Verificação read-only da correção de consentimento** (via `supabase db query --linked`, só leitura): `select count(*) from public.birthday_entries where publish_in_print and consent_status is distinct from 'granted'` → **0**. A correção da linha legada funcionou exatamente como projetado.
+
+**7. Verificação objetiva de schema/RPCs** (via `supabase db query --linked`, só leitura):
+- Colunas novas confirmadas: `birthday_entries.{consent_status,consent_recorded_by,consent_recorded_at,is_minor,guardian_name}`; `clients.family_members_confirmed_empty`; tabela `client_completion_tokens` completa (`id, client_id, token_sha256, channel, channel_value, status, expires_at, verified_at, verified_user_id, completed_at, revoked_at, otp_requests_count, otp_window_started_at, last_otp_requested_at, created_at, created_by`).
+- Constraints novas confirmadas: `birthday_entries_consent_status_valid`, `birthday_entries_guardian_required_for_minor`, `birthday_entries_publish_requires_consent`.
+- Funções confirmadas: `sync_birthday_entry_from_client()`; `consume_client_completion_token` com as DUAS assinaturas coexistindo (`(text,uuid,jsonb)` da migration anterior e `(text,uuid,jsonb,boolean)` da nova) — sem ambiguidade de runtime, conforme já analisado na ETAPA 3.
+- Trigger confirmado: `clients_sync_birthday_entry` em `public.clients`.
+
+**8. Resultado**: TODAS as verificações passaram, nenhum problema encontrado. Nenhuma migration falhou, nenhuma correção improvisada foi necessária, nenhum SQL manual fora das 7 migrations foi executado.
+
+**9/10/11**: IR Controle e Portal **não foram promovidos**; nenhum alias/domínio/Git alterado; nenhuma funcionalidade nova implementada; nenhuma operação financeira realizada.
+
+ARQUIVOS: nenhum arquivo de código alterado nesta etapa — só a aplicação das migrations já revisadas e consultas de leitura ao banco.
+
+FALTA/BLOQUEIOS: nenhum. Schema de produção agora compatível com o deployment `dpl_CoCiC7XxuCT3dYNA8KGMyPUfL8tb` (ETAPA 7). Pendente de autorização para a ETAPA 9 (promoção coordenada do IR Controle e, depois, do Portal).
+
+## 03/11/2026 — ETAPA 9: PROMOÇÃO COORDENADA — IR CONTROLE E PORTAL PUBLICADOS
+
+**Autorização**: explícita do usuário, só para promover os deployments já preparados e validados (sem criar nenhum novo).
+
+**1. IR Controle**: deployment `dpl_CoCiC7XxuCT3dYNA8KGMyPUfL8tb` reconfirmado (projeto `jornalir-sistema`, Ready) antes de promover. Promovido via `vercel promote dpl_CoCiC7XxuCT3dYNA8KGMyPUfL8tb --scope ... --yes` (executado dentro de `apps/sistema`, já que `vercel promote` resolve o projeto pelo `.vercel/project.json` do diretório atual — raiz apontaria para o projeto errado). Resultado: `Success! jornalir-sistema was promoted ... (dpl_CoCiC7XxuCT3dYNA8KGMyPUfL8tb)`. Confirmado por `vercel inspect controle.altnix.com.br`: domínio agora aponta para `dpl_CoCiC7XxuCT3dYNA8KGMyPUfL8tb`. Smoke test HTTP objetivo (sem sessão autenticada real — nenhuma credencial de produção foi usada ou criada): `/login`, `/sistema`, `/sistema/clientes`, `/sistema/assinaturas`, `/sistema/aniversariantes` → todos **200**, nenhum erro 5xx. **Limitação explícita**: isto confirma que a aplicação está no ar e as rotas resolvem sem erro de servidor — NÃO é um teste funcional autenticado (login real, navegação dentro do painel); isso requer uma sessão de usuário real, que não foi executada por este agente.
+
+**2. Portal**: ID correto recuperado do registro da ETAPA 1 — `dpl_CC46f5W12kysqex65B5mXuKT4a2L` (projeto `jornalir`, Ready) — **não** o deployment acidental `dpl_32SxxibP2toksm7wGG4YLRCESX69` (criado por engano no projeto `jornalir` durante a ETAPA 2 do IR Controle), que permanece intacto e não utilizado. Promovido via `vercel promote dpl_CC46f5W12kysqex65B5mXuKT4a2L --scope ... --yes` (dentro de `apps/site`). Resultado: `Success! jornalir was promoted ... (dpl_CC46f5W12kysqex65B5mXuKT4a2L)`. Confirmado por `vercel inspect jornalir.vercel.app`. `vercel domains ls` confirma que o único domínio customizado do time é `altnix.com.br` (controle.altnix.com.br é um subdomínio dele, usado pelo IR Controle) — o projeto `jornalir` não tem domínio customizado próprio vinculado, só `jornalir.vercel.app`; nenhum vínculo foi alterado. Smoke test HTTP: `/`, `/noticias`, `/assine`, `/anuncios`, `/contato` → todos **200**.
+
+**3. Cuidados**: nenhum deployment novo criado, nenhuma migration adicional aplicada, nenhum dado do Supabase alterado, nenhum commit/push, nenhuma mudança no módulo Aniversariantes, WhatsApp compartilhado não implementado, nenhum outro projeto/domínio tocado.
+
+**4. Falhas**: nenhuma falha crítica encontrada em nenhum dos dois smoke tests — promoção do Portal não foi interrompida.
+
+**5. Resumo final**:
+| Deployment | ID | Domínio | Resultado |
+|---|---|---|---|
+| IR Controle | `dpl_CoCiC7XxuCT3dYNA8KGMyPUfL8tb` | `controle.altnix.com.br` | Promovido, smoke test HTTP 200 em todas as rotas testadas |
+| Portal | `dpl_CC46f5W12kysqex65B5mXuKT4a2L` | `jornalir.vercel.app` | Promovido, smoke test HTTP 200 em todas as rotas testadas |
+
+PENDÊNCIAS: teste funcional autenticado real (login de operador, navegação completa no painel) não foi executado por este agente — recomenda-se verificação manual pela equipe. Deployment acidental antigo `dpl_32SxxibP2toksm7wGG4YLRCESX69` (projeto `jornalir`) continua existindo, não excluído (decisão do usuário pendente). Pendência registrada (não executada nesta etapa): simplificação do módulo Aniversariantes (remoção do fluxo de consentimento) e módulo futuro de WhatsApp compartilhado.
+
+## 03/11/2026 — PENDÊNCIA PÓS-PUBLICAÇÃO: simplificação do módulo Aniversariantes, retirada do fluxo de consentimento (LOCAL, nada aplicado/deploy/commit/push)
+
+**Decisão do usuário**: o módulo Aniversariantes só organiza homenagens no JORNAL IMPRESSO (nome, dia, mês — sem ano, sem publicação automática em site/redes). O fluxo dedicado de consentimento (telas, selos, classificação de menor) criado na ETAPA 3.2 foi retirado do lado EDITORIAL do módulo; controle volta a ser simples: "Incluir no jornal impresso / Retirar do jornal impresso", sempre uma decisão direta da equipe.
+
+**Achado-chave antes de alterar qualquer coisa**: as colunas `consent_status`/`is_minor`/`guardian_name`/a CHECK `birthday_entries_publish_requires_consent` (migration `20261120290000`, já aplicada em produção) são **compartilhadas** com o fluxo PÚBLICO de cadastro complementar (migration `20261120310000`, também já aplicada — funções `public_complete_add_family_member` e `consume_client_completion_token`), que grava o consentimento do próprio titular/família de forma independente, sempre a partir de uma escolha explícita (`p_consent`/`titular_consent`), nunca presumida. Essas funções decidem `publish_in_print` sozinhas no próprio corpo — nunca dependeram da CHECK para a própria correção.
+
+**Alterações feitas (todas locais)**:
+- **Migration corretiva nova** (NÃO edita nenhuma migration já aplicada): `supabase/migrations/20261120330000_birthday_entries_simplify_editorial_flow.sql` — só `alter table public.birthday_entries drop constraint if exists birthday_entries_publish_requires_consent;`. Não remove colunas, não toca `birthday_entries_guardian_required_for_minor` nem `birthday_entries_consent_status_valid` (continuam protegendo o fluxo público, intocado), não altera dados — nenhum registro é republicado automaticamente (a linha legada despublicada na ETAPA 8 continua despublicada).
+- `apps/sistema/src/app/sistema/aniversariantes/actions.ts`: removida a função `recordBirthdayConsent` por completo; removida a constante `CONSENT_REQUIRED_ERROR`; removidas as checagens de `consent_status` em `setBirthdayPublication` (ramos "editorial" e "cliente") e em `saveEditorialBirthday` (criação e edição) — voltam a ser toggles diretos de `publish_in_print`. `linkBirthdayEntryToClient` continua migrando os campos legados de consentimento (preservação de dado, nunca os reinicia) — inofensivo, não gatilha mais nada.
+- `apps/sistema/src/features/aniversariantes/BirthdaysList.tsx`: removidos o botão "Registrar consentimento", o painel/formulário de consentimento (status, checkbox de menor, nome do responsável), o selo de status de consentimento, o estado `consenting`/`consentDraft`/`consentError`, a função `recordConsent` e todas as passagens de `onRecordConsent` (principal, fundação, membros).
+- `apps/sistema/src/features/aniversariantes/birthdayTypes.ts`, `editorialBirthdayTypes.ts`, `apps/sistema/src/app/sistema/aniversariantes/page.tsx`, `apps/sistema/src/app/globals.css`: removidos os campos/seleções/estilos de `consentStatus`/`consentRecordedAt`/`isMinor`/`guardianName` introduzidos na ETAPA 3.2 (não lidos pela UI simplificada).
+- Testes: removido `apps/sistema/test/birthday-consent-actions-structure.test.ts` (testava exclusivamente o fluxo removido); criado `apps/sistema/test/birthday-entries-simplify-editorial-flow.test.ts` (8 testes: confirma a remoção completa do fluxo editorial, confirma que a migration corretiva só remove a CHECK certa sem tocar colunas/outras CHECKs/dados, confirma que a migration já aplicada `20261120290000` permanece intacta, confirma que o fluxo público `20261120310000` continua decidindo consentimento sozinho). Reconfirmado também `birthday-entries-legacy-consent-regression.test.ts` (migration já aplicada, inalterada) e `client-completion-public-flow-security.test.ts` (fluxo público, inalterado) — **26/26 testes direcionados passam**.
+- `tsc --noEmit`: limpo, sem erros.
+
+**Preservação confirmada**: nenhuma coluna removida, nenhum dado alterado, fotos/mensagens/vínculos com clientes/sincronização intactos (nenhum desses caminhos foi tocado), fluxo público de cadastro complementar intocado e verificado por teste direcionado.
+
+**WhatsApp compartilhado**: continua só registrado como pendência futura em `docs/ACORDOS-E-FONTE-DA-VERDADE.md` (03/11/2026) — não implementado.
+
+ARQUIVOS: `supabase/migrations/20261120330000_birthday_entries_simplify_editorial_flow.sql` (novo), `apps/sistema/src/app/sistema/aniversariantes/actions.ts`, `apps/sistema/src/app/sistema/aniversariantes/page.tsx`, `apps/sistema/src/features/aniversariantes/BirthdaysList.tsx`, `apps/sistema/src/features/aniversariantes/birthdayTypes.ts`, `apps/sistema/src/features/aniversariantes/editorialBirthdayTypes.ts`, `apps/sistema/src/app/globals.css`, `apps/sistema/test/birthday-entries-simplify-editorial-flow.test.ts` (novo), `apps/sistema/test/birthday-consent-actions-structure.test.ts` (removido).
+
+FALTA/BLOQUEIOS: nada aplicado em produção, nenhum deploy, commit ou push — tudo local, aguardando autorização para os próximos passos (aplicar a migration corretiva, gerar novo deployment do IR Controle com esta simplificação, promover). Nenhum teste local de banco real executado (mesma limitação de ambiente já registrada — sem Docker/Postgres local); validação é só estrutural (leitura de código/SQL real), consistente com o padrão já usado neste projeto.
