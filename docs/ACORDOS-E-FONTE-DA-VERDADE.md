@@ -150,3 +150,22 @@
 - Controle editorial volta a ser simples: "Incluir no jornal impresso / Retirar do jornal impresso", sempre uma decisão direta da equipe — sem telas, selos ou etapas adicionais de consentimento.
 - O fluxo PÚBLICO de cadastro complementar (titular/família autodeclarando consentimento de publicação, via página pública com token) **não foi alterado** e continua existindo normalmente — é um mecanismo independente, não afetado por esta decisão.
 - Cuidado legal com dados pessoais mantido: a simplificação não presume autorização "a partir de um cadastro" — é a equipe quem decide, de forma explícita e auditável pelo próprio log de alterações do registro, cada vez que inclui ou retira alguém do jornal impresso.
+
+## 04/11/2026 — WHATSAPP EM ESPERA, SEM PUBLICAÇÃO E SEM IMPLEMENTAÇÃO ATIVA
+
+Decisão mais recente do proprietário (substitui planos de implantação anteriores):
+o atendimento compartilhado pelo WhatsApp está **SUSPENSO / PENDENTE DE ESCOLHA**.
+Quando for perguntado "o que falta no site e sistema", incluir o assunto na lista de pendências:
+definir a solução para sete atendentes utilizarem o número existente, preferencialmente
+mantendo o WhatsApp Business no celular; só avaliar integração, hospedagem e custos depois.
+Não instalar Cloud API, Chatwoot, extensões, integrações, automações nem provisionar VPS
+até nova decisão expressa. Não confundir com o provedor de WhatsApp transacional
+já existente para cobranças/assinaturas, que permanece inalterado.
+
+Limpeza de código (sem tocar o ambiente de produção): remoção do módulo experimental
+de atendimento interno da branch de trabalho; suas telas, actions, permissões
+e migration ainda não aplicada foram retiradas. Arquivos compartilhados de
+navegação/estilo retornaram exatamente ao conteúdo já publicado.
+Essa versão experimental continua recuperável pelo histórico Git no commit
+3a015e7740d787cf514ecf57d3ee743f5c91235b, mas NÃO deve ser reativada
+sem nova decisão. Nenhuma estrutura ou registro WhatsApp foi criado no Supabase.

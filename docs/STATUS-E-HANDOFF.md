@@ -3161,3 +3161,12 @@ ARQUIVOS FINAIS (mantidos): `supabase/migrations/20261120340000_whatsapp_attenda
 ARQUIVOS REMOVIDOS (nunca chegaram a ser commitados): `apps/sistema/src/lib/whatsapp/attendanceProvider.ts`, `incomingMessageParser.ts`; `apps/sistema/src/app/api/integrations/whatsapp-atendimento/` (pasta inteira); `apps/sistema/src/features/whatsapp/WhatsappInbox.tsx`; a versão anterior do teste e da migration (mesmo nome de arquivo da migration, conteúdo totalmente reescrito).
 
 FALTA/BLOQUEIOS: nenhuma migration aplicada, nenhum deploy, nenhum commit/push — tudo local, aguardando confirmação final do usuário antes de subir a branch.
+
+## 04/11/2026 — LIMPEZA APÓS AUDITORIA DE DEPLOY, SELEÇÃO ISOLADA
+
+- Portal: sem diff funcional entre o deployment ligado ao domínio e o build mais novo, somente documentação; não republicar.
+- IR Controle: revisão por hash encontrou apenas a preservação dos campos legados de consentimento ao vincular aniversariante a cliente, além de código WhatsApp não aprovado e prévia pura de integração Altnix (não operacional).
+- Aniversariantes: as migrations `20261120290000` e `20261120330000` constam aplicadas no Supabase; a CHECK `birthday_entries_publish_requires_consent` não existe mais no banco. NÃO reaplicar migrations, mexer em dados nem alterar esse schema sem necessidade.
+- Publicação isolada preparada em `release/aniversariantes-isolado-20261104`, baseada no commit publicado `65675aa035555d4f3b99509ade9699664de4a140`, com apenas actions.ts de Aniversariantes, teste e migration já aplicada. Build/deploy/alias ainda requerem validação e registro específico.
+- O código experimental de WhatsApp foi removido da branch de desenvolvimento; sem migration aplicada e sem publicação. Assunto pendente, trazer no próximo levantamento de tarefas.
+- A estrutura de correspondência com Altnix Informativo permanece em desenvolvimento e **não** deve ser promovida como integração real, nem ser descartada.

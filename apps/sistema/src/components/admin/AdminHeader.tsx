@@ -59,7 +59,6 @@ export function AdminHeader({ onOpenMenu }: { onOpenMenu: () => void }): JSX.Ele
   const isAgenda = pathname.startsWith("/sistema/agenda") || pathname.startsWith("/sistema/pauta");
   const isClientes = pathname.startsWith("/sistema/clientes");
   const isAniversariantes = pathname.startsWith("/sistema/aniversariantes");
-  const isWhatsapp = pathname.startsWith("/sistema/whatsapp");
   const isAssinaturas = pathname.startsWith("/sistema/assinaturas");
   const isFinanceiro = pathname.startsWith("/sistema/financeiro");
   const isPublicidade = pathname.startsWith("/sistema/publicidade");
@@ -126,16 +125,6 @@ export function AdminHeader({ onOpenMenu }: { onOpenMenu: () => void }): JSX.Ele
             aria-current={isAniversariantes ? "page" : undefined}
           >
             Aniversariantes
-          </Link>
-          ) : null}
-
-          {hasModule("whatsapp") ? (
-          <Link
-            href="/sistema/whatsapp"
-            className="app-nav-link"
-            aria-current={isWhatsapp ? "page" : undefined}
-          >
-            WhatsApp
           </Link>
           ) : null}
 

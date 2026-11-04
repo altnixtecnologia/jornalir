@@ -30,7 +30,6 @@ const GROUPS: MobileGroup[] = [
   { label: clientesNavGroup.label, links: [
     ...clientesNavGroup.links,
     { label: "Aniversariantes", href: "/sistema/aniversariantes" },
-    { label: "WhatsApp", href: "/sistema/whatsapp" },
   ] },
   { label: assinaturasNavGroup.label, links: assinaturasNavGroup.links },
   { label: financeiroNavGroup.label, links: financeiroNavGroup.links },
@@ -100,7 +99,6 @@ export function MobileNav({ onNavigate }: { onNavigate: () => void }): JSX.Eleme
       ["/sistema/assinaturas", "assinaturas"],
       ["/sistema/publicidade", "publicidade"],
       ["/sistema/aniversariantes", "aniversariantes"],
-      ["/sistema/whatsapp", "whatsapp"],
     ] as const) {
       if (path === prefix || path.startsWith(prefix + "/")) return hasModule(key);
     }
