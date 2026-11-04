@@ -169,3 +169,10 @@ navegação/estilo retornaram exatamente ao conteúdo já publicado.
 Essa versão experimental continua recuperável pelo histórico Git no commit
 3a015e7740d787cf514ecf57d3ee743f5c91235b, mas NÃO deve ser reativada
 sem nova decisão. Nenhuma estrutura ou registro WhatsApp foi criado no Supabase.
+
+
+## 04/11/2026 — Decisões atualizadas do PORTAL (referência específica)
+
+O proprietário declarou o **portal público visualmente aprovado / praticamente concluído** e decidiu deixar a rodada de testes severos para a equipe mais adiante. **Notificações já testadas e funcionando: não reabrir como pendência.** Página **Sobre** deve conter a história/trajetória verdadeira do jornal e **não** apontar para Assine; a página atual ainda tem esse link. **Assine** permanece independente e controlado pelo liga/desliga administrativo; ao ativar, o fluxo precisa operar integralmente, não apenas mostrar a tela. **Jornal Online:** usuário avalia separar os PDFs em **outra conta** Cloudflare R2 (ainda não decidido); PR #21 de rótulos neutros existe mas não foi incorporada ao portal publicado. Ajustes visuais futuros são opcionais e guiados pela experiência real, não um redesign.
+
+**Fonte de verdade detalhada:** `docs/PORTAL-DECISOES-E-PENDENCIAS-20261104.md`. Esta anotação prevalece sobre listas antigas que marcavam notificações ou todo o visual do portal como não homologados.
