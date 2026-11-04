@@ -3170,3 +3170,12 @@ FALTA/BLOQUEIOS: nenhuma migration aplicada, nenhum deploy, nenhum commit/push �
 - Publicação isolada preparada em `release/aniversariantes-isolado-20261104`, baseada no commit publicado `65675aa035555d4f3b99509ade9699664de4a140`, com apenas actions.ts de Aniversariantes, teste e migration já aplicada. Build/deploy/alias ainda requerem validação e registro específico.
 - O código experimental de WhatsApp foi removido da branch de desenvolvimento; sem migration aplicada e sem publicação. Assunto pendente, trazer no próximo levantamento de tarefas.
 - A estrutura de correspondência com Altnix Informativo permanece em desenvolvimento e **não** deve ser promovida como integração real, nem ser descartada.
+
+## 04/11/2026 — RESULTADO FINAL DA PUBLICAÇÃO CONTROLADA
+
+- **Portal** `jornalir.vercel.app`: nenhum arquivo funcional novo para promover; alias mantido no deployment `dpl_CC46f5W12kysqex65B5mXuKT4a2L`.
+- **IR Controle** `controle.altnix.com.br`: atualização **PUBLICADA E CONFIRMADA** no deployment `dpl_DVvqeVMxy5uWbGKHjxs6oZymrW3y`, com commit isolado `f17b7c4569a8ccff0cf47440d077503d5ea60f50`, branch `release/aniversariantes-isolado-20261104`. Deploy READY, build e typecheck passaram; alias confirmado por consulta da Vercel. Nenhum erro de runtime encontrado no intervalo consultado de 30 min (isso não substitui homologação funcional autenticada).
+- Comparação Git exata do commit de produção anterior `65675aa...` com `f17b7c...`: **somente 3 arquivos** (actions.ts de Aniversariantes, teste estrutural e migration de simplificação já presente no banco). Nenhuma escrita SQL feita nesta publicação; não reaplicar a migration.
+- Branch de trabalho limpa no commit `cc0ede24...`, removendo todo o código experimental WhatsApp não publicado e suas alterações de navegação/permissões. Código de integração Altnix Informativo e testes de Aniversariantes preservados no desenvolvimento, mas NÃO promovidos.
+- **WhatsApp fica PENDENTE DE DECISÃO:** quando o usuário pedir tarefas faltantes, incluir a definição da solução de atendimento para sete pessoas no mesmo número, idealmente coexistente com o WhatsApp Business no celular, sem começar nova implementação nem infraestrutura sem autorização.
+- Confirmações posteriores necessárias somente para fluxo funcional autenticado: vinculação de aniversariante a cadastro mestre com preservação do histórico, e eventual checagem manual no módulo. Não alterar registros reais para testar sem dados de homologação.
