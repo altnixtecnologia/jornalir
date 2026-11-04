@@ -1,0 +1,37 @@
+-- Simplificação do módulo Aniversariantes (03/11/2026, decisão posterior à
+-- publicação): o jornal impresso só registra nome, dia e mês do
+-- aniversariante, sem ano de nascimento nem classificação de idade — "Não
+-- haverá publicação automática no site ou nas redes sociais". A equipe
+-- editorial decidiu retirar o fluxo dedicado de registro de consentimento
+-- (telas/selos/etapas adicionais) do lado EDITORIAL do módulo: controle
+-- simples "Incluir no jornal impresso / Retirar do jornal impresso" é, a
+-- partir de agora, sempre uma decisão direta da equipe.
+--
+-- A CHECK birthday_entries_publish_requires_consent (criada em
+-- 20261120290000) é o que impede esse controle simples: ela exige
+-- consent_status='granted' sempre que publish_in_print=true. Essa CHECK é
+-- removida aqui.
+--
+-- IMPORTANTE — o que esta migration NÃO faz, de propósito:
+-- 1) Não remove as colunas consent_status/consent_recorded_by/
+--    consent_recorded_at/is_minor/guardian_name: elas continuam em uso pelo
+--    fluxo PÚBLICO de cadastro complementar (Bloco D, migration
+--    20261120310000 — funções public_complete_add_family_member e
+--    consume_client_completion_token), que grava consentimento do próprio
+--    titular/família de forma independente, sempre a partir de uma escolha
+--    explícita (p_consent/titular_consent), nunca presumida. Essas funções
+--    nunca dependiam desta CHECK para a própria correção — já decidem
+--    sozinhas, no corpo da função, o valor de publish_in_print — então
+--    removê-la não altera o comportamento delas.
+-- 2) Não remove birthday_entries_guardian_required_for_minor nem
+--    birthday_entries_consent_status_valid: continuam protegendo os dados
+--    de is_minor/guardian_name/consent_status gravados por aquele mesmo
+--    fluxo público, que não foi alterado por esta decisão.
+-- 3) Não republica automaticamente nenhum registro: a linha legada que a
+--    migration 20261120290000 já despublicou (publish_in_print=false) na
+--    aplicação da ETAPA 8 permanece despublicada — esta migration não
+--    altera dados, só remove uma restrição de schema. Republicar é, como
+--    sempre, uma decisão manual da equipe pelo botão "Incluir no jornal
+--    impresso".
+alter table public.birthday_entries
+  drop constraint if exists birthday_entries_publish_requires_consent;
