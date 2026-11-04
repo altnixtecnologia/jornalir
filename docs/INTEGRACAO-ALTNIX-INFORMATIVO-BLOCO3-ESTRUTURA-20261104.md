@@ -38,3 +38,16 @@
 A) Prévia da conciliação real sem escrita e aprovação humana; B) estrutura persistente de vínculos e autenticação de cliente; C) endpoint de leitura de exibições e financeiro do Jornal; D) testes isolados e migração progressiva com rollback. Nenhuma dessas etapas é executada por este commit.
 
 Respeitar também docs/ALTNIX-INFORMATIVO-SYNC-FUTURO.md. Sem alterações no repositório Altnix Informativo, seus bancos, equipamentos, mídias, pagamentos ou usuários.
+
+
+## Revisão do inventário e seleção restrita — 04/11/2026
+
+Conferência direta no banco do Informativo, somente leitura:
+
+- **4 cadastros com status active e documento em formato reconhecido**: 2 CPF (Marcelo Vargas e Cristian Berão) e 2 CNPJ (Altnix Tecnologia e Informativo Regional). Todos têm eventos de exibição; isso NÃO comprova automaticamente que são clientes comerciais aprovados.
+- **12 cadastros de teste Codex**: 5 Cliente codex-go-live-* criados em 25/08/2026 e 7 Cliente codex-final-* criados em 26/08/2026. Todos estão archived, sem CPF/CNPJ, com portal não habilitado e sem eventos de reprodução.
+- Os 12 testes preservam **12 contratos e 29 mídias com status active**. NÃO deletar cadastros, contratos ou mídias sem investigação e autorização separadas.
+- Regra da prévia assistida: **apenas ad_clients.status = active e CPF (11 dígitos) ou CNPJ (14 dígitos)**. Formato não valida dígitos verificadores; vínculo exige aprovação humana.
+- Demais ficam excluídos da **prévia normal**, mas preservados para auditoria, sem transferência, exclusão ou liberação de acesso.
+- A função pura partitionInformativoAdvertisersForPreview implementa a seleção em memória. No futuro, a consulta real deverá aplicá-la antes de previewInformativoAdvertiserLinks.
+- A rota remota permanece bloqueada, ALTNIX_CLIENT_EXPORT_RELEASED=false. Não há integração ou migração ativa.

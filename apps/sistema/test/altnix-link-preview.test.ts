@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   previewInformativoAdvertiserLinks,
+  partitionInformativoAdvertisersForPreview,
   type InformativoAdvertiserIdentity,
   type JornalMasterClientIdentity,
 } from "../src/lib/integrations/altnixLinkPreview";
@@ -63,4 +64,35 @@ test("vínculo ausente, divergente ou múltiplo exige revisão", () => {
 
 test("registro repetido do mesmo anunciante não pode ser vinculado duas vezes", () => {
   assert.ok(preview([advertiser, advertiser]).every((row) => row.reason === "duplicate_source_record"));
+});
+
+
+test("seleção aceita CPF e CNPJ ativos e exclui os 12 testes arquivados", () => {
+  const input = [
+    { ...advertiser, status: "active", document: "11.222.333/0001-81" },
+    { ...advertiser, adClientId: "cpf-1", status: "active", document: "123.456.789-09" },
+    ...Array.from({ length: 12 }, (_, i) => ({
+      ...advertiser,
+      adClientId: "codex-test-" + i,
+      status: "archived",
+      document: null,
+    })),
+  ];
+  const result = partitionInformativoAdvertisersForPreview(input);
+  assert.equal(result.included.length, 2);
+  assert.equal(result.excluded.length, 12);
+  assert.ok(result.excluded.every((x) => x.reason === "not_active"));
+  assert.equal(previewInformativoAdvertiserLinks(result.included, [master]).length, 2);
+});
+
+test("arquivado com documento ou ativo sem documento fica fora da prévia", () => {
+  const input = [
+    { ...advertiser, status: "archived" },
+    { ...advertiser, adClientId: "ad-no-document", status: "active", document: null },
+  ];
+  const result = partitionInformativoAdvertisersForPreview(input);
+  assert.deepEqual(result.included, []);
+  assert.deepEqual(result.excluded.map((r) => r.reason), [
+    "not_active", "missing_or_invalid_document",
+  ]);
 });

@@ -110,3 +110,44 @@ export function previewInformativoAdvertiserLinks(
     return { ...base, status: "candidate_only", masterClientId: candidates[0], reason: "candidate_exact_document" };
   });
 }
+
+/**
+ * Seleção NÃO destrutiva para a integração em preparação.
+ * Registros arquivados (inclusive testes) permanecem no Informativo.
+ * Só anunciantes ativos e com documento no formato esperado entram na prévia.
+ * Formato não equivale à validação dos dígitos verificadores.
+ */
+export type InformativoAdvertiserForPreview = InformativoAdvertiserIdentity & {
+  status: string;
+};
+export type ExcludedInformativoAdvertiser = {
+  tenantId: string;
+  adClientId: string;
+  reason: "not_active" | "missing_or_invalid_document";
+};
+export function partitionInformativoAdvertisersForPreview(
+  records: readonly InformativoAdvertiserForPreview[],
+): {
+  included: InformativoAdvertiserIdentity[];
+  excluded: ExcludedInformativoAdvertiser[];
+} {
+  const included: InformativoAdvertiserIdentity[] = [];
+  const excluded: ExcludedInformativoAdvertiser[] = [];
+  for (const row of records) {
+    const base = { tenantId: row.tenantId, adClientId: row.adClientId };
+    if (row.status !== "active") {
+      excluded.push({ ...base, reason: "not_active" });
+      continue;
+    }
+    if (!normalizedDocument(row.document)) {
+      excluded.push({ ...base, reason: "missing_or_invalid_document" });
+      continue;
+    }
+    included.push({
+      ...base,
+      document: row.document,
+      mediaCount: row.mediaCount,
+    });
+  }
+  return { included, excluded };
+}
