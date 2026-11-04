@@ -10,6 +10,7 @@ export const STAFF_MODULES = [
   { key: "publicidade", label: "Comercial" },
   { key: "nfse", label: "NFS-e", releaseBlocked: true },
   { key: "aniversariantes", label: "Aniversariantes" },
+  { key: "whatsapp", label: "WhatsApp" },
 ] as const;
 export type StaffModuleKey = (typeof STAFF_MODULES)[number]["key"];
 
@@ -96,6 +97,7 @@ export const STAFF_MODULE_ACTIONS = [
   { module: "nfse", key: "configuracoes_gerenciar", label: "Configurações do emissor e certificado (somente administração)", adminOnly: true },
   { module: "aniversariantes", key: "aniversariantes_gerenciar", label: "Cadastrar, editar e retirar aniversariantes", isDefault: true },
   { module: "aniversariantes", key: "mensagens_gerenciar", label: "Gerenciar mensagens e modelos", isDefault: true },
+  { module: "whatsapp", key: "atendimento_gerenciar", label: "Responder, atribuir e concluir conversas", isDefault: true },
 ] as const;
 
 export type StaffModuleAction = (typeof STAFF_MODULE_ACTIONS)[number];

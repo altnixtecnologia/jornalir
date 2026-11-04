@@ -64,8 +64,8 @@ export const adminModules: readonly AdminModule[] = [
   {
     slug: "whatsapp",
     label: "WhatsApp",
-    description: "Atendimento e comunicação vinculados aos contatos do jornal.",
-    planned: true,
+    description: "Atendimento compartilhado pelo número de atendimento do jornal.",
+    planned: false,
   },
   {
     slug: "entrevistas",

@@ -6496,3 +6496,31 @@ button.secondary-link {
   .usuarios-edit-modal{padding: 18px 14px}
   .usuarios-edit-modal .usuarios-edit-actions button{flex: 1 1 auto;min-height: 42px}
 }
+
+/* Módulo WhatsApp — controle interno de atendimento (03/11/2026, revisado:
+   usa o WhatsApp normal/web.whatsapp.com, sem Cloud API própria) */
+.whatsapp-board-top { display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px; align-items: flex-start; }
+.whatsapp-tabs { display: flex; gap: 6px; flex-wrap: wrap; margin: 12px 0; align-items: center; }
+.whatsapp-tab {
+  border: 1px solid var(--line); background: #fff; border-radius: 999px;
+  padding: 6px 14px; font-size: 13px; cursor: pointer; display: inline-flex; align-items: center; gap: 6px;
+}
+.whatsapp-tab.is-active { background: var(--brand); color: #fff; border-color: var(--brand); }
+.whatsapp-tab-count { font-size: 11px; opacity: 0.8; }
+.whatsapp-new-case-btn { margin-left: auto; }
+.whatsapp-new-case-form { margin-bottom: 14px; }
+.whatsapp-case-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+.whatsapp-case-item {
+  border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; background: #fff;
+  display: flex; flex-direction: column; gap: 8px;
+}
+.whatsapp-case-main { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.whatsapp-case-controls { display: flex; gap: 8px; flex-wrap: wrap; }
+.whatsapp-case-notes { width: 100%; resize: vertical; min-height: 40px; }
+.whatsapp-conversation-name { font-weight: 600; }
+.whatsapp-conversation-meta { font-size: 11px; color: var(--muted); }
+.whatsapp-contact-phone { font-size: 12px; color: var(--muted); }
+.whatsapp-empty { padding: 16px; color: var(--muted); font-size: 13px; }
+.status-pill--whatsapp-pending { background: #eae8dd; color: #6c603b; }
+.status-pill--whatsapp-in_progress { background: #e4ecf7; color: #27446f; }
+.status-pill--whatsapp-done { background: #dcece2; color: var(--brand); }
