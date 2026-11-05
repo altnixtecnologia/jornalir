@@ -305,3 +305,25 @@ Implementado localmente (sem upload real, sem gravação no Supabase, sem commit
 3. Clicar nesse link leva a **Sistema → Editorial → Importar PDF** (já com a edição 776 selecionada), onde a lista de candidatos pode ser revisada, convertida em rascunho ou descartada — nunca publicada automaticamente.
 
 **Próximo passo seguro para testar a edição 776 pelo navegador:** cadastrar (ou vincular, via `attachEditionR2Archive` em `apps/sistema`) **uma única linha real** em `newspaper_editions` para a edição 776, apontando `pdf_r2_key = "acervo/edicoes/IR 776.pdf"`, `archive_provider = "r2"`, `active = true`, e uma `publication_date` válida (776 não está entre as pendências de data — só a edição 340 ficou em revisão). Isso é uma gravação real no Supabase de produção e não foi feita nesta etapa por estar fora do que foi autorizado agora.
+
+## Atualização de 05/11/2026 (continuação) — ERRO REAL EM PRODUÇÃO corrigido: `require.resolve()` do pdfjs-dist sob webpack devolvia um ID numérico, não um caminho
+
+**Achado real, com o proprietário já testando pelo painel publicado**: ao clicar "Reaproveitar PDF do acervo" de verdade (POST para `/sistema/editorial/edicoes`, deployment `dpl_FnmXShfmo9UGF2jgydm5MX7GKFFK`), a Server Action quebrou antes de renderizar qualquer capa. Log real da Vercel:
+```
+TypeError [ERR_INVALID_ARG_TYPE]: The "path" argument must be of type string. Received type number (43899)
+    at dirname (node:path:1439:5)
+    at 34270 (/var/task/apps/sistema/.next/server/chunks/4270.js:1:1796)
+digest: '2211172284'
+```
+
+**Causa confirmada** em `apps/sistema/src/providers/r2/editionCoverRenderer.ts`: `const pdfjsRoot = dirname(require.resolve("pdfjs-dist/package.json"));`. Fora de um bundler, `require.resolve()` devolve o caminho real do arquivo no disco — mas dentro de um bundle webpack (como o das Server Actions do Next.js, inclusive na Vercel), o webpack intercepta estaticamente toda chamada `require.resolve("string literal")` e a substitui pelo **ID numérico do módulo dentro do bundle**, nunca um caminho. `dirname()` sobre esse número quebra com `ERR_INVALID_ARG_TYPE`. Confirmado com precisão: o módulo que quebrou tem o ID `34270`, dentro do chunk `4270.js` — exatamente os números do stack trace real, localizados de propósito numa reprodução equivalente (build local idêntico, chunk e ID conferidos byte a byte antes de aplicar a correção).
+
+**Correção** (só a linha necessária, nada mais): troca `require.resolve(...)` direto por `__non_webpack_require__.resolve(...)` quando disponível — é a forma documentada do próprio webpack de pedir a resolução REAL do Node, sem a reescrita estática —, com fallback para o `require` normal fora de um bundle (scripts via `tsx`, testes), onde `__non_webpack_require__` não existe e o `require.resolve()` comum já é o real do Node. `require("pdfjs-dist/legacy/build/pdf.js")` (linha anterior, um `require()` comum, não `.resolve()`) nunca foi afetado — confirmado pelo próprio stack trace, que só quebra na linha do `dirname`.
+
+**Carregamento do worker do pdfjs-dist (`GlobalWorkerOptions.workerSrc = new URL(...)`, em `EdicoesManager.tsx`) — conferido e descartado como causa**: é um erro DIFERENTE, já investigado antes (ver seção anterior) e confirmado restrito ao modo `next dev` local (aparece só dentro de componentes exclusivos de desenvolvimento, `ReactDevOverlay`/`HotReload`, que não existem em produção) — os logs reais de produção para esta rota nunca mostraram esse erro, só o do `require.resolve()` acima. Os dois não têm relação; nenhuma mudança foi feita nessa linha.
+
+**Teste de regressão novo** (`apps/sistema/test/edition-cover-renderer-init.test.ts`, 2 casos): (1) checagem estática que impede a reintrodução do padrão vulnerável (`dirname(require.resolve(` nunca mais aparece no arquivo) e confirma a presença do padrão corrigido — **verificado que esse teste falha de verdade contra o código original** (reproduzido localmente: revertida a correção, o teste 1 falha; restaurada, passa); (2) chamada real a `renderEditionCoverWebp()` com um PDF mínimo válido construído no próprio teste (sem mock), forçando a avaliação completa do topo do módulo (inclusive a linha corrigida) e exercitando pdfjs-dist + @napi-rs/canvas + sharp de ponta a ponta — devolve um WebP real (assinatura RIFF/WEBP confirmada). Suíte completa: **264/264 testes passam**, `tsc --noEmit` limpo, `next build` limpo.
+
+**Risco relacionado considerado e descartado**: as pastas `standard_fonts`/`cmaps` do pdfjs-dist (usadas por `standardFontDataUrl`/`cMapUrl`, computadas a partir do mesmo `pdfjsRoot`) precisam existir no sistema de arquivos da função serverless da Vercel. Como `pdfjs-dist` já está em `serverComponentsExternalPackages` (`next.config.mjs`, decisão anterior), o Next.js já rastreia e inclui a pasta completa do pacote externo no bundle da função — por isso nenhuma configuração adicional de `outputFileTracingIncludes` foi acrescentada (seria redundante e fora do que é necessário corrigir agora).
+
+ARQUIVOS: `apps/sistema/src/providers/r2/editionCoverRenderer.ts` (corrigido), `apps/sistema/test/edition-cover-renderer-init.test.ts` (novo).

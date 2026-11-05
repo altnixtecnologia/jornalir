@@ -30,7 +30,24 @@ const require = createRequire(import.meta.url);
 const pdfjsLegacy = require("pdfjs-dist/legacy/build/pdf.js") as typeof import("pdfjs-dist/types/src/pdf");
 const { getDocument } = pdfjsLegacy;
 
-const pdfjsRoot = dirname(require.resolve("pdfjs-dist/package.json"));
+/**
+ * `require.resolve(x)` dentro de um bundle webpack (como o build de Server
+ * Actions do Next.js na Vercel) NUNCA devolve um caminho de arquivo real —
+ * webpack intercepta a chamada estaticamente e devolve o ID numérico do
+ * módulo no bundle (ex.: 43899). `dirname()` em cima desse número quebra em
+ * produção com `ERR_INVALID_ARG_TYPE` (confirmado nos logs reais da Vercel,
+ * 05/11/2026, ao reaproveitar o PDF da edição 776 — a renderização da capa
+ * nunca chegava a rodar). `__non_webpack_require__` é a forma documentada do
+ * próprio webpack de pedir a resolução REAL do Node, sem a reescrita
+ * estática — existe apenas quando o código passa pelo bundler; fora dele
+ * (scripts via `tsx`, testes) a variável não existe, por isso o fallback
+ * para `require` normal, cujo `.resolve()` já é o real do Node nesses casos.
+ */
+declare const __non_webpack_require__: NodeRequire | undefined;
+const realRequire: NodeRequire =
+  typeof __non_webpack_require__ !== "undefined" ? __non_webpack_require__ : require;
+
+const pdfjsRoot = dirname(realRequire.resolve("pdfjs-dist/package.json"));
 const standardFontDataUrl = join(pdfjsRoot, "standard_fonts") + "/";
 const cMapUrl = join(pdfjsRoot, "cmaps") + "/";
 
