@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState, useTransition } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import type { NewspaperEdition } from "@ir/types";
 import { GlobalWorkerOptions, getDocument } from "pdfjs-dist";
@@ -32,6 +32,18 @@ const EMPTY_FORM: NewspaperEditionPayload = {
   pageCount: "",
 };
 
+type SortColumn = "editionNumber" | "title" | "publicationDate" | "pageCount" | "pdf" | "status";
+type SortDirection = "asc" | "desc";
+
+const SORTABLE_COLUMNS: { key: SortColumn; label: string }[] = [
+  { key: "editionNumber", label: "Edição" },
+  { key: "title", label: "Título" },
+  { key: "publicationDate", label: "Data" },
+  { key: "pageCount", label: "Páginas" },
+  { key: "pdf", label: "PDF" },
+  { key: "status", label: "Status" },
+];
+
 function toFormValues(edition: NewspaperEdition): NewspaperEditionPayload {
   return {
     editionNumber: String(edition.editionNumber),
@@ -41,18 +53,46 @@ function toFormValues(edition: NewspaperEdition): NewspaperEditionPayload {
   };
 }
 
+/** Valor comparável de cada coluna ordenável — números comparam numericamente,
+ * `publicationDate` (ISO AAAA-MM-DD) compara cronologicamente por ser já uma
+ * string ordenável lexicograficamente nesse formato. */
+function sortValue(edition: NewspaperEdition, column: SortColumn): string | number {
+  switch (column) {
+    case "editionNumber":
+      return edition.editionNumber;
+    case "title":
+      return (edition.title ?? "").toLocaleLowerCase("pt-BR");
+    case "publicationDate":
+      return edition.publicationDate;
+    case "pageCount":
+      return edition.pageCount ?? -1;
+    case "pdf":
+      return edition.pdfUrl ? 1 : 0;
+    case "status":
+      return edition.active ? 1 : 0;
+  }
+}
+
 /**
  * Gestão de edições do jornal (Fase 28) — cadastro/edição real, sempre a
  * partir de `NewspaperEditionService`. Nunca exclusão destrutiva: inativar
  * é a única remoção pela UI (uma edição já referenciada por matérias/
  * candidatos de importação nunca pode sumir de baixo delas).
+ *
+ * Melhoria de UI (05/11/2026): Nova edição/Editar edição passaram a ser um
+ * modal único (em vez de formulário inline/edição em linha da tabela);
+ * pesquisa única acima da tabela (edição, título ou data); cabeçalhos
+ * ordenáveis; coluna Data visível. Nenhuma ação do R2/extração/duplicata foi
+ * alterada — só a apresentação de cadastro/edição/listagem.
  */
 export function EdicoesManager({ editions }: EdicoesManagerProps): JSX.Element {
   const [items, setItems] = useState(editions);
-  const [showCreate, setShowCreate] = useState(false);
-  const [createForm, setCreateForm] = useState<NewspaperEditionPayload>(EMPTY_FORM);
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [editForm, setEditForm] = useState<NewspaperEditionPayload>(EMPTY_FORM);
+  const [modalMode, setModalMode] = useState<"create" | "edit" | null>(null);
+  const [modalEditingId, setModalEditingId] = useState<string | null>(null);
+  const [modalForm, setModalForm] = useState<NewspaperEditionPayload>(EMPTY_FORM);
+  const [search, setSearch] = useState("");
+  const [sortColumn, setSortColumn] = useState<SortColumn | null>(null);
+  const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
   const [uploadingId, setUploadingId] = useState<string | null>(null);
   const [uploadStage, setUploadStage] = useState<string | null>(null);
   const [checkingArchiveId, setCheckingArchiveId] = useState<string | null>(null);
@@ -61,38 +101,84 @@ export function EdicoesManager({ editions }: EdicoesManagerProps): JSX.Element {
   const [pending, startTransition] = useTransition();
   const fileInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
 
-  const sorted = [...items].sort((a, b) => b.editionNumber - a.editionNumber);
+  const visibleItems = useMemo(() => {
+    const term = search.trim().toLowerCase();
+    const filtered = term
+      ? items.filter((edition) => {
+          const haystack = `${edition.editionNumber} ${edition.title ?? ""} ${formatDate(edition.publicationDate)}`
+            .toLowerCase();
+          return haystack.includes(term);
+        })
+      : items;
 
-  function startEdit(edition: NewspaperEdition): void {
-    setShowCreate(false);
-    setEditingId(edition.id);
-    setEditForm(toFormValues(edition));
+    if (!sortColumn) {
+      // Sem coluna escolhida: ordem inicial, mais recentes primeiro.
+      return [...filtered].sort((a, b) => b.editionNumber - a.editionNumber);
+    }
+    const direction = sortDirection === "asc" ? 1 : -1;
+    return [...filtered].sort((a, b) => {
+      const valueA = sortValue(a, sortColumn);
+      const valueB = sortValue(b, sortColumn);
+      if (typeof valueA === "number" && typeof valueB === "number") {
+        return (valueA - valueB) * direction;
+      }
+      return String(valueA).localeCompare(String(valueB), "pt-BR") * direction;
+    });
+  }, [items, search, sortColumn, sortDirection]);
+
+  function handleSort(column: SortColumn): void {
+    if (sortColumn === column) {
+      setSortDirection((direction) => (direction === "asc" ? "desc" : "asc"));
+    } else {
+      setSortColumn(column);
+      setSortDirection("asc");
+    }
   }
 
-  function handleCreate(): void {
+  function sortIndicator(column: SortColumn): string {
+    if (sortColumn !== column) return "";
+    return sortDirection === "asc" ? " ▲" : " ▼";
+  }
+
+  function ariaSortFor(column: SortColumn): "ascending" | "descending" | "none" {
+    if (sortColumn !== column) return "none";
+    return sortDirection === "asc" ? "ascending" : "descending";
+  }
+
+  function openCreateModal(): void {
+    setModalMode("create");
+    setModalEditingId(null);
+    setModalForm(EMPTY_FORM);
+  }
+
+  function openEditModal(edition: NewspaperEdition): void {
+    setModalMode("edit");
+    setModalEditingId(edition.id);
+    setModalForm(toFormValues(edition));
+  }
+
+  function closeModal(): void {
+    setModalMode(null);
+    setModalEditingId(null);
+  }
+
+  function handleModalSave(): void {
     startTransition(async () => {
-      const result = await createEdition(createForm);
+      const result = modalEditingId
+        ? await updateEdition(modalEditingId, modalForm)
+        : await createEdition(modalForm);
       if ("error" in result) {
-        notify.error("Não foi possível criar a edição", result.error);
+        notify.error(modalEditingId ? "Não foi possível salvar a edição" : "Não foi possível criar a edição", result.error);
+        return;
+      }
+      if (modalEditingId) {
+        setItems((prev) => prev.map((item) => (item.id === modalEditingId ? result.edition : item)));
+        notify.success("Edição atualizada", "As alterações da edição foram salvas.");
       } else {
         setItems((prev) => [...prev, result.edition]);
-        setCreateForm(EMPTY_FORM);
-        setShowCreate(false);
         notify.success("Edição criada", "A edição " + editionLabel(result.edition) + " foi criada.");
       }
-    });
-  }
-
-  function handleSaveEdit(id: string): void {
-    startTransition(async () => {
-      const result = await updateEdition(id, editForm);
-      if ("error" in result) {
-        notify.error("Não foi possível salvar a edição", result.error);
-      } else {
-        setItems((prev) => prev.map((item) => (item.id === id ? result.edition : item)));
-        setEditingId(null);
-        notify.success("Edição atualizada", "As alterações da edição foram salvas.");
-      }
+      closeModal();
     });
   }
 
@@ -439,74 +525,22 @@ export function EdicoesManager({ editions }: EdicoesManagerProps): JSX.Element {
   return (
     <>
       <div className="materias-toolbar">
-        <span className="materias-count">{items.length} edição(ões)</span>
-        <button
-          type="button"
-          className="header-action"
-          onClick={() => {
-            setShowCreate((value) => !value);
-            setEditingId(null);
-          }}
-        >
-          {showCreate ? "Cancelar" : "+ Nova edição"}
+        <div className="materias-filters">
+          <label className="materias-search">
+            Pesquisar
+            <input
+              type="search"
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              placeholder="Número, título ou data (DD/MM/AAAA)"
+            />
+          </label>
+        </div>
+        <span className="materias-count">{visibleItems.length} de {items.length} edição(ões)</span>
+        <button type="button" className="header-action" onClick={openCreateModal}>
+          + Nova edição
         </button>
       </div>
-
-      {showCreate ? (
-        <div className="inline-form">
-          <div className="form-grid">
-            <label className="form-field">
-              <span className="field-label">Número da edição</span>
-              <input
-                type="number"
-                min={1}
-                value={createForm.editionNumber}
-                onChange={(event) => setCreateForm((form) => ({ ...form, editionNumber: event.target.value }))}
-                placeholder="Ex.: 769"
-              />
-            </label>
-            <label className="form-field">
-              <span className="field-label">Data de publicação</span>
-              <input
-                type="date"
-                value={createForm.publicationDate}
-                onChange={(event) => setCreateForm((form) => ({ ...form, publicationDate: event.target.value }))}
-              />
-            </label>
-          </div>
-          <div className="form-grid">
-            <label className="form-field">
-              <span className="field-label">
-                Título <span className="field-optional">(opcional)</span>
-              </span>
-              <input
-                value={createForm.title}
-                onChange={(event) => setCreateForm((form) => ({ ...form, title: event.target.value }))}
-                placeholder="Ex.: Edição 769 — 15 a 21 de setembro"
-              />
-            </label>
-            <label className="form-field">
-              <span className="field-label">
-                Páginas <span className="field-optional">(opcional)</span>
-              </span>
-              <input
-                type="number"
-                min={1}
-                value={createForm.pageCount}
-                onChange={(event) => setCreateForm((form) => ({ ...form, pageCount: event.target.value }))}
-              />
-            </label>
-          </div>
-          <p className="helper-text">
-            Depois de criar a edição, envie o PDF uma única vez. O navegador envia diretamente ao Cloudflare R2; a capa é gerada automaticamente da página 1 e o Supabase guarda somente os metadados.
-          </p>
-          <div className="form-actions">
-            <button type="button" className="form-action-primary" onClick={handleCreate} disabled={pending}>
-              Salvar edição
-            </button>
-          </div>
-        </div>
-      ) : null}
 
       {uploadStage ? (
         <p className="helper-text" role="status" aria-live="polite">
@@ -514,181 +548,210 @@ export function EdicoesManager({ editions }: EdicoesManagerProps): JSX.Element {
         </p>
       ) : null}
 
-      <div className="materias-table-wrap">
-        <table className="materias-table">
+      <div className="materias-table-wrap edicoes-table-wrap">
+        <table className="materias-table edicoes-table">
           <thead>
             <tr>
-              <th>Edição</th>
-              <th>Título</th>
-              <th>Páginas</th>
-              <th>PDF</th>
-              <th>Status</th>
+              {SORTABLE_COLUMNS.map((column) => (
+                <th key={column.key} aria-sort={ariaSortFor(column.key)}>
+                  <button
+                    type="button"
+                    className={`materia-sort-button${sortColumn === column.key ? " is-active" : ""}`}
+                    onClick={() => handleSort(column.key)}
+                  >
+                    {column.label}
+                    {sortIndicator(column.key)}
+                  </button>
+                </th>
+              ))}
               <th>Ações</th>
             </tr>
           </thead>
           <tbody>
-            {sorted.map((edition) => {
-              const isEditing = editingId === edition.id;
-              return (
-                <tr key={edition.id}>
-                  {isEditing ? (
-                    <>
-                      <td>
-                        <div className="form-grid">
-                          <input
-                            type="number"
-                            min={1}
-                            value={editForm.editionNumber}
-                            onChange={(event) =>
-                              setEditForm((form) => ({ ...form, editionNumber: event.target.value }))
-                            }
-                          />
-                          <input
-                            type="date"
-                            value={editForm.publicationDate}
-                            onChange={(event) =>
-                              setEditForm((form) => ({ ...form, publicationDate: event.target.value }))
-                            }
-                          />
-                        </div>
-                      </td>
-                      <td>
-                        <input
-                          value={editForm.title}
-                          onChange={(event) => setEditForm((form) => ({ ...form, title: event.target.value }))}
-                        />
-                      </td>
-                      <td>
-                        <input
-                          type="number"
-                          min={1}
-                          value={editForm.pageCount}
-                          onChange={(event) => setEditForm((form) => ({ ...form, pageCount: event.target.value }))}
-                        />
-                      </td>
-                      <td>{renderPdfCell(edition)}</td>
-                      <td>
-                        <span className={`status-pill status-pill--${edition.active ? "published" : "archived"}`}>
-                          {edition.active ? "Ativa" : "Inativa"}
-                        </span>
-                      </td>
-                      <td>
-                        <div className="candidate-row-actions">
-                          <button type="button" onClick={() => handleSaveEdit(edition.id)} disabled={pending}>
-                            Salvar
-                          </button>
-                          <button type="button" onClick={() => setEditingId(null)} disabled={pending}>
-                            Cancelar
-                          </button>
-                        </div>
-                      </td>
-                    </>
-                  ) : (
-                    <>
-                      <td className="materia-title">{editionLabel(edition)}</td>
-                      <td>{edition.title}</td>
-                      <td>{edition.pageCount ?? "—"}</td>
-                      <td>{renderPdfCell(edition)}</td>
-                      <td>
-                        <span className={`status-pill status-pill--${edition.active ? "published" : "archived"}`}>
-                          {edition.active ? "Ativa" : "Inativa"}
-                        </span>
-                      </td>
-                      <td>
-                        <div className="candidate-row-actions">
-                          <button type="button" onClick={() => startEdit(edition)} disabled={pending}>
-                            Editar
-                          </button>
-                          <button type="button" onClick={() => handleToggleActive(edition)} disabled={pending}>
-                            {edition.active ? "Inativar" : "Ativar"}
-                          </button>
-                        </div>
-                      </td>
-                    </>
-                  )}
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
-
-      {/* Mobile: cartões empilhados, mesma edição inline da tabela. */}
-      <ul className="materias-cards">
-        {sorted.map((edition) => {
-          const isEditing = editingId === edition.id;
-          return (
-            <li key={edition.id} className="materia-card materia-card--static">
-              {isEditing ? (
-                <>
-                  <label className="form-field">
-                    <span className="field-label">Número da edição</span>
-                    <input
-                      type="number"
-                      min={1}
-                      value={editForm.editionNumber}
-                      onChange={(event) => setEditForm((form) => ({ ...form, editionNumber: event.target.value }))}
-                    />
-                  </label>
-                  <label className="form-field">
-                    <span className="field-label">Data de publicação</span>
-                    <input
-                      type="date"
-                      value={editForm.publicationDate}
-                      onChange={(event) => setEditForm((form) => ({ ...form, publicationDate: event.target.value }))}
-                    />
-                  </label>
-                  <label className="form-field">
-                    <span className="field-label">Título</span>
-                    <input
-                      value={editForm.title}
-                      onChange={(event) => setEditForm((form) => ({ ...form, title: event.target.value }))}
-                    />
-                  </label>
-                  <label className="form-field">
-                    <span className="field-label">Páginas</span>
-                    <input
-                      type="number"
-                      min={1}
-                      value={editForm.pageCount}
-                      onChange={(event) => setEditForm((form) => ({ ...form, pageCount: event.target.value }))}
-                    />
-                  </label>
-                  <div className="form-actions">
-                    <button type="button" onClick={() => handleSaveEdit(edition.id)} disabled={pending}>
-                      Salvar
-                    </button>
-                    <button type="button" onClick={() => setEditingId(null)} disabled={pending}>
-                      Cancelar
-                    </button>
-                  </div>
-                </>
-              ) : (
-                <>
-                  <div className="materia-card-head">
-                    <span className={`status-pill status-pill--${edition.active ? "published" : "archived"}`}>
-                      {edition.active ? "Ativa" : "Inativa"}
-                    </span>
-                    <span className="materia-reference">{formatDate(edition.publicationDate)}</span>
-                  </div>
-                  <span className="materia-card-title">{editionLabel(edition)}</span>
-                  {edition.title ? <span className="materia-subtitle">{edition.title}</span> : null}
-                  <span className="helper-text">{edition.pageCount ? `${edition.pageCount} páginas` : "Páginas não informadas"}</span>
-                  {renderPdfCell(edition)}
-                  <div className="materia-card-foot">
-                    <button type="button" onClick={() => startEdit(edition)} disabled={pending}>
+            {visibleItems.map((edition) => (
+              <tr key={edition.id}>
+                <td className="materia-title">{editionLabel(edition)}</td>
+                <td>{edition.title}</td>
+                <td>{formatDate(edition.publicationDate)}</td>
+                <td>{edition.pageCount ?? "—"}</td>
+                <td>{renderPdfCell(edition)}</td>
+                <td>
+                  <span className={`status-pill status-pill--${edition.active ? "published" : "archived"}`}>
+                    {edition.active ? "Ativa" : "Inativa"}
+                  </span>
+                </td>
+                <td>
+                  <div className="candidate-row-actions">
+                    <button type="button" onClick={() => openEditModal(edition)} disabled={pending}>
                       Editar
                     </button>
                     <button type="button" onClick={() => handleToggleActive(edition)} disabled={pending}>
                       {edition.active ? "Inativar" : "Ativar"}
                     </button>
                   </div>
-                </>
-              )}
-            </li>
-          );
-        })}
+                </td>
+              </tr>
+            ))}
+            {visibleItems.length === 0 ? (
+              <tr>
+                <td colSpan={7} className="helper-text">
+                  Nenhuma edição encontrada para esta pesquisa.
+                </td>
+              </tr>
+            ) : null}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Mobile: cartões empilhados, mesma edição da tabela. */}
+      <ul className="materias-cards">
+        {visibleItems.map((edition) => (
+          <li key={edition.id} className="materia-card materia-card--static">
+            <div className="materia-card-head">
+              <span className={`status-pill status-pill--${edition.active ? "published" : "archived"}`}>
+                {edition.active ? "Ativa" : "Inativa"}
+              </span>
+              <span className="materia-reference">{formatDate(edition.publicationDate)}</span>
+            </div>
+            <span className="materia-card-title">{editionLabel(edition)}</span>
+            {edition.title ? <span className="materia-subtitle">{edition.title}</span> : null}
+            <span className="helper-text">{edition.pageCount ? `${edition.pageCount} páginas` : "Páginas não informadas"}</span>
+            {renderPdfCell(edition)}
+            <div className="materia-card-foot">
+              <button type="button" onClick={() => openEditModal(edition)} disabled={pending}>
+                Editar
+              </button>
+              <button type="button" onClick={() => handleToggleActive(edition)} disabled={pending}>
+                {edition.active ? "Inativar" : "Ativar"}
+              </button>
+            </div>
+          </li>
+        ))}
+        {visibleItems.length === 0 ? <li className="helper-text">Nenhuma edição encontrada para esta pesquisa.</li> : null}
       </ul>
+
+      {modalMode ? (
+        <EditionFormModal
+          mode={modalMode}
+          form={modalForm}
+          pending={pending}
+          onChange={setModalForm}
+          onSave={handleModalSave}
+          onClose={closeModal}
+        />
+      ) : null}
     </>
+  );
+}
+
+interface EditionFormModalProps {
+  mode: "create" | "edit";
+  form: NewspaperEditionPayload;
+  pending: boolean;
+  onChange: (updater: (form: NewspaperEditionPayload) => NewspaperEditionPayload) => void;
+  onSave: () => void;
+  onClose: () => void;
+}
+
+/**
+ * Modal único para Nova edição/Editar edição (melhoria de UI, 05/11/2026) —
+ * mesma estrutura de backdrop fixo + caixa centralizada já usada em
+ * `ArticleImageEditorModal.tsx`: ESC fecha, scroll do fundo bloqueado
+ * enquanto aberto, mesmos campos/validações do formulário anterior (nenhuma
+ * regra nova). O envio de PDF, verificação/reaproveitamento do acervo R2 e
+ * ativação/inativação continuam fora do modal, na própria linha da tabela.
+ */
+function EditionFormModal({ mode, form, pending, onChange, onSave, onClose }: EditionFormModalProps): JSX.Element {
+  useEffect(() => {
+    function handleKeyDown(event: KeyboardEvent): void {
+      if (event.key === "Escape" && !pending) onClose();
+    }
+    window.addEventListener("keydown", handleKeyDown);
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+      document.body.style.overflow = previousOverflow;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pending]);
+
+  return (
+    <div
+      className="edicoes-modal-backdrop"
+      role="presentation"
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget && !pending) onClose();
+      }}
+    >
+      <section className="edicoes-modal" role="dialog" aria-modal="true" aria-labelledby="edicao-modal-title">
+        <header className="edicoes-modal-header">
+          <h3 id="edicao-modal-title">{mode === "edit" ? "Editar edição" : "Nova edição"}</h3>
+          <button type="button" className="edicoes-modal-close" onClick={onClose} disabled={pending} aria-label="Fechar">
+            ✕
+          </button>
+        </header>
+
+        <div className="edicoes-modal-body">
+          <div className="form-grid">
+            <label className="form-field">
+              <span className="field-label">Número da edição</span>
+              <input
+                type="number"
+                min={1}
+                value={form.editionNumber}
+                onChange={(event) => onChange((current) => ({ ...current, editionNumber: event.target.value }))}
+                placeholder="Ex.: 769"
+              />
+            </label>
+            <label className="form-field">
+              <span className="field-label">Data de publicação</span>
+              <input
+                type="date"
+                value={form.publicationDate}
+                onChange={(event) => onChange((current) => ({ ...current, publicationDate: event.target.value }))}
+              />
+            </label>
+          </div>
+          <label className="form-field">
+            <span className="field-label">
+              Título <span className="field-optional">(opcional)</span>
+            </span>
+            <input
+              value={form.title}
+              onChange={(event) => onChange((current) => ({ ...current, title: event.target.value }))}
+              placeholder="Ex.: Edição 769 — 15 a 21 de setembro"
+            />
+          </label>
+          <label className="form-field">
+            <span className="field-label">
+              Páginas <span className="field-optional">(opcional)</span>
+            </span>
+            <input
+              type="number"
+              min={1}
+              value={form.pageCount}
+              onChange={(event) => onChange((current) => ({ ...current, pageCount: event.target.value }))}
+            />
+          </label>
+          {mode === "create" ? (
+            <p className="helper-text">
+              Depois de criar a edição, envie o PDF uma única vez (ou reaproveite um já existente no acervo R2). O
+              navegador envia diretamente ao Cloudflare R2; a capa é gerada automaticamente e o Supabase guarda
+              somente os metadados.
+            </p>
+          ) : null}
+        </div>
+
+        <footer className="edicoes-modal-footer">
+          <button type="button" onClick={onClose} disabled={pending}>
+            Cancelar
+          </button>
+          <button type="button" className="form-action-primary" onClick={onSave} disabled={pending}>
+            Salvar edição
+          </button>
+        </footer>
+      </section>
+    </div>
   );
 }

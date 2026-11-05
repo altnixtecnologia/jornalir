@@ -1481,6 +1481,127 @@ textarea:focus {
   color: var(--brand);
 }
 
+/* Botão de cabeçalho ordenável (Edições, Fase 28 — melhoria de UI) — mesma
+   cor/estado de .materia-sort-link, só que como <button> (ordenação é só
+   client-side aqui, sem navegação por URL como em Matérias). */
+.materia-sort-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: none;
+  border: none;
+  padding: 0;
+  margin: 0;
+  font: inherit;
+  text-transform: inherit;
+  letter-spacing: inherit;
+  color: var(--muted);
+  cursor: pointer;
+}
+.materia-sort-button:hover {
+  color: var(--ink);
+}
+.materia-sort-button.is-active {
+  color: var(--brand);
+}
+
+/* Tabela de Edições: mesma aparência de .materias-table, mas sem o
+   min-width/overflow-x forçados — poucas colunas cabem sem rolagem
+   horizontal na maioria das telas, o que permite cabeçalho sticky de
+   verdade (ver nota abaixo). Com overflow-x:auto no wrapper, o cabeçalho
+   sticky gruda relativo ao scroll do PRÓPRIO wrapper (quase sempre sem
+   rolagem vertical própria), cobrindo linhas — já testado e descartado
+   para a tabela de Matérias (ver comentário de `.materias-toolbar-compact`
+   acima). Evitado aqui removendo o overflow-x no caso comum; abaixo de
+   900px (tablet estreito), reativa o scroll horizontal e desliga o sticky
+   para não reproduzir o mesmo bug. */
+.edicoes-table-wrap {
+  overflow-x: visible;
+}
+.edicoes-table {
+  min-width: 0;
+}
+.edicoes-table thead th {
+  position: sticky;
+  top: var(--app-header-height);
+  z-index: 15;
+}
+@media (max-width: 900px) {
+  .edicoes-table-wrap {
+    overflow-x: auto;
+  }
+  .edicoes-table thead th {
+    position: static;
+  }
+}
+
+/* Modal de Nova edição/Editar edição (Edições, Fase 28 — melhoria de UI):
+   mesma estrutura de backdrop fixo + caixa centralizada já usada em
+   ArticleImageEditorModal.tsx, com classes próprias (globais, não CSS
+   module) porque este componente já usa só classes globais. */
+.edicoes-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: rgba(10, 10, 20, 0.6);
+}
+.edicoes-modal {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-width: 520px;
+  max-height: 92vh;
+  overflow-y: auto;
+  background: #fffefa;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+}
+.edicoes-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--line);
+}
+.edicoes-modal-header h3 {
+  margin: 0;
+  font-size: 16px;
+}
+.edicoes-modal-close {
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: #fff;
+  cursor: pointer;
+  font-size: 15px;
+  line-height: 1;
+}
+.edicoes-modal-body {
+  padding: 18px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.edicoes-modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 14px 20px;
+  border-top: 1px solid var(--line);
+}
+@media (max-width: 480px) {
+  .edicoes-modal {
+    max-height: 96vh;
+  }
+}
+
 .pub-cell {
   display: flex;
   flex-direction: column;
