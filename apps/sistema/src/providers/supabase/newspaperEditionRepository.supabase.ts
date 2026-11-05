@@ -81,12 +81,15 @@ async function toDomain(client: SupabaseClient, row: NewspaperEditionRow): Promi
  */
 export interface R2EditionArchiveMetadata {
   key: string;
-  publicUrl: string;
+  /** `null` quando o bucket não tem URL pública configurada (privado de
+   * propósito) — a entrega real ao navegador usa as rotas de proxy do
+   * portal, nunca este link direto. */
+  publicUrl: string | null;
   fileName: string;
   fileSize: number;
   sha256: string;
   coverKey?: string;
-  coverUrl?: string;
+  coverUrl?: string | null;
   pageCount?: number;
 }
 

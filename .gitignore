@@ -23,3 +23,7 @@ scripts/legacy-audit/checkpoints/
 scripts/r2-migration/output/
 scripts/r2-webp-optimize/output/
 .env*
+
+# Relatórios locais de investigação (CSVs/checkpoints de datas, conciliação etc.)
+# — ficam fora do repositório, só no computador local.
+docs/relatorios-locais/

@@ -2,13 +2,19 @@
 
 import { createHash } from "node:crypto";
 import { revalidatePath } from "next/cache";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import {checkModuleAction} from "../../../../lib/permissions/checkModuleAction";
 import type { ArticleMedia } from "@ir/types";
-import { getImportCandidateService, getNewspaperEditionService } from "../../../../composition/editorial";
+import { getArticleService, getImportCandidateService, getNewspaperEditionService } from "../../../../composition/editorial";
 import { extractCandidatesFromPdf } from "../../../../composition/pdfCandidateExtraction";
 import { createSupabaseServerClient } from "../../../../lib/supabase/server";
 import { getAuditContext } from "../../../../lib/auth/getAuditContext";
 import { getEditionPdfFromR2 } from "../../../../providers/r2/editionArchive.r2";
+import {
+  findPossibleDuplicateArticles,
+  type DuplicateArticleMatch,
+} from "../../../../lib/editorial/articleDuplicateDetection";
+import type { ImportCandidate } from "@ir/types";
 
 const IMPORT_PATH = "/sistema/editorial/importar-pdf";
 const LIST_PATH = "/sistema/editorial/materias";
@@ -19,12 +25,46 @@ function toErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : "Não foi possível concluir a ação.";
 }
 
+export interface CandidateDuplicateWarning {
+  candidateId: string;
+  title: string | null;
+  matches: DuplicateArticleMatch[];
+}
+
 export interface GenerateCandidatesResult {
   ok: true;
   candidateCount: number;
   pageCount: number;
   pagesWithoutText: number[];
   warnings: string[];
+  possibleDuplicates: CandidateDuplicateWarning[];
+}
+
+/**
+ * Compara cada candidato recém-extraído contra TODAS as matérias já
+ * existentes no portal (qualquer status, inclusive publicadas antes da
+ * edição impressa) por semelhança de título E de conteúdo textual. Nunca
+ * descarta, mescla ou despublica nada — só sinaliza a possível
+ * correspondência para o operador avaliar na revisão.
+ */
+async function buildDuplicateWarnings(
+  client: SupabaseClient,
+  candidates: ImportCandidate[],
+): Promise<CandidateDuplicateWarning[]> {
+  const articles = await getArticleService(client).list();
+  const duplicateCandidates = articles.map((article) => ({
+    id: article.id,
+    title: article.title,
+    body: article.body,
+    status: article.status,
+  }));
+  return candidates
+    .map((candidate) => ({
+      candidateId: candidate.id,
+      title: candidate.suggestedTitle ?? null,
+      matches: findPossibleDuplicateArticles(candidate.suggestedTitle, candidate.suggestedBody, duplicateCandidates),
+    }))
+    .filter((warning) => warning.matches.length > 0);
 }
 
 export interface DuplicatePdfResult {
@@ -110,6 +150,8 @@ export async function generateCandidates(
       );
     }
 
+    const possibleDuplicates = await buildDuplicateWarnings(client, result.candidates);
+
     revalidatePath(IMPORT_PATH);
     revalidatePath("/sistema/editorial/edicoes");
     return {
@@ -118,6 +160,7 @@ export async function generateCandidates(
       pageCount: result.pageCount,
       pagesWithoutText: result.pagesWithoutText,
       warnings,
+      possibleDuplicates,
     };
   } catch (error) {
     return { error: toErrorMessage(error) };
@@ -173,6 +216,8 @@ export async function generateCandidatesFromArchivedPdf(
       };
     }
 
+    const possibleDuplicates = await buildDuplicateWarnings(client, result.candidates);
+
     revalidatePath(IMPORT_PATH);
     revalidatePath("/sistema/editorial/edicoes");
     return {
@@ -181,6 +226,7 @@ export async function generateCandidatesFromArchivedPdf(
       pageCount: result.pageCount,
       pagesWithoutText: result.pagesWithoutText,
       warnings: result.warnings,
+      possibleDuplicates,
     };
   } catch (error) {
     return { error: toErrorMessage(error) };

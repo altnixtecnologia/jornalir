@@ -6,11 +6,14 @@ import {
   GetBucketCorsCommand,
   GetObjectCommand,
   HeadObjectCommand,
+  ListObjectsV2Command,
   PutBucketCorsCommand,
   PutObjectCommand,
   S3Client,
 } from "@aws-sdk/client-s3";
 import type { CORSRule } from "@aws-sdk/client-s3";
+import { parseEditionArchiveObjectKey } from "./editionsArchiveImportPlan";
+import { findAcervoObjectForEdition } from "./editionArchiveRecognition";
 
 export const MAX_EDITION_PDF_BYTES = 100 * 1024 * 1024;
 export const MAX_EDITION_COVER_BYTES = 3 * 1024 * 1024;
@@ -50,10 +53,20 @@ function editionCredentials(): { accessKeyId: string; secretAccessKey: string } 
   };
 }
 
+/** Bucket exclusivo pode viver em outra conta Cloudflare: exige o endpoint
+ * próprio (R2_EDITIONS_ENDPOINT), nunca reaproveita silenciosamente o
+ * endpoint do bucket de mídias. */
+function editionEndpoint(): string {
+  if (hasDedicatedEditionBucket()) {
+    return requiredEnv("R2_EDITIONS_ENDPOINT");
+  }
+  return env("R2_EDITIONS_ENDPOINT") ?? requiredEnv("R2_ENDPOINT");
+}
+
 function r2Client(): S3Client {
   return new S3Client({
     region: "auto",
-    endpoint: requiredEnv("R2_ENDPOINT"),
+    endpoint: editionEndpoint(),
     credentials: editionCredentials(),
   });
 }
@@ -70,9 +83,37 @@ function publicBase(): string {
   return base.replace(/\/$/, "");
 }
 
+/**
+ * Endpoint + bucket + credenciais — o mínimo para QUALQUER operação no
+ * bucket de edições, leitura OU escrita (upload, reaproveitamento do
+ * acervo, HEAD, listagem). Nunca exige URL pública: desde a decisão de
+ * manter o bucket privado e entregar PDFs/capas só pelas rotas de proxy
+ * do portal (`apps/site`, ver docs/JORNAL-ONLINE-ARMAZENAMENTO-E-LEITOR.md),
+ * `R2_EDITIONS_PUBLIC_BASE_URL` nunca precisa existir — exigi-la aqui
+ * bloquearia upload/reaproveitamento em qualquer ambiente sem esse domínio
+ * configurado, mesmo que a entrega pública real não dependa dele.
+ */
+export function isEditionR2ReadConfigured(): boolean {
+  try {
+    editionEndpoint();
+    bucket();
+    editionCredentials();
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Só exige URL pública ADEMAIS do mínimo acima — usada apenas por quem
+ * efetivamente precisa de um link direto e público ao objeto (hoje,
+ * nenhum caminho crítico do painel precisa: upload/reaproveitamento usam
+ * `isEditionR2ReadConfigured`, e `getEditionArchivePublicUrl` já devolve
+ * `null` sem quebrar nada quando essa URL não existe).
+ */
 export function isEditionR2ArchiveConfigured(): boolean {
   try {
-    requiredEnv("R2_ENDPOINT");
+    editionEndpoint();
     bucket();
     editionCredentials();
     publicBase();
@@ -151,8 +192,22 @@ function publicUrl(key: string): string {
   return `${publicBase()}/${key}`;
 }
 
-export function getEditionArchivePublicUrl(key: string): string {
-  return publicUrl(key);
+/** `null` quando `R2_EDITIONS_PUBLIC_BASE_URL` não está configurada — o
+ * bucket é privado de propósito, então a ausência de URL pública nunca é
+ * um erro, só significa "sem link direto". Quem grava em `pdf_url`/
+ * `cover_url` no Supabase já trata `null` normalmente (coluna aceita
+ * nulo); a entrega real ao navegador usa as rotas de proxy, nunca este
+ * link. */
+function publicUrlOrNull(key: string): string | null {
+  try {
+    return publicUrl(key);
+  } catch {
+    return null;
+  }
+}
+
+export function getEditionArchivePublicUrl(key: string): string | null {
+  return publicUrlOrNull(key);
 }
 
 function rfc3986(value: string): string {
@@ -185,7 +240,7 @@ function formatAmzDate(date: Date): { amzDate: string; dateStamp: string } {
  * credenciais R2.
  */
 function presignPutUrl(key: string, expiresSeconds = 900): string {
-  const endpoint = new URL(requiredEnv("R2_ENDPOINT"));
+  const endpoint = new URL(editionEndpoint());
   const { accessKeyId, secretAccessKey } = editionCredentials();
   const region = "auto";
   const service = "s3";
@@ -234,8 +289,8 @@ function presignPutUrl(key: string, expiresSeconds = 900): string {
 }
 
 export interface EditionDirectUploadPlan {
-  pdf: { key: string; uploadUrl: string; publicUrl: string };
-  cover: { key: string; uploadUrl: string; publicUrl: string };
+  pdf: { key: string; uploadUrl: string; publicUrl: string | null };
+  cover: { key: string; uploadUrl: string; publicUrl: string | null };
   expiresAt: string;
 }
 
@@ -253,12 +308,12 @@ export function createEditionDirectUploadPlan(
     pdf: {
       key: pdfKey,
       uploadUrl: presignPutUrl(pdfKey),
-      publicUrl: publicUrl(pdfKey),
+      publicUrl: publicUrlOrNull(pdfKey),
     },
     cover: {
       key: coverKey,
       uploadUrl: presignPutUrl(coverKey),
-      publicUrl: publicUrl(coverKey),
+      publicUrl: publicUrlOrNull(coverKey),
     },
     expiresAt: new Date(Date.now() + 15 * 60_000).toISOString(),
   };
@@ -374,7 +429,7 @@ export async function uploadEditionPdfToR2(
 
 export interface EditionCoverR2Upload {
   key: string;
-  publicUrl: string;
+  publicUrl: string | null;
 }
 
 /**
@@ -410,7 +465,7 @@ export async function uploadEditionCoverToR2(
     }),
   );
 
-  return { key, publicUrl: publicUrl(key) };
+  return { key, publicUrl: publicUrlOrNull(key) };
 }
 
 export async function getEditionPdfFromR2(key: string): Promise<Uint8Array> {
@@ -421,4 +476,89 @@ export async function getEditionPdfFromR2(key: string): Promise<Uint8Array> {
 
 export async function deleteEditionArchiveObject(key: string): Promise<void> {
   await r2Client().send(new DeleteObjectCommand({ Bucket: bucket(), Key: key }));
+}
+
+/**
+ * Procura, no acervo histórico já importado (`acervo/edicoes/IR NNN.pdf`),
+ * o PDF que corresponde a esta edição — somente leitura (lista + HEAD
+ * implícito via tamanho já retornado pela listagem). Usada para reaproveitar
+ * um PDF que já está no R2 sem exigir novo upload pelo navegador.
+ */
+export async function findAcervoEditionArchiveObject(
+  editionNumber: number,
+): Promise<EditionArchiveObjectSummary | null> {
+  const objects = await listEditionArchiveObjects("acervo/edicoes/");
+  return findAcervoObjectForEdition(objects, editionNumber, parseEditionArchiveObjectKey);
+}
+
+/** SHA-256 completo de um objeto já existente no R2 — nunca confia em
+ * ETag/tamanho isolados para provar identidade de conteúdo. */
+export async function sha256OfEditionArchiveObject(key: string): Promise<string> {
+  const bytes = await getEditionPdfFromR2(key);
+  return createHash("sha256").update(bytes).digest("hex");
+}
+
+/** Mesma convenção de chave de `uploadEditionCoverToR2`, mas a partir de um
+ * buffer já renderizado em memória (reaproveitamento do acervo, sem passar
+ * por `File`/upload do navegador). */
+export async function uploadEditionCoverBufferToR2(
+  buffer: Buffer,
+  options: EditionArchiveUploadOptions,
+): Promise<EditionCoverR2Upload> {
+  if (buffer.length <= 0 || buffer.length > MAX_EDITION_COVER_BYTES) {
+    throw new InvalidEditionArchiveUploadError("Capa vazia ou muito grande.");
+  }
+  const sha256 = createHash("sha256").update(buffer).digest("hex");
+  const prefix = archivePrefix(options.editionNumber, options.publicationDate);
+  const key = `${prefix}/capa-${sha256.slice(0, 16)}.webp`;
+
+  await r2Client().send(
+    new PutObjectCommand({
+      Bucket: bucket(),
+      Key: key,
+      Body: buffer,
+      ContentType: "image/webp",
+      CacheControl: "public, max-age=31536000, immutable",
+    }),
+  );
+
+  return { key, publicUrl: publicUrlOrNull(key) };
+}
+
+export interface EditionArchiveObjectSummary {
+  key: string;
+  size: number;
+  lastModified: string | null;
+  etag: string | null;
+}
+
+/**
+ * Lista objetos do bucket de edições (somente leitura — nenhum PUT/DELETE).
+ * Usada pelo importador de metadados do acervo histórico para reconhecer o
+ * que já existe no R2 sem reenviar nada. Pagina automaticamente.
+ */
+export async function listEditionArchiveObjects(prefix?: string): Promise<EditionArchiveObjectSummary[]> {
+  const client = r2Client();
+  const objects: EditionArchiveObjectSummary[] = [];
+  let continuationToken: string | undefined;
+  do {
+    const page = await client.send(
+      new ListObjectsV2Command({
+        Bucket: bucket(),
+        Prefix: prefix,
+        ContinuationToken: continuationToken,
+      }),
+    );
+    for (const item of page.Contents ?? []) {
+      if (!item.Key) continue;
+      objects.push({
+        key: item.Key,
+        size: Number(item.Size ?? 0),
+        lastModified: item.LastModified ? item.LastModified.toISOString() : null,
+        etag: item.ETag ?? null,
+      });
+    }
+    continuationToken = page.IsTruncated ? page.NextContinuationToken : undefined;
+  } while (continuationToken);
+  return objects;
 }

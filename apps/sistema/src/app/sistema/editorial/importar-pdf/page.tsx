@@ -11,6 +11,11 @@ import {
 import { createSupabaseServerClient } from "../../../../lib/supabase/server";
 import { editionLabel } from "../../../../features/editorial/editorialLabels";
 
+// Mesmo motivo de edicoes/page.tsx: "Gerar candidatos" (extração completa
+// de um PDF) pode levar mais tempo que o limite padrão de função do
+// Vercel sem configuração. 60s cobre Hobby e Pro sem ajuste extra.
+export const maxDuration = 60;
+
 export default async function ImportarPdfPage({
   searchParams,
 }: {

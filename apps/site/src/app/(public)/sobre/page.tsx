@@ -19,10 +19,6 @@ const pillars = [
     title: "Presença digital",
     text: "Portal, redes sociais e Jornal Online ampliam o acesso às matérias e às edições do Informativo Regional.",
   },
-  {
-    title: "Espaço para anunciantes",
-    text: "Publicidade no impresso e soluções digitais conectam empresas, serviços e campanhas ao público regional.",
-  },
 ];
 
 export default function SobrePage(): JSX.Element {
@@ -74,13 +70,34 @@ export default function SobrePage(): JSX.Element {
           </div>
         </div>
 
+        <section
+          className="mt-7 rounded-2xl border p-5 md:p-6"
+          style={{ borderColor: "var(--site-line)", background: "var(--site-surface)" }}
+        >
+          <p className="text-xs font-semibold uppercase tracking-[0.14em]" style={{ color: "var(--brand-red)" }}>
+            Nossa história
+          </p>
+          <h2 className="mt-1 font-editorial text-3xl">De São João do Sul para toda a região</h2>
+          <p className="mt-3 max-w-3xl text-sm leading-relaxed" style={{ color: "var(--site-muted)" }}>
+            O Informativo Regional nasceu em 15 de outubro de 2009, em São João do Sul (SC), pelas mãos de
+            Elizeu da Rosa Cardoso. O que começou como um jornal impresso local foi, ao longo dos anos,
+            ampliando sua circulação para outras cidades de Santa Catarina e do Rio Grande do Sul, até
+            alcançar os sete municípios que acompanha hoje.
+          </p>
+          <p className="mt-3 max-w-3xl text-sm leading-relaxed" style={{ color: "var(--site-muted)" }}>
+            Mais recentemente, o jornal impresso ganhou companhia: o portal, o Jornal Online e as redes
+            sociais passaram a levar as mesmas notícias e edições a quem acompanha a região também pela
+            internet, sem substituir a edição semanal que já faz parte da rotina dos leitores.
+          </p>
+        </section>
+
         <section className="mt-7">
           <p className="text-xs font-semibold uppercase tracking-[0.14em]" style={{ color: "var(--brand-red)" }}>
             Nossa atuação
           </p>
           <h2 className="mt-1 font-editorial text-3xl">Impresso e digital trabalhando juntos</h2>
 
-          <div className="mt-4 grid gap-4 md:grid-cols-2">
+          <div className="mt-4 grid gap-4 md:grid-cols-3">
             {pillars.map((pillar) => (
               <article
                 key={pillar.title}
@@ -122,13 +139,6 @@ export default function SobrePage(): JSX.Element {
             style={{ background: "var(--brand-navy)" }}
           >
             Ler o Jornal Online
-          </Link>
-          <Link
-            href="/assine"
-            className="rounded-lg border px-4 py-2.5 text-sm font-semibold"
-            style={{ borderColor: "var(--site-line)", color: "var(--site-text)" }}
-          >
-            Assine ou anuncie
           </Link>
           <Link
             href="/contato"

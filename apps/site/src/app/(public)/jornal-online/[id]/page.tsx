@@ -305,6 +305,15 @@ export default function JornalOnlineReaderPage(): JSX.Element {
                 Abrir PDF
               </Link>
             )}
+            {edition.archiveProvider === "r2" ? (
+              <Link
+                href={`${edition.pdfPath}?download=1`}
+                className={secondaryButtonClass}
+                style={secondaryButtonStyle}
+              >
+                Baixar PDF
+              </Link>
+            ) : null}
             <button
               type="button"
               onClick={toggleFullscreen}

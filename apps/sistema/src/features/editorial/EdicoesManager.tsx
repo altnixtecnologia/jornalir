@@ -1,15 +1,19 @@
 "use client";
 
 import { useRef, useState, useTransition } from "react";
+import Link from "next/link";
 import type { NewspaperEdition } from "@ir/types";
 import { GlobalWorkerOptions, getDocument } from "pdfjs-dist";
 import {
   abandonEditionR2UploadAction,
+  attachArchivedEditionPdfAction,
   createEdition,
   finalizeEditionR2UploadAction,
   prepareEditionR2UploadAction,
+  recognizeEditionArchivedPdfAction,
   setEditionActive,
   updateEdition,
+  type EditionExtractionOutcome,
   type NewspaperEditionPayload,
 } from "../../app/sistema/editorial/edicoes/actions";
 import { editionLabel, formatDate } from "./editorialLabels";
@@ -51,6 +55,9 @@ export function EdicoesManager({ editions }: EdicoesManagerProps): JSX.Element {
   const [editForm, setEditForm] = useState<NewspaperEditionPayload>(EMPTY_FORM);
   const [uploadingId, setUploadingId] = useState<string | null>(null);
   const [uploadStage, setUploadStage] = useState<string | null>(null);
+  const [checkingArchiveId, setCheckingArchiveId] = useState<string | null>(null);
+  const [archiveCandidate, setArchiveCandidate] = useState<Record<string, { key: string; conflict: boolean }>>({});
+  const [extractionByEdition, setExtractionByEdition] = useState<Record<string, EditionExtractionOutcome>>({});
   const [pending, startTransition] = useTransition();
   const fileInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
 
@@ -146,17 +153,32 @@ export function EdicoesManager({ editions }: EdicoesManagerProps): JSX.Element {
 
     startTransition(async () => {
       let plan: {
-        pdf: { key: string; uploadUrl: string; publicUrl: string };
-        cover: { key: string; uploadUrl: string; publicUrl: string };
+        pdf: { key: string; uploadUrl: string; publicUrl: string | null };
+        cover: { key: string; uploadUrl: string; publicUrl: string | null };
         expiresAt: string;
       } | null = null;
       try {
         const prepared = await analyzePdf(file);
         setUploadStage(`PDF validado · ${prepared.pageCount} páginas · preparando R2…`);
 
-        const authorization = await prepareEditionR2UploadAction(editionId, file.name, file.size, prepared.sha256);
+        let authorization = await prepareEditionR2UploadAction(editionId, file.name, file.size, prepared.sha256);
+        if ("conflict" in authorization) {
+          const confirmed = window.confirm(
+            `Esta edição já possui um PDF diferente arquivado${authorization.currentFileName ? ` (${authorization.currentFileName})` : ""}. ` +
+              "Substituir pelo arquivo selecionado agora? O PDF e a capa antigos serão removidos do R2 depois da confirmação.",
+          );
+          if (!confirmed) {
+            setUploadStage(null);
+            return;
+          }
+          authorization = await prepareEditionR2UploadAction(editionId, file.name, file.size, prepared.sha256, true);
+        }
         if ("error" in authorization) {
           notify.error("Não foi possível enviar a edição", authorization.error);
+          return;
+        }
+        if ("conflict" in authorization) {
+          notify.error("Não foi possível enviar a edição", "Confirmação de substituição não foi aceita.");
           return;
         }
         plan = authorization.plan;
@@ -194,6 +216,7 @@ export function EdicoesManager({ editions }: EdicoesManagerProps): JSX.Element {
         }
 
         setItems((prev) => prev.map((item) => (item.id === editionId ? finalized.edition : item)));
+        if (finalized.extraction) applyExtractionOutcome(editionId, finalized.extraction);
         setUploadStage("PDF e capa publicados no R2.");
         window.setTimeout(() => setUploadStage(null), 2500);
       } catch (uploadError) {
@@ -208,8 +231,113 @@ export function EdicoesManager({ editions }: EdicoesManagerProps): JSX.Element {
     });
   }
 
+  /**
+   * Guarda e avisa sobre o resultado da extração automática (disparada pelo
+   * servidor imediatamente após arquivar/reaproveitar o PDF — ver
+   * `edicoes/actions.ts`). Nunca aparece como erro do arquivamento em si:
+   * mesmo "failed" só significa que a extração não rodou agora, o PDF e a
+   * capa já estão gravados.
+   */
+  function applyExtractionOutcome(editionId: string, extraction: EditionExtractionOutcome): void {
+    setExtractionByEdition((prev) => ({ ...prev, [editionId]: extraction }));
+    if (extraction.status === "ok") {
+      notify.success(
+        "Matérias extraídas automaticamente",
+        `${extraction.candidateCount} candidato(s) de ${extraction.pageCount} página(s) prontos para revisão em Importar PDF.` +
+          (extraction.possibleDuplicates.length > 0
+            ? ` ${extraction.possibleDuplicates.length} com possível duplicata — confira antes de converter.`
+            : ""),
+      );
+    } else if (extraction.status === "skipped_duplicate") {
+      notify.warning(
+        "Extração não repetida",
+        `Este PDF já tinha sido processado antes (${extraction.previousBatchCandidateCount} candidato(s)). Use "Reprocessar mesmo assim" em Importar PDF se precisar.`,
+      );
+    } else {
+      notify.warning(
+        "PDF arquivado, extração automática não concluiu",
+        `${extraction.error} O PDF e a capa já estão salvos — tente novamente em Importar PDF quando quiser.`,
+      );
+    }
+  }
+
+  /**
+   * Verifica, somente leitura, se o PDF desta edição já existe no acervo
+   * histórico do R2 (`acervo/edicoes/IR NNN.pdf`) — nunca faz upload. Só
+   * depois de ver o resultado o operador decide reaproveitar
+   * (`handleReuseArchivedPdf`).
+   */
+  function handleCheckArchive(editionId: string): void {
+    setCheckingArchiveId(editionId);
+    startTransition(async () => {
+      try {
+        const result = await recognizeEditionArchivedPdfAction(editionId);
+        if ("error" in result) {
+          notify.error("Não foi possível verificar o acervo R2", result.error);
+          return;
+        }
+        const { decision, candidateKey } = result.result;
+        if (!candidateKey) {
+          notify.warning("Acervo R2", "Nenhum PDF correspondente a esta edição foi encontrado no acervo histórico.");
+          return;
+        }
+        if (decision === "same_object_already_linked") {
+          notify.success("Acervo R2", "Esta edição já está vinculada a este mesmo PDF do acervo.");
+          return;
+        }
+        setArchiveCandidate((prev) => ({
+          ...prev,
+          [editionId]: { key: candidateKey, conflict: decision === "conflict_requires_decision" },
+        }));
+        notify.success(
+          "PDF encontrado no acervo R2",
+          decision === "conflict_requires_decision"
+            ? "Já existe um PDF diferente vinculado a esta edição — confirme explicitamente para substituir."
+            : "Confirme para reaproveitar sem enviar um novo arquivo.",
+        );
+      } finally {
+        setCheckingArchiveId(null);
+      }
+    });
+  }
+
+  function handleReuseArchivedPdf(editionId: string): void {
+    const candidate = archiveCandidate[editionId];
+    if (!candidate) return;
+    if (candidate.conflict) {
+      const confirmed = window.confirm(
+        "Esta edição já tem um PDF diferente arquivado. Substituir pelo arquivo do acervo histórico agora?",
+      );
+      if (!confirmed) return;
+    }
+    setUploadingId(editionId);
+    setUploadStage("Reaproveitando PDF já existente no acervo R2…");
+    startTransition(async () => {
+      try {
+        const result = await attachArchivedEditionPdfAction(editionId, candidate.key, candidate.conflict);
+        if ("error" in result) {
+          notify.error("Não foi possível vincular o PDF do acervo", result.error);
+          return;
+        }
+        setItems((prev) => prev.map((item) => (item.id === editionId ? result.edition : item)));
+        setArchiveCandidate((prev) => {
+          const next = { ...prev };
+          delete next[editionId];
+          return next;
+        });
+        if (result.extraction) applyExtractionOutcome(editionId, result.extraction);
+        setUploadStage("PDF do acervo vinculado — capa gerada automaticamente.");
+        window.setTimeout(() => setUploadStage(null), 2500);
+      } finally {
+        setUploadingId(null);
+      }
+    });
+  }
+
   function renderPdfCell(edition: NewspaperEdition): JSX.Element {
     const isUploading = uploadingId === edition.id;
+    const isCheckingArchive = checkingArchiveId === edition.id;
+    const candidate = archiveCandidate[edition.id];
     return (
       <div className="media-upload-actions">
         {edition.pdfUrl ? (
@@ -226,6 +354,19 @@ export function EdicoesManager({ editions }: EdicoesManagerProps): JSX.Element {
         >
           {isUploading ? "Enviando…" : edition.pdfUrl ? "Trocar PDF" : "Enviar ao Jornal Online"}
         </button>
+        <button
+          type="button"
+          onClick={() => handleCheckArchive(edition.id)}
+          disabled={pending || isUploading || isCheckingArchive}
+          title="Verifica, sem enviar nada, se este PDF já existe no acervo histórico do R2."
+        >
+          {isCheckingArchive ? "Verificando…" : "Verificar acervo R2"}
+        </button>
+        {candidate ? (
+          <button type="button" onClick={() => handleReuseArchivedPdf(edition.id)} disabled={pending || isUploading}>
+            {candidate.conflict ? "Substituir pelo PDF do acervo" : "Reaproveitar PDF do acervo"}
+          </button>
+        ) : null}
         <input
           ref={(element) => {
             fileInputRefs.current[edition.id] = element;
@@ -235,6 +376,62 @@ export function EdicoesManager({ editions }: EdicoesManagerProps): JSX.Element {
           className="visually-hidden"
           onChange={(event) => handlePdfSelected(edition.id, event)}
         />
+        {renderExtractionSummary(edition.id)}
+      </div>
+    );
+  }
+
+  /**
+   * Resumo da extração automática, exibido ANTES da revisão editorial
+   * (Importar PDF) — exatamente onde o operador acabou de arquivar/
+   * reaproveitar o PDF. Nunca permite descartar/substituir nada aqui; só
+   * informa e linka para a tela de revisão de candidatos.
+   */
+  function renderExtractionSummary(editionId: string): JSX.Element | null {
+    const extraction = extractionByEdition[editionId];
+    if (!extraction) return null;
+    if (extraction.status === "failed") {
+      return (
+        <p className="helper-text" style={{ color: "var(--danger, #b42318)" }}>
+          PDF arquivado; extração automática não concluiu ({extraction.error}).{" "}
+          <Link href={`/sistema/editorial/importar-pdf?edicao=${editionId}`}>Tentar novamente</Link>
+        </p>
+      );
+    }
+    if (extraction.status === "skipped_duplicate") {
+      return (
+        <p className="helper-text">
+          Este PDF já tinha sido processado ({extraction.previousBatchCandidateCount} candidato(s)).{" "}
+          <Link href={`/sistema/editorial/importar-pdf?edicao=${editionId}`}>Revisar em Importar PDF</Link>
+        </p>
+      );
+    }
+    return (
+      <div className="helper-text">
+        <p>
+          {extraction.candidateCount} candidato(s) extraído(s) automaticamente de {extraction.pageCount} página(s) —{" "}
+          <Link href={`/sistema/editorial/importar-pdf?edicao=${editionId}`}>revisar agora</Link>.
+        </p>
+        {extraction.possibleDuplicates.length > 0 ? (
+          <div className="form-error" role="alert">
+            <p>Possível duplicata com matéria já existente:</p>
+            <ul>
+              {extraction.possibleDuplicates.map((warning) => (
+                <li key={warning.candidateId}>
+                  <strong>{warning.title ?? "Sem título sugerido"}</strong>
+                  {" — "}
+                  {warning.matches.map((match, index) => (
+                    <span key={match.articleId}>
+                      {index > 0 ? "; " : ""}
+                      <Link href={`/sistema/editorial/materias/${match.articleId}`}>{match.title}</Link>
+                      {` (${Math.round(match.score * 100)}%)`}
+                    </span>
+                  ))}
+                </li>
+              ))}
+            </ul>
+          </div>
+        ) : null}
       </div>
     );
   }

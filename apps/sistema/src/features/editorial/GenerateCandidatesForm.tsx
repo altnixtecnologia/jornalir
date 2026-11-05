@@ -1,9 +1,11 @@
 "use client";
 
 import { useRef, useState, useTransition } from "react";
+import Link from "next/link";
 import {
   generateCandidates,
   generateCandidatesFromArchivedPdf,
+  type CandidateDuplicateWarning,
 } from "../../app/sistema/editorial/importar-pdf/actions";
 import { notify } from "../../lib/feedback/notify";
 
@@ -18,6 +20,7 @@ interface DoneState {
   pageCount: number;
   pagesWithoutText: number[];
   warnings: string[];
+  possibleDuplicates: CandidateDuplicateWarning[];
 }
 
 interface DuplicateState {
@@ -139,6 +142,35 @@ export function GenerateCandidatesForm({
           {done.warnings.map((warning) => (
             <p key={warning}>{warning}</p>
           ))}
+          {done.possibleDuplicates.length > 0 ? (
+            <div className="form-error" role="alert" style={{ marginTop: 8 }}>
+              <p>
+                {done.possibleDuplicates.length} candidato(s) com possível correspondência em matérias já
+                existentes — confira antes de converter, a decisão é sempre sua:
+              </p>
+              <ul>
+                {done.possibleDuplicates.map((warning) => (
+                  <li key={warning.candidateId}>
+                    <strong>{warning.title ?? "Sem título sugerido"}</strong>
+                    {" — "}
+                    {warning.matches.map((match, index) => (
+                      <span key={match.articleId}>
+                        {index > 0 ? "; " : ""}
+                        <Link href={`/sistema/editorial/materias/${match.articleId}`}>{match.title}</Link>
+                        {` (${Math.round(match.score * 100)}% semelhante — ${
+                          match.reason === "content"
+                            ? "conteúdo"
+                            : match.reason === "title_and_content"
+                              ? "título e conteúdo"
+                              : "título"
+                        })`}
+                      </span>
+                    ))}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
         </div>
       ) : null}
     </div>

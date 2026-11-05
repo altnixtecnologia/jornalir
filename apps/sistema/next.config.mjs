@@ -58,7 +58,11 @@ const nextConfig = {
     // detecção dinâmica de ambiente Node que o webpack não processa bem;
     // mantê-lo como dependência externa do runtime do servidor evita que o
     // bundler tente empacotá-lo e preserva o comportamento nativo em Node.
-    serverComponentsExternalPackages: ["pdfjs-dist"],
+    // @napi-rs/canvas (reaproveitamento de PDF do acervo R2 em
+    // editionCoverRenderer.ts, chamado agora por uma Server Action) carrega
+    // um binário nativo (.node) por plataforma — o webpack tenta parsear
+    // esse binário como módulo JS e quebra o build sem esta exclusão.
+    serverComponentsExternalPackages: ["pdfjs-dist", "@napi-rs/canvas"],
   },
 };
 

@@ -340,18 +340,20 @@ export function SiteHeader({ emphasized = false }: { active?: string; emphasized
           </div>
 
           {assineEnabled ? (
-            <Link href="/assine" className="nav-pill nav-pill--solid">
-              Assine
+            <Link href="/assine" className="nav-pill">
+              Assine ou anuncie
             </Link>
           ) : null}
         </div>
       </div>
 
-      {/* Mobile: Assine à esquerda, IR centralizado, busca + menu à direita. */}
+      {/* Mobile: Assine à esquerda, IR centralizado, busca + menu à direita.
+          Rótulo curto aqui por espaço (barra compacta de 58px); a opção
+          completa "Assine ou anuncie" aparece no menu expandido abaixo. */}
       <div className="site-shell ir-mobile-header h-[58px] lg:hidden">
         <div className="ir-mobile-header-left">
           {assineEnabled ? (
-            <Link href="/assine" className="nav-pill nav-pill--solid mobile-assine-cta">
+            <Link href="/assine" className="nav-pill">
               Assine
             </Link>
           ) : null}
@@ -448,8 +450,8 @@ export function SiteHeader({ emphasized = false }: { active?: string; emphasized
             <div className="flex min-w-0 flex-col items-start gap-2">
               <InstalledAndroidVersion />
               {assineEnabled ? (
-                <Link href="/assine" className="nav-pill nav-pill--solid">
-                  Assine
+                <Link href="/assine" className="nav-pill">
+                  Assine ou anuncie
                 </Link>
               ) : null}
             </div>
