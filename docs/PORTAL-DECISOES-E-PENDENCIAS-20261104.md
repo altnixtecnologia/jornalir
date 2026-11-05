@@ -37,3 +37,12 @@
 - Esta nota **não autoriza** nova conta R2, upload/migração, aplicação de migration, ativação do Assine, envio de notificações ou publicação de nova versão.
 - Alterações futuras no portal devem ser isoladas, testadas e comparadas com o código realmente publicado; respeitar a aprovação visual, especialmente da página Sobre e do leitor do Jornal Online.
 - **WhatsApp de atendimento** continua suspenso e é uma pendência do ecossistema geral, **não uma pendência do portal**.
+
+## 06/11/2026 — URL pública do R2 de edições ADIADA (decisão do proprietário)
+
+- O bucket privado `jornal-ir-edicoes` foi criado numa **segunda conta Cloudflare R2**, exclusiva para PDFs e capas do Jornal Online. O usuário já criou token exclusivo; a transferência dos PDFs a partir do computador `Informativo03` foi iniciada, **sem conclusão confirmada** neste momento.
+- **Decisão explícita:** a configuração de **Custom Domain / URL pública** do bucket está **ADIADA até o proprietário assumir o controle do domínio do jornal**. Não utilizar um subdomínio hipotético como se já estivesse disponível; não ativar a `Public Development URL` (`r2.dev`) para antecipar publicação.
+- Na verificação do painel Cloudflare, **Custom Domains: nenhum; Public Development URL: desativada; CORS Policy: inexistente**. O bucket deve permanecer privado enquanto isso.
+- `R2_EDITIONS_ENDPOINT` é o endpoint S3 **privado/autenticado** da segunda conta e é distinto de `R2_EDITIONS_PUBLIC_BASE_URL`, que deve continuar **vazia** até domínio/CORS/teste aprovados.
+- **Quando o domínio estiver disponível:** confirmar seu controle e a possibilidade de associá-lo à conta Cloudflare nova (a zona/domínio deve ser compatível com a configuração exigida pela Cloudflare), definir o subdomínio para os PDFs, configurar domínio público + CORS, testar leitura/Range e capas, então preencher `R2_EDITIONS_PUBLIC_BASE_URL` no ambiente local e na Vercel em etapa autorizada. Somente depois decidir a publicação do acervo/registro no Jornal Online.
+- Esta nota **não autoriza** configurar domínio, tornar PDFs públicos, modificar DNS, efetuar deploy ou encerrar a transferência em curso.
