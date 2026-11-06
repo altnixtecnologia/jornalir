@@ -40,31 +40,47 @@ import sharp from "sharp";
  *    com uma string literal — inclusive só passá-lo como argumento — é
  *    reescrita pelo webpack (vira um número ou um módulo-stub).
  *
- * Correção real: abandonar `require.resolve()` por completo. Usamos apenas
- * `import.meta.url` (uma string — webpack a substitui pelo caminho real do
- * arquivo em texto puro, sem nenhuma reescrita especial, confirmado no
- * bundle compilado) e funções simples de `node:fs`/`node:path`, subindo os
- * diretórios a partir deste arquivo até achar `node_modules/pdfjs-dist` —
- * o mesmo algoritmo que o Node usa internamente para resolver módulos, só
- * que escrito à mão, sem tocar em `require`. Nada aqui é um padrão que o
- * webpack reconheça como "resolução de módulo" para reescrever. Comprovado
- * reconstruindo o bundle de produção e executando o módulo de verdade —
- * ver test/edition-cover-renderer-init.test.ts.
+ * Evolução: abandonar `require.resolve()` por completo evitou o ID
+ * numérico do webpack, mas ainda houve falha ao localizar os assets do
+ * PDF.js: `import.meta.url` foi preservado como caminho de build
+ * (/vercel/path0), inexistente em runtime (/var/task). A busca abaixo usa
+ * primeiro LAMBDA_TASK_ROOT/process.cwd(), e não bloqueia a renderização
+ * quando arquivos auxiliares opcionais não foram empacotados.
+ * O PDF principal continua carregado pela dependência pdfjs-dist.
  */
 const pdfjsRequire = createRequire(import.meta.url);
 
 function findPdfjsDistRoot(): string {
-  let dir = dirname(fileURLToPath(import.meta.url));
-  for (let i = 0; i < 12; i += 1) {
-    const candidate = join(dir, "node_modules", "pdfjs-dist");
-    if (existsSync(candidate)) return candidate;
-    const parent = dirname(dir);
-    if (parent === dir) break;
-    dir = parent;
+  // Na Vercel, import.meta.url pode manter o caminho da máquina de BUILD
+  // (/vercel/path0), que não existe na função publicada (/var/task).
+  // Procurar primeiro a partir do diretório real de execução da função.
+  const origins = [
+    process.env.LAMBDA_TASK_ROOT,
+    process.cwd(),
+    dirname(fileURLToPath(import.meta.url)),
+  ];
+  for (const origin of origins) {
+    if (!origin) continue;
+    let dir = origin;
+    for (let i = 0; i < 12; i += 1) {
+      const candidates = [
+        join(dir, "node_modules", "pdfjs-dist"),
+        join(dir, "apps", "sistema", "node_modules", "pdfjs-dist"),
+      ];
+      for (const candidate of candidates) {
+        if (existsSync(join(candidate, "package.json"))) return candidate;
+      }
+      const parent = dirname(dir);
+      if (parent === dir) break;
+      dir = parent;
+    }
   }
-  throw new Error(
-    `pdfjs-dist não encontrado em nenhum node_modules a partir de ${dirname(fileURLToPath(import.meta.url))}`,
-  );
+
+  // cmaps/ e standard_fonts/ são recursos OPCIONAIS do PDF.js.
+  // Não impedir a geração da capa quando o empacotador serverless não os
+  // incluiu. O próprio PDF (em geral com fontes incorporadas) ainda pode
+  // ser renderizado; emitir os avisos normais do PDF.js se precisar deles.
+  return "";
 }
 
 interface PdfjsAssets {
@@ -90,8 +106,12 @@ function loadPdfjsAssets(): PdfjsAssets {
 
   cachedPdfjsAssets = {
     getDocument: pdfjsLegacy.getDocument,
-    standardFontDataUrl: join(pdfjsRoot, "standard_fonts") + "/",
-    cMapUrl: join(pdfjsRoot, "cmaps") + "/",
+    standardFontDataUrl: pdfjsRoot && existsSync(join(pdfjsRoot, "standard_fonts"))
+      ? join(pdfjsRoot, "standard_fonts") + "/"
+      : "",
+    cMapUrl: pdfjsRoot && existsSync(join(pdfjsRoot, "cmaps"))
+      ? join(pdfjsRoot, "cmaps") + "/"
+      : "",
   };
   return cachedPdfjsAssets;
 }
@@ -165,9 +185,10 @@ export async function renderEditionCoverWebp(
     data: pdfBytes,
     useSystemFonts: false,
     isEvalSupported: false,
-    standardFontDataUrl,
-    cMapUrl,
-    cMapPacked: true,
+    // Se os diretórios auxiliares não estiverem no bundle serverless, não
+    // passar caminhos inválidos ao PDF.js; fontes incorporadas funcionam.
+    ...(standardFontDataUrl ? { standardFontDataUrl } : {}),
+    ...(cMapUrl ? { cMapUrl, cMapPacked: true } : {}),
     canvasFactory: canvasFactory as never,
   });
 
