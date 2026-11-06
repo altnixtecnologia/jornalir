@@ -92,7 +92,7 @@ async function putToR2(url: string, contentType: string, body: Blob): Promise<Re
   } catch {
     throw new Error(
       "O Cloudflare R2 recusou o envio direto pelo navegador (regra CORS do bucket de edições não configurada). " +
-        "Se o PDF já estiver no acervo, use \"Verificar acervo R2\" e depois \"Reaproveitar do acervo\".",
+        "Se o PDF já estiver no acervo, use \"Verificar acervo R2\" e depois \"Vincular e gerar matérias\".",
     );
   }
 }
@@ -605,7 +605,9 @@ export function EdicoesManager({ editions }: EdicoesManagerProps): JSX.Element {
           disabled={!candidate || pending || isUploading}
           title={candidate ? undefined : "Use antes \"Verificar acervo R2\" para localizar o PDF no acervo."}
         >
-          {candidate?.conflict ? "Substituir pelo acervo" : "Reaproveitar do acervo"}
+          {/* Nome pedido pelo usuário (07/11/2026): o clique vincula o PDF do
+              acervo (capa + Jornal Online) e enfileira a geração de matérias. */}
+          {candidate?.conflict ? "Substituir e gerar matérias" : "Vincular e gerar matérias"}
         </button>
         <input
           ref={(element) => {

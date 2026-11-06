@@ -63,6 +63,25 @@ const nextConfig = {
     // um binário nativo (.node) por plataforma — o webpack tenta parsear
     // esse binário como módulo JS e quebra o build sem esta exclusão.
     serverComponentsExternalPackages: ["pdfjs-dist", "@napi-rs/canvas"],
+    // Produção (07/11/2026): "Setting up fake worker failed: Cannot find
+    // module './pdf.worker.js'" ao reaproveitar PDF do acervo. O PDF.js
+    // carrega o worker por eval("require"), invisível ao rastreador de
+    // arquivos; o código já entrega o worker por require literal
+    // (globalThis.pdfjsWorker) e isto garante os arquivos na função mesmo
+    // assim. Caminhos relativos a apps/sistema (node_modules fica na raiz
+    // do monorepo).
+    outputFileTracingIncludes: {
+      "/sistema/editorial/**": [
+        "../../node_modules/pdfjs-dist/legacy/build/pdf.worker.js",
+        "../../node_modules/pdfjs-dist/standard_fonts/**",
+        "../../node_modules/pdfjs-dist/cmaps/**",
+      ],
+      "/api/cron/edition-materias": [
+        "../../node_modules/pdfjs-dist/legacy/build/pdf.worker.js",
+        "../../node_modules/pdfjs-dist/standard_fonts/**",
+        "../../node_modules/pdfjs-dist/cmaps/**",
+      ],
+    },
   },
 };
 

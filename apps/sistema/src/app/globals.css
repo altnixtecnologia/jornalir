@@ -1566,7 +1566,7 @@ textarea:focus {
    mesmas posições em todas as linhas; botão sem uso fica desativado. */
 .edicoes-table .media-upload-actions {
   display: grid;
-  grid-template-columns: 84px 160px 132px 156px;
+  grid-template-columns: 84px 160px 132px 184px;
   align-items: center;
   gap: 6px;
   margin-top: 0;

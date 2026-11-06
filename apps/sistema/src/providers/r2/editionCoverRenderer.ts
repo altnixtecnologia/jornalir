@@ -102,6 +102,17 @@ function loadPdfjsAssets(): PdfjsAssets {
 
   // eslint-disable-next-line @typescript-eslint/no-var-requires
   const pdfjsLegacy = pdfjsRequire("pdfjs-dist/legacy/build/pdf.js") as typeof import("pdfjs-dist/types/src/pdf");
+  // Produção (07/11/2026): "Setting up fake worker failed: Cannot find module
+  // './pdf.worker.js'". Em Node o PDF.js carrega o worker por
+  // `eval("require")(workerSrc)`, que o rastreador de arquivos da Vercel não
+  // enxerga — o arquivo não vai para a função. Antes disso ele consulta
+  // `globalThis.pdfjsWorker`; entregar o módulo por require literal (que é
+  // rastreado) resolve sem depender de caminho em disco.
+  const globalWithWorker = globalThis as { pdfjsWorker?: unknown };
+  if (!globalWithWorker.pdfjsWorker) {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    globalWithWorker.pdfjsWorker = pdfjsRequire("pdfjs-dist/legacy/build/pdf.worker.js");
+  }
   const pdfjsRoot = findPdfjsDistRoot();
 
   cachedPdfjsAssets = {

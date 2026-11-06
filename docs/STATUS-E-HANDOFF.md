@@ -3299,3 +3299,17 @@ Sem isso, "Enviar ao Jornal Online" (PDF novo do computador) continua bloqueado 
 
 **CORS configurado pelo usuário no painel Cloudflare (07/11/2026)**: preflight conferido — `controle.altnix.com.br` e `jornalir-sistema.vercel.app` → HTTP 204 com `access-control-allow-origin` correto e métodos PUT, GET, HEAD. Envio direto navegador→R2 liberado.
 
+
+## 07/11/2026 — "Setting up fake worker failed: Cannot find module './pdf.worker.js'" ao vincular PDF do acervo + nome do botão
+
+**Relato do usuário**: na 776, "Reaproveitar do acervo" falhou com o erro acima (produção, `dpl_4fvV3Bm4Ft6Z4NHdqeNDPbbJcoTA`). Pediu também que o botão tenha um nome ligado a gerar matérias.
+
+**Causa**: no servidor, o PDF.js (build legacy) monta um "worker falso" com `eval("require")("./pdf.worker.js")` — invisível ao rastreador de arquivos da Vercel, então o arquivo não vai para a função. Afeta a capa (`editionCoverRenderer.ts`) e também a separação de matérias (`packages/pdf-extraction/src/pdfjsNode.ts`, que ainda usava `require.resolve` — mesmo padrão que já quebrou na Vercel com ID numérico do webpack). Antes de procurar o arquivo, o PDF.js consulta `globalThis.pdfjsWorker`.
+
+**Feito**:
+- Os dois módulos entregam `globalThis.pdfjsWorker = pdfjsRequire("pdfjs-dist/legacy/build/pdf.worker.js")` (require literal, rastreável). `pdfjsNode.ts` sem `require.resolve`: procura `node_modules/pdfjs-dist` subindo pastas (igual à capa); fontes/cmaps opcionais.
+- `next.config.mjs`: `outputFileTracingIncludes` com o worker, `standard_fonts` e `cmaps` para `/sistema/editorial/**` e `/api/cron/edition-materias`.
+- Botão renomeado: **"Vincular e gerar matérias"** / **"Substituir e gerar matérias"** (coluna da grade 184px).
+- Testes: simulação com o pdfjs-dist SEM o worker (igual à função da Vercel) — sem o conserto reproduz exatamente o erro; com o conserto abre a edição 775 (24 páginas). Módulos reais: capa 600×782 gerada e texto lido (700 trechos na pág. 2). Suíte `apps/sistema` 277/277, `tsc` limpo.
+
+**FALTA**: deploy + promote pelo usuário e novo teste da 776 (Verificar acervo R2 → Vincular e gerar matérias); depois conferir coluna Matérias (worker de matérias nunca rodou com PDF real em produção).
