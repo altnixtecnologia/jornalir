@@ -501,6 +501,11 @@ export async function sha256OfEditionArchiveObject(key: string): Promise<string>
 /** Mesma convenção de chave de `uploadEditionCoverToR2`, mas a partir de um
  * buffer já renderizado em memória (reaproveitamento do acervo, sem passar
  * por `File`/upload do navegador). */
+export function editionCoverBufferKey(buffer: Buffer, options: EditionArchiveUploadOptions): string {
+  const sha256 = createHash("sha256").update(buffer).digest("hex");
+  return `${archivePrefix(options.editionNumber, options.publicationDate)}/capa-${sha256.slice(0, 16)}.webp`;
+}
+
 export async function uploadEditionCoverBufferToR2(
   buffer: Buffer,
   options: EditionArchiveUploadOptions,
@@ -508,9 +513,7 @@ export async function uploadEditionCoverBufferToR2(
   if (buffer.length <= 0 || buffer.length > MAX_EDITION_COVER_BYTES) {
     throw new InvalidEditionArchiveUploadError("Capa vazia ou muito grande.");
   }
-  const sha256 = createHash("sha256").update(buffer).digest("hex");
-  const prefix = archivePrefix(options.editionNumber, options.publicationDate);
-  const key = `${prefix}/capa-${sha256.slice(0, 16)}.webp`;
+  const key = editionCoverBufferKey(buffer, options);
 
   await r2Client().send(
     new PutObjectCommand({
