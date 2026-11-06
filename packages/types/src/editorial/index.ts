@@ -229,6 +229,28 @@ export interface NewspaperEdition {
   /** Inativar é a única forma de remoção pela UI — nunca exclusão destrutiva. */
   active: boolean;
   createdAt: string;
+
+  // --- Fluxo unificado de carregamento do Jornal Online (06/11/2026) ---
+  /** preparing (sem PDF ainda) / scheduled (aguardando scheduledAvailableAt) / available / attention (ver onlineError). */
+  onlineStatus?: "preparing" | "scheduled" | "available" | "attention";
+  onlineError?: string;
+  /** Data/hora (ISO UTC) em que a edição deve ficar disponível — padrão: dia seguinte às 07:00 America/Sao_Paulo. */
+  scheduledAvailableAt?: string;
+  /** Data/hora (ISO UTC) em que a edição de fato ficou disponível. */
+  availableAt?: string;
+  /** sent/partial/failed/uncertain refletem o resultado REAL das entregas (nunca otimista); queued = enfileirado, aguardando confirmação. */
+  notificationStatus?: "pending" | "queued" | "sent" | "partial" | "failed" | "skipped" | "uncertain";
+  notificationSentAt?: string;
+  /** null = extração automática nunca rodou para esta edição (ex.: PDF histórico). */
+  materiasStatus?: "queued" | "processing" | "completed" | "partial" | "failed" | null;
+  materiasCandidateCount?: number;
+  materiasDraftCount?: number;
+  materiasFailedCount?: number;
+  materiasStartedAt?: string;
+  materiasFinishedAt?: string;
+  uploadedByName?: string;
+  uploadedAt?: string;
+  scheduledByName?: string;
 }
 
 // --- Importação de PDF (Parte G do Plano Mestre) ---

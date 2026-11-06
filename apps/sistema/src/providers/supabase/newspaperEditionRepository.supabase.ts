@@ -19,8 +19,13 @@ const PREVIEW_EDITIONS: NewspaperEdition[] = [
 ];
 
 const TABLE = "newspaper_editions";
+// Uma única string literal (sem concatenação com `+`): o operador `+`
+// alarga o tipo para `string` (perde o tipo literal), e o parser de tipos
+// do supabase-js precisa do tipo literal exato da string de `select()` —
+// sem isso, a consulta inteira degrada silenciosamente para
+// `GenericStringError` em tempo de tipo (sem erro em runtime, só no tsc).
 const COLUMNS =
-  "id, edition_number, publication_date, title, pdf_url, pdf_storage_path, cover_url, archive_provider, pdf_r2_key, pdf_file_name, pdf_sha256, page_count, active, created_at";
+  "id, edition_number, publication_date, title, pdf_url, pdf_storage_path, cover_url, archive_provider, pdf_r2_key, pdf_file_name, pdf_sha256, page_count, active, created_at, online_status, online_error, scheduled_available_at, available_at, notification_status, notification_sent_at, materias_status, materias_candidate_count, materias_draft_count, materias_failed_count, materias_started_at, materias_finished_at, uploaded_by, uploaded_at, scheduled_by";
 
 interface NewspaperEditionRow {
   id: string;
@@ -37,6 +42,32 @@ interface NewspaperEditionRow {
   page_count: number | null;
   active: boolean;
   created_at: string;
+  online_status?: "preparing" | "scheduled" | "available" | "attention" | null;
+  online_error?: string | null;
+  scheduled_available_at?: string | null;
+  available_at?: string | null;
+  notification_status?: "pending" | "queued" | "sent" | "partial" | "failed" | "skipped" | "uncertain" | null;
+  notification_sent_at?: string | null;
+  materias_status?: "queued" | "processing" | "completed" | "partial" | "failed" | null;
+  materias_candidate_count?: number | null;
+  materias_draft_count?: number | null;
+  materias_failed_count?: number | null;
+  materias_started_at?: string | null;
+  materias_finished_at?: string | null;
+  uploaded_by?: string | null;
+  uploaded_at?: string | null;
+  scheduled_by?: string | null;
+}
+
+/** Nomes de perfis em lote (evita N+1 e evita o parser de tipos do select-string
+ * do supabase-js, que não reconhece embeds com FK explícita e cai pra
+ * `GenericStringError`). Uma consulta simples por id é mais robusta aqui. */
+async function fetchProfileNames(client: SupabaseClient, ids: string[]): Promise<Map<string, string>> {
+  const uniqueIds = Array.from(new Set(ids.filter((id): id is string => Boolean(id))));
+  if (uniqueIds.length === 0) return new Map();
+  const { data, error } = await client.from("profiles").select("id, name").in("id", uniqueIds);
+  if (error) throw new Error(error.message);
+  return new Map((data ?? []).map((row) => [row.id as string, (row.name as string | null) ?? ""]));
 }
 
 /**
@@ -49,7 +80,11 @@ interface NewspaperEditionRow {
  * fica guardada/expirada no banco. Sem upload, cai para `pdf_url` (uma URL
  * externa já hospedada, colada manualmente).
  */
-async function toDomain(client: SupabaseClient, row: NewspaperEditionRow): Promise<NewspaperEdition> {
+async function toDomain(
+  client: SupabaseClient,
+  row: NewspaperEditionRow,
+  profileNames?: Map<string, string>,
+): Promise<NewspaperEdition> {
   const pdfUrl = row.pdf_storage_path
     ? await signEditionPdfUrl(client, row.pdf_storage_path)
     : row.pdf_url ?? undefined;
@@ -69,6 +104,21 @@ async function toDomain(client: SupabaseClient, row: NewspaperEditionRow): Promi
     pageCount: row.page_count ?? undefined,
     active: row.active,
     createdAt: row.created_at,
+    onlineStatus: row.online_status ?? undefined,
+    onlineError: row.online_error ?? undefined,
+    scheduledAvailableAt: row.scheduled_available_at ?? undefined,
+    availableAt: row.available_at ?? undefined,
+    notificationStatus: row.notification_status ?? undefined,
+    notificationSentAt: row.notification_sent_at ?? undefined,
+    materiasStatus: row.materias_status ?? null,
+    materiasCandidateCount: row.materias_candidate_count ?? undefined,
+    materiasDraftCount: row.materias_draft_count ?? undefined,
+    materiasFailedCount: row.materias_failed_count ?? undefined,
+    materiasStartedAt: row.materias_started_at ?? undefined,
+    materiasFinishedAt: row.materias_finished_at ?? undefined,
+    uploadedByName: (row.uploaded_by && profileNames?.get(row.uploaded_by)) || undefined,
+    uploadedAt: row.uploaded_at ?? undefined,
+    scheduledByName: (row.scheduled_by && profileNames?.get(row.scheduled_by)) || undefined,
   };
 }
 
@@ -166,6 +216,141 @@ export async function attachEditionExternalPdf(
   if (error) throw new Error(error.message);
 }
 
+/**
+ * Marca quem/quando enviou ou vinculou o PDF oficial, e agenda a
+ * disponibilização padrão (dia seguinte 07:00 America/Sao_Paulo, calculado
+ * pelo chamador) — só quando a edição AINDA não tinha nenhum agendamento
+ * (nunca sobrescreve um horário já definido manualmente por reenvio do
+ * mesmo arquivo/reprocessamento). `onlineStatus` passa a 'scheduled'.
+ *
+ * CORREÇÃO DA AUDITORIA (item 1, prioridade máxima, 06/11/2026): a decisão
+ * de desativar a edição olha `active` de verdade, lido AGORA do banco —
+ * nunca só `online_status` (que, sem o backfill da migration, começaria
+ * 'preparing' em qualquer edição histórica). Uma edição que já estava
+ * `active=true` ANTES desta chamada NUNCA é desativada aqui, mesmo que o
+ * backfill remoto ainda não tenha sido aplicado — a proteção não depende
+ * só da migration (defesa em profundidade pedida pelo usuário).
+ */
+export async function markEditionUploadedAndSchedule(
+  client: SupabaseClient,
+  editionId: string,
+  input: { uploadedBy: string; defaultScheduledAvailableAtIso: string },
+): Promise<void> {
+  const { data: current, error: readError } = await client
+    .from(TABLE)
+    .select("scheduled_available_at, online_status, active, available_at")
+    .eq("id", editionId)
+    .maybeSingle();
+  if (readError) throw new Error(readError.message);
+
+  // Qualquer sinal de que a edição já estava pública antes desta operação
+  // — nunca confiar só em online_status, que pode estar desatualizado
+  // (edição histórica sem backfill ainda aplicado).
+  const wasAlreadyLive = Boolean(current?.active) || current?.online_status === "available";
+
+  const patch: Record<string, unknown> = {
+    uploaded_by: input.uploadedBy,
+    uploaded_at: new Date().toISOString(),
+    online_error: null,
+  };
+
+  if (wasAlreadyLive) {
+    // Reaproveitar/anexar o PDF de uma edição que o público já está lendo
+    // (ex.: as ~497 edições históricas, ou a 776) NUNCA pode tirá-la do
+    // ar nem adiar sua disponibilização — só corrige os metadados de
+    // estado para ficarem coerentes com a realidade.
+    patch.online_status = "available";
+    patch.active = true;
+    if (!current?.available_at) patch.available_at = new Date().toISOString();
+  } else {
+    patch.online_status = "scheduled";
+    patch.active = false;
+    if (!current?.scheduled_available_at) {
+      patch.scheduled_available_at = input.defaultScheduledAvailableAtIso;
+      patch.scheduled_by = input.uploadedBy;
+    }
+  }
+  const { error } = await client.from(TABLE).update(patch).eq("id", editionId);
+  if (error) throw new Error(error.message);
+}
+
+/**
+ * Alteração manual (ou nova definição) da data/hora de disponibilização —
+ * sempre por uma pessoa identificada (auditoria em `edicoes/actions.ts`).
+ * Mesma proteção de `markEditionUploadedAndSchedule`: olha `active` real,
+ * nunca só `online_status`.
+ */
+export async function scheduleEditionAvailability(
+  client: SupabaseClient,
+  editionId: string,
+  scheduledAvailableAtIso: string,
+  scheduledBy: string,
+): Promise<void> {
+  const { data: current, error: readError } = await client
+    .from(TABLE)
+    .select("online_status, active")
+    .eq("id", editionId)
+    .maybeSingle();
+  if (readError) throw new Error(readError.message);
+
+  const patch: Record<string, unknown> = {
+    scheduled_available_at: scheduledAvailableAtIso,
+    scheduled_by: scheduledBy,
+    online_error: null,
+  };
+  // Uma edição JÁ disponível (active=true ou online_status='available')
+  // nunca é ocultada de novo só por uma alteração manual na data — isso
+  // faria algo que o público já está lendo "desaparecer". Volta a
+  // 'scheduled' (nova espera pelo cron) só quando ainda não estava
+  // disponível de verdade.
+  const isLive = Boolean(current?.active) || current?.online_status === "available";
+  if (!isLive) {
+    patch.online_status = "scheduled";
+  }
+  const { error } = await client.from(TABLE).update(patch).eq("id", editionId);
+  if (error) throw new Error(error.message);
+}
+
+export interface MateriasStatusUpdate {
+  status: "queued" | "processing" | "completed" | "partial" | "failed";
+  candidateCount?: number;
+  draftCount?: number;
+  failedCount?: number;
+  startedAt?: string;
+  finishedAt?: string;
+}
+
+/** Persiste o estado da separação automática de matérias — nunca só em
+ * memória/retorno de Server Action (o operador pode fechar a aba). */
+export async function updateEditionMateriasStatus(
+  client: SupabaseClient,
+  editionId: string,
+  update: MateriasStatusUpdate,
+): Promise<void> {
+  const patch: Record<string, unknown> = { materias_status: update.status };
+  if (update.candidateCount !== undefined) patch.materias_candidate_count = update.candidateCount;
+  if (update.draftCount !== undefined) patch.materias_draft_count = update.draftCount;
+  if (update.failedCount !== undefined) patch.materias_failed_count = update.failedCount;
+  if (update.startedAt !== undefined) patch.materias_started_at = update.startedAt;
+  if (update.finishedAt !== undefined) patch.materias_finished_at = update.finishedAt;
+  const { error } = await client.from(TABLE).update(patch).eq("id", editionId);
+  if (error) throw new Error(error.message);
+}
+
+/** Marca o processo Jornal Online como "Atenção" com o motivo — nunca
+ * apaga o PDF/capa já arquivados, só sinaliza na listagem/modal. */
+export async function markEditionOnlineAttention(
+  client: SupabaseClient,
+  editionId: string,
+  errorMessage: string,
+): Promise<void> {
+  const { error } = await client
+    .from(TABLE)
+    .update({ online_status: "attention", online_error: errorMessage.slice(0, 500) })
+    .eq("id", editionId);
+  if (error) throw new Error(error.message);
+}
+
 export function createNewspaperEditionRepositorySupabase(client: SupabaseClient): NewspaperEditionRepository {
   return {
     async list() {
@@ -175,14 +360,25 @@ export function createNewspaperEditionRepositorySupabase(client: SupabaseClient)
         .select(COLUMNS)
         .order("publication_date", { ascending: false });
       if (error) throw new Error(error.message);
-      return Promise.all((data ?? []).map((row) => toDomain(client, row as NewspaperEditionRow)));
+      const rows = (data ?? []) as NewspaperEditionRow[];
+      const profileNames = await fetchProfileNames(
+        client,
+        rows.flatMap((row) => [row.uploaded_by, row.scheduled_by].filter((id): id is string => Boolean(id))),
+      );
+      return Promise.all(rows.map((row) => toDomain(client, row, profileNames)));
     },
 
     async getById(id) {
       if (isLocalPreviewEnabled()) return PREVIEW_EDITIONS.find((edition) => edition.id === id) ?? null;
       const { data, error } = await client.from(TABLE).select(COLUMNS).eq("id", id).maybeSingle();
       if (error) throw new Error(error.message);
-      return data ? toDomain(client, data as NewspaperEditionRow) : null;
+      if (!data) return null;
+      const row = data as NewspaperEditionRow;
+      const profileNames = await fetchProfileNames(
+        client,
+        [row.uploaded_by, row.scheduled_by].filter((value): value is string => Boolean(value)),
+      );
+      return toDomain(client, row, profileNames);
     },
 
     async create(record: NewNewspaperEditionRecord) {
@@ -213,7 +409,12 @@ export function createNewspaperEditionRepositorySupabase(client: SupabaseClient)
 
       const { data, error } = await client.from(TABLE).update(patch).eq("id", id).select(COLUMNS).single();
       if (error) throw new Error(error.message);
-      return toDomain(client, data as NewspaperEditionRow);
+      const row = data as NewspaperEditionRow;
+      const profileNames = await fetchProfileNames(
+        client,
+        [row.uploaded_by, row.scheduled_by].filter((value): value is string => Boolean(value)),
+      );
+      return toDomain(client, row, profileNames);
     },
   };
 }

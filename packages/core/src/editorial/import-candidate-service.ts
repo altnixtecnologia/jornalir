@@ -229,15 +229,13 @@ export class ImportCandidateService {
     if (candidate.status !== "pending") {
       throw new ImportCandidateAlreadyProcessedError(id, candidate.status, candidate.createdArticleId);
     }
-    const sectionId = input.sectionId ?? candidate.suggestedSectionId;
-    const localityId = input.localityId ?? candidate.suggestedLocalityId;
-
-    if (!sectionId) {
-      throw new Error("Selecione a editoria antes de converter em rascunho.");
-    }
-    if (!localityId) {
-      throw new Error("Selecione a localidade antes de converter em rascunho.");
-    }
+    // Editoria/localidade são opcionais aqui (decisão do usuário, 06/11/2026):
+    // a conversão automática (sem revisão manual) de candidatos extraídos de
+    // PDF precisa poder criar o rascunho sem elas — a equipe completa depois,
+    // na revisão. Nunca um valor fictício: null de verdade quando ausente.
+    // Publicar continua bloqueado sem os dois campos (constraint no banco).
+    const sectionId = input.sectionId ?? candidate.suggestedSectionId ?? null;
+    const localityId = input.localityId ?? candidate.suggestedLocalityId ?? null;
 
     let articleId: string;
     try {

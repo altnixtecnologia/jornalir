@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
-import Link from "next/link";
 import type { NewspaperEdition } from "@ir/types";
 import { GlobalWorkerOptions, getDocument } from "pdfjs-dist";
 import {
@@ -9,15 +8,20 @@ import {
   attachArchivedEditionPdfAction,
   createEdition,
   finalizeEditionR2UploadAction,
+  getEditionAuditTrailAction,
   prepareEditionR2UploadAction,
   recognizeEditionArchivedPdfAction,
+  reprocessEditionMateriasAction,
+  scheduleEditionAvailabilityAction,
   setEditionActive,
   updateEdition,
+  type EditionAuditEntry,
   type EditionExtractionOutcome,
   type NewspaperEditionPayload,
 } from "../../app/sistema/editorial/edicoes/actions";
 import { editionLabel, formatDate } from "./editorialLabels";
 import { notify } from "../../lib/feedback/notify";
+import { saoPauloLocalInputToUtcIso, utcIsoToSaoPauloLocalInput } from "../../lib/editorial/editionAvailabilityScheduling";
 
 GlobalWorkerOptions.workerSrc = new URL("pdfjs-dist/build/pdf.worker.min.js", import.meta.url).toString();
 
@@ -35,13 +39,16 @@ const EMPTY_FORM: NewspaperEditionPayload = {
 type SortColumn = "editionNumber" | "title" | "publicationDate" | "pageCount" | "pdf" | "status";
 type SortDirection = "asc" | "desc";
 
+// Correção da auditoria (item 6, 06/11/2026): a coluna "status" (Ativa/
+// Inativa) saiu da listagem — redundante com "Jornal Online" e deixava a
+// tabela mais larga que o modelo aprovado. A ação de ativar/inativar
+// manualmente passou para o modal de Detalhes (EditionDetailsModal).
 const SORTABLE_COLUMNS: { key: SortColumn; label: string }[] = [
   { key: "editionNumber", label: "Edição" },
   { key: "title", label: "Título" },
   { key: "publicationDate", label: "Data" },
   { key: "pageCount", label: "Páginas" },
   { key: "pdf", label: "PDF" },
-  { key: "status", label: "Status" },
 ];
 
 function toFormValues(edition: NewspaperEdition): NewspaperEditionPayload {
@@ -100,6 +107,9 @@ export function EdicoesManager({ editions }: EdicoesManagerProps): JSX.Element {
   const [extractionByEdition, setExtractionByEdition] = useState<Record<string, EditionExtractionOutcome>>({});
   const [pending, startTransition] = useTransition();
   const fileInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
+  const [editingScheduleId, setEditingScheduleId] = useState<string | null>(null);
+  const [scheduleValue, setScheduleValue] = useState("");
+  const [detailsEditionId, setDetailsEditionId] = useState<string | null>(null);
 
   const visibleItems = useMemo(() => {
     const term = search.trim().toLowerCase();
@@ -318,33 +328,19 @@ export function EdicoesManager({ editions }: EdicoesManagerProps): JSX.Element {
   }
 
   /**
-   * Guarda e avisa sobre o resultado da extração automática (disparada pelo
-   * servidor imediatamente após arquivar/reaproveitar o PDF — ver
-   * `edicoes/actions.ts`). Nunca aparece como erro do arquivamento em si:
-   * mesmo "failed" só significa que a extração não rodou agora, o PDF e a
-   * capa já estão gravados.
+   * Guarda e avisa que a separação de matérias foi enfileirada (correção
+   * da auditoria, item 3, 06/11/2026) — o PDF e a capa já estão gravados
+   * nesta mesma resposta; a extração/conversão em si roda depois, fora
+   * desta requisição, pelo worker durável (`/api/cron/edition-materias`,
+   * a cada minuto). O progresso real aparece na coluna "Matérias" e no
+   * modal de Detalhes assim que a tela for atualizada.
    */
   function applyExtractionOutcome(editionId: string, extraction: EditionExtractionOutcome): void {
     setExtractionByEdition((prev) => ({ ...prev, [editionId]: extraction }));
-    if (extraction.status === "ok") {
-      notify.success(
-        "Matérias extraídas automaticamente",
-        `${extraction.candidateCount} candidato(s) de ${extraction.pageCount} página(s) prontos para revisão em Importar PDF.` +
-          (extraction.possibleDuplicates.length > 0
-            ? ` ${extraction.possibleDuplicates.length} com possível duplicata — confira antes de converter.`
-            : ""),
-      );
-    } else if (extraction.status === "skipped_duplicate") {
-      notify.warning(
-        "Extração não repetida",
-        `Este PDF já tinha sido processado antes (${extraction.previousBatchCandidateCount} candidato(s)). Use "Reprocessar mesmo assim" em Importar PDF se precisar.`,
-      );
-    } else {
-      notify.warning(
-        "PDF arquivado, extração automática não concluiu",
-        `${extraction.error} O PDF e a capa já estão salvos — tente novamente em Importar PDF quando quiser.`,
-      );
-    }
+    notify.success(
+      "Separação de matérias enfileirada",
+      "Os rascunhos aparecerão automaticamente na área Editorial em alguns minutos, sem necessidade de revisão manual.",
+    );
   }
 
   /**
@@ -420,6 +416,129 @@ export function EdicoesManager({ editions }: EdicoesManagerProps): JSX.Element {
     });
   }
 
+  const ONLINE_STATUS_LABEL: Record<string, string> = {
+    preparing: "Preparando",
+    scheduled: "Agendado",
+    available: "Disponível",
+    attention: "Atenção",
+  };
+  const MATERIAS_STATUS_LABEL: Record<string, string> = {
+    queued: "Na fila",
+    processing: "Processando",
+    completed: "Concluído",
+    partial: "Parcial",
+    failed: "Falhou",
+  };
+
+  function onlineStatusPillClass(status?: string): string {
+    switch (status) {
+      case "available":
+        return "status-pill--published";
+      case "attention":
+        return "status-pill--archived";
+      default:
+        return "status-pill--draft";
+    }
+  }
+
+  function materiasStatusPillClass(status?: string | null): string {
+    switch (status) {
+      case "completed":
+        return "status-pill--published";
+      case "failed":
+        return "status-pill--archived";
+      case "partial":
+        return "status-pill--draft";
+      default:
+        return "status-pill--draft";
+    }
+  }
+
+  function renderOnlineStatusCell(edition: NewspaperEdition): JSX.Element {
+    const status = edition.onlineStatus ?? "preparing";
+    return (
+      <div className="edicoes-status-cell">
+        <span className={`status-pill ${onlineStatusPillClass(status)}`}>{ONLINE_STATUS_LABEL[status] ?? status}</span>
+      </div>
+    );
+  }
+
+  function renderMateriasStatusCell(edition: NewspaperEdition): JSX.Element {
+    const status = edition.materiasStatus;
+    if (!status) {
+      return <span className="helper-text">—</span>;
+    }
+    const label = MATERIAS_STATUS_LABEL[status] ?? status;
+    const suffix = status === "completed" && edition.materiasDraftCount !== undefined
+      ? ` (${edition.materiasDraftCount})`
+      : "";
+    return (
+      <div className="edicoes-status-cell">
+        <span className={`status-pill ${materiasStatusPillClass(status)}`}>{label}{suffix}</span>
+      </div>
+    );
+  }
+
+  function renderDisponibilizacaoCell(edition: NewspaperEdition): JSX.Element {
+    if (editingScheduleId === edition.id) {
+      return (
+        <div className="edicoes-schedule-editor">
+          <input
+            type="datetime-local"
+            value={scheduleValue}
+            onChange={(event) => setScheduleValue(event.target.value)}
+          />
+          <div className="candidate-row-actions">
+            <button type="button" disabled={pending} onClick={() => handleSaveSchedule(edition.id)}>
+              Salvar
+            </button>
+            <button type="button" disabled={pending} onClick={() => setEditingScheduleId(null)}>
+              Cancelar
+            </button>
+          </div>
+        </div>
+      );
+    }
+    if (edition.onlineStatus === "available" && edition.availableAt) {
+      return <span>{new Date(edition.availableAt).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" })}</span>;
+    }
+    if (edition.scheduledAvailableAt) {
+      return (
+        <div className="edicoes-status-cell">
+          <span>{new Date(edition.scheduledAvailableAt).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" })}</span>
+          <button
+            type="button"
+            className="text-link"
+            onClick={() => {
+              setEditingScheduleId(edition.id);
+              setScheduleValue(utcIsoToSaoPauloLocalInput(edition.scheduledAvailableAt as string));
+            }}
+          >
+            Alterar
+          </button>
+        </div>
+      );
+    }
+    return <span className="helper-text">Envie o PDF para agendar</span>;
+  }
+
+  function handleSaveSchedule(editionId: string): void {
+    if (!saoPauloLocalInputToUtcIso(scheduleValue)) {
+      notify.error("Data/hora inválida", "Informe uma data e hora válidas.");
+      return;
+    }
+    startTransition(async () => {
+      const result = await scheduleEditionAvailabilityAction(editionId, scheduleValue);
+      if ("error" in result) {
+        notify.error("Não foi possível agendar a disponibilização", result.error);
+        return;
+      }
+      setItems((prev) => prev.map((item) => (item.id === editionId ? result.edition : item)));
+      setEditingScheduleId(null);
+      notify.success("Disponibilização agendada", "A data e hora foram atualizadas.");
+    });
+  }
+
   function renderPdfCell(edition: NewspaperEdition): JSX.Element {
     const isUploading = uploadingId === edition.id;
     const isCheckingArchive = checkingArchiveId === edition.id;
@@ -468,57 +587,19 @@ export function EdicoesManager({ editions }: EdicoesManagerProps): JSX.Element {
   }
 
   /**
-   * Resumo da extração automática, exibido ANTES da revisão editorial
-   * (Importar PDF) — exatamente onde o operador acabou de arquivar/
-   * reaproveitar o PDF. Nunca permite descartar/substituir nada aqui; só
-   * informa e linka para a tela de revisão de candidatos.
+   * Aviso único logo após arquivar/reaproveitar o PDF — a separação de
+   * matérias foi enfileirada (correção da auditoria, item 3, 06/11/2026);
+   * o progresso real (extraído, convertido, falhas) aparece na coluna
+   * "Matérias" e no modal de Detalhes assim que o worker durável
+   * processar, não é mais um resultado síncrono desta chamada.
    */
   function renderExtractionSummary(editionId: string): JSX.Element | null {
     const extraction = extractionByEdition[editionId];
     if (!extraction) return null;
-    if (extraction.status === "failed") {
-      return (
-        <p className="helper-text" style={{ color: "var(--danger, #b42318)" }}>
-          PDF arquivado; extração automática não concluiu ({extraction.error}).{" "}
-          <Link href={`/sistema/editorial/importar-pdf?edicao=${editionId}`}>Tentar novamente</Link>
-        </p>
-      );
-    }
-    if (extraction.status === "skipped_duplicate") {
-      return (
-        <p className="helper-text">
-          Este PDF já tinha sido processado ({extraction.previousBatchCandidateCount} candidato(s)).{" "}
-          <Link href={`/sistema/editorial/importar-pdf?edicao=${editionId}`}>Revisar em Importar PDF</Link>
-        </p>
-      );
-    }
     return (
-      <div className="helper-text">
-        <p>
-          {extraction.candidateCount} candidato(s) extraído(s) automaticamente de {extraction.pageCount} página(s) —{" "}
-          <Link href={`/sistema/editorial/importar-pdf?edicao=${editionId}`}>revisar agora</Link>.
-        </p>
-        {extraction.possibleDuplicates.length > 0 ? (
-          <div className="form-error" role="alert">
-            <p>Possível duplicata com matéria já existente:</p>
-            <ul>
-              {extraction.possibleDuplicates.map((warning) => (
-                <li key={warning.candidateId}>
-                  <strong>{warning.title ?? "Sem título sugerido"}</strong>
-                  {" — "}
-                  {warning.matches.map((match, index) => (
-                    <span key={match.articleId}>
-                      {index > 0 ? "; " : ""}
-                      <Link href={`/sistema/editorial/materias/${match.articleId}`}>{match.title}</Link>
-                      {` (${Math.round(match.score * 100)}%)`}
-                    </span>
-                  ))}
-                </li>
-              ))}
-            </ul>
-          </div>
-        ) : null}
-      </div>
+      <p className="helper-text">
+        Separação de matérias enfileirada — acompanhe o progresso na coluna "Matérias" ou em Detalhes.
+      </p>
     );
   }
 
@@ -564,7 +645,11 @@ export function EdicoesManager({ editions }: EdicoesManagerProps): JSX.Element {
                   </button>
                 </th>
               ))}
+              <th>Disponibilização</th>
+              <th>Jornal Online</th>
+              <th>Matérias</th>
               <th>Ações</th>
+              <th>Detalhes</th>
             </tr>
           </thead>
           <tbody>
@@ -575,26 +660,26 @@ export function EdicoesManager({ editions }: EdicoesManagerProps): JSX.Element {
                 <td>{formatDate(edition.publicationDate)}</td>
                 <td>{edition.pageCount ?? "—"}</td>
                 <td>{renderPdfCell(edition)}</td>
-                <td>
-                  <span className={`status-pill status-pill--${edition.active ? "published" : "archived"}`}>
-                    {edition.active ? "Ativa" : "Inativa"}
-                  </span>
-                </td>
+                <td>{renderDisponibilizacaoCell(edition)}</td>
+                <td>{renderOnlineStatusCell(edition)}</td>
+                <td>{renderMateriasStatusCell(edition)}</td>
                 <td>
                   <div className="candidate-row-actions">
                     <button type="button" onClick={() => openEditModal(edition)} disabled={pending}>
                       Editar
                     </button>
-                    <button type="button" onClick={() => handleToggleActive(edition)} disabled={pending}>
-                      {edition.active ? "Inativar" : "Ativar"}
-                    </button>
                   </div>
+                </td>
+                <td>
+                  <button type="button" onClick={() => setDetailsEditionId(edition.id)}>
+                    Detalhes
+                  </button>
                 </td>
               </tr>
             ))}
             {visibleItems.length === 0 ? (
               <tr>
-                <td colSpan={7} className="helper-text">
+                <td colSpan={9} className="helper-text">
                   Nenhuma edição encontrada para esta pesquisa.
                 </td>
               </tr>
@@ -608,21 +693,32 @@ export function EdicoesManager({ editions }: EdicoesManagerProps): JSX.Element {
         {visibleItems.map((edition) => (
           <li key={edition.id} className="materia-card materia-card--static">
             <div className="materia-card-head">
-              <span className={`status-pill status-pill--${edition.active ? "published" : "archived"}`}>
-                {edition.active ? "Ativa" : "Inativa"}
-              </span>
               <span className="materia-reference">{formatDate(edition.publicationDate)}</span>
             </div>
             <span className="materia-card-title">{editionLabel(edition)}</span>
             {edition.title ? <span className="materia-subtitle">{edition.title}</span> : null}
             <span className="helper-text">{edition.pageCount ? `${edition.pageCount} páginas` : "Páginas não informadas"}</span>
             {renderPdfCell(edition)}
+            <div className="edicoes-mobile-statuses">
+              <div>
+                <span className="field-label">Disponibilização</span>
+                {renderDisponibilizacaoCell(edition)}
+              </div>
+              <div>
+                <span className="field-label">Jornal Online</span>
+                {renderOnlineStatusCell(edition)}
+              </div>
+              <div>
+                <span className="field-label">Matérias</span>
+                {renderMateriasStatusCell(edition)}
+              </div>
+            </div>
             <div className="materia-card-foot">
               <button type="button" onClick={() => openEditModal(edition)} disabled={pending}>
                 Editar
               </button>
-              <button type="button" onClick={() => handleToggleActive(edition)} disabled={pending}>
-                {edition.active ? "Inativar" : "Ativar"}
+              <button type="button" onClick={() => setDetailsEditionId(edition.id)}>
+                Detalhes
               </button>
             </div>
           </li>
@@ -638,6 +734,15 @@ export function EdicoesManager({ editions }: EdicoesManagerProps): JSX.Element {
           onChange={setModalForm}
           onSave={handleModalSave}
           onClose={closeModal}
+        />
+      ) : null}
+
+      {detailsEditionId ? (
+        <EditionDetailsModal
+          edition={items.find((item) => item.id === detailsEditionId) ?? null}
+          onClose={() => setDetailsEditionId(null)}
+          onToggleActive={handleToggleActive}
+          pending={pending}
         />
       ) : null}
     </>
@@ -749,6 +854,195 @@ function EditionFormModal({ mode, form, pending, onChange, onSave, onClose }: Ed
           </button>
           <button type="button" className="form-action-primary" onClick={onSave} disabled={pending}>
             Salvar edição
+          </button>
+        </footer>
+      </section>
+    </div>
+  );
+}
+
+const AUDIT_ACTION_LABEL: Record<string, string> = {
+  edition_published_auto: "Publicação automática (Jornal Online)",
+  edition_notification_dispatched: "Notificação enviada",
+  edition_notification_skipped: "Notificação ignorada (desativada)",
+  edition_notification_failed: "Falha ao enviar notificação",
+  edition_schedule_set: "Data/hora de disponibilização alterada",
+  edition_materias_candidate_failed: "Falha ao converter um candidato em rascunho",
+  edition_materias_reprocess_requested: "Reprocessamento da separação de matérias solicitado",
+};
+
+interface EditionDetailsModalProps {
+  edition: NewspaperEdition | null;
+  onClose: () => void;
+  onToggleActive: (edition: NewspaperEdition) => void;
+  pending: boolean;
+}
+
+/**
+ * Modal de detalhes (fluxo unificado, 06/11/2026) — histórico completo
+ * (audit_events reaproveitado) e reprocessamento seletivo da separação de
+ * matérias quando o processo falhou/ficou parcial. Nunca reprocessa o
+ * Jornal Online (já concluído) nem duplica candidatos/rascunhos já criados
+ * (mesma proteção de hash/idempotência do importador).
+ *
+ * Correção da auditoria (item 6, 06/11/2026): ativar/inativar manualmente
+ * a edição (ação pré-existente, independente do Jornal Online automático)
+ * saiu da tabela/cartões e virou uma ação deste modal — a listagem não
+ * ganhou uma coluna nova, e a ação continua disponível.
+ */
+function EditionDetailsModal({ edition, onClose, onToggleActive, pending }: EditionDetailsModalProps): JSX.Element | null {
+  const [entries, setEntries] = useState<EditionAuditEntry[] | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [reprocessing, setReprocessing] = useState(false);
+
+  useEffect(() => {
+    if (!edition) return;
+    let active = true;
+    getEditionAuditTrailAction(edition.id).then((result) => {
+      if (!active) return;
+      if ("error" in result) {
+        setLoadError(result.error);
+      } else {
+        setEntries(result.entries);
+      }
+    });
+    return () => {
+      active = false;
+    };
+  }, [edition]);
+
+  useEffect(() => {
+    function handleKeyDown(event: KeyboardEvent): void {
+      if (event.key === "Escape") onClose();
+    }
+    window.addEventListener("keydown", handleKeyDown);
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [onClose]);
+
+  if (!edition) return null;
+
+  function handleReprocessMaterias(): void {
+    setReprocessing(true);
+    reprocessEditionMateriasAction(edition!.id)
+      .then((result) => {
+        if ("error" in result) {
+          notify.error("Não foi possível reprocessar a separação de matérias", result.error);
+          return;
+        }
+        notify.success("Reprocessamento concluído", "A separação de matérias foi executada novamente para esta edição.");
+      })
+      .finally(() => setReprocessing(false));
+  }
+
+  const canReprocessMaterias = edition.materiasStatus === "failed" || edition.materiasStatus === "partial";
+
+  return (
+    <div className="edicoes-modal-backdrop" role="presentation" onMouseDown={(event) => {
+      if (event.target === event.currentTarget) onClose();
+    }}>
+      <section className="edicoes-modal edicoes-details-modal" role="dialog" aria-modal="true" aria-labelledby="edicao-details-title">
+        <header className="edicoes-modal-header">
+          <h3 id="edicao-details-title">Detalhes — {editionLabel(edition)}</h3>
+          <button type="button" className="edicoes-modal-close" onClick={onClose} aria-label="Fechar">
+            ✕
+          </button>
+        </header>
+
+        <div className="edicoes-modal-body">
+          <section className="edicoes-details-section">
+            <h4>Edição</h4>
+            <dl className="edicoes-details-grid">
+              <dt>Status manual</dt>
+              <dd>
+                <span className={`status-pill status-pill--${edition.active ? "published" : "archived"}`}>
+                  {edition.active ? "Ativa" : "Inativa"}
+                </span>
+                {" "}
+                <button type="button" onClick={() => onToggleActive(edition)} disabled={pending}>
+                  {edition.active ? "Inativar" : "Ativar"}
+                </button>
+              </dd>
+            </dl>
+          </section>
+
+          <section className="edicoes-details-section">
+            <h4>Jornal Online</h4>
+            <dl className="edicoes-details-grid">
+              <dt>Estado</dt>
+              <dd>{edition.onlineStatus ?? "preparing"}{edition.onlineError ? ` — ${edition.onlineError}` : ""}</dd>
+              <dt>Arquivo</dt>
+              <dd>{edition.pdfFileName ?? "—"}</dd>
+              <dt>Enviado por</dt>
+              <dd>{edition.uploadedByName ?? "—"}{edition.uploadedAt ? ` em ${new Date(edition.uploadedAt).toLocaleString("pt-BR")}` : ""}</dd>
+              <dt>Agendado para</dt>
+              <dd>
+                {edition.scheduledAvailableAt
+                  ? new Date(edition.scheduledAvailableAt).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" })
+                  : "—"}
+                {edition.scheduledByName ? ` (agendado por ${edition.scheduledByName})` : ""}
+              </dd>
+              <dt>Disponível desde</dt>
+              <dd>{edition.availableAt ? new Date(edition.availableAt).toLocaleString("pt-BR") : "Ainda não disponível"}</dd>
+              <dt>Notificação</dt>
+              <dd>
+                {edition.notificationStatus ?? "pending"}
+                {edition.notificationSentAt ? ` em ${new Date(edition.notificationSentAt).toLocaleString("pt-BR")}` : ""}
+              </dd>
+            </dl>
+          </section>
+
+          <section className="edicoes-details-section">
+            <h4>Separação de matérias</h4>
+            <dl className="edicoes-details-grid">
+              <dt>Estado</dt>
+              <dd>{edition.materiasStatus ?? "nunca executado"}</dd>
+              <dt>Início/Conclusão</dt>
+              <dd>
+                {edition.materiasStartedAt ? new Date(edition.materiasStartedAt).toLocaleString("pt-BR") : "—"}
+                {" → "}
+                {edition.materiasFinishedAt ? new Date(edition.materiasFinishedAt).toLocaleString("pt-BR") : "em andamento/—"}
+              </dd>
+              <dt>Candidatos / rascunhos / falhas</dt>
+              <dd>
+                {edition.materiasCandidateCount ?? 0} / {edition.materiasDraftCount ?? 0} / {edition.materiasFailedCount ?? 0}
+              </dd>
+            </dl>
+            {canReprocessMaterias ? (
+              <button type="button" onClick={handleReprocessMaterias} disabled={reprocessing}>
+                {reprocessing ? "Reprocessando…" : "Reprocessar separação de matérias"}
+              </button>
+            ) : null}
+          </section>
+
+          <section className="edicoes-details-section">
+            <h4>Histórico</h4>
+            {loadError ? <p className="form-error">{loadError}</p> : null}
+            {entries === null && !loadError ? <p className="helper-text">Carregando histórico…</p> : null}
+            {entries && entries.length === 0 ? <p className="helper-text">Nenhum evento registrado ainda.</p> : null}
+            {entries && entries.length > 0 ? (
+              <ul className="edicoes-audit-list">
+                {entries.map((entry) => (
+                  <li key={entry.id}>
+                    <span className="edicoes-audit-action">{AUDIT_ACTION_LABEL[entry.action] ?? entry.action}</span>
+                    <span className="helper-text">
+                      {new Date(entry.createdAt).toLocaleString("pt-BR")} —{" "}
+                      {entry.actorName ? entry.actorName : "Sistema"}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+          </section>
+        </div>
+
+        <footer className="edicoes-modal-footer">
+          <button type="button" onClick={onClose}>
+            Fechar
           </button>
         </footer>
       </section>

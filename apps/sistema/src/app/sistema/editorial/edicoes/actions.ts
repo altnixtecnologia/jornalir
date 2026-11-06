@@ -8,7 +8,18 @@ import {isDuplicateEditionUpload} from "../../../../lib/editorial/editionUploadD
 import type { NewspaperEdition } from "@ir/types";
 import { getNewspaperEditionService } from "../../../../composition/editorial";
 import { createSupabaseServerClient } from "../../../../lib/supabase/server";
-import { attachEditionR2Archive } from "../../../../providers/supabase/newspaperEditionRepository.supabase";
+import { getAuditContext } from "../../../../lib/auth/getAuditContext";
+import {
+  attachEditionR2Archive,
+  markEditionUploadedAndSchedule,
+  scheduleEditionAvailability,
+  updateEditionMateriasStatus,
+  markEditionOnlineAttention,
+} from "../../../../providers/supabase/newspaperEditionRepository.supabase";
+import {
+  nextDayAt7AmSaoPauloIso,
+  saoPauloLocalInputToUtcIso,
+} from "../../../../lib/editorial/editionAvailabilityScheduling";
 import { decideEditionArchiveAction, type EditionArchiveDecision } from "../../../../providers/r2/editionArchiveRecognition";
 import {
   MAX_EDITION_PDF_BYTES,
@@ -25,14 +36,19 @@ import {
   validateEditionPdfObject,
   type EditionDirectUploadPlan,
 } from "../../../../providers/r2/editionArchive.r2";
-import type { CandidateDuplicateWarning } from "../importar-pdf/actions";
 
 const LIST_PATH = "/sistema/editorial/edicoes";
 
-export type EditionExtractionOutcome =
-  | { status: "ok"; candidateCount: number; pageCount: number; possibleDuplicates: CandidateDuplicateWarning[] }
-  | { status: "skipped_duplicate"; previousBatchCandidateCount: number }
-  | { status: "failed"; error: string };
+/**
+ * CORREÇÃO DA AUDITORIA (item 3, 06/11/2026): a separação de matérias
+ * nunca mais roda de forma síncrona dentro desta Server Action — só
+ * enfileira (`materias_status='queued'`, persistido). O worker durável
+ * (`/api/cron/edition-materias`, acionado por pg_cron a cada minuto —
+ * ver migration do fluxo unificado) é quem de fato extrai e converte,
+ * em unidades de trabalho limitadas, com retomada automática. A resposta
+ * ao operador nunca depende da conclusão de nenhuma matéria.
+ */
+export type EditionExtractionOutcome = { status: "queued" };
 
 type ActionResult =
   | { error: string }
@@ -43,39 +59,24 @@ function toErrorMessage(error: unknown): string {
 }
 
 /**
- * Dispara a extração de matérias imediatamente depois que um PDF é
- * arquivado/reaproveitado pelo operador (upload novo ou acervo R2) — sem
- * exigir outro comando manual. NUNCA desfaz o arquivamento já confirmado:
- * qualquer falha aqui (parser, PDF corrompido, timeout) é capturada e
- * devolvida como resultado informativo, nunca propagada como erro da
- * ação de arquivamento. Tentar de novo (reenviar o mesmo PDF ou chamar o
- * botão manual "Gerar candidatos" na tela de importação) nunca duplica
- * lote — `findBatchByHash`/`force` já cobrem isso.
- *
- * Deliberadamente só chamada a partir de `finalizeEditionR2UploadAction` e
- * `attachArchivedEditionPdfAction` (ações de UM operador sobre UMA
- * edição) — nunca do importador histórico em lote das 497 edições, que
- * continua scripts isolados sem nenhuma extração automática.
+ * CORREÇÃO DA AUDITORIA (item 3, 06/11/2026): apenas ENFILEIRA a separação
+ * de matérias (`materias_status='queued'`, persistido) — nunca extrai nem
+ * converte nada aqui. A resposta ao operador nunca depende da conclusão
+ * de nenhuma matéria; quem efetivamente trabalha é o worker durável
+ * (`/api/cron/edition-materias`, acionado por pg_cron a cada minuto),
+ * retomável automaticamente se ficar preso (lease), em lotes pequenos
+ * (nunca uma edição inteira de uma vez). Deliberadamente só chamada a
+ * partir de `finalizeEditionR2UploadAction`/`attachArchivedEditionPdfAction`
+ * (ações de UM operador sobre UMA edição) — nunca do importador histórico
+ * em lote das 497 edições, que continua scripts isolados sem nenhuma
+ * extração automática (item 10 do pedido do usuário).
  */
-async function runAutomaticExtraction(editionId: string): Promise<EditionExtractionOutcome> {
-  try {
-    // Carregar o extrator só quando houver PDF arquivado: cadastrar uma edição
-    // não deve inicializar PDF.js nem seus módulos nativos no runtime Vercel.
-    const { generateCandidatesFromArchivedPdf } = await import("../importar-pdf/actions");
-    const result = await generateCandidatesFromArchivedPdf(editionId, false);
-    if ("error" in result) return { status: "failed", error: result.error };
-    if ("duplicate" in result) {
-      return { status: "skipped_duplicate", previousBatchCandidateCount: result.previousBatch.candidateCount };
-    }
-    return {
-      status: "ok",
-      candidateCount: result.candidateCount,
-      pageCount: result.pageCount,
-      possibleDuplicates: result.possibleDuplicates,
-    };
-  } catch (error) {
-    return { status: "failed", error: toErrorMessage(error) };
-  }
+async function enqueueEditionMateriasProcessing(
+  client: ReturnType<typeof createSupabaseServerClient>,
+  editionId: string,
+): Promise<EditionExtractionOutcome> {
+  await updateEditionMateriasStatus(client, editionId, { status: "queued" });
+  return { status: "queued" };
 }
 
 export interface NewspaperEditionPayload {
@@ -306,12 +307,22 @@ export async function finalizeEditionR2UploadAction(
       .filter((key) => key !== input.pdfKey && key !== input.coverKey);
     await Promise.all(staleKeys.map((key) => deleteEditionArchiveObject(key).catch(() => undefined)));
 
+    const audit = await getAuditContext(client);
+    // Padrão de disponibilização (dia seguinte 07:00 America/Sao_Paulo) —
+    // só se aplica quando a edição ainda não tinha nenhum agendamento
+    // (nunca sobrescreve um horário já definido manualmente).
+    await markEditionUploadedAndSchedule(client, editionId, {
+      uploadedBy: audit.actorId,
+      defaultScheduledAvailableAtIso: nextDayAt7AmSaoPauloIso(),
+    });
+
     const updated = await getNewspaperEditionService(client).getById(editionId);
     if (!updated) return { error: "Edição não encontrada após finalizar o upload." };
 
-    // Arquivamento já confirmado acima — a extração automática daqui pra
-    // frente nunca pode desfazê-lo, mesmo se falhar (ver runAutomaticExtraction).
-    const extraction = await runAutomaticExtraction(editionId);
+    // Arquivamento já confirmado acima — só enfileira a separação de
+    // matérias (ver enqueueEditionMateriasProcessing); o worker durável
+    // processa depois, fora desta requisição.
+    const extraction = await enqueueEditionMateriasProcessing(client, editionId);
 
     revalidatePath(LIST_PATH);
     revalidatePath("/sistema/editorial/importar-pdf");
@@ -334,6 +345,12 @@ export async function finalizeEditionR2UploadAction(
           ]);
         }
       }catch{/* falha ao conferir vínculo: não excluir arquivos */ }
+    }
+    if (attached) {
+      // PDF/capa já confirmados no R2, mas algo falhou depois (ex.:
+      // agendamento) — sinaliza "Atenção" na listagem em vez de um erro
+      // silencioso; nunca desfaz o arquivamento já gravado.
+      await markEditionOnlineAttention(client, editionId, toErrorMessage(error)).catch(() => undefined);
     }
     return { error: toErrorMessage(error) };
   }
@@ -459,17 +476,156 @@ export async function attachArchivedEditionPdfAction(
       await deleteEditionArchiveObject(previousCoverKey).catch(() => undefined);
     }
 
+    const audit = await getAuditContext(client);
+    await markEditionUploadedAndSchedule(client, editionId, {
+      uploadedBy: audit.actorId,
+      defaultScheduledAvailableAtIso: nextDayAt7AmSaoPauloIso(),
+    });
+
     const updated = await getNewspaperEditionService(client).getById(editionId);
     if (!updated) return { error: "Edição não encontrada após vincular o PDF do acervo." };
 
-    // Vínculo já confirmado acima — falha na extração automática a seguir
-    // nunca desfaz o que já foi gravado (ver runAutomaticExtraction).
-    const extraction = await runAutomaticExtraction(editionId);
+    // Vínculo já confirmado acima — só enfileira a separação de matérias
+    // (ver enqueueEditionMateriasProcessing); o worker durável processa
+    // depois, fora desta requisição.
+    const extraction = await enqueueEditionMateriasProcessing(client, editionId);
 
     revalidatePath(LIST_PATH);
     revalidatePath("/sistema/editorial/importar-pdf");
     revalidatePath("/jornal-online");
     return { ok: true, edition: updated, extraction };
+  } catch (error) {
+    return { error: toErrorMessage(error) };
+  }
+}
+
+/**
+ * Altera manualmente a data/hora de disponibilização no Jornal Online
+ * (valor de um input `datetime-local`, interpretado como America/Sao_Paulo
+ * — ver `editionAvailabilityScheduling.ts`). Sempre registrado em
+ * `audit_events` com o usuário real que fez a alteração (nunca "sistema").
+ */
+export async function scheduleEditionAvailabilityAction(
+  editionId: string,
+  localDateTimeValue: string,
+): Promise<ActionResult> {
+  const permissionError = await checkModuleAction("editorial", "edicoes_gerenciar");
+  if (permissionError) return { error: permissionError };
+  try {
+    const scheduledIso = saoPauloLocalInputToUtcIso(localDateTimeValue);
+    if (!scheduledIso) return { error: "Data e hora inválidas." };
+
+    const client = await requireStaffClient();
+    const audit = await getAuditContext(client);
+    const edition = await getNewspaperEditionService(client).getById(editionId);
+    if (!edition) return { error: "Edição não encontrada." };
+
+    await scheduleEditionAvailability(client, editionId, scheduledIso, audit.actorId);
+    await client.from("audit_events").insert({
+      user_id: audit.actorId,
+      entity_type: "newspaper_editions",
+      entity_id: editionId,
+      action: "edition_schedule_set",
+      metadata: { editionNumber: edition.editionNumber, scheduledAvailableAt: scheduledIso },
+    });
+
+    const updated = await getNewspaperEditionService(client).getById(editionId);
+    if (!updated) return { error: "Edição não encontrada após agendar." };
+    revalidatePath(LIST_PATH);
+    revalidatePath("/jornal-online");
+    return { ok: true, edition: updated };
+  } catch (error) {
+    return { error: toErrorMessage(error) };
+  }
+}
+
+export interface EditionAuditEntry {
+  id: string;
+  action: string;
+  actorName: string | null;
+  createdAt: string;
+  metadata: Record<string, unknown>;
+}
+
+/**
+ * Histórico completo (modal de detalhes) — reaproveita `audit_events`
+ * (nunca uma tabela nova), resolvendo o nome do usuário responsável por
+ * cada ação (null = ação automática do sistema; o "agendado por" já fica
+ * no próprio metadata, gravado pelo trigger/função que disparou a ação).
+ */
+export async function getEditionAuditTrailAction(
+  editionId: string,
+): Promise<{ error: string } | { ok: true; entries: EditionAuditEntry[] }> {
+  const permissionError = await checkModuleAction("editorial", "edicoes_gerenciar");
+  if (permissionError) return { error: permissionError };
+  try {
+    const client = await requireStaffClient();
+    const { data, error } = await client
+      .from("audit_events")
+      .select("id, action, created_at, metadata, actor:profiles(name)")
+      .eq("entity_type", "newspaper_editions")
+      .eq("entity_id", editionId)
+      .order("created_at", { ascending: false })
+      .limit(200);
+    if (error) throw new Error(error.message);
+
+    const entries: EditionAuditEntry[] = (data ?? []).map((row) => {
+      const actor = Array.isArray(row.actor) ? row.actor[0] : row.actor;
+      return {
+        id: row.id as string,
+        action: row.action as string,
+        actorName: (actor as { name: string | null } | null)?.name ?? null,
+        createdAt: row.created_at as string,
+        metadata: (row.metadata as Record<string, unknown>) ?? {},
+      };
+    });
+    return { ok: true, entries };
+  } catch (error) {
+    return { error: toErrorMessage(error) };
+  }
+}
+
+/**
+ * Reprocessamento seletivo da separação de matérias desta edição (modal de
+ * detalhes, "falhou"/"parcial") — nunca repete a disponibilização do
+ * Jornal Online (já concluída), só este processo.
+ *
+ * CORREÇÃO DA AUDITORIA (item 2, 06/11/2026): NUNCA gera um lote novo
+ * (nunca chama `generateCandidatesFromArchivedPdf(editionId, true)`).
+ * Reprocessar significa retomar os candidatos já extraídos que ainda
+ * estão `pending` (falharam ou nunca foram tentados) — os já `converted`
+ * nunca são tocados, nunca reconvertidos, nunca duplicados. Se não existir
+ * lote nenhum (falha ocorreu antes de qualquer extração), aí sim dispara
+ * a extração pela primeira vez, sem `force` (idempotente via
+ * `findBatchByHash`). Decisão manual explícita de um humano: sempre tenta
+ * de novo mesmo candidatos que o worker automático já desistiu
+ * (`respectAutomaticRetryLimit: false`).
+ */
+export async function reprocessEditionMateriasAction(
+  editionId: string,
+): Promise<{ error: string } | { ok: true }> {
+  const permissionError = await checkModuleAction("editorial", "edicoes_gerenciar");
+  if (permissionError) return { error: permissionError };
+  try {
+    const client = await requireStaffClient();
+    const audit = await getAuditContext(client);
+    const edition = await getNewspaperEditionService(client).getById(editionId);
+    if (!edition) return { error: "Edição não encontrada." };
+
+    await client.from("audit_events").insert({
+      user_id: audit.actorId,
+      entity_type: "newspaper_editions",
+      entity_id: editionId,
+      action: "edition_materias_reprocess_requested",
+      metadata: { editionNumber: edition.editionNumber },
+    });
+
+    const { runEditionMateriasWorkUnit } = await import("../../../../lib/editorial/editionMateriasWorker");
+    await runEditionMateriasWorkUnit(client, editionId, { respectAutomaticRetryLimit: false });
+
+    revalidatePath(LIST_PATH);
+    revalidatePath("/sistema/editorial/importar-pdf");
+    return { ok: true };
   } catch (error) {
     return { error: toErrorMessage(error) };
   }

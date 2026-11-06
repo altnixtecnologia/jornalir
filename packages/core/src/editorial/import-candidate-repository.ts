@@ -40,8 +40,11 @@ export interface ConvertCandidateAtomicInput {
   title: string;
   subtitle?: string;
   body: string;
-  sectionId: string;
-  localityId: string;
+  /** Pode ser null (06/11/2026) — conversão automática de candidatos extraídos de
+   * PDF cria o rascunho sem editoria/localidade; a equipe completa na revisão.
+   * Publicar continua exigindo os dois (constraint no banco). */
+  sectionId: string | null;
+  localityId: string | null;
   pageNumber?: number;
   media: ArticleMedia[];
 }

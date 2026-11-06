@@ -176,3 +176,16 @@ sem nova decisão. Nenhuma estrutura ou registro WhatsApp foi criado no Supabase
 O proprietário declarou o **portal público visualmente aprovado / praticamente concluído** e decidiu deixar a rodada de testes severos para a equipe mais adiante. **Notificações já testadas e funcionando: não reabrir como pendência.** Página **Sobre** deve conter a história/trajetória verdadeira do jornal e **não** apontar para Assine; a página atual ainda tem esse link. **Assine** permanece independente e controlado pelo liga/desliga administrativo; ao ativar, o fluxo precisa operar integralmente, não apenas mostrar a tela. **Jornal Online:** usuário avalia separar os PDFs em **outra conta** Cloudflare R2 (ainda não decidido); PR #21 de rótulos neutros existe mas não foi incorporada ao portal publicado. Ajustes visuais futuros são opcionais e guiados pela experiência real, não um redesign.
 
 **Fonte de verdade detalhada:** `docs/PORTAL-DECISOES-E-PENDENCIAS-20261104.md`. Esta anotação prevalece sobre listas antigas que marcavam notificações ou todo o visual do portal como não homologados.
+
+
+## 06/11/2026 — Jornal Online: fluxo unificado de carregamento (decisões aprovadas)
+
+- **Uma única página** (Editorial → Edições) para cadastrar a edição e enviar o PDF. A tela "Importar PDF" continua existindo, mas não é mais necessária na operação normal.
+- **Disponibilização padrão:** dia seguinte às 07:00 (America/Sao_Paulo), editável pelo operador.
+- **Dois processos independentes** depois do envio: (1) Jornal Online — PDF/capa armazenados, edição publicada no horário agendado e notificação disparada; (2) Matérias — extração em segundo plano e criação **automática** de rascunhos, sem conversão manual de candidatos. Falha ou demora nas matérias **nunca** impede a publicação do Jornal Online.
+- **Rascunhos podem nascer sem editoria/localidade** (nulo real, nunca valor fictício); a equipe completa depois. **Publicar ou agendar matéria continua exigindo** editoria e localidade (regra no banco).
+- **Auditoria obrigatória com usuário real** em toda ação; nas automáticas, registrar quem agendou (ex.: "Publicação automática executada pelo sistema; agendada por <nome>").
+- **Status de notificação** só indica "enviada" com confirmação real do serviço de envio; nunca afirmar "entregue no aparelho" sem confirmação do aparelho. Falha de notificação nunca desfaz a publicação.
+- **Nunca** reprocessar automaticamente os ~497 PDFs históricos; nunca duplicar a edição 776; edições já publicadas nunca são despublicadas ao reanexar/reaproveitar o PDF.
+- **Listagem:** Disponibilização | Jornal Online | Matérias | Detalhes (além das colunas de identificação já existentes). A antiga coluna Status (Ativa/Inativa) saiu da tabela; ativar/inativar fica no modal de Detalhes.
+- A função `publish_due_scheduled_articles()` (agendamento de matérias) **não** deve ser alterada por este fluxo.
