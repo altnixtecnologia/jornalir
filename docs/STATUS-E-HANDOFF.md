@@ -3234,6 +3234,27 @@ Decisões aprovadas registradas em `docs/ACORDOS-E-FONTE-DA-VERDADE.md` (06/11/2
 
 **PUBLICADO (06/11/2026, ~16:25)**: migration `20261121100000` aplicada pelo próprio usuário (`supabase db push --linked --include-all`), consta no ledger — **NUNCA reaplicar**. Edição 776 preservada (`active=true`, `online_status=available`). Crons `publish-due-newspaper-editions` e `edition-materias-worker` ativos; `publish-due-scheduled-articles` e `agenda-telegram-reminders` intactos. Segredo `edition_materias_cron_secret` criado pelo usuário no Vault, copiado de `agenda_telegram_cron_secret` (54 caracteres, valor nunca exibido). `dpl_AoG4ZXGGiS8stf46B7zqwpiyHBH9` promovido pelo usuário — `controle.altnix.com.br` confirmado nele (rollback possível para `dpl_MVwVqT6cwhyB4dMTSJ6S1hq5PQp1`). Verificado: `/api/cron/edition-materias` sem Bearer → 401; com o cron → 200 `{"processed":0}`; `/login` 200, `/sistema` 307 (login). Portal (`jornalir`) não precisou de novo deploy. Falta: teste funcional autenticado pelo usuário (vincular PDF da 776, agendar, conferir publicação/notificação/matérias).
 
+## 06/11/2026 — ACERVO HISTÓRICO DO JORNAL ONLINE: CADASTRO DAS FICHAS (PDFs já no R2, nada movido)
+
+**Diagnóstico**: o portal mostra só 7 edições de teste porque `newspaper_editions` em produção tem 1 registro (776, sem PDF vinculado). Os 497 PDFs estão no R2 (`acervo/edicoes/IR NNN.pdf`, 248–776) mas nunca tiveram ficha no banco; sem fichas, o portal cai na pasta de teste do Drive + lista fixa `calameoEditions`. O merge do portal (`jornalOnlineEditionMerge.ts`) prefere a edição oficial de mesmo número, então as 7 de teste (700, 699, 698, 697, 696, 687, 685) somem sozinhas quando as fichas existirem — nenhuma mudança no portal é necessária.
+
+**Decisão do usuário**: cadastrar as fichas pelo banco (opção 1), com a data lida da própria capa; ajustes de data pelo painel (Editorial → Edições → Editar, que já edita `publication_date`).
+
+**Datas**: relatório consolidado já existente (`docs/relatorios-locais/jornal-online-acervo-datas/editions-archive-dates-report-consolidado.csv`, git-ignorado): 496 confirmadas pela capa (data + dia da semana + número da edição), 0 sem data, 0 fora de ordem, 0 repetidas; 1 com dúvida — **edição 340 = 07/06/2018** (encaixa na sequência: 339 = 30/05, 341 = 14/06). Teste de leitura em 5 PDFs nesta sessão (248, 373, 500, 649, 776) confirmou o método.
+
+**Feito**:
+- Commit `4569d9ae`: `apps/sistema/scripts/import-editions-archive.ts` + `src/providers/r2/editionsArchiveRegistration.ts` (regras puras, testadas em `test/editions-archive-registration.test.ts`) + `editionCoverBufferKey()` exportada em `editionArchive.r2.ts` (mesmo nome de capa no SQL e no envio). Suíte `apps/sistema` 277/277, `tsc` limpo.
+- SQL gerado e revisado: `docs/relatorios-locais/jornal-online-acervo-datas/cadastro-acervo.sql` (git-ignorado) — 496 edições (248–775), 776 pulada por já ter ficha. Um único comando atômico: confere que o executor é exatamente 1 perfil ativo ("Cristian Adam Berão"), `insert ... on conflict (edition_number) do nothing` (rodar de novo nunca duplica), fichas publicadas (`active=true`, `online_status='available'`, `available_at` = dia da edição 07:00 SP), **`notification_status='skipped'`** (nunca notifica), **`materias_status` nulo** (nunca entra na fila de matérias), auditoria `edition_archive_registered` por edição com o usuário real. Único gatilho em `newspaper_editions` é `set_updated_at` (confirmado).
+- **496 capas enviadas ao R2** (`jornal-online/{ano}/edicao-NNNN/capa-<sha16>.webp`), 0 falhas, nomes conferidos contra o SQL.
+- Chave service-role NÃO existe no `.env.local` — por isso o cadastro é por SQL via `supabase db query`, não por cliente administrativo.
+
+**PENDENTE (bloqueado para o agente pelo classificador de permissão; executar pelo usuário no terminal)**:
+```
+cd "C:\Users\caber\OneDrive\Altnix\Projetos\Informativo Regional\Site-sistema"
+supabase db query --linked -f "docs\relatorios-locais\jornal-online-acervo-datas\cadastro-acervo.sql"
+```
+Esperado: `cadastradas = 496`, `auditadas = 496`. Depois: conferir portal, conferir data da 340 no painel, testar a 776 pelo fluxo novo (Verificar acervo R2 → Reaproveitar PDF).
+
 **Jornal Online público mostra só 7 edições de teste**: o banco de produção tem 1 edição (776, sem PDF vinculado); `/api/jornal-online/editions` devolve 0 itens; o portal cai na pasta de teste do Drive + lista fixa `calameoEditions`. Os 497 PDFs estão no R2 (`acervo/edicoes/IR NNN.pdf`) mas nunca foram cadastrados no banco. Pendente decisão do usuário: datas do acervo e retirada das edições de teste.
 
 FALTA/BLOQUEIOS: (1) aplicar a migration remota — só com autorização, conferindo o ledger antes; (2) criar o segredo `edition_materias_cron_secret` no Vault do Supabase com o MESMO valor de `CRON_SECRET` do projeto `jornalir-sistema` — sem isso a retomada automática do worker não roda (o botão manual de reprocessar funciona); (3) push e deploy manual (staging antes de produção), só com autorização; (4) teste real no painel publicado com uma edição de teste (nunca PDFs históricos).
