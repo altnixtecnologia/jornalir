@@ -2,7 +2,6 @@ import "server-only";
 import { createHash } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { getImportCandidateService, getNewspaperEditionService } from "../../composition/editorial";
-import { extractCandidatesFromPdf } from "../../composition/pdfCandidateExtraction";
 import { getEditionPdfFromR2 } from "../../providers/r2/editionArchive.r2";
 import { updateEditionMateriasStatus } from "../../providers/supabase/newspaperEditionRepository.supabase";
 
@@ -108,6 +107,9 @@ async function extractCandidatesForEdition(client: SupabaseClient, editionId: st
     const buffer = await getEditionPdfFromR2(edition.pdfR2Key);
     const fileHash = edition.pdfSha256 || createHash("sha256").update(buffer).digest("hex");
     const fileName = edition.pdfFileName || `edicao-${edition.editionNumber}.pdf`;
+    // Importação tardia: avaliar pdfjs-dist no carregamento da rota quebra o
+    // build na Vercel ("Failed to collect page data").
+    const { extractCandidatesFromPdf } = await import("../../composition/pdfCandidateExtraction");
     const result = await extractCandidatesFromPdf(editionId, buffer, getImportCandidateService(client), {
       fileName,
       fileHash,
