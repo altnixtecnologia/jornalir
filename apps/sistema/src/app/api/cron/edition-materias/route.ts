@@ -5,6 +5,7 @@ import { runEditionMateriasWorkUnit } from "../../../../lib/editorial/editionMat
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
+export const maxDuration = 60;
 
 /**
  * Worker durável da separação automática de matérias (correção da

@@ -1,6 +1,9 @@
 import "server-only";
+import { createHash } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { getImportCandidateService } from "../../composition/editorial";
+import { getImportCandidateService, getNewspaperEditionService } from "../../composition/editorial";
+import { extractCandidatesFromPdf } from "../../composition/pdfCandidateExtraction";
+import { getEditionPdfFromR2 } from "../../providers/r2/editionArchive.r2";
 import { updateEditionMateriasStatus } from "../../providers/supabase/newspaperEditionRepository.supabase";
 
 /**
@@ -92,6 +95,35 @@ async function convertCandidates(
   return { draftCount, failedCount };
 }
 
+// Usa o cliente recebido (service-role no cron, sessão do operador no
+// reprocessamento manual) — nunca a Server Action de importar-pdf, que exige
+// sessão de usuário e falharia sempre quando chamada pelo cron.
+async function extractCandidatesForEdition(client: SupabaseClient, editionId: string): Promise<string | null> {
+  try {
+    const edition = await getNewspaperEditionService(client).getById(editionId);
+    if (!edition) return "Edição não encontrada.";
+    if (edition.archiveProvider !== "r2" || !edition.pdfR2Key) {
+      return "Esta edição ainda não possui PDF oficial arquivado no R2.";
+    }
+    const buffer = await getEditionPdfFromR2(edition.pdfR2Key);
+    const fileHash = edition.pdfSha256 || createHash("sha256").update(buffer).digest("hex");
+    const fileName = edition.pdfFileName || `edicao-${edition.editionNumber}.pdf`;
+    const result = await extractCandidatesFromPdf(editionId, buffer, getImportCandidateService(client), {
+      fileName,
+      fileHash,
+      force: false,
+    });
+    if (result.candidates.length === 0) {
+      return result.pagesWithoutText.length > 0
+        ? "Nenhum texto pôde ser identificado neste PDF (sem camada de texto e sem OCR disponível)."
+        : "Nenhum conteúdo pôde ser identificado neste PDF.";
+    }
+    return null;
+  } catch (error) {
+    return error instanceof Error ? error.message : "Falha ao extrair matérias do PDF.";
+  }
+}
+
 export interface EditionMateriasWorkOutcome {
   status: "queued" | "processing" | "completed" | "partial" | "failed";
   candidateCount: number;
@@ -132,26 +164,21 @@ export async function runEditionMateriasWorkUnit(
   if (batchError) throw new Error(batchError.message);
 
   if (!existingBatch) {
-    const { generateCandidatesFromArchivedPdf } = await import("../../app/sistema/editorial/importar-pdf/actions");
-    const result = await generateCandidatesFromArchivedPdf(editionId, false);
-    if ("error" in result) {
+    const extractionError = await extractCandidatesForEdition(client, editionId);
+    if (extractionError) {
+      await client.from("audit_events").insert({
+        user_id: null,
+        entity_type: "newspaper_editions",
+        entity_id: editionId,
+        action: "edition_materias_extraction_failed",
+        metadata: { error: extractionError, origin: "edition_materias_worker" },
+      });
       await updateEditionMateriasStatus(client, editionId, {
         status: "failed",
         finishedAt: new Date().toISOString(),
       });
       return { status: "failed", candidateCount: 0, draftCount: 0, pendingRemaining: 0 };
     }
-    if ("duplicate" in result) {
-      // PDF já processado antes para esta edição — nunca reprocessa
-      // sozinho (protege os ~497 PDFs históricos e a edição 776 de
-      // reextração acidental).
-      await updateEditionMateriasStatus(client, editionId, {
-        status: "completed",
-        finishedAt: new Date().toISOString(),
-      });
-      return { status: "completed", candidateCount: result.previousBatch.candidateCount, draftCount: 0, pendingRemaining: 0 };
-    }
-    // Extração ok — cai para a conversão abaixo no mesmo ciclo de trabalho.
   }
 
   const { data: pendingRows, error: pendingError } = await client

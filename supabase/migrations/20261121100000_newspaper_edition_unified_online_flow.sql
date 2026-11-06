@@ -339,6 +339,8 @@ begin
 end;
 $$;
 
+revoke all on function public.publish_due_newspaper_editions() from public, anon, authenticated;
+
 comment on function public.publish_due_newspaper_editions() is
   'Disponibiliza automaticamente edições com online_status=scheduled cujo scheduled_available_at já passou, e dispara notification_events (notification_status independente — falha aqui nunca desfaz a disponibilização). Agendado via pg_cron, roda a cada minuto. NUNCA altera publish_due_scheduled_articles() (matérias) — função separada.';
 
@@ -422,6 +424,10 @@ begin
   where id = v_edition_id;
 
   return new;
+exception when others then
+  -- Roda dentro da atualização de status feita pelos crons de push: uma
+  -- falha aqui nunca pode impedir o registro da entrega real.
+  return new;
 end;
 $$;
 revoke all on function public.sync_newspaper_edition_notification_status() from public, anon, authenticated;
@@ -475,7 +481,7 @@ begin
   perform net.http_get(
     url := 'https://controle.altnix.com.br/api/cron/edition-materias',
     headers := jsonb_build_object('Authorization', 'Bearer ' || bearer),
-    timeout_milliseconds := 20000
+    timeout_milliseconds := 60000
   );
 end;
 $fn$;
