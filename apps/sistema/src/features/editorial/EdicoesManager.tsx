@@ -81,6 +81,23 @@ function sortValue(edition: NewspaperEdition, column: SortColumn): string | numb
 }
 
 /**
+ * Envio direto navegador → R2 por URL assinada. Quando o bucket não tem a
+ * regra CORS liberando a origem do painel, o navegador bloqueia a resposta
+ * e o fetch lança TypeError sem status — antes o operador via só "Failed
+ * to fetch"/"Access Denied". Agora a mensagem diz o que fazer.
+ */
+async function putToR2(url: string, contentType: string, body: Blob): Promise<Response> {
+  try {
+    return await fetch(url, { method: "PUT", headers: { "Content-Type": contentType }, body });
+  } catch {
+    throw new Error(
+      "O Cloudflare R2 recusou o envio direto pelo navegador (regra CORS do bucket de edições não configurada). " +
+        "Se o PDF já estiver no acervo, use \"Verificar acervo R2\" e depois \"Reaproveitar do acervo\".",
+    );
+  }
+}
+
+/**
  * Gestão de edições do jornal (Fase 28) — cadastro/edição real, sempre a
  * partir de `NewspaperEditionService`. Nunca exclusão destrutiva: inativar
  * é a única remoção pela UI (uma edição já referenciada por matérias/
@@ -296,19 +313,11 @@ export function EdicoesManager({ editions }: EdicoesManagerProps): JSX.Element {
         plan = authorization.plan;
 
         setUploadStage("Enviando PDF diretamente ao R2…");
-        const pdfResponse = await fetch(plan.pdf.uploadUrl, {
-          method: "PUT",
-          headers: { "Content-Type": "application/pdf" },
-          body: file,
-        });
+        const pdfResponse = await putToR2(plan.pdf.uploadUrl, "application/pdf", file);
         if (!pdfResponse.ok) throw new Error(`Falha no upload do PDF para o R2 (HTTP ${pdfResponse.status}).`);
 
         setUploadStage("Enviando capa…");
-        const coverResponse = await fetch(plan.cover.uploadUrl, {
-          method: "PUT",
-          headers: { "Content-Type": "image/webp" },
-          body: prepared.cover,
-        });
+        const coverResponse = await putToR2(plan.cover.uploadUrl, "image/webp", prepared.cover);
         if (!coverResponse.ok) throw new Error(`Falha no upload da capa para o R2 (HTTP ${coverResponse.status}).`);
 
         setUploadStage("Validando arquivo no servidor…");
@@ -339,6 +348,9 @@ export function EdicoesManager({ editions }: EdicoesManagerProps): JSX.Element {
           uploadError instanceof Error ? uploadError.message : "Não foi possível enviar a edição.");
       } finally {
         setUploadingId(null);
+        // Nunca deixar "preparando R2…" parado na tela depois de um erro;
+        // no sucesso a própria mensagem final se apaga sozinha.
+        setUploadStage((stage) => (stage === "PDF e capa publicados no R2." ? stage : null));
       }
     });
   }
@@ -585,11 +597,16 @@ export function EdicoesManager({ editions }: EdicoesManagerProps): JSX.Element {
         >
           {isCheckingArchive ? "Verificando…" : "Verificar acervo R2"}
         </button>
-        {candidate ? (
-          <button type="button" onClick={() => handleReuseArchivedPdf(edition.id)} disabled={pending || isUploading}>
-            {candidate.conflict ? "Substituir pelo PDF do acervo" : "Reaproveitar PDF do acervo"}
-          </button>
-        ) : null}
+        {/* Botões sempre no mesmo lugar (pedido do usuário, 07/11/2026):
+            este só fica clicável depois que "Verificar acervo R2" acha o PDF. */}
+        <button
+          type="button"
+          onClick={() => handleReuseArchivedPdf(edition.id)}
+          disabled={!candidate || pending || isUploading}
+          title={candidate ? undefined : "Use antes \"Verificar acervo R2\" para localizar o PDF no acervo."}
+        >
+          {candidate?.conflict ? "Substituir pelo acervo" : "Reaproveitar do acervo"}
+        </button>
         <input
           ref={(element) => {
             fileInputRefs.current[edition.id] = element;

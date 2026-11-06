@@ -123,7 +123,25 @@ export function isEditionR2ArchiveConfigured(): boolean {
   }
 }
 
-export async function ensureEditionR2CorsConfigured(): Promise<void> {
+/**
+ * Tentativa de garantir a regra CORS do envio direto pelo navegador.
+ * Melhor esforço (correção de 07/11/2026): a chave de edições em produção
+ * só lê/grava objetos e NÃO pode ler nem alterar o CORS do bucket — o R2
+ * responde "Access Denied", e antes isso abortava todo envio de PDF antes
+ * mesmo de começar. A regra CORS é configurada uma vez no painel da
+ * Cloudflare (R2 → bucket → Settings → CORS Policy); aqui nunca bloqueia.
+ * Devolve `false` quando não conseguiu conferir/gravar.
+ */
+export async function ensureEditionR2CorsConfigured(): Promise<boolean> {
+  try {
+    await writeEditionR2CorsRule();
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function writeEditionR2CorsRule(): Promise<void> {
   const client = r2Client();
   const corsRuleId = "jornal-online-browser";
   const extraOrigins = (env("R2_EDITIONS_CORS_ORIGINS") ?? "")

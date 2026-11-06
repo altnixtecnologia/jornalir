@@ -3278,3 +3278,21 @@ Pedido (com print): "alinhar as linhas, diminuir os espaços dentro dos espaços
 
 **PUBLICADO pelo usuário (07/11/2026)**: build `dpl_2iKSi4tPEgdv6TafRnbrt3aRrjVH` (projeto `jornalir-sistema`, commit `0dd6fd28`) promovido; `controle.altnix.com.br` confirmado nele, `/login` 200. Rollback: `dpl_AoG4ZXGGiS8stf46B7zqwpiyHBH9`. Pendente: conferência visual do usuário na tela logada.
 
+
+## 07/11/2026 — Envio de PDF dava "Access Denied" + botões da coluna PDF em posição fixa
+
+**Relato do usuário**: ao enviar o PDF da 776 apareceu "Não foi possível enviar a edição — Access Denied" (parado em "PDF validado · 24 páginas · preparando R2…"); "Verificar acervo R2" achou o PDF. Pediu também botões padronizados e fixos — o que não se aplica fica visível, mas desativado.
+
+**Diagnóstico (testado, somente leitura)**: `prepareEditionR2UploadAction` chamava `ensureEditionR2CorsConfigured()`, que lê e regrava o CORS do bucket a cada envio. A chave de edições (`R2_EDITIONS_ACCESS_KEY_ID`, bucket dedicado `jornal-ir-edicoes`) só tem permissão de objetos: `GetBucketCors` → 403 AccessDenied. Além disso, o preflight do navegador (OPTIONS com Origin `https://controle.altnix.com.br` e `https://jornalir-sistema.vercel.app`, método PUT) → **403 sem `Access-Control-Allow-Origin`**: o bucket NÃO tem regra CORS — o envio direto navegador→R2 nunca funcionaria, mesmo sem o erro acima. Reaproveitar do acervo é feito pelo servidor e NÃO depende de CORS.
+
+**Feito**:
+- `ensureEditionR2CorsConfigured()` virou melhor esforço (devolve `false`, nunca aborta o envio).
+- `EdicoesManager.tsx`: envio ao R2 por `putToR2()`; se o navegador bloquear (CORS), mensagem clara orientando "Verificar acervo R2 → Reaproveitar do acervo"; a linha de status ("preparando R2…") é limpa em qualquer erro.
+- Coluna PDF em grade fixa: situação (Sem PDF / PDF no acervo / Ver PDF) + **Enviar ao Jornal Online/Trocar PDF** + **Verificar acervo R2** + **Reaproveitar do acervo** sempre nas mesmas posições; "Reaproveitar do acervo" fica desativado até a verificação achar o PDF. Corrigido também o `<input type=file>` escondido, que na grade escapava e criava rolagem horizontal.
+- Testes: suíte `apps/sistema` 277/277 (`npx tsx --conditions=react-server --test test/*.test.ts`), `tsc` limpo, cópia estática com o CSS real no Edge 1866px: linhas 49px, botões alinhados, sem rolagem horizontal.
+
+**PENDENTE (ação do usuário no painel Cloudflare — configuração externa, não feita pelo agente)**: R2 → bucket `jornal-ir-edicoes` → Settings → CORS Policy → adicionar:
+```json
+[{"AllowedOrigins":["https://controle.altnix.com.br","https://jornalir-sistema.vercel.app"],"AllowedMethods":["PUT","GET","HEAD"],"AllowedHeaders":["*"],"ExposeHeaders":["ETag"],"MaxAgeSeconds":3600}]
+```
+Sem isso, "Enviar ao Jornal Online" (PDF novo do computador) continua bloqueado pelo navegador; a 776 usa "Reaproveitar do acervo". Depois de configurar, conferir com o preflight (deve devolver 200 com `access-control-allow-origin`).

@@ -1562,10 +1562,33 @@ textarea:focus {
 .edicoes-table .materia-title {
   white-space: nowrap;
 }
+/* Coluna PDF em grade fixa (07/11/2026): situação + 3 botões sempre nas
+   mesmas posições em todas as linhas; botão sem uso fica desativado. */
 .edicoes-table .media-upload-actions {
+  display: grid;
+  grid-template-columns: 84px 160px 132px 156px;
+  align-items: center;
   gap: 6px;
   margin-top: 0;
-  flex-wrap: nowrap;
+  position: relative;
+}
+/* O <input type=file> escondido é absoluto; numa grade ele escapava para a
+   direita da página e criava rolagem horizontal. */
+.edicoes-table .media-upload-actions > .visually-hidden {
+  top: 0;
+  left: 0;
+}
+.edicoes-table .media-upload-actions > button {
+  width: 100%;
+}
+.edicoes-table .media-upload-actions > .text-link {
+  margin: 0;
+  white-space: nowrap;
+}
+.edicoes-table .media-upload-actions > .helper-text:last-child {
+  grid-column: 1 / -1;
+  line-height: 1.4;
+  white-space: normal;
 }
 .edicoes-table .media-upload-actions .helper-text {
   margin: 0;
