@@ -21,18 +21,27 @@ const SOURCE = readFileSync(resolve(__dirname, "../src/providers/r2/editionCover
  * nem quantas camadas de indireção.
  *
  * A correção real abandona `require.resolve()` por completo: localiza
- * `node_modules/pdfjs-dist` subindo diretórios a partir de
- * `import.meta.url` (uma string — o webpack a substitui pelo caminho real
- * do arquivo em texto puro, sem nenhuma reescrita especial) usando só
- * `node:fs`/`node:path`, o mesmo algoritmo que o Node usa para resolver
- * módulos, escrito à mão, sem tocar em `require`. Este teste tem duas
- * partes: (1) checagem estática que bloqueia os padrões vulneráveis e
- * garante o padrão corrigido (`findPdfjsDistRoot`); (2) uma chamada REAL a
+ * `node_modules/pdfjs-dist` subindo diretórios, usando só `node:fs`/
+ * `node:path`, o mesmo algoritmo que o Node usa para resolver módulos,
+ * escrito à mão, sem tocar em `require`.
+ *
+ * Evolução (ver `editionCoverRenderer.ts` para o histórico completo):
+ * `import.meta.url` sozinho preserva o caminho de BUILD na Vercel
+ * (/vercel/path0), inexistente em runtime (/var/task) — `findPdfjsDistRoot`
+ * passou a tentar `LAMBDA_TASK_ROOT`/`process.cwd()` primeiro, com
+ * candidatos cientes do monorepo, e a não lançar erro quando os diretórios
+ * auxiliares (`standard_fonts`/`cmaps`, opcionais) não existem — a
+ * renderização usa fontes incorporadas no PDF nesse caso, em vez de
+ * quebrar a Server Action (cenário de ausência testado de verdade em
+ * `edition-cover-renderer-missing-assets.test.ts`, arquivo próprio).
+ * Este teste tem duas partes: (1) checagem
+ * estática que bloqueia os padrões vulneráveis já comprovados e garante o
+ * padrão corrigido (`findPdfjsDistRoot`); (2) uma chamada REAL a
  * `renderEditionCoverWebp`, que força a avaliação da resolução lazy
  * (inclusive a função corrigida) e exercita o pipeline de renderização de
  * verdade (pdfjs-dist + @napi-rs/canvas + sharp).
  */
-test("editionCoverRenderer.ts localiza o pdfjs-dist subindo node_modules a partir de import.meta.url, nunca via require.resolve()", () => {
+test("editionCoverRenderer.ts localiza o pdfjs-dist subindo node_modules a partir do diretório real de execução, nunca via require.resolve()", () => {
   assert.doesNotMatch(
     SOURCE,
     /\.resolve\(\s*"pdfjs-dist/,
@@ -46,7 +55,8 @@ test("editionCoverRenderer.ts localiza o pdfjs-dist subindo node_modules a parti
   assert.doesNotMatch(SOURCE, /new Function\(/, "a indireção via Function construída em runtime não escapa o bug — o require passado a ela já vem quebrado");
   assert.match(SOURCE, /function findPdfjsDistRoot\(\): string/);
   assert.match(SOURCE, /join\(dir, "node_modules", "pdfjs-dist"\)/);
-  assert.match(SOURCE, /existsSync\(candidate\)/);
+  assert.match(SOURCE, /existsSync\(join\(candidate, "package\.json"\)\)/);
+  assert.match(SOURCE, /process\.env\.LAMBDA_TASK_ROOT/, "deve tentar o diretório real de execução da função antes do caminho de build preservado em import.meta.url");
 });
 
 test("renderEditionCoverWebp() carrega o módulo de verdade (sem mock) e renderiza uma capa real a partir de um PDF mínimo válido", async () => {
