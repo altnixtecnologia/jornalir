@@ -3296,3 +3296,6 @@ Pedido (com print): "alinhar as linhas, diminuir os espaços dentro dos espaços
 [{"AllowedOrigins":["https://controle.altnix.com.br","https://jornalir-sistema.vercel.app"],"AllowedMethods":["PUT","GET","HEAD"],"AllowedHeaders":["*"],"ExposeHeaders":["ETag"],"MaxAgeSeconds":3600}]
 ```
 Sem isso, "Enviar ao Jornal Online" (PDF novo do computador) continua bloqueado pelo navegador; a 776 usa "Reaproveitar do acervo". Depois de configurar, conferir com o preflight (deve devolver 200 com `access-control-allow-origin`).
+
+**CORS configurado pelo usuário no painel Cloudflare (07/11/2026)**: preflight conferido — `controle.altnix.com.br` e `jornalir-sistema.vercel.app` → HTTP 204 com `access-control-allow-origin` correto e métodos PUT, GET, HEAD. Envio direto navegador→R2 liberado.
+
