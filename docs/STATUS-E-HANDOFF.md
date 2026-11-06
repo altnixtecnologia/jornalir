@@ -3275,3 +3275,6 @@ Pedido (com print): "alinhar as linhas, diminuir os espaços dentro dos espaços
 - Testes: `tsc` do sistema limpo. Tela exige login → validação visual feita numa cópia estática com o CSS real e a mesma marcação (Edge headless 1866px): linhas 49px uniformes, conteúdo centralizado, ao rolar a barra de pesquisa fica em 63px e o cabeçalho das colunas em 144px, sem linhas aparecendo entre os dois.
 
 **FALTA**: deploy do sistema (`jornalir-sistema`) pelo usuário e conferência visual na tela real logada.
+
+**PUBLICADO pelo usuário (07/11/2026)**: build `dpl_2iKSi4tPEgdv6TafRnbrt3aRrjVH` (projeto `jornalir-sistema`, commit `0dd6fd28`) promovido; `controle.altnix.com.br` confirmado nele, `/login` 200. Rollback: `dpl_AoG4ZXGGiS8stf46B7zqwpiyHBH9`. Pendente: conferência visual do usuário na tela logada.
+
