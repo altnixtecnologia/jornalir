@@ -10,7 +10,6 @@ import { getNewspaperEditionService } from "../../../../composition/editorial";
 import { createSupabaseServerClient } from "../../../../lib/supabase/server";
 import { attachEditionR2Archive } from "../../../../providers/supabase/newspaperEditionRepository.supabase";
 import { decideEditionArchiveAction, type EditionArchiveDecision } from "../../../../providers/r2/editionArchiveRecognition";
-import { renderEditionCoverWebp } from "../../../../providers/r2/editionCoverRenderer";
 import {
   MAX_EDITION_PDF_BYTES,
   createEditionDirectUploadPlan,
@@ -26,7 +25,7 @@ import {
   validateEditionPdfObject,
   type EditionDirectUploadPlan,
 } from "../../../../providers/r2/editionArchive.r2";
-import { generateCandidatesFromArchivedPdf, type CandidateDuplicateWarning } from "../importar-pdf/actions";
+import type { CandidateDuplicateWarning } from "../importar-pdf/actions";
 
 const LIST_PATH = "/sistema/editorial/edicoes";
 
@@ -60,6 +59,9 @@ function toErrorMessage(error: unknown): string {
  */
 async function runAutomaticExtraction(editionId: string): Promise<EditionExtractionOutcome> {
   try {
+    // Carregar o extrator só quando houver PDF arquivado: cadastrar uma edição
+    // não deve inicializar PDF.js nem seus módulos nativos no runtime Vercel.
+    const { generateCandidatesFromArchivedPdf } = await import("../importar-pdf/actions");
     const result = await generateCandidatesFromArchivedPdf(editionId, false);
     if ("error" in result) return { status: "failed", error: result.error };
     if ("duplicate" in result) {
@@ -430,6 +432,9 @@ export async function attachArchivedEditionPdfAction(
       return { error: "Esta edição já possui um PDF diferente arquivado. Confirme explicitamente a substituição." };
     }
 
+    // Importação tardia: evita avaliar pdfjs-dist/@napi-rs/canvas ao abrir a
+    // tela ou salvar apenas os metadados de uma edição.
+    const { renderEditionCoverWebp } = await import("../../../../providers/r2/editionCoverRenderer");
     const cover = await renderEditionCoverWebp(pdfBytes);
     const coverUpload = await uploadEditionCoverBufferToR2(cover.webpBuffer, {
       editionNumber: edition.editionNumber,
