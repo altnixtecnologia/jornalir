@@ -14,9 +14,87 @@
  * se grava localmente ou envia a algum lugar.
  */
 import { createRequire } from "node:module";
+import { existsSync } from "node:fs";
 import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { createCanvas, DOMMatrix, Path2D, type Canvas, type SKRSContext2D } from "@napi-rs/canvas";
 import sharp from "sharp";
+
+/**
+ * Histórico real (produção, Vercel, projeto jornalir-sistema) — três
+ * tentativas de correção anteriores falharam com a MESMA classe de erro
+ * (`ERR_INVALID_ARG_TYPE`, `dirname()` recebendo um número em vez de um
+ * caminho), todas baseadas em "require .resolve" do pacote pdfjs-dist
+ * sob alguma forma:
+ *
+ * 1) Direto, variável chamada `require`: webpack reescreve a chamada
+ *    estaticamente para o ID numérico do módulo no bundle (digest
+ *    2211172284).
+ * 2) Renomeado com fallback (`realRequire = __non_webpack_require__ ??
+ *    require`): a referência nua à variável `require` virou um
+ *    módulo-stub `Cannot find module` no bundle (digest 2130500082).
+ * 3) Renomeado sem fallback, e depois isolando `.resolve()` dentro de uma
+ *    `Function` construída em runtime: comprovado reconstruindo o bundle
+ *    de produção que, de um jeito ou de outro, QUALQUER referência ao
+ *    valor devolvido por `createRequire(...)` que não seja chamá-lo direto
+ *    com uma string literal — inclusive só passá-lo como argumento — é
+ *    reescrita pelo webpack (vira um número ou um módulo-stub).
+ *
+ * Correção real: abandonar `require.resolve()` por completo. Usamos apenas
+ * `import.meta.url` (uma string — webpack a substitui pelo caminho real do
+ * arquivo em texto puro, sem nenhuma reescrita especial, confirmado no
+ * bundle compilado) e funções simples de `node:fs`/`node:path`, subindo os
+ * diretórios a partir deste arquivo até achar `node_modules/pdfjs-dist` —
+ * o mesmo algoritmo que o Node usa internamente para resolver módulos, só
+ * que escrito à mão, sem tocar em `require`. Nada aqui é um padrão que o
+ * webpack reconheça como "resolução de módulo" para reescrever. Comprovado
+ * reconstruindo o bundle de produção e executando o módulo de verdade —
+ * ver test/edition-cover-renderer-init.test.ts.
+ */
+const pdfjsRequire = createRequire(import.meta.url);
+
+function findPdfjsDistRoot(): string {
+  let dir = dirname(fileURLToPath(import.meta.url));
+  for (let i = 0; i < 12; i += 1) {
+    const candidate = join(dir, "node_modules", "pdfjs-dist");
+    if (existsSync(candidate)) return candidate;
+    const parent = dirname(dir);
+    if (parent === dir) break;
+    dir = parent;
+  }
+  throw new Error(
+    `pdfjs-dist não encontrado em nenhum node_modules a partir de ${dirname(fileURLToPath(import.meta.url))}`,
+  );
+}
+
+interface PdfjsAssets {
+  getDocument: typeof import("pdfjs-dist/types/src/pdf").getDocument;
+  standardFontDataUrl: string;
+  cMapUrl: string;
+}
+
+let cachedPdfjsAssets: PdfjsAssets | null = null;
+
+/**
+ * Carregada apenas quando uma capa é realmente renderizada (não na
+ * avaliação do módulo) — reduz a chance de qualquer problema de resolução
+ * de caminho quebrar a Server Action antes de qualquer ação do operador, e
+ * facilita isolar esta etapa em diagnóstico futuro.
+ */
+function loadPdfjsAssets(): PdfjsAssets {
+  if (cachedPdfjsAssets) return cachedPdfjsAssets;
+
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  const pdfjsLegacy = pdfjsRequire("pdfjs-dist/legacy/build/pdf.js") as typeof import("pdfjs-dist/types/src/pdf");
+  const pdfjsRoot = findPdfjsDistRoot();
+
+  cachedPdfjsAssets = {
+    getDocument: pdfjsLegacy.getDocument,
+    standardFontDataUrl: join(pdfjsRoot, "standard_fonts") + "/",
+    cMapUrl: join(pdfjsRoot, "cmaps") + "/",
+  };
+  return cachedPdfjsAssets;
+}
 
 // Algumas páginas usam operações (clipping/patterns) que o pdfjs-dist invoca
 // via `new DOMMatrix()`/`new Path2D()` diretamente, fora do canvasFactory —
@@ -24,32 +102,6 @@ import sharp from "sharp";
 // 470, 573 e 574 durante a geração completa das 497 capas).
 if (!("DOMMatrix" in globalThis)) (globalThis as Record<string, unknown>).DOMMatrix = DOMMatrix;
 if (!("Path2D" in globalThis)) (globalThis as Record<string, unknown>).Path2D = Path2D;
-
-const require = createRequire(import.meta.url);
-// eslint-disable-next-line @typescript-eslint/no-var-requires
-const pdfjsLegacy = require("pdfjs-dist/legacy/build/pdf.js") as typeof import("pdfjs-dist/types/src/pdf");
-const { getDocument } = pdfjsLegacy;
-
-/**
- * `require.resolve(x)` dentro de um bundle webpack (como o build de Server
- * Actions do Next.js na Vercel) NUNCA devolve um caminho de arquivo real —
- * webpack intercepta a chamada estaticamente e devolve o ID numérico do
- * módulo no bundle (ex.: 43899). `dirname()` em cima desse número quebra em
- * produção com `ERR_INVALID_ARG_TYPE` (confirmado nos logs reais da Vercel,
- * 05/11/2026, ao reaproveitar o PDF da edição 776 — a renderização da capa
- * nunca chegava a rodar). `__non_webpack_require__` é a forma documentada do
- * próprio webpack de pedir a resolução REAL do Node, sem a reescrita
- * estática — existe apenas quando o código passa pelo bundler; fora dele
- * (scripts via `tsx`, testes) a variável não existe, por isso o fallback
- * para `require` normal, cujo `.resolve()` já é o real do Node nesses casos.
- */
-declare const __non_webpack_require__: NodeRequire | undefined;
-const realRequire: NodeRequire =
-  typeof __non_webpack_require__ !== "undefined" ? __non_webpack_require__ : require;
-
-const pdfjsRoot = dirname(realRequire.resolve("pdfjs-dist/package.json"));
-const standardFontDataUrl = join(pdfjsRoot, "standard_fonts") + "/";
-const cMapUrl = join(pdfjsRoot, "cmaps") + "/";
 
 interface CanvasAndContext {
   canvas: Canvas | null;
@@ -106,6 +158,7 @@ export async function renderEditionCoverWebp(
 ): Promise<RenderedEditionCover> {
   const targetWidth = options.targetWidth ?? 600;
   const webpQuality = options.webpQuality ?? 82;
+  const { getDocument, standardFontDataUrl, cMapUrl } = loadPdfjsAssets();
 
   const canvasFactory = new NapiCanvasFactory();
   const loadingTask = getDocument({

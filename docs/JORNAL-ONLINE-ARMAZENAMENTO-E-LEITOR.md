@@ -327,3 +327,47 @@ digest: '2211172284'
 **Risco relacionado considerado e descartado**: as pastas `standard_fonts`/`cmaps` do pdfjs-dist (usadas por `standardFontDataUrl`/`cMapUrl`, computadas a partir do mesmo `pdfjsRoot`) precisam existir no sistema de arquivos da função serverless da Vercel. Como `pdfjs-dist` já está em `serverComponentsExternalPackages` (`next.config.mjs`, decisão anterior), o Next.js já rastreia e inclui a pasta completa do pacote externo no bundle da função — por isso nenhuma configuração adicional de `outputFileTracingIncludes` foi acrescentada (seria redundante e fora do que é necessário corrigir agora).
 
 ARQUIVOS: `apps/sistema/src/providers/r2/editionCoverRenderer.ts` (corrigido), `apps/sistema/test/edition-cover-renderer-init.test.ts` (novo).
+
+## Atualização de 05/11/2026 (continuação 2) — a correção acima foi INSUFICIENTE; causa real e correção definitiva
+
+**O proprietário testou de novo e o mesmo erro voltou**, com um digest novo, no deployment que já continha a correção acima:
+```
+Projeto: jornalir-sistema
+Deployment: dpl_6epXbbwso8ERAL58N8Tc2e9ha8rZ
+Rota: /sistema/editorial/edicoes
+TypeError [ERR_INVALID_ARG_TYPE]: The "path" argument must be of type string. Received type number (43899)
+Digest: 2130500082
+```
+
+Investigação reconstruindo o build de produção localmente (`IR_LOCAL_ONEDRIVE_BUILD=1 next build`) e inspecionando byte a byte o JavaScript compilado em `.next/server/app/sistema/editorial/edicoes/page.js` a cada tentativa — nunca confiando só no `tsc`/`next build` passarem — revelou a causa real, em quatro etapas:
+
+1. **`require.resolve(x)` com a variável chamada `require`** (a correção original, antes de qualquer fix): o webpack reescreve a chamada estaticamente para o ID numérico do módulo. Confirmado no bundle: `dirname(43899)`.
+2. **Renomear para `realRequire = __non_webpack_require__ ?? require`** (a correção publicada em `e893b704`): no bundle real, `__non_webpack_require__` compila para `void 0`, então `realRequire` sempre caía no `require` do fallback — mas essa referência **nua** (não chamada imediatamente com uma string literal) a uma variável chamada `require` faz o webpack substituí-la por um **módulo-stub** que só lança `Cannot find module`, não pelo require real produzido por `createRequire()`. Confirmado no bundle: a variável acabava igual a `e=>{function a(e){var a=Error("Cannot find module '"+e+"'");throw a.code="MODULE_NOT_FOUND"...}}`.
+3. **Renomear sem fallback** (`pdfjsRequire = createRequire(...)`, `pdfjsRequire.resolve(...)`): também reescrito para um ID numérico no bundle (`dirname(43899)`, com a string removida) — o webpack rastreia a origem de QUALQUER chamada `.resolve(string literal)` por fluxo de dados, não só casando o texto "require".
+4. **Isolar só a chamada `.resolve()` dentro de uma `Function` construída em runtime**, recebendo o `pdfjsRequire` já criado (fora da função) como argumento: também não resolveu — o valor de `pdfjsRequire` usado "nu" (passado como argumento, sem ser chamado imediatamente com uma string literal) já virava o módulo-stub `Cannot find module` antes de chegar na função opaca, pelo mesmo mecanismo do item 2.
+
+**Conclusão**: nenhuma forma de obter e usar o valor devolvido por `createRequire(...)` — direto, renomeado, com fallback, ou passado como argumento para uma função opaca — escapa da reescrita do webpack, exceto chamá-lo imediatamente com uma string literal (`require("pdfjs-dist/legacy/build/pdf.js")`, que sempre funcionou, por isso `getDocument` nunca foi o problema).
+
+**Correção definitiva**: abandonar `require.resolve()` por completo. `editionCoverRenderer.ts` agora localiza `node_modules/pdfjs-dist` subindo diretórios a partir de `import.meta.url` (uma string — confirmado no bundle que o webpack a substitui pelo caminho real do arquivo, em texto puro, sem nenhuma reescrita especial), usando só `node:fs` (`existsSync`), `node:path` (`dirname`/`join`) e `node:url` (`fileURLToPath`) — o mesmo algoritmo que o Node usa internamente para resolver módulos (procurar `node_modules/<pacote>` subindo diretórios), implementado à mão, sem tocar em `require` em nenhum momento:
+```ts
+function findPdfjsDistRoot(): string {
+  let dir = dirname(fileURLToPath(import.meta.url));
+  for (let i = 0; i < 12; i += 1) {
+    const candidate = join(dir, "node_modules", "pdfjs-dist");
+    if (existsSync(candidate)) return candidate;
+    const parent = dirname(dir);
+    if (parent === dir) break;
+    dir = parent;
+  }
+  throw new Error(`pdfjs-dist não encontrado em nenhum node_modules a partir de ${dirname(fileURLToPath(import.meta.url))}`);
+}
+```
+Comprovado no bundle final reconstruído: a lógica compilada é só `existsSync`/`join`/`dirname`/`fileURLToPath` reais, operando sobre a string literal do caminho real do arquivo — nenhum ID numérico, nenhum módulo-stub em lugar nenhum.
+
+A resolução também passou a ser **lazy** (só roda dentro de `loadPdfjsAssets()`, chamada apenas quando `renderEditionCoverWebp()` é realmente invocada — não mais na avaliação do módulo), reduzindo o risco de qualquer problema de resolução de caminho quebrar a Server Action antes de qualquer ação do operador, como pedido.
+
+**Teste de regressão atualizado** (mesmo arquivo, 2 casos): (1) checagem estática que bloqueia os quatro padrões vulneráveis documentados acima e garante a presença do padrão corrigido (`findPdfjsDistRoot`, `existsSync(candidate)`); (2) a mesma chamada real a `renderEditionCoverWebp()` com um PDF mínimo válido (sem mock), exercitando pdfjs-dist + @napi-rs/canvas + sharp de ponta a ponta. Suíte completa: **264/264 testes passam**, `tsc --noEmit` limpo, `next build` limpo.
+
+**Limite desta verificação, por honestidade**: não foi possível exercitar a Server Action de ponta a ponta via `next start` local autenticado — o bypass de visualização local (`SYSTEM_LOCAL_PREVIEW`) só funciona com `NODE_ENV=development` por desenho (`apps/sistema/src/lib/auth/localPreview.ts`: `process.env.NODE_ENV === "development" && process.env.SYSTEM_LOCAL_PREVIEW === "1"` — guarda de segurança intencional, para nunca ativar num build de produção real), e `next start` roda exatamente o build de produção de verdade (o mesmo que seria publicado). A prova desta correção é (a) a inspeção direta, byte a byte, do bundle de produção real recém-reconstruído, mostrando a ausência total dos quatro padrões que quebraram antes, e (b) a execução real e não-mockada do pipeline de renderização completo no teste. A confirmação definitiva, como em qualquer correção deste tipo, só vem dos logs reais da Vercel depois da publicação — é isso que será conferido antes de declarar a tela pronta para o teste manual da edição 776.
+
+ARQUIVOS (segunda correção): `apps/sistema/src/providers/r2/editionCoverRenderer.ts`, `apps/sistema/test/edition-cover-renderer-init.test.ts`.

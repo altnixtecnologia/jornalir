@@ -9,32 +9,44 @@ const __dirname = pathDirname(fileURLToPath(import.meta.url));
 const SOURCE = readFileSync(resolve(__dirname, "../src/providers/r2/editionCoverRenderer.ts"), "utf8");
 
 /**
- * Bug real de produção (05/11/2026): `require.resolve("pdfjs-dist/package.json")`
- * sob o bundle webpack do Next.js na Vercel NUNCA devolve um caminho de
- * arquivo — webpack reescreve a chamada estaticamente para devolver o ID
- * numérico do módulo no bundle (confirmado nos logs reais:
- * `TypeError [ERR_INVALID_ARG_TYPE]: ... Received type number (43899)`,
- * ao reaproveitar o PDF da edição 776 pelo painel). `dirname()` nesse
- * número quebra a Server Action antes de qualquer renderização.
+ * Três tentativas baseadas em `require.resolve()` (direto, renomeado, e
+ * isolado numa `Function` opaca recebendo o require já criado como
+ * argumento) falharam em produção na Vercel (projeto jornalir-sistema),
+ * todas com `TypeError [ERR_INVALID_ARG_TYPE] ... Received type number`
+ * em `dirname()` (digests 2211172284 e 2130500082) — comprovado
+ * reconstruindo o bundle de produção repetidas vezes: QUALQUER referência
+ * ao valor devolvido por `createRequire(...)` que não seja chamá-lo direto
+ * com uma string literal é reescrita pelo webpack (vira um ID numérico ou
+ * um módulo-stub `Cannot find module`), não importa o nome da variável
+ * nem quantas camadas de indireção.
  *
- * Este teste tem duas partes: (1) uma checagem estática que garante que o
- * padrão vulnerável nunca volta a aparecer e que o padrão corrigido
- * (`__non_webpack_require__` com fallback) está presente — é a parte que
- * detecta uma regressão de código; (2) uma chamada REAL a
- * `renderEditionCoverWebp`, que força a avaliação de todo o topo do módulo
- * (inclusive a linha corrigida) e exercita o pipeline de renderização de
- * verdade (pdfjs-dist + @napi-rs/canvas + sharp), fora do ambiente webpack —
- * aqui `__non_webpack_require__` não existe, e o fallback precisa continuar
- * funcionando igual a antes da correção.
+ * A correção real abandona `require.resolve()` por completo: localiza
+ * `node_modules/pdfjs-dist` subindo diretórios a partir de
+ * `import.meta.url` (uma string — o webpack a substitui pelo caminho real
+ * do arquivo em texto puro, sem nenhuma reescrita especial) usando só
+ * `node:fs`/`node:path`, o mesmo algoritmo que o Node usa para resolver
+ * módulos, escrito à mão, sem tocar em `require`. Este teste tem duas
+ * partes: (1) checagem estática que bloqueia os padrões vulneráveis e
+ * garante o padrão corrigido (`findPdfjsDistRoot`); (2) uma chamada REAL a
+ * `renderEditionCoverWebp`, que força a avaliação da resolução lazy
+ * (inclusive a função corrigida) e exercita o pipeline de renderização de
+ * verdade (pdfjs-dist + @napi-rs/canvas + sharp).
  */
-test("editionCoverRenderer.ts nunca volta a usar require.resolve() direto para localizar o pdfjs-dist — sempre via __non_webpack_require__ com fallback", () => {
+test("editionCoverRenderer.ts localiza o pdfjs-dist subindo node_modules a partir de import.meta.url, nunca via require.resolve()", () => {
   assert.doesNotMatch(
     SOURCE,
-    /dirname\(require\.resolve\(/,
-    "require.resolve() direto quebra em produção sob o bundle webpack da Vercel (devolve um ID numérico, não um caminho)",
+    /\.resolve\(\s*"pdfjs-dist/,
+    "qualquer .resolve(\"pdfjs-dist...\") — direto, renomeado ou dentro de uma Function opaca — é reescrito pelo webpack para um ID numérico ou um módulo-stub, não importa a indireção",
   );
-  assert.match(SOURCE, /typeof __non_webpack_require__ !== "undefined" \? __non_webpack_require__ : require/);
-  assert.match(SOURCE, /dirname\(realRequire\.resolve\(/);
+  assert.doesNotMatch(
+    SOURCE,
+    /:\s*require\b/,
+    "uma referência nua a uma variável chamada require (ex.: em fallback de ternário) é substituída por um módulo-stub pelo webpack",
+  );
+  assert.doesNotMatch(SOURCE, /new Function\(/, "a indireção via Function construída em runtime não escapa o bug — o require passado a ela já vem quebrado");
+  assert.match(SOURCE, /function findPdfjsDistRoot\(\): string/);
+  assert.match(SOURCE, /join\(dir, "node_modules", "pdfjs-dist"\)/);
+  assert.match(SOURCE, /existsSync\(candidate\)/);
 });
 
 test("renderEditionCoverWebp() carrega o módulo de verdade (sem mock) e renderiza uma capa real a partir de um PDF mínimo válido", async () => {
