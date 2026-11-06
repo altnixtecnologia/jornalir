@@ -81,6 +81,11 @@ export function editionLabel(edition: Pick<NewspaperEdition, "editionNumber" | "
 
 export function formatDate(iso?: string): string {
   if (!iso) return "—";
+  // DATE (sem horário) representa um dia civil, não um instante UTC.
+  // `new Date("2026-11-05")` vira 04/11 no fuso de Brasília;
+  // preservar literalmente dia/mês/ano evita a regressão nas Edições.
+  const dateOnly = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso);
+  if (dateOnly) return `${dateOnly[3]}/${dateOnly[2]}/${dateOnly[1]}`;
   return new Date(iso).toLocaleDateString("pt-BR", {
     day: "2-digit",
     month: "2-digit",
