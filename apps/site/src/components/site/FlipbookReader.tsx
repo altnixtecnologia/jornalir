@@ -1,6 +1,6 @@
 "use client";
 
-import { forwardRef, useEffect, useMemo, useState } from "react";
+import { createContext, forwardRef, useContext, useEffect, useMemo, useState } from "react";
 import HTMLFlipBook from "react-pageflip";
 import { GlobalWorkerOptions, getDocument, type PDFDocumentProxy } from "pdfjs-dist";
 
@@ -15,12 +15,18 @@ interface FlipbookReaderProps {
 interface PdfPageProps {
   pdf: PDFDocumentProxy;
   index: number;
-  active: boolean;
   title: string;
 }
 
-const PdfPage = forwardRef<HTMLDivElement, PdfPageProps>(({ pdf, index, active, title }, ref) => {
+// Com renderOnlyPageLengthChange, o HTMLFlipBook congela as páginas da primeira
+// montagem e nunca repassa props novas; o contexto chega mesmo assim.
+const CurrentPageContext = createContext(0);
+const RENDER_WINDOW = 2;
+
+const PdfPage = forwardRef<HTMLDivElement, PdfPageProps>(({ pdf, index, title }, ref) => {
   const [imageUrl, setImageUrl] = useState<string | null>(null);
+  const currentPage = useContext(CurrentPageContext);
+  const active = Math.abs(index - currentPage) <= RENDER_WINDOW;
 
   useEffect(() => {
     let cancelled = false;
@@ -161,6 +167,7 @@ export function FlipbookReader({ pdfUrl, title, zoomPercent }: FlipbookReaderPro
         className="flex min-w-max justify-center"
         style={{ transform: `scale(${visualScale})`, transformOrigin: "top center" }}
       >
+        <CurrentPageContext.Provider value={currentPage}>
         <HTMLFlipBook
           width={430}
           height={620}
@@ -189,15 +196,10 @@ export function FlipbookReader({ pdfUrl, title, zoomPercent }: FlipbookReaderPro
           onFlip={(event) => setCurrentPage(event.data)}
         >
           {Array.from({ length: pdf.numPages }, (_, index) => (
-            <PdfPage
-              key={`${title}-${index}`}
-              pdf={pdf}
-              index={index}
-              title={title}
-              active={Math.abs(index - currentPage) <= 2}
-            />
+            <PdfPage key={`${title}-${index}`} pdf={pdf} index={index} title={title} />
           ))}
         </HTMLFlipBook>
+        </CurrentPageContext.Provider>
       </div>
     </div>
   );
