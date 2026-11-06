@@ -1514,9 +1514,23 @@ textarea:focus {
    para a tabela de Matérias (ver comentário de `.materias-toolbar-compact`
    acima). Evitado aqui removendo o overflow-x no caso comum; abaixo de
    900px (tablet estreito), reativa o scroll horizontal e desliga o sticky
-   para não reproduzir o mesmo bug. */
-.edicoes-table-wrap {
-  overflow-x: visible;
+   para não reproduzir o mesmo bug.
+
+   CAUSA REAL do espaço vazio acima do cabeçalho (achado e corrigido em
+   05/11/2026, com inspeção real do layout via CDP — getBoundingClientRect
+   do <thead> batendo ~63px abaixo da caixa do wrapper): o seletor abaixo
+   tinha a MESMA especificidade de `.materias-table-wrap` (uma classe cada)
+   e aparece ANTES dela no arquivo — a cascata usa a regra base por ordem
+   de declaração, então `overflow-x: auto` (e, por sincronização do CSS,
+   `overflow-y: auto` também) nunca era realmente substituído. O wrapper
+   virava um contêiner de rolagem PRÓPRIO, pequeno, e o sticky do thead
+   passava a ser calculado relativo a esse contêiner minúsculo em vez da
+   página — resultado visual: uma caixa vazia do tamanho de
+   --app-header-height antes do cabeçalho aparecer deslocado. Corrigido
+   combinando as duas classes no seletor (especificidade maior que a regra
+   base, não depende mais da ordem no arquivo). */
+.materias-table-wrap.edicoes-table-wrap {
+  overflow: visible;
 }
 .edicoes-table {
   min-width: 0;
