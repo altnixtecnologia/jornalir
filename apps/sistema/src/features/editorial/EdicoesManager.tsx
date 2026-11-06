@@ -110,6 +110,22 @@ export function EdicoesManager({ editions }: EdicoesManagerProps): JSX.Element {
   const [editingScheduleId, setEditingScheduleId] = useState<string | null>(null);
   const [scheduleValue, setScheduleValue] = useState("");
   const [detailsEditionId, setDetailsEditionId] = useState<string | null>(null);
+  const rootRef = useRef<HTMLDivElement | null>(null);
+  const toolbarRef = useRef<HTMLDivElement | null>(null);
+
+  // Cabeçalho travado (07/11/2026): a barra de pesquisa fica fixa sob o menu
+  // e o cabeçalho da tabela logo abaixo dela; a altura real da barra (que
+  // muda com quebra de linha) vira a variável usada pelo `top` do <thead>.
+  useEffect(() => {
+    const toolbar = toolbarRef.current;
+    const root = rootRef.current;
+    if (!toolbar || !root || typeof ResizeObserver === "undefined") return;
+    const update = (): void => root.style.setProperty("--edicoes-toolbar-height", `${toolbar.offsetHeight}px`);
+    update();
+    const observer = new ResizeObserver(update);
+    observer.observe(toolbar);
+    return () => observer.disconnect();
+  }, []);
 
   const visibleItems = useMemo(() => {
     const term = search.trim().toLowerCase();
@@ -549,6 +565,8 @@ export function EdicoesManager({ editions }: EdicoesManagerProps): JSX.Element {
           <a className="text-link" href={edition.pdfUrl} target="_blank" rel="noreferrer">
             Ver PDF
           </a>
+        ) : edition.pdfR2Key ? (
+          <span className="helper-text">PDF no acervo</span>
         ) : (
           <span className="helper-text">Sem PDF</span>
         )}
@@ -557,7 +575,7 @@ export function EdicoesManager({ editions }: EdicoesManagerProps): JSX.Element {
           onClick={() => fileInputRefs.current[edition.id]?.click()}
           disabled={pending || isUploading}
         >
-          {isUploading ? "Enviando…" : edition.pdfUrl ? "Trocar PDF" : "Enviar ao Jornal Online"}
+          {isUploading ? "Enviando…" : edition.pdfUrl || edition.pdfR2Key ? "Trocar PDF" : "Enviar ao Jornal Online"}
         </button>
         <button
           type="button"
@@ -604,8 +622,8 @@ export function EdicoesManager({ editions }: EdicoesManagerProps): JSX.Element {
   }
 
   return (
-    <>
-      <div className="materias-toolbar">
+    <div className="edicoes-manager" ref={rootRef}>
+      <div className="materias-toolbar edicoes-toolbar" ref={toolbarRef}>
         <div className="materias-filters">
           <label className="materias-search">
             Pesquisar
@@ -655,7 +673,9 @@ export function EdicoesManager({ editions }: EdicoesManagerProps): JSX.Element {
           <tbody>
             {visibleItems.map((edition) => (
               <tr key={edition.id}>
-                <td className="materia-title">{editionLabel(edition)}</td>
+                <td>
+                  <span className="materia-title">{editionLabel(edition)}</span>
+                </td>
                 <td>{edition.title}</td>
                 <td>{formatDate(edition.publicationDate)}</td>
                 <td>{edition.pageCount ?? "—"}</td>
@@ -745,7 +765,7 @@ export function EdicoesManager({ editions }: EdicoesManagerProps): JSX.Element {
           pending={pending}
         />
       ) : null}
-    </>
+    </div>
   );
 }
 

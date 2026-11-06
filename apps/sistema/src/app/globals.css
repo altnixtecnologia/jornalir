@@ -1535,16 +1535,64 @@ textarea:focus {
 .edicoes-table {
   min-width: 0;
 }
-.edicoes-table thead th {
+/* Cabeçalho travado (07/11/2026, pedido do usuário): a barra de pesquisa
+   gruda logo abaixo do menu e o cabeçalho das colunas (Edição, Título…)
+   logo abaixo dela; a altura real da barra vem de --edicoes-toolbar-height,
+   medida no EdicoesManager. Linhas compactas e centralizadas na vertical. */
+.edicoes-toolbar {
   position: sticky;
   top: var(--app-header-height);
+  z-index: 16;
+  background: var(--paper);
+  padding-top: 10px;
+  margin-bottom: 0;
+}
+/* Duas classes no seletor: `.materias-table thead th`/`tbody td` aparecem
+   DEPOIS no arquivo com a mesma especificidade e ganhariam pela ordem. */
+.materias-table.edicoes-table thead th {
+  position: sticky;
+  top: calc(var(--app-header-height) + var(--edicoes-toolbar-height, 0px));
   z-index: 15;
+  padding: 9px 10px;
+}
+.materias-table.edicoes-table tbody td {
+  padding: 6px 10px;
+  vertical-align: middle;
+}
+.edicoes-table .materia-title {
+  white-space: nowrap;
+}
+.edicoes-table .media-upload-actions {
+  gap: 6px;
+  margin-top: 0;
+  flex-wrap: nowrap;
+}
+.edicoes-table .media-upload-actions .helper-text {
+  margin: 0;
+  line-height: 28px;
+  white-space: nowrap;
+}
+.edicoes-table .media-upload-actions button,
+.edicoes-table td > button {
+  height: 28px;
+  padding: 0 10px;
+  font-size: 11px;
+  white-space: nowrap;
+}
+.edicoes-table .candidate-row-actions {
+  margin: 0;
+}
+.edicoes-table .edicoes-status-cell {
+  gap: 2px;
 }
 @media (max-width: 900px) {
   .edicoes-table-wrap {
     overflow-x: auto;
   }
-  .edicoes-table thead th {
+  .edicoes-toolbar {
+    position: static;
+  }
+  .materias-table.edicoes-table thead th {
     position: static;
   }
 }

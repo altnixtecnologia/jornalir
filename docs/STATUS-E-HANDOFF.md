@@ -3262,3 +3262,16 @@ Esperado: `cadastradas = 496`, `auditadas = 496`. Depois: conferir portal, confe
 **Jornal Online público mostra só 7 edições de teste**: o banco de produção tem 1 edição (776, sem PDF vinculado); `/api/jornal-online/editions` devolve 0 itens; o portal cai na pasta de teste do Drive + lista fixa `calameoEditions`. Os 497 PDFs estão no R2 (`acervo/edicoes/IR NNN.pdf`) mas nunca foram cadastrados no banco. Pendente decisão do usuário: datas do acervo e retirada das edições de teste.
 
 FALTA/BLOQUEIOS: (1) aplicar a migration remota — só com autorização, conferindo o ledger antes; (2) criar o segredo `edition_materias_cron_secret` no Vault do Supabase com o MESMO valor de `CRON_SECRET` do projeto `jornalir-sistema` — sem isso a retomada automática do worker não roda (o botão manual de reprocessar funciona); (3) push e deploy manual (staging antes de produção), só com autorização; (4) teste real no painel publicado com uma edição de teste (nunca PDFs históricos).
+
+## 07/11/2026 — Editorial → Edições: tabela compacta, alinhada e cabeçalho travado (pedido do usuário)
+
+Pedido (com print): "alinhar as linhas, diminuir os espaços dentro dos espaços, travar o cabeçalho até a parte da identificação (Edição, Título…)". Pergunta junto: onde carregar o PDF no modal "Nova edição" → resposta: o modal só cadastra; o PDF vai pelo botão **Enviar ao Jornal Online** na linha da edição (decisão aprovada de 06/11 mantida — envio fora do modal).
+
+**Feito** (`EdicoesManager.tsx` + `globals.css`):
+- Causa do desalinhamento: a 1ª coluna era `<td className="materia-title">` e `.materia-title` tem `display:block` — o TD deixava de ser célula de tabela (mesmo bug já corrigido em Usuários). Agora `<td><span class="materia-title">`.
+- `.materias-table tbody td`/`thead th` vinham DEPOIS no arquivo com a mesma especificidade e anulavam os ajustes de Edições → seletores com duas classes (`.materias-table.edicoes-table`). Células `6px 10px`, `vertical-align: middle`; botões da linha 28px; linha caiu de 65px para 49px.
+- Cabeçalho travado: a barra de pesquisa (Pesquisar / contador / + Nova edição) gruda sob o menu e o cabeçalho das colunas logo abaixo dela; altura real da barra medida por `ResizeObserver` (`--edicoes-toolbar-height`). Abaixo de 900px nada fica preso (cartões no celular, como antes).
+- Coluna PDF: edições do acervo histórico (com `pdf_r2_key`, sem `pdf_url`) mostravam "Sem PDF" + "Enviar ao Jornal Online" — enganoso. Agora mostram **"PDF no acervo"** + **"Trocar PDF"**; "Sem PDF" + "Enviar ao Jornal Online" só onde realmente não há PDF (ex.: 776).
+- Testes: `tsc` do sistema limpo. Tela exige login → validação visual feita numa cópia estática com o CSS real e a mesma marcação (Edge headless 1866px): linhas 49px uniformes, conteúdo centralizado, ao rolar a barra de pesquisa fica em 63px e o cabeçalho das colunas em 144px, sem linhas aparecendo entre os dois.
+
+**FALTA**: deploy do sistema (`jornalir-sistema`) pelo usuário e conferência visual na tela real logada.
