@@ -1422,6 +1422,31 @@ textarea:focus {
     z-index: 15;
   }
 }
+/* Cabeçalho da tabela travado (pedido do usuário, 07/11/2026) — resolve a
+   limitação descrita acima só onde a tabela (min-width 980px) cabe sem
+   rolagem horizontal: ali o wrapper volta a `overflow: visible` (deixa de
+   ser contêiner de rolagem) e o <thead> gruda logo abaixo da barra de
+   filtros, cuja altura real vem de --materias-toolbar-height (medida no
+   MateriasList). Abaixo disso, comportamento anterior intacto. Duas
+   classes no seletor para vencer `.materias-table-wrap`, declarado depois. */
+@media (min-width: 1100px) {
+  .materias-list-root .materias-table-wrap {
+    overflow: visible;
+  }
+  .materias-list-root .materias-table thead th {
+    position: sticky;
+    top: calc(var(--app-header-height) + var(--materias-toolbar-height, 0px));
+    z-index: 14;
+  }
+}
+.materias-table td:last-child {
+  white-space: nowrap;
+}
+.materia-card-remove {
+  display: flex;
+  justify-content: flex-end;
+  padding: 6px 0 0;
+}
 
 /* Filtros recolhíveis só no mobile (<768px): a listagem aparece de
    imediato em vez dos filtros tomarem a primeira tela. Desktop nunca
@@ -2674,6 +2699,48 @@ textarea:focus {
 .form-action-danger:disabled {
   opacity: 0.6;
   cursor: not-allowed;
+}
+/* Despublicar (07/11/2026): ação reversível, cor de alerta (âmbar), para
+   não se confundir com Publicar (azul) nem com Arquivar (vermelho). */
+.form-action-warning {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 36px;
+  padding: 0 16px;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  border-radius: 4px;
+  white-space: nowrap;
+  cursor: pointer;
+  border: 1px solid #b7791f !important;
+  background: #fff4dc !important;
+  color: #8a5a00 !important;
+}
+.form-action-warning:hover:not(:disabled) {
+  background: #ffe9b8 !important;
+}
+.form-action-warning:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+/* Remover (listagem de matérias, só não publicadas). */
+.materia-remove-button {
+  height: 26px;
+  padding: 0 10px;
+  font-size: 11px;
+  font-weight: 700;
+  border: 1px solid #d9b8ae;
+  border-radius: 4px;
+  background: #fff;
+  color: #a3402b;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.materia-remove-button:hover:not(:disabled) {
+  border-color: #a3402b;
+  background: #fbefeb;
 }
 
 /* Ação secundária/discreta — Voltar, Limpar, Cancelar sem destruição,

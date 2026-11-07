@@ -1,7 +1,10 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { removeUnpublishedArticle } from "../../app/sistema/editorial/materias/actions";
+import { notify } from "../../lib/feedback/notify";
 import type { Article, ArticleOrigin, ArticleStatus, EditorialSection, Locality, NewspaperEdition } from "@ir/types";
 import type { MateriasDateField, MateriasSortColumn, SortDirection } from "../../providers/supabase/articleRepository.supabase";
 import {
@@ -108,6 +111,57 @@ export function MateriasList({
   // aparece, igual a antes). Fechado por padrão: a listagem aparece de
   // imediato em vez dos filtros tomarem a primeira tela inteira.
   const [filtersOpen, setFiltersOpen] = useState(false);
+  const router = useRouter();
+  const [removing, startRemoving] = useTransition();
+  const [removingId, setRemovingId] = useState<string | null>(null);
+  const rootRef = useRef<HTMLDivElement | null>(null);
+  const toolbarRef = useRef<HTMLFormElement | null>(null);
+
+  // Cabeçalho da tabela travado logo abaixo da barra de filtros (que já é
+  // fixa sob o menu): a altura real da barra vira --materias-toolbar-height.
+  useEffect(() => {
+    const toolbar = toolbarRef.current;
+    const root = rootRef.current;
+    if (!toolbar || !root || typeof ResizeObserver === "undefined") return;
+    const update = (): void => root.style.setProperty("--materias-toolbar-height", `${toolbar.offsetHeight}px`);
+    update();
+    const observer = new ResizeObserver(update);
+    observer.observe(toolbar);
+    return () => observer.disconnect();
+  }, []);
+
+  function canRemove(article: Article): boolean {
+    return article.status === "draft" || article.status === "adjusting" || article.status === "scheduled";
+  }
+
+  function handleRemove(article: Article): void {
+    if (!window.confirm(`Remover "${article.title}"?\n\nA matéria sai da listagem (fica arquivada, com registro no histórico).`)) return;
+    setRemovingId(article.id);
+    startRemoving(async () => {
+      const result = await removeUnpublishedArticle(article.id);
+      setRemovingId(null);
+      if ("error" in result) {
+        notify.error("Não foi possível remover a matéria", result.error);
+        return;
+      }
+      notify.success("Matéria removida", "Ela continua consultável no filtro Status → Arquivado.");
+      router.refresh();
+    });
+  }
+
+  function renderRemoveButton(article: Article): JSX.Element | null {
+    if (!canRemove(article)) return null;
+    return (
+      <button
+        type="button"
+        className="materia-remove-button"
+        onClick={() => handleRemove(article)}
+        disabled={removing}
+      >
+        {removingId === article.id ? "Removendo…" : "Remover"}
+      </button>
+    );
+  }
 
   const activeFilterCount = [
     filters.q.length > 0,
@@ -175,7 +229,7 @@ export function MateriasList({
   }
 
   return (
-    <>
+    <div className="materias-list-root" ref={rootRef}>
       <div className="materias-filters-toggle-row">
         <button
           type="button"
@@ -194,6 +248,7 @@ export function MateriasList({
       </div>
 
       <form
+        ref={toolbarRef}
         id="materias-filters-panel"
         className={`materias-toolbar-compact${filtersOpen ? " is-open" : ""}`}
         method="get"
@@ -288,6 +343,7 @@ export function MateriasList({
                     </th>
                   ))}
                   <th>Destaque</th>
+                  <th>Ações</th>
                 </tr>
               </thead>
               <tbody>
@@ -312,6 +368,7 @@ export function MateriasList({
                       <td><PublicationCell article={article} /></td>
                       <td><span className={`notification-pill notification-pill--${article.notificationMode}`}>{notificationLabels[article.notificationMode]}</span></td>
                       <td><span className={`placement-pill${hasPlacement ? "" : " placement-pill--muted"}`}>{placementLabels[article.placement.type]}</span></td>
+                      <td>{renderRemoveButton(article)}</td>
                     </tr>
                   );
                 })}
@@ -347,6 +404,7 @@ export function MateriasList({
                       <span className={`media-indicator${hasCoverImage(article) ? " media-indicator--cover" : ""}`}>{mediaSummary(article)}</span>
                     </div>
                   </Link>
+                  {canRemove(article) ? <div className="materia-card-remove">{renderRemoveButton(article)}</div> : null}
                 </li>
               );
             })}
@@ -356,6 +414,6 @@ export function MateriasList({
 
       {total > 0 ? <p className="materias-mobile-page-count" role="status">Página {page} de {totalPages} · {total.toLocaleString("pt-BR")} matérias</p> : null}
       <PaginationControls page={page} totalPages={totalPages} buildHref={buildHref} />
-    </>
+    </div>
   );
 }

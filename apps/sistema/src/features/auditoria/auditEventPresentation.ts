@@ -31,6 +31,8 @@ const ACTION_LABELS: Record<string, string> = {
   publish: "publicada",
   schedule: "agendada",
   archive: "arquivada",
+  remove: "removida da listagem (arquivada)",
+  unpublish: "despublicada (voltou a rascunho)",
   update_placement: "alteração de destaque",
   reorder_placement: "reordenação de destaque",
   invite: "convite enviado",

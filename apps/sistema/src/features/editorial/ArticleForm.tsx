@@ -14,7 +14,7 @@ import type {
   NewspaperEdition,
   NotificationMode,
 } from "@ir/types";
-import { archiveArticle, createArticle, updateArticle } from "../../app/sistema/editorial/materias/actions";
+import { archiveArticle, createArticle, unpublishArticle, updateArticle } from "../../app/sistema/editorial/materias/actions";
 import { notify } from "../../lib/feedback/notify";
 import { createLocality } from "../../app/sistema/editorial/localidades/actions";
 import type { ArticleFormIntent, ArticleFormPayload } from "./articleFormTypes";
@@ -277,6 +277,16 @@ export function ArticleForm({
     startTransition(async () => {
       const result = await archiveArticle(article.id);
       if (result?.error) notify.error("Não foi possível arquivar a matéria", result.error);
+      else justSavedRef.current = true;
+    });
+  }
+
+  function handleUnpublish(): void {
+    if (!article) return;
+    if (!window.confirm("Despublicar esta matéria? Ela sai do portal e volta para Rascunho (conteúdo e imagens são mantidos).")) return;
+    startTransition(async () => {
+      const result = await unpublishArticle(article.id);
+      if (result?.error) notify.error("Não foi possível despublicar a matéria", result.error);
       else justSavedRef.current = true;
     });
   }
@@ -747,6 +757,11 @@ export function ArticleForm({
             >
               {pending ? "Salvando…" : scheduledAt ? "Programar publicação" : "Publicar agora"}
             </button>
+            {mode === "edit" && article?.status === "published" ? (
+              <button type="button" className="form-action-warning" onClick={handleUnpublish} disabled={pending}>
+                Despublicar
+              </button>
+            ) : null}
             {mode === "edit" && article?.status !== "archived" ? (
               <button type="button" className="form-action-danger" onClick={handleArchive} disabled={pending}>
                 Arquivar

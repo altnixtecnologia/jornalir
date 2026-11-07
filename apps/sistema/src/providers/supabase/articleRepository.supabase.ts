@@ -585,7 +585,10 @@ export async function listArticlesAdminPageSupabase(
     }
     query = query.order("id", { ascending: false });
 
+    // "Status: todos" deixa de fora as arquivadas/removidas (07/11/2026 —
+    // "Remover" da listagem arquiva); elas continuam no filtro "Arquivado".
     if (input.status && input.status !== "all") query = query.eq("status", input.status);
+    else query = query.neq("status", "archived");
     if (input.sectionId && input.sectionId !== "all") query = query.eq("section_id", input.sectionId);
     if (input.localityId && input.localityId !== "all") query = query.eq("locality_id", input.localityId);
     const origin = dbOrigin(input.origin);

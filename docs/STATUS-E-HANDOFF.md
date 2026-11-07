@@ -3313,3 +3313,16 @@ Sem isso, "Enviar ao Jornal Online" (PDF novo do computador) continua bloqueado 
 - Testes: simulação com o pdfjs-dist SEM o worker (igual à função da Vercel) — sem o conserto reproduz exatamente o erro; com o conserto abre a edição 775 (24 páginas). Módulos reais: capa 600×782 gerada e texto lido (700 trechos na pág. 2). Suíte `apps/sistema` 277/277, `tsc` limpo.
 
 **FALTA**: deploy + promote pelo usuário e novo teste da 776 (Verificar acervo R2 → Vincular e gerar matérias); depois conferir coluna Matérias (worker de matérias nunca rodou com PDF real em produção).
+
+## 07/11/2026 — Lote A: Matérias com cabeçalho travado, Remover (não publicadas) e Despublicar
+
+**Contexto**: o vínculo do PDF da 776 pelo acervo funcionou em produção (`dpl_EmG8kKFV2kmstJ94mqZAe1W9hTyL`) e o worker gerou os rascunhos da 776 automaticamente — primeira execução real do fluxo completo. O usuário avaliou a qualidade como ruim (lixo de cabeçalho/expediente, "Matéria importada sem título", títulos dentro do corpo) → calibração do capturador fica para o **Lote B** (próximo).
+
+**Pedidos do usuário atendidos neste lote**:
+1. **Cabeçalho da tabela de Matérias travado** (Referência, Matéria, Origem…): em telas ≥1100px o wrapper volta a `overflow: visible` e o `<thead>` gruda sob a barra de filtros (altura medida por `ResizeObserver` → `--materias-toolbar-height`). Abaixo de 1100px, comportamento anterior (rolagem horizontal, sem sticky) — ver nota antiga no CSS sobre o bug do sticky com `overflow-x`.
+2. **Remover** na listagem, só para matérias NÃO publicadas (rascunho, em ajuste, programada): `removeUnpublishedArticle` — permissão `materias_arquivar`, recusa publicada, **arquiva** (regra do projeto: nunca exclusão definitiva), auditoria `remove` com usuário real. "Status: todos" passou a esconder arquivadas (`neq status archived`); o filtro **Arquivado** continua mostrando tudo. Cartões do celular também ganharam o botão.
+3. **Despublicar** dentro da matéria publicada (aba Publicação), botão âmbar `.form-action-warning` (diferente do azul de Publicar e do vermelho de Arquivar): `unpublishArticle` — permissão `materias_publicar`, só a partir de `published`, volta a **Rascunho** mantendo conteúdo, imagens e a data original (republicar preserva `published_at`), auditoria `unpublish`. Rótulos novos no histórico ("removida da listagem (arquivada)", "despublicada (voltou a rascunho)").
+
+**Testes**: suíte `apps/sistema` 281/281 (4 novos em `test/materias-remove-unpublish.test.ts`; fake do teste de performance ganhou `neq`), `tsc` limpo; cópia estática com o CSS real no Edge 1866px: cabeçalho fica em 145px sob a barra (63px), Remover só nas não publicadas.
+
+**FALTA**: deploy + promote pelo usuário e teste real (Remover um rascunho da 776; Despublicar uma matéria publicada de teste). Lote B: calibrar o capturador com as edições reais do acervo; depois, refazer as matérias da 776 (os rascunhos ruins atuais podem ser removidos pelo botão novo).

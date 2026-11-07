@@ -65,6 +65,10 @@ function createFakeClient(rows: ReturnType<typeof buildRows>, estimatedCount: nu
       eq() {
         return query;
       },
+      // "Status: todos" exclui arquivadas/removidas (07/11/2026).
+      neq() {
+        return query;
+      },
       or() {
         return query;
       },

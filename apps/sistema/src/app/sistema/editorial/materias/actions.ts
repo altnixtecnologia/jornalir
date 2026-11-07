@@ -262,6 +262,64 @@ export async function updateArticle(
   revalidateAndRedirect(id, returnTab);
 }
 
+/**
+ * "Remover" da listagem (pedido do usuário, 07/11/2026) — só para matéria
+ * que NÃO está publicada (rascunho, em ajuste ou programada). Mesma regra
+ * de "Arquivar": nunca exclusão definitiva; a matéria sai da listagem
+ * padrão e continua consultável no filtro Status → Arquivado, com o
+ * usuário real registrado na auditoria. Não redireciona (fica na lista).
+ */
+export async function removeUnpublishedArticle(id: string): Promise<{ error: string } | { ok: true }> {
+  const permissionError = await checkModuleAction("editorial", "materias_arquivar");
+  if (permissionError) return { error: permissionError };
+  try {
+    const client = createSupabaseServerClient();
+    const AUDIT = await getAuditContext(client);
+    const articleService = getArticleService(client);
+    const current = await articleService.getById(id);
+    if (current.status === "published") {
+      return { error: "Matéria publicada não pode ser removida pela listagem — despublique antes, dentro da matéria." };
+    }
+    if (current.status === "archived") return { ok: true };
+    await articleService.archive(id, AUDIT);
+    await logArticleEvent(client, AUDIT.actorId, id, "remove", {
+      title: current.title,
+      statusChange: `${current.status} → archived`,
+      via: "listagem",
+    });
+  } catch (error) {
+    return { error: toErrorMessage(error) };
+  }
+  revalidatePath(LIST_PATH);
+  return { ok: true };
+}
+
+/**
+ * "Despublicar" (pedido do usuário, 07/11/2026) — tira a matéria do portal
+ * e devolve para Rascunho, sem perder conteúdo, imagens nem a data original
+ * de publicação (republicar mantém a data, ver `publishNow`). Só a partir
+ * de `published`; exige a mesma permissão de publicar.
+ */
+export async function unpublishArticle(id: string): Promise<ActionResult> {
+  const permissionError = await checkModuleAction("editorial", "materias_publicar");
+  if (permissionError) return { error: permissionError };
+  try {
+    const client = createSupabaseServerClient();
+    const AUDIT = await getAuditContext(client);
+    const articleService = getArticleService(client);
+    const current = await articleService.getById(id);
+    if (current.status !== "published") return { error: "Só é possível despublicar uma matéria publicada." };
+    await articleService.updateDraft(id, { status: "draft" }, AUDIT);
+    await logArticleEvent(client, AUDIT.actorId, id, "unpublish", {
+      title: current.title,
+      statusChange: "Publicado → Rascunho",
+    });
+  } catch (error) {
+    return { error: toErrorMessage(error) };
+  }
+  revalidateAndRedirect(id, "publicacao");
+}
+
 export async function archiveArticle(id: string): Promise<ActionResult> {
   const permissionError = await checkModuleAction("editorial", "materias_arquivar");
   if (permissionError) return { error: permissionError };
