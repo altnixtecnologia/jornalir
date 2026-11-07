@@ -3534,3 +3534,51 @@ ARQUIVOS: `packages/pdf-extraction/src/newspaper.ts` (parâmetro `minBodyChars`,
 **Rollback**: `vercel promote dpl_G86KguTGVrPFni1rDQkmwq3MU3C7 --scope team_ZeE622FeA1dvTu7aFLQwxpLF --yes`, de dentro de `apps/sistema` (deployment anterior, ver item 6). Nenhuma migration foi aplicada nesta etapa, então um rollback de código não deixa nada pendente no banco.
 
 ARQUIVOS: nenhum arquivo novo nesta etapa além da atualização deste handoff — a integração foi fast-forward puro dos arquivos já revisados nas duas entradas anteriores (07/11/2026).
+
+
+## 07/11/2026 (continuação) — Correções do ChatGPT (lista lateral, trecho em 1 clique, X individual, modal de fechamento) integradas e PUBLICADAS em produção
+
+**Autorização**: expressa pelo usuário — sincronizar, testar, corrigir, auditar e publicar diretamente em produção (sem Preview, sem nova confirmação) os 18 commits que o ChatGPT fez diretamente no GitHub na branch oficial, corrigindo pontos encontrados nos testes reais da captura visual da edição 776.
+
+**1) Sincronização conferida antes de começar**: `pwd`/`git status -sb`/`git fetch` na pasta oficial — branch local em `44c62783` (HEAD do lote anterior), árvore limpa, stashes (`status-handoff-only-pre-ff`, `jornal-online-776-batch-pre-sync`, o da branch de publicidade antiga) e os dois worktrees (`captura-visual`, `ir-controle`) preservados, nenhum tocado. `git fetch` trouxe 18 commits novos do ChatGPT em `origin/solicitacoes-financeiro-contratos-irc-20261031`, de `489f8f39` até `72810fe9` (= commit informado pelo usuário). `git merge-base --is-ancestor HEAD origin/...` confirmou fast-forward puro possível (a branch local nunca divergiu). `git diff --stat` dos 18 commits mostrou escopo restrito a **5 arquivos**, todos da captura visual: `PdfVisualCaptureModal.tsx`, `PdfVisualCaptureModal.module.css`, `visualCaptureAreas.ts`, `visual-capture-areas.test.ts`, `visual-capture-modal-css.test.ts` — nenhuma Server Action, rota de API, migration ou outro módulo tocado. Integrado com `git merge --ff-only` (sem merge commit) e nenhuma mudança local adicional foi necessária (os 18 commits já traziam tudo pronto). HEAD oficial final: **`72810fe9`**, já idêntico ao origin, sem necessidade de novo push de código.
+
+**2) Lista lateral (altura fixa de 36px)**: conferido no commit `8e2b304b` — a regra global `button { height: 36px }` (`globals.css`) realmente atropelava `.listItemButton`; a correção já estava completa: `min-height:44px; height:auto; white-space:normal` no seletor mais específico do módulo CSS, com teste de regressão dedicado (`d4cb4181`, "proteger altura dinamica dos titulos de captura"). Revisado o CSS final e confirmado que a correção é a certa (nunca fixa altura, deixa o botão crescer com títulos de 1/2/3+ linhas).
+
+**3) Incluir outro trecho em um clique**: revisados os commits `489f8f39`→`26ce938c`→`83e85b88` (fluxo completo: um clique no botão, desenha, solta o mouse, texto entra na mesma matéria, modo de inclusão encerra sozinho). Testes cobrindo: matéria mantém ID/título/cor/número; contagem de áreas atualizada; texto novo ao final do corpo; áreas anteriores não bloqueiam o novo desenho; continuação em outra página; seleção vazia gera aviso sem criar área fantasma; múltiplos trechos preservam ordem; trocar de matéria durante a captura é impedido (evita associar ao destino errado) — `d0461c3b` especificamente trata esse último ponto.
+
+**4) X individual por retângulo**: revisados `66462be9`→`8d5ab99d`→`83e85b88`→`91eda5cc`→`80760484`. X pequeno e clicável em cada região, sem interferir no arrasto/zoom/redimensionamento (`91eda5cc` corrigiu justamente um bloqueio de seleção causado pelo X). Remove só a área escolhida, recalcula o texto a partir das áreas restantes, mantém as demais; se for a última área da matéria, confirma antes de remover a matéria inteira da prévia. X da lista lateral continua removendo a matéria completa. Teste dedicado (`8d5ab99d`) confirma que excluir uma área não altera o texto das outras.
+
+**5) Modal de fechamento**: revisados `ea1c9d86`→`aa132fcb`→`72810fe9`. Texto simples avisando que seleções não salvas serão perdidas; botão principal "Continuar editando", secundário "Descartar e fechar"; teste (`72810fe9`) confirma que os dois botões ficam claros/distintos e que cancelar preserva as seleções integralmente.
+
+**6) Auditoria técnica completa (pasta oficial, pós-merge)**:
+- `packages/pdf-extraction`: **47/47** testes (sem alteração nesta rodada — o lote do ChatGPT não tocou o pacote de extração).
+- `apps/sistema`: **344/344** testes (326 anteriores + 18 novos desta rodada, incluindo exclusão individual, trecho em um clique e altura dinâmica da lista).
+- `apps/site`: **44/44** testes — confirma ausência de regressão nos demais módulos.
+- `tsc --noEmit` limpo nos dois apps.
+- `next build` local limpo (`IR_LOCAL_ONEDRIVE_BUILD=1`, `exit 0`, rota `/api/sistema/jornal-online/editions/[id]/pdf` presente no manifesto como função dinâmica).
+- Conferido que a regra global de 36px em `globals.css` não foi alterada (continua servindo o resto do sistema) — só o módulo CSS da captura ganhou um seletor mais específico, sem efeito colateral em nenhuma outra tela.
+
+Nenhum problema encontrado na auditoria — nada precisou ser corrigido nesta rodada, só revisado e testado.
+
+**7) Publicação em produção**:
+- Deployment anterior registrado para rollback: **`dpl_DKEJMCvoLoVR6q9ufEtdiA8H5W97`** (produção desde 07/11, lote anterior da captura visual).
+- Novo deployment: `vercel deploy --prod --skip-domain --yes --project jornalir-sistema` → **`dpl_7NEhNMZ8YCGgW6cTtfGnQipNksq9`**, `Ready`, build remoto também limpo.
+- **Smoke test na URL própria, antes de promover**: `/login` 200, `/sistema` 307; rota do PDF com id malformado → 403 (bloqueado antes da aplicação); UUID sintético válido sem sessão (GET) → 403 `{"ok":false,"error":"Sessão inválida. Faça login novamente."}` — mesmo comportamento já validado no lote anterior (a checagem de permissão ocorre antes de qualquer busca da edição no banco, então um UUID real se comporta de forma idêntica).
+- Promovido: `vercel promote dpl_7NEhNMZ8YCGgW6cTtfGnQipNksq9` → Success, confirmado por `vercel inspect controle.altnix.com.br` apontando para o novo ID.
+- Repetido o mesmo smoke test em `controle.altnix.com.br`: resultado idêntico.
+- `vercel logs dpl_7NEhNMZ8YCGgW6cTtfGnQipNksq9`: 17 entradas, todas `info`, nenhuma `error`.
+- Portal público `jornalir` **não foi tocado**. Nenhuma migration aplicada.
+
+**8) Confirmação de que o modal continua sem gravação**: nenhuma Server Action de escrita foi chamada em nenhum teste ou verificação real desta etapa; o diff dos 18 commits do ChatGPT não tocou nenhuma rota de API, Server Action ou arquivo de migration — só componente/CSS/testes da captura visual.
+
+**Limpeza da edição 776**: não foi reconferida nesta rodada (o escopo era só os 5 arquivos de UX da captura). Continua pendente a confirmação futura, só leitura, de que a limpeza do ChatGPT (quando concluída) zera `articles`/`pdf_import_candidates`/`pdf_import_batches` da 776.
+
+**Pendências que só dá para verificar com login real**:
+- Lista lateral com títulos de 2-3+ linhas, sem sobreposição, em uso real.
+- Fluxo de "+ Incluir outro trecho" em um clique, com interação humana real (mouse/touch).
+- X individual em retângulos pequenos/próximos/com zoom alto, clicado de verdade.
+- Modal de fechamento (os dois botões, em desktop e celular).
+
+**Rollback**: `vercel promote dpl_DKEJMCvoLoVR6q9ufEtdiA8H5W97 --scope team_ZeE622FeA1dvTu7aFLQwxpLF --yes`, de dentro de `apps/sistema`.
+
+ARQUIVOS: nenhum arquivo novo nesta etapa além da atualização deste handoff — integração por fast-forward puro dos 18 commits que o ChatGPT já havia publicado no GitHub.
