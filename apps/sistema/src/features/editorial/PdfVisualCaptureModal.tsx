@@ -13,7 +13,7 @@ import { getDocument, GlobalWorkerOptions, type PDFDocumentProxy, type PDFPagePr
 import { extractPageTextItems, resolveRealFontNames } from "@ir/pdf-extraction/src/textItems";
 import { extractArticleFromRegion, type RegionArticleExtraction } from "@ir/pdf-extraction/src/newspaper";
 import type { TextItem } from "@ir/pdf-extraction";
-import { combineAreaExtractions } from "./visualCaptureAreas";
+import { appendRegionToCapture, combineAreaExtractions } from "./visualCaptureAreas";
 import {
   computeResizedRect,
   filterItemsInRegion,
@@ -116,6 +116,7 @@ export function PdfVisualCaptureModal({ edition, onClose }: Props): JSX.Element 
   const createdCount = useRef(0);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [appendToId, setAppendToId] = useState<string | null>(null);
+  const [appendNotice, setAppendNotice] = useState<{ captureId: string; kind: "hint" | "success" | "error"; text: string } | null>(null);
   const [drag, setDrag] = useState<{ from: Pointer; to: Pointer } | null>(null);
   const [resize, setResize] = useState<ResizeState | null>(null);
   const [liveResizeRect, setLiveResizeRect] = useState<NormalizedRect | null>(null);
@@ -131,6 +132,7 @@ export function PdfVisualCaptureModal({ edition, onClose }: Props): JSX.Element 
   const fileInput = useRef<HTMLInputElement | null>(null);
   const viewportRef = useRef<HTMLDivElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const bodyTextareaRef = useRef<HTMLTextAreaElement | null>(null);
   const pageCache = useRef(new Map<number, PDFPageProxy>());
   const textCache = useRef(new Map<number, PageTextInfo>());
   const pdfRef = useRef<PDFDocumentProxy | null>(null);
@@ -139,6 +141,13 @@ export function PdfVisualCaptureModal({ edition, onClose }: Props): JSX.Element 
 
   const scale = fitScale * zoom;
   const active = captures.find((item) => item.id === selectedId) ?? null;
+  // Após adicionar um trecho, revelar o final do corpo no editor (o novo
+  // texto normalmente fica depois dos parágrafos já capturados).
+  useEffect(() => {
+    if (appendNotice?.kind !== "success") return;
+    const body = bodyTextareaRef.current;
+    if (body) body.scrollTop = body.scrollHeight;
+  }, [appendNotice]);
   const draftRect = drag ? rectFromPoints(drag.from, drag.to) : null;
   const selectionsOnPage = captures.flatMap((capture) =>
     capture.areas
@@ -392,43 +401,51 @@ export function PdfVisualCaptureModal({ edition, onClose }: Props): JSX.Element 
     if (rect.width < 0.014 || rect.height < 0.014) return;
     const existingOnPage = selectionsOnPage.map(({ area }) => area.rect);
     if (existingOnPage.some((other) => overlapRatio(other, rect) > 0.85)) {
-      setMessage("Esta área já foi selecionada. Ajuste o retângulo para evitar duplicação.");
+      const error = "Esta área já está selecionada. Marque apenas o trecho complementar, sem repetir toda a região anterior.";
+      setMessage(error);
+      if (appendToId) setAppendNotice({ captureId: appendToId, kind: "error", text: error });
       return;
     }
     setBusy(true);
     try {
       const extraction = await extractRegionAt(pageNumber, rect);
       if (!extraction) {
-        setMessage("Não há texto reconhecível nessa região. Fotografias ficam de fora da captura textual.");
+        const error = "Nenhum texto foi encontrado nessa região. Ajuste o retângulo para incluir o texto da continuação.";
+        setMessage(error);
+        if (appendToId) setAppendNotice({ captureId: appendToId, kind: "error", text: error });
         return;
       }
       const label = `Página ${pageNumber}`;
 
       if (appendToId) {
+        const target = captures.find((capture) => capture.id === appendToId);
+        if (!target) {
+          setAppendToId(null);
+          setAppendNotice(null);
+          setMessage("A matéria de destino não está mais disponível. Escolha novamente a matéria na lista.");
+          return;
+        }
+        const area = { page: pageNumber, rect };
+        const appended = appendRegionToCapture(target, area, extraction);
+        if (!appended) {
+          const error = "A área foi desenhada, mas não trouxe texto utilizável. Selecione novamente incluindo o parágrafo desejado.";
+          setAppendNotice({ captureId: target.id, kind: "error", text: error });
+          setMessage(error);
+          return;
+        }
+        // Alterar o registro existente, sem criar outra matéria. Reaplicar
+        // sobre o valor atual do state preserva eventuais edições recentes.
         setCaptures((prev) =>
-          prev.map((capture) => {
-            if (capture.id !== appendToId) return capture;
-            const extraParts: string[] = [];
-            if (extraction.title) extraParts.push(extraction.title);
-            if (extraction.subtitle) extraParts.push(extraction.subtitle);
-            extraParts.push(...extraction.bodyParagraphs);
-            const newWarnings = extraction.warnings.map((warning) => `${label}: ${warning}`);
-            if (extraction.title) {
-              newWarnings.push(`${label}: um título foi reconhecido nesta área além da primeira — confira se pertence à mesma matéria.`);
-            }
-            return {
-              ...capture,
-              areas: [...capture.areas, { page: pageNumber, rect }],
-              perAreaExtraction: [...capture.perAreaExtraction, extraction],
-              body: [capture.body.trim(), extraParts.join("\n\n")].filter(Boolean).join("\n\n"),
-              needsReview: capture.needsReview || extraction.needsReview || Boolean(extraction.title),
-              warnings: [...capture.warnings, ...newWarnings],
-            };
-          }),
+          prev.map((capture) => capture.id === target.id ? appendRegionToCapture(capture, area, extraction) ?? capture : capture),
         );
-        setSelectedId(appendToId);
+        setSelectedId(target.id);
         setAppendToId(null);
-        setMessage("Trecho acrescentado à matéria selecionada. Confira o texto na lateral.");
+        setAppendNotice({
+          captureId: target.id,
+          kind: "success",
+          text: `Trecho da página ${pageNumber} incluído! Esta matéria tem agora ${appended.areas.length} áreas. O texto novo está no final do corpo.`,
+        });
+        setMessage("Trecho vinculado à matéria selecionada. A quantidade de áreas foi atualizada e o novo texto está no final do corpo.");
         return;
       }
 
@@ -456,7 +473,9 @@ export function PdfVisualCaptureModal({ edition, onClose }: Props): JSX.Element 
           : "Área selecionada, mas nenhum título foi reconhecido — confira/preencha manualmente.",
       );
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Erro ao extrair texto da seleção.");
+      const details = error instanceof Error ? error.message : "Erro ao extrair texto da seleção.";
+      setMessage(details);
+      if (appendToId) setAppendNotice({ captureId: appendToId, kind: "error", text: details });
     } finally {
       setBusy(false);
     }
@@ -552,6 +571,24 @@ export function PdfVisualCaptureModal({ edition, onClose }: Props): JSX.Element 
     setCaptures((prev) => prev.filter((capture) => capture.id !== id));
     if (selectedId === id) setSelectedId(null);
     if (appendToId === id) setAppendToId(null);
+    if (appendNotice?.captureId === id) setAppendNotice(null);
+  }
+  function toggleAppendToActive(captureId: string): void {
+    if (busy) return;
+    if (appendToId === captureId) {
+      setAppendToId(null);
+      setAppendNotice(null);
+      setMessage("Inclusão de trecho cancelada.");
+      return;
+    }
+    setSelectedId(captureId);
+    setAppendToId(captureId);
+    setAppendNotice({
+      captureId,
+      kind: "hint",
+      text: "Agora desenhe um retângulo no PDF sobre a continuação desta matéria. O novo texto será acrescentado à mesma matéria.",
+    });
+    setMessage("Modo de adicionar trecho ativo: marque a continuação no PDF.");
   }
   function exportPreview(): void {
     const record = {
@@ -655,7 +692,10 @@ export function PdfVisualCaptureModal({ edition, onClose }: Props): JSX.Element 
                   <canvas className={styles.canvas} ref={canvasRef} style={{ width: "100%", height: "100%" }} aria-label={`Página ${pageNumber}`} />
                   {selectionsOnPage.map(({ capture, area, areaIndex }, position) => {
                     const captureIndex = captures.findIndex((item) => item.id === capture.id);
-                    const isActiveArea = capture.id === selectedId;
+                    // Em modo de continuação, a área existente não pode
+                    // interceptar o arrasto: o operador está desenhando
+                    // outro trecho, não movendo a seleção anterior.
+                    const isActiveArea = capture.id === selectedId && appendToId === null;
                     const isBeingResized = resize?.captureId === capture.id && resize.areaIndex === areaIndex;
                     const displayRect = isBeingResized && liveResizeRect ? liveResizeRect : area.rect;
                     return (
@@ -728,6 +768,11 @@ export function PdfVisualCaptureModal({ edition, onClose }: Props): JSX.Element 
                     type="button"
                     className={styles.listItemButton}
                     onClick={() => {
+                      if (appendToId && appendToId !== capture.id) {
+                        setAppendToId(null);
+                        setAppendNotice(null);
+                        setMessage("Modo de adicionar trecho cancelado ao trocar de matéria.");
+                      }
                       setSelectedId(capture.id);
                       setPageNumber(capture.areas[0].page);
                     }}
@@ -774,15 +819,27 @@ export function PdfVisualCaptureModal({ edition, onClose }: Props): JSX.Element 
                 </label>
                 <label>
                   Corpo capturado
-                  <textarea rows={5} value={active.body} onChange={(event) => editCapture("body", event.target.value)} />
+                  <textarea ref={bodyTextareaRef} rows={5} value={active.body} onChange={(event) => editCapture("body", event.target.value)} />
                 </label>
                 <button
                   type="button"
-                  className={appendToId === active.id ? styles.appendActive : ""}
-                  onClick={() => setAppendToId((id) => (id === active.id ? null : active.id))}
+                  className={`${styles.appendButton} ${appendToId === active.id ? styles.appendActive : ""}`}
+                  onClick={() => toggleAppendToActive(active.id)}
+                  disabled={busy}
+                  aria-pressed={appendToId === active.id}
                 >
-                  {appendToId === active.id ? "Cancelar inclusão de trecho" : "+ Incluir outro trecho nesta matéria"}
+                  <span className={styles.appendButtonIcon} aria-hidden="true">{appendToId === active.id ? "×" : "+"}</span>
+                  <span>{appendToId === active.id ? "Cancelar adição de trecho" : "Adicionar trecho à matéria"}</span>
                 </button>
+                {appendNotice?.captureId === active.id ? (
+                  <p
+                    className={`${styles.appendNotice} ${appendNotice.kind === "success" ? styles.appendNoticeSuccess : appendNotice.kind === "error" ? styles.appendNoticeError : ""}`}
+                    role="status"
+                    aria-live="polite"
+                  >
+                    {appendNotice.text}
+                  </p>
+                ) : null}
               </div>
             ) : null}
           </aside>
