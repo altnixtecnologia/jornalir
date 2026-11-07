@@ -443,7 +443,7 @@ export function PdfVisualCaptureModal({ edition, onClose }: Props): JSX.Element 
         setAppendNotice({
           captureId: target.id,
           kind: "success",
-          text: `Trecho da página ${pageNumber} incluído! Esta matéria tem agora ${appended.areas.length} áreas. O texto novo está no final do corpo.`,
+          text: `Trecho da página ${pageNumber} vinculado à matéria nº ${captures.findIndex((item) => item.id === target.id) + 1}. Agora são ${appended.areas.length} áreas; o texto novo está no final do corpo.`,
         });
         setMessage("Trecho vinculado à matéria selecionada. A quantidade de áreas foi atualizada e o novo texto está no final do corpo.");
         return;
@@ -586,7 +586,7 @@ export function PdfVisualCaptureModal({ edition, onClose }: Props): JSX.Element 
     setAppendNotice({
       captureId,
       kind: "hint",
-      text: "Agora desenhe um retângulo no PDF sobre a continuação desta matéria. O novo texto será acrescentado à mesma matéria.",
+      text: `Selecione no PDF a continuação da matéria nº ${captures.findIndex((item) => item.id === captureId) + 1}. O trecho terá a mesma cor e será acrescentado ao final do texto.`,
     });
     setMessage("Modo de adicionar trecho ativo: marque a continuação no PDF.");
   }
@@ -767,6 +767,7 @@ export function PdfVisualCaptureModal({ edition, onClose }: Props): JSX.Element 
                   <button
                     type="button"
                     className={styles.listItemButton}
+                    disabled={busy}
                     onClick={() => {
                       if (appendToId && appendToId !== capture.id) {
                         setAppendToId(null);
@@ -791,6 +792,7 @@ export function PdfVisualCaptureModal({ edition, onClose }: Props): JSX.Element 
                   <button
                     type="button"
                     className={styles.deleteButton}
+                    disabled={busy}
                     onClick={() => deleteCapture(capture.id)}
                     title="Remover seleção desta prévia"
                     aria-label={`Remover seleção ${index + 1}`}
