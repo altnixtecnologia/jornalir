@@ -13,7 +13,7 @@ import { getDocument, GlobalWorkerOptions, type PDFDocumentProxy, type PDFPagePr
 import { extractPageTextItems, resolveRealFontNames } from "@ir/pdf-extraction/src/textItems";
 import { extractArticleFromRegion, type RegionArticleExtraction } from "@ir/pdf-extraction/src/newspaper";
 import type { TextItem } from "@ir/pdf-extraction";
-import { appendRegionToCapture, combineAreaExtractions } from "./visualCaptureAreas";
+import { appendRegionToCapture, combineAreaExtractions, removeAreaFromCapture } from "./visualCaptureAreas";
 import {
   computeResizedRect,
   filterItemsInRegion,
@@ -129,6 +129,7 @@ export function PdfVisualCaptureModal({ edition, onClose }: Props): JSX.Element 
       : "Esta edição ainda não tem PDF arquivado no R2. Use \"PDF local (teste)\" para experimentar a ferramenta.",
   );
   const [closeConfirm, setCloseConfirm] = useState(false);
+  const [pendingAreaDeletion, setPendingAreaDeletion] = useState<{ captureId: string; areaIndex: number } | null>(null);
   const fileInput = useRef<HTMLInputElement | null>(null);
   const viewportRef = useRef<HTMLDivElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -573,6 +574,33 @@ export function PdfVisualCaptureModal({ edition, onClose }: Props): JSX.Element 
     if (appendToId === id) setAppendToId(null);
     if (appendNotice?.captureId === id) setAppendNotice(null);
   }
+  /** O X dentro do retângulo remove só a área. Se for a única área,
+   * confirma antes de remover a matéria inteira. Nenhuma ação grava no banco. */
+  function requestRemoveArea(captureId: string, areaIndex: number): void {
+    if (busy) return;
+    const capture = captures.find((item) => item.id === captureId);
+    if (!capture || areaIndex < 0 || areaIndex >= capture.areas.length) return;
+    if (capture.areas.length === 1) {
+      setPendingAreaDeletion({ captureId, areaIndex });
+      return;
+    }
+
+    try {
+      const reduced = removeAreaFromCapture(capture, areaIndex);
+      if (!reduced) return;
+      setCaptures((prev) => prev.map((item) =>
+        item.id === captureId ? removeAreaFromCapture(item, areaIndex) ?? item : item,
+      ));
+      if (appendToId === captureId) setAppendToId(null);
+      setSelectedId(captureId);
+      const text = `Trecho removido da matéria. Restam ${reduced.areas.length} áreas; o texto foi recalculado. Confira as alterações manuais.`;
+      setAppendNotice({ captureId, kind: "success", text });
+      setMessage(text);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Não foi possível remover este trecho.");
+    }
+  }
+
   function toggleAppendToActive(captureId: string): void {
     if (busy) return;
     if (appendToId === captureId) {
@@ -711,6 +739,23 @@ export function PdfVisualCaptureModal({ edition, onClose }: Props): JSX.Element 
                         <span className={styles.selectionNumber} style={{ background: capture.color }}>
                           {captureIndex + 1}
                         </span>
+                        {isActiveArea ? (
+                          <button
+                            type="button"
+                            className={styles.selectionRemove}
+                            title={`Remover somente a área ${areaIndex + 1} desta matéria`}
+                            aria-label={`Remover trecho ${areaIndex + 1} da matéria ${captureIndex + 1}`}
+                            disabled={busy}
+                            onPointerDown={(event) => event.stopPropagation()}
+                            onPointerUp={(event) => event.stopPropagation()}
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              requestRemoveArea(capture.id, areaIndex);
+                            }}
+                          >
+                            ×
+                          </button>
+                        ) : null}
                         {isActiveArea
                           ? (["nw", "ne", "sw", "se"] as const).map((handle) => (
                               <span
@@ -830,8 +875,9 @@ export function PdfVisualCaptureModal({ edition, onClose }: Props): JSX.Element 
                   disabled={busy}
                   aria-pressed={appendToId === active.id}
                 >
-                  <span className={styles.appendButtonIcon} aria-hidden="true">{appendToId === active.id ? "×" : "+"}</span>
-                  <span>{appendToId === active.id ? "Cancelar adição de trecho" : "Adicionar trecho à matéria"}</span>
+                  {appendToId === active.id
+                    ? "Selecionando trecho… (clique para cancelar)"
+                    : "+ Incluir outro trecho nesta matéria"}
                 </button>
                 {appendNotice?.captureId === active.id ? (
                   <p
@@ -861,6 +907,29 @@ export function PdfVisualCaptureModal({ edition, onClose }: Props): JSX.Element 
             </button>
           </div>
         </footer>
+
+        {pendingAreaDeletion ? (
+          <div className={styles.confirmBackdrop}>
+            <div className={styles.confirmBox} role="alertdialog" aria-modal="true" aria-label="Remover última área">
+              <h3>Remover esta matéria da prévia?</h3>
+              <p>Este é o único trecho da matéria. Removê-lo também apagará a matéria da lista de seleções. Nenhum registro do banco será alterado.</p>
+              <div>
+                <button type="button" onClick={() => setPendingAreaDeletion(null)}>Cancelar</button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const { captureId } = pendingAreaDeletion;
+                    setPendingAreaDeletion(null);
+                    deleteCapture(captureId);
+                    setMessage("Matéria removida da prévia.");
+                  }}
+                >
+                  Remover matéria
+                </button>
+              </div>
+            </div>
+          </div>
+        ) : null}
 
         {closeConfirm ? (
           <div className={styles.confirmBackdrop}>
