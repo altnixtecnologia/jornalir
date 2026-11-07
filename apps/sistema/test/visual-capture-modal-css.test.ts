@@ -49,3 +49,13 @@ test("alças de ajuste (.resizeHandle) ficam acima do plano de desenho, para pod
   const handleZ = Number(/z-index:\s*(\d+)/.exec(handle)?.[1]);
   assert.ok(handleZ > pointerLayerZ, `alça (z-index ${handleZ}) precisa ficar acima do plano de desenho (z-index ${pointerLayerZ})`);
 });
+
+// Regressão real da produção 07/11/2026: o estilo global define button{
+// height:36px}, fazendo os títulos de várias linhas vazarem para a linha
+// seguinte na lista lateral. A classe do item precisa sobrescrever essa regra.
+test("itens da lista crescem com o título, sem herdar height:36px do button global", () => {
+  const item = rule(".listItemButton");
+  assert.match(item, /height:\s*auto/);
+  assert.match(item, /white-space:\s*normal/);
+  assert.match(item, /min-height:\s*44px/);
+});
