@@ -16,6 +16,7 @@
 .canvas{display:block;pointer-events:none}
 .pointerLayer{position:absolute;inset:0;cursor:crosshair;touch-action:none;z-index:3}
 .selection,.drawing{pointer-events:none;position:absolute;box-sizing:border-box;border:2px solid;z-index:1}
+.selection{z-index:4} /* retângulos não interceptam o desenho, só o X interativo */
 .drawing{border-style:dashed;z-index:2}
 .selectionNumber{position:absolute;top:-2px;left:-2px;border-radius:0 0 5px 0;color:white;font-weight:700;font-size:11px;padding:2px 6px;pointer-events:none}
 /* Seleção ATIVA (matéria escolhida na lista, nesta página): fica acima do
@@ -27,7 +28,13 @@
 .resizeHandle_ne{top:-7px;right:-7px;cursor:nesw-resize}
 .resizeHandle_sw{bottom:-7px;left:-7px;cursor:nesw-resize}
 .resizeHandle_se{bottom:-7px;right:-7px;cursor:nwse-resize}
-@media(hover:none),(pointer:coarse){.resizeHandle{width:20px;height:20px}.resizeHandle_nw{top:-10px;left:-10px}.resizeHandle_ne{top:-10px;right:-10px}.resizeHandle_sw{bottom:-10px;left:-10px}.resizeHandle_se{bottom:-10px;right:-10px}}
+/* X de cada área. À esquerda da alça NE, sem interceptar o
+   deslocamento/redimensionamento e sem herdar button{height:36px}. */
+.selectionRemove{position:absolute;top:2px;right:22px;z-index:8;width:24px;height:24px;min-height:24px;padding:0;border:1px solid #fff;border-radius:5px;background:#b91c1c;color:white;font-size:17px;font-weight:800;line-height:20px;display:grid;place-items:center;cursor:pointer;pointer-events:auto;touch-action:manipulation;box-shadow:0 1px 4px #0006}
+.selectionRemove:hover:not(:disabled){background:#991b1b;border-color:#fff}
+.selectionRemove:focus-visible{outline:2px solid #fff;outline-offset:2px}
+.selectionRemove:disabled{cursor:default;opacity:.45}
+@media(hover:none),(pointer:coarse){.resizeHandle{width:20px;height:20px}.resizeHandle_nw{top:-10px;left:-10px}.resizeHandle_ne{top:-10px;right:-10px}.resizeHandle_sw{bottom:-10px;left:-10px}.resizeHandle_se{bottom:-10px;right:-10px}.selectionRemove{width:30px;height:30px;min-height:30px;right:28px;top:2px;font-size:19px}}
 .empty{margin:auto;text-align:center;max-width:320px;line-height:1.5;padding:24px;color:#475569}.empty p{font-size:13px}
 .sidebar{display:flex;flex-direction:column;min-width:0;min-height:0;overflow:hidden;border-left:1px solid var(--line,#e2e8f0);background:var(--paper,#fff)}
 .sidebarHead{flex:none;display:flex;justify-content:space-between;align-items:baseline;gap:6px;padding:11px 12px 8px;border-bottom:1px solid var(--line,#e2e8f0)}
@@ -46,13 +53,10 @@
 .editor label{display:flex;flex-direction:column;gap:3px;font-size:11px;font-weight:700}
 .editor input,.editor textarea{font:inherit;font-size:12px;line-height:1.4;color:var(--ink,#1f2937);background:var(--paper,#fff);border:1px solid var(--line,#cbd5e1);border-radius:6px;padding:7px;max-width:100%;width:100%;box-sizing:border-box}
 .editor textarea{resize:vertical;min-height:74px}
-/* A ação de continuação tem estado visual próprio e altura flexível.
-   A regra global button{height:36px} não pode cortar o rótulo. */
-.editor .appendButton{display:flex;align-items:center;justify-content:center;gap:9px;width:100%;min-height:44px;height:auto;padding:10px 12px;white-space:normal;text-align:center;line-height:1.35;font-size:12px;font-weight:750;color:#194c95;background:#eef5ff;border:1px solid #adcaf2;border-radius:9px;box-shadow:0 1px 3px #16478e18}
-.editor .appendButton:hover:not(:disabled){background:#deebff;border-color:#73a6ee}
-.appendButtonIcon{display:inline-flex;align-items:center;justify-content:center;flex:none;width:22px;height:22px;border-radius:6px;background:#cbdfff;color:#174d95;font-size:18px;font-weight:800;line-height:1}
-.editor .appendButton.appendActive{border-color:#e5ab62!important;background:#fff5e8!important;color:#874500!important}
-.editor .appendButton.appendActive .appendButtonIcon{background:#ffdfaf;color:#874500}
+/* Mesma ação simples: um clique prepara a próxima área; ao
+   selecionar, ela é vinculada e o botão retorna ao estado normal. */
+.editor .appendButton{display:block;width:100%;height:auto;min-height:36px;padding:8px 10px;white-space:normal;text-align:center;line-height:1.35;font-size:12px;font-weight:700;border-radius:7px}
+.editor .appendButton.appendActive{border-color:#93b4e7!important;background:#eff6ff!important;color:#194c95!important}
 .appendNotice{flex:none;margin:0;padding:8px 10px;border-radius:7px;border:1px solid #bfdbfe;background:#eff6ff;color:#1e40af;font-size:11px;font-weight:500;line-height:1.45}
 .appendNoticeSuccess{border-color:#bbebcf;background:#ecfdf5;color:#166534}
 .appendNoticeError{border-color:#fecaca;background:#fef2f2;color:#991b1b}
