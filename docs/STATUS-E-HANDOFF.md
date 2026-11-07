@@ -3496,3 +3496,41 @@ ARQUIVOS: `packages/pdf-extraction/src/{textItems.ts (novo), textLayer.ts, newsp
 **Git**: commit novo (sem amend, sem force) na mesma branch `feature/captura-visual-materias-20261107`, sobre o commit `330b9032`. Branch editorial oficial (`solicitacoes-financeiro-contratos-irc-20261031`) continua intacta, sem merge. Sem migration, sem deploy.
 
 ARQUIVOS: `packages/pdf-extraction/src/newspaper.ts` (parâmetro `minBodyChars`, normalização de coordenadas em `extractArticleFromRegion`), `packages/pdf-extraction/test/region-capture.test.ts` (9 testes novos); `apps/sistema/src/features/editorial/{PdfVisualCaptureModal.tsx (ajuste de seleção), visualCaptureRegion.ts (computeResizedRect), PdfVisualCaptureModal.module.css (alças)}`, `apps/sistema/test/{visual-capture-region.test.ts (8 testes novos), visual-capture-modal-css.test.ts (novo, 6 testes)}`.
+
+## 07/11/2026 (continuação) — Captura visual integrada à branch oficial e PUBLICADA em produção (`jornalir-sistema`)
+
+**Autorização**: expressa pelo usuário, incluindo integração à branch oficial, commit, push, auditoria e deploy direto em produção deste escopo, sem Preview e sem nova confirmação por etapa.
+
+**1) Sincronização conferida antes de começar**: `pwd`/`git status -sb`/`git fetch` na pasta oficial — branch `solicitacoes-financeiro-contratos-irc-20261031` em `1a71130a`, idêntica ao origin, árvore limpa. `feature/captura-visual-materias-20261107` em `11abe73b` (mesmo commit revisado antes), também sincronizada com o origin. Stashes (`status-handoff-only-pre-ff`, `jornal-online-776-batch-pre-sync`, o da branch de publicidade antiga) e os dois worktrees (`captura-visual`, `ir-controle`) preservados, nenhum tocado.
+
+**2) Limpeza da edição 776 pelo ChatGPT — conferida, AINDA NÃO concluída.** Consulta somente leitura em produção: a edição 776 continua com `materias_status=completed`, `materias_candidate_count=123`; `articles` com 116 `draft` + 7 `archived` (123 no total) vinculados a ela; 1 `pdf_import_batches` e 123 `pdf_import_candidates` (`status=converted`) continuam no banco — nada foi apagado ainda pelo ChatGPT. **Nada foi alterado por mim**: nenhum SQL de limpeza/arquivamento, nenhuma extração, nenhum reprocessamento. Como instruído, a publicação do modal (só prévia, sem gravação) seguiu mesmo assim.
+
+**3) Integração à branch oficial**: `git merge-base --is-ancestor` confirmou que `1a71130a` é ancestral direto de `11abe73b` (a feature nunca divergiu da oficial) — integrado com **fast-forward puro** (`git merge --ff-only`), sem merge commit, preservando o histórico linear. `git push origin solicitacoes-financeiro-contratos-irc-20261031` sem force. HEAD final da branch oficial: **`11abe73b`** (mesmo commit da feature, agora também o HEAD oficial).
+
+**4) Conferência do R2 (sem mostrar segredos)**: `apps/sistema/.env.local` confirmado com as 5 variáveis `R2_EDITIONS_*` presentes (só os nomes verificados, nenhum valor impresso). Na Vercel, `vercel env ls` (só nomes/escopos, sem valores) confirma `R2_EDITIONS_ENDPOINT`/`BUCKET`/`ACCESS_KEY_ID`/`SECRET_ACCESS_KEY` configuradas no escopo **Production** do projeto `jornalir-sistema` (diferente da Preview testada na etapa anterior, que não tinha essas variáveis — por isso o fluxo R2 só pôde ser comprovado de ponta a ponta agora, em produção). Nenhuma credencial foi alterada.
+
+**5) Auditoria técnica (pasta oficial, pós-merge)**:
+- `packages/pdf-extraction`: **47/47** testes.
+- `apps/sistema`: **326/326** testes (`npx tsx --conditions=react-server --test test/*.test.ts`).
+- `apps/site`: **44/44** testes — confirma ausência de regressão nos demais módulos (patrocinadores, Jornal Online, etc., não tocados por este lote).
+- `tsc --noEmit` limpo nos dois apps (`sistema` e `site`).
+- **`next build` da pasta oficial passou limpo** (`IR_LOCAL_ONEDRIVE_BUILD=1`, flag já existente no projeto para contornar a interferência do OneDrive Files-on-Demand na coleta de build traces — `exit 0`, "Compiled successfully", sem avisos, rota `/api/sistema/jornal-online/editions/[id]/pdf` presente no manifesto).
+
+**6) Publicação em produção**:
+- Deployment anterior registrado para rollback: **`dpl_G86KguTGVrPFni1rDQkmwq3MU3C7`** (produção desde 07/11 14:16, lote de formato de patrocinadores).
+- Novo deployment: `vercel deploy --prod --skip-domain --yes --project jornalir-sistema` (raiz do monorepo) → **`dpl_DKEJMCvoLoVR6q9ufEtdiA8H5W97`**, `readyState: READY`, build remoto na própria Vercel também limpo.
+- **Smoke test na URL própria do deployment, antes de promover** (sem domínio oficial tocado ainda): `/login` 200, `/sistema` 307 (redireciona para login, correto sem sessão). Rota do PDF: id malformado (`../../etc/passwd`) → **403** bloqueado por uma camada da própria Vercel, antes de chegar na aplicação; UUID sintético válido, GET e HEAD, sem sessão → **403** `{"ok":false,"error":"Sessão inválida. Faça login novamente."}` (a checagem de sessão/permissão da própria rota funcionando de verdade, em produção real); **UUID real da edição 776**, GET, sem sessão → mesmo 403 — a rota nunca revela se a edição existe nem vaza a chave do R2 para quem não tem sessão.
+- Promovido: `vercel promote dpl_DKEJMCvoLoVR6q9ufEtdiA8H5W97` → **Success**, confirmado por `vercel inspect controle.altnix.com.br` apontando para o novo ID.
+- **Repetido o mesmo smoke test no domínio oficial** (`controle.altnix.com.br`): `/login` 200, `/sistema` 307, rota do PDF com o UUID real da 776 → mesmo 403 de sessão inválida — comportamento idêntico ao testado antes de promover.
+- `vercel logs dpl_DKEJMCvoLoVR6q9ufEtdiA8H5W97`: 17 entradas nas chamadas de teste acima, **todas `info`, nenhuma `error`** — a rota não lançou exceção em nenhuma das chamadas (id inválido, UUID sintético, UUID real, GET, HEAD).
+
+**7) Confirmação de que o modal continua sem gravação**: nenhuma Server Action de escrita (`createBatch`, `convertToDraft`, `attachArchivedEditionPdfAction`, `finalizeEditionR2UploadAction`, upload, cron) foi chamada em nenhum teste ou verificação real desta etapa — a única chamada de rede real contra a rota nova foi leitura (GET/HEAD), e todas foram recusadas por falta de sessão antes de qualquer acesso ao R2. `newspaper_editions`/`articles`/`pdf_import_batches`/`pdf_import_candidates` da edição 776 seguem com os mesmos números de antes (confirmados no item 2).
+
+**Pendências que só dá para verificar com login real**:
+- Confirmar visualmente o modal abrindo (Editorial → Edições → Detalhes → "Capturar matérias visualmente") e o PDF oficial da 776 carregando de fato pela rota R2 — precisa de uma sessão autenticada real no sistema, que este agente não tem.
+- Testar os 3 campos (título/subtítulo/corpo) e o ajuste de seleção (mover/redimensionar) com interação humana real no painel publicado.
+- Confirmar que a limpeza da 776 pelo ChatGPT, quando concluída, realmente zera `articles`/`pdf_import_candidates`/`pdf_import_batches` dessa edição (checagem futura, só leitura).
+
+**Rollback**: `vercel promote dpl_G86KguTGVrPFni1rDQkmwq3MU3C7 --scope team_ZeE622FeA1dvTu7aFLQwxpLF --yes`, de dentro de `apps/sistema` (deployment anterior, ver item 6). Nenhuma migration foi aplicada nesta etapa, então um rollback de código não deixa nada pendente no banco.
+
+ARQUIVOS: nenhum arquivo novo nesta etapa além da atualização deste handoff — a integração foi fast-forward puro dos arquivos já revisados nas duas entradas anteriores (07/11/2026).
