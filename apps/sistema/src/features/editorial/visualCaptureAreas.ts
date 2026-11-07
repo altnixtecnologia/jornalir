@@ -99,3 +99,33 @@ export function appendRegionToCapture<T extends CaptureForAppend>(
     warnings: [...capture.warnings, ...warnings],
   };
 }
+
+
+/** Exclui só a região indicada e recompõe o texto das regiões restantes.
+ * Retorna null quando seria removida a última região; o chamador precisa
+ * confirmar a exclusão da matéria inteira. Não altera a captura original.
+ *
+ * Atenção: o conteúdo recomposto usa o texto originalmente extraído,
+ * portanto edições manuais posteriores devem ser conferidas no editor. */
+export function removeAreaFromCapture<T extends CaptureForAppend>(capture: T, areaIndex: number): T | null {
+  if (!Number.isInteger(areaIndex) || areaIndex < 0 || areaIndex >= capture.areas.length) {
+    throw new RangeError("Área da matéria inválida.");
+  }
+  if (capture.areas.length !== capture.perAreaExtraction.length) {
+    throw new Error("As áreas selecionadas não correspondem às extrações salvas na prévia.");
+  }
+  if (capture.areas.length === 1) return null;
+  const areas = capture.areas.filter((_, index) => index !== areaIndex);
+  const perAreaExtraction = capture.perAreaExtraction.filter((_, index) => index !== areaIndex);
+  const combined = combineAreaExtractions(perAreaExtraction, areas.map((area) => `Página ${area.page}`));
+  return {
+    ...capture,
+    areas,
+    perAreaExtraction,
+    title: combined.title,
+    subtitle: combined.subtitle,
+    body: combined.bodyParagraphs.join("\n\n"),
+    needsReview: combined.needsReview,
+    warnings: combined.warnings,
+  };
+}
