@@ -36,7 +36,8 @@
 .helper{font-size:12px;line-height:1.5;color:var(--muted,#64748b);padding:8px}
 .listRow{display:flex;align-items:center;border:1px solid transparent;border-radius:8px;gap:2px;margin:3px 0;background:var(--paper,#f7f9fb)}
 .selectedRow{border-color:#60a5fa;background:#eff6ff;color:#1e3a8a}
-.listItemButton{display:flex;align-items:flex-start;gap:9px;padding:9px;min-width:0;flex:1;text-align:left;border:0;background:transparent;color:inherit;cursor:pointer}
+/* A altura global de button (36px) não serve para títulos multilinha. */
+.listItemButton{display:flex;align-items:flex-start;gap:9px;padding:9px;min-width:0;min-height:44px;height:auto;flex:1;text-align:left;white-space:normal;border:0;background:transparent;color:inherit;cursor:pointer}
 .listText{display:flex;flex-direction:column;min-width:0;gap:3px}.listText strong{font-size:12px;line-height:1.3;overflow-wrap:anywhere}
 .listText small{font-size:10px;color:var(--muted,#64748b)}
 .swatch{flex:none;display:inline-grid;place-items:center;color:white;width:24px;height:24px;border-radius:6px;font-size:11px;font-weight:700}
