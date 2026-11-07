@@ -11,6 +11,10 @@ export interface TextItem {
   fontSize: number;
   fontName: string;
   hasEOL: boolean;
+  /** Nome real da fonte embutida (ex.: "TLHPSM+Gotham-Black"), quando
+   * disponível — revela negrito/itálico. Preenchido só pelo modo jornal
+   * (ver `resolveRealFontNames`); `fontName` é o apelido interno do pdf.js. */
+  realFontName?: string;
 }
 
 export interface Line {
@@ -83,6 +87,8 @@ export interface PageExtraction {
   articleGroups: ArticleGroup[];
   imageCount: number;
   warnings: string[];
+  /** Modo jornal: motivo de a página inteira não gerar matérias (capa, publicidade…). */
+  skippedReason?: string;
 }
 
 export interface PdfExtractionResult {

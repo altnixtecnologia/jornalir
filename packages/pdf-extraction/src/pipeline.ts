@@ -4,7 +4,8 @@ import { countPageImages } from "./images";
 import { groupItemsIntoLines } from "./lines";
 import { computeBodyFontSize, groupParagraphsIntoArticles } from "./articleGroups";
 import { groupLinesIntoParagraphs } from "./paragraphs";
-import { extractPageTextItems, hasTextLayer, loadPdfDocument } from "./textLayer";
+import { extractPageTextItems, hasTextLayer, loadPdfDocument, resolveRealFontNames } from "./textLayer";
+import { layoutNewspaperPage } from "./newspaper";
 import { findSuspiciousCharacters, hasIsolatedLowercaseInUppercaseRun } from "./warnings";
 import { defaultOcrProvider } from "./ocr";
 import type { OcrProvider, PageExtraction, PdfExtractionResult, TextItem } from "./types";
@@ -12,6 +13,13 @@ import type { PDFPageProxy } from "pdfjs-dist/types/src/display/api";
 
 export interface ExtractPdfOptions {
   ocrProvider?: OcrProvider;
+  /**
+   * "generic" (padrão): agrupamento só por tamanho de fonte e vãos.
+   * "newspaper": diagramação do Informativo Regional (ver newspaper.ts) —
+   * descarta capa, cabeçalho e publicidade; título em MAIÚSCULAS; corpo lido
+   * coluna por coluna. Usado na separação de matérias das edições.
+   */
+  layout?: "generic" | "newspaper";
 }
 
 /**
@@ -33,13 +41,23 @@ export async function extractPdf(
     for (let pageNumber = 1; pageNumber <= document.numPages; pageNumber += 1) {
       const page = await document.getPage(pageNumber);
       try {
-        pages.push(await extractPage(page, pageNumber, ocrProvider));
+        pages.push(await extractPage(page, pageNumber, ocrProvider, options.layout ?? "generic"));
       } finally {
         page.cleanup();
       }
     }
   } finally {
     await document.destroy();
+  }
+
+  // Modo jornal: página sem nenhuma matéria mas com texto corrido não
+  // aproveitado — o aviso não teria candidato onde aparecer, então sobe
+  // para os avisos gerais do lote.
+  for (const page of pages) {
+    if (page.articleGroups.length > 0) continue;
+    for (const warning of page.warnings) {
+      if (warning.includes("sem título identificável")) documentWarnings.push(warning);
+    }
   }
 
   return { pageCount: document.numPages, pages, warnings: documentWarnings };
@@ -49,10 +67,13 @@ async function extractPage(
   page: PDFPageProxy,
   pageNumber: number,
   ocrProvider: OcrProvider,
+  layout: "generic" | "newspaper",
 ): Promise<PageExtraction> {
   const viewport = page.getViewport({ scale: 1 });
-  const items: TextItem[] = await extractPageTextItems(page);
+  // Lista de operações primeiro: é ela que carrega as fontes, e o modo
+  // jornal precisa do nome real delas (negrito/itálico).
   const imageCount = await countPageImages(page);
+  const items: TextItem[] = await extractPageTextItems(page);
   const warnings: string[] = [];
 
   if (!hasTextLayer(items)) {
@@ -134,6 +155,32 @@ async function extractPage(
       const message = `Página ${pageNumber}: ${warning} em "${item.text.slice(0, 40)}"`;
       if (!warnings.includes(message)) warnings.push(message);
     }
+  }
+
+  if (layout === "newspaper") {
+    resolveRealFontNames(page, items);
+    const result = layoutNewspaperPage(items, viewport.width, viewport.height, { pageNumber });
+    const pageExtraction: PageExtraction = {
+      pageNumber,
+      pageWidth: viewport.width,
+      pageHeight: viewport.height,
+      method: "textLayer",
+      columnSegments: result.columnSegments,
+      paragraphs: result.paragraphs,
+      articleGroups: result.articleGroups,
+      imageCount,
+      // Página sem matérias (capa/publicidade): os avisos de caractere não
+      // interessam a ninguém, já que nada dela vira rascunho.
+      warnings: result.skipped ? [] : [...warnings, ...result.warnings],
+      skippedReason: result.skipped,
+    };
+    // A leitura coluna por coluna sobe no y de propósito ao passar para a
+    // próxima coluna — o aviso de "ordem de leitura" não se aplica aqui.
+    const conservation = checkConservation(pageExtraction);
+    pageExtraction.warnings.push(
+      ...conservation.warnings.filter((warning) => !warning.includes("fora da ordem de leitura")),
+    );
+    return pageExtraction;
   }
 
   const columnSegments = detectColumnSegments(items, viewport.width, viewport.height);

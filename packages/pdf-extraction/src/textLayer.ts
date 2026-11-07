@@ -50,3 +50,26 @@ export async function extractPageTextItems(page: PDFPageProxy): Promise<TextItem
   }
   return items;
 }
+
+/**
+ * Preenche `realFontName` (nome da fonte embutida, com estilo: Bold,
+ * Italic, Black…). Só funciona depois de `page.getOperatorList()`, que é
+ * quando o pdf.js carrega as fontes; se o nome não estiver disponível, o
+ * item fica sem ele e o modo jornal cai para regras só de tamanho.
+ */
+export function resolveRealFontNames(page: PDFPageProxy, items: TextItem[]): void {
+  const cache = new Map<string, string | undefined>();
+  for (const item of items) {
+    if (!cache.has(item.fontName)) {
+      let name: string | undefined;
+      try {
+        const font = page.commonObjs.get(item.fontName) as { name?: unknown } | undefined;
+        name = typeof font?.name === "string" ? font.name : undefined;
+      } catch {
+        name = undefined;
+      }
+      cache.set(item.fontName, name);
+    }
+    item.realFontName = cache.get(item.fontName);
+  }
+}

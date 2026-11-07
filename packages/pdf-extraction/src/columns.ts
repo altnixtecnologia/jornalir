@@ -6,7 +6,7 @@ import type { ColumnSegment, TextItem } from "./types";
  * não baseada no conteúdo do texto. Retorna os intervalos [xStart, xEnd) de
  * cada coluna, da esquerda para a direita.
  */
-export function detectColumns(items: TextItem[], pageWidth: number): Array<[number, number]> {
+export function detectColumns(items: TextItem[], pageWidth: number, minGapPt = 20): Array<[number, number]> {
   if (items.length === 0) return [[0, pageWidth]];
 
   const resolution = 2; // pontos por bucket
@@ -29,7 +29,6 @@ export function detectColumns(items: TextItem[], pageWidth: number): Array<[numb
   const contentStart = firstInk * resolution;
   const contentEnd = (lastInk + 1) * resolution;
 
-  const minGapPt = 20;
   const minGapBuckets = Math.ceil(minGapPt / resolution);
 
   const gaps: Array<[number, number]> = [];
@@ -126,6 +125,10 @@ export function detectColumnSegments(
   items: TextItem[],
   pageWidth: number,
   pageHeight: number,
+  /** Vão mínimo entre colunas. 20pt no modo genérico; o modo jornal usa
+   * um vão menor (as colunas do jornal têm ~11pt de calha) e só itens de
+   * corpo de texto, então palavras espaçadas não viram falsas colunas. */
+  minGapPt = 20,
 ): ColumnSegment[] {
   if (items.length === 0) return [{ yTop: 0, yBottom: pageHeight, xStart: 0, xEnd: pageWidth }];
 
@@ -146,7 +149,7 @@ export function detectColumnSegments(
     cursor = bandBottom;
     const bandItems = items.filter((item) => item.yBaseline >= bandTop && item.yBaseline < bandBottom + 0.01);
     if (bandItems.length === 0) continue;
-    rawBands.push({ yTop: bandTop, yBottom: bandBottom, columnRanges: detectColumns(bandItems, pageWidth) });
+    rawBands.push({ yTop: bandTop, yBottom: bandBottom, columnRanges: detectColumns(bandItems, pageWidth, minGapPt) });
   }
 
   if (rawBands.length === 0) return [{ yTop: 0, yBottom: pageHeight, xStart: 0, xEnd: pageWidth }];

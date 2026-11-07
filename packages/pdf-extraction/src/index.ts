@@ -3,6 +3,7 @@ export { extractPdf } from "./pipeline";
 export { defaultOcrProvider, NullOcrProvider } from "./ocr";
 export { assignSegment, detectColumns, detectColumnSegments } from "./columns";
 export { checkConservation } from "./conservation";
+export { joinTextLines, layoutNewspaperPage, parseFontStyle } from "./newspaper";
 export type { AlteredBlock, ConservationReport, DuplicatedBlock } from "./conservation";
 // Baixo nível, sem a lógica de layout de jornal (colunas/grupos de
 // artigo) — reaproveitado por outros fluxos que só precisam da camada de

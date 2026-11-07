@@ -3328,3 +3328,27 @@ Sem isso, "Enviar ao Jornal Online" (PDF novo do computador) continua bloqueado 
 **FALTA**: deploy + promote pelo usuário e teste real (Remover um rascunho da 776; Despublicar uma matéria publicada de teste). Lote B: calibrar o capturador com as edições reais do acervo; depois, refazer as matérias da 776 (os rascunhos ruins atuais podem ser removidos pelo botão novo).
 
 **Complemento (07/11/2026, pedido do usuário com print de "Matéria importada sem título")**: botão **Remover** também DENTRO da matéria não publicada — no topo da aba Matéria (ao lado de "Continuar para imagens") e na barra de ações de todas as abas; confirma, arquiva com auditoria (mesma `removeUnpublishedArticle`) e volta direto para a listagem. Na aba Publicação, "Arquivar" passou a aparecer só para as que não têm "Remover" (publicadas), evitando dois botões com a mesma ação. Suíte 282/282, `tsc` limpo. Erro de console relatado (`/brand/logo-escrita.png net::ERR_CONNECTION_RESET`) é falha de rede momentânea ao baixar o logo — sem relação com o código.
+
+
+## 07/11/2026 — Lote B: capturador de matérias calibrado com as edições reais ("modo jornal")
+
+**Relato do usuário** (776 importada em produção): "tá criando um monte de coisa sem nexo", ~20 "Matéria importada sem título", cabeçalho/expediente virando matéria, títulos dentro do corpo. Critério dado: títulos são todos MAIÚSCULOS; subtítulos geralmente negrito/itálico.
+
+**Diagnóstico** (capturador antigo, edição 776): 123 candidatos, 40 sem título. Causas: (1) colunas do jornal têm ~11pt de calha e o detector exigia 20pt → linhas de colunas vizinhas misturadas ("O Campeonato Mu- foi de goleadas no 13:45h…"); (2) cabeçalho, número de página, capa e páginas de publicidade viravam candidatos; (3) título em 2 linhas partido (2ª linha no corpo); (4) corpo com tamanho variando (11,6/12,1pt) quebrava parágrafo a cada mudança.
+
+**Feito** — `packages/pdf-extraction/src/newspaper.ts` (novo) + opção `layout: "newspaper"` em `extractPdf`; `extractCandidatesFromPdf` (worker de matérias e tela importar-pdf) passou a usar o modo jornal. O modo genérico continua igual (financeiro e testes antigos intactos). Regras, calibradas com 10 edições reais do acervo (500, 600, 650, 700, 720, 740, 760, 770, 775, 776 — leitura somente, nada gravado):
+- nome real da fonte embutida (`realFontName`, via `commonObjs` depois da lista de operações) → negrito/itálico;
+- capa (pág. 1) ignorada — só chamadas; cabeçalho (faixa do topo, ~6% da altura) descartado; página com editoria "Publicidade" no cabeçalho ignorada;
+- TÍTULO = fonte ≥1,45× o corpo e em MAIÚSCULAS (Gotham-Black), ou — páginas especiais tipo Eleições — negrito, todo maiúsculo, ≥1,15× o corpo e largura ≥200pt; linhas do mesmo título juntas; títulos lado a lado separados;
+- SUBTÍTULO = linhas em outra fonte (negrito/itálico, ex.: Arial-Bold) logo abaixo do título, antes do corpo;
+- CORPO = família regular mais usada (Times), faixa larga de tamanho (0,78–1,28× a mediana: cada matéria tem corpo diferente), colunas por vão de tinta de ~6pt só com itens de corpo, lidas coluna a coluna; parágrafo novo pelo recuo da 1ª linha (comparado às vizinhas), marcador de lista, linha curta que fecha frase ou vão grande após frase terminada; intertítulo negrito-itálico vira parágrafo próprio (2 linhas juntas); fim de coluna não fecha parágrafo;
+- cada linha de corpo pertence ao título mais próximo acima que cobre sua faixa (título + subtítulo, ampliado às colunas que cobre ≥40%);
+- hífen de fim de linha: junta a palavra ("Mu-"+"nicipal"); mantém compostos (segunda-feira, meio-dia, guarda-sóis, vice-prefeito, realizou-se, realizá-lo, BR-101) e a regra tipográfica do hífen repetido ("vice-"/"-presidente");
+- título sem corpo (anúncio) e editais/publicações legais ("ESTADO DE SANTA CATARINA / PREFEITURA MUNICIPAL DE…", EDITAL, AVISO DE LICITAÇÃO, EXTRATO…) não viram rascunho;
+- texto corrido sem título acima NÃO vira "Matéria importada sem título": fica no catálogo (auditoria de conservação acusa) e gera aviso "N caracteres de texto corrido sem título identificável"; se a página não tiver nenhuma matéria, o aviso sobe para os avisos gerais do lote.
+
+**Resultado** (mesmos PDFs): 776 → 33 matérias, **0 sem título**, texto limpo, colunas na ordem. Nas 10 edições: 22–41 matérias cada, 0 sem título, 0 palavras partidas, 0 trechos de título no corpo. Texto não aproveitado: ~100–700 caracteres por edição, quase todo a lista de aniversariantes da pág. 23 (não é matéria); maiores casos: colunas de notas políticas antigas com minitítulos (ed. 500 pág. 2, ~3.400 car.; ed. 650 pág. 2, ~1.500) — ficam com aviso. Limitações conhecidas: diagramação muito irregular (texto contornando várias fotos) pode inverter um trecho curto; capa nunca gera matéria.
+
+**Testes**: `packages/pdf-extraction` 31/31 (8 novos em `test/newspaper.test.ts`, incluído no script do pacote); `apps/sistema` 282/282; `tsc` limpo; caminho completo `extractCandidatesFromPdf` com serviço falso na 776: 33 rascunhos, 0 sem título, 0 avisos.
+
+**FALTA**: deploy + promote pelo usuário. Os rascunhos ruins já gerados da 776 continuam no banco (o worker nunca reextrai edição com lote). Refazer a 776 exige escrita no banco de produção (arquivar os rascunhos antigos não publicados da importação + reprocessar o PDF com `force`) → **só com autorização explícita do usuário**.

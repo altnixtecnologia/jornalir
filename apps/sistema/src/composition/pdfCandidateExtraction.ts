@@ -124,7 +124,10 @@ export async function extractCandidatesFromPdf(
   importCandidateService: ImportCandidateService,
   batchMeta?: PdfBatchMeta,
 ): Promise<ExtractCandidatesResult> {
-  const result = await extractPdf(pdfBytes);
+  // Modo jornal (calibrado com as edições reais, 07/11/2026): ignora capa,
+  // cabeçalho, publicidade e editais; título em MAIÚSCULAS; corpo lido
+  // coluna por coluna. Ver packages/pdf-extraction/src/newspaper.ts.
+  const result = await extractPdf(pdfBytes, { layout: "newspaper" });
 
   const records: NewImportCandidateRecord[] = [];
   const pagesWithoutText: number[] = [];
