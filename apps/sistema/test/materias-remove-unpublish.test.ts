@@ -38,6 +38,13 @@ test("telas: Remover só para rascunho/em ajuste/programada; Despublicar só den
   assert.match(FORM, /article\?\.status === "published" \? \(\s*<button type="button" className="form-action-warning" onClick=\{handleUnpublish\}/);
 });
 
+test("Remover também dentro da matéria não publicada, voltando à listagem; Arquivar fica só para as demais", () => {
+  assert.match(FORM, /const canRemove =\s*mode === "edit" &&\s*\(article\?\.status === "draft" \|\| article\?\.status === "adjusting" \|\| article\?\.status === "scheduled"\)/);
+  assert.match(FORM, /await removeUnpublishedArticle\(article\.id\)[\s\S]*?router\.push\(LIST_HREF\)/);
+  assert.match(FORM, /\{renderRemoveButton\("article-remove-top"\)\}/);
+  assert.match(FORM, /article\?\.status !== "archived" && !canRemove \?/);
+});
+
 test("listagem 'Status: todos' esconde arquivadas; filtro Arquivado continua mostrando", () => {
   assert.match(REPO, /if \(input\.status && input\.status !== "all"\) query = query\.eq\("status", input\.status\);\s*else query = query\.neq\("status", "archived"\);/);
 });

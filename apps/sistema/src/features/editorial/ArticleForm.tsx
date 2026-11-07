@@ -14,7 +14,13 @@ import type {
   NewspaperEdition,
   NotificationMode,
 } from "@ir/types";
-import { archiveArticle, createArticle, unpublishArticle, updateArticle } from "../../app/sistema/editorial/materias/actions";
+import {
+  archiveArticle,
+  createArticle,
+  removeUnpublishedArticle,
+  unpublishArticle,
+  updateArticle,
+} from "../../app/sistema/editorial/materias/actions";
 import { notify } from "../../lib/feedback/notify";
 import { createLocality } from "../../app/sistema/editorial/localidades/actions";
 import type { ArticleFormIntent, ArticleFormPayload } from "./articleFormTypes";
@@ -281,6 +287,39 @@ export function ArticleForm({
     });
   }
 
+  // Remover de dentro da matéria (pedido do usuário, 07/11/2026): mesmo
+  // comportamento do botão da listagem (só não publicadas, arquiva com
+  // auditoria) e volta direto à listagem — agiliza limpar rascunhos ruins
+  // vindos da conversão do PDF sem precisar procurá-los na lista.
+  const canRemove =
+    mode === "edit" &&
+    (article?.status === "draft" || article?.status === "adjusting" || article?.status === "scheduled");
+
+  function handleRemove(): void {
+    if (!article) return;
+    if (!window.confirm(`Remover "${article.title}"?\n\nA matéria sai da listagem (fica arquivada, com registro no histórico).`)) return;
+    startTransition(async () => {
+      const result = await removeUnpublishedArticle(article.id);
+      if ("error" in result) {
+        notify.error("Não foi possível remover a matéria", result.error);
+        return;
+      }
+      justSavedRef.current = true;
+      notify.success("Matéria removida", "Ela continua consultável no filtro Status → Arquivado.");
+      router.push(LIST_HREF);
+      router.refresh();
+    });
+  }
+
+  function renderRemoveButton(extraClass = ""): JSX.Element | null {
+    if (!canRemove) return null;
+    return (
+      <button type="button" className={`materia-remove-button materia-remove-button--form ${extraClass}`.trim()} onClick={handleRemove} disabled={pending}>
+        Remover
+      </button>
+    );
+  }
+
   function handleUnpublish(): void {
     if (!article) return;
     if (!window.confirm("Despublicar esta matéria? Ela sai do portal e volta para Rascunho (conteúdo e imagens são mantidos).")) return;
@@ -328,6 +367,7 @@ export function ArticleForm({
             <section className="form-section form-section--first" aria-labelledby="identificacao-title">
               <div className="article-step-topline">
                 <h2 id="identificacao-title">Matéria</h2>
+                {renderRemoveButton("article-remove-top")}
                 <button type="button" className="form-action-primary article-next-top"
                   disabled={pending}
                   onClick={() => mode === "create" ? handleAction("draft", "imagens") : setActiveTab("imagens")}>
@@ -708,6 +748,7 @@ export function ArticleForm({
       ) : null}
 
       <div className="form-actions article-step-actions">
+        {renderRemoveButton()}
         {activeTab === "conteudo" ? (
           <button
             type="button"
@@ -762,7 +803,8 @@ export function ArticleForm({
                 Despublicar
               </button>
             ) : null}
-            {mode === "edit" && article?.status !== "archived" ? (
+            {/* Não publicadas já têm "Remover" (mesma ação: arquivar). */}
+            {mode === "edit" && article?.status !== "archived" && !canRemove ? (
               <button type="button" className="form-action-danger" onClick={handleArchive} disabled={pending}>
                 Arquivar
               </button>

@@ -2742,6 +2742,30 @@ textarea:focus {
   border-color: #a3402b;
   background: #fbefeb;
 }
+/* Remover dentro da matéria: mesma altura dos botões do editor; duas
+   classes para vencer `.form-actions button`. */
+.materia-remove-button.materia-remove-button--form {
+  height: 36px;
+  min-height: 36px;
+  padding: 0 16px;
+  font-size: 12px;
+  border: 1px solid #d9b8ae;
+  background: #fff;
+  color: #a3402b;
+}
+.materia-remove-button.materia-remove-button--form:hover:not(:disabled) {
+  border-color: #a3402b;
+  background: #fbefeb;
+}
+.article-step-topline .article-remove-top {
+  margin-left: auto;
+  height: 42px;
+  min-height: 42px;
+  flex-shrink: 0;
+}
+.article-step-topline .article-remove-top + .article-next-top {
+  margin-left: 0;
+}
 
 /* Ação secundária/discreta — Voltar, Limpar, Cancelar sem destruição,
    Fechar. Mesma altura/fonte dos botões primários, sem preenchimento;
