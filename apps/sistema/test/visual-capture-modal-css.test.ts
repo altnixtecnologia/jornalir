@@ -110,3 +110,17 @@ test("após concluir seleção adicional a ferramenta encerra o modo automaticam
   assert.match(component, /setAppendToId\(null\);\s*setAppendNotice\(\{/);
   assert.match(component, /\+ Incluir outro trecho nesta matéria/);
 });
+
+
+test("confirmação de saída distingue continuar editando e descarte sem bloquear leitura", () => {
+  const actions = rule(".confirmBox>.confirmActions");
+  assert.match(actions, /grid-template-columns:\s*1fr 1fr/);
+  const safe = rule(".confirmBox>.confirmActions>.keepEditingButton");
+  const destructive = rule(".confirmBox>.confirmActions>.discardPreviewButton");
+  assert.match(safe, /background:\s*#1d4ed8/);
+  assert.match(destructive, /background:\s*#fff/);
+  const component = readFileSync(join(__dirname, "../src/features/editorial/PdfVisualCaptureModal.tsx"), "utf8");
+  assert.match(component, /Fechar sem salvar as seleções\?/);
+  assert.match(component, /Continuar editando/);
+  assert.match(component, /Descartar e fechar/);
+});
