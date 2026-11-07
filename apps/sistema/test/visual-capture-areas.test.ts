@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { appendRegionToCapture, combineAreaExtractions } from "../src/features/editorial/visualCaptureAreas";
+import { appendRegionToCapture, combineAreaExtractions, removeAreaFromCapture } from "../src/features/editorial/visualCaptureAreas";
 import type { RegionArticleExtraction } from "@ir/pdf-extraction";
 
 function extraction(overrides: Partial<RegionArticleExtraction> = {}): RegionArticleExtraction {
@@ -153,4 +153,61 @@ test("múltiplas continuações preservam ordem sem criar outra matéria", () =>
   assert.equal(b.id, "materia-1");
   assert.equal(b.areas.length, 3);
   assert.equal(b.body, "Texto inicial.\n\nTrecho dois.\n\nTrecho três.");
+});
+
+
+test("excluir segundo retângulo mantém somente a primeira área com texto original", () => {
+  const withTwo = appendRegionToCapture(
+    sampleCapture(),
+    { page: 3, rect: { x: 0.5, y: 0.1, width: 0.35, height: 0.4 } },
+    extraction({ bodyParagraphs: ["Parte da terceira página."] }),
+  );
+  assert.ok(withTwo);
+  const result = removeAreaFromCapture(withTwo, 1);
+  assert.ok(result);
+  assert.equal(result.id, "materia-1");
+  assert.equal(result.color, "#2563eb");
+  assert.deepEqual(result.areas.map((area) => area.page), [2]);
+  assert.equal(result.perAreaExtraction.length, 1);
+  assert.equal(result.body, "Texto inicial.");
+  assert.equal(result.title, "MATÉRIA TESTE");
+  assert.equal(withTwo.areas.length, 2, "não pode mutar o estado anterior");
+});
+
+test("excluir primeiro retângulo mantém a continuação e recalcula os campos", () => {
+  const withTwo = appendRegionToCapture(
+    sampleCapture(),
+    { page: 4, rect: { x: 0.3, y: 0.2, width: 0.2, height: 0.4 } },
+    extraction({ title: "NOVO TÍTULO DA ÁREA RESTANTE", bodyParagraphs: ["Conteúdo restante."] }),
+  );
+  assert.ok(withTwo);
+  const result = removeAreaFromCapture(withTwo, 0);
+  assert.ok(result);
+  assert.equal(result.areas[0].page, 4);
+  assert.equal(result.title, "NOVO TÍTULO DA ÁREA RESTANTE");
+  assert.equal(result.body, "Conteúdo restante.");
+});
+
+test("apagar trecho central preserva a ordem dos outros dois sem criar nova matéria", () => {
+  const second = appendRegionToCapture(sampleCapture(), { page: 2, rect: { x: 0.4, y: 0.3, width: 0.2, height: 0.2 } }, extraction({ bodyParagraphs: ["Parte do meio."] }));
+  assert.ok(second);
+  const third = appendRegionToCapture(second, { page: 5, rect: { x: 0.1, y: 0.3, width: 0.4, height: 0.2 } }, extraction({ bodyParagraphs: ["Parte final."] }));
+  assert.ok(third);
+  const result = removeAreaFromCapture(third, 1);
+  assert.ok(result);
+  assert.equal(result.id, third.id);
+  assert.deepEqual(result.areas.map((a) => a.page), [2, 5]);
+  assert.equal(result.body, "Texto inicial.\n\nParte final.");
+});
+
+test("última área exige confirmação externa antes de excluir a matéria inteira", () => {
+  const original = sampleCapture();
+  assert.equal(removeAreaFromCapture(original, 0), null);
+  assert.equal(original.areas.length, 1);
+});
+
+test("índice de área inválido ou extrações desalinhadas interrompe remoção", () => {
+  assert.throws(() => removeAreaFromCapture(sampleCapture(), 5), RangeError);
+  assert.throws(() => removeAreaFromCapture(sampleCapture(), -1), RangeError);
+  assert.throws(() => removeAreaFromCapture({ ...sampleCapture(), perAreaExtraction: [] }, 0), /não correspondem/);
 });
