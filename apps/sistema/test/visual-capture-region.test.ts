@@ -2,6 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   clamp01,
+  computeResizedRect,
   filterItemsInRegion,
   normalizedRectToPoints,
   overlapRatio,
@@ -52,4 +53,62 @@ test("filterItemsInRegion: região vazia não retorna nada", () => {
 test("selectionColor: cores reproduzíveis e cíclicas após 8", () => {
   assert.equal(selectionColor(0), selectionColor(8));
   assert.notEqual(selectionColor(0), selectionColor(1));
+});
+
+// ---------------------------------------------------------------------------
+// computeResizedRect — ajustar uma seleção já desenhada (revisão de
+// 07/11/2026, item 3): mover pelo corpo e redimensionar pelos 4 cantos,
+// sem deixar o retângulo sair de 0..1 nem ficar menor que o mínimo.
+// ---------------------------------------------------------------------------
+
+const BASE_RECT = { x: 0.3, y: 0.3, width: 0.2, height: 0.15 };
+
+/** Compara com tolerância de ponto flutuante (aritmética de soma/subtração de passos de 0.05-0.1 não bate byte a byte). */
+function assertRectClose(actual: { x: number; y: number; width: number; height: number }, expected: { x: number; y: number; width: number; height: number }): void {
+  for (const key of ["x", "y", "width", "height"] as const) {
+    assert.ok(Math.abs(actual[key] - expected[key]) < 1e-9, `${key}: esperado ${expected[key]}, obtido ${actual[key]}`);
+  }
+}
+
+test("computeResizedRect: 'move' desloca o retângulo inteiro, mantendo o tamanho", () => {
+  const result = computeResizedRect(BASE_RECT, "move", 0.1, -0.05);
+  assert.deepEqual(result, { x: 0.4, y: 0.25, width: 0.2, height: 0.15 });
+});
+
+test("computeResizedRect: 'move' nunca deixa o retângulo sair de 0..1", () => {
+  assert.deepEqual(computeResizedRect(BASE_RECT, "move", -10, -10), { x: 0, y: 0, width: 0.2, height: 0.15 });
+  assert.deepEqual(computeResizedRect(BASE_RECT, "move", 10, 10), { x: 0.8, y: 0.85, width: 0.2, height: 0.15 });
+});
+
+test("computeResizedRect: canto 'se' estica a largura/altura a partir do canto oposto (nw fixo)", () => {
+  const result = computeResizedRect(BASE_RECT, "se", 0.1, 0.1);
+  assertRectClose(result, { x: 0.3, y: 0.3, width: 0.3, height: 0.25 });
+});
+
+test("computeResizedRect: canto 'nw' move o canto superior-esquerdo, mantendo o canto inferior-direito fixo", () => {
+  const result = computeResizedRect(BASE_RECT, "nw", -0.1, -0.1);
+  assertRectClose(result, { x: 0.2, y: 0.2, width: 0.3, height: 0.25 });
+});
+
+test("computeResizedRect: canto 'ne' move o lado direito e o topo, mantendo x e o fundo fixos", () => {
+  const result = computeResizedRect(BASE_RECT, "ne", 0.05, -0.05);
+  assertRectClose(result, { x: 0.3, y: 0.25, width: 0.25, height: 0.2 });
+});
+
+test("computeResizedRect: canto 'sw' move o lado esquerdo e o fundo, mantendo y e a direita fixos", () => {
+  const result = computeResizedRect(BASE_RECT, "sw", -0.05, 0.05);
+  assertRectClose(result, { x: 0.25, y: 0.3, width: 0.25, height: 0.2 });
+});
+
+test("computeResizedRect: nunca fica menor que o tamanho mínimo, mesmo arrastando o canto além do oposto", () => {
+  const result = computeResizedRect(BASE_RECT, "se", -10, -10);
+  assert.ok(result.width > 0, "largura precisa continuar positiva");
+  assert.ok(result.height > 0, "altura precisa continuar positiva");
+  assert.ok(result.width < 0.02 && result.height < 0.02, "deve colapsar perto do mínimo, não inverter");
+});
+
+test("computeResizedRect: redimensionar nunca deixa o retângulo sair de 0..1", () => {
+  const result = computeResizedRect(BASE_RECT, "se", 10, 10);
+  assert.ok(result.x + result.width <= 1.0001);
+  assert.ok(result.y + result.height <= 1.0001);
 });

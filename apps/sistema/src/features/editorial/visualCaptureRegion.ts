@@ -58,6 +58,47 @@ export function filterItemsInRegion(items: TextItem[], rect: PointRect): TextIte
   });
 }
 
+export type ResizeHandle = "nw" | "ne" | "sw" | "se" | "move";
+
+const MIN_RECT_SIZE = 0.014;
+
+/**
+ * Novo retângulo ao mover/redimensionar uma seleção já desenhada (revisão
+ * de 07/11/2026, item 3: "ajustar uma seleção já desenhada sem precisar
+ * refazê-la") — `dx`/`dy` é o deslocamento do ponteiro desde o início do
+ * gesto, em coordenadas normalizadas (0..1, mesmo espaço de
+ * `rectFromPoints`). "move" desloca o retângulo inteiro, sem deixá-lo sair
+ * da página; os quatro cantos redimensionam a partir do lado oposto,
+ * nunca deixando o retângulo menor que `MIN_RECT_SIZE` nem saindo de 0..1.
+ */
+export function computeResizedRect(startRect: NormalizedRect, handle: ResizeHandle, dx: number, dy: number): NormalizedRect {
+  if (handle === "move") {
+    const x = clamp01(Math.min(Math.max(0, startRect.x + dx), 1 - startRect.width));
+    const y = clamp01(Math.min(Math.max(0, startRect.y + dy), 1 - startRect.height));
+    return { x, y, width: startRect.width, height: startRect.height };
+  }
+  const next = { ...startRect };
+  if (handle === "nw" || handle === "sw") {
+    const x1 = startRect.x + startRect.width;
+    const nx = Math.min(clamp01(startRect.x + dx), x1 - MIN_RECT_SIZE);
+    next.x = nx;
+    next.width = x1 - nx;
+  } else {
+    const nx1 = Math.max(clamp01(startRect.x + startRect.width + dx), startRect.x + MIN_RECT_SIZE);
+    next.width = nx1 - startRect.x;
+  }
+  if (handle === "nw" || handle === "ne") {
+    const y1 = startRect.y + startRect.height;
+    const ny = Math.min(clamp01(startRect.y + dy), y1 - MIN_RECT_SIZE);
+    next.y = ny;
+    next.height = y1 - ny;
+  } else {
+    const ny1 = Math.max(clamp01(startRect.y + startRect.height + dy), startRect.y + MIN_RECT_SIZE);
+    next.height = ny1 - startRect.y;
+  }
+  return next;
+}
+
 const SELECTION_COLORS = ["#2563eb", "#059669", "#d97706", "#9333ea", "#dc2626", "#0891b2", "#c026d3", "#65a30d"];
 
 /** Cor estável por número de matéria (repete após 8, igual ao padrão de qualquer paleta cíclica). */

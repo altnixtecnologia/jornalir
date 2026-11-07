@@ -15,12 +15,14 @@ import { extractArticleFromRegion, type RegionArticleExtraction } from "@ir/pdf-
 import type { TextItem } from "@ir/pdf-extraction";
 import { combineAreaExtractions } from "./visualCaptureAreas";
 import {
+  computeResizedRect,
   filterItemsInRegion,
   normalizedRectToPoints,
   overlapRatio,
   rectFromPoints,
   selectionColor,
   type NormalizedRect,
+  type ResizeHandle,
 } from "./visualCaptureRegion";
 import styles from "./PdfVisualCaptureModal.module.css";
 
@@ -31,6 +33,10 @@ type Capture = {
   id: string;
   color: string;
   areas: Area[];
+  /** Extração bruta de cada área, na mesma ordem de `areas` — preservada para
+   * poder recalcular com segurança quando uma área é redimensionada/movida
+   * (revisão de 07/11/2026, item 3: ajustar uma seleção sem refazê-la). */
+  perAreaExtraction: RegionArticleExtraction[];
   title: string;
   subtitle: string;
   body: string;
@@ -39,6 +45,13 @@ type Capture = {
 };
 
 type Pointer = { x: number; y: number };
+interface ResizeState {
+  captureId: string;
+  areaIndex: number;
+  handle: ResizeHandle;
+  startRect: NormalizedRect;
+  startPointer: Pointer;
+}
 interface CaptureEdition {
   id: string;
   editionNumber: number;
@@ -104,6 +117,10 @@ export function PdfVisualCaptureModal({ edition, onClose }: Props): JSX.Element 
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [appendToId, setAppendToId] = useState<string | null>(null);
   const [drag, setDrag] = useState<{ from: Pointer; to: Pointer } | null>(null);
+  const [resize, setResize] = useState<ResizeState | null>(null);
+  const [liveResizeRect, setLiveResizeRect] = useState<NormalizedRect | null>(null);
+  const resizeRef = useRef<ResizeState | null>(null);
+  const pageElRef = useRef<HTMLDivElement | null>(null);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState(
     edition.hasArchivedPdf
@@ -326,28 +343,46 @@ export function PdfVisualCaptureModal({ edition, onClose }: Props): JSX.Element 
     };
   }, [pdf, pageNumber, getPage, scale]);
 
-  function pointFromEvent(event: PointerEvent<HTMLDivElement>): Pointer {
-    const box = event.currentTarget.getBoundingClientRect();
+  // Sempre a partir do retângulo do próprio `.page` (nunca de
+  // `event.currentTarget`): as alças de ajuste são elementos pequenos nos
+  // cantos da seleção — se a conversão usasse o retângulo da alça, a
+  // posição calculada ficaria errada. Drag de desenho e de ajuste usam a
+  // MESMA referência, por isso continuam consistentes entre si.
+  function pointFromEvent(event: PointerEvent<HTMLElement>): Pointer {
+    const box = pageElRef.current?.getBoundingClientRect();
+    if (!box) return { x: 0, y: 0 };
     return { x: clamp01Local((event.clientX - box.left) / box.width), y: clamp01Local((event.clientY - box.top) / box.height) };
   }
   function clamp01Local(value: number): number {
     return Math.max(0, Math.min(1, value));
   }
-  function begin(event: PointerEvent<HTMLDivElement>): void {
+  function begin(event: PointerEvent<HTMLElement>): void {
     if (!pdf || busy || event.button !== 0) return;
     const point = pointFromEvent(event);
     dragRef.current = { from: point, to: point };
     setDrag(dragRef.current);
     event.currentTarget.setPointerCapture(event.pointerId);
   }
-  function move(event: PointerEvent<HTMLDivElement>): void {
+  function move(event: PointerEvent<HTMLElement>): void {
     if (!dragRef.current) return;
     const next = { ...dragRef.current, to: pointFromEvent(event) };
     dragRef.current = next;
     setDrag(next);
   }
 
-  async function finish(event: PointerEvent<HTMLDivElement>): Promise<void> {
+  /** Extrai o texto de UMA região (em coordenadas normalizadas 0..1 da página indicada) — reaproveitada ao desenhar, ao incluir um trecho e ao ajustar uma seleção já existente. `null` = nenhum texto reconhecível (foto/anúncio). */
+  const extractRegionAt = useCallback(
+    async (targetPage: number, rect: NormalizedRect): Promise<RegionArticleExtraction | null> => {
+      const info = await getPageTextInfo(targetPage);
+      const rectPoints = normalizedRectToPoints(rect, info.pageWidth, info.pageHeight);
+      const regionItems = filterItemsInRegion(info.items, rectPoints);
+      if (regionItems.length === 0) return null;
+      return extractArticleFromRegion(regionItems, rectPoints.width, rectPoints.height);
+    },
+    [getPageTextInfo],
+  );
+
+  async function finish(event: PointerEvent<HTMLElement>): Promise<void> {
     const current = dragRef.current;
     dragRef.current = null;
     setDrag(null);
@@ -362,14 +397,11 @@ export function PdfVisualCaptureModal({ edition, onClose }: Props): JSX.Element 
     }
     setBusy(true);
     try {
-      const info = await getPageTextInfo(pageNumber);
-      const rectPoints = normalizedRectToPoints(rect, info.pageWidth, info.pageHeight);
-      const regionItems = filterItemsInRegion(info.items, rectPoints);
-      if (regionItems.length === 0) {
+      const extraction = await extractRegionAt(pageNumber, rect);
+      if (!extraction) {
         setMessage("Não há texto reconhecível nessa região. Fotografias ficam de fora da captura textual.");
         return;
       }
-      const extraction: RegionArticleExtraction = extractArticleFromRegion(regionItems, rectPoints.width, rectPoints.height);
       const label = `Página ${pageNumber}`;
 
       if (appendToId) {
@@ -387,6 +419,7 @@ export function PdfVisualCaptureModal({ edition, onClose }: Props): JSX.Element 
             return {
               ...capture,
               areas: [...capture.areas, { page: pageNumber, rect }],
+              perAreaExtraction: [...capture.perAreaExtraction, extraction],
               body: [capture.body.trim(), extraParts.join("\n\n")].filter(Boolean).join("\n\n"),
               needsReview: capture.needsReview || extraction.needsReview || Boolean(extraction.title),
               warnings: [...capture.warnings, ...newWarnings],
@@ -408,6 +441,7 @@ export function PdfVisualCaptureModal({ edition, onClose }: Props): JSX.Element 
           id,
           color,
           areas: [{ page: pageNumber, rect }],
+          perAreaExtraction: [extraction],
           title: combined.title,
           subtitle: combined.subtitle,
           body: combined.bodyParagraphs.join("\n\n"),
@@ -423,6 +457,89 @@ export function PdfVisualCaptureModal({ edition, onClose }: Props): JSX.Element 
       );
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Erro ao extrair texto da seleção.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  // ---------------------------------------------------------------------
+  // Ajustar uma seleção já desenhada (redimensionar pelos cantos ou mover
+  // pelo corpo do retângulo), sem precisar excluir e arrastar de novo —
+  // revisão de 07/11/2026, item 3. Só a área ATIVA (da matéria selecionada
+  // na lista) na página em exibição mostra as alças.
+  // ---------------------------------------------------------------------
+
+  function beginResize(captureId: string, areaIndex: number, handle: ResizeHandle, rect: NormalizedRect, event: PointerEvent<HTMLElement>): void {
+    if (busy) return;
+    event.stopPropagation();
+    const state: ResizeState = { captureId, areaIndex, handle, startRect: rect, startPointer: pointFromEvent(event) };
+    resizeRef.current = state;
+    setResize(state);
+    setLiveResizeRect(rect);
+    event.currentTarget.setPointerCapture(event.pointerId);
+  }
+
+  function moveResize(event: PointerEvent<HTMLElement>): void {
+    const state = resizeRef.current;
+    if (!state) return;
+    const point = pointFromEvent(event);
+    const dx = point.x - state.startPointer.x;
+    const dy = point.y - state.startPointer.y;
+    setLiveResizeRect(computeResizedRect(state.startRect, state.handle, dx, dy));
+  }
+
+  async function finishResize(event: PointerEvent<HTMLElement>): Promise<void> {
+    const state = resizeRef.current;
+    const finalRect = liveResizeRect;
+    resizeRef.current = null;
+    setResize(null);
+    setLiveResizeRect(null);
+    if (!state || !finalRect) return;
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
+    if (finalRect.width < 0.014 || finalRect.height < 0.014) return;
+
+    const capture = captures.find((item) => item.id === state.captureId);
+    const area = capture?.areas[state.areaIndex];
+    if (!capture || !area) return;
+    // Nada mudou de fato (clique sem arrastar) — evita reprocessar à toa.
+    if (
+      Math.abs(finalRect.x - area.rect.x) < 0.001 &&
+      Math.abs(finalRect.y - area.rect.y) < 0.001 &&
+      Math.abs(finalRect.width - area.rect.width) < 0.001 &&
+      Math.abs(finalRect.height - area.rect.height) < 0.001
+    ) {
+      return;
+    }
+
+    setBusy(true);
+    try {
+      const extraction = await extractRegionAt(area.page, finalRect);
+      if (!extraction) {
+        setMessage("Não há texto reconhecível nessa posição/tamanho — a seleção foi mantida como estava.");
+        return;
+      }
+      const labels = capture.areas.map((item) => `Página ${item.page}`);
+      const perAreaExtraction = capture.perAreaExtraction.map((item, index) => (index === state.areaIndex ? extraction : item));
+      const combined = combineAreaExtractions(perAreaExtraction, labels);
+      setCaptures((prev) =>
+        prev.map((item) =>
+          item.id === state.captureId
+            ? {
+                ...item,
+                areas: item.areas.map((a, index) => (index === state.areaIndex ? { ...a, rect: finalRect } : a)),
+                perAreaExtraction,
+                title: combined.title,
+                subtitle: combined.subtitle,
+                body: combined.bodyParagraphs.join("\n\n"),
+                needsReview: combined.needsReview,
+                warnings: combined.warnings,
+              }
+            : item,
+        ),
+      );
+      setMessage("Seleção ajustada — o texto desta matéria foi recalculado. Confira o título/subtítulo/corpo na lateral.");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Erro ao recalcular a seleção ajustada.");
     } finally {
       setBusy(false);
     }
@@ -534,15 +651,39 @@ export function PdfVisualCaptureModal({ edition, onClose }: Props): JSX.Element 
           <main className={styles.viewer} aria-label="Página do PDF">
             <div className={styles.viewerScroll} ref={viewportRef}>
               {pdf ? (
-                <div className={styles.page} style={{ width: pageSize.width * scale, height: pageSize.height * scale }}>
+                <div ref={pageElRef} className={styles.page} style={{ width: pageSize.width * scale, height: pageSize.height * scale }}>
                   <canvas className={styles.canvas} ref={canvasRef} style={{ width: "100%", height: "100%" }} aria-label={`Página ${pageNumber}`} />
                   {selectionsOnPage.map(({ capture, area, areaIndex }, position) => {
                     const captureIndex = captures.findIndex((item) => item.id === capture.id);
+                    const isActiveArea = capture.id === selectedId;
+                    const isBeingResized = resize?.captureId === capture.id && resize.areaIndex === areaIndex;
+                    const displayRect = isBeingResized && liveResizeRect ? liveResizeRect : area.rect;
                     return (
-                      <div key={`${capture.id}-${areaIndex}-${position}`} className={styles.selection} style={coloredStyle(area.rect, capture.color)}>
+                      <div
+                        key={`${capture.id}-${areaIndex}-${position}`}
+                        className={`${styles.selection} ${isActiveArea ? styles.selectionActive : ""}`}
+                        style={coloredStyle(displayRect, capture.color)}
+                        onPointerDown={isActiveArea ? (event) => beginResize(capture.id, areaIndex, "move", area.rect, event) : undefined}
+                        onPointerMove={isActiveArea ? moveResize : undefined}
+                        onPointerUp={isActiveArea ? (event) => void finishResize(event) : undefined}
+                        title={isActiveArea ? "Arraste para mover; use os cantos para redimensionar" : undefined}
+                      >
                         <span className={styles.selectionNumber} style={{ background: capture.color }}>
                           {captureIndex + 1}
                         </span>
+                        {isActiveArea
+                          ? (["nw", "ne", "sw", "se"] as const).map((handle) => (
+                              <span
+                                key={handle}
+                                className={`${styles.resizeHandle} ${styles[`resizeHandle_${handle}`]}`}
+                                style={{ borderColor: capture.color }}
+                                onPointerDown={(event) => beginResize(capture.id, areaIndex, handle, area.rect, event)}
+                                onPointerMove={moveResize}
+                                onPointerUp={(event) => void finishResize(event)}
+                                aria-label={`Redimensionar seleção pelo canto ${handle}`}
+                              />
+                            ))
+                          : null}
                       </div>
                     );
                   })}

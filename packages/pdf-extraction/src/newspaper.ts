@@ -443,6 +443,12 @@ function layoutArticlesFromItems(
   areaWidth: number,
   areaHeight: number,
   areaLabel: string,
+  /** Corpo mínimo (caracteres) para um título virar matéria — MIN_ARTICLE_BODY_CHARS
+   * no modo página inteira (protege a extração automática de anúncios/selos
+   * curtos); 0 na captura visual (item 2, revisão 07/11/2026) — a seleção
+   * manual do operador já é a intenção editorial, uma nota curta nunca deve
+   * ser descartada só por ter pouco texto. */
+  minBodyChars: number = MIN_ARTICLE_BODY_CHARS,
 ): NewspaperPageLayout {
   const body = detectBodyStyle(content);
   if (!body || body.size <= 0) return emptyLayout("sem texto corrido");
@@ -600,7 +606,7 @@ function layoutArticlesFromItems(
     const runs = orderBodyLines(lines, body.size);
     const built = buildBodyParagraphs(runs, body.size);
     const bodyChars = built.reduce((sum, paragraph) => sum + paragraph.text.length, 0);
-    if (bodyChars < MIN_ARTICLE_BODY_CHARS) {
+    if (bodyChars < minBodyChars) {
       skippedHeadlines += 1;
       continue;
     }
@@ -701,6 +707,18 @@ const EMPTY_REGION_EXTRACTION: RegionArticleExtraction = {
  * função). `areaWidth`/`areaHeight` devem ser as dimensões do retângulo em
  * pontos do PDF (não da página inteira), para a detecção de colunas ficar
  * restrita à região.
+ *
+ * `rawItems` chega com as coordenadas ABSOLUTAS da página (mesmo espaço de
+ * `extractPageTextItems`) — uma seleção no meio ou na borda direita da
+ * página tem `x`/`yBaseline` bem maiores que `areaWidth`/`areaHeight`. A
+ * detecção de colunas (`detectColumnSegments`) monta seus baldes de
+ * cobertura a partir de 0 até `areaWidth`: sem recentralizar os itens pela
+ * própria região primeiro, nenhum item cairia dentro da faixa coberta e a
+ * estrutura de colunas nunca seria reconhecida fora da borda esquerda da
+ * página (bug encontrado e corrigido na revisão de 07/11/2026). Por isso,
+ * SEMPRE subtrai o canto superior-esquerdo do conjunto antes de chamar o
+ * motor — a região passa a viver no seu próprio espaço local (0,0)..(w,h),
+ * igual a uma página inteira em miniatura.
  */
 export function extractArticleFromRegion(
   rawItems: TextItem[],
@@ -712,7 +730,18 @@ export function extractArticleFromRegion(
     .map((item) => ({ ...item, style: parseFontStyle(item.realFontName) }));
   if (content.length === 0) return EMPTY_REGION_EXTRACTION;
 
-  const layout = layoutArticlesFromItems(content, Math.max(1, areaWidth), Math.max(1, areaHeight), "Seleção");
+  const originX = Math.min(...content.map((item) => item.x));
+  const originY = Math.min(...content.map((item) => item.yBaseline - item.fontSize));
+  const localized: StyledItem[] =
+    originX === 0 && originY === 0
+      ? content
+      : content.map((item) => ({ ...item, x: item.x - originX, yBaseline: item.yBaseline - originY }));
+
+  // Item 2 da revisão de 07/11/2026: a seleção manual já é a intenção
+  // editorial do operador — nunca descartar uma nota curta só por ter
+  // menos de MIN_ARTICLE_BODY_CHARS (limite que continua valendo, sem
+  // nenhuma mudança, para a extração automática de página inteira).
+  const layout = layoutArticlesFromItems(localized, Math.max(1, areaWidth), Math.max(1, areaHeight), "Seleção", 0);
   const orphanParagraphs = layout.paragraphs.filter((paragraph) => paragraph.column === -1);
   const orphanText = orphanParagraphs
     .sort((a, b) => a.yTop - b.yTop || a.x - b.x)
