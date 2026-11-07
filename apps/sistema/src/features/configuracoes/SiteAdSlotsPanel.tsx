@@ -87,7 +87,6 @@ function MediaSettingsRow({
 }): JSX.Element {
   const hasOverride = media.rotationIntervalMs != null || media.transitionEffect != null || media.fitMode != null;
   const [custom, setCustom] = useState(hasOverride);
-  const [seconds, setSeconds] = useState(String(Math.round((media.rotationIntervalMs ?? 10000) / 1000)));
   const [effect, setEffect] = useState<SiteAdSlotTransitionEffect>(media.transitionEffect ?? "fade");
   const [fitMode, setFitMode] = useState<SiteAdFitMode>(media.fitMode ?? "contain");
   const [saved, setSaved] = useState(false);
@@ -101,7 +100,9 @@ function MediaSettingsRow({
       const changes = !custom
         ? { rotationIntervalMs: null, transitionEffect: null, fitMode: null }
         : {
-            rotationIntervalMs: Math.max(2, Math.min(120, Number(seconds) || 10)) * 1000,
+            // Tempo por imagem não vale mais no site (esteira única de 10s,
+            // decisão do usuário 07/11/2026) — preserva o valor gravado.
+            rotationIntervalMs: media.rotationIntervalMs ?? null,
             transitionEffect: effect,
             fitMode,
           };
@@ -128,7 +129,6 @@ function MediaSettingsRow({
       </label>
       {custom ? (
         <div className="site-ad-thumb-settings-fields">
-          <div className="site-ad-seconds"><input type="number" min={2} max={120} value={seconds} onChange={(event) => setSeconds(event.target.value)} disabled={pending} /><span>s</span></div>
           <select value={effect} onChange={(event) => setEffect(event.target.value as SiteAdSlotTransitionEffect)} disabled={pending}>
             {SITE_AD_SLOT_TRANSITION_EFFECTS.map((item) => <option key={item} value={item}>{SITE_AD_SLOT_TRANSITION_EFFECT_LABELS[item]}</option>)}
           </select>
@@ -137,7 +137,7 @@ function MediaSettingsRow({
           </select>
         </div>
       ) : (
-        <span className="helper-text">Usa o tempo/efeito/formato do grupo.</span>
+        <span className="helper-text">Usa a transição e o formato do grupo.</span>
       )}
       <button type="button" className="cadastros-btn-secondary" onClick={() => void save()} disabled={pending || saving}>
         {saving ? "Salvando…" : saved ? "Salvo ✓" : "Salvar imagem"}
@@ -151,7 +151,6 @@ function SlotCard({ slot }: { slot: SiteAdSlotWithMedia }): JSX.Element {
   const inputRef = useRef<HTMLInputElement>(null);
   const previewUrlsRef = useRef<Set<string>>(new Set());
   const [pending, startTransition] = useTransition();
-  const [seconds, setSeconds] = useState(String(Math.round(slot.rotationIntervalMs / 1000)));
   const [effect, setEffect] = useState<SiteAdSlotTransitionEffect>(slot.transitionEffect);
   const [fitMode, setFitMode] = useState<SiteAdFitMode>(slot.fitMode);
   const [previews, setPreviews] = useState<{ file: File; url: string }[]>([]);
@@ -188,9 +187,9 @@ function SlotCard({ slot }: { slot: SiteAdSlotWithMedia }): JSX.Element {
   }
 
   function saveSettings(): void {
-    const value = Math.max(2, Math.min(120, Number(seconds) || 10)) * 1000;
     startTransition(async () => {
-      const result = await updateSiteAdSlotSettingsAction(slot.id, value, effect, fitMode);
+      // Tempo do grupo não é mais editável (esteira única de 10s) — reenvia o valor atual.
+      const result = await updateSiteAdSlotSettingsAction(slot.id, slot.rotationIntervalMs, effect, fitMode);
       if (result && "error" in result) {
         notify.error("Não foi possível salvar a configuração", result.error);
         return;
@@ -361,13 +360,6 @@ function SlotCard({ slot }: { slot: SiteAdSlotWithMedia }): JSX.Element {
 
       <div className="site-ad-slot-settings">
         <label className="form-field">
-          <span className="field-label">Tempo de exibição deste grupo (padrão)</span>
-          <div className="site-ad-seconds"><input type="number" min={2} max={120} value={seconds} onChange={(event) => setSeconds(event.target.value)} /><span>s</span></div>
-          <span className="helper-text">
-            Vale para as imagens deste grupo sem duração própria. Os grupos circulam por todas as posições do site.
-          </span>
-        </label>
-        <label className="form-field">
           <span className="field-label">Transição</span>
           <select value={effect} onChange={(event) => setEffect(event.target.value as SiteAdSlotTransitionEffect)}>
             {SITE_AD_SLOT_TRANSITION_EFFECTS.map((item) => <option key={item} value={item}>{SITE_AD_SLOT_TRANSITION_EFFECT_LABELS[item]}</option>)}
@@ -475,7 +467,11 @@ export function SiteAdSlotsPanel({ slots }: { slots: SiteAdSlotWithMedia[] }): J
       <section>
         <div className="site-ad-side-heading">
           <div><p className="eyebrow">PATROCINADORES</p><h2>Grupos de anúncios</h2></div>
-          <span>Cada grupo mantém sua lista de imagens, mas circula por todas as seis posições visuais do site.</span>
+          <span>
+            Todas as imagens ativas de todos os grupos formam uma fila única de patrocinadores. A cada 10 segundos
+            cada imagem anda uma posição: todas passam pelas seis posições do site, ficam o mesmo tempo na tela e
+            nunca aparecem duas vezes ao mesmo tempo. Os grupos servem só para organizar a ordem da fila.
+          </span>
         </div>
         <div className="site-ad-side-grid">{groups.map((slot) => <SlotCard key={slot.id} slot={slot} />)}</div>
       </section>

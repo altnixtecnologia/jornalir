@@ -3,6 +3,7 @@ import { AdSlotColumn } from "../../components/site/AdSlotColumn";
 import { AdSlotPairRow } from "../../components/site/AdSlotPairRow";
 import { GlobalAdRotation } from "../../components/site/GlobalAdRotation";
 import type { AdSlot } from "../../components/site/adSlots";
+import { buildSponsorPool, buildSponsorPositions } from "../../components/site/sponsorConveyor";
 import { SiteHeader } from "../../components/site/SiteHeader";
 import { PublicFeaturedHero } from "../../components/site/public/PublicFeaturedHero";
 import { PublicSecondaryHeadlines } from "../../components/site/public/PublicSecondaryHeadlines";
@@ -12,13 +13,6 @@ import { listPublicPlacement } from "../../lib/public/publicContentService";
 import { getPublicSiteAds } from "../../lib/public/siteAdsService";
 
 export const dynamic = "force-dynamic";
-const PHASE_OFFSET_STEP_MS = 1200;
-
-function slotLabel(slotNumber: number): string {
-  const position = Math.ceil(slotNumber / 2);
-  const side = slotNumber % 2 === 1 ? "Esquerda" : "Direita";
-  return "Posição " + position + " - " + side;
-}
 
 export default async function HomePage(): Promise<JSX.Element> {
   const [mainCover, highlightStrip, latestNews, localSpotlight, siteAds] = await Promise.all([
@@ -31,30 +25,9 @@ export default async function HomePage(): Promise<JSX.Element> {
 
   const hasAnyContent = mainCover.length > 0 || highlightStrip.length > 0 || latestNews.length > 0;
 
-  const adSlots: AdSlot[] = Array.from({ length: 6 }, (_, index) => {
-    const slotNumber = index + 1;
-    const media = siteAds.mediaBySlot.get(slotNumber) ?? [];
-    const config = media[0];
-    return {
-      id: "slot-" + slotNumber,
-      label: slotLabel(slotNumber),
-      rotateMs: config?.rotationIntervalMs ?? 10000,
-      phaseOffsetMs: index * PHASE_OFFSET_STEP_MS,
-      transitionEffect: config?.transitionEffect ?? "fade",
-      fitMode: config?.fitMode ?? "contain",
-      // Cada item já vem com seu próprio tempo/efeito/formato resolvidos (override da
-      // imagem ou, na ausência dele, o padrão da posição) — ver getPublicSiteAds().
-      creatives: media.map((item) => ({
-        id: item.id,
-        imageUrl: item.imageUrl,
-        href: item.href,
-        alt: item.altText,
-        rotateMs: item.rotationIntervalMs,
-        transitionEffect: item.transitionEffect,
-        fitMode: item.fitMode,
-      })),
-    };
-  });
+  // Esteira única de patrocinadores (ver sponsorConveyor.ts).
+  const sponsorPool = buildSponsorPool(siteAds.mediaBySlot);
+  const adSlots: AdSlot[] = buildSponsorPositions(sponsorPool);
 
   const leftAdSlots = [adSlots[0], adSlots[2], adSlots[4]];
   const rightAdSlots = [adSlots[1], adSlots[3], adSlots[5]];
@@ -92,7 +65,7 @@ export default async function HomePage(): Promise<JSX.Element> {
       <div className="site-shell"><hr className="divider my-6" /></div>
 
       <section className="site-shell">
-        <GlobalAdRotation slots={adSlots}>
+        <GlobalAdRotation positions={adSlots} pool={sponsorPool}>
           <div className="home-latest-news-grid grid grid-cols-1 gap-10 xl:grid-cols-[170px_minmax(0,1fr)_170px] 2xl:grid-cols-[200px_minmax(0,1fr)_200px] xl:items-start">
             <div className="hidden xl:block"><AdSlotColumn slots={leftAdSlots} side="left" /></div>
 

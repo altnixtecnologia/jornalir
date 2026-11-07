@@ -6,6 +6,8 @@ import { formatDateBR } from "../../../../components/site/date";
 import { AdSlotColumn } from "../../../../components/site/AdSlotColumn";
 import { AdSlotPairRow } from "../../../../components/site/AdSlotPairRow";
 import type { AdSlot } from "../../../../components/site/adSlots";
+import { GlobalAdRotation } from "../../../../components/site/GlobalAdRotation";
+import { buildSponsorPool, buildSponsorPositions } from "../../../../components/site/sponsorConveyor";
 import { ArticleMediaViewer } from "../../../../components/site/ArticleMediaViewer";
 import { ArticleShareActions } from "../../../../components/site/ArticleShareActions";
 import { PublicReadAlsoCard } from "../../../../components/site/public/PublicReadAlsoCard";
@@ -53,8 +55,6 @@ export async function generateMetadata({ params }: { params: { slug: string } })
   };
 }
 
-const PHASE_OFFSET_STEP_MS = 1200;
-
 export default async function NoticiaDetalhePage({ params }: { params: { slug: string } }): Promise<JSX.Element> {
   const current = await loadArticle(params.slug);
   if (!current) notFound();
@@ -63,28 +63,10 @@ export default async function NoticiaDetalhePage({ params }: { params: { slug: s
   const readMinutes = estimateReadingMinutes(current.body);
   const galleryImages = current.gallery.map((item) => ({ url: item.url, caption: item.caption, credit: item.credit }));
 
-  const adSlots: AdSlot[] = Array.from({ length: 6 }, (_, index) => {
-    const slotNumber = index + 1;
-    const media = siteAds.mediaBySlot.get(slotNumber) ?? [];
-    const config = media[0];
-    return {
-      id: `slot-${slotNumber}`,
-      label: `Posição ${Math.ceil(slotNumber / 2)} - ${slotNumber % 2 === 1 ? "Esquerda" : "Direita"}`,
-      rotateMs: config?.rotationIntervalMs ?? 10000,
-      phaseOffsetMs: index * PHASE_OFFSET_STEP_MS,
-      transitionEffect: config?.transitionEffect ?? "fade",
-      fitMode: config?.fitMode ?? "contain",
-      creatives: media.map((item) => ({
-        id: item.id,
-        imageUrl: item.imageUrl,
-        href: item.href,
-        alt: item.altText,
-        rotateMs: item.rotationIntervalMs,
-        transitionEffect: item.transitionEffect,
-        fitMode: item.fitMode,
-      })),
-    };
-  });
+  // Mesma esteira única da página inicial (antes, aqui cada posição ficava
+  // presa na 1ª imagem do grupo — metade dos patrocinadores nunca aparecia).
+  const sponsorPool = buildSponsorPool(siteAds.mediaBySlot);
+  const adSlots: AdSlot[] = buildSponsorPositions(sponsorPool);
   const leftAdSlots = [adSlots[0], adSlots[2], adSlots[4]];
   const rightAdSlots = [adSlots[1], adSlots[3], adSlots[5]];
   const mobilePair: [AdSlot, AdSlot] = [adSlots[0], adSlots[1]];
@@ -94,6 +76,7 @@ export default async function NoticiaDetalhePage({ params }: { params: { slug: s
       <SiteHeader active="noticias" />
 
       <article className="site-shell py-7">
+        <GlobalAdRotation positions={adSlots} pool={sponsorPool}>
         <div className="grid grid-cols-1 gap-10 xl:grid-cols-[170px_minmax(0,1fr)_170px] 2xl:grid-cols-[200px_minmax(0,1fr)_200px] xl:items-start">
           <div className="hidden xl:block">
             <AdSlotColumn slots={leftAdSlots} side="left" />
@@ -144,6 +127,7 @@ export default async function NoticiaDetalhePage({ params }: { params: { slug: s
             <AdSlotColumn slots={rightAdSlots} side="right" />
           </div>
         </div>
+        </GlobalAdRotation>
       </article>
 
       {readAlso.length > 0 ? (

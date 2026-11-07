@@ -3361,3 +3361,20 @@ Sem isso, "Enviar ao Jornal Online" (PDF novo do computador) continua bloqueado 
 **Feito**: `lib/feedback/confirmStore.ts` — `await confirmDialog({ title, description, confirmLabel, cancelLabel, destructive })` devolve `true/false`; `components/feedback/ConfirmHost.tsx` montado uma vez em `RootProviders` (ao lado dos toasts) renderiza o `ConfirmDialog` que já existia (`<dialog>` nativo com `showModal()`: centralizado, fundo escurecido, Esc/clique fora = cancelar, uma confirmação por vez). Trocadas TODAS as 20 chamadas de `window.confirm` do sistema: Matérias (Remover na lista e dentro, Arquivar, Despublicar, Sair sem salvar), Destaques, Edições (substituir PDF ×2), revisão de importação (Descartar/Dividir), Avisos gerais, Lembretes de vencimento, Assinaturas de contrato, Agenda, Publicidade do site, Versão do app, Notificações push (urgente/duplicada/teste). Ações não destrutivas (enviar, dividir, publicar APK) com botão azul; as demais vermelho.
 
 **Testes**: `test/confirm-dialog.test.ts` (fila/resolução + trava que reprova qualquer `window.confirm` em `src/`); suíte `apps/sistema` 284/284; `tsc` limpo. Aviso de saída da página com alterações não salvas (`beforeunload`) continua do navegador — não é personalizável por nenhum site.
+
+
+## 07/11/2026 — Patrocinadores do site: esteira única com exposição igual
+
+**Pedido do usuário**: todas as imagens devem passar em todos os campos, nunca duas vezes ao mesmo tempo, rotação uniforme. Decisões aprovadas: (1) tempo único de 10s, tempo por imagem deixa de valer; (2) tudo cadastrado em "Publicidade do site" é patrocinador — inclusive o "Anuncie aqui".
+
+**Diagnóstico (antes)**: 12 imagens em 6 grupos de 2. Página inicial: grupos trocavam de posição a cada 30s e cada grupo alternava suas imagens — sem repetição, mas exposição igual só porque todos os grupos tinham 2. **Página de notícia: sem rotação** — cada posição mostrava para sempre a 1ª imagem do grupo (Sejolar, Souza, Godinho, Matubo, Santana e Madecasa nunca apareciam nas notícias).
+
+**Feito** (`apps/site/src/components/site/sponsorConveyor.ts` + `GlobalAdRotation.tsx` reescrito; home e notícia usam o mesmo):
+- fila única = imagens ativas dos grupos 1→6 na ordem do painel (mesma imagem em dois grupos entra uma vez);
+- a cada 10s cada imagem anda uma posição; caminho: desce a coluna esquerda (posições 1,2,3) e sobe a direita; no celular os pares são as mesmas posições;
+- posições trocam uma após a outra (1,2s) quando há 7+ imagens; com exatamente 6 trocam juntas (senão a que sai da última apareceria também na primeira por um instante); com menos de 6, posições sobrando ficam vazias (nunca repete);
+- baseada no relógio: mesma fila em qualquer página, recarregar não reinicia; antes de montar no navegador as posições ficam vazias (não baixa imagens que seriam trocadas em seguida);
+- efeito de transição e formato por imagem continuam valendo.
+- Painel (`SiteAdSlotsPanel`): campos de tempo (grupo e imagem) removidos, valores gravados preservados; texto explica a fila única.
+
+**Testes**: `apps/site/test/sponsor-conveyor.test.ts` (14: sem repetição inclusive no escalonamento para 6/7/12/13/20 imagens, todas passam pelas 6 posições, tempo de tela idêntico, <6 imagens, fila/ordem/duplicadas); site 38/38 (`npx tsx --conditions=react-server --test test/*.test.ts` — sem a condition o teste antigo `edition-asset-proxy` falha por `server-only`, pré-existente); sistema 284/284; `tsc` limpo nos dois. **Teste real local** (`next dev`, dados reais de produção só leitura, Edge headless, 26s amostrados): início e notícia giram, 0 quadros com imagem repetida.

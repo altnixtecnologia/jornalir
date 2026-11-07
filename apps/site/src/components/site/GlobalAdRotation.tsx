@@ -1,113 +1,60 @@
 "use client";
 
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
-import type { AdSlot } from "./adSlots";
-
-// A cada rodada, todos os seis grupos mudam uma posição (inclusive de lado).
-// Os anúncios de cada grupo continuam alternando no seu tempo individual.
-const GROUP_POSITION_ROTATION_MS = 30_000;
-
-interface PlaylistProgress {
-  index: number;
-  deadline: number;
-}
+import type { AdCreative, AdSlot } from "./adSlots";
+import { CONVEYOR_PATH, conveyorSnapshot } from "./sponsorConveyor";
 
 const RotationContext = createContext<Map<string, AdSlot> | null>(null);
 
-function creativeDuration(ms: number): number {
-  return Number.isFinite(ms) ? Math.max(2000, Math.min(120000, ms)) : 10000;
+function sameSnapshot(a: Array<number | null>, b: Array<number | null>): boolean {
+  return a.length === b.length && a.every((value, index) => value === b[index]);
 }
 
 /**
- * A mesma coleção não pode ocupar duas posições ao mesmo tempo.
- * Em seis rodadas cada grupo passa pelas seis posições, sem que o editor
- * precise cadastrar a arte em mais de um lugar. Os índices das playlists
- * pertencem aos GRUPOS e não às posições físicas, por isso mover um grupo
- * não reinicia a imagem e não ignora uma duração individual longa.
+ * Esteira única de patrocinadores — regras em `sponsorConveyor.ts`. Envolve
+ * a página (início e notícia); cada `AdSlotUnit` pergunta qual imagem a sua
+ * posição física mostra agora.
  */
 export function GlobalAdRotation({
-  slots,
+  positions,
+  pool,
   children,
 }: {
-  slots: AdSlot[];
+  positions: AdSlot[];
+  pool: AdCreative[];
   children: ReactNode;
 }): JSX.Element {
-  const [phase, setPhase] = useState(0);
-  const [playlists, setPlaylists] = useState<Record<string, PlaylistProgress>>({});
+  // Servidor e hidratação: posições vazias (o horário do servidor não é o
+  // do leitor) — o relógio real preenche logo na montagem, sem baixar um
+  // conjunto de imagens que seria trocado em seguida.
+  const [snapshot, setSnapshot] = useState<Array<number | null>>(() => CONVEYOR_PATH.map(() => null));
 
   useEffect(() => {
-    function advance(): void {
-      const now = Date.now();
-      setPhase(Math.floor(now / GROUP_POSITION_ROTATION_MS) % Math.max(1, slots.length));
-
-      setPlaylists((previous) => {
-        let next: Record<string, PlaylistProgress> | null = null;
-
-        for (const group of slots) {
-          const count = group.creatives.length;
-          if (count === 0) continue;
-
-          const stored = previous[group.id];
-          if (!stored || stored.index >= count) {
-            if (!next) next = { ...previous };
-            next[group.id] = {
-              index: 0,
-              deadline: now + creativeDuration(group.creatives[0].rotateMs),
-            };
-            continue;
-          }
-          if (count === 1 || now < stored.deadline) continue;
-
-          let index = stored.index;
-          let deadline = stored.deadline;
-          // A aba pode voltar depois de muito tempo suspensa no Android.
-          // Avançar os períodos vencidos sem criar milhares de renderizações.
-          const limit = count * 4;
-          for (let step = 0; now >= deadline && step < limit; step += 1) {
-            index = (index + 1) % count;
-            deadline += creativeDuration(group.creatives[index].rotateMs);
-          }
-          if (now >= deadline) {
-            deadline = now + creativeDuration(group.creatives[index].rotateMs);
-          }
-
-          if (!next) next = { ...previous };
-          next[group.id] = { index, deadline };
-        }
-
-        return next ?? previous;
+    const update = () =>
+      setSnapshot((previous) => {
+        const next = conveyorSnapshot(Date.now(), pool.length);
+        return sameSnapshot(previous, next) ? previous : next;
       });
-    }
-
-    advance();
-    const timer = window.setInterval(advance, 1000);
+    update();
+    const timer = window.setInterval(update, 250);
     return () => window.clearInterval(timer);
-  }, [slots]);
+  }, [pool.length]);
 
   const byPhysicalPosition = useMemo(() => {
     const result = new Map<string, AdSlot>();
-    const count = slots.length;
-    if (!count) return result;
-
-    slots.forEach((position, positionIndex) => {
-      const group = slots[(positionIndex + phase) % count];
-      const activeIndex = playlists[group.id]?.index ?? 0;
-      const creative = group.creatives[activeIndex] ?? group.creatives[0];
-
-      result.set(position.id, {
-        ...group,
-        id: position.id,
-        label: position.label,
-        creatives: creative ? [creative] : [],
-      });
-    });
-
+    for (const position of positions) {
+      const step = CONVEYOR_PATH.indexOf(position.id as (typeof CONVEYOR_PATH)[number]);
+      const index = step >= 0 ? snapshot[step] : null;
+      const creative = index !== null && index !== undefined ? pool[index] : undefined;
+      result.set(position.id, { ...position, creatives: creative ? [creative] : [] });
+    }
     return result;
-  }, [phase, playlists, slots]);
+  }, [positions, pool, snapshot]);
 
   return <RotationContext.Provider value={byPhysicalPosition}>{children}</RotationContext.Provider>;
 }
 
+/** Fora da esteira não mostra nada (nunca a fila inteira de uma vez, que repetiria imagens). */
 export function useRotatingAdAtPosition(position: AdSlot): AdSlot {
-  return useContext(RotationContext)?.get(position.id) ?? position;
+  return useContext(RotationContext)?.get(position.id) ?? { ...position, creatives: [] };
 }
