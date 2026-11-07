@@ -739,7 +739,7 @@ export function PdfVisualCaptureModal({ edition, onClose }: Props): JSX.Element 
                         <span className={styles.selectionNumber} style={{ background: capture.color }}>
                           {captureIndex + 1}
                         </span>
-                        {isActiveArea ? (
+                        {appendToId === null ? (
                           <button
                             type="button"
                             className={styles.selectionRemove}
