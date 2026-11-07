@@ -69,6 +69,14 @@
 .confirmBox{background:#fff;color:#0f172a;width:min(400px,100%);border-radius:12px;padding:22px;box-shadow:0 12px 50px #0004}
 .confirmBox h3{margin:0 0 10px;font-size:18px}.confirmBox p{font-size:13px;line-height:1.55}
 .confirmBox>div{display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap}.confirmBox button:last-child{background:#b91c1c;color:#fff;border-color:#b91c1c}
+/* Na confirmação de saída, continuar é a ação principal; descartar
+   continua visível, mas sem um grande botão vermelho que induza erro. */
+.confirmBox>.confirmActions{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:18px}
+.confirmBox>.confirmActions button{height:auto;min-height:44px;white-space:normal;line-height:1.35;padding:9px 12px;border-radius:8px;text-align:center;font-size:12px;font-weight:750}
+.confirmBox>.confirmActions>.keepEditingButton{background:#1d4ed8;color:#fff;border-color:#1d4ed8}
+.confirmBox>.confirmActions>.keepEditingButton:hover:not(:disabled){background:#1e40af;border-color:#1e40af}
+.confirmBox>.confirmActions>.discardPreviewButton{background:#fff;color:#991b1b;border-color:#fca5a5}
+.confirmBox>.confirmActions>.discardPreviewButton:hover:not(:disabled){background:#fef2f2;border-color:#dc2626}
 @media(max-width:790px){
   .modal{width:100vw;height:100dvh;max-height:100dvh;border-radius:0}
   .backdrop{padding:0}
@@ -86,6 +94,8 @@
   .footerActions button{padding:6px}
 }
 @media(max-width:480px){
+  .confirmBox>.confirmActions{grid-template-columns:1fr}
+
   .headline p{display:none}
   .controls{justify-content:center}
   .pager{gap:3px}
