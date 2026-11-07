@@ -21,6 +21,7 @@ import {
 } from "../../app/sistema/editorial/edicoes/actions";
 import { editionLabel, formatDate } from "./editorialLabels";
 import { notify } from "../../lib/feedback/notify";
+import { confirmDialog } from "../../lib/feedback/confirmStore";
 import { saoPauloLocalInputToUtcIso, utcIsoToSaoPauloLocalInput } from "../../lib/editorial/editionAvailabilityScheduling";
 
 GlobalWorkerOptions.workerSrc = new URL("pdfjs-dist/build/pdf.worker.min.js", import.meta.url).toString();
@@ -292,10 +293,13 @@ export function EdicoesManager({ editions }: EdicoesManagerProps): JSX.Element {
 
         let authorization = await prepareEditionR2UploadAction(editionId, file.name, file.size, prepared.sha256);
         if ("conflict" in authorization) {
-          const confirmed = window.confirm(
-            `Esta edição já possui um PDF diferente arquivado${authorization.currentFileName ? ` (${authorization.currentFileName})` : ""}. ` +
-              "Substituir pelo arquivo selecionado agora? O PDF e a capa antigos serão removidos do R2 depois da confirmação.",
-          );
+          const confirmed = await confirmDialog({
+            title: "Substituir o PDF desta edição?",
+            description:
+              `Esta edição já possui um PDF diferente arquivado${authorization.currentFileName ? ` (${authorization.currentFileName})` : ""}.\n\n` +
+              "O PDF e a capa antigos serão removidos do R2 depois da confirmação.",
+            confirmLabel: "Substituir",
+          });
           if (!confirmed) {
             setUploadStage(null);
             return;
@@ -411,13 +415,15 @@ export function EdicoesManager({ editions }: EdicoesManagerProps): JSX.Element {
     });
   }
 
-  function handleReuseArchivedPdf(editionId: string): void {
+  async function handleReuseArchivedPdf(editionId: string): Promise<void> {
     const candidate = archiveCandidate[editionId];
     if (!candidate) return;
     if (candidate.conflict) {
-      const confirmed = window.confirm(
-        "Esta edição já tem um PDF diferente arquivado. Substituir pelo arquivo do acervo histórico agora?",
-      );
+      const confirmed = await confirmDialog({
+        title: "Substituir o PDF desta edição?",
+        description: "Esta edição já tem um PDF diferente arquivado. Substituir pelo arquivo do acervo histórico agora?",
+        confirmLabel: "Substituir",
+      });
       if (!confirmed) return;
     }
     setUploadingId(editionId);

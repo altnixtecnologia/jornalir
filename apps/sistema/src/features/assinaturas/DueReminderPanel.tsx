@@ -8,6 +8,7 @@ import {
   type DueReminderBatchRow, type DueReminderCandidate,
 } from "../../app/sistema/assinaturas/avisos-vencimento/actions";
 import { notify } from "../../lib/feedback/notify";
+import { confirmDialog } from "../../lib/feedback/confirmStore";
 
 const DEFAULT_TEMPLATE =
   "Olá, {{cliente}}! Passando para lembrar que sua assinatura ({{assinatura}}) do Jornal IR tem vencimento em {{mes_ano}}. Qualquer dúvida, é só responder esta mensagem.";
@@ -172,8 +173,13 @@ export function DueReminderPanel({
     });
   }
 
-  function deleteDraft(id: string): void {
-    if (!window.confirm("Excluir este lote de avisos? Esta ação não pode ser desfeita.")) return;
+  async function deleteDraft(id: string): Promise<void> {
+    const confirmed = await confirmDialog({
+      title: "Excluir este lote de avisos?",
+      description: "Esta ação não pode ser desfeita.",
+      confirmLabel: "Excluir",
+    });
+    if (!confirmed) return;
     startTransition(async () => {
       const result = await deleteDueReminderDraftAction(id);
       if ("error" in result) { setError(result.error); return; }
@@ -182,9 +188,15 @@ export function DueReminderPanel({
     });
   }
 
-  function confirmSend(): void {
+  async function confirmSend(): Promise<void> {
     if (!batchId) return;
-    if (!window.confirm(`Confirmar o envio deste lote para ${recipients.length} destinatário(s)?`)) return;
+    const confirmed = await confirmDialog({
+      title: "Enviar este lote?",
+      description: `O lote vai para ${recipients.length} destinatário(s).`,
+      confirmLabel: "Enviar",
+      destructive: false,
+    });
+    if (!confirmed) return;
     setError(null);
     startTransition(async () => {
       const result = await confirmDueReminderBatchSendAction(batchId);

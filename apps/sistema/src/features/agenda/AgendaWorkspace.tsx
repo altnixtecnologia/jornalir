@@ -19,6 +19,7 @@ import {
 import type { AgendaEventItem, AgendaWorkspaceData, WeeklyPautaItem } from "./agendaTypes";
 import { createSupabaseBrowserClient } from "../../lib/supabase/browser";
 import { notify } from "../../lib/feedback/notify";
+import { confirmDialog } from "../../lib/feedback/confirmStore";
 
 // Alterar aqui se a equipe precisar de sincronizacao mais rapida/lenta.
 const AGENDA_MIN_SYNC_INTERVAL_MS = 60_000;
@@ -711,8 +712,13 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
                                   <button type="button" className="agenda-manager-cancel" disabled={isPending}
                                     aria-label={"Cancelar compromisso: " + item.title}
                                     title="Cancelar compromisso"
-                                    onClick={() => {
-                                      if (!window.confirm("Cancelar o compromisso \"" + item.title + "\"?")) return;
+                                    onClick={async () => {
+                                      const confirmed = await confirmDialog({
+                                        title: "Cancelar o compromisso \"" + item.title + "\"?",
+                                        confirmLabel: "Cancelar compromisso",
+                                        cancelLabel: "Voltar",
+                                      });
+                                      if (!confirmed) return;
                                       run(() => setAgendaEventStatusAction(item.id, "cancelled"), "Compromisso cancelado.");
                                     }}>
                                     ×

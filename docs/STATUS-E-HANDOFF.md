@@ -3352,3 +3352,12 @@ Sem isso, "Enviar ao Jornal Online" (PDF novo do computador) continua bloqueado 
 **Testes**: `packages/pdf-extraction` 31/31 (8 novos em `test/newspaper.test.ts`, incluído no script do pacote); `apps/sistema` 282/282; `tsc` limpo; caminho completo `extractCandidatesFromPdf` com serviço falso na 776: 33 rascunhos, 0 sem título, 0 avisos.
 
 **FALTA**: deploy + promote pelo usuário. Os rascunhos ruins já gerados da 776 continuam no banco (o worker nunca reextrai edição com lote). Refazer a 776 exige escrita no banco de produção (arquivar os rascunhos antigos não publicados da importação + reprocessar o PDF com `force`) → **só com autorização explícita do usuário**.
+
+
+## 07/11/2026 — Confirmações com o modal do sistema (fim do `window.confirm`)
+
+**Pedido do usuário** (print do "controle.altnix.com.br diz / Remover "Publicidade"?"): não quer a caixa genérica do navegador; quer a nossa, no meio da tela no PC.
+
+**Feito**: `lib/feedback/confirmStore.ts` — `await confirmDialog({ title, description, confirmLabel, cancelLabel, destructive })` devolve `true/false`; `components/feedback/ConfirmHost.tsx` montado uma vez em `RootProviders` (ao lado dos toasts) renderiza o `ConfirmDialog` que já existia (`<dialog>` nativo com `showModal()`: centralizado, fundo escurecido, Esc/clique fora = cancelar, uma confirmação por vez). Trocadas TODAS as 20 chamadas de `window.confirm` do sistema: Matérias (Remover na lista e dentro, Arquivar, Despublicar, Sair sem salvar), Destaques, Edições (substituir PDF ×2), revisão de importação (Descartar/Dividir), Avisos gerais, Lembretes de vencimento, Assinaturas de contrato, Agenda, Publicidade do site, Versão do app, Notificações push (urgente/duplicada/teste). Ações não destrutivas (enviar, dividir, publicar APK) com botão azul; as demais vermelho.
+
+**Testes**: `test/confirm-dialog.test.ts` (fila/resolução + trava que reprova qualquer `window.confirm` em `src/`); suíte `apps/sistema` 284/284; `tsc` limpo. Aviso de saída da página com alterações não salvas (`beforeunload`) continua do navegador — não é personalizável por nenhum site.

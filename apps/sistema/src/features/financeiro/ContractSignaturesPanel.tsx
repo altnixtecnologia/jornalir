@@ -7,6 +7,7 @@ import {
   type PublicSignatureInvite, type SignatureRequest,
 } from "../../app/sistema/financeiro/contratos/signature-actions";
 import { notify } from "../../lib/feedback/notify";
+import { confirmDialog } from "../../lib/feedback/confirmStore";
 
 type DraftSigner = { name: string; email: string; phone: string };
 
@@ -147,8 +148,13 @@ export function ContractSignaturesPanel({
     });
   }
 
-  function revoke(invitationId: string): void {
-    if (!window.confirm("Revogar este convite? O link deixará de funcionar.")) return;
+  async function revoke(invitationId: string): Promise<void> {
+    const confirmed = await confirmDialog({
+      title: "Revogar este convite?",
+      description: "O link deixará de funcionar.",
+      confirmLabel: "Revogar",
+    });
+    if (!confirmed) return;
     startTransition(async () => {
       try {
         const result = await revokeSignatureInvitationAction(contractId, invitationId);

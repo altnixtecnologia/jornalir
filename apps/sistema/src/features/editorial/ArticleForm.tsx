@@ -22,6 +22,7 @@ import {
   updateArticle,
 } from "../../app/sistema/editorial/materias/actions";
 import { notify } from "../../lib/feedback/notify";
+import { confirmDialog } from "../../lib/feedback/confirmStore";
 import { createLocality } from "../../app/sistema/editorial/localidades/actions";
 import type { ArticleFormIntent, ArticleFormPayload } from "./articleFormTypes";
 import {
@@ -245,8 +246,18 @@ export function ArticleForm({
     return () => window.removeEventListener("beforeunload", handleBeforeUnload);
   }, []);
 
-  function handleBack(): void {
-    if (isDirty && !window.confirm(UNSAVED_CHANGES_MESSAGE)) return;
+  async function handleBack(): Promise<void> {
+    if (
+      isDirty &&
+      !(await confirmDialog({
+        title: "Sair sem salvar?",
+        description: UNSAVED_CHANGES_MESSAGE,
+        confirmLabel: "Sair sem salvar",
+        cancelLabel: "Continuar editando",
+      }))
+    ) {
+      return;
+    }
     // A listagem pode ter sido visitada (e cacheada pelo Router Cache do
     // App Router) antes de uma ação de servidor mudar destaque/status/etc.
     // nesta matéria. `revalidatePath` nas actions já marca a listagem como
@@ -277,9 +288,14 @@ export function ArticleForm({
     handleAction(scheduledAt ? "schedule" : "publish", "publicacao");
   }
 
-  function handleArchive(): void {
+  async function handleArchive(): Promise<void> {
     if (!article) return;
-    if (!window.confirm("Arquivar esta matéria? Ela deixará de aparecer como conteúdo ativo.")) return;
+    const confirmed = await confirmDialog({
+      title: "Arquivar esta matéria?",
+      description: "Ela deixará de aparecer como conteúdo ativo.",
+      confirmLabel: "Arquivar",
+    });
+    if (!confirmed) return;
     startTransition(async () => {
       const result = await archiveArticle(article.id);
       if (result?.error) notify.error("Não foi possível arquivar a matéria", result.error);
@@ -295,9 +311,14 @@ export function ArticleForm({
     mode === "edit" &&
     (article?.status === "draft" || article?.status === "adjusting" || article?.status === "scheduled");
 
-  function handleRemove(): void {
+  async function handleRemove(): Promise<void> {
     if (!article) return;
-    if (!window.confirm(`Remover "${article.title}"?\n\nA matéria sai da listagem (fica arquivada, com registro no histórico).`)) return;
+    const confirmed = await confirmDialog({
+      title: `Remover "${article.title}"?`,
+      description: "A matéria sai da listagem (fica arquivada, com registro no histórico).",
+      confirmLabel: "Remover",
+    });
+    if (!confirmed) return;
     startTransition(async () => {
       const result = await removeUnpublishedArticle(article.id);
       if ("error" in result) {
@@ -320,9 +341,14 @@ export function ArticleForm({
     );
   }
 
-  function handleUnpublish(): void {
+  async function handleUnpublish(): Promise<void> {
     if (!article) return;
-    if (!window.confirm("Despublicar esta matéria? Ela sai do portal e volta para Rascunho (conteúdo e imagens são mantidos).")) return;
+    const confirmed = await confirmDialog({
+      title: "Despublicar esta matéria?",
+      description: "Ela sai do portal e volta para Rascunho (conteúdo e imagens são mantidos).",
+      confirmLabel: "Despublicar",
+    });
+    if (!confirmed) return;
     startTransition(async () => {
       const result = await unpublishArticle(article.id);
       if (result?.error) notify.error("Não foi possível despublicar a matéria", result.error);

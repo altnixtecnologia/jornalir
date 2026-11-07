@@ -10,6 +10,7 @@ import {
 } from "../../app/sistema/editorial/destaques/actions";
 import { placementLabels, publicationDate } from "./editorialLabels";
 import { notify } from "../../lib/feedback/notify";
+import { confirmDialog } from "../../lib/feedback/confirmStore";
 
 type PlacementKey = Exclude<EditorialPlacementType, "none">;
 
@@ -42,10 +43,13 @@ export function DestaquesManager({ placements, sections, localities, mediaAssets
     });
   }
 
-  function handleRemove(article: Article): void {
-    if (!window.confirm(`Remover "${article.title}" desta posição? A matéria continua publicada normalmente.`)) {
-      return;
-    }
+  async function handleRemove(article: Article): Promise<void> {
+    const confirmed = await confirmDialog({
+      title: `Remover "${article.title}" desta posição?`,
+      description: "A matéria continua publicada normalmente.",
+      confirmLabel: "Remover da posição",
+    });
+    if (!confirmed) return;
     startTransition(async () => {
       const result = await removeFromPlacementAction(article.id);
       if ("error" in result) notify.error("Não foi possível remover da posição", result.error);

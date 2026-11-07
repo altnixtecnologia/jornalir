@@ -25,6 +25,7 @@ import {
   uploadSiteAdImagesAction,
 } from "../../app/sistema/configuracoes/patrocinadores/actions";
 import { notify } from "../../lib/feedback/notify";
+import { confirmDialog } from "../../lib/feedback/confirmStore";
 
 const MAX_PREPARED_BYTES = 2 * 1024 * 1024;
 const MAX_UPLOAD_SOURCE_BYTES = 40 * 1024 * 1024;
@@ -293,8 +294,9 @@ function SlotCard({ slot }: { slot: SiteAdSlotWithMedia }): JSX.Element {
     });
   }
 
-  function remove(id: string): void {
-    if (!window.confirm("Remover esta imagem deste grupo?")) return;
+  async function remove(id: string): Promise<void> {
+    const confirmed = await confirmDialog({ title: "Remover esta imagem deste grupo?", confirmLabel: "Remover" });
+    if (!confirmed) return;
     startTransition(async () => {
       const result = await removeSiteAdMediaAction(id);
       if (result && "error" in result) {

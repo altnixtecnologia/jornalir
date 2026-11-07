@@ -6,6 +6,7 @@ import {
   type CommercialAnnouncementRow,
 } from "../../app/sistema/publicidade/avisos/actions";
 import { notify } from "../../lib/feedback/notify";
+import { confirmDialog } from "../../lib/feedback/confirmStore";
 
 const STATUS_LABELS: Record<CommercialAnnouncementRow["status"], string> = {
   draft: "Rascunho",
@@ -61,8 +62,13 @@ export function AvisosGeraisPanel({
     });
   }
 
-  function deleteDraft(id: string): void {
-    if (!window.confirm("Excluir este rascunho? Esta ação não pode ser desfeita.")) return;
+  async function deleteDraft(id: string): Promise<void> {
+    const confirmed = await confirmDialog({
+      title: "Excluir este rascunho?",
+      description: "Esta ação não pode ser desfeita.",
+      confirmLabel: "Excluir",
+    });
+    if (!confirmed) return;
     startTransition(async () => {
       const result = await deleteAnnouncementDraftAction(id);
       if ("error" in result) { notify.error("Rascunho não foi excluído", result.error); return; }
@@ -72,9 +78,15 @@ export function AvisosGeraisPanel({
     });
   }
 
-  function confirmSend(): void {
+  async function confirmSend(): Promise<void> {
     if (!draft.id) return;
-    if (!window.confirm(`Confirmar o envio deste aviso para todos os leitores inscritos em "Avisos gerais"?`)) return;
+    const confirmed = await confirmDialog({
+      title: "Enviar este aviso?",
+      description: `O aviso vai para todos os leitores inscritos em "Avisos gerais".`,
+      confirmLabel: "Enviar",
+      destructive: false,
+    });
+    if (!confirmed) return;
     const requestId = crypto.randomUUID();
     startTransition(async () => {
       const result = await confirmAnnouncementSendAction({ id: draft.id!, requestId });

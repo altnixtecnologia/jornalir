@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import { saveAndroidAppReleaseAction } from "../../app/sistema/configuracoes/aplicativo/actions";
 import { notify } from "../../lib/feedback/notify";
+import { confirmDialog } from "../../lib/feedback/confirmStore";
 
 type Props = {
   initial: {
@@ -24,8 +25,18 @@ export function MobileAppReleasePanel({ initial }: Props): JSX.Element {
   const [currentUrl, setCurrentUrl] = useState(initial.published ? initial.apkUrl : "");
   const [busy, startTransition] = useTransition();
 
-  function save(nextPublished: boolean): void {
-    if (nextPublished && !window.confirm("Confirmar que o APK foi testado e está pronto para download público?")) return;
+  async function save(nextPublished: boolean): Promise<void> {
+    if (
+      nextPublished &&
+      !(await confirmDialog({
+        title: "Publicar o APK?",
+        description: "Confirme que o APK foi testado e está pronto para download público.",
+        confirmLabel: "Publicar",
+        destructive: false,
+      }))
+    ) {
+      return;
+    }
     startTransition(async () => {
       const result = await saveAndroidAppReleaseAction({
         versionLabel, versionCode: Number(versionCode), apkUrl, sha256,

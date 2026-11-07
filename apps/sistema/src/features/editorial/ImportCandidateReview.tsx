@@ -27,6 +27,7 @@ import {
 } from "./articleMediaState";
 import { editionPageLabel, importCandidateStatusLabels } from "./editorialLabels";
 import { notify } from "../../lib/feedback/notify";
+import { confirmDialog } from "../../lib/feedback/confirmStore";
 
 const EXTRACTION_METHOD_LABELS: Record<string, string> = {
   textLayer: "Camada de texto do PDF",
@@ -101,8 +102,13 @@ export function ImportCandidateReview({
     });
   }
 
-  function handleDiscard(): void {
-    if (!window.confirm("Descartar este candidato? Ele não vira matéria.")) return;
+  async function handleDiscard(): Promise<void> {
+    const confirmed = await confirmDialog({
+      title: "Descartar este candidato?",
+      description: "Ele não vira matéria.",
+      confirmLabel: "Descartar",
+    });
+    if (!confirmed) return;
     clearMessages();
     startTransition(async () => {
       const result = await discardCandidate(candidate.id);
@@ -111,14 +117,14 @@ export function ImportCandidateReview({
     });
   }
 
-  function handleSplit(): void {
-    if (
-      !window.confirm(
-        "Dividir este candidato em dois? A divisão usa o conteúdo salvo mais recentemente — salve as alterações antes, se necessário.",
-      )
-    ) {
-      return;
-    }
+  async function handleSplit(): Promise<void> {
+    const confirmed = await confirmDialog({
+      title: "Dividir este candidato em dois?",
+      description: "A divisão usa o conteúdo salvo mais recentemente — salve as alterações antes, se necessário.",
+      confirmLabel: "Dividir",
+      destructive: false,
+    });
+    if (!confirmed) return;
     clearMessages();
     startTransition(async () => {
       const result = await splitCandidate(candidate.id);

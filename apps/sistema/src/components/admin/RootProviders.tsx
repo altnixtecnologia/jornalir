@@ -3,6 +3,7 @@
 import type { ReactNode } from "react";
 import { AuthProvider } from "../../lib/auth/AuthProvider";
 import { ToastProvider } from "../feedback/ToastProvider";
+import { ConfirmHost } from "../feedback/ConfirmHost";
 
 /**
  * Envolve todo o app (login + painel) numa única instância de sessão real.
@@ -16,7 +17,10 @@ import { ToastProvider } from "../feedback/ToastProvider";
 export function RootProviders({ children, localPreview = false }: { children: ReactNode; localPreview?: boolean }): JSX.Element {
   return (
     <AuthProvider localPreview={localPreview}>
-      <ToastProvider>{children}</ToastProvider>
+      <ToastProvider>
+        {children}
+        <ConfirmHost />
+      </ToastProvider>
     </AuthProvider>
   );
 }

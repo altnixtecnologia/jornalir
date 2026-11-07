@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import { sendTestNativePushAction } from "./actions";
 import { notify } from "../../../../lib/feedback/notify";
+import { confirmDialog } from "../../../../lib/feedback/confirmStore";
 
 export type NativeFcmTestDevice = {
   id: string;
@@ -21,10 +22,15 @@ export function NativeFcmTestPanel({ enabled, devices }: {
   const device = devices.find((d) => d.id === selected);
   const typeAllowed = Boolean(device && (kind === "urgent" ? device.urgent : device.ordinary));
 
-  function send(): void {
+  async function send(): Promise<void> {
     if (!enabled || !device || !typeAllowed || busy) return;
-    if (!window.confirm("Enviar UM teste " + (kind === "urgent" ? "URGENTE" : "NORMAL") +
-      " somente ao aparelho " + device.id.slice(0, 8) + "…?")) return;
+    const confirmed = await confirmDialog({
+      title: "Enviar UM teste " + (kind === "urgent" ? "URGENTE" : "NORMAL") + "?",
+      description: "Somente ao aparelho " + device.id.slice(0, 8) + "….",
+      confirmLabel: "Enviar teste",
+      destructive: false,
+    });
+    if (!confirmed) return;
     const form = new FormData();
     form.set("deviceId", device.id);
     form.set("kind", kind);

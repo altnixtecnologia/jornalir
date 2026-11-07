@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { removeUnpublishedArticle } from "../../app/sistema/editorial/materias/actions";
 import { notify } from "../../lib/feedback/notify";
+import { confirmDialog } from "../../lib/feedback/confirmStore";
 import type { Article, ArticleOrigin, ArticleStatus, EditorialSection, Locality, NewspaperEdition } from "@ir/types";
 import type { MateriasDateField, MateriasSortColumn, SortDirection } from "../../providers/supabase/articleRepository.supabase";
 import {
@@ -134,8 +135,13 @@ export function MateriasList({
     return article.status === "draft" || article.status === "adjusting" || article.status === "scheduled";
   }
 
-  function handleRemove(article: Article): void {
-    if (!window.confirm(`Remover "${article.title}"?\n\nA matéria sai da listagem (fica arquivada, com registro no histórico).`)) return;
+  async function handleRemove(article: Article): Promise<void> {
+    const confirmed = await confirmDialog({
+      title: `Remover "${article.title}"?`,
+      description: "A matéria sai da listagem (fica arquivada, com registro no histórico).",
+      confirmLabel: "Remover",
+    });
+    if (!confirmed) return;
     setRemovingId(article.id);
     startRemoving(async () => {
       const result = await removeUnpublishedArticle(article.id);

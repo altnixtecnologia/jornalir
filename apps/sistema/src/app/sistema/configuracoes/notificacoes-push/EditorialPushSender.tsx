@@ -2,6 +2,7 @@
 import { useEffect, useState, useTransition, type FormEvent } from "react";
 import { enqueueSitePushAction } from "./actions";
 import { notify } from "../../../../lib/feedback/notify";
+import { confirmDialog } from "../../../../lib/feedback/confirmStore";
 
 export interface EditorialPushPrefill {
   title: string;
@@ -24,10 +25,20 @@ export function EditorialPushSender({ prefill, enabled, eligibleByKind }: {
   const [requestId, setRequestId] = useState("");
   useEffect(() => setRequestId(crypto.randomUUID()), []);
 
-  function submit(event: FormEvent<HTMLFormElement>, confirmDuplicate = false): void {
+  async function submit(event: FormEvent<HTMLFormElement>, confirmDuplicate = false): Promise<void> {
     event.preventDefault();
     if (pending || !requestId || !enabled || eligibleCount === 0) return;
-    if (kind === "urgent" && !confirmDuplicate && !window.confirm("Confirmar notificação URGENTE para os leitores inscritos?")) return;
+    if (
+      kind === "urgent" &&
+      !confirmDuplicate &&
+      !(await confirmDialog({
+        title: "Enviar notificação URGENTE?",
+        description: "Ela vai para todos os leitores inscritos.",
+        confirmLabel: "Enviar urgente",
+      }))
+    ) {
+      return;
+    }
     const data = new FormData();
     data.set("kind", kind);
     data.set("title", title);
@@ -38,7 +49,12 @@ export function EditorialPushSender({ prefill, enabled, eligibleByKind }: {
     startTransition(async () => {
       let result = await enqueueSitePushAction(data);
       if (result.needsDuplicateConfirm) {
-        if (!window.confirm((result.error || "Esta matéria já foi notificada.") + " Enviar mesmo assim?")) {
+        const sendAnyway = await confirmDialog({
+          title: "Enviar mesmo assim?",
+          description: result.error || "Esta matéria já foi notificada.",
+          confirmLabel: "Enviar mesmo assim",
+        });
+        if (!sendAnyway) {
           notify.warning("Envio cancelado", "A matéria já havia sido notificada automaticamente.");
           return;
         }
