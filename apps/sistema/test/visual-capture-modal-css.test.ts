@@ -59,3 +59,27 @@ test("itens da lista crescem com o título, sem herdar height:36px do button glo
   assert.match(item, /white-space:\s*normal/);
   assert.match(item, /min-height:\s*44px/);
 });
+
+
+test("botão de adicionar trecho usa altura natural e sinaliza o estado ativo", () => {
+  const button = rule(".editor .appendButton");
+  assert.match(button, /height:\s*auto/);
+  assert.match(button, /min-height:\s*44px/);
+  assert.match(button, /white-space:\s*normal/);
+  const active = rule(".editor .appendButton.appendActive");
+  assert.match(active, /background:/);
+});
+
+test("mensagem de inclusão permite confirmação e erro sem depender do rodapé do modal", () => {
+  assert.match(rule(".appendNotice"), /font-size:/);
+  assert.match(rule(".appendNoticeSuccess"), /background:/);
+  assert.match(rule(".appendNoticeError"), /background:/);
+});
+
+test("captura em modo incluir trecho não intercepta arrasto para mover área anterior", () => {
+  const component = readFileSync(join(__dirname, "../src/features/editorial/PdfVisualCaptureModal.tsx"), "utf8");
+  assert.match(component, /capture\.id === selectedId && appendToId === null/);
+  assert.match(component, /appendRegionToCapture\(capture, area, extraction\)/);
+  assert.match(component, /setAppendNotice\(\{/);
+  assert.match(component, /setAppendToId\(null\)/);
+});
