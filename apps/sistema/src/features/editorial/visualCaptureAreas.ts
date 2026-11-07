@@ -57,3 +57,45 @@ function withLabel(warnings: string[], label: string | undefined): string[] {
   if (!label) return warnings;
   return warnings.map((warning) => (warning.startsWith(label) ? warning : `${label}: ${warning}`));
 }
+
+
+/** Uma matéria pode reunir trechos de várias páginas. A função abaixo
+ * acrescenta o trecho à MESMA matéria (id/cor/título preservados) e retorna
+ * null se a nova região não trouxe texto; assim não surge um retângulo
+ * visual sem vínculo com a matéria. */
+export interface CaptureArea { page: number; rect: { x: number; y: number; width: number; height: number }; }
+
+export interface CaptureForAppend {
+  areas: CaptureArea[];
+  perAreaExtraction: RegionArticleExtraction[];
+  title: string;
+  subtitle: string;
+  body: string;
+  needsReview: boolean;
+  warnings: string[];
+}
+
+export function appendRegionToCapture<T extends CaptureForAppend>(
+  capture: T,
+  area: CaptureArea,
+  extraction: RegionArticleExtraction,
+): T | null {
+  const parts = [extraction.title, extraction.subtitle, ...extraction.bodyParagraphs]
+    .map((part) => part.trim())
+    .filter(Boolean);
+  if (parts.length === 0) return null;
+
+  const pageLabel = `Página ${area.page}`;
+  const warnings = extraction.warnings.map((warning) => `${pageLabel}: ${warning}`);
+  if (extraction.title) {
+    warnings.push(`${pageLabel}: um título foi reconhecido no trecho adicional; confira se pertence à mesma matéria.`);
+  }
+  return {
+    ...capture,
+    areas: [...capture.areas, area],
+    perAreaExtraction: [...capture.perAreaExtraction, extraction],
+    body: [capture.body.trim(), parts.join("\n\n")].filter(Boolean).join("\n\n"),
+    needsReview: capture.needsReview || extraction.needsReview || Boolean(extraction.title),
+    warnings: [...capture.warnings, ...warnings],
+  };
+}
