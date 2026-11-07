@@ -23,6 +23,7 @@ import { editionLabel, formatDate } from "./editorialLabels";
 import { notify } from "../../lib/feedback/notify";
 import { confirmDialog } from "../../lib/feedback/confirmStore";
 import { saoPauloLocalInputToUtcIso, utcIsoToSaoPauloLocalInput } from "../../lib/editorial/editionAvailabilityScheduling";
+import { PdfVisualCaptureModal } from "./PdfVisualCaptureModal";
 
 GlobalWorkerOptions.workerSrc = new URL("pdfjs-dist/build/pdf.worker.min.js", import.meta.url).toString();
 
@@ -128,6 +129,7 @@ export function EdicoesManager({ editions }: EdicoesManagerProps): JSX.Element {
   const [editingScheduleId, setEditingScheduleId] = useState<string | null>(null);
   const [scheduleValue, setScheduleValue] = useState("");
   const [detailsEditionId, setDetailsEditionId] = useState<string | null>(null);
+  const [captureEditionId, setCaptureEditionId] = useState<string | null>(null);
   const rootRef = useRef<HTMLDivElement | null>(null);
   const toolbarRef = useRef<HTMLDivElement | null>(null);
 
@@ -787,9 +789,28 @@ export function EdicoesManager({ editions }: EdicoesManagerProps): JSX.Element {
           edition={items.find((item) => item.id === detailsEditionId) ?? null}
           onClose={() => setDetailsEditionId(null)}
           onToggleActive={handleToggleActive}
+          onCapturePreview={(edition) => {
+            setDetailsEditionId(null);
+            setCaptureEditionId(edition.id);
+          }}
           pending={pending}
         />
       ) : null}
+
+      {captureEditionId ? (() => {
+        const edition = items.find((item) => item.id === captureEditionId);
+        if (!edition) return null;
+        return (
+          <PdfVisualCaptureModal
+            edition={{
+              id: edition.id,
+              editionNumber: edition.editionNumber,
+              hasArchivedPdf: edition.archiveProvider === "r2" && Boolean(edition.pdfR2Key),
+            }}
+            onClose={() => setCaptureEditionId(null)}
+          />
+        );
+      })() : null}
     </div>
   );
 }
@@ -920,6 +941,7 @@ interface EditionDetailsModalProps {
   edition: NewspaperEdition | null;
   onClose: () => void;
   onToggleActive: (edition: NewspaperEdition) => void;
+  onCapturePreview: (edition: NewspaperEdition) => void;
   pending: boolean;
 }
 
@@ -935,7 +957,7 @@ interface EditionDetailsModalProps {
  * saiu da tabela/cartões e virou uma ação deste modal — a listagem não
  * ganhou uma coluna nova, e a ação continua disponível.
  */
-function EditionDetailsModal({ edition, onClose, onToggleActive, pending }: EditionDetailsModalProps): JSX.Element | null {
+function EditionDetailsModal({ edition, onClose, onToggleActive, onCapturePreview, pending }: EditionDetailsModalProps): JSX.Element | null {
   const [entries, setEntries] = useState<EditionAuditEntry[] | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [reprocessing, setReprocessing] = useState(false);
@@ -1062,6 +1084,9 @@ function EditionDetailsModal({ edition, onClose, onToggleActive, pending }: Edit
                 {reprocessing ? "Reprocessando…" : "Reprocessar separação de matérias"}
               </button>
             ) : null}
+            <button type="button" onClick={() => onCapturePreview(edition)} style={{ marginTop: canReprocessMaterias ? 8 : 0 }}>
+              Capturar matérias visualmente (prévia, sem gravar)
+            </button>
           </section>
 
           <section className="edicoes-details-section">

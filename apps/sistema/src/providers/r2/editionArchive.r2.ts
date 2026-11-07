@@ -492,6 +492,111 @@ export async function getEditionPdfFromR2(key: string): Promise<Uint8Array> {
   return result.Body.transformToByteArray();
 }
 
+// ---------------------------------------------------------------------------
+// Leitura com suporte a Range — usada pela rota autenticada same-origin da
+// captura visual de matérias (`/api/sistema/jornal-online/editions/[id]/pdf`),
+// para o pdf.js do navegador carregar só os trechos necessários do PDF em
+// vez de baixar o arquivo inteiro a cada página. Mesmo padrão já usado e
+// testado no portal público (`apps/site/src/lib/server/editionsR2.ts`), mas
+// aqui com as credenciais ADMINISTRATIVAS já usadas neste módulo (rota
+// exige sessão + permissão editorial — nunca pública).
+// ---------------------------------------------------------------------------
+
+export class EditionArchiveObjectNotFoundError extends Error {}
+export class EditionArchiveRangeNotSatisfiableError extends Error {
+  constructor(public readonly totalSize: number) {
+    super("Intervalo de bytes solicitado não é satisfazível para este objeto.");
+  }
+}
+
+export interface EditionArchiveObjectHead {
+  contentLength: number;
+  contentType: string | null;
+  etag: string | null;
+}
+
+/** HEAD puro — nunca baixa bytes do objeto. */
+export async function headEditionArchiveObject(key: string): Promise<EditionArchiveObjectHead> {
+  try {
+    const result = await r2Client().send(new HeadObjectCommand({ Bucket: bucket(), Key: key }));
+    return {
+      contentLength: Number(result.ContentLength ?? 0),
+      contentType: result.ContentType ?? null,
+      etag: result.ETag ?? null,
+    };
+  } catch (error) {
+    throw mapEditionArchiveReadError(error, key);
+  }
+}
+
+export interface EditionArchiveObjectRangeResult {
+  body: ReadableStream<Uint8Array>;
+  status: 200 | 206;
+  contentLength: number;
+  totalSize: number;
+  contentRange: string | null;
+  contentType: string | null;
+  etag: string | null;
+}
+
+/**
+ * GET com suporte a Range. Devolve um stream (nunca o buffer inteiro em
+ * memória) — o corpo retornado é repassado diretamente como corpo da
+ * `Response` da rota Next.js.
+ */
+export async function getEditionArchiveObjectRange(
+  key: string,
+  rangeHeader: string | null,
+): Promise<EditionArchiveObjectRangeResult> {
+  let result;
+  try {
+    result = await r2Client().send(new GetObjectCommand({ Bucket: bucket(), Key: key, Range: rangeHeader ?? undefined }));
+  } catch (error) {
+    throw await mapEditionArchiveRangeError(error, key);
+  }
+  if (!result.Body) throw new EditionArchiveObjectNotFoundError(`Objeto sem conteúdo: ${key}`);
+
+  const sdkBody = result.Body as unknown as { transformToWebStream?: () => ReadableStream<Uint8Array> };
+  const body =
+    typeof sdkBody.transformToWebStream === "function"
+      ? sdkBody.transformToWebStream()
+      : (result.Body as unknown as ReadableStream<Uint8Array>);
+
+  const contentLength = Number(result.ContentLength ?? 0);
+  const contentRange = result.ContentRange ?? null;
+  const totalSize = contentRange ? Number(contentRange.split("/")[1] ?? contentLength) : contentLength;
+
+  return {
+    body,
+    status: contentRange ? 206 : 200,
+    contentLength,
+    totalSize,
+    contentRange,
+    contentType: result.ContentType ?? null,
+    etag: result.ETag ?? null,
+  };
+}
+
+function mapEditionArchiveReadError(error: unknown, key: string): Error {
+  const name = (error as { name?: string } | undefined)?.name;
+  if (name === "NoSuchKey" || name === "NotFound") {
+    return new EditionArchiveObjectNotFoundError(`Objeto não encontrado: ${key}`);
+  }
+  return error instanceof Error ? error : new Error("Falha ao consultar o armazenamento do acervo.");
+}
+
+async function mapEditionArchiveRangeError(error: unknown, key: string): Promise<Error> {
+  const name = (error as { name?: string } | undefined)?.name;
+  if (name === "NoSuchKey" || name === "NotFound") {
+    return new EditionArchiveObjectNotFoundError(`Objeto não encontrado: ${key}`);
+  }
+  if (name === "InvalidRange") {
+    const head = await headEditionArchiveObject(key).catch(() => null);
+    return new EditionArchiveRangeNotSatisfiableError(head?.contentLength ?? 0);
+  }
+  return error instanceof Error ? error : new Error("Falha ao consultar o armazenamento do acervo.");
+}
+
 export async function deleteEditionArchiveObject(key: string): Promise<void> {
   await r2Client().send(new DeleteObjectCommand({ Bucket: bucket(), Key: key }));
 }

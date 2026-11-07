@@ -423,36 +423,29 @@ function buildBodyParagraphs(runs: ColumnRun[], bodySize: number): BuiltParagrap
   return paragraphs;
 }
 
-export function layoutNewspaperPage(
-  rawItems: TextItem[],
-  pageWidth: number,
-  pageHeight: number,
-  options: NewspaperLayoutOptions,
+function emptyLayout(skipped: string): NewspaperPageLayout {
+  return { skipped, columnSegments: [], paragraphs: [], articleGroups: [], warnings: [] };
+}
+
+/**
+ * Núcleo do modo jornal: dado um conjunto de itens já estilizados (fonte
+ * resolvida) e já restrito à área de interesse — uma página inteira, sem o
+ * cabeçalho (`layoutNewspaperPage`), ou uma região escolhida manualmente
+ * pelo operador (`extractArticleFromRegion`, captura visual) — detecta a
+ * fonte do corpo, títulos, subtítulos, colunas e parágrafos. As duas
+ * chamadoras reaproveitam este mesmo motor calibrado; nenhuma delas tem sua
+ * própria heurística de título/corpo.
+ *
+ * `areaLabel` só entra no texto dos avisos (ex.: "Página 7" ou "seleção").
+ */
+function layoutArticlesFromItems(
+  content: StyledItem[],
+  areaWidth: number,
+  areaHeight: number,
+  areaLabel: string,
 ): NewspaperPageLayout {
-  const empty = (skipped: string): NewspaperPageLayout => ({
-    skipped,
-    columnSegments: [],
-    paragraphs: [],
-    articleGroups: [],
-    warnings: [],
-  });
-
-  if (options.pageNumber === 1) {
-    return empty("capa (só chamadas para as matérias das páginas internas)");
-  }
-
-  const items: StyledItem[] = rawItems
-    .filter((item) => item.text.trim().length > 0)
-    .map((item) => ({ ...item, style: parseFontStyle(item.realFontName) }));
-
-  const headerLimit = pageHeight * HEADER_BAND_RATIO;
-  const headerItems = items.filter((item) => item.yBaseline < headerLimit);
-  const headerText = headerItems.map((item) => item.text).join(" ");
-  if (/publicidade/i.test(headerText)) return empty("página de publicidade");
-
-  const content = items.filter((item) => item.yBaseline >= headerLimit);
   const body = detectBodyStyle(content);
-  if (!body || body.size <= 0) return empty("sem texto corrido");
+  if (!body || body.size <= 0) return emptyLayout("sem texto corrido");
 
   // Cada matéria é ajustada no espaço com um corpo diferente (10,3pt numa,
   // 12,5pt na vizinha, na mesma página): a faixa do corpo é larga.
@@ -486,7 +479,7 @@ export function layoutNewspaperPage(
   );
 
   // Corpo: colunas detectadas só com itens de corpo (calha pequena), linhas por coluna.
-  const columnSegments = detectColumnSegments(bodyItems, pageWidth, pageHeight, Math.max(5, body.size * 0.55));
+  const columnSegments = detectColumnSegments(bodyItems, areaWidth, areaHeight, Math.max(5, body.size * 0.55));
   const itemsBySegment: StyledItem[][] = columnSegments.map(() => []);
   for (const item of bodyItems) itemsBySegment[assignSegment(item, columnSegments)].push(item);
   const bodyLines: BodyLine[] = itemsBySegment.flatMap((segmentItems, segment) =>
@@ -642,13 +635,123 @@ export function layoutNewspaperPage(
     for (const paragraph of built) makeParagraph(paragraph.lines, paragraph.text, -1);
     if (orphanChars > 0) {
       warnings.push(
-        `Página ${options.pageNumber}: ${orphanChars} caracteres de texto corrido sem título identificável acima (ficaram fora dos rascunhos) — confira no PDF se pertencem a alguma matéria.`,
+        `${areaLabel}: ${orphanChars} caracteres de texto corrido sem título identificável acima (ficaram fora dos rascunhos) — confira no PDF se pertencem a alguma matéria.`,
       );
     }
   }
   if (skippedHeadlines > 0 && articleGroups.length === 0 && bodyItems.length === 0) {
-    return empty("sem texto corrido (só títulos/anúncios)");
+    return emptyLayout("sem texto corrido (só títulos/anúncios)");
   }
 
   return { columnSegments, paragraphs, articleGroups, warnings };
+}
+
+export function layoutNewspaperPage(
+  rawItems: TextItem[],
+  pageWidth: number,
+  pageHeight: number,
+  options: NewspaperLayoutOptions,
+): NewspaperPageLayout {
+  if (options.pageNumber === 1) {
+    return emptyLayout("capa (só chamadas para as matérias das páginas internas)");
+  }
+
+  const items: StyledItem[] = rawItems
+    .filter((item) => item.text.trim().length > 0)
+    .map((item) => ({ ...item, style: parseFontStyle(item.realFontName) }));
+
+  const headerLimit = pageHeight * HEADER_BAND_RATIO;
+  const headerItems = items.filter((item) => item.yBaseline < headerLimit);
+  const headerText = headerItems.map((item) => item.text).join(" ");
+  if (/publicidade/i.test(headerText)) return emptyLayout("página de publicidade");
+
+  const content = items.filter((item) => item.yBaseline >= headerLimit);
+  return layoutArticlesFromItems(content, pageWidth, pageHeight, `Página ${options.pageNumber}`);
+}
+
+// ---------------------------------------------------------------------------
+// Captura visual de matérias (seleção manual do operador) — reaproveita o
+// MESMO motor acima (`layoutArticlesFromItems`), restrito aos itens da área
+// marcada; nenhuma heurística nova de título/corpo. Primeira etapa: só
+// prévia, nada é gravado (ver PdfVisualCaptureModal.tsx).
+// ---------------------------------------------------------------------------
+
+export interface RegionArticleExtraction {
+  title: string;
+  subtitle: string;
+  /** Parágrafos de corpo já na ordem de leitura (colunas detectadas dentro da região). */
+  bodyParagraphs: string[];
+  /** Verdadeiro quando o operador precisa conferir/completar manualmente (sem título, mais de um título, ou texto sem título reconhecido). */
+  needsReview: boolean;
+  warnings: string[];
+}
+
+const EMPTY_REGION_EXTRACTION: RegionArticleExtraction = {
+  title: "",
+  subtitle: "",
+  bodyParagraphs: [],
+  needsReview: true,
+  warnings: ["Nenhum texto reconhecido nesta seleção."],
+};
+
+/**
+ * Extrai título/subtítulo/corpo de UMA área selecionada manualmente pelo
+ * operador na captura visual — nunca mistura itens de fora do retângulo
+ * (o chamador já filtra `rawItems` pela região antes de chamar esta
+ * função). `areaWidth`/`areaHeight` devem ser as dimensões do retângulo em
+ * pontos do PDF (não da página inteira), para a detecção de colunas ficar
+ * restrita à região.
+ */
+export function extractArticleFromRegion(
+  rawItems: TextItem[],
+  areaWidth: number,
+  areaHeight: number,
+): RegionArticleExtraction {
+  const content: StyledItem[] = rawItems
+    .filter((item) => item.text.trim().length > 0)
+    .map((item) => ({ ...item, style: parseFontStyle(item.realFontName) }));
+  if (content.length === 0) return EMPTY_REGION_EXTRACTION;
+
+  const layout = layoutArticlesFromItems(content, Math.max(1, areaWidth), Math.max(1, areaHeight), "Seleção");
+  const orphanParagraphs = layout.paragraphs.filter((paragraph) => paragraph.column === -1);
+  const orphanText = orphanParagraphs
+    .sort((a, b) => a.yTop - b.yTop || a.x - b.x)
+    .map((paragraph) => paragraph.text);
+
+  if (layout.articleGroups.length === 0) {
+    if (orphanText.length === 0) {
+      return { ...EMPTY_REGION_EXTRACTION, warnings: ["Nenhum texto reconhecido nesta seleção."] };
+    }
+    return {
+      title: "",
+      subtitle: "",
+      bodyParagraphs: orphanText,
+      needsReview: true,
+      warnings: ["Nenhum título reconhecido nesta seleção — confira/preencha o título manualmente."],
+    };
+  }
+
+  const [primary, ...extra] = layout.articleGroups;
+  const title = primary.blocks.find((block) => block.role === "title")?.text ?? "";
+  const subtitle = primary.blocks.find((block) => block.role === "subtitle")?.text ?? "";
+  const bodyParagraphs = primary.blocks.filter((block) => block.role === "body").map((block) => block.text);
+  const warnings: string[] = [];
+
+  // Mais de um título na mesma seleção, ou texto de corpo que o motor não
+  // associou a nenhum título: nunca descartado — entra no corpo com aviso,
+  // o operador decide (preservar a ordem dos trechos escolhidos).
+  for (const group of extra) {
+    for (const block of group.blocks) bodyParagraphs.push(block.text);
+  }
+  if (extra.length > 0) {
+    warnings.push(
+      `Mais de um título foi reconhecido nesta seleção (${layout.articleGroups.length}) — revise o texto abaixo; o texto das demais partes foi incluído no corpo.`,
+    );
+  }
+  if (orphanText.length > 0) {
+    bodyParagraphs.push(...orphanText);
+    warnings.push("Parte do texto selecionado não foi associada ao título automaticamente — confira se pertence a esta matéria.");
+  }
+
+  return { title, subtitle, bodyParagraphs, needsReview: extra.length > 0 || orphanText.length > 0, warnings };
 }
