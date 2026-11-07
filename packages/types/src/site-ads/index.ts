@@ -65,12 +65,46 @@ export const SITE_AD_SLOT_TRANSITION_EFFECT_LABELS: Record<SiteAdSlotTransitionE
   crossfade: "Crossfade",
 };
 
-export type SiteAdFitMode = "contain" | "stretch";
+/**
+ * Como a imagem ocupa o quadro 7:10 do site (decisão do usuário 07/11/2026):
+ * - stretch (Esticar, padrão): 100% do quadro, pode deformar;
+ * - contain (Encaixar): imagem inteira, sem cortar nem deformar, pode sobrar borda;
+ * - cover (Preencher): 100% do quadro sem deformar, centralizada, pode cortar bordas.
+ */
+export type SiteAdFitMode = "stretch" | "contain" | "cover";
+
+export const SITE_AD_FIT_MODES: readonly SiteAdFitMode[] = ["stretch", "contain", "cover"];
+
+/** Padrão efetivo: o site sempre exibiu os patrocinadores esticados. */
+export const SITE_AD_DEFAULT_FIT_MODE: SiteAdFitMode = "stretch";
 
 export const SITE_AD_FIT_MODE_LABELS: Record<SiteAdFitMode, string> = {
-  contain: "Ajustar para caber",
-  stretch: "Esticar para preencher",
+  stretch: "Esticar",
+  contain: "Encaixar",
+  cover: "Preencher",
 };
+
+export const SITE_AD_FIT_MODE_HINTS: Record<SiteAdFitMode, string> = {
+  stretch: "Ocupa todo o quadro; pode deformar a imagem.",
+  contain: "Mostra a imagem inteira, sem cortar nem deformar; pode sobrar borda.",
+  cover: "Ocupa todo o quadro sem deformar; pode cortar as bordas.",
+};
+
+/** Valor CSS `object-fit` de cada formato. */
+export const SITE_AD_FIT_MODE_OBJECT_FIT: Record<SiteAdFitMode, "fill" | "contain" | "cover"> = {
+  stretch: "fill",
+  contain: "contain",
+  cover: "cover",
+};
+
+export function isSiteAdFitMode(value: unknown): value is SiteAdFitMode {
+  return typeof value === "string" && (SITE_AD_FIT_MODES as readonly string[]).includes(value);
+}
+
+/** Valor ausente ou desconhecido vira o padrão (Esticar) — nunca muda o visual por acidente. */
+export function normalizeSiteAdFitMode(value: unknown): SiteAdFitMode {
+  return isSiteAdFitMode(value) ? value : SITE_AD_DEFAULT_FIT_MODE;
+}
 
 export interface SiteAdSettings {
   id: string;

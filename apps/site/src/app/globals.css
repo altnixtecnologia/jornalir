@@ -1817,6 +1817,9 @@ body {
 .ad-slot-unit--compact {
   aspect-ratio: 7 / 10;
 }
+/* Base = Esticar (o padrão que o site sempre exibiu). Cada imagem escolhe
+   o próprio formato pelas classes .ad-slot-img--stretch/contain/cover,
+   declaradas mais abaixo para prevalecer sobre esta base. */
 .ad-slot-img {
   object-fit: fill;
 }
@@ -1898,8 +1901,15 @@ body {
 }
 
 
-/* Publicidade por posição: opção de esticar e transição desligada. */
-.ad-slot-img--stretch{object-fit:fill}.ad-effect-none{animation:none}
+/* Formato individual de cada imagem de patrocinador (o quadro 7:10 nunca
+   muda de tamanho; só a arte dentro dele):
+   Esticar = ocupa tudo e pode deformar; Encaixar = imagem inteira, pode
+   sobrar borda; Preencher = ocupa tudo sem deformar, centralizada, pode
+   cortar bordas. Precisam ficar DEPOIS de todas as regras .ad-slot-img. */
+.ad-slot-img--stretch{object-fit:fill}
+.ad-slot-img--contain{object-fit:contain;object-position:center}
+.ad-slot-img--cover{object-fit:cover;object-position:center}
+.ad-effect-none{animation:none}
 
 /* ===================================================================
    Central de notificações do leitor — sininho fixo, flutuante e painel

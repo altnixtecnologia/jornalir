@@ -5623,6 +5623,24 @@ button.secondary-link {
 .site-ad-thumb-image:hover .site-ad-image-remove,.site-ad-thumb-image .site-ad-image-remove:focus-visible{opacity:1;visibility:visible}
 @media(hover:none),(pointer:coarse){.site-ad-thumb-image .site-ad-image-remove{opacity:1;visibility:visible;width:34px;height:34px}}
 
+/* Formato individual da imagem (Esticar/Encaixar/Preencher): a miniatura
+   usa o MESMO quadro 7:10 do site, com fundo neutro para a borda do
+   Encaixar ficar visível. */
+.site-ad-thumb-image--site-frame{aspect-ratio:7/10;background:#eef0f4}
+.site-ad-thumb-image--site-frame img{display:block;object-position:center}
+.site-ad-fit-picker{display:grid;gap:4px;margin-top:2px}
+.site-ad-fit-picker-label{font-size:10px;font-weight:700;color:var(--muted)}
+.site-ad-fit-picker-label em{font-style:normal;font-weight:600}
+.site-ad-fit-options{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));border:1px solid var(--line);border-radius:6px;overflow:hidden;background:#fff}
+.site-ad-fit-option{min-height:28px;padding:0 4px;border:0;border-right:1px solid var(--line);border-radius:0;background:#fff;color:var(--brand);font-size:10px;font-weight:700;cursor:pointer}
+.site-ad-fit-option:last-child{border-right:0}
+.site-ad-fit-option.is-selected{background:var(--brand);color:#fff}
+.site-ad-fit-option:disabled{cursor:wait;opacity:.75}
+.site-ad-fit-option.is-selected:disabled{opacity:1}
+.site-ad-fit-option:focus-visible{outline:2px solid var(--brand-gold);outline-offset:-2px}
+.site-ad-fit-hint{font-size:10px;line-height:1.3}
+@media(hover:none),(pointer:coarse){.site-ad-fit-option{min-height:36px;font-size:11px}}
+
 /* Miniaturas PENDENTES: controles independentes das imagens já publicadas. */
 .site-ad-preview-tools{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap}
 .site-ad-preview-tools strong{font-size:12px}

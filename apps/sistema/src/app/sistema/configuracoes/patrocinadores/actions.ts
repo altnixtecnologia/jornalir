@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { checkModuleAction } from "../../../../lib/permissions/checkModuleAction";
 import { validateSiteAdPublication, type SiteAdPublicationInput } from "../../../../features/configuracoes/siteAdPublicationPolicy";
-import type { SiteAdFitMode, SiteAdSlotTransitionEffect } from "@ir/types";
+import { isSiteAdFitMode, type SiteAdFitMode, type SiteAdSlotTransitionEffect } from "@ir/types";
 import { getSiteAdSlotService } from "../../../../composition/siteAds";
 import { createSupabaseServerClient } from "../../../../lib/supabase/server";
 import { registerUploadedMediaAsset } from "../../../../providers/supabase/mediaAssetRepository.supabase";
@@ -92,9 +92,33 @@ export async function uploadSiteAdImagesAction(
   return { ok: true, count, warnings };
 }
 
+/**
+ * Formato individual da imagem (Esticar/Encaixar/Preencher). Grava SÓ
+ * `fit_mode` — transição, tempo e veiculação da imagem ficam intactos, e
+ * não exige reenviar a imagem.
+ */
+export async function updateSiteAdMediaFitModeAction(
+  id: string,
+  fitMode: SiteAdFitMode,
+): Promise<{ error: string } | { ok: true; fitMode: SiteAdFitMode }> {
+  const permissionError = await checkModuleAction("publicidade","vendas_editar");
+  if (permissionError) return { error: permissionError };
+  if (!/^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i.test(id)) return { error: "Identificador de mídia inválido." };
+  if (!isSiteAdFitMode(fitMode)) return { error: "Formato de exibição inválido." };
+  try {
+    const client = createSupabaseServerClient();
+    const saved = await getSiteAdSlotService(client).updateMedia(id, { fitMode });
+    if (saved.fitMode !== fitMode) return { error: "O banco não confirmou o formato escolhido. Atualize a página e tente novamente." };
+  } catch (error) {
+    return { error: toErrorMessage(error) };
+  }
+  revalidatePath(LIST_PATH);
+  return { ok: true, fitMode };
+}
+
 export async function updateSiteAdMediaSettingsAction(
   id: string,
-  changes: { rotationIntervalMs: number | null; transitionEffect: SiteAdSlotTransitionEffect | null; fitMode: SiteAdFitMode | null },
+  changes: { rotationIntervalMs?: number | null; transitionEffect?: SiteAdSlotTransitionEffect | null; fitMode?: SiteAdFitMode | null },
 ): Promise<{ error: string } | void> {
   const permissionError = await checkModuleAction("publicidade","vendas_editar");
   if (permissionError) return { error: permissionError };

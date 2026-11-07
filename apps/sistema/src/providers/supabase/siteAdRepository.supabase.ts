@@ -142,7 +142,7 @@ const PREVIEW_SLOTS: SiteAdSlotWithMedia[] = Array.from({ length: 6 }, (_, index
   active: true,
   rotationIntervalMs: 10000,
   transitionEffect: "fade" as SiteAdSlotTransitionEffect,
-  fitMode: "contain" as SiteAdFitMode,
+  fitMode: "stretch" as SiteAdFitMode,
   createdAt: new Date(0).toISOString(),
   updatedAt: new Date(0).toISOString(),
   media: [],

@@ -1,6 +1,6 @@
 "use client";
 
-import type { AdSlot } from "./adSlots";
+import { adFitClassName, type AdSlot } from "./adSlots";
 import { useRotatingAdAtPosition } from "./GlobalAdRotation";
 
 export function AdSlotUnit({
@@ -16,14 +16,15 @@ export function AdSlotUnit({
   const current = displayedSlot.creatives[0];
   if (!current) return null;
 
-  const fitClass = current.fitMode === "stretch" ? " ad-slot-img--stretch" : "";
+  // O formato (Esticar/Encaixar/Preencher) é da IMAGEM e a acompanha em
+  // qualquer uma das seis posições da esteira.
   const content = (
     <img
       key={current.id}
       src={current.imageUrl}
       alt={current.alt ?? slot.label}
       loading="lazy"
-      className={"ad-slot-img" + fitClass + " ad-effect-" + current.transitionEffect}
+      className={"ad-slot-img " + adFitClassName(current.fitMode) + " ad-effect-" + current.transitionEffect}
     />
   );
 

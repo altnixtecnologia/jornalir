@@ -1,7 +1,8 @@
-import type {
-  PublicSiteAdMedia,
-  SiteAdFitMode,
-  SiteAdSlotTransitionEffect,
+import {
+  normalizeSiteAdFitMode,
+  type PublicSiteAdMedia,
+  type SiteAdFitMode,
+  type SiteAdSlotTransitionEffect,
 } from "@ir/types";
 import { getPublicSupabaseClient } from "./supabasePublicClient";
 import { adSlots as FALLBACK_AD_SLOTS } from "../../components/site/adSlots";
@@ -45,7 +46,7 @@ function fallbackForSlot(slotNumber: number, config: PublicSlotRow): PublicSiteA
     // Acervo legado nunca teve configuração por imagem — usa sempre o padrão da posição.
     rotationIntervalMs: config.rotation_interval_ms,
     transitionEffect: config.transition_effect,
-    fitMode: config.fit_mode,
+    fitMode: normalizeSiteAdFitMode(config.fit_mode),
   }));
 }
 
@@ -90,7 +91,7 @@ export async function getPublicSiteAds(): Promise<PublicSiteAds> {
           // própria linha, nunca o da posição direto (seria ignorar a configuração individual).
           rotationIntervalMs: row.rotation_interval_ms,
           transitionEffect: row.transition_effect,
-          fitMode: row.fit_mode,
+          fitMode: normalizeSiteAdFitMode(row.fit_mode),
         }));
 
       if (configuredMedia.length > 0) {

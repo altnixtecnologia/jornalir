@@ -1,4 +1,13 @@
-import type { SiteAdFitMode, SiteAdSlotTransitionEffect } from "@ir/types";
+import { normalizeSiteAdFitMode, type SiteAdFitMode, type SiteAdSlotTransitionEffect } from "@ir/types";
+
+/**
+ * Classe CSS do formato da imagem (Esticar/Encaixar/Preencher) — sempre
+ * uma das três; formato ausente/desconhecido cai em Esticar, o padrão que
+ * o site sempre exibiu.
+ */
+export function adFitClassName(fitMode: SiteAdFitMode | string | null | undefined): string {
+  return "ad-slot-img--" + normalizeSiteAdFitMode(fitMode);
+}
 
 export interface AdCreative {
   id: string;
@@ -34,7 +43,7 @@ function fallbackSlot(
   creativesWithoutDefaults: Array<Omit<AdCreative, "rotateMs" | "transitionEffect" | "fitMode">>,
 ): AdSlot {
   const transitionEffect: SiteAdSlotTransitionEffect = "fade";
-  const fitMode: SiteAdFitMode = "contain";
+  const fitMode: SiteAdFitMode = "stretch";
   return {
     id: "slot-" + id, label, rotateMs, phaseOffsetMs, transitionEffect, fitMode,
     creatives: creativesWithoutDefaults.map((item) => ({ ...item, rotateMs, transitionEffect, fitMode })),

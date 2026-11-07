@@ -11,7 +11,10 @@ import type {
   SiteAdSlotWithMedia,
 } from "@ir/types";
 import {
+  SITE_AD_FIT_MODE_HINTS,
   SITE_AD_FIT_MODE_LABELS,
+  SITE_AD_FIT_MODE_OBJECT_FIT,
+  SITE_AD_FIT_MODES,
   SITE_AD_SLOT_TRANSITION_EFFECT_LABELS,
   SITE_AD_SLOT_TRANSITION_EFFECTS,
 } from "@ir/types";
@@ -19,6 +22,7 @@ import {
   removeSiteAdMediaAction,
   reorderSiteAdMediaAction,
   toggleSiteAdSlotActiveAction,
+  updateSiteAdMediaFitModeAction,
   updateSiteAdMediaSettingsAction,
   updateSiteAdMediaPublicationAction,
   updateSiteAdSlotSettingsAction,
@@ -76,6 +80,84 @@ async function prepareAdvertisingImage(source: File): Promise<File> {
   throw new Error(source.name + ": não foi possível reduzir para o limite seguro de upload.");
 }
 
+/**
+ * Formato individual da imagem — Esticar (padrão) / Encaixar / Preencher.
+ * Sempre visível em cada imagem; salva na hora, só o formato, sem reenviar
+ * a imagem. Sem formato próprio, a imagem usa o padrão do grupo.
+ */
+function MediaFitModePicker({
+  media,
+  slotFitMode,
+  disabled,
+  onChange,
+}: {
+  media: SiteAdMediaWithAsset;
+  slotFitMode: SiteAdFitMode;
+  disabled: boolean;
+  onChange: (fitMode: SiteAdFitMode) => void;
+}): JSX.Element {
+  const router = useRouter();
+  const effective = media.fitMode ?? slotFitMode;
+  const [selected, setSelected] = useState<SiteAdFitMode>(effective);
+  const [saving, setSaving] = useState<SiteAdFitMode | null>(null);
+  const [saved, setSaved] = useState(false);
+
+  // Dados novos do servidor (router.refresh) mandam no valor exibido.
+  useEffect(() => { setSelected(effective); }, [effective]);
+
+  async function choose(fitMode: SiteAdFitMode): Promise<void> {
+    if (saving || disabled || (fitMode === selected && media.fitMode != null)) return;
+    const previous = selected;
+    setSaved(false);
+    setSelected(fitMode);
+    onChange(fitMode);
+    setSaving(fitMode);
+    try {
+      const result = await updateSiteAdMediaFitModeAction(media.id, fitMode);
+      if (!result || "error" in result) {
+        setSelected(previous);
+        onChange(previous);
+        notify.error("Formato não salvo", result?.error ?? "O servidor não confirmou a alteração. O formato anterior foi mantido.");
+        return;
+      }
+      setSaved(true);
+      router.refresh();
+    } catch {
+      setSelected(previous);
+      onChange(previous);
+      notify.error("Formato não salvo", "Falha de conexão. O formato anterior foi mantido.");
+    } finally {
+      setSaving(null);
+    }
+  }
+
+  return (
+    <div className="site-ad-fit-picker">
+      <span className="site-ad-fit-picker-label">
+        Formato no site
+        {saving ? <em> · salvando…</em> : saved ? <em> · salvo ✓</em> : media.fitMode == null ? <em> · padrão do grupo</em> : null}
+      </span>
+      <div className="site-ad-fit-options" role="radiogroup" aria-label="Formato desta imagem no site">
+        {SITE_AD_FIT_MODES.map((mode) => (
+          <button
+            key={mode}
+            type="button"
+            role="radio"
+            aria-checked={selected === mode}
+            className={"site-ad-fit-option" + (selected === mode ? " is-selected" : "")}
+            title={SITE_AD_FIT_MODE_HINTS[mode]}
+            onClick={() => void choose(mode)}
+            disabled={disabled || saving !== null}
+          >
+            {SITE_AD_FIT_MODE_LABELS[mode]}
+          </button>
+        ))}
+      </div>
+      <span className="helper-text site-ad-fit-hint">{SITE_AD_FIT_MODE_HINTS[selected]}</span>
+    </div>
+  );
+}
+
 function MediaSettingsRow({
   media,
   pending,
@@ -83,12 +165,12 @@ function MediaSettingsRow({
 }: {
   media: SiteAdMediaWithAsset;
   pending: boolean;
-  onSave: (changes: { rotationIntervalMs: number | null; transitionEffect: SiteAdSlotTransitionEffect | null; fitMode: SiteAdFitMode | null }) => Promise<boolean>;
+  onSave: (changes: { rotationIntervalMs: number | null; transitionEffect: SiteAdSlotTransitionEffect | null }) => Promise<boolean>;
 }): JSX.Element {
-  const hasOverride = media.rotationIntervalMs != null || media.transitionEffect != null || media.fitMode != null;
+  // O formato tem seletor próprio (MediaFitModePicker); aqui fica só a transição.
+  const hasOverride = media.rotationIntervalMs != null || media.transitionEffect != null;
   const [custom, setCustom] = useState(hasOverride);
   const [effect, setEffect] = useState<SiteAdSlotTransitionEffect>(media.transitionEffect ?? "fade");
-  const [fitMode, setFitMode] = useState<SiteAdFitMode>(media.fitMode ?? "contain");
   const [saved, setSaved] = useState(false);
   const [saving, setSaving] = useState(false);
 
@@ -98,13 +180,12 @@ function MediaSettingsRow({
     setSaving(true);
     try {
       const changes = !custom
-        ? { rotationIntervalMs: null, transitionEffect: null, fitMode: null }
+        ? { rotationIntervalMs: null, transitionEffect: null }
         : {
             // Tempo por imagem não vale mais no site (esteira única de 10s,
             // decisão do usuário 07/11/2026) — preserva o valor gravado.
             rotationIntervalMs: media.rotationIntervalMs ?? null,
             transitionEffect: effect,
-            fitMode,
           };
       const confirmed = await onSave(changes);
       if (confirmed) setSaved(true);
@@ -125,23 +206,69 @@ function MediaSettingsRow({
           onChange={(event) => setCustom(event.target.checked)}
           disabled={pending}
         />
-        Configuração própria desta imagem
+        Transição própria desta imagem
       </label>
       {custom ? (
         <div className="site-ad-thumb-settings-fields">
           <select value={effect} onChange={(event) => setEffect(event.target.value as SiteAdSlotTransitionEffect)} disabled={pending}>
             {SITE_AD_SLOT_TRANSITION_EFFECTS.map((item) => <option key={item} value={item}>{SITE_AD_SLOT_TRANSITION_EFFECT_LABELS[item]}</option>)}
           </select>
-          <select value={fitMode} onChange={(event) => setFitMode(event.target.value as SiteAdFitMode)} disabled={pending}>
-            {(Object.keys(SITE_AD_FIT_MODE_LABELS) as SiteAdFitMode[]).map((item) => <option key={item} value={item}>{SITE_AD_FIT_MODE_LABELS[item]}</option>)}
-          </select>
         </div>
       ) : (
-        <span className="helper-text">Usa a transição e o formato do grupo.</span>
+        <span className="helper-text">Usa a transição do grupo.</span>
       )}
       <button type="button" className="cadastros-btn-secondary" onClick={() => void save()} disabled={pending || saving}>
-        {saving ? "Salvando…" : saved ? "Salvo ✓" : "Salvar imagem"}
+        {saving ? "Salvando…" : saved ? "Salvo ✓" : "Salvar transição"}
       </button>
+    </div>
+  );
+}
+
+/** Uma imagem do grupo: prévia no quadro 7:10 do site, já no formato escolhido. */
+function SponsorMediaThumb({
+  media,
+  index,
+  total,
+  slotFitMode,
+  pending,
+  uploading,
+  onRemove,
+  onMove,
+  onSaveSettings,
+  onSavePublication,
+}: {
+  media: SiteAdMediaWithAsset;
+  index: number;
+  total: number;
+  slotFitMode: SiteAdFitMode;
+  pending: boolean;
+  uploading: boolean;
+  onRemove: () => void;
+  onMove: (direction: -1 | 1) => void;
+  onSaveSettings: (changes: { rotationIntervalMs: number | null; transitionEffect: SiteAdSlotTransitionEffect | null }) => Promise<boolean>;
+  onSavePublication: (changes: SiteAdPublicationInput) => Promise<{ error: string } | void>;
+}): JSX.Element {
+  const [shownFit, setShownFit] = useState<SiteAdFitMode>(media.fitMode ?? slotFitMode);
+  useEffect(() => { setShownFit(media.fitMode ?? slotFitMode); }, [media.fitMode, slotFitMode]);
+
+  return (
+    <div className="site-ad-thumb">
+      <div className="site-ad-thumb-image site-ad-thumb-image--site-frame">
+        <img
+          src={media.imageUrl}
+          alt={media.altText ?? media.mediaAssetAltText ?? "Publicidade"}
+          style={{ objectFit: SITE_AD_FIT_MODE_OBJECT_FIT[shownFit] ?? "fill" }}
+        />
+        <span>{index + 1}</span>
+        <button type="button" className="site-ad-image-remove" aria-label={"Excluir imagem " + (index + 1) + " deste grupo"} title="Excluir imagem" onClick={onRemove} disabled={pending}>×</button>
+      </div>
+      <div className="site-ad-thumb-actions">
+        <button type="button" onClick={() => onMove(-1)} disabled={pending || index === 0} aria-label="Mover para cima">↑</button>
+        <button type="button" onClick={() => onMove(1)} disabled={pending || index === total - 1} aria-label="Mover para baixo">↓</button>
+      </div>
+      <MediaFitModePicker media={media} slotFitMode={slotFitMode} disabled={pending || uploading} onChange={setShownFit} />
+      <MediaSettingsRow media={media} pending={pending} onSave={onSaveSettings} />
+      <SiteAdPublicationRow media={media} pending={pending || uploading} onSave={onSavePublication} />
     </div>
   );
 }
@@ -309,7 +436,7 @@ function SlotCard({ slot }: { slot: SiteAdSlotWithMedia }): JSX.Element {
 
   async function updateMediaSettings(
     id: string,
-    changes: { rotationIntervalMs: number | null; transitionEffect: SiteAdSlotTransitionEffect | null; fitMode: SiteAdFitMode | null },
+    changes: { rotationIntervalMs: number | null; transitionEffect: SiteAdSlotTransitionEffect | null },
   ): Promise<boolean> {
     // Erro é mostrado pelo próprio `SlotSettings` (chamador); evitar
     // duplicar o mesmo aviso aqui.
@@ -342,7 +469,8 @@ function SlotCard({ slot }: { slot: SiteAdSlotWithMedia }): JSX.Element {
     }
   }
 
-  const previewObjectFit = fitMode === "stretch" ? "fill" : "contain";
+  // Prévia das imagens ainda não enviadas: entram com o padrão do grupo.
+  const previewObjectFit = SITE_AD_FIT_MODE_OBJECT_FIT[fitMode] ?? "fill";
 
   return (
     <article className="site-ad-slot-card">
@@ -366,9 +494,13 @@ function SlotCard({ slot }: { slot: SiteAdSlotWithMedia }): JSX.Element {
           </select>
         </label>
         <label className="form-field">
-          <span className="field-label">Formato da imagem</span>
-          <select value={fitMode} onChange={(event) => setFitMode(event.target.value as SiteAdFitMode)}>
-            {(Object.keys(SITE_AD_FIT_MODE_LABELS) as SiteAdFitMode[]).map((item) => <option key={item} value={item}>{SITE_AD_FIT_MODE_LABELS[item]}</option>)}
+          <span className="field-label">Formato padrão do grupo</span>
+          <select
+            value={fitMode}
+            onChange={(event) => setFitMode(event.target.value as SiteAdFitMode)}
+            title="Vale para as imagens deste grupo que ainda não têm formato próprio."
+          >
+            {SITE_AD_FIT_MODES.map((item) => <option key={item} value={item}>{SITE_AD_FIT_MODE_LABELS[item]}</option>)}
           </select>
         </label>
         <button type="button" className="form-action-primary" onClick={saveSettings} disabled={pending}>Salvar grupo</button>
@@ -429,27 +561,19 @@ function SlotCard({ slot }: { slot: SiteAdSlotWithMedia }): JSX.Element {
       {slot.media.length ? (
         <div className="site-ad-thumbnails">
           {slot.media.map((media, index) => (
-            <div key={media.id} className="site-ad-thumb">
-              <div className="site-ad-thumb-image">
-                <img src={media.imageUrl} alt={media.altText ?? media.mediaAssetAltText ?? "Publicidade"} style={{ objectFit: previewObjectFit }} />
-                <span>{index + 1}</span>
-                <button type="button" className="site-ad-image-remove" aria-label={"Excluir imagem " + (index + 1) + " deste grupo"} title="Excluir imagem" onClick={() => remove(media.id)} disabled={pending}>×</button>
-              </div>
-              <div className="site-ad-thumb-actions">
-                <button type="button" onClick={() => move(index, -1)} disabled={pending || index === 0} aria-label="Mover para cima">↑</button>
-                <button type="button" onClick={() => move(index, 1)} disabled={pending || index === slot.media.length - 1} aria-label="Mover para baixo">↓</button>
-              </div>
-              <MediaSettingsRow
-                media={media}
-                pending={pending}
-                onSave={(changes) => updateMediaSettings(media.id, changes)}
-              />
-              <SiteAdPublicationRow
-                media={media}
-                pending={pending || uploading}
-                onSave={(changes)=>updatePublication(media.id,changes)}
-              />
-            </div>
+            <SponsorMediaThumb
+              key={media.id}
+              media={media}
+              index={index}
+              total={slot.media.length}
+              slotFitMode={slot.fitMode}
+              pending={pending}
+              uploading={uploading}
+              onRemove={() => remove(media.id)}
+              onMove={(direction) => move(index, direction)}
+              onSaveSettings={(changes) => updateMediaSettings(media.id, changes)}
+              onSavePublication={(changes) => updatePublication(media.id, changes)}
+            />
           ))}
         </div>
       ) : (
@@ -470,7 +594,9 @@ export function SiteAdSlotsPanel({ slots }: { slots: SiteAdSlotWithMedia[] }): J
           <span>
             Todas as imagens ativas de todos os grupos formam uma fila única de patrocinadores. A cada 10 segundos
             cada imagem anda uma posição: todas passam pelas seis posições do site, ficam o mesmo tempo na tela e
-            nunca aparecem duas vezes ao mesmo tempo. Os grupos servem só para organizar a ordem da fila.
+            nunca aparecem duas vezes ao mesmo tempo. Os grupos servem só para organizar a ordem da fila. Cada
+            imagem tem o próprio formato no site — Esticar (padrão), Encaixar ou Preencher — e o mantém em
+            qualquer posição.
           </span>
         </div>
         <div className="site-ad-side-grid">{groups.map((slot) => <SlotCard key={slot.id} slot={slot} />)}</div>

@@ -1,5 +1,6 @@
 import {
   SITE_AD_SLOT_TRANSITION_EFFECTS,
+  isSiteAdFitMode,
   type SiteAdFitMode,
   type SiteAdMedia,
   type SiteAdSlotTransitionEffect,
@@ -50,7 +51,7 @@ function assertSlotSettings(input: SiteAdSlotSettingsInput): void {
   if (!SITE_AD_SLOT_TRANSITION_EFFECTS.includes(input.transitionEffect)) {
     throw new SiteAdSlotValidationError("Efeito de transição inválido.");
   }
-  if (input.fitMode !== "contain" && input.fitMode !== "stretch") {
+  if (!isSiteAdFitMode(input.fitMode)) {
     throw new SiteAdSlotValidationError("Formato de exibição inválido.");
   }
 }
@@ -64,7 +65,7 @@ function assertMediaOverrides(changes: Pick<SiteAdMediaChanges, "rotationInterva
   if (changes.transitionEffect != null && !SITE_AD_SLOT_TRANSITION_EFFECTS.includes(changes.transitionEffect)) {
     throw new SiteAdMediaValidationError("Efeito de transição inválido para esta imagem.");
   }
-  if (changes.fitMode != null && changes.fitMode !== "contain" && changes.fitMode !== "stretch") {
+  if (changes.fitMode != null && !isSiteAdFitMode(changes.fitMode)) {
     throw new SiteAdMediaValidationError("Formato de exibição inválido para esta imagem.");
   }
 }

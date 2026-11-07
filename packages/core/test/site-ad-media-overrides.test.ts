@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import type { SiteAdMedia, SiteAdSlotWithMedia } from "@ir/types";
-import { SiteAdMediaValidationError, SiteAdSlotService } from "../src/site-ads/site-ad-slot-service";
+import { SiteAdMediaValidationError, SiteAdSlotService, SiteAdSlotValidationError } from "../src/site-ads/site-ad-slot-service";
 import type { SiteAdMediaChanges, SiteAdSlotRepository } from "../src/site-ads/site-ad-slot-repository";
 
 const BASE_MEDIA: SiteAdMedia = {
@@ -71,9 +71,31 @@ test("updateMedia rejeita efeito de transição inválido para a imagem", async 
 
 test("updateMedia rejeita formato de exibição inválido para a imagem", async () => {
   const service = new SiteAdSlotService(fakeRepository());
+  for (const invalid of ["fill", "Esticar", "", "COVER"]) {
+    await assert.rejects(
+      () => service.updateMedia("media-1", { fitMode: invalid as never }),
+      SiteAdMediaValidationError,
+    );
+  }
+});
+
+test("updateMedia aceita os três formatos (Esticar, Encaixar, Preencher) e grava só o formato", async () => {
+  for (const fitMode of ["stretch", "contain", "cover"] as const) {
+    const repository = fakeRepository() as SiteAdSlotRepository & { __lastChanges: () => SiteAdMediaChanges | null };
+    const service = new SiteAdSlotService(repository);
+    await service.updateMedia("media-1", { fitMode });
+    assert.deepEqual(repository.__lastChanges(), { fitMode });
+  }
+});
+
+test("formato padrão do grupo aceita os três formatos e rejeita valor desconhecido", async () => {
+  const service = new SiteAdSlotService(fakeRepository());
+  for (const fitMode of ["stretch", "contain", "cover"] as const) {
+    await assert.doesNotReject(() => service.updateSlotSettings("slot-1", { rotationIntervalMs: 10000, transitionEffect: "fade", fitMode }));
+  }
   await assert.rejects(
-    () => service.updateMedia("media-1", { fitMode: "cover" as never }),
-    SiteAdMediaValidationError,
+    () => service.updateSlotSettings("slot-1", { rotationIntervalMs: 10000, transitionEffect: "fade", fitMode: "fill" as never }),
+    SiteAdSlotValidationError,
   );
 });
 

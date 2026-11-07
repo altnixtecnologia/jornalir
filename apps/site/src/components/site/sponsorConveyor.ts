@@ -1,4 +1,4 @@
-import type { PublicSiteAdMedia } from "@ir/types";
+import { normalizeSiteAdFitMode, SITE_AD_DEFAULT_FIT_MODE, type PublicSiteAdMedia } from "@ir/types";
 import type { AdCreative, AdSlot } from "./adSlots";
 
 /**
@@ -61,7 +61,8 @@ export function buildSponsorPool(mediaBySlot: Map<number, PublicSiteAdMedia[]>):
         alt: item.altText,
         rotateMs: SPONSOR_ROTATION_MS,
         transitionEffect: item.transitionEffect,
-        fitMode: item.fitMode,
+        // Formato próprio da imagem: acompanha o patrocinador nas 6 posições.
+        fitMode: normalizeSiteAdFitMode(item.fitMode),
       });
     }
   }
@@ -82,7 +83,7 @@ export function buildSponsorPositions(pool: AdCreative[]): AdSlot[] {
       rotateMs: SPONSOR_ROTATION_MS,
       phaseOffsetMs: 0,
       transitionEffect: "fade",
-      fitMode: "contain",
+      fitMode: SITE_AD_DEFAULT_FIT_MODE,
       creatives: pool,
     };
   });
