@@ -933,15 +933,18 @@ export function PdfVisualCaptureModal({ edition, onClose }: Props): JSX.Element 
 
         {closeConfirm ? (
           <div className={styles.confirmBackdrop}>
-            <div className={styles.confirmBox} role="alertdialog" aria-modal="true" aria-label="Descartar prévia">
-              <h3>Fechar e descartar seleções?</h3>
-              <p>A prévia não foi gravada em nenhum lugar. Exporte o JSON antes de fechar, se quiser guardar o trabalho.</p>
-              <div>
-                <button type="button" onClick={() => setCloseConfirm(false)}>
+            <div className={styles.confirmBox} role="alertdialog" aria-modal="true" aria-label="Fechar sem salvar a prévia">
+              <h3>Fechar sem salvar as seleções?</h3>
+              <p>
+                Você tem <strong>{captures.length} {captures.length === 1 ? "matéria selecionada" : "matérias selecionadas"}</strong>.
+                Este trabalho ainda não foi salvo; ao fechar, as seleções serão perdidas.
+              </p>
+              <div className={styles.confirmActions}>
+                <button type="button" className={styles.keepEditingButton} onClick={() => setCloseConfirm(false)}>
                   Continuar editando
                 </button>
-                <button type="button" onClick={onClose}>
-                  Descartar prévia
+                <button type="button" className={styles.discardPreviewButton} onClick={onClose}>
+                  Descartar e fechar
                 </button>
               </div>
             </div>
