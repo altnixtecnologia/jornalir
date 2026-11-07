@@ -61,10 +61,10 @@ test("itens da lista crescem com o título, sem herdar height:36px do button glo
 });
 
 
-test("botão de adicionar trecho usa altura natural e sinaliza o estado ativo", () => {
+test("mesmo botão adiciona trecho em um clique e volta ao normal após a seleção", () => {
   const button = rule(".editor .appendButton");
   assert.match(button, /height:\s*auto/);
-  assert.match(button, /min-height:\s*44px/);
+  assert.match(button, /min-height:\s*36px/);
   assert.match(button, /white-space:\s*normal/);
   const active = rule(".editor .appendButton.appendActive");
   assert.match(active, /background:/);
@@ -82,4 +82,31 @@ test("captura em modo incluir trecho não intercepta arrasto para mover área an
   assert.match(component, /appendRegionToCapture\(capture, area, extraction\)/);
   assert.match(component, /setAppendNotice\(\{/);
   assert.match(component, /setAppendToId\(null\)/);
+});
+
+
+test("o X de cada retângulo fica clicável acima do plano de desenho, sem bloquear a página", () => {
+  const button = rule(".selectionRemove");
+  assert.match(button, /pointer-events:\s*auto/);
+  assert.match(button, /height:\s*24px/);
+  assert.match(button, /z-index:\s*8/);
+  const selection = rule(".selection");
+  assert.match(selection, /z-index:\s*4/);
+  assert.match(rule(".pointerLayer"), /z-index:\s*3/);
+});
+
+test("o X só remove uma área e confirma antes de apagar a última", () => {
+  const component = readFileSync(join(__dirname, "../src/features/editorial/PdfVisualCaptureModal.tsx"), "utf8");
+  assert.match(component, /removeAreaFromCapture\(item, areaIndex\)/);
+  assert.match(component, /capture\.areas\.length === 1/);
+  assert.match(component, /setPendingAreaDeletion\(\{ captureId, areaIndex \}\)/);
+  assert.match(component, /requestRemoveArea\(capture\.id, areaIndex\)/);
+  assert.match(component, /appendToId === null \? \(/);
+  assert.match(component, /onPointerDown=\{\(event\) => event\.stopPropagation\(\)\}/);
+});
+
+test("após concluir seleção adicional a ferramenta encerra o modo automaticamente", () => {
+  const component = readFileSync(join(__dirname, "../src/features/editorial/PdfVisualCaptureModal.tsx"), "utf8");
+  assert.match(component, /setAppendToId\(null\);\s*setAppendNotice\(\{/);
+  assert.match(component, /\+ Incluir outro trecho nesta matéria/);
 });
