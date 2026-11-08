@@ -369,9 +369,11 @@ export async function completeSignatureInvitationAction(input: {
   signerEmail: string;
   consent: boolean;
   imageDataUrl: string;
+  viewedBaseSha256: string;
 }): Promise<Result<{ receiptId: string }>> {
   try {
     if (!input.consent) return { error: "É necessário concordar com o termo antes de assinar." };
+    if (!/^[a-f0-9]{64}$/.test(input.viewedBaseSha256)) return { error: "Abra o PDF antes de confirmar a assinatura." };
     const invitation = await findSignatureInvitation(input.token);
     if (!invitation || !invitationIsPending(invitation)) {
       return { error: "Convite inválido, utilizado, revogado ou expirado." };
@@ -425,6 +427,9 @@ export async function completeSignatureInvitationAction(input: {
         return { error: "O PDF base desta assinatura não está íntegro." };
       }
       const originalSha256 = createHash("sha256").update(originalBytes).digest("hex");
+      if (originalSha256 !== input.viewedBaseSha256) {
+        return { error: "O documento mudou desde sua conferência. Reabra e confira a versão atual antes de assinar." };
+      }
       const signedAt = new Date().toISOString();
       const googleEvidence = await googleEvidenceForSignature(admin, "institutional", invitation.id, verifiedUser.user.id);
       const receiptBytes = buildSignatureReceiptPdf({
