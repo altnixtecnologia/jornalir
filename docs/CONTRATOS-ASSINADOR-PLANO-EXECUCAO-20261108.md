@@ -360,3 +360,12 @@ Branch e SHA local/remoto: solicitacoes-financeiro-contratos-irc-20261031 — ba
 **Migrations acumuladas nesta frente:** **12 arquivos** (`20261122140000` a `20261122250000`), **0 aplicadas**. A ordem segura continua ser: conferir migrações e aprová-las antes do deploy. As 12 ainda precisam de revisão técnica direcionada e execução autorizada. Não aplicar apenas porque o código está no GitHub.
 
 **Próximo:** Etapa 5 — homologação integrada da jornada completa em ambiente controlado (incluindo Google, QR, e-mail, Meta, Telegram, PDFs, backup/restore e jurídico) após sincronizar GitHub → VS Code, typecheck/build/testes afetados e configuração de serviços. Não repetir auditorias gerais já concluídas; auditoria completa apenas no fechamento ou diante de problema grave.
+
+
+## 08/11/2026 — Validação remota dirigida da Etapa 5 (GitHub Actions)
+
+**Resultado demonstrado em CI:** [execução 42532655263](https://github.com/altnixtecnologia/jornalir/actions/runs/42532655263/job/128890054225) do commit `45c655e2`, **SUCESSO**: `tsc` limpo, **10/10 testes** específicos (rubricas e campos, PDF real em memória empresa → cliente + QR, prova Google RS256, validação QR HMAC) e `next build` do `apps/sistema` passou. A execução não utiliza secrets de produção e não executa deploy. Corrigidos antes do resultado: JSX dos formulários, tipo da chave JWK e condição de testes `server-only`.
+
+**Pendente, não inferir do CI:** migrações/RLS/Storage reais, habilitação e verificação do Google/Meta/e-mail/Telegram, teste de backup R2 real, navegadores, identidade e poderes com usuários reais, aprovação jurídica. **12 migrations NÃO aplicadas.**
+
+**Checklist único de homologação e sincronização:** `docs/CONTRATOS-ASSINADOR-HOMOLOGACAO-20261108.md`. Nenhuma auditoria geral repetida; seguir somente itens de aceitação do fluxo. GitHub continua à frente da pasta Windows, sincronizar por fast-forward quando autorizado, sem alterar stashes/worktrees. Uma dependência de segurança `next@14.2.33` foi sinalizada pelo npm; avaliar patch antes da publicação, fora deste desenvolvimento do assinador.
