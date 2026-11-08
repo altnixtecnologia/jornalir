@@ -1,0 +1,64 @@
+name: Testar notificações de contratos em PostgreSQL isolado
+
+on:
+  push:
+    branches:
+      - solicitacoes-financeiro-contratos-irc-20261031
+    paths:
+      - "supabase/migrations/20261122240000_signature_final_delivery_outbox.sql"
+      - "supabase/migrations/20261122250000_commercial_signature_whatsapp_delivery.sql"
+      - "apps/sistema/test/fixtures/signature-delivery-*.sql"
+      - ".github/workflows/validate-contract-notification-sql.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: contract-notification-sql-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  isolated-postgres:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: signatures_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d signatures_ci"
+          --health-interval 3s
+          --health-timeout 3s
+          --health-retries 20
+    env:
+      PGHOST: 127.0.0.1
+      PGPORT: "5432"
+      PGUSER: postgres
+      PGPASSWORD: postgres
+      PGDATABASE: signatures_ci
+    steps:
+      - name: Checkout somente leitura
+        uses: actions/checkout@v4
+
+      - name: Verificar cliente PostgreSQL
+        run: |
+          if ! command -v psql >/dev/null 2>&1; then
+            sudo apt-get update -qq && sudo apt-get install -y -qq postgresql-client
+          fi
+
+      - name: Criar esquema fictício no banco temporário
+        run: psql -v ON_ERROR_STOP=1 -f apps/sistema/test/fixtures/signature-delivery-schema.sql
+
+      - name: Aplicar SOMENTE duas migrations da fila e Meta ao banco temporário
+        run: |
+          psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261122240000_signature_final_delivery_outbox.sql
+          psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261122250000_commercial_signature_whatsapp_delivery.sql
+
+      - name: Exercitar trigger, deduplicação, RLS, claim, auditoria, timeout e Meta
+        run: psql -v ON_ERROR_STOP=1 -f apps/sistema/test/fixtures/signature-delivery-smoke.sql
