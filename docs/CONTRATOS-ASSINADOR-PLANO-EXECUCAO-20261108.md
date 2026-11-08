@@ -297,3 +297,32 @@ Branch e SHA local/remoto: solicitacoes-financeiro-contratos-irc-20261031 — ba
 **Migrations geradas/aplicadas:** 8 geradas na frente (140000–210000), **0 aplicadas**.
 **Banco, mensagens e deploy real alterados?:** Banco: não (apenas ROLLBACK). Mensagens/Vercel/cobrança/assinatura real: não.
 **Próxima etapa:** 3B — cliente (convite individual, OTP/Google, aceite, evidências); aguarda autorização, **não iniciada**.
+
+
+## 08/11/2026 — Etapa 3B, implementação remota ChatGPT (sem publicação)
+
+**Base:** após `814fd7bc` (3A) na branch `solicitacoes-financeiro-contratos-irc-20261031`. Alterações commitadas diretamente no GitHub conectado, **ainda NÃO sincronizadas no VS Code Windows**, não executadas no ambiente local.
+
+**3B.1 — Assinatura do cliente sobre o PDF da empresa**
+- `externalSignaturePlacement.ts` reaproveita `contract_company_signature_rounds.layout_fields`, já persistidos por documento/rodada na Etapa 3A. Na primeira assinatura externa, seleciona só `contratante-1` e carimba rubricas e assinatura **depois** de OTP + aceite, por `stampCompanySignature` com JPEG desenhado. Preserva PDF base privado e hash; a nova versão ganha também a folha de comprovante existente.
+- Rodadas com vários clientes: apenas o primeiro ocupa os campos fixos de `contratante-1`; os seguintes recebem a folha individual cumulativa, sem sobrescrever a anterior.
+- `buildSignedContractPdf` e ambas as Server Actions finais (comercial e institucional) estendidas. Testes unitários direcionados escritos em `external-signature-placement.test.ts`, **ainda não executados**.
+
+**Editor visual de posições — reaproveitamento de UX NixSign**
+- Inspecionados de fato `altnixtecnologia/NixSign/js/admin.js` (áreas vermelha/azul desenhadas no PDF, cálculo página/coordenadas e padrão automático), `painel.html` e `supabase/functions/gerar-pdf-assinado/index.ts`. A UX foi reproduzida de forma nova em React, sem copiar o antigo backend: `features/financeiro/SignatureFieldLayoutEditor.tsx`, acesso pelo botão **Posicionar assinaturas e rubricas** em Configurações → Modelos de contratos (somente PDF fixo e admin/owner antes da aprovação jurídica). Carrega PDF privado, permite desenhar retângulos para empresa/cliente, assinatura/rubrica/data, visualizar por página, remover campos, salvar por versão; **Usar posicionamento automático** remove o layout manual. Reusa `signaturePlacement.ts` da 3A (coordenadas normalizadas).
+- `getSignatureFieldLayoutAction` acrescentada; alteração/remoção bloqueadas após aprovação ou ativação (Server Action + trigger de banco na migration `20261122230000_signature_layout_version_guard.sql`). Layout fica vinculado à versão; versão aprovada exige criar outra para alterar.
+- **Limite importante:** inicialmente o editor manual atende PDFs de modelos fixos; modelos de texto continuam no posicionamento automático da 3A. Não há alterações nos PDFs já assinados.
+
+**3B.2 — Google opcional e prova de autoria complementar**
+- `googleSignatureProof.ts`: desafio nonce HMAC com expiração de 5 minutos e vínculo ao hash de convite/modalidade; verificação do ID token Google com assinatura RS256 e JWK oficial, issuer, audience, validade, nonce, `sub`, e-mail e `email_verified`.
+- Após **OTP obrigatório**, ambos os formulários mostram um botão Google opcional (`GoogleSignatureEvidence.tsx`), que não muda a sessão Supabase, não pede Gmail, Drive, contatos etc. (`app/assinatura-google-actions.ts`). Credencial JWT descartada após validação; prova mínima ligada ao convite em `contract_signature_google_evidence` privada, append-only, criada na migration `20261122220000_signature_google_evidence.sql`.
+- Sem Google configurado ou em caso de falha, OTP + assinatura gráfica continuam funcionando normalmente. Evidência Google **NÃO** é prova de CPF ou identidade civil.
+- **Configuração necessária antes do teste real:** `NEXT_PUBLIC_GOOGLE_SIGNATURE_CLIENT_ID` (cliente Google Identity Services com domínio `controle.altnix.com.br` na lista de origens autorizadas) e `SIGNATURE_GOOGLE_NONCE_SECRET` (segredo de pelo menos 32 caracteres **somente no servidor**). Não inventar nem gravar chaves no GitHub. Não há acesso a Gmail ou arquivos Google.
+- Em `googleSignatureEvidence.ts` o sistema lê somente prova referente ao mesmo convite e à mesma sessão de e-mail OTP, inclui hash do `sub` (não valor bruto) na auditoria e adiciona dados mínimos aos PDFs assinados/comprovantes.
+- Testes unitários de JWT RS256/nonce e falsificações escritos em `google-signature-proof.test.ts`, **ainda não executados**.
+
+**Migrations pendentes nesta frente:** **10**, de `20261122140000` a `20261122230000`, **nenhuma aplicada**. Ordem: primeiro aplicar migrations sob autorização operacional, só depois publicar código. Os arquivos novos de Google/layout não foram testados com RLS real, navegador ou Storage.
+
+**BLOQUEIOS / PENDÊNCIAS:** testar `tsc`, testes direcionados, `next build` no ambiente local sincronizado; testar visualmente o editor de posições sobre um PDF, OTP, Google e prova no documento. Revisar configurações oficiais de Google Identity Services e proteção de sessão; validação jurídica humana permanece para a Etapa 5. Etapa 4 (WhatsApp/e-mail/Telegram, QR, backup/restore) **não iniciada**. Nenhum deploy, mensagem, cobrança ou assinatura real feito por ChatGPT.
+
+**Política de economia:** sem auditorias gerais até a homologação final ou defeito grave; apenas testes direcionados às mudanças.
