@@ -88,6 +88,11 @@ export const STAFF_MODULE_ACTIONS = [
   { module: "publicidade", key: "locacao_vistorias_registrar", label: "Registrar vistorias de entrega/devolução", isDefault: true },
   { module: "publicidade", key: "contratos_preparar", label: "Preparar documentos comerciais e seus prazos", isDefault: true },
   { module: "publicidade", key: "contratos_revisar", label: "Encaminhar contratos para revisão jurídica" },
+  // Etapa 1 de Contratos (08/11/2026): poder INDIVIDUAL e nunca presumido de
+  // assinar contratos comerciais pela empresa. Habilita o PNG de assinatura
+  // no Meu perfil; o ato de assinar continua exigindo confirmação explícita.
+  // Concessão/revogação é auditada por trigger no banco.
+  { module: "publicidade", key: "contratos_assinar", label: "Assinar contratos comerciais pela empresa (libera a imagem de assinatura no Meu perfil)", isCritical: true },
   { module: "nfse", key: "rascunhos_criar", label: "Criar rascunhos fiscais", isDefault: true },
   { module: "nfse", key: "rascunhos_editar", label: "Editar rascunhos fiscais", isDefault: true },
   { module: "nfse", key: "notas_emitir", label: "Emitir NFS-e (somente administração)", adminOnly: true },

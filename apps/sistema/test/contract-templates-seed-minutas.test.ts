@@ -88,7 +88,7 @@ test("cada minuta do seed passa a validação real de ContractTemplateService.cr
   for (const template of templates) {
     const service = new ContractTemplateService(new FakeContractTemplateRepository());
     await assert.doesNotReject(
-      () => service.create({ title: "Minuta de teste", category: template.category, content: template.content, variables: template.variables }),
+      () => service.create({ title: "Minuta de teste", category: template.category, content: template.content, variables: template.variables, modality: "commercial" }),
       `minuta "${template.category}" deveria passar a validação real de create()`,
     );
   }

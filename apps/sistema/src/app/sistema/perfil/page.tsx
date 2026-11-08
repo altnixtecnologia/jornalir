@@ -1,6 +1,7 @@
 import { ModuleHeader } from "../../../components/admin/ModuleHeader";
 import Link from "next/link";
 import { ProfileSettings } from "../../../features/perfil/ProfileSettings";
+import { SignatureSection } from "../../../features/perfil/SignatureSection";
 
 /**
  * Meu perfil — área pessoal da PRÓPRIA conta, disponível para qualquer
@@ -12,6 +13,7 @@ export default function PerfilPage(): JSX.Element {
     <>
       <ModuleHeader eyebrow="CONTA" title="Meu perfil" description="Dados da sua conta e segurança de acesso." />
       <ProfileSettings />
+      <SignatureSection />
       <p><Link href="/sistema/preferencias-notificacoes">Configurar notificações do aplicativo →</Link></p>
     </>
   );

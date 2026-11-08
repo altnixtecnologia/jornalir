@@ -503,6 +503,44 @@ export interface ContractTemplateVariable {
   required: boolean;
 }
 
+/** Modalidade do contrato: controla modelos, partes, assinantes e campos exigidos (Etapa 1, 08/11/2026). */
+export type ContractTemplateModality = "commercial" | "institutional";
+/** `text` = texto com {{chaves}} mesclado; `fixed_pdf` = documento fixo anexo, SEM mesclar variáveis (conferência manual). */
+export type ContractTemplateDocumentMode = "text" | "fixed_pdf";
+
+export const CONTRACT_TEMPLATE_MODALITY_LABELS: Record<ContractTemplateModality, string> = {
+  commercial: "Comercial",
+  institutional: "Institucional",
+};
+
+/** Sugestões de "específico para" (texto livre no banco): licitações e condições especiais sem alterar código. */
+export const CONTRACT_TEMPLATE_SPECIFIC_SUGGESTIONS: readonly string[] = [
+  "Licitação",
+  "Prefeitura",
+  "Câmara Municipal",
+  "Órgão público",
+  "Condição especial",
+];
+
+/** Texto fixo exibido em toda minuta habilitada só para teste. */
+export const CONTRACT_TEMPLATE_TEST_BANNER = "MINUTA DE TESTE — SEM EFEITO CONTRATUAL";
+
+/** Registro da revisão jurídica DESTA versão (imutável após registrado; revogável com motivo e auditoria). */
+export interface ContractTemplateLegalApproval {
+  approvedAt: string;
+  approvedByProfileId: string;
+  note: string;
+  evidence: string;
+  /** sha256 do conteúdo da versão no momento da aprovação. */
+  contentSha256: string;
+}
+
+export interface ContractTemplateAttachment {
+  sha256: string;
+  bytes: number;
+  note?: string;
+}
+
 export interface ContractTemplate {
   id: string;
   groupId: string;
@@ -513,9 +551,26 @@ export interface ContractTemplate {
   /** Texto puro com placeholders {{chave}} — nunca HTML/script. */
   content: string;
   variables: ContractTemplateVariable[];
+  /** ATIVA PARA PRODUÇÃO — só com aprovação jurídica registrada (imposto pelo banco). */
   active: boolean;
+  /** Habilitada para homologação ("MINUTA DE TESTE — SEM EFEITO CONTRATUAL"); independente de `active`. */
+  testEnabled: boolean;
+  modality?: ContractTemplateModality;
+  /** Ex.: "Licitação — Prefeitura de X". */
+  specificFor?: string;
+  legalApproval?: ContractTemplateLegalApproval;
+  documentMode: ContractTemplateDocumentMode;
+  attachment?: ContractTemplateAttachment;
   createdByProfileId?: string;
   createdAt: string;
+}
+
+export type ContractTemplateStage = "draft" | "test" | "production";
+
+/** Produção vence teste; sem nenhum dos dois é rascunho. Nunca confundir os estados. */
+export function contractTemplateStage(template: Pick<ContractTemplate, "active" | "testEnabled">): ContractTemplateStage {
+  if (template.active) return "production";
+  return template.testEnabled ? "test" : "draft";
 }
 
 /** Categorias sugeridas (Item 5, Lote 3) — só referência, o usuário pode digitar outra; nunca um enum fechado no banco. */

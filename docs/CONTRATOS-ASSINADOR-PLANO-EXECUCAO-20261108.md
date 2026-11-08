@@ -46,14 +46,14 @@ As áreas Cadastros, Assinaturas, Comercial, Financeiro e Contratos continuam ex
 - [x] Conferir bases existentes de perfil, permissões, templates e dois assinadores; documentar pontos de integração.
 - [x] Confirmar estado das 6 minutas de produção por consulta somente leitura.
 - [x] Complementar inventário remoto/SQL de permissões, tabelas, RLS e buckets; localizar componentes e assinadores dos projetos antigos.
-- [ ] Conferir também a árvore de arquivos **no PC local** e o histórico de migrations antes de criar novas; Claude realiza essa conferência na abertura da Etapa 1.
+- [x] Conferir também a árvore de arquivos **no PC local** e o histórico de migrations antes de criar novas (feito por Claude em 08/11/2026: branch sincronizada em fa03075f, stashes/worktrees preservados, última migration local era 20261122130000; ledger remoto sem pendências além das 3 desta etapa).
 
 ### Etapa 1 — Configurações, perfil, poderes e modelos (primeiro lote de CÓDIGO)
-- [ ] Configurações → Dados da empresa e representante(s) legal(is), regras de representação e PNG privado, com upload/atualização autorizados e auditados.
-- [ ] Permissão granular de **assinar contratos comerciais** no editor do usuário; quando negada, não mostrar configuração PNG em Meu perfil e negar acesso em API/Server Actions/Storage/RLS. Quando concedida, habilitar perfil e confirmação eletrônica de assinatura.
-- [ ] Configurações → Modelos de contratos com seletor, editor, anexo, categorias, versões, ativar/desativar, modo teste e registro de aprovação jurídica; reaproveitar `contract_templates` e modelos existentes.
-- [ ] Testes de permissões, acesso direto negado, tipo de arquivo, armazenamento privado, auditabilidade, versionamento, minutas teste ≠ produção.
-- **Critério de encerramento**: configurações completas e isoladas, demonstráveis sem disparar assinatura/envio/cobrança real. Código/testes aprovados e commit local; não publicar automaticamente.
+- [x] Configurações → Dados da empresa e representante(s) legal(is), regras de representação e PNG privado, com upload/atualização autorizados e auditados. *(código + testes; migrations não aplicadas)*
+- [x] Permissão granular de **assinar contratos comerciais** (`publicidade.contratos_assinar`) no editor do usuário; quando negada, não mostrar configuração PNG em Meu perfil e negar acesso em Server Actions/Storage/RLS. Quando concedida, habilita o PNG no perfil. *(a confirmação eletrônica explícita do ato de assinar fica na Etapa 3)*
+- [x] Configurações → Modelos de contratos com seletor, editor, anexo (documento fixo PDF), categorias, versões, ativar/desativar, modo teste e registro de aprovação jurídica; reaproveita `contract_templates` e o gerenciador existente. *(código + testes; migrations não aplicadas)*
+- [x] Testes de permissões, acesso direto negado, tipo de arquivo, armazenamento privado, auditabilidade, versionamento, minutas teste ≠ produção. *(unitários/estruturais + banco em transação com ROLLBACK; testes com usuários reais e Storage real dependem de aplicar as migrations e de login)*
+- **Critério de encerramento**: configurações completas e isoladas, demonstráveis sem disparar assinatura/envio/cobrança real. Código/testes aprovados e commit local; não publicar automaticamente. **Atingido em 08/11/2026 (código e testes); falta aplicar migrations e validar com login real antes de publicar.**
 
 ### Etapa 2 — Montagem de contratação e documento combinado
 - [ ] Abrir contratação a partir de cliente mestre; selecionar Comercial/Institucional e múltiplos serviços; aplicar valores especiais auditados.
@@ -87,6 +87,45 @@ As áreas Cadastros, Assinaturas, Comercial, Financeiro e Contratos continuam ex
 - **Falta:** inventário local completo de tabelas/RLS/storage, toda a implementação da Etapa 1, testes autenticados, avaliação jurídica, Etapas 2–5.
 - **Próximo:** Claude Code no VS Code sincroniza a branch oficial com GitHub, confirma stashes/worktrees, lê este plano e executa **somente Etapa 1** em um worktree/branch próprio, testes e relatório; não aplicar migrations, não publicar, não enviar mensagens reais sem autorização específica.
 - **Limitação:** ChatGPT não tem acesso direto ao sistema de arquivos do PC Windows do proprietário; os commits feitos por GitHub só estarão no PC após `git fetch`/fast-forward (ou cherry-pick) pelo Claude/VS Code. Não declarar "salvo localmente" antes de verificar isso.
+
+**08/11/2026 — Etapa 1 (Claude Code, VS Code local): CONCLUÍDA em código e testes; NÃO publicada, migrations NÃO aplicadas.**
+
+```
+Etapa: 1 — Configurações, perfil, poderes e modelos
+Branch e SHA local/remoto: solicitacoes-financeiro-contratos-irc-20261031 — base fa03075f (inclui 60502ec0); SHA final no commit abaixo, enviado ao GitHub
+```
+
+**CONCLUÍDO (arquivos/telas, evidência):**
+- **Permissão individual** `publicidade.contratos_assinar` ("Assinar contratos comerciais pela empresa"): catálogo (`staffPermissionsCatalog.ts`, crítica, nunca padrão) aparece sozinha no editor de usuário (Comercial). Migration `20261122140000` recria a CHECK `staff_module_actions_known_pair` a partir do catálogo e **corrige a divergência já existente** (`assinaturas_ativar` e `solicitacoes_gerenciar` estavam no catálogo mas faltavam na CHECK de produção). Trigger audita toda concessão/revogação (`audit_events`, `entity_type=staff_permission`, `grant|revoke`, `critical=true` para este poder). Teste de paridade catálogo × CHECK evita nova divergência.
+- **Meu perfil → assinatura PNG** (`SignatureSection`, `perfil/signature-actions.ts`): só aparece se o servidor confirmar `contratos_assinar`; cada ação confere a permissão ANTES de qualquer acesso; o usuário só mexe na própria imagem (id vem da sessão). Bytes do PNG inspecionados (assinatura, chunks, CRC, IEND, sem APNG, ≤512 KB, ≤2000×2000), caminho por hash (`profiles/<id>/<sha256>.png`, nunca sobrescreve), URL assinada de 60 s. Tabela `staff_signature_images` com RLS (dono + permissão; sem policy de escrita para usuários) e bucket privado novo `signature-images` (PNG, 512 KiB, sem policy em `storage.objects`). O bucket JPEG `contract-signatures` NÃO foi alterado.
+- **Configurações → Dados da empresa e representante legal** (`/sistema/configuracoes/empresa`, só admin/owner; link em Configurações): tabelas `company_profile` (singleton, separada do emissor NFS-e) e `company_legal_representatives` (nome, CPF validado, cargo, regra de representação individual/conjunta, poderes, documento comprobatório, vigência, ativo/padrão único, PNG privado versionado, sem DELETE — só desativar). Validação de CNPJ/CPF/UF/CEP/e-mail na aplicação e no banco. Auditoria por trigger sem PII (só nomes de colunas, hash e tamanho).
+- **Configurações → Modelos de contratos** (`/sistema/configuracoes/modelos-contratos`, mesmo gerenciador e mesma tabela `contract_templates` de Financeiro → Modelos; nenhum cadastro paralelo): modalidade obrigatória (Comercial/Institucional), "específico para" (licitação, prefeitura, Câmara, outra condição — sem alterar código), documento de texto com `{{campos}}` OU **documento fixo em PDF** (bucket privado `contract-template-files`, hash, limite explícito na tela: sem mesclagem de variáveis, conferência manual), versões imutáveis (trigger), estados por versão **Rascunho / TESTE ("MINUTA DE TESTE — SEM EFEITO CONTRATUAL") / PRODUÇÃO**. Teste e produção são independentes. Produção exige aprovação jurídica registrada por admin/owner (aprovador, data, nota ≥10 caracteres, evidência, hash do conteúdo) — **imposto pelo banco** (CHECK `not active or legal_approved_at is not null` + RPCs), ativar desativa as outras versões do grupo, só a versão mais recente pode ser aprovada/ativada, revogar desativa a produção na mesma transação. Todo evento (criar, nova versão, teste on/off, aprovação, revogação, ativar, desativar) vai para `audit_events` dentro da própria função/trigger.
+- **Defeito latente corrigido:** `set_contract_template_active` era SECURITY INVOKER e a tabela não tem policy de UPDATE (ativar/desativar pela tela falharia); agora é a única porta, SECURITY DEFINER com as regras acima. Novos modelos deixam de nascer `active=true` (default passou a `false`; INSERT sempre força estado seguro). As 6 minutas seed continuam `active=false`; nada é ativado.
+- Migrations geradas (não aplicadas): `20261122140000_contract_signing_permission_and_permission_audit`, `20261122150000_company_profile_representatives_signature_images`, `20261122160000_contract_template_governance`.
+
+**TESTADO:**
+- Unitário/estrutural: `apps/sistema` 416/416 (inclui 6 arquivos novos/atualizados: PNG, validação de empresa/representante/PDF, paridade catálogo × CHECK, invariantes de segurança de Server Actions/migrations/buckets, seeds), `packages/core` 210/210 (serviço de modelos: modalidade obrigatória, documento fixo, estado seguro, teste × produção, aprovação), `apps/site` 44/44, `pdf-extraction` 47/47, `tsc` limpo (sistema e site), `next build` limpo (rotas novas presentes).
+- **Banco (produção, somente em transação com ROLLBACK, nada persistiu):** as 3 migrations foram aplicadas e exercitadas numa transação revertida: CHECK nova aceita as 3 ações e recusa par desconhecido; auditoria grant/revoke sem duplicar; empresa singleton e CNPJ inválido recusados; representante padrão único e assinatura incompleta recusada; auditoria sem PII; PNG upload/replace/remove auditados; modelo nasce rascunho mesmo forçando `active/teste/aprovação` no INSERT; ativar sem aprovação bloqueado (RPC e UPDATE direto); conteúdo imutável; não-admin não aprova nem altera teste; aprovação exige nota/evidência; uma versão ativa por grupo; revogação desativa; documento fixo exige anexo completo; seeds intactas. Verificado depois: tabelas/colunas não existem em produção e o ledger continua sem as 3 migrations.
+- **NÃO testado:** interface autenticada (sem login), Storage real (upload/URL assinada, `SUPABASE_SERVICE_ROLE_KEY` só existe no ambiente Production), RLS por usuário real (operador sem permissão tentando ler/gravar), fluxo completo no navegador. Testes de permissão com usuários reais só depois de aplicar as migrations.
+
+**FALTA:**
+- Aplicar as 3 migrations (autorização específica) e, **antes de publicar o código**, garantir que estejam aplicadas: o repositório de modelos passa a ler colunas novas — publicar sem migrar quebra a listagem de modelos.
+- Teste manual com login: operador sem/com `contratos_assinar` (Meu perfil, upload PNG, acesso direto negado), admin cadastrando empresa/representante/PNG, fluxo de modelos (teste → aprovação → produção → revogação), PDF fixo.
+- Confirmação eletrônica explícita da assinatura (Etapa 3); consumo dos dados da empresa/representante nas variáveis `contratada.*` e no signatário (Etapa 2/3); uso das minutas em modo teste com a tarja "MINUTA DE TESTE" na geração do documento (Etapa 2/5) — hoje a emissão comercial continua exigindo `active`; o modo teste ainda não gera documento.
+- Posicionamento de rubrica/campos por versão do modelo (item 17 — viabilidade avaliada para a Etapa 3: as colunas de versão do modelo comportam um `signature_layout` jsonb sem refazer o editor; não implementado agora).
+- Política de retenção/limpeza de PNGs antigos (hoje cada troca mantém a imagem anterior no bucket privado — versionadas por hash; a retenção deve ser decidida com o jurídico/LGPD) e backup/restauração do bucket (Etapa 4).
+- Aprovação jurídica de verdade das 6 minutas (advogado) — Etapa 5.
+
+**BLOQUEIOS/RISCOS:**
+- Admin e owner passam em `contratos_assinar` por regra do sistema (`staff_can_module_action`), logo veem a seção de PNG no Meu perfil. O ato de assinar continuará exigindo confirmação explícita (Etapa 3); se o proprietário quiser exigir a concessão explícita também para admin, é decisão a tomar antes da Etapa 3.
+- Edição de permissões continua gravando direto do navegador (RLS); a auditoria agora é por trigger (não depende da tela), mas o salvamento não passa por Server Action.
+- Gerenciar modelos continua protegido pela permissão financeira `contratos_editar` (+ visibilidade do módulo Financeiro); operadores só do Comercial leem modelos `commercial_*` mas não os gerenciam.
+- Upload de PNG/PDF usa o cliente admin, desativado fora do ambiente Production da Vercel (política existente): em Preview/local o envio falha com mensagem, por segurança.
+- O PNG é só imagem; Lei 14.063/MP 2.200-2: nenhuma tela afirma "assinatura avançada/qualificada".
+
+**Migrations geradas/aplicadas:** 3 geradas, **0 aplicadas** (validadas só em transação com ROLLBACK).
+**Banco, mensagens e deploy real alterados?:** Banco: não (somente leituras e transação revertida). Mensagens (WhatsApp/e-mail/Telegram): não. Deploy/Vercel: não. NFS-e, financeiro e demais módulos: não alterados.
+**Próxima etapa:** Etapa 2 — montagem da contratação e documento combinado (aguarda autorização; não iniciada).
 
 **Formato obrigatório dos próximos encerramentos:**
 ```

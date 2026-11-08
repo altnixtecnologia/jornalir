@@ -3626,3 +3626,21 @@ ARQUIVOS: nenhum arquivo novo nesta etapa além da atualização deste handoff �
 **Publicação**: commit `71321bbc` (GitHub sincronizado), deployment **`dpl_JBDKgVG5dLb2Nd1K8peWxP8621cd`** promovido a `controle.altnix.com.br` (smoke: `/login` 200, `/sistema` 307, rota do PDF sem sessão 403; logs sem erro). Portal público `jornalir` não tocado. **Rollback**: `dpl_CgqHQiJNibHe1pHhEGv4jDmey3N5` (salvamento automático; compatível com o banco).
 
 **Limitações / só verificáveis com login real**: o fluxo completo na interface (selecionar → corrigir → Salvar rascunhos → reabrir → aparecer em Editorial → Matérias) não foi exercitado por tela autenticada — este agente não tem sessão; a orquestração foi testada com dependências falsas, as funções SQL já tinham sido validadas em transação com rollback. Matéria salva e depois movida/redimensionada/removida recompõe o corpo a partir do texto por área gravado — conferir o corpo antes de salvar de novo (aviso já exibido no modal). Conflito real entre duas sessões aparece como "Erro ao salvar" naquela matéria e a edição local é mantida (reabrir para ver a versão do banco).
+
+
+## 08/11/2026 — Contratos/Assinador, Etapa 1 (configurações, perfil, poderes e modelos): CÓDIGO E TESTES CONCLUÍDOS — NÃO PUBLICADO, MIGRATIONS NÃO APLICADAS
+
+Fonte de verdade da frente: `docs/CONTRATOS-ASSINADOR-PLANO-EXECUCAO-20261108.md` (seção Andamento, com CONCLUÍDO/TESTADO/FALTA/BLOQUEIOS detalhados). Aqui só o resumo operacional.
+
+**Sincronização**: branch `solicitacoes-financeiro-contratos-irc-20261031` atualizada por fast-forward até `fa03075f` (inclui o `60502ec0` do ChatGPT); árvore limpa antes de começar; 3 stashes e os worktrees `captura-visual` e `ir-controle` preservados.
+
+**Entregue** (somente `apps/sistema`, `packages/core`, `packages/types`, `supabase/migrations`, docs):
+- Permissão `publicidade.contratos_assinar` (crítica, nunca padrão) + CHECK corrigida (também `assinaturas_ativar`/`solicitacoes_gerenciar`, que já faltavam em produção) + auditoria por trigger de concessão/revogação.
+- Meu perfil → assinatura PNG privada (só com a permissão, conferida no servidor, na RLS e no bucket sem policy); `/sistema/configuracoes/empresa` (empresa + representante legal + PNG, só admin/owner); `/sistema/configuracoes/modelos-contratos` (mesmo gerenciador/tabela de Financeiro → Modelos): modalidade, "específico para" (licitação etc.), documento fixo PDF, estados Rascunho/TESTE/PRODUÇÃO, aprovação jurídica por versão (admin/owner, nota+evidência+hash), versões imutáveis, auditoria.
+- Corrige `set_contract_template_active` (era INVOKER sem policy de UPDATE) e impede modelo novo de nascer ativo.
+
+**Migrations (3, geradas e validadas só em transação com ROLLBACK em produção; NÃO aplicadas):** `20261122140000_contract_signing_permission_and_permission_audit`, `20261122150000_company_profile_representatives_signature_images`, `20261122160000_contract_template_governance`. **Ordem obrigatória: aplicar as 3 ANTES de publicar o código** (o repositório de modelos lê colunas novas). Conferir o ledger antes (`supabase migration list --linked`); nunca reaplicar.
+
+**Testes**: `apps/sistema` 416/416, `packages/core` 210/210, `apps/site` 44/44, `pdf-extraction` 47/47, `tsc` e `next build` limpos. Produção intocada (verificado: tabelas/colunas inexistentes, ledger sem as 3).
+
+**Não feito/pendente**: aplicar migrations (autorização), teste com login real e Storage real, confirmação eletrônica de assinatura (Etapa 3), uso dos dados da empresa nas variáveis `contratada.*` (Etapa 2), minutas em modo teste gerando documento com tarja (Etapa 2/5), posicionamento de rubricas (Etapa 3), retenção de PNGs antigos, backup (Etapa 4), aprovação jurídica humana das 6 minutas (Etapa 5). Nenhuma mensagem, cobrança, NFS-e, financeiro ou deploy foi tocado. Próxima: Etapa 2 (aguarda autorização).
