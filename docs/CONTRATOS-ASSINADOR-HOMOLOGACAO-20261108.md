@@ -6,7 +6,7 @@ Base do resultado CI: `45c655e25523a25e0345db5e4869fabb4de06b7d`
 > Esta é a sequência de HOMOLOGAÇÃO, não uma autorização para executar etapas em produção. **Nenhuma migration, publicação, envio real, backup ou assinatura foi executada** no desenvolvimento remoto do ChatGPT. Guardar 3 stashes e 3 worktrees locais intactos. Evitar auditorias gerais repetidas.
 
 ## Evidência de código já verificada no GitHub (não repetir sem motivo)
-- GitHub Actions: `Verificar contratos e assinaturas (sem deploy)`, execução **425324...?** (usar o link do check do commit). Resultado: **SUCESSO** em `45c655e2`.
+- GitHub Actions: `Verificar contratos e assinaturas (sem deploy)`, execução [**42532655263**](https://github.com/altnixtecnologia/jornalir/actions/runs/42532655263/job/128890054225). Resultado: **SUCESSO** em `45c655e2`.
 - `npm run typecheck --workspace @ir/sistema` — passou.
 - Testes direcionados `external-signature-placement`, `external-signed-pdf-smoke`, `google-signature-proof`, `public-verification`: **10/10 aprovados**, inclusive PDF em memória com rubricas da empresa e cliente, assinatura desenhada, QR e hash de versões preservadas; nonce/JWT Google com casos negativos; QR adulterado rejeitado.
 - `npm run build --workspace @ir/sistema`: **passou**, sem deploy.
