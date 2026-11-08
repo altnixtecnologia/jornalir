@@ -2,6 +2,7 @@
 
 import { useRef, useState, useTransition } from "react";
 import { GoogleSignatureEvidence } from "../assinaturas/GoogleSignatureEvidence";
+import { useVerifiedSignaturePdf } from "../assinaturas/useVerifiedSignaturePdf";
 import {
   completeCommercialSignatureAction, sendCommercialSignatureOtpAction, verifyCommercialSignatureOtpAction,
 } from "../../app/assinar-contrato-comercial/actions";
@@ -21,6 +22,7 @@ export function CommercialContractSignerCanvas({
   const [hasStroke, setHasStroke] = useState(false);
   const [error, setError] = useState("");
   const [pending, startTransition] = useTransition();
+  const pdfPreview = useVerifiedSignaturePdf(token, "commercial", otpVerified);
 
   function coords(e: React.PointerEvent<HTMLCanvasElement>): { x: number; y: number } {
     const rect = e.currentTarget.getBoundingClientRect();
@@ -82,11 +84,13 @@ export function CommercialContractSignerCanvas({
       setError("Confira o PDF, informe seu nome, desenhe sua assinatura e aceite o termo.");
       return;
     }
+    if (!pdfPreview.sha256) { setError("Confira a versão atual do PDF antes de confirmar a assinatura."); return; }
     const imageDataUrl = canvasRef.current?.toDataURL("image/png") ?? "";
     startTransition(async () => {
       try {
         const result = await completeCommercialSignatureAction({
           token, name: fullName, email: signerEmail, consent, imageDataUrl,
+          viewedBaseSha256: pdfPreview.sha256,
         });
         if ("error" in result) { setError(result.error); return; }
         setSigned(true);
@@ -110,15 +114,13 @@ export function CommercialContractSignerCanvas({
         Convite para {name}. Válido até {new Date(expiresAt).toLocaleString("pt-BR")}.
         Confirme seu e-mail para liberar a leitura do PDF antes de assinar.
       </p>
-      {otpVerified ? (
-        <iframe src={"/api/assinar-contrato-comercial/" + token + "/documento"}
-          title="Documento original para assinatura"
+      {otpVerified && pdfPreview.url ? (
+        <iframe src={pdfPreview.url} title="Versão atual do contrato para assinatura"
           style={{ width: "100%", height: "min(66vh,720px)", border: "1px solid #ccc" }} />
-      ) : (
-        <p className="helper-text" role="status">
-          Visualização protegida: o PDF será liberado após confirmar o código enviado ao seu e-mail.
-        </p>
-      )}
+      ) : <p className="helper-text" role="status">
+        {pdfPreview.loading ? "Conferindo a versão do PDF…" :
+          pdfPreview.error ?? "O PDF será liberado após confirmar o código enviado ao seu e-mail."}
+      </p>
       <label className="form-field" style={{ display: "block", marginTop: 20 }}>
         <span className="field-label">Seu nome completo, como consta no convite</span>
         <input value={fullName} onChange={(e) => setFullName(e.target.value)} maxLength={180}
@@ -175,7 +177,7 @@ export function CommercialContractSignerCanvas({
       {error ? <p className="form-error" role="alert">{error}</p> : null}
       <div className="form-actions">
         <button type="button" className="form-action-primary" onClick={submit}
-          disabled={pending || !otpVerified || !consent || !hasStroke || !fullName.trim() || !signerEmail.trim()}>
+          disabled={pending || !otpVerified || !pdfPreview.sha256 || !consent || !hasStroke || !fullName.trim() || !signerEmail.trim()}>
           {pending ? "Registrando…" : "Confirmar assinatura eletrônica"}
         </button>
       </div>
