@@ -1,5 +1,6 @@
 import "server-only";
 import { Buffer } from "node:buffer";
+import type { GoogleEvidenceSnapshot } from "./googleSignatureEvidence";
 
 export interface ReceiptPdfInput {
   signerName: string;
@@ -11,6 +12,7 @@ export interface ReceiptPdfInput {
   invitationId: string;
   consentVersion?: string;
   sourceIsCumulative?: boolean;
+  googleEvidence?: GoogleEvidenceSnapshot | null;
   jpegBytes: Buffer;
   jpegWidth: number;
   jpegHeight: number;
@@ -43,6 +45,11 @@ export function buildSignatureReceiptPdf(input: ReceiptPdfInput): Buffer {
     [45, 263, 10, "O PDF original foi preservado sem modificacoes e pode ser consultado no cadastro."],
     [45, 242, 10, "Este comprovante registra o aceite e a evidencia grafica em arquivo separado."],
     [45, 220, 10, "Nao constitui, por si so, uma assinatura digital qualificada ICP-Brasil."],
+    ...(input.googleEvidence ? [
+      [45, 194, 9, "Google (adicional): e-mail confirmado " + input.googleEvidence.email],
+      [45, 176, 9, "ID da conta (SHA-256): " + input.googleEvidence.subjectSha256.slice(0, 32)],
+      [45, 158, 9, "Google confirma a conta; nao verifica CPF ou identidade civil."],
+    ] as Array<[number, number, number, string]> : []),
   ];
   const content = lines.map(([x, y, fontSize, text]) =>
     "BT /F1 " + fontSize + " Tf 1 0 0 1 " + x + " " + y + " Tm (" + normalizePdfText(text) + ") Tj ET",
