@@ -97,7 +97,7 @@ test("o X de cada retângulo fica clicável acima do plano de desenho, sem bloqu
 
 test("o X só remove uma área e confirma antes de apagar a última", () => {
   const component = readFileSync(join(__dirname, "../src/features/editorial/PdfVisualCaptureModal.tsx"), "utf8");
-  assert.match(component, /removeAreaFromCapture\(item, areaIndex\)/);
+  assert.match(component, /removeAreaFromCapture\(capture, areaIndex\)/);
   assert.match(component, /capture\.areas\.length === 1/);
   assert.match(component, /setPendingAreaDeletion\(\{ captureId, areaIndex \}\)/);
   assert.match(component, /requestRemoveArea\(capture\.id, areaIndex\)/);
@@ -120,7 +120,11 @@ test("confirmação de saída distingue continuar editando e descarte sem bloque
   assert.match(safe, /background:\s*#1d4ed8/);
   assert.match(destructive, /background:\s*#fff/);
   const component = readFileSync(join(__dirname, "../src/features/editorial/PdfVisualCaptureModal.tsx"), "utf8");
-  assert.match(component, /Fechar sem salvar as seleções\?/);
+  // Salvamento direto dos rascunhos (07/11/2026): a confirmação só aparece
+  // quando há matéria salvando/com erro — não há mais "seleção não salva"
+  // a perder, por isso o texto mudou de "Fechar sem salvar" para refletir
+  // o estado real (ver hasPendingSave).
+  assert.match(component, /Fechar mesmo assim\?/);
   assert.match(component, /Continuar editando/);
-  assert.match(component, /Descartar e fechar/);
+  assert.match(component, /Fechar mesmo assim/);
 });

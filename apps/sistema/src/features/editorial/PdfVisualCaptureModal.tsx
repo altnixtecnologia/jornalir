@@ -24,11 +24,19 @@ import {
   type NormalizedRect,
   type ResizeHandle,
 } from "./visualCaptureRegion";
+import {
+  loadCaptureDraftsForEditionAction,
+  removeLastCaptureAreaAction,
+  saveCaptureRegionStateAction,
+  saveNewCaptureDraftAction,
+} from "./visualCaptureDraftActions";
+import type { CaptureRegionInput } from "../../providers/supabase/pdfCaptureRegions.supabase";
 import styles from "./PdfVisualCaptureModal.module.css";
 
 GlobalWorkerOptions.workerSrc = new URL("pdfjs-dist/build/pdf.worker.min.js", import.meta.url).toString();
 
 type Area = { page: number; rect: NormalizedRect };
+type SaveStatus = "idle" | "saving" | "saved" | "error";
 type Capture = {
   id: string;
   color: string;
@@ -42,6 +50,14 @@ type Capture = {
   body: string;
   needsReview: boolean;
   warnings: string[];
+  /** Salvamento direto dos rascunhos (07/11/2026) — null até a 1ª gravação
+   * bem-sucedida; a partir daí identifica a matéria real em `articles`. */
+  articleId: string | null;
+  /** `articles.updated_at` da última gravação confirmada — chave de
+   * concorrência otimista (save_pdf_capture_state recusa se divergir). */
+  updatedAtISO: string | null;
+  saveStatus: SaveStatus;
+  saveError?: string;
 };
 
 type Pointer = { x: number; y: number };
@@ -88,7 +104,7 @@ function editionPdfUrl(editionId: string): string {
 }
 
 /**
- * Captura visual de matérias — PRÉVIA, sem gravação (etapa 1).
+ * Captura visual de matérias — salvamento direto dos rascunhos (07/11/2026).
  *
  * O operador vê o PDF OFICIAL já arquivado no R2 para esta edição (rota
  * autenticada `/api/sistema/jornal-online/editions/[id]/pdf`, exige sessão
@@ -96,9 +112,14 @@ function editionPdfUrl(editionId: string): string {
  * arrasta retângulos sobre cada matéria. O texto de cada seleção é extraído
  * pelo MESMO motor calibrado do extrator automático (`@ir/pdf-extraction`,
  * modo jornal), restrito aos itens daquela região — nunca uma heurística
- * paralela. Título/subtítulo/corpo ficam editáveis antes de qualquer uso
- * futuro; nada é criado, alterado ou apagado em `articles`,
- * `pdf_import_batches`/`pdf_import_candidates`, no R2 ou no Jornal Online.
+ * paralela. Cada seleção/ajuste é salvo automaticamente como rascunho em
+ * `articles` (origin='pdf', nunca publicado automaticamente) — nunca
+ * recria/altera/exclui as matérias já existentes da edição, nunca toca
+ * `pdf_import_batches`/`pdf_import_candidates`, o R2 ou o Jornal Online.
+ *
+ * Ao reabrir, as matérias já salvas desta edição são recarregadas
+ * (`hydrateCaptures`) — inclui rascunhos recuperados antes deste fluxo
+ * existir.
  *
  * Um seletor de PDF local continua disponível como alternativa de teste
  * (ex.: conferir o comportamento com um PDF fora do acervo), mas o fluxo
@@ -139,9 +160,15 @@ export function PdfVisualCaptureModal({ edition, onClose }: Props): JSX.Element 
   const pdfRef = useRef<PDFDocumentProxy | null>(null);
   const requestCounter = useRef(0);
   const dragRef = useRef<{ from: Pointer; to: Pointer } | null>(null);
+  const capturesRef = useRef<Capture[]>([]);
+  const saveDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const scale = fitScale * zoom;
   const active = captures.find((item) => item.id === selectedId) ?? null;
+  const hasPendingSave = captures.some((item) => item.saveStatus === "saving" || item.saveStatus === "error");
+  useEffect(() => {
+    capturesRef.current = captures;
+  }, [captures]);
   // Após adicionar um trecho, revelar o final do corpo no editor (o novo
   // texto normalmente fica depois dos parágrafos já capturados).
   useEffect(() => {
@@ -166,7 +193,7 @@ export function PdfVisualCaptureModal({ edition, onClose }: Props): JSX.Element 
     const onEsc = (event: KeyboardEvent): void => {
       if (event.key === "Escape") {
         event.preventDefault();
-        if (captures.length) setCloseConfirm(true);
+        if (hasPendingSave) setCloseConfirm(true);
         else onClose();
       }
     };
@@ -175,7 +202,7 @@ export function PdfVisualCaptureModal({ edition, onClose }: Props): JSX.Element 
       document.body.style.overflow = previousOverflow;
       window.removeEventListener("keydown", onEsc);
     };
-  }, [captures.length, onClose]);
+  }, [hasPendingSave, onClose]);
 
   const getPage = useCallback(
     async (index: number): Promise<PDFPageProxy> => {
@@ -261,6 +288,143 @@ export function PdfVisualCaptureModal({ edition, onClose }: Props): JSX.Element 
     // Executa só na montagem: reabrir manualmente usa os botões do cabeçalho.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  /** Recupera as matérias já salvas desta edição (salvamento direto,
+   * 07/11/2026) — inclui as recuperadas manualmente antes deste fluxo
+   * existir (origin='pdf', sem texto por região ainda; o corpo já correto
+   * vem de articles.body). Também usada para recuperar de um conflito de
+   * concorrência (outra sessão salvou por cima). */
+  const hydrateCaptures = useCallback(async (): Promise<void> => {
+    const result = await loadCaptureDraftsForEditionAction(edition.id);
+    if (!result.ok) {
+      setMessage(result.error);
+      return;
+    }
+    const next: Capture[] = result.data.map((draft, index) => ({
+      id: draft.articleId,
+      articleId: draft.articleId,
+      updatedAtISO: draft.updatedAt,
+      color: selectionColor(index),
+      areas: draft.regions.map((region) => ({ page: region.page, rect: region.rect })),
+      perAreaExtraction: draft.regions.map((region) => ({
+        title: region.extractedTitle ?? "",
+        subtitle: region.extractedSubtitle ?? "",
+        bodyParagraphs: region.extractedBody ? region.extractedBody.split("\n\n") : [],
+        needsReview: region.needsReview,
+        warnings: region.warnings,
+      })),
+      title: draft.title,
+      subtitle: draft.subtitle ?? "",
+      body: draft.body,
+      needsReview: draft.regions.some((region) => region.needsReview),
+      warnings: [],
+      saveStatus: "saved",
+    }));
+    createdCount.current = next.length;
+    setCaptures(next);
+  }, [edition.id]);
+
+  useEffect(() => {
+    void hydrateCaptures();
+    // Executa só na montagem — recarregas pontuais (conflito de
+    // concorrência) chamam hydrateCaptures() diretamente.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  /** Converte o estado em memória de uma matéria para o formato persistido
+   * — nunca recalcula título/corpo aqui, só serializa o que o cliente já
+   * decidiu (combineAreaExtractions/appendRegionToCapture/etc). */
+  function buildRegionsPayload(areas: Area[], perAreaExtraction: RegionArticleExtraction[]): CaptureRegionInput[] {
+    return areas.map((area, index) => {
+      const extraction = perAreaExtraction[index];
+      return {
+        page: area.page,
+        rect: area.rect,
+        sortOrder: index,
+        extractedTitle: extraction?.title || null,
+        extractedSubtitle: extraction?.subtitle || null,
+        extractedBody: extraction?.bodyParagraphs?.length ? extraction.bodyParagraphs.join("\n\n") : null,
+        needsReview: extraction?.needsReview ?? false,
+        warnings: extraction?.warnings ?? [],
+      };
+    });
+  }
+
+  /** 1ª gravação de uma matéria nova — idempotente por capture.id (enviado
+   * como clientCaptureId; um retry de rede nunca cria uma segunda matéria). */
+  async function persistNewCapture(capture: Capture): Promise<void> {
+    const result = await saveNewCaptureDraftAction({
+      editionId: edition.id,
+      page: capture.areas[0].page,
+      title: capture.title,
+      subtitle: capture.subtitle,
+      body: capture.body,
+      clientCaptureId: capture.id,
+      regions: buildRegionsPayload(capture.areas, capture.perAreaExtraction),
+    });
+    if (result.ok) {
+      setCaptures((prev) =>
+        prev.map((item) =>
+          item.id === capture.id
+            ? { ...item, articleId: result.data.articleId, updatedAtISO: result.data.updatedAt, saveStatus: "saved" }
+            : item,
+        ),
+      );
+    } else {
+      setCaptures((prev) => prev.map((item) => (item.id === capture.id ? { ...item, saveStatus: "error", saveError: result.error } : item)));
+    }
+  }
+
+  /** Grava o estado final (anexar trecho / redimensionar-mover / remover
+   * uma área / editar texto manualmente — as quatro usam esta mesma
+   * primitiva). Concorrência otimista: em conflito, recarrega do banco em
+   * vez de sobrescrever por cima do que outra sessão salvou. */
+  async function persistCaptureState(capture: Capture): Promise<void> {
+    if (!capture.articleId) return;
+    setCaptures((prev) => prev.map((item) => (item.id === capture.id ? { ...item, saveStatus: "saving" } : item)));
+    const result = await saveCaptureRegionStateAction({
+      articleId: capture.articleId,
+      expectedUpdatedAt: capture.updatedAtISO ?? new Date(0).toISOString(),
+      title: capture.title,
+      subtitle: capture.subtitle,
+      body: capture.body,
+      needsReview: capture.needsReview,
+      regions: buildRegionsPayload(capture.areas, capture.perAreaExtraction),
+    });
+    if (result.ok) {
+      setCaptures((prev) =>
+        prev.map((item) => (item.id === capture.id ? { ...item, updatedAtISO: result.data.updatedAt, saveStatus: "saved" } : item)),
+      );
+    } else {
+      setCaptures((prev) => prev.map((item) => (item.id === capture.id ? { ...item, saveStatus: "error", saveError: result.error } : item)));
+      if (result.conflict) {
+        setMessage(result.error);
+        void hydrateCaptures();
+      }
+    }
+  }
+
+  /** Remover a última área de uma matéria arquiva o rascunho de verdade
+   * (reaproveita a Server Action já existente — nunca um DELETE novo). Se a
+   * matéria ainda não tiver sido salva (save em andamento/com erro), só
+   * remove da prévia local. */
+  async function confirmRemoveLastArea(captureId: string): Promise<void> {
+    const capture = capturesRef.current.find((item) => item.id === captureId);
+    if (!capture?.articleId) {
+      deleteCapture(captureId);
+      setMessage("Matéria removida da prévia.");
+      return;
+    }
+    setCaptures((prev) => prev.map((item) => (item.id === captureId ? { ...item, saveStatus: "saving" } : item)));
+    const result = await removeLastCaptureAreaAction(capture.articleId);
+    if (result.ok) {
+      deleteCapture(captureId);
+      setMessage("Matéria arquivada — não aparece mais nesta prévia nem na listagem padrão de Matérias.");
+    } else {
+      setCaptures((prev) => prev.map((item) => (item.id === captureId ? { ...item, saveStatus: "error", saveError: result.error } : item)));
+      setMessage(result.error);
+    }
+  }
 
   async function openLocalFile(file: File | undefined): Promise<void> {
     if (!file) return;
@@ -447,27 +611,30 @@ export function PdfVisualCaptureModal({ edition, onClose }: Props): JSX.Element 
           text: `Trecho da página ${pageNumber} vinculado à matéria nº ${captures.findIndex((item) => item.id === target.id) + 1}. Agora são ${appended.areas.length} áreas; o texto novo está no final do corpo.`,
         });
         setMessage("Trecho vinculado à matéria selecionada. A quantidade de áreas foi atualizada e o novo texto está no final do corpo.");
+        void persistCaptureState(appended);
         return;
       }
 
       const combined = combineAreaExtractions([extraction], [label]);
       const id = crypto.randomUUID();
       const color = selectionColor(createdCount.current++);
-      setCaptures((prev) => [
-        ...prev,
-        {
-          id,
-          color,
-          areas: [{ page: pageNumber, rect }],
-          perAreaExtraction: [extraction],
-          title: combined.title,
-          subtitle: combined.subtitle,
-          body: combined.bodyParagraphs.join("\n\n"),
-          needsReview: combined.needsReview,
-          warnings: combined.warnings,
-        },
-      ]);
+      const newCapture: Capture = {
+        id,
+        articleId: null,
+        updatedAtISO: null,
+        saveStatus: "saving",
+        color,
+        areas: [{ page: pageNumber, rect }],
+        perAreaExtraction: [extraction],
+        title: combined.title,
+        subtitle: combined.subtitle,
+        body: combined.bodyParagraphs.join("\n\n"),
+        needsReview: combined.needsReview,
+        warnings: combined.warnings,
+      };
+      setCaptures((prev) => [...prev, newCapture]);
       setSelectedId(id);
+      void persistNewCapture(newCapture);
       setMessage(
         combined.title
           ? "Área selecionada. Confira e ajuste título, subtítulo e texto na lateral."
@@ -541,23 +708,19 @@ export function PdfVisualCaptureModal({ edition, onClose }: Props): JSX.Element 
       const labels = capture.areas.map((item) => `Página ${item.page}`);
       const perAreaExtraction = capture.perAreaExtraction.map((item, index) => (index === state.areaIndex ? extraction : item));
       const combined = combineAreaExtractions(perAreaExtraction, labels);
-      setCaptures((prev) =>
-        prev.map((item) =>
-          item.id === state.captureId
-            ? {
-                ...item,
-                areas: item.areas.map((a, index) => (index === state.areaIndex ? { ...a, rect: finalRect } : a)),
-                perAreaExtraction,
-                title: combined.title,
-                subtitle: combined.subtitle,
-                body: combined.bodyParagraphs.join("\n\n"),
-                needsReview: combined.needsReview,
-                warnings: combined.warnings,
-              }
-            : item,
-        ),
-      );
+      const updatedCapture: Capture = {
+        ...capture,
+        areas: capture.areas.map((a, index) => (index === state.areaIndex ? { ...a, rect: finalRect } : a)),
+        perAreaExtraction,
+        title: combined.title,
+        subtitle: combined.subtitle,
+        body: combined.bodyParagraphs.join("\n\n"),
+        needsReview: combined.needsReview,
+        warnings: combined.warnings,
+      };
+      setCaptures((prev) => prev.map((item) => (item.id === state.captureId ? updatedCapture : item)));
       setMessage("Seleção ajustada — o texto desta matéria foi recalculado. Confira o título/subtítulo/corpo na lateral.");
+      void persistCaptureState(updatedCapture);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Erro ao recalcular a seleção ajustada.");
     } finally {
@@ -565,8 +728,17 @@ export function PdfVisualCaptureModal({ edition, onClose }: Props): JSX.Element 
     }
   }
 
+  /** Edição manual de título/subtítulo/corpo — salva automaticamente após
+   * uma pausa de digitação (debounce), nunca a cada tecla. */
   function editCapture(field: "title" | "subtitle" | "body", text: string): void {
-    setCaptures((prev) => prev.map((capture) => (capture.id === selectedId ? { ...capture, [field]: text } : capture)));
+    const captureId = selectedId;
+    setCaptures((prev) => prev.map((capture) => (capture.id === captureId ? { ...capture, [field]: text } : capture)));
+    if (!captureId) return;
+    if (saveDebounceRef.current) clearTimeout(saveDebounceRef.current);
+    saveDebounceRef.current = setTimeout(() => {
+      const capture = capturesRef.current.find((item) => item.id === captureId);
+      if (capture) void persistCaptureState(capture);
+    }, 600);
   }
   function deleteCapture(id: string): void {
     setCaptures((prev) => prev.filter((capture) => capture.id !== id));
@@ -588,14 +760,13 @@ export function PdfVisualCaptureModal({ edition, onClose }: Props): JSX.Element 
     try {
       const reduced = removeAreaFromCapture(capture, areaIndex);
       if (!reduced) return;
-      setCaptures((prev) => prev.map((item) =>
-        item.id === captureId ? removeAreaFromCapture(item, areaIndex) ?? item : item,
-      ));
+      setCaptures((prev) => prev.map((item) => (item.id === captureId ? reduced : item)));
       if (appendToId === captureId) setAppendToId(null);
       setSelectedId(captureId);
       const text = `Trecho removido da matéria. Restam ${reduced.areas.length} áreas; o texto foi recalculado. Confira as alterações manuais.`;
       setAppendNotice({ captureId, kind: "success", text });
       setMessage(text);
+      void persistCaptureState(reduced);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Não foi possível remover este trecho.");
     }
@@ -626,7 +797,7 @@ export function PdfVisualCaptureModal({ edition, onClose }: Props): JSX.Element 
       source,
       fileName,
       pageCount: pdf?.numPages ?? 0,
-      note: "Prévia local — nenhum registro foi criado no Supabase, R2 ou Jornal Online.",
+      note: "Cada matéria já foi salva como rascunho em Matérias (origin=pdf) — este JSON é só um export opcional, nunca necessário para o salvamento.",
       captures,
     };
     const blob = new Blob([JSON.stringify(record, null, 2)], { type: "application/json" });
@@ -638,7 +809,7 @@ export function PdfVisualCaptureModal({ edition, onClose }: Props): JSX.Element 
     URL.revokeObjectURL(url);
   }
   function requestClose(): void {
-    if (captures.length) setCloseConfirm(true);
+    if (hasPendingSave) setCloseConfirm(true);
     else onClose();
   }
 
@@ -653,7 +824,7 @@ export function PdfVisualCaptureModal({ edition, onClose }: Props): JSX.Element 
         <header className={styles.header}>
           <div className={styles.headline}>
             <h2 id="capture-title">Capturar matérias — edição {edition.editionNumber}</h2>
-            <p>Prévia visual · não grava rascunhos nem altera o Jornal Online</p>
+            <p>Cada seleção é salva automaticamente como rascunho em Matérias · nunca publica nem altera o Jornal Online</p>
           </div>
           <div className={styles.headerActions}>
             {edition.hasArchivedPdf ? (
@@ -832,6 +1003,18 @@ export function PdfVisualCaptureModal({ edition, onClose }: Props): JSX.Element 
                         Pág. {Array.from(new Set(capture.areas.map((area) => area.page))).join(", ")} · {capture.areas.length} área(s)
                         {capture.needsReview ? " · revisar" : ""}
                       </small>
+                      <small
+                        className={
+                          capture.saveStatus === "error"
+                            ? styles.saveStatusError
+                            : capture.saveStatus === "saving"
+                              ? styles.saveStatusSaving
+                              : styles.saveStatusSaved
+                        }
+                        role="status"
+                      >
+                        {capture.saveStatus === "saving" ? "Salvando…" : capture.saveStatus === "error" ? `Erro ao salvar — ${capture.saveError ?? ""}` : "Salvo"}
+                      </small>
                     </span>
                   </button>
                   <button
@@ -910,9 +1093,12 @@ export function PdfVisualCaptureModal({ edition, onClose }: Props): JSX.Element 
 
         {pendingAreaDeletion ? (
           <div className={styles.confirmBackdrop}>
-            <div className={styles.confirmBox} role="alertdialog" aria-modal="true" aria-label="Remover última área">
-              <h3>Remover esta matéria da prévia?</h3>
-              <p>Este é o único trecho da matéria. Removê-lo também apagará a matéria da lista de seleções. Nenhum registro do banco será alterado.</p>
+            <div className={styles.confirmBox} role="alertdialog" aria-modal="true" aria-label="Arquivar matéria">
+              <h3>Arquivar esta matéria?</h3>
+              <p>
+                Este é o único trecho da matéria. Removê-lo arquiva o rascunho correspondente (nunca uma exclusão
+                definitiva — fica disponível em Matérias, filtro Status → Arquivado).
+              </p>
               <div>
                 <button type="button" onClick={() => setPendingAreaDeletion(null)}>Cancelar</button>
                 <button
@@ -920,11 +1106,10 @@ export function PdfVisualCaptureModal({ edition, onClose }: Props): JSX.Element 
                   onClick={() => {
                     const { captureId } = pendingAreaDeletion;
                     setPendingAreaDeletion(null);
-                    deleteCapture(captureId);
-                    setMessage("Matéria removida da prévia.");
+                    void confirmRemoveLastArea(captureId);
                   }}
                 >
-                  Remover matéria
+                  Arquivar matéria
                 </button>
               </div>
             </div>
@@ -933,18 +1118,18 @@ export function PdfVisualCaptureModal({ edition, onClose }: Props): JSX.Element 
 
         {closeConfirm ? (
           <div className={styles.confirmBackdrop}>
-            <div className={styles.confirmBox} role="alertdialog" aria-modal="true" aria-label="Fechar sem salvar a prévia">
-              <h3>Fechar sem salvar as seleções?</h3>
+            <div className={styles.confirmBox} role="alertdialog" aria-modal="true" aria-label="Fechar com salvamento pendente">
+              <h3>Fechar mesmo assim?</h3>
               <p>
-                Você tem <strong>{captures.length} {captures.length === 1 ? "matéria selecionada" : "matérias selecionadas"}</strong>.
-                Este trabalho ainda não foi salvo; ao fechar, as seleções serão perdidas.
+                Há <strong>{captures.filter((c) => c.saveStatus === "saving" || c.saveStatus === "error").length} matéria(s)</strong>{" "}
+                ainda sendo salva(s) ou com erro ao salvar. As demais já estão gravadas como rascunho em Matérias.
               </p>
               <div className={styles.confirmActions}>
                 <button type="button" className={styles.keepEditingButton} onClick={() => setCloseConfirm(false)}>
                   Continuar editando
                 </button>
                 <button type="button" className={styles.discardPreviewButton} onClick={onClose}>
-                  Descartar e fechar
+                  Fechar mesmo assim
                 </button>
               </div>
             </div>

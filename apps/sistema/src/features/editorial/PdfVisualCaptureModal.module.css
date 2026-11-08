@@ -47,6 +47,12 @@
 .listItemButton{display:flex;align-items:flex-start;gap:9px;padding:9px;min-width:0;min-height:44px;height:auto;flex:1;text-align:left;white-space:normal;border:0;background:transparent;color:inherit;cursor:pointer}
 .listText{display:flex;flex-direction:column;min-width:0;gap:3px}.listText strong{font-size:12px;line-height:1.3;overflow-wrap:anywhere}
 .listText small{font-size:10px;color:var(--muted,#64748b)}
+/* Indicador "Salvando…/Salvo/Erro ao salvar" por matéria (salvamento
+   direto dos rascunhos, 07/11/2026) — nunca só texto neutro para erro,
+   precisa ficar claramente distinto. */
+.saveStatusSaving{color:#b45309;font-weight:600}
+.saveStatusSaved{color:#15803d}
+.saveStatusError{color:#b91c1c;font-weight:700;overflow-wrap:anywhere}
 .swatch{flex:none;display:inline-grid;place-items:center;color:white;width:24px;height:24px;border-radius:6px;font-size:11px;font-weight:700}
 .deleteButton{border:0;background:transparent;padding:6px 9px;font-size:22px;cursor:pointer;color:#64748b}.deleteButton:hover{color:#dc2626}
 .editor{flex:none;display:flex;flex-direction:column;gap:7px;max-height:50%;overflow-y:auto;min-height:0;border-top:1px solid var(--line,#e2e8f0);padding:10px 12px}
