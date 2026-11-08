@@ -42,3 +42,8 @@ Base do resultado CI: `45c655e25523a25e0345db5e4869fabb4de06b7d`
 ## Prova adicional de SQL, somente banco temporário
 
 [GitHub Actions 42535689362](https://github.com/altnixtecnologia/jornalir/actions/runs/42535689362/job/128899363347) **verde**: migrations `20261122240000`/`250000` executadas em PostgreSQL 17 **isolado** com schema fictício e ensaio de fila/Meta. **Nenhuma migration aplicada ao Supabase real**. Ledger real lido: aplicado até `20261122130000`, 12 de assinatura pendentes. Não repetir este smoke salvo mudança nessas duas migrations; ainda exige homologação integrada de todas as 12 com autorização.
+
+
+## Prova de Google e editor visual no banco temporário
+
+[GitHub Actions 42535940585](https://github.com/altnixtecnologia/jornalir/actions/runs/42535940585/job/128900124661) **verde**: migrations `220000` e `230000` aplicadas somente em PostgreSQL 17 isolado, com teste de unicidade/imutabilidade/RLS para a evidência Google e de congelamento das posições do PDF após aprovação jurídica. Junto do smoke anterior (fila/Meta), quatro migrations passaram em banco sintético; ainda resta a homologação da cadeia de 12 no ambiente integrado, sem mudança de produção até autorização expressa.
