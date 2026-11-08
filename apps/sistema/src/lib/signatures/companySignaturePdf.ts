@@ -123,6 +123,8 @@ export interface StampInput {
   signerTitle: string;
   /** PNG cadastrado (representação visual). Opcional: sem ele, usa o nome em texto. */
   signaturePng?: Uint8Array;
+  /** Desenho do cliente convertido em JPEG no fluxo externo já existente. */
+  signatureJpeg?: Uint8Array;
   signedAtIso: string;
   baseSha256: string;
 }
@@ -142,18 +144,20 @@ export async function stampCompanySignature(input: StampInput): Promise<Uint8Arr
   assertUsable(pdf);
   const fonts = await loadFonts(pdf);
   const safe = (text: string) => winAnsiSafe(text, fonts.supported);
-  const png = input.signaturePng ? await pdf.embedPng(input.signaturePng) : undefined;
+  const picture = input.signaturePng
+    ? await pdf.embedPng(input.signaturePng)
+    : input.signatureJpeg ? await pdf.embedJpg(input.signatureJpeg) : undefined;
   const name = safe(input.signerName);
   const when = formatBrasilia(input.signedAtIso);
 
   const drawImageFit = (page: PDFPage, rect: { x: number; y: number; width: number; height: number }) => {
-    if (!png) return false;
-    const scale = Math.min(rect.width / png.width, rect.height / png.height);
-    page.drawImage(png, {
-      x: rect.x + (rect.width - png.width * scale) / 2,
-      y: rect.y + (rect.height - png.height * scale) / 2,
-      width: png.width * scale,
-      height: png.height * scale,
+    if (!picture) return false;
+    const scale = Math.min(rect.width / picture.width, rect.height / picture.height);
+    page.drawImage(picture, {
+      x: rect.x + (rect.width - picture.width * scale) / 2,
+      y: rect.y + (rect.height - picture.height * scale) / 2,
+      width: picture.width * scale,
+      height: picture.height * scale,
     });
     return true;
   };
