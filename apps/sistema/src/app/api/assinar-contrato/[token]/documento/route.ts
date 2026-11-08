@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createHash } from "node:crypto";
 import { createSupabaseAdminClient } from "../../../../../lib/supabase/admin";
+import { createSupabaseServerClient } from "../../../../../lib/supabase/server";
 import {
   findSignatureInvitation, findInvitationSource, invitationIsPending,
 } from "../../../../../lib/signatures/contractSignatures";
@@ -15,6 +16,12 @@ export async function GET(_request: Request, {
     { status: 404, headers: { "Cache-Control": "no-store" } });
   const invitation = await findSignatureInvitation(params.token);
   if (!invitation || !invitationIsPending(invitation)) return denied();
+  // O token individual não dá acesso direto ao conteúdo do contrato.
+  // A sessão do destinatário deve estar autenticada com o mesmo e-mail.
+  const session = await createSupabaseServerClient().auth.getUser();
+  const user = session.data.user;
+  if (session.error || !user?.id || !user.email_confirmed_at ||
+      user.email?.toLowerCase() !== invitation.signer_email.toLowerCase()) return denied();
   const source = await findInvitationSource(invitation);
   if (!source) return denied();
   const admin = createSupabaseAdminClient();
