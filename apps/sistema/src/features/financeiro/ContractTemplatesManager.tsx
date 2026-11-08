@@ -21,6 +21,7 @@ import {
   type ContractTemplateFormInput,
 } from "../../app/sistema/financeiro/modelos-contrato/actions";
 import { notify } from "../../lib/feedback/notify";
+import { SignatureFieldLayoutEditor } from "./SignatureFieldLayoutEditor";
 
 type EditorState = {
   mode: "create" | "edit";
@@ -65,6 +66,7 @@ export function ContractTemplatesManager({
   const [pending, startTransition] = useTransition();
   const [editor, setEditor] = useState<EditorState | null>(null);
   const [historyFor, setHistoryFor] = useState<{ groupId: string; versions: ContractTemplate[] } | null>(null);
+  const [positioningFor, setPositioningFor] = useState<ContractTemplate | null>(null);
   const [action, setAction] = useState<PendingAction>(null);
   const [noteText, setNoteText] = useState("");
   const [evidenceText, setEvidenceText] = useState("");
@@ -241,7 +243,12 @@ export function ContractTemplatesManager({
                     <button type="button" disabled={pending} onClick={() => duplicate(template)}>Duplicar</button>
                     <button type="button" disabled={pending} onClick={() => showHistory(template)}>Histórico de versões</button>
                     {template.documentMode === "fixed_pdf" ? (
-                      <button type="button" disabled={pending} onClick={() => openDocument(template)}>Abrir PDF</button>
+                      <>
+                        <button type="button" disabled={pending} onClick={() => openDocument(template)}>Abrir PDF</button>
+                        {canApprove ? <button type="button" disabled={pending || !!template.legalApproval || template.active}
+                          title={template.legalApproval || template.active ? "Modelo aprovado: crie nova versão para alterar as posições." : undefined}
+                          onClick={() => setPositioningFor(template)}>Posicionar assinaturas e rubricas</button> : null}
+                      </>
                     ) : null}
                     <button type="button" disabled={pending} onClick={() => toggleTest(template)}>
                       {template.testEnabled ? "Desligar teste" : "Habilitar para teste"}
@@ -323,6 +330,11 @@ export function ContractTemplatesManager({
             <button type="button" onClick={() => setHistoryFor(null)}>Fechar histórico</button>
           </div>
         </section>
+      ) : null}
+
+      {positioningFor ? (
+        <SignatureFieldLayoutEditor templateId={positioningFor.id} title={positioningFor.title}
+          version={positioningFor.version} onClose={() => setPositioningFor(null)} />
       ) : null}
 
       {editor ? (
