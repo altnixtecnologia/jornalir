@@ -250,3 +250,23 @@ Branch e SHA local/remoto: solicitacoes-financeiro-contratos-irc-20261031 — ba
 **Migrations geradas/aplicadas:** 6 geradas na frente (140000–190000), **0 aplicadas**.
 **Banco, mensagens e deploy real alterados?:** Banco: não (apenas ROLLBACK). Mensagens/Vercel/cobrança: não.
 **Próxima etapa:** Etapa 3 — assinatura eletrônica (aguarda autorização; **não iniciada**).
+
+**08/11/2026 — Fechamento funcional da Etapa 2 (Claude Code, VS Code local): CONCLUÍDO em código e testes direcionados; NÃO publicado, migration NÃO aplicada. ETAPA 2 ENCERRADA.**
+
+```
+Etapa: Etapa 2 — fechamento funcional (3 pontos)
+Branch e SHA local/remoto: solicitacoes-financeiro-contratos-irc-20261031 — base 46c2d092; SHA final no commit seguinte, enviado ao GitHub
+```
+
+**CONCLUÍDO:**
+1. **Serviço avulso persistido**: vira item da MESMA proposta comercial (`commercial_proposal_items` sem `product_id`, descrição como snapshot, tabela em `list_unit_price`, negociado em `unit_price`, justificativa preservada). Exige a permissão de propostas; negociação continua exigindo `valores_negociar`. Sem estrutura nova.
+2. **Assinatura do jornal com referência estruturada**: colunas `composition_request_id` + `composition_item_index` em `subscriptions` (migration `20261122200000_subscription_composition_reference`, aditiva), CHECK de par e **índice único parcial** (proteção contra duplicata mesmo com abas/cliques simultâneos). O marcador em `notes` foi removido. Se a criação colidir com o índice, o sistema devolve o registro existente (sem duplicar, sem auditar criação que não fez); falha real continua sendo erro. O mesmo tratamento vale para a proposta (índice único já existente).
+3. **`valores_negociar` no formulário antigo de propostas** (criar e editar), guarda em `lib/contracts/negotiatedValuesGuard.ts`: só bloqueia item COM produto de catálogo e preço de tabela cujo valor efetivo (preço − desconto) difere da tabela. **Edição**: valores que a proposta já tinha (efetivo ou tabela gravada do mesmo produto) continuam editáveis sem a permissão; só um valor NOVO diferente da tabela exige. Item livre e produto sem tabela não são afetados. A tabela é lida no servidor.
+
+**TESTADO (direcionado):** `apps/sistema` 63/63 nos arquivos afetados (novo `negotiated-values-guard.test.ts` com 8 testes; persistência 19 com avulso, só-avulso, corrida de criação e falha real; segurança/estrutura das actions), `packages/core` proposta/assinatura 23/23, `tsc --noEmit` e `next build` limpos. **Banco:** migration 200000 validada em transação com ROLLBACK (duplicata recusada, referência incompleta/negativa recusada, assinaturas comuns livres); verificado depois: 0 colunas novas e mesma contagem de assinaturas em produção. **NÃO testado:** UI com login, fluxo real de criação.
+
+**FALTA (fora da Etapa 2):** aplicar as 7 migrations (140000–200000) com autorização, ANTES de publicar o código; teste manual com login; representante escolhido não editável depois; representantes conjuntos exigem co-assinante (Etapa 3); contrato institucional nasce sem documentos/cobranças; upload/URL assinada só em Production.
+**RISCOS:** ordem de publicação (migrations primeiro — `subscriptions` passa a ler as colunas novas, então o módulo Assinaturas quebraria sem a 200000); o formulário antigo não comparava com a tabela antes: usuários sem `valores_negociar` que alteram preço de produto do catálogo passam a ser bloqueados (conceder a permissão em Usuários).
+**Migrations geradas/aplicadas:** 7 geradas na frente (140000–200000), **0 aplicadas**.
+**Banco, mensagens e deploy real alterados?:** Banco: não (apenas ROLLBACK). Mensagens/Vercel/cobrança: não.
+**Próxima etapa:** Etapa 3 — assinatura eletrônica (aguarda autorização; **não iniciada**).

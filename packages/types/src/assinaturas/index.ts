@@ -107,6 +107,9 @@ export interface Subscription {
   /** Só preenchido quando serviceType === "tv". */
   tv?: SubscriptionTvIntegration;
   notes?: string;
+  /** Referência ESTRUTURADA da montagem de contratação (idempotência): requestId + índice do serviço. Nulos em assinaturas comuns. */
+  compositionRequestId?: string;
+  compositionItemIndex?: number;
   createdAt: string;
   updatedAt: string;
 }

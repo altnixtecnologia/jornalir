@@ -9,6 +9,7 @@ import { checkModuleAction } from "../../../../../lib/permissions/checkModuleAct
 import { getAuditContext } from "../../../../../lib/auth/getAuditContext";
 import { recordAuditEventSupabase } from "../../../../../providers/supabase/auditEvents.supabase";
 import { toCommercialProposalServiceInput, type CommercialProposalFormInput } from "../commercialProposalFormTypes";
+import { guardNegotiatedValues } from "../../../../../lib/contracts/negotiatedValuesGuard";
 
 const ENTITY_TYPE = "commercial_proposal";
 
@@ -26,7 +27,18 @@ export async function updateCommercialProposalAction(id: string, input: Commerci
   try {
     const client = createSupabaseServerClient();
     const AUDIT = await getAuditContext(client);
-    await getCommercialProposalService(client).update(id, toCommercialProposalServiceInput(input));
+    const serviceInput = toCommercialProposalServiceInput(input);
+    // Valor NOVO diferente da tabela exige "valores_negociar"; o que a proposta já tinha continua editável.
+    const negotiationError = await guardNegotiatedValues(serviceInput.items, {
+      loadListPrices: async (ids) => {
+        const products = await getCommercialProductService(client).list();
+        return new Map(products.filter((product) => ids.includes(product.id)).map((product) => [product.id, product.suggestedPrice]));
+      },
+      loadExistingItems: async () => (await getCommercialProposalService(client).getWithItems(id)).items,
+      canNegotiate: async () => (await checkModuleAction("publicidade", "valores_negociar")) === null,
+    });
+    if (negotiationError) return { error: negotiationError };
+    await getCommercialProposalService(client).update(id, serviceInput);
     await recordAuditEventSupabase(client, { userId: AUDIT.actorId, entityType: ENTITY_TYPE, entityId: id, action: "update" });
   } catch (error) {
     return { error: toErrorMessage(error) };

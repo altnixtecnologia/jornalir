@@ -3,7 +3,6 @@ import assert from "node:assert/strict";
 import type { ContractTemplate } from "@ir/types";
 import {
   persistContracting,
-  subscriptionMarker,
   type ContractingDeps,
   type ContractingRequest,
   type PermissionKind,
@@ -88,11 +87,10 @@ function setup(overrides: Partial<ContractingDeps> = {}, options: { denied?: Per
       store.proposals.set(input.requestId, row);
       return row;
     },
-    findSubscription: async (_client, marker) => store.subscriptions.get(marker) ?? null,
+    findSubscription: async (requestId, itemIndex) => store.subscriptions.get(`${requestId}:${itemIndex}`) ?? null,
     createSubscription: async (input) => {
-      const marker = input.notes.split("\n")[0];
       const row = { id: `sub-${store.subscriptions.size + 1}`, reference: `IR-ASS-${store.subscriptions.size + 1}`, input };
-      store.subscriptions.set(marker, row);
+      store.subscriptions.set(`${input.requestId}:${input.itemIndex}`, row);
       return row;
     },
     findContract: async (requestId) => store.contracts.get(requestId) ?? null,
@@ -133,20 +131,76 @@ test("comercial: itens do catálogo → UMA proposta; assinatura do jornal → a
   assert.equal(subscription.amount, 360);
   assert.equal(subscription.periodicity, "annual");
   assert.equal(subscription.copies, 2);
-  assert.match(subscription.notes, /^\[contratacao:11111111-2222-4333-8444-555555555555:1\]/);
+  assert.equal(subscription.requestId, REQUEST_ID);
+  assert.equal(subscription.itemIndex, 1);
+  assert.doesNotMatch(subscription.notes, /\[contratacao:/, "o vínculo não depende mais de texto em observações");
   assert.match(subscription.notes, /nenhuma cobrança ou ativação foi gerada/);
   assert.ok(!("status" in subscription), "o status nunca é informado: o serviço usa 'pendente de formalização'");
   assert.ok(store.audits.some((audit) => audit.entityType === "subscription" && audit.action === "create"));
   assert.ok(store.audits.some((audit) => audit.entityType === "commercial_proposal" && audit.action === "create"));
 });
 
-test("serviço avulso não tem cadastro comercial: bloqueia antes de criar qualquer coisa", async () => {
+test("serviço avulso: vira item da MESMA proposta (sem product_id), com tabela e negociado preservados", async () => {
   const { deps, store } = setup();
-  const other: CompositionServiceInput = { kind: "other", title: "Cobertura de evento", quantity: 1, listUnitPrice: 500, negotiatedUnitPrice: 500, startsOn: "2026-04-10", endsOn: "2026-04-10", periodicity: "single" };
+  const other: CompositionServiceInput = { kind: "other", title: "Cobertura de evento", quantity: 2, listUnitPrice: 500, negotiatedUnitPrice: 450, negotiationReason: "Pacote", startsOn: "2026-04-10", endsOn: "2026-04-10", periodicity: "single" };
   const result = await persistContracting(request({ services: [catalogLine(), other] }), deps);
+  assert.equal(result.ok, true);
+  assert.equal(store.proposals.size, 1);
+  assert.equal(store.subscriptions.size, 0);
+  const items = [...store.proposals.values()][0].input.items;
+  assert.equal(items.length, 2);
+  assert.equal(items[1].productId, undefined);
+  assert.equal(items[1].description, "Cobertura de evento");
+  assert.equal(items[1].unitPrice, 450);
+  assert.equal(items[1].listUnitPrice, 500);
+  assert.equal(items[1].discountAmount, 0);
+  assert.equal(items[1].negotiationReason, "Pacote");
+});
+
+test("só avulso (sem catálogo): cria a proposta e exige a permissão de propostas", async () => {
+  const other: CompositionServiceInput = { kind: "other", title: "Serviço X", quantity: 1, listUnitPrice: 100, negotiatedUnitPrice: 100, startsOn: "2026-04-10", endsOn: "2026-04-10", periodicity: "single" };
+  const denied = setup({}, { denied: ["proposal"] });
+  const blocked = await persistContracting(request({ services: [other] }), denied.deps);
+  assert.equal(blocked.ok, false);
+  assert.equal(denied.store.proposals.size, 0);
+  const allowed = setup();
+  const ok = await persistContracting(request({ services: [other] }), allowed.deps);
+  assert.equal(ok.ok, true);
+  assert.equal(allowed.store.proposals.size, 1);
+});
+
+test("conflito de criação (outra aba/retry simultâneo): devolve o registro existente, sem duplicar e sem falhar", async () => {
+  const racing = setup();
+  const winner = await persistContracting(request(), racing.deps);
+  assert.equal(winner.ok, true);
+  // Simula a corrida: a checagem prévia não vê o registro, mas o índice único do banco recusa a inserção.
+  let firstLookup = true;
+  const deps: ContractingDeps = {
+    ...racing.deps,
+    findProposal: async (id) => (firstLookup ? ((firstLookup = false), null) : racing.deps.findProposal(id)),
+    createProposal: async () => { throw new Error("duplicate key value violates unique constraint"); },
+    findSubscription: (() => {
+      let first = true;
+      return async (requestId: string, index: number) => (first ? ((first = false), null) : racing.deps.findSubscription(requestId, index));
+    })(),
+    createSubscription: async () => { throw new Error("duplicate key value violates unique constraint"); },
+  };
+  const loser = await persistContracting(request(), deps);
+  assert.equal(loser.ok, true);
+  if (!loser.ok || !winner.ok) return;
+  assert.equal(loser.proposal?.created, false);
+  assert.equal(loser.proposal?.id, winner.proposal?.id);
+  assert.equal(loser.subscriptions[0].created, false);
+  assert.equal(racing.store.proposals.size, 1);
+  assert.equal(racing.store.subscriptions.size, 1);
+  assert.equal(racing.store.audits.filter((a) => a.action === "create").length, 2, "o perdedor não audita criação que não fez");
+});
+
+test("falha real (sem registro existente) continua sendo erro, não é engolida", async () => {
+  const { deps } = setup({ createProposal: async () => { throw new Error("banco indisponível"); } });
+  const result = await persistContracting(request({ services: [catalogLine()] }), deps);
   assert.equal(result.ok, false);
-  if (!result.ok) assert.match(result.error, /Serviço 2: serviço avulso/);
-  assert.equal(store.proposals.size + store.subscriptions.size, 0);
+  if (!result.ok) assert.match(result.error, /banco indisponível/);
 });
 
 test("assinatura precisa de periodicidade recorrente; digital não envia exemplares", async () => {
@@ -172,7 +226,6 @@ test("repetir com o mesmo requestId (clique duplo/retry) NÃO duplica proposta n
   assert.equal(second.proposal?.id, first.proposal?.id);
   assert.equal(store.proposals.size, 1);
   assert.equal(store.subscriptions.size, 1);
-  assert.equal(subscriptionMarker(REQUEST_ID, 1), "[contratacao:11111111-2222-4333-8444-555555555555:1]");
 });
 
 test("falha parcial: o que já foi criado fica, a falha é informada e o retry completa SEM duplicar", async () => {
@@ -180,9 +233,8 @@ test("falha parcial: o que já foi criado fica, a falha é informada e o retry c
   const { deps, store } = setup({
     createSubscription: async (input) => {
       if (failSubscription) throw new Error("banco indisponível");
-      const marker = input.notes.split("\n")[0];
       const row = { id: "sub-1", reference: "IR-ASS-1", input };
-      store.subscriptions.set(marker, row);
+      store.subscriptions.set(`${input.requestId}:${input.itemIndex}`, row);
       return row;
     },
   });

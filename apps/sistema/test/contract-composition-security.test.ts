@@ -47,7 +47,9 @@ test("criar contratação: usa os serviços EXISTENTES (proposta, assinatura, co
   assert.doesNotMatch(subscriptionCall, /status\s*:/);
   // Idempotência por requestId (proposta, assinatura via marcador, contrato via extra_data).
   assert.match(create, /composition_request_id/);
-  assert.match(create, /ilike\("notes"/);
+  assert.match(create, /eq\("composition_request_id", requestId\)/);
+  assert.match(create, /compositionItemIndex: input\.itemIndex/);
+  assert.doesNotMatch(create, /ilike\("notes"/);
   assert.match(create, /extra_data->>compositionRequestId/);
 });
 

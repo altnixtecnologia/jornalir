@@ -15,9 +15,11 @@ import type { ContractorProfile } from "./contractorProfile";
 /**
  * Persistência da contratação montada (Etapa 2, pendências funcionais,
  * 08/11/2026). Reaproveita os cadastros EXISTENTES, sem estrutura paralela:
- *  - serviços do catálogo → proposta comercial (itens com tabela + negociado);
+ *  - serviços do catálogo E serviços avulsos → proposta comercial (itens com tabela
+ *    + negociado; o avulso é item sem `product_id`, descrição como snapshot);
  *  - assinatura do jornal → `subscriptions` em "pendente de formalização"
- *    (nunca ativa, nunca gera título/cobrança);
+ *    (nunca ativa, nunca gera título/cobrança), com referência ESTRUTURADA
+ *    (composition_request_id + composition_item_index, único no banco);
  *  - modalidade Institucional → contrato institucional com a lista de serviços
  *    em `extra_data` (nada de cobrança/assinatura/documento).
  * Idempotente: o mesmo `requestId` nunca cria duas vezes. Modelo em TESTE nunca
@@ -52,7 +54,8 @@ export interface ProposalCreateInput {
   notes: string;
   internalNotes?: string;
   items: Array<{
-    productId: string;
+    /** Ausente em serviço avulso (sem cadastro de catálogo). */
+    productId?: string;
     description: string;
     quantity: number;
     unitPrice: number;
@@ -63,6 +66,8 @@ export interface ProposalCreateInput {
 }
 
 export interface SubscriptionCreateInput {
+  requestId: string;
+  itemIndex: number;
   clientId: string;
   serviceType: "impresso" | "digital";
   amount: number;
@@ -92,7 +97,7 @@ export interface ContractingDeps {
   actorName: () => Promise<string>;
   findProposal: (requestId: string) => Promise<{ id: string; reference: string } | null>;
   createProposal: (input: ProposalCreateInput) => Promise<{ id: string; reference: string }>;
-  findSubscription: (clientId: string, marker: string) => Promise<{ id: string; reference: string } | null>;
+  findSubscription: (requestId: string, itemIndex: number) => Promise<{ id: string; reference: string } | null>;
   createSubscription: (input: SubscriptionCreateInput) => Promise<{ id: string; reference: string }>;
   findContract: (requestId: string) => Promise<{ id: string; reference: string } | null>;
   createContract: (input: ContractCreateInput) => Promise<{ id: string; reference: string }>;
@@ -114,8 +119,22 @@ export type ContractingResult =
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-export function subscriptionMarker(requestId: string, index: number): string {
-  return `[contratacao:${requestId}:${index}]`;
+/**
+ * Cria; se a criação falhar porque outra requisição (retry, clique duplo, outra aba)
+ * já criou o mesmo registro, devolve o existente em vez de duplicar ou falhar.
+ * A garantia final é o índice único no banco.
+ */
+async function createOrExisting(
+  create: () => Promise<{ id: string; reference: string }>,
+  find: () => Promise<{ id: string; reference: string } | null>,
+): Promise<CreatedRecord> {
+  try {
+    return { ...(await create()), created: true };
+  } catch (error) {
+    const existing = await find().catch(() => null);
+    if (existing) return { ...existing, created: false };
+    throw error;
+  }
 }
 
 export async function persistContracting(request: ContractingRequest, deps: ContractingDeps): Promise<ContractingResult> {
@@ -128,13 +147,6 @@ export async function persistContracting(request: ContractingRequest, deps: Cont
 
   const outcome: ContractingOutcome = { subscriptions: [], notices: [], negotiation: [] };
   const fail = (error: string): ContractingResult => ({ ok: false, error, ...outcome });
-
-  if (request.modality === "commercial") {
-    const unsupported = validation.services.findIndex((service) => service.kind === "other");
-    if (unsupported !== -1) {
-      return { ok: false, error: `Serviço ${unsupported + 1}: serviço avulso não tem cadastro comercial. Use um produto do catálogo ou a assinatura do jornal (ou gere só a minuta).` };
-    }
-  }
 
   // O preço de TABELA dos itens do catálogo vem do cadastro (servidor), nunca do navegador.
   const catalogIds = [...new Set(validation.services.filter((s) => s.kind === "catalog").map((s) => s.productId as string))];
@@ -192,7 +204,8 @@ export async function persistContracting(request: ContractingRequest, deps: Cont
 
   try {
     if (request.modality === "commercial") {
-      const catalogServices = services.filter((service) => service.kind === "catalog");
+      // Catálogo E avulso viram itens da MESMA proposta (o avulso sem product_id).
+      const catalogServices = services.filter((service) => service.kind === "catalog" || service.kind === "other");
       const subscriptionServices = services.map((service, index) => ({ service, index })).filter(({ service }) => service.kind === "subscription");
 
       if (catalogServices.length > 0) {
@@ -209,7 +222,7 @@ export async function persistContracting(request: ContractingRequest, deps: Cont
         if (existing) {
           outcome.proposal = { ...existing, created: false };
         } else {
-          const created = await deps.createProposal({
+          const created = await createOrExisting(() => deps.createProposal({
             requestId: request.requestId,
             clientId: request.clientId,
             contractTemplateId: templateId,
@@ -220,7 +233,7 @@ export async function persistContracting(request: ContractingRequest, deps: Cont
               .join("\n")}`,
             internalNotes: formatNegotiationNote(buildNegotiationRecord(catalogServices), actorName, atIso) || undefined,
             items: catalogServices.map((service) => ({
-              productId: service.productId as string,
+              productId: service.kind === "catalog" ? (service.productId as string) : undefined,
               description: service.title.slice(0, 200),
               quantity: service.quantity,
               // unit_price = valor NEGOCIADO (menor OU maior que a tabela); a tabela fica em list_unit_price.
@@ -229,28 +242,29 @@ export async function persistContracting(request: ContractingRequest, deps: Cont
               listUnitPrice: service.listUnitPrice,
               negotiationReason: computeServiceTotals(service).isNegotiated ? service.negotiationReason : undefined,
             })),
-          });
-          outcome.proposal = { ...created, created: true };
-          await deps.audit("commercial_proposal", created.id, "create", {
+          }), () => deps.findProposal(request.requestId));
+          outcome.proposal = created;
+          if (created.created) await deps.audit("commercial_proposal", created.id, "create", {
             reference: created.reference, via: "montagem_de_contratacao", requestId: request.requestId,
             itemCount: catalogServices.length, templateId: templateId ?? null, representativeId: representativeId ?? null,
           });
           const catalogNegotiation = buildNegotiationRecord(catalogServices);
-          if (catalogNegotiation.length > 0) {
+          if (created.created && catalogNegotiation.length > 0) {
             await deps.audit("commercial_proposal", created.id, "negotiated_values_recorded", { context: "proposta", entries: catalogNegotiation });
           }
         }
       }
 
       for (const { service, index } of subscriptionServices) {
-        const marker = subscriptionMarker(request.requestId, index);
-        const existing = await deps.findSubscription(request.clientId, marker);
+        const existing = await deps.findSubscription(request.requestId, index);
         if (existing) {
           outcome.subscriptions.push({ ...existing, created: false });
           continue;
         }
         const totalsOfService = computeServiceTotals(service);
-        const created = await deps.createSubscription({
+        const created = await createOrExisting(() => deps.createSubscription({
+          requestId: request.requestId,
+          itemIndex: index,
           clientId: request.clientId,
           serviceType: service.subscriptionServiceType ?? "impresso",
           amount: totalsOfService.negotiatedTotal,
@@ -259,16 +273,16 @@ export async function persistContracting(request: ContractingRequest, deps: Cont
           endsAt: service.endsOn,
           copies: service.subscriptionServiceType === "digital" ? undefined : service.copies ?? Math.max(1, Math.floor(service.quantity)),
           notes: [
-            marker,
             `Criada na montagem de contratação em ${new Date(atIso).toLocaleDateString("pt-BR")} por ${actorName}. Pendente de formalização: nenhuma cobrança ou ativação foi gerada.`,
             totalsOfService.isNegotiated
               ? `Valor de tabela ${totalsOfService.listTotal.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })} → negociado ${totalsOfService.negotiatedTotal.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}. Justificativa: ${service.negotiationReason ?? "—"}`
               : "",
           ].filter(Boolean).join("\n"),
-        });
-        outcome.subscriptions.push({ ...created, created: true });
+        }), () => deps.findSubscription(request.requestId, index));
+        outcome.subscriptions.push(created);
+        if (!created.created) continue;
         await deps.audit("subscription", created.id, "create", {
-          reference: created.reference, via: "montagem_de_contratacao", requestId: request.requestId, status: "pending_formalization",
+          reference: created.reference, via: "montagem_de_contratacao", requestId: request.requestId, itemIndex: index, status: "pending_formalization",
         });
         const subscriptionNegotiation = buildNegotiationRecord([service]);
         if (subscriptionNegotiation.length > 0) {

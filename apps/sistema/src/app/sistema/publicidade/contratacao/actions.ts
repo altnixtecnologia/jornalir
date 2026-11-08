@@ -218,8 +218,8 @@ export async function createContractingFromCompositionAction(request: Contractin
         });
         return { id: proposal.id, reference: proposal.reference };
       },
-      findSubscription: async (clientId, marker) => {
-        const { data, error } = await client.from("subscriptions").select("id, internal_reference").eq("client_id", clientId).ilike("notes", `%${marker}%`).limit(1).maybeSingle();
+      findSubscription: async (requestId, itemIndex) => {
+        const { data, error } = await client.from("subscriptions").select("id, internal_reference").eq("composition_request_id", requestId).eq("composition_item_index", itemIndex).limit(1).maybeSingle();
         if (error) throw new Error("Não foi possível conferir se a assinatura já existe.");
         return data ? { id: data.id as string, reference: data.internal_reference as string } : null;
       },
@@ -234,6 +234,8 @@ export async function createContractingFromCompositionAction(request: Contractin
           endsAt: input.endsAt,
           print: input.serviceType === "impresso" && input.copies ? { copies: input.copies } : undefined,
           notes: input.notes,
+          compositionRequestId: input.requestId,
+          compositionItemIndex: input.itemIndex,
         });
         return { id: subscription.id, reference: subscription.reference };
       },

@@ -40,6 +40,9 @@ export interface SubscriptionInput {
   print?: SubscriptionPrintDelivery;
   tv?: SubscriptionTvIntegration;
   notes?: string;
+  /** Só a montagem de contratação informa (par único no banco → sem duplicar). */
+  compositionRequestId?: string;
+  compositionItemIndex?: number;
 }
 
 function trimOrUndefined(value: string | undefined | null): string | undefined {
@@ -96,17 +99,22 @@ function normalize(input: SubscriptionInput): NewSubscriptionRecord {
     print: normalizePrint(input.serviceType, input.print),
     tv: normalizeTv(input.serviceType, input.tv),
     notes: input.notes?.trim() || undefined,
+    compositionRequestId: input.compositionRequestId || undefined,
+    compositionItemIndex: input.compositionRequestId ? input.compositionItemIndex : undefined,
   };
 }
 
 /** Barreira de validação no próprio domínio — nunca confia só na UI/Server
  * Action, mesmo princípio de ClientService.assertValidDocuments. */
-function assertValid(record: Pick<NewSubscriptionRecord, "clientId" | "amount" | "startsAt" | "endsAt" | "print">): void {
+function assertValid(record: Pick<NewSubscriptionRecord, "clientId" | "amount" | "startsAt" | "endsAt" | "print" | "compositionRequestId" | "compositionItemIndex">): void {
   if (!record.clientId) throw new SubscriptionValidationError("Selecione o cliente desta assinatura.");
   if (!Number.isFinite(record.amount) || record.amount < 0) throw new SubscriptionValidationError("Informe um valor válido.");
   if (!record.startsAt) throw new SubscriptionValidationError("Informe a data de início.");
   if (record.endsAt && record.endsAt < record.startsAt) {
     throw new SubscriptionValidationError("A data de encerramento não pode ser anterior ao início.");
+  }
+  if (record.compositionRequestId && !(Number.isInteger(record.compositionItemIndex) && (record.compositionItemIndex as number) >= 0)) {
+    throw new SubscriptionValidationError("Referência da contratação inválida.");
   }
   if (record.print && record.print.copies < 1) {
     throw new SubscriptionValidationError("A quantidade de exemplares deve ser pelo menos 1.");

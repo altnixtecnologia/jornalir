@@ -8,7 +8,7 @@ const COLUMNS =
   "id, internal_reference, client_id, service_type, status, amount, periodicity, starts_at, due_day, next_due_date, " +
   "ends_at, cancelled_at, cancellation_reason, print_copies, print_address_zip, print_address_street, print_address_number, " +
   "print_address_complement, print_address_neighborhood, print_address_city, print_address_state, " +
-  "external_source, external_client_reference, external_device_reference, notes, created_at, updated_at";
+  "external_source, external_client_reference, external_device_reference, notes, composition_request_id, composition_item_index, created_at, updated_at";
 
 interface SubscriptionRow {
   id: string;
@@ -36,6 +36,8 @@ interface SubscriptionRow {
   external_client_reference: string | null;
   external_device_reference: string | null;
   notes: string | null;
+  composition_request_id?: string | null;
+  composition_item_index?: number | null;
   created_at: string;
   updated_at: string;
 }
@@ -77,6 +79,8 @@ function toDomain(row: SubscriptionRow): Subscription {
         }
       : undefined,
     notes: row.notes ?? undefined,
+    compositionRequestId: row.composition_request_id ?? undefined,
+    compositionItemIndex: row.composition_item_index ?? undefined,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -111,6 +115,8 @@ function toRow(record: NewSubscriptionRecord | SubscriptionChanges): Record<stri
     row.external_device_reference = record.tv?.externalDeviceReference ?? null;
   }
   if (record.notes !== undefined) row.notes = record.notes ?? null;
+  if (record.compositionRequestId !== undefined) row.composition_request_id = record.compositionRequestId;
+  if (record.compositionItemIndex !== undefined) row.composition_item_index = record.compositionItemIndex;
   return row;
 }
 
