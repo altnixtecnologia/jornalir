@@ -326,3 +326,37 @@ Branch e SHA local/remoto: solicitacoes-financeiro-contratos-irc-20261031 — ba
 **BLOQUEIOS / PENDÊNCIAS:** testar `tsc`, testes direcionados, `next build` no ambiente local sincronizado; testar visualmente o editor de posições sobre um PDF, OTP, Google e prova no documento. Revisar configurações oficiais de Google Identity Services e proteção de sessão; validação jurídica humana permanece para a Etapa 5. Etapa 4 (WhatsApp/e-mail/Telegram, QR, backup/restore) **não iniciada**. Nenhum deploy, mensagem, cobrança ou assinatura real feito por ChatGPT.
 
 **Política de economia:** sem auditorias gerais até a homologação final ou defeito grave; apenas testes direcionados às mudanças.
+
+
+## 08/11/2026 — Etapa 4, código remoto ChatGPT: QR, comunicações e recuperação
+
+**Estado:** desenvolvido e commitado diretamente na branch `solicitacoes-financeiro-contratos-irc-20261031` do GitHub. **NÃO testado no VS Code, não publicado e sem executar mensagens/backup.** Não substituir esta etapa por uma afirmação de homologação; ainda falta revisão direcionada de compilação/SQL e teste integrado controlado.
+
+**4.1 — QR e conferência de autenticidade**
+- `publicVerification.ts` cria código opaco com UUID aleatório de convite + HMAC-SHA256, sem CPF, e-mail ou token de assinatura; a chave `SIGNATURE_VERIFICATION_SECRET` nunca é exposta ao browser.
+- O `buildSignedContractPdf` embute QR no PDF que resulta de cada aceite, usando `qrcode` já instalado. São vínculos por **versão do aceite**: se outros signatários acrescentarem evidências, o hash do PDF cumulativo muda.
+- `/verificar-contrato/[code]` consulta somente convite `signed` e respectivo hash, informa conclusão ou assinaturas ainda pendentes, sem expor PDF ou qualquer PII. A pessoa pode selecionar sua própria cópia para cálculo **local** do SHA-256 no navegador (`VerifySignaturePdfClient`), sem upload.
+- Requer ambiente `SIGNATURE_VERIFICATION_SECRET` (mínimo 32 caracteres) e `SIGNATURE_VERIFICATION_BASE_URL` (HTTPS, domínio da página pública no sistema); sem configuração, o QR não é inserido — não declarar verificação habilitada. Testes de HMAC adicionados em `public-verification.test.ts` (não executados).
+
+**4.2 — Convites WhatsApp pela Meta**
+- Fluxo **institucional** já tinha envio pelo provider `whatsappCloudProvider.ts`, template `WHATSAPP_SIGNATURE_INVITE_TEMPLATE`; foi reaproveitado.
+- Fluxo **comercial** agora permite optar por envio na mesma ação de gerar links, exige autorização de contato marcada pelo operador, telefone de todos os destinatários, template aprovado e Cloud API configurada. Token só aparece na resposta, não é salvo em claro. Migration `20261122250000_commercial_signature_whatsapp_delivery.sql` acrescenta estado/mensagem/tentativa na tabela existente; `accepted_by_meta` **não é entrega comprovada**. Resposta incerta não provoca reenvio automático; links individuais continuam disponíveis para envio manual. Reemissão de link permanece manual.
+- O WhatsApp Business de atendimento permanece fora do escopo; a Cloud API automática é separada.
+
+**4.3 — Envio do PDF final e aviso administrativo**
+- Migration `20261122240000_signature_final_delivery_outbox.sql`: fila privada/idempotente enfileirada pelo banco **só após conclusão** da rodada comercial/institucional, ou convite institucional individual. Um item de e-mail por signatário e aviso Telegram por rodada; sem nomes/CPF nos registros de outbox. Estados `pending/sending/sent/failed/uncertain`, lock e tentativa, auditoria transacional; `uncertain` **não é reenviado automaticamente**.
+- `finalDelivery.ts` verifica **SHA-256 dos bytes reais** do PDF privado antes de enviar; e-mail HTML com identidade Informativo Regional e PDF anexo pelo **Resend** (adapter sem envio enquanto não configurado); para todos os destinatários o link aponta para o QR do **aceite final**, não uma versão intermediária. Telegram envia aviso sucinto à equipe sem CPF, e-mail, nome ou PDF.
+- `/api/cron/contract-signatures` autentica via `CRON_SECRET`, mas **fica desligado por padrão** (`SIGNATURE_DELIVERY_ENABLED` deve ser `true`) e **NÃO foi agendado**. Não assumir Vercel Cron: após homologar, planejar chamada autenticada via agendamento existente no Postgres (`pg_cron/pg_net`) quando suportado.
+- Configuração necessária: `SIGNATURE_EMAIL_API_KEY` (Resend), `SIGNATURE_EMAIL_FROM` (remetente verificado); `CONTRACTS_TELEGRAM_BOT_TOKEN`, `CONTRACTS_TELEGRAM_CHAT_ID` (destino administrativo próprio); `CRON_SECRET`; `SIGNATURE_DELIVERY_ENABLED`. Nenhuma variável/chave criada ou publicada nesta etapa. Mensagens reais: **0**.
+
+**4.4 — Backup e teste de restauração**
+- Script manual `apps/sistema/scripts/signature-backup.mjs` identifica objetos nos quatro buckets privados (`contract-documents`, `contract-signatures`, `signature-images`, `contract-template-files`), calcula SHA-256, grava arquivos em bucket **R2 dedicado e privado** pelo hash do conteúdo (não sobrescreve a origem), e produz manifesto por execução. Permite `--dry-run`, `--backup`, `--verify <manifest-key>` e `--restore-test <manifest-key>` (restaura arquivo em diretório temporário e confere hash). Usa SDK S3/R2 já existente; requer `SIGNATURE_BACKUP_R2_ENDPOINT`, `SIGNATURE_BACKUP_R2_BUCKET` (diferente dos buckets de mídia/edições), `SIGNATURE_BACKUP_R2_ACCESS_KEY_ID`, `SIGNATURE_BACKUP_R2_SECRET_ACCESS_KEY`; também Supabase URL/service-role no ambiente seguro da execução. Idealmente usar conta R2 separada da aplicação, com controle de acesso e retenção próprios.
+- **Não executado:** backup inicial, verificação real do manifesto, restauração real, política de retenção LGPD/jurídico, teste completo de recuperação do banco e PDFs. Fazer somente em homologação autorizada; nunca prometer "zero perda" sem validação.
+
+**Correção funcional diretamente relacionada ao documento assinado (sem auditoria geral)**
+- Os dois visualizadores agora carregam o **PDF já assinado pela empresa ou versão cumulativa mais recente**, com conferência do hash privado no servidor. O institucional também requer sessão correspondente ao destinatário; não mais entrega PDF só com o token individual.
+- `useVerifiedSignaturePdf` baixa o PDF após o OTP, monta uma única cópia Blob local e calcula seu SHA-256. A ação de finalizar recebe `viewedBaseSha256` e **recusa** quando outra pessoa assinou/alterou a base desde a conferência. Evita aplicar assinatura do cliente a uma versão diferente daquela que ele viu.
+
+**Migrations acumuladas nesta frente:** **12 arquivos** (`20261122140000` a `20261122250000`), **0 aplicadas**. A ordem segura continua ser: conferir migrações e aprová-las antes do deploy. As 12 ainda precisam de revisão técnica direcionada e execução autorizada. Não aplicar apenas porque o código está no GitHub.
+
+**Próximo:** Etapa 5 — homologação integrada da jornada completa em ambiente controlado (incluindo Google, QR, e-mail, Meta, Telegram, PDFs, backup/restore e jurídico) após sincronizar GitHub → VS Code, typecheck/build/testes afetados e configuração de serviços. Não repetir auditorias gerais já concluídas; auditoria completa apenas no fechamento ou diante de problema grave.
