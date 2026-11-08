@@ -9,6 +9,10 @@ import {
 } from "./commercialContractPreview";
 import { renderCommercialLegalDraft } from "./commercialLegalDraft";
 import { CONTRACTOR_FIELDS, missingCommercialLegalParties } from "./commercialPartyRequirements";
+import { loadContractorProfile } from "./contractorProfileLoader";
+import { buildContracteeHeaderLines } from "./contractorProfile";
+import { buildNumberedServiceClauses, servicesFromSaleSnapshots } from "./contractComposition";
+import type { ContractPartiesBlock } from "./contractTemplatePdf";
 
 export interface IssuableCommercialDocument {
   serviceId: string | null;
@@ -16,6 +20,8 @@ export interface IssuableCommercialDocument {
   templateVersion: number;
   templateTitle: string;
   text: string;
+  /** Cabeçalho CONTRATADA/CONTRATANTE — só quando os dados da empresa (Etapa 1) estão cadastrados. */
+  parties?: ContractPartiesBlock;
 }
 
 /**
@@ -89,6 +95,15 @@ export async function compileCommercialDocuments(
     .select("group_id,version").in("group_id",groups);
   if (versionError) throw new Error("Não foi possível confirmar a versão jurídica.");
 
+  // CONTRATADA vinda de Configurações → Dados da empresa (Etapa 1). Quando
+  // cadastrada, prevalece sobre o texto digitado por documento; sem cadastro
+  // (ou antes das migrations da Etapa 1) o fluxo anterior segue idêntico.
+  const contractor = await loadContractorProfile(supabase, new Date().toISOString().slice(0, 10));
+  const clauses = (docIndex: number): string | undefined => {
+    const scoped = pkg.document_mode === "combined" ? entries : [entries[docIndex]];
+    if (scoped.some((item) => !item)) return undefined;
+    return buildNumberedServiceClauses(servicesFromSaleSnapshots(scoped));
+  };
   // A qualificação da prestadora deve ser declarada expressamente pelo
   // modelo e conferida por pessoa autorizada; nunca presumir CNPJ/endereço.
   const contractorKeys = [...CONTRACTOR_FIELDS];
@@ -115,7 +130,8 @@ export async function compileCommercialDocuments(
       clientName:qualification.variables["cliente.nome"],
       totalPrice:slot.price.toLocaleString("pt-BR",{style:"currency",currency:"BRL"}),
       document:preview.documents[slot.index],
-      qualification:qualification.variables,
+      qualification:{...qualification.variables,...(contractor.configured ? contractor.variables : {})},
+      numberedClauses:clauses(slot.index),
       values:(slot.binding!.custom_values??{}) as Record<string,string>,
       requiredVariables:[...variables,...contractorKeys.map(key=>({key,label:key,required:true}))],
       final:true,
@@ -127,6 +143,9 @@ export async function compileCommercialDocuments(
       serviceId:slot.serviceId,templateId:model.id,
       templateVersion:model.version as number,templateTitle:model.title as string,
       text:rendered.text,
+      parties:contractor.configured
+        ? {contractor:contractor.headerLines,contractee:buildContracteeHeaderLines(qualification.variables)}
+        : undefined,
     };
   });
 }

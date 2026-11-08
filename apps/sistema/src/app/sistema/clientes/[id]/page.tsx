@@ -140,6 +140,9 @@ export default async function ClienteDetailPage({ params }: { params: { id: stri
         description={CLIENT_KIND_LABELS[client.kind]}
         action={
           <div className="materias-toolbar-actions">
+            <Link className="secondary-link" href={`/sistema/publicidade/contratacao?clientId=${client.id}`}>
+              Nova contratação
+            </Link>
             <Link className="secondary-link" href={`/sistema/assinaturas/nova?clientId=${client.id}`}>
               Nova assinatura
             </Link>

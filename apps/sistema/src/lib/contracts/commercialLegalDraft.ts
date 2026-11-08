@@ -14,6 +14,8 @@ export function renderCommercialLegalDraft(input: {
   values?: Record<string, string>;
   qualification?: Record<string, string>;
   requiredVariables?: Array<{ key: string; label: string; required: boolean }>;
+  /** Cláusulas numeradas 2.x (Etapa 2). Opcional: só os modelos que usam {{servicos.clausulas}} são afetados. */
+  numberedClauses?: string;
   final?: boolean;
 }): { text: string; missing: string[] } {
   const predefined: Record<string,string> = {
@@ -21,6 +23,7 @@ export function renderCommercialLegalDraft(input: {
     "venda.referencia": input.reference.trim(),
     "venda.valor": input.totalPrice.trim(),
     "servicos.resumo": input.document.text.trim(),
+    ...(input.numberedClauses?.trim() ? { "servicos.clausulas": input.numberedClauses.trim() } : {}),
     ...input.qualification,
   };
   const missing = new Set<string>();

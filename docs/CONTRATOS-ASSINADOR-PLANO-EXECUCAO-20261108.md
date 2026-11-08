@@ -50,16 +50,16 @@ As áreas Cadastros, Assinaturas, Comercial, Financeiro e Contratos continuam ex
 
 ### Etapa 1 — Configurações, perfil, poderes e modelos (primeiro lote de CÓDIGO)
 - [x] Configurações → Dados da empresa e representante(s) legal(is), regras de representação e PNG privado, com upload/atualização autorizados e auditados. *(código + testes; migrations não aplicadas)*
-- [x] Permissão granular de **assinar contratos comerciais** (`publicidade.contratos_assinar`) no editor do usuário; quando negada, não mostrar configuração PNG em Meu perfil e negar acesso em Server Actions/Storage/RLS. Quando concedida, habilita o PNG no perfil. *(a confirmação eletrônica explícita do ato de assinar fica na Etapa 3)*
+- [x] Permissão granular de **assinar contratos comerciais** (`publicidade.contratos_assinar`) — **concessão explícita para TODOS, inclusive admin e owner** (ajuste de 08/11/2026: função SQL `staff_can_sign_commercial_contracts`, painel em Usuários, auditoria) — no editor do usuário; quando negada, não mostrar configuração PNG em Meu perfil e negar acesso em Server Actions/Storage/RLS. Quando concedida, habilita o PNG no perfil. *(a confirmação eletrônica explícita do ato de assinar fica na Etapa 3)*
 - [x] Configurações → Modelos de contratos com seletor, editor, anexo (documento fixo PDF), categorias, versões, ativar/desativar, modo teste e registro de aprovação jurídica; reaproveita `contract_templates` e o gerenciador existente. *(código + testes; migrations não aplicadas)*
 - [x] Testes de permissões, acesso direto negado, tipo de arquivo, armazenamento privado, auditabilidade, versionamento, minutas teste ≠ produção. *(unitários/estruturais + banco em transação com ROLLBACK; testes com usuários reais e Storage real dependem de aplicar as migrations e de login)*
 - **Critério de encerramento**: configurações completas e isoladas, demonstráveis sem disparar assinatura/envio/cobrança real. Código/testes aprovados e commit local; não publicar automaticamente. **Atingido em 08/11/2026 (código e testes); falta aplicar migrations e validar com login real antes de publicar.**
 
 ### Etapa 2 — Montagem de contratação e documento combinado
-- [ ] Abrir contratação a partir de cliente mestre; selecionar Comercial/Institucional e múltiplos serviços; aplicar valores especiais auditados.
-- [ ] Um PDF com cabeçalho das partes, itens 2.1/2.2..., preço e vigência próprios; anexos e licitações específicas quando aplicável.
-- [ ] Fluxo de revisão, snapshot imutável, versão/aditivo, seleção de representante autorizado; documento teste separado do real.
-- [ ] Testar não duplicação, edição de valores pré-fechamento, modificações posteriores do catálogo, alterações parciais e conflitos.
+- [x] Abrir contratação a partir de cliente mestre; selecionar Comercial/Institucional e múltiplos serviços; aplicar valores especiais auditados. *(`/sistema/publicidade/contratacao?clientId=`; valores negociados com tabela original + justificativa + auditoria; sem permissão granular própria de valor especial)*
+- [x] Um PDF com cabeçalho das partes, itens 2.1/2.2..., preço e vigência próprios *(minuta com marca visível; também disponível ao documento oficial via `{{servicos.clausulas}}` quando a empresa está cadastrada)*; [ ] anexos e licitações: modelos específicos selecionáveis, mas documento fixo em PDF não mescla variáveis e não gera minuta aqui.
+- [~] Fluxo de revisão, snapshot imutável, versão/aditivo, seleção de representante autorizado; documento teste separado do real. *(fluxo existente proposta → venda → pacote → revisão → emissão preservado; minuta de teste é efêmera e separada do documento real; representante = padrão válido na data — escolha explícita e contratação institucional persistida ficam pendentes)*
+- [~] Testar não duplicação, edição de valores pré-fechamento, modificações posteriores do catálogo (preço de tabela relido do servidor), alterações parciais e conflitos. *(unitário/estrutural + banco em transação com ROLLBACK; teste com login real pendente)*
 
 ### Etapa 3 — Assinatura eletrônica e auditoria probatória
 - [ ] Reaproveitar assinadores existentes sob UX compartilhada; manifestação explícita e assinatura do representante comercial autorizado/institucional legal.
@@ -126,6 +126,55 @@ Branch e SHA local/remoto: solicitacoes-financeiro-contratos-irc-20261031 — ba
 **Migrations geradas/aplicadas:** 3 geradas, **0 aplicadas** (validadas só em transação com ROLLBACK).
 **Banco, mensagens e deploy real alterados?:** Banco: não (somente leituras e transação revertida). Mensagens (WhatsApp/e-mail/Telegram): não. Deploy/Vercel: não. NFS-e, financeiro e demais módulos: não alterados.
 **Próxima etapa:** Etapa 2 — montagem da contratação e documento combinado (aguarda autorização; não iniciada).
+
+**08/11/2026 — Ajuste da Etapa 1 + Etapa 2 (Claude Code, VS Code local): CONCLUÍDOS em código e testes; NÃO publicados, migrations NÃO aplicadas.**
+
+```
+Etapa: ajuste da 1 (concessão explícita de assinar contratos comerciais) + 2 — Montagem de contratação e documento combinado
+Branch e SHA local/remoto: solicitacoes-financeiro-contratos-irc-20261031 — base 9bfa652b (Etapa 1); SHA final no commit abaixo, enviado ao GitHub
+```
+
+**CONCLUÍDO — ajuste da Etapa 1 (concessão explícita para TODOS, inclusive admin e owner):**
+- `publicidade.contratos_assinar` deixa de ser presumida pelo papel. Nova função SQL `staff_can_sign_commercial_contracts()` (migration `20261122170000`) só libera com linha `allowed=true` para o próprio usuário ativo, qualquer que seja o papel (operador ainda precisa enxergar o módulo Comercial). A regra geral de acesso administrativo dos demais módulos (`staff_can_module_action`) **não foi alterada** (teste trava isso).
+- A RLS do PNG (`staff_signature_images`) passa a usar essa função: sem concessão o campo não aparece no Meu perfil e o servidor bloqueia (`checkContractSigningGrant` em todas as ações de assinatura; o papel não vale).
+- Administração da concessão em **Usuários** (`ContractSigningGrantsPanel` + `setContractSigningGrantAction`): o proprietário concede/revoga para qualquer usuário ativo (inclusive admin e ele mesmo); o administrador, somente para operadores. Escrita com a sessão (RLS é a barreira; políticas novas só para esta ação e só do proprietário para admin/owner). Auditoria por trigger (`grant`/`revoke`, `critical=true`).
+
+**CONCLUÍDO — Etapa 2:**
+- **Entrada pelo cadastro único**: botão "Nova contratação" na ficha do cliente e atalho no Comercial → `/sistema/publicidade/contratacao?clientId=` (`ClientPicker` existente). Seletor **Comercial/Institucional** e **modelo em lista** (estado de cada modelo visível; rascunho, documento fixo e modalidade errada aparecem desabilitados com o motivo). Permissão: Comercial = `contratos_preparar`; Institucional = permissão financeira `contratos_criar`.
+- **Vários serviços no mesmo documento**: itens do catálogo (publicidade jornal/painel LED/etc.), assinatura do jornal e serviço avulso, até 30; cada um com quantidade, periodicidade, início/término, descrição, entrega/veiculação, renovação e encerramento próprios.
+- **Valores negociados por item sem perder o original**: o preço de **tabela** do catálogo é lido no SERVIDOR (o navegador não decide o original); negociado ≠ tabela exige justificativa (validada no cliente e no servidor); desconto/acréscimo e % calculados; histórico (tabela × negociado × justificativa × quem × quando) vai para a auditoria (`negotiated_values_recorded`) e, na proposta, para as notas internas. Na proposta o preço de tabela fica em `unit_price` e o negociado vira `discount_amount` (total = negociado) — reaproveita `commercial_proposals`/`commercial_proposal_items`, sem tabela nova.
+- **Cláusulas "2. SERVIÇOS CONTRATADOS" → 2.1, 2.2…** com valor de tabela × negociado, justificativa, vigência e demais condições independentes, mais cláusula de independência ("cancelar um serviço não cancela os demais") — `{{servicos.clausulas}}` (e `{{servicos.resumo}}` por compatibilidade); se o modelo não usa a variável, o bloco é acrescentado ao final com aviso.
+- **PDF com cabeçalho CONTRATADA/CONTRATANTE** (dados da Etapa 1: empresa + representante padrão **dentro da vigência dos poderes**; contratante do cadastro mestre; campo ausente vira `[PENDENTE: …]` e aparece em "Pendências" — nunca presume CNPJ/endereço/poderes) e **marca visível em todas as páginas** (faixa no topo e no rodapé + tarja diagonal). Reaproveita `buildContractTemplatePdf` (aditivo: `parties`/`watermark` opcionais; documentos antigos saem iguais).
+- **Minutas TESTE sem ativar produção**: modelo habilitado para teste → "MINUTA DE TESTE — SEM EFEITO CONTRATUAL"; modelo em produção → "MINUTA PARA CONFERÊNCIA — NÃO ASSINAR" (não é emissão oficial); rascunho nunca gera. A minuta é gerada na hora e **não é gravada**, assinada, enviada nem cobrada; gerar minuta não ativa nem aprova modelo (teste estrutural). Cada geração é auditada (`contract_draft_generated`, com modelo/versão/estado, serviços, totais, hash do PDF, `persisted:false`).
+- **Criar proposta** com os itens (serviço de propostas existente; só catálogo; bloqueia acréscimo acima da tabela) — o fluxo comercial existente (aprovar → venda → pacote → revisão → emissão) segue como estava.
+- **Integração no documento OFICIAL** (aditiva, só quando os dados da empresa estão cadastrados): `contratada.*` vêm das Configurações (prevalecem sobre texto digitado por documento), `servicos.clausulas` fica disponível a modelos que a usem (numeradas a partir do snapshot da venda: preço original = unitPrice, negociado = total ÷ quantidade) e o PDF emitido recebe o cabeçalho das partes. Sem cadastro (ou antes das migrations) o fluxo anterior é idêntico. A emissão continua exigindo modelo `active` e versão mais recente.
+- **Função de leitura da CONTRATADA** `get_contract_contractor_profile()` (migration `20261122180000`): empresa + representantes ativos **sem** imagem/hash de assinatura, só para admin/owner ou quem prepara/revisa contratos ou gerencia contratos no Financeiro; a RLS dos representantes (admin/owner) não mudou.
+- **Bug real encontrado e corrigido**: o gerador de PDF lançava erro ao desenhar caracteres que a fonte padrão não codifica (ex.: "→"), derrubando a geração; agora substitui por equivalente seguro ("->") ou "?" (acentos preservados) — vale também para os documentos antigos.
+- Migrations geradas (não aplicadas), além das 3 da Etapa 1: `20261122170000_explicit_contract_signing_grant`, `20261122180000_contractor_profile_for_contract_preparers`.
+
+**TESTADO:**
+- Unitário/estrutural: `apps/sistema` 458/458 (inclui 4 arquivos novos: núcleo da composição, documento com **PDF real lido de volta** — marca em cada página, cabeçalho, cláusulas, pendências —, segurança/estrutura e a concessão explícita), `packages/core` 210/210, `apps/site` 44/44, `pdf-extraction` 47/47, `tsc` e `next build` limpos (rotas novas presentes).
+- **Banco (produção, somente em transação com ROLLBACK, nada persistiu), com papéis reais (`authenticated`/`anon`, RLS ativa):** concessão explícita (owner sem concessão negado; concede a si pela RLS; revoga; PNG só do dono e só com concessão; operador não lê PNG alheio; operador sem módulo visível negado; operador não concede; admin simulado: recebe do owner, não concede a admin/owner, concede a operador; regra geral de owner/admin intacta; auditoria de grant/revoke) e `get_contract_contractor_profile` (operador sem permissão negado; anon negado; operador com `contratos_preparar` lê empresa + representantes ativos sem nenhum dado de assinatura; tabela de representantes continua ilegível ao operador; empresa ausente → null; auditoria sem PII). Verificado depois: nenhuma das funções/tabelas existe em produção e o ledger segue com 5 migrations pendentes (`…140000` a `…180000`).
+- **NÃO testado:** interface autenticada (sem login), geração real no navegador (download/abertura do PDF), Storage real, fluxo completo cliente → proposta → venda → emissão com dados reais, e-mails/WhatsApp (nada é enviado).
+
+**FALTA:**
+- Aplicar as 5 migrations (autorização específica); teste manual com login (Comercial e Institucional, operador com/sem concessão, proposta criada, PDF aberto).
+- **Persistir a contratação institucional composta** (hoje a modalidade Institucional gera só a minuta e leva ao contrato institucional existente) e o vínculo "modelo escolhido → pacote/atribuição" no fluxo comercial (hoje o modelo é escolhido para a minuta; a atribuição oficial segue no painel do pacote).
+- **Minuta de teste dentro do pacote da venda** (conferência por serviço com modelo em teste): o trigger `validate_commercial_template_assignment` exige modelo ativo — exigiria migration; evitado nesta etapa. Documentos de teste **persistidos** (com `is_test` e bloqueio de assinatura/cobrança) também não foram criados: a minuta é efêmera por desenho.
+- Assinatura do jornal como item **persistido** em contrato comercial (fica só na minuta; a assinatura segue a entidade `subscriptions`) e a integração de preço de tabela das assinaturas (valor digitado).
+- Seleção explícita de **qual** representante legal assina (hoje usa o padrão válido na data), aditivos pela nova tela, permissão granular de "valor especial" (hoje bastam as permissões de preparar contratos/criar propostas) e atualização dos modelos seed para usar `{{servicos.clausulas}}` (nova versão + aprovação jurídica — Etapa 5; os seeds não foram tocados).
+- Etapas 3, 4 e 5 (assinatura eletrônica, integrações/retenção, homologação ponta a ponta) — **não iniciadas**.
+
+**RISCOS:**
+- **Ordem de publicação:** aplicar as 5 migrations ANTES de publicar o código (modelos leem colunas novas; a função de leitura da contratada e a concessão explícita dependem de `170000`/`180000`). O carregador da CONTRATADA tolera a ausência da função (devolve "não configurado"), mas a listagem de modelos não.
+- **Dados da empresa prevalecem** sobre `custom_values` na emissão oficial quando cadastrados (decisão explícita: cadastro mestre vence texto livre, como já ocorre com `cliente.*`); avaliar antes de cadastrar a empresa em produção.
+- Minuta de teste não é prova de nada; "MINUTA PARA CONFERÊNCIA" de modelo em produção também não substitui a emissão oficial.
+- Admin/owner sem concessão **perdem** acesso à imagem de assinatura (a imagem não é apagada). Conceder a si mesmo exige ser proprietário.
+- Upload/URL assinada de PNG/PDF só funciona no ambiente Production da Vercel (política existente do cliente admin).
+
+**Migrations geradas/aplicadas:** 5 geradas na frente (`140000`–`180000`), **0 aplicadas** (validadas só em transação com ROLLBACK).
+**Banco, mensagens e deploy real alterados?:** Banco: não (somente leituras e transações revertidas). Mensagens (WhatsApp/e-mail/Telegram): não. Deploy/Vercel: não. NFS-e, financeiro e demais módulos: não alterados; nenhuma cobrança gerada.
+**Próxima etapa:** Etapa 3 — assinatura eletrônica e auditoria probatória (aguarda autorização; **não iniciada**).
 
 **Formato obrigatório dos próximos encerramentos:**
 ```

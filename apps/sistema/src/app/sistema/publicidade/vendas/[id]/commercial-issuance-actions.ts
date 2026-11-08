@@ -136,6 +136,7 @@ export async function issueCommercialContractDocumentsAction(
         title:doc.templateTitle,content:doc.text,contractReference:sale,
         templateTitle:doc.templateTitle,templateVersion:doc.templateVersion,
         generatedAt:new Date().toISOString(),
+        parties:doc.parties,
       });
       if(pdf.byteLength===0 || pdf.byteLength>MAX_BYTES) {
         throw new Error("PDF inválido ou acima de 4 MB: "+doc.templateTitle);

@@ -81,6 +81,7 @@ export default async function CommercialOverviewPage(): Promise<JSX.Element> {
         <div className="form-actions">
 
           <Link href="/sistema/publicidade/solicitacoes">Solicitações do site</Link>
+          <Link href="/sistema/publicidade/contratacao">Nova contratação (minuta com vários serviços)</Link>
           <Link href="/sistema/publicidade/propostas">Propostas/Orçamentos</Link>
           <Link href="/sistema/publicidade/vendas">Vendas</Link>
           <Link href="/sistema/publicidade/produtos">Produtos/serviços</Link>

@@ -3644,3 +3644,22 @@ Fonte de verdade da frente: `docs/CONTRATOS-ASSINADOR-PLANO-EXECUCAO-20261108.md
 **Testes**: `apps/sistema` 416/416, `packages/core` 210/210, `apps/site` 44/44, `pdf-extraction` 47/47, `tsc` e `next build` limpos. Produção intocada (verificado: tabelas/colunas inexistentes, ledger sem as 3).
 
 **Não feito/pendente**: aplicar migrations (autorização), teste com login real e Storage real, confirmação eletrônica de assinatura (Etapa 3), uso dos dados da empresa nas variáveis `contratada.*` (Etapa 2), minutas em modo teste gerando documento com tarja (Etapa 2/5), posicionamento de rubricas (Etapa 3), retenção de PNGs antigos, backup (Etapa 4), aprovação jurídica humana das 6 minutas (Etapa 5). Nenhuma mensagem, cobrança, NFS-e, financeiro ou deploy foi tocado. Próxima: Etapa 2 (aguarda autorização).
+
+
+## 08/11/2026 — Contratos/Assinador: ajuste da Etapa 1 (concessão explícita) + Etapa 2 (montagem de contratação e documento combinado): CÓDIGO E TESTES CONCLUÍDOS — NÃO PUBLICADO, MIGRATIONS NÃO APLICADAS
+
+Fonte de verdade: `docs/CONTRATOS-ASSINADOR-PLANO-EXECUCAO-20261108.md` (Andamento com CONCLUÍDO/TESTADO/FALTA/RISCOS). Resumo operacional:
+
+**Sincronização**: branch `solicitacoes-financeiro-contratos-irc-20261031` = GitHub (base `9bfa652b`) antes de começar; 3 stashes e worktrees `captura-visual`/`ir-controle` preservados.
+
+**Ajuste da Etapa 1**: `contratos_assinar` exige concessão explícita para TODOS (inclusive admin/owner) — função SQL `staff_can_sign_commercial_contracts`, `checkContractSigningGrant` nas ações do Meu perfil, RLS do PNG, painel de concessão em Usuários (proprietário concede a qualquer um; admin só a operadores), auditoria por trigger. A regra geral de acesso administrativo dos outros módulos não mudou.
+
+**Etapa 2**: `/sistema/publicidade/contratacao` (entrada pelo botão "Nova contratação" na ficha do cliente e atalho no Comercial): cliente do cadastro único, Comercial/Institucional, modelo em lista (estado visível), vários serviços (catálogo + assinatura do jornal + avulso) com valor negociado por item (tabela preservada e relida no servidor, justificativa obrigatória, histórico na auditoria/notas da proposta), cláusulas 2.1, 2.2… com vigência/valor independentes, PDF com cabeçalho CONTRATADA/CONTRATANTE (dados da Etapa 1, poderes dentro da vigência, pendências explícitas) e marca visível em todas as páginas (teste: "MINUTA DE TESTE — SEM EFEITO CONTRATUAL"; modelo em produção: "MINUTA PARA CONFERÊNCIA — NÃO ASSINAR"; rascunho não gera). A minuta não é gravada/assinada/enviada/cobrada e nunca ativa/aprova modelo. "Criar proposta" usa o serviço de propostas existente (preço de tabela em `unit_price`, negociado como `discount_amount`). Integração aditiva no documento oficial (CONTRATADA da empresa, `{{servicos.clausulas}}`, cabeçalho das partes) só quando a empresa está cadastrada; a emissão oficial continua exigindo modelo ativo.
+
+**Bug corrigido**: o gerador de PDF lançava erro para caracteres não codificáveis (ex.: "→"); agora substitui por equivalente seguro (também protege documentos antigos).
+
+**Migrations (5 geradas, validadas só em transação com ROLLBACK em produção; NÃO aplicadas):** `20261122140000`, `…150000`, `…160000` (Etapa 1), `…170000_explicit_contract_signing_grant`, `…180000_contractor_profile_for_contract_preparers`. **Aplicar as 5 ANTES de publicar o código**; conferir o ledger antes e nunca reaplicar.
+
+**Testes**: `apps/sistema` 458/458, `packages/core` 210/210, `apps/site` 44/44, `pdf-extraction` 47/47, `tsc` e `next build` limpos; produção intocada (verificado).
+
+**Pendente**: aplicar migrations (autorização) e teste com login real; contratação institucional persistida; vínculo modelo → pacote; minuta de teste dentro do pacote da venda (exige migration no trigger de atribuição); assinatura do jornal persistida como item; escolha explícita do representante; permissão granular de valor especial; modelos seed usarem `{{servicos.clausulas}}` (nova versão + aprovação jurídica). Etapa 3 não iniciada.
