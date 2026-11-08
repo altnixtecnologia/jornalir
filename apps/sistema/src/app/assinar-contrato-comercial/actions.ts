@@ -9,6 +9,7 @@ import {
 } from "../../lib/signatures/commercialSignatures";
 import {buildSignatureReceiptPdf} from "../../lib/signatures/signatureReceiptPdf";
 import {buildSignedContractPdf} from "../../lib/signatures/signedContractPdf";
+import {loadExternalAppearance} from "../../lib/signatures/externalSignaturePlacement";
 import {persistCommercialEvidence,sha256Evidence} from "../../lib/signatures/commercialEvidenceStorage";
 
 type Result<T=never>={error:string}|({ok:true}&T);
@@ -145,11 +146,19 @@ export async function completeCommercialSignatureAction(input:{
    bucket:BUCKET,path:receiptPath,format:"application/pdf",
    candidate:receiptCandidate,
   });
+  // O primeiro signatário usa os campos reservados no PDF da empresa;
+  // assinaturas posteriores não sobrepõem rubricas anteriores.
+  const appearance=await loadExternalAppearance(admin,{
+   modality:"commercial",
+   documentId:invite.commercial_signature_requests.commercial_signature_preparations.document_id,
+   baseSha256:originalHash,
+  });
   const signedCandidate=await buildSignedContractPdf({
    originalBytes:bytes,signatureJpeg:signatureBytes,documentName:source.document_title,
    signerName:person.signer_name,signerEmail:person.signer_email,
    signedAt,originalSha256:originalHash,invitationId:source.invitation_id,
    consentVersion:"commercial-v1",sourceIsCumulative:true,
+   externalAppearance:appearance,
   });
   if(signedCandidate.byteLength>10*1024*1024)
     throw new Error("PDF assinado excede 10 MB.");
