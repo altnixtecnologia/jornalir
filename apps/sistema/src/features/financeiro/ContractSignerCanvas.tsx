@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState, useTransition } from "react";
+import { GoogleSignatureEvidence } from "../assinaturas/GoogleSignatureEvidence";
 import {
   completeSignatureInvitationAction, requestSignerEmailCodeAction, verifySignerEmailCodeAction,
 } from "../../app/sistema/financeiro/contratos/signature-actions";
@@ -145,6 +146,7 @@ export function ContractSignerCanvas({
           </>
         )}
       </div>
+      <GoogleSignatureEvidence token={token} mode="institutional" emailVerified={otpVerified} />
       <p className="field-label">Desenhe sua assinatura com dedo, caneta ou mouse</p>
       <canvas ref={canvasRef} width={700} height={230}
         onPointerDown={pointerDown} onPointerMove={pointerMove} onPointerUp={pointerUp}
