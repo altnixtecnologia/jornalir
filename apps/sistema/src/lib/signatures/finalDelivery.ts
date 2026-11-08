@@ -32,7 +32,7 @@ interface FinalDocument {
   sha256: string;
   name: string;
   email: string;
-  invitationId: string;
+  verificationInvitationId: string;
 }
 
 async function finalDocument(admin: Admin, job: SignatureDeliveryJob): Promise<FinalDocument> {
@@ -57,12 +57,18 @@ async function finalDocument(admin: Admin, job: SignatureDeliveryJob): Promise<F
     if (!String(request.final_file_reference).startsWith("commercial-signatures/" + job.request_id + "/")) {
       throw new DefiniteDeliveryError("Caminho do PDF comercial não corresponde à rodada.");
     }
+    // O PDF final contém o QR da ÚLTIMA assinatura. Um convidado anterior
+    // recebe esse mesmo PDF; seu QR individual apontaria a outra versão.
+    const { data: lastInvite, error: lastError } = await admin.from("commercial_signature_invitations")
+      .select("id").eq("request_id", job.request_id)
+      .eq("signed_sha256", request.final_sha256).maybeSingle();
+    if (lastError || !lastInvite) throw new DefiniteDeliveryError("Identificador do aceite final não localizado.");
     return {
       path: request.final_file_reference,
       sha256: request.final_sha256,
       name: signer.signer_name,
       email: signer.signer_email,
-      invitationId: job.invitation_id,
+      verificationInvitationId: lastInvite.id,
     };
   }
 
@@ -76,6 +82,7 @@ async function finalDocument(admin: Admin, job: SignatureDeliveryJob): Promise<F
   }
   let finalId = invite.signed_document_id;
   let finalSha = invite.signed_sha256;
+  let verificationInvitationId = invite.id;
   if (job.request_id) {
     const { data: request, error } = await admin.from("contract_signature_requests")
       .select("status,final_document_id").eq("id", job.request_id).maybeSingle();
@@ -84,10 +91,11 @@ async function finalDocument(admin: Admin, job: SignatureDeliveryJob): Promise<F
     }
     finalId = request.final_document_id;
     const { data: last, error: lastError } = await admin.from("contract_signature_invitations")
-      .select("signed_sha256").eq("request_id",job.request_id)
+      .select("id,signed_sha256").eq("request_id",job.request_id)
       .eq("signed_document_id",finalId).maybeSingle();
     if (lastError || !last?.signed_sha256) throw new DefiniteDeliveryError("Hash do PDF institucional final não localizado.");
     finalSha = last.signed_sha256;
+    verificationInvitationId = last.id;
   }
   const { data: document, error: documentError } = await admin.from("contract_documents")
     .select("contract_id,file_reference").eq("id", finalId).maybeSingle();
@@ -100,7 +108,7 @@ async function finalDocument(admin: Admin, job: SignatureDeliveryJob): Promise<F
     sha256: finalSha,
     name: invite.signer_name,
     email: invite.signer_email,
-    invitationId: invite.id,
+    verificationInvitationId,
   };
 }
 
@@ -123,7 +131,7 @@ async function sendFinalEmail(admin: Admin, job: SignatureDeliveryJob): Promise<
   if (!apiKey || !from) throw new DefiniteDeliveryError("Provedor de e-mail de assinatura não configurado.");
   const record = await finalDocument(admin, job);
   const pdf = await finalPdfBytes(admin, record);
-  const url = getVerificationUrl(job.modality, record.invitationId);
+  const url = getVerificationUrl(job.modality, record.verificationInvitationId);
   const name = escapeHtml(record.name);
   const validation = url
     ? `<p>Você pode conferir a integridade do aceite pelo <a href="${escapeHtml(url)}">link de verificação</a> ou pelo QR Code no PDF.</p>`
