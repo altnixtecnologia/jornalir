@@ -60,6 +60,10 @@ jobs:
         run: npm run typecheck --workspace @ir/sistema
 
       - name: Testes apenas de assinatura externa, Google e QR
+        # Permite testar funções puras de arquivos com "server-only" sem
+        # enfraquecer a proteção no build real de Client Components.
+        env:
+          NODE_OPTIONS: --conditions=react-server
         run: >
           npx tsx --test
           apps/sistema/test/external-signature-placement.test.ts
