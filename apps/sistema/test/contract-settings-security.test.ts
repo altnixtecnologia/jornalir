@@ -160,12 +160,12 @@ function exportedFunctions(source: string): Array<{ name: string; body: string }
   return parts.map((part) => ({ name: part.slice(0, part.indexOf("(")), body: part }));
 }
 
-test("Meu perfil: TODA ação de assinatura confere contratos_assinar no servidor antes de qualquer leitura/escrita", () => {
+test("Meu perfil: TODA ação de assinatura confere a concessão EXPLÍCITA no servidor antes de qualquer leitura/escrita", () => {
   const source = read("apps/sistema/src/app/sistema/perfil/signature-actions.ts");
   const actions = exportedFunctions(source);
   assert.deepEqual(actions.map((a) => a.name).sort(), ["getMySignatureStateAction", "removeMySignatureAction", "uploadMySignatureAction"]);
   for (const action of actions) {
-    const permissionAt = action.body.indexOf('checkModuleAction("publicidade", "contratos_assinar")');
+    const permissionAt = action.body.indexOf("checkContractSigningGrant()");
     assert.ok(permissionAt > 0, `${action.name} não confere a permissão`);
     for (const forbidden of ["createSupabaseServerClient()", "createSupabaseAdminClient", "storeSignatureImage(", ".from("]) {
       const at = action.body.indexOf(forbidden);
@@ -234,5 +234,70 @@ test("modelos: nenhuma ação envia contrato, cobra, assina, notifica ou toca NF
   ]) {
     const source = read(file);
     assert.doesNotMatch(source, /whatsapp|sendEmail|telegram|nfse|payment_charge|receivables|commercial_signature|contract_signature/i, file);
+  }
+});
+
+// ------------------------------------------------ concessão explícita para TODOS
+
+const explicitMigration = read("supabase/migrations/20261122170000_explicit_contract_signing_grant.sql");
+const explicitCode = withoutComments(explicitMigration);
+
+test("assinar contratos comerciais: a função SQL exige linha allowed=true para QUALQUER papel (admin/owner não passam por atalho de papel)", () => {
+  const fn = explicitCode.slice(explicitCode.indexOf("create or replace function public.staff_can_sign_commercial_contracts"), explicitCode.indexOf("revoke all on function public.staff_can_sign_commercial_contracts"));
+  assert.match(fn, /g\.module_key = 'publicidade'\s+and g\.action_key = 'contratos_assinar'\s+and g\.allowed/);
+  assert.match(fn, /p\.active/);
+  assert.doesNotMatch(fn, /staff_can_module_action/);
+  assert.doesNotMatch(fn, /p\.role in \('owner', 'admin'\)\s*\)\s*;?\s*\$\$/);
+  assert.match(explicitCode, /revoke all on function public\.staff_can_sign_commercial_contracts\(\) from public, anon/);
+});
+
+test("PNG do funcionário: a RLS passa a depender da concessão explícita (admin/owner sem concessão perdem acesso)", () => {
+  assert.match(explicitCode, /drop policy if exists staff_signature_images_select_own/);
+  assert.match(explicitCode, /profile_id = \(select auth\.uid\(\)\)\s+and public\.staff_can_sign_commercial_contracts\(\)/);
+  assert.doesNotMatch(explicitCode, /staff_can_module_action\('publicidade', 'contratos_assinar'\)/);
+});
+
+test("concessão para admin/owner: só o PROPRIETÁRIO, só esta ação; operadores seguem pelas políticas existentes; sem service role", () => {
+  for (const kind of ["insert", "update"]) {
+    const block = explicitCode.slice(explicitCode.indexOf(`create policy staff_module_actions_${kind === "insert" ? "add" : "edit"}_contract_signing`));
+    assert.match(block, /module_key = 'publicidade'\s+and action_key = 'contratos_assinar'\s+and \(select public\.is_active_owner\(\)\)/);
+    assert.match(block, /p\.role in \('owner', 'admin'\)/);
+  }
+  assert.doesNotMatch(explicitCode, /staff_module_action_permissions\s+for delete/);
+  const action = read("apps/sistema/src/app/sistema/usuarios/contract-signing-actions.ts");
+  assert.doesNotMatch(action, /createSupabaseAdminClient|SERVICE_ROLE/);
+  assert.match(action, /actor\.role === "admin" && target\.role !== "operator"/);
+  assert.match(action, /action_key: "contratos_assinar"/);
+  assert.match(action, /Somente administrador ou proprietário gerencia esta concessão/);
+});
+
+test("guarda do servidor: checkContractSigningGrant usa a função explícita, nunca checkModuleAction/papel", () => {
+  const guard = read("apps/sistema/src/lib/permissions/checkContractSigningGrant.ts").replace(/\/\*[\s\S]*?\*\//g, "");
+  assert.match(guard, /rpc\("staff_can_sign_commercial_contracts"\)/);
+  assert.doesNotMatch(guard, /checkModuleAction|staff_can_module_action/);
+  assert.match(guard, /data === true \? null/);
+  const actions = read("apps/sistema/src/app/sistema/perfil/signature-actions.ts");
+  assert.doesNotMatch(actions, /checkModuleAction/);
+});
+
+test("tela de usuários: painel de concessão explícita para todos os papéis, com auditoria já garantida por trigger", () => {
+  const panel = read("apps/sistema/src/features/usuarios/ContractSigningGrantsPanel.tsx");
+  assert.match(panel, /inclusive para administradores e proprietário/);
+  assert.match(panel, /if \(currentRole !== "owner" && currentRole !== "admin"\) return null/);
+  assert.match(panel, /if \(currentRole === "owner"\) return true;\s+return user\.role === "operator"/);
+  const manager = read("apps/sistema/src/features/usuarios/UsersManager.tsx");
+  assert.match(manager, /<ContractSigningGrantsPanel/);
+  const trigger = read("supabase/migrations/20261122140000_contract_signing_permission_and_permission_audit.sql");
+  assert.match(trigger, /after insert or update on public\.staff_module_action_permissions/);
+});
+
+test("a regra geral de acesso administrativo dos outros módulos NÃO muda (staff_can_module_action intacta nas migrations novas)", () => {
+  for (const name of [
+    "20261122140000_contract_signing_permission_and_permission_audit.sql",
+    "20261122150000_company_profile_representatives_signature_images.sql",
+    "20261122160000_contract_template_governance.sql",
+    "20261122170000_explicit_contract_signing_grant.sql",
+  ]) {
+    assert.doesNotMatch(withoutComments(read(`supabase/migrations/${name}`)), /create or replace function public\.staff_can_module_action/, name);
   }
 });

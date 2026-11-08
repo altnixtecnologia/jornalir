@@ -7,6 +7,7 @@ import { ROLE_LABELS } from "../../lib/auth/accountDisplay";
 import { hasRealStaffName, staffNameLabel } from "../../lib/auth/userIdentity";
 import { inviteUser, listUserInvitationStatuses, sendPasswordResetForUser, updateManagedUserDetails, resendPendingUserAccess } from "../../app/sistema/usuarios/actions";
 import { ConfirmDialog } from "../../components/admin/ConfirmDialog";
+import { ContractSigningGrantsPanel } from "./ContractSigningGrantsPanel";
 import { notify } from "../../lib/feedback/notify";
 import { STAFF_FINANCE_ACTIONS, STAFF_MODULE_ACTIONS, STAFF_MODULES, type StaffFinanceActionKey, type StaffModuleActionKey, type StaffActionModule, type StaffModuleKey } from "../../lib/permissions/staffPermissionsCatalog";
 import {
@@ -999,6 +1000,21 @@ export function UsersManager(): JSX.Element {
           ? <p className="helper-text">Ainda não há operadores cadastrados. Os controles aparecerão aqui quando um operador for convidado.</p>
           : null}
       </section>
+
+      <ContractSigningGrantsPanel
+        currentRole={profile?.role === "owner" || profile?.role === "admin" || profile?.role === "operator" ? profile.role : undefined}
+        currentUserId={profile?.id}
+        users={(users ?? []).map((user) => ({
+          id: user.id,
+          name: userName(user),
+          role: user.role as "owner" | "admin" | "operator",
+          active: user.active,
+          granted: moduleActionGrants.some(
+            (grant) => grant.profile_id === user.id && grant.module_key === "publicidade" && grant.action_key === "contratos_assinar" && grant.allowed,
+          ),
+        }))}
+        onChanged={reload}
+      />
 
       <ConfirmDialog
         open={criticalConfirm !== null}

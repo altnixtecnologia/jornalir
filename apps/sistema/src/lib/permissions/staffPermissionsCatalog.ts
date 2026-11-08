@@ -91,8 +91,10 @@ export const STAFF_MODULE_ACTIONS = [
   // Etapa 1 de Contratos (08/11/2026): poder INDIVIDUAL e nunca presumido de
   // assinar contratos comerciais pela empresa. Habilita o PNG de assinatura
   // no Meu perfil; o ato de assinar continua exigindo confirmação explícita.
-  // Concessão/revogação é auditada por trigger no banco.
-  { module: "publicidade", key: "contratos_assinar", label: "Assinar contratos comerciais pela empresa (libera a imagem de assinatura no Meu perfil)", isCritical: true },
+  // Concessão EXPLÍCITA para todos, inclusive admin/owner (o papel não presume
+  // esse poder; função SQL staff_can_sign_commercial_contracts). Concessão/
+  // revogação é auditada por trigger no banco.
+  { module: "publicidade", key: "contratos_assinar", label: "Assinar contratos comerciais pela empresa (concessão explícita, inclusive para admin/proprietário; libera a imagem de assinatura no Meu perfil)", isCritical: true },
   { module: "nfse", key: "rascunhos_criar", label: "Criar rascunhos fiscais", isDefault: true },
   { module: "nfse", key: "rascunhos_editar", label: "Editar rascunhos fiscais", isDefault: true },
   { module: "nfse", key: "notas_emitir", label: "Emitir NFS-e (somente administração)", adminOnly: true },

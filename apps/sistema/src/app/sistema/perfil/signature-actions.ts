@@ -2,14 +2,15 @@
 
 import { revalidatePath } from "next/cache";
 import { createSupabaseServerClient } from "../../../lib/supabase/server";
-import { checkModuleAction } from "../../../lib/permissions/checkModuleAction";
+import { checkContractSigningGrant } from "../../../lib/permissions/checkContractSigningGrant";
 import { MAX_SIGNATURE_PNG_BYTES, storeSignatureImage } from "../../../lib/contracts/signatureImage";
 import { createSignatureSignedUrl, uploadSignatureObject } from "../../../lib/contracts/signatureImageStorage";
 
 /**
  * Meu perfil → assinatura PNG (Etapa 1 do plano de Contratos, 08/11/2026).
- * Só quem tem `publicidade.contratos_assinar` vê, envia, troca ou remove —
- * conferido AQUI no servidor (não só escondendo o bloco na tela), na RLS de
+ * Só quem tem a concessão EXPLÍCITA `publicidade.contratos_assinar` (inclusive
+ * administrador e proprietário — o papel não presume esse poder) vê, envia,
+ * troca ou remove — conferido AQUI no servidor (não só escondendo o bloco na tela), na RLS de
  * `staff_signature_images` e no bucket privado (sem policy; só service role).
  * A imagem é só representação gráfica: nunca assina nada por si.
  *
@@ -35,7 +36,7 @@ async function currentUserId(client: ReturnType<typeof createSupabaseServerClien
 
 /** Quem não tem a permissão recebe `authorized:false` e nada mais — o bloco nem aparece. */
 export async function getMySignatureStateAction(): Promise<Result<{ state: MySignatureState }>> {
-  const denied = await checkModuleAction("publicidade", "contratos_assinar");
+  const denied = await checkContractSigningGrant();
   if (denied) return { ok: true, state: { authorized: false, hasImage: false } };
   const client = createSupabaseServerClient();
   const userId = await currentUserId(client);
@@ -66,7 +67,7 @@ export async function getMySignatureStateAction(): Promise<Result<{ state: MySig
 
 /** FormData: `file` (PNG). Valida os bytes (não confia no tipo enviado), grava em bucket privado versionado por hash. */
 export async function uploadMySignatureAction(formData: FormData): Promise<Result<{ sha256: string }>> {
-  const denied = await checkModuleAction("publicidade", "contratos_assinar");
+  const denied = await checkContractSigningGrant();
   if (denied) return { error: "Você não tem permissão para cadastrar assinatura." };
   const file = formData.get("file");
   if (!(file instanceof File) || file.size === 0) return { error: "Selecione um arquivo PNG." };
@@ -108,7 +109,7 @@ export async function uploadMySignatureAction(formData: FormData): Promise<Resul
 }
 
 export async function removeMySignatureAction(): Promise<Result> {
-  const denied = await checkModuleAction("publicidade", "contratos_assinar");
+  const denied = await checkContractSigningGrant();
   if (denied) return { error: "Você não tem permissão para gerenciar assinatura." };
   const client = createSupabaseServerClient();
   const userId = await currentUserId(client);
