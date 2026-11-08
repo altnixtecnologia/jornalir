@@ -1,5 +1,6 @@
 import "server-only";
 import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
+import QRCode from "qrcode";
 import { stampCompanySignature } from "./companySignaturePdf";
 import type { ExternalSignatureAppearance } from "./externalSignaturePlacement";
 import type { GoogleEvidenceSnapshot } from "./googleSignatureEvidence";
@@ -18,6 +19,8 @@ export interface SignedPdfInput {
   /** Campos reservados à CONTRATANTE no PDF já assinado pela empresa. */
   externalAppearance?: ExternalSignatureAppearance | null;
   googleEvidence?: GoogleEvidenceSnapshot | null;
+  /** Página pública sem nome, CPF, token de convite ou acesso ao PDF. */
+  verificationUrl?: string | null;
 }
 
 function safeText(s: string): string {
@@ -85,6 +88,19 @@ export async function buildSignedContractPdf(input: SignedPdfInput): Promise<Uin
     line("Google adicional: e-mail " + input.googleEvidence.email, 129, 9);
     line("SHA-256 do ID da conta: " + input.googleEvidence.subjectSha256.slice(0, 32), 112, 9);
     line("Google confirma uso de conta, nao identidade civil ou CPF.", 95, 9);
+  }
+  if (input.verificationUrl) {
+    // QR da VERSÃO DESTE ACEITE. O hash do PDF resultante é persistido
+    // no banco após esta renderização, nunca é obtido de dados do navegador.
+    if (!/^https:\/\//.test(input.verificationUrl)) throw new Error("Endereço de verificação inválido.");
+    const qrDataUrl = await QRCode.toDataURL(input.verificationUrl, {
+      errorCorrectionLevel: "M", margin: 1, width: 220,
+    });
+    const qrBytes = Buffer.from(qrDataUrl.split(",")[1] ?? "", "base64");
+    const qr = await pdf.embedPng(qrBytes);
+    page.drawRectangle({ x: 448, y: 111, width: 101, height: 114, color: rgb(1, 1, 1) });
+    page.drawImage(qr, { x: 458, y: 135, width: 82, height: 82 });
+    page.drawText("VERIFICAR ACEITE", { x: 453, y: 124, size: 7, font: bold, color: ink });
   }
   pdf.setTitle(safeText("Versão para conferência assinada - " + input.documentName));
   pdf.setSubject("Registro eletrônico de aceite; nao ICP-Brasil");
