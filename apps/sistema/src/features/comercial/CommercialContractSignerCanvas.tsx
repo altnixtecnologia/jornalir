@@ -120,7 +120,7 @@ export function CommercialContractSignerCanvas({
       ) : <p className="helper-text" role="status">
         {pdfPreview.loading ? "Conferindo a versão do PDF…" :
           pdfPreview.error ?? "O PDF será liberado após confirmar o código enviado ao seu e-mail."}
-      </p>
+      </p>}
       <label className="form-field" style={{ display: "block", marginTop: 20 }}>
         <span className="field-label">Seu nome completo, como consta no convite</span>
         <input value={fullName} onChange={(e) => setFullName(e.target.value)} maxLength={180}
