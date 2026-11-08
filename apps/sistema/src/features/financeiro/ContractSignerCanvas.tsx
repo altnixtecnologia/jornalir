@@ -2,6 +2,7 @@
 
 import { useRef, useState, useTransition } from "react";
 import { GoogleSignatureEvidence } from "../assinaturas/GoogleSignatureEvidence";
+import { useVerifiedSignaturePdf } from "../assinaturas/useVerifiedSignaturePdf";
 import {
   completeSignatureInvitationAction, requestSignerEmailCodeAction, verifySignerEmailCodeAction,
 } from "../../app/sistema/financeiro/contratos/signature-actions";
@@ -21,6 +22,7 @@ export function ContractSignerCanvas({
   const [hasStroke, setHasStroke] = useState(false);
   const [error, setError] = useState("");
   const [pending, startTransition] = useTransition();
+  const pdfPreview = useVerifiedSignaturePdf(token, "institutional", otpVerified);
 
   function coords(e: React.PointerEvent<HTMLCanvasElement>): { x: number; y: number } {
     const rect = e.currentTarget.getBoundingClientRect();
@@ -82,11 +84,13 @@ export function ContractSignerCanvas({
       setError("Confira o PDF, informe seu nome, desenhe sua assinatura e aceite o termo.");
       return;
     }
+    if (!pdfPreview.sha256) { setError("Confira a versão atual do PDF antes de confirmar a assinatura."); return; }
     const imageDataUrl = canvasRef.current?.toDataURL("image/png") ?? "";
     startTransition(async () => {
       try {
         const result = await completeSignatureInvitationAction({
           token, signerName: fullName, signerEmail, consent, imageDataUrl,
+          viewedBaseSha256: pdfPreview.sha256,
         });
         if ("error" in result) { setError(result.error); return; }
         setSigned(true);
@@ -110,8 +114,13 @@ export function ContractSignerCanvas({
         Convite para {name}. Válido até {new Date(expiresAt).toLocaleString("pt-BR")}.
         Leia o PDF completo antes de continuar.
       </p>
-      <iframe src={"/api/assinar-contrato/" + token + "/documento"}
-        title="Documento original para assinatura" style={{ width: "100%", height: "min(66vh,720px)", border: "1px solid #ccc" }} />
+      {otpVerified && pdfPreview.url ? (
+        <iframe src={pdfPreview.url} title="Versão atual do contrato para assinatura"
+          style={{ width: "100%", height: "min(66vh,720px)", border: "1px solid #ccc" }} />
+      ) : <p role="status" className="helper-text">
+        {pdfPreview.loading ? "Conferindo a versão do PDF…" :
+          pdfPreview.error ?? "Confirme o código do e-mail para abrir o PDF protegido."}
+      </p>
       <label className="form-field" style={{ display: "block", marginTop: 20 }}>
         <span className="field-label">Seu nome completo, como consta no convite</span>
         <input value={fullName} onChange={(e) => setFullName(e.target.value)} maxLength={180}
@@ -168,7 +177,7 @@ export function ContractSignerCanvas({
       {error ? <p className="form-error" role="alert">{error}</p> : null}
       <div className="form-actions">
         <button type="button" className="form-action-primary" onClick={submit}
-          disabled={pending || !otpVerified || !consent || !hasStroke || !fullName.trim() || !signerEmail.trim()}>
+          disabled={pending || !otpVerified || !pdfPreview.sha256 || !consent || !hasStroke || !fullName.trim() || !signerEmail.trim()}>
           {pending ? "Registrando…" : "Confirmar assinatura eletrônica"}
         </button>
       </div>
