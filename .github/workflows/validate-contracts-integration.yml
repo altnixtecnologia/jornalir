@@ -22,6 +22,7 @@ on:
       - "apps/sistema/src/app/sistema/financeiro/contratos/signature-actions.ts"
       - "apps/sistema/src/app/sistema/publicidade/vendas/*/commercial-signature-invitation-actions.ts"
       - "apps/sistema/test/external-signature-placement.test.ts"
+      - "apps/sistema/test/external-signed-pdf-smoke.test.ts"
       - "apps/sistema/test/google-signature-proof.test.ts"
       - "apps/sistema/test/public-verification.test.ts"
       - "package-lock.json"
@@ -67,6 +68,7 @@ jobs:
         run: >
           npx tsx --test
           apps/sistema/test/external-signature-placement.test.ts
+          apps/sistema/test/external-signed-pdf-smoke.test.ts
           apps/sistema/test/google-signature-proof.test.ts
           apps/sistema/test/public-verification.test.ts
 
