@@ -18,6 +18,7 @@ export type { SignatureRequest };
 import { buildSignatureReceiptPdf } from "../../../../lib/signatures/signatureReceiptPdf";
 import { buildSignedContractPdf } from "../../../../lib/signatures/signedContractPdf";
 import { loadExternalAppearance } from "../../../../lib/signatures/externalSignaturePlacement";
+import { googleEvidenceForSignature } from "../../../../lib/signatures/googleSignatureEvidence";
 import {
   isWhatsappSignatureTemplateConfigured, sendWhatsappSignatureInviteTemplate,
 } from "../../../../lib/financeiro/whatsappCloudProvider";
@@ -424,11 +425,13 @@ export async function completeSignatureInvitationAction(input: {
       }
       const originalSha256 = createHash("sha256").update(originalBytes).digest("hex");
       const signedAt = new Date().toISOString();
+      const googleEvidence = await googleEvidenceForSignature(admin, "institutional", invitation.id, verifiedUser.user.id);
       const receiptBytes = buildSignatureReceiptPdf({
         signerName: invitation.signer_name, signerEmail: invitation.signer_email,
         documentName: source.filename, contractNumber: source.contractNumber, signedAt,
         originalSha256, invitationId: invitation.id,
         jpegBytes: jpeg, jpegWidth: jpegInfo.width ?? 640, jpegHeight: jpegInfo.height ?? 240,
+        googleEvidence,
       });
       const receiptSha256 = createHash("sha256").update(receiptBytes).digest("hex");
       // source.path é o PDF original NA PRIMEIRA assinatura da rodada, ou
@@ -447,6 +450,7 @@ export async function completeSignatureInvitationAction(input: {
         signerName: invitation.signer_name, signerEmail: invitation.signer_email,
         signedAt, originalSha256, invitationId: invitation.id,
         externalAppearance: appearance,
+        googleEvidence,
       });
       if (signedPdfBytes.byteLength > 10 * 1024 * 1024) {
         return { error: "O PDF assinado excedeu 10 MB. Solicite à equipe a compactação do documento antes de assinar." };
@@ -476,6 +480,7 @@ export async function completeSignatureInvitationAction(input: {
         userAgent: (h.get("user-agent") ?? "").slice(0, 400),
         method: "verified-email-otp-and-graphical-acceptance",
         originalDocumentId: invitation.document_id,
+        googleEvidence: googleEvidence ? { provider: "google", subjectSha256: googleEvidence.subjectSha256, verifiedAt: googleEvidence.verifiedAt } : null,
       };
       const { data: receiptId, error: finalizeError } = await admin.rpc("finalize_contract_signature", {
         p_invitation_id: invitation.id, p_token_hash: tokenHash,
