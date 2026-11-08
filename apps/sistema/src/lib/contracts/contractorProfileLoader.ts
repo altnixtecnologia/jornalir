@@ -17,12 +17,16 @@ import {
  */
 const MISSING_CODES = new Set(["42883", "42P01", "PGRST202", "PGRST205", "PGRST200"]);
 
-export async function loadContractorProfile(supabase: SupabaseClient, todayIso: string): Promise<ContractorProfile> {
+export async function loadContractorProfile(
+  supabase: SupabaseClient,
+  todayIso: string,
+  preferredRepresentativeId?: string,
+): Promise<ContractorProfile> {
   const { data, error } = await supabase.rpc("get_contract_contractor_profile");
   if (error) {
-    if (MISSING_CODES.has(error.code ?? "")) return buildContractorProfile(null, [], todayIso);
+    if (MISSING_CODES.has(error.code ?? "")) return buildContractorProfile(null, [], todayIso, preferredRepresentativeId);
     throw new Error("Não foi possível consultar os dados da empresa (contratada).");
   }
   const payload = (data ?? {}) as { company?: CompanyProfileRow | null; representatives?: LegalRepresentativeRow[] };
-  return buildContractorProfile(payload.company ?? null, payload.representatives ?? [], todayIso);
+  return buildContractorProfile(payload.company ?? null, payload.representatives ?? [], todayIso, preferredRepresentativeId);
 }

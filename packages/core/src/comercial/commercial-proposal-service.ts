@@ -1,6 +1,7 @@
 import {
   canTransitionCommercialProposalStatus,
   type CommercialCondition,
+  type CommercialContractModality,
   type CommercialProposal,
   type CommercialProposalStatus,
   type CommercialProposalWithItems,
@@ -32,6 +33,9 @@ export interface CommercialProposalItemInput {
   quantity: number;
   unitPrice: number;
   discountAmount: number;
+  /** Preço de tabela preservado quando o unitPrice é o valor negociado. */
+  listUnitPrice?: number;
+  negotiationReason?: string;
 }
 
 export interface CommercialProposalInput {
@@ -41,6 +45,10 @@ export interface CommercialProposalInput {
   commercialCondition: CommercialCondition;
   notes?: string;
   internalNotes?: string;
+  contractTemplateId?: string;
+  contractModality?: CommercialContractModality;
+  contractorRepresentativeId?: string;
+  compositionRequestId?: string;
   items: CommercialProposalItemInput[];
 }
 
@@ -57,6 +65,10 @@ function normalize(input: CommercialProposalInput): NewCommercialProposalRecord 
     commercialCondition: input.commercialCondition,
     notes: trimOrUndefined(input.notes),
     internalNotes: trimOrUndefined(input.internalNotes),
+    contractTemplateId: trimOrUndefined(input.contractTemplateId),
+    contractModality: input.contractModality,
+    contractorRepresentativeId: trimOrUndefined(input.contractorRepresentativeId),
+    compositionRequestId: trimOrUndefined(input.compositionRequestId),
   };
 }
 
@@ -67,6 +79,8 @@ function normalizeItems(items: CommercialProposalItemInput[]) {
     quantity: item.quantity,
     unitPrice: item.unitPrice,
     discountAmount: item.discountAmount,
+    listUnitPrice: item.listUnitPrice,
+    negotiationReason: trimOrUndefined(item.negotiationReason),
     sortOrder: index,
   }));
 }
@@ -83,6 +97,9 @@ function assertValid(record: NewCommercialProposalRecord, items: CommercialPropo
     if (!Number.isFinite(item.quantity) || item.quantity <= 0) throw new CommercialProposalValidationError("Informe uma quantidade válida.");
     if (!Number.isFinite(item.unitPrice) || item.unitPrice < 0) throw new CommercialProposalValidationError("Informe um valor unitário válido.");
     if (!Number.isFinite(item.discountAmount) || item.discountAmount < 0) throw new CommercialProposalValidationError("Informe um desconto válido.");
+    if (item.listUnitPrice !== undefined && (!Number.isFinite(item.listUnitPrice) || item.listUnitPrice < 0)) {
+      throw new CommercialProposalValidationError("Informe um valor de tabela válido.");
+    }
     if (item.discountAmount > item.quantity * item.unitPrice) {
       throw new CommercialProposalValidationError("O desconto não pode ser maior que o subtotal do item.");
     }

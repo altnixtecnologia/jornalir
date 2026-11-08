@@ -28,10 +28,11 @@ export default async function ContractCompositionPage({
   searchParams?: Record<string, string | string[] | undefined>;
 }): Promise<JSX.Element> {
   const supabase = createSupabaseServerClient();
-  const [commercialDenied, institutionalDenied, proposalDenied] = await Promise.all([
+  const [commercialDenied, institutionalDenied, proposalDenied, negotiateDenied] = await Promise.all([
     checkModuleAction("publicidade", "contratos_preparar"),
     checkFinanceAction("contratos_criar"),
     checkModuleAction("publicidade", "propostas_criar"),
+    checkModuleAction("publicidade", "valores_negociar"),
   ]);
   const canCommercial = commercialDenied === null;
   const canInstitutional = institutionalDenied === null;
@@ -70,6 +71,7 @@ export default async function ContractCompositionPage({
         canCommercial={canCommercial}
         canInstitutional={canInstitutional}
         canCreateProposal={proposalDenied === null}
+        canNegotiate={negotiateDenied === null}
       />
     </>
   );

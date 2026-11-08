@@ -106,6 +106,8 @@ export async function convertCommercialProposalToSaleAction(id: string): Promise
         description: item.description,
         quantity: item.quantity,
         unitPrice: item.unitPrice,
+        ...(item.listUnitPrice !== undefined ? { listUnitPrice: item.listUnitPrice } : {}),
+        ...(item.negotiationReason ? { negotiationReason: item.negotiationReason } : {}),
         discountAmount: item.discountAmount,
         totalAmount: computeProposalItemTotal(item),
         sortOrder: item.sortOrder,
@@ -126,6 +128,10 @@ export async function convertCommercialProposalToSaleAction(id: string): Promise
       commercialCondition: proposal.commercialCondition,
       installmentsCount: 1,
       notes: proposal.notes,
+      // Preferências da contratação seguem para a venda (pré-seleção do modelo/representante no pacote).
+      contractTemplateId: proposal.contractTemplateId,
+      contractModality: proposal.contractModality,
+      contractorRepresentativeId: proposal.contractorRepresentativeId,
     });
 
     await proposalService.markConverted(proposal.id, sale.id);

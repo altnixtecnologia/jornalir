@@ -115,6 +115,7 @@ export default async function CommercialSaleDetailPage({ params }: { params: { i
         clientId={client.id}
         saleStatus={sale.status}
         defaultMode={(sale.itemsSnapshot?.length ?? 1) > 1 ? "combined" : "separate"}
+        preferredTemplateId={sale.contractTemplateId}
         pkg={pkg && !contractLoadError ? {
           id: pkg.id,
           document_mode: pkg.document_mode as "combined" | "separate",

@@ -1,12 +1,12 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { CommercialCondition, CommercialSale, CommercialSaleStatus, CommercialSaleItemSnapshot } from "@ir/types";
+import type { CommercialCondition, CommercialContractModality, CommercialSale, CommercialSaleStatus, CommercialSaleItemSnapshot } from "@ir/types";
 import type { CommercialSaleChanges, CommercialSaleListQuery, CommercialSaleRepository, NewCommercialSaleRecord } from "@ir/core";
 import { isLocalPreviewEnabled } from "../../lib/auth/localPreview";
 
 const TABLE = "commercial_sales";
 const COLUMNS =
   "id, internal_reference, client_id, proposal_id, items_snapshot, product_id, channel, description, start_date, end_date, amount, " +
-  "commercial_condition, installments_count, status, notes, created_by, updated_by, created_at, updated_at";
+  "commercial_condition, installments_count, status, notes, contract_template_id, contract_modality, contractor_representative_id, created_by, updated_by, created_at, updated_at";
 
 interface SaleRow {
   id: string;
@@ -24,6 +24,9 @@ interface SaleRow {
   installments_count: number;
   status: CommercialSaleStatus;
   notes: string | null;
+  contract_template_id: string | null;
+  contract_modality: CommercialContractModality | null;
+  contractor_representative_id: string | null;
   created_by: string | null;
   updated_by: string | null;
   created_at: string;
@@ -47,6 +50,9 @@ function toDomain(row: SaleRow): CommercialSale {
     installmentsCount: Number(row.installments_count),
     status: row.status,
     notes: row.notes ?? undefined,
+    contractTemplateId: row.contract_template_id ?? undefined,
+    contractModality: row.contract_modality ?? undefined,
+    contractorRepresentativeId: row.contractor_representative_id ?? undefined,
     createdByProfileId: row.created_by ?? undefined,
     updatedByProfileId: row.updated_by ?? undefined,
     createdAt: row.created_at,
@@ -69,6 +75,9 @@ function toRow(record: NewCommercialSaleRecord | CommercialSaleChanges): Record<
   if (record.installmentsCount !== undefined) row.installments_count = record.installmentsCount;
   if (record.status !== undefined) row.status = record.status;
   if (record.notes !== undefined) row.notes = record.notes ?? null;
+  if (record.contractTemplateId !== undefined) row.contract_template_id = record.contractTemplateId ?? null;
+  if (record.contractModality !== undefined) row.contract_modality = record.contractModality ?? null;
+  if (record.contractorRepresentativeId !== undefined) row.contractor_representative_id = record.contractorRepresentativeId ?? null;
   return row;
 }
 

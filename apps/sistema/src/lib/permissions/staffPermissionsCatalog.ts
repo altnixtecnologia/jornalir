@@ -95,6 +95,8 @@ export const STAFF_MODULE_ACTIONS = [
   // esse poder; função SQL staff_can_sign_commercial_contracts). Concessão/
   // revogação é auditada por trigger no banco.
   { module: "publicidade", key: "contratos_assinar", label: "Assinar contratos comerciais pela empresa (concessão explícita, inclusive para admin/proprietário; libera a imagem de assinatura no Meu perfil)", isCritical: true },
+  // Montagem de contratação (08/11/2026): negociar valor ACIMA ou ABAIXO da tabela é ação própria (nunca padrão).
+  { module: "publicidade", key: "valores_negociar", label: "Negociar valores acima ou abaixo da tabela na montagem de contratação" },
   { module: "nfse", key: "rascunhos_criar", label: "Criar rascunhos fiscais", isDefault: true },
   { module: "nfse", key: "rascunhos_editar", label: "Editar rascunhos fiscais", isDefault: true },
   { module: "nfse", key: "notas_emitir", label: "Emitir NFS-e (somente administração)", adminOnly: true },

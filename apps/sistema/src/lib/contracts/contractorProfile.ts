@@ -35,6 +35,20 @@ export interface LegalRepresentativeRow {
   is_default: boolean;
 }
 
+/** Representante apresentado na escolha (sem CPF/poderes completos): só o que o operador precisa para decidir. */
+export interface ContractorRepresentativeOption {
+  id: string;
+  fullName: string;
+  roleTitle: string;
+  representationRule: "individual" | "joint";
+  powersValidUntil?: string;
+  isDefault: boolean;
+  /** Poderes ativos e dentro da vigência na data consultada. */
+  validNow: boolean;
+  /** Por que não vale hoje (inativo / fora da vigência). */
+  reason?: string;
+}
+
 export interface ContractorProfile {
   /** Há dados da empresa cadastrados. Sem isso, o chamador mantém o fluxo anterior (valores digitados). */
   configured: boolean;
@@ -44,6 +58,14 @@ export interface ContractorProfile {
   headerLines: string[];
   warnings: string[];
   representativeId?: string;
+  /** Todos os representantes ativos, com a situação de vigência — alimenta a escolha de quem assina. */
+  representatives: ContractorRepresentativeOption[];
+  /**
+   * Preenchido quando um representante foi ESCOLHIDO e não vale (removido,
+   * inativo ou fora da vigência). Nunca há substituição silenciosa pelo
+   * padrão: quem emite deve parar e quem escolhe deve ser avisado.
+   */
+  preferredInvalid?: string;
 }
 
 function digits(value: string): string {
@@ -69,12 +91,50 @@ function formatCompanyAddress(company: CompanyProfileRow): string {
   return [line1, company.address_complement, line2, zip].filter(Boolean).join(", ");
 }
 
-/** Padrão ativo cujos poderes valem em `todayIso`; fora da vigência não é usado (e gera aviso). */
+function formatIsoBr(iso: string): string {
+  return iso.split("-").reverse().join("/");
+}
+
+/** Situação de um representante numa data: ativo e dentro da vigência dos poderes. */
+export function evaluateRepresentative(rep: LegalRepresentativeRow, todayIso: string): { valid: boolean; reason?: string } {
+  if (!rep.active) return { valid: false, reason: `${rep.full_name} está inativo.` };
+  if (rep.powers_valid_from && todayIso < rep.powers_valid_from) {
+    return { valid: false, reason: `Os poderes de ${rep.full_name} só valem a partir de ${formatIsoBr(rep.powers_valid_from)}.` };
+  }
+  if (rep.powers_valid_until && todayIso > rep.powers_valid_until) {
+    return { valid: false, reason: `Os poderes de ${rep.full_name} expiraram em ${formatIsoBr(rep.powers_valid_until)}.` };
+  }
+  return { valid: true };
+}
+
+/**
+ * Representante que assina pela CONTRATADA. Com `preferredId` (escolha do
+ * operador) usa SÓ aquele — se não existir/estiver inativo/fora da vigência,
+ * devolve `invalid` e NÃO cai no padrão. Sem escolha, usa o padrão ativo cujos
+ * poderes valem em `todayIso`.
+ */
 export function pickContractRepresentative(
   representatives: LegalRepresentativeRow[],
   todayIso: string,
-): { representative?: LegalRepresentativeRow; warnings: string[] } {
+  preferredId?: string,
+): { representative?: LegalRepresentativeRow; warnings: string[]; invalid?: string } {
   const warnings: string[] = [];
+  if (preferredId) {
+    const chosen = representatives.find((rep) => rep.id === preferredId);
+    if (!chosen) {
+      const message = "O representante escolhido para a contratada não está mais disponível. Escolha outro representante.";
+      return { warnings: [message], invalid: message };
+    }
+    const status = evaluateRepresentative(chosen, todayIso);
+    if (!status.valid) {
+      const message = `${status.reason} Escolha outro representante.`;
+      return { warnings: [message], invalid: message };
+    }
+    if (chosen.representation_rule === "joint") {
+      warnings.push(`${chosen.full_name} representa a empresa em conjunto: o ato de assinar exigirá outro representante (etapa de assinatura).`);
+    }
+    return { representative: chosen, warnings };
+  }
   const active = representatives.filter((rep) => rep.active);
   const preferred = active.find((rep) => rep.is_default) ?? (active.length === 1 ? active[0] : undefined);
   if (!preferred) {
@@ -99,20 +159,41 @@ export function pickContractRepresentative(
   return { representative: preferred, warnings };
 }
 
+export function representativeOptions(representatives: LegalRepresentativeRow[], todayIso: string): ContractorRepresentativeOption[] {
+  return representatives
+    .filter((rep) => rep.active)
+    .map((rep) => {
+      const status = evaluateRepresentative(rep, todayIso);
+      return {
+        id: rep.id,
+        fullName: rep.full_name,
+        roleTitle: rep.role_title,
+        representationRule: rep.representation_rule,
+        powersValidUntil: rep.powers_valid_until ?? undefined,
+        isDefault: rep.is_default,
+        validNow: status.valid,
+        reason: status.reason,
+      };
+    });
+}
+
 export function buildContractorProfile(
   company: CompanyProfileRow | null,
   representatives: LegalRepresentativeRow[],
   todayIso: string,
+  preferredRepresentativeId?: string,
 ): ContractorProfile {
+  const options = representativeOptions(representatives, todayIso);
   if (!company) {
     return {
       configured: false,
       variables: {},
       headerLines: ["[PENDENTE: cadastrar os dados da empresa em Configurações → Dados da empresa]"],
       warnings: ["Dados da empresa (CONTRATADA) não cadastrados em Configurações."],
+      representatives: options,
     };
   }
-  const { representative, warnings } = pickContractRepresentative(representatives, todayIso);
+  const { representative, warnings, invalid } = pickContractRepresentative(representatives, todayIso, preferredRepresentativeId);
   const address = formatCompanyAddress(company);
   const representativeText = representative
     ? [
@@ -144,6 +225,8 @@ export function buildContractorProfile(
     ],
     warnings,
     representativeId: representative?.id,
+    representatives: options,
+    preferredInvalid: invalid,
   };
 }
 

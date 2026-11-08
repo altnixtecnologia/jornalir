@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { CommercialCondition, CommercialProposal, CommercialProposalItem, CommercialProposalStatus, CommercialProposalWithItems, NewCommercialProposalItemInput } from "@ir/types";
+import type { CommercialCondition, CommercialContractModality, CommercialProposal, CommercialProposalItem, CommercialProposalStatus, CommercialProposalWithItems, NewCommercialProposalItemInput } from "@ir/types";
 import { computeProposalTotal } from "@ir/types";
 import type {
   CommercialProposalChanges,
@@ -13,8 +13,9 @@ const TABLE = "commercial_proposals";
 const ITEMS_TABLE = "commercial_proposal_items";
 const COLUMNS =
   "id, internal_reference, client_id, proposal_date, valid_until, commercial_condition, status, converted_sale_id, notes, internal_notes, " +
+  "contract_template_id, contract_modality, contractor_representative_id, composition_request_id, " +
   "created_by, updated_by, created_at, updated_at";
-const ITEM_COLUMNS = "id, proposal_id, product_id, description, quantity, unit_price, discount_amount, sort_order, created_at";
+const ITEM_COLUMNS = "id, proposal_id, product_id, description, quantity, unit_price, discount_amount, list_unit_price, negotiation_reason, sort_order, created_at";
 
 interface ProposalRow {
   id: string;
@@ -27,6 +28,10 @@ interface ProposalRow {
   converted_sale_id: string | null;
   notes: string | null;
   internal_notes: string | null;
+  contract_template_id: string | null;
+  contract_modality: CommercialContractModality | null;
+  contractor_representative_id: string | null;
+  composition_request_id: string | null;
   created_by: string | null;
   updated_by: string | null;
   created_at: string;
@@ -41,6 +46,8 @@ interface ItemRow {
   quantity: number;
   unit_price: number;
   discount_amount: number;
+  list_unit_price: number | null;
+  negotiation_reason: string | null;
   sort_order: number;
   created_at: string;
 }
@@ -57,6 +64,10 @@ function toDomain(row: ProposalRow): CommercialProposal {
     convertedSaleId: row.converted_sale_id ?? undefined,
     notes: row.notes ?? undefined,
     internalNotes: row.internal_notes ?? undefined,
+    contractTemplateId: row.contract_template_id ?? undefined,
+    contractModality: row.contract_modality ?? undefined,
+    contractorRepresentativeId: row.contractor_representative_id ?? undefined,
+    compositionRequestId: row.composition_request_id ?? undefined,
     createdByProfileId: row.created_by ?? undefined,
     updatedByProfileId: row.updated_by ?? undefined,
     createdAt: row.created_at,
@@ -73,6 +84,8 @@ function itemToDomain(row: ItemRow): CommercialProposalItem {
     quantity: Number(row.quantity),
     unitPrice: Number(row.unit_price),
     discountAmount: Number(row.discount_amount),
+    listUnitPrice: row.list_unit_price === null || row.list_unit_price === undefined ? undefined : Number(row.list_unit_price),
+    negotiationReason: row.negotiation_reason ?? undefined,
     sortOrder: row.sort_order,
     createdAt: row.created_at,
   };
@@ -86,6 +99,10 @@ function toRow(record: NewCommercialProposalRecord | CommercialProposalChanges):
   if (record.commercialCondition !== undefined) row.commercial_condition = record.commercialCondition;
   if (record.notes !== undefined) row.notes = record.notes ?? null;
   if (record.internalNotes !== undefined) row.internal_notes = record.internalNotes ?? null;
+  if (record.contractTemplateId !== undefined) row.contract_template_id = record.contractTemplateId ?? null;
+  if (record.contractModality !== undefined) row.contract_modality = record.contractModality ?? null;
+  if (record.contractorRepresentativeId !== undefined) row.contractor_representative_id = record.contractorRepresentativeId ?? null;
+  if (record.compositionRequestId !== undefined) row.composition_request_id = record.compositionRequestId ?? null;
   if ("status" in record && record.status !== undefined) row.status = record.status;
   if ("convertedSaleId" in record && record.convertedSaleId !== undefined) row.converted_sale_id = record.convertedSaleId ?? null;
   return row;
@@ -99,6 +116,8 @@ function itemToRow(proposalId: string, item: NewCommercialProposalItemInput): Re
     quantity: item.quantity,
     unit_price: item.unitPrice,
     discount_amount: item.discountAmount,
+    list_unit_price: item.listUnitPrice ?? null,
+    negotiation_reason: item.negotiationReason ?? null,
     sort_order: item.sortOrder,
   };
 }

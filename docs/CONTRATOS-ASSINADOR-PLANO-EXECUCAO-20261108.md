@@ -226,3 +226,27 @@ Repositórios privados **consultados somente leitura** pelo GitHub conectado:
 - **CONCLUÍDO:** documentação central versionada, cinco fases e decisões, inventário GitHub/Supabase remoto e comparação dos três repositórios anteriores.
 - **FALTA:** sincronizar VS Code e confirmar inventário local; implementar/testar Etapa 1; Etapas 2–5; revisão jurídica e homologação real.
 - **Nenhum** arquivo de produção, banco, credencial, WhatsApp, e-mail, Telegram ou Vercel foi alterado durante este levantamento.
+
+**08/11/2026 — Pendências funcionais da Etapa 2 (Claude Code, VS Code local): CONCLUÍDAS em código e testes direcionados; NÃO publicadas, migration NÃO aplicada.**
+
+```
+Etapa: Etapa 2 — pendências funcionais (persistência, vínculo de modelo, institucional composto, negociação, representante, minutas de teste)
+Branch e SHA local/remoto: solicitacoes-financeiro-contratos-irc-20261031 — base 92b0e79b; SHA final no commit seguinte, enviado ao GitHub
+```
+
+**CONCLUÍDO:**
+- **Persistência dos serviços contratados** nos cadastros existentes, com idempotência por `requestId` (reenvio/falha parcial não duplica): itens de catálogo → proposta (`commercial_proposals`, índice único parcial `composition_request_id`); **assinatura do jornal** → `subscriptions` via `SubscriptionService.register` (nasce "pendente de formalização", marcador `[contratacao:<id>:<n>]` em `notes`); institucional → contrato (`extra_data.compositionRequestId`). Lógica em `lib/contracts/contractingPersistence.ts` (deps injetáveis) e `createContractingFromCompositionAction` (permissões `propostas_criar`, `assinaturas_criar`, `contratos_criar`). Nada é ativado, cobrado, assinado ou enviado.
+- **Modelo escolhido vinculado** a proposta → venda → pacote (colunas `contract_template_id`, `contract_modality`, `contractor_representative_id`); o painel do pacote só pré-seleciona (o trigger continua exigindo modelo ativo). Modelo de teste/rascunho nunca é vinculado (apenas aviso).
+- **Institucional com vários serviços**: `extra_data.services` + `institutionalComposition.ts`; preview/geração do contrato institucional usam as cláusulas 2.x, CONTRATADA e representante escolhido.
+- **Valores negociados acima OU abaixo da tabela**: `unit_price` = valor negociado, `list_unit_price` = tabela, `negotiation_reason`; desconto 0 (sem negativo); itens antigos inalterados. **Permissão específica** `publicidade.valores_negociar` (catálogo + CHECK), exigida para negociar na montagem.
+- **Escolha do representante**: seletor com vigência/poderes; a escolha é revalidada na geração e na emissão oficial (inválido → erro, sem fallback silencioso).
+- **Minutas de TESTE preservadas**: continuam efêmeras (não gravam, não assinam, não cobram).
+- Migration gerada (NÃO aplicada): `20261122190000_contract_composition_persistence.sql`.
+
+**TESTADO (direcionado):** `apps/sistema` 101/101 nos arquivos afetados (persistência, pendências, documento, segurança), `packages/core` proposta/venda 10/10, `tsc --noEmit` e `next build` limpos. **Banco:** migrations 140000–190000 validadas juntas em transação com ROLLBACK (papéis reais, RLS, idempotência, CHECKs, permissão nova); nada persistiu. **NÃO testado:** UI autenticada, PDF no navegador, fluxo real com dados, qualquer assinatura/cobrança.
+
+**FALTA:** aplicar as 6 migrations (140000–190000) com autorização, ANTES de publicar o código; teste manual com login; serviço avulso (`kind: other`) não é persistível na modalidade comercial; assinatura vinculada só pelo marcador em `notes`; modelo de teste só gera minuta (não atribuível a pacote); formulário antigo de proposta ainda aceita preço livre (`valores_negociar` vale só na nova montagem); representante escolhido não editável depois (sem coluna no pacote); representantes conjuntos exigem co-assinante (Etapa 3); contrato institucional nasce sem documentos/cobranças.
+**RISCOS:** ordem de publicação (migrations primeiro); itens antigos mantêm `unit_price` = tabela; upload/URL assinada só no ambiente Production.
+**Migrations geradas/aplicadas:** 6 geradas na frente (140000–190000), **0 aplicadas**.
+**Banco, mensagens e deploy real alterados?:** Banco: não (apenas ROLLBACK). Mensagens/Vercel/cobrança: não.
+**Próxima etapa:** Etapa 3 — assinatura eletrônica (aguarda autorização; **não iniciada**).

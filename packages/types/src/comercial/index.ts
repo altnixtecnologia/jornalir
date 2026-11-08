@@ -51,6 +51,9 @@ export const COMMERCIAL_CONDITION_LABELS: Record<CommercialCondition, string> = 
   other: "Outro",
 };
 
+/** Modalidade da contratação escolhida na montagem (preferência herdada proposta → venda). */
+export type CommercialContractModality = "commercial" | "institutional";
+
 export interface CommercialProduct {
   id: string;
   name: string;
@@ -77,6 +80,9 @@ export interface CommercialSaleItemSnapshot {
   description: string;
   quantity: number;
   unitPrice: number;
+  /** Preço de TABELA no momento da montagem (quando o unitPrice é o valor NEGOCIADO). Ausente em vendas anteriores. */
+  listUnitPrice?: number;
+  negotiationReason?: string;
   discountAmount: number;
   totalAmount: number;
   sortOrder: number;
@@ -102,6 +108,10 @@ export interface CommercialSale {
   installmentsCount: number;
   status: CommercialSaleStatus;
   notes?: string;
+  /** Preferências da contratação (herdadas da proposta): modelo escolhido, modalidade e representante legal da CONTRATADA. */
+  contractTemplateId?: string;
+  contractModality?: CommercialContractModality;
+  contractorRepresentativeId?: string;
   createdByProfileId?: string;
   updatedByProfileId?: string;
   createdAt: string;
@@ -247,13 +257,17 @@ export interface CommercialProposalItem {
   productId?: string;
   description: string;
   quantity: number;
+  /** Valor unitário NEGOCIADO (pode ser menor ou maior que a tabela). */
   unitPrice: number;
   discountAmount: number;
+  /** Preço de TABELA no momento (nulo em itens antigos: unitPrice = tabela). */
+  listUnitPrice?: number;
+  negotiationReason?: string;
   sortOrder: number;
   createdAt: string;
 }
 
-export type NewCommercialProposalItemInput = Pick<CommercialProposalItem, "productId" | "description" | "quantity" | "unitPrice" | "discountAmount" | "sortOrder">;
+export type NewCommercialProposalItemInput = Pick<CommercialProposalItem, "productId" | "description" | "quantity" | "unitPrice" | "discountAmount" | "listUnitPrice" | "negotiationReason" | "sortOrder">;
 
 /** Total de um item — SEMPRE calculado, nunca gravado (mesmo princípio de recomputeReceivableStatus). */
 export function computeProposalItemTotal(item: Pick<CommercialProposalItem, "quantity" | "unitPrice" | "discountAmount">): number {
@@ -277,6 +291,12 @@ export interface CommercialProposal {
   convertedSaleId?: string;
   notes?: string;
   internalNotes?: string;
+  /** Preferências da contratação (modelo escolhido, modalidade, representante) — copiadas para a venda na conversão. */
+  contractTemplateId?: string;
+  contractModality?: CommercialContractModality;
+  contractorRepresentativeId?: string;
+  /** Idempotência da montagem de contratação. */
+  compositionRequestId?: string;
   createdByProfileId?: string;
   updatedByProfileId?: string;
   createdAt: string;

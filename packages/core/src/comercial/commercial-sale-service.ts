@@ -1,4 +1,4 @@
-import { canTransitionCommercialSaleStatus, computeProposalItemTotal, type CommercialCondition, type CommercialSale, type CommercialSaleStatus, type CommercialSaleItemSnapshot } from "@ir/types";
+import { canTransitionCommercialSaleStatus, computeProposalItemTotal, type CommercialCondition, type CommercialContractModality, type CommercialSale, type CommercialSaleStatus, type CommercialSaleItemSnapshot } from "@ir/types";
 import type {
   CommercialSaleChanges,
   CommercialSaleListQuery,
@@ -51,6 +51,10 @@ export interface CommercialSaleInput {
   commercialCondition: CommercialCondition;
   installmentsCount: number;
   notes?: string;
+  /** Preferências da contratação herdadas da proposta (opcionais). */
+  contractTemplateId?: string;
+  contractModality?: CommercialContractModality;
+  contractorRepresentativeId?: string;
 }
 
 function trimOrUndefined(value: string | undefined | null): string | undefined {
@@ -73,6 +77,9 @@ function normalize(input: CommercialSaleInput, status: CommercialSaleStatus): Ne
     installmentsCount: Math.max(1, Math.floor(input.installmentsCount)),
     status,
     notes: trimOrUndefined(input.notes),
+    contractTemplateId: trimOrUndefined(input.contractTemplateId),
+    contractModality: input.contractModality,
+    contractorRepresentativeId: trimOrUndefined(input.contractorRepresentativeId),
   };
 }
 

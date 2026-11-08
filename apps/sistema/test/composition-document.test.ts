@@ -60,7 +60,8 @@ function deps(overrides: Partial<CompositionDeps> = {}, tpl: ContractTemplate | 
     loadClient: async () => { spy.calls.push("client"); return CLIENT; },
     loadTemplate: async () => { spy.calls.push("template"); return tpl; },
     loadProducts: async () => { spy.calls.push("products"); return [PRODUCT]; },
-    loadContractor: async (today) => buildContractorProfile(COMPANY, [REP], today),
+    loadContractor: async (today, representativeId) => buildContractorProfile(COMPANY, [REP], today, representativeId),
+    canNegotiateValues: async () => true,
     buildPdf: async (input) => { spy.pdfInputs.push(input); return buildContractTemplatePdf(input); },
     now: () => new Date("2026-11-08T12:00:00Z"),
   };
@@ -227,7 +228,7 @@ test("a geração da minuta não persiste nada: as dependências não oferecem g
   const { deps: d, spy } = deps();
   const result = await buildCompositionDocument(request(), d);
   assert.equal(result.ok, true);
-  assert.deepEqual(Object.keys(d).sort(), ["buildPdf", "loadClient", "loadContractor", "loadProducts", "loadTemplate", "now"]);
+  assert.deepEqual(Object.keys(d).sort(), ["buildPdf", "canNegotiateValues", "loadClient", "loadContractor", "loadProducts", "loadTemplate", "now"]);
   assert.ok(spy.calls.every((call) => ["client", "template", "products"].includes(call)));
 });
 

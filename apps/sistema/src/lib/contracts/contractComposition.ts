@@ -59,6 +59,10 @@ export interface CompositionServiceInput {
   endsOn: string;
   /** Opcional: serviços vindos do snapshot da venda não têm periodicidade e a cláusula omite a linha. */
   periodicity?: CompositionPeriodicity;
+  /** Só kind=subscription: impresso ou digital (cadastro de Assinaturas). */
+  subscriptionServiceType?: "impresso" | "digital";
+  /** Só impresso: exemplares. */
+  copies?: number;
   deliveryNote?: string;
   renewalNote?: string;
   terminationNote?: string;
@@ -148,6 +152,11 @@ export function validateCompositionServices(input: CompositionServiceInput[]): C
       errors.push(`${label}: o término é anterior ao início.`);
     }
     if (raw.periodicity !== undefined && !COMPOSITION_PERIODICITIES.includes(raw.periodicity)) errors.push(`${label}: periodicidade inválida.`);
+    if (raw.kind === "subscription") {
+      if (!raw.periodicity || raw.periodicity === "single") errors.push(`${label}: a assinatura precisa de periodicidade mensal, trimestral, semestral ou anual.`);
+      if (raw.subscriptionServiceType !== undefined && raw.subscriptionServiceType !== "impresso" && raw.subscriptionServiceType !== "digital") errors.push(`${label}: tipo de assinatura inválido.`);
+      if (raw.copies !== undefined && (!Number.isInteger(raw.copies) || raw.copies < 1 || raw.copies > 10000)) errors.push(`${label}: quantidade de exemplares inválida.`);
+    }
     const clip = (value: string | undefined, max: number, field: string): string | undefined => {
       const cleaned = (value ?? "").replace(/[ \t]+/g, " ").trim();
       if (cleaned.length > max) errors.push(`${label}: ${field} acima de ${max} caracteres.`);
@@ -166,6 +175,8 @@ export function validateCompositionServices(input: CompositionServiceInput[]): C
       startsOn: raw.startsOn,
       endsOn: raw.endsOn,
       periodicity: raw.periodicity,
+      subscriptionServiceType: raw.kind === "subscription" ? raw.subscriptionServiceType ?? "impresso" : undefined,
+      copies: raw.kind === "subscription" ? raw.copies : undefined,
       deliveryNote: clip(raw.deliveryNote, 500, "entrega/veiculação"),
       renewalNote: clip(raw.renewalNote, 500, "renovação"),
       terminationNote: clip(raw.terminationNote, 500, "encerramento"),
@@ -191,6 +202,9 @@ export function buildNumberedServiceClauses(services: CompositionServiceInput[])
     const lines = [
       `2.${index + 1} ${service.title} — ${channel}`,
       ...(service.description ? [`Descrição: ${service.description}`] : []),
+      ...(service.kind === "subscription"
+        ? [`Tipo de assinatura: ${service.subscriptionServiceType === "digital" ? "Digital" : `Impressa${service.copies ? ` (${service.copies} exemplar${service.copies > 1 ? "es" : ""})` : ""}`}`]
+        : []),
       `Quantidade: ${quantityText(service.quantity)}`,
       totals.isNegotiated
         ? `Valor unitário de tabela: ${formatMoney(service.listUnitPrice)} · Valor unitário negociado: ${formatMoney(service.negotiatedUnitPrice)}`
@@ -239,6 +253,8 @@ export function servicesFromSaleSnapshots(entries: SaleServiceSnapshotInput[]): 
     const unitPrice = typeof snapshot.unitPrice === "number" && Number.isFinite(snapshot.unitPrice) ? snapshot.unitPrice : 0;
     const total = typeof snapshot.totalAmount === "number" && Number.isFinite(snapshot.totalAmount) ? snapshot.totalAmount : unitPrice * quantity;
     const negotiatedUnit = roundMoney(total / quantity);
+    // Itens da montagem de contratação guardam a tabela em listUnitPrice (unitPrice = negociado); antigos: unitPrice = tabela.
+    const listPrice = typeof snapshot.listUnitPrice === "number" && Number.isFinite(snapshot.listUnitPrice) ? snapshot.listUnitPrice : unitPrice;
     const delivery = [entry.service_location ? `Local: ${entry.service_location}` : "", entry.execution_conditions ?? ""].filter(Boolean).join(". ");
     return {
       kind: "catalog",
@@ -246,9 +262,11 @@ export function servicesFromSaleSnapshots(entries: SaleServiceSnapshotInput[]): 
       channel: entry.service_channel,
       description: entry.service_scope ?? undefined,
       quantity,
-      listUnitPrice: unitPrice,
+      listUnitPrice: listPrice,
       negotiatedUnitPrice: negotiatedUnit,
-      negotiationReason: roundMoney(unitPrice) !== negotiatedUnit ? "Valor conforme proposta aprovada." : undefined,
+      negotiationReason: roundMoney(listPrice) !== negotiatedUnit
+        ? (typeof snapshot.negotiationReason === "string" && snapshot.negotiationReason.trim() ? snapshot.negotiationReason.trim() : "Valor conforme proposta aprovada.")
+        : undefined,
       startsOn: entry.starts_on ?? "",
       endsOn: entry.ends_on ?? "",
       deliveryNote: delivery || undefined,

@@ -38,7 +38,9 @@ export interface CompositionDeps {
   loadClient: (id: string) => Promise<Client | null>;
   loadTemplate: (id: string) => Promise<ContractTemplate | null>;
   loadProducts: (ids: string[]) => Promise<CatalogProduct[]>;
-  loadContractor: (todayIso: string) => Promise<ContractorProfile>;
+  loadContractor: (todayIso: string, preferredRepresentativeId?: string) => Promise<ContractorProfile>;
+  /** Permissão específica de negociação (`publicidade.valores_negociar`), exigida quando algum valor difere da tabela. */
+  canNegotiateValues: () => Promise<boolean>;
   buildPdf: (input: ContractTemplatePdfInput) => Promise<Uint8Array>;
   now: () => Date;
 }
@@ -47,6 +49,8 @@ export interface CompositionRequest {
   clientId: string;
   modality: ContractTemplateModality;
   templateId: string;
+  /** Representante legal escolhido para a CONTRATADA (vigência/poderes conferidos aqui). */
+  representativeId?: string;
   services: CompositionServiceInput[];
   /** Valores dos campos variáveis ADICIONAIS declarados no modelo (os automáticos nunca vêm daqui). */
   customValues?: Record<string, string>;
@@ -125,7 +129,12 @@ export async function buildCompositionDocument(request: CompositionRequest, deps
 
   const now = deps.now();
   const today = isoDay(now);
-  const contractor = await deps.loadContractor(today);
+  const negotiatedItems = buildNegotiationRecord(services);
+  if (negotiatedItems.length > 0 && !(await deps.canNegotiateValues())) {
+    return { ok: false, error: "Você não tem permissão para negociar valores acima/abaixo da tabela (permissão \"Negociar valores\"). Use os valores de tabela." };
+  }
+  const contractor = await deps.loadContractor(today, request.representativeId);
+  if (contractor.preferredInvalid) return { ok: false, error: contractor.preferredInvalid };
   const totals = compositionTotals(services);
   const starts = services.map((s) => s.startsOn).sort();
   const ends = services.map((s) => s.endsOn).sort();

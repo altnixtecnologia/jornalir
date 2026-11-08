@@ -1,9 +1,11 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import type { ContractTemplate } from "@ir/types";
 import { getClientService } from "../../../../composition/clientes";
+import { getSubscriptionService } from "../../../../composition/assinaturas";
 import { getCommercialProductService, getCommercialProposalService } from "../../../../composition/comercial";
-import { getContractTemplateService } from "../../../../composition/financeiro";
+import { getContractService, getContractTemplateService } from "../../../../composition/financeiro";
 import { createSupabaseServerClient } from "../../../../lib/supabase/server";
 import { checkModuleAction } from "../../../../lib/permissions/checkModuleAction";
 import { checkFinanceAction } from "../../../../lib/permissions/checkFinanceAction";
@@ -13,19 +15,19 @@ import { buildContractTemplatePdf } from "../../../../lib/contracts/contractTemp
 import { loadContractorProfile } from "../../../../lib/contracts/contractorProfileLoader";
 import { buildCompositionDocument, type CompositionRequest } from "../../../../lib/contracts/compositionDocument";
 import {
-  buildNegotiationRecord,
-  computeServiceTotals,
-  formatDateBr,
-  formatNegotiationNote,
-  validateCompositionServices,
-  type CompositionServiceInput,
-} from "../../../../lib/contracts/contractComposition";
+  persistContracting,
+  type ContractingDeps,
+  type ContractingRequest,
+  type ContractingOutcome,
+} from "../../../../lib/contracts/contractingPersistence";
+import type { ContractorRepresentativeOption } from "../../../../lib/contracts/contractorProfile";
 
 /**
- * Montagem de contratação (Etapa 2 de Contratos, 08/11/2026). Nada aqui
- * assina, envia contrato, cobra, ativa modelo ou grava documento: a MINUTA é
- * gerada na hora (não persistida) com marca visível; "criar proposta" usa o
- * serviço de propostas já existente. Cada ação relevante é auditada.
+ * Montagem de contratação (Etapa 2 de Contratos, 08/11/2026). A MINUTA é gerada
+ * na hora (não persistida) com marca visível. "Criar contratação" persiste nos
+ * cadastros existentes (proposta, assinatura pendente de formalização,
+ * contrato institucional) de forma idempotente. Nada aqui assina, envia
+ * contrato, cobra ou ativa modelo/serviço. Cada ação relevante é auditada.
  */
 
 type Failure = { error: string };
@@ -53,6 +55,21 @@ async function audit(
     await recordAuditEventSupabase(client, { userId: actor.actorId, entityType, entityId, action, metadata });
   } catch (error) {
     console.error("Falha ao registrar auditoria da contratação:", error instanceof Error ? error.message : error);
+  }
+}
+
+async function loadProductsFor(client: ReturnType<typeof createSupabaseServerClient>, ids: string[]) {
+  const products = await getCommercialProductService(client).list({ activeOnly: true });
+  return products
+    .filter((product) => ids.includes(product.id))
+    .map((product) => ({ id: product.id, name: product.name, channel: product.channel, suggestedPrice: product.suggestedPrice, active: product.active }));
+}
+
+async function loadTemplateFor(client: ReturnType<typeof createSupabaseServerClient>, id: string): Promise<ContractTemplate | null> {
+  try {
+    return await getContractTemplateService(client).getById(id);
+  } catch {
+    return null;
   }
 }
 
@@ -84,20 +101,10 @@ export async function generateCompositionPdfAction(request: CompositionRequest):
           return null;
         }
       },
-      loadTemplate: async (id) => {
-        try {
-          return await getContractTemplateService(client).getById(id);
-        } catch {
-          return null;
-        }
-      },
-      loadProducts: async (ids) => {
-        const products = await getCommercialProductService(client).list({ activeOnly: true });
-        return products
-          .filter((product) => ids.includes(product.id))
-          .map((product) => ({ id: product.id, name: product.name, channel: product.channel, suggestedPrice: product.suggestedPrice, active: product.active }));
-      },
-      loadContractor: (todayIso) => loadContractorProfile(client, todayIso),
+      loadTemplate: (id) => loadTemplateFor(client, id),
+      loadProducts: (ids) => loadProductsFor(client, ids),
+      loadContractor: (todayIso, representativeId) => loadContractorProfile(client, todayIso, representativeId),
+      canNegotiateValues: async () => (await checkModuleAction("publicidade", "valores_negociar")) === null,
       buildPdf: buildContractTemplatePdf,
       now: () => new Date(),
     });
@@ -111,6 +118,7 @@ export async function generateCompositionPdfAction(request: CompositionRequest):
       templateGroupId: result.template.groupId,
       templateVersion: result.template.version,
       templateTitle: result.template.title,
+      representativeId: request.representativeId ?? null,
       services: result.services.map((service) => ({
         title: service.title, kind: service.kind, channel: service.channel, quantity: service.quantity,
         listUnitPrice: service.listUnitPrice, negotiatedUnitPrice: service.negotiatedUnitPrice,
@@ -145,80 +153,120 @@ export async function generateCompositionPdfAction(request: CompositionRequest):
   }
 }
 
-/**
- * Cria a PROPOSTA comercial com estes itens (serviço de propostas existente;
- * nenhum fluxo paralelo). Preserva o preço de tabela em `unit_price` e o
- * valor negociado como `discount_amount` (o total continua o negociado),
- * guarda o histórico de negociação nas notas internas e na auditoria. Só
- * itens do catálogo; acréscimo acima da tabela não cabe na proposta.
- */
-export async function createProposalFromCompositionAction(input: {
-  clientId: string;
-  services: CompositionServiceInput[];
-}): Promise<Failure | { ok: true; id: string; reference: string }> {
-  const denied = await checkModuleAction("publicidade", "propostas_criar");
-  if (denied) return { error: denied };
-  const validation = validateCompositionServices(input.services);
-  if (!validation.ok) return { error: validation.errors.join(" ") };
-  if (validation.services.some((service) => service.kind !== "catalog")) {
-    return { error: "A proposta aceita apenas produtos do catálogo. Remova assinaturas e serviços avulsos ou gere somente a minuta." };
+/** Representantes ATIVOS da contratada com a situação de vigência — para o operador escolher quem assina. */
+export async function listContractorRepresentativesAction(): Promise<
+  Failure | { ok: true; configured: boolean; representatives: ContractorRepresentativeOption[] }
+> {
+  const [commercialDenied, institutionalDenied] = await Promise.all([
+    checkModuleAction("publicidade", "contratos_preparar"),
+    checkFinanceAction("contratos_criar"),
+  ]);
+  if (commercialDenied && institutionalDenied) return { error: commercialDenied };
+  try {
+    const client = createSupabaseServerClient();
+    const profile = await loadContractorProfile(client, new Date().toISOString().slice(0, 10));
+    return { ok: true, configured: profile.configured, representatives: profile.representatives };
+  } catch (error) {
+    return { error: toMessage(error) };
   }
+}
+
+export type ContractingResponse = ({ ok: true } & ContractingOutcome) | ({ ok: false; error: string } & Partial<ContractingOutcome>);
+
+/**
+ * "Criar contratação": persiste os serviços nos cadastros existentes
+ * (proposta comercial, assinatura PENDENTE DE FORMALIZAÇÃO, contrato
+ * institucional), vincula o modelo em PRODUÇÃO e o representante escolhido,
+ * registra o histórico de negociação. Idempotente por `requestId`. Nunca
+ * ativa assinatura, gera título/cobrança, gera/assina documento ou envia nada.
+ */
+export async function createContractingFromCompositionAction(request: ContractingRequest): Promise<ContractingResponse> {
   try {
     const client = createSupabaseServerClient();
     const actor = await getAuditContext(client);
-    const ids = [...new Set(validation.services.map((service) => service.productId as string))];
-    const catalog = (await getCommercialProductService(client).list({ activeOnly: true })).filter((product) => ids.includes(product.id));
-    const byId = new Map(catalog.map((product) => [product.id, product]));
+    const deps: ContractingDeps = {
+      checkPermission: (kind) => {
+        if (kind === "proposal") return checkModuleAction("publicidade", "propostas_criar");
+        if (kind === "subscription") return checkModuleAction("assinaturas", "assinaturas_criar");
+        if (kind === "negotiate") return checkModuleAction("publicidade", "valores_negociar");
+        return checkFinanceAction("contratos_criar");
+      },
+      loadProducts: (ids) => loadProductsFor(client, ids),
+      loadTemplate: (id) => loadTemplateFor(client, id),
+      loadContractor: (todayIso, representativeId) => loadContractorProfile(client, todayIso, representativeId),
+      actorName: async () => {
+        const { data } = await client.from("profiles").select("name").eq("id", actor.actorId).maybeSingle();
+        return (data as { name?: string } | null)?.name ?? "usuário autenticado";
+      },
+      findProposal: async (requestId) => {
+        const { data, error } = await client.from("commercial_proposals").select("id, internal_reference").eq("composition_request_id", requestId).maybeSingle();
+        if (error) throw new Error("Não foi possível conferir se a proposta já existe.");
+        return data ? { id: data.id as string, reference: data.internal_reference as string } : null;
+      },
+      createProposal: async (input) => {
+        const proposal = await getCommercialProposalService(client).register({
+          clientId: input.clientId,
+          proposalDate: new Date().toISOString().slice(0, 10),
+          commercialCondition: "other",
+          notes: input.notes,
+          internalNotes: input.internalNotes,
+          contractTemplateId: input.contractTemplateId,
+          contractModality: input.contractModality,
+          contractorRepresentativeId: input.contractorRepresentativeId,
+          compositionRequestId: input.requestId,
+          items: input.items,
+        });
+        return { id: proposal.id, reference: proposal.reference };
+      },
+      findSubscription: async (clientId, marker) => {
+        const { data, error } = await client.from("subscriptions").select("id, internal_reference").eq("client_id", clientId).ilike("notes", `%${marker}%`).limit(1).maybeSingle();
+        if (error) throw new Error("Não foi possível conferir se a assinatura já existe.");
+        return data ? { id: data.id as string, reference: data.internal_reference as string } : null;
+      },
+      createSubscription: async (input) => {
+        // Sem `status`: nasce "pendente de formalização" (nunca ativa, nunca gera título).
+        const subscription = await getSubscriptionService(client).register({
+          clientId: input.clientId,
+          serviceType: input.serviceType,
+          amount: input.amount,
+          periodicity: input.periodicity,
+          startsAt: input.startsAt,
+          endsAt: input.endsAt,
+          print: input.serviceType === "impresso" && input.copies ? { copies: input.copies } : undefined,
+          notes: input.notes,
+        });
+        return { id: subscription.id, reference: subscription.reference };
+      },
+      findContract: async (requestId) => {
+        const { data, error } = await client.from("institutional_contracts").select("id, internal_reference").eq("extra_data->>compositionRequestId", requestId).limit(1).maybeSingle();
+        if (error) throw new Error("Não foi possível conferir se o contrato já existe.");
+        return data ? { id: data.id as string, reference: data.internal_reference as string } : null;
+      },
+      createContract: async (input) => {
+        const contract = await getContractService(client).register({
+          clientId: input.clientId,
+          object: input.object,
+          contractedAmount: input.contractedAmount,
+          startsAt: input.startsAt,
+          endsAt: input.endsAt,
+          notes: input.notes,
+          extraData: input.extraData,
+        });
+        return { id: contract.id, reference: contract.reference };
+      },
+      audit: (entityType, entityId, action, metadata) => audit(client, entityType, entityId, action, metadata),
+      now: () => new Date(),
+    };
 
-    const services: CompositionServiceInput[] = [];
-    for (const [index, service] of validation.services.entries()) {
-      const product = byId.get(service.productId as string);
-      if (!product) return { error: `Serviço ${index + 1}: produto do catálogo inexistente ou inativo.` };
-      services.push({ ...service, channel: product.channel, listUnitPrice: product.suggestedPrice ?? service.listUnitPrice });
+    const result = await persistContracting(request, deps);
+    if (result.ok) {
+      revalidatePath("/sistema/publicidade/propostas");
+      revalidatePath("/sistema/publicidade");
+      revalidatePath("/sistema/assinaturas");
+      revalidatePath("/sistema/financeiro/contratos");
     }
-    for (const [index, service] of services.entries()) {
-      if (computeServiceTotals(service).adjustmentAmount < 0) {
-        return { error: `Serviço ${index + 1}: valor acima da tabela não cabe em proposta (desconto negativo). Ajuste o valor ou gere somente a minuta.` };
-      }
-    }
-    const negotiation = buildNegotiationRecord(services);
-    const today = new Date().toISOString().slice(0, 10);
-    const { profile } = await (async () => {
-      const { data } = await client.from("profiles").select("name").eq("id", actor.actorId).maybeSingle();
-      return { profile: data as { name?: string } | null };
-    })();
-    const noteLines = services.map(
-      (service, index) => `2.${index + 1} ${service.title}: vigência ${formatDateBr(service.startsOn)} a ${formatDateBr(service.endsOn)}`,
-    );
-    const proposal = await getCommercialProposalService(client).register({
-      clientId: input.clientId,
-      proposalDate: today,
-      commercialCondition: "other",
-      notes: `Montada em "Montagem de contratação". Vigências propostas por serviço:\n${noteLines.join("\n")}`,
-      internalNotes: formatNegotiationNote(negotiation, profile?.name ?? "usuário autenticado", new Date().toISOString()) || undefined,
-      items: services.map((service) => {
-        const totals = computeServiceTotals(service);
-        return {
-          productId: service.productId,
-          description: service.title.slice(0, 200),
-          quantity: service.quantity,
-          unitPrice: service.listUnitPrice,
-          discountAmount: totals.adjustmentAmount,
-        };
-      }),
-    });
-    await audit(client, "commercial_proposal", proposal.id, "create", {
-      reference: proposal.reference, via: "montagem_de_contratacao", itemCount: services.length,
-    });
-    if (negotiation.length > 0) {
-      await audit(client, "commercial_proposal", proposal.id, "negotiated_values_recorded", {
-        context: "proposta", entries: negotiation,
-      });
-    }
-    revalidatePath("/sistema/publicidade/propostas");
-    revalidatePath("/sistema/publicidade");
-    return { ok: true, id: proposal.id, reference: proposal.reference };
+    return result;
   } catch (error) {
-    return { error: toMessage(error) };
+    return { ok: false, error: toMessage(error), subscriptions: [], notices: [], negotiation: [] };
   }
 }

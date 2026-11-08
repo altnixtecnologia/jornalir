@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import Link from "next/link";
 import {
   CHANNEL_LABELS,
@@ -23,9 +23,17 @@ import {
 } from "@ir/types";
 import { ClientPicker } from "../../components/admin/ClientPicker";
 import type { ClientSearchResult } from "../../components/admin/clientSearchTypes";
-import { createProposalFromCompositionAction, generateCompositionPdfAction, type CompositionPdfResponse } from "../../app/sistema/publicidade/contratacao/actions";
+import {
+  createContractingFromCompositionAction,
+  generateCompositionPdfAction,
+  listContractorRepresentativesAction,
+  type CompositionPdfResponse,
+  type ContractingResponse,
+} from "../../app/sistema/publicidade/contratacao/actions";
+import type { ContractorRepresentativeOption } from "../../lib/contracts/contractorProfile";
+import { confirmDialog } from "../../lib/feedback/confirmStore";
 import { notify } from "../../lib/feedback/notify";
-import { manualVariables, newCatalogRow, newFreeRow, rowToInput, type ServiceRow } from "./compositionForm";
+import { describeContractingPlan, manualVariables, newCatalogRow, newFreeRow, rowToInput, type ServiceRow } from "./compositionForm";
 
 const STAGE_LABEL = { draft: "Rascunho", test: "TESTE", production: "PRODUÇÃO" } as const;
 
@@ -50,6 +58,7 @@ export function ContractCompositionBuilder({
   canCommercial,
   canInstitutional,
   canCreateProposal,
+  canNegotiate,
 }: {
   templates: ContractTemplate[];
   products: CommercialProduct[];
@@ -57,6 +66,8 @@ export function ContractCompositionBuilder({
   canCommercial: boolean;
   canInstitutional: boolean;
   canCreateProposal: boolean;
+  /** Permissão específica `valores_negociar`: sem ela o valor negociado fica igual ao de tabela. */
+  canNegotiate: boolean;
 }): JSX.Element {
   const [pending, startTransition] = useTransition();
   const [client, setClient] = useState<ClientSearchResult | null>(initialClient);
@@ -66,7 +77,24 @@ export function ContractCompositionBuilder({
   const [catalogChoice, setCatalogChoice] = useState("");
   const [customValues, setCustomValues] = useState<Record<string, string>>({});
   const [result, setResult] = useState<(CompositionPdfResponse & { url: string }) | null>(null);
-  const [proposal, setProposal] = useState<{ id: string; reference: string } | null>(null);
+  // Identificador estável da contratação: clique duplo/repetição nunca cria cadastro duplicado (idempotência no servidor).
+  const [requestId, setRequestId] = useState(() => crypto.randomUUID());
+  const [contracting, setContracting] = useState<Extract<ContractingResponse, { ok: true }> | null>(null);
+  const [representatives, setRepresentatives] = useState<ContractorRepresentativeOption[]>([]);
+  const [contractorConfigured, setContractorConfigured] = useState(true);
+  const [representativeId, setRepresentativeId] = useState("");
+
+  useEffect(() => {
+    let active = true;
+    void listContractorRepresentativesAction().then((response) => {
+      if (!active || "error" in response) return;
+      setRepresentatives(response.representatives);
+      setContractorConfigured(response.configured);
+    });
+    return () => {
+      active = false;
+    };
+  }, []);
 
   const modalityTemplates = useMemo(
     () => templates.filter((template) => template.modality === modality).sort((a, b) => a.title.localeCompare(b.title, "pt-BR")),
@@ -103,6 +131,7 @@ export function ContractCompositionBuilder({
         clientId: client.id,
         modality,
         templateId: template.id,
+        representativeId: representativeId || undefined,
         services: validation.services,
         customValues,
       });
@@ -117,16 +146,33 @@ export function ContractCompositionBuilder({
     });
   }
 
-  function createProposal(): void {
+  function createContracting(): void {
     if (!client || !validation.ok) return;
+    const plan = describeContractingPlan(modality, validation.services);
     startTransition(async () => {
-      const response = await createProposalFromCompositionAction({ clientId: client.id, services: validation.services });
-      if ("error" in response) {
-        notify.error("Não foi possível criar a proposta", response.error);
+      const confirmed = await confirmDialog({
+        title: "Criar a contratação?",
+        description:
+          `Serão criados nos cadastros existentes:\n\n${plan.map((line) => `• ${line}`).join("\n")}\n\n` +
+          "Nada será ativado, cobrado, assinado nem enviado ao cliente. Repetir esta ação não duplica os cadastros.",
+        confirmLabel: "Criar contratação",
+        destructive: false,
+      });
+      if (!confirmed) return;
+      const response = await createContractingFromCompositionAction({
+        requestId,
+        clientId: client.id,
+        modality,
+        templateId: template?.id,
+        representativeId: representativeId || undefined,
+        services: validation.services,
+      });
+      if (!response.ok) {
+        notify.error("Não foi possível criar a contratação", response.error);
         return;
       }
-      setProposal({ id: response.id, reference: response.reference });
-      notify.success("Proposta criada", `${response.reference} — o histórico de negociação ficou nas notas internas e na auditoria.`);
+      setContracting(response);
+      notify.success("Contratação criada", "Os cadastros foram criados sem ativação, cobrança ou assinatura.");
     });
   }
 
@@ -171,6 +217,24 @@ export function ContractCompositionBuilder({
         </div>
         {modalityTemplates.length === 0 ? (
           <p className="helper-text">Nenhum modelo desta modalidade visível para você. Cadastre ou habilite para teste em Configurações → Modelos de contratos.</p>
+        ) : null}
+        <div className="form-grid" style={{ marginTop: 8 }}>
+          <label className="form-field">
+            <span className="field-label">Representante legal da contratada (quem assina)</span>
+            <select value={representativeId} onChange={(e) => { setRepresentativeId(e.target.value); setResult(null); }}>
+              <option value="">Padrão da empresa (válido na data)</option>
+              {representatives.map((item) => (
+                <option key={item.id} value={item.id} disabled={!item.validNow}>
+                  {item.fullName} — {item.roleTitle}
+                  {item.representationRule === "joint" ? " (assina em conjunto)" : ""}
+                  {item.validNow ? (item.powersValidUntil ? ` — poderes até ${item.powersValidUntil.split("-").reverse().join("/")}` : "") : ` (indisponível: ${item.reason ?? "poderes fora da vigência"})`}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
+        {!contractorConfigured ? (
+          <p className="helper-text" role="status">Dados da empresa ainda não cadastrados em Configurações → Dados da empresa: o cabeçalho da contratada sairá com pendência.</p>
         ) : null}
         {templateCheck?.ok ? (
           <p className="helper-text" role="status">
@@ -239,8 +303,9 @@ export function ContractCompositionBuilder({
                         onChange={(e) => updateRow(row.key, { listUnitPrice: e.target.value, ...(row.kind !== "catalog" && row.negotiatedUnitPrice === row.listUnitPrice ? { negotiatedUnitPrice: e.target.value } : {}) })} />
                     </label>
                     <label className="form-field">
-                      <span className="field-label">Valor unitário negociado (R$)</span>
-                      <input value={row.negotiatedUnitPrice} inputMode="decimal" onChange={(e) => updateRow(row.key, { negotiatedUnitPrice: e.target.value })} />
+                      <span className="field-label">Valor unitário negociado (R$){canNegotiate ? " — pode ser menor ou maior que a tabela" : " — sem permissão para negociar"}</span>
+                      <input value={row.negotiatedUnitPrice} inputMode="decimal" readOnly={!canNegotiate && row.kind === "catalog"}
+                        onChange={(e) => updateRow(row.key, { negotiatedUnitPrice: e.target.value })} />
                     </label>
                     {rowTotals?.isNegotiated ? (
                       <label className="form-field" style={{ gridColumn: "1 / -1" }}>
@@ -264,6 +329,23 @@ export function ContractCompositionBuilder({
                         {COMPOSITION_PERIODICITIES.map((value) => <option key={value} value={value}>{PERIODICITY_LABELS[value]}</option>)}
                       </select>
                     </label>
+                    {row.kind === "subscription" ? (
+                      <>
+                        <label className="form-field">
+                          <span className="field-label">Tipo de assinatura</span>
+                          <select value={row.subscriptionServiceType} onChange={(e) => updateRow(row.key, { subscriptionServiceType: e.target.value as "impresso" | "digital" })}>
+                            <option value="impresso">Impressa</option>
+                            <option value="digital">Digital</option>
+                          </select>
+                        </label>
+                        {row.subscriptionServiceType === "impresso" ? (
+                          <label className="form-field">
+                            <span className="field-label">Exemplares</span>
+                            <input value={row.copies} inputMode="numeric" onChange={(e) => updateRow(row.key, { copies: e.target.value })} />
+                          </label>
+                        ) : null}
+                      </>
+                    ) : null}
                     <label className="form-field" style={{ gridColumn: "1 / -1" }}>
                       <span className="field-label">Descrição / objeto</span>
                       <input value={row.description} onChange={(e) => updateRow(row.key, { description: e.target.value })} maxLength={1000} />
@@ -314,12 +396,10 @@ export function ContractCompositionBuilder({
           <button type="button" className="form-action-primary" disabled={!canGenerate} onClick={generate}>
             {pending ? "Processando…" : "Gerar minuta em PDF"}
           </button>
-          {modality === "commercial" && canCreateProposal ? (
-            <button type="button" disabled={!client || !validation.ok || !allCatalog || pending} onClick={createProposal}
-              title={allCatalog ? undefined : "A proposta aceita apenas produtos do catálogo"}>
-              Criar proposta comercial com estes itens
-            </button>
-          ) : null}
+          <button type="button" disabled={!client || !validation.ok || pending || contracting !== null} onClick={createContracting}
+            title={modality === "commercial" && !canCreateProposal ? "O servidor confere as permissões de cada cadastro (proposta, assinatura)" : undefined}>
+            Criar contratação (cadastros)
+          </button>
           {modality === "institutional" && client ? (
             <Link className="secondary-link" href={`/sistema/financeiro/contratos/novo?clientId=${client.id}`}>Abrir contrato institucional do cliente</Link>
           ) : null}
@@ -329,10 +409,30 @@ export function ContractCompositionBuilder({
             {!client ? "Selecione o cliente. " : ""}{!template ? "Selecione o modelo. " : templateCheck && !templateCheck.ok ? `${templateCheck.reason} ` : ""}{!validation.ok && rows.length > 0 ? "Corrija os serviços. " : rows.length === 0 ? "Adicione ao menos um serviço." : ""}
           </p>
         ) : null}
-        {proposal ? (
-          <p className="helper-text" role="status">
-            Proposta <Link href={`/sistema/publicidade/propostas/${proposal.id}`}>{proposal.reference}</Link> criada. O próximo passo (aprovação e venda) segue o fluxo comercial existente.
-          </p>
+        {contracting ? (
+          <div role="status" style={{ marginTop: 12 }}>
+            {contracting.proposal ? (
+              <p className="helper-text">
+                Proposta <Link href={`/sistema/publicidade/propostas/${contracting.proposal.id}`}>{contracting.proposal.reference}</Link>{" "}
+                {contracting.proposal.created ? "criada" : "já existia (não duplicada)"}. O próximo passo (aprovação, venda e pacote) segue o fluxo comercial existente.
+              </p>
+            ) : null}
+            {contracting.subscriptions.map((item) => (
+              <p className="helper-text" key={item.id}>
+                Assinatura <Link href={`/sistema/assinaturas/${item.id}`}>{item.reference}</Link> {item.created ? "criada" : "já existia (não duplicada)"} — pendente de formalização (sem ativação e sem cobrança).
+              </p>
+            ))}
+            {contracting.contract ? (
+              <p className="helper-text">
+                Contrato institucional <Link href={`/sistema/financeiro/contratos/${contracting.contract.id}`}>{contracting.contract.reference}</Link>{" "}
+                {contracting.contract.created ? "criado" : "já existia (não duplicado)"}. Nenhum documento, cobrança ou assinatura foi gerado.
+              </p>
+            ) : null}
+            {contracting.notices.map((notice) => <p className="helper-text" key={notice}>{notice}</p>)}
+            <div className="form-actions">
+              <button type="button" onClick={() => { setContracting(null); setRequestId(crypto.randomUUID()); setRows([]); }}>Nova contratação</button>
+            </div>
+          </div>
         ) : null}
         {result ? (
           <div role="status" style={{ marginTop: 12 }}>

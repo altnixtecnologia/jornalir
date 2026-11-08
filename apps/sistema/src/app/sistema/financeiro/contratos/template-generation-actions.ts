@@ -8,6 +8,13 @@ import { getClientService } from "../../../../composition/clientes";
 import { createSupabaseServerClient } from "../../../../lib/supabase/server";
 import { checkFinanceAction } from "../../../../lib/permissions/checkFinanceAction";
 import { buildContractTemplatePdf } from "../../../../lib/contracts/contractTemplatePdf";
+import { loadContractorProfile } from "../../../../lib/contracts/contractorProfileLoader";
+import { buildContracteeHeaderLines } from "../../../../lib/contracts/contractorProfile";
+import {
+  finalizeInstitutionalContent,
+  institutionalCompositionValues,
+  readCompositionFromExtraData,
+} from "../../../../lib/contracts/institutionalComposition";
 
 const CONTRACT_BUCKET = "contract-documents";
 const MAX_GENERATED_PDF_BYTES = 4 * 1024 * 1024; // mesmo limite de uploadContractPdf (actions.ts) — cap de Server Action da Vercel.
@@ -21,6 +28,23 @@ async function requireFinanceAccess(): Promise<void> {
   if (authError || !userData.user) throw new Error("Sessão expirada.");
   const { data: allowed, error } = await supabase.rpc("staff_can_see_module", { p_module: "financeiro" });
   if (error || allowed !== true) throw new Error("Sem permissão para gerar contratos a partir de modelo.");
+}
+
+/**
+ * Contrato criado pela montagem de contratação (extra_data.services): usa as
+ * cláusulas 2.x, a CONTRATADA da Etapa 1 e o representante ESCOLHIDO (vigência
+ * e poderes revalidados aqui). Sem composição, devolve null e o fluxo anterior
+ * segue idêntico.
+ */
+async function compositionForContract(
+  supabase: ReturnType<typeof createSupabaseServerClient>,
+  contract: { extraData?: Record<string, unknown> },
+) {
+  const composition = readCompositionFromExtraData(contract.extraData);
+  if (!composition) return null;
+  const contractor = await loadContractorProfile(supabase, new Date().toISOString().slice(0, 10), composition.representativeId);
+  if (contractor.preferredInvalid) throw new Error(contractor.preferredInvalid);
+  return { composition, contractor, values: institutionalCompositionValues(composition, contractor) };
 }
 
 function toErrorMessage(error: unknown): string {
@@ -44,11 +68,15 @@ export async function previewContractFromTemplateAction(input: {
       getContractTemplateService(supabase).getById(input.templateId),
     ]);
     const client = await getClientService(supabase).getById(contract.clientId);
+    const extra = await compositionForContract(supabase, contract);
     const result = resolveTemplateVariables({
       content: template.content, variables: template.variables, client, contract,
-      customValues: input.customValues, generatedAt: new Date(),
+      customValues: { ...input.customValues, ...(extra?.values ?? {}) }, generatedAt: new Date(),
     });
-    return { ok: true, missingRequired: result.missingRequired, resolvedContent: result.resolvedContent };
+    const resolvedContent = extra && result.missingRequired.length === 0
+      ? finalizeInstitutionalContent(template.content, result.resolvedContent, extra.values).content
+      : result.resolvedContent;
+    return { ok: true, missingRequired: result.missingRequired, resolvedContent };
   } catch (error) {
     return { error: toErrorMessage(error) };
   }
@@ -77,21 +105,28 @@ export async function generateContractFromTemplateAction(input: {
     ]);
     const client = await getClientService(supabase).getById(contract.clientId);
     const generatedAt = new Date();
+    const extra = await compositionForContract(supabase, contract);
     const result = resolveTemplateVariables({
       content: template.content, variables: template.variables, client, contract,
-      customValues: input.customValues, generatedAt,
+      customValues: { ...input.customValues, ...(extra?.values ?? {}) }, generatedAt,
     });
     if (result.missingRequired.length > 0) {
       return { error: "Preencha os campos obrigatórios antes de gerar: " + result.missingRequired.map((v) => v.label).join(", ") + "." };
     }
+    const finalContent = extra
+      ? finalizeInstitutionalContent(template.content, result.resolvedContent, extra.values).content
+      : result.resolvedContent;
 
     const pdfBytes = await buildContractTemplatePdf({
       title: template.title,
-      content: result.resolvedContent,
+      content: finalContent,
       contractReference: contract.reference,
       templateTitle: template.title,
       templateVersion: template.version,
       generatedAt: generatedAt.toISOString(),
+      parties: extra && extra.contractor.configured
+        ? { contractor: extra.contractor.headerLines, contractee: buildContracteeHeaderLines(result.fieldValues) }
+        : undefined,
     });
     if (pdfBytes.byteLength > MAX_GENERATED_PDF_BYTES) {
       return { error: "O PDF gerado excedeu 4 MB — reduza o conteúdo do modelo antes de gerar." };

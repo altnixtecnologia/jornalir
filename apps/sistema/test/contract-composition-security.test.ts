@@ -32,18 +32,23 @@ test("minuta: permissão por modalidade conferida ANTES de qualquer acesso (Come
   assert.match(generate, /request\.modality !== "commercial" && request\.modality !== "institutional"/);
 });
 
-test("proposta: exige propostas_criar, só itens do catálogo, bloqueia acréscimo; preço de tabela em unit_price e negociado como desconto", () => {
-  const create = exported(withoutComments(read(ACTIONS))).get("createProposalFromCompositionAction")!;
-  assert.ok(create.indexOf('checkModuleAction("publicidade", "propostas_criar")') > 0);
-  assert.ok(create.indexOf('checkModuleAction("publicidade", "propostas_criar")') < create.indexOf("createSupabaseServerClient()"));
-  assert.match(create, /service\.kind !== "catalog"/);
-  assert.match(create, /adjustmentAmount < 0/);
-  assert.match(create, /unitPrice: service\.listUnitPrice/);
-  assert.match(create, /discountAmount: totals\.adjustmentAmount/);
+test("criar contratação: usa os serviços EXISTENTES (proposta, assinatura, contrato institucional) e cada permissão do cadastro correspondente", () => {
+  const create = exported(withoutComments(read(ACTIONS))).get("createContractingFromCompositionAction")!;
+  assert.match(create, /checkModuleAction\("publicidade", "propostas_criar"\)/);
+  assert.match(create, /checkModuleAction\("assinaturas", "assinaturas_criar"\)/);
+  assert.match(create, /checkModuleAction\("publicidade", "valores_negociar"\)/);
+  assert.match(create, /checkFinanceAction\("contratos_criar"\)/);
   assert.match(create, /getCommercialProposalService\(client\)\.register/);
-  assert.match(create, /internalNotes: formatNegotiationNote/);
-  // O preço de tabela vem do catálogo do servidor, nunca do navegador.
-  assert.match(create, /listUnitPrice: product\.suggestedPrice \?\? service\.listUnitPrice/);
+  assert.match(create, /getSubscriptionService\(client\)\.register/);
+  assert.match(create, /getContractService\(client\)\.register/);
+  assert.match(create, /persistContracting\(request, deps\)/);
+  // Assinatura nasce "pendente de formalização": o status nunca é informado (o serviço usa o padrão seguro).
+  const subscriptionCall = create.slice(create.indexOf("getSubscriptionService(client).register"), create.indexOf("findContract"));
+  assert.doesNotMatch(subscriptionCall, /status\s*:/);
+  // Idempotência por requestId (proposta, assinatura via marcador, contrato via extra_data).
+  assert.match(create, /composition_request_id/);
+  assert.match(create, /ilike\("notes"/);
+  assert.match(create, /extra_data->>compositionRequestId/);
 });
 
 test("auditoria: minuta gerada, valores negociados e criação de proposta ficam registrados, com hash do PDF e sem o PDF", () => {
@@ -84,7 +89,9 @@ test("a tela deixa claro que gera MINUTA (não assina/envia/cobra/ativa) e usa s
   assert.match(ui, /não assina, não envia ao cliente, não gera cobrança e não ativa/);
   assert.match(ui, /MINUTA DE TESTE — SEM EFEITO CONTRATUAL/);
   assert.match(ui, /generateCompositionPdfAction/);
-  assert.match(ui, /createProposalFromCompositionAction/);
+  assert.match(ui, /createContractingFromCompositionAction/);
+  assert.match(ui, /confirmDialog/);
+  assert.match(ui, /Nada será ativado, cobrado, assinado nem enviado ao cliente/);
   assert.match(ui, /ClientPicker/);
   assert.match(ui, /disabled=\{!check\.ok\}/);
 });
@@ -117,7 +124,7 @@ test("get_contract_contractor_profile: SECURITY DEFINER, só quem prepara/revisa
 test("carregador da CONTRATADA tolera migrations não aplicadas (não quebra o fluxo anterior) e nunca inventa dados", () => {
   const loader = withoutComments(read("apps/sistema/src/lib/contracts/contractorProfileLoader.ts"));
   assert.match(loader, /MISSING_CODES = new Set\(\["42883", "42P01", "PGRST202", "PGRST205", "PGRST200"\]\)/);
-  assert.match(loader, /buildContractorProfile\(null, \[\], todayIso\)/);
+  assert.match(loader, /buildContractorProfile\(null, \[\], todayIso, preferredRepresentativeId\)/);
   assert.match(loader, /rpc\("get_contract_contractor_profile"\)/);
 });
 

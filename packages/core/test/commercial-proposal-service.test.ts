@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import type { CommercialProposal, CommercialProposalWithItems } from "@ir/types";
+import { computeProposalTotal, type CommercialProposal, type CommercialProposalWithItems } from "@ir/types";
 import {
   CommercialProposalService,
   CommercialProposalValidationError,
@@ -131,4 +131,55 @@ test("getById/getWithItems lançam erro de domínio (nunca null silencioso) para
   const { service } = fixture();
   await assert.rejects(() => service.getById("inexistente"), CommercialProposalNotFoundError);
   await assert.rejects(() => service.getWithItems("inexistente"), CommercialProposalNotFoundError);
+});
+
+// --- Etapa 2 (08/11/2026): valor negociado menor OU maior que a tabela, preferências da contratação ---
+
+test("valor negociado ACIMA ou ABAIXO da tabela: unitPrice é o negociado, a tabela é preservada e o total é sempre quantidade × negociado − desconto", async () => {
+  const { service } = fixture();
+  const above = await service.register({
+    ...baseInput,
+    items: [{ productId: "prod-1", description: "Acima", quantity: 3, unitPrice: 1100.5, discountAmount: 0, listUnitPrice: 1000, negotiationReason: "  Tiragem extra  " }],
+  });
+  assert.equal(above.items[0].listUnitPrice, 1000);
+  assert.equal(above.items[0].unitPrice, 1100.5);
+  assert.equal(above.items[0].negotiationReason, "Tiragem extra");
+  assert.equal(computeProposalTotal(above.items), 3301.5);
+  const below = await service.register({
+    ...baseInput,
+    items: [{ description: "Abaixo", quantity: 2, unitPrice: 850, discountAmount: 0, listUnitPrice: 1000, negotiationReason: "Cliente antigo" }],
+  });
+  assert.equal(computeProposalTotal(below.items), 1700);
+  const legacy = await service.register(baseInput);
+  assert.equal(legacy.items[0].listUnitPrice, undefined, "item sem tabela continua válido (unitPrice = tabela)");
+});
+
+test("tabela inválida (negativa/NaN) é recusada", async () => {
+  const { service } = fixture();
+  await assert.rejects(
+    () => service.register({ ...baseInput, items: [{ description: "Item", quantity: 1, unitPrice: 100, discountAmount: 0, listUnitPrice: -5 }] }),
+    CommercialProposalValidationError,
+  );
+  await assert.rejects(
+    () => service.register({ ...baseInput, items: [{ description: "Item", quantity: 1, unitPrice: 100, discountAmount: 0, listUnitPrice: Number.NaN }] }),
+    CommercialProposalValidationError,
+  );
+});
+
+test("preferências da contratação (modelo, modalidade, representante) e a chave de idempotência são guardadas na proposta, com espaços aparados", async () => {
+  const { service } = fixture();
+  const proposal = await service.register({
+    ...baseInput,
+    contractTemplateId: " tpl-1 ",
+    contractModality: "commercial",
+    contractorRepresentativeId: "rep-1",
+    compositionRequestId: "11111111-2222-4333-8444-555555555555",
+  });
+  assert.equal(proposal.contractTemplateId, "tpl-1");
+  assert.equal(proposal.contractModality, "commercial");
+  assert.equal(proposal.contractorRepresentativeId, "rep-1");
+  assert.equal(proposal.compositionRequestId, "11111111-2222-4333-8444-555555555555");
+  const plain = await service.register(baseInput);
+  assert.equal(plain.contractTemplateId, undefined);
+  assert.equal(plain.compositionRequestId, undefined);
 });

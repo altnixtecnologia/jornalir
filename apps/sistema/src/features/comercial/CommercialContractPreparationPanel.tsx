@@ -67,13 +67,16 @@ const AUTO_FIELDS = new Set([
   "venda.referencia", "venda.valor", "servicos.resumo",
 ]);
 function TemplateChoice({
-  heading, options, selected, initialValues, disabled, onSave,
+  heading, options, selected, suggested, initialValues, disabled, onSave,
 }: {
   heading: string; options: CommercialTemplateOption[]; selected: string;
+  /** Modelo escolhido na montagem de contratação — só PRÉ-SELECIONA (nada é gravado até clicar em salvar; o banco ainda exige modelo ativo). */
+  suggested?: string;
   initialValues: Record<string,string>; disabled: boolean;
   onSave: (id: string | null, values: Record<string,string>) => void;
 }): JSX.Element {
-  const [choice, setChoice] = useState(selected);
+  const suggestedOption = !selected && suggested && options.some(o => o.id === suggested) ? suggested : "";
+  const [choice, setChoice] = useState(selected || suggestedOption);
   const [values, setValues] = useState<Record<string,string>>({...initialValues});
   const template = options.find(o => o.id === choice);
   const variables = template?.variables.filter(v => !AUTO_FIELDS.has(v.key)) ?? [];
@@ -124,12 +127,14 @@ function currency(value: unknown): string {
 }
 
 export function CommercialContractPreparationPanel({
-  saleId, clientId, saleStatus, defaultMode, pkg, canPrepare, canReview, templateOptions, templateAssignments, issuedDocuments, reviewEvents, loadError,
+  saleId, clientId, saleStatus, defaultMode, preferredTemplateId, pkg, canPrepare, canReview, templateOptions, templateAssignments, issuedDocuments, reviewEvents, loadError,
 }: {
   saleId: string;
   clientId: string;
   saleStatus: string;
   defaultMode: "combined" | "separate";
+  /** Preferência da contratação (modelo escolhido na montagem), herdada da proposta. */
+  preferredTemplateId?: string;
   pkg: CommercialContractPackageView | null;
   canPrepare: boolean;
   canReview: boolean;
@@ -242,6 +247,7 @@ export function CommercialContractPreparationPanel({
             <TemplateChoice
               key={"combined-" + (templateAssignments.find(b => b.serviceId === null)?.templateId ?? "")}
               heading="Modelo jurídico do contrato único"
+              suggested={preferredTemplateId}
               options={templateOptions.filter(t => t.category.toLowerCase() === "commercial_combined")}
               selected={templateAssignments.find(b => b.serviceId === null)?.templateId ?? ""}
               initialValues={templateAssignments.find(b => b.serviceId === null)?.values ?? {}}
@@ -290,6 +296,7 @@ export function CommercialContractPreparationPanel({
                   <TemplateChoice
                     key={service.id + "-" + (templateAssignments.find(b => b.serviceId === service.id)?.templateId ?? "")}
                     heading="Modelo jurídico para este serviço"
+                    suggested={preferredTemplateId}
                     options={templateOptions.filter(t =>
                       ["commercial_generic", "commercial_" + service.service_channel.toLowerCase()].includes(t.category.toLowerCase())
                     )}

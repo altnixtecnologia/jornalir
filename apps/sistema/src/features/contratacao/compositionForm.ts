@@ -21,6 +21,9 @@ export interface ServiceRow {
   startsOn: string;
   endsOn: string;
   periodicity: CompositionPeriodicity;
+  /** Só assinatura do jornal. */
+  subscriptionServiceType: "impresso" | "digital";
+  copies: string;
   deliveryNote: string;
   renewalNote: string;
   terminationNote: string;
@@ -71,6 +74,8 @@ export function newCatalogRow(product: CommercialProduct): ServiceRow {
     startsOn: start,
     endsOn: oneYearFrom(start),
     periodicity: "monthly",
+    subscriptionServiceType: "impresso",
+    copies: "1",
     deliveryNote: "",
     renewalNote: "",
     terminationNote: "",
@@ -93,6 +98,8 @@ export function newFreeRow(kind: "subscription" | "other"): ServiceRow {
     startsOn: start,
     endsOn: oneYearFrom(start),
     periodicity: kind === "subscription" ? "annual" : "monthly",
+    subscriptionServiceType: "impresso",
+    copies: "1",
     deliveryNote: "",
     renewalNote: "",
     terminationNote: "",
@@ -113,6 +120,8 @@ export function rowToInput(row: ServiceRow): CompositionServiceInput {
     startsOn: row.startsOn,
     endsOn: row.endsOn,
     periodicity: row.periodicity,
+    subscriptionServiceType: row.kind === "subscription" ? row.subscriptionServiceType : undefined,
+    copies: row.kind === "subscription" && row.subscriptionServiceType === "impresso" ? parseDecimal(row.copies) : undefined,
     deliveryNote: row.deliveryNote || undefined,
     renewalNote: row.renewalNote || undefined,
     terminationNote: row.terminationNote || undefined,
@@ -128,4 +137,21 @@ export function isReservedVariableKey(key: string): boolean {
 
 export function manualVariables(template: Pick<ContractTemplate, "variables"> | undefined): ContractTemplateVariable[] {
   return (template?.variables ?? []).filter((variable) => !isReservedVariableKey(variable.key));
+}
+
+/**
+ * O que "Criar contratação" vai gravar — exibido na confirmação, para o
+ * operador saber exatamente quais cadastros serão criados. Nunca menciona
+ * cobrança/ativação/assinatura porque nada disso é criado.
+ */
+export function describeContractingPlan(modality: "commercial" | "institutional", services: Array<Pick<CompositionServiceInput, "kind">>): string[] {
+  if (modality === "institutional") {
+    return [`1 contrato institucional com ${services.length} serviço${services.length > 1 ? "s" : ""} (lista estruturada nos dados do contrato).`];
+  }
+  const lines: string[] = [];
+  const catalog = services.filter((service) => service.kind === "catalog").length;
+  const subscriptions = services.filter((service) => service.kind === "subscription").length;
+  if (catalog > 0) lines.push(`1 proposta comercial com ${catalog} ${catalog > 1 ? "itens" : "item"} (valor de tabela e negociado preservados).`);
+  if (subscriptions > 0) lines.push(`${subscriptions} assinatura${subscriptions > 1 ? "s" : ""} do jornal em "pendente de formalização" (sem ativação e sem cobrança).`);
+  return lines;
 }

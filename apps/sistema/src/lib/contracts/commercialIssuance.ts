@@ -98,7 +98,10 @@ export async function compileCommercialDocuments(
   // CONTRATADA vinda de Configurações → Dados da empresa (Etapa 1). Quando
   // cadastrada, prevalece sobre o texto digitado por documento; sem cadastro
   // (ou antes das migrations da Etapa 1) o fluxo anterior segue idêntico.
-  const contractor = await loadContractorProfile(supabase, new Date().toISOString().slice(0, 10));
+  const contractor = await loadContractorProfile(supabase, new Date().toISOString().slice(0, 10), sale.contractorRepresentativeId);
+  // Representante ESCOLHIDO na contratação: vigência e poderes são revalidados AQUI, na emissão.
+  // Nunca há troca silenciosa pelo padrão.
+  if (contractor.preferredInvalid) throw new Error(contractor.preferredInvalid);
   const clauses = (docIndex: number): string | undefined => {
     const scoped = pkg.document_mode === "combined" ? entries : [entries[docIndex]];
     if (scoped.some((item) => !item)) return undefined;
