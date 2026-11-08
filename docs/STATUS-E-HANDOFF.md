@@ -3705,3 +3705,10 @@ Código gravado **somente no GitHub** após o commit 3A `814fd7bc`; não sincron
 **Não concluído:** homologação real na UI, migrations, RLS, Storage, Google/Meta/e-mail/Telegram com destinos de teste, backup R2/restauração, aprovação jurídica e correção de eventual patch de segurança do Next 14.2.33 (npm avisou vulnerabilidade). Não ativar integrações ainda. 12 migrations `20261122140000`–`20261122250000` não aplicadas.
 
 **Guia de execução posterior:** `docs/CONTRATOS-ASSINADOR-HOMOLOGACAO-20261108.md`. Quando o Claude voltar: primeiro `git fetch` e `fast-forward` seguro na branch `solicitacoes-financeiro-contratos-irc-20261031`; **preservar 3 stashes e 3 worktrees**. Se divergente, reportar em vez de reset/rebase destrutivo. Não reexecutar testes remotos já verdes sem necessidade; concentrar homologação de interface/banco quando for autorizada.
+
+
+## 08/11/2026 — PostgreSQL isolado validou SQL da Etapa 4 (sem aplicação em produção)
+
+**Github Actions** [42535689362](https://github.com/altnixtecnologia/jornalir/actions/runs/42535689362/job/128899363347) **PASSOU**. Serviço Postgres 17 descartável; aplicou somente migrations `20261122240000` (fila e triggers de conclusão) e `20261122250000` (registro Meta) sobre fixture de tabelas fictícias. Verificou 8 notificações esperadas, nenhum duplicado, proteção de RLS/grants, claim, auditoria de envio, timeout sem reenvio automático e exigência de message ID da Meta. Arquivos de CI/fixture novos em `.github/workflows/validate-contract-notification-sql.yml` e `apps/sistema/test/fixtures/signature-delivery-*.sql`.
+
+**Supabase real `site-system-ir`:** consulta SOMENTE LEITURA no ledger e metadados de colunas, sem dados privados: aplicadas até `20261122130000`, **12 migrations 140000–250000 seguem não aplicadas**. Nada publicado, ativado ou enviado. Código da assinatura teve CI verde antes desta verificação. Homologação na UI e com banco completo continua dependente de autorização e configuração segura. Evitar auditoria repetitiva.
