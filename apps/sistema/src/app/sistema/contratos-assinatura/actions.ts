@@ -105,6 +105,32 @@ export async function getCompanySignatureDocumentUrlAction(roundId: string, whic
   }
 }
 
+/** Retorna posições apenas ao administrador/proprietário que edita modelos. */
+export async function getSignatureFieldLayoutAction(templateId: string): Promise<ActionResult<{ fields: PlacedField[] }>> {
+  try {
+    const client = createSupabaseServerClient();
+    const guard = await requireAdminOrOwner(client);
+    if (!guard.ok) return { error: guard.error };
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(templateId)) return { error: "Modelo inválido." };
+    const { data, error } = await client.from("contract_signature_field_layouts")
+      .select("fields").eq("template_id", templateId).maybeSingle();
+    if (error) return { error: "Não foi possível carregar as posições salvas." };
+    return { ok: true, fields: (data?.fields ?? []) as PlacedField[] };
+  } catch (error) {
+    return failure(error);
+  }
+}
+
+/** Após a aprovação jurídica, a posição pertence à versão aprovada. */
+async function canEditTemplateLayout(client: ReturnType<typeof createSupabaseServerClient>, templateId: string): Promise<string | null> {
+  const { data, error } = await client.from("contract_templates")
+    .select("document_mode,active,legal_approved_at").eq("id", templateId).maybeSingle();
+  if (error || !data) return "Modelo não encontrado.";
+  if (data.document_mode !== "fixed_pdf") return "Modelos de texto usam posicionamento automático.";
+  if (data.active || data.legal_approved_at) return "O layout desta versão já foi aprovado. Crie nova versão do modelo para alterar.";
+  return null;
+}
+
 /**
  * Posicionamento MANUAL de campos por versão de modelo (modelos especiais/PDFs
  * externos). Só administrador/proprietário (a RLS repete). Coordenadas
@@ -117,6 +143,8 @@ export async function saveSignatureFieldLayoutAction(templateId: string, fields:
     const guard = await requireAdminOrOwner(client);
     if (!guard.ok) return { error: guard.error };
     if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(templateId)) return { error: "Modelo inválido." };
+    const editDenied = await canEditTemplateLayout(client, templateId);
+    if (editDenied) return { error: editDenied };
     const checked = validateLayoutForSaving(fields);
     if (!checked.ok) return { error: checked.errors.join(" ") };
     const { error } = await client.from("contract_signature_field_layouts").upsert({ template_id: templateId, fields: checked.fields, updated_by: guard.actorId });
@@ -133,6 +161,8 @@ export async function removeSignatureFieldLayoutAction(templateId: string): Prom
     const client = createSupabaseServerClient();
     const guard = await requireAdminOrOwner(client);
     if (!guard.ok) return { error: guard.error };
+    const editDenied = await canEditTemplateLayout(client, templateId);
+    if (editDenied) return { error: editDenied };
     const { error } = await client.from("contract_signature_field_layouts").delete().eq("template_id", templateId);
     if (error) return { error: "Não foi possível remover o posicionamento." };
     await client.from("audit_events").insert({ user_id: guard.actorId, entity_type: "contract_template", entity_id: templateId, action: "signature_field_layout_removed", metadata: {} });
