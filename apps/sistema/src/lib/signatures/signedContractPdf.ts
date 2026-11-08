@@ -1,5 +1,7 @@
 import "server-only";
 import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
+import { stampCompanySignature } from "./companySignaturePdf";
+import type { ExternalSignatureAppearance } from "./externalSignaturePlacement";
 
 export interface SignedPdfInput {
   originalBytes: Uint8Array;
@@ -12,6 +14,8 @@ export interface SignedPdfInput {
   invitationId: string;
   consentVersion?: string;
   sourceIsCumulative?: boolean;
+  /** Campos reservados à CONTRATANTE no PDF já assinado pela empresa. */
+  externalAppearance?: ExternalSignatureAppearance | null;
 }
 
 function safeText(s: string): string {
@@ -28,7 +32,21 @@ function safeText(s: string): string {
  * Um comprovante autônomo também é salvo para auditoria.
  */
 export async function buildSignedContractPdf(input: SignedPdfInput): Promise<Uint8Array> {
-  const pdf = await PDFDocument.load(input.originalBytes, { updateMetadata: false });
+  // O PDF original/da rodada permanece intacto em Storage. Aplicamos a
+  // representação visual apenas na NOVA versão, após o OTP e o aceite.
+  const workingBytes = input.externalAppearance?.fields.length
+    ? await stampCompanySignature({
+        baseBytes: input.originalBytes,
+        fields: input.externalAppearance.fields,
+        hasPlaceholders: input.externalAppearance.hasPlaceholders,
+        signerName: input.signerName,
+        signerTitle: "CONTRATANTE",
+        signatureJpeg: input.signatureJpeg,
+        signedAtIso: input.signedAt,
+        baseSha256: input.originalSha256,
+      })
+    : input.originalBytes;
+  const pdf = await PDFDocument.load(workingBytes, { updateMetadata: false });
   if (!pdf.getPageCount()) throw new Error("PDF original sem páginas.");
   if (pdf.isEncrypted) throw new Error("PDF protegido não pode receber folha de aceite.");
   const page = pdf.addPage([595, 842]);
