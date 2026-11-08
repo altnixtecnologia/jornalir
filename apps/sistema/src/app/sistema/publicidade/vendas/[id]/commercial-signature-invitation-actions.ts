@@ -5,16 +5,24 @@ import {createSupabaseServerClient} from "../../../../../lib/supabase/server";
 import {checkModuleAction} from "../../../../../lib/permissions/checkModuleAction";
 import {commercialTokenHash} from "../../../../../lib/signatures/commercialSignatures";
 import {commercialCompanyGate} from "../../../../../lib/signatures/companyGate";
+import {createSupabaseAdminClient} from "../../../../../lib/supabase/admin";
+import {isWhatsappSignatureTemplateConfigured,sendWhatsappSignatureInviteTemplate} from "../../../../../lib/financeiro/whatsappCloudProvider";
 
-type Result={error:string}|{ok:true;requestId:string;links:Array<{name:string;urlPath:string}>};
+type Result={error:string}|{ok:true;requestId:string;links:Array<{name:string;urlPath:string;deliveryError?:string}>};
+type DeliveryOptions={sendWhatsapp?:boolean;operatorConfirmedOptIn?:boolean};
 const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-/** Convites privados gerados, NÃO enviados. Links aparecem uma única vez nesta resposta. */
+/** Convites privados gerados; envio Meta só após consentimento expresso do operador. Links aparecem uma vez. */
 export async function createCommercialInvitationsAction(
- saleId:string,preparationId:string,confirmed:boolean,
+ saleId:string,preparationId:string,confirmed:boolean,delivery?:DeliveryOptions,
 ):Promise<Result> {
  const denied=await checkModuleAction("publicidade","contratos_revisar");
  if(denied) return {error:denied};
  if(!confirmed) return {error:"Confirme que as pessoas e o PDF foram conferidos."};
+ const sendWhatsapp=delivery?.sendWhatsapp===true;
+ if(sendWhatsapp && !delivery?.operatorConfirmedOptIn)
+  return {error:"Confirme que cada destinatário autorizou receber o convite via WhatsApp."};
+ if(sendWhatsapp && !isWhatsappSignatureTemplateConfigured())
+  return {error:"Template de assinatura não está configurado ou aprovado na Meta."};
  if(!UUID.test(saleId)||!UUID.test(preparationId)) return {error:"Identificadores inválidos."};
  try {
   const db=createSupabaseServerClient();
@@ -31,22 +39,68 @@ export async function createCommercialInvitationsAction(
   const companyGateError=await commercialCompanyGate(doc.id);
   if(companyGateError) throw new Error(companyGateError);
   const {data:persons,error:personsErr}=await db.from("commercial_signature_participants")
-   .select("id,signer_name,signer_email,signing_order,signer_role").eq("preparation_id",prep.id)
+   .select("id,signer_name,signer_email,signer_phone,signing_order,signer_role").eq("preparation_id",prep.id)
    .order("signing_order");
   if(personsErr||!persons||persons.length<2||persons.length>10) throw new Error("Lista de participantes inválida.");
   // A contratada assina em sistema (rodada da empresa); só quem é do cliente/testemunha recebe link.
   const external=persons.filter(person=>person.signer_role!=="contratada");
   if(external.length<1) throw new Error("Informe ao menos um signatário do cliente.");
+  if(sendWhatsapp && external.some(p=>!p.signer_phone || !/^\d{10,13}$/.test(String(p.signer_phone))))
+   throw new Error("Para enviar pela Meta, todos os signatários externos precisam ter telefone com DDD no cadastro.");
   const withTokens=external.map(person=>({...person,token:randomBytes(32).toString("hex")}));
   const {data:requestId,error:rpcErr}=await db.rpc("create_commercial_signature_request",{
    p_preparation_id:prep.id,
    p_invites:withTokens.map(p=>({participant_id:p.id,token_sha256:commercialTokenHash(p.token)})),
   });
   if(rpcErr||typeof requestId!=="string") throw new Error(rpcErr?.message??"Não foi possível iniciar a rodada.");
-  revalidatePath("/sistema/publicidade/vendas/"+saleId);
-  return {ok:true,requestId,links:withTokens.map(person=>({
+  const links=withTokens.map(person=>({
    name:person.signer_name,urlPath:"/assinar-contrato-comercial/"+person.token,
-  }))};
+   deliveryError:undefined as string|undefined,
+  }));
+  if(sendWhatsapp){
+   const admin=createSupabaseAdminClient();
+   // A confirmação de opt-in é registrada sem armazenar o token do convite.
+   const actor=await db.auth.getUser();
+   await admin.from("audit_events").insert({
+    user_id:actor.data.user?.id??null,entity_type:"commercial_signature_request",entity_id:requestId,
+    action:"signature_whatsapp_invitation_optin_confirmed",
+    metadata:{recipientCount:withTokens.length,template:"WHATSAPP_SIGNATURE_INVITE_TEMPLATE"},
+   });
+   const saved=await admin.from("commercial_signature_invitations")
+    .select("id,participant_id").eq("request_id",requestId);
+   if(saved.error || (saved.data??[]).length!==withTokens.length){
+    links.forEach(link=>{link.deliveryError="Não foi possível conferir os destinatários; encaminhe o link individual manualmente.";});
+   }else{
+    const invitationByPerson=new Map((saved.data??[]).map(x=>[x.participant_id,x.id]));
+    for(let index=0;index<withTokens.length;index+=1){
+     const person=withTokens[index];
+     const invitationId=invitationByPerson.get(person.id);
+     if(!invitationId){links[index].deliveryError="Convite não localizado para envio.";continue;}
+     try{
+      const sent=await sendWhatsappSignatureInviteTemplate({
+       toPhone:String(person.signer_phone),signerName:person.signer_name,
+       contractNumber:"Documento comercial",
+       invitationLink:"https://controle.altnix.com.br"+links[index].urlPath,
+      });
+      const written=await admin.from("commercial_signature_invitations").update({
+       notification_channel:"whatsapp",notification_status:"accepted_by_meta",
+       notification_message_id:sent.providerMessageId??null,
+       notification_attempted_at:new Date().toISOString(),notification_error:null,
+      }).eq("id",invitationId);
+      if(written.error) throw new Error("Meta pode ter aceito a mensagem, mas não foi possível gravar a confirmação.");
+     }catch{
+      links[index].deliveryError="Envio não confirmado. Verifique a Meta antes de tentar novamente. O link individual continua disponível.";
+      await admin.from("commercial_signature_invitations").update({
+       notification_channel:"whatsapp",notification_status:"uncertain",
+       notification_attempted_at:new Date().toISOString(),
+       notification_error:"Envio não confirmado; reconciliação manual necessária.",
+      }).eq("id",invitationId);
+     }
+    }
+   }
+  }
+  revalidatePath("/sistema/publicidade/vendas/"+saleId);
+  return {ok:true,requestId,links};
  }catch(e){return {error:e instanceof Error?e.message:"Falha ao criar convites."};}
 }
 
