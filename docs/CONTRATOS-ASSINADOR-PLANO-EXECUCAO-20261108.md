@@ -27,6 +27,8 @@ As áreas Cadastros, Assinaturas, Comercial, Financeiro e Contratos continuam ex
 15. **Segurança e experiência**: permissões no frontend E backend/RLS, mínimo privilégio, token e segredo nunca expostos, histórico de consentimento adequado; uma rota/tela de consulta de andamento dentro do cliente para colaboradores autorizados. Mensagens claras de status e erro; finalizar somente quando banco/storage confirmarem.
 16. **E-mails internos do sistema**: convites genéricos/sem identidade visual foram relatados (ex.: usuário Silas foi convidado com sucesso). Padronização visual da entrega contratual e revisão dos e-mails genéricos serão feitas em lote separado, sem bloquear o catálogo de contratos.
 
+17. **Rubricas e posicionamento no PDF**: a rubrica gráfica deve aparecer integrada ao PDF consolidado somente após cada signatário efetivamente confirmar a assinatura eletrônica. Para modelos próprios, posições automáticas de rubrica no rodapé de páginas intermediárias, assinaturas das partes na última página, data/hora e QR Code, sempre respeitando margens. Para modelos especiais, licitações e PDFs importados, permitir posicionamento visual manual de cada campo (tipo, signatário, página, coordenadas, tamanho), com prévia e salvamento **por versão do modelo** para reutilização, sem modificar o documento assinado original. A rubrica visual não substitui hash, aceite, autenticação ou demais evidências. Verificar viabilidade antes da Etapa 3 para não refazer o editor de modelos.
+
 ## Estado técnico confirmado na revisão de 08/11/2026 (somente leitura)
 
 - Repositório `altnixtecnologia/jornalir`, branch de trabalho `solicitacoes-financeiro-contratos-irc-20261031`, commit-base `5d136e150daa92e37979cf1df2f810d655fb4b0a`.
@@ -62,6 +64,7 @@ As áreas Cadastros, Assinaturas, Comercial, Financeiro e Contratos continuam ex
 ### Etapa 3 — Assinatura eletrônica e auditoria probatória
 - [ ] Reaproveitar assinadores existentes sob UX compartilhada; manifestação explícita e assinatura do representante comercial autorizado/institucional legal.
 - [ ] Convite individual, leitura, OTP e Google opcional se não trouxer atrito, aceite do cliente; PDF assinado acumulativo e comprovante/hashes.
+- [ ] Rubricas e campos de assinatura integrados ao PDF consolidado: posicionamento automático nos modelos internos e manual/reutilizável por versão em PDFs e contratos especiais.
 - [ ] Revisão jurídica da solução técnica e critérios de prova, privacidade, poderes e testemunhas onde houver exigência.
 - [ ] Testar expiração, reenvio, revogação, concorrência, 2+ assinantes, adulteração de PDF e controle de acesso.
 
