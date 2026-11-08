@@ -3697,3 +3697,11 @@ Código gravado **somente no GitHub** após o commit 3A `814fd7bc`; não sincron
 **TESTADO:** apenas conferências de código, sem executar a suíte no ambiente local. Teste direcionado para HMAC/QR criado em `apps/sistema/test/public-verification.test.ts`, **não executado**. Compilação, SQL migrations, envio real, PDF visualizado e backup/restauração devem ser conferidos na Etapa 5, uma única vez e em sequência controlada, preservando stashes e worktrees. Evitar auditorias gerais antes disso.
 
 **Fonte de verdade:** `docs/CONTRATOS-ASSINADOR-PLANO-EXECUCAO-20261108.md`, seção Etapa 4.
+
+
+## 08/11/2026 — Etapa 5 (parcial): GitHub Actions validou o código de assinaturas 3B/4
+**Code-only verificado, produção não alterada.** Execução [42532655263](https://github.com/altnixtecnologia/jornalir/actions/runs/42532655263/job/128890054225) commit `45c655e2`: typecheck sistema OK; 10 testes dirigidos PASSARAM (PDF preparado pela empresa, rubrica/assinatura externa + QR e evidência, versões anteriores intactas, Google JWT/nonce, QR HMAC); `next build` OK. Commit remoto acrescenta workflow CI direcionado e smoke PDF em memória.
+
+**Não concluído:** homologação real na UI, migrations, RLS, Storage, Google/Meta/e-mail/Telegram com destinos de teste, backup R2/restauração, aprovação jurídica e correção de eventual patch de segurança do Next 14.2.33 (npm avisou vulnerabilidade). Não ativar integrações ainda. 12 migrations `20261122140000`–`20261122250000` não aplicadas.
+
+**Guia de execução posterior:** `docs/CONTRATOS-ASSINADOR-HOMOLOGACAO-20261108.md`. Quando o Claude voltar: primeiro `git fetch` e `fast-forward` seguro na branch `solicitacoes-financeiro-contratos-irc-20261031`; **preservar 3 stashes e 3 worktrees**. Se divergente, reportar em vez de reset/rebase destrutivo. Não reexecutar testes remotos já verdes sem necessidade; concentrar homologação de interface/banco quando for autorizada.
