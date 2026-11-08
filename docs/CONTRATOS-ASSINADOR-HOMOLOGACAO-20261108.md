@@ -37,3 +37,8 @@ Base do resultado CI: `45c655e25523a25e0345db5e4869fabb4de06b7d`
 - R2 backup independente: `SIGNATURE_BACKUP_R2_ENDPOINT`, `SIGNATURE_BACKUP_R2_BUCKET`, `SIGNATURE_BACKUP_R2_ACCESS_KEY_ID`, `SIGNATURE_BACKUP_R2_SECRET_ACCESS_KEY`, além da service role Supabase em ambiente confiável.
 
 **Critério para encerrar a Etapa 5:** além do build verde, todas as verificações acima pertinentes ao ambiente estiverem registradas, com assinatura PDF verificada, notificações e backup reais homologados e decisões jurídicas/operacionais aprovadas. Até lá, a implementação está **pronta em código**, não pronta em produção.
+
+
+## Prova adicional de SQL, somente banco temporário
+
+[GitHub Actions 42535689362](https://github.com/altnixtecnologia/jornalir/actions/runs/42535689362/job/128899363347) **verde**: migrations `20261122240000`/`250000` executadas em PostgreSQL 17 **isolado** com schema fictício e ensaio de fila/Meta. **Nenhuma migration aplicada ao Supabase real**. Ledger real lido: aplicado até `20261122130000`, 12 de assinatura pendentes. Não repetir este smoke salvo mudança nessas duas migrations; ainda exige homologação integrada de todas as 12 com autorização.
