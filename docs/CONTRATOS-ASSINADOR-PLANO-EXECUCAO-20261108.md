@@ -369,3 +369,12 @@ Branch e SHA local/remoto: solicitacoes-financeiro-contratos-irc-20261031 — ba
 **Pendente, não inferir do CI:** migrações/RLS/Storage reais, habilitação e verificação do Google/Meta/e-mail/Telegram, teste de backup R2 real, navegadores, identidade e poderes com usuários reais, aprovação jurídica. **12 migrations NÃO aplicadas.**
 
 **Checklist único de homologação e sincronização:** `docs/CONTRATOS-ASSINADOR-HOMOLOGACAO-20261108.md`. Nenhuma auditoria geral repetida; seguir somente itens de aceitação do fluxo. GitHub continua à frente da pasta Windows, sincronizar por fast-forward quando autorizado, sem alterar stashes/worktrees. Uma dependência de segurança `next@14.2.33` foi sinalizada pelo npm; avaliar patch antes da publicação, fora deste desenvolvimento do assinador.
+
+
+## 08/11/2026 — Etapa 5: teste focado do SQL de notificações, sem produção
+
+**Pré-voo remoto:** histórico do projeto Supabase `site-system-ir` consultado **somente em leitura**. O ledger registra até `20261122130000`; os 12 arquivos de contratos/assinaturas `20261122140000` a `20261122250000` permanecem **NÃO aplicados**. Campos centrais de convite, assinatura, documento e SHA das modalidades comercial e institucional conferidos via `information_schema` e compatíveis com as referências usadas nos fluxos desta etapa; nenhum dado de cliente consultado.
+
+**Teste da fila em banco descartável:** criado `.github/workflows/validate-contract-notification-sql.yml`, com serviço `postgres:17` isolado, sem segredos/credenciais de produção. O teste aplica apenas `20261122240000_signature_final_delivery_outbox.sql` e `20261122250000_commercial_signature_whatsapp_delivery.sql` sobre tabelas fictícias em `apps/sistema/test/fixtures/signature-delivery-schema.sql` e executa `signature-delivery-smoke.sql`. Resultado **SUCESSO** na [execução 42535689362](https://github.com/altnixtecnologia/jornalir/actions/runs/42535689362/job/128899363347): fila de conclusão, idempotência, RLS/GRANTs, reserva RPC, confirmação com ID de provedor, auditoria, timeout incerto e restrição da Meta passaram.
+
+**Limite:** o schema fictício testa só essas duas migrations; **não** valida o conjunto das 12 contra todo o schema real nem habilita envios. Não afirmar que homologação real ou aplicação das migrations foi concluída. Continuar com um único ensaio integrado controlado na Etapa 5, após autorização específica. Sem auditorias gerais repetidas.
