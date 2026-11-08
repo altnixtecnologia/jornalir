@@ -120,7 +120,7 @@ export function ContractSignerCanvas({
       ) : <p role="status" className="helper-text">
         {pdfPreview.loading ? "Conferindo a versão do PDF…" :
           pdfPreview.error ?? "Confirme o código do e-mail para abrir o PDF protegido."}
-      </p>
+      </p>}
       <label className="form-field" style={{ display: "block", marginTop: 20 }}>
         <span className="field-label">Seu nome completo, como consta no convite</span>
         <input value={fullName} onChange={(e) => setFullName(e.target.value)} maxLength={180}
