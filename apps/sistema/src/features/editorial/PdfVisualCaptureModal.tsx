@@ -30,13 +30,12 @@ import {
   saveCaptureRegionStateAction,
   saveNewCaptureDraftAction,
 } from "./visualCaptureDraftActions";
-import type { CaptureRegionInput } from "../../providers/supabase/pdfCaptureRegions.supabase";
+import { describeSummary, isUnsaved, saveDraftsBatch, type SaveStatus } from "./visualCaptureSave";
 import styles from "./PdfVisualCaptureModal.module.css";
 
 GlobalWorkerOptions.workerSrc = new URL("pdfjs-dist/build/pdf.worker.min.js", import.meta.url).toString();
 
 type Area = { page: number; rect: NormalizedRect };
-type SaveStatus = "idle" | "saving" | "saved" | "error";
 type Capture = {
   id: string;
   color: string;
@@ -50,14 +49,18 @@ type Capture = {
   body: string;
   needsReview: boolean;
   warnings: string[];
-  /** Salvamento direto dos rascunhos (07/11/2026) — null até a 1ª gravação
-   * bem-sucedida; a partir daí identifica a matéria real em `articles`. */
+  /** null até o clique em "Salvar rascunhos" criar a matéria; depois
+   * identifica a matéria real em `articles`. */
   articleId: string | null;
   /** `articles.updated_at` da última gravação confirmada — chave de
    * concorrência otimista (save_pdf_capture_state recusa se divergir). */
   updatedAtISO: string | null;
+  /** "pending" = há alteração não gravada (estado só do modal). */
   saveStatus: SaveStatus;
   saveError?: string;
+  /** Matéria já salva cuja última região foi removida: continua na lista,
+   * marcada, e só é arquivada no banco ao clicar em "Salvar rascunhos". */
+  pendingArchive?: boolean;
 };
 
 type Pointer = { x: number; y: number };
@@ -104,7 +107,7 @@ function editionPdfUrl(editionId: string): string {
 }
 
 /**
- * Captura visual de matérias — salvamento direto dos rascunhos (07/11/2026).
+ * Captura visual de matérias — selecionar, conferir, corrigir e salvar.
  *
  * O operador vê o PDF OFICIAL já arquivado no R2 para esta edição (rota
  * autenticada `/api/sistema/jornal-online/editions/[id]/pdf`, exige sessão
@@ -112,14 +115,18 @@ function editionPdfUrl(editionId: string): string {
  * arrasta retângulos sobre cada matéria. O texto de cada seleção é extraído
  * pelo MESMO motor calibrado do extrator automático (`@ir/pdf-extraction`,
  * modo jornal), restrito aos itens daquela região — nunca uma heurística
- * paralela. Cada seleção/ajuste é salvo automaticamente como rascunho em
- * `articles` (origin='pdf', nunca publicado automaticamente) — nunca
- * recria/altera/exclui as matérias já existentes da edição, nunca toca
+ * paralela.
+ *
+ * Nada é gravado durante a captura: selecionar, incluir trecho, mover,
+ * redimensionar, remover e editar texto só alteram o estado temporário do
+ * modal (matéria "pendente de salvamento"). O botão "Salvar rascunhos"
+ * (`saveAllDrafts` → `visualCaptureSave.ts`) é o ÚNICO ponto que escreve no
+ * banco: cria/atualiza/arquiva em `articles` (origin='pdf', sempre rascunho,
+ * nunca publica nem notifica), de forma idempotente. Nunca toca
  * `pdf_import_batches`/`pdf_import_candidates`, o R2 ou o Jornal Online.
  *
- * Ao reabrir, as matérias já salvas desta edição são recarregadas
- * (`hydrateCaptures`) — inclui rascunhos recuperados antes deste fluxo
- * existir.
+ * Ao reabrir, os rascunhos já salvos desta edição são recarregados
+ * (`hydrateCaptures`, só leitura).
  *
  * Um seletor de PDF local continua disponível como alternativa de teste
  * (ex.: conferir o comportamento com um PDF fora do acervo), mas o fluxo
@@ -161,19 +168,15 @@ export function PdfVisualCaptureModal({ edition, onClose }: Props): JSX.Element 
   const requestCounter = useRef(0);
   const dragRef = useRef<{ from: Pointer; to: Pointer } | null>(null);
   const capturesRef = useRef<Capture[]>([]);
-  const saveDebounceRef = useRef(new Map<string, ReturnType<typeof setTimeout>>());
-  // Salvamentos de UMA mesma matéria são serializados (fila por id) e usam o
-  // `updated_at` mais recente confirmado pelo servidor — nunca o valor
-  // lido no momento do clique. Sem isso, duas ações rápidas (ex.: anexar
-  // trecho e logo redimensionar) enviariam o mesmo `updated_at` antigo, a
-  // segunda seria tratada como conflito de outra sessão e a recarga do
-  // banco perderia a edição mais recente.
-  const saveChainRef = useRef(new Map<string, Promise<void>>());
-  const serverStateRef = useRef(new Map<string, { articleId: string; updatedAt: string }>());
+  // Trava contra clique duplo em "Salvar rascunhos" (a 2ª chamada é ignorada
+  // enquanto a 1ª não termina); a idempotência no banco cobre repetições.
+  const savingAllRef = useRef(false);
+  const [savingAll, setSavingAll] = useState(false);
 
   const scale = fitScale * zoom;
   const active = captures.find((item) => item.id === selectedId) ?? null;
-  const hasPendingSave = captures.some((item) => item.saveStatus === "saving" || item.saveStatus === "error");
+  const unsavedCount = captures.filter(isUnsaved).length;
+  const hasPendingSave = unsavedCount > 0;
   useEffect(() => {
     capturesRef.current = captures;
   }, [captures]);
@@ -185,7 +188,7 @@ export function PdfVisualCaptureModal({ edition, onClose }: Props): JSX.Element 
     if (body) body.scrollTop = body.scrollHeight;
   }, [appendNotice]);
   const draftRect = drag ? rectFromPoints(drag.from, drag.to) : null;
-  const selectionsOnPage = captures.flatMap((capture) =>
+  const selectionsOnPage = captures.filter((capture) => !capture.pendingArchive).flatMap((capture) =>
     capture.areas
       .map((area, areaIndex) => ({ capture, area, areaIndex }))
       .filter(({ area }) => area.page === pageNumber),
@@ -297,11 +300,8 @@ export function PdfVisualCaptureModal({ edition, onClose }: Props): JSX.Element 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  /** Recupera as matérias já salvas desta edição (salvamento direto,
-   * 07/11/2026) — inclui as recuperadas manualmente antes deste fluxo
-   * existir (origin='pdf', sem texto por região ainda; o corpo já correto
-   * vem de articles.body). Também usada para recuperar de um conflito de
-   * concorrência (outra sessão salvou por cima). */
+  /** Recupera as matérias já salvas desta edição (rascunhos origin='pdf'
+   * não arquivados). Só leitura — nunca grava. */
   const hydrateCaptures = useCallback(async (): Promise<void> => {
     const result = await loadCaptureDraftsForEditionAction(edition.id);
     if (!result.ok) {
@@ -328,157 +328,120 @@ export function PdfVisualCaptureModal({ edition, onClose }: Props): JSX.Element 
       warnings: [],
       saveStatus: "saved",
     }));
-    const previous = capturesRef.current;
-    // Seleções desenhadas durante o carregamento (ainda sem articleId) são
-    // preservadas; as que já foram salvas voltam do banco com id=articleId,
-    // então as cópias locais delas são descartadas para nunca duplicar.
-    const stillLocal = previous.filter((item) => item.articleId === null);
-    for (const item of next) {
-      serverStateRef.current.set(item.id, { articleId: item.articleId as string, updatedAt: item.updatedAtISO as string });
-    }
+    // Seleções desenhadas enquanto o carregamento ainda corria (sem
+    // articleId) são preservadas.
+    const stillLocal = capturesRef.current.filter((item) => item.articleId === null);
     createdCount.current = next.length + stillLocal.length;
     setCaptures([...next, ...stillLocal]);
-    setSelectedId((current) => {
-      const selected = previous.find((item) => item.id === current);
-      return selected?.articleId && next.some((item) => item.id === selected.articleId) ? selected.articleId : current;
-    });
   }, [edition.id]);
 
   useEffect(() => {
     void hydrateCaptures();
-    // Executa só na montagem — recarregas pontuais (conflito de
-    // concorrência) chamam hydrateCaptures() diretamente.
+    // Executa só na montagem.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  /** Converte o estado em memória de uma matéria para o formato persistido
-   * — nunca recalcula título/corpo aqui, só serializa o que o cliente já
-   * decidiu (combineAreaExtractions/appendRegionToCapture/etc). */
-  function buildRegionsPayload(areas: Area[], perAreaExtraction: RegionArticleExtraction[]): CaptureRegionInput[] {
-    return areas.map((area, index) => {
-      const extraction = perAreaExtraction[index];
-      return {
-        page: area.page,
-        rect: area.rect,
-        sortOrder: index,
-        extractedTitle: extraction?.title || null,
-        extractedSubtitle: extraction?.subtitle || null,
-        extractedBody: extraction?.bodyParagraphs?.length ? extraction.bodyParagraphs.join("\n\n") : null,
-        needsReview: extraction?.needsReview ?? false,
-        warnings: extraction?.warnings ?? [],
-      };
-    });
+  /** Qualquer alteração de uma matéria (nova ou já salva) só a marca como
+   * pendente — nada é gravado até o clique em "Salvar rascunhos". */
+  function markPending(captureId: string): void {
+    setCaptures((prev) =>
+      prev.map((item) =>
+        item.id === captureId ? { ...item, saveStatus: "pending", saveError: undefined } : item,
+      ),
+    );
   }
 
-  function markSaveStatus(captureId: string, patch: Partial<Pick<Capture, "saveStatus" | "saveError" | "articleId" | "updatedAtISO">>): void {
-    setCaptures((prev) => prev.map((item) => (item.id === captureId ? { ...item, ...patch } : item)));
-  }
-
-  /** Enfileira um trabalho de gravação da matéria `captureId` — executa só
-   * depois do anterior terminar (ver saveChainRef). Marca "Salvando…" na
-   * hora, antes mesmo de a fila chegar. */
-  function enqueueSave(captureId: string, job: () => Promise<void>): Promise<void> {
-    markSaveStatus(captureId, { saveStatus: "saving", saveError: undefined });
-    const previous = saveChainRef.current.get(captureId) ?? Promise.resolve();
-    const next = previous.then(job).catch((error: unknown) => {
-      markSaveStatus(captureId, {
-        saveStatus: "error",
-        saveError: error instanceof Error ? error.message : "Não foi possível salvar.",
+  /** Salva TODAS as matérias pendentes de uma vez (criar / atualizar /
+   * arquivar). Único ponto do modal que escreve no banco. Resultado por
+   * matéria; erro parcial preserva as seleções e o próximo clique tenta só
+   * as que falharam. Nunca publica nem notifica. */
+  async function saveAllDrafts(): Promise<void> {
+    if (savingAllRef.current || busy) return;
+    const pending = capturesRef.current.filter(isUnsaved);
+    if (pending.length === 0) return;
+    savingAllRef.current = true;
+    setSavingAll(true);
+    const pendingIds = new Set(pending.map((item) => item.id));
+    setCaptures((prev) =>
+      prev.map((item) => (pendingIds.has(item.id) ? { ...item, saveStatus: "saving", saveError: undefined } : item)),
+    );
+    setMessage(`Salvando ${pending.length} matéria(s)…`);
+    try {
+      const { results, summary } = await saveDraftsBatch(pending, edition.id, {
+        createDraft: saveNewCaptureDraftAction,
+        saveState: saveCaptureRegionStateAction,
+        archiveDraft: async (articleId) => {
+          const result = await removeLastCaptureAreaAction(articleId);
+          return result.ok ? { ok: true } : { ok: false, error: result.error };
+        },
+        loadDrafts: loadCaptureDraftsForEditionAction,
       });
-    });
-    saveChainRef.current.set(captureId, next);
-    return next;
-  }
-
-  /** Cria a matéria no banco (1ª gravação). Idempotente por capture.id
-   * (enviado como clientCaptureId): um retry nunca cria uma 2ª matéria. */
-  async function createOnServer(capture: Capture): Promise<boolean> {
-    const result = await saveNewCaptureDraftAction({
-      editionId: edition.id,
-      page: capture.areas[0].page,
-      title: capture.title,
-      subtitle: capture.subtitle,
-      body: capture.body,
-      clientCaptureId: capture.id,
-      regions: buildRegionsPayload(capture.areas, capture.perAreaExtraction),
-    });
-    if (!result.ok) {
-      markSaveStatus(capture.id, { saveStatus: "error", saveError: result.error });
-      return false;
+      const byId = new Map(results.map((result) => [result.captureId, result]));
+      setCaptures((prev) =>
+        prev.flatMap((item): Capture[] => {
+          const result = byId.get(item.id);
+          if (!result) return [item];
+          if (result.outcome === "archived" || result.outcome === "dropped") return [];
+          if (result.outcome === "failed") {
+            return [{ ...item, saveStatus: "error", saveError: result.error ?? "Erro ao salvar." }];
+          }
+          return [
+            {
+              ...item,
+              articleId: result.articleId ?? item.articleId,
+              updatedAtISO: result.updatedAt ?? item.updatedAtISO,
+              saveStatus: "saved",
+              saveError: undefined,
+            },
+          ];
+        }),
+      );
+      setSelectedId((current) => (current && byId.get(current)?.outcome && ["archived", "dropped"].includes(byId.get(current)!.outcome) ? null : current));
+      setMessage(
+        summary.failed > 0
+          ? `Salvamento parcial: ${describeSummary(summary)}. As matérias com erro continuam pendentes — clique em Salvar rascunhos para tentar de novo.`
+          : `Rascunhos salvos: ${describeSummary(summary)}. Eles já aparecem em Editorial → Matérias.`,
+      );
+    } catch (error) {
+      setCaptures((prev) =>
+        prev.map((item) =>
+          pendingIds.has(item.id)
+            ? { ...item, saveStatus: "error", saveError: error instanceof Error ? error.message : "Erro ao salvar." }
+            : item,
+        ),
+      );
+      setMessage("Não foi possível salvar agora. Suas seleções foram mantidas — tente novamente.");
+    } finally {
+      savingAllRef.current = false;
+      setSavingAll(false);
     }
-    serverStateRef.current.set(capture.id, { articleId: result.data.articleId, updatedAt: result.data.updatedAt });
-    markSaveStatus(capture.id, {
-      articleId: result.data.articleId,
-      updatedAtISO: result.data.updatedAt,
-      saveStatus: "saved",
-      saveError: undefined,
-    });
-    return true;
   }
 
-  function persistNewCapture(capture: Capture): Promise<void> {
-    return enqueueSave(capture.id, async () => {
-      await createOnServer(capture);
-    });
+  /** Remove a matéria da lista. Se ela já está salva no banco, NÃO some em
+   * silêncio: fica na lista marcada "será arquivada ao salvar" (e dá para
+   * desfazer) — assim lista, estado temporário e banco continuam coerentes. */
+  function confirmRemoveLastArea(captureId: string): void {
+    const capture = capturesRef.current.find((item) => item.id === captureId);
+    if (!capture) return;
+    if (!capture.articleId) {
+      deleteCapture(captureId);
+      setMessage("Matéria removida da seleção (ainda não tinha sido salva).");
+      return;
+    }
+    setCaptures((prev) =>
+      prev.map((item) =>
+        item.id === captureId ? { ...item, pendingArchive: true, saveStatus: "pending", saveError: undefined } : item,
+      ),
+    );
+    if (selectedId === captureId) setSelectedId(null);
+    if (appendToId === captureId) setAppendToId(null);
+    setMessage("Matéria marcada para arquivar. Ela só será arquivada ao clicar em Salvar rascunhos (dá para desfazer).");
   }
 
-  /** Grava o estado final (anexar trecho / redimensionar-mover / remover
-   * uma área / editar texto manualmente — as quatro usam esta mesma
-   * primitiva). Usa sempre o `updated_at` mais recente confirmado. Em
-   * conflito real (outra sessão salvou por cima), recarrega do banco em vez
-   * de sobrescrever. Se a matéria ainda não existe no banco (criação falhou
-   * antes), tenta criá-la de novo com o mesmo estado — idempotente. */
-  function persistCaptureState(capture: Capture): Promise<void> {
-    return enqueueSave(capture.id, async () => {
-      const server = serverStateRef.current.get(capture.id);
-      if (!server) {
-        await createOnServer(capture);
-        return;
-      }
-      const result = await saveCaptureRegionStateAction({
-        articleId: server.articleId,
-        expectedUpdatedAt: server.updatedAt,
-        title: capture.title,
-        subtitle: capture.subtitle,
-        body: capture.body,
-        needsReview: capture.needsReview,
-        regions: buildRegionsPayload(capture.areas, capture.perAreaExtraction),
-      });
-      if (result.ok) {
-        serverStateRef.current.set(capture.id, { articleId: server.articleId, updatedAt: result.data.updatedAt });
-        markSaveStatus(capture.id, { updatedAtISO: result.data.updatedAt, saveStatus: "saved", saveError: undefined });
-        return;
-      }
-      markSaveStatus(capture.id, { saveStatus: "error", saveError: result.error });
-      if (result.conflict) {
-        setMessage(result.error);
-        void hydrateCaptures();
-      }
-    });
-  }
-
-  /** Remover a última área de uma matéria arquiva o rascunho de verdade
-   * (reaproveita a Server Action já existente — nunca um DELETE novo),
-   * depois de concluir qualquer gravação pendente dela. Se a matéria nunca
-   * chegou a ser criada no banco, só remove da prévia local. */
-  function confirmRemoveLastArea(captureId: string): Promise<void> {
-    return enqueueSave(captureId, async () => {
-      const server = serverStateRef.current.get(captureId);
-      if (!server) {
-        deleteCapture(captureId);
-        setMessage("Matéria removida da prévia.");
-        return;
-      }
-      const result = await removeLastCaptureAreaAction(server.articleId);
-      if (result.ok) {
-        serverStateRef.current.delete(captureId);
-        deleteCapture(captureId);
-        setMessage("Matéria arquivada — não aparece mais nesta prévia nem na listagem padrão de Matérias.");
-      } else {
-        markSaveStatus(captureId, { saveStatus: "error", saveError: result.error });
-        setMessage(result.error);
-      }
-    });
+  function undoPendingArchive(captureId: string): void {
+    setCaptures((prev) =>
+      prev.map((item) => (item.id === captureId ? { ...item, pendingArchive: false, saveStatus: "pending" } : item)),
+    );
   }
 
   async function openLocalFile(file: File | undefined): Promise<void> {
@@ -488,7 +451,7 @@ export function PdfVisualCaptureModal({ edition, onClose }: Props): JSX.Element 
       return;
     }
     if (captures.length > 0) {
-      setMessage("Feche esta prévia antes de trocar de PDF, para não perder seleções.");
+      setMessage("Salve ou descarte as matérias selecionadas antes de trocar de PDF.");
       return;
     }
     setBusy(true);
@@ -666,7 +629,7 @@ export function PdfVisualCaptureModal({ edition, onClose }: Props): JSX.Element 
           text: `Trecho da página ${pageNumber} vinculado à matéria nº ${captures.findIndex((item) => item.id === target.id) + 1}. Agora são ${appended.areas.length} áreas; o texto novo está no final do corpo.`,
         });
         setMessage("Trecho vinculado à matéria selecionada. A quantidade de áreas foi atualizada e o novo texto está no final do corpo.");
-        void persistCaptureState(appended);
+        markPending(target.id);
         return;
       }
 
@@ -677,7 +640,7 @@ export function PdfVisualCaptureModal({ edition, onClose }: Props): JSX.Element 
         id,
         articleId: null,
         updatedAtISO: null,
-        saveStatus: "saving",
+        saveStatus: "pending",
         color,
         areas: [{ page: pageNumber, rect }],
         perAreaExtraction: [extraction],
@@ -689,7 +652,6 @@ export function PdfVisualCaptureModal({ edition, onClose }: Props): JSX.Element 
       };
       setCaptures((prev) => [...prev, newCapture]);
       setSelectedId(id);
-      void persistNewCapture(newCapture);
       setMessage(
         combined.title
           ? "Área selecionada. Confira e ajuste título, subtítulo e texto na lateral."
@@ -775,7 +737,7 @@ export function PdfVisualCaptureModal({ edition, onClose }: Props): JSX.Element 
       };
       setCaptures((prev) => prev.map((item) => (item.id === state.captureId ? updatedCapture : item)));
       setMessage("Seleção ajustada — o texto desta matéria foi recalculado. Confira o título/subtítulo/corpo na lateral.");
-      void persistCaptureState(updatedCapture);
+      markPending(updatedCapture.id);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Erro ao recalcular a seleção ajustada.");
     } finally {
@@ -783,26 +745,27 @@ export function PdfVisualCaptureModal({ edition, onClose }: Props): JSX.Element 
     }
   }
 
-  /** Edição manual de título/subtítulo/corpo — salva automaticamente após
-   * uma pausa de digitação (debounce), nunca a cada tecla. */
+  /** Edição manual de título/subtítulo/corpo — só altera o estado do modal
+   * e marca a matéria como pendente; nada é gravado até "Salvar rascunhos". */
   function editCapture(field: "title" | "subtitle" | "body", text: string): void {
     const captureId = selectedId;
     setCaptures((prev) =>
       prev.map((capture) =>
-        capture.id === captureId ? { ...capture, [field]: text, saveStatus: "saving", saveError: undefined } : capture,
+        capture.id === captureId ? { ...capture, [field]: text, saveStatus: "pending", saveError: undefined } : capture,
       ),
     );
-    if (!captureId) return;
-    const pending = saveDebounceRef.current.get(captureId);
-    if (pending) clearTimeout(pending);
-    saveDebounceRef.current.set(
-      captureId,
-      setTimeout(() => {
-        saveDebounceRef.current.delete(captureId);
-        const capture = capturesRef.current.find((item) => item.id === captureId);
-        if (capture) void persistCaptureState(capture);
-      }, 600),
-    );
+  }
+  /** Remove a matéria inteira (X da lista). Matéria já salva pede confirmação
+   * e fica marcada para arquivar ao salvar; matéria nunca salva só sai da lista. */
+  function requestRemoveCapture(captureId: string): void {
+    if (busy || savingAll) return;
+    const capture = captures.find((item) => item.id === captureId);
+    if (!capture) return;
+    if (capture.articleId) {
+      setPendingAreaDeletion({ captureId, areaIndex: 0 });
+      return;
+    }
+    deleteCapture(captureId);
   }
   function deleteCapture(id: string): void {
     setCaptures((prev) => prev.filter((capture) => capture.id !== id));
@@ -830,7 +793,7 @@ export function PdfVisualCaptureModal({ edition, onClose }: Props): JSX.Element 
       const text = `Trecho removido da matéria. Restam ${reduced.areas.length} áreas; o texto foi recalculado. Confira as alterações manuais.`;
       setAppendNotice({ captureId, kind: "success", text });
       setMessage(text);
-      void persistCaptureState(reduced);
+      markPending(captureId);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Não foi possível remover este trecho.");
     }
@@ -853,25 +816,6 @@ export function PdfVisualCaptureModal({ edition, onClose }: Props): JSX.Element 
     });
     setMessage("Modo de adicionar trecho ativo: marque a continuação no PDF.");
   }
-  function exportPreview(): void {
-    const record = {
-      format: "ir-visual-capture-preview-v1",
-      editionId: edition.id,
-      editionNumber: edition.editionNumber,
-      source,
-      fileName,
-      pageCount: pdf?.numPages ?? 0,
-      note: "Cada matéria já foi salva como rascunho em Matérias (origin=pdf) — este JSON é só um export opcional, nunca necessário para o salvamento.",
-      captures,
-    };
-    const blob = new Blob([JSON.stringify(record, null, 2)], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `edicao-${edition.editionNumber}-pre-captura.json`;
-    a.click();
-    URL.revokeObjectURL(url);
-  }
   function requestClose(): void {
     if (hasPendingSave) setCloseConfirm(true);
     else onClose();
@@ -888,7 +832,7 @@ export function PdfVisualCaptureModal({ edition, onClose }: Props): JSX.Element 
         <header className={styles.header}>
           <div className={styles.headline}>
             <h2 id="capture-title">Capturar matérias — edição {edition.editionNumber}</h2>
-            <p>Cada seleção é salva automaticamente como rascunho em Matérias · nunca publica nem altera o Jornal Online</p>
+            <p>Selecione, confira e corrija — nada é gravado até clicar em Salvar rascunhos · nunca publica nem altera o Jornal Online</p>
           </div>
           <div className={styles.headerActions}>
             {edition.hasArchivedPdf ? (
@@ -1047,7 +991,7 @@ export function PdfVisualCaptureModal({ edition, onClose }: Props): JSX.Element 
                   <button
                     type="button"
                     className={styles.listItemButton}
-                    disabled={busy}
+                    disabled={busy || capture.pendingArchive}
                     onClick={() => {
                       if (appendToId && appendToId !== capture.id) {
                         setAppendToId(null);
@@ -1071,26 +1015,47 @@ export function PdfVisualCaptureModal({ edition, onClose }: Props): JSX.Element 
                         className={
                           capture.saveStatus === "error"
                             ? styles.saveStatusError
-                            : capture.saveStatus === "saving"
-                              ? styles.saveStatusSaving
-                              : styles.saveStatusSaved
+                            : capture.saveStatus === "saved"
+                              ? styles.saveStatusSaved
+                              : styles.saveStatusSaving
                         }
                         role="status"
                       >
-                        {capture.saveStatus === "saving" ? "Salvando…" : capture.saveStatus === "error" ? `Erro ao salvar — ${capture.saveError ?? ""}` : "Salvo"}
+                        {capture.pendingArchive
+                          ? "Será arquivada ao salvar"
+                          : capture.saveStatus === "saving"
+                            ? "Salvando…"
+                            : capture.saveStatus === "error"
+                              ? `Erro ao salvar — ${capture.saveError ?? ""}`
+                              : capture.saveStatus === "saved"
+                                ? "Salvo"
+                                : "Pendente de salvamento"}
                       </small>
                     </span>
                   </button>
-                  <button
-                    type="button"
-                    className={styles.deleteButton}
-                    disabled={busy}
-                    onClick={() => deleteCapture(capture.id)}
-                    title="Remover seleção desta prévia"
-                    aria-label={`Remover seleção ${index + 1}`}
-                  >
-                    ×
-                  </button>
+                  {capture.pendingArchive ? (
+                    <button
+                      type="button"
+                      className={styles.deleteButton}
+                      disabled={busy || savingAll}
+                      onClick={() => undoPendingArchive(capture.id)}
+                      title="Desfazer: manter esta matéria"
+                      aria-label={`Desfazer remoção da matéria ${index + 1}`}
+                    >
+                      ↺
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      className={styles.deleteButton}
+                      disabled={busy || savingAll}
+                      onClick={() => requestRemoveCapture(capture.id)}
+                      title="Remover esta matéria"
+                      aria-label={`Remover seleção ${index + 1}`}
+                    >
+                      ×
+                    </button>
+                  )}
                 </div>
               ))}
             </div>
@@ -1149,8 +1114,13 @@ export function PdfVisualCaptureModal({ edition, onClose }: Props): JSX.Element 
             <button type="button" onClick={requestClose}>
               Fechar
             </button>
-            <button type="button" disabled={!captures.length} onClick={exportPreview}>
-              Exportar prévia JSON ({captures.length})
+            <button
+              type="button"
+              className={styles.saveDraftsButton}
+              disabled={unsavedCount === 0 || savingAll || busy}
+              onClick={() => void saveAllDrafts()}
+            >
+              {savingAll ? "Salvando…" : `Salvar rascunhos (${unsavedCount})`}
             </button>
           </div>
         </footer>
@@ -1158,10 +1128,11 @@ export function PdfVisualCaptureModal({ edition, onClose }: Props): JSX.Element 
         {pendingAreaDeletion ? (
           <div className={styles.confirmBackdrop}>
             <div className={styles.confirmBox} role="alertdialog" aria-modal="true" aria-label="Arquivar matéria">
-              <h3>Arquivar esta matéria?</h3>
+              <h3>{captures.find((c) => c.id === pendingAreaDeletion.captureId)?.articleId ? "Arquivar esta matéria?" : "Remover esta matéria?"}</h3>
               <p>
-                Este é o único trecho da matéria. Removê-lo arquiva o rascunho correspondente (nunca uma exclusão
-                definitiva — fica disponível em Matérias, filtro Status → Arquivado).
+                {captures.find((c) => c.id === pendingAreaDeletion.captureId)?.articleId
+                  ? "Esta matéria já está salva como rascunho. Ela ficará marcada e só será arquivada ao clicar em Salvar rascunhos (nunca uma exclusão definitiva — fica em Matérias, filtro Status → Arquivado). Dá para desfazer antes de salvar."
+                  : "Esta matéria ainda não foi salva; ela apenas sairá da seleção."}
               </p>
               <div>
                 <button type="button" onClick={() => setPendingAreaDeletion(null)}>Cancelar</button>
@@ -1173,7 +1144,7 @@ export function PdfVisualCaptureModal({ edition, onClose }: Props): JSX.Element 
                     void confirmRemoveLastArea(captureId);
                   }}
                 >
-                  Arquivar matéria
+                  {captures.find((c) => c.id === pendingAreaDeletion.captureId)?.articleId ? "Marcar para arquivar" : "Remover matéria"}
                 </button>
               </div>
             </div>
@@ -1183,17 +1154,17 @@ export function PdfVisualCaptureModal({ edition, onClose }: Props): JSX.Element 
         {closeConfirm ? (
           <div className={styles.confirmBackdrop}>
             <div className={styles.confirmBox} role="alertdialog" aria-modal="true" aria-label="Fechar com salvamento pendente">
-              <h3>Fechar mesmo assim?</h3>
+              <h3>Descartar alterações não salvas?</h3>
               <p>
-                Há <strong>{captures.filter((c) => c.saveStatus === "saving" || c.saveStatus === "error").length} matéria(s)</strong>{" "}
-                ainda sendo salva(s) ou com erro ao salvar. As demais já estão gravadas como rascunho em Matérias.
+                Há <strong>{unsavedCount} matéria(s)</strong> com alterações que ainda não foram salvas. Ao descartar, só o que não foi
+                salvo é perdido — os rascunhos já gravados em Matérias continuam como estão.
               </p>
               <div className={styles.confirmActions}>
                 <button type="button" className={styles.keepEditingButton} onClick={() => setCloseConfirm(false)}>
                   Continuar editando
                 </button>
                 <button type="button" className={styles.discardPreviewButton} onClick={onClose}>
-                  Fechar mesmo assim
+                  Descartar alterações
                 </button>
               </div>
             </div>

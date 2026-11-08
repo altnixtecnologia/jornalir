@@ -114,3 +114,6 @@
   .sidebar{flex:1}
   .editor{max-height:45%}
 }
+/* "Salvar rascunhos (N)" — único ponto que grava no banco. */
+.saveDraftsButton{font-weight:700;min-width:170px}
+.saveDraftsButton:disabled{opacity:.55;cursor:not-allowed}

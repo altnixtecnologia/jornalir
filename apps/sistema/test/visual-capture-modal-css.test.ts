@@ -124,7 +124,7 @@ test("confirmação de saída distingue continuar editando e descarte sem bloque
   // quando há matéria salvando/com erro — não há mais "seleção não salva"
   // a perder, por isso o texto mudou de "Fechar sem salvar" para refletir
   // o estado real (ver hasPendingSave).
-  assert.match(component, /Fechar mesmo assim\?/);
+  assert.match(component, /Descartar alterações não salvas\?/);
   assert.match(component, /Continuar editando/);
-  assert.match(component, /Fechar mesmo assim/);
+  assert.match(component, /Descartar alterações/);
 });

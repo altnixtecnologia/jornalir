@@ -316,30 +316,47 @@ import { join } from "node:path";
 
 const modalSource = readFileSync(join(__dirname, "../src/features/editorial/PdfVisualCaptureModal.tsx"), "utf8");
 
-test("modal: salvamentos da mesma matéria são serializados e usam o updated_at confirmado mais recente (nunca o lido no clique)", () => {
-  assert.match(modalSource, /saveChainRef/);
-  assert.match(modalSource, /serverStateRef\.current\.get\(capture\.id\)/);
-  assert.match(modalSource, /expectedUpdatedAt: server\.updatedAt/);
-  assert.doesNotMatch(modalSource, /expectedUpdatedAt: capture\.updatedAtISO/);
+test("modal: o ÚNICO ponto que escreve no banco é saveAllDrafts (Server Actions de gravação só aparecem lá)", () => {
+  for (const action of ["saveNewCaptureDraftAction", "saveCaptureRegionStateAction", "removeLastCaptureAreaAction"]) {
+    const uses = modalSource.split(action).length - 1;
+    assert.equal(uses, 2, `${action} deve aparecer só no import e dentro de saveAllDrafts`);
+  }
+  assert.match(modalSource, /async function saveAllDrafts/);
+  assert.match(modalSource, /saveDraftsBatch\(pending, edition\.id/);
 });
 
-test("modal: debounce da digitação é por matéria (trocar de matéria não perde a edição da anterior)", () => {
-  assert.match(modalSource, /saveDebounceRef = useRef\(new Map/);
-  assert.match(modalSource, /saveDebounceRef\.current\.set\(\s*captureId/);
+test("modal: selecionar, anexar, redimensionar, remover área e editar texto só marcam 'pendente' (markPending), sem gravar", () => {
+  assert.match(modalSource, /markPending\(target\.id\)/);
+  assert.match(modalSource, /markPending\(updatedCapture\.id\)/);
+  assert.match(modalSource, /markPending\(captureId\)/);
+  assert.match(modalSource, /saveStatus: "pending"/);
+  assert.doesNotMatch(modalSource, /persistNewCapture|persistCaptureState|saveDebounceRef|saveChainRef/);
 });
 
-test("modal: criação é idempotente (clientCaptureId = id local) e remover a última área ARQUIVA, nunca exclui", () => {
-  assert.match(modalSource, /clientCaptureId: capture\.id/);
-  assert.match(modalSource, /removeLastCaptureAreaAction\(server\.articleId\)/);
+test("modal: botão 'Salvar rascunhos (N)' substitui a exportação JSON; sem downloads", () => {
+  assert.match(modalSource, /Salvar rascunhos \(\$\{unsavedCount\}\)/);
+  assert.match(modalSource, /Pendente de salvamento/);
+  assert.doesNotMatch(modalSource, /Exportar|exportPreview|createObjectURL/);
+  assert.doesNotMatch(modalSource, /prévia sem gravar|não grava rascunhos|salva automaticamente/i);
 });
 
-test("modal: nunca mostra 'Salvo' antes da resposta do servidor (status 'saved' só após result.ok)", () => {
-  const savedSetters = modalSource.match(/saveStatus: "saved"/g) ?? [];
-  // hydrate (dado já vindo do banco) + createOnServer + persistCaptureState, todos após resposta positiva.
-  assert.ok(savedSetters.length >= 3);
-  assert.doesNotMatch(modalSource, /saveStatus: "saved"[^]{0,40}await/);
+test("modal: clique duplo é ignorado enquanto salva e o botão fica desabilitado", () => {
+  assert.match(modalSource, /if \(savingAllRef\.current \|\| busy\) return/);
+  assert.match(modalSource, /disabled=\{unsavedCount === 0 \|\| savingAll \|\| busy\}/);
 });
 
-test("modal: salvar nunca publica nem notifica (nenhuma ação de publicar/agendar/notificar importada)", () => {
+test("modal: matéria salva removida NÃO some em silêncio — fica marcada 'Será arquivada ao salvar' (pendingArchive)", () => {
+  assert.match(modalSource, /pendingArchive: true/);
+  assert.match(modalSource, /Será arquivada ao salvar/);
+  assert.match(modalSource, /undoPendingArchive/);
+});
+
+test("modal: fechar só alerta com alterações não salvas e o descarte nunca apaga rascunhos do banco", () => {
+  assert.match(modalSource, /Descartar alterações/);
+  assert.match(modalSource, /Continuar editando/);
+  assert.match(modalSource, /if \(hasPendingSave\) setCloseConfirm\(true\)/);
+});
+
+test("modal: nunca publica nem notifica (nenhuma ação de publicar/agendar/notificar)", () => {
   assert.doesNotMatch(modalSource, /publishNow|schedule|notificationMode|materias_publicar/);
 });
