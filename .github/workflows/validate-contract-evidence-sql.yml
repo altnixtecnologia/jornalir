@@ -1,0 +1,64 @@
+name: Testar prova Google e campos PDF em PostgreSQL isolado
+
+on:
+  push:
+    branches:
+      - solicitacoes-financeiro-contratos-irc-20261031
+    paths:
+      - "supabase/migrations/20261122220000_signature_google_evidence.sql"
+      - "supabase/migrations/20261122230000_signature_layout_version_guard.sql"
+      - "apps/sistema/test/fixtures/signature-evidence-*.sql"
+      - ".github/workflows/validate-contract-evidence-sql.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: contract-evidence-sql-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  isolated-postgres:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: signatures_evidence_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d signatures_evidence_ci"
+          --health-interval 3s
+          --health-timeout 3s
+          --health-retries 20
+    env:
+      PGHOST: 127.0.0.1
+      PGPORT: "5432"
+      PGUSER: postgres
+      PGPASSWORD: postgres
+      PGDATABASE: signatures_evidence_ci
+    steps:
+      - name: Checkout somente leitura
+        uses: actions/checkout@v4
+
+      - name: Conferir cliente PostgreSQL
+        run: |
+          if ! command -v psql >/dev/null 2>&1; then
+            sudo apt-get update -qq && sudo apt-get install -y -qq postgresql-client
+          fi
+
+      - name: Criar tabelas fictícias no banco descartável
+        run: psql -v ON_ERROR_STOP=1 -f apps/sistema/test/fixtures/signature-evidence-schema.sql
+
+      - name: Aplicar SOMENTE duas migrations Google e layout na base fictícia
+        run: |
+          psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261122220000_signature_google_evidence.sql
+          psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261122230000_signature_layout_version_guard.sql
+
+      - name: Conferir imutabilidade, isolamento e aprovação do layout
+        run: psql -v ON_ERROR_STOP=1 -f apps/sistema/test/fixtures/signature-evidence-smoke.sql
