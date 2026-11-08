@@ -43,7 +43,8 @@ As áreas Cadastros, Assinaturas, Comercial, Financeiro e Contratos continuam ex
 - [x] Registrar regras do proprietário e ordem de execução.
 - [x] Conferir bases existentes de perfil, permissões, templates e dois assinadores; documentar pontos de integração.
 - [x] Confirmar estado das 6 minutas de produção por consulta somente leitura.
-- [ ] Complementar inventário local/SQL preciso de todas as permissões, schemas, storage, callbacks e migrations **antes de criar novas**; preparar matriz de arquivos/reuso para Etapa 1.
+- [x] Complementar inventário remoto/SQL de permissões, tabelas, RLS e buckets; localizar componentes e assinadores dos projetos antigos.
+- [ ] Conferir também a árvore de arquivos **no PC local** e o histórico de migrations antes de criar novas; Claude realiza essa conferência na abertura da Etapa 1.
 
 ### Etapa 1 — Configurações, perfil, poderes e modelos (primeiro lote de CÓDIGO)
 - [ ] Configurações → Dados da empresa e representante(s) legal(is), regras de representação e PNG privado, com upload/atualização autorizados e auditados.
@@ -103,3 +104,34 @@ Próxima etapa:
 - Lei 14.063/2020 distingue assinaturas simples, avançadas e qualificadas; não anunciar "assinatura avançada" ou "ICP-Brasil" sem satisfazer os requisitos específicos.
 - LGPD, art. 6º: necessidade/finalidade/segurança; guardar somente provas pertinentes com acesso restrito, retenção justificada e política aprovada.
 - O advogado deve revisar especialmente representação, contratos específicos de órgãos públicos/licitações, força probatória/executividade, necessidade de testemunhas e cláusulas de cancelamento.
+
+
+## Comparação adicional — projetos anteriores Altnix (08/11/2026, ChatGPT)
+
+Repositórios privados **consultados somente leitura** pelo GitHub conectado:
+- `altnixtecnologia/altnix` (`main`): site corporativo anterior, não é base de assinador; aproveitar apenas identidade/conteúdo visual se necessário, sem copiar login/infra.
+- `altnixtecnologia/assinador-os` (`main`): assinador anterior, UI `assinar.html`, `validar.html`, `js/assinar-v2.js`, `pdfHandler.js`. Não compartilha schema nem regras de autorização com Jornal IR.
+- `altnixtecnologia/NixSign` (`main`): provável nome correto do repositório chamado informalmente de "NixGen"; evolução com Google OAuth, LGPD, Edge Functions `salvar-assinatura` e `gerar-pdf-assinado`, trilha de auditoria e configuração de marca/tenant. Reaproveitar *ideias* de experiência, visualização de PDF, comprovante, QR/validação, Google opcional e checklist jurídico, não copiar código privilegiado sem auditoria.
+
+**Lacunas e riscos técnicos concretos encontrados no NixSign:**
+- `supabase/sql/security_hardening.sql`: seção RLS está comentada como opcional; não assumir políticas seguras em produção. A política sugerida de documento com `link_assinatura is not null` é ampla demais para contratos privados.
+- `supabase/functions/salvar-assinatura/index.ts`: existe autenticação de usuário, mas o comentário permite por padrão e-mail do signatário diferente do destinatário; NÃO adotar tolerância automática nem assumir que login Google comprova CPF.
+- `supabase/functions/gerar-pdf-assinado/index.ts`: gera URL pública via `getPublicUrl`, registra upload `upsert: true` e tem retorno com mensagem "PDF assinado e email enviado" mesmo quando a chamada de email pode falhar. Não copiar estes comportamentos; exigir armazenamento privado, versões imutáveis, checagem de autorização, entrega confirmada separadamente e reenvio seguro.
+- `js/pdfHandler.js` depende de PDF.js 2.10.377 via CDN; Jornal IR já tem seu próprio leitor/proxy PDF e não deve regredir.
+- `supabase/sql/legal_signature_hardening.sql` tem exemplos de trilha probatória; no Jornal IR usar `audit_events` e tabelas de assinatura existentes, evitar nova tabela sem necessidade.
+- Não mover arquivos de NixSign/assinador-os ao repositório Jornal IR sem avaliação de licença, dependências, segurança e compatibilidade.
+
+**Inventário real do Supabase Jornal IR (somente leitura):**
+- `public.contract_templates`: id, group_id, version, title, description, category, content, variables, active, created_by, created_at. **6 modelos inativos** em produção.
+- `public.profiles`: id, name, role, active; ainda não contém campo de assinatura nem autorização explícita.
+- `public.staff_module_action_permissions` tem PK(profile_id,module_key,action_key) e CHECK fechada `staff_module_actions_known_pair`. Para nova permissão comercial é obrigatório atualizar essa CHECK e o catálogo TS `staffPermissionsCatalog.ts`, além dos guards de backend. Não basta só inserir no frontend.
+- `public.audit_events` já oferece id, user_id, entity_type, entity_id, action, metadata, created_at e RLS ligada; para trilha append-only revisar grants e políticas.
+- `public.contract_documents`/`commercial_contract_documents` guardam PDF e referência; assinadores institucionais e comerciais têm tabelas distintas de convite/solicitação/evidência.
+- Buckets existentes: `contract-documents` privado, aceita só PDF (10 MiB); `contract-signatures` privado, aceita só **image/jpeg** (1 MiB) e por isso **não** recebe PNG diretamente; `article-media` é PÚBLICO e não pode abrigar assinaturas. A Etapa 1 deve criar ou adaptar armazenamento de PNG privado de forma controlada sem alterar o tipo permitido do bucket existente às cegas.
+- RLS está ligada em `profiles`, `contract_templates`, `staff_module_action_permissions`, `staff_finance_action_permissions`, `audit_events` e tabelas de assinatura consultadas. RLS ligada NÃO implica políticas já suficientes para a permissão nova; validar com operador.
+- UI real de reuso: `apps/sistema/src/features/perfil/ProfileSettings.tsx`, `features/usuarios/UsersManager.tsx`, `lib/permissions/staffPermissionsCatalog.ts`, `features/financeiro/ContractTemplatesManager.tsx`, `features/comercial/CommercialContractPreparationPanel.tsx`, `app/sistema/configuracoes/page.tsx`, `app/sistema/financeiro/modelos-contrato/`.
+
+**Etapa 0 — encerramento da parte de ChatGPT:**
+- **CONCLUÍDO:** documentação central versionada, cinco fases e decisões, inventário GitHub/Supabase remoto e comparação dos três repositórios anteriores.
+- **FALTA:** sincronizar VS Code e confirmar inventário local; implementar/testar Etapa 1; Etapas 2–5; revisão jurídica e homologação real.
+- **Nenhum** arquivo de produção, banco, credencial, WhatsApp, e-mail, Telegram ou Vercel foi alterado durante este levantamento.
