@@ -42,20 +42,26 @@ function env(name) {
 const supabase = createClient(env("NEXT_PUBLIC_SUPABASE_URL"), env("SUPABASE_SERVICE_ROLE_KEY"), {
   auth: { persistSession: false, autoRefreshToken: false },
 });
-const backupBucket = env("SIGNATURE_BACKUP_R2_BUCKET");
-if ([process.env.R2_BUCKET, process.env.R2_EDITIONS_BUCKET].filter(Boolean).includes(backupBucket)) {
-  throw new Error("Backup exige bucket SEPARADO dos buckets de mídia e de edições.");
+let backupBucket;
+let r2;
+function getR2() {
+  if (r2) return r2;
+  backupBucket = env("SIGNATURE_BACKUP_R2_BUCKET");
+  if ([process.env.R2_BUCKET, process.env.R2_EDITIONS_BUCKET].filter(Boolean).includes(backupBucket)) {
+    throw new Error("Backup exige bucket SEPARADO dos buckets de mídia e de edições.");
+  }
+  r2 = new S3Client({
+    endpoint: env("SIGNATURE_BACKUP_R2_ENDPOINT"),
+    region: "auto",
+    credentials: {
+      accessKeyId: env("SIGNATURE_BACKUP_R2_ACCESS_KEY_ID"),
+      secretAccessKey: env("SIGNATURE_BACKUP_R2_SECRET_ACCESS_KEY"),
+    },
+  });
+  return r2;
 }
-const r2 = new S3Client({
-  endpoint: env("SIGNATURE_BACKUP_R2_ENDPOINT"),
-  region: "auto",
-  credentials: {
-    accessKeyId: env("SIGNATURE_BACKUP_R2_ACCESS_KEY_ID"),
-    secretAccessKey: env("SIGNATURE_BACKUP_R2_SECRET_ACCESS_KEY"),
-  },
-});
 const hex = bytes => createHash("sha256").update(bytes).digest("hex");
-const bufferOf = async body => Buffer.from(await new Response(body).arrayBuffer());
+const bufferOf = async body => Buffer.from(await body.transformToByteArray());
 
 async function* listObjects(bucket, prefix = "", depth = 0) {
   if (depth > 12) throw new Error("Estrutura de pastas do Storage muito profunda.");
@@ -87,13 +93,13 @@ function contentKey(sha) {
   return "objects/sha256/" + sha.slice(0, 2) + "/" + sha;
 }
 async function readR2(key) {
-  const result = await r2.send(new GetObjectCommand({ Bucket: backupBucket, Key: key }));
+  const result = await getR2().send(new GetObjectCommand({ Bucket: backupBucket, Key: key }));
   if (!result.Body) throw new Error("Objeto de backup sem conteúdo.");
   return bufferOf(result.Body);
 }
 async function hasR2(key) {
   try {
-    await r2.send(new HeadObjectCommand({ Bucket: backupBucket, Key: key }));
+    await getR2().send(new HeadObjectCommand({ Bucket: backupBucket, Key: key }));
     return true;
   } catch (error) {
     const code = error?.$metadata?.httpStatusCode;
@@ -103,7 +109,7 @@ async function hasR2(key) {
 }
 async function writeNewR2(key, bytes, type = "application/octet-stream") {
   if (await hasR2(key)) return false;
-  await r2.send(new PutObjectCommand({
+  await getR2().send(new PutObjectCommand({
     Bucket: backupBucket, Key: key, Body: bytes,
     ContentType: type, Metadata: { "sha256": hex(bytes) },
     IfNoneMatch: "*",
