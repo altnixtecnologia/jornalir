@@ -20,7 +20,9 @@ export function CommercialSignatureRequestsPanel({saleId,preparations,requests,c
  const [reissueId,setReissueId]=useState<string|null>(null);
  const [reason,setReason]=useState("");
  const [confirmed,setConfirmed]=useState<string|null>(null);
- const [links,setLinks]=useState<Array<{name:string;urlPath:string}>>([]);
+ const [links,setLinks]=useState<Array<{name:string;urlPath:string;deliveryError?:string}>>([]);
+ const [sendWhatsapp,setSendWhatsapp]=useState(false);
+ const [whatsappOptIn,setWhatsappOptIn]=useState(false);
  if(!canReview||preparations.length===0) return null;
  function reissue(invitationId:string):void{
   setLinks([]);
@@ -36,10 +38,13 @@ export function CommercialSignatureRequestsPanel({saleId,preparations,requests,c
  function begin(id:string):void{
   setLinks([]);
   startTransition(async()=>{
-   const result=await createCommercialInvitationsAction(saleId,id,confirmed===id);
+   const result=await createCommercialInvitationsAction(saleId,id,confirmed===id,{
+    sendWhatsapp,operatorConfirmedOptIn:whatsappOptIn,
+   });
    if("error" in result){notify.error("Rodada não iniciada",result.error);return;}
-   setConfirmed(null);setLinks(result.links);
-   notify.success("Rodada iniciada","Copie os links antes de sair da página.");
+   setConfirmed(null);setLinks(result.links);setSendWhatsapp(false);setWhatsappOptIn(false);
+   const failed=result.links.filter(link=>link.deliveryError).length;
+   notify.success("Rodada iniciada",failed? "Confira os avisos: há envios sem confirmação. Os links podem ser copiados.":sendWhatsapp? "Convites aceitos pela Meta para envio.": "Copie os links antes de sair da página.");
    router.refresh();
   });
  }
@@ -47,13 +52,14 @@ export function CommercialSignatureRequestsPanel({saleId,preparations,requests,c
   <h2>Assinaturas comerciais</h2>
   <p className="helper-text">Uma rodada por versão da lista. Links individuais aparecem
    uma única vez após a criação. Copie os links e encaminhe somente aos destinatários
-   conferidos. Não há envio automático de e-mail ou WhatsApp.</p>
+   conferidos. O envio por WhatsApp usa o template de assinatura aprovado na Meta, apenas com autorização de contato. Sem isso, copie os links. O PDF final será enviado por e-mail após concluir a rodada quando o serviço de notificações estiver homologado.</p>
   {links.length>0 ? <div className="form-section" role="status">
    <strong>Links gerados — copie antes de sair da página</strong>
    {links.map(link=><div key={link.urlPath} className="form-actions">
     <span>{link.name}</span>
     <button type="button" onClick={()=>void navigator.clipboard.writeText(
      window.location.origin+link.urlPath)}>Copiar link individual</button>
+    {link.deliveryError?<span style={{color:"#b91c1c"}} role="alert">{link.deliveryError}</span>:null}
    </div>)}
    <p className="helper-text">A URL contém um token secreto. Não publique em grupos ou redes sociais.</p>
   </div>:null}
@@ -114,8 +120,18 @@ export function CommercialSignatureRequestsPanel({saleId,preparations,requests,c
        onChange={e=>setConfirmed(e.target.checked?prep.id:null)}/>
       {" "}Confirmei o PDF e os representantes antes de gerar os convites.
      </label>
-     <button type="button" disabled={pending||confirmed!==prep.id}
-      onClick={()=>begin(prep.id)}>Criar convites individuais (sem envio)</button>
+     <label style={{display:"flex",alignItems:"center",gap:8,marginTop:8}}>
+      <input type="checkbox" checked={sendWhatsapp} disabled={pending}
+       onChange={e=>{setSendWhatsapp(e.target.checked);if(!e.target.checked)setWhatsappOptIn(false);}} />
+      Enviar convites por WhatsApp Cloud API (template de assinatura da Meta)
+     </label>
+     {sendWhatsapp?<label style={{display:"flex",alignItems:"center",gap:8,marginTop:6}}>
+      <input type="checkbox" checked={whatsappOptIn} disabled={pending}
+       onChange={e=>setWhatsappOptIn(e.target.checked)} />
+      Confirmei que cada destinatário autorizou receber o convite nesse número.
+     </label>:null}
+     <button type="button" disabled={pending||confirmed!==prep.id||(sendWhatsapp&&!whatsappOptIn)}
+      onClick={()=>begin(prep.id)}>{sendWhatsapp?"Criar e enviar convites pela Meta":"Criar convites individuais (sem envio)"}</button>
     </>}
    </div>;
   })}
