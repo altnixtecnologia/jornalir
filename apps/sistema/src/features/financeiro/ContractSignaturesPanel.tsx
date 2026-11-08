@@ -29,7 +29,8 @@ export function ContractSignaturesPanel({
   const eligible = useMemo(
     () => documents.filter((item) =>
       item.fileReference?.startsWith("contracts/" + contractId + "/") &&
-      !item.name.startsWith("Comprovante de assinatura")),
+      // Etapa 3A: o convite ao cliente parte SEMPRE da "Versão assinada pela empresa".
+      item.name.startsWith("Versão assinada pela empresa")),
     [documents, contractId],
   );
   const [documentId, setDocumentId] = useState(eligible[0]?.id ?? "");
@@ -177,7 +178,7 @@ export function ContractSignaturesPanel({
 
       {error ? <p className="form-error" role="alert">{error}</p> : null}
       {eligible.length === 0 ? (
-        <p className="helper-text">Anexe primeiro um PDF privado ao contrato para gerar um convite.</p>
+        <p className="helper-text">O convite ao cliente só é liberado depois que a empresa assinar o PDF (cartão "Assinatura pela empresa" acima). A "Versão assinada pela empresa" aparecerá aqui.</p>
       ) : (
         <div className="form-grid">
           <div className="form-field" style={{ gridColumn: "1 / -1" }}>

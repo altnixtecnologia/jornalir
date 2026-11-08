@@ -8,6 +8,7 @@ import {
   saveCompanyProfileAction,
   saveLegalRepresentativeAction,
   setLegalRepresentativeActiveAction,
+  setRepresentativeUserLinkAction,
   uploadRepresentativeSignatureAction,
 } from "../../app/sistema/configuracoes/empresa/actions";
 import { notify } from "../../lib/feedback/notify";
@@ -48,6 +49,8 @@ export interface LegalRepresentativeRecord {
   signature_sha256: string | null;
   signature_bytes: number | null;
   signature_updated_at: string | null;
+  /** Usuário do sistema que é este representante (confirma a assinatura institucional). */
+  profile_id?: string | null;
 }
 
 interface RepEditor {
@@ -79,9 +82,11 @@ function maskCpf(cpf: string): string {
 export function CompanySettingsManager({
   company,
   representatives,
+  users = [],
 }: {
   company: CompanyProfileRecord | null;
   representatives: LegalRepresentativeRecord[];
+  users?: Array<{ id: string; name: string }>;
 }): JSX.Element {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -145,6 +150,15 @@ export function CompanySettingsManager({
       setRep(null);
       setRepErrors({});
       notify.success("Representante salvo", "Os poderes de representação foram registrados.");
+      router.refresh();
+    });
+  }
+
+  function linkUser(item: LegalRepresentativeRecord, profileId: string): void {
+    startTransition(async () => {
+      const result = await setRepresentativeUserLinkAction(item.id, profileId || null);
+      if ("error" in result) { notify.error("Não foi possível vincular o usuário", result.error); return; }
+      notify.success(profileId ? "Usuário vinculado" : "Vínculo removido", "Só o usuário vinculado, autenticado, confirma a assinatura deste representante.");
       router.refresh();
     });
   }
@@ -266,6 +280,13 @@ export function CompanySettingsManager({
                       : "sem PNG de assinatura"}
                   </span>
                   <span className="helper-text">{item.powers_description}</span>
+                  <label className="helper-text" style={{ display: "flex", gap: 6, alignItems: "center", marginTop: 4 }}>
+                    Usuário que confirma a assinatura:
+                    <select value={item.profile_id ?? ""} disabled={pending} onChange={(e) => linkUser(item, e.target.value)} aria-label={`Usuário vinculado a ${item.full_name}`}>
+                      <option value="">— não vinculado (não poderá assinar) —</option>
+                      {users.map((user) => (<option key={user.id} value={user.id}>{user.name}</option>))}
+                    </select>
+                  </label>
                   {preview?.id === item.id ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img src={preview.url} alt={`Assinatura gráfica de ${item.full_name}`} style={{ maxWidth: 320, maxHeight: 120, background: "#fff", border: "1px solid #ddd", marginTop: 6 }} />

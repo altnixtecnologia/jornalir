@@ -16,6 +16,8 @@ import { ModuleHeader } from "../../../../../components/admin/ModuleHeader";
 import { ReceivablesList } from "../../../../../features/financeiro/ReceivablesList";
 import { ContractDocumentsPanel } from "../../../../../features/financeiro/ContractDocumentsPanel";
 import { ContractSignaturesPanel } from "../../../../../features/financeiro/ContractSignaturesPanel";
+import { CompanySignaturePanel } from "../../../../../features/contratos/CompanySignaturePanel";
+import { loadCompanySignaturePanel } from "../../../../../lib/signatures/companySigningServer";
 import { isWhatsappSignatureTemplateConfigured } from "../../../../../lib/financeiro/whatsappCloudProvider";
 import { listSignatureInvitationsAction, listSignatureRequestsAction } from "../signature-actions";
 import { ContractAmendmentsPanel } from "../../../../../features/financeiro/ContractAmendmentsPanel";
@@ -107,6 +109,14 @@ export default async function ContractDetailPage({ params }: { params: { id: str
     receivables: receivables.map((item) => ({ reference: item.reference, issueDate: item.issueDate, originalAmount: item.originalAmount })),
     receipts: receiptsForTimeline,
   });
+
+  // Etapa 3A: documentos ORIGINAIS do contrato (sem versões assinadas nem comprovantes) que podem receber a assinatura da empresa.
+  const companyCandidates = documents.filter((item) =>
+    item.fileReference?.startsWith("contracts/" + contract.id + "/") &&
+    !item.name.startsWith("Comprovante de assinatura") && !item.name.startsWith("Versão assinada"));
+  const companySignatureData = companyCandidates.length > 0
+    ? await loadCompanySignaturePanel("institutional", companyCandidates.map((item) => ({ id: item.id, title: item.name, contractId: contract.id })))
+    : null;
 
   return (
     <div className="inline-form">
@@ -243,6 +253,7 @@ export default async function ContractDetailPage({ params }: { params: { id: str
 
       <ContractTemplateGenerationPanel contractId={contract.id} templates={contractTemplates} />
       <ContractDocumentsPanel contractId={contract.id} documents={documents} />
+      {companySignatureData ? <CompanySignaturePanel data={companySignatureData} heading="Assinatura pela empresa (antes do convite ao cliente)" /> : null}
       <ContractSignaturesPanel contractId={contract.id} documents={documents}
         invitations={signatureInvitations} requests={signatureRequests}
         whatsappEnabled={isWhatsappSignatureTemplateConfigured()} />

@@ -121,6 +121,38 @@ export async function saveLegalRepresentativeAction(id: string | null, input: Le
   }
 }
 
+/**
+ * Vincula (ou desvincula) o representante a um USUÁRIO ativo do sistema: só esse
+ * usuário, autenticado, poderá confirmar a assinatura institucional em nome dele.
+ * Um usuário só pode representar uma pessoa (índice único no banco).
+ */
+export async function setRepresentativeUserLinkAction(representativeId: string, profileId: string | null): Promise<Result> {
+  const client = createSupabaseServerClient();
+  const guard = await requireAdminOrOwner(client);
+  if (!guard.ok) return { error: guard.error };
+  if (!UUID_RE.test(representativeId) || (profileId !== null && !UUID_RE.test(profileId))) return { error: "Identificadores inválidos." };
+  try {
+    if (profileId) {
+      const { data: profile } = await client.from("profiles").select("id, active").eq("id", profileId).maybeSingle();
+      if (!profile || profile.active !== true) return { error: "Escolha um usuário ativo do sistema." };
+    }
+    const { data, error } = await client
+      .from("company_legal_representatives")
+      .update({ profile_id: profileId, updated_by: guard.actorId })
+      .eq("id", representativeId)
+      .select("id")
+      .maybeSingle();
+    if (error) {
+      return { error: /duplicate|unique/i.test(error.message) ? "Este usuário já está vinculado a outro representante." : "Não foi possível vincular o usuário." };
+    }
+    if (!data) return { error: "Representante não encontrado." };
+    revalidatePath(PATH);
+    return { ok: true };
+  } catch (error) {
+    return { error: toMessage(error) };
+  }
+}
+
 export async function setLegalRepresentativeActiveAction(id: string, active: boolean): Promise<Result> {
   const client = createSupabaseServerClient();
   const guard = await requireAdminOrOwner(client);

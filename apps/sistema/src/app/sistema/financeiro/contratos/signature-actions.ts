@@ -12,6 +12,7 @@ import {
   invitationIsPending, releaseSignatureTurn, SignatureTurnClaimError,
   type SignatureInvitation, type SignatureRequest,
 } from "../../../../lib/signatures/contractSignatures";
+import { institutionalCompanyGate } from "../../../../lib/signatures/companyGate";
 
 export type { SignatureRequest };
 import { buildSignatureReceiptPdf } from "../../../../lib/signatures/signatureReceiptPdf";
@@ -101,6 +102,9 @@ export async function createSignatureInvitationAction(input: {
     if (docError || !document || !String(document.file_reference ?? "").startsWith("contracts/" + input.contractId + "/")) {
       return { error: "Selecione um PDF privado do contrato." };
     }
+    // Etapa 3A: o convite ao cliente só existe depois que a EMPRESA assinou este documento.
+    const companyGateError = await institutionalCompanyGate(input.contractId, input.documentId);
+    if (companyGateError) return { error: companyGateError };
     let previousInvitationId: string | null = null;
     if (input.previousInvitationId) {
       const { data: previous } = await admin.from("contract_signature_invitations")
@@ -221,6 +225,9 @@ export async function createSignatureRequestAction(input: {
     if (docError || !document || !String(document.file_reference ?? "").startsWith("contracts/" + input.contractId + "/")) {
       return { error: "Selecione um PDF privado do contrato." };
     }
+    // Etapa 3A: o convite ao cliente só existe depois que a EMPRESA assinou este documento.
+    const companyGateError = await institutionalCompanyGate(input.contractId, input.documentId);
+    if (companyGateError) return { error: companyGateError };
 
     const { data: request, error: requestError } = await admin.from("contract_signature_requests")
       .insert({ contract_id: input.contractId, document_id: input.documentId, created_by: actorId })

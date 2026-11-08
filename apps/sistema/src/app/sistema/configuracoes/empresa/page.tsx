@@ -17,15 +17,16 @@ export default async function CompanySettingsPage(): Promise<JSX.Element> {
   const guard = await requireAdminOrOwner(client);
   if (!guard.ok) notFound();
 
-  const [{ data: company }, { data: reps }] = await Promise.all([
+  const [{ data: company }, { data: reps }, { data: users }] = await Promise.all([
     client.from("company_profile").select("*").maybeSingle(),
     client
       .from("company_legal_representatives")
       .select(
-        "id, full_name, cpf, role_title, nationality, email, phone, representation_rule, powers_description, powers_evidence_note, powers_valid_from, powers_valid_until, active, is_default, signature_sha256, signature_bytes, signature_updated_at",
+        "id, full_name, cpf, role_title, nationality, email, phone, representation_rule, powers_description, powers_evidence_note, powers_valid_from, powers_valid_until, active, is_default, signature_sha256, signature_bytes, signature_updated_at, profile_id",
       )
       .order("active", { ascending: false })
       .order("full_name"),
+    client.from("profiles").select("id, name").eq("active", true).order("name"),
   ]);
 
   return (
@@ -38,6 +39,7 @@ export default async function CompanySettingsPage(): Promise<JSX.Element> {
       <CompanySettingsManager
         company={(company as CompanyProfileRecord | null) ?? null}
         representatives={(reps ?? []) as LegalRepresentativeRecord[]}
+        users={((users ?? []) as Array<{ id: string; name: string | null }>).map((user) => ({ id: user.id, name: user.name ?? "Usuário" }))}
       />
     </>
   );

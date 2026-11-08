@@ -11,6 +11,8 @@ import { getCommercialProductService, getCommercialProposalService, getCommercia
 import { getClientService } from "../../../../../composition/clientes";
 import { getDraftService } from "../../../../../composition/nfse";
 import { createSupabaseServerClient } from "../../../../../lib/supabase/server";
+import { CompanySignaturePanel } from "../../../../../features/contratos/CompanySignaturePanel";
+import { loadCompanySignaturePanel } from "../../../../../lib/signatures/companySigningServer";
 import { listReceivablesForCommercialSalesSupabase } from "../../../../../providers/supabase/receivableRepository.supabase";
 
 export const dynamic = "force-dynamic";
@@ -97,6 +99,10 @@ export default async function CommercialSaleDetailPage({ params }: { params: { i
       .in("preparation_id",preparationIds)
     : null;
   const financialStatus = deriveCommercialSaleFinancialStatus(receivables);
+  // Etapa 3A: assinatura pela EMPRESA antes de qualquer convite ao cliente (um cartão por PDF emitido).
+  const companySignatureData = canReview.data === true && (issuedDocumentsResult?.data ?? []).some(document => !document.addendum_id)
+    ? await loadCompanySignaturePanel("commercial", (issuedDocumentsResult?.data ?? []).filter(document => !document.addendum_id).map(document => ({ id: document.id, title: document.title })))
+    : null;
 
   return (
     <>
@@ -145,6 +151,7 @@ export default async function CommercialSaleDetailPage({ params }: { params: { i
         canReview={canReview.data===true}
         loadError={addendaResult?.error?.message}
       />
+      {companySignatureData ? <CompanySignaturePanel data={companySignatureData} heading="Assinatura pela empresa (antes do convite ao cliente)" /> : null}
       <CommercialSignersPreparationPanel
         saleId={sale.id}
         documents={(issuedDocumentsResult?.data??[]).map(document=>({

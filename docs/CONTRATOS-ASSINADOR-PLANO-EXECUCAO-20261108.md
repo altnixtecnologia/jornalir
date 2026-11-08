@@ -62,9 +62,10 @@ As áreas Cadastros, Assinaturas, Comercial, Financeiro e Contratos continuam ex
 - [~] Testar não duplicação, edição de valores pré-fechamento, modificações posteriores do catálogo (preço de tabela relido do servidor), alterações parciais e conflitos. *(unitário/estrutural + banco em transação com ROLLBACK; teste com login real pendente)*
 
 ### Etapa 3 — Assinatura eletrônica e auditoria probatória
-- [ ] Reaproveitar assinadores existentes sob UX compartilhada; manifestação explícita e assinatura do representante comercial autorizado/institucional legal.
+**Dividida em 3A (assinatura pela empresa e preparação do PDF — concluída em código em 08/11/2026) e 3B (cliente: convite/OTP/Google/aceite/evidências — não iniciada).**
+- [x] **3A** Reaproveitar assinadores existentes sob UX compartilhada; manifestação explícita e assinatura do representante comercial autorizado/institucional legal. *(painel único "Assinatura pela empresa" nos dois fluxos; comercial = concessão explícita `contratos_assinar`; institucional = representante legal vinculado a um usuário, poderes válidos, conjunto exige todos; ato = declaração + nome digitado + senha + hash da versão; convite ao cliente só depois da empresa concluir)*
 - [ ] Convite individual, leitura, OTP e Google opcional se não trouxer atrito, aceite do cliente; PDF assinado acumulativo e comprovante/hashes.
-- [ ] Rubricas e campos de assinatura integrados ao PDF consolidado: posicionamento automático nos modelos internos e manual/reutilizável por versão em PDFs e contratos especiais.
+- [~] **3A** Rubricas e campos de assinatura integrados ao PDF consolidado: posicionamento automático nos modelos internos *(feito: rubrica no rodapé de cada página + Folha de assinaturas)* e manual/reutilizável por versão em PDFs e contratos especiais *(feito: dados, validação, ações e aplicação; FALTA o seletor visual para desenhar os campos)*; a rubrica do cliente entra na 3B.
 - [ ] Revisão jurídica da solução técnica e critérios de prova, privacidade, poderes e testemunhas onde houver exigência.
 - [ ] Testar expiração, reenvio, revogação, concorrência, 2+ assinantes, adulteração de PDF e controle de acesso.
 
@@ -270,3 +271,29 @@ Branch e SHA local/remoto: solicitacoes-financeiro-contratos-irc-20261031 — ba
 **Migrations geradas/aplicadas:** 7 geradas na frente (140000–200000), **0 aplicadas**.
 **Banco, mensagens e deploy real alterados?:** Banco: não (apenas ROLLBACK). Mensagens/Vercel/cobrança: não.
 **Próxima etapa:** Etapa 3 — assinatura eletrônica (aguarda autorização; **não iniciada**).
+
+**08/11/2026 — Etapa 3A (Claude Code, VS Code local): CONCLUÍDA em código e testes direcionados; NÃO publicada, migration NÃO aplicada. Etapa 3B não iniciada.**
+
+```
+Etapa: 3A — Assinatura eletrônica pela empresa e preparação do documento para o cliente
+Branch e SHA local/remoto: solicitacoes-financeiro-contratos-irc-20261031 — base 8ed20c6b; SHA final no commit seguinte, enviado ao GitHub
+```
+
+**CONCLUÍDO:**
+1. **Integração com os dois assinadores existentes** (sem terceiro assinador): painel `CompanySignaturePanel` na venda comercial e no contrato institucional; tabelas `contract_company_signature_rounds` / `contract_company_signatures` (migration `20261122210000_company_signature_3a`). Dados do representante legal e PNG da Etapa 1 alimentam a assinatura; o PNG é só a representação visual (hash gravado).
+2. **Comercial**: confirma quem tem a concessão explícita `contratos_assinar` — verificada no SERVIDOR na hora de assinar (papel não vale).
+3. **Institucional**: assina o representante legal escolhido, **vinculado a um usuário** (novo campo em Configurações → Dados da empresa), com poderes válidos na data (revalidados ao assinar). Representação conjunta exige TODOS os representantes conjuntos ativos/válidos (mínimo 2), cada um com o próprio usuário e a própria confirmação; só conclui com todos.
+4. **Ato explícito**: declaração + nome completo digitado (do signatário/representante) + senha reconfirmada (cliente Supabase temporário, sem gravar sessão) + hash da versão exibida (se mudou, recusa). Cada assinatura grava quem, poderes (snapshot), hash antes/depois, hash do PNG, data/hora, declaração e auditoria (banco + aplicação).
+5. **Representante**: pode ser trocado enquanto a rodada está "em preparação" (PDF refeito do original); após a 1ª confirmação, trigger do banco impede trocar representante/documento/PDF — só cancelar com justificativa (20–1000 caracteres, auditado).
+6. **PDF preparado**: modelo interno = posicionamento automático (rubrica no rodapé de cada página + "Folha de assinaturas" ao final, tudo dentro das margens, até 10 signatários); PDF externo/modelo especial = layout manual salvo por versão de modelo (`contract_signature_field_layouts`, validado: página, margem, tamanho, 1 assinatura por signatário, sem sobreposição) e aplicado sem acrescentar página. Nada é carimbado antes da confirmação; cada carimbo parte do PDF anterior da rodada (cumulativo) e grava novo arquivo (nunca sobrescreve).
+7. **Empresa antes do cliente**: o convite ao cliente é recusado no servidor nos dois fluxos (institucional: convite e rodada; comercial: rodada) e por trigger nas duas tabelas de convites. Institucional: o convite parte da "Versão assinada pela empresa"; comercial: a base da assinatura do cliente passa a ser o PDF assinado pela empresa e a "contratada" não recebe mais link externo.
+8. **Proteções**: exclusão mútua por rodada (5 min), assinatura duplicada recusada (mesmo usuário/representante/campo), conclusão só com o número exigido, rodada concluída/cancelada imutável, assinaturas sem update/delete, hash do PDF conferido antes de preparar e antes de assinar, caminho da evidência travado na pasta da rodada, funções críticas só `service_role`.
+
+**TESTADO (direcionado):** `apps/sistema` — novos: placement+PDF real (9), orquestração (19: concessão, nome/senha/hash, adulteração, duplicidade, simultaneidade, conjunta em 2 etapas, troca antes/depois, cancelamento), estrutura/segurança (12); regressão relacionada 145/145; `tsc --noEmit` e `next build` limpos. **Banco (produção, SÓ em transação com ROLLBACK, nada persistiu):** rodada institucional conjunta ponta a ponta (troca em preparação, bloqueio após início, duplicata, imutabilidade, base do 2º = PDF do 1º, conclusão cria a "Versão assinada pela empresa", convite ao cliente só para esse documento, cancelamento, usuário comum sem escrita) e barreira do convite comercial. **NÃO testado:** interface com login; upload/download reais no Storage; reautenticação contra o Supabase Auth; a função `claim_commercial_signature_turn` alterada (apenas criada, semântica não exercitada); fluxo comercial completo com dados reais; nenhum convite/e-mail/WhatsApp (nada é enviado).
+
+**FALTA (3A):** seletor visual para desenhar os campos manuais (hoje só dados/ações/validação; modelos institucionais sem vínculo a modelo usam sempre o automático); a caixa "CONTRATANTE" da folha de assinaturas continua "pendente" até a 3B carimbar a assinatura do cliente; a lista de participantes comerciais ainda pede um item "contratada" (informativo, sem link); vincular representantes a usuários em produção (Configurações) antes de usar o fluxo institucional.
+**FALTA (3B, não iniciada):** Google OAuth, confirmação externa do cliente integrada aos campos/rubricas, relatório final de evidências. **Etapa 4:** QR Code, notificações, e-mail final, Telegram.
+**RISCOS:** (a) **ordem de publicação**: aplicar as 8 migrations (140000–210000) ANTES do código; (b) o banco agora **recusa** convite ao cliente para qualquer PDF que a empresa não assinou eletronicamente aqui — contratos já assinados em papel precisam de outro caminho (decisão a confirmar); (c) reautenticação por senha: usuários que entram só por link/Google não conseguem confirmar até a 3B/novo passo; (d) o representante conjunto exige todos vinculados e vigentes; (e) não é ICP-Brasil — validar com advogado; (f) upload/URL assinada só no ambiente Production.
+**Migrations geradas/aplicadas:** 8 geradas na frente (140000–210000), **0 aplicadas**.
+**Banco, mensagens e deploy real alterados?:** Banco: não (apenas ROLLBACK). Mensagens/Vercel/cobrança/assinatura real: não.
+**Próxima etapa:** 3B — cliente (convite individual, OTP/Google, aceite, evidências); aguarda autorização, **não iniciada**.

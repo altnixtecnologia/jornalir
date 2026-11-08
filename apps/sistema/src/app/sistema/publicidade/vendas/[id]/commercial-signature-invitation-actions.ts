@@ -4,6 +4,7 @@ import {revalidatePath} from "next/cache";
 import {createSupabaseServerClient} from "../../../../../lib/supabase/server";
 import {checkModuleAction} from "../../../../../lib/permissions/checkModuleAction";
 import {commercialTokenHash} from "../../../../../lib/signatures/commercialSignatures";
+import {commercialCompanyGate} from "../../../../../lib/signatures/companyGate";
 
 type Result={error:string}|{ok:true;requestId:string;links:Array<{name:string;urlPath:string}>};
 const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -26,11 +27,17 @@ export async function createCommercialInvitationsAction(
   const {data:doc,error:docErr}=await db.from("commercial_contract_documents")
    .select("id").eq("id",prep.document_id).eq("package_id",pkg.id).maybeSingle();
   if(docErr||!doc) throw new Error("Documento não pertence à venda.");
+  // Etapa 3A: o convite ao cliente só existe depois que a EMPRESA assinou o documento.
+  const companyGateError=await commercialCompanyGate(doc.id);
+  if(companyGateError) throw new Error(companyGateError);
   const {data:persons,error:personsErr}=await db.from("commercial_signature_participants")
-   .select("id,signer_name,signer_email,signing_order").eq("preparation_id",prep.id)
+   .select("id,signer_name,signer_email,signing_order,signer_role").eq("preparation_id",prep.id)
    .order("signing_order");
   if(personsErr||!persons||persons.length<2||persons.length>10) throw new Error("Lista de participantes inválida.");
-  const withTokens=persons.map(person=>({...person,token:randomBytes(32).toString("hex")}));
+  // A contratada assina em sistema (rodada da empresa); só quem é do cliente/testemunha recebe link.
+  const external=persons.filter(person=>person.signer_role!=="contratada");
+  if(external.length<1) throw new Error("Informe ao menos um signatário do cliente.");
+  const withTokens=external.map(person=>({...person,token:randomBytes(32).toString("hex")}));
   const {data:requestId,error:rpcErr}=await db.rpc("create_commercial_signature_request",{
    p_preparation_id:prep.id,
    p_invites:withTokens.map(p=>({participant_id:p.id,token_sha256:commercialTokenHash(p.token)})),
