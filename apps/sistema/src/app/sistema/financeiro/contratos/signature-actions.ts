@@ -17,6 +17,7 @@ import { institutionalCompanyGate } from "../../../../lib/signatures/companyGate
 export type { SignatureRequest };
 import { buildSignatureReceiptPdf } from "../../../../lib/signatures/signatureReceiptPdf";
 import { buildSignedContractPdf } from "../../../../lib/signatures/signedContractPdf";
+import { loadExternalAppearance } from "../../../../lib/signatures/externalSignaturePlacement";
 import {
   isWhatsappSignatureTemplateConfigured, sendWhatsappSignatureInviteTemplate,
 } from "../../../../lib/financeiro/whatsappCloudProvider";
@@ -435,10 +436,17 @@ export async function completeSignatureInvitationAction(input: {
       // claimSignatureTurn) — por isso cada nova folha de evidência se
       // acumula sobre as anteriores, nunca substitui o registro de quem
       // já assinou.
+      // Usar a caixa do cliente apenas na versão base assinada pela empresa.
+      // Em rodadas cumulativas, preservar todas as marcas já aplicadas.
+      const appearance = await loadExternalAppearance(admin, {
+        modality: "institutional", documentId: invitation.document_id,
+        baseSha256: originalSha256,
+      });
       const signedPdfBytes = await buildSignedContractPdf({
         originalBytes, signatureJpeg: jpeg, documentName: source.filename,
         signerName: invitation.signer_name, signerEmail: invitation.signer_email,
         signedAt, originalSha256, invitationId: invitation.id,
+        externalAppearance: appearance,
       });
       if (signedPdfBytes.byteLength > 10 * 1024 * 1024) {
         return { error: "O PDF assinado excedeu 10 MB. Solicite à equipe a compactação do documento antes de assinar." };
