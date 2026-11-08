@@ -11,6 +11,7 @@ import {buildSignatureReceiptPdf} from "../../lib/signatures/signatureReceiptPdf
 import {buildSignedContractPdf} from "../../lib/signatures/signedContractPdf";
 import {loadExternalAppearance} from "../../lib/signatures/externalSignaturePlacement";
 import {googleEvidenceForSignature} from "../../lib/signatures/googleSignatureEvidence";
+import {getVerificationUrl} from "../../lib/signatures/publicVerification";
 import {persistCommercialEvidence,sha256Evidence} from "../../lib/signatures/commercialEvidenceStorage";
 
 type Result<T=never>={error:string}|({ok:true}&T);
@@ -163,6 +164,7 @@ export async function completeCommercialSignatureAction(input:{
    consentVersion:"commercial-v1",sourceIsCumulative:true,
    externalAppearance:appearance,
    googleEvidence,
+   verificationUrl:getVerificationUrl("commercial",source.invitation_id),
   });
   if(signedCandidate.byteLength>10*1024*1024)
     throw new Error("PDF assinado excede 10 MB.");
