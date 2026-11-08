@@ -10,6 +10,7 @@ import {
 import {buildSignatureReceiptPdf} from "../../lib/signatures/signatureReceiptPdf";
 import {buildSignedContractPdf} from "../../lib/signatures/signedContractPdf";
 import {loadExternalAppearance} from "../../lib/signatures/externalSignaturePlacement";
+import {googleEvidenceForSignature} from "../../lib/signatures/googleSignatureEvidence";
 import {persistCommercialEvidence,sha256Evidence} from "../../lib/signatures/commercialEvidenceStorage";
 
 type Result<T=never>={error:string}|({ok:true}&T);
@@ -135,12 +136,14 @@ export async function completeCommercialSignatureAction(input:{
   });
   const signatureBytes=originalJpeg.bytes;
   const jpegInfo=await sharp(signatureBytes).metadata();
+  const googleEvidence=await googleEvidenceForSignature(admin,"commercial",source.invitation_id,user.user.id);
   const receiptCandidate=buildSignatureReceiptPdf({
    signerName:person.signer_name,signerEmail:person.signer_email,
    documentName:source.document_title,contractNumber:source.request_id,
    signedAt,originalSha256:originalHash,invitationId:source.invitation_id,
    consentVersion:"commercial-v1",sourceIsCumulative:true,
    jpegBytes:signatureBytes,jpegWidth:jpegInfo.width??640,jpegHeight:jpegInfo.height??240,
+   googleEvidence,
   });
   const receipt=await persistCommercialEvidence(admin,{
    bucket:BUCKET,path:receiptPath,format:"application/pdf",
@@ -159,6 +162,7 @@ export async function completeCommercialSignatureAction(input:{
    signedAt,originalSha256:originalHash,invitationId:source.invitation_id,
    consentVersion:"commercial-v1",sourceIsCumulative:true,
    externalAppearance:appearance,
+   googleEvidence,
   });
   if(signedCandidate.byteLength>10*1024*1024)
     throw new Error("PDF assinado excede 10 MB.");
@@ -172,6 +176,7 @@ export async function completeCommercialSignatureAction(input:{
    acceptedAt:signedAt,method:"verified-email-otp-and-graphical-consent",
    ipHash:ip?createHash("sha256").update(ip).digest("hex"):null,
    userAgent:(h.get("user-agent")??"").slice(0,300),
+   googleEvidence:googleEvidence?{provider:"google",subjectSha256:googleEvidence.subjectSha256,verifiedAt:googleEvidence.verifiedAt}:null,
   };
   const final=await admin.rpc("finalize_commercial_signature",{
    p_token_sha256:hash,p_auth_user_id:user.user.id,p_original_sha256:originalHash,
