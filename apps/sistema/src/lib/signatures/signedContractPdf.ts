@@ -2,6 +2,7 @@ import "server-only";
 import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
 import { stampCompanySignature } from "./companySignaturePdf";
 import type { ExternalSignatureAppearance } from "./externalSignaturePlacement";
+import type { GoogleEvidenceSnapshot } from "./googleSignatureEvidence";
 
 export interface SignedPdfInput {
   originalBytes: Uint8Array;
@@ -16,6 +17,7 @@ export interface SignedPdfInput {
   sourceIsCumulative?: boolean;
   /** Campos reservados à CONTRATANTE no PDF já assinado pela empresa. */
   externalAppearance?: ExternalSignatureAppearance | null;
+  googleEvidence?: GoogleEvidenceSnapshot | null;
 }
 
 function safeText(s: string): string {
@@ -79,6 +81,11 @@ export async function buildSignedContractPdf(input: SignedPdfInput): Promise<Uin
   line("A imagem e o hash demonstram o registro de aceite; nao equivalem,", 193, 10);
   line("isoladamente, a uma assinatura digital qualificada ICP-Brasil.", 176, 10);
   line("O PDF original permanece imutavel e esta folha foi acrescentada.", 150, 10);
+  if (input.googleEvidence) {
+    line("Google adicional: e-mail " + input.googleEvidence.email, 129, 9);
+    line("SHA-256 do ID da conta: " + input.googleEvidence.subjectSha256.slice(0, 32), 112, 9);
+    line("Google confirma uso de conta, nao identidade civil ou CPF.", 95, 9);
+  }
   pdf.setTitle(safeText("Versão para conferência assinada - " + input.documentName));
   pdf.setSubject("Registro eletrônico de aceite; nao ICP-Brasil");
   return pdf.save({ useObjectStreams: false });
