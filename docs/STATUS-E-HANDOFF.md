@@ -3712,3 +3712,10 @@ Código gravado **somente no GitHub** após o commit 3A `814fd7bc`; não sincron
 **Github Actions** [42535689362](https://github.com/altnixtecnologia/jornalir/actions/runs/42535689362/job/128899363347) **PASSOU**. Serviço Postgres 17 descartável; aplicou somente migrations `20261122240000` (fila e triggers de conclusão) e `20261122250000` (registro Meta) sobre fixture de tabelas fictícias. Verificou 8 notificações esperadas, nenhum duplicado, proteção de RLS/grants, claim, auditoria de envio, timeout sem reenvio automático e exigência de message ID da Meta. Arquivos de CI/fixture novos em `.github/workflows/validate-contract-notification-sql.yml` e `apps/sistema/test/fixtures/signature-delivery-*.sql`.
 
 **Supabase real `site-system-ir`:** consulta SOMENTE LEITURA no ledger e metadados de colunas, sem dados privados: aplicadas até `20261122130000`, **12 migrations 140000–250000 seguem não aplicadas**. Nada publicado, ativado ou enviado. Código da assinatura teve CI verde antes desta verificação. Homologação na UI e com banco completo continua dependente de autorização e configuração segura. Evitar auditoria repetitiva.
+
+
+## 08/11/2026 — Teste SQL isolado de Google e layout aprovado
+
+[GitHub Actions 42535940585](https://github.com/altnixtecnologia/jornalir/actions/runs/42535940585/job/128900124661) **SUCESSO**: executou migrations `20261122220000` e `20261122230000` em PostgreSQL 17 descartável, sobre fixture sem dados reais; passou prova Google imutável/única/privada e regra de congelamento das posições após aprovação jurídica. CI em `.github/workflows/validate-contract-evidence-sql.yml`; fixtures `apps/sistema/test/fixtures/signature-evidence-*.sql`.
+
+Com a CI anterior `42535689362`, agora **quatro migrations (220000–250000) receberam smoke SQL isolado**. Continua **sem aplicar nenhuma das 12 migrations no Supabase real**. Testes de UI/integrações externas/Storage e revisão jurídica ainda pendentes. Não refazer estas verificações verdes sem alteração relevante.
