@@ -161,7 +161,15 @@ export function PdfVisualCaptureModal({ edition, onClose }: Props): JSX.Element 
   const requestCounter = useRef(0);
   const dragRef = useRef<{ from: Pointer; to: Pointer } | null>(null);
   const capturesRef = useRef<Capture[]>([]);
-  const saveDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const saveDebounceRef = useRef(new Map<string, ReturnType<typeof setTimeout>>());
+  // Salvamentos de UMA mesma matéria são serializados (fila por id) e usam o
+  // `updated_at` mais recente confirmado pelo servidor — nunca o valor
+  // lido no momento do clique. Sem isso, duas ações rápidas (ex.: anexar
+  // trecho e logo redimensionar) enviariam o mesmo `updated_at` antigo, a
+  // segunda seria tratada como conflito de outra sessão e a recarga do
+  // banco perderia a edição mais recente.
+  const saveChainRef = useRef(new Map<string, Promise<void>>());
+  const serverStateRef = useRef(new Map<string, { articleId: string; updatedAt: string }>());
 
   const scale = fitScale * zoom;
   const active = captures.find((item) => item.id === selectedId) ?? null;
@@ -320,8 +328,20 @@ export function PdfVisualCaptureModal({ edition, onClose }: Props): JSX.Element 
       warnings: [],
       saveStatus: "saved",
     }));
-    createdCount.current = next.length;
-    setCaptures(next);
+    const previous = capturesRef.current;
+    // Seleções desenhadas durante o carregamento (ainda sem articleId) são
+    // preservadas; as que já foram salvas voltam do banco com id=articleId,
+    // então as cópias locais delas são descartadas para nunca duplicar.
+    const stillLocal = previous.filter((item) => item.articleId === null);
+    for (const item of next) {
+      serverStateRef.current.set(item.id, { articleId: item.articleId as string, updatedAt: item.updatedAtISO as string });
+    }
+    createdCount.current = next.length + stillLocal.length;
+    setCaptures([...next, ...stillLocal]);
+    setSelectedId((current) => {
+      const selected = previous.find((item) => item.id === current);
+      return selected?.articleId && next.some((item) => item.id === selected.articleId) ? selected.articleId : current;
+    });
   }, [edition.id]);
 
   useEffect(() => {
@@ -350,9 +370,29 @@ export function PdfVisualCaptureModal({ edition, onClose }: Props): JSX.Element 
     });
   }
 
-  /** 1ª gravação de uma matéria nova — idempotente por capture.id (enviado
-   * como clientCaptureId; um retry de rede nunca cria uma segunda matéria). */
-  async function persistNewCapture(capture: Capture): Promise<void> {
+  function markSaveStatus(captureId: string, patch: Partial<Pick<Capture, "saveStatus" | "saveError" | "articleId" | "updatedAtISO">>): void {
+    setCaptures((prev) => prev.map((item) => (item.id === captureId ? { ...item, ...patch } : item)));
+  }
+
+  /** Enfileira um trabalho de gravação da matéria `captureId` — executa só
+   * depois do anterior terminar (ver saveChainRef). Marca "Salvando…" na
+   * hora, antes mesmo de a fila chegar. */
+  function enqueueSave(captureId: string, job: () => Promise<void>): Promise<void> {
+    markSaveStatus(captureId, { saveStatus: "saving", saveError: undefined });
+    const previous = saveChainRef.current.get(captureId) ?? Promise.resolve();
+    const next = previous.then(job).catch((error: unknown) => {
+      markSaveStatus(captureId, {
+        saveStatus: "error",
+        saveError: error instanceof Error ? error.message : "Não foi possível salvar.",
+      });
+    });
+    saveChainRef.current.set(captureId, next);
+    return next;
+  }
+
+  /** Cria a matéria no banco (1ª gravação). Idempotente por capture.id
+   * (enviado como clientCaptureId): um retry nunca cria uma 2ª matéria. */
+  async function createOnServer(capture: Capture): Promise<boolean> {
     const result = await saveNewCaptureDraftAction({
       editionId: edition.id,
       page: capture.areas[0].page,
@@ -362,68 +402,83 @@ export function PdfVisualCaptureModal({ edition, onClose }: Props): JSX.Element 
       clientCaptureId: capture.id,
       regions: buildRegionsPayload(capture.areas, capture.perAreaExtraction),
     });
-    if (result.ok) {
-      setCaptures((prev) =>
-        prev.map((item) =>
-          item.id === capture.id
-            ? { ...item, articleId: result.data.articleId, updatedAtISO: result.data.updatedAt, saveStatus: "saved" }
-            : item,
-        ),
-      );
-    } else {
-      setCaptures((prev) => prev.map((item) => (item.id === capture.id ? { ...item, saveStatus: "error", saveError: result.error } : item)));
+    if (!result.ok) {
+      markSaveStatus(capture.id, { saveStatus: "error", saveError: result.error });
+      return false;
     }
+    serverStateRef.current.set(capture.id, { articleId: result.data.articleId, updatedAt: result.data.updatedAt });
+    markSaveStatus(capture.id, {
+      articleId: result.data.articleId,
+      updatedAtISO: result.data.updatedAt,
+      saveStatus: "saved",
+      saveError: undefined,
+    });
+    return true;
+  }
+
+  function persistNewCapture(capture: Capture): Promise<void> {
+    return enqueueSave(capture.id, async () => {
+      await createOnServer(capture);
+    });
   }
 
   /** Grava o estado final (anexar trecho / redimensionar-mover / remover
    * uma área / editar texto manualmente — as quatro usam esta mesma
-   * primitiva). Concorrência otimista: em conflito, recarrega do banco em
-   * vez de sobrescrever por cima do que outra sessão salvou. */
-  async function persistCaptureState(capture: Capture): Promise<void> {
-    if (!capture.articleId) return;
-    setCaptures((prev) => prev.map((item) => (item.id === capture.id ? { ...item, saveStatus: "saving" } : item)));
-    const result = await saveCaptureRegionStateAction({
-      articleId: capture.articleId,
-      expectedUpdatedAt: capture.updatedAtISO ?? new Date(0).toISOString(),
-      title: capture.title,
-      subtitle: capture.subtitle,
-      body: capture.body,
-      needsReview: capture.needsReview,
-      regions: buildRegionsPayload(capture.areas, capture.perAreaExtraction),
-    });
-    if (result.ok) {
-      setCaptures((prev) =>
-        prev.map((item) => (item.id === capture.id ? { ...item, updatedAtISO: result.data.updatedAt, saveStatus: "saved" } : item)),
-      );
-    } else {
-      setCaptures((prev) => prev.map((item) => (item.id === capture.id ? { ...item, saveStatus: "error", saveError: result.error } : item)));
+   * primitiva). Usa sempre o `updated_at` mais recente confirmado. Em
+   * conflito real (outra sessão salvou por cima), recarrega do banco em vez
+   * de sobrescrever. Se a matéria ainda não existe no banco (criação falhou
+   * antes), tenta criá-la de novo com o mesmo estado — idempotente. */
+  function persistCaptureState(capture: Capture): Promise<void> {
+    return enqueueSave(capture.id, async () => {
+      const server = serverStateRef.current.get(capture.id);
+      if (!server) {
+        await createOnServer(capture);
+        return;
+      }
+      const result = await saveCaptureRegionStateAction({
+        articleId: server.articleId,
+        expectedUpdatedAt: server.updatedAt,
+        title: capture.title,
+        subtitle: capture.subtitle,
+        body: capture.body,
+        needsReview: capture.needsReview,
+        regions: buildRegionsPayload(capture.areas, capture.perAreaExtraction),
+      });
+      if (result.ok) {
+        serverStateRef.current.set(capture.id, { articleId: server.articleId, updatedAt: result.data.updatedAt });
+        markSaveStatus(capture.id, { updatedAtISO: result.data.updatedAt, saveStatus: "saved", saveError: undefined });
+        return;
+      }
+      markSaveStatus(capture.id, { saveStatus: "error", saveError: result.error });
       if (result.conflict) {
         setMessage(result.error);
         void hydrateCaptures();
       }
-    }
+    });
   }
 
   /** Remover a última área de uma matéria arquiva o rascunho de verdade
-   * (reaproveita a Server Action já existente — nunca um DELETE novo). Se a
-   * matéria ainda não tiver sido salva (save em andamento/com erro), só
-   * remove da prévia local. */
-  async function confirmRemoveLastArea(captureId: string): Promise<void> {
-    const capture = capturesRef.current.find((item) => item.id === captureId);
-    if (!capture?.articleId) {
-      deleteCapture(captureId);
-      setMessage("Matéria removida da prévia.");
-      return;
-    }
-    setCaptures((prev) => prev.map((item) => (item.id === captureId ? { ...item, saveStatus: "saving" } : item)));
-    const result = await removeLastCaptureAreaAction(capture.articleId);
-    if (result.ok) {
-      deleteCapture(captureId);
-      setMessage("Matéria arquivada — não aparece mais nesta prévia nem na listagem padrão de Matérias.");
-    } else {
-      setCaptures((prev) => prev.map((item) => (item.id === captureId ? { ...item, saveStatus: "error", saveError: result.error } : item)));
-      setMessage(result.error);
-    }
+   * (reaproveita a Server Action já existente — nunca um DELETE novo),
+   * depois de concluir qualquer gravação pendente dela. Se a matéria nunca
+   * chegou a ser criada no banco, só remove da prévia local. */
+  function confirmRemoveLastArea(captureId: string): Promise<void> {
+    return enqueueSave(captureId, async () => {
+      const server = serverStateRef.current.get(captureId);
+      if (!server) {
+        deleteCapture(captureId);
+        setMessage("Matéria removida da prévia.");
+        return;
+      }
+      const result = await removeLastCaptureAreaAction(server.articleId);
+      if (result.ok) {
+        serverStateRef.current.delete(captureId);
+        deleteCapture(captureId);
+        setMessage("Matéria arquivada — não aparece mais nesta prévia nem na listagem padrão de Matérias.");
+      } else {
+        markSaveStatus(captureId, { saveStatus: "error", saveError: result.error });
+        setMessage(result.error);
+      }
+    });
   }
 
   async function openLocalFile(file: File | undefined): Promise<void> {
@@ -732,13 +787,22 @@ export function PdfVisualCaptureModal({ edition, onClose }: Props): JSX.Element 
    * uma pausa de digitação (debounce), nunca a cada tecla. */
   function editCapture(field: "title" | "subtitle" | "body", text: string): void {
     const captureId = selectedId;
-    setCaptures((prev) => prev.map((capture) => (capture.id === captureId ? { ...capture, [field]: text } : capture)));
+    setCaptures((prev) =>
+      prev.map((capture) =>
+        capture.id === captureId ? { ...capture, [field]: text, saveStatus: "saving", saveError: undefined } : capture,
+      ),
+    );
     if (!captureId) return;
-    if (saveDebounceRef.current) clearTimeout(saveDebounceRef.current);
-    saveDebounceRef.current = setTimeout(() => {
-      const capture = capturesRef.current.find((item) => item.id === captureId);
-      if (capture) void persistCaptureState(capture);
-    }, 600);
+    const pending = saveDebounceRef.current.get(captureId);
+    if (pending) clearTimeout(pending);
+    saveDebounceRef.current.set(
+      captureId,
+      setTimeout(() => {
+        saveDebounceRef.current.delete(captureId);
+        const capture = capturesRef.current.find((item) => item.id === captureId);
+        if (capture) void persistCaptureState(capture);
+      }, 600),
+    );
   }
   function deleteCapture(id: string): void {
     setCaptures((prev) => prev.filter((capture) => capture.id !== id));

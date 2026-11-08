@@ -309,3 +309,37 @@ test("removeLastCaptureArea: erro do arquivamento é propagado", async () => {
   assert.equal(result.ok, false);
   if (!result.ok) assert.match(result.error, /publicada/);
 });
+
+// --- Invariantes do cliente (PdfVisualCaptureModal.tsx), travadas no código-fonte ---
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+
+const modalSource = readFileSync(join(__dirname, "../src/features/editorial/PdfVisualCaptureModal.tsx"), "utf8");
+
+test("modal: salvamentos da mesma matéria são serializados e usam o updated_at confirmado mais recente (nunca o lido no clique)", () => {
+  assert.match(modalSource, /saveChainRef/);
+  assert.match(modalSource, /serverStateRef\.current\.get\(capture\.id\)/);
+  assert.match(modalSource, /expectedUpdatedAt: server\.updatedAt/);
+  assert.doesNotMatch(modalSource, /expectedUpdatedAt: capture\.updatedAtISO/);
+});
+
+test("modal: debounce da digitação é por matéria (trocar de matéria não perde a edição da anterior)", () => {
+  assert.match(modalSource, /saveDebounceRef = useRef\(new Map/);
+  assert.match(modalSource, /saveDebounceRef\.current\.set\(\s*captureId/);
+});
+
+test("modal: criação é idempotente (clientCaptureId = id local) e remover a última área ARQUIVA, nunca exclui", () => {
+  assert.match(modalSource, /clientCaptureId: capture\.id/);
+  assert.match(modalSource, /removeLastCaptureAreaAction\(server\.articleId\)/);
+});
+
+test("modal: nunca mostra 'Salvo' antes da resposta do servidor (status 'saved' só após result.ok)", () => {
+  const savedSetters = modalSource.match(/saveStatus: "saved"/g) ?? [];
+  // hydrate (dado já vindo do banco) + createOnServer + persistCaptureState, todos após resposta positiva.
+  assert.ok(savedSetters.length >= 3);
+  assert.doesNotMatch(modalSource, /saveStatus: "saved"[^]{0,40}await/);
+});
+
+test("modal: salvar nunca publica nem notifica (nenhuma ação de publicar/agendar/notificar importada)", () => {
+  assert.doesNotMatch(modalSource, /publishNow|schedule|notificationMode|materias_publicar/);
+});
