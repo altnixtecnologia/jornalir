@@ -1,0 +1,70 @@
+name: Verificar contratos e assinaturas (sem deploy)
+
+on:
+  push:
+    branches:
+      - solicitacoes-financeiro-contratos-irc-20261031
+    paths:
+      - "apps/sistema/src/lib/signatures/**"
+      - "apps/sistema/src/features/assinaturas/**"
+      - "apps/sistema/src/features/financeiro/SignatureFieldLayoutEditor.tsx"
+      - "apps/sistema/src/features/financeiro/ContractTemplatesManager.tsx"
+      - "apps/sistema/src/features/financeiro/ContractSignerCanvas.tsx"
+      - "apps/sistema/src/features/comercial/CommercialContractSignerCanvas.tsx"
+      - "apps/sistema/src/features/comercial/CommercialSignatureRequestsPanel.tsx"
+      - "apps/sistema/src/app/assinar-contrato-comercial/**"
+      - "apps/sistema/src/app/assinatura-google-actions.ts"
+      - "apps/sistema/src/app/api/assinar-contrato/**"
+      - "apps/sistema/src/app/api/assinar-contrato-comercial/**"
+      - "apps/sistema/src/app/api/cron/contract-signatures/**"
+      - "apps/sistema/src/app/verificar-contrato/**"
+      - "apps/sistema/src/app/sistema/contratos-assinatura/**"
+      - "apps/sistema/src/app/sistema/financeiro/contratos/signature-actions.ts"
+      - "apps/sistema/src/app/sistema/publicidade/vendas/*/commercial-signature-invitation-actions.ts"
+      - "apps/sistema/test/external-signature-placement.test.ts"
+      - "apps/sistema/test/google-signature-proof.test.ts"
+      - "apps/sistema/test/public-verification.test.ts"
+      - "package-lock.json"
+      - ".github/workflows/validate-contracts-integration.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: contracts-integration-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  targeted-contracts-check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    env:
+      NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
+      NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ci-publishable-key
+      SIGNATURE_DELIVERY_ENABLED: "false"
+    steps:
+      - name: Checkout do commit remoto
+        uses: actions/checkout@v4
+
+      - name: Node 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+
+      - name: Instalar dependências pelo lockfile
+        run: npm ci --no-audit --no-fund
+
+      - name: Compilação TypeScript do sistema
+        run: npm run typecheck --workspace @ir/sistema
+
+      - name: Testes apenas de assinatura externa, Google e QR
+        run: >
+          npx tsx --test
+          apps/sistema/test/external-signature-placement.test.ts
+          apps/sistema/test/google-signature-proof.test.ts
+          apps/sistema/test/public-verification.test.ts
+
+      - name: Compilar sistema sem deploy
+        run: npm run build --workspace @ir/sistema
