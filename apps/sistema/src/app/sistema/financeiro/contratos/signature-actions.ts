@@ -19,6 +19,7 @@ import { buildSignatureReceiptPdf } from "../../../../lib/signatures/signatureRe
 import { buildSignedContractPdf } from "../../../../lib/signatures/signedContractPdf";
 import { loadExternalAppearance } from "../../../../lib/signatures/externalSignaturePlacement";
 import { googleEvidenceForSignature } from "../../../../lib/signatures/googleSignatureEvidence";
+import { getVerificationUrl } from "../../../../lib/signatures/publicVerification";
 import {
   isWhatsappSignatureTemplateConfigured, sendWhatsappSignatureInviteTemplate,
 } from "../../../../lib/financeiro/whatsappCloudProvider";
@@ -451,6 +452,7 @@ export async function completeSignatureInvitationAction(input: {
         signedAt, originalSha256, invitationId: invitation.id,
         externalAppearance: appearance,
         googleEvidence,
+        verificationUrl: getVerificationUrl("institutional", invitation.id),
       });
       if (signedPdfBytes.byteLength > 10 * 1024 * 1024) {
         return { error: "O PDF assinado excedeu 10 MB. Solicite à equipe a compactação do documento antes de assinar." };
