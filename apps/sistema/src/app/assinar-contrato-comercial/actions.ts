@@ -62,9 +62,10 @@ export async function verifyCommercialSignatureOtpAction(token:string,code:strin
 }
 
 export async function completeCommercialSignatureAction(input:{
- token:string;name:string;email:string;consent:boolean;imageDataUrl:string;
+ token:string;name:string;email:string;consent:boolean;imageDataUrl:string;viewedBaseSha256:string;
 }):Promise<Result<{completed:boolean}>> {
  if(!input.consent) return {error:"É obrigatório declarar consentimento para assinar."};
+ if(!/^[a-f0-9]{64}$/.test(input.viewedBaseSha256)) return {error:"Abra o PDF antes de confirmar a assinatura."};
  const invite=await findCommercialInvitation(input.token);
  if(!invite||!commercialInvitationPending(invite)) return {error:"Convite utilizado, revogado ou expirado."};
  const person=invite.commercial_signature_participants;
@@ -111,6 +112,8 @@ export async function completeCommercialSignatureAction(input:{
   const originalHash=createHash("sha256").update(bytes).digest("hex");
   if(!bytes.subarray(0,5).equals(Buffer.from("%PDF-"))||originalHash!==source.source_sha256)
    throw new Error("Integridade do PDF base não confirmada.");
+  if(originalHash!==input.viewedBaseSha256)
+   throw new Error("O documento mudou desde sua conferência. Reabra o link, confira a nova versão e assine somente após a leitura.");
   // A tentativa fica persistida ANTES de qualquer upload. Se a função
   // falhar após gravar um ou dois arquivos, a próxima chamada retoma
   // o mesmo instante de aceite e a mesma assinatura, sem sobrescrever.
