@@ -3683,3 +3683,17 @@ Código gravado **somente no GitHub** após o commit 3A `814fd7bc`; não sincron
 - Testes unitários **adicionados, não executados**: `external-signature-placement.test.ts`, `google-signature-proof.test.ts`; ainda exigem `tsc`, testes direcionados e `next build` com o código no VS Code, mais homologação manual no navegador.
 - Total **10 migrations pendentes (140000–230000)**, todas **NÃO aplicadas**. Aplicar somente com autorização explícita e **antes** de publicar o código. Etapas 4 e 5 continuam pendentes. Evitar auditorias repetitivas.
 - Fonte de verdade e detalhes: `docs/CONTRATOS-ASSINADOR-PLANO-EXECUCAO-20261108.md` (seção 3B).
+
+
+## 08/11/2026 — Contratos: Etapa 4 em código remoto (ChatGPT no GitHub)
+**Base**: branch `solicitacoes-financeiro-contratos-irc-20261031`, após a 3B documentada. **Ainda não sincronizado ao VS Code Windows.** Nenhum deploy, SQL em produção, e-mail, WhatsApp, Telegram, backup ou restauração executados.
+
+**Código feito:** QR de verificação opaco/HMAC no PDF, página pública sem PII e comparação local de SHA-256, convites comerciais por Cloud API opcional com opt-in, outbox idempotente de entrega de PDF final por e-mail (Resend) e aviso de Telegram sem PII, cron autenticado/desabilitado até homologação, script de backup content-addressed R2 privado e teste de restauração. Os dois visualizadores externos foram corrigidos para mostrar a versão cumulativa realmente assinada, e o hash da versão conferida no navegador agora é obrigatório no ato de assinar. **Não executar nem habilitar serviços reais sem homologação e autorização.**
+
+**SQL pendente:** as 10 migrations anteriores (`20261122140000`–`20261122230000`) + `20261122240000_signature_final_delivery_outbox.sql` + `20261122250000_commercial_signature_whatsapp_delivery.sql` = **12 ainda NÃO aplicadas**. Ordem: migrations aprovadas antes do deploy do código.
+
+**Configuração pendente:** `SIGNATURE_VERIFICATION_SECRET`, `SIGNATURE_VERIFICATION_BASE_URL`, `SIGNATURE_EMAIL_API_KEY`, `SIGNATURE_EMAIL_FROM`, `CONTRACTS_TELEGRAM_BOT_TOKEN`, `CONTRACTS_TELEGRAM_CHAT_ID`, `CRON_SECRET`, `SIGNATURE_DELIVERY_ENABLED`, credenciais/bucket R2 de backup dedicados, além do Google da 3B. Todas ausentes/não alteradas por esta frente; manter `SIGNATURE_DELIVERY_ENABLED` falso.
+
+**TESTADO:** apenas conferências de código, sem executar a suíte no ambiente local. Teste direcionado para HMAC/QR criado em `apps/sistema/test/public-verification.test.ts`, **não executado**. Compilação, SQL migrations, envio real, PDF visualizado e backup/restauração devem ser conferidos na Etapa 5, uma única vez e em sequência controlada, preservando stashes e worktrees. Evitar auditorias gerais antes disso.
+
+**Fonte de verdade:** `docs/CONTRATOS-ASSINADOR-PLANO-EXECUCAO-20261108.md`, seção Etapa 4.
