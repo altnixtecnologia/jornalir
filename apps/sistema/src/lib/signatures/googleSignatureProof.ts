@@ -126,7 +126,12 @@ export async function verifyGoogleSignatureCredential(
     (!key.use || key.use === "sig") && (!key.alg || key.alg === "RS256")
   );
   if (!selected) throw new Error("Certificado Google não encontrado.");
-  const publicKey = createPublicKey({ key: selected as JsonWebKey, format: "jwk" });
+  // Montar o objeto JWK esperado pelo crypto do Node, não o tipo DOM
+  // JsonWebKey (que tem estrutura diferente em algumas versões de TS).
+  const publicKey = createPublicKey({
+    key: { kty: "RSA", n: selected.n, e: selected.e },
+    format: "jwk",
+  });
   if (!verify("RSA-SHA256", Buffer.from(parts[0] + "." + parts[1], "utf8"),
     publicKey, Buffer.from(parts[2], "base64url"))) {
     throw new Error("Assinatura Google inválida.");
