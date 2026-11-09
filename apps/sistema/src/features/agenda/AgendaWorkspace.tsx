@@ -9,6 +9,7 @@ import {
   createAgendaEventAction,
   createPautaFromAgendaEventAction,
   createPautaItemAction,
+  savePautaPeriodAction,
   setAgendaEventStatusAction,
   setPautaItemStatusAction,
   updateAgendaEventAction,
@@ -20,6 +21,30 @@ import type { AgendaEventItem, AgendaWorkspaceData, WeeklyPautaItem } from "./ag
 import { createSupabaseBrowserClient } from "../../lib/supabase/browser";
 import { notify } from "../../lib/feedback/notify";
 import { confirmDialog } from "../../lib/feedback/confirmStore";
+
+/** Só interrompe atualização quando há conteúdo realmente modificado.
+ * Deixar um formulário aberto, sem alteração, não é motivo para avisos.
+ */
+function hasDirtyAgendaForm(): boolean {
+  const forms = document.querySelectorAll<HTMLFormElement>(
+    ".agenda-inline-edit[open] form,.agenda-create-panel[open] form,.pauta-create-panel[open] form,.pauta-period-form",
+  );
+  return Array.from(forms).some((form) => Array.from(form.elements).some((field) => {
+    if (field instanceof HTMLInputElement) {
+      if (field.type === "hidden" || field.type === "submit" || field.type === "button") return false;
+      if (field.type === "checkbox" || field.type === "radio") return field.checked !== field.defaultChecked;
+      return field.value !== field.defaultValue;
+    }
+    if (field instanceof HTMLTextAreaElement) return field.value !== field.defaultValue;
+    if (field instanceof HTMLSelectElement) {
+      const original = Array.from(field.options).filter((opt) => opt.defaultSelected).map((opt) => opt.value);
+      return field.multiple
+        ? Array.from(field.selectedOptions).map((opt) => opt.value).join("|") !== original.join("|")
+        : Boolean(original.length && field.value !== original[0]);
+    }
+    return false;
+  }));
+}
 
 // Alterar aqui se a equipe precisar de sincronizacao mais rapida/lenta.
 const AGENDA_MIN_SYNC_INTERVAL_MS = 60_000;
@@ -230,9 +255,11 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
   const [remoteChanges, setRemoteChanges] = useState(false);
   const [responsibleFilter, setResponsibleFilter] = useState("");
   const [isMonthExpanded, setIsMonthExpanded] = useState(false);
+  const [isPeriodEditorOpen, setIsPeriodEditorOpen] = useState(false);
   const [isPending, startTransition] = useTransition();
 
   useEffect(() => setSelectedDate(data.focusDate), [data.focusDate]);
+  useEffect(() => setIsPeriodEditorOpen(false), [data.weekStart]);
   // Muda de "Agendado" para "Atrasado" sem exigir F5, inclusive à meia-noite.
   useEffect(() => {
     const refreshClock = () => setLocalClock(nowInAgendaTimezone());
@@ -246,8 +273,7 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
   useEffect(() => {
     let pendingRefresh: ReturnType<typeof setTimeout> | undefined;
     let subscribedOnce = false;
-    const isEditing = () =>
-      Boolean(document.querySelector(".agenda-inline-edit[open],.agenda-create-panel[open],.pauta-create-panel[open]"));
+    const isEditing = () => hasDirtyAgendaForm();
 
     const refresh = () => {
       pendingRefresh = undefined;
@@ -280,6 +306,7 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
       .on("postgres_changes", { event: "*", schema: "public", table: "agenda_events" }, scheduleRefresh)
       .on("postgres_changes", { event: "*", schema: "public", table: "agenda_event_assignees" }, scheduleRefresh)
       .on("postgres_changes", { event: "*", schema: "public", table: "weekly_pauta_items" }, scheduleRefresh)
+      .on("postgres_changes", { event: "*", schema: "public", table: "pauta_week_overrides" }, scheduleRefresh)
       .subscribe((status) => {
         if (status === "SUBSCRIBED") {
           setRealtimeState("online");
@@ -322,9 +349,8 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
   }, [data.focusDate]);
 
   const filteredEvents = useMemo(
-    () => responsibleFilter
-      ? data.events.filter((event) => event.assignees.some((profile) => profile.id === responsibleFilter))
-      : data.events,
+    () => data.events.filter((event) =>
+      event.showInAgenda && (!responsibleFilter || event.assignees.some((profile) => profile.id === responsibleFilter))),
     [data.events, responsibleFilter],
   );
 
@@ -359,7 +385,7 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
     data.pautaItems.filter((item) =>
       item.status === "pending" && item.responsibleProfileId === data.currentUserId && !item.agendaEventId).length;
   const weekDays = Array.from({ length: 7 }, (_, index) => addDays(data.weekStart, index));
-  const initialPautaDate = data.today >= data.weekStart && data.today <= data.weekEnd ? data.today : data.weekStart;
+  const initialPautaDate = data.today >= data.periodStart && data.today <= data.periodEnd ? data.today : data.periodStart;
   const monthEventCount = data.events.filter((event) => event.eventDate >= data.monthStart && event.eventDate <= data.monthEnd).length;
   const pautaItems = responsibleFilter
     ? data.pautaItems.filter((item) => item.responsibleProfileId === responsibleFilter || item.assignees.some((person) => person.id === responsibleFilter))
@@ -487,10 +513,20 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
         >
           <input type="hidden" name="week_start" value={item.weekStart} />
           <input type="hidden" name="updated_at" value={item.updatedAt} />
-          <label className="agenda-field agenda-field-wide"><span>O que precisa ser feito?</span><input name="title" required maxLength={180} defaultValue={item.title} /></label>
+          <div className="pauta-form-heading">
+            <label className="agenda-field pauta-title-field"><span>O que precisa ser feito?</span>
+              <input name="title" required maxLength={180} defaultValue={item.title} /></label>
+            <PautaDateTimeField initialDate={item.dueDate ?? item.weekStart} initialTime={item.dueTime}
+              weekStart={data.periodStart} weekEnd={data.periodEnd} />
+          </div>
           <div className="agenda-field-wide"><AssigneePicker profiles={data.profiles} selectedIds={item.assignees.map((person) => person.id)} /></div>
-          <PautaDateTimeField initialDate={item.dueDate ?? item.weekStart} initialTime={item.dueTime} weekStart={item.weekStart} weekEnd={addDays(item.weekStart, 6)} />
-          <label className="agenda-field agenda-field-wide"><span>Observação</span><textarea name="description" maxLength={4000} defaultValue={item.description ?? ""} /></label>
+          <label className="agenda-field pauta-note-field"><span>Observações</span>
+            <textarea name="description" rows={2} maxLength={4000} defaultValue={item.description ?? ""}
+              onInput={(event) => {
+                const target = event.currentTarget;
+                target.style.height = "auto";
+                target.style.height = Math.min(target.scrollHeight, 300) + "px";
+              }} /></label>
           <div className="agenda-form-actions agenda-edit-actions">
             <button type="submit" className="agenda-primary" disabled={isPending}>Salvar</button>
             <button type="button" className="agenda-close-edit" disabled={isPending} onClick={(event) => {
@@ -505,7 +541,7 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
   }
 
   return (
-    <section className="agenda-workspace">
+    <section className={"agenda-workspace" + (initialView === "pauta" ? " is-pauta-workspace" : "")}>
       {data.pendingInvitations.length > 0 ? (
         <section className="agenda-overdue-notice" aria-labelledby="pending-meetings-title">
           <div>
@@ -564,10 +600,11 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
             }}>Ver atrasados</button>
         </div>
       ) : null}
+      {initialView === "agenda" ? (
       <div className="agenda-topbar">
         <div className="agenda-tabs" role="tablist" aria-label="Agenda e pauta">
           {data.access.agendaRead ? <button type="button" className={initialView === "agenda" ? "is-active" : ""} onClick={() => navigate("agenda", data.focusDate)}>Agenda</button> : null}
-          {data.access.pautaRead ? <button type="button" className={initialView === "pauta" ? "is-active" : ""} onClick={() => navigate("pauta", data.focusDate)}>Pauta da semana</button> : null}
+          {data.access.pautaRead ? <button type="button" onClick={() => navigate("pauta", data.focusDate)}>Pauta da semana</button> : null}
         </div>
         <label className="agenda-person-filter">
           <span>Mostrar</span>
@@ -583,11 +620,25 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
           <button type="button" className="agenda-top-add" onClick={openCreate}>{initialView === "agenda" ? "+ Compromisso" : "+ Nova pauta"}</button>
         ) : null}
       </div>
+      ) : null}
 
       {remoteChanges ? (
-        <div className="agenda-remote-notice" role="status">
-          A sincronização automática foi adiada para preservar suas alterações. Salve ou feche o formulário antes de atualizar.
-          <button type="button" onClick={() => { setRemoteChanges(false); lastSyncAtRef.current = Date.now(); router.refresh(); }}>Atualizar agora</button>
+        <div className="agenda-remote-notice agenda-remote-notice--floating" role="status" aria-live="polite">
+          <span><strong>Alterações de outros usuários</strong><small>Salve ou feche a edição para sincronizar sem perder suas informações.</small></span>
+          <button type="button" onClick={async () => {
+            if (hasDirtyAgendaForm()) {
+              const accept = await confirmDialog({
+                title: "Descartar alterações ainda não salvas e atualizar?",
+                confirmLabel: "Atualizar",
+                cancelLabel: "Continuar editando",
+              });
+              if (!accept) return;
+            }
+            setRemoteChanges(false);
+            lastSyncAtRef.current = Date.now();
+            router.refresh();
+          }}>Atualizar</button>
+          <button type="button" className="agenda-remote-dismiss" aria-label="Dispensar aviso" onClick={() => setRemoteChanges(false)}>×</button>
         </div>
       ) : null}
       {initialView === "agenda" && data.access.agendaRead ? (
@@ -781,33 +832,108 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
         </div>
       ) : (
         <div className="pauta-layout">
-          <div className="pauta-week-head">
-            <button type="button" onClick={() => moveWeek(-1)} aria-label="Semana anterior">‹</button>
-            <div><p className="eyebrow">PAUTA DA SEMANA</p><h2>{shortDate(data.weekStart)} a {shortDate(data.weekEnd)}</h2></div>
-            <button type="button" onClick={() => moveWeek(1)} aria-label="Próxima semana">›</button>
+          <div className="pauta-toolbar">
+            <div className="agenda-tabs" role="tablist" aria-label="Agenda e pauta">
+              {data.access.agendaRead ? <button type="button" onClick={() => navigate("agenda", data.focusDate)}>Agenda</button> : null}
+              {data.access.pautaRead ? <button type="button" className="is-active" aria-current="page">Pauta da semana</button> : null}
+            </div>
+            <div className="pauta-toolbar-period">
+              <button type="button" className="pauta-week-arrow" onClick={() => moveWeek(-1)} aria-label="Semana anterior">‹</button>
+              <div className="pauta-toolbar-dates">
+                <strong>{shortDate(data.periodStart)} a {shortDate(data.periodEnd)}</strong>
+                <small>{data.periodEdited ? "PERÍODO ESPECIAL" : "QUI – QUA"}</small>
+              </div>
+              <button type="button" className="pauta-week-arrow" onClick={() => moveWeek(1)} aria-label="Próxima semana">›</button>
+              {data.access.pautaWrite ? <button type="button" className="pauta-period-pencil" aria-expanded={isPeriodEditorOpen}
+                aria-label="Editar as datas somente desta semana" title="Alterar período para toda a equipe"
+                onClick={() => setIsPeriodEditorOpen((open) => !open)}>✎</button> : null}
+            </div>
+            <label className="agenda-person-filter pauta-toolbar-filter">
+              <span>Mostrar</span>
+              <select aria-label="Filtrar por responsável" value={responsibleFilter} onChange={(event) => setResponsibleFilter(event.target.value)}>
+                <option value="">Toda a equipe</option>
+                <option value={data.currentUserId}>Somente meus itens</option>
+                {data.profiles.filter((profile) => profile.id !== data.currentUserId).map((profile) => (
+                  <option key={profile.id} value={profile.id}>{profile.name}</option>
+                ))}
+              </select>
+            </label>
           </div>
-
+          {isPeriodEditorOpen && data.access.pautaWrite ? (
+            <form className="pauta-period-form" key={data.weekStart}
+              onSubmit={(event) => {
+                event.preventDefault();
+                const form = event.currentTarget;
+                run(() => savePautaPeriodAction(new FormData(form)), "Período atualizado para toda a equipe.", () => setIsPeriodEditorOpen(false));
+              }}>
+              <strong>Ajustar apenas esta semana</strong>
+              <p>O padrão das outras semanas permanece de quinta a quarta. As pautas já cadastradas são preservadas.</p>
+              <input type="hidden" name="week_start" value={data.weekStart} />
+              <div className="pauta-period-fields">
+                <label>Início <input type="date" name="period_start" defaultValue={data.periodStart}
+                  min={addDays(data.weekStart,-3)} max={addDays(data.weekStart,6)} required /></label>
+                <label>Fim <input type="date" name="period_end" defaultValue={data.periodEnd}
+                  min={addDays(data.weekStart,-3)} max={addDays(data.weekStart,10)} required /></label>
+              </div>
+              <label className="pauta-period-reason">Motivo da exceção
+                <input name="reason" maxLength={300} defaultValue={data.periodReason ?? ""}
+                  placeholder="Ex.: fechamento antecipado da edição" /></label>
+              <div className="pauta-period-actions">
+                {data.periodEdited ? <button type="button" disabled={isPending} onClick={() => {
+                  const reset = new FormData();
+                  reset.set("week_start", data.weekStart);
+                  reset.set("period_start", data.weekStart);
+                  reset.set("period_end", data.weekEnd);
+                  reset.set("reason", "Restaurar período padrão");
+                  run(() => savePautaPeriodAction(reset), "Semana restaurada ao padrão.", () => setIsPeriodEditorOpen(false));
+                }}>Restaurar padrão</button> : null}
+                <button type="button" onClick={() => setIsPeriodEditorOpen(false)}>Cancelar</button>
+                <button type="submit" className="agenda-primary" disabled={isPending}>Salvar para todos</button>
+              </div>
+            </form>
+          ) : null}
           <div className="pauta-actions-row">
-            <button type="button" onClick={() => navigate("pauta", data.today)}>Semana atual</button>
+            <button type="button" className="pauta-week-current" onClick={() => navigate("pauta", data.today)}>Semana atual</button>
             <span>{pautaItems.filter((item) => item.status === "pending").length} pendente(s)</span>
           </div>
 
-          {data.access.pautaWrite ? <details className="pauta-create-panel" id="pauta-create-panel"><summary>+ Nova pauta <span>Toque para cadastrar</span></summary><form
-            className="pauta-quick-form"
-            key={data.weekStart}
-            onSubmit={(event) => {
+          {data.access.pautaWrite ? <details className="pauta-create-panel" id="pauta-create-panel">
+            <summary>＋ Nova pauta <span>Toque para cadastrar</span></summary>
+            <form className="pauta-quick-form" key={data.weekStart} onSubmit={(event) => {
               event.preventDefault();
               const form = event.currentTarget;
-              run(() => createPautaItemAction(new FormData(form)), "Pauta criada e sincronizada com a Agenda.", () => form.reset());
-            }}
-          >
-            <input type="hidden" name="week_start" value={data.weekStart} />
-            <label className="agenda-field pauta-title-field"><span>O que precisa ser feito?</span><input name="title" required maxLength={180} placeholder="Ex.: Cobrir sessão da Câmara" /></label>
-            <div className="agenda-field-wide"><AssigneePicker profiles={data.profiles} currentUserId={data.currentUserId} /></div>
-            <PautaDateTimeField initialDate={initialPautaDate} initialTime={null} weekStart={data.weekStart} weekEnd={data.weekEnd} required />
-            <label className="agenda-field pauta-note-field"><span>Observação</span><input name="description" maxLength={4000} placeholder="Opcional" /></label>
-            <button type="submit" className="agenda-primary" disabled={isPending}>+ Criar na Agenda e Pauta</button>
-          </form></details> : null}
+              const submitter = (event.nativeEvent as SubmitEvent).submitter as HTMLButtonElement | null;
+              const showInAgenda = submitter?.value === "both";
+              const payload = new FormData(form);
+              payload.set("show_in_agenda", showInAgenda ? "true" : "false");
+              run(() => createPautaItemAction(payload), showInAgenda
+                ? "Pauta vinculada à Agenda." : "Pauta criada sem aparecer na Agenda.", () => {
+                form.reset();
+                const panel = form.closest("details");
+                if (panel instanceof HTMLDetailsElement) panel.open = false;
+              });
+            }}>
+              <input type="hidden" name="week_start" value={data.weekStart} />
+              <div className="pauta-form-heading">
+                <label className="agenda-field pauta-title-field"><span>O que precisa ser feito?</span>
+                  <input name="title" required maxLength={180} placeholder="Ex.: Cobrir sessão da Câmara" /></label>
+                <PautaDateTimeField initialDate={initialPautaDate} initialTime={null}
+                  weekStart={data.periodStart} weekEnd={data.periodEnd} required />
+              </div>
+              <div className="pauta-assignee-field"><AssigneePicker profiles={data.profiles} currentUserId={data.currentUserId} /></div>
+              <label className="agenda-field pauta-note-field"><span>Observações</span>
+                <textarea name="description" rows={2} maxLength={4000} placeholder="Informações adicionais (opcional)"
+                  onInput={(event) => {
+                    const target = event.currentTarget;
+                    target.style.height = "auto";
+                    target.style.height = Math.min(target.scrollHeight, 300) + "px";
+                  }} /></label>
+              <div className="pauta-create-actions">
+                <button type="submit" value="pauta" className="pauta-only-button" disabled={isPending}>Criar somente na Pauta</button>
+                <button type="submit" value="both" className="agenda-primary" disabled={isPending}>Criar na Agenda + Pauta</button>
+              </div>
+            </form>
+          </details> : null}
 
           {pautaItems.length ? (
             <div className="pauta-list">

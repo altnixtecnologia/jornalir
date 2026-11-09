@@ -13,6 +13,7 @@ export interface AgendaEventItem {
   endTime: string | null;
   reminderMinutes: number | null;
   eventKind: "general" | "editorial";
+  showInAgenda: boolean;
   completedAt: string | null;
   updatedAt: string;
   location: string | null;
@@ -56,6 +57,10 @@ export interface AgendaWorkspaceData {
   monthEnd: string;
   weekStart: string;
   weekEnd: string;
+  periodStart: string;
+  periodEnd: string;
+  periodReason: string | null;
+  periodEdited: boolean;
   currentUserId: string;
   access: { agendaRead: boolean; agendaWrite: boolean; pautaRead: boolean; pautaWrite: boolean; editorialLinkAccess: boolean };
   profiles: AgendaProfile[];

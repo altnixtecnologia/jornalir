@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 
 import { createSupabaseServerClient } from "../../lib/supabase/server";
 import type { AgendaEventItem, AgendaProfile, AgendaWorkspaceData, PendingMeetingInvitation, WeeklyPautaItem } from "./agendaTypes";
+import { startOfPautaWeek } from "./pautaPeriod";
 
 export const AGENDA_TIMEZONE = "America/Sao_Paulo";
 
@@ -38,11 +39,7 @@ export function normalizeAgendaDate(value: string | undefined): string {
 }
 
 export function startOfWeek(value: string): string {
-  const date = parseDateUtc(value);
-  const weekday = date.getUTCDay();
-  const diff = weekday === 0 ? -6 : 1 - weekday;
-  date.setUTCDate(date.getUTCDate() + diff);
-  return ymdUtc(date);
+  return startOfPautaWeek(value);
 }
 
 export function addDays(value: string, amount: number): string {
@@ -98,8 +95,6 @@ export async function loadAgendaWorkspaceData(focusDate: string): Promise<Agenda
   const month = monthBounds(focusDate);
   const weekStart = startOfWeek(focusDate);
   const weekEnd = addDays(weekStart, 6);
-  const eventRangeStart = weekStart < month.start ? weekStart : month.start;
-  const eventRangeEnd = weekEnd > month.end ? weekEnd : month.end;
 
   const { data: authData, error: userError } = await supabase.auth.getUser();
   const user = authData.user;
@@ -122,11 +117,19 @@ export async function loadAgendaWorkspaceData(focusDate: string): Promise<Agenda
   };
   if (!access.agendaRead && !access.pautaRead) redirect("/sistema");
 
+  const periodResult = await supabase.from("pauta_week_overrides")
+    .select("period_start,period_end,reason").eq("week_start", weekStart).maybeSingle();
+  if (periodResult.error) throw new Error(periodResult.error.message);
+  const periodStart = periodResult.data?.period_start ?? weekStart;
+  const periodEnd = periodResult.data?.period_end ?? weekEnd;
+  const eventRangeStart = periodStart < month.start ? periodStart : month.start;
+  const eventRangeEnd = periodEnd > month.end ? periodEnd : month.end;
+
   const [profilesResult, eventsResult, pautaResult] = await Promise.all([
     supabase.from("profiles").select("id, name, role").eq("active", true).order("name", { ascending: true }),
     supabase
       .from("agenda_events")
-      .select("id, title, description, event_date, start_time, end_time, location, status, reminder_minutes, event_kind, completed_at, updated_at")
+      .select("id, title, description, event_date, start_time, end_time, location, status, reminder_minutes, event_kind, show_in_agenda, completed_at, updated_at")
       .gte("event_date", eventRangeStart)
       .lte("event_date", eventRangeEnd)
       .order("event_date", { ascending: true })
@@ -212,6 +215,7 @@ export async function loadAgendaWorkspaceData(focusDate: string): Promise<Agenda
     endTime: trimDbTime(event.end_time),
     reminderMinutes: event.reminder_minutes,
     eventKind: event.event_kind as AgendaEventItem["eventKind"],
+    showInAgenda: event.show_in_agenda,
     completedAt: event.completed_at,
     updatedAt: event.updated_at,
     location: event.location,
@@ -226,7 +230,8 @@ export async function loadAgendaWorkspaceData(focusDate: string): Promise<Agenda
     const responsible = linked?.assignees.find((person) => person.id === item.responsible_profile_id) ?? linked?.assignees[0];
     return {
     id: item.id,
-    weekStart: linked ? startOfWeek(linked.eventDate) : item.week_start,
+    // A pauta pertence à semana editorial em que foi criada, inclusive nas exceções.
+    weekStart: item.week_start,
     title: linked?.title ?? item.title,
     description: linked?.description ?? item.description,
     dueDate: linked?.eventDate ?? item.due_date,
@@ -250,6 +255,10 @@ export async function loadAgendaWorkspaceData(focusDate: string): Promise<Agenda
     monthEnd: month.end,
     weekStart,
     weekEnd,
+    periodStart,
+    periodEnd,
+    periodReason: periodResult.data?.reason ?? null,
+    periodEdited: Boolean(periodResult.data),
     currentUserId: user.id,
     access,
     profiles,
