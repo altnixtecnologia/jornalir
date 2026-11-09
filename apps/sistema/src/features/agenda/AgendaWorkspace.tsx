@@ -24,6 +24,7 @@ import {
   respondAgendaInvitationAction,
 } from "./actions";
 import type { AgendaEventItem, AgendaWorkspaceData, EventCoverage, WeeklyPautaItem } from "./agendaTypes";
+import { coverageClockAt, validCoverageClock } from "./coverageClock";
 import { createSupabaseBrowserClient } from "../../lib/supabase/browser";
 import { notify } from "../../lib/feedback/notify";
 import { confirmDialog } from "../../lib/feedback/confirmStore";
@@ -251,11 +252,30 @@ function ClearableScheduleInput({
   );
 }
 
-function CoveragePeopleFields({profiles,currentUserId}:{
-  profiles:AgendaWorkspaceData["profiles"];currentUserId:string;
-}):JSX.Element{
+function CoverageClockFields({eventTime,audible=60,checkin=5}:{
+ eventTime:string;audible?:number;checkin?:number;
+}):JSX.Element {
+ return <>
+  <label className="agenda-field coverage-clock-field">
+   <span>Horário do aviso principal</span>
+   <input key={"alarm-"+eventTime} name="coverage_audible_time" type="time"
+     required disabled={!eventTime} defaultValue={coverageClockAt(eventTime,audible)}/>
+   <small>Com som, conforme as permissões do aparelho.</small>
+  </label>
+  <label className="agenda-field coverage-clock-field">
+   <span>Horário de confirmar chegada</span>
+   <input key={"arrival-"+eventTime} name="coverage_checkin_time" type="time"
+     required disabled={!eventTime} defaultValue={coverageClockAt(eventTime,checkin)}/>
+   <small>Notificação silenciosa, editável minuto a minuto.</small>
+  </label>
+ </>;
+}
+
+function CoveragePeopleFields({profiles,currentUserId,eventTime}:{
+  profiles:AgendaWorkspaceData["profiles"];currentUserId:string;eventTime:string;
+}):JSX.Element {
   return <div className="coverage-config-fields">
-    <label className="agenda-field"><span>Quem irá ao evento?</span>
+    <label className="agenda-field"><span>Quem vai ao evento / faz a cobertura?</span>
       <select name="coverage_attendance_owner" defaultValue={currentUserId} required>
         {profiles.map(p=><option value={p.id} key={p.id}>{p.name}</option>)}
       </select></label>
@@ -263,32 +283,44 @@ function CoveragePeopleFields({profiles,currentUserId}:{
       <select name="coverage_article_owner" defaultValue={currentUserId} required>
         {profiles.map(p=><option value={p.id} key={p.id}>{p.name}</option>)}
       </select></label>
-    <label className="agenda-field"><span>Lembrete sonoro</span>
-      <select name="coverage_audible_minutes" defaultValue="60">
-        <option value="1440">1 dia antes</option><option value="120">2 horas antes</option>
-        <option value="60">1 hora antes (padrão)</option><option value="30">30 min antes</option>
-        <option value="15">15 min antes</option><option value="5">5 min antes</option>
-        <option value="0">No horário</option><option value="-5">5 min depois</option>
-        <option value="-15">15 min depois</option><option value="-30">30 min depois</option>
-      </select></label>
-    <label className="agenda-field"><span>Confirmação silenciosa</span>
-      <select name="coverage_checkin_minutes" defaultValue="5">
-        <option value="30">30 min antes</option><option value="15">15 min antes</option>
-        <option value="5">5 min antes (padrão)</option><option value="0">No horário</option>
-        <option value="-5">5 min depois</option><option value="-15">15 min depois</option>
-      </select></label>
+    <label className="agenda-field coverage-field-task"><span>Tarefa de quem vai ao evento</span>
+      <input name="coverage_task_label" list="agenda-task-suggestions" type="text" required
+        minLength={2} maxLength={80} defaultValue="Fotos / cobertura" placeholder="Ex.: Fotos, vídeo, entrevistas"/>
+    </label>
+    <CoverageClockFields eventTime={eventTime}/>
+    {!eventTime?<p className="helper-text coverage-clock-help">Informe o horário do evento primeiro para preencher os avisos automaticamente.</p>:null}
   </div>;
 }
 
-function CoverageOptIn({data}:{data:AgendaWorkspaceData}):JSX.Element{
+function CoverageOptIn({data}:{data:AgendaWorkspaceData}):JSX.Element {
  const [enabled,setEnabled]=useState(false);
- return <fieldset className="coverage-opt-in agenda-field-wide">
+ const [eventTime,setEventTime]=useState("");
+ const fieldsetRef=useRef<HTMLFieldSetElement>(null);
+ useEffect(()=>{
+   const form=fieldsetRef.current?.closest("form");
+   if(!form)return;
+   const syncClock=()=>{
+     const start=form.querySelector<HTMLInputElement>('input[name="start_time"]');
+     const datetime=form.querySelector<HTMLInputElement>('input[type="datetime-local"]');
+     const fromDateTime=datetime?.value?.slice(11,16)||"";
+     const clock=start?.value||fromDateTime||"";
+     setEventTime(validCoverageClock(clock)?clock:"");
+   };
+   syncClock();
+   form.addEventListener("input",syncClock);
+   form.addEventListener("change",syncClock);
+   return ()=>{
+     form.removeEventListener("input",syncClock);
+     form.removeEventListener("change",syncClock);
+   };
+ },[]);
+ return <fieldset ref={fieldsetRef} className="coverage-opt-in agenda-field-wide">
   <label className="coverage-switch">
     <input name="coverage_enabled" type="checkbox" value="true" checked={enabled}
       onChange={event=>setEnabled(event.currentTarget.checked)}/>
-    <span><strong>Cobertura de evento</strong><small>Separar presença e produção da matéria, com transferência e dois lembretes</small></span>
+    <span><strong>Cobertura de evento</strong><small>Presença, fotos/atividade de campo e matéria com responsáveis independentes</small></span>
   </label>
-  {enabled?<CoveragePeopleFields profiles={data.profiles} currentUserId={data.currentUserId}/>:null}
+  {enabled?<CoveragePeopleFields profiles={data.profiles} currentUserId={data.currentUserId} eventTime={eventTime}/>:null}
  </fieldset>;
 }
 
