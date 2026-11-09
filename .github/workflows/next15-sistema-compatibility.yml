@@ -6,6 +6,8 @@ on:
       - security/next15-system-20261108
     paths:
       - ".github/workflows/next15-sistema-compatibility.yml"
+      - "apps/sistema/src/features/agenda/AgendaWorkspace.tsx"
+      - "apps/sistema/test/agenda-pauta-navigation.test.ts"
       - "apps/sistema/src/lib/supabase/server.ts"
       - "apps/sistema/src/app/assinar-contrato-comercial/actions.ts"
       - "apps/sistema/src/app/sistema/financeiro/contratos/signature-actions.ts"
@@ -72,6 +74,9 @@ jobs:
 
       - name: Verificar TypeScript do sistema
         run: npm run typecheck --workspace @ir/sistema
+
+      - name: Verificar navegação Agenda/Pauta no desktop
+        run: npx tsx --test apps/sistema/test/agenda-pauta-navigation.test.ts
 
       - name: Build sistema com Next 15 no CI
         run: npm run build --workspace @ir/sistema
