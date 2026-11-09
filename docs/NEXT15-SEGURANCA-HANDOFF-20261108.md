@@ -26,3 +26,18 @@ GitHub Actions `https://github.com/altnixtecnologia/jornalir/actions/runs/425456
 5. Só depois da compatibilidade real considerar merge para branch de contratos. Documento não autoriza aplicar migrations nem publicar o site.
 
 **Importante:** a etapa é maior do que um simples bump de versão. Não pedir ao Claude para fazer auditoria geral. O Claude pode receber apenas tarefa leve de sincronização do VS Code, sem tocar nesta branch de segurança.
+
+
+## 09/11/2026 — Atualização validada e versionada na branch isolada
+
+**Novo estado real:** o upgrade Next 15.5.29 / React 19.1.10 já está **gravado** na branch `security/next15-system-20261108`, inclusive `apps/sistema/package.json`, `package-lock.json`, configuração e codemod de rotas. Commit de origem da migração `3a64bab4172184c84afa06a83b0bf4aac9f188ac`, com **64 arquivos** (62 arquivos de rotas, manifesto do sistema e lockfile). O codemod processou 63 arquivos, mas preservou sem mudança o reexport do endpoint FCM por ser falso positivo.
+
+**Comprovação completa:**
+- [GitHub Actions 42546954661](https://github.com/altnixtecnologia/jornalir/actions/runs/42546954661/job/128933896637): codemod oficial, TypeScript e **build Next 15.5.29** aprovados no runner.
+- [GitHub Actions 42547296461](https://github.com/altnixtecnologia/jornalir/actions/runs/42547296461/job/128934934360): geração de lockfile, `npm ci` **do lockfile novo**, codemod, TypeScript, quatro suítes dirigidas de assinatura e build completo do sistema **APROVADOS**, depois commit automático apenas na branch isolada.
+- [GitHub Actions 42547594082](https://github.com/altnixtecnologia/jornalir/actions/runs/42547594082/job/128935857785): instalação limpa do monorepo confirmou versões distintas: **portal Next 14/React 18** e **sistema Next 15/React 19**; TypeScript e build do portal **PASSARAM** com o novo lockfile. Atenção: portal **não foi atualizado de Next 14**, só comprovou coexistência temporária.
+- A workflow com `contents: write` utilizada exclusivamente para materializar as correções foi **removida** após a conclusão. Restam apenas workflows de validação sem deploy.
+
+**Riscos residuais:** compatibilidade funcional com usuários autenticados ainda precisa ser confirmada no navegador em liberação controlada; o cliente Supabase usa tipo transitório `UnsafeUnwrappedCookies` no Next 15, não compatível para Next 16 sem ajuste; também há alias transitório JSX do React 19. O portal continua Next 14 e necessita migração de segurança própria. **Não houve aplicação de migrations, merge na branch de contratos, alteração no PC local nem publicação.**
+
+**Próxima ação:** abrir PR de integração *draft* contra `solicitacoes-financeiro-contratos-irc-20261031`; conferir a revisão antes de aprovar merge. Depois disso, manter o cron de envios desligado, configurar serviços e realizar homologação real no oficial com destinatários controlados antes do deploy definitivo. Não retestar a mesma CI verde sem mudanças.
