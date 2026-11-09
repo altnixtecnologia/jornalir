@@ -39,7 +39,8 @@ function Field({ label, value }: { label: string; value?: ReactNode }): JSX.Elem
   );
 }
 
-export default async function AssinaturaDetailPage({ params }: { params: { id: string } }): Promise<JSX.Element> {
+export default async function AssinaturaDetailPage(props: { params: Promise<{ id: string }> }): Promise<JSX.Element> {
+  const params = await props.params;
   const supabase = createSupabaseServerClient();
   const subscription = await getSubscriptionService(supabase)
     .getById(params.id)

@@ -8,9 +8,13 @@ const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const denied=(status=404)=>NextResponse.json({error:"Comprovante indisponível."},{
  status,headers:{"Cache-Control":"no-store","Referrer-Policy":"no-referrer"},
 });
-export async function GET(req:Request,{params}:{
- params:{id:string;requestId:string};
-}):Promise<NextResponse> {
+export async function GET(
+ req:Request,
+ props:{
+  params: Promise<{id:string;requestId:string}>;
+ }
+):Promise<NextResponse> {
+ const params = await props.params;
  if(!UUID.test(params.id)||!UUID.test(params.requestId)) return denied(400);
  const db=createSupabaseServerClient();
  const [noReview,finance]=await Promise.all([

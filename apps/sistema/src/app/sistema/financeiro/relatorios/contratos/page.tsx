@@ -40,11 +40,12 @@ export const revalidate = 0;
  * CONTRATUAL e saldo FINANCEIRO aparecem como colunas distintas, nunca
  * misturadas (mesmo princípio da página de detalhe do contrato).
  */
-export default async function RelatorioContratosPage({
-  searchParams,
-}: {
-  searchParams?: Record<string, string | string[] | undefined>;
-}): Promise<JSX.Element> {
+export default async function RelatorioContratosPage(
+  props: {
+    searchParams?: Promise<Record<string, string | string[] | undefined>>;
+  }
+): Promise<JSX.Element> {
+  const searchParams = await props.searchParams;
   const supabase = createSupabaseServerClient();
   const clientId = one(searchParams?.clientId);
   const status = one(searchParams?.status);

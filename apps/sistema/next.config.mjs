@@ -24,6 +24,20 @@ const nextConfig = {
   ...(isLocalOneDriveBuild
     ? { staticPageGenerationTimeout: 180, outputFileTracing: false }
     : {}),
+  // Opções movidas do experimental para o nível raiz no Next 15.
+  serverExternalPackages: ["pdfjs-dist", "@napi-rs/canvas"],
+  outputFileTracingIncludes: {
+    "/sistema/editorial/**": [
+      "../../node_modules/pdfjs-dist/legacy/build/pdf.worker.js",
+      "../../node_modules/pdfjs-dist/standard_fonts/**",
+      "../../node_modules/pdfjs-dist/cmaps/**",
+    ],
+    "/api/cron/edition-materias": [
+      "../../node_modules/pdfjs-dist/legacy/build/pdf.worker.js",
+      "../../node_modules/pdfjs-dist/standard_fonts/**",
+      "../../node_modules/pdfjs-dist/cmaps/**",
+    ],
+  },
   transpilePackages: ["@ir/ui", "@ir/types", "@ir/core", "@ir/mocks", "@ir/config", "@ir/pdf-extraction"],
   // Links de assinatura carregam tokens de acesso. Evitar indexação e
   // vazamento do token no cabeçalho Referer quando o navegador abre recursos.
@@ -54,34 +68,7 @@ const nextConfig = {
     serverActions: {
       bodySizeLimit: "100mb",
     },
-    // pdfjs-dist (usado por @ir/pdf-extraction, só em Server Actions) faz
-    // detecção dinâmica de ambiente Node que o webpack não processa bem;
-    // mantê-lo como dependência externa do runtime do servidor evita que o
-    // bundler tente empacotá-lo e preserva o comportamento nativo em Node.
-    // @napi-rs/canvas (reaproveitamento de PDF do acervo R2 em
-    // editionCoverRenderer.ts, chamado agora por uma Server Action) carrega
-    // um binário nativo (.node) por plataforma — o webpack tenta parsear
-    // esse binário como módulo JS e quebra o build sem esta exclusão.
-    serverComponentsExternalPackages: ["pdfjs-dist", "@napi-rs/canvas"],
-    // Produção (07/11/2026): "Setting up fake worker failed: Cannot find
-    // module './pdf.worker.js'" ao reaproveitar PDF do acervo. O PDF.js
-    // carrega o worker por eval("require"), invisível ao rastreador de
-    // arquivos; o código já entrega o worker por require literal
-    // (globalThis.pdfjsWorker) e isto garante os arquivos na função mesmo
-    // assim. Caminhos relativos a apps/sistema (node_modules fica na raiz
-    // do monorepo).
-    outputFileTracingIncludes: {
-      "/sistema/editorial/**": [
-        "../../node_modules/pdfjs-dist/legacy/build/pdf.worker.js",
-        "../../node_modules/pdfjs-dist/standard_fonts/**",
-        "../../node_modules/pdfjs-dist/cmaps/**",
-      ],
-      "/api/cron/edition-materias": [
-        "../../node_modules/pdfjs-dist/legacy/build/pdf.worker.js",
-        "../../node_modules/pdfjs-dist/standard_fonts/**",
-        "../../node_modules/pdfjs-dist/cmaps/**",
-      ],
-    },
+
   },
 };
 

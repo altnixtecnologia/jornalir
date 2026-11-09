@@ -35,7 +35,8 @@ function Field({ label, value }: { label: string; value?: string | null }): JSX.
   );
 }
 
-export default async function ClienteDetailPage({ params }: { params: { id: string } }): Promise<JSX.Element> {
+export default async function ClienteDetailPage(props: { params: Promise<{ id: string }> }): Promise<JSX.Element> {
+  const params = await props.params;
   const supabase = createSupabaseServerClient();
   const client = await getClientService(supabase)
     .getById(params.id)

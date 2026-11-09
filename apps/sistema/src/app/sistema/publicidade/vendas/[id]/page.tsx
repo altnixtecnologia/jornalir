@@ -18,7 +18,8 @@ import { listReceivablesForCommercialSalesSupabase } from "../../../../../provid
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
-export default async function CommercialSaleDetailPage({ params }: { params: { id: string } }): Promise<JSX.Element> {
+export default async function CommercialSaleDetailPage(props: { params: Promise<{ id: string }> }): Promise<JSX.Element> {
+  const params = await props.params;
   const supabase = createSupabaseServerClient();
   const sale = await getCommercialSaleService(supabase)
     .getById(params.id)

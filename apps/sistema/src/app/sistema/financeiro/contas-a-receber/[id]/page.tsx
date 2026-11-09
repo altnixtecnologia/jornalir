@@ -37,7 +37,8 @@ function Field({ label, value }: { label: string; value?: ReactNode }): JSX.Elem
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
-export default async function ReceivableDetailPage({ params }: { params: { id: string } }): Promise<JSX.Element> {
+export default async function ReceivableDetailPage(props: { params: Promise<{ id: string }> }): Promise<JSX.Element> {
+  const params = await props.params;
   const supabase = createSupabaseServerClient();
   const receivableService = getReceivableService(supabase);
   const receivable = await receivableService.getById(params.id).catch((error: unknown) => {

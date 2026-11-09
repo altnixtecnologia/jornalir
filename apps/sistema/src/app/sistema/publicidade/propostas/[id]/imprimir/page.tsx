@@ -24,7 +24,8 @@ export const revalidate = 0;
  * globals.css, nenhuma dependência nova). "Preparar para PDF" aqui é o
  * "imprimir como PDF" nativo do navegador — HTML real, não captura de tela.
  */
-export default async function CommercialProposalPrintPage({ params }: { params: { id: string } }): Promise<JSX.Element> {
+export default async function CommercialProposalPrintPage(props: { params: Promise<{ id: string }> }): Promise<JSX.Element> {
+  const params = await props.params;
   const supabase = createSupabaseServerClient();
   const proposal = await getCommercialProposalService(supabase)
     .getWithItems(params.id)

@@ -26,11 +26,12 @@ export const revalidate = 0;
  * infra de impressão (cartela, quebra de página, sem menu) está pronta;
  * o modelo final depende de uma amostra que o usuário vai enviar.
  */
-export default async function RecibosPrintPage({
-  searchParams,
-}: {
-  searchParams?: Record<string, string | string[] | undefined>;
-}): Promise<JSX.Element> {
+export default async function RecibosPrintPage(
+  props: {
+    searchParams?: Promise<Record<string, string | string[] | undefined>>;
+  }
+): Promise<JSX.Element> {
+  const searchParams = await props.searchParams;
   const supabase = createSupabaseServerClient();
   const idsParam = one(searchParams?.ids);
   const statusParam = one(searchParams?.status);

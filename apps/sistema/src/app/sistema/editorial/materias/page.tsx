@@ -65,11 +65,12 @@ function asDateOnly(value: string): string {
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
-export default async function MateriasPage({
-  searchParams,
-}: {
-  searchParams?: Record<string, string | string[] | undefined>;
-}): Promise<JSX.Element> {
+export default async function MateriasPage(
+  props: {
+    searchParams?: Promise<Record<string, string | string[] | undefined>>;
+  }
+): Promise<JSX.Element> {
+  const searchParams = await props.searchParams;
   const supabase = createSupabaseServerClient();
   const filters: MateriasListFilters = {
     q: one(searchParams?.q).trim(),

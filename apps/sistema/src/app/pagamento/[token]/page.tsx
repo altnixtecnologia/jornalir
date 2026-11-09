@@ -14,11 +14,12 @@ function dateTime(value: string | null): string | null {
   return new Date(value).toLocaleString("pt-BR");
 }
 
-export default async function PublicPaymentPage({
-  params,
-}: {
-  params: { token: string };
-}): Promise<JSX.Element> {
+export default async function PublicPaymentPage(
+  props: {
+    params: Promise<{ token: string }>;
+  }
+): Promise<JSX.Element> {
+  const params = await props.params;
   const admin = createSupabaseAdminClient();
   const { data, error } = await admin
     .from("payment_charges")

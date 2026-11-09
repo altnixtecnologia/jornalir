@@ -22,7 +22,8 @@ export const revalidate = 0;
  * conferida de novo, no servidor, em cancellation-actions.ts (nunca
  * confia só na navegação ter chegado até esta página).
  */
-export default async function NfseNotaDetailPage({ params }: { params: { id: string } }): Promise<JSX.Element> {
+export default async function NfseNotaDetailPage(props: { params: Promise<{ id: string }> }): Promise<JSX.Element> {
+  const params = await props.params;
   const supabase = createSupabaseServerClient();
   const note = await createIssuedNoteRepositorySupabase(supabase).getById(params.id);
   if (!note) notFound();

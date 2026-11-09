@@ -43,7 +43,8 @@ function formatDate(iso?: string): string {
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
-export default async function ContractDetailPage({ params }: { params: { id: string } }): Promise<JSX.Element> {
+export default async function ContractDetailPage(props: { params: Promise<{ id: string }> }): Promise<JSX.Element> {
+  const params = await props.params;
   const supabase = createSupabaseServerClient();
   const contractService = getContractService(supabase);
   const contract = await contractService.getById(params.id).catch((error: unknown) => {

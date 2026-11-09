@@ -27,11 +27,12 @@ export const revalidate = 0;
  * padrão já usado no relatório financeiro — print-report/PrintButton
  * reaproveitados, nenhuma dependência nova de PDF).
  */
-export default async function CommercialSalesPrintPage({
-  searchParams,
-}: {
-  searchParams?: Record<string, string | string[] | undefined>;
-}): Promise<JSX.Element> {
+export default async function CommercialSalesPrintPage(
+  props: {
+    searchParams?: Promise<Record<string, string | string[] | undefined>>;
+  }
+): Promise<JSX.Element> {
+  const searchParams = await props.searchParams;
   const supabase = createSupabaseServerClient();
   const status = one(searchParams?.status);
 

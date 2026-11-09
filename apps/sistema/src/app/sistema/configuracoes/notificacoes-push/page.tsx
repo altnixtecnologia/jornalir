@@ -7,11 +7,12 @@ import { NativeFcmTestPanel, type NativeFcmTestDevice } from "./NativeFcmTestPan
 
 export const dynamic = "force-dynamic";
 
-export default async function PushEditorialPage({
-  searchParams,
-}: {
-  searchParams?: { article_id?: string; kind?: string };
-}): Promise<JSX.Element> {
+export default async function PushEditorialPage(
+  props: {
+    searchParams?: Promise<{ article_id?: string; kind?: string }>;
+  }
+): Promise<JSX.Element> {
+  const searchParams = await props.searchParams;
   const client = createSupabaseServerClient();
   const { data: { user } } = await client.auth.getUser();
   if (!user) redirect("/login");

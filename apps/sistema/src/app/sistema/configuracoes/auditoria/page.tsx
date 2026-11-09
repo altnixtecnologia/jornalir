@@ -43,11 +43,12 @@ function sortHeaderLink(
   );
 }
 
-export default async function AuditoriaPage({
-  searchParams,
-}: {
-  searchParams?: Record<string, string | string[] | undefined>;
-}): Promise<JSX.Element> {
+export default async function AuditoriaPage(
+  props: {
+    searchParams?: Promise<Record<string, string | string[] | undefined>>;
+  }
+): Promise<JSX.Element> {
+  const searchParams = await props.searchParams;
   const client = createSupabaseServerClient();
   const {
     data: { user },

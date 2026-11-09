@@ -29,11 +29,12 @@ export const revalidate = 0;
  * recebimento VÁLIDO, útil pra conferência diária/mensal de caixa.
  * Área de filtros recolhível, mesmo padrão da tela de Relatórios geral.
  */
-export default async function RelatorioRecebimentosPage({
-  searchParams,
-}: {
-  searchParams?: Record<string, string | string[] | undefined>;
-}): Promise<JSX.Element> {
+export default async function RelatorioRecebimentosPage(
+  props: {
+    searchParams?: Promise<Record<string, string | string[] | undefined>>;
+  }
+): Promise<JSX.Element> {
+  const searchParams = await props.searchParams;
   const supabase = createSupabaseServerClient();
   const clientId = one(searchParams?.clientId);
   const contractId = one(searchParams?.contractId);

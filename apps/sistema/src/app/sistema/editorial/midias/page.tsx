@@ -46,11 +46,12 @@ async function buildUsageByMediaId(
   return usage;
 }
 
-export default async function MidiasPage({
-  searchParams,
-}: {
-  searchParams?: Record<string, string | string[] | undefined>;
-}): Promise<JSX.Element> {
+export default async function MidiasPage(
+  props: {
+    searchParams?: Promise<Record<string, string | string[] | undefined>>;
+  }
+): Promise<JSX.Element> {
+  const searchParams = await props.searchParams;
   const supabase = createSupabaseServerClient();
   const q = one(searchParams?.q).trim();
   const page = Math.max(1, Number(one(searchParams?.page)) || 1);

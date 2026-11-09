@@ -11,7 +11,8 @@ import { createSupabaseServerClient } from "../../../../../lib/supabase/server";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
-export default async function CommercialProposalDetailPage({ params }: { params: { id: string } }): Promise<JSX.Element> {
+export default async function CommercialProposalDetailPage(props: { params: Promise<{ id: string }> }): Promise<JSX.Element> {
+  const params = await props.params;
   const supabase = createSupabaseServerClient();
   const proposal = await getCommercialProposalService(supabase)
     .getWithItems(params.id)

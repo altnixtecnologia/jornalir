@@ -5,7 +5,8 @@ import { clientCompletionTokenUsable, findClientCompletionToken } from "../../..
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
-export default async function ClientCompletionPage({ params }: { params: { token: string } }): Promise<JSX.Element> {
+export default async function ClientCompletionPage(props: { params: Promise<{ token: string }> }): Promise<JSX.Element> {
+  const params = await props.params;
   const row = await findClientCompletionToken(params.token);
   if (!row) notFound();
 

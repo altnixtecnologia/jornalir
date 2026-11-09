@@ -29,11 +29,12 @@ export const revalidate = 0;
  * (PDF/Excel) nesta fase. A consulta já distingue valor originalmente
  * lançado, recebido, descontos/abatimentos e saldo em aberto.
  */
-export default async function RelatoriosPage({
-  searchParams,
-}: {
-  searchParams?: Record<string, string | string[] | undefined>;
-}): Promise<JSX.Element> {
+export default async function RelatoriosPage(
+  props: {
+    searchParams?: Promise<Record<string, string | string[] | undefined>>;
+  }
+): Promise<JSX.Element> {
+  const searchParams = await props.searchParams;
   const supabase = createSupabaseServerClient();
   const status = one(searchParams?.status);
   const sourceType = one(searchParams?.sourceType);

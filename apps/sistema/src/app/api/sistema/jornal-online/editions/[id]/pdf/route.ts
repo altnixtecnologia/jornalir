@@ -5,10 +5,11 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 interface RouteParams {
-  params: { id: string };
+  params: Promise<{ id: string }>;
 }
 
-export async function GET(request: Request, { params }: RouteParams): Promise<Response> {
+export async function GET(request: Request, props: RouteParams): Promise<Response> {
+  const params = await props.params;
   return handleEditionPdfProxyRequest({
     editionId: params.id,
     method: "GET",
@@ -16,7 +17,8 @@ export async function GET(request: Request, { params }: RouteParams): Promise<Re
   });
 }
 
-export async function HEAD(request: Request, { params }: RouteParams): Promise<Response> {
+export async function HEAD(request: Request, props: RouteParams): Promise<Response> {
+  const params = await props.params;
   return handleEditionPdfProxyRequest({
     editionId: params.id,
     method: "HEAD",

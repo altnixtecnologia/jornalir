@@ -13,10 +13,8 @@ function deny(message:string,status:number):Response {
 }
 const uuid=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-export async function GET(
-  _request:Request,
-  {params}:{params:{id:string;documentId:string}},
-):Promise<Response> {
+export async function GET(_request:Request, props:{params: Promise<{id:string;documentId:string}>}):Promise<Response> {
+  const params = await props.params;
   if(!uuid.test(params.id)||!uuid.test(params.documentId)) return deny("Documento inválido.",400);
   const supabase=createSupabaseServerClient();
   const [denied,{data:financeAllowed,error:financeError}] = await Promise.all([

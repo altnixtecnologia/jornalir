@@ -9,9 +9,8 @@ import {
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-export async function GET(_request: Request, {
-  params,
-}: { params: { token: string } }): Promise<NextResponse> {
+export async function GET(_request: Request, props: { params: Promise<{ token: string }> }): Promise<NextResponse> {
+  const params = await props.params;
   const denied = () => NextResponse.json({ error: "Documento indisponível." },
     { status: 404, headers: { "Cache-Control": "no-store" } });
   const invitation = await findSignatureInvitation(params.token);

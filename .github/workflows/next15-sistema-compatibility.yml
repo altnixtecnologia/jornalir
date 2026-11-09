@@ -1,0 +1,82 @@
+name: Experimento Next 15 seguro (sistema, sem alterar produção)
+
+on:
+  push:
+    branches:
+      - security/next15-system-20261108
+    paths:
+      - ".github/workflows/next15-sistema-compatibility.yml"
+      - "apps/sistema/src/features/agenda/AgendaWorkspace.tsx"
+      - "apps/sistema/test/agenda-pauta-navigation.test.ts"
+      - "apps/sistema/src/lib/supabase/server.ts"
+      - "apps/sistema/src/app/assinar-contrato-comercial/actions.ts"
+      - "apps/sistema/src/app/sistema/financeiro/contratos/signature-actions.ts"
+      - "apps/sistema/src/types/react19-jsx-compat.d.ts"
+      - "apps/sistema/next.config.mjs"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  next15-compatibility:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
+      NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ci-publishable-key
+      SIGNATURE_DELIVERY_ENABLED: "false"
+      NEXT_TELEMETRY_DISABLED: "1"
+    steps:
+      - name: Checkout apenas em CI
+        uses: actions/checkout@v4
+
+      - name: Node 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+
+      - name: Instalar dependências originais
+        run: npm ci --no-audit --no-fund
+
+      - name: Testar instalação do Next 15 e React 19 apenas neste runner
+        run: |
+          node - <<'NODE'
+          const fs = require("node:fs");
+          const file = "apps/sistema/package.json";
+          const manifest = JSON.parse(fs.readFileSync(file, "utf8"));
+          Object.assign(manifest.dependencies, {
+            next: "15.5.29", react: "19.1.10", "react-dom": "19.1.10"
+          });
+          Object.assign(manifest.devDependencies, {
+            "@types/react": "^19.0.0", "@types/react-dom": "^19.0.0"
+          });
+          fs.writeFileSync(file, JSON.stringify(manifest, null, 2));
+          NODE
+          npm install --no-package-lock --no-save --no-audit --no-fund
+          node -e "const p=require(require.resolve('next/package.json',{paths:[require('path').resolve('apps/sistema')]})); console.log('Next no workspace: '+p.version); if(p.version!=='15.5.29')process.exit(1)"
+          echo "Alterações descartadas ao fim do job; branch original intacta."
+
+      - name: Migrar params e searchParams no runner descartável
+        run: |
+          npx --yes @next/codemod@15.5.29 next-async-request-api apps/sistema/src/app --force
+          # Falso positivo conhecido: rota FCM só reexporta métodos de native-push.
+          # Os handlers não usam props de rota; preservar o arquivo intacto.
+          git restore --source=HEAD -- apps/sistema/src/app/api/public/push/fcm/route.ts
+          echo "### Arquivos modificados pelo codemod"
+          git status --short apps/sistema/src/app | head -90
+          echo "### Pendências que exigem intervenção humana"
+          if grep -R -n '@next-codemod-error' apps/sistema/src/app --include='*.ts' --include='*.tsx'; then
+            echo "Codemod deixou pendências; revisar antes de incorporar." >&2
+            exit 1
+          fi
+
+      - name: Verificar TypeScript do sistema
+        run: npm run typecheck --workspace @ir/sistema
+
+      - name: Verificar navegação Agenda/Pauta no desktop
+        run: npx tsx --test apps/sistema/test/agenda-pauta-navigation.test.ts
+
+      - name: Build sistema com Next 15 no CI
+        run: npm run build --workspace @ir/sistema

@@ -7,11 +7,12 @@ function one(value: string | string[] | undefined): string {
   return Array.isArray(value) ? value[0] ?? "" : value ?? "";
 }
 
-export default async function PautaPage({
-  searchParams,
-}: {
-  searchParams?: Record<string, string | string[] | undefined>;
-}): Promise<JSX.Element> {
+export default async function PautaPage(
+  props: {
+    searchParams?: Promise<Record<string, string | string[] | undefined>>;
+  }
+): Promise<JSX.Element> {
+  const searchParams = await props.searchParams;
   const focusDate = normalizeAgendaDate(one(searchParams?.date));
   const data = await loadAgendaWorkspaceData(focusDate);
 

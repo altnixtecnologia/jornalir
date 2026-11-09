@@ -8,11 +8,12 @@ import {
 import { createSupabaseServerClient } from "../../../../../lib/supabase/server";
 import { listRecentMediaAssetsSupabase } from "../../../../../providers/supabase/mediaAssetRepository.supabase";
 
-export default async function NovaMateriaPage({
-  searchParams,
-}: {
-  searchParams?: Record<string, string | string[] | undefined>;
-}): Promise<JSX.Element> {
+export default async function NovaMateriaPage(
+  props: {
+    searchParams?: Promise<Record<string, string | string[] | undefined>>;
+  }
+): Promise<JSX.Element> {
+  const searchParams = await props.searchParams;
   const rawPautaId = searchParams?.pauta;
   const pautaId = typeof rawPautaId === "string" && /^[0-9a-f-]{36}$/i.test(rawPautaId) ? rawPautaId : null;
   const supabase = createSupabaseServerClient();

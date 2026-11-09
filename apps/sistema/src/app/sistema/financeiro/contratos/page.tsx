@@ -14,11 +14,12 @@ function one(value: string | string[] | undefined): string {
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
-export default async function ContratosPage({
-  searchParams,
-}: {
-  searchParams?: Record<string, string | string[] | undefined>;
-}): Promise<JSX.Element> {
+export default async function ContratosPage(
+  props: {
+    searchParams?: Promise<Record<string, string | string[] | undefined>>;
+  }
+): Promise<JSX.Element> {
+  const searchParams = await props.searchParams;
   const supabase = createSupabaseServerClient();
   const status = one(searchParams?.status);
 

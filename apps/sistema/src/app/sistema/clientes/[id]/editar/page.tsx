@@ -6,7 +6,8 @@ import { ClientForm } from "../../../../../features/clientes/ClientForm";
 import { getClientService } from "../../../../../composition/clientes";
 import { createSupabaseServerClient } from "../../../../../lib/supabase/server";
 
-export default async function EditarClientePage({ params }: { params: { id: string } }): Promise<JSX.Element> {
+export default async function EditarClientePage(props: { params: Promise<{ id: string }> }): Promise<JSX.Element> {
+  const params = await props.params;
   const supabase = createSupabaseServerClient();
   const client = await getClientService(supabase)
     .getById(params.id)

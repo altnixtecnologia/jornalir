@@ -1,5 +1,5 @@
 import "server-only";
-import { cookies } from "next/headers";
+import { cookies, type UnsafeUnwrappedCookies } from "next/headers";
 import { createServerClient } from "@supabase/ssr";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { getSupabasePublicEnv } from "./env";
@@ -14,7 +14,10 @@ import { getSupabasePublicEnv } from "./env";
  */
 export function createSupabaseServerClient(): SupabaseClient {
   const { url, publishableKey } = getSupabasePublicEnv();
-  const cookieStore = cookies();
+  // Transição Next 15: a fábrica é usada por rotas/actions síncronas antigas.
+  // Next 15 ainda suporta acesso síncrono. Migrar gradualmente para await cookies()
+  // antes de adotar Next 16 (que remove a compatibilidade).
+  const cookieStore = cookies() as unknown as UnsafeUnwrappedCookies;
 
   return createServerClient(url, publishableKey, {
     cookies: {
