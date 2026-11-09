@@ -898,7 +898,7 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
           </div>
 
           {data.access.pautaWrite ? <details className="pauta-create-panel" id="pauta-create-panel">
-            <summary><span className="pauta-create-label">＋ Nova pauta</span><span>Toque para cadastrar</span></summary>
+            <summary>＋ Nova pauta <span>Toque para cadastrar</span></summary>
             <form className="pauta-quick-form" key={data.weekStart} onSubmit={(event) => {
               event.preventDefault();
               const form = event.currentTarget;
