@@ -590,6 +590,7 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
             }}>Ver atrasados</button>
         </div>
       ) : null}
+      {initialView === "agenda" ? (
       <div className="agenda-topbar">
         <div className="agenda-tabs" role="tablist" aria-label="Agenda e pauta">
           {data.access.agendaRead ? <button type="button" className={initialView === "agenda" ? "is-active" : ""} onClick={() => navigate("agenda", data.focusDate)}>Agenda</button> : null}
@@ -609,6 +610,7 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
           <button type="button" className="agenda-top-add" onClick={openCreate}>{initialView === "agenda" ? "+ Compromisso" : "+ Nova pauta"}</button>
         ) : null}
       </div>
+      ) : null}
 
       {remoteChanges ? (
         <div className="agenda-remote-notice agenda-remote-notice--floating" role="status" aria-live="polite">
@@ -820,14 +822,68 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
         </div>
       ) : (
         <div className="pauta-layout">
-          <div className="pauta-week-head">
-            <button type="button" onClick={() => moveWeek(-1)} aria-label="Semana anterior">‹</button>
-            <div><p className="eyebrow">PAUTA DA SEMANA</p><h2>{shortDate(data.weekStart)} a {shortDate(data.weekEnd)}</h2></div>
-            <button type="button" onClick={() => moveWeek(1)} aria-label="Próxima semana">›</button>
+          <div className="pauta-toolbar">
+            <div className="agenda-tabs" role="tablist" aria-label="Agenda e pauta">
+              {data.access.agendaRead ? <button type="button" onClick={() => navigate("agenda", data.focusDate)}>Agenda</button> : null}
+              {data.access.pautaRead ? <button type="button" className="is-active" aria-current="page">Pauta da semana</button> : null}
+            </div>
+            <div className="pauta-toolbar-period">
+              <button type="button" className="pauta-week-arrow" onClick={() => moveWeek(-1)} aria-label="Semana anterior">‹</button>
+              <div className="pauta-toolbar-dates">
+                <strong>{shortDate(data.periodStart)} a {shortDate(data.periodEnd)}</strong>
+                <small>{data.periodEdited ? "PERÍODO ESPECIAL" : "QUI – QUA"}</small>
+              </div>
+              <button type="button" className="pauta-week-arrow" onClick={() => moveWeek(1)} aria-label="Próxima semana">›</button>
+              {data.access.pautaWrite ? <button type="button" className="pauta-period-pencil" aria-expanded={isPeriodEditorOpen}
+                aria-label="Editar as datas somente desta semana" title="Alterar período para toda a equipe"
+                onClick={() => setIsPeriodEditorOpen((open) => !open)}>✎</button> : null}
+            </div>
+            <label className="agenda-person-filter pauta-toolbar-filter">
+              <span>Mostrar</span>
+              <select aria-label="Filtrar por responsável" value={responsibleFilter} onChange={(event) => setResponsibleFilter(event.target.value)}>
+                <option value="">Toda a equipe</option>
+                <option value={data.currentUserId}>Somente meus itens</option>
+                {data.profiles.filter((profile) => profile.id !== data.currentUserId).map((profile) => (
+                  <option key={profile.id} value={profile.id}>{profile.name}</option>
+                ))}
+              </select>
+            </label>
           </div>
-
+          {isPeriodEditorOpen && data.access.pautaWrite ? (
+            <form className="pauta-period-form" key={data.weekStart}
+              onSubmit={(event) => {
+                event.preventDefault();
+                const form = event.currentTarget;
+                run(() => savePautaPeriodAction(new FormData(form)), "Período atualizado para toda a equipe.", () => setIsPeriodEditorOpen(false));
+              }}>
+              <strong>Ajustar apenas esta semana</strong>
+              <p>O padrão das outras semanas permanece de quinta a quarta. As pautas já cadastradas são preservadas.</p>
+              <input type="hidden" name="week_start" value={data.weekStart} />
+              <div className="pauta-period-fields">
+                <label>Início <input type="date" name="period_start" defaultValue={data.periodStart}
+                  min={addDays(data.weekStart,-3)} max={addDays(data.weekStart,6)} required /></label>
+                <label>Fim <input type="date" name="period_end" defaultValue={data.periodEnd}
+                  min={addDays(data.weekStart,-3)} max={addDays(data.weekStart,10)} required /></label>
+              </div>
+              <label className="pauta-period-reason">Motivo da exceção
+                <input name="reason" maxLength={300} defaultValue={data.periodReason ?? ""}
+                  placeholder="Ex.: fechamento antecipado da edição" /></label>
+              <div className="pauta-period-actions">
+                {data.periodEdited ? <button type="button" disabled={isPending} onClick={() => {
+                  const reset = new FormData();
+                  reset.set("week_start", data.weekStart);
+                  reset.set("period_start", data.weekStart);
+                  reset.set("period_end", data.weekEnd);
+                  reset.set("reason", "Restaurar período padrão");
+                  run(() => savePautaPeriodAction(reset), "Semana restaurada ao padrão.", () => setIsPeriodEditorOpen(false));
+                }}>Restaurar padrão</button> : null}
+                <button type="button" onClick={() => setIsPeriodEditorOpen(false)}>Cancelar</button>
+                <button type="submit" className="agenda-primary" disabled={isPending}>Salvar para todos</button>
+              </div>
+            </form>
+          ) : null}
           <div className="pauta-actions-row">
-            <button type="button" onClick={() => navigate("pauta", data.today)}>Semana atual</button>
+            <button type="button" className="pauta-week-current" onClick={() => navigate("pauta", data.today)}>Semana atual</button>
             <span>{pautaItems.filter((item) => item.status === "pending").length} pendente(s)</span>
           </div>
 
