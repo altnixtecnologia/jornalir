@@ -1,0 +1,51 @@
+name: Conferir portal com lockfile do sistema Next 15 (sem deploy)
+
+on:
+  push:
+    branches:
+      - security/next15-system-20261108
+    paths:
+      - ".github/workflows/validate-next15-workspaces.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  portal-compatibility:
+    runs-on: ubuntu-latest
+    timeout-minutes: 13
+    env:
+      NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
+      NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ci-publishable-key
+      NEXT_TELEMETRY_DISABLED: "1"
+    steps:
+      - name: Checkout do branch isolado
+        uses: actions/checkout@v4
+      - name: Node 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+      - name: Instalação reproduzível de todos os workspaces
+        run: npm ci --no-audit --no-fund
+      - name: Conferir isolamentos de versões entre Portal e Sistema
+        run: |
+          node - <<'NODE'
+          const path = require("node:path");
+          for (const [workspace,nextMajor,reactMajor] of [
+            ["apps/site","14","18"],
+            ["apps/sistema","15","19"],
+          ]) {
+            const home=path.resolve(workspace);
+            const next=require(require.resolve("next/package.json",{paths:[home]})).version;
+            const react=require(require.resolve("react/package.json",{paths:[home]})).version;
+            console.log(workspace+": Next "+next+" / React "+react);
+            if (!next.startsWith(nextMajor+".") || !react.startsWith(reactMajor+".")) {
+              throw new Error("Isolamento Next/React inválido em "+workspace);
+            }
+          }
+          NODE
+      - name: TypeScript do Portal
+        run: npm run typecheck --workspace @ir/site
+      - name: Build completo do Portal com lockfile compartilhado
+        run: npm run build --workspace @ir/site
