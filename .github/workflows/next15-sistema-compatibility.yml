@@ -40,7 +40,7 @@ jobs:
           const file = "apps/sistema/package.json";
           const manifest = JSON.parse(fs.readFileSync(file, "utf8"));
           Object.assign(manifest.dependencies, {
-            next: "15.5.18", react: "19.1.7", "react-dom": "19.1.7"
+            next: "15.5.29", react: "19.1.10", "react-dom": "19.1.10"
           });
           Object.assign(manifest.devDependencies, {
             "@types/react": "^19.0.0", "@types/react-dom": "^19.0.0"
@@ -48,7 +48,7 @@ jobs:
           fs.writeFileSync(file, JSON.stringify(manifest, null, 2));
           NODE
           npm install --no-package-lock --no-save --no-audit --no-fund
-          node -e "const p=require(require.resolve('next/package.json',{paths:[require('path').resolve('apps/sistema')]})); console.log('Next no workspace: '+p.version); if(p.version!=='15.5.18')process.exit(1)"
+          node -e "const p=require(require.resolve('next/package.json',{paths:[require('path').resolve('apps/sistema')]})); console.log('Next no workspace: '+p.version); if(p.version!=='15.5.29')process.exit(1)"
           echo "Alterações descartadas ao fim do job; branch original intacta."
 
       - name: Verificar TypeScript do sistema
