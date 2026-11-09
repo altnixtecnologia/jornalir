@@ -2,7 +2,7 @@ import "server-only";
 import { redirect } from "next/navigation";
 
 import { createSupabaseServerClient } from "../../lib/supabase/server";
-import type { AgendaEventItem, AgendaProfile, AgendaWorkspaceData, EventCoverage, PendingMeetingInvitation, WeeklyPautaItem } from "./agendaTypes";
+import type { AgendaEventItem, AgendaProfile, AgendaWorkspaceData, CoverageTeamMember, CoverageTeamTransfer, EventCoverage, PendingMeetingInvitation, WeeklyPautaItem } from "./agendaTypes";
 import { startOfPautaWeek } from "./pautaPeriod";
 
 export const AGENDA_TIMEZONE = "America/Sao_Paulo";
@@ -171,7 +171,7 @@ export async function loadAgendaWorkspaceData(focusDate: string): Promise<Agenda
   // do status de presença de um compromisso comum.
   const coverageResult = eventIds.length
     ? await supabase.from("event_coverages")
-      .select("event_id,attendance_owner_id,article_owner_id,attendance_status,attendance_at,article_status,article_completed_at,article_due_at,task_label,task_status,task_completed_at,audible_minutes,checkin_minutes,revision")
+      .select("event_id,attendance_owner_id,article_owner_id,attendance_status,attendance_at,article_status,article_completed_at,article_due_at,task_label,task_status,task_completed_at,team_mode,audible_minutes,checkin_minutes,revision")
       .in("event_id",eventIds)
     : { data: [],error:null };
   if (coverageResult.error) throw new Error(coverageResult.error.message);
@@ -183,11 +183,47 @@ export async function loadAgendaWorkspaceData(focusDate: string): Promise<Agenda
     : { data: [],error:null };
   if (transferResult.error) throw new Error(transferResult.error.message);
   const transferByEvent = new Map((transferResult.data ?? []).map((t) => [t.event_id,t]));
+  const teamEventIds=(coverageResult.data??[]).filter(v=>v.team_mode).map(v=>v.event_id);
+  const [membersResult,teamTransfersResult]=await Promise.all([
+    teamEventIds.length?supabase.from("event_coverage_members")
+      .select("event_id,profile_id,field_task,field_completed_at,attendance_response,attendance_responded_at")
+      .in("event_id",teamEventIds):Promise.resolve({data:[],error:null}),
+    teamEventIds.length?supabase.from("event_coverage_member_transfers")
+      .select("id,event_id,from_profile_id,to_profile_id,transfer_part,reason,requested_by")
+      .in("event_id",teamEventIds).eq("status","pending"):Promise.resolve({data:[],error:null}),
+  ]);
+  if(membersResult.error)throw new Error(membersResult.error.message);
+  if(teamTransfersResult.error)throw new Error(teamTransfersResult.error.message);
+  const membersByEvent=new Map<string,CoverageTeamMember[]>();
+  for(const entry of membersResult.data??[]){
+    const list=membersByEvent.get(entry.event_id)??[];
+    list.push({
+      profileId:entry.profile_id,fieldTask:entry.field_task,
+      fieldCompletedAt:entry.field_completed_at,
+      attendanceResponse:entry.attendance_response as CoverageTeamMember["attendanceResponse"],
+      attendanceRespondedAt:entry.attendance_responded_at,
+    });
+    membersByEvent.set(entry.event_id,list);
+  }
+  const teamTransfersByEvent=new Map<string,CoverageTeamTransfer[]>();
+  for(const entry of teamTransfersResult.data??[]){
+    const list=teamTransfersByEvent.get(entry.event_id)??[];
+    list.push({
+      id:entry.id,fromProfileId:entry.from_profile_id,toProfileId:entry.to_profile_id,
+      part:entry.transfer_part as CoverageTeamTransfer["part"],
+      reason:entry.reason,requestedBy:entry.requested_by,
+    });
+    teamTransfersByEvent.set(entry.event_id,list);
+  }
+
   const coverageByEvent = new Map<string,EventCoverage>();
   for(const row of coverageResult.data ?? []){
     const pending = transferByEvent.get(row.event_id);
     coverageByEvent.set(row.event_id,{
       eventId:row.event_id,
+      teamMode:row.team_mode,
+      members:membersByEvent.get(row.event_id)??[],
+      pendingTeamTransfers:teamTransfersByEvent.get(row.event_id)??[],
       attendanceOwnerId:row.attendance_owner_id,
       articleOwnerId:row.article_owner_id,
       attendanceStatus:row.attendance_status as EventCoverage["attendanceStatus"],
@@ -285,8 +321,12 @@ export async function loadAgendaWorkspaceData(focusDate: string): Promise<Agenda
     agendaEventTitle: linked?.title ?? null,
     coverage: linked?.coverage ?? (item.agenda_event_id ? coverageByEvent.get(item.agenda_event_id) ?? null : null),
     articleId: item.article_id,
-    status: linked ? (linked.status === "scheduled" ? "pending" : linked.status) : item.status as WeeklyPautaItem["status"],
-    completedAt: linked?.completedAt ?? item.completed_at,
+    // A presença fecha a Agenda; a Pauta mantém o status próprio de entregas.
+    status: linked?.coverage?.teamMode
+      ? item.status as WeeklyPautaItem["status"]
+      : linked ? (linked.status === "scheduled" ? "pending" : linked.status)
+      : item.status as WeeklyPautaItem["status"],
+    completedAt: linked?.coverage?.teamMode ? item.completed_at : linked?.completedAt ?? item.completed_at,
     assignees: linked?.assignees ?? [],
     updatedAt: linked?.updatedAt ?? item.updated_at,
   };
