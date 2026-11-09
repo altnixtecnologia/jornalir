@@ -17,8 +17,13 @@ const LABELS={
   cancelled:"CANCELADA",
 } as const;
 
-export function PautaTvBoard({snapshot}:{snapshot:TvPautaSnapshot}):JSX.Element {
+export function PautaTvBoard({snapshot,deviceMode=false}:{
+  snapshot:TvPautaSnapshot;deviceMode?:boolean;
+}):JSX.Element {
   const router=useRouter();
+  const [deviceSnapshot,setDeviceSnapshot]=useState(snapshot);
+  const activeSnapshot=deviceMode?deviceSnapshot:snapshot;
+  useEffect(()=>{setDeviceSnapshot(snapshot);},[snapshot]);
   const [height,setHeight]=useState(0);
   const [page,setPage]=useState(0);
   const [connected,setConnected]=useState(true);
@@ -27,13 +32,13 @@ export function PautaTvBoard({snapshot}:{snapshot:TvPautaSnapshot}):JSX.Element 
   const timeoutRef=useRef<ReturnType<typeof setTimeout>|null>(null);
 
   const pagination=useMemo(
-    ()=>calculateTvPagination(height,snapshot.cards.length),
-    [height,snapshot.cards.length],
+    ()=>calculateTvPagination(height,activeSnapshot.cards.length),
+    [height,activeSnapshot.cards.length],
   );
   const currentPage=Math.min(page,pagination.pages-1);
   const visible=pagination.perPage===0?[]:
-    snapshot.cards.slice(currentPage*pagination.perPage,(currentPage+1)*pagination.perPage);
-  const progress=snapshot.total===0?0:Math.round(snapshot.completed/snapshot.total*100);
+    activeSnapshot.cards.slice(currentPage*pagination.perPage,(currentPage+1)*pagination.perPage);
+  const progress=activeSnapshot.total===0?0:Math.round(activeSnapshot.completed/activeSnapshot.total*100);
 
   useEffect(()=>{
     const node=listRef.current;
@@ -57,7 +62,7 @@ export function PautaTvBoard({snapshot}:{snapshot:TvPautaSnapshot}):JSX.Element 
 
   useEffect(()=>{
     setPage(0);
-  },[snapshot.weekStart,pagination.perPage]);
+  },[activeSnapshot.weekStart,pagination.perPage]);
 
   useEffect(()=>{
     if(pagination.pages<=1)return;
@@ -66,6 +71,39 @@ export function PautaTvBoard({snapshot}:{snapshot:TvPautaSnapshot}):JSX.Element 
   },[pagination.pages]);
 
   useEffect(()=>{
+    if(!deviceMode)return;
+    let disposed=false;
+    let fetching=false;
+    async function refresh():Promise<void>{
+      if(disposed||fetching)return;
+      fetching=true;
+      try{
+        // 5 segundos para mudanças quase em tempo real, sem permissões de
+        // leitura para o banco no WebView. Sessão por cookie HttpOnly.
+        const selected=new URLSearchParams(window.location.search).get("date");
+        const url="/api/tv-pauta/snapshot"+(selected?"?date="+encodeURIComponent(selected):"");
+        const response=await fetch(url,{cache:"no-store",credentials:"same-origin"});
+        if(response.status===401){router.refresh();return;}
+        if(!response.ok)throw Error("Falha de conexão");
+        const next=(await response.json()) as TvPautaSnapshot;
+        if(!disposed){setDeviceSnapshot(next);setConnected(true);}
+      }catch{if(!disposed)setConnected(false);}
+      finally{fetching=false;}
+    }
+    const onOnline=()=>{void refresh();};
+    const onOffline=()=>setConnected(false);
+    const interval=setInterval(()=>{void refresh();},5000);
+    window.addEventListener("online",onOnline);
+    window.addEventListener("offline",onOffline);
+    return ()=>{
+      disposed=true;clearInterval(interval);
+      window.removeEventListener("online",onOnline);
+      window.removeEventListener("offline",onOffline);
+    };
+  },[deviceMode,router]);
+
+  useEffect(()=>{
+    if(deviceMode)return;
     // Sessão autenticada com permissões de Pauta (nunca service_role na TV).
     // Eventos chegam por Realtime; fallback a cada minuto cobre reconexões
     // e alterações feitas fora desta instância.
@@ -78,7 +116,7 @@ export function PautaTvBoard({snapshot}:{snapshot:TvPautaSnapshot}):JSX.Element 
         if(!stopped)router.refresh();
       },700);
     };
-    const channel=client.channel("tv-pauta-"+snapshot.weekStart)
+    const channel=client.channel("tv-pauta-"+activeSnapshot.weekStart)
       .on("postgres_changes",{event:"*",schema:"public",table:"weekly_pauta_items"},refresh)
       .on("postgres_changes",{event:"*",schema:"public",table:"agenda_events"},refresh)
       .on("postgres_changes",{event:"*",schema:"public",table:"agenda_event_assignees"},refresh)
@@ -104,7 +142,7 @@ export function PautaTvBoard({snapshot}:{snapshot:TvPautaSnapshot}):JSX.Element 
       window.removeEventListener("offline",onOffline);
       void client.removeChannel(channel);
     };
-  },[router,snapshot.weekStart]);
+  },[router,activeSnapshot.weekStart,deviceMode]);
 
   const toggleFullscreen=()=>{
     if(document.fullscreenElement){void document.exitFullscreen();return;}
@@ -117,15 +155,15 @@ export function PautaTvBoard({snapshot}:{snapshot:TvPautaSnapshot}):JSX.Element 
       <div className={styles.titleRow}>
         <div>
           <h1>FECHAMENTO DA EDIÇÃO</h1>
-          <p>PAUTA · {shortDate(snapshot.periodStart)} A {shortDate(snapshot.periodEnd)}</p>
+          <p>PAUTA · {shortDate(activeSnapshot.periodStart)} A {shortDate(activeSnapshot.periodEnd)}</p>
         </div>
         <button className={styles.fullscreen} title="Alternar tela cheia" aria-label="Alternar tela cheia"
           onClick={toggleFullscreen}>⛶</button>
       </div>
       <div className={styles.summary} aria-label="Resumo do fechamento">
-        <div><strong>{snapshot.total}</strong><span>Pautas</span></div>
-        <div><strong>{snapshot.completed}</strong><span>Concluídas</span></div>
-        <div><strong>{snapshot.pending}</strong><span>Pendentes</span></div>
+        <div><strong>{activeSnapshot.total}</strong><span>Pautas</span></div>
+        <div><strong>{activeSnapshot.completed}</strong><span>Concluídas</span></div>
+        <div><strong>{activeSnapshot.pending}</strong><span>Pendentes</span></div>
       </div>
       <div className={styles.progress} aria-label={progress+"% concluído"}>
         <span style={{width:progress+"%"}} />
