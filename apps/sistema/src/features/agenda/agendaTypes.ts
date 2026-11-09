@@ -1,5 +1,27 @@
+export type CoverageAttendance = "pending" | "present" | "not_required" | "unable";
+
+export interface CoverageTeamMember {
+  profileId: string;
+  fieldTask: string | null;
+  fieldCompletedAt: string | null;
+  attendanceResponse: CoverageAttendance;
+  attendanceRespondedAt: string | null;
+}
+
+export interface CoverageTeamTransfer {
+  id: string;
+  fromProfileId: string;
+  toProfileId: string;
+  part: "field" | "article" | "both";
+  reason: string;
+  requestedBy: string;
+}
+
 export interface EventCoverage {
   eventId: string;
+  teamMode: boolean;
+  members: CoverageTeamMember[];
+  pendingTeamTransfers: CoverageTeamTransfer[];
   attendanceOwnerId: string;
   articleOwnerId: string;
   attendanceStatus: "pending" | "on_way" | "present" | "absent";

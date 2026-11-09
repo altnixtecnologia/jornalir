@@ -18,6 +18,11 @@ import {
   finishCoverageFieldTaskAction,
   saveCoverageTaskLabelAction,
   saveAgendaAssigneeTaskAction,
+  answerCoverageAttendanceAction,
+  finishCoverageTeamTaskAction,
+  addCoverageTeamMemberAction,
+  requestCoverageTeamTransferAction,
+  respondCoverageTeamTransferAction,
   savePautaPeriodAction,
   setAgendaEventStatusAction,
   setPautaItemStatusAction,
@@ -276,22 +281,54 @@ function CoverageClockFields({eventTime,audible=60,checkin=5}:{
 
 function CoveragePeopleFields({profiles,currentUserId,eventTime}:{
   profiles:AgendaWorkspaceData["profiles"];currentUserId:string;eventTime:string;
-}):JSX.Element {
-  return <div className="coverage-config-fields">
-    <label className="agenda-field"><span>Quem vai ao evento / faz a cobertura?</span>
-      <select name="coverage_attendance_owner" defaultValue={currentUserId} required>
-        {profiles.map(p=><option value={p.id} key={p.id}>{p.name}</option>)}
-      </select></label>
-    <label className="agenda-field"><span>Quem produzirá a matéria?</span>
-      <select name="coverage_article_owner" defaultValue={currentUserId} required>
-        {profiles.map(p=><option value={p.id} key={p.id}>{p.name}</option>)}
-      </select></label>
-    <label className="agenda-field coverage-field-task"><span>Tarefa de quem vai ao evento</span>
-      <input name="coverage_task_label" list="agenda-task-suggestions" type="text" required
-        minLength={2} maxLength={80} defaultValue="Fotos / cobertura" placeholder="Ex.: Fotos, vídeo, entrevistas"/>
-    </label>
-    <CoverageClockFields eventTime={eventTime}/>
-    {!eventTime?<p className="helper-text coverage-clock-help">Informe o horário do evento primeiro para preencher os avisos automaticamente.</p>:null}
+}):JSX.Element{
+  const [crew,setCrew]=useState([{key:1,profileId:currentUserId,task:"Fotos / cobertura"}]);
+  const [counter,setCounter]=useState(2);
+  const unused=profiles.find(profile=>!crew.some(member=>member.profileId===profile.id));
+  const change=(key:number,field:"profileId"|"task",value:string)=>{
+    setCrew(rows=>rows.map(row=>row.key===key?{...row,[field]:value}:row));
+  };
+  return <div className="coverage-team-editor">
+    <div className="coverage-team-heading">
+      <strong>Quem vai ao evento?</strong>
+      <small>Uma pessoa por linha, com sua tarefa. Todos serão notificados.</small>
+    </div>
+    {crew.map((member,index)=><div className="coverage-team-row" key={member.key}>
+      <label className="agenda-field">
+        <span>Colaborador {index+1}</span>
+        <select value={member.profileId} required
+          onChange={event=>change(member.key,"profileId",event.currentTarget.value)}>
+          {profiles.map(profile=><option key={profile.id} value={profile.id}>{profile.name}</option>)}
+        </select>
+      </label>
+      <label className="agenda-field">
+        <span>O que fará?</span>
+        <input type="text" maxLength={80} minLength={2} required
+          list="agenda-task-suggestions" value={member.task}
+          onChange={event=>change(member.key,"task",event.currentTarget.value)}
+          placeholder="Fotos, vídeos, entrevistas..." />
+      </label>
+      {crew.length>1?<button type="button" className="coverage-remove"
+        aria-label={"Retirar colaborador "+(index+1)}
+        onClick={()=>setCrew(rows=>rows.filter(row=>row.key!==member.key))}>×</button>:null}
+    </div>)}
+    <input type="hidden" name="coverage_team_json"
+      value={JSON.stringify(crew.map(member=>({profileId:member.profileId,task:member.task.trim()})))}/>
+    <button type="button" className="coverage-add"
+      disabled={!unused || crew.length>=16}
+      onClick={()=>{
+        if(!unused)return;
+        setCrew(rows=>[...rows,{key:counter,profileId:unused.id,task:"Fotos / cobertura"}]);
+        setCounter(n=>n+1);
+      }}>＋ Adicionar colaborador</button>
+    <div className="coverage-team-bottom">
+      <label className="agenda-field coverage-article-person"><span>Quem fará a matéria? (um responsável)</span>
+        <select name="coverage_article_owner" required defaultValue={currentUserId}>
+          {profiles.map(profile=><option key={profile.id} value={profile.id}>{profile.name}</option>)}
+        </select>
+      </label>
+      <CoverageClockFields eventTime={eventTime}/>
+    </div>
   </div>;
 }
 
@@ -401,6 +438,8 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
       .on("postgres_changes", { event: "*", schema: "public", table: "weekly_pauta_items" }, scheduleRefresh)
       .on("postgres_changes", { event: "*", schema: "public", table: "pauta_week_overrides" }, scheduleRefresh)
       .on("postgres_changes", { event: "*", schema: "public", table: "event_coverages" }, scheduleRefresh)
+      .on("postgres_changes", { event: "*", schema: "public", table: "event_coverage_members" }, scheduleRefresh)
+      .on("postgres_changes", { event: "*", schema: "public", table: "event_coverage_member_transfers" }, scheduleRefresh)
       .on("postgres_changes", { event: "*", schema: "public", table: "event_coverage_transfers" }, scheduleRefresh)
       .subscribe((status) => {
         if (status === "SUBSCRIBED") {
@@ -556,7 +595,157 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
     </details>;
   }
 
+  function TeamCoveragePanel({coverage,eventId,eventTime}:{
+    coverage:EventCoverage;eventId:string;eventTime:string;
+  }):JSX.Element{
+    const manager=data.access.agendaWrite||data.access.pautaWrite;
+    const label=(id:string)=>data.profiles.find(p=>p.id===id)?.name??"Colaborador";
+    const me=coverage.members.find(person=>person.profileId===data.currentUserId);
+    const writer=coverage.articleOwnerId===data.currentUserId;
+    const names=Array.from(new Set([...coverage.members.map(m=>m.profileId),coverage.articleOwnerId]));
+    const available=data.profiles.filter(p=>!coverage.members.some(m=>m.profileId===p.id));
+    const resLabel={
+      pending:"Aguardando resposta",present:"Compareceu",
+      not_required:"Não precisa estar presente",unable:"Não poderá ir",
+    };
+    const allFieldDone=coverage.members.filter(m=>m.fieldTask).every(m=>Boolean(m.fieldCompletedAt));
+    return <section className="coverage-panel coverage-team-panel" aria-label="Equipe de cobertura">
+      <header className="coverage-panel-title">
+        <strong>COBERTURA DO EVENTO</strong>
+        <small>Agenda: presença · Pauta: fotos, vídeo e matéria</small>
+      </header>
+      <div className="coverage-team-members">
+        {coverage.members.map(member=>{
+          const isMe=member.profileId===data.currentUserId;
+          return <div key={member.profileId} className="coverage-member-card">
+            <div className="coverage-member-heading">
+              <strong>{label(member.profileId)}</strong>
+              <span>{member.fieldTask??(member.profileId===coverage.articleOwnerId?"Redação da matéria":"Participação")}</span>
+            </div>
+            <div className="coverage-participation">
+              <small>Participação na Agenda · {resLabel[member.attendanceResponse]}</small>
+              {isMe?<div className="coverage-attendance-buttons" role="group" aria-label="Confirmar participação no evento">
+                {([
+                  ["present","Compareci"],
+                  ["not_required","Não preciso ir"],
+                  ["unable","Não poderei ir"],
+                ] as const).map(([value,text])=><button key={value} type="button"
+                  className={member.attendanceResponse===value?"is-selected":""}
+                  aria-pressed={member.attendanceResponse===value}
+                  disabled={isPending}
+                  onClick={()=>run(()=>answerCoverageAttendanceAction(eventId,value),"Participação registrada.")}>
+                    {text}
+                </button>)}
+              </div>:null}
+            </div>
+            {member.fieldTask?<div className="coverage-field-delivery">
+              <small>Pauta · {member.fieldCompletedAt?"Concluído":"Pendente"}: {member.fieldTask}</small>
+              {isMe?<button type="button" disabled={isPending} onClick={()=>run(
+                ()=>finishCoverageTeamTaskAction(eventId,!member.fieldCompletedAt),
+                member.fieldCompletedAt?"Entrega reaberta.":"Entrega concluída."
+              )}>{member.fieldCompletedAt?"Reabrir entrega":"✓ Concluir minha entrega"}</button>:null}
+            </div>:null}
+          </div>;
+        })}
+      </div>
+      <div className="coverage-team-article">
+        <div><strong>MATÉRIA JORNALÍSTICA</strong><small>{label(coverage.articleOwnerId)} ·
+          {coverage.articleStatus==="completed"?" Concluída":" Pendente"}</small></div>
+        {(writer||manager)?<button type="button" disabled={isPending} onClick={()=>run(
+          ()=>finishCoverageArticleAction(eventId,coverage.articleStatus!=="completed"),
+          coverage.articleStatus==="completed"?"Matéria reaberta.":"Matéria concluída."
+        )}>{coverage.articleStatus==="completed"?"Reabrir matéria":"✓ Concluir matéria"}</button>:null}
+      </div>
+      <p className="coverage-help">
+        {allFieldDone&&coverage.articleStatus==="completed"
+          ?"Todas as entregas da Pauta estão concluídas."
+          :"A matéria continuará na Pauta até a redação e as entregas de campo ficarem prontas."}
+      </p>
+      {coverage.pendingTeamTransfers.length>0?<div className="coverage-transfer-notice">
+        <strong>Transferências aguardando confirmação</strong>
+        {coverage.pendingTeamTransfers.map(t=><div className="coverage-transfer-line" key={t.id}>
+          <span>{label(t.fromProfileId)} → {label(t.toProfileId)} ·
+            {t.part==="field"?" Campo":t.part==="article"?" Matéria":" Ambas"}</span>
+          <small>{t.reason}</small>
+          {t.toProfileId===data.currentUserId?<div className="coverage-step-actions">
+            <button type="button" disabled={isPending} onClick={()=>run(
+              ()=>respondCoverageTeamTransferAction(t.id,true),"Transferência aceita."
+            )}>Aceitar</button>
+            <button type="button" disabled={isPending} onClick={()=>run(
+              ()=>respondCoverageTeamTransferAction(t.id,false),"Transferência recusada."
+            )}>Recusar</button>
+          </div>:null}
+        </div>)}
+      </div>:null}
+      {manager&&available.length>0?<details className="coverage-options">
+        <summary>＋ Adicionar colaborador ao evento</summary>
+        <form className="coverage-form" onSubmit={event=>{
+          event.preventDefault();run(()=>addCoverageTeamMemberAction(eventId,new FormData(event.currentTarget)),
+            "Colaborador adicionado e notificado.");
+        }}>
+          <label className="agenda-field"><span>Colaborador</span>
+            <select name="team_new_person" required defaultValue={available[0].id}>
+              {available.map(p=><option value={p.id} key={p.id}>{p.name}</option>)}
+            </select>
+          </label>
+          <label className="agenda-field"><span>Tarefa</span>
+            <input name="team_new_task" required minLength={2} maxLength={80}
+              list="agenda-task-suggestions" defaultValue="Fotos / cobertura"/>
+          </label>
+          <button type="submit" className="agenda-primary" disabled={isPending}>Adicionar</button>
+        </form>
+      </details>:null}
+      {(me||writer||manager)?<details className="coverage-options">
+        <summary>↔ Transferir responsabilidade</summary>
+        <form className="coverage-form" onSubmit={event=>{
+          event.preventDefault();run(()=>requestCoverageTeamTransferAction(eventId,new FormData(event.currentTarget)),
+            "Transferência registrada. A responsabilidade muda após aceite.");
+        }}>
+          <label className="agenda-field"><span>Responsável atual</span>
+            <select name="transfer_from" defaultValue={data.currentUserId} required
+              disabled={!manager}>
+              {names.map(id=><option key={id} value={id}>{label(id)}</option>)}
+            </select>
+            {!manager?<input type="hidden" name="transfer_from" value={data.currentUserId}/>:null}
+          </label>
+          <label className="agenda-field"><span>Transferir</span>
+            <select name="transfer_part" defaultValue={writer&&!me?.fieldTask?"article":"field"}>
+              <option value="field">Fotos/vídeo (campo)</option>
+              <option value="article">Matéria</option>
+              <option value="both">Ambas</option>
+            </select>
+          </label>
+          <label className="agenda-field"><span>Para quem?</span>
+            <select name="transfer_to" required defaultValue="">
+              <option value="" disabled>Selecionar colaborador</option>
+              {data.profiles.map(p=><option value={p.id} key={p.id}>{p.name}</option>)}
+            </select>
+          </label>
+          <label className="agenda-field"><span>Motivo</span>
+            <input name="transfer_reason" required minLength={5} maxLength={300}
+              placeholder="Ex.: substituição no evento"/>
+          </label>
+          {manager?<label className="coverage-force-check"><input type="checkbox"
+            name="transfer_force" value="true"/> Efetivar imediatamente (gestor)</label>:null}
+          <button type="submit" className="agenda-primary" disabled={isPending}>Solicitar transferência</button>
+        </form>
+      </details>:null}
+      {manager||me?.fieldTask?<details className="coverage-options">
+        <summary>⚙ Horários do evento</summary>
+        <form className="coverage-form" onSubmit={event=>{
+          event.preventDefault();run(()=>saveCoverageAlertsAction(eventId,new FormData(event.currentTarget)),
+            "Horários atualizados.");
+        }}>
+          <CoverageClockFields eventTime={eventTime} audible={coverage.audibleMinutes}
+            checkin={coverage.checkinMinutes}/>
+          <button type="submit" className="agenda-primary" disabled={isPending}>Salvar horários</button>
+        </form>
+      </details>:null}
+    </section>;
+  }
+
   function CoveragePanel({coverage,eventId,eventTime}:{coverage:EventCoverage;eventId:string;eventTime:string}):JSX.Element{
+    if(coverage.teamMode)return TeamCoveragePanel({coverage,eventId,eventTime});
     const profileName=(id:string)=>data.profiles.find(p=>p.id===id)?.name??"Colaborador";
     const myPresence=coverage.attendanceOwnerId===data.currentUserId;
     const myArticle=coverage.articleOwnerId===data.currentUserId;
@@ -1177,6 +1366,7 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
           ) : null}
           <div className="pauta-actions-row">
             <button type="button" className="pauta-week-current" onClick={() => navigate("pauta", data.today)}>Semana atual</button>
+            <a href={"/tv/pauta?date="+encodeURIComponent(data.focusDate)} target="_blank" rel="noopener noreferrer" className="pauta-tv-link">▣ Modo TV 9:16</a>
             <span>{pautaItems.filter((item) => item.status === "pending").length} pendente(s)</span>
           </div>
 

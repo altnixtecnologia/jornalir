@@ -25,7 +25,7 @@ export function shiftCoverageLocalMinute(value:string, delta:number):string{
 }
 export function coverageReminderDue(event:CoverageEventReminder, state:CoverageStateReminder, kind:CoverageReminderType):string|null{
   if(event.status!=="scheduled"||!event.start_time||!event.event_date)return null;
-  if(kind==="checkin" && (state.attendance_status==="present"||state.attendance_status==="absent"))return null;
+  if(["present","absent","not_required","unable"].includes(state.attendance_status))return null;
   const delta=kind==="reminder"?state.audible_minutes:state.checkin_minutes;
   return shiftCoverageLocalMinute(event.event_date+"T"+event.start_time.slice(0,5),-delta);
 }
