@@ -21,7 +21,8 @@ export default async function PautaTvPage({
 }):Promise<JSX.Element>{
  const date=normalizeAgendaDate(first((await searchParams)?.date));
  // Primeiro o vínculo do dispositivo, independentemente do Supabase Auth.
- const token=cookies().get(TV_COOKIE)?.value;
+ const store=await cookies();
+ const token=store.get(TV_COOKIE)?.value;
  if(token){
    const snapshot=await readDeviceSnapshot(date);
    if(snapshot)return <PautaTvBoard snapshot={snapshot} deviceMode/>;
