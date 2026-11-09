@@ -12,7 +12,8 @@
 [CmdletBinding()]
 param(
     [switch]$StartClaude,
-    [switch]$OpenVSCode
+    [switch]$OpenVSCode,
+    [string]$RepositoryRoot = ''
 )
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
@@ -36,7 +37,13 @@ function Invoke-GitChecked {
 }
 
 try {
-    $Root = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
+    # -RepositoryRoot permite executar o PS1 obtido via git show, mesmo
+    # antes de o script existir no checkout local do VS Code.
+    $Root = if ($RepositoryRoot) {
+        (Resolve-Path -LiteralPath $RepositoryRoot).Path
+    } else {
+        (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
+    }
     Set-Location -LiteralPath $Root
     if (-not (Get-Command git -ErrorAction SilentlyContinue)) {
         throw 'Git nao encontrado no PATH. Abra a pasta do monorepo no VS Code com Git instalado.'
