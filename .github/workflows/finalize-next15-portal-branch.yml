@@ -85,7 +85,7 @@ jobs:
           }
           const lock=JSON.parse(fs.readFileSync('package-lock.json','utf8'));
           for(const [name,v] of Object.entries(lock.packages||{})){
-            if(/(^|\\/)react(-dom)?$/.test(name))console.log('LOCK '+name+' '+v.version);
+            if(name.endsWith('/react')||name.endsWith('/react-dom'))console.log('LOCK '+name+' '+v.version);
           }
           NODE
       - name: Codemod oficial de rotas do Portal
