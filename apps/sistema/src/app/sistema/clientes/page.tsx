@@ -12,11 +12,12 @@ function one(value: string | string[] | undefined): string {
   return Array.isArray(value) ? value[0] ?? "" : value ?? "";
 }
 
-export default async function ClientesPage({
-  searchParams,
-}: {
-  searchParams?: Record<string, string | string[] | undefined>;
-}): Promise<JSX.Element> {
+export default async function ClientesPage(
+  props: {
+    searchParams?: Promise<Record<string, string | string[] | undefined>>;
+  }
+): Promise<JSX.Element> {
+  const searchParams = await props.searchParams;
   const supabase = createSupabaseServerClient();
   const q = one(searchParams?.q).trim();
   const kind = one(searchParams?.kind);

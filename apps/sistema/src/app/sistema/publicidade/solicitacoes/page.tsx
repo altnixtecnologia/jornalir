@@ -166,11 +166,12 @@ function tabHref(tab: Tab, searchParams: Record<string, string | string[] | unde
   return "/sistema/publicidade/solicitacoes?" + params.toString();
 }
 
-export default async function SiteInterestRequestsPage({
-  searchParams,
-}: {
-  searchParams?: Record<string, string | string[] | undefined>;
-}): Promise<JSX.Element> {
+export default async function SiteInterestRequestsPage(
+  props: {
+    searchParams?: Promise<Record<string, string | string[] | undefined>>;
+  }
+): Promise<JSX.Element> {
+  const searchParams = await props.searchParams;
   const client = createSupabaseServerClient();
   const tab: Tab = one(searchParams?.tab) === "attended" ? "attended" : "open";
   const q = cleanFilter(one(searchParams?.q));

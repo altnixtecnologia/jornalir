@@ -129,11 +129,12 @@ function SummaryTile({ label, value }: { label: string; value: string }): JSX.El
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
-export default async function FinanceiroPage({
-  searchParams,
-}: {
-  searchParams?: { periodStart?: string | string[]; periodEnd?: string | string[] };
-}): Promise<JSX.Element> {
+export default async function FinanceiroPage(
+  props: {
+    searchParams?: Promise<{ periodStart?: string | string[]; periodEnd?: string | string[] }>;
+  }
+): Promise<JSX.Element> {
+  const searchParams = await props.searchParams;
   const supabase = createSupabaseServerClient();
   const today = localToday();
   const period = resolvePeriod(searchParams, today);

@@ -9,10 +9,8 @@ function base64Body(value: string): Buffer {
   return Buffer.from(normalized, "base64");
 }
 
-export async function GET(
-  _request: Request,
-  { params }: { params: { token: string } },
-): Promise<Response> {
+export async function GET(_request: Request, props: { params: Promise<{ token: string }> }): Promise<Response> {
+  const params = await props.params;
   const admin = createSupabaseAdminClient();
   const { data, error } = await admin
     .from("payment_charges")

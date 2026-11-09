@@ -10,9 +10,8 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
 };
 
-export default async function VerifySignedDocumentPage({
-  params,
-}: { params: { code: string } }): Promise<JSX.Element> {
+export default async function VerifySignedDocumentPage(props: { params: Promise<{ code: string }> }): Promise<JSX.Element> {
+  const params = await props.params;
   const found = await checkPublicSignatureCode(params.code);
   if (!found) notFound();
 

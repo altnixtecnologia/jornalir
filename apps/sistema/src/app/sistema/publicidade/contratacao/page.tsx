@@ -22,11 +22,12 @@ function one(value: string | string[] | undefined): string {
  * permissão financeira `contratos_criar`. Só gera MINUTA; nada é gravado,
  * assinado, enviado ou cobrado.
  */
-export default async function ContractCompositionPage({
-  searchParams,
-}: {
-  searchParams?: Record<string, string | string[] | undefined>;
-}): Promise<JSX.Element> {
+export default async function ContractCompositionPage(
+  props: {
+    searchParams?: Promise<Record<string, string | string[] | undefined>>;
+  }
+): Promise<JSX.Element> {
+  const searchParams = await props.searchParams;
   const supabase = createSupabaseServerClient();
   const [commercialDenied, institutionalDenied, proposalDenied, negotiateDenied] = await Promise.all([
     checkModuleAction("publicidade", "contratos_preparar"),

@@ -20,11 +20,12 @@ const STATUS_LABELS: Record<ReceiptRecordStatus, string> = { active: "Ativos", a
  * tabela nova. Pix fica registrado normalmente; dinheiro o operador
  * registra manualmente — ambos geram recibo aqui.
  */
-export default async function RecibosPage({
-  searchParams,
-}: {
-  searchParams?: Record<string, string | string[] | undefined>;
-}): Promise<JSX.Element> {
+export default async function RecibosPage(
+  props: {
+    searchParams?: Promise<Record<string, string | string[] | undefined>>;
+  }
+): Promise<JSX.Element> {
+  const searchParams = await props.searchParams;
   const supabase = createSupabaseServerClient();
   const statusParam = one(searchParams?.status);
   const status: ReceiptRecordStatus = statusParam === "all" || statusParam === "cancelled" ? statusParam : "active";

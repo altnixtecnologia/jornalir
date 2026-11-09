@@ -8,11 +8,12 @@ function one(value: string | string[] | undefined): string {
   return Array.isArray(value) ? value[0] ?? "" : value ?? "";
 }
 
-export default async function NovaAssinaturaPage({
-  searchParams,
-}: {
-  searchParams?: Record<string, string | string[] | undefined>;
-}): Promise<JSX.Element> {
+export default async function NovaAssinaturaPage(
+  props: {
+    searchParams?: Promise<Record<string, string | string[] | undefined>>;
+  }
+): Promise<JSX.Element> {
+  const searchParams = await props.searchParams;
   const supabase = createSupabaseServerClient();
   const initialClientId = one(searchParams?.clientId) || undefined;
   // Resolve só o cadastro pré-selecionado (ex.: ?clientId= vindo da tela de

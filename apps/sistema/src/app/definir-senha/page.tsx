@@ -11,11 +11,12 @@ import DefinirSenhaForm from "./DefinirSenhaForm";
  * `/sistema`, fora do matcher do middleware): sem senha definida ainda
  * não faz sentido exigir sessão completa do painel.
  */
-export default async function DefinirSenhaPage({
-  searchParams,
-}: {
-  searchParams: { recovery?: string; erro?: string };
-}): Promise<JSX.Element> {
+export default async function DefinirSenhaPage(
+  props: {
+    searchParams: Promise<{ recovery?: string; erro?: string }>;
+  }
+): Promise<JSX.Element> {
+  const searchParams = await props.searchParams;
   const isRecovery = searchParams.recovery === "1";
   const linkExpired = searchParams.erro === "link-expirado";
 

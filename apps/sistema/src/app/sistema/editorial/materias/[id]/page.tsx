@@ -14,13 +14,14 @@ import {
   listRecentMediaAssetsSupabase,
 } from "../../../../../providers/supabase/mediaAssetRepository.supabase";
 
-export default async function MateriaEditPage({
-  params,
-  searchParams,
-}: {
-  params: { id: string };
-  searchParams?: { aba?: string; aviso?: string };
-}): Promise<JSX.Element> {
+export default async function MateriaEditPage(
+  props: {
+    params: Promise<{ id: string }>;
+    searchParams?: Promise<{ aba?: string; aviso?: string }>;
+  }
+): Promise<JSX.Element> {
+  const searchParams = await props.searchParams;
+  const params = await props.params;
   const supabase = createSupabaseServerClient();
   const article = await getArticleService(supabase).getById(params.id).catch((error: unknown) => {
     if (error instanceof ArticleNotFoundError) return null;

@@ -14,7 +14,8 @@ import { isLocalPreviewEnabled } from "../../../../../lib/auth/localPreview";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
-export default async function NfseRascunhoDetailPage({ params }: { params: { id: string } }): Promise<JSX.Element> {
+export default async function NfseRascunhoDetailPage(props: { params: Promise<{ id: string }> }): Promise<JSX.Element> {
+  const params = await props.params;
   const supabase = createSupabaseServerClient();
   const draftService = getDraftService(supabase);
   const draft = await draftService.getById(params.id).catch((error: unknown) => {

@@ -26,11 +26,12 @@ export const revalidate = 0;
  * Relatório de Abatimentos (Parte 3B, item 13) — visão simples, uma
  * linha por abatimento VÁLIDO. Filtra por período/cliente/usuário.
  */
-export default async function RelatorioAbatimentosPage({
-  searchParams,
-}: {
-  searchParams?: Record<string, string | string[] | undefined>;
-}): Promise<JSX.Element> {
+export default async function RelatorioAbatimentosPage(
+  props: {
+    searchParams?: Promise<Record<string, string | string[] | undefined>>;
+  }
+): Promise<JSX.Element> {
+  const searchParams = await props.searchParams;
   const supabase = createSupabaseServerClient();
   const clientId = one(searchParams?.clientId);
   const recordedBy = one(searchParams?.recordedBy);

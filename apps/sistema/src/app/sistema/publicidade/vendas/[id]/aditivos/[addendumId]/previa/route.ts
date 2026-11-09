@@ -8,9 +8,13 @@ const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const denied=(status=404)=>NextResponse.json({error:"Minuta indisponível."},{
  status,headers:{"Cache-Control":"no-store"},
 });
-export async function GET(_request:Request,{params}:{
- params:{id:string;addendumId:string}
-}):Promise<NextResponse>{
+export async function GET(
+ _request:Request,
+ props:{
+  params: Promise<{id:string;addendumId:string}>
+ }
+):Promise<NextResponse> {
+ const params = await props.params;
  if(!UUID.test(params.id)||!UUID.test(params.addendumId)) return denied(400);
  const [canPrepare,canReview]=await Promise.all([
   checkModuleAction("publicidade","contratos_preparar"),

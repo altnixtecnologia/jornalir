@@ -23,7 +23,8 @@ function denied(status: number, message: string): NextResponse {
   return NextResponse.json({ error: message }, { status, headers: { "Cache-Control": "no-store", "Referrer-Policy": "no-referrer" } });
 }
 
-export async function GET(_req: Request, { params }: { params: { id: string } }): Promise<NextResponse> {
+export async function GET(_req: Request, props: { params: Promise<{ id: string }> }): Promise<NextResponse> {
+  const params = await props.params;
   const permissionError = await checkModuleAction("nfse", "notas_cancelar");
   if (permissionError) return denied(403, permissionError);
 

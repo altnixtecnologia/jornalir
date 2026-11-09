@@ -19,11 +19,12 @@ function one(value: string | string[] | undefined): string {
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
-export default async function AssinaturasPage({
-  searchParams,
-}: {
-  searchParams?: Record<string, string | string[] | undefined>;
-}): Promise<JSX.Element> {
+export default async function AssinaturasPage(
+  props: {
+    searchParams?: Promise<Record<string, string | string[] | undefined>>;
+  }
+): Promise<JSX.Element> {
+  const searchParams = await props.searchParams;
   const supabase = createSupabaseServerClient();
   const q = one(searchParams?.q).trim();
   const serviceType = one(searchParams?.serviceType);

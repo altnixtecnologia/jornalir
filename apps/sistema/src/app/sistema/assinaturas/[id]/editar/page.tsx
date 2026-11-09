@@ -8,7 +8,8 @@ import { getSubscriptionService } from "../../../../../composition/assinaturas";
 import { getClientService } from "../../../../../composition/clientes";
 import { createSupabaseServerClient } from "../../../../../lib/supabase/server";
 
-export default async function EditarAssinaturaPage({ params }: { params: { id: string } }): Promise<JSX.Element> {
+export default async function EditarAssinaturaPage(props: { params: Promise<{ id: string }> }): Promise<JSX.Element> {
+  const params = await props.params;
   const supabase = createSupabaseServerClient();
   const subscription = await getSubscriptionService(supabase)
     .getById(params.id)

@@ -26,10 +26,8 @@ function fail(message: string, status: number): Response {
 }
 
 /** PDF temporário para revisão; não salva, não assina, não cria cobrança. */
-export async function GET(
-  request: NextRequest,
-  { params }: { params: { id: string } },
-): Promise<Response> {
+export async function GET(request: NextRequest, props: { params: Promise<{ id: string }> }): Promise<Response> {
+  const params = await props.params;
   const [prepareDenied, reviewDenied] = await Promise.all([
     checkModuleAction("publicidade", "contratos_preparar"),
     checkModuleAction("publicidade", "contratos_revisar"),

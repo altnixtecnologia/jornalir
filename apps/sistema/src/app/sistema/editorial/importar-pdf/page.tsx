@@ -16,11 +16,12 @@ import { editionLabel } from "../../../../features/editorial/editorialLabels";
 // Vercel sem configuração. 60s cobre Hobby e Pro sem ajuste extra.
 export const maxDuration = 60;
 
-export default async function ImportarPdfPage({
-  searchParams,
-}: {
-  searchParams: { edicao?: string };
-}): Promise<JSX.Element> {
+export default async function ImportarPdfPage(
+  props: {
+    searchParams: Promise<{ edicao?: string }>;
+  }
+): Promise<JSX.Element> {
+  const searchParams = await props.searchParams;
   const editionId = searchParams.edicao ?? "";
   const supabase = createSupabaseServerClient();
   const [allEditions, sections, localities] = await Promise.all([

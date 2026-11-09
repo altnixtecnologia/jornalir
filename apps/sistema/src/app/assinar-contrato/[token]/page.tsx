@@ -7,9 +7,8 @@ import {
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
-export default async function SignContractPage({
-  params,
-}: { params: { token: string } }): Promise<JSX.Element> {
+export default async function SignContractPage(props: { params: Promise<{ token: string }> }): Promise<JSX.Element> {
+  const params = await props.params;
   const invitation = await findSignatureInvitation(params.token);
   if (!invitation) notFound();
   const source = await findInvitationSource(invitation);

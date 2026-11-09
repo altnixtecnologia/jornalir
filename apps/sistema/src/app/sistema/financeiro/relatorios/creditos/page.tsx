@@ -29,11 +29,12 @@ export const revalidate = 0;
  * Nunca confunde "crédito aplicado" com "recebimento" (ver relatório
  * geral, que já separa as duas colunas).
  */
-export default async function RelatorioCreditosPage({
-  searchParams,
-}: {
-  searchParams?: Record<string, string | string[] | undefined>;
-}): Promise<JSX.Element> {
+export default async function RelatorioCreditosPage(
+  props: {
+    searchParams?: Promise<Record<string, string | string[] | undefined>>;
+  }
+): Promise<JSX.Element> {
+  const searchParams = await props.searchParams;
   const supabase = createSupabaseServerClient();
   const clientId = one(searchParams?.clientId);
   const sourceType = one(searchParams?.sourceType);

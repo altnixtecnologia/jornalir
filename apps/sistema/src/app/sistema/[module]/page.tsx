@@ -10,11 +10,12 @@ export function generateStaticParams(): Array<{ module: string }> {
     .map((item) => ({ module: item.slug }));
 }
 
-export default function PlannedModulePage({
-  params,
-}: {
-  params: { module: string };
-}): JSX.Element {
+export default async function PlannedModulePage(
+  props: {
+    params: Promise<{ module: string }>;
+  }
+): Promise<JSX.Element> {
+  const params = await props.params;
   const module = adminModules.find(
     (item) => item.slug === params.module && item.planned,
   );

@@ -6,7 +6,8 @@ import {canReadCommercialInvitationPdf} from "../../../../../lib/signatures/comm
 import {findCommercialInvitation,commercialInvitationPending} from "../../../../../lib/signatures/commercialSignatures";
 export const dynamic="force-dynamic";
 export const runtime="nodejs";
-export async function GET(_req:Request,{params}:{params:{token:string}}):Promise<NextResponse>{
+export async function GET(_req:Request, props:{params: Promise<{token:string}>}):Promise<NextResponse> {
+ const params = await props.params;
  const denied=()=>NextResponse.json({error:"Documento indisponível."},{status:404,headers:{"Cache-Control":"no-store","Referrer-Policy":"no-referrer"}});
  const invite=await findCommercialInvitation(params.token);
  if(!invite||!commercialInvitationPending(invite)) return denied();

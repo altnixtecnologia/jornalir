@@ -11,8 +11,9 @@ export const dynamic = "force-dynamic";
  */
 export async function GET(
   _request: NextRequest,
-  { params }: { params: { id: string; documentId: string } },
+  props: { params: Promise<{ id: string; documentId: string }> }
 ): Promise<NextResponse> {
+  const params = await props.params;
   const unauthorized = () => NextResponse.json({ error: "Acesso não autorizado." }, { status: 403, headers: { "Cache-Control": "no-store" } });
   const notFound = () => NextResponse.json({ error: "Documento não encontrado." }, { status: 404, headers: { "Cache-Control": "no-store" } });
   const uuid = /^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i;

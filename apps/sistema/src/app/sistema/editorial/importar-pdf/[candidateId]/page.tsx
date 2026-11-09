@@ -16,11 +16,12 @@ import {
   listRecentMediaAssetsSupabase,
 } from "../../../../../providers/supabase/mediaAssetRepository.supabase";
 
-export default async function ImportCandidateDetailPage({
-  params,
-}: {
-  params: { candidateId: string };
-}): Promise<JSX.Element> {
+export default async function ImportCandidateDetailPage(
+  props: {
+    params: Promise<{ candidateId: string }>;
+  }
+): Promise<JSX.Element> {
+  const params = await props.params;
   const supabase = createSupabaseServerClient();
   const candidate = await getImportCandidateService(supabase)
     .getById(params.candidateId)

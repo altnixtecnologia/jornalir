@@ -6,7 +6,8 @@ import { getContractService, getReceivableService } from "../../../../../../comp
 import { getClientService } from "../../../../../../composition/clientes";
 import { createSupabaseServerClient } from "../../../../../../lib/supabase/server";
 
-export default async function EditarLancamentoPage({ params }: { params: { id: string } }): Promise<JSX.Element> {
+export default async function EditarLancamentoPage(props: { params: Promise<{ id: string }> }): Promise<JSX.Element> {
+  const params = await props.params;
   const supabase = createSupabaseServerClient();
   const receivable = await getReceivableService(supabase)
     .getById(params.id)

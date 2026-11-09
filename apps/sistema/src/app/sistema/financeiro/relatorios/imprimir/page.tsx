@@ -34,11 +34,12 @@ export const revalidate = 0;
  * "PDF deve ser legível". Não adiciona nenhuma dependência nova de
  * geração de PDF no servidor.
  */
-export default async function RelatorioImprimirPage({
-  searchParams,
-}: {
-  searchParams?: Record<string, string | string[] | undefined>;
-}): Promise<JSX.Element> {
+export default async function RelatorioImprimirPage(
+  props: {
+    searchParams?: Promise<Record<string, string | string[] | undefined>>;
+  }
+): Promise<JSX.Element> {
+  const searchParams = await props.searchParams;
   const supabase = createSupabaseServerClient();
   const status = one(searchParams?.status);
   const sourceType = one(searchParams?.sourceType);

@@ -26,11 +26,12 @@ export const revalidate = 0;
  * fixa (created_at desc) sem seta clicável. Situação financeira sempre
  * DERIVADA dos receivables vinculados, nunca um campo próprio gravado.
  */
-export default async function CommercialSalesPage({
-  searchParams,
-}: {
-  searchParams?: Record<string, string | string[] | undefined>;
-}): Promise<JSX.Element> {
+export default async function CommercialSalesPage(
+  props: {
+    searchParams?: Promise<Record<string, string | string[] | undefined>>;
+  }
+): Promise<JSX.Element> {
+  const searchParams = await props.searchParams;
   const supabase = createSupabaseServerClient();
   const q = one(searchParams?.q).trim();
   const status = one(searchParams?.status);
