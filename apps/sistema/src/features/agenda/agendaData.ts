@@ -2,7 +2,7 @@ import "server-only";
 import { redirect } from "next/navigation";
 
 import { createSupabaseServerClient } from "../../lib/supabase/server";
-import type { AgendaEventItem, AgendaProfile, AgendaWorkspaceData, PendingMeetingInvitation, WeeklyPautaItem } from "./agendaTypes";
+import type { AgendaEventItem, AgendaProfile, AgendaWorkspaceData, EventCoverage, PendingMeetingInvitation, WeeklyPautaItem } from "./agendaTypes";
 import { startOfPautaWeek } from "./pautaPeriod";
 
 export const AGENDA_TIMEZONE = "America/Sao_Paulo";
@@ -167,6 +167,45 @@ export async function loadAgendaWorkspaceData(focusDate: string): Promise<Agenda
   const pendingInvitations = await loadMyPendingMeetingInvitations(supabase, user.id, today);
   const eventIds = (eventsResult.data ?? []).map((event) => event.id);
 
+  // Coberturas usam o mesmo evento nas duas telas. As etapas não dependem
+  // do status de presença de um compromisso comum.
+  const coverageResult = eventIds.length
+    ? await supabase.from("event_coverages")
+      .select("event_id,attendance_owner_id,article_owner_id,attendance_status,attendance_at,article_status,article_completed_at,article_due_at,audible_minutes,checkin_minutes,revision")
+      .in("event_id",eventIds)
+    : { data: [],error:null };
+  if (coverageResult.error) throw new Error(coverageResult.error.message);
+  const coverageIds = (coverageResult.data ?? []).map((v) => v.event_id);
+  const transferResult = coverageIds.length
+    ? await supabase.from("event_coverage_transfers")
+      .select("id,event_id,transfer_part,to_profile_id,requested_by,reason")
+      .in("event_id",coverageIds).eq("status","pending")
+    : { data: [],error:null };
+  if (transferResult.error) throw new Error(transferResult.error.message);
+  const transferByEvent = new Map((transferResult.data ?? []).map((t) => [t.event_id,t]));
+  const coverageByEvent = new Map<string,EventCoverage>();
+  for(const row of coverageResult.data ?? []){
+    const pending = transferByEvent.get(row.event_id);
+    coverageByEvent.set(row.event_id,{
+      eventId:row.event_id,
+      attendanceOwnerId:row.attendance_owner_id,
+      articleOwnerId:row.article_owner_id,
+      attendanceStatus:row.attendance_status as EventCoverage["attendanceStatus"],
+      attendanceAt:row.attendance_at,
+      articleStatus:row.article_status as EventCoverage["articleStatus"],
+      articleCompletedAt:row.article_completed_at,
+      articleDueAt:row.article_due_at,
+      audibleMinutes:row.audible_minutes,
+      checkinMinutes:row.checkin_minutes,
+      revision:row.revision,
+      pendingTransfer:pending ? {
+        id:pending.id,part:pending.transfer_part as "attendance"|"article"|"both",
+        toProfileId:pending.to_profile_id,requestedBy:pending.requested_by,
+        reason:pending.reason,
+      }:null,
+    });
+  }
+
   let invitationRows: Array<{ event_id: string; profile_id: string; status: string; responded_at: string | null }> = [];
   if(eventIds.length){
     const invitations=await supabase.from("agenda_event_invitees")
@@ -216,6 +255,7 @@ export async function loadAgendaWorkspaceData(focusDate: string): Promise<Agenda
     reminderMinutes: event.reminder_minutes,
     eventKind: event.event_kind as AgendaEventItem["eventKind"],
     showInAgenda: event.show_in_agenda,
+    coverage: coverageByEvent.get(event.id) ?? null,
     completedAt: event.completed_at,
     updatedAt: event.updated_at,
     location: event.location,
@@ -240,6 +280,7 @@ export async function loadAgendaWorkspaceData(focusDate: string): Promise<Agenda
     responsibleName: responsible?.name ?? (item.responsible_profile_id ? profileName.get(item.responsible_profile_id) ?? null : null),
     agendaEventId: item.agenda_event_id,
     agendaEventTitle: linked?.title ?? null,
+    coverage: linked?.coverage ?? (item.agenda_event_id ? coverageByEvent.get(item.agenda_event_id) ?? null : null),
     articleId: item.article_id,
     status: linked ? (linked.status === "scheduled" ? "pending" : linked.status) : item.status as WeeklyPautaItem["status"],
     completedAt: linked?.completedAt ?? item.completed_at,
