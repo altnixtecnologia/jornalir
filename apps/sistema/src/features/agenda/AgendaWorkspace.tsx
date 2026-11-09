@@ -276,22 +276,54 @@ function CoverageClockFields({eventTime,audible=60,checkin=5}:{
 
 function CoveragePeopleFields({profiles,currentUserId,eventTime}:{
   profiles:AgendaWorkspaceData["profiles"];currentUserId:string;eventTime:string;
-}):JSX.Element {
-  return <div className="coverage-config-fields">
-    <label className="agenda-field"><span>Quem vai ao evento / faz a cobertura?</span>
-      <select name="coverage_attendance_owner" defaultValue={currentUserId} required>
-        {profiles.map(p=><option value={p.id} key={p.id}>{p.name}</option>)}
-      </select></label>
-    <label className="agenda-field"><span>Quem produzirá a matéria?</span>
-      <select name="coverage_article_owner" defaultValue={currentUserId} required>
-        {profiles.map(p=><option value={p.id} key={p.id}>{p.name}</option>)}
-      </select></label>
-    <label className="agenda-field coverage-field-task"><span>Tarefa de quem vai ao evento</span>
-      <input name="coverage_task_label" list="agenda-task-suggestions" type="text" required
-        minLength={2} maxLength={80} defaultValue="Fotos / cobertura" placeholder="Ex.: Fotos, vídeo, entrevistas"/>
-    </label>
-    <CoverageClockFields eventTime={eventTime}/>
-    {!eventTime?<p className="helper-text coverage-clock-help">Informe o horário do evento primeiro para preencher os avisos automaticamente.</p>:null}
+}):JSX.Element{
+  const [crew,setCrew]=useState([{key:1,profileId:currentUserId,task:"Fotos / cobertura"}]);
+  const [counter,setCounter]=useState(2);
+  const unused=profiles.find(profile=>!crew.some(member=>member.profileId===profile.id));
+  const change=(key:number,field:"profileId"|"task",value:string)=>{
+    setCrew(rows=>rows.map(row=>row.key===key?{...row,[field]:value}:row));
+  };
+  return <div className="coverage-team-editor">
+    <div className="coverage-team-heading">
+      <strong>Quem vai ao evento?</strong>
+      <small>Uma pessoa por linha, com sua tarefa. Todos serão notificados.</small>
+    </div>
+    {crew.map((member,index)=><div className="coverage-team-row" key={member.key}>
+      <label className="agenda-field">
+        <span>Colaborador {index+1}</span>
+        <select value={member.profileId} required
+          onChange={event=>change(member.key,"profileId",event.currentTarget.value)}>
+          {profiles.map(profile=><option key={profile.id} value={profile.id}>{profile.name}</option>)}
+        </select>
+      </label>
+      <label className="agenda-field">
+        <span>O que fará?</span>
+        <input type="text" maxLength={80} minLength={2} required
+          list="agenda-task-suggestions" value={member.task}
+          onChange={event=>change(member.key,"task",event.currentTarget.value)}
+          placeholder="Fotos, vídeos, entrevistas..." />
+      </label>
+      {crew.length>1?<button type="button" className="coverage-remove"
+        aria-label={"Retirar colaborador "+(index+1)}
+        onClick={()=>setCrew(rows=>rows.filter(row=>row.key!==member.key))}>×</button>:null}
+    </div>)}
+    <input type="hidden" name="coverage_team_json"
+      value={JSON.stringify(crew.map(member=>({profileId:member.profileId,task:member.task.trim()})))}/>
+    <button type="button" className="coverage-add"
+      disabled={!unused || crew.length>=16}
+      onClick={()=>{
+        if(!unused)return;
+        setCrew(rows=>[...rows,{key:counter,profileId:unused.id,task:"Fotos / cobertura"}]);
+        setCounter(n=>n+1);
+      }}>＋ Adicionar colaborador</button>
+    <div className="coverage-team-bottom">
+      <label className="agenda-field coverage-article-person"><span>Quem fará a matéria? (um responsável)</span>
+        <select name="coverage_article_owner" required defaultValue={currentUserId}>
+          {profiles.map(profile=><option key={profile.id} value={profile.id}>{profile.name}</option>)}
+        </select>
+      </label>
+      <CoverageClockFields eventTime={eventTime}/>
+    </div>
   </div>;
 }
 
