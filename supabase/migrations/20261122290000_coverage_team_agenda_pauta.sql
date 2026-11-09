@@ -319,11 +319,10 @@ begin
   raise exception 'Destinatário ou motivo inválido';end if;
  if p_force and not public.is_agenda_manager() then raise exception 'Só gestor pode efetivar diretamente' using errcode='42501';end if;
  if not public.is_agenda_manager() and p_from<>v_me then raise exception 'Só o titular pode transferir' using errcode='42501';end if;
- if not public.is_agenda_manager() and (
-   (p_part in('field','both') and not exists(select 1 from public.event_coverage_members
+ if (p_part in('field','both') and not exists(select 1 from public.event_coverage_members
      where event_id=p_event_id and profile_id=p_from and field_task is not null))
-   or (p_part in('article','both') and v_c.article_owner_id<>p_from)
- ) then raise exception 'Você não é titular desta responsabilidade' using errcode='42501';end if;
+   or (p_part in('article','both') and v_c.article_owner_id<>p_from) then
+   raise exception 'O titular informado não responde mais por esta tarefa';end if;
  insert into public.event_coverage_member_transfers(
   event_id,from_profile_id,to_profile_id,transfer_part,reason,status,requested_by,decided_by,decided_at
  ) values(p_event_id,p_from,p_to,p_part,btrim(p_reason),
