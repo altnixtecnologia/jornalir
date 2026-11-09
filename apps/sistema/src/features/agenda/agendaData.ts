@@ -171,7 +171,7 @@ export async function loadAgendaWorkspaceData(focusDate: string): Promise<Agenda
   // do status de presença de um compromisso comum.
   const coverageResult = eventIds.length
     ? await supabase.from("event_coverages")
-      .select("event_id,attendance_owner_id,article_owner_id,attendance_status,attendance_at,article_status,article_completed_at,article_due_at,audible_minutes,checkin_minutes,revision")
+      .select("event_id,attendance_owner_id,article_owner_id,attendance_status,attendance_at,article_status,article_completed_at,article_due_at,task_label,task_status,task_completed_at,audible_minutes,checkin_minutes,revision")
       .in("event_id",eventIds)
     : { data: [],error:null };
   if (coverageResult.error) throw new Error(coverageResult.error.message);
@@ -194,6 +194,9 @@ export async function loadAgendaWorkspaceData(focusDate: string): Promise<Agenda
       attendanceAt:row.attendance_at,
       articleStatus:row.article_status as EventCoverage["articleStatus"],
       articleCompletedAt:row.article_completed_at,
+      taskLabel:row.task_label,
+      taskStatus:row.task_status as EventCoverage["taskStatus"],
+      taskCompletedAt:row.task_completed_at,
       articleDueAt:row.article_due_at,
       audibleMinutes:row.audible_minutes,
       checkinMinutes:row.checkin_minutes,
@@ -213,23 +216,23 @@ export async function loadAgendaWorkspaceData(focusDate: string): Promise<Agenda
     if(invitations.error)throw new Error(invitations.error.message);
     invitationRows=invitations.data??[];
   }
-  let assignmentRows: Array<{ event_id: string; profile_id: string; completed_at: string | null }> = [];
+  let assignmentRows: Array<{ event_id: string; profile_id: string; completed_at: string | null; task_label: string | null }> = [];
   if (eventIds.length) {
     const assignments = await supabase
       .from("agenda_event_assignees")
-      .select("event_id, profile_id, completed_at")
+      .select("event_id, profile_id, completed_at, task_label")
       .in("event_id", eventIds)
       .eq("assignment_type", "responsible");
     if (assignments.error) throw new Error(assignments.error.message);
     assignmentRows = assignments.data ?? [];
   }
 
-  const assigneesByEvent = new Map<string, (AgendaProfile & { completedAt: string | null })[]>();
+  const assigneesByEvent = new Map<string, (AgendaProfile & { completedAt: string | null; taskLabel: string | null })[]>();
   for (const assignment of assignmentRows) {
     const profile = profiles.find((item) => item.id === assignment.profile_id);
     if (!profile) continue;
     const list = assigneesByEvent.get(assignment.event_id) ?? [];
-    list.push({ ...profile, completedAt: assignment.completed_at });
+    list.push({ ...profile, completedAt: assignment.completed_at, taskLabel: assignment.task_label });
     assigneesByEvent.set(assignment.event_id, list);
   }
 
