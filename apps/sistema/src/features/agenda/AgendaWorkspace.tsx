@@ -438,6 +438,8 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
       .on("postgres_changes", { event: "*", schema: "public", table: "weekly_pauta_items" }, scheduleRefresh)
       .on("postgres_changes", { event: "*", schema: "public", table: "pauta_week_overrides" }, scheduleRefresh)
       .on("postgres_changes", { event: "*", schema: "public", table: "event_coverages" }, scheduleRefresh)
+      .on("postgres_changes", { event: "*", schema: "public", table: "event_coverage_members" }, scheduleRefresh)
+      .on("postgres_changes", { event: "*", schema: "public", table: "event_coverage_member_transfers" }, scheduleRefresh)
       .on("postgres_changes", { event: "*", schema: "public", table: "event_coverage_transfers" }, scheduleRefresh)
       .subscribe((status) => {
         if (status === "SUBSCRIBED") {
