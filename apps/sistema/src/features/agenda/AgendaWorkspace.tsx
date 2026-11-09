@@ -604,7 +604,7 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
       <div className="agenda-topbar">
         <div className="agenda-tabs" role="tablist" aria-label="Agenda e pauta">
           {data.access.agendaRead ? <button type="button" className={initialView === "agenda" ? "is-active" : ""} onClick={() => navigate("agenda", data.focusDate)}>Agenda</button> : null}
-          {data.access.pautaRead ? <button type="button" className={initialView === "pauta" ? "is-active" : ""} onClick={() => navigate("pauta", data.focusDate)}>Pauta da semana</button> : null}
+          {data.access.pautaRead ? <button type="button" onClick={() => navigate("pauta", data.focusDate)}>Pauta da semana</button> : null}
         </div>
         <label className="agenda-person-filter">
           <span>Mostrar</span>
