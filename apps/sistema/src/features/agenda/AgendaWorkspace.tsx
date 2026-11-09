@@ -513,10 +513,20 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
         >
           <input type="hidden" name="week_start" value={item.weekStart} />
           <input type="hidden" name="updated_at" value={item.updatedAt} />
-          <label className="agenda-field agenda-field-wide"><span>O que precisa ser feito?</span><input name="title" required maxLength={180} defaultValue={item.title} /></label>
+          <div className="pauta-form-heading">
+            <label className="agenda-field pauta-title-field"><span>O que precisa ser feito?</span>
+              <input name="title" required maxLength={180} defaultValue={item.title} /></label>
+            <PautaDateTimeField initialDate={item.dueDate ?? item.weekStart} initialTime={item.dueTime}
+              weekStart={data.periodStart} weekEnd={data.periodEnd} />
+          </div>
           <div className="agenda-field-wide"><AssigneePicker profiles={data.profiles} selectedIds={item.assignees.map((person) => person.id)} /></div>
-          <PautaDateTimeField initialDate={item.dueDate ?? item.weekStart} initialTime={item.dueTime} weekStart={item.weekStart} weekEnd={addDays(item.weekStart, 6)} />
-          <label className="agenda-field agenda-field-wide"><span>Observação</span><textarea name="description" maxLength={4000} defaultValue={item.description ?? ""} /></label>
+          <label className="agenda-field pauta-note-field"><span>Observações</span>
+            <textarea name="description" rows={2} maxLength={4000} defaultValue={item.description ?? ""}
+              onInput={(event) => {
+                const target = event.currentTarget;
+                target.style.height = "auto";
+                target.style.height = Math.min(target.scrollHeight, 300) + "px";
+              }} /></label>
           <div className="agenda-form-actions agenda-edit-actions">
             <button type="submit" className="agenda-primary" disabled={isPending}>Salvar</button>
             <button type="button" className="agenda-close-edit" disabled={isPending} onClick={(event) => {
@@ -887,22 +897,43 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
             <span>{pautaItems.filter((item) => item.status === "pending").length} pendente(s)</span>
           </div>
 
-          {data.access.pautaWrite ? <details className="pauta-create-panel" id="pauta-create-panel"><summary>+ Nova pauta <span>Toque para cadastrar</span></summary><form
-            className="pauta-quick-form"
-            key={data.weekStart}
-            onSubmit={(event) => {
+          {data.access.pautaWrite ? <details className="pauta-create-panel" id="pauta-create-panel">
+            <summary><span className="pauta-create-label">＋ Nova pauta</span><span>Toque para cadastrar</span></summary>
+            <form className="pauta-quick-form" key={data.weekStart} onSubmit={(event) => {
               event.preventDefault();
               const form = event.currentTarget;
-              run(() => createPautaItemAction(new FormData(form)), "Pauta criada e sincronizada com a Agenda.", () => form.reset());
-            }}
-          >
-            <input type="hidden" name="week_start" value={data.weekStart} />
-            <label className="agenda-field pauta-title-field"><span>O que precisa ser feito?</span><input name="title" required maxLength={180} placeholder="Ex.: Cobrir sessão da Câmara" /></label>
-            <div className="agenda-field-wide"><AssigneePicker profiles={data.profiles} currentUserId={data.currentUserId} /></div>
-            <PautaDateTimeField initialDate={initialPautaDate} initialTime={null} weekStart={data.weekStart} weekEnd={data.weekEnd} required />
-            <label className="agenda-field pauta-note-field"><span>Observação</span><input name="description" maxLength={4000} placeholder="Opcional" /></label>
-            <button type="submit" className="agenda-primary" disabled={isPending}>+ Criar na Agenda e Pauta</button>
-          </form></details> : null}
+              const submitter = (event.nativeEvent as SubmitEvent).submitter as HTMLButtonElement | null;
+              const showInAgenda = submitter?.value === "both";
+              const payload = new FormData(form);
+              payload.set("show_in_agenda", showInAgenda ? "true" : "false");
+              run(() => createPautaItemAction(payload), showInAgenda
+                ? "Pauta vinculada à Agenda." : "Pauta criada sem aparecer na Agenda.", () => {
+                form.reset();
+                const panel = form.closest("details");
+                if (panel instanceof HTMLDetailsElement) panel.open = false;
+              });
+            }}>
+              <input type="hidden" name="week_start" value={data.weekStart} />
+              <div className="pauta-form-heading">
+                <label className="agenda-field pauta-title-field"><span>O que precisa ser feito?</span>
+                  <input name="title" required maxLength={180} placeholder="Ex.: Cobrir sessão da Câmara" /></label>
+                <PautaDateTimeField initialDate={initialPautaDate} initialTime={null}
+                  weekStart={data.periodStart} weekEnd={data.periodEnd} required />
+              </div>
+              <div className="pauta-assignee-field"><AssigneePicker profiles={data.profiles} currentUserId={data.currentUserId} /></div>
+              <label className="agenda-field pauta-note-field"><span>Observações</span>
+                <textarea name="description" rows={2} maxLength={4000} placeholder="Informações adicionais (opcional)"
+                  onInput={(event) => {
+                    const target = event.currentTarget;
+                    target.style.height = "auto";
+                    target.style.height = Math.min(target.scrollHeight, 300) + "px";
+                  }} /></label>
+              <div className="pauta-create-actions">
+                <button type="submit" value="pauta" className="pauta-only-button" disabled={isPending}>Criar somente na Pauta</button>
+                <button type="submit" value="both" className="agenda-primary" disabled={isPending}>Criar na Agenda + Pauta</button>
+              </div>
+            </form>
+          </details> : null}
 
           {pautaItems.length ? (
             <div className="pauta-list">
