@@ -158,6 +158,24 @@ function repeatDates(firstDate: string, mode: string): string[] {
   return dates;
 }
 
+async function preserveCoverageAssignees(
+ supabase:SupabaseClient,eventId:string,proposed:string[],
+):Promise<string[]>{
+ const {data:coverage,error}=await supabase.from("event_coverages")
+   .select("attendance_owner_id,article_owner_id").eq("event_id",eventId).maybeSingle();
+ if(error)throw new Error(error.message);
+ if(!coverage)return proposed;
+ // O formulário geral oculta a edição dos titulares: não apagá-los
+ // acidentalmente ao mudar título, local ou horário.
+ const current=await supabase.from("agenda_event_assignees")
+   .select("profile_id").eq("event_id",eventId).eq("assignment_type","responsible");
+ if(current.error)throw new Error(current.error.message);
+ return [...new Set([
+   ...(current.data??[]).map(v=>v.profile_id),
+   coverage.attendance_owner_id,coverage.article_owner_id,
+ ])];
+}
+
 function coverageMinutes(form: FormData,key: string,defaultMinutes:number,min:number,max:number): number | {error:string}{
   const raw=value(form,key);
   const parsed=raw === "" ? defaultMinutes : Number(raw);
@@ -233,7 +251,8 @@ export async function updateAgendaEventAction(eventId: string, formData: FormDat
 
   try {
     const { supabase } = await requireActiveUser();
-    await validateActiveProfiles(supabase, input.assigneeIds);
+    const safeIds=await preserveCoverageAssignees(supabase,eventId,input.assigneeIds);
+    await validateActiveProfiles(supabase, safeIds);
     // Uma transação grava a edição e todos os responsáveis.
     const { data: updated, error } = await supabase.rpc("update_agenda_event_with_assignees_checked", {
       p_event_id: eventId,
@@ -244,7 +263,7 @@ export async function updateAgendaEventAction(eventId: string, formData: FormDat
       p_end_time: input.endTime || null,
       p_location: input.location || null,
       p_reminder_minutes: input.reminderMinutes,
-      p_profile_ids: input.assigneeIds,
+      p_profile_ids: safeIds,
       p_expected_updated_at: value(formData, "updated_at"),
     });
     if (error || !updated) return { error: error?.message ?? "Compromisso não encontrado ou sem permissão." };
@@ -320,7 +339,12 @@ export async function updatePautaItemAction(itemId: string, formData: FormData):
   if ("error" in input) return input;
   try {
     const { supabase } = await requireActiveUser();
-    await validateActiveProfiles(supabase, input.assigneeIds);
+    const eventLink=await supabase.from("weekly_pauta_items")
+      .select("agenda_event_id").eq("id",itemId).maybeSingle();
+    if(eventLink.error||!eventLink.data?.agenda_event_id)
+      return {error:eventLink.error?.message??"Compromisso da Pauta indisponível."};
+    const safeIds=await preserveCoverageAssignees(supabase,eventLink.data.agenda_event_id,input.assigneeIds);
+    await validateActiveProfiles(supabase, safeIds);
     const existing = await supabase.from("weekly_pauta_items")
       .select("week_start").eq("id", itemId).maybeSingle();
     if (existing.error || !existing.data || existing.data.week_start !== input.weekStart) {
@@ -333,7 +357,7 @@ export async function updatePautaItemAction(itemId: string, formData: FormData):
       p_description: input.description || null,
       p_event_date: input.dueDate,
       p_start_time: input.dueTime || null,
-      p_profile_ids: input.assigneeIds,
+      p_profile_ids: safeIds,
       p_expected_updated_at: value(formData, "updated_at"),
     });
     if (error || !data) return { error: error?.message ?? "A pauta foi alterada por outra pessoa. Atualize antes de salvar." };
