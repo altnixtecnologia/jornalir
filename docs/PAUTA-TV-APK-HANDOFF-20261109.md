@@ -52,3 +52,13 @@
 - Preservar stashes e worktrees locais do VS Code; sincronizar com `git fetch` e integração segura, **sem reset forçado**.
 
 **Importante:** nenhum APK foi gerado nesta etapa. O código web está no GitHub; a publicação oficial e a instalação do aplicativo serão etapas explícitas posteriores.
+
+## 7. Situação consolidada após integração (09/11/2026)
+
+- **PR #27 integrada** em `solicitacoes-financeiro-contratos-irc-20261031`.
+- Commit de merge: `6c66cd47833b0172974fd945a1f45b3640b2bd81`.
+- GitHub Actions: `42659809744` e `42659810112` concluídos com sucesso (testes, TypeScript e Pauta).
+- A migration `20261122290000` foi ensaiada no Supabase em `BEGIN/ROLLBACK`, incluindo equipe com três colaboradores, respostas, transferência e entregas independentes; **0 aplicações** no ledger do Supabase oficial na conferência final.
+- **Ainda não publicado no Vercel**, sem APK e sem alteração em equipamentos. A página `/tv/pauta` só estará disponível publicamente no domínio após publicar o código compatível e aplicar a migration autorizada.
+- Para a Claude: começar por `git fetch` e verificar esse commit/documento; não reconstruir a tela web. O próximo trabalho é **somente o APK de exibição**, mas a homologação da versão web deve ocorrer antes de instalar no aparelho.
+
