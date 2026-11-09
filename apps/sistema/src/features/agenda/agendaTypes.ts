@@ -5,6 +5,9 @@ export interface EventCoverage {
   attendanceStatus: "pending" | "on_way" | "present" | "absent";
   attendanceAt: string | null;
   articleStatus: "pending" | "completed";
+  taskLabel: string;
+  taskStatus: "pending" | "completed";
+  taskCompletedAt: string | null;
   articleCompletedAt: string | null;
   articleDueAt: string | null;
   audibleMinutes: number;
@@ -40,7 +43,7 @@ export interface AgendaEventItem {
   updatedAt: string;
   location: string | null;
   status: "scheduled" | "completed" | "cancelled";
-  assignees: (AgendaProfile & { completedAt: string | null })[];
+  assignees: (AgendaProfile & { completedAt: string | null; taskLabel: string | null })[];
   /** Confirmação de presença de reunião, independente de tarefa concluída. */
   invitees: (AgendaProfile & { response: "pending" | "accepted" | "declined"; respondedAt: string | null })[];
 }
@@ -60,7 +63,7 @@ export interface WeeklyPautaItem {
   articleId: string | null;
   status: "pending" | "completed" | "cancelled";
   completedAt: string | null;
-  assignees: (AgendaProfile & { completedAt: string | null })[];
+  assignees: (AgendaProfile & { completedAt: string | null; taskLabel: string | null })[];
   updatedAt: string;
 }
 

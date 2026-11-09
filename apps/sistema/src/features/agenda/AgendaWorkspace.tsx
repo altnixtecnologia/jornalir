@@ -15,6 +15,9 @@ import {
   markCoverageAttendanceAction,
   finishCoverageArticleAction,
   saveCoverageAlertsAction,
+  finishCoverageFieldTaskAction,
+  saveCoverageTaskLabelAction,
+  saveAgendaAssigneeTaskAction,
   savePautaPeriodAction,
   setAgendaEventStatusAction,
   setPautaItemStatusAction,
@@ -24,6 +27,7 @@ import {
   respondAgendaInvitationAction,
 } from "./actions";
 import type { AgendaEventItem, AgendaWorkspaceData, EventCoverage, WeeklyPautaItem } from "./agendaTypes";
+import { coverageClockAt, validCoverageClock } from "./coverageClock";
 import { createSupabaseBrowserClient } from "../../lib/supabase/browser";
 import { notify } from "../../lib/feedback/notify";
 import { confirmDialog } from "../../lib/feedback/confirmStore";
@@ -251,11 +255,30 @@ function ClearableScheduleInput({
   );
 }
 
-function CoveragePeopleFields({profiles,currentUserId}:{
-  profiles:AgendaWorkspaceData["profiles"];currentUserId:string;
-}):JSX.Element{
+function CoverageClockFields({eventTime,audible=60,checkin=5}:{
+ eventTime:string;audible?:number;checkin?:number;
+}):JSX.Element {
+ return <>
+  <label className="agenda-field coverage-clock-field">
+   <span>Horário do aviso principal</span>
+   <input key={"alarm-"+eventTime} name="coverage_audible_time" type="time"
+     required disabled={!eventTime} defaultValue={coverageClockAt(eventTime,audible)}/>
+   <small>Com som, conforme as permissões do aparelho.</small>
+  </label>
+  <label className="agenda-field coverage-clock-field">
+   <span>Horário de confirmar chegada</span>
+   <input key={"arrival-"+eventTime} name="coverage_checkin_time" type="time"
+     required disabled={!eventTime} defaultValue={coverageClockAt(eventTime,checkin)}/>
+   <small>Notificação silenciosa, editável minuto a minuto.</small>
+  </label>
+ </>;
+}
+
+function CoveragePeopleFields({profiles,currentUserId,eventTime}:{
+  profiles:AgendaWorkspaceData["profiles"];currentUserId:string;eventTime:string;
+}):JSX.Element {
   return <div className="coverage-config-fields">
-    <label className="agenda-field"><span>Quem irá ao evento?</span>
+    <label className="agenda-field"><span>Quem vai ao evento / faz a cobertura?</span>
       <select name="coverage_attendance_owner" defaultValue={currentUserId} required>
         {profiles.map(p=><option value={p.id} key={p.id}>{p.name}</option>)}
       </select></label>
@@ -263,32 +286,44 @@ function CoveragePeopleFields({profiles,currentUserId}:{
       <select name="coverage_article_owner" defaultValue={currentUserId} required>
         {profiles.map(p=><option value={p.id} key={p.id}>{p.name}</option>)}
       </select></label>
-    <label className="agenda-field"><span>Lembrete sonoro</span>
-      <select name="coverage_audible_minutes" defaultValue="60">
-        <option value="1440">1 dia antes</option><option value="120">2 horas antes</option>
-        <option value="60">1 hora antes (padrão)</option><option value="30">30 min antes</option>
-        <option value="15">15 min antes</option><option value="5">5 min antes</option>
-        <option value="0">No horário</option><option value="-5">5 min depois</option>
-        <option value="-15">15 min depois</option><option value="-30">30 min depois</option>
-      </select></label>
-    <label className="agenda-field"><span>Confirmação silenciosa</span>
-      <select name="coverage_checkin_minutes" defaultValue="5">
-        <option value="30">30 min antes</option><option value="15">15 min antes</option>
-        <option value="5">5 min antes (padrão)</option><option value="0">No horário</option>
-        <option value="-5">5 min depois</option><option value="-15">15 min depois</option>
-      </select></label>
+    <label className="agenda-field coverage-field-task"><span>Tarefa de quem vai ao evento</span>
+      <input name="coverage_task_label" list="agenda-task-suggestions" type="text" required
+        minLength={2} maxLength={80} defaultValue="Fotos / cobertura" placeholder="Ex.: Fotos, vídeo, entrevistas"/>
+    </label>
+    <CoverageClockFields eventTime={eventTime}/>
+    {!eventTime?<p className="helper-text coverage-clock-help">Informe o horário do evento primeiro para preencher os avisos automaticamente.</p>:null}
   </div>;
 }
 
-function CoverageOptIn({data}:{data:AgendaWorkspaceData}):JSX.Element{
+function CoverageOptIn({data}:{data:AgendaWorkspaceData}):JSX.Element {
  const [enabled,setEnabled]=useState(false);
- return <fieldset className="coverage-opt-in agenda-field-wide">
+ const [eventTime,setEventTime]=useState("");
+ const fieldsetRef=useRef<HTMLFieldSetElement>(null);
+ useEffect(()=>{
+   const form=fieldsetRef.current?.closest("form");
+   if(!form)return;
+   const syncClock=()=>{
+     const start=form.querySelector<HTMLInputElement>('input[name="start_time"]');
+     const datetime=form.querySelector<HTMLInputElement>('input[type="datetime-local"]');
+     const fromDateTime=datetime?.value?.slice(11,16)||"";
+     const clock=start?.value||fromDateTime||"";
+     setEventTime(validCoverageClock(clock)?clock:"");
+   };
+   syncClock();
+   form.addEventListener("input",syncClock);
+   form.addEventListener("change",syncClock);
+   return ()=>{
+     form.removeEventListener("input",syncClock);
+     form.removeEventListener("change",syncClock);
+   };
+ },[]);
+ return <fieldset ref={fieldsetRef} className="coverage-opt-in agenda-field-wide">
   <label className="coverage-switch">
     <input name="coverage_enabled" type="checkbox" value="true" checked={enabled}
       onChange={event=>setEnabled(event.currentTarget.checked)}/>
-    <span><strong>Cobertura de evento</strong><small>Separar presença e produção da matéria, com transferência e dois lembretes</small></span>
+    <span><strong>Cobertura de evento</strong><small>Presença, fotos/atividade de campo e matéria com responsáveis independentes</small></span>
   </label>
-  {enabled?<CoveragePeopleFields profiles={data.profiles} currentUserId={data.currentUserId}/>:null}
+  {enabled?<CoveragePeopleFields profiles={data.profiles} currentUserId={data.currentUserId} eventTime={eventTime}/>:null}
  </fieldset>;
 }
 
@@ -320,7 +355,9 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
   useEffect(() => {
     let pendingRefresh: ReturnType<typeof setTimeout> | undefined;
     let subscribedOnce = false;
+    let postponedWhileOpen = false;
     const isEditing = () => hasDirtyAgendaForm();
+    const hasExpandedPanel = () => Boolean(document.querySelector(".agenda-workspace details[open]"));
 
     const refresh = () => {
       pendingRefresh = undefined;
@@ -328,6 +365,11 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
       if (isEditing()) {
         // Preservar os dados que o usuario ainda nao salvou.
         setRemoteChanges(true);
+        return;
+      }
+      if (hasExpandedPanel()) {
+        // Não fechar uma aba aberta só porque outro usuário sincronizou.
+        postponedWhileOpen = true;
         return;
       }
       // Uma acao local pode ter recarregado a pagina depois que o timer foi agendado.
@@ -343,6 +385,10 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
       if (document.visibilityState !== "visible") return;
       if (isEditing()) {
         setRemoteChanges(true);
+        return;
+      }
+      if (hasExpandedPanel()) {
+        postponedWhileOpen = true;
         return;
       }
       if (pendingRefresh !== undefined) return;
@@ -374,12 +420,21 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
         pendingRefresh = undefined;
       }
     };
+    // Reconciliar quando a equipe terminar de usar os painéis.
+    // Não exibe banner se o formulário aberto nunca foi modificado.
+    const onPanelToggle = () => {
+      if (!postponedWhileOpen || hasExpandedPanel()) return;
+      postponedWhileOpen = false;
+      scheduleRefresh();
+    };
     window.addEventListener("focus", onFocus);
     document.addEventListener("visibilitychange", onVisibility);
+    document.addEventListener("toggle", onPanelToggle, true);
     return () => {
       if (pendingRefresh !== undefined) clearTimeout(pendingRefresh);
       window.removeEventListener("focus", onFocus);
       document.removeEventListener("visibilitychange", onVisibility);
+      document.removeEventListener("toggle", onPanelToggle, true);
       void realtimeClient.removeChannel(channel);
     };
   }, [data.currentUserId, realtimeClient, router]);
@@ -487,7 +542,7 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
     });
   }
 
-  function EnableCoverage({eventId}:{eventId:string}):JSX.Element {
+  function EnableCoverage({eventId,eventTime}:{eventId:string;eventTime:string}):JSX.Element {
     return <details className="agenda-inline-edit coverage-activate">
       <summary>＋ Transformar em cobertura de evento</summary>
       <form className="coverage-form" onSubmit={event=>{
@@ -495,22 +550,19 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
         run(()=>enableCoverageAction(eventId,new FormData(event.currentTarget)),"Etapas de cobertura ativadas.");
       }}>
         <p className="helper-text">Mantém este compromisso e a Pauta existentes, sem criar cópias.</p>
-        <CoveragePeopleFields profiles={data.profiles} currentUserId={data.currentUserId}/>
+        <CoveragePeopleFields profiles={data.profiles} currentUserId={data.currentUserId} eventTime={eventTime}/>
         <button type="submit" className="agenda-primary" disabled={isPending}>Ativar cobertura</button>
       </form>
     </details>;
   }
 
-  function CoveragePanel({coverage,eventId}:{coverage:EventCoverage;eventId:string}):JSX.Element{
+  function CoveragePanel({coverage,eventId,eventTime}:{coverage:EventCoverage;eventId:string;eventTime:string}):JSX.Element{
     const profileName=(id:string)=>data.profiles.find(p=>p.id===id)?.name??"Colaborador";
     const myPresence=coverage.attendanceOwnerId===data.currentUserId;
     const myArticle=coverage.articleOwnerId===data.currentUserId;
     const manager=data.access.pautaWrite||data.access.agendaWrite;
     const canTransfer=myPresence||myArticle||manager;
     const request=coverage.pendingTransfer;
-    const minutesLabel=(n:number)=>n>=0
-      ? (n===0?"no horário":n+" min antes")
-      : Math.abs(n)+" min depois";
     const dueLocal=coverage.articleDueAt
       ? new Date(coverage.articleDueAt).toLocaleString("sv-SE",{timeZone:"America/Sao_Paulo",year:"numeric",month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit"}).replace(" ","T"):"";
     return <section className="coverage-panel" aria-label="Cobertura jornalística">
@@ -533,7 +585,22 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
           </div>:null}
         </div>
         <div className="coverage-step">
-          <div><strong>2. Produção da matéria</strong><small>{profileName(coverage.articleOwnerId)}</small>
+          <div>
+            <strong>2. {coverage.taskLabel}</strong>
+            <small>{profileName(coverage.attendanceOwnerId)}</small>
+            <span className={"coverage-state is-"+coverage.taskStatus}>
+              {coverage.taskStatus==="completed"?"✓ Tarefa concluída":"Aguardando entrega"}
+            </span>
+          </div>
+          {(myPresence||manager)?<div className="coverage-step-actions">
+            <button type="button" disabled={isPending} onClick={()=>run(
+              ()=>finishCoverageFieldTaskAction(eventId,coverage.taskStatus!=="completed"),
+              coverage.taskStatus==="completed"?"Tarefa reaberta.":"Trabalho de campo concluído."
+            )}>{coverage.taskStatus==="completed"?"Reabrir tarefa":"Concluir "+coverage.taskLabel.toLocaleLowerCase("pt-BR")}</button>
+          </div>:null}
+        </div>
+        <div className="coverage-step">
+          <div><strong>3. Produção da matéria</strong><small>{profileName(coverage.articleOwnerId)}</small>
             <span className={"coverage-state is-"+coverage.articleStatus}>
               {coverage.articleStatus==="completed"?"✓ Matéria concluída":"Matéria pendente"}
             </span>
@@ -583,24 +650,55 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
         </form>
       </details>:null}
       {(myPresence||manager)?<details className="coverage-options">
-        <summary>⚙ Lembretes e prazo</summary>
+        <summary>✎ Personalizar tarefa de campo</summary>
+        <form className="coverage-form" onSubmit={event=>{
+          event.preventDefault();run(()=>saveCoverageTaskLabelAction(eventId,new FormData(event.currentTarget)),
+           "Tarefa atualizada.");
+        }}>
+          <label className="agenda-field coverage-reason"><span>Qual é a tarefa do responsável?</span>
+            <input type="text" list="agenda-task-suggestions" name="coverage_task_label"
+              maxLength={80} minLength={2} required defaultValue={coverage.taskLabel}
+              placeholder="Ex.: Tirar fotos, filmar, entrevistar"/>
+          </label>
+          <button type="submit" className="agenda-primary" disabled={isPending}>Salvar função</button>
+        </form>
+      </details>:null}
+      {(myPresence||manager)?<details className="coverage-options">
+        <summary>⚙ Horários e prazo</summary>
         <form className="coverage-form" onSubmit={event=>{
           event.preventDefault();run(()=>saveCoverageAlertsAction(eventId,new FormData(event.currentTarget)),
            "Lembretes atualizados para o responsável.");
         }}>
-          <label className="agenda-field"><span>Alerta sonoro (minutos antes; negativo = depois)</span>
-            <input name="coverage_audible_minutes" type="number" min="-1440" max="1440"
-              required defaultValue={coverage.audibleMinutes}/></label>
-          <label className="agenda-field"><span>Confirmação silenciosa (minutos antes; negativo = depois)</span>
-            <input name="coverage_checkin_minutes" type="number" min="-120" max="120"
-              required defaultValue={coverage.checkinMinutes}/></label>
+          <CoverageClockFields eventTime={eventTime} audible={coverage.audibleMinutes}
+            checkin={coverage.checkinMinutes}/>
           <label className="agenda-field"><span>Prazo da matéria (opcional)</span>
             <input name="article_due_at" type="datetime-local" defaultValue={dueLocal}/></label>
-          <small>Atual: sonoro {minutesLabel(coverage.audibleMinutes)}; confirmação {minutesLabel(coverage.checkinMinutes)}.</small>
+          <small>Os horários acompanham o início do evento; você pode editar cada minuto.</small>
           <button type="submit" className="agenda-primary" disabled={isPending}>Salvar lembretes</button>
         </form>
       </details>:null}
     </section>;
+  }
+
+  function AssignmentRoles({item}:{item:AgendaEventItem}):JSX.Element {
+    return <details className="agenda-inline-edit agenda-assignment-roles">
+      <summary>✎ Definir quem faz fotos, matéria ou outra tarefa</summary>
+      <div className="agenda-roles-list">
+        {item.assignees.map(person=>(
+          <form key={person.id} className="agenda-role-row" onSubmit={event=>{
+            event.preventDefault();
+            run(()=>saveAgendaAssigneeTaskAction(item.id,person.id,new FormData(event.currentTarget)),
+              "Função de "+person.name+" atualizada.");
+          }}>
+            <span>{person.name}</span>
+            <input name="assignee_task_label" type="text" list="agenda-task-suggestions"
+              maxLength={80} minLength={2} defaultValue={person.taskLabel??""}
+              placeholder="Ex.: Fotos, redação, vídeo"/>
+            <button type="submit" disabled={isPending}>Salvar</button>
+          </form>
+        ))}
+      </div>
+    </details>;
   }
 
   function EventEdit({ item }: { item: AgendaEventItem }): JSX.Element {
@@ -709,6 +807,11 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
 
   return (
     <section className={"agenda-workspace" + (initialView === "pauta" ? " is-pauta-workspace" : "")}>
+      <datalist id="agenda-task-suggestions">
+        <option value="Fotos"/><option value="Vídeo"/><option value="Entrevistas"/>
+        <option value="Fotos / cobertura"/><option value="Produção da matéria"/>
+        <option value="Acompanhamento"/><option value="Cobertura jornalística"/>
+      </datalist>
       {data.pendingInvitations.length > 0 ? (
         <section className="agenda-overdue-notice" aria-labelledby="pending-meetings-title">
           <div>
@@ -887,7 +990,7 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
                             {item.assignees.length ? <span className="agenda-assignee-row">
                               {item.assignees.map((person) => (
                                 <span className="agenda-assignee-chip" key={person.id} style={{ borderColor: personColor(person.id), color: personColor(person.id) }}>
-                                  {person.completedAt ? "✓ " : ""}{person.name}
+                                  {person.completedAt ? "✓ " : ""}{person.name}{person.taskLabel?" · "+person.taskLabel:""}
                                 </span>
                               ))}
                             </span> : <span>Sem responsável</span>}
@@ -917,16 +1020,24 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
                             <>
                               {item.assignees.some((person) => person.id === data.currentUserId && !person.completedAt) ? (
                                 <button type="button" className="agenda-complete-button" disabled={isPending}
-                                  onClick={() => run(() => completeMyAgendaAssignmentAction(item.id), "Sua parte foi concluída.")}>
-                                  ✓ {data.access.agendaWrite ? "Concluir minha parte" : "Concluir"}
+                                  onClick={() => run(() => completeMyAgendaAssignmentAction(item.id),
+                                    item.assignees.length>1?"Sua responsabilidade foi concluída.":"Compromisso concluído.")}>
+                                  ✓ {item.assignees.length>1
+                                    ? (item.assignees.find(p=>p.id===data.currentUserId)?.taskLabel
+                                        ? "Concluir "+item.assignees.find(p=>p.id===data.currentUserId)!.taskLabel!
+                                        : "Concluir minha parte")
+                                    : "Concluir compromisso"}
                                 </button>
                               ) : null}
                               {data.access.agendaWrite ? (
                                 <>
-                                  <button type="button" className="agenda-manager-finish" disabled={isPending}
-                                    onClick={() => run(() => setAgendaEventStatusAction(item.id, "completed"), "Compromisso encerrado pela administração.")}>
-                                    ✓ Encerrar compromisso
-                                  </button>
+                                  {item.assignees.length===0 ||
+                                    (item.assignees.length===1 && !item.assignees.some(p=>p.id===data.currentUserId))
+                                    ? <button type="button" className="agenda-manager-finish" disabled={isPending}
+                                      onClick={() => run(() => setAgendaEventStatusAction(item.id, "completed"),
+                                        "Compromisso encerrado pela administração.")}>
+                                        ✓ Encerrar compromisso
+                                      </button> : null}
                                   <button type="button" className="agenda-manager-cancel" disabled={isPending}
                                     aria-label={"Cancelar compromisso: " + item.title}
                                     title="Cancelar compromisso"
@@ -958,11 +1069,13 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
                           </button>
                         </div>
                       ) : null}
-                      {item.coverage?<CoveragePanel coverage={item.coverage} eventId={item.id}/>:
-                        item.status==="scheduled"&&data.access.agendaWrite?<EnableCoverage eventId={item.id}/>:null}
-                      {data.access.agendaWrite ? <EventEdit item={item} /> : null}
+                      {item.coverage?CoveragePanel({coverage:item.coverage,eventId:item.id,eventTime:item.startTime??""}):
+                        item.status==="scheduled"&&data.access.agendaWrite?EnableCoverage({eventId:item.id,eventTime:item.startTime??""}):null}
+                      {data.access.agendaWrite&&!item.coverage&&item.status==="scheduled"&&item.assignees.length>1
+                        ? AssignmentRoles({item}) : null}
+                      {data.access.agendaWrite ? EventEdit({item}) : null}
                       {data.access.agendaWrite && !item.coverage && item.eventKind==="general" && item.status==="scheduled"
-                        ? <InviteesEditor item={item}/> : null}
+                        ? InviteesEditor({item}) : null}
                     </article>
                   ))}
                 </div>
@@ -1126,7 +1239,7 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
                       <div className="pauta-item-topline"><strong>{item.title}</strong><span className="agenda-assignee-row">
                           {item.assignees.length ? item.assignees.map((person) => (
                             <span key={person.id} className="agenda-assignee-chip" style={{ borderColor: personColor(person.id), color: personColor(person.id) }}>
-                              {person.completedAt ? "✓ " : ""}{person.name}
+                              {person.completedAt ? "✓ " : ""}{person.name}{person.taskLabel?" · "+person.taskLabel:""}
                             </span>
                           )) : <span className="agenda-assignee-chip">Sem responsável</span>}
                         </span></div>
@@ -1141,10 +1254,10 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
                       {item.articleId ? (
                         <Link href={"/sistema/editorial/materias/" + item.articleId} className="agenda-link-materia">Abrir matéria vinculada ↗</Link>
                       ) : null}
-                      {item.coverage&&item.agendaEventId?<CoveragePanel coverage={item.coverage} eventId={item.agendaEventId}/>:
+                      {item.coverage&&item.agendaEventId?CoveragePanel({coverage:item.coverage,eventId:item.agendaEventId,eventTime:item.dueTime??""}):
                         item.agendaEventId&&item.status==="pending"&&data.access.pautaWrite?
-                         <EnableCoverage eventId={item.agendaEventId}/>:null}
-                      {data.access.pautaWrite ? <PautaEdit item={item} /> : null}
+                         EnableCoverage({eventId:item.agendaEventId,eventTime:item.dueTime??""}):null}
+                      {data.access.pautaWrite ? PautaEdit({item}) : null}
                     </div>
                     {data.access.pautaWrite ? <button type="button" className="pauta-cancel" disabled={isPending} onClick={() => run(() => setPautaItemStatusAction(item.id, cancelled ? "pending" : "cancelled"), cancelled ? "Item restaurado." : "Item retirado da pauta.")}>{cancelled ? "↶" : "×"}</button> : null}
                   </article>

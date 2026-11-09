@@ -7141,3 +7141,35 @@ button.secondary-link {
   .coverage-panel{padding:8px;}
   .coverage-form >button{width:100%;}
 }
+
+/* Papéis de cobertura e horários HH:MM editáveis, compactos em desktop/mobile. */
+.coverage-config-fields .coverage-field-task { grid-column: 1 / -1; }
+.coverage-clock-field input[type="time"] {
+  width: min(190px, 100%); min-height: 38px; font-variant-numeric: tabular-nums;
+  font-size: 14px; font-weight: 650; background: white;
+}
+.coverage-clock-field small {
+  display:block; max-width:260px; margin-top:3px;
+  font-size:10px; line-height:1.4; color:var(--muted);
+}
+.coverage-clock-help { grid-column: 1 / -1; }
+.coverage-steps { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.coverage-step-actions button { overflow-wrap:anywhere; }
+.agenda-assignment-roles { margin-top: 8px; }
+.agenda-roles-list { display:grid; gap:8px; padding:9px 0 5px; }
+.agenda-role-row {
+ display:grid; grid-template-columns: minmax(110px,1fr) minmax(165px,1.6fr) auto;
+ gap:8px; align-items:center;
+}
+.agenda-role-row > span { font-size:11px; font-weight:700; overflow-wrap:anywhere; }
+.agenda-role-row input { min-height:36px; min-width:0; font-size:12px; }
+.agenda-role-row button { min-height:36px; padding:7px 10px; font-size:11px; }
+@media(max-width:1100px) {
+ .coverage-steps { grid-template-columns: repeat(2,minmax(0,1fr)); }
+}
+@media(max-width:650px) {
+ .coverage-steps { grid-template-columns: minmax(0,1fr); }
+ .agenda-role-row { grid-template-columns: minmax(0,1fr) auto; }
+ .agenda-role-row > span { grid-column: 1 / -1; }
+ .coverage-clock-field input[type="time"] { width: 100%; }
+}
