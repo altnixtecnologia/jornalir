@@ -33,7 +33,8 @@ export async function middleware(request: NextRequest): Promise<NextResponse> {
     // Sem autenticação configurada NUNCA renderizar dados protegidos.
     // O login público continua disponível para diagnóstico.
     return request.nextUrl.pathname.startsWith("/sistema") ||
-      request.nextUrl.pathname.startsWith("/agenda")
+      request.nextUrl.pathname.startsWith("/agenda") ||
+      request.nextUrl.pathname.startsWith("/tv")
       ? NextResponse.json({ error: "Autenticação do painel indisponível." },
         { status: 503, headers: { "Cache-Control": "no-store" } })
       : response;
@@ -57,7 +58,7 @@ export async function middleware(request: NextRequest): Promise<NextResponse> {
   } = await supabase.auth.getUser();
 
   const { pathname } = request.nextUrl;
-  const isProtected = pathname.startsWith("/sistema") || pathname.startsWith("/agenda");
+  const isProtected = pathname.startsWith("/sistema") || pathname.startsWith("/agenda") || pathname.startsWith("/tv");
   const isLogin = pathname === "/login";
 
   if (isProtected || (isLogin && user)) {
@@ -118,6 +119,7 @@ export async function middleware(request: NextRequest): Promise<NextResponse> {
     else if(matches("/sistema/publicidade")||matches("/sistema/anuncios")
       ||matches("/sistema/patrocinadores")) moduleKey="publicidade";
     else if(matches("/sistema/aniversariantes")) moduleKey="aniversariantes";
+    else if(matches("/tv/pauta")) moduleKey="pauta";
     else if(matches("/sistema/agenda")||matches("/agenda")){
       moduleKey=request.nextUrl.searchParams.get("view")==="pauta"?"pauta":"agenda";
     }
@@ -135,5 +137,5 @@ export async function middleware(request: NextRequest): Promise<NextResponse> {
 }
 
 export const config = {
-  matcher: ["/sistema/:path*", "/agenda/:path*", "/login"],
+  matcher: ["/sistema/:path*", "/agenda/:path*", "/tv/:path*", "/login"],
 };
