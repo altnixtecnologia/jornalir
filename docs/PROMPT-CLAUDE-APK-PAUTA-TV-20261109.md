@@ -3,8 +3,20 @@
 **Leia esta tarefa inteira. Primeiro sincronize o VS Code local de forma segura.** Não comece a programar antes de confirmar que o código da branch indicada está presente localmente. O script do repositório faz isso:
 
 ```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\preparar-claude-pauta-tv.ps1
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\preparar-claude-pauta-tv.ps1 -OpenVSCode
 ```
+
+**Se o checkout local ainda não tiver o PS1**, execute no terminal PowerShell do VS Code, já na raiz do repositório, este bootstrap não destrutivo (obtém o PS1 diretamente do GitHub via Git, sem trocar de branch antes da checagem de segurança):
+
+```powershell
+git fetch origin
+$TmpPs1 = Join-Path $env:TEMP 'preparar-claude-pauta-tv.ps1'
+git show origin/solicitacoes-financeiro-contratos-irc-20261031:scripts/preparar-claude-pauta-tv.ps1 | Set-Content -LiteralPath $TmpPs1 -Encoding UTF8
+if ($LASTEXITCODE -ne 0) { throw 'Não foi possível obter o PS1 do GitHub.' }
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File $TmpPs1 -RepositoryRoot (Get-Location).Path -OpenVSCode
+```
+
+Antes de executar qualquer script obtido remotamente, confirme que `git remote get-url origin` aponta para `altnixtecnologia/jornalir` e leia seu conteúdo. O próprio script também confere isso antes de sincronizar. Caso encontre alterações locais ou worktree ocupada, ele interrompe sem apagar nada.
 
 Se o script for executado pela própria Claude, não é necessário iniciar outra sessão Claude. Não use `-StartClaude` dentro de uma sessão Claude.
 
@@ -23,7 +35,7 @@ Se o script for executado pela própria Claude, não é necessário iniciar outr
 1. Localize o monorepo aberto no VS Code e confira `git remote -v`, `git status --short`, `git branch --show-current` e `git worktree list`.
 2. Rode `scripts/preparar-claude-pauta-tv.ps1`. Ele valida `origin`, recusa árvore suja, faz `git fetch`, abre a branch de integração se possível e aplica **somente** `git merge --ff-only origin/solicitacoes-financeiro-contratos-irc-20261031`.
 3. Se houver alterações locais, stash, worktree contendo a branch, conflitos, divergiu o histórico ou a branch não estiver acessível, **pare e reporte**. Não execute `reset --hard`, `clean -fd`, `rebase`, `push --force`, exclusão de stashes ou worktrees.
-4. Confirme que os arquivos `apps/sistema/src/app/tv/pauta/page.tsx`, `apps/sistema/src/features/pauta-tv/PautaTvBoard.tsx`, `supabase/migrations/20261122290000_coverage_team_agenda_pauta.sql` existem e que o site oficial já responde; se ainda não estiver publicado, reporte em vez de fingir funcionamento.
+4. Confirme que os arquivos `apps/sistema/src/app/tv/pauta/page.tsx`, `apps/sistema/src/features/pauta-tv/PautaTvBoard.tsx`, `supabase/migrations/20261122290000_coverage_team_agenda_pauta.sql` existem. A versão web está **publicada**: deploy `dpl_CctBHZW5AXwzReNu5e7QYSo6RyYH`, commit de aplicação `4693a16bdff0fee7a4cb0480c30bbba8ded8cfdd`, status `READY`, migration registrada no Supabase. A sessão de visualização da TV ainda precisa ser testada com login real; não inventar sucesso de testes não realizados.
 
 ## Passo 2 — aplicativo Android exclusivo
 
