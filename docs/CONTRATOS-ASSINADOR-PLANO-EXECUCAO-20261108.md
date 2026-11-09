@@ -385,3 +385,20 @@ Branch e SHA local/remoto: solicitacoes-financeiro-contratos-irc-20261031 — ba
 **Novo teste dirigido aprovado**: [GitHub Actions 42535940585](https://github.com/altnixtecnologia/jornalir/actions/runs/42535940585/job/128900124661) aplica APENAS as migrations `20261122220000_signature_google_evidence.sql` e `20261122230000_signature_layout_version_guard.sql` a um PostgreSQL 17 temporário com tabelas fictícias. Verifica: vínculo exclusivo da prova Google ao convite, unicidade, proibição de UPDATE/DELETE, RLS e ausência de privilégios públicos; permite editar posições de PDF em minuta e bloqueia INSERT/UPDATE/DELETE depois da aprovação jurídica ou em modelo de texto.
 
 **Consolidado, sem repetir testes:** migrations 220000–250000 têm smoke SQL focal **verde em dois bancos temporários** (testes independentes). Isso NÃO substitui verificação da cadeia inteira das 12 migrations no schema real. Supabase `site-system-ir` permanece sem as 12 migrations; nenhum deploy ou uso real realizado. A homologação integrada continua a próxima barreira.
+
+
+## 08/11/2026 — Pré-voo DIRETO no banco oficial, transação revertida
+
+**Decisão operacional:** homologar no ambiente **oficial** do Jornal IR (sem criar um segundo banco de teste). Não confundir essa decisão com autorização para implantar alterações duráveis ou enviar mensagens reais.
+
+**Supabase alvo:** projeto `site-system-ir` (`iqnzrpdccecgalqboeyf`). Realizado teste de compatibilidade **das 12 migrations exatas**, de `20261122140000` a `20261122250000`, executadas em ordem, dentro de uma única transação `BEGIN … ROLLBACK`, com `lock_timeout = 350ms`, `statement_timeout = 5s` e limite de sessão transacional. Resultado da consulta: `VALIDADO_SEM_APLICAR`; nenhuma migration ficou registrada no banco. Teste de permissões: 45 registros atuais, **zero** pares fora do CHECK permitido. Antes e depois: 6 modelos existentes, **0 ativos**, 0 convites comerciais/institucionais pendentes, 45 registros de permissões. Tabelas novas `company_profile`, `contract_company_signature_rounds`, `contract_signature_google_evidence` e `contract_signature_delivery_outbox` **não existem** após rollback; ledger termina em `20261122130000`.
+
+**Limite do resultado:** a validação prova que o SQL completo executou sem erro de estrutura sobre o estado atual do banco oficial; **não** aprova automaticamente aplicação real, telas, mensagens, backup, assinaturas ou condições jurídicas. DDL em transação revertida pode ser diferente da operação permanente quanto a concorrência e dados que mudarem posteriormente.
+
+**Próximo passo autorizado apenas mediante aprovação específica do proprietário:**
+1. Aplicar as 12 migrations **definitivamente no oficial**, verificando ledger/objetos e mantendo notificações finais desativadas.
+2. Publicar versão integrada no domínio oficial somente após banco atualizado, com plano de contingência.
+3. Testar logado com contas internas controladas, documentos sem obrigação real e nenhuma cobrança; primeiro minuta e permissões, depois assinatura comercial/institucional e rubricas, QR e prova. Para assinatura eletrônica completa, exigir um documento de homologação explicitamente não vinculante e aprovado para esse fim; a minuta padrão em teste **não habilita assinatura**.
+4. Somente depois, habilitar e testar Meta/Resend/Telegram com destinatários autorizados e backup privado, um serviço por vez.
+
+**Não realizado:** aplicar migrations, deploy, ativação de serviços, criação de clientes, pagamentos, assinaturas reais ou mensagens. Não repetir auditoria geral; acompanhar apenas o primeiro fluxo oficial após autorização.
