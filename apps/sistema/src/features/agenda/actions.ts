@@ -426,13 +426,13 @@ export async function savePautaPeriodAction(formData: FormData): Promise<AgendaA
 /** Vincular uma cobertura a compromisso/pauta existente (sem duplicar agenda). */
 export async function enableCoverageAction(eventId:string,formData:FormData):Promise<AgendaActionResult>{
   if(!eventId)return {error:"Compromisso não identificado."};
-  const people=coveragePeople(formData,await coverageStartTime(supabase,eventId));if("error" in people)return people;
   try{
     const {supabase}=await requireActiveUser();
+    const people=coveragePeople(formData,await coverageStartTime(supabase,eventId));
+    if("error" in people)return people;
     const {data,error}=await supabase.rpc("create_coverage_for_event_with_task",{
       p_event_id:eventId,p_attendance_owner:people.attendanceOwner,p_article_owner:people.articleOwner,
       p_audible_minutes:people.audible,p_checkin_minutes:people.checkin,p_task_label:people.taskLabel,
-      p_article_due_at:null,
     });
     if(error||!data)return {error:error?.message??"Não foi possível configurar a cobertura."};
     refreshAgenda();return {ok:true};
