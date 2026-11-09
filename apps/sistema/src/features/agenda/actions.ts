@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createSupabaseServerClient } from "../../lib/supabase/server";
 import { addDays, startOfWeek } from "./agendaData";
+import { dateInPautaPeriod } from "./pautaPeriod";
 
 export type AgendaActionResult = { ok: true } | { error: string };
 
@@ -112,10 +113,8 @@ function validatePautaPayload(formData: FormData):
 
   if (!title || title.length > 180) return { error: "Informe um título com até 180 caracteres." };
   if (!validDate(weekStart) || startOfWeek(weekStart) !== weekStart) return { error: "Semana inválida." };
-  if (dueDate && (!validDate(dueDate) || dueDate < weekStart || dueDate > addDays(weekStart, 6))) {
-    return { error: "O dia precisa estar dentro da semana selecionada." };
-  }
-  if (!dueDate) return { error: "Escolha um dia para a pauta. Todos os itens entram na Agenda." };
+  if (dueDate && !validDate(dueDate)) return { error: "Data inválida para a pauta." };
+  if (!dueDate) return { error: "Escolha uma data para a pauta." };
   if (!validTime(dueTime)) return { error: "Horário inválido." };
   if (description.length > 4000) return { error: "Observação muito longa." };
   return { title, weekStart, dueDate, dueTime, description, assigneeIds };
@@ -123,7 +122,19 @@ function validatePautaPayload(formData: FormData):
 
 function refreshAgenda(): void {
   revalidatePath("/sistema/agenda");
+  revalidatePath("/sistema/pauta");
   revalidatePath("/agenda");
+}
+
+async function checkPautaPeriod(supabase: SupabaseClient, anchor: string, day: string): Promise<void> {
+  const { data, error } = await supabase.from("pauta_week_overrides")
+    .select("period_start,period_end").eq("week_start", anchor).maybeSingle();
+  if (error) throw new Error(error.message);
+  const periodStart = data?.period_start ?? anchor;
+  const periodEnd = data?.period_end ?? addDays(anchor, 6);
+  if (!dateInPautaPeriod(day, periodStart, periodEnd)) {
+    throw new Error("A data deve estar dentro do período da Pauta selecionada.");
+  }
 }
 
 function repeatDates(firstDate: string, mode: string): string[] {
@@ -230,14 +241,17 @@ export async function createPautaItemAction(formData: FormData): Promise<AgendaA
   try {
     const { supabase } = await requireActiveUser();
     await validateActiveProfiles(supabase, input.assigneeIds);
-    const { data, error } = await supabase.rpc("create_editorial_pauta_event", {
+    await checkPautaPeriod(supabase, input.weekStart, input.dueDate);
+    const { data, error } = await supabase.rpc("create_editorial_pauta_in_period", {
       p_title: input.title,
       p_description: input.description || null,
       p_event_date: input.dueDate,
       p_start_time: input.dueTime || null,
       p_profile_ids: input.assigneeIds,
+      p_week_start: input.weekStart,
+      p_show_in_agenda: value(formData, "show_in_agenda") === "true",
     });
-    if (error || !data) return { error: error?.message ?? "Não foi possível criar a pauta na Agenda." };
+    if (error || !data) return { error: error?.message ?? "Não foi possível criar a pauta." };
     refreshAgenda();
     return { ok: true };
   } catch (error) {
@@ -252,6 +266,12 @@ export async function updatePautaItemAction(itemId: string, formData: FormData):
   try {
     const { supabase } = await requireActiveUser();
     await validateActiveProfiles(supabase, input.assigneeIds);
+    const existing = await supabase.from("weekly_pauta_items")
+      .select("week_start").eq("id", itemId).maybeSingle();
+    if (existing.error || !existing.data || existing.data.week_start !== input.weekStart) {
+      return { error: "Esta pauta mudou de semana. Atualize a página antes de editar." };
+    }
+    await checkPautaPeriod(supabase, input.weekStart, input.dueDate);
     const { data, error } = await supabase.rpc("update_editorial_pauta_event", {
       p_pauta_id: itemId,
       p_title: input.title,
@@ -285,6 +305,36 @@ export async function setPautaItemStatusAction(
     return { ok: true };
   } catch (error) {
     return { error: error instanceof Error ? error.message : "Não foi possível atualizar a pauta." };
+  }
+}
+
+/** Exceção de período: altera a semana escolhida para toda a equipe, com auditoria. */
+export async function savePautaPeriodAction(formData: FormData): Promise<AgendaActionResult> {
+  const weekStart = value(formData, "week_start");
+  const periodStart = value(formData, "period_start");
+  const periodEnd = value(formData, "period_end");
+  const reason = value(formData, "reason");
+  if (!validDate(weekStart) || startOfWeek(weekStart) !== weekStart ||
+      !validDate(periodStart) || !validDate(periodEnd) || periodEnd < periodStart) {
+    return { error: "Confira as datas do período." };
+  }
+  if ((periodStart !== weekStart || periodEnd !== addDays(weekStart, 6)) &&
+      (reason.length < 5 || reason.length > 300)) {
+    return { error: "Informe o motivo da alteração (5 a 300 caracteres)." };
+  }
+  try {
+    const { supabase } = await requireActiveUser();
+    const { data, error } = await supabase.rpc("save_pauta_week_override", {
+      p_week_start: weekStart,
+      p_period_start: periodStart,
+      p_period_end: periodEnd,
+      p_reason: reason,
+    });
+    if (error || !data) return { error: error?.message ?? "Não foi possível alterar a semana." };
+    refreshAgenda();
+    return { ok: true };
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : "Não foi possível salvar o período." };
   }
 }
 
