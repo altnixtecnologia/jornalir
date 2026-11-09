@@ -470,6 +470,86 @@ export async function enableCoverageAction(eventId:string,formData:FormData):Pro
   }catch(error){return {error:error instanceof Error?error.message:"Falha na cobertura."};}
 }
 
+
+/** A presença termina na Agenda; a entrega continua independente na Pauta. */
+export async function answerCoverageAttendanceAction(
+ eventId:string,answer:"present"|"not_required"|"unable",
+):Promise<AgendaActionResult>{
+ if(!eventId||!["present","not_required","unable"].includes(answer))return {error:"Resposta inválida."};
+ try{
+  const {supabase}=await requireActiveUser();
+  const {data,error}=await supabase.rpc("set_coverage_member_attendance",{p_event_id:eventId,p_answer:answer});
+  if(error||!data)return {error:error?.message??"Não foi possível registrar sua resposta."};
+  refreshAgenda();return {ok:true};
+ }catch(e){return {error:e instanceof Error?e.message:"Falha ao registrar presença."};}
+}
+
+export async function finishCoverageTeamTaskAction(
+ eventId:string,complete:boolean,
+):Promise<AgendaActionResult>{
+ if(!eventId)return {error:"Evento inválido."};
+ try{
+  const {supabase}=await requireActiveUser();
+  const {data,error}=await supabase.rpc("set_coverage_member_task",{
+   p_event_id:eventId,p_completed:complete,
+  });
+  if(error||!data)return {error:error?.message??"Não foi possível atualizar sua tarefa."};
+  refreshAgenda();return {ok:true};
+ }catch(e){return {error:e instanceof Error?e.message:"Falha na conclusão."};}
+}
+
+export async function addCoverageTeamMemberAction(
+ eventId:string,formData:FormData,
+):Promise<AgendaActionResult>{
+ const person=value(formData,"team_new_person");
+ const task=value(formData,"team_new_task");
+ if(!eventId||!/^[a-f0-9-]{36}$/i.test(person)||task.length<2||task.length>80)
+  return {error:"Selecione o colaborador e descreva sua tarefa."};
+ try{
+  const {supabase}=await requireActiveUser();
+  const {data,error}=await supabase.rpc("add_coverage_team_member",{
+   p_event_id:eventId,p_profile_id:person,p_field_task:task,
+  });
+  if(error||!data)return {error:error?.message??"Não foi possível adicionar colaborador."};
+  refreshAgenda();return {ok:true};
+ }catch(e){return {error:e instanceof Error?e.message:"Falha ao adicionar colaborador."};}
+}
+
+export async function requestCoverageTeamTransferAction(
+ eventId:string,formData:FormData,
+):Promise<AgendaActionResult>{
+ const from=value(formData,"transfer_from");
+ const to=value(formData,"transfer_to");
+ const part=value(formData,"transfer_part");
+ const reason=value(formData,"transfer_reason");
+ const force=value(formData,"transfer_force")==="true";
+ if(!eventId||!/^[a-f0-9-]{36}$/i.test(from)||!/^[a-f0-9-]{36}$/i.test(to)||
+    !["field","article","both"].includes(part)||reason.length<5||reason.length>300)
+  return {error:"Informe titular atual, novo titular e motivo."};
+ try{
+  const {supabase}=await requireActiveUser();
+  const {data,error}=await supabase.rpc("request_coverage_member_transfer",{
+   p_event_id:eventId,p_from:from,p_to:to,p_part:part,p_reason:reason,p_force:force,
+  });
+  if(error||!data)return {error:error?.message??"Não foi possível solicitar a transferência."};
+  refreshAgenda();return {ok:true};
+ }catch(e){return {error:e instanceof Error?e.message:"Falha na transferência."};}
+}
+
+export async function respondCoverageTeamTransferAction(
+ transferId:string,accept:boolean,
+):Promise<AgendaActionResult>{
+ if(!transferId)return {error:"Solicitação inválida."};
+ try{
+  const {supabase}=await requireActiveUser();
+  const {data,error}=await supabase.rpc("respond_coverage_member_transfer",{
+   p_transfer:transferId,p_accept:accept,
+  });
+  if(error||!data)return {error:error?.message??"Não foi possível responder à transferência."};
+  refreshAgenda();return {ok:true};
+ }catch(e){return {error:e instanceof Error?e.message:"Falha ao responder à transferência."};}
+}
+
 export async function requestCoverageTransferAction(eventId:string,formData:FormData):Promise<AgendaActionResult>{
   const part=value(formData,"transfer_part");
   const to=value(formData,"transfer_to");
