@@ -408,6 +408,60 @@ grant execute on function public.request_coverage_member_transfer(uuid,uuid,text
 revoke all on function public.respond_coverage_member_transfer(uuid,boolean) from public,anon;
 grant execute on function public.respond_coverage_member_transfer(uuid,boolean) to authenticated;
 
+
+-- Criar compromisso + equipe numa única chamada para não deixar "meio evento".
+create or replace function public.create_coverage_team_agenda(
+ p_title text,p_description text,p_event_date date,p_start_time time,
+ p_end_time time,p_location text,p_staff jsonb,p_article_owner uuid,
+ p_audible integer default 60,p_checkin integer default 5
+) returns uuid language plpgsql security definer set search_path='' as $
+declare v_id uuid;
+begin
+ if auth.uid() is null or not public.is_agenda_manager() then
+  raise exception 'Sem permissão' using errcode='42501';end if;
+ if char_length(btrim(coalesce(p_title,''))) not between 1 and 180
+  or p_event_date is null or p_start_time is null
+  or (p_end_time is not null and p_end_time<p_start_time)
+  or char_length(coalesce(p_description,''))>4000
+  or char_length(coalesce(p_location,''))>240 then
+   raise exception 'Dados do compromisso inválidos';end if;
+ insert into public.agenda_events(
+  title,description,event_date,start_time,end_time,location,event_kind,reminder_minutes,show_in_agenda
+ ) values(btrim(p_title),p_description,p_event_date,p_start_time,p_end_time,p_location,'general',null,true)
+ returning id into v_id;
+ perform public.create_coverage_team(v_id,p_staff,p_article_owner,p_audible,p_checkin);
+ return v_id;
+end;$;
+revoke all on function public.create_coverage_team_agenda(text,text,date,time,time,text,jsonb,uuid,integer,integer) from public,anon;
+grant execute on function public.create_coverage_team_agenda(text,text,date,time,time,text,jsonb,uuid,integer,integer) to authenticated;
+
+create or replace function public.create_coverage_team_pauta(
+ p_title text,p_description text,p_event_date date,p_start_time time,
+ p_week_start date,p_show_in_agenda boolean,p_staff jsonb,p_article_owner uuid,
+ p_audible integer default 60,p_checkin integer default 5
+) returns uuid language plpgsql security definer set search_path='' as $
+declare v_pauta uuid;v_event uuid;v_profile_ids uuid[];
+begin
+ if auth.uid() is null or not public.is_agenda_manager() then
+  raise exception 'Sem permissão' using errcode='42501';end if;
+ if p_start_time is null then raise exception 'Informe o horário da cobertura';end if;
+ if p_staff is null or jsonb_typeof(p_staff)<>'array' or jsonb_array_length(p_staff)<1 then
+  raise exception 'Adicione pelo menos um colaborador';end if;
+ select array_agg(distinct id) into v_profile_ids from (
+  select (x->>'profileId')::uuid as id from jsonb_array_elements(p_staff) x
+  union all select p_article_owner
+ ) persons;
+ v_pauta := public.create_editorial_pauta_in_period(
+  p_title,p_description,p_event_date,p_start_time,v_profile_ids,p_week_start,p_show_in_agenda
+ );
+ select agenda_event_id into v_event from public.weekly_pauta_items where id=v_pauta;
+ if v_event is null then raise exception 'Vínculo com agenda não criado';end if;
+ perform public.create_coverage_team(v_event,p_staff,p_article_owner,p_audible,p_checkin);
+ return v_pauta;
+end;$;
+revoke all on function public.create_coverage_team_pauta(text,text,date,time,date,boolean,jsonb,uuid,integer,integer) from public,anon;
+grant execute on function public.create_coverage_team_pauta(text,text,date,time,date,boolean,jsonb,uuid,integer,integer) to authenticated;
+
 -- Comunicação de mudanças a painel e app da Pauta.
 do $$ begin
  if not exists(select 1 from pg_publication_tables where pubname='supabase_realtime'
