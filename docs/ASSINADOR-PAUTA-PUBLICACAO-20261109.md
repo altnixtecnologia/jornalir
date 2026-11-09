@@ -25,3 +25,18 @@
 6. Sincronizar VS Code Windows por `git fetch` e fast-forward seguro na branch; preservar os 3 stashes e 3 worktrees, nunca fazer reset/rebase destrutivo por rotina.
 
 **Regra:** não repetir migrations aplicadas nem auditorias gerais; focar pendências funcionais acima e testes de navegador oficial.
+
+
+## 09/11/2026 — Nova Pauta quinta → quarta, interface compacta e sync flutuante
+
+**PRODUÇÃO PUBLICADA E CONFIRMADA.** PR [#23](https://github.com/altnixtecnologia/jornalir/pull/23), merge de código `bd9f2f91af0c060db6cdda3a46e749871cbb72c4`; Vercel `jornalir-sistema` deploy `dpl_6SK9FWxtBxu26zdDMeEQ3y7uZty8`, estado READY, domínio `https://controle.altnix.com.br` confirmado nos aliases.
+
+- Semana da **Pauta**: quinta a quarta (ex.: 05/11–11/11), sem alterar calendário convencional da **Agenda**.
+- Lápis permite exceções de início/fim **somente da semana selecionada**, persistidas na tabela `pauta_week_overrides` e compartilhadas com toda a equipe; RLS: apenas gestor habilitado edita; trilha de auditoria e evento de Realtime.
+- Menu do card: Agenda/Pauta, setas próximas do período e filtro no mesmo cabeçalho. Resumo e formulário compactos; apenas um botão `Nova pauta`.
+- Formulário: tarefa ao lado da data/hora, responsáveis, observações expansíveis, opções `Criar somente na Pauta` e `Criar na Agenda + Pauta`. Internamente mantém identidade única da atividade editorial para status, conclusão por responsável e auditoria; a opção somente Pauta usa `agenda_events.show_in_agenda=false` para não aparecer no calendário da Agenda.
+- Aviso de sincronização: flutuante, só durante edição realmente modificada, sem impedir atualização automática por manter formulário vazio aberto.
+- Banco oficial `site-system-ir`: migration `20261122260000_pauta_quinta_quarta_periodos.sql` **aplicada** em transação definitiva e registrada com a mesma versão no ledger. Os **2 registros preexistentes** foram preservados e reancorados (semana 15/10 e 05/11); nenhuma pauta de teste ficou persistida.
+- Testes: SQL no banco oficial com `BEGIN/ROLLBACK` confirmou criação das duas modalidades, rejeição de dia fora de período, bloqueio de alteração por operador, preservação dos dados; GitHub Actions [run 42625266333](https://github.com/altnixtecnologia/jornalir/actions/runs/42625266333) **verde**; Vercel Preview `dpl_h4uDaACDgUpuTiwcCmCma2Gtfw6A` READY antes da publicação oficial.
+- Pós-deploy: consulta Vercel de runtime errors não encontrou falhas no período consultado. **Não substitui teste visual/logado de interação no navegador.**
+- Portal público e assinador não foram modificados nesta PR. Não reaplicar migrations. Preservar 3 stashes e 3 worktrees ao sincronizar VS Code local; fazer `git fetch` e fast-forward seguro, sem reset/rebase destrutivo.
