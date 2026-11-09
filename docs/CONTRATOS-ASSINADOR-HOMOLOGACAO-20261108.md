@@ -47,3 +47,10 @@ Base do resultado CI: `45c655e25523a25e0345db5e4869fabb4de06b7d`
 ## Prova de Google e editor visual no banco temporário
 
 [GitHub Actions 42535940585](https://github.com/altnixtecnologia/jornalir/actions/runs/42535940585/job/128900124661) **verde**: migrations `220000` e `230000` aplicadas somente em PostgreSQL 17 isolado, com teste de unicidade/imutabilidade/RLS para a evidência Google e de congelamento das posições do PDF após aprovação jurídica. Junto do smoke anterior (fila/Meta), quatro migrations passaram em banco sintético; ainda resta a homologação da cadeia de 12 no ambiente integrado, sem mudança de produção até autorização expressa.
+
+
+## Alteração de estratégia: testes diretos no ambiente oficial (08/11/2026)
+
+Por orientação expressa, **não criar ambiente de homologação separado**. As 12 migrations passaram em sequência no banco oficial em uma transação `BEGIN/ROLLBACK` (retorno `VALIDADO_SEM_APLICAR`), com 0 erros de SQL, lock curto e pós-verificação do ledger/contagens. **Nenhuma alteração persistiu.**
+
+Os testes manuais com login serão realizados **no oficial após autorização da aplicação definitiva e do deploy**, com contas, modelos e destinatários controlados, sem cobrança ou envio automático. **Não usar contratos reais nem presumir que a minuta de teste pode ser assinada**: fluxo completo deve ser ensaiado com documento não vinculante aprovado para teste. A validação jurídica precede qualquer assinatura com efeito contratual.
