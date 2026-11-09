@@ -6,6 +6,10 @@ on:
       - security/next15-system-20261108
     paths:
       - ".github/workflows/next15-sistema-compatibility.yml"
+      - "apps/sistema/src/lib/supabase/server.ts"
+      - "apps/sistema/src/app/assinar-contrato-comercial/actions.ts"
+      - "apps/sistema/src/app/sistema/financeiro/contratos/signature-actions.ts"
+      - "apps/sistema/src/types/react19-jsx-compat.d.ts"
   workflow_dispatch:
 
 permissions:
