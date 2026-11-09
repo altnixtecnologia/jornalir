@@ -81,12 +81,12 @@ export async function middleware(request: NextRequest): Promise<NextResponse> {
 
     if (isLogin) {
       // Conta inativa/não confirmada pode abrir o login, sem loop.
-      if (eligible) return NextResponse.redirect(new URL("/sistema",request.url));
+      if (eligible) return NextResponse.redirect(new URL(request.nextUrl.searchParams.get("next")==="/tv/pauta"?"/tv/pauta":"/sistema",request.url));
       return response;
     }
     if (!eligible) {
       const reason=!user?"sessao":!user.email_confirmed_at?"pendente":"inativo";
-      return NextResponse.redirect(new URL("/login?erro="+reason,request.url));
+      return NextResponse.redirect(new URL("/login?erro="+reason+(pathname.startsWith("/tv/pauta")?"&next=%2Ftv%2Fpauta":""),request.url));
     }
 
     // Módulo desligado: negar acesso por URL, não apenas esconder no menu.
