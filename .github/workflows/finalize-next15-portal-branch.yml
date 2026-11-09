@@ -51,6 +51,13 @@ jobs:
             '@types/react':'^19.0.0','@types/react-dom':'^19.0.0'
           });
           fs.writeFileSync(path,JSON.stringify(pkg,null,2)+'\n');
+          // Pacotes compartilhados (@ir/ui) também resolvem React a partir
+          // da raiz do monorepo. Fixar a MESMA versão evita dois runtimes
+          // incompatíveis no SSR (404/useContext).
+          const root=JSON.parse(fs.readFileSync('package.json','utf8'));
+          root.dependencies={...(root.dependencies||{}),
+            react:'19.1.10','react-dom':'19.1.10'};
+          fs.writeFileSync('package.json',JSON.stringify(root,null,2)+'\n');
           NODE
           npm install --no-audit --no-fund
           # Com os dois apps em React 19, tentar remover a cópia 18 deixada
@@ -109,7 +116,7 @@ jobs:
       - name: Persistir somente portal e lockfile na branch isolada
         run: |
           test "$GITHUB_REF" = "refs/heads/security/next15-portal-20261109"
-          git add -- apps/site/package.json apps/site/src/app package-lock.json
+          git add -- package.json apps/site/package.json apps/site/src/app package-lock.json
           git diff --cached --check
           if git diff --cached --quiet; then
             echo "Branch já atualizada; nada a gravar."
