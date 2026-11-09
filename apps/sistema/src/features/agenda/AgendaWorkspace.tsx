@@ -352,7 +352,9 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
   useEffect(() => {
     let pendingRefresh: ReturnType<typeof setTimeout> | undefined;
     let subscribedOnce = false;
+    let postponedWhileOpen = false;
     const isEditing = () => hasDirtyAgendaForm();
+    const hasExpandedPanel = () => Boolean(document.querySelector(".agenda-workspace details[open]"));
 
     const refresh = () => {
       pendingRefresh = undefined;
@@ -360,6 +362,11 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
       if (isEditing()) {
         // Preservar os dados que o usuario ainda nao salvou.
         setRemoteChanges(true);
+        return;
+      }
+      if (hasExpandedPanel()) {
+        // Não fechar uma aba aberta só porque outro usuário sincronizou.
+        postponedWhileOpen = true;
         return;
       }
       // Uma acao local pode ter recarregado a pagina depois que o timer foi agendado.
@@ -375,6 +382,10 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
       if (document.visibilityState !== "visible") return;
       if (isEditing()) {
         setRemoteChanges(true);
+        return;
+      }
+      if (hasExpandedPanel()) {
+        postponedWhileOpen = true;
         return;
       }
       if (pendingRefresh !== undefined) return;
@@ -406,12 +417,21 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
         pendingRefresh = undefined;
       }
     };
+    // Reconciliar quando a equipe terminar de usar os painéis.
+    // Não exibe banner se o formulário aberto nunca foi modificado.
+    const onPanelToggle = () => {
+      if (!postponedWhileOpen || hasExpandedPanel()) return;
+      postponedWhileOpen = false;
+      scheduleRefresh();
+    };
     window.addEventListener("focus", onFocus);
     document.addEventListener("visibilitychange", onVisibility);
+    document.addEventListener("toggle", onPanelToggle, true);
     return () => {
       if (pendingRefresh !== undefined) clearTimeout(pendingRefresh);
       window.removeEventListener("focus", onFocus);
       document.removeEventListener("visibilitychange", onVisibility);
+      document.removeEventListener("toggle", onPanelToggle, true);
       void realtimeClient.removeChannel(channel);
     };
   }, [data.currentUserId, realtimeClient, router]);
@@ -763,6 +783,11 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
 
   return (
     <section className={"agenda-workspace" + (initialView === "pauta" ? " is-pauta-workspace" : "")}>
+      <datalist id="agenda-task-suggestions">
+        <option value="Fotos"/><option value="Vídeo"/><option value="Entrevistas"/>
+        <option value="Fotos / cobertura"/><option value="Produção da matéria"/>
+        <option value="Acompanhamento"/><option value="Cobertura jornalística"/>
+      </datalist>
       {data.pendingInvitations.length > 0 ? (
         <section className="agenda-overdue-notice" aria-labelledby="pending-meetings-title">
           <div>
