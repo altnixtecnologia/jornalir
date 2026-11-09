@@ -143,12 +143,28 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   const agendaRows=(events??[]) as AgendaEvent[];
   const ids=agendaRows.map(e=>e.id);
   const coveragesResult=ids.length?await db.from("event_coverages")
-    .select("event_id,attendance_owner_id,attendance_status,audible_minutes,checkin_minutes,article_status,revision")
+    .select("event_id,team_mode,attendance_owner_id,attendance_status,audible_minutes,checkin_minutes,article_status,revision")
     .in("event_id",ids):{data:[],error:null};
   if(coveragesResult.error)return NextResponse.json({error:"Falha ao consultar coberturas"},{status:500});
-  const coverageMap=new Map<string,CoverageStateReminder>(
-    ((coveragesResult.data??[]) as CoverageStateReminder[]).map(v=>[v.event_id,v])
+  const coverageMap=new Map<string,CoverageStateReminder & {team_mode:boolean}>(
+    ((coveragesResult.data??[]) as (CoverageStateReminder & {team_mode:boolean})[])
+      .map(v=>[v.event_id,v])
   );
+  const teamIds=[...coverageMap.values()].filter(c=>c.team_mode).map(c=>c.event_id);
+  const coverageTeamRows=teamIds.length
+    ? await db.from("event_coverage_members")
+      .select("event_id,profile_id,field_task,attendance_response,revision").in("event_id",teamIds)
+    : {data:[],error:null};
+  if(coverageTeamRows.error)
+    return NextResponse.json({error:"Falha na equipe de cobertura"},{status:500});
+  const teamByEvent=new Map<string,{
+    event_id:string;profile_id:string;field_task:string|null;attendance_response:string;revision:number;
+  }[]>();
+  for(const row of coverageTeamRows.data??[]){
+    const items=teamByEvent.get(row.event_id)??[];
+    items.push(row);
+    teamByEvent.set(row.event_id,items);
+  }
 
   let queued = 0;
   let coverageQueued = 0;
@@ -227,13 +243,23 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     };
     // Se foi encerrado/cancelado, a cobertura não deve mais alertar.
     if(agenda.status!=="scheduled")continue;
-    for(const category of ["reminder","checkin"] as const){
-      const notification=coverageNotification(event,coverage,category,now,nowIso);
-      if(!notification)continue;
-      const {data:added,error}=await db.from("notification_events")
-        .upsert(notification,{onConflict:"dedupe_key",ignoreDuplicates:true}).select("id");
-      if(error)failed++;
-      else coverageQueued+=added?.length??0;
+    const recipients=coverage.team_mode
+      ? (teamByEvent.get(agenda.id)??[])
+        .filter(m=>m.field_task && m.attendance_response==="pending")
+        .map(m=>({
+          ...coverage,attendance_owner_id:m.profile_id,
+          attendance_status:m.attendance_response,revision:m.revision,
+        }))
+      : [coverage];
+    for(const recipient of recipients){
+      for(const category of ["reminder","checkin"] as const){
+        const notification=coverageNotification(event,recipient,category,now,nowIso);
+        if(!notification)continue;
+        const {data:added,error}=await db.from("notification_events")
+          .upsert(notification,{onConflict:"dedupe_key",ignoreDuplicates:true}).select("id");
+        if(error)failed++;
+        else coverageQueued+=added?.length??0;
+      }
     }
   }
 
@@ -390,12 +416,22 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
           db.from("agenda_events").select("id,title,event_date,start_time,status,show_in_agenda")
             .eq("id",match[1]).maybeSingle(),
           db.from("event_coverages")
-            .select("event_id,attendance_owner_id,attendance_status,audible_minutes,checkin_minutes,article_status,revision")
+            .select("event_id,team_mode,attendance_owner_id,attendance_status,audible_minutes,checkin_minutes,article_status,revision")
             .eq("event_id",match[1]).maybeSingle(),
         ]);
         if(ev.error||cov.error){failed++;continue;}
+        let state=cov.data as (CoverageStateReminder & {team_mode:boolean})|null;
+        if(state?.team_mode){
+          const member=await db.from("event_coverage_members")
+            .select("profile_id,field_task,attendance_response,revision")
+            .eq("event_id",match[1]).eq("profile_id",device.profile_id).maybeSingle();
+          if(member.error){failed++;continue;}
+          if(!member.data?.field_task||member.data.attendance_response!=="pending")continue;
+          state={...state,attendance_owner_id:member.data.profile_id,
+            attendance_status:member.data.attendance_response,revision:member.data.revision};
+        }
         const current=currentCoverageNotification(event.dedupe_key,device.profile_id,
-          ev.data as CoverageEventReminder|null,cov.data as CoverageStateReminder|null,localNow());
+          ev.data as CoverageEventReminder|null,state,localNow());
         if(!current)continue;
         pushTitle=current.title;pushBody=current.body;pushHref=current.href;silent=current.silent;
       }
@@ -410,6 +446,27 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
         const coverage=await db.from("event_coverages").select("event_id")
           .eq("event_id",transfer.data.event_id).maybeSingle();
         if(coverage.error||!coverage.data)continue;
+      }
+      if(event.dedupe_key?.startsWith("coverage:member-transfer:")){
+        const transferId=event.dedupe_key.slice("coverage:member-transfer:".length);
+        if(!/^[a-f0-9-]{36}$/i.test(transferId))continue;
+        const transfer=await db.from("event_coverage_member_transfers")
+          .select("to_profile_id,status").eq("id",transferId).maybeSingle();
+        if(transfer.error){failed++;continue;}
+        if(!transfer.data || transfer.data.status!=="pending" ||
+           transfer.data.to_profile_id!==device.profile_id)continue;
+      }
+      if(event.dedupe_key?.startsWith("coverage:assigned:")){
+        const match=/^coverage:assigned:([a-f0-9-]{36}):([a-f0-9-]{36}):/i.exec(event.dedupe_key);
+        if(!match||match[2]!==device.profile_id)continue;
+        const [team,owner]=await Promise.all([
+          db.from("event_coverage_members").select("field_task")
+            .eq("event_id",match[1]).eq("profile_id",device.profile_id).maybeSingle(),
+          db.from("event_coverages").select("article_owner_id")
+            .eq("event_id",match[1]).maybeSingle(),
+        ]);
+        if(team.error||owner.error){failed++;continue;}
+        if(!team.data?.field_task && owner.data?.article_owner_id!==device.profile_id)continue;
       }
       const { error: claimError } = await db.from("notification_deliveries")
         .insert({ event_id: event.id, device_id: device.id, status: "pending", attempts: 1, last_attempt_at: new Date().toISOString() });
