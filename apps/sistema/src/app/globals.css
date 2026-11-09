@@ -7026,3 +7026,56 @@ button.secondary-link {
  .pauta-period-fields {grid-template-columns:minmax(0,1fr) minmax(0,1fr);}
  .agenda-remote-notice--floating {top:auto;bottom:72px;left:12px;right:12px;width:auto;}
 }
+
+
+/* Pauta: alinhamento do status de conexao e lista com dois cards por linha.
+   Isolado em .is-pauta-workspace: nao afeta os compromissos da Agenda. */
+.is-pauta-workspace .agenda-quick-overview .agenda-quick-sync {
+  padding-left: 36px;
+  justify-content: center;
+}
+.is-pauta-workspace .agenda-quick-overview .agenda-quick-sync .agenda-sync-dot {
+  left: 15px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 9px;
+  height: 9px;
+}
+.is-pauta-workspace .agenda-quick-overview .agenda-quick-sync strong,
+.is-pauta-workspace .agenda-quick-overview .agenda-quick-sync small {
+  display: block;
+  overflow-wrap: anywhere;
+}
+@media (min-width: 900px) {
+  .is-pauta-workspace .pauta-list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: start;
+    gap: 10px;
+  }
+  .is-pauta-workspace .pauta-item {
+    min-width: 0;
+    grid-template-columns: 34px minmax(0, 1fr) 32px;
+  }
+  .is-pauta-workspace .pauta-item-topline {
+    flex-wrap: wrap;
+    gap: 7px;
+  }
+  .is-pauta-workspace .pauta-item-topline > span {
+    min-width: 0;
+  }
+}
+@media (max-width: 899px) {
+  .is-pauta-workspace .pauta-list {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+@media (max-width: 600px) {
+  .is-pauta-workspace .agenda-quick-overview .agenda-quick-sync {
+    padding-left: 23px;
+  }
+  .is-pauta-workspace .agenda-quick-overview .agenda-quick-sync .agenda-sync-dot {
+    left: 7px;
+    width: 7px;
+    height: 7px;
+  }
+}
