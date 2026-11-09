@@ -9,6 +9,7 @@ import {
   createAgendaEventAction,
   createPautaFromAgendaEventAction,
   createPautaItemAction,
+  savePautaPeriodAction,
   setAgendaEventStatusAction,
   setPautaItemStatusAction,
   updateAgendaEventAction,
@@ -20,6 +21,30 @@ import type { AgendaEventItem, AgendaWorkspaceData, WeeklyPautaItem } from "./ag
 import { createSupabaseBrowserClient } from "../../lib/supabase/browser";
 import { notify } from "../../lib/feedback/notify";
 import { confirmDialog } from "../../lib/feedback/confirmStore";
+
+/** Só interrompe atualização quando há conteúdo realmente modificado.
+ * Deixar um formulário aberto, sem alteração, não é motivo para avisos.
+ */
+function hasDirtyAgendaForm(): boolean {
+  const forms = document.querySelectorAll<HTMLFormElement>(
+    ".agenda-inline-edit[open] form,.agenda-create-panel[open] form,.pauta-create-panel[open] form,.pauta-period-form",
+  );
+  return Array.from(forms).some((form) => Array.from(form.elements).some((field) => {
+    if (field instanceof HTMLInputElement) {
+      if (field.type === "hidden" || field.type === "submit" || field.type === "button") return false;
+      if (field.type === "checkbox" || field.type === "radio") return field.checked !== field.defaultChecked;
+      return field.value !== field.defaultValue;
+    }
+    if (field instanceof HTMLTextAreaElement) return field.value !== field.defaultValue;
+    if (field instanceof HTMLSelectElement) {
+      const original = Array.from(field.options).filter((opt) => opt.defaultSelected).map((opt) => opt.value);
+      return field.multiple
+        ? Array.from(field.selectedOptions).map((opt) => opt.value).join("|") !== original.join("|")
+        : Boolean(original.length && field.value !== original[0]);
+    }
+    return false;
+  }));
+}
 
 // Alterar aqui se a equipe precisar de sincronizacao mais rapida/lenta.
 const AGENDA_MIN_SYNC_INTERVAL_MS = 60_000;
@@ -230,9 +255,11 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
   const [remoteChanges, setRemoteChanges] = useState(false);
   const [responsibleFilter, setResponsibleFilter] = useState("");
   const [isMonthExpanded, setIsMonthExpanded] = useState(false);
+  const [isPeriodEditorOpen, setIsPeriodEditorOpen] = useState(false);
   const [isPending, startTransition] = useTransition();
 
   useEffect(() => setSelectedDate(data.focusDate), [data.focusDate]);
+  useEffect(() => setIsPeriodEditorOpen(false), [data.weekStart]);
   // Muda de "Agendado" para "Atrasado" sem exigir F5, inclusive à meia-noite.
   useEffect(() => {
     const refreshClock = () => setLocalClock(nowInAgendaTimezone());
@@ -246,8 +273,7 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
   useEffect(() => {
     let pendingRefresh: ReturnType<typeof setTimeout> | undefined;
     let subscribedOnce = false;
-    const isEditing = () =>
-      Boolean(document.querySelector(".agenda-inline-edit[open],.agenda-create-panel[open],.pauta-create-panel[open]"));
+    const isEditing = () => hasDirtyAgendaForm();
 
     const refresh = () => {
       pendingRefresh = undefined;
@@ -280,6 +306,7 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
       .on("postgres_changes", { event: "*", schema: "public", table: "agenda_events" }, scheduleRefresh)
       .on("postgres_changes", { event: "*", schema: "public", table: "agenda_event_assignees" }, scheduleRefresh)
       .on("postgres_changes", { event: "*", schema: "public", table: "weekly_pauta_items" }, scheduleRefresh)
+      .on("postgres_changes", { event: "*", schema: "public", table: "pauta_week_overrides" }, scheduleRefresh)
       .subscribe((status) => {
         if (status === "SUBSCRIBED") {
           setRealtimeState("online");
@@ -322,9 +349,8 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
   }, [data.focusDate]);
 
   const filteredEvents = useMemo(
-    () => responsibleFilter
-      ? data.events.filter((event) => event.assignees.some((profile) => profile.id === responsibleFilter))
-      : data.events,
+    () => data.events.filter((event) =>
+      event.showInAgenda && (!responsibleFilter || event.assignees.some((profile) => profile.id === responsibleFilter))),
     [data.events, responsibleFilter],
   );
 
@@ -359,7 +385,7 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
     data.pautaItems.filter((item) =>
       item.status === "pending" && item.responsibleProfileId === data.currentUserId && !item.agendaEventId).length;
   const weekDays = Array.from({ length: 7 }, (_, index) => addDays(data.weekStart, index));
-  const initialPautaDate = data.today >= data.weekStart && data.today <= data.weekEnd ? data.today : data.weekStart;
+  const initialPautaDate = data.today >= data.periodStart && data.today <= data.periodEnd ? data.today : data.periodStart;
   const monthEventCount = data.events.filter((event) => event.eventDate >= data.monthStart && event.eventDate <= data.monthEnd).length;
   const pautaItems = responsibleFilter
     ? data.pautaItems.filter((item) => item.responsibleProfileId === responsibleFilter || item.assignees.some((person) => person.id === responsibleFilter))
@@ -505,7 +531,7 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
   }
 
   return (
-    <section className="agenda-workspace">
+    <section className={"agenda-workspace" + (initialView === "pauta" ? " is-pauta-workspace" : "")}>
       {data.pendingInvitations.length > 0 ? (
         <section className="agenda-overdue-notice" aria-labelledby="pending-meetings-title">
           <div>
@@ -585,9 +611,22 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
       </div>
 
       {remoteChanges ? (
-        <div className="agenda-remote-notice" role="status">
-          A sincronização automática foi adiada para preservar suas alterações. Salve ou feche o formulário antes de atualizar.
-          <button type="button" onClick={() => { setRemoteChanges(false); lastSyncAtRef.current = Date.now(); router.refresh(); }}>Atualizar agora</button>
+        <div className="agenda-remote-notice agenda-remote-notice--floating" role="status" aria-live="polite">
+          <span><strong>Alterações de outros usuários</strong><small>Salve ou feche a edição para sincronizar sem perder suas informações.</small></span>
+          <button type="button" onClick={async () => {
+            if (hasDirtyAgendaForm()) {
+              const accept = await confirmDialog({
+                title: "Descartar alterações ainda não salvas e atualizar?",
+                confirmLabel: "Atualizar",
+                cancelLabel: "Continuar editando",
+              });
+              if (!accept) return;
+            }
+            setRemoteChanges(false);
+            lastSyncAtRef.current = Date.now();
+            router.refresh();
+          }}>Atualizar</button>
+          <button type="button" className="agenda-remote-dismiss" aria-label="Dispensar aviso" onClick={() => setRemoteChanges(false)}>×</button>
         </div>
       ) : null}
       {initialView === "agenda" && data.access.agendaRead ? (
