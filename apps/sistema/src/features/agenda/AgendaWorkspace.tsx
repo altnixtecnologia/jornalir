@@ -15,6 +15,9 @@ import {
   markCoverageAttendanceAction,
   finishCoverageArticleAction,
   saveCoverageAlertsAction,
+  finishCoverageFieldTaskAction,
+  saveCoverageTaskLabelAction,
+  saveAgendaAssigneeTaskAction,
   savePautaPeriodAction,
   setAgendaEventStatusAction,
   setPautaItemStatusAction,
@@ -677,6 +680,27 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
     </section>;
   }
 
+  function AssignmentRoles({item}:{item:AgendaEventItem}):JSX.Element {
+    return <details className="agenda-inline-edit agenda-assignment-roles">
+      <summary>✎ Definir quem faz fotos, matéria ou outra tarefa</summary>
+      <div className="agenda-roles-list">
+        {item.assignees.map(person=>(
+          <form key={person.id} className="agenda-role-row" onSubmit={event=>{
+            event.preventDefault();
+            run(()=>saveAgendaAssigneeTaskAction(item.id,person.id,new FormData(event.currentTarget)),
+              "Função de "+person.name+" atualizada.");
+          }}>
+            <span>{person.name}</span>
+            <input name="assignee_task_label" type="text" list="agenda-task-suggestions"
+              maxLength={80} minLength={2} defaultValue={person.taskLabel??""}
+              placeholder="Ex.: Fotos, redação, vídeo"/>
+            <button type="submit" disabled={isPending}>Salvar</button>
+          </form>
+        ))}
+      </div>
+    </details>;
+  }
+
   function EventEdit({ item }: { item: AgendaEventItem }): JSX.Element {
     return (
       <details className="agenda-inline-edit">
@@ -966,7 +990,7 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
                             {item.assignees.length ? <span className="agenda-assignee-row">
                               {item.assignees.map((person) => (
                                 <span className="agenda-assignee-chip" key={person.id} style={{ borderColor: personColor(person.id), color: personColor(person.id) }}>
-                                  {person.completedAt ? "✓ " : ""}{person.name}
+                                  {person.completedAt ? "✓ " : ""}{person.name}{person.taskLabel?" · "+person.taskLabel:""}
                                 </span>
                               ))}
                             </span> : <span>Sem responsável</span>}
@@ -996,16 +1020,24 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
                             <>
                               {item.assignees.some((person) => person.id === data.currentUserId && !person.completedAt) ? (
                                 <button type="button" className="agenda-complete-button" disabled={isPending}
-                                  onClick={() => run(() => completeMyAgendaAssignmentAction(item.id), "Sua parte foi concluída.")}>
-                                  ✓ {data.access.agendaWrite ? "Concluir minha parte" : "Concluir"}
+                                  onClick={() => run(() => completeMyAgendaAssignmentAction(item.id),
+                                    item.assignees.length>1?"Sua responsabilidade foi concluída.":"Compromisso concluído.")}>
+                                  ✓ {item.assignees.length>1
+                                    ? (item.assignees.find(p=>p.id===data.currentUserId)?.taskLabel
+                                        ? "Concluir "+item.assignees.find(p=>p.id===data.currentUserId)!.taskLabel!
+                                        : "Concluir minha parte")
+                                    : "Concluir compromisso"}
                                 </button>
                               ) : null}
                               {data.access.agendaWrite ? (
                                 <>
-                                  <button type="button" className="agenda-manager-finish" disabled={isPending}
-                                    onClick={() => run(() => setAgendaEventStatusAction(item.id, "completed"), "Compromisso encerrado pela administração.")}>
-                                    ✓ Encerrar compromisso
-                                  </button>
+                                  {item.assignees.length===0 ||
+                                    (item.assignees.length===1 && !item.assignees.some(p=>p.id===data.currentUserId))
+                                    ? <button type="button" className="agenda-manager-finish" disabled={isPending}
+                                      onClick={() => run(() => setAgendaEventStatusAction(item.id, "completed"),
+                                        "Compromisso encerrado pela administração.")}>
+                                        ✓ Encerrar compromisso
+                                      </button> : null}
                                   <button type="button" className="agenda-manager-cancel" disabled={isPending}
                                     aria-label={"Cancelar compromisso: " + item.title}
                                     title="Cancelar compromisso"
@@ -1039,6 +1071,8 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
                       ) : null}
                       {item.coverage?CoveragePanel({coverage:item.coverage,eventId:item.id,eventTime:item.startTime??""}):
                         item.status==="scheduled"&&data.access.agendaWrite?EnableCoverage({eventId:item.id,eventTime:item.startTime??""}):null}
+                      {data.access.agendaWrite&&!item.coverage&&item.status==="scheduled"&&item.assignees.length>1
+                        ? AssignmentRoles({item}) : null}
                       {data.access.agendaWrite ? EventEdit({item}) : null}
                       {data.access.agendaWrite && !item.coverage && item.eventKind==="general" && item.status==="scheduled"
                         ? InviteesEditor({item}) : null}
@@ -1205,7 +1239,7 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
                       <div className="pauta-item-topline"><strong>{item.title}</strong><span className="agenda-assignee-row">
                           {item.assignees.length ? item.assignees.map((person) => (
                             <span key={person.id} className="agenda-assignee-chip" style={{ borderColor: personColor(person.id), color: personColor(person.id) }}>
-                              {person.completedAt ? "✓ " : ""}{person.name}
+                              {person.completedAt ? "✓ " : ""}{person.name}{person.taskLabel?" · "+person.taskLabel:""}
                             </span>
                           )) : <span className="agenda-assignee-chip">Sem responsável</span>}
                         </span></div>
