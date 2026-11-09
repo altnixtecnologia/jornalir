@@ -197,6 +197,36 @@ function coveragePeople(form:FormData,eventStartTime:string):
   return {attendanceOwner,articleOwner,audible,checkin,taskLabel};
 }
 
+/** Equipe livre de 1 a 16 pessoas; validada novamente pela RPC no Postgres. */
+function coverageTeamPeople(form:FormData,eventTime:string):
+ | {staff:{profileId:string;task:string}[];articleOwner:string;audible:number;checkin:number}
+ | {error:string}{
+  let staff:unknown;
+  try{staff=JSON.parse(value(form,"coverage_team_json"));}catch{return {error:"Adicione os colaboradores da cobertura."};}
+  if(!Array.isArray(staff)||staff.length<1||staff.length>16)
+    return {error:"Informe entre 1 e 16 colaboradores de campo."};
+  const uuid=/^[a-f0-9-]{36}$/i;
+  const clean:{profileId:string;task:string}[]=[];
+  for(const item of staff){
+    if(!item||typeof item!=="object")return {error:"Equipe inválida."};
+    const row=item as Record<string,unknown>;
+    const profileId=typeof row.profileId==="string"?row.profileId:"";
+    const task=typeof row.task==="string"?row.task.trim():"";
+    if(!uuid.test(profileId)||task.length<2||task.length>80)
+      return {error:"Selecione cada colaborador e sua tarefa (2 a 80 caracteres)."};
+    clean.push({profileId,task});
+  }
+  if(new Set(clean.map(x=>x.profileId)).size!==clean.length)
+    return {error:"Cada colaborador deve aparecer apenas uma vez. Una as tarefas no mesmo campo."};
+  const articleOwner=value(form,"coverage_article_owner");
+  if(!uuid.test(articleOwner))return {error:"Escolha o responsável pela matéria."};
+  const audible=coverageMinutesBefore(eventTime,value(form,"coverage_audible_time"));
+  const checkin=coverageMinutesBefore(eventTime,value(form,"coverage_checkin_time"));
+  if(audible===null||checkin===null||audible< -1440||audible>1440||checkin< -120||checkin>120)
+    return {error:"Confira os horários de aviso e confirmação."};
+  return {staff:clean,articleOwner,audible,checkin};
+}
+
 async function coverageStartTime(client:SupabaseClient,eventId:string):Promise<string>{
   const result=await client.from("agenda_events").select("start_time").eq("id",eventId).maybeSingle();
   if(result.error||!result.data?.start_time)throw new Error(result.error?.message||"O evento precisa ter horário de início.");
@@ -214,14 +244,14 @@ export async function createAgendaEventAction(formData: FormData): Promise<Agend
       if(!input.startTime)return {error:"Cobertura de evento precisa do horário de início."};
       if(value(formData,"recurrence") && value(formData,"recurrence")!=="none")
         return {error:"Crie uma cobertura por evento; recorrência não está habilitada."};
-      const people=coveragePeople(formData,input.startTime);
+      const people=coverageTeamPeople(formData,input.startTime);
       if("error" in people)return people;
-      await validateActiveProfiles(supabase,[people.attendanceOwner,people.articleOwner]);
-      const created=await supabase.rpc("create_coverage_agenda_with_task",{
+      await validateActiveProfiles(supabase,[...people.staff.map(x=>x.profileId),people.articleOwner]);
+      const created=await supabase.rpc("create_coverage_team_agenda",{
         p_title:input.title,p_description:input.description||null,p_event_date:input.eventDate,
         p_start_time:input.startTime,p_end_time:input.endTime||null,p_location:input.location||null,
-        p_attendance_owner:people.attendanceOwner,p_article_owner:people.articleOwner,
-        p_audible_minutes:people.audible,p_checkin_minutes:people.checkin,p_task_label:people.taskLabel,
+        p_staff:people.staff,p_article_owner:people.articleOwner,
+        p_audible:people.audible,p_checkin:people.checkin,
       });
       if(created.error || !created.data)return {error:created.error?.message??"Não foi possível criar a cobertura."};
       refreshAgenda();
@@ -307,15 +337,15 @@ export async function createPautaItemAction(formData: FormData): Promise<AgendaA
     await checkPautaPeriod(supabase, input.weekStart, input.dueDate);
     if(value(formData,"coverage_enabled")==="true"){
       if(!input.dueTime)return {error:"Informe o horário do evento para programar os lembretes."};
-      const people=coveragePeople(formData,input.dueTime);
+      const people=coverageTeamPeople(formData,input.dueTime);
       if("error" in people)return people;
-      await validateActiveProfiles(supabase,[people.attendanceOwner,people.articleOwner]);
-      const result=await supabase.rpc("create_coverage_pauta_with_task",{
+      await validateActiveProfiles(supabase,[...people.staff.map(x=>x.profileId),people.articleOwner]);
+      const result=await supabase.rpc("create_coverage_team_pauta",{
         p_title:input.title,p_description:input.description||null,p_event_date:input.dueDate,
-        p_start_time:input.dueTime,p_profiles:input.assigneeIds,
-        p_week_start:input.weekStart,p_show_in_agenda:value(formData,"show_in_agenda")==="true",
-        p_attendance_owner:people.attendanceOwner,p_article_owner:people.articleOwner,
-        p_audible_minutes:people.audible,p_checkin_minutes:people.checkin,p_task_label:people.taskLabel,
+        p_start_time:input.dueTime,p_week_start:input.weekStart,
+        p_show_in_agenda:value(formData,"show_in_agenda")==="true",
+        p_staff:people.staff,p_article_owner:people.articleOwner,
+        p_audible:people.audible,p_checkin:people.checkin,
       });
       if(result.error||!result.data)return {error:result.error?.message??"Não foi possível criar a cobertura."};
       refreshAgenda();
@@ -428,11 +458,12 @@ export async function enableCoverageAction(eventId:string,formData:FormData):Pro
   if(!eventId)return {error:"Compromisso não identificado."};
   try{
     const {supabase}=await requireActiveUser();
-    const people=coveragePeople(formData,await coverageStartTime(supabase,eventId));
+    const people=coverageTeamPeople(formData,await coverageStartTime(supabase,eventId));
     if("error" in people)return people;
-    const {data,error}=await supabase.rpc("create_coverage_for_event_with_task",{
-      p_event_id:eventId,p_attendance_owner:people.attendanceOwner,p_article_owner:people.articleOwner,
-      p_audible_minutes:people.audible,p_checkin_minutes:people.checkin,p_task_label:people.taskLabel,
+    await validateActiveProfiles(supabase,[...people.staff.map(x=>x.profileId),people.articleOwner]);
+    const {data,error}=await supabase.rpc("create_coverage_team",{
+      p_event_id:eventId,p_staff:people.staff,p_article_owner:people.articleOwner,
+      p_audible:people.audible,p_checkin:people.checkin,
     });
     if(error||!data)return {error:error?.message??"Não foi possível configurar a cobertura."};
     refreshAgenda();return {ok:true};
