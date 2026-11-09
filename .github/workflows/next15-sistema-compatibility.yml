@@ -10,6 +10,7 @@ on:
       - "apps/sistema/src/app/assinar-contrato-comercial/actions.ts"
       - "apps/sistema/src/app/sistema/financeiro/contratos/signature-actions.ts"
       - "apps/sistema/src/types/react19-jsx-compat.d.ts"
+      - "apps/sistema/next.config.mjs"
   workflow_dispatch:
 
 permissions:
@@ -54,6 +55,17 @@ jobs:
           npm install --no-package-lock --no-save --no-audit --no-fund
           node -e "const p=require(require.resolve('next/package.json',{paths:[require('path').resolve('apps/sistema')]})); console.log('Next no workspace: '+p.version); if(p.version!=='15.5.29')process.exit(1)"
           echo "Alterações descartadas ao fim do job; branch original intacta."
+
+      - name: Migrar params e searchParams no runner descartável
+        run: |
+          npx --yes @next/codemod@15.5.29 next-async-request-api apps/sistema/src/app
+          echo "### Arquivos modificados pelo codemod"
+          git status --short apps/sistema/src/app | head -90
+          echo "### Pendências que exigem intervenção humana"
+          if grep -R -n '@next-codemod-error' apps/sistema/src/app --include='*.ts' --include='*.tsx'; then
+            echo "Codemod deixou pendências; revisar antes de incorporar." >&2
+            exit 1
+          fi
 
       - name: Verificar TypeScript do sistema
         run: npm run typecheck --workspace @ir/sistema
