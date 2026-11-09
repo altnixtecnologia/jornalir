@@ -422,7 +422,7 @@ create or replace function public.create_coverage_team_agenda(
  p_title text,p_description text,p_event_date date,p_start_time time,
  p_end_time time,p_location text,p_staff jsonb,p_article_owner uuid,
  p_audible integer default 60,p_checkin integer default 5
-) returns uuid language plpgsql security definer set search_path='' as $
+) returns uuid language plpgsql security definer set search_path='' as $$
 declare v_id uuid;
 begin
  if auth.uid() is null or not public.is_agenda_manager() then
@@ -439,7 +439,7 @@ begin
  returning id into v_id;
  perform public.create_coverage_team(v_id,p_staff,p_article_owner,p_audible,p_checkin);
  return v_id;
-end;$;
+end;$$;
 revoke all on function public.create_coverage_team_agenda(text,text,date,time,time,text,jsonb,uuid,integer,integer) from public,anon;
 grant execute on function public.create_coverage_team_agenda(text,text,date,time,time,text,jsonb,uuid,integer,integer) to authenticated;
 
@@ -447,7 +447,7 @@ create or replace function public.create_coverage_team_pauta(
  p_title text,p_description text,p_event_date date,p_start_time time,
  p_week_start date,p_show_in_agenda boolean,p_staff jsonb,p_article_owner uuid,
  p_audible integer default 60,p_checkin integer default 5
-) returns uuid language plpgsql security definer set search_path='' as $
+) returns uuid language plpgsql security definer set search_path='' as $$
 declare v_pauta uuid;v_event uuid;v_profile_ids uuid[];
 begin
  if auth.uid() is null or not public.is_agenda_manager() then
@@ -466,7 +466,7 @@ begin
  if v_event is null then raise exception 'Vínculo com agenda não criado';end if;
  perform public.create_coverage_team(v_event,p_staff,p_article_owner,p_audible,p_checkin);
  return v_pauta;
-end;$;
+end;$$;
 revoke all on function public.create_coverage_team_pauta(text,text,date,time,date,boolean,jsonb,uuid,integer,integer) from public,anon;
 grant execute on function public.create_coverage_team_pauta(text,text,date,time,date,boolean,jsonb,uuid,integer,integer) to authenticated;
 
