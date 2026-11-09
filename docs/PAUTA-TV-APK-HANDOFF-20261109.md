@@ -1,10 +1,10 @@
 # HANDOFF — PAUTA DA SEMANA NA TV VERTICAL / APK ANDROID
 
 **Data:** 09/11/2026 · Projeto: Jornal Informativo Regional · Escopo web/banco preparado no GitHub.  
-**Objetivo:** após aprovação e deploy do sistema web, Claude Code produzirá um **APK exclusivo e somente leitura para TV Box**. Este documento não autoriza publicação nem instala APK em dispositivo.
+**Objetivo:** após o deploy web confirmado em produção em 09/11/2026, Claude Code produzirá um **APK exclusivo e somente leitura para TV Box**. Este documento não autoriza instalação do APK em dispositivo.
 
 ## 1. Endereço e acesso
-- URL da página web: **`https://controle.altnix.com.br/tv/pauta`** (após publicação do código desta branch).
+- URL **publicada**: **`https://controle.altnix.com.br/tv/pauta`** (login e permissão Pauta obrigatórios).
 - Consulta a mesma Pauta do Sistema IR: quinta-feira → quarta-feira, respeitando exceções registradas para a semana. `?date=YYYY-MM-DD` seleciona a semana desejada.
 - **Autenticação obrigatória:** Supabase Auth com sessão legítima e perfil ativo com módulo `pauta` leitura; middleware protege `/tv/*`. Sem acesso público e sem service role no WebView.
 - Se abrir pela primeira vez sem login, `/login?next=/tv/pauta`; após autenticação, retorno ao Modo TV. Um usuário exclusivo de visualização pode ser provisionado no sistema por administrador, com a menor permissão necessária.
@@ -31,7 +31,7 @@
 - Visão: `apps/sistema/src/features/pauta-tv/{PautaTvBoard.tsx,PautaTvBoard.module.css,tvModel.ts}`
 - Agenda/Pauta: `apps/sistema/src/features/agenda/{AgendaWorkspace.tsx,agendaData.ts,agendaTypes.ts,actions.ts}`
 - Notificações: `apps/sistema/src/app/api/cron/push/route.ts`, `apps/sistema/src/lib/notifications/coverageReminderPolicy.ts`
-- Novo banco: **`supabase/migrations/20261122290000_coverage_team_agenda_pauta.sql`**. Contém equipe, transferências, RPCs, RLS, triggers de auditoria e Realtime, com compatibilidade das coberturas legadas. **NÃO aplicar automaticamente na produção no trabalho do APK.**
+- Novo banco: **`supabase/migrations/20261122290000_coverage_team_agenda_pauta.sql`**. Contém equipe, transferências, RPCs, RLS, triggers de auditoria e Realtime, com compatibilidade das coberturas legadas. **JÁ APLICADA no Supabase oficial em 09/11/2026. Não reaplicar no trabalho do APK.**
 - Não reconstruir essas funcionalidades no APK. O APK deve **exibir a URL segura** e permitir recuperação de rede e autenticação.
 
 ## 5. Contrato do futuro APK (Claude Code)
@@ -48,17 +48,24 @@
 - Teste do cálculo de altura: `apps/sistema/test/pauta-tv-layout.test.ts`.
 - Workflow `Cobertura de eventos - testes e tipos` verifica testes e TypeScript da aplicação. Acompanhar resultado da PR.
 - Ensaio `BEGIN/ROLLBACK` da migration e do fluxo com três perfis passou no Supabase oficial, **sem persistir alterações**: criação de uma única Pauta, avisos individuais, três respostas, separação Agenda/Pauta, transferência com aceite, conclusão de matéria e duas entregas, limpeza confirmada por rollback.
-- Antes do APK: revisar/mesclar PR, aplicar migration em janela controlada, publicar web no Vercel e fazer homologação do login, visual 9:16 e Realtime.
+- Antes do APK: PR, migration e publicação web concluídas; falta a homologação com **login real e visualização na TV 9:16**. A Claude deve testar o app Android sem modificar a infraestrutura.
 - Preservar stashes e worktrees locais do VS Code; sincronizar com `git fetch` e integração segura, **sem reset forçado**.
 
-**Importante:** nenhum APK foi gerado nesta etapa. O código web está no GitHub; a publicação oficial e a instalação do aplicativo serão etapas explícitas posteriores.
+**Importante:** nenhum APK foi gerado nesta etapa. O código web está no GitHub e foi publicado oficialmente; a criação, testes e instalação do APK serão etapas da Claude com autorização para instalação.
 
 ## 7. Situação consolidada após integração (09/11/2026)
 
 - **PR #27 integrada** em `solicitacoes-financeiro-contratos-irc-20261031`.
 - Commit de merge: `6c66cd47833b0172974fd945a1f45b3640b2bd81`.
 - GitHub Actions: `42659809744` e `42659810112` concluídos com sucesso (testes, TypeScript e Pauta).
-- A migration `20261122290000` foi ensaiada no Supabase em `BEGIN/ROLLBACK`, incluindo equipe com três colaboradores, respostas, transferência e entregas independentes; **0 aplicações** no ledger do Supabase oficial na conferência final.
-- **Ainda não publicado no Vercel**, sem APK e sem alteração em equipamentos. A página `/tv/pauta` só estará disponível publicamente no domínio após publicar o código compatível e aplicar a migration autorizada.
+- A migration `20261122290000` foi ensaiada antes da publicação; em 09/11/2026 foi **aplicada e registrada uma vez** no Supabase oficial. Novo teste transacional de três colaboradores e transferência passou após aplicação, com rollback e preservação das duas pautas existentes.
+- **Publicado no Vercel em produção em 09/11/2026**: deployment `dpl_CctBHZW5AXwzReNu5e7QYSo6RyYH` com commit de aplicação `4693a16bdff0fee7a4cb0480c30bbba8ded8cfdd`, status READY, domínio verificado `controle.altnix.com.br`. O compilador incluiu `/tv/pauta`. Nenhum APK instalado e nenhuma TV Box alterada.
 - Para a Claude: começar por `git fetch` e verificar esse commit/documento; não reconstruir a tela web. O próximo trabalho é **somente o APK de exibição**, mas a homologação da versão web deve ocorrer antes de instalar no aparelho.
 
+
+## 8. Entrada da Claude (arquivo e PS1)
+
+- Prompt atualizado: `docs/PROMPT-CLAUDE-APK-PAUTA-TV-20261109.md`.
+- Script de atualização local: `scripts/preparar-claude-pauta-tv.ps1`.
+- Se o PS1 ainda não existe no checkout antigo do VS Code, a Claude deve fazer `git fetch origin`, obter o arquivo com `git show origin/solicitacoes-financeiro-contratos-irc-20261031:scripts/preparar-claude-pauta-tv.ps1` para arquivo temporário e executá-lo com `-RepositoryRoot` apontando à raiz do projeto. Jamais sobrescrever arquivos locais antes de verificar `git status`.
+- Testes de código e TypeScript aprovados na PR #27. Login real e experiência visual no hardware continuam pendentes de homologação.
