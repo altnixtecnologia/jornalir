@@ -5,6 +5,7 @@ export type CoverageEventReminder = {
   event_date: string;
   start_time: string | null;
   status: string;
+  show_in_agenda?: boolean;
 };
 export type CoverageStateReminder = {
   event_id: string;
@@ -42,7 +43,7 @@ export function coverageNotification(
     body:kind==="reminder"
       ?"Você é responsável pela cobertura às "+event.start_time!.slice(0,5)+"h. Confira o compromisso."
       :"Confirme se compareceu, ainda está a caminho ou não poderá comparecer. A matéria continua pendente.",
-    href:"/sistema/agenda?date="+encodeURIComponent(event.event_date),
+    href:(event.show_in_agenda===false?"/sistema/pauta":"/sistema/agenda")+"?date="+encodeURIComponent(event.event_date),
     dedupe_key:eventKey,
     scheduled_at:nowIso,
   };
@@ -63,7 +64,7 @@ export function currentCoverageNotification(
       "📍 Você já chegou? "+event.title.slice(0,105),
     body:kind==="reminder"?"Você é responsável pela cobertura às "+event.start_time!.slice(0,5)+"h. Confira o compromisso.":
       "Confirme sua chegada na Agenda. A matéria continuará pendente até ser concluída.",
-    href:"/sistema/agenda?date="+encodeURIComponent(event.event_date),
+    href:(event.show_in_agenda===false?"/sistema/pauta":"/sistema/agenda")+"?date="+encodeURIComponent(event.event_date),
     silent:kind==="checkin",
   };
 }
