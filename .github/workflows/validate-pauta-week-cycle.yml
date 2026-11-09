@@ -1,0 +1,31 @@
+name: Validar Pauta quinta-quarta (sem deploy)
+on:
+  push:
+    branches:
+      - fix/pauta-quinta-quarta-compacta-20261109
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  pauta-unit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    env:
+      NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
+      NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ci-publishable-key
+      SIGNATURE_DELIVERY_ENABLED: "false"
+      NEXT_TELEMETRY_DISABLED: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+      - name: Dependências reproduzíveis
+        run: npm ci --no-audit --no-fund
+      - name: Testar períodos quinta-quarta e navegação desktop
+        run: npx tsx --test apps/sistema/test/pauta-period.test.ts apps/sistema/test/agenda-pauta-navigation.test.ts
+      - name: Conferir tipos do sistema
+        run: npm run typecheck --workspace @ir/sistema
