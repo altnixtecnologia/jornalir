@@ -3,6 +3,7 @@ on:
   push:
     branches:
       - feat/cobertura-evento-transferencia-20261109
+      - feat/pauta-tv-equipe-fechamento-20261109
   pull_request:
     branches:
       - solicitacoes-financeiro-contratos-irc-20261031
@@ -13,6 +14,11 @@ on:
       - "apps/sistema/public/sw.js"
       - "apps/sistema/test/coverage-reminder.test.ts"
       - "apps/sistema/test/coverage-clock.test.ts"
+      - "apps/sistema/test/pauta-tv-layout.test.ts"
+      - "apps/sistema/src/features/pauta-tv/**"
+      - "apps/sistema/src/app/tv/pauta/**"
+      - "apps/sistema/src/middleware.ts"
+      - "supabase/migrations/20261122290000_coverage_team_agenda_pauta.sql"
       - "supabase/migrations/20261122270000_event_coverage_lifecycle.sql"
   workflow_dispatch:
 
@@ -37,6 +43,6 @@ jobs:
       - name: Instalar
         run: npm ci --no-audit --no-fund
       - name: Lembretes e fluxo editorial
-        run: npx tsx --test apps/sistema/test/coverage-clock.test.ts apps/sistema/test/coverage-reminder.test.ts apps/sistema/test/pauta-period.test.ts apps/sistema/test/agenda-pauta-navigation.test.ts
+        run: npx tsx --test apps/sistema/test/pauta-tv-layout.test.ts apps/sistema/test/coverage-clock.test.ts apps/sistema/test/coverage-reminder.test.ts apps/sistema/test/pauta-period.test.ts apps/sistema/test/agenda-pauta-navigation.test.ts
       - name: TypeScript administrativo
         run: npm run typecheck --workspace @ir/sistema
