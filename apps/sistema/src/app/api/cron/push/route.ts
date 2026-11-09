@@ -12,12 +12,17 @@ import {
   type AgendaInvitationRow,
 } from "../../../../lib/notifications/agendaInvitationPolicy";
 
+import {
+  coverageNotification,currentCoverageNotification,
+  type CoverageStateReminder,type CoverageEventReminder,
+} from "../../../../lib/notifications/coverageReminderPolicy";
+
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 const TIMEZONE = "America/Sao_Paulo";
 const MAX_SEND_PER_RUN = 20;
 
-type AgendaEvent = { id: string; title: string; event_date: string; start_time: string | null; end_time: string | null; reminder_minutes: number | null };
+type AgendaEvent = { id: string; title: string; event_date: string; start_time: string | null; end_time: string | null; reminder_minutes: number | null; status: string };
 type PushEvent = { id: string; app_kind: string; kind: string; title: string; body: string; href: string | null; target_profile_id: string | null; dedupe_key: string | null; scheduled_at: string };
 type PushDevice = { id: string; profile_id: string; subscription_endpoint: string; subscription_payload: unknown };
 type PushPreference = { profile_id: string; ordinary_enabled: boolean; urgent_enabled: boolean; agenda_enabled: boolean };
@@ -129,15 +134,28 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   // global com dados privados da Agenda.
   const yesterday = addMinutes(date + "T00:00", -1440).slice(0,10);
   const { data: events, error: agendaError } = await db.from("agenda_events")
-    .select("id,title,event_date,start_time,end_time,reminder_minutes")
+    .select("id,title,event_date,start_time,end_time,reminder_minutes,status")
     .eq("status", "scheduled")
     .gte("event_date", yesterday).lte("event_date", tomorrow);
   if (agendaError) return NextResponse.json({ error: "Falha na consulta da Agenda" }, { status: 500 });
 
+  // Coberturas têm lembretes pessoais, sem duplicar avisos comuns da Agenda.
+  const agendaRows=(events??[]) as AgendaEvent[];
+  const ids=agendaRows.map(e=>e.id);
+  const coveragesResult=ids.length?await db.from("event_coverages")
+    .select("event_id,attendance_owner_id,attendance_status,audible_minutes,checkin_minutes,article_status,revision")
+    .in("event_id",ids):{data:[],error:null};
+  if(coveragesResult.error)return NextResponse.json({error:"Falha ao consultar coberturas"},{status:500});
+  const coverageMap=new Map<string,CoverageStateReminder>(
+    ((coveragesResult.data??[]) as CoverageStateReminder[]).map(v=>[v.event_id,v])
+  );
+
   let queued = 0;
+  let coverageQueued = 0;
   let overdueQueued = 0;
   let failed = 0;
-  for (const agenda of (events ?? []) as AgendaEvent[]) {
+  for (const agenda of agendaRows) {
+    if(coverageMap.has(agenda.id))continue;
     const dateTime = agenda.event_date + "T" + (agenda.start_time?.slice(0,5) || "00:00");
     const reminderAt = agenda.start_time && agenda.reminder_minutes !== null
       ? addMinutes(dateTime, -agenda.reminder_minutes) : null;
@@ -196,6 +214,29 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     }
   }
 
+  // Lembretes de cobertura por pessoa, uma hora antes com som e
+  // confirmação cinco minutos antes silenciosa. UNIQUE(dedupe_key) e revisão
+  // impedem duplicatas; o envio revalida titularidade para ignorar transferências.
+  const nowIso=new Date().toISOString();
+  for(const agenda of agendaRows){
+    const coverage=coverageMap.get(agenda.id);
+    if(!coverage)continue;
+    const event:CoverageEventReminder={
+      id:agenda.id,title:agenda.title,event_date:agenda.event_date,
+      start_time:agenda.start_time,status:agenda.status,
+    };
+    // Se foi encerrado/cancelado, a cobertura não deve mais alertar.
+    if(agenda.status!=="scheduled")continue;
+    for(const category of ["reminder","checkin"] as const){
+      const notification=coverageNotification(event,coverage,category,now,nowIso);
+      if(!notification)continue;
+      const {data:added,error}=await db.from("notification_events")
+        .upsert(notification,{onConflict:"dedupe_key",ignoreDuplicates:true}).select("id");
+      if(error)failed++;
+      else coverageQueued+=added?.length??0;
+    }
+  }
+
   // O convite é privado: gerar uma notificação para cada pessoa convidada,
   // nunca notificar o grupo todo. Lotes antigos não são disparados depois
   // de um período de indisponibilidade do cron.
@@ -251,7 +292,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   const activeDevices = (devices ?? []) as PushDevice[];
   if (activeDevices.length === 0) {
     const site = await processSiteDeliveries(db);
-    return NextResponse.json({ queued, overdueQueued, invitationsQueued, sent: 0, failed, devices: 0, ...site });
+    return NextResponse.json({ queued, coverageQueued, overdueQueued, invitationsQueued, sent: 0, failed, devices: 0, ...site });
   }
   const profileIds = [...new Set(activeDevices.map((x) => x.profile_id))];
   const [preferenceResult, activeResult, staffResult] = await Promise.all([
@@ -338,6 +379,38 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
         pushBody = current.body;
         pushHref = current.href;
       }
+      // Transferência ou mudança de horário pode ter tornado uma notificação
+      // antiga obsoleta; checar antes do claim e do Web Push.
+      let silent=false;
+      if(event.dedupe_key?.startsWith("coverage:reminder:")||
+         event.dedupe_key?.startsWith("coverage:checkin:")){
+        const match=/^coverage:(?:reminder|checkin):([a-f0-9-]{36}):/.exec(event.dedupe_key);
+        if(!match)continue;
+        const [ev,cov]=await Promise.all([
+          db.from("agenda_events").select("id,title,event_date,start_time,status")
+            .eq("id",match[1]).maybeSingle(),
+          db.from("event_coverages")
+            .select("event_id,attendance_owner_id,attendance_status,audible_minutes,checkin_minutes,article_status,revision")
+            .eq("event_id",match[1]).maybeSingle(),
+        ]);
+        if(ev.error||cov.error){failed++;continue;}
+        const current=currentCoverageNotification(event.dedupe_key,device.profile_id,
+          ev.data as CoverageEventReminder|null,cov.data as CoverageStateReminder|null,localNow());
+        if(!current)continue;
+        pushTitle=current.title;pushBody=current.body;pushHref=current.href;silent=current.silent;
+      }
+      if(event.dedupe_key?.startsWith("coverage:transfer:")){
+        const transferId=event.dedupe_key.slice("coverage:transfer:".length);
+        if(!/^[a-f0-9-]{36}$/i.test(transferId))continue;
+        const transfer=await db.from("event_coverage_transfers")
+          .select("to_profile_id,status,event_id").eq("id",transferId).maybeSingle();
+        if(transfer.error){failed++;continue;}
+        if(!transfer.data || transfer.data.status!=="pending" ||
+          transfer.data.to_profile_id!==device.profile_id)continue;
+        const coverage=await db.from("event_coverages").select("event_id")
+          .eq("event_id",transfer.data.event_id).maybeSingle();
+        if(coverage.error||!coverage.data)continue;
+      }
       const { error: claimError } = await db.from("notification_deliveries")
         .insert({ event_id: event.id, device_id: device.id, status: "pending", attempts: 1, last_attempt_at: new Date().toISOString() });
       if (claimError?.code === "23505") continue;
@@ -346,7 +419,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       try {
         const result = await sendWebPush(asSubscription(device), {
           title: pushTitle, body: pushBody, kind: event.kind,
-          href: pushHref, tag: event.dedupe_key || event.id,
+          href: pushHref, tag: event.dedupe_key || event.id, silent,
         });
         await db.from("notification_deliveries").update({
           status: result.ok ? "sent" : result.expired ? "expired" : "failed",
@@ -367,5 +440,5 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     }
   }
   const site = await processSiteDeliveries(db);
-  return NextResponse.json({ queued, overdueQueued, invitationsQueued, claimed, sent, failed, devices: activeDevices.length, ...site });
+  return NextResponse.json({ queued, coverageQueued, overdueQueued, invitationsQueued, claimed, sent, failed, devices: activeDevices.length, ...site });
 }
