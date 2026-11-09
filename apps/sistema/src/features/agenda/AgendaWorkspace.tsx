@@ -1012,11 +1012,11 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
                           </button>
                         </div>
                       ) : null}
-                      {item.coverage?<CoveragePanel coverage={item.coverage} eventId={item.id}/>:
-                        item.status==="scheduled"&&data.access.agendaWrite?<EnableCoverage eventId={item.id}/>:null}
-                      {data.access.agendaWrite ? <EventEdit item={item} /> : null}
+                      {item.coverage?CoveragePanel({coverage:item.coverage,eventId:item.id,eventTime:item.startTime??""}):
+                        item.status==="scheduled"&&data.access.agendaWrite?EnableCoverage({eventId:item.id,eventTime:item.startTime??""}):null}
+                      {data.access.agendaWrite ? EventEdit({item}) : null}
                       {data.access.agendaWrite && !item.coverage && item.eventKind==="general" && item.status==="scheduled"
-                        ? <InviteesEditor item={item}/> : null}
+                        ? InviteesEditor({item}) : null}
                     </article>
                   ))}
                 </div>
@@ -1195,10 +1195,10 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
                       {item.articleId ? (
                         <Link href={"/sistema/editorial/materias/" + item.articleId} className="agenda-link-materia">Abrir matéria vinculada ↗</Link>
                       ) : null}
-                      {item.coverage&&item.agendaEventId?<CoveragePanel coverage={item.coverage} eventId={item.agendaEventId}/>:
+                      {item.coverage&&item.agendaEventId?CoveragePanel({coverage:item.coverage,eventId:item.agendaEventId,eventTime:item.dueTime??""}):
                         item.agendaEventId&&item.status==="pending"&&data.access.pautaWrite?
-                         <EnableCoverage eventId={item.agendaEventId}/>:null}
-                      {data.access.pautaWrite ? <PautaEdit item={item} /> : null}
+                         EnableCoverage({eventId:item.agendaEventId,eventTime:item.dueTime??""}):null}
+                      {data.access.pautaWrite ? PautaEdit({item}) : null}
                     </div>
                     {data.access.pautaWrite ? <button type="button" className="pauta-cancel" disabled={isPending} onClick={() => run(() => setPautaItemStatusAction(item.id, cancelled ? "pending" : "cancelled"), cancelled ? "Item restaurado." : "Item retirado da pauta.")}>{cancelled ? "↶" : "×"}</button> : null}
                   </article>
