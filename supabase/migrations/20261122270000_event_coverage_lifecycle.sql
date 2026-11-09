@@ -210,7 +210,7 @@ begin
      select 'sistema','agenda',p_to,
        'Transferência de cobertura para confirmar',
        e.title || ': confirme se assume a responsabilidade.',
-       '/sistema/agenda?date='|| e.event_date::text,
+       (case when e.show_in_agenda then '/sistema/agenda?date=' else '/sistema/pauta?date=' end)||e.event_date::text,
        'coverage:transfer:'||v_id::text
      from public.agenda_events e where e.id=p_event_id
      on conflict(dedupe_key) do nothing;
