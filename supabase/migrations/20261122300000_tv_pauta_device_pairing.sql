@@ -175,7 +175,7 @@ begin
        select coalesce(bool_and(m.field_completed_at is not null),true),
          coalesce(bool_or(m.field_completed_at is not null),false),
          coalesce(string_agg(m.field_task||': '||coalesce(p.name,'Colaborador'),' · '
-             order by m.assigned_at),'')
+             order by m.assigned_at) filter (where m.field_completed_at is null),'')
         into v_field_done,v_any_field_done,v_member_detail
        from public.event_coverage_members m
        left join public.profiles p on p.id=m.profile_id
