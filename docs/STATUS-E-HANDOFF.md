@@ -3719,3 +3719,10 @@ Código gravado **somente no GitHub** após o commit 3A `814fd7bc`; não sincron
 [GitHub Actions 42535940585](https://github.com/altnixtecnologia/jornalir/actions/runs/42535940585/job/128900124661) **SUCESSO**: executou migrations `20261122220000` e `20261122230000` em PostgreSQL 17 descartável, sobre fixture sem dados reais; passou prova Google imutável/única/privada e regra de congelamento das posições após aprovação jurídica. CI em `.github/workflows/validate-contract-evidence-sql.yml`; fixtures `apps/sistema/test/fixtures/signature-evidence-*.sql`.
 
 Com a CI anterior `42535689362`, agora **quatro migrations (220000–250000) receberam smoke SQL isolado**. Continua **sem aplicar nenhuma das 12 migrations no Supabase real**. Testes de UI/integrações externas/Storage e revisão jurídica ainda pendentes. Não refazer estas verificações verdes sem alteração relevante.
+
+
+## 08/11/2026 — Pré-voo oficial das 12 migrations (SEM persistência)
+
+Por decisão do proprietário, os próximos testes serão feitos no **ambiente oficial**, não em um ambiente de homologação separado. Consulta real somente leitura confirmou 6 modelos inativos, 45 permissões sem conflitos com as novas actions, 0 convites de assinatura pendentes, 0 rodadas comerciais pendentes. Executadas as **12 migrations na ordem exata** dentro de `BEGIN … ROLLBACK` com limites curtos de lock/statement; retorno `VALIDADO_SEM_APLICAR`. Conferência posterior: ledger oficial termina em `20261122130000`; **12 migrations 140000–250000 seguem NÃO aplicadas**, tabelas novas ausentes e contagens iguais. **Nenhum deploy nem envio real**.
+
+Código permanece no GitHub, ainda não sincronizado ao VS Code Windows. **Próximo passo sujeito a autorização explícita:** aplicação permanente das 12 migrations, depois publicação controlada, depois testes logados de ponta a ponta no oficial usando documentos de teste aprovados sem obrigação jurídica nem cobrança. Mensagens/backup reais exigem decisão e destinos controlados. Não reabrir auditorias gerais.
