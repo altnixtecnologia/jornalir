@@ -158,6 +158,28 @@ function repeatDates(firstDate: string, mode: string): string[] {
   return dates;
 }
 
+function coverageMinutes(form: FormData,key: string,defaultMinutes:number,min:number,max:number): number | {error:string}{
+  const raw=value(form,key);
+  const parsed=raw === "" ? defaultMinutes : Number(raw);
+  if(!Number.isInteger(parsed)||parsed<min||parsed>max)return {error:"Intervalo de lembrete inválido."};
+  return parsed;
+}
+
+function coveragePeople(form:FormData):
+  | {attendanceOwner:string;articleOwner:string;audible:number;checkin:number}
+  | {error:string} {
+  const attendanceOwner=value(form,"coverage_attendance_owner");
+  const articleOwner=value(form,"coverage_article_owner")||attendanceOwner;
+  if(!/^[a-f0-9-]{36}$/i.test(attendanceOwner)||!/^[a-f0-9-]{36}$/i.test(articleOwner)) {
+    return {error:"Selecione quem vai ao evento e quem fará a matéria."};
+  }
+  const audible=coverageMinutes(form,"coverage_audible_minutes",60,-1440,1440);
+  const checkin=coverageMinutes(form,"coverage_checkin_minutes",5,-120,120);
+  if(typeof audible!=="number")return audible;
+  if(typeof checkin!=="number")return checkin;
+  return {attendanceOwner,articleOwner,audible,checkin};
+}
+
 export async function createAgendaEventAction(formData: FormData): Promise<AgendaActionResult> {
   const input = validateEventPayload(formData);
   if ("error" in input) return input;
@@ -165,6 +187,23 @@ export async function createAgendaEventAction(formData: FormData): Promise<Agend
   try {
     const { supabase } = await requireActiveUser();
     await validateActiveProfiles(supabase, input.assigneeIds);
+    if(value(formData,"coverage_enabled")==="true"){
+      if(!input.startTime)return {error:"Cobertura de evento precisa do horário de início."};
+      if(value(formData,"recurrence") && value(formData,"recurrence")!=="none")
+        return {error:"Crie uma cobertura por evento; recorrência não está habilitada."};
+      const people=coveragePeople(formData);
+      if("error" in people)return people;
+      await validateActiveProfiles(supabase,[people.attendanceOwner,people.articleOwner]);
+      const created=await supabase.rpc("create_coverage_agenda",{
+        p_title:input.title,p_description:input.description||null,p_event_date:input.eventDate,
+        p_start_time:input.startTime,p_end_time:input.endTime||null,p_location:input.location||null,
+        p_attendance_owner:people.attendanceOwner,p_article_owner:people.articleOwner,
+        p_audible_minutes:people.audible,p_checkin_minutes:people.checkin,
+      });
+      if(created.error || !created.data)return {error:created.error?.message??"Não foi possível criar a cobertura."};
+      refreshAgenda();
+      return {ok:true};
+    }
     const dates = repeatDates(input.eventDate, value(formData, "recurrence") || "none");
     // Uma unica transacao no Postgres: ou grava todas as ocorrencias e todos
     // os responsaveis, ou nao grava nenhuma.
@@ -242,6 +281,22 @@ export async function createPautaItemAction(formData: FormData): Promise<AgendaA
     const { supabase } = await requireActiveUser();
     await validateActiveProfiles(supabase, input.assigneeIds);
     await checkPautaPeriod(supabase, input.weekStart, input.dueDate);
+    if(value(formData,"coverage_enabled")==="true"){
+      if(!input.dueTime)return {error:"Informe o horário do evento para programar os lembretes."};
+      const people=coveragePeople(formData);
+      if("error" in people)return people;
+      await validateActiveProfiles(supabase,[people.attendanceOwner,people.articleOwner]);
+      const result=await supabase.rpc("create_coverage_pauta",{
+        p_title:input.title,p_description:input.description||null,p_event_date:input.dueDate,
+        p_start_time:input.dueTime,p_profiles:input.assigneeIds,
+        p_week_start:input.weekStart,p_show_in_agenda:value(formData,"show_in_agenda")==="true",
+        p_attendance_owner:people.attendanceOwner,p_article_owner:people.articleOwner,
+        p_audible_minutes:people.audible,p_checkin_minutes:people.checkin,
+      });
+      if(result.error||!result.data)return {error:result.error?.message??"Não foi possível criar a cobertura."};
+      refreshAgenda();
+      return {ok:true};
+    }
     const { data, error } = await supabase.rpc("create_editorial_pauta_in_period", {
       p_title: input.title,
       p_description: input.description || null,
@@ -336,6 +391,90 @@ export async function savePautaPeriodAction(formData: FormData): Promise<AgendaA
   } catch (error) {
     return { error: error instanceof Error ? error.message : "Não foi possível salvar o período." };
   }
+}
+
+
+/** Vincular uma cobertura a compromisso/pauta existente (sem duplicar agenda). */
+export async function enableCoverageAction(eventId:string,formData:FormData):Promise<AgendaActionResult>{
+  if(!eventId)return {error:"Compromisso não identificado."};
+  const people=coveragePeople(formData);if("error" in people)return people;
+  try{
+    const {supabase}=await requireActiveUser();
+    const {data,error}=await supabase.rpc("create_coverage_for_event",{
+      p_event_id:eventId,p_attendance_owner:people.attendanceOwner,p_article_owner:people.articleOwner,
+      p_audible_minutes:people.audible,p_checkin_minutes:people.checkin,
+      p_article_due_at:null,
+    });
+    if(error||!data)return {error:error?.message??"Não foi possível configurar a cobertura."};
+    refreshAgenda();return {ok:true};
+  }catch(error){return {error:error instanceof Error?error.message:"Falha na cobertura."};}
+}
+
+export async function requestCoverageTransferAction(eventId:string,formData:FormData):Promise<AgendaActionResult>{
+  const part=value(formData,"transfer_part");
+  const to=value(formData,"transfer_to");
+  const reason=value(formData,"transfer_reason");
+  const force=value(formData,"transfer_force")==="true";
+  if(!eventId||!["attendance","article","both"].includes(part)
+    ||!/^[a-f0-9-]{36}$/i.test(to)||reason.length<5||reason.length>300)
+    return {error:"Escolha o novo responsável e informe o motivo (5 a 300 caracteres)."};
+  try{
+    const {supabase}=await requireActiveUser();
+    const {data,error}=await supabase.rpc("request_event_coverage_transfer",{
+      p_event_id:eventId,p_part:part,p_to:to,p_reason:reason,p_force:force,
+    });
+    if(error||!data)return {error:error?.message??"Não foi possível solicitar transferência."};
+    refreshAgenda();return {ok:true};
+  }catch(error){return {error:error instanceof Error?error.message:"Falha na transferência."};}
+}
+
+export async function respondCoverageTransferAction(transferId:string,accept:boolean):Promise<AgendaActionResult>{
+  if(!transferId)return {error:"Transferência inválida."};
+  try{
+    const {supabase}=await requireActiveUser();
+    const {data,error}=await supabase.rpc("respond_event_coverage_transfer",{p_transfer:transferId,p_accept:accept});
+    if(error||!data)return {error:error?.message??"Não foi possível responder à transferência."};
+    refreshAgenda();return {ok:true};
+  }catch(error){return {error:error instanceof Error?error.message:"Falha ao confirmar transferência."};}
+}
+
+export async function markCoverageAttendanceAction(eventId:string,status:"on_way"|"present"|"absent"):Promise<AgendaActionResult>{
+  if(!eventId || !["on_way","present","absent"].includes(status))return {error:"Comparecimento inválido."};
+  try{
+    const {supabase}=await requireActiveUser();
+    const {data,error}=await supabase.rpc("mark_event_coverage_attendance",{p_event_id:eventId,p_status:status});
+    if(error||!data)return {error:error?.message??"Não foi possível confirmar presença."};
+    refreshAgenda();return {ok:true};
+  }catch(error){return {error:error instanceof Error?error.message:"Falha na presença."};}
+}
+
+export async function finishCoverageArticleAction(eventId:string,complete:boolean):Promise<AgendaActionResult>{
+  if(!eventId)return {error:"Cobertura inválida."};
+  try{
+    const {supabase}=await requireActiveUser();
+    const {data,error}=await supabase.rpc("set_event_coverage_article",{p_event_id:eventId,p_completed:complete});
+    if(error||!data)return {error:error?.message??"Não foi possível atualizar a matéria."};
+    refreshAgenda();return {ok:true};
+  }catch(error){return {error:error instanceof Error?error.message:"Falha na matéria."};}
+}
+
+export async function saveCoverageAlertsAction(eventId:string,formData:FormData):Promise<AgendaActionResult>{
+  if(!eventId)return {error:"Cobertura inválida."};
+  const audible=coverageMinutes(formData,"coverage_audible_minutes",60,-1440,1440);
+  const checkin=coverageMinutes(formData,"coverage_checkin_minutes",5,-120,120);
+  if(typeof audible!=="number")return audible;
+  if(typeof checkin!=="number")return checkin;
+  const dueDate=value(formData,"article_due_at");
+  if(dueDate && !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(dueDate))return {error:"Prazo de matéria inválido."};
+  const due=dueDate?new Date(dueDate+":00-03:00").toISOString():null;
+  try{
+    const {supabase}=await requireActiveUser();
+    const {data,error}=await supabase.rpc("set_event_coverage_alerts",{
+      p_event_id:eventId,p_audible_minutes:audible,p_checkin_minutes:checkin,p_article_due_at:due,
+    });
+    if(error||!data)return {error:error?.message??"Não foi possível salvar lembretes."};
+    refreshAgenda();return {ok:true};
+  }catch(error){return {error:error instanceof Error?error.message:"Falha nos lembretes."};}
 }
 
 export async function createPautaFromAgendaEventAction(eventId: string): Promise<AgendaActionResult> {
