@@ -519,7 +519,7 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
     });
   }
 
-  function EnableCoverage({eventId}:{eventId:string}):JSX.Element {
+  function EnableCoverage({eventId,eventTime}:{eventId:string;eventTime:string}):JSX.Element {
     return <details className="agenda-inline-edit coverage-activate">
       <summary>＋ Transformar em cobertura de evento</summary>
       <form className="coverage-form" onSubmit={event=>{
@@ -527,22 +527,19 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
         run(()=>enableCoverageAction(eventId,new FormData(event.currentTarget)),"Etapas de cobertura ativadas.");
       }}>
         <p className="helper-text">Mantém este compromisso e a Pauta existentes, sem criar cópias.</p>
-        <CoveragePeopleFields profiles={data.profiles} currentUserId={data.currentUserId}/>
+        <CoveragePeopleFields profiles={data.profiles} currentUserId={data.currentUserId} eventTime={eventTime}/>
         <button type="submit" className="agenda-primary" disabled={isPending}>Ativar cobertura</button>
       </form>
     </details>;
   }
 
-  function CoveragePanel({coverage,eventId}:{coverage:EventCoverage;eventId:string}):JSX.Element{
+  function CoveragePanel({coverage,eventId,eventTime}:{coverage:EventCoverage;eventId:string;eventTime:string}):JSX.Element{
     const profileName=(id:string)=>data.profiles.find(p=>p.id===id)?.name??"Colaborador";
     const myPresence=coverage.attendanceOwnerId===data.currentUserId;
     const myArticle=coverage.articleOwnerId===data.currentUserId;
     const manager=data.access.pautaWrite||data.access.agendaWrite;
     const canTransfer=myPresence||myArticle||manager;
     const request=coverage.pendingTransfer;
-    const minutesLabel=(n:number)=>n>=0
-      ? (n===0?"no horário":n+" min antes")
-      : Math.abs(n)+" min depois";
     const dueLocal=coverage.articleDueAt
       ? new Date(coverage.articleDueAt).toLocaleString("sv-SE",{timeZone:"America/Sao_Paulo",year:"numeric",month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit"}).replace(" ","T"):"";
     return <section className="coverage-panel" aria-label="Cobertura jornalística">
@@ -565,7 +562,22 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
           </div>:null}
         </div>
         <div className="coverage-step">
-          <div><strong>2. Produção da matéria</strong><small>{profileName(coverage.articleOwnerId)}</small>
+          <div>
+            <strong>2. {coverage.taskLabel}</strong>
+            <small>{profileName(coverage.attendanceOwnerId)}</small>
+            <span className={"coverage-state is-"+coverage.taskStatus}>
+              {coverage.taskStatus==="completed"?"✓ Tarefa concluída":"Aguardando entrega"}
+            </span>
+          </div>
+          {(myPresence||manager)?<div className="coverage-step-actions">
+            <button type="button" disabled={isPending} onClick={()=>run(
+              ()=>finishCoverageFieldTaskAction(eventId,coverage.taskStatus!=="completed"),
+              coverage.taskStatus==="completed"?"Tarefa reaberta.":"Trabalho de campo concluído."
+            )}>{coverage.taskStatus==="completed"?"Reabrir tarefa":"Concluir "+coverage.taskLabel.toLocaleLowerCase("pt-BR")}</button>
+          </div>:null}
+        </div>
+        <div className="coverage-step">
+          <div><strong>3. Produção da matéria</strong><small>{profileName(coverage.articleOwnerId)}</small>
             <span className={"coverage-state is-"+coverage.articleStatus}>
               {coverage.articleStatus==="completed"?"✓ Matéria concluída":"Matéria pendente"}
             </span>
@@ -615,20 +627,30 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
         </form>
       </details>:null}
       {(myPresence||manager)?<details className="coverage-options">
-        <summary>⚙ Lembretes e prazo</summary>
+        <summary>✎ Personalizar tarefa de campo</summary>
+        <form className="coverage-form" onSubmit={event=>{
+          event.preventDefault();run(()=>saveCoverageTaskLabelAction(eventId,new FormData(event.currentTarget)),
+           "Tarefa atualizada.");
+        }}>
+          <label className="agenda-field coverage-reason"><span>Qual é a tarefa do responsável?</span>
+            <input type="text" list="agenda-task-suggestions" name="coverage_task_label"
+              maxLength={80} minLength={2} required defaultValue={coverage.taskLabel}
+              placeholder="Ex.: Tirar fotos, filmar, entrevistar"/>
+          </label>
+          <button type="submit" className="agenda-primary" disabled={isPending}>Salvar função</button>
+        </form>
+      </details>:null}
+      {(myPresence||manager)?<details className="coverage-options">
+        <summary>⚙ Horários e prazo</summary>
         <form className="coverage-form" onSubmit={event=>{
           event.preventDefault();run(()=>saveCoverageAlertsAction(eventId,new FormData(event.currentTarget)),
            "Lembretes atualizados para o responsável.");
         }}>
-          <label className="agenda-field"><span>Alerta sonoro (minutos antes; negativo = depois)</span>
-            <input name="coverage_audible_minutes" type="number" min="-1440" max="1440"
-              required defaultValue={coverage.audibleMinutes}/></label>
-          <label className="agenda-field"><span>Confirmação silenciosa (minutos antes; negativo = depois)</span>
-            <input name="coverage_checkin_minutes" type="number" min="-120" max="120"
-              required defaultValue={coverage.checkinMinutes}/></label>
+          <CoverageClockFields eventTime={eventTime} audible={coverage.audibleMinutes}
+            checkin={coverage.checkinMinutes}/>
           <label className="agenda-field"><span>Prazo da matéria (opcional)</span>
             <input name="article_due_at" type="datetime-local" defaultValue={dueLocal}/></label>
-          <small>Atual: sonoro {minutesLabel(coverage.audibleMinutes)}; confirmação {minutesLabel(coverage.checkinMinutes)}.</small>
+          <small>Os horários acompanham o início do evento; você pode editar cada minuto.</small>
           <button type="submit" className="agenda-primary" disabled={isPending}>Salvar lembretes</button>
         </form>
       </details>:null}
