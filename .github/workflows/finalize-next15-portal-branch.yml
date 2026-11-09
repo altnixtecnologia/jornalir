@@ -68,6 +68,26 @@ jobs:
             }
           }
           NODE
+      - name: Diagnóstico de versões React no lockfile gerado
+        run: |
+          node - <<'NODE'
+          const fs=require('node:fs'), path=require('node:path');
+          for(const from of ['.','apps/site','apps/sistema','packages/ui','node_modules/react-pageflip','apps/site/node_modules/next']){
+            const root=path.resolve(from);
+            const found={from};
+            for(const pkg of ['react','react-dom','next']){
+              try{
+                const file=require.resolve(pkg+'/package.json',{paths:[root]});
+                found[pkg]={version:JSON.parse(fs.readFileSync(file)).version,path:path.relative(process.cwd(),file)};
+              }catch(e){found[pkg]=String(e.code||e.message);}
+            }
+            console.log(JSON.stringify(found));
+          }
+          const lock=JSON.parse(fs.readFileSync('package-lock.json','utf8'));
+          for(const [name,v] of Object.entries(lock.packages||{})){
+            if(/(^|\\/)react(-dom)?$/.test(name))console.log('LOCK '+name+' '+v.version);
+          }
+          NODE
       - name: Codemod oficial de rotas do Portal
         run: |
           npx --yes @next/codemod@15.5.29 next-async-request-api apps/site/src/app --force
