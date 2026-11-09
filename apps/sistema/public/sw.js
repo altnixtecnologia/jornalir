@@ -11,15 +11,17 @@ self.addEventListener("push", (event) => {
   const target = new URL(href, self.location.origin);
   if (target.origin !== self.location.origin || !target.pathname.startsWith("/sistema")) return;
   const isAgenda = payload.kind === "agenda";
+  const silent = payload.silent === true;
   event.waitUntil(self.registration.showNotification(title, {
     body,
     icon: "/icons/icon-ir-192.png",
     badge: "/icons/icon-ir-192.png",
     tag: typeof payload.tag === "string" ? payload.tag.slice(0,100) : undefined,
-    renotify: isAgenda,
+    renotify: isAgenda && !silent,
+    silent,
     data: { href: target.pathname + target.search },
     // Vibração depende de navegador e configurações do sistema.
-    vibrate: isAgenda ? [250, 120, 250] : [140],
+    vibrate: silent ? undefined : isAgenda ? [250, 120, 250] : [140],
   }));
 });
 

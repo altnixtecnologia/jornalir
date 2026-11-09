@@ -1,3 +1,24 @@
+export interface EventCoverage {
+  eventId: string;
+  attendanceOwnerId: string;
+  articleOwnerId: string;
+  attendanceStatus: "pending" | "on_way" | "present" | "absent";
+  attendanceAt: string | null;
+  articleStatus: "pending" | "completed";
+  articleCompletedAt: string | null;
+  articleDueAt: string | null;
+  audibleMinutes: number;
+  checkinMinutes: number;
+  revision: number;
+  pendingTransfer: {
+    id: string;
+    part: "attendance" | "article" | "both";
+    toProfileId: string;
+    requestedBy: string;
+    reason: string;
+  } | null;
+}
+
 export interface AgendaProfile {
   id: string;
   name: string;
@@ -14,6 +35,7 @@ export interface AgendaEventItem {
   reminderMinutes: number | null;
   eventKind: "general" | "editorial";
   showInAgenda: boolean;
+  coverage: EventCoverage | null;
   completedAt: string | null;
   updatedAt: string;
   location: string | null;
@@ -34,6 +56,7 @@ export interface WeeklyPautaItem {
   responsibleName: string | null;
   agendaEventId: string | null;
   agendaEventTitle: string | null;
+  coverage: EventCoverage | null;
   articleId: string | null;
   status: "pending" | "completed" | "cancelled";
   completedAt: string | null;

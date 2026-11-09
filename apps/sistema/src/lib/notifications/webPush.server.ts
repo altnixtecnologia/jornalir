@@ -82,7 +82,7 @@ function makeVapidToken(audience: string, publicKey: string, privateKey: string)
 }
 export async function sendWebPush(
   subscription: WebPushSubscription,
-  payload: { title: string; body: string; kind: string; href: string; tag: string },
+  payload: { title: string; body: string; kind: string; href: string; tag: string; silent?: boolean },
 ): Promise<PushSendResult> {
   const publicKey = process.env.PUSH_VAPID_PUBLIC_KEY;
   const privateKey = process.env.PUSH_VAPID_PRIVATE_KEY;
@@ -99,7 +99,7 @@ export async function sendWebPush(
       "Content-Encoding": "aes128gcm",
       "Content-Type": "application/octet-stream",
       "TTL": "3600",
-      "Urgency": payload.kind === "urgent" || payload.kind === "agenda" ? "high" : "normal",
+      "Urgency": payload.silent ? "normal" : payload.kind === "urgent" || payload.kind === "agenda" ? "high" : "normal",
     },
     body: Uint8Array.from(body).buffer,
     signal: AbortSignal.timeout(10000),

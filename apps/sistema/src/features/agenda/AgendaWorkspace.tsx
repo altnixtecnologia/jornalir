@@ -9,6 +9,12 @@ import {
   createAgendaEventAction,
   createPautaFromAgendaEventAction,
   createPautaItemAction,
+  enableCoverageAction,
+  requestCoverageTransferAction,
+  respondCoverageTransferAction,
+  markCoverageAttendanceAction,
+  finishCoverageArticleAction,
+  saveCoverageAlertsAction,
   savePautaPeriodAction,
   setAgendaEventStatusAction,
   setPautaItemStatusAction,
@@ -17,7 +23,7 @@ import {
   setAgendaMeetingInviteesAction,
   respondAgendaInvitationAction,
 } from "./actions";
-import type { AgendaEventItem, AgendaWorkspaceData, WeeklyPautaItem } from "./agendaTypes";
+import type { AgendaEventItem, AgendaWorkspaceData, EventCoverage, WeeklyPautaItem } from "./agendaTypes";
 import { createSupabaseBrowserClient } from "../../lib/supabase/browser";
 import { notify } from "../../lib/feedback/notify";
 import { confirmDialog } from "../../lib/feedback/confirmStore";
@@ -245,6 +251,47 @@ function ClearableScheduleInput({
   );
 }
 
+function CoveragePeopleFields({profiles,currentUserId}:{
+  profiles:AgendaWorkspaceData["profiles"];currentUserId:string;
+}):JSX.Element{
+  return <div className="coverage-config-fields">
+    <label className="agenda-field"><span>Quem irá ao evento?</span>
+      <select name="coverage_attendance_owner" defaultValue={currentUserId} required>
+        {profiles.map(p=><option value={p.id} key={p.id}>{p.name}</option>)}
+      </select></label>
+    <label className="agenda-field"><span>Quem produzirá a matéria?</span>
+      <select name="coverage_article_owner" defaultValue={currentUserId} required>
+        {profiles.map(p=><option value={p.id} key={p.id}>{p.name}</option>)}
+      </select></label>
+    <label className="agenda-field"><span>Lembrete sonoro</span>
+      <select name="coverage_audible_minutes" defaultValue="60">
+        <option value="1440">1 dia antes</option><option value="120">2 horas antes</option>
+        <option value="60">1 hora antes (padrão)</option><option value="30">30 min antes</option>
+        <option value="15">15 min antes</option><option value="5">5 min antes</option>
+        <option value="0">No horário</option><option value="-5">5 min depois</option>
+        <option value="-15">15 min depois</option><option value="-30">30 min depois</option>
+      </select></label>
+    <label className="agenda-field"><span>Confirmação silenciosa</span>
+      <select name="coverage_checkin_minutes" defaultValue="5">
+        <option value="30">30 min antes</option><option value="15">15 min antes</option>
+        <option value="5">5 min antes (padrão)</option><option value="0">No horário</option>
+        <option value="-5">5 min depois</option><option value="-15">15 min depois</option>
+      </select></label>
+  </div>;
+}
+
+function CoverageOptIn({data}:{data:AgendaWorkspaceData}):JSX.Element{
+ const [enabled,setEnabled]=useState(false);
+ return <fieldset className="coverage-opt-in agenda-field-wide">
+  <label className="coverage-switch">
+    <input name="coverage_enabled" type="checkbox" value="true" checked={enabled}
+      onChange={event=>setEnabled(event.currentTarget.checked)}/>
+    <span><strong>Cobertura de evento</strong><small>Separar presença e produção da matéria, com transferência e dois lembretes</small></span>
+  </label>
+  {enabled?<CoveragePeopleFields profiles={data.profiles} currentUserId={data.currentUserId}/>:null}
+ </fieldset>;
+}
+
 export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspaceProps): JSX.Element {
   const router = useRouter();
   const realtimeClient = useMemo(() => createSupabaseBrowserClient(), []);
@@ -307,6 +354,8 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
       .on("postgres_changes", { event: "*", schema: "public", table: "agenda_event_assignees" }, scheduleRefresh)
       .on("postgres_changes", { event: "*", schema: "public", table: "weekly_pauta_items" }, scheduleRefresh)
       .on("postgres_changes", { event: "*", schema: "public", table: "pauta_week_overrides" }, scheduleRefresh)
+      .on("postgres_changes", { event: "*", schema: "public", table: "event_coverages" }, scheduleRefresh)
+      .on("postgres_changes", { event: "*", schema: "public", table: "event_coverage_transfers" }, scheduleRefresh)
       .subscribe((status) => {
         if (status === "SUBSCRIBED") {
           setRealtimeState("online");
@@ -438,6 +487,122 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
     });
   }
 
+  function EnableCoverage({eventId}:{eventId:string}):JSX.Element {
+    return <details className="agenda-inline-edit coverage-activate">
+      <summary>＋ Transformar em cobertura de evento</summary>
+      <form className="coverage-form" onSubmit={event=>{
+        event.preventDefault();
+        run(()=>enableCoverageAction(eventId,new FormData(event.currentTarget)),"Etapas de cobertura ativadas.");
+      }}>
+        <p className="helper-text">Mantém este compromisso e a Pauta existentes, sem criar cópias.</p>
+        <CoveragePeopleFields profiles={data.profiles} currentUserId={data.currentUserId}/>
+        <button type="submit" className="agenda-primary" disabled={isPending}>Ativar cobertura</button>
+      </form>
+    </details>;
+  }
+
+  function CoveragePanel({coverage,eventId}:{coverage:EventCoverage;eventId:string}):JSX.Element{
+    const profileName=(id:string)=>data.profiles.find(p=>p.id===id)?.name??"Colaborador";
+    const myPresence=coverage.attendanceOwnerId===data.currentUserId;
+    const myArticle=coverage.articleOwnerId===data.currentUserId;
+    const manager=data.access.pautaWrite||data.access.agendaWrite;
+    const canTransfer=myPresence||myArticle||manager;
+    const request=coverage.pendingTransfer;
+    const minutesLabel=(n:number)=>n>=0
+      ? (n===0?"no horário":n+" min antes")
+      : Math.abs(n)+" min depois";
+    const dueLocal=coverage.articleDueAt
+      ? new Date(coverage.articleDueAt).toLocaleString("sv-SE",{timeZone:"America/Sao_Paulo",year:"numeric",month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit"}).replace(" ","T"):"";
+    return <section className="coverage-panel" aria-label="Cobertura jornalística">
+      <header className="coverage-panel-title">
+        <strong>🎙 Cobertura de evento</strong><small>Presença e matéria são etapas independentes</small>
+      </header>
+      <div className="coverage-steps">
+        <div className="coverage-step">
+          <div><strong>1. Comparecimento</strong><small>{profileName(coverage.attendanceOwnerId)}</small>
+            <span className={"coverage-state is-"+coverage.attendanceStatus}>
+              {coverage.attendanceStatus==="present"?"✓ Compareceu":
+               coverage.attendanceStatus==="absent"?"Não compareceu":
+               coverage.attendanceStatus==="on_way"?"Ainda não chegou":"Aguardando confirmação"}
+            </span>
+          </div>
+          {myPresence&&coverage.attendanceStatus!=="present"?<div className="coverage-step-actions">
+            <button type="button" onClick={()=>run(()=>markCoverageAttendanceAction(eventId,"present"),"Sua presença foi confirmada.")} disabled={isPending}>Compareci</button>
+            <button type="button" onClick={()=>run(()=>markCoverageAttendanceAction(eventId,"on_way"),"Aguardando sua confirmação.")} disabled={isPending}>Ainda não</button>
+            <button type="button" onClick={()=>run(()=>markCoverageAttendanceAction(eventId,"absent"),"Ausência registrada.")} disabled={isPending}>Não poderei ir</button>
+          </div>:null}
+        </div>
+        <div className="coverage-step">
+          <div><strong>2. Produção da matéria</strong><small>{profileName(coverage.articleOwnerId)}</small>
+            <span className={"coverage-state is-"+coverage.articleStatus}>
+              {coverage.articleStatus==="completed"?"✓ Matéria concluída":"Matéria pendente"}
+            </span>
+          </div>
+          {(myArticle||manager)?<div className="coverage-step-actions">
+            <button type="button" disabled={isPending} onClick={()=>run(
+              ()=>finishCoverageArticleAction(eventId,coverage.articleStatus!=="completed"),
+              coverage.articleStatus==="completed"?"Matéria reaberta.":"Matéria finalizada."
+            )}>{coverage.articleStatus==="completed"?"Reabrir matéria":"Concluir matéria"}</button>
+          </div>:null}
+        </div>
+      </div>
+      {request?<div className="coverage-transfer-notice">
+        <strong>Transferência aguardando aceite</strong>
+        <span>{request.part==="attendance"?"Comparecimento":request.part==="article"?"Produção da matéria":"Ambas as etapas"} → {profileName(request.toProfileId)}</span>
+        <small>Motivo: {request.reason}. Até o aceite, os titulares permanecem os mesmos.</small>
+        {request.toProfileId===data.currentUserId?<div className="coverage-step-actions">
+          <button type="button" className="agenda-primary" disabled={isPending}
+            onClick={()=>run(()=>respondCoverageTransferAction(request.id,true),"Titularidade transferida.")}>Aceitar</button>
+          <button type="button" disabled={isPending}
+            onClick={()=>run(()=>respondCoverageTransferAction(request.id,false),"Transferência recusada.")}>Recusar</button>
+        </div>:null}
+      </div>:null}
+      {canTransfer&&!request?<details className="coverage-options">
+        <summary>↔ Transferir responsabilidade</summary>
+        <form className="coverage-form" onSubmit={event=>{
+          event.preventDefault();run(()=>requestCoverageTransferAction(eventId,new FormData(event.currentTarget)),
+          "Transferência solicitada; titular permanece até aceite.");
+        }}>
+          <label className="agenda-field"><span>Transferir</span><select name="transfer_part" defaultValue="attendance">
+            <option value="attendance">Somente comparecimento</option>
+            <option value="article">Somente produção da matéria</option>
+            <option value="both">As duas etapas</option>
+          </select></label>
+          <label className="agenda-field"><span>Novo responsável</span>
+            <select name="transfer_to" required defaultValue="">
+              <option value="" disabled>Selecionar colaborador</option>
+              {data.profiles.filter(p=>p.id!==data.currentUserId).map(p=><option key={p.id} value={p.id}>{p.name}</option>)}
+            </select></label>
+          <label className="agenda-field coverage-reason"><span>Motivo</span>
+            <input name="transfer_reason" required minLength={5} maxLength={300}
+              placeholder="Ex.: indisponibilidade na data"/></label>
+          {manager?<label className="coverage-force-check">
+            <input type="checkbox" name="transfer_force" value="true"/> Transferir imediatamente (somente gestor autorizado)
+          </label>:null}
+          <button type="submit" className="agenda-primary" disabled={isPending}>Solicitar transferência</button>
+        </form>
+      </details>:null}
+      {(myPresence||manager)?<details className="coverage-options">
+        <summary>⚙ Lembretes e prazo</summary>
+        <form className="coverage-form" onSubmit={event=>{
+          event.preventDefault();run(()=>saveCoverageAlertsAction(eventId,new FormData(event.currentTarget)),
+           "Lembretes atualizados para o responsável.");
+        }}>
+          <label className="agenda-field"><span>Alerta sonoro (minutos antes; negativo = depois)</span>
+            <input name="coverage_audible_minutes" type="number" min="-1440" max="1440"
+              required defaultValue={coverage.audibleMinutes}/></label>
+          <label className="agenda-field"><span>Confirmação silenciosa (minutos antes; negativo = depois)</span>
+            <input name="coverage_checkin_minutes" type="number" min="-120" max="120"
+              required defaultValue={coverage.checkinMinutes}/></label>
+          <label className="agenda-field"><span>Prazo da matéria (opcional)</span>
+            <input name="article_due_at" type="datetime-local" defaultValue={dueLocal}/></label>
+          <small>Atual: sonoro {minutesLabel(coverage.audibleMinutes)}; confirmação {minutesLabel(coverage.checkinMinutes)}.</small>
+          <button type="submit" className="agenda-primary" disabled={isPending}>Salvar lembretes</button>
+        </form>
+      </details>:null}
+    </section>;
+  }
+
   function EventEdit({ item }: { item: AgendaEventItem }): JSX.Element {
     return (
       <details className="agenda-inline-edit">
@@ -460,7 +625,8 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
           <label className="agenda-field"><span>Lembrete no grupo Telegram</span><select name="reminder_minutes" defaultValue={item.reminderMinutes === null ? "off" : String(item.reminderMinutes)}><option value="off">Sem lembrete</option><option value="0">No horário</option><option value="5">5 min antes</option><option value="10">10 min antes</option><option value="15">15 min antes</option><option value="30">30 min antes</option><option value="60">1 hora antes</option><option value="120">2 horas antes</option><option value="1440">1 dia antes</option></select></label>
           <label className="agenda-field agenda-field-wide"><span>Local</span><input name="location" maxLength={240} defaultValue={item.location ?? ""} /></label>
           <label className="agenda-field agenda-field-wide"><span>Observação</span><textarea name="description" maxLength={4000} defaultValue={item.description ?? ""} /></label>
-          <div className="agenda-field-wide"><AssigneePicker profiles={data.profiles} selectedIds={item.assignees.map((profile) => profile.id)} /></div>
+          {item.coverage?<p className="helper-text agenda-field-wide">Responsáveis da cobertura são alterados pela transferência, não pela edição geral.</p>:
+            <div className="agenda-field-wide"><AssigneePicker profiles={data.profiles} selectedIds={item.assignees.map((profile) => profile.id)} /></div>}
           <div className="agenda-form-actions agenda-edit-actions">
             <button type="submit" className="agenda-primary" disabled={isPending}>Salvar</button>
             <button type="button" className="agenda-close-edit" disabled={isPending} onClick={(event) => {
@@ -519,7 +685,8 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
             <PautaDateTimeField initialDate={item.dueDate ?? item.weekStart} initialTime={item.dueTime}
               weekStart={data.periodStart} weekEnd={data.periodEnd} />
           </div>
-          <div className="agenda-field-wide"><AssigneePicker profiles={data.profiles} selectedIds={item.assignees.map((person) => person.id)} /></div>
+          {item.coverage?<p className="helper-text agenda-field-wide">Para mudar o responsável da cobertura, utilize Transferir responsabilidade.</p>:
+            <div className="agenda-field-wide"><AssigneePicker profiles={data.profiles} selectedIds={item.assignees.map((person) => person.id)} /></div>}
           <label className="agenda-field pauta-note-field"><span>Observações</span>
             <textarea name="description" rows={2} maxLength={4000} defaultValue={item.description ?? ""}
               onInput={(event) => {
@@ -744,7 +911,7 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
                             </div>:null}
                         </div>
                       </div>
-                      {(data.access.agendaWrite || item.assignees.some((person) => person.id === data.currentUserId)) ? (
+                      {!item.coverage && (data.access.agendaWrite || item.assignees.some((person) => person.id === data.currentUserId)) ? (
                         <div className={"agenda-event-actions" + (data.access.agendaWrite ? " is-manager" : " is-member")}>
                           {item.status === "scheduled" ? (
                             <>
@@ -783,7 +950,7 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
                           ) : null}
                         </div>
                       ) : null}
-                      {item.status === "scheduled" && data.access.pautaWrite && item.eventKind !== "editorial" ? (
+                      {item.status === "scheduled" && !item.coverage && data.access.pautaWrite && item.eventKind !== "editorial" ? (
                         <div className="agenda-event-secondary">
                           <button type="button" disabled={isPending}
                             onClick={() => run(() => createPautaFromAgendaEventAction(item.id), "Compromisso incluído na pauta.")}>
@@ -791,8 +958,10 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
                           </button>
                         </div>
                       ) : null}
+                      {item.coverage?<CoveragePanel coverage={item.coverage} eventId={item.id}/>:
+                        item.status==="scheduled"&&data.access.agendaWrite?<EnableCoverage eventId={item.id}/>:null}
                       {data.access.agendaWrite ? <EventEdit item={item} /> : null}
-                      {data.access.agendaWrite && item.eventKind==="general" && item.status==="scheduled"
+                      {data.access.agendaWrite && !item.coverage && item.eventKind==="general" && item.status==="scheduled"
                         ? <InviteesEditor item={item}/> : null}
                     </article>
                   ))}
@@ -825,6 +994,7 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
                 <label className="agenda-field agenda-field-wide"><span>Local</span><input name="location" maxLength={240} placeholder="Opcional" /></label>
                 <label className="agenda-field agenda-field-wide"><span>Observação</span><textarea name="description" maxLength={4000} placeholder="Informações úteis para a equipe" /></label>
                 <div className="agenda-field-wide"><AssigneePicker profiles={data.profiles} currentUserId={data.currentUserId} /></div>
+                <CoverageOptIn data={data}/>
                 <div className="agenda-form-actions"><button type="submit" className="agenda-primary" disabled={isPending}>{isPending ? "Salvando..." : "Adicionar compromisso"}</button></div>
               </form>
             </details> : null}
@@ -921,6 +1091,7 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
                   weekStart={data.periodStart} weekEnd={data.periodEnd} required />
               </div>
               <div className="pauta-assignee-field"><AssigneePicker profiles={data.profiles} currentUserId={data.currentUserId} /></div>
+              <CoverageOptIn data={data}/>
               <label className="agenda-field pauta-note-field"><span>Observações</span>
                 <textarea name="description" rows={2} maxLength={4000} placeholder="Informações adicionais (opcional)"
                   onInput={(event) => {
@@ -944,7 +1115,7 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
                 const canCompleteOwn = !done && !cancelled && Boolean(myAssignment && !myAssignment.completedAt);
                 return (
                   <article key={item.id} style={{ borderLeftColor: personColor(item.responsibleProfileId ?? "") }} className={"pauta-item" + (done ? " is-done" : "") + (cancelled ? " is-cancelled" : "")}>
-                    {(data.access.pautaWrite || canCompleteOwn) ? <button type="button" className="pauta-check"
+                    {!item.coverage && (data.access.pautaWrite || canCompleteOwn) ? <button type="button" className="pauta-check"
                       aria-label={done ? "Reabrir item" : "Concluir minha pauta"} disabled={isPending || cancelled}
                       onClick={() => run(
                         () => done ? setPautaItemStatusAction(item.id, "pending")
@@ -970,6 +1141,9 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
                       {item.articleId ? (
                         <Link href={"/sistema/editorial/materias/" + item.articleId} className="agenda-link-materia">Abrir matéria vinculada ↗</Link>
                       ) : null}
+                      {item.coverage&&item.agendaEventId?<CoveragePanel coverage={item.coverage} eventId={item.agendaEventId}/>:
+                        item.agendaEventId&&item.status==="pending"&&data.access.pautaWrite?
+                         <EnableCoverage eventId={item.agendaEventId}/>:null}
                       {data.access.pautaWrite ? <PautaEdit item={item} /> : null}
                     </div>
                     {data.access.pautaWrite ? <button type="button" className="pauta-cancel" disabled={isPending} onClick={() => run(() => setPautaItemStatusAction(item.id, cancelled ? "pending" : "cancelled"), cancelled ? "Item restaurado." : "Item retirado da pauta.")}>{cancelled ? "↶" : "×"}</button> : null}
