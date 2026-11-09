@@ -6883,3 +6883,146 @@ button.secondary-link {
   .usuarios-edit-modal{padding: 18px 14px}
   .usuarios-edit-modal .usuarios-edit-actions button{flex: 1 1 auto;min-height: 42px}
 }
+
+
+/* Pauta compacta: ciclo editorial quinta a quarta 09/11/2026 */
+.is-pauta-workspace.agenda-workspace { gap: 8px; }
+.is-pauta-workspace .agenda-quick-overview {
+  display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px;
+}
+.is-pauta-workspace .agenda-quick-overview > div {
+  min-height:54px;padding:8px 11px;border-radius:9px;box-shadow:none;
+}
+.is-pauta-workspace .agenda-quick-overview strong {font-size:15px;line-height:1.15}
+.is-pauta-workspace .agenda-quick-overview small {font-size:10px;line-height:1.2;margin-top:0}
+.is-pauta-workspace .agenda-quick-sync strong {font-size:12px}
+.is-pauta-workspace .agenda-quick-sync small {font-size:10px}
+.is-pauta-workspace .pauta-layout {position:relative;padding:10px 12px 12px;}
+.pauta-toolbar {
+  display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);
+  align-items:center;gap:12px;min-height:44px;
+  padding:3px 0 9px;border-bottom:1px solid var(--line);
+}
+.pauta-toolbar .agenda-tabs {width:max-content;max-width:100%;gap:2px;padding:3px;}
+.pauta-toolbar .agenda-tabs button {min-width:84px;padding:7px 10px;white-space:nowrap;font-size:12px;}
+.pauta-toolbar .pauta-toolbar-filter {justify-self:end;min-width:0;}
+.pauta-toolbar-filter select {min-width:155px;max-width:210px;}
+.pauta-toolbar-period {
+  display:flex;align-items:center;justify-content:center;gap:3px;
+  white-space:nowrap;min-width:0;
+}
+.pauta-toolbar-period .pauta-week-arrow,
+.pauta-toolbar-period .pauta-period-pencil {
+  width:28px;min-width:28px;height:30px;min-height:30px;padding:0;
+  display:inline-flex;align-items:center;justify-content:center;
+  border:1px solid transparent;border-radius:6px;background:transparent;
+  font-size:23px;color:var(--brand);cursor:pointer;
+}
+.pauta-toolbar-period .pauta-week-arrow:hover,
+.pauta-toolbar-period .pauta-period-pencil:hover {background:#e9ebf3;border-color:var(--line);}
+.pauta-toolbar-period .pauta-period-pencil {font-size:18px;margin-left:3px;}
+.pauta-toolbar-dates {display:grid;justify-items:center;gap:0;line-height:1.2;}
+.pauta-toolbar-dates strong {font-size:15px;font-weight:800;font-variant-numeric:tabular-nums;}
+.pauta-toolbar-dates small {font-size:9px;color:var(--muted);font-weight:700;letter-spacing:.08em;}
+.is-pauta-workspace .pauta-actions-row {margin:6px 0 8px;min-height:28px;}
+.pauta-actions-row .pauta-week-current {height:28px;min-height:28px;padding:0 10px;font-size:11px;}
+.is-pauta-workspace .pauta-create-panel {margin:6px 0;border-radius:9px;overflow:visible;}
+.is-pauta-workspace .pauta-create-panel > summary {
+  background:var(--brand);color:white;border-radius:8px;min-height:41px;
+  padding:9px 13px;font-size:13px;font-weight:800;cursor:pointer;
+}
+.is-pauta-workspace .pauta-create-panel > summary span {color:#e4e8f0;font-size:11px;font-weight:500;}
+.is-pauta-workspace .pauta-create-panel[open] > summary {border-radius:8px 8px 0 0;}
+.is-pauta-workspace .pauta-quick-form {
+  display:grid;grid-template-columns:minmax(0,1fr);gap:9px;
+  padding:12px;background:#fafaf8;border-radius:0 0 9px 9px;
+}
+.pauta-form-heading {
+  grid-column:1/-1;display:grid;align-items:end;gap:12px;
+  grid-template-columns:minmax(0,1fr) 219px;
+}
+.pauta-form-heading .agenda-field {min-width:0;grid-column:auto;}
+.pauta-form-heading .pauta-title-field input {width:100%;min-height:40px;}
+.pauta-form-heading .pauta-datetime-field {width:219px;max-width:100%;min-width:0;}
+.pauta-datetime-field > label {
+  font-size:10px;font-weight:800;text-transform:uppercase;color:var(--muted);
+}
+.pauta-datetime-field input[type="datetime-local"] {
+  width:100%;min-width:0;max-width:100%;height:40px;min-height:40px;
+  font-size:12px;padding:6px 7px;font-variant-numeric:tabular-nums;
+}
+.is-pauta-workspace .pauta-assignee-field {grid-column:1/-1;min-width:0;}
+.is-pauta-workspace .pauta-assignee-field .agenda-assignees,
+.is-pauta-workspace .pauta-inline-edit .agenda-assignees {
+  padding:7px 10px;border-radius:8px;
+}
+.is-pauta-workspace .agenda-assignee-picker .agenda-assignee-options {gap:8px;}
+.is-pauta-workspace .pauta-note-field {grid-column:1/-1;min-width:0;}
+.is-pauta-workspace .pauta-note-field textarea {
+  width:100%;min-height:62px;max-height:300px;line-height:1.45;resize:vertical;
+}
+.is-pauta-workspace .pauta-create-actions {
+  display:flex;justify-content:flex-end;align-items:center;gap:9px;flex-wrap:wrap;
+}
+.is-pauta-workspace .pauta-create-actions button {min-height:39px;padding:9px 14px;font-size:12px;font-weight:800;}
+.is-pauta-workspace .pauta-only-button {background:white;color:var(--brand);border:1px solid var(--brand);}
+.is-pauta-workspace .pauta-only-button:hover {background:#edf0f6;}
+.is-pauta-workspace .pauta-list {margin-top:8px;gap:7px;}
+.is-pauta-workspace .pauta-item {padding:10px;}
+.is-pauta-workspace .pauta-inline-edit .agenda-form {
+  display:grid;grid-template-columns:minmax(0,1fr);gap:9px;padding:10px 0;
+}
+.pauta-period-form {
+  position:absolute;top:60px;left:50%;transform:translateX(-50%);
+  z-index:35;width:min(530px,calc(100% - 16px));
+  padding:15px;border:1px solid var(--line);border-radius:10px;
+  background:white;box-shadow:0 14px 35px rgba(17,24,39,.17);
+  display:grid;gap:10px;
+}
+.pauta-period-form > strong {font-size:14px;}
+.pauta-period-form > p {margin:0;font-size:11px;color:var(--muted);line-height:1.4;}
+.pauta-period-fields {display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px;}
+.pauta-period-fields label,.pauta-period-reason {display:grid;gap:5px;font-size:11px;font-weight:700;}
+.pauta-period-fields input,.pauta-period-reason input {width:100%;min-width:0;min-height:38px;font-size:13px;}
+.pauta-period-actions {display:flex;gap:7px;justify-content:flex-end;flex-wrap:wrap;}
+.pauta-period-actions button {min-height:35px;padding:7px 10px;font-size:12px;}
+.agenda-remote-notice--floating {
+  position:fixed;z-index:2500;top:calc(var(--app-header-height,64px) + 14px);
+  right:16px;left:auto;bottom:auto;width:min(390px,calc(100vw - 32px));
+  margin:0;min-height:0;display:flex;align-items:center;gap:10px;
+  padding:12px 37px 12px 13px;border:1px solid #efc87d;
+  border-radius:9px;box-shadow:0 12px 28px rgba(30,35,45,.16);
+  background:#fffaf0;color:#67430d;font-size:12px;line-height:1.4;
+}
+.agenda-remote-notice--floating > span {display:grid;gap:3px;flex:1;min-width:0;}
+.agenda-remote-notice--floating > span small {font-size:11px;color:#84642b;}
+.agenda-remote-notice--floating > button {flex-shrink:0;min-height:32px;padding:5px 8px;}
+.agenda-remote-notice--floating .agenda-remote-dismiss {
+  position:absolute;right:6px;top:5px;min-width:24px;min-height:24px;
+  padding:0;background:transparent;border:0;font-size:19px;
+}
+@media(max-width:1000px) {
+ .pauta-toolbar {grid-template-columns:minmax(0,1fr) auto;gap:7px;}
+ .pauta-toolbar-period {grid-row:2;grid-column:1/-1;}
+ .pauta-toolbar-filter {grid-column:2;grid-row:1;}
+}
+@media(max-width:600px) {
+ .is-pauta-workspace .agenda-quick-overview {grid-template-columns:repeat(3,minmax(0,1fr));gap:4px;}
+ .is-pauta-workspace .agenda-quick-overview > div {padding:6px 5px;min-height:47px;}
+ .is-pauta-workspace .agenda-quick-overview strong {font-size:13px;}
+ .is-pauta-workspace .agenda-quick-overview small {display:none;}
+ .is-pauta-workspace .pauta-layout {padding:8px;}
+ .pauta-toolbar {grid-template-columns:minmax(0,1fr);gap:6px;}
+ .pauta-toolbar .agenda-tabs {width:100%;grid-column:1;grid-row:auto;}
+ .pauta-toolbar .agenda-tabs button {flex:1;min-width:0;}
+ .pauta-toolbar-period {grid-column:1;grid-row:auto;}
+ .pauta-toolbar-filter {grid-column:1;grid-row:auto;justify-self:stretch;}
+ .pauta-toolbar-filter select {max-width:100%;width:100%;}
+ .pauta-form-heading {grid-template-columns:minmax(0,1fr);gap:7px;}
+ .pauta-form-heading .pauta-datetime-field {width:min(240px,100%);}
+ .pauta-create-actions {flex-direction:column;}
+ .is-pauta-workspace .pauta-create-actions button {width:100%;}
+ .pauta-period-form {position:static;transform:none;width:100%;margin-top:8px;}
+ .pauta-period-fields {grid-template-columns:minmax(0,1fr) minmax(0,1fr);}
+ .agenda-remote-notice--floating {top:auto;bottom:72px;left:12px;right:12px;width:auto;}
+}
