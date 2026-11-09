@@ -9,6 +9,12 @@ import {
   createAgendaEventAction,
   createPautaFromAgendaEventAction,
   createPautaItemAction,
+  enableCoverageAction,
+  requestCoverageTransferAction,
+  respondCoverageTransferAction,
+  markCoverageAttendanceAction,
+  finishCoverageArticleAction,
+  saveCoverageAlertsAction,
   savePautaPeriodAction,
   setAgendaEventStatusAction,
   setPautaItemStatusAction,
@@ -17,7 +23,7 @@ import {
   setAgendaMeetingInviteesAction,
   respondAgendaInvitationAction,
 } from "./actions";
-import type { AgendaEventItem, AgendaWorkspaceData, WeeklyPautaItem } from "./agendaTypes";
+import type { AgendaEventItem, AgendaWorkspaceData, EventCoverage, WeeklyPautaItem } from "./agendaTypes";
 import { createSupabaseBrowserClient } from "../../lib/supabase/browser";
 import { notify } from "../../lib/feedback/notify";
 import { confirmDialog } from "../../lib/feedback/confirmStore";
@@ -245,6 +251,47 @@ function ClearableScheduleInput({
   );
 }
 
+function CoveragePeopleFields({profiles,currentUserId}:{
+  profiles:AgendaWorkspaceData["profiles"];currentUserId:string;
+}):JSX.Element{
+  return <div className="coverage-config-fields">
+    <label className="agenda-field"><span>Quem irá ao evento?</span>
+      <select name="coverage_attendance_owner" defaultValue={currentUserId} required>
+        {profiles.map(p=><option value={p.id} key={p.id}>{p.name}</option>)}
+      </select></label>
+    <label className="agenda-field"><span>Quem produzirá a matéria?</span>
+      <select name="coverage_article_owner" defaultValue={currentUserId} required>
+        {profiles.map(p=><option value={p.id} key={p.id}>{p.name}</option>)}
+      </select></label>
+    <label className="agenda-field"><span>Lembrete sonoro</span>
+      <select name="coverage_audible_minutes" defaultValue="60">
+        <option value="1440">1 dia antes</option><option value="120">2 horas antes</option>
+        <option value="60">1 hora antes (padrão)</option><option value="30">30 min antes</option>
+        <option value="15">15 min antes</option><option value="5">5 min antes</option>
+        <option value="0">No horário</option><option value="-5">5 min depois</option>
+        <option value="-15">15 min depois</option><option value="-30">30 min depois</option>
+      </select></label>
+    <label className="agenda-field"><span>Confirmação silenciosa</span>
+      <select name="coverage_checkin_minutes" defaultValue="5">
+        <option value="30">30 min antes</option><option value="15">15 min antes</option>
+        <option value="5">5 min antes (padrão)</option><option value="0">No horário</option>
+        <option value="-5">5 min depois</option><option value="-15">15 min depois</option>
+      </select></label>
+  </div>;
+}
+
+function CoverageOptIn({data}:{data:AgendaWorkspaceData}):JSX.Element{
+ const [enabled,setEnabled]=useState(false);
+ return <fieldset className="coverage-opt-in agenda-field-wide">
+  <label className="coverage-switch">
+    <input name="coverage_enabled" type="checkbox" value="true" checked={enabled}
+      onChange={event=>setEnabled(event.currentTarget.checked)}/>
+    <span><strong>Cobertura de evento</strong><small>Separar presença e produção da matéria, com transferência e dois lembretes</small></span>
+  </label>
+  {enabled?<CoveragePeopleFields profiles={data.profiles} currentUserId={data.currentUserId}/>:null}
+ </fieldset>;
+}
+
 export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspaceProps): JSX.Element {
   const router = useRouter();
   const realtimeClient = useMemo(() => createSupabaseBrowserClient(), []);
@@ -307,6 +354,8 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
       .on("postgres_changes", { event: "*", schema: "public", table: "agenda_event_assignees" }, scheduleRefresh)
       .on("postgres_changes", { event: "*", schema: "public", table: "weekly_pauta_items" }, scheduleRefresh)
       .on("postgres_changes", { event: "*", schema: "public", table: "pauta_week_overrides" }, scheduleRefresh)
+      .on("postgres_changes", { event: "*", schema: "public", table: "event_coverages" }, scheduleRefresh)
+      .on("postgres_changes", { event: "*", schema: "public", table: "event_coverage_transfers" }, scheduleRefresh)
       .subscribe((status) => {
         if (status === "SUBSCRIBED") {
           setRealtimeState("online");
