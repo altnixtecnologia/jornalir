@@ -22,7 +22,7 @@ export const dynamic = "force-dynamic";
 const TIMEZONE = "America/Sao_Paulo";
 const MAX_SEND_PER_RUN = 20;
 
-type AgendaEvent = { id: string; title: string; event_date: string; start_time: string | null; end_time: string | null; reminder_minutes: number | null; status: string };
+type AgendaEvent = { id: string; title: string; event_date: string; start_time: string | null; end_time: string | null; reminder_minutes: number | null; status: string; show_in_agenda: boolean };
 type PushEvent = { id: string; app_kind: string; kind: string; title: string; body: string; href: string | null; target_profile_id: string | null; dedupe_key: string | null; scheduled_at: string };
 type PushDevice = { id: string; profile_id: string; subscription_endpoint: string; subscription_payload: unknown };
 type PushPreference = { profile_id: string; ordinary_enabled: boolean; urgent_enabled: boolean; agenda_enabled: boolean };
@@ -134,7 +134,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   // global com dados privados da Agenda.
   const yesterday = addMinutes(date + "T00:00", -1440).slice(0,10);
   const { data: events, error: agendaError } = await db.from("agenda_events")
-    .select("id,title,event_date,start_time,end_time,reminder_minutes,status")
+    .select("id,title,event_date,start_time,end_time,reminder_minutes,status,show_in_agenda")
     .eq("status", "scheduled")
     .gte("event_date", yesterday).lte("event_date", tomorrow);
   if (agendaError) return NextResponse.json({ error: "Falha na consulta da Agenda" }, { status: 500 });
@@ -223,7 +223,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     if(!coverage)continue;
     const event:CoverageEventReminder={
       id:agenda.id,title:agenda.title,event_date:agenda.event_date,
-      start_time:agenda.start_time,status:agenda.status,
+      start_time:agenda.start_time,status:agenda.status,show_in_agenda:agenda.show_in_agenda,
     };
     // Se foi encerrado/cancelado, a cobertura não deve mais alertar.
     if(agenda.status!=="scheduled")continue;
@@ -387,7 +387,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
         const match=/^coverage:(?:reminder|checkin):([a-f0-9-]{36}):/.exec(event.dedupe_key);
         if(!match)continue;
         const [ev,cov]=await Promise.all([
-          db.from("agenda_events").select("id,title,event_date,start_time,status")
+          db.from("agenda_events").select("id,title,event_date,start_time,status,show_in_agenda")
             .eq("id",match[1]).maybeSingle(),
           db.from("event_coverages")
             .select("event_id,attendance_owner_id,attendance_status,audible_minutes,checkin_minutes,article_status,revision")
