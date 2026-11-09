@@ -176,7 +176,7 @@ export async function completeCommercialSignatureAction(input:{
   });
   if(signed.bytes.length>10*1024*1024)
    throw new Error("PDF previamente armazenado excede 10 MB.");
-  const h=headers(),ip=h.get("x-real-ip")??h.get("x-forwarded-for")?.split(",")[0]?.trim()??"";
+  const h=await headers(),ip=h.get("x-real-ip")??h.get("x-forwarded-for")?.split(",")[0]?.trim()??"";
   const audit={
    acceptedAt:signedAt,method:"verified-email-otp-and-graphical-consent",
    ipHash:ip?createHash("sha256").update(ip).digest("hex"):null,
