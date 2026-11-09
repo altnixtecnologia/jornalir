@@ -3,6 +3,15 @@ on:
   push:
     branches:
       - fix/pauta-quinta-quarta-compacta-20261109
+  pull_request:
+    branches:
+      - solicitacoes-financeiro-contratos-irc-20261031
+    paths:
+      - "apps/sistema/src/features/agenda/**"
+      - "apps/sistema/test/pauta-period.test.ts"
+      - "apps/sistema/src/app/globals.css"
+      - "supabase/migrations/20261122260000_pauta_quinta_quarta_periodos.sql"
+      - ".github/workflows/validate-pauta-week-cycle.yml"
   workflow_dispatch:
 
 permissions:
