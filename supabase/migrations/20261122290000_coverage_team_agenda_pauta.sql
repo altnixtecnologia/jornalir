@@ -305,7 +305,7 @@ end;$$;
 
 -- Transferências com aceite; titular anterior permanece até confirmação.
 create or replace function public.request_coverage_member_transfer(
- p_event_id uuid,p_to uuid,p_part text,p_reason text,p_force boolean default false
+ p_event_id uuid,p_from uuid,p_to uuid,p_part text,p_reason text,p_force boolean default false
 ) returns uuid language plpgsql security definer set search_path='' as $$
 declare v_c public.event_coverages%rowtype;v_id uuid;v_me uuid:=auth.uid();
 begin
@@ -315,17 +315,18 @@ begin
  if not found or not v_c.team_mode then raise exception 'Cobertura indisponível';end if;
  if p_part not in('field','article','both') or
   length(btrim(coalesce(p_reason,''))) not between 5 and 300 or
-  not exists(select 1 from public.profiles p where p.id=p_to and p.active) or p_to=v_me then
+  not exists(select 1 from public.profiles p where p.id=p_to and p.active) or p_to=p_from then
   raise exception 'Destinatário ou motivo inválido';end if;
  if p_force and not public.is_agenda_manager() then raise exception 'Só gestor pode efetivar diretamente' using errcode='42501';end if;
+ if not public.is_agenda_manager() and p_from<>v_me then raise exception 'Só o titular pode transferir' using errcode='42501';end if;
  if not public.is_agenda_manager() and (
    (p_part in('field','both') and not exists(select 1 from public.event_coverage_members
-     where event_id=p_event_id and profile_id=v_me and field_task is not null))
-   or (p_part in('article','both') and v_c.article_owner_id<>v_me)
+     where event_id=p_event_id and profile_id=p_from and field_task is not null))
+   or (p_part in('article','both') and v_c.article_owner_id<>p_from)
  ) then raise exception 'Você não é titular desta responsabilidade' using errcode='42501';end if;
  insert into public.event_coverage_member_transfers(
   event_id,from_profile_id,to_profile_id,transfer_part,reason,status,requested_by,decided_by,decided_at
- ) values(p_event_id,v_me,p_to,p_part,btrim(p_reason),
+ ) values(p_event_id,p_from,p_to,p_part,btrim(p_reason),
    case when p_force then 'forced' else 'pending' end,
    v_me,case when p_force then v_me else null end,
    case when p_force then now() else null end)
@@ -366,7 +367,10 @@ begin
   on conflict(event_id,profile_id) do update set
    field_task=excluded.field_task,field_completed_at=excluded.field_completed_at,
    revision=event_coverage_members.revision+1,updated_at=now();
-  update public.event_coverage_members set field_task=null,field_completed_at=null,updated_at=now()
+  update public.event_coverage_members set field_task=null,field_completed_at=null,
+    attendance_response=case when attendance_response='pending' then 'unable' else attendance_response end,
+    attendance_responded_at=case when attendance_response='pending' then now() else attendance_responded_at end,
+    updated_at=now()
    where event_id=t.event_id and profile_id=t.from_profile_id;
   if c.attendance_owner_id=t.from_profile_id then
    update public.event_coverages set attendance_owner_id=t.to_profile_id,revision=revision+1
@@ -379,6 +383,10 @@ begin
   values(t.event_id,t.to_profile_id,auth.uid()) on conflict(event_id,profile_id) do nothing;
   update public.event_coverages set article_owner_id=t.to_profile_id,updated_by=auth.uid()
    where event_id=t.event_id;
+  update public.event_coverage_members set
+   attendance_response='not_required',attendance_responded_at=now(),updated_at=now()
+   where event_id=t.event_id and profile_id=t.from_profile_id and field_task is null
+    and attendance_response='pending';
  end if;
  insert into public.agenda_event_assignees(event_id,profile_id,assignment_type)
  values(t.event_id,t.to_profile_id,'responsible') on conflict(event_id,profile_id) do nothing;
@@ -403,8 +411,8 @@ begin
  if p_accept then perform public.apply_coverage_member_transfer(p_transfer);end if;
  return true;
 end;$$;
-revoke all on function public.request_coverage_member_transfer(uuid,uuid,text,text,boolean) from public,anon;
-grant execute on function public.request_coverage_member_transfer(uuid,uuid,text,text,boolean) to authenticated;
+revoke all on function public.request_coverage_member_transfer(uuid,uuid,uuid,text,text,boolean) from public,anon;
+grant execute on function public.request_coverage_member_transfer(uuid,uuid,uuid,text,text,boolean) to authenticated;
 revoke all on function public.respond_coverage_member_transfer(uuid,boolean) from public,anon;
 grant execute on function public.respond_coverage_member_transfer(uuid,boolean) to authenticated;
 
