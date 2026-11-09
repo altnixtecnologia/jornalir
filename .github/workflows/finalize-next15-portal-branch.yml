@@ -53,6 +53,9 @@ jobs:
           fs.writeFileSync(path,JSON.stringify(pkg,null,2)+'\n');
           NODE
           npm install --no-audit --no-fund
+          # Com os dois apps em React 19, tentar remover a cópia 18 deixada
+          # no topo pelo lockfile antigo. Sem forçar peers ou mudar runtime.
+          npm dedupe --no-audit --no-fund
       - name: Instalação limpa do lockfile FINAL em ambos os apps
         run: |
           npm ci --no-audit --no-fund
