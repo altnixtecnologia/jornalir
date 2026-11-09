@@ -1177,6 +1177,7 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
           ) : null}
           <div className="pauta-actions-row">
             <button type="button" className="pauta-week-current" onClick={() => navigate("pauta", data.today)}>Semana atual</button>
+            <a href={"/tv/pauta?date="+encodeURIComponent(data.focusDate)} target="_blank" rel="noopener noreferrer" className="pauta-tv-link">▣ Modo TV 9:16</a>
             <span>{pautaItems.filter((item) => item.status === "pending").length} pendente(s)</span>
           </div>
 
