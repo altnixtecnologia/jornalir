@@ -1,5 +1,8 @@
 # HANDOFF — PAUTA DA SEMANA NA TV VERTICAL / APK ANDROID
 
+> **REGRA ATUAL — TV PAUTA SEM LOGIN / 09-11-2026:** a TV NÃO usa usuário, senha, conta dedicada nem PIN. Abrir `/tv/pauta` mostra um código de seis dígitos apenas na ativação; o administrador autoriza em **Sistema IR → Configurações → TV Pauta**. O servidor entrega à WebView um cookie HttpOnly/Secure com token de dispositivo aleatório, revogável no painel; na próxima abertura da TV a Pauta aparece diretamente. O aplicativo abre SOMENTE quando for acionado pelo usuário; **início automático desligado** para TV Jornal. O painel é somente leitura e consulta as alterações aproximadamente a cada 5 segundos. Esta regra substitui todas as instruções antigas de login na TV ou criação de conta dedicada. Não mexer na autenticação dos demais módulos.
+
+
 **Data:** 09/11/2026 · Projeto: Jornal Informativo Regional · Escopo web/banco preparado no GitHub.  
 **Objetivo:** após o deploy web confirmado em produção em 09/11/2026, Claude Code produzirá um **APK exclusivo e somente leitura para TV Box**. Este documento não autoriza instalação do APK em dispositivo.
 
