@@ -83,6 +83,8 @@ export function PautaTvBoard({snapshot}:{snapshot:TvPautaSnapshot}):JSX.Element 
       .on("postgres_changes",{event:"*",schema:"public",table:"agenda_events"},refresh)
       .on("postgres_changes",{event:"*",schema:"public",table:"agenda_event_assignees"},refresh)
       .on("postgres_changes",{event:"*",schema:"public",table:"event_coverages"},refresh)
+      .on("postgres_changes",{event:"*",schema:"public",table:"event_coverage_members"},refresh)
+      .on("postgres_changes",{event:"*",schema:"public",table:"event_coverage_member_transfers"},refresh)
       .on("postgres_changes",{event:"*",schema:"public",table:"pauta_week_overrides"},refresh)
       .subscribe(status=>{
         if(stopped)return;
