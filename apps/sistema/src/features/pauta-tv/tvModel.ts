@@ -23,11 +23,16 @@ export function deriveTvPautaStatus(item: WeeklyPautaItem): TvPautaCard["status"
   if (item.status === "cancelled") return "cancelled";
   if (item.coverage) {
     // A Agenda confirma a participação; a Pauta só fecha após as entregas.
-    const hasDeliverables = item.coverage.articleStatus === "completed" &&
-      item.coverage.taskStatus === "completed";
-    if (hasDeliverables) return "completed";
-    if (item.coverage.taskStatus === "completed" ||
-        item.coverage.articleStatus === "completed") return "in_progress";
+    const fields = item.coverage.teamMode
+      ? item.coverage.members.filter(m => m.fieldTask)
+      : null;
+    const fieldDone = fields
+      ? fields.every(m => Boolean(m.fieldCompletedAt))
+      : item.coverage.taskStatus === "completed";
+    if (item.coverage.articleStatus === "completed" && fieldDone) return "completed";
+    if (item.coverage.articleStatus === "completed" ||
+        (fields ? fields.some(m => Boolean(m.fieldCompletedAt))
+          : item.coverage.taskStatus === "completed")) return "in_progress";
     return "pending";
   }
   if (item.status === "completed") return "completed";
@@ -45,14 +50,24 @@ export function toTvPautaSnapshot(
     const coverage = item.coverage;
     const articleName = coverage ? name.get(coverage.articleOwnerId) ?? "Redação" : null;
     const fieldName = coverage ? name.get(coverage.attendanceOwnerId) ?? "Cobertura" : null;
-    const detail = coverage
-      ? coverage.articleStatus !== "completed"
-        ? "Matéria: "+articleName+(coverage.taskStatus !== "completed" ? " · "+coverage.taskLabel+": "+fieldName : "")
-        : coverage.taskStatus !== "completed"
-          ? coverage.taskLabel+": "+fieldName
-          : "Entregas concluídas"
-      : item.assignees.filter(person => !person.completedAt).map(person => person.name).join(" · ")
-        || (status === "completed" ? "Concluída" : "Aguardando responsável");
+    const teamPending = coverage?.teamMode
+      ? coverage.members.filter(person => person.fieldTask && !person.fieldCompletedAt)
+        .map(person => person.fieldTask+": "+(name.get(person.profileId)??"Colaborador"))
+      : [];
+    const detail = coverage?.teamMode
+      ? [
+        coverage.articleStatus==="completed" ? null : "Matéria: "+articleName,
+        ...teamPending,
+      ].filter(Boolean).join(" · ") || "Entregas concluídas"
+      : coverage
+        ? coverage.articleStatus !== "completed"
+          ? "Matéria: "+articleName+(coverage.taskStatus !== "completed"
+             ? " · "+coverage.taskLabel+": "+fieldName : "")
+          : coverage.taskStatus !== "completed"
+            ? coverage.taskLabel+": "+fieldName
+            : "Entregas concluídas"
+        : item.assignees.filter(person => !person.completedAt).map(person => person.name).join(" · ")
+          || (status === "completed" ? "Concluída" : "Aguardando responsável");
     return {
       id: item.id,
       title: item.title,
