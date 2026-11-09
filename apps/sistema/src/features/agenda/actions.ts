@@ -477,6 +477,20 @@ export async function markCoverageAttendanceAction(eventId:string,status:"on_way
   }catch(error){return {error:error instanceof Error?error.message:"Falha na presença."};}
 }
 
+export async function saveAgendaAssigneeTaskAction(eventId:string,profileId:string,formData:FormData):Promise<AgendaActionResult>{
+  const label=value(formData,"assignee_task_label");
+  if(!eventId||!profileId||(label&& (label.length<2||label.length>80)))
+    return {error:"Informe a função do colaborador em até 80 caracteres."};
+  try{
+    const {supabase}=await requireActiveUser();
+    const {data,error}=await supabase.rpc("set_agenda_assignee_task_label",{
+      p_event_id:eventId,p_profile_id:profileId,p_label:label,
+    });
+    if(error||!data)return {error:error?.message??"Não foi possível salvar a função."};
+    refreshAgenda();return {ok:true};
+  }catch(e){return {error:e instanceof Error?e.message:"Falha ao salvar a função."};}
+}
+
 export async function finishCoverageFieldTaskAction(eventId:string,complete:boolean):Promise<AgendaActionResult>{
   if(!eventId)return {error:"Cobertura inválida."};
   try {
