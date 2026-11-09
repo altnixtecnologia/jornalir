@@ -487,6 +487,122 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
     });
   }
 
+  function EnableCoverage({eventId}:{eventId:string}):JSX.Element {
+    return <details className="agenda-inline-edit coverage-activate">
+      <summary>＋ Transformar em cobertura de evento</summary>
+      <form className="coverage-form" onSubmit={event=>{
+        event.preventDefault();
+        run(()=>enableCoverageAction(eventId,new FormData(event.currentTarget)),"Etapas de cobertura ativadas.");
+      }}>
+        <p className="helper-text">Mantém este compromisso e a Pauta existentes, sem criar cópias.</p>
+        <CoveragePeopleFields profiles={data.profiles} currentUserId={data.currentUserId}/>
+        <button type="submit" className="agenda-primary" disabled={isPending}>Ativar cobertura</button>
+      </form>
+    </details>;
+  }
+
+  function CoveragePanel({coverage,eventId}:{coverage:EventCoverage;eventId:string}):JSX.Element{
+    const profileName=(id:string)=>data.profiles.find(p=>p.id===id)?.name??"Colaborador";
+    const myPresence=coverage.attendanceOwnerId===data.currentUserId;
+    const myArticle=coverage.articleOwnerId===data.currentUserId;
+    const manager=data.access.pautaWrite||data.access.agendaWrite;
+    const canTransfer=myPresence||myArticle||manager;
+    const request=coverage.pendingTransfer;
+    const minutesLabel=(n:number)=>n>=0
+      ? (n===0?"no horário":n+" min antes")
+      : Math.abs(n)+" min depois";
+    const dueLocal=coverage.articleDueAt
+      ? new Date(coverage.articleDueAt).toLocaleString("sv-SE",{timeZone:"America/Sao_Paulo",year:"numeric",month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit"}).replace(" ","T"):"";
+    return <section className="coverage-panel" aria-label="Cobertura jornalística">
+      <header className="coverage-panel-title">
+        <strong>🎙 Cobertura de evento</strong><small>Presença e matéria são etapas independentes</small>
+      </header>
+      <div className="coverage-steps">
+        <div className="coverage-step">
+          <div><strong>1. Comparecimento</strong><small>{profileName(coverage.attendanceOwnerId)}</small>
+            <span className={"coverage-state is-"+coverage.attendanceStatus}>
+              {coverage.attendanceStatus==="present"?"✓ Compareceu":
+               coverage.attendanceStatus==="absent"?"Não compareceu":
+               coverage.attendanceStatus==="on_way"?"Ainda não chegou":"Aguardando confirmação"}
+            </span>
+          </div>
+          {myPresence&&coverage.attendanceStatus!=="present"?<div className="coverage-step-actions">
+            <button type="button" onClick={()=>run(()=>markCoverageAttendanceAction(eventId,"present"),"Sua presença foi confirmada.")} disabled={isPending}>Compareci</button>
+            <button type="button" onClick={()=>run(()=>markCoverageAttendanceAction(eventId,"on_way"),"Aguardando sua confirmação.")} disabled={isPending}>Ainda não</button>
+            <button type="button" onClick={()=>run(()=>markCoverageAttendanceAction(eventId,"absent"),"Ausência registrada.")} disabled={isPending}>Não poderei ir</button>
+          </div>:null}
+        </div>
+        <div className="coverage-step">
+          <div><strong>2. Produção da matéria</strong><small>{profileName(coverage.articleOwnerId)}</small>
+            <span className={"coverage-state is-"+coverage.articleStatus}>
+              {coverage.articleStatus==="completed"?"✓ Matéria concluída":"Matéria pendente"}
+            </span>
+          </div>
+          {(myArticle||manager)?<div className="coverage-step-actions">
+            <button type="button" disabled={isPending} onClick={()=>run(
+              ()=>finishCoverageArticleAction(eventId,coverage.articleStatus!=="completed"),
+              coverage.articleStatus==="completed"?"Matéria reaberta.":"Matéria finalizada."
+            )}>{coverage.articleStatus==="completed"?"Reabrir matéria":"Concluir matéria"}</button>
+          </div>:null}
+        </div>
+      </div>
+      {request?<div className="coverage-transfer-notice">
+        <strong>Transferência aguardando aceite</strong>
+        <span>{request.part==="attendance"?"Comparecimento":request.part==="article"?"Produção da matéria":"Ambas as etapas"} → {profileName(request.toProfileId)}</span>
+        <small>Motivo: {request.reason}. Até o aceite, os titulares permanecem os mesmos.</small>
+        {request.toProfileId===data.currentUserId?<div className="coverage-step-actions">
+          <button type="button" className="agenda-primary" disabled={isPending}
+            onClick={()=>run(()=>respondCoverageTransferAction(request.id,true),"Titularidade transferida.")}>Aceitar</button>
+          <button type="button" disabled={isPending}
+            onClick={()=>run(()=>respondCoverageTransferAction(request.id,false),"Transferência recusada.")}>Recusar</button>
+        </div>:null}
+      </div>:null}
+      {canTransfer&&!request?<details className="coverage-options">
+        <summary>↔ Transferir responsabilidade</summary>
+        <form className="coverage-form" onSubmit={event=>{
+          event.preventDefault();run(()=>requestCoverageTransferAction(eventId,new FormData(event.currentTarget)),
+          "Transferência solicitada; titular permanece até aceite.");
+        }}>
+          <label className="agenda-field"><span>Transferir</span><select name="transfer_part" defaultValue="attendance">
+            <option value="attendance">Somente comparecimento</option>
+            <option value="article">Somente produção da matéria</option>
+            <option value="both">As duas etapas</option>
+          </select></label>
+          <label className="agenda-field"><span>Novo responsável</span>
+            <select name="transfer_to" required defaultValue="">
+              <option value="" disabled>Selecionar colaborador</option>
+              {data.profiles.filter(p=>p.id!==data.currentUserId).map(p=><option key={p.id} value={p.id}>{p.name}</option>)}
+            </select></label>
+          <label className="agenda-field coverage-reason"><span>Motivo</span>
+            <input name="transfer_reason" required minLength={5} maxLength={300}
+              placeholder="Ex.: indisponibilidade na data"/></label>
+          {manager?<label className="coverage-force-check">
+            <input type="checkbox" name="transfer_force" value="true"/> Transferir imediatamente (somente gestor autorizado)
+          </label>:null}
+          <button type="submit" className="agenda-primary" disabled={isPending}>Solicitar transferência</button>
+        </form>
+      </details>:null}
+      {(myPresence||manager)?<details className="coverage-options">
+        <summary>⚙ Lembretes e prazo</summary>
+        <form className="coverage-form" onSubmit={event=>{
+          event.preventDefault();run(()=>saveCoverageAlertsAction(eventId,new FormData(event.currentTarget)),
+           "Lembretes atualizados para o responsável.");
+        }}>
+          <label className="agenda-field"><span>Alerta sonoro (minutos antes; negativo = depois)</span>
+            <input name="coverage_audible_minutes" type="number" min="-1440" max="1440"
+              required defaultValue={coverage.audibleMinutes}/></label>
+          <label className="agenda-field"><span>Confirmação silenciosa (minutos antes; negativo = depois)</span>
+            <input name="coverage_checkin_minutes" type="number" min="-120" max="120"
+              required defaultValue={coverage.checkinMinutes}/></label>
+          <label className="agenda-field"><span>Prazo da matéria (opcional)</span>
+            <input name="article_due_at" type="datetime-local" defaultValue={dueLocal}/></label>
+          <small>Atual: sonoro {minutesLabel(coverage.audibleMinutes)}; confirmação {minutesLabel(coverage.checkinMinutes)}.</small>
+          <button type="submit" className="agenda-primary" disabled={isPending}>Salvar lembretes</button>
+        </form>
+      </details>:null}
+    </section>;
+  }
+
   function EventEdit({ item }: { item: AgendaEventItem }): JSX.Element {
     return (
       <details className="agenda-inline-edit">
