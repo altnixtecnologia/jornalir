@@ -58,7 +58,7 @@ jobs:
 
       - name: Migrar params e searchParams no runner descartável
         run: |
-          npx --yes @next/codemod@15.5.29 next-async-request-api apps/sistema/src/app
+          npx --yes @next/codemod@15.5.29 next-async-request-api apps/sistema/src/app --force
           echo "### Arquivos modificados pelo codemod"
           git status --short apps/sistema/src/app | head -90
           echo "### Pendências que exigem intervenção humana"
