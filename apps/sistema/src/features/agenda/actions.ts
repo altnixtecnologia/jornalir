@@ -5,6 +5,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { createSupabaseServerClient } from "../../lib/supabase/server";
 import { addDays, startOfWeek } from "./agendaData";
 import { dateInPautaPeriod } from "./pautaPeriod";
+import { coverageMinutesBefore } from "./coverageClock";
 
 export type AgendaActionResult = { ok: true } | { error: string };
 
@@ -176,26 +177,30 @@ async function preserveCoverageAssignees(
  ])];
 }
 
-function coverageMinutes(form: FormData,key: string,defaultMinutes:number,min:number,max:number): number | {error:string}{
-  const raw=value(form,key);
-  const parsed=raw === "" ? defaultMinutes : Number(raw);
-  if(!Number.isInteger(parsed)||parsed<min||parsed>max)return {error:"Intervalo de lembrete inválido."};
-  return parsed;
-}
-
-function coveragePeople(form:FormData):
-  | {attendanceOwner:string;articleOwner:string;audible:number;checkin:number}
+function coveragePeople(form:FormData,eventStartTime:string):
+  | {attendanceOwner:string;articleOwner:string;audible:number;checkin:number;taskLabel:string}
   | {error:string} {
   const attendanceOwner=value(form,"coverage_attendance_owner");
   const articleOwner=value(form,"coverage_article_owner")||attendanceOwner;
-  if(!/^[a-f0-9-]{36}$/i.test(attendanceOwner)||!/^[a-f0-9-]{36}$/i.test(articleOwner)) {
-    return {error:"Selecione quem vai ao evento e quem fará a matéria."};
+  if(!/^[a-f0-9-]{36}$/i.test(attendanceOwner)||!/^[a-f0-9-]{36}$/i.test(articleOwner)){
+    return {error:"Selecione quem fará a cobertura e quem produzirá a matéria."};
   }
-  const audible=coverageMinutes(form,"coverage_audible_minutes",60,-1440,1440);
-  const checkin=coverageMinutes(form,"coverage_checkin_minutes",5,-120,120);
-  if(typeof audible!=="number")return audible;
-  if(typeof checkin!=="number")return checkin;
-  return {attendanceOwner,articleOwner,audible,checkin};
+  const audibleClock=value(form,"coverage_audible_time");
+  const checkinClock=value(form,"coverage_checkin_time");
+  const audible=coverageMinutesBefore(eventStartTime,audibleClock);
+  const checkin=coverageMinutesBefore(eventStartTime,checkinClock);
+  if(audible===null||checkin===null||audible< -1440||audible>1440||checkin< -120||checkin>120){
+    return {error:"Confira os horários. A confirmação silenciosa deve ficar a até duas horas do evento."};
+  }
+  const taskLabel=value(form,"coverage_task_label")||"Fotos / cobertura";
+  if(taskLabel.length<2||taskLabel.length>80)return {error:"Descreva a tarefa de campo em até 80 caracteres."};
+  return {attendanceOwner,articleOwner,audible,checkin,taskLabel};
+}
+
+async function coverageStartTime(client:SupabaseClient,eventId:string):Promise<string>{
+  const result=await client.from("agenda_events").select("start_time").eq("id",eventId).maybeSingle();
+  if(result.error||!result.data?.start_time)throw new Error(result.error?.message||"O evento precisa ter horário de início.");
+  return result.data.start_time.slice(0,5);
 }
 
 export async function createAgendaEventAction(formData: FormData): Promise<AgendaActionResult> {
@@ -209,14 +214,14 @@ export async function createAgendaEventAction(formData: FormData): Promise<Agend
       if(!input.startTime)return {error:"Cobertura de evento precisa do horário de início."};
       if(value(formData,"recurrence") && value(formData,"recurrence")!=="none")
         return {error:"Crie uma cobertura por evento; recorrência não está habilitada."};
-      const people=coveragePeople(formData);
+      const people=coveragePeople(formData,input.startTime);
       if("error" in people)return people;
       await validateActiveProfiles(supabase,[people.attendanceOwner,people.articleOwner]);
-      const created=await supabase.rpc("create_coverage_agenda",{
+      const created=await supabase.rpc("create_coverage_agenda_with_task",{
         p_title:input.title,p_description:input.description||null,p_event_date:input.eventDate,
         p_start_time:input.startTime,p_end_time:input.endTime||null,p_location:input.location||null,
         p_attendance_owner:people.attendanceOwner,p_article_owner:people.articleOwner,
-        p_audible_minutes:people.audible,p_checkin_minutes:people.checkin,
+        p_audible_minutes:people.audible,p_checkin_minutes:people.checkin,p_task_label:people.taskLabel,
       });
       if(created.error || !created.data)return {error:created.error?.message??"Não foi possível criar a cobertura."};
       refreshAgenda();
@@ -302,15 +307,15 @@ export async function createPautaItemAction(formData: FormData): Promise<AgendaA
     await checkPautaPeriod(supabase, input.weekStart, input.dueDate);
     if(value(formData,"coverage_enabled")==="true"){
       if(!input.dueTime)return {error:"Informe o horário do evento para programar os lembretes."};
-      const people=coveragePeople(formData);
+      const people=coveragePeople(formData,input.dueTime);
       if("error" in people)return people;
       await validateActiveProfiles(supabase,[people.attendanceOwner,people.articleOwner]);
-      const result=await supabase.rpc("create_coverage_pauta",{
+      const result=await supabase.rpc("create_coverage_pauta_with_task",{
         p_title:input.title,p_description:input.description||null,p_event_date:input.dueDate,
         p_start_time:input.dueTime,p_profiles:input.assigneeIds,
         p_week_start:input.weekStart,p_show_in_agenda:value(formData,"show_in_agenda")==="true",
         p_attendance_owner:people.attendanceOwner,p_article_owner:people.articleOwner,
-        p_audible_minutes:people.audible,p_checkin_minutes:people.checkin,
+        p_audible_minutes:people.audible,p_checkin_minutes:people.checkin,p_task_label:people.taskLabel,
       });
       if(result.error||!result.data)return {error:result.error?.message??"Não foi possível criar a cobertura."};
       refreshAgenda();
@@ -421,12 +426,12 @@ export async function savePautaPeriodAction(formData: FormData): Promise<AgendaA
 /** Vincular uma cobertura a compromisso/pauta existente (sem duplicar agenda). */
 export async function enableCoverageAction(eventId:string,formData:FormData):Promise<AgendaActionResult>{
   if(!eventId)return {error:"Compromisso não identificado."};
-  const people=coveragePeople(formData);if("error" in people)return people;
+  const people=coveragePeople(formData,await coverageStartTime(supabase,eventId));if("error" in people)return people;
   try{
     const {supabase}=await requireActiveUser();
-    const {data,error}=await supabase.rpc("create_coverage_for_event",{
+    const {data,error}=await supabase.rpc("create_coverage_for_event_with_task",{
       p_event_id:eventId,p_attendance_owner:people.attendanceOwner,p_article_owner:people.articleOwner,
-      p_audible_minutes:people.audible,p_checkin_minutes:people.checkin,
+      p_audible_minutes:people.audible,p_checkin_minutes:people.checkin,p_task_label:people.taskLabel,
       p_article_due_at:null,
     });
     if(error||!data)return {error:error?.message??"Não foi possível configurar a cobertura."};
@@ -472,6 +477,27 @@ export async function markCoverageAttendanceAction(eventId:string,status:"on_way
   }catch(error){return {error:error instanceof Error?error.message:"Falha na presença."};}
 }
 
+export async function finishCoverageFieldTaskAction(eventId:string,complete:boolean):Promise<AgendaActionResult>{
+  if(!eventId)return {error:"Cobertura inválida."};
+  try {
+    const {supabase}=await requireActiveUser();
+    const {data,error}=await supabase.rpc("set_event_coverage_task",{p_event_id:eventId,p_completed:complete});
+    if(error||!data)return {error:error?.message??"Não foi possível concluir a tarefa."};
+    refreshAgenda();return {ok:true};
+  }catch(e){return {error:e instanceof Error?e.message:"Falha na tarefa."};}
+}
+
+export async function saveCoverageTaskLabelAction(eventId:string,formData:FormData):Promise<AgendaActionResult>{
+  const label=value(formData,"coverage_task_label");
+  if(!eventId||label.length<2||label.length>80)return {error:"Informe a tarefa (2 a 80 caracteres)."};
+  try {
+    const {supabase}=await requireActiveUser();
+    const {data,error}=await supabase.rpc("set_event_coverage_task_label",{p_event_id:eventId,p_label:label});
+    if(error||!data)return {error:error?.message??"Não foi possível salvar a tarefa."};
+    refreshAgenda();return {ok:true};
+  }catch(e){return {error:e instanceof Error?e.message:"Falha ao editar a tarefa."};}
+}
+
 export async function finishCoverageArticleAction(eventId:string,complete:boolean):Promise<AgendaActionResult>{
   if(!eventId)return {error:"Cobertura inválida."};
   try{
@@ -484,15 +510,20 @@ export async function finishCoverageArticleAction(eventId:string,complete:boolea
 
 export async function saveCoverageAlertsAction(eventId:string,formData:FormData):Promise<AgendaActionResult>{
   if(!eventId)return {error:"Cobertura inválida."};
-  const audible=coverageMinutes(formData,"coverage_audible_minutes",60,-1440,1440);
-  const checkin=coverageMinutes(formData,"coverage_checkin_minutes",5,-120,120);
-  if(typeof audible!=="number")return audible;
-  if(typeof checkin!=="number")return checkin;
+  const audibleClock=value(formData,"coverage_audible_time");
+  const checkinClock=value(formData,"coverage_checkin_time");
+  // Calcular no servidor com a hora atual do evento evita confiar no
+  // browser e preserva os lembretes quando a data/hora for editada.
   const dueDate=value(formData,"article_due_at");
   if(dueDate && !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(dueDate))return {error:"Prazo de matéria inválido."};
   const due=dueDate?new Date(dueDate+":00-03:00").toISOString():null;
   try{
     const {supabase}=await requireActiveUser();
+    const eventClock=await coverageStartTime(supabase,eventId);
+    const audible=coverageMinutesBefore(eventClock,audibleClock);
+    const checkin=coverageMinutesBefore(eventClock,checkinClock);
+    if(audible===null||checkin===null||checkin< -120||checkin>120)
+      return {error:"Horários inválidos. A confirmação deve ficar a até 2 horas do evento."};
     const {data,error}=await supabase.rpc("set_event_coverage_alerts",{
       p_event_id:eventId,p_audible_minutes:audible,p_checkin_minutes:checkin,p_article_due_at:due,
     });
