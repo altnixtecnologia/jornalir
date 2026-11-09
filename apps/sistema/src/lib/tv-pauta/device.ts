@@ -13,7 +13,8 @@ export function tokenDigest(secret:string):string {
 }
 
 export async function readDeviceSnapshot(day:string):Promise<TvPautaSnapshot|null>{
-  const token=cookies().get(TV_COOKIE)?.value??"";
+  const store=await cookies();
+  const token=store.get(TV_COOKIE)?.value??"";
   if(!/^[a-f0-9]{64}$/.test(token))return null;
   const client=createSupabaseServerClient();
   const {data,error}=await client.rpc("tv_pauta_snapshot",{
