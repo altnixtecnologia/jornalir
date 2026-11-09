@@ -197,6 +197,7 @@ export const configuracoesNavGroup: AdminNavGroup = {
     { label: "Patrocinadores do site", href: "/sistema/configuracoes/patrocinadores" },
     { label: "Notificações push", href: "/sistema/configuracoes/notificacoes-push" },
     { label: "Aplicativo Jornal IR", href: "/sistema/configuracoes/aplicativo" },
+    { label: "TV Pauta", href: "/sistema/configuracoes/tv-pauta" },
     { label: "Valores da página Assine", href: "/sistema/configuracoes/valores-assine" },
     { label: "Cobranças / Asaas", href: "/sistema/configuracoes/cobrancas" },
     { label: "Auditoria e Atividades", href: "/sistema/configuracoes/auditoria" },
