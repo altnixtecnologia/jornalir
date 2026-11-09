@@ -19,6 +19,7 @@ export default async function ConfiguracoesPage(): Promise<JSX.Element> {
           {isAdminOrOwner ? <Link className="materia-title-link" href="/sistema/configuracoes/empresa">Dados da empresa e representante legal</Link> : null}
           <Link className="materia-title-link" href="/sistema/configuracoes/modelos-contratos">Modelos de contratos</Link>
           <Link className="materia-title-link" href="/sistema/configuracoes/patrocinadores">Patrocinadores do site</Link>
+          {isAdminOrOwner ? <Link className="materia-title-link" href="/sistema/configuracoes/tv-pauta">TV Pauta — autorizar e gerenciar televisões</Link> : null}
           <Link className="materia-title-link" href="/sistema/configuracoes/aplicativo">Aplicativo Jornal IR — versões e APK</Link>
           <Link className="materia-title-link" href="/sistema/configuracoes/valores-assine">Valores da página Assine</Link>
         </div>
