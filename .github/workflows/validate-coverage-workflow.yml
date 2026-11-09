@@ -1,0 +1,41 @@
+name: Cobertura de eventos - testes e tipos
+on:
+  push:
+    branches:
+      - feat/cobertura-evento-transferencia-20261109
+  pull_request:
+    branches:
+      - solicitacoes-financeiro-contratos-irc-20261031
+    paths:
+      - "apps/sistema/src/features/agenda/**"
+      - "apps/sistema/src/lib/notifications/**"
+      - "apps/sistema/src/app/api/cron/push/**"
+      - "apps/sistema/public/sw.js"
+      - "apps/sistema/test/coverage-reminder.test.ts"
+      - "supabase/migrations/20261122270000_event_coverage_lifecycle.sql"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  coverage:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
+      NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ci-test-key
+      SIGNATURE_DELIVERY_ENABLED: "false"
+      NEXT_TELEMETRY_DISABLED: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+      - name: Instalar
+        run: npm ci --no-audit --no-fund
+      - name: Lembretes e fluxo editorial
+        run: npx tsx --test apps/sistema/test/coverage-reminder.test.ts apps/sistema/test/pauta-period.test.ts apps/sistema/test/agenda-pauta-navigation.test.ts
+      - name: TypeScript administrativo
+        run: npm run typecheck --workspace @ir/sistema
