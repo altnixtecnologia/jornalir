@@ -1,5 +1,8 @@
 # PROMPT PARA CLAUDE CODE — APK DA PAUTA TV / JORNAL IR
 
+> **REGRA ATUAL — TV PAUTA SEM LOGIN / 09-11-2026:** a TV NÃO usa usuário, senha, conta dedicada nem PIN. Abrir `/tv/pauta` mostra um código de seis dígitos apenas na ativação; o administrador autoriza em **Sistema IR → Configurações → TV Pauta**. O servidor entrega à WebView um cookie HttpOnly/Secure com token de dispositivo aleatório, revogável no painel; na próxima abertura da TV a Pauta aparece diretamente. O aplicativo abre SOMENTE quando for acionado pelo usuário; **início automático desligado** para TV Jornal. O painel é somente leitura e consulta as alterações aproximadamente a cada 5 segundos. Esta regra substitui todas as instruções antigas de login na TV ou criação de conta dedicada. Não mexer na autenticação dos demais módulos.
+
+
 **Leia esta tarefa inteira. Primeiro sincronize o VS Code local de forma segura.** Não comece a programar antes de confirmar que o código da branch indicada está presente localmente. O script do repositório faz isso:
 
 ```powershell
