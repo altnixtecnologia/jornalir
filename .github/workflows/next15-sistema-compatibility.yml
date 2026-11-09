@@ -45,7 +45,7 @@ jobs:
           Object.assign(manifest.devDependencies, {
             "@types/react": "^19.0.0", "@types/react-dom": "^19.0.0"
           });
-          fs.writeFileSync(file, JSON.stringify(manifest, null, 2) + "\\n");
+          fs.writeFileSync(file, JSON.stringify(manifest, null, 2));
           NODE
           npm install --no-package-lock --no-save --no-audit --no-fund
           node -e "const p=require(require.resolve('next/package.json',{paths:[require('path').resolve('apps/sistema')]})); console.log('Next no workspace: '+p.version); if(p.version!=='15.5.18')process.exit(1)"
