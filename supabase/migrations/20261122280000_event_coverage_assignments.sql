@@ -179,3 +179,33 @@ begin
 end;$$;
 revoke all on function public.create_coverage_pauta_with_task(text,text,date,time,uuid[],date,boolean,uuid,uuid,integer,integer,text) from public,anon;
 grant execute on function public.create_coverage_pauta_with_task(text,text,date,time,uuid[],date,boolean,uuid,uuid,integer,integer,text) to authenticated;
+
+
+-- Em compromissos comuns, cada participante pode receber uma atribuição
+-- simples (Fotos, Texto, Vídeo, Entrevistas etc.), sem modificar o workflow.
+alter table public.agenda_event_assignees add column task_label text;
+alter table public.agenda_event_assignees add constraint agenda_assignees_task_label_length
+  check (task_label is null or char_length(btrim(task_label)) between 2 and 80);
+
+create function public.set_agenda_assignee_task_label(
+ p_event_id uuid,p_profile_id uuid,p_label text
+) returns boolean language plpgsql security definer set search_path='' as $$
+declare v_label text;
+begin
+ if auth.uid() is null or not public.is_active_staff() or
+    not public.has_staff_module_access('agenda',true) then
+   raise exception 'Sem permissão para organizar colaboradores' using errcode='42501';
+ end if;
+ if not exists(select 1 from public.agenda_events where id=p_event_id and status='scheduled') then
+   raise exception 'Compromisso não está aberto'; end if;
+ v_label:=nullif(btrim(coalesce(p_label,'')),'');
+ if v_label is not null and length(v_label) not between 2 and 80 then
+   raise exception 'A descrição da tarefa deve conter de 2 a 80 caracteres'; end if;
+ update public.agenda_event_assignees
+ set task_label=v_label
+ where event_id=p_event_id and profile_id=p_profile_id and assignment_type='responsible';
+ if not found then raise exception 'Colaborador não está escalado para este compromisso'; end if;
+ return true;
+end;$$;
+revoke all on function public.set_agenda_assignee_task_label(uuid,uuid,text) from public,anon;
+grant execute on function public.set_agenda_assignee_task_label(uuid,uuid,text) to authenticated;
