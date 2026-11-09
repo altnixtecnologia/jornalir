@@ -39,7 +39,7 @@ jobs:
             next@15.5.18 react@19.1.7 react-dom@19.1.7 \
             @types/react@19 @types/react-dom@19 \
             --no-audit --no-fund
-          node -e "const p=require('./apps/sistema/node_modules/next/package.json'); console.log('Next no workspace: '+p.version)"
+          node -e "const p=require(require.resolve('next/package.json',{paths:[require('path').resolve('apps/sistema')]})); console.log('Next no workspace: '+p.version); if(p.version!=='15.5.18')process.exit(1)"
           echo "Alterações descartadas ao fim do job; branch original intacta."
 
       - name: Verificar TypeScript do sistema
