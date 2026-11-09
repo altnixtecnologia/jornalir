@@ -625,7 +625,8 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
           <label className="agenda-field"><span>Lembrete no grupo Telegram</span><select name="reminder_minutes" defaultValue={item.reminderMinutes === null ? "off" : String(item.reminderMinutes)}><option value="off">Sem lembrete</option><option value="0">No horário</option><option value="5">5 min antes</option><option value="10">10 min antes</option><option value="15">15 min antes</option><option value="30">30 min antes</option><option value="60">1 hora antes</option><option value="120">2 horas antes</option><option value="1440">1 dia antes</option></select></label>
           <label className="agenda-field agenda-field-wide"><span>Local</span><input name="location" maxLength={240} defaultValue={item.location ?? ""} /></label>
           <label className="agenda-field agenda-field-wide"><span>Observação</span><textarea name="description" maxLength={4000} defaultValue={item.description ?? ""} /></label>
-          <div className="agenda-field-wide"><AssigneePicker profiles={data.profiles} selectedIds={item.assignees.map((profile) => profile.id)} /></div>
+          {item.coverage?<p className="helper-text agenda-field-wide">Responsáveis da cobertura são alterados pela transferência, não pela edição geral.</p>:
+            <div className="agenda-field-wide"><AssigneePicker profiles={data.profiles} selectedIds={item.assignees.map((profile) => profile.id)} /></div>}
           <div className="agenda-form-actions agenda-edit-actions">
             <button type="submit" className="agenda-primary" disabled={isPending}>Salvar</button>
             <button type="button" className="agenda-close-edit" disabled={isPending} onClick={(event) => {
@@ -684,7 +685,8 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
             <PautaDateTimeField initialDate={item.dueDate ?? item.weekStart} initialTime={item.dueTime}
               weekStart={data.periodStart} weekEnd={data.periodEnd} />
           </div>
-          <div className="agenda-field-wide"><AssigneePicker profiles={data.profiles} selectedIds={item.assignees.map((person) => person.id)} /></div>
+          {item.coverage?<p className="helper-text agenda-field-wide">Para mudar o responsável da cobertura, utilize Transferir responsabilidade.</p>:
+            <div className="agenda-field-wide"><AssigneePicker profiles={data.profiles} selectedIds={item.assignees.map((person) => person.id)} /></div>}
           <label className="agenda-field pauta-note-field"><span>Observações</span>
             <textarea name="description" rows={2} maxLength={4000} defaultValue={item.description ?? ""}
               onInput={(event) => {
@@ -909,7 +911,7 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
                             </div>:null}
                         </div>
                       </div>
-                      {(data.access.agendaWrite || item.assignees.some((person) => person.id === data.currentUserId)) ? (
+                      {!item.coverage && (data.access.agendaWrite || item.assignees.some((person) => person.id === data.currentUserId)) ? (
                         <div className={"agenda-event-actions" + (data.access.agendaWrite ? " is-manager" : " is-member")}>
                           {item.status === "scheduled" ? (
                             <>
@@ -948,7 +950,7 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
                           ) : null}
                         </div>
                       ) : null}
-                      {item.status === "scheduled" && data.access.pautaWrite && item.eventKind !== "editorial" ? (
+                      {item.status === "scheduled" && !item.coverage && data.access.pautaWrite && item.eventKind !== "editorial" ? (
                         <div className="agenda-event-secondary">
                           <button type="button" disabled={isPending}
                             onClick={() => run(() => createPautaFromAgendaEventAction(item.id), "Compromisso incluído na pauta.")}>
@@ -956,8 +958,10 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
                           </button>
                         </div>
                       ) : null}
+                      {item.coverage?<CoveragePanel coverage={item.coverage} eventId={item.id}/>:
+                        item.status==="scheduled"&&data.access.agendaWrite?<EnableCoverage eventId={item.id}/>:null}
                       {data.access.agendaWrite ? <EventEdit item={item} /> : null}
-                      {data.access.agendaWrite && item.eventKind==="general" && item.status==="scheduled"
+                      {data.access.agendaWrite && !item.coverage && item.eventKind==="general" && item.status==="scheduled"
                         ? <InviteesEditor item={item}/> : null}
                     </article>
                   ))}
@@ -990,6 +994,7 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
                 <label className="agenda-field agenda-field-wide"><span>Local</span><input name="location" maxLength={240} placeholder="Opcional" /></label>
                 <label className="agenda-field agenda-field-wide"><span>Observação</span><textarea name="description" maxLength={4000} placeholder="Informações úteis para a equipe" /></label>
                 <div className="agenda-field-wide"><AssigneePicker profiles={data.profiles} currentUserId={data.currentUserId} /></div>
+                <CoverageOptIn data={data}/>
                 <div className="agenda-form-actions"><button type="submit" className="agenda-primary" disabled={isPending}>{isPending ? "Salvando..." : "Adicionar compromisso"}</button></div>
               </form>
             </details> : null}
@@ -1086,6 +1091,7 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
                   weekStart={data.periodStart} weekEnd={data.periodEnd} required />
               </div>
               <div className="pauta-assignee-field"><AssigneePicker profiles={data.profiles} currentUserId={data.currentUserId} /></div>
+              <CoverageOptIn data={data}/>
               <label className="agenda-field pauta-note-field"><span>Observações</span>
                 <textarea name="description" rows={2} maxLength={4000} placeholder="Informações adicionais (opcional)"
                   onInput={(event) => {
@@ -1109,7 +1115,7 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
                 const canCompleteOwn = !done && !cancelled && Boolean(myAssignment && !myAssignment.completedAt);
                 return (
                   <article key={item.id} style={{ borderLeftColor: personColor(item.responsibleProfileId ?? "") }} className={"pauta-item" + (done ? " is-done" : "") + (cancelled ? " is-cancelled" : "")}>
-                    {(data.access.pautaWrite || canCompleteOwn) ? <button type="button" className="pauta-check"
+                    {!item.coverage && (data.access.pautaWrite || canCompleteOwn) ? <button type="button" className="pauta-check"
                       aria-label={done ? "Reabrir item" : "Concluir minha pauta"} disabled={isPending || cancelled}
                       onClick={() => run(
                         () => done ? setPautaItemStatusAction(item.id, "pending")
@@ -1135,6 +1141,9 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
                       {item.articleId ? (
                         <Link href={"/sistema/editorial/materias/" + item.articleId} className="agenda-link-materia">Abrir matéria vinculada ↗</Link>
                       ) : null}
+                      {item.coverage&&item.agendaEventId?<CoveragePanel coverage={item.coverage} eventId={item.agendaEventId}/>:
+                        item.agendaEventId&&item.status==="pending"&&data.access.pautaWrite?
+                         <EnableCoverage eventId={item.agendaEventId}/>:null}
                       {data.access.pautaWrite ? <PautaEdit item={item} /> : null}
                     </div>
                     {data.access.pautaWrite ? <button type="button" className="pauta-cancel" disabled={isPending} onClick={() => run(() => setPautaItemStatusAction(item.id, cancelled ? "pending" : "cancelled"), cancelled ? "Item restaurado." : "Item retirado da pauta.")}>{cancelled ? "↶" : "×"}</button> : null}
