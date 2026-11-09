@@ -13,5 +13,9 @@
     "dev:sistema": "npm run dev --workspace @ir/sistema",
     "build": "npm run build --workspace @ir/site && npm run build --workspace @ir/sistema",
     "typecheck": "npm run typecheck --workspace @ir/site && npm run typecheck --workspace @ir/sistema"
+  },
+  "dependencies": {
+    "react": "19.1.10",
+    "react-dom": "19.1.10"
   }
 }

@@ -19,13 +19,14 @@ export const dynamic = "force-dynamic";
  * a maior parte de editorias grandes, ex.: "Geral" tem mais de 3 mil
  * matérias só do legado já migrado). `page`/`pageSize` vivem na URL.
  */
-export default async function EditoriaPage({
-  params,
-  searchParams,
-}: {
-  params: { slug: string };
-  searchParams: { page?: string; pageSize?: string };
-}): Promise<JSX.Element> {
+export default async function EditoriaPage(
+  props: {
+    params: Promise<{ slug: string }>;
+    searchParams: Promise<{ page?: string; pageSize?: string }>;
+  }
+): Promise<JSX.Element> {
+  const searchParams = await props.searchParams;
+  const params = await props.params;
   const sections = await listPublicSections();
   const section = sections.find((item) => item.slug === params.slug);
   if (!section) notFound();

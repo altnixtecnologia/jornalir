@@ -21,11 +21,12 @@ export const dynamic = "force-dynamic";
  * `page`/`pageSize` vivem na URL (item explícito da UX pedida pelo
  * usuário: voltar/avançar do navegador e compartilhar o link funcionam).
  */
-export default async function NoticiasPage({
-  searchParams,
-}: {
-  searchParams: { page?: string; pageSize?: string };
-}): Promise<JSX.Element> {
+export default async function NoticiasPage(
+  props: {
+    searchParams: Promise<{ page?: string; pageSize?: string }>;
+  }
+): Promise<JSX.Element> {
+  const searchParams = await props.searchParams;
   const requestedPage = parsePage(searchParams.page);
   const pageSize = parsePageSize(searchParams.pageSize);
   const { items: articles, total, page, totalPages } = await listPublicArticlesPage({ page: requestedPage, pageSize });

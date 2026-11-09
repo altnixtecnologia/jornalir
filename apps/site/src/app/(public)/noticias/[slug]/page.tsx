@@ -29,7 +29,8 @@ function getArticleDescription(subtitle: string | undefined, body: string): stri
   return text.slice(0, 190) || "Notícias e informações do Informativo Regional.";
 }
 
-export async function generateMetadata({ params }: { params: { slug: string } }): Promise<Metadata> {
+export async function generateMetadata(props: { params: Promise<{ slug: string }> }): Promise<Metadata> {
+  const params = await props.params;
   const article = await loadArticle(params.slug);
   if (!article) return { title: "Matéria não encontrada | Informativo Regional", robots: { index: false } };
   const description = getArticleDescription(article.subtitle, article.body);
@@ -55,7 +56,8 @@ export async function generateMetadata({ params }: { params: { slug: string } })
   };
 }
 
-export default async function NoticiaDetalhePage({ params }: { params: { slug: string } }): Promise<JSX.Element> {
+export default async function NoticiaDetalhePage(props: { params: Promise<{ slug: string }> }): Promise<JSX.Element> {
+  const params = await props.params;
   const current = await loadArticle(params.slug);
   if (!current) notFound();
 
