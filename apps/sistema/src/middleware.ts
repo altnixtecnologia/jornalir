@@ -27,6 +27,11 @@ export async function middleware(request: NextRequest): Promise<NextResponse> {
     return response;
   }
 
+  // A TV possui autorização própria, revogável e restrita à Pauta.
+  // O Server Component valida cookie de dispositivo ou sessão de funcionário.
+  // NENHUMA outra rota do sistema deixa de exigir login.
+  if(request.nextUrl.pathname==="/tv/pauta")return response;
+
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const publishableKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
   if (!url || !publishableKey) {
