@@ -104,13 +104,13 @@ end;$$;
 -- só reabrir se estiver pendente para evitar perder evidência histórica.
 create or replace function public.apply_event_coverage_transfer(p_transfer uuid)
 returns boolean language plpgsql security definer set search_path='' as $$
-declare t public.event_coverage_transfers%rowtype;c public.event_coverages%rowtype;
+declare t public.event_coverage_transfers%rowtype;v_current public.event_coverages%rowtype;
 begin
  select * into t from public.event_coverage_transfers where id=p_transfer for update;
  if not found or t.status not in ('accepted','forced') then raise exception 'Transferência não autorizada';end if;
- select * into c from public.event_coverages where event_id=t.event_id for update;
- if c.attendance_owner_id is distinct from t.from_attendance_id or
-    c.article_owner_id is distinct from t.from_article_id then
+ select * into v_current from public.event_coverages where event_id=t.event_id for update;
+ if v_current.attendance_owner_id is distinct from t.from_attendance_id or
+    v_current.article_owner_id is distinct from t.from_article_id then
     raise exception 'Responsabilidade alterada; atualize a cobertura'; end if;
  update public.event_coverages set
    attendance_owner_id=case when t.transfer_part in ('attendance','both') then t.to_profile_id else attendance_owner_id end,
