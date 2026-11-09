@@ -479,7 +479,7 @@ export async function completeSignatureInvitationAction(input: {
         contentType: "application/pdf", upsert: false, cacheControl: "0",
       });
       if (signedPdfError) return { error: "Falha ao guardar o documento com assinatura. Contate a equipe." };
-      const h = headers();
+      const h = await headers();
       const remoteIp = h.get("x-real-ip") ?? h.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "";
       const audit = {
         signedAt, consent: "contract-v1",
