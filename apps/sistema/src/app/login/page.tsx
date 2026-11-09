@@ -32,9 +32,11 @@ function LoginForm(): JSX.Element {
   const [pending, setPending] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
 
+  const afterLogin = searchParams.get("next")==="/tv/pauta" ? "/tv/pauta" : "/sistema";
+
   useEffect(() => {
-    if (status === "authenticated") router.replace("/sistema");
-  }, [status, router]);
+    if (status === "authenticated") router.replace(afterLogin);
+  }, [status, router, afterLogin]);
 
   useEffect(() => {
     const errorCode = searchParams.get("erro");
@@ -96,7 +98,7 @@ function LoginForm(): JSX.Element {
        : "E-mail ou senha inválidos.");
       return;
     }
-    router.push("/sistema");
+    router.push(afterLogin);
     router.refresh();
   }
 
