@@ -4,6 +4,7 @@ on:
     branches:
       - feat/cobertura-evento-transferencia-20261109
       - feat/pauta-tv-equipe-fechamento-20261109
+      - feat/tv-pauta-pareamento-sem-login-20261109
   pull_request:
     branches:
       - solicitacoes-financeiro-contratos-irc-20261031
@@ -17,6 +18,10 @@ on:
       - "apps/sistema/test/pauta-tv-layout.test.ts"
       - "apps/sistema/src/features/pauta-tv/**"
       - "apps/sistema/src/app/tv/pauta/**"
+      - "apps/sistema/src/app/api/tv-pauta/**"
+      - "apps/sistema/src/app/sistema/configuracoes/**"
+      - "apps/sistema/src/lib/tv-pauta/**"
+      - "supabase/migrations/20261122300000_tv_pauta_device_pairing.sql"
       - "apps/sistema/src/middleware.ts"
       - "supabase/migrations/20261122290000_coverage_team_agenda_pauta.sql"
       - "supabase/migrations/20261122270000_event_coverage_lifecycle.sql"
