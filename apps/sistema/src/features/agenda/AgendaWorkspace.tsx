@@ -353,8 +353,11 @@ function CoveragePeopleFields({profiles,currentUserId,eventTime}:{
  }>>([{key:1,profileId:currentUserId,tasks:[{kind:"photos",label:"Fotografias"}]}]);
  const [counter,setCounter]=useState(2);
  const unused=profiles.find(profile=>!crew.some(member=>member.profileId===profile.id));
- const change=(key:number,field:"profileId"|"tasks",value:string|CoverageTaskDraft[])=>{
-  setCrew(rows=>rows.map(row=>row.key===key?{...row,[field]:value}:row));
+ const changeProfile=(key:number,value:string)=>{
+  setCrew(rows=>rows.map(row=>row.key===key?{...row,profileId:value}:row));
+ };
+ const changeTasks=(key:number,value:CoverageTaskDraft[])=>{
+  setCrew(rows=>rows.map(row=>row.key===key?{...row,tasks:value}:row));
  };
  return <div className="coverage-team-editor">
   <div className="coverage-team-heading">
@@ -364,14 +367,14 @@ function CoveragePeopleFields({profiles,currentUserId,eventTime}:{
   {crew.map((member,index)=><div className="coverage-team-row" key={member.key}>
    <label className="agenda-field">
     <span>Colaborador {index+1}</span>
-    <select value={member.profileId} required onChange={event=>change(member.key,"profileId",event.currentTarget.value)}>
+    <select value={member.profileId} required onChange={event=>changeProfile(member.key,event.currentTarget.value)}>
      {profiles.filter(profile=>profile.id===member.profileId||
        !crew.some(row=>row.key!==member.key&&row.profileId===profile.id))
        .map(profile=><option key={profile.id} value={profile.id}>{profile.name}</option>)}
     </select>
    </label>
    <CoverageTaskPicker tasks={member.tasks}
-    onChange={tasks=>change(member.key,"tasks",tasks)}/>
+    onChange={tasks=>changeTasks(member.key,tasks)}/>
    {crew.length>1?<button type="button" className="coverage-remove"
     aria-label={"Retirar colaborador "+(index+1)}
     onClick={()=>setCrew(rows=>rows.filter(row=>row.key!==member.key))}>×</button>:null}
@@ -672,7 +675,6 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
     const me=coverage.members.find(person=>person.profileId===data.currentUserId);
     const writer=coverage.articleOwnerId===data.currentUserId;
     const names=Array.from(new Set([...coverage.members.map(m=>m.profileId),coverage.articleOwnerId]));
-    const available=data.profiles.filter(p=>!coverage.members.some(m=>m.profileId===p.id));
     const resLabel={
       pending:"Aguardando resposta",present:"Compareceu",
       not_required:"Não precisa estar presente",unable:"Não poderá ir",
