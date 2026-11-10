@@ -3,6 +3,7 @@
 import {useRef,useState,type FormEvent} from "react";
 import type {AgendaProfile,AgendaEventItem,EditorialWorkflowKind} from "./agendaTypes";
 import {FIXED_COVERAGE_TASKS,type CoverageTaskDraft} from "./coverageTaskCatalog";
+import {WorkflowTaskChips} from "./WorkflowTaskChips";
 
 type Choice=Exclude<EditorialWorkflowKind,"general">;
 type CrewMember={key:number;profileId:string;attends:boolean;tasks:CoverageTaskDraft[]};
@@ -46,13 +47,10 @@ export function EditorialWorkflowCreate({
   initialIds.map((id,index)=>({key:index+1,profileId:id,attends:true,tasks:[]})):
   [{key:1,profileId:currentUserId,attends:true,tasks:[]}]);
  const nextKey=useRef((existing?.assignees.length??0)+2);
- const longPress=useRef<ReturnType<typeof setTimeout>|null>(null);
- const wasLongPress=useRef(false);
  const [menu,setMenu]=useState<EditingTask|null>(null);
  const [customFor,setCustomFor]=useState<number|null>(null);
  const [customText,setCustomText]=useState("");
  const [rename,setRename]=useState("");
- const [moveTo,setMoveTo]=useState("");
  const [error,setError]=useState("");
  const [editing,setEditing]=useState(false);
  const available=profiles.find(profile=>!crew.some(m=>m.profileId===profile.id));
@@ -76,48 +74,23 @@ export function EditorialWorkflowCreate({
  };
  const openMenu=(member:number,task:CoverageTaskDraft)=>{
    setMenu({member,kind:task.kind,label:task.label});
-   setRename(task.label);setMoveTo("");setEditing(false);
+   setRename(task.label);setEditing(false);
  };
- const clearHold=()=>{if(longPress.current)clearTimeout(longPress.current);longPress.current=null;};
- const pressStart=(key:number,task:CoverageTaskDraft)=>{
-   clearHold();wasLongPress.current=false;
-   longPress.current=setTimeout(()=>{
-     wasLongPress.current=true;openMenu(key,task);
-   },3000);
- };
- const taskToggle=(key:number,task:CoverageTaskDraft)=>{
-   if(wasLongPress.current){wasLongPress.current=false;return;}
-   if(task.kind==="custom"){
-     openMenu(key,task);return;
-   }
-   putTask(key,task);
- };
- const modifyTask=(action:"edit"|"move"|"delete")=>{
+ const modifyTask=(action:"edit"|"delete")=>{
    if(!menu)return;
    const old=crew.find(m=>m.key===menu.member)?.tasks.find(
      t=>t.kind===menu.kind&&t.label===menu.label);
    if(!old)return;
-   const normalized=rename.trim().replace(/\s+/g," ");
+   const normalized=rename.trim().replace(/\\s+/g," ");
    if(action==="edit"&&(normalized.length<2||normalized.length>80)){
      setError("A tarefa precisa ter entre 2 e 80 caracteres.");return;
    }
-   const destination=crew.find(m=>m.profileId===moveTo);
-   if(action==="move"&&(!destination||destination.key===menu.member)){
-     setError("Selecione outro colaborador para mover.");return;
-   }
-   const newTask:CoverageTaskDraft=action==="edit"?{kind:"custom",label:normalized}:old;
-   if(action==="move"&&destination?.tasks.some(t=>t.label===old.label)){
-     setError("Essa tarefa já está atribuída ao colaborador.");return;
-   }
-   setCrew(prev=>{
-     const without=prev.map(m=>m.key===menu.member?
-       {...m,tasks:m.tasks.filter(t=>t!==old)}:m);
-     return without.map(m=>{
-       if(action==="edit"&&m.key===menu.member)return {...m,tasks:[...m.tasks,newTask]};
-       if(action==="move"&&m.key===destination?.key)return {...m,tasks:[...m.tasks,newTask]};
-       return m;
-     });
-   });
+   setCrew(prev=>prev.map(m=>{
+     if(m.key!==menu.member)return m;
+     const updated=action==="delete"?m.tasks.filter(t=>t!==old):
+       m.tasks.map(t=>t===old?{kind:"custom" as const,label:normalized}:t);
+     return {...m,tasks:updated};
+   }));
    setMenu(null);setEditing(false);setError("");
  };
  const addCustom=(key:number)=>{
@@ -231,35 +204,30 @@ export function EditorialWorkflowCreate({
                  setCrew(prev=>prev.filter(p=>p.key!==member.key));
                }}>×</button>:null}
            </div>
-           <div className="workflow-pill-row workflow-function-buttons">
-             {kind!=="article"?FIXED_COVERAGE_TASKS.map(task=>{
-               const selected=member.tasks.some(t=>t.kind===task.kind);
-               return <button type="button" key={task.kind}
-                  className={selected?"is-selected":""}
-                  aria-pressed={selected}
-                  onPointerDown={()=>selected&&pressStart(member.key,task)}
-                  onPointerUp={clearHold} onPointerLeave={clearHold} onPointerCancel={clearHold}
-                  onContextMenu={e=>{e.preventDefault();clearHold();openMenu(member.key,task);}}
-                  onClick={()=>taskToggle(member.key,task)}>
-                  {selected?"✓ ":""}{task.label}
-               </button>;
-             }):null}
-             {member.tasks.filter(t=>t.kind==="custom").map(task=><button
-               type="button" key={task.label} className="is-selected"
-               onPointerDown={()=>pressStart(member.key,task)} onPointerUp={clearHold}
-               onPointerLeave={clearHold} onPointerCancel={clearHold}
-               onContextMenu={e=>{e.preventDefault();clearHold();openMenu(member.key,task);}}
-               onClick={()=>taskToggle(member.key,task)}>{task.label} ···</button>)}
-             {kind!=="article"?<button type="button"
-               onClick={()=>{setCustomFor(customFor===member.key?null:member.key);setCustomText("");}}>
-               ＋ Outra tarefa
-             </button>:null}
-             <button type="button" className={"workflow-writer-choice"+(isWriter?" is-selected":"")}
-               aria-pressed={isWriter} onClick={()=>{setWriter(isWriter?"":member.profileId);setError("");}}>
-               {isWriter?"✓ ":""}Matéria
-             </button>
+           <div className="workflow-function-buttons">
+             <WorkflowTaskChips tasks={member.tasks} editable={true}
+               onTap={task=>changeMember(member.key,{
+                 tasks:member.tasks.filter(t=>t.kind!==task.kind||t.label!==task.label),
+               })}
+               onLongPress={task=>openMenu(member.key,task)}
+               onReorder={tasks=>changeMember(member.key,{tasks})}/>
+             <div className="workflow-pill-row workflow-available-tasks">
+               {kind!=="article"?FIXED_COVERAGE_TASKS.filter(task=>
+                 !member.tasks.some(selected=>selected.kind===task.kind)).map(task=>
+                   <button type="button" key={task.kind} onClick={()=>putTask(member.key,task)}>
+                      ＋ {task.label}
+                   </button>):null}
+               {kind!=="article"?<button type="button"
+                 onClick={()=>{setCustomFor(customFor===member.key?null:member.key);setCustomText("");}}>
+                   ＋ Outra tarefa
+               </button>:null}
+               <button type="button" className={"workflow-writer-choice"+(isWriter?" is-selected":"")}
+                 aria-pressed={isWriter} onClick={()=>{setWriter(isWriter?"":member.profileId);setError("");}}>
+                   {isWriter?"✓ ":""}Matéria
+               </button>
+             </div>
            </div>
-           {kind!=="article"&&member.tasks.length>0?<small className="workflow-help">Segure uma função por 3 segundos para editar, mover ou excluir.</small>:null}
+           {kind!=="article"&&member.tasks.length>0?<small className="workflow-help">Arraste para mudar a posição. Segure 3 segundos para editar ou excluir.</small>:null}
            {customFor===member.key?<div className="workflow-custom-add">
              <input value={customText} maxLength={80} placeholder="Nome da tarefa"
                onChange={e=>setCustomText(e.currentTarget.value)}/>
@@ -272,16 +240,6 @@ export function EditorialWorkflowCreate({
                <button type="button" onClick={()=>modifyTask("edit")}>Salvar</button>
              </div>:<div className="workflow-task-menu-actions">
                <button type="button" onClick={()=>setEditing(true)}>Editar</button>
-               <label>Mover para
-                 <select value={moveTo} onChange={e=>setMoveTo(e.currentTarget.value)}>
-                   <option value="">Selecionar</option>
-                   {crew.filter(x=>x.key!==member.key).map(x=>
-                     <option key={x.key} value={x.profileId}>
-                       {profiles.find(p=>p.id===x.profileId)?.name??"Colaborador"}
-                     </option>)}
-                 </select>
-               </label>
-               <button type="button" disabled={!moveTo} onClick={()=>modifyTask("move")}>Mover</button>
                <button type="button" onClick={()=>modifyTask("delete")}>Excluir</button>
                <button type="button" onClick={()=>setMenu(null)}>Fechar</button>
              </div>}
