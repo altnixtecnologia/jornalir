@@ -1,4 +1,6 @@
 -- Agenda editorial simples: Evento, Sessão da Câmara, Visita e Só matéria.
+-- A data de entrega editorial é independente da semana em que a pauta nasceu.
+alter table public.weekly_pauta_items drop constraint if exists weekly_pauta_due_reasonable;
 -- Amplia estruturas existentes; não recria banco de pautas/agenda nem muda dados legados.
 alter table public.agenda_events
  add column workflow_kind text not null default 'general'
