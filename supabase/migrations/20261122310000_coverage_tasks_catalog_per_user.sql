@@ -187,6 +187,10 @@ begin
    raise exception 'Colaborador inválido';end if;
  select exists(select 1 from public.event_coverage_members
   where event_id=p_event_id and profile_id=p_profile_id) into v_exists;
+ if (select count(*) from public.event_coverage_member_tasks
+    where event_id=p_event_id and profile_id=p_profile_id)
+      + jsonb_array_length(p_tasks)>8 then
+   raise exception 'Cada colaborador pode ter no máximo 8 entregas';end if;
  if not v_exists and (select count(*) from public.event_coverage_members
     where event_id=p_event_id and field_task is not null)>=16 then
   raise exception 'Limite de colaboradores atingido';end if;
