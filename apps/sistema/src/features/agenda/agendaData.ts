@@ -170,7 +170,7 @@ export async function loadAgendaWorkspaceData(focusDate: string): Promise<Agenda
     eventRows=[...eventRows,...(additional.data??[])];
   }
 
-  // Recuperar compromissos anteriores ainda agendados, inclusive fora do mes.
+  // Recuperar compromissos pendentes de qualquer mes para a fila e atrasados.
   // A paginacao evita que o limite padrao do Supabase oculte atrasos.
   const knownEventIds = new Set(eventRows.map((event) => event.id));
   for (let offset = 0; ; offset += 500) {
@@ -178,7 +178,6 @@ export async function loadAgendaWorkspaceData(focusDate: string): Promise<Agenda
       .select(EVENT_COLUMNS)
       .eq("show_in_agenda", true)
       .eq("status", "scheduled")
-      .lt("event_date", today)
       .order("event_date", { ascending: true })
       .order("id", { ascending: true })
       .range(offset, offset + 499);
