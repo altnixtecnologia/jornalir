@@ -308,6 +308,68 @@ export async function createEditorialWorkflowAction(form:FormData):Promise<Agend
  }catch(err){return {error:err instanceof Error?err.message:"Falha ao cadastrar."};}
 }
 
+export async function activateEditorialWorkflowAction(
+ eventId:string,form:FormData
+):Promise<AgendaActionResult>{
+ const kind=value(form,"workflow_kind"),city=value(form,"council_city");
+ const date=value(form,"article_due_date"),time=value(form,"article_due_time");
+ const writer=value(form,"workflow_writer");
+ if(!/^[a-f0-9-]{36}$/i.test(eventId)||!["event","council","visit"].includes(kind))
+  return {error:"Escolha Evento, Câmara ou Visita para o compromisso existente."};
+ if(date&&!validDate(date)||!validTime(time)||time&&!date)
+  return {error:"Prazo inválido."};
+ let input:unknown;
+ try{input=JSON.parse(value(form,"workflow_crew_json"));}
+ catch{return {error:"Selecione a equipe."};}
+ if(!Array.isArray(input)||input.length<1||input.length>16)
+  return {error:"Selecione os participantes."};
+ const ids=new Set<string>();
+ const crew:{profileId:string;attends:boolean;tasks:NonNullable<ReturnType<typeof validateCoverageTasks>>}[]=[];
+ for(const item of input){
+  if(!item||typeof item!=="object")return {error:"Equipe inválida."};
+  const person=item as {profileId?:unknown;attends?:unknown;tasks?:unknown};
+  const id=person.profileId;
+  const tasks=Array.isArray(person.tasks)&&person.tasks.length===0?[]:validateCoverageTasks(person.tasks);
+  if(typeof id!=="string"||!/^[a-f0-9-]{36}$/i.test(id)||ids.has(id)||!tasks)
+   return {error:"Verifique os colaboradores e as funções selecionadas."};
+  ids.add(id);crew.push({profileId:id,attends:person.attends!==false,tasks});
+ }
+ if(writer&&!ids.has(writer))return {error:"Marque Matéria em um dos colaboradores."};
+ try{
+  const {supabase}=await requireActiveUser();
+  await validateActiveProfiles(supabase,[...ids]);
+  const {data,error}=await supabase.rpc("activate_editorial_workflow",{
+   p_event_id:eventId,p_kind:kind,p_city:kind==="council"?city:null,
+   p_crew:crew,p_writer:writer||null,p_due_date:date||null,p_due_time:time||null,
+  });
+  if(error||!data)return {error:error?.message??"Não foi possível atualizar o compromisso."};
+  refreshAgenda();return {ok:true};
+ }catch(e){return {error:e instanceof Error?e.message:"Falha ao converter compromisso."};}
+}
+
+export async function adjustEditorialWorkflowTaskAction(
+ eventId:string,ownerId:string,kind:string,label:string,
+ operation:"edit"|"move"|"delete",targetId:string|null,newLabel:string|null,
+):Promise<AgendaActionResult>{
+ if(!/^[a-f0-9-]{36}$/i.test(eventId)||!/^[a-f0-9-]{36}$/i.test(ownerId)||
+  !["edit","move","delete"].includes(operation))
+  return {error:"Operação inválida."};
+ if(operation==="move"&&(!targetId||!/^[a-f0-9-]{36}$/i.test(targetId)))
+  return {error:"Escolha quem receberá a tarefa."};
+ if(operation==="edit"&&(!newLabel||newLabel.trim().length<2||newLabel.trim().length>80))
+  return {error:"Informe um nome válido para a tarefa."};
+ try{
+  const {supabase}=await requireActiveUser();
+  const {data,error}=await supabase.rpc("adjust_editorial_workflow_task",{
+   p_event_id:eventId,p_from:ownerId,p_kind:kind,p_label:label,
+   p_action:operation,p_to:operation==="move"?targetId:null,
+   p_new_label:operation==="edit"?newLabel:null,
+  });
+  if(error||!data)return {error:error?.message??"Não foi possível modificar a tarefa."};
+  refreshAgenda();return {ok:true};
+ }catch(e){return {error:e instanceof Error?e.message:"Erro ao ajustar função."};}
+}
+
 export async function answerEditorialWorkflowPresenceAction(
  eventId:string,profileId:string,answer:"present"|"absent"|"not_required"
 ):Promise<AgendaActionResult>{
