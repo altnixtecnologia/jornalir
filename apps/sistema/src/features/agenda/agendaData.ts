@@ -133,7 +133,7 @@ export async function loadAgendaWorkspaceData(focusDate: string): Promise<Agenda
     supabase.from("profiles").select("id, name, role").eq("active", true).order("name", { ascending: true }),
     supabase
       .from("agenda_events")
-      .select("id, title, description, event_date, start_time, end_time, location, status, reminder_minutes, event_kind, show_in_agenda, completed_at, updated_at, workflow_kind, council_city, article_owner_id, article_due_at, article_completed_at, article_completed_by, workflow_closed_at, workflow_closed_by")
+      .select("id, title, description, event_date, start_time, end_time, location, status, reminder_minutes, event_kind, show_in_agenda, completed_at, updated_at, workflow_kind, council_city, article_owner_id, article_due_at, article_due_time_explicit, article_completed_at, article_completed_by, workflow_closed_at, workflow_closed_by")
       .gte("event_date", eventRangeStart)
       .lte("event_date", eventRangeEnd)
       .order("event_date", { ascending: true })
@@ -331,6 +331,7 @@ export async function loadAgendaWorkspaceData(focusDate: string): Promise<Agenda
     councilCity:event.council_city,
     articleOwnerId:event.article_owner_id,
     articleDueAt:event.article_due_at,
+    articleDueTimeExplicit:Boolean(event.article_due_time_explicit),
     articleCompletedAt:event.article_completed_at,
     articleCompletedBy:event.article_completed_by,
     workflowClosedAt:event.workflow_closed_at,
