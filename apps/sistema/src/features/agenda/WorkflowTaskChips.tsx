@@ -41,9 +41,7 @@ export function WorkflowTaskChips({
    clearHold();
    suppressClick.current=false;
    active.current={pointerId:event.pointerId,from,x:event.clientX,y:event.clientY,dragging:false,held:false};
-   if(event.pointerType!=="mouse"){
-     try{event.currentTarget.setPointerCapture(event.pointerId);}catch{}
-   }
+   try{event.currentTarget.setPointerCapture(event.pointerId);}catch{}
    hold.current=setTimeout(()=>{
      const state=active.current;
      if(!state||state.dragging||state.pointerId!==event.pointerId)return;
@@ -83,13 +81,13 @@ export function WorkflowTaskChips({
        data-workflow-task-index={index}
        className={"workflow-selected-task"+(dragging===index?" is-dragging":"")+
          (hover===index&&dragging!==index?" is-drag-target":"")}
-       title="Arraste para ordenar, ou segure 3 segundos para editar ou excluir"
+       title="Arraste para ordenar. Segure por 3 segundos para editar ou excluir."
        aria-label={task.label+". Arraste para ordenar ou mantenha pressionado para editar."}
        onPointerDown={event=>down(event,index)}
        onPointerMove={move} onPointerUp={up}
        onPointerCancel={stop}
-       onLostPointerCapture={()=>{if(!active.current?.dragging)clearHold();}}
-       onContextMenu={event=>{event.preventDefault();suppressClick.current=true;onLongPress?.(task);stop();}}
+       onLostPointerCapture={stop}
+       onContextMenu={event=>event.preventDefault()}
        onKeyDown={event=>keyDown(event,index)}
        onClick={()=>{
          if(suppressClick.current){suppressClick.current=false;return;}
