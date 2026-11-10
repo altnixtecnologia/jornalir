@@ -19,8 +19,8 @@ import {
   saveCoverageTaskLabelAction,
   saveAgendaAssigneeTaskAction,
   answerCoverageAttendanceAction,
-  finishCoverageTeamTaskAction,
-  addCoverageTeamMemberAction,
+  completeCoverageTaskAction,
+  assignCoverageTasksAction,
   requestCoverageTeamTransferAction,
   respondCoverageTeamTransferAction,
   savePautaPeriodAction,
@@ -33,6 +33,7 @@ import {
 } from "./actions";
 import type { AgendaEventItem, AgendaWorkspaceData, EventCoverage, WeeklyPautaItem } from "./agendaTypes";
 import { coverageClockAt, validCoverageClock } from "./coverageClock";
+import { FIXED_COVERAGE_TASKS,type CoverageTaskDraft } from "./coverageTaskCatalog";
 import { createSupabaseBrowserClient } from "../../lib/supabase/browser";
 import { notify } from "../../lib/feedback/notify";
 import { confirmDialog } from "../../lib/feedback/confirmStore";
@@ -279,57 +280,125 @@ function CoverageClockFields({eventTime,audible=60,checkin=5}:{
  </>;
 }
 
+function CoverageTaskPicker({tasks,onChange}:{
+ tasks:CoverageTaskDraft[];
+ onChange:(tasks:CoverageTaskDraft[])=>void;
+}):JSX.Element{
+ const [custom,setCustom]=useState("");
+ const [message,setMessage]=useState("");
+ const chosen=(kind:string)=>tasks.some(t=>t.kind===kind);
+ const addCustom=()=>{
+  const label=custom.trim().replace(/\s+/g," ");
+  if(label.length<2||label.length>80){setMessage("Informe entre 2 e 80 caracteres.");return;}
+  if(tasks.length>=8){setMessage("Limite de 8 entregas por colaborador.");return;}
+  if(tasks.some(t=>t.label.toLocaleLowerCase("pt-BR")===label.toLocaleLowerCase("pt-BR"))){
+    setMessage("Esta tarefa já está selecionada.");return;
+  }
+  onChange([...tasks,{kind:"custom",label}]);
+  setCustom("");setMessage("");
+ };
+ return <div className="coverage-task-selector">
+   <span className="coverage-task-selector-label">O que fará? <small>(selecione uma ou mais entregas)</small></span>
+   <div className="coverage-task-options">
+    {FIXED_COVERAGE_TASKS.map(task=><label key={task.kind} className="coverage-task-option">
+      <input type="checkbox" checked={chosen(task.kind)}
+        disabled={!chosen(task.kind)&&tasks.length>=8}
+        onChange={event=>onChange(event.currentTarget.checked
+          ? [...tasks,{kind:task.kind,label:task.label}]
+          : tasks.filter(item=>item.kind!==task.kind))}/>
+      <span>{task.label}</span>
+    </label>)}
+   </div>
+   <div className="coverage-custom-task">
+    <input type="text" value={custom} maxLength={80} placeholder="Outra tarefa personalizada"
+      aria-label="Adicionar tarefa personalizada"
+      onChange={event=>{setCustom(event.currentTarget.value);setMessage("");}}/>
+    <button type="button" onClick={addCustom} disabled={tasks.length>=8}>＋ Adicionar</button>
+   </div>
+   {tasks.some(t=>t.kind==="custom")?<div className="coverage-custom-tasks">
+    {tasks.filter(t=>t.kind==="custom").map((task,index)=><button
+      key={task.label+index} type="button" title="Remover tarefa personalizada"
+      onClick={()=>onChange(tasks.filter(t=>t!==task))}>
+      {task.label} ×
+    </button>)}
+   </div>:null}
+   {message?<small role="alert" className="coverage-task-error">{message}</small>:null}
+   {tasks.length===0?<small className="coverage-task-error">Escolha ao menos uma entrega para esta pessoa.</small>:null}
+ </div>;
+}
+
+function CoverageTeamAddFields({profiles,currentUserId,existing}:{
+ profiles:AgendaWorkspaceData["profiles"];currentUserId:string;existing:string[];
+}):JSX.Element{
+ const first=profiles.find(p=>!existing.includes(p.id))?.id??currentUserId;
+ const [tasks,setTasks]=useState<CoverageTaskDraft[]>([{kind:"photos",label:"Fotografias"}]);
+ return <>
+  <label className="agenda-field"><span>Colaborador</span>
+   <select name="team_new_person" required defaultValue={first}>
+    {profiles.map(person=><option key={person.id} value={person.id}>
+      {person.name}{existing.includes(person.id)?" — adicionar tarefa":""}
+    </option>)}
+   </select>
+  </label>
+  <CoverageTaskPicker tasks={tasks} onChange={setTasks}/>
+  <input type="hidden" name="team_new_tasks_json" value={JSON.stringify(tasks)}/>
+ </>;
+}
+
 function CoveragePeopleFields({profiles,currentUserId,eventTime}:{
   profiles:AgendaWorkspaceData["profiles"];currentUserId:string;eventTime:string;
 }):JSX.Element{
-  const [crew,setCrew]=useState([{key:1,profileId:currentUserId,task:"Fotos / cobertura"}]);
-  const [counter,setCounter]=useState(2);
-  const unused=profiles.find(profile=>!crew.some(member=>member.profileId===profile.id));
-  const change=(key:number,field:"profileId"|"task",value:string)=>{
-    setCrew(rows=>rows.map(row=>row.key===key?{...row,[field]:value}:row));
-  };
-  return <div className="coverage-team-editor">
-    <div className="coverage-team-heading">
-      <strong>Quem vai ao evento?</strong>
-      <small>Uma pessoa por linha, com sua tarefa. Todos serão notificados.</small>
-    </div>
-    {crew.map((member,index)=><div className="coverage-team-row" key={member.key}>
-      <label className="agenda-field">
-        <span>Colaborador {index+1}</span>
-        <select value={member.profileId} required
-          onChange={event=>change(member.key,"profileId",event.currentTarget.value)}>
-          {profiles.map(profile=><option key={profile.id} value={profile.id}>{profile.name}</option>)}
-        </select>
-      </label>
-      <label className="agenda-field">
-        <span>O que fará?</span>
-        <input type="text" maxLength={80} minLength={2} required
-          list="agenda-task-suggestions" value={member.task}
-          onChange={event=>change(member.key,"task",event.currentTarget.value)}
-          placeholder="Fotos, vídeos, entrevistas..." />
-      </label>
-      {crew.length>1?<button type="button" className="coverage-remove"
-        aria-label={"Retirar colaborador "+(index+1)}
-        onClick={()=>setCrew(rows=>rows.filter(row=>row.key!==member.key))}>×</button>:null}
-    </div>)}
-    <input type="hidden" name="coverage_team_json"
-      value={JSON.stringify(crew.map(member=>({profileId:member.profileId,task:member.task.trim()})))}/>
-    <button type="button" className="coverage-add"
-      disabled={!unused || crew.length>=16}
-      onClick={()=>{
-        if(!unused)return;
-        setCrew(rows=>[...rows,{key:counter,profileId:unused.id,task:"Fotos / cobertura"}]);
-        setCounter(n=>n+1);
-      }}>＋ Adicionar colaborador</button>
-    <div className="coverage-team-bottom">
-      <label className="agenda-field coverage-article-person"><span>Quem fará a matéria? (um responsável)</span>
-        <select name="coverage_article_owner" required defaultValue={currentUserId}>
-          {profiles.map(profile=><option key={profile.id} value={profile.id}>{profile.name}</option>)}
-        </select>
-      </label>
-      <CoverageClockFields eventTime={eventTime}/>
-    </div>
-  </div>;
+ const [crew,setCrew]=useState<Array<{
+  key:number;profileId:string;tasks:CoverageTaskDraft[];
+ }>>([{key:1,profileId:currentUserId,tasks:[{kind:"photos",label:"Fotografias"}]}]);
+ const [counter,setCounter]=useState(2);
+ const unused=profiles.find(profile=>!crew.some(member=>member.profileId===profile.id));
+ const change=(key:number,field:"profileId"|"tasks",value:string|CoverageTaskDraft[])=>{
+  setCrew(rows=>rows.map(row=>row.key===key?{...row,[field]:value}:row));
+ };
+ return <div className="coverage-team-editor">
+  <div className="coverage-team-heading">
+   <strong>Quem vai ao evento?</strong>
+   <small>Um colaborador por vez, com quantas entregas forem necessárias.</small>
+  </div>
+  {crew.map((member,index)=><div className="coverage-team-row" key={member.key}>
+   <label className="agenda-field">
+    <span>Colaborador {index+1}</span>
+    <select value={member.profileId} required onChange={event=>change(member.key,"profileId",event.currentTarget.value)}>
+     {profiles.filter(profile=>profile.id===member.profileId||
+       !crew.some(row=>row.key!==member.key&&row.profileId===profile.id))
+       .map(profile=><option key={profile.id} value={profile.id}>{profile.name}</option>)}
+    </select>
+   </label>
+   <CoverageTaskPicker tasks={member.tasks}
+    onChange={tasks=>change(member.key,"tasks",tasks)}/>
+   {crew.length>1?<button type="button" className="coverage-remove"
+    aria-label={"Retirar colaborador "+(index+1)}
+    onClick={()=>setCrew(rows=>rows.filter(row=>row.key!==member.key))}>×</button>:null}
+  </div>)}
+  <input type="hidden" name="coverage_team_json"
+   value={JSON.stringify(crew.map(member=>({
+    profileId:member.profileId,tasks:member.tasks,
+   })))}/>
+  <button type="button" className="coverage-add"
+   disabled={!unused||crew.length>=16}
+   onClick={()=>{
+    if(!unused)return;
+    setCrew(rows=>[...rows,{
+      key:counter,profileId:unused.id,tasks:[{kind:"photos",label:"Fotografias"}],
+    }]);
+    setCounter(n=>n+1);
+   }}>＋ Adicionar colaborador</button>
+  <div className="coverage-team-bottom">
+   <label className="agenda-field coverage-article-person">
+    <span>Quem redigirá a matéria? (um responsável)</span>
+    <select name="coverage_article_owner" required defaultValue={currentUserId}>
+     {profiles.map(profile=><option key={profile.id} value={profile.id}>{profile.name}</option>)}
+    </select>
+   </label>
+   <CoverageClockFields eventTime={eventTime}/>
+  </div>
+ </div>;
 }
 
 function CoverageOptIn({data}:{data:AgendaWorkspaceData}):JSX.Element {
@@ -608,7 +677,7 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
       pending:"Aguardando resposta",present:"Compareceu",
       not_required:"Não precisa estar presente",unable:"Não poderá ir",
     };
-    const allFieldDone=coverage.members.filter(m=>m.fieldTask).every(m=>Boolean(m.fieldCompletedAt));
+    const allFieldDone=coverage.members.every(m=>m.tasks.every(t=>Boolean(t.completedAt)));
     return <section className="coverage-panel coverage-team-panel" aria-label="Equipe de cobertura">
       <header className="coverage-panel-title">
         <strong>COBERTURA DO EVENTO</strong>
@@ -620,7 +689,8 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
           return <div key={member.profileId} className="coverage-member-card">
             <div className="coverage-member-heading">
               <strong>{label(member.profileId)}</strong>
-              <span>{member.fieldTask??(member.profileId===coverage.articleOwnerId?"Redação da matéria":"Participação")}</span>
+              <span>{member.tasks.map(t=>t.label).join(" · ")||
+                (member.profileId===coverage.articleOwnerId?"Redação da matéria":"Participação")}</span>
             </div>
             <div className="coverage-participation">
               <small>Participação na Agenda · {resLabel[member.attendanceResponse]}</small>
@@ -638,13 +708,15 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
                 </button>)}
               </div>:null}
             </div>
-            {member.fieldTask?<div className="coverage-field-delivery">
-              <small>Pauta · {member.fieldCompletedAt?"Concluído":"Pendente"}: {member.fieldTask}</small>
-              {isMe?<button type="button" disabled={isPending} onClick={()=>run(
-                ()=>finishCoverageTeamTaskAction(eventId,!member.fieldCompletedAt),
-                member.fieldCompletedAt?"Entrega reaberta.":"Entrega concluída."
-              )}>{member.fieldCompletedAt?"Reabrir entrega":"✓ Concluir minha entrega"}</button>:null}
-            </div>:null}
+            {member.tasks.map(task=><div key={task.id} className="coverage-field-delivery">
+              <small><strong>{task.completedAt?"✓ Concluída":"Pendente"}</strong> · {task.label}
+                {task.completedAt&&task.completedBy&&task.completedBy!==member.profileId
+                  ?" · Baixa por "+label(task.completedBy):""}</small>
+              {(isMe||manager)?<button type="button" disabled={isPending} onClick={()=>run(
+                ()=>completeCoverageTaskAction(eventId,task.id,!task.completedAt),
+                task.completedAt?"Entrega reaberta.":"Entrega concluída."
+              )}>{task.completedAt?"Reabrir":"✓ Dar baixa"}</button>:null}
+            </div>)}
           </div>;
         })}
       </div>
@@ -677,22 +749,16 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
           </div>:null}
         </div>)}
       </div>:null}
-      {manager&&available.length>0?<details className="coverage-options">
-        <summary>＋ Adicionar colaborador ao evento</summary>
+      {manager?<details className="coverage-options">
+        <summary>＋ Adicionar pessoa ou novas tarefas</summary>
         <form className="coverage-form" onSubmit={event=>{
-          event.preventDefault();run(()=>addCoverageTeamMemberAction(eventId,new FormData(event.currentTarget)),
-            "Colaborador adicionado e notificado.");
+          event.preventDefault();run(()=>assignCoverageTasksAction(eventId,new FormData(event.currentTarget)),
+            "Tarefas atribuídas e colaborador notificado.");
         }}>
-          <label className="agenda-field"><span>Colaborador</span>
-            <select name="team_new_person" required defaultValue={available[0].id}>
-              {available.map(p=><option value={p.id} key={p.id}>{p.name}</option>)}
-            </select>
-          </label>
-          <label className="agenda-field"><span>Tarefa</span>
-            <input name="team_new_task" required minLength={2} maxLength={80}
-              list="agenda-task-suggestions" defaultValue="Fotos / cobertura"/>
-          </label>
-          <button type="submit" className="agenda-primary" disabled={isPending}>Adicionar</button>
+          <CoverageTeamAddFields profiles={data.profiles}
+            currentUserId={data.currentUserId}
+            existing={coverage.members.map(m=>m.profileId)}/>
+          <button type="submit" className="agenda-primary" disabled={isPending}>Salvar novas tarefas</button>
         </form>
       </details>:null}
       {(me||writer||manager)?<details className="coverage-options">
@@ -709,7 +775,7 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
             {!manager?<input type="hidden" name="transfer_from" value={data.currentUserId}/>:null}
           </label>
           <label className="agenda-field"><span>Transferir</span>
-            <select name="transfer_part" defaultValue={writer&&!me?.fieldTask?"article":"field"}>
+            <select name="transfer_part" defaultValue={writer&&!me?.tasks.length?"article":"field"}>
               <option value="field">Fotos/vídeo (campo)</option>
               <option value="article">Matéria</option>
               <option value="both">Ambas</option>
@@ -730,7 +796,7 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
           <button type="submit" className="agenda-primary" disabled={isPending}>Solicitar transferência</button>
         </form>
       </details>:null}
-      {manager||me?.fieldTask?<details className="coverage-options">
+      {manager||Boolean(me?.tasks.length)?<details className="coverage-options">
         <summary>⚙ Horários do evento</summary>
         <form className="coverage-form" onSubmit={event=>{
           event.preventDefault();run(()=>saveCoverageAlertsAction(eventId,new FormData(event.currentTarget)),
