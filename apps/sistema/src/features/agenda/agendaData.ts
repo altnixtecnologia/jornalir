@@ -105,6 +105,7 @@ export async function loadAgendaWorkspaceData(focusDate: string): Promise<Agenda
     supabase.rpc("has_staff_module_access", { p_module: "agenda", p_write: true }),
     supabase.rpc("has_staff_module_access", { p_module: "pauta", p_write: false }),
     supabase.rpc("has_staff_module_access", { p_module: "pauta", p_write: true }),
+    supabase.rpc("is_agenda_manager"),
   ]);
   const failedPermission = permissionResults.find((result) => result.error);
   if (failedPermission?.error) throw new Error(failedPermission.error.message);
@@ -114,6 +115,7 @@ export async function loadAgendaWorkspaceData(focusDate: string): Promise<Agenda
     pautaRead: permissionResults[2].data === true,
     pautaWrite: permissionResults[3].data === true,
     editorialLinkAccess: false,
+    coverageManage: permissionResults[4].data === true,
   };
   if (!access.agendaRead && !access.pautaRead) redirect("/sistema");
 
