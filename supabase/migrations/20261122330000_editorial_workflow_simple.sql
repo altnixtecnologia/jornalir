@@ -6,6 +6,7 @@ alter table public.agenda_events
  add column council_city text,
  add column article_owner_id uuid references public.profiles(id),
  add column article_due_at timestamptz,
+ add column article_due_time_explicit boolean not null default false,
  add column article_completed_at timestamptz,
  add column article_completed_by uuid references public.profiles(id),
  add column workflow_closed_at timestamptz,
@@ -124,7 +125,7 @@ begin
      raise exception 'Já existe sessão cadastrada para este município e dia';end if;
    insert into public.agenda_events(
      title,description,event_date,start_time,end_time,location,event_kind,
-     reminder_minutes,show_in_agenda,workflow_kind,council_city,article_owner_id,article_due_at
+     reminder_minutes,show_in_agenda,workflow_kind,council_city,article_owner_id,article_due_at,article_due_time_explicit
    ) values(
      btrim(p_title),p_description,v_occurrence,
      case when p_kind='article' then null else p_start_time end,
@@ -134,7 +135,8 @@ begin
      p_kind<>'article',p_kind,p_city,p_writer,
      case when v_occ_due is null then null else
        (v_occ_due+coalesce(p_due_time,time '23:59')) at time zone 'America/Sao_Paulo'
-     end
+     end,
+     p_due_time is not null
    ) returning id into v_event;
    for v_row in select value as item from jsonb_array_elements(p_crew) loop
      v_id:=(v_row.item->>'profileId')::uuid;
@@ -260,6 +262,7 @@ begin
     article_due_at=case when p_due_date is null then null
       else (p_due_date+coalesce(p_due_time,time '23:59'))
         at time zone 'America/Sao_Paulo' end,
+    article_due_time_explicit=(p_due_time is not null),
     updated_by=auth.uid(),updated_at=now()
  where id=p_event_id;
  update public.weekly_pauta_items set due_date=p_due_date,
@@ -328,3 +331,149 @@ drop trigger if exists guard_editorial_workflow_close on public.agenda_events;
 create trigger guard_editorial_workflow_close
  before update of status on public.agenda_events
  for each row execute function public.guard_editorial_workflow_close();
+
+
+-- Sem criar duplicata: converte um compromisso que já existe em um dos fluxos.
+-- Preserva o ID, a Pauta vinculada e os registros da Agenda.
+create or replace function public.activate_editorial_workflow(
+ p_event_id uuid,p_kind text,p_city text,p_crew jsonb,p_writer uuid,
+ p_due_date date,p_due_time time
+) returns boolean language plpgsql security definer set search_path='' as $$
+declare e public.agenda_events%rowtype;v_row record;v_task record;
+ v_id uuid;v_ids uuid[]:=array[]::uuid[];v_tasks jsonb;v_seen text[];v_label text;v_kind text;
+ v_attends boolean;v_existing uuid;v_week date;
+begin
+ if not public.can_manage_editorial_workflow() then raise exception 'Sem permissão' using errcode='42501';end if;
+ if p_kind not in('event','council','visit') then raise exception 'Tipo inválido';end if;
+ select * into e from public.agenda_events where id=p_event_id for update;
+ if not found or e.status<>'scheduled' or e.workflow_kind<>'general' or
+   exists(select 1 from public.event_coverages where event_id=p_event_id) then
+   raise exception 'Compromisso não pode ser convertido sem preservar a cobertura existente';end if;
+ if p_kind='council' and p_city not in(
+ 'Morrinhos do Sul/RS','Mampituba/RS','Praia Grande/SC','São João do Sul/SC',
+ 'Santa Rosa do Sul/SC','Torres/RS','Passo de Torres/SC') then raise exception 'Município inválido';end if;
+ if p_kind<>'council' and p_city is not null then raise exception 'Município inválido';end if;
+ if p_due_time is not null and p_due_date is null then raise exception 'Data do prazo ausente';end if;
+ if p_crew is null or jsonb_typeof(p_crew)<>'array' or jsonb_array_length(p_crew) not between 1 and 16 then
+  raise exception 'Informe os colaboradores';end if;
+ for v_row in select value as item from jsonb_array_elements(p_crew) loop
+  begin v_id:=(v_row.item->>'profileId')::uuid;
+  exception when others then raise exception 'Colaborador inválido';end;
+  if v_id is null or v_id=any(v_ids) or not exists(
+    select 1 from public.profiles p where p.id=v_id and p.active) then
+    raise exception 'Colaborador repetido ou inativo';end if;
+  v_ids:=array_append(v_ids,v_id);
+  v_tasks:=coalesce(v_row.item->'tasks','[]'::jsonb);
+  if jsonb_typeof(v_tasks)<>'array' or jsonb_array_length(v_tasks)>8 then raise exception 'Tarefas inválidas';end if;
+  v_seen:=array[]::text[];
+  for v_task in select value as item from jsonb_array_elements(v_tasks) loop
+    v_kind:=v_task.item->>'kind';v_label:=btrim(coalesce(v_task.item->>'label',''));
+    if length(v_label) not between 2 and 80 or lower(v_label)=any(v_seen) or
+      (v_kind='media' and v_label<>'Fotos e vídeos') or
+      (v_kind='interviews' and v_label<>'Entrevistas') or
+      (v_kind='live' and v_label<>'Transmissão') or
+      (v_kind='research' and v_label<>'Apuração de informações') or
+      v_kind not in('media','interviews','live','research','custom') then
+      raise exception 'Tarefa inválida';end if;
+    v_seen:=array_append(v_seen,lower(v_label));
+  end loop;
+ end loop;
+ if p_writer is not null and not p_writer=any(v_ids) then raise exception 'Selecione o redator entre os escalados';end if;
+ select id into v_existing from public.weekly_pauta_items where agenda_event_id=p_event_id limit 1;
+ if v_existing is not null and p_writer is null then
+   raise exception 'Há uma Pauta vinculada. Selecione quem fará a matéria';end if;
+ update public.agenda_events set
+  workflow_kind=p_kind,council_city=p_city,article_owner_id=p_writer,
+  article_due_at=case when p_due_date is null then null else
+    (p_due_date+coalesce(p_due_time,time '23:59')) at time zone 'America/Sao_Paulo' end,
+  article_due_time_explicit=p_due_time is not null,
+  event_kind=case when p_writer is not null then 'editorial' else 'general' end,
+  updated_by=auth.uid(),updated_at=now()
+ where id=p_event_id;
+ -- Substituir apenas a escala pendente (compromisso ainda não encerrado).
+ delete from public.agenda_event_assignees
+ where event_id=p_event_id and assignment_type='responsible' and
+  profile_id<>all(v_ids) and completed_at is null;
+ for v_row in select value as item from jsonb_array_elements(p_crew) loop
+   v_id:=(v_row.item->>'profileId')::uuid;
+   v_tasks:=coalesce(v_row.item->'tasks','[]'::jsonb);
+   v_attends:=coalesce((v_row.item->>'attends')::boolean,true);
+   insert into public.agenda_event_assignees(
+    event_id,profile_id,assignment_type,workflow_tasks,attendance_response)
+   values(p_event_id,v_id,'responsible',v_tasks,
+    case when v_attends then 'pending' else 'not_required' end)
+   on conflict(event_id,profile_id) do update set
+     workflow_tasks=excluded.workflow_tasks,
+     attendance_response=excluded.attendance_response,
+     attendance_responded_at=null,attendance_marked_by=null;
+ end loop;
+ if p_writer is not null then
+   if v_existing is null then
+     v_week:=public.pauta_week_start(e.event_date);
+     insert into public.weekly_pauta_items(
+      week_start,title,description,due_date,due_time,responsible_profile_id,agenda_event_id)
+     values(v_week,e.title,e.description,p_due_date,
+       case when p_due_date is not null then p_due_time else null end,p_writer,p_event_id);
+   else
+     update public.weekly_pauta_items set responsible_profile_id=p_writer,
+       due_date=p_due_date,due_time=case when p_due_date is not null then p_due_time else null end,
+       updated_by=auth.uid(),updated_at=now() where id=v_existing;
+   end if;
+ end if;
+ return true;
+end;$$;
+revoke all on function public.activate_editorial_workflow(uuid,text,text,jsonb,uuid,date,time) from public,anon;
+grant execute on function public.activate_editorial_workflow(uuid,text,text,jsonb,uuid,date,time) to authenticated;
+
+create or replace function public.adjust_editorial_workflow_task(
+ p_event_id uuid,p_from uuid,p_kind text,p_label text,
+ p_action text,p_to uuid,p_new_label text
+) returns boolean language plpgsql security definer set search_path='' as $$
+declare v_event public.agenda_events%rowtype;v_tasks jsonb;v_dst jsonb;
+ v_index integer;v_item jsonb;v_new jsonb;v_name text;
+begin
+ if not public.can_manage_editorial_workflow() then
+   raise exception 'Somente administração pode alterar tarefas alheias' using errcode='42501';end if;
+ select * into v_event from public.agenda_events where id=p_event_id for update;
+ if not found or v_event.workflow_kind='general' or v_event.workflow_closed_at is not null then
+   raise exception 'Compromisso encerrado ou inexistente';end if;
+ if p_action not in('edit','move','delete') then raise exception 'Ação inválida';end if;
+ select workflow_tasks into v_tasks from public.agenda_event_assignees
+   where event_id=p_event_id and profile_id=p_from for update;
+ if v_tasks is null then raise exception 'Colaborador não escalado';end if;
+ select ordinality::integer-1,value into v_index,v_item
+   from jsonb_array_elements(v_tasks) with ordinality
+  where value->>'kind'=p_kind and value->>'label'=p_label limit 1;
+ if v_index is null then raise exception 'Tarefa não encontrada';end if;
+ if p_action='edit' then
+   v_name:=btrim(coalesce(p_new_label,''));
+   if length(v_name) not between 2 and 80 then raise exception 'Descrição inválida';end if;
+   v_new:=jsonb_build_object('kind','custom','label',v_name);
+ elsif p_action='move' then
+   if p_to is null or p_to=p_from then raise exception 'Selecione outro colaborador';end if;
+   select workflow_tasks into v_dst from public.agenda_event_assignees
+    where event_id=p_event_id and profile_id=p_to for update;
+   if v_dst is null then raise exception 'Destino não escalado';end if;
+   if jsonb_array_length(v_dst)>=8 then raise exception 'Destino já tem oito funções';end if;
+   if exists(select 1 from jsonb_array_elements(v_dst) item
+     where lower(item->>'label')=lower(p_label)) then raise exception 'Tarefa duplicada no destino';end if;
+   v_new:=v_item;
+ end if;
+ if p_action='edit' and exists(select 1 from jsonb_array_elements(v_tasks) item
+    where lower(item->>'label')=lower(v_name) and item<>v_item) then
+    raise exception 'Tarefa duplicada';end if;
+ update public.agenda_event_assignees set workflow_tasks=v_tasks-v_index
+   where event_id=p_event_id and profile_id=p_from;
+ if p_action='edit' then
+   update public.agenda_event_assignees set workflow_tasks=workflow_tasks||jsonb_build_array(v_new)
+    where event_id=p_event_id and profile_id=p_from;
+ elsif p_action='move' then
+   update public.agenda_event_assignees set workflow_tasks=workflow_tasks||jsonb_build_array(v_new)
+    where event_id=p_event_id and profile_id=p_to;
+ end if;
+ return true;
+end;$$;
+revoke all on function public.adjust_editorial_workflow_task(uuid,uuid,text,text,text,uuid,text)
+ from public,anon;
+grant execute on function public.adjust_editorial_workflow_task(uuid,uuid,text,text,text,uuid,text)
+ to authenticated;
