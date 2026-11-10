@@ -7583,3 +7583,105 @@ details.pauta-item:has(.workflow-pauta-tools)>.workflow-collapsed-summary{paddin
 .workflow-article-edit-actions{display:flex;gap:8px;justify-content:flex-end}
 .workflow-article-edit-actions button{min-height:36px;padding:7px 12px}
 @media(max-width:560px){.workflow-people-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.workflow-people-choice{padding:7px 6px;gap:6px;font-size:11px}.workflow-people-avatar{width:26px;height:26px}.workflow-article-team .workflow-article-deadline>.workflow-schedule{grid-template-columns:1fr}.workflow-article-edit{padding:9px}}
+
+
+/* Pauta: alinhar a seta na extremidade de TODOS os cartões, com ações visíveis
+   mesmo quando recolhidos (botões dentro do <summary>). */
+.is-pauta-workspace details.pauta-item > .workflow-collapsed-summary,
+.is-pauta-workspace details.pauta-item:has(.workflow-pauta-tools) > .workflow-collapsed-summary{
+ display:flex;
+ align-items:center;
+ justify-content:flex-start;
+ gap:8px;
+ padding:10px 12px 10px 15px;
+ min-height:52px;
+}
+.is-pauta-workspace details.pauta-item > .workflow-collapsed-summary .pauta-summary-title{
+ flex:1 1 auto;
+ min-width:0;
+ text-align:left;
+}
+.is-pauta-workspace details.pauta-item .workflow-pauta-tools{
+ position:static;
+ inset:auto;
+ z-index:auto;
+ transform:none;
+ display:inline-flex;
+ align-items:center;
+ flex:none;
+ gap:5px;
+}
+.is-pauta-workspace details.pauta-item .workflow-pauta-tools button{
+ width:28px;
+ height:28px;
+ min-height:28px;
+ border-radius:7px;
+ font-size:14px;
+}
+.is-pauta-workspace details.pauta-item > .workflow-collapsed-summary .workflow-expand-chevron{
+ flex:0 0 28px;
+ width:28px;
+ height:28px;
+ display:grid;
+ place-items:center;
+ border:1px solid #e0e6ef;
+ border-radius:8px;
+ background:#f6f8fb;
+ color:#566682;
+ font-size:0;
+ line-height:1;
+ transform:none;
+ transition:background .15s ease;
+ pointer-events:none;
+}
+.is-pauta-workspace details.pauta-item > .workflow-collapsed-summary .workflow-expand-chevron::before{
+ content:"";
+ display:block;
+ width:7px;
+ height:7px;
+ border-right:2px solid currentColor;
+ border-bottom:2px solid currentColor;
+ transform:translateY(-2px) rotate(45deg);
+ transition:transform .15s ease;
+}
+.is-pauta-workspace details.pauta-item[open] > .workflow-collapsed-summary .workflow-expand-chevron{
+ transform:none;
+ background:#eaf0f8;
+}
+.is-pauta-workspace details.pauta-item[open] > .workflow-collapsed-summary .workflow-expand-chevron::before{
+ transform:translateY(2px) rotate(225deg);
+}
+.is-pauta-workspace details.pauta-item > .workflow-collapsed-summary:hover .workflow-expand-chevron{
+ background:#eaf0f8;
+}
+/* Controles superiores: links à esquerda, contagem isolada à direita. */
+.is-pauta-workspace .pauta-actions-row{
+ display:flex;
+ align-items:center;
+ justify-content:flex-start;
+ flex-wrap:wrap;
+ column-gap:16px;
+ row-gap:10px;
+ min-height:40px;
+}
+.is-pauta-workspace .pauta-actions-row .pauta-tv-link{
+ margin-left:0;
+ flex:none;
+}
+.is-pauta-workspace .pauta-actions-row > span:last-child{
+ margin-left:auto;
+ padding-left:16px;
+ border-left:1px solid var(--line);
+ white-space:nowrap;
+ font-weight:750;
+}
+@media(max-width:560px){
+ .is-pauta-workspace details.pauta-item > .workflow-collapsed-summary,
+ .is-pauta-workspace details.pauta-item:has(.workflow-pauta-tools) > .workflow-collapsed-summary{
+  gap:6px;
+  padding:8px 9px;
+  min-height:48px;
+ }
+ .is-pauta-workspace .pauta-actions-row{column-gap:10px;row-gap:8px;}
+ .is-pauta-workspace .pauta-actions-row > span:last-child{padding-left:10px;}
+}
