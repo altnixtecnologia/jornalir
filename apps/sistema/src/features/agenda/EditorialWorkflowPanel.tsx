@@ -1,6 +1,7 @@
 "use client";
 
 import {useState} from "react";
+import Link from "next/link";
 import type {AgendaEventItem,AgendaProfile} from "./agendaTypes";
 import type {AgendaActionResult} from "./actions";
 import {
@@ -35,9 +36,9 @@ function parts(iso:string|null,explicit:boolean):{date:string;time:string}{
 }
 
 export function EditorialWorkflowPanel({item,currentUserId,manager,profiles,
- isPending,onAction,mode}:{
+ isPending,onAction,mode,showPautaLink=false}:{
  item:AgendaEventItem;currentUserId:string;manager:boolean;
- profiles:AgendaProfile[];isPending:boolean;mode:"agenda"|"pauta";
+ profiles:AgendaProfile[];isPending:boolean;mode:"agenda"|"pauta";showPautaLink?:boolean;
  onAction:(action:()=>Promise<AgendaActionResult>,success:string)=>void;
 }):JSX.Element {
  const writer=item.articleOwnerId===currentUserId;
@@ -121,8 +122,10 @@ export function EditorialWorkflowPanel({item,currentUserId,manager,profiles,
       })}
     </div>:null}
    {mode==="agenda"&&item.articleOwnerId?<div className="workflow-agenda-linked-pauta">
-     <span>Matéria vinculada à Pauta</span>
-     <small>Responsável: {name(item.articleOwnerId)} · {item.articleCompletedAt?"Concluída":"A produzir"}</small>
+     <span>Matéria vinculada à Pauta · {item.articleCompletedAt?"Concluída":"A produzir"}</span>
+     {showPautaLink?<Link href={"/sistema/pauta?date="+encodeURIComponent(item.eventDate)}>
+       Abrir na Pauta
+     </Link>:null}
    </div>:null}
    {mode==="pauta"&&item.articleOwnerId?<div className="workflow-article-status">
      <div className="workflow-article-top">
