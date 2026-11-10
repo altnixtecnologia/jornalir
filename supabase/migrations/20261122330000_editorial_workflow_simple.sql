@@ -133,7 +133,7 @@ begin
      case when p_start_time is not null and p_kind<>'article' then 30 else null end,
      p_kind<>'article',p_kind,p_city,p_writer,
      case when v_occ_due is null then null else
-       (v_occ_due::timestamp+coalesce(p_due_time,time '23:59')) at time zone 'America/Sao_Paulo'
+       (v_occ_due+coalesce(p_due_time,time '23:59')) at time zone 'America/Sao_Paulo'
      end
    ) returning id into v_event;
    for v_row in select value as item from jsonb_array_elements(p_crew) loop
@@ -258,7 +258,7 @@ begin
    raise exception 'Informe data ou limpe o horário';end if;
  update public.agenda_events set
     article_due_at=case when p_due_date is null then null
-      else (p_due_date::timestamp+coalesce(p_due_time,time '23:59'))
+      else (p_due_date+coalesce(p_due_time,time '23:59'))
         at time zone 'America/Sao_Paulo' end,
     updated_by=auth.uid(),updated_at=now()
  where id=p_event_id;
@@ -312,3 +312,19 @@ end;$$;
 
 -- Menos alertas: apenas prazos editoriais expressamente preenchidos.
 -- O fechamento registra "Não confirmou"; ausência de resposta não bloqueia.
+
+-- Impede o botão antigo de concluir uma cobertura sem registrar faltas de resposta.
+create or replace function public.guard_editorial_workflow_close()
+returns trigger language plpgsql security definer set search_path='' as $$
+begin
+ if new.workflow_kind<>'general'
+  and new.status='completed' and old.status<>'completed'
+  and (new.workflow_closed_at is null or new.workflow_closed_by is null) then
+   raise exception 'Use Concluir matéria ou Encerrar compromisso para registrar as presenças';
+ end if;
+ return new;
+end;$$;
+drop trigger if exists guard_editorial_workflow_close on public.agenda_events;
+create trigger guard_editorial_workflow_close
+ before update of status on public.agenda_events
+ for each row execute function public.guard_editorial_workflow_close();
