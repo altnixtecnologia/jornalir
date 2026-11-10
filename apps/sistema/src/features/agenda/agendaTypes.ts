@@ -1,9 +1,18 @@
 export type CoverageAttendance = "pending" | "present" | "not_required" | "unable";
 
+export interface CoverageTask {
+  id:string;
+  kind:import("./coverageTaskCatalog").CoverageTaskKind;
+  label:string;
+  completedAt:string|null;
+  completedBy:string|null;
+}
+
 export interface CoverageTeamMember {
   profileId: string;
   fieldTask: string | null;
   fieldCompletedAt: string | null;
+  tasks: CoverageTask[];
   attendanceResponse: CoverageAttendance;
   attendanceRespondedAt: string | null;
 }
