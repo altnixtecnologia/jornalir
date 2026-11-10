@@ -2,6 +2,7 @@
 
 import {useRef,useState,type PointerEvent,type KeyboardEvent} from "react";
 import type {CoverageTaskDraft} from "./coverageTaskCatalog";
+import {reorderTaskItems} from "./workflowTaskOrder";
 
 /** Um toque comum não abre menu. Movimento arrasta; 3s parado abre Editar/Excluir. */
 export function WorkflowTaskChips({
@@ -31,10 +32,7 @@ export function WorkflowTaskChips({
  };
  const reorder=(from:number,to:number)=>{
    if(!editable||!onReorder||from===to||to<0||to>=tasks.length)return;
-   const ordered=[...tasks];
-   const [task]=ordered.splice(from,1);
-   ordered.splice(to,0,task);
-   onReorder(ordered);
+   onReorder(reorderTaskItems(tasks,from,to));
  };
  const down=(event:PointerEvent<HTMLButtonElement>,from:number)=>{
    if(!editable||event.button!==0)return;
