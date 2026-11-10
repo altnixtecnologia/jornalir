@@ -1,6 +1,9 @@
 name: Portal/Leitor - fechamento e segurança (sem deploy)
 
 on:
+  push:
+    branches:
+      - security/portal-fechamento-next15-20261110
   pull_request:
     paths:
       - "apps/site/**"
