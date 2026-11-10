@@ -8175,6 +8175,11 @@ details.pauta-item:has(.workflow-pauta-tools)>.workflow-collapsed-summary{paddin
   .agenda-mobile-page .is-pauta-workspace .pauta-list{isolation:auto}
   .agenda-mobile-page .is-pauta-workspace details.pauta-item[open]{z-index:2001}
   .agenda-mobile-page .is-pauta-workspace details.pauta-item[open]>.workflow-expanded-body.pauta-expanded-body{
+    /* O cabecalho inserido ocupa uma linha inteira; checkbox e conteudo
+       ficam nas DUAS colunas seguintes, nunca na estreita ultima coluna. */
+    display:grid;
+    grid-template-columns:30px minmax(0,1fr);
+    column-gap:9px;row-gap:5px;align-items:start;
     position:fixed;z-index:2002;
     top:auto;left:9px;right:9px;width:auto;
     bottom:calc(70px + env(safe-area-inset-bottom,0px));
@@ -8185,14 +8190,26 @@ details.pauta-item:has(.workflow-pauta-tools)>.workflow-collapsed-summary{paddin
     background:#fff;box-shadow:0 13px 42px rgba(19,35,59,.27);
   }
   .agenda-mobile-page .pauta-mobile-detail-heading{
+    grid-column:1/-1;min-width:0;
     position:sticky;top:0;z-index:1;
     display:flex;align-items:center;justify-content:space-between;gap:8px;
     padding:9px 2px 7px;margin:0 0 7px;
     border-bottom:1px solid #e2e9f2;background:#fff;font-size:12px;
   }
   .agenda-mobile-page .pauta-mobile-detail-heading button{
+    flex:0 0 auto;white-space:nowrap;
     min-height:32px;border:1px solid #d5e0ee;border-radius:7px;
     padding:4px 9px;background:#f6f9fc;color:#365579;
     font-size:11px;font-weight:750;
+  }
+  .agenda-mobile-page .is-pauta-workspace .pauta-expanded-body>.pauta-check,
+  .agenda-mobile-page .is-pauta-workspace .pauta-expanded-body>.pauta-check-placeholder{
+    grid-column:1;
+    min-width:0;
+  }
+  .agenda-mobile-page .is-pauta-workspace .pauta-expanded-body>.pauta-item-content{
+    grid-column:2;
+    min-width:0;width:100%;max-width:100%;
+    overflow-wrap:break-word;
   }
 }
