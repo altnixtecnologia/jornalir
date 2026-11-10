@@ -1,0 +1,48 @@
+name: Pauta - edição, transferência e Agenda individual (sem deploy)
+
+on:
+  push:
+    branches:
+      - fix/pauta-edicao-777-agenda-individual-20261110
+  pull_request:
+    paths:
+      - "apps/sistema/src/features/agenda/**"
+      - "apps/sistema/src/app/globals.css"
+      - "apps/sistema/test/pauta-*.test.ts"
+      - "supabase/migrations/*pauta*.sql"
+      - ".github/workflows/validate-pauta-fechamento-20261110.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  pauta:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ci-anon-key
+      NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ci-publishable-key
+      NEXT_TELEMETRY_DISABLED: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+      - name: Dependências com lockfile
+        run: npm ci --no-audit --no-fund
+      - name: Cálculo da edição, período e TV
+        run: |
+          npx tsx --test apps/sistema/test/pauta-edition-number.test.ts
+          npx tsx --test apps/sistema/test/pauta-period.test.ts
+          npx tsx --test apps/sistema/test/pauta-tv-layout.test.ts
+      - name: Navegação, lembretes e convites
+        run: |
+          NODE_OPTIONS=--conditions=react-server npx tsx --test apps/sistema/test/agenda-pauta-navigation.test.ts
+          NODE_OPTIONS=--conditions=react-server npx tsx --test apps/sistema/test/coverage-reminder.test.ts
+      - name: TypeScript do sistema completo
+        run: npm run typecheck --workspace @ir/sistema
+      - name: Build do sistema sem publicar
+        run: npm run build --workspace @ir/sistema

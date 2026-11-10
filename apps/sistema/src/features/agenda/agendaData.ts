@@ -4,8 +4,10 @@ import { redirect } from "next/navigation";
 import { createSupabaseServerClient } from "../../lib/supabase/server";
 import type { AgendaEventItem, AgendaProfile, AgendaWorkspaceData, CoverageTeamMember, CoverageTeamTransfer, EventCoverage, PendingMeetingInvitation, WeeklyPautaItem } from "./agendaTypes";
 import { startOfPautaWeek } from "./pautaPeriod";
+import { automaticPautaEditionNumber } from "./pautaEdition";
 
 export const AGENDA_TIMEZONE = "America/Sao_Paulo";
+const EVENT_COLUMNS = "id, title, description, event_date, start_time, end_time, location, status, reminder_minutes, event_kind, show_in_agenda, completed_at, updated_at, workflow_kind, council_city, article_owner_id, article_due_at, article_due_time_explicit, article_completed_at, article_completed_by, workflow_closed_at, workflow_closed_by";
 
 function ymdUtc(date: Date): string {
   const year = date.getUTCFullYear();
@@ -121,9 +123,14 @@ export async function loadAgendaWorkspaceData(focusDate: string): Promise<Agenda
   };
   if (!access.agendaRead && !access.pautaRead) redirect("/sistema");
 
-  const periodResult = await supabase.from("pauta_week_overrides")
-    .select("period_start,period_end,reason").eq("week_start", weekStart).maybeSingle();
+  const [periodResult,editionResult] = await Promise.all([
+    supabase.from("pauta_week_overrides")
+      .select("period_start,period_end,reason").eq("week_start",weekStart).maybeSingle(),
+    supabase.from("pauta_edition_overrides")
+      .select("edition_number").eq("week_start",weekStart).maybeSingle(),
+  ]);
   if (periodResult.error) throw new Error(periodResult.error.message);
+  if (editionResult.error) throw new Error(editionResult.error.message);
   const periodStart = periodResult.data?.period_start ?? weekStart;
   const periodEnd = periodResult.data?.period_end ?? weekEnd;
   const eventRangeStart = periodStart < month.start ? periodStart : month.start;
@@ -133,7 +140,7 @@ export async function loadAgendaWorkspaceData(focusDate: string): Promise<Agenda
     supabase.from("profiles").select("id, name, role").eq("active", true).order("name", { ascending: true }),
     supabase
       .from("agenda_events")
-      .select("id, title, description, event_date, start_time, end_time, location, status, reminder_minutes, event_kind, show_in_agenda, completed_at, updated_at, workflow_kind, council_city, article_owner_id, article_due_at, article_due_time_explicit, article_completed_at, article_completed_by, workflow_closed_at, workflow_closed_by")
+      .select(EVENT_COLUMNS)
       .gte("event_date", eventRangeStart)
       .lte("event_date", eventRangeEnd)
       .order("event_date", { ascending: true })
@@ -153,6 +160,18 @@ export async function loadAgendaWorkspaceData(focusDate: string): Promise<Agenda
   if (eventsResult.error) throw new Error(eventsResult.error.message);
   if (pautaResult.error) throw new Error(pautaResult.error.message);
 
+  // O período editorial pode mudar sem alterar a data do compromisso original.
+  // Por isso, recuperar eventos ligados à Pauta mesmo fora do mês visível.
+  const currentIds = new Set((eventsResult.data ?? []).map(event=>event.id));
+  const missingIds=[...new Set((pautaResult.data??[])
+    .map(item=>item.agenda_event_id).filter((id):id is string=>Boolean(id)&&!currentIds.has(id!)))];
+  let eventRows=[...(eventsResult.data??[])];
+  if(missingIds.length){
+    const additional=await supabase.from("agenda_events").select(EVENT_COLUMNS).in("id",missingIds);
+    if(additional.error)throw new Error(additional.error.message);
+    eventRows=[...eventRows,...(additional.data??[])];
+  }
+
   const me = (profilesResult.data ?? []).find((profile) => profile.id === user.id);
   access.editorialLinkAccess = Boolean(me && (me.role === "owner" || me.role === "admin"));
   if (me?.role === "operator") {
@@ -169,7 +188,37 @@ export async function loadAgendaWorkspaceData(focusDate: string): Promise<Agenda
   const profileName = new Map(profiles.map((profile) => [profile.id, profile.name]));
 
   const pendingInvitations = await loadMyPendingMeetingInvitations(supabase, user.id, today);
-  const eventIds = (eventsResult.data ?? []).map((event) => event.id);
+  const eventIds = eventRows.map(event=>event.id);
+  const pautaIds = (pautaResult.data??[]).map(item=>item.id);
+  const [linksForPauta,linksForEvents]=await Promise.all([
+    pautaIds.length?supabase.from("pauta_agenda_appointments")
+      .select("pauta_id,profile_id,event_id").in("pauta_id",pautaIds)
+      :Promise.resolve({data:[],error:null}),
+    eventIds.length?supabase.from("pauta_agenda_appointments")
+      .select("pauta_id,profile_id,event_id").in("event_id",eventIds)
+      :Promise.resolve({data:[],error:null}),
+  ]);
+  if(linksForPauta.error)throw new Error(linksForPauta.error.message);
+  if(linksForEvents.error)throw new Error(linksForEvents.error.message);
+  const linkRows=[...new Map([...(linksForPauta.data??[]),...(linksForEvents.data??[])]
+    .map(row=>[row.event_id,row])).values()];
+  const appointmentByEvent=new Map(linkRows.map(row=>[row.event_id,row]));
+  const appointmentIds=linkRows.map(row=>row.event_id);
+  const appointmentDateResult=appointmentIds.length
+    ?await supabase.from("agenda_events").select("id,event_date,start_time").in("id",appointmentIds)
+    :{data:[],error:null};
+  if(appointmentDateResult.error)throw new Error(appointmentDateResult.error.message);
+  const appointmentDateById=new Map((appointmentDateResult.data??[])
+    .map(row=>[row.id,row]));
+  const appointmentsByPauta=new Map<string,WeeklyPautaItem["appointments"]>();
+  for(const entry of linkRows){
+    const date=appointmentDateById.get(entry.event_id);
+    if(!date)continue;
+    const list=appointmentsByPauta.get(entry.pauta_id)??[];
+    list.push({profileId:entry.profile_id,personName:profileName.get(entry.profile_id)??"Colaborador",
+      eventId:entry.event_id,eventDate:date.event_date,startTime:trimDbTime(date.start_time)});
+    appointmentsByPauta.set(entry.pauta_id,list);
+  }
 
   // Coberturas usam o mesmo evento nas duas telas. As etapas não dependem
   // do status de presença de um compromisso comum.
@@ -318,7 +367,7 @@ export async function loadAgendaWorkspaceData(focusDate: string): Promise<Agenda
     invitees.push(invitation);
     inviteesByEvent.set(row.event_id,invitees);
   }
-  const events: AgendaEventItem[] = (eventsResult.data ?? []).map((event) => ({
+  const events: AgendaEventItem[] = eventRows.map((event) => ({
     id: event.id,
     title: event.title,
     description: event.description,
@@ -337,6 +386,8 @@ export async function loadAgendaWorkspaceData(focusDate: string): Promise<Agenda
     workflowClosedAt:event.workflow_closed_at,
     workflowClosedBy:event.workflow_closed_by,
     showInAgenda: event.show_in_agenda,
+    appointmentPautaId: appointmentByEvent.get(event.id)?.pauta_id ?? null,
+    appointmentOwnerId: appointmentByEvent.get(event.id)?.profile_id ?? null,
     coverage: coverageByEvent.get(event.id) ?? null,
     completedAt: event.completed_at,
     updatedAt: event.updated_at,
@@ -365,8 +416,9 @@ export async function loadAgendaWorkspaceData(focusDate: string): Promise<Agenda
     coverage: linked?.coverage ?? (item.agenda_event_id ? coverageByEvent.get(item.agenda_event_id) ?? null : null),
     workflow:linked?.workflowKind!=="general"?linked??null:null,
     articleId: item.article_id,
-    // A presença fecha a Agenda; a Pauta mantém o status próprio de entregas.
-    status: linked?.coverage?.teamMode
+    appointments: appointmentsByPauta.get(item.id)??[],
+    // Exclusão só da Pauta jamais cancela compromisso original da Agenda.
+    status: item.status==="cancelled"?"cancelled":linked?.coverage?.teamMode
       ? item.status as WeeklyPautaItem["status"]
       : linked ? (linked.status === "scheduled" ? "pending" : linked.status)
       : item.status as WeeklyPautaItem["status"],
@@ -387,6 +439,8 @@ export async function loadAgendaWorkspaceData(focusDate: string): Promise<Agenda
     periodEnd,
     periodReason: periodResult.data?.reason ?? null,
     periodEdited: Boolean(periodResult.data),
+    editionNumber:editionResult.data?.edition_number??automaticPautaEditionNumber(weekStart),
+    editionEdited:Boolean(editionResult.data),
     currentUserId: user.id,
     access,
     profiles,

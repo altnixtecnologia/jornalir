@@ -9,10 +9,13 @@ export function EditorialPautaEdit({item,profiles,isPending,onSave,onCancel}:{it
   <h4>Editar matéria</h4>
   <label className="agenda-field"><span>Título</span><input name="title" required maxLength={180} defaultValue={item.title}/></label>
   <WorkflowPeoplePicker profiles={profiles} selected={selected} onChange={setSelected}/>
-  <div className="workflow-article-deadline"><strong>Prazo (opcional)</strong><div className="workflow-schedule">
-    <label className="agenda-field"><span>Data</span><input type="date" name="article_due_date" value={date} onChange={e=>{setDate(e.currentTarget.value);if(!e.currentTarget.value)setTime("");}}/></label>
-    <label className="agenda-field"><span>Hora</span><input type="time" name="article_due_time" disabled={!date} value={time} onChange={e=>setTime(e.currentTarget.value)}/></label>
-  </div></div>
+  <div className="workflow-article-deadline"><strong>Prazo da matéria (opcional)</strong>
+   <div className="pauta-compact-datetime">
+     <label>Data <input type="date" name="article_due_date" value={date} onChange={e=>{setDate(e.currentTarget.value);if(!e.currentTarget.value)setTime("");}}/></label>
+     <label>Hora <input type="time" name="article_due_time" disabled={!date} value={time} onChange={e=>setTime(e.currentTarget.value)}/></label>
+   </div>
+   <small>Os compromissos individuais são editados na Agenda, não por este prazo.</small>
+  </div>
   <label className="agenda-field"><span>Observações</span><textarea name="description" maxLength={4000} rows={2} defaultValue={item.description??""}/></label>
   {error?<span className="workflow-error" role="alert">{error}</span>:null}
   <div className="workflow-article-edit-actions"><button type="button" onClick={onCancel} disabled={isPending}>Cancelar</button><button type="submit" className="agenda-primary" disabled={isPending}>{isPending?"Salvando...":"Salvar alterações"}</button></div>

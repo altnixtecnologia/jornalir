@@ -90,6 +90,8 @@ export interface AgendaEventItem {
   workflowClosedAt:string|null;
   workflowClosedBy:string|null;
   showInAgenda: boolean;
+  appointmentPautaId: string | null;
+  appointmentOwnerId: string | null;
   coverage: EventCoverage | null;
   completedAt: string | null;
   updatedAt: string;
@@ -114,6 +116,7 @@ export interface WeeklyPautaItem {
   coverage: EventCoverage | null;
   workflow:AgendaEventItem|null;
   articleId: string | null;
+  appointments: {profileId:string;personName:string;eventId:string;eventDate:string;startTime:string|null}[];
   status: "pending" | "completed" | "cancelled";
   completedAt: string | null;
   assignees: (AgendaProfile & { completedAt: string | null; taskLabel: string | null })[];
@@ -140,6 +143,8 @@ export interface AgendaWorkspaceData {
   periodEnd: string;
   periodReason: string | null;
   periodEdited: boolean;
+  editionNumber: number;
+  editionEdited: boolean;
   currentUserId: string;
   access: { agendaRead: boolean; agendaWrite: boolean; pautaRead: boolean; pautaWrite: boolean; editorialLinkAccess: boolean; coverageManage: boolean; workflowManage: boolean };
   profiles: AgendaProfile[];
