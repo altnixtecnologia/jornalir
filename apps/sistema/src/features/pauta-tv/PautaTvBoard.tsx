@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createSupabaseBrowserClient } from "../../lib/supabase/browser";
-import { calculateTvPagination, type TvPautaSnapshot } from "./tvModel";
+import { calculateTvPagination, tvPautaMinRowPx, type TvPautaSnapshot } from "./tvModel";
 import styles from "./PautaTvBoard.module.css";
 
 function shortDate(value:string):string {
@@ -24,7 +24,7 @@ export function PautaTvBoard({snapshot,deviceMode=false}:{
   const [deviceSnapshot,setDeviceSnapshot]=useState(snapshot);
   const activeSnapshot=deviceMode?deviceSnapshot:snapshot;
   useEffect(()=>{setDeviceSnapshot(snapshot);},[snapshot]);
-  const [height,setHeight]=useState(0);
+  const [size,setSize]=useState({height:0,width:0});
   const [page,setPage]=useState(0);
   const [connected,setConnected]=useState(true);
   const [clock,setClock]=useState("");
@@ -32,8 +32,8 @@ export function PautaTvBoard({snapshot,deviceMode=false}:{
   const timeoutRef=useRef<ReturnType<typeof setTimeout>|null>(null);
 
   const pagination=useMemo(
-    ()=>calculateTvPagination(height,activeSnapshot.cards.length),
-    [height,activeSnapshot.cards.length],
+    ()=>calculateTvPagination(size.height,activeSnapshot.cards.length,tvPautaMinRowPx(activeSnapshot.cards,size.width)),
+    [size.height,size.width,activeSnapshot.cards],
   );
   const currentPage=Math.min(page,pagination.pages-1);
   const visible=pagination.perPage===0?[]:
@@ -44,8 +44,10 @@ export function PautaTvBoard({snapshot,deviceMode=false}:{
     const node=listRef.current;
     if(!node)return;
     const resize=new ResizeObserver(entries=>{
-      const next=Math.floor(entries[0]?.contentRect.height??0);
-      setHeight(next);
+      const nextHeight=Math.floor(entries[0]?.contentRect.height??0);
+      const nextWidth=Math.floor(entries[0]?.contentRect.width??0);
+      setSize(previous=>previous.height===nextHeight&&previous.width===nextWidth?
+        previous:{height:nextHeight,width:nextWidth});
     });
     resize.observe(node);
     return ()=>resize.disconnect();

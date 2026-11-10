@@ -51,3 +51,21 @@
 /* Sem segunda linha duplicada: mais espaço vertical para pautas. */
 .card{gap:2px;padding-block:clamp(5px,.75vh,12px)}
 .cardMain strong{font-size:clamp(14px,1.85vh,26px)}
+
+/* Título e TODOS os envolvidos sem espaço vazio entre as linhas. */
+.card{
+ justify-content:center;
+ gap:3px;
+}
+.cardMain{min-height:0;flex:none;}
+.cardFooter{flex:none;align-items:flex-start;gap:8px;}
+.owner{
+ flex:1 1 auto;
+ min-width:0;
+ overflow:visible;
+ white-space:normal;
+ text-overflow:clip;
+ overflow-wrap:anywhere;
+ line-height:1.18;
+}
+.status{flex:none;align-self:flex-start;}
