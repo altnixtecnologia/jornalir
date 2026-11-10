@@ -151,6 +151,9 @@ begin
      values(p_event_id,(v_row.item->>'profileId')::uuid,
        v_task.item->>'kind',btrim(v_task.item->>'label'),auth.uid());
    end loop;
+   insert into public.agenda_event_assignees(event_id,profile_id,assignment_type)
+   values(p_event_id,(v_row.item->>'profileId')::uuid,'responsible')
+   on conflict(event_id,profile_id) do nothing;
    perform public.notify_coverage_assignment(p_event_id,(v_row.item->>'profileId')::uuid,'initial');
  end loop;
  if not exists(select 1 from public.event_coverage_members
