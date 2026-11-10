@@ -285,7 +285,7 @@ export async function createEditorialWorkflowAction(form:FormData):Promise<Agend
   ids.add(id);
   crew.push({profileId:id,attends:kind!=="article"&&person.attends!==false,tasks});
  }
- if(kind==="article"&&crew.length!==1)return {error:"Só matéria precisa de um responsável."};
+ if(kind==="article"&&crew.length<1)return {error:"Selecione os responsáveis pela matéria."};
  if(kind==="article"&&!writer)return {error:"Escolha o responsável pela matéria."};
  if(writer&&!ids.has(writer))return {error:"Marque Matéria em um dos colaboradores."};
  try{
@@ -601,6 +601,39 @@ export async function updatePautaItemAction(itemId: string, formData: FormData):
   } catch (error) {
     return { error: error instanceof Error ? error.message : "Não foi possível editar a pauta." };
   }
+}
+
+/** Edição de pauta do fluxo simplificado, com participantes múltiplos. */
+export async function updateEditorialArticlePautaAction(itemId:string,form:FormData):Promise<AgendaActionResult>{
+ const title=value(form,"title"),description=value(form,"description");
+ const dueDate=value(form,"article_due_date"),dueTime=value(form,"article_due_time");
+ let ids:unknown;
+ try{ids=JSON.parse(value(form,"workflow_profile_ids"));}catch{return {error:"Selecione os responsáveis."};}
+ if(!Array.isArray(ids)||ids.length<1||ids.length>16||ids.some(id=>typeof id!=="string"||!/^[a-f0-9-]{36}$/i.test(id))||new Set(ids).size!==ids.length)
+  return {error:"Selecione de 1 a 16 responsáveis diferentes."};
+ if(title.length<1||title.length>180||description.length>4000)return {error:"Confira o título e as observações."};
+ if(dueDate&&!validDate(dueDate)||!validTime(dueTime)||dueTime&&!dueDate)return {error:"Confira o prazo da matéria."};
+ try{
+  const {supabase}=await requireActiveUser();
+  await validateActiveProfiles(supabase,ids as string[]);
+  const {data,error}=await supabase.rpc("update_editorial_article_pauta",{
+   p_pauta_id:itemId,p_title:title,p_description:description||null,
+   p_profile_ids:ids,p_due_date:dueDate||null,p_due_time:dueTime||null,
+   p_expected_updated_at:value(form,"updated_at"),
+  });
+  if(error||!data)return {error:error?.message??"Não foi possível editar a pauta."};
+  refreshAgenda();return {ok:true};
+ }catch(error){return {error:error instanceof Error?error.message:"Falha ao editar a pauta."};}
+}
+/** Exclusão lógica que mantém histórico e auditoria. */
+export async function archiveEditorialArticlePautaAction(itemId:string):Promise<AgendaActionResult>{
+ if(!/^[a-f0-9-]{36}$/i.test(itemId))return {error:"Pauta inválida."};
+ try{
+  const {supabase}=await requireActiveUser();
+  const {data,error}=await supabase.rpc("archive_editorial_article_pauta",{p_pauta_id:itemId});
+  if(error||!data)return {error:error?.message??"Não foi possível excluir a pauta."};
+  refreshAgenda();return {ok:true};
+ }catch(error){return {error:error instanceof Error?error.message:"Falha ao excluir a pauta."};}
 }
 
 export async function setPautaItemStatusAction(

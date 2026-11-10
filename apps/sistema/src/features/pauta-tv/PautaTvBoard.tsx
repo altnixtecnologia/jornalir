@@ -183,7 +183,6 @@ export function PautaTvBoard({snapshot,deviceMode=false}:{
           {visible.map(card=><article className={styles.card+" "+styles[card.status]} key={card.id}>
             <div className={styles.cardMain}>
               <strong title={card.title}>{card.title}</strong>
-              <p title={card.detail}>{card.detail}</p>
             </div>
             <div className={styles.cardFooter}>
               <span className={styles.owner}>{card.responsible}</span>
