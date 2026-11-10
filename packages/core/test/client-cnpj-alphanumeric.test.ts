@@ -50,7 +50,7 @@ test("ClientService barra código IBGE inválido",async()=>{
   update:async()=>{throw new Error("Não deveria atualizar");}
  };
  const service=new ClientService(db);
- await assert.rejects(()=>service.register({
+ assert.throws(()=>service.register({
   kind:"company",companyName:"Exemplo",cnpj:"00.000.000/E08G-12",addressIbgeCode:"123",roles:["cliente"]
  }),/IBGE/);
 });
