@@ -24,14 +24,14 @@ export function deriveTvPautaStatus(item: WeeklyPautaItem): TvPautaCard["status"
   if (item.coverage) {
     // A Agenda confirma a participação; a Pauta só fecha após as entregas.
     const fields = item.coverage.teamMode
-      ? item.coverage.members.filter(m => m.fieldTask)
+      ? item.coverage.members.flatMap(m => m.tasks)
       : null;
     const fieldDone = fields
-      ? fields.every(m => Boolean(m.fieldCompletedAt))
+      ? fields.every(t => Boolean(t.completedAt))
       : item.coverage.taskStatus === "completed";
     if (item.coverage.articleStatus === "completed" && fieldDone) return "completed";
     if (item.coverage.articleStatus === "completed" ||
-        (fields ? fields.some(m => Boolean(m.fieldCompletedAt))
+        (fields ? fields.some(t => Boolean(t.completedAt))
           : item.coverage.taskStatus === "completed")) return "in_progress";
     return "pending";
   }
@@ -51,8 +51,9 @@ export function toTvPautaSnapshot(
     const articleName = coverage ? name.get(coverage.articleOwnerId) ?? "Redação" : null;
     const fieldName = coverage ? name.get(coverage.attendanceOwnerId) ?? "Cobertura" : null;
     const teamPending = coverage?.teamMode
-      ? coverage.members.filter(person => person.fieldTask && !person.fieldCompletedAt)
-        .map(person => person.fieldTask+": "+(name.get(person.profileId)??"Colaborador"))
+      ? coverage.members.flatMap(person =>
+        person.tasks.filter(task=>!task.completedAt)
+        .map(task=>task.label+": "+(name.get(person.profileId)??"Colaborador")))
       : [];
     const detail = coverage?.teamMode
       ? [
