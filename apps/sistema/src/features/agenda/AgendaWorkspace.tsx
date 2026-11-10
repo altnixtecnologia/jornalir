@@ -1261,8 +1261,13 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
               {selectedEvents.length ? (
                 <div className="agenda-events-list">
                   {selectedEvents.map((item) => (
-                    <article key={item.id} className={"agenda-event-card is-" + item.status + (eventOverdue(item, localClock) ? " is-overdue" : "")}
+                    <details key={item.id} className={"agenda-event-card is-" + item.status + (eventOverdue(item, localClock) ? " is-overdue" : "")}
                       style={{ borderLeftColor: personColor(item.assignees[0]?.id ?? "") }}>
+                      <summary className="workflow-collapsed-summary">
+                        <span>{item.title}</span>
+                        <span className="workflow-expand-chevron" aria-hidden="true">⌄</span>
+                      </summary>
+                      <div className="workflow-expanded-body">
                       <div className="agenda-event-main">
                         <div className="agenda-event-time">{item.startTime ? item.startTime + "h" : "—"}{item.endTime ? <small>até {item.endTime}h</small> : null}</div>
                         <div>
@@ -1362,7 +1367,8 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
                       {data.access.agendaWrite && item.workflowKind==="general" ? EventEdit({item}) : null}
                       {data.access.agendaWrite && item.workflowKind==="general" && !item.coverage && item.eventKind==="general" && item.status==="scheduled"
                         ? InviteesEditor({item}) : null}
-                    </article>
+                      </div>
+                    </details>
                   ))}
                 </div>
               ) : <div className="agenda-empty">Nenhum compromisso neste dia.</div>}
@@ -1461,7 +1467,12 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
                 const myAssignment = item.assignees.find((person) => person.id === data.currentUserId);
                 const canCompleteOwn = !done && !cancelled && Boolean(myAssignment && !myAssignment.completedAt);
                 return (
-                  <article key={item.id} style={{ borderLeftColor: personColor(item.responsibleProfileId ?? "") }} className={"pauta-item" + (done ? " is-done" : "") + (cancelled ? " is-cancelled" : "")}>
+                  <details key={item.id} style={{ borderLeftColor: personColor(item.responsibleProfileId ?? "") }} className={"pauta-item" + (done ? " is-done" : "") + (cancelled ? " is-cancelled" : "")}>
+                    <summary className="workflow-collapsed-summary">
+                      <span>{item.title}</span>
+                      <span className="workflow-expand-chevron" aria-hidden="true">⌄</span>
+                    </summary>
+                    <div className="workflow-expanded-body pauta-expanded-body">
                     {!item.coverage && !item.workflow && (data.access.pautaWrite || canCompleteOwn) ? <button type="button" className="pauta-check"
                       aria-label={done ? "Reabrir item" : "Concluir minha pauta"} disabled={isPending || cancelled}
                       onClick={() => run(
@@ -1499,7 +1510,8 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
                       {data.access.pautaWrite && !item.workflow ? PautaEdit({item}) : null}
                     </div>
                     {data.access.pautaWrite && !item.workflow ? <button type="button" className="pauta-cancel" disabled={isPending} onClick={() => run(() => setPautaItemStatusAction(item.id, cancelled ? "pending" : "cancelled"), cancelled ? "Item restaurado." : "Item retirado da pauta.")}>{cancelled ? "↶" : "×"}</button> : null}
-                  </article>
+                    </div>
+                  </details>
                 );
               })}
             </div>
