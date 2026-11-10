@@ -211,6 +211,7 @@ begin
  else
    update public.event_coverage_members
    set field_task=coalesce(field_task,btrim(p_tasks->0->>'label')),
+    field_completed_at=null,
     attendance_response=case when field_task is null
       then 'pending' else attendance_response end,
     attendance_responded_at=case when field_task is null
