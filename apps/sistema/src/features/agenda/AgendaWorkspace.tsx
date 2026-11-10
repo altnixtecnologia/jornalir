@@ -127,16 +127,33 @@ function nowInAgendaTimezone(): string {
     + "T" + values.hour + ":" + values.minute;
 }
 
-function eventOverdue(event: AgendaEventItem, now: string): boolean {
-  if (event.status !== "scheduled") return false;
-  // Eventos sem horário vencem ao terminar o dia.
-  const cutoff = event.endTime || event.startTime || "23:59";
-  return event.eventDate + "T" + cutoff < now;
+function editorialDueInLocalTime(iso:string|null):string|null{
+ if(!iso)return null;
+ const parts=new Intl.DateTimeFormat("sv-SE",{
+  timeZone:"America/Sao_Paulo",year:"numeric",month:"2-digit",day:"2-digit",
+  hour:"2-digit",minute:"2-digit",hourCycle:"h23",
+ }).formatToParts(new Date(iso));
+ const m=Object.fromEntries(parts.map(p=>[p.type,p.value]));
+ return m.year+"-"+m.month+"-"+m.day+"T"+m.hour+":"+m.minute;
 }
 
-function pautaOverdue(item: WeeklyPautaItem, now: string): boolean {
-  if (item.status !== "pending" || !item.dueDate) return false;
-  return item.dueDate + "T" + (item.dueTime || "23:59") < now;
+/** Horário do evento NUNCA é o prazo da matéria. */
+function eventOverdue(event:AgendaEventItem,now:string):boolean{
+ if(event.status!=="scheduled")return false;
+ const due=event.workflowKind!=="general"
+   ?event.articleDueAt:event.coverage?.articleDueAt??null;
+ const local=editorialDueInLocalTime(due);
+ return Boolean(local&&local<now);
+}
+function pautaOverdue(item:WeeklyPautaItem,now:string):boolean{
+ if(item.status!=="pending")return false;
+ if(item.workflow||item.coverage){
+  const due=editorialDueInLocalTime(item.workflow?.articleDueAt??item.coverage?.articleDueAt??null);
+  return Boolean(due&&due<now);
+ }
+ // Prazo do compromisso original não equivale a prazo editorial.
+ if(item.agendaEventId)return false;
+ return Boolean(item.dueDate&&(item.dueDate+"T"+(item.dueTime||"23:59")<now));
 }
 
 function statusLabel(status: string, overdue = false): string {
@@ -620,9 +637,10 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
   const selectedWeekStart = addDays(selectedDate, -selectedWeekday);
   const selectedWeekDays = Array.from({ length: 7 }, (_, index) => addDays(selectedWeekStart, index));
   const todayCount = filteredEvents.filter((event) => event.eventDate === localClock.slice(0, 10) && event.status !== "cancelled").length;
-  const ownPending = data.events.filter((event) =>
-    event.status === "scheduled" && event.assignees.some((person) =>
-      person.id === data.currentUserId && !person.completedAt)).length +
+  const ownPending = data.events.filter(event=>
+    event.status==="scheduled" && (event.workflowKind!=="general"
+      ?event.articleOwnerId===data.currentUserId
+      :event.assignees.some(person=>person.id===data.currentUserId&&!person.completedAt))).length +
     data.pautaItems.filter((item) =>
       item.status === "pending" && item.responsibleProfileId === data.currentUserId && !item.agendaEventId).length;
   const weekDays = Array.from({ length: 7 }, (_, index) => addDays(data.weekStart, index));
