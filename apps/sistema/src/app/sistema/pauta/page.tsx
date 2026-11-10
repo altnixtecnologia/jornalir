@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { ModuleHeader } from "../../../components/admin/ModuleHeader";
-import { AgendaWorkspace } from "../../../features/agenda/AgendaWorkspace";
+import { AgendaOverdueIndicator, AgendaWorkspace } from "../../../features/agenda/AgendaWorkspace";
 import { loadAgendaWorkspaceData, normalizeAgendaDate } from "../../../features/agenda/agendaData";
 
 function one(value: string | string[] | undefined): string {
@@ -24,6 +24,7 @@ export default async function PautaPage(
     <div className="agenda-mobile-page">
       <ModuleHeader
         eyebrow="REDAÇÃO / ORGANIZAÇÃO"
+        eyebrowAction={<AgendaOverdueIndicator data={data} />}
         title="Pauta da semana"
         description="Tarefas editoriais integradas à Agenda da equipe."
       />
