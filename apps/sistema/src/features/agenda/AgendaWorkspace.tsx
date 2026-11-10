@@ -47,7 +47,7 @@ import { EditorialWorkflowCreate } from "./EditorialWorkflowCreate";
 import { EditorialPautaEdit } from "./EditorialPautaEdit";
 import { PautaAgendaSchedule } from "./PautaAgendaSchedule";
 import { PautaAppointmentEdit } from "./PautaAppointmentEdit";
-import { movePautaCardIds } from "./pautaCardOrdering";
+import { movePautaCardIds,togglePautaOpenId } from "./pautaCardOrdering";
 import { EditorialWorkflowPanel } from "./EditorialWorkflowPanel";
 import { createSupabaseBrowserClient } from "../../lib/supabase/browser";
 import { notify } from "../../lib/feedback/notify";
@@ -517,16 +517,23 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
   const [localPautaOrder,setLocalPautaOrder]=useState<string[]|null>(null);
   const [draggingPautaId,setDraggingPautaId]=useState<string|null>(null);
   const [dropTargetPautaId,setDropTargetPautaId]=useState<string|null>(null);
-  const dragStartedOnControlRef=useRef(false);
+  const [openPautaId,setOpenPautaId]=useState<string|null>(null);
   const [isPending, startTransition] = useTransition();
 
   useEffect(() => setSelectedDate(data.focusDate), [data.focusDate]);
-  useEffect(() => {setIsPeriodEditorOpen(false);setIsEditionEditorOpen(false);}, [data.weekStart]);
+  useEffect(() => {
+    setIsPeriodEditorOpen(false);
+    setIsEditionEditorOpen(false);
+    setOpenPautaId(null);
+    setEditingPautaId(null);
+    setSchedulingPautaId(null);
+  }, [data.weekStart]);
   const serverPautaOrderKey=data.pautaItems.map(item=>item.id).join("|");
   useEffect(()=>{
     setLocalPautaOrder(null);
     setDraggingPautaId(null);
     setDropTargetPautaId(null);
+    setOpenPautaId(current=>current&&data.pautaItems.some(item=>item.id===current)?current:null);
   },[data.weekStart,serverPautaOrderKey]);
   // Muda de "Agendado" para "Atrasado" sem exigir F5, inclusive à meia-noite.
   useEffect(() => {
@@ -1559,7 +1566,7 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
             <p className="pauta-reorder-hint">
               {responsibleFilter
                 ?"Para organizar a ordem, selecione todos os colaboradores."
-                :"Arraste qualquer cartão pelo mouse para mudar sua posição. A ordem é salva para a equipe."}
+                :"Arraste pela alça à esquerda do título para mudar a posição. A ordem é salva para a equipe."}
             </p>:null}
           {pautaItems.length ? (
             <div className="pauta-list">
@@ -1570,29 +1577,12 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
                 const canCompleteOwn = !done && !cancelled && Boolean(myAssignment && !myAssignment.completedAt);
                 return (
                   <details key={item.id}
+                    open={openPautaId===item.id}
                     style={{borderLeftColor:personColor(item.responsibleProfileId??"")}}
                     className={"pauta-item"+(done?" is-done":"")+(cancelled?" is-cancelled":"")+
                       (canReorderPauta?" is-reorderable":"")+
                       (draggingPautaId===item.id?" is-dragging":"")+
                       (dropTargetPautaId===item.id?" is-drop-target":"")}
-                    draggable={canReorderPauta&&!isPending&&editingPautaId!==item.id&&schedulingPautaId!==item.id}
-                    onMouseDownCapture={event=>{
-                      const target=event.target;
-                      // Ações, links e formulários nunca iniciam o arraste do cartão.
-                      dragStartedOnControlRef.current=Boolean(target instanceof Element&&target.closest(
-                        "button,a,input,textarea,select,label,form,[contenteditable='true']"
-                      ));
-                    }}
-                    onMouseUpCapture={()=>{dragStartedOnControlRef.current=false;}}
-                    onDragStart={event=>{
-                      if(!canReorderPauta||isPending||dragStartedOnControlRef.current){
-                        event.preventDefault();return;
-                      }
-                      event.dataTransfer.effectAllowed="move";
-                      event.dataTransfer.setData("application/x-jornalir-pauta",item.id);
-                      setDraggingPautaId(item.id);
-                      setDropTargetPautaId(null);
-                    }}
                     onDragOver={event=>{
                       if(!canReorderPauta||!draggingPautaId||isPending)return;
                       event.preventDefault();
@@ -1610,18 +1600,46 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
                       if(from&&from!==item.id)savePautaReorder(from,item.id);
                     }}
                     onDragEnd={()=>{
-                      dragStartedOnControlRef.current=false;
                       setDraggingPautaId(null);
                       setDropTargetPautaId(null);
                     }}>
-                    <summary className="workflow-collapsed-summary">
+                    <summary className="workflow-collapsed-summary"
+                      onClick={event=>{
+                        event.preventDefault();
+                        setEditingPautaId(null);
+                        setSchedulingPautaId(null);
+                        setOpenPautaId(current=>togglePautaOpenId(current,item.id));
+                      }}>
+                      {canReorderPauta?<button type="button" className="pauta-drag-grip"
+                        draggable={!isPending}
+                        disabled={isPending}
+                        title="Arraste por aqui para reorganizar a pauta"
+                        aria-label={"Arrastar pauta: "+item.title+". Use as setas para cima e para baixo para mudar a posição."}
+                        onClick={event=>{event.preventDefault();event.stopPropagation();}}
+                        onDragStart={event=>{
+                          event.stopPropagation();
+                          if(isPending){event.preventDefault();return;}
+                          event.dataTransfer.effectAllowed="move";
+                          event.dataTransfer.setData("application/x-jornalir-pauta",item.id);
+                          setDraggingPautaId(item.id);
+                          setDropTargetPautaId(null);
+                        }}
+                        onKeyDown={event=>{
+                          if(event.key!=="ArrowUp"&&event.key!=="ArrowDown")return;
+                          event.preventDefault();event.stopPropagation();
+                          const ids=visiblePauta.map(card=>card.id);
+                          const index=ids.indexOf(item.id);
+                          const next=index+(event.key==="ArrowUp"?-1:1);
+                          if(next>=0&&next<ids.length)savePautaReorder(item.id,ids[next]);
+                        }}>
+                        <span aria-hidden="true">⋮⋮</span>
+                      </button>:null}
                       <span className="pauta-summary-title">{item.title}</span>
                       {data.access.pautaWrite?<span className="workflow-pauta-tools"
                         onClick={event=>{event.preventDefault();event.stopPropagation();}}>
                         <button type="button" title="Editar pauta" aria-label={"Editar pauta: "+item.title}
                           disabled={isPending} onClick={event=>{
-                            const card=event.currentTarget.closest("details");
-                            if(card instanceof HTMLDetailsElement)card.open=true;
+                            setOpenPautaId(item.id);
                             setEditingPautaId(item.id);setSchedulingPautaId(null);
                           }}>✎</button>
                         {item.status==="pending"?<button type="button" title="Transferir para próxima semana"
@@ -1633,7 +1651,7 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
                             });
                             if(yes)run(()=>movePautaToNextWeekAction(item.id,item.updatedAt),
                               "Pauta transferida para a próxima semana; compromissos da Agenda preservados.",
-                              ()=>{setEditingPautaId(null);setSchedulingPautaId(null);});
+                              ()=>{setEditingPautaId(null);setSchedulingPautaId(null);setOpenPautaId(null);});
                           }}>⇢</button>:null}
                         <button type="button" title="Excluir somente da Pauta" aria-label={"Excluir da Pauta: "+item.title}
                           disabled={isPending} onClick={async ()=>{
@@ -1642,7 +1660,7 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
                               confirmLabel:"Excluir da Pauta",cancelLabel:"Voltar",
                             });
                             if(yes)run(()=>archivePautaItemAction(item.id),"Pauta retirada sem apagar os compromissos da Agenda.",
-                              ()=>{setEditingPautaId(null);setSchedulingPautaId(null);});
+                              ()=>{setEditingPautaId(null);setSchedulingPautaId(null);setOpenPautaId(null);});
                           }}>×</button>
                       </span>:null}
                       <span className="workflow-expand-chevron" aria-hidden="true">⌄</span>
