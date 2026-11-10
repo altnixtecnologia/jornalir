@@ -170,6 +170,39 @@ export async function loadAgendaWorkspaceData(focusDate: string): Promise<Agenda
     eventRows=[...eventRows,...(additional.data??[])];
   }
 
+  // Recuperar compromissos anteriores ainda agendados, inclusive fora do mes.
+  // A paginacao evita que o limite padrao do Supabase oculte atrasos.
+  const knownEventIds = new Set(eventRows.map((event) => event.id));
+  for (let offset = 0; ; offset += 500) {
+    const older = await supabase.from("agenda_events")
+      .select(EVENT_COLUMNS)
+      .eq("show_in_agenda", true)
+      .eq("status", "scheduled")
+      .lt("event_date", today)
+      .order("event_date", { ascending: true })
+      .order("id", { ascending: true })
+      .range(offset, offset + 499);
+    if (older.error) throw new Error(older.error.message);
+    const rows = older.data ?? [];
+    for (const item of rows) {
+      if (knownEventIds.has(item.id)) continue;
+      knownEventIds.add(item.id);
+      eventRows.push(item);
+    }
+    if (rows.length < 500) break;
+  }
+  // O indicador "Hoje" acompanha a data atual mesmo se outro mes for exibido.
+  if (today < eventRangeStart || today > eventRangeEnd) {
+    const todayEvents = await supabase.from("agenda_events")
+      .select(EVENT_COLUMNS).eq("show_in_agenda", true).eq("event_date", today);
+    if (todayEvents.error) throw new Error(todayEvents.error.message);
+    for (const item of todayEvents.data ?? []) {
+      if (knownEventIds.has(item.id)) continue;
+      knownEventIds.add(item.id);
+      eventRows.push(item);
+    }
+  }
+
   const me = (profilesResult.data ?? []).find((profile) => profile.id === user.id);
   access.editorialLinkAccess = Boolean(me && (me.role === "owner" || me.role === "admin"));
   if (me?.role === "operator") {
