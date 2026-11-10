@@ -119,7 +119,7 @@ export interface AgendaWorkspaceData {
   periodReason: string | null;
   periodEdited: boolean;
   currentUserId: string;
-  access: { agendaRead: boolean; agendaWrite: boolean; pautaRead: boolean; pautaWrite: boolean; editorialLinkAccess: boolean };
+  access: { agendaRead: boolean; agendaWrite: boolean; pautaRead: boolean; pautaWrite: boolean; editorialLinkAccess: boolean; coverageManage: boolean };
   profiles: AgendaProfile[];
   events: AgendaEventItem[];
   pendingInvitations: PendingMeetingInvitation[];
