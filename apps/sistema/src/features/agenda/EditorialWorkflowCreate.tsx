@@ -208,16 +208,17 @@ export function EditorialWorkflowCreate({
              {scheduleEnabled?<>
                <div className="workflow-pauta-agenda-head">
                  <strong>Compromisso na Agenda para cada responsável</strong>
-                 <button type="button" className="pauta-schedule-close"
-                   title="Cancelar agendamento" aria-label="Cancelar agendamento e limpar data e hora"
-                   onClick={cancelSchedule}>×</button>
                </div>
                <input type="hidden" name="schedule_enabled" value="true"/>
-               <div className="pauta-compact-datetime">
+               <div className="pauta-compact-datetime pauta-appointment-datetime">
                  <label>Data <input type="date" name="appointment_date" required value={scheduleDate}
                    onChange={e=>setScheduleDate(e.currentTarget.value)}/></label>
                  <label>Horário <input type="time" name="appointment_time" required value={scheduleTime}
                    onChange={e=>setScheduleTime(e.currentTarget.value)}/></label>
+                 <button type="button" className="pauta-schedule-clear-inside"
+                   title="Limpar data e hora do agendamento"
+                   aria-label="Limpar data e hora do agendamento"
+                   onClick={cancelSchedule}>×</button>
                </div>
                <small>Um compromisso individual por responsável, editável na Agenda.</small>
              </>:<button type="button" className="pauta-activate-schedule"

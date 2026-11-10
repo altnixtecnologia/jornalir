@@ -11,9 +11,10 @@ Atualizado: 10/11/2026. Checklists devem receber data, resultado e evidência
 - [ ] Conferir exclusão de pauta vinculada à Agenda; compromisso original permanece intacto
 - [ ] Conferir permissões: proprietário, administrador habilitado, operador sem autorização
 - [ ] Conferir ícones discretos, alinhamento e layout responsivo desktop/mobile
+- [ ] Conferir títulos dos cartões da Pauta em peso normal, sem negrito
 - [ ] Conferir lado a lado: prazo da matéria à esquerda e ativação da Agenda à direita (desktop)
 - [ ] Conferir botão Ativar agendamento: revela data e hora apenas da Agenda
-- [ ] Conferir botão ×: cancela o agendamento antes de salvar, limpa data e hora da Agenda e preserva o prazo da matéria
+- [ ] Conferir × dentro do conjunto data/hora da Agenda: limpa ambos, cancela agendamento e mantém intacto o prazo da matéria
 - [ ] Conferir empilhamento no celular e ausência de agendamento quando o × foi utilizado
 - [ ] Transferir pauta pendente para a próxima semana, sem duplicar o ID
 - [ ] Conferir transferência com e sem prazo e quando já existem compromissos na Agenda
