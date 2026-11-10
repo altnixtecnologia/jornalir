@@ -44,6 +44,11 @@ export function EditorialWorkflowCreate({
  const [scheduleEnabled,setScheduleEnabled]=useState(false);
  const [scheduleDate,setScheduleDate]=useState("");
  const [scheduleTime,setScheduleTime]=useState("");
+ const cancelSchedule=()=>{
+   setScheduleEnabled(false);
+   setScheduleDate("");
+   setScheduleTime("");
+ };
  const [repeat,setRepeat]=useState(1);
  const initialIds=[...(existing?.assignees.map(p=>p.id)??[])];
  if(initialWriterId&&!initialIds.includes(initialWriterId))initialIds.push(initialWriterId);
@@ -188,8 +193,8 @@ export function EditorialWorkflowCreate({
      {kind==="article"?<div className="workflow-article-team">
        <WorkflowPeoplePicker profiles={profiles} selected={articleSelected} onChange={setArticleSelected}/>
        <div className="workflow-article-deadline">
-         <div className="workflow-pauta-due-row">
-           <div className="workflow-pauta-due-group">
+         <div className="workflow-pauta-schedule-grid">
+           <div className="workflow-pauta-deadline-card">
              <strong>Prazo da matéria (opcional)</strong>
              <div className="pauta-compact-datetime">
                <label>Data <input type="date" name="article_due_date" value={dueDate}
@@ -197,24 +202,32 @@ export function EditorialWorkflowCreate({
                <label>Hora <input type="time" name="article_due_time" disabled={!dueDate} value={dueTime}
                  onChange={e=>setDueTime(e.currentTarget.value)}/></label>
              </div>
+             <small>Prazo de entrega da matéria, independente da Agenda.</small>
            </div>
-           <button type="button" className={"pauta-activate-schedule"+(scheduleEnabled?" is-active":"")}
-             aria-pressed={scheduleEnabled} onClick={()=>setScheduleEnabled(enabled=>!enabled)}>
-             {scheduleEnabled?"✓ Agendamento ativado":"＋ Ativar agendamento"}
-           </button>
+           <div className={"workflow-pauta-agenda-card"+(scheduleEnabled?" is-open":"")}>
+             {scheduleEnabled?<>
+               <div className="workflow-pauta-agenda-head">
+                 <strong>Compromisso na Agenda para cada responsável</strong>
+                 <button type="button" className="pauta-schedule-close"
+                   title="Cancelar agendamento" aria-label="Cancelar agendamento e limpar data e hora"
+                   onClick={cancelSchedule}>×</button>
+               </div>
+               <input type="hidden" name="schedule_enabled" value="true"/>
+               <div className="pauta-compact-datetime">
+                 <label>Data <input type="date" name="appointment_date" required value={scheduleDate}
+                   onChange={e=>setScheduleDate(e.currentTarget.value)}/></label>
+                 <label>Horário <input type="time" name="appointment_time" required value={scheduleTime}
+                   onChange={e=>setScheduleTime(e.currentTarget.value)}/></label>
+               </div>
+               <small>Um compromisso individual por responsável, editável na Agenda.</small>
+             </>:<button type="button" className="pauta-activate-schedule"
+                 aria-expanded={false} aria-label="Ativar agendamento na Agenda"
+                 onClick={()=>setScheduleEnabled(true)}>
+                 <span aria-hidden="true">＋</span>
+                 <span>Ativar agendamento<small>Definir data e hora na Agenda</small></span>
+               </button>}
+           </div>
          </div>
-         <small>O prazo é da matéria; o compromisso é individual na Agenda.</small>
-         {scheduleEnabled?<div className="pauta-schedule-details">
-           <strong>Compromisso na Agenda para cada responsável</strong>
-           <input type="hidden" name="schedule_enabled" value="true"/>
-           <div className="pauta-compact-datetime">
-             <label>Data <input type="date" name="appointment_date" required value={scheduleDate}
-               onChange={e=>setScheduleDate(e.currentTarget.value)}/></label>
-             <label>Horário <input type="time" name="appointment_time" required value={scheduleTime}
-               onChange={e=>setScheduleTime(e.currentTarget.value)}/></label>
-           </div>
-           <small>Serão criados compromissos separados para cada colaborador. Ajustes futuros serão feitos na Agenda, individualmente.</small>
-         </div>:null}
        </div>
      </div>:<div className="workflow-person-list">
        <div className="workflow-people-title"><strong>{"Quem participa?"}</strong>
