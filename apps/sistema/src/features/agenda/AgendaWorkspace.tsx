@@ -200,7 +200,8 @@ function AssigneePicker({
       <div className="agenda-assignee-options">
         {profiles.length === 0 ? <span className="helper-text">Nenhum usuário ativo.</span> : profiles.map((profile) => (
           <label key={profile.id} className="agenda-person-option">
-            <input type="checkbox" name="assignee_profile_ids" value={profile.id} defaultChecked={selected.has(profile.id)} />
+            <input type="checkbox" name="assignee_profile_ids" value={profile.id} defaultChecked={selected.has(profile.id)}
+              aria-label={profile.name} />
             <span className="agenda-person-avatar"
               style={{ "--person-color": personColor(profile.id) } as CSSProperties} aria-hidden="true">
               {initials(profile.name)}<i>✓</i>

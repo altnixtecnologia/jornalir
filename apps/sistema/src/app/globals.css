@@ -7962,3 +7962,114 @@ details.pauta-item:has(.workflow-pauta-tools)>.workflow-collapsed-summary{paddin
 .is-pauta-workspace details.pauta-item>.workflow-collapsed-summary .pauta-drag-grip:disabled{
  opacity:.4;cursor:default
 }
+
+
+/* Responsáveis da Pauta: quadradinhos de iniciais e tooltip elegante.
+   Nomes completos são exibidos no hover/foco; todos os ícones quebram linha,
+   sem barra horizontal. Restrito ao sistema/Pauta, não altera a Agenda. */
+.is-pauta-workspace .agenda-assignee-picker{
+ border:0;background:transparent;margin:0;padding:4px 2px 7px;min-width:0
+}
+.is-pauta-workspace .agenda-assignee-picker .agenda-assignee-options{
+ display:flex;align-items:center;flex-wrap:wrap;
+ gap:7px;overflow:visible;max-width:100%;padding:4px 0 5px;
+ scrollbar-width:none
+}
+.is-pauta-workspace .agenda-assignee-picker .agenda-person-option{
+ position:relative;display:inline-grid;place-items:center;
+ flex:0 0 42px;min-width:42px;max-width:42px;width:42px;height:42px;
+ margin:0;padding:3px;gap:0;
+ border:1px solid #d7e0ed;border-radius:11px;background:#fff;
+ cursor:pointer;
+ transition:border-color .15s ease,background .15s ease,box-shadow .15s ease
+}
+.is-pauta-workspace .agenda-assignee-picker .agenda-person-avatar{
+ display:grid;place-items:center;flex:0 0 34px;
+ width:34px;height:34px;border:0;border-radius:8px;
+ background:color-mix(in srgb,var(--person-color) 12%,#f7f9fd);
+ color:var(--person-color);font-size:11px;font-weight:750;
+ letter-spacing:.02em;
+ box-shadow:none
+}
+.is-pauta-workspace .agenda-assignee-picker .agenda-person-avatar i{
+ right:-3px;bottom:-3px;width:15px;height:15px;font-size:9px
+}
+.is-pauta-workspace .agenda-assignee-picker .agenda-person-option:has(input:checked){
+ border-color:#7295c5;background:#f5f9ff;
+ box-shadow:0 0 0 2px rgba(79,124,185,.14)
+}
+.is-pauta-workspace .agenda-assignee-picker .agenda-person-option input:checked~.agenda-person-avatar{
+ border:0;box-shadow:none;background:color-mix(in srgb,var(--person-color) 19%,#fff)
+}
+.is-pauta-workspace .agenda-assignee-picker .agenda-person-name,
+.is-pauta-workspace .workflow-people-choice .workflow-people-name{
+ position:absolute;top:auto;bottom:calc(100% + 8px);left:0;right:auto;
+ z-index:60;display:block;box-sizing:border-box;
+ width:max-content;max-width:min(245px,75vw);min-width:0;
+ padding:9px 12px;
+ border:1px solid #d4deec;border-radius:9px;
+ background:#fff;color:#263953;
+ box-shadow:0 9px 25px rgba(24,43,70,.17);
+ font-family:Inter,"Segoe UI",Arial,sans-serif;
+ font-size:12px;font-weight:600;letter-spacing:.005em;line-height:1.4;
+ text-transform:none;text-align:left;white-space:normal;overflow-wrap:break-word;
+ opacity:0;visibility:hidden;pointer-events:none;
+ transform:translateY(5px);
+ transition:opacity .14s ease,transform .14s ease,visibility .14s ease
+}
+.is-pauta-workspace .agenda-assignee-picker .agenda-person-name::after,
+.is-pauta-workspace .workflow-people-choice .workflow-people-name::after{
+ content:"";position:absolute;left:15px;bottom:-5px;
+ width:8px;height:8px;background:#fff;
+ border-right:1px solid #d4deec;border-bottom:1px solid #d4deec;
+ transform:rotate(45deg)
+}
+.is-pauta-workspace .agenda-assignee-picker .agenda-person-option:hover .agenda-person-name,
+.is-pauta-workspace .agenda-assignee-picker .agenda-person-option:focus-within .agenda-person-name,
+.is-pauta-workspace .workflow-people-choice:hover .workflow-people-name,
+.is-pauta-workspace .workflow-people-choice:focus-visible .workflow-people-name,
+.is-pauta-workspace .workflow-people-choice:focus .workflow-people-name{
+ opacity:1;visibility:visible;transform:translateY(0)
+}
+.is-pauta-workspace .agenda-assignee-picker .agenda-person-option input:focus-visible~.agenda-person-avatar{
+ outline:2px solid #7b91ed;outline-offset:3px
+}
+.is-pauta-workspace .workflow-people-grid{
+ display:flex;align-items:center;flex-wrap:wrap;
+ gap:7px;min-width:0;overflow:visible
+}
+.is-pauta-workspace .workflow-people-choice{
+ position:relative;display:grid;place-items:center;
+ flex:0 0 42px;width:42px;min-width:42px;height:42px;min-height:42px;
+ padding:3px;border:1px solid #d7e0ed;border-radius:11px;
+ background:#fff;text-align:center;overflow:visible
+}
+.is-pauta-workspace .workflow-people-avatar{
+ width:34px;height:34px;border-radius:8px;
+ background:#edf2f9;color:#385373;
+ font-size:11px;font-weight:750;letter-spacing:.02em
+}
+.is-pauta-workspace .workflow-people-choice[aria-pressed="true"]{
+ border-color:#709acb;background:#f4f8ff;box-shadow:0 0 0 2px #dbe9f8
+}
+.is-pauta-workspace .workflow-people-choice[aria-pressed="true"] .workflow-people-avatar{
+ background:#e0ebf9;color:#244a79
+}
+.is-pauta-workspace .workflow-people-check{
+ position:absolute;right:-4px;bottom:-4px;display:grid;place-items:center;
+ width:16px;height:16px;border:2px solid #fff;border-radius:50%;
+ background:#2e785b;color:#fff;font-size:10px;font-weight:800;
+}
+.is-pauta-workspace .workflow-people-check:empty{display:none}
+.is-pauta-workspace .workflow-people-choice:disabled{opacity:.5;cursor:not-allowed}
+@media(max-width:560px){
+ .is-pauta-workspace .workflow-people-grid{display:flex;flex-wrap:wrap}
+ .is-pauta-workspace .workflow-people-choice,
+ .is-pauta-workspace .agenda-assignee-picker .agenda-person-option{
+  flex-basis:40px;width:40px;min-width:40px;max-width:40px;height:40px
+ }
+}
+@media(prefers-reduced-motion:reduce){
+ .is-pauta-workspace .agenda-assignee-picker .agenda-person-name,
+ .is-pauta-workspace .workflow-people-choice .workflow-people-name{transition:none}
+}
