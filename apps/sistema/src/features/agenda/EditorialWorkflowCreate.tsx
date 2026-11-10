@@ -194,7 +194,7 @@ export function EditorialWorkflowCreate({
         <small>Sem data, a pauta permanece sem prazo.</small>
        </div>
      </div>:<div className="workflow-person-list">
-       <div className="workflow-people-title"><strong>{kind==="article"?"Responsável pela matéria":"Quem participa?"}</strong>
+       <div className="workflow-people-title"><strong>{"Quem participa?"}</strong>
          <small>Um nome por pessoa. Toque nas funções necessárias.</small></div>
        {crew.map((member,index)=>{
          const profile=profiles.find(p=>p.id===member.profileId);
@@ -205,14 +205,14 @@ export function EditorialWorkflowCreate({
                <span>Colaborador {index+1}</span>
                <select value={member.profileId} onChange={e=>{
                  const id=e.currentTarget.value;
-                 if(kind==="article"||member.profileId===writer)setWriter(id);
+                 if(member.profileId===writer)setWriter(id);
                  changeMember(member.key,{profileId:id});
                }} required>
                  {profiles.filter(p=>p.id===member.profileId||!crew.some(x=>x.key!==member.key&&x.profileId===p.id))
                    .map(p=><option key={p.id} value={p.id}>{p.name}</option>)}
                </select>
              </label>
-             {kind!=="article"?<button type="button"
+             {view==="agenda"?<button type="button"
                 className={"workflow-attendance-choice"+(member.attends?" is-selected":"")}
                 aria-pressed={member.attends}
                 onClick={()=>changeMember(member.key,{attends:!member.attends})}>
@@ -229,22 +229,22 @@ export function EditorialWorkflowCreate({
                onLongPress={task=>openMenu(member.key,task)}
                onReorder={tasks=>changeMember(member.key,{tasks})}/>
              <div className="workflow-pill-row workflow-available-tasks">
-               {kind!=="article"?FIXED_COVERAGE_TASKS.filter(task=>
+               {view==="agenda"?FIXED_COVERAGE_TASKS.filter(task=>
                  !member.tasks.some(selected=>selected.kind===task.kind)).map(task=>
                    <button type="button" key={task.kind} onClick={()=>putTask(member.key,task)}>
                       ＋ {task.label}
                    </button>):null}
-               {kind!=="article"?<button type="button"
+               {view==="agenda"?<button type="button"
                  onClick={()=>{setCustomFor(customFor===member.key?null:member.key);setCustomText("");}}>
                    ＋ Outra tarefa
                </button>:null}
-               {kind!=="article"?<button type="button" className={"workflow-writer-choice"+(isWriter?" is-selected":"")}
+               {view==="agenda"?<button type="button" className={"workflow-writer-choice"+(isWriter?" is-selected":"")}
                  aria-pressed={isWriter} onClick={()=>{setWriter(isWriter?"":member.profileId);setError("");}}>
                    {isWriter?"✓ ":""}Matéria
                </button>:null}
              </div>
            </div>
-           {kind!=="article"&&member.tasks.length>0?<small className="workflow-help">Arraste para mudar a posição. Segure 3 segundos para editar ou excluir.</small>:null}
+           {view==="agenda"&&member.tasks.length>0?<small className="workflow-help">Arraste para mudar a posição. Segure 3 segundos para editar ou excluir.</small>:null}
            {customFor===member.key?<div className="workflow-custom-add">
              <input value={customText} maxLength={80} placeholder="Nome da tarefa"
                onChange={e=>setCustomText(e.currentTarget.value)}/>
@@ -281,7 +281,7 @@ export function EditorialWorkflowCreate({
            </div>:null}
          </section>;
        })}
-       {kind!=="article"&&available&&crew.length<16?<button type="button"
+       {view==="agenda"&&available&&crew.length<16?<button type="button"
          className="workflow-add-person" onClick={()=>{
            setCrew(prev=>[...prev,{key:nextKey.current++,profileId:available.id,attends:true,tasks:[]}]);
          }}>＋ Adicionar colaborador</button>:null}
