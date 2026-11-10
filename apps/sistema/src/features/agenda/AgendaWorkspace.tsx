@@ -1250,6 +1250,34 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
         </div>
       </div>
       {initialView === "agenda" ? (
+        <div className="agenda-mobile-statcards" aria-label="Indicadores dos compromissos">
+          <button type="button" className="agenda-mobile-stat is-today"
+            onClick={()=>{
+              setActiveSummary(null);
+              if(data.today<data.monthStart||data.today>data.monthEnd)navigate("agenda",data.today);
+              else setSelectedDate(data.today);
+            }} title="Ir aos compromissos de hoje">
+            <span className="agenda-mobile-stat-value">{todayCount}</span><span>Hoje</span>
+          </button>
+          <button type="button" className={"agenda-mobile-stat is-queue"+(activeSummary==="queue"?" is-selected":"")}
+            aria-pressed={activeSummary==="queue"} onClick={()=>setActiveSummary(v=>v==="queue"?null:"queue")}
+            title="Ver meus compromissos pendentes">
+            <span className="agenda-mobile-stat-value">{myAgendaQueue.length}</span><span>Minha fila</span>
+          </button>
+          <button type="button" className={"agenda-mobile-stat is-overdue"+(activeSummary==="overdue"?" is-selected":"")}
+            aria-pressed={activeSummary==="overdue"} onClick={()=>setActiveSummary(v=>v==="overdue"?null:"overdue")}
+            title="Ver os atrasados de acordo com o seletor de equipe">
+            <span className="agenda-mobile-stat-value">{overdueInSelection.length}</span><span>Atrasados</span>
+          </button>
+          <button type="button" className={"agenda-mobile-stat is-personal"+(activeSummary==="personal-overdue"?" is-selected":"")}
+            aria-pressed={activeSummary==="personal-overdue"} onClick={()=>setActiveSummary(v=>v==="personal-overdue"?null:"personal-overdue")}
+            title={responsibleFilter&&responsibleFilter!==data.currentUserId?"Ver os atrasados da pessoa selecionada":"Ver meus atrasados"}>
+            <span className="agenda-mobile-stat-value">{personalOverdue.length}</span>
+            <span>{responsibleFilter&&responsibleFilter!==data.currentUserId?"Da pessoa":"Meus atras."}</span>
+          </button>
+        </div>
+      ) : null}
+      {initialView === "agenda" ? (
       <div className="agenda-topbar">
         <div className="agenda-tabs" role="tablist" aria-label="Agenda e pauta">
           {data.access.agendaRead ? <button type="button" className={initialView === "agenda" ? "is-active" : ""} onClick={() => navigate("agenda", data.focusDate)}>Agenda</button> : null}
@@ -1271,6 +1299,26 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
       </div>
       ) : null}
 
+      {initialView==="agenda"&&activeSummary?(
+        <section className="agenda-mobile-focus" aria-label={summaryHeading}>
+          <div className="agenda-mobile-focus-head">
+            <strong>{summaryHeading} <span>({summaryItems.length})</span></strong>
+            <button type="button" onClick={()=>setActiveSummary(null)} aria-label="Fechar lista">Fechar ×</button>
+          </div>
+          {summaryItems.length?(
+            <div className="agenda-mobile-focus-items">
+              {summaryItems.map(item=>(
+                <Link key={item.id} href={"/sistema/agenda?date="+encodeURIComponent(item.eventDate)}
+                  className="agenda-mobile-focus-link" onClick={()=>setActiveSummary(null)}>
+                  <span><strong>{item.title}</strong>
+                    <small>{shortDate(item.eventDate)}{item.startTime?" · "+item.startTime+"h":""}</small></span>
+                  <span aria-hidden="true">Abrir ›</span>
+                </Link>
+              ))}
+            </div>
+          ):<p className="agenda-mobile-focus-empty">Nenhum compromisso nesta categoria.</p>}
+        </section>
+      ):null}
       {remoteChanges ? (
         <div className="agenda-remote-notice agenda-remote-notice--floating" role="status" aria-live="polite">
           <span><strong>Alterações de outros usuários</strong><small>Salve ou feche a edição para sincronizar sem perder suas informações.</small></span>
