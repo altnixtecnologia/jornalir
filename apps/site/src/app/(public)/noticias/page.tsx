@@ -24,10 +24,11 @@ export const dynamic = "force-dynamic";
 export default async function NoticiasPage({
   searchParams,
 }: {
-  searchParams: { page?: string; pageSize?: string };
+  searchParams: Promise<{ page?: string; pageSize?: string }>;
 }): Promise<JSX.Element> {
-  const requestedPage = parsePage(searchParams.page);
-  const pageSize = parsePageSize(searchParams.pageSize);
+  const { page: pageParam, pageSize: sizeParam } = await searchParams;
+  const requestedPage = parsePage(pageParam);
+  const pageSize = parsePageSize(sizeParam);
   const { items: articles, total, page, totalPages } = await listPublicArticlesPage({ page: requestedPage, pageSize });
 
   return (

@@ -23,15 +23,16 @@ export default async function EditoriaPage({
   params,
   searchParams,
 }: {
-  params: { slug: string };
-  searchParams: { page?: string; pageSize?: string };
+  params: Promise<{ slug: string }>;
+  searchParams: Promise<{ page?: string; pageSize?: string }>;
 }): Promise<JSX.Element> {
+  const [{ slug }, { page: pageParam, pageSize: sizeParam }] = await Promise.all([params, searchParams]);
   const sections = await listPublicSections();
-  const section = sections.find((item) => item.slug === params.slug);
+  const section = sections.find((item) => item.slug === slug);
   if (!section) notFound();
 
-  const requestedPage = parsePage(searchParams.page);
-  const pageSize = parsePageSize(searchParams.pageSize);
+  const requestedPage = parsePage(pageParam);
+  const pageSize = parsePageSize(sizeParam);
   const { items: articles, total, page, totalPages } = await listPublicArticlesPage({
     sectionId: section.id,
     page: requestedPage,

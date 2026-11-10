@@ -1,0 +1,52 @@
+name: Portal/Leitor - fechamento e segurança (sem deploy)
+
+on:
+  pull_request:
+    paths:
+      - "apps/site/**"
+      - "package-lock.json"
+      - ".github/workflows/validate-portal-fechamento.yml"
+      - "supabase/migrations/*portal*.sql"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  portal:
+    runs-on: ubuntu-latest
+    timeout-minutes: 16
+    env:
+      NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
+      NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ci-publishable-key
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ci-publishable-key
+      NEXT_TELEMETRY_DISABLED: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+      - name: Dependências reproduzíveis
+        run: npm ci --no-audit --no-fund
+      - name: Confirmar Next/React do Portal e do Sistema
+        run: |
+          node - <<'NODE'
+          const path=require('node:path');
+          for(const [directory,nextVersion,reactVersion] of [
+            ['apps/site','15.5.29','19.1.10'],
+            ['apps/sistema','15.5.29','19.1.10'],
+          ]) {
+            const home=path.resolve(directory);
+            const n=require(require.resolve('next/package.json',{paths:[home]})).version;
+            const r=require(require.resolve('react/package.json',{paths:[home]})).version;
+            if(n!==nextVersion||r!==reactVersion)throw new Error(directory+': '+n+' / '+r);
+            console.log(directory+': Next '+n+' / React '+r);
+          }
+          NODE
+      - name: Testes unitários do leitor e acervo
+        run: npx tsx --test apps/site/test/*.test.ts
+      - name: TypeScript do portal
+        run: npm run typecheck --workspace @ir/site
+      - name: Build do Portal (sem publicar)
+        run: npm run build --workspace @ir/site

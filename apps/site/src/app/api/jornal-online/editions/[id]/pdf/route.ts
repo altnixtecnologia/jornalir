@@ -5,13 +5,14 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 interface RouteParams {
-  params: { id: string };
+  params: Promise<{ id: string }>;
 }
 
 export async function GET(request: Request, { params }: RouteParams): Promise<Response> {
+  const { id } = await params;
   const url = new URL(request.url);
   return handleEditionAssetRequest({
-    id: params.id,
+    id,
     kind: "pdf",
     method: "GET",
     rangeHeader: request.headers.get("range"),
@@ -20,8 +21,9 @@ export async function GET(request: Request, { params }: RouteParams): Promise<Re
 }
 
 export async function HEAD(request: Request, { params }: RouteParams): Promise<Response> {
+  const { id } = await params;
   return handleEditionAssetRequest({
-    id: params.id,
+    id,
     kind: "pdf",
     method: "HEAD",
     rangeHeader: request.headers.get("range"),
