@@ -1,4 +1,4 @@
-import type { ClientKind, ClientRole, ClientStatus } from "@ir/types";
+import type { ClientIcmsStatus, ClientKind, ClientRole, ClientStatus } from "@ir/types";
 import { isValidCnpj, isValidCpf, onlyDigits } from "@ir/core";
 
 export interface ClientFormPayload {
@@ -19,6 +19,10 @@ export interface ClientFormPayload {
   phoneSecondary: string;
   whatsapp: string;
   email: string;
+  fiscalEmail: string;
+  municipalRegistration: string;
+  addressIbgeCode: string;
+  icmsStatus: ClientIcmsStatus | "";
   addressZip: string;
   addressStreet: string;
   addressNumber: string;
@@ -53,6 +57,9 @@ export function validateClientPayload(payload: ClientFormPayload): string | null
   if (!payload.whatsapp.trim()) return "Informe o WhatsApp.";
   if (!payload.email.trim()) return "Informe o e-mail de contato.";
   if (!EMAIL_RE.test(payload.email.trim())) return "E-mail inválido.";
+  if (payload.fiscalEmail.trim() && !EMAIL_RE.test(payload.fiscalEmail.trim())) return "E-mail fiscal inválido.";
+  if (payload.addressIbgeCode.trim() && !/^[0-9]{7}$/.test(payload.addressIbgeCode.trim())) return "Código IBGE do município inválido.";
+  if (payload.icmsStatus && !["contribuinte", "isento", "nao_contribuinte"].includes(payload.icmsStatus)) return "Situação ICMS inválida.";
   if (payload.addressState.trim() && onlyDigits(payload.addressState).length > 0) return "UF deve conter só letras.";
   if (payload.roles.length === 0) return "Selecione ao menos um papel.";
   return null;

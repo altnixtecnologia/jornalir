@@ -1,5 +1,6 @@
 import Link from "next/link";
 import type { Client } from "@ir/types";
+import type { ClientAdminSortKey } from "../../providers/supabase/clientRepository.supabase";
 import { CLIENT_KIND_LABELS, CLIENT_ROLE_LABELS, clientDisplayName } from "@ir/types";
 
 function formatDoc(client: Client): string {
@@ -7,7 +8,7 @@ function formatDoc(client: Client): string {
   if (!doc) return "—";
   return client.kind === "individual"
     ? doc.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, "$1.$2.$3-$4")
-    : doc.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/, "$1.$2.$3/$4-$5");
+    : doc.replace(/([A-Z0-9]{2})([A-Z0-9]{3})([A-Z0-9]{3})([A-Z0-9]{4})([0-9]{2})/i, "$1.$2.$3/$4-$5");
 }
 
 function RolesBadges({ client }: { client: Client }): JSX.Element {
@@ -35,7 +36,18 @@ function RolesBadges({ client }: { client: Client }): JSX.Element {
  * pro CSS/visual; a lógica real depende de um ajuste no provider, fora do
  * escopo desta tarefa.
  */
-export function ClientesList({ clients }: { clients: Client[] }): JSX.Element {
+export function ClientesList({clients, sortHrefs, sortBy, sortDir}:{
+  clients:Client[];
+  sortHrefs:Record<ClientAdminSortKey,string>;
+  sortBy?:ClientAdminSortKey;
+  sortDir:"asc"|"desc";
+}):JSX.Element {
+  const sortableHeader = (key:ClientAdminSortKey,label:string):JSX.Element => (
+    <Link className="cadastros-sort-link" href={sortHrefs[key]}
+      aria-label={`Ordenar ${label} ${sortBy === key && sortDir === "asc" ? "decrescente" : "crescente"}`}>
+      {label} <span className="cadastros-sort-hint" aria-hidden="true">{sortBy === key ? sortDir === "asc" ? "↑" : "↓" : "↕"}</span>
+    </Link>
+  );
   if (clients.length === 0) {
     return <p className="helper-text">Nenhum cadastro encontrado com os filtros atuais.</p>;
   }
@@ -46,12 +58,12 @@ export function ClientesList({ clients }: { clients: Client[] }): JSX.Element {
         <table className="materias-table">
           <thead>
             <tr>
-              <th>Referência <span className="cadastros-sort-hint" aria-hidden="true">↕</span></th>
-              <th>Nome / Razão social <span className="cadastros-sort-hint" aria-hidden="true">↕</span></th>
+              <th>{sortableHeader("reference","Referência")}</th>
+              <th>{sortableHeader("name","Nome / Razão social")}</th>
               <th>Papéis</th>
-              <th>CPF/CNPJ <span className="cadastros-sort-hint" aria-hidden="true">↕</span></th>
+              <th>{sortableHeader("document","CPF/CNPJ")}</th>
               <th>Contato</th>
-              <th>Status <span className="cadastros-sort-hint" aria-hidden="true">↕</span></th>
+              <th>{sortableHeader("status","Status")}</th>
             </tr>
           </thead>
           <tbody>

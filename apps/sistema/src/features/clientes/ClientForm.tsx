@@ -2,8 +2,9 @@
 
 import { useEffect, useState, useTransition, type JSX } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import type { Client, ClientRole } from "@ir/types";
-import { CLIENT_ROLES, CLIENT_ROLE_LABELS } from "@ir/types";
+import { CLIENT_ICMS_STATUS_LABELS, CLIENT_ROLES, CLIENT_ROLE_LABELS } from "@ir/types";
 import { createClient, updateClient } from "../../app/sistema/clientes/actions";
 import type { ClientFormPayload } from "./clientFormTypes";
 import { PhoneField } from "./PhoneField";
@@ -98,6 +99,10 @@ function payloadFromClient(client?: Client): ClientFormPayload {
     phoneSecondary: client?.phoneSecondary ?? "",
     whatsapp: client?.whatsapp ?? "",
     email: client?.email ?? "",
+    fiscalEmail: client?.fiscalEmail ?? "",
+    municipalRegistration: client?.municipalRegistration ?? "",
+    addressIbgeCode: client?.addressIbgeCode ?? "",
+    icmsStatus: client?.icmsStatus ?? "",
     addressZip: client?.address?.zip ?? "",
     addressStreet: client?.address?.street ?? "",
     addressNumber: client?.address?.number ?? "",
@@ -127,27 +132,10 @@ export function ClientForm({ mode, client }: ClientFormProps): JSX.Element {
   const router = useRouter();
   const [payload, setPayload] = useState<ClientFormPayload>(() => payloadFromClient(client));
   const [rolesError, setRolesError] = useState<string | null>(null);
+  const [fiscalEmailSeparate, setFiscalEmailSeparate] = useState(Boolean(client?.fiscalEmail));
   const [pending, startTransition] = useTransition();
 
   const [cepStatus, setCepStatus] = useState<"idle" | "loading" | "error">("idle");
-  const [cepIbge, setCepIbge] = useState<string>("");
-
-  // Aba Família e aniversários — demonstração local apenas. Aniversariantes
-  // é uma base editorial SEPARADA de `clients` (decisão confirmada): nada
-  // aqui é enviado em `payload`/`createClient`/`updateClient`, nunca é
-  // gravado. A lista real vive em /sistema/aniversariantes.
-  const [familyMembers, setFamilyMembers] = useState<
-    Array<{ id: string; name: string; relationship: string; birthDate: string; city: string }>
-  >([]);
-  const [familyFormOpen, setFamilyFormOpen] = useState(false);
-  const [familyDraft, setFamilyDraft] = useState({ name: "", relationship: "", birthDate: "", city: "" });
-
-  function addFamilyMember(): void {
-    if (!familyDraft.name.trim() || !familyDraft.birthDate) return;
-    setFamilyMembers((prev) => [...prev, { id: `local-${Date.now()}`, ...familyDraft }]);
-    setFamilyDraft({ name: "", relationship: "", birthDate: "", city: "" });
-    setFamilyFormOpen(false);
-  }
 
   function set<K extends keyof ClientFormPayload>(key: K, value: ClientFormPayload[K]): void {
     setPayload((prev) => ({ ...prev, [key]: value }));
@@ -161,10 +149,7 @@ export function ClientForm({ mode, client }: ClientFormProps): JSX.Element {
     setRolesError(null);
   }
 
-  // Busca de CEP (ViaCEP) — só dispara com os 8 dígitos completos, nunca a
-  // cada tecla. Preenche logradouro/bairro/cidade/UF (todos continuam
-  // editáveis) e guarda o código IBGE só em memória: `clients` não tem
-  // coluna para isso hoje (ver docs/cadastro mestre), nunca persistido.
+  // CEP: completa endereço e código IBGE na mesma ficha. Permite correção manual.
   useEffect(() => {
     const digits = payload.addressZip.replace(/\D/g, "");
     if (digits.length !== 8) {
@@ -180,13 +165,13 @@ export function ClientForm({ mode, client }: ClientFormProps): JSX.Element {
           return;
         }
         setCepStatus("idle");
-        setCepIbge(result.ibgeCode);
         setPayload((prev) => ({
           ...prev,
           addressStreet: result.street || prev.addressStreet,
           addressNeighborhood: result.neighborhood || prev.addressNeighborhood,
           addressCity: result.city || prev.addressCity,
           addressState: result.state || prev.addressState,
+          addressIbgeCode: result.ibgeCode || prev.addressIbgeCode,
         }));
       })
       .catch((err: unknown) => {
@@ -297,7 +282,7 @@ export function ClientForm({ mode, client }: ClientFormProps): JSX.Element {
             </label>
             <label className="cadastro-field cadastro-field--span-3 cadastro-field--required">
               <span className="field-label">CNPJ</span>
-              <input type="text" value={payload.cnpj} onChange={(e) => set("cnpj", e.target.value)} placeholder="00.000.000/0000-00" />
+              <input type="text" autoCapitalize="characters" value={payload.cnpj} onChange={(e) => set("cnpj", e.target.value.toUpperCase())} placeholder="00.000.000/0000-00" />
             </label>
             <label className="cadastro-field cadastro-field--span-2">
               <span className="field-label">Fundação <span className="field-optional">(opcional)</span></span>
@@ -354,7 +339,7 @@ export function ClientForm({ mode, client }: ClientFormProps): JSX.Element {
             <input
               type="text"
               value={payload.addressZip}
-              onChange={(e) => set("addressZip", e.target.value)}
+              onChange={(e) => setPayload((prev) => ({ ...prev, addressZip: e.target.value, addressIbgeCode: "" }))}
               placeholder="00000-000"
             />
           </label>
@@ -372,10 +357,8 @@ export function ClientForm({ mode, client }: ClientFormProps): JSX.Element {
               CEP não encontrado — preencha o endereço manualmente.
             </p>
           ) : null}
-          {cepIbge ? (
-            <p className="cadastro-cep-hint cadastro-field--span-12">
-              Município IBGE: {cepIbge} (ainda não é salvo pelo cadastro mestre — ver aba Fiscal/relatório)
-            </p>
+          {payload.addressIbgeCode ? (
+            <p className="cadastro-cep-hint cadastro-field--span-12">Município IBGE: {payload.addressIbgeCode} (salvo com o cadastro)</p>
           ) : null}
           <label className="cadastro-field cadastro-field--span-3">
             <span className="field-label">Complemento <span className="field-optional">(opcional)</span></span>
@@ -387,11 +370,11 @@ export function ClientForm({ mode, client }: ClientFormProps): JSX.Element {
           </label>
           <label className="cadastro-field cadastro-field--span-4">
             <span className="field-label">Cidade <span className="field-optional">(opcional)</span></span>
-            <input type="text" value={payload.addressCity} onChange={(e) => set("addressCity", e.target.value)} />
+            <input type="text" value={payload.addressCity} onChange={(e) => setPayload((prev) => ({ ...prev, addressCity: e.target.value, addressIbgeCode: "" }))} />
           </label>
           <label className="cadastro-field cadastro-field--span-2">
             <span className="field-label">UF <span className="field-optional">(opcional)</span></span>
-            <input type="text" maxLength={2} value={payload.addressState} onChange={(e) => set("addressState", e.target.value.toUpperCase())} />
+            <input type="text" maxLength={2} value={payload.addressState} onChange={(e) => setPayload((prev) => ({ ...prev, addressState: e.target.value.toUpperCase(), addressIbgeCode: "" }))} />
           </label>
         </div>
       </section>
@@ -428,31 +411,25 @@ export function ClientForm({ mode, client }: ClientFormProps): JSX.Element {
     <>
       {!isIndividual ? (
         <section className="form-section form-section--first">
-          <h2>Dados fiscais</h2>
+          <h2>Dados fiscais da empresa</h2>
           <div className="cadastro-grid">
             <label className="cadastro-field cadastro-field--span-4">
               <span className="field-label">Inscrição estadual <span className="field-optional">(opcional)</span></span>
               <input type="text" value={payload.stateRegistration} onChange={(e) => set("stateRegistration", e.target.value)} />
             </label>
             <label className="cadastro-field cadastro-field--span-4">
-              <span className="field-label">Inscrição municipal <span className="field-optional">(em breve)</span></span>
-              <input type="text" disabled placeholder="Disponível após atualização do cadastro mestre" />
+              <span className="field-label">Inscrição municipal <span className="field-optional">(opcional)</span></span>
+              <input type="text" value={payload.municipalRegistration} onChange={(e) => set("municipalRegistration", e.target.value)} />
             </label>
-            <div className="cadastro-field cadastro-field--span-4">
-              <span className="field-label">Situação perante o ICMS <span className="field-optional">(em breve)</span></span>
-              <div className="cadastro-segmented cadastro-segmented--disabled" role="group" aria-label="Situação perante o ICMS (indisponível)">
-                <button type="button" className="cadastro-segmented-btn" disabled>Contribuinte</button>
-                <button type="button" className="cadastro-segmented-btn" disabled>Isento</button>
-                <button type="button" className="cadastro-segmented-btn" disabled>Não contribuinte</button>
-              </div>
-            </div>
-          </div>
-          <p className="helper-text">
-            Inscrição municipal e situação perante o ICMS ainda não existem no cadastro mestre — ficam preparadas
-            visualmente, sem gravar nada, até uma migration futura.
-          </p>
-
-          <div className="cadastro-grid" style={{ marginTop: "16px" }}>
+            <label className="cadastro-field cadastro-field--span-4">
+              <span className="field-label">Situação perante o ICMS <span className="field-optional">(opcional)</span></span>
+              <select value={payload.icmsStatus} onChange={(e) => set("icmsStatus", e.currentTarget.value as ClientFormPayload["icmsStatus"])}>
+                <option value="">Não informado</option>
+                {Object.entries(CLIENT_ICMS_STATUS_LABELS).map(([value, label]) => (
+                  <option key={value} value={value}>{label}</option>
+                ))}
+              </select>
+            </label>
             <label className="cadastro-field cadastro-field--span-8">
               <span className="field-label">Nome do responsável <span className="field-optional">(opcional)</span></span>
               <input type="text" value={payload.responsibleName} onChange={(e) => set("responsibleName", e.target.value)} />
@@ -462,35 +439,37 @@ export function ClientForm({ mode, client }: ClientFormProps): JSX.Element {
               <input type="text" value={payload.responsibleCpf} onChange={(e) => set("responsibleCpf", e.target.value)} placeholder="000.000.000-00" />
             </label>
           </div>
+          <p className="helper-text">Inscrições e ICMS são opcionais. Dados de tributação de cada serviço pertencem à emissão fiscal, não à ficha do cliente.</p>
         </section>
       ) : (
         <section className="form-section form-section--first">
           <h2>Dados fiscais</h2>
-          <p className="helper-text">Os campos fiscais desta aba se aplicam a pessoa jurídica.</p>
+          <p className="helper-text">Para pessoa física, basta a identificação no CPF e os dados de contato. Outros dados são opcionais.</p>
         </section>
       )}
-
       <section className="form-section">
-        <h2>E-mail fiscal / NFS-e</h2>
-        <div className="cadastro-status-inline">
-          <button type="button" role="switch" aria-checked={true} className="switch-control is-on" disabled>
-            <span className="switch-track" aria-hidden="true">
-              <span className="switch-thumb" />
-            </span>
-            <span>Usar o mesmo e-mail de contato</span>
-          </button>
-        </div>
-        <div className="cadastro-grid" style={{ marginTop: "12px" }}>
-          <label className="cadastro-field cadastro-field--span-6">
-            <span className="field-label">E-mail fiscal / NFS-e <span className="field-optional">(em breve)</span></span>
-            <input type="email" disabled value={payload.email} />
+        <h2>Município e comunicação fiscal</h2>
+        <div className="cadastro-grid">
+          <label className="cadastro-field cadastro-field--span-3">
+            <span className="field-label">Código IBGE do município <span className="field-optional">(opcional)</span></span>
+            <input inputMode="numeric" type="text" maxLength={7} value={payload.addressIbgeCode} onChange={(e) => set("addressIbgeCode", e.target.value.replace(/\D/g,""))} placeholder="7 dígitos" />
           </label>
+          <div className="cadastro-field cadastro-field--span-9">
+            <span className="field-label">E-mail fiscal / NFS-e</span>
+            <button type="button" role="switch" aria-checked={!fiscalEmailSeparate} className={`switch-control${!fiscalEmailSeparate ? " is-on" : ""}`}
+              onClick={() => {setFiscalEmailSeparate((v) => !v);set("fiscalEmail", "");}}>
+              <span className="switch-track" aria-hidden="true"><span className="switch-thumb" /></span>
+              <span>Usar o mesmo e-mail de contato</span>
+            </button>
+          </div>
+          {fiscalEmailSeparate ? (
+            <label className="cadastro-field cadastro-field--span-6">
+              <span className="field-label">E-mail fiscal diferente <span className="field-optional">(opcional)</span></span>
+              <input type="email" value={payload.fiscalEmail} onChange={(e) => set("fiscalEmail", e.target.value)} placeholder="fiscal@empresa.com.br" />
+            </label>
+          ) : null}
         </div>
-        <p className="helper-text">
-          O cadastro mestre ainda não tem um campo `fiscal_email` próprio — a emissão de NFS-e usa o e-mail de
-          contato por enquanto. Quando o campo existir, esta chave poderá ser desligada para informar um e-mail
-          fiscal diferente.
-        </p>
+        <p className="helper-text">O código IBGE pode ser preenchido automaticamente pelo CEP. Se não houver e-mail fiscal diferente, o sistema utiliza o e-mail de contato.</p>
       </section>
     </>
   );
@@ -515,7 +494,7 @@ export function ClientForm({ mode, client }: ClientFormProps): JSX.Element {
             Cidade: {payload.addressCity || "não informada"} · Origem: Cadastro principal
           </p>
         ) : (
-          <p className="helper-text">Pessoa jurídica não possui aniversário próprio — ver pessoas relacionadas abaixo.</p>
+          <p className="helper-text">Fundação: {payload.foundingDate ? new Date(`${payload.foundingDate}T00:00:00`).toLocaleDateString("pt-BR") : "não informada"}. A divulgação editorial depende das regras de Aniversariantes.</p>
         )}
         {isIndividual && payload.birthDate ? (
           <p className="helper-text">
@@ -546,60 +525,19 @@ export function ClientForm({ mode, client }: ClientFormProps): JSX.Element {
         </section>
       ) : null}
 
-      <h2 style={{ marginTop: "16px" }}>{isIndividual ? "Familiares / pessoas relacionadas" : "Pessoas relacionadas / aniversariantes"}</h2>
+      <h2 style={{ marginTop: "16px" }}>{isIndividual ? "Familiares" : "Pessoas relacionadas"}</h2>
       <p className="helper-text">
-        Demonstração local (preview) apenas — nada aqui é enviado ao salvar este cadastro. A base real fica em{" "}
-        <strong>Aniversariantes</strong>.
+        O cadastro real de familiares e pessoas vinculadas fica na ficha do cliente, com histórico e permissões próprios.
+        Os aniversariantes editoriais continuam separados e nunca são publicados automaticamente por essa ação.
       </p>
-
-      {familyMembers.length > 0 ? (
-        <ul className="cadastro-family-tree">
-          {familyMembers.map((member) => (
-            <li key={member.id}>
-              {member.name}
-              {member.relationship ? ` — ${member.relationship}` : ""}
-              {member.birthDate ? ` — ${new Date(`${member.birthDate}T00:00:00`).toLocaleDateString("pt-BR")}` : ""}
-              {member.city ? ` — ${member.city}` : ""}
-            </li>
-          ))}
-        </ul>
-      ) : null}
-
-      {familyFormOpen ? (
-        <div className="aniv-entry--editing" style={{ marginTop: "12px" }}>
-          <div className="cadastro-grid">
-            <label className="cadastro-field cadastro-field--span-4">
-              <span className="field-label">Nome</span>
-              <input type="text" value={familyDraft.name} onChange={(e) => setFamilyDraft((d) => ({ ...d, name: e.target.value }))} />
-            </label>
-            <label className="cadastro-field cadastro-field--span-3">
-              <span className="field-label">Parentesco <span className="field-optional">(opcional)</span></span>
-              <input
-                type="text"
-                value={familyDraft.relationship}
-                onChange={(e) => setFamilyDraft((d) => ({ ...d, relationship: e.target.value }))}
-                placeholder={isIndividual ? "Cônjuge, Filho(a)..." : "Responsável, Sócio..."}
-              />
-            </label>
-            <label className="cadastro-field cadastro-field--span-2">
-              <span className="field-label">Nascimento</span>
-              <input type="date" value={familyDraft.birthDate} onChange={(e) => setFamilyDraft((d) => ({ ...d, birthDate: e.target.value }))} />
-            </label>
-            <label className="cadastro-field cadastro-field--span-3">
-              <span className="field-label">Cidade</span>
-              <input type="text" value={familyDraft.city} onChange={(e) => setFamilyDraft((d) => ({ ...d, city: e.target.value }))} />
-            </label>
-          </div>
-          <div className="aniv-entry-actions">
-            <button type="button" className="cadastros-btn-primary" onClick={addFamilyMember}>Adicionar (preview)</button>
-            <button type="button" className="cadastros-btn-secondary" onClick={() => setFamilyFormOpen(false)}>Cancelar</button>
-          </div>
-        </div>
+      {mode === "edit" && client ? (
+        <Link className="cadastros-btn-secondary" href={`/sistema/clientes/${client.id}`}>
+          Abrir ficha e gerenciar pessoas vinculadas
+        </Link>
       ) : (
-        <button type="button" className="cadastros-btn-secondary aniv-add-btn" onClick={() => setFamilyFormOpen(true)}>
-          + {isIndividual ? "Adicionar familiar" : "Adicionar pessoa"}
-        </button>
+        <p className="helper-text">Após criar o cadastro, abra a ficha para incluir familiares ou pessoas vinculadas.</p>
       )}
+
     </section>
   );
 

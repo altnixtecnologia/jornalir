@@ -23,7 +23,7 @@ function formatDoc(kind: "individual" | "company", value: string | undefined): s
   if (!value) return "—";
   return kind === "individual"
     ? value.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, "$1.$2.$3-$4")
-    : value.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/, "$1.$2.$3/$4-$5");
+    : value.replace(/([A-Z0-9]{2})([A-Z0-9]{3})([A-Z0-9]{3})([A-Z0-9]{4})([0-9]{2})/i, "$1.$2.$3/$4-$5");
 }
 
 function Field({ label, value }: { label: string; value?: string | null }): JSX.Element {
@@ -176,6 +176,9 @@ export default async function ClienteDetailPage(props: { params: Promise<{ id: s
               <Field label="Nome fantasia" value={client.tradeName} />
               <Field label="CNPJ" value={formatDoc("company", client.cnpj)} />
               <Field label="Inscrição estadual" value={client.stateRegistration} />
+              <Field label="Inscrição municipal" value={client.municipalRegistration} />
+              <Field label="Situação ICMS" value={client.icmsStatus
+                ? ({contribuinte:"Contribuinte",isento:"Isento",nao_contribuinte:"Não contribuinte"} as const)[client.icmsStatus] : undefined} />
               <Field label="Responsável" value={client.responsibleName} />
               <Field label="CPF do responsável" value={formatDoc("individual", client.responsibleCpf)} />
             </>
@@ -190,6 +193,7 @@ export default async function ClienteDetailPage(props: { params: Promise<{ id: s
           <Field label="Telefone secundário" value={client.phoneSecondary} />
           <Field label="WhatsApp" value={client.whatsapp} />
           <Field label="E-mail" value={client.email} />
+          <Field label="E-mail fiscal" value={client.fiscalEmail || client.email} />
         </div>
       </section>
 
@@ -203,6 +207,7 @@ export default async function ClienteDetailPage(props: { params: Promise<{ id: s
           <Field label="Bairro" value={client.address.neighborhood} />
           <Field label="Cidade" value={client.address.city} />
           <Field label="UF" value={client.address.state} />
+          <Field label="Município IBGE" value={client.addressIbgeCode} />
         </div>
       </section>
 
