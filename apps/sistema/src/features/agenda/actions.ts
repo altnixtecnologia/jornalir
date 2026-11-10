@@ -6,6 +6,7 @@ import { createSupabaseServerClient } from "../../lib/supabase/server";
 import { addDays, startOfWeek } from "./agendaData";
 import { dateInPautaPeriod } from "./pautaPeriod";
 import { coverageMinutesBefore } from "./coverageClock";
+import { validateCoverageTasks } from "./coverageTaskCatalog";
 
 export type AgendaActionResult = { ok: true } | { error: string };
 
@@ -199,32 +200,34 @@ function coveragePeople(form:FormData,eventStartTime:string):
 
 /** Equipe livre de 1 a 16 pessoas; validada novamente pela RPC no Postgres. */
 function coverageTeamPeople(form:FormData,eventTime:string):
- | {staff:{profileId:string;task:string}[];articleOwner:string;audible:number;checkin:number}
+ | {staff:{profileId:string;task:string;tasks:NonNullable<ReturnType<typeof validateCoverageTasks>>}[];
+    articleOwner:string;audible:number;checkin:number}
  | {error:string}{
-  let staff:unknown;
-  try{staff=JSON.parse(value(form,"coverage_team_json"));}catch{return {error:"Adicione os colaboradores da cobertura."};}
-  if(!Array.isArray(staff)||staff.length<1||staff.length>16)
-    return {error:"Informe entre 1 e 16 colaboradores de campo."};
-  const uuid=/^[a-f0-9-]{36}$/i;
-  const clean:{profileId:string;task:string}[]=[];
-  for(const item of staff){
-    if(!item||typeof item!=="object")return {error:"Equipe inválida."};
-    const row=item as Record<string,unknown>;
-    const profileId=typeof row.profileId==="string"?row.profileId:"";
-    const task=typeof row.task==="string"?row.task.trim():"";
-    if(!uuid.test(profileId)||task.length<2||task.length>80)
-      return {error:"Selecione cada colaborador e sua tarefa (2 a 80 caracteres)."};
-    clean.push({profileId,task});
-  }
-  if(new Set(clean.map(x=>x.profileId)).size!==clean.length)
-    return {error:"Cada colaborador deve aparecer apenas uma vez. Una as tarefas no mesmo campo."};
-  const articleOwner=value(form,"coverage_article_owner");
-  if(!uuid.test(articleOwner))return {error:"Escolha o responsável pela matéria."};
-  const audible=coverageMinutesBefore(eventTime,value(form,"coverage_audible_time"));
-  const checkin=coverageMinutesBefore(eventTime,value(form,"coverage_checkin_time"));
-  if(audible===null||checkin===null||audible< -1440||audible>1440||checkin< -120||checkin>120)
-    return {error:"Confira os horários de aviso e confirmação."};
-  return {staff:clean,articleOwner,audible,checkin};
+ let staff:unknown;
+ try{staff=JSON.parse(value(form,"coverage_team_json"));}
+ catch{return {error:"Adicione os colaboradores da cobertura."};}
+ if(!Array.isArray(staff)||staff.length<1||staff.length>16)
+  return {error:"Informe entre 1 e 16 colaboradores de campo."};
+ const uuid=/^[a-f0-9-]{36}$/i;
+ const clean:{profileId:string;task:string;tasks:NonNullable<ReturnType<typeof validateCoverageTasks>>}[]=[];
+ for(const item of staff){
+  if(!item||typeof item!=="object")return {error:"Equipe inválida."};
+  const row=item as Record<string,unknown>;
+  const profileId=typeof row.profileId==="string"?row.profileId:"";
+  const tasks=validateCoverageTasks(row.tasks);
+  if(!uuid.test(profileId)||!tasks)
+   return {error:"Selecione cada colaborador e de 1 a 8 tarefas válidas."};
+  clean.push({profileId,task:tasks[0].label,tasks});
+ }
+ if(new Set(clean.map(x=>x.profileId)).size!==clean.length)
+  return {error:"Cada colaborador deve ser selecionado uma única vez."};
+ const articleOwner=value(form,"coverage_article_owner");
+ if(!uuid.test(articleOwner))return {error:"Escolha o responsável pela matéria."};
+ const audible=coverageMinutesBefore(eventTime,value(form,"coverage_audible_time"));
+ const checkin=coverageMinutesBefore(eventTime,value(form,"coverage_checkin_time"));
+ if(audible===null||checkin===null||audible< -1440||audible>1440||checkin< -120||checkin>120)
+  return {error:"Confira os horários de aviso e confirmação."};
+ return {staff:clean,articleOwner,audible,checkin};
 }
 
 async function coverageStartTime(client:SupabaseClient,eventId:string):Promise<string>{
@@ -513,6 +516,40 @@ export async function addCoverageTeamMemberAction(
   if(error||!data)return {error:error?.message??"Não foi possível adicionar colaborador."};
   refreshAgenda();return {ok:true};
  }catch(e){return {error:e instanceof Error?e.message:"Falha ao adicionar colaborador."};}
+}
+
+export async function completeCoverageTaskAction(
+ eventId:string,taskId:string,complete:boolean,
+):Promise<AgendaActionResult>{
+ if(!/^[a-f0-9-]{36}$/i.test(eventId)||!/^[a-f0-9-]{36}$/i.test(taskId))
+  return {error:"Entrega não identificada."};
+ try{
+  const {supabase}=await requireActiveUser();
+  const {data,error}=await supabase.rpc("set_coverage_member_task_status",{
+    p_task_id:taskId,p_completed:complete,
+  });
+  if(error||!data)return {error:error?.message??"Não foi possível atualizar a entrega."};
+  refreshAgenda();return {ok:true};
+ }catch(e){return {error:e instanceof Error?e.message:"Falha ao atualizar a entrega."};}
+}
+
+export async function assignCoverageTasksAction(
+ eventId:string,form:FormData,
+):Promise<AgendaActionResult>{
+ const person=value(form,"team_new_person");
+ let raw:unknown;
+ try{raw=JSON.parse(value(form,"team_new_tasks_json"));}catch{return {error:"Selecione as tarefas do colaborador."};}
+ const tasks=validateCoverageTasks(raw);
+ if(!/^[a-f0-9-]{36}$/i.test(eventId)||!/^[a-f0-9-]{36}$/i.test(person)||!tasks)
+  return {error:"Escolha o colaborador e até oito tarefas válidas."};
+ try{
+  const {supabase}=await requireActiveUser();
+  const {data,error}=await supabase.rpc("assign_coverage_member_tasks",{
+   p_event_id:eventId,p_profile_id:person,p_tasks:tasks,
+  });
+  if(error||!data)return {error:error?.message??"Não foi possível atribuir as entregas."};
+  refreshAgenda();return {ok:true};
+ }catch(e){return {error:e instanceof Error?e.message:"Falha ao atribuir tarefas."};}
 }
 
 export async function requestCoverageTeamTransferAction(
