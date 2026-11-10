@@ -370,6 +370,23 @@ export async function adjustEditorialWorkflowTaskAction(
  }catch(e){return {error:e instanceof Error?e.message:"Erro ao ajustar função."};}
 }
 
+export async function reorderEditorialWorkflowTasksAction(
+ eventId:string,profileId:string,orderedLabels:string[],
+):Promise<AgendaActionResult>{
+ if(!/^[a-f0-9-]{36}$/i.test(eventId)||!/^[a-f0-9-]{36}$/i.test(profileId)||
+  orderedLabels.length<2||orderedLabels.length>8||
+  orderedLabels.some(label=>typeof label!=="string"||label.length<2||label.length>80))
+  return {error:"A ordem enviada é inválida."};
+ try{
+  const {supabase}=await requireActiveUser();
+  const {data,error}=await supabase.rpc("reorder_editorial_workflow_tasks",{
+   p_event_id:eventId,p_profile_id:profileId,p_labels:orderedLabels,
+  });
+  if(error||!data)return {error:error?.message??"Não foi possível mudar a ordem."};
+  refreshAgenda();return {ok:true};
+ }catch(error){return {error:error instanceof Error?error.message:"Falha ao organizar funções."};}
+}
+
 export async function answerEditorialWorkflowPresenceAction(
  eventId:string,profileId:string,answer:"present"|"absent"|"not_required"
 ):Promise<AgendaActionResult>{
