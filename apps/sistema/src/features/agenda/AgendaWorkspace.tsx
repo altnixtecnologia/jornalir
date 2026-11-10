@@ -31,7 +31,11 @@ import {
   updateAgendaEventAction,
   updatePautaItemAction,
   updateEditorialArticlePautaAction,
-  archiveEditorialArticlePautaAction,
+  archivePautaItemAction,
+  movePautaToNextWeekAction,
+  savePautaEditionOverrideAction,
+  createPautaAgendaAppointmentsAction,
+  updatePautaAgendaAppointmentAction,
   setAgendaMeetingInviteesAction,
   respondAgendaInvitationAction,
 } from "./actions";
@@ -40,6 +44,8 @@ import { coverageClockAt, validCoverageClock } from "./coverageClock";
 import { FIXED_COVERAGE_TASKS,type CoverageTaskDraft } from "./coverageTaskCatalog";
 import { EditorialWorkflowCreate } from "./EditorialWorkflowCreate";
 import { EditorialPautaEdit } from "./EditorialPautaEdit";
+import { PautaAgendaSchedule } from "./PautaAgendaSchedule";
+import { PautaAppointmentEdit } from "./PautaAppointmentEdit";
 import { EditorialWorkflowPanel } from "./EditorialWorkflowPanel";
 import { createSupabaseBrowserClient } from "../../lib/supabase/browser";
 import { notify } from "../../lib/feedback/notify";
@@ -504,10 +510,12 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
   const [isPeriodEditorOpen, setIsPeriodEditorOpen] = useState(false);
   const [pautaCreateVersion,setPautaCreateVersion]=useState(0);
   const [editingPautaId,setEditingPautaId]=useState<string|null>(null);
+  const [schedulingPautaId,setSchedulingPautaId]=useState<string|null>(null);
+  const [isEditionEditorOpen,setIsEditionEditorOpen]=useState(false);
   const [isPending, startTransition] = useTransition();
 
   useEffect(() => setSelectedDate(data.focusDate), [data.focusDate]);
-  useEffect(() => setIsPeriodEditorOpen(false), [data.weekStart]);
+  useEffect(() => {setIsPeriodEditorOpen(false);setIsEditionEditorOpen(false);}, [data.weekStart]);
   // Muda de "Agendado" para "Atrasado" sem exigir F5, inclusive à meia-noite.
   useEffect(() => {
     const refreshClock = () => setLocalClock(nowInAgendaTimezone());
@@ -651,7 +659,7 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
   const weekDays = Array.from({ length: 7 }, (_, index) => addDays(data.weekStart, index));
   const initialPautaDate = data.today >= data.periodStart && data.today <= data.periodEnd ? data.today : data.periodStart;
   const monthEventCount = data.events.filter((event) => event.eventDate >= data.monthStart && event.eventDate <= data.monthEnd).length;
-  const visiblePauta=data.pautaItems.filter(item=>!(item.workflow?.workflowKind==="article"&&item.status==="cancelled"));
+  const visiblePauta=data.pautaItems.filter(item=>item.status!=="cancelled");
   const pautaItems = responsibleFilter
     ? visiblePauta.filter((item) => item.responsibleProfileId === responsibleFilter || item.assignees.some((person) => person.id === responsibleFilter))
     : visiblePauta;
@@ -1071,16 +1079,16 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
     </details>;
   }
 
-  function PautaEdit({ item }: { item: WeeklyPautaItem }): JSX.Element {
+  function PautaEdit({ item, onClose }: { item: WeeklyPautaItem; onClose:()=>void }): JSX.Element {
     return (
-      <details className="agenda-inline-edit pauta-inline-edit">
+      <details open className="agenda-inline-edit pauta-inline-edit">
         <summary>Editar</summary>
         <form
           className="agenda-form"
           onSubmit={(event) => {
             event.preventDefault();
             const form = event.currentTarget;
-            run(() => updatePautaItemAction(item.id, new FormData(form)), "Pauta atualizada.");
+            run(() => updatePautaItemAction(item.id, new FormData(form)), "Pauta atualizada.",onClose);
           }}
         >
           <input type="hidden" name="week_start" value={item.weekStart} />
@@ -1106,6 +1114,7 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
               event.currentTarget.closest("form")?.reset();
               const details = event.currentTarget.closest("details");
               if (details instanceof HTMLDetailsElement) details.open = false;
+              onClose();
             }}>Fechar</button>
           </div>
         </form>
@@ -1355,7 +1364,7 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
                           ) : null}
                         </div>
                       ) : null}
-                      {item.status === "scheduled" && item.workflowKind==="general" && !item.coverage && data.access.pautaWrite && item.eventKind !== "editorial" ? (
+                      {item.status === "scheduled" && item.workflowKind==="general" && !item.coverage && !item.appointmentPautaId && data.access.pautaWrite && item.eventKind !== "editorial" ? (
                         <div className="agenda-event-secondary">
                           <button type="button" disabled={isPending}
                             onClick={() => run(() => createPautaFromAgendaEventAction(item.id), "Compromisso incluído na pauta.")}>
@@ -1369,11 +1378,16 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
                             isPending={isPending} onAction={run} mode="agenda"
                             showPautaLink={data.access.pautaRead}/>
                         :item.coverage?CoveragePanel({coverage:item.coverage,eventId:item.id,eventTime:item.startTime??"",mode:"agenda"})
-                        :item.status==="scheduled"&&data.access.agendaWrite?EnableCoverage({item}):null}
+                        :item.status==="scheduled"&&data.access.agendaWrite&&!item.appointmentPautaId?EnableCoverage({item}):null}
                       {data.access.agendaWrite&&item.workflowKind==="general"&&!item.coverage&&item.status==="scheduled"&&item.assignees.length>1
                         ? AssignmentRoles({item}) : null}
-                      {data.access.agendaWrite && item.workflowKind==="general" ? EventEdit({item}) : null}
-                      {data.access.agendaWrite && item.workflowKind==="general" && !item.coverage && item.eventKind==="general" && item.status==="scheduled"
+                      {item.appointmentPautaId?
+                        ((data.access.agendaWrite||item.appointmentOwnerId===data.currentUserId)?
+                          <PautaAppointmentEdit item={item} isPending={isPending}
+                            onSave={form=>run(()=>updatePautaAgendaAppointmentAction(item.id,form),
+                              "Seu compromisso foi atualizado.")}/>:null)
+                        :data.access.agendaWrite&&item.workflowKind==="general"?EventEdit({item}):null}
+                      {data.access.agendaWrite && item.workflowKind==="general" && !item.coverage && !item.appointmentPautaId && item.eventKind==="general" && item.status==="scheduled"
                         ? InviteesEditor({item}) : null}
                       </div>
                     </details>
@@ -1408,6 +1422,12 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
               {data.access.pautaWrite ? <button type="button" className="pauta-period-pencil" aria-expanded={isPeriodEditorOpen}
                 aria-label="Editar as datas somente desta semana" title="Alterar período para toda a equipe"
                 onClick={() => setIsPeriodEditorOpen((open) => !open)}>✎</button> : null}
+              {data.access.pautaWrite?
+                <button type="button" className="pauta-edition-button" aria-expanded={isEditionEditorOpen}
+                  title="Corrigir número desta edição" onClick={()=>setIsEditionEditorOpen(v=>!v)}>
+                  EDIÇÃO {data.editionNumber} <span aria-hidden="true">✎</span>
+                </button>:
+                <span className="pauta-edition-button is-read-only">EDIÇÃO {data.editionNumber}</span>}
             </div>
             <label className="agenda-person-filter pauta-toolbar-filter">
               <span>Mostrar</span>
@@ -1453,6 +1473,24 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
               </div>
             </form>
           ) : null}
+          {isEditionEditorOpen&&data.access.pautaWrite?(
+            <form className="pauta-edition-form" key={data.weekStart} onSubmit={e=>{
+              e.preventDefault();
+              run(()=>savePautaEditionOverrideAction(new FormData(e.currentTarget)),
+                "Número da edição atualizado nesta semana.",()=>setIsEditionEditorOpen(false));
+            }}>
+              <input type="hidden" name="week_start" value={data.weekStart}/>
+              <label>Número da edição <input type="number" name="edition_number" min={1} max={99999}
+                defaultValue={data.editionNumber} required/></label>
+              <label>Motivo (opcional) <input name="reason" maxLength={300} placeholder="Ex.: edição especial"/></label>
+              <button type="submit" className="agenda-primary" disabled={isPending}>Salvar edição</button>
+              {data.editionEdited?<button type="button" disabled={isPending} onClick={()=>{
+                const form=new FormData();form.set("week_start",data.weekStart);
+                run(()=>savePautaEditionOverrideAction(form),"Edição voltou à numeração automática.",()=>setIsEditionEditorOpen(false));
+              }}>Voltar ao automático</button>:null}
+              <button type="button" onClick={()=>setIsEditionEditorOpen(false)}>Fechar</button>
+            </form>
+          ):null}
           <div className="pauta-actions-row">
             <button type="button" className="pauta-week-current" onClick={() => navigate("pauta", data.today)}>Semana atual</button>
             <a href={"/tv/pauta?date="+encodeURIComponent(data.focusDate)} target="_blank" rel="noopener noreferrer" className="pauta-tv-link">▣ Modo TV 9:16</a>
@@ -1482,18 +1520,33 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
                   <details key={item.id} style={{ borderLeftColor: personColor(item.responsibleProfileId ?? "") }} className={"pauta-item" + (done ? " is-done" : "") + (cancelled ? " is-cancelled" : "")}>
                     <summary className="workflow-collapsed-summary">
                       <span className="pauta-summary-title">{item.title}</span>
-                      {data.access.pautaWrite&&item.workflow?.workflowKind==="article"?<span className="workflow-pauta-tools"
+                      {data.access.pautaWrite?<span className="workflow-pauta-tools"
                         onClick={event=>{event.preventDefault();event.stopPropagation();}}>
                         <button type="button" title="Editar pauta" aria-label={"Editar pauta: "+item.title}
                           disabled={isPending} onClick={event=>{
                             const card=event.currentTarget.closest("details");
                             if(card instanceof HTMLDetailsElement)card.open=true;
-                            setEditingPautaId(item.id);
+                            setEditingPautaId(item.id);setSchedulingPautaId(null);
                           }}>✎</button>
-                        <button type="button" title="Excluir pauta" aria-label={"Excluir pauta: "+item.title}
+                        {item.status==="pending"?<button type="button" title="Transferir para próxima semana"
+                          aria-label={"Transferir para próxima semana: "+item.title} disabled={isPending}
+                          onClick={async()=>{
+                            const yes=await confirmDialog({
+                              title:"Transferir '"+item.title+"' para a próxima semana?",
+                              confirmLabel:"Transferir",cancelLabel:"Voltar",
+                            });
+                            if(yes)run(()=>movePautaToNextWeekAction(item.id,item.updatedAt),
+                              "Pauta transferida para a próxima semana; compromissos da Agenda preservados.",
+                              ()=>{setEditingPautaId(null);setSchedulingPautaId(null);});
+                          }}>⇢</button>:null}
+                        <button type="button" title="Excluir somente da Pauta" aria-label={"Excluir da Pauta: "+item.title}
                           disabled={isPending} onClick={async ()=>{
-                            const yes=await confirmDialog({title:"Excluir a pauta '"+item.title+"'?",confirmLabel:"Excluir pauta",cancelLabel:"Voltar"});
-                            if(yes)run(()=>archiveEditorialArticlePautaAction(item.id),"Pauta excluída da listagem.",()=>setEditingPautaId(null));
+                            const yes=await confirmDialog({
+                              title:"Excluir da Pauta '"+item.title+"'? A sessão ou os compromissos da Agenda serão preservados.",
+                              confirmLabel:"Excluir da Pauta",cancelLabel:"Voltar",
+                            });
+                            if(yes)run(()=>archivePautaItemAction(item.id),"Pauta retirada sem apagar os compromissos da Agenda.",
+                              ()=>{setEditingPautaId(null);setSchedulingPautaId(null);});
                           }}>×</button>
                       </span>:null}
                       <span className="workflow-expand-chevron" aria-hidden="true">⌄</span>
@@ -1522,6 +1575,26 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
                         </span>
                       </div>
                       {item.description ? <p>{item.description}</p> : null}
+                      {item.appointments.length?<div className="pauta-appointment-links">
+                        <strong>Compromissos na Agenda:</strong>
+                        {item.appointments.map(appointment=>(
+                          <Link key={appointment.eventId} href={"/sistema/agenda?date="+encodeURIComponent(appointment.eventDate)}
+                            title={"Abrir o compromisso de "+appointment.personName+" na Agenda"}>
+                            {appointment.personName}{appointment.startTime?" · "+appointment.startTime+"h":""}
+                          </Link>
+                        ))}
+                      </div>:null}
+                      {data.access.pautaWrite&&item.status==="pending"&&item.assignees.some(
+                         person=>!item.appointments.some(ap=>ap.profileId===person.id))?
+                        <button type="button" className="pauta-schedule-small" disabled={isPending}
+                          onClick={()=>{setSchedulingPautaId(id=>id===item.id?null:item.id);setEditingPautaId(null);}}>
+                          {item.appointments.length?"＋ Agendar outro responsável":"＋ Ativar agendamento na Agenda"}
+                        </button>:null}
+                      {data.access.pautaWrite&&schedulingPautaId===item.id?
+                        <PautaAgendaSchedule item={item} isPending={isPending}
+                          onCancel={()=>setSchedulingPautaId(null)}
+                          onSave={form=>run(()=>createPautaAgendaAppointmentsAction(item.id,form),
+                            "Compromissos individuais criados na Agenda.",()=>setSchedulingPautaId(null))}/>:null}
                       {item.articleId ? (
                         <Link href={"/sistema/editorial/materias/" + item.articleId} className="agenda-link-materia">Abrir matéria vinculada ↗</Link>
                       ) : null}
@@ -1535,13 +1608,15 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
                             encodeURIComponent(item.dueDate??data.today)}>
                             Ver compromisso na Agenda
                           </Link>:null}
-                      {data.access.pautaWrite&&item.workflow?.workflowKind==="article"&&editingPautaId===item.id?
-                        <EditorialPautaEdit key={item.id+item.updatedAt} item={item} profiles={data.profiles}
-                          isPending={isPending} onCancel={()=>setEditingPautaId(null)}
-                          onSave={form=>run(()=>updateEditorialArticlePautaAction(item.id,form),"Pauta atualizada.",()=>setEditingPautaId(null))}/>
-                        :data.access.pautaWrite&&!item.workflow?PautaEdit({item}):null}
+                      {data.access.pautaWrite&&editingPautaId===item.id?(
+                        item.workflow?.workflowKind==="article"?
+                          <EditorialPautaEdit key={item.id+item.updatedAt} item={item} profiles={data.profiles}
+                            isPending={isPending} onCancel={()=>setEditingPautaId(null)}
+                            onSave={form=>run(()=>updateEditorialArticlePautaAction(item.id,form),"Pauta atualizada.",()=>setEditingPautaId(null))}/>:
+                          PautaEdit({item,onClose:()=>setEditingPautaId(null)})
+                      ):null}
                     </div>
-                    {data.access.pautaWrite && !item.workflow ? <button type="button" className="pauta-cancel" disabled={isPending} onClick={() => run(() => setPautaItemStatusAction(item.id, cancelled ? "pending" : "cancelled"), cancelled ? "Item restaurado." : "Item retirado da pauta.")}>{cancelled ? "↶" : "×"}</button> : null}
+
                     </div>
                   </details>
                 );

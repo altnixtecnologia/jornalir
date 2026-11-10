@@ -251,6 +251,11 @@ export async function createEditorialWorkflowAction(form:FormData):Promise<Agend
  const location=value(form,"location");
  const writer=value(form,"workflow_writer");
  const recurrence=Number(value(form,"council_repeat")||"1");
+ const scheduleEnabled=kind==="article"&&value(form,"schedule_enabled")==="true";
+ const scheduleDate=value(form,"appointment_date");
+ const scheduleTime=value(form,"appointment_time");
+ if(scheduleEnabled&&(!validDate(scheduleDate)||!validTime(scheduleTime)||!scheduleTime))
+   return {error:"Ative o agendamento com data e horário válidos."};
  if(!["event","council","visit","article"].includes(kind))return {error:"Selecione Evento, Sessão da Câmara, Visita ou Só matéria."};
  if(title.length<1||title.length>180||description.length>4000||location.length>240)
   return {error:"Informe um título válido e confira a descrição."};
@@ -298,7 +303,8 @@ export async function createEditorialWorkflowAction(form:FormData):Promise<Agend
      p_end_time:kind==="article"?null:endTime||null,
      p_location:location||null,p_week_start:weekStart,
      p_city:kind==="council"?city:null,
-     p_crew:crew,p_writer:writer||null,
+     p_crew:scheduleEnabled?crew.map(person=>({...person,scheduleDate,scheduleTime})):crew,
+     p_writer:writer||null,
      p_due_date:writer&&dueDate?dueDate:null,
      p_due_time:writer&&dueTime?dueTime:null,
      p_repeat:recurrence,
@@ -626,11 +632,11 @@ export async function updateEditorialArticlePautaAction(itemId:string,form:FormD
  }catch(error){return {error:error instanceof Error?error.message:"Falha ao editar a pauta."};}
 }
 /** Exclusão lógica que mantém histórico e auditoria. */
-export async function archiveEditorialArticlePautaAction(itemId:string):Promise<AgendaActionResult>{
+export async function archivePautaItemAction(itemId:string):Promise<AgendaActionResult>{
  if(!/^[a-f0-9-]{36}$/i.test(itemId))return {error:"Pauta inválida."};
  try{
   const {supabase}=await requireActiveUser();
-  const {data,error}=await supabase.rpc("archive_editorial_article_pauta",{p_pauta_id:itemId});
+  const {data,error}=await supabase.rpc("archive_pauta_item_safely",{p_pauta_id:itemId});
   if(error||!data)return {error:error?.message??"Não foi possível excluir a pauta."};
   refreshAgenda();return {ok:true};
  }catch(error){return {error:error instanceof Error?error.message:"Falha ao excluir a pauta."};}
@@ -653,6 +659,83 @@ export async function setPautaItemStatusAction(
   } catch (error) {
     return { error: error instanceof Error ? error.message : "Não foi possível atualizar a pauta." };
   }
+}
+
+
+/** Número de edição é vinculado à semana, sem alterar o acervo real do Jornal Online. */
+export async function savePautaEditionOverrideAction(form:FormData):Promise<AgendaActionResult>{
+ const weekStart=value(form,"week_start");
+ const raw=value(form,"edition_number");
+ const number=raw===""?null:Number(raw);
+ if(!validDate(weekStart)||startOfWeek(weekStart)!==weekStart ||
+    (number!==null&&(!Number.isInteger(number)||number<1||number>99999)))
+   return {error:"Confira a semana e o número da edição."};
+ try{
+  const {supabase}=await requireActiveUser();
+  const {data,error}=await supabase.rpc("save_pauta_edition_override",{
+   p_week_start:weekStart,p_edition_number:number,p_reason:value(form,"reason").slice(0,300),
+  });
+  if(error||!data)return {error:error?.message??"Não foi possível alterar a edição."};
+  refreshAgenda();return {ok:true};
+ }catch(e){return {error:e instanceof Error?e.message:"Falha ao salvar edição."};}
+}
+
+/** Move o MESMO item para a semana seguinte, preservando agenda e histórico. */
+export async function movePautaToNextWeekAction(itemId:string,updatedAt:string):Promise<AgendaActionResult>{
+ if(!/^[a-f0-9-]{36}$/i.test(itemId)||!updatedAt)return {error:"Pauta inválida ou desatualizada."};
+ try{
+  const {supabase}=await requireActiveUser();
+  const {data,error}=await supabase.rpc("move_pauta_to_next_week",{
+   p_pauta_id:itemId,p_expected_updated_at:updatedAt,
+  });
+  if(error||!data)return {error:error?.message??"Não foi possível transferir a pauta."};
+  refreshAgenda();return {ok:true};
+ }catch(e){return {error:e instanceof Error?e.message:"Falha na transferência."};}
+}
+
+/** Cada pessoa recebe compromisso independente, nunca sobrescreve um existente. */
+export async function createPautaAgendaAppointmentsAction(itemId:string,form:FormData):Promise<AgendaActionResult>{
+ const date=value(form,"appointment_date"),time=value(form,"appointment_time");
+ let ids:unknown;
+ try{ids=JSON.parse(value(form,"appointment_profile_ids"));}catch{return {error:"Selecione os colaboradores."};}
+ if(!/^[a-f0-9-]{36}$/i.test(itemId)||!validDate(date)||!time||!validTime(time)||
+    !Array.isArray(ids)||ids.length<1||ids.length>16||
+    ids.some(p=>typeof p!=="string"||!/^[a-f0-9-]{36}$/i.test(p))||
+    new Set(ids).size!==ids.length)return {error:"Confira data, hora e responsáveis."};
+ try{
+  const {supabase}=await requireActiveUser();
+  const {data,error}=await supabase.rpc("create_pauta_agenda_appointments",{
+   p_pauta_id:itemId,p_profile_ids:ids,p_event_date:date,
+   p_start_time:time,p_reminder_minutes:30,
+  });
+  if(error)return {error:error.message};
+  if(Number(data)<1)return {error:"Todos os colaboradores já tinham agendamento. Consulte a Agenda."};
+  refreshAgenda();return {ok:true};
+ }catch(e){return {error:e instanceof Error?e.message:"Falha ao agendar."};}
+}
+
+/** Colaborador edita somente o próprio evento; a pauta e as outras agendas não mudam. */
+export async function updatePautaAgendaAppointmentAction(eventId:string,form:FormData):Promise<AgendaActionResult>{
+ const title=value(form,"title"),description=value(form,"description"),
+  date=value(form,"event_date"),start=value(form,"start_time"),end=value(form,"end_time"),
+  location=value(form,"location"),reminderRaw=value(form,"reminder_minutes");
+ const minutes=reminderRaw==="off"?null:Number(reminderRaw||"30");
+ if(!/^[a-f0-9-]{36}$/i.test(eventId)||title.length<1||title.length>180||
+    !validDate(date)||!start||!validTime(start)||!validTime(end)||
+    Boolean(end&&end<start)||description.length>4000||location.length>240||
+    (minutes!==null&&![0,5,10,15,30,60,120,1440].includes(minutes)))
+   return {error:"Confira título, data, horários e campos do compromisso."};
+ try{
+  const {supabase}=await requireActiveUser();
+  const {data,error}=await supabase.rpc("update_pauta_agenda_appointment",{
+   p_event_id:eventId,p_title:title,p_description:description||null,
+   p_event_date:date,p_start_time:start,p_end_time:end||null,
+   p_location:location||null,p_reminder_minutes:minutes,
+   p_expected_updated_at:value(form,"updated_at"),
+  });
+  if(error||!data)return {error:error?.message??"Compromisso não atualizado."};
+  refreshAgenda();return {ok:true};
+ }catch(e){return {error:e instanceof Error?e.message:"Falha ao editar compromisso."};}
 }
 
 /** Exceção de período: altera a semana escolhida para toda a equipe, com auditoria. */

@@ -7690,3 +7690,78 @@ details.pauta-item:has(.workflow-pauta-tools)>.workflow-collapsed-summary{paddin
 .cadastros-sort-link{display:inline-flex;align-items:center;gap:5px;color:inherit;text-decoration:none;font-weight:inherit}
 .cadastros-sort-link:hover{text-decoration:underline}
 .cadastros-sort-link:focus-visible{outline:2px solid currentColor;outline-offset:2px;border-radius:2px}
+
+
+/* Pauta 777+: edição junto ao período e ações discretas para todos os tipos. */
+.is-pauta-workspace .pauta-toolbar-period{display:flex;align-items:center;flex-wrap:wrap;gap:6px 9px}
+.is-pauta-workspace .pauta-edition-button{
+ display:inline-flex;align-items:center;justify-content:center;gap:7px;
+ min-height:31px;padding:6px 10px;border:1px solid #cbd8e7;border-radius:8px;
+ background:#f5f8fd;color:#30456d;font-size:11px;font-weight:900;letter-spacing:.01em;
+ white-space:nowrap
+}
+.is-pauta-workspace .pauta-edition-button.is-read-only{cursor:default}
+.is-pauta-workspace .pauta-edition-button>span{font-weight:500;font-size:12px}
+.is-pauta-workspace .pauta-edition-button:focus-visible{outline:2px solid var(--brand);outline-offset:2px}
+.is-pauta-workspace .pauta-edition-form{
+ display:flex;align-items:end;gap:8px;flex-wrap:wrap;
+ padding:10px;margin:8px 0;border:1px solid #dce4f0;border-radius:9px;background:#f9fbfe
+}
+.is-pauta-workspace .pauta-edition-form>label{display:grid;gap:4px;font-size:11px;font-weight:750}
+.is-pauta-workspace .pauta-edition-form input{min-height:36px;max-width:210px}
+.is-pauta-workspace .pauta-edition-form button{min-height:36px;font-size:11px;padding:7px 10px}
+/* Um único conjunto visual para prazo (data + hora), mantendo data sem horário. */
+.workflow-pauta-due-row{display:flex;align-items:end;justify-content:space-between;flex-wrap:wrap;gap:10px}
+.workflow-pauta-due-group{flex:1 1 275px;min-width:0;display:grid;gap:6px}
+.pauta-compact-datetime{
+ display:flex;align-items:end;gap:0;width:100%;min-width:0;overflow:hidden;
+ border:1px solid #d8dfe7;border-radius:8px;background:#fff
+}
+.pauta-compact-datetime>label{display:grid;gap:2px;flex:1 1 50%;min-width:0;
+ padding:5px 8px;font-size:10px;font-weight:800;color:#556276}
+.pauta-compact-datetime>label+label{border-left:1px solid #e4e9ef;flex:0 1 145px}
+.pauta-compact-datetime input{
+ width:100%;min-width:0;min-height:31px;border:0;border-radius:0!important;
+ padding:3px 1px;background:transparent;font-size:12px;color:var(--ink);
+ box-shadow:none
+}
+.pauta-compact-datetime input:focus-visible{outline:2px solid var(--brand);outline-offset:-2px}
+.workflow-article-team .workflow-article-deadline{padding:10px;gap:7px;display:grid}
+.pauta-activate-schedule,.pauta-schedule-small{
+ border:1px solid #bdcfdf;border-radius:8px;background:#eff6ff;color:#235180;
+ font-size:11px;font-weight:800;min-height:37px;padding:7px 12px;white-space:normal
+}
+.pauta-activate-schedule.is-active{border-color:#8cc6af;background:#e7f7ef;color:#25634a}
+.pauta-schedule-details{display:grid;gap:8px;padding:10px;border:1px dashed #afc3dc;
+ border-radius:9px;background:#fff;min-width:0}
+.pauta-schedule-details>strong{font-size:11px}
+.pauta-schedule-details>.pauta-compact-datetime{max-width:510px}
+.pauta-appointment-scheduler{margin-top:9px;max-width:790px}
+.pauta-appointment-scheduler>.pauta-compact-datetime{max-width:510px}
+.pauta-appointment-links{display:flex;align-items:center;gap:6px 10px;flex-wrap:wrap;
+ padding:7px 0;font-size:11px;line-height:1.4}
+.pauta-appointment-links strong{font-weight:850}
+.pauta-appointment-links a{text-decoration:underline;text-underline-offset:2px;color:var(--brand)}
+/* Editar / mover / excluir aparecem também nas pautas legadas. */
+.is-pauta-workspace details.pauta-item>.workflow-collapsed-summary .workflow-pauta-tools{
+ display:inline-flex;align-items:center;gap:4px;flex:none;position:static
+}
+.is-pauta-workspace details.pauta-item>.workflow-collapsed-summary .workflow-pauta-tools button{
+ width:27px;height:27px;min-height:27px;padding:0;line-height:1
+}
+.is-pauta-workspace details.pauta-item>.workflow-collapsed-summary .workflow-pauta-tools button:nth-last-child(2){
+ color:#456e93
+}
+.is-pauta-workspace details.pauta-item>.workflow-collapsed-summary{gap:7px}
+@media(max-width:610px){
+ .is-pauta-workspace .pauta-toolbar-period{gap:5px}
+ .is-pauta-workspace .pauta-edition-button{padding:5px 7px;min-height:30px}
+ .is-pauta-workspace .pauta-edition-form>label{flex:1 1 140px}
+ .is-pauta-workspace .pauta-edition-form input{max-width:100%;width:100%}
+ .workflow-pauta-due-row{align-items:stretch}
+ .workflow-pauta-due-group{flex-basis:100%}
+ .pauta-activate-schedule{width:100%}
+ .is-pauta-workspace details.pauta-item>.workflow-collapsed-summary .workflow-pauta-tools button{
+  width:25px;height:27px;min-height:27px
+ }
+}

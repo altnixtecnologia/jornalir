@@ -41,6 +41,9 @@ export function EditorialWorkflowCreate({
  const [writer,setWriter]=useState(initialWriterId??(view==="pauta"?currentUserId:""));
  const [dueDate,setDueDate]=useState("");
  const [dueTime,setDueTime]=useState("");
+ const [scheduleEnabled,setScheduleEnabled]=useState(false);
+ const [scheduleDate,setScheduleDate]=useState("");
+ const [scheduleTime,setScheduleTime]=useState("");
  const [repeat,setRepeat]=useState(1);
  const initialIds=[...(existing?.assignees.map(p=>p.id)??[])];
  if(initialWriterId&&!initialIds.includes(initialWriterId))initialIds.push(initialWriterId);
@@ -111,6 +114,9 @@ export function EditorialWorkflowCreate({
   const selectedCrew=kind==="article"?articleSelected.map(profileId=>({profileId,attends:false,tasks:[] as CoverageTaskDraft[]})):crew;
   const writerId=kind==="article"?articleSelected[0]??"":writer;
   if(kind==="article"&&!writerId){setError("Selecione pelo menos um responsável.");return;}
+  if(kind==="article"&&scheduleEnabled&&(!scheduleDate||!scheduleTime)){
+    setError("Informe data e horário do compromisso na Agenda.");return;
+  }
   if(kind!=="article"&&writer&&!crew.some(p=>p.profileId===writer)){setError("Escolha o redator entre os colaboradores.");return;}
   const form=new FormData(e.currentTarget);
   form.set("workflow_kind",kind);
@@ -182,16 +188,33 @@ export function EditorialWorkflowCreate({
      {kind==="article"?<div className="workflow-article-team">
        <WorkflowPeoplePicker profiles={profiles} selected={articleSelected} onChange={setArticleSelected}/>
        <div className="workflow-article-deadline">
-        <strong>Prazo da matéria (opcional)</strong>
-        <div className="workflow-schedule">
-         <label className="agenda-field"><span>Data</span>
-           <input type="date" name="article_due_date" value={dueDate} onChange={e=>{setDueDate(e.currentTarget.value);if(!e.currentTarget.value)setDueTime("");}}/>
-         </label>
-         <label className="agenda-field"><span>Hora</span>
-           <input type="time" name="article_due_time" disabled={!dueDate} value={dueTime} onChange={e=>setDueTime(e.currentTarget.value)}/>
-         </label>
-        </div>
-        <small>Sem data, a pauta permanece sem prazo.</small>
+         <div className="workflow-pauta-due-row">
+           <div className="workflow-pauta-due-group">
+             <strong>Prazo da matéria (opcional)</strong>
+             <div className="pauta-compact-datetime">
+               <label>Data <input type="date" name="article_due_date" value={dueDate}
+                 onChange={e=>{setDueDate(e.currentTarget.value);if(!e.currentTarget.value)setDueTime("");}}/></label>
+               <label>Hora <input type="time" name="article_due_time" disabled={!dueDate} value={dueTime}
+                 onChange={e=>setDueTime(e.currentTarget.value)}/></label>
+             </div>
+           </div>
+           <button type="button" className={"pauta-activate-schedule"+(scheduleEnabled?" is-active":"")}
+             aria-pressed={scheduleEnabled} onClick={()=>setScheduleEnabled(enabled=>!enabled)}>
+             {scheduleEnabled?"✓ Agendamento ativado":"＋ Ativar agendamento"}
+           </button>
+         </div>
+         <small>O prazo é da matéria; o compromisso é individual na Agenda.</small>
+         {scheduleEnabled?<div className="pauta-schedule-details">
+           <strong>Compromisso na Agenda para cada responsável</strong>
+           <input type="hidden" name="schedule_enabled" value="true"/>
+           <div className="pauta-compact-datetime">
+             <label>Data <input type="date" name="appointment_date" required value={scheduleDate}
+               onChange={e=>setScheduleDate(e.currentTarget.value)}/></label>
+             <label>Horário <input type="time" name="appointment_time" required value={scheduleTime}
+               onChange={e=>setScheduleTime(e.currentTarget.value)}/></label>
+           </div>
+           <small>Serão criados compromissos separados para cada colaborador. Ajustes futuros serão feitos na Agenda, individualmente.</small>
+         </div>:null}
        </div>
      </div>:<div className="workflow-person-list">
        <div className="workflow-people-title"><strong>{"Quem participa?"}</strong>
