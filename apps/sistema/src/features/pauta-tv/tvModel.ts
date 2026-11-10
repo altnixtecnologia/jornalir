@@ -40,6 +40,27 @@ export function deriveTvPautaStatus(item: WeeklyPautaItem): TvPautaCard["status"
   return "pending";
 }
 
+/** Lista todos os colaboradores vinculados à matéria, sem repetir pessoas. */
+export function getTvResponsibleNames(
+ item:WeeklyPautaItem, names:ReadonlyMap<string,string>,
+):string {
+ const people=new Map<string,string>();
+ const put=(id:string|null|undefined, fallback?:string|null)=>{
+   if(!id)return;
+   const name=names.get(id)??fallback;
+   if(name?.trim()&&!people.has(id))people.set(id,name.trim());
+ };
+ // A Pauta simples tem vários responsáveis; a cobertura traz titulares e equipe.
+ for(const person of item.assignees)put(person.id,person.name);
+ if(item.coverage){
+   put(item.coverage.articleOwnerId);
+   put(item.coverage.attendanceOwnerId);
+   for(const person of item.coverage.members)put(person.profileId);
+ }
+ put(item.responsibleProfileId,item.responsibleName);
+ return [...people.values()].join(" · ") || item.responsibleName || "Equipe";
+}
+
 export function toTvPautaSnapshot(
   data: Pick<AgendaWorkspaceData,"weekStart"|"periodStart"|"periodEnd"|"pautaItems"|"profiles">,
   generatedAt: string = new Date().toISOString(),
@@ -72,7 +93,7 @@ export function toTvPautaSnapshot(
     return {
       id: item.id,
       title: item.title,
-      responsible: articleName || item.responsibleName || "Equipe",
+      responsible: getTvResponsibleNames(item,name),
       detail,
       date: item.dueDate,
       status,
@@ -95,6 +116,20 @@ export function toTvPautaSnapshot(
     pending:cards.filter(item => item.status==="pending"||item.status==="in_progress").length,
     generatedAt,
   };
+}
+
+/** Ajusta a capacidade da TV à quantidade de nomes, evitando cortar a equipe. */
+export function tvPautaMinRowPx(cards:readonly TvPautaCard[],width:number):number {
+ const availableWidth=Math.max(140,width-130);
+ const charsPerLine=Math.max(18,Math.floor(availableWidth/7));
+ let required=72;
+ for(const card of cards){
+   const nameLines=Math.max(1,Math.ceil(card.responsible.length/charsPerLine));
+   const titleLines=Math.max(1,Math.min(2,Math.ceil(card.title.length/(charsPerLine+8))));
+   const needed=72+16*(nameLines-1)+16*(titleLines-1);
+   required=Math.max(required,needed);
+ }
+ return Math.min(220,required);
 }
 
 /** Cada cartão cresce para preencher a altura. Só paginar se não houver leitura confortável. */
