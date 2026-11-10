@@ -1,6 +1,6 @@
 "use client";
 
-import {useRef,useState} from "react";
+import {useState} from "react";
 import type {AgendaEventItem,AgendaProfile} from "./agendaTypes";
 import type {AgendaActionResult} from "./actions";
 import {
@@ -8,8 +8,10 @@ import {
  closeEditorialWorkflowAction,
  updateEditorialWorkflowDeadlineAction,
  adjustEditorialWorkflowTaskAction,
+ reorderEditorialWorkflowTasksAction,
 } from "./actions";
 import type {CoverageTaskDraft} from "./coverageTaskCatalog";
+import {WorkflowTaskChips} from "./WorkflowTaskChips";
 
 const names:Record<string,string>={
  event:"Evento",council:"Sessão da Câmara",visit:"Visita",article:"Só matéria",
@@ -42,33 +44,25 @@ export function EditorialWorkflowPanel({item,currentUserId,manager,profiles,
  const [menu,setMenu]=useState<Editing|null>(null);
  const [rename,setRename]=useState("");
  const [editMode,setEditMode]=useState(false);
- const [target,setTarget]=useState("");
- const pressed=useRef<ReturnType<typeof setTimeout>|null>(null);
- const wasHeld=useRef(false);
  const [deadlineDate,setDeadlineDate]=useState(parts(item.articleDueAt,item.articleDueTimeExplicit).date);
  const [deadlineTime,setDeadlineTime]=useState(parts(item.articleDueAt,item.articleDueTimeExplicit).time);
  const [showDeadline,setShowDeadline]=useState(false);
  const name=(id:string|null)=>profiles.find(p=>p.id===id)?.name??"Colaborador";
  const closed=Boolean(item.workflowClosedAt);
- const startHold=(owner:string,task:CoverageTaskDraft)=>{
-   if(pressed.current)clearTimeout(pressed.current);
-   wasHeld.current=false;
-   pressed.current=setTimeout(()=>{
-     wasHeld.current=true;setMenu({owner,task});setRename(task.label);setTarget("");setEditMode(false);
-   },3000);
- };
- const cancelHold=()=>{if(pressed.current)clearTimeout(pressed.current);pressed.current=null;};
  const openMenu=(owner:string,task:CoverageTaskDraft)=>{
-  wasHeld.current=true;cancelHold();
-  setMenu({owner,task});setRename(task.label);setTarget("");setEditMode(false);
+   setMenu({owner,task});setRename(task.label);setEditMode(false);
  };
- const submitTask=(action:"edit"|"move"|"delete")=>{
-  if(!menu)return;
-  onAction(()=>adjustEditorialWorkflowTaskAction(
-   item.id,menu.owner,menu.task.kind,menu.task.label,action,
-   action==="move"?target:null,action==="edit"?rename:null,
-  ),action==="delete"?"Função excluída.":action==="move"?"Função transferida.":"Função editada.");
-  setMenu(null);
+ const submitTask=(action:"edit"|"delete")=>{
+   if(!menu)return;
+   onAction(()=>adjustEditorialWorkflowTaskAction(
+     item.id,menu.owner,menu.task.kind,menu.task.label,action,null,
+     action==="edit"?rename:null,
+   ),action==="delete"?"Função excluída.":"Função editada.");
+   setMenu(null);
+ };
+ const reorder=(owner:string,tasks:CoverageTaskDraft[])=>{
+   onAction(()=>reorderEditorialWorkflowTasksAction(item.id,owner,tasks.map(task=>task.label)),
+     "Ordem das funções atualizada.");
  };
  const usePresence=(id:string,answer:"present"|"absent"|"not_required")=>
    onAction(()=>answerEditorialWorkflowPresenceAction(item.id,id,answer),"Participação registrada.");
@@ -107,18 +101,11 @@ export function EditorialWorkflowPanel({item,currentUserId,manager,profiles,
               {label}
             </button>)}
           </div>:null}
-          {person.workflowTasks.length>0?<div className="workflow-assigned-tasks">
-            {person.workflowTasks.map((task,i)=><button type="button"
-              key={task.kind+task.label+i} disabled={!manager||closed}
-              title={manager&&!closed?"Pressione 3 s ou clique para editar, mover ou excluir":"Função atribuída"}
-              onPointerDown={()=>manager&&!closed&&startHold(person.id,task)}
-              onPointerUp={cancelHold} onPointerLeave={cancelHold} onPointerCancel={cancelHold}
-              onContextMenu={e=>{if(manager&&!closed){e.preventDefault();openMenu(person.id,task);}}}
-              onClick={()=>{if(wasHeld.current){wasHeld.current=false;return;}
-                if(manager&&!closed)openMenu(person.id,task);}}>
-              {task.label}{manager&&!closed?" ···":""}
-            </button>)}
-          </div>:null}
+          {person.workflowTasks.length>0?
+            <WorkflowTaskChips tasks={person.workflowTasks}
+              editable={manager&&!closed&&!isPending}
+              onReorder={tasks=>reorder(person.id,tasks)}
+              onLongPress={task=>openMenu(person.id,task)}/>:null}
           {menu?.owner===person.id?<div className="workflow-task-context">
             <strong>{menu.task.label}</strong>
             {editMode?<div className="workflow-custom-add">
@@ -126,12 +113,6 @@ export function EditorialWorkflowPanel({item,currentUserId,manager,profiles,
               <button type="button" onClick={()=>submitTask("edit")} disabled={isPending}>Salvar</button>
             </div>:<div className="workflow-task-menu-actions">
               <button type="button" onClick={()=>setEditMode(true)}>Editar</button>
-              <select value={target} onChange={e=>setTarget(e.currentTarget.value)}
-                aria-label="Mover tarefa para colaborador">
-                <option value="">Mover para...</option>
-                {item.assignees.filter(x=>x.id!==person.id).map(x=><option key={x.id} value={x.id}>{x.name}</option>)}
-              </select>
-              <button type="button" disabled={!target||isPending} onClick={()=>submitTask("move")}>Mover</button>
               <button type="button" disabled={isPending} onClick={()=>submitTask("delete")}>Excluir</button>
               <button type="button" onClick={()=>setMenu(null)}>Fechar</button>
             </div>}
