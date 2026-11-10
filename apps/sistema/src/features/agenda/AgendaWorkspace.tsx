@@ -7,6 +7,8 @@ import {
   completeMyAgendaAssignmentAction,
   completeMyPautaItemAction,
   createAgendaEventAction,
+  createEditorialWorkflowAction,
+  activateEditorialWorkflowAction,
   createPautaFromAgendaEventAction,
   createPautaItemAction,
   enableCoverageAction,
@@ -34,6 +36,8 @@ import {
 import type { AgendaEventItem, AgendaWorkspaceData, EventCoverage, WeeklyPautaItem } from "./agendaTypes";
 import { coverageClockAt, validCoverageClock } from "./coverageClock";
 import { FIXED_COVERAGE_TASKS,type CoverageTaskDraft } from "./coverageTaskCatalog";
+import { EditorialWorkflowCreate } from "./EditorialWorkflowCreate";
+import { EditorialWorkflowPanel } from "./EditorialWorkflowPanel";
 import { createSupabaseBrowserClient } from "../../lib/supabase/browser";
 import { notify } from "../../lib/feedback/notify";
 import { confirmDialog } from "../../lib/feedback/confirmStore";
@@ -123,16 +127,33 @@ function nowInAgendaTimezone(): string {
     + "T" + values.hour + ":" + values.minute;
 }
 
-function eventOverdue(event: AgendaEventItem, now: string): boolean {
-  if (event.status !== "scheduled") return false;
-  // Eventos sem horário vencem ao terminar o dia.
-  const cutoff = event.endTime || event.startTime || "23:59";
-  return event.eventDate + "T" + cutoff < now;
+function editorialDueInLocalTime(iso:string|null):string|null{
+ if(!iso)return null;
+ const parts=new Intl.DateTimeFormat("sv-SE",{
+  timeZone:"America/Sao_Paulo",year:"numeric",month:"2-digit",day:"2-digit",
+  hour:"2-digit",minute:"2-digit",hourCycle:"h23",
+ }).formatToParts(new Date(iso));
+ const m=Object.fromEntries(parts.map(p=>[p.type,p.value]));
+ return m.year+"-"+m.month+"-"+m.day+"T"+m.hour+":"+m.minute;
 }
 
-function pautaOverdue(item: WeeklyPautaItem, now: string): boolean {
-  if (item.status !== "pending" || !item.dueDate) return false;
-  return item.dueDate + "T" + (item.dueTime || "23:59") < now;
+/** Horário do evento NUNCA é o prazo da matéria. */
+function eventOverdue(event:AgendaEventItem,now:string):boolean{
+ if(event.status!=="scheduled")return false;
+ const due=event.workflowKind!=="general"
+   ?event.articleDueAt:event.coverage?.articleDueAt??null;
+ const local=editorialDueInLocalTime(due);
+ return Boolean(local&&local<now);
+}
+function pautaOverdue(item:WeeklyPautaItem,now:string):boolean{
+ if(item.status!=="pending")return false;
+ if(item.workflow||item.coverage){
+  const due=editorialDueInLocalTime(item.workflow?.articleDueAt??item.coverage?.articleDueAt??null);
+  return Boolean(due&&due<now);
+ }
+ // Prazo do compromisso original não equivale a prazo editorial.
+ if(item.agendaEventId)return false;
+ return Boolean(item.dueDate&&(item.dueDate+"T"+(item.dueTime||"23:59")<now));
 }
 
 function statusLabel(status: string, overdue = false): string {
@@ -616,9 +637,10 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
   const selectedWeekStart = addDays(selectedDate, -selectedWeekday);
   const selectedWeekDays = Array.from({ length: 7 }, (_, index) => addDays(selectedWeekStart, index));
   const todayCount = filteredEvents.filter((event) => event.eventDate === localClock.slice(0, 10) && event.status !== "cancelled").length;
-  const ownPending = data.events.filter((event) =>
-    event.status === "scheduled" && event.assignees.some((person) =>
-      person.id === data.currentUserId && !person.completedAt)).length +
+  const ownPending = data.events.filter(event=>
+    event.status==="scheduled" && (event.workflowKind!=="general"
+      ?event.articleOwnerId===data.currentUserId
+      :event.assignees.some(person=>person.id===data.currentUserId&&!person.completedAt))).length +
     data.pautaItems.filter((item) =>
       item.status === "pending" && item.responsibleProfileId === data.currentUserId && !item.agendaEventId).length;
   const weekDays = Array.from({ length: 7 }, (_, index) => addDays(data.weekStart, index));
@@ -675,17 +697,17 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
     });
   }
 
-  function EnableCoverage({eventId,eventTime}:{eventId:string;eventTime:string}):JSX.Element {
+  function EnableCoverage({item}:{item:AgendaEventItem}):JSX.Element {
     return <details className="agenda-inline-edit coverage-activate">
-      <summary>＋ Transformar em cobertura de evento</summary>
-      <form className="coverage-form" onSubmit={event=>{
-        event.preventDefault();
-        run(()=>enableCoverageAction(eventId,new FormData(event.currentTarget)),"Etapas de cobertura ativadas.");
-      }}>
-        <p className="helper-text">Mantém este compromisso e a Pauta existentes, sem criar cópias.</p>
-        <CoveragePeopleFields profiles={data.profiles} currentUserId={data.currentUserId} eventTime={eventTime}/>
-        <button type="submit" className="agenda-primary" disabled={isPending}>Ativar cobertura</button>
-      </form>
+      <summary>＋ Definir tipo e responsáveis</summary>
+      <p className="workflow-help">Aproveita o compromisso e a Pauta existentes, sem criar cópias.</p>
+      <EditorialWorkflowCreate key={item.id}
+        profiles={data.profiles} currentUserId={data.currentUserId}
+        weekStart={data.weekStart} selectedDate={item.eventDate} view="agenda"
+        existing={item}
+        initialWriterId={data.pautaItems.find(p=>p.agendaEventId===item.id)?.responsibleProfileId??undefined}
+        isPending={isPending} onCreate={form=>
+          run(()=>activateEditorialWorkflowAction(item.id,form),"Tipo e responsabilidades atualizados.")}/>
     </details>;
   }
 
@@ -1274,7 +1296,7 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
                             </div>:null}
                         </div>
                       </div>
-                      {!item.coverage && (data.access.agendaWrite || item.assignees.some((person) => person.id === data.currentUserId)) ? (
+                      {!item.coverage && item.workflowKind==="general" && (data.access.agendaWrite || item.assignees.some((person) => person.id === data.currentUserId)) ? (
                         <div className={"agenda-event-actions" + (data.access.agendaWrite ? " is-manager" : " is-member")}>
                           {item.status === "scheduled" ? (
                             <>
@@ -1321,7 +1343,7 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
                           ) : null}
                         </div>
                       ) : null}
-                      {item.status === "scheduled" && !item.coverage && data.access.pautaWrite && item.eventKind !== "editorial" ? (
+                      {item.status === "scheduled" && item.workflowKind==="general" && !item.coverage && data.access.pautaWrite && item.eventKind !== "editorial" ? (
                         <div className="agenda-event-secondary">
                           <button type="button" disabled={isPending}
                             onClick={() => run(() => createPautaFromAgendaEventAction(item.id), "Compromisso incluído na pauta.")}>
@@ -1329,12 +1351,16 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
                           </button>
                         </div>
                       ) : null}
-                      {item.coverage?CoveragePanel({coverage:item.coverage,eventId:item.id,eventTime:item.startTime??""}):
-                        item.status==="scheduled"&&data.access.agendaWrite?EnableCoverage({eventId:item.id,eventTime:item.startTime??""}):null}
-                      {data.access.agendaWrite&&!item.coverage&&item.status==="scheduled"&&item.assignees.length>1
+                      {item.workflowKind!=="general"
+                        ? <EditorialWorkflowPanel item={item} currentUserId={data.currentUserId}
+                            manager={data.access.workflowManage} profiles={data.profiles}
+                            isPending={isPending} onAction={run}/>
+                        :item.coverage?CoveragePanel({coverage:item.coverage,eventId:item.id,eventTime:item.startTime??""})
+                        :item.status==="scheduled"&&data.access.agendaWrite?EnableCoverage({item}):null}
+                      {data.access.agendaWrite&&item.workflowKind==="general"&&!item.coverage&&item.status==="scheduled"&&item.assignees.length>1
                         ? AssignmentRoles({item}) : null}
-                      {data.access.agendaWrite ? EventEdit({item}) : null}
-                      {data.access.agendaWrite && !item.coverage && item.eventKind==="general" && item.status==="scheduled"
+                      {data.access.agendaWrite && item.workflowKind==="general" ? EventEdit({item}) : null}
+                      {data.access.agendaWrite && item.workflowKind==="general" && !item.coverage && item.eventKind==="general" && item.status==="scheduled"
                         ? InviteesEditor({item}) : null}
                     </article>
                   ))}
@@ -1343,34 +1369,12 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
             </div>
 
             {data.access.agendaWrite ? <details className="agenda-create-panel" id="agenda-create-panel">
-              <summary>+ Novo compromisso <span>Toque para cadastrar</span></summary>
-              <form
-                className="agenda-form"
-                onSubmit={(event) => {
-                  event.preventDefault();
-                  const form = event.currentTarget;
-                  run(() => createAgendaEventAction(new FormData(form)), "Compromisso adicionado.", () => {
-                    form.reset();
-                    const dateInput = form.elements.namedItem("event_date") as HTMLInputElement | null;
-                    if (dateInput) dateInput.value = selectedDate;
-                  });
-                }}
-              >
-                <label className="agenda-field agenda-field-wide"><span>Compromisso</span><input name="title" required maxLength={180} placeholder="Ex.: Sessão da Câmara" /></label>
-                <div className="agenda-event-schedule-row">
-                  <ClearableScheduleInput key={"date-" + selectedDate} name="event_date" label="Data" type="date" defaultValue={selectedDate} required />
-                  <ClearableScheduleInput name="start_time" label="Início" type="time" />
-                  <ClearableScheduleInput name="end_time" label="Fim" type="time" />
-                  <label className="agenda-field agenda-schedule-reminder"><span>Lembrete Telegram</span><select name="reminder_minutes" defaultValue="30"><option value="off">Sem lembrete</option><option value="0">No horário</option><option value="5">5 min antes</option><option value="10">10 min antes</option><option value="15">15 min antes</option><option value="30">30 min antes</option><option value="60">1 hora antes</option><option value="120">2 horas antes</option><option value="1440">1 dia antes</option></select></label>
-                  <label className="agenda-field agenda-schedule-recurrence"><span>Repetir compromisso</span><select name="recurrence" defaultValue="none"><option value="none">Não repetir</option><option value="weekly4">Semanal · 4 ocorrências</option><option value="weekly12">Semanal · 12 ocorrências</option><option value="monthly3">Mensal · 3 ocorrências</option></select></label>
-                </div>
-                <label className="agenda-field agenda-field-wide"><span>Local</span><input name="location" maxLength={240} placeholder="Opcional" /></label>
-                <label className="agenda-field agenda-field-wide"><span>Observação</span><textarea name="description" maxLength={4000} placeholder="Informações úteis para a equipe" /></label>
-                <div className="agenda-field-wide"><AssigneePicker profiles={data.profiles} currentUserId={data.currentUserId} /></div>
-                <CoverageOptIn data={data}/>
-                <div className="agenda-form-actions"><button type="submit" className="agenda-primary" disabled={isPending}>{isPending ? "Salvando..." : "Adicionar compromisso"}</button></div>
-              </form>
-            </details> : null}
+              <summary>＋ Novo compromisso <span>Escolher tipo e responsáveis</span></summary>
+              <EditorialWorkflowCreate profiles={data.profiles}
+                currentUserId={data.currentUserId} weekStart={data.weekStart}
+                selectedDate={selectedDate} view="agenda" isPending={isPending}
+                onCreate={form=>run(()=>createEditorialWorkflowAction(form),"Compromisso cadastrado.")}/>
+            </details>:null}
           </div>
         </div>
       ) : (
@@ -1441,44 +1445,13 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
             <span>{pautaItems.filter((item) => item.status === "pending").length} pendente(s)</span>
           </div>
 
-          {data.access.pautaWrite ? <details className="pauta-create-panel" id="pauta-create-panel">
-            <summary>＋ Nova pauta <span>Toque para cadastrar</span></summary>
-            <form className="pauta-quick-form" key={data.weekStart} onSubmit={(event) => {
-              event.preventDefault();
-              const form = event.currentTarget;
-              const submitter = (event.nativeEvent as SubmitEvent).submitter as HTMLButtonElement | null;
-              const showInAgenda = submitter?.value === "both";
-              const payload = new FormData(form);
-              payload.set("show_in_agenda", showInAgenda ? "true" : "false");
-              run(() => createPautaItemAction(payload), showInAgenda
-                ? "Pauta vinculada à Agenda." : "Pauta criada sem aparecer na Agenda.", () => {
-                form.reset();
-                const panel = form.closest("details");
-                if (panel instanceof HTMLDetailsElement) panel.open = false;
-              });
-            }}>
-              <input type="hidden" name="week_start" value={data.weekStart} />
-              <div className="pauta-form-heading">
-                <label className="agenda-field pauta-title-field"><span>O que precisa ser feito?</span>
-                  <input name="title" required maxLength={180} placeholder="Ex.: Cobrir sessão da Câmara" /></label>
-                <PautaDateTimeField initialDate={initialPautaDate} initialTime={null}
-                  weekStart={data.periodStart} weekEnd={data.periodEnd} required />
-              </div>
-              <div className="pauta-assignee-field"><AssigneePicker profiles={data.profiles} currentUserId={data.currentUserId} /></div>
-              <CoverageOptIn data={data}/>
-              <label className="agenda-field pauta-note-field"><span>Observações</span>
-                <textarea name="description" rows={2} maxLength={4000} placeholder="Informações adicionais (opcional)"
-                  onInput={(event) => {
-                    const target = event.currentTarget;
-                    target.style.height = "auto";
-                    target.style.height = Math.min(target.scrollHeight, 300) + "px";
-                  }} /></label>
-              <div className="pauta-create-actions">
-                <button type="submit" value="pauta" className="pauta-only-button" disabled={isPending}>Criar somente na Pauta</button>
-                <button type="submit" value="both" className="agenda-primary" disabled={isPending}>Criar na Agenda + Pauta</button>
-              </div>
-            </form>
-          </details> : null}
+          {data.access.pautaWrite?<details className="pauta-create-panel" id="pauta-create-panel">
+            <summary>＋ Nova pauta <span>Escolher tipo e responsáveis</span></summary>
+            <EditorialWorkflowCreate profiles={data.profiles}
+              currentUserId={data.currentUserId} weekStart={data.weekStart}
+              selectedDate={initialPautaDate} view="pauta" isPending={isPending}
+              onCreate={form=>run(()=>createEditorialWorkflowAction(form),"Pauta cadastrada.")}/>
+          </details>:null}
 
           {pautaItems.length ? (
             <div className="pauta-list">
@@ -1489,7 +1462,7 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
                 const canCompleteOwn = !done && !cancelled && Boolean(myAssignment && !myAssignment.completedAt);
                 return (
                   <article key={item.id} style={{ borderLeftColor: personColor(item.responsibleProfileId ?? "") }} className={"pauta-item" + (done ? " is-done" : "") + (cancelled ? " is-cancelled" : "")}>
-                    {!item.coverage && (data.access.pautaWrite || canCompleteOwn) ? <button type="button" className="pauta-check"
+                    {!item.coverage && !item.workflow && (data.access.pautaWrite || canCompleteOwn) ? <button type="button" className="pauta-check"
                       aria-label={done ? "Reabrir item" : "Concluir minha pauta"} disabled={isPending || cancelled}
                       onClick={() => run(
                         () => done ? setPautaItemStatusAction(item.id, "pending")
@@ -1515,12 +1488,17 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
                       {item.articleId ? (
                         <Link href={"/sistema/editorial/materias/" + item.articleId} className="agenda-link-materia">Abrir matéria vinculada ↗</Link>
                       ) : null}
-                      {item.coverage&&item.agendaEventId?CoveragePanel({coverage:item.coverage,eventId:item.agendaEventId,eventTime:item.dueTime??""}):
-                        item.agendaEventId&&item.status==="pending"&&data.access.pautaWrite?
-                         EnableCoverage({eventId:item.agendaEventId,eventTime:item.dueTime??""}):null}
-                      {data.access.pautaWrite ? PautaEdit({item}) : null}
+                      {item.workflow?
+                        <EditorialWorkflowPanel item={item.workflow} currentUserId={data.currentUserId}
+                          manager={data.access.workflowManage} profiles={data.profiles}
+                          isPending={isPending} onAction={run}/>:
+                        item.coverage&&item.agendaEventId?CoveragePanel({coverage:item.coverage,eventId:item.agendaEventId,eventTime:item.dueTime??""}):
+                        item.agendaEventId&&item.status==="pending"&&data.access.pautaWrite&&
+                          data.events.some(ev=>ev.id===item.agendaEventId)?
+                          EnableCoverage({item:data.events.find(ev=>ev.id===item.agendaEventId)!}):null}
+                      {data.access.pautaWrite && !item.workflow ? PautaEdit({item}) : null}
                     </div>
-                    {data.access.pautaWrite ? <button type="button" className="pauta-cancel" disabled={isPending} onClick={() => run(() => setPautaItemStatusAction(item.id, cancelled ? "pending" : "cancelled"), cancelled ? "Item restaurado." : "Item retirado da pauta.")}>{cancelled ? "↶" : "×"}</button> : null}
+                    {data.access.pautaWrite && !item.workflow ? <button type="button" className="pauta-cancel" disabled={isPending} onClick={() => run(() => setPautaItemStatusAction(item.id, cancelled ? "pending" : "cancelled"), cancelled ? "Item restaurado." : "Item retirado da pauta.")}>{cancelled ? "↶" : "×"}</button> : null}
                   </article>
                 );
               })}

@@ -4,7 +4,7 @@
 export const FIXED_COVERAGE_TASKS=[
   {kind:"media",label:"Fotos e vídeos"},
   {kind:"interviews",label:"Entrevistas"},
-  {kind:"live",label:"Transmissão ao vivo"},
+  {kind:"live",label:"Transmissão"},
   {kind:"research",label:"Apuração de informações"},
 ] as const;
 

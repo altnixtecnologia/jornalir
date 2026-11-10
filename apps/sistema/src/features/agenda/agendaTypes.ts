@@ -59,6 +59,18 @@ export interface AgendaProfile {
   role: string;
 }
 
+export type EditorialWorkflowKind="general"|"event"|"council"|"visit"|"article";
+export type EditorialAttendanceResponse="pending"|"present"|"absent"|"not_required"|"unconfirmed";
+
+export interface AgendaWorkflowAssignee extends AgendaProfile {
+  completedAt:string|null;
+  taskLabel:string|null;
+  workflowTasks:import("./coverageTaskCatalog").CoverageTaskDraft[];
+  attendanceResponse:EditorialAttendanceResponse;
+  attendanceRespondedAt:string|null;
+  attendanceMarkedBy:string|null;
+}
+
 export interface AgendaEventItem {
   id: string;
   title: string;
@@ -68,13 +80,22 @@ export interface AgendaEventItem {
   endTime: string | null;
   reminderMinutes: number | null;
   eventKind: "general" | "editorial";
+  workflowKind:EditorialWorkflowKind;
+  councilCity:string|null;
+  articleOwnerId:string|null;
+  articleDueAt:string|null;
+  articleDueTimeExplicit:boolean;
+  articleCompletedAt:string|null;
+  articleCompletedBy:string|null;
+  workflowClosedAt:string|null;
+  workflowClosedBy:string|null;
   showInAgenda: boolean;
   coverage: EventCoverage | null;
   completedAt: string | null;
   updatedAt: string;
   location: string | null;
   status: "scheduled" | "completed" | "cancelled";
-  assignees: (AgendaProfile & { completedAt: string | null; taskLabel: string | null })[];
+  assignees: AgendaWorkflowAssignee[];
   /** Confirmação de presença de reunião, independente de tarefa concluída. */
   invitees: (AgendaProfile & { response: "pending" | "accepted" | "declined"; respondedAt: string | null })[];
 }
@@ -91,6 +112,7 @@ export interface WeeklyPautaItem {
   agendaEventId: string | null;
   agendaEventTitle: string | null;
   coverage: EventCoverage | null;
+  workflow:AgendaEventItem|null;
   articleId: string | null;
   status: "pending" | "completed" | "cancelled";
   completedAt: string | null;
@@ -119,7 +141,7 @@ export interface AgendaWorkspaceData {
   periodReason: string | null;
   periodEdited: boolean;
   currentUserId: string;
-  access: { agendaRead: boolean; agendaWrite: boolean; pautaRead: boolean; pautaWrite: boolean; editorialLinkAccess: boolean; coverageManage: boolean };
+  access: { agendaRead: boolean; agendaWrite: boolean; pautaRead: boolean; pautaWrite: boolean; editorialLinkAccess: boolean; coverageManage: boolean; workflowManage: boolean };
   profiles: AgendaProfile[];
   events: AgendaEventItem[];
   pendingInvitations: PendingMeetingInvitation[];
