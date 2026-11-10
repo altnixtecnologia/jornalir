@@ -87,8 +87,11 @@ Atualizado: 10/11/2026. Checklists devem receber data, resultado e evidência
   agendamentos, atualização individual, recusa de alteração de outra pessoa,
   transferência de semana, exclusão de pauta legada preservando a Agenda
   e ajuste manual da edição
-- [ ] Migration aplicada em produção, com conferência de permissões
-- [ ] Publicação READY e erros de execução verificados
+- [x] Migration 20261122340200 aplicada no Supabase, com versão do histórico verificada
+  e funções sem EXECUTE para anon
+- [x] Sistema publicado: commit da6e27c, deploy dpl_Fu1ss2EZsNJsTSicio8cc3MNicSt,
+  READY em controle.altnix.com.br; varredura de erros Vercel sem ocorrências
+  no período consultado
 - [ ] Homologação visual em sessões autenticadas — ainda não executada
 
 ## Método de trabalho
