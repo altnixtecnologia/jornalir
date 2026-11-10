@@ -331,7 +331,7 @@ function CoverageTeamAddFields({profiles,currentUserId,existing}:{
  profiles:AgendaWorkspaceData["profiles"];currentUserId:string;existing:string[];
 }):JSX.Element{
  const first=profiles.find(p=>!existing.includes(p.id))?.id??currentUserId;
- const [tasks,setTasks]=useState<CoverageTaskDraft[]>([{kind:"photos",label:"Fotografias"}]);
+ const [tasks,setTasks]=useState<CoverageTaskDraft[]>([]);
  return <>
   <label className="agenda-field"><span>Colaborador</span>
    <select name="team_new_person" required defaultValue={first}>
@@ -350,7 +350,7 @@ function CoveragePeopleFields({profiles,currentUserId,eventTime}:{
 }):JSX.Element{
  const [crew,setCrew]=useState<Array<{
   key:number;profileId:string;tasks:CoverageTaskDraft[];
- }>>([{key:1,profileId:currentUserId,tasks:[{kind:"photos",label:"Fotografias"}]}]);
+ }>>([{key:1,profileId:currentUserId,tasks:[]}]);
  const [counter,setCounter]=useState(2);
  const unused=profiles.find(profile=>!crew.some(member=>member.profileId===profile.id));
  const changeProfile=(key:number,value:string)=>{
@@ -388,14 +388,15 @@ function CoveragePeopleFields({profiles,currentUserId,eventTime}:{
    onClick={()=>{
     if(!unused)return;
     setCrew(rows=>[...rows,{
-      key:counter,profileId:unused.id,tasks:[{kind:"photos",label:"Fotografias"}],
+      key:counter,profileId:unused.id,tasks:[],
     }]);
     setCounter(n=>n+1);
    }}>＋ Adicionar colaborador</button>
   <div className="coverage-team-bottom">
    <label className="agenda-field coverage-article-person">
     <span>Quem redigirá a matéria? (um responsável)</span>
-    <select name="coverage_article_owner" required defaultValue={currentUserId}>
+    <select name="coverage_article_owner" required defaultValue="">
+     <option value="" disabled>Selecionar redator</option>
      {profiles.map(profile=><option key={profile.id} value={profile.id}>{profile.name}</option>)}
     </select>
    </label>
