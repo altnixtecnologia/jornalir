@@ -156,6 +156,18 @@ function eventOverdue(event:AgendaEventItem,now:string):boolean{
  const local=editorialDueInLocalTime(due);
  return Boolean(local&&local<now);
 }
+/** Atraso do compromisso na Agenda, separado do prazo editorial da materia. */
+function agendaAppointmentOverdue(event:AgendaEventItem,now:string):boolean{
+ if(!event.showInAgenda||event.status!=="scheduled")return false;
+ if(event.assignees.length>0&&event.assignees.every(person=>Boolean(person.completedAt)))return false;
+ const end=event.endTime||event.startTime||"23:59";
+ return event.eventDate+"T"+end<now;
+}
+function agendaPendingFor(event:AgendaEventItem,profileId:string):boolean{
+ return event.showInAgenda&&event.status==="scheduled"&&(
+   event.assignees.some(person=>person.id===profileId&&!person.completedAt)||
+   (event.assignees.length===0&&event.appointmentOwnerId===profileId));
+}
 function pautaOverdue(item:WeeklyPautaItem,now:string):boolean{
  if(item.status!=="pending")return false;
  if(item.workflow||item.coverage){
@@ -509,6 +521,7 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
   const [realtimeState, setRealtimeState] = useState<"connecting" | "online" | "offline">("connecting");
   const [remoteChanges, setRemoteChanges] = useState(false);
   const [responsibleFilter, setResponsibleFilter] = useState("");
+  const [activeSummary, setActiveSummary] = useState<"queue"|"overdue"|"personal-overdue"|null>(null);
   const [isMonthExpanded, setIsMonthExpanded] = useState(false);
   const [isPeriodEditorOpen, setIsPeriodEditorOpen] = useState(false);
   const [pautaCreateVersion,setPautaCreateVersion]=useState(0);
@@ -676,6 +689,20 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
       :event.assignees.some(person=>person.id===data.currentUserId&&!person.completedAt))).length +
     data.pautaItems.filter((item) =>
       item.status === "pending" && item.responsibleProfileId === data.currentUserId && !item.agendaEventId).length;
+  // O seletor existente controla os atrasados; "Minha fila" continua pessoal.
+  const overdueAgenda = data.events.filter(item=>agendaAppointmentOverdue(item,localClock))
+    .sort((a,b)=>a.eventDate.localeCompare(b.eventDate)||String(a.startTime??"").localeCompare(String(b.startTime??"")));
+  const overdueInSelection = responsibleFilter
+    ? overdueAgenda.filter(item=>agendaPendingFor(item,responsibleFilter))
+    : overdueAgenda;
+  const personalOverdue = overdueAgenda.filter(item=>
+    agendaPendingFor(item,responsibleFilter||data.currentUserId));
+  const myAgendaQueue = data.events.filter(item=>agendaPendingFor(item,data.currentUserId))
+    .sort((a,b)=>a.eventDate.localeCompare(b.eventDate)||String(a.startTime??"").localeCompare(String(b.startTime??"")));
+  const summaryItems=activeSummary==="queue"?myAgendaQueue:
+    activeSummary==="overdue"?overdueInSelection:activeSummary==="personal-overdue"?personalOverdue:[];
+  const summaryHeading=activeSummary==="queue"?"Minha fila":
+    activeSummary==="overdue"?"Compromissos atrasados":"Atrasados do responsável";
   const weekDays = Array.from({ length: 7 }, (_, index) => addDays(data.weekStart, index));
   const initialPautaDate = data.today >= data.periodStart && data.today <= data.periodEnd ? data.today : data.periodStart;
   const monthEventCount = data.events.filter((event) => event.eventDate >= data.monthStart && event.eventDate <= data.monthEnd).length;
@@ -1223,6 +1250,34 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
         </div>
       </div>
       {initialView === "agenda" ? (
+        <div className="agenda-mobile-statcards" aria-label="Indicadores dos compromissos">
+          <button type="button" className="agenda-mobile-stat is-today"
+            onClick={()=>{
+              setActiveSummary(null);
+              if(data.today<data.monthStart||data.today>data.monthEnd)navigate("agenda",data.today);
+              else setSelectedDate(data.today);
+            }} title="Ir aos compromissos de hoje">
+            <span className="agenda-mobile-stat-value">{todayCount}</span><span>Hoje</span>
+          </button>
+          <button type="button" className={"agenda-mobile-stat is-queue"+(activeSummary==="queue"?" is-selected":"")}
+            aria-pressed={activeSummary==="queue"} onClick={()=>setActiveSummary(v=>v==="queue"?null:"queue")}
+            title="Ver meus compromissos pendentes">
+            <span className="agenda-mobile-stat-value">{myAgendaQueue.length}</span><span>Minha fila</span>
+          </button>
+          <button type="button" className={"agenda-mobile-stat is-overdue"+(activeSummary==="overdue"?" is-selected":"")}
+            aria-pressed={activeSummary==="overdue"} onClick={()=>setActiveSummary(v=>v==="overdue"?null:"overdue")}
+            title="Ver os atrasados de acordo com o seletor de equipe">
+            <span className="agenda-mobile-stat-value">{overdueInSelection.length}</span><span>Atrasados</span>
+          </button>
+          <button type="button" className={"agenda-mobile-stat is-personal"+(activeSummary==="personal-overdue"?" is-selected":"")}
+            aria-pressed={activeSummary==="personal-overdue"} onClick={()=>setActiveSummary(v=>v==="personal-overdue"?null:"personal-overdue")}
+            title={responsibleFilter&&responsibleFilter!==data.currentUserId?"Ver os atrasados da pessoa selecionada":"Ver meus atrasados"}>
+            <span className="agenda-mobile-stat-value">{personalOverdue.length}</span>
+            <span>{responsibleFilter&&responsibleFilter!==data.currentUserId?"Da pessoa":"Meus atras."}</span>
+          </button>
+        </div>
+      ) : null}
+      {initialView === "agenda" ? (
       <div className="agenda-topbar">
         <div className="agenda-tabs" role="tablist" aria-label="Agenda e pauta">
           {data.access.agendaRead ? <button type="button" className={initialView === "agenda" ? "is-active" : ""} onClick={() => navigate("agenda", data.focusDate)}>Agenda</button> : null}
@@ -1244,6 +1299,26 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
       </div>
       ) : null}
 
+      {initialView==="agenda"&&activeSummary?(
+        <section className="agenda-mobile-focus" aria-label={summaryHeading}>
+          <div className="agenda-mobile-focus-head">
+            <strong>{summaryHeading} <span>({summaryItems.length})</span></strong>
+            <button type="button" onClick={()=>setActiveSummary(null)} aria-label="Fechar lista">Fechar ×</button>
+          </div>
+          {summaryItems.length?(
+            <div className="agenda-mobile-focus-items">
+              {summaryItems.map(item=>(
+                <Link key={item.id} href={"/sistema/agenda?date="+encodeURIComponent(item.eventDate)}
+                  className="agenda-mobile-focus-link" onClick={()=>setActiveSummary(null)}>
+                  <span><strong>{item.title}</strong>
+                    <small>{shortDate(item.eventDate)}{item.startTime?" · "+item.startTime+"h":""}</small></span>
+                  <span aria-hidden="true">Abrir ›</span>
+                </Link>
+              ))}
+            </div>
+          ):<p className="agenda-mobile-focus-empty">Nenhum compromisso nesta categoria.</p>}
+        </section>
+      ):null}
       {remoteChanges ? (
         <div className="agenda-remote-notice agenda-remote-notice--floating" role="status" aria-live="polite">
           <span><strong>Alterações de outros usuários</strong><small>Salve ou feche a edição para sincronizar sem perder suas informações.</small></span>
@@ -1563,12 +1638,6 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
               })}/>
           </details>:null}
 
-          {data.access.pautaWrite&&pautaItems.length>1?
-            <p className="pauta-reorder-hint">
-              {responsibleFilter
-                ?"Para organizar a ordem, selecione todos os colaboradores."
-                :"Arraste pela alça à esquerda do título para mudar a posição. A ordem é salva para a equipe."}
-            </p>:null}
           {pautaItems.length ? (
             <div className="pauta-list">
               {pautaItems.map((item) => {
@@ -1667,6 +1736,10 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
                       <span className="workflow-expand-chevron" aria-hidden="true">⌄</span>
                     </summary>
                     <div className="workflow-expanded-body pauta-expanded-body">
+                    <div className="pauta-mobile-detail-heading">
+                      <strong>Detalhes da pauta</strong>
+                      <button type="button" onClick={()=>{setOpenPautaId(null);setEditingPautaId(null);setSchedulingPautaId(null);}}>Fechar ×</button>
+                    </div>
                     {!item.coverage && !item.workflow && (data.access.pautaWrite || canCompleteOwn) ? <button type="button" className="pauta-check"
                       aria-label={done ? "Reabrir item" : "Concluir minha pauta"} disabled={isPending || cancelled}
                       onClick={() => run(
