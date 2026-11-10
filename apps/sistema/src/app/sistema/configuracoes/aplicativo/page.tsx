@@ -11,7 +11,9 @@ export default async function AplicativoConfiguracoesPage(): Promise<JSX.Element
   const { data: { user } } = await db.auth.getUser();
   if (!user) redirect("/login");
   const { data: profile } = await db.from("profiles").select("active,role").eq("id", user.id).maybeSingle();
-  if (!profile?.active || !["owner", "admin"].includes(profile.role)) redirect("/sistema");
+  if(!profile?.active||!["owner","admin"].includes(profile.role))redirect("/sistema");
+  const {data:isCoowner,error:roleError}=await db.rpc("is_business_coowner");
+  if(roleError||isCoowner===true)redirect("/sistema");
 
   const { data: release, error } = await db.from("mobile_app_releases")
     .select("version_label,version_code,published,apk_url,apk_sha256,apk_size_bytes,release_notes,published_at,updated_at")

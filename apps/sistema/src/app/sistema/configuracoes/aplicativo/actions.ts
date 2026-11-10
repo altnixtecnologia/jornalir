@@ -16,7 +16,11 @@ export async function saveAndroidAppReleaseAction(input: {
   const { data: { user } } = await db.auth.getUser();
   if (!user) return { error: "Faça login para continuar." };
   const { data: profile } = await db.from("profiles").select("active,role").eq("id", user.id).maybeSingle();
-  if (!profile?.active || !["owner", "admin"].includes(profile.role)) return { error: "Somente administradores podem publicar versões." };
+  if(!profile?.active||!["owner","admin"].includes(profile.role))
+    return {error:"Somente administradores autorizados podem publicar versões."};
+  const {data:isCoowner,error:roleError}=await db.rpc("is_business_coowner");
+  if(roleError||isCoowner===true)
+    return {error:"Publicação de APK é uma atividade técnica reservada à administração de desenvolvimento."};
 
   const versionLabel = input.versionLabel.trim();
   const versionCode = Number(input.versionCode);
