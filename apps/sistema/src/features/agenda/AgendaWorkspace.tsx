@@ -36,6 +36,7 @@ import {
   savePautaEditionOverrideAction,
   createPautaAgendaAppointmentsAction,
   updatePautaAgendaAppointmentAction,
+  reorderPautaCardsAction,
   setAgendaMeetingInviteesAction,
   respondAgendaInvitationAction,
 } from "./actions";
@@ -46,6 +47,7 @@ import { EditorialWorkflowCreate } from "./EditorialWorkflowCreate";
 import { EditorialPautaEdit } from "./EditorialPautaEdit";
 import { PautaAgendaSchedule } from "./PautaAgendaSchedule";
 import { PautaAppointmentEdit } from "./PautaAppointmentEdit";
+import { movePautaCardIds } from "./pautaCardOrdering";
 import { EditorialWorkflowPanel } from "./EditorialWorkflowPanel";
 import { createSupabaseBrowserClient } from "../../lib/supabase/browser";
 import { notify } from "../../lib/feedback/notify";
@@ -512,10 +514,20 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
   const [editingPautaId,setEditingPautaId]=useState<string|null>(null);
   const [schedulingPautaId,setSchedulingPautaId]=useState<string|null>(null);
   const [isEditionEditorOpen,setIsEditionEditorOpen]=useState(false);
+  const [localPautaOrder,setLocalPautaOrder]=useState<string[]|null>(null);
+  const [draggingPautaId,setDraggingPautaId]=useState<string|null>(null);
+  const [dropTargetPautaId,setDropTargetPautaId]=useState<string|null>(null);
+  const dragStartedOnControlRef=useRef(false);
   const [isPending, startTransition] = useTransition();
 
   useEffect(() => setSelectedDate(data.focusDate), [data.focusDate]);
   useEffect(() => {setIsPeriodEditorOpen(false);setIsEditionEditorOpen(false);}, [data.weekStart]);
+  const serverPautaOrderKey=data.pautaItems.map(item=>item.id).join("|");
+  useEffect(()=>{
+    setLocalPautaOrder(null);
+    setDraggingPautaId(null);
+    setDropTargetPautaId(null);
+  },[data.weekStart,serverPautaOrderKey]);
   // Muda de "Agendado" para "Atrasado" sem exigir F5, inclusive à meia-noite.
   useEffect(() => {
     const refreshClock = () => setLocalClock(nowInAgendaTimezone());
@@ -660,9 +672,17 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
   const initialPautaDate = data.today >= data.periodStart && data.today <= data.periodEnd ? data.today : data.periodStart;
   const monthEventCount = data.events.filter((event) => event.eventDate >= data.monthStart && event.eventDate <= data.monthEnd).length;
   const visiblePauta=data.pautaItems.filter(item=>item.status!=="cancelled");
-  const pautaItems = responsibleFilter
-    ? visiblePauta.filter((item) => item.responsibleProfileId === responsibleFilter || item.assignees.some((person) => person.id === responsibleFilter))
+  const orderedPauta=localPautaOrder
+    ? [...visiblePauta].sort((a,b)=>{
+        const ai=localPautaOrder.indexOf(a.id),bi=localPautaOrder.indexOf(b.id);
+        return ai<0?1:bi<0?-1:ai-bi;
+      })
     : visiblePauta;
+  const pautaItems = responsibleFilter
+    ? orderedPauta.filter((item) => item.responsibleProfileId === responsibleFilter || item.assignees.some((person) => person.id === responsibleFilter))
+    : orderedPauta;
+  const canReorderPauta=initialView==="pauta"&&data.access.pautaWrite&&data.access.coverageManage&&!responsibleFilter
+    &&visiblePauta.length>1;
 
   function navigate(view: "agenda" | "pauta", date: string): void {
     const path = basePath === "/sistema/agenda"
@@ -708,6 +728,32 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
       setRemoteChanges(false);
       lastSyncAtRef.current = Date.now();
       router.refresh();
+    });
+  }
+
+  function savePautaReorder(fromId:string,toId:string):void{
+    if(!canReorderPauta||isPending)return;
+    const expected=visiblePauta.map(item=>item.id);
+    const reordered=movePautaCardIds(expected,fromId,toId);
+    if(!reordered)return;
+    setLocalPautaOrder(reordered);
+    startTransition(async()=>{
+      try{
+        const result=await reorderPautaCardsAction(data.weekStart,expected,reordered);
+        if("error" in result){
+          setLocalPautaOrder(null);
+          notify.error("Não foi possível reorganizar a Pauta",result.error);
+          return;
+        }
+        notify.success("Pauta reorganizada","Nova ordem salva para toda a equipe e para a Pauta TV.");
+        setRemoteChanges(false);
+        lastSyncAtRef.current=Date.now();
+        router.refresh();
+      }catch(error){
+        setLocalPautaOrder(null);
+        notify.error("Não foi possível reorganizar a Pauta",
+          error instanceof Error?error.message:"Atualize a página e tente novamente.");
+      }
     });
   }
 
@@ -1509,6 +1555,12 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
               })}/>
           </details>:null}
 
+          {data.access.pautaWrite&&pautaItems.length>1?
+            <p className="pauta-reorder-hint">
+              {responsibleFilter
+                ?"Para organizar a ordem, selecione todos os colaboradores."
+                :"Arraste qualquer cartão pelo mouse para mudar sua posição. A ordem é salva para a equipe."}
+            </p>:null}
           {pautaItems.length ? (
             <div className="pauta-list">
               {pautaItems.map((item) => {
@@ -1517,7 +1569,51 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
                 const myAssignment = item.assignees.find((person) => person.id === data.currentUserId);
                 const canCompleteOwn = !done && !cancelled && Boolean(myAssignment && !myAssignment.completedAt);
                 return (
-                  <details key={item.id} style={{ borderLeftColor: personColor(item.responsibleProfileId ?? "") }} className={"pauta-item" + (done ? " is-done" : "") + (cancelled ? " is-cancelled" : "")}>
+                  <details key={item.id}
+                    style={{borderLeftColor:personColor(item.responsibleProfileId??"")}}
+                    className={"pauta-item"+(done?" is-done":"")+(cancelled?" is-cancelled":"")+
+                      (canReorderPauta?" is-reorderable":"")+
+                      (draggingPautaId===item.id?" is-dragging":"")+
+                      (dropTargetPautaId===item.id?" is-drop-target":"")}
+                    draggable={canReorderPauta&&!isPending&&editingPautaId!==item.id&&schedulingPautaId!==item.id}
+                    onMouseDownCapture={event=>{
+                      const target=event.target;
+                      // Ações, links e formulários nunca iniciam o arraste do cartão.
+                      dragStartedOnControlRef.current=Boolean(target instanceof Element&&target.closest(
+                        "button,a,input,textarea,select,label,form,[contenteditable='true']"
+                      ));
+                    }}
+                    onMouseUpCapture={()=>{dragStartedOnControlRef.current=false;}}
+                    onDragStart={event=>{
+                      if(!canReorderPauta||isPending||dragStartedOnControlRef.current){
+                        event.preventDefault();return;
+                      }
+                      event.dataTransfer.effectAllowed="move";
+                      event.dataTransfer.setData("application/x-jornalir-pauta",item.id);
+                      setDraggingPautaId(item.id);
+                      setDropTargetPautaId(null);
+                    }}
+                    onDragOver={event=>{
+                      if(!canReorderPauta||!draggingPautaId||isPending)return;
+                      event.preventDefault();
+                      event.dataTransfer.dropEffect="move";
+                      setDropTargetPautaId(current=>current===item.id?current:item.id);
+                    }}
+                    onDrop={event=>{
+                      if(!canReorderPauta||isPending)return;
+                      event.preventDefault();
+                      event.stopPropagation();
+                      const from=event.dataTransfer.getData("application/x-jornalir-pauta")||
+                        draggingPautaId;
+                      setDraggingPautaId(null);
+                      setDropTargetPautaId(null);
+                      if(from&&from!==item.id)savePautaReorder(from,item.id);
+                    }}
+                    onDragEnd={()=>{
+                      dragStartedOnControlRef.current=false;
+                      setDraggingPautaId(null);
+                      setDropTargetPautaId(null);
+                    }}>
                     <summary className="workflow-collapsed-summary">
                       <span className="pauta-summary-title">{item.title}</span>
                       {data.access.pautaWrite?<span className="workflow-pauta-tools"

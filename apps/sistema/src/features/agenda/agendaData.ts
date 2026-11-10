@@ -149,11 +149,9 @@ export async function loadAgendaWorkspaceData(focusDate: string): Promise<Agenda
       .from("weekly_pauta_items")
       .select("id, week_start, title, description, due_date, due_time, responsible_profile_id, agenda_event_id, article_id, status, completed_at, updated_at")
       .eq("week_start", weekStart)
-      .order("status", { ascending: false })
-      .order("due_date", { ascending: true, nullsFirst: false })
-      .order("due_time", { ascending: true, nullsFirst: false })
       .order("sort_order", { ascending: true })
-      .order("created_at", { ascending: true }),
+      .order("created_at", { ascending: true })
+      .order("id", { ascending: true }),
   ]);
 
   if (profilesResult.error) throw new Error(profilesResult.error.message);
