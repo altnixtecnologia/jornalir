@@ -117,7 +117,17 @@ begin
      v_kind:=coalesce(v_task.item->>'kind','');
      v_label:=btrim(coalesce(v_task.item->>'label',''));
      if v_kind not in ('photos','video','interviews','audio','research','live','media','custom') or
-       length(v_label) not between 2 and 80 or lower(v_label)=any(v_seen) then
+       length(v_label) not between 2 and 80 or lower(v_label)=any(v_seen)
+     or (v_kind<>'custom' and v_label is distinct from
+     case v_kind
+      when 'photos' then 'Fotografias'
+      when 'video' then 'Vídeos'
+      when 'interviews' then 'Entrevistas'
+      when 'audio' then 'Captação de áudio'
+      when 'research' then 'Apuração de informações'
+      when 'live' then 'Transmissão ao vivo'
+      when 'media' then 'Seleção e envio de mídias'
+      else null end) then
        raise exception 'Tarefa inválida ou duplicada';end if;
      v_seen:=array_append(v_seen,lower(v_label));
    end loop;
@@ -181,7 +191,17 @@ begin
    v_kind:=coalesce(v_task.item->>'kind','');
    v_label:=btrim(coalesce(v_task.item->>'label',''));
    if v_kind not in ('photos','video','interviews','audio','research','live','media','custom')
-    or length(v_label) not between 2 and 80 or lower(v_label)=any(v_seen) then
+    or length(v_label) not between 2 and 80 or lower(v_label)=any(v_seen)
+     or (v_kind<>'custom' and v_label is distinct from
+     case v_kind
+      when 'photos' then 'Fotografias'
+      when 'video' then 'Vídeos'
+      when 'interviews' then 'Entrevistas'
+      when 'audio' then 'Captação de áudio'
+      when 'research' then 'Apuração de informações'
+      when 'live' then 'Transmissão ao vivo'
+      when 'media' then 'Seleção e envio de mídias'
+      else null end) then
      raise exception 'Tarefa inválida ou duplicada';end if;
    v_seen:=array_append(v_seen,lower(v_label));
  end loop;
