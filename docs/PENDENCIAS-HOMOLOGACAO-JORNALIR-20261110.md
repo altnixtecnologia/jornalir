@@ -24,6 +24,10 @@ Atualizado: 10/11/2026. Checklists devem receber data, resultado e evidência
 - [ ] Bloquear arrastar quando houver filtro de colaborador; impedir reordenação concorrente
 - [ ] Verificar que arrastar não gera lembretes/notificações nem altera prazos ou datas
 - [ ] Conferir títulos dos cartões da Pauta em peso normal, sem negrito
+- [ ] Conferir seleção de responsáveis em iniciais quadradas, com legenda elegante do nome completo ao passar mouse ou focar teclado
+- [ ] Conferir todos os responsáveis visíveis em linhas, sem rolagem horizontal, em pautas antigas e matérias novas
+- [ ] Conferir seleção/deseleção, marcação visual, botão Selecionar todos e limite de 16 responsáveis
+- [ ] Conferir tooltip no celular, sem cortar nome e sem interferir no salvamento
 - [ ] Conferir lado a lado: prazo da matéria à esquerda e ativação da Agenda à direita (desktop)
 - [ ] Conferir botão Ativar agendamento: revela data e hora apenas da Agenda
 - [ ] Conferir × dentro do conjunto data/hora da Agenda: limpa ambos, cancela agendamento e mantém intacto o prazo da matéria
