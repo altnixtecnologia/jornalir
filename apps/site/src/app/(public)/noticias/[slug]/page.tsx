@@ -29,8 +29,9 @@ function getArticleDescription(subtitle: string | undefined, body: string): stri
   return text.slice(0, 190) || "Notícias e informações do Informativo Regional.";
 }
 
-export async function generateMetadata({ params }: { params: { slug: string } }): Promise<Metadata> {
-  const article = await loadArticle(params.slug);
+export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
+  const { slug } = await params;
+  const article = await loadArticle(slug);
   if (!article) return { title: "Matéria não encontrada | Informativo Regional", robots: { index: false } };
   const description = getArticleDescription(article.subtitle, article.body);
   const canonical = `/noticias/${encodeURIComponent(article.slug)}`;
@@ -55,8 +56,9 @@ export async function generateMetadata({ params }: { params: { slug: string } })
   };
 }
 
-export default async function NoticiaDetalhePage({ params }: { params: { slug: string } }): Promise<JSX.Element> {
-  const current = await loadArticle(params.slug);
+export default async function NoticiaDetalhePage({ params }: { params: Promise<{ slug: string }> }): Promise<JSX.Element> {
+  const { slug } = await params;
+  const current = await loadArticle(slug);
   if (!current) notFound();
 
   const [readAlso, siteAds] = await Promise.all([getReadAlso(current, 4), getPublicSiteAds()]);
