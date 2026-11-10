@@ -122,6 +122,16 @@ Atualizado: 10/11/2026. Checklists devem receber data, resultado e evidência
 4. Homologar com usuário no ambiente oficial, sem gerar cobranças reais de teste.
 5. Marcar item concluído somente com evidência; avançar um módulo por vez.
 
+## Ajustes visuais transversais — 10/11/2026
+- [ ] Conferir botão **Voltar** no cabeçalho de todos os módulos administrativos
+- [ ] Conferir que Preferências de notificações volta para Meu perfil
+- [ ] Conferir navegação de retorno e estilo responsivo sem duplicar ações
+- [ ] Conferir setas/chevrons de Perfil e notificações no padrão visual da Pauta
+- [ ] Conferir alça de arraste da Pauta próxima à faixa colorida
+- [ ] Conferir alinhamento entre título, alça, ações e chevron nos três cartões de cada linha
+- [ ] **CORES A DEFINIR COM O USUÁRIO:** verde concluída, amarelo pendente, vermelho vencida/problema;
+  definir estado de "problema" e pautas sem prazo antes de implementar
+
 ## Gestão — Maiquiu Cardoso (autorizado em 10/11/2026)
 - [ ] Confirmar concessão operacional no banco sem criar segundo owner
 - [ ] Confirmar que o Maiquiu aparece como “Coproprietário — Gestão” no sistema
