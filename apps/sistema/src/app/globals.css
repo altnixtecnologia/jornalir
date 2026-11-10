@@ -7765,3 +7765,64 @@ details.pauta-item:has(.workflow-pauta-tools)>.workflow-collapsed-summary{paddin
   width:25px;height:27px;min-height:27px
  }
 }
+
+
+/* Ajuste do agendamento da Pauta: dois cartões lado a lado; ao ativar, somente
+   o cartão da Agenda abre data/hora. Cancelar limpa esses valores sem tocar no prazo. */
+.workflow-article-team .workflow-article-deadline{display:block}
+.workflow-pauta-schedule-grid{
+ display:grid;grid-template-columns:repeat(2,minmax(0,1fr));
+ gap:10px;align-items:stretch;min-width:0
+}
+.workflow-pauta-deadline-card,.workflow-pauta-agenda-card{
+ display:grid;align-content:start;gap:8px;min-width:0;
+ padding:10px 12px;border:1px solid #d9e2ee;border-radius:9px;background:#fff
+}
+.workflow-pauta-deadline-card>strong,.workflow-pauta-agenda-head>strong{
+ font-size:11px;font-weight:800;line-height:1.3
+}
+.workflow-pauta-deadline-card>small,.workflow-pauta-agenda-card>small{
+ font-size:10px;color:var(--muted);line-height:1.35
+}
+.workflow-pauta-agenda-card{padding:0;border-color:transparent;background:transparent}
+.workflow-pauta-agenda-card.is-open{
+ padding:10px 12px;border:1px dashed #abc2dc;background:#fafdff
+}
+.workflow-pauta-agenda-head{
+ display:flex;align-items:center;justify-content:space-between;gap:8px;min-height:27px
+}
+.workflow-pauta-agenda-card>.pauta-activate-schedule{
+ width:100%;height:100%;min-height:96px;
+ display:flex;align-items:center;justify-content:center;gap:10px;
+ border:1px dashed #abc2dc;background:#f4f8fd;
+ text-align:left;border-radius:9px;white-space:normal;padding:12px
+}
+.workflow-pauta-agenda-card>.pauta-activate-schedule>span:first-child{
+ flex:none;display:grid;place-items:center;
+ width:31px;height:31px;border-radius:8px;background:#e3edfa;
+ font-size:20px;font-weight:700
+}
+.workflow-pauta-agenda-card>.pauta-activate-schedule>span:last-child{
+ display:grid;gap:3px;font-size:12px;font-weight:800
+}
+.workflow-pauta-agenda-card>.pauta-activate-schedule small{
+ display:block;font-size:10px;font-weight:500;color:#657995
+}
+.workflow-pauta-agenda-card>.pauta-activate-schedule:hover{
+ background:#eaf3ff;border-color:#85a8cf
+}
+.pauta-schedule-close{
+ flex:none;display:grid;place-items:center;
+ width:28px;height:28px;min-height:28px;padding:0;
+ border:1px solid #d3dce8;border-radius:7px;
+ background:#fff;color:#87515a;font-size:18px;line-height:1
+}
+.pauta-schedule-close:hover{background:#fff0f0;color:#ab303c}
+.pauta-schedule-close:focus-visible,
+.workflow-pauta-agenda-card>.pauta-activate-schedule:focus-visible{
+ outline:2px solid var(--brand);outline-offset:2px
+}
+@media(max-width:790px){
+ .workflow-pauta-schedule-grid{grid-template-columns:minmax(0,1fr)}
+ .workflow-pauta-agenda-card>.pauta-activate-schedule{min-height:54px;justify-content:flex-start}
+}
