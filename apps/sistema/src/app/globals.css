@@ -8084,7 +8084,7 @@ details.pauta-item:has(.workflow-pauta-tools)>.workflow-collapsed-summary{paddin
     padding-right:10px;
   }
   .agenda-mobile-page .module-header{margin:0 0 5px;min-height:0;gap:0}
-  .agenda-mobile-page .module-eyebrow-row{margin:0;min-height:0}
+  .agenda-mobile-page .module-eyebrow-row{display:none}
   .agenda-mobile-page .module-header h1{margin:0;font-size:19px;line-height:1.2}
   /* Navegacao Agenda/Pauta ja esta no rodape do aplicativo. */
   .agenda-mobile-page .agenda-tabs{display:none}
