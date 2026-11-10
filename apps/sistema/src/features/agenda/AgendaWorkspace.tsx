@@ -1359,7 +1359,8 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
                       {item.workflowKind!=="general"
                         ? <EditorialWorkflowPanel item={item} currentUserId={data.currentUserId}
                             manager={data.access.workflowManage} profiles={data.profiles}
-                            isPending={isPending} onAction={run}/>
+                            isPending={isPending} onAction={run} mode="agenda"
+                            showPautaLink={data.access.pautaRead}/>
                         :item.coverage?CoveragePanel({coverage:item.coverage,eventId:item.id,eventTime:item.startTime??""})
                         :item.status==="scheduled"&&data.access.agendaWrite?EnableCoverage({item}):null}
                       {data.access.agendaWrite&&item.workflowKind==="general"&&!item.coverage&&item.status==="scheduled"&&item.assignees.length>1
@@ -1452,7 +1453,7 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
           </div>
 
           {data.access.pautaWrite?<details className="pauta-create-panel" id="pauta-create-panel">
-            <summary>＋ Nova pauta <span>Escolher tipo e responsáveis</span></summary>
+            <summary>＋ Nova matéria <span>Responsável e prazo opcional</span></summary>
             <EditorialWorkflowCreate profiles={data.profiles}
               currentUserId={data.currentUserId} weekStart={data.weekStart}
               selectedDate={initialPautaDate} view="pauta" isPending={isPending}
@@ -1502,11 +1503,13 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
                       {item.workflow?
                         <EditorialWorkflowPanel item={item.workflow} currentUserId={data.currentUserId}
                           manager={data.access.workflowManage} profiles={data.profiles}
-                          isPending={isPending} onAction={run}/>:
+                          isPending={isPending} onAction={run} mode="pauta"/>:
                         item.coverage&&item.agendaEventId?CoveragePanel({coverage:item.coverage,eventId:item.agendaEventId,eventTime:item.dueTime??""}):
-                        item.agendaEventId&&item.status==="pending"&&data.access.pautaWrite&&
-                          data.events.some(ev=>ev.id===item.agendaEventId)?
-                          EnableCoverage({item:data.events.find(ev=>ev.id===item.agendaEventId)!}):null}
+                        item.agendaEventId&&data.access.agendaRead?
+                          <Link className="agenda-link-materia" href={"/sistema/agenda?date="+
+                            encodeURIComponent(item.dueDate??data.today)}>
+                            Ver compromisso na Agenda
+                          </Link>:null}
                       {data.access.pautaWrite && !item.workflow ? PautaEdit({item}) : null}
                     </div>
                     {data.access.pautaWrite && !item.workflow ? <button type="button" className="pauta-cancel" disabled={isPending} onClick={() => run(() => setPautaItemStatusAction(item.id, cancelled ? "pending" : "cancelled"), cancelled ? "Item restaurado." : "Item retirado da pauta.")}>{cancelled ? "↶" : "×"}</button> : null}
