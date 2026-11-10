@@ -168,15 +168,59 @@ function agendaPendingFor(event:AgendaEventItem,profileId:string):boolean{
    event.assignees.some(person=>person.id===profileId&&!person.completedAt)||
    (event.assignees.length===0&&event.appointmentOwnerId===profileId));
 }
-function pautaOverdue(item:WeeklyPautaItem,now:string):boolean{
- if(item.status!=="pending")return false;
+function pautaDeadline(item:WeeklyPautaItem):string|null{
  if(item.workflow||item.coverage){
-  const due=editorialDueInLocalTime(item.workflow?.articleDueAt??item.coverage?.articleDueAt??null);
-  return Boolean(due&&due<now);
+  return editorialDueInLocalTime(item.workflow?.articleDueAt??item.coverage?.articleDueAt??null);
  }
- // Prazo do compromisso original não equivale a prazo editorial.
- if(item.agendaEventId)return false;
- return Boolean(item.dueDate&&(item.dueDate+"T"+(item.dueTime||"23:59")<now));
+ // Prazo do compromisso da Agenda nao equivale ao prazo editorial da Pauta.
+ if(item.agendaEventId||!item.dueDate)return null;
+ return item.dueDate+"T"+(item.dueTime||"23:59");
+}
+function pautaOverdue(item:WeeklyPautaItem,now:string):boolean{
+ const due=pautaDeadline(item);
+ return item.status==="pending"&&Boolean(due&&due<now);
+}
+type PautaCardStatus="completed"|"cancelled"|"overdue"|"on-time"|"no-deadline";
+function pautaCardStatus(item:WeeklyPautaItem,now:string):PautaCardStatus{
+ if(item.status==="completed")return "completed";
+ if(item.status==="cancelled")return "cancelled";
+ const due=pautaDeadline(item);
+ return !due?"no-deadline":due<now?"overdue":"on-time";
+}
+const PAUTA_STATUS_COLOR:Record<PautaCardStatus,string>={
+ "on-time":"#2563EB", "no-deadline":"#F5B51B",
+ overdue:"#C8102E",completed:"#16A34A",cancelled:"#94A3B8"
+};
+
+/** Reduz a fonte somente se o titulo ocupar 3 ou mais linhas na largura real. */
+function PautaCardTitle({title}:{title:string}):JSX.Element{
+ const titleRef=useRef<HTMLSpanElement>(null);
+ const [compact,setCompact]=useState(false);
+ useEffect(()=>{
+  const node=titleRef.current;
+  const parent=node?.parentElement;
+  if(!node||!parent)return;
+  let priorWidth=-1;
+  const measure=()=>{
+   // Medir sempre no tamanho normal para evitar alternancia ao encolher.
+   const previous=node.style.fontSize;
+   node.style.fontSize="13px";
+   const lh=parseFloat(window.getComputedStyle(node).lineHeight);
+   const lines=lh>0?node.scrollHeight/lh:1;
+   node.style.fontSize=previous;
+   setCompact(lines>2.4);
+  };
+  const observer=new ResizeObserver(entries=>{
+   const width=entries[0]?.contentRect.width??parent.clientWidth;
+   if(Math.abs(width-priorWidth)<.5)return;
+   priorWidth=width;
+   measure();
+  });
+  observer.observe(parent);
+  measure();
+  return()=>observer.disconnect();
+ },[title]);
+ return <span ref={titleRef} className={"pauta-summary-title"+(compact?" is-compact":"")}>{title}</span>;
 }
 
 function statusLabel(status: string, overdue = false): string {
@@ -1643,13 +1687,18 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
               {pautaItems.map((item) => {
                 const done = item.status === "completed";
                 const cancelled = item.status === "cancelled";
+                const status = pautaCardStatus(item,localClock);
+                const people = item.assignees.length
+                  ? item.assignees.map(person=>({id:person.id,name:person.name}))
+                  : item.responsibleProfileId && item.responsibleName
+                    ? [{id:item.responsibleProfileId,name:item.responsibleName}] : [];
                 const myAssignment = item.assignees.find((person) => person.id === data.currentUserId);
                 const canCompleteOwn = !done && !cancelled && Boolean(myAssignment && !myAssignment.completedAt);
                 return (
                   <details key={item.id}
                     open={openPautaId===item.id}
-                    style={{borderLeftColor:personColor(item.responsibleProfileId??"")}}
-                    className={"pauta-item"+(done?" is-done":"")+(cancelled?" is-cancelled":"")+
+                    style={{borderLeftColor:PAUTA_STATUS_COLOR[status]}}
+                    className={"pauta-item pauta-status-"+status+(done?" is-done":"")+(cancelled?" is-cancelled":"")+
                       (canReorderPauta?" is-reorderable":"")+
                       (draggingPautaId===item.id?" is-dragging":"")+
                       (dropTargetPautaId===item.id?" is-drop-target":"")}
@@ -1704,7 +1753,17 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
                         }}>
                         <span aria-hidden="true">⋮⋮</span>
                       </button>:null}
-                      <span className="pauta-summary-title">{item.title}</span>
+                      <span className="pauta-summary-main">
+                        <PautaCardTitle title={item.title}/>
+                        <span className="pauta-summary-people" aria-label="Pessoas envolvidas">
+                          {people.length?people.map(person=>(
+                            <span className="pauta-summary-person" key={person.id} title={person.name}>
+                              <i aria-hidden="true" style={{backgroundColor:personColor(person.id)}}/>
+                              <span>{person.name}</span>
+                            </span>
+                          )):<span className="pauta-summary-empty">Sem responsável</span>}
+                        </span>
+                      </span>
                       {data.access.pautaWrite?<span className="workflow-pauta-tools"
                         onClick={event=>{event.preventDefault();event.stopPropagation();}}>
                         <button type="button" title="Editar pauta" aria-label={"Editar pauta: "+item.title}
