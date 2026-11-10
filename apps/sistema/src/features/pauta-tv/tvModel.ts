@@ -45,7 +45,7 @@ export function toTvPautaSnapshot(
   generatedAt: string = new Date().toISOString(),
 ): TvPautaSnapshot {
   const name = new Map(data.profiles.map(profile => [profile.id,profile.name]));
-  const cards: TvPautaCard[] = data.pautaItems.map(item => {
+  const cards: TvPautaCard[] = data.pautaItems.filter(item => !(item.workflow?.workflowKind === "article" && item.status === "cancelled")).map(item => {
     const status = deriveTvPautaStatus(item);
     const coverage = item.coverage;
     const articleName = coverage ? name.get(coverage.articleOwnerId) ?? "Redação" : null;
@@ -99,7 +99,7 @@ export function toTvPautaSnapshot(
 
 /** Cada cartão cresce para preencher a altura. Só paginar se não houver leitura confortável. */
 export function calculateTvPagination(
-  height:number,items:number,minRowPx:number=82,gapPx:number=8,
+  height:number,items:number,minRowPx:number=70,gapPx:number=8,
 ): {perPage:number;pages:number;rowPx:number} {
   if(items<=0)return {perPage:0,pages:1,rowPx:0};
   const safeHeight=Math.max(0,Math.floor(height));

@@ -4,6 +4,7 @@ import {useRef,useState,type FormEvent} from "react";
 import type {AgendaProfile,AgendaEventItem,EditorialWorkflowKind} from "./agendaTypes";
 import {FIXED_COVERAGE_TASKS,type CoverageTaskDraft} from "./coverageTaskCatalog";
 import {WorkflowTaskChips} from "./WorkflowTaskChips";
+import {WorkflowPeoplePicker} from "./WorkflowPeoplePicker";
 
 type Choice=Exclude<EditorialWorkflowKind,"general">;
 type CrewMember={key:number;profileId:string;attends:boolean;tasks:CoverageTaskDraft[]};
@@ -43,6 +44,7 @@ export function EditorialWorkflowCreate({
  const [repeat,setRepeat]=useState(1);
  const initialIds=[...(existing?.assignees.map(p=>p.id)??[])];
  if(initialWriterId&&!initialIds.includes(initialWriterId))initialIds.push(initialWriterId);
+ const [articleSelected,setArticleSelected]=useState<string[]>(initialIds.length?initialIds:[currentUserId]);
  const [crew,setCrew]=useState<CrewMember[]>(initialIds.length?
   initialIds.map((id,index)=>({key:index+1,profileId:id,attends:true,tasks:[]})):
   [{key:1,profileId:currentUserId,attends:true,tasks:[]}]);
@@ -106,13 +108,15 @@ export function EditorialWorkflowCreate({
  const submit=(e:FormEvent<HTMLFormElement>)=>{
   e.preventDefault();setError("");
   if(!kind){setError("Escolha o tipo de compromisso.");return;}
-  if(!writer&&kind==="article"){setError("Marque Matéria no responsável.");return;}
-  if(writer&&!crew.some(p=>p.profileId===writer)){setError("Escolha o redator entre os colaboradores.");return;}
+  const selectedCrew=kind==="article"?articleSelected.map(profileId=>({profileId,attends:false,tasks:[] as CoverageTaskDraft[]})):crew;
+  const writerId=kind==="article"?articleSelected[0]??"":writer;
+  if(kind==="article"&&!writerId){setError("Selecione pelo menos um responsável.");return;}
+  if(kind!=="article"&&writer&&!crew.some(p=>p.profileId===writer)){setError("Escolha o redator entre os colaboradores.");return;}
   const form=new FormData(e.currentTarget);
   form.set("workflow_kind",kind);
-  form.set("workflow_writer",writer);
+  form.set("workflow_writer",writerId);
   form.set("council_repeat",String(kind==="council"?repeat:1));
-  form.set("workflow_crew_json",JSON.stringify(crew.map(
+  form.set("workflow_crew_json",JSON.stringify(selectedCrew.map(
     p=>({profileId:p.profileId,attends:kind!=="article"&&p.attends,tasks:p.tasks}))));
   onCreate(form);
  };
@@ -175,7 +179,21 @@ export function EditorialWorkflowCreate({
        <span>Local (opcional)</span>
        <input name="location" maxLength={240} value={location} onChange={e=>setLocation(e.currentTarget.value)}/>
      </label>:null}
-     <div className="workflow-person-list">
+     {kind==="article"?<div className="workflow-article-team">
+       <WorkflowPeoplePicker profiles={profiles} selected={articleSelected} onChange={setArticleSelected}/>
+       <div className="workflow-article-deadline">
+        <strong>Prazo da matéria (opcional)</strong>
+        <div className="workflow-schedule">
+         <label className="agenda-field"><span>Data</span>
+           <input type="date" name="article_due_date" value={dueDate} onChange={e=>{setDueDate(e.currentTarget.value);if(!e.currentTarget.value)setDueTime("");}}/>
+         </label>
+         <label className="agenda-field"><span>Hora</span>
+           <input type="time" name="article_due_time" disabled={!dueDate} value={dueTime} onChange={e=>setDueTime(e.currentTarget.value)}/>
+         </label>
+        </div>
+        <small>Sem data, a pauta permanece sem prazo.</small>
+       </div>
+     </div>:<div className="workflow-person-list">
        <div className="workflow-people-title"><strong>{kind==="article"?"Responsável pela matéria":"Quem participa?"}</strong>
          <small>Um nome por pessoa. Toque nas funções necessárias.</small></div>
        {crew.map((member,index)=>{
@@ -267,7 +285,7 @@ export function EditorialWorkflowCreate({
          className="workflow-add-person" onClick={()=>{
            setCrew(prev=>[...prev,{key:nextKey.current++,profileId:available.id,attends:true,tasks:[]}]);
          }}>＋ Adicionar colaborador</button>:null}
-     </div>
+     </div>}
      <label className="agenda-field agenda-field-wide"><span>Observações (opcional)</span>
        <textarea name="description" rows={2} maxLength={4000}
          value={notes} onChange={e=>setNotes(e.currentTarget.value)}/>

@@ -31,7 +31,7 @@
 .card.pending{border-left-color:#eca9a9;}
 .card.completed{border-left-color:#52d0a0;}
 .card.cancelled{border-left-color:#74819e;opacity:.7;}
-.cardMain{display:grid;gap:clamp(2px,.5vh,9px);min-height:0;overflow:hidden;}
+.cardMain{display:grid;min-height:0;overflow:hidden;}
 .cardMain strong{font-size:clamp(14px,2.05vh,28px);font-weight:800;line-height:1.16;overflow:hidden;
  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;}
 .cardMain p{font-size:clamp(11px,1.35vh,19px);color:#c9d4e8;line-height:1.15;margin:0;
@@ -47,3 +47,7 @@
 .online{color:#68ddab}.offline{color:#f1bf74}
 @media(orientation:landscape){.screen{padding:12px 22px;}.cardMain strong{font-size:clamp(12px,2.2vh,20px);}}
 @media(max-height:750px){.screen{gap:5px;padding:10px;}.card{padding:6px 9px;border-radius:7px;}.summary>div{padding:5px;}}
+
+/* Sem segunda linha duplicada: mais espaço vertical para pautas. */
+.card{gap:2px;padding-block:clamp(5px,.75vh,12px)}
+.cardMain strong{font-size:clamp(14px,1.85vh,26px)}

@@ -15,8 +15,12 @@ test("TV: muitas pautas paginam sem fonte ilegível nem rolagem",()=>{
  const lots=calculateTvPagination(820,24);
  assert.ok(lots.perPage>=8 && lots.perPage<24);
  assert.ok(lots.pages>1);
- assert.ok(lots.rowPx>=82);
+ assert.ok(lots.rowPx>=70);
 });
 test("TV: sem matérias, exibe estado vazio",()=>{
  assert.deepEqual(calculateTvPagination(820,0),{perPage:0,pages:1,rowPx:0});
+});
+
+test("TV: linha compacta permite mais pautas simultâneas",()=>{
+ assert.ok(calculateTvPagination(820,20).perPage>calculateTvPagination(820,20,82).perPage);
 });
