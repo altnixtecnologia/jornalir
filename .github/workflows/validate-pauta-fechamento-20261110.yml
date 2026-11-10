@@ -36,6 +36,7 @@ jobs:
       - name: Cálculo da edição, período e TV
         run: |
           npx tsx --test apps/sistema/test/pauta-edition-number.test.ts
+          npx tsx --test apps/sistema/test/pauta-card-ordering.test.ts
           npx tsx --test apps/sistema/test/pauta-period.test.ts
           npx tsx --test apps/sistema/test/pauta-tv-layout.test.ts
       - name: Navegação, lembretes e convites

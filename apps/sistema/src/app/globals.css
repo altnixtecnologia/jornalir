@@ -7600,6 +7600,7 @@ details.pauta-item:has(.workflow-pauta-tools)>.workflow-collapsed-summary{paddin
  flex:1 1 auto;
  min-width:0;
  text-align:left;
+ font-weight:400;
 }
 .is-pauta-workspace details.pauta-item .workflow-pauta-tools{
  position:static;
@@ -7811,18 +7812,91 @@ details.pauta-item:has(.workflow-pauta-tools)>.workflow-collapsed-summary{paddin
 .workflow-pauta-agenda-card>.pauta-activate-schedule:hover{
  background:#eaf3ff;border-color:#85a8cf
 }
-.pauta-schedule-close{
- flex:none;display:grid;place-items:center;
- width:28px;height:28px;min-height:28px;padding:0;
- border:1px solid #d3dce8;border-radius:7px;
- background:#fff;color:#87515a;font-size:18px;line-height:1
+/* O X fica no próprio conjunto data/hora, não no cabeçalho. */
+.pauta-appointment-datetime>.pauta-schedule-clear-inside{
+ flex:0 0 34px;align-self:stretch;
+ display:grid;place-items:center;
+ width:34px;min-width:34px;min-height:36px;margin:0;padding:0;
+ border:0;border-left:1px solid #e4e9ef;border-radius:0;
+ background:#fff;color:#8b5962;font-size:19px;line-height:1;
+ cursor:pointer
 }
-.pauta-schedule-close:hover{background:#fff0f0;color:#ab303c}
-.pauta-schedule-close:focus-visible,
+.pauta-appointment-datetime>.pauta-schedule-clear-inside:hover{
+ background:#fff1f1;color:#ab303c
+}
+.pauta-appointment-datetime>.pauta-schedule-clear-inside:focus-visible,
 .workflow-pauta-agenda-card>.pauta-activate-schedule:focus-visible{
  outline:2px solid var(--brand);outline-offset:2px
 }
 @media(max-width:790px){
  .workflow-pauta-schedule-grid{grid-template-columns:minmax(0,1fr)}
  .workflow-pauta-agenda-card>.pauta-activate-schedule{min-height:54px;justify-content:flex-start}
+}
+
+
+/* SISTEMA/Pauta: 3 colunas em desktop, 2 em larguras intermediárias e 1 no
+   celular. Não afeta /tv/pauta ou o player Android. */
+.is-pauta-workspace .pauta-list{
+ grid-template-columns:minmax(0,1fr);
+ align-items:start;
+ gap:10px;
+}
+@media(min-width:800px) and (max-width:1279px){
+ .is-pauta-workspace .pauta-list{
+  grid-template-columns:repeat(2,minmax(0,1fr));
+ }
+}
+@media(min-width:1280px){
+ .is-pauta-workspace .pauta-list{
+  grid-template-columns:repeat(3,minmax(0,1fr));
+ }
+}
+.is-pauta-workspace details.pauta-item{
+ min-width:0;
+ max-width:100%;
+}
+.is-pauta-workspace details.pauta-item > .workflow-collapsed-summary{
+ min-width:0;
+ height:auto;
+ align-items:flex-start;
+}
+.is-pauta-workspace details.pauta-item > .workflow-collapsed-summary .pauta-summary-title,
+.is-pauta-workspace details.pauta-item .pauta-item-topline > strong{
+ display:block;
+ min-width:0;
+ max-width:100%;
+ height:auto;
+ white-space:normal;
+ overflow:visible;
+ text-overflow:clip;
+ overflow-wrap:break-word;
+ word-break:normal;
+ font-weight:400;
+ line-height:1.38;
+}
+.is-pauta-workspace .pauta-item-topline{min-width:0;flex-wrap:wrap}
+.is-pauta-workspace .pauta-item-topline > span{min-width:0;flex-wrap:wrap}
+.is-pauta-workspace .pauta-reorder-hint{
+ margin:10px 0 2px;
+ font-size:11px;
+ color:var(--muted);
+ line-height:1.35;
+}
+.is-pauta-workspace details.pauta-item.is-reorderable{cursor:grab}
+.is-pauta-workspace details.pauta-item.is-reorderable > .workflow-collapsed-summary{cursor:grab}
+.is-pauta-workspace details.pauta-item.is-reorderable:active{cursor:grabbing}
+.is-pauta-workspace details.pauta-item.is-reorderable button,
+.is-pauta-workspace details.pauta-item.is-reorderable a,
+.is-pauta-workspace details.pauta-item.is-reorderable input,
+.is-pauta-workspace details.pauta-item.is-reorderable textarea,
+.is-pauta-workspace details.pauta-item.is-reorderable select{user-select:auto;cursor:pointer}
+.is-pauta-workspace details.pauta-item.is-reorderable.is-dragging{
+ user-select:none;
+ opacity:.55;
+ border-style:dashed
+}
+.is-pauta-workspace details.pauta-item.is-reorderable.is-drop-target{
+ outline:2px dashed #698db4;
+ outline-offset:2px;
+ background:#f0f6ff
 }

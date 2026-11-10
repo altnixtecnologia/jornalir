@@ -662,6 +662,31 @@ export async function setPautaItemStatusAction(
 }
 
 
+/** Persistência do arrastar: lista completa, semana correta e permissão no banco. */
+export async function reorderPautaCardsAction(
+ weekStart:string,expectedIds:string[],orderedIds:string[]
+):Promise<AgendaActionResult>{
+ const uuid=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+ if(!validDate(weekStart)||startOfWeek(weekStart)!==weekStart||
+    expectedIds.length<2||expectedIds.length>200||
+    expectedIds.length!==orderedIds.length||
+    new Set(expectedIds).size!==expectedIds.length||
+    new Set(orderedIds).size!==orderedIds.length||
+    expectedIds.some(id=>!uuid.test(id))||orderedIds.some(id=>!uuid.test(id))||
+    orderedIds.some(id=>!expectedIds.includes(id)))
+   return {error:"Lista de pautas inválida. Atualize a página e tente novamente."};
+ try{
+  const {supabase}=await requireActiveUser();
+  const {data,error}=await supabase.rpc("reorder_pauta_cards",{
+   p_week_start:weekStart,p_expected_ids:expectedIds,p_ordered_ids:orderedIds,
+  });
+  if(error||!data)return {error:error?.message??"Não foi possível salvar a nova ordem."};
+  refreshAgenda();return {ok:true};
+ }catch(error){
+  return {error:error instanceof Error?error.message:"Falha ao salvar organização."};
+ }
+}
+
 /** Número de edição é vinculado à semana, sem alterar o acervo real do Jornal Online. */
 export async function savePautaEditionOverrideAction(form:FormData):Promise<AgendaActionResult>{
  const weekStart=value(form,"week_start");
