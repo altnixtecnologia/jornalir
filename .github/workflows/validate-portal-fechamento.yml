@@ -49,6 +49,8 @@ jobs:
           NODE
       - name: Testes unitários do leitor e acervo
         run: npx tsx --test apps/site/test/*.test.ts
+        env:
+          NODE_OPTIONS: --conditions=react-server
       - name: TypeScript do portal
         run: npm run typecheck --workspace @ir/site
       - name: Build do Portal (sem publicar)
