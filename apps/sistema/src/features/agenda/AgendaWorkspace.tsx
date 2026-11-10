@@ -711,8 +711,8 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
     </details>;
   }
 
-  function TeamCoveragePanel({coverage,eventId,eventTime}:{
-    coverage:EventCoverage;eventId:string;eventTime:string;
+  function TeamCoveragePanel({coverage,eventId,eventTime,mode}:{
+    coverage:EventCoverage;eventId:string;eventTime:string;mode:"agenda"|"pauta";
   }):JSX.Element{
     const manager=data.access.coverageManage;
     const label=(id:string)=>data.profiles.find(p=>p.id===id)?.name??"Colaborador";
@@ -726,8 +726,7 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
     const allFieldDone=coverage.members.every(m=>m.tasks.every(t=>Boolean(t.completedAt)));
     return <section className="coverage-panel coverage-team-panel" aria-label="Equipe de cobertura">
       <header className="coverage-panel-title">
-        <strong>COBERTURA DO EVENTO</strong>
-        <small>Agenda: presença · Pauta: fotos, vídeo e matéria</small>
+        <strong>{mode==="agenda"?"PARTICIPAÇÃO NO COMPROMISSO":"PRODUÇÃO EDITORIAL"}</strong>
       </header>
       <div className="coverage-team-members">
         {coverage.members.map(member=>{
@@ -738,7 +737,7 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
               <span>{member.tasks.map(t=>t.label).join(" · ")||
                 (member.profileId===coverage.articleOwnerId?"Redação da matéria":"Participação")}</span>
             </div>
-            <div className="coverage-participation">
+            {mode==="agenda"?<div className="coverage-participation">
               <small>Participação na Agenda · {resLabel[member.attendanceResponse]}</small>
               {isMe&&member.tasks.length>0?<div className="coverage-attendance-buttons" role="group" aria-label="Confirmar participação no evento">
                 {([
@@ -753,8 +752,8 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
                     {text}
                 </button>)}
               </div>:null}
-            </div>
-            {member.tasks.map(task=><div key={task.id} className="coverage-field-delivery">
+            </div>:null}
+            {mode==="pauta"?member.tasks.map(task=><div key={task.id} className="coverage-field-delivery">
               <small><strong>{task.completedAt?"✓ Concluída":"Pendente"}</strong> · {task.label}
                 {task.completedAt&&task.completedBy&&task.completedBy!==member.profileId
                   ?" · Baixa por "+label(task.completedBy):""}</small>
@@ -762,24 +761,24 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
                 ()=>completeCoverageTaskAction(eventId,task.id,!task.completedAt),
                 task.completedAt?"Entrega reaberta.":"Entrega concluída."
               )}>{task.completedAt?"Reabrir":"✓ Dar baixa"}</button>:null}
-            </div>)}
+            </div>):null}
           </div>;
         })}
       </div>
-      <div className="coverage-team-article">
+      {mode==="pauta"?<div className="coverage-team-article">
         <div><strong>MATÉRIA JORNALÍSTICA</strong><small>{label(coverage.articleOwnerId)} ·
           {coverage.articleStatus==="completed"?" Concluída":" Pendente"}</small></div>
         {(writer||manager)?<button type="button" disabled={isPending} onClick={()=>run(
           ()=>finishCoverageArticleAction(eventId,coverage.articleStatus!=="completed"),
           coverage.articleStatus==="completed"?"Matéria reaberta.":"Matéria concluída."
         )}>{coverage.articleStatus==="completed"?"Reabrir matéria":"✓ Concluir matéria"}</button>:null}
-      </div>
-      <p className="coverage-help">
+      </div>:null}
+      {mode==="pauta"?<p className="coverage-help">
         {allFieldDone&&coverage.articleStatus==="completed"
           ?"Todas as entregas da Pauta estão concluídas."
           :"A matéria continuará na Pauta até a redação e as entregas de campo ficarem prontas."}
-      </p>
-      {coverage.pendingTeamTransfers.length>0?<div className="coverage-transfer-notice">
+      </p>:null}
+      {mode==="agenda"&&coverage.pendingTeamTransfers.length>0?<div className="coverage-transfer-notice">
         <strong>Transferências aguardando confirmação</strong>
         {coverage.pendingTeamTransfers.map(t=><div className="coverage-transfer-line" key={t.id}>
           <span>{label(t.fromProfileId)} → {label(t.toProfileId)} ·
@@ -795,7 +794,7 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
           </div>:null}
         </div>)}
       </div>:null}
-      {manager?<details className="coverage-options">
+      {mode==="agenda"&&manager?<details className="coverage-options">
         <summary>＋ Adicionar pessoa ou novas tarefas</summary>
         <form className="coverage-form" onSubmit={event=>{
           event.preventDefault();run(()=>assignCoverageTasksAction(eventId,new FormData(event.currentTarget)),
@@ -807,7 +806,7 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
           <button type="submit" className="agenda-primary" disabled={isPending}>Salvar novas tarefas</button>
         </form>
       </details>:null}
-      {(me||writer||manager)?<details className="coverage-options">
+      {mode==="agenda"&&(me||writer||manager)?<details className="coverage-options">
         <summary>↔ Transferir responsabilidade</summary>
         <form className="coverage-form" onSubmit={event=>{
           event.preventDefault();run(()=>requestCoverageTeamTransferAction(eventId,new FormData(event.currentTarget)),
@@ -842,7 +841,7 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
           <button type="submit" className="agenda-primary" disabled={isPending}>Solicitar transferência</button>
         </form>
       </details>:null}
-      {manager||Boolean(me?.tasks.length)?<details className="coverage-options">
+      {mode==="agenda"&&(manager||Boolean(me?.tasks.length))?<details className="coverage-options">
         <summary>⚙ Horários do evento</summary>
         <form className="coverage-form" onSubmit={event=>{
           event.preventDefault();run(()=>saveCoverageAlertsAction(eventId,new FormData(event.currentTarget)),
@@ -856,8 +855,10 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
     </section>;
   }
 
-  function CoveragePanel({coverage,eventId,eventTime}:{coverage:EventCoverage;eventId:string;eventTime:string}):JSX.Element{
-    if(coverage.teamMode)return TeamCoveragePanel({coverage,eventId,eventTime});
+  function CoveragePanel({coverage,eventId,eventTime,mode}:{
+    coverage:EventCoverage;eventId:string;eventTime:string;mode:"agenda"|"pauta";
+  }):JSX.Element{
+    if(coverage.teamMode)return TeamCoveragePanel({coverage,eventId,eventTime,mode});
     const profileName=(id:string)=>data.profiles.find(p=>p.id===id)?.name??"Colaborador";
     const myPresence=coverage.attendanceOwnerId===data.currentUserId;
     const myArticle=coverage.articleOwnerId===data.currentUserId;
@@ -868,10 +869,10 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
       ? new Date(coverage.articleDueAt).toLocaleString("sv-SE",{timeZone:"America/Sao_Paulo",year:"numeric",month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit"}).replace(" ","T"):"";
     return <section className="coverage-panel" aria-label="Cobertura jornalística">
       <header className="coverage-panel-title">
-        <strong>🎙 Cobertura de evento</strong><small>Presença e matéria são etapas independentes</small>
+        <strong>{mode==="agenda"?"PARTICIPAÇÃO NO COMPROMISSO":"PRODUÇÃO EDITORIAL"}</strong>
       </header>
       <div className="coverage-steps">
-        <div className="coverage-step">
+        {mode==="agenda"?<div className="coverage-step">
           <div><strong>1. Comparecimento</strong><small>{profileName(coverage.attendanceOwnerId)}</small>
             <span className={"coverage-state is-"+coverage.attendanceStatus}>
               {coverage.attendanceStatus==="present"?"✓ Compareceu":
@@ -884,8 +885,8 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
             <button type="button" onClick={()=>run(()=>markCoverageAttendanceAction(eventId,"on_way"),"Aguardando sua confirmação.")} disabled={isPending}>Ainda não</button>
             <button type="button" onClick={()=>run(()=>markCoverageAttendanceAction(eventId,"absent"),"Ausência registrada.")} disabled={isPending}>Não poderei ir</button>
           </div>:null}
-        </div>
-        <div className="coverage-step">
+        </div>:null}
+        {mode==="pauta"?<div className="coverage-step">
           <div>
             <strong>2. {coverage.taskLabel}</strong>
             <small>{profileName(coverage.attendanceOwnerId)}</small>
@@ -899,8 +900,8 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
               coverage.taskStatus==="completed"?"Tarefa reaberta.":"Trabalho de campo concluído."
             )}>{coverage.taskStatus==="completed"?"Reabrir tarefa":"Concluir "+coverage.taskLabel.toLocaleLowerCase("pt-BR")}</button>
           </div>:null}
-        </div>
-        <div className="coverage-step">
+        </div>:null}
+        {mode==="pauta"?<div className="coverage-step">
           <div><strong>3. Produção da matéria</strong><small>{profileName(coverage.articleOwnerId)}</small>
             <span className={"coverage-state is-"+coverage.articleStatus}>
               {coverage.articleStatus==="completed"?"✓ Matéria concluída":"Matéria pendente"}
@@ -912,9 +913,9 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
               coverage.articleStatus==="completed"?"Matéria reaberta.":"Matéria finalizada."
             )}>{coverage.articleStatus==="completed"?"Reabrir matéria":"Concluir matéria"}</button>
           </div>:null}
-        </div>
+        </div>:null}
       </div>
-      {request?<div className="coverage-transfer-notice">
+      {mode==="agenda"&&request?<div className="coverage-transfer-notice">
         <strong>Transferência aguardando aceite</strong>
         <span>{request.part==="attendance"?"Comparecimento":request.part==="article"?"Produção da matéria":"Ambas as etapas"} → {profileName(request.toProfileId)}</span>
         <small>Motivo: {request.reason}. Até o aceite, os titulares permanecem os mesmos.</small>
@@ -925,7 +926,7 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
             onClick={()=>run(()=>respondCoverageTransferAction(request.id,false),"Transferência recusada.")}>Recusar</button>
         </div>:null}
       </div>:null}
-      {canTransfer&&!request?<details className="coverage-options">
+      {mode==="agenda"&&canTransfer&&!request?<details className="coverage-options">
         <summary>↔ Transferir responsabilidade</summary>
         <form className="coverage-form" onSubmit={event=>{
           event.preventDefault();run(()=>requestCoverageTransferAction(eventId,new FormData(event.currentTarget)),
@@ -950,7 +951,7 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
           <button type="submit" className="agenda-primary" disabled={isPending}>Solicitar transferência</button>
         </form>
       </details>:null}
-      {(myPresence||manager)?<details className="coverage-options">
+      {mode==="pauta"&&(myPresence||manager)?<details className="coverage-options">
         <summary>✎ Personalizar tarefa de campo</summary>
         <form className="coverage-form" onSubmit={event=>{
           event.preventDefault();run(()=>saveCoverageTaskLabelAction(eventId,new FormData(event.currentTarget)),
@@ -964,7 +965,7 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
           <button type="submit" className="agenda-primary" disabled={isPending}>Salvar função</button>
         </form>
       </details>:null}
-      {(myPresence||manager)?<details className="coverage-options">
+      {mode==="agenda"&&(myPresence||manager)?<details className="coverage-options">
         <summary>⚙ Horários e prazo</summary>
         <form className="coverage-form" onSubmit={event=>{
           event.preventDefault();run(()=>saveCoverageAlertsAction(eventId,new FormData(event.currentTarget)),
@@ -1261,8 +1262,13 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
               {selectedEvents.length ? (
                 <div className="agenda-events-list">
                   {selectedEvents.map((item) => (
-                    <article key={item.id} className={"agenda-event-card is-" + item.status + (eventOverdue(item, localClock) ? " is-overdue" : "")}
+                    <details key={item.id} className={"agenda-event-card is-" + item.status + (eventOverdue(item, localClock) ? " is-overdue" : "")}
                       style={{ borderLeftColor: personColor(item.assignees[0]?.id ?? "") }}>
+                      <summary className="workflow-collapsed-summary">
+                        <span>{item.title}</span>
+                        <span className="workflow-expand-chevron" aria-hidden="true">⌄</span>
+                      </summary>
+                      <div className="workflow-expanded-body">
                       <div className="agenda-event-main">
                         <div className="agenda-event-time">{item.startTime ? item.startTime + "h" : "—"}{item.endTime ? <small>até {item.endTime}h</small> : null}</div>
                         <div>
@@ -1354,15 +1360,17 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
                       {item.workflowKind!=="general"
                         ? <EditorialWorkflowPanel item={item} currentUserId={data.currentUserId}
                             manager={data.access.workflowManage} profiles={data.profiles}
-                            isPending={isPending} onAction={run}/>
-                        :item.coverage?CoveragePanel({coverage:item.coverage,eventId:item.id,eventTime:item.startTime??""})
+                            isPending={isPending} onAction={run} mode="agenda"
+                            showPautaLink={data.access.pautaRead}/>
+                        :item.coverage?CoveragePanel({coverage:item.coverage,eventId:item.id,eventTime:item.startTime??"",mode:"agenda"})
                         :item.status==="scheduled"&&data.access.agendaWrite?EnableCoverage({item}):null}
                       {data.access.agendaWrite&&item.workflowKind==="general"&&!item.coverage&&item.status==="scheduled"&&item.assignees.length>1
                         ? AssignmentRoles({item}) : null}
                       {data.access.agendaWrite && item.workflowKind==="general" ? EventEdit({item}) : null}
                       {data.access.agendaWrite && item.workflowKind==="general" && !item.coverage && item.eventKind==="general" && item.status==="scheduled"
                         ? InviteesEditor({item}) : null}
-                    </article>
+                      </div>
+                    </details>
                   ))}
                 </div>
               ) : <div className="agenda-empty">Nenhum compromisso neste dia.</div>}
@@ -1446,7 +1454,7 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
           </div>
 
           {data.access.pautaWrite?<details className="pauta-create-panel" id="pauta-create-panel">
-            <summary>＋ Nova pauta <span>Escolher tipo e responsáveis</span></summary>
+            <summary>＋ Nova matéria <span>Responsável e prazo opcional</span></summary>
             <EditorialWorkflowCreate profiles={data.profiles}
               currentUserId={data.currentUserId} weekStart={data.weekStart}
               selectedDate={initialPautaDate} view="pauta" isPending={isPending}
@@ -1461,7 +1469,12 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
                 const myAssignment = item.assignees.find((person) => person.id === data.currentUserId);
                 const canCompleteOwn = !done && !cancelled && Boolean(myAssignment && !myAssignment.completedAt);
                 return (
-                  <article key={item.id} style={{ borderLeftColor: personColor(item.responsibleProfileId ?? "") }} className={"pauta-item" + (done ? " is-done" : "") + (cancelled ? " is-cancelled" : "")}>
+                  <details key={item.id} style={{ borderLeftColor: personColor(item.responsibleProfileId ?? "") }} className={"pauta-item" + (done ? " is-done" : "") + (cancelled ? " is-cancelled" : "")}>
+                    <summary className="workflow-collapsed-summary">
+                      <span>{item.title}</span>
+                      <span className="workflow-expand-chevron" aria-hidden="true">⌄</span>
+                    </summary>
+                    <div className="workflow-expanded-body pauta-expanded-body">
                     {!item.coverage && !item.workflow && (data.access.pautaWrite || canCompleteOwn) ? <button type="button" className="pauta-check"
                       aria-label={done ? "Reabrir item" : "Concluir minha pauta"} disabled={isPending || cancelled}
                       onClick={() => run(
@@ -1491,15 +1504,18 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
                       {item.workflow?
                         <EditorialWorkflowPanel item={item.workflow} currentUserId={data.currentUserId}
                           manager={data.access.workflowManage} profiles={data.profiles}
-                          isPending={isPending} onAction={run}/>:
-                        item.coverage&&item.agendaEventId?CoveragePanel({coverage:item.coverage,eventId:item.agendaEventId,eventTime:item.dueTime??""}):
-                        item.agendaEventId&&item.status==="pending"&&data.access.pautaWrite&&
-                          data.events.some(ev=>ev.id===item.agendaEventId)?
-                          EnableCoverage({item:data.events.find(ev=>ev.id===item.agendaEventId)!}):null}
+                          isPending={isPending} onAction={run} mode="pauta"/>:
+                        item.coverage&&item.agendaEventId?CoveragePanel({coverage:item.coverage,eventId:item.agendaEventId,eventTime:item.dueTime??"",mode:"pauta"}):
+                        item.agendaEventId&&data.access.agendaRead?
+                          <Link className="agenda-link-materia" href={"/sistema/agenda?date="+
+                            encodeURIComponent(item.dueDate??data.today)}>
+                            Ver compromisso na Agenda
+                          </Link>:null}
                       {data.access.pautaWrite && !item.workflow ? PautaEdit({item}) : null}
                     </div>
                     {data.access.pautaWrite && !item.workflow ? <button type="button" className="pauta-cancel" disabled={isPending} onClick={() => run(() => setPautaItemStatusAction(item.id, cancelled ? "pending" : "cancelled"), cancelled ? "Item restaurado." : "Item retirado da pauta.")}>{cancelled ? "↶" : "×"}</button> : null}
-                  </article>
+                    </div>
+                  </details>
                 );
               })}
             </div>
