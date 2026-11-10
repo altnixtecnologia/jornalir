@@ -280,50 +280,78 @@ function CoverageClockFields({eventTime,audible=60,checkin=5}:{
  </>;
 }
 
+/** Indicador compacto na linha REDAÇÃO / ORGANIZAÇÃO. */
+export function AgendaOverdueIndicator({data}:{data:AgendaWorkspaceData}):JSX.Element|null{
+ const [clock,setClock]=useState("");
+ useEffect(()=>{
+   const update=()=>setClock(nowInAgendaTimezone());
+   update();const interval=window.setInterval(update,30000);
+   return ()=>window.clearInterval(interval);
+ },[]);
+ if(!clock)return null;
+ const events=data.events.filter(item=>item.showInAgenda&&eventOverdue(item,clock));
+ const linked=new Set(data.events.filter(item=>item.showInAgenda).map(item=>item.id));
+ const pauta=data.pautaItems.filter(item=>
+   pautaOverdue(item,clock)&&(!item.agendaEventId||!linked.has(item.agendaEventId)));
+ const count=events.length+pauta.length;
+ if(!count)return null;
+ const href=events.length
+   ? "/sistema/agenda?date="+events[0].eventDate
+   : "/sistema/pauta?date="+(pauta[0]?.dueDate||data.today);
+ return <details className="agenda-overdue-floating">
+  <summary aria-label={count+" pendências. Mostrar detalhes."}>
+   <span aria-hidden="true">⚠</span> {count} {count===1?"atraso":"atrasos"}
+  </summary>
+  <div className="agenda-overdue-popover">
+   <strong>{count} {count===1?"pendência":"pendências"} em aberto</strong>
+   <p>Compromissos e pautas com horário ultrapassado.</p>
+   <Link href={href}>Ver atrasados</Link>
+  </div>
+ </details>;
+}
+
 function CoverageTaskPicker({tasks,onChange}:{
- tasks:CoverageTaskDraft[];
- onChange:(tasks:CoverageTaskDraft[])=>void;
+ tasks:CoverageTaskDraft[];onChange:(tasks:CoverageTaskDraft[])=>void;
 }):JSX.Element{
  const [custom,setCustom]=useState("");
+ const [customOpen,setCustomOpen]=useState(false);
  const [message,setMessage]=useState("");
- const chosen=(kind:string)=>tasks.some(t=>t.kind===kind);
+ const has=(kind:string)=>tasks.some(t=>t.kind===kind);
+ const toggle=(task:(typeof FIXED_COVERAGE_TASKS)[number])=>{
+   onChange(has(task.kind)?tasks.filter(t=>t.kind!==task.kind):[...tasks,task]);
+ };
  const addCustom=()=>{
-  const label=custom.trim().replace(/\s+/g," ");
-  if(label.length<2||label.length>80){setMessage("Informe entre 2 e 80 caracteres.");return;}
-  if(tasks.length>=8){setMessage("Limite de 8 entregas por colaborador.");return;}
-  if(tasks.some(t=>t.label.toLocaleLowerCase("pt-BR")===label.toLocaleLowerCase("pt-BR"))){
-    setMessage("Esta tarefa já está selecionada.");return;
-  }
-  onChange([...tasks,{kind:"custom",label}]);
-  setCustom("");setMessage("");
+   const label=custom.trim().replace(/\s+/g," ");
+   if(label.length<2||label.length>80){setMessage("Informe entre 2 e 80 caracteres.");return;}
+   if(tasks.length>=8){setMessage("Máximo de oito tarefas.");return;}
+   if(tasks.some(t=>t.label.toLocaleLowerCase("pt-BR")===label.toLocaleLowerCase("pt-BR"))){
+    setMessage("Tarefa já selecionada.");return;
+   }
+   onChange([...tasks,{kind:"custom",label}]);
+   setCustom("");setCustomOpen(false);setMessage("");
  };
  return <div className="coverage-task-selector">
-   <span className="coverage-task-selector-label">O que fará? <small>(selecione uma ou mais entregas)</small></span>
-   <div className="coverage-task-options">
-    {FIXED_COVERAGE_TASKS.map(task=><label key={task.kind} className="coverage-task-option">
-      <input type="checkbox" checked={chosen(task.kind)}
-        disabled={!chosen(task.kind)&&tasks.length>=8}
-        onChange={event=>onChange(event.currentTarget.checked
-          ? [...tasks,{kind:task.kind,label:task.label}]
-          : tasks.filter(item=>item.kind!==task.kind))}/>
-      <span>{task.label}</span>
-    </label>)}
+   <span className="coverage-task-selector-label">O que fará? <small>(toque para selecionar)</small></span>
+   <div className="coverage-task-options" role="group" aria-label="Tarefas para o colaborador">
+    {FIXED_COVERAGE_TASKS.map(task=><button key={task.kind} type="button"
+      className={"coverage-task-option"+(has(task.kind)?" is-selected":"")}
+      aria-pressed={has(task.kind)} disabled={!has(task.kind)&&tasks.length>=8}
+      onClick={()=>toggle(task)}>{has(task.kind)?"✓ ":""}{task.label}</button>)}
+    <button type="button" className="coverage-task-option coverage-task-other"
+      aria-expanded={customOpen} onClick={()=>setCustomOpen(value=>!value)}>＋ Outra tarefa</button>
    </div>
-   <div className="coverage-custom-task">
-    <input type="text" value={custom} maxLength={80} placeholder="Outra tarefa personalizada"
-      aria-label="Adicionar tarefa personalizada"
-      onChange={event=>{setCustom(event.currentTarget.value);setMessage("");}}/>
-    <button type="button" onClick={addCustom} disabled={tasks.length>=8}>＋ Adicionar</button>
-   </div>
-   {tasks.some(t=>t.kind==="custom")?<div className="coverage-custom-tasks">
-    {tasks.filter(t=>t.kind==="custom").map((task,index)=><button
-      key={task.label+index} type="button" title="Remover tarefa personalizada"
-      onClick={()=>onChange(tasks.filter(t=>t!==task))}>
-      {task.label} ×
-    </button>)}
+   {customOpen?<div className="coverage-custom-task">
+      <input type="text" value={custom} maxLength={80} placeholder="Descreva a tarefa"
+        aria-label="Tarefa personalizada" onChange={e=>{setCustom(e.currentTarget.value);setMessage("");}}/>
+      <button type="button" onClick={addCustom}>Adicionar</button>
+    </div>:null}
+   {tasks.filter(t=>t.kind==="custom").length>0?<div className="coverage-custom-tasks">
+    {tasks.filter(t=>t.kind==="custom").map((task,i)=><button type="button"
+      key={task.label+i} title="Remover tarefa personalizada"
+      onClick={()=>onChange(tasks.filter(t=>t!==task))}>{task.label} ×</button>)}
    </div>:null}
    {message?<small role="alert" className="coverage-task-error">{message}</small>:null}
-   {tasks.length===0?<small className="coverage-task-error">Escolha ao menos uma entrega para esta pessoa.</small>:null}
+   {tasks.length===0?<small className="coverage-task-error">Escolha ao menos uma função.</small>:null}
  </div>;
 }
 
@@ -428,12 +456,14 @@ function CoverageOptIn({data}:{data:AgendaWorkspaceData}):JSX.Element {
    };
  },[]);
  return <fieldset ref={fieldsetRef} className="coverage-opt-in agenda-field-wide">
-  <label className="coverage-switch">
-    <input name="coverage_enabled" type="checkbox" value="true" checked={enabled}
-      onChange={event=>setEnabled(event.currentTarget.checked)}/>
-    <span><strong>Cobertura de evento</strong><small>Presença, fotos/atividade de campo e matéria com responsáveis independentes</small></span>
-  </label>
-  {enabled?<CoveragePeopleFields profiles={data.profiles} currentUserId={data.currentUserId} eventTime={eventTime}/>:null}
+  <button type="button" className={"coverage-switch-button"+(enabled?" is-active":"")}
+    aria-pressed={enabled} onClick={()=>setEnabled(v=>!v)}>
+    <strong>{enabled?"✓ Evento + matéria":"＋ Evento + matéria"}</strong>
+    <small>{enabled?"Presença e matéria com responsáveis":"Adicionar presença e matéria à cobertura"}</small>
+  </button>
+  {enabled?<input type="hidden" name="coverage_enabled" value="true"/>:null}
+  {enabled?<CoveragePeopleFields profiles={data.profiles}
+    currentUserId={data.currentUserId} eventTime={eventTime}/>:null}
  </fieldset>;
 }
 
@@ -586,15 +616,6 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
   const selectedWeekStart = addDays(selectedDate, -selectedWeekday);
   const selectedWeekDays = Array.from({ length: 7 }, (_, index) => addDays(selectedWeekStart, index));
   const todayCount = filteredEvents.filter((event) => event.eventDate === localClock.slice(0, 10) && event.status !== "cancelled").length;
-  const overdueEvents = filteredEvents.filter((event) => eventOverdue(event, localClock));
-  // Uma pauta ligada a um compromisso visível representa a mesma pendência:
-  // não duplicar no aviso, sem excluir nem alterar os registros do banco.
-  const visibleEventIds = new Set(filteredEvents.map((event) => event.id));
-  const overduePauta = data.pautaItems.filter((item) =>
-    pautaOverdue(item, localClock)
-    && (!responsibleFilter || item.responsibleProfileId === responsibleFilter
-      || item.assignees.some((person) => person.id === responsibleFilter))
-    && (!item.agendaEventId || !visibleEventIds.has(item.agendaEventId)));
   const ownPending = data.events.filter((event) =>
     event.status === "scheduled" && event.assignees.some((person) =>
       person.id === data.currentUserId && !person.completedAt)).length +
@@ -1109,25 +1130,6 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
           <small>{realtimeState === "online" ? "Atualiza no máximo 1 vez por minuto" : "Verifica ao reconectar ou voltar à aba"}</small>
         </div>
       </div>
-      {overdueEvents.length || overduePauta.length ? (
-        <div className="agenda-overdue-notice" role="status" aria-live="polite">
-          <span aria-hidden="true">⚠</span>
-          <span>
-            <strong>{overdueEvents.length + overduePauta.length} pendência(s) atrasada(s)</strong>
-            <small>Compromissos e pautas que passaram do prazo sem conclusão.</small>
-          </span>
-          <button type="button"
-            onClick={() => {
-              if (overdueEvents.length) {
-                const first = overdueEvents[0].eventDate;
-                if (first < data.monthStart || first > data.monthEnd) navigate("agenda", first);
-                else setSelectedDate(first);
-              } else if (overduePauta.length) {
-                navigate("pauta", overduePauta[0].dueDate || data.today);
-              }
-            }}>Ver atrasados</button>
-        </div>
-      ) : null}
       {initialView === "agenda" ? (
       <div className="agenda-topbar">
         <div className="agenda-tabs" role="tablist" aria-label="Agenda e pauta">
