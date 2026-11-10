@@ -78,6 +78,19 @@ Atualizado: 10/11/2026. Checklists devem receber data, resultado e evidência
 - [ ] Publicidade/comercial: propostas, contratos, locações e faturamento
 - [ ] Segurança geral: usuários, redefinição de senha, RBAC, auditoria e backups
 
+## Resultados técnicos já executados (10/11/2026)
+- [x] Suíte de Pauta: edição 777, períodos quinta–quarta, TV, navegação,
+  lembretes, TypeScript e build — GitHub Actions 42878041661 (sucesso)
+- [x] Regressões de Pauta e cobertura — execuções 42878041695
+  e 42878041068 (sucesso)
+- [x] Migration SQL exercitada em transação BEGIN/ROLLBACK: dois
+  agendamentos, atualização individual, recusa de alteração de outra pessoa,
+  transferência de semana, exclusão de pauta legada preservando a Agenda
+  e ajuste manual da edição
+- [ ] Migration aplicada em produção, com conferência de permissões
+- [ ] Publicação READY e erros de execução verificados
+- [ ] Homologação visual em sessões autenticadas — ainda não executada
+
 ## Método de trabalho
 1. Conferir o que já existe; não reimplementar em paralelo.
 2. Rodar testes automatizados e integração em transação com ROLLBACK.
