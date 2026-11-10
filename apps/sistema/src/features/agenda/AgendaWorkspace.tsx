@@ -1481,18 +1481,23 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
                 return (
                   <details key={item.id} style={{ borderLeftColor: personColor(item.responsibleProfileId ?? "") }} className={"pauta-item" + (done ? " is-done" : "") + (cancelled ? " is-cancelled" : "")}>
                     <summary className="workflow-collapsed-summary">
-                      <span>{item.title}</span>
+                      <span className="pauta-summary-title">{item.title}</span>
+                      {data.access.pautaWrite&&item.workflow?.workflowKind==="article"?<span className="workflow-pauta-tools"
+                        onClick={event=>{event.preventDefault();event.stopPropagation();}}>
+                        <button type="button" title="Editar pauta" aria-label={"Editar pauta: "+item.title}
+                          disabled={isPending} onClick={event=>{
+                            const card=event.currentTarget.closest("details");
+                            if(card instanceof HTMLDetailsElement)card.open=true;
+                            setEditingPautaId(item.id);
+                          }}>✎</button>
+                        <button type="button" title="Excluir pauta" aria-label={"Excluir pauta: "+item.title}
+                          disabled={isPending} onClick={async ()=>{
+                            const yes=await confirmDialog({title:"Excluir a pauta '"+item.title+"'?",confirmLabel:"Excluir pauta",cancelLabel:"Voltar"});
+                            if(yes)run(()=>archiveEditorialArticlePautaAction(item.id),"Pauta excluída da listagem.",()=>setEditingPautaId(null));
+                          }}>×</button>
+                      </span>:null}
                       <span className="workflow-expand-chevron" aria-hidden="true">⌄</span>
                     </summary>
-                    {data.access.pautaWrite&&item.workflow?.workflowKind==="article"?<div className="workflow-pauta-tools">
-                      <button type="button" title="Editar pauta" aria-label={"Editar pauta: "+item.title}
-                        disabled={isPending} onClick={e=>{const parent=e.currentTarget.closest("details");if(parent instanceof HTMLDetailsElement)parent.open=true;setEditingPautaId(item.id);}}>✎</button>
-                      <button type="button" title="Excluir pauta" aria-label={"Excluir pauta: "+item.title}
-                        disabled={isPending} onClick={async ()=>{
-                          const yes=await confirmDialog({title:"Excluir a pauta '"+item.title+"'?",confirmLabel:"Excluir pauta",cancelLabel:"Voltar"});
-                          if(yes)run(()=>archiveEditorialArticlePautaAction(item.id),"Pauta excluída da listagem.",()=>setEditingPautaId(null));
-                        }}>×</button>
-                    </div>:null}
                     <div className="workflow-expanded-body pauta-expanded-body">
                     {!item.coverage && !item.workflow && (data.access.pautaWrite || canCompleteOwn) ? <button type="button" className="pauta-check"
                       aria-label={done ? "Reabrir item" : "Concluir minha pauta"} disabled={isPending || cancelled}
