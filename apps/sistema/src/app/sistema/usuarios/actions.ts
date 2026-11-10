@@ -23,7 +23,7 @@ function validEmail(value: string): boolean {
 
 /** Todos os atos administrativos validam novamente a pessoa logada. */
 async function requireUserManager(): Promise<
-  { id: string; role: "owner" | "admin" } | { error: string }
+  { id:string;role:"owner"|"admin";businessCoowner:boolean } | {error:string}
 > {
   const supabase = createSupabaseServerClient();
   const { data: auth, error: authError } = await supabase.auth.getUser();
@@ -38,10 +38,28 @@ async function requireUserManager(): Promise<
     await supabase.rpc("is_active_admin_or_owner");
   if(grantError||confirmedManager!==true)
     return {error:"Confirme seu e-mail e sua autorização administrativa."};
-  return { id: auth.user.id, role: profile.role as "owner" | "admin" };
+  const {data:isCoowner,error:coownerError}=await supabase.rpc("is_business_coowner");
+  return {id:auth.user.id,role:profile.role as "owner"|"admin",
+    businessCoowner:!coownerError&&isCoowner===true};
 }
 
-type ActionResult = { ok: true } | { error: string };
+type ActionResult = { ok:true } | {error:string};
+
+/** Proprietário técnico pode gerir todos; coproprietário operacional não
+ * pode modificar a própria conta, outro coproprietário nem o owner. */
+async function canManageOperationalTarget(
+ manager:{id:string;role:"owner"|"admin";businessCoowner:boolean},
+ targetId:string,targetRole:string
+):Promise<boolean>{
+ if(targetRole==="owner"||targetId===manager.id)return false;
+ if(manager.role==="owner")return true;
+ if(!manager.businessCoowner)return targetRole==="operator";
+ if(targetRole!=="admin"&&targetRole!=="operator")return false;
+ const db=createSupabaseServerClient();
+ const {data,error}=await db.from("staff_business_coowners")
+   .select("profile_id").eq("profile_id",targetId).maybeSingle();
+ return !error&&!data;
+}
 
 /**
  * Convite administrativo de usuário — sempre server-side (Fase 20).
@@ -61,8 +79,8 @@ export async function inviteUser(email: string, name: string, role: InviteRole):
 
   const manager=await requireUserManager();
   if("error" in manager) return manager;
-  if(role==="admin" && manager.role!=="owner") {
-    return {error:"Somente o proprietário pode convidar administradores."};
+  if(role==="admin"&&manager.role!=="owner"&&!manager.businessCoowner){
+    return {error:"Somente proprietário ou coproprietário de gestão pode convidar administradores."};
   }
   const supabase=createSupabaseServerClient();
 
@@ -165,8 +183,8 @@ export async function updateManagedUserDetails(
   const client = createSupabaseServerClient();
   const { data: profile, error: profileError } = await client.from("profiles")
     .select("role,name").eq("id", profileId).maybeSingle();
-  if (profileError || !profile || profile.role === "owner"
-      || (manager.role === "admin" && profile.role !== "operator")) {
+  if(profileError||!profile||
+      !(await canManageOperationalTarget(manager,profileId,profile.role))){
     return { error: "Sem permissão para editar os dados desta pessoa." };
   }
 
@@ -233,8 +251,8 @@ export async function updateManagedUserName(profileId: string, name: string): Pr
   const client = createSupabaseServerClient();
   const { data: target, error: targetError } = await client.from("profiles")
     .select("role").eq("id", profileId).maybeSingle();
-  if (targetError || !target || target.role === "owner" ||
-      (manager.role === "admin" && target.role !== "operator")) {
+  if(targetError||!target||
+      !(await canManageOperationalTarget(manager,profileId,target.role))){
     return { error: "Sem permissão para editar o nome desta pessoa." };
   }
   const { data: changed, error } = await admin.from("profiles").update({ name: clean })
@@ -272,8 +290,8 @@ export async function resendPendingUserAccess(profileId: string): Promise<Action
   const client = createSupabaseServerClient();
   const { data: target, error: targetError } = await client.from("profiles")
     .select("role").eq("id", profileId).maybeSingle();
-  if (targetError || !target || target.role === "owner" ||
-      (manager.role === "admin" && target.role !== "operator")) {
+  if(targetError||!target||
+      !(await canManageOperationalTarget(manager,profileId,target.role))){
     return { error: "Sem permissão para reenviar acesso desta pessoa." };
   }
   const admin = createSupabaseAdminClient();
@@ -343,8 +361,8 @@ export async function sendPasswordResetForUser(profileId: string): Promise<Actio
   const supabase=createSupabaseServerClient();
   const { data: target, error: targetError } = await supabase
     .from("profiles").select("role").eq("id", profileId).maybeSingle();
-  if (targetError || !target || target.role === "owner" ||
-      (manager.role === "admin" && target.role !== "operator")) {
+  if(targetError||!target||
+      !(await canManageOperationalTarget(manager,profileId,target.role))){
     return { error: "Você não tem permissão para redefinir a senha deste usuário." };
   }
   if (!hasServiceRoleKey()) {

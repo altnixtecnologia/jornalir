@@ -191,7 +191,7 @@ export function ProfileSettings(): JSX.Element {
           <p className="account-summary-name">{profile.name}</p>
           <p className="account-summary-email">{profile.email}</p>
         </div>
-        <span className="status-pill status-pill--published">{ROLE_LABELS[profile.role]}</span>
+        <span className="status-pill status-pill--published">{(profile.businessCoowner?"Coproprietário — Gestão":ROLE_LABELS[profile.role])}</span>
         <span className={`status-pill ${profile.active ? "status-pill--published" : "status-pill--archived"}`}>
           {profile.active ? "Ativo" : "Inativo"}
         </span>
@@ -205,7 +205,7 @@ export function ProfileSettings(): JSX.Element {
             <input id="profile-name" type="text" value={name} onChange={(event) => setName(event.target.value)} />
           </label>
           <ReadOnlyField label="E-mail" value={profile.email} />
-          <ReadOnlyField label="Perfil" value={ROLE_LABELS[profile.role]} />
+          <ReadOnlyField label="Perfil" value={(profile.businessCoowner?"Coproprietário — Gestão":ROLE_LABELS[profile.role])} />
           <ReadOnlyField label="Status" value={profile.active ? "Ativo" : "Inativo"} />
 
           {nameError ? (

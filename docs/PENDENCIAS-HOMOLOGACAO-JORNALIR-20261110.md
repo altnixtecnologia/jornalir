@@ -121,3 +121,14 @@ Atualizado: 10/11/2026. Checklists devem receber data, resultado e evidência
 3. Publicar uma versão consolidada por módulo; registrar commit e migration.
 4. Homologar com usuário no ambiente oficial, sem gerar cobranças reais de teste.
 5. Marcar item concluído somente com evidência; avançar um módulo por vez.
+
+## Gestão — Maiquiu Cardoso (autorizado em 10/11/2026)
+- [ ] Confirmar concessão operacional no banco sem criar segundo owner
+- [ ] Confirmar que o Maiquiu aparece como “Coproprietário — Gestão” no sistema
+- [ ] Confirmar acesso completo aos módulos operacionais e à Pauta/Agenda (salvar e excluir)
+- [ ] Confirmar gestão de outros administradores/operadores e trilha de auditoria
+- [ ] Confirmar que nem coproprietários nem administradores podem alterar o proprietário técnico
+- [ ] Confirmar que código, bancos, GitHub, Vercel, certificados e segredos permanecem separados
+- [ ] **Acesso real depende de confirmação do e-mail** no Supabase Auth — não confirmar artificialmente
+- [ ] Conferir em sessão autenticada com o Maiquiu (teste visual, sem usar credenciais compartilhadas)
+- [ ] Poder jurídico de assinar contratos em nome da empresa exige concessão explícita própria

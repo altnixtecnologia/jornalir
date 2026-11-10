@@ -153,6 +153,7 @@ export function UsersManager(): JSX.Element {
   const [users, setUsers] = useState<UserRow[] | null>(null);
   const [agendaManagerGrants, setAgendaManagerGrants] = useState<AgendaManagerGrantRow[]>([]);
   const [auditViewerGrants, setAuditViewerGrants] = useState<AuditViewerGrantRow[]>([]);
+  const [businessCoownerIds,setBusinessCoownerIds]=useState<string[]>([]);
   const [moduleVisibility, setModuleVisibility] = useState<VisibilityRow[]>([]);
   const [financeGrants, setFinanceGrants] = useState<FinanceGrantRow[]>([]);
   const [moduleActionGrants, setModuleActionGrants] = useState<ModuleActionGrantRow[]>([]);
@@ -179,6 +180,7 @@ export function UsersManager(): JSX.Element {
 
   const isOwner = profile?.role === "owner";
   const isAdmin = profile?.role === "admin";
+  const isBusinessCoowner=profile?.businessCoowner===true;
 
   useEffect(() => {
     const dialog = editDialogRef.current;
@@ -188,7 +190,7 @@ export function UsersManager(): JSX.Element {
   }, [editingTarget]);
 
   async function reload(): Promise<{ moduleVisibility: VisibilityRow[]; moduleActionGrants: ModuleActionGrantRow[]; financeGrants: FinanceGrantRow[] } | void> {
-    const [profilesResult, visibilityResult, agendaManagersResult, auditViewersResult, financeResult, moduleActionsResult, membershipsResult, invitationsResult] = await Promise.all([
+    const [profilesResult, visibilityResult, agendaManagersResult, auditViewersResult, financeResult, moduleActionsResult, membershipsResult, coownerResult, invitationsResult] = await Promise.all([
       client.from("profiles").select("id, name, role, active, created_at").order("created_at", { ascending: true }),
       client.from("staff_module_visibility").select("profile_id,module_key,enabled"),
       client.from("agenda_manager_grants").select("profile_id,can_manage"),
@@ -196,9 +198,10 @@ export function UsersManager(): JSX.Element {
       client.from("staff_finance_action_permissions").select("profile_id,action_key,allowed"),
       client.from("staff_module_action_permissions").select("profile_id,module_key,action_key,allowed"),
       client.from("staff_memberships").select("profile_id"),
+      client.from("staff_business_coowners").select("profile_id"),
       listUserInvitationStatuses(),
     ]);
-    if (profilesResult.error || visibilityResult.error || agendaManagersResult.error || auditViewersResult.error || financeResult.error || moduleActionsResult.error || membershipsResult.error) {
+    if (profilesResult.error || visibilityResult.error || agendaManagersResult.error || auditViewersResult.error || financeResult.error || moduleActionsResult.error || membershipsResult.error || coownerResult.error) {
       notify.error("Não foi possível carregar os usuários",
         "Verifique sua conexão e recarregue a página. Se persistir, confira os registros do sistema.");
       return;
@@ -207,6 +210,7 @@ export function UsersManager(): JSX.Element {
     // colaboradores e não devem aparecer na administração de usuários.
     const staffIds=new Set((membershipsResult.data??[]).map(m=>m.profile_id));
     setUsers((profilesResult.data??[]).filter(profile=>staffIds.has(profile.id)) as UserRow[]);
+    setBusinessCoownerIds((coownerResult.data??[]).map(row=>row.profile_id));
     const freshVisibility = (visibilityResult.data ?? []) as VisibilityRow[];
     const freshModuleActions = (moduleActionsResult.data ?? []) as ModuleActionGrantRow[];
     const freshFinance = (financeResult.data ?? []) as FinanceGrantRow[];
@@ -230,16 +234,17 @@ export function UsersManager(): JSX.Element {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  function canManage(target: UserRow): boolean {
-    if (target.role === "owner") return false;
-    if (isOwner) return true;
-    if (isAdmin) return target.role === "operator";
-    return false;
+  function canManage(target:UserRow):boolean{
+    if(target.role==="owner"||target.id===profile?.id)return false;
+    if(isOwner)return true;
+    if(isBusinessCoowner)return !businessCoownerIds.includes(target.id);
+    return Boolean(isAdmin&&target.role==="operator");
   }
-
-  function canPromoteToAdmin(): boolean {
-    return isOwner;
+  function roleLabel(target:UserRow):string{
+    return target.role==="admin"&&businessCoownerIds.includes(target.id)
+      ?"Coproprietário — Gestão":ROLE_LABELS[target.role];
   }
+  function canPromoteToAdmin():boolean{return Boolean(isOwner||isBusinessCoowner);}
 
   async function toggleActive(target: UserRow): Promise<void> {
     if(!target.active && invitationStatuses?.find(s=>s.id===target.id)?.confirmed!==true){
@@ -248,10 +253,11 @@ export function UsersManager(): JSX.Element {
       return;
     }
     setPending(true);
-    const { error: updateError } = await client
-      .from("profiles")
-      .update({ active: !target.active })
-      .eq("id", target.id);
+    const {error:updateError}=isBusinessCoowner
+      ?await client.rpc("manage_business_staff_profile",{
+        p_target:target.id,p_role:null,p_active:!target.active
+      })
+      :await client.from("profiles").update({active:!target.active}).eq("id",target.id);
     setPending(false);
     if (updateError) {
       notify.error("Não foi possível alterar o status", "Verifique sua conexão e tente novamente.");
@@ -264,7 +270,11 @@ export function UsersManager(): JSX.Element {
 
   async function changeRole(target: UserRow, role: "admin" | "operator"): Promise<void> {
     setPending(true);
-    const { error: updateError } = await client.from("profiles").update({ role }).eq("id", target.id);
+    const {error:updateError}=isBusinessCoowner
+      ?await client.rpc("manage_business_staff_profile",{
+        p_target:target.id,p_role:role,p_active:null
+      })
+      :await client.from("profiles").update({role}).eq("id",target.id);
     setPending(false);
     if (updateError) {
       notify.error("Não foi possível alterar o papel", "Verifique sua conexão e tente novamente.");
@@ -383,14 +393,15 @@ export function UsersManager(): JSX.Element {
   }
 
   async function setAgendaManagerGrant(target: UserRow, enabled: boolean): Promise<void> {
-    if (!isOwner || target.role !== "admin" || !target.active || pending || !profile) return;
+    if ((!isOwner&&!isBusinessCoowner)||target.role!=="admin"||!target.active||pending||!profile||
+      (isBusinessCoowner&&businessCoownerIds.includes(target.id)))return;
     setPending(true);
-    const { error: saveError } = await client.from("agenda_manager_grants").upsert({
-      profile_id: target.id,
-      can_manage: enabled,
-      granted_by: profile.id,
-      updated_at: new Date().toISOString(),
-    }, { onConflict: "profile_id" });
+    const {error:saveError}=isBusinessCoowner
+      ?await client.rpc("set_business_agenda_manager_grant",{p_target:target.id,p_enabled:enabled})
+      :await client.from("agenda_manager_grants").upsert({
+        profile_id:target.id,can_manage:enabled,granted_by:profile.id,
+        updated_at:new Date().toISOString(),
+      },{onConflict:"profile_id"});
     setPending(false);
     if (saveError) {
       notify.error("Não foi possível alterar a Agenda", "Verifique sua conexão e tente novamente.");
@@ -402,14 +413,14 @@ export function UsersManager(): JSX.Element {
   }
 
   async function setAuditViewerGrant(target: UserRow, enabled: boolean): Promise<void> {
-    if (!isOwner || target.role !== "operator" || pending || !profile) return;
+    if ((!isOwner&&!isBusinessCoowner)||target.role!=="operator"||pending||!profile)return;
     setPending(true);
-    const { error: saveError } = await client.from("audit_viewer_grants").upsert({
-      profile_id: target.id,
-      can_view: enabled,
-      granted_by: profile.id,
-      updated_at: new Date().toISOString(),
-    }, { onConflict: "profile_id" });
+    const {error:saveError}=isBusinessCoowner
+      ?await client.rpc("set_business_audit_viewer_grant",{p_target:target.id,p_enabled:enabled})
+      :await client.from("audit_viewer_grants").upsert({
+        profile_id:target.id,can_view:enabled,granted_by:profile.id,
+        updated_at:new Date().toISOString(),
+      },{onConflict:"profile_id"});
     setPending(false);
     if (saveError) {
       notify.error("Não foi possível alterar a Auditoria", "Verifique sua conexão e tente novamente.");
@@ -608,7 +619,7 @@ export function UsersManager(): JSX.Element {
           onClick={() => openUserEditor(user)} disabled={pending}>
           <UserActionIcon name="edit" /><span>Editar</span>
         </button>
-        {isOwner ? (
+        {canPromoteToAdmin() ? (
           <button type="button" className="usuarios-action-button" title={roleLabel}
             aria-label={roleLabel + ": " + userName(user)}
             onClick={() => changeRole(user, user.role === "admin" ? "operator" : "admin")} disabled={pending}>
@@ -728,7 +739,7 @@ export function UsersManager(): JSX.Element {
                     {user.role === "owner" ? (
                       <span className="status-pill status-pill--published">{ROLE_LABELS.owner}</span>
                     ) : (
-                      ROLE_LABELS[user.role]
+                      roleLabel(user)
                     )}
                   </td>
                   <td>
@@ -767,13 +778,13 @@ export function UsersManager(): JSX.Element {
               <span className="materia-card-title">{userName(user)}</span>
               {nameNeedsReview(user) ? <span className="helper-text">Nome cadastral pendente de revisão</span> : null}
               {userEmail(user.id) ? <span className="helper-text">{userEmail(user.id)}</span> : null}
-              <span className="materia-subtitle">{ROLE_LABELS[user.role]}</span>
+              <span className="materia-subtitle">{roleLabel(user)}</span>
               <div className="materia-card-foot">
                 {user.role === "owner" ? (
                   <span className="helper-text">Sem ações — proprietário</span>
                 ) : manageable ? (
                   <>
-                    {isOwner ? (
+                    {canPromoteToAdmin() ? (
                       <button
                         type="button"
                         onClick={() => changeRole(user, user.role === "admin" ? "operator" : "admin")}
@@ -832,7 +843,7 @@ export function UsersManager(): JSX.Element {
             </label>
           </div>
           <div className="usuarios-edit-meta">
-            <span><strong>Papel:</strong> {editingTarget ? ROLE_LABELS[editingTarget.role] : "—"}</span>
+            <span><strong>Papel:</strong> {editingTarget?roleLabel(editingTarget):"—"}</span>
             <span><strong>Status:</strong> {editingTarget ? userStatus(editingTarget).label : "—"}</span>
             <span><strong>Criado em:</strong> {editingTarget ? formatDate(editingTarget.created_at) : "—"}</span>
           </div>
@@ -869,13 +880,14 @@ export function UsersManager(): JSX.Element {
         <div className="inline-form">
           <strong>Administradores autorizados a gerenciar Agenda e Pauta</strong>{" "}
           <span className="status-pill status-pill--published">Salvo imediatamente</span>
-          <p className="helper-text">Somente o proprietário libera ou revoga este poder. A baixa individual continua disponível para responsáveis comuns. Cada switch abaixo grava direto no banco ao ser clicado — não depende do botão "Salvar permissões" nem é desfeito por "Cancelar".</p>
+          <p className="helper-text">O proprietário técnico e o coproprietário de gestão podem liberar ou revogar este poder. A baixa individual continua disponível para responsáveis comuns. Cada switch abaixo grava direto no banco ao ser clicado — não depende do botão "Salvar permissões" nem é desfeito por "Cancelar".</p>
           {(users ?? []).filter((user) => user.role === "admin").map((user) => (
             <PermissionSwitch
               key={user.id}
               className="staff-permission-choice"
               checked={agendaManagerGrants.some((grant) => grant.profile_id === user.id && grant.can_manage)}
-              disabled={pending || !isOwner || !user.active}
+              disabled={pending||(!isOwner&&!isBusinessCoowner)||!user.active||
+                (isBusinessCoowner&&businessCoownerIds.includes(user.id))}
               onChange={(checked) => void setAgendaManagerGrant(user, checked)}
               label={<>{user.name} · {user.active ? "ativo" : "inativo"} · pode criar, editar, cancelar e reabrir</>}
             />
@@ -897,11 +909,11 @@ export function UsersManager(): JSX.Element {
 
             <h3>Auditoria / Histórico de atividades</h3>{" "}
             <span className="status-pill status-pill--published">Salvo imediatamente</span>
-            <p className="helper-text">Somente o proprietário pode liberar a consulta ao histórico. Operadores autorizados apenas visualizam os registros. Este switch grava direto no banco ao ser clicado — não depende do botão "Salvar permissões" nem é desfeito por "Cancelar", abaixo.</p>
+            <p className="helper-text">O proprietário técnico e o coproprietário de gestão podem liberar consulta ao histórico. Operadores autorizados apenas visualizam os registros. Este switch grava direto no banco ao ser clicado — não depende do botão "Salvar permissões" nem é desfeito por "Cancelar", abaixo.</p>
             <PermissionSwitch
               className="staff-permission-choice"
               checked={auditViewerGrants.some((grant) => grant.profile_id === user.id && grant.can_view)}
-              disabled={pending || !isOwner || !user.active}
+              disabled={pending||(!isOwner&&!isBusinessCoowner)||!user.active}
               onChange={(checked) => void setAuditViewerGrant(user, checked)}
               label="Permitir consulta aos logs do sistema"
             />

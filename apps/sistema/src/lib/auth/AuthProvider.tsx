@@ -12,6 +12,8 @@ export interface AuthProfile {
   name: string;
   email: string;
   role: AuthRole;
+  /** Proprietário operacional: nunca concede o papel técnico owner. */
+  businessCoowner?: boolean;
   active: boolean;
   createdAt: string;
 }
@@ -92,11 +94,16 @@ export function AuthProvider({
         setStatus("inactive");
         return;
       }
+      const {data:businessCoowner}=data.role==='admin'
+        ?await client.rpc('is_business_coowner')
+        :{data:false};
+      if(cancelled)return;
       setProfile({
         id: data.id,
         name: staffNameLabel(data.name,email),
         email: email ?? "",
         role: data.role as AuthRole,
+        businessCoowner:businessCoowner===true,
         active: data.active,
         createdAt: data.created_at,
       });

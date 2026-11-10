@@ -62,7 +62,7 @@ export function AccountMenu(): JSX.Element | null {
           <div className="account-menu-info">
             <p className="account-menu-info-name">{profile.name}</p>
             <p className="account-menu-info-email">{profile.email}</p>
-            <span className="status-pill status-pill--published">{ROLE_LABELS[profile.role]}</span>
+            <span className="status-pill status-pill--published">{profile.businessCoowner?'Coproprietário — Gestão':ROLE_LABELS[profile.role]}</span>
           </div>
           <Link href="/sistema/perfil" className="account-menu-link" role="menuitem" onClick={() => setOpen(false)}>
             Meu perfil
