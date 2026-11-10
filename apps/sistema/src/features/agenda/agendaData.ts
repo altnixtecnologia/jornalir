@@ -106,6 +106,7 @@ export async function loadAgendaWorkspaceData(focusDate: string): Promise<Agenda
     supabase.rpc("has_staff_module_access", { p_module: "pauta", p_write: false }),
     supabase.rpc("has_staff_module_access", { p_module: "pauta", p_write: true }),
     supabase.rpc("is_agenda_manager"),
+    supabase.rpc("can_manage_editorial_workflow"),
   ]);
   const failedPermission = permissionResults.find((result) => result.error);
   if (failedPermission?.error) throw new Error(failedPermission.error.message);
@@ -116,6 +117,7 @@ export async function loadAgendaWorkspaceData(focusDate: string): Promise<Agenda
     pautaWrite: permissionResults[3].data === true,
     editorialLinkAccess: false,
     coverageManage: permissionResults[4].data === true,
+    workflowManage: permissionResults[5].data === true,
   };
   if (!access.agendaRead && !access.pautaRead) redirect("/sistema");
 
@@ -131,7 +133,7 @@ export async function loadAgendaWorkspaceData(focusDate: string): Promise<Agenda
     supabase.from("profiles").select("id, name, role").eq("active", true).order("name", { ascending: true }),
     supabase
       .from("agenda_events")
-      .select("id, title, description, event_date, start_time, end_time, location, status, reminder_minutes, event_kind, show_in_agenda, completed_at, updated_at")
+      .select("id, title, description, event_date, start_time, end_time, location, status, reminder_minutes, event_kind, show_in_agenda, completed_at, updated_at, workflow_kind, council_city, article_owner_id, article_due_at, article_completed_at, article_completed_by, workflow_closed_at, workflow_closed_by")
       .gte("event_date", eventRangeStart)
       .lte("event_date", eventRangeEnd)
       .order("event_date", { ascending: true })
@@ -270,23 +272,37 @@ export async function loadAgendaWorkspaceData(focusDate: string): Promise<Agenda
     if(invitations.error)throw new Error(invitations.error.message);
     invitationRows=invitations.data??[];
   }
-  let assignmentRows: Array<{ event_id: string; profile_id: string; completed_at: string | null; task_label: string | null }> = [];
+  let assignmentRows: Array<{
+ event_id:string;profile_id:string;completed_at:string|null;task_label:string|null;
+ workflow_tasks:unknown;attendance_response:string;attendance_responded_at:string|null;
+ attendance_marked_by:string|null;
+}> = [];
   if (eventIds.length) {
     const assignments = await supabase
       .from("agenda_event_assignees")
-      .select("event_id, profile_id, completed_at, task_label")
+      .select("event_id, profile_id, completed_at, task_label, workflow_tasks, attendance_response, attendance_responded_at, attendance_marked_by")
       .in("event_id", eventIds)
       .eq("assignment_type", "responsible");
     if (assignments.error) throw new Error(assignments.error.message);
     assignmentRows = assignments.data ?? [];
   }
 
-  const assigneesByEvent = new Map<string, (AgendaProfile & { completedAt: string | null; taskLabel: string | null })[]>();
+  const assigneesByEvent = new Map<string, AgendaEventItem["assignees"]>();
   for (const assignment of assignmentRows) {
     const profile = profiles.find((item) => item.id === assignment.profile_id);
     if (!profile) continue;
     const list = assigneesByEvent.get(assignment.event_id) ?? [];
-    list.push({ ...profile, completedAt: assignment.completed_at, taskLabel: assignment.task_label });
+    const tasks=Array.isArray(assignment.workflow_tasks)?assignment.workflow_tasks:[];
+    list.push({
+      ...profile,completedAt:assignment.completed_at,taskLabel:assignment.task_label,
+      workflowTasks:tasks.filter((item:unknown)=>Boolean(item&&typeof item==="object")).map((item)=>{
+        const data=item as {kind?:string;label?:string};
+        return {kind:(data.kind??"custom") as AgendaEventItem["assignees"][number]["workflowTasks"][number]["kind"],label:String(data.label??"")};
+      }),
+      attendanceResponse:assignment.attendance_response as AgendaEventItem["assignees"][number]["attendanceResponse"],
+      attendanceRespondedAt:assignment.attendance_responded_at,
+      attendanceMarkedBy:assignment.attendance_marked_by,
+    });
     assigneesByEvent.set(assignment.event_id, list);
   }
 
@@ -310,7 +326,15 @@ export async function loadAgendaWorkspaceData(focusDate: string): Promise<Agenda
     startTime: trimDbTime(event.start_time),
     endTime: trimDbTime(event.end_time),
     reminderMinutes: event.reminder_minutes,
-    eventKind: event.event_kind as AgendaEventItem["eventKind"],
+    eventKind:event.event_kind as AgendaEventItem["eventKind"],
+    workflowKind:event.workflow_kind as AgendaEventItem["workflowKind"],
+    councilCity:event.council_city,
+    articleOwnerId:event.article_owner_id,
+    articleDueAt:event.article_due_at,
+    articleCompletedAt:event.article_completed_at,
+    articleCompletedBy:event.article_completed_by,
+    workflowClosedAt:event.workflow_closed_at,
+    workflowClosedBy:event.workflow_closed_by,
     showInAgenda: event.show_in_agenda,
     coverage: coverageByEvent.get(event.id) ?? null,
     completedAt: event.completed_at,
@@ -331,13 +355,14 @@ export async function loadAgendaWorkspaceData(focusDate: string): Promise<Agenda
     weekStart: item.week_start,
     title: linked?.title ?? item.title,
     description: linked?.description ?? item.description,
-    dueDate: linked?.eventDate ?? item.due_date,
-    dueTime: linked?.startTime ?? trimDbTime(item.due_time),
+    dueDate: item.due_date,
+    dueTime: trimDbTime(item.due_time),
     responsibleProfileId: responsible?.id ?? item.responsible_profile_id,
     responsibleName: responsible?.name ?? (item.responsible_profile_id ? profileName.get(item.responsible_profile_id) ?? null : null),
     agendaEventId: item.agenda_event_id,
     agendaEventTitle: linked?.title ?? null,
     coverage: linked?.coverage ?? (item.agenda_event_id ? coverageByEvent.get(item.agenda_event_id) ?? null : null),
+    workflow:linked?.workflowKind!=="general"?linked??null:null,
     articleId: item.article_id,
     // A presença fecha a Agenda; a Pauta mantém o status próprio de entregas.
     status: linked?.coverage?.teamMode
