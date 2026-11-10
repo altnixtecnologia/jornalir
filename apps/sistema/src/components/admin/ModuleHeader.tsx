@@ -5,6 +5,7 @@ interface ModuleHeaderProps {
   title: string;
   description: string;
   action?: ReactNode;
+  eyebrowAction?: ReactNode;
 }
 
 export function ModuleHeader({
@@ -12,11 +13,12 @@ export function ModuleHeader({
   title,
   description,
   action,
+  eyebrowAction,
 }: ModuleHeaderProps): JSX.Element {
   return (
     <header className="module-header">
       <div>
-        <p className="eyebrow">{eyebrow}</p>
+        <div className="module-eyebrow-row"><p className="eyebrow">{eyebrow}</p>{eyebrowAction}</div>
         <h1>{title}</h1>
         <p className="module-description">{description}</p>
       </div>

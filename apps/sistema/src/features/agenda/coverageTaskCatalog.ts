@@ -2,16 +2,15 @@
  * são definidas apenas no evento e sempre atribuídas a uma pessoa.
  */
 export const FIXED_COVERAGE_TASKS=[
-  {kind:"photos",label:"Fotografias"},
-  {kind:"video",label:"Vídeos"},
+  {kind:"media",label:"Fotos e vídeos"},
   {kind:"interviews",label:"Entrevistas"},
-  {kind:"audio",label:"Captação de áudio"},
-  {kind:"research",label:"Apuração de informações"},
   {kind:"live",label:"Transmissão ao vivo"},
-  {kind:"media",label:"Seleção e envio de mídias"},
+  {kind:"research",label:"Apuração de informações"},
 ] as const;
 
-export type CoverageTaskKind=(typeof FIXED_COVERAGE_TASKS)[number]["kind"]|"custom";
+// Legado preservado: tarefas já salvas com tipos antigos seguem sendo exibidas.
+export type CoverageTaskKind=(typeof FIXED_COVERAGE_TASKS)[number]["kind"]|
+  "photos"|"video"|"audio"|"custom";
 export type CoverageTaskDraft={kind:CoverageTaskKind;label:string};
 
 export function validateCoverageTasks(input:unknown):CoverageTaskDraft[]|null{
