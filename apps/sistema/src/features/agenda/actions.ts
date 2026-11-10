@@ -236,6 +236,124 @@ async function coverageStartTime(client:SupabaseClient,eventId:string):Promise<s
   return result.data.start_time.slice(0,5);
 }
 
+/** Fluxo simplificado novo: um formulário para Evento, Câmara, Visita ou Só matéria. */
+export async function createEditorialWorkflowAction(form:FormData):Promise<AgendaActionResult>{
+ const kind=value(form,"workflow_kind");
+ const title=value(form,"title");
+ const eventDate=value(form,"event_date");
+ const startTime=value(form,"start_time");
+ const endTime=value(form,"end_time");
+ const dueDate=value(form,"article_due_date");
+ const dueTime=value(form,"article_due_time");
+ const weekStart=value(form,"week_start");
+ const city=value(form,"council_city");
+ const description=value(form,"description");
+ const location=value(form,"location");
+ const writer=value(form,"workflow_writer");
+ const recurrence=Number(value(form,"council_repeat")||"1");
+ if(!["event","council","visit","article"].includes(kind))return {error:"Selecione Evento, Sessão da Câmara, Visita ou Só matéria."};
+ if(title.length<1||title.length>180||description.length>4000||location.length>240)
+  return {error:"Informe um título válido e confira a descrição."};
+ if(kind!=="article"&&!validDate(eventDate))return {error:"Informe o dia do compromisso."};
+ if(!validTime(startTime)||!validTime(endTime)||startTime&&endTime&&endTime<startTime)
+  return {error:"Confira os horários do compromisso."};
+ if(dueDate&&!validDate(dueDate))return {error:"Data de entrega da matéria inválida."};
+ if(!validTime(dueTime)||dueTime&&!dueDate)
+  return {error:"Selecione a data do prazo ou limpe a hora com X."};
+ if(!validDate(weekStart)||startOfWeek(weekStart)!==weekStart)return {error:"Semana editorial inválida."};
+ if(kind==="council"&&![
+  "Morrinhos do Sul/RS","Mampituba/RS","Praia Grande/SC","São João do Sul/SC",
+  "Santa Rosa do Sul/SC","Torres/RS","Passo de Torres/SC"
+ ].includes(city))return {error:"Escolha o município da Câmara."};
+ if(![1,4,12].includes(recurrence)||(kind!=="council"&&recurrence!==1))
+  return {error:"Repetição de sessão inválida."};
+ let input:unknown;
+ try{input=JSON.parse(value(form,"workflow_crew_json"));}
+ catch{return {error:"Selecione a equipe."};}
+ if(!Array.isArray(input)||input.length<1||input.length>16)
+  return {error:"Escolha entre 1 e 16 colaboradores."};
+ const ids=new Set<string>();
+ const crew:{profileId:string;attends:boolean;tasks:NonNullable<ReturnType<typeof validateCoverageTasks>>}[]=[];
+ for(const item of input){
+  if(!item||typeof item!=="object")return {error:"Equipe inválida."};
+  const person=item as {profileId?:unknown;attends?:unknown;tasks?:unknown};
+  const id=person.profileId;
+  const tasks=person.tasks===undefined||Array.isArray(person.tasks)&&person.tasks.length===0
+     ? [] :validateCoverageTasks(person.tasks);
+  if(typeof id!=="string"||!/^[a-f0-9-]{36}$/i.test(id)||ids.has(id)||!tasks)
+    return {error:"Equipe com colaborador ou tarefa duplicada/inválida."};
+  ids.add(id);
+  crew.push({profileId:id,attends:kind!=="article"&&person.attends!==false,tasks});
+ }
+ if(kind==="article"&&crew.length!==1)return {error:"Só matéria precisa de um responsável."};
+ if(kind==="article"&&!writer)return {error:"Escolha o responsável pela matéria."};
+ if(writer&&!ids.has(writer))return {error:"Marque Matéria em um dos colaboradores."};
+ try{
+   const {supabase}=await requireActiveUser();
+   await validateActiveProfiles(supabase,[...ids]);
+   const {data,error}=await supabase.rpc("create_editorial_workflow",{
+     p_kind:kind,p_title:title,p_description:description||null,
+     p_event_date:kind==="article"?null:eventDate,
+     p_start_time:kind==="article"?null:startTime||null,
+     p_end_time:kind==="article"?null:endTime||null,
+     p_location:location||null,p_week_start:weekStart,
+     p_city:kind==="council"?city:null,
+     p_crew:crew,p_writer:writer||null,
+     p_due_date:writer&&dueDate?dueDate:null,
+     p_due_time:writer&&dueTime?dueTime:null,
+     p_repeat:recurrence,
+   });
+   if(error||Number(data)!==recurrence)return {error:error?.message??"Não foi possível criar os compromissos."};
+   refreshAgenda();return {ok:true};
+ }catch(err){return {error:err instanceof Error?err.message:"Falha ao cadastrar."};}
+}
+
+export async function answerEditorialWorkflowPresenceAction(
+ eventId:string,profileId:string,answer:"present"|"absent"|"not_required"
+):Promise<AgendaActionResult>{
+ if(!/^[a-f0-9-]{36}$/i.test(eventId)||!/^[a-f0-9-]{36}$/i.test(profileId)||
+   !["present","absent","not_required"].includes(answer))
+   return {error:"Resposta inválida."};
+ try{
+  const {supabase}=await requireActiveUser();
+  const {data,error}=await supabase.rpc("answer_editorial_workflow_presence",{
+   p_event_id:eventId,p_profile_id:profileId,p_answer:answer,
+  });
+  if(error||!data)return {error:error?.message??"Não foi possível registrar a participação."};
+  refreshAgenda();return {ok:true};
+ }catch(e){return {error:e instanceof Error?e.message:"Falha ao responder."};}
+}
+
+export async function closeEditorialWorkflowAction(
+ eventId:string,complete:boolean
+):Promise<AgendaActionResult>{
+ if(!/^[a-f0-9-]{36}$/i.test(eventId))return {error:"Compromisso inválido."};
+ try{
+  const {supabase}=await requireActiveUser();
+  const {data,error}=await supabase.rpc("close_editorial_workflow",{
+   p_event_id:eventId,p_completed:complete,
+  });
+  if(error||!data)return {error:error?.message??"Não foi possível encerrar."};
+  refreshAgenda();return {ok:true};
+ }catch(e){return {error:e instanceof Error?e.message:"Falha ao concluir."};}
+}
+
+export async function updateEditorialWorkflowDeadlineAction(
+ eventId:string,form:FormData
+):Promise<AgendaActionResult>{
+ const date=value(form,"article_due_date"),time=value(form,"article_due_time");
+ if(!/^[a-f0-9-]{36}$/i.test(eventId)||date&&!validDate(date)||!validTime(time)||time&&!date)
+  return {error:"Confira a data e a hora, ou deixe ambas vazias."};
+ try{
+  const {supabase}=await requireActiveUser();
+  const {data,error}=await supabase.rpc("update_editorial_workflow_deadline",{
+    p_event_id:eventId,p_due_date:date||null,p_due_time:time||null,
+  });
+  if(error||!data)return {error:error?.message??"Não foi possível alterar o prazo."};
+  refreshAgenda();return {ok:true};
+ }catch(e){return {error:e instanceof Error?e.message:"Falha ao alterar o prazo."};}
+}
+
 export async function createAgendaEventAction(formData: FormData): Promise<AgendaActionResult> {
   const input = validateEventPayload(formData);
   if ("error" in input) return input;
