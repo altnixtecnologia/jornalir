@@ -671,7 +671,7 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
   function TeamCoveragePanel({coverage,eventId,eventTime}:{
     coverage:EventCoverage;eventId:string;eventTime:string;
   }):JSX.Element{
-    const manager=data.access.agendaWrite||data.access.pautaWrite;
+    const manager=data.access.coverageManage;
     const label=(id:string)=>data.profiles.find(p=>p.id===id)?.name??"Colaborador";
     const me=coverage.members.find(person=>person.profileId===data.currentUserId);
     const writer=coverage.articleOwnerId===data.currentUserId;
@@ -697,7 +697,7 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
             </div>
             <div className="coverage-participation">
               <small>Participação na Agenda · {resLabel[member.attendanceResponse]}</small>
-              {isMe?<div className="coverage-attendance-buttons" role="group" aria-label="Confirmar participação no evento">
+              {isMe&&member.tasks.length>0?<div className="coverage-attendance-buttons" role="group" aria-label="Confirmar participação no evento">
                 {([
                   ["present","Compareci"],
                   ["not_required","Não preciso ir"],
