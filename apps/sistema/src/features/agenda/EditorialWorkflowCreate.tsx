@@ -1,7 +1,7 @@
 "use client";
 
 import {useRef,useState,type FormEvent} from "react";
-import type {AgendaProfile,EditorialWorkflowKind} from "./agendaTypes";
+import type {AgendaProfile,AgendaEventItem,EditorialWorkflowKind} from "./agendaTypes";
 import {FIXED_COVERAGE_TASKS,type CoverageTaskDraft} from "./coverageTaskCatalog";
 
 type Choice=Exclude<EditorialWorkflowKind,"general">;
@@ -19,29 +19,33 @@ const CITIES=[
 ] as const;
 
 export function EditorialWorkflowCreate({
- profiles,currentUserId,weekStart,selectedDate,view,isPending,onCreate,
+ profiles,currentUserId,weekStart,selectedDate,view,isPending,onCreate,existing,initialWriterId,
 }:{
  profiles:AgendaProfile[];
  currentUserId:string;
  weekStart:string;selectedDate:string;view:"agenda"|"pauta";isPending:boolean;
  onCreate:(data:FormData)=>void;
+ existing?:AgendaEventItem;
+ initialWriterId?:string;
 }):JSX.Element{
  const [kind,setKind]=useState<Choice|null>(null);
- const [title,setTitle]=useState("");
+ const [title,setTitle]=useState(existing?.title??"");
  const [city,setCity]=useState("");
- const [eventDate,setEventDate]=useState(selectedDate);
- const [eventTime,setEventTime]=useState("");
- const [endTime,setEndTime]=useState("");
- const [location,setLocation]=useState("");
- const [notes,setNotes]=useState("");
- const [writer,setWriter]=useState("");
+ const [eventDate,setEventDate]=useState(existing?.eventDate??selectedDate);
+ const [eventTime,setEventTime]=useState(existing?.startTime??"");
+ const [endTime,setEndTime]=useState(existing?.endTime??"");
+ const [location,setLocation]=useState(existing?.location??"");
+ const [notes,setNotes]=useState(existing?.description??"");
+ const [writer,setWriter]=useState(initialWriterId??"");
  const [dueDate,setDueDate]=useState("");
  const [dueTime,setDueTime]=useState("");
  const [repeat,setRepeat]=useState(1);
- const [crew,setCrew]=useState<CrewMember[]>([
-  {key:1,profileId:currentUserId,attends:true,tasks:[]},
- ]);
- const nextKey=useRef(2);
+ const initialIds=[...(existing?.assignees.map(p=>p.id)??[])];
+ if(initialWriterId&&!initialIds.includes(initialWriterId))initialIds.push(initialWriterId);
+ const [crew,setCrew]=useState<CrewMember[]>(initialIds.length?
+  initialIds.map((id,index)=>({key:index+1,profileId:id,attends:true,tasks:[]})):
+  [{key:1,profileId:currentUserId,attends:true,tasks:[]}]);
+ const nextKey=useRef((existing?.assignees.length??0)+2);
  const longPress=useRef<ReturnType<typeof setTimeout>|null>(null);
  const wasLongPress=useRef(false);
  const [menu,setMenu]=useState<EditingTask|null>(null);
@@ -54,7 +58,7 @@ export function EditorialWorkflowCreate({
  const available=profiles.find(profile=>!crew.some(m=>m.profileId===profile.id));
  const setType=(chosen:Choice)=>{
    setKind(chosen);
-   setWriter("");
+   setWriter(initialWriterId??"");
    setCrew(prev=>chosen==="article"?[{
      ...prev[0],attends:false,tasks:[],
    }]:prev.map(m=>({...m,attends:true})));
@@ -142,13 +146,14 @@ export function EditorialWorkflowCreate({
  return <form className="workflow-create" onSubmit={submit}>
    <strong className="workflow-form-label">O que deseja cadastrar?</strong>
    <div className="workflow-type-grid" role="group" aria-label="Tipo de compromisso">
-    {TYPES.map(type=><button type="button" key={type.key}
+    {TYPES.filter(type=>!existing||type.key!=="article").map(type=><button type="button" key={type.key}
       className={"workflow-type-choice"+(kind===type.key?" is-selected":"")}
       aria-pressed={kind===type.key} onClick={()=>setType(type.key)}>
       <strong>{type.name}</strong><small>{type.note}</small>
     </button>)}
    </div>
    {kind?<div className="workflow-create-body">
+     {existing?<p className="workflow-help">Mantém este compromisso, sem criar outro. Título e horário permanecem como cadastrados.</p>:null}
      <input type="hidden" name="week_start" value={weekStart}/>
      {kind==="council"?<label className="agenda-field">
        <span>Município da Câmara</span>
@@ -163,25 +168,25 @@ export function EditorialWorkflowCreate({
        </select>
      </label>:null}
      <label className="agenda-field agenda-field-wide"><span>{kind==="visit"?"Quem vamos visitar?":kind==="article"?"Título da matéria":"Compromisso"}</span>
-       <input name="title" required maxLength={180} value={title}
+       <input name="title" required maxLength={180} readOnly={Boolean(existing)} value={title}
          onChange={e=>setTitle(e.currentTarget.value)}
          placeholder={kind==="visit"?"Ex.: Visita à prefeitura / entrevista":
           kind==="article"?"Ex.: Matéria para a próxima edição":"Ex.: Cobertura da sessão"}/>
      </label>
      {kind!=="article"?<div className="workflow-schedule">
        <label className="agenda-field"><span>Data do compromisso</span>
-         <input type="date" name="event_date" required value={eventDate}
+         <input type="date" name="event_date" required readOnly={Boolean(existing)} value={eventDate}
            onChange={e=>setEventDate(e.currentTarget.value)}/>
        </label>
        <label className="agenda-field"><span>Início (opcional)</span>
-         <span className="workflow-clearable"><input name="start_time" type="time" value={eventTime} onChange={e=>setEventTime(e.currentTarget.value)}/>
+         <span className="workflow-clearable"><input name="start_time" type="time" readOnly={Boolean(existing)} value={eventTime} onChange={e=>setEventTime(e.currentTarget.value)}/>
            {eventTime?<button type="button" aria-label="Limpar início" onClick={()=>setEventTime("")}>×</button>:null}</span>
        </label>
        <label className="agenda-field"><span>Fim (opcional)</span>
-         <span className="workflow-clearable"><input name="end_time" type="time" value={endTime} onChange={e=>setEndTime(e.currentTarget.value)}/>
+         <span className="workflow-clearable"><input name="end_time" type="time" readOnly={Boolean(existing)} value={endTime} onChange={e=>setEndTime(e.currentTarget.value)}/>
            {endTime?<button type="button" aria-label="Limpar fim" onClick={()=>setEndTime("")}>×</button>:null}</span>
        </label>
-       {kind==="council"?<div className="workflow-repeat">
+       {kind==="council"&&!existing?<div className="workflow-repeat">
          <strong>Repetição</strong>
          <div className="workflow-pill-row">
            {[{n:1,label:"Somente esta"},{n:4,label:"4 semanas"},{n:12,label:"12 semanas"}].map(item=>
@@ -313,7 +318,7 @@ export function EditorialWorkflowCreate({
      {error?<p role="alert" className="workflow-error">{error}</p>:null}
      <div className="agenda-form-actions">
        <button type="submit" className="agenda-primary" disabled={isPending}>
-         {isPending?"Salvando...":kind==="article"?"Criar pauta":"Salvar compromisso"}
+         {isPending?"Salvando...":existing?"Aplicar funções neste compromisso":kind==="article"?"Criar pauta":"Salvar compromisso"}
        </button>
      </div>
    </div>:null}
