@@ -84,6 +84,7 @@ export interface AgendaEventItem {
   councilCity:string|null;
   articleOwnerId:string|null;
   articleDueAt:string|null;
+  articleDueTimeExplicit:boolean;
   articleCompletedAt:string|null;
   articleCompletedBy:string|null;
   workflowClosedAt:string|null;
