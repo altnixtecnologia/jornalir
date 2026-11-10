@@ -29,7 +29,7 @@ export function EditorialWorkflowCreate({
  existing?:AgendaEventItem;
  initialWriterId?:string;
 }):JSX.Element{
- const [kind,setKind]=useState<Choice|null>(null);
+ const [kind,setKind]=useState<Choice|null>(view==="pauta"&&!existing?"article":null);
  const [title,setTitle]=useState(existing?.title??"");
  const [city,setCity]=useState("");
  const [eventDate,setEventDate]=useState(existing?.eventDate??selectedDate);
@@ -37,7 +37,7 @@ export function EditorialWorkflowCreate({
  const [endTime,setEndTime]=useState(existing?.endTime??"");
  const [location,setLocation]=useState(existing?.location??"");
  const [notes,setNotes]=useState(existing?.description??"");
- const [writer,setWriter]=useState(initialWriterId??"");
+ const [writer,setWriter]=useState(initialWriterId??(view==="pauta"?currentUserId:""));
  const [dueDate,setDueDate]=useState("");
  const [dueTime,setDueTime]=useState("");
  const [repeat,setRepeat]=useState(1);
@@ -117,14 +117,16 @@ export function EditorialWorkflowCreate({
   onCreate(form);
  };
  return <form className="workflow-create" onSubmit={submit}>
-   <strong className="workflow-form-label">O que deseja cadastrar?</strong>
+   {view==="agenda"?<>
+   <strong className="workflow-form-label">Que compromisso deseja registrar?</strong>
    <div className="workflow-type-grid" role="group" aria-label="Tipo de compromisso">
-    {TYPES.filter(type=>!existing||type.key!=="article").map(type=><button type="button" key={type.key}
+    {TYPES.filter(type=>type.key!=="article").map(type=><button type="button" key={type.key}
       className={"workflow-type-choice"+(kind===type.key?" is-selected":"")}
       aria-pressed={kind===type.key} onClick={()=>setType(type.key)}>
       <strong>{type.name}</strong><small>{type.note}</small>
     </button>)}
    </div>
+   </>:<strong className="workflow-form-label">Nova matéria para a Pauta</strong>}
    {kind?<div className="workflow-create-body">
      {existing?<p className="workflow-help">Mantém este compromisso, sem criar outro. Título e horário permanecem como cadastrados.</p>:null}
      <input type="hidden" name="week_start" value={weekStart}/>
@@ -185,7 +187,7 @@ export function EditorialWorkflowCreate({
                <span>Colaborador {index+1}</span>
                <select value={member.profileId} onChange={e=>{
                  const id=e.currentTarget.value;
-                 if(member.profileId===writer)setWriter(id);
+                 if(kind==="article"||member.profileId===writer)setWriter(id);
                  changeMember(member.key,{profileId:id});
                }} required>
                  {profiles.filter(p=>p.id===member.profileId||!crew.some(x=>x.key!==member.key&&x.profileId===p.id))
@@ -206,9 +208,6 @@ export function EditorialWorkflowCreate({
            </div>
            <div className="workflow-function-buttons">
              <WorkflowTaskChips tasks={member.tasks} editable={true}
-               onTap={task=>changeMember(member.key,{
-                 tasks:member.tasks.filter(t=>t.kind!==task.kind||t.label!==task.label),
-               })}
                onLongPress={task=>openMenu(member.key,task)}
                onReorder={tasks=>changeMember(member.key,{tasks})}/>
              <div className="workflow-pill-row workflow-available-tasks">
@@ -221,10 +220,10 @@ export function EditorialWorkflowCreate({
                  onClick={()=>{setCustomFor(customFor===member.key?null:member.key);setCustomText("");}}>
                    ＋ Outra tarefa
                </button>:null}
-               <button type="button" className={"workflow-writer-choice"+(isWriter?" is-selected":"")}
+               {kind!=="article"?<button type="button" className={"workflow-writer-choice"+(isWriter?" is-selected":"")}
                  aria-pressed={isWriter} onClick={()=>{setWriter(isWriter?"":member.profileId);setError("");}}>
                    {isWriter?"✓ ":""}Matéria
-               </button>
+               </button>:null}
              </div>
            </div>
            {kind!=="article"&&member.tasks.length>0?<small className="workflow-help">Arraste para mudar a posição. Segure 3 segundos para editar ou excluir.</small>:null}
