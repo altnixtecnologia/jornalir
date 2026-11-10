@@ -8,6 +8,7 @@ on:
       - feat/pauta-tarefas-por-pessoa-catalogo-20261109
       - fix/agenda-aviso-flutuante-escolha-rapida-20261110
       - feat/agenda-fluxo-simples-baixas-20261110
+      - fix/agenda-cartoes-recolhidos-ordem-botoes-20261110
   pull_request:
     branches:
       - solicitacoes-financeiro-contratos-irc-20261031
@@ -20,6 +21,7 @@ on:
       - "apps/sistema/test/coverage-clock.test.ts"
       - "apps/sistema/test/pauta-tv-layout.test.ts"
       - "apps/sistema/test/coverage-task-catalog.test.ts"
+      - "apps/sistema/test/workflow-task-order.test.ts"
       - "apps/sistema/src/features/pauta-tv/**"
       - "apps/sistema/src/app/tv/pauta/**"
       - "apps/sistema/src/app/api/tv-pauta/**"
@@ -31,6 +33,7 @@ on:
       - "supabase/migrations/20261122310000_coverage_tasks_catalog_per_user.sql"
       - "supabase/migrations/20261122320000_coverage_task_media_combined.sql"
       - "supabase/migrations/20261122330000_editorial_workflow_simple.sql"
+      - "supabase/migrations/20261122330020_editorial_task_order.sql"
       - "supabase/migrations/20261122270000_event_coverage_lifecycle.sql"
   workflow_dispatch:
 
@@ -55,6 +58,6 @@ jobs:
       - name: Instalar
         run: npm ci --no-audit --no-fund
       - name: Lembretes e fluxo editorial
-        run: npx tsx --test apps/sistema/test/coverage-task-catalog.test.ts apps/sistema/test/pauta-tv-layout.test.ts apps/sistema/test/coverage-clock.test.ts apps/sistema/test/coverage-reminder.test.ts apps/sistema/test/pauta-period.test.ts apps/sistema/test/agenda-pauta-navigation.test.ts
+        run: npx tsx --test apps/sistema/test/coverage-task-catalog.test.ts apps/sistema/test/workflow-task-order.test.ts apps/sistema/test/pauta-tv-layout.test.ts apps/sistema/test/coverage-clock.test.ts apps/sistema/test/coverage-reminder.test.ts apps/sistema/test/pauta-period.test.ts apps/sistema/test/agenda-pauta-navigation.test.ts
       - name: TypeScript administrativo
         run: npm run typecheck --workspace @ir/sistema
