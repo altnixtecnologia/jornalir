@@ -35,9 +35,9 @@ function parts(iso:string|null,explicit:boolean):{date:string;time:string}{
 }
 
 export function EditorialWorkflowPanel({item,currentUserId,manager,profiles,
- isPending,onAction}:{
+ isPending,onAction,mode}:{
  item:AgendaEventItem;currentUserId:string;manager:boolean;
- profiles:AgendaProfile[];isPending:boolean;
+ profiles:AgendaProfile[];isPending:boolean;mode:"agenda"|"pauta";
  onAction:(action:()=>Promise<AgendaActionResult>,success:string)=>void;
 }):JSX.Element {
  const writer=item.articleOwnerId===currentUserId;
@@ -73,11 +73,11 @@ export function EditorialWorkflowPanel({item,currentUserId,manager,profiles,
  const dueInitial=parts(item.articleDueAt,item.articleDueTimeExplicit);
  return <section className="workflow-quick-panel" aria-label={"Controle de "+(names[item.workflowKind]??"compromisso")}>
    <header className="workflow-quick-header">
-    <strong>{names[item.workflowKind]??"Compromisso"}</strong>
-    {item.councilCity?<span>{item.councilCity}</span>:null}
+    <strong>{mode==="agenda"?"Participação no compromisso":"Produção da matéria"}</strong>
+    {mode==="agenda"&&item.councilCity?<span>{item.councilCity}</span>:null}
     {closed?<span className="workflow-closed-tag">✓ Encerrado</span>:null}
    </header>
-   {item.workflowKind!=="article"?
+   {mode==="agenda"&&item.workflowKind!=="article"?
     <div className="workflow-attendance-list">
       {item.assignees.map(person=>{
         const canRespond=manager||person.id===currentUserId&&!closed;
@@ -120,7 +120,11 @@ export function EditorialWorkflowPanel({item,currentUserId,manager,profiles,
         </div>;
       })}
     </div>:null}
-   {item.articleOwnerId?<div className="workflow-article-status">
+   {mode==="agenda"&&item.articleOwnerId?<div className="workflow-agenda-linked-pauta">
+     <span>Matéria vinculada à Pauta</span>
+     <small>Responsável: {name(item.articleOwnerId)} · {item.articleCompletedAt?"Concluída":"A produzir"}</small>
+   </div>:null}
+   {mode==="pauta"&&item.articleOwnerId?<div className="workflow-article-status">
      <div className="workflow-article-top">
        <div><strong>Matéria</strong>
          <small>Responsável: {name(item.articleOwnerId)}</small>
@@ -156,12 +160,12 @@ export function EditorialWorkflowPanel({item,currentUserId,manager,profiles,
        </form>
        <small>Vazio significa sem urgência e sem alerta de atraso.</small>
      </details>:null}
-   </div>:manager?<div className="workflow-final-actions">
+   </div>:mode==="agenda"&&manager&&!item.articleOwnerId?<div className="workflow-final-actions">
        <button type="button" className="agenda-primary" disabled={isPending} onClick={close}>
          {closed?"Reabrir compromisso":"✓ Encerrar compromisso"}
        </button>
      </div>:null}
-   {closed?<p className="workflow-closure-note">
+   {closed&&mode==="agenda"?<p className="workflow-closure-note">
      Encerrado {item.workflowClosedBy?"por "+name(item.workflowClosedBy):""}.
      Quem não respondeu está registrado como <strong>Não confirmou</strong>, sem indicação automática de falta.
    </p>:null}
