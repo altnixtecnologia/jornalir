@@ -156,6 +156,18 @@ function eventOverdue(event:AgendaEventItem,now:string):boolean{
  const local=editorialDueInLocalTime(due);
  return Boolean(local&&local<now);
 }
+/** Atraso do compromisso na Agenda, separado do prazo editorial da materia. */
+function agendaAppointmentOverdue(event:AgendaEventItem,now:string):boolean{
+ if(!event.showInAgenda||event.status!=="scheduled")return false;
+ if(event.assignees.length>0&&event.assignees.every(person=>Boolean(person.completedAt)))return false;
+ const end=event.endTime||event.startTime||"23:59";
+ return event.eventDate+"T"+end<now;
+}
+function agendaPendingFor(event:AgendaEventItem,profileId:string):boolean{
+ return event.showInAgenda&&event.status==="scheduled"&&(
+   event.assignees.some(person=>person.id===profileId&&!person.completedAt)||
+   (event.assignees.length===0&&event.appointmentOwnerId===profileId));
+}
 function pautaOverdue(item:WeeklyPautaItem,now:string):boolean{
  if(item.status!=="pending")return false;
  if(item.workflow||item.coverage){
@@ -509,6 +521,7 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
   const [realtimeState, setRealtimeState] = useState<"connecting" | "online" | "offline">("connecting");
   const [remoteChanges, setRemoteChanges] = useState(false);
   const [responsibleFilter, setResponsibleFilter] = useState("");
+  const [activeSummary, setActiveSummary] = useState<"queue"|"overdue"|"personal-overdue"|null>(null);
   const [isMonthExpanded, setIsMonthExpanded] = useState(false);
   const [isPeriodEditorOpen, setIsPeriodEditorOpen] = useState(false);
   const [pautaCreateVersion,setPautaCreateVersion]=useState(0);
@@ -676,6 +689,20 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
       :event.assignees.some(person=>person.id===data.currentUserId&&!person.completedAt))).length +
     data.pautaItems.filter((item) =>
       item.status === "pending" && item.responsibleProfileId === data.currentUserId && !item.agendaEventId).length;
+  // O seletor existente controla os atrasados; "Minha fila" continua pessoal.
+  const overdueAgenda = data.events.filter(item=>agendaAppointmentOverdue(item,localClock))
+    .sort((a,b)=>a.eventDate.localeCompare(b.eventDate)||String(a.startTime??"").localeCompare(String(b.startTime??"")));
+  const overdueInSelection = responsibleFilter
+    ? overdueAgenda.filter(item=>agendaPendingFor(item,responsibleFilter))
+    : overdueAgenda;
+  const personalOverdue = overdueAgenda.filter(item=>
+    agendaPendingFor(item,responsibleFilter||data.currentUserId));
+  const myAgendaQueue = data.events.filter(item=>agendaPendingFor(item,data.currentUserId))
+    .sort((a,b)=>a.eventDate.localeCompare(b.eventDate)||String(a.startTime??"").localeCompare(String(b.startTime??"")));
+  const summaryItems=activeSummary==="queue"?myAgendaQueue:
+    activeSummary==="overdue"?overdueInSelection:activeSummary==="personal-overdue"?personalOverdue:[];
+  const summaryHeading=activeSummary==="queue"?"Minha fila":
+    activeSummary==="overdue"?"Compromissos atrasados":"Atrasados do responsável";
   const weekDays = Array.from({ length: 7 }, (_, index) => addDays(data.weekStart, index));
   const initialPautaDate = data.today >= data.periodStart && data.today <= data.periodEnd ? data.today : data.periodStart;
   const monthEventCount = data.events.filter((event) => event.eventDate >= data.monthStart && event.eventDate <= data.monthEnd).length;
@@ -1563,12 +1590,6 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
               })}/>
           </details>:null}
 
-          {data.access.pautaWrite&&pautaItems.length>1?
-            <p className="pauta-reorder-hint">
-              {responsibleFilter
-                ?"Para organizar a ordem, selecione todos os colaboradores."
-                :"Arraste pela alça à esquerda do título para mudar a posição. A ordem é salva para a equipe."}
-            </p>:null}
           {pautaItems.length ? (
             <div className="pauta-list">
               {pautaItems.map((item) => {
@@ -1667,6 +1688,10 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
                       <span className="workflow-expand-chevron" aria-hidden="true">⌄</span>
                     </summary>
                     <div className="workflow-expanded-body pauta-expanded-body">
+                    <div className="pauta-mobile-detail-heading">
+                      <strong>Detalhes da pauta</strong>
+                      <button type="button" onClick={()=>{setOpenPautaId(null);setEditingPautaId(null);setSchedulingPautaId(null);}}>Fechar ×</button>
+                    </div>
                     {!item.coverage && !item.workflow && (data.access.pautaWrite || canCompleteOwn) ? <button type="button" className="pauta-check"
                       aria-label={done ? "Reabrir item" : "Concluir minha pauta"} disabled={isPending || cancelled}
                       onClick={() => run(
