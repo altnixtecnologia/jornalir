@@ -30,6 +30,7 @@ begin
   return true;
  end if;
  if p_edition_number not between 1 and 99999 then raise exception 'Número de edição inválido';end if;
+ if length(coalesce(p_reason,''))>300 then raise exception 'Motivo da edição muito longo';end if;
  insert into public.pauta_edition_overrides(week_start,edition_number,reason,created_by,updated_by)
  values(p_week_start,p_edition_number,coalesce(nullif(btrim(p_reason),''),'Ajuste manual'),auth.uid(),auth.uid())
  on conflict(week_start) do update set edition_number=excluded.edition_number,
@@ -113,7 +114,7 @@ declare v_event public.agenda_events%rowtype;v_profile uuid;
 begin
  select profile_id into v_profile from public.pauta_agenda_appointments where event_id=p_event_id;
  if v_profile is null then raise exception 'Agendamento não encontrado';end if;
- if auth.uid() is null or (auth.uid()<>v_profile and not public.is_agenda_manager()) then
+ if not public.is_active_staff() or auth.uid() is null or (auth.uid()<>v_profile and not public.is_agenda_manager()) then
   raise exception 'Sem permissão para alterar compromisso de outro colaborador' using errcode='42501';end if;
  if p_title is null or length(btrim(p_title)) not between 1 and 180 or
     length(coalesce(p_description,''))>4000 or length(coalesce(p_location,''))>240 or
