@@ -1,6 +1,6 @@
 import type { Client, ClientAddress, ClientKind, ClientRole, ClientStatus } from "@ir/types";
 import { ClientValidationError, type ClientChanges, type ClientRepository, type NewClientRecord } from "./client-repository";
-import { isValidCnpj, isValidCpf, onlyDigits } from "./client-validation";
+import { isValidCnpj, isValidCpf, normalizeCnpj, onlyDigits } from "./client-validation";
 
 export class ClientNotFoundError extends Error {
   constructor(id: string) {
@@ -25,6 +25,10 @@ export interface ClientInput {
   phoneSecondary?: string;
   whatsapp?: string;
   email?: string;
+  fiscalEmail?: string;
+  municipalRegistration?: string;
+  addressIbgeCode?: string;
+  icmsStatus?: "contribuinte" | "isento" | "nao_contribuinte";
   address?: ClientAddress;
   notes?: string;
   roles?: ClientRole[];
@@ -60,7 +64,7 @@ function normalizeFields(input: ClientInput): Omit<NewClientRecord, "status" | "
     birthDate: isIndividual ? input.birthDate || undefined : undefined,
     companyName: isIndividual ? undefined : trimOrUndefined(input.companyName),
     tradeName: isIndividual ? undefined : trimOrUndefined(input.tradeName),
-    cnpj: isIndividual ? undefined : onlyDigits(input.cnpj) || undefined,
+    cnpj: isIndividual ? undefined : normalizeCnpj(input.cnpj) || undefined,
     stateRegistration: isIndividual ? undefined : trimOrUndefined(input.stateRegistration),
     responsibleName: isIndividual ? undefined : trimOrUndefined(input.responsibleName),
     responsibleCpf: isIndividual ? undefined : onlyDigits(input.responsibleCpf) || undefined,
@@ -69,6 +73,10 @@ function normalizeFields(input: ClientInput): Omit<NewClientRecord, "status" | "
     phoneSecondary: onlyDigits(input.phoneSecondary) || undefined,
     whatsapp: onlyDigits(input.whatsapp) || undefined,
     email: trimOrUndefined(input.email)?.toLowerCase(),
+    fiscalEmail: trimOrUndefined(input.fiscalEmail)?.toLowerCase(),
+    municipalRegistration: isIndividual ? undefined : trimOrUndefined(input.municipalRegistration),
+    addressIbgeCode: onlyDigits(input.addressIbgeCode) || undefined,
+    icmsStatus: isIndividual ? undefined : input.icmsStatus || undefined,
     address: normalizeAddress(input.address),
     notes: trimOrUndefined(input.notes),
     roles: input.roles ?? [],
@@ -86,6 +94,19 @@ function assertValidDocuments(record: Pick<NewClientRecord, "kind" | "cpf" | "cn
   } else {
     if (record.cnpj && !isValidCnpj(record.cnpj)) throw new ClientValidationError("CNPJ inválido.");
     if (record.responsibleCpf && !isValidCpf(record.responsibleCpf)) throw new ClientValidationError("CPF do responsável inválido.");
+  }
+}
+
+/** Proteção fiscal para outros consumidores do ClientService, mesmo sem formulário. */
+function assertValidFiscalFields(record: ClientChanges): void {
+  if (record.addressIbgeCode && !/^[0-9]{7}$/.test(record.addressIbgeCode)) {
+    throw new ClientValidationError("Código IBGE do município inválido.");
+  }
+  if (record.fiscalEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(record.fiscalEmail)) {
+    throw new ClientValidationError("E-mail fiscal inválido.");
+  }
+  if (record.icmsStatus && !["contribuinte", "isento", "nao_contribuinte"].includes(record.icmsStatus)) {
+    throw new ClientValidationError("Situação ICMS inválida.");
   }
 }
 
@@ -111,6 +132,7 @@ export class ClientService {
   register(input: ClientInput): Promise<Client> {
     const record: NewClientRecord = normalizeFields(input);
     assertValidDocuments(record);
+    assertValidFiscalFields(record);
     return this.clients.create(record);
   }
 
@@ -118,6 +140,7 @@ export class ClientService {
     await this.getById(id);
     const changes: ClientChanges = normalizeFields(input);
     assertValidDocuments(changes as Pick<NewClientRecord, "kind" | "cpf" | "cnpj" | "responsibleCpf">);
+    assertValidFiscalFields(changes);
     return this.clients.update(id, changes);
   }
 }

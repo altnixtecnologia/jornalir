@@ -229,12 +229,17 @@ export function createClientRepositorySupabase(client: SupabaseClient): ClientRe
   };
 }
 
+export type ClientAdminSortKey = "reference" | "name" | "document" | "status";
+
 export interface ClientAdminPageQuery {
   page?: number;
   pageSize?: number;
   search?: string;
   kind?: ClientKind;
   status?: ClientStatus;
+  role?: ClientRole;
+  sortBy?: ClientAdminSortKey;
+  sortDir?: "asc" | "desc";
 }
 
 export interface ClientAdminPageResult {
@@ -267,13 +272,19 @@ export async function listClientsAdminPageSupabase(
   const requestedPage = Math.max(1, Math.floor(input.page ?? 1));
 
   const build = (page: number) => {
+    // Alias independente: filtragem por papel sem perder os demais papéis exibidos.
     let query = client
       .from(TABLE)
-      .select(COLUMNS, { count: "exact" })
-      .order("created_at", { ascending: false });
-
+      .select(input.role ? COLUMNS + ",role_match:client_roles!inner(role)" : COLUMNS, { count: "exact" });
+    const sortColumn = input.sortBy === "name" ? "display_sort_name"
+      : input.sortBy === "document" ? "document_sort_key"
+      : input.sortBy === "reference" ? "internal_reference"
+      : input.sortBy === "status" ? "status" : "created_at";
+    const ascending = input.sortBy ? input.sortDir !== "desc" : false;
+    query = query.order(sortColumn, { ascending }).order("id", { ascending: true });
     if (input.kind) query = query.eq("kind", input.kind);
     if (input.status) query = query.eq("status", input.status);
+    if (input.role) query = query.eq("role_match.role", input.role);
 
     const term = cleanSearch(input.search);
     if (term) {
@@ -291,6 +302,9 @@ export async function listClientsAdminPageSupabase(
       if (digits) {
         ors.push(`cpf.ilike.%${digits}%`, `cnpj.ilike.%${digits}%`, `phone_primary.ilike.%${digits}%`, `whatsapp.ilike.%${digits}%`);
       }
+      // Pesquisa por estabelecimentos com CNPJ alfanumérico (sem remover letras).
+      const cnpjTerm = term.toUpperCase().replace(/[^A-Z0-9]/g, "");
+      if (cnpjTerm.length >= 2) ors.push(`cnpj.ilike.%${cnpjTerm}%`);
       query = query.or(ors.join(","));
     }
 

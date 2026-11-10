@@ -1,0 +1,44 @@
+name: Cadastros - Fiscal e listagem (sem deploy)
+on:
+  push:
+    branches:
+      - fix/cadastros-fiscal-filtros-20261110
+  pull_request:
+    paths:
+      - "apps/sistema/src/features/clientes/**"
+      - "apps/sistema/src/app/sistema/clientes/**"
+      - "apps/sistema/src/providers/supabase/clientRepository.supabase.ts"
+      - "packages/core/src/clientes/**"
+      - "packages/core/test/client-cnpj-alphanumeric.test.ts"
+      - "supabase/migrations/*cadastros*.sql"
+      - ".github/workflows/validate-cadastros-fechamento.yml"
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  cadastros:
+    runs-on: ubuntu-latest
+    timeout-minutes: 17
+    env:
+      NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ci-anon-key
+      NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ci-publishable-key
+      NEXT_TELEMETRY_DISABLED: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+      - name: Instalação reproduzível
+        run: npm ci --no-audit --no-fund
+      - name: CNPJ antigo e alfanumérico / campos fiscais
+        run: npx tsx --test packages/core/test/client-cnpj-alphanumeric.test.ts
+      - name: Aniversariantes e vínculos (regressão)
+        run: |
+          npx tsx --test apps/sistema/test/birthday-date-input.test.ts
+          NODE_OPTIONS=--conditions=react-server npx tsx --test apps/sistema/test/birthday-entries-legacy-consent-regression.test.ts
+      - name: TypeScript do sistema
+        run: npm run typecheck --workspace @ir/sistema
+      - name: Build do sistema sem publicação
+        run: npm run build --workspace @ir/sistema

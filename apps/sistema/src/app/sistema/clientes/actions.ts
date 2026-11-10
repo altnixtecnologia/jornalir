@@ -36,6 +36,10 @@ function toServiceInput(payload: ClientFormPayload): ClientInput {
     phoneSecondary: payload.phoneSecondary,
     whatsapp: payload.whatsapp,
     email: payload.email,
+    fiscalEmail: payload.fiscalEmail,
+    municipalRegistration: payload.municipalRegistration,
+    addressIbgeCode: payload.addressIbgeCode,
+    icmsStatus: payload.icmsStatus || undefined,
     address: {
       zip: payload.addressZip,
       street: payload.addressStreet,
