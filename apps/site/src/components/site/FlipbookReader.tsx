@@ -193,7 +193,7 @@ export function FlipbookReader({ pdfUrl, title, zoomPercent }: FlipbookReaderPro
           renderOnlyPageLengthChange
           style={{}}
           className="shadow-2xl"
-          onFlip={(event) => setCurrentPage(event.data)}
+          onFlip={(event: { data: number }) => setCurrentPage(event.data)}
         >
           {Array.from({ length: pdf.numPages }, (_, index) => (
             <PdfPage key={`${title}-${index}`} pdf={pdf} index={index} title={title} />
