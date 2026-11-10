@@ -105,6 +105,7 @@ export async function loadAgendaWorkspaceData(focusDate: string): Promise<Agenda
     supabase.rpc("has_staff_module_access", { p_module: "agenda", p_write: true }),
     supabase.rpc("has_staff_module_access", { p_module: "pauta", p_write: false }),
     supabase.rpc("has_staff_module_access", { p_module: "pauta", p_write: true }),
+    supabase.rpc("is_agenda_manager"),
   ]);
   const failedPermission = permissionResults.find((result) => result.error);
   if (failedPermission?.error) throw new Error(failedPermission.error.message);
@@ -114,6 +115,7 @@ export async function loadAgendaWorkspaceData(focusDate: string): Promise<Agenda
     pautaRead: permissionResults[2].data === true,
     pautaWrite: permissionResults[3].data === true,
     editorialLinkAccess: false,
+    coverageManage: permissionResults[4].data === true,
   };
   if (!access.agendaRead && !access.pautaRead) redirect("/sistema");
 
@@ -184,22 +186,38 @@ export async function loadAgendaWorkspaceData(focusDate: string): Promise<Agenda
   if (transferResult.error) throw new Error(transferResult.error.message);
   const transferByEvent = new Map((transferResult.data ?? []).map((t) => [t.event_id,t]));
   const teamEventIds=(coverageResult.data??[]).filter(v=>v.team_mode).map(v=>v.event_id);
-  const [membersResult,teamTransfersResult]=await Promise.all([
+  const [membersResult,teamTransfersResult,tasksResult]=await Promise.all([
     teamEventIds.length?supabase.from("event_coverage_members")
       .select("event_id,profile_id,field_task,field_completed_at,attendance_response,attendance_responded_at")
       .in("event_id",teamEventIds):Promise.resolve({data:[],error:null}),
     teamEventIds.length?supabase.from("event_coverage_member_transfers")
       .select("id,event_id,from_profile_id,to_profile_id,transfer_part,reason,requested_by")
       .in("event_id",teamEventIds).eq("status","pending"):Promise.resolve({data:[],error:null}),
+    teamEventIds.length?supabase.from("event_coverage_member_tasks")
+      .select("id,event_id,profile_id,task_kind,task_label,completed_at,completed_by")
+      .in("event_id",teamEventIds).order("created_at",{ascending:true})
+      :Promise.resolve({data:[],error:null}),
   ]);
   if(membersResult.error)throw new Error(membersResult.error.message);
   if(teamTransfersResult.error)throw new Error(teamTransfersResult.error.message);
+  if(tasksResult.error)throw new Error(tasksResult.error.message);
+  const tasksByPerson=new Map<string,CoverageTeamMember["tasks"]>();
+  for(const entry of tasksResult.data??[]){
+    const key=entry.event_id+":"+entry.profile_id;
+    const list=tasksByPerson.get(key)??[];
+    list.push({
+      id:entry.id,kind:entry.task_kind as CoverageTeamMember["tasks"][number]["kind"],
+      label:entry.task_label,completedAt:entry.completed_at,completedBy:entry.completed_by,
+    });
+    tasksByPerson.set(key,list);
+  }
   const membersByEvent=new Map<string,CoverageTeamMember[]>();
   for(const entry of membersResult.data??[]){
     const list=membersByEvent.get(entry.event_id)??[];
     list.push({
       profileId:entry.profile_id,fieldTask:entry.field_task,
       fieldCompletedAt:entry.field_completed_at,
+      tasks:tasksByPerson.get(entry.event_id+":"+entry.profile_id)??[],
       attendanceResponse:entry.attendance_response as CoverageTeamMember["attendanceResponse"],
       attendanceRespondedAt:entry.attendance_responded_at,
     });

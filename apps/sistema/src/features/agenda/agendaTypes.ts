@@ -1,9 +1,18 @@
 export type CoverageAttendance = "pending" | "present" | "not_required" | "unable";
 
+export interface CoverageTask {
+  id:string;
+  kind:import("./coverageTaskCatalog").CoverageTaskKind;
+  label:string;
+  completedAt:string|null;
+  completedBy:string|null;
+}
+
 export interface CoverageTeamMember {
   profileId: string;
   fieldTask: string | null;
   fieldCompletedAt: string | null;
+  tasks: CoverageTask[];
   attendanceResponse: CoverageAttendance;
   attendanceRespondedAt: string | null;
 }
@@ -110,7 +119,7 @@ export interface AgendaWorkspaceData {
   periodReason: string | null;
   periodEdited: boolean;
   currentUserId: string;
-  access: { agendaRead: boolean; agendaWrite: boolean; pautaRead: boolean; pautaWrite: boolean; editorialLinkAccess: boolean };
+  access: { agendaRead: boolean; agendaWrite: boolean; pautaRead: boolean; pautaWrite: boolean; editorialLinkAccess: boolean; coverageManage: boolean };
   profiles: AgendaProfile[];
   events: AgendaEventItem[];
   pendingInvitations: PendingMeetingInvitation[];

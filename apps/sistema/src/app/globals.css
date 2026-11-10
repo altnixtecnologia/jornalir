@@ -7243,3 +7243,36 @@ button.secondary-link {
  .coverage-team-article{flex-wrap:wrap;}
  .pauta-actions-row .pauta-tv-link{margin-left:0;}
 }
+
+/* Pauta: várias entregas por colaborador, sem duplicar a pessoa. */
+.coverage-task-selector{display:grid;gap:8px;min-width:0}
+.coverage-task-selector-label{font-size:11px;font-weight:750;letter-spacing:.02em}
+.coverage-task-selector-label small{font-size:10px;font-weight:400;color:var(--muted)}
+.coverage-task-options{display:flex;align-items:center;flex-wrap:wrap;gap:6px}
+.coverage-task-option{display:inline-flex;align-items:center;gap:5px;padding:7px 9px;
+ border:1px solid var(--line);border-radius:8px;font-size:11px;font-weight:600;
+ line-height:1.2;cursor:pointer;background:#fbfcff}
+.coverage-task-option:has(input:checked){background:#eaf0ff;color:#203b78;border-color:#93a9d9}
+.coverage-task-option input{width:14px;height:14px;margin:0;accent-color:#253c79}
+.coverage-custom-task{display:flex;min-width:0;gap:6px}
+.coverage-custom-task input{flex:1;min-width:0;max-width:400px;min-height:34px}
+.coverage-custom-task button{min-width:90px;min-height:34px;font-size:11px}
+.coverage-custom-tasks{display:flex;flex-wrap:wrap;gap:6px}
+.coverage-custom-tasks button{padding:5px 8px;font-size:11px;border:1px solid #7b94bb;
+ background:#eef3fd;border-radius:6px}
+.coverage-task-error{font-size:10px;color:#b03839}
+.coverage-team-editor .coverage-team-row{
+ grid-template-columns:minmax(180px,.75fr) minmax(300px,1.65fr) 26px;
+ align-items:start;gap:10px;border:1px solid var(--line);border-radius:9px;
+ background:#fafbfd;padding:10px}
+.coverage-team-editor .coverage-team-row>.coverage-remove{align-self:start;margin-top:18px}
+.coverage-team-panel .coverage-field-delivery{display:flex;flex-wrap:wrap;
+ justify-content:space-between;align-items:center;gap:8px;margin-top:4px}
+.coverage-team-panel .coverage-field-delivery button{min-width:95px}
+.coverage-team-panel .coverage-member-heading>span{font-size:10px}
+@media(max-width:740px){
+ .coverage-team-editor .coverage-team-row{grid-template-columns:minmax(0,1fr) 26px}
+ .coverage-team-editor .coverage-team-row>.agenda-field:first-child{grid-column:1;grid-row:1}
+ .coverage-team-editor .coverage-team-row>.coverage-task-selector{grid-column:1;grid-row:2}
+ .coverage-team-editor .coverage-team-row>.coverage-remove{grid-column:2;grid-row:1/3}
+}
