@@ -11,9 +11,14 @@ Atualizado: 10/11/2026. Checklists devem receber data, resultado e evidência
 - [ ] Conferir exclusão de pauta vinculada à Agenda; compromisso original permanece intacto
 - [ ] Conferir permissões: proprietário, administrador habilitado, operador sem autorização
 - [ ] Conferir ícones discretos, alinhamento e layout responsivo desktop/mobile
-- [ ] Organizar cartões da Pauta pelo mouse arrastando o cartão inteiro, sem alça dedicada
+- [ ] Organizar cartões da Pauta pela alça discreta entre a borda colorida e o título, sem arrastar o restante
 - [ ] Conferir ordem salva para outros usuários, após F5 e na Pauta TV (sem mudar layout TV)
 - [ ] Conferir 3 colunas no desktop, 2 na tela intermediária e 1 no celular
+- [ ] Abrir o detalhe da Pauta como painel flutuante ancorado ao cartão, sem alterar as linhas das 3 colunas
+- [ ] Apenas uma pauta aberta: abrir outra fecha a anterior; clicar na mesma fecha
+- [ ] Ícone editar abre a pauta correta e fecha a anterior; sem perder funcionalidades internas
+- [ ] Conferir alinhamento dos painéis em cada coluna e rolagem para conteúdos longos
+- [ ] Testar teclado Enter para expandir e setas para reordenar pela alça
 - [ ] Conferir título da pauta em peso normal e com quebra de linha integral, sem cortes
 - [ ] Não arrastar quando clicar nos botões, links ou preencher formulário
 - [ ] Bloquear arrastar quando houver filtro de colaborador; impedir reordenação concorrente

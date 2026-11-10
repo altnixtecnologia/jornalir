@@ -1,4 +1,4 @@
-/** Ordenação de cartões da Pauta por arrastar o cartão inteiro.
+/** Ordenação de cartões da Pauta pela alça lateral.
  * Não altera o array original, nem cria ou remove registros. */
 export function movePautaCardIds(
   ids:readonly string[],sourceId:string,targetId:string
@@ -9,4 +9,9 @@ export function movePautaCardIds(
   next.splice(from,1);
   next.splice(to,0,sourceId);
   return next;
+}
+
+/** Só uma pauta pode estar aberta: clicar novamente fecha a mesma. */
+export function togglePautaOpenId(current:string|null,clicked:string):string|null{
+  return current===clicked?null:clicked;
 }

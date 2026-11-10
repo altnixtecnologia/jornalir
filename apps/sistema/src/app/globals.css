@@ -7900,3 +7900,65 @@ details.pauta-item:has(.workflow-pauta-tools)>.workflow-collapsed-summary{paddin
  outline-offset:2px;
  background:#f0f6ff
 }
+
+
+/* Pauta: painel de detalhes flutuante, ancorado abaixo do cartão. Não desloca
+   as outras linhas nem altera o layout 9:16 da TV. */
+.is-pauta-workspace .pauta-list{position:relative;isolation:isolate}
+.is-pauta-workspace details.pauta-item{position:relative;z-index:auto}
+.is-pauta-workspace details.pauta-item[open]{z-index:20}
+.is-pauta-workspace details.pauta-item[open]>.workflow-expanded-body.pauta-expanded-body{
+ position:absolute;
+ top:calc(100% + 5px);
+ left:0;
+ z-index:25;
+ box-sizing:border-box;
+ width:min(max(100%,450px),calc(100vw - 32px));
+ max-height:min(68vh,620px);
+ overflow-x:hidden;
+ overflow-y:auto;
+ overscroll-behavior:contain;
+ padding:14px 12px 16px;
+ border:1px solid #cbd7e8;
+ border-radius:9px;
+ background:#fff;
+ box-shadow:0 12px 32px rgba(22,38,65,.20);
+}
+/* Da última coluna, o painel expande para a esquerda, dentro da página. */
+@media(min-width:1280px){
+ .is-pauta-workspace details.pauta-item:nth-child(3n)[open]>.workflow-expanded-body.pauta-expanded-body{
+  right:0;left:auto
+ }
+}
+@media(min-width:800px) and (max-width:1279px){
+ .is-pauta-workspace details.pauta-item:nth-child(2n)[open]>.workflow-expanded-body.pauta-expanded-body{
+  right:0;left:auto
+ }
+}
+@media(max-width:799px){
+ .is-pauta-workspace details.pauta-item[open]>.workflow-expanded-body.pauta-expanded-body{
+  left:0;right:0;width:100%;max-height:65vh
+ }
+}
+/* Arraste só pela pequena alça entre a faixa colorida e o título. */
+.is-pauta-workspace details.pauta-item.is-reorderable,
+.is-pauta-workspace details.pauta-item.is-reorderable:active{cursor:default}
+.is-pauta-workspace details.pauta-item.is-reorderable>.workflow-collapsed-summary{cursor:pointer}
+.is-pauta-workspace details.pauta-item>.workflow-collapsed-summary{align-items:center}
+.is-pauta-workspace details.pauta-item>.workflow-collapsed-summary .pauta-drag-grip{
+ flex:0 0 22px;width:22px;min-width:22px;height:30px;min-height:30px;
+ padding:0;display:grid;place-items:center;
+ border:1px solid transparent;border-radius:6px;background:transparent;
+ color:#7f8ca0;font-size:16px;font-weight:700;line-height:1;letter-spacing:-4px;
+ cursor:grab;touch-action:none
+}
+.is-pauta-workspace details.pauta-item>.workflow-collapsed-summary .pauta-drag-grip:hover{
+ background:#edf3fa;border-color:#d6e2f1;color:#385e8c
+}
+.is-pauta-workspace details.pauta-item>.workflow-collapsed-summary .pauta-drag-grip:active{cursor:grabbing}
+.is-pauta-workspace details.pauta-item>.workflow-collapsed-summary .pauta-drag-grip:focus-visible{
+ outline:2px solid var(--brand);outline-offset:2px
+}
+.is-pauta-workspace details.pauta-item>.workflow-collapsed-summary .pauta-drag-grip:disabled{
+ opacity:.4;cursor:default
+}
