@@ -11,11 +11,13 @@
     "@capacitor/android": "7.6.9",
     "@capacitor/app": "7.1.0",
     "@capacitor/core": "7.6.9",
+    "@capacitor/ios": "7.6.9",
     "@capacitor/local-notifications": "7.0.7",
     "@capacitor/push-notifications": "7.0.7"
   },
   "devDependencies": {
-    "@capacitor/cli": "7.6.9"
+    "@capacitor/cli": "7.6.9",
+    "typescript": "5.6.3"
   },
   "license": "UNLICENSED"
 }
