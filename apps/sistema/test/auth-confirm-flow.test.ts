@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   parseAuthConfirmType,
+  isValidAuthTokenHash,
   authConfirmSuccessDestination,
   authConfirmErrorDestination,
   INVALID_LINK_DESTINATION,
