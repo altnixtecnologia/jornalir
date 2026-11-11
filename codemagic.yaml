@@ -1,0 +1,111 @@
+# Jornal IR — dois aplicativos iOS no mesmo monorepo.
+# Execucao MANUAL. Nenhuma distribuicao automatica para App Store ou TestFlight.
+# Os workflows "simulador" nao precisam de certificados Apple.
+# Os workflows "dispositivo" exigem Apple Developer e perfis cadastrados no Codemagic.
+
+workflows:
+  jornal-ir-ios-simulator:
+    name: Jornal IR - iOS - simulador
+    instance_type: mac_mini_m2
+    max_build_duration: 60
+    environment:
+      xcode: latest
+      cocoapods: default
+      node: v22.11.0
+    scripts:
+      - name: Instalar dependencias
+        script: npm ci --no-audit --no-fund
+      - name: Sincronizar projeto iOS
+        script: cd apps/mobile && npx cap sync ios
+      - name: Compilar no simulador sem assinatura
+        script: |
+          xcodebuild -workspace apps/mobile/ios/App/App.xcworkspace \
+            -scheme App -configuration Debug -sdk iphonesimulator \
+            -destination 'generic/platform=iOS Simulator' \
+            -derivedDataPath /tmp/jornalir-ios \
+            CODE_SIGNING_ALLOWED=NO build
+    artifacts:
+      - /tmp/jornalir-ios/Build/Products/Debug-iphonesimulator/*.app
+      - /tmp/xcodebuild_logs/*.log
+
+  ir-controle-ios-simulator:
+    name: IR Controle - iOS - simulador
+    instance_type: mac_mini_m2
+    max_build_duration: 60
+    environment:
+      xcode: latest
+      cocoapods: default
+      node: v22.11.0
+    scripts:
+      - name: Instalar dependencias
+        script: npm ci --no-audit --no-fund
+      - name: Sincronizar projeto iOS
+        script: cd apps/mobile-sistema && npx cap sync ios
+      - name: Compilar no simulador sem assinatura
+        script: |
+          xcodebuild -workspace apps/mobile-sistema/ios/App/App.xcworkspace \
+            -scheme App -configuration Debug -sdk iphonesimulator \
+            -destination 'generic/platform=iOS Simulator' \
+            -derivedDataPath /tmp/ir-controle-ios \
+            CODE_SIGNING_ALLOWED=NO build
+    artifacts:
+      - /tmp/ir-controle-ios/Build/Products/Debug-iphonesimulator/*.app
+      - /tmp/xcodebuild_logs/*.log
+
+  jornal-ir-ios-device:
+    name: Jornal IR - iOS - IPA de teste
+    instance_type: mac_mini_m2
+    max_build_duration: 90
+    environment:
+      xcode: latest
+      cocoapods: default
+      node: v22.11.0
+      ios_signing:
+        distribution_type: app_store
+        bundle_identifier: com.jornalir
+    scripts:
+      - name: Instalar dependencias
+        script: npm ci --no-audit --no-fund
+      - name: Sincronizar projeto iOS
+        script: cd apps/mobile && npx cap sync ios
+      - name: Ativar entitlement APNs de distribuicao
+        script: /usr/libexec/PlistBuddy -c "Set :aps-environment production" apps/mobile/ios/App/App/App.entitlements
+      - name: Aplicar assinatura configurada no Codemagic
+        script: xcode-project use-profiles
+      - name: Gerar IPA
+        script: |
+          xcode-project build-ipa \
+            --workspace "$CM_BUILD_DIR/apps/mobile/ios/App/App.xcworkspace" \
+            --scheme App
+    artifacts:
+      - apps/mobile/ios/App/build/ios/ipa/*.ipa
+      - /tmp/xcodebuild_logs/*.log
+
+  ir-controle-ios-device:
+    name: IR Controle - iOS - IPA de teste
+    instance_type: mac_mini_m2
+    max_build_duration: 90
+    environment:
+      xcode: latest
+      cocoapods: default
+      node: v22.11.0
+      ios_signing:
+        distribution_type: app_store
+        bundle_identifier: com.jornalir.controle
+    scripts:
+      - name: Instalar dependencias
+        script: npm ci --no-audit --no-fund
+      - name: Sincronizar projeto iOS
+        script: cd apps/mobile-sistema && npx cap sync ios
+      - name: Ativar entitlement APNs de distribuicao
+        script: /usr/libexec/PlistBuddy -c "Set :aps-environment production" apps/mobile-sistema/ios/App/App/App.entitlements
+      - name: Aplicar assinatura configurada no Codemagic
+        script: xcode-project use-profiles
+      - name: Gerar IPA
+        script: |
+          xcode-project build-ipa \
+            --workspace "$CM_BUILD_DIR/apps/mobile-sistema/ios/App/App.xcworkspace" \
+            --scheme App
+    artifacts:
+      - apps/mobile-sistema/ios/App/build/ios/ipa/*.ipa
+      - /tmp/xcodebuild_logs/*.log
