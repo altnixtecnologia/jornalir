@@ -15,7 +15,7 @@ workflows:
       events: []
     scripts:
       - name: Preparar dependencias do app
-        script: npm install --no-audit --no-fund --package-lock=false
+        script: cd "$CM_BUILD_DIR" && npm ci --no-audit --no-fund
       - name: Gerar projeto nativo iOS
         script: |
           if [ ! -e ios/App/App.xcworkspace ]; then
@@ -46,7 +46,7 @@ workflows:
       events: []
     scripts:
       - name: Preparar dependencias do app
-        script: npm install --no-audit --no-fund --package-lock=false
+        script: cd "$CM_BUILD_DIR" && npm ci --no-audit --no-fund
       - name: Gerar projeto nativo iOS
         script: |
           if [ ! -e ios/App/App.xcworkspace ]; then
