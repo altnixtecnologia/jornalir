@@ -132,3 +132,10 @@ Atualizado: 10/11/2026. Checklists devem receber data, resultado e evidência
 - [ ] **Acesso real depende de confirmação do e-mail** no Supabase Auth — não confirmar artificialmente
 - [ ] Conferir em sessão autenticada com o Maiquiu (teste visual, sem usar credenciais compartilhadas)
 - [ ] Poder jurídico de assinar contratos em nome da empresa exige concessão explícita própria
+
+## Ideias registradas em 11/11/2026 — não implementar agora
+
+- **Atualização de matéria já publicada:** estudar uma notificação opcional de “Matéria atualizada” (portal/app), distinguindo correções pequenas de atualizações relevantes, com ação editorial explícita, controle de preferências, deduplicação, limite de frequência e registro de quem autorizou. Não reenviar automaticamente push a cada edição ou correção sem critério e testes.
+- **Cartola nas matérias:** verificar se o editor, banco e exibição pública já possuem o campo cartola (antetítulo/chamada curta acima do título). Se ausente, propor implantação compatível com matérias existentes e importação; não confundir cartola com campo de **fonte/origem da matéria**, que deve ser verificável e rastreável para auditoria editorial. Preservar o conteúdo e a apresentação atuais.
+
+**Status:** anotado para análise futura a pedido do proprietário; sem código, migração, publicação ou alteração de matérias nesta etapa.
