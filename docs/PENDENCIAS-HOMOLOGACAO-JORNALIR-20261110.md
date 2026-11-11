@@ -133,6 +133,11 @@ Atualizado: 10/11/2026. Checklists devem receber data, resultado e evidência
 - [ ] Conferir em sessão autenticada com o Maiquiu (teste visual, sem usar credenciais compartilhadas)
 - [ ] Poder jurídico de assinar contratos em nome da empresa exige concessão explícita própria
 
+## Pauta TV — solicitação registrada em 11/11/2026 (não implementar agora)
+
+- [ ] **Edição na Pauta TV:** exibir, de forma legível e discreta, o **número da edição do jornal** na página `/tv/pauta` e no aplicativo da Pauta TV, conforme o **mesmo número configurado no painel administrativo para o período da Pauta** (inclusive quando houver ajuste manual). Reaproveitar a fonte de dados e as regras existentes da edição — nunca criar um campo ou configuração de edição exclusiva para a TV, nem fixar um número em código.
+- [ ] Conferir atualização da edição quando a equipe alterar o período/número no painel, sem interromper o modo TV ou modificar os cards/ordenação atuais.
+
 ## Ideias registradas em 11/11/2026 — não implementar agora
 
 - **Atualização de matéria já publicada:** estudar uma notificação opcional de “Matéria atualizada” (portal/app), distinguindo correções pequenas de atualizações relevantes, com ação editorial explícita, controle de preferências, deduplicação, limite de frequência e registro de quem autorizou. Não reenviar automaticamente push a cada edição ou correção sem critério e testes.
