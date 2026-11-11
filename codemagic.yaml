@@ -63,3 +63,59 @@ workflows:
     artifacts:
       - $HOME/Library/Developer/Xcode/DerivedData/**/Build/Products/Debug-iphonesimulator/*.app
       - /tmp/xcodebuild_logs/*.log
+
+
+  jornal-ir-ios-iphone-unsigned:
+    name: Jornal IR — iPhone fisico (IPA sem assinatura, para Sideloadly)
+    instance_type: mac_mini_m2
+    max_build_duration: 60
+    environment:
+      node: v22.11.0
+      xcode: latest
+      cocoapods: default
+    triggering:
+      events: [] # Somente execucao manual, sem publicar e sem alterar o Android
+    scripts:
+      - name: Instalar dependencias preservando o lockfile
+        script: |
+          cd "$CM_BUILD_DIR"
+          npm ci --no-audit --no-fund
+      - name: Preparar app publico iOS do Portal
+        script: |
+          set -e
+          cd "$CM_BUILD_DIR/apps/mobile"
+          if [ ! -f ios/App/App.xcodeproj/project.pbxproj ]; then
+            npx cap add ios
+          fi
+          npx cap sync ios
+          test -f ios/App/App.xcworkspace/contents.xcworkspacedata
+      - name: Compilar para dispositivo fisico sem assinatura Apple
+        script: |
+          set -e
+          cd "$CM_BUILD_DIR/apps/mobile"
+          xcodebuild -workspace ios/App/App.xcworkspace \
+            -scheme App -configuration Release \
+            -sdk iphoneos -destination 'generic/platform=iOS' \
+            -derivedDataPath "$CM_BUILD_DIR/.build-jornal-ir-ios" \
+            CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO \
+            build
+      - name: Empacotar e validar IPA para assinatura local pelo Sideloadly
+        script: |
+          set -eu
+          APP="$CM_BUILD_DIR/.build-jornal-ir-ios/Build/Products/Release-iphoneos/App.app"
+          OUT="$CM_BUILD_DIR/ios-unsigned-artifacts"
+          test -d "$APP"
+          ID=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$APP/Info.plist")
+          test "$ID" = "com.jornalir"
+          EXEC=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$APP/Info.plist")
+          test -f "$APP/$EXEC"
+          mkdir -p "$OUT/Payload"
+          ditto "$APP" "$OUT/Payload/App.app"
+          (cd "$OUT" && zip -qry "JornalIR-com.jornalir-unsigned.ipa" Payload)
+          unzip -tq "$OUT/JornalIR-com.jornalir-unsigned.ipa"
+          shasum -a 256 "$OUT/JornalIR-com.jornalir-unsigned.ipa" > "$OUT/SHA256SUMS.txt"
+          echo "IPA unsigned criado e verificado; instalar pelo Sideloadly com Apple ID gratuito."
+    artifacts:
+      - ios-unsigned-artifacts/*.ipa
+      - ios-unsigned-artifacts/SHA256SUMS.txt
+      - /tmp/xcodebuild_logs/*.log
