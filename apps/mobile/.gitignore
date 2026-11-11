@@ -1,3 +1,10 @@
 node_modules
 www/dist
 package-lock.json
+# Projeto Xcode gerado apenas em macOS/Codemagic; nao mexer no APK Android.
+ios/
+*.ipa
+*.xcarchive
+*.mobileprovision
+*.p8
+*.p12
