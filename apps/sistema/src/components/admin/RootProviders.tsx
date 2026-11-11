@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import { AuthProvider } from "../../lib/auth/AuthProvider";
 import { ToastProvider } from "../feedback/ToastProvider";
 import { ConfirmHost } from "../feedback/ConfirmHost";
+import { NativeAgendaReminders } from "./NativeAgendaReminders";
 
 /**
  * Envolve todo o app (login + painel) numa única instância de sessão real.
@@ -20,6 +21,7 @@ export function RootProviders({ children, localPreview = false }: { children: Re
       <ToastProvider>
         {children}
         <ConfirmHost />
+        <NativeAgendaReminders />
       </ToastProvider>
     </AuthProvider>
   );
