@@ -19,6 +19,12 @@ const ERROR_DESTINATION: Record<AuthConfirmType, string> = {
 
 export const INVALID_LINK_DESTINATION = "/login?erro=link-invalido";
 
+/** Token hash do Supabase: recusa valores curtos, enormes ou não seguros
+ * para interpolação em HTML/rotas, sem registrar o token em logs. */
+export function isValidAuthTokenHash(value: string | null): value is string {
+  return typeof value === "string" && /^[a-zA-Z0-9._~-]{32,1024}$/.test(value);
+}
+
 export function parseAuthConfirmType(value: string | null): AuthConfirmType | null {
   return value === "invite" || value === "recovery" ? value : null;
 }

@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   parseAuthConfirmType,
+  isValidAuthTokenHash,
   authConfirmSuccessDestination,
   authConfirmErrorDestination,
   INVALID_LINK_DESTINATION,
@@ -43,5 +44,15 @@ test("nenhum destino desta rota aponta para fora do próprio domínio (sem open 
   for (const destination of destinations) {
     assert.ok(destination.startsWith("/"), `${destination} precisa ser um caminho relativo interno`);
     assert.ok(!destination.startsWith("//"), `${destination} não pode ser um redirecionamento disfarçado de protocolo-relativo`);
+  }
+});
+
+test("tokens devem possuir formato seguro e comprimento limitado", () => {
+  assert.ok(isValidAuthTokenHash("a".repeat(64)));
+  assert.ok(isValidAuthTokenHash("aB7.-_~".repeat(10)));
+  for (const invalid of [null, "", "abc", "<script>alert(1)</script>",
+    "a".repeat(1025), "a".repeat(31), "a b c".repeat(12),
+    "https://example.com/alguma-coisa"]) {
+    assert.equal(isValidAuthTokenHash(invalid), false);
   }
 });
