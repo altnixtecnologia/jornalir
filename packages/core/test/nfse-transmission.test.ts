@@ -148,7 +148,7 @@ class FakeNationalNfseProvider implements NationalNfseProvider {
   async getMunicipalParameters(): Promise<never> {
     throw new Error("not used in these tests");
   }
-  async transmitDps(): Promise<NationalNfseResponseEnvelope> {
+  async transmitDps(_signedDpsXml: string, _environment: "homologation" | "production"): Promise<NationalNfseResponseEnvelope> {
     if (this.behavior === "throw") throw new Error("network timeout");
     if (this.behavior === "reject") return { status: "rejected", rejection: { code: "E123", message: "CNPJ do tomador inválido" } };
     return { status: "authorized", accessKey: "ACCESSKEY123", nfseNumber: "1", issuedAt: "2026-10-01T10:05:00Z", nfseXml: "<NFSe/>" };
