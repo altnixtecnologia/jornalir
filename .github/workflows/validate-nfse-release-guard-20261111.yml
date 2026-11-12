@@ -29,7 +29,6 @@ jobs:
       NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ci-test-key
       NEXT_TELEMETRY_DISABLED: "1"
       SIGNATURE_DELIVERY_ENABLED: "false"
-      NODE_OPTIONS: --conditions=react-server
     steps:
       - name: Checkout somente codigo do PR
         uses: actions/checkout@v4
@@ -47,6 +46,8 @@ jobs:
         run: npm run typecheck --workspace @ir/sistema
 
       - name: Testes de transmissao, emissao simulada e XSD
+        env:
+          NODE_OPTIONS: --conditions=react-server
         run: >
           npx tsx --test
           packages/core/test/nfse-transmission.test.ts
@@ -55,6 +56,8 @@ jobs:
           packages/core/test/nfse-cancellation.test.ts
 
       - name: Verificar trava fiscal na interface e nas rotas
+        env:
+          NODE_OPTIONS: --conditions=react-server
         run: npx tsx --test apps/sistema/test/prepublication-release-gates.test.ts
 
       - name: Compilar sistema Next.js sem publicar na Vercel
