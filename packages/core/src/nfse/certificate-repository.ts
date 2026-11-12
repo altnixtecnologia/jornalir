@@ -28,9 +28,13 @@ export interface StoredCertificateRecord {
 export type NewCertificateRecord = Omit<StoredCertificateRecord, "id" | "active" | "createdAt">;
 
 export interface CertificateRepository {
-  /** Só o certificado ATIVO (nunca mais de um ativo por configuração — ver deactivateAll). */
+  /** Somente o certificado ativo do prestador. */
   getActive(issuerConfigId: string): Promise<StoredCertificateRecord | null>;
-  create(record: NewCertificateRecord): Promise<StoredCertificateRecord>;
-  /** Chamado ANTES de criar um novo certificado — "substituir certificado" nunca deixa dois ativos ao mesmo tempo. */
-  deactivateAll(issuerConfigId: string): Promise<void>;
+  /**
+   * Troca o certificado em uma transação única:
+   * bloqueia o emitente, desativa o anterior e insere o novo.
+   * Se a inserção falhar, o certificado anterior permanece ativo.
+   * Nunca expor as operações separadas de desativar/inserir ao serviço.
+   */
+  replaceActive(record: NewCertificateRecord): Promise<StoredCertificateRecord>;
 }
