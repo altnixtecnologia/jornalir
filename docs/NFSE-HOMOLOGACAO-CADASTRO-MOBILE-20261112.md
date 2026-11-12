@@ -15,6 +15,9 @@ Atualização: 12/11/2026.
 5. Em edição, o snapshot anterior continua imutável até o operador clicar em atualizar ou selecionar outro cliente. O servidor aceita apenas snapshot histórico ou snapshot do cadastro mestre atual; payload adulterado é recusado.
 6. Em edição, o regime do prestador é preservado no snapshot original. Rascunhos já autorizados ou com tentativa pendente/incerta não podem ser modificados.
 7. Buscas e atualizações assíncronas antigas não substituem dados de outro cliente escolhido depois.
+8. A competência sugerida usa a data LOCAL do celular/computador, nunca `toISOString()` (UTC): evita trocar para o dia seguinte próximo da meia-noite brasileira.
+9. Quando o prestador é ME/EPP optante do Simples Nacional e a competência é anterior a 01/11/2026, exibir aviso **informativo**: o emissor correto de notas retroativas pode depender da adesão do município; não presumir bloqueio automático.
+
 
 ## Norma e documentação oficial consultadas
 - Receita Federal, Resolução CGSN nº 191/2026: obrigatoriedade do Emissor Nacional para ME/EPP optantes do Simples Nacional a partir de 01/11/2026. Regras de IBS/CBS aplicáveis ao Simples, nas hipóteses regulamentadas, a partir de 01/01/2027:
@@ -40,3 +43,6 @@ Essas referências não substituem a conferência das regras municipais, da cont
 - [ ] Exigir testes de CI, typecheck, build e revisão de código antes de qualquer merge ou deploy.
 
 **Pendências reais em 12/11:** A1 do prestador não confirmado no ambiente de homologação; configuração fiscal emitente e perfis não comprovados; contrato autenticado com a API SEFIN e emissões em Produção Restrita ainda não testados. Não afirmar que o módulo está homologado ou que notas podem ser emitidas até concluir essas etapas.
+
+## Complemento oficial de competência (29/10/2026)
+O Comitê Gestor da NFS-e informa que, para ME/EPP optantes pelo Simples Nacional, a data de competência determina o fluxo de emissão após 01/11/2026. Notas retroativas de competências anteriores podem continuar no emissor municipal quando a prefeitura mantinha emissor próprio. Nos municípios que já usavam o emissor nacional, a rotina pode permanecer inalterada. **É um aviso de conferência, não uma regra universal de proibição**: https://www.gov.br/nfse/pt-br/noticias/nfs-e-informa-diretrizes-sobre-a-obrigatoriedade-da-emissao-da-nfs-e-nacional-para-optantes-do-simples-nacional
