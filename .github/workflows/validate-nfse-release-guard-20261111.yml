@@ -10,6 +10,7 @@ on:
       - "packages/core/test/nfse-*.test.ts"
       - "packages/core/test/xsd-validator.test.ts"
       - "apps/sistema/src/composition/nfse.ts"
+      - "apps/sistema/test/prepublication-release-gates.test.ts"
       - "docs/NFSE-FINALIZACAO-20261025.md"
       - ".github/workflows/validate-nfse-release-guard-20261111.yml"
   workflow_dispatch:
