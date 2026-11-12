@@ -908,3 +908,99 @@ test("checkReadiness: sem regime especial de tributação configurado no prestad
   assert.equal(readiness.ready, false);
   assert.ok(readiness.missing.some((item) => item.includes("Regime especial")));
 });
+
+
+test("resposta de autorizacao incompleta fica INCERTA e impede segunda DPS", async () => {
+  const drafts = new FakeDraftRepository(makeDraft());
+  const issuer = new FakeIssuerConfigRepository(makeIssuerConfig());
+  const sequences = new FakeDpsSequenceRepository();
+  const notes = new FakeIssuedNoteRepository();
+  const attempts = new FakeTransmissionAttemptRepository();
+  const provider = new FakeNationalNfseProvider("authorize");
+  provider.transmitDps = async () => ({ status: "authorized", accessKey: "CHAVE_SEM_XML" });
+  attempts.listByDraftId = async () => attempts.created.slice().reverse().map((entry, i) => ({
+    id: `attempt-${i}`, createdAt: new Date().toISOString(), ...entry,
+  }));
+  const service = new TransmissionService(drafts, issuer, sequences, notes, attempts, provider, makeConfiguredCertificateProvider());
+  const first = await service.transmit({ draftId: "draft-1", isAdminOrOwner: true });
+  assert.equal(first.outcome, "uncertain");
+  assert.deepEqual(attempts.created.map((a) => a.status), ["pending", "uncertain"]);
+  assert.equal(notes.created.length, 0);
+  await assert.rejects(() => service.transmit({ draftId: "draft-1", isAdminOrOwner: true }), UnresolvedUncertainAttemptError);
+  assert.equal(sequences.calls, 1, "nenhuma nova DPS para resposta ambigua");
+});
+
+test("rejeicao sem detalhes oficiais nao autoriza retransmissao automatica", async () => {
+  const { service, attempts, issuedNotes } = makeService({ providerBehavior: "reject" });
+  const provider = (service as unknown as { provider: FakeNationalNfseProvider }).provider;
+  provider.transmitDps = async () => ({ status: "rejected" });
+  const result = await service.transmit({ draftId: "draft-1", isAdminOrOwner: true });
+  assert.equal(result.outcome, "uncertain");
+  assert.deepEqual(attempts.created.map((a) => a.status), ["pending", "uncertain"]);
+  assert.equal(issuedNotes.created.length, 0);
+});
+
+test("falha ao salvar NFS-e ja autorizada mantem rastro INCERTO; nao a trata como rejeicao", async () => {
+  const drafts = new FakeDraftRepository(makeDraft());
+  const issuer = new FakeIssuerConfigRepository(makeIssuerConfig());
+  const sequences = new FakeDpsSequenceRepository();
+  const notes = new FakeIssuedNoteRepository();
+  notes.create = async () => { throw new Error("simulacao: banco indisponivel apos autorizacao"); };
+  const attempts = new FakeTransmissionAttemptRepository();
+  attempts.listByDraftId = async () => attempts.created.slice().reverse().map((entry, i) => ({
+    id: `attempt-${i}`, createdAt: new Date().toISOString(), ...entry,
+  }));
+  const service = new TransmissionService(drafts, issuer, sequences, notes, attempts, new FakeNationalNfseProvider("authorize"), makeConfiguredCertificateProvider());
+  const result = await service.transmit({ draftId: "draft-1", isAdminOrOwner: true });
+  assert.equal(result.outcome, "uncertain");
+  assert.deepEqual(attempts.created.map((a) => a.status), ["pending", "uncertain"]);
+  await assert.rejects(() => service.transmit({ draftId: "draft-1", isAdminOrOwner: true }), UnresolvedUncertainAttemptError);
+  assert.equal(sequences.calls, 1);
+});
+
+test("apos claim le o rascunho novamente e transmite o snapshot mais recente", async () => {
+  const drafts = new FakeDraftRepository(makeDraft());
+  let reads = 0;
+  drafts.getById = async () => {
+    reads++;
+    return reads === 1 ? makeDraft({ serviceValue: 200 }) : makeDraft({ serviceValue: 350 });
+  };
+  const provider = new FakeNationalNfseProvider("authorize");
+  let signedXml = "";
+  provider.transmitDps = async (xml) => {
+    signedXml = xml;
+    return { status: "rejected", rejection: { code: "TEST", message: "teste sem efeito fiscal" } };
+  };
+  const service = new TransmissionService(
+    drafts, new FakeIssuerConfigRepository(makeIssuerConfig()),
+    new FakeDpsSequenceRepository(), new FakeIssuedNoteRepository(),
+    new FakeTransmissionAttemptRepository(), provider, makeConfiguredCertificateProvider(),
+  );
+  await service.transmit({ draftId: "draft-1", isAdminOrOwner: true });
+  assert.ok(reads >= 2, "tem que reler o snapshot sob claim");
+  assert.match(signedXml, /<vServ>350\.00<\/vServ>/);
+});
+
+test("tentativa pendente surgida durante o claim e revalidada antes da reserva", async () => {
+  const drafts = new FakeDraftRepository(makeDraft());
+  let released = false;
+  drafts.releaseTransmissionClaim = async () => { released = true; };
+  const attempts = new FakeTransmissionAttemptRepository();
+  let checks = 0;
+  attempts.listByDraftId = async () => {
+    checks++;
+    return checks === 1 ? [] : [{
+      id: "attempt-under-lock", draftId: "draft-1", dpsSeries: "1", dpsNumber: 42,
+      environment: "homologation", status: "pending", createdAt: "2026-11-12T20:00:00Z",
+    }];
+  };
+  const sequences = new FakeDpsSequenceRepository();
+  const service = new TransmissionService(
+    drafts, new FakeIssuerConfigRepository(makeIssuerConfig()), sequences,
+    new FakeIssuedNoteRepository(), attempts, new FakeNationalNfseProvider("authorize"),
+    makeConfiguredCertificateProvider(),
+  );
+  await assert.rejects(() => service.transmit({ draftId: "draft-1", isAdminOrOwner: true }), UnresolvedUncertainAttemptError);
+  assert.equal(sequences.calls, 0);
+  assert.equal(released, true);
+});
