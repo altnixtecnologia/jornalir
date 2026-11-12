@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState, useTransition } from "react";
+import { useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import type { NfseDraft, NfseIssuerConfig, NfseServiceProfile } from "@ir/types";
 import { NFSE_CATVSN_CODES, NFSE_CATVSN_LABELS, buildFiscalSnapshotFromServiceProfile, listSelectableServiceProfiles } from "@ir/types";
@@ -133,6 +133,7 @@ export function NfseDraftForm({
   issuerConfig,
   initialDraft,
   initialSelectedClient,
+  initialTomador,
 }: {
   mode: "create" | "edit";
   serviceProfiles: NfseServiceProfile[];
@@ -141,14 +142,16 @@ export function NfseDraftForm({
   issuerConfig?: NfseIssuerConfig | null;
   initialDraft?: NfseDraft;
   initialSelectedClient?: ClientSearchResult | null;
+  initialTomador?: TomadorSnapshotFormInput;
 }): JSX.Element {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  const snapshotRequestId = useRef(0);
   const [refreshMessage, setRefreshMessage] = useState<string | null>(null);
 
   const [selectedClient, setSelectedClient] = useState<ClientSearchResult | null>(initialSelectedClient ?? null);
-  const [tomador, setTomador] = useState<TomadorSnapshotFormInput>(initialDraft ? draftToInput(initialDraft).tomador : emptyTomador());
+  const [tomador, setTomador] = useState<TomadorSnapshotFormInput>(initialDraft ? draftToInput(initialDraft).tomador : initialTomador ?? emptyTomador());
   const [serviceProfileId, setServiceProfileId] = useState(initialDraft?.serviceProfileId ?? "");
   const [fiscal, setFiscal] = useState<FiscalSnapshotFormInput>(initialDraft ? draftToInput(initialDraft).fiscal : emptyFiscal(issuerConfig));
   const [competencyDate, setCompetencyDate] = useState(initialDraft?.competencyDate ?? new Date().toISOString().slice(0, 10));
@@ -169,6 +172,7 @@ export function NfseDraftForm({
   }
 
   function handleSelectClient(client: ClientSearchResult | null): void {
+    const requestId = ++snapshotRequestId.current;
     setSelectedClient(client);
     setError(null);
     setRefreshMessage(null);
@@ -177,7 +181,9 @@ export function NfseDraftForm({
       return;
     }
     startTransition(async () => {
-      applySnapshot(await refreshTomadorSnapshotAction(client.id));
+      const response = await refreshTomadorSnapshotAction(client.id);
+      // Descartar a resposta atrasada se o operador já escolheu outro cliente.
+      if (requestId === snapshotRequestId.current) applySnapshot(response);
     });
   }
 
@@ -188,8 +194,10 @@ export function NfseDraftForm({
     if (!clientId) return;
     setError(null);
     setRefreshMessage(null);
+    const requestId = ++snapshotRequestId.current;
     startTransition(async () => {
-      applySnapshot(await refreshTomadorSnapshotAction(clientId, initialDraft?.id), "Dados do tomador atualizados a partir do cadastro do cliente.");
+      const response = await refreshTomadorSnapshotAction(clientId, initialDraft?.id);
+      if (requestId === snapshotRequestId.current) applySnapshot(response, "Dados do tomador atualizados a partir do cadastro do cliente.");
     });
   }
 
