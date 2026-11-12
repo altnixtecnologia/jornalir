@@ -361,11 +361,11 @@ test("ajuste de segurança: bloqueio do provider real nunca é tratado como 'unc
   const certificate = makeConfiguredCertificateProvider();
   const service = new TransmissionService(drafts, issuerConfigs, dpsSequences, issuedNotes, attempts, new FetchNationalNfseProvider(), certificate);
   await assert.rejects(() => service.transmit({ draftId: "draft-1", isAdminOrOwner: true }), RealTransmissionNotReadyError);
-  // Auditoria estrutural (26/10/2026, item 1): o "pending" é gravado ANTES de chamar o provider
-  // (rastreamento durável) — mesmo o bloqueio de release deixa esse rastro, nunca 0 tentativas.
-  // O erro de bloqueio continua propagando sem nunca virar "uncertain"/"authorized"/"rejected".
-  assert.equal(attempts.created.length, 1);
-  assert.equal(attempts.created[0].status, "pending");
+  // Correcao (11/11/2026): o bloqueio do release ocorre ANTES de
+  // reservar DPS/criar tentativa. Nao houve chamada a SEFIN, logo nao
+  // podemos deixar um "pending" falso que travaria o rascunho depois.
+  assert.equal(dpsSequences.calls, 0);
+  assert.equal(attempts.created.length, 0);
   assert.equal(issuedNotes.created.length, 0);
 });
 
