@@ -1,0 +1,87 @@
+name: NFS-e - bloqueios criticos antes da homologacao
+
+on:
+  push:
+    branches:
+      - fix/nfse-prehomologacao-p0-20261112
+  pull_request:
+    paths:
+      - "packages/core/src/nfse/transmission-service.ts"
+      - "packages/core/test/nfse-transmission.test.ts"
+      - "apps/sistema/src/providers/supabase/nfseDraftRepository.supabase.ts"
+      - "apps/sistema/test/nfse-p0-release-safety.test.ts"
+      - "supabase/migrations/20261122340500_nfse_draft_fiscal_edit_guard.sql"
+      - "packages/core/test/sql/nfse-draft-edit-*"
+      - ".github/workflows/validate-nfse-prehomologacao-p0-20261112.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: nfse-p0-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  nfse-p0:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: local-test-only
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    env:
+      PGHOST: localhost
+      PGPORT: "5432"
+      PGUSER: postgres
+      PGPASSWORD: local-test-only
+      PGDATABASE: postgres
+      NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
+      NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ci-test-key
+      NEXT_TELEMETRY_DISABLED: "1"
+      SIGNATURE_DELIVERY_ENABLED: "false"
+    steps:
+      - name: Checkout isolado
+        uses: actions/checkout@v4
+
+      - name: Node 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+
+      - name: Instalar dependencias
+        run: npm ci --no-audit --no-fund
+
+      - name: Transmissao e autorizacao simuladas com certificado ficticio
+        env:
+          NODE_OPTIONS: --conditions=react-server
+        run: |
+          npx tsx --test packages/core/test/nfse-transmission.test.ts packages/core/test/nfse-end-to-end-real-client.test.ts apps/sistema/test/nfse-p0-release-safety.test.ts
+
+      - name: PostgreSQL 16 descartavel - instalar schema sintetico
+        run: |
+          psql -v ON_ERROR_STOP=1 -f packages/core/test/sql/nfse-draft-edit-guard-setup.sql
+          psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261122340500_nfse_draft_fiscal_edit_guard.sql
+
+      - name: Verificar bloqueio de edicao sem expor API fiscal
+        run: |
+          psql -v ON_ERROR_STOP=1 -f packages/core/test/sql/nfse-draft-edit-guard-assertions.sql
+
+      - name: Concorrencia real entre duas sessoes PostgreSQL
+        run: bash packages/core/test/sql/nfse-draft-edit-concurrency.sh
+
+      - name: TypeScript do sistema
+        run: npm run typecheck --workspace @ir/sistema
+
+      - name: Build do sistema sem publicacao
+        run: npm run build --workspace @ir/sistema
