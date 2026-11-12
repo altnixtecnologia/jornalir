@@ -1,0 +1,77 @@
+name: NFS-e - troca atomica de certificado A1
+
+on:
+  push:
+    branches:
+      - fix/nfse-certificate-atomic-rotation-20261112
+    paths:
+      - "packages/core/src/nfse/certificate-*"
+      - "packages/core/test/certificate.test.ts"
+      - "packages/core/test/sql/nfse-certificate-atomic-*"
+      - "apps/sistema/src/providers/supabase/nfseCertificateRepository.supabase.ts"
+      - "supabase/migrations/20261122340400_nfse_certificate_atomic_rotation.sql"
+      - ".github/workflows/validate-nfse-certificate-atomic-20261112.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: nfse-a1-atomic-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  certificate-atomic-rotation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: local-ci-only
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    env:
+      PGHOST: localhost
+      PGPORT: "5432"
+      PGUSER: postgres
+      PGPASSWORD: local-ci-only
+      PGDATABASE: postgres
+      NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
+      NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ci-test-key
+      NEXT_TELEMETRY_DISABLED: "1"
+      SIGNATURE_DELIVERY_ENABLED: "false"
+      NODE_OPTIONS: --conditions=react-server
+    steps:
+      - name: Checkout sem alteracao de producao
+        uses: actions/checkout@v4
+
+      - name: Node 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+
+      - name: Instalar dependencias
+        run: npm ci --no-audit --no-fund
+
+      - name: Teste do servico de certificados com PFX sintetico
+        run: npx tsx --test packages/core/test/certificate.test.ts
+
+      - name: Validar migration em PostgreSQL descartavel (rollback, ACL, auditoria)
+        run: |
+          psql -v ON_ERROR_STOP=1 -f packages/core/test/sql/nfse-certificate-atomic-setup.sql
+          psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261122340400_nfse_certificate_atomic_rotation.sql
+          psql -v ON_ERROR_STOP=1 -f packages/core/test/sql/nfse-certificate-atomic-assertions.sql
+
+      - name: Typecheck do sistema
+        run: npm run typecheck --workspace @ir/sistema
+
+      - name: Build do sistema sem Vercel
+        run: npm run build --workspace @ir/sistema
