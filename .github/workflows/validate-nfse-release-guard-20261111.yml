@@ -6,6 +6,7 @@ on:
       - fix/nfse-release-guard-no-pending-20261111
     paths:
       - "packages/core/src/nfse/**"
+      - "packages/types/src/nfse/**"
       - "packages/core/test/nfse-*.test.ts"
       - "packages/core/test/xsd-validator.test.ts"
       - "apps/sistema/src/composition/nfse.ts"
@@ -51,6 +52,7 @@ jobs:
         run: >
           npx tsx --test
           packages/core/test/nfse-transmission.test.ts
+          packages/core/test/nfse-client-snapshot.test.ts
           packages/core/test/nfse-end-to-end-real-client.test.ts
           packages/core/test/xsd-validator.test.ts
           packages/core/test/nfse-cancellation.test.ts
