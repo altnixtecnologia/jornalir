@@ -500,7 +500,11 @@ export function buildTomadorSnapshotFromClient(client: Client, displayName: stri
   return {
     sourceClientId: client.id,
     kind: client.kind,
-    name: displayName,
+    // O nome fantasia é útil no seletor do Cadastro, mas NUNCA deve
+    // substituir a razão social no xNome fiscal da pessoa jurídica.
+    // Se a razão social estiver ausente, manter vazio para exigir correção
+    // explícita do cadastro, em vez de inventar dados para a DPS.
+    name: client.kind === "company" ? (client.companyName?.trim() || "") : (client.fullName?.trim() || displayName),
     cpf: client.cpf,
     cnpj: client.cnpj,
     municipalRegistration: client.municipalRegistration,
