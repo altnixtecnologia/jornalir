@@ -10,6 +10,8 @@ on:
       - "packages/core/test/nfse-transmission.test.ts"
       - "apps/sistema/src/providers/supabase/nfseDraftRepository.supabase.ts"
       - "apps/sistema/test/nfse-p0-release-safety.test.ts"
+      - "apps/sistema/src/lib/nfse/restrictedSefinGate.ts"
+      - "apps/sistema/src/composition/nfse-restricted.ts"
       - "supabase/migrations/20261122340500_nfse_draft_fiscal_edit_guard.sql"
       - "packages/core/test/sql/nfse-draft-edit-*"
       - ".github/workflows/validate-nfse-prehomologacao-p0-20261112.yml"
