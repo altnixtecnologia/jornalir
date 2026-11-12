@@ -2,6 +2,7 @@ import { DOMParser } from "@xmldom/xmldom";
 import type { DpsBuildInput } from "@ir/types";
 import { buildDpsId, NFSE_SIMPLES_NACIONAL_OPTION_CODES, NFSE_SPECIAL_TAX_REGIME_CODE_XSD_VALUES } from "@ir/types";
 import { tag } from "./xml-utils";
+import { isValidNfseCompetencyDate, isValidNfseServiceValue } from "./draft-service";
 
 /**
  * Builder determinístico da DPS (Parte 2A, item 6 → Parte 2C) — cobre
@@ -118,6 +119,14 @@ function buildValores(serviceValue: number): string {
  * informados naquela emissão (nunca substituídos pelo perfil).
  */
 export function buildDpsXml(input: DpsBuildInput): string {
+  // Defesa em profundidade: chamadas diretas ao builder (fora do fluxo
+  // de cadastro) também não podem alterar centavos ou criar data inválida.
+  if (!isValidNfseServiceValue(input.serviceValue)) {
+    throw new Error("DPS bloqueada: valor inválido, maior que zero e com no máximo duas casas decimais.");
+  }
+  if (!isValidNfseCompetencyDate(input.competencyDate)) {
+    throw new Error("DPS bloqueada: competência inválida no calendário.");
+  }
   const dhEmi = formatDhEmi(new Date());
   // Id do infDPS (ver buildDpsId em @ir/types) — referenciado pela
   // assinatura XML via Reference URI="#"+Id (ver signature.ts).
