@@ -5,7 +5,7 @@ import { useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import type { NfseDraft, NfseIssuerConfig, NfseServiceProfile } from "@ir/types";
 import { NFSE_CATVSN_CODES, NFSE_CATVSN_LABELS, buildFiscalSnapshotFromServiceProfile, listSelectableServiceProfiles } from "@ir/types";
-import { validateNfseDraft } from "@ir/core";
+import { parseNfseServiceValue, validateNfseDraft } from "@ir/core";
 import {
   createDraftAction,
   refreshTomadorSnapshotAction,
@@ -244,7 +244,7 @@ export function NfseDraftForm({
     serviceProfileId: serviceProfileId || undefined,
     cTribNac: fiscal.cTribNac,
     competencyDate,
-    serviceValue: Number(serviceValue.replace(",", ".")),
+    serviceValue: parseNfseServiceValue(serviceValue),
     serviceDescription,
     issuerConfigured,
   });
@@ -303,6 +303,7 @@ export function NfseDraftForm({
               <label className="form-field">
                 <span className="field-label">Valor do serviço (R$)</span>
                 <input type="text" inputMode="decimal" value={serviceValue} onChange={(event) => setServiceValue(event.target.value)} placeholder="0,00" />
+                <span className="helper-text">Informe reais e centavos (ex.: 150,00 ou 1.234,56). Evite formato ambíguo como 1.234.</span>
               </label>
             </div>
           </section>
