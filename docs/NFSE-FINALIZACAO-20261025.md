@@ -1,5 +1,13 @@
 # Conclusão NFS-e — auditoria técnica em 25/10/2026
 
+> **ATUALIZAÇÃO DE 11/11/2026 — esta auditoria contém pendências já resolvidas na branch operacional.**
+> O pacote oficial de Produção Restrita **`prodrest-v1.01-20261020` já está vendorizado** com checksums em `packages/core/src/nfse/xsd/prodrest-v1.01-20261020/README.md`, e `xsd-validator.ts` já utiliza o pacote de outubro. Os itens abaixo que pedem sua aquisição/instalação são **históricos**, não tarefas ainda abertas. Antes de homologar, comparar sempre com a documentação fiscal vigente do Portal Nacional.
+>
+> **Correção 11/11/2026 (branch de revisão):** o bloqueio de release do `FetchNationalNfseProvider` agora é verificado pelo `TransmissionService` **antes de reservar sequência DPS ou criar tentativa `pending`**. O comportamento anterior reservava número e criava pendência falsa mesmo sem envio externo. Há teste de regressão específico.
+>
+> **Pendências reais:** configuração do prestador/certificado A1, perfis fiscais, confirmação do contrato SEFIN/ADN sob mTLS, ativação controlada do provider apenas após homologação e testes em Produção Restrita. **Produção continua bloqueada; nenhuma nota foi emitida.**
+
+
 ## Resultado
 
 **Ainda NÃO liberada para emissão fiscal real.** A NFS-e é um módulo autônomo, com cadastro mestre de clientes, perfis fiscais, rascunhos, competência explícita, configuração do prestador, cofre de certificado A1, assinatura XML, validação XSD, preparação da DPS, consultas municipais e cancelamento preparado. Este conjunto é a **base de implementação**, não prova de homologação diante da SEFIN.
