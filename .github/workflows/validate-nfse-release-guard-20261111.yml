@@ -1,0 +1,60 @@
+name: Verificar NFS-e - bloqueio de release e integracao simulada
+
+on:
+  push:
+    branches:
+      - fix/nfse-release-guard-no-pending-20261111
+    paths:
+      - "packages/core/src/nfse/**"
+      - "packages/core/test/nfse-*.test.ts"
+      - "packages/core/test/xsd-validator.test.ts"
+      - "apps/sistema/src/composition/nfse.ts"
+      - "docs/NFSE-FINALIZACAO-20261025.md"
+      - ".github/workflows/validate-nfse-release-guard-20261111.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: nfse-release-guard-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  nfse-release-guard:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
+      NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ci-test-key
+      NEXT_TELEMETRY_DISABLED: "1"
+      SIGNATURE_DELIVERY_ENABLED: "false"
+      NODE_OPTIONS: --conditions=react-server
+    steps:
+      - name: Checkout somente codigo do PR
+        uses: actions/checkout@v4
+
+      - name: Node 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+
+      - name: Instalar dependencias imutaveis
+        run: npm ci --no-audit --no-fund
+
+      - name: Typecheck do sistema administrativo
+        run: npm run typecheck --workspace @ir/sistema
+
+      - name: Testes de transmissao, emissao simulada e XSD
+        run: >
+          npx tsx --test
+          packages/core/test/nfse-transmission.test.ts
+          packages/core/test/nfse-end-to-end-real-client.test.ts
+          packages/core/test/xsd-validator.test.ts
+          packages/core/test/nfse-cancellation.test.ts
+
+      - name: Integracao nao aciona SEFIN nem Supabase de producao
+        run: |
+          echo "Todos os testes operam com fixtures/fakes/MockAgent."
+          echo "Nenhum certificado, chave ou endpoint real foi configurado."
