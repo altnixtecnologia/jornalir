@@ -74,7 +74,7 @@ function parseValue(value: string): number {
   return Number(value.replace(",", "."));
 }
 
-function toServiceInput(input: DraftFormInput) {
+function toServiceInput(input: DraftFormInput): Parameters<ReturnType<typeof getDraftService>["register"]>[0] {
   return {
     clientId: input.clientId,
     tomador: {
