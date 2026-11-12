@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import type { ClientKind, NfseIbsCbsSimplesNacionalRegime, NfseSimplesNacionalOption, NfseSpecialTaxRegimeCode } from "@ir/types";
 import { buildTomadorSnapshotFromClient, clientDisplayName } from "@ir/types";
+import { parseNfseServiceValue } from "@ir/core";
 import { getDraftService, getIssuerConfigService } from "../../../../composition/nfse";
 import { createIssuedNoteRepositorySupabase } from "../../../../providers/supabase/nfseIssuedNoteRepository.supabase";
 import { createTransmissionAttemptRepositorySupabase } from "../../../../providers/supabase/nfseTransmissionAttemptRepository.supabase";
@@ -70,10 +71,6 @@ export interface DraftFormInput {
   notes: string;
 }
 
-function parseValue(value: string): number {
-  return Number(value.replace(",", "."));
-}
-
 function toServiceInput(input: DraftFormInput): Parameters<ReturnType<typeof getDraftService>["register"]>[0] {
   return {
     clientId: input.clientId,
@@ -117,7 +114,7 @@ function toServiceInput(input: DraftFormInput): Parameters<ReturnType<typeof get
       issuerSpecialTaxRegimeCode: (input.fiscal.issuerSpecialTaxRegimeCode || undefined) as NfseSpecialTaxRegimeCode | undefined,
     },
     competencyDate: input.competencyDate,
-    serviceValue: parseValue(input.serviceValue),
+    serviceValue: parseNfseServiceValue(input.serviceValue),
     serviceDescription: input.serviceDescription,
     notes: input.notes || undefined,
   };
