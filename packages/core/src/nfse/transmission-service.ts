@@ -9,7 +9,7 @@ import type { IssuerConfigRepository } from "./issuer-config-repository";
 import type { DpsSequenceRepository } from "./dps-sequence-repository";
 import type { IssuedNoteRepository } from "./issued-note-repository";
 import type { TransmissionAttemptRepository } from "./transmission-attempt-repository";
-import { RealTransmissionNotReadyError, type NationalNfseProvider } from "./national-nfse-provider";
+import { FetchNationalNfseProvider, RealTransmissionNotReadyError, type NationalNfseProvider } from "./national-nfse-provider";
 import { validateNfseDraft } from "./draft-service";
 
 /** O que o fluxo de transmissão precisa do certificado — `CertificateService`
@@ -90,6 +90,19 @@ export class TransmissionService {
   async transmit(input: TransmitDraftInput): Promise<TransmitDraftResult> {
     // 1) confirmar owner/admin
     if (!input.isAdminOrOwner) throw new TransmissionPermissionError("Sem permissão para transmitir NFS-e — só owner/admin.");
+
+    // Bloqueio de release ANTES de reservar numero de DPS, gravar tentativa
+    // "pending" ou tocar qualquer dado fiscal. A composicao oficial ainda
+    // injeta FetchNationalNfseProvider (incondicionalmente bloqueado).
+    // Antes, o bloqueio acontecia DEPOIS da reserva e do insert "pending":
+    // nenhum envio ocorria, mas o rascunho ficava falsamente pendente,
+    // exigindo conciliacao de uma transmissao que nunca aconteceu.
+    //
+    // Os providers de testes (fake/MockAgent) nao usam esta implementacao,
+    // portanto continuam exercitando o fluxo completo e a idempotencia real.
+    if (this.provider instanceof FetchNationalNfseProvider) {
+      throw new RealTransmissionNotReadyError();
+    }
 
     // 2) carregar rascunho
     const draft = await this.drafts.getById(input.draftId);
