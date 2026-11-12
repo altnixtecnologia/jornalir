@@ -78,8 +78,9 @@ export class CertificateService {
 
     const encryptedPrivateKey = encryptSecret(parsed.privateKeyPem);
 
-    await this.certificates.deactivateAll(input.issuerConfigId);
-    const stored = await this.certificates.create({
+    // Rotacao atomica no PostgreSQL: uma falha ao inserir o novo certificado
+    // nunca pode deixar o emitente sem o A1 que estava ativo antes.
+    const stored = await this.certificates.replaceActive({
       issuerConfigId: input.issuerConfigId,
       subjectCnpj: parsed.subjectCnpj,
       subjectName: parsed.subjectName,
