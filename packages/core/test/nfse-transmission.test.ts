@@ -352,21 +352,53 @@ test("ajuste de segurança: o provider real (FetchNationalNfseProvider) nunca ch
   await assert.rejects(() => provider.getDpsById("dps-id", "homologation"), RealTransmissionNotReadyError);
 });
 
-test("ajuste de segurança: bloqueio do provider real nunca é tratado como 'uncertain' — propaga explicitamente", async () => {
+test("ajuste de segurança: provider oficial bloqueia antes de acessar banco, certificado ou transmitir", async () => {
   const drafts = new FakeDraftRepository(makeDraft());
   const issuerConfigs = new FakeIssuerConfigRepository(makeIssuerConfig());
   const dpsSequences = new FakeDpsSequenceRepository();
   const issuedNotes = new FakeIssuedNoteRepository();
   const attempts = new FakeTransmissionAttemptRepository();
-  const certificate = makeConfiguredCertificateProvider();
+
+  // Se a guarda for deslocada para depois de QUALQUER leitura fiscal,
+  // o teste falha com o erro da sentinela em vez do bloqueio esperado.
+  // Assim nao basta verificar que a sequencia e as tentativas ficaram zeradas.
+  let draftReads = 0;
+  drafts.getById = async () => {
+    draftReads += 1;
+    throw new Error("A guarda fiscal foi executada depois da leitura do rascunho");
+  };
+  let issuerReads = 0;
+  issuerConfigs.getCurrent = async () => {
+    issuerReads += 1;
+    throw new Error("A guarda fiscal foi executada depois da leitura do emitente");
+  };
+  let issuedReads = 0;
+  issuedNotes.getByDraftId = async () => {
+    issuedReads += 1;
+    throw new Error("A guarda fiscal foi executada depois da consulta de notas");
+  };
+  let attemptReads = 0;
+  attempts.listByDraftId = async () => {
+    attemptReads += 1;
+    throw new Error("A guarda fiscal foi executada depois da consulta de tentativas");
+  };
+  const certificate: CertificateMaterialProvider = {
+    async getActiveInfo() {
+      throw new Error("A guarda fiscal foi executada depois da leitura de certificado");
+    },
+    async getActiveSigningMaterial() {
+      throw new Error("A guarda fiscal foi executada depois da leitura de material de assinatura");
+    },
+  };
   const service = new TransmissionService(drafts, issuerConfigs, dpsSequences, issuedNotes, attempts, new FetchNationalNfseProvider(), certificate);
   await assert.rejects(() => service.transmit({ draftId: "draft-1", isAdminOrOwner: true }), RealTransmissionNotReadyError);
-  // Auditoria estrutural (26/10/2026, item 1): o "pending" é gravado ANTES de chamar o provider
-  // (rastreamento durável) — mesmo o bloqueio de release deixa esse rastro, nunca 0 tentativas.
-  // O erro de bloqueio continua propagando sem nunca virar "uncertain"/"authorized"/"rejected".
-  assert.equal(attempts.created.length, 1);
-  assert.equal(attempts.created[0].status, "pending");
-  assert.equal(issuedNotes.created.length, 0);
+  assert.equal(draftReads, 0);
+  assert.equal(issuerReads, 0);
+  assert.equal(issuedReads, 0);
+  assert.equal(attemptReads, 0);
+  assert.equal(dpsSequences.calls, 0, "nunca reservar uma DPS para release bloqueado");
+  assert.equal(attempts.created.length, 0, "nunca criar pending falso");
+  assert.equal(issuedNotes.created.length, 0, "nunca criar nota");
 });
 
 test("auditoria estrutural (26/10/2026, item 1 — CRÍTICO): uma transmissão bem-sucedida grava 'pending' ANTES da linha final 'authorized' — nunca só a linha final", async () => {
