@@ -133,14 +133,31 @@ test("CertificateService.validateAndStore guarda a chave privada SEMPRE criptogr
   assert.ok(material?.privateKeyPem.includes("PRIVATE KEY"));
 });
 
-test("CertificateService.validateAndStore desativa certificado anterior ao substituir (nunca dois ativos)", async () => {
+test("CertificateService.validateAndStore troca A1 atomicamente (nunca dois ativos)", async () => {
   const { pfxBuffer, password } = makeTestPfx({ cnpj: "23970969000190" });
   const repo = makeFakeRepository();
   const service = new CertificateService(repo);
   await service.validateAndStore({ issuerConfigId: "issuer-1", expectedCnpjDigits: "23970969000190", pfxBuffer, password });
   await service.validateAndStore({ issuerConfigId: "issuer-1", expectedCnpjDigits: "23970969000190", pfxBuffer, password });
-  assert.equal(repo.deactivateAllCalls, 2);
+  assert.equal(repo.replaceActiveCalls, 2);
   assert.equal(repo.created.length, 2);
+  assert.equal(repo.created[0].active, false);
+  assert.equal(repo.created[1].active, true);
+});
+
+test("falha ao substituir A1 preserva o certificado anterior (sem desativacao antecipada)", async () => {
+  const { pfxBuffer, password } = makeTestPfx({ cnpj: "23970969000190" });
+  const repo = makeFakeRepository();
+  const service = new CertificateService(repo);
+  const first = await service.validateAndStore({ issuerConfigId: "issuer-1", expectedCnpjDigits: "23970969000190", pfxBuffer, password });
+  repo.failNextReplace();
+  await assert.rejects(
+    () => service.validateAndStore({ issuerConfigId: "issuer-1", expectedCnpjDigits: "23970969000190", pfxBuffer, password }),
+    /falha simulada na gravacao transacional/,
+  );
+  assert.equal(repo.created.length, 1);
+  assert.equal((await repo.getActive("issuer-1"))?.id, first.id);
+  assert.equal(repo.created[0].active, true);
 });
 
 test("secret-store: encrypt/decrypt redonda-viagem preserva o conteúdo", () => {
@@ -154,27 +171,39 @@ test("secret-store: adulteração do ciphertext falha por autenticação (GCM), 
   assert.throws(() => decryptSecret(tampered), SecretDecryptionError);
 });
 
-function makeFakeRepository(): CertificateRepository & { created: StoredCertificateRecord[]; deactivateAllCalls: number } {
+function makeFakeRepository(): CertificateRepository & {
+  created: StoredCertificateRecord[];
+  replaceActiveCalls: number;
+  failNextReplace: () => void;
+} {
   const created: StoredCertificateRecord[] = [];
-  let deactivateAllCalls = 0;
+  let replaceActiveCalls = 0;
+  let shouldFail = false;
   return {
     created,
-    get deactivateAllCalls() {
-      return deactivateAllCalls;
+    get replaceActiveCalls() {
+      return replaceActiveCalls;
+    },
+    failNextReplace() {
+      shouldFail = true;
     },
     async getActive(issuerConfigId: string) {
       return created.filter((record) => record.issuerConfigId === issuerConfigId && record.active).at(-1) ?? null;
     },
-    async create(record: NewCertificateRecord) {
+    async replaceActive(record: NewCertificateRecord) {
+      replaceActiveCalls += 1;
+      // Mocka a atomicidade garantida no banco: a falha nao muda
+      // nenhum certificado existente. Teste SQL separado verifica a RPC real.
+      if (shouldFail) {
+        shouldFail = false;
+        throw new Error("falha simulada na gravacao transacional");
+      }
+      for (const old of created) {
+        if (old.issuerConfigId === record.issuerConfigId) old.active = false;
+      }
       const stored: StoredCertificateRecord = { ...record, id: `cert-${created.length + 1}`, active: true, createdAt: new Date().toISOString() };
       created.push(stored);
       return stored;
-    },
-    async deactivateAll(issuerConfigId: string) {
-      deactivateAllCalls += 1;
-      for (const record of created) {
-        if (record.issuerConfigId === issuerConfigId) record.active = false;
-      }
     },
   };
 }
