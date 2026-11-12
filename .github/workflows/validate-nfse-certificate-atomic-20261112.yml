@@ -6,6 +6,8 @@ on:
       - fix/nfse-certificate-atomic-rotation-20261112
     paths:
       - "packages/core/src/nfse/certificate-*"
+      - "packages/core/src/nfse/readiness.ts"
+      - "packages/core/test/nfse-readiness.test.ts"
       - "packages/core/test/certificate.test.ts"
       - "packages/core/test/sql/nfse-certificate-atomic-*"
       - "apps/sistema/src/providers/supabase/nfseCertificateRepository.supabase.ts"
@@ -62,7 +64,7 @@ jobs:
         run: npm ci --no-audit --no-fund
 
       - name: Teste do servico de certificados com PFX sintetico
-        run: npx tsx --test packages/core/test/certificate.test.ts
+        run: npx tsx --test packages/core/test/certificate.test.ts packages/core/test/nfse-readiness.test.ts
 
       - name: Validar migration em PostgreSQL descartavel (rollback, ACL, auditoria)
         run: |
