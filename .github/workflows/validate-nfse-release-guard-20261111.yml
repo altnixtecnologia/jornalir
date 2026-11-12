@@ -54,7 +54,13 @@ jobs:
           packages/core/test/xsd-validator.test.ts
           packages/core/test/nfse-cancellation.test.ts
 
-      - name: Integracao nao aciona SEFIN nem Supabase de producao
+      - name: Verificar trava fiscal na interface e nas rotas
+        run: npx tsx --test apps/sistema/test/prepublication-release-gates.test.ts
+
+      - name: Compilar sistema Next.js sem publicar na Vercel
+        run: npm run build --workspace @ir/sistema
+
+      - name: Confirmar isolamento fiscal nos testes
         run: |
-          echo "Todos os testes operam com fixtures/fakes/MockAgent."
-          echo "Nenhum certificado, chave ou endpoint real foi configurado."
+          echo "Os testes de emissao usam fixtures/fakes/MockAgent, sem rede fiscal."
+          echo "Nenhum certificado ou segredo de producao foi configurado."
