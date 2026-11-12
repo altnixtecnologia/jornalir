@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { ClientNotFoundError } from "@ir/core";
 import { CLIENT_KIND_LABELS, CLIENT_ROLE_LABELS, clientDisplayName, computeReceivableDueFlag, CONTRACT_STATUS_LABELS, RECEIVABLE_SOURCE_TYPE_LABELS } from "@ir/types";
 import { ModuleHeader } from "../../../../components/admin/ModuleHeader";
+import { NFSE_AVAILABLE_IN_THIS_RELEASE } from "../../../../lib/release/releasePolicy";
 import { DigitalExportControl } from "../../../../features/clientes/DigitalExportControl";
 import { FamilyAndRelatedPersonsControl } from "../../../../features/clientes/FamilyAndRelatedPersonsControl";
 import { CompletionLinkControl } from "../../../../features/clientes/CompletionLinkControl";
@@ -153,6 +154,11 @@ export default async function ClienteDetailPage(props: { params: Promise<{ id: s
             <Link className="secondary-link" href={`/sistema/financeiro/contratos/novo?clientId=${client.id}`}>
               Novo contrato institucional
             </Link>
+            {NFSE_AVAILABLE_IN_THIS_RELEASE ? (
+              <Link className="secondary-link" href={`/sistema/nfse/nova?clientId=${client.id}`}>
+                Nova NFS-e
+              </Link>
+            ) : null}
             <Link className="form-action-primary" href={`/sistema/clientes/${client.id}/editar`}>
               Editar
             </Link>
