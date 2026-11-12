@@ -2,6 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { ClientKind, NfseDraft, NfseDraftStatus, NfseIbsCbsSimplesNacionalRegime, NfseSimplesNacionalOption, NfseSpecialTaxRegimeCode } from "@ir/types";
 import type { DraftChanges, DraftListQuery, DraftRepository, NewDraftRecord } from "@ir/core";
 import { isLocalPreviewEnabled } from "../../lib/auth/localPreview";
+import { createSupabaseAdminClient } from "../../lib/supabase/admin";
 
 const TABLE = "nfse_drafts";
 const COLUMNS =
@@ -330,13 +331,21 @@ export function createDraftRepositorySupabase(client: SupabaseClient): DraftRepo
 
     async claimForTransmission(id) {
       if (isLocalPreviewEnabled()) return;
-      const { error } = await client.rpc("claim_draft_transmission", { p_draft_id: id });
+      // Estas duas RPCs sao EXCLUSIVAS de service_role no PostgreSQL.
+      // O client de sessao authenticated recebe permission denied.
+      // Este repositorio e chamado apenas pela composicao server-side
+      // de transmissao, depois da autorizacao owner/admin no action/service.
+      // Nunca enviar a credencial service_role ao browser.
+      const admin = createSupabaseAdminClient();
+      const { error } = await admin.rpc("claim_draft_transmission", { p_draft_id: id });
       if (error) throw new Error(error.message);
     },
 
     async releaseTransmissionClaim(id) {
       if (isLocalPreviewEnabled()) return;
-      await client.rpc("release_draft_transmission", { p_draft_id: id });
+      const admin = createSupabaseAdminClient();
+      const { error } = await admin.rpc("release_draft_transmission", { p_draft_id: id });
+      if (error) throw new Error(`Nao foi possivel liberar a trava fiscal: ${error.message}`);
     },
   };
 }
