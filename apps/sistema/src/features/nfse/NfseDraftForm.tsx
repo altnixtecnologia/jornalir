@@ -17,6 +17,7 @@ import {
 import { ClientPicker } from "../../components/admin/ClientPicker";
 import type { ClientSearchResult } from "../../components/admin/clientSearchTypes";
 import { Tabs, type TabItem } from "../../components/admin/Tabs";
+import { formatLocalCompetencyDate, needsPreNovemberSimplesCompetencyReview } from "../../lib/nfse/draftCompetency";
 
 function emptyTomador(): TomadorSnapshotFormInput {
   return {
@@ -154,7 +155,7 @@ export function NfseDraftForm({
   const [tomador, setTomador] = useState<TomadorSnapshotFormInput>(initialDraft ? draftToInput(initialDraft).tomador : initialTomador ?? emptyTomador());
   const [serviceProfileId, setServiceProfileId] = useState(initialDraft?.serviceProfileId ?? "");
   const [fiscal, setFiscal] = useState<FiscalSnapshotFormInput>(initialDraft ? draftToInput(initialDraft).fiscal : emptyFiscal(issuerConfig));
-  const [competencyDate, setCompetencyDate] = useState(initialDraft?.competencyDate ?? new Date().toISOString().slice(0, 10));
+  const [competencyDate, setCompetencyDate] = useState(initialDraft?.competencyDate ?? formatLocalCompetencyDate(new Date()));
   const [serviceValue, setServiceValue] = useState(initialDraft ? String(initialDraft.serviceValue) : "");
   const [serviceDescription, setServiceDescription] = useState(initialDraft?.serviceDescription ?? "");
   const [notes, setNotes] = useState(initialDraft?.notes ?? "");
@@ -287,7 +288,17 @@ export function NfseDraftForm({
               <label className="form-field">
                 <span className="field-label">Competência</span>
                 <input type="date" value={competencyDate} onChange={(event) => setCompetencyDate(event.target.value)} />
-                <span className="helper-text">Sempre explícita — nunca derivada silenciosamente; a data atual é só sugestão inicial.</span>
+                <span className="helper-text">Data sugerida conforme o dia local do aparelho. Confirme a competência antes de salvar.</span>
+                {needsPreNovemberSimplesCompetencyReview({
+                  simplesNacionalOption: initialDraft?.fiscal.issuerSimplesNacionalOption ?? issuerConfig?.simplesNacionalOption,
+                  competencyDate,
+                }) ? (
+                  <span className="helper-text" role="status">
+                    Atenção: competência anterior a 01/11/2026 para ME/EPP do Simples Nacional.
+                    Em municípios que usavam emissor próprio, notas retroativas podem precisar ser emitidas
+                    pelo sistema municipal. Confirme o enquadramento e a regra local antes de transmitir.
+                  </span>
+                ) : null}
               </label>
               <label className="form-field">
                 <span className="field-label">Valor do serviço (R$)</span>
