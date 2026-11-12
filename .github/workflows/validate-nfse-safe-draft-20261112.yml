@@ -17,6 +17,8 @@ on:
       - "packages/core/test/nfse.test.ts"
       - "packages/core/src/nfse/dps-builder.ts"
       - "packages/core/test/dps-builder.test.ts"
+      - "packages/core/test/xsd-validator.test.ts"
+      - "packages/core/test/nfse-end-to-end-real-client.test.ts"
       - ".github/workflows/validate-nfse-safe-draft-20261112.yml"
   workflow_dispatch:
 
@@ -48,7 +50,7 @@ jobs:
       - name: Testar isolamento de snapshots e autorizacao
         env:
           NODE_OPTIONS: --conditions=react-server
-        run: npx tsx --test apps/sistema/test/nfse-tomador-snapshot.test.ts apps/sistema/test/nfse-competency.test.ts packages/core/test/nfse-client-snapshot.test.ts packages/core/test/nfse.test.ts packages/core/test/dps-builder.test.ts
+        run: npx tsx --test apps/sistema/test/nfse-tomador-snapshot.test.ts apps/sistema/test/nfse-competency.test.ts packages/core/test/nfse-client-snapshot.test.ts packages/core/test/nfse.test.ts packages/core/test/dps-builder.test.ts packages/core/test/xsd-validator.test.ts packages/core/test/nfse-end-to-end-real-client.test.ts
 
       - name: Validar tipos
         run: npm run typecheck --workspace @ir/sistema
