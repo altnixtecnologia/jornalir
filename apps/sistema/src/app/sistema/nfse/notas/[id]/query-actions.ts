@@ -1,6 +1,8 @@
 "use server";
 
 import { getTransmissionService } from "../../../../../composition/nfse";
+import { prepareRestrictedNfseTransmissionService } from "../../../../../composition/nfse-restricted";
+import { isRestrictedSefinEnvironment, restrictedSefinEnvironmentFromServer } from "../../../../../lib/nfse/restrictedSefinGate";
 import { createSupabaseServerClient } from "../../../../../lib/supabase/server";
 import { checkModuleAction } from "../../../../../lib/permissions/checkModuleAction";
 import { createIssuedNoteRepositorySupabase } from "../../../../../providers/supabase/nfseIssuedNoteRepository.supabase";
@@ -49,7 +51,9 @@ export async function consultNfseByNoteIdAction(noteId: string): Promise<Result>
       return { error: "Consulta fiscal de produção indisponível." };
     }
     if (!note.accessKey) return { error: "Nota sem chave oficial; necessário conciliar a DPS." };
-    const xml = await getTransmissionService(client).consultNfseByAccessKey(note.accessKey, note.environment);
+    const restricted = isRestrictedSefinEnvironment(restrictedSefinEnvironmentFromServer());
+    const service = restricted ? prepareRestrictedNfseTransmissionService(client) : getTransmissionService(client);
+    const xml = await service.consultNfseByAccessKey(note.accessKey, note.environment);
     return { ok: true, xml, source: "official" };
   } catch (error) {
     return { error: toErrorMessage(error) };
