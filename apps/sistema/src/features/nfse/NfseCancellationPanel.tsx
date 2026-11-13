@@ -1,8 +1,9 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { NFSE_CANCELLATION_JUSTIFICATION_LABELS, type NfseCancellationRequest } from "@ir/types";
-import { requestCancellationAction } from "../../app/sistema/nfse/notas/[id]/cancellation-actions";
+import { requestCancellationAction, submitCancellationRestrictedAction, listCancellationHistoryAction } from "../../app/sistema/nfse/notas/[id]/cancellation-actions";
 
 const JUSTIFICATION_CODES = [1, 2, 9] as const;
 
@@ -21,9 +22,12 @@ function statusLabel(status: NfseCancellationRequest["status"]): string {
  * da emissão, ainda não concluída (ver CancellationSubmissionNotReadyError).
  */
 export function NfseCancellationPanel({
-  issuedNoteId, history,
-}: { issuedNoteId: string; history: NfseCancellationRequest[] }): JSX.Element {
+  issuedNoteId, history, restrictedMode = false,
+}: { issuedNoteId: string; history: NfseCancellationRequest[]; restrictedMode?: boolean }): JSX.Element {
+  const router = useRouter();
   const [pending, startTransition] = useTransition();
+  const [confirmRequestId, setConfirmRequestId] = useState<string | null>(null);
+  const [dispatchResult, setDispatchResult] = useState<string | null>(null);
   const [justificationCode, setJustificationCode] = useState<1 | 2 | 9>(1);
   const [justificationText, setJustificationText] = useState("");
   const [error, setError] = useState("");
@@ -41,14 +45,34 @@ export function NfseCancellationPanel({
     });
   }
 
+  function sendRestricted(requestId: string): void {
+    setError("");
+    setDispatchResult(null);
+    startTransition(async () => {
+      const result = await submitCancellationRestrictedAction(requestId);
+      if ("error" in result) { setError(result.error); return; }
+      setDispatchResult(result.status === "confirmed"
+        ? "Cancelamento confirmado no ambiente de Produção Restrita."
+        : result.status === "rejected"
+          ? "Cancelamento rejeitado pela SEFIN restrita. Confira o histórico."
+          : "Resultado INCERTO: não envie novamente. Concilie o evento na SEFIN.");
+      const refreshed = await listCancellationHistoryAction(issuedNoteId);
+      if ("ok" in refreshed) setLocalHistory(refreshed.requests);
+      setConfirmRequestId(null);
+      router.refresh();
+    });
+  }
+
   return (
     <section className="form-section">
       <h2>Cancelamento</h2>
       <p className="helper-text">
-        O envio real do cancelamento ao Sistema Nacional ainda não está disponível nesta fase (depende de homologação completa da
-        emissão). Esta tela só PREPARA e registra a solicitação — motivo, justificativa e histórico — localmente.
+        {restrictedMode
+          ? "AMBIENTE DE TESTE: o envio usa somente a SEFIN Produção Restrita, após confirmação. Sem efeitos fiscais de produção."
+          : "O envio ao Sistema Nacional está BLOQUEADO nesta instalação. Aqui é possível apenas preparar e registrar motivo/justificativa localmente."}
       </p>
       {error ? <p className="form-error" role="alert">{error}</p> : null}
+      {dispatchResult ? <p className="helper-text" role="status">{dispatchResult}</p> : null}
       {hasActive ? (
         <p className="helper-text">Já existe uma solicitação ativa ou com resultado incerto. Confira o histórico e concilie com a SEFIN antes de qualquer novo pedido.</p>
       ) : (
@@ -86,6 +110,25 @@ export function NfseCancellationPanel({
                 </span>
                 <span className="helper-text">{item.justificationText}</span>
                 {item.rejectionMessage ? <span className="form-error">{item.rejectionCode}: {item.rejectionMessage}</span> : null}
+                {restrictedMode && item.status === "pending" ? (
+                  <div className="form-actions">
+                    {confirmRequestId !== item.id ? (
+                      <button type="button" className="secondary-link" disabled={pending}
+                        onClick={() => setConfirmRequestId(item.id)}>
+                        Enviar evento de cancelamento (Produção Restrita)
+                      </button>
+                    ) : (
+                      <>
+                        <p className="helper-text">Confirmar teste oficial de cancelamento para esta nota? O envio é irreversível no ambiente restrito.</p>
+                        <button type="button" className="form-action-primary" disabled={pending}
+                          onClick={() => sendRestricted(item.id)}>
+                          {pending ? "Enviando…" : "Confirmar envio do evento de teste"}
+                        </button>
+                        <button type="button" disabled={pending} onClick={() => setConfirmRequestId(null)}>Voltar</button>
+                      </>
+                    )}
+                  </div>
+                ) : null}
               </div>
             </li>
           ))}
