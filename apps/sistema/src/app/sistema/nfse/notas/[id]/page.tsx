@@ -7,6 +7,7 @@ import { getDraftService, getCancellationService } from "../../../../../composit
 import { NfseCancellationPanel } from "../../../../../features/nfse/NfseCancellationPanel";
 import { NfseConsultationPanel } from "../../../../../features/nfse/NfseConsultationPanel";
 import { isLocalPreviewEnabled } from "../../../../../lib/auth/localPreview";
+import { isRestrictedSefinEnvironment, restrictedSefinEnvironmentFromServer } from "../../../../../lib/nfse/restrictedSefinGate";
 
 function formatAmount(value: number): string {
   return value.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
@@ -80,7 +81,7 @@ export default async function NfseNotaDetailPage(props: { params: Promise<{ id: 
           </div>
         )}
       </section>
-      <NfseConsultationPanel noteId={note.id} accessKey={note.accessKey} previewMode={previewMode} />
+      <NfseConsultationPanel noteId={note.id} accessKey={note.accessKey} previewMode={previewMode} restrictedMode={isRestrictedSefinEnvironment(restrictedSefinEnvironmentFromServer())} />
       {canManageCancellation === true ? (
         <NfseCancellationPanel issuedNoteId={note.id} history={history} />
       ) : (
