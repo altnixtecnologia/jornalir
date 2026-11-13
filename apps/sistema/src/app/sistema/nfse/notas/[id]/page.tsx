@@ -28,11 +28,18 @@ export default async function NfseNotaDetailPage(props: { params: Promise<{ id: 
   const note = await createIssuedNoteRepositorySupabase(supabase).getById(params.id);
   if (!note) notFound();
 
+  const previewMode = isLocalPreviewEnabled();
+  const { data: canManageCancellation } = previewMode
+    ? { data: true }
+    : await supabase.rpc("is_active_admin_or_owner");
+  // O historico de cancelamentos fica em tabela service_role-only;
+  // somente owner/admin pode consulta-lo pelo servidor.
   const [draft, history] = await Promise.all([
     getDraftService(supabase).getById(note.draftId),
-    getCancellationService(supabase).listHistory(note.id),
+    canManageCancellation === true
+      ? getCancellationService(supabase).listHistory(note.id)
+      : Promise.resolve([]),
   ]);
-  const previewMode = isLocalPreviewEnabled();
 
   return (
     <>
@@ -74,7 +81,14 @@ export default async function NfseNotaDetailPage(props: { params: Promise<{ id: 
         )}
       </section>
       <NfseConsultationPanel accessKey={note.accessKey} />
-      <NfseCancellationPanel issuedNoteId={note.id} history={history} />
+      {canManageCancellation === true ? (
+        <NfseCancellationPanel issuedNoteId={note.id} history={history} />
+      ) : (
+        <section className="form-section">
+          <h2>Cancelamento</h2>
+          <p className="helper-text">Somente administradores e proprietarios podem consultar ou preparar cancelamentos fiscais.</p>
+        </section>
+      )}
     </>
   );
 }
