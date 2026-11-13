@@ -9,13 +9,18 @@ import { verifyResendWebhook } from "./verifyResendWebhook";
  * Independe da liberação da emissão fiscal: só exige RESEND_WEBHOOK_SECRET e assinatura Svix válida.
  */
 export type WebhookStatus = "delivered" | "bounced" | "failed";
-type Rule = { status: WebhookStatus; allowedFrom: string[]; summary: string; field: "delivered_at" | "failed_at" };
+type Rule = {
+  status: WebhookStatus; allowedFrom: string[]; summary: string;
+  field: "delivered_at" | "failed_at" | "complained_at";
+  /** Se verdadeiro, só aplica enquanto a coluna do carimbo ainda estiver vazia (evento registrado uma única vez). */
+  once?: boolean;
+};
 
 /**
  * Máquina de estados (só avança; nunca regride):
  *  accepted -> delivered | bounced | failed
- *  delivered -> bounced (devolução tardia) | complained
- *  bounced/failed -> complained (reclamação posterior)
+ *  delivered -> bounced (devolução tardia)
+ *  qualquer estado de e-mail -> reclamação (complained): registrada UMA vez (complained_at), status "bounced"
  * Um "delivered" atrasado NUNCA sobrescreve bounced/failed. Reentregas do mesmo evento não alteram nada
  * (a condição de estado atual não casa) — e a troca é um UPDATE condicional atômico (sem corrida).
  */
@@ -23,7 +28,7 @@ const RULES: Record<string, Rule> = {
   "email.delivered": { status: "delivered", allowedFrom: ["accepted"], summary: "Entrega confirmada pelo provedor.", field: "delivered_at" },
   "email.bounced": { status: "bounced", allowedFrom: ["accepted", "delivered"], summary: "Provedor informou devolução (bounce) da mensagem.", field: "failed_at" },
   "email.failed": { status: "failed", allowedFrom: ["accepted"], summary: "Provedor informou falha no envio da mensagem.", field: "failed_at" },
-  "email.complained": { status: "bounced", allowedFrom: ["accepted", "delivered", "failed", "bounced"], summary: "Destinatário marcou a mensagem como spam (reclamação).", field: "failed_at" },
+  "email.complained": { status: "bounced", allowedFrom: ["accepted", "delivered", "failed", "bounced"], summary: "Destinatário marcou a mensagem como spam (reclamação).", field: "complained_at", once: true },
 };
 
 export interface WebhookInput {
@@ -68,11 +73,13 @@ export async function handleResendWebhook(input: WebhookInput): Promise<WebhookR
   const update: Record<string, unknown> = { status: rule.status, response_summary: rule.summary, updated_at: new Date(nowMs).toISOString() };
   update[rule.field] = at;
 
-  const { data, error } = await input.getAdmin().from("nfse_delivery_attempts")
+  let query = input.getAdmin().from("nfse_delivery_attempts")
     .update(update)
     .eq("channel", "email").eq("provider", "resend").eq("provider_message_id", messageId)
-    .in("status", rule.allowedFrom)
-    .select("id");
+    .in("status", rule.allowedFrom);
+  // Reclamação repetida (mesmo evento reenviado ou outro idêntico) não reescreve horário nem resumo.
+  if (rule.once) query = query.is(rule.field, null);
+  const { data, error } = await query.select("id");
   if (error) {
     // Tabela ainda inexistente (migration não aplicada): 503 para o Resend repetir depois, sem perder o evento.
     if (isMissingRelation(error)) return { status: 503, body: { error: "Histórico de entrega ainda não disponível." } };

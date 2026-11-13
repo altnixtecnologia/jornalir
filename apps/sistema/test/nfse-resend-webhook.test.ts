@@ -17,14 +17,15 @@ function fakeAdmin(rows: Row[], fail?: { code?: string; message: string }) {
   const client = {
     from(table: string) {
       assert.equal(table, "nfse_delivery_attempts", "o webhook só pode tocar a tabela de tentativas");
-      let patch: Row = {}; const eqs: Array<[string, unknown]> = []; let inCol: [string, unknown[]] | null = null;
+      let patch: Row = {}; const eqs: Array<[string, unknown]> = []; let inCol: [string, unknown[]] | null = null; const isNull: string[] = [];
       const q: any = {
         update(p: Row) { patch = p; return q; },
         eq(c: string, v: unknown) { eqs.push([c, v]); return q; },
         in(c: string, v: unknown[]) { inCol = [c, v]; return q; },
+        is(c: string, v: null) { assert.equal(v, null); isNull.push(c); return q; },
         select(_: string) {
           if (fail) return Promise.resolve({ data: null, error: fail });
-          const hit = rows.filter((r) => eqs.every(([c, v]) => r[c] === v) && (!inCol || inCol[1].includes(r[inCol[0]])));
+          const hit = rows.filter((r) => eqs.every(([c, v]) => r[c] === v) && isNull.every((c) => r[c] == null) && (!inCol || inCol[1].includes(r[inCol[0]])));
           hit.forEach((r) => Object.assign(r, patch));
           return Promise.resolve({ data: hit.map((r) => ({ id: r.id })), error: null });
         },
@@ -64,7 +65,7 @@ test("sem RESEND_WEBHOOK_SECRET => 503 (nunca aceita sem segredo)", async () => 
   assert.equal(db.calls(), 0);
 });
 test("os quatro eventos atualizam a tentativa correspondente (e só ela)", async () => {
-  for (const [type, status, field] of [["email.delivered", "delivered", "delivered_at"], ["email.bounced", "bounced", "failed_at"], ["email.failed", "failed", "failed_at"], ["email.complained", "bounced", "failed_at"]] as const) {
+  for (const [type, status, field] of [["email.delivered", "delivered", "delivered_at"], ["email.bounced", "bounced", "failed_at"], ["email.failed", "failed", "failed_at"], ["email.complained", "bounced", "complained_at"]] as const) {
     const rows = [attempt(), attempt("accepted", { id: "a2", provider_message_id: "email-2" })];
     const r = await call(fakeAdmin(rows), signed(type));
     assert.equal(r.status, 200); assert.equal(r.body.updated, 1);
@@ -74,6 +75,33 @@ test("os quatro eventos atualizam a tentativa correspondente (e só ela)", async
   const rows = [attempt()];
   await call(fakeAdmin(rows), signed("email.complained"));
   assert.match(String(rows[0].response_summary), /spam|reclama/i);
+});
+test("reclamação (complained) é idempotente: registrada uma única vez, sem reescrever horário nem resumo", async () => {
+  for (const from of ["accepted", "delivered", "bounced", "failed"]) {
+    const rows = [attempt(from, { response_summary: "estado anterior" })]; const db = fakeAdmin(rows);
+    const first = await call(db, signed("email.complained", "email-1", { created_at: "2026-11-12T22:00:00.000Z" }));
+    assert.equal(first.body.updated, 1, from);
+    assert.equal(rows[0].status, "bounced"); assert.equal(rows[0].complained_at, "2026-11-12T22:00:00.000Z");
+    const snapshot = JSON.stringify(rows);
+    // mesmo evento reenviado e outro evento idêntico, mais novo
+    for (const ev of [signed("email.complained", "email-1", { created_at: "2026-11-12T22:00:00.000Z" }), signed("email.complained", "email-1", { created_at: "2026-11-12T23:30:00.000Z", id: "msg_outro" })]) {
+      const again = await call(db, ev);
+      assert.equal(again.status, 200); assert.equal(again.body.updated, 0);
+    }
+    assert.equal(JSON.stringify(rows), snapshot, "duplicado não pode alterar a linha (" + from + ")");
+  }
+});
+test("depois de uma reclamação, delivered/bounced/failed atrasados não regridem nem sobrescrevem", async () => {
+  const rows = [attempt()]; const db = fakeAdmin(rows);
+  await call(db, signed("email.complained"));
+  const snapshot = JSON.stringify(rows);
+  for (const t of ["email.delivered", "email.bounced", "email.failed"]) assert.equal((await call(db, signed(t, "email-1", { id: "msg_" + t.replace(".", "_") }))).body.updated, 0, t);
+  assert.equal(JSON.stringify(rows), snapshot);
+});
+test("reclamação de outra tentativa não afeta a atual", async () => {
+  const rows = [attempt(), attempt("accepted", { id: "a2", provider_message_id: "email-2" })];
+  await call(fakeAdmin(rows), signed("email.complained", "email-2"));
+  assert.equal(rows[0].status, "accepted"); assert.equal(rows[0].complained_at, undefined); assert.equal(rows[1].status, "bounced");
 });
 test("evento duplicado: segundo recebimento não altera nada", async () => {
   const rows = [attempt()]; const db = fakeAdmin(rows);
