@@ -39,3 +39,29 @@ test("solicitacao incerta nao libera novo cancelamento", () => {
   const panel = read("features/nfse/NfseCancellationPanel.tsx");
   assert.match(panel, /item\.status === "uncertain"/);
 });
+
+test("envio real de cancelamento existe SOMENTE na server action restrita", () => {
+  const actions = read("app/sistema/nfse/notas/[id]/cancellation-actions.ts");
+  assert.match(actions, /submitCancellationRestrictedAction/);
+  assert.match(actions, /if \(!isRestrictedSefinEnvironment\(restrictedSefinEnvironmentFromServer\(\)\)\)/);
+  assert.match(actions, /await requireFiscalAdmin\(client\)/);
+  assert.match(actions, /prepareRestrictedCancellationDispatchService\(client\)\.submit\(requestId, true\)/);
+  const official = read("composition/nfse.ts");
+  assert.doesNotMatch(official, /prepareRestrictedCancellationDispatchService/);
+  assert.doesNotMatch(official, /RestrictedCancellationDispatchService/);
+  const restricted = read("composition/nfse-cancelamento-restricted.ts");
+  assert.match(restricted, /assertRestrictedSefinEnvironment\(restrictedSefinEnvironmentFromServer\(\)\)/);
+  assert.match(restricted, /environment !== "homologation"/);
+  assert.match(restricted, /await dispatcher\.close\(\)/);
+});
+
+test("rotas oficiais permanecem fechadas sem duas flags e banco isolado", () => {
+  const middle = read("middleware.ts");
+  const auth = read("lib/permissions/checkModuleAction.ts");
+  const action = read("app/sistema/nfse/rascunhos/[id]/actions.ts");
+  assert.match(middle, /!isRestrictedSefinEnvironment\(restrictedSefinEnvironmentFromServer\(\)\)/);
+  assert.match(auth, /!isRestrictedSefinEnvironment\(restrictedSefinEnvironmentFromServer\(\)\)/);
+  assert.match(action, /prepareRestrictedNfseTransmissionService\(supabase\)/);
+  assert.match(action, /getTransmissionService\(supabase\)/);
+  assert.match(action, /checkModuleAction\("nfse", "notas_emitir"\)/);
+});
