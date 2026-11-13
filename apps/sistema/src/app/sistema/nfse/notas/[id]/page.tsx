@@ -80,7 +80,7 @@ export default async function NfseNotaDetailPage(props: { params: Promise<{ id: 
           </div>
         )}
       </section>
-      <NfseConsultationPanel accessKey={note.accessKey} />
+      <NfseConsultationPanel noteId={note.id} accessKey={note.accessKey} previewMode={previewMode} />
       {canManageCancellation === true ? (
         <NfseCancellationPanel issuedNoteId={note.id} history={history} />
       ) : (
