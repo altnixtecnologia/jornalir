@@ -13,7 +13,7 @@ import { consultNfseByNoteIdAction } from "../../app/sistema/nfse/notas/[id]/que
  * chama exatamente o caminho que vai funcionar quando a transmissão
  * real for religada, sem precisar de nenhuma tela nova depois.
  */
-export function NfseConsultationPanel({ noteId, accessKey, previewMode = false }: { noteId: string; accessKey: string | undefined; previewMode?: boolean }): JSX.Element {
+export function NfseConsultationPanel({ noteId, accessKey, previewMode = false, restrictedMode = false }: { noteId: string; accessKey: string | undefined; previewMode?: boolean; restrictedMode?: boolean }): JSX.Element {
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [xml, setXml] = useState<string | null>(null);
@@ -40,6 +40,7 @@ export function NfseConsultationPanel({ noteId, accessKey, previewMode = false }
       <p className="helper-text">
         {previewMode
           ? "Exibe apenas o XML fictício armazenado no modo demonstração; não consulta a Receita Federal nem confirma autorização fiscal."
+          : restrictedMode ? "Consulta real à SEFIN em Produção Restrita, somente no ambiente de homologação isolado."
           : "Consulta a nota pela sua chave oficial registrada no sistema. A consulta real permanece bloqueada até a homologação."}
       </p>
       {error ? <p className="form-error" role="alert">{error}</p> : null}
