@@ -20,6 +20,14 @@ on:
       - "apps/sistema/src/features/nfse/NfseCancellationPanel.tsx"
       - "apps/sistema/src/features/nfse/NfseConsultationPanel.tsx"
       - "apps/sistema/test/nfse-cancelamento-consulta.test.ts"
+      - "apps/sistema/test/prepublication-release-gates.test.ts"
+      - "apps/sistema/test/nfse-p0-release-safety.test.ts"
+      - "apps/sistema/src/lib/nfse/restrictedSefinGate.ts"
+      - "apps/sistema/src/lib/permissions/checkModuleAction.ts"
+      - "apps/sistema/src/middleware.ts"
+      - "apps/sistema/src/features/nfse/NfseTransmissionPanel.tsx"
+      - "apps/sistema/src/app/sistema/nfse/rascunhos/[id]/**"
+      - "apps/sistema/src/composition/nfse-cancelamento-restricted.ts"
       - "supabase/migrations/20261122340600_nfse_cancellation_uncertain_uniqueness.sql"
       - "packages/core/test/sql/nfse-cancellation-uncertain-test.sql"
       - ".github/workflows/validate-nfse-cancelamento-consulta-20261112.yml"
@@ -76,7 +84,7 @@ jobs:
         env:
           NODE_OPTIONS: --conditions=react-server
         run: |
-          npx tsx --test packages/core/test/event-builder.test.ts packages/core/test/event-signature.test.ts packages/core/test/nfse-cancellation.test.ts packages/core/test/nfse-cancellation-dispatch.test.ts apps/sistema/test/nfse-cancelamento-consulta.test.ts
+          npx tsx --test packages/core/test/event-builder.test.ts packages/core/test/event-signature.test.ts packages/core/test/nfse-cancellation.test.ts packages/core/test/nfse-cancellation-dispatch.test.ts apps/sistema/test/nfse-cancelamento-consulta.test.ts apps/sistema/test/prepublication-release-gates.test.ts apps/sistema/test/nfse-p0-release-safety.test.ts
 
       - name: PostgreSQL descartavel com migration real de unicidade
         run: |
