@@ -1,0 +1,84 @@
+name: NFS-e - consulta e cancelamento seguros sem A1
+
+on:
+  push:
+    branches:
+      - fix/nfse-cancelamento-consulta-prehomologacao-20261112
+  pull_request:
+    paths:
+      - "packages/core/src/nfse/event-builder.ts"
+      - "packages/core/src/nfse/cancellation-service.ts"
+      - "packages/core/test/event-builder.test.ts"
+      - "packages/core/test/nfse-cancellation.test.ts"
+      - "apps/sistema/src/providers/supabase/nfseCancellationRequestRepository.supabase.ts"
+      - "apps/sistema/src/app/sistema/nfse/notas/**"
+      - "apps/sistema/src/features/nfse/NfseCancellationPanel.tsx"
+      - "apps/sistema/src/features/nfse/NfseConsultationPanel.tsx"
+      - "apps/sistema/test/nfse-cancelamento-consulta.test.ts"
+      - "supabase/migrations/20261122340600_nfse_cancellation_uncertain_uniqueness.sql"
+      - "packages/core/test/sql/nfse-cancellation-uncertain-test.sql"
+      - ".github/workflows/validate-nfse-cancelamento-consulta-20261112.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: nfse-cancel-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validar-cancelamento:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: local-test-only
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    env:
+      PGHOST: localhost
+      PGPORT: "5432"
+      PGUSER: postgres
+      PGPASSWORD: local-test-only
+      PGDATABASE: postgres
+      NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
+      NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ci-test-key
+      NEXT_TELEMETRY_DISABLED: "1"
+      SIGNATURE_DELIVERY_ENABLED: "false"
+    steps:
+      - name: Checkout do GitHub sem deploy
+        uses: actions/checkout@v4
+
+      - name: Node 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+
+      - name: Instalar dependencias
+        run: npm ci --no-audit --no-fund
+
+      - name: Testar eventos assinados/XSD, cancelamentos e consulta segregada
+        env:
+          NODE_OPTIONS: --conditions=react-server
+        run: |
+          npx tsx --test packages/core/test/event-builder.test.ts packages/core/test/event-signature.test.ts packages/core/test/nfse-cancellation.test.ts apps/sistema/test/nfse-cancelamento-consulta.test.ts
+
+      - name: PostgreSQL descartavel com migration real de unicidade
+        run: |
+          psql -v ON_ERROR_STOP=1 -f packages/core/test/sql/nfse-cancellation-uncertain-test.sql
+
+      - name: Validar TypeScript
+        run: npm run typecheck --workspace @ir/sistema
+
+      - name: Build Next.js sem Vercel
+        run: npm run build --workspace @ir/sistema
