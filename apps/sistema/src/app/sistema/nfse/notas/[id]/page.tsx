@@ -83,7 +83,7 @@ export default async function NfseNotaDetailPage(props: { params: Promise<{ id: 
       </section>
       <NfseConsultationPanel noteId={note.id} accessKey={note.accessKey} previewMode={previewMode} restrictedMode={isRestrictedSefinEnvironment(restrictedSefinEnvironmentFromServer())} />
       {canManageCancellation === true ? (
-        <NfseCancellationPanel issuedNoteId={note.id} history={history} />
+        <NfseCancellationPanel issuedNoteId={note.id} history={history} restrictedMode={isRestrictedSefinEnvironment(restrictedSefinEnvironmentFromServer())} />
       ) : (
         <section className="form-section">
           <h2>Cancelamento</h2>
