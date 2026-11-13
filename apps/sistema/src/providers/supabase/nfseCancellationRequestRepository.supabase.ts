@@ -57,7 +57,7 @@ function toDomain(row: CancellationRow): NfseCancellationRequest {
   };
 }
 
-const ACTIVE_STATUSES: NfseCancellationStatus[] = ["pending", "submitted", "confirmed"];
+const ACTIVE_STATUSES: NfseCancellationStatus[] = ["pending", "submitted", "confirmed", "uncertain"];
 
 /** Preparação do cancelamento (Item 5, Lote 2, Tarefa 5) — histórico imutável, sem update/delete; cada resultado é uma linha nova. */
 export function createCancellationRequestRepositorySupabase(client: SupabaseClient): CancellationRequestRepository {
