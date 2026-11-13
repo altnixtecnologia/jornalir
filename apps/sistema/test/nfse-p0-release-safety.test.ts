@@ -2,6 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { isRestrictedSefinEnvironment } from "../src/lib/nfse/restrictedSefinGate";
+import { PRODUCTION_SUPABASE_REF } from "../src/lib/release/previewIsolationPolicy";
 
 const source = (path: string) =>
   readFileSync(new URL(`../src/${path}`, import.meta.url), "utf8");
@@ -47,6 +48,11 @@ test("SEFIN restrita so pode ser preparada em preview com banco segregado e flag
   assert.equal(isRestrictedSefinEnvironment({ ...good, supabaseUrl: "http://abcdefghijklmnopqrst.supabase.co" }), false);
   assert.equal(isRestrictedSefinEnvironment({ ...good, supabaseUrl: "https://abcdefghijklmnopqrst.supabase.co.evil.com" }), false);
   assert.equal(isRestrictedSefinEnvironment({ ...good, supabaseUrl: "https://user:pass@abcdefghijklmnopqrst.supabase.co" }), false);
+  assert.equal(isRestrictedSefinEnvironment({
+    ...good,
+    homologationProjectRef: PRODUCTION_SUPABASE_REF,
+    supabaseUrl: `https://${PRODUCTION_SUPABASE_REF}.supabase.co`,
+  }), false, "O banco oficial NUNCA pode servir como sandbox, mesmo com flags habilitadas");
 });
 
 test("factory de mTLS esta isolada e NUNCA e importada pela composicao oficial", () => {
