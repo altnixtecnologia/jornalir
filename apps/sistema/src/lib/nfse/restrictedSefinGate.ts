@@ -1,3 +1,5 @@
+import { isIsolatedHomologation } from "../release/previewIsolationPolicy";
+
 /** 
  * Porta de seguranca EXCLUSIVA para preparar a integracao SEFIN em
  * Produção Restrita. Nao e configurada em nenhuma implantacao atual.
@@ -16,19 +18,12 @@ export interface RestrictedSefinEnvironment {
 }
 
 export function isRestrictedSefinEnvironment(env: RestrictedSefinEnvironment): boolean {
-  if (env.vercelEnv !== "preview") return false;
-  if (env.restrictedEnabled !== "true" || env.homologationEnabled !== "true") return false;
-  const projectRef = env.homologationProjectRef;
-  if (!projectRef || !/^[a-z0-9]{20}$/.test(projectRef)) return false;
-  try {
-    const url = new URL(env.supabaseUrl ?? "");
-    return url.protocol === "https:" &&
-      url.hostname === `${projectRef}.supabase.co` &&
-      url.pathname === "/" && !url.username && !url.password &&
-      !url.port && !url.search && !url.hash;
-  } catch {
-    return false;
-  }
+  return env.restrictedEnabled === "true" && isIsolatedHomologation({
+    vercelEnv: env.vercelEnv,
+    homologationEnabled: env.homologationEnabled,
+    homologationProjectRef: env.homologationProjectRef,
+    supabaseUrl: env.supabaseUrl,
+  });
 }
 
 export function assertRestrictedSefinEnvironment(env: RestrictedSefinEnvironment): void {
