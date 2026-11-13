@@ -57,6 +57,6 @@ test("server actions nunca confiam em dados fiscais readonly e congelam transmis
 
 test("atalho de nova NFS-e do cliente respeita gate de release", () => {
   const source = readFileSync(new URL("../src/app/sistema/clientes/[id]/page.tsx", import.meta.url), "utf8");
-  assert.match(source, /NFSE_AVAILABLE_IN_THIS_RELEASE \? \(/);
+  assert.match(source, /NFSE_AVAILABLE_IN_THIS_RELEASE \|\| isRestrictedSefinEnvironment\(restrictedSefinEnvironmentFromServer\(\)\)/);
   assert.match(source, /\/sistema\/nfse\/nova\?clientId=/);
 });
