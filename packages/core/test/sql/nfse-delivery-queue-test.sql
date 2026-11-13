@@ -14,7 +14,8 @@ create table public.nfse_issued_notes (
   environment text not null,
   nfse_xml text
 );
-\i supabase/migrations/20261122340700_nfse_documents_delivery_history.sql
+\i supabase/migrations/20261122340650_nfse_delivery_history_tables.sql
+\i supabase/migrations/20261122340700_nfse_delivery_enqueue_trigger.sql
 insert into public.clients(id,email,fiscal_email) values
 ('00000000-0000-0000-0000-000000000111','principal@exemplo.test','fiscal@exemplo.test'),
 ('00000000-0000-0000-0000-000000000112','principal2@exemplo.test',null),

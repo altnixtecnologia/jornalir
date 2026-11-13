@@ -1,8 +1,11 @@
--- NFS-e: arquivos fiscais privados + historico de entrega.
--- NAO aplicar no Supabase oficial antes da revisao/autorizacao.
--- A NFS-e autorizada permanece imutavel; entrega jamais muda seu estado fiscal.
-create schema if not exists nfse_internal;
-revoke all on schema nfse_internal from public, anon, authenticated;
+-- NFS-e (PARTE A): documentos fiscais privados (somente metadados/SHA-256) e histórico de entrega.
+-- Só CRIA objetos novos; NÃO toca em nfse_issued_notes (sem trigger, sem função, sem fila automática).
+-- É tudo o que o webhook do Resend precisa. A fila automática (trigger) é a PARTE B, aplicada só quando a emissão for liberada.
+-- NAO aplicar no Supabase oficial sem autorização. Requer: public.nfse_issued_notes, public.profiles.
+-- Ao aplicar, registrar a versão real do ledger e renomear este arquivo para ela.
+-- Reversão (somente com as tabelas vazias): drop table public.nfse_delivery_attempts; drop table public.nfse_document_assets;
+
+set local lock_timeout = '3s';
 
 create table if not exists public.nfse_document_assets (
   id uuid primary key default gen_random_uuid(),
@@ -43,6 +46,7 @@ create table if not exists public.nfse_delivery_attempts (
   failed_at timestamptz,
   opened_at timestamptz,
   confirmed_at timestamptz,
+  complained_at timestamptz, -- reclamação (spam) registrada uma única vez pelo webhook
   response_summary text,
   updated_at timestamptz not null default now(),
   constraint nfse_delivery_channel_status check (
@@ -73,40 +77,3 @@ revoke all on public.nfse_delivery_attempts from public, anon, authenticated;
 grant select, insert, update on public.nfse_delivery_attempts to service_role;
 comment on table public.nfse_delivery_attempts is
   'Cada tentativa e preservada por ID. Status do provedor nao equivale a entrega; WhatsApp aberto nao comprova envio.';
-
--- O enfileiramento fiscal NAO depende do e-mail responder nem do R2.
--- O trigger captura o e-mail fiscal no momento da autorizacao da nota,
--- com fallback ao principal. Se falhar, jamais reverte a nota autorizada.
-create or replace function nfse_internal.enqueue_automatic_note_delivery()
-returns trigger
-language plpgsql security definer set search_path=''
-as $$
-declare
-  v_email text;
-begin
-  if new.environment <> 'production' then return new; end if;
-  select coalesce(nullif(btrim(fiscal_email),''),nullif(btrim(email),''))
-    into v_email from public.clients where id=new.client_id;
-  insert into public.nfse_delivery_attempts
-    (issued_note_id,channel,origin,status,recipient_snapshot)
-  values (new.id,'email','automatic',
-    'queued', -- arquivar XML/PDF mesmo sem destinatario; worker marca missing_recipient depois
-    v_email)
-  on conflict do nothing;
-  return new;
-exception when others then
-  -- A emissao foi autorizada externamente: nao destruir o registro fiscal.
-  raise warning 'Falha ao enfileirar entrega da NFS-e (SQLSTATE %)', SQLSTATE;
-  return new;
-end;
-$$;
-revoke all on function nfse_internal.enqueue_automatic_note_delivery()
-  from public, anon, authenticated;
-drop trigger if exists nfse_queue_delivery_on_authorization on public.nfse_issued_notes;
-create trigger nfse_queue_delivery_on_authorization
-after insert on public.nfse_issued_notes
-for each row execute function nfse_internal.enqueue_automatic_note_delivery();
-
--- Com worker de reconciliacao: notas antigas que nao tiverem fila
--- podem ser re-enfileiradas de forma idempotente (nunca enviar dentro
--- do trigger; R2, SMTP e PDF sao processados fora da transacao).
