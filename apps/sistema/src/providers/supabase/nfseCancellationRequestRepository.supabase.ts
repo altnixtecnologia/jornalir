@@ -3,6 +3,20 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { NfseCancellationRequest, NfseCancellationStatus } from "@ir/types";
 import type { CancellationRequestRepository, NewCancellationRequestRecord } from "@ir/core";
 import { isLocalPreviewEnabled } from "../../lib/auth/localPreview";
+import { createSupabaseAdminClient } from "../../lib/supabase/admin";
+
+/**
+ * Esta tabela e service_role-only (migration 20261029100900).
+ * No servidor, validar owner/admin NOVAMENTE antes de criar uma sessão
+ * privilegiada. Nunca retornar o client admin para o navegador.
+ */
+async function authorizedPrivateClient(session: SupabaseClient): Promise<SupabaseClient> {
+  const { data, error } = await session.rpc("is_active_admin_or_owner");
+  if (error || data !== true) {
+    throw new Error("Sem permissão fiscal administrativa para acessar solicitações de cancelamento.");
+  }
+  return createSupabaseAdminClient();
+}
 
 const PREVIEW_REQUESTS: NfseCancellationRequest[] = [];
 
@@ -50,8 +64,9 @@ export function createCancellationRequestRepositorySupabase(client: SupabaseClie
   return {
     async listByIssuedNoteId(issuedNoteId) {
       if (isLocalPreviewEnabled()) return PREVIEW_REQUESTS.filter((r) => r.issuedNoteId === issuedNoteId);
-      const { data, error } = await client.from(TABLE).select(COLUMNS)
-        .eq("issued_note_id", issuedNoteId).order("created_at", { ascending: false });
+      const admin = await authorizedPrivateClient(client);
+      const { data, error } = await admin.from(TABLE).select(COLUMNS)
+        .eq("issued_note_id", issuedNoteId).order("created_at", { ascending: false }).order("id", { ascending: false });
       if (error) throw new Error(error.message);
       return (data ?? []).map((row) => toDomain(row as unknown as CancellationRow));
     },
@@ -60,7 +75,8 @@ export function createCancellationRequestRepositorySupabase(client: SupabaseClie
       if (isLocalPreviewEnabled()) {
         return PREVIEW_REQUESTS.find((r) => r.issuedNoteId === issuedNoteId && ACTIVE_STATUSES.includes(r.status)) ?? null;
       }
-      const { data, error } = await client.from(TABLE).select(COLUMNS)
+      const admin = await authorizedPrivateClient(client);
+      const { data, error } = await admin.from(TABLE).select(COLUMNS)
         .eq("issued_note_id", issuedNoteId).in("status", ACTIVE_STATUSES).maybeSingle();
       if (error) throw new Error(error.message);
       return data ? toDomain(data as unknown as CancellationRow) : null;
@@ -81,7 +97,8 @@ export function createCancellationRequestRepositorySupabase(client: SupabaseClie
         PREVIEW_REQUESTS.push(created);
         return created;
       }
-      const { data, error } = await client.from(TABLE).insert({
+      const admin = await authorizedPrivateClient(client);
+      const { data, error } = await admin.from(TABLE).insert({
         issued_note_id: record.issuedNoteId,
         justification_code: record.justificationCode,
         justification_text: record.justificationText,
