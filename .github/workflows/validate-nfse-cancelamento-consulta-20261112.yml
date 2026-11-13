@@ -10,6 +10,11 @@ on:
       - "packages/core/src/nfse/cancellation-service.ts"
       - "packages/core/test/event-builder.test.ts"
       - "packages/core/test/nfse-cancellation.test.ts"
+      - "packages/core/src/nfse/cancellation-dispatch-service.ts"
+      - "packages/core/src/nfse/cancellation-submission-repository.ts"
+      - "packages/core/test/nfse-cancellation-dispatch.test.ts"
+      - "apps/sistema/src/composition/nfse-cancelamento-restricted.ts"
+      - "apps/sistema/src/providers/supabase/nfseCancellationSubmissionRepository.supabase.ts"
       - "apps/sistema/src/providers/supabase/nfseCancellationRequestRepository.supabase.ts"
       - "apps/sistema/src/app/sistema/nfse/notas/**"
       - "apps/sistema/src/features/nfse/NfseCancellationPanel.tsx"
@@ -71,7 +76,7 @@ jobs:
         env:
           NODE_OPTIONS: --conditions=react-server
         run: |
-          npx tsx --test packages/core/test/event-builder.test.ts packages/core/test/event-signature.test.ts packages/core/test/nfse-cancellation.test.ts apps/sistema/test/nfse-cancelamento-consulta.test.ts
+          npx tsx --test packages/core/test/event-builder.test.ts packages/core/test/event-signature.test.ts packages/core/test/nfse-cancellation.test.ts packages/core/test/nfse-cancellation-dispatch.test.ts apps/sistema/test/nfse-cancelamento-consulta.test.ts
 
       - name: PostgreSQL descartavel com migration real de unicidade
         run: |
