@@ -59,7 +59,7 @@ export function NfseDeliveryPanel({
     const url = whatsappComposeUrl(noteNumber);
     // O usuário escolhe a conversa. Abrir em um clique real preserva o popup;
     // link não leva arquivos fiscais públicos.
-    const opened = window.open(url,"_blank","noopener,noreferrer");
+    const opened = window.open(url,"_blank");\n    if (opened) opened.opener = null;
     if (!opened) {
       setError("O navegador pode ter bloqueado o WhatsApp. Permita a nova janela e tente novamente.");
       return;
@@ -101,7 +101,7 @@ export function NfseDeliveryPanel({
       </p>
       <div className="form-actions">
         <button type="button" className="form-action-primary" disabled={loading||previewMode} onClick={resend}>Reenviar e-mail</button>
-        <button type="button" className="secondary-link" onClick={openWhatsApp}>Abrir WhatsApp e escolher contato</button>
+        <button type="button" className="secondary-link" onClick={openWhatsApp} disabled={previewMode}>Abrir WhatsApp e escolher contato</button>
         <button type="button" className="secondary-link" disabled={loading} onClick={refresh}>Atualizar histórico</button>
       </div>
       <p className="helper-text">

@@ -18,12 +18,12 @@ export async function archiveNfseDocuments(
   if (!note.accessKey || !note.nfseXml || !note.signedDpsXml) {
     throw new Error("Nota ainda não possui XML oficial e DPS assinada. Não enviar e-mail.");
   }
-  // O XML oficial continua no banco como fallback até a migração R2 ser homologada.
-  const pdf = Buffer.from(await buildDanfsePdf(extractDanfseData(note)));
-  const objects: Array<{ kind: AssetKind; bytes: Buffer }> = [
+  // Primeiro guarda o XML original; se o gerador de PDF falhar,
+  // as fontes fiscais permanecem preservadas no R2.
+  const objects: Array<{ kind: AssetKind; bytes: Buffer | (() => Promise<Buffer>) }> = [
     { kind: "nfse_xml", bytes: Buffer.from(note.nfseXml, "utf8") },
     { kind: "dps_xml", bytes: Buffer.from(note.signedDpsXml, "utf8") },
-    { kind: "danfse_pdf", bytes: pdf },
+    { kind: "danfse_pdf", bytes: async () => Buffer.from(await buildDanfsePdf(extractDanfseData(note))) },
   ];
   const result = {} as Record<AssetKind, AssetRow>;
   for (const entry of objects) {
@@ -37,8 +37,9 @@ export async function archiveNfseDocuments(
       result[entry.kind] = existing as AssetRow;
       continue;
     }
+    const bytes = typeof entry.bytes === "function" ? await entry.bytes() : entry.bytes;
     const upload = await saveNfseDocument({
-      noteId: note.id, environment: note.environment, kind: entry.kind, data: entry.bytes,
+      noteId: note.id, environment: note.environment, kind: entry.kind, data: bytes,
     });
     const { data, error } = await admin.from("nfse_document_assets").insert({
       issued_note_id: note.id, kind: entry.kind,

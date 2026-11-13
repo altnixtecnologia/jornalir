@@ -55,6 +55,11 @@ create table if not exists public.nfse_delivery_attempts (
 create unique index if not exists nfse_delivery_automatic_unique
   on public.nfse_delivery_attempts(issued_note_id,channel)
   where origin='automatic';
+-- Um unico email pendente/processando por nota: impede duplo clique
+-- concorrente ao reenvio e nao interfere em tentativas anteriores aceitas.
+create unique index if not exists nfse_delivery_one_active_email
+  on public.nfse_delivery_attempts(issued_note_id)
+  where channel='email' and status in ('queued','processing');
 create unique index if not exists nfse_delivery_provider_unique
   on public.nfse_delivery_attempts(provider,provider_message_id)
   where provider_message_id is not null;
@@ -85,7 +90,7 @@ begin
   insert into public.nfse_delivery_attempts
     (issued_note_id,channel,origin,status,recipient_snapshot)
   values (new.id,'email','automatic',
-    case when v_email is null then 'missing_recipient' else 'queued' end,
+    'queued', -- arquivar XML/PDF mesmo sem destinatario; worker marca missing_recipient depois
     v_email)
   on conflict do nothing;
   return new;
