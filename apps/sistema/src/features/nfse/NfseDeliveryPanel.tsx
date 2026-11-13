@@ -59,7 +59,8 @@ export function NfseDeliveryPanel({
     const url = whatsappComposeUrl(noteNumber);
     // O usuário escolhe a conversa. Abrir em um clique real preserva o popup;
     // link não leva arquivos fiscais públicos.
-    const opened = window.open(url,"_blank");\n    if (opened) opened.opener = null;
+    const opened = window.open(url,"_blank");
+    if (opened) opened.opener = null;
     if (!opened) {
       setError("O navegador pode ter bloqueado o WhatsApp. Permita a nova janela e tente novamente.");
       return;
