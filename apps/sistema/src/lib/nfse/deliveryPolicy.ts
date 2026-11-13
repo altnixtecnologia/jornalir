@@ -50,7 +50,7 @@ export function whatsappMessage(noteNumber: string): string {
 export function whatsappComposeUrl(noteNumber: string): string {
   // Sem telefone: deixa o operador selecionar a conversa no WhatsApp.
   // NÃO disponibilizar XML/PDF privado em URL pública.
-  return "https://api.whatsapp.com/send?text=" + encodeURIComponent(whatsappMessage(noteNumber));
+  return "https://wa.me/?text=" + encodeURIComponent(whatsappMessage(noteNumber));
 }
 export function canManuallyResend(status: DeliveryStatus): boolean {
   // "accepted"/"delivered" podem ser reenviados com clique expresso,

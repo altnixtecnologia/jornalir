@@ -16,7 +16,7 @@ test("e-mail fiscal prevalece sobre e-mail principal sem duplicar cadastro",()=>
 });
 test("WhatsApp abre escolha de contato, sem link publico para XML/PDF",()=>{
   const link=whatsappComposeUrl("123\r\n456");
-  assert.ok(link.startsWith("https://api.whatsapp.com/send?text="));
+  assert.ok(link.startsWith("https://wa.me/?text="));
   assert.ok(!link.includes("phone="));
   assert.ok(!link.includes("https%3A%2F%2F"));
   assert.ok(!whatsappMessage("123").includes("http"));
