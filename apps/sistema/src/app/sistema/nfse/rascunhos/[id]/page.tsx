@@ -10,6 +10,7 @@ import { createSupabaseServerClient } from "../../../../../lib/supabase/server";
 import { createIssuedNoteRepositorySupabase } from "../../../../../providers/supabase/nfseIssuedNoteRepository.supabase";
 import { createTransmissionAttemptRepositorySupabase } from "../../../../../providers/supabase/nfseTransmissionAttemptRepository.supabase";
 import { isLocalPreviewEnabled } from "../../../../../lib/auth/localPreview";
+import { isRestrictedSefinEnvironment, restrictedSefinEnvironmentFromServer } from "../../../../../lib/nfse/restrictedSefinGate";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -60,9 +61,10 @@ export default async function NfseRascunhoDetailPage(props: { params: Promise<{ 
         issuerConfigured={Boolean(issuerConfig)}
         blockingReasons={readiness.missing}
         previewMode={isLocalPreviewEnabled()}
+        restrictedMode={isRestrictedSefinEnvironment(restrictedSefinEnvironmentFromServer())}
       />
 
-      {!issuedNote ? (
+      {!issuedNote && attempts[0]?.status !== "pending" && attempts[0]?.status !== "uncertain" ? (
         <NfseDraftForm
           mode="edit"
           serviceProfiles={serviceProfiles}
@@ -71,6 +73,10 @@ export default async function NfseRascunhoDetailPage(props: { params: Promise<{ 
           initialDraft={draft}
           initialSelectedClient={selectedClient}
         />
+      ) : !issuedNote ? (
+        <section className="form-section">
+          <p className="form-error" role="alert">Edição suspensa: existe DPS pendente ou incerta. Concilie o resultado no Sistema Nacional antes de alterar este rascunho.</p>
+        </section>
       ) : null}
     </>
   );
