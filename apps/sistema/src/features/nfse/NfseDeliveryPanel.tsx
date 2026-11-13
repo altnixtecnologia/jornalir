@@ -117,6 +117,7 @@ export function NfseDeliveryPanel({
                 <strong>{event.channel==="email"?"E-mail":"WhatsApp"} — {DELIVERY_STATUS_LABELS[event.status]}</strong>
                 <span className="helper-text">Solicitado em {dateTime(event.requestedAt)} · {event.origin==="automatic"?"Automático":"Operador"}</span>
                 {event.recipientSnapshot ? <span className="helper-text">Destinatário: {event.recipientSnapshot}</span>:null}
+                {event.actorName ? <span className="helper-text">Responsável: {event.actorName}</span>:null}
                 {event.acceptedAt ? <span className="helper-text">Aceito pelo provedor: {dateTime(event.acceptedAt)}</span>:null}
                 {event.deliveredAt ? <span className="helper-text">Entrega confirmada: {dateTime(event.deliveredAt)}</span>:null}
                 {event.failedAt ? <span className="helper-text">Falha: {dateTime(event.failedAt)}</span>:null}

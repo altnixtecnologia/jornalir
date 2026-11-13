@@ -5,6 +5,9 @@ import { createIssuedNoteRepositorySupabase } from "../../../../../../providers/
 import { getCancellationService } from "../../../../../../composition/nfse";
 import { extractDanfseData, DanfseDataError } from "@ir/core/src/nfse/danfse-data";
 import { buildDanfsePdf } from "../../../../../../lib/nfse/danfsePdf";
+import { createSupabaseAdminClient } from "../../../../../../lib/supabase/admin";
+import { readNfseDocument } from "../../../../../../providers/r2/nfseDocuments.r2";
+import { isLocalPreviewEnabled } from "../../../../../../lib/auth/localPreview";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -32,19 +35,34 @@ export async function GET(_req: Request, props: { params: Promise<{ id: string }
   const note = await createIssuedNoteRepositorySupabase(supabase).getById(params.id);
   if (!note) return denied(404, "NFS-e não encontrada.");
 
-  let data;
-  try {
-    data = extractDanfseData(note);
-  } catch (error) {
-    if (error instanceof DanfseDataError) return denied(422, error.message);
-    throw error;
-  }
+  if (isLocalPreviewEnabled()) return denied(403, "DANFSe fictício não é documento fiscal.");
 
   const history = await getCancellationService(supabase).listHistory(note.id);
   const cancelled = history.some((item) => item.status === "confirmed");
 
-  const pdfBytes = await buildDanfsePdf(data, { cancelled });
-  return new NextResponse(Buffer.from(pdfBytes), {
+  let pdfBytes: Buffer;
+  try {
+    // Documento original arquivado é a primeira opção. Para nota
+    // cancelada, gera a visualização atual com marca d'água CANCELADA;
+    // o PDF originalmente entregue permanece arquivado, imutável.
+    let original: {r2_key:string;sha256:string} | null = null;
+    if (!cancelled) {
+      const admin = createSupabaseAdminClient();
+      const {data,error} = await admin.from("nfse_document_assets")
+        .select("r2_key,sha256").eq("issued_note_id",note.id).eq("kind","danfse_pdf").maybeSingle();
+      if (error) throw new Error(error.message);
+      original = data;
+    }
+    if (original) {
+      pdfBytes = await readNfseDocument(original.r2_key,original.sha256);
+    } else {
+      pdfBytes = Buffer.from(await buildDanfsePdf(extractDanfseData(note),{cancelled}));
+    }
+  } catch (error) {
+    if (error instanceof DanfseDataError) return denied(422,error.message);
+    return denied(503,"DANFSe indisponível: arquivo original ou PDF não pôde ser validado.");
+  }
+  return new NextResponse(pdfBytes, {
     headers: {
       "Content-Type": "application/pdf",
       "Content-Disposition": `inline; filename="DANFSe-${note.nfseNumber ?? note.id}.pdf"`,

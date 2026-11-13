@@ -73,5 +73,6 @@ test("NFS-e autorizada abre ficha e modal de entrega; consulta mostra horario e 
   assert.match(panel,/acceptedAt/);
   assert.match(panel,/deliveredAt/);
   assert.match(panel,/confirmedAt/);
+  assert.match(panel,/actorName/);
   assert.match(panel,/Marcar como enviado pelo operador/);
 });

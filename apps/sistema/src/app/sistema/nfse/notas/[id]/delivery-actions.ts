@@ -51,8 +51,17 @@ export async function listNfseDeliveriesAction(noteId:string):Promise<Result<{ev
         .eq("issued_note_id",noteId).order("stored_at",{ascending:false}),
     ]);
     if (history.error || documents.error) throw new Error("Falha ao consultar entrega de documentos fiscais.");
+    const rows = (history.data??[]) as DbRow[];
+    const actorIds = [...new Set(rows.map((row)=>row.requested_by).filter((id):id is string=>Boolean(id)))];
+    const actors = new Map<string,string>();
+    if (actorIds.length) {
+      const {data:profiles,error:profileError} = await admin.from("profiles")
+        .select("id,name").in("id",actorIds);
+      if (profileError) throw new Error("Falha ao localizar responsáveis pela entrega.");
+      for (const item of profiles??[]) actors.set(item.id,item.name??"Operador");
+    }
     return {ok:true,data:{
-      events:((history.data??[]) as DbRow[]).map(asEvent),
+      events:rows.map(row=>({...asEvent(row),actorName:row.requested_by ? actors.get(row.requested_by) : undefined})),
       assets:((documents.data??[]) as AssetRow[]).map(x=>({
         id:x.id,kind:x.kind,storedAt:x.stored_at,sizeBytes:x.size_bytes,sha256:x.sha256,
       })),

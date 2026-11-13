@@ -18,6 +18,7 @@ export interface NfseDeliveryEvent {
   openedAt?: string;
   confirmedAt?: string;
   requestedBy?: string;
+  actorName?: string;
   responseSummary?: string;
 }
 export interface NfseDocumentAsset {
