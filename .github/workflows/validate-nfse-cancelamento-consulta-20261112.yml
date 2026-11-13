@@ -14,6 +14,12 @@ on:
       - "packages/core/src/nfse/cancellation-submission-repository.ts"
       - "packages/core/test/nfse-cancellation-dispatch.test.ts"
       - "apps/sistema/src/composition/nfse-cancelamento-restricted.ts"
+      - "apps/sistema/src/app/sistema/nfse/page.tsx"
+      - "apps/sistema/src/features/nfse/NfseTransmissionPanel.tsx"
+      - "packages/core/test/nfse-transmission.test.ts"
+      - "packages/core/test/nfse-end-to-end-real-client.test.ts"
+      - "apps/sistema/test/nfse-tomador-snapshot.test.ts"
+      - "apps/sistema/test/nfse-competency.test.ts"
       - "apps/sistema/src/providers/supabase/nfseCancellationSubmissionRepository.supabase.ts"
       - "apps/sistema/src/providers/supabase/nfseCancellationRequestRepository.supabase.ts"
       - "apps/sistema/src/app/sistema/nfse/notas/**"
@@ -84,7 +90,7 @@ jobs:
         env:
           NODE_OPTIONS: --conditions=react-server
         run: |
-          npx tsx --test packages/core/test/event-builder.test.ts packages/core/test/event-signature.test.ts packages/core/test/nfse-cancellation.test.ts packages/core/test/nfse-cancellation-dispatch.test.ts apps/sistema/test/nfse-cancelamento-consulta.test.ts apps/sistema/test/prepublication-release-gates.test.ts apps/sistema/test/nfse-p0-release-safety.test.ts
+          npx tsx --test packages/core/test/event-builder.test.ts packages/core/test/event-signature.test.ts packages/core/test/nfse-cancellation.test.ts packages/core/test/nfse-cancellation-dispatch.test.ts apps/sistema/test/nfse-cancelamento-consulta.test.ts apps/sistema/test/prepublication-release-gates.test.ts apps/sistema/test/nfse-p0-release-safety.test.ts packages/core/test/nfse-transmission.test.ts packages/core/test/nfse-end-to-end-real-client.test.ts apps/sistema/test/nfse-tomador-snapshot.test.ts apps/sistema/test/nfse-competency.test.ts
 
       - name: PostgreSQL descartavel com migration real de unicidade
         run: |
