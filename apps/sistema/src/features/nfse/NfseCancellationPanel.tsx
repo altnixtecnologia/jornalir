@@ -29,7 +29,7 @@ export function NfseCancellationPanel({
   const [error, setError] = useState("");
   const [localHistory, setLocalHistory] = useState(history);
 
-  const hasActive = localHistory.some((item) => item.status === "pending" || item.status === "submitted" || item.status === "confirmed");
+  const hasActive = localHistory.some((item) => item.status === "pending" || item.status === "submitted" || item.status === "confirmed" || item.status === "uncertain");
 
   function submit(): void {
     setError("");
@@ -50,7 +50,7 @@ export function NfseCancellationPanel({
       </p>
       {error ? <p className="form-error" role="alert">{error}</p> : null}
       {hasActive ? (
-        <p className="helper-text">Já existe uma solicitação ativa para esta NFS-e — veja o histórico abaixo.</p>
+        <p className="helper-text">Já existe uma solicitação ativa ou com resultado incerto. Confira o histórico e concilie com a SEFIN antes de qualquer novo pedido.</p>
       ) : (
         <div className="form-grid">
           <label className="form-field">
