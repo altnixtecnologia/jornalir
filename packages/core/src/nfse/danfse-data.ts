@@ -84,6 +84,8 @@ export interface DanfseData {
   emitterMunicipality?: string;
   statusCode: string;
   statusLabel: string;
+  issuerLabel: string;
+  purposeLabel: string;
   isHomologation: boolean;
   prestador: DanfsePessoaData;
   tomador?: DanfsePessoaData;
@@ -169,6 +171,13 @@ export function extractDanfseData(issuedNote: Pick<NfseIssuedNote, "accessKey" |
 
   const tpAmb = text(doc, "tpAmb", infDPS);
   const cStat = text(doc, "cStat", infNFSe) ?? "100";
+  // Emitente e finalidade vêm da DPS embutida, não de nomes ou textos fixos do PDF.
+  const tpEmit = requireText("tpEmit", text(doc, "tpEmit", infDPS), "infDPS");
+  const issuerLabel = ({ "1": "Prestador", "2": "Tomador", "3": "Intermediário" } as Record<string, string>)[tpEmit];
+  if (!issuerLabel) throw new DanfseDataError(`Emitente tpEmit=${tpEmit} não reconhecido no XML autorizado.`);
+  const finNFSe = requireText("finNFSe", text(doc, "finNFSe", infDPS), "infDPS");
+  // O XSD nacional atualmente versionado no projeto só permite 0 para o caso regular.
+  if (finNFSe !== "0") throw new DanfseDataError(`Finalidade finNFSe=${finNFSe} sem descrição validada no leiaute atual.`);
 
   return {
     accessKey: issuedNote.accessKey,
@@ -182,6 +191,8 @@ export function extractDanfseData(issuedNote: Pick<NfseIssuedNote, "accessKey" |
     emitterMunicipality: text(doc, "xLocEmi", infNFSe),
     statusCode: cStat,
     statusLabel: STAT_LABELS[cStat] ?? "NFS-e Gerada",
+    issuerLabel,
+    purposeLabel: "NFS-e regular",
     isHomologation: tpAmb === "2",
     prestador,
     tomador,
