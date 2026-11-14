@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState, useTransition } from "react";
 import Link from "next/link";
+import { confirmDialog } from "../../lib/feedback/confirmStore";
 import {
   listNfseDeliveriesAction, queueNfseEmailResendAction,
   registerNfseWhatsAppOpenAction, confirmNfseWhatsAppManualAction,
@@ -46,8 +47,14 @@ export function NfseDeliveryPanel({
   useEffect(() => { refresh(); },[refresh]);
 
   function resend():void {
-    if (!window.confirm("Solicitar um NOVO envio da NFS-e ao e-mail fiscal atual do cliente? O histórico anterior será preservado.")) return;
     start(async () => {
+      const ok = await confirmDialog({
+        title: "Solicitar um novo envio da NFS-e?",
+        description: "O PDF e o XML serão enviados ao e-mail fiscal atual do cliente. O histórico anterior será preservado.",
+        confirmLabel: "Solicitar novo envio",
+        destructive: false,
+      });
+      if (!ok) return;
       const response = await queueNfseEmailResendAction(noteId);
       if ("error" in response) {setError(response.error);return;}
       setInfo("Novo envio colocado na fila. Não significa que o e-mail foi entregue.");
@@ -74,8 +81,14 @@ export function NfseDeliveryPanel({
     }
   }
   function confirmWhatsApp(id:string):void {
-    if (!window.confirm("Você realmente enviou o DANFSe ao cliente? Esta declaração ficará no histórico.")) return;
     start(async()=>{
+      const ok = await confirmDialog({
+        title: "Você realmente enviou o DANFSe ao cliente?",
+        description: "Esta declaração ficará no histórico. O WhatsApp não fornece comprovante de entrega.",
+        confirmLabel: "Sim, enviei",
+        destructive: false,
+      });
+      if (!ok) return;
       const result=await confirmNfseWhatsAppManualAction(id);
       if ("error" in result) {setError(result.error);return;}
       setInfo("Confirmação manual registrada. O WhatsApp não fornece comprovante automático nesta integração.");
