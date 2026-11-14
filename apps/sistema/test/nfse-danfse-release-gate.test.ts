@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
+import { formatDanfseDate, formatDanfseDateTime } from "../src/lib/nfse/danfsePdf";
 import {
   DANFSE_OFFICIAL_LAYOUT_APPROVED,
   assertDanfseLayoutApproved,
@@ -48,4 +49,19 @@ test("gerador bloqueia antes de criar o PDF e rota verifica inclusive PDF arquiv
       route.indexOf("readNfseDocument(original.r2_key"),
     "a rota nao pode servir PDF arquivado antes do gate",
   );
+});
+
+test("DANFSe: competencia nao pode mudar de dia por timezone do servidor", () => {
+  assert.equal(formatDanfseDate("2026-10-01"), "01/10/2026");
+  assert.equal(formatDanfseDate("2026-02-30"), "-");
+  assert.equal(formatDanfseDate("2026-02-29"), "-");
+  assert.equal(formatDanfseDate("2024-02-29"), "29/02/2024");
+  assert.equal(formatDanfseDate(""), "-");
+});
+
+test("DANFSe: emissão segue horario de SC, inclusive Vercel UTC", () => {
+  assert.equal(formatDanfseDateTime("2026-10-25T15:30:45Z"), "25/10/2026 12:30:45");
+  assert.equal(formatDanfseDateTime("2026-10-25T12:30:45-03:00"), "25/10/2026 12:30:45");
+  assert.equal(formatDanfseDateTime("2026-10-26T01:30:45Z"), "25/10/2026 22:30:45");
+  assert.equal(formatDanfseDateTime("not-a-date"), "-");
 });
