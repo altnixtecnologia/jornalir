@@ -17,8 +17,12 @@ on:
       - "apps/sistema/src/app/api/cron/nfse-delivery/route.ts"
       - "apps/sistema/src/app/api/webhooks/nfse-email/route.ts"
       - "apps/sistema/test/nfse-delivery.test.ts"
+      - "apps/sistema/test/nfse-entrega-consolidacao.test.ts"
+      - "apps/sistema/src/lib/nfse/deliveryWorker.ts"
+      - "apps/sistema/src/lib/nfse/resendWebhookHandler.ts"
       - "supabase/migrations/20261114000402_nfse_delivery_history_tables.sql"
       - "supabase/migrations/20261122340700_nfse_delivery_enqueue_trigger.sql"
+      - "supabase/migrations/20261122340900_nfse_archive_retry_claim.sql"
       - "packages/core/test/sql/nfse-delivery-queue-test.sql"
       - ".github/workflows/validate-nfse-delivery-20261113.yml"
   workflow_dispatch:
@@ -56,6 +60,7 @@ jobs:
       NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
       NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ci-test-key
       NEXT_TELEMETRY_DISABLED: "1"
+      NFSE_ARCHIVE_ENABLED: "false"
       NFSE_DELIVERY_ENABLED: "false"
       SIGNATURE_DELIVERY_ENABLED: "false"
     steps:
@@ -71,7 +76,7 @@ jobs:
       - name: Testar recipient snapshot, webhook e gates
         env:
           NODE_OPTIONS: --conditions=react-server
-        run: npx tsx --test apps/sistema/test/nfse-delivery.test.ts
+        run: npx tsx --test apps/sistema/test/nfse-delivery.test.ts apps/sistema/test/nfse-entrega-consolidacao.test.ts
       - name: Testar migration real em PostgreSQL 16 descartável
         run: psql -v ON_ERROR_STOP=1 -f packages/core/test/sql/nfse-delivery-queue-test.sql
       - name: TypeScript do sistema

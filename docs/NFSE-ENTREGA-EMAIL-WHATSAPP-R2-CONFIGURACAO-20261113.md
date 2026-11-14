@@ -1,5 +1,5 @@
 # NFS-e: arquivamento R2, envio automático e histórico de entrega
-Revisão de 13/11/2026. **Código em branch/PR, não publicado.** Nenhuma chave, e-mail, nota fiscal ou arquivo real foi transmitido por esta etapa.
+Revisão iniciada em 13/11/2026; atualização técnica de 14/11/2026. **Webhook da PR #62 já publicado e validado**, enquanto arquivamento R2 e envio automático permanecem em PR, desativados. Houve um teste real de e-mail com XML/PDF fictícios, sem emissão de nota fiscal.
 
 ## Decisão de arquitetura (sem projeto Supabase paralelo)
 - Manter o **mesmo Supabase** do Jornal IR, com tabelas separadas `nfse_*` e RLS (somente service_role para os dados de entrega/documentos; leitura por API server-side com confirmação de owner/admin).
@@ -7,7 +7,7 @@ Revisão de 13/11/2026. **Código em branch/PR, não publicado.** Nenhuma chave,
 - Uma **conta Cloudflare** que já abriga mídias e jornais online, mas um **bucket NOVO e PRIVADO** `jornal-ir-nfse`, separado do bucket de edições, com token específico de acesso somente ao bucket fiscal. Não habilitar domínio público, R2.dev, CORS público ou enlaces permanentes.
 - XML da NFS-e autorizada e XML da DPS **originais**, DANFSe PDF gerado pelo servidor, cada objeto no R2 com SHA-256; só guardar bucket key/hash/tamanho/tipo no PostgreSQL. Durante transição, XML em `nfse_issued_notes` ainda é fallback para leitura — NUNCA apagar antes de validar backup/integridade.
 - A autorização é independente do e-mail: a nota continua autorizada mesmo se R2/SMTP falharem. A migração tem trigger **somente na inclusão de nota de produção**, para enfileirar a entrega sem enviar e-mails no banco. Em homologação NÃO existe enfileiramento automático.
-- Worker privado com `CRON_SECRET`, limitado a 3 filas por chamada, só ativa após **release fiscal explícito em código** (`NFSE_AVAILABLE_IN_THIS_RELEASE`) + `VERCEL_ENV=production` + `NFSE_DELIVERY_ENABLED=true` + R2 + Resend configurados. **Nenhuma destas ativações foi feita.**
+- Worker privado com `CRON_SECRET`, limitado a 3 filas por chamada. **Arquivamento**: release fiscal explícito em código (`NFSE_AVAILABLE_IN_THIS_RELEASE`) + produção + `NFSE_ARCHIVE_ENABLED=true` + R2; **e-mail**: exige tudo isso + `NFSE_DELIVERY_ENABLED=true` + Resend. As duas flags ficam desligadas por padrão e nenhuma foi ativada.
 - O envio via Resend usa PDF e XML **anexados**, `Idempotency-Key` por tentativa, com estados `queued/processing/accepted/delivered/bounced/failed/uncertain/missing_recipient`. Confirmar e-mail entregue exige webhook **autenticado Svix**. HTTP 2xx apenas significa que o provedor aceitou.
 - Reenvio manual cria uma **nova** linha com destinatário atual, mantendo tentativas anteriores. `queued/processing` não são repetidos; timeout após início de POST é **incerto**, exige confirmação humana antes de outro envio.
 - Compartilhamento via WhatsApp: modal abre o seletor de conversa do aplicativo/web, **sem divulgar links R2 privados**. No desktop o operador baixa o PDF e anexa manualmente. Registramos horário de abertura e eventual confirmação manual, mas **não fingimos prova de entrega do WhatsApp**.
@@ -30,9 +30,9 @@ Revisão de 13/11/2026. **Código em branch/PR, não publicado.** Nenhuma chave,
 4. Regras de retries: falha antes do POST pode gerar reenvio manual; depois de timeout, checar idempotência e logs do provedor **antes** de reenviar. Não registrar corpos de e-mails, XML ou tokens nos logs.
 
 ### Automação e banco
-1. Migrations separadas: PARTE A `20261114000402_nfse_delivery_history_tables.sql` **JÁ APLICADA** no Supabase oficial (ledger `20261114000402`; tabelas vazias, sem trigger; arquivo registrado pela PR #62; **não reaplicar**) e PARTE B `20261122340700_nfse_delivery_enqueue_trigger.sql` (fila automática por trigger; **não aplicada**, só na liberação da emissão e depois de nova revisão e backup).
+1. Migrations separadas: A (`20261114000402_nfse_delivery_history_tables.sql`) **JÁ APLICADA**, não reaplicar; B (`20261122340700_nfse_delivery_enqueue_trigger.sql`) trigger de entrega **NÃO APLICADA**; C (`20261122340800_nfse_document_permissions.sql`) ações de permissão **NÃO APLICADA**; D (`20261122340900_nfse_archive_retry_claim.sql`) claim e backoff de arquivamento **NÃO APLICADA**. Na futura ativação, conferir ordem, pré-requisitos, backup e aprovações, sem executar migrations automaticamente.
 2. Configurar um agendamento via pg_cron/pg_net ou mecanismo equivalente para `GET /api/cron/nfse-delivery` com header `Authorization: Bearer <CRON_SECRET>`. Frequência inicial proposta: cada 2 a 5 minutos, após homologar recebimento. Não habilitado nesta etapa.
-3. Habilitar `NFSE_DELIVERY_ENABLED=true` **somente depois** de finalizar a homologação fiscal/A1, segurança, domínio do e-mail, R2 e aceitação expressa do responsável. A constante de release fiscal continua **false**.
+3. Habilitar `NFSE_ARCHIVE_ENABLED=true` apenas após testar a migration D, liberação fiscal e R2; ativar `NFSE_DELIVERY_ENABLED=true` **em etapa separada**, após homologação A1, remetente, fila e autorização. A constante de release fiscal continua **false**.
 4. Testar cenário de emissão autorizada, arquivo R2 e e-mail automático, e-mail fiscal/fallback, sem e-mail, erros, duplo clique, reenvio, devolução e consulta no desktop/celular. O DANFSe precisa de revisão visual contra o leiaute vigente, já registrada no projeto.
 
 ## Situação do momento
@@ -48,14 +48,13 @@ Revisão de 13/11/2026. **Código em branch/PR, não publicado.** Nenhuma chave,
 - O adaptador não tem função de exclusão; o teste apagou os objetos com o cliente S3 direto.
 - Pendentes (dependem do proprietário): variáveis na Vercel, Resend (domínio, remetente, webhook), cron da fila e `CRON_SECRET` (o cron não está agendado em `vercel.json`), migration `20261122340700` no Supabase oficial, permissões de acesso aos documentos (hoje `notas_cancelar`) e homologação com A1.
 
-## Webhook de confirmação de entrega — estado e publicação segura (13/11/2026)
-Código local (não publicado): `lib/nfse/resendWebhookHandler.ts` + rota `app/api/webhooks/nfse-email/route.ts`. A rota exige **somente** `RESEND_WEBHOOK_SECRET` e assinatura Svix válida; não depende de `NFSE_DELIVERY_ENABLED` nem da liberação da emissão, não envia e-mail, não emite nota e não devolve documento ou dado fiscal. Só atualiza tentativas de e-mail existentes (`provider=resend`, `provider_message_id`), com UPDATE condicional atômico: `accepted→delivered|bounced|failed`; `delivered→bounced`; `complained` marca `bounced` com resumo próprio. Eventos repetidos ou antigos não alteram nada. Sem a tabela (migration pendente) responde 503 para o Resend repetir depois. Sem segredo responde 503; assinatura inválida, 401.
+## Webhook de confirmação de entrega — PUBLICADO e validado (13/11/2026)
+A PR #62 está mesclada na base oficial e o webhook `POST /api/webhooks/nfse-email` está em produção no deployment `dpl_AS7qPGc5LXUksLNsEHhuw7iA1FEp`. O `RESEND_WEBHOOK_SECRET` já está configurado. Um e-mail fictício com XML/PDF de teste foi aceito pelo Resend; o evento `email.delivered` foi processado com assinatura válida, HTTP 200 e `updated: 0` (sem tentativa fiscal correspondente). Não é necessário reenviar teste.
 
-Sequência proposta (cada passo depende de autorização expressa):
-1. ✅ Migration A (`20261114000402`) já aplicada e verificada no Supabase oficial; nada a executar. Resta apenas a publicação do código e a configuração do segredo, nas etapas abaixo.
-2. Publicar o código com a variável ausente; a rota deve responder 503 a um POST sem assinatura (nunca 200).
-3. Criar o webhook no Resend para `https://controle.altnix.com.br/api/webhooks/nfse-email`, somente com `email.delivered`, `email.bounced`, `email.failed`, `email.complained`; copiar o segredo `whsec_…` sem colar em chat/commit.
-4. Cadastrar `RESEND_WEBHOOK_SECRET` só em Production na Vercel (e no `.env.local`); gerar novo deployment e promover.
-5. Verificar: POST sem assinatura → 401; evento real reenviado pelo Resend para e-mail sem tentativa registrada → 200 com `updated: 0`.
-6. Manter `NFSE_DELIVERY_ENABLED` ausente; a emissão e o envio automático seguem bloqueados.
-Reversão: apagar o webhook no Resend e/ou a variável, ou promover o deployment anterior.
+O webhook não depende de `NFSE_DELIVERY_ENABLED` nem da liberação fiscal, não emite nota, não envia mensagem e não devolve documentos. A alteração nesta PR de correção limita a resposta 503 para eventos desconhecidos à existência de tentativa `processing` recente **do mesmo destinatário**; mensagens de outros destinatários recebem 200 sem interferir no histórico de NFS-e. Reversão da publicação já está documentada na PR #62; não realizar sem autorização.
+
+## Revisão de segurança da PR #61 (14/11/2026; ainda sem deploy)
+- A branch isolada `fix/nfse-pr61-archive-safety-20261114` introduz a migration D pendente e muda a seleção do lote de arquivamento para uma RPC de claim transacional. O banco examina todas as notas autorizadas e incompletas, sem truncar nas 50 mais recentes, e prioriza notas com menos falhas. Claim de 3 minutos e backoff exponencial de 5 minutos até 24 horas impedem que notas defeituosas monopolizem a fila.
+- A RPC só é executável por `service_role`; todos os dados permanecem privados. Documentos existentes continuam imutáveis e verificados por SHA-256. O retorno do cron informa `claimed` (itens reivindicados nesta execução), não um total enganoso de pendências.
+- O arquivamento não depende nem da chave do Resend nem da flag de envio. Sem `NFSE_ARCHIVE_ENABLED`, sem liberação fiscal, ou sem migration D, o sistema **não ativa** esse fluxo.
+- Testes adicionados: mais de 50 notas, erro persistente e progresso da fila, guardas de liberação e SQL PostgreSQL descartável para claim e backoff. **Não foram executados em produção**.
