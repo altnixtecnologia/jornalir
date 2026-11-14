@@ -25,7 +25,7 @@ Arquivos revisados:
 | Referência NT 008/2026 v1.02 | Situação no gerador atual | Ação |
 | --- | --- | --- |
 | § 2.1.3 — prestador/fornecedor | Falta bloco da situação no Simples Nacional na competência e regime de apuração pelo SN | Extrair do XML oficial e imprimir descrição correta |
-| § 2.1.4 — tomador | Tel. e e-mail não são apresentados no bloco atual | Completar a partir do XML, sem inventar campos |
+| § 2.1.4 — tomador | Correção parcial: telefone e e-mail do XML agora aparecem no protótipo, com ausência indicada por `-` | Validar geometria e o bloco integral segundo Anexo I |
 | § 2.1.7 — serviço prestado | Não apresenta código NBS, descrição do código tributário e localização completa | Adicionar apenas valores oficiais e tratar ausência conforme regras |
 | § 2.1.8 — ISSQN | Só mostra base, alíquota e valor; faltam tipo, incidência, retenção e condicionais | Aplicar campos e regras de supressão da NT |
 | § 2.1.9 — tributação federal | Bloco ausente | Extrair IRRF, contribuição previdenciária e retenções; condições para PIS/COFINS |
@@ -35,8 +35,8 @@ Arquivos revisados:
 | §§ 2.4.3 e Anexo I — cabeçalho | Logomarca oficial da NFS-e não é desenhada; texto QR está em quatro linhas, em vez de três | Usar arte oficial e estrutura do Anexo I |
 | § 2.4 — fontes/labels | O código usa Helvetica e coloca todos os labels em caixa alta; NT pede Arial para labels, Microsoft Sans Serif para conteúdos e capitalização específica | Readequar fontes e títulos; avaliar licenciamento de fontes antes de incorporá-las ao repositório |
 | § 2.2.2 — margens | `MARGIN=20pt` equivale a aproximadamente 0,706 cm; a NT descreve tolerância lateral de 0,15–0,20 cm | Conferir origem das medidas no formulário e readequar pelas coordenadas do Anexo I |
-| § 2.4.5 e Anexo I — geometria | Posições são aproximação do gerador; truncamento por 90 caracteres não verifica largura em pontos | Construir geometria e teste de não sobreposição/recorte, especialmente descrição longa |
-| § 2.4.5 — Emitente/Finalidade | “Emitente da NFS-e” usa nome do prestador; “Finalidade” é texto fixo | Derivar `tpEmit` e `finNFSe` do XML/enum oficial; não presumir finalidade |
+| § 2.4.5 e Anexo I — geometria | Posições ainda aproximadas; truncamento agora respeita largura em pontos, porém ainda não há disposição completa nem teste visual de não sobreposição | Construir geometria e validar textos longos/recorte contra Anexo I |
+| § 2.4.5 — Emitente/Finalidade | Corrigido no protótipo: `tpEmit` e `finNFSe` são lidos da DPS autorizada; códigos desconhecidos falham fechado | Confirmar mapeamento de todos os códigos no leiaute vigente antes de aprovar o PDF final |
 
 Alguns blocos são sujeitos a **supressões previstas na NT**; a solução não é imprimir campos vazios aleatórios. Implementar a decisão de exibição por dados oficiais, mantendo as regras de ausência. Validar também o cenário de NFS-e cancelada e os efeitos no DANFSe.
 
