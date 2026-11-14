@@ -25,19 +25,20 @@ const defaultDeps: DeliveryWorkerDeps = {
   send: sendFiscalEmail,
 };
 
-/** Arquivamento no R2 NÃO depende do e-mail: basta liberação fiscal em produção, flag de entrega e R2 configurado. */
+/** Arquivamento exige liberacao fiscal, producao, flag propria e R2;
+ *  nao depende da flag de envio nem das credenciais Resend. */
 export function isNfseArchiveEnabled(): boolean {
   return NFSE_AVAILABLE_IN_THIS_RELEASE &&
     process.env.VERCEL_ENV === "production" &&
-    process.env.NFSE_DELIVERY_ENABLED === "true" &&
+    process.env.NFSE_ARCHIVE_ENABLED === "true" &&
     isNfseR2Configured();
 }
 export function isNfseDeliveryEnabled(): boolean {
-  // Entrega de NFS-e de PRODUCAO nao pode ser liberada só por env.
-  return NFSE_AVAILABLE_IN_THIS_RELEASE &&
-    process.env.VERCEL_ENV === "production" &&
+  // E-mail exige liberação fiscal + arquivamento habilitado + flag propria;
+  // nenhuma variavel de ambiente pode contornar a trava imutavel do release.
+  return isNfseArchiveEnabled() &&
     process.env.NFSE_DELIVERY_ENABLED === "true" &&
-    isNfseEmailConfigured() && isNfseR2Configured();
+    isNfseEmailConfigured();
 }
 async function settle(admin: SupabaseClient, id: string, payload: Record<string, unknown>): Promise<void> {
   const { data, error } = await admin.from("nfse_delivery_attempts")
