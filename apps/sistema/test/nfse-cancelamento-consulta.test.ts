@@ -59,7 +59,11 @@ test("rotas oficiais permanecem fechadas sem duas flags e banco isolado", () => 
   const middle = read("middleware.ts");
   const auth = read("lib/permissions/checkModuleAction.ts");
   const action = read("app/sistema/nfse/rascunhos/[id]/actions.ts");
-  assert.match(middle, /!isRestrictedSefinEnvironment\(restrictedSefinEnvironmentFromServer\(\)\)/);
+  // Modo restrito exige segregação; no oficial, preparação não libera
+  // operações SEFIN e o middleware exige proprietário/admin.
+  assert.match(middle, /const nfseRestricted = isRestrictedSefinEnvironment\(restrictedSefinEnvironmentFromServer\(\)\)/);
+  assert.match(middle, /matches\("\/sistema\/nfse"\) && !NFSE_AVAILABLE_IN_THIS_RELEASE && !nfseRestricted/);
+  assert.match(middle, /!privileged \|\| \(!NFSE_PREPARATION_ACCESS_IN_THIS_RELEASE && !isNfseConfigPath\)/);
   assert.match(auth, /!isRestrictedSefinEnvironment\(restrictedSefinEnvironmentFromServer\(\)\)/);
   assert.match(action, /prepareRestrictedNfseTransmissionService\(supabase\)/);
   assert.match(action, /getTransmissionService\(supabase\)/);
