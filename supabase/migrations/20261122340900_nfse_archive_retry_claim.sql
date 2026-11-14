@@ -21,7 +21,7 @@ grant select, insert, update on public.nfse_archive_retry_state to service_role;
 -- claim de 3 min impede que duas invocacoes processem o mesmo lote imediatamente.
 -- SKIP LOCKED + UPSERT ocorrem na mesma transacao da RPC.
 create or replace function public.claim_pending_nfse_archive(p_limit integer default 3)
-returns table(issued_note_id uuid)
+returns table(note_id uuid)
 language plpgsql security definer set search_path = ''
 as $$
 begin
