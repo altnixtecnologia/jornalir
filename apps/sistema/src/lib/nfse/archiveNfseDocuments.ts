@@ -73,45 +73,55 @@ export async function archiveNfseDocuments(
   return result;
 }
 
-const REQUIRED_KINDS: AssetKind[] = ["nfse_xml", "dps_xml", "danfse_pdf"];
+/**
+ * A busca e claim acontecem no PostgreSQL, sobre TODAS as notas elegiveis.
+ * O banco controla a janela de 3 minutos e o backoff por nota, de forma
+ * persistente entre invocacoes serverless e segura para cron concorrente.
+ * Requer migration D (20261122340900), ainda NAO aplicada em producao.
+ */
+export interface ArchiveBatchOptions {
+  limit?: number;
+  deps?: ArchiveDeps;
+  loadNote?: (id: string) => Promise<NfseIssuedNote | null>;
+  claim?: (admin: SupabaseClient, limit: number) => Promise<string[]>;
+  defer?: (admin: SupabaseClient, id: string) => Promise<void>;
+}
+async function claimArchiveCandidates(admin: SupabaseClient, limit: number): Promise<string[]> {
+  const { data, error } = await admin.rpc("claim_pending_nfse_archive", { p_limit: limit });
+  if (error) throw new Error("Fila de arquivamento fiscal indisponivel (migration D pendente ou erro no banco).");
+  return ((data ?? []) as Array<{ issued_note_id: string }>).map((row) => row.issued_note_id);
+}
+async function deferArchiveFailure(admin: SupabaseClient, id: string): Promise<void> {
+  const { error } = await admin.rpc("defer_nfse_archive_failure", { p_note_id: id });
+  if (error) throw new Error("Nao foi possivel registrar a retentativa do arquivamento.");
+}
 
 /**
- * Arquiva no R2 as NFS-e de PRODUÇÃO já autorizadas que ainda não têm os três documentos, SEM depender de e-mail
- * (nem de fila de entrega). Idempotente: archiveNfseDocuments nunca sobrescreve e confere a integridade do que já existe.
- * Uma falha numa nota (R2 fora, PDF) não interrompe as demais e nunca altera a nota fiscal. Sem credenciais em mensagens.
+ * Faz claim atomico no banco de ate 3 notas autorizadas ainda sem os documentos,
+ * sem limitar a busca as mais recentes. Erros sao adiados com backoff persistente:
+ * nao monopolizam os proximos lotes e nunca provocam reenvio automatico de e-mail.
  */
 export async function archivePendingNfseNotes(
   admin: SupabaseClient,
-  opts: {
-    limit?: number; scan?: number; deps?: ArchiveDeps;
-    loadNote?: (id: string) => Promise<NfseIssuedNote | null>;
-  } = {},
-): Promise<{ archived: number; failed: number; pending: number }> {
-  const limit = opts.limit ?? 3;
+  opts: ArchiveBatchOptions = {},
+): Promise<{ archived: number; failed: number; claimed: number }> {
+  const limit = Math.min(Math.max(opts.limit ?? 3, 1), 10);
   const loadNote = opts.loadNote ?? ((id: string) => createIssuedNoteRepositorySupabase(admin).getById(id));
-  const { data: notes, error } = await admin.from("nfse_issued_notes").select("id")
-    .eq("environment", "production").not("access_key", "is", null).not("nfse_xml", "is", null)
-    .order("created_at", { ascending: false }).limit(opts.scan ?? 50);
-  if (error) throw new Error(error.message);
-  const ids = (notes ?? []).map((n: { id: string }) => n.id);
-  if (!ids.length) return { archived: 0, failed: 0, pending: 0 };
-  const { data: assets, error: assetError } = await admin.from("nfse_document_assets")
-    .select("issued_note_id,kind").in("issued_note_id", ids);
-  if (assetError) throw new Error(assetError.message);
-  const have = new Map<string, Set<string>>();
-  for (const a of (assets ?? []) as Array<{ issued_note_id: string; kind: string }>) {
-    if (!have.has(a.issued_note_id)) have.set(a.issued_note_id, new Set());
-    have.get(a.issued_note_id)!.add(a.kind);
-  }
-  const missing = ids.filter((id: string) => REQUIRED_KINDS.some((k) => !have.get(id)?.has(k)));
+  const ids = await (opts.claim ?? claimArchiveCandidates)(admin, limit);
   let archived = 0, failed = 0;
-  for (const id of missing.slice(0, limit)) {
+  for (const id of ids) {
     try {
       const note = await loadNote(id);
-      if (!note) { failed++; continue; }
+      if (!note) throw new Error("NFS-e nao encontrada no claim de arquivamento.");
       await archiveNfseDocuments(admin, note, opts.deps);
       archived++;
-    } catch { failed++; }
+    } catch {
+      // A falha de uma nota nao prejudica outras; a proxima tentativa
+      // respeita backoff. Se nao puder registrar o backoff, o cron falha
+      // de forma visivel em vez de declarar que concluiu o lote.
+      await (opts.defer ?? deferArchiveFailure)(admin, id);
+      failed++;
+    }
   }
-  return { archived, failed, pending: Math.max(0, missing.length - limit) };
+  return { archived, failed, claimed: ids.length };
 }
