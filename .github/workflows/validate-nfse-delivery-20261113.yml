@@ -11,6 +11,7 @@ on:
       - "apps/sistema/src/lib/nfse/danfsePdf.ts"
       - "packages/core/src/nfse/danfse-data.ts"
       - "packages/core/test/danfse-data.test.ts"
+      - "apps/sistema/test/render-danfse-sintetico.ts"
       - "apps/sistema/src/lib/nfse/danfseReleaseGate.ts"
       - "apps/sistema/src/lib/nfse/resendDelivery.ts"
       - "apps/sistema/src/lib/nfse/verifyResendWebhook.ts"
@@ -84,6 +85,17 @@ jobs:
         run: npx tsx --test apps/sistema/test/nfse-delivery.test.ts apps/sistema/test/nfse-entrega-consolidacao.test.ts apps/sistema/test/nfse-danfse-release-gate.test.ts packages/core/test/danfse-data.test.ts
       - name: Testar migration real em PostgreSQL 16 descartável
         run: psql -v ON_ERROR_STOP=1 -f packages/core/test/sql/nfse-delivery-queue-test.sql
+      - name: Gerar DANFSe fictício para inspeção visual
+        env:
+          NODE_OPTIONS: --conditions=react-server
+        run: npx tsx apps/sistema/test/render-danfse-sintetico.ts
+      - name: Publicar somente artefato sintético (sem dados reais)
+        uses: actions/upload-artifact@v4
+        with:
+          name: danfse-homologacao-ficticio
+          path: artifacts/danfse-homologacao-ficticio.pdf
+          if-no-files-found: error
+          retention-days: 3
       - name: TypeScript do sistema
         run: npm run typecheck --workspace @ir/sistema
       - name: Build Next.js sem deploy
