@@ -1,0 +1,88 @@
+name: NFS-e - documentos e entrega com historico (OFF)
+
+on:
+  push:
+    branches:
+      - feature/nfse-entrega-email-whatsapp-r2-20261113
+  pull_request:
+    paths:
+      - "apps/sistema/src/lib/nfse/*Delivery*"
+      - "apps/sistema/src/lib/nfse/archiveNfseDocuments.ts"
+      - "apps/sistema/src/lib/nfse/danfsePdf.ts"
+      - "apps/sistema/src/lib/nfse/danfseReleaseGate.ts"
+      - "apps/sistema/src/lib/nfse/resendDelivery.ts"
+      - "apps/sistema/src/lib/nfse/verifyResendWebhook.ts"
+      - "apps/sistema/src/providers/r2/nfseDocuments.r2.ts"
+      - "apps/sistema/src/app/sistema/nfse/**"
+      - "apps/sistema/src/features/nfse/NfseDeliveryPanel.tsx"
+      - "apps/sistema/src/features/nfse/NfseTransmissionPanel.tsx"
+      - "apps/sistema/src/app/api/cron/nfse-delivery/route.ts"
+      - "apps/sistema/src/app/api/webhooks/nfse-email/route.ts"
+      - "apps/sistema/test/nfse-delivery.test.ts"
+      - "apps/sistema/test/nfse-entrega-consolidacao.test.ts"
+      - "apps/sistema/test/nfse-danfse-release-gate.test.ts"
+      - "apps/sistema/src/lib/nfse/deliveryWorker.ts"
+      - "apps/sistema/src/lib/nfse/resendWebhookHandler.ts"
+      - "supabase/migrations/20261114000402_nfse_delivery_history_tables.sql"
+      - "supabase/migrations/20261122340700_nfse_delivery_enqueue_trigger.sql"
+      - "supabase/migrations/20261122340900_nfse_archive_retry_claim.sql"
+      - "packages/core/test/sql/nfse-delivery-queue-test.sql"
+      - ".github/workflows/validate-nfse-delivery-20261113.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: nfse-delivery-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validar-entrega:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: local-test-only
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    env:
+      PGHOST: localhost
+      PGPORT: "5432"
+      PGUSER: postgres
+      PGPASSWORD: local-test-only
+      PGDATABASE: postgres
+      NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
+      NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ci-test-key
+      NEXT_TELEMETRY_DISABLED: "1"
+      NFSE_ARCHIVE_ENABLED: "false"
+      NFSE_DELIVERY_ENABLED: "false"
+      SIGNATURE_DELIVERY_ENABLED: "false"
+    steps:
+      - name: Checkout do código, sem publicar
+        uses: actions/checkout@v4
+      - name: Node 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+      - name: Instalar
+        run: npm ci --no-audit --no-fund
+      - name: Testar recipient snapshot, webhook e gates
+        env:
+          NODE_OPTIONS: --conditions=react-server
+        run: npx tsx --test apps/sistema/test/nfse-delivery.test.ts apps/sistema/test/nfse-entrega-consolidacao.test.ts apps/sistema/test/nfse-danfse-release-gate.test.ts
+      - name: Testar migration real em PostgreSQL 16 descartável
+        run: psql -v ON_ERROR_STOP=1 -f packages/core/test/sql/nfse-delivery-queue-test.sql
+      - name: TypeScript do sistema
+        run: npm run typecheck --workspace @ir/sistema
+      - name: Build Next.js sem deploy
+        run: npm run build --workspace @ir/sistema

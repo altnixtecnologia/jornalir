@@ -6,6 +6,7 @@ import { createIssuedNoteRepositorySupabase } from "../../../../../providers/sup
 import { getDraftService, getCancellationService } from "../../../../../composition/nfse";
 import { NfseCancellationPanel } from "../../../../../features/nfse/NfseCancellationPanel";
 import { NfseConsultationPanel } from "../../../../../features/nfse/NfseConsultationPanel";
+import { NfseDeliveryPanel } from "../../../../../features/nfse/NfseDeliveryPanel";
 import { isLocalPreviewEnabled } from "../../../../../lib/auth/localPreview";
 import { isRestrictedSefinEnvironment, restrictedSefinEnvironmentFromServer } from "../../../../../lib/nfse/restrictedSefinGate";
 
@@ -23,8 +24,9 @@ export const revalidate = 0;
  * conferida de novo, no servidor, em cancellation-actions.ts (nunca
  * confia só na navegação ter chegado até esta página).
  */
-export default async function NfseNotaDetailPage(props: { params: Promise<{ id: string }> }): Promise<JSX.Element> {
+export default async function NfseNotaDetailPage(props: { params: Promise<{ id: string }>; searchParams?: Promise<{ entrega?: string }> }): Promise<JSX.Element> {
   const params = await props.params;
+  const query = await props.searchParams;
   const supabase = createSupabaseServerClient();
   const note = await createIssuedNoteRepositorySupabase(supabase).getById(params.id);
   if (!note) notFound();
@@ -82,6 +84,10 @@ export default async function NfseNotaDetailPage(props: { params: Promise<{ id: 
         )}
       </section>
       <NfseConsultationPanel noteId={note.id} accessKey={note.accessKey} previewMode={previewMode} restrictedMode={isRestrictedSefinEnvironment(restrictedSefinEnvironmentFromServer())} />
+      {canManageCancellation === true ? (
+        <NfseDeliveryPanel noteId={note.id} noteNumber={note.nfseNumber ?? note.dpsId}
+          initialOpen={query?.entrega === "1"} previewMode={previewMode} />
+      ) : null}
       {canManageCancellation === true ? (
         <NfseCancellationPanel issuedNoteId={note.id} history={history} restrictedMode={isRestrictedSefinEnvironment(restrictedSefinEnvironmentFromServer())} />
       ) : (
