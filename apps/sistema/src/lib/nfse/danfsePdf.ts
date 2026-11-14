@@ -68,10 +68,25 @@ function drawBlockTitle(page: PDFPage, bold: PDFFont, title: string, y: number):
   page.drawText(title.toUpperCase(), { x: MARGIN + 3, y: y - 8.5, size: 7, font: bold, color: BLACK });
 }
 
+/** Evita invadir a coluna vizinha; o protótipo não substitui o layout homologado. */
+function fitTextToWidth(value: string, font: PDFFont, size: number, maxWidth: number): string {
+  if (font.widthOfTextAtSize(value, size) <= maxWidth) return value;
+  const ellipsis = "...";
+  if (font.widthOfTextAtSize(ellipsis, size) > maxWidth) return "";
+  let low = 0;
+  let high = value.length;
+  while (low < high) {
+    const mid = Math.ceil((low + high) / 2);
+    if (font.widthOfTextAtSize(value.slice(0, mid) + ellipsis, size) <= maxWidth) low = mid;
+    else high = mid - 1;
+  }
+  return value.slice(0, low) + ellipsis;
+}
+
 function drawField(page: PDFPage, bold: PDFFont, regular: PDFFont, label: string, value: string, x: number, y: number, width: number, shaded = false): void {
   if (shaded) page.drawRectangle({ x, y: y - 20, width, height: 20, color: GRAY_SHADING });
-  page.drawText(label.toUpperCase(), { x: x + 2, y: y - 7, size: 6, font: bold, color: DARK_GRAY });
-  const safeValue = value.length > 90 ? `${value.slice(0, 87)}...` : value;
+  page.drawText(fitTextToWidth(label.toUpperCase(), bold, 6, width - 4), { x: x + 2, y: y - 7, size: 6, font: bold, color: DARK_GRAY });
+  const safeValue = fitTextToWidth(value, regular, 7, width - 4);
   page.drawText(safeValue, { x: x + 2, y: y - 17, size: 7, font: regular, color: BLACK });
 }
 
@@ -140,10 +155,10 @@ export async function buildDanfsePdf(data: DanfseData, options: { cancelled?: bo
   drawField(page, bold, regular, "Série da DPS", data.dpsSeries, MARGIN + idFieldWidth, cursor.y, idFieldWidth);
   drawField(page, bold, regular, "Data/Hora da Emissão da DPS", formatDateTime(data.dpsIssuedAt), MARGIN + idFieldWidth * 2, cursor.y, idFieldWidth);
   cursor.y -= 20;
-  drawField(page, bold, regular, "Emitente da NFS-e", data.prestador.name, MARGIN, cursor.y, idFieldWidth * 2, true);
+  drawField(page, bold, regular, "Emitente da NFS-e", data.issuerLabel, MARGIN, cursor.y, idFieldWidth * 2, true);
   drawField(page, bold, regular, "Situação da NFS-e", data.statusLabel, MARGIN + idFieldWidth * 2, cursor.y, idFieldWidth);
   cursor.y -= 20;
-  drawField(page, bold, regular, "Finalidade", "NFS-e Normal", MARGIN, cursor.y, contentColumnWidth);
+  drawField(page, bold, regular, "Finalidade", data.purposeLabel, MARGIN, cursor.y, contentColumnWidth);
   cursor.y -= 22;
 
   // BLOCO: PRESTADOR/FORNECEDOR (seção 2.1.3).
@@ -175,6 +190,9 @@ export async function buildDanfsePdf(data: DanfseData, options: { cancelled?: bo
     drawField(page, bold, regular, "Endereço", dash(data.tomador.address), MARGIN, cursor.y, half);
     drawField(page, bold, regular, "Município / UF / CEP", `${dash(data.tomador.ibgeCode)} / ${dash(data.tomador.state)} / ${dash(data.tomador.zipCode)}`, MARGIN + half, cursor.y, half);
     cursor.y -= 20;
+    drawField(page, bold, regular, "Telefone", dash(data.tomador.phone), MARGIN, cursor.y, half);
+    drawField(page, bold, regular, "E-mail", dash(data.tomador.email), MARGIN + half, cursor.y, half);
+    cursor.y -= 20;
   }
   cursor.y -= 8;
 
@@ -203,7 +221,7 @@ export async function buildDanfsePdf(data: DanfseData, options: { cancelled?: bo
   cursor.y -= 11;
   const third = CONTENT_WIDTH / 3;
   drawField(page, bold, regular, "BC ISSQN", formatMoney(data.issqnTaxBase), MARGIN, cursor.y, third);
-  drawField(page, bold, regular, "Alíquota Aplicada", data.issqnRateApplied ? `${data.issqnRateApplied}%` : "-", MARGIN + third, cursor.y, third);
+  drawField(page, bold, regular, "Alíquota Aplicada", data.issqnRateApplied !== undefined ? `${data.issqnRateApplied}%` : "-", MARGIN + third, cursor.y, third);
   drawField(page, bold, regular, "ISSQN Apurado", formatMoney(data.issqnAmount), MARGIN + third * 2, cursor.y, third);
   cursor.y -= 22;
 
@@ -212,7 +230,7 @@ export async function buildDanfsePdf(data: DanfseData, options: { cancelled?: bo
   cursor.y -= 11;
   drawField(page, bold, regular, "Valor do Serviço", formatMoney(data.serviceValue), MARGIN, cursor.y, third);
   drawField(page, bold, regular, "Total das Retenções", formatMoney(data.totalRetained), MARGIN + third, cursor.y, third);
-  drawField(page, bold, regular, "Valor Líquido da NFS-e", formatMoney(data.netValue ?? data.serviceValue), MARGIN + third * 2, cursor.y, third, true);
+  drawField(page, bold, regular, "Valor Líquido da NFS-e", formatMoney(data.netValue), MARGIN + third * 2, cursor.y, third, true);
   cursor.y -= 22;
 
   // CANHOTO (seção 2.1.13, opcional) — incluído pra completude.
