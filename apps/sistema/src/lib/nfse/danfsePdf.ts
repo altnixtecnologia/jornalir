@@ -135,17 +135,25 @@ export async function buildDanfsePdf(data: DanfseData, options: { cancelled?: bo
   cursor.y -= 20;
   const qrY = cursor.y - qrSize;
   page.drawImage(qrImage, { x: qrX, y: qrY, width: qrSize, height: qrSize });
+  // NT 008/2026 § 2.4.3: legenda completa em TRÊS linhas, sem invadir margem
+  // ou a terceira coluna de identificação. A posição do QR é independente.
+  const captionWidth = 133;
+  const captionX = PAGE_WIDTH - MARGIN - captionWidth;
   const captionLines = [
-    "A autenticidade desta NFS-e pode ser",
-    "verificada pela leitura deste código QR ou",
-    "pela consulta da chave de acesso no portal",
-    "nacional da NFS-e",
+    "A autenticidade desta NFS-e pode ser verificada",
+    "pela leitura deste código QR ou pela consulta da",
+    "chave de acesso no portal nacional da NFS-e",
   ];
   captionLines.forEach((line, i) => {
-    page.drawText(line, { x: qrX - 4, y: qrY - 10 - i * 8, size: 6, font: regular, color: DARK_GRAY });
+    if (regular.widthOfTextAtSize(line, 6) > captionWidth) {
+      throw new Error("Legenda do QR Code excede a largura máxima prevista.");
+    }
+    page.drawText(line, { x: captionX, y: qrY - 10 - i * 8, size: 6, font: regular, color: DARK_GRAY });
   });
 
-  const contentColumnWidth = CONTENT_WIDTH - qrSize - 20;
+  // Reserva a faixa direita inteira para QR + legenda; antes os campos
+  // avançavam até x=485pt, colidindo com o texto da legenda (x=442pt).
+  const contentColumnWidth = CONTENT_WIDTH - 145;
 
   // BLOCO: DADOS DE IDENTIFICAÇÃO DA NFS-e (seção 2.1.1/2.1.2).
   drawBlockTitle(page, bold, "Dados de Identificação da NFS-e", cursor.y);
