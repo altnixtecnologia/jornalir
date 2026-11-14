@@ -80,7 +80,7 @@ function makeIssuedNote(overrides: Partial<NfseIssuedNote> = {}): NfseIssuedNote
     dpsSeries: "1",
     dpsNumber: 42,
     dpsId: "DPS42164042299999999999999999999001000000000000042",
-    accessKey: "421640419999999999999999999990000000001202610",
+    accessKey: "42164041999999999999999999999000000000120261000000",
     nfseNumber: "12",
     issuedAt: "2026-10-25T12:00:00-03:00",
     competencyDate: "2026-10-01",
@@ -94,7 +94,7 @@ function makeIssuedNote(overrides: Partial<NfseIssuedNote> = {}): NfseIssuedNote
 
 test("extractDanfseData extrai identificação, prestador, tomador, serviço e valores de um XML real e assinado — nunca inventa", () => {
   const data = extractDanfseData(makeIssuedNote());
-  assert.equal(data.accessKey, "421640419999999999999999999990000000001202610");
+  assert.equal(data.accessKey, "42164041999999999999999999999000000000120261000000");
   assert.equal(data.nfseNumber, "12");
   assert.equal(data.competencyDate, "2026-10-01");
   assert.equal(data.serviceValue, 150.5);
@@ -122,7 +122,7 @@ test("extractDanfseData: tomador PJ também é extraído corretamente (CNPJ, nã
 });
 
 test("extractDanfseData: ambiente de produção (tpAmb=1) nunca marca isHomologation", () => {
-  const data = extractDanfseData(makeIssuedNote({ nfseXml: makeNfseXml({ environment: "production" }) }));
+  const data = extractDanfseData(makeIssuedNote({ environment: "production", nfseXml: makeNfseXml({ environment: "production" }) }));
   assert.equal(data.isHomologation, false);
 });
 
@@ -168,4 +168,24 @@ test("DANFSe: contato do tomador vem somente do XML embutido", () => {
   const data = extractDanfseData(makeIssuedNote({ nfseXml }));
   assert.equal(data.tomador?.email, "contato@example.test");
   assert.equal(data.tomador?.phone, undefined);
+});
+
+test("DANFSe: chave deve ter exatamente 50 dígitos conforme NT 008/2026", () => {
+  for (const accessKey of ["123", "1".repeat(49), "1".repeat(51), "a".repeat(50)]) {
+    assert.throws(() => extractDanfseData(makeIssuedNote({ accessKey })), DanfseDataError);
+  }
+});
+
+test("DANFSe: situação e ambiente não podem ser presumidos", () => {
+  const xml = makeNfseXml();
+  for (const nfseXml of [
+    xml.replace("<cStat>100</cStat>", ""),
+    xml.replace("<cStat>100</cStat>", "<cStat>999</cStat>"),
+    xml.replace("<tpAmb>2</tpAmb>", ""),
+  ]) assert.throws(() => extractDanfseData(makeIssuedNote({ nfseXml })), DanfseDataError);
+  assert.throws(() => extractDanfseData(makeIssuedNote({ environment: "production" })), DanfseDataError);
+  assert.throws(() => extractDanfseData(makeIssuedNote({
+    environment: "homologation",
+    nfseXml: makeNfseXml({ environment: "production" }),
+  })), DanfseDataError);
 });
