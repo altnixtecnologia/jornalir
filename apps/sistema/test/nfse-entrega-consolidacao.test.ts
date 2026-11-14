@@ -82,6 +82,30 @@ const note = (id = "n1", over: Row = {}): any => ({ id, environment: "production
 const assetsOf = (db: Db, id: string) => (db.tables.nfse_document_assets ?? []).filter((a) => a.issued_note_id === id);
 const UNIQ = { nfse_document_assets: ["issued_note_id", "kind"] };
 
+/** Modelo da escolha/retentativa da RPC, sem acessar Supabase real. */
+function mockArchiveClaim(db: Db) {
+  const backoff = new Set<string>();
+  const failures = new Map<string, number>();
+  return {
+    claim: async (_admin: SupabaseClient, limit: number): Promise<string[]> =>
+      (db.tables.nfse_issued_notes ?? [])
+        .filter((n) => n.environment === "production" && n.access_key && n.nfse_xml)
+        .filter((n) => !backoff.has(n.id))
+        .filter((n) => ["nfse_xml", "dps_xml", "danfse_pdf"].some((kind) => !assetsOf(db, n.id).some((a) => a.kind === kind)))
+        .sort((a, b) => (failures.get(a.id) ?? 0) - (failures.get(b.id) ?? 0) ||
+          String(a.created_at).localeCompare(String(b.created_at)) ||
+          a.id.localeCompare(b.id))
+        .slice(0, limit).map((n) => n.id),
+    defer: async (_admin: SupabaseClient, id: string) => {
+      failures.set(id, (failures.get(id) ?? 0) + 1);
+      backoff.add(id);
+    },
+    expireBackoff: (id: string) => backoff.delete(id),
+    failures,
+  };
+}
+
+
 // ===================================================== ARQUIVAMENTO NO R2 (mocks) =====================================================
 test("arquiva XML da NFS-e, DPS e DANFSe no R2 com SHA-256 e é idempotente (2ª execução não grava de novo)", async () => {
   const { db, admin } = fakeDb({}, UNIQ); const r2 = mockArchiveDeps();
@@ -133,30 +157,57 @@ async function seed(admin: SupabaseClient, r2: ReturnType<typeof mockArchiveDeps
   }
 }
 test("lote de arquivamento: só notas de produção autorizadas sem os 3 documentos; completas, homologação e sem XML ficam intactas", async () => {
-  const { db, admin } = notesDb(["ok"], ["parcial"], ["falta"]); const r2 = mockArchiveDeps();
+  const { db, admin } = notesDb(["ok"], ["parcial"], ["falta"]); const r2 = mockArchiveDeps(); const queue = mockArchiveClaim(db);
   await seed(admin, r2, ["ok"]); await seed(admin, r2, ["parcial"], true); const base = r2.saves.length;
   const loaded: string[] = [];
-  const out = await archivePendingNfseNotes(admin, { deps: r2.deps, loadNote: async (id) => { loaded.push(id); return note(id); } });
-  assert.deepEqual(out, { archived: 2, failed: 0, pending: 0 });
+  const out = await archivePendingNfseNotes(admin, { ...queue, deps: r2.deps, loadNote: async (id) => { loaded.push(id); return note(id); } });
+  assert.deepEqual(out, { archived: 2, failed: 0, claimed: 2 });
   assert.deepEqual(loaded.sort(), ["falta", "parcial"]);
   assert.equal(r2.saves.length - base, 3 + 2, "falta=3 documentos; parcial só dps+pdf (xml já existia e foi conferido)");
   for (const id of ["ok", "parcial", "falta"]) assert.equal(assetsOf(db, id).length, 3, id);
   assert.equal(assetsOf(db, "homolog").length + assetsOf(db, "sem-xml").length, 0);
-  const again = await archivePendingNfseNotes(admin, { deps: r2.deps, loadNote: async (id) => note(id) });
-  assert.deepEqual(again, { archived: 0, failed: 0, pending: 0 }, "idempotente");
+  const again = await archivePendingNfseNotes(admin, { ...queue, deps: r2.deps, loadNote: async (id) => note(id) });
+  assert.deepEqual(again, { archived: 0, failed: 0, claimed: 0 }, "idempotente");
 });
 test("lote de arquivamento: respeita o limite por execução e a falha de uma nota não interrompe as outras", async () => {
-  const { admin } = notesDb([], [], ["a", "b", "c", "d"]); const r2 = mockArchiveDeps();
-  const lim = await archivePendingNfseNotes(admin, { limit: 1, deps: r2.deps, loadNote: async (id) => note(id) });
-  assert.equal(lim.archived, 1); assert.equal(lim.pending, 3);
-  const mixed = await archivePendingNfseNotes(admin, { limit: 3, deps: r2.deps, loadNote: async (id) => { if (id === "c") throw new Error("falha local"); return note(id); } });
+  const { db, admin } = notesDb([], [], ["a", "b", "c", "d"]); const r2 = mockArchiveDeps(); const queue = mockArchiveClaim(db);
+  const lim = await archivePendingNfseNotes(admin, { ...queue, limit: 1, deps: r2.deps, loadNote: async (id) => note(id) });
+  assert.equal(lim.archived, 1); assert.equal(lim.claimed, 1);
+  const mixed = await archivePendingNfseNotes(admin, { ...queue, limit: 3, deps: r2.deps, loadNote: async (id) => { if (id === "c") throw new Error("falha local"); return note(id); } });
   assert.equal(mixed.failed + mixed.archived, 3); assert.equal(mixed.failed >= 1, true);
 });
+test("mais de 50 notas: claim alcança documentos antigos e não repete as 3 falhas persistentes", async () => {
+  const ids = Array.from({ length: 65 }, (_, i) => "n" + String(i).padStart(3, "0"));
+  const { db, admin } = notesDb([], [], ids); const queue = mockArchiveClaim(db); const r2 = mockArchiveDeps();
+  const fail = new Set(["n000", "n001", "n002"]);
+  const tried: string[] = [];
+  const load = async (id: string) => {
+    tried.push(id);
+    if (fail.has(id)) throw new Error("falha persistente");
+    return note(id);
+  };
+  const first = await archivePendingNfseNotes(admin, { ...queue, deps: r2.deps, loadNote: load });
+  assert.equal(first.failed, 3); assert.equal(first.claimed, 3);
+  const second = await archivePendingNfseNotes(admin, { ...queue, deps: r2.deps, loadNote: load });
+  assert.equal(second.archived, 3);
+  for (let i = 0; i < 30; i++) await archivePendingNfseNotes(admin, { ...queue, deps: r2.deps, loadNote: load });
+  assert.equal(assetsOf(db, "n064").length, 3, "nota fora da janela antiga de 50 tambem arquivada");
+  assert.equal(queue.failures.get("n000"), 1, "falha volta apenas apos o backoff");
+  assert.equal(assetsOf(db, "n000").length, 0);
+  queue.expireBackoff("n000");
+  const retry = await archivePendingNfseNotes(admin, { ...queue, deps: r2.deps, loadNote: load });
+  assert.equal(retry.failed, 1, "falha volta a ser tentada ao vencer o backoff");
+  const sql = readFileSync(new URL("../../../supabase/migrations/20261122340900_nfse_archive_retry_claim.sql", import.meta.url), "utf8");
+  assert.match(sql, /skip locked/i);
+  assert.match(sql, /power\(2\.0/);
+  assert.match(sql, /revoke all on function public\.claim_pending_nfse_archive/);
+});
+
 test("arquivamento independe do e-mail: o lote nunca envia nada, e o cron exige só R2 + liberação fiscal", () => {
   const archive = src("lib/nfse/archiveNfseDocuments.ts"); const worker = src("lib/nfse/deliveryWorker.ts"); const cron = src("app/api/cron/nfse-delivery/route.ts");
   assert.doesNotMatch(archive, /sendFiscalEmail|resendDelivery|isNfseEmailConfigured/);
   const archGate = worker.slice(worker.indexOf("export function isNfseArchiveEnabled"), worker.indexOf("export function isNfseDeliveryEnabled"));
-  assert.match(archGate, /NFSE_AVAILABLE_IN_THIS_RELEASE/); assert.match(archGate, /NFSE_DELIVERY_ENABLED/); assert.match(archGate, /isNfseR2Configured/);
+  assert.match(archGate, /NFSE_AVAILABLE_IN_THIS_RELEASE/); assert.match(archGate, /NFSE_ARCHIVE_ENABLED/); assert.match(archGate, /isNfseR2Configured/);
   assert.doesNotMatch(archGate, /isNfseEmailConfigured/);
   assert.match(cron, /isNfseArchiveEnabled\(\)/); assert.match(cron, /authorization/);
   assert.ok(cron.indexOf("archivePendingNfseNotes(") < cron.indexOf("runNfseDeliveryBatch("), "arquiva antes de tentar o e-mail");
