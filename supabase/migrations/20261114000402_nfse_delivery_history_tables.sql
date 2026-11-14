@@ -1,8 +1,8 @@
 -- NFS-e (PARTE A): documentos fiscais privados (somente metadados/SHA-256) e histórico de entrega.
 -- Só CRIA objetos novos; NÃO toca em nfse_issued_notes (sem trigger, sem função, sem fila automática).
 -- É tudo o que o webhook do Resend precisa. A fila automática (trigger) é a PARTE B, aplicada só quando a emissão for liberada.
--- NAO aplicar no Supabase oficial sem autorização. Requer: public.nfse_issued_notes, public.profiles.
--- Ao aplicar, registrar a versão real do ledger e renomear este arquivo para ela.
+-- JA APLICADA no Supabase oficial como 20261114000402 (nfse_delivery_history_tables), pela integração oficial do Supabase.
+-- Este arquivo é só o registro versionado: NÃO reaplicar (conferir o ledger antes de qualquer execução). Requer: public.nfse_issued_notes, public.profiles.
 -- Reversão (somente com as tabelas vazias): drop table public.nfse_delivery_attempts; drop table public.nfse_document_assets;
 
 set local lock_timeout = '3s';

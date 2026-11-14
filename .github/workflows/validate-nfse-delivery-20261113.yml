@@ -17,7 +17,7 @@ on:
       - "apps/sistema/src/app/api/cron/nfse-delivery/route.ts"
       - "apps/sistema/src/app/api/webhooks/nfse-email/route.ts"
       - "apps/sistema/test/nfse-delivery.test.ts"
-      - "supabase/migrations/20261122340650_nfse_delivery_history_tables.sql"
+      - "supabase/migrations/20261114000402_nfse_delivery_history_tables.sql"
       - "supabase/migrations/20261122340700_nfse_delivery_enqueue_trigger.sql"
       - "packages/core/test/sql/nfse-delivery-queue-test.sql"
       - ".github/workflows/validate-nfse-delivery-20261113.yml"

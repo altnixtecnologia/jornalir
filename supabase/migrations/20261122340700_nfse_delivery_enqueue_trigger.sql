@@ -1,6 +1,6 @@
 -- NFS-e (PARTE B): fila automática de entrega por e-mail. NAO aplicar até a liberação da emissão fiscal.
 -- Cria o schema interno, a função e o TRIGGER AFTER INSERT em public.nfse_issued_notes (só notas de produção).
--- Requer a PARTE A (20261122340650_nfse_delivery_history_tables.sql), que cria nfse_delivery_attempts.
+-- Requer a PARTE A, JÁ APLICADA no Supabase oficial como 20261114000402 (nfse_delivery_history_tables), que cria nfse_delivery_attempts.
 -- NAO aplicar no Supabase oficial sem autorização. Ao aplicar, registrar a versão real do ledger.
 -- Reversão: drop trigger if exists nfse_queue_delivery_on_authorization on public.nfse_issued_notes;
 --           drop function if exists nfse_internal.enqueue_automatic_note_delivery(); drop schema if exists nfse_internal;
@@ -10,7 +10,7 @@ set local lock_timeout = '3s';
 do $$
 begin
   if to_regclass('public.nfse_delivery_attempts') is null then
-    raise exception 'Aplicar antes a PARTE A (20261122340650_nfse_delivery_history_tables.sql).';
+    raise exception 'Aplicar antes a PARTE A (20261114000402_nfse_delivery_history_tables.sql).';
   end if;
 end $$;
 
