@@ -16,4 +16,10 @@ export const NFSE_AVAILABLE_IN_THIS_RELEASE: boolean = false;
  */
 export const NFSE_PREPARATION_ACCESS_IN_THIS_RELEASE: boolean = true;
 
+/** Ações de preparação: nunca autorizar emissão, consulta fiscal, envio ou cancelamento. */
+export function isNfsePreparationAction(action: string): boolean {
+  return action === "configuracoes_gerenciar" || action === "perfis_servico_gerenciar" ||
+    action === "rascunhos_criar" || action === "rascunhos_editar";
+}
+
 export const NFSE_POSTPONED_MESSAGE = "NFS-e ficará disponível em uma etapa posterior à publicação do Jornal IR.";
