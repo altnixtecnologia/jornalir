@@ -71,8 +71,13 @@ export interface CancellationEventIdInput {
 
 /** Ver "COMPOSIÇÃO DO Id" no comentário do módulo — "PRE" + chave de acesso (50) + código do evento (6) = 59 caracteres. */
 export function buildCancellationEventId(input: CancellationEventIdInput): string {
-  const accessKey = input.accessKey.padEnd(50, "0").slice(0, 50);
-  return `PRE${accessKey}${CANCELLATION_EVENT_CODE}`;
+  // TSChaveNFSe, tiposSimples_v1.01.xsd: 6 digitos + 14 caracteres
+  // alfanumericos maiusculos + 30 digitos. Nunca completar nem
+  // truncar uma chave fiscal verdadeira para fazer o XML "passar".
+  if (!/^[0-9]{6}[0-9A-Z]{14}[0-9]{30}$/.test(input.accessKey)) {
+    throw new Error("Chave de acesso NFS-e invalida: informe exatamente os 50 caracteres oficiais.");
+  }
+  return `PRE${input.accessKey}${CANCELLATION_EVENT_CODE}`;
 }
 
 export interface CancellationEventBuildInput {
@@ -92,6 +97,19 @@ export interface CancellationEventBuildInput {
  * solicitante (ver `CancellationService.requestCancellation`).
  */
 export function buildCancellationEventXml(input: CancellationEventBuildInput): string {
+  // Defesa em profundidade mesmo em chamadas diretas fora do formulario.
+  if (!/^[0-9]{14}$/.test(onlyDigits(input.authorCnpj))) {
+    throw new Error("CNPJ do autor do cancelamento deve ter 14 digitos.");
+  }
+  if (![1, 2, 9].includes(input.justificationCode)) {
+    throw new Error("Motivo de cancelamento fora dos codigos oficiais 1, 2 e 9.");
+  }
+  if (input.justificationText.trim().length < 15 || input.justificationText.trim().length > 255) {
+    throw new Error("Justificativa de cancelamento deve conter entre 15 e 255 caracteres.");
+  }
+  if (input.environment !== "homologation" && input.environment !== "production") {
+    throw new Error("Ambiente fiscal invalido.");
+  }
   // TSDateTimeUTC exige TZD numérico (+hh:mm/-hh:mm) — "Z" literal não casa com o pattern do XSD.
   const dhEvento = (input.now ?? new Date()).toISOString().replace(/\.\d{3}Z$/, "+00:00");
   const id = buildCancellationEventId({ accessKey: input.accessKey });

@@ -46,6 +46,7 @@ export function NfseTransmissionPanel({
   issuerConfigured,
   blockingReasons = [],
   previewMode = false,
+  restrictedMode = false,
 }: {
   draft: NfseDraft;
   issuedNote: NfseIssuedNote | null;
@@ -53,6 +54,7 @@ export function NfseTransmissionPanel({
   issuerConfigured: boolean;
   blockingReasons?: string[];
   previewMode?: boolean;
+  restrictedMode?: boolean;
 }): JSX.Element {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -61,9 +63,12 @@ export function NfseTransmissionPanel({
   const [result, setResult] = useState<{ outcome: "rejected" | "uncertain"; message?: string } | null>(null);
   const [stage, setStage] = useState<PreviewStage>("idle");
   const [copied, setCopied] = useState(false);
+  // O XSD assinado so pode ser validado imediatamente antes de enviar.
+  // Os demais campos sao configuracoes obrigatorias e bloqueiam o botao.
+  const missingBeforeXml = blockingReasons.filter((reason) => !reason.startsWith("Validação XSD real da DPS"));
 
   function handleTransmit(): void {
-    if (!previewMode) {
+    if (!previewMode && !restrictedMode) {
       setError("Emissão nacional indisponível: a API oficial ainda não foi homologada neste sistema.");
       return;
     }
@@ -253,6 +258,22 @@ export function NfseTransmissionPanel({
     <section className="form-section form-section--first">
       <h2>Transmissão</h2>
       {error ? <p className="form-error" role="alert">{error}</p> : null}
+      {restrictedMode && !previewMode ? (
+        <div role="status">
+          <p className="form-error">
+            Ambiente de TESTE autenticado — Produção Restrita da SEFIN. Nenhuma NFS-e será enviada à produção fiscal.
+            Confirme emitente, cliente, serviço e valor antes do envio de teste.
+          </p>
+          {missingBeforeXml.length > 0 ? (
+            <>
+              <p className="helper-text">Falta configurar antes do primeiro envio:</p>
+              <ul>{missingBeforeXml.map((reason) => <li key={reason}>{reason}</li>)}</ul>
+            </>
+          ) : (
+            <p className="helper-text">Campos preliminares completos. A DPS assinada será validada pelo XSD oficial no momento do envio.</p>
+          )}
+        </div>
+      ) : null}
       {result?.outcome === "rejected" ? (
         <div className="form-error" role="alert">
           <p>NFS-e rejeitada pelo Sistema Nacional:</p>
@@ -267,7 +288,7 @@ export function NfseTransmissionPanel({
         </div>
       ) : null}
 
-      {!previewMode ? (
+      {!previewMode && !restrictedMode ? (
         <div className="form-field">
           <p className="form-error" role="alert">
             A transmissão real de NFS-e está bloqueada até a validação oficial da integração.
@@ -285,17 +306,19 @@ export function NfseTransmissionPanel({
             Revisar configuração fiscal e certificado
           </Link>
         </div>
+      ) : attempts[0]?.status === "pending" || attempts[0]?.status === "uncertain" ? (
+        <p className="form-error" role="alert">DPS pendente ou incerta. Consulte o resultado oficial antes de tentar novamente.</p>
       ) : !reviewOpen ? (
         <div className="form-actions">
-          <button type="button" className="form-action-primary" onClick={() => setReviewOpen(true)} disabled={pending}>
-            Emitir NFS-e (demonstração)
+          <button type="button" className="form-action-primary" onClick={() => setReviewOpen(true)} disabled={pending || (restrictedMode && missingBeforeXml.length > 0)}>
+            {previewMode ? "Emitir NFS-e (demonstração)" : "Emitir NFS-e em Produção Restrita"}
           </button>
         </div>
       ) : (
         <div>
           <p className="helper-text">
             Confira antes de transmitir — ambiente: HOMOLOGAÇÃO.
-            {previewMode ? " Modo demonstração: nenhuma transmissão real será feita." : ""}
+            {previewMode ? " Modo demonstração: nenhuma transmissão real será feita." : " Teste real EXCLUSIVAMENTE na SEFIN Produção Restrita, sem efeitos fiscais."}
           </p>
           <div className="form-grid">
             <div className="form-field">
@@ -329,8 +352,8 @@ export function NfseTransmissionPanel({
           </div>
           {!issuerConfigured ? <p className="form-error" role="alert">Configuração fiscal do prestador ausente — transmissão será bloqueada.</p> : null}
           <div className="form-actions">
-            <button type="button" className="form-action-primary" onClick={handleTransmit} disabled={pending}>
-              {pending ? (previewMode ? PREVIEW_STAGE_LABELS[stage] : "Processando…") : previewMode ? "Confirmar emissão (demonstração)" : "Confirmar envio"}
+            <button type="button" className="form-action-primary" onClick={handleTransmit} disabled={pending || (restrictedMode && missingBeforeXml.length > 0)}>
+              {pending ? (previewMode ? PREVIEW_STAGE_LABELS[stage] : "Processando…") : previewMode ? "Confirmar emissão (demonstração)" : "Confirmar envio à Produção Restrita"}
             </button>
             <button type="button" onClick={() => setReviewOpen(false)} disabled={pending}>
               Cancelar

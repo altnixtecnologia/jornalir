@@ -13,7 +13,7 @@ export class InvalidCancellationJustificationError extends Error {}
 export class CancellationAlreadyRequestedError extends Error {
   constructor(issuedNoteId: string) {
     super(
-      `Já existe uma solicitação de cancelamento ativa (pendente, enviada ou confirmada) para a NFS-e ${issuedNoteId} — ` +
+      `Já existe uma solicitação de cancelamento ativa (pendente, enviada, incerta ou confirmada) para a NFS-e ${issuedNoteId} — ` +
         "nunca duas solicitações ativas ao mesmo tempo pra mesma nota.",
     );
   }
@@ -139,7 +139,7 @@ export class CancellationService {
     }
 
     // Checagem rápida (idêntica em espírito à de TransmissionService.transmit) — a proteção
-    // REAL contra duas solicitações ativas concorrentes é o índice único parcial do banco
+    // REAL contra duas solicitações ativas concorrentes e INCERTAS é o índice único parcial do banco
     // (idx_nfse_cancellation_one_active_per_note, ver migration 20261029100900), checado no
     // catch abaixo. Sem mutex aqui de propósito: ao contrário da transmissão (que reserva
     // número de DPS e chama a API nacional), preparar uma solicitação é só uma linha local —

@@ -35,22 +35,28 @@ export function ClientPicker({
 
   useEffect(() => {
     const term = query.trim();
+    let cancelled = false;
     if (!term) {
       setResults([]);
       setSearched(false);
+      setLoading(false);
       return;
     }
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(() => {
       setLoading(true);
       searchClientsAction(term)
-        .then((found) => setResults(found))
+        .then((found) => { if (!cancelled) setResults(found); })
+        .catch(() => { if (!cancelled) setResults([]); })
         .finally(() => {
-          setLoading(false);
-          setSearched(true);
+          if (!cancelled) {
+            setLoading(false);
+            setSearched(true);
+          }
         });
     }, 250);
     return () => {
+      cancelled = true; // Busca antiga nunca sobrescreve a busca seguinte.
       if (debounceRef.current) clearTimeout(debounceRef.current);
     };
   }, [query]);

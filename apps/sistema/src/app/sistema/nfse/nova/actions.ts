@@ -4,7 +4,11 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import type { ClientKind, NfseIbsCbsSimplesNacionalRegime, NfseSimplesNacionalOption, NfseSpecialTaxRegimeCode } from "@ir/types";
 import { buildTomadorSnapshotFromClient, clientDisplayName } from "@ir/types";
-import { getDraftService } from "../../../../composition/nfse";
+import { parseNfseServiceValue } from "@ir/core";
+import { getDraftService, getIssuerConfigService } from "../../../../composition/nfse";
+import { createIssuedNoteRepositorySupabase } from "../../../../providers/supabase/nfseIssuedNoteRepository.supabase";
+import { createTransmissionAttemptRepositorySupabase } from "../../../../providers/supabase/nfseTransmissionAttemptRepository.supabase";
+import { resolveUpdateTomadorSnapshot } from "../../../../lib/nfse/draftTomadorPolicy";
 import { getClientService } from "../../../../composition/clientes";
 import { createSupabaseServerClient } from "../../../../lib/supabase/server";
 import { checkModuleAction } from "../../../../lib/permissions/checkModuleAction";
@@ -67,11 +71,7 @@ export interface DraftFormInput {
   notes: string;
 }
 
-function parseValue(value: string): number {
-  return Number(value.replace(",", "."));
-}
-
-function toServiceInput(input: DraftFormInput) {
+function toServiceInput(input: DraftFormInput): Parameters<ReturnType<typeof getDraftService>["register"]>[0] {
   return {
     clientId: input.clientId,
     tomador: {
@@ -114,7 +114,7 @@ function toServiceInput(input: DraftFormInput) {
       issuerSpecialTaxRegimeCode: (input.fiscal.issuerSpecialTaxRegimeCode || undefined) as NfseSpecialTaxRegimeCode | undefined,
     },
     competencyDate: input.competencyDate,
-    serviceValue: parseValue(input.serviceValue),
+    serviceValue: parseNfseServiceValue(input.serviceValue),
     serviceDescription: input.serviceDescription,
     notes: input.notes || undefined,
   };
@@ -126,7 +126,19 @@ export async function createDraftAction(input: DraftFormInput): Promise<{ error:
   try {
     const client = createSupabaseServerClient();
     const AUDIT = await getAuditContext(client);
-    const draft = await getDraftService(client).register(toServiceInput(input));
+    // O navegador não define o tomador nem o regime permanente do prestador.
+    // Dados readonly da UI podem ser adulterados em uma chamada HTTP.
+    const masterClient = await getClientService(client).getById(input.clientId);
+    const issuer = await getIssuerConfigService(client).getCurrent();
+    const canonical = toServiceInput(input);
+    canonical.tomador = buildTomadorSnapshotFromClient(masterClient, clientDisplayName(masterClient));
+    canonical.fiscal = {
+      ...canonical.fiscal,
+      issuerSimplesNacionalOption: issuer?.simplesNacionalOption,
+      issuerIbsCbsSimplesNacionalRegime: issuer?.ibsCbsSimplesNacionalRegime,
+      issuerSpecialTaxRegimeCode: issuer?.specialTaxRegimeCode,
+    };
+    const draft = await getDraftService(client).register(canonical);
     await recordAuditEventSupabase(client, { userId: AUDIT.actorId, entityType: ENTITY_TYPE, entityId: draft.id, action: "create", metadata: { clientId: draft.clientId } });
     revalidatePath(LIST_PATH);
     return { ok: true, draftId: draft.id };
@@ -141,7 +153,38 @@ export async function updateDraftAction(id: string, input: DraftFormInput): Prom
   try {
     const client = createSupabaseServerClient();
     const AUDIT = await getAuditContext(client);
-    await getDraftService(client).update(id, toServiceInput(input));
+    const drafts = getDraftService(client);
+    const previous = await drafts.getById(id);
+    if (previous.status !== "draft") return { error: "Não é permitido alterar uma nota que não esteja em rascunho." };
+
+    const [issued, attempts, masterClient] = await Promise.all([
+      createIssuedNoteRepositorySupabase(client).getByDraftId(id),
+      createTransmissionAttemptRepositorySupabase(client).listByDraftId(id),
+      getClientService(client).getById(input.clientId),
+    ]);
+    if (issued) return { error: "Esta NFS-e já foi autorizada. O rascunho não pode mais ser editado." };
+    if (attempts[0]?.status === "pending" || attempts[0]?.status === "uncertain") {
+      return { error: "Existe uma transmissão pendente ou incerta. Concilie a DPS antes de editar." };
+    }
+
+    const master = buildTomadorSnapshotFromClient(masterClient, clientDisplayName(masterClient));
+    const canonical = toServiceInput(input);
+    canonical.tomador = resolveUpdateTomadorSnapshot({
+      previousClientId: previous.clientId,
+      selectedClientId: input.clientId,
+      previous: previous.tomador,
+      submitted: canonical.tomador,
+      master,
+    });
+    // Os códigos fiscais do prestador são o snapshot histórico do rascunho,
+    // não editáveis pelo navegador nem recalculados silenciosamente.
+    canonical.fiscal = {
+      ...canonical.fiscal,
+      issuerSimplesNacionalOption: previous.fiscal.issuerSimplesNacionalOption,
+      issuerIbsCbsSimplesNacionalRegime: previous.fiscal.issuerIbsCbsSimplesNacionalRegime,
+      issuerSpecialTaxRegimeCode: previous.fiscal.issuerSpecialTaxRegimeCode,
+    };
+    await drafts.update(id, canonical);
     await recordAuditEventSupabase(client, { userId: AUDIT.actorId, entityType: ENTITY_TYPE, entityId: id, action: "update" });
   } catch (error) {
     return { error: toErrorMessage(error) };
@@ -175,14 +218,19 @@ export async function refreshTomadorSnapshotAction(
     // ainda não há entidade pra anexar o evento; a criação do rascunho
     // em si já audita a origem (clientId).
     if (draftId) {
-      const AUDIT = await getAuditContext(client);
-      await recordAuditEventSupabase(client, {
-        userId: AUDIT.actorId,
-        entityType: ENTITY_TYPE,
-        entityId: draftId,
-        action: "refresh_snapshot_from_client",
-        metadata: { clientId },
-      });
+      const currentDraft = await getDraftService(client).getById(draftId);
+      // Não auditar uma atualização de outro cliente sob o rascunho antigo.
+      // Se o operador trocou o cliente, a alteração só será auditada no save.
+      if (currentDraft.clientId === clientId) {
+        const AUDIT = await getAuditContext(client);
+        await recordAuditEventSupabase(client, {
+          userId: AUDIT.actorId,
+          entityType: ENTITY_TYPE,
+          entityId: draftId,
+          action: "refresh_snapshot_from_client",
+          metadata: { clientId },
+        });
+      }
     }
     return {
       ok: true,

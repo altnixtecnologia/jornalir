@@ -1,46 +1,60 @@
 "use server";
 
 import { getTransmissionService } from "../../../../../composition/nfse";
+import { prepareRestrictedNfseTransmissionService } from "../../../../../composition/nfse-restricted";
+import { isRestrictedSefinEnvironment, restrictedSefinEnvironmentFromServer } from "../../../../../lib/nfse/restrictedSefinGate";
 import { createSupabaseServerClient } from "../../../../../lib/supabase/server";
 import { checkModuleAction } from "../../../../../lib/permissions/checkModuleAction";
+import { createIssuedNoteRepositorySupabase } from "../../../../../providers/supabase/nfseIssuedNoteRepository.supabase";
+import { isLocalPreviewEnabled } from "../../../../../lib/auth/localPreview";
 
-type Result = { error: string } | { ok: true; xml: string };
+type Result =
+  | { error: string }
+  | { ok: true; xml: string; source: "demonstration" | "official" };
 
 function toErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : "Não foi possível concluir a consulta.";
 }
 
-/** Mesmo gate de cancellation-actions.ts — admin/owner ATIVO, revalidado no banco. */
+/** Mesmo gate de cancelamento: owner/admin ativo, confirmado no banco. */
 async function requireFiscalAdmin(client: ReturnType<typeof createSupabaseServerClient>): Promise<void> {
-  const { data: user, error: authError } = await client.auth.getUser();
-  if (authError || !user.user) throw new Error("Faça login novamente.");
-  const { data: profile, error } = await client.from("profiles").select("active,role").eq("id", user.user.id).maybeSingle();
-  if (error || !profile?.active || (profile.role !== "admin" && profile.role !== "owner")) {
-    throw new Error("Somente administradores podem consultar a NFS-e no Sistema Nacional.");
+  if (isLocalPreviewEnabled()) return;
+  const { data, error } = await client.rpc("is_active_admin_or_owner");
+  if (error || data !== true) {
+    throw new Error("Somente administradores ou proprietários podem consultar a NFS-e no Sistema Nacional.");
   }
 }
 
 /**
- * Consulta da NFS-e pela chave de acesso no Sistema Nacional (Bloco B,
- * item 4 — UI "consultas", 25/10/2026) — chama diretamente
- * `TransmissionService.consultNfseByAccessKey`, que delega ao
- * provider real (`FetchNationalNfseProvider`, ainda bloqueado por
- * `RealTransmissionNotReadyError`, ver national-nfse-provider.ts).
- * Nunca contorna o bloqueio: esta ação só existe pra deixar a
- * interface tecnicamente completa (o botão já chama o caminho real),
- * nunca pra habilitar consulta de verdade antes da hora. Reaproveita a
- * permissão `notas_cancelar` (catálogo existente, admin-only) em vez
- * de criar uma permissão nova — a revisão de permissões/migrations
- * fiscais fica pro item 5, separado deste.
+ * Somente consulta nota que existe neste sistema, por ID interno.
+ * Nunca aceita do navegador uma chave de acesso arbitraria.
+ * Em preview devolve APENAS XML local ficticio com origem explicita.
+ * Em ambiente real a conexao permanece bloqueada no provider oficial.
  */
-export async function consultNfseByAccessKeyAction(accessKey: string): Promise<Result> {
+export async function consultNfseByNoteIdAction(noteId: string): Promise<Result> {
   const permissionError = await checkModuleAction("nfse", "notas_cancelar");
   if (permissionError) return { error: permissionError };
   try {
     const client = createSupabaseServerClient();
     await requireFiscalAdmin(client);
-    const xml = await getTransmissionService(client).consultNfseByAccessKey(accessKey, "homologation");
-    return { ok: true, xml };
+    const note = await createIssuedNoteRepositorySupabase(client).getById(noteId);
+    if (!note) return { error: "NFS-e não encontrada." };
+
+    if (isLocalPreviewEnabled()) {
+      return {
+        ok: true,
+        xml: note.nfseXml || note.signedDpsXml,
+        source: "demonstration",
+      };
+    }
+    if (note.environment !== "homologation") {
+      return { error: "Consulta fiscal de produção indisponível." };
+    }
+    if (!note.accessKey) return { error: "Nota sem chave oficial; necessário conciliar a DPS." };
+    const restricted = isRestrictedSefinEnvironment(restrictedSefinEnvironmentFromServer());
+    const service = restricted ? prepareRestrictedNfseTransmissionService(client) : getTransmissionService(client);
+    const xml = await service.consultNfseByAccessKey(note.accessKey, note.environment);
+    return { ok: true, xml, source: "official" };
   } catch (error) {
     return { error: toErrorMessage(error) };
   }

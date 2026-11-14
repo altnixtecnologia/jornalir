@@ -1,6 +1,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { validateNfseDraft } from "../src/nfse/draft-service";
+import { DraftService, isValidNfseCompetencyDate, isValidNfseServiceValue, parseNfseServiceValue, validateNfseDraft } from "../src/nfse/draft-service";
+import type { DraftInput } from "../src/nfse/draft-service";
+import type { DraftRepository } from "../src/nfse/draft-repository";
 import { isValidCnpj, isValidCpf } from "../src/clientes/client-validation";
 
 const COMPLETE_INPUT = {
@@ -78,4 +80,54 @@ test("reaproveita os utilitários já existentes de CPF/CNPJ (não reimplementa 
   assert.equal(isValidCpf("11111111111"), false);
   assert.equal(isValidCnpj("11222333000181"), true);
   assert.equal(isValidCnpj("00000000000000"), false);
+});
+
+test("entrada monetária brasileira: reais e centavos sem ambiguidade", () => {
+  assert.equal(parseNfseServiceValue("150,00"), 150);
+  assert.equal(parseNfseServiceValue("150.00"), 150);
+  assert.equal(parseNfseServiceValue("1.234,56"), 1234.56);
+  assert.equal(parseNfseServiceValue("1234.56"), 1234.56);
+  assert.equal(parseNfseServiceValue("0,01"), 0.01);
+  for (const invalid of ["1.234", "1.234.56", "100,001", "1e3", "R$ 10", "", "0,00", "0,001"]) {
+    assert.equal(Number.isNaN(parseNfseServiceValue(invalid)), true, `Entrada inválida aceita: ${invalid}`);
+  }
+});
+
+test("valor fiscal não pode ser arredondado silenciosamente", () => {
+  for (const valid of [0.01, 150.1, 150.99, 1234.56]) {
+    assert.equal(isValidNfseServiceValue(valid), true, `Rejeitou valor válido ${valid}`);
+  }
+  for (const invalid of [0.001, 1.005, 12.345, 0, -1, Number.NaN, Infinity, 1e20]) {
+    assert.equal(isValidNfseServiceValue(invalid), false, `Aceitou valor inválido ${invalid}`);
+    assert.equal(validateNfseDraft({ ...COMPLETE_INPUT, serviceValue: invalid }).readyForFutureTransmission, false);
+  }
+});
+
+test("competência valida dia real do calendário e ano bissexto", () => {
+  for (const valid of ["2024-02-29", "2000-02-29", "2026-11-12"]) {
+    assert.equal(isValidNfseCompetencyDate(valid), true);
+  }
+  for (const invalid of ["2026-02-29", "2100-02-29", "2026-11-31", "2026-00-10", "2026-13-01", "0000-01-01", "2026-1-5", "2030-01-00", "qualquer", ""]) {
+    assert.equal(isValidNfseCompetencyDate(invalid), false, `Aceitou data inválida ${invalid}`);
+    assert.equal(validateNfseDraft({ ...COMPLETE_INPUT, competencyDate: invalid }).readyForFutureTransmission, false);
+  }
+});
+
+test("DraftService bloqueia moeda inválida e datas impossíveis antes de gravar", () => {
+  let inserts = 0;
+  const repository = {
+    create: async () => { inserts++; throw new Error("A gravação não deveria ser chamada"); },
+  } as unknown as DraftRepository;
+  const service = new DraftService(repository);
+  const valid: DraftInput = {
+    clientId: "cliente-sintetico",
+    tomador: { sourceClientId: "cliente-sintetico", kind: "individual", name: "Pessoa Teste" },
+    fiscal: {},
+    competencyDate: "2026-11-12",
+    serviceValue: 100,
+    serviceDescription: "Serviço hipotético para teste",
+  };
+  assert.throws(() => service.register({ ...valid, serviceValue: 0.001 }), /centavos|duas casas/);
+  assert.throws(() => service.register({ ...valid, competencyDate: "2026-02-30" }), /competência válida/);
+  assert.equal(inserts, 0);
 });

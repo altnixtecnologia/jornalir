@@ -148,7 +148,7 @@ class FakeNationalNfseProvider implements NationalNfseProvider {
   async getMunicipalParameters(): Promise<never> {
     throw new Error("not used in these tests");
   }
-  async transmitDps(): Promise<NationalNfseResponseEnvelope> {
+  async transmitDps(_signedDpsXml: string, _environment: "homologation" | "production"): Promise<NationalNfseResponseEnvelope> {
     if (this.behavior === "throw") throw new Error("network timeout");
     if (this.behavior === "reject") return { status: "rejected", rejection: { code: "E123", message: "CNPJ do tomador inválido" } };
     return { status: "authorized", accessKey: "ACCESSKEY123", nfseNumber: "1", issuedAt: "2026-10-01T10:05:00Z", nfseXml: "<NFSe/>" };
@@ -352,21 +352,53 @@ test("ajuste de segurança: o provider real (FetchNationalNfseProvider) nunca ch
   await assert.rejects(() => provider.getDpsById("dps-id", "homologation"), RealTransmissionNotReadyError);
 });
 
-test("ajuste de segurança: bloqueio do provider real nunca é tratado como 'uncertain' — propaga explicitamente", async () => {
+test("ajuste de segurança: provider oficial bloqueia antes de acessar banco, certificado ou transmitir", async () => {
   const drafts = new FakeDraftRepository(makeDraft());
   const issuerConfigs = new FakeIssuerConfigRepository(makeIssuerConfig());
   const dpsSequences = new FakeDpsSequenceRepository();
   const issuedNotes = new FakeIssuedNoteRepository();
   const attempts = new FakeTransmissionAttemptRepository();
-  const certificate = makeConfiguredCertificateProvider();
+
+  // Se a guarda for deslocada para depois de QUALQUER leitura fiscal,
+  // o teste falha com o erro da sentinela em vez do bloqueio esperado.
+  // Assim nao basta verificar que a sequencia e as tentativas ficaram zeradas.
+  let draftReads = 0;
+  drafts.getById = async () => {
+    draftReads += 1;
+    throw new Error("A guarda fiscal foi executada depois da leitura do rascunho");
+  };
+  let issuerReads = 0;
+  issuerConfigs.getCurrent = async () => {
+    issuerReads += 1;
+    throw new Error("A guarda fiscal foi executada depois da leitura do emitente");
+  };
+  let issuedReads = 0;
+  issuedNotes.getByDraftId = async () => {
+    issuedReads += 1;
+    throw new Error("A guarda fiscal foi executada depois da consulta de notas");
+  };
+  let attemptReads = 0;
+  attempts.listByDraftId = async () => {
+    attemptReads += 1;
+    throw new Error("A guarda fiscal foi executada depois da consulta de tentativas");
+  };
+  const certificate: CertificateMaterialProvider = {
+    async getActiveInfo() {
+      throw new Error("A guarda fiscal foi executada depois da leitura de certificado");
+    },
+    async getActiveSigningMaterial() {
+      throw new Error("A guarda fiscal foi executada depois da leitura de material de assinatura");
+    },
+  };
   const service = new TransmissionService(drafts, issuerConfigs, dpsSequences, issuedNotes, attempts, new FetchNationalNfseProvider(), certificate);
   await assert.rejects(() => service.transmit({ draftId: "draft-1", isAdminOrOwner: true }), RealTransmissionNotReadyError);
-  // Auditoria estrutural (26/10/2026, item 1): o "pending" é gravado ANTES de chamar o provider
-  // (rastreamento durável) — mesmo o bloqueio de release deixa esse rastro, nunca 0 tentativas.
-  // O erro de bloqueio continua propagando sem nunca virar "uncertain"/"authorized"/"rejected".
-  assert.equal(attempts.created.length, 1);
-  assert.equal(attempts.created[0].status, "pending");
-  assert.equal(issuedNotes.created.length, 0);
+  assert.equal(draftReads, 0);
+  assert.equal(issuerReads, 0);
+  assert.equal(issuedReads, 0);
+  assert.equal(attemptReads, 0);
+  assert.equal(dpsSequences.calls, 0, "nunca reservar uma DPS para release bloqueado");
+  assert.equal(attempts.created.length, 0, "nunca criar pending falso");
+  assert.equal(issuedNotes.created.length, 0, "nunca criar nota");
 });
 
 test("auditoria estrutural (26/10/2026, item 1 — CRÍTICO): uma transmissão bem-sucedida grava 'pending' ANTES da linha final 'authorized' — nunca só a linha final", async () => {
@@ -875,4 +907,100 @@ test("checkReadiness: sem regime especial de tributação configurado no prestad
   const readiness = await service.checkReadiness("draft-1");
   assert.equal(readiness.ready, false);
   assert.ok(readiness.missing.some((item) => item.includes("Regime especial")));
+});
+
+
+test("resposta de autorizacao incompleta fica INCERTA e impede segunda DPS", async () => {
+  const drafts = new FakeDraftRepository(makeDraft());
+  const issuer = new FakeIssuerConfigRepository(makeIssuerConfig());
+  const sequences = new FakeDpsSequenceRepository();
+  const notes = new FakeIssuedNoteRepository();
+  const attempts = new FakeTransmissionAttemptRepository();
+  const provider = new FakeNationalNfseProvider("authorize");
+  provider.transmitDps = async () => ({ status: "authorized", accessKey: "CHAVE_SEM_XML" });
+  attempts.listByDraftId = async () => attempts.created.slice().reverse().map((entry, i) => ({
+    id: `attempt-${i}`, createdAt: new Date().toISOString(), ...entry,
+  }));
+  const service = new TransmissionService(drafts, issuer, sequences, notes, attempts, provider, makeConfiguredCertificateProvider());
+  const first = await service.transmit({ draftId: "draft-1", isAdminOrOwner: true });
+  assert.equal(first.outcome, "uncertain");
+  assert.deepEqual(attempts.created.map((a) => a.status), ["pending", "uncertain"]);
+  assert.equal(notes.created.length, 0);
+  await assert.rejects(() => service.transmit({ draftId: "draft-1", isAdminOrOwner: true }), UnresolvedUncertainAttemptError);
+  assert.equal(sequences.calls, 1, "nenhuma nova DPS para resposta ambigua");
+});
+
+test("rejeicao sem detalhes oficiais nao autoriza retransmissao automatica", async () => {
+  const { service, attempts, issuedNotes } = makeService({ providerBehavior: "reject" });
+  const provider = (service as unknown as { provider: FakeNationalNfseProvider }).provider;
+  provider.transmitDps = async () => ({ status: "rejected" });
+  const result = await service.transmit({ draftId: "draft-1", isAdminOrOwner: true });
+  assert.equal(result.outcome, "uncertain");
+  assert.deepEqual(attempts.created.map((a) => a.status), ["pending", "uncertain"]);
+  assert.equal(issuedNotes.created.length, 0);
+});
+
+test("falha ao salvar NFS-e ja autorizada mantem rastro INCERTO; nao a trata como rejeicao", async () => {
+  const drafts = new FakeDraftRepository(makeDraft());
+  const issuer = new FakeIssuerConfigRepository(makeIssuerConfig());
+  const sequences = new FakeDpsSequenceRepository();
+  const notes = new FakeIssuedNoteRepository();
+  notes.create = async () => { throw new Error("simulacao: banco indisponivel apos autorizacao"); };
+  const attempts = new FakeTransmissionAttemptRepository();
+  attempts.listByDraftId = async () => attempts.created.slice().reverse().map((entry, i) => ({
+    id: `attempt-${i}`, createdAt: new Date().toISOString(), ...entry,
+  }));
+  const service = new TransmissionService(drafts, issuer, sequences, notes, attempts, new FakeNationalNfseProvider("authorize"), makeConfiguredCertificateProvider());
+  const result = await service.transmit({ draftId: "draft-1", isAdminOrOwner: true });
+  assert.equal(result.outcome, "uncertain");
+  assert.deepEqual(attempts.created.map((a) => a.status), ["pending", "uncertain"]);
+  await assert.rejects(() => service.transmit({ draftId: "draft-1", isAdminOrOwner: true }), UnresolvedUncertainAttemptError);
+  assert.equal(sequences.calls, 1);
+});
+
+test("apos claim le o rascunho novamente e transmite o snapshot mais recente", async () => {
+  const drafts = new FakeDraftRepository(makeDraft());
+  let reads = 0;
+  drafts.getById = async () => {
+    reads++;
+    return reads === 1 ? makeDraft({ serviceValue: 200 }) : makeDraft({ serviceValue: 350 });
+  };
+  const provider = new FakeNationalNfseProvider("authorize");
+  let signedXml = "";
+  provider.transmitDps = async (xml) => {
+    signedXml = xml;
+    return { status: "rejected", rejection: { code: "TEST", message: "teste sem efeito fiscal" } };
+  };
+  const service = new TransmissionService(
+    drafts, new FakeIssuerConfigRepository(makeIssuerConfig()),
+    new FakeDpsSequenceRepository(), new FakeIssuedNoteRepository(),
+    new FakeTransmissionAttemptRepository(), provider, makeConfiguredCertificateProvider(),
+  );
+  await service.transmit({ draftId: "draft-1", isAdminOrOwner: true });
+  assert.ok(reads >= 2, "tem que reler o snapshot sob claim");
+  assert.match(signedXml, /<vServ>350\.00<\/vServ>/);
+});
+
+test("tentativa pendente surgida durante o claim e revalidada antes da reserva", async () => {
+  const drafts = new FakeDraftRepository(makeDraft());
+  let released = false;
+  drafts.releaseTransmissionClaim = async () => { released = true; };
+  const attempts = new FakeTransmissionAttemptRepository();
+  let checks = 0;
+  attempts.listByDraftId = async () => {
+    checks++;
+    return checks === 1 ? [] : [{
+      id: "attempt-under-lock", draftId: "draft-1", dpsSeries: "1", dpsNumber: 42,
+      environment: "homologation", status: "pending", createdAt: "2026-11-12T20:00:00Z",
+    }];
+  };
+  const sequences = new FakeDpsSequenceRepository();
+  const service = new TransmissionService(
+    drafts, new FakeIssuerConfigRepository(makeIssuerConfig()), sequences,
+    new FakeIssuedNoteRepository(), attempts, new FakeNationalNfseProvider("authorize"),
+    makeConfiguredCertificateProvider(),
+  );
+  await assert.rejects(() => service.transmit({ draftId: "draft-1", isAdminOrOwner: true }), UnresolvedUncertainAttemptError);
+  assert.equal(sequences.calls, 0);
+  assert.equal(released, true);
 });
