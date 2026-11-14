@@ -14,6 +14,10 @@ export interface FiscalEmailInput {
   to: string;
   noteNumber: string;
   attachments: FiscalEmailAttachment[];
+  /** Opcional: assunto fixo (ex.: e-mail de TESTE). Sem ele, usa o assunto padrão da NFS-e. */
+  subject?: string;
+  /** Opcional: texto fixo (ex.: e-mail de TESTE). Sem ele, usa o texto padrão da NFS-e. */
+  text?: string;
 }
 export function isNfseEmailConfigured(): boolean {
   return Boolean(process.env.RESEND_API_KEY && process.env.NFSE_EMAIL_FROM);
@@ -31,8 +35,8 @@ export async function sendFiscalEmail(input: FiscalEmailInput): Promise<{ provid
   const number = input.noteNumber.replace(/[\r\n]/g, " ").slice(0, 80);
   const payload = {
     from, to: [input.to],
-    subject: `NFS-e nº ${number} — Jornal Informativo Regional`,
-    text: `Segue sua Nota Fiscal de Serviços Eletrônica nº ${number}. Anexamos o DANFSe (PDF) e a NFS-e original (XML). Caso necessite de auxílio, entre em contato com o Jornal Informativo Regional.`,
+    subject: input.subject?.replace(/[\r\n]/g, " ").slice(0, 200) || `NFS-e nº ${number} — Jornal Informativo Regional`,
+    text: input.text?.slice(0, 2000) || `Segue sua Nota Fiscal de Serviços Eletrônica nº ${number}. Anexamos o DANFSe (PDF) e a NFS-e original (XML). Caso necessite de auxílio, entre em contato com o Jornal Informativo Regional.`,
     attachments: input.attachments.map((a) => ({
       filename: a.filename,
       content: a.bytes.toString("base64"),

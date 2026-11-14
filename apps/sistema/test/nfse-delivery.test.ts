@@ -57,7 +57,8 @@ test("entrega nunca libera emissão oficial ou e-mail apenas por variável",()=>
   assert.match(worker,/\.eq\("id",row\.id\)\.eq\("status","queued"\)/);
   assert.match(provider,/Idempotency-Key/);
   assert.match(api,/authorization/);
-  assert.match(confirm,/verifyResendWebhook/);
+  assert.match(confirm,/handleResendWebhook/);
+  assert.match(src("lib/nfse/resendWebhookHandler.ts"),/verifyResendWebhook/);
   assert.match(actions,/is_active_admin_or_owner/);
   assert.match(actions,/origin:"manual",status:"queued"/);
   assert.match(actions,/status:"opened"/);

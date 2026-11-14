@@ -30,7 +30,7 @@ Revisão de 13/11/2026. **Código em branch/PR, não publicado.** Nenhuma chave,
 4. Regras de retries: falha antes do POST pode gerar reenvio manual; depois de timeout, checar idempotência e logs do provedor **antes** de reenviar. Não registrar corpos de e-mails, XML ou tokens nos logs.
 
 ### Automação e banco
-1. Revisar e aprovar a migration `20261122340700_nfse_documents_delivery_history.sql` (novas tabelas RLS e trigger, serviço privado) **apenas depois** de confirmar a ordem das migrations anteriores e fazer backup. **Não aplicada nesta PR**.
+1. Migrations separadas: PARTE A `20261114000402_nfse_delivery_history_tables.sql` **JÁ APLICADA** no Supabase oficial (ledger `20261114000402`; tabelas vazias, sem trigger; arquivo registrado pela PR #62; **não reaplicar**) e PARTE B `20261122340700_nfse_delivery_enqueue_trigger.sql` (fila automática por trigger; **não aplicada**, só na liberação da emissão e depois de nova revisão e backup).
 2. Configurar um agendamento via pg_cron/pg_net ou mecanismo equivalente para `GET /api/cron/nfse-delivery` com header `Authorization: Bearer <CRON_SECRET>`. Frequência inicial proposta: cada 2 a 5 minutos, após homologar recebimento. Não habilitado nesta etapa.
 3. Habilitar `NFSE_DELIVERY_ENABLED=true` **somente depois** de finalizar a homologação fiscal/A1, segurança, domínio do e-mail, R2 e aceitação expressa do responsável. A constante de release fiscal continua **false**.
 4. Testar cenário de emissão autorizada, arquivo R2 e e-mail automático, e-mail fiscal/fallback, sem e-mail, erros, duplo clique, reenvio, devolução e consulta no desktop/celular. O DANFSe precisa de revisão visual contra o leiaute vigente, já registrada no projeto.
@@ -40,3 +40,22 @@ Revisão de 13/11/2026. **Código em branch/PR, não publicado.** Nenhuma chave,
 - Cloudflare e Resend **não estão conectados ao ChatGPT como plugins**; não criar bucket sem login/acesso do proprietário.
 - Sem A1 e sem homologação, NÃO se envia NFS-e, e-mail real ou WhatsApp automaticamente.
 - **NÃO** mesclar, publicar, aplicar migrations no Supabase real, agendar cron, habilitar `NFSE_DELIVERY_ENABLED` nem criar bucket nesta conversa sem as configurações e revisão necessárias.
+
+## Verificação local do R2 (12/11/2026)
+- Credenciais `R2_NFSE_*` preenchidas em `apps/sistema/.env.local` (ignorado pelo Git). Bucket: `jornal-ir-nfse`.
+- Teste real com arquivos fictícios pelo adaptador `nfseDocuments.r2.ts`: gravação de XML e PDF, leitura, SHA-256 idêntico, SHA incorreto rejeitado, acesso anônimo negado, exclusão dos dois objetos e bucket sem resíduos.
+- O token é negado (HTTP 403) nos buckets dos jornais/mídia.
+- O adaptador não tem função de exclusão; o teste apagou os objetos com o cliente S3 direto.
+- Pendentes (dependem do proprietário): variáveis na Vercel, Resend (domínio, remetente, webhook), cron da fila e `CRON_SECRET` (o cron não está agendado em `vercel.json`), migration `20261122340700` no Supabase oficial, permissões de acesso aos documentos (hoje `notas_cancelar`) e homologação com A1.
+
+## Webhook de confirmação de entrega — estado e publicação segura (13/11/2026)
+Código local (não publicado): `lib/nfse/resendWebhookHandler.ts` + rota `app/api/webhooks/nfse-email/route.ts`. A rota exige **somente** `RESEND_WEBHOOK_SECRET` e assinatura Svix válida; não depende de `NFSE_DELIVERY_ENABLED` nem da liberação da emissão, não envia e-mail, não emite nota e não devolve documento ou dado fiscal. Só atualiza tentativas de e-mail existentes (`provider=resend`, `provider_message_id`), com UPDATE condicional atômico: `accepted→delivered|bounced|failed`; `delivered→bounced`; `complained` marca `bounced` com resumo próprio. Eventos repetidos ou antigos não alteram nada. Sem a tabela (migration pendente) responde 503 para o Resend repetir depois. Sem segredo responde 503; assinatura inválida, 401.
+
+Sequência proposta (cada passo depende de autorização expressa):
+1. ✅ Migration A (`20261114000402`) já aplicada e verificada no Supabase oficial; nada a executar. Resta apenas a publicação do código e a configuração do segredo, nas etapas abaixo.
+2. Publicar o código com a variável ausente; a rota deve responder 503 a um POST sem assinatura (nunca 200).
+3. Criar o webhook no Resend para `https://controle.altnix.com.br/api/webhooks/nfse-email`, somente com `email.delivered`, `email.bounced`, `email.failed`, `email.complained`; copiar o segredo `whsec_…` sem colar em chat/commit.
+4. Cadastrar `RESEND_WEBHOOK_SECRET` só em Production na Vercel (e no `.env.local`); gerar novo deployment e promover.
+5. Verificar: POST sem assinatura → 401; evento real reenviado pelo Resend para e-mail sem tentativa registrada → 200 com `updated: 0`.
+6. Manter `NFSE_DELIVERY_ENABLED` ausente; a emissão e o envio automático seguem bloqueados.
+Reversão: apagar o webhook no Resend e/ou a variável, ou promover o deployment anterior.
