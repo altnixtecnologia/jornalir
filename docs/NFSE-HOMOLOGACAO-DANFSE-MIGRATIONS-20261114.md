@@ -66,3 +66,11 @@ Projeto oficial: `iqnzrpdccecgalqboeyf`. Checagem em 14/11/2026:
 7. **GO/NO-GO:** jamais mover `NFSE_AVAILABLE_IN_THIS_RELEASE` nem `DANFSE_OFFICIAL_LAYOUT_APPROVED` para true por simples variável de ambiente. Publicação fiscal requer autorização distinta da homologação.
 
 **Não executado nesta etapa:** provisionamento de sandbox pago, deployment, migration de produção, envio fiscal, e-mail real, upload R2 real, merge na oficial ou uso de A1. O webhook da PR #62 já está em produção e foi validado anteriormente; não repetir testes desnecessários.
+
+## Correções incrementais do protótipo (PR #67)
+
+- Chave de acesso validada com **50 dígitos**, conforme § 2.1.1 da NT; dados inválidos não geram documento.
+- Códigos de situação (cStat), finalidade (finNFSe), emitente (tpEmit) e ambiente (tpAmb) exigem informação reconhecida no XML. O ambiente precisa corresponder à nota persistida.
+- Competência mantém dia civil; data/hora usa explicitamente America/Sao_Paulo (escopo atual: Jornal IR em São João do Sul/SC), independentemente do timezone do servidor Vercel.
+- O workflow existente de entrega valida diretamente o teste de extração do DANFSe e o teste de datas, além das travas fiscais; sem novo pipeline, infraestrutura ou deploy.
+- Permanecem pendentes blocos fiscais completos, fontes/logomarca oficiais e geometria do Anexo I. Testes automáticos não equivalem à validação visual, nem autorizam DANFSe de produção.
