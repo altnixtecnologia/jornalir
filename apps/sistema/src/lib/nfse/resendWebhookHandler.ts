@@ -31,6 +31,9 @@ const RULES: Record<string, Rule> = {
   "email.complained": { status: "bounced", allowedFrom: ["accepted", "delivered", "failed", "bounced"], summary: "Destinatário marcou a mensagem como spam (reclamação).", field: "complained_at", once: true },
 };
 
+/** Janela em que um envio "processing" ainda pode estar prestes a gravar o provider_message_id. */
+const IN_FLIGHT_WINDOW_MS = 10 * 60 * 1000;
+
 export interface WebhookInput {
   rawBody: string;
   headers: { id: string | null; timestamp: string | null; signature: string | null };
@@ -61,7 +64,7 @@ export async function handleResendWebhook(input: WebhookInput): Promise<WebhookR
     nowSeconds: Math.floor((input.nowMs ?? Date.now()) / 1000),
   })) return { status: 401, body: { error: "Assinatura inválida." } };
 
-  let payload: { type?: unknown; created_at?: unknown; data?: { email_id?: unknown } };
+  let payload: { type?: unknown; created_at?: unknown; data?: { email_id?: unknown; to?: unknown } };
   try { payload = JSON.parse(input.rawBody); } catch { return { status: 400, body: { error: "JSON inválido." } }; }
   const rule = typeof payload.type === "string" ? RULES[payload.type] : undefined;
   const messageId = payload.data?.email_id;
@@ -85,6 +88,31 @@ export async function handleResendWebhook(input: WebhookInput): Promise<WebhookR
     if (isMissingRelation(error)) return { status: 503, body: { error: "Histórico de entrega ainda não disponível." } };
     return { status: 500, body: { error: "Falha ao registrar evento." } };
   }
-  // 0 linhas = identificador desconhecido OU evento repetido/antigo (estado já igual ou mais avançado): 200, sem alteração.
-  return { status: 200, body: { received: true, updated: (data ?? []).length } };
+  if ((data ?? []).length > 0) return { status: 200, body: { received: true, updated: data!.length } };
+
+  // 0 linhas. Três causas possíveis:
+  //  (a) evento repetido/antigo para uma tentativa que já existe (estado igual ou mais avançado) -> 200, sem alteração;
+  //  (b) o webhook CHEGOU ANTES de o worker gravar o identificador do e-mail (envio em andamento, sem provider_message_id ainda)
+  //      -> 503 para o Resend repetir depois; assim a confirmação não se perde em silêncio;
+  //  (c) identificador desconhecido (e-mail de outro sistema) sem envio em andamento -> 200.
+  const admin = input.getAdmin();
+  const known = await admin.from("nfse_delivery_attempts").select("id")
+    .eq("provider", "resend").eq("provider_message_id", messageId).limit(1);
+  if (known.error) return { status: 500, body: { error: "Falha ao registrar evento." } };
+  if ((known.data ?? []).length > 0) return { status: 200, body: { received: true, updated: 0 } };
+  // O mesmo webhook Resend pode receber e-mails de outros fluxos.
+  // Um envio NFS-e em andamento so justifica retry quando o destinatario
+  // da notificacao coincide com o snapshot fiscal. Sem essa correlacao,
+  // NAO gerar 503 para eventos alheios. Nao logar endereco de e-mail.
+  const to = payload.data?.to;
+  const recipient = typeof to === "string" ? to :
+    Array.isArray(to) && to.length === 1 && typeof to[0] === "string" ? to[0] : null;
+  if (!recipient || recipient.length > 320) return { status: 200, body: { received: true, updated: 0 } };
+  const since = new Date(nowMs - IN_FLIGHT_WINDOW_MS).toISOString();
+  const inFlight = await admin.from("nfse_delivery_attempts").select("id")
+    .eq("channel", "email").eq("status", "processing")
+    .eq("recipient_snapshot", recipient).gte("processing_at", since).limit(1);
+  if (inFlight.error) return { status: 500, body: { error: "Falha ao registrar evento." } };
+  if ((inFlight.data ?? []).length > 0) return { status: 503, body: { error: "Envio em registro; tente novamente.", retry: true } };
+  return { status: 200, body: { received: true, updated: 0 } };
 }

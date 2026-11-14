@@ -91,7 +91,10 @@ export function NfseTransmissionPanel({
         return;
       }
       if (response.outcome === "authorized") {
-        router.refresh();
+        // Abre a ficha da nota com modal de e-mail/WhatsApp. O envio
+        // automático real é enfileirado pelo banco, não por este clique.
+        if (response.issuedNoteId) router.push(`/sistema/nfse/notas/${response.issuedNoteId}?entrega=1`);
+        else router.refresh();
         return;
       }
       if (response.outcome === "rejected") {
@@ -226,8 +229,8 @@ export function NfseTransmissionPanel({
             </details>
           ) : null}
           <p className="helper-text" style={{ marginTop: "12px" }}>
-            DANFSe estará disponível após a integração completa de transmissão. Cancelamento e envio por e-mail ainda não
-            estão implementados nesta fase.
+            Para visualizar os documentos, acompanhar o e-mail fiscal e compartilhar pelo WhatsApp, abra a ficha da nota.
+            O envio automático só será ativado após configurar R2 e provedor de e-mail.
           </p>
         </section>
 

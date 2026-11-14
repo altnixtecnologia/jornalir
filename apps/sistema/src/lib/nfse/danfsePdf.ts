@@ -2,42 +2,21 @@ import "server-only";
 import { PDFDocument, StandardFonts, degrees, rgb, type PDFFont, type PDFPage } from "pdf-lib";
 import QRCode from "qrcode";
 import type { DanfseData } from "@ir/core/src/nfse/danfse-data";
+import { assertDanfseLayoutApproved } from "./danfseReleaseGate";
 
 /**
- * Gerador do DANFSe v2.0 (Bloco 2, 26/10/2026) — PDF A4 retrato, uma
- * única página, a partir da Nota Técnica Nº 008/2026 v1.02 (14/07/2026,
- * SE/CGNFS-e), seção 2 (Anexo I). Usa `pdf-lib` (única biblioteca de
- * PDF já usada no projeto, mesmo padrão de
- * `apps/sistema/src/lib/contracts/contractTemplatePdf.ts`) + `qrcode`
- * (única dependência nova — nenhuma biblioteca existente gera QR Code).
+ * Renderizador PROVISÓRIO de DANFSe para inspeção em homologação visual.
  *
- * LIMITAÇÃO HONESTA, documentada pra não inventar precisão que não
- * tenho: a NT 008/2026 v1.02 (seção 2.4.5) descreve o tamanho/posição
- * EXATO (em centímetros) de cada campo através de uma tabela e de
- * "modelos" visuais (imagens) dentro do PDF oficial — a extração de
- * texto desta sessão conseguiu o conteúdo textual completo (todos os
- * blocos/campos/textos obrigatórios, confirmados abaixo), mas não as
- * imagens/tabela de coordenadas pixel a pixel. Este layout organiza
- * TODOS os blocos e campos exigidos pela seção 2.1, na ordem da seção
- * 2.1, com os textos/regras obrigatórios confirmados literalmente
- * (seções 2.3/2.4.3/2.5) — mas a disposição geométrica exata (medidas
- * em cm da seção 2.4.5) é uma aproximação razoável, não uma cópia
- * byte-a-byte do Anexo I. Revisar visualmente contra o Anexo I antes
- * de qualquer uso oficial.
+ * NT oficial: 008/2026 v1.02 (14/07/2026), Anexo I, Portal Nacional NFS-e.
+ * Não está conforme para uso oficial: faltam tributação federal/IBS/CBS,
+ * informações complementares, campos obrigatórios do Simples Nacional,
+ * logomarca, layout geométrico e fontes oficiais. Alguns valores atualmente
+ * são estáticos e precisam derivar do XML oficial. Sem liberar emissão,
+ * download ou arquivamento de DANFSe de produção até sanar os pontos.
  *
- * Regras confirmadas e implementadas (texto literal da NT 008/2026 v1.02):
- * - "DANFSe v2.0" / "Documento Auxiliar da NFS-e" (seção 2.4.3);
- * - QR Code apontando pra "https://www.nfse.gov.br/ConsultaPublica/?tpc=1&chave="
- *   + chave de acesso (seção 2.4.3);
- * - legenda do QR Code: "A autenticidade desta NFS-e pode ser verificada
- *   pela leitura deste código QR ou pela consulta da chave de acesso no
- *   portal nacional da NFS-e" (seção 2.4.3);
- * - "NFS-e SEM VALIDADE JURÍDICA" em vermelho quando tpAmb=2/homologação
- *   (seção 2.4.3, observação);
- * - marca d'água diagonal "CANCELADA" quando a nota foi cancelada
- *   (seção 2.5.1);
- * - supressão de blocos vazios com os textos oficiais exatos (seção 2.3);
- * - campos sem informação no XML impressos como "-" (seção 2.4.5, nota 12).
+ * O gerador pode continuar produzindo PDF de teste com aviso
+ * "NFS-e SEM VALIDADE JURÍDICA" em ambiente de homologação. A trava
+ * assertDanfseLayoutApproved() NÃO é configurável por env.
  */
 
 const PAGE_WIDTH = 595; // A4 @ 72dpi
@@ -101,6 +80,7 @@ function drawBorder(page: PDFPage): void {
 }
 
 export async function buildDanfsePdf(data: DanfseData, options: { cancelled?: boolean } = {}): Promise<Uint8Array> {
+  assertDanfseLayoutApproved(data.isHomologation);
   const pdf = await PDFDocument.create();
   const regular = await pdf.embedFont(StandardFonts.Helvetica);
   const bold = await pdf.embedFont(StandardFonts.HelveticaBold);

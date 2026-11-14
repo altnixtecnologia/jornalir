@@ -101,6 +101,8 @@ export const STAFF_MODULE_ACTIONS = [
   { module: "nfse", key: "rascunhos_editar", label: "Editar rascunhos fiscais", isDefault: true },
   { module: "nfse", key: "notas_emitir", label: "Emitir NFS-e (somente administração)", adminOnly: true },
   { module: "nfse", key: "notas_cancelar", label: "Cancelar NFS-e (somente administração)", adminOnly: true },
+  { module: "nfse", key: "documentos_consultar", label: "Consultar e baixar documentos fiscais (XML, DANFSe) e histórico de entrega (somente administração)", adminOnly: true },
+  { module: "nfse", key: "documentos_enviar", label: "Enviar ou reencaminhar documentos fiscais por e-mail ou WhatsApp (somente administração)", adminOnly: true },
   { module: "nfse", key: "perfis_servico_gerenciar", label: "Gerenciar perfis de serviço" },
   { module: "nfse", key: "configuracoes_gerenciar", label: "Configurações do emissor e certificado (somente administração)", adminOnly: true },
   { module: "aniversariantes", key: "aniversariantes_gerenciar", label: "Cadastrar, editar e retirar aniversariantes", isDefault: true },
