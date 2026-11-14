@@ -2,7 +2,7 @@ import "server-only";
 import type { StaffActionModule, StaffModuleActionKey } from "./staffPermissionsCatalog";
 import { STAFF_MODULE_ACTIONS } from "./staffPermissionsCatalog";
 import { createSupabaseServerClient } from "../supabase/server";
-import { NFSE_AVAILABLE_IN_THIS_RELEASE, NFSE_POSTPONED_MESSAGE, NFSE_PREPARATION_ACCESS_IN_THIS_RELEASE } from "../release/releasePolicy";
+import { NFSE_AVAILABLE_IN_THIS_RELEASE, NFSE_POSTPONED_MESSAGE, NFSE_PREPARATION_ACCESS_IN_THIS_RELEASE, isNfsePreparationAction } from "../release/releasePolicy";
 import { isRestrictedSefinEnvironment, restrictedSefinEnvironmentFromServer } from "../nfse/restrictedSefinGate";
 
 /** A Server Action nao pode confiar apenas nos checkboxes do painel.
@@ -16,12 +16,8 @@ export async function checkModuleAction(
   // consulta e envio de documentos permanecem bloqueados sem release.
   const fiscalPreparation = module === "nfse" && !NFSE_AVAILABLE_IN_THIS_RELEASE &&
     !isRestrictedSefinEnvironment(restrictedSefinEnvironmentFromServer());
-  const safePreparationActions = new Set<StaffModuleActionKey>([
-    "configuracoes_gerenciar", "perfis_servico_gerenciar",
-    "rascunhos_criar", "rascunhos_editar",
-  ]);
   if (fiscalPreparation && (
-    !NFSE_PREPARATION_ACCESS_IN_THIS_RELEASE || !safePreparationActions.has(action)
+    !NFSE_PREPARATION_ACCESS_IN_THIS_RELEASE || !isNfsePreparationAction(action)
   )) return NFSE_POSTPONED_MESSAGE;
   if (!STAFF_MODULE_ACTIONS.some((item) => item.module === module && item.key === action)) {
     return "Ação desconhecida para este módulo.";
