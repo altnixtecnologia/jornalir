@@ -1,0 +1,11 @@
+node_modules/
+ios/
+*.ipa
+*.xcarchive
+*.mobileprovision
+*.p8
+*.p12
+*.cer
+*.key
+.env*
+!/.env.example

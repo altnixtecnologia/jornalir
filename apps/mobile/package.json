@@ -5,14 +5,18 @@
   "description": "Jornal IR — app piloto Android (Capacitor), instalação por APK, sem Play Store nesta fase.",
   "scripts": {
     "sync": "cap sync android",
-    "build:debug": "cd android && ./gradlew assembleDebug"
+    "build:debug": "cd android && ./gradlew assembleDebug",
+    "ios:add": "cap add ios",
+    "ios:sync": "cap sync ios",
+    "ios:open": "cap open ios"
   },
   "dependencies": {
     "@capacitor/android": "7.6.9",
     "@capacitor/app": "7.1.0",
     "@capacitor/core": "7.6.9",
     "@capacitor/local-notifications": "7.0.7",
-    "@capacitor/push-notifications": "7.0.7"
+    "@capacitor/push-notifications": "7.0.7",
+    "@capacitor/ios": "7.6.9"
   },
   "devDependencies": {
     "@capacitor/cli": "7.6.9"
