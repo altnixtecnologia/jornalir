@@ -2,7 +2,7 @@ import "server-only";
 import type { StaffActionModule, StaffModuleActionKey } from "./staffPermissionsCatalog";
 import { STAFF_MODULE_ACTIONS } from "./staffPermissionsCatalog";
 import { createSupabaseServerClient } from "../supabase/server";
-import { NFSE_AVAILABLE_IN_THIS_RELEASE, NFSE_POSTPONED_MESSAGE } from "../release/releasePolicy";
+import { NFSE_AVAILABLE_IN_THIS_RELEASE, NFSE_POSTPONED_MESSAGE, NFSE_PREPARATION_ACCESS_IN_THIS_RELEASE } from "../release/releasePolicy";
 import { isRestrictedSefinEnvironment, restrictedSefinEnvironmentFromServer } from "../nfse/restrictedSefinGate";
 
 /** A Server Action nao pode confiar apenas nos checkboxes do painel.
@@ -11,21 +11,31 @@ import { isRestrictedSefinEnvironment, restrictedSefinEnvironmentFromServer } fr
 export async function checkModuleAction(
   module: StaffActionModule, action: StaffModuleActionKey,
 ): Promise<string | null> {
-  // NFS-e adiada: nenhuma Server Action de EMISSÃO recebe permissão, mesmo
-  // admin/owner. Única exceção: "configuracoes_gerenciar" (cadastro fiscal
-  // e certificado A1), que já é `adminOnly` no catálogo abaixo e nunca
-  // transmite nem consulta nada externamente — fica sujeita só à checagem
-  // normal de permissão (RPC `staff_can_module_action`), não ao bloqueio
-  // geral de emissão.
-  if (module === "nfse" && action !== "configuracoes_gerenciar" && !NFSE_AVAILABLE_IN_THIS_RELEASE && !isRestrictedSefinEnvironment(restrictedSefinEnvironmentFromServer())) {
-    return NFSE_POSTPONED_MESSAGE;
-  }
+  // Preparacao no oficial permite SOMENTE funcoes administrativas
+  // reversiveis de cadastro, perfis e rascunhos. Emissao/cancelamento,
+  // consulta e envio de documentos permanecem bloqueados sem release.
+  const fiscalPreparation = module === "nfse" && !NFSE_AVAILABLE_IN_THIS_RELEASE &&
+    !isRestrictedSefinEnvironment(restrictedSefinEnvironmentFromServer());
+  const safePreparationActions = new Set<StaffModuleActionKey>([
+    "configuracoes_gerenciar", "perfis_servico_gerenciar",
+    "rascunhos_criar", "rascunhos_editar",
+  ]);
+  if (fiscalPreparation && (
+    !NFSE_PREPARATION_ACCESS_IN_THIS_RELEASE || !safePreparationActions.has(action)
+  )) return NFSE_POSTPONED_MESSAGE;
   if (!STAFF_MODULE_ACTIONS.some((item) => item.module === module && item.key === action)) {
     return "Ação desconhecida para este módulo.";
   }
   const client = createSupabaseServerClient();
   const { data: auth, error: authError } = await client.auth.getUser();
   if (authError || !auth.user) return "Sessão inválida. Faça login novamente.";
+  if (fiscalPreparation) {
+    const { data: profile, error: profileError } = await client.from("profiles")
+      .select("active,role").eq("id",auth.user.id).maybeSingle();
+    if (profileError || !profile?.active || (profile.role !== "owner" && profile.role !== "admin")) {
+      return "Preparação fiscal disponível somente para proprietário ou administrador ativo.";
+    }
+  }
   const { data, error } = await client.rpc("staff_can_module_action", {
     p_module: module, p_action: action,
   });
