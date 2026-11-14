@@ -143,9 +143,13 @@ function extractPessoa(doc: XmlDoc, scope: XmlElement | undefined, context: stri
  * `DanfseDataError` (fail-closed) se o XML estiver ausente, inválido
  * ou faltando qualquer campo obrigatório do Anexo I.
  */
-export function extractDanfseData(issuedNote: Pick<NfseIssuedNote, "accessKey" | "nfseNumber" | "issuedAt" | "competencyDate" | "serviceValue" | "nfseXml" | "dpsNumber" | "dpsSeries">): DanfseData {
+export function extractDanfseData(issuedNote: Pick<NfseIssuedNote, "environment" | "accessKey" | "nfseNumber" | "issuedAt" | "competencyDate" | "serviceValue" | "nfseXml" | "dpsNumber" | "dpsSeries">): DanfseData {
   if (!issuedNote.accessKey || !issuedNote.nfseNumber || !issuedNote.issuedAt) {
     throw new DanfseDataError("NFS-e sem chave de acesso/número/data de autorização — o DANFSe só pode ser gerado a partir de uma NFS-e efetivamente autorizada.");
+  }
+  // Chave oficial sempre tem 50 dígitos (NT 008/2026 § 2.1.1); não imprimir QR inválido.
+  if (!/^\d{50}$/.test(issuedNote.accessKey)) {
+    throw new DanfseDataError("Chave de acesso fora do padrão nacional de 50 dígitos — DANFSe bloqueado.");
   }
   if (!issuedNote.nfseXml || issuedNote.nfseXml.trim().length === 0) {
     throw new DanfseDataError("XML da NFS-e ausente — o DANFSe só pode ser gerado a partir do XML real retornado pela SEFIN.");
@@ -169,8 +173,14 @@ export function extractDanfseData(issuedNote: Pick<NfseIssuedNote, "accessKey" |
   const serv = infDPS.getElementsByTagName("serv")[0];
   const valoresNFSe = infNFSe.getElementsByTagName("valores")[0];
 
-  const tpAmb = text(doc, "tpAmb", infDPS);
-  const cStat = text(doc, "cStat", infNFSe) ?? "100";
+  const tpAmb = requireText("tpAmb", text(doc, "tpAmb", infDPS), "infDPS");
+  if (tpAmb !== "1" && tpAmb !== "2") throw new DanfseDataError(`tpAmb=${tpAmb} não reconhecido na DPS.`);
+  if ((tpAmb === "2") !== (issuedNote.environment === "homologation")) {
+    throw new DanfseDataError("Ambiente da DPS não corresponde ao ambiente registrado da nota.");
+  }
+  const cStat = requireText("cStat", text(doc, "cStat", infNFSe), "infNFSe");
+  const statusLabel = STAT_LABELS[cStat];
+  if (!statusLabel) throw new DanfseDataError(`Situação cStat=${cStat} sem descrição validada no leiaute nacional.`);
   // Emitente e finalidade vêm da DPS embutida, não de nomes ou textos fixos do PDF.
   const tpEmit = requireText("tpEmit", text(doc, "tpEmit", infDPS), "infDPS");
   const issuerLabel = ({ "1": "Prestador", "2": "Tomador", "3": "Intermediário" } as Record<string, string>)[tpEmit];
@@ -190,7 +200,7 @@ export function extractDanfseData(issuedNote: Pick<NfseIssuedNote, "accessKey" |
     dpsIssuedAt: requireText("dhEmi", text(doc, "dhEmi", infDPS), "infDPS/dhEmi"),
     emitterMunicipality: text(doc, "xLocEmi", infNFSe),
     statusCode: cStat,
-    statusLabel: STAT_LABELS[cStat] ?? "NFS-e Gerada",
+    statusLabel,
     issuerLabel,
     purposeLabel: "NFS-e regular",
     isHomologation: tpAmb === "2",
