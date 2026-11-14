@@ -15,7 +15,7 @@ export const dynamic = "force-dynamic";
 /**
  * Download/visualização do DANFSe (Bloco 2, 26/10/2026 — "Integrar
  * download e visualização ao módulo NFS-e original, com permissão
- * server-side"). Reaproveita a MESMA permissão já usada pra consultar/
+ * server-side"). Usa `documentos_consultar` (separada de cancelar). Antes reaproveitava a permissão usada para consultar/
  * cancelar a nota (`notas_cancelar`, ver query-actions.ts) — nunca
  * cria uma permissão nova sem necessidade. Gera o PDF SEMPRE server-
  * side, a partir do XML já persistido (`nfseXml`) — nenhum dado vem do
@@ -28,7 +28,7 @@ function denied(status: number, message: string): NextResponse {
 
 export async function GET(_req: Request, props: { params: Promise<{ id: string }> }): Promise<NextResponse> {
   const params = await props.params;
-  const permissionError = await checkModuleAction("nfse", "notas_cancelar");
+  const permissionError = await checkModuleAction("nfse","documentos_consultar");
   if (permissionError) return denied(403, permissionError);
 
   const supabase = createSupabaseServerClient();

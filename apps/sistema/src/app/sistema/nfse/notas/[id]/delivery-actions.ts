@@ -36,7 +36,7 @@ async function verifiedAdmin() {
   return {session,admin:createSupabaseAdminClient(),actorId:user.user.id};
 }
 export async function listNfseDeliveriesAction(noteId:string):Promise<Result<{events:NfseDeliveryEvent[];assets:NfseDocumentAsset[]}>> {
-  const permissionError = await checkModuleAction("nfse","notas_cancelar");
+  const permissionError = await checkModuleAction("nfse","documentos_consultar");
   if (permissionError) return {error:permissionError};
   if (isLocalPreviewEnabled()) return {ok:true,data:{events:[],assets:[]}};
   try {
@@ -76,7 +76,7 @@ export async function queueNfseEmailResendAction(noteId:string):Promise<Result<{
       process.env.NFSE_DELIVERY_ENABLED !== "true") {
     return {error:"Reenvio fiscal ainda desativado, aguardando homologação e configuração de e-mail."};
   }
-  const permissionError = await checkModuleAction("nfse","notas_cancelar");
+  const permissionError = await checkModuleAction("nfse","documentos_enviar");
   if (permissionError) return {error:permissionError};
   try {
     const {admin,actorId} = await verifiedAdmin();
@@ -105,7 +105,7 @@ export async function queueNfseEmailResendAction(noteId:string):Promise<Result<{
 }
 /** WhatsApp Web abre a conversa; isto NAO comprova entrega ao cliente. */
 export async function registerNfseWhatsAppOpenAction(noteId:string):Promise<Result<{id:string}>> {
-  const permissionError = await checkModuleAction("nfse","notas_cancelar");
+  const permissionError = await checkModuleAction("nfse","documentos_enviar");
   if (permissionError) return {error:permissionError};
   if (isLocalPreviewEnabled()) return {error:"Demonstração local: nenhum compartilhamento é registrado."};
   try {
@@ -124,7 +124,7 @@ export async function registerNfseWhatsAppOpenAction(noteId:string):Promise<Resu
   } catch(e) {return {error:e instanceof Error?e.message:"Falha ao registrar abertura do WhatsApp."};}
 }
 export async function confirmNfseWhatsAppManualAction(id:string):Promise<Result<{id:string}>> {
-  const permissionError = await checkModuleAction("nfse","notas_cancelar");
+  const permissionError = await checkModuleAction("nfse","documentos_enviar");
   if (permissionError) return {error:permissionError};
   if (isLocalPreviewEnabled()) return {error:"Demonstração local."};
   try {

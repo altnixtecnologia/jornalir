@@ -11,7 +11,7 @@ export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 export async function GET(_req:Request,ctx:{params:Promise<{id:string}>}):Promise<NextResponse> {
   if (isLocalPreviewEnabled()) return NextResponse.json({error:"XML fictício não disponível para download fiscal."},{status:403});
-  const permission = await checkModuleAction("nfse","notas_cancelar");
+  const permission = await checkModuleAction("nfse","documentos_consultar");
   if (permission) return NextResponse.json({error:permission},{status:403});
   const session = createSupabaseServerClient();
   const {data:authorized} = await session.rpc("is_active_admin_or_owner");
