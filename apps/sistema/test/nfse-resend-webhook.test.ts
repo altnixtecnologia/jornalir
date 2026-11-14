@@ -51,8 +51,9 @@ const attempt = (status = "accepted", extra: Row = {}): Row => ({
   id: "a1", channel: "email", provider: "resend", provider_message_id: "email-1", status,
   recipient_snapshot: "x@example.com", ...extra,
 });
-function signed(type: string, emailId = "email-1", over: { id?: string; ts?: number; created_at?: string } = {}) {
-  const body = JSON.stringify({ type, created_at: over.created_at ?? "2026-11-12T23:00:00.000Z", data: { email_id: emailId } });
+function signed(type: string, emailId = "email-1", over: { id?: string; ts?: number; created_at?: string; to?: string } = {}) {
+  const body = JSON.stringify({ type, created_at: over.created_at ?? "2026-11-12T23:00:00.000Z",
+    data: { email_id: emailId, to: [over.to ?? "x@example.com"] } });
   const id = over.id ?? "msg_abc123"; const ts = String(over.ts ?? NOW);
   const sig = "v1," + createHmac("sha256", Buffer.from(secret.slice(6), "base64")).update(`${id}.${ts}.${body}`).digest("base64");
   return { body, headers: { id, timestamp: ts, signature: sig } };
@@ -200,6 +201,15 @@ test("corrida: webhook antes do worker gravar o identificador => 503 (o Resend r
   assert.equal(retry.status, 200); assert.equal(retry.body.updated, 1);
   assert.equal(rows[0].status, "delivered");
 });
+test("webhook de outro fluxo nao gera retry mesmo com NFS-e em processamento para outro destinatario", async () => {
+  const rows = [inFlight()];
+  const foreign = signed("email.delivered", "email-de-outro-fluxo", { to: "outro@example.com" });
+  const result = await call(fakeAdmin(rows), foreign);
+  assert.equal(result.status, 200);
+  assert.equal(result.body.updated, 0);
+  assert.equal(rows[0].status, "processing");
+});
+
 test("corrida: envio 'processing' antigo (fora da janela de 10 min) não gera 503 eterno", async () => {
   const rows = [inFlight({ processing_at: iso(-11 * 60_000) })];
   const r = await call(fakeAdmin(rows), signed("email.delivered", "email-novo"));
