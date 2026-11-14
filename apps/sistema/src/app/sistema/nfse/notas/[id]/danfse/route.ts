@@ -5,6 +5,7 @@ import { createIssuedNoteRepositorySupabase } from "../../../../../../providers/
 import { getCancellationService } from "../../../../../../composition/nfse";
 import { extractDanfseData, DanfseDataError } from "@ir/core/src/nfse/danfse-data";
 import { buildDanfsePdf } from "../../../../../../lib/nfse/danfsePdf";
+import { assertDanfseLayoutApproved, DanfseOfficialLayoutNotApprovedError } from "../../../../../../lib/nfse/danfseReleaseGate";
 import { createSupabaseAdminClient } from "../../../../../../lib/supabase/admin";
 import { readNfseDocument } from "../../../../../../providers/r2/nfseDocuments.r2";
 import { isLocalPreviewEnabled } from "../../../../../../lib/auth/localPreview";
@@ -36,6 +37,13 @@ export async function GET(_req: Request, props: { params: Promise<{ id: string }
   if (!note) return denied(404, "NFS-e não encontrada.");
 
   if (isLocalPreviewEnabled()) return denied(403, "DANFSe fictício não é documento fiscal.");
+  // Bloqueia também PDF preexistente no R2; nenhum documento definitivo
+  // será exposto enquanto o Anexo I da NT 008/2026 não estiver homologado.
+  try { assertDanfseLayoutApproved(note.environment === "homologation"); }
+  catch (error) {
+    if (error instanceof DanfseOfficialLayoutNotApprovedError) return denied(503, error.message);
+    throw error;
+  }
 
   const history = await getCancellationService(supabase).listHistory(note.id);
   const cancelled = history.some((item) => item.status === "confirmed");
