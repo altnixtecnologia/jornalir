@@ -31,6 +31,9 @@ const RULES: Record<string, Rule> = {
   "email.complained": { status: "bounced", allowedFrom: ["accepted", "delivered", "failed", "bounced"], summary: "Destinatário marcou a mensagem como spam (reclamação).", field: "complained_at", once: true },
 };
 
+/** Janela em que um envio "processing" ainda pode estar prestes a gravar o provider_message_id. */
+const IN_FLIGHT_WINDOW_MS = 10 * 60 * 1000;
+
 export interface WebhookInput {
   rawBody: string;
   headers: { id: string | null; timestamp: string | null; signature: string | null };
@@ -85,6 +88,22 @@ export async function handleResendWebhook(input: WebhookInput): Promise<WebhookR
     if (isMissingRelation(error)) return { status: 503, body: { error: "Histórico de entrega ainda não disponível." } };
     return { status: 500, body: { error: "Falha ao registrar evento." } };
   }
-  // 0 linhas = identificador desconhecido OU evento repetido/antigo (estado já igual ou mais avançado): 200, sem alteração.
-  return { status: 200, body: { received: true, updated: (data ?? []).length } };
+  if ((data ?? []).length > 0) return { status: 200, body: { received: true, updated: data!.length } };
+
+  // 0 linhas. Três causas possíveis:
+  //  (a) evento repetido/antigo para uma tentativa que já existe (estado igual ou mais avançado) -> 200, sem alteração;
+  //  (b) o webhook CHEGOU ANTES de o worker gravar o identificador do e-mail (envio em andamento, sem provider_message_id ainda)
+  //      -> 503 para o Resend repetir depois; assim a confirmação não se perde em silêncio;
+  //  (c) identificador desconhecido (e-mail de outro sistema) sem envio em andamento -> 200.
+  const admin = input.getAdmin();
+  const known = await admin.from("nfse_delivery_attempts").select("id")
+    .eq("provider", "resend").eq("provider_message_id", messageId).limit(1);
+  if (known.error) return { status: 500, body: { error: "Falha ao registrar evento." } };
+  if ((known.data ?? []).length > 0) return { status: 200, body: { received: true, updated: 0 } };
+  const since = new Date(nowMs - IN_FLIGHT_WINDOW_MS).toISOString();
+  const inFlight = await admin.from("nfse_delivery_attempts").select("id")
+    .eq("channel", "email").eq("status", "processing").gte("processing_at", since).limit(1);
+  if (inFlight.error) return { status: 500, body: { error: "Falha ao registrar evento." } };
+  if ((inFlight.data ?? []).length > 0) return { status: 503, body: { error: "Envio em registro; tente novamente.", retry: true } };
+  return { status: 200, body: { received: true, updated: 0 } };
 }

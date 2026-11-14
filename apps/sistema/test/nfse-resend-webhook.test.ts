@@ -12,22 +12,34 @@ const NOW = 1794528000;
 
 type Row = Record<string, unknown>;
 /** Banco falso em memória: só implementa o encadeamento que o handler usa. */
-function fakeAdmin(rows: Row[], fail?: { code?: string; message: string }) {
+function fakeAdmin(rows: Row[], fail?: { code?: string; message: string }, readFail?: { message: string }) {
   let adminCalls = 0;
   const client = {
     from(table: string) {
       assert.equal(table, "nfse_delivery_attempts", "o webhook só pode tocar a tabela de tentativas");
-      let patch: Row = {}; const eqs: Array<[string, unknown]> = []; let inCol: [string, unknown[]] | null = null; const isNull: string[] = [];
+      let patch: Row = {}; let isUpdate = false; let max = Infinity;
+      const eqs: Array<[string, unknown]> = []; let inCol: [string, unknown[]] | null = null; const isNull: string[] = []; const gtes: Array<[string, string]> = [];
+      const match = () => rows.filter((r) => eqs.every(([c, v]) => r[c] === v) && isNull.every((c) => r[c] == null)
+        && gtes.every(([c, v]) => typeof r[c] === "string" && (r[c] as string) >= v) && (!inCol || inCol[1].includes(r[inCol[0]])));
       const q: any = {
-        update(p: Row) { patch = p; return q; },
+        update(p: Row) { patch = p; isUpdate = true; return q; },
         eq(c: string, v: unknown) { eqs.push([c, v]); return q; },
         in(c: string, v: unknown[]) { inCol = [c, v]; return q; },
         is(c: string, v: null) { assert.equal(v, null); isNull.push(c); return q; },
+        gte(c: string, v: string) { gtes.push([c, v]); return q; },
+        limit(n: number) { max = n; return q; },
+        // SELECT depois de UPDATE devolve as linhas afetadas; SELECT sozinho é leitura (awaitable).
         select(_: string) {
-          if (fail) return Promise.resolve({ data: null, error: fail });
-          const hit = rows.filter((r) => eqs.every(([c, v]) => r[c] === v) && isNull.every((c) => r[c] == null) && (!inCol || inCol[1].includes(r[inCol[0]])));
-          hit.forEach((r) => Object.assign(r, patch));
-          return Promise.resolve({ data: hit.map((r) => ({ id: r.id })), error: null });
+          if (isUpdate) {
+            if (fail) return Promise.resolve({ data: null, error: fail });
+            const hit = match(); hit.forEach((r) => Object.assign(r, patch));
+            return Promise.resolve({ data: hit.map((r) => ({ id: r.id })), error: null });
+          }
+          return q;
+        },
+        then(resolve: (v: unknown) => void) {
+          if (readFail) return resolve({ data: null, error: readFail });
+          resolve({ data: match().slice(0, max).map((r) => ({ id: r.id })), error: null });
         },
       };
       return q;
@@ -170,4 +182,39 @@ test("a rota do webhook não envia e-mail, não emite nota e não expõe documen
   assert.match(handler, /\.eq\("provider", "resend"\)/);
   assert.match(handler, /\.in\("status", rule\.allowedFrom\)/);
   assert.doesNotMatch(handler, /\.insert\(|\.delete\(|\.upsert\(/);
+});
+
+// ---------------------------------------------------------------------------------------------------------
+// Corrida: o webhook pode chegar ANTES de o worker gravar o provider_message_id (envio ainda em "processing").
+const iso = (offsetMs: number) => new Date(NOW * 1000 + offsetMs).toISOString();
+const inFlight = (extra: Row = {}): Row => ({ id: "p1", channel: "email", provider: null, provider_message_id: null, status: "processing", processing_at: iso(-30_000), ...extra });
+
+test("corrida: webhook antes do worker gravar o identificador => 503 (o Resend repete), nada se perde; depois do registro => confirma", async () => {
+  const rows = [inFlight()]; const db = fakeAdmin(rows);
+  const early = await call(db, signed("email.delivered", "email-novo"));
+  assert.equal(early.status, 503, "deve pedir nova tentativa, nunca 200 silencioso");
+  assert.equal(rows[0].status, "processing"); assert.equal(rows[0].provider_message_id, null);
+  // o worker conclui: grava identificador e status accepted
+  Object.assign(rows[0], { provider: "resend", provider_message_id: "email-novo", status: "accepted" });
+  const retry = await call(db, signed("email.delivered", "email-novo", { id: "msg_retry" }));
+  assert.equal(retry.status, 200); assert.equal(retry.body.updated, 1);
+  assert.equal(rows[0].status, "delivered");
+});
+test("corrida: envio 'processing' antigo (fora da janela de 10 min) não gera 503 eterno", async () => {
+  const rows = [inFlight({ processing_at: iso(-11 * 60_000) })];
+  const r = await call(fakeAdmin(rows), signed("email.delivered", "email-novo"));
+  assert.equal(r.status, 200); assert.equal(r.body.updated, 0);
+});
+test("evento duplicado de tentativa já registrada NÃO vira 503 só porque outro envio está em andamento", async () => {
+  const rows = [attempt("delivered"), inFlight()];
+  const r = await call(fakeAdmin(rows), signed("email.delivered", "email-1"));
+  assert.equal(r.status, 200); assert.equal(r.body.updated, 0);
+});
+test("identificador desconhecido sem envio em andamento => 200 (e-mail de outro sistema)", async () => {
+  const r = await call(fakeAdmin([attempt("accepted")]), signed("email.delivered", "de-outro-sistema"));
+  assert.equal(r.status, 200); assert.equal(r.body.updated, 0);
+});
+test("falha de leitura na checagem de corrida => 500 (nunca 200 perdendo o evento)", async () => {
+  const r = await call(fakeAdmin([inFlight()], undefined, { message: "boom" }), signed("email.delivered", "email-novo"));
+  assert.equal(r.status, 500);
 });
