@@ -14,25 +14,26 @@ test("primeira publicação não habilita NFS-e nem Altnix por flag/segredo", ()
   assert.equal(NFSE_AVAILABLE_IN_THIS_RELEASE, false);
   assert.equal(ALTNIX_CLIENT_EXPORT_RELEASED, false);
   assert.match(NFSE_POSTPONED_MESSAGE, /posterior/);
-  assert.equal(adminModules.find((module) => module.slug === "nfse")?.planned, true);
+  assert.equal(adminModules.find((module) => module.slug === "nfse")?.planned, false, "preparacao interna disponivel, transmissao fiscal bloqueada");
 });
 
 test("rota fiscal (emissão) e menus respeitam bloqueio — configuração fica liberada só pra admin/owner", () => {
   const middleware = source("middleware.ts");
-  // Emissão (rascunhos/notas/perfis-servico/nova) continua barrada por URL pra todo mundo.
-  assert.match(middleware, /!NFSE_AVAILABLE_IN_THIS_RELEASE && matches\("\/sistema\/nfse"\) && !isNfseConfigPath/);
+  // Navegacao preparatoria so para owner/admin, sem liberar a emissao fiscal real.
+  assert.match(middleware, /matches\("\/sistema\/nfse"\) && !NFSE_AVAILABLE_IN_THIS_RELEASE/);
   // /sistema/nfse/configuracoes só é liberada quando `privileged` (owner/admin); demais perfis continuam bloqueados.
-  assert.match(middleware, /!NFSE_AVAILABLE_IN_THIS_RELEASE && isNfseConfigPath && !privileged/);
+  assert.match(middleware, /!privileged \|\| \(!NFSE_PREPARATION_ACCESS_IN_THIS_RELEASE && !isNfseConfigPath\)/);
 
   const checkModuleAction = source("lib/permissions/checkModuleAction.ts");
-  // Toda Server Action de NFS-e continua bloqueada, EXCETO "configuracoes_gerenciar" (cadastro fiscal/certificado).
-  assert.match(checkModuleAction, /module === "nfse" && action !== "configuracoes_gerenciar" && !NFSE_AVAILABLE_IN_THIS_RELEASE/);
+  // Server Actions so permitem preparacao a owner/admin. Emissao sempre bloqueada.
+  assert.match(checkModuleAction, /isNfsePreparationAction\(action\)/);
+  assert.match(checkModuleAction, /profile\.role !== "owner" && profile\.role !== "admin"/);
 
-  assert.match(source("components/admin/AdminHeader.tsx"), /NFSE_AVAILABLE_IN_THIS_RELEASE && canManageUsers/);
+  assert.match(source("components/admin/AdminHeader.tsx"), /NFSE_AVAILABLE_IN_THIS_RELEASE \|\| NFSE_PREPARATION_ACCESS_IN_THIS_RELEASE/);
   const mobileNav = source("components/admin/MobileNav.tsx");
   assert.match(mobileNav, /NFSE_AVAILABLE_IN_THIS_RELEASE/);
-  // Enquanto a emissão estiver adiada, o menu mobile mostra só o link de configuração (nunca rascunhos/notas/perfis-servico).
-  assert.match(mobileNav, /label: "Configurações", href: "\/sistema\/nfse\/configuracoes"/);
+  // Menu mobile mostra a preparacao a owner/admin, com a emissao bloqueada pelo servidor.
+  assert.match(mobileNav, /NFSE_AVAILABLE_IN_THIS_RELEASE \|\| NFSE_PREPARATION_ACCESS_IN_THIS_RELEASE/);
 });
 
 test("composição oficial da NFS-e nunca injeta o provider que envia à SEFIN", () => {
