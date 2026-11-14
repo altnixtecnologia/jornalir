@@ -99,6 +99,8 @@ test("extractDanfseData extrai identificação, prestador, tomador, serviço e v
   assert.equal(data.competencyDate, "2026-10-01");
   assert.equal(data.serviceValue, 150.5);
   assert.equal(data.statusLabel, "NFS-e Gerada");
+  assert.equal(data.issuerLabel, "Prestador", "emitente deve vir de tpEmit da DPS");
+  assert.equal(data.purposeLabel, "NFS-e regular", "finalidade deve vir de finNFSe da DPS");
   assert.equal(data.isHomologation, true, "ambiente homologation -> tpAmb=2 na DPS -> isHomologation true");
   assert.equal(data.prestador.federalInscription, "23970969000190");
   assert.equal(data.prestador.name, "INFORMATIVO REGIONAL LTDA");
@@ -145,4 +147,25 @@ test("extractDanfseData: campos opcionais ausentes (ex.: tomador) viram undefine
   const withoutToma = makeNfseXml().replace(/<toma>.*?<\/toma>/, "");
   const data = extractDanfseData(makeIssuedNote({ nfseXml: withoutToma }));
   assert.equal(data.tomador, undefined);
+});
+
+test("DANFSe: emitente e finalidade ausentes/desconhecidos não podem ser inventados", () => {
+  const valid = makeNfseXml();
+  for (const xml of [
+    valid.replace(/<tpEmit>1<\/tpEmit>/, "<tpEmit>9</tpEmit>"),
+    valid.replace(/<finNFSe>0<\/finNFSe>/, "<finNFSe>9</finNFSe>"),
+    valid.replace(/<tpEmit>1<\/tpEmit>/, ""),
+    valid.replace(/<finNFSe>0<\/finNFSe>/, ""),
+  ]) assert.throws(() => extractDanfseData(makeIssuedNote({ nfseXml: xml })), DanfseDataError);
+});
+
+test("DANFSe: contato do tomador vem somente do XML embutido", () => {
+  const nfseXml = makeNfseXml({ tomador: {
+    sourceClientId: "client-contact", kind: "individual", name: "Cliente Teste",
+    cpf: "11144477735", city: "São João do Sul", state: "SC",
+    email: "contato@example.test",
+  } });
+  const data = extractDanfseData(makeIssuedNote({ nfseXml }));
+  assert.equal(data.tomador?.email, "contato@example.test");
+  assert.equal(data.tomador?.phone, undefined);
 });
