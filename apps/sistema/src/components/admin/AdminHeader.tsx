@@ -10,7 +10,7 @@ import { useAuditReadAccess } from "../../lib/permissions/useAuditReadAccess";
 import { useStaffModuleVisibility } from "../../lib/permissions/useStaffModuleVisibility";
 import { AccountMenu } from "./AccountMenu";
 import { AdminNotificationBell } from "./AdminNotificationBell";
-import { NFSE_AVAILABLE_IN_THIS_RELEASE } from "../../lib/release/releasePolicy";
+import { NFSE_AVAILABLE_IN_THIS_RELEASE, NFSE_PREPARATION_ACCESS_IN_THIS_RELEASE } from "../../lib/release/releasePolicy";
 
 /** Fecha os dois menus suspensos — usado ao escolher um link dentro deles. */
 function closeNavDropdowns(): void {
@@ -175,10 +175,10 @@ export function AdminHeader({ onOpenMenu }: { onOpenMenu: () => void }): JSX.Ele
           </details>
           ) : null}
 
-          {NFSE_AVAILABLE_IN_THIS_RELEASE && canManageUsers ? (
+          {(NFSE_AVAILABLE_IN_THIS_RELEASE || NFSE_PREPARATION_ACCESS_IN_THIS_RELEASE) && canManageUsers ? (
             <details className="app-nav-dropdown" data-nav-dropdown name="app-nav-dropdown">
               <summary className={`app-nav-link app-nav-summary${isNfse ? " is-active" : ""}`}>
-                NFS-e <span className="app-nav-caret" aria-hidden="true">▾</span>
+                {NFSE_AVAILABLE_IN_THIS_RELEASE ? "NFS-e" : "NFS-e (preparação)"} <span className="app-nav-caret" aria-hidden="true">▾</span>
               </summary>
               <div className="app-nav-panel">
                 {nfseNavGroup.links.map((link) => (
@@ -199,7 +199,7 @@ export function AdminHeader({ onOpenMenu }: { onOpenMenu: () => void }): JSX.Ele
               Proprietário/Admin, que mostra SÓ o link de configuração/
               certificado — nunca os links de emissão (rascunhos, notas,
               perfis de serviço), que ficam ocultos até a liberação. */}
-          {!NFSE_AVAILABLE_IN_THIS_RELEASE && canManageUsers ? (
+          {!NFSE_AVAILABLE_IN_THIS_RELEASE && !NFSE_PREPARATION_ACCESS_IN_THIS_RELEASE && canManageUsers ? (
             <Link href="/sistema/nfse/configuracoes" className="app-nav-link">
               NFS-e (config.)
             </Link>
