@@ -2,6 +2,7 @@ import Link from "next/link";
 import { NFSE_ENVIRONMENT_LABELS } from "@ir/types";
 import { checkHomologationReadiness } from "@ir/core";
 import { ModuleHeader } from "../../../components/admin/ModuleHeader";
+import { NFSE_PREPARATION_ACCESS_IN_THIS_RELEASE, NFSE_AVAILABLE_IN_THIS_RELEASE } from "../../../lib/release/releasePolicy";
 import { createSupabaseServerClient } from "../../../lib/supabase/server";
 import { isLocalPreviewEnabled } from "../../../lib/auth/localPreview";
 import { isRestrictedSefinEnvironment, restrictedSefinEnvironmentFromServer } from "../../../lib/nfse/restrictedSefinGate";
@@ -50,6 +51,7 @@ export default async function NfseOverviewPage(): Promise<JSX.Element> {
   const supabase = createSupabaseServerClient();
   const preview = isLocalPreviewEnabled();
   const restricted = isRestrictedSefinEnvironment(restrictedSefinEnvironmentFromServer());
+  const preparation = NFSE_PREPARATION_ACCESS_IN_THIS_RELEASE && !NFSE_AVAILABLE_IN_THIS_RELEASE && !preview && !restricted;
 
   const [drafts, notes, serviceProfiles, issuerConfig] = await Promise.all([
     getDraftService(supabase).list(),
@@ -68,20 +70,20 @@ export default async function NfseOverviewPage(): Promise<JSX.Element> {
   const totalIssuedValue = notes.reduce((sum, note) => sum + note.serviceValue, 0);
   // Aviso de "isto é preview" já vem do banner global (AdminShell) — nunca
   // duplicado aqui; este badge mostra só o ambiente fiscal configurado.
-  const environmentLabel = issuerConfig ? NFSE_ENVIRONMENT_LABELS[issuerConfig.environment] : "Não configurado";
+  const environmentLabel = preparation ? "Preparação — SEM EMISSÃO" : issuerConfig ? NFSE_ENVIRONMENT_LABELS[issuerConfig.environment] : "Não configurado";
 
   return (
     <>
       <ModuleHeader
         eyebrow="NFS-e"
         title="NFS-e"
-        description="Configuração fiscal, perfis de serviço e rascunhos — independente de contratos, assinaturas e financeiro."
+        description={preparation ? "Preparação e rascunhos para testes internos — nenhuma nota será transmitida à SEFIN." : "Configuração fiscal, perfis de serviço e rascunhos — independente de contratos, assinaturas e financeiro."}
         action={
           <div className="form-actions">
-            <span className={`status-pill ${preview || restricted ? "status-pill--adjusting" : "status-pill--published"}`}>
+            <span className={`status-pill ${preview || restricted || preparation ? "status-pill--adjusting" : "status-pill--published"}`}>
               Ambiente: {preview ? "Demonstração local" : restricted ? "Produção Restrita (TESTE)" : environmentLabel}
             </span>
-            <Link className="form-action-primary" href="/sistema/nfse/nova">+ Nova NFS-e</Link>
+            <Link className="form-action-primary" href="/sistema/nfse/nova">+ Novo rascunho</Link>
           </div>
         }
       />

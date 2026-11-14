@@ -1,3 +1,5 @@
+import { NFSE_PREPARATION_ACCESS_IN_THIS_RELEASE, NFSE_AVAILABLE_IN_THIS_RELEASE } from "./release/releasePolicy";
+
 export interface AdminModule {
   slug: string;
   label: string;
@@ -46,8 +48,8 @@ export const adminModules: readonly AdminModule[] = [
   {
     slug: "nfse",
     label: "NFS-e",
-    description: "Etapa posterior à publicação inicial.",
-    planned: true,
+    description: "Preparação fiscal no sistema oficial, sem emissão nacional.",
+    planned: !NFSE_PREPARATION_ACCESS_IN_THIS_RELEASE && !NFSE_AVAILABLE_IN_THIS_RELEASE,
   },
   {
     slug: "publicidade",

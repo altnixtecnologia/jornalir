@@ -2,7 +2,7 @@ import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import { isLocalPreviewEnabled } from "./lib/auth/localPreview";
 import { canEnterStaffPanel } from "./lib/auth/staffAccessPolicy";
-import { NFSE_AVAILABLE_IN_THIS_RELEASE } from "./lib/release/releasePolicy";
+import { NFSE_AVAILABLE_IN_THIS_RELEASE, NFSE_PREPARATION_ACCESS_IN_THIS_RELEASE } from "./lib/release/releasePolicy";
 import { isRestrictedSefinEnvironment, restrictedSefinEnvironmentFromServer } from "./lib/nfse/restrictedSefinGate";
 
 /**
@@ -99,18 +99,15 @@ export async function middleware(request: NextRequest): Promise<NextResponse> {
     const privileged=profile?.role==="owner"||profile?.role==="admin";
     const matches=(prefix:string):boolean =>
       pathname===prefix||pathname.startsWith(prefix+"/");
-    // A EMISSÃO de NFS-e foi adiada até após o release: barrar acesso
-    // direto a toda rota de emissão (notas, rascunhos, nova, perfis de
-    // serviço). A ÚNICA exceção é /sistema/nfse/configuracoes, que
-    // fica disponível só pra Proprietário/Admin ativo (checagem de
-    // `privileged` abaixo), pra permitir cadastro fiscal e certificado
-    // A1 antes da liberação de emissão — nunca abre rota de emissão.
+    // Preparacao: owner/admin pode usar configuracao, perfis e rascunhos.
+    // Operadores continuam SEM acesso ao modulo inteiro, e a emissao
+    // real segue bloqueada por Server Actions + provider fail-closed.
     const isNfseConfigPath = matches("/sistema/nfse/configuracoes");
-    if (!NFSE_AVAILABLE_IN_THIS_RELEASE && matches("/sistema/nfse") && !isNfseConfigPath && !isRestrictedSefinEnvironment(restrictedSefinEnvironmentFromServer())) {
-      return NextResponse.redirect(new URL("/sistema?modulo=nfse-adiado", request.url), 303);
-    }
-    if (!NFSE_AVAILABLE_IN_THIS_RELEASE && isNfseConfigPath && !privileged) {
-      return NextResponse.redirect(new URL("/sistema?modulo=nfse-adiado", request.url), 303);
+    const nfseRestricted = isRestrictedSefinEnvironment(restrictedSefinEnvironmentFromServer());
+    if (matches("/sistema/nfse") && !NFSE_AVAILABLE_IN_THIS_RELEASE && !nfseRestricted) {
+      if (!privileged || (!NFSE_PREPARATION_ACCESS_IN_THIS_RELEASE && !isNfseConfigPath)) {
+        return NextResponse.redirect(new URL("/sistema?modulo=nfse-adiado", request.url), 303);
+      }
     }
     const adminOnly=matches("/sistema/usuarios") ||
       matches("/sistema/configuracoes") || matches("/sistema/nfse");

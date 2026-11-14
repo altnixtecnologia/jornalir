@@ -50,7 +50,7 @@ export default async function NovaNfsePage(props: { searchParams: Promise<{ clie
       <ModuleHeader
         eyebrow="NFS-e / NOVA"
         title="Nova NFS-e"
-        description="Tomador, serviço, valores, tributação e descrição — salvos como rascunho. Nenhuma transmissão real ainda."
+        description="Preparação interna: tomador, serviço, valores e tributação são salvos somente como rascunho. Não há emissão fiscal."
       />
       <NfseDraftForm
         mode="create"

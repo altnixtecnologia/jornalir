@@ -17,7 +17,7 @@ import { useAuth } from "../../lib/auth/AuthProvider";
 import { useAgendaPautaReadAccess } from "../../lib/permissions/useAgendaPautaReadAccess";
 import { useAuditReadAccess } from "../../lib/permissions/useAuditReadAccess";
 import { useStaffModuleVisibility } from "../../lib/permissions/useStaffModuleVisibility";
-import { NFSE_AVAILABLE_IN_THIS_RELEASE } from "../../lib/release/releasePolicy";
+import { NFSE_AVAILABLE_IN_THIS_RELEASE, NFSE_PREPARATION_ACCESS_IN_THIS_RELEASE } from "../../lib/release/releasePolicy";
 
 type MobileGroup = { label: string; links: AdminNavLink[]; restricted?: boolean; planned?: boolean };
 
@@ -34,8 +34,8 @@ const GROUPS: MobileGroup[] = [
   { label: assinaturasNavGroup.label, links: assinaturasNavGroup.links },
   { label: financeiroNavGroup.label, links: financeiroNavGroup.links },
   { label: commercialNavGroup.label, links: commercialNavGroup.links },
-  ...(NFSE_AVAILABLE_IN_THIS_RELEASE
-    ? [{ label: "Fiscal (NFS-e)", links: nfseNavGroup.links, restricted: true }]
+  ...(NFSE_AVAILABLE_IN_THIS_RELEASE || NFSE_PREPARATION_ACCESS_IN_THIS_RELEASE
+    ? [{ label: NFSE_AVAILABLE_IN_THIS_RELEASE ? "Fiscal (NFS-e)" : "Fiscal (NFS-e — preparação)", links: nfseNavGroup.links, restricted: true }]
     // Emissão adiada: controle separado e restrito, só com o link de
     // configuração/certificado — nunca os links de emissão.
     : [{ label: "Fiscal (NFS-e)", links: [{ label: "Configurações", href: "/sistema/nfse/configuracoes" }], restricted: true }]),
