@@ -89,7 +89,7 @@ export interface ArchiveBatchOptions {
 async function claimArchiveCandidates(admin: SupabaseClient, limit: number): Promise<string[]> {
   const { data, error } = await admin.rpc("claim_pending_nfse_archive", { p_limit: limit });
   if (error) throw new Error("Fila de arquivamento fiscal indisponivel (migration D pendente ou erro no banco).");
-  return ((data ?? []) as Array<{ issued_note_id: string }>).map((row) => row.issued_note_id);
+  return ((data ?? []) as Array<{ note_id: string }>).map((row) => row.note_id);
 }
 async function deferArchiveFailure(admin: SupabaseClient, id: string): Promise<void> {
   const { error } = await admin.rpc("defer_nfse_archive_failure", { p_note_id: id });
