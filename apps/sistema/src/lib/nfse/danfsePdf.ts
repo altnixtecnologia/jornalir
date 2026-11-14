@@ -31,17 +31,23 @@ const DARK_GRAY = rgb(0.3, 0.3, 0.3);
 const QR_BASE_URL = "https://www.nfse.gov.br/ConsultaPublica/?tpc=1&chave=";
 const QR_CAPTION = "A autenticidade desta NFS-e pode ser verificada pela leitura deste código QR ou pela consulta da chave de acesso no portal nacional da NFS-e";
 
-function formatDate(iso: string | undefined): string {
-  if (!iso) return "-";
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return "-";
-  return d.toLocaleDateString("pt-BR");
+/** Mantém a competência como dia civil, sem conversão UTC -> fuso do servidor. */
+export function formatDanfseDate(iso: string | undefined): string {
+  if (!iso || !/^\d{4}-\d{2}-\d{2}$/.test(iso)) return "-";
+  const date = new Date(iso + "T00:00:00.000Z");
+  if (Number.isNaN(date.getTime()) || date.toISOString().slice(0, 10) !== iso) return "-";
+  return iso.slice(8, 10) + "/" + iso.slice(5, 7) + "/" + iso.slice(0, 4);
 }
-function formatDateTime(iso: string | undefined): string {
+
+/** Emissor operacional em São João do Sul/SC: hora fiscal local explícita, nunca timezone do runner Vercel. */
+export function formatDanfseDateTime(iso: string | undefined): string {
   if (!iso) return "-";
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return "-";
-  return d.toLocaleString("pt-BR");
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return "-";
+  return new Intl.DateTimeFormat("pt-BR", {
+    timeZone: "America/Sao_Paulo", day: "2-digit", month: "2-digit",
+    year: "numeric", hour: "2-digit", minute: "2-digit", second: "2-digit", hourCycle: "h23",
+  }).format(date).replace(", ", " ");
 }
 function formatMoney(value: number | string | undefined): string {
   if (value === undefined) return "-";
@@ -148,12 +154,12 @@ export async function buildDanfsePdf(data: DanfseData, options: { cancelled?: bo
   cursor.y -= 20;
   const idFieldWidth = contentColumnWidth / 3;
   drawField(page, bold, regular, "Número da NFS-e", data.nfseNumber, MARGIN, cursor.y, idFieldWidth);
-  drawField(page, bold, regular, "Competência da NFS-e", formatDate(data.competencyDate), MARGIN + idFieldWidth, cursor.y, idFieldWidth);
-  drawField(page, bold, regular, "Data/Hora da Emissão da NFS-e", formatDateTime(data.nfseIssuedAt), MARGIN + idFieldWidth * 2, cursor.y, idFieldWidth);
+  drawField(page, bold, regular, "Competência da NFS-e", formatDanfseDate(data.competencyDate), MARGIN + idFieldWidth, cursor.y, idFieldWidth);
+  drawField(page, bold, regular, "Data/Hora da Emissão da NFS-e", formatDanfseDateTime(data.nfseIssuedAt), MARGIN + idFieldWidth * 2, cursor.y, idFieldWidth);
   cursor.y -= 20;
   drawField(page, bold, regular, "Número da DPS", data.dpsNumber, MARGIN, cursor.y, idFieldWidth);
   drawField(page, bold, regular, "Série da DPS", data.dpsSeries, MARGIN + idFieldWidth, cursor.y, idFieldWidth);
-  drawField(page, bold, regular, "Data/Hora da Emissão da DPS", formatDateTime(data.dpsIssuedAt), MARGIN + idFieldWidth * 2, cursor.y, idFieldWidth);
+  drawField(page, bold, regular, "Data/Hora da Emissão da DPS", formatDanfseDateTime(data.dpsIssuedAt), MARGIN + idFieldWidth * 2, cursor.y, idFieldWidth);
   cursor.y -= 20;
   drawField(page, bold, regular, "Emitente da NFS-e", data.issuerLabel, MARGIN, cursor.y, idFieldWidth * 2, true);
   drawField(page, bold, regular, "Situação da NFS-e", data.statusLabel, MARGIN + idFieldWidth * 2, cursor.y, idFieldWidth);
