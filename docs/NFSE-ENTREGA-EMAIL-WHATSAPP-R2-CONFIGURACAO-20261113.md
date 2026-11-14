@@ -48,17 +48,10 @@ Revisão iniciada em 13/11/2026; atualização técnica de 14/11/2026. **Webhook
 - O adaptador não tem função de exclusão; o teste apagou os objetos com o cliente S3 direto.
 - Pendentes (dependem do proprietário): variáveis na Vercel, Resend (domínio, remetente, webhook), cron da fila e `CRON_SECRET` (o cron não está agendado em `vercel.json`), migration `20261122340700` no Supabase oficial, permissões de acesso aos documentos (hoje `notas_cancelar`) e homologação com A1.
 
-## Webhook de confirmação de entrega — estado e publicação segura (13/11/2026)
-Código local (não publicado): `lib/nfse/resendWebhookHandler.ts` + rota `app/api/webhooks/nfse-email/route.ts`. A rota exige **somente** `RESEND_WEBHOOK_SECRET` e assinatura Svix válida; não depende de `NFSE_DELIVERY_ENABLED` nem da liberação da emissão, não envia e-mail, não emite nota e não devolve documento ou dado fiscal. Só atualiza tentativas de e-mail existentes (`provider=resend`, `provider_message_id`), com UPDATE condicional atômico: `accepted→delivered|bounced|failed`; `delivered→bounced`; `complained` marca `bounced` com resumo próprio. Eventos repetidos ou antigos não alteram nada. Sem a tabela (migration pendente) responde 503 para o Resend repetir depois. Sem segredo responde 503; assinatura inválida, 401.
+## Webhook de confirmação de entrega — PUBLICADO e validado (13/11/2026)
+A PR #62 está mesclada na base oficial e o webhook `POST /api/webhooks/nfse-email` está em produção no deployment `dpl_AS7qPGc5LXUksLNsEHhuw7iA1FEp`. O `RESEND_WEBHOOK_SECRET` já está configurado. Um e-mail fictício com XML/PDF de teste foi aceito pelo Resend; o evento `email.delivered` foi processado com assinatura válida, HTTP 200 e `updated: 0` (sem tentativa fiscal correspondente). Não é necessário reenviar teste.
 
-Sequência proposta (cada passo depende de autorização expressa):
-1. ✅ Migration A (`20261114000402`) já aplicada e verificada no Supabase oficial; nada a executar. Resta apenas a publicação do código e a configuração do segredo, nas etapas abaixo.
-2. Publicar o código com a variável ausente; a rota deve responder 503 a um POST sem assinatura (nunca 200).
-3. Criar o webhook no Resend para `https://controle.altnix.com.br/api/webhooks/nfse-email`, somente com `email.delivered`, `email.bounced`, `email.failed`, `email.complained`; copiar o segredo `whsec_…` sem colar em chat/commit.
-4. Cadastrar `RESEND_WEBHOOK_SECRET` só em Production na Vercel (e no `.env.local`); gerar novo deployment e promover.
-5. Verificar: POST sem assinatura → 401; evento real reenviado pelo Resend para e-mail sem tentativa registrada → 200 com `updated: 0`.
-6. Manter `NFSE_DELIVERY_ENABLED` ausente; a emissão e o envio automático seguem bloqueados.
-Reversão: apagar o webhook no Resend e/ou a variável, ou promover o deployment anterior.
+O webhook não depende de `NFSE_DELIVERY_ENABLED` nem da liberação fiscal, não emite nota, não envia mensagem e não devolve documentos. A alteração nesta PR de correção limita a resposta 503 para eventos desconhecidos à existência de tentativa `processing` recente **do mesmo destinatário**; mensagens de outros destinatários recebem 200 sem interferir no histórico de NFS-e. Reversão da publicação já está documentada na PR #62; não realizar sem autorização.
 
 ## Revisão de segurança da PR #61 (14/11/2026; ainda sem deploy)
 - A branch isolada `fix/nfse-pr61-archive-safety-20261114` introduz a migration D pendente e muda a seleção do lote de arquivamento para uma RPC de claim transacional. O banco examina todas as notas autorizadas e incompletas, sem truncar nas 50 mais recentes, e prioriza notas com menos falhas. Claim de 3 minutos e backoff exponencial de 5 minutos até 24 horas impedem que notas defeituosas monopolizem a fila.
