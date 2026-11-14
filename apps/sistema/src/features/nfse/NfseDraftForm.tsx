@@ -1,11 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState, useTransition } from "react";
+import { useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import type { NfseDraft, NfseIssuerConfig, NfseServiceProfile } from "@ir/types";
 import { NFSE_CATVSN_CODES, NFSE_CATVSN_LABELS, buildFiscalSnapshotFromServiceProfile, listSelectableServiceProfiles } from "@ir/types";
-import { validateNfseDraft } from "@ir/core";
+import { parseNfseServiceValue, validateNfseDraft } from "@ir/core";
 import {
   createDraftAction,
   refreshTomadorSnapshotAction,
@@ -17,6 +17,7 @@ import {
 import { ClientPicker } from "../../components/admin/ClientPicker";
 import type { ClientSearchResult } from "../../components/admin/clientSearchTypes";
 import { Tabs, type TabItem } from "../../components/admin/Tabs";
+import { formatLocalCompetencyDate, needsPreNovemberSimplesCompetencyReview } from "../../lib/nfse/draftCompetency";
 
 function emptyTomador(): TomadorSnapshotFormInput {
   return {
@@ -133,6 +134,7 @@ export function NfseDraftForm({
   issuerConfig,
   initialDraft,
   initialSelectedClient,
+  initialTomador,
 }: {
   mode: "create" | "edit";
   serviceProfiles: NfseServiceProfile[];
@@ -141,17 +143,19 @@ export function NfseDraftForm({
   issuerConfig?: NfseIssuerConfig | null;
   initialDraft?: NfseDraft;
   initialSelectedClient?: ClientSearchResult | null;
+  initialTomador?: TomadorSnapshotFormInput;
 }): JSX.Element {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  const snapshotRequestId = useRef(0);
   const [refreshMessage, setRefreshMessage] = useState<string | null>(null);
 
   const [selectedClient, setSelectedClient] = useState<ClientSearchResult | null>(initialSelectedClient ?? null);
-  const [tomador, setTomador] = useState<TomadorSnapshotFormInput>(initialDraft ? draftToInput(initialDraft).tomador : emptyTomador());
+  const [tomador, setTomador] = useState<TomadorSnapshotFormInput>(initialDraft ? draftToInput(initialDraft).tomador : initialTomador ?? emptyTomador());
   const [serviceProfileId, setServiceProfileId] = useState(initialDraft?.serviceProfileId ?? "");
   const [fiscal, setFiscal] = useState<FiscalSnapshotFormInput>(initialDraft ? draftToInput(initialDraft).fiscal : emptyFiscal(issuerConfig));
-  const [competencyDate, setCompetencyDate] = useState(initialDraft?.competencyDate ?? new Date().toISOString().slice(0, 10));
+  const [competencyDate, setCompetencyDate] = useState(initialDraft?.competencyDate ?? formatLocalCompetencyDate(new Date()));
   const [serviceValue, setServiceValue] = useState(initialDraft ? String(initialDraft.serviceValue) : "");
   const [serviceDescription, setServiceDescription] = useState(initialDraft?.serviceDescription ?? "");
   const [notes, setNotes] = useState(initialDraft?.notes ?? "");
@@ -169,6 +173,7 @@ export function NfseDraftForm({
   }
 
   function handleSelectClient(client: ClientSearchResult | null): void {
+    const requestId = ++snapshotRequestId.current;
     setSelectedClient(client);
     setError(null);
     setRefreshMessage(null);
@@ -177,7 +182,9 @@ export function NfseDraftForm({
       return;
     }
     startTransition(async () => {
-      applySnapshot(await refreshTomadorSnapshotAction(client.id));
+      const response = await refreshTomadorSnapshotAction(client.id);
+      // Descartar a resposta atrasada se o operador já escolheu outro cliente.
+      if (requestId === snapshotRequestId.current) applySnapshot(response);
     });
   }
 
@@ -188,8 +195,10 @@ export function NfseDraftForm({
     if (!clientId) return;
     setError(null);
     setRefreshMessage(null);
+    const requestId = ++snapshotRequestId.current;
     startTransition(async () => {
-      applySnapshot(await refreshTomadorSnapshotAction(clientId, initialDraft?.id), "Dados do tomador atualizados a partir do cadastro do cliente.");
+      const response = await refreshTomadorSnapshotAction(clientId, initialDraft?.id);
+      if (requestId === snapshotRequestId.current) applySnapshot(response, "Dados do tomador atualizados a partir do cadastro do cliente.");
     });
   }
 
@@ -235,7 +244,7 @@ export function NfseDraftForm({
     serviceProfileId: serviceProfileId || undefined,
     cTribNac: fiscal.cTribNac,
     competencyDate,
-    serviceValue: Number(serviceValue.replace(",", ".")),
+    serviceValue: parseNfseServiceValue(serviceValue),
     serviceDescription,
     issuerConfigured,
   });
@@ -279,11 +288,22 @@ export function NfseDraftForm({
               <label className="form-field">
                 <span className="field-label">Competência</span>
                 <input type="date" value={competencyDate} onChange={(event) => setCompetencyDate(event.target.value)} />
-                <span className="helper-text">Sempre explícita — nunca derivada silenciosamente; a data atual é só sugestão inicial.</span>
+                <span className="helper-text">Data sugerida conforme o dia local do aparelho. Confirme a competência antes de salvar.</span>
+                {needsPreNovemberSimplesCompetencyReview({
+                  simplesNacionalOption: initialDraft?.fiscal.issuerSimplesNacionalOption ?? issuerConfig?.simplesNacionalOption,
+                  competencyDate,
+                }) ? (
+                  <span className="helper-text" role="status">
+                    Atenção: competência anterior a 01/11/2026 para ME/EPP do Simples Nacional.
+                    Em municípios que usavam emissor próprio, notas retroativas podem precisar ser emitidas
+                    pelo sistema municipal. Confirme o enquadramento e a regra local antes de transmitir.
+                  </span>
+                ) : null}
               </label>
               <label className="form-field">
                 <span className="field-label">Valor do serviço (R$)</span>
                 <input type="text" inputMode="decimal" value={serviceValue} onChange={(event) => setServiceValue(event.target.value)} placeholder="0,00" />
+                <span className="helper-text">Informe reais e centavos (ex.: 150,00 ou 1.234,56). Evite formato ambíguo como 1.234.</span>
               </label>
             </div>
           </section>

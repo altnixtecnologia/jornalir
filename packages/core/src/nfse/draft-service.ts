@@ -41,6 +41,46 @@ function trimOrUndefined(value: string | undefined | null): string | undefined {
   return trimmed ? trimmed : undefined;
 }
 
+/**
+ * A NFS-e usa valor com duas casas decimais no XML. Nunca deixar
+ * um rascunho com 0,001 virar 0,00 na DPS por arredondamento.
+ * O teto técnico evita perder precisão em centavos no Number do JS.
+ */
+export function isValidNfseServiceValue(value: number): boolean {
+  return Number.isFinite(value) &&
+    value > 0 &&
+    Number.isSafeInteger(Math.round(value * 100)) &&
+    Number(value.toFixed(2)) === value;
+}
+
+/**
+ * Entrada para teclado mobile (pt-BR) e integração interna:
+ * 1234,56 / 1234.56 / 1.234,56 / 1234. NÃO aceita valor
+ * ambíguo "1.234" (centavos vs. milhar), formato misturado
+ * ou mais de duas casas. Falha fechada com NaN.
+ */
+export function parseNfseServiceValue(raw: string): number {
+  if (typeof raw !== "string") return Number.NaN;
+  const value = raw.trim();
+  const plain = /^\d+(?:[.,]\d{1,2})?$/.test(value);
+  const brWithGrouping = /^\d{1,3}(?:\.\d{3})+,\d{1,2}$/.test(value);
+  if (!plain && !brWithGrouping) return Number.NaN;
+  const normalized = brWithGrouping ? value.replace(/\./g, "").replace(",", ".") : value.replace(",", ".");
+  const parsed = Number(normalized);
+  return isValidNfseServiceValue(parsed) ? parsed : Number.NaN;
+}
+
+/** Data civil completa e real (incluindo 29/02 de ano bissexto),
+ * sem inventar limite retroativo/futuro que depende do município. */
+export function isValidNfseCompetencyDate(value: string | undefined): boolean {
+  if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const [year, month, day] = value.split("-").map(Number);
+  if (year < 1 || month < 1 || month > 12) return false;
+  const leap = year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0);
+  const days = [31, leap ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+  return day >= 1 && day <= days[month - 1];
+}
+
 function normalize(input: DraftInput): NewDraftRecord {
   return {
     clientId: input.clientId,
@@ -61,8 +101,8 @@ function normalize(input: DraftInput): NewDraftRecord {
 
 function assertValid(record: Pick<NewDraftRecord, "clientId" | "competencyDate" | "serviceValue" | "serviceDescription">): void {
   if (!record.clientId) throw new DraftValidationError("Selecione o cliente/tomador.");
-  if (!record.competencyDate) throw new DraftValidationError("Informe a competência.");
-  if (!Number.isFinite(record.serviceValue) || record.serviceValue <= 0) throw new DraftValidationError("Informe um valor de serviço maior que zero.");
+  if (!isValidNfseCompetencyDate(record.competencyDate)) throw new DraftValidationError("Informe uma competência válida no calendário (AAAA-MM-DD).");
+  if (!isValidNfseServiceValue(record.serviceValue)) throw new DraftValidationError("Valor do serviço inválido: informe reais e centavos, maior que zero e com no máximo duas casas decimais.");
   if (!record.serviceDescription) throw new DraftValidationError("Informe a descrição do serviço.");
 }
 
@@ -105,9 +145,9 @@ export function validateNfseDraft(input: {
   if (!input.tomadorState || !input.tomadorState.trim()) missing.push("UF do tomador");
   if (!input.serviceProfileId) missing.push("Perfil de serviço");
   if (!input.cTribNac || !input.cTribNac.trim()) missing.push("Código de tributação nacional (cTribNac)");
-  if (!input.competencyDate) missing.push("Competência");
-  if (input.serviceValue === undefined || !Number.isFinite(input.serviceValue) || input.serviceValue <= 0) {
-    missing.push("Valor do serviço (maior que zero)");
+  if (!isValidNfseCompetencyDate(input.competencyDate)) missing.push("Competência (data válida)");
+  if (input.serviceValue === undefined || !isValidNfseServiceValue(input.serviceValue)) {
+    missing.push("Valor do serviço (maior que zero e no máximo duas casas decimais)");
   }
   if (!input.serviceDescription || !input.serviceDescription.trim()) missing.push("Descrição do serviço");
   if (!input.issuerConfigured) missing.push("Configuração fiscal do prestador");

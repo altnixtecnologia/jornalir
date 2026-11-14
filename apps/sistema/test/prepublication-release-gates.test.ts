@@ -35,6 +35,17 @@ test("rota fiscal (emissão) e menus respeitam bloqueio — configuração fica 
   assert.match(mobileNav, /label: "Configurações", href: "\/sistema\/nfse\/configuracoes"/);
 });
 
+test("composição oficial da NFS-e nunca injeta o provider que envia à SEFIN", () => {
+  const composition = source("composition/nfse.ts");
+  // Se a composição oficial for substituída pelo adaptador de integração
+  // usado nos testes, não há mais garantia de bloqueio do release.
+  assert.match(
+    composition,
+    /createTransmissionAttemptRepositorySupabase\(client\),\s*new FetchNationalNfseProvider\(\),\s*getCertificateService\(\)/,
+  );
+  assert.doesNotMatch(composition, /new SefinNacionalNationalNfseProvider\(/);
+});
+
 test("certificado A1 (upload/consulta local) libera admin/owner sem abrir chamada fiscal externa", () => {
   const cert = source("app/sistema/nfse/configuracoes/certificado-actions.ts");
   const municipality = source("app/sistema/nfse/configuracoes/parametrizacao-actions.ts");

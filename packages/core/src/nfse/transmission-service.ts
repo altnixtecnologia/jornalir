@@ -9,7 +9,7 @@ import type { IssuerConfigRepository } from "./issuer-config-repository";
 import type { DpsSequenceRepository } from "./dps-sequence-repository";
 import type { IssuedNoteRepository } from "./issued-note-repository";
 import type { TransmissionAttemptRepository } from "./transmission-attempt-repository";
-import { RealTransmissionNotReadyError, type NationalNfseProvider } from "./national-nfse-provider";
+import { FetchNationalNfseProvider, RealTransmissionNotReadyError, type NationalNfseProvider } from "./national-nfse-provider";
 import { validateNfseDraft } from "./draft-service";
 
 /** O que o fluxo de transmissão precisa do certificado — `CertificateService`
@@ -91,6 +91,19 @@ export class TransmissionService {
     // 1) confirmar owner/admin
     if (!input.isAdminOrOwner) throw new TransmissionPermissionError("Sem permissão para transmitir NFS-e — só owner/admin.");
 
+    // Bloqueio de release ANTES de reservar numero de DPS, gravar tentativa
+    // "pending" ou tocar qualquer dado fiscal. A composicao oficial ainda
+    // injeta FetchNationalNfseProvider (incondicionalmente bloqueado).
+    // Antes, o bloqueio acontecia DEPOIS da reserva e do insert "pending":
+    // nenhum envio ocorria, mas o rascunho ficava falsamente pendente,
+    // exigindo conciliacao de uma transmissao que nunca aconteceu.
+    //
+    // Os providers de testes (fake/MockAgent) nao usam esta implementacao,
+    // portanto continuam exercitando o fluxo completo e a idempotencia real.
+    if (this.provider instanceof FetchNationalNfseProvider) {
+      throw new RealTransmissionNotReadyError();
+    }
+
     // 2) carregar rascunho
     const draft = await this.drafts.getById(input.draftId);
     if (!draft) throw new Error(`Rascunho não encontrado: ${input.draftId}`);
@@ -123,7 +136,22 @@ export class TransmissionService {
     // finally mais abaixo, sempre, com sucesso ou erro.
     await this.drafts.claimForTransmission(draft.id);
     try {
-      return await this.transmitClaimed(draft);
+      // O primeiro GET ocorreu ANTES do lock e pode estar obsoleto:
+      // uma edicao do tomador ou do valor pode ter sido concluida
+      // enquanto esta chamada aguardava o mutex no PostgreSQL.
+      const lockedDraft = await this.drafts.getById(draft.id);
+      if (!lockedDraft) throw new Error(`Rascunho nao encontrado apos lock: ${draft.id}`);
+      if (lockedDraft.status !== "draft") {
+        throw new TransmissionValidationError(["Rascunho nao esta mais em estado editavel"]);
+      }
+      if (await this.issuedNotes.getByDraftId(lockedDraft.id)) {
+        throw new AlreadyIssuedError(lockedDraft.id);
+      }
+      const attemptsUnderLock = await this.attempts.listByDraftId(lockedDraft.id);
+      if (attemptsUnderLock[0]?.status === "pending" || attemptsUnderLock[0]?.status === "uncertain") {
+        throw new UnresolvedUncertainAttemptError(lockedDraft.id);
+      }
+      return await this.transmitClaimed(lockedDraft);
     } finally {
       await this.drafts.releaseTransmissionClaim(draft.id);
     }
@@ -292,8 +320,27 @@ export class TransmissionService {
       return { outcome: "uncertain", attempt };
     }
 
-    // 15) interpretar resposta + 16) registrar tentativa
+    // 15) Uma resposta sem resultado inequivoco e INCERTA, nao uma
+    // rejeicao. Nunca gerar outra DPS por falta de campos num retorno
+    // que pode corresponder a uma NFS-e ja autorizada.
     const authorization = parseAuthorizationResponse(envelope);
+    if (
+      (envelope.status !== "authorized" && envelope.status !== "rejected") ||
+      (envelope.status === "authorized" && !authorization) ||
+      (envelope.status === "rejected" && (!envelope.rejection?.code || !envelope.rejection?.message))
+    ) {
+      const attempt = await this.attempts.create({
+        draftId: draft.id,
+        dpsId,
+        dpsSeries,
+        dpsNumber,
+        environment,
+        status: "uncertain",
+        requestReference,
+        responseSummary: "Resposta da SEFIN incompleta ou ambigua. Consulte a DPS pela identificacao antes de qualquer nova tentativa.",
+      });
+      return { outcome: "uncertain", attempt };
+    }
     if (authorization) {
       // 17) AUTORIZADA — cria registro fiscal emitido.
       let issuedNote: NfseIssuedNote;
@@ -321,7 +368,20 @@ export class TransmissionService {
         if (error instanceof Error && error.message.toLowerCase().includes("draft_id")) {
           throw new AlreadyIssuedError(draft.id);
         }
-        throw error;
+        // A SEFIN autorizou, mas a persistencia local falhou. NUNCA
+        // devolver como rejeitada nem permitir novo envio: o pending
+        // duravel ja existe e a DPS precisa ser conciliada.
+        const attempt = await this.attempts.create({
+          draftId: draft.id,
+          dpsId,
+          dpsSeries,
+          dpsNumber,
+          environment,
+          status: "uncertain",
+          requestReference,
+          responseSummary: "SEFIN indicou autorizacao, mas falhou a persistencia local. Consultar a chave/DPS e conciliar sem retransmitir.",
+        });
+        return { outcome: "uncertain", attempt };
       }
 
       const attempt = await this.attempts.create({

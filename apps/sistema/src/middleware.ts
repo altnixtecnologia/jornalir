@@ -3,6 +3,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { isLocalPreviewEnabled } from "./lib/auth/localPreview";
 import { canEnterStaffPanel } from "./lib/auth/staffAccessPolicy";
 import { NFSE_AVAILABLE_IN_THIS_RELEASE } from "./lib/release/releasePolicy";
+import { isRestrictedSefinEnvironment, restrictedSefinEnvironmentFromServer } from "./lib/nfse/restrictedSefinGate";
 
 /**
  * Proteção real de `/sistema/*` — server-side, antes de qualquer conteúdo
@@ -105,7 +106,7 @@ export async function middleware(request: NextRequest): Promise<NextResponse> {
     // `privileged` abaixo), pra permitir cadastro fiscal e certificado
     // A1 antes da liberação de emissão — nunca abre rota de emissão.
     const isNfseConfigPath = matches("/sistema/nfse/configuracoes");
-    if (!NFSE_AVAILABLE_IN_THIS_RELEASE && matches("/sistema/nfse") && !isNfseConfigPath) {
+    if (!NFSE_AVAILABLE_IN_THIS_RELEASE && matches("/sistema/nfse") && !isNfseConfigPath && !isRestrictedSefinEnvironment(restrictedSefinEnvironmentFromServer())) {
       return NextResponse.redirect(new URL("/sistema?modulo=nfse-adiado", request.url), 303);
     }
     if (!NFSE_AVAILABLE_IN_THIS_RELEASE && isNfseConfigPath && !privileged) {

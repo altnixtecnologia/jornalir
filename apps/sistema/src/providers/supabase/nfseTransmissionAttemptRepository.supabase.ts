@@ -70,7 +70,7 @@ export function createTransmissionAttemptRepositorySupabase(client: SupabaseClie
   return {
     async listByDraftId(draftId) {
       if (isLocalPreviewEnabled()) return PREVIEW_TRANSMISSION_ATTEMPTS.filter((a) => a.draftId === draftId);
-      const { data, error } = await client.from(TABLE).select(COLUMNS).eq("draft_id", draftId).order("created_at", { ascending: false });
+      const { data, error } = await client.from(TABLE).select(COLUMNS).eq("draft_id", draftId).order("created_at", { ascending: false }).order("id", { ascending: false });
       if (error) throw new Error(error.message);
       return (data ?? []).map((row) => toDomain(row as unknown as AttemptRow));
     },

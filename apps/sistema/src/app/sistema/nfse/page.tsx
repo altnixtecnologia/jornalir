@@ -4,6 +4,7 @@ import { checkHomologationReadiness } from "@ir/core";
 import { ModuleHeader } from "../../../components/admin/ModuleHeader";
 import { createSupabaseServerClient } from "../../../lib/supabase/server";
 import { isLocalPreviewEnabled } from "../../../lib/auth/localPreview";
+import { isRestrictedSefinEnvironment, restrictedSefinEnvironmentFromServer } from "../../../lib/nfse/restrictedSefinGate";
 import { getDraftService, getIssuerConfigService, getServiceProfileService, getCertificateService } from "../../../composition/nfse";
 import { createIssuedNoteRepositorySupabase } from "../../../providers/supabase/nfseIssuedNoteRepository.supabase";
 
@@ -48,6 +49,7 @@ export const revalidate = 0;
 export default async function NfseOverviewPage(): Promise<JSX.Element> {
   const supabase = createSupabaseServerClient();
   const preview = isLocalPreviewEnabled();
+  const restricted = isRestrictedSefinEnvironment(restrictedSefinEnvironmentFromServer());
 
   const [drafts, notes, serviceProfiles, issuerConfig] = await Promise.all([
     getDraftService(supabase).list(),
@@ -76,8 +78,8 @@ export default async function NfseOverviewPage(): Promise<JSX.Element> {
         description="Configuração fiscal, perfis de serviço e rascunhos — independente de contratos, assinaturas e financeiro."
         action={
           <div className="form-actions">
-            <span className={`status-pill ${preview ? "status-pill--adjusting" : "status-pill--published"}`}>
-              Ambiente: {environmentLabel}
+            <span className={`status-pill ${preview || restricted ? "status-pill--adjusting" : "status-pill--published"}`}>
+              Ambiente: {preview ? "Demonstração local" : restricted ? "Produção Restrita (TESTE)" : environmentLabel}
             </span>
             <Link className="form-action-primary" href="/sistema/nfse/nova">+ Nova NFS-e</Link>
           </div>
@@ -102,15 +104,17 @@ export default async function NfseOverviewPage(): Promise<JSX.Element> {
         <p className="helper-text" style={{ marginTop: "12px" }}>
           {preview
             ? "Modo demonstração: nenhuma transmissão fiscal real é realizada."
-            : "A configuração fiscal e os rascunhos são reais, mas a transmissão ao Sistema Nacional permanece tecnicamente bloqueada até a validação integral da integração."}
+            : restricted
+              ? "Ambiente isolado de Produção Restrita: o envio de teste à SEFIN depende do A1 e de validação fiscal prévia. Não há comunicação com a produção nacional."
+              : "A emissão oficial continua BLOQUEADA nesta instalação, mesmo que a configuração fiscal já esteja cadastrada."}
         </p>
       </section>
 
       <section className="form-section">
         <h2>Conferência para emissão nacional</h2>
         <p className="helper-text">
-          O botão de emissão não autoriza nenhuma NFS-e enquanto houver pendências ou o provedor nacional estiver bloqueado.
-          Nenhum imposto, alíquota ou parâmetro municipal é presumido automaticamente.
+          Nenhum imposto, alíquota ou parâmetro municipal é presumido automaticamente. A validação do XML assinado
+          contra o XSD acontece imediatamente antes do envio de teste e não pode ser dispensada.
         </p>
         {readiness.missing.length ? (
           <ul style={{ paddingLeft: "22px" }}>

@@ -75,10 +75,10 @@ function toDomain(row: CertificateRow): StoredCertificateRecord {
  * Certificado digital A1 validado e criptografado (Parte 2B). Nunca
  * decifra nada aqui — só guarda/devolve o ciphertext (ver
  * certificate-service.ts, que decifra só no momento de assinar).
- * `deactivateAll` + a constraint `nfse_certificates_one_active_per_issuer`
- * (ver migration) garantem nunca dois certificados ativos ao mesmo tempo
- * pro mesmo prestador — "substituir certificado" é sempre
- * deactivateAll + create, nunca update in-place.
+ * A RPC `replace_nfse_certificate_atomic` bloqueia o prestador,
+ * desativa o certificado antigo e insere o novo na MESMA transacao.
+ * Um erro no INSERT reverte a desativacao; o indice parcial
+ * `nfse_certificates_one_active_per_issuer` continua como defesa extra.
  *
  * Acesso EXCLUSIVO via `service_role` (migration de hardening
  * `nfse_initial_integration_security` revoga anon/authenticated da
@@ -97,36 +97,33 @@ export function createCertificateRepositorySupabase(): CertificateRepository {
       return data ? toDomain(data as unknown as CertificateRow) : null;
     },
 
-    async create(record: NewCertificateRecord) {
+    async replaceActive(record: NewCertificateRecord) {
       const client = createSupabaseAdminClient();
-      const { data, error } = await client
-        .from(TABLE)
-        .insert({
-          issuer_config_id: record.issuerConfigId,
-          subject_cnpj: record.subjectCnpj ?? null,
-          subject_name: record.subjectName ?? null,
-          issuer_name: record.issuerName ?? null,
-          serial_number: record.serialNumber,
-          fingerprint: record.fingerprint,
-          valid_from: record.validFrom,
-          valid_until: record.validUntil,
-          certificate_pem: record.certificatePem,
-          private_key_ciphertext: record.encryptedPrivateKey.ciphertextBase64,
-          private_key_iv: record.encryptedPrivateKey.ivBase64,
-          private_key_auth_tag: record.encryptedPrivateKey.authTagBase64,
-          created_by: record.createdByProfileId ?? null,
-          active: true,
-        })
-        .select(COLUMNS)
-        .single();
+      // Nunca fazer UPDATE de desativacao + INSERT em requests separados.
+      // O banco reverte a operacao INTEIRA se a gravacao do novo A1 falhar.
+      const { data: certificateId, error: rotationError } = await client.rpc("replace_nfse_certificate_atomic", {
+        p_issuer_config_id: record.issuerConfigId,
+        p_subject_cnpj: record.subjectCnpj ?? null,
+        p_subject_name: record.subjectName ?? null,
+        p_issuer_name: record.issuerName ?? null,
+        p_serial_number: record.serialNumber,
+        p_fingerprint: record.fingerprint,
+        p_valid_from: record.validFrom,
+        p_valid_until: record.validUntil,
+        p_certificate_pem: record.certificatePem,
+        p_private_key_ciphertext: record.encryptedPrivateKey.ciphertextBase64,
+        p_private_key_iv: record.encryptedPrivateKey.ivBase64,
+        p_private_key_auth_tag: record.encryptedPrivateKey.authTagBase64,
+        p_created_by: record.createdByProfileId ?? null,
+      });
+      if (rotationError) throw new Error(rotationError.message);
+      if (typeof certificateId !== "string") throw new Error("A rotacao do certificado nao retornou um identificador valido.");
+
+      // Busca pelo ID retornado, nunca por "ativo" (outra rotacao pode
+      // ocorrer imediatamente apos a transacao e alterar o ativo atual).
+      const { data, error } = await client.from(TABLE).select(COLUMNS).eq("id", certificateId).single();
       if (error) throw new Error(error.message);
       return toDomain(data as unknown as CertificateRow);
-    },
-
-    async deactivateAll(issuerConfigId: string) {
-      const client = createSupabaseAdminClient();
-      const { error } = await client.from(TABLE).update({ active: false }).eq("issuer_config_id", issuerConfigId).eq("active", true);
-      if (error) throw new Error(error.message);
     },
   };
 }

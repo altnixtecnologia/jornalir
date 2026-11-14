@@ -71,11 +71,21 @@ test("fixture com uma chave de acesso cujo 9º caractere do Id (3º do trecho al
   assert.equal(result.valid, true);
 });
 
-test("evento com justificativa fora do intervalo 15-255 (TSMotivo) é rejeitado pela validação XSD real", async () => {
-  const xml = buildCancellationEventXml(makeInput({ justificationText: "curta" }));
-  const result = await validatePedRegEventoAgainstOfficialXsd(xml);
-  assert.equal(result.valid, false);
-  assert.ok(result.errors.length > 0);
+test("evento com justificativa fora do intervalo 15-255 nunca gera XML", () => {
+  assert.throws(() => buildCancellationEventXml(makeInput({ justificationText: "curta" })), /Justificativa/);
+  assert.throws(() => buildCancellationEventXml(makeInput({ justificationText: "X".repeat(256) })), /Justificativa/);
+});
+
+test("chave de acesso invalida nunca e preenchida com zeros nem truncada", () => {
+  for (const accessKey of ["123", SAMPLE_ACCESS_KEY + "0", "A".repeat(50), "<invalid>", SAMPLE_ACCESS_KEY.toLowerCase().replace("4", "x")]) {
+    assert.throws(() => buildCancellationEventId({ accessKey }), /Chave de acesso/);
+    assert.throws(() => buildCancellationEventXml(makeInput({ accessKey })), /Chave de acesso/);
+  }
+});
+
+test("evento rejeita CNPJ ou codigo de motivo invalido em chamadas diretas", () => {
+  assert.throws(() => buildCancellationEventXml(makeInput({ authorCnpj: "123" })), /CNPJ/);
+  assert.throws(() => buildCancellationEventXml(makeInput({ justificationCode: 5 as 1 })), /Motivo/);
 });
 
 test("XML estruturalmente incompleto nunca finge sucesso na validação XSD real", async () => {

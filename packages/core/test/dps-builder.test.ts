@@ -157,3 +157,10 @@ test("parseRejectionResponse só devolve resultado quando status=rejected", () =
   const notRejected = parseRejectionResponse({ status: "authorized" });
   assert.equal(notRejected, null);
 });
+
+test("buildDpsXml falha fechado sem arredondar centavos ou aceitar dia inexistente", () => {
+  assert.throws(() => buildDpsXml(makeInput({ serviceValue: 0.001 })), /valor inválido/);
+  assert.throws(() => buildDpsXml(makeInput({ serviceValue: 1.005 })), /valor inválido/);
+  assert.throws(() => buildDpsXml(makeInput({ competencyDate: "2026-02-29" })), /competência inválida/);
+  assert.ok(buildDpsXml(makeInput({ competencyDate: "2024-02-29", serviceValue: 0.01 })).includes("<vServ>0.01</vServ>"));
+});

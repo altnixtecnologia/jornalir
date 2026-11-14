@@ -2,6 +2,8 @@
 
 import { revalidatePath } from "next/cache";
 import { getTransmissionService } from "../../../../../composition/nfse";
+import { prepareRestrictedNfseTransmissionService } from "../../../../../composition/nfse-restricted";
+import { isRestrictedSefinEnvironment, restrictedSefinEnvironmentFromServer } from "../../../../../lib/nfse/restrictedSefinGate";
 import { createSupabaseServerClient } from "../../../../../lib/supabase/server";
 import { checkModuleAction } from "../../../../../lib/permissions/checkModuleAction";
 import { getAuditContext } from "../../../../../lib/auth/getAuditContext";
@@ -77,7 +79,14 @@ export async function transmitDraftAction(draftId: string): Promise<TransmitDraf
   await recordAuditEventSupabase(supabase, { userId: AUDIT.actorId, entityType: ENTITY_TYPE, entityId: draftId, action: "transmission_started" });
 
   try {
-    const result = await getTransmissionService(supabase).transmit({ draftId, isAdminOrOwner, actorProfileId: AUDIT.actorId });
+    // Unica excecao ao provider bloqueado: preview Vercel SEGREGADA,
+    // flags privadas no servidor + Supabase nao-produtivo. Em qualquer
+    // outro ambiente, permanece FetchNationalNfseProvider (bloqueado).
+    const restricted = isRestrictedSefinEnvironment(restrictedSefinEnvironmentFromServer());
+    const service = restricted
+      ? prepareRestrictedNfseTransmissionService(supabase)
+      : getTransmissionService(supabase);
+    const result = await service.transmit({ draftId, isAdminOrOwner, actorProfileId: AUDIT.actorId });
 
     if (result.outcome === "authorized") {
       await recordAuditEventSupabase(supabase, {

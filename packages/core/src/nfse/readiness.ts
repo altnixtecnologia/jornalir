@@ -69,10 +69,25 @@ export function checkHomologationReadiness(input: HomologationReadinessInput): H
   if (!input.activeCertificate) {
     missing.push("Certificado digital A1 válido configurado");
   } else {
-    if (new Date(input.activeCertificate.validUntil).getTime() < Date.now()) {
-      missing.push("Certificado digital vencido — substitua por um certificado válido");
+    const certificate = input.activeCertificate;
+    const now = Date.now();
+    const validFrom = Date.parse(certificate.validFrom);
+    const validUntil = Date.parse(certificate.validUntil);
+
+    if (!certificate.active) {
+      missing.push("Certificado digital desativado — configure um A1 ativo");
     }
-    if (input.issuerConfig && input.activeCertificate.subjectCnpj && input.activeCertificate.subjectCnpj !== input.issuerConfig.cnpj.replace(/\D/g, "")) {
+    if (!Number.isFinite(validFrom) || !Number.isFinite(validUntil) || validFrom >= validUntil) {
+      missing.push("Datas de validade do certificado digital inválidas");
+    } else {
+      if (validFrom > now) missing.push("Certificado digital ainda não está válido");
+      if (validUntil <= now) missing.push("Certificado digital vencido — substitua por um certificado válido");
+    }
+    // Nunca marcar "pronto" se o certificado legado nao identifica o
+    // CNPJ do sujeito. Sem SAN/otherName confiavel, o A1 nao e aceitavel.
+    if (!certificate.subjectCnpj || !/^\d{14}$/.test(certificate.subjectCnpj)) {
+      missing.push("CNPJ do certificado digital não identificado corretamente");
+    } else if (input.issuerConfig && certificate.subjectCnpj !== input.issuerConfig.cnpj.replace(/\D/g, "")) {
       missing.push("CNPJ do certificado não corresponde ao CNPJ do prestador configurado");
     }
   }

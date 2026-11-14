@@ -7,6 +7,7 @@ import { getDraftService, getCancellationService } from "../../../../../composit
 import { NfseCancellationPanel } from "../../../../../features/nfse/NfseCancellationPanel";
 import { NfseConsultationPanel } from "../../../../../features/nfse/NfseConsultationPanel";
 import { isLocalPreviewEnabled } from "../../../../../lib/auth/localPreview";
+import { isRestrictedSefinEnvironment, restrictedSefinEnvironmentFromServer } from "../../../../../lib/nfse/restrictedSefinGate";
 
 function formatAmount(value: number): string {
   return value.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
@@ -28,11 +29,18 @@ export default async function NfseNotaDetailPage(props: { params: Promise<{ id: 
   const note = await createIssuedNoteRepositorySupabase(supabase).getById(params.id);
   if (!note) notFound();
 
+  const previewMode = isLocalPreviewEnabled();
+  const { data: canManageCancellation } = previewMode
+    ? { data: true }
+    : await supabase.rpc("is_active_admin_or_owner");
+  // O historico de cancelamentos fica em tabela service_role-only;
+  // somente owner/admin pode consulta-lo pelo servidor.
   const [draft, history] = await Promise.all([
     getDraftService(supabase).getById(note.draftId),
-    getCancellationService(supabase).listHistory(note.id),
+    canManageCancellation === true
+      ? getCancellationService(supabase).listHistory(note.id)
+      : Promise.resolve([]),
   ]);
-  const previewMode = isLocalPreviewEnabled();
 
   return (
     <>
@@ -73,8 +81,15 @@ export default async function NfseNotaDetailPage(props: { params: Promise<{ id: 
           </div>
         )}
       </section>
-      <NfseConsultationPanel accessKey={note.accessKey} />
-      <NfseCancellationPanel issuedNoteId={note.id} history={history} />
+      <NfseConsultationPanel noteId={note.id} accessKey={note.accessKey} previewMode={previewMode} restrictedMode={isRestrictedSefinEnvironment(restrictedSefinEnvironmentFromServer())} />
+      {canManageCancellation === true ? (
+        <NfseCancellationPanel issuedNoteId={note.id} history={history} restrictedMode={isRestrictedSefinEnvironment(restrictedSefinEnvironmentFromServer())} />
+      ) : (
+        <section className="form-section">
+          <h2>Cancelamento</h2>
+          <p className="helper-text">Somente administradores e proprietarios podem consultar ou preparar cancelamentos fiscais.</p>
+        </section>
+      )}
     </>
   );
 }

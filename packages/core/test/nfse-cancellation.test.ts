@@ -117,6 +117,30 @@ test("evita cancelamentos repetidos — já existe solicitação ativa pra mesma
   );
 });
 
+
+test("solicitacao incerta exige conciliacao e impede outro cancelamento", async () => {
+  const { service, requests } = makeService();
+  requests.activeOverride = {
+    id: "cancellation-incerta",
+    issuedNoteId: "note-1",
+    justificationCode: 1,
+    justificationText: "Pedido anterior teve resultado de rede incerto",
+    status: "uncertain",
+    requestedAt: "2026-11-12T16:00:00Z",
+    createdAt: "2026-11-12T16:00:00Z",
+  };
+  await assert.rejects(
+    () => service.requestCancellation({
+      issuedNoteId: "note-1",
+      justificationCode: 9,
+      justificationText: "Pedido duplicado sem verificar a SEFIN primeiro",
+      isAdminOrOwner: true,
+    }),
+    CancellationAlreadyRequestedError,
+  );
+  assert.equal(requests.created.length, 0);
+});
+
 test("submitCancellation nunca envia o cancelamento real nesta fase — sempre bloqueado explicitamente", async () => {
   const { service } = makeService();
   await assert.rejects(() => service.submitCancellation("cancellation-1"), CancellationSubmissionNotReadyError);
@@ -145,7 +169,7 @@ test("idempotência real: duas solicitações de cancelamento concorrentes pra m
     public created: NfseCancellationRequest[] = [];
     async listByIssuedNoteId(issuedNoteId: string) { return this.created.filter((r) => r.issuedNoteId === issuedNoteId); }
     async getActiveByIssuedNoteId(issuedNoteId: string) {
-      return this.created.find((r) => r.issuedNoteId === issuedNoteId && (r.status === "pending" || r.status === "submitted" || r.status === "confirmed")) ?? null;
+      return this.created.find((r) => r.issuedNoteId === issuedNoteId && (r.status === "pending" || r.status === "submitted" || r.status === "confirmed" || r.status === "uncertain")) ?? null;
     }
     async create(record: NewCancellationRequestRecord): Promise<NfseCancellationRequest> {
       // Checagem+inserção SEM await entre elas (mesma atomicidade de um índice único real no
@@ -153,7 +177,7 @@ test("idempotência real: duas solicitações de cancelamento concorrentes pra m
       // concorrentes veriam "nenhuma ativa" antes de qualquer uma inserir, e o teste de
       // concorrência não provaria nada sobre o backstop real.
       const alreadyActive = this.created.find(
-        (r) => r.issuedNoteId === record.issuedNoteId && (r.status === "pending" || r.status === "submitted" || r.status === "confirmed"),
+        (r) => r.issuedNoteId === record.issuedNoteId && (r.status === "pending" || r.status === "submitted" || r.status === "confirmed" || r.status === "uncertain"),
       );
       if (alreadyActive) {
         throw new Error('duplicate key value violates unique constraint "idx_nfse_cancellation_one_active_per_note"');

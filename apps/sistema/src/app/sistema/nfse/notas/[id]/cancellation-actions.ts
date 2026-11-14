@@ -7,6 +7,9 @@ import {
   InvalidCancellationJustificationError, IssuedNoteNotFoundError,
 } from "@ir/core";
 import { getCancellationService } from "../../../../../composition/nfse";
+import { prepareRestrictedCancellationDispatchService } from "../../../../../composition/nfse-cancelamento-restricted";
+import { isRestrictedSefinEnvironment, restrictedSefinEnvironmentFromServer } from "../../../../../lib/nfse/restrictedSefinGate";
+import { recordAuditEventSupabase } from "../../../../../providers/supabase/auditEvents.supabase";
 import { createSupabaseServerClient } from "../../../../../lib/supabase/server";
 import { checkModuleAction } from "../../../../../lib/permissions/checkModuleAction";
 
@@ -61,5 +64,36 @@ export async function requestCancellationAction(input: {
     if (error instanceof InvalidCancellationJustificationError) return { error: error.message };
     if (error instanceof CancellationAlreadyRequestedError) return { error: error.message };
     return { error: error instanceof Error ? error.message : "Não foi possível registrar a solicitação de cancelamento." };
+  }
+}
+
+/**
+ * UNICO ponto de envio do cancelamento: sem A1, sem preview isolada
+ * e sem autorizacao fiscal administrativa, nao e executavel.
+ * Nao existe envio de cancelamento no deployment oficial.
+ */
+export async function submitCancellationRestrictedAction(
+  requestId: string,
+): Promise<Result<{ status: "confirmed" | "rejected" | "uncertain" }>> {
+  if (!isRestrictedSefinEnvironment(restrictedSefinEnvironmentFromServer())) {
+    return { error: "Cancelamento real bloqueado: apenas Produção Restrita isolada pode executar este teste." };
+  }
+  const permissionError = await checkModuleAction("nfse", "notas_cancelar");
+  if (permissionError) return { error: permissionError };
+  try {
+    const client = createSupabaseServerClient();
+    const actorId = await requireFiscalAdmin(client);
+    const result = await prepareRestrictedCancellationDispatchService(client).submit(requestId, true);
+    await recordAuditEventSupabase(client, {
+      userId: actorId,
+      entityType: "nfse_cancellation",
+      entityId: requestId,
+      action: "restricted_event_result",
+      metadata: { status: result.outcome },
+    });
+    revalidatePath("/sistema/nfse/notas/" + result.request.issuedNoteId);
+    return { ok: true, status: result.outcome };
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : "Não foi possível concluir o cancelamento de teste." };
   }
 }

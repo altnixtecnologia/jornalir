@@ -3,6 +3,7 @@ import type { StaffActionModule, StaffModuleActionKey } from "./staffPermissions
 import { STAFF_MODULE_ACTIONS } from "./staffPermissionsCatalog";
 import { createSupabaseServerClient } from "../supabase/server";
 import { NFSE_AVAILABLE_IN_THIS_RELEASE, NFSE_POSTPONED_MESSAGE } from "../release/releasePolicy";
+import { isRestrictedSefinEnvironment, restrictedSefinEnvironmentFromServer } from "../nfse/restrictedSefinGate";
 
 /** A Server Action nao pode confiar apenas nos checkboxes do painel.
  * Financeiro possui verificador proprio; Agenda/Pauta possuem regra propria.
@@ -16,7 +17,7 @@ export async function checkModuleAction(
   // transmite nem consulta nada externamente — fica sujeita só à checagem
   // normal de permissão (RPC `staff_can_module_action`), não ao bloqueio
   // geral de emissão.
-  if (module === "nfse" && action !== "configuracoes_gerenciar" && !NFSE_AVAILABLE_IN_THIS_RELEASE) {
+  if (module === "nfse" && action !== "configuracoes_gerenciar" && !NFSE_AVAILABLE_IN_THIS_RELEASE && !isRestrictedSefinEnvironment(restrictedSefinEnvironmentFromServer())) {
     return NFSE_POSTPONED_MESSAGE;
   }
   if (!STAFF_MODULE_ACTIONS.some((item) => item.module === module && item.key === action)) {
