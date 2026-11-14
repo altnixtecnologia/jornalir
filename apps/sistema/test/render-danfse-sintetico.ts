@@ -52,8 +52,15 @@ const fixture: DanfseData = {
   netValue: "150.50",
 };
 
-const path = "artifacts/danfse-homologacao-ficticio.pdf";
-mkdirSync("artifacts", { recursive: true });
-const bytes = await buildDanfsePdf(fixture);
-writeFileSync(path, Buffer.from(bytes));
-console.log("PDF sintético criado para inspeção. Sem qualquer integração fiscal ou dado real.");
+async function main(): Promise<void> {
+  const path = "artifacts/danfse-homologacao-ficticio.pdf";
+  mkdirSync("artifacts", { recursive: true });
+  const bytes = await buildDanfsePdf(fixture);
+  writeFileSync(path, Buffer.from(bytes));
+  console.log("PDF sintético criado para inspeção. Sem qualquer integração fiscal ou dado real.");
+}
+
+void main().catch((error: unknown) => {
+  console.error("Falha na geração do PDF sintético:", error);
+  process.exitCode = 1;
+});
