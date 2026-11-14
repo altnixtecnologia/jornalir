@@ -144,7 +144,7 @@ test("R2 fora do ar: erro, nenhuma linha de documento inventada e a nota não é
 
 // ============================ ARQUIVAMENTO AUTOMÁTICO DAS NOTAS AUTORIZADAS (independe do e-mail) ============================
 function notesDb(complete: string[], partial: string[], missing: string[]) {
-  const notes: Row[] = [...complete, ...partial, ...missing].map((id, i) => ({ id, environment: "production", access_key: "K", nfse_xml: "<x/>", created_at: `2026-11-1${i}` }));
+  const notes: Row[] = [...complete, ...partial, ...missing].map((id, i) => ({ id, environment: "production", access_key: "K", nfse_xml: "<x/>", created_at: new Date(Date.UTC(2026, 10, 1, 0, i)).toISOString() }));
   notes.push({ id: "homolog", environment: "homologation", access_key: "K", nfse_xml: "<x/>", created_at: "2026-11-30" });
   notes.push({ id: "sem-xml", environment: "production", access_key: null, nfse_xml: null, created_at: "2026-11-29" });
   return fakeDb({ nfse_issued_notes: notes, nfse_document_assets: [] }, UNIQ);
