@@ -12,10 +12,13 @@ create table public.nfse_issued_notes (
   id uuid primary key,
   client_id uuid not null references public.clients(id),
   environment text not null,
-  nfse_xml text
+  nfse_xml text,
+  access_key text,
+  created_at timestamptz not null default now()
 );
 \i supabase/migrations/20261114000402_nfse_delivery_history_tables.sql
 \i supabase/migrations/20261122340700_nfse_delivery_enqueue_trigger.sql
+\i supabase/migrations/20261122340900_nfse_archive_retry_claim.sql
 insert into public.clients(id,email,fiscal_email) values
 ('00000000-0000-0000-0000-000000000111','principal@exemplo.test','fiscal@exemplo.test'),
 ('00000000-0000-0000-0000-000000000112','principal2@exemplo.test',null),
@@ -61,3 +64,53 @@ begin
 end
 $$;
 select 'OK - destinatarios snapshot, fila idempotente, isolamento, RLS e nao duplicidade' as resultado;
+
+-- Fila de arquivo no DB real: mais de 50 notas e 3 falhas persistentes
+-- nao devem impedir progresso das demais. Nada deste fixture toca producao.
+insert into public.nfse_issued_notes(id,client_id,environment,nfse_xml,access_key,created_at)
+select ('00000000-0000-0000-0000-' || lpad(gs::text,12,'0'))::uuid,
+       '00000000-0000-0000-0000-000000000111'::uuid, 'production',
+       '<NFSe/>','CHAVE_TESTE', now() - gs * interval '1 second'
+from generate_series(100,160) gs;
+
+create temporary table archive_claim_first as
+select note_id from public.claim_pending_nfse_archive(3);
+do $$
+begin
+  if (select count(*) from archive_claim_first) <> 3 then
+    raise exception 'Claim inicial nao trouxe 3 notas';
+  end if;
+  if not exists (select 1 from archive_claim_first
+    where note_id='00000000-0000-0000-0000-000000000160'::uuid) then
+    raise exception 'Claim ignorou a nota elegivel mais antiga (>50 notas)';
+  end if;
+end
+$$;
+select public.defer_nfse_archive_failure(note_id) from archive_claim_first;
+do $$
+begin
+  if (select count(*) from public.nfse_archive_retry_state
+      where issued_note_id in (select note_id from archive_claim_first)
+        and failures=1 and next_attempt_at>now()) <> 3 then
+    raise exception 'Falhas de arquivo nao receberam backoff persistente';
+  end if;
+end
+$$;
+create temporary table archive_claim_second as
+select note_id from public.claim_pending_nfse_archive(3);
+do $$
+begin
+  if (select count(*) from archive_claim_second) <> 3 then
+    raise exception 'Falhas bloquearam o processamento de outras notas';
+  end if;
+  if exists (select 1 from archive_claim_second
+     where note_id in (select note_id from archive_claim_first)) then
+    raise exception 'Falhas retentadas imediatamente ignorando backoff';
+  end if;
+  if has_function_privilege('authenticated',
+      'public.claim_pending_nfse_archive(integer)', 'EXECUTE') then
+    raise exception 'Claim fiscal acessivel por usuario nao administrativo';
+  end if;
+end
+$$;
+select 'OK - claim atomico de 61 notas, backoff e isolamento da fila R2' as resultado;
