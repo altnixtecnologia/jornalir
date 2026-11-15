@@ -75,3 +75,16 @@ test("implantacao guiada fiscal usa registros reais e nao confunde cadastro com 
     "/sistema/nfse/rascunhos", "/sistema/nfse/nova",
   ]) assert.ok(overview.includes(path), path);
 });
+
+test("rascunho novo troca cliente sem exibir tomador anterior e limpa codigos de perfil removido", () => {
+  const form = source("features/nfse/NfseDraftForm.tsx");
+  const selectClient = form.slice(form.indexOf("function handleSelectClient"), form.indexOf("function handleRefreshFromClient"));
+  assert.match(selectClient, /setTomador\(emptyTomador\(\)\)/);
+  assert.ok(selectClient.indexOf("setTomador(emptyTomador())") < selectClient.indexOf("refreshTomadorSnapshotAction(client.id)"));
+  const profileSelection = form.slice(form.indexOf("function handleSelectServiceProfile"), form.indexOf("function setFiscalField"));
+  assert.match(profileSelection, /if \(!profile\)/);
+  for (const field of ["cTribNac", "cTribMun", "cNBS", "issqnTaxation", "locationIbgeCode", "cstIbsCbs", "cClassTrib", "cIndOp"]) {
+    assert.match(profileSelection, new RegExp(field + ': ""'));
+  }
+  assert.match(form, /a transmissão fiscal continua bloqueada até a homologação nacional/);
+});
