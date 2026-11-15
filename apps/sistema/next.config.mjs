@@ -27,6 +27,13 @@ const nextConfig = {
   // Opções movidas do experimental para o nível raiz no Next 15.
   serverExternalPackages: ["pdfjs-dist", "@napi-rs/canvas"],
   outputFileTracingIncludes: {
+    // O validador XSD carrega o pacote nacional via fs.readFileSync em
+    // runtime. Next/Vercel não reconhecem esse caminho dinâmico no trace
+    // automaticamente: incluir os .xsd nas funções fiscais sem copiar
+    // os arquivos para public/ nem depender da máquina do usuário.
+    "/sistema/nfse/**": [
+      "../../packages/core/src/nfse/xsd/prodrest-v1.01-20261020/*.xsd",
+    ],
     "/sistema/editorial/**": [
       "../../node_modules/pdfjs-dist/legacy/build/pdf.worker.js",
       "../../node_modules/pdfjs-dist/standard_fonts/**",
