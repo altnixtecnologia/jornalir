@@ -141,6 +141,7 @@ export interface DanfseData {
   discountConditional?: string;
   discountUnconditional?: string;
   complementaryInformation?: string;
+  purchaseOrderNumber?: string;
   municipalAdditionalInformation?: string;
 }
 
@@ -384,6 +385,7 @@ export function extractDanfseData(issuedNote: Pick<NfseIssuedNote, "environment"
     discountConditional: text(doc, "vDescCond", descontos),
     discountUnconditional: text(doc, "vDescIncond", descontos),
     complementaryInformation: text(doc, "xInfComp", infoCompl),
+    purchaseOrderNumber: text(doc, "xPed", infoCompl),
     municipalAdditionalInformation: text(doc, "xOutInf", infNFSe),
   };
 }
