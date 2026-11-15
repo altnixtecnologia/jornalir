@@ -169,7 +169,7 @@ test("getNfseByAccessKey: 404 nunca é tratado como sucesso silencioso", async (
   await mock.close();
 });
 
-test("getDpsById: 404 e 403 devolvem null (nunca erro) — permissão negada não é falha de transporte", async () => {
+test("getDpsById: somente 404 significa inexistente; 403 mantem existencia INCONCLUSIVA", async () => {
   const mock = new MockAgent();
   mock.disableNetConnect();
   const pool = mock.get("https://sefin.producaorestrita.nfse.gov.br");
@@ -177,7 +177,11 @@ test("getDpsById: 404 e 403 devolvem null (nunca erro) — permissão negada nã
   pool.intercept({ path: "/API/SefinNacional/dps/dps-2", method: "GET" }).reply(403, {});
   const client = new SefinNacionalClient(mock, 2_000, () => undefined);
   assert.equal(await client.getDpsById("dps-1", "homologation"), null);
-  assert.equal(await client.getDpsById("dps-2", "homologation"), null);
+  await assert.rejects(
+    () => client.getDpsById("dps-2", "homologation"),
+    (error: unknown) => error instanceof NfseIntegrationError &&
+      error.code === "NFSE_HTTP_ERROR" && error.httpStatus === 403,
+  );
   await mock.close();
 });
 
@@ -534,4 +538,65 @@ test("SEFIN: consulta GET por DPS confere idDps, chave e ambiente sem inventar d
     }
     await mock.close();
   }
+});
+
+test("SEFIN: HTTP 2xx com erros fiscais nao constitui autorizacao da DPS", async () => {
+  const goodXml = fakeNfseXml();
+  for (const erros of [[{ Codigo: "E999", Descricao: "Falha fiscal" }], { Codigo: "E999" }, "ERRO"]) {
+    const mock = new MockAgent();
+    mock.disableNetConnect();
+    mock.get("https://sefin.producaorestrita.nfse.gov.br")
+      .intercept({ path: "/API/SefinNacional/nfse", method: "POST" })
+      .reply(200, {
+        tipoAmbiente: 2,
+        idDps: SENT_DPS_ID,
+        chaveAcesso: "421640" + "23970969000190" + "0".repeat(30),
+        nfseXmlGZipB64: gzipSync(Buffer.from(goodXml, "utf8")).toString("base64"),
+        erros,
+      });
+    const client = new SefinNacionalClient(mock, 2_000, () => undefined);
+    await assert.rejects(
+      () => client.transmitDps(SIGNED_DPS_XML, "homologation"),
+      (error: unknown) => error instanceof NfseIntegrationError &&
+        error.code === "NFSE_INVALID_RESPONSE" && /erros fiscais/.test(error.message),
+    );
+    await mock.close();
+  }
+});
+
+test("SEFIN: HTTP 2xx com erro fiscal no registro de evento nao pode ser confirmado", async () => {
+  const mock = new MockAgent();
+  mock.disableNetConnect();
+  mock.get("https://sefin.producaorestrita.nfse.gov.br")
+    .intercept({ path: "/API/SefinNacional/nfse/CHAVE-TESTE/eventos", method: "POST" })
+    .reply(201, {
+      tipoAmbiente: 2,
+      eventoXmlGZipB64: gzipSync(Buffer.from("<evento/>", "utf8")).toString("base64"),
+      erros: [{ Codigo: "E999", Descricao: "Evento não registrado" }],
+    });
+  const client = new SefinNacionalClient(mock, 2_000, () => undefined);
+  await assert.rejects(
+    () => client.submitCancellationEvent("<pedRegEvento/>", "CHAVE-TESTE", "homologation"),
+    (error: unknown) => error instanceof NfseIntegrationError && error.code === "NFSE_INVALID_RESPONSE",
+  );
+  await mock.close();
+});
+
+test("SEFIN: alertas de validacao nao sao confundidos com erros fiscais", async () => {
+  const mock = new MockAgent();
+  mock.disableNetConnect();
+  mock.get("https://sefin.producaorestrita.nfse.gov.br")
+    .intercept({ path: "/API/SefinNacional/nfse", method: "POST" })
+    .reply(201, {
+      tipoAmbiente: 2,
+      idDps: SENT_DPS_ID,
+      chaveAcesso: "421640" + "23970969000190" + "0".repeat(30),
+      nfseXmlGZipB64: gzipSync(Buffer.from(fakeNfseXml(), "utf8")).toString("base64"),
+      erros: [],
+      alertas: [{ Codigo: "A000", Descricao: "Aviso meramente informativo" }],
+    });
+  const client = new SefinNacionalClient(mock, 2_000, () => undefined);
+  const result = await client.transmitDps(SIGNED_DPS_XML, "homologation");
+  assert.equal(result.status, "authorized");
+  await mock.close();
 });
