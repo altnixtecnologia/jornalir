@@ -1,6 +1,8 @@
 import "server-only";
 import { PDFDocument, StandardFonts, degrees, rgb, type PDFFont, type PDFPage } from "pdf-lib";
 import QRCode from "qrcode";
+import fontkit from "@pdf-lib/fontkit";
+import { loadLicensedDanfseFonts, type DanfseEmbeddedFonts } from "./danfseFontAssets";
 import { NFSE_OFFICIAL_LOGO_PNG_BASE64 } from "./nfseNationalLogo";
 import type { DanfseData, DanfsePessoaData } from "@ir/core/src/nfse/danfse-data";
 import { assertDanfseLayoutApproved } from "./danfseReleaseGate";
@@ -368,15 +370,30 @@ function drawBorder(page: PDFPage): void {
 }
 
 export async function buildDanfsePdf(
-  data: DanfseData, options: { cancelled?: boolean; substituted?: boolean } = {},
+  data: DanfseData,
+  options: { cancelled?: boolean; substituted?: boolean; fonts?: DanfseEmbeddedFonts } = {},
 ): Promise<Uint8Array> {
   assertDanfseLayoutApproved(data.isHomologation);
   if (options.cancelled && options.substituted) {
     throw new Error("DANFSe com situações de cancelamento e substituição simultâneas: verificação manual obrigatória.");
   }
   const pdf = await PDFDocument.create();
-  const regular = await pdf.embedFont(StandardFonts.Helvetica);
-  const bold = await pdf.embedFont(StandardFonts.HelveticaBold);
+  // Somente fontes genuínas, validadas por nome/hash/permissões no provider,
+  // podem ser usadas na diagramação oficial. A metrificação de textos
+  // (widthOfTextAtSize) passa a usar a família efetivamente incorporada.
+  const fonts = options.fonts ?? await loadLicensedDanfseFonts();
+  if (fonts) pdf.registerFontkit(fontkit);
+  const regular = fonts
+    ? await pdf.embedFont(fonts.microsoftSansSerif, { subset: true })
+    : await pdf.embedFont(StandardFonts.Helvetica);
+  const bold = fonts
+    ? await pdf.embedFont(fonts.arialBold, { subset: true })
+    : await pdf.embedFont(StandardFonts.HelveticaBold);
+  // Helvetica SOMENTE na prévia fictícia, nunca no DANFSe fiscal oficial.
+  // A trava independente de produção continua bloqueada em qualquer caso.
+  if (!fonts && !data.isHomologation) {
+    throw new Error("DANFSe oficial exige fontes Arial e Microsoft Sans Serif licenciadas.");
+  }
   const page = pdf.addPage([PAGE_WIDTH, PAGE_HEIGHT]);
   drawBorder(page);
 
