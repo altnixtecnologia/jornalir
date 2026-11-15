@@ -441,3 +441,48 @@ test("SEFIN: outros cStat de NFS-e gerada previstos no XSD não são rejeitados 
     await mock.close();
   }
 });
+
+test("SEFIN: HTTP 200 nunca autoriza idDps diferente ou ambiente de outra operação", async () => {
+  const validXml = fakeNfseXml();
+  const invalidEnvelopes = [
+    { tipoAmbiente: 1, idDps: SENT_DPS_ID },
+    { tipoAmbiente: 2, idDps: "DPS-DE-OUTRA-EMPRESA" },
+    { tipoAmbiente: undefined, idDps: SENT_DPS_ID },
+    { tipoAmbiente: 2, idDps: undefined },
+    { tipoAmbiente: "2", idDps: SENT_DPS_ID },
+  ];
+  for (const responseMetadata of invalidEnvelopes) {
+    const mock = new MockAgent();
+    mock.disableNetConnect();
+    mock.get("https://sefin.producaorestrita.nfse.gov.br")
+      .intercept({ path: "/API/SefinNacional/nfse", method: "POST" })
+      .reply(200, {
+        ...responseMetadata,
+        chaveAcesso: "421640" + "23970969000190" + "0".repeat(30),
+        nfseXmlGZipB64: gzipSync(Buffer.from(validXml, "utf8")).toString("base64"),
+      });
+    const client = new SefinNacionalClient(mock, 2_000, () => undefined);
+    await assert.rejects(
+      () => client.transmitDps(SIGNED_DPS_XML, "homologation"),
+      (error: unknown) => error instanceof NfseIntegrationError && error.code === "NFSE_INVALID_RESPONSE",
+    );
+    await mock.close();
+  }
+});
+
+test("SEFIN: evento HTTP 200 de outro ambiente é inconclusivo", async () => {
+  const mock = new MockAgent();
+  mock.disableNetConnect();
+  mock.get("https://sefin.producaorestrita.nfse.gov.br")
+    .intercept({ path: "/API/SefinNacional/nfse/CHAVE-TESTE/eventos", method: "POST" })
+    .reply(200, {
+      tipoAmbiente: 1,
+      eventoXmlGZipB64: gzipSync(Buffer.from("<evento>registrado</evento>", "utf8")).toString("base64"),
+    });
+  const client = new SefinNacionalClient(mock, 2_000, () => undefined);
+  await assert.rejects(
+    () => client.submitCancellationEvent("<pedRegEvento/>", "CHAVE-TESTE", "homologation"),
+    (error: unknown) => error instanceof NfseIntegrationError && error.code === "NFSE_INVALID_RESPONSE",
+  );
+  await mock.close();
+});
