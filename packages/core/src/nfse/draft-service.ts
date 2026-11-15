@@ -223,7 +223,7 @@ export class DraftService {
 
   async update(id: string, input: DraftInput): Promise<NfseDraft> {
     await this.getById(id);
-    const record = normalize(input) as DraftChanges;
+    const record = normalize(input);
     assertValid(record);
     return this.drafts.update(id, record);
   }
