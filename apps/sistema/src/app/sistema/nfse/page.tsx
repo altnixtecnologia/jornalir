@@ -72,6 +72,47 @@ export default async function NfseOverviewPage(): Promise<JSX.Element> {
   // duplicado aqui; este badge mostra só o ambiente fiscal configurado.
   const environmentLabel = preparation ? "Preparação — SEM EMISSÃO" : issuerConfig ? NFSE_ENVIRONMENT_LABELS[issuerConfig.environment] : "Não configurado";
 
+  // A implantação mostra apenas dados que existem no banco: nunca considera
+  // um certificado A1 válido por metadados manuais/legados do formulário.
+  const certificateReady = Boolean(activeCertificate) && !readiness.missing.some((item) => /certificado/i.test(item));
+  const setupSteps = [
+    {
+      title: "Cadastrar prestador",
+      description: issuerConfig ? "Cadastro localizado. Confira município, regime e série da DPS." : "Informe os dados fiscais do Jornal IR e confirme o regime tributário.",
+      done: Boolean(issuerConfig),
+      href: "/sistema/nfse/configuracoes",
+      action: "Abrir configurações",
+    },
+    {
+      title: "Definir perfis de serviço",
+      description: serviceProfiles.some((profile) => Boolean(profile.cTribNac?.trim()))
+        ? "Existe perfil ativo com código de tributação nacional. Revise seus parâmetros."
+        : "Cadastre ao menos um serviço com o código nacional confirmado.",
+      done: serviceProfiles.some((profile) => Boolean(profile.cTribNac?.trim())),
+      href: "/sistema/nfse/perfis-servico",
+      action: "Abrir perfis",
+    },
+    {
+      title: "Validar o certificado A1",
+      description: certificateReady
+        ? "Certificado ativo e válido no diagnóstico atual. Ainda não autoriza transmissão."
+        : "A1 pendente ou inválido. Use o carregamento seguro e confira a validade/CNPJ.",
+      done: certificateReady,
+      href: "/sistema/nfse/configuracoes",
+      action: "Conferir certificado",
+    },
+    {
+      title: "Preparar o primeiro rascunho",
+      description: drafts.length > 0
+        ? "Já existe rascunho para conferência. Nenhuma NFS-e foi emitida por esta etapa."
+        : "Escolha um cliente existente e confira tomador, serviço, competência e valor.",
+      done: drafts.length > 0,
+      href: drafts.length > 0 ? "/sistema/nfse/rascunhos" : "/sistema/nfse/nova",
+      action: drafts.length > 0 ? "Ver rascunhos" : "Criar rascunho",
+    },
+  ];
+  const completedSetupSteps = setupSteps.filter((step) => step.done).length;
+
   return (
     <>
       <ModuleHeader
@@ -94,6 +135,32 @@ export default async function NfseOverviewPage(): Promise<JSX.Element> {
         <Tile label="Valor total emitido" value={formatAmount(totalIssuedValue)} href="/sistema/nfse/notas" />
         <Tile label="Perfis de serviço ativos" value={String(serviceProfiles.length)} href="/sistema/nfse/perfis-servico" />
       </ul>
+
+      <section className="form-section" aria-labelledby="nfse-setup-title">
+        <h2 id="nfse-setup-title">Implantação do módulo — {completedSetupSteps} de {setupSteps.length} etapas</h2>
+        <p className="helper-text">
+          Comece pelos cadastros reais, sem simular notas nem configurar dados fiscais automaticamente.
+          Os indicadores mostram apenas registros encontrados e não significam aprovação para emissão.
+        </p>
+        <ol style={{ paddingLeft: "22px", marginTop: "12px" }}>
+          {setupSteps.map((step) => (
+            <li key={step.title} style={{ marginBottom: "16px" }}>
+              <div className="form-actions" style={{ justifyContent: "space-between", alignItems: "center" }}>
+                <strong>{step.title}</strong>
+                <span className={step.done ? "status-pill status-pill--published" : "status-pill status-pill--adjusting"}>
+                  {step.done ? "Cadastrado" : "Pendente"}
+                </span>
+              </div>
+              <p className="helper-text">{step.description}</p>
+              <Link className="secondary-link" href={step.href}>{step.action}</Link>
+            </li>
+          ))}
+        </ol>
+        <p className="helper-text" role="status">
+          A emissão fiscal, os envios e o DANFSe definitivo permanecem bloqueados independentemente
+          do andamento destas quatro etapas. A homologação nacional é uma fase separada.
+        </p>
+      </section>
 
       <section className="form-section">
         <h2>Áreas do módulo</h2>
