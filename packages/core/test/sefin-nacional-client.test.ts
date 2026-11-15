@@ -359,3 +359,38 @@ test("transmitDps: corpo HTTP acima do limite sem content-length explícito é r
     (err: unknown) => err instanceof NfseIntegrationError && err.code === "NFSE_INVALID_RESPONSE");
   await mock.close();
 });
+
+test("SEFIN: chave alfanumerica de 50 caracteres é aceita após autorização", async () => {
+  const mock = new MockAgent();
+  mock.disableNetConnect();
+  const accessKey = "421640" + "ABC123DEF45678" + "0".repeat(30);
+  mock.get("https://sefin.producaorestrita.nfse.gov.br")
+    .intercept({ path: "/API/SefinNacional/nfse", method: "POST" })
+    .reply(200, {
+      chaveAcesso: accessKey,
+      nfseXmlGZipB64: gzipSync(Buffer.from(fakeNfseXml(), "utf8")).toString("base64"),
+    });
+  const client = new SefinNacionalClient(mock, 2_000, () => undefined);
+  const result = await client.transmitDps(SIGNED_DPS_XML, "homologation");
+  assert.equal(result.status, "authorized");
+  assert.equal(result.accessKey, accessKey);
+  await mock.close();
+});
+
+test("SEFIN: resposta autorizada com chave de acesso incompleta nunca gera nota emitida", async () => {
+  const mock = new MockAgent();
+  mock.disableNetConnect();
+  mock.get("https://sefin.producaorestrita.nfse.gov.br")
+    .intercept({ path: "/API/SefinNacional/nfse", method: "POST" })
+    .reply(200, {
+      chaveAcesso: "421640" + "23970969000190" + "0".repeat(29),
+      nfseXmlGZipB64: gzipSync(Buffer.from(fakeNfseXml(), "utf8")).toString("base64"),
+    });
+  const client = new SefinNacionalClient(mock, 2_000, () => undefined);
+  await assert.rejects(
+    () => client.transmitDps(SIGNED_DPS_XML, "homologation"),
+    (error: unknown) => error instanceof NfseIntegrationError &&
+      error.code === "NFSE_INVALID_RESPONSE" && /TSChaveNFSe/.test(error.message),
+  );
+  await mock.close();
+});
