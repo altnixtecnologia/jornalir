@@ -173,6 +173,14 @@ export interface DanfseData {
   municipalAdditionalInformation?: string;
   /** Tributos aproximados extraídos, nunca estimados neste documento. */
   taxApproxTotals?: string;
+  /** Campos complementares do XML autorizado, para ordem do Anexo I. */
+  replacedNoteAccessKey?: string;
+  referencedDocument?: string;
+  constructionCode?: string;
+  propertyRegistration?: string;
+  eventActivityCode?: string;
+  technicalDocumentId?: string;
+  purchaseOrderItem?: string;
 }
 
 function extractAddress(doc: XmlDoc, scope: XmlElement | undefined): { address?: string; state?: string; municipality?: string; ibgeCode?: string; zipCode?: string } {
@@ -320,7 +328,14 @@ export function extractDanfseData(issuedNote: Pick<NfseIssuedNote, "environment"
   const ibsTotalUf = ibsTotal?.getElementsByTagName("gIBSUFTot")[0];
   const ibsTotalMun = ibsTotal?.getElementsByTagName("gIBSMunTot")[0];
   const ibsTotalCbs = ibsTotals?.getElementsByTagName("gCBS")[0];
-  const approximateTaxes = directChild(dpsTrib, "totTrib") ?? directChild(dpsValores, "totTrib");
+  const approximateTaxes = directChild(dpsTrib, "totTrib");
+  // NT 008 v1.02: vTotTrib/pTotTrib sob trib/totTrib, não filhos diretos.
+  const approximateMonetary = directChild(approximateTaxes, "vTotTrib");
+  const approximatePercentage = directChild(approximateTaxes, "pTotTrib");
+  const replacementGroup = directChild(infDPS, "subst");
+  const constructionGroup = directChild(serv, "obra");
+  const eventGroup = directChild(serv, "atvEvento");
+  const propertyGroup = directChild(dpsIbsCbs, "imovel");
   const dpsIbsCbs = infDPS.getElementsByTagName("IBSCBS")[0];
   // No XSD de Produção Restrita, indDest=0 comprova que o destinatário
   // é o próprio tomador; indDest=1 identifica um destinatário diferente
@@ -432,14 +447,27 @@ export function extractDanfseData(issuedNote: Pick<NfseIssuedNote, "environment"
     complementaryInformation: directText(infoCompl, "xInfComp"),
     purchaseOrderNumber: directText(infoCompl, "xPed"),
     municipalAdditionalInformation: text(doc, "xOutInf", infNFSe),
-    taxApproxTotals: [
-      directText(approximateTaxes, "pTotTribFed") ?? directText(approximateTaxes, "vTotTribFed"),
-      directText(approximateTaxes, "pTotTribEst") ?? directText(approximateTaxes, "vTotTribEst"),
-      directText(approximateTaxes, "pTotTribMun") ?? directText(approximateTaxes, "vTotTribMun"),
-    ].some(Boolean) ? [
-      `Federais: ${directText(approximateTaxes, "pTotTribFed") ? directText(approximateTaxes, "pTotTribFed") + "%" : directText(approximateTaxes, "vTotTribFed") ? "R$ " + directText(approximateTaxes, "vTotTribFed") : "-"}`,
-      `Estaduais: ${directText(approximateTaxes, "pTotTribEst") ? directText(approximateTaxes, "pTotTribEst") + "%" : directText(approximateTaxes, "vTotTribEst") ? "R$ " + directText(approximateTaxes, "vTotTribEst") : "-"}`,
-      `Municipais: ${directText(approximateTaxes, "pTotTribMun") ? directText(approximateTaxes, "pTotTribMun") + "%" : directText(approximateTaxes, "vTotTribMun") ? "R$ " + directText(approximateTaxes, "vTotTribMun") : "-"}`,
-    ].join("; ") : undefined,
+    replacedNoteAccessKey: directText(replacementGroup, "chSubstda"),
+    referencedDocument: directText(infoCompl, "docRef"),
+    constructionCode: directText(constructionGroup, "cObra"),
+    propertyRegistration: directText(propertyGroup, "inscImobFisc"),
+    eventActivityCode: directText(eventGroup, "idAtvEvt"),
+    technicalDocumentId: directText(infoCompl, "idDocTec"),
+    purchaseOrderItem: directText(directChild(infoCompl, "gItemPed"), "xItemPed"),
+    taxApproxTotals: (() => {
+      const select = (monetary: string, percentage: string): string | undefined => {
+        const v = directText(approximateMonetary, monetary);
+        const p = directText(approximatePercentage, percentage);
+        if (v !== undefined && Number.isFinite(Number(v))) return "R$ " +
+          Number(v).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        if (p !== undefined && Number.isFinite(Number(p))) return p.replace(".", ",") + "%";
+        return undefined;
+      };
+      const federal = select("vTotTribFed", "pTotTribFed");
+      const state = select("vTotTribEst", "pTotTribEst");
+      const municipal = select("vTotTribMu", "pTotTribMu");
+      if (federal === undefined && state === undefined && municipal === undefined) return undefined;
+      return `Federais: ${federal ?? "-"}; Estaduais: ${state ?? "-"}; Municipais: ${municipal ?? "-"}`;
+    })(),
   };
 }
