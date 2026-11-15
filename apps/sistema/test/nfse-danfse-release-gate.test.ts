@@ -230,6 +230,8 @@ test("NT008: logomarca nacional PNG esta embutida no DANFSe de teste sem depende
   const source = src("lib/nfse/danfsePdf.ts");
   assert.match(source, /pdf\.embedPng\(Buffer\.from\(NFSE_OFFICIAL_LOGO_PNG_BASE64, "base64"\)\)/);
   assert.match(source, /officialLogoWidth = 4\.00 \* CM_TO_PT/);
+  assert.ok(!source.includes('drawBlockTitle(page, bold, "Dados de Identificação da NFS-e"'), "faixa nao pode ocultar QR");
+  assert.match(source, /"CHAVE DE ACESSO DA NFS-e"/);
   assert.match(source, /officialLogoHeight = 0\.85 \* CM_TO_PT/);
   assert.match(source, /x: 0\.49 \* CM_TO_PT/);
   assert.match(source, /PAGE_HEIGHT - 0\.44 \* CM_TO_PT - officialLogoHeight/);
