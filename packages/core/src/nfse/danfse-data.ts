@@ -133,6 +133,12 @@ export interface DanfseData {
   issqnIncidenceLocation?: string;
   issqnRetentionType?: string;
   issqnSpecialTaxRegime?: string;
+  issqnImmunityType?: string;
+  issqnSuspensionType?: string;
+  issqnSuspensionProcess?: string;
+  issqnMunicipalBenefitType?: string;
+  issqnBenefitCalculation?: string;
+  issqnTotalDeductions?: string;
   issqnDiscountUnconditional?: string;
   federalIrrf?: string;
   federalSocialSecurityRetained?: string;
@@ -144,6 +150,10 @@ export interface DanfseData {
   ibsCbsTaxClass?: string;
   ibsCbsOperationIndicator?: string;
   ibsCbsBase?: string;
+  ibsCbsExclusions?: string;
+  ibsCbsRateReductionState?: string;
+  ibsCbsRateReductionCity?: string;
+  ibsCbsRateReductionFederal?: string;
   ibsCbsLocation?: string;
   ibsCbsRateState?: string;
   ibsCbsRateCity?: string;
@@ -161,6 +171,8 @@ export interface DanfseData {
   complementaryInformation?: string;
   purchaseOrderNumber?: string;
   municipalAdditionalInformation?: string;
+  /** Tributos aproximados extraídos, nunca estimados neste documento. */
+  taxApproxTotals?: string;
 }
 
 function extractAddress(doc: XmlDoc, scope: XmlElement | undefined): { address?: string; state?: string; municipality?: string; ibgeCode?: string; zipCode?: string } {
@@ -292,6 +304,9 @@ export function extractDanfseData(issuedNote: Pick<NfseIssuedNote, "environment"
   const dpsTrib = dpsValores?.getElementsByTagName("trib")[0];
   const tribMun = dpsTrib?.getElementsByTagName("tribMun")[0];
   const tribFed = dpsTrib?.getElementsByTagName("tribFed")[0];
+  const exigSusp = directChild(tribMun, "exigSusp");
+  const municipalBenefit = directChild(tribMun, "BM");
+  const municipalDeductions = directChild(dpsValores, "vDedRed");
   const pisCofins = tribFed?.getElementsByTagName("piscofins")[0];
   const descontos = dpsValores?.getElementsByTagName("vDescCondIncond")[0];
   const infoCompl = directChild(serv, "infoCompl");
@@ -305,6 +320,7 @@ export function extractDanfseData(issuedNote: Pick<NfseIssuedNote, "environment"
   const ibsTotalUf = ibsTotal?.getElementsByTagName("gIBSUFTot")[0];
   const ibsTotalMun = ibsTotal?.getElementsByTagName("gIBSMunTot")[0];
   const ibsTotalCbs = ibsTotals?.getElementsByTagName("gCBS")[0];
+  const approximateTaxes = directChild(dpsTrib, "totTrib") ?? directChild(dpsValores, "totTrib");
   const dpsIbsCbs = infDPS.getElementsByTagName("IBSCBS")[0];
   // No XSD de Produção Restrita, indDest=0 comprova que o destinatário
   // é o próprio tomador; indDest=1 identifica um destinatário diferente
@@ -379,6 +395,12 @@ export function extractDanfseData(issuedNote: Pick<NfseIssuedNote, "environment"
     issqnIncidenceLocation: text(doc, "xLocIncid", infNFSe) ?? text(doc, "cLocIncid", infNFSe),
     issqnRetentionType: text(doc, "tpRetISSQN", tribMun),
     issqnSpecialTaxRegime: text(doc, "regEspTrib", regTrib),
+    issqnImmunityType: directText(tribMun, "tpImunidade"),
+    issqnSuspensionType: directText(exigSusp, "tpSusp"),
+    issqnSuspensionProcess: directText(exigSusp, "nProcesso"),
+    issqnMunicipalBenefitType: directText(valoresNFSe, "tpBM"),
+    issqnBenefitCalculation: directText(valoresNFSe, "vCalcBM") ?? directText(municipalBenefit, "vRedBCBM"),
+    issqnTotalDeductions: directText(municipalDeductions, "vDR") ?? directText(valoresNFSe, "vCalcDR"),
     issqnDiscountUnconditional: text(doc, "vDescIncond", descontos),
     federalIrrf: text(doc, "vRetIRRF", tribFed),
     federalSocialSecurityRetained: text(doc, "vRetCP", tribFed),
@@ -390,6 +412,9 @@ export function extractDanfseData(issuedNote: Pick<NfseIssuedNote, "environment"
     ibsCbsTaxClass: text(doc, "cClassTrib", dpsIbsCbs),
     ibsCbsOperationIndicator: text(doc, "cIndOp", dpsIbsCbs),
     ibsCbsBase: text(doc, "vBC", ibsValues),
+    ibsCbsRateReductionState: text(doc, "pRedAliqUF", ibsUf),
+    ibsCbsRateReductionCity: text(doc, "pRedAliqMun", ibsMun),
+    ibsCbsRateReductionFederal: text(doc, "pRedAliqCBS", ibsFed),
     ibsCbsLocation: text(doc, "xLocalidadeIncid", ibsCbs) ?? text(doc, "cLocalidadeIncid", ibsCbs),
     ibsCbsRateState: text(doc, "pIBSUF", ibsUf),
     ibsCbsRateCity: text(doc, "pIBSMun", ibsMun),
@@ -407,5 +432,14 @@ export function extractDanfseData(issuedNote: Pick<NfseIssuedNote, "environment"
     complementaryInformation: directText(infoCompl, "xInfComp"),
     purchaseOrderNumber: directText(infoCompl, "xPed"),
     municipalAdditionalInformation: text(doc, "xOutInf", infNFSe),
+    taxApproxTotals: [
+      directText(approximateTaxes, "pTotTribFed") ?? directText(approximateTaxes, "vTotTribFed"),
+      directText(approximateTaxes, "pTotTribEst") ?? directText(approximateTaxes, "vTotTribEst"),
+      directText(approximateTaxes, "pTotTribMun") ?? directText(approximateTaxes, "vTotTribMun"),
+    ].some(Boolean) ? [
+      `Federais: ${directText(approximateTaxes, "pTotTribFed") ? directText(approximateTaxes, "pTotTribFed") + "%" : directText(approximateTaxes, "vTotTribFed") ? "R$ " + directText(approximateTaxes, "vTotTribFed") : "-"}`,
+      `Estaduais: ${directText(approximateTaxes, "pTotTribEst") ? directText(approximateTaxes, "pTotTribEst") + "%" : directText(approximateTaxes, "vTotTribEst") ? "R$ " + directText(approximateTaxes, "vTotTribEst") : "-"}`,
+      `Municipais: ${directText(approximateTaxes, "pTotTribMun") ? directText(approximateTaxes, "pTotTribMun") + "%" : directText(approximateTaxes, "vTotTribMun") ? "R$ " + directText(approximateTaxes, "vTotTribMun") : "-"}`,
+    ].join("; ") : undefined,
   };
 }

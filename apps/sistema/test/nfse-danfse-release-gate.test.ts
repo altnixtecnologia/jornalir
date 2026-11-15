@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { PDFDocument, StandardFonts } from "pdf-lib";
 import { loadPdfDocument, extractPageTextItems } from "@ir/pdf-extraction";
-import { DANFSE_GEOMETRY, buildDanfsePdf, formatDanfseDate, formatDanfseDateTime, formatFederalInscription, wrapDanfseText, selectDanfseTaxDescription, formatDanfseTotalIbsCbs } from "../src/lib/nfse/danfsePdf";
+import { DANFSE_GEOMETRY, buildDanfsePdf, formatDanfseDate, formatDanfseDateTime, formatFederalInscription, wrapDanfseText, selectDanfseTaxDescription, formatDanfseTotalIbsCbs, danfseFederalValues, danfseIssqnTypeLabel, danfseRegimeEspecialLabel, danfseIssqnRetentionLabel, danfseSimplesNacionalLabel, danfseApuracaoSimplesLabel, danfseMunicipalBenefitLabel } from "../src/lib/nfse/danfsePdf";
 import { DANFSE_PREVIEW_FIXTURE } from "../src/lib/nfse/danfsePreviewFixture";
 import { NFSE_OFFICIAL_LOGO_PNG_BASE64 } from "../src/lib/nfse/nfseNationalLogo";
 import {
@@ -332,4 +332,74 @@ test("DANFSe total do IBS/CBS soma montantes presentes em centavos, sem assumir 
   assert.equal(formatDanfseTotalIbsCbs({ ibsCbsTotal: "10.20" }), "-");
   assert.equal(formatDanfseTotalIbsCbs({ ibsCbsValueFederal: "3.33" }), "-");
   assert.equal(formatDanfseTotalIbsCbs({ ibsCbsTotal: "NaN", ibsCbsValueFederal: "3.33" }), "-");
+});
+
+test("NT008: ISSQN admite tributação tributável, imune, exportação e não incidência sem inventar cálculo", async () => {
+  assert.equal(danfseIssqnTypeLabel("1"), "Operação Tributável");
+  assert.equal(danfseIssqnTypeLabel("2"), "Imunidade");
+  assert.equal(danfseIssqnTypeLabel("3"), "Exportação de Serviço");
+  assert.equal(danfseIssqnTypeLabel("4"), "Não Incidência");
+  assert.equal(danfseRegimeEspecialLabel("2"), "Estimativa");
+  assert.equal(danfseIssqnRetentionLabel("1"), "Não Retido");
+  const pdfBytes = await buildDanfsePdf({ ...DANFSE_PREVIEW_FIXTURE,
+    issqnTaxationType: "4", issqnTaxBase: undefined, issqnRateApplied: undefined,
+    issqnAmount: undefined, issqnSpecialTaxRegime: undefined,
+  });
+  const pdf = await loadPdfDocument(pdfBytes);
+  assert.equal(pdf.numPages, 1);
+  const text = (await extractPageTextItems(await pdf.getPage(1))).map(item => item.text).join(" ");
+  assert.ok(text.includes("OPERAÇÃO NÃO SUJEITA AO ISSQN"));
+});
+
+test("NT008 v1.02: tpRetPisCofins=1 redistribui campos federais sem dupla contagem", () => {
+  const retained = danfseFederalValues({
+    federalPisCofinsRetention: "1", federalSocialContribRetained: "1.20",
+    federalPis: "2.35", federalCofins: "3.45",
+  });
+  assert.ok(retained.social.endsWith("7,00"));
+  assert.ok(retained.pis.endsWith("0,00"));
+  assert.ok(retained.cofins.endsWith("0,00"));
+  const own = danfseFederalValues({
+    federalPisCofinsRetention: "0", federalSocialContribRetained: "1.20",
+    federalPis: "2.35", federalCofins: "3.45",
+  });
+  assert.ok(own.social.endsWith("1,20"));
+  assert.ok(own.pis.endsWith("2,35"));
+  assert.ok(own.cofins.endsWith("3,45"));
+  assert.equal(danfseFederalValues({ federalPisCofinsRetention: "1" }).social, "-");
+});
+
+test("NT008: linha opcional PIS/COFINS nao aparece para competencia 2027", async () => {
+  const pdfBytes = await buildDanfsePdf({ ...DANFSE_PREVIEW_FIXTURE,
+    competencyDate: "2027-02-01",
+    federalPisCofinsRetention: "0", federalPis: "2.00", federalCofins: "3.00",
+  });
+  const pdf = await loadPdfDocument(pdfBytes);
+  const text = (await extractPageTextItems(await pdf.getPage(1))).map(item => item.text).join(" ");
+  assert.ok(!text.includes("PIS - Débito Apuração Própria"));
+  assert.ok(!text.includes("COFINS - Débito Apuração Própria"));
+  assert.ok(text.includes("TRIBUTAÇÃO FEDERAL (EXCETO CBS)"));
+});
+
+test("NT008: tributos aproximados apenas se fornecidos no XML; compra em complemento", async () => {
+  const pdfBytes = await buildDanfsePdf({ ...DANFSE_PREVIEW_FIXTURE,
+    complementaryInformation: "INFORMAÇÃO FISCAL FICTÍCIA",
+    purchaseOrderNumber: "PEDIDO-FICTICIO-123",
+    taxApproxTotals: "Federais: 1%; Estaduais: 0%; Municipais: 2%",
+  });
+  const pdf = await loadPdfDocument(pdfBytes);
+  const text = (await extractPageTextItems(await pdf.getPage(1))).map(item => item.text).join(" ");
+  assert.ok(text.includes("Totais Aproximados dos Tributos"));
+  assert.ok(text.includes("PEDIDO-FICTICIO-123"));
+  assert.ok(text.includes("INFORMAÇÃO FISCAL FICTÍCIA"));
+});
+
+test("NT008: SN e beneficio municipal usam descricao textual da tabela nacional", () => {
+  assert.equal(danfseSimplesNacionalLabel("1"), "Não Optante");
+  assert.ok(danfseSimplesNacionalLabel("3").includes("Microempresa"));
+  assert.ok(danfseApuracaoSimplesLabel("1").includes("Simples Nacional"));
+  assert.ok(danfseApuracaoSimplesLabel("2").includes("ISSQN pela NFS-e"));
+  assert.equal(danfseMunicipalBenefitLabel("1"), "Isenção");
+  assert.equal(danfseMunicipalBenefitLabel("4"), "Alíquota Diferenciada");
+  assert.equal(danfseMunicipalBenefitLabel(undefined), "-");
 });
