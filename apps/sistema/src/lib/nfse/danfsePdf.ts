@@ -280,7 +280,7 @@ export async function buildDanfsePdf(data: DanfseData, options: { cancelled?: bo
   drawField(page, bold, regular, "Valor IBS UF", formatMoney(data.ibsCbsValueState), MARGIN, cursor.y, quarter);
   drawField(page, bold, regular, "Valor IBS Município", formatMoney(data.ibsCbsValueCity), MARGIN + quarter, cursor.y, quarter);
   drawField(page, bold, regular, "Valor CBS", formatMoney(data.ibsCbsValueFederal), MARGIN + quarter * 2, cursor.y, quarter);
-  drawField(page, bold, regular, "Regime PIS/COFINS", dash(data.federalPisCofinsRetention), MARGIN + quarter * 3, cursor.y, quarter);
+  drawField(page, bold, regular, "Alíquotas efetivas UF/Mun/CBS", [dash(data.ibsCbsEffectiveRateState), dash(data.ibsCbsEffectiveRateCity), dash(data.ibsCbsEffectiveRateFederal)].join(" / "), MARGIN + quarter * 3, cursor.y, quarter);
   cursor.y -= 22;
 
   // BLOCO: VALOR TOTAL DA NFS-e (seção 2.1.11).
@@ -292,7 +292,7 @@ export async function buildDanfsePdf(data: DanfseData, options: { cancelled?: bo
   cursor.y -= 20;
   drawField(page, bold, regular, "Desconto Incondicionado", formatMoney(data.discountUnconditional), MARGIN, cursor.y, quarter);
   drawField(page, bold, regular, "Desconto Condicionado", formatMoney(data.discountConditional), MARGIN + quarter, cursor.y, quarter);
-  drawField(page, bold, regular, "Total IBS/CBS", [data.ibsCbsTotal, data.ibsCbsValueFederal].every((x) => x === undefined) ? "-" : "Consultar grupos IBS/CBS", MARGIN + quarter * 2, cursor.y, quarter);
+  drawField(page, bold, regular, "Total IBS / CBS", [formatMoney(data.ibsCbsTotal), formatMoney(data.ibsCbsValueFederal)].join(" / "), MARGIN + quarter * 2, cursor.y, quarter);
   drawField(page, bold, regular, "Valor total com IBS/CBS", formatMoney(data.grossTotalWithIbsCbs), MARGIN + quarter * 3, cursor.y, quarter, true);
   cursor.y -= 22;
 
