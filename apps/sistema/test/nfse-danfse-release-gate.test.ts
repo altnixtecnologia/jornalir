@@ -531,15 +531,18 @@ test("fontes fiscais são autenticadas por SHA, família e direitos de embedding
 });
 
 test("DANFSe fictício incorpora fontkit e calcula quebras com fontes TTF reais no CI", async (t) => {
+  // Liberation Sans tem métricas próximas de Arial/Helvetica. DejaVu Sans
+  // é mais larga e não cabe na legenda de QR a 6pt/3 linhas — usar essa
+  // família seria um teste inválido da geometria especificada para Microsoft.
   const regularPath = [
-    "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
     "/usr/share/fonts/truetype/liberation2/LiberationSans-Regular.ttf",
     "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
+    "/usr/share/fonts/truetype/croscore/Arimo-Regular.ttf",
   ].find(existsSync);
   const boldPath = [
-    "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
     "/usr/share/fonts/truetype/liberation2/LiberationSans-Bold.ttf",
     "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf",
+    "/usr/share/fonts/truetype/croscore/Arimo-Bold.ttf",
   ].find(existsSync);
   if (!regularPath || !boldPath) { t.skip("Runner não contém TTF livre para smoke test"); return; }
   // Fonte livre do runner serve SOMENTE para exercitar fontkit. Não
