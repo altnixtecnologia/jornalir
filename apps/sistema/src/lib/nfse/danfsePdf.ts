@@ -92,6 +92,21 @@ export function danfseIssqnTypeLabel(code: string | undefined): string {
   return ({ "1": "Operação Tributável", "2": "Imunidade",
     "3": "Exportação de Serviço", "4": "Não Incidência" } as Record<string, string>)[code ?? ""] ?? dash(code);
 }
+export function danfseSimplesNacionalLabel(code: string | undefined): string {
+  return ({ "1": "Não Optante", "2": "Optante - Microempreendedor Individual (MEI)",
+    "3": "Optante - Microempresa ou Empresa de Pequeno Porte (ME/EPP)" } as Record<string, string>)[code ?? ""] ?? dash(code);
+}
+export function danfseApuracaoSimplesLabel(code: string | undefined): string {
+  return ({
+    "1": "Regime de apuração dos tributos federais e municipal pelo Simples Nacional",
+    "2": "Regime de apuração dos tributos federais pelo Simples Nacional e do ISSQN pela NFS-e conforme legislação municipal",
+    "3": "Regime de apuração dos tributos federais e municipal pela NFS-e conforme legislações federal e municipal",
+  } as Record<string, string>)[code ?? ""] ?? dash(code);
+}
+export function danfseMunicipalBenefitLabel(code: string | undefined): string {
+  return ({ "1": "Isenção", "2": "Redução da base de cálculo em percentual",
+    "3": "Redução da base de cálculo em valor", "4": "Alíquota Diferenciada" } as Record<string, string>)[code ?? ""] ?? dash(code);
+}
 export function danfseRegimeEspecialLabel(code: string | undefined): string {
   return ({ "0": "Nenhum", "1": "Ato Cooperado (Cooperativa)", "2": "Estimativa",
     "3": "Microempresa Municipal", "4": "Notário ou Registrador",
@@ -313,8 +328,8 @@ function drawParticipantSection(
   const emailHeight = drawWrappedField(page, bold, regular, "E-mail", dash(person.email), MARGIN + half, y, half);
   y -= Math.max(20, addressHeight, emailHeight) + 2;
   if (simples) {
-    drawField(page, bold, regular, "Simples Nacional na Data de Competência", dash(simples.option), MARGIN, y, half);
-    drawField(page, bold, regular, "Regime de Apuração Tributária pelo SN", dash(simples.regime), MARGIN + half, y, half);
+    drawField(page, bold, regular, "Simples Nacional na Data de Competência", danfseSimplesNacionalLabel(simples.option), MARGIN, y, half);
+    drawField(page, bold, regular, "Regime de Apuração Tributária pelo SN", danfseApuracaoSimplesLabel(simples.regime), MARGIN + half, y, half);
     y -= 22;
   }
   return y;
@@ -496,7 +511,7 @@ export async function buildDanfsePdf(data: DanfseData, options: { cancelled?: bo
     const optionals2 = [data.issqnMunicipalBenefitType, data.issqnBenefitCalculation,
       data.issqnTotalDeductions, data.issqnDiscountUnconditional];
     if (optionals2.some(x => x !== undefined)) {
-      drawField(page, bold, regular, "Benefício Municipal", dash(data.issqnMunicipalBenefitType), MARGIN, cursor.y, quarter);
+      drawField(page, bold, regular, "Benefício Municipal", danfseMunicipalBenefitLabel(data.issqnMunicipalBenefitType), MARGIN, cursor.y, quarter);
       drawField(page, bold, regular, "Cálculo do BM", formatMoney(data.issqnBenefitCalculation), MARGIN + quarter, cursor.y, quarter);
       drawField(page, bold, regular, "Total Deduções/Reduções", formatMoney(data.issqnTotalDeductions), MARGIN + 2 * quarter, cursor.y, quarter);
       drawField(page, bold, regular, "Desconto Incondicionado", formatMoney(data.issqnDiscountUnconditional), MARGIN + 3 * quarter, cursor.y, quarter);
