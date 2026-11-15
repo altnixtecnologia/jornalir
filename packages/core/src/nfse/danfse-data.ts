@@ -51,6 +51,21 @@ function text(doc: XmlDoc, tagName: string, scope?: XmlElement): string | undefi
   return found && found.length > 0 ? found : undefined;
 }
 
+/** Apenas filhos diretos dos grupos oficiais; uma tag aninhada em outro
+ * grupo não pode mascarar a ausência do campo obrigatório da NFS-e. */
+function directChild(scope: XmlElement | undefined | null, tagName: string): XmlElement | undefined {
+  if (!scope) return undefined;
+  for (let child = scope.firstChild; child; child = child.nextSibling) {
+    if (child.nodeType === 1 && (child as XmlElement).localName === tagName) return child as XmlElement;
+  }
+  return undefined;
+}
+
+function directText(scope: XmlElement | undefined | null, tagName: string): string | undefined {
+  const value = directChild(scope, tagName)?.textContent?.trim();
+  return value || undefined;
+}
+
 function requireText(tagName: string, value: string | undefined, context: string): string {
   if (!value) throw new DanfseDataError(`Campo obrigatório "${tagName}" ausente no XML da NFS-e (${context}) — DANFSe não pode ser gerado sem este dado real.`);
   return value;
@@ -166,8 +181,8 @@ function extractPessoa(doc: XmlDoc, scope: XmlElement | undefined, context: stri
     if (required) throw new DanfseDataError(`Grupo obrigatório ausente no XML da NFS-e (${context}).`);
     return undefined;
   }
-  const federalInscription = text(doc, "CNPJ", scope) ?? text(doc, "CPF", scope) ?? text(doc, "NIF", scope);
-  const name = text(doc, "xNome", scope);
+  const federalInscription = directText(scope, "CNPJ") ?? directText(scope, "CPF") ?? directText(scope, "NIF");
+  const name = directText(scope, "xNome");
   if (!federalInscription || !name) {
     if (required) throw new DanfseDataError(`Identificação (CNPJ/CPF e nome) ausente no XML da NFS-e (${context}).`);
     return undefined;
@@ -214,16 +229,16 @@ export function extractDanfseData(issuedNote: Pick<NfseIssuedNote, "environment"
   if (doc.documentElement?.localName !== "NFSe" || doc.getElementsByTagName("parsererror").length) {
     throw new DanfseDataError("O documento informado não é um XML de NFS-e autorizada válido.");
   }
-  const infNFSe = doc.getElementsByTagName("infNFSe")[0];
+  const infNFSe = directChild(doc.documentElement, "infNFSe");
   if (!infNFSe) throw new DanfseDataError("Elemento infNFSe ausente — o XML não corresponde ao esquema oficial de NFS-e autorizada.");
 
-  const dps = infNFSe.getElementsByTagName("DPS")[0];
-  const infDPS = dps?.getElementsByTagName("infDPS")[0];
+  const dps = directChild(infNFSe, "DPS");
+  const infDPS = directChild(dps, "infDPS");
   if (!infDPS) throw new DanfseDataError("DPS original (DPS/infDPS) ausente dentro da NFS-e — necessária pra competência, tomador e serviço.");
 
-  const prestador = extractPessoa(doc, infNFSe.getElementsByTagName("emit")[0], "emit — prestador", true)!;
-  const tomador = extractPessoa(doc, infDPS.getElementsByTagName("toma")[0], "infDPS/toma — tomador", false);
-  const grupoIntermediario = infDPS.getElementsByTagName("interm")[0];
+  const prestador = extractPessoa(doc, directChild(infNFSe, "emit"), "emit — prestador", true)!;
+  const tomador = extractPessoa(doc, directChild(infDPS, "toma"), "infDPS/toma — tomador", false);
+  const grupoIntermediario = directChild(infDPS, "interm");
   // Grupo presente mas incompleto nunca deve ser convertido em declaração
   // falsa de que não existe intermediário.
   const intermediario = grupoIntermediario
@@ -237,45 +252,45 @@ export function extractDanfseData(issuedNote: Pick<NfseIssuedNote, "environment"
   if (!issuedNote.dpsId || xmlDpsId !== issuedNote.dpsId) {
     throw new DanfseDataError("DPS embutida não corresponde ao identificador da nota registrada; DANFSe bloqueado.");
   }
-  const xmlNumber = requireText("nNFSe", text(doc, "nNFSe", infNFSe), "infNFSe");
+  const xmlNumber = requireText("nNFSe", directText(infNFSe, "nNFSe"), "infNFSe");
   if (xmlNumber !== issuedNote.nfseNumber) {
     throw new DanfseDataError("Número da NFS-e armazenado diverge do XML autorizado.");
   }
-  const xmlProcessedAt = requireText("dhProc", text(doc, "dhProc", infNFSe), "infNFSe");
+  const xmlProcessedAt = requireText("dhProc", directText(infNFSe, "dhProc"), "infNFSe");
   const xmlTime = Date.parse(xmlProcessedAt);
   const storedTime = Date.parse(issuedNote.issuedAt);
   if (!Number.isFinite(xmlTime) || !Number.isFinite(storedTime) || xmlTime !== storedTime) {
     throw new DanfseDataError("Data da autorização armazenada diverge do instante registrado no XML.");
   }
-  if (text(doc, "dCompet", infDPS) !== issuedNote.competencyDate ||
-      text(doc, "serie", infDPS) !== issuedNote.dpsSeries ||
-      text(doc, "nDPS", infDPS) !== String(issuedNote.dpsNumber)) {
+  if (directText(infDPS, "dCompet") !== issuedNote.competencyDate ||
+      directText(infDPS, "serie") !== issuedNote.dpsSeries ||
+      directText(infDPS, "nDPS") !== String(issuedNote.dpsNumber)) {
     throw new DanfseDataError("Competência, série ou número da DPS divergem do XML fiscal autorizado.");
   }
-  const originalValues = infDPS.getElementsByTagName("valores")[0];
-  const serviceValueText = text(doc, "vServ", originalValues);
+  const originalValues = directChild(infDPS, "valores");
+  const serviceValueText = directText(directChild(originalValues, "vServPrest"), "vServ");
   const serviceValueInXml = serviceValueText ? Number(serviceValueText) : Number.NaN;
   if (!Number.isFinite(serviceValueInXml) || !Number.isFinite(issuedNote.serviceValue) ||
       Math.round(serviceValueInXml * 100) !== Math.round(issuedNote.serviceValue * 100)) {
     throw new DanfseDataError("Valor do serviço diverge entre a DPS autorizada e os dados armazenados.");
   }
-  const prestadorDpsCnpj = text(doc, "CNPJ", infDPS.getElementsByTagName("prest")[0]);
-  const emitenteCnpj = text(doc, "CNPJ", infNFSe.getElementsByTagName("emit")[0]);
+  const prestadorDpsCnpj = directText(directChild(infDPS, "prest"), "CNPJ");
+  const emitenteCnpj = directText(directChild(infNFSe, "emit"), "CNPJ");
   if (!prestadorDpsCnpj || !emitenteCnpj || prestadorDpsCnpj !== emitenteCnpj) {
     throw new DanfseDataError("CNPJ do prestador na DPS diverge do emitente na NFS-e autorizada.");
   }
 
-  const serv = infDPS.getElementsByTagName("serv")[0];
-  const valoresNFSe = infNFSe.getElementsByTagName("valores")[0];
-  const prest = infDPS.getElementsByTagName("prest")[0];
-  const regTrib = prest?.getElementsByTagName("regTrib")[0];
-  const dpsValores = infDPS.getElementsByTagName("valores")[0];
+  const serv = directChild(infDPS, "serv");
+  const valoresNFSe = directChild(infNFSe, "valores");
+  const prest = directChild(infDPS, "prest");
+  const regTrib = directChild(prest, "regTrib");
+  const dpsValores = directChild(infDPS, "valores");
   const dpsTrib = dpsValores?.getElementsByTagName("trib")[0];
   const tribMun = dpsTrib?.getElementsByTagName("tribMun")[0];
   const tribFed = dpsTrib?.getElementsByTagName("tribFed")[0];
   const pisCofins = tribFed?.getElementsByTagName("piscofins")[0];
   const descontos = dpsValores?.getElementsByTagName("vDescCondIncond")[0];
-  const infoCompl = serv?.getElementsByTagName("infoCompl")[0];
+  const infoCompl = directChild(serv, "infoCompl");
   const ibsCbs = infNFSe.getElementsByTagName("IBSCBS")[0];
   const ibsValues = ibsCbs?.getElementsByTagName("valores")[0];
   const ibsUf = ibsValues?.getElementsByTagName("uf")[0];
@@ -305,19 +320,19 @@ export function extractDanfseData(issuedNote: Pick<NfseIssuedNote, "environment"
     ? extractPessoa(doc, grupoDestinatario, "IBSCBS/dest — destinatário", true)
     : undefined;
 
-  const tpAmb = requireText("tpAmb", text(doc, "tpAmb", infDPS), "infDPS");
+  const tpAmb = requireText("tpAmb", directText(infDPS, "tpAmb"), "infDPS");
   if (tpAmb !== "1" && tpAmb !== "2") throw new DanfseDataError(`tpAmb=${tpAmb} não reconhecido na DPS.`);
   if ((tpAmb === "2") !== (issuedNote.environment === "homologation")) {
     throw new DanfseDataError("Ambiente da DPS não corresponde ao ambiente registrado da nota.");
   }
-  const cStat = requireText("cStat", text(doc, "cStat", infNFSe), "infNFSe");
+  const cStat = requireText("cStat", directText(infNFSe, "cStat"), "infNFSe");
   const statusLabel = STAT_LABELS[cStat];
   if (!statusLabel) throw new DanfseDataError(`Situação cStat=${cStat} sem descrição validada no leiaute nacional.`);
   // Emitente e finalidade vêm da DPS embutida, não de nomes ou textos fixos do PDF.
-  const tpEmit = requireText("tpEmit", text(doc, "tpEmit", infDPS), "infDPS");
+  const tpEmit = requireText("tpEmit", directText(infDPS, "tpEmit"), "infDPS");
   const issuerLabel = ({ "1": "Prestador", "2": "Tomador", "3": "Intermediário" } as Record<string, string>)[tpEmit];
   if (!issuerLabel) throw new DanfseDataError(`Emitente tpEmit=${tpEmit} não reconhecido no XML autorizado.`);
-  const finNFSe = requireText("finNFSe", text(doc, "finNFSe", infDPS), "infDPS");
+  const finNFSe = requireText("finNFSe", directText(infDPS, "finNFSe"), "infDPS");
   // O XSD nacional atualmente versionado no projeto só permite 0 para o caso regular.
   if (finNFSe !== "0") throw new DanfseDataError(`Finalidade finNFSe=${finNFSe} sem descrição validada no leiaute atual.`);
 
@@ -329,7 +344,7 @@ export function extractDanfseData(issuedNote: Pick<NfseIssuedNote, "environment"
     serviceValue: issuedNote.serviceValue,
     dpsNumber: String(issuedNote.dpsNumber),
     dpsSeries: issuedNote.dpsSeries,
-    dpsIssuedAt: requireText("dhEmi", text(doc, "dhEmi", infDPS), "infDPS/dhEmi"),
+    dpsIssuedAt: requireText("dhEmi", directText(infDPS, "dhEmi"), "infDPS/dhEmi"),
     emitterMunicipality: text(doc, "xLocEmi", infNFSe),
     statusCode: cStat,
     statusLabel,
@@ -341,10 +356,10 @@ export function extractDanfseData(issuedNote: Pick<NfseIssuedNote, "environment"
     destinatarioEhTomador: indicadorDestino === "0",
     destinatario,
     intermediario,
-    serviceDescription: requireText("xDescServ", text(doc, "xDescServ", serv), "infDPS/serv/cServ/xDescServ"),
-    nationalServiceCode: text(doc, "cTribNac", serv),
-    municipalServiceCode: text(doc, "cTribMun", serv),
-    serviceLocationIbgeCode: text(doc, "cLocPrestacao", serv),
+    serviceDescription: requireText("xDescServ", directText(directChild(serv, "cServ"), "xDescServ"), "infDPS/serv/cServ/xDescServ"),
+    nationalServiceCode: directText(directChild(serv, "cServ"), "cTribNac"),
+    municipalServiceCode: directText(directChild(serv, "cServ"), "cTribMun"),
+    serviceLocationIbgeCode: directText(directChild(serv, "locPrest"), "cLocPrestacao"),
     issqnTaxBase: text(doc, "vBC", valoresNFSe),
     issqnRateApplied: text(doc, "pAliqAplic", valoresNFSe),
     issqnAmount: text(doc, "vISSQN", valoresNFSe),
@@ -384,8 +399,8 @@ export function extractDanfseData(issuedNote: Pick<NfseIssuedNote, "environment"
     grossTotalWithIbsCbs: text(doc, "vTotNF", ibsTotals),
     discountConditional: text(doc, "vDescCond", descontos),
     discountUnconditional: text(doc, "vDescIncond", descontos),
-    complementaryInformation: text(doc, "xInfComp", infoCompl),
-    purchaseOrderNumber: text(doc, "xPed", infoCompl),
+    complementaryInformation: directText(infoCompl, "xInfComp"),
+    purchaseOrderNumber: directText(infoCompl, "xPed"),
     municipalAdditionalInformation: text(doc, "xOutInf", infNFSe),
   };
 }
