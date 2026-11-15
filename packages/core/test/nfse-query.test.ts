@@ -73,3 +73,14 @@ test("falha de rede/timeout é normalizada como NFSE_TIMEOUT, distinta de rejei�
   );
   await mock.close();
 });
+
+test("consulta SEFIN lê corpo com limite real mesmo sem Content-Length", async () => {
+  const url = buildDpsByIdUrl("DPS-ENORME", "homologation");
+  const { mock, pool, path } = poolFor(url);
+  pool.intercept({ path, method: "GET" }).reply(200, "A".repeat(2 * 1024 * 1024 + 1), {
+    headers: { "content-type": "application/xml" },
+  });
+  await assert.rejects(() => fetchDpsById(mock, "DPS-ENORME", "homologation"),
+    (err: unknown) => err instanceof NfseIntegrationError && err.code === "NFSE_INVALID_RESPONSE");
+  await mock.close();
+});
