@@ -282,3 +282,46 @@ test("DANFSe ficticio falha fechado caso o conteudo nao caiba em uma pagina A4",
   };
   await assert.rejects(() => buildDanfsePdf(fixture), /excede a area util A4|excede a área útil A4/);
 });
+
+test("NT008: primeira linha de cada bloco segue o esquema titulo + 3 colunas do Anexo I", async () => {
+  const source = src("lib/nfse/danfsePdf.ts");
+  for (const section of [
+    "Serviço Prestado", "Tributação Municipal (ISSQN)", "Tributação Federal (Exceto CBS)",
+    "Tributação IBS / CBS", "Valor Total da NFS-e",
+  ]) {
+    assert.ok(source.includes(`drawSectionCell(page, bold, "${section}"`), `primeira coluna: ${section}`);
+  }
+  for (const section of [
+    "Prestador / Fornecedor", "Tomador / Adquirente", "Destinatário da Operação", "Intermediário da Operação",
+  ]) assert.ok(source.includes(`drawParticipantSection(page, bold, regular, "${section}"`));
+  assert.ok(!source.includes('drawBlockTitle(page, bold, "Prestador / Fornecedor"'));
+  const bytes = await buildDanfsePdf(DANFSE_PREVIEW_FIXTURE);
+  const pdf = await loadPdfDocument(bytes);
+  assert.equal(pdf.numPages, 1);
+  const text = (await extractPageTextItems(await pdf.getPage(1))).map(i => i.text).join(" ");
+  for (const term of ["PRESTADOR / FORNECEDOR", "SERVIÇO PRESTADO", "TRIBUTAÇÃO IBS / CBS", "VALOR TOTAL DA NFS-E"]) {
+    assert.ok(text.includes(term), `texto nao encontrado: ${term}`);
+  }
+});
+
+test("NT008: cels de identificacao sem reticencias em titulos longos", () => {
+  const source = src("lib/nfse/danfsePdf.ts");
+  assert.match(source, /const labelLines = wrapDanfseText\(printedLabel, bold, labelSize, width - 4\)/);
+  assert.match(source, /if \(labelLines\.length > 2\)/);
+  assert.match(source, /const titleLines = wrapDanfseText\(title\.toUpperCase\(\), bold, 7, first - 5\)/);
+  assert.match(source, /if \(titleLines\.length > 2\)/);
+});
+
+test("NT008: dados opcionais inexistentes nao sao preenchidos com estimativas fiscais", async () => {
+  const bytes = await buildDanfsePdf({
+    ...DANFSE_PREVIEW_FIXTURE,
+    prestador: { ...DANFSE_PREVIEW_FIXTURE.prestador, municipality: undefined },
+    ibsCbsValueState: undefined, ibsCbsValueCity: undefined, ibsCbsValueFederal: undefined,
+    federalIrrf: undefined, federalPis: undefined,
+  });
+  const pdf = await loadPdfDocument(bytes);
+  assert.equal(pdf.numPages, 1);
+  const text = (await extractPageTextItems(await pdf.getPage(1))).map(i => i.text).join(" ");
+  assert.ok(text.includes("CÓDIGO IBGE / CEP") || text.includes("Código IBGE / CEP"));
+  assert.ok(text.includes("Valor Total Apurado - CBS"));
+});
