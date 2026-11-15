@@ -178,6 +178,25 @@ function drawWrappedField(
   return 20 + (lines.length - 1) * 9;
 }
 
+/**
+ * NT 008/2026 v1.02, Anexo I: a linha da descrição do código de
+ * tributação não tem rótulo e usa a descrição municipal QUANDO presente;
+ * do contrário, usa a nacional. Nunca mostrar ambas, nem derivar do
+ * código ou inventar texto.
+ */
+export function selectDanfseTaxDescription(data: Pick<DanfseData, "nationalServiceDescription" | "municipalServiceDescription">): string {
+  return data.municipalServiceDescription?.trim() || data.nationalServiceDescription?.trim() || "-";
+}
+
+/** Linha livre do leiaute: sem label e sem reticências, altura dinâmica. */
+function drawWrappedPlainText(page: PDFPage, regular: PDFFont, value: string, x: number, y: number, width: number): number {
+  const lines = wrapDanfseText(value, regular, 7, width - 4);
+  lines.forEach((line, index) => page.drawText(line, {
+    x: x + 2, y: y - 7 - index * 9, size: 7, font: regular, color: BLACK,
+  }));
+  return lines.length * 9;
+}
+
 function drawBorder(page: PDFPage): void {
   page.drawRectangle({ x: MARGIN - 4, y: MARGIN - 4, width: PAGE_WIDTH - (MARGIN - 4) * 2, height: PAGE_HEIGHT - (MARGIN - 4) * 2, borderColor: BLACK, borderWidth: 1 });
 }
@@ -337,15 +356,16 @@ export async function buildDanfsePdf(data: DanfseData, options: { cancelled?: bo
   // BLOCO: SERVIÇO PRESTADO (seção 2.1.7).
   drawBlockTitle(page, bold, "Dados do Serviço Prestado", cursor.y);
   cursor.y -= 11;
-  drawField(page, bold, regular, "Código de Tributação Nacional/Municipal", `${dash(data.nationalServiceCode)} / ${dash(data.municipalServiceCode)}`, MARGIN, cursor.y, half);
-  drawField(page, bold, regular, "Local da Prestação (IBGE)", dash(data.serviceLocationIbgeCode), MARGIN + half, cursor.y, half);
-  cursor.y -= 20;
-  cursor.y -= drawWrappedField(page, bold, regular, "Descrição do Serviço", data.serviceDescription, MARGIN, cursor.y, CONTENT_WIDTH);
+  // Anexo I, bloco Serviço Prestado: código de tributação, NBS e local
+  // na mesma linha; a descrição do código é UMA linha independente SEM
+  // label (municipal se vier no XML, senão nacional), seguida do serviço.
   const serviceThird = CONTENT_WIDTH / 3;
-  drawField(page, bold, regular, "Código da NBS", dash(data.nbsCode), MARGIN, cursor.y, serviceThird);
-  drawField(page, bold, regular, "Descrição da tributação nacional", dash(data.nationalServiceDescription), MARGIN + serviceThird, cursor.y, serviceThird);
-  drawField(page, bold, regular, "Descrição da tributação municipal", dash(data.municipalServiceDescription), MARGIN + serviceThird * 2, cursor.y, serviceThird);
+  drawField(page, bold, regular, "Código de Tributação Nacional/Municipal", `${dash(data.nationalServiceCode)} / ${dash(data.municipalServiceCode)}`, MARGIN, cursor.y, serviceThird);
+  drawField(page, bold, regular, "Código da NBS", dash(data.nbsCode), MARGIN + serviceThird, cursor.y, serviceThird);
+  drawField(page, bold, regular, "Local da Prestação (IBGE)", dash(data.serviceLocationIbgeCode), MARGIN + serviceThird * 2, cursor.y, serviceThird);
   cursor.y -= 22;
+  cursor.y -= drawWrappedPlainText(page, regular, selectDanfseTaxDescription(data), MARGIN, cursor.y, CONTENT_WIDTH) + 2;
+  cursor.y -= drawWrappedField(page, bold, regular, "Descrição do Serviço", data.serviceDescription, MARGIN, cursor.y, CONTENT_WIDTH) + 2;
 
   // BLOCO: TRIBUTAÇÃO MUNICIPAL / ISSQN (seção 2.1.8).
   drawBlockTitle(page, bold, "Tributação Municipal (ISSQN)", cursor.y);

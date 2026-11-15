@@ -2,7 +2,8 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { PDFDocument, StandardFonts } from "pdf-lib";
-import { DANFSE_GEOMETRY, buildDanfsePdf, formatDanfseDate, formatDanfseDateTime, formatFederalInscription, wrapDanfseText } from "../src/lib/nfse/danfsePdf";
+import { loadPdfDocument, extractPageTextItems } from "@ir/pdf-extraction";
+import { DANFSE_GEOMETRY, buildDanfsePdf, formatDanfseDate, formatDanfseDateTime, formatFederalInscription, wrapDanfseText, selectDanfseTaxDescription } from "../src/lib/nfse/danfsePdf";
 import { DANFSE_PREVIEW_FIXTURE } from "../src/lib/nfse/danfsePreviewFixture";
 import {
   DANFSE_OFFICIAL_LAYOUT_APPROVED,
@@ -180,4 +181,41 @@ test("rota da prévia é administrativa, não usa nota/banco/SEFIN nem afrouxa b
   }
   assert.match(overview, /href="\/sistema\/nfse\/previa-danfse"/);
   assert.equal(DANFSE_OFFICIAL_LAYOUT_APPROVED, false);
+});
+
+
+test("NT008 Anexo I: descrição de tributação municipal prevalece sobre a nacional e é impressa sem rótulo", async () => {
+  assert.equal(selectDanfseTaxDescription({
+    municipalServiceDescription: "  Descrição municipal  ",
+    nationalServiceDescription: "Descrição nacional",
+  }), "Descrição municipal");
+  assert.equal(selectDanfseTaxDescription({ nationalServiceDescription: "Descrição nacional" }), "Descrição nacional");
+  assert.equal(selectDanfseTaxDescription({ nationalServiceDescription: " ", municipalServiceDescription: " " }), "-");
+
+  const pdfBytes = await buildDanfsePdf({
+    ...DANFSE_PREVIEW_FIXTURE,
+    municipalServiceDescription: "Descrição municipal exata da lista local",
+    nationalServiceDescription: "Descrição nacional que não deve ser impressa",
+  });
+  const pdf = await loadPdfDocument(pdfBytes);
+  assert.equal(pdf.numPages, 1, "DANFSe deve continuar A4 em página única");
+  const items = await extractPageTextItems(await pdf.getPage(1));
+  const textContent = items.map((item) => item.text).join(" ");
+  assert.ok(textContent.includes("Descrição municipal exata da lista local"));
+  assert.ok(!textContent.includes("Descrição nacional que não deve ser impressa"));
+  assert.ok(!textContent.includes("Descrição da tributação municipal"));
+  assert.ok(!textContent.includes("Descrição da tributação nacional"));
+  assert.ok(textContent.includes("Código da NBS"));
+  assert.ok(textContent.includes("Descrição do Serviço"));
+});
+
+test("NT008 Anexo I: sem xTribMun a descrição nacional aparece no bloco de serviço", async () => {
+  const pdfBytes = await buildDanfsePdf({
+    ...DANFSE_PREVIEW_FIXTURE,
+    municipalServiceDescription: undefined,
+    nationalServiceDescription: "Descrição nacional usada como alternativa",
+  });
+  const pdf = await loadPdfDocument(pdfBytes);
+  const items = await extractPageTextItems(await pdf.getPage(1));
+  assert.ok(items.map((item) => item.text).join(" ").includes("Descrição nacional usada como alternativa"));
 });
