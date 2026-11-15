@@ -4,6 +4,7 @@ import { gzipSync } from "node:zlib";
 import forge from "node-forge";
 import { MockAgent } from "undici";
 import type { NfseCertificateInfo, NfseDraft, NfseIssuerConfig, NfseIssuedNote, NfseTransmissionAttempt } from "@ir/types";
+import { buildDpsId } from "@ir/types";
 import type {
   DraftRepository,
   DpsSequenceRepository,
@@ -157,13 +158,21 @@ function makeUnconfiguredCertificateProvider(): CertificateMaterialProvider {
   return { async getActiveInfo() { return null; }, async getActiveSigningMaterial() { return null; } };
 }
 
+const END_TO_END_DPS_ID = buildDpsId({
+  ibgeCode: "4216404",
+  federalInscriptionType: "cnpj",
+  federalInscription: "23970969000190",
+  series: "1",
+  number: 1,
+});
+
 function fakeNfseXml(): string {
   // emit/CNPJ precisa bater com o CNPJ do prestador em makeIssuerConfig() ("23970969000190") —
   // senão a verificação de associação prestador/DPS (sefin-nacional-client.ts, item 3 da
   // auditoria estrutural de 26/10/2026) rejeitaria esta fixture como se fosse de outro CNPJ.
   return (
     '<NFSe versao="1.01"><infNFSe Id="NFS42164041199999999999999999900000000012026100001"><nNFSe>12</nNFSe>' +
-    "<dhProc>2026-10-25T12:00:00Z</dhProc><emit><CNPJ>23970969000190</CNPJ></emit></infNFSe></NFSe>"
+    `<dhProc>2026-10-25T12:00:00Z</dhProc><emit><CNPJ>23970969000190</CNPJ></emit><DPS><infDPS Id="${END_TO_END_DPS_ID}"><tpAmb>2</tpAmb></infDPS></DPS></infNFSe></NFSe>`
   );
 }
 
