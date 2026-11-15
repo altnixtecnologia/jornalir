@@ -43,8 +43,10 @@ type XmlDoc = ReturnType<DOMParser["parseFromString"]>;
 type XmlElement = ReturnType<XmlDoc["getElementsByTagName"]>[number];
 
 function text(doc: XmlDoc, tagName: string, scope?: XmlElement): string | undefined {
-  const root = scope ?? doc;
-  const found = root.getElementsByTagName(tagName)[0]?.textContent?.trim();
+  // Nunca buscar no documento inteiro quando um grupo opcional não existe.
+  // Isso faria dados de ISSQN aparecerem falsamente como IBS/CBS/federal.
+  if (!scope) return undefined;
+  const found = scope.getElementsByTagName(tagName)[0]?.textContent?.trim();
   return found && found.length > 0 ? found : undefined;
 }
 
