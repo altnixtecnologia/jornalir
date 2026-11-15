@@ -396,3 +396,22 @@ test("DANFSe: preserva suporte a prefixo de namespace no XML fiscal", () => {
   assert.equal(data.nfseNumber, "12");
   assert.equal(data.serviceValue, 150.5);
 });
+
+test("DANFSe: parser do XML sintético lê corretamente pTotTrib (percentuais) e vTotTrib (valores)", () => {
+  // O teste exercita APENAS extração de campos por caminho da NT008.
+  // Não transmite, não faz consulta e não reivindica validade de assinatura/XSD após a mutação.
+  const original = makeNfseXml();
+  const marker = "<totTrib><indTotTrib>0</indTotTrib></totTrib>";
+  assert.ok(original.includes(marker), "DPS do teste deve conter o grupo totTrib");
+  const percentXml = original.replace(marker,
+    "<totTrib><pTotTrib><pTotTribFed>13.45</pTotTribFed><pTotTribEst>0.00</pTotTribEst><pTotTribMu>2.80</pTotTribMu></pTotTrib></totTrib>");
+  const percent = extractDanfseData(makeIssuedNote({ nfseXml: percentXml }));
+  assert.equal(percent.taxApproxTotals,
+    "Federais: 13,45%; Estaduais: 0,00%; Municipais: 2,80%");
+  const monetaryXml = original.replace(marker,
+    "<totTrib><vTotTrib><vTotTribFed>17.49</vTotTribFed><vTotTribEst>0.00</vTotTribEst><vTotTribMu>3.64</vTotTribMu></vTotTrib></totTrib>");
+  const monetary = extractDanfseData(makeIssuedNote({ nfseXml: monetaryXml }));
+  assert.equal(monetary.taxApproxTotals,
+    "Federais: R$ 17,49; Estaduais: R$ 0,00; Municipais: R$ 3,64");
+  assert.equal(extractDanfseData(makeIssuedNote({ nfseXml: original })).taxApproxTotals, undefined);
+});
