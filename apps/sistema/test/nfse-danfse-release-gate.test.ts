@@ -2,7 +2,8 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { PDFDocument, StandardFonts } from "pdf-lib";
-import { DANFSE_GEOMETRY, formatDanfseDate, formatDanfseDateTime, formatFederalInscription, wrapDanfseText } from "../src/lib/nfse/danfsePdf";
+import { DANFSE_GEOMETRY, buildDanfsePdf, formatDanfseDate, formatDanfseDateTime, formatFederalInscription, wrapDanfseText } from "../src/lib/nfse/danfsePdf";
+import { DANFSE_PREVIEW_FIXTURE } from "../src/lib/nfse/danfsePreviewFixture";
 import {
   DANFSE_OFFICIAL_LAYOUT_APPROVED,
   assertDanfseLayoutApproved,
@@ -152,4 +153,28 @@ test("DANFSe: não afirma igualdade destinatário/tomador sem indDest do XML", (
   assert.match(code, /"DESTINATÁRIO DA OPERAÇÃO NÃO IDENTIFICADO NA NFS-e"/);
   assert.match(code, /if \(data\.destinatario\)/);
   assert.match(code, /if \(data\.intermediario\)/);
+});
+
+test("prévia sintética é um PDF A4 de página única e nunca uma nota autorizada", async () => {
+  assert.equal(DANFSE_PREVIEW_FIXTURE.isHomologation, true);
+  assert.equal(DANFSE_PREVIEW_FIXTURE.accessKey, "1".repeat(50));
+  assert.match(DANFSE_PREVIEW_FIXTURE.prestador.name, /FICTÍCIO/i);
+  const pdf = await PDFDocument.load(await buildDanfsePdf(DANFSE_PREVIEW_FIXTURE));
+  assert.equal(pdf.getPageCount(), 1);
+  const [width, height] = pdf.getPage(0).getSize();
+  assert.equal(width, 595);
+  assert.equal(height, 842);
+});
+
+test("rota da prévia é administrativa, não usa nota/banco/SEFIN nem afrouxa bloqueios oficiais", () => {
+  const route = src("app/sistema/nfse/previa-danfse/route.ts");
+  const overview = src("app/sistema/nfse/page.tsx");
+  assert.match(route, /checkModuleAction\("nfse", "configuracoes_gerenciar"\)/);
+  assert.match(route, /buildDanfsePdf\(DANFSE_PREVIEW_FIXTURE\)/);
+  assert.match(route, /"Cache-Control": "private, no-store/);
+  for (const prohibited of ["createSupabaseAdminClient", "createIssuedNoteRepositorySupabase", "getTransmissionService", "getCertificateService", "readNfseDocument", "sendEmail", "transmitDps"]) {
+    assert.ok(!route.includes(prohibited), "prévia não pode acessar: " + prohibited);
+  }
+  assert.match(overview, /href="\/sistema\/nfse\/previa-danfse"/);
+  assert.equal(DANFSE_OFFICIAL_LAYOUT_APPROVED, false);
 });
