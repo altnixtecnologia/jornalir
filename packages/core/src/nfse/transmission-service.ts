@@ -222,6 +222,8 @@ export class TransmissionService {
       competencyDate: draft.competencyDate,
       serviceValue: draft.serviceValue,
       serviceDescription: draft.serviceDescription,
+      fiscalObservation: draft.fiscalObservation,
+      purchaseOrderNumber: draft.purchaseOrderNumber,
       environment,
       dpsSeries,
       dpsNumber,
