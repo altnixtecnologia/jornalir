@@ -287,7 +287,16 @@ export function extractNfseNumberAndIssuedAt(nfseXml: string): { nfseNumber: str
  * confirmar que uma NFS-e consultada manualmente pertence ao MESMO prestador da DPS
  * original antes de aceitar a regularização. */
 export function extractPrestadorCnpj(xml: string): string | undefined {
-  return new DOMParser().parseFromString(xml, "text/xml").getElementsByTagName("CNPJ")[0]?.textContent?.trim() || undefined;
+  const doc = new DOMParser().parseFromString(xml, "text/xml");
+  // DPS usa prest; NFS-e autorizada usa emit. Nunca usar o primeiro
+  // CNPJ global, que pode pertencer ao tomador ou intermediário.
+  const root = doc.documentElement?.localName;
+  const issuer = root === "DPS"
+    ? doc.getElementsByTagName("infDPS")[0]?.getElementsByTagName("prest")[0]
+    : root === "NFSe"
+      ? doc.getElementsByTagName("infNFSe")[0]?.getElementsByTagName("emit")[0]
+      : undefined;
+  return issuer?.getElementsByTagName("CNPJ")[0]?.textContent?.trim() || undefined;
 }
 
 /**
@@ -306,9 +315,12 @@ export function extractPrestadorCnpj(xml: string): string | undefined {
  */
 export function extractEmbeddedDpsIdentity(nfseXml: string): { dpsId?: string; tpAmb?: string } {
   const doc = new DOMParser().parseFromString(nfseXml, "text/xml");
-  const infDPS = doc.getElementsByTagName("infDPS")[0];
+  const infNfse = doc.documentElement?.localName === "NFSe"
+    ? doc.getElementsByTagName("infNFSe")[0]
+    : undefined;
+  const infDPS = infNfse?.getElementsByTagName("DPS")[0]?.getElementsByTagName("infDPS")[0];
   if (!infDPS) return {};
   const dpsId = infDPS.getAttribute("Id")?.trim() || undefined;
-  const tpAmb = doc.getElementsByTagName("tpAmb")[0]?.textContent?.trim() || undefined;
+  const tpAmb = infDPS.getElementsByTagName("tpAmb")[0]?.textContent?.trim() || undefined;
   return { dpsId, tpAmb };
 }
