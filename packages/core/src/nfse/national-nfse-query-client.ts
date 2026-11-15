@@ -3,9 +3,7 @@ import type { NfseEnvironment } from "@ir/types";
 import { fetch, type Dispatcher } from "undici";
 import { buildDpsByIdUrl, buildNfseByAccessKeyUrl } from "./national-nfse-provider";
 import { NfseIntegrationError, normalizeNfseTransportError } from "./integration-errors";
-import { NFSE_MAX_RESPONSE_BYTES, readBoundedNfseBody } from "./bounded-http-body";
-
-const MAX_RESPONSE_BYTES = NFSE_MAX_RESPONSE_BYTES;
+import { readBoundedNfseBody } from "./bounded-http-body";
 
 /**
  * Item 5, Lote 2, Tarefa 3 — consulta real de DPS/NFS-e via mTLS
