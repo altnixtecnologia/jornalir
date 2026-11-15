@@ -100,6 +100,8 @@ export interface DanfseData {
   dpsSeries: string;
   dpsIssuedAt: string;
   emitterMunicipality?: string;
+  /** Ambiente gerador informado em infNFSe/ambGer, sem presumir o codigo. */
+  environmentGenerator?: string;
   statusCode: string;
   statusLabel: string;
   issuerLabel: string;
@@ -346,6 +348,7 @@ export function extractDanfseData(issuedNote: Pick<NfseIssuedNote, "environment"
     dpsSeries: issuedNote.dpsSeries,
     dpsIssuedAt: requireText("dhEmi", directText(infDPS, "dhEmi"), "infDPS/dhEmi"),
     emitterMunicipality: text(doc, "xLocEmi", infNFSe),
+    environmentGenerator: directText(infNFSe, "ambGer"),
     statusCode: cStat,
     statusLabel,
     issuerLabel,
