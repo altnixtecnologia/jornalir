@@ -32,6 +32,8 @@ on:
       - "supabase/migrations/20261122340700_nfse_delivery_enqueue_trigger.sql"
       - "supabase/migrations/20261122340900_nfse_archive_retry_claim.sql"
       - "packages/core/test/sql/nfse-delivery-queue-test.sql"
+      - "packages/core/test/sql/nfse-observacoes-migration-test.sql"
+      - "supabase/migrations/20261122341000_nfse_fiscal_observations.sql"
       - ".github/workflows/validate-nfse-delivery-20261113.yml"
   workflow_dispatch:
 
@@ -87,6 +89,8 @@ jobs:
         run: npx tsx --test apps/sistema/test/nfse-delivery.test.ts apps/sistema/test/nfse-entrega-consolidacao.test.ts apps/sistema/test/nfse-danfse-release-gate.test.ts packages/core/test/danfse-data.test.ts packages/core/test/nfse-access-key.test.ts
       - name: Testar migration real em PostgreSQL 16 descartável
         run: psql -v ON_ERROR_STOP=1 -f packages/core/test/sql/nfse-delivery-queue-test.sql
+      - name: Testar observações fiscais no PostgreSQL 16 descartável
+        run: psql -v ON_ERROR_STOP=1 -f packages/core/test/sql/nfse-observacoes-migration-test.sql
       - name: Gerar DANFSe fictício para inspeção visual
         env:
           NODE_OPTIONS: --conditions=react-server
