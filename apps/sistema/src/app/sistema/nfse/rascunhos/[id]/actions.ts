@@ -20,8 +20,8 @@ function toErrorMessage(error: unknown): string {
 /** Confirma owner/admin direto no banco (item 9.1) — mesma regra de
  * RLS (`is_active_admin_or_owner`), nunca inferida só no client. */
 async function isActorAdminOrOwner(supabase: ReturnType<typeof createSupabaseServerClient>, actorId: string): Promise<boolean> {
-  const { data } = await supabase.from("profiles").select("role").eq("id", actorId).maybeSingle();
-  return data?.role === "owner" || data?.role === "admin";
+  const { data, error } = await supabase.from("profiles").select("active,role").eq("id", actorId).maybeSingle();
+  return !error && data?.active === true && (data.role === "owner" || data.role === "admin");
 }
 
 export interface TransmitDraftActionResult {
