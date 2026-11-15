@@ -113,9 +113,13 @@ function fitTextToWidth(value: string, font: PDFFont, size: number, maxWidth: nu
   return value.slice(0, low) + ellipsis;
 }
 
-function drawField(page: PDFPage, bold: PDFFont, regular: PDFFont, label: string, value: string, x: number, y: number, width: number, shaded = false): void {
+function drawField(page: PDFPage, bold: PDFFont, regular: PDFFont, label: string, value: string, x: number, y: number, width: number, shaded = false, identification = false): void {
   if (shaded) page.drawRectangle({ x, y: y - 20, width, height: 20, color: GRAY_SHADING });
-  page.drawText(fitTextToWidth(label.toUpperCase(), bold, 6, width - 4), { x: x + 2, y: y - 7, size: 6, font: bold, color: DARK_GRAY });
+  // NT 008, §2.4.2: labels de campos comuns 6pt e caixa de título;
+  // identificação da NFS-e: 7pt em caixa alta. Todos em preto K100.
+  const labelSize = identification ? 7 : 6;
+  const printedLabel = identification ? label.toUpperCase() : label;
+  page.drawText(fitTextToWidth(printedLabel, bold, labelSize, width - 4), { x: x + 2, y: y - 7, size: labelSize, font: bold, color: BLACK });
   const safeValue = fitTextToWidth(value, regular, 7, width - 4);
   page.drawText(safeValue, { x: x + 2, y: y - 17, size: 7, font: regular, color: BLACK });
 }
@@ -165,8 +169,8 @@ function drawWrappedField(
   label: string, value: string, x: number, y: number, width: number,
 ): number {
   const lines = wrapDanfseText(value, regular, 7, width - 4);
-  page.drawText(fitTextToWidth(label.toUpperCase(), bold, 6, width - 4), {
-    x: x + 2, y: y - 7, size: 6, font: bold, color: DARK_GRAY,
+  page.drawText(fitTextToWidth(label, bold, 6, width - 4), {
+    x: x + 2, y: y - 7, size: 6, font: bold, color: BLACK,
   });
   lines.forEach((line, i) => page.drawText(line, {
     x: x + 2, y: y - 17 - i * 9, size: 7, font: regular, color: BLACK,
@@ -239,18 +243,18 @@ export async function buildDanfsePdf(data: DanfseData, options: { cancelled?: bo
   page.drawText(`Chave de Acesso: ${data.accessKey}`, { x: MARGIN + 2, y: cursor.y - 9, size: 7, font: regular, color: BLACK });
   cursor.y -= 20;
   const idFieldWidth = contentColumnWidth / 3;
-  drawField(page, bold, regular, "Número da NFS-e", data.nfseNumber, MARGIN, cursor.y, idFieldWidth);
-  drawField(page, bold, regular, "Competência da NFS-e", formatDanfseDate(data.competencyDate), MARGIN + idFieldWidth, cursor.y, idFieldWidth);
-  drawField(page, bold, regular, "Data/Hora da Emissão da NFS-e", formatDanfseDateTime(data.nfseIssuedAt), MARGIN + idFieldWidth * 2, cursor.y, idFieldWidth);
+  drawField(page, bold, regular, "Número da NFS-e", data.nfseNumber, MARGIN, cursor.y, idFieldWidth, false, true);
+  drawField(page, bold, regular, "Competência da NFS-e", formatDanfseDate(data.competencyDate), MARGIN + idFieldWidth, cursor.y, idFieldWidth, false, true);
+  drawField(page, bold, regular, "Data/Hora da Emissão da NFS-e", formatDanfseDateTime(data.nfseIssuedAt), MARGIN + idFieldWidth * 2, cursor.y, idFieldWidth, false, true);
   cursor.y -= 20;
-  drawField(page, bold, regular, "Número da DPS", data.dpsNumber, MARGIN, cursor.y, idFieldWidth);
-  drawField(page, bold, regular, "Série da DPS", data.dpsSeries, MARGIN + idFieldWidth, cursor.y, idFieldWidth);
-  drawField(page, bold, regular, "Data/Hora da Emissão da DPS", formatDanfseDateTime(data.dpsIssuedAt), MARGIN + idFieldWidth * 2, cursor.y, idFieldWidth);
+  drawField(page, bold, regular, "Número da DPS", data.dpsNumber, MARGIN, cursor.y, idFieldWidth, false, true);
+  drawField(page, bold, regular, "Série da DPS", data.dpsSeries, MARGIN + idFieldWidth, cursor.y, idFieldWidth, false, true);
+  drawField(page, bold, regular, "Data/Hora da Emissão da DPS", formatDanfseDateTime(data.dpsIssuedAt), MARGIN + idFieldWidth * 2, cursor.y, idFieldWidth, false, true);
   cursor.y -= 20;
-  drawField(page, bold, regular, "Emitente da NFS-e", data.issuerLabel, MARGIN, cursor.y, idFieldWidth * 2, true);
-  drawField(page, bold, regular, "Situação da NFS-e", data.statusLabel, MARGIN + idFieldWidth * 2, cursor.y, idFieldWidth);
+  drawField(page, bold, regular, "Emitente da NFS-e", data.issuerLabel, MARGIN, cursor.y, idFieldWidth * 2, true, true);
+  drawField(page, bold, regular, "Situação da NFS-e", data.statusLabel, MARGIN + idFieldWidth * 2, cursor.y, idFieldWidth, false, true);
   cursor.y -= 20;
-  drawField(page, bold, regular, "Finalidade", data.purposeLabel, MARGIN, cursor.y, contentColumnWidth);
+  drawField(page, bold, regular, "Finalidade", data.purposeLabel, MARGIN, cursor.y, contentColumnWidth, false, true);
   cursor.y -= 22;
 
   // BLOCO: PRESTADOR/FORNECEDOR (seção 2.1.3).
@@ -290,16 +294,45 @@ export async function buildDanfsePdf(data: DanfseData, options: { cancelled?: bo
   }
   cursor.y -= 8;
 
-  // BLOCO: DESTINATÁRIO/INTERMEDIÁRIO — o cenário operacional atual do Jornal IR nunca tem
-  // destinatário distinto do tomador, nem intermediário (ver dps-builder.ts, escopo deliberado).
+  // NT 008 §2.3.1/2.3.2: não presumir que o destinatário é o tomador.
+  // Só usar frase de igualdade quando indDest=0 estiver presente no XML.
   drawBlockTitle(page, bold, "Destinatário da Operação", cursor.y);
   cursor.y -= 11;
-  page.drawText("O DESTINATÁRIO É O PRÓPRIO TOMADOR/ADQUIRENTE DA OPERAÇÃO", { x: MARGIN + 2, y: cursor.y - 9, size: 7, font: regular, color: BLACK });
-  cursor.y -= 14;
+  if (data.destinatario) {
+    drawField(page, bold, regular, "CNPJ/CPF/NIF", formatFederalInscription(data.destinatario.federalInscription), MARGIN, cursor.y, half);
+    cursor.y -= drawWrappedField(page, bold, regular, "Nome / Nome Empresarial", data.destinatario.name, MARGIN + half, cursor.y, half);
+    const enderecoHeight = drawWrappedField(page, bold, regular, "Endereço", dash(data.destinatario.address), MARGIN, cursor.y, half);
+    drawField(page, bold, regular, "Município / UF / CEP", `${dash(data.destinatario.ibgeCode)} / ${dash(data.destinatario.state)} / ${dash(data.destinatario.zipCode)}`, MARGIN + half, cursor.y, half);
+    cursor.y -= Math.max(20, enderecoHeight);
+    drawField(page, bold, regular, "Telefone", dash(data.destinatario.phone), MARGIN, cursor.y, half);
+    drawField(page, bold, regular, "E-mail", dash(data.destinatario.email), MARGIN + half, cursor.y, half);
+    cursor.y -= 20;
+  } else {
+    page.drawText(data.destinatarioEhTomador
+      ? "O DESTINATÁRIO É O PRÓPRIO TOMADOR/ADQUIRENTE DA OPERAÇÃO"
+      : "DESTINATÁRIO DA OPERAÇÃO NÃO IDENTIFICADO NA NFS-e",
+      { x: MARGIN + 2, y: cursor.y - 9, size: 7, font: regular, color: BLACK });
+    cursor.y -= 14;
+  }
+
   drawBlockTitle(page, bold, "Intermediário da Operação", cursor.y);
   cursor.y -= 11;
-  page.drawText("INTERMEDIÁRIO DA OPERAÇÃO NÃO IDENTIFICADO NA NFS-e", { x: MARGIN + 2, y: cursor.y - 9, size: 7, font: regular, color: BLACK });
-  cursor.y -= 20;
+  if (data.intermediario) {
+    drawField(page, bold, regular, "CNPJ/CPF/NIF", formatFederalInscription(data.intermediario.federalInscription), MARGIN, cursor.y, half);
+    drawField(page, bold, regular, "Inscrição Municipal", dash(data.intermediario.municipalRegistration), MARGIN + half, cursor.y, half);
+    cursor.y -= 20;
+    cursor.y -= drawWrappedField(page, bold, regular, "Nome / Nome Empresarial", data.intermediario.name, MARGIN, cursor.y, CONTENT_WIDTH);
+    const enderecoHeight = drawWrappedField(page, bold, regular, "Endereço", dash(data.intermediario.address), MARGIN, cursor.y, half);
+    drawField(page, bold, regular, "Município / UF / CEP", `${dash(data.intermediario.ibgeCode)} / ${dash(data.intermediario.state)} / ${dash(data.intermediario.zipCode)}`, MARGIN + half, cursor.y, half);
+    cursor.y -= Math.max(20, enderecoHeight);
+    drawField(page, bold, regular, "Telefone", dash(data.intermediario.phone), MARGIN, cursor.y, half);
+    drawField(page, bold, regular, "E-mail", dash(data.intermediario.email), MARGIN + half, cursor.y, half);
+    cursor.y -= 20;
+  } else {
+    page.drawText("INTERMEDIÁRIO DA OPERAÇÃO NÃO IDENTIFICADO NA NFS-e", { x: MARGIN + 2, y: cursor.y - 9, size: 7, font: regular, color: BLACK });
+    cursor.y -= 14;
+  }
+  cursor.y -= 6;
 
   // BLOCO: SERVIÇO PRESTADO (seção 2.1.7).
   drawBlockTitle(page, bold, "Dados do Serviço Prestado", cursor.y);
@@ -365,12 +398,12 @@ export async function buildDanfsePdf(data: DanfseData, options: { cancelled?: bo
   cursor.y -= 11;
   drawField(page, bold, regular, "Valor do Serviço", formatMoney(data.serviceValue), MARGIN, cursor.y, third);
   drawField(page, bold, regular, "Total das Retenções", formatMoney(data.totalRetained), MARGIN + third, cursor.y, third);
-  drawField(page, bold, regular, "Valor Líquido da NFS-e", formatMoney(data.netValue), MARGIN + third * 2, cursor.y, third, true);
+  drawField(page, bold, regular, "Valor Líquido da NFS-e", formatMoney(data.netValue), MARGIN + third * 2, cursor.y, third);
   cursor.y -= 20;
   drawField(page, bold, regular, "Desconto Incondicionado", formatMoney(data.discountUnconditional), MARGIN, cursor.y, quarter);
   drawField(page, bold, regular, "Desconto Condicionado", formatMoney(data.discountConditional), MARGIN + quarter, cursor.y, quarter);
   drawField(page, bold, regular, "Total IBS / CBS", [formatMoney(data.ibsCbsTotal), formatMoney(data.ibsCbsValueFederal)].join(" / "), MARGIN + quarter * 2, cursor.y, quarter);
-  drawField(page, bold, regular, "Valor total com IBS/CBS", formatMoney(data.grossTotalWithIbsCbs), MARGIN + quarter * 3, cursor.y, quarter, true);
+  drawField(page, bold, regular, "Valor Líquido da NFS-e + IBS/CBS", formatMoney(data.grossTotalWithIbsCbs), MARGIN + quarter * 3, cursor.y, quarter, true);
   cursor.y -= 22;
 
   // BLOCO: INFORMAÇÕES COMPLEMENTARES. O canhoto é opcional

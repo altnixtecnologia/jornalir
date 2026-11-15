@@ -92,6 +92,10 @@ export interface DanfseData {
   isHomologation: boolean;
   prestador: DanfsePessoaData;
   tomador?: DanfsePessoaData;
+  /** indDest=0 confirma destino idêntico ao tomador; ausência NÃO presume igualdade. */
+  destinatarioEhTomador?: boolean;
+  destinatario?: DanfsePessoaData;
+  intermediario?: DanfsePessoaData;
   serviceDescription: string;
   nationalServiceCode?: string;
   municipalServiceCode?: string;
@@ -218,6 +222,12 @@ export function extractDanfseData(issuedNote: Pick<NfseIssuedNote, "environment"
 
   const prestador = extractPessoa(doc, infNFSe.getElementsByTagName("emit")[0], "emit — prestador", true)!;
   const tomador = extractPessoa(doc, infDPS.getElementsByTagName("toma")[0], "infDPS/toma — tomador", false);
+  const grupoIntermediario = infDPS.getElementsByTagName("interm")[0];
+  // Grupo presente mas incompleto nunca deve ser convertido em declaração
+  // falsa de que não existe intermediário.
+  const intermediario = grupoIntermediario
+    ? extractPessoa(doc, grupoIntermediario, "infDPS/interm — intermediário", true)
+    : undefined;
 
   // Os campos de exibição vêm de colunas persistidas após autorização.
   // Antes de gerar DANFSe, conferir vínculo com XML e DPS originais:
@@ -276,6 +286,23 @@ export function extractDanfseData(issuedNote: Pick<NfseIssuedNote, "environment"
   const ibsTotalMun = ibsTotal?.getElementsByTagName("gIBSMunTot")[0];
   const ibsTotalCbs = ibsTotals?.getElementsByTagName("gCBS")[0];
   const dpsIbsCbs = infDPS.getElementsByTagName("IBSCBS")[0];
+  // No XSD de Produção Restrita, indDest=0 comprova que o destinatário
+  // é o próprio tomador; indDest=1 identifica um destinatário diferente
+  // no grupo IBSCBS/dest. Sem indDest, o PDF NÃO pode afirmar igualdade.
+  const indicadorDestino = text(doc, "indDest", dpsIbsCbs);
+  const grupoDestinatario = dpsIbsCbs?.getElementsByTagName("dest")[0];
+  if (indicadorDestino === "0" && (!tomador || grupoDestinatario)) {
+    throw new DanfseDataError("indDest=0 não corresponde ao tomador ou contém destinatário separado — DANFSe bloqueado.");
+  }
+  if (indicadorDestino === "1" && !grupoDestinatario) {
+    throw new DanfseDataError("indDest=1 sem identificação do destinatário — DANFSe bloqueado.");
+  }
+  if (indicadorDestino && indicadorDestino !== "0" && indicadorDestino !== "1") {
+    throw new DanfseDataError("Indicador indDest desconhecido no XML fiscal.");
+  }
+  const destinatario = grupoDestinatario
+    ? extractPessoa(doc, grupoDestinatario, "IBSCBS/dest — destinatário", true)
+    : undefined;
 
   const tpAmb = requireText("tpAmb", text(doc, "tpAmb", infDPS), "infDPS");
   if (tpAmb !== "1" && tpAmb !== "2") throw new DanfseDataError(`tpAmb=${tpAmb} não reconhecido na DPS.`);
@@ -310,6 +337,9 @@ export function extractDanfseData(issuedNote: Pick<NfseIssuedNote, "environment"
     isHomologation: tpAmb === "2",
     prestador,
     tomador,
+    destinatarioEhTomador: indicadorDestino === "0",
+    destinatario,
+    intermediario,
     serviceDescription: requireText("xDescServ", text(doc, "xDescServ", serv), "infDPS/serv/cServ/xDescServ"),
     nationalServiceCode: text(doc, "cTribNac", serv),
     municipalServiceCode: text(doc, "cTribMun", serv),
