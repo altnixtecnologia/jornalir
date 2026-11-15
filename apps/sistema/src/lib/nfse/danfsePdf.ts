@@ -85,6 +85,53 @@ export function formatDanfseTotalIbsCbs(data: Pick<DanfseData, "ibsCbsTotal" | "
 function dash(value: string | undefined): string {
   return value && value.length > 0 ? value : "-";
 }
+
+/** As descrições abaixo são da tabela de códigos do padrão nacional,
+ * não são valores fiscais estimados. Valor desconhecido permanece código. */
+export function danfseIssqnTypeLabel(code: string | undefined): string {
+  return ({ "1": "Operação Tributável", "2": "Imunidade",
+    "3": "Exportação de Serviço", "4": "Não Incidência" } as Record<string, string>)[code ?? ""] ?? dash(code);
+}
+export function danfseRegimeEspecialLabel(code: string | undefined): string {
+  return ({ "0": "Nenhum", "1": "Ato Cooperado (Cooperativa)", "2": "Estimativa",
+    "3": "Microempresa Municipal", "4": "Notário ou Registrador",
+    "5": "Profissional Autônomo", "6": "Sociedade de Profissionais",
+    "9": "Outros" } as Record<string, string>)[code ?? ""] ?? dash(code);
+}
+export function danfseIssqnRetentionLabel(code: string | undefined): string {
+  return ({ "1": "Não Retido", "2": "Retido pelo Tomador", "3": "Retido pelo Intermediário" } as Record<string, string>)[code ?? ""] ?? dash(code);
+}
+export function danfseFederalRetentionLabel(code: string | undefined): string {
+  return ({
+    "0": "PIS/COFINS/CSLL Não Retidos", "1": "PIS/COFINS Retidos",
+    "2": "PIS/COFINS Não Retidos", "3": "PIS/COFINS/CSLL Retidos",
+    "4": "PIS/COFINS Retidos, CSLL Não Retido",
+    "5": "PIS Retido, COFINS/CSLL Não Retidos",
+    "6": "COFINS Retido, PIS/CSLL Não Retidos",
+    "7": "PIS Não Retido, COFINS/CSLL Retidos",
+    "8": "PIS/COFINS Não Retidos, CSLL Retido",
+    "9": "COFINS Não Retido, PIS/CSLL Retidos",
+  } as Record<string, string>)[code ?? ""] ?? dash(code);
+}
+/** NT008 v1.02, linhas federais: a regra especial tpRetPisCofins=1
+ * soma CSLL/PIS/COFINS no campo de contribuições sociais retidas;
+ * PIS/COFINS de apuração própria são exibidos como R$0,00 (não como
+ * retenções duplicadas). Ausências nas demais situações viram traço. */
+export function danfseFederalValues(data: Pick<DanfseData, "federalSocialContribRetained" |
+  "federalPis" | "federalCofins" | "federalPisCofinsRetention">):
+  { social: string; pis: string; cofins: string } {
+  if (data.federalPisCofinsRetention !== "1") return {
+    social: formatMoney(data.federalSocialContribRetained),
+    pis: formatMoney(data.federalPis), cofins: formatMoney(data.federalCofins),
+  };
+  const values = [data.federalSocialContribRetained, data.federalPis, data.federalCofins];
+  if (values.some(v => v === undefined || !Number.isFinite(Number(v)))) {
+    return { social: "-", pis: formatMoney(0), cofins: formatMoney(0) };
+  }
+  const cents = values.reduce<number>((sum, value) => sum + Math.round(Number(value) * 100), 0);
+  return { social: formatMoney(cents / 100), pis: formatMoney(0), cofins: formatMoney(0) };
+}
+
 export function formatFederalInscription(value: string): string {
   // CNPJ alfanumérico (XSD nacional desde 2026) pode conter 11 dígitos
   // e 3 letras. O código antigo removia as letras e o imprimia como CPF,
@@ -418,31 +465,66 @@ export async function buildDanfsePdf(data: DanfseData, options: { cancelled?: bo
   cursor.y -= drawWrappedPlainText(page, regular, selectDanfseTaxDescription(data), MARGIN, cursor.y, CONTENT_WIDTH) + 2;
   cursor.y -= drawWrappedField(page, bold, regular, "Descrição do Serviço", data.serviceDescription, MARGIN, cursor.y, CONTENT_WIDTH) + 4;
 
-  // 2.1.8 — ISSQN: a tributação abre a seção e compartilha a primeira linha.
-  drawSectionCell(page, bold, "Tributação Municipal (ISSQN)", cursor.y);
-  drawField(page, bold, regular, "Tipo de Tributação do ISSQN", dash(data.issqnTaxationType), MARGIN + quarter, cursor.y, quarter);
-  drawField(page, bold, regular, "Município / Sigla UF / País de Incidência do ISSQN",
-    dash(data.issqnIncidenceLocation), MARGIN + 2 * quarter, cursor.y, half);
-  cursor.y -= 20;
-  drawField(page, bold, regular, "Regime Especial de Tributação", dash(data.issqnSpecialTaxRegime), MARGIN, cursor.y, quarter);
-  drawField(page, bold, regular, "Retenção do ISSQN", dash(data.issqnRetentionType), MARGIN + quarter, cursor.y, quarter);
-  drawField(page, bold, regular, "Desconto Incondicionado", formatMoney(data.issqnDiscountUnconditional), MARGIN + 2 * quarter, cursor.y, quarter);
-  drawField(page, bold, regular, "Base de Cálculo ISSQN", formatMoney(data.issqnTaxBase), MARGIN + 3 * quarter, cursor.y, quarter);
-  cursor.y -= 20;
-  drawField(page, bold, regular, "Alíquota Aplicada", data.issqnRateApplied !== undefined ? `${data.issqnRateApplied}%` : "-", MARGIN, cursor.y, quarter);
-  drawField(page, bold, regular, "ISSQN Apurado", formatMoney(data.issqnAmount), MARGIN + quarter, cursor.y, quarter);
-  cursor.y -= 22;
+  // 2.1.8 — ISSQN: respeitar blocos opcionais da NT008 (Notas 4 e 5).
+  // Imunidade/exportação/não incidência não podem criar cálculo de ISSQN.
+  if (["2", "3", "4"].includes(data.issqnTaxationType ?? "")) {
+    page.drawLine({ start: { x: MARGIN, y: cursor.y + 1 },
+      end: { x: MARGIN + CONTENT_WIDTH, y: cursor.y + 1 },
+      thickness: 0.5, color: BLACK });
+    page.drawText("TRIBUTAÇÃO MUNICIPAL (ISSQN) - OPERAÇÃO NÃO SUJEITA AO ISSQN", {
+      x: MARGIN + 3, y: cursor.y - 12, size: 7, font: bold, color: BLACK,
+    });
+    cursor.y -= 22;
+  } else {
+    drawSectionCell(page, bold, "Tributação Municipal (ISSQN)", cursor.y);
+    drawField(page, bold, regular, "Tipo de Tributação do ISSQN", danfseIssqnTypeLabel(data.issqnTaxationType), MARGIN + quarter, cursor.y, quarter);
+    drawField(page, bold, regular, "Município / Sigla UF / País de Incidência do ISSQN",
+      dash(data.issqnIncidenceLocation), MARGIN + 2 * quarter, cursor.y, half);
+    cursor.y -= 20;
+    const optionals1 = [data.issqnSpecialTaxRegime, data.issqnImmunityType, data.issqnSuspensionType, data.issqnSuspensionProcess];
+    if (optionals1.some(x => x !== undefined)) {
+      drawField(page, bold, regular, "Regime Especial de Tributação do ISSQN", danfseRegimeEspecialLabel(data.issqnSpecialTaxRegime), MARGIN, cursor.y, quarter);
+      drawField(page, bold, regular, "Tipo de Imunidade do ISSQN", dash(data.issqnImmunityType), MARGIN + quarter, cursor.y, quarter);
+      drawField(page, bold, regular, "Suspensão da Exigibilidade do ISSQN",
+        data.issqnSuspensionType === "1" ? "Exigibilidade Suspensa por Decisão Judicial" :
+          data.issqnSuspensionType === "2" ? "Exigibilidade Suspensa por Processo Administrativo" :
+          dash(data.issqnSuspensionType),
+        MARGIN + 2 * quarter, cursor.y, quarter);
+      drawField(page, bold, regular, "Número Processo Suspensão", dash(data.issqnSuspensionProcess), MARGIN + 3 * quarter, cursor.y, quarter);
+      cursor.y -= 20;
+    }
+    const optionals2 = [data.issqnMunicipalBenefitType, data.issqnBenefitCalculation,
+      data.issqnTotalDeductions, data.issqnDiscountUnconditional];
+    if (optionals2.some(x => x !== undefined)) {
+      drawField(page, bold, regular, "Benefício Municipal", dash(data.issqnMunicipalBenefitType), MARGIN, cursor.y, quarter);
+      drawField(page, bold, regular, "Cálculo do BM", formatMoney(data.issqnBenefitCalculation), MARGIN + quarter, cursor.y, quarter);
+      drawField(page, bold, regular, "Total Deduções/Reduções", formatMoney(data.issqnTotalDeductions), MARGIN + 2 * quarter, cursor.y, quarter);
+      drawField(page, bold, regular, "Desconto Incondicionado", formatMoney(data.issqnDiscountUnconditional), MARGIN + 3 * quarter, cursor.y, quarter);
+      cursor.y -= 20;
+    }
+    drawField(page, bold, regular, "BC ISSQN", formatMoney(data.issqnTaxBase), MARGIN, cursor.y, quarter);
+    drawField(page, bold, regular, "Alíquota Aplicada", data.issqnRateApplied !== undefined ? `${data.issqnRateApplied}%` : "-", MARGIN + quarter, cursor.y, quarter);
+    drawField(page, bold, regular, "Retenção do ISSQN", danfseIssqnRetentionLabel(data.issqnRetentionType), MARGIN + 2 * quarter, cursor.y, quarter);
+    drawField(page, bold, regular, "ISSQN Apurado", formatMoney(data.issqnAmount), MARGIN + 3 * quarter, cursor.y, quarter);
+    cursor.y -= 22;
+  }
 
-  // 2.1.9 — Tributos federais, sem confundir IRRF com PIS/COFINS.
+  // 2.1.9 — a linha PIS/COFINS é exclusiva de competências até 2026,
+  // conforme Nota 6 do Anexo I. Não se duplicam valores retidos.
+  const federal = danfseFederalValues(data);
   drawSectionCell(page, bold, "Tributação Federal (Exceto CBS)", cursor.y);
   drawField(page, bold, regular, "IRRF", formatMoney(data.federalIrrf), MARGIN + quarter, cursor.y, quarter);
   drawField(page, bold, regular, "Contribuição Previdenciária - Retida", formatMoney(data.federalSocialSecurityRetained), MARGIN + 2 * quarter, cursor.y, quarter);
-  drawField(page, bold, regular, "Contribuições Sociais - Retidas", formatMoney(data.federalSocialContribRetained), MARGIN + 3 * quarter, cursor.y, quarter);
+  drawField(page, bold, regular, "Contribuições Sociais - Retidas", federal.social, MARGIN + 3 * quarter, cursor.y, quarter);
   cursor.y -= 20;
-  drawField(page, bold, regular, "PIS - Débito Apuração Própria", formatMoney(data.federalPis), MARGIN, cursor.y, quarter);
-  drawField(page, bold, regular, "COFINS - Débito Apuração Própria", formatMoney(data.federalCofins), MARGIN + quarter, cursor.y, quarter);
-  drawField(page, bold, regular, "Retenção PIS/COFINS (Código)", dash(data.federalPisCofinsRetention), MARGIN + 2 * quarter, cursor.y, half);
-  cursor.y -= 22;
+  if (data.competencyDate <= "2026-12-31") {
+    drawField(page, bold, regular, "PIS - Débito Apuração Própria", federal.pis, MARGIN, cursor.y, quarter);
+    drawField(page, bold, regular, "COFINS - Débito Apuração Própria", federal.cofins, MARGIN + quarter, cursor.y, quarter);
+    drawField(page, bold, regular, "Descrição Contrib. Sociais - Retidas", danfseFederalRetentionLabel(data.federalPisCofinsRetention), MARGIN + 2 * quarter, cursor.y, half);
+    cursor.y -= 22;
+  } else {
+    cursor.y -= 2;
+  }
 
   // 2.1.10 — IBS/CBS, colunas no arranjo do Anexo I. Não se fabricam
   // bases ou descontos: campos opcionais ausentes são exibidos como traço.
@@ -487,9 +569,10 @@ export async function buildDanfsePdf(data: DanfseData, options: { cancelled?: bo
   drawBlockTitle(page, bold, "Informações Complementares", cursor.y);
   cursor.y -= 11;
   const complementary = [
-    data.purchaseOrderNumber ? `Pedido / ordem de compra: ${data.purchaseOrderNumber}` : undefined,
     data.complementaryInformation,
+    data.purchaseOrderNumber ? `Item Ped.: ${data.purchaseOrderNumber}` : undefined,
     data.municipalAdditionalInformation,
+    data.taxApproxTotals ? `Totais Aproximados dos Tributos cfe. Lei nº 12.741/2012: ${data.taxApproxTotals}` : undefined,
   ].filter(Boolean).join(" | ");
   cursor.y -= drawWrappedField(page, bold, regular, "Dados complementares da NFS-e", complementary || "-", MARGIN, cursor.y, CONTENT_WIDTH);
   if (cursor.y < MARGIN + 14) {
