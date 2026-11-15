@@ -17,6 +17,10 @@
 
 **Verificações estáticas efetuadas:** árvore de arquivos, licença, manifesto de dependências/scripts, funções relevantes de emissão/consulta/DANFSe/assinatura. **Não é auditoria completa de malware ou de todas as dependências transitivas**. Projetos e documentos públicos não são autoridade fiscal: prevalecem esquemas e documentação oficial do Portal Nacional. 
 
+## Divergência de endpoints identificada na comparação
+
+**Não copiar URLs de um SDK sem confrontar o portal oficial.** O Swagger SEFIN v1 armazenado por `nfse-nacional/nfse-php` expõe `basePath: /SefinNacional` para homologação, e o README de `useinvio/nfse-sdk` também lista o prefixo curto. Mas a referência oficial consultada e documentada em `packages/core/src/nfse/environment.ts` diferencia explicitamente a Produção Restrita com `/API/SefinNacional` e a Produção com `/SefinNacional`. **Conservar a configuração verificada contra a fonte primária e reconferir na homologação mTLS; jamais sobrescrevê-la silenciosamente copiando o código aberto.** A divergência comprova por que usar os repositórios como referência, não como autoridade.
+
 ## Matriz funcional contra nosso código (não confundir SDK genérico com escopo Jornal IR)
 
 | Componente | Situação atual do Jornal IR | Decisão |
