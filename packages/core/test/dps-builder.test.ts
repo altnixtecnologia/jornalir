@@ -164,3 +164,25 @@ test("buildDpsXml falha fechado sem arredondar centavos ou aceitar dia inexisten
   assert.throws(() => buildDpsXml(makeInput({ competencyDate: "2026-02-29" })), /competência inválida/);
   assert.ok(buildDpsXml(makeInput({ competencyDate: "2024-02-29", serviceValue: 0.01 })).includes("<vServ>0.01</vServ>"));
 });
+
+
+test("DPS: observação fiscal e pedido têm campos oficiais independentes da descrição", () => {
+  const xml = buildDpsXml(makeInput({
+    serviceDescription: "Serviço & suporte",
+    fiscalObservation: "Optante pelo Simples Nacional, se confirmado. <Informação fiscal>",
+    purchaseOrderNumber: "OC-123 & 45",
+  }));
+  assert.ok(xml.includes("<xDescServ>Serviço &amp; suporte</xDescServ>"));
+  assert.ok(xml.includes("<infoCompl><xPed>OC-123 &amp; 45</xPed><xInfComp>Optante pelo Simples Nacional, se confirmado. &lt;Informação fiscal&gt;</xInfComp></infoCompl>"));
+  assert.ok(xml.indexOf("<cServ>") < xml.indexOf("<infoCompl>"));
+  assert.ok(xml.indexOf("<infoCompl>") < xml.indexOf("<valores>"));
+});
+
+test("DPS: campos opcionais vazios são omitidos e texto excessivo é bloqueado", () => {
+  assert.ok(!buildDpsXml(makeInput()).includes("<infoCompl>"));
+  assert.ok(!buildDpsXml(makeInput({ fiscalObservation: "  ", purchaseOrderNumber: "" })).includes("<infoCompl>"));
+  assert.ok(buildDpsXml(makeInput({ fiscalObservation: "A".repeat(2000) })).includes("<xInfComp>"));
+  assert.ok(buildDpsXml(makeInput({ purchaseOrderNumber: "P".repeat(60) })).includes("<xPed>"));
+  assert.throws(() => buildDpsXml(makeInput({ fiscalObservation: "A".repeat(2001) })), /2.000 caracteres/);
+  assert.throws(() => buildDpsXml(makeInput({ purchaseOrderNumber: "P".repeat(61) })), /60 caracteres/);
+});
