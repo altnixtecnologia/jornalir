@@ -64,7 +64,8 @@ function normalize(input: IssuerConfigInput): NewIssuerConfigRecord {
     certificateValidUntil: input.certificateValidUntil || undefined,
     certificateReference: trimOrUndefined(input.certificateReference),
     dpsSeries: trimOrUndefined(input.dpsSeries),
-    defaultFiscalObservation: trimOrUndefined(input.defaultFiscalObservation),
+    // Valor vazio deve realmente LIMPAR a configuração anterior.
+    defaultFiscalObservation: input.defaultFiscalObservation?.trim() ?? "",
     notes: trimOrUndefined(input.notes),
   };
 }
