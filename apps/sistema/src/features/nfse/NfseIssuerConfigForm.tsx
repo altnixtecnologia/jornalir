@@ -52,6 +52,7 @@ function toFormInput(config: Partial<NfseIssuerConfig> | undefined): IssuerConfi
     certificateValidUntil: config?.certificateValidUntil ?? "",
     certificateReference: config?.certificateReference ?? "",
     dpsSeries: config?.dpsSeries ?? "",
+    defaultFiscalObservation: config?.defaultFiscalObservation ?? "",
     notes: config?.notes ?? "",
   };
 }
@@ -274,8 +275,19 @@ export function NfseIssuerConfigForm({ initialConfig, encryptionReady }: { initi
       </section>
 
       <section className="form-section">
-        <h2>Observações</h2>
-        <textarea rows={3} value={input.notes} onChange={(event) => set("notes", event.target.value)} />
+        <h2>Observações padrão das NFS-e</h2>
+        <label className="form-field">
+          <span className="field-label">Texto fiscal padrão (opcional)</span>
+          <textarea rows={3} maxLength={2000} value={input.defaultFiscalObservation} onChange={(event) => set("defaultFiscalObservation", event.target.value)} />
+          <span className="helper-text">
+            Preenchido automaticamente somente nas novas notas e editável individualmente. Ex.: informação sobre o Simples Nacional,
+            se confirmada pelo enquadramento fiscal. Limite: 2.000 caracteres. Não substitui a configuração do regime tributário.
+          </span>
+        </label>
+        <label className="form-field">
+          <span className="field-label">Observações internas da configuração (não enviadas à SEFIN)</span>
+          <textarea rows={3} value={input.notes} onChange={(event) => set("notes", event.target.value)} />
+        </label>
       </section>
 
       <section className="form-section">
