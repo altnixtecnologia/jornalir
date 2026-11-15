@@ -166,3 +166,45 @@ test("chave oficial que nao satisfaz XSD do evento bloqueia ANTES do POST", asyn
   assert.equal(wrong.repo.claims, 0);
   assert.equal(wrong.getSends(), 0);
 });
+
+test("cancelamento: texto e101101 ou tpEvento isolado nao confirma registro na SEFIN", async () => {
+  const samples = [
+    "<evento><chNFSe>" + KEY + "</chNFSe><tpEvento>101101</tpEvento></evento>",
+    "<evento><xMotivo>e101101</xMotivo><chNFSe>" + KEY + "</chNFSe></evento>",
+    syntheticCancellationResponse().replace("<e101101>", "<xMotivo>e101101</xMotivo><e999999>").replace("</e101101>", "</e999999>"),
+  ];
+  for (const eventXml of samples) {
+    const { service, repo } = makeService({ eventXml });
+    assert.equal((await service.submit("cancel-test", true)).outcome, "uncertain");
+    assert.equal(repo.current.status, "uncertain");
+  }
+});
+
+test("cancelamento: chave, Id, ambiente, tipo e sequencia divergentes nao confirmam evento", async () => {
+  const valid = syntheticCancellationResponse();
+  const samples = [
+    valid.replace("<chNFSe>" + KEY + "</chNFSe>", "<chNFSe>OUTRA_CHAVE</chNFSe>"),
+    valid.replace("PRE" + KEY + "101101", "PRE" + KEY + "101102"),
+    valid.replace("<tpAmb>2</tpAmb>", "<tpAmb>1</tpAmb>"),
+    valid.replace("<nSeqEvento>001</nSeqEvento>", "<nSeqEvento>002</nSeqEvento>"),
+    valid.replace("<e101101>", "<e999999>").replace("</e101101>", "</e999999>"),
+    valid.replace("<xDesc>Cancelamento de NFS-e</xDesc>", "<xDesc>Outro evento</xDesc>"),
+    valid.replace("<evento>", "<retorno>").replace("</evento>", "</retorno>"),
+    "<!DOCTYPE evento>" + valid,
+  ];
+  for (const eventXml of samples) {
+    const { service, repo, getSends } = makeService({ eventXml });
+    assert.equal((await service.submit("cancel-test", true)).outcome, "uncertain");
+    assert.equal(repo.current.status, "uncertain");
+    assert.equal(getSends(), 1);
+  }
+});
+
+test("cancelamento: chave da nota em outro grupo XML nunca confirma", async () => {
+  const eventXml = syntheticCancellationResponse()
+    .replace("<chNFSe>" + KEY + "</chNFSe>", "<chNFSe>OUTRA_CHAVE</chNFSe>")
+    .replace("<infEvento>", "<infEvento><observacao><chNFSe>" + KEY + "</chNFSe></observacao>");
+  const { service, repo } = makeService({ eventXml });
+  assert.equal((await service.submit("cancel-test", true)).outcome, "uncertain");
+  assert.equal(repo.current.status, "uncertain");
+});
