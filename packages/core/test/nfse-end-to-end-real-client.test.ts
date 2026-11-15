@@ -287,7 +287,7 @@ test("fluxo completo: consulta posterior pela chave de acesso via o mesmo adapta
   const pool = mock.get("https://sefin.producaorestrita.nfse.gov.br");
   pool
     .intercept({ path: "/API/SefinNacional/nfse/42164023970969000190000000000000000000000000000000", method: "GET" })
-    .reply(200, { tipoAmbiente: 2, idDps: END_TO_END_DPS_ID, nfseXmlGZipB64: gzipSync(Buffer.from(fakeNfseXml(), "utf8")).toString("base64") });
+    .reply(200, { tipoAmbiente: 2, idDps: END_TO_END_DPS_ID, chaveAcesso: "42164023970969000190000000000000000000000000000000", nfseXmlGZipB64: gzipSync(Buffer.from(fakeNfseXml(), "utf8")).toString("base64") });
   const { service } = makeEndToEndService({ mock });
 
   const xml = await service.consultNfseByAccessKey("42164023970969000190000000000000000000000000000000");
