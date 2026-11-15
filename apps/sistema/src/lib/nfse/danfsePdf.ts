@@ -121,9 +121,19 @@ function drawField(page: PDFPage, bold: PDFFont, regular: PDFFont, label: string
   // identificação da NFS-e: 7pt em caixa alta. Todos em preto K100.
   const labelSize = identification ? 7 : 6;
   const printedLabel = identification ? label.toUpperCase() : label;
-  page.drawText(fitTextToWidth(printedLabel, bold, labelSize, width - 4), { x: x + 2, y: y - 7, size: labelSize, font: bold, color: BLACK });
+  // O Anexo I permite labels com mais de uma linha; NÃO cortar labels
+  // obrigatórios por reticências. São reservadas duas linhas em cada célula.
+  const labelLines = wrapDanfseText(printedLabel, bold, labelSize, width - 4);
+  if (labelLines.length > 2) {
+    throw new Error(`Rótulo fiscal excede as duas linhas permitidas no campo: ${label}`);
+  }
+  labelLines.forEach((line, i) => page.drawText(line, {
+    x: x + 2, y: y - 6 - i * 6.3, size: labelSize, font: bold, color: BLACK,
+  }));
+  // Valores curtos da grade podem usar reticências como permite a NT.
+  // Nomes, endereços, serviços e complementos usam drawWrappedField.
   const safeValue = fitTextToWidth(value, regular, 7, width - 4);
-  page.drawText(safeValue, { x: x + 2, y: y - 17, size: 7, font: regular, color: BLACK });
+  page.drawText(safeValue, { x: x + 2, y: y - 18.5, size: 7, font: regular, color: BLACK });
 }
 
 /**
@@ -209,9 +219,11 @@ function drawSectionCell(page: PDFPage, bold: PDFFont, title: string, y: number)
     thickness: 0.5, color: BLACK,
   });
   page.drawRectangle({ x: MARGIN, y: y - 19, width: first, height: 20, color: GRAY_SHADING });
-  page.drawText(fitTextToWidth(title.toUpperCase(), bold, 7, first - 5), {
-    x: MARGIN + 3, y: y - 9, size: 7, font: bold, color: BLACK,
-  });
+  const titleLines = wrapDanfseText(title.toUpperCase(), bold, 7, first - 5);
+  if (titleLines.length > 2) throw new Error(`Título de bloco fiscal ultrapassa a coluna: ${title}`);
+  titleLines.forEach((line, i) => page.drawText(line, {
+    x: MARGIN + 3, y: y - 8 - i * 8, size: 7, font: bold, color: BLACK,
+  }));
 }
 
 /** Linha inicial mais linhas dinâmicas de pessoa, no mesmo arranjo do Anexo I.
