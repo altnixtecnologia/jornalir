@@ -92,8 +92,10 @@ function normalize(input: DraftInput): NewDraftRecord {
     competencyDate: input.competencyDate,
     serviceValue: input.serviceValue,
     serviceDescription: input.serviceDescription.trim(),
-    fiscalObservation: trimOrUndefined(input.fiscalObservation),
-    purchaseOrderNumber: trimOrUndefined(input.purchaseOrderNumber),
+    // String vazia é um snapshot válido: permite remover o padrão no
+    // rascunho sem que o repositório ignore o UPDATE e restaure valor antigo.
+    fiscalObservation: input.fiscalObservation?.trim() ?? "",
+    purchaseOrderNumber: input.purchaseOrderNumber?.trim() ?? "",
     notes: trimOrUndefined(input.notes),
     status: "draft",
     originSystem: trimOrUndefined(input.originSystem),
