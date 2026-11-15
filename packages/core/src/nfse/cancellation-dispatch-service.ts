@@ -24,10 +24,13 @@ type XmlElement = NonNullable<XmlDoc["documentElement"]>;
 /** Busca apenas elementos FILHOS diretos, nunca qualquer descendente. */
 function directChild(parent: XmlElement | null | undefined, tagName: string): XmlElement | undefined {
   if (!parent) return undefined;
-  const nodes = parent.getElementsByTagName(tagName);
-  for (let i = 0; i < nodes.length; i += 1) {
-    const node = nodes.item(i);
-    if (node?.parentNode === parent) return node;
+  // XML assinado pode usar namespace default ou prefixo explicitamente.
+  // Comparar o localName dos filhos diretos, não o nome qualificado nem
+  // elementos encontrados recursivamente em outros grupos.
+  for (let node = parent.firstChild; node; node = node.nextSibling) {
+    if (node.nodeType === 1 && (node as XmlElement).localName === tagName) {
+      return node as XmlElement;
+    }
   }
   return undefined;
 }
