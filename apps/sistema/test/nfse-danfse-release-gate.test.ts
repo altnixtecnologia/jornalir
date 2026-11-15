@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { PDFDocument, StandardFonts } from "pdf-lib";
 import { loadPdfDocument, extractPageTextItems } from "@ir/pdf-extraction";
-import { DANFSE_GEOMETRY, buildDanfsePdf, formatDanfseDate, formatDanfseDateTime, formatFederalInscription, wrapDanfseText, selectDanfseTaxDescription } from "../src/lib/nfse/danfsePdf";
+import { DANFSE_GEOMETRY, buildDanfsePdf, formatDanfseDate, formatDanfseDateTime, formatFederalInscription, wrapDanfseText, selectDanfseTaxDescription, formatDanfseTotalIbsCbs } from "../src/lib/nfse/danfsePdf";
 import { DANFSE_PREVIEW_FIXTURE } from "../src/lib/nfse/danfsePreviewFixture";
 import { NFSE_OFFICIAL_LOGO_PNG_BASE64 } from "../src/lib/nfse/nfseNationalLogo";
 import {
@@ -324,4 +324,12 @@ test("NT008: dados opcionais inexistentes nao sao preenchidos com estimativas fi
   const text = (await extractPageTextItems(await pdf.getPage(1))).map(i => i.text).join(" ");
   assert.ok(text.includes("CÓDIGO IBGE / CEP") || text.includes("Código IBGE / CEP"));
   assert.ok(text.includes("Valor Total Apurado - CBS"));
+});
+
+test("DANFSe total do IBS/CBS soma montantes presentes em centavos, sem assumir tributo ausente igual a zero", () => {
+  assert.equal(formatDanfseTotalIbsCbs({ ibsCbsTotal: "10.20", ibsCbsValueFederal: "3.33" }), "R$ 13,53");
+  assert.equal(formatDanfseTotalIbsCbs({ ibsCbsTotal: "0.00", ibsCbsValueFederal: "0.00" }), "R$ 0,00");
+  assert.equal(formatDanfseTotalIbsCbs({ ibsCbsTotal: "10.20" }), "-");
+  assert.equal(formatDanfseTotalIbsCbs({ ibsCbsValueFederal: "3.33" }), "-");
+  assert.equal(formatDanfseTotalIbsCbs({ ibsCbsTotal: "NaN", ibsCbsValueFederal: "3.33" }), "-");
 });
