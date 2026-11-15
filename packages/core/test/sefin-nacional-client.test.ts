@@ -335,3 +335,27 @@ test("respostas GZip adulteradas ou expansivas não podem esgotar memória do se
     await mock.close();
   }
 });
+
+test("transmitDps: HTTP 503 com erros da infraestrutura nunca vira rejeição fiscal", async () => {
+  const mock = new MockAgent();
+  mock.disableNetConnect();
+  mock.get("https://sefin.producaorestrita.nfse.gov.br")
+    .intercept({ path: "/API/SefinNacional/nfse", method: "POST" })
+    .reply(503, { erros: [{ Codigo: "E999", Descricao: "Gateway indisponível" }] });
+  const client = new SefinNacionalClient(mock, 2_000, () => undefined);
+  await assert.rejects(() => client.transmitDps(SIGNED_DPS_XML, "homologation"),
+    (err: unknown) => err instanceof NfseIntegrationError && err.code === "NFSE_INVALID_RESPONSE" && err.httpStatus === 503);
+  await mock.close();
+});
+
+test("transmitDps: corpo HTTP acima do limite sem content-length explícito é rejeitado", async () => {
+  const mock = new MockAgent();
+  mock.disableNetConnect();
+  mock.get("https://sefin.producaorestrita.nfse.gov.br")
+    .intercept({ path: "/API/SefinNacional/nfse", method: "POST" })
+    .reply(200, "X".repeat(2 * 1024 * 1024 + 1), { headers: { "content-type": "application/json" } });
+  const client = new SefinNacionalClient(mock, 2_000, () => undefined);
+  await assert.rejects(() => client.transmitDps(SIGNED_DPS_XML, "homologation"),
+    (err: unknown) => err instanceof NfseIntegrationError && err.code === "NFSE_INVALID_RESPONSE");
+  await mock.close();
+});
