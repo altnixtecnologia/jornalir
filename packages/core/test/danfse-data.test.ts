@@ -349,3 +349,50 @@ test("DANFSe: pedido e observação vêm do XML da DPS autorizada, não de notes
   assert.equal(empty.purchaseOrderNumber, undefined);
   assert.equal(empty.complementaryInformation, undefined);
 });
+
+
+test("DANFSe: número da nota aninhado fora de infNFSe não substitui campo direto obrigatório", () => {
+  const xml = makeNfseXml()
+    .replace("<nNFSe>12</nNFSe>", "")
+    .replace("<emit>", "<emit><nNFSe>12</nNFSe>");
+  assert.throws(() => extractDanfseData(makeIssuedNote({ nfseXml: xml })), /nNFSe.*ausente/);
+});
+
+test("DANFSe: ambiente da DPS aninhado dentro de prest não substitui tpAmb direto", () => {
+  const xml = makeNfseXml()
+    .replace("<tpAmb>2</tpAmb>", "")
+    .replace("<prest>", "<prest><tpAmb>2</tpAmb>");
+  assert.throws(() => extractDanfseData(makeIssuedNote({ nfseXml: xml })), /tpAmb.*ausente/);
+});
+
+test("DANFSe: valor do serviço aninhado em outro grupo não autoriza outro documento", () => {
+  const xml = makeNfseXml()
+    .replace("<vServ>150.50</vServ>", "")
+    .replace("<trib>", "<trib><vServ>150.50</vServ>");
+  assert.throws(() => extractDanfseData(makeIssuedNote({ nfseXml: xml })), /Valor do serviço diverge/);
+});
+
+test("DANFSe: descrição de serviço só pode vir diretamente de cServ/xDescServ", () => {
+  const xml = makeNfseXml()
+    .replace("<xDescServ>Veiculação de anúncio publicitário</xDescServ>", "")
+    .replace("</serv>", "<infoCompl><xDescServ>Veiculação de anúncio publicitário</xDescServ></infoCompl></serv>");
+  assert.throws(() => extractDanfseData(makeIssuedNote({ nfseXml: xml })), /xDescServ.*ausente/);
+});
+
+test("DANFSe: CNPJ aninhado no endereço não suplanta inscrição direta do prestador", () => {
+  const xml = makeNfseXml()
+    .replace("<emit><CNPJ>23970969000190</CNPJ>", "<emit>")
+    .replace("<enderNac>", "<enderNac><CNPJ>23970969000190</CNPJ>");
+  assert.throws(() => extractDanfseData(makeIssuedNote({ nfseXml: xml })), /emit — prestador/);
+});
+
+test("DANFSe: preserva suporte a prefixo de namespace no XML fiscal", () => {
+  const xml = makeNfseXml()
+    .replace('<NFSe versao=', '<n:NFSe xmlns:n="http://www.sped.fazenda.gov.br/nfse" versao=')
+    .replace("</NFSe>", "</n:NFSe>")
+    .replace("<infNFSe ", "<n:infNFSe ")
+    .replace("</infNFSe>", "</n:infNFSe>");
+  const data = extractDanfseData(makeIssuedNote({ nfseXml: xml }));
+  assert.equal(data.nfseNumber, "12");
+  assert.equal(data.serviceValue, 150.5);
+});
