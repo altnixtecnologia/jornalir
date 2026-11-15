@@ -559,3 +559,24 @@ test("DANFSe fictício incorpora fontkit e calcula quebras com fontes TTF reais 
     "PDF de teste precisa conter fonte TTF embutida");
   assert.equal(DANFSE_OFFICIAL_LAYOUT_APPROVED, false);
 });
+
+test("fontkit incorpora TTF de sistema em PDF isolado sem colocar arquivo proprietário no git", async (t) => {
+  const fontPath = [
+    "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+    "/usr/share/fonts/truetype/liberation2/LiberationSans-Regular.ttf",
+    "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
+  ].find(existsSync);
+  if (!fontPath) { t.skip("Runner sem fonte livre instalada"); return; }
+  const fontkit = (await import("@pdf-lib/fontkit")).default;
+  const doc = await PDFDocument.create();
+  doc.registerFontkit(fontkit);
+  const font = await doc.embedFont(readFileSync(fontPath), { subset: true });
+  const page = doc.addPage([595, 842]);
+  page.drawText("Título e descrição com acentuação: comércio, serviço, gestão.", {
+    x: 35, y: 800, size: 8, font,
+  });
+  const bytes = await doc.save({ useObjectStreams: false });
+  const loaded = await PDFDocument.load(bytes);
+  assert.equal(loaded.getPageCount(), 1);
+  assert.ok(Buffer.from(bytes).toString("latin1").includes("/FontFile2"));
+});
