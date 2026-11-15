@@ -135,3 +135,21 @@ test("DANFSe: CNPJ alfanumérico nunca vira CPF pela remoção de letras", () =>
   assert.equal(formatFederalInscription("11144477735"), "111.444.777-35");
   assert.equal(formatFederalInscription("AB12CD34567890"), "AB12CD34567890");
 });
+
+test("DANFSe: rótulos seguem 6pt em caixa de título e identificação 7pt em maiúsculas", () => {
+  const code = src("lib/nfse/danfsePdf.ts");
+  assert.match(code, /const labelSize = identification \? 7 : 6/);
+  assert.match(code, /const printedLabel = identification \? label\.toUpperCase\(\) : label/);
+  assert.match(code, /"Número da NFS-e".*false, true\)/);
+  assert.match(code, /"Emitente da NFS-e".*true, true\)/);
+  assert.match(code, /"Valor Líquido da NFS-e \+ IBS\/CBS"/);
+  assert.ok(!code.includes('"Valor Líquido da NFS-e", formatMoney(data.netValue), MARGIN + third * 2, cursor.y, third, true)'));
+});
+
+test("DANFSe: não afirma igualdade destinatário/tomador sem indDest do XML", () => {
+  const code = src("lib/nfse/danfsePdf.ts");
+  assert.match(code, /data\.destinatarioEhTomador\s*\?/);
+  assert.match(code, /"DESTINATÁRIO DA OPERAÇÃO NÃO IDENTIFICADO NA NFS-e"/);
+  assert.match(code, /if \(data\.destinatario\)/);
+  assert.match(code, /if \(data\.intermediario\)/);
+});
