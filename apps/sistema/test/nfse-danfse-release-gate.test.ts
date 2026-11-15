@@ -1,11 +1,13 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
+import { createHash } from "node:crypto";
 import { PDFDocument, StandardFonts } from "pdf-lib";
 import { loadPdfDocument, extractPageTextItems } from "@ir/pdf-extraction";
 import { DANFSE_GEOMETRY, buildDanfsePdf, formatDanfseDate, formatDanfseDateTime, formatFederalInscription, wrapDanfseText, selectDanfseTaxDescription, formatDanfseTotalIbsCbs, danfseFederalValues, danfseIssqnTypeLabel, danfseRegimeEspecialLabel, danfseIssqnRetentionLabel, danfseSimplesNacionalLabel, danfseApuracaoSimplesLabel, danfseMunicipalBenefitLabel, buildDanfseComplementary } from "../src/lib/nfse/danfsePdf";
 import { DANFSE_PREVIEW_FIXTURE } from "../src/lib/nfse/danfsePreviewFixture";
 import { NFSE_OFFICIAL_LOGO_PNG_BASE64 } from "../src/lib/nfse/nfseNationalLogo";
+import { loadLicensedDanfseFonts, verifyDanfseFontFile } from "../src/lib/nfse/danfseFontAssets";
 import {
   DANFSE_OFFICIAL_LAYOUT_APPROVED,
   assertDanfseLayoutApproved,
@@ -484,5 +486,73 @@ test("NT008: parser de tributos aproximados segue XML oficial (vTotTrib / pTotTr
   assert.ok(!source.includes('directText(approximateTaxes, "pTotTribFed")'));
   assert.match(source, /replacedNoteAccessKey: directText\(replacementGroup, "chSubstda"\)/);
   assert.match(source, /technicalDocumentId: directText\(infoCompl, "idDocTec"\)/);
+  assert.equal(DANFSE_OFFICIAL_LAYOUT_APPROVED, false);
+});
+
+test("NT008: fontes fiscais só podem vir de provedor privado, nunca do git ou da web", async () => {
+  const source = src("lib/nfse/danfsePdf.ts");
+  const loader = src("lib/nfse/danfseFontAssets.ts");
+  assert.match(source, /pdf\.registerFontkit\(fontkit\)/);
+  assert.match(source, /pdf\.embedFont\(fonts\.arialBold, \{ subset: true \}\)/);
+  assert.match(source, /pdf\.embedFont\(fonts\.microsoftSansSerif, \{ subset: true \}\)/);
+  assert.match(loader, /DANFSE_FONT_SERVER_LICENSE_CONFIRMED/);
+  assert.match(loader, /nfse\\/private-fonts\\//);
+  assert.match(loader, /createHash\("sha256"\)/);
+  const beforeArial = process.env.DANFSE_ARIAL_BOLD_R2_KEY;
+  const beforeSans = process.env.DANFSE_MICROSOFT_SANS_SERIF_R2_KEY;
+  try {
+    delete process.env.DANFSE_ARIAL_BOLD_R2_KEY;
+    delete process.env.DANFSE_MICROSOFT_SANS_SERIF_R2_KEY;
+    assert.equal(await loadLicensedDanfseFonts(), undefined);
+  } finally {
+    if (beforeArial === undefined) delete process.env.DANFSE_ARIAL_BOLD_R2_KEY;
+    else process.env.DANFSE_ARIAL_BOLD_R2_KEY = beforeArial;
+    if (beforeSans === undefined) delete process.env.DANFSE_MICROSOFT_SANS_SERIF_R2_KEY;
+    else process.env.DANFSE_MICROSOFT_SANS_SERIF_R2_KEY = beforeSans;
+  }
+});
+
+test("fontes fiscais são autenticadas por SHA, família e direitos de embedding", () => {
+  const invalid = new Uint8Array(200);
+  assert.throws(() => verifyDanfseFontFile(invalid, "0".repeat(64), "arial-bold"),
+    /TTF\/OTF não reconhecido/);
+  const candidate = [
+    "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
+    "/usr/share/fonts/truetype/liberation2/LiberationSans-Bold.ttf",
+    "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf",
+  ].find(existsSync);
+  if (!candidate) return; // Sistemas sem fontes externas ainda validam ausência de arquivos.
+  const bytes = readFileSync(candidate);
+  const hash = createHash("sha256").update(bytes).digest("hex");
+  assert.throws(() => verifyDanfseFontFile(bytes, "0".repeat(64), "arial-bold"),
+    /SHA-256/);
+  assert.throws(() => verifyDanfseFontFile(bytes, hash, "arial-bold"),
+    /Arial Bold original/);
+});
+
+test("DANFSe fictício incorpora fontkit e calcula quebras com fontes TTF reais no CI", async (t) => {
+  const regularPath = [
+    "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+    "/usr/share/fonts/truetype/liberation2/LiberationSans-Regular.ttf",
+    "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
+  ].find(existsSync);
+  const boldPath = [
+    "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
+    "/usr/share/fonts/truetype/liberation2/LiberationSans-Bold.ttf",
+    "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf",
+  ].find(existsSync);
+  if (!regularPath || !boldPath) { t.skip("Runner não contém TTF livre para smoke test"); return; }
+  // Fonte livre do runner serve SOMENTE para exercitar fontkit. Não
+  // se confunde com Arial/Microsoft Sans Serif e não é enviada ao usuário.
+  const bytes = await buildDanfsePdf(DANFSE_PREVIEW_FIXTURE, {
+    fonts: {
+      arialBold: readFileSync(boldPath),
+      microsoftSansSerif: readFileSync(regularPath),
+    },
+  });
+  const pdf = await PDFDocument.load(bytes);
+  assert.equal(pdf.getPageCount(), 1);
+  assert.ok(Buffer.from(bytes).toString("latin1").includes("/FontFile2"),
+    "PDF de teste precisa conter fonte TTF embutida");
   assert.equal(DANFSE_OFFICIAL_LAYOUT_APPROVED, false);
 });
