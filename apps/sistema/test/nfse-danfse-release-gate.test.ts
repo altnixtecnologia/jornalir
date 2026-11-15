@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { PDFDocument, StandardFonts } from "pdf-lib";
 import { loadPdfDocument, extractPageTextItems } from "@ir/pdf-extraction";
-import { DANFSE_GEOMETRY, buildDanfsePdf, formatDanfseDate, formatDanfseDateTime, formatFederalInscription, wrapDanfseText, selectDanfseTaxDescription, formatDanfseTotalIbsCbs, danfseFederalValues, danfseIssqnTypeLabel, danfseRegimeEspecialLabel, danfseIssqnRetentionLabel } from "../src/lib/nfse/danfsePdf";
+import { DANFSE_GEOMETRY, buildDanfsePdf, formatDanfseDate, formatDanfseDateTime, formatFederalInscription, wrapDanfseText, selectDanfseTaxDescription, formatDanfseTotalIbsCbs, danfseFederalValues, danfseIssqnTypeLabel, danfseRegimeEspecialLabel, danfseIssqnRetentionLabel, danfseSimplesNacionalLabel, danfseApuracaoSimplesLabel, danfseMunicipalBenefitLabel } from "../src/lib/nfse/danfsePdf";
 import { DANFSE_PREVIEW_FIXTURE } from "../src/lib/nfse/danfsePreviewFixture";
 import { NFSE_OFFICIAL_LOGO_PNG_BASE64 } from "../src/lib/nfse/nfseNationalLogo";
 import {
@@ -392,4 +392,14 @@ test("NT008: tributos aproximados apenas se fornecidos no XML; compra em complem
   assert.ok(text.includes("Totais Aproximados dos Tributos"));
   assert.ok(text.includes("PEDIDO-FICTICIO-123"));
   assert.ok(text.includes("INFORMAÇÃO FISCAL FICTÍCIA"));
+});
+
+test("NT008: SN e beneficio municipal usam descricao textual da tabela nacional", () => {
+  assert.equal(danfseSimplesNacionalLabel("1"), "Não Optante");
+  assert.ok(danfseSimplesNacionalLabel("3").includes("Microempresa"));
+  assert.ok(danfseApuracaoSimplesLabel("1").includes("Simples Nacional"));
+  assert.ok(danfseApuracaoSimplesLabel("2").includes("ISSQN pela NFS-e"));
+  assert.equal(danfseMunicipalBenefitLabel("1"), "Isenção");
+  assert.equal(danfseMunicipalBenefitLabel("4"), "Alíquota Diferenciada");
+  assert.equal(danfseMunicipalBenefitLabel(undefined), "-");
 });
