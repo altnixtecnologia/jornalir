@@ -1,6 +1,7 @@
 import "server-only";
 import { PDFDocument, StandardFonts, degrees, rgb, type PDFFont, type PDFPage } from "pdf-lib";
 import QRCode from "qrcode";
+import { NFSE_OFFICIAL_LOGO_PNG_BASE64 } from "./nfseNationalLogo";
 import type { DanfseData } from "@ir/core/src/nfse/danfse-data";
 import { assertDanfseLayoutApproved } from "./danfseReleaseGate";
 
@@ -10,7 +11,8 @@ import { assertDanfseLayoutApproved } from "./danfseReleaseGate";
  * NT oficial: 008/2026 v1.02 (14/07/2026), Anexo I, Portal Nacional NFS-e.
  * Não está conforme para uso oficial: faltam tributação federal/IBS/CBS,
  * informações complementares, campos obrigatórios do Simples Nacional,
- * logomarca, layout geométrico e fontes oficiais. Alguns valores atualmente
+ * layout geométrico completo e fontes oficiais. A logomarca NFS-e ja esta
+ * incorporada no cabecalho do prototipo. Alguns valores atualmente
  * são estáticos e precisam derivar do XML oficial. Sem liberar emissão,
  * download ou arquivamento de DANFSe de produção até sanar os pontos.
  *
@@ -209,23 +211,49 @@ export async function buildDanfsePdf(data: DanfseData, options: { cancelled?: bo
   const page = pdf.addPage([PAGE_WIDTH, PAGE_HEIGHT]);
   drawBorder(page);
 
-  const cursor: Cursor = { y: PAGE_HEIGHT - MARGIN - 4 };
-
-  // CABEÇALHO (seção 2.4.3): logomarca (omitida — ver limitação honesta abaixo),
-  // "DANFSe v2.0" / "Documento Auxiliar da NFS-e" ao centro, município/ambiente à direita.
-  page.drawText("DANFSe v2.0", { x: PAGE_WIDTH / 2 - 35, y: cursor.y, size: 9, font: bold, color: BLACK });
-  cursor.y -= 11;
-  page.drawText("Documento Auxiliar da NFS-e", { x: PAGE_WIDTH / 2 - 60, y: cursor.y, size: 9, font: bold, color: BLACK });
-  if (data.isHomologation) {
-    cursor.y -= 12;
-    const warning = "NFS-e SEM VALIDADE JURÍDICA";
-    const warningWidth = bold.widthOfTextAtSize(warning, 9);
-    page.drawText(warning, { x: PAGE_WIDTH / 2 - warningWidth / 2, y: cursor.y, size: 9, font: bold, color: RED });
-  }
-  page.drawText(dash(data.emitterMunicipality), { x: PAGE_WIDTH - MARGIN - 150, y: PAGE_HEIGHT - MARGIN - 4, size: 8, font: regular, color: BLACK });
-  page.drawText(data.isHomologation ? "Ambiente: Produção Restrita (teste)" : "Ambiente: Produção", {
-    x: PAGE_WIDTH - MARGIN - 150, y: PAGE_HEIGHT - MARGIN - 14, size: 6, font: regular, color: DARK_GRAY,
+  // CABEÇALHO da NT 008/2026 v1.02, Anexo I, dimensões em centímetros
+  // medidas da origem superior esquerda do formulário. Não usar marca
+  // municipal ou do Jornal IR no DANFSe; a identidade do Jornal permanece
+  // apenas na interface administrativa externa ao documento.
+  const headerBottom = PAGE_HEIGHT - 1.46 * CM_TO_PT;
+  const headerTop = PAGE_HEIGHT - 0.30 * CM_TO_PT;
+  page.drawRectangle({
+    x: MARGIN - 4, y: headerBottom, width: PAGE_WIDTH - (MARGIN - 4) * 2,
+    height: headerTop - headerBottom, color: GRAY_SHADING,
   });
+  const officialLogo = await pdf.embedPng(Buffer.from(NFSE_OFFICIAL_LOGO_PNG_BASE64, "base64"));
+  const officialLogoWidth = 4.00 * CM_TO_PT;
+  const officialLogoHeight = 0.85 * CM_TO_PT;
+  page.drawImage(officialLogo, {
+    x: 0.49 * CM_TO_PT,
+    y: PAGE_HEIGHT - 0.44 * CM_TO_PT - officialLogoHeight,
+    width: officialLogoWidth, height: officialLogoHeight,
+  });
+  const drawCenteredHeader = (value: string, y: number, fontSize: number, color = BLACK): void => {
+    const textWidth = bold.widthOfTextAtSize(value, fontSize);
+    page.drawText(value, { x: (PAGE_WIDTH - textWidth) / 2, y, size: fontSize, font: bold, color });
+  };
+  drawCenteredHeader("DANFSe v2.0", PAGE_HEIGHT - 0.54 * CM_TO_PT, 9);
+  drawCenteredHeader("Documento Auxiliar da NFS-e", PAGE_HEIGHT - 0.87 * CM_TO_PT, 9);
+  if (data.isHomologation) {
+    drawCenteredHeader("NFS-e SEM VALIDADE JURÍDICA", PAGE_HEIGHT - 1.20 * CM_TO_PT, 9, RED);
+  }
+  const rightColumnX = 15.62 * CM_TO_PT;
+  const rightColumnWidth = 5.09 * CM_TO_PT;
+  const emitterCity = data.emitterMunicipality
+    ? `Município: ${data.emitterMunicipality}${data.prestador.state ? " / " + data.prestador.state : ""}`
+    : "Município: -";
+  page.drawText(fitTextToWidth(emitterCity, regular, 8, rightColumnWidth), {
+    x: rightColumnX, y: PAGE_HEIGHT - 0.54 * CM_TO_PT, font: regular, size: 8, color: BLACK,
+  });
+  page.drawText(fitTextToWidth(`Ambiente Gerador: ${dash(data.environmentGenerator)}`, regular, 6, rightColumnWidth), {
+    x: rightColumnX, y: PAGE_HEIGHT - 0.88 * CM_TO_PT, size: 6, font: regular, color: BLACK,
+  });
+  page.drawText(`Tipo de Ambiente: ${data.isHomologation ? "2" : "1"}`, {
+    x: rightColumnX, y: PAGE_HEIGHT - 1.16 * CM_TO_PT, size: 6, font: regular, color: BLACK,
+  });
+
+  const cursor: Cursor = { y: headerBottom - 8 };
 
   // QR CODE (seção 2.4.3) — à direita dos campos de identificação.
   const qrPngDataUrl = await QRCode.toDataURL(`${QR_BASE_URL}${data.accessKey}`, { margin: 0, width: 256 });
@@ -257,10 +285,16 @@ export async function buildDanfsePdf(data: DanfseData, options: { cancelled?: bo
   const contentColumnWidth = CONTENT_WIDTH - 145;
 
   // BLOCO: DADOS DE IDENTIFICAÇÃO DA NFS-e (seção 2.1.1/2.1.2).
-  drawBlockTitle(page, bold, "Dados de Identificação da NFS-e", cursor.y);
-  cursor.y -= 11;
-  page.drawText(`Chave de Acesso: ${data.accessKey}`, { x: MARGIN + 2, y: cursor.y - 9, size: 7, font: regular, color: BLACK });
-  cursor.y -= 20;
+  // Anexo I: o bloco de identificação começa com a chave, sem faixa
+  // horizontal por trás do QR Code. A faixa antiga atravessava a imagem,
+  // tornando parte do código ilegível na prévia sintética.
+  page.drawText("CHAVE DE ACESSO DA NFS-e", {
+    x: MARGIN + 2, y: cursor.y - 7, size: 7, font: bold, color: BLACK,
+  });
+  page.drawText(data.accessKey, {
+    x: MARGIN + 2, y: cursor.y - 17, size: 7, font: regular, color: BLACK,
+  });
+  cursor.y -= 22;
   const idFieldWidth = contentColumnWidth / 3;
   drawField(page, bold, regular, "Número da NFS-e", data.nfseNumber, MARGIN, cursor.y, idFieldWidth, false, true);
   drawField(page, bold, regular, "Competência da NFS-e", formatDanfseDate(data.competencyDate), MARGIN + idFieldWidth, cursor.y, idFieldWidth, false, true);

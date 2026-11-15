@@ -5,6 +5,7 @@ import { PDFDocument, StandardFonts } from "pdf-lib";
 import { loadPdfDocument, extractPageTextItems } from "@ir/pdf-extraction";
 import { DANFSE_GEOMETRY, buildDanfsePdf, formatDanfseDate, formatDanfseDateTime, formatFederalInscription, wrapDanfseText, selectDanfseTaxDescription } from "../src/lib/nfse/danfsePdf";
 import { DANFSE_PREVIEW_FIXTURE } from "../src/lib/nfse/danfsePreviewFixture";
+import { NFSE_OFFICIAL_LOGO_PNG_BASE64 } from "../src/lib/nfse/nfseNationalLogo";
 import {
   DANFSE_OFFICIAL_LAYOUT_APPROVED,
   assertDanfseLayoutApproved,
@@ -218,4 +219,66 @@ test("NT008 Anexo I: sem xTribMun a descrição nacional aparece no bloco de ser
   const pdf = await loadPdfDocument(pdfBytes);
   const items = await extractPageTextItems(await pdf.getPage(1));
   assert.ok(items.map((item) => item.text).join(" ").includes("Descrição nacional usada como alternativa"));
+});
+
+
+test("NT008: logomarca nacional PNG esta embutida no DANFSe de teste sem dependencia externa", async () => {
+  const logo = Buffer.from(NFSE_OFFICIAL_LOGO_PNG_BASE64, "base64");
+  assert.equal(logo.subarray(0, 8).toString("hex"), "89504e470d0a1a0a");
+  assert.equal(logo.readUInt32BE(16), 540);
+  assert.equal(logo.readUInt32BE(20), 107);
+  const source = src("lib/nfse/danfsePdf.ts");
+  assert.match(source, /pdf\.embedPng\(Buffer\.from\(NFSE_OFFICIAL_LOGO_PNG_BASE64, "base64"\)\)/);
+  assert.match(source, /officialLogoWidth = 4\.00 \* CM_TO_PT/);
+  assert.ok(!source.includes('drawBlockTitle(page, bold, "Dados de Identificação da NFS-e"'), "faixa nao pode ocultar QR");
+  assert.match(source, /"CHAVE DE ACESSO DA NFS-e"/);
+  assert.match(source, /officialLogoHeight = 0\.85 \* CM_TO_PT/);
+  assert.match(source, /x: 0\.49 \* CM_TO_PT/);
+  assert.match(source, /PAGE_HEIGHT - 0\.44 \* CM_TO_PT - officialLogoHeight/);
+  assert.ok(!source.includes("logo do jornal"), "o DANFSe nao deve conter marca de prestador no cabecalho");
+  const pdf = await PDFDocument.load(await buildDanfsePdf(DANFSE_PREVIEW_FIXTURE));
+  assert.equal(pdf.getPageCount(), 1);
+  const bytes = await pdf.save();
+  assert.ok(bytes.length > logo.length, "PDF deve incorporar a imagem alem dos campos fiscais");
+  assert.equal(DANFSE_OFFICIAL_LAYOUT_APPROVED, false);
+});
+
+test("NT008: ambiente gerador vem do XML, sem constante inventada", () => {
+  const source = readFileSync(new URL("../../../packages/core/src/nfse/danfse-data.ts", import.meta.url), "utf8");
+  assert.match(source, /environmentGenerator: directText\(infNFSe, "ambGer"\)/);
+  assert.match(src("lib/nfse/danfsePdf.ts"), /dash\(data\.environmentGenerator\)/);
+  assert.equal(DANFSE_PREVIEW_FIXTURE.environmentGenerator, undefined);
+});
+
+test("DANFSe ficticio suporta nomes, enderecos, descricao e complemento extensos sem cortar conteudo", async () => {
+  const fixture = {
+    ...DANFSE_PREVIEW_FIXTURE,
+    prestador: {
+      ...DANFSE_PREVIEW_FIXTURE.prestador,
+      name: "PRESTADOR FICTICIO COM RAZAO SOCIAL ESTENDIDA PARA TESTAR A QUEBRA AUTOMATICA",
+      address: "Rua de Teste com Nome Comprido, numero 100, sala 205, complemento administrativo, bairro de testes, SC",
+    },
+    tomador: {
+      ...DANFSE_PREVIEW_FIXTURE.tomador!,
+      name: "TOMADOR FICTICIO COM NOME EXTENSO E CAMPOS DE IDENTIFICACAO PARA INSPECAO",
+      address: "Avenida Ficticia de Teste, numero 123, bloco 04, sala 102, complemento e bairro extenso",
+    },
+    serviceDescription: "Veiculacao de campanha institucional ficticia em jornal impresso com especificacoes de formato, periodo de veiculacao, referencia contratual e outras condicoes. ".repeat(3) + "FIM_DESCRICAO_VISIVEL",
+    complementaryInformation: "PEDIDO FICTICIO 001, REFERENCIA ADMINISTRATIVA E OBSERVACOES DE PAGAMENTO. ".repeat(2) + "FIM_COMPLEMENTO_VISIVEL",
+  };
+  const bytes = await buildDanfsePdf(fixture);
+  const pdf = await loadPdfDocument(bytes);
+  assert.equal(pdf.numPages, 1);
+  const items = await extractPageTextItems(await pdf.getPage(1));
+  const visible = items.map((item) => item.text).join(" ");
+  assert.ok(visible.includes("FIM_DESCRICAO_VISIVEL"), "nao pode apagar o final da descricao");
+  assert.ok(visible.includes("FIM_COMPLEMENTO_VISIVEL"), "nao pode apagar o final das observacoes");
+});
+
+test("DANFSe ficticio falha fechado caso o conteudo nao caiba em uma pagina A4", async () => {
+  const fixture = {
+    ...DANFSE_PREVIEW_FIXTURE,
+    serviceDescription: "SERVICO_FICTICIO_COM_LONGA_DESCRICAO ".repeat(1800),
+  };
+  await assert.rejects(() => buildDanfsePdf(fixture), /excede a area util A4|excede a área útil A4/);
 });
