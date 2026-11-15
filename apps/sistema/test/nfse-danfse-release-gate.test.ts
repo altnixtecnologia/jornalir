@@ -171,6 +171,9 @@ test("rota da prévia é administrativa, não usa nota/banco/SEFIN nem afrouxa b
   const overview = src("app/sistema/nfse/page.tsx");
   assert.match(route, /checkModuleAction\("nfse", "configuracoes_gerenciar"\)/);
   assert.match(route, /buildDanfsePdf\(DANFSE_PREVIEW_FIXTURE\)/);
+  assert.match(route, /\.select\("active,role"\)/);
+  assert.match(route, /!profile\?\.active/);
+  assert.match(route, /profile\.role !== "owner" && profile\.role !== "admin"/);
   assert.match(route, /"Cache-Control": "private, no-store/);
   for (const prohibited of ["createSupabaseAdminClient", "createIssuedNoteRepositorySupabase", "getTransmissionService", "getCertificateService", "readNfseDocument", "sendEmail", "transmitDps"]) {
     assert.ok(!route.includes(prohibited), "prévia não pode acessar: " + prohibited);
