@@ -60,3 +60,31 @@ test("menus nao exibem mais NFS-e como modulo ficticio ou futuro para owner/admi
   assert.match(mobile, /restricted: true/);
   assert.match(mobile, /NFSE_AVAILABLE_IN_THIS_RELEASE \|\| NFSE_PREPARATION_ACCESS_IN_THIS_RELEASE/);
 });
+
+test("implantacao guiada fiscal usa registros reais e nao confunde cadastro com emissao", () => {
+  const overview = source("app/sistema/nfse/page.tsx");
+  assert.match(overview, /Implantação do módulo/);
+  assert.match(overview, /setupSteps\.filter\(\(step\) => step\.done\)/);
+  assert.match(overview, /Boolean\(issuerConfig\)/);
+  assert.match(overview, /profile\.cTribNac\?\.trim\(\)/);
+  assert.match(overview, /Boolean\(activeCertificate\) && !readiness\.missing\.some/);
+  assert.match(overview, /drafts\.length > 0/);
+  assert.match(overview, /A emissão fiscal, os envios e o DANFSe definitivo permanecem bloqueados/);
+  for (const path of [
+    "/sistema/nfse/configuracoes", "/sistema/nfse/perfis-servico",
+    "/sistema/nfse/rascunhos", "/sistema/nfse/nova",
+  ]) assert.ok(overview.includes(path), path);
+});
+
+test("rascunho novo troca cliente sem exibir tomador anterior e limpa codigos de perfil removido", () => {
+  const form = source("features/nfse/NfseDraftForm.tsx");
+  const selectClient = form.slice(form.indexOf("function handleSelectClient"), form.indexOf("function handleRefreshFromClient"));
+  assert.match(selectClient, /setTomador\(emptyTomador\(\)\)/);
+  assert.ok(selectClient.indexOf("setTomador(emptyTomador())") < selectClient.indexOf("refreshTomadorSnapshotAction(client.id)"));
+  const profileSelection = form.slice(form.indexOf("function handleSelectServiceProfile"), form.indexOf("function setFiscalField"));
+  assert.match(profileSelection, /if \(!profile\)/);
+  for (const field of ["cTribNac", "cTribMun", "cNBS", "issqnTaxation", "locationIbgeCode", "cstIbsCbs", "cClassTrib", "cIndOp"]) {
+    assert.match(profileSelection, new RegExp(field + ': ""'));
+  }
+  assert.match(form, /a transmissão fiscal continua bloqueada até a homologação nacional/);
+});

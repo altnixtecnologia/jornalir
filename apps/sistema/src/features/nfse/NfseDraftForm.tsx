@@ -177,10 +177,10 @@ export function NfseDraftForm({
     setSelectedClient(client);
     setError(null);
     setRefreshMessage(null);
-    if (!client) {
-      setTomador(emptyTomador());
-      return;
-    }
+    // Não mostrar o snapshot do cliente anterior enquanto o novo cadastro
+    // é buscado. A UI permanece vazia até obter a resposta canônica do servidor.
+    setTomador(emptyTomador());
+    if (!client) return;
     startTransition(async () => {
       const response = await refreshTomadorSnapshotAction(client.id);
       // Descartar a resposta atrasada se o operador já escolheu outro cliente.
@@ -205,6 +205,19 @@ export function NfseDraftForm({
   function handleSelectServiceProfile(id: string): void {
     setServiceProfileId(id);
     const profile = serviceProfiles.find((item) => item.id === id);
+    if (!profile) {
+      // O usuário escolheu "Nenhum": campos fiscais do perfil anterior
+      // não podem ser enviados silenciosamente como códigos manuais.
+      // Preserva apenas os campos históricos do prestador (issuer*).
+      setFiscal((prev) => ({
+        ...prev,
+        cTribNac: "", cTribMun: "", cNBS: "",
+        issqnTaxation: "", specialTaxRegime: "",
+        locationMunicipality: "", locationIbgeCode: "",
+        cAtvSN: "", cstIbsCbs: "", cClassTrib: "", cIndOp: "",
+      }));
+      return;
+    }
     if (profile) {
       // Perfil traz os campos da OPERAÇÃO (cTribNac/cAtvSN/CST/
       // cClassTrib/cIndOp); os 3 campos issuer* vêm sempre da
@@ -518,7 +531,7 @@ export function NfseDraftForm({
         <section className="form-section form-section--first">
           <h2>Revisão</h2>
           {validation.readyForFutureTransmission ? (
-            <p className="helper-text">Rascunho completo — pronto para transmissão (na página do rascunho, depois de salvo). Isto NÃO é uma validação fiscal perante a Receita/Governo.</p>
+            <p className="helper-text">Campos básicos do rascunho preenchidos. Salve para conferir os dados; a transmissão fiscal continua bloqueada até a homologação nacional, mesmo com o formulário completo.</p>
           ) : (
             <div className="form-error" role="alert">
               <p>Rascunho incompleto — faltam:</p>
