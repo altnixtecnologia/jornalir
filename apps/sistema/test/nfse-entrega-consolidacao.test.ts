@@ -299,7 +299,7 @@ test("fluxo integrado: XML e PDF no R2 -> e-mail aceito -> webhook Resend assina
   const ts = String(Math.floor(nowMs / 1000));
   const webhook = async (kind: string) => {
     const rawBody = JSON.stringify({ type: kind, created_at: new Date(nowMs).toISOString(), data: { email_id: "re-msg-1", to: ["cliente@exemplo.test"] } });
-    const id = "msg-" + kind;
+    const id = "msg-" + kind.replace(/\./g, "-");
     const signature = "v1," + createHmac("sha256", Buffer.from(secret.slice(6), "base64"))
       .update(id + "." + ts + "." + rawBody).digest("base64");
     return handleResendWebhook({
