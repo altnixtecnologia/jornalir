@@ -10,6 +10,8 @@ on:
       - "apps/sistema/src/lib/nfse/archiveNfseDocuments.ts"
       - "apps/sistema/src/lib/nfse/danfsePdf.ts"
       - "packages/core/src/nfse/danfse-data.ts"
+      - "packages/core/src/nfse/access-key.ts"
+      - "packages/core/test/nfse-access-key.test.ts"
       - "packages/core/test/danfse-data.test.ts"
       - "apps/sistema/test/render-danfse-sintetico.ts"
       - "apps/sistema/src/lib/nfse/danfseReleaseGate.ts"
@@ -82,7 +84,7 @@ jobs:
       - name: Testar entrega, gates e extração XML do DANFSe
         env:
           NODE_OPTIONS: --conditions=react-server
-        run: npx tsx --test apps/sistema/test/nfse-delivery.test.ts apps/sistema/test/nfse-entrega-consolidacao.test.ts apps/sistema/test/nfse-danfse-release-gate.test.ts packages/core/test/danfse-data.test.ts
+        run: npx tsx --test apps/sistema/test/nfse-delivery.test.ts apps/sistema/test/nfse-entrega-consolidacao.test.ts apps/sistema/test/nfse-danfse-release-gate.test.ts packages/core/test/danfse-data.test.ts packages/core/test/nfse-access-key.test.ts
       - name: Testar migration real em PostgreSQL 16 descartável
         run: psql -v ON_ERROR_STOP=1 -f packages/core/test/sql/nfse-delivery-queue-test.sql
       - name: Gerar DANFSe fictício para inspeção visual

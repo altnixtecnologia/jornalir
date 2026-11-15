@@ -170,7 +170,7 @@ test("DANFSe: contato do tomador vem somente do XML embutido", () => {
   assert.equal(data.tomador?.phone, undefined);
 });
 
-test("DANFSe: chave deve ter exatamente 50 dígitos conforme NT 008/2026", () => {
+test("DANFSe: chave deve ter exatamente 50 caracteres conforme TSChaveNFSe", () => {
   for (const accessKey of ["123", "1".repeat(49), "1".repeat(51), "a".repeat(50)]) {
     assert.throws(() => extractDanfseData(makeIssuedNote({ accessKey })), DanfseDataError);
   }
@@ -239,4 +239,22 @@ test("DANFSe: IBS/CBS autorizado, valores da federação e informação compleme
   assert.equal(data.ibsCbsTotal, "0.30");
   assert.equal(data.grossTotalWithIbsCbs, "101.20");
   assert.equal(data.complementaryInformation, "Contrato de publicidade");
+});
+
+test("DANFSe: aceita chave de acesso com inscricao federal alfanumerica conforme XSD", () => {
+  const accessKey = "421640" + "ABC123DEF45678" + "0".repeat(30);
+  const note = makeIssuedNote({ accessKey });
+  const data = extractDanfseData(note);
+  assert.equal(data.accessKey, accessKey);
+  assert.equal(data.accessKey.length, 50);
+  assert.ok(data.accessKey.includes("ABC"));
+});
+
+test("DANFSe: bloqueia chave com letra minúscula e letra em posição reservada a dígitos", () => {
+  for (const accessKey of [
+    "421640" + "abc123def45678" + "0".repeat(30),
+    "421640" + "ABC123DEF45678" + "0".repeat(29) + "A",
+  ]) {
+    assert.throws(() => extractDanfseData(makeIssuedNote({ accessKey })), DanfseDataError);
+  }
 });

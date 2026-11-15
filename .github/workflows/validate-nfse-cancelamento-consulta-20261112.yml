@@ -7,6 +7,8 @@ on:
   pull_request:
     paths:
       - "packages/core/src/nfse/event-builder.ts"
+      - "packages/core/src/nfse/access-key.ts"
+      - "packages/core/test/nfse-access-key.test.ts"
       - "packages/core/src/nfse/cancellation-service.ts"
       - "packages/core/test/event-builder.test.ts"
       - "packages/core/test/nfse-cancellation.test.ts"
@@ -97,7 +99,7 @@ jobs:
         env:
           NODE_OPTIONS: --conditions=react-server
         run: |
-          npx tsx --test packages/core/test/event-builder.test.ts packages/core/test/event-signature.test.ts packages/core/test/nfse-cancellation.test.ts packages/core/test/nfse-cancellation-dispatch.test.ts apps/sistema/test/nfse-cancelamento-consulta.test.ts apps/sistema/test/prepublication-release-gates.test.ts apps/sistema/test/nfse-p0-release-safety.test.ts packages/core/test/nfse-transmission.test.ts packages/core/test/nfse-end-to-end-real-client.test.ts packages/core/test/sefin-nacional-client.test.ts packages/core/test/nfse-query.test.ts packages/core/test/nfse-xml-reconciliation.test.ts apps/sistema/test/nfse-tomador-snapshot.test.ts apps/sistema/test/nfse-competency.test.ts
+          npx tsx --test packages/core/test/event-builder.test.ts packages/core/test/event-signature.test.ts packages/core/test/nfse-cancellation.test.ts packages/core/test/nfse-cancellation-dispatch.test.ts apps/sistema/test/nfse-cancelamento-consulta.test.ts apps/sistema/test/prepublication-release-gates.test.ts apps/sistema/test/nfse-p0-release-safety.test.ts packages/core/test/nfse-transmission.test.ts packages/core/test/nfse-end-to-end-real-client.test.ts packages/core/test/sefin-nacional-client.test.ts packages/core/test/nfse-access-key.test.ts packages/core/test/nfse-query.test.ts packages/core/test/nfse-xml-reconciliation.test.ts apps/sistema/test/nfse-tomador-snapshot.test.ts apps/sistema/test/nfse-competency.test.ts
 
       - name: PostgreSQL descartavel com migration real de unicidade
         run: |

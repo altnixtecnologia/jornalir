@@ -30,7 +30,7 @@ test("transmitDps: emissão autorizada — descompacta nfseXmlGZipB64, aceita ch
       body: (body) => { receivedBody = String(body); return true; },
     })
     .reply(200, {
-      chaveAcesso: "421640419999999999999999999990000000001202610",
+      chaveAcesso: "42164023970969000190000000000000000000000000000000",
       nfseXmlGZipB64: gzipSync(Buffer.from(fakeNfseXml(), "utf8")).toString("base64"),
     });
 
@@ -44,7 +44,7 @@ test("transmitDps: emissão autorizada — descompacta nfseXmlGZipB64, aceita ch
   assert.equal(decompressedSent, SIGNED_DPS_XML);
 
   assert.equal(envelope.status, "authorized");
-  assert.equal(envelope.accessKey, "421640419999999999999999999990000000001202610");
+  assert.equal(envelope.accessKey, "42164023970969000190000000000000000000000000000000");
   assert.equal(envelope.nfseNumber, "12");
   assert.equal(envelope.issuedAt, "2026-10-25T12:00:00Z");
   assert.equal(envelope.nfseXml, fakeNfseXml());
@@ -52,7 +52,7 @@ test("transmitDps: emissão autorizada — descompacta nfseXmlGZipB64, aceita ch
   // O contrato interno existente (dps-builder.ts) continua funcionando com o envelope real.
   const authorization = parseAuthorizationResponse(envelope);
   assert.ok(authorization);
-  assert.equal(authorization?.accessKey, "421640419999999999999999999990000000001202610");
+  assert.equal(authorization?.accessKey, "42164023970969000190000000000000000000000000000000");
   await mock.close();
 });
 
@@ -76,7 +76,7 @@ test("transmitDps: NFS-e retornada de um CNPJ diferente do prestador que enviou 
   mock.disableNetConnect();
   const pool = mock.get("https://sefin.producaorestrita.nfse.gov.br");
   pool.intercept({ path: "/API/SefinNacional/nfse", method: "POST" }).reply(200, {
-    chaveAcesso: "421640419999999999999999999990000000001202610",
+    chaveAcesso: "42164023970969000190000000000000000000000000000000",
     nfseXmlGZipB64: gzipSync(Buffer.from(fakeNfseXml("00000000000191"), "utf8")).toString("base64"),
   });
   const client = new SefinNacionalClient(mock, 2_000, () => undefined);
@@ -148,10 +148,10 @@ test("getNfseByAccessKey: descompacta nfseXmlGZipB64 da consulta por chave", asy
   mock.disableNetConnect();
   const pool = mock.get("https://sefin.producaorestrita.nfse.gov.br");
   pool
-    .intercept({ path: "/API/SefinNacional/nfse/421640419999999999999999999990000000001202610", method: "GET" })
+    .intercept({ path: "/API/SefinNacional/nfse/42164023970969000190000000000000000000000000000000", method: "GET" })
     .reply(200, { nfseXmlGZipB64: gzipSync(Buffer.from(fakeNfseXml(), "utf8")).toString("base64") });
   const client = new SefinNacionalClient(mock, 2_000, () => undefined);
-  const xml = await client.getNfseByAccessKey("421640419999999999999999999990000000001202610", "homologation");
+  const xml = await client.getNfseByAccessKey("42164023970969000190000000000000000000000000000000", "homologation");
   assert.equal(xml, fakeNfseXml());
   await mock.close();
 });
@@ -205,14 +205,14 @@ test("submitCancellationEvent: registra evento — descompacta pedidoRegistroEve
   let receivedBody = "";
   pool
     .intercept({
-      path: "/API/SefinNacional/nfse/421640419999999999999999999990000000001202610001/eventos",
+      path: "/API/SefinNacional/nfse/42164023970969000190000000000000000000000000000000001/eventos",
       method: "POST",
       body: (body) => { receivedBody = String(body); return true; },
     })
     .reply(200, { eventoXmlGZipB64: gzipSync(Buffer.from("<evento>registrado</evento>", "utf8")).toString("base64") });
 
   const client = new SefinNacionalClient(mock, 2_000, () => undefined);
-  const envelope = await client.submitCancellationEvent(SIGNED_EVENT_XML, "421640419999999999999999999990000000001202610001", "homologation");
+  const envelope = await client.submitCancellationEvent(SIGNED_EVENT_XML, "42164023970969000190000000000000000000000000000000001", "homologation");
 
   const sentJson = JSON.parse(receivedBody) as Record<string, string>;
   assert.ok(sentJson.pedidoRegistroEventoXmlGZipB64, "deve enviar pedidoRegistroEventoXmlGZipB64, nunca dpsXmlGZipB64");
@@ -286,7 +286,7 @@ test("transmitDps: NFS-e de outra DPS do MESMO prestador não pode ser registrad
   const pool = mock.get("https://sefin.producaorestrita.nfse.gov.br");
   const different = fakeNfseXml().replace(SENT_DPS_ID, SENT_DPS_ID.slice(0, -1) + "2");
   pool.intercept({ path: "/API/SefinNacional/nfse", method: "POST" }).reply(200, {
-    chaveAcesso: "421640419999999999999999999990000000001202610",
+    chaveAcesso: "42164023970969000190000000000000000000000000000000",
     nfseXmlGZipB64: gzipSync(Buffer.from(different, "utf8")).toString("base64"),
   });
   const client = new SefinNacionalClient(mock, 2_000, () => undefined);
@@ -305,7 +305,7 @@ test("transmitDps: ambiente ou Id da DPS embutida ausente mantém resposta incer
     mock.disableNetConnect();
     mock.get("https://sefin.producaorestrita.nfse.gov.br")
       .intercept({ path: "/API/SefinNacional/nfse", method: "POST" }).reply(200, {
-        chaveAcesso: "421640419999999999999999999990000000001202610",
+        chaveAcesso: "42164023970969000190000000000000000000000000000000",
         nfseXmlGZipB64: gzipSync(Buffer.from(xml, "utf8")).toString("base64"),
       });
     const client = new SefinNacionalClient(mock, 2_000, () => undefined);
@@ -326,7 +326,7 @@ test("respostas GZip adulteradas ou expansivas não podem esgotar memória do se
     mock.disableNetConnect();
     mock.get("https://sefin.producaorestrita.nfse.gov.br")
       .intercept({ path: "/API/SefinNacional/nfse", method: "POST" }).reply(200, {
-        chaveAcesso: "421640419999999999999999999990000000001202610",
+        chaveAcesso: "42164023970969000190000000000000000000000000000000",
         nfseXmlGZipB64: compressed,
       });
     const client = new SefinNacionalClient(mock, 2_000, () => undefined);
@@ -357,5 +357,40 @@ test("transmitDps: corpo HTTP acima do limite sem content-length explícito é r
   const client = new SefinNacionalClient(mock, 2_000, () => undefined);
   await assert.rejects(() => client.transmitDps(SIGNED_DPS_XML, "homologation"),
     (err: unknown) => err instanceof NfseIntegrationError && err.code === "NFSE_INVALID_RESPONSE");
+  await mock.close();
+});
+
+test("SEFIN: chave alfanumerica de 50 caracteres é aceita após autorização", async () => {
+  const mock = new MockAgent();
+  mock.disableNetConnect();
+  const accessKey = "421640" + "ABC123DEF45678" + "0".repeat(30);
+  mock.get("https://sefin.producaorestrita.nfse.gov.br")
+    .intercept({ path: "/API/SefinNacional/nfse", method: "POST" })
+    .reply(200, {
+      chaveAcesso: accessKey,
+      nfseXmlGZipB64: gzipSync(Buffer.from(fakeNfseXml(), "utf8")).toString("base64"),
+    });
+  const client = new SefinNacionalClient(mock, 2_000, () => undefined);
+  const result = await client.transmitDps(SIGNED_DPS_XML, "homologation");
+  assert.equal(result.status, "authorized");
+  assert.equal(result.accessKey, accessKey);
+  await mock.close();
+});
+
+test("SEFIN: resposta autorizada com chave de acesso incompleta nunca gera nota emitida", async () => {
+  const mock = new MockAgent();
+  mock.disableNetConnect();
+  mock.get("https://sefin.producaorestrita.nfse.gov.br")
+    .intercept({ path: "/API/SefinNacional/nfse", method: "POST" })
+    .reply(200, {
+      chaveAcesso: "421640" + "23970969000190" + "0".repeat(29),
+      nfseXmlGZipB64: gzipSync(Buffer.from(fakeNfseXml(), "utf8")).toString("base64"),
+    });
+  const client = new SefinNacionalClient(mock, 2_000, () => undefined);
+  await assert.rejects(
+    () => client.transmitDps(SIGNED_DPS_XML, "homologation"),
+    (error: unknown) => error instanceof NfseIntegrationError &&
+      error.code === "NFSE_INVALID_RESPONSE" && /TSChaveNFSe/.test(error.message),
+  );
   await mock.close();
 });

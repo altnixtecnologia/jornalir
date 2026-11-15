@@ -1,5 +1,6 @@
 import type { NfseEnvironment } from "@ir/types";
 import { tag } from "./xml-utils";
+import { isValidNfseAccessKey } from "./access-key";
 
 /**
  * Builder do "Pedido de Registro de Evento" (TCPedRegEvt) — Bloco B,
@@ -74,7 +75,7 @@ export function buildCancellationEventId(input: CancellationEventIdInput): strin
   // TSChaveNFSe, tiposSimples_v1.01.xsd: 6 digitos + 14 caracteres
   // alfanumericos maiusculos + 30 digitos. Nunca completar nem
   // truncar uma chave fiscal verdadeira para fazer o XML "passar".
-  if (!/^[0-9]{6}[0-9A-Z]{14}[0-9]{30}$/.test(input.accessKey)) {
+  if (!isValidNfseAccessKey(input.accessKey)) {
     throw new Error("Chave de acesso NFS-e invalida: informe exatamente os 50 caracteres oficiais.");
   }
   return `PRE${input.accessKey}${CANCELLATION_EVENT_CODE}`;

@@ -8,6 +8,7 @@ import { NfseIntegrationError, normalizeNfseTransportError } from "./integration
 import { NFSE_MAX_RESPONSE_BYTES, readBoundedNfseBody } from "./bounded-http-body";
 import { defaultNfseLogger, type NfseLogger } from "./municipal-parameters-client";
 import type { NationalNfseResponseEnvelope } from "./dps-builder";
+import { isValidNfseAccessKey } from "./access-key";
 
 const MAX_RESPONSE_BYTES = NFSE_MAX_RESPONSE_BYTES;
 
@@ -289,10 +290,12 @@ export class SefinNacionalClient {
    * derivado do `Id` da NFS-e (formatos incompatíveis, ver nota da classe). */
   private extractAccessKey(json: Record<string, unknown>, _nfseXml: string): string {
     const direct = typeof json.chaveAcesso === "string" ? json.chaveAcesso : undefined;
-    if (direct) return direct;
+    if (direct && isValidNfseAccessKey(direct)) return direct;
     throw new NfseIntegrationError(
       "NFSE_INVALID_RESPONSE",
-      "A resposta de autorização não trouxe chaveAcesso — o esquema vendorizado não tem esse campo dentro da própria NFS-e (ver comentário da classe); confirme o contrato real antes de prosseguir.",
+      direct
+        ? "A resposta de autorização trouxe chaveAcesso incompatível com TSChaveNFSe (50 caracteres; inscrição federal alfanumérica permitida). Não persistir nota com chave inválida."
+        : "A resposta de autorização não trouxe chaveAcesso — o esquema vendorizado não tem esse campo dentro da própria NFS-e (ver comentário da classe); confirme o contrato real antes de prosseguir.",
     );
   }
 

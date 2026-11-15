@@ -200,7 +200,7 @@ test("fluxo completo ponta a ponta: rascunho -> DPS -> assinatura -> SefinNacion
   mock.disableNetConnect();
   const pool = mock.get("https://sefin.producaorestrita.nfse.gov.br");
   pool.intercept({ path: "/API/SefinNacional/nfse", method: "POST" }).reply(200, {
-    chaveAcesso: "421640419999999999999999999990000000001202610",
+    chaveAcesso: "42164023970969000190000000000000000000000000000000",
     nfseXmlGZipB64: gzipSync(Buffer.from(fakeNfseXml(), "utf8")).toString("base64"),
   });
   const { service, issuedNotes, attempts } = makeEndToEndService({ mock });
@@ -209,7 +209,7 @@ test("fluxo completo ponta a ponta: rascunho -> DPS -> assinatura -> SefinNacion
 
   assert.equal(result.outcome, "authorized");
   assert.equal(issuedNotes.created.length, 1);
-  assert.equal(issuedNotes.created[0].accessKey, "421640419999999999999999999990000000001202610");
+  assert.equal(issuedNotes.created[0].accessKey, "42164023970969000190000000000000000000000000000000");
   assert.equal(issuedNotes.created[0].nfseNumber, "12");
   assert.equal(issuedNotes.created[0].nfseXml, fakeNfseXml());
   assert.equal(attempts.created[0].status, "pending");
@@ -286,11 +286,11 @@ test("fluxo completo: consulta posterior pela chave de acesso via o mesmo adapta
   mock.disableNetConnect();
   const pool = mock.get("https://sefin.producaorestrita.nfse.gov.br");
   pool
-    .intercept({ path: "/API/SefinNacional/nfse/421640419999999999999999999990000000001202610", method: "GET" })
+    .intercept({ path: "/API/SefinNacional/nfse/42164023970969000190000000000000000000000000000000", method: "GET" })
     .reply(200, { nfseXmlGZipB64: gzipSync(Buffer.from(fakeNfseXml(), "utf8")).toString("base64") });
   const { service } = makeEndToEndService({ mock });
 
-  const xml = await service.consultNfseByAccessKey("421640419999999999999999999990000000001202610");
+  const xml = await service.consultNfseByAccessKey("42164023970969000190000000000000000000000000000000");
   assert.equal(xml, fakeNfseXml());
   await mock.close();
 });
@@ -300,7 +300,7 @@ test("fluxo completo: mutex real com o adaptador real — duas transmissões con
   mock.disableNetConnect();
   const pool = mock.get("https://sefin.producaorestrita.nfse.gov.br");
   pool.intercept({ path: "/API/SefinNacional/nfse", method: "POST" }).reply(200, {
-    chaveAcesso: "421640419999999999999999999990000000001202610",
+    chaveAcesso: "42164023970969000190000000000000000000000000000000",
     nfseXmlGZipB64: gzipSync(Buffer.from(fakeNfseXml(), "utf8")).toString("base64"),
   });
 
@@ -345,7 +345,7 @@ test("fluxo completo: idempotência real (backstop UNIQUE) com o adaptador real,
     return {
       statusCode: 200,
       data: {
-        chaveAcesso: "421640419999999999999999999990000000001202610",
+        chaveAcesso: "42164023970969000190000000000000000000000000000000",
         nfseXmlGZipB64: gzipSync(Buffer.from(fakeNfseXml(transmittedId), "utf8")).toString("base64"),
       },
     };
