@@ -110,7 +110,16 @@ export class SefinNacionalClient {
     assertNfseOperationAllowed(environment);
     const config = getNfseEnvironmentConfig(environment);
     const { status, body } = await this.send("GET", `${config.sefinBaseUrl}/dps/${encodeURIComponent(dpsId)}`, environment, "sefin-query-dps-by-id");
-    if (status === 404 || status === 403) return null;
+    // 404 é DPS inexistente. 403 é falta de permissão: NÃO significa que
+    // a DPS não exista, nem que seja seguro tentar transmiti-la novamente.
+    if (status === 404) return null;
+    if (status === 403) {
+      throw new NfseIntegrationError(
+        "NFSE_HTTP_ERROR",
+        "Acesso negado à consulta da DPS (HTTP 403); a existência da nota permanece inconclusiva.",
+        403,
+      );
+    }
     if (status < 200 || status >= 300) throw new NfseIntegrationError("NFSE_HTTP_ERROR", `A SEFIN Nacional respondeu com HTTP ${status} para a consulta de DPS.`, status);
     // DpsGetResponse (SEFIN v1): a resposta oficial é JSON com idDps,
     // chaveAcesso e tipoAmbiente. Mantém corpo bruto para compatibilidade
@@ -174,6 +183,7 @@ export class SefinNacionalClient {
 
   private parseEventRegisteredEnvelope(body: string, environment: NfseEnvironment): NationalEventResponseEnvelope {
     const json = this.parseJson(body);
+    this.assertSuccessWithoutFiscalErrors(json, "registro de evento");
     this.assertResponseEnvironment(json, environment, "registro de evento");
     const eventoXmlGZipB64 = typeof json.eventoXmlGZipB64 === "string" ? json.eventoXmlGZipB64 : undefined;
     if (!eventoXmlGZipB64) {
@@ -190,6 +200,7 @@ export class SefinNacionalClient {
 
   private parseAuthorizedEnvelope(body: string, signedDpsXml: string, environment: NfseEnvironment): NationalNfseResponseEnvelope {
     const json = this.parseJson(body);
+    this.assertSuccessWithoutFiscalErrors(json, "autorização de NFS-e");
     const submitted = new DOMParser().parseFromString(signedDpsXml, "text/xml");
     const submittedId = submitted.getElementsByTagName("infDPS")[0]?.getAttribute("Id")?.trim();
     if (!submittedId || typeof json.idDps !== "string" || json.idDps !== submittedId) {
@@ -227,6 +238,25 @@ export class SefinNacionalClient {
    * EventosPostResponseSucesso) contém tipoAmbiente inteiro: 1/2.
    * Não aceitar um envelope de outro ambiente, nem ausência do campo.
    */
+  /**
+   * Contrato SEFIN: respostas de sucesso podem ter "alertas", mas nunca
+   * aceitar "erros" de processamento fiscal no mesmo envelope como
+   * autorização/registro. Se houver erros (ou campo malformado), falhar
+   * fechado, preservando a tentativa para conciliação.
+   *
+   * Comparação independente: SDKs nfse-nacional/nfse-php e
+   * RicardoBiazin/nfse-nacional também distinguem erros/alertas.
+   * Não importa código nem dependências desses repositórios.
+   */
+  private assertSuccessWithoutFiscalErrors(json: Record<string, unknown>, context: string): void {
+    if (json.erros !== undefined && (!Array.isArray(json.erros) || json.erros.length > 0)) {
+      throw new NfseIntegrationError(
+        "NFSE_INVALID_RESPONSE",
+        `Envelope HTTP 2xx de ${context} contém erros fiscais ou campo erros inválido; operação inconclusiva.`,
+      );
+    }
+  }
+
   private assertResponseEnvironment(
     json: Record<string, unknown>, environment: NfseEnvironment, context: string,
   ): void {
