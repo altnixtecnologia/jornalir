@@ -11,7 +11,8 @@ import { assertDanfseLayoutApproved } from "./danfseReleaseGate";
  * NT oficial: 008/2026 v1.02 (14/07/2026), Anexo I, Portal Nacional NFS-e.
  * Não está conforme para uso oficial: faltam tributação federal/IBS/CBS,
  * informações complementares, campos obrigatórios do Simples Nacional,
- * logomarca, layout geométrico e fontes oficiais. Alguns valores atualmente
+ * layout geométrico completo e fontes oficiais. A logomarca NFS-e ja esta
+ * incorporada no cabecalho do prototipo. Alguns valores atualmente
  * são estáticos e precisam derivar do XML oficial. Sem liberar emissão,
  * download ou arquivamento de DANFSe de produção até sanar os pontos.
  *
@@ -245,7 +246,7 @@ export async function buildDanfsePdf(data: DanfseData, options: { cancelled?: bo
   page.drawText(fitTextToWidth(emitterCity, regular, 8, rightColumnWidth), {
     x: rightColumnX, y: PAGE_HEIGHT - 0.54 * CM_TO_PT, font: regular, size: 8, color: BLACK,
   });
-  page.drawText("Ambiente Gerador: -", {
+  page.drawText(fitTextToWidth(`Ambiente Gerador: ${dash(data.environmentGenerator)}`, regular, 6, rightColumnWidth), {
     x: rightColumnX, y: PAGE_HEIGHT - 0.88 * CM_TO_PT, size: 6, font: regular, color: BLACK,
   });
   page.drawText(`Tipo de Ambiente: ${data.isHomologation ? "2" : "1"}`, {
