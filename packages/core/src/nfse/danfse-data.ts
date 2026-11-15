@@ -43,8 +43,10 @@ type XmlDoc = ReturnType<DOMParser["parseFromString"]>;
 type XmlElement = ReturnType<XmlDoc["getElementsByTagName"]>[number];
 
 function text(doc: XmlDoc, tagName: string, scope?: XmlElement): string | undefined {
-  const root = scope ?? doc;
-  const found = root.getElementsByTagName(tagName)[0]?.textContent?.trim();
+  // Nunca buscar no documento inteiro quando um grupo opcional não existe.
+  // Isso faria dados de ISSQN aparecerem falsamente como IBS/CBS/federal.
+  if (!scope) return undefined;
+  const found = scope.getElementsByTagName(tagName)[0]?.textContent?.trim();
   return found && found.length > 0 ? found : undefined;
 }
 
@@ -98,6 +100,43 @@ export interface DanfseData {
   issqnAmount?: string;
   totalRetained?: string;
   netValue?: string;
+  // Fonte exclusiva: XML autorizado; ausência de campo opcional => undefined.
+  prestadorSimplesOption?: string;
+  prestadorSnApuracao?: string;
+  nbsCode?: string;
+  nationalServiceDescription?: string;
+  municipalServiceDescription?: string;
+  issqnTaxationType?: string;
+  issqnIncidenceLocation?: string;
+  issqnRetentionType?: string;
+  issqnSpecialTaxRegime?: string;
+  issqnDiscountUnconditional?: string;
+  federalIrrf?: string;
+  federalSocialSecurityRetained?: string;
+  federalSocialContribRetained?: string;
+  federalPis?: string;
+  federalCofins?: string;
+  federalPisCofinsRetention?: string;
+  ibsCbsCst?: string;
+  ibsCbsTaxClass?: string;
+  ibsCbsOperationIndicator?: string;
+  ibsCbsBase?: string;
+  ibsCbsLocation?: string;
+  ibsCbsRateState?: string;
+  ibsCbsRateCity?: string;
+  ibsCbsRateFederal?: string;
+  ibsCbsEffectiveRateState?: string;
+  ibsCbsEffectiveRateCity?: string;
+  ibsCbsEffectiveRateFederal?: string;
+  ibsCbsValueState?: string;
+  ibsCbsValueCity?: string;
+  ibsCbsValueFederal?: string;
+  ibsCbsTotal?: string;
+  grossTotalWithIbsCbs?: string;
+  discountConditional?: string;
+  discountUnconditional?: string;
+  complementaryInformation?: string;
+  municipalAdditionalInformation?: string;
 }
 
 function extractAddress(doc: XmlDoc, scope: XmlElement | undefined): { address?: string; state?: string; ibgeCode?: string; zipCode?: string } {
@@ -172,6 +211,26 @@ export function extractDanfseData(issuedNote: Pick<NfseIssuedNote, "environment"
 
   const serv = infDPS.getElementsByTagName("serv")[0];
   const valoresNFSe = infNFSe.getElementsByTagName("valores")[0];
+  const prest = infDPS.getElementsByTagName("prest")[0];
+  const regTrib = prest?.getElementsByTagName("regTrib")[0];
+  const dpsValores = infDPS.getElementsByTagName("valores")[0];
+  const dpsTrib = dpsValores?.getElementsByTagName("trib")[0];
+  const tribMun = dpsTrib?.getElementsByTagName("tribMun")[0];
+  const tribFed = dpsTrib?.getElementsByTagName("tribFed")[0];
+  const pisCofins = tribFed?.getElementsByTagName("piscofins")[0];
+  const descontos = dpsValores?.getElementsByTagName("vDescCondIncond")[0];
+  const infoCompl = serv?.getElementsByTagName("infoCompl")[0];
+  const ibsCbs = infNFSe.getElementsByTagName("IBSCBS")[0];
+  const ibsValues = ibsCbs?.getElementsByTagName("valores")[0];
+  const ibsUf = ibsValues?.getElementsByTagName("uf")[0];
+  const ibsMun = ibsValues?.getElementsByTagName("mun")[0];
+  const ibsFed = ibsValues?.getElementsByTagName("fed")[0];
+  const ibsTotals = ibsCbs?.getElementsByTagName("totCIBS")[0];
+  const ibsTotal = ibsTotals?.getElementsByTagName("gIBS")[0];
+  const ibsTotalUf = ibsTotal?.getElementsByTagName("gIBSUFTot")[0];
+  const ibsTotalMun = ibsTotal?.getElementsByTagName("gIBSMunTot")[0];
+  const ibsTotalCbs = ibsTotals?.getElementsByTagName("gCBS")[0];
+  const dpsIbsCbs = infDPS.getElementsByTagName("IBSCBS")[0];
 
   const tpAmb = requireText("tpAmb", text(doc, "tpAmb", infDPS), "infDPS");
   if (tpAmb !== "1" && tpAmb !== "2") throw new DanfseDataError(`tpAmb=${tpAmb} não reconhecido na DPS.`);
@@ -215,5 +274,41 @@ export function extractDanfseData(issuedNote: Pick<NfseIssuedNote, "environment"
     issqnAmount: text(doc, "vISSQN", valoresNFSe),
     totalRetained: text(doc, "vTotalRet", valoresNFSe),
     netValue: text(doc, "vLiq", valoresNFSe),
+    prestadorSimplesOption: text(doc, "opSimpNac", regTrib),
+    prestadorSnApuracao: text(doc, "regApTribSN", regTrib),
+    nbsCode: text(doc, "cNBS", serv),
+    nationalServiceDescription: text(doc, "xTribNac", infNFSe),
+    municipalServiceDescription: text(doc, "xTribMun", infNFSe),
+    issqnTaxationType: text(doc, "tribISSQN", tribMun),
+    issqnIncidenceLocation: text(doc, "xLocIncid", infNFSe) ?? text(doc, "cLocIncid", infNFSe),
+    issqnRetentionType: text(doc, "tpRetISSQN", tribMun),
+    issqnSpecialTaxRegime: text(doc, "regEspTrib", regTrib),
+    issqnDiscountUnconditional: text(doc, "vDescIncond", descontos),
+    federalIrrf: text(doc, "vRetIRRF", tribFed),
+    federalSocialSecurityRetained: text(doc, "vRetCP", tribFed),
+    federalSocialContribRetained: text(doc, "vRetCSLL", tribFed),
+    federalPis: text(doc, "vPis", pisCofins),
+    federalCofins: text(doc, "vCofins", pisCofins),
+    federalPisCofinsRetention: text(doc, "tpRetPisCofins", pisCofins),
+    ibsCbsCst: text(doc, "CST", dpsIbsCbs),
+    ibsCbsTaxClass: text(doc, "cClassTrib", dpsIbsCbs),
+    ibsCbsOperationIndicator: text(doc, "cIndOp", dpsIbsCbs),
+    ibsCbsBase: text(doc, "vBC", ibsValues),
+    ibsCbsLocation: text(doc, "xLocalidadeIncid", ibsCbs) ?? text(doc, "cLocalidadeIncid", ibsCbs),
+    ibsCbsRateState: text(doc, "pIBSUF", ibsUf),
+    ibsCbsRateCity: text(doc, "pIBSMun", ibsMun),
+    ibsCbsRateFederal: text(doc, "pCBS", ibsFed),
+    ibsCbsEffectiveRateState: text(doc, "pAliqEfetUF", ibsUf),
+    ibsCbsEffectiveRateCity: text(doc, "pAliqEfetMun", ibsMun),
+    ibsCbsEffectiveRateFederal: text(doc, "pAliqEfetCBS", ibsFed),
+    ibsCbsValueState: text(doc, "vIBSUF", ibsTotalUf),
+    ibsCbsValueCity: text(doc, "vIBSMun", ibsTotalMun),
+    ibsCbsValueFederal: text(doc, "vCBS", ibsTotalCbs),
+    ibsCbsTotal: text(doc, "vIBSTot", ibsTotal),
+    grossTotalWithIbsCbs: text(doc, "vTotNF", ibsTotals),
+    discountConditional: text(doc, "vDescCond", descontos),
+    discountUnconditional: text(doc, "vDescIncond", descontos),
+    complementaryInformation: text(doc, "xInfComp", infoCompl),
+    municipalAdditionalInformation: text(doc, "xOutInf", infNFSe),
   };
 }

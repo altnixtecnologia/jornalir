@@ -189,3 +189,54 @@ test("DANFSe: situação e ambiente não podem ser presumidos", () => {
     nfseXml: makeNfseXml({ environment: "production" }),
   })), DanfseDataError);
 });
+
+test("DANFSe: ausência de grupos federais e IBS/CBS não usa valores de outras seções", () => {
+  const data = extractDanfseData(makeIssuedNote());
+  assert.equal(data.issqnTaxBase, "150.50");
+  assert.equal(data.federalIrrf, undefined);
+  assert.equal(data.federalPis, undefined);
+  assert.equal(data.ibsCbsBase, undefined);
+  assert.equal(data.ibsCbsTotal, undefined);
+  assert.equal(data.ibsCbsValueFederal, undefined);
+  assert.equal(data.discountConditional, undefined);
+  assert.equal(data.complementaryInformation, undefined);
+});
+
+test("DANFSe: tributação federal e descontos vêm só dos grupos efetivos da DPS", () => {
+  const xml = makeNfseXml()
+    .replace("<totTrib>", '<tribFed><piscofins><vPis>2.00</vPis><vCofins>3.00</vCofins></piscofins><vRetCP>4.00</vRetCP><vRetIRRF>5.00</vRetIRRF><vRetCSLL>6.00</vRetCSLL></tribFed><totTrib>')
+    .replace("<trib><tribMun>", '<vDescCondIncond><vDescIncond>7.00</vDescIncond><vDescCond>8.00</vDescCond></vDescCondIncond><trib><tribMun>')
+    .replace("<cNBS>", "<cNBS>");
+  const data = extractDanfseData(makeIssuedNote({ nfseXml: xml }));
+  assert.equal(data.federalIrrf, "5.00");
+  assert.equal(data.federalSocialSecurityRetained, "4.00");
+  assert.equal(data.federalSocialContribRetained, "6.00");
+  assert.equal(data.federalPis, "2.00");
+  assert.equal(data.federalCofins, "3.00");
+  assert.equal(data.discountUnconditional, "7.00");
+  assert.equal(data.discountConditional, "8.00");
+});
+
+test("DANFSe: IBS/CBS autorizado, valores da federação e informação complementar vêm das tags corretas", () => {
+  const ibs = '<IBSCBS><cLocalidadeIncid>4216404</cLocalidadeIncid><xLocalidadeIncid>São João do Sul</xLocalidadeIncid>' +
+    '<valores><vBC>100.00</vBC><uf><pIBSUF>0.10</pIBSUF><pAliqEfetUF>0.10</pAliqEfetUF></uf><mun><pIBSMun>0.20</pIBSMun></mun><fed><pCBS>0.90</pCBS></fed></valores>' +
+    '<totCIBS><vTotNF>101.20</vTotNF><gIBS><vIBSTot>0.30</vIBSTot><gIBSUFTot><vIBSUF>0.10</vIBSUF></gIBSUFTot><gIBSMunTot><vIBSMun>0.20</vIBSMun></gIBSMunTot></gIBS><gCBS><vCBS>0.90</vCBS></gCBS></totCIBS></IBSCBS>';
+  const xml = makeNfseXml()
+    .replace("<DPS ", ibs + "<DPS ")
+    .replace("<serv><locPrest>", "<serv><infoCompl><xInfComp>Contrato de publicidade</xInfComp></infoCompl><locPrest>")
+    .replace("<infNFSe Id=", "<infNFSe Id=");
+  // A substituição da informação complementar em uma posição não válida no
+  // XSD é propositalmente fixture de extração, não de validação de esquema.
+  const data = extractDanfseData(makeIssuedNote({ nfseXml: xml }));
+  assert.equal(data.ibsCbsLocation, "São João do Sul");
+  assert.equal(data.ibsCbsBase, "100.00");
+  assert.equal(data.ibsCbsRateState, "0.10");
+  assert.equal(data.ibsCbsRateCity, "0.20");
+  assert.equal(data.ibsCbsRateFederal, "0.90");
+  assert.equal(data.ibsCbsValueState, "0.10");
+  assert.equal(data.ibsCbsValueCity, "0.20");
+  assert.equal(data.ibsCbsValueFederal, "0.90");
+  assert.equal(data.ibsCbsTotal, "0.30");
+  assert.equal(data.grossTotalWithIbsCbs, "101.20");
+  assert.equal(data.complementaryInformation, "Contrato de publicidade");
+});
