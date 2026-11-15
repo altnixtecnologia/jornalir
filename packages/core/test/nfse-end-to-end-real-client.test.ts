@@ -199,7 +199,7 @@ test("fluxo completo ponta a ponta: rascunho -> DPS -> assinatura -> SefinNacion
   const mock = new MockAgent();
   mock.disableNetConnect();
   const pool = mock.get("https://sefin.producaorestrita.nfse.gov.br");
-  pool.intercept({ path: "/API/SefinNacional/nfse", method: "POST" }).reply(200, {
+  pool.intercept({ path: "/API/SefinNacional/nfse", method: "POST" }).reply(200, { tipoAmbiente: 2, idDps: END_TO_END_DPS_ID,
     chaveAcesso: "42164023970969000190000000000000000000000000000000",
     nfseXmlGZipB64: gzipSync(Buffer.from(fakeNfseXml(), "utf8")).toString("base64"),
   });
@@ -256,7 +256,7 @@ test("fluxo completo: resposta de autorização sem chaveAcesso (inválida) tamb
   const mock = new MockAgent();
   mock.disableNetConnect();
   const pool = mock.get("https://sefin.producaorestrita.nfse.gov.br");
-  pool.intercept({ path: "/API/SefinNacional/nfse", method: "POST" }).reply(200, {
+  pool.intercept({ path: "/API/SefinNacional/nfse", method: "POST" }).reply(200, { tipoAmbiente: 2, idDps: END_TO_END_DPS_ID,
     nfseXmlGZipB64: gzipSync(Buffer.from(fakeNfseXml(), "utf8")).toString("base64"),
   });
   const { service, issuedNotes, attempts } = makeEndToEndService({ mock });
@@ -287,7 +287,7 @@ test("fluxo completo: consulta posterior pela chave de acesso via o mesmo adapta
   const pool = mock.get("https://sefin.producaorestrita.nfse.gov.br");
   pool
     .intercept({ path: "/API/SefinNacional/nfse/42164023970969000190000000000000000000000000000000", method: "GET" })
-    .reply(200, { nfseXmlGZipB64: gzipSync(Buffer.from(fakeNfseXml(), "utf8")).toString("base64") });
+    .reply(200, { tipoAmbiente: 2, idDps: END_TO_END_DPS_ID, nfseXmlGZipB64: gzipSync(Buffer.from(fakeNfseXml(), "utf8")).toString("base64") });
   const { service } = makeEndToEndService({ mock });
 
   const xml = await service.consultNfseByAccessKey("42164023970969000190000000000000000000000000000000");
@@ -299,7 +299,7 @@ test("fluxo completo: mutex real com o adaptador real — duas transmissões con
   const mock = new MockAgent();
   mock.disableNetConnect();
   const pool = mock.get("https://sefin.producaorestrita.nfse.gov.br");
-  pool.intercept({ path: "/API/SefinNacional/nfse", method: "POST" }).reply(200, {
+  pool.intercept({ path: "/API/SefinNacional/nfse", method: "POST" }).reply(200, { tipoAmbiente: 2, idDps: END_TO_END_DPS_ID,
     chaveAcesso: "42164023970969000190000000000000000000000000000000",
     nfseXmlGZipB64: gzipSync(Buffer.from(fakeNfseXml(), "utf8")).toString("base64"),
   });
@@ -345,6 +345,8 @@ test("fluxo completo: idempotência real (backstop UNIQUE) com o adaptador real,
     return {
       statusCode: 200,
       data: {
+        tipoAmbiente: 2,
+        idDps: transmittedId,
         chaveAcesso: "42164023970969000190000000000000000000000000000000",
         nfseXmlGZipB64: gzipSync(Buffer.from(fakeNfseXml(transmittedId), "utf8")).toString("base64"),
       },
