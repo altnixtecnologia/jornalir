@@ -91,9 +91,9 @@ test("rascunho novo troca cliente sem exibir tomador anterior e limpa codigos de
 
 
 test("observações padrão fiscais não são tratadas como notas internas nem aplicadas retroativamente", () => {
-  const config = src("features/nfse/NfseIssuerConfigForm.tsx");
-  const form = src("features/nfse/NfseDraftForm.tsx");
-  const actions = src("app/sistema/nfse/nova/actions.ts");
+  const config = source("features/nfse/NfseIssuerConfigForm.tsx");
+  const form = source("features/nfse/NfseDraftForm.tsx");
+  const actions = source("app/sistema/nfse/nova/actions.ts");
   const tx = readFileSync(new URL("../../../packages/core/src/nfse/transmission-service.ts", import.meta.url), "utf8");
   const builder = readFileSync(new URL("../../../packages/core/src/nfse/dps-builder.ts", import.meta.url), "utf8");
   const migration = readFileSync(new URL("../../../supabase/migrations/20261122341000_nfse_fiscal_observations.sql", import.meta.url), "utf8");
