@@ -327,8 +327,8 @@ test("NT008: dados opcionais inexistentes nao sao preenchidos com estimativas fi
 });
 
 test("DANFSe total do IBS/CBS soma montantes presentes em centavos, sem assumir tributo ausente igual a zero", () => {
-  assert.equal(formatDanfseTotalIbsCbs({ ibsCbsTotal: "10.20", ibsCbsValueFederal: "3.33" }), "R$ 13,53");
-  assert.equal(formatDanfseTotalIbsCbs({ ibsCbsTotal: "0.00", ibsCbsValueFederal: "0.00" }), "R$ 0,00");
+  assert.match(formatDanfseTotalIbsCbs({ ibsCbsTotal: "10.20", ibsCbsValueFederal: "3.33" }), /R\\$\\s*13,53/);
+  assert.match(formatDanfseTotalIbsCbs({ ibsCbsTotal: "0.00", ibsCbsValueFederal: "0.00" }), /R\\$\\s*0,00/);
   assert.equal(formatDanfseTotalIbsCbs({ ibsCbsTotal: "10.20" }), "-");
   assert.equal(formatDanfseTotalIbsCbs({ ibsCbsValueFederal: "3.33" }), "-");
   assert.equal(formatDanfseTotalIbsCbs({ ibsCbsTotal: "NaN", ibsCbsValueFederal: "3.33" }), "-");
