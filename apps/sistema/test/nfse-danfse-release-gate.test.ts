@@ -1,7 +1,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { formatDanfseDate, formatDanfseDateTime } from "../src/lib/nfse/danfsePdf";
+import { PDFDocument, StandardFonts } from "pdf-lib";
+import { formatDanfseDate, formatDanfseDateTime, wrapDanfseText } from "../src/lib/nfse/danfsePdf";
 import {
   DANFSE_OFFICIAL_LAYOUT_APPROVED,
   assertDanfseLayoutApproved,
@@ -79,4 +80,34 @@ test("DANFSe de homologacao inclui blocos fiscais nacionais sem liberar document
   assert.match(pdf, /DANFSe de homologação excede a área útil A4/);
   assert.match(pdf, /assertDanfseLayoutApproved\(data\.isHomologation\)/);
   assert.equal(DANFSE_OFFICIAL_LAYOUT_APPROVED, false);
+});
+
+test("DANFSe não perde descrição longa nem completa com reticências", async () => {
+  const pdf = await PDFDocument.create();
+  const regular = await pdf.embedFont(StandardFonts.Helvetica);
+  const full = "Veiculação de anúncio publicitário com descrição extensa para conservar integralmente as condições do serviço contratado e impedir que o texto seja cortado no documento fiscal.";
+  const lines = wrapDanfseText(full, regular, 7, 550);
+  assert.ok(lines.length > 1, "a descrição precisa ocupar mais de uma linha");
+  assert.equal(lines.join(" "), full);
+  for (const line of lines) {
+    assert.ok(regular.widthOfTextAtSize(line, 7) <= 550);
+  }
+});
+
+test("DANFSe quebra palavras muito longas sem apagar caracteres", async () => {
+  const pdf = await PDFDocument.create();
+  const regular = await pdf.embedFont(StandardFonts.Helvetica);
+  const token = "IDENTIFICACAO".repeat(55);
+  const lines = wrapDanfseText(token, regular, 7, 160);
+  assert.ok(lines.length > 1);
+  assert.equal(lines.join(""), token);
+  for (const line of lines) assert.ok(regular.widthOfTextAtSize(line, 7) <= 160);
+});
+
+test("campos fiscais relevantes usam quebra de linha e ajuste vertical, nunca o fit com reticências", () => {
+  const source = src("lib/nfse/danfsePdf.ts");
+  for (const field of ["Descrição do Serviço", "Dados complementares da NFS-e", "Nome / Nome Empresarial"]) {
+    assert.ok(source.includes("drawWrappedField(page, bold, regular, \"" + field + "\""));
+  }
+  assert.match(source, /DANFSe de homologação excede a área útil A4/);
 });
