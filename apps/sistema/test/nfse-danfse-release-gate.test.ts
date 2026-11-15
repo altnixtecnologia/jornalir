@@ -153,8 +153,8 @@ test("DANFSe: não afirma igualdade destinatário/tomador sem indDest do XML", (
   const code = src("lib/nfse/danfsePdf.ts");
   assert.match(code, /data\.destinatarioEhTomador\s*\?/);
   assert.match(code, /"DESTINATÁRIO DA OPERAÇÃO NÃO IDENTIFICADO NA NFS-e"/);
-  assert.match(code, /if \(data\.destinatario\)/);
-  assert.match(code, /if \(data\.intermediario\)/);
+  assert.match(code, /"Destinatário da Operação", data\.destinatario, cursor\.y/);
+  assert.match(code, /"Intermediário da Operação", data\.intermediario, cursor\.y/);
 });
 
 test("prévia sintética é um PDF A4 de página única e nunca uma nota autorizada", async () => {
