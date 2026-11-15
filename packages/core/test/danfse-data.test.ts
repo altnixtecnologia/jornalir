@@ -300,3 +300,41 @@ test("DANFSe: datas de autorização com fusos equivalentes representam a mesma 
   }));
   assert.equal(data.nfseIssuedAt, "2026-10-25T15:00:00Z");
 });
+
+test("DANFSe: ausência do indDest NÃO autoriza declarar que destinatário é o tomador", () => {
+  const data = extractDanfseData(makeIssuedNote());
+  assert.equal(data.destinatarioEhTomador, false);
+  assert.equal(data.destinatario, undefined);
+  assert.equal(data.intermediario, undefined);
+});
+
+test("DANFSe: indDest 0 identifica explicitamente destinatário igual ao tomador", () => {
+  const xml = makeNfseXml().replace("</infDPS>", "<IBSCBS><indDest>0</indDest></IBSCBS></infDPS>");
+  const data = extractDanfseData(makeIssuedNote({ nfseXml: xml }));
+  assert.equal(data.destinatarioEhTomador, true);
+  assert.equal(data.destinatario, undefined);
+});
+
+test("DANFSe: indDest 1 extrai destinatário distinto e identifica intermediário", () => {
+  const xml = makeNfseXml()
+    .replace("</infDPS>", '<IBSCBS><indDest>1</indDest><dest><CNPJ>11111111000199</CNPJ><xNome>Destinatário da operação</xNome></dest></IBSCBS></infDPS>')
+    .replace("</toma>", '</toma><interm><CNPJ>22222222000199</CNPJ><xNome>Intermediário da operação</xNome></interm>');
+  const data = extractDanfseData(makeIssuedNote({ nfseXml: xml }));
+  assert.equal(data.destinatarioEhTomador, false);
+  assert.equal(data.destinatario?.federalInscription, "11111111000199");
+  assert.equal(data.destinatario?.name, "Destinatário da operação");
+  assert.equal(data.intermediario?.federalInscription, "22222222000199");
+  assert.equal(data.intermediario?.name, "Intermediário da operação");
+});
+
+test("DANFSe: não esconder destinatário/intermediário contraditório ou sem identificação", () => {
+  const base = makeNfseXml();
+  for (const xml of [
+    base.replace("</infDPS>", '<IBSCBS><indDest>1</indDest></IBSCBS></infDPS>'),
+    base.replace("</infDPS>", '<IBSCBS><indDest>0</indDest><dest><CNPJ>11111111000199</CNPJ><xNome>Outro</xNome></dest></IBSCBS></infDPS>'),
+    base.replace("</infDPS>", '<IBSCBS><indDest>9</indDest></IBSCBS></infDPS>'),
+    base.replace("</toma>", '</toma><interm><CNPJ>22222222000199</CNPJ></interm>'),
+  ]) {
+    assert.throws(() => extractDanfseData(makeIssuedNote({ nfseXml: xml })), DanfseDataError);
+  }
+});
