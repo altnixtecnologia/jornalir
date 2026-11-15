@@ -149,7 +149,7 @@ test("getNfseByAccessKey: descompacta nfseXmlGZipB64 da consulta por chave", asy
   const pool = mock.get("https://sefin.producaorestrita.nfse.gov.br");
   pool
     .intercept({ path: "/API/SefinNacional/nfse/42164023970969000190000000000000000000000000000000", method: "GET" })
-    .reply(200, { tipoAmbiente: 2, idDps: SENT_DPS_ID, nfseXmlGZipB64: gzipSync(Buffer.from(fakeNfseXml(), "utf8")).toString("base64") });
+    .reply(200, { tipoAmbiente: 2, idDps: SENT_DPS_ID, chaveAcesso: "42164023970969000190000000000000000000000000000000", nfseXmlGZipB64: gzipSync(Buffer.from(fakeNfseXml(), "utf8")).toString("base64") });
   const client = new SefinNacionalClient(mock, 2_000, () => undefined);
   const xml = await client.getNfseByAccessKey("42164023970969000190000000000000000000000000000000", "homologation");
   assert.equal(xml, fakeNfseXml());
@@ -485,4 +485,53 @@ test("SEFIN: evento HTTP 200 de outro ambiente é inconclusivo", async () => {
     (error: unknown) => error instanceof NfseIntegrationError && error.code === "NFSE_INVALID_RESPONSE",
   );
   await mock.close();
+});
+
+test("SEFIN: consulta GET por chave aceita somente resposta da nota e ambiente solicitados", async () => {
+  const key = "421640" + "23970969000190" + "0".repeat(30);
+  const endpoint = "/API/SefinNacional/nfse/" + key;
+  for (const response of [
+    { tipoAmbiente: 1, chaveAcesso: key },
+    { tipoAmbiente: 2, chaveAcesso: "421640" + "23970969000190" + "1".repeat(30) },
+    { tipoAmbiente: 2, chaveAcesso: undefined },
+  ]) {
+    const mock = new MockAgent();
+    mock.disableNetConnect();
+    mock.get("https://sefin.producaorestrita.nfse.gov.br")
+      .intercept({ path: endpoint, method: "GET" })
+      .reply(200, { ...response, nfseXmlGZipB64: gzipSync(Buffer.from(fakeNfseXml())).toString("base64") });
+    const client = new SefinNacionalClient(mock, 2_000, () => undefined);
+    await assert.rejects(
+      () => client.getNfseByAccessKey(key, "homologation"),
+      (error: unknown) => error instanceof NfseIntegrationError && error.code === "NFSE_INVALID_RESPONSE",
+    );
+    await mock.close();
+  }
+});
+
+test("SEFIN: consulta GET por DPS confere idDps, chave e ambiente sem inventar documentos", async () => {
+  const key = "421640" + "23970969000190" + "0".repeat(30);
+  const good = { tipoAmbiente: 2, idDps: SENT_DPS_ID, chaveAcesso: key };
+  const cases = [
+    { response: good, valid: true },
+    { response: { ...good, idDps: "DPS-OUTRO" }, valid: false },
+    { response: { ...good, tipoAmbiente: 1 }, valid: false },
+    { response: { ...good, chaveAcesso: "INVALIDA" }, valid: false },
+    { response: { ...good, chaveAcesso: undefined }, valid: false },
+  ];
+  for (const { response, valid } of cases) {
+    const mock = new MockAgent();
+    mock.disableNetConnect();
+    mock.get("https://sefin.producaorestrita.nfse.gov.br")
+      .intercept({ path: "/API/SefinNacional/dps/" + SENT_DPS_ID, method: "GET" })
+      .reply(200, response);
+    const client = new SefinNacionalClient(mock, 2_000, () => undefined);
+    if (valid) {
+      assert.deepEqual(JSON.parse((await client.getDpsById(SENT_DPS_ID, "homologation"))!), good);
+    } else {
+      await assert.rejects(() => client.getDpsById(SENT_DPS_ID, "homologation"),
+        (error: unknown) => error instanceof NfseIntegrationError && error.code === "NFSE_INVALID_RESPONSE");
+    }
+    await mock.close();
+  }
 });
