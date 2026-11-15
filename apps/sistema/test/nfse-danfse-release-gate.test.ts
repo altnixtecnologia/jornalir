@@ -65,3 +65,18 @@ test("DANFSe: emissão segue horario de SC, inclusive Vercel UTC", () => {
   assert.equal(formatDanfseDateTime("2026-10-26T01:30:45Z"), "25/10/2026 22:30:45");
   assert.equal(formatDanfseDateTime("not-a-date"), "-");
 });
+
+test("DANFSe de homologacao inclui blocos fiscais nacionais sem liberar documento oficial", () => {
+  const pdf = src("lib/nfse/danfsePdf.ts");
+  const xml = readFileSync(new URL("../../../packages/core/src/nfse/danfse-data.ts", import.meta.url), "utf8");
+  for (const section of ["Tributação Federal (Exceto CBS)", "Tributação IBS / CBS", "Informações Complementares"]) {
+    assert.ok(pdf.includes(section), section);
+  }
+  for (const field of ["federalIrrf", "federalSocialSecurityRetained", "federalSocialContribRetained", "ibsCbsBase", "ibsCbsTotal", "grossTotalWithIbsCbs", "complementaryInformation", "discountConditional"]) {
+    assert.ok(pdf.includes("data." + field), "PDF não lê " + field);
+    assert.ok(xml.includes(field + ":"), "campo " + field + " não é extraído do XML");
+  }
+  assert.match(pdf, /DANFSe de homologação excede a área útil A4/);
+  assert.match(pdf, /assertDanfseLayoutApproved\(data\.isHomologation\)/);
+  assert.equal(DANFSE_OFFICIAL_LAYOUT_APPROVED, false);
+});
