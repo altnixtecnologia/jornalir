@@ -66,3 +66,11 @@ test("factory de mTLS esta isolada e NUNCA e importada pela composicao oficial",
   assert.match(restricted, /await dispatcher\.close\(\)/);
   assert.match(restricted, /getActiveSigningMaterial\(issuer\.id\)/);
 });
+
+test("envio restrito exige owner/admin ATIVO confirmado no banco, mesmo com permissao de modulo", () => {
+  const action = source("app/sistema/nfse/rascunhos/[id]/actions.ts");
+  assert.match(action, /\.select\("active,role"\)/);
+  assert.match(action, /data\?\.active === true/);
+  assert.match(action, /\(data\.role === "owner" \|\| data\.role === "admin"\)/);
+  assert.match(action, /checkModuleAction\("nfse", "notas_emitir"\)/);
+});
