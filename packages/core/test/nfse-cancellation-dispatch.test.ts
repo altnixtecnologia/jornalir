@@ -75,8 +75,14 @@ class FakeSubmissionRepo implements CancellationSubmissionRepository {
   }
 }
 
+function syntheticCancellationResponse(key = KEY): string {
+  return `<evento><infEvento><nSeqEvento>001</nSeqEvento><pedRegEvento><infPedReg Id="PRE${key}101101">` +
+    `<tpAmb>2</tpAmb><chNFSe>${key}</chNFSe><e101101><xDesc>Cancelamento de NFS-e</xDesc>` +
+    `<cMotivo>1</cMotivo><xMotivo>Erro na emissão.</xMotivo></e101101></infPedReg></pedRegEvento></infEvento></evento>`;
+}
 function makeService(opts: {
   outcome?: "confirmed" | "rejected" | "incomplete" | "timeout";
+  eventXml?: string;
   note?: NfseIssuedNote;
   issuer?: NfseIssuerConfig;
   repository?: FakeSubmissionRepo;
@@ -93,7 +99,7 @@ function makeService(opts: {
       if (opts.outcome === "timeout") throw new Error("socket timeout");
       if (opts.outcome === "rejected") return { status: "rejected", rejection: { code: "E001", message: "Pedido rejeitado" } };
       if (opts.outcome === "incomplete") return { status: "registered", eventXml: "<evento/>" };
-      return { status: "registered", eventXml: `<evento><chNFSe>${KEY}</chNFSe><tpEvento>101101</tpEvento></evento>` };
+      return { status: "registered", eventXml: opts.eventXml ?? syntheticCancellationResponse() };
     },
     async getEventsByAccessKey() { return "[]"; },
   };
