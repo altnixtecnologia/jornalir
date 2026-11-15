@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { createSupabaseServerClient } from "../../../../lib/supabase/server";
 import { checkModuleAction } from "../../../../lib/permissions/checkModuleAction";
 import { buildDanfsePdf } from "../../../../lib/nfse/danfsePdf";
 import { DANFSE_PREVIEW_FIXTURE } from "../../../../lib/nfse/danfsePreviewFixture";
@@ -20,6 +21,18 @@ export async function GET(): Promise<NextResponse> {
       status: 403,
       headers: { "Cache-Control": "private, no-store", "X-Robots-Tag": "noindex" },
     });
+  }
+
+  // Defesa adicional: perfil ativo/owner/admin também no ambiente restrito.
+  const supabase = createSupabaseServerClient();
+  const { data: auth, error: authError } = await supabase.auth.getUser();
+  if (authError || !auth.user) {
+    return NextResponse.json({ error: "Sessao invalida." }, { status: 403 });
+  }
+  const { data: profile, error: profileError } = await supabase.from("profiles")
+    .select("active,role").eq("id", auth.user.id).maybeSingle();
+  if (profileError || !profile?.active || (profile.role !== "owner" && profile.role !== "admin")) {
+    return NextResponse.json({ error: "Acesso restrito a administradores ativos." }, { status: 403 });
   }
 
   try {
