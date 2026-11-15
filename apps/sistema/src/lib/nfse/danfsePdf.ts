@@ -371,7 +371,7 @@ export async function buildDanfsePdf(
   data: DanfseData, options: { cancelled?: boolean; substituted?: boolean } = {},
 ): Promise<Uint8Array> {
   assertDanfseLayoutApproved(data.isHomologation);
-  if (options.cancelled && (options.substituted || data.replacedNoteAccessKey)) {
+  if (options.cancelled && options.substituted) {
     throw new Error("DANFSe com situações de cancelamento e substituição simultâneas: verificação manual obrigatória.");
   }
   const pdf = await PDFDocument.create();
@@ -623,9 +623,12 @@ export async function buildDanfsePdf(
   }
 
   // NT 008 §§ 2.5.1-2.5.2: status mutuamente exclusivo.
+  // chSubstda na NOVA nota aponta para a ANTIGA nota substituída;
+  // não é prova de que a nova nota foi substituída. Somente um evento
+  // confirmado da própria nota pode ativar options.substituted.
   // O PDF real permanece bloqueado até a homologação do layout/fontes.
   const watermark = options.cancelled ? "CANCELADA"
-    : options.substituted || data.replacedNoteAccessKey ? "SUBSTITUÍDA" : undefined;
+    : options.substituted ? "SUBSTITUÍDA" : undefined;
   if (watermark) {
     page.drawText(watermark, {
       x: PAGE_WIDTH / 2 - 180, y: PAGE_HEIGHT / 2, size: 60, font: bold,
