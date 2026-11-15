@@ -496,7 +496,7 @@ test("NT008: fontes fiscais só podem vir de provedor privado, nunca do git ou d
   assert.match(source, /pdf\.embedFont\(fonts\.arialBold, \{ subset: true \}\)/);
   assert.match(source, /pdf\.embedFont\(fonts\.microsoftSansSerif, \{ subset: true \}\)/);
   assert.match(loader, /DANFSE_FONT_SERVER_LICENSE_CONFIRMED/);
-  assert.match(loader, /nfse\\/private-fonts\\//);
+  assert.ok(loader.includes("nfse/private-fonts/"));
   assert.match(loader, /createHash\("sha256"\)/);
   const beforeArial = process.env.DANFSE_ARIAL_BOLD_R2_KEY;
   const beforeSans = process.env.DANFSE_MICROSOFT_SANS_SERIF_R2_KEY;
