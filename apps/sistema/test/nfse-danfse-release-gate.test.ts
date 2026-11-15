@@ -161,7 +161,7 @@ test("prévia sintética é um PDF A4 de página única e nunca uma nota autoriz
   assert.match(DANFSE_PREVIEW_FIXTURE.prestador.name, /FICTÍCIO/i);
   const pdf = await PDFDocument.load(await buildDanfsePdf(DANFSE_PREVIEW_FIXTURE));
   assert.equal(pdf.getPageCount(), 1);
-  const [width, height] = pdf.getPage(0).getSize();
+  const { width, height } = pdf.getPage(0).getSize();
   assert.equal(width, 595);
   assert.equal(height, 842);
 });
