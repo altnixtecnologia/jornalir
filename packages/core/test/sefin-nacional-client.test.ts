@@ -29,7 +29,7 @@ test("transmitDps: emissão autorizada — descompacta nfseXmlGZipB64, aceita ch
       method: "POST",
       body: (body) => { receivedBody = String(body); return true; },
     })
-    .reply(200, {
+    .reply(200, { tipoAmbiente: 2, idDps: SENT_DPS_ID,
       chaveAcesso: "42164023970969000190000000000000000000000000000000",
       nfseXmlGZipB64: gzipSync(Buffer.from(fakeNfseXml(), "utf8")).toString("base64"),
     });
@@ -60,7 +60,7 @@ test("transmitDps: sem chaveAcesso na resposta -> falha fechado, NUNCA deriva do
   const mock = new MockAgent();
   mock.disableNetConnect();
   const pool = mock.get("https://sefin.producaorestrita.nfse.gov.br");
-  pool.intercept({ path: "/API/SefinNacional/nfse", method: "POST" }).reply(200, {
+  pool.intercept({ path: "/API/SefinNacional/nfse", method: "POST" }).reply(200, { tipoAmbiente: 2, idDps: SENT_DPS_ID,
     nfseXmlGZipB64: gzipSync(Buffer.from(fakeNfseXml(), "utf8")).toString("base64"),
   });
   const client = new SefinNacionalClient(mock, 2_000, () => undefined);
@@ -75,7 +75,7 @@ test("transmitDps: NFS-e retornada de um CNPJ diferente do prestador que enviou 
   const mock = new MockAgent();
   mock.disableNetConnect();
   const pool = mock.get("https://sefin.producaorestrita.nfse.gov.br");
-  pool.intercept({ path: "/API/SefinNacional/nfse", method: "POST" }).reply(200, {
+  pool.intercept({ path: "/API/SefinNacional/nfse", method: "POST" }).reply(200, { tipoAmbiente: 2, idDps: SENT_DPS_ID,
     chaveAcesso: "42164023970969000190000000000000000000000000000000",
     nfseXmlGZipB64: gzipSync(Buffer.from(fakeNfseXml("00000000000191"), "utf8")).toString("base64"),
   });
@@ -149,7 +149,7 @@ test("getNfseByAccessKey: descompacta nfseXmlGZipB64 da consulta por chave", asy
   const pool = mock.get("https://sefin.producaorestrita.nfse.gov.br");
   pool
     .intercept({ path: "/API/SefinNacional/nfse/42164023970969000190000000000000000000000000000000", method: "GET" })
-    .reply(200, { nfseXmlGZipB64: gzipSync(Buffer.from(fakeNfseXml(), "utf8")).toString("base64") });
+    .reply(200, { tipoAmbiente: 2, idDps: SENT_DPS_ID, nfseXmlGZipB64: gzipSync(Buffer.from(fakeNfseXml(), "utf8")).toString("base64") });
   const client = new SefinNacionalClient(mock, 2_000, () => undefined);
   const xml = await client.getNfseByAccessKey("42164023970969000190000000000000000000000000000000", "homologation");
   assert.equal(xml, fakeNfseXml());
@@ -209,7 +209,7 @@ test("submitCancellationEvent: registra evento — descompacta pedidoRegistroEve
       method: "POST",
       body: (body) => { receivedBody = String(body); return true; },
     })
-    .reply(200, { eventoXmlGZipB64: gzipSync(Buffer.from("<evento>registrado</evento>", "utf8")).toString("base64") });
+    .reply(200, { tipoAmbiente: 2, idDps: SENT_DPS_ID, eventoXmlGZipB64: gzipSync(Buffer.from("<evento>registrado</evento>", "utf8")).toString("base64") });
 
   const client = new SefinNacionalClient(mock, 2_000, () => undefined);
   const envelope = await client.submitCancellationEvent(SIGNED_EVENT_XML, "42164023970969000190000000000000000000000000000000001", "homologation");
@@ -285,7 +285,7 @@ test("transmitDps: NFS-e de outra DPS do MESMO prestador não pode ser registrad
   mock.disableNetConnect();
   const pool = mock.get("https://sefin.producaorestrita.nfse.gov.br");
   const different = fakeNfseXml().replace(SENT_DPS_ID, SENT_DPS_ID.slice(0, -1) + "2");
-  pool.intercept({ path: "/API/SefinNacional/nfse", method: "POST" }).reply(200, {
+  pool.intercept({ path: "/API/SefinNacional/nfse", method: "POST" }).reply(200, { tipoAmbiente: 2, idDps: SENT_DPS_ID,
     chaveAcesso: "42164023970969000190000000000000000000000000000000",
     nfseXmlGZipB64: gzipSync(Buffer.from(different, "utf8")).toString("base64"),
   });
@@ -304,7 +304,7 @@ test("transmitDps: ambiente ou Id da DPS embutida ausente mantém resposta incer
     const mock = new MockAgent();
     mock.disableNetConnect();
     mock.get("https://sefin.producaorestrita.nfse.gov.br")
-      .intercept({ path: "/API/SefinNacional/nfse", method: "POST" }).reply(200, {
+      .intercept({ path: "/API/SefinNacional/nfse", method: "POST" }).reply(200, { tipoAmbiente: 2, idDps: SENT_DPS_ID,
         chaveAcesso: "42164023970969000190000000000000000000000000000000",
         nfseXmlGZipB64: gzipSync(Buffer.from(xml, "utf8")).toString("base64"),
       });
@@ -325,7 +325,7 @@ test("respostas GZip adulteradas ou expansivas não podem esgotar memória do se
     const mock = new MockAgent();
     mock.disableNetConnect();
     mock.get("https://sefin.producaorestrita.nfse.gov.br")
-      .intercept({ path: "/API/SefinNacional/nfse", method: "POST" }).reply(200, {
+      .intercept({ path: "/API/SefinNacional/nfse", method: "POST" }).reply(200, { tipoAmbiente: 2, idDps: SENT_DPS_ID,
         chaveAcesso: "42164023970969000190000000000000000000000000000000",
         nfseXmlGZipB64: compressed,
       });
@@ -366,7 +366,7 @@ test("SEFIN: chave alfanumerica de 50 caracteres é aceita após autorização",
   const accessKey = "421640" + "ABC123DEF45678" + "0".repeat(30);
   mock.get("https://sefin.producaorestrita.nfse.gov.br")
     .intercept({ path: "/API/SefinNacional/nfse", method: "POST" })
-    .reply(200, {
+    .reply(200, { tipoAmbiente: 2, idDps: SENT_DPS_ID,
       chaveAcesso: accessKey,
       nfseXmlGZipB64: gzipSync(Buffer.from(fakeNfseXml(), "utf8")).toString("base64"),
     });
@@ -382,7 +382,7 @@ test("SEFIN: resposta autorizada com chave de acesso incompleta nunca gera nota 
   mock.disableNetConnect();
   mock.get("https://sefin.producaorestrita.nfse.gov.br")
     .intercept({ path: "/API/SefinNacional/nfse", method: "POST" })
-    .reply(200, {
+    .reply(200, { tipoAmbiente: 2, idDps: SENT_DPS_ID,
       chaveAcesso: "421640" + "23970969000190" + "0".repeat(29),
       nfseXmlGZipB64: gzipSync(Buffer.from(fakeNfseXml(), "utf8")).toString("base64"),
     });
@@ -412,7 +412,7 @@ test("SEFIN: HTTP 200 com XML sem cStat válido nunca registra autorização", a
     mock.disableNetConnect();
     mock.get("https://sefin.producaorestrita.nfse.gov.br")
       .intercept({ path: "/API/SefinNacional/nfse", method: "POST" })
-      .reply(200, {
+      .reply(200, { tipoAmbiente: 2, idDps: SENT_DPS_ID,
         chaveAcesso: "421640" + "23970969000190" + "0".repeat(30),
         nfseXmlGZipB64: gzipSync(Buffer.from(xml, "utf8")).toString("base64"),
       });
@@ -431,7 +431,7 @@ test("SEFIN: outros cStat de NFS-e gerada previstos no XSD não são rejeitados 
     mock.disableNetConnect();
     mock.get("https://sefin.producaorestrita.nfse.gov.br")
       .intercept({ path: "/API/SefinNacional/nfse", method: "POST" })
-      .reply(200, {
+      .reply(200, { tipoAmbiente: 2, idDps: SENT_DPS_ID,
         chaveAcesso: "421640" + "23970969000190" + "0".repeat(30),
         nfseXmlGZipB64: gzipSync(Buffer.from(fakeNfseXml().replace("<cStat>100</cStat>", `<cStat>${statusCode}</cStat>`), "utf8")).toString("base64"),
       });
@@ -440,4 +440,49 @@ test("SEFIN: outros cStat de NFS-e gerada previstos no XSD não são rejeitados 
     assert.equal(result.status, "authorized");
     await mock.close();
   }
+});
+
+test("SEFIN: HTTP 200 nunca autoriza idDps diferente ou ambiente de outra operação", async () => {
+  const validXml = fakeNfseXml();
+  const invalidEnvelopes = [
+    { tipoAmbiente: 1, idDps: SENT_DPS_ID },
+    { tipoAmbiente: 2, idDps: "DPS-DE-OUTRA-EMPRESA" },
+    { tipoAmbiente: undefined, idDps: SENT_DPS_ID },
+    { tipoAmbiente: 2, idDps: undefined },
+    { tipoAmbiente: "2", idDps: SENT_DPS_ID },
+  ];
+  for (const responseMetadata of invalidEnvelopes) {
+    const mock = new MockAgent();
+    mock.disableNetConnect();
+    mock.get("https://sefin.producaorestrita.nfse.gov.br")
+      .intercept({ path: "/API/SefinNacional/nfse", method: "POST" })
+      .reply(200, {
+        ...responseMetadata,
+        chaveAcesso: "421640" + "23970969000190" + "0".repeat(30),
+        nfseXmlGZipB64: gzipSync(Buffer.from(validXml, "utf8")).toString("base64"),
+      });
+    const client = new SefinNacionalClient(mock, 2_000, () => undefined);
+    await assert.rejects(
+      () => client.transmitDps(SIGNED_DPS_XML, "homologation"),
+      (error: unknown) => error instanceof NfseIntegrationError && error.code === "NFSE_INVALID_RESPONSE",
+    );
+    await mock.close();
+  }
+});
+
+test("SEFIN: evento HTTP 200 de outro ambiente é inconclusivo", async () => {
+  const mock = new MockAgent();
+  mock.disableNetConnect();
+  mock.get("https://sefin.producaorestrita.nfse.gov.br")
+    .intercept({ path: "/API/SefinNacional/nfse/CHAVE-TESTE/eventos", method: "POST" })
+    .reply(200, {
+      tipoAmbiente: 1,
+      eventoXmlGZipB64: gzipSync(Buffer.from("<evento>registrado</evento>", "utf8")).toString("base64"),
+    });
+  const client = new SefinNacionalClient(mock, 2_000, () => undefined);
+  await assert.rejects(
+    () => client.submitCancellationEvent("<pedRegEvento/>", "CHAVE-TESTE", "homologation"),
+    (error: unknown) => error instanceof NfseIntegrationError && error.code === "NFSE_INVALID_RESPONSE",
+  );
+  await mock.close();
 });

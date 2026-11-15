@@ -79,7 +79,7 @@ export class SefinNacionalClient {
     });
 
     if (status >= 200 && status < 300) {
-      return this.parseAuthorizedEnvelope(body, signedDpsXml);
+      return this.parseAuthorizedEnvelope(body, signedDpsXml, environment);
     }
     return this.parseRejectionEnvelope(body, status);
   }
@@ -136,7 +136,7 @@ export class SefinNacionalClient {
       body: JSON.stringify({ pedidoRegistroEventoXmlGZipB64 }),
     });
 
-    if (status >= 200 && status < 300) return this.parseEventRegisteredEnvelope(body);
+    if (status >= 200 && status < 300) return this.parseEventRegisteredEnvelope(body, environment);
     return this.parseEventRejectionEnvelope(body, status);
   }
 
@@ -158,8 +158,9 @@ export class SefinNacionalClient {
     return body;
   }
 
-  private parseEventRegisteredEnvelope(body: string): NationalEventResponseEnvelope {
+  private parseEventRegisteredEnvelope(body: string, environment: NfseEnvironment): NationalEventResponseEnvelope {
     const json = this.parseJson(body);
+    this.assertResponseEnvironment(json, environment, "registro de evento");
     const eventoXmlGZipB64 = typeof json.eventoXmlGZipB64 === "string" ? json.eventoXmlGZipB64 : undefined;
     if (!eventoXmlGZipB64) {
       throw new NfseIntegrationError("NFSE_INVALID_RESPONSE", "Resposta de registro de evento sem o campo eventoXmlGZipB64 esperado.");
@@ -173,8 +174,17 @@ export class SefinNacionalClient {
     return { status: "rejected", rejection };
   }
 
-  private parseAuthorizedEnvelope(body: string, signedDpsXml: string): NationalNfseResponseEnvelope {
+  private parseAuthorizedEnvelope(body: string, signedDpsXml: string, environment: NfseEnvironment): NationalNfseResponseEnvelope {
     const json = this.parseJson(body);
+    const submitted = new DOMParser().parseFromString(signedDpsXml, "text/xml");
+    const submittedId = submitted.getElementsByTagName("infDPS")[0]?.getAttribute("Id")?.trim();
+    if (!submittedId || typeof json.idDps !== "string" || json.idDps !== submittedId) {
+      throw new NfseIntegrationError(
+        "NFSE_INVALID_RESPONSE",
+        "A SEFIN retornou idDps ausente ou diferente da DPS transmitida no envelope de autorização. Resultado incerto.",
+      );
+    }
+    this.assertResponseEnvironment(json, environment, "autorização de NFS-e");
     const nfseXmlGZipB64 = typeof json.nfseXmlGZipB64 === "string" ? json.nfseXmlGZipB64 : undefined;
     if (!nfseXmlGZipB64) {
       throw new NfseIntegrationError("NFSE_INVALID_RESPONSE", "Resposta de autorização sem o campo nfseXmlGZipB64 esperado.");
@@ -196,6 +206,23 @@ export class SefinNacionalClient {
       issuedAt,
       nfseXml,
     };
+  }
+
+  /**
+   * O contrato público da SEFIN (NFSePostResponseSucesso, DpsGetResponse,
+   * EventosPostResponseSucesso) contém tipoAmbiente inteiro: 1/2.
+   * Não aceitar um envelope de outro ambiente, nem ausência do campo.
+   */
+  private assertResponseEnvironment(
+    json: Record<string, unknown>, environment: NfseEnvironment, context: string,
+  ): void {
+    const expected = environment === "homologation" ? 2 : 1;
+    if (json.tipoAmbiente !== expected) {
+      throw new NfseIntegrationError(
+        "NFSE_INVALID_RESPONSE",
+        `Envelope de ${context} com tipoAmbiente ausente ou diferente do ambiente solicitado — resposta não é prova de operação fiscal.`,
+      );
+    }
   }
 
   private assertSamePrestador(signedDpsXml: string, nfseXml: string): void {
