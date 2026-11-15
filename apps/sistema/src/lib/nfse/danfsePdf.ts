@@ -73,10 +73,19 @@ function formatMoney(value: number | string | undefined): string {
 function dash(value: string | undefined): string {
   return value && value.length > 0 ? value : "-";
 }
-function formatFederalInscription(value: string): string {
-  const digits = value.replace(/\D/g, "");
-  if (digits.length === 14) return digits.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/, "$1.$2.$3/$4-$5");
-  if (digits.length === 11) return digits.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, "$1.$2.$3-$4");
+export function formatFederalInscription(value: string): string {
+  // CNPJ alfanumérico (XSD nacional desde 2026) pode conter 11 dígitos
+  // e 3 letras. O código antigo removia as letras e o imprimia como CPF,
+  // apagando parte da identificação fiscal do verdadeiro prestador.
+  // Formatar como CPF/CNPJ APENAS quando a inscrição inteira é numérica;
+  // para inscrição alfanumérica, preservar todos os caracteres originais.
+  const normalized = value.replace(/[.\/\-\s]/g, "");
+  if (/^\d{14}$/.test(normalized)) {
+    return normalized.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/, "$1.$2.$3/$4-$5");
+  }
+  if (/^\d{11}$/.test(normalized)) {
+    return normalized.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, "$1.$2.$3-$4");
+  }
   return value;
 }
 

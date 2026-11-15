@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { PDFDocument, StandardFonts } from "pdf-lib";
-import { DANFSE_GEOMETRY, formatDanfseDate, formatDanfseDateTime, wrapDanfseText } from "../src/lib/nfse/danfsePdf";
+import { DANFSE_GEOMETRY, formatDanfseDate, formatDanfseDateTime, formatFederalInscription, wrapDanfseText } from "../src/lib/nfse/danfsePdf";
 import {
   DANFSE_OFFICIAL_LAYOUT_APPROVED,
   assertDanfseLayoutApproved,
@@ -124,4 +124,14 @@ test("DANFSe: borda externa em todas as laterais deve ficar entre 0,15 e 0,20cm 
   const source = src("lib/nfse/danfsePdf.ts");
   assert.match(source, /const qrY = PAGE_HEIGHT - DANFSE_GEOMETRY\.qrYcm \* CM_TO_PT - qrSize/);
   assert.match(source, /x: MARGIN - 4, y: MARGIN - 4/);
+});
+
+test("DANFSe: CNPJ alfanumérico nunca vira CPF pela remoção de letras", () => {
+  const alphanumeric = "A123456789B0C1"; // 14 caracteres, dos quais 11 dígitos
+  assert.equal(alphanumeric.length, 14);
+  assert.equal(alphanumeric.replace(/\D/g, "").length, 11);
+  assert.equal(formatFederalInscription(alphanumeric), alphanumeric);
+  assert.equal(formatFederalInscription("23970969000190"), "23.970.969/0001-90");
+  assert.equal(formatFederalInscription("11144477735"), "111.444.777-35");
+  assert.equal(formatFederalInscription("AB12CD34567890"), "AB12CD34567890");
 });
