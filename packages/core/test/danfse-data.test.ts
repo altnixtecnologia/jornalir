@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import type { DpsBuildInput, NfseIssuedNote } from "@ir/types";
+import { buildDpsId, type DpsBuildInput, type NfseIssuedNote } from "@ir/types";
 import { buildDpsXml } from "../src/nfse/dps-builder";
 import { signDpsXml } from "../src/nfse/signature";
 import { DanfseDataError, extractDanfseData } from "../src/nfse/danfse-data";
@@ -79,7 +79,10 @@ function makeIssuedNote(overrides: Partial<NfseIssuedNote> = {}): NfseIssuedNote
     environment: "homologation",
     dpsSeries: "1",
     dpsNumber: 42,
-    dpsId: "DPS42164042299999999999999999999001000000000000042",
+    dpsId: buildDpsId({
+      ibgeCode: "4216404", federalInscriptionType: "cnpj",
+      federalInscription: "23970969000190", series: "1", number: 42,
+    }),
     accessKey: "42164041999999999999999999999000000000120261000000",
     nfseNumber: "12",
     issuedAt: "2026-10-25T12:00:00-03:00",
@@ -257,4 +260,43 @@ test("DANFSe: bloqueia chave com letra minúscula e letra em posição reservada
   ]) {
     assert.throws(() => extractDanfseData(makeIssuedNote({ accessKey })), DanfseDataError);
   }
+});
+
+test("DANFSe: números, DPS, valor, competência e data precisam coincidir com XML autorizado", () => {
+  const validXml = makeNfseXml();
+  const valid = makeIssuedNote({ nfseXml: validXml });
+  assert.equal(extractDanfseData(valid).nfseNumber, "12");
+  for (const note of [
+    { ...valid, dpsId: "DPS-DIFERENTE" },
+    { ...valid, nfseNumber: "13" },
+    { ...valid, issuedAt: "2026-10-26T12:00:00-03:00" },
+    { ...valid, competencyDate: "2026-10-02" },
+    { ...valid, dpsSeries: "2" },
+    { ...valid, dpsNumber: 43 },
+    { ...valid, serviceValue: 151.5 },
+  ]) {
+    assert.throws(() => extractDanfseData(note), DanfseDataError);
+  }
+});
+
+test("DANFSe: XML autorizado com dados fiscais divergentes ou raiz falsa é rejeitado", () => {
+  const xml = makeNfseXml();
+  for (const changedXml of [
+    xml.replace("<nNFSe>12</nNFSe>", "<nNFSe>13</nNFSe>"),
+    xml.replace("<vServ>150.50</vServ>", "<vServ>151.50</vServ>"),
+    xml.replace("<dCompet>2026-10-01</dCompet>", "<dCompet>2026-10-02</dCompet>"),
+    xml.replace("<emit><CNPJ>23970969000190</CNPJ>", "<emit><CNPJ>11111111000199</CNPJ>"),
+    xml.replace("<dhProc>2026-10-25T12:00:00-03:00</dhProc>", "<dhProc>2026-10-26T12:00:00-03:00</dhProc>"),
+    xml.replace("<NFSe versao=", "<resposta versao=").replace("</NFSe>", "</resposta>"),
+    "<!DOCTYPE NFSe>" + xml,
+  ]) {
+    assert.throws(() => extractDanfseData(makeIssuedNote({ nfseXml: changedXml })), DanfseDataError);
+  }
+});
+
+test("DANFSe: datas de autorização com fusos equivalentes representam a mesma nota", () => {
+  const data = extractDanfseData(makeIssuedNote({
+    issuedAt: "2026-10-25T15:00:00Z",
+  }));
+  assert.equal(data.nfseIssuedAt, "2026-10-25T15:00:00Z");
 });
