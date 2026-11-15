@@ -13,7 +13,7 @@ const SIGNED_DPS_XML =
 
 function fakeNfseXml(cnpj: string = ISSUER_CNPJ): string {
   return (
-    '<NFSe versao="1.01"><infNFSe Id="NFS42164041199999999999999999900000000012026100001"><nNFSe>12</nNFSe>' +
+    '<NFSe versao="1.01"><infNFSe Id="NFS42164041199999999999999999900000000012026100001"><nNFSe>12</nNFSe><cStat>100</cStat>' +
     `<dhProc>2026-10-25T12:00:00Z</dhProc><emit><CNPJ>${cnpj}</CNPJ></emit><DPS><infDPS Id="${SENT_DPS_ID}"><tpAmb>2</tpAmb></infDPS></DPS></infNFSe></NFSe>`
   );
 }
