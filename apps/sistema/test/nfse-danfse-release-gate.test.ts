@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { PDFDocument, StandardFonts } from "pdf-lib";
 import { loadPdfDocument, extractPageTextItems } from "@ir/pdf-extraction";
-import { DANFSE_GEOMETRY, buildDanfsePdf, formatDanfseDate, formatDanfseDateTime, formatFederalInscription, wrapDanfseText, selectDanfseTaxDescription, formatDanfseTotalIbsCbs, danfseFederalValues, danfseIssqnTypeLabel, danfseRegimeEspecialLabel, danfseIssqnRetentionLabel, danfseSimplesNacionalLabel, danfseApuracaoSimplesLabel, danfseMunicipalBenefitLabel } from "../src/lib/nfse/danfsePdf";
+import { DANFSE_GEOMETRY, buildDanfsePdf, formatDanfseDate, formatDanfseDateTime, formatFederalInscription, wrapDanfseText, selectDanfseTaxDescription, formatDanfseTotalIbsCbs, danfseFederalValues, danfseIssqnTypeLabel, danfseRegimeEspecialLabel, danfseIssqnRetentionLabel, danfseSimplesNacionalLabel, danfseApuracaoSimplesLabel, danfseMunicipalBenefitLabel, buildDanfseComplementary } from "../src/lib/nfse/danfsePdf";
 import { DANFSE_PREVIEW_FIXTURE } from "../src/lib/nfse/danfsePreviewFixture";
 import { NFSE_OFFICIAL_LOGO_PNG_BASE64 } from "../src/lib/nfse/nfseNationalLogo";
 import {
@@ -402,4 +402,79 @@ test("NT008: SN e beneficio municipal usam descricao textual da tabela nacional"
   assert.equal(danfseMunicipalBenefitLabel("1"), "Isenção");
   assert.equal(danfseMunicipalBenefitLabel("4"), "Alíquota Diferenciada");
   assert.equal(danfseMunicipalBenefitLabel(undefined), "-");
+});
+
+test("NT008: informações complementares respeitam a ordem do Anexo I, sem inventar tributos", () => {
+  const data = {
+    ...DANFSE_PREVIEW_FIXTURE,
+    complementaryInformation: "CONTEXTO FICTICIO",
+    replacedNoteAccessKey: "2".repeat(50),
+    referencedDocument: "DOC-123",
+    constructionCode: "OBRA-001",
+    propertyRegistration: "IMOVEL-002",
+    eventActivityCode: "EVENTO-003",
+    technicalDocumentId: "DOC-TEC-004",
+    purchaseOrderNumber: "PEDIDO-005",
+    purchaseOrderItem: "ITEM-006",
+    municipalAdditionalInformation: "INF-MUN-007",
+    taxApproxTotals: "Federais: 1,00%; Estaduais: 2,00%; Municipais: 3,00%",
+  };
+  const content = buildDanfseComplementary(data);
+  const labels = ["Inf. Cont.", "NFS-e Subst.", "Doc. Ref.", "Cod. Obra",
+    "Insc. Imob.", "Cod. Evt.", "Doc. Tec.", "Núm. Ped.", "Item Ped.",
+    "Inf. A. T. Mun.", "Totais Aproximados dos Tributos"];
+  let previous = -1;
+  for (const label of labels) {
+    const index = content.indexOf(label);
+    assert.ok(index > previous, `bloco ${label} ausente ou fora de ordem`);
+    previous = index;
+  }
+  assert.ok(content.endsWith(data.taxApproxTotals));
+  const absent = buildDanfseComplementary(DANFSE_PREVIEW_FIXTURE);
+  assert.ok(absent.includes("Federais: -; Estaduais: -; Municipais: -"));
+  assert.ok(!absent.includes("R$ 0,00"), "sem tributos no XML não deve ser inventado zero");
+});
+
+test("NT008: complemento extenso recebe reticências sem ocultar linha obrigatória de tributos", () => {
+  const content = buildDanfseComplementary({
+    ...DANFSE_PREVIEW_FIXTURE,
+    complementaryInformation: "OBSERVACAO TESTE ".repeat(600),
+    taxApproxTotals: "Federais: 3%; Estaduais: 0%; Municipais: 1%",
+  });
+  const [details, totals] = content.split(" | Totais Aproximados dos Tributos");
+  assert.ok(details.length <= 1997);
+  assert.ok(details.endsWith("..."));
+  assert.ok(totals.includes("Federais: 3%"));
+  assert.ok(totals.includes("Municipais: 1%"));
+});
+
+test("NT008: nota substituída e cancelada geram marcas d'água distintas e mutuamente exclusivas", async () => {
+  const substituted = await buildDanfsePdf({
+    ...DANFSE_PREVIEW_FIXTURE, replacedNoteAccessKey: "3".repeat(50),
+  });
+  const subPdf = await loadPdfDocument(substituted);
+  assert.equal(subPdf.numPages, 1);
+  const substituteText = (await extractPageTextItems(await subPdf.getPage(1)))
+    .map(item => item.text).join(" ");
+  assert.ok(substituteText.includes("SUBSTITUÍDA"));
+  assert.ok(substituteText.includes("NFS-e Subst."));
+  const cancelled = await buildDanfsePdf(DANFSE_PREVIEW_FIXTURE, { cancelled: true });
+  const canPdf = await loadPdfDocument(cancelled);
+  const cancelText = (await extractPageTextItems(await canPdf.getPage(1)))
+    .map(item => item.text).join(" ");
+  assert.ok(cancelText.includes("CANCELADA"));
+  await assert.rejects(() => buildDanfsePdf({
+    ...DANFSE_PREVIEW_FIXTURE, replacedNoteAccessKey: "3".repeat(50),
+  }, { cancelled: true }), /situações de cancelamento e substituição simultâneas/);
+});
+
+test("NT008: parser de tributos aproximados segue XML oficial (vTotTrib / pTotTrib)", () => {
+  const source = readFileSync(new URL("../../../packages/core/src/nfse/danfse-data.ts", import.meta.url), "utf8");
+  assert.match(source, /directChild\(approximateTaxes, "vTotTrib"\)/);
+  assert.match(source, /directChild\(approximateTaxes, "pTotTrib"\)/);
+  assert.match(source, /select\("vTotTribMu", "pTotTribMu"\)/);
+  assert.ok(!source.includes('directText(approximateTaxes, "pTotTribFed")'));
+  assert.match(source, /replacedNoteAccessKey: directText\(replacementGroup, "chSubstda"\)/);
+  assert.match(source, /technicalDocumentId: directText\(infoCompl, "idDocTec"\)/);
+  assert.equal(DANFSE_OFFICIAL_LAYOUT_APPROVED, false);
 });
