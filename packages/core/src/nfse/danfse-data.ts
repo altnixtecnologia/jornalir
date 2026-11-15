@@ -183,7 +183,7 @@ function extractPessoa(doc: XmlDoc, scope: XmlElement | undefined, context: stri
  * `DanfseDataError` (fail-closed) se o XML estiver ausente, inválido
  * ou faltando qualquer campo obrigatório do Anexo I.
  */
-export function extractDanfseData(issuedNote: Pick<NfseIssuedNote, "environment" | "accessKey" | "nfseNumber" | "issuedAt" | "competencyDate" | "serviceValue" | "nfseXml" | "dpsNumber" | "dpsSeries">): DanfseData {
+export function extractDanfseData(issuedNote: Pick<NfseIssuedNote, "environment" | "accessKey" | "nfseNumber" | "issuedAt" | "competencyDate" | "serviceValue" | "nfseXml" | "dpsId" | "dpsNumber" | "dpsSeries">): DanfseData {
   if (!issuedNote.accessKey || !issuedNote.nfseNumber || !issuedNote.issuedAt) {
     throw new DanfseDataError("NFS-e sem chave de acesso/número/data de autorização — o DANFSe só pode ser gerado a partir de uma NFS-e efetivamente autorizada.");
   }
@@ -195,11 +195,19 @@ export function extractDanfseData(issuedNote: Pick<NfseIssuedNote, "environment"
   if (!issuedNote.nfseXml || issuedNote.nfseXml.trim().length === 0) {
     throw new DanfseDataError("XML da NFS-e ausente — o DANFSe só pode ser gerado a partir do XML real retornado pela SEFIN.");
   }
+  // Evitar payloads extensos/entidades que não fazem parte do XML fiscal.
+  if (Buffer.byteLength(issuedNote.nfseXml, "utf8") > 2 * 1024 * 1024 ||
+      /<!(?:DOCTYPE|ENTITY)\b/i.test(issuedNote.nfseXml)) {
+    throw new DanfseDataError("XML fiscal excede o limite de segurança ou contém entidades não permitidas.");
+  }
   let doc: XmlDoc;
   try {
     doc = new DOMParser().parseFromString(issuedNote.nfseXml, "text/xml");
   } catch {
     throw new DanfseDataError("XML da NFS-e inválido — não foi possível interpretar o documento.");
+  }
+  if (doc.documentElement?.localName !== "NFSe" || doc.getElementsByTagName("parsererror").length) {
+    throw new DanfseDataError("O documento informado não é um XML de NFS-e autorizada válido.");
   }
   const infNFSe = doc.getElementsByTagName("infNFSe")[0];
   if (!infNFSe) throw new DanfseDataError("Elemento infNFSe ausente — o XML não corresponde ao esquema oficial de NFS-e autorizada.");
@@ -210,6 +218,41 @@ export function extractDanfseData(issuedNote: Pick<NfseIssuedNote, "environment"
 
   const prestador = extractPessoa(doc, infNFSe.getElementsByTagName("emit")[0], "emit — prestador", true)!;
   const tomador = extractPessoa(doc, infDPS.getElementsByTagName("toma")[0], "infDPS/toma — tomador", false);
+
+  // Os campos de exibição vêm de colunas persistidas após autorização.
+  // Antes de gerar DANFSe, conferir vínculo com XML e DPS originais:
+  // não imprimir identidade/número/valor de outra nota por associação incorreta.
+  const xmlDpsId = infDPS.getAttribute("Id")?.trim();
+  if (!issuedNote.dpsId || xmlDpsId !== issuedNote.dpsId) {
+    throw new DanfseDataError("DPS embutida não corresponde ao identificador da nota registrada; DANFSe bloqueado.");
+  }
+  const xmlNumber = requireText("nNFSe", text(doc, "nNFSe", infNFSe), "infNFSe");
+  if (xmlNumber !== issuedNote.nfseNumber) {
+    throw new DanfseDataError("Número da NFS-e armazenado diverge do XML autorizado.");
+  }
+  const xmlProcessedAt = requireText("dhProc", text(doc, "dhProc", infNFSe), "infNFSe");
+  const xmlTime = Date.parse(xmlProcessedAt);
+  const storedTime = Date.parse(issuedNote.issuedAt);
+  if (!Number.isFinite(xmlTime) || !Number.isFinite(storedTime) || xmlTime !== storedTime) {
+    throw new DanfseDataError("Data da autorização armazenada diverge do instante registrado no XML.");
+  }
+  if (text(doc, "dCompet", infDPS) !== issuedNote.competencyDate ||
+      text(doc, "serie", infDPS) !== issuedNote.dpsSeries ||
+      text(doc, "nDPS", infDPS) !== String(issuedNote.dpsNumber)) {
+    throw new DanfseDataError("Competência, série ou número da DPS divergem do XML fiscal autorizado.");
+  }
+  const originalValues = infDPS.getElementsByTagName("valores")[0];
+  const serviceValueText = text(doc, "vServ", originalValues);
+  const serviceValueInXml = serviceValueText ? Number(serviceValueText) : Number.NaN;
+  if (!Number.isFinite(serviceValueInXml) || !Number.isFinite(issuedNote.serviceValue) ||
+      Math.round(serviceValueInXml * 100) !== Math.round(issuedNote.serviceValue * 100)) {
+    throw new DanfseDataError("Valor do serviço diverge entre a DPS autorizada e os dados armazenados.");
+  }
+  const prestadorDpsCnpj = text(doc, "CNPJ", infDPS.getElementsByTagName("prest")[0]);
+  const emitenteCnpj = text(doc, "CNPJ", infNFSe.getElementsByTagName("emit")[0]);
+  if (!prestadorDpsCnpj || !emitenteCnpj || prestadorDpsCnpj !== emitenteCnpj) {
+    throw new DanfseDataError("CNPJ do prestador na DPS diverge do emitente na NFS-e autorizada.");
+  }
 
   const serv = infDPS.getElementsByTagName("serv")[0];
   const valoresNFSe = infNFSe.getElementsByTagName("valores")[0];
