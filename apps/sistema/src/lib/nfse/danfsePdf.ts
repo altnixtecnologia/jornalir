@@ -2,7 +2,7 @@ import "server-only";
 import { PDFDocument, StandardFonts, degrees, rgb, type PDFFont, type PDFPage } from "pdf-lib";
 import QRCode from "qrcode";
 import { NFSE_OFFICIAL_LOGO_PNG_BASE64 } from "./nfseNationalLogo";
-import type { DanfseData } from "@ir/core/src/nfse/danfse-data";
+import type { DanfseData, DanfsePessoaData } from "@ir/core/src/nfse/danfse-data";
 import { assertDanfseLayoutApproved } from "./danfseReleaseGate";
 
 /**
@@ -199,6 +199,58 @@ function drawWrappedPlainText(page: PDFPage, regular: PDFFont, value: string, x:
   return lines.length * 9;
 }
 
+
+/** Anexo I: o título da seção ocupa a PRIMEIRA coluna na mesma linha de
+ * identificação; não cria faixa de título extra de largura total. */
+function drawSectionCell(page: PDFPage, bold: PDFFont, title: string, y: number): void {
+  const first = CONTENT_WIDTH / 4;
+  page.drawLine({
+    start: { x: MARGIN, y: y + 1 }, end: { x: MARGIN + CONTENT_WIDTH, y: y + 1 },
+    thickness: 0.5, color: BLACK,
+  });
+  page.drawRectangle({ x: MARGIN, y: y - 19, width: first, height: 20, color: GRAY_SHADING });
+  page.drawText(fitTextToWidth(title.toUpperCase(), bold, 7, first - 5), {
+    x: MARGIN + 3, y: y - 9, size: 7, font: bold, color: BLACK,
+  });
+}
+
+/** Linha inicial mais linhas dinâmicas de pessoa, no mesmo arranjo do Anexo I.
+ * Os dados vêm exclusivamente de pessoa extraída do XML/fixture fictícia.
+ * Nomes, endereços e e-mails extensos aumentam a altura, sem transbordar. */
+function drawParticipantSection(
+  page: PDFPage, bold: PDFFont, regular: PDFFont,
+  title: string, person: DanfsePessoaData | undefined, top: number,
+  absentText: string, simples?: { option?: string; regime?: string },
+): number {
+  const quarter = CONTENT_WIDTH / 4;
+  const half = CONTENT_WIDTH / 2;
+  drawSectionCell(page, bold, title, top);
+  if (!person) {
+    const lines = wrapDanfseText(absentText, regular, 7, CONTENT_WIDTH - quarter - 6);
+    lines.forEach((line, i) => page.drawText(line, {
+      x: MARGIN + quarter + 3, y: top - 12 - i * 9, size: 7, font: regular, color: BLACK,
+    }));
+    return top - Math.max(22, lines.length * 9 + 5);
+  }
+  drawField(page, bold, regular, "CNPJ / CPF / NIF", formatFederalInscription(person.federalInscription), MARGIN + quarter, top, quarter);
+  drawField(page, bold, regular, "Indicador Municipal (Inscrição)", dash(person.municipalRegistration), MARGIN + quarter * 2, top, quarter);
+  drawField(page, bold, regular, "Telefone", dash(person.phone), MARGIN + quarter * 3, top, quarter);
+  let y = top - 20;
+  const nameHeight = drawWrappedField(page, bold, regular, "Nome / Nome Empresarial", person.name, MARGIN, y, half);
+  drawField(page, bold, regular, "Município / Sigla UF", `${dash(person.municipality)} / ${dash(person.state)}`, MARGIN + half, y, quarter);
+  drawField(page, bold, regular, "Código IBGE / CEP", `${dash(person.ibgeCode)} / ${dash(person.zipCode)}`, MARGIN + half + quarter, y, quarter);
+  y -= Math.max(20, nameHeight);
+  const addressHeight = drawWrappedField(page, bold, regular, "Endereço", dash(person.address), MARGIN, y, half);
+  const emailHeight = drawWrappedField(page, bold, regular, "E-mail", dash(person.email), MARGIN + half, y, half);
+  y -= Math.max(20, addressHeight, emailHeight) + 2;
+  if (simples) {
+    drawField(page, bold, regular, "Simples Nacional na Data de Competência", dash(simples.option), MARGIN, y, half);
+    drawField(page, bold, regular, "Regime de Apuração Tributária pelo SN", dash(simples.regime), MARGIN + half, y, half);
+    y -= 22;
+  }
+  return y;
+}
+
 function drawBorder(page: PDFPage): void {
   page.drawRectangle({ x: MARGIN - 4, y: MARGIN - 4, width: PAGE_WIDTH - (MARGIN - 4) * 2, height: PAGE_HEIGHT - (MARGIN - 4) * 2, borderColor: BLACK, borderWidth: 1 });
 }
@@ -310,82 +362,21 @@ export async function buildDanfsePdf(data: DanfseData, options: { cancelled?: bo
   drawField(page, bold, regular, "Finalidade", data.purposeLabel, MARGIN, cursor.y, contentColumnWidth, false, true);
   cursor.y -= 22;
 
-  // BLOCO: PRESTADOR/FORNECEDOR (seção 2.1.3).
-  drawBlockTitle(page, bold, "Prestador / Fornecedor", cursor.y);
-  cursor.y -= 11;
-  const half = CONTENT_WIDTH / 2;
-  drawField(page, bold, regular, "CNPJ/CPF/NIF", formatFederalInscription(data.prestador.federalInscription), MARGIN, cursor.y, half);
-  drawField(page, bold, regular, "Inscrição Municipal", dash(data.prestador.municipalRegistration), MARGIN + half, cursor.y, half);
-  cursor.y -= 20;
-  cursor.y -= drawWrappedField(page, bold, regular, "Nome / Nome Empresarial", data.prestador.name, MARGIN, cursor.y, CONTENT_WIDTH);
-  const prestadorAddressHeight = drawWrappedField(page, bold, regular, "Endereço", dash(data.prestador.address), MARGIN, cursor.y, half);
-  drawField(page, bold, regular, "Município / UF / CEP", `${dash(data.prestador.ibgeCode)} / ${dash(data.prestador.state)} / ${dash(data.prestador.zipCode)}`, MARGIN + half, cursor.y, half);
-  cursor.y -= Math.max(20, prestadorAddressHeight);
-  drawField(page, bold, regular, "Telefone", dash(data.prestador.phone), MARGIN, cursor.y, half);
-  drawField(page, bold, regular, "Email", dash(data.prestador.email), MARGIN + half, cursor.y, half);
-  cursor.y -= 20;
-  drawField(page, bold, regular, "Simples Nacional na competência", dash(data.prestadorSimplesOption), MARGIN, cursor.y, half);
-  drawField(page, bold, regular, "Regime de apuração pelo SN", dash(data.prestadorSnApuracao), MARGIN + half, cursor.y, half);
-  cursor.y -= 22;
 
-  // BLOCO: TOMADOR/ADQUIRENTE (seção 2.1.4) — suprimido com o texto oficial se ausente (seção 2.3.1).
-  drawBlockTitle(page, bold, "Tomador / Adquirente da Operação", cursor.y);
-  cursor.y -= 11;
-  if (!data.tomador) {
-    page.drawText("TOMADOR/ADQUIRENTE DA OPERAÇÃO NÃO IDENTIFICADO NA NFS-e", { x: MARGIN + 2, y: cursor.y - 9, size: 7, font: regular, color: BLACK });
-    cursor.y -= 14;
-  } else {
-    drawField(page, bold, regular, "CNPJ/CPF/NIF", formatFederalInscription(data.tomador.federalInscription), MARGIN, cursor.y, half);
-    const tomadorNameHeight = drawWrappedField(page, bold, regular, "Nome / Nome Empresarial", data.tomador.name, MARGIN + half, cursor.y, half);
-    cursor.y -= Math.max(20, tomadorNameHeight);
-    const tomadorAddressHeight = drawWrappedField(page, bold, regular, "Endereço", dash(data.tomador.address), MARGIN, cursor.y, half);
-    drawField(page, bold, regular, "Município / UF / CEP", `${dash(data.tomador.ibgeCode)} / ${dash(data.tomador.state)} / ${dash(data.tomador.zipCode)}`, MARGIN + half, cursor.y, half);
-    cursor.y -= Math.max(20, tomadorAddressHeight);
-    drawField(page, bold, regular, "Telefone", dash(data.tomador.phone), MARGIN, cursor.y, half);
-    drawField(page, bold, regular, "E-mail", dash(data.tomador.email), MARGIN + half, cursor.y, half);
-    cursor.y -= 20;
-  }
-  cursor.y -= 8;
-
-  // NT 008 §2.3.1/2.3.2: não presumir que o destinatário é o tomador.
-  // Só usar frase de igualdade quando indDest=0 estiver presente no XML.
-  drawBlockTitle(page, bold, "Destinatário da Operação", cursor.y);
-  cursor.y -= 11;
-  if (data.destinatario) {
-    drawField(page, bold, regular, "CNPJ/CPF/NIF", formatFederalInscription(data.destinatario.federalInscription), MARGIN, cursor.y, half);
-    cursor.y -= drawWrappedField(page, bold, regular, "Nome / Nome Empresarial", data.destinatario.name, MARGIN + half, cursor.y, half);
-    const enderecoHeight = drawWrappedField(page, bold, regular, "Endereço", dash(data.destinatario.address), MARGIN, cursor.y, half);
-    drawField(page, bold, regular, "Município / UF / CEP", `${dash(data.destinatario.ibgeCode)} / ${dash(data.destinatario.state)} / ${dash(data.destinatario.zipCode)}`, MARGIN + half, cursor.y, half);
-    cursor.y -= Math.max(20, enderecoHeight);
-    drawField(page, bold, regular, "Telefone", dash(data.destinatario.phone), MARGIN, cursor.y, half);
-    drawField(page, bold, regular, "E-mail", dash(data.destinatario.email), MARGIN + half, cursor.y, half);
-    cursor.y -= 20;
-  } else {
-    page.drawText(data.destinatarioEhTomador
+  // Blocos 2.1.3-2.1.6: títulos na primeira coluna, dados nas demais,
+  // observando as supressões autorizadas pela NT008 §§2.3.1-2.3.2.
+  cursor.y = drawParticipantSection(page, bold, regular, "Prestador / Fornecedor", data.prestador, cursor.y,
+    "PRESTADOR/FORNECEDOR NÃO IDENTIFICADO NA NFS-e", {
+      option: data.prestadorSimplesOption, regime: data.prestadorSnApuracao,
+    });
+  cursor.y = drawParticipantSection(page, bold, regular, "Tomador / Adquirente", data.tomador, cursor.y,
+    "TOMADOR/ADQUIRENTE DA OPERAÇÃO NÃO IDENTIFICADO NA NFS-e");
+  cursor.y = drawParticipantSection(page, bold, regular, "Destinatário da Operação", data.destinatario, cursor.y,
+    data.destinatarioEhTomador
       ? "O DESTINATÁRIO É O PRÓPRIO TOMADOR/ADQUIRENTE DA OPERAÇÃO"
-      : "DESTINATÁRIO DA OPERAÇÃO NÃO IDENTIFICADO NA NFS-e",
-      { x: MARGIN + 2, y: cursor.y - 9, size: 7, font: regular, color: BLACK });
-    cursor.y -= 14;
-  }
-
-  drawBlockTitle(page, bold, "Intermediário da Operação", cursor.y);
-  cursor.y -= 11;
-  if (data.intermediario) {
-    drawField(page, bold, regular, "CNPJ/CPF/NIF", formatFederalInscription(data.intermediario.federalInscription), MARGIN, cursor.y, half);
-    drawField(page, bold, regular, "Inscrição Municipal", dash(data.intermediario.municipalRegistration), MARGIN + half, cursor.y, half);
-    cursor.y -= 20;
-    cursor.y -= drawWrappedField(page, bold, regular, "Nome / Nome Empresarial", data.intermediario.name, MARGIN, cursor.y, CONTENT_WIDTH);
-    const enderecoHeight = drawWrappedField(page, bold, regular, "Endereço", dash(data.intermediario.address), MARGIN, cursor.y, half);
-    drawField(page, bold, regular, "Município / UF / CEP", `${dash(data.intermediario.ibgeCode)} / ${dash(data.intermediario.state)} / ${dash(data.intermediario.zipCode)}`, MARGIN + half, cursor.y, half);
-    cursor.y -= Math.max(20, enderecoHeight);
-    drawField(page, bold, regular, "Telefone", dash(data.intermediario.phone), MARGIN, cursor.y, half);
-    drawField(page, bold, regular, "E-mail", dash(data.intermediario.email), MARGIN + half, cursor.y, half);
-    cursor.y -= 20;
-  } else {
-    page.drawText("INTERMEDIÁRIO DA OPERAÇÃO NÃO IDENTIFICADO NA NFS-e", { x: MARGIN + 2, y: cursor.y - 9, size: 7, font: regular, color: BLACK });
-    cursor.y -= 14;
-  }
-  cursor.y -= 6;
+      : "DESTINATÁRIO DA OPERAÇÃO NÃO IDENTIFICADO NA NFS-e");
+  cursor.y = drawParticipantSection(page, bold, regular, "Intermediário da Operação", data.intermediario, cursor.y,
+    "INTERMEDIÁRIO DA OPERAÇÃO NÃO IDENTIFICADO NA NFS-e");
 
   // BLOCO: SERVIÇO PRESTADO (seção 2.1.7).
   drawBlockTitle(page, bold, "Dados do Serviço Prestado", cursor.y);
