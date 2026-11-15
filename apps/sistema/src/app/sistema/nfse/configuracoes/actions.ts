@@ -47,6 +47,7 @@ export interface IssuerConfigFormInput {
   certificateValidUntil: string;
   certificateReference: string;
   dpsSeries: string;
+  defaultFiscalObservation: string;
   notes: string;
 }
 
@@ -83,6 +84,7 @@ export async function saveIssuerConfigAction(input: IssuerConfigFormInput): Prom
       certificateValidUntil: input.certificateValidUntil,
       certificateReference: input.certificateReference,
       dpsSeries: input.dpsSeries,
+      defaultFiscalObservation: input.defaultFiscalObservation,
       notes: input.notes,
     });
     // Nunca registra certificateReference/CNPJ/dados sensíveis em metadata — só a ação em si.
