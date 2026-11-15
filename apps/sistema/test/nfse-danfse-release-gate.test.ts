@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { PDFDocument, StandardFonts } from "pdf-lib";
-import { formatDanfseDate, formatDanfseDateTime, wrapDanfseText } from "../src/lib/nfse/danfsePdf";
+import { DANFSE_GEOMETRY, formatDanfseDate, formatDanfseDateTime, wrapDanfseText } from "../src/lib/nfse/danfsePdf";
 import {
   DANFSE_OFFICIAL_LAYOUT_APPROVED,
   assertDanfseLayoutApproved,
@@ -110,4 +110,18 @@ test("campos fiscais relevantes usam quebra de linha e ajuste vertical, nunca o 
     assert.ok(source.includes("drawWrappedField(page, bold, regular, \"" + field + "\""));
   }
   assert.match(source, /DANFSe de homologação excede a área útil A4/);
+});
+
+test("DANFSe: borda externa em todas as laterais deve ficar entre 0,15 e 0,20cm (NT 008 §2.2.2)", () => {
+  const { outerBorderMarginCm, innerPaddingPt, qrXcm, qrYcm } = DANFSE_GEOMETRY;
+  assert.ok(outerBorderMarginCm >= 0.15 && outerBorderMarginCm <= 0.20);
+  const ptPerCm = 72 / 2.54;
+  const contentInsetPt = outerBorderMarginCm * ptPerCm + innerPaddingPt;
+  assert.ok(contentInsetPt > outerBorderMarginCm * ptPerCm);
+  assert.equal(qrXcm, 17.48);
+  assert.equal(qrYcm, 1.67);
+  assert.ok(qrXcm + 70 / ptPerCm < 21 - outerBorderMarginCm, "QR deve ficar dentro da borda A4");
+  const source = src("lib/nfse/danfsePdf.ts");
+  assert.match(source, /const qrY = PAGE_HEIGHT - DANFSE_GEOMETRY\.qrYcm \* CM_TO_PT - qrSize/);
+  assert.match(source, /x: MARGIN - 4, y: MARGIN - 4/);
 });
