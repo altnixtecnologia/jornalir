@@ -170,6 +170,13 @@ export default async function NfseOverviewPage(): Promise<JSX.Element> {
           <Link className="materia-title-link" href="/sistema/nfse/perfis-servico">Perfis de serviço</Link>
           <Link className="materia-title-link" href="/sistema/nfse/configuracoes">Configurações</Link>
         </div>
+        <p className="helper-text" style={{ marginTop: "16px" }}>
+          Quer conferir o documento antes de ter certificado A1?{" "}
+          <Link className="secondary-link" href="/sistema/nfse/previa-danfse" target="_blank" rel="noopener noreferrer">
+            Abrir prévia fictícia do DANFSe (PDF)
+          </Link>
+          {" "}— usa dados inventados, não cria nota, não transmite à SEFIN e tem aviso de SEM VALIDADE JURÍDICA.
+        </p>
         <p className="helper-text" style={{ marginTop: "12px" }}>
           {preview
             ? "Modo demonstração: nenhuma transmissão fiscal real é realizada."
