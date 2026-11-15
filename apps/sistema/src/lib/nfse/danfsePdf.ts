@@ -232,9 +232,10 @@ export async function buildDanfsePdf(data: DanfseData, options: { cancelled?: bo
   cursor.y -= 20;
   drawField(page, bold, regular, "Descrição do Serviço", data.serviceDescription, MARGIN, cursor.y, CONTENT_WIDTH);
   cursor.y -= 20;
-  drawField(page, bold, regular, "Código da NBS", dash(data.nbsCode), MARGIN, cursor.y, third);
-  drawField(page, bold, regular, "Descrição da tributação nacional", dash(data.nationalServiceDescription), MARGIN + third, cursor.y, third);
-  drawField(page, bold, regular, "Descrição da tributação municipal", dash(data.municipalServiceDescription), MARGIN + third * 2, cursor.y, third);
+  const serviceThird = CONTENT_WIDTH / 3;
+  drawField(page, bold, regular, "Código da NBS", dash(data.nbsCode), MARGIN, cursor.y, serviceThird);
+  drawField(page, bold, regular, "Descrição da tributação nacional", dash(data.nationalServiceDescription), MARGIN + serviceThird, cursor.y, serviceThird);
+  drawField(page, bold, regular, "Descrição da tributação municipal", dash(data.municipalServiceDescription), MARGIN + serviceThird * 2, cursor.y, serviceThird);
   cursor.y -= 22;
 
   // BLOCO: TRIBUTAÇÃO MUNICIPAL / ISSQN (seção 2.1.8).
