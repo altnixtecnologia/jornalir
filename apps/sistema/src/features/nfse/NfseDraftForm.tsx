@@ -108,6 +108,8 @@ function draftToInput(draft: NfseDraft): DraftFormInput {
     competencyDate: draft.competencyDate,
     serviceValue: String(draft.serviceValue),
     serviceDescription: draft.serviceDescription,
+    fiscalObservation: draft.fiscalObservation ?? "",
+    purchaseOrderNumber: draft.purchaseOrderNumber ?? "",
     notes: draft.notes ?? "",
   };
 }
@@ -159,6 +161,9 @@ export function NfseDraftForm({
   const [serviceValue, setServiceValue] = useState(initialDraft ? String(initialDraft.serviceValue) : "");
   const [serviceDescription, setServiceDescription] = useState(initialDraft?.serviceDescription ?? "");
   const [notes, setNotes] = useState(initialDraft?.notes ?? "");
+  // Snapshot: editar uma nota antiga NÃO carrega o padrão atual do emissor.
+  const [fiscalObservation, setFiscalObservation] = useState(initialDraft ? initialDraft.fiscalObservation ?? "" : issuerConfig?.defaultFiscalObservation ?? "");
+  const [purchaseOrderNumber, setPurchaseOrderNumber] = useState(initialDraft?.purchaseOrderNumber ?? "");
 
   const clientId = selectedClient?.id ?? "";
   const selectableProfiles = useMemo(() => listSelectableServiceProfiles(serviceProfiles), [serviceProfiles]);
@@ -263,7 +268,7 @@ export function NfseDraftForm({
   });
 
   function buildInput(): DraftFormInput {
-    return { clientId, tomador, serviceProfileId, fiscal, competencyDate, serviceValue, serviceDescription, notes };
+    return { clientId, tomador, serviceProfileId, fiscal, competencyDate, serviceValue, serviceDescription, fiscalObservation, purchaseOrderNumber, notes };
   }
 
   function handleSave(): void {
@@ -328,7 +333,17 @@ export function NfseDraftForm({
                 <textarea rows={3} value={serviceDescription} onChange={(event) => setServiceDescription(event.target.value)} />
               </label>
               <label className="form-field" style={{ gridColumn: "1 / -1" }}>
-                <span className="field-label">Observações internas <span className="field-optional">(opcional)</span></span>
+                <span className="field-label">Observações fiscais da nota <span className="field-optional">(opcional)</span></span>
+                <textarea rows={3} maxLength={2000} value={fiscalObservation} onChange={(event) => setFiscalObservation(event.target.value)} />
+                <span className="helper-text">Vem das configurações apenas em notas novas. Pode editar ou apagar para esta nota sem alterar o padrão. Será incluído nas informações complementares da DPS (até 2.000 caracteres).</span>
+              </label>
+              <label className="form-field" style={{ gridColumn: "1 / -1" }}>
+                <span className="field-label">Pedido / ordem de compra / ordem de serviço <span className="field-optional">(opcional)</span></span>
+                <input type="text" maxLength={60} value={purchaseOrderNumber} onChange={(event) => setPurchaseOrderNumber(event.target.value)} />
+                <span className="helper-text">Preencher individualmente quando o cliente informar. Não será copiado para outras notas.</span>
+              </label>
+              <label className="form-field" style={{ gridColumn: "1 / -1" }}>
+                <span className="field-label">Observações internas <span className="field-optional">(não aparecem na NFS-e)</span></span>
                 <textarea rows={2} value={notes} onChange={(event) => setNotes(event.target.value)} />
               </label>
             </div>

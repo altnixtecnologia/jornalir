@@ -230,6 +230,8 @@ export interface NfseIssuerConfig {
   certificateReference?: string;
   /** Série da DPS usada nas transmissões (Parte 2A, item 5) — SEMPRE configurada explicitamente, nunca um valor fictício. `undefined` bloqueia a transmissão (ver validação em DraftService/TransmissionService). */
   dpsSeries?: string;
+  /** Texto padrão opcional para infoCompl/xInfComp das NOVAS DPS; não é a nota interna do cadastro. */
+  defaultFiscalObservation?: string;
   notes?: string;
   createdByProfileId?: string;
   updatedByProfileId?: string;
@@ -624,6 +626,11 @@ export interface NfseDraft extends NfseDraftOrigin {
   competencyDate: string;
   serviceValue: number;
   serviceDescription: string;
+  /** Snapshot editável por documento, enviado como serv/infoCompl/xInfComp. */
+  fiscalObservation?: string;
+  /** Pedido/ordem de compra desta DPS, serv/infoCompl/xPed. */
+  purchaseOrderNumber?: string;
+  /** Uso exclusivamente interno, não enviado no XML. */
   notes?: string;
   status: NfseDraftStatus;
   createdByProfileId?: string;
@@ -820,6 +827,9 @@ export interface DpsBuildInput {
   competencyDate: string;
   serviceValue: number;
   serviceDescription: string;
+  /** Complemento da nota, não confundir com notes interno. */
+  fiscalObservation?: string;
+  purchaseOrderNumber?: string;
   environment: NfseEnvironment;
   dpsSeries: string;
   dpsNumber: number;

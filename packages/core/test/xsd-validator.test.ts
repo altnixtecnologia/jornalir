@@ -102,3 +102,28 @@ test("a transmissão real em Produção continua bloqueada em TODAS as guardas c
   assert.equal(isTransmissionEnvironmentAllowed("production"), false);
   assert.throws(() => assertNfseOperationAllowed("production"), /bloqueadas/);
 });
+
+
+test("XSD oficial: observações e ordem de compra nos campos TCServ/infoCompl são aceitas", async () => {
+  const xml = buildDpsXml(makeScenarioInput({
+    fiscalObservation: "Empresa optante pelo Simples Nacional, sujeito a confirmação.",
+    purchaseOrderNumber: "OC-2026-087",
+  }));
+  assert.match(xml, /<serv><locPrest>/);
+  assert.match(xml, /<infoCompl><xPed>OC-2026-087<\/xPed><xInfComp>/);
+  const validation = await validateDpsAgainstOfficialXsd(xml);
+  assert.deepEqual(validation.errors, []);
+  assert.equal(validation.valid, true);
+});
+
+test("XSD oficial: ordem invertida de xInfComp/xPed dentro do grupo é rejeitada", async () => {
+  const xml = buildDpsXml(makeScenarioInput({
+    fiscalObservation: "Informação adicional",
+    purchaseOrderNumber: "OC-1",
+  })).replace(
+    "<infoCompl><xPed>OC-1</xPed><xInfComp>Informação adicional</xInfComp></infoCompl>",
+    "<infoCompl><xInfComp>Informação adicional</xInfComp><xPed>OC-1</xPed></infoCompl>",
+  );
+  const validation = await validateDpsAgainstOfficialXsd(xml);
+  assert.equal(validation.valid, false);
+});

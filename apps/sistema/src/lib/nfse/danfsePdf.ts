@@ -410,7 +410,11 @@ export async function buildDanfsePdf(data: DanfseData, options: { cancelled?: bo
   // (NT 008 § 2.3.3) e foi suprimido para manter uma página A4.
   drawBlockTitle(page, bold, "Informações Complementares", cursor.y);
   cursor.y -= 11;
-  const complementary = [data.complementaryInformation, data.municipalAdditionalInformation].filter(Boolean).join(" | ");
+  const complementary = [
+    data.purchaseOrderNumber ? `Pedido / ordem de compra: ${data.purchaseOrderNumber}` : undefined,
+    data.complementaryInformation,
+    data.municipalAdditionalInformation,
+  ].filter(Boolean).join(" | ");
   cursor.y -= drawWrappedField(page, bold, regular, "Dados complementares da NFS-e", complementary || "-", MARGIN, cursor.y, CONTENT_WIDTH);
   if (cursor.y < MARGIN + 14) {
     throw new Error("DANFSe de homologação excede a área útil A4 — layout bloqueado, sem gerar arquivo cortado.");

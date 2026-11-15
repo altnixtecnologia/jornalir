@@ -131,3 +131,42 @@ test("DraftService bloqueia moeda inválida e datas impossíveis antes de gravar
   assert.throws(() => service.register({ ...valid, competencyDate: "2026-02-30" }), /competência válida/);
   assert.equal(inserts, 0);
 });
+
+
+test("rascunhos: observações fiscais são snapshot separado das internas e podem ser apagadas", async () => {
+  let stored: any;
+  const repo = {
+    create: async (record: any) => {
+      stored = { ...record, id: "draft-1", reference: "TEST-001" };
+      return stored;
+    },
+    getById: async (id: string) => id === "draft-1" ? stored : null,
+    update: async (_id: string, changes: any) => {
+      stored = { ...stored, ...changes };
+      return stored;
+    },
+  } as unknown as DraftRepository;
+  const drafts = new DraftService(repo);
+  const input: DraftInput = {
+    clientId: "client-1",
+    tomador: { sourceClientId: "client-1", kind: "individual", name: "Pessoa Fictícia", cpf: "11144477735" },
+    fiscal: { cTribNac: "140619" },
+    competencyDate: "2026-10-01",
+    serviceValue: 150.50,
+    serviceDescription: "Veiculação de anúncio",
+    fiscalObservation: "  Optante pelo Simples Nacional  ",
+    purchaseOrderNumber: " OC-001 ",
+    notes: "somente controle interno",
+  };
+  const created = await drafts.register(input);
+  assert.equal(created.fiscalObservation, "Optante pelo Simples Nacional");
+  assert.equal(created.purchaseOrderNumber, "OC-001");
+  assert.equal(created.notes, "somente controle interno");
+
+  const updated = await drafts.update(created.id, { ...input, fiscalObservation: "", purchaseOrderNumber: "" });
+  assert.equal(updated.fiscalObservation, "", "limpar o campo não pode deixar o valor anterior");
+  assert.equal(updated.purchaseOrderNumber, "");
+  assert.equal(updated.notes, "somente controle interno", "observação interna permanece independente");
+  assert.throws(() => drafts.register({ ...input, fiscalObservation: "X".repeat(2001) }), /2.000 caracteres/);
+  await assert.rejects(drafts.update(created.id, { ...input, purchaseOrderNumber: "X".repeat(61) }), /60 caracteres/);
+});

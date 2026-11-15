@@ -88,3 +88,24 @@ test("rascunho novo troca cliente sem exibir tomador anterior e limpa codigos de
   }
   assert.match(form, /a transmissão fiscal continua bloqueada até a homologação nacional/);
 });
+
+
+test("observações padrão fiscais não são tratadas como notas internas nem aplicadas retroativamente", () => {
+  const config = source("features/nfse/NfseIssuerConfigForm.tsx");
+  const form = source("features/nfse/NfseDraftForm.tsx");
+  const actions = source("app/sistema/nfse/nova/actions.ts");
+  const tx = readFileSync(new URL("../../../packages/core/src/nfse/transmission-service.ts", import.meta.url), "utf8");
+  const builder = readFileSync(new URL("../../../packages/core/src/nfse/dps-builder.ts", import.meta.url), "utf8");
+  const migration = readFileSync(new URL("../../../supabase/migrations/20261122341000_nfse_fiscal_observations.sql", import.meta.url), "utf8");
+  assert.match(config, /Observações padrão das NFS-e/);
+  assert.match(config, /Observações internas da configuração/);
+  assert.match(form, /initialDraft \? initialDraft\.fiscalObservation \?\? "" : issuerConfig\?\.defaultFiscalObservation \?\? ""/);
+  assert.match(form, /Observações internas.*não aparecem na NFS-e/);
+  assert.match(form, /purchaseOrderNumber/);
+  assert.match(actions, /fiscalObservation: input\.fiscalObservation/);
+  assert.match(tx, /fiscalObservation: draft\.fiscalObservation/);
+  assert.match(tx, /purchaseOrderNumber: draft\.purchaseOrderNumber/);
+  assert.doesNotMatch(builder, /input\.notes/);
+  assert.match(migration, /nfse_draft_additional_info_guard/);
+  assert.match(migration, /guard_nfse_draft_fiscal_edit/);
+});

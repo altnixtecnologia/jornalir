@@ -21,7 +21,7 @@ const TABLE = "nfse_issuer_configs";
 const COLUMNS =
   "id, company_name, trade_name, cnpj, municipal_registration, state_registration, municipality, state, ibge_code, administrative_tax_regime, " +
   "simples_nacional_option, special_tax_regime_code, ibs_cbs_simples_nacional_regime, " +
-  "environment, certificate_type, certificate_status, certificate_valid_until, certificate_reference, dps_series, notes, " +
+  "environment, certificate_type, certificate_status, certificate_valid_until, certificate_reference, dps_series, notes, default_fiscal_observation, " +
   "created_by, updated_by, created_at, updated_at";
 
 interface IssuerConfigRow {
@@ -45,6 +45,7 @@ interface IssuerConfigRow {
   certificate_reference: string | null;
   dps_series: string | null;
   notes: string | null;
+  default_fiscal_observation: string | null;
   created_by: string | null;
   updated_by: string | null;
   created_at: string;
@@ -73,6 +74,7 @@ function toDomain(row: IssuerConfigRow): NfseIssuerConfig {
     certificateReference: row.certificate_reference ?? undefined,
     dpsSeries: row.dps_series ?? undefined,
     notes: row.notes ?? undefined,
+    defaultFiscalObservation: row.default_fiscal_observation ?? undefined,
     createdByProfileId: row.created_by ?? undefined,
     updatedByProfileId: row.updated_by ?? undefined,
     createdAt: row.created_at,
@@ -101,6 +103,7 @@ function toRow(record: NewIssuerConfigRecord | IssuerConfigChanges): Record<stri
   if (record.certificateReference !== undefined) row.certificate_reference = record.certificateReference ?? null;
   if (record.dpsSeries !== undefined) row.dps_series = record.dpsSeries ?? null;
   if (record.notes !== undefined) row.notes = record.notes ?? null;
+  if (record.defaultFiscalObservation !== undefined) row.default_fiscal_observation = record.defaultFiscalObservation ?? null;
   return row;
 }
 

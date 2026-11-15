@@ -16,6 +16,8 @@ export interface DraftInput {
   competencyDate: string;
   serviceValue: number;
   serviceDescription: string;
+  fiscalObservation?: string;
+  purchaseOrderNumber?: string;
   notes?: string;
   /** Preenchidos só quando o rascunho nasce de uma origem externa (ex.: venda comercial) — ver NfseDraftOrigin. */
   originSystem?: string;
@@ -90,6 +92,10 @@ function normalize(input: DraftInput): NewDraftRecord {
     competencyDate: input.competencyDate,
     serviceValue: input.serviceValue,
     serviceDescription: input.serviceDescription.trim(),
+    // String vazia é um snapshot válido: permite remover o padrão no
+    // rascunho sem que o repositório ignore o UPDATE e restaure valor antigo.
+    fiscalObservation: input.fiscalObservation?.trim() ?? "",
+    purchaseOrderNumber: input.purchaseOrderNumber?.trim() ?? "",
     notes: trimOrUndefined(input.notes),
     status: "draft",
     originSystem: trimOrUndefined(input.originSystem),
@@ -99,7 +105,9 @@ function normalize(input: DraftInput): NewDraftRecord {
   };
 }
 
-function assertValid(record: Pick<NewDraftRecord, "clientId" | "competencyDate" | "serviceValue" | "serviceDescription">): void {
+function assertValid(record: Pick<NewDraftRecord, "clientId" | "competencyDate" | "serviceValue" | "serviceDescription" | "fiscalObservation" | "purchaseOrderNumber">): void {
+  if ((record.fiscalObservation?.length ?? 0) > 2000) throw new DraftValidationError("Observações fiscais excedem o limite oficial de 2.000 caracteres.");
+  if ((record.purchaseOrderNumber?.length ?? 0) > 60) throw new DraftValidationError("Ordem de compra/pedido excede o limite oficial de 60 caracteres.");
   if (!record.clientId) throw new DraftValidationError("Selecione o cliente/tomador.");
   if (!isValidNfseCompetencyDate(record.competencyDate)) throw new DraftValidationError("Informe uma competência válida no calendário (AAAA-MM-DD).");
   if (!isValidNfseServiceValue(record.serviceValue)) throw new DraftValidationError("Valor do serviço inválido: informe reais e centavos, maior que zero e com no máximo duas casas decimais.");
@@ -215,8 +223,8 @@ export class DraftService {
 
   async update(id: string, input: DraftInput): Promise<NfseDraft> {
     await this.getById(id);
-    const record = normalize(input) as DraftChanges;
-    assertValid(record as Pick<NewDraftRecord, "clientId" | "competencyDate" | "serviceValue" | "serviceDescription">);
+    const record = normalize(input);
+    assertValid(record);
     return this.drafts.update(id, record);
   }
 

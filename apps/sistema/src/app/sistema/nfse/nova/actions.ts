@@ -68,6 +68,8 @@ export interface DraftFormInput {
   competencyDate: string;
   serviceValue: string;
   serviceDescription: string;
+  fiscalObservation: string;
+  purchaseOrderNumber: string;
   notes: string;
 }
 
@@ -116,6 +118,8 @@ function toServiceInput(input: DraftFormInput): Parameters<ReturnType<typeof get
     competencyDate: input.competencyDate,
     serviceValue: parseNfseServiceValue(input.serviceValue),
     serviceDescription: input.serviceDescription,
+    fiscalObservation: input.fiscalObservation || undefined,
+    purchaseOrderNumber: input.purchaseOrderNumber || undefined,
     notes: input.notes || undefined,
   };
 }
