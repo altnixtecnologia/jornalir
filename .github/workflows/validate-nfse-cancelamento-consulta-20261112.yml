@@ -18,6 +18,11 @@ on:
       - "apps/sistema/src/features/nfse/NfseTransmissionPanel.tsx"
       - "packages/core/test/nfse-transmission.test.ts"
       - "packages/core/test/nfse-end-to-end-real-client.test.ts"
+      - "packages/core/src/nfse/sefin-nacional-client.ts"
+      - "packages/core/src/nfse/national-nfse-query-client.ts"
+      - "packages/core/src/nfse/bounded-http-body.ts"
+      - "packages/core/test/sefin-nacional-client.test.ts"
+      - "packages/core/test/nfse-query.test.ts"
       - "apps/sistema/test/nfse-tomador-snapshot.test.ts"
       - "apps/sistema/test/nfse-competency.test.ts"
       - "apps/sistema/src/providers/supabase/nfseCancellationSubmissionRepository.supabase.ts"
@@ -90,7 +95,7 @@ jobs:
         env:
           NODE_OPTIONS: --conditions=react-server
         run: |
-          npx tsx --test packages/core/test/event-builder.test.ts packages/core/test/event-signature.test.ts packages/core/test/nfse-cancellation.test.ts packages/core/test/nfse-cancellation-dispatch.test.ts apps/sistema/test/nfse-cancelamento-consulta.test.ts apps/sistema/test/prepublication-release-gates.test.ts apps/sistema/test/nfse-p0-release-safety.test.ts packages/core/test/nfse-transmission.test.ts packages/core/test/nfse-end-to-end-real-client.test.ts apps/sistema/test/nfse-tomador-snapshot.test.ts apps/sistema/test/nfse-competency.test.ts
+          npx tsx --test packages/core/test/event-builder.test.ts packages/core/test/event-signature.test.ts packages/core/test/nfse-cancellation.test.ts packages/core/test/nfse-cancellation-dispatch.test.ts apps/sistema/test/nfse-cancelamento-consulta.test.ts apps/sistema/test/prepublication-release-gates.test.ts apps/sistema/test/nfse-p0-release-safety.test.ts packages/core/test/nfse-transmission.test.ts packages/core/test/nfse-end-to-end-real-client.test.ts packages/core/test/sefin-nacional-client.test.ts packages/core/test/nfse-query.test.ts apps/sistema/test/nfse-tomador-snapshot.test.ts apps/sistema/test/nfse-competency.test.ts
 
       - name: PostgreSQL descartavel com migration real de unicidade
         run: |

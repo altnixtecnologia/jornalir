@@ -7,13 +7,14 @@ import { NfseIntegrationError } from "../src/nfse/integration-errors";
 import { parseAuthorizationResponse, parseRejectionResponse } from "../src/nfse/dps-builder";
 
 const ISSUER_CNPJ = "23970969000190";
+const SENT_DPS_ID = "DPS4216404199999999999999999999900001000000000001";
 const SIGNED_DPS_XML =
-  `<DPS><infDPS Id="DPS4216404199999999999999999999900001000000000001"><prest><CNPJ>${ISSUER_CNPJ}</CNPJ></prest></infDPS></DPS>`;
+  `<DPS><infDPS Id="${SENT_DPS_ID}"><tpAmb>2</tpAmb><prest><CNPJ>${ISSUER_CNPJ}</CNPJ></prest></infDPS></DPS>`;
 
 function fakeNfseXml(cnpj: string = ISSUER_CNPJ): string {
   return (
     '<NFSe versao="1.01"><infNFSe Id="NFS42164041199999999999999999900000000012026100001"><nNFSe>12</nNFSe>' +
-    `<dhProc>2026-10-25T12:00:00Z</dhProc><emit><CNPJ>${cnpj}</CNPJ></emit></infNFSe></NFSe>`
+    `<dhProc>2026-10-25T12:00:00Z</dhProc><emit><CNPJ>${cnpj}</CNPJ></emit><DPS><infDPS Id="${SENT_DPS_ID}"><tpAmb>2</tpAmb></infDPS></DPS></infNFSe></NFSe>`
   );
 }
 
@@ -276,5 +277,85 @@ test("produção continua operacionalmente bloqueada mesmo para o cliente real (
   mock.disableNetConnect();
   const client = new SefinNacionalClient(mock, 2_000, () => undefined);
   await assert.rejects(() => client.transmitDps(SIGNED_DPS_XML, "production"), /bloqueadas/);
+  await mock.close();
+});
+
+test("transmitDps: NFS-e de outra DPS do MESMO prestador não pode ser registrada", async () => {
+  const mock = new MockAgent();
+  mock.disableNetConnect();
+  const pool = mock.get("https://sefin.producaorestrita.nfse.gov.br");
+  const different = fakeNfseXml().replace(SENT_DPS_ID, SENT_DPS_ID.slice(0, -1) + "2");
+  pool.intercept({ path: "/API/SefinNacional/nfse", method: "POST" }).reply(200, {
+    chaveAcesso: "421640419999999999999999999990000000001202610",
+    nfseXmlGZipB64: gzipSync(Buffer.from(different, "utf8")).toString("base64"),
+  });
+  const client = new SefinNacionalClient(mock, 2_000, () => undefined);
+  await assert.rejects(() => client.transmitDps(SIGNED_DPS_XML, "homologation"),
+    (err: unknown) => err instanceof NfseIntegrationError && err.code === "NFSE_INVALID_RESPONSE" && err.message.includes("infDPS"));
+  await mock.close();
+});
+
+test("transmitDps: ambiente ou Id da DPS embutida ausente mantém resposta incerta", async () => {
+  const cases = [
+    fakeNfseXml().replace("<tpAmb>2</tpAmb>", "<tpAmb>1</tpAmb>"),
+    fakeNfseXml().replace(`<infDPS Id="${SENT_DPS_ID}"><tpAmb>2</tpAmb></infDPS>`, ""),
+  ];
+  for (const xml of cases) {
+    const mock = new MockAgent();
+    mock.disableNetConnect();
+    mock.get("https://sefin.producaorestrita.nfse.gov.br")
+      .intercept({ path: "/API/SefinNacional/nfse", method: "POST" }).reply(200, {
+        chaveAcesso: "421640419999999999999999999990000000001202610",
+        nfseXmlGZipB64: gzipSync(Buffer.from(xml, "utf8")).toString("base64"),
+      });
+    const client = new SefinNacionalClient(mock, 2_000, () => undefined);
+    await assert.rejects(() => client.transmitDps(SIGNED_DPS_XML, "homologation"),
+      (err: unknown) => err instanceof NfseIntegrationError && err.code === "NFSE_INVALID_RESPONSE");
+    await mock.close();
+  }
+});
+
+test("respostas GZip adulteradas ou expansivas não podem esgotar memória do servidor", async () => {
+  const cases = [
+    "%%%INVALIDO%%%",
+    Buffer.from("não é gzip").toString("base64"),
+    gzipSync(Buffer.from("A".repeat(3 * 1024 * 1024))).toString("base64"),
+  ];
+  for (const compressed of cases) {
+    const mock = new MockAgent();
+    mock.disableNetConnect();
+    mock.get("https://sefin.producaorestrita.nfse.gov.br")
+      .intercept({ path: "/API/SefinNacional/nfse", method: "POST" }).reply(200, {
+        chaveAcesso: "421640419999999999999999999990000000001202610",
+        nfseXmlGZipB64: compressed,
+      });
+    const client = new SefinNacionalClient(mock, 2_000, () => undefined);
+    await assert.rejects(() => client.transmitDps(SIGNED_DPS_XML, "homologation"),
+      (err: unknown) => err instanceof NfseIntegrationError && err.code === "NFSE_INVALID_RESPONSE");
+    await mock.close();
+  }
+});
+
+test("transmitDps: HTTP 503 com erros da infraestrutura nunca vira rejeição fiscal", async () => {
+  const mock = new MockAgent();
+  mock.disableNetConnect();
+  mock.get("https://sefin.producaorestrita.nfse.gov.br")
+    .intercept({ path: "/API/SefinNacional/nfse", method: "POST" })
+    .reply(503, { erros: [{ Codigo: "E999", Descricao: "Gateway indisponível" }] });
+  const client = new SefinNacionalClient(mock, 2_000, () => undefined);
+  await assert.rejects(() => client.transmitDps(SIGNED_DPS_XML, "homologation"),
+    (err: unknown) => err instanceof NfseIntegrationError && err.code === "NFSE_INVALID_RESPONSE" && err.httpStatus === 503);
+  await mock.close();
+});
+
+test("transmitDps: corpo HTTP acima do limite sem content-length explícito é rejeitado", async () => {
+  const mock = new MockAgent();
+  mock.disableNetConnect();
+  mock.get("https://sefin.producaorestrita.nfse.gov.br")
+    .intercept({ path: "/API/SefinNacional/nfse", method: "POST" })
+    .reply(200, "X".repeat(2 * 1024 * 1024 + 1), { headers: { "content-type": "application/json" } });
+  const client = new SefinNacionalClient(mock, 2_000, () => undefined);
+  await assert.rejects(() => client.transmitDps(SIGNED_DPS_XML, "homologation"),
+    (err: unknown) => err instanceof NfseIntegrationError && err.code === "NFSE_INVALID_RESPONSE");
   await mock.close();
 });

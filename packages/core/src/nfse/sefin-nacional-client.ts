@@ -5,10 +5,11 @@ import { DOMParser } from "@xmldom/xmldom";
 import type { NfseEnvironment } from "@ir/types";
 import { assertNfseOperationAllowed, getNfseEnvironmentConfig } from "./environment";
 import { NfseIntegrationError, normalizeNfseTransportError } from "./integration-errors";
+import { NFSE_MAX_RESPONSE_BYTES, readBoundedNfseBody } from "./bounded-http-body";
 import { defaultNfseLogger, type NfseLogger } from "./municipal-parameters-client";
 import type { NationalNfseResponseEnvelope } from "./dps-builder";
 
-const MAX_RESPONSE_BYTES = 2 * 1024 * 1024;
+const MAX_RESPONSE_BYTES = NFSE_MAX_RESPONSE_BYTES;
 
 export interface NationalEventResponseEnvelope {
   status: "registered" | "rejected";
@@ -162,7 +163,7 @@ export class SefinNacionalClient {
     if (!eventoXmlGZipB64) {
       throw new NfseIntegrationError("NFSE_INVALID_RESPONSE", "Resposta de registro de evento sem o campo eventoXmlGZipB64 esperado.");
     }
-    const eventXml = gunzipSync(Buffer.from(eventoXmlGZipB64, "base64")).toString("utf8");
+    const eventXml = this.decompressGzipXml(eventoXmlGZipB64, "eventoXmlGZipB64");
     return { status: "registered", eventXml };
   }
 
@@ -177,7 +178,7 @@ export class SefinNacionalClient {
     if (!nfseXmlGZipB64) {
       throw new NfseIntegrationError("NFSE_INVALID_RESPONSE", "Resposta de autorização sem o campo nfseXmlGZipB64 esperado.");
     }
-    const nfseXml = gunzipSync(Buffer.from(nfseXmlGZipB64, "base64")).toString("utf8");
+    const nfseXml = this.decompressGzipXml(nfseXmlGZipB64, "nfseXmlGZipB64");
     const accessKey = this.extractAccessKey(json, nfseXml);
     const { nfseNumber, issuedAt } = this.extractNfseFields(nfseXml);
     // Auditoria estrutural (26/10/2026, item 3 — "validar... associação com prestador/DPS"):
@@ -186,6 +187,7 @@ export class SefinNacionalClient {
     // MESMO prestador da DPS que acabamos de enviar, nunca aceitando uma resposta de outro CNPJ
     // por engano/corrupção. Falha fechada (NFSE_INVALID_RESPONSE, vira "uncertain") se não bater.
     this.assertSamePrestador(signedDpsXml, nfseXml);
+    this.assertSameDpsIdentity(signedDpsXml, nfseXml);
     return {
       status: "authorized",
       accessKey,
@@ -196,13 +198,47 @@ export class SefinNacionalClient {
   }
 
   private assertSamePrestador(signedDpsXml: string, nfseXml: string): void {
-    const sentCnpj = new DOMParser().parseFromString(signedDpsXml, "text/xml").getElementsByTagName("CNPJ")[0]?.textContent?.trim();
-    const returnedCnpj = new DOMParser().parseFromString(nfseXml, "text/xml").getElementsByTagName("CNPJ")[0]?.textContent?.trim();
+    const sent = new DOMParser().parseFromString(signedDpsXml, "text/xml");
+    const authorized = new DOMParser().parseFromString(nfseXml, "text/xml");
+    // Não aceitar o CNPJ do tomador/intermediário como se fosse do prestador:
+    // a posição do primeiro <CNPJ> varia conforme o documento.
+    const sentPrest = sent.getElementsByTagName("prest")[0];
+    const returnedEmit = authorized.getElementsByTagName("emit")[0];
+    const sentCnpj = sentPrest?.getElementsByTagName("CNPJ")[0]?.textContent?.trim();
+    const returnedCnpj = returnedEmit?.getElementsByTagName("CNPJ")[0]?.textContent?.trim();
     if (!sentCnpj || !returnedCnpj) {
       throw new NfseIntegrationError("NFSE_INVALID_RESPONSE", "Não foi possível confirmar o CNPJ do prestador na DPS enviada ou na NFS-e retornada — associação prestador/DPS não verificável.");
     }
     if (sentCnpj !== returnedCnpj) {
-      throw new NfseIntegrationError("NFSE_INVALID_RESPONSE", `A NFS-e retornada pertence a um CNPJ diferente do prestador que transmitiu a DPS (enviado ${sentCnpj}, retornado ${returnedCnpj}) — resposta nunca aceita.`);
+      throw new NfseIntegrationError("NFSE_INVALID_RESPONSE", "A NFS-e retornada pertence a um CNPJ diferente do prestador que transmitiu a DPS — resposta nunca aceita.");
+    }
+  }
+
+  /**
+   * Conferência indispensável ANTES de persistir uma nota autorizada:
+   * o mesmo prestador pode transmitir várias DPS. O vínculo não se prova
+   * apenas pelo CNPJ; o Id da DPS embutida e o tpAmb também devem bater.
+   */
+  private assertSameDpsIdentity(signedDpsXml: string, nfseXml: string): void {
+    const sent = new DOMParser().parseFromString(signedDpsXml, "text/xml");
+    const authorized = new DOMParser().parseFromString(nfseXml, "text/xml");
+    const sentInfDps = sent.getElementsByTagName("infDPS")[0];
+    const returnedInfDps = authorized.getElementsByTagName("infDPS")[0];
+    const sentId = sentInfDps?.getAttribute("Id")?.trim();
+    const returnedId = returnedInfDps?.getAttribute("Id")?.trim();
+    if (!sentId || !returnedId || sentId !== returnedId) {
+      throw new NfseIntegrationError(
+        "NFSE_INVALID_RESPONSE",
+        "A NFS-e autorizada não contém a mesma DPS transmitida (infDPS/@Id ausente ou divergente). Resultado incerto: nunca registrar como autorização confirmada.",
+      );
+    }
+    const sentEnvironment = sentInfDps?.getElementsByTagName("tpAmb")[0]?.textContent?.trim();
+    const returnedEnvironment = returnedInfDps?.getElementsByTagName("tpAmb")[0]?.textContent?.trim();
+    if (!sentEnvironment || !returnedEnvironment || sentEnvironment !== returnedEnvironment) {
+      throw new NfseIntegrationError(
+        "NFSE_INVALID_RESPONSE",
+        "A NFS-e autorizada pertence a ambiente fiscal diferente da DPS transmitida (tpAmb ausente ou divergente).",
+      );
     }
   }
 
@@ -228,6 +264,14 @@ export class SefinNacionalClient {
       json = this.parseJson(body);
     } catch {
       throw new NfseIntegrationError("NFSE_INVALID_RESPONSE", `HTTP ${status} sem corpo JSON interpretável — não é uma rejeição fiscal confirmada, resultado incerto.`, status);
+    }
+    // HTTP 5xx/429/401/403 são falhas de servidor, limitação de taxa
+    // ou credencial — nunca uma decisão fiscal definitiva, mesmo se
+    // o gateway inserir um array "erros" no JSON.
+    if (status >= 500 || status === 429 || status === 401 || status === 403) {
+      throw new NfseIntegrationError(
+        "NFSE_INVALID_RESPONSE", `HTTP ${status} não confirma rejeição fiscal; o resultado da transmissão permanece incerto.`, status,
+      );
     }
     const erros = Array.isArray(json.erros) ? json.erros : [];
     const first = erros[0] as { Codigo?: unknown; Descricao?: unknown; codigo?: unknown; descricao?: unknown } | undefined;
@@ -266,7 +310,26 @@ export class SefinNacionalClient {
     const json = this.parseJson(body);
     const field = typeof json.nfseXmlGZipB64 === "string" ? json.nfseXmlGZipB64 : undefined;
     if (!field) throw new NfseIntegrationError("NFSE_INVALID_RESPONSE", "Resposta de consulta sem o campo nfseXmlGZipB64 esperado.");
-    return gunzipSync(Buffer.from(field, "base64")).toString("utf8");
+    return this.decompressGzipXml(field, "nfseXmlGZipB64");
+  }
+
+  /**
+   * Protege o processo contra payloads Base64/GZip adulterados e
+   * descompressão expansiva. O limite HTTP de 2 MB não basta:
+   * 1 KB comprimido pode expandir para muitos megabytes.
+   */
+  private decompressGzipXml(encoded: string, fieldName: string): string {
+    if (!encoded || encoded.length > MAX_RESPONSE_BYTES ||
+        encoded.length % 4 !== 0 || !/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(encoded)) {
+      throw new NfseIntegrationError("NFSE_INVALID_RESPONSE", `Campo ${fieldName} não é Base64 válido dentro do limite permitido.`);
+    }
+    try {
+      const xml = gunzipSync(Buffer.from(encoded, "base64"), { maxOutputLength: MAX_RESPONSE_BYTES }).toString("utf8");
+      if (!xml.trim()) throw new Error("XML vazio");
+      return xml;
+    } catch {
+      throw new NfseIntegrationError("NFSE_INVALID_RESPONSE", `Campo ${fieldName} não contém XML GZip válido dentro do limite permitido.`);
+    }
   }
 
   private parseJson(body: string): Record<string, unknown> {
@@ -300,14 +363,7 @@ export class SefinNacionalClient {
         signal: AbortSignal.timeout(this.timeoutMs),
       });
       status = response.status;
-      const declaredLength = Number(response.headers.get("content-length") ?? 0);
-      if (declaredLength > MAX_RESPONSE_BYTES) {
-        throw new NfseIntegrationError("NFSE_INVALID_RESPONSE", "A SEFIN Nacional retornou uma resposta maior que o limite de segurança.", status);
-      }
-      const body = await response.text();
-      if (Buffer.byteLength(body, "utf8") > MAX_RESPONSE_BYTES) {
-        throw new NfseIntegrationError("NFSE_INVALID_RESPONSE", "A SEFIN Nacional retornou uma resposta maior que o limite de segurança.", status);
-      }
+      const body = await readBoundedNfseBody(response);
       this.logger({ operation: method, environment, logicalEndpoint, status, durationMs: Date.now() - startedAt, message: "Requisição concluída." });
       return { status, body };
     } catch (error) {

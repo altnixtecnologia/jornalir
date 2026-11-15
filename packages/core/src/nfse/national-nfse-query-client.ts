@@ -3,8 +3,7 @@ import type { NfseEnvironment } from "@ir/types";
 import { fetch, type Dispatcher } from "undici";
 import { buildDpsByIdUrl, buildNfseByAccessKeyUrl } from "./national-nfse-provider";
 import { NfseIntegrationError, normalizeNfseTransportError } from "./integration-errors";
-
-const MAX_RESPONSE_BYTES = 2 * 1024 * 1024;
+import { readBoundedNfseBody } from "./bounded-http-body";
 
 /**
  * Item 5, Lote 2, Tarefa 3 — consulta real de DPS/NFS-e via mTLS
@@ -64,14 +63,7 @@ async function requestRaw(dispatcher: Dispatcher, url: string, timeoutMs: number
       dispatcher, signal: AbortSignal.timeout(timeoutMs),
     });
     if (response.status === 404) return null;
-    const declaredLength = Number(response.headers.get("content-length") ?? 0);
-    if (declaredLength > MAX_RESPONSE_BYTES) {
-      throw new NfseIntegrationError("NFSE_INVALID_RESPONSE", "O Sistema Nacional retornou uma resposta maior que o limite de segurança.", response.status);
-    }
-    const body = await response.text();
-    if (Buffer.byteLength(body, "utf8") > MAX_RESPONSE_BYTES) {
-      throw new NfseIntegrationError("NFSE_INVALID_RESPONSE", "O Sistema Nacional retornou uma resposta maior que o limite de segurança.", response.status);
-    }
+    const body = await readBoundedNfseBody(response);
     if (!response.ok) {
       throw new NfseIntegrationError("NFSE_HTTP_ERROR", `O Sistema Nacional respondeu com HTTP ${response.status}.`, response.status);
     }

@@ -1,9 +1,10 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { gzipSync } from "node:zlib";
+import { gzipSync, gunzipSync } from "node:zlib";
 import forge from "node-forge";
 import { MockAgent } from "undici";
 import type { NfseCertificateInfo, NfseDraft, NfseIssuerConfig, NfseIssuedNote, NfseTransmissionAttempt } from "@ir/types";
+import { buildDpsId } from "@ir/types";
 import type {
   DraftRepository,
   DpsSequenceRepository,
@@ -157,13 +158,21 @@ function makeUnconfiguredCertificateProvider(): CertificateMaterialProvider {
   return { async getActiveInfo() { return null; }, async getActiveSigningMaterial() { return null; } };
 }
 
-function fakeNfseXml(): string {
+const END_TO_END_DPS_ID = buildDpsId({
+  ibgeCode: "4216404",
+  federalInscriptionType: "cnpj",
+  federalInscription: "23970969000190",
+  series: "1",
+  number: 1,
+});
+
+function fakeNfseXml(dpsId = END_TO_END_DPS_ID): string {
   // emit/CNPJ precisa bater com o CNPJ do prestador em makeIssuerConfig() ("23970969000190") —
   // senão a verificação de associação prestador/DPS (sefin-nacional-client.ts, item 3 da
   // auditoria estrutural de 26/10/2026) rejeitaria esta fixture como se fosse de outro CNPJ.
   return (
     '<NFSe versao="1.01"><infNFSe Id="NFS42164041199999999999999999900000000012026100001"><nNFSe>12</nNFSe>' +
-    "<dhProc>2026-10-25T12:00:00Z</dhProc><emit><CNPJ>23970969000190</CNPJ></emit></infNFSe></NFSe>"
+    `<dhProc>2026-10-25T12:00:00Z</dhProc><emit><CNPJ>23970969000190</CNPJ></emit><DPS><infDPS Id="${dpsId}"><tpAmb>2</tpAmb></infDPS></DPS></infNFSe></NFSe>`
   );
 }
 
@@ -326,9 +335,20 @@ test("fluxo completo: idempotência real (backstop UNIQUE) com o adaptador real,
   const mock = new MockAgent();
   mock.disableNetConnect();
   const pool = mock.get("https://sefin.producaorestrita.nfse.gov.br");
-  pool.intercept({ path: "/API/SefinNacional/nfse", method: "POST" }).reply(200, {
-    chaveAcesso: "421640419999999999999999999990000000001202610",
-    nfseXmlGZipB64: gzipSync(Buffer.from(fakeNfseXml(), "utf8")).toString("base64"),
+  // Cada transmissão concorrente reserva uma DPS diferente. A SEFIN de
+  // mentira deve devolver a MESMA DPS que recebeu, não sempre a DPS nº 1.
+  pool.intercept({ path: "/API/SefinNacional/nfse", method: "POST" }).reply((request) => {
+    const body = JSON.parse(String(request.body)) as { dpsXmlGZipB64: string };
+    const signedXml = gunzipSync(Buffer.from(body.dpsXmlGZipB64, "base64")).toString("utf8");
+    const transmittedId = signedXml.match(/<infDPS Id="([^"]+)"/)?.[1];
+    if (!transmittedId) throw new Error("Teste sem Id da DPS transmitida.");
+    return {
+      statusCode: 200,
+      data: {
+        chaveAcesso: "421640419999999999999999999990000000001202610",
+        nfseXmlGZipB64: gzipSync(Buffer.from(fakeNfseXml(transmittedId), "utf8")).toString("base64"),
+      },
+    };
   }).persist();
 
   const drafts = new FakeDraftRepository(makeDraft());
