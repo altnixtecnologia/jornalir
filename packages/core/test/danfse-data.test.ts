@@ -338,3 +338,14 @@ test("DANFSe: não esconder destinatário/intermediário contraditório ou sem i
     assert.throws(() => extractDanfseData(makeIssuedNote({ nfseXml: xml })), DanfseDataError);
   }
 });
+
+
+test("DANFSe: pedido e observação vêm do XML da DPS autorizada, não de notes interno", () => {
+  const xml = makeNfseXml().replace("</serv>", "<infoCompl><xPed>OC-2026-123</xPed><xInfComp>Optante pelo Simples Nacional</xInfComp></infoCompl></serv>");
+  const data = extractDanfseData(makeIssuedNote({ nfseXml: xml }));
+  assert.equal(data.purchaseOrderNumber, "OC-2026-123");
+  assert.equal(data.complementaryInformation, "Optante pelo Simples Nacional");
+  const empty = extractDanfseData(makeIssuedNote());
+  assert.equal(empty.purchaseOrderNumber, undefined);
+  assert.equal(empty.complementaryInformation, undefined);
+});
