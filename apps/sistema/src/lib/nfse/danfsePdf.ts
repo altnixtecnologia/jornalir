@@ -96,6 +96,60 @@ function drawField(page: PDFPage, bold: PDFFont, regular: PDFFont, label: string
   page.drawText(safeValue, { x: x + 2, y: y - 17, size: 7, font: regular, color: BLACK });
 }
 
+/**
+ * Quebra texto sem reticências: descrição, identificação do prestador,
+ * tomador e observações são informações fiscais, nunca podem sumir do PDF.
+ * Só normaliza espaçamentos em branco; todos os termos são preservados.
+ */
+export function wrapDanfseText(value: string, font: PDFFont, size: number, maxWidth: number): string[] {
+  if (maxWidth <= 0) throw new Error("Largura de texto inválida no DANFSe.");
+  const words = value.trim().split(/\s+/u).filter(Boolean);
+  if (!words.length) return ["-"];
+  const lines: string[] = [];
+  let line = "";
+  for (const word of words) {
+    if (font.widthOfTextAtSize(word, size) > maxWidth) {
+      if (line) { lines.push(line); line = ""; }
+      let remaining = word;
+      while (remaining.length > 0) {
+        let low = 0;
+        let high = remaining.length;
+        while (low < high) {
+          const middle = Math.ceil((low + high) / 2);
+          if (font.widthOfTextAtSize(remaining.slice(0, middle), size) <= maxWidth) low = middle;
+          else high = middle - 1;
+        }
+        if (low === 0) throw new Error("Campo fiscal contém caractere que não cabe no DANFSe.");
+        const chunk = remaining.slice(0, low);
+        remaining = remaining.slice(low);
+        if (remaining) lines.push(chunk);
+        else line = chunk;
+      }
+      continue;
+    }
+    const candidate = line ? line + " " + word : word;
+    if (font.widthOfTextAtSize(candidate, size) <= maxWidth) line = candidate;
+    else { lines.push(line); line = word; }
+  }
+  if (line) lines.push(line);
+  return lines;
+}
+
+/** Retorna a altura real ocupada para o layout deslocar os blocos seguintes. */
+function drawWrappedField(
+  page: PDFPage, bold: PDFFont, regular: PDFFont,
+  label: string, value: string, x: number, y: number, width: number,
+): number {
+  const lines = wrapDanfseText(value, regular, 7, width - 4);
+  page.drawText(fitTextToWidth(label.toUpperCase(), bold, 6, width - 4), {
+    x: x + 2, y: y - 7, size: 6, font: bold, color: DARK_GRAY,
+  });
+  lines.forEach((line, i) => page.drawText(line, {
+    x: x + 2, y: y - 17 - i * 9, size: 7, font: regular, color: BLACK,
+  }));
+  return 20 + (lines.length - 1) * 9;
+}
+
 function drawBorder(page: PDFPage): void {
   page.drawRectangle({ x: MARGIN - 4, y: MARGIN - 4, width: PAGE_WIDTH - (MARGIN - 4) * 2, height: PAGE_HEIGHT - (MARGIN - 4) * 2, borderColor: BLACK, borderWidth: 1 });
 }
@@ -182,11 +236,10 @@ export async function buildDanfsePdf(data: DanfseData, options: { cancelled?: bo
   drawField(page, bold, regular, "CNPJ/CPF/NIF", formatFederalInscription(data.prestador.federalInscription), MARGIN, cursor.y, half);
   drawField(page, bold, regular, "Inscrição Municipal", dash(data.prestador.municipalRegistration), MARGIN + half, cursor.y, half);
   cursor.y -= 20;
-  drawField(page, bold, regular, "Nome / Nome Empresarial", data.prestador.name, MARGIN, cursor.y, CONTENT_WIDTH);
-  cursor.y -= 20;
-  drawField(page, bold, regular, "Endereço", dash(data.prestador.address), MARGIN, cursor.y, half);
+  cursor.y -= drawWrappedField(page, bold, regular, "Nome / Nome Empresarial", data.prestador.name, MARGIN, cursor.y, CONTENT_WIDTH);
+  const prestadorAddressHeight = drawWrappedField(page, bold, regular, "Endereço", dash(data.prestador.address), MARGIN, cursor.y, half);
   drawField(page, bold, regular, "Município / UF / CEP", `${dash(data.prestador.ibgeCode)} / ${dash(data.prestador.state)} / ${dash(data.prestador.zipCode)}`, MARGIN + half, cursor.y, half);
-  cursor.y -= 20;
+  cursor.y -= Math.max(20, prestadorAddressHeight);
   drawField(page, bold, regular, "Telefone", dash(data.prestador.phone), MARGIN, cursor.y, half);
   drawField(page, bold, regular, "Email", dash(data.prestador.email), MARGIN + half, cursor.y, half);
   cursor.y -= 20;
@@ -202,11 +255,11 @@ export async function buildDanfsePdf(data: DanfseData, options: { cancelled?: bo
     cursor.y -= 14;
   } else {
     drawField(page, bold, regular, "CNPJ/CPF/NIF", formatFederalInscription(data.tomador.federalInscription), MARGIN, cursor.y, half);
-    drawField(page, bold, regular, "Nome / Nome Empresarial", data.tomador.name, MARGIN + half, cursor.y, half);
-    cursor.y -= 20;
-    drawField(page, bold, regular, "Endereço", dash(data.tomador.address), MARGIN, cursor.y, half);
+    const tomadorNameHeight = drawWrappedField(page, bold, regular, "Nome / Nome Empresarial", data.tomador.name, MARGIN + half, cursor.y, half);
+    cursor.y -= Math.max(20, tomadorNameHeight);
+    const tomadorAddressHeight = drawWrappedField(page, bold, regular, "Endereço", dash(data.tomador.address), MARGIN, cursor.y, half);
     drawField(page, bold, regular, "Município / UF / CEP", `${dash(data.tomador.ibgeCode)} / ${dash(data.tomador.state)} / ${dash(data.tomador.zipCode)}`, MARGIN + half, cursor.y, half);
-    cursor.y -= 20;
+    cursor.y -= Math.max(20, tomadorAddressHeight);
     drawField(page, bold, regular, "Telefone", dash(data.tomador.phone), MARGIN, cursor.y, half);
     drawField(page, bold, regular, "E-mail", dash(data.tomador.email), MARGIN + half, cursor.y, half);
     cursor.y -= 20;
@@ -230,8 +283,7 @@ export async function buildDanfsePdf(data: DanfseData, options: { cancelled?: bo
   drawField(page, bold, regular, "Código de Tributação Nacional/Municipal", `${dash(data.nationalServiceCode)} / ${dash(data.municipalServiceCode)}`, MARGIN, cursor.y, half);
   drawField(page, bold, regular, "Local da Prestação (IBGE)", dash(data.serviceLocationIbgeCode), MARGIN + half, cursor.y, half);
   cursor.y -= 20;
-  drawField(page, bold, regular, "Descrição do Serviço", data.serviceDescription, MARGIN, cursor.y, CONTENT_WIDTH);
-  cursor.y -= 20;
+  cursor.y -= drawWrappedField(page, bold, regular, "Descrição do Serviço", data.serviceDescription, MARGIN, cursor.y, CONTENT_WIDTH);
   const serviceThird = CONTENT_WIDTH / 3;
   drawField(page, bold, regular, "Código da NBS", dash(data.nbsCode), MARGIN, cursor.y, serviceThird);
   drawField(page, bold, regular, "Descrição da tributação nacional", dash(data.nationalServiceDescription), MARGIN + serviceThird, cursor.y, serviceThird);
@@ -302,8 +354,7 @@ export async function buildDanfsePdf(data: DanfseData, options: { cancelled?: bo
   drawBlockTitle(page, bold, "Informações Complementares", cursor.y);
   cursor.y -= 11;
   const complementary = [data.complementaryInformation, data.municipalAdditionalInformation].filter(Boolean).join(" | ");
-  drawField(page, bold, regular, "Dados complementares da NFS-e", complementary || "-", MARGIN, cursor.y, CONTENT_WIDTH);
-  cursor.y -= 20;
+  cursor.y -= drawWrappedField(page, bold, regular, "Dados complementares da NFS-e", complementary || "-", MARGIN, cursor.y, CONTENT_WIDTH);
   if (cursor.y < MARGIN + 14) {
     throw new Error("DANFSe de homologação excede a área útil A4 — layout bloqueado, sem gerar arquivo cortado.");
   }
