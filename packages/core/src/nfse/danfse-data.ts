@@ -85,6 +85,7 @@ export interface DanfsePessoaData {
   phone?: string;
   email?: string;
   state?: string;
+  municipality?: string;
   ibgeCode?: string;
   zipCode?: string;
   address?: string;
@@ -162,7 +163,7 @@ export interface DanfseData {
   municipalAdditionalInformation?: string;
 }
 
-function extractAddress(doc: XmlDoc, scope: XmlElement | undefined): { address?: string; state?: string; ibgeCode?: string; zipCode?: string } {
+function extractAddress(doc: XmlDoc, scope: XmlElement | undefined): { address?: string; state?: string; municipality?: string; ibgeCode?: string; zipCode?: string } {
   if (!scope) return {};
   const endScope = scope.getElementsByTagName("end")[0] ?? scope.getElementsByTagName("enderNac")[0] ?? scope;
   const logradouro = text(doc, "xLgr", endScope);
@@ -174,6 +175,7 @@ function extractAddress(doc: XmlDoc, scope: XmlElement | undefined): { address?:
     address: parts.length > 0 ? parts.join(", ") : undefined,
     ibgeCode: text(doc, "cMun", endScope),
     state: text(doc, "UF", endScope),
+    municipality: text(doc, "xMun", endScope),
     zipCode: text(doc, "CEP", endScope),
   };
 }

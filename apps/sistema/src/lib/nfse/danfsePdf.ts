@@ -2,7 +2,7 @@ import "server-only";
 import { PDFDocument, StandardFonts, degrees, rgb, type PDFFont, type PDFPage } from "pdf-lib";
 import QRCode from "qrcode";
 import { NFSE_OFFICIAL_LOGO_PNG_BASE64 } from "./nfseNationalLogo";
-import type { DanfseData } from "@ir/core/src/nfse/danfse-data";
+import type { DanfseData, DanfsePessoaData } from "@ir/core/src/nfse/danfse-data";
 import { assertDanfseLayoutApproved } from "./danfseReleaseGate";
 
 /**
@@ -72,6 +72,16 @@ function formatMoney(value: number | string | undefined): string {
   if (!Number.isFinite(n)) return "-";
   return n.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 }
+/** Total IBS + CBS somente quando os DOIS valores constam no XML.
+ * Nunca transformar ausência de CBS ou IBS em zero presumido. */
+export function formatDanfseTotalIbsCbs(data: Pick<DanfseData, "ibsCbsTotal" | "ibsCbsValueFederal">): string {
+  if (data.ibsCbsTotal === undefined || data.ibsCbsValueFederal === undefined) return "-";
+  const ibs = Number(data.ibsCbsTotal);
+  const cbs = Number(data.ibsCbsValueFederal);
+  if (!Number.isFinite(ibs) || !Number.isFinite(cbs)) return "-";
+  return formatMoney((Math.round(ibs * 100) + Math.round(cbs * 100)) / 100);
+}
+
 function dash(value: string | undefined): string {
   return value && value.length > 0 ? value : "-";
 }
@@ -121,9 +131,19 @@ function drawField(page: PDFPage, bold: PDFFont, regular: PDFFont, label: string
   // identificação da NFS-e: 7pt em caixa alta. Todos em preto K100.
   const labelSize = identification ? 7 : 6;
   const printedLabel = identification ? label.toUpperCase() : label;
-  page.drawText(fitTextToWidth(printedLabel, bold, labelSize, width - 4), { x: x + 2, y: y - 7, size: labelSize, font: bold, color: BLACK });
+  // O Anexo I permite labels com mais de uma linha; NÃO cortar labels
+  // obrigatórios por reticências. São reservadas duas linhas em cada célula.
+  const labelLines = wrapDanfseText(printedLabel, bold, labelSize, width - 4);
+  if (labelLines.length > 2) {
+    throw new Error(`Rótulo fiscal excede as duas linhas permitidas no campo: ${label}`);
+  }
+  labelLines.forEach((line, i) => page.drawText(line, {
+    x: x + 2, y: y - 6 - i * 6.3, size: labelSize, font: bold, color: BLACK,
+  }));
+  // Valores curtos da grade podem usar reticências como permite a NT.
+  // Nomes, endereços, serviços e complementos usam drawWrappedField.
   const safeValue = fitTextToWidth(value, regular, 7, width - 4);
-  page.drawText(safeValue, { x: x + 2, y: y - 17, size: 7, font: regular, color: BLACK });
+  page.drawText(safeValue, { x: x + 2, y: y - 18.5, size: 7, font: regular, color: BLACK });
 }
 
 /**
@@ -197,6 +217,60 @@ function drawWrappedPlainText(page: PDFPage, regular: PDFFont, value: string, x:
     x: x + 2, y: y - 7 - index * 9, size: 7, font: regular, color: BLACK,
   }));
   return lines.length * 9;
+}
+
+
+/** Anexo I: o título da seção ocupa a PRIMEIRA coluna na mesma linha de
+ * identificação; não cria faixa de título extra de largura total. */
+function drawSectionCell(page: PDFPage, bold: PDFFont, title: string, y: number): void {
+  const first = CONTENT_WIDTH / 4;
+  page.drawLine({
+    start: { x: MARGIN, y: y + 1 }, end: { x: MARGIN + CONTENT_WIDTH, y: y + 1 },
+    thickness: 0.5, color: BLACK,
+  });
+  page.drawRectangle({ x: MARGIN, y: y - 19, width: first, height: 20, color: GRAY_SHADING });
+  const titleLines = wrapDanfseText(title.toUpperCase(), bold, 7, first - 5);
+  if (titleLines.length > 2) throw new Error(`Título de bloco fiscal ultrapassa a coluna: ${title}`);
+  titleLines.forEach((line, i) => page.drawText(line, {
+    x: MARGIN + 3, y: y - 8 - i * 8, size: 7, font: bold, color: BLACK,
+  }));
+}
+
+/** Linha inicial mais linhas dinâmicas de pessoa, no mesmo arranjo do Anexo I.
+ * Os dados vêm exclusivamente de pessoa extraída do XML/fixture fictícia.
+ * Nomes, endereços e e-mails extensos aumentam a altura, sem transbordar. */
+function drawParticipantSection(
+  page: PDFPage, bold: PDFFont, regular: PDFFont,
+  title: string, person: DanfsePessoaData | undefined, top: number,
+  absentText: string, simples?: { option?: string; regime?: string },
+): number {
+  const quarter = CONTENT_WIDTH / 4;
+  const half = CONTENT_WIDTH / 2;
+  drawSectionCell(page, bold, title, top);
+  if (!person) {
+    const lines = wrapDanfseText(absentText, regular, 7, CONTENT_WIDTH - quarter - 6);
+    lines.forEach((line, i) => page.drawText(line, {
+      x: MARGIN + quarter + 3, y: top - 12 - i * 9, size: 7, font: regular, color: BLACK,
+    }));
+    return top - Math.max(22, lines.length * 9 + 5);
+  }
+  drawField(page, bold, regular, "CNPJ / CPF / NIF", formatFederalInscription(person.federalInscription), MARGIN + quarter, top, quarter);
+  drawField(page, bold, regular, "Indicador Municipal (Inscrição)", dash(person.municipalRegistration), MARGIN + quarter * 2, top, quarter);
+  drawField(page, bold, regular, "Telefone", dash(person.phone), MARGIN + quarter * 3, top, quarter);
+  let y = top - 20;
+  const nameHeight = drawWrappedField(page, bold, regular, "Nome / Nome Empresarial", person.name, MARGIN, y, half);
+  drawField(page, bold, regular, "Município / Sigla UF", `${dash(person.municipality)} / ${dash(person.state)}`, MARGIN + half, y, quarter);
+  drawField(page, bold, regular, "Código IBGE / CEP", `${dash(person.ibgeCode)} / ${dash(person.zipCode)}`, MARGIN + half + quarter, y, quarter);
+  y -= Math.max(20, nameHeight);
+  const addressHeight = drawWrappedField(page, bold, regular, "Endereço", dash(person.address), MARGIN, y, half);
+  const emailHeight = drawWrappedField(page, bold, regular, "E-mail", dash(person.email), MARGIN + half, y, half);
+  y -= Math.max(20, addressHeight, emailHeight) + 2;
+  if (simples) {
+    drawField(page, bold, regular, "Simples Nacional na Data de Competência", dash(simples.option), MARGIN, y, half);
+    drawField(page, bold, regular, "Regime de Apuração Tributária pelo SN", dash(simples.regime), MARGIN + half, y, half);
+    y -= 22;
+  }
+  return y;
 }
 
 function drawBorder(page: PDFPage): void {
@@ -310,154 +384,102 @@ export async function buildDanfsePdf(data: DanfseData, options: { cancelled?: bo
   drawField(page, bold, regular, "Finalidade", data.purposeLabel, MARGIN, cursor.y, contentColumnWidth, false, true);
   cursor.y -= 22;
 
-  // BLOCO: PRESTADOR/FORNECEDOR (seção 2.1.3).
-  drawBlockTitle(page, bold, "Prestador / Fornecedor", cursor.y);
-  cursor.y -= 11;
-  const half = CONTENT_WIDTH / 2;
-  drawField(page, bold, regular, "CNPJ/CPF/NIF", formatFederalInscription(data.prestador.federalInscription), MARGIN, cursor.y, half);
-  drawField(page, bold, regular, "Inscrição Municipal", dash(data.prestador.municipalRegistration), MARGIN + half, cursor.y, half);
-  cursor.y -= 20;
-  cursor.y -= drawWrappedField(page, bold, regular, "Nome / Nome Empresarial", data.prestador.name, MARGIN, cursor.y, CONTENT_WIDTH);
-  const prestadorAddressHeight = drawWrappedField(page, bold, regular, "Endereço", dash(data.prestador.address), MARGIN, cursor.y, half);
-  drawField(page, bold, regular, "Município / UF / CEP", `${dash(data.prestador.ibgeCode)} / ${dash(data.prestador.state)} / ${dash(data.prestador.zipCode)}`, MARGIN + half, cursor.y, half);
-  cursor.y -= Math.max(20, prestadorAddressHeight);
-  drawField(page, bold, regular, "Telefone", dash(data.prestador.phone), MARGIN, cursor.y, half);
-  drawField(page, bold, regular, "Email", dash(data.prestador.email), MARGIN + half, cursor.y, half);
-  cursor.y -= 20;
-  drawField(page, bold, regular, "Simples Nacional na competência", dash(data.prestadorSimplesOption), MARGIN, cursor.y, half);
-  drawField(page, bold, regular, "Regime de apuração pelo SN", dash(data.prestadorSnApuracao), MARGIN + half, cursor.y, half);
-  cursor.y -= 22;
 
-  // BLOCO: TOMADOR/ADQUIRENTE (seção 2.1.4) — suprimido com o texto oficial se ausente (seção 2.3.1).
-  drawBlockTitle(page, bold, "Tomador / Adquirente da Operação", cursor.y);
-  cursor.y -= 11;
-  if (!data.tomador) {
-    page.drawText("TOMADOR/ADQUIRENTE DA OPERAÇÃO NÃO IDENTIFICADO NA NFS-e", { x: MARGIN + 2, y: cursor.y - 9, size: 7, font: regular, color: BLACK });
-    cursor.y -= 14;
-  } else {
-    drawField(page, bold, regular, "CNPJ/CPF/NIF", formatFederalInscription(data.tomador.federalInscription), MARGIN, cursor.y, half);
-    const tomadorNameHeight = drawWrappedField(page, bold, regular, "Nome / Nome Empresarial", data.tomador.name, MARGIN + half, cursor.y, half);
-    cursor.y -= Math.max(20, tomadorNameHeight);
-    const tomadorAddressHeight = drawWrappedField(page, bold, regular, "Endereço", dash(data.tomador.address), MARGIN, cursor.y, half);
-    drawField(page, bold, regular, "Município / UF / CEP", `${dash(data.tomador.ibgeCode)} / ${dash(data.tomador.state)} / ${dash(data.tomador.zipCode)}`, MARGIN + half, cursor.y, half);
-    cursor.y -= Math.max(20, tomadorAddressHeight);
-    drawField(page, bold, regular, "Telefone", dash(data.tomador.phone), MARGIN, cursor.y, half);
-    drawField(page, bold, regular, "E-mail", dash(data.tomador.email), MARGIN + half, cursor.y, half);
-    cursor.y -= 20;
-  }
-  cursor.y -= 8;
-
-  // NT 008 §2.3.1/2.3.2: não presumir que o destinatário é o tomador.
-  // Só usar frase de igualdade quando indDest=0 estiver presente no XML.
-  drawBlockTitle(page, bold, "Destinatário da Operação", cursor.y);
-  cursor.y -= 11;
-  if (data.destinatario) {
-    drawField(page, bold, regular, "CNPJ/CPF/NIF", formatFederalInscription(data.destinatario.federalInscription), MARGIN, cursor.y, half);
-    cursor.y -= drawWrappedField(page, bold, regular, "Nome / Nome Empresarial", data.destinatario.name, MARGIN + half, cursor.y, half);
-    const enderecoHeight = drawWrappedField(page, bold, regular, "Endereço", dash(data.destinatario.address), MARGIN, cursor.y, half);
-    drawField(page, bold, regular, "Município / UF / CEP", `${dash(data.destinatario.ibgeCode)} / ${dash(data.destinatario.state)} / ${dash(data.destinatario.zipCode)}`, MARGIN + half, cursor.y, half);
-    cursor.y -= Math.max(20, enderecoHeight);
-    drawField(page, bold, regular, "Telefone", dash(data.destinatario.phone), MARGIN, cursor.y, half);
-    drawField(page, bold, regular, "E-mail", dash(data.destinatario.email), MARGIN + half, cursor.y, half);
-    cursor.y -= 20;
-  } else {
-    page.drawText(data.destinatarioEhTomador
+  // Blocos 2.1.3-2.1.6: títulos na primeira coluna, dados nas demais,
+  // observando as supressões autorizadas pela NT008 §§2.3.1-2.3.2.
+  cursor.y = drawParticipantSection(page, bold, regular, "Prestador / Fornecedor", data.prestador, cursor.y,
+    "PRESTADOR/FORNECEDOR NÃO IDENTIFICADO NA NFS-e", {
+      option: data.prestadorSimplesOption, regime: data.prestadorSnApuracao,
+    });
+  cursor.y = drawParticipantSection(page, bold, regular, "Tomador / Adquirente", data.tomador, cursor.y,
+    "TOMADOR/ADQUIRENTE DA OPERAÇÃO NÃO IDENTIFICADO NA NFS-e");
+  cursor.y = drawParticipantSection(page, bold, regular, "Destinatário da Operação", data.destinatario, cursor.y,
+    data.destinatarioEhTomador
       ? "O DESTINATÁRIO É O PRÓPRIO TOMADOR/ADQUIRENTE DA OPERAÇÃO"
-      : "DESTINATÁRIO DA OPERAÇÃO NÃO IDENTIFICADO NA NFS-e",
-      { x: MARGIN + 2, y: cursor.y - 9, size: 7, font: regular, color: BLACK });
-    cursor.y -= 14;
-  }
+      : "DESTINATÁRIO DA OPERAÇÃO NÃO IDENTIFICADO NA NFS-e");
+  cursor.y = drawParticipantSection(page, bold, regular, "Intermediário da Operação", data.intermediario, cursor.y,
+    "INTERMEDIÁRIO DA OPERAÇÃO NÃO IDENTIFICADO NA NFS-e");
 
-  drawBlockTitle(page, bold, "Intermediário da Operação", cursor.y);
-  cursor.y -= 11;
-  if (data.intermediario) {
-    drawField(page, bold, regular, "CNPJ/CPF/NIF", formatFederalInscription(data.intermediario.federalInscription), MARGIN, cursor.y, half);
-    drawField(page, bold, regular, "Inscrição Municipal", dash(data.intermediario.municipalRegistration), MARGIN + half, cursor.y, half);
-    cursor.y -= 20;
-    cursor.y -= drawWrappedField(page, bold, regular, "Nome / Nome Empresarial", data.intermediario.name, MARGIN, cursor.y, CONTENT_WIDTH);
-    const enderecoHeight = drawWrappedField(page, bold, regular, "Endereço", dash(data.intermediario.address), MARGIN, cursor.y, half);
-    drawField(page, bold, regular, "Município / UF / CEP", `${dash(data.intermediario.ibgeCode)} / ${dash(data.intermediario.state)} / ${dash(data.intermediario.zipCode)}`, MARGIN + half, cursor.y, half);
-    cursor.y -= Math.max(20, enderecoHeight);
-    drawField(page, bold, regular, "Telefone", dash(data.intermediario.phone), MARGIN, cursor.y, half);
-    drawField(page, bold, regular, "E-mail", dash(data.intermediario.email), MARGIN + half, cursor.y, half);
-    cursor.y -= 20;
-  } else {
-    page.drawText("INTERMEDIÁRIO DA OPERAÇÃO NÃO IDENTIFICADO NA NFS-e", { x: MARGIN + 2, y: cursor.y - 9, size: 7, font: regular, color: BLACK });
-    cursor.y -= 14;
-  }
-  cursor.y -= 6;
 
-  // BLOCO: SERVIÇO PRESTADO (seção 2.1.7).
-  drawBlockTitle(page, bold, "Dados do Serviço Prestado", cursor.y);
-  cursor.y -= 11;
-  // Anexo I, bloco Serviço Prestado: código de tributação, NBS e local
-  // na mesma linha; a descrição do código é UMA linha independente SEM
-  // label (municipal se vier no XML, senão nacional), seguida do serviço.
-  const serviceThird = CONTENT_WIDTH / 3;
-  drawField(page, bold, regular, "Código de Tributação Nacional/Municipal", `${dash(data.nationalServiceCode)} / ${dash(data.municipalServiceCode)}`, MARGIN, cursor.y, serviceThird);
-  drawField(page, bold, regular, "Código da NBS", dash(data.nbsCode), MARGIN + serviceThird, cursor.y, serviceThird);
-  drawField(page, bold, regular, "Local da Prestação (IBGE)", dash(data.serviceLocationIbgeCode), MARGIN + serviceThird * 2, cursor.y, serviceThird);
-  cursor.y -= 22;
-  cursor.y -= drawWrappedPlainText(page, regular, selectDanfseTaxDescription(data), MARGIN, cursor.y, CONTENT_WIDTH) + 2;
-  cursor.y -= drawWrappedField(page, bold, regular, "Descrição do Serviço", data.serviceDescription, MARGIN, cursor.y, CONTENT_WIDTH) + 2;
-
-  // BLOCO: TRIBUTAÇÃO MUNICIPAL / ISSQN (seção 2.1.8).
-  drawBlockTitle(page, bold, "Tributação Municipal (ISSQN)", cursor.y);
-  cursor.y -= 11;
-  const third = CONTENT_WIDTH / 3;
-  drawField(page, bold, regular, "BC ISSQN", formatMoney(data.issqnTaxBase), MARGIN, cursor.y, third);
-  drawField(page, bold, regular, "Alíquota Aplicada", data.issqnRateApplied !== undefined ? `${data.issqnRateApplied}%` : "-", MARGIN + third, cursor.y, third);
-  drawField(page, bold, regular, "ISSQN Apurado", formatMoney(data.issqnAmount), MARGIN + third * 2, cursor.y, third);
-  cursor.y -= 20;
+  // 2.1.7 — Serviço prestado, primeira linha com título na coluna inicial.
   const quarter = CONTENT_WIDTH / 4;
-  drawField(page, bold, regular, "Tributação ISSQN", dash(data.issqnTaxationType), MARGIN, cursor.y, quarter);
-  drawField(page, bold, regular, "Local de incidência ISSQN", dash(data.issqnIncidenceLocation), MARGIN + quarter, cursor.y, quarter);
-  drawField(page, bold, regular, "Retenção ISSQN", dash(data.issqnRetentionType), MARGIN + quarter * 2, cursor.y, quarter);
-  drawField(page, bold, regular, "Regime especial ISSQN", dash(data.issqnSpecialTaxRegime), MARGIN + quarter * 3, cursor.y, quarter);
+  const half = CONTENT_WIDTH / 2;
+  drawSectionCell(page, bold, "Serviço Prestado", cursor.y);
+  drawField(page, bold, regular, "Código de Tributação Nacional/Municipal",
+    `${dash(data.nationalServiceCode)} / ${dash(data.municipalServiceCode)}`,
+    MARGIN + quarter, cursor.y, quarter);
+  drawField(page, bold, regular, "Código da NBS", dash(data.nbsCode), MARGIN + 2 * quarter, cursor.y, quarter);
+  drawField(page, bold, regular, "Local da Prestação / Sigla UF / País",
+    `${dash(data.serviceLocationIbgeCode)} / ${dash(data.prestador.state)} / -`,
+    MARGIN + 3 * quarter, cursor.y, quarter);
+  cursor.y -= 22;
+  // Quando existe xTribMun, a linha de texto da classificação municipal
+  // substitui a descrição nacional; a descrição do serviço vem abaixo.
+  cursor.y -= drawWrappedPlainText(page, regular, selectDanfseTaxDescription(data), MARGIN, cursor.y, CONTENT_WIDTH) + 2;
+  cursor.y -= drawWrappedField(page, bold, regular, "Descrição do Serviço", data.serviceDescription, MARGIN, cursor.y, CONTENT_WIDTH) + 4;
+
+  // 2.1.8 — ISSQN: a tributação abre a seção e compartilha a primeira linha.
+  drawSectionCell(page, bold, "Tributação Municipal (ISSQN)", cursor.y);
+  drawField(page, bold, regular, "Tipo de Tributação do ISSQN", dash(data.issqnTaxationType), MARGIN + quarter, cursor.y, quarter);
+  drawField(page, bold, regular, "Município / Sigla UF / País de Incidência do ISSQN",
+    dash(data.issqnIncidenceLocation), MARGIN + 2 * quarter, cursor.y, half);
+  cursor.y -= 20;
+  drawField(page, bold, regular, "Regime Especial de Tributação", dash(data.issqnSpecialTaxRegime), MARGIN, cursor.y, quarter);
+  drawField(page, bold, regular, "Retenção do ISSQN", dash(data.issqnRetentionType), MARGIN + quarter, cursor.y, quarter);
+  drawField(page, bold, regular, "Desconto Incondicionado", formatMoney(data.issqnDiscountUnconditional), MARGIN + 2 * quarter, cursor.y, quarter);
+  drawField(page, bold, regular, "Base de Cálculo ISSQN", formatMoney(data.issqnTaxBase), MARGIN + 3 * quarter, cursor.y, quarter);
+  cursor.y -= 20;
+  drawField(page, bold, regular, "Alíquota Aplicada", data.issqnRateApplied !== undefined ? `${data.issqnRateApplied}%` : "-", MARGIN, cursor.y, quarter);
+  drawField(page, bold, regular, "ISSQN Apurado", formatMoney(data.issqnAmount), MARGIN + quarter, cursor.y, quarter);
   cursor.y -= 22;
 
-  // BLOCO: TRIBUTAÇÃO FEDERAL (EXCETO CBS).
-  drawBlockTitle(page, bold, "Tributação Federal (Exceto CBS)", cursor.y);
-  cursor.y -= 11;
-  const fifth = CONTENT_WIDTH / 5;
-  drawField(page, bold, regular, "IRRF Retido", formatMoney(data.federalIrrf), MARGIN, cursor.y, fifth);
-  drawField(page, bold, regular, "Contrib. Previdenciária Retida", formatMoney(data.federalSocialSecurityRetained), MARGIN + fifth, cursor.y, fifth);
-  drawField(page, bold, regular, "Contrib. Sociais Retidas", formatMoney(data.federalSocialContribRetained), MARGIN + fifth * 2, cursor.y, fifth);
-  drawField(page, bold, regular, "PIS", formatMoney(data.federalPis), MARGIN + fifth * 3, cursor.y, fifth);
-  drawField(page, bold, regular, "COFINS", formatMoney(data.federalCofins), MARGIN + fifth * 4, cursor.y, fifth);
-  cursor.y -= 23;
-
-  // BLOCO: TRIBUTAÇÃO IBS/CBS. O XML pode não conter o grupo;
-  // campos opcionais aparecem como traço, nunca como zero presumido.
-  drawBlockTitle(page, bold, "Tributação IBS / CBS", cursor.y);
-  cursor.y -= 11;
-  drawField(page, bold, regular, "CST / cClassTrib", [dash(data.ibsCbsCst), dash(data.ibsCbsTaxClass)].join(" / "), MARGIN, cursor.y, quarter);
-  drawField(page, bold, regular, "Indicador operação", dash(data.ibsCbsOperationIndicator), MARGIN + quarter, cursor.y, quarter);
-  drawField(page, bold, regular, "Município incidência", dash(data.ibsCbsLocation), MARGIN + quarter * 2, cursor.y, quarter);
-  drawField(page, bold, regular, "Base de cálculo IBS/CBS", formatMoney(data.ibsCbsBase), MARGIN + quarter * 3, cursor.y, quarter);
+  // 2.1.9 — Tributos federais, sem confundir IRRF com PIS/COFINS.
+  drawSectionCell(page, bold, "Tributação Federal (Exceto CBS)", cursor.y);
+  drawField(page, bold, regular, "IRRF", formatMoney(data.federalIrrf), MARGIN + quarter, cursor.y, quarter);
+  drawField(page, bold, regular, "Contribuição Previdenciária - Retida", formatMoney(data.federalSocialSecurityRetained), MARGIN + 2 * quarter, cursor.y, quarter);
+  drawField(page, bold, regular, "Contribuições Sociais - Retidas", formatMoney(data.federalSocialContribRetained), MARGIN + 3 * quarter, cursor.y, quarter);
   cursor.y -= 20;
-  drawField(page, bold, regular, "Alíquota IBS UF", data.ibsCbsRateState === undefined ? "-" : `${data.ibsCbsRateState}%`, MARGIN, cursor.y, quarter);
-  drawField(page, bold, regular, "Alíquota IBS Municipal", data.ibsCbsRateCity === undefined ? "-" : `${data.ibsCbsRateCity}%`, MARGIN + quarter, cursor.y, quarter);
-  drawField(page, bold, regular, "Alíquota CBS", data.ibsCbsRateFederal === undefined ? "-" : `${data.ibsCbsRateFederal}%`, MARGIN + quarter * 2, cursor.y, quarter);
-  drawField(page, bold, regular, "Valor IBS Total", formatMoney(data.ibsCbsTotal), MARGIN + quarter * 3, cursor.y, quarter);
-  cursor.y -= 20;
-  drawField(page, bold, regular, "Valor IBS UF", formatMoney(data.ibsCbsValueState), MARGIN, cursor.y, quarter);
-  drawField(page, bold, regular, "Valor IBS Município", formatMoney(data.ibsCbsValueCity), MARGIN + quarter, cursor.y, quarter);
-  drawField(page, bold, regular, "Valor CBS", formatMoney(data.ibsCbsValueFederal), MARGIN + quarter * 2, cursor.y, quarter);
-  drawField(page, bold, regular, "Alíquotas efetivas UF/Mun/CBS", [dash(data.ibsCbsEffectiveRateState), dash(data.ibsCbsEffectiveRateCity), dash(data.ibsCbsEffectiveRateFederal)].join(" / "), MARGIN + quarter * 3, cursor.y, quarter);
+  drawField(page, bold, regular, "PIS - Débito Apuração Própria", formatMoney(data.federalPis), MARGIN, cursor.y, quarter);
+  drawField(page, bold, regular, "COFINS - Débito Apuração Própria", formatMoney(data.federalCofins), MARGIN + quarter, cursor.y, quarter);
+  drawField(page, bold, regular, "Retenção PIS/COFINS (Código)", dash(data.federalPisCofinsRetention), MARGIN + 2 * quarter, cursor.y, half);
   cursor.y -= 22;
 
-  // BLOCO: VALOR TOTAL DA NFS-e (seção 2.1.11).
-  drawBlockTitle(page, bold, "Valor Total da NFS-e", cursor.y);
-  cursor.y -= 11;
-  drawField(page, bold, regular, "Valor do Serviço", formatMoney(data.serviceValue), MARGIN, cursor.y, third);
-  drawField(page, bold, regular, "Total das Retenções", formatMoney(data.totalRetained), MARGIN + third, cursor.y, third);
-  drawField(page, bold, regular, "Valor Líquido da NFS-e", formatMoney(data.netValue), MARGIN + third * 2, cursor.y, third);
+  // 2.1.10 — IBS/CBS, colunas no arranjo do Anexo I. Não se fabricam
+  // bases ou descontos: campos opcionais ausentes são exibidos como traço.
+  drawSectionCell(page, bold, "Tributação IBS / CBS", cursor.y);
+  drawField(page, bold, regular, "CST / cClassTrib",
+    `${dash(data.ibsCbsCst)} / ${dash(data.ibsCbsTaxClass)}`, MARGIN + quarter, cursor.y, quarter);
+  drawField(page, bold, regular, "Indicador Operação / Código IBGE / Município Incidência / Sigla UF",
+    `${dash(data.ibsCbsOperationIndicator)} / ${dash(data.ibsCbsLocation)}`,
+    MARGIN + 2 * quarter, cursor.y, half);
   cursor.y -= 20;
-  drawField(page, bold, regular, "Desconto Incondicionado", formatMoney(data.discountUnconditional), MARGIN, cursor.y, quarter);
-  drawField(page, bold, regular, "Desconto Condicionado", formatMoney(data.discountConditional), MARGIN + quarter, cursor.y, quarter);
-  drawField(page, bold, regular, "Total IBS / CBS", [formatMoney(data.ibsCbsTotal), formatMoney(data.ibsCbsValueFederal)].join(" / "), MARGIN + quarter * 2, cursor.y, quarter);
-  drawField(page, bold, regular, "Valor Líquido da NFS-e + IBS/CBS", formatMoney(data.grossTotalWithIbsCbs), MARGIN + quarter * 3, cursor.y, quarter, true);
+  drawField(page, bold, regular, "Exclusões e Reduções da Base de Cálculo", "-", MARGIN, cursor.y, quarter);
+  drawField(page, bold, regular, "Base de Cálculo Após Exclusões e Reduções", formatMoney(data.ibsCbsBase), MARGIN + quarter, cursor.y, quarter);
+  drawField(page, bold, regular, "Redução Alíquota IBS / Redução Alíquota CBS", "-", MARGIN + 2 * quarter, cursor.y, quarter);
+  drawField(page, bold, regular, "Alíquota - IBS UF / IBS Mun",
+    `${dash(data.ibsCbsRateState)} / ${dash(data.ibsCbsRateCity)}`, MARGIN + 3 * quarter, cursor.y, quarter);
+  cursor.y -= 20;
+  drawField(page, bold, regular, "Alíquota Efetiva Municipal - IBS", dash(data.ibsCbsEffectiveRateCity), MARGIN, cursor.y, quarter);
+  drawField(page, bold, regular, "Valor Apurado Municipal - IBS", formatMoney(data.ibsCbsValueCity), MARGIN + quarter, cursor.y, quarter);
+  drawField(page, bold, regular, "Alíquota Efetiva Estadual - IBS", dash(data.ibsCbsEffectiveRateState), MARGIN + 2 * quarter, cursor.y, quarter);
+  drawField(page, bold, regular, "Valor Apurado Estadual - IBS", formatMoney(data.ibsCbsValueState), MARGIN + 3 * quarter, cursor.y, quarter);
+  cursor.y -= 20;
+  drawField(page, bold, regular, "Valor Total Apurado - IBS", formatMoney(data.ibsCbsTotal), MARGIN, cursor.y, quarter);
+  drawField(page, bold, regular, "Alíquota - CBS", dash(data.ibsCbsRateFederal), MARGIN + quarter, cursor.y, quarter);
+  drawField(page, bold, regular, "Alíquota Efetiva - CBS", dash(data.ibsCbsEffectiveRateFederal), MARGIN + 2 * quarter, cursor.y, quarter);
+  drawField(page, bold, regular, "Valor Total Apurado - CBS", formatMoney(data.ibsCbsValueFederal), MARGIN + 3 * quarter, cursor.y, quarter);
+  cursor.y -= 22;
+
+  // 2.1.11 — Valores: linha do título + 3 valores, segunda linha com 4.
+  drawSectionCell(page, bold, "Valor Total da NFS-e", cursor.y);
+  drawField(page, bold, regular, "Valor da Operação / Serviço", formatMoney(data.serviceValue), MARGIN + quarter, cursor.y, quarter);
+  drawField(page, bold, regular, "Desconto Incondicionado", formatMoney(data.discountUnconditional), MARGIN + 2 * quarter, cursor.y, quarter);
+  drawField(page, bold, regular, "Desconto Condicionado", formatMoney(data.discountConditional), MARGIN + 3 * quarter, cursor.y, quarter);
+  cursor.y -= 20;
+  drawField(page, bold, regular, "Total das Retenções (ISSQN / Federais)", formatMoney(data.totalRetained), MARGIN, cursor.y, quarter);
+  drawField(page, bold, regular, "Valor Líquido da NFS-e", formatMoney(data.netValue), MARGIN + quarter, cursor.y, quarter);
+  drawField(page, bold, regular, "Total do IBS/CBS", formatDanfseTotalIbsCbs(data), MARGIN + 2 * quarter, cursor.y, quarter);
+  drawField(page, bold, regular, "Valor Líquido da NFS-e + IBS/CBS", formatMoney(data.grossTotalWithIbsCbs), MARGIN + 3 * quarter, cursor.y, quarter, true);
   cursor.y -= 22;
 
   // BLOCO: INFORMAÇÕES COMPLEMENTARES. O canhoto é opcional
