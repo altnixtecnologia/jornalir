@@ -35,6 +35,7 @@ export interface IssuerConfigInput {
   certificateValidUntil?: string;
   certificateReference?: string;
   dpsSeries?: string;
+  defaultFiscalObservation?: string;
   notes?: string;
 }
 
@@ -63,11 +64,15 @@ function normalize(input: IssuerConfigInput): NewIssuerConfigRecord {
     certificateValidUntil: input.certificateValidUntil || undefined,
     certificateReference: trimOrUndefined(input.certificateReference),
     dpsSeries: trimOrUndefined(input.dpsSeries),
+    defaultFiscalObservation: trimOrUndefined(input.defaultFiscalObservation),
     notes: trimOrUndefined(input.notes),
   };
 }
 
 function assertValid(record: NewIssuerConfigRecord): void {
+  if ((record.defaultFiscalObservation?.length ?? 0) > 2000) {
+    throw new IssuerConfigValidationError("Observação fiscal padrão excede 2.000 caracteres (limite oficial xInfComp).");
+  }
   if (!record.companyName) throw new IssuerConfigValidationError("Informe a razão social do prestador.");
   if (!record.cnpj || record.cnpj.length !== 14) throw new IssuerConfigValidationError("Informe um CNPJ válido do prestador.");
   if (!record.municipalRegistration) throw new IssuerConfigValidationError("Informe a inscrição municipal do prestador.");
