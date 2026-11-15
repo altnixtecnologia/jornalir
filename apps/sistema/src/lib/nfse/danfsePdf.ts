@@ -285,10 +285,16 @@ export async function buildDanfsePdf(data: DanfseData, options: { cancelled?: bo
   const contentColumnWidth = CONTENT_WIDTH - 145;
 
   // BLOCO: DADOS DE IDENTIFICAÇÃO DA NFS-e (seção 2.1.1/2.1.2).
-  drawBlockTitle(page, bold, "Dados de Identificação da NFS-e", cursor.y);
-  cursor.y -= 11;
-  page.drawText(`Chave de Acesso: ${data.accessKey}`, { x: MARGIN + 2, y: cursor.y - 9, size: 7, font: regular, color: BLACK });
-  cursor.y -= 20;
+  // Anexo I: o bloco de identificação começa com a chave, sem faixa
+  // horizontal por trás do QR Code. A faixa antiga atravessava a imagem,
+  // tornando parte do código ilegível na prévia sintética.
+  page.drawText("CHAVE DE ACESSO DA NFS-e", {
+    x: MARGIN + 2, y: cursor.y - 7, size: 7, font: bold, color: BLACK,
+  });
+  page.drawText(data.accessKey, {
+    x: MARGIN + 2, y: cursor.y - 17, size: 7, font: regular, color: BLACK,
+  });
+  cursor.y -= 22;
   const idFieldWidth = contentColumnWidth / 3;
   drawField(page, bold, regular, "Número da NFS-e", data.nfseNumber, MARGIN, cursor.y, idFieldWidth, false, true);
   drawField(page, bold, regular, "Competência da NFS-e", formatDanfseDate(data.competencyDate), MARGIN + idFieldWidth, cursor.y, idFieldWidth, false, true);
