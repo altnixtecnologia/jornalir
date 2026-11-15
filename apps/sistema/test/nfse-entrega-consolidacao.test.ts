@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { createHash } from "node:crypto";
+import { createHash, createHmac } from "node:crypto";
 import { readFileSync } from "node:fs";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { archiveNfseDocuments, archivePendingNfseNotes, type ArchiveDeps } from "../src/lib/nfse/archiveNfseDocuments";
@@ -8,6 +8,7 @@ import { runNfseDeliveryBatch, isNfseArchiveEnabled, type DeliveryWorkerDeps } f
 import { EmailOutcomeUncertainError, EmailRejectedByProviderError } from "../src/lib/nfse/resendDelivery";
 import { fiscalRecipient, canManuallyResend } from "../src/lib/nfse/deliveryPolicy";
 import { STAFF_MODULE_ACTIONS } from "../src/lib/permissions/staffPermissionsCatalog";
+import { handleResendWebhook } from "../src/lib/nfse/resendWebhookHandler";
 
 const src = (p: string) => readFileSync(new URL(`../src/${p}`, import.meta.url), "utf8");
 const sha = (b: Buffer) => createHash("sha256").update(b).digest("hex");
@@ -30,6 +31,8 @@ function fakeDb(tables: Record<string, Row[]>, unique: Record<string, string[]> 
         select(_c?: string) { return q; },
         eq(c: string, v: any) { f.push((r) => r[c] === v); return q; },
         in(c: string, v: any[]) { f.push((r) => v.includes(r[c])); return q; },
+        is(c: string, v: null) { assert.equal(v, null); f.push((r) => (r[c] ?? null) === null); return q; },
+        gte(c: string, v: string) { f.push((r) => String(r[c]) >= v); return q; },
         not(c: string, o: string, v: any) { assert.equal(o, "is"); f.push((r) => (r[c] ?? null) !== v); return q; },
         order(c: string, o: { ascending: boolean }) { order = [c, o.ascending]; return q; },
         limit(n: number) { max = n; return q; },
@@ -123,6 +126,49 @@ test("corrida entre dois workers: o segundo INSERT falha por duplicidade e reapr
   const both = await Promise.all([archiveNfseDocuments(admin, note(), r2.deps), archiveNfseDocuments(admin, note(), r2.deps)]);
   assert.equal(assetsOf(db, "n1").length, 3, "nunca duplica");
   assert.equal(both[0].nfse_xml.sha256, both[1].nfse_xml.sha256);
+});
+test("XML fiscal ja arquivado nao pode ser reutilizado apos divergencia nos bytes da nota", async () => {
+  const { db, admin } = fakeDb({}, UNIQ); const r2 = mockArchiveDeps();
+  await archiveNfseDocuments(admin, note(), r2.deps);
+  const saves = r2.saves.length;
+  await assert.rejects(
+    archiveNfseDocuments(admin, note("n1", { nfseXml: '<NFSe id="outra-nota"/>' }), r2.deps),
+    /XML fiscal arquivado diverge/,
+  );
+  await assert.rejects(
+    archiveNfseDocuments(admin, note("n1", { signedDpsXml: '<DPS id="outra-dps"/>' }), r2.deps),
+    /XML fiscal arquivado diverge/,
+  );
+  assert.equal(r2.saves.length, saves, "nao troca XML existente e nao cria novo documento");
+  assert.equal(assetsOf(db, "n1").length, 3);
+});
+
+test("retorno R2 com SHA ou tamanho adulterado nunca entra no indice de documentos", async () => {
+  for (const corrupt of ["sha256", "sizeBytes"] as const) {
+    const { db, admin } = fakeDb({}, UNIQ);
+    const r2 = mockArchiveDeps();
+    const bad: ArchiveDeps = {
+      ...r2.deps,
+      save: async (input) => ({
+        ...await r2.deps.save(input),
+        ...(corrupt === "sha256" ? { sha256: "f".repeat(64) } : { sizeBytes: input.data.length + 10 }),
+      }),
+    };
+    await assert.rejects(archiveNfseDocuments(admin, note(), bad), /metadados de integridade divergentes/);
+    assert.equal(assetsOf(db, "n1").length, 0);
+  }
+});
+
+test("corrida de INSERT nao aceita um registro vencedor cujo arquivo R2 inexiste", async () => {
+  const { db, admin } = fakeDb({}, UNIQ); const r2 = mockArchiveDeps();
+  db.beforeInsert = (table, row) => {
+    if (table === "nfse_document_assets" && row.kind === "nfse_xml") {
+      db.tables.nfse_document_assets.push({ ...row, id: "concorrente", r2_key: "objeto-inexistente" });
+      db.beforeInsert = undefined;
+    }
+  };
+  await assert.rejects(archiveNfseDocuments(admin, note(), r2.deps), /Integridade SHA-256/);
+  assert.equal(assetsOf(db, "n1").length, 1, "nao duplicou nem aceitou o indice vencido");
 });
 test("integridade: arquivo do R2 divergente do SHA registrado => erro (nunca usa metadados falsos)", async () => {
   const { admin } = fakeDb({}, UNIQ); const ok = mockArchiveDeps();
@@ -239,6 +285,43 @@ test("entrega: arquiva, envia PDF+XML originais UMA vez e registra aceito com o 
   assert.equal(row.status, "accepted"); assert.equal(row.provider, "resend"); assert.equal(row.provider_message_id, "re-msg-1");
   assert.match(row.response_summary, /ainda não confirmada/); assert.equal(row.delivered_at, undefined);
   assert.equal(assetsOf(w.db, "n1").length, 3);
+});
+test("fluxo integrado: XML e PDF no R2 -> e-mail aceito -> webhook Resend assinado -> entregue -> bounce sem regressao", async () => {
+  const w = workerSetup();
+  const out = await runNfseDeliveryBatch(w.admin, w.deps);
+  assert.deepEqual(out.outcomes, ["accepted"]);
+  assert.equal(w.sent.length, 1);
+  assert.equal(assetsOf(w.db, "n1").length, 3);
+  assert.equal(w.db.tables.nfse_delivery_attempts[0].status, "accepted");
+
+  const secret = "whsec_" + Buffer.from("segredo-local-para-assinatura-de-teste").toString("base64");
+  const nowMs = Date.UTC(2026, 10, 15, 15, 0, 0);
+  const ts = String(Math.floor(nowMs / 1000));
+  const webhook = async (kind: string) => {
+    const rawBody = JSON.stringify({ type: kind, created_at: new Date(nowMs).toISOString(), data: { email_id: "re-msg-1", to: ["cliente@exemplo.test"] } });
+    const id = "msg-" + kind;
+    const signature = "v1," + createHmac("sha256", Buffer.from(secret.slice(6), "base64"))
+      .update(id + "." + ts + "." + rawBody).digest("base64");
+    return handleResendWebhook({
+      rawBody, headers: { id, timestamp: ts, signature }, secret,
+      getAdmin: () => w.admin, nowMs,
+    });
+  };
+
+  assert.equal((await webhook("email.delivered")).status, 200);
+  const row = w.db.tables.nfse_delivery_attempts[0];
+  assert.equal(row.status, "delivered");
+  assert.ok(row.delivered_at);
+  const firstDeliveredAt = row.delivered_at;
+  assert.equal((await webhook("email.delivered")).status, 200, "webhook repetido e idempotente");
+  assert.equal(row.delivered_at, firstDeliveredAt);
+  assert.equal((await webhook("email.bounced")).status, 200);
+  assert.equal(row.status, "bounced", "bounce tardio prevalece sobre entregue");
+  assert.equal((await webhook("email.delivered")).status, 200);
+  assert.equal(row.status, "bounced", "entrega tardia nao reverte devolucao");
+  assert.equal((await runNfseDeliveryBatch(w.admin, w.deps)).processed, 0, "webhook nunca dispara reenvio");
+  assert.equal(w.sent.length, 1);
+  assert.equal(assetsOf(w.db, "n1").length, 3, "documentos originais permanecem intactos");
 });
 test("concorrência: dois workers simultâneos na mesma fila enviam o e-mail uma única vez", async () => {
   const w = workerSetup(); const [a, b] = await Promise.all([runNfseDeliveryBatch(w.admin, w.deps), runNfseDeliveryBatch(w.admin, w.deps)]);
