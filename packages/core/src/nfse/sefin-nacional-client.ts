@@ -101,13 +101,11 @@ export class SefinNacionalClient {
     return xml;
   }
 
-  /** GET /dps/{id} — recupera a chave de acesso a partir do identificador da DPS
-   * (só liberado para os atores da DPS, ver manual oficial). 404/sem permissão -> null.
-   * LIMITAÇÃO HONESTA: o manual oficial descreve a SEMÂNTICA ("retorna a chave de
-   * acesso da NFS-e correspondente") mas não o FORMATO exato do corpo (JSON com
-   * `chaveAcesso`? texto puro?) — nenhuma fonte disponível confirmou. Devolve o
-   * corpo bruto como veio, sem reinterpretar; quem chamar decide o que fazer, e
-   * isto precisa reconfirmação contra uma resposta real antes de qualquer uso. */
+  /** GET /dps/{id} — consulta DPS para conciliação, respeitando permissão
+   * fiscal. O contrato SEFIN v1 (DpsGetResponse) especifica JSON com
+   * tipoAmbiente, idDps e chaveAcesso. A resposta continua em formato bruto
+   * para não alterar o contrato interno, mas é validada antes de ser devolvida.
+   * Respostas reais ainda precisam ser confirmadas por mTLS com A1. */
   async getDpsById(dpsId: string, environment: NfseEnvironment): Promise<string | null> {
     assertNfseOperationAllowed(environment);
     const config = getNfseEnvironmentConfig(environment);
@@ -119,7 +117,8 @@ export class SefinNacionalClient {
     // com o contrato interno, mas nunca libera conteúdo de outra DPS.
     const envelope = this.parseJson(body);
     this.assertResponseEnvironment(envelope, environment, "consulta por DPS");
-    if (envelope.idDps !== dpsId || !isValidNfseAccessKey(envelope.chaveAcesso as string)) {
+    if (envelope.idDps !== dpsId ||
+        typeof envelope.chaveAcesso !== "string" || !isValidNfseAccessKey(envelope.chaveAcesso)) {
       throw new NfseIntegrationError("NFSE_INVALID_RESPONSE", "Retorno de consulta com idDps/chaveAcesso inválidos ou divergentes.");
     }
     return body;
