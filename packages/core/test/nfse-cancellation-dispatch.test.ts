@@ -75,8 +75,14 @@ class FakeSubmissionRepo implements CancellationSubmissionRepository {
   }
 }
 
+function syntheticCancellationResponse(key = KEY): string {
+  return `<evento><infEvento><nSeqEvento>001</nSeqEvento><pedRegEvento><infPedReg Id="PRE${key}101101">` +
+    `<tpAmb>2</tpAmb><chNFSe>${key}</chNFSe><e101101><xDesc>Cancelamento de NFS-e</xDesc>` +
+    `<cMotivo>1</cMotivo><xMotivo>Erro na emissão.</xMotivo></e101101></infPedReg></pedRegEvento></infEvento></evento>`;
+}
 function makeService(opts: {
   outcome?: "confirmed" | "rejected" | "incomplete" | "timeout";
+  eventXml?: string;
   note?: NfseIssuedNote;
   issuer?: NfseIssuerConfig;
   repository?: FakeSubmissionRepo;
@@ -93,7 +99,7 @@ function makeService(opts: {
       if (opts.outcome === "timeout") throw new Error("socket timeout");
       if (opts.outcome === "rejected") return { status: "rejected", rejection: { code: "E001", message: "Pedido rejeitado" } };
       if (opts.outcome === "incomplete") return { status: "registered", eventXml: "<evento/>" };
-      return { status: "registered", eventXml: `<evento><chNFSe>${KEY}</chNFSe><tpEvento>101101</tpEvento></evento>` };
+      return { status: "registered", eventXml: opts.eventXml ?? syntheticCancellationResponse() };
     },
     async getEventsByAccessKey() { return "[]"; },
   };
@@ -159,4 +165,55 @@ test("chave oficial que nao satisfaz XSD do evento bloqueia ANTES do POST", asyn
   await assert.rejects(() => wrong.service.submit("cancel-test", true), /XSD|Chave de acesso/);
   assert.equal(wrong.repo.claims, 0);
   assert.equal(wrong.getSends(), 0);
+});
+
+test("cancelamento: texto e101101 ou tpEvento isolado nao confirma registro na SEFIN", async () => {
+  const samples = [
+    "<evento><chNFSe>" + KEY + "</chNFSe><tpEvento>101101</tpEvento></evento>",
+    "<evento><xMotivo>e101101</xMotivo><chNFSe>" + KEY + "</chNFSe></evento>",
+    syntheticCancellationResponse().replace("<e101101>", "<xMotivo>e101101</xMotivo><e999999>").replace("</e101101>", "</e999999>"),
+  ];
+  for (const eventXml of samples) {
+    const { service, repo } = makeService({ eventXml });
+    assert.equal((await service.submit("cancel-test", true)).outcome, "uncertain");
+    assert.equal(repo.current.status, "uncertain");
+  }
+});
+
+test("cancelamento: chave, Id, ambiente, tipo e sequencia divergentes nao confirmam evento", async () => {
+  const valid = syntheticCancellationResponse();
+  const samples = [
+    valid.replace("<chNFSe>" + KEY + "</chNFSe>", "<chNFSe>OUTRA_CHAVE</chNFSe>"),
+    valid.replace("PRE" + KEY + "101101", "PRE" + KEY + "101102"),
+    valid.replace("<tpAmb>2</tpAmb>", "<tpAmb>1</tpAmb>"),
+    valid.replace("<nSeqEvento>001</nSeqEvento>", "<nSeqEvento>002</nSeqEvento>"),
+    valid.replace("<e101101>", "<e999999>").replace("</e101101>", "</e999999>"),
+    valid.replace("<xDesc>Cancelamento de NFS-e</xDesc>", "<xDesc>Outro evento</xDesc>"),
+    valid.replace("<evento>", "<retorno>").replace("</evento>", "</retorno>"),
+    "<!DOCTYPE evento>" + valid,
+  ];
+  for (const eventXml of samples) {
+    const { service, repo, getSends } = makeService({ eventXml });
+    assert.equal((await service.submit("cancel-test", true)).outcome, "uncertain");
+    assert.equal(repo.current.status, "uncertain");
+    assert.equal(getSends(), 1);
+  }
+});
+
+test("cancelamento: chave da nota em outro grupo XML nunca confirma", async () => {
+  const eventXml = syntheticCancellationResponse()
+    .replace("<chNFSe>" + KEY + "</chNFSe>", "<chNFSe>OUTRA_CHAVE</chNFSe>")
+    .replace("<infEvento>", "<infEvento><observacao><chNFSe>" + KEY + "</chNFSe></observacao>");
+  const { service, repo } = makeService({ eventXml });
+  assert.equal((await service.submit("cancel-test", true)).outcome, "uncertain");
+  assert.equal(repo.current.status, "uncertain");
+});
+
+test("cancelamento: XML com prefixo de namespace ainda identifica o evento fiscal correto", async () => {
+  const prefixed = syntheticCancellationResponse()
+    .replace(/<(\/?)(evento|infEvento|nSeqEvento|pedRegEvento|infPedReg|tpAmb|chNFSe|e101101|xDesc|cMotivo|xMotivo)(?=[\s>])/g, "<$1n:$2")
+    .replace("<n:evento>", '<n:evento xmlns:n="http://www.sped.fazenda.gov.br/nfse">');
+  const { service, repo } = makeService({ eventXml: prefixed });
+  assert.equal((await service.submit("cancel-test", true)).outcome, "confirmed");
+  assert.equal(repo.current.status, "confirmed");
 });
