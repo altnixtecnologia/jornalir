@@ -5,6 +5,7 @@ import { PDFDocument, StandardFonts } from "pdf-lib";
 import { loadPdfDocument, extractPageTextItems } from "@ir/pdf-extraction";
 import { DANFSE_GEOMETRY, buildDanfsePdf, formatDanfseDate, formatDanfseDateTime, formatFederalInscription, wrapDanfseText, selectDanfseTaxDescription } from "../src/lib/nfse/danfsePdf";
 import { DANFSE_PREVIEW_FIXTURE } from "../src/lib/nfse/danfsePreviewFixture";
+import { NFSE_OFFICIAL_LOGO_PNG_BASE64 } from "../src/lib/nfse/nfseNationalLogo";
 import {
   DANFSE_OFFICIAL_LAYOUT_APPROVED,
   assertDanfseLayoutApproved,
@@ -218,4 +219,31 @@ test("NT008 Anexo I: sem xTribMun a descrição nacional aparece no bloco de ser
   const pdf = await loadPdfDocument(pdfBytes);
   const items = await extractPageTextItems(await pdf.getPage(1));
   assert.ok(items.map((item) => item.text).join(" ").includes("Descrição nacional usada como alternativa"));
+});
+
+
+test("NT008: logomarca nacional PNG esta embutida no DANFSe de teste sem dependencia externa", async () => {
+  const logo = Buffer.from(NFSE_OFFICIAL_LOGO_PNG_BASE64, "base64");
+  assert.equal(logo.subarray(0, 8).toString("hex"), "89504e470d0a1a0a");
+  assert.equal(logo.readUInt32BE(16), 540);
+  assert.equal(logo.readUInt32BE(20), 107);
+  const source = src("lib/nfse/danfsePdf.ts");
+  assert.match(source, /pdf\.embedPng\(Buffer\.from\(NFSE_OFFICIAL_LOGO_PNG_BASE64, "base64"\)\)/);
+  assert.match(source, /officialLogoWidth = 4\.00 \* CM_TO_PT/);
+  assert.match(source, /officialLogoHeight = 0\.85 \* CM_TO_PT/);
+  assert.match(source, /x: 0\.49 \* CM_TO_PT/);
+  assert.match(source, /PAGE_HEIGHT - 0\.44 \* CM_TO_PT - officialLogoHeight/);
+  assert.ok(!source.includes("logo do jornal"), "o DANFSe nao deve conter marca de prestador no cabecalho");
+  const pdf = await PDFDocument.load(await buildDanfsePdf(DANFSE_PREVIEW_FIXTURE));
+  assert.equal(pdf.getPageCount(), 1);
+  const bytes = await pdf.save();
+  assert.ok(bytes.length > logo.length, "PDF deve incorporar a imagem alem dos campos fiscais");
+  assert.equal(DANFSE_OFFICIAL_LAYOUT_APPROVED, false);
+});
+
+test("NT008: ambiente gerador vem do XML, sem constante inventada", () => {
+  const source = readFileSync(new URL("../../../packages/core/src/nfse/danfse-data.ts", import.meta.url), "utf8");
+  assert.match(source, /environmentGenerator: directText\(infNFSe, "ambGer"\)/);
+  assert.match(src("lib/nfse/danfsePdf.ts"), /dash\(data\.environmentGenerator\)/);
+  assert.equal(DANFSE_PREVIEW_FIXTURE.environmentGenerator, undefined);
 });
