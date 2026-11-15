@@ -208,3 +208,12 @@ test("cancelamento: chave da nota em outro grupo XML nunca confirma", async () =
   assert.equal((await service.submit("cancel-test", true)).outcome, "uncertain");
   assert.equal(repo.current.status, "uncertain");
 });
+
+test("cancelamento: XML com prefixo de namespace ainda identifica o evento fiscal correto", async () => {
+  const prefixed = syntheticCancellationResponse()
+    .replace(/<(\/?)(evento|infEvento|nSeqEvento|pedRegEvento|infPedReg|tpAmb|chNFSe|e101101|xDesc|cMotivo|xMotivo)(?=[\s>])/g, "<$1n:$2")
+    .replace("<n:evento>", '<n:evento xmlns:n="http://www.sped.fazenda.gov.br/nfse">');
+  const { service, repo } = makeService({ eventXml: prefixed });
+  assert.equal((await service.submit("cancel-test", true)).outcome, "confirmed");
+  assert.equal(repo.current.status, "confirmed");
+});
