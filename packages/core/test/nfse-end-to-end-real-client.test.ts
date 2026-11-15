@@ -171,7 +171,7 @@ function fakeNfseXml(dpsId = END_TO_END_DPS_ID): string {
   // senão a verificação de associação prestador/DPS (sefin-nacional-client.ts, item 3 da
   // auditoria estrutural de 26/10/2026) rejeitaria esta fixture como se fosse de outro CNPJ.
   return (
-    '<NFSe versao="1.01"><infNFSe Id="NFS42164041199999999999999999900000000012026100001"><nNFSe>12</nNFSe>' +
+    '<NFSe versao="1.01"><infNFSe Id="NFS42164041199999999999999999900000000012026100001"><nNFSe>12</nNFSe><cStat>100</cStat>' +
     `<dhProc>2026-10-25T12:00:00Z</dhProc><emit><CNPJ>23970969000190</CNPJ></emit><DPS><infDPS Id="${dpsId}"><tpAmb>2</tpAmb></infDPS></DPS></infNFSe></NFSe>`
   );
 }

@@ -13,7 +13,7 @@ const SIGNED_DPS_XML =
 
 function fakeNfseXml(cnpj: string = ISSUER_CNPJ): string {
   return (
-    '<NFSe versao="1.01"><infNFSe Id="NFS42164041199999999999999999900000000012026100001"><nNFSe>12</nNFSe>' +
+    '<NFSe versao="1.01"><infNFSe Id="NFS42164041199999999999999999900000000012026100001"><nNFSe>12</nNFSe><cStat>100</cStat>' +
     `<dhProc>2026-10-25T12:00:00Z</dhProc><emit><CNPJ>${cnpj}</CNPJ></emit><DPS><infDPS Id="${SENT_DPS_ID}"><tpAmb>2</tpAmb></infDPS></DPS></infNFSe></NFSe>`
   );
 }
@@ -393,4 +393,51 @@ test("SEFIN: resposta autorizada com chave de acesso incompleta nunca gera nota 
       error.code === "NFSE_INVALID_RESPONSE" && /TSChaveNFSe/.test(error.message),
   );
   await mock.close();
+});
+
+test("SEFIN: HTTP 200 com XML sem cStat válido nunca registra autorização", async () => {
+  const source = fakeNfseXml();
+  const invalidXmls = [
+    source.replace("<cStat>100</cStat>", ""),
+    source.replace("<cStat>100</cStat>", "<cStat>999</cStat>"),
+    source.replace("<cStat>100</cStat>", "<cStat>0</cStat>"),
+    source.replace("<nNFSe>12</nNFSe>", "<nNFSe>0</nNFSe>"),
+    source.replace("<nNFSe>12</nNFSe>", "<nNFSe>012</nNFSe>"),
+    source.replace("<dhProc>2026-10-25T12:00:00Z</dhProc>", "<dhProc>sem-data</dhProc>"),
+    source.replace("<NFSe versao=", "<outro versao=").replace("</NFSe>", "</outro>"),
+    "<!DOCTYPE NFSe>" + source,
+  ];
+  for (const xml of invalidXmls) {
+    const mock = new MockAgent();
+    mock.disableNetConnect();
+    mock.get("https://sefin.producaorestrita.nfse.gov.br")
+      .intercept({ path: "/API/SefinNacional/nfse", method: "POST" })
+      .reply(200, {
+        chaveAcesso: "421640" + "23970969000190" + "0".repeat(30),
+        nfseXmlGZipB64: gzipSync(Buffer.from(xml, "utf8")).toString("base64"),
+      });
+    const client = new SefinNacionalClient(mock, 2_000, () => undefined);
+    await assert.rejects(
+      () => client.transmitDps(SIGNED_DPS_XML, "homologation"),
+      (error: unknown) => error instanceof NfseIntegrationError && error.code === "NFSE_INVALID_RESPONSE",
+    );
+    await mock.close();
+  }
+});
+
+test("SEFIN: outros cStat de NFS-e gerada previstos no XSD não são rejeitados artificialmente", async () => {
+  for (const statusCode of ["102", "103", "107"]) {
+    const mock = new MockAgent();
+    mock.disableNetConnect();
+    mock.get("https://sefin.producaorestrita.nfse.gov.br")
+      .intercept({ path: "/API/SefinNacional/nfse", method: "POST" })
+      .reply(200, {
+        chaveAcesso: "421640" + "23970969000190" + "0".repeat(30),
+        nfseXmlGZipB64: gzipSync(Buffer.from(fakeNfseXml().replace("<cStat>100</cStat>", `<cStat>${statusCode}</cStat>`), "utf8")).toString("base64"),
+      });
+    const client = new SefinNacionalClient(mock, 2_000, () => undefined);
+    const result = await client.transmitDps(SIGNED_DPS_XML, "homologation");
+    assert.equal(result.status, "authorized");
+    await mock.close();
+  }
 });
