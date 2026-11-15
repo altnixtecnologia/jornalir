@@ -19,9 +19,24 @@ import { assertDanfseLayoutApproved } from "./danfseReleaseGate";
  * assertDanfseLayoutApproved() NÃO é configurável por env.
  */
 
-const PAGE_WIDTH = 595; // A4 @ 72dpi
-const PAGE_HEIGHT = 842;
-const MARGIN = 20; // ~0,7cm — dentro do mínimo exigido (0,15-0,20cm + folga de segurança de impressão)
+const PAGE_WIDTH = 595; // A4 em pontos PDF (210 mm)
+const PAGE_HEIGHT = 842; // A4 em pontos PDF (297 mm)
+const CM_TO_PT = 72 / 2.54;
+/**
+ * NT 008/2026 v1.02, §2.2.2: borda do documento a 0,15–0,20 cm
+ * de CADA extremidade da folha. O protótipo anterior usava margem
+ * externa de 16 pt (0,56 cm), fora do intervalo regulamentar.
+ *
+ * Os 4 pt adicionais são o recuo INTERNO entre borda e conteúdo;
+ * não compõem a margem entre a borda impressa e a folha.
+ */
+export const DANFSE_GEOMETRY = {
+  outerBorderMarginCm: 0.18,
+  innerPaddingPt: 4,
+  qrXcm: 17.48,
+  qrYcm: 1.67, // referência do canto SUPERIOR esquerdo do papel
+} as const;
+const MARGIN = DANFSE_GEOMETRY.outerBorderMarginCm * CM_TO_PT + DANFSE_GEOMETRY.innerPaddingPt;
 const CONTENT_WIDTH = PAGE_WIDTH - MARGIN * 2;
 const GRAY_SHADING = rgb(0.95, 0.95, 0.95);
 const BLACK = rgb(0, 0, 0);
@@ -184,10 +199,10 @@ export async function buildDanfsePdf(data: DanfseData, options: { cancelled?: bo
   const qrPngDataUrl = await QRCode.toDataURL(`${QR_BASE_URL}${data.accessKey}`, { margin: 0, width: 256 });
   const qrPngBase64 = qrPngDataUrl.split(",")[1] ?? "";
   const qrImage = await pdf.embedPng(Buffer.from(qrPngBase64, "base64"));
-  const qrSize = 70;
-  const qrX = PAGE_WIDTH - MARGIN - qrSize - 4;
+  const qrSize = 70; // 2,47 cm > mínimo de 1,52 cm
+  const qrX = DANFSE_GEOMETRY.qrXcm * CM_TO_PT;
   cursor.y -= 20;
-  const qrY = cursor.y - qrSize;
+  const qrY = PAGE_HEIGHT - DANFSE_GEOMETRY.qrYcm * CM_TO_PT - qrSize;
   page.drawImage(qrImage, { x: qrX, y: qrY, width: qrSize, height: qrSize });
   // NT 008/2026 § 2.4.3: legenda completa em TRÊS linhas, sem invadir margem
   // ou a terceira coluna de identificação. A posição do QR é independente.
