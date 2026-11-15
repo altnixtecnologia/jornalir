@@ -300,11 +300,37 @@ export class SefinNacionalClient {
   }
 
   private extractNfseFields(nfseXml: string): { nfseNumber: string; issuedAt: string } {
+    // Uma resposta HTTP 2xx não basta para classificar uma NFS-e como
+    // AUTORIZADA. Confirmar a situação fiscal do XML (TStat oficial),
+    // o número sequencial e a data de processamento antes de persistir.
+    if (/<!(?:DOCTYPE|ENTITY)\b/i.test(nfseXml)) {
+      throw new NfseIntegrationError("NFSE_INVALID_RESPONSE", "XML da NFS-e não aceita declarações DTD/ENTITY.");
+    }
     const doc = new DOMParser().parseFromString(nfseXml, "text/xml");
-    const nNFSe = doc.getElementsByTagName("nNFSe")[0]?.textContent?.trim();
-    const dhProc = doc.getElementsByTagName("dhProc")[0]?.textContent?.trim();
-    if (!nNFSe || !dhProc) {
-      throw new NfseIntegrationError("NFSE_INVALID_RESPONSE", "XML da NFS-e autorizada sem nNFSe/dhProc — não corresponde ao esquema oficial esperado.");
+    if (doc.documentElement?.localName !== "NFSe" || doc.getElementsByTagName("parsererror").length) {
+      throw new NfseIntegrationError("NFSE_INVALID_RESPONSE", "Resposta com raiz XML diferente de NFSe ou XML inválido.");
+    }
+    const infNFSe = doc.getElementsByTagName("infNFSe")[0];
+    if (!infNFSe) {
+      throw new NfseIntegrationError("NFSE_INVALID_RESPONSE", "XML autorizado sem grupo infNFSe.");
+    }
+    const status = infNFSe.getElementsByTagName("cStat")[0]?.textContent?.trim();
+    // Enumerations TStat em tiposSimples_v1.01.xsd (pacote oficial
+    // Produção Restrita de 20/10/2026): 100, 102, 103, 107.
+    if (!status || !["100", "102", "103", "107"].includes(status)) {
+      throw new NfseIntegrationError(
+        "NFSE_INVALID_RESPONSE",
+        "HTTP 2xx sem cStat de NFS-e gerada permitido pelo XSD oficial: resultado de transmissão incerto.",
+      );
+    }
+    const nNFSe = infNFSe.getElementsByTagName("nNFSe")[0]?.textContent?.trim();
+    const dhProc = infNFSe.getElementsByTagName("dhProc")[0]?.textContent?.trim();
+    if (!nNFSe || !/^[1-9][0-9]{0,12}$/.test(nNFSe) ||
+        !dhProc || !Number.isFinite(Date.parse(dhProc))) {
+      throw new NfseIntegrationError(
+        "NFSE_INVALID_RESPONSE",
+        "XML da NFS-e autorizada sem nNFSe/dhProc válidos conforme o esquema oficial.",
+      );
     }
     return { nfseNumber: nNFSe, issuedAt: dhProc };
   }
