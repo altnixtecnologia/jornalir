@@ -1,4 +1,5 @@
 import "server-only";
+import { createHash } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { NfseIssuedNote } from "@ir/types";
 import { extractDanfseData } from "@ir/core/src/nfse/danfse-data";
@@ -45,7 +46,15 @@ export async function archiveNfseDocuments(
       .eq("issued_note_id", note.id).eq("kind", entry.kind).maybeSingle();
     if (readError) throw new Error(readError.message);
     if (existing) {
-      // A prova de integridade exige o R2; nunca usar metadados falsos.
+      // Um registro R2 integro pode, mesmo assim, pertencer a um XML antigo
+      // da mesma nota (ou ter sido associado ao registro errado).
+      // Nunca reutilizar um XML com bytes diferentes do persistido na NFS-e.
+      const sourceSha = typeof entry.bytes === "function" ? null :
+        createHash("sha256").update(entry.bytes).digest("hex");
+      if (sourceSha && existing.sha256 !== sourceSha) {
+        throw new Error("XML fiscal arquivado diverge dos bytes atuais da NFS-e; entrega bloqueada.");
+      }
+      // A prova de integridade exige ler os bytes do R2; metadados isolados nao bastam.
       await deps.read(existing.r2_key, existing.sha256);
       result[entry.kind] = existing as AssetRow;
       continue;
@@ -54,6 +63,11 @@ export async function archiveNfseDocuments(
     const upload = await deps.save({
       noteId: note.id, environment: note.environment, kind: entry.kind, data: bytes,
     });
+    // Conferir o retorno do armazenamento antes de persistir o indice fiscal.
+    if (upload.sha256 !== createHash("sha256").update(bytes).digest("hex") ||
+        upload.sizeBytes !== bytes.length) {
+      throw new Error("R2 retornou metadados de integridade divergentes; documento nao registrado.");
+    }
     const { data, error } = await admin.from("nfse_document_assets").insert({
       issued_note_id: note.id, kind: entry.kind,
       r2_key: upload.key, sha256: upload.sha256, size_bytes: upload.sizeBytes,
@@ -65,6 +79,8 @@ export async function archiveNfseDocuments(
         .select("id,issued_note_id,kind,r2_key,sha256,size_bytes,content_type")
         .eq("issued_note_id", note.id).eq("kind", entry.kind).maybeSingle();
       if (raced.error || !raced.data || raced.data.sha256 !== upload.sha256) throw new Error(error.message);
+      // Mesmo SHA no banco nao prova que a chave vencedora existe e esta integra.
+      await deps.read(raced.data.r2_key, raced.data.sha256);
       result[entry.kind] = raced.data as AssetRow;
     } else {
       result[entry.kind] = data as AssetRow;
