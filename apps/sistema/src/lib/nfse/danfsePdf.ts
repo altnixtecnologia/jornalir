@@ -251,7 +251,7 @@ export async function buildDanfsePdf(data: DanfseData, options: { cancelled?: bo
   drawField(page, bold, regular, "Série da DPS", data.dpsSeries, MARGIN + idFieldWidth, cursor.y, idFieldWidth, false, true);
   drawField(page, bold, regular, "Data/Hora da Emissão da DPS", formatDanfseDateTime(data.dpsIssuedAt), MARGIN + idFieldWidth * 2, cursor.y, idFieldWidth, false, true);
   cursor.y -= 20;
-  drawField(page, bold, regular, "Emitente da NFS-e", data.issuerLabel, MARGIN, cursor.y, idFieldWidth * 2, true, true, true);
+  drawField(page, bold, regular, "Emitente da NFS-e", data.issuerLabel, MARGIN, cursor.y, idFieldWidth * 2, true, true);
   drawField(page, bold, regular, "Situação da NFS-e", data.statusLabel, MARGIN + idFieldWidth * 2, cursor.y, idFieldWidth, false, true);
   cursor.y -= 20;
   drawField(page, bold, regular, "Finalidade", data.purposeLabel, MARGIN, cursor.y, contentColumnWidth, false, true);
