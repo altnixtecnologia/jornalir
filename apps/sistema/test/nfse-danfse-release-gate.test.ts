@@ -249,3 +249,36 @@ test("NT008: ambiente gerador vem do XML, sem constante inventada", () => {
   assert.match(src("lib/nfse/danfsePdf.ts"), /dash\(data\.environmentGenerator\)/);
   assert.equal(DANFSE_PREVIEW_FIXTURE.environmentGenerator, undefined);
 });
+
+test("DANFSe ficticio suporta nomes, enderecos, descricao e complemento extensos sem cortar conteudo", async () => {
+  const fixture = {
+    ...DANFSE_PREVIEW_FIXTURE,
+    prestador: {
+      ...DANFSE_PREVIEW_FIXTURE.prestador,
+      name: "PRESTADOR FICTICIO COM RAZAO SOCIAL ESTENDIDA PARA TESTAR A QUEBRA AUTOMATICA",
+      address: "Rua de Teste com Nome Comprido, numero 100, sala 205, complemento administrativo, bairro de testes, SC",
+    },
+    tomador: {
+      ...DANFSE_PREVIEW_FIXTURE.tomador!,
+      name: "TOMADOR FICTICIO COM NOME EXTENSO E CAMPOS DE IDENTIFICACAO PARA INSPECAO",
+      address: "Avenida Ficticia de Teste, numero 123, bloco 04, sala 102, complemento e bairro extenso",
+    },
+    serviceDescription: "Veiculacao de campanha institucional ficticia em jornal impresso com especificacoes de formato, periodo de veiculacao, referencia contratual e outras condicoes. ".repeat(3) + "FIM_DESCRICAO_VISIVEL",
+    complementaryInformation: "PEDIDO FICTICIO 001, REFERENCIA ADMINISTRATIVA E OBSERVACOES DE PAGAMENTO. ".repeat(2) + "FIM_COMPLEMENTO_VISIVEL",
+  };
+  const bytes = await buildDanfsePdf(fixture);
+  const pdf = await loadPdfDocument(bytes);
+  assert.equal(pdf.numPages, 1);
+  const items = await extractPageTextItems(await pdf.getPage(1));
+  const visible = items.map((item) => item.text).join(" ");
+  assert.ok(visible.includes("FIM_DESCRICAO_VISIVEL"), "nao pode apagar o final da descricao");
+  assert.ok(visible.includes("FIM_COMPLEMENTO_VISIVEL"), "nao pode apagar o final das observacoes");
+});
+
+test("DANFSe ficticio falha fechado caso o conteudo nao caiba em uma pagina A4", async () => {
+  const fixture = {
+    ...DANFSE_PREVIEW_FIXTURE,
+    serviceDescription: "SERVICO_FICTICIO_COM_LONGA_DESCRICAO ".repeat(1800),
+  };
+  await assert.rejects(() => buildDanfsePdf(fixture), /excede a area util A4|excede a área útil A4/);
+});
