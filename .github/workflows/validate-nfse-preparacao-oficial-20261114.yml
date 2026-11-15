@@ -12,6 +12,8 @@ on:
       - "apps/sistema/src/app/sistema/nfse/**"
       - "apps/sistema/test/prepublication-release-gates.test.ts"
       - "apps/sistema/test/nfse-preparacao-oficial.test.ts"
+      - "apps/sistema/next.config.mjs"
+      - "apps/sistema/test/verify-nfse-xsd-trace.mjs"
       - ".github/workflows/validate-nfse-preparacao-oficial-20261114.yml"
   workflow_dispatch:
 
@@ -64,3 +66,6 @@ jobs:
         env:
           NODE_ENV: production
         run: npm run build --workspace @ir/sistema
+
+      - name: Verificar se XSDs oficiais acompanham as funcoes serverless
+        run: node apps/sistema/test/verify-nfse-xsd-trace.mjs
