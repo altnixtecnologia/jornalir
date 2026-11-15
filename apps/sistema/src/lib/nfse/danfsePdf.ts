@@ -72,6 +72,16 @@ function formatMoney(value: number | string | undefined): string {
   if (!Number.isFinite(n)) return "-";
   return n.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 }
+/** Total IBS + CBS somente quando os DOIS valores constam no XML.
+ * Nunca transformar ausência de CBS ou IBS em zero presumido. */
+export function formatDanfseTotalIbsCbs(data: Pick<DanfseData, "ibsCbsTotal" | "ibsCbsValueFederal">): string {
+  if (data.ibsCbsTotal === undefined || data.ibsCbsValueFederal === undefined) return "-";
+  const ibs = Number(data.ibsCbsTotal);
+  const cbs = Number(data.ibsCbsValueFederal);
+  if (!Number.isFinite(ibs) || !Number.isFinite(cbs)) return "-";
+  return formatMoney((Math.round(ibs * 100) + Math.round(cbs * 100)) / 100);
+}
+
 function dash(value: string | undefined): string {
   return value && value.length > 0 ? value : "-";
 }
@@ -468,7 +478,7 @@ export async function buildDanfsePdf(data: DanfseData, options: { cancelled?: bo
   cursor.y -= 20;
   drawField(page, bold, regular, "Total das Retenções (ISSQN / Federais)", formatMoney(data.totalRetained), MARGIN, cursor.y, quarter);
   drawField(page, bold, regular, "Valor Líquido da NFS-e", formatMoney(data.netValue), MARGIN + quarter, cursor.y, quarter);
-  drawField(page, bold, regular, "Total do IBS/CBS", formatMoney(data.ibsCbsTotal), MARGIN + 2 * quarter, cursor.y, quarter);
+  drawField(page, bold, regular, "Total do IBS/CBS", formatDanfseTotalIbsCbs(data), MARGIN + 2 * quarter, cursor.y, quarter);
   drawField(page, bold, regular, "Valor Líquido da NFS-e + IBS/CBS", formatMoney(data.grossTotalWithIbsCbs), MARGIN + 3 * quarter, cursor.y, quarter, true);
   cursor.y -= 22;
 
