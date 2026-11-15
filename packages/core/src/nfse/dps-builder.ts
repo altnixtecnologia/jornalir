@@ -85,11 +85,14 @@ function buildToma(tomador: DpsBuildInput["tomador"]): string {
  * perfil). `cTribMun`/`cNBS` só aparecem se o perfil tiver informado
  * (campos opcionais no XSD).
  */
-function buildServ(fiscal: DpsBuildInput["fiscal"], issuerIbgeCode: string, serviceDescription: string): string {
+function buildServ(fiscal: DpsBuildInput["fiscal"], issuerIbgeCode: string, serviceDescription: string, fiscalObservation?: string, purchaseOrderNumber?: string): string {
   const locPrestacao = fiscal.locationIbgeCode || issuerIbgeCode;
   const locPrest = `<locPrest>${tag("cLocPrestacao", locPrestacao)}</locPrest>`;
   const cServ = [tag("cTribNac", onlyDigits(fiscal.cTribNac)), tag("cTribMun", onlyDigits(fiscal.cTribMun)), tag("xDescServ", serviceDescription), tag("cNBS", onlyDigits(fiscal.cNBS))].join("");
-  return `${locPrest}<cServ>${cServ}</cServ>`;
+  // TCServ/infoCompl -> TCInfoCompl: xPed precede xInfComp.
+  // Não misturar o texto notes interno com o XML fiscal.
+  const complement = [tag("xPed", purchaseOrderNumber?.trim()), tag("xInfComp", fiscalObservation?.trim())].join("");
+  return `${locPrest}<cServ>${cServ}</cServ>${complement ? `<infoCompl>${complement}</infoCompl>` : ""}`;
 }
 
 /**
@@ -127,6 +130,12 @@ export function buildDpsXml(input: DpsBuildInput): string {
   if (!isValidNfseCompetencyDate(input.competencyDate)) {
     throw new Error("DPS bloqueada: competência inválida no calendário.");
   }
+  if ((input.fiscalObservation?.trim().length ?? 0) > 2000) {
+    throw new Error("DPS bloqueada: informações complementares excedem o máximo oficial de 2.000 caracteres.");
+  }
+  if ((input.purchaseOrderNumber?.trim().length ?? 0) > 60) {
+    throw new Error("DPS bloqueada: pedido/ordem de compra excede 60 caracteres.");
+  }
   const dhEmi = formatDhEmi(new Date());
   // Id do infDPS (ver buildDpsId em @ir/types) — referenciado pela
   // assinatura XML via Reference URI="#"+Id (ver signature.ts).
@@ -140,7 +149,7 @@ export function buildDpsXml(input: DpsBuildInput): string {
 
   const prest = buildPrest(input.issuer);
   const toma = buildToma(input.tomador);
-  const serv = buildServ(input.fiscal, input.issuer.ibgeCode, input.serviceDescription);
+  const serv = buildServ(input.fiscal, input.issuer.ibgeCode, input.serviceDescription, input.fiscalObservation, input.purchaseOrderNumber);
   const valores = buildValores(input.serviceValue);
 
   // Ordem exata conforme TCInfDPS (xsd/prodrest-v1.01-20261020/tiposComplexos_v1.01.xsd).
