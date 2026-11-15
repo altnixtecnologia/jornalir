@@ -5,10 +5,11 @@ import { DOMParser } from "@xmldom/xmldom";
 import type { NfseEnvironment } from "@ir/types";
 import { assertNfseOperationAllowed, getNfseEnvironmentConfig } from "./environment";
 import { NfseIntegrationError, normalizeNfseTransportError } from "./integration-errors";
+import { NFSE_MAX_RESPONSE_BYTES, readBoundedNfseBody } from "./bounded-http-body";
 import { defaultNfseLogger, type NfseLogger } from "./municipal-parameters-client";
 import type { NationalNfseResponseEnvelope } from "./dps-builder";
 
-const MAX_RESPONSE_BYTES = 2 * 1024 * 1024;
+const MAX_RESPONSE_BYTES = NFSE_MAX_RESPONSE_BYTES;
 
 export interface NationalEventResponseEnvelope {
   status: "registered" | "rejected";
@@ -264,6 +265,14 @@ export class SefinNacionalClient {
     } catch {
       throw new NfseIntegrationError("NFSE_INVALID_RESPONSE", `HTTP ${status} sem corpo JSON interpretável — não é uma rejeição fiscal confirmada, resultado incerto.`, status);
     }
+    // HTTP 5xx/429/401/403 são falhas de servidor, limitação de taxa
+    // ou credencial — nunca uma decisão fiscal definitiva, mesmo se
+    // o gateway inserir um array "erros" no JSON.
+    if (status >= 500 || status === 429 || status === 401 || status === 403) {
+      throw new NfseIntegrationError(
+        "NFSE_INVALID_RESPONSE", `HTTP ${status} não confirma rejeição fiscal; o resultado da transmissão permanece incerto.`, status,
+      );
+    }
     const erros = Array.isArray(json.erros) ? json.erros : [];
     const first = erros[0] as { Codigo?: unknown; Descricao?: unknown; codigo?: unknown; descricao?: unknown } | undefined;
     if (!first) {
@@ -354,14 +363,7 @@ export class SefinNacionalClient {
         signal: AbortSignal.timeout(this.timeoutMs),
       });
       status = response.status;
-      const declaredLength = Number(response.headers.get("content-length") ?? 0);
-      if (declaredLength > MAX_RESPONSE_BYTES) {
-        throw new NfseIntegrationError("NFSE_INVALID_RESPONSE", "A SEFIN Nacional retornou uma resposta maior que o limite de segurança.", status);
-      }
-      const body = await response.text();
-      if (Buffer.byteLength(body, "utf8") > MAX_RESPONSE_BYTES) {
-        throw new NfseIntegrationError("NFSE_INVALID_RESPONSE", "A SEFIN Nacional retornou uma resposta maior que o limite de segurança.", status);
-      }
+      const body = await readBoundedNfseBody(response);
       this.logger({ operation: method, environment, logicalEndpoint, status, durationMs: Date.now() - startedAt, message: "Requisição concluída." });
       return { status, body };
     } catch (error) {
