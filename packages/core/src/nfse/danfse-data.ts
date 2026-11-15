@@ -335,8 +335,8 @@ export function extractDanfseData(issuedNote: Pick<NfseIssuedNote, "environment"
   const replacementGroup = directChild(infDPS, "subst");
   const constructionGroup = directChild(serv, "obra");
   const eventGroup = directChild(serv, "atvEvento");
-  const propertyGroup = directChild(dpsIbsCbs, "imovel");
   const dpsIbsCbs = infDPS.getElementsByTagName("IBSCBS")[0];
+  const propertyGroup = directChild(dpsIbsCbs, "imovel");
   // No XSD de Produção Restrita, indDest=0 comprova que o destinatário
   // é o próprio tomador; indDest=1 identifica um destinatário diferente
   // no grupo IBSCBS/dest. Sem indDest, o PDF NÃO pode afirmar igualdade.
