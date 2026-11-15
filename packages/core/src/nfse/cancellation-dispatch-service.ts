@@ -18,22 +18,51 @@ export interface CancellationDispatchResult {
   request: NfseCancellationRequest;
 }
 
-/** 
- * O retorno remoto do evento ainda precisa ser confirmado no Swagger
- * autenticado. Falha FECHADO: apenas um XML com chave e tipo corretos
- * pode marcar um cancelamento como confirmado.
+type XmlDoc = ReturnType<DOMParser["parseFromString"]>;
+type XmlElement = NonNullable<XmlDoc["documentElement"]>;
+
+/** Busca apenas elementos FILHOS diretos, nunca qualquer descendente. */
+function directChild(parent: XmlElement | null | undefined, tagName: string): XmlElement | undefined {
+  if (!parent) return undefined;
+  const nodes = parent.getElementsByTagName(tagName);
+  for (let i = 0; i < nodes.length; i += 1) {
+    const node = nodes.item(i);
+    if (node?.parentNode === parent) return node;
+  }
+  return undefined;
+}
+
+/**
+ * A resposta de registro é verificada por ESTRUTURA e identidade,
+ * conforme TCEvento/TCInfEvento/TCInfPedReg/TE101101 do XSD vendorizado.
+ * Uma string "e101101" em texto, um <tpEvento> inventado ou a chave
+ * em outro grupo NÃO constituem confirmação de cancelamento.
+ *
+ * O contrato bruto do Swagger mTLS ainda exige validação externa com
+ * A1 antes de habilitar a chamada real. Falha fechada (uncertain).
  */
 function matchesCancellationEvent(xml: string | undefined, accessKey: string): boolean {
-  if (!xml || xml.length > 1024 * 1024) return false;
+  if (!xml || xml.length > 1024 * 1024 || /<!(?:DOCTYPE|ENTITY)\b/i.test(xml)) return false;
   try {
     const doc = new DOMParser().parseFromString(xml, "text/xml");
     if (doc.getElementsByTagName("parsererror").length) return false;
-    const keyNodes = doc.getElementsByTagName("chNFSe");
-    let belongsToNote = false;
-    for (let i = 0; i < keyNodes.length; i++) {
-      if (keyNodes.item(i)?.textContent?.trim() === accessKey) belongsToNote = true;
-    }
-    return belongsToNote && (xml.includes("e101101") || xml.includes("<tpEvento>101101</tpEvento>"));
+    const event = doc.documentElement;
+    if (!event || event.localName !== "evento") return false;
+    const infEvento = directChild(event, "infEvento");
+    const request = directChild(infEvento, "pedRegEvento");
+    const infPedReg = directChild(request, "infPedReg");
+    const cancellation = directChild(infPedReg, "e101101");
+    if (!infEvento || !infPedReg || !cancellation) return false;
+
+    const field = (parent: XmlElement, tagName: string) =>
+      directChild(parent, tagName)?.textContent?.trim();
+    return (
+      field(infEvento, "nSeqEvento") === "001" &&
+      infPedReg.getAttribute("Id") === `PRE${accessKey}101101` &&
+      field(infPedReg, "tpAmb") === "2" &&
+      field(infPedReg, "chNFSe") === accessKey &&
+      field(cancellation, "xDesc") === "Cancelamento de NFS-e"
+    );
   } catch {
     return false;
   }
