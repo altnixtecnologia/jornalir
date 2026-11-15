@@ -13,7 +13,7 @@ const COLUMNS =
   "service_profile_id, c_trib_nac, c_trib_mun, c_nbs, issqn_taxation, fiscal_special_tax_regime, location_municipality, location_ibge_code, " +
   "fiscal_c_atv_sn, fiscal_cst_ibs_cbs, fiscal_c_class_trib, fiscal_c_ind_op, " +
   "fiscal_issuer_simples_nacional_option, fiscal_issuer_ibs_cbs_simples_nacional_regime, fiscal_issuer_special_tax_regime_code, " +
-  "competency_date, service_value, service_description, notes, status, " +
+  "competency_date, service_value, service_description, notes, fiscal_observation, purchase_order_number, status, " +
   "origin_system, origin_type, origin_record_id, commercial_sale_id, " +
   "created_by, updated_by, created_at, updated_at";
 
@@ -56,6 +56,8 @@ interface DraftRow {
   service_value: number;
   service_description: string;
   notes: string | null;
+  fiscal_observation: string | null;
+  purchase_order_number: string | null;
   status: NfseDraftStatus;
   origin_system: string | null;
   origin_type: string | null;
@@ -113,6 +115,8 @@ function toDomain(row: DraftRow): NfseDraft {
     competencyDate: row.competency_date,
     serviceValue: Number(row.service_value),
     serviceDescription: row.service_description,
+    fiscalObservation: row.fiscal_observation ?? undefined,
+    purchaseOrderNumber: row.purchase_order_number ?? undefined,
     notes: row.notes ?? undefined,
     status: row.status,
     originSystem: row.origin_system ?? undefined,
@@ -168,6 +172,8 @@ function toRow(record: NewDraftRecord | DraftChanges): Record<string, unknown> {
   if (record.serviceValue !== undefined) row.service_value = record.serviceValue;
   if (record.serviceDescription !== undefined) row.service_description = record.serviceDescription;
   if (record.notes !== undefined) row.notes = record.notes ?? null;
+  if (record.fiscalObservation !== undefined) row.fiscal_observation = record.fiscalObservation ?? null;
+  if (record.purchaseOrderNumber !== undefined) row.purchase_order_number = record.purchaseOrderNumber ?? null;
   if (record.status !== undefined) row.status = record.status;
   if (record.originSystem !== undefined) row.origin_system = record.originSystem ?? null;
   if (record.originType !== undefined) row.origin_type = record.originType ?? null;
