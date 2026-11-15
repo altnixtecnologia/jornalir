@@ -9,11 +9,12 @@ import { assertDanfseLayoutApproved } from "./danfseReleaseGate";
  * Renderizador PROVISÓRIO de DANFSe para inspeção em homologação visual.
  *
  * NT oficial: 008/2026 v1.02 (14/07/2026), Anexo I, Portal Nacional NFS-e.
- * Não está conforme para uso oficial: faltam tributação federal/IBS/CBS,
- * informações complementares, campos obrigatórios do Simples Nacional,
- * layout geométrico completo e fontes oficiais. A logomarca NFS-e ja esta
- * incorporada no cabecalho do prototipo. Alguns valores atualmente
- * são estáticos e precisam derivar do XML oficial. Sem liberar emissão,
+ * Não está homologado para uso oficial: falta validar a geometria de
+ * todos os cenários e incorporar as fontes Arial/Microsoft Sans Serif
+ * licitamente fornecidas. A logomarca NFS-e e os grupos fiscais principais
+ * estão implementados no protótipo; dados fiscais vêm do XML autorizado
+ * nas rotas de notas e de fixture estritamente fictícia na prévia.
+ * Sem liberar emissão,
  * download ou arquivamento de DANFSe de produção até sanar os pontos.
  *
  * O gerador pode continuar produzindo PDF de teste com aviso
@@ -145,6 +146,33 @@ export function danfseFederalValues(data: Pick<DanfseData, "federalSocialContrib
   }
   const cents = values.reduce<number>((sum, value) => sum + Math.round(Number(value) * 100), 0);
   return { social: formatMoney(cents / 100), pis: formatMoney(0), cofins: formatMoney(0) };
+}
+
+/** NT 008 v1.02, Anexo I: compõe os complementos NA ORDEM prescrita.
+ * O conteúdo é uma representação resumida da DPS; o XML permanece íntegro.
+ * Apenas os complementos (não o total de tributos) podem receber reticências
+ * após 1.997 caracteres. A linha obrigatória de tributos fica preservada.
+ * Campos sem informação jamais geram valores fiscais fictícios. */
+export function buildDanfseComplementary(data: DanfseData): string {
+  const parts: string[] = [];
+  const add = (label: string, value: string | undefined): void => {
+    if (value?.trim()) parts.push(`${label}: ${value.trim()}`);
+  };
+  add("Inf. Cont.", data.complementaryInformation);
+  add("NFS-e Subst.", data.replacedNoteAccessKey);
+  add("Doc. Ref.", data.referencedDocument);
+  add("Cod. Obra", data.constructionCode);
+  add("Insc. Imob.", data.propertyRegistration);
+  add("Cod. Evt.", data.eventActivityCode);
+  add("Doc. Tec.", data.technicalDocumentId);
+  add("Núm. Ped.", data.purchaseOrderNumber);
+  add("Item Ped.", data.purchaseOrderItem);
+  add("Inf. A. T. Mun.", data.municipalAdditionalInformation);
+  const details = parts.join(" | ");
+  const shortDetails = details.length <= 1997 ? details : details.slice(0, 1994).trimEnd() + "...";
+  const taxTotals = "Totais Aproximados dos Tributos cfe. Lei nº 12.741/2012: " +
+    (data.taxApproxTotals || "Federais: -; Estaduais: -; Municipais: -");
+  return shortDetails ? shortDetails + " | " + taxTotals : taxTotals;
 }
 
 export function formatFederalInscription(value: string): string {
@@ -339,8 +367,13 @@ function drawBorder(page: PDFPage): void {
   page.drawRectangle({ x: MARGIN - 4, y: MARGIN - 4, width: PAGE_WIDTH - (MARGIN - 4) * 2, height: PAGE_HEIGHT - (MARGIN - 4) * 2, borderColor: BLACK, borderWidth: 1 });
 }
 
-export async function buildDanfsePdf(data: DanfseData, options: { cancelled?: boolean } = {}): Promise<Uint8Array> {
+export async function buildDanfsePdf(
+  data: DanfseData, options: { cancelled?: boolean; substituted?: boolean } = {},
+): Promise<Uint8Array> {
   assertDanfseLayoutApproved(data.isHomologation);
+  if (options.cancelled && options.substituted) {
+    throw new Error("DANFSe com situações de cancelamento e substituição simultâneas: verificação manual obrigatória.");
+  }
   const pdf = await PDFDocument.create();
   const regular = await pdf.embedFont(StandardFonts.Helvetica);
   const bold = await pdf.embedFont(StandardFonts.HelveticaBold);
@@ -583,20 +616,21 @@ export async function buildDanfsePdf(data: DanfseData, options: { cancelled?: bo
   // (NT 008 § 2.3.3) e foi suprimido para manter uma página A4.
   drawBlockTitle(page, bold, "Informações Complementares", cursor.y);
   cursor.y -= 11;
-  const complementary = [
-    data.complementaryInformation,
-    data.purchaseOrderNumber ? `Item Ped.: ${data.purchaseOrderNumber}` : undefined,
-    data.municipalAdditionalInformation,
-    data.taxApproxTotals ? `Totais Aproximados dos Tributos cfe. Lei nº 12.741/2012: ${data.taxApproxTotals}` : undefined,
-  ].filter(Boolean).join(" | ");
-  cursor.y -= drawWrappedField(page, bold, regular, "Dados complementares da NFS-e", complementary || "-", MARGIN, cursor.y, CONTENT_WIDTH);
+  const complementary = buildDanfseComplementary(data);
+  cursor.y -= drawWrappedField(page, bold, regular, "Dados complementares da NFS-e", complementary, MARGIN, cursor.y, CONTENT_WIDTH);
   if (cursor.y < MARGIN + 14) {
     throw new Error("DANFSe de homologação excede a área útil A4 — layout bloqueado, sem gerar arquivo cortado.");
   }
 
-  // MARCA D'ÁGUA "CANCELADA" (seção 2.5.1) — diagonal, cinza, Arial/Helvetica, nunca abaixo de 50pt.
-  if (options.cancelled) {
-    page.drawText("CANCELADA", {
+  // NT 008 §§ 2.5.1-2.5.2: status mutuamente exclusivo.
+  // chSubstda na NOVA nota aponta para a ANTIGA nota substituída;
+  // não é prova de que a nova nota foi substituída. Somente um evento
+  // confirmado da própria nota pode ativar options.substituted.
+  // O PDF real permanece bloqueado até a homologação do layout/fontes.
+  const watermark = options.cancelled ? "CANCELADA"
+    : options.substituted ? "SUBSTITUÍDA" : undefined;
+  if (watermark) {
+    page.drawText(watermark, {
       x: PAGE_WIDTH / 2 - 180, y: PAGE_HEIGHT / 2, size: 60, font: bold,
       color: rgb(0.65, 0.65, 0.65), rotate: degrees(35),
     });
