@@ -449,23 +449,31 @@ test("NT008: complemento extenso recebe reticências sem ocultar linha obrigató
 });
 
 test("NT008: nota substituída e cancelada geram marcas d'água distintas e mutuamente exclusivas", async () => {
-  const substituted = await buildDanfsePdf({
+  // A NOVA nota com chSubstda é SUBSTITUTA, não SUBSTITUÍDA.
+  const replacement = await buildDanfsePdf({
     ...DANFSE_PREVIEW_FIXTURE, replacedNoteAccessKey: "3".repeat(50),
   });
+  const replacementPdf = await loadPdfDocument(replacement);
+  assert.equal(replacementPdf.numPages, 1);
+  const replacementText = (await extractPageTextItems(await replacementPdf.getPage(1)))
+    .map(item => item.text).join(" ");
+  assert.ok(!replacementText.includes("SUBSTITUÍDA"));
+  assert.ok(replacementText.includes("NFS-e Subst."));
+  // A ANTIGA nota somente recebe SUBSTITUÍDA após evento confirmado.
+  const substituted = await buildDanfsePdf(DANFSE_PREVIEW_FIXTURE, { substituted: true });
   const subPdf = await loadPdfDocument(substituted);
-  assert.equal(subPdf.numPages, 1);
   const substituteText = (await extractPageTextItems(await subPdf.getPage(1)))
     .map(item => item.text).join(" ");
   assert.ok(substituteText.includes("SUBSTITUÍDA"));
-  assert.ok(substituteText.includes("NFS-e Subst."));
   const cancelled = await buildDanfsePdf(DANFSE_PREVIEW_FIXTURE, { cancelled: true });
   const canPdf = await loadPdfDocument(cancelled);
   const cancelText = (await extractPageTextItems(await canPdf.getPage(1)))
     .map(item => item.text).join(" ");
   assert.ok(cancelText.includes("CANCELADA"));
-  await assert.rejects(() => buildDanfsePdf({
-    ...DANFSE_PREVIEW_FIXTURE, replacedNoteAccessKey: "3".repeat(50),
-  }, { cancelled: true }), /situações de cancelamento e substituição simultâneas/);
+  await assert.rejects(
+    () => buildDanfsePdf(DANFSE_PREVIEW_FIXTURE, { cancelled: true, substituted: true }),
+    /situações de cancelamento e substituição simultâneas/,
+  );
 });
 
 test("NT008: parser de tributos aproximados segue XML oficial (vTotTrib / pTotTrib)", () => {
