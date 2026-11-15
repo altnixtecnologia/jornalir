@@ -1,5 +1,6 @@
 import { DOMParser } from "@xmldom/xmldom";
 import type { NfseIssuedNote } from "@ir/types";
+import { isValidNfseAccessKey } from "./access-key";
 
 /**
  * Extração dos dados do DANFSe (Bloco 2, 26/10/2026 — "Extrair os dados
@@ -186,9 +187,10 @@ export function extractDanfseData(issuedNote: Pick<NfseIssuedNote, "environment"
   if (!issuedNote.accessKey || !issuedNote.nfseNumber || !issuedNote.issuedAt) {
     throw new DanfseDataError("NFS-e sem chave de acesso/número/data de autorização — o DANFSe só pode ser gerado a partir de uma NFS-e efetivamente autorizada.");
   }
-  // Chave oficial sempre tem 50 dígitos (NT 008/2026 § 2.1.1); não imprimir QR inválido.
-  if (!/^\d{50}$/.test(issuedNote.accessKey)) {
-    throw new DanfseDataError("Chave de acesso fora do padrão nacional de 50 dígitos — DANFSe bloqueado.");
+  // TSChaveNFSe: 50 caracteres, incluindo CNPJ alfanumérico quando houver.
+  // Nunca gerar QR de uma chave malformada nem rejeitar chave válida com letras.
+  if (!isValidNfseAccessKey(issuedNote.accessKey)) {
+    throw new DanfseDataError("Chave de acesso fora do padrão nacional TSChaveNFSe de 50 caracteres — DANFSe bloqueado.");
   }
   if (!issuedNote.nfseXml || issuedNote.nfseXml.trim().length === 0) {
     throw new DanfseDataError("XML da NFS-e ausente — o DANFSe só pode ser gerado a partir do XML real retornado pela SEFIN.");
