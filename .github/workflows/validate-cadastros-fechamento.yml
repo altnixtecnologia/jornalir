@@ -6,6 +6,10 @@ on:
   pull_request:
     paths:
       - "apps/sistema/src/features/clientes/**"
+      - "apps/sistema/src/features/aniversariantes/BirthdaysList.tsx"
+      - "apps/sistema/src/features/aniversariantes/birthdayDeepLink.ts"
+      - "apps/sistema/src/app/sistema/aniversariantes/page.tsx"
+      - "apps/sistema/test/cadastros-birthday-navigation.test.ts"
       - "apps/sistema/src/app/sistema/clientes/**"
       - "apps/sistema/src/providers/supabase/clientRepository.supabase.ts"
       - "packages/core/src/clientes/**"
@@ -38,6 +42,7 @@ jobs:
         run: |
           npx tsx --test apps/sistema/test/birthday-date-input.test.ts
           NODE_OPTIONS=--conditions=react-server npx tsx --test apps/sistema/test/birthday-entries-legacy-consent-regression.test.ts
+          npx tsx --test apps/sistema/test/cadastros-birthday-navigation.test.ts
       - name: TypeScript do sistema
         run: npm run typecheck --workspace @ir/sistema
       - name: Build do sistema sem publicação
