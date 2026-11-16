@@ -96,7 +96,7 @@ export function BirthdayCityAutocomplete({
             <li key={city} id={`${uniqueId}-${i}`} role="option"
               aria-selected={active === i}>
               <button type="button" className={active === i ? "is-active" : ""}
-                onMouseDown={(e) => e.preventDefault()}
+                onPointerDown={(e) => { e.preventDefault(); selectCity(city); }}
                 onClick={() => selectCity(city)}>
                 {city}
               </button>
