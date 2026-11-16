@@ -21,3 +21,12 @@ export function dayMonthInputFromBirthday(date:string):string{
  const match=/^\d{4}-(\d{2})-(\d{2})$/.exec(date);
  return match?`${match[2]}/${match[1]}`:"";
 }
+
+/**
+ * Digitar 0107 mostra 01/07 sem que o usuário precise inserir a barra.
+ * Mantém somente 4 algarismos; validação de calendário continua no submit.
+ */
+export function maskBirthdayDayMonthInput(value: string): string {
+ const digits=value.replace(/\D/g,"").slice(0,4);
+ return digits.length<=2?digits:`${digits.slice(0,2)}/${digits.slice(2)}`;
+}
