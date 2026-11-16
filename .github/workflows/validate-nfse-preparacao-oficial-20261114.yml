@@ -10,6 +10,13 @@ on:
       - "apps/sistema/test/nfse-schema-preflight.test.ts"
       - "supabase/migrations/20261122341000_nfse_fiscal_observations.sql"
       - "apps/sistema/src/lib/navigation.ts"
+      - "apps/sistema/src/lib/adminBackNavigation.ts"
+      - "apps/sistema/src/components/admin/AdminBackButton.tsx"
+      - "apps/sistema/src/components/admin/AdminShell.tsx"
+      - "apps/sistema/src/components/admin/Tabs.tsx"
+      - "apps/sistema/src/features/nfse/NfseDraftForm.tsx"
+      - "apps/sistema/src/app/globals.css"
+      - "apps/sistema/test/admin-back-navigation.test.ts"
       - "apps/sistema/src/middleware.ts"
       - "apps/sistema/src/components/admin/AdminHeader.tsx"
       - "apps/sistema/src/components/admin/MobileNav.tsx"
@@ -59,6 +66,7 @@ jobs:
         run: >
           npx tsx --test
           apps/sistema/test/nfse-preparacao-oficial.test.ts
+          apps/sistema/test/admin-back-navigation.test.ts
           apps/sistema/test/nfse-schema-preflight.test.ts
           apps/sistema/test/prepublication-release-gates.test.ts
           apps/sistema/test/nfse-p0-release-safety.test.ts

@@ -182,6 +182,7 @@ export const nfseNavGroup: AdminNavGroup = {
   label: "NFS-e",
   links: [
     { label: "Visão geral", href: "/sistema/nfse" },
+    { label: "Nova NFS-e (rascunho)", href: "/sistema/nfse/nova" },
     { label: "Rascunhos", href: "/sistema/nfse/rascunhos" },
     { label: "Notas emitidas", href: "/sistema/nfse/notas" },
     { label: "Perfis de serviço", href: "/sistema/nfse/perfis-servico" },

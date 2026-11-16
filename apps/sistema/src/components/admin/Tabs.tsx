@@ -15,8 +15,19 @@ export interface TabItem {
  * de aba nunca perde valor digitado, e o estado de verdade mora no
  * componente pai de qualquer forma (useState do formulário), nunca aqui.
  */
-export function Tabs({ tabs, defaultTabId }: { tabs: TabItem[]; defaultTabId?: string }): JSX.Element {
+export function Tabs({
+  tabs, defaultTabId, showStepNavigation = false,
+}: { tabs: TabItem[]; defaultTabId?: string; showStepNavigation?: boolean }): JSX.Element {
   const [activeId, setActiveId] = useState(defaultTabId ?? tabs[0]?.id);
+
+  const activeIndex = Math.max(0, tabs.findIndex((tab) => tab.id === activeId));
+
+  function changeStep(nextIndex: number): void {
+    const target = tabs[nextIndex];
+    if (!target) return;
+    setActiveId(target.id);
+    focusTab(target.id);
+  }
 
   function focusTab(id: string): void {
     document.getElementById(`tab-${id}`)?.focus();
@@ -56,6 +67,21 @@ export function Tabs({ tabs, defaultTabId }: { tabs: TabItem[]; defaultTabId?: s
           {tab.content}
         </div>
       ))}
+      {showStepNavigation && tabs.length > 1 ? (
+        <nav className="ir-tabs-step-navigation" aria-label="Navegação entre etapas">
+          <button type="button" onClick={() => changeStep(activeIndex - 1)}
+            disabled={activeIndex === 0} aria-label="Voltar à etapa anterior">
+            ← Anterior
+          </button>
+          <span className="ir-tabs-step-navigation-status" aria-live="polite">
+            Etapa {activeIndex + 1} de {tabs.length}
+          </span>
+          <button type="button" onClick={() => changeStep(activeIndex + 1)}
+            disabled={activeIndex >= tabs.length - 1} aria-label="Avançar à próxima etapa">
+            Próxima →
+          </button>
+        </nav>
+      ) : null}
     </div>
   );
 }

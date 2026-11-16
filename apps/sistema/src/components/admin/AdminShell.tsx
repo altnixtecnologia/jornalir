@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRef, type ReactNode } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { AdminHeader } from "./AdminHeader";
+import { AdminBackButton } from "./AdminBackButton";
 import { MobileNav } from "./MobileNav";
 import { useAuth } from "../../lib/auth/AuthProvider";
 import { getInitials } from "../../lib/auth/accountDisplay";
@@ -72,6 +73,7 @@ export function AdminShell({ children, previewMode = false }: { children: ReactN
         ) : null}
         <AdminHeader onOpenMenu={() => menuRef.current?.showModal()} />
         <main id="admin-content" className="admin-content" tabIndex={-1}>
+          <AdminBackButton />
           {children}
         </main>
         <nav className="mobile-bottom-nav" aria-label="Acesso rápido do sistema">
