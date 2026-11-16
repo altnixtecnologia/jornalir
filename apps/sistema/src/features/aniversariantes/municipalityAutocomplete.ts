@@ -6,6 +6,7 @@
  */
 export interface IbgeMunicipality {
   nome?: unknown;
+  "municipio-nome"?: unknown;
   "UF-sigla"?: unknown;
   microrregiao?: { mesorregiao?: { UF?: { sigla?: unknown } } };
   "regiao-imediata"?: {
@@ -14,12 +15,13 @@ export interface IbgeMunicipality {
 }
 
 export function ibgeMunicipalityLabel(item: IbgeMunicipality): string | null {
-  if (typeof item.nome !== "string" || !item.nome.trim()) return null;
+  const name = item.nome ?? item["municipio-nome"];
+  if (typeof name !== "string" || !name.trim()) return null;
   const rawUF = item["UF-sigla"]
     ?? item.microrregiao?.mesorregiao?.UF?.sigla
     ?? item["regiao-imediata"]?.["regiao-intermediaria"]?.UF?.sigla;
   if (typeof rawUF !== "string" || !/^[A-Z]{2}$/.test(rawUF)) return null;
-  return `${item.nome.trim()} - ${rawUF}`;
+  return `${name.trim()} - ${rawUF}`;
 }
 
 export function municipalityLabels(rows: readonly IbgeMunicipality[]): string[] {
