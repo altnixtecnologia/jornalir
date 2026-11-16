@@ -32,7 +32,9 @@ import {
 } from "./birthdayTypes";
 import { buildBirthdayPreviewSeed } from "./birthdayPreviewData";
 import { fuzzyMatches } from "../../lib/fuzzySearch";
-import {parseBirthdayDateInput,dayMonthInputFromBirthday,yearInputFromBirthday} from "./birthdayDateInput";
+import {parseBirthdayDateInput,dayMonthInputFromBirthday,yearInputFromBirthday,maskBirthdayDayMonthInput} from "./birthdayDateInput";
+import { BirthdayCityAutocomplete } from "./BirthdayCityAutocomplete";
+import { birthdayReportToTSV } from "./birthdayReport";
 import styles from "./BirthdaysList.module.css";
 
 import { ConfirmDialog } from "../../components/admin/ConfirmDialog";
@@ -327,16 +329,17 @@ function EntryRow({
           ) : null}
           <label className={`cadastro-field ${isPrincipal ? "cadastro-field--span-2" : "cadastro-field--span-2"}`}>
             <span className="field-label">Dia/mês (DD/MM)</span>
-            <input type="text" inputMode="numeric" maxLength={5} placeholder="DD/MM" value={editDayMonth} onChange={(e)=>setEditDayMonth(e.target.value)} />
+            <input type="text" inputMode="numeric" maxLength={5} placeholder="DD/MM" value={editDayMonth} onChange={(e)=>setEditDayMonth(maskBirthdayDayMonthInput(e.target.value))} />
           </label>
           <label className="cadastro-field cadastro-field--span-2">
             <span className="field-label">Ano (opcional)</span>
-            <input type="text" inputMode="numeric" maxLength={4} placeholder="Se souber" value={editYear} onChange={(e)=>setEditYear(e.target.value)} />
+            <input type="text" inputMode="numeric" maxLength={4} placeholder="Se souber" value={editYear} onChange={(e)=>setEditYear(e.target.value.replace(/\D/g,"").slice(0,4))} />
           </label>
-          <label className={`cadastro-field ${isPrincipal ? "cadastro-field--span-3" : "cadastro-field--span-2"}`}>
-            <span className="field-label">Cidade para publicação</span>
-            <input type="text" value={draft.city} onChange={(e) => setDraft((d) => ({ ...d, city: e.target.value }))} />
-          </label>
+          <BirthdayCityAutocomplete
+            className={`cadastro-field ${isPrincipal ? "cadastro-field--span-3" : "cadastro-field--span-2"}`}
+            label="Cidade para publicação" value={draft.city}
+            onChange={(city) => setDraft((d) => ({ ...d, city }))}
+          />
           <label className={`cadastro-field ${isPrincipal ? "cadastro-field--span-3" : "cadastro-field--span-3"}`}>
             <span className="field-label">Profissão / atividade <span className="field-optional">(opcional)</span></span>
             <input type="text" value={draft.profession} onChange={(e) => setDraft((d) => ({ ...d, profession: e.target.value }))} />
@@ -868,16 +871,13 @@ function AddMemberForm({ kind, onAdd, localPreview }: { kind: "individual" | "co
         </label>
         <label className="cadastro-field cadastro-field--span-2">
           <span className="field-label">Dia/mês (DD/MM)</span>
-          <input type="text" inputMode="numeric" maxLength={5} placeholder="DD/MM" value={dayMonth} onChange={(e)=>setDayMonth(e.target.value)} />
+          <input type="text" inputMode="numeric" maxLength={5} placeholder="DD/MM" value={dayMonth} onChange={(e)=>setDayMonth(maskBirthdayDayMonthInput(e.target.value))} />
         </label>
         <label className="cadastro-field cadastro-field--span-2">
           <span className="field-label">Ano (opcional)</span>
-          <input type="text" inputMode="numeric" maxLength={4} placeholder="Se souber" value={year} onChange={(e)=>setYear(e.target.value)} />
+          <input type="text" inputMode="numeric" maxLength={4} placeholder="Se souber" value={year} onChange={(e)=>setYear(e.target.value.replace(/\D/g,"").slice(0,4))} />
         </label>
-        <label className="cadastro-field cadastro-field--span-3">
-          <span className="field-label">Cidade</span>
-          <input type="text" value={city} onChange={(e) => setCity(e.target.value)} />
-        </label>
+        <BirthdayCityAutocomplete value={city} onChange={setCity} />
       </div>
       {dateError?<p className="form-error" role="alert">{dateError}</p>:null}
       <div className="aniv-entry-actions">
@@ -1584,7 +1584,7 @@ export function BirthdaysList({ localPreview, initialGroups = [], initialMessage
 
   const [reportCopied, setReportCopied] = useState(false);
   async function copyReport(): Promise<void> {
-    const text = reportRows.map((entry) => `${formatBirthDateShort(entry.birthDate)}\t${entry.displayName}\t${entry.city || ""}`).join("\n");
+    const text = birthdayReportToTSV(reportRows);
     try {
       await navigator.clipboard.writeText(text);
       setReportCopied(true);
@@ -2036,16 +2036,13 @@ function IncludeForm({
           </label>
           <label className="cadastro-field cadastro-field--span-3">
             <span className="field-label">Dia/mês da data</span>
-            <input type="text" inputMode="numeric" maxLength={5} placeholder="DD/MM" value={dayMonth} onChange={(e)=>setDayMonth(e.target.value)} />
+            <input type="text" inputMode="numeric" maxLength={5} placeholder="DD/MM" value={dayMonth} onChange={(e)=>setDayMonth(maskBirthdayDayMonthInput(e.target.value))} />
           </label>
           <label className="cadastro-field cadastro-field--span-2">
             <span className="field-label">Ano (opcional)</span>
-            <input type="text" inputMode="numeric" maxLength={4} placeholder="Se souber" value={year} onChange={(e)=>setYear(e.target.value)} />
+            <input type="text" inputMode="numeric" maxLength={4} placeholder="Se souber" value={year} onChange={(e)=>setYear(e.target.value.replace(/\D/g,"").slice(0,4))} />
           </label>
-          <label className="cadastro-field cadastro-field--span-3">
-            <span className="field-label">Cidade</span>
-            <input type="text" value={cityValue} onChange={(e) => setCityValue(e.target.value)} />
-          </label>
+          <BirthdayCityAutocomplete value={cityValue} onChange={setCityValue} />
           <label className="cadastro-field cadastro-field--span-4">
             <span className="field-label">Origem / vínculo</span>
             <select value={linkGroupId} onChange={(e) => setLinkGroupId(e.target.value)}>
