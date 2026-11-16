@@ -157,7 +157,7 @@ export function FamilyAndRelatedPersonsControl({
   return (
     <>
       {clientKind === "individual" ? (
-        <section className="form-section">
+        <section id="pessoas-vinculadas" className="form-section" style={{ scrollMarginTop: "96px" }}>
           <h2>Familiares</h2>
           <p className="helper-text">
             Apenas dia e mês de nascimento — sem ano. A publicação no jornal nunca é presumida: cada familiar nasce com
@@ -229,7 +229,7 @@ export function FamilyAndRelatedPersonsControl({
           </button>
         </section>
       ) : (
-        <section className="form-section">
+        <section id="pessoas-vinculadas" className="form-section" style={{ scrollMarginTop: "96px" }}>
           <h2>Pessoas vinculadas</h2>
           <p className="helper-text">Responsáveis, sócios ou colaboradores vinculados a esta empresa.</p>
 
