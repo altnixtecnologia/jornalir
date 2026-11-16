@@ -5,6 +5,10 @@ on:
     paths:
       - "apps/sistema/src/lib/release/releasePolicy.ts"
       - "apps/sistema/src/lib/permissions/checkModuleAction.ts"
+      - "apps/sistema/src/lib/nfse/nfseSchemaPreflight.ts"
+      - "apps/sistema/src/features/nfse/NfseSchemaNotReady.tsx"
+      - "apps/sistema/test/nfse-schema-preflight.test.ts"
+      - "supabase/migrations/20261122341000_nfse_fiscal_observations.sql"
       - "apps/sistema/src/lib/navigation.ts"
       - "apps/sistema/src/middleware.ts"
       - "apps/sistema/src/components/admin/AdminHeader.tsx"
@@ -55,6 +59,7 @@ jobs:
         run: >
           npx tsx --test
           apps/sistema/test/nfse-preparacao-oficial.test.ts
+          apps/sistema/test/nfse-schema-preflight.test.ts
           apps/sistema/test/prepublication-release-gates.test.ts
           apps/sistema/test/nfse-p0-release-safety.test.ts
           apps/sistema/test/nfse-danfse-release-gate.test.ts
