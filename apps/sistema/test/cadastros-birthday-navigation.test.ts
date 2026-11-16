@@ -6,8 +6,8 @@ import {
   resolveBirthdayCreateGroupId,
 } from "../src/features/aniversariantes/birthdayDeepLink";
 
-const clientId = "99852272-97d7-4c59-8c74-d084d8fb37ad";
-const anotherId = "123e4567-e89b-42d3-a456-426614174000";
+const clientId = "11111111-1111-4111-8111-111111111111";
+const anotherId = "22222222-2222-4222-8222-222222222222";
 const src = (path: string) => readFileSync(new URL("../src/" + path, import.meta.url), "utf8");
 
 test("Cadastros: link de novo aniversariante mantém contexto do cliente", () => {
