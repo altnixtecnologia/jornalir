@@ -20,16 +20,14 @@ import {
 } from "@ir/types";
 import {
   removeSiteAdMediaAction,
-  reorderSiteAdMediaAction,
-  toggleSiteAdSlotActiveAction,
   updateSiteAdMediaFitModeAction,
   updateSiteAdMediaSettingsAction,
   updateSiteAdMediaPublicationAction,
-  updateSiteAdSlotSettingsAction,
   uploadSiteAdImagesAction,
 } from "../../app/sistema/configuracoes/patrocinadores/actions";
 import { notify } from "../../lib/feedback/notify";
 import { confirmDialog } from "../../lib/feedback/confirmStore";
+import { buildSiteAdLibrary } from "./siteAdLibrary";
 
 const MAX_PREPARED_BYTES = 2 * 1024 * 1024;
 const MAX_UPLOAD_SOURCE_BYTES = 40 * 1024 * 1024;
@@ -135,7 +133,7 @@ function MediaFitModePicker({
     <div className="site-ad-fit-picker">
       <span className="site-ad-fit-picker-label">
         Formato no site
-        {saving ? <em> · salvando…</em> : saved ? <em> · salvo ✓</em> : media.fitMode == null ? <em> · padrão do grupo</em> : null}
+        {saving ? <em> · salvando…</em> : saved ? <em> · salvo ✓</em> : media.fitMode == null ? <em> · formato padrão</em> : null}
       </span>
       <div className="site-ad-fit-options" role="radiogroup" aria-label="Formato desta imagem no site">
         {SITE_AD_FIT_MODES.map((mode) => (
@@ -215,7 +213,7 @@ function MediaSettingsRow({
           </select>
         </div>
       ) : (
-        <span className="helper-text">Usa a transição do grupo.</span>
+        <span className="helper-text">Usa a transição já configurada.</span>
       )}
       <button type="button" className="cadastros-btn-secondary" onClick={() => void save()} disabled={pending || saving}>
         {saving ? "Salvando…" : saved ? "Salvo ✓" : "Salvar transição"}
@@ -228,23 +226,19 @@ function MediaSettingsRow({
 function SponsorMediaThumb({
   media,
   index,
-  total,
   slotFitMode,
   pending,
   uploading,
   onRemove,
-  onMove,
   onSaveSettings,
   onSavePublication,
 }: {
   media: SiteAdMediaWithAsset;
   index: number;
-  total: number;
   slotFitMode: SiteAdFitMode;
   pending: boolean;
   uploading: boolean;
   onRemove: () => void;
-  onMove: (direction: -1 | 1) => void;
   onSaveSettings: (changes: { rotationIntervalMs: number | null; transitionEffect: SiteAdSlotTransitionEffect | null }) => Promise<boolean>;
   onSavePublication: (changes: SiteAdPublicationInput) => Promise<{ error: string } | void>;
 }): JSX.Element {
@@ -260,33 +254,35 @@ function SponsorMediaThumb({
           style={{ objectFit: SITE_AD_FIT_MODE_OBJECT_FIT[shownFit] ?? "fill" }}
         />
         <span>{index + 1}</span>
-        <button type="button" className="site-ad-image-remove" aria-label={"Excluir imagem " + (index + 1) + " deste grupo"} title="Excluir imagem" onClick={onRemove} disabled={pending}>×</button>
+        <button type="button" className="site-ad-image-remove" aria-label={"Remover patrocinador " + (index + 1)} title="Excluir imagem" onClick={onRemove} disabled={pending}>×</button>
       </div>
-      <div className="site-ad-thumb-actions">
-        <button type="button" onClick={() => onMove(-1)} disabled={pending || index === 0} aria-label="Mover para cima">↑</button>
-        <button type="button" onClick={() => onMove(1)} disabled={pending || index === total - 1} aria-label="Mover para baixo">↓</button>
-      </div>
-      <MediaFitModePicker media={media} slotFitMode={slotFitMode} disabled={pending || uploading} onChange={setShownFit} />
-      <MediaSettingsRow media={media} pending={pending} onSave={onSaveSettings} />
+      <details className="site-ad-library-advanced">
+        <summary>Formato e efeito da imagem</summary>
+        <MediaFitModePicker media={media} slotFitMode={slotFitMode} disabled={pending || uploading} onChange={setShownFit} />
+        <MediaSettingsRow media={media} pending={pending} onSave={onSaveSettings} />
+      </details>
       <SiteAdPublicationRow media={media} pending={pending || uploading} onSave={onSavePublication} />
     </div>
   );
 }
 
-function SlotCard({ slot }: { slot: SiteAdSlotWithMedia }): JSX.Element {
-  const router = useRouter();
-  const inputRef = useRef<HTMLInputElement>(null);
-  const previewUrlsRef = useRef<Set<string>>(new Set());
-  const [pending, startTransition] = useTransition();
-  const [effect, setEffect] = useState<SiteAdSlotTransitionEffect>(slot.transitionEffect);
-  const [fitMode, setFitMode] = useState<SiteAdFitMode>(slot.fitMode);
-  const [previews, setPreviews] = useState<{ file: File; url: string }[]>([]);
-  const [uploadProgress, setUploadProgress] = useState<string | null>(null);
-  const [uploading, setUploading] = useState(false);
 
-  // Revoga as URLs somente ao retirá-las, trocar a seleção ou desmontar o
-  // componente. Não revogue todas a cada mudança do estado de prévias:
-  // isso faz as imagens restantes desaparecerem ao remover uma miniatura.
+/**
+ * Biblioteca única: os seis slots existentes continuam no banco para preservar
+ * cadastros, configuração por imagem e a esteira de 07/11. O operador não escolhe
+ * slot e nunca precisa conhecer a posição física na qual a imagem aparecerá.
+ */
+export function SiteAdSlotsPanel({ slots }: { slots: SiteAdSlotWithMedia[] }): JSX.Element {
+  const router = useRouter();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const previewUrlsRef = useRef<Set<string>>(new Set());
+  const [previews, setPreviews] = useState<{ file: File; url: string }[]>([]);
+  const [uploading, setUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState<string | null>(null);
+  const [pending, startTransition] = useTransition();
+  const { entries, uploadSlot } = buildSiteAdLibrary(slots);
+  const activeCount = entries.filter(({ media, slot }) => media.active && slot.active).length;
+
   useEffect(() => () => {
     for (const url of previewUrlsRef.current) URL.revokeObjectURL(url);
     previewUrlsRef.current.clear();
@@ -301,305 +297,182 @@ function SlotCard({ slot }: { slot: SiteAdSlotWithMedia }): JSX.Element {
       return { file, url };
     }) : [];
     setPreviews(selected);
-    if (inputRef.current) inputRef.current.value = "";
+    if (fileInputRef.current) fileInputRef.current.value = "";
   }
 
   function removePreview(index: number): void {
-    const removed = previews[index];
-    if (removed) {
-      URL.revokeObjectURL(removed.url);
-      previewUrlsRef.current.delete(removed.url);
+    const item = previews[index];
+    if (item) {
+      URL.revokeObjectURL(item.url);
+      previewUrlsRef.current.delete(item.url);
     }
-    setPreviews((items) => items.filter((_, itemIndex) => itemIndex !== index));
+    setPreviews((current) => current.filter((_, i) => i !== index));
   }
 
-  function saveSettings(): void {
-    startTransition(async () => {
-      // Tempo do grupo não é mais editável (esteira única de 10s) — reenvia o valor atual.
-      const result = await updateSiteAdSlotSettingsAction(slot.id, slot.rotationIntervalMs, effect, fitMode);
-      if (result && "error" in result) {
-        notify.error("Não foi possível salvar a configuração", result.error);
-        return;
-      }
-      notify.success("Configuração salva", "As configurações do grupo foram salvas.");
-      router.refresh();
-    });
-  }
-
-  function toggle(): void {
-    startTransition(async () => {
-      const result = await toggleSiteAdSlotActiveAction(slot.id, !slot.active);
-      if (result && "error" in result) {
-        notify.error("Não foi possível alterar o grupo", result.error);
-        return;
-      }
-      router.refresh();
-    });
-  }
-
-  function upload(): void {
-    if (uploading) return;
+  async function upload(): Promise<void> {
+    if (!uploadSlot || uploading || pending) return;
     if (!previews.length) {
-      notify.error("Nenhuma imagem selecionada", "Selecione uma ou mais imagens antes de enviar.");
+      notify.error("Selecione as imagens", "Escolha uma ou mais imagens dos patrocinadores.");
       return;
     }
     const selected = [...previews];
-    setUploadProgress(null);
+    const initialOrder = Math.max(-1, ...uploadSlot.media.map((item) => item.sortOrder)) + 1;
+    let created = 0;
+    const warnings: string[] = [];
     setUploading(true);
-    void (async () => {
-      let sent = 0;
-      const warnings: string[] = [];
-      // O limite da Vercel aplica-se à requisição inteira. Nunca enviar o
-      // conjunto de fotos originais numa única Server Action.
+    try {
       for (let index = 0; index < selected.length; index += 1) {
-        const { file } = selected[index];
+        const file = selected[index].file;
         setUploadProgress("Enviando " + (index + 1) + " de " + selected.length + ": " + file.name);
         try {
           const optimized = await prepareAdvertisingImage(file);
-          const formData = new FormData();
-          formData.append("files", optimized);
-          const result = await uploadSiteAdImagesAction(slot.id, slot.media.length + sent, formData);
+          const data = new FormData();
+          data.append("files", optimized);
+          // O primeiro slot ativo é um detalhe de armazenamento, nunca uma
+          // escolha do usuário. A esteira pública lê imagens dos seis slots.
+          const result = await uploadSiteAdImagesAction(uploadSlot.id, initialOrder + created, data);
           if (!result || typeof result !== "object") {
-            warnings.push(file.name + ": o servidor não respondeu. Atualize a página e confira as imagens antes de tentar novamente.");
-            break; // Resposta ambígua: evita reenviar uma foto que pode ter sido cadastrada.
+            warnings.push(file.name + ": não houve confirmação do servidor. Confira a galeria antes de reenviar.");
+            break;
           }
           if ("error" in result) {
             warnings.push(file.name + ": " + result.error);
             continue;
           }
-          sent += result.count;
+          created += result.count;
           warnings.push(...result.warnings);
         } catch (error) {
-          const message = error instanceof Error ? error.message : "Erro desconhecido.";
-          if (/413|payload too large|request entity too large/i.test(message)) {
-            warnings.push(file.name + ": requisição recusada pelo tamanho. Tente uma imagem menor.");
-          } else {
-            warnings.push(file.name + ": " + message);
-          }
+          warnings.push(file.name + ": " + (error instanceof Error ? error.message : "Falha de conexão."));
         }
       }
-      setUploadProgress(null);
-      if (sent > 0 && warnings.length === 0) {
-        notify.success(sent + " imagem(ns) enviada(s)", "As imagens foram adicionadas ao grupo.");
-      } else if (sent > 0 && warnings.length > 0) {
-        notify.warning(sent + " imagem(ns) enviada(s), outras falharam",
-          [...warnings, "Para repetir, selecione apenas as fotos que falharam."].join(" "));
+      if (created > 0) {
+        selectFiles(null); // Não permitir reenvio involuntário após upload parcial.
+        if (warnings.length === 0) notify.success("Imagens adicionadas", created + " patrocinador(es) na biblioteca.");
+        else notify.warning("Envio parcial", created + " enviado(s). " + warnings.join(" ") + " Se necessário, selecione somente os arquivos que falharam.");
       } else {
-        notify.error("Nenhuma imagem enviada", warnings.join(" ") || "Não foi possível enviar as imagens.");
-      }
-      // Após um envio parcial, nunca permitir reenviar por engano as fotos
-      // já gravadas. Para tentar de novo, selecione somente as que falharam.
-      if (sent > 0) {
-        if (inputRef.current) inputRef.current.value = "";
-        for (const url of previewUrlsRef.current) URL.revokeObjectURL(url);
-        previewUrlsRef.current.clear();
-        setPreviews([]);
+        notify.error("Nenhuma imagem enviada", warnings.join(" ") || "Confira os arquivos e tente novamente.");
       }
       router.refresh();
-    })().catch((error: unknown) => {
-      notify.error("Nenhuma imagem enviada", error instanceof Error ? error.message : "Não foi possível enviar as imagens.");
-    }).finally(() => {
-      setUploadProgress(null);
+    } finally {
       setUploading(false);
-    });
-  }
-
-  function move(index: number, direction: -1 | 1): void {
-    const target = index + direction;
-    if (target < 0 || target >= slot.media.length) return;
-    const ids = slot.media.map((item) => item.id);
-    const moved = ids.splice(index, 1)[0];
-    ids.splice(target, 0, moved);
-    startTransition(async () => {
-      const result = await reorderSiteAdMediaAction(slot.id, ids);
-      if (result && "error" in result) {
-        notify.error("Não foi possível reordenar", result.error);
-        return;
-      }
-      router.refresh();
-    });
+      setUploadProgress(null);
+    }
   }
 
   async function remove(id: string): Promise<void> {
-    const confirmed = await confirmDialog({ title: "Remover esta imagem deste grupo?", confirmLabel: "Remover" });
+    if (uploading || pending) return;
+    const confirmed = await confirmDialog({
+      title: "Remover este patrocinador da biblioteca?",
+      confirmLabel: "Remover",
+    });
     if (!confirmed) return;
     startTransition(async () => {
-      const result = await removeSiteAdMediaAction(id);
-      if (result && "error" in result) {
-        notify.error("Não foi possível remover a imagem", result.error);
-        return;
+      try {
+        const result = await removeSiteAdMediaAction(id);
+        if (result && "error" in result) {
+          notify.error("Não foi possível remover", result.error);
+          return;
+        }
+        notify.success("Patrocinador removido", "A imagem foi retirada da rotação.");
+        router.refresh();
+      } catch {
+        notify.error("Não foi possível remover", "Falha de conexão. Confira a galeria antes de repetir.");
       }
-      notify.success("Imagem removida", "A imagem foi removida deste grupo.");
-      router.refresh();
     });
   }
 
-  async function updateMediaSettings(
+  async function updateSettings(
     id: string,
     changes: { rotationIntervalMs: number | null; transitionEffect: SiteAdSlotTransitionEffect | null },
   ): Promise<boolean> {
-    // Erro é mostrado pelo próprio `SlotSettings` (chamador); evitar
-    // duplicar o mesmo aviso aqui.
     try {
       const result = await updateSiteAdMediaSettingsAction(id, changes);
-      // Server Action histórica devolve void no sucesso; apenas
-      // {error} identifica falha (não inverter este protocolo).
       if (result && "error" in result) {
+        notify.error("Configuração não salva", result.error);
         return false;
       }
       router.refresh();
       return true;
     } catch {
+      notify.error("Configuração não salva", "Falha de conexão. Os dados anteriores foram preservados.");
       return false;
     }
   }
 
-  async function updatePublication(id:string,changes:SiteAdPublicationInput):Promise<{error:string}|void>{
-    // Erro é mostrado pelo próprio `SiteAdPublicationRow` (chamador); evitar
-    // duplicar o mesmo aviso aqui.
-    try{
-      const response=await updateSiteAdMediaPublicationAction(id,changes);
-      if(response && "error" in response){
-        return response;
-      }
+  async function updatePublication(id: string, changes: SiteAdPublicationInput): Promise<{ error: string } | void> {
+    try {
+      const result = await updateSiteAdMediaPublicationAction(id, changes);
+      if (result && "error" in result) return result;
       router.refresh();
-    }catch{
-      const error="Falha ao salvar período de veiculação. Verifique antes de repetir.";
-      return {error};
+    } catch {
+      return { error: "Falha de conexão. Confira a galeria antes de repetir." };
     }
   }
 
-  // Prévia das imagens ainda não enviadas: entram com o padrão do grupo.
-  const previewObjectFit = SITE_AD_FIT_MODE_OBJECT_FIT[fitMode] ?? "fill";
-
   return (
-    <article className="site-ad-slot-card">
-      <div className="site-ad-slot-head">
-        <div>
-          <h3>Grupo {slot.slotNumber}</h3>
-          <span className={"status-pill " + (slot.active ? "status-pill--published" : "status-pill--archived")}>
-            {slot.active ? "Ativa" : "Desativada"}
-          </span>
-        </div>
-        <button type="button" onClick={toggle} disabled={pending}>
-          {slot.active ? "Desativar" : "Ativar"}
-        </button>
-      </div>
-
-      <div className="site-ad-slot-settings">
-        <label className="form-field">
-          <span className="field-label">Transição</span>
-          <select value={effect} onChange={(event) => setEffect(event.target.value as SiteAdSlotTransitionEffect)}>
-            {SITE_AD_SLOT_TRANSITION_EFFECTS.map((item) => <option key={item} value={item}>{SITE_AD_SLOT_TRANSITION_EFFECT_LABELS[item]}</option>)}
-          </select>
-        </label>
-        <label className="form-field">
-          <span className="field-label">Formato padrão do grupo</span>
-          <select
-            value={fitMode}
-            onChange={(event) => setFitMode(event.target.value as SiteAdFitMode)}
-            title="Vale para as imagens deste grupo que ainda não têm formato próprio."
-          >
-            {SITE_AD_FIT_MODES.map((item) => <option key={item} value={item}>{SITE_AD_FIT_MODE_LABELS[item]}</option>)}
-          </select>
-        </label>
-        <button type="button" className="form-action-primary" onClick={saveSettings} disabled={pending}>Salvar grupo</button>
-      </div>
-
-      <div className="site-ad-upload">
-        <div>
-          <strong>Imagens deste grupo</strong>
-          <p className="helper-text">Envio múltiplo · R2 público · convertido para WebP com qualidade 70%.</p>
-        </div>
-        <input
-          ref={inputRef}
-          type="file"
-          multiple
-          accept="image/jpeg,image/png,image/webp,image/avif"
-          onChange={(event) => selectFiles(event.target.files)}
-          disabled={pending || uploading}
-        />
-        {previews.length ? (
-          <>
-          <div className="site-ad-preview-tools">
-            <strong>{previews.length} {previews.length === 1 ? "imagem selecionada" : "imagens selecionadas"} — ainda não {previews.length === 1 ? "enviada" : "enviadas"}</strong>
-            <button
-              type="button"
-              className="site-ad-clear-pending"
-              onClick={() => selectFiles(null)}
-              disabled={pending || uploading}
-            >
-              Limpar seleção
-            </button>
+    <div className="site-ad-manager site-ad-library">
+      <section>
+        <div className="site-ad-library-heading">
+          <div>
+            <p className="eyebrow">PATROCINADORES</p>
+            <h2>Biblioteca de imagens</h2>
+            <p className="helper-text">Adicione ou retire as imagens dos clientes aqui. Todas entram no mesmo rodízio e circulam automaticamente pelas seis posições do portal, sem escolher grupos ou locais.</p>
           </div>
-          <div className="site-ad-preview-grid">
-            {previews.map(({ file, url }, index) => (
-              <div key={url} className="site-ad-preview-item">
-                <div className="site-ad-pending-image">
-                  <img src={url} alt={"Prévia " + (index + 1)} style={{ objectFit: previewObjectFit }} />
+          <span className="site-ad-library-count">{entries.length} cadastrada(s) · {activeCount} exibindo</span>
+        </div>
+
+        <div className="site-ad-slot-card site-ad-library-upload-card">
+          <div className="site-ad-upload">
+            <label className="field-label" htmlFor="site-ad-library-files">Adicionar imagens dos patrocinadores</label>
+            <p className="helper-text">JPEG, PNG, WebP ou AVIF. As imagens são otimizadas automaticamente antes do envio.</p>
+            <input id="site-ad-library-files" ref={fileInputRef} type="file" multiple accept="image/jpeg,image/png,image/webp,image/avif"
+              onChange={(event) => selectFiles(event.target.files)} disabled={uploading || pending || !uploadSlot} />
+            {previews.length > 0 ? (
+              <>
+                <div className="site-ad-preview-tools">
+                  <strong>{previews.length} imagem(ns) selecionada(s) — ainda não enviadas</strong>
+                  <button type="button" className="site-ad-clear-pending" onClick={() => selectFiles(null)} disabled={uploading || pending}>Limpar seleção</button>
                 </div>
-                <span className="site-ad-preview-file-name" title={file.name}>{file.name}</span>
-                <button
-                  type="button"
-                  className="site-ad-remove-pending"
-                  aria-label={"Retirar imagem " + (index + 1) + " da seleção"}
-                  onClick={() => removePreview(index)}
-                  disabled={pending || uploading}
-                >× Retirar</button>
-              </div>
+                <div className="site-ad-preview-grid">
+                  {previews.map(({ file, url }, index) => (
+                    <div className="site-ad-preview-item" key={url}>
+                      <img src={url} alt={"Prévia: " + file.name} />
+                      <span className="site-ad-preview-file-name" title={file.name}>{file.name}</span>
+                      <button type="button" className="site-ad-remove-pending" onClick={() => removePreview(index)} disabled={uploading || pending}>× Retirar</button>
+                    </div>
+                  ))}
+                </div>
+              </>
+            ) : null}
+            {!uploadSlot ? <p role="alert" className="helper-text">Nenhuma posição interna está ativa. Peça à administração para verificar a configuração antes de enviar imagens.</p> : null}
+            <button type="button" className="form-action-primary" onClick={() => void upload()}
+              disabled={uploading || pending || !uploadSlot || previews.length === 0}>
+              {uploading ? "Enviando..." : "Adicionar à biblioteca"}
+            </button>
+            {uploadProgress ? <p role="status" className="helper-text site-ad-message">{uploadProgress}</p> : null}
+          </div>
+        </div>
+
+        <div className="site-ad-library-heading">
+          <div>
+            <h3>Imagens cadastradas</h3>
+            <p className="helper-text">Para atualizar a arte de um cliente, envie a nova imagem e depois pause ou remova a anterior. O rodízio é automático.</p>
+          </div>
+        </div>
+        {entries.length > 0 ? (
+          <div className="site-ad-library-gallery">
+            {entries.map(({ slot, media }, index) => (
+              <article className="site-ad-library-item" key={media.id}>
+                {!slot.active ? <p className="site-ad-library-warning">Imagem vinculada a uma posição interna desativada. Não aparece no portal.</p> : null}
+                <SponsorMediaThumb media={media} index={index} slotFitMode={slot.fitMode}
+                  pending={pending} uploading={uploading}
+                  onRemove={() => void remove(media.id)}
+                  onSaveSettings={(changes) => updateSettings(media.id, changes)}
+                  onSavePublication={(changes) => updatePublication(media.id, changes)} />
+              </article>
             ))}
           </div>
-          </>
-        ) : null}
-        <button type="button" className="form-action-primary" onClick={upload} disabled={pending || uploading}>
-          {uploading ? "Enviando..." : pending ? "Processando..." : "Enviar imagens"}
-        </button>
-      </div>
-
-      {uploadProgress ? <p role="status" className="helper-text site-ad-message">{uploadProgress}</p> : null}
-
-      {slot.media.length ? (
-        <div className="site-ad-thumbnails">
-          {slot.media.map((media, index) => (
-            <SponsorMediaThumb
-              key={media.id}
-              media={media}
-              index={index}
-              total={slot.media.length}
-              slotFitMode={slot.fitMode}
-              pending={pending}
-              uploading={uploading}
-              onRemove={() => remove(media.id)}
-              onMove={(direction) => move(index, direction)}
-              onSaveSettings={(changes) => updateMediaSettings(media.id, changes)}
-              onSavePublication={(changes) => updatePublication(media.id, changes)}
-            />
-          ))}
-        </div>
-      ) : (
-        <p className="helper-text site-ad-empty">Nenhuma imagem cadastrada nesta posição.</p>
-      )}
-    </article>
-  );
-}
-
-export function SiteAdSlotsPanel({ slots }: { slots: SiteAdSlotWithMedia[] }): JSX.Element {
-  const groups = [...slots].sort((a, b) => a.slotNumber - b.slotNumber);
-
-  return (
-    <div className="site-ad-manager">
-      <section>
-        <div className="site-ad-side-heading">
-          <div><p className="eyebrow">PATROCINADORES</p><h2>Grupos de anúncios</h2></div>
-          <span>
-            Todas as imagens ativas de todos os grupos formam uma fila única de patrocinadores. A cada 10 segundos
-            cada imagem anda uma posição: todas passam pelas seis posições do site, ficam o mesmo tempo na tela e
-            nunca aparecem duas vezes ao mesmo tempo. Os grupos servem só para organizar a ordem da fila. Cada
-            imagem tem o próprio formato no site — Esticar (padrão), Encaixar ou Preencher — e o mantém em
-            qualquer posição.
-          </span>
-        </div>
-        <div className="site-ad-side-grid">{groups.map((slot) => <SlotCard key={slot.id} slot={slot} />)}</div>
+        ) : <p className="helper-text site-ad-empty">Ainda não há imagens cadastradas. Use o campo acima para adicionar a primeira.</p>}
       </section>
     </div>
   );
