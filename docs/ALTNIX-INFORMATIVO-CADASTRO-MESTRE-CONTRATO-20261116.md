@@ -7,7 +7,7 @@
 1. **Jornal IR** é a fonte de verdade dos dados do cliente: `public.clients.id` (UUID permanente), `clients.whatsapp`, telefones, e-mails, documento e demais informações cadastrais. `client_roles` permite que um mesmo cadastro seja assinante, anunciante, cliente de painéis, etc.
 2. **Jornal IR** é a fonte de verdade para contratos, vendas, cobranças, pagamentos e regras financeiras por serviço. Preservar snapshots fiscais imutáveis por emissão de NFS-e.
 3. **Altnix Informativo** continua responsável pela operação de mídia: telas, playlists, assets, campanhas, exibição, dispositivos, diagnósticos, logs e histórico.
-4. Em `Informativo.public.ad_clients`, **`id` permanece o identificador operacional** e **`client_id` permanece o tenant interno**. Não sobrescrever nenhum dos dois com o UUID do Jornal IR. O elo futuro é a coluna separada `ad_clients.jornalir_client_id` (nullable), associada a `Jornal IR.public.clients.id`.
+4. Em `Informativo.public.ad_clients`, **`id` permanece o identificador operacional** e **`ad_clients.client_id` permanece o tenant interno**. Não sobrescrever nenhum dos dois com o UUID do Jornal IR. O elo futuro é a coluna separada `ad_clients.jornalir_client_id` (nullable), associada a `Jornal IR.public.clients.id`.
 5. Os dois Supabase continuam separados, sem acesso direto do navegador ao banco privado do outro sistema.
 
 ## Contato e autenticação por WhatsApp
