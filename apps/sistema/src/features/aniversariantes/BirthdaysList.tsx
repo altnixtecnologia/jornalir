@@ -2043,14 +2043,21 @@ function IncludeForm({
             <input type="text" inputMode="numeric" maxLength={4} placeholder="Se souber" value={year} onChange={(e)=>setYear(e.target.value.replace(/\D/g,"").slice(0,4))} />
           </label>
           <BirthdayCityAutocomplete value={cityValue} onChange={setCityValue} />
-          <label className="cadastro-field cadastro-field--span-4">
+          <label className="cadastro-field cadastro-field--span-9">
             <span className="field-label">Origem / vínculo</span>
-            <select value={linkGroupId} onChange={(e) => setLinkGroupId(e.target.value)}>
+            <select value={linkGroupId} onChange={(e) => setLinkGroupId(e.target.value)}
+              style={{ width: "100%", maxWidth: "100%" }}
+              title={groups.find((g) => g.id === linkGroupId)?.label || "Caso extraordinário (sem vínculo com cliente)"}>
               <option value="">Caso extraordinário (sem vínculo com cliente)</option>
               {groups.filter(g=>localPreview||/^[a-f0-9-]{36}$/i.test(g.id)).map((g) => <option key={g.id} value={g.id}>Vincular a: {g.label}</option>)}
             </select>
+            {linkGroupId ? (
+              <span className={styles.originFullLabel} aria-live="polite">
+                Vinculado a: {groups.find((g) => g.id === linkGroupId)?.label}
+              </span>
+            ) : null}
           </label>
-          <label className="cadastro-field cadastro-field--span-4">
+          <label className="cadastro-field cadastro-field--span-6">
             <span className="field-label">Relação / parentesco <span className="field-optional">(opcional)</span></span>
             <input
               type="text"
@@ -2060,7 +2067,7 @@ function IncludeForm({
               placeholder="Ex.: esposa, filho, sócio, responsável"
             />
           </label>
-          <label className="cadastro-field cadastro-field--span-4">
+          <label className="cadastro-field cadastro-field--span-6">
             <span className="field-label">Profissão / atividade <span className="field-optional">(opcional)</span></span>
             <input type="text" value={profession} onChange={(e) => setProfession(e.target.value)} placeholder="Ex.: Empresário, Professora" />
           </label>
