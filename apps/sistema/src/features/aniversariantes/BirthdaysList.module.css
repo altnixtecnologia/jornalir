@@ -42,3 +42,38 @@
 @media (hover:none),(pointer:coarse),(max-width:680px){
   .root :global(.aniv-entry-remove){opacity:1;pointer-events:auto;min-width:40px;min-height:40px}
 }
+
+/* Sugestões do IBGE: o menu pertence ao campo, respeita o modal e aceita toque. */
+.root :global(.birthday-city-suggestions) {
+  position: absolute;
+  z-index: 90;
+  top: calc(100% - 2px);
+  left: 0;
+  right: 0;
+  max-height: 220px;
+  overflow-y: auto;
+  margin: 0;
+  padding: 3px;
+  list-style: none;
+  background: #fff;
+  border: 1px solid #c9cbd3;
+  border-radius: 7px;
+  box-shadow: 0 9px 23px rgba(0, 0, 0, .17);
+}
+.root :global(.birthday-city-suggestions button) {
+  display: block;
+  width: 100%;
+  min-height: 36px;
+  padding: 7px 10px;
+  border: 0;
+  background: transparent;
+  text-align: left;
+  font: inherit;
+  color: #22273a;
+  cursor: pointer;
+}
+.root :global(.birthday-city-suggestions button:hover),
+.root :global(.birthday-city-suggestions button.is-active) {
+  background: #eceef6;
+  color: #30305c;
+}
