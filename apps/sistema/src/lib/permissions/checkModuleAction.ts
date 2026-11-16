@@ -4,6 +4,7 @@ import { STAFF_MODULE_ACTIONS } from "./staffPermissionsCatalog";
 import { createSupabaseServerClient } from "../supabase/server";
 import { NFSE_AVAILABLE_IN_THIS_RELEASE, NFSE_POSTPONED_MESSAGE, NFSE_PREPARATION_ACCESS_IN_THIS_RELEASE, isNfsePreparationAction } from "../release/releasePolicy";
 import { isRestrictedSefinEnvironment, restrictedSefinEnvironmentFromServer } from "../nfse/restrictedSefinGate";
+import { checkNfsePreparationSchema, NFSE_SCHEMA_NOT_READY_MESSAGE } from "../nfse/nfseSchemaPreflight";
 
 /** A Server Action nao pode confiar apenas nos checkboxes do painel.
  * Financeiro possui verificador proprio; Agenda/Pauta possuem regra propria.
@@ -36,5 +37,11 @@ export async function checkModuleAction(
     p_module: module, p_action: action,
   });
   if (error || data !== true) return "Sem permissão para esta operação.";
+  // Defesa adicional em Server Actions: navegar ou forjar POST diretamente
+  // não permite salvar dados enquanto a migration fiscal estiver pendente.
+  if (module === "nfse" && isNfsePreparationAction(action)) {
+    const schema = await checkNfsePreparationSchema(client);
+    if (!schema.ready) return NFSE_SCHEMA_NOT_READY_MESSAGE;
+  }
   return null;
 }

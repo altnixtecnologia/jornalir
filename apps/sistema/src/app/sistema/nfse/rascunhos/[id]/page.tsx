@@ -1,3 +1,5 @@
+import { checkNfsePreparationSchema } from "../../../../../lib/nfse/nfseSchemaPreflight";
+import { NfseSchemaNotReady } from "../../../../../features/nfse/NfseSchemaNotReady";
 import { notFound } from "next/navigation";
 import { DraftNotFoundError, checkHomologationReadiness } from "@ir/core";
 import { ModuleHeader } from "../../../../../components/admin/ModuleHeader";
@@ -18,6 +20,8 @@ export const revalidate = 0;
 export default async function NfseRascunhoDetailPage(props: { params: Promise<{ id: string }> }): Promise<JSX.Element> {
   const params = await props.params;
   const supabase = createSupabaseServerClient();
+  const schema = await checkNfsePreparationSchema(supabase);
+  if (!schema.ready) return <NfseSchemaNotReady status={schema} />;
   const draftService = getDraftService(supabase);
   const draft = await draftService.getById(params.id).catch((error: unknown) => {
     if (error instanceof DraftNotFoundError) return null;

@@ -1,3 +1,5 @@
+import { checkNfsePreparationSchema } from "../../../../lib/nfse/nfseSchemaPreflight";
+import { NfseSchemaNotReady } from "../../../../features/nfse/NfseSchemaNotReady";
 import Link from "next/link";
 import { ModuleHeader } from "../../../../components/admin/ModuleHeader";
 import { createSupabaseServerClient } from "../../../../lib/supabase/server";
@@ -26,6 +28,8 @@ export const revalidate = 0;
  */
 export default async function NfseNotasPage(): Promise<JSX.Element> {
   const supabase = createSupabaseServerClient();
+  const schema = await checkNfsePreparationSchema(supabase);
+  if (!schema.ready) return <NfseSchemaNotReady status={schema} />;
   const [notes, drafts] = await Promise.all([createIssuedNoteRepositorySupabase(supabase).listAll(), getDraftService(supabase).list()]);
   const draftsById = new Map(drafts.map((draft) => [draft.id, draft]));
   const previewMode = isLocalPreviewEnabled();

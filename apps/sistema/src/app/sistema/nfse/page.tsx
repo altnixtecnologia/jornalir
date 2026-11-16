@@ -1,3 +1,5 @@
+import { checkNfsePreparationSchema } from "../../../lib/nfse/nfseSchemaPreflight";
+import { NfseSchemaNotReady } from "../../../features/nfse/NfseSchemaNotReady";
 import Link from "next/link";
 import { NFSE_ENVIRONMENT_LABELS } from "@ir/types";
 import { checkHomologationReadiness } from "@ir/core";
@@ -49,6 +51,8 @@ export const revalidate = 0;
  */
 export default async function NfseOverviewPage(): Promise<JSX.Element> {
   const supabase = createSupabaseServerClient();
+  const schema = await checkNfsePreparationSchema(supabase);
+  if (!schema.ready) return <NfseSchemaNotReady status={schema} />;
   const preview = isLocalPreviewEnabled();
   const restricted = isRestrictedSefinEnvironment(restrictedSefinEnvironmentFromServer());
   const preparation = NFSE_PREPARATION_ACCESS_IN_THIS_RELEASE && !NFSE_AVAILABLE_IN_THIS_RELEASE && !preview && !restricted;
