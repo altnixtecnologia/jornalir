@@ -1,3 +1,5 @@
+import { checkNfsePreparationSchema } from "../../../../lib/nfse/nfseSchemaPreflight";
+import { NfseSchemaNotReady } from "../../../../features/nfse/NfseSchemaNotReady";
 import { ModuleHeader } from "../../../../components/admin/ModuleHeader";
 import { ClientNotFoundError } from "@ir/core";
 import { buildTomadorSnapshotFromClient, clientDisplayName, type NfseTomadorSnapshot } from "@ir/types";
@@ -31,6 +33,8 @@ function toFormTomador(snapshot: NfseTomadorSnapshot): TomadorSnapshotFormInput 
 
 export default async function NovaNfsePage(props: { searchParams: Promise<{ clientId?: string | string[] }> }): Promise<JSX.Element> {
   const supabase = createSupabaseServerClient();
+  const schema = await checkNfsePreparationSchema(supabase);
+  if (!schema.ready) return <NfseSchemaNotReady status={schema} />;
   const { clientId } = await props.searchParams;
   const requestedId = typeof clientId === "string" ? clientId : "";
   const [serviceProfiles, issuerConfig, chosenClient] = await Promise.all([
