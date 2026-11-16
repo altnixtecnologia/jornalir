@@ -571,7 +571,7 @@ export function NfseDraftForm({
   return (
     <div className="inline-form">
       {error ? <p className="form-error" role="alert">{error}</p> : null}
-      <Tabs tabs={tabs} />
+      <Tabs tabs={tabs} showStepNavigation />
     </div>
   );
 }
