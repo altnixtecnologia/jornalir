@@ -888,13 +888,15 @@ function AddMemberForm({ kind, onAdd, localPreview }: { kind: "individual" | "co
   );
 }
 
-export function BirthdaysList({ localPreview, initialGroups = [], initialMessages = [], initialWeekStart = "", todayISO = "", canManageTemplates = false }: {
+export function BirthdaysList({ localPreview, initialGroups = [], initialMessages = [], initialWeekStart = "", todayISO = "", canManageTemplates = false, initialCreateClientId = "" }: {
   localPreview: boolean;
   initialGroups?: BirthdayGroup[];
   initialMessages?: EditorialBirthdayMessage[];
   initialWeekStart?: string;
   todayISO?: string;
   canManageTemplates?: boolean;
+  /** Deep link interno de um cadastro mestre ativo, validado no servidor. */
+  initialCreateClientId?: string;
 }): JSX.Element {
   const router=useRouter();
   const templatesAllowed=localPreview || canManageTemplates;
@@ -920,7 +922,7 @@ export function BirthdaysList({ localPreview, initialGroups = [], initialMessage
   const [publishFilter, setPublishFilter] = useState<PublishFilter>("all");
   const [originFilter, setOriginFilter] = useState<OriginFilter>("all");
   const [deleteTarget, setDeleteTarget] = useState<DeleteTarget | null>(null);
-  const [includeOpen, setIncludeOpen] = useState(false);
+  const [includeOpen, setIncludeOpen] = useState(() => Boolean(initialCreateClientId));
   const includeDialogRef = useRef<HTMLDialogElement>(null);
   const [reportOpen, setReportOpen] = useState(false);
   const reportDialogRef = useRef<HTMLDialogElement>(null);
@@ -1916,6 +1918,7 @@ export function BirthdaysList({ localPreview, initialGroups = [], initialMessage
       <dialog ref={includeDialogRef} className="ir-modal ir-modal--form" aria-labelledby="aniv-include-title" onCancel={(e) => { e.preventDefault(); setIncludeOpen(false); }}>
         <IncludeForm
           localPreview={localPreview}
+          initialGroupId={initialCreateClientId}
           groups={groups}
           onCancel={() => setIncludeOpen(false)}
           onSubmit={async(linkGroupId,entry)=>{
@@ -1968,9 +1971,11 @@ function IncludeForm({
   onCancel,
   onSubmit,
   localPreview,
+  initialGroupId = "",
 }: {
   groups: BirthdayGroup[];
   localPreview: boolean;
+  initialGroupId?: string;
   onCancel: () => void;
   onSubmit: (linkGroupId: string | null, entry: BirthdayEntry) => Promise<boolean>;
 }): JSX.Element {
@@ -1979,7 +1984,9 @@ function IncludeForm({
   const [year,setYear]=useState("");
   const [dateError,setDateError]=useState("");
   const [cityValue, setCityValue] = useState("");
-  const [linkGroupId, setLinkGroupId] = useState<string>("");
+  const [linkGroupId, setLinkGroupId] = useState<string>(() =>
+    groups.some((group) => group.id === initialGroupId) ? initialGroupId : "",
+  );
   const [relationship, setRelationship] = useState("");
   const [profession, setProfession] = useState("");
   const [organization, setOrganization] = useState("");

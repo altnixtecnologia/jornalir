@@ -1,5 +1,7 @@
 "use client";
 
+import { birthdayCreateHref } from "../aniversariantes/birthdayDeepLink";
+
 import { useEffect, useState, useTransition, type JSX } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
@@ -527,15 +529,31 @@ export function ClientForm({ mode, client }: ClientFormProps): JSX.Element {
 
       <h2 style={{ marginTop: "16px" }}>{isIndividual ? "Familiares" : "Pessoas relacionadas"}</h2>
       <p className="helper-text">
-        O cadastro real de familiares e pessoas vinculadas fica na ficha do cliente, com histórico e permissões próprios.
-        Os aniversariantes editoriais continuam separados e nunca são publicados automaticamente por essa ação.
+        Para incluir uma pessoa na lista de aniversariantes do jornal, use o cadastro editorial abaixo.
+        Para registrar vínculos administrativos (familiares, responsáveis, sócios e colaboradores),
+        abra a seção específica da ficha. Os dados editoriais continuam separados do cadastro mestre:
+        nenhuma publicação é autorizada automaticamente.
       </p>
       {mode === "edit" && client ? (
-        <Link className="cadastros-btn-secondary" href={`/sistema/clientes/${client.id}`}>
-          Abrir ficha e gerenciar pessoas vinculadas
-        </Link>
+        <div className="form-actions" style={{ flexWrap: "wrap", gap: "10px" }}>
+          <Link
+            className="cadastros-btn-primary"
+            href={birthdayCreateHref(client.id)}
+          >
+            Cadastrar aniversariante vinculado
+          </Link>
+          <Link
+            className="cadastros-btn-secondary"
+            href={`/sistema/clientes/${client.id}#pessoas-vinculadas`}
+          >
+            {isIndividual ? "Gerenciar familiares na ficha" : "Gerenciar pessoas vinculadas na ficha"}
+          </Link>
+        </div>
       ) : (
-        <p className="helper-text">Após criar o cadastro, abra a ficha para incluir familiares ou pessoas vinculadas.</p>
+        <p className="helper-text">
+          Salve o cliente primeiro. Depois será possível cadastrar aniversariantes vinculados
+          e administrar seus familiares ou responsáveis sem misturar as duas finalidades.
+        </p>
       )}
 
     </section>

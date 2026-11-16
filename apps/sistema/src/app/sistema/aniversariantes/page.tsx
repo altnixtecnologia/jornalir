@@ -1,3 +1,4 @@
+import { resolveBirthdayCreateGroupId } from "../../../features/aniversariantes/birthdayDeepLink";
 import { redirect } from "next/navigation";
 import { ModuleHeader } from "../../../components/admin/ModuleHeader";
 import { BirthdaysList } from "../../../features/aniversariantes/BirthdaysList";
@@ -71,7 +72,9 @@ function makeGroups(clients:ClientRow[],records:(EditorialBirthdayRow & {created
   return groups;
 }
 
-export default async function AniversariantesPage():Promise<JSX.Element>{
+export default async function AniversariantesPage(
+  props: { searchParams?: Promise<{ novo?: string; cliente?: string }> },
+): Promise<JSX.Element> {
   if(isLocalPreviewEnabled())return <>
     <ModuleHeader eyebrow="ANIVERSARIANTES" title="Aniversariantes" description="Semana do Jornal e modelos de mensagens."/>
     <BirthdaysList localPreview />
@@ -104,6 +107,11 @@ export default async function AniversariantesPage():Promise<JSX.Element>{
   const entries=(entryResult.data||[]) as unknown as (EditorialBirthdayRow & {created_at:string|null;media_assets:{public_url:string|null}|null})[];
   const messages=(messageResult.data||[]) as EditorialBirthdayMessage[];
   const groups=makeGroups(clients,entries);
+  // Link originado da aba "Família e aniversários" de um cliente.
+  // Nunca confie no ID da URL para criar vínculo: use somente grupos ativos
+  // já carregados pelo servidor, respeitando permissões e cadastro mestre.
+  const query=await props.searchParams;
+  const selectedClientId=resolveBirthdayCreateGroupId(query,groups.map((group)=>group.id));
   return <>
     <ModuleHeader eyebrow="ANIVERSARIANTES" title="Aniversariantes"
       description="Semana editorial, aniversários de clientes, instituições e casos excepcionais."/>
@@ -111,6 +119,7 @@ export default async function AniversariantesPage():Promise<JSX.Element>{
       Não foi possível carregar os registros de aniversário. Tente novamente.
     </p> : <BirthdaysList localPreview={false} initialGroups={groups}
         initialMessages={messages} initialWeekStart={week} todayISO={brazilTodayISO()}
+        initialCreateClientId={selectedClientId}
         canManageTemplates={profile.role==="owner"||profile.role==="admin"}/>}
   </>;
 }
