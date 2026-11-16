@@ -7,6 +7,8 @@ on:
     paths:
       - "apps/sistema/src/features/clientes/**"
       - "apps/sistema/src/features/aniversariantes/BirthdaysList.tsx"
+      - "apps/sistema/src/features/aniversariantes/BirthdaysList.module.css"
+      - "apps/sistema/test/birthday-origin-full-label.test.ts"
       - "apps/sistema/src/features/aniversariantes/BirthdayCityAutocomplete.tsx"
       - "apps/sistema/src/features/aniversariantes/municipalityAutocomplete.ts"
       - "apps/sistema/src/features/aniversariantes/birthdayDateInput.ts"
@@ -49,6 +51,7 @@ jobs:
         run: |
           npx tsx --test apps/sistema/test/birthday-date-input.test.ts
           npx tsx --test apps/sistema/test/birthday-input-city-report.test.ts
+          npx tsx --test apps/sistema/test/birthday-origin-full-label.test.ts
           NODE_OPTIONS=--conditions=react-server npx tsx --test apps/sistema/test/birthday-entries-legacy-consent-regression.test.ts
           npx tsx --test apps/sistema/test/cadastros-birthday-navigation.test.ts
       - name: TypeScript do sistema
