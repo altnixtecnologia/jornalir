@@ -1,3 +1,4 @@
+import { birthdayCreateHref } from "../aniversariantes/birthdayDeepLink";
 "use client";
 
 import { useEffect, useState, useTransition, type JSX } from "react";
@@ -536,7 +537,7 @@ export function ClientForm({ mode, client }: ClientFormProps): JSX.Element {
         <div className="form-actions" style={{ flexWrap: "wrap", gap: "10px" }}>
           <Link
             className="cadastros-btn-primary"
-            href={`/sistema/aniversariantes?novo=1&cliente=${encodeURIComponent(client.id)}`}
+            href={birthdayCreateHref(client.id)}
           >
             Cadastrar aniversariante vinculado
           </Link>
