@@ -71,6 +71,9 @@ export function AdminBackButton(): JSX.Element | null {
       return;
     }
     // Acessos diretos (notificação/favorito) não devem sair do aplicativo.
+    // O replace substitui o deep-link: limpar a pilha sintética para não
+    // tentar router.back() para fora do WebView no próximo clique.
+    routeStackRef.current = [];
     router.replace(resolveAdminBackFallback(pathname));
   }
 
