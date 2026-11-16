@@ -1,3 +1,5 @@
+import { checkNfsePreparationSchema } from "../../../../lib/nfse/nfseSchemaPreflight";
+import { NfseSchemaNotReady } from "../../../../features/nfse/NfseSchemaNotReady";
 import Link from "next/link";
 import { ModuleHeader } from "../../../../components/admin/ModuleHeader";
 import { getDraftService } from "../../../../composition/nfse";
@@ -24,6 +26,8 @@ export const revalidate = 0;
  */
 export default async function NfseRascunhosPage(): Promise<JSX.Element> {
   const supabase = createSupabaseServerClient();
+  const schema = await checkNfsePreparationSchema(supabase);
+  if (!schema.ready) return <NfseSchemaNotReady status={schema} />;
   const drafts = await getDraftService(supabase).list();
 
   return (
