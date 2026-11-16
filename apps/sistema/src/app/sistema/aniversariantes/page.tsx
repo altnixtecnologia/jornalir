@@ -1,3 +1,4 @@
+import { resolveBirthdayCreateGroupId } from "../../../features/aniversariantes/birthdayDeepLink";
 import { redirect } from "next/navigation";
 import { ModuleHeader } from "../../../components/admin/ModuleHeader";
 import { BirthdaysList } from "../../../features/aniversariantes/BirthdaysList";
@@ -110,8 +111,7 @@ export default async function AniversariantesPage(
   // Nunca confie no ID da URL para criar vínculo: use somente grupos ativos
   // já carregados pelo servidor, respeitando permissões e cadastro mestre.
   const query=await props.searchParams;
-  const selectedClientId=query?.novo==="1" && typeof query.cliente==="string"
-    && groups.some((group)=>group.id===query.cliente) ? query.cliente : "";
+  const selectedClientId=resolveBirthdayCreateGroupId(query,groups.map((group)=>group.id));
   return <>
     <ModuleHeader eyebrow="ANIVERSARIANTES" title="Aniversariantes"
       description="Semana editorial, aniversários de clientes, instituições e casos excepcionais."/>
