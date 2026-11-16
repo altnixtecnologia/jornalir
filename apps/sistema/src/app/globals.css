@@ -8290,3 +8290,103 @@ details.pauta-item:has(.workflow-pauta-tools)>.workflow-collapsed-summary{paddin
     font-size:11.5px;line-height:1.35;
   }
 }
+
+/* Retorno global do IR Controle: presente em todas as telas internas.
+   Em fluxo normal navega ao histórico; em deep-link retorna ao módulo.
+   Em mobile fica no fluxo antes do título, sem cobrir barra inferior,
+   abas ou os campos de formulário. Inspirado no Voltar do portal. */
+.admin-back-row {
+  display: flex;
+  align-items: center;
+  margin: -5px 0 12px;
+  min-height: 34px;
+}
+.admin-global-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  border: 0;
+  background: transparent;
+  padding: 0 6px 0 0;
+  color: var(--brand, #30305c);
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 650;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.admin-global-back-arrow {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  flex: 0 0 32px;
+  background: rgba(31, 31, 58, 0.76);
+  color: white;
+  border: 1px solid rgba(255, 255, 255, 0.55);
+  border-radius: 50%;
+  font-size: 19px;
+  font-weight: 800;
+  line-height: 1;
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.12);
+}
+.admin-global-back:hover .admin-global-back-arrow,
+.admin-global-back:focus-visible .admin-global-back-arrow {
+  background: var(--brand, #30305c);
+}
+.admin-global-back:focus-visible {
+  outline: 2px solid var(--brand, #30305c);
+  outline-offset: 3px;
+  border-radius: 6px;
+}
+/* Navegação opcional entre etapas reais das abas (ex.: NFS-e).
+   Não desmonta os painéis nem perde o formulário ao voltar. */
+.ir-tabs-step-navigation {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 16px 0 0;
+  padding-top: 12px;
+  border-top: 1px solid var(--line, #deded8);
+}
+.ir-tabs-step-navigation button {
+  border: 1px solid var(--line, #deded8);
+  border-radius: 8px;
+  background: #fffefa;
+  padding: 9px 13px;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 650;
+  color: var(--brand, #30305c);
+  cursor: pointer;
+  min-height: 38px;
+}
+.ir-tabs-step-navigation button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.ir-tabs-step-navigation button:not(:disabled):hover,
+.ir-tabs-step-navigation button:not(:disabled):focus-visible {
+  border-color: var(--brand, #30305c);
+  background: #eef1f6;
+}
+.ir-tabs-step-navigation-status {
+  color: var(--muted, #666);
+  font-size: 11px;
+  font-weight: 600;
+}
+@media (max-width: 767px) {
+  .admin-back-row { margin: -9px 0 12px; }
+  .admin-global-back { min-height: 40px; font-size: 13px; }
+  .admin-global-back-arrow { width: 34px; height: 34px; flex-basis: 34px; }
+  .ir-tabs-step-navigation {
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    gap: 6px;
+  }
+  .ir-tabs-step-navigation button { padding: 9px 10px; }
+  .ir-tabs-step-navigation-status { text-align: center; }
+}
