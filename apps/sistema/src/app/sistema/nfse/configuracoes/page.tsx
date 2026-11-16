@@ -1,3 +1,5 @@
+import { checkNfsePreparationSchema } from "../../../../lib/nfse/nfseSchemaPreflight";
+import { NfseSchemaNotReady } from "../../../../features/nfse/NfseSchemaNotReady";
 import { ModuleHeader } from "../../../../components/admin/ModuleHeader";
 import { isSecretStoreConfigured } from "@ir/core/src/nfse/secret-store";
 import { getNfseEnvironmentConfig } from "@ir/core/src/nfse/environment";
@@ -20,6 +22,8 @@ export const revalidate = 0;
  */
 export default async function NfseConfiguracoesPage(): Promise<JSX.Element> {
   const supabase = createSupabaseServerClient();
+  const schema = await checkNfsePreparationSchema(supabase);
+  if (!schema.ready) return <NfseSchemaNotReady status={schema} />;
   const service = getIssuerConfigService(supabase);
   const current = await service.getCurrent();
   const initialConfig = current ?? { ...service.getSuggestedDefaults(), id: "", createdAt: "", updatedAt: "" };
