@@ -22,5 +22,5 @@ test("Jornal IR conserva WhatsApp, telefones e papéis separados no cadastro mes
   assert.match(doc, /ad_clients\.jornalir_client_id/);
   assert.match(doc, /client_roles/);
   assert.match(doc, /ad_clients\.client_id/);
-  assert.match(doc, /sem.*fallback/i);
+  assert.match(doc, /como fallback/i);
 });
