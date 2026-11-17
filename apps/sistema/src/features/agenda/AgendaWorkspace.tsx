@@ -41,6 +41,7 @@ import {
   respondAgendaInvitationAction,
 } from "./actions";
 import type { AgendaEventItem, AgendaWorkspaceData, EventCoverage, WeeklyPautaItem } from "./agendaTypes";
+import { agendaEventState, agendaDayCounts, agendaMonthCounts } from "./agendaCalendarStatus";
 import { coverageClockAt, validCoverageClock } from "./coverageClock";
 import { FIXED_COVERAGE_TASKS,type CoverageTaskDraft } from "./coverageTaskCatalog";
 import { EditorialWorkflowCreate } from "./EditorialWorkflowCreate";
@@ -150,7 +151,7 @@ function editorialDueInLocalTime(iso:string|null):string|null{
 
 /** Horário do evento NUNCA é o prazo da matéria. */
 function eventOverdue(event:AgendaEventItem,now:string):boolean{
- if(event.status!=="scheduled")return false;
+ if(agendaEventState(event)!=="scheduled")return false;
  const due=event.workflowKind!=="general"
    ?event.articleDueAt:event.coverage?.articleDueAt??null;
  const local=editorialDueInLocalTime(due);
@@ -158,13 +159,13 @@ function eventOverdue(event:AgendaEventItem,now:string):boolean{
 }
 /** Atraso do compromisso na Agenda, separado do prazo editorial da materia. */
 function agendaAppointmentOverdue(event:AgendaEventItem,now:string):boolean{
- if(!event.showInAgenda||event.status!=="scheduled")return false;
+ if(!event.showInAgenda||agendaEventState(event)!=="scheduled")return false;
  if(event.assignees.length>0&&event.assignees.every(person=>Boolean(person.completedAt)))return false;
  const end=event.endTime||event.startTime||"23:59";
  return event.eventDate+"T"+end<now;
 }
 function agendaPendingFor(event:AgendaEventItem,profileId:string):boolean{
- return event.showInAgenda&&event.status==="scheduled"&&(
+ return event.showInAgenda&&agendaEventState(event)==="scheduled"&&(
    event.assignees.some(person=>person.id===profileId&&!person.completedAt)||
    (event.assignees.length===0&&event.appointmentOwnerId===profileId));
 }
@@ -378,22 +379,18 @@ export function AgendaOverdueIndicator({data}:{data:AgendaWorkspaceData}):JSX.El
    return ()=>window.clearInterval(interval);
  },[]);
  if(!clock)return null;
- const events=data.events.filter(item=>item.showInAgenda&&eventOverdue(item,clock));
- const linked=new Set(data.events.filter(item=>item.showInAgenda).map(item=>item.id));
- const pauta=data.pautaItems.filter(item=>
-   pautaOverdue(item,clock)&&(!item.agendaEventId||!linked.has(item.agendaEventId)));
- const count=events.length+pauta.length;
+ // O cabeçalho da Agenda não inclui matérias nem prazos somente da Pauta.
+ const events=data.events.filter(item=>agendaAppointmentOverdue(item,clock));
+ const count=events.length;
  if(!count)return null;
- const href=events.length
-   ? "/sistema/agenda?date="+events[0].eventDate
-   : "/sistema/pauta?date="+(pauta[0]?.dueDate||data.today);
+ const href="/sistema/agenda?date="+events[0].eventDate;
  return <details className="agenda-overdue-floating">
   <summary aria-label={count+" pendências. Mostrar detalhes."}>
    <span aria-hidden="true">⚠</span> {count} {count===1?"atraso":"atrasos"}
   </summary>
   <div className="agenda-overdue-popover">
    <strong>{count} {count===1?"pendência":"pendências"} em aberto</strong>
-   <p>Compromissos e pautas com horário ultrapassado.</p>
+   <p>Compromissos da Agenda ainda abertos com horário ultrapassado.</p>
    <Link href={href}>Ver atrasados</Link>
   </div>
  </details>;
