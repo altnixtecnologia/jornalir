@@ -1,3 +1,5 @@
+import { redirect } from "next/navigation";
+import { checkModuleAction } from "../../../../lib/permissions/checkModuleAction";
 import { ModuleHeader } from "../../../../components/admin/ModuleHeader";
 import {
   SiteOfferSettingsPanel,
@@ -10,6 +12,8 @@ export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
 export default async function SiteOfferSettingsPage(): Promise<JSX.Element> {
+  const denied = await checkModuleAction("configuracoes", "valores_assine_gerenciar");
+  if (denied) redirect("/sistema?erro=sem-permissao");
   const client = createSupabaseServerClient();
   const { data, error } = await client
     .from("site_offer_settings")

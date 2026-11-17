@@ -109,18 +109,34 @@ export async function middleware(request: NextRequest): Promise<NextResponse> {
         return NextResponse.redirect(new URL("/sistema?modulo=nfse-adiado", request.url), 303);
       }
     }
-    const adminOnly=matches("/sistema/usuarios") ||
-      matches("/sistema/configuracoes") || matches("/sistema/nfse");
-    if(adminOnly&&!privileged){
-      return NextResponse.redirect(new URL("/sistema?erro=sem-permissao",request.url),303);
+    // Configurações: acesso por módulo apenas à página inicial e às
+    // funcionalidades com verificação individual. Rotas sensíveis e
+    // qualquer nova rota futura continuam exclusivas da administração.
+    const auditPath = matches("/sistema/configuracoes/auditoria");
+    if (auditPath && !privileged) {
+      const { data: canAudit, error: auditError } = await supabase.rpc("can_read_audit_log");
+      if (auditError || canAudit !== true) {
+        return NextResponse.redirect(new URL("/sistema?erro=sem-permissao", request.url), 303);
+      }
+    }
+    const operatorSettingsPath = pathname === "/sistema/configuracoes"
+      || matches("/sistema/configuracoes/patrocinadores")
+      || matches("/sistema/configuracoes/valores-assine")
+      || matches("/sistema/configuracoes/modelos-contratos")
+      || auditPath;
+    const adminOnly = matches("/sistema/usuarios") || matches("/sistema/nfse")
+      || (matches("/sistema/configuracoes") && !operatorSettingsPath);
+    if (adminOnly && !privileged) {
+      return NextResponse.redirect(new URL("/sistema?erro=sem-permissao", request.url), 303);
     }
     let moduleKey:string|null=null;
-    if(matches("/sistema/financeiro")) moduleKey="financeiro";
+    if (matches("/sistema/configuracoes") && !auditPath) moduleKey="configuracoes";
+    else if(matches("/sistema/financeiro")) moduleKey="financeiro";
     else if(matches("/sistema/editorial")) moduleKey="editorial";
     else if(matches("/sistema/clientes")) moduleKey="clientes";
     else if(matches("/sistema/assinaturas")) moduleKey="assinaturas";
-    else if(matches("/sistema/publicidade")||matches("/sistema/anuncios")
-      ||matches("/sistema/patrocinadores")) moduleKey="publicidade";
+    else if(matches("/sistema/patrocinadores")) moduleKey="configuracoes";
+    else if(matches("/sistema/publicidade")||matches("/sistema/anuncios")) moduleKey="publicidade";
     else if(matches("/sistema/aniversariantes")) moduleKey="aniversariantes";
     else if(matches("/tv/pauta")) moduleKey="pauta";
     else if(matches("/sistema/agenda")||matches("/agenda")){

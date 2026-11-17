@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createSupabaseServerClient } from "../../../../lib/supabase/server";
+import { checkModuleAction } from "../../../../lib/permissions/checkModuleAction";
 import { getAuditContext } from "../../../../lib/auth/getAuditContext";
 import { recordAuditEventSupabase } from "../../../../providers/supabase/auditEvents.supabase";
 
@@ -49,21 +50,16 @@ function parseOptionalMoney(label: string, value: string): number | null {
   return parseRequiredMoney(label, value);
 }
 
-/** Liga/desliga a página pública /assine (que também reúne Anuncie) — só
- * admin/owner, pedido explícito do usuário em 18/10/2026. A policy de
- * UPDATE de `site_offer_settings` é ampla (staff, para os campos de preço);
- * esta checagem de papel é o controle fino específico desta coluna, mesmo
- * princípio já usado em outras configurações administrativas do projeto. */
+/** Liga/desliga a página pública /assine com direito de Configurações
+ * concedido individualmente. O direito exige confirmação administrativa,
+ * auditoria em staff_module_action_permissions e RLS endurecida. */
 export async function setAssineEnabledAction(enabled: boolean): Promise<ActionResult> {
   try {
     const client = createSupabaseServerClient();
     const { data: auth, error: authError } = await client.auth.getUser();
     if (authError || !auth.user) throw new Error("Sessão inválida. Faça login novamente.");
-    const { data: profile } = await client.from("profiles").select("role,active").eq("id", auth.user.id).maybeSingle();
-    if (!profile?.active) throw new Error("Conta inativa. Faça login novamente.");
-    if (profile.role !== "owner" && profile.role !== "admin") {
-      throw new Error("Só administradores podem ativar ou desativar o Assine no site.");
-    }
+    const denied = await checkModuleAction("configuracoes", "valores_assine_gerenciar");
+    if (denied) throw new Error(denied);
 
     // O UPDATE sem .select() pode ter 0 linhas afetadas por RLS e, mesmo
     // assim, não retornar erro. Confirmar o valor efetivamente gravado.
@@ -94,6 +90,8 @@ export async function updateSiteOfferSettingsAction(
   input: SiteOfferSettingsFormInput,
 ): Promise<ActionResult> {
   try {
+    const denied = await checkModuleAction("configuracoes", "valores_assine_gerenciar");
+    if (denied) throw new Error(denied);
     const client = createSupabaseServerClient();
     const audit = await getAuditContext(client);
 

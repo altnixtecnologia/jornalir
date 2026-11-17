@@ -96,7 +96,7 @@ export function moduleHref(slug: string): string {
 export function getActiveModule(pathname: string): AdminModule {
   const slug = pathname.split("/")[2] ?? "";
   const moduleSlug =
-    slug === "anuncios" || slug === "patrocinadores" ? "publicidade" : slug;
+    slug === "anuncios" ? "publicidade" : slug === "patrocinadores" ? "configuracoes" : slug;
   return (
     adminModules.find((item) => item.slug === moduleSlug) ?? adminModules[0]
   );

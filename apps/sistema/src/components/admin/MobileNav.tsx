@@ -92,12 +92,15 @@ export function MobileNav({ onNavigate }: { onNavigate: () => void }): JSX.Eleme
     const path = href.split("?")[0];
     if (path.startsWith("/sistema/agenda")) return agendaRead;
     if (path.startsWith("/sistema/pauta")) return pautaRead;
+    if (path.startsWith("/sistema/configuracoes/auditoria")) return auditRead;
     for (const [prefix, key] of [
       ["/sistema/editorial", "editorial"],
       ["/sistema/clientes", "clientes"],
       ["/sistema/financeiro", "financeiro"],
       ["/sistema/assinaturas", "assinaturas"],
       ["/sistema/publicidade", "publicidade"],
+      ["/sistema/configuracoes", "configuracoes"],
+      ["/sistema/patrocinadores", "configuracoes"],
       ["/sistema/aniversariantes", "aniversariantes"],
     ] as const) {
       if (path === prefix || path.startsWith(prefix + "/")) return hasModule(key);
@@ -105,6 +108,11 @@ export function MobileNav({ onNavigate }: { onNavigate: () => void }): JSX.Eleme
     return true;
   };
   const visibleGroups = [...GROUPS, ...(auditRead && !canManageUsers ? [{ label: "Atividades", links: [{ label: "Histórico de atividades", href: "/sistema/configuracoes/auditoria" }] }] : [])]
+    .map((group) => group.label === configuracoesNavGroup.label && !canManageUsers
+      // O operador abre somente a página índice, que expõe os links
+      // específicos após verificar as permissões reais no servidor.
+      ? { ...group, restricted: false, links: [{ label: "Configurações", href: "/sistema/configuracoes" }] }
+      : group)
     .filter((group) => !group.restricted || canManageUsers)
     .map((group) => ({ ...group, links: group.links.filter((link) => canSeeLink(link)) }))
     .filter((group) => group.links.length > 0);
