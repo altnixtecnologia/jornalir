@@ -1415,18 +1415,21 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
             <div className="agenda-month-grid">
               {days.map((day) => {
                 const dayEvents = eventsByDate.get(day.value) ?? [];
-                const activeEvents = dayEvents.filter((event) => event.status !== "cancelled");
+                const activeEvents = dayEvents.filter(event=>agendaEventState(event)==="scheduled");
+                const {completed} = agendaDayCounts(dayEvents);
                 const classes = ["agenda-day"];
                 if (!day.currentMonth) classes.push("is-outside");
                 if (day.value === selectedDate) classes.push("is-selected");
                 if (day.value === data.today) classes.push("is-today");
+                if (!activeEvents.length && completed > 0) classes.push("is-only-completed");
                 return (
                   <button type="button" key={day.value} className={classes.join(" ")} onClick={() => {
                     if (day.value < data.monthStart || day.value > data.monthEnd) navigate("agenda", day.value);
                     else setSelectedDate(day.value);
                   }}>
                     <span className="agenda-day-number">{day.day}</span>
-                    {activeEvents.length ? <span className="agenda-day-count">{activeEvents.length}</span> : null}
+                    {activeEvents.length ? <span className="agenda-day-count" aria-label={activeEvents.length + " compromissos em aberto"}>{activeEvents.length}</span>
+                      : completed > 0 ? <span className="agenda-day-count" aria-label={completed + " compromissos concluídos"} style={{background:"#20724a"}}>✓</span> : null}
                     {activeEvents.length ? <span className="agenda-day-colors" aria-hidden="true">
                       {activeEvents.slice(0, 4).map((event) => <i key={event.id} style={{ background: personColor(event.assignees[0]?.id ?? "") }} />)}
                     </span> : null}
@@ -1444,7 +1447,7 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
               {selectedEvents.length ? (
                 <div className="agenda-events-list">
                   {selectedEvents.map((item) => (
-                    <details key={item.id} className={"agenda-event-card is-" + item.status + (eventOverdue(item, localClock) ? " is-overdue" : "")}
+                    <details key={item.id} className={"agenda-event-card is-" + agendaEventState(item) + (eventOverdue(item, localClock) ? " is-overdue" : "")}
                       style={{ borderLeftColor: personColor(item.assignees[0]?.id ?? "") }}>
                       <summary className="workflow-collapsed-summary">
                         <span>{item.title}</span>
@@ -1465,8 +1468,8 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
                               ))}
                             </span> : <span>Sem responsável</span>}
                             <span className={"agenda-event-state" + (eventOverdue(item, localClock) ? " is-overdue" : "")}>
-                              {eventOverdue(item, localClock) ? "⚠ " : ""}{statusLabel(item.status, eventOverdue(item, localClock))}
-                              {item.assignees.length > 1 ? ` · ${item.assignees.filter((person) => person.completedAt).length}/${item.assignees.length} concluídos` : ""}
+                              {eventOverdue(item, localClock) ? "⚠ " : ""}{statusLabel(agendaEventState(item), eventOverdue(item, localClock))}
+                              {item.assignees.length > 1 && agendaEventState(item) === "scheduled" ? ` · ${item.assignees.filter((person) => person.completedAt).length}/${item.assignees.length} concluídos` : ""}
                             </span>
                           </div>
                           {item.description ? <details className="agenda-event-details"><summary>Visualizar detalhes</summary><p>{item.description}</p></details> : null}
