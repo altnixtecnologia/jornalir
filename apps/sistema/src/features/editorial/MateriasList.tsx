@@ -22,7 +22,7 @@ import { PaginationControls } from "./PaginationControls";
 
 export interface MateriasListFilters {
   q: string;
-  status: ArticleStatus | "all";
+  status: ArticleStatus | "all" | "unpublished";
   sectionId: string;
   localityId: string;
   origin: ArticleOrigin | "all";
