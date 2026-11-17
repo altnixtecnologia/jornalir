@@ -240,6 +240,19 @@ export function MateriasList({
     return filters.sortDir === "asc" ? " ▲" : " ▼";
   }
 
+  // A edição é o critério inicial, mas não é uma coluna da tabela. Exibir
+  // a ordenação atual separadamente também resolve a ausência de indicação
+  // no celular, onde o cabeçalho da tabela não aparece.
+  const activeSortName = filters.sortBy === "edition"
+    ? "Edição"
+    : SORTABLE_COLUMNS.find((column) => column.key === filters.sortBy)?.label ?? "Data";
+  const activeSortDirection = filters.sortDir === "asc" ? "↑" : "↓";
+  const activeSortInfo = (
+    <>Ordenação: <strong>{activeSortName} {activeSortDirection}</strong>
+      {filters.sortBy === "edition" && filters.sortDir === "desc" ? <span> · mais recente primeiro</span> : null}
+    </>
+  );
+
   return (
     <div className="materias-list-root" ref={rootRef}>
       <div className="materias-filters-toggle-row">
@@ -258,6 +271,7 @@ export function MateriasList({
           ) : null}
         </button>
       </div>
+      <div className="materias-mobile-active-order" aria-label="Ordenação atual">{activeSortInfo}</div>
 
       <form
         ref={toolbarRef}
@@ -339,6 +353,7 @@ export function MateriasList({
               <option value="withoutHighlight">Sem destaque</option>
             </select>
           </label>
+          <span className="materias-active-order" aria-label="Ordenação atual">{activeSortInfo}</span>
           <span className="materias-count">
             Página {page} de {totalPages} · {total} matéria(s) · {filtered.length} de {articles.length} nesta página
           </span>
@@ -354,8 +369,10 @@ export function MateriasList({
               <thead>
                 <tr>
                   {SORTABLE_COLUMNS.map((column) => (
-                    <th key={column.key} aria-sort={filters.sortBy === column.key ? (filters.sortDir === "asc" ? "ascending" : "descending") : "none"}>
-                      <a href={buildSortHref(column.key)} title={"Ordenar por " + column.label} className={`materia-sort-link${filters.sortBy === column.key ? " is-active" : ""}`}>
+                    <th key={column.key}
+                      className={filters.sortBy === column.key ? "is-active-sort" : undefined}
+                      aria-sort={filters.sortBy === column.key ? (filters.sortDir === "asc" ? "ascending" : "descending") : "none"}>
+                      <a href={buildSortHref(column.key)} title={filters.sortBy === column.key ? "Ordenando por " + column.label + ". Clique para inverter." : "Ordenar por " + column.label} className={`materia-sort-link${filters.sortBy === column.key ? " is-active" : ""}`}>
                         {column.label}
                         {sortIndicator(column.key)}
                       </a>
