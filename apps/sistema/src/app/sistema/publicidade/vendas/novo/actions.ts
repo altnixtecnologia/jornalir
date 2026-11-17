@@ -1,12 +1,12 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { getCommercialSaleService } from "../../../../../composition/comercial";
+import { getCommercialProductService, getCommercialSaleService } from "../../../../../composition/comercial";
 import { createSupabaseServerClient } from "../../../../../lib/supabase/server";
 import { checkModuleAction } from "../../../../../lib/permissions/checkModuleAction";
 import { getAuditContext } from "../../../../../lib/auth/getAuditContext";
 import { recordAuditEventSupabase } from "../../../../../providers/supabase/auditEvents.supabase";
-import { toCommercialSaleServiceInput, type CommercialSaleFormInput } from "../commercialSaleFormTypes";
+import { toNewCommercialSaleServiceInput, type CommercialSaleFormInput } from "../commercialSaleFormTypes";
 
 const ENTITY_TYPE = "commercial_sale";
 
@@ -20,7 +20,10 @@ export async function createCommercialSaleAction(input: CommercialSaleFormInput)
   try {
     const client = createSupabaseServerClient();
     const AUDIT = await getAuditContext(client);
-    const sale = await getCommercialSaleService(client).register(toCommercialSaleServiceInput(input));
+    // Nunca confiar no valor total vindo da interface. Buscar preços e
+    // produtos válidos no catálogo atual e calcular no servidor.
+    const products = await getCommercialProductService(client).list({ activeOnly: true });
+    const sale = await getCommercialSaleService(client).register(toNewCommercialSaleServiceInput(input, products));
     await recordAuditEventSupabase(client, { userId: AUDIT.actorId, entityType: ENTITY_TYPE, entityId: sale.id, action: "create", metadata: { reference: sale.reference } });
     revalidatePath("/sistema/publicidade/vendas");
     revalidatePath("/sistema/publicidade");

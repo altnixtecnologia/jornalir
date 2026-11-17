@@ -296,7 +296,7 @@ export function CommercialSaleDetail({
         <section className="form-section">
           <h2>Serviços desta contratação</h2>
           <p className="helper-text">
-            Condições individuais preservadas da proposta original. Alterações posteriores no catálogo
+            {sale.proposalId ? "Condições individuais preservadas da proposta original." : "Produtos e valores negociados nesta venda."} Alterações posteriores no catálogo
             não mudam estes valores. As datas de execução de cada serviço deverão ser conferidas
             antes da emissão de um contrato jurídico.
           </p>
