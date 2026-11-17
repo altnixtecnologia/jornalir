@@ -38,7 +38,6 @@ const SORT_COLUMNS: MateriasSortColumn[] = [
   "edition",
   "reference",
   "title",
-  "origin",
   "section",
   "locality",
   "status",
