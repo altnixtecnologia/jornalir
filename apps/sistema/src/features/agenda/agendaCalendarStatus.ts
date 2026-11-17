@@ -25,3 +25,11 @@ export function agendaMonthCounts(events: readonly Pick<AgendaEventItem,
   start:string,end:string):{open:number;completed:number}{
   return agendaDayCounts(events.filter(event=>event.eventDate>=start&&event.eventDate<=end));
 }
+
+/** Cor do estado do compromisso, independente da cor pessoal do responsável. */
+export function agendaEventStatusColor(event: Pick<AgendaEventItem, "status"|"completedAt"|"workflowClosedAt">, overdue: boolean): string {
+  const state = agendaEventState(event);
+  if (state === "completed") return "#16A34A";
+  if (state === "cancelled") return "#94A3B8";
+  return overdue ? "#C8102E" : "#F5B51B";
+}

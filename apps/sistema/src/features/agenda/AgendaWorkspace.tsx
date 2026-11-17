@@ -41,7 +41,7 @@ import {
   respondAgendaInvitationAction,
 } from "./actions";
 import type { AgendaEventItem, AgendaWorkspaceData, EventCoverage, WeeklyPautaItem } from "./agendaTypes";
-import { agendaEventState, agendaDayCounts, agendaMonthCounts } from "./agendaCalendarStatus";
+import { agendaEventState, agendaDayCounts, agendaMonthCounts, agendaEventStatusColor } from "./agendaCalendarStatus";
 import { coverageClockAt, validCoverageClock } from "./coverageClock";
 import { FIXED_COVERAGE_TASKS,type CoverageTaskDraft } from "./coverageTaskCatalog";
 import { EditorialWorkflowCreate } from "./EditorialWorkflowCreate";
@@ -1448,7 +1448,7 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
                 <div className="agenda-events-list">
                   {selectedEvents.map((item) => (
                     <details key={item.id} className={"agenda-event-card is-" + agendaEventState(item) + (eventOverdue(item, localClock) ? " is-overdue" : "")}
-                      style={{ borderLeftColor: personColor(item.assignees[0]?.id ?? "") }}>
+                      style={{ borderLeftColor: agendaEventStatusColor(item, eventOverdue(item, localClock)) }}>
                       <summary className="workflow-collapsed-summary">
                         <span>{item.title}</span>
                         <span className="workflow-expand-chevron" aria-hidden="true">⌄</span>
