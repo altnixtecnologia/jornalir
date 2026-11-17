@@ -23,7 +23,7 @@ on:
       - "apps/sistema/src/app/sistema/configuracoes/notificacoes-push/**"
       - "apps/sistema/src/app/sistema/page.tsx"
       - "apps/sistema/test/sponsor-operator-permissions.test.ts"
-      - "supabase/migrations/20261122341100_sponsor_operator_permissions.sql"
+      - "supabase/migrations/20261117171920_sponsor_operator_permissions.sql"
   workflow_dispatch:
 
 permissions:

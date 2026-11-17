@@ -42,7 +42,7 @@ test("rota + Server Actions + RLS exigem Configurações e ação específica", 
   const actions = read("../src/app/sistema/configuracoes/patrocinadores/actions.ts");
   const page = read("../src/app/sistema/patrocinadores/page.tsx");
   const middleware = read("../src/middleware.ts");
-  const sql = read("../../../supabase/migrations/20261122341100_sponsor_operator_permissions.sql");
+  const sql = read("../../../supabase/migrations/20261117171920_sponsor_operator_permissions.sql");
   assert.doesNotMatch(actions, /checkModuleAction\("publicidade","vendas_editar"\)/);
   assert.match(actions, /checkModuleAction\("configuracoes","patrocinadores_gerenciar"\)/);
   assert.match(page, /p_module:"configuracoes",p_action:"patrocinadores_gerenciar"/);
@@ -86,7 +86,7 @@ test("preços e descontos do Assine são sensíveis e exigem confirmação antes
 test("valores Assine têm proteção na página, nas duas ações e em RLS", () => {
   const page = read("../src/app/sistema/configuracoes/valores-assine/page.tsx");
   const actions = read("../src/app/sistema/configuracoes/valores-assine/actions.ts");
-  const sql = read("../../../supabase/migrations/20261122341100_sponsor_operator_permissions.sql");
+  const sql = read("../../../supabase/migrations/20261117171920_sponsor_operator_permissions.sql");
   const middleware = read("../src/middleware.ts");
   assert.match(page, /checkModuleAction\("configuracoes", "valores_assine_gerenciar"\)/);
   assert.equal((actions.match(/checkModuleAction\("configuracoes", "valores_assine_gerenciar"\)/g) ?? []).length, 2);

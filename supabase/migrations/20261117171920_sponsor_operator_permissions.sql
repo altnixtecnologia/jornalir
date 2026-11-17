@@ -1,4 +1,4 @@
--- Preparada 17/11/2026; aplicacao remota bloqueada ate autorizacao.
+-- Preparada 17/11/2026; aplicada no Supabase em 17/11/2026 sob versao 20261117171920.
 -- Modulo Configuracoes com direito pontual a patrocinadores, sem Comercial/vendas.
 -- Sem UPDATE/DELETE em conteudo, imagens ou usuarios. Preserva owner/admin.
 BEGIN;

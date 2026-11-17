@@ -19,7 +19,7 @@ Na área **Usuários → Editar permissões** não existia a seção Configuraç
 ## Código/banco
 - Reutiliza a biblioteca única existente e a esteira do site, sem tabelas novas.
 - Guard da página e Server Actions: `configuracoes/patrocinadores_gerenciar` e `configuracoes/valores_assine_gerenciar`.
-- Migration de RLS preparada em `supabase/migrations/20261122341100_sponsor_operator_permissions.sql`, ainda **NÃO aplicada**: amplia constraints de catálogo e troca direitos de escrita de site_ad_*, media_assets e site_offer_settings. Nenhuma imagem, usuário ou conteúdo é modificado.
+- Migration de RLS preparada em `supabase/migrations/20261117171920_sponsor_operator_permissions.sql`, **aplicada e verificada em 17/11/2026**: amplia constraints de catálogo e troca direitos de escrita de site_ad_*, media_assets e site_offer_settings. Nenhuma imagem, usuário ou conteúdo é modificado.
 - Nova rota operacional `/sistema/patrocinadores` e redirecionamento da URL em Configurações continuam compatíveis.
 
 ## Homologar antes de produção
@@ -30,4 +30,4 @@ Na área **Usuários → Editar permissões** não existia a seção Configuraç
 5. Exige autorização específica para migration remota e deploy, somente depois realizar concessões a operadores reais.
 6. O cadastro examinado de Silas Alves constava `admin`; não alterar papel ou permissões existentes sem identificar a sessão.
 
-**Estado: PR #108 rascunho, não publicado.**
+**Estado: migration aplicada e verificada em produção; publicação da interface pendente da integração e deploy.**
