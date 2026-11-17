@@ -121,6 +121,7 @@ export async function middleware(request: NextRequest): Promise<NextResponse> {
     }
     const operatorSettingsPath = pathname === "/sistema/configuracoes"
       || matches("/sistema/configuracoes/patrocinadores")
+      || matches("/sistema/configuracoes/valores-assine")
       || matches("/sistema/configuracoes/modelos-contratos")
       || auditPath;
     const adminOnly = matches("/sistema/usuarios") || matches("/sistema/nfse")
