@@ -176,7 +176,12 @@ export function UsersManager(): JSX.Element {
   const [permissionDraft, setPermissionDraft] = useState<PermissionDraft | null>(null);
   const [expandedModules, setExpandedModules] = useState<Set<StaffModuleKey>>(new Set());
   const [pendingSwitch, setPendingSwitch] = useState<{ target: string | null } | null>(null);
-  const [criticalConfirm, setCriticalConfirm] = useState<{ scope: "module"; moduleKey: StaffActionModule } | { scope: "finance" } | null>(null);
+  const [criticalConfirm, setCriticalConfirm] = useState<
+    | { scope: "module"; moduleKey: StaffActionModule }
+    | { scope: "finance" }
+    | { scope: "single"; moduleKey: StaffActionModule; actionKey: StaffModuleActionKey; label: string }
+    | null
+  >(null);
 
   const isOwner = profile?.role === "owner";
   const isAdmin = profile?.role === "admin";
@@ -514,6 +519,13 @@ export function UsersManager(): JSX.Element {
 
   function updateModuleAction(moduleKey: StaffActionModule, actionKey: StaffModuleActionKey, allowed: boolean): void {
     if (!permissionDraft) return;
+    const item = STAFF_MODULE_ACTIONS.find((action) => action.module === moduleKey && action.key === actionKey);
+    if (allowed && item && "isCritical" in item && item.isCritical === true) {
+      // Nunca marcar ações sensíveis ao primeiro clique: o administrador
+      // confirma a concessão explicitamente, e só então pode salvá-la.
+      setCriticalConfirm({ scope: "single", moduleKey, actionKey, label: item.label });
+      return;
+    }
     setPermissionDraft({ ...permissionDraft, moduleActions: { ...permissionDraft.moduleActions, [moduleActionDraftKey(moduleKey, actionKey)]: allowed } });
   }
 
@@ -546,11 +558,19 @@ export function UsersManager(): JSX.Element {
 
   function confirmCriticalSelection(): void {
     if (!permissionDraft || !criticalConfirm) return;
-    setPermissionDraft(
-      criticalConfirm.scope === "module"
-        ? selectAllModuleActions(permissionDraft, criticalConfirm.moduleKey, { includeCritical: true })
-        : selectAllFinanceActions(permissionDraft, { includeCritical: true }),
-    );
+    if (criticalConfirm.scope === "single") {
+      setPermissionDraft({
+        ...permissionDraft,
+        moduleActions: {
+          ...permissionDraft.moduleActions,
+          [moduleActionDraftKey(criticalConfirm.moduleKey, criticalConfirm.actionKey)]: true,
+        },
+      });
+    } else if (criticalConfirm.scope === "module") {
+      setPermissionDraft(selectAllModuleActions(permissionDraft, criticalConfirm.moduleKey, { includeCritical: true }));
+    } else {
+      setPermissionDraft(selectAllFinanceActions(permissionDraft, { includeCritical: true }));
+    }
     setCriticalConfirm(null);
   }
 
@@ -1030,14 +1050,26 @@ export function UsersManager(): JSX.Element {
 
       <ConfirmDialog
         open={criticalConfirm !== null}
-        title="Incluir ações críticas na seleção?"
-        description={
+        title={criticalConfirm?.scope === "single" ? "Confirmar concessão de permissão sensível?" : "Incluir ações críticas na seleção?"}
+        description={criticalConfirm?.scope === "single" ? (
+          <p>
+            Você está autorizando <strong>{criticalConfirm.label}</strong> para o operador selecionado.
+            Essa permissão pode alterar informações importantes do jornal. A concessão ficará registrada
+            no histórico de permissões ao clicar em "Salvar permissões". A responsabilidade pela liberação
+            é do administrador que a confirmou.
+          </p>
+        ) : criticalConfirm?.scope === "module" && criticalConfirm.moduleKey === "configuracoes" ? (
+          <p>
+            "Selecionar tudo" também concederá alterações sensíveis de preços e ofertas do portal.
+            Confirme expressamente antes de salvar as permissões do operador. A concessão será auditada.
+          </p>
+        ) : (
           <p>
             "Selecionar tudo" também inclui operações críticas (cancelar vendas ou assinaturas,
             estornar recebimento, cancelar cobrança Pix). Confirme para incluí-las também.
           </p>
-        }
-        confirmLabel="Incluir ações críticas"
+        )}
+        confirmLabel={criticalConfirm?.scope === "single" ? "Confirmar autorização" : "Incluir ações críticas"}
         destructive
         onConfirm={confirmCriticalSelection}
         onCancel={() => setCriticalConfirm(null)}
