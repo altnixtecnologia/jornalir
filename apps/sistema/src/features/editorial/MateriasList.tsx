@@ -26,6 +26,8 @@ export interface MateriasListFilters {
   sectionId: string;
   localityId: string;
   origin: ArticleOrigin | "all";
+  editionId: string;
+  includeArchived: boolean;
   sortBy: MateriasSortColumn;
   sortDir: SortDirection;
   dateField?: MateriasDateField;
@@ -175,6 +177,8 @@ export function MateriasList({
     filters.sectionId !== "all",
     filters.localityId !== "all",
     filters.origin !== "all",
+    filters.editionId !== "all",
+    filters.includeArchived,
     Boolean(filters.dateField),
     filters.dateFrom.length > 0,
     filters.dateTo.length > 0,
@@ -209,6 +213,9 @@ export function MateriasList({
     if (filters.sectionId !== "all") params.set("section", filters.sectionId);
     if (filters.localityId !== "all") params.set("locality", filters.localityId);
     if (filters.origin !== "all") params.set("origin", filters.origin);
+    if (filters.editionId !== "all") params.set("edition", filters.editionId);
+    if (filters.includeArchived) params.set("includeArchived", "1");
+    params.set("view", "all");
     if (filters.dateField) params.set("dateField", filters.dateField);
     if (filters.dateFrom) params.set("dateFrom", filters.dateFrom);
     if (filters.dateTo) params.set("dateTo", filters.dateTo);
@@ -260,6 +267,8 @@ export function MateriasList({
         method="get"
         action="/sistema/editorial/materias"
       >
+        <input type="hidden" name="view" value="all" />
+        {filters.includeArchived ? <input type="hidden" name="includeArchived" value="1" /> : null}
         <input type="hidden" name="sortBy" value={filters.sortBy} />
         <input type="hidden" name="sortDir" value={filters.sortDir} />
         <div className="materias-filters-compact">
@@ -269,6 +278,7 @@ export function MateriasList({
           </label>
           <select name="status" defaultValue={filters.status} aria-label="Status" title="Status">
             <option value="all">Status: todos</option>
+            <option value="unpublished">Não publicadas</option>
             {STATUS_OPTIONS.map((status) => (
               <option key={status} value={status}>{articleStatusLabels[status]}</option>
             ))}
@@ -284,6 +294,11 @@ export function MateriasList({
           <select name="origin" defaultValue={filters.origin} aria-label="Origem" title="Origem">
             <option value="all">Origem: todas</option>
             {ORIGIN_OPTIONS.map((origin) => <option key={origin} value={origin}>{articleOriginLabels[origin]}</option>)}
+          </select>
+          <select name="edition" defaultValue={filters.editionId} aria-label="Edição" title="Filtrar por edição">
+            <option value="all">Todas as edições</option>
+            {[...editions].sort((a, b) => b.editionNumber - a.editionNumber).map((edition) =>
+              <option key={edition.id} value={edition.id}>Edição {edition.editionNumber}</option>)}
           </select>
           <select name="dateField" defaultValue={filters.dateField ?? ""} aria-label="Tipo de data" title="Tipo de data">
             <option value="">Período: nenhum</option>
@@ -306,7 +321,7 @@ export function MateriasList({
           </select>
           <div className="materias-toolbar-actions">
             <button type="submit" className="cadastros-btn-primary">Aplicar</button>
-            <Link className="secondary-link" href="/sistema/editorial/materias">Limpar</Link>
+            <Link className="secondary-link" href="/sistema/editorial/materias?view=all">Limpar</Link>
           </div>
         </div>
         <div className="materias-toolbar-meta">
@@ -342,10 +357,10 @@ export function MateriasList({
                 <tr>
                   {SORTABLE_COLUMNS.map((column) => (
                     <th key={column.key} aria-sort={filters.sortBy === column.key ? (filters.sortDir === "asc" ? "ascending" : "descending") : "none"}>
-                      <Link href={buildSortHref(column.key)} className={`materia-sort-link${filters.sortBy === column.key ? " is-active" : ""}`}>
+                      <a href={buildSortHref(column.key)} title={"Ordenar por " + column.label} className={`materia-sort-link${filters.sortBy === column.key ? " is-active" : ""}`}>
                         {column.label}
                         {sortIndicator(column.key)}
-                      </Link>
+                      </a>
                     </th>
                   ))}
                   <th>Destaque</th>

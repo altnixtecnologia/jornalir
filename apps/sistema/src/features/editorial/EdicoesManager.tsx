@@ -580,7 +580,7 @@ export function EdicoesManager({ editions }: EdicoesManagerProps): JSX.Element {
     const isCheckingArchive = checkingArchiveId === edition.id;
     const candidate = archiveCandidate[edition.id];
     return (
-      <div className="media-upload-actions">
+      <div className="media-upload-actions edicoes-pdf-actions">
         {edition.pdfUrl ? (
           <a className="text-link" href={edition.pdfUrl} target="_blank" rel="noreferrer">
             Ver PDF
@@ -595,7 +595,7 @@ export function EdicoesManager({ editions }: EdicoesManagerProps): JSX.Element {
           onClick={() => fileInputRefs.current[edition.id]?.click()}
           disabled={pending || isUploading}
         >
-          {isUploading ? "Enviando…" : edition.pdfUrl || edition.pdfR2Key ? "Trocar PDF" : "Enviar ao Jornal Online"}
+          {isUploading ? "Enviando…" : edition.pdfUrl || edition.pdfR2Key ? "Trocar PDF" : "Enviar PDF"}
         </button>
         <button
           type="button"
@@ -603,7 +603,7 @@ export function EdicoesManager({ editions }: EdicoesManagerProps): JSX.Element {
           disabled={pending || isUploading || isCheckingArchive}
           title="Verifica, sem enviar nada, se este PDF já existe no acervo histórico do R2."
         >
-          {isCheckingArchive ? "Verificando…" : "Verificar acervo R2"}
+          {isCheckingArchive ? "Verificando…" : "Verificar"}
         </button>
         {/* Botões sempre no mesmo lugar (pedido do usuário, 07/11/2026):
             este só fica clicável depois que "Verificar acervo R2" acha o PDF. */}
@@ -611,11 +611,11 @@ export function EdicoesManager({ editions }: EdicoesManagerProps): JSX.Element {
           type="button"
           onClick={() => handleReuseArchivedPdf(edition.id)}
           disabled={!candidate || pending || isUploading}
-          title={candidate ? undefined : "Use antes \"Verificar acervo R2\" para localizar o PDF no acervo."}
+          title={candidate ? "Vincular o PDF do acervo e gerar matérias." : "Use antes \"Verificar acervo R2\" para localizar o PDF no acervo."}
         >
           {/* Nome pedido pelo usuário (07/11/2026): o clique vincula o PDF do
               acervo (capa + Jornal Online) e enfileira a geração de matérias. */}
-          {candidate?.conflict ? "Substituir e gerar matérias" : "Vincular e gerar matérias"}
+          {candidate?.conflict ? "Substituir" : "Vincular"}
         </button>
         <input
           ref={(element) => {
@@ -694,7 +694,6 @@ export function EdicoesManager({ editions }: EdicoesManagerProps): JSX.Element {
               <th>Jornal Online</th>
               <th>Matérias</th>
               <th>Ações</th>
-              <th>Detalhes</th>
             </tr>
           </thead>
           <tbody>
@@ -711,16 +710,15 @@ export function EdicoesManager({ editions }: EdicoesManagerProps): JSX.Element {
                 <td>{renderOnlineStatusCell(edition)}</td>
                 <td>{renderMateriasStatusCell(edition)}</td>
                 <td>
-                  <div className="candidate-row-actions">
-                    <button type="button" onClick={() => openEditModal(edition)} disabled={pending}>
-                      Editar
+                  <div className="edicoes-row-actions">
+                    <button type="button" onClick={() => openEditModal(edition)} disabled={pending}>Editar</button>
+                    <button type="button" onClick={() => setDetailsEditionId(edition.id)}>Detalhes</button>
+                    <button type="button" onClick={() => setCaptureEditionId(edition.id)}
+                      disabled={edition.archiveProvider !== "r2" || !edition.pdfR2Key}
+                      title={edition.archiveProvider === "r2" && edition.pdfR2Key ? "Capturar matérias visualmente deste PDF" : "Vincule o PDF ao acervo R2 antes de capturar"}>
+                      Capturar matérias
                     </button>
                   </div>
-                </td>
-                <td>
-                  <button type="button" onClick={() => setDetailsEditionId(edition.id)}>
-                    Detalhes
-                  </button>
                 </td>
               </tr>
             ))}
@@ -766,6 +764,11 @@ export function EdicoesManager({ editions }: EdicoesManagerProps): JSX.Element {
               </button>
               <button type="button" onClick={() => setDetailsEditionId(edition.id)}>
                 Detalhes
+              </button>
+              <button type="button" onClick={() => setCaptureEditionId(edition.id)}
+                disabled={edition.archiveProvider !== "r2" || !edition.pdfR2Key}
+                title={edition.archiveProvider === "r2" && edition.pdfR2Key ? "Capturar matérias visualmente" : "Vincule primeiro o PDF no R2"}>
+                Capturar matérias
               </button>
             </div>
           </li>

@@ -515,10 +515,12 @@ export interface ArticleAdminPageQuery {
   page?: number;
   pageSize?: number;
   search?: string;
-  status?: ArticleStatus | "all";
+  status?: ArticleStatus | "all" | "unpublished";
   sectionId?: string;
   localityId?: string;
   origin?: ArticleOrigin | "all";
+  editionId?: string;
+  includeArchived?: boolean;
   sortBy?: MateriasSortColumn;
   sortDir?: SortDirection;
   dateField?: MateriasDateField;
@@ -587,12 +589,14 @@ export async function listArticlesAdminPageSupabase(
 
     // "Status: todos" deixa de fora as arquivadas/removidas (07/11/2026 —
     // "Remover" da listagem arquiva); elas continuam no filtro "Arquivado".
-    if (input.status && input.status !== "all") query = query.eq("status", input.status);
-    else query = query.neq("status", "archived");
+    if (input.status === "unpublished") query = query.in("status", ["draft", "adjusting", "scheduled"]);
+    else if (input.status && input.status !== "all") query = query.eq("status", input.status);
+    else if (!input.includeArchived) query = query.neq("status", "archived");
     if (input.sectionId && input.sectionId !== "all") query = query.eq("section_id", input.sectionId);
     if (input.localityId && input.localityId !== "all") query = query.eq("locality_id", input.localityId);
     const origin = dbOrigin(input.origin);
     if (origin) query = query.eq("origin", origin);
+    if (input.editionId) query = query.eq("newspaper_edition_id", input.editionId);
 
     const term = safeSearchTerm(input.search);
     if (term) {
