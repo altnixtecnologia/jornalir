@@ -114,8 +114,13 @@ export class CommercialSaleService {
     const record = normalize(input, "proposal");
     assertValid(record);
     if (record.itemsSnapshot !== undefined) {
-      if (!record.proposalId || record.itemsSnapshot.length === 0) {
-        throw new CommercialSaleValidationError("Os itens da venda devem vir de uma proposta válida.");
+      // Proposta convertida mantém IDs de sua origem; venda criada direto no
+      // Comercial usa IDs locais direct-sale:1, direct-sale:2 etc.
+      const directSale = !record.proposalId;
+      if (record.itemsSnapshot.length === 0 ||
+        (directSale && record.itemsSnapshot.some((item) => !/^direct-sale:[1-9]\\d*$/.test(item.sourceProposalItemId))) ||
+        (!directSale && record.itemsSnapshot.some((item) => item.sourceProposalItemId.startsWith("direct-sale:")))) {
+        throw new CommercialSaleValidationError("Os itens da venda não correspondem à sua origem.");
       }
       if (record.itemsSnapshot.some((item) =>
         !item.description.trim() || !item.productName.trim() ||
@@ -123,6 +128,7 @@ export class CommercialSaleService {
         !Number.isFinite(item.unitPrice) || item.unitPrice < 0 ||
         !item.sourceProposalItemId ||
         !Number.isFinite(item.discountAmount) || item.discountAmount < 0 ||
+        item.discountAmount > item.quantity * item.unitPrice ||
         !Number.isFinite(item.totalAmount) || item.totalAmount < 0 ||
         Math.abs(computeProposalItemTotal(item) - item.totalAmount) > 0.009
       )) throw new CommercialSaleValidationError("A proposta possui itens inválidos.");
