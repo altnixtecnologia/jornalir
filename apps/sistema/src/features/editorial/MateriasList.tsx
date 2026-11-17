@@ -9,9 +9,7 @@ import { confirmDialog } from "../../lib/feedback/confirmStore";
 import type { Article, ArticleOrigin, ArticleStatus, EditorialSection, Locality, NewspaperEdition } from "@ir/types";
 import type { MateriasDateField, MateriasSortColumn, SortDirection } from "../../providers/supabase/articleRepository.supabase";
 import {
-  articleOriginLabels,
   articleStatusLabels,
-  editionPageLabel,
   formatDateTime,
   hasCoverImage,
   mediaSummary,
@@ -48,8 +46,6 @@ interface MateriasListProps {
 }
 
 const STATUS_OPTIONS: ArticleStatus[] = ["draft", "adjusting", "scheduled", "published", "archived"];
-const ORIGIN_OPTIONS: ArticleOrigin[] = ["manual", "pdfImport", "legacySite"];
-type PhotoFilter = "all" | "withPhoto" | "withoutPhoto";
 type HighlightFilter = "all" | "withHighlight" | "withoutHighlight";
 
 const DATE_FIELD_OPTIONS: { value: MateriasDateField; label: string }[] = [
@@ -63,7 +59,7 @@ const DATE_FIELD_OPTIONS: { value: MateriasDateField; label: string }[] = [
 const SORTABLE_COLUMNS: { key: MateriasSortColumn; label: string }[] = [
   { key: "reference", label: "Referência" },
   { key: "title", label: "Matéria" },
-  { key: "origin", label: "Origem" },
+  { key: "edition", label: "Edição" },
   { key: "section", label: "Editoria" },
   { key: "locality", label: "Abrangência" },
   { key: "status", label: "Status" },
@@ -103,10 +99,7 @@ export function MateriasList({
   totalPages,
   filters,
 }: MateriasListProps): JSX.Element {
-  // Estes dois filtros são deliberadamente locais à página atual. Os filtros
-  // de grande cardinalidade (busca/status/editoria/localidade/origem) rodam
-  // no banco para nunca carregar dezenas de milhares de matérias no browser.
-  const [photoFilter, setPhotoFilter] = useState<PhotoFilter>("all");
+  // Destaques são filtrados apenas na página atual; demais filtros rodam no banco.
   const [highlightFilter, setHighlightFilter] = useState<HighlightFilter>("all");
   const [dateFrom, setDateFrom] = useState(filters.dateFrom);
   const [dateTo, setDateTo] = useState(filters.dateTo);
@@ -182,7 +175,6 @@ export function MateriasList({
     Boolean(filters.dateField),
     filters.dateFrom.length > 0,
     filters.dateTo.length > 0,
-    photoFilter !== "all",
     highlightFilter !== "all",
   ].filter(Boolean).length;
 
@@ -193,13 +185,11 @@ export function MateriasList({
   const filtered = useMemo(
     () =>
       articles.filter((article) => {
-        if (photoFilter === "withPhoto" && article.media.length === 0) return false;
-        if (photoFilter === "withoutPhoto" && article.media.length > 0) return false;
         if (highlightFilter === "withHighlight" && article.placement.type === "none") return false;
         if (highlightFilter === "withoutHighlight" && article.placement.type !== "none") return false;
         return true;
       }),
-    [articles, photoFilter, highlightFilter],
+    [articles, highlightFilter],
   );
 
   function buildHref(
@@ -303,10 +293,6 @@ export function MateriasList({
             <option value="all">Abrangência: todas</option>
             {localities.map((locality) => <option key={locality.id} value={locality.id}>{locality.name}</option>)}
           </select>
-          <select name="origin" defaultValue={filters.origin} aria-label="Origem" title="Origem">
-            <option value="all">Origem: todas</option>
-            {ORIGIN_OPTIONS.map((origin) => <option key={origin} value={origin}>{articleOriginLabels[origin]}</option>)}
-          </select>
           <select name="edition" defaultValue={filters.editionId} aria-label="Edição" title="Filtrar por edição">
             <option value="all">Todas as edições</option>
             {[...editions].sort((a, b) => b.editionNumber - a.editionNumber).map((edition) =>
@@ -338,14 +324,6 @@ export function MateriasList({
         </div>
         <div className="materias-toolbar-meta">
           <label className="materias-inline-select">
-            Fotos nesta página
-            <select value={photoFilter} onChange={(event) => setPhotoFilter(event.target.value as PhotoFilter)}>
-              <option value="all">Todas</option>
-              <option value="withPhoto">Com foto</option>
-              <option value="withoutPhoto">Sem foto</option>
-            </select>
-          </label>
-          <label className="materias-inline-select">
             Destaque nesta página
             <select value={highlightFilter} onChange={(event) => setHighlightFilter(event.target.value as HighlightFilter)}>
               <option value="all">Todos</option>
@@ -353,7 +331,6 @@ export function MateriasList({
               <option value="withoutHighlight">Sem destaque</option>
             </select>
           </label>
-          <span className="materias-active-order" aria-label="Ordenação atual">{activeSortInfo}</span>
           <span className="materias-count">
             Página {page} de {totalPages} · {total} matéria(s) · {filtered.length} de {articles.length} nesta página
           </span>
@@ -395,9 +372,13 @@ export function MateriasList({
                         <Link className="materia-title materia-title-link" href={`/sistema/editorial/materias/${article.id}`}>{article.urgent ? <span className="urgent-badge">Urgente</span> : null}{article.title}</Link>
                         {article.subtitle ? <span className="materia-subtitle">{article.subtitle}</span> : null}
                       </td>
-                      <td>
-                        <span className={`origin-pill origin-pill--${article.origin}`}>{articleOriginLabels[article.origin]}</span>
-                        {edition ? <span className="materia-subtitle">{editionPageLabel(edition.title, article.editionPageNumber)}</span> : null}
+                      <td className="materia-edition-cell">
+                        {edition ? (
+                          <>
+                            <span className="materia-edition-value">Edição {edition.editionNumber}</span>
+                            {article.editionPageNumber ? <small>Página {article.editionPageNumber}</small> : null}
+                          </>
+                        ) : <span className="materia-edition-empty">Sem edição</span>}
                       </td>
                       <td>{section?.name ?? "—"}</td><td>{locality?.name ?? "—"}</td>
                       <td><span className={`status-pill status-pill--${article.status}`}>{articleStatusLabels[article.status]}</span></td>
@@ -428,10 +409,10 @@ export function MateriasList({
                     <span className="materia-card-title">{article.urgent ? <span className="urgent-badge">Urgente</span> : null}{article.title}</span>
                     {article.subtitle ? <span className="materia-subtitle">{article.subtitle}</span> : null}
                     <div className="materia-card-meta">
-                      <span className={`origin-pill origin-pill--${article.origin}`}>{articleOriginLabels[article.origin]}</span>
+                      <span>{edition ? `Edição ${edition.editionNumber}` : "Sem edição"}</span>
                       <span aria-hidden="true">·</span><span>{section?.name ?? "—"}</span>
                       <span aria-hidden="true">·</span><span>{locality?.name ?? "—"}</span>
-                      {edition ? <><span aria-hidden="true">·</span><span>{editionPageLabel(edition.title, article.editionPageNumber)}</span></> : null}
+                      {edition && article.editionPageNumber ? <><span aria-hidden="true">·</span><span>Página {article.editionPageNumber}</span></> : null}
                     </div>
                     <div className="materia-card-foot">
                       <PublicationCell article={article} />
