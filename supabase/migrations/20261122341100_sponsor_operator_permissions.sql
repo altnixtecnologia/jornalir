@@ -25,7 +25,7 @@ ALTER TABLE public.staff_module_action_permissions
        'propostas_aprovar','vendas_criar','vendas_editar','vendas_cancelar',
        'locacao_equipamentos_gerenciar','locacao_reservas_gerenciar','locacao_vistorias_registrar',
        'contratos_preparar','contratos_revisar','contratos_assinar','valores_negociar'))
-    OR (module_key = 'configuracoes' AND action_key = 'patrocinadores_gerenciar')
+    OR (module_key = 'configuracoes' AND action_key IN ('patrocinadores_gerenciar','valores_assine_gerenciar'))
     OR (module_key = 'nfse' AND action_key IN
       ('rascunhos_criar','rascunhos_editar','notas_emitir','notas_cancelar',
        'documentos_consultar','documentos_enviar','configuracoes_gerenciar','perfis_servico_gerenciar'))
@@ -66,5 +66,12 @@ ALTER POLICY site_ad_settings_insert_staff ON public.site_ad_settings
 ALTER POLICY site_ad_settings_update_staff ON public.site_ad_settings
   USING (public.is_active_staff() AND public.staff_can_module_action('configuracoes','patrocinadores_gerenciar'))
   WITH CHECK (public.is_active_staff() AND public.staff_can_module_action('configuracoes','patrocinadores_gerenciar'));
+
+-- Preços, descontos e visibilidade do Assine podem afetar receitas:
+-- acesso apenas com concessão individual confirmada pelo administrador.
+-- A política anterior permitia UPDATE a qualquer funcionário ativo.
+ALTER POLICY site_offer_settings_staff_update ON public.site_offer_settings
+  USING (public.is_active_staff() AND public.staff_can_module_action('configuracoes','valores_assine_gerenciar'))
+  WITH CHECK (public.is_active_staff() AND public.staff_can_module_action('configuracoes','valores_assine_gerenciar'));
 
 COMMIT;
