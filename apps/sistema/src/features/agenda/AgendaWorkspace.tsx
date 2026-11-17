@@ -723,13 +723,9 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
   const selectedWeekday = (parseDate(selectedDate).getDay() + 6) % 7;
   const selectedWeekStart = addDays(selectedDate, -selectedWeekday);
   const selectedWeekDays = Array.from({ length: 7 }, (_, index) => addDays(selectedWeekStart, index));
-  const todayCount = filteredEvents.filter((event) => event.eventDate === localClock.slice(0, 10) && event.status !== "cancelled").length;
-  const ownPending = data.events.filter(event=>
-    event.status==="scheduled" && (event.workflowKind!=="general"
-      ?event.articleOwnerId===data.currentUserId
-      :event.assignees.some(person=>person.id===data.currentUserId&&!person.completedAt))).length +
-    data.pautaItems.filter((item) =>
-      item.status === "pending" && item.responsibleProfileId === data.currentUserId && !item.agendaEventId).length;
+  const todayCount = filteredEvents.filter((event) => event.eventDate === localClock.slice(0, 10) && agendaEventState(event) === "scheduled").length;
+  // Só compromissos da Agenda, não misturar a fila editorial da Pauta.
+  const ownPending = data.events.filter(item=>agendaPendingFor(item,data.currentUserId)).length;
   // O seletor existente controla os atrasados; "Minha fila" continua pessoal.
   const overdueAgenda = data.events.filter(item=>agendaAppointmentOverdue(item,localClock))
     .sort((a,b)=>a.eventDate.localeCompare(b.eventDate)||String(a.startTime??"").localeCompare(String(b.startTime??"")));
@@ -746,7 +742,7 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
     activeSummary==="overdue"?"Compromissos atrasados":"Atrasados do responsável";
   const weekDays = Array.from({ length: 7 }, (_, index) => addDays(data.weekStart, index));
   const initialPautaDate = data.today >= data.periodStart && data.today <= data.periodEnd ? data.today : data.periodStart;
-  const monthEventCount = data.events.filter((event) => event.eventDate >= data.monthStart && event.eventDate <= data.monthEnd).length;
+  const monthCounts = agendaMonthCounts(filteredEvents,data.monthStart,data.monthEnd);
   const visiblePauta=data.pautaItems.filter(item=>item.status!=="cancelled");
   const orderedPauta=localPautaOrder
     ? [...visiblePauta].sort((a,b)=>{
@@ -1386,7 +1382,7 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
               <button type="button" onClick={() => moveMonth(-1)} aria-label="Mês anterior">‹</button>
               <div>
                 <strong>{monthLabel(data.focusDate)}</strong>
-                <span>{monthEventCount} compromisso{monthEventCount === 1 ? "" : "s"} no mês</span>
+                <span>{monthCounts.open} em aberto · {monthCounts.completed} concluído{monthCounts.completed === 1 ? "" : "s"}</span>
                 <button type="button" className="agenda-month-toggle" aria-expanded={isMonthExpanded} aria-controls="agenda-month-detail" onClick={() => setIsMonthExpanded((expanded) => !expanded)}>{isMonthExpanded ? "Fechar mês" : "Ver mês"}</button>
               </div>
               <button type="button" onClick={() => moveMonth(1)} aria-label="Próximo mês">›</button>
@@ -1396,7 +1392,7 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
               <button type="button" className="agenda-week-step" aria-label="Semana anterior" onClick={() => navigate("agenda", addDays(selectedDate, -7))}>‹</button>
               <div className="agenda-week-dates">
                 {selectedWeekDays.map((day, index) => {
-                  const count = (eventsByDate.get(day) ?? []).filter((event) => event.status !== "cancelled").length;
+                  const {open,completed} = agendaDayCounts(eventsByDate.get(day) ?? []);
                   return (
                     <button type="button" key={day} aria-label={longDate(day)} aria-pressed={selectedDate === day}
                       className={"agenda-week-date" + (selectedDate === day ? " is-selected" : "") + (day === data.today ? " is-today" : "")}
@@ -1406,7 +1402,8 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
                       }}>
                       <small>{["S", "T", "Q", "Q", "S", "S", "D"][index]}</small>
                       <strong>{parseDate(day).getDate()}</strong>
-                      {count > 0 ? <i aria-label={count + " compromissos"} /> : null}
+                      {open > 0 ? <i aria-label={open + " compromissos em aberto"} /> :
+                        completed > 0 ? <i aria-label={completed + " compromissos concluídos"} style={{background:"#20724a"}} /> : null}
                     </button>
                   );
                 })}
