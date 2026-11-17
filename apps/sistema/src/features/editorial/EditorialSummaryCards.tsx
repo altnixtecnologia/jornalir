@@ -5,7 +5,7 @@ export function EditorialSummaryCards({ stats }: { stats: EditorialArticleStats 
   const items = [
     { key: "total", label: "Total cadastradas", caption: "Inclui arquivadas", count: stats.total,
       href: "/sistema/editorial/materias?view=all&includeArchived=1" },
-    { key: "unpublished", label: "Não publicadas", caption: "Rascunhos, ajustes e programadas", count: stats.unpublished,
+    { key: "unpublished", label: "Não publicadas", caption: "Rascunhos e ajustes", count: stats.unpublished,
       href: "/sistema/editorial/materias?view=all&status=unpublished" },
     { key: "scheduled", label: "Programadas", caption: "Aguardando publicação", count: stats.scheduled,
       href: "/sistema/editorial/materias?view=all&status=scheduled" },

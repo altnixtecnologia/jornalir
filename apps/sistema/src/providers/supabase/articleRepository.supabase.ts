@@ -589,7 +589,7 @@ export async function listArticlesAdminPageSupabase(
 
     // "Status: todos" deixa de fora as arquivadas/removidas (07/11/2026 —
     // "Remover" da listagem arquiva); elas continuam no filtro "Arquivado".
-    if (input.status === "unpublished") query = query.in("status", ["draft", "adjusting", "scheduled"]);
+    if (input.status === "unpublished") query = query.in("status", ["draft", "adjusting"]);
     else if (input.status && input.status !== "all") query = query.eq("status", input.status);
     else if (!input.includeArchived) query = query.neq("status", "archived");
     if (input.sectionId && input.sectionId !== "all") query = query.eq("section_id", input.sectionId);

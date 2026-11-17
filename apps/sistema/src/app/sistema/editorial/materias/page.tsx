@@ -164,13 +164,13 @@ export default async function MateriasPage(
         eyebrow="EDITORIAL / MATÉRIAS"
         title="Matérias"
         description="Gerencie as matérias por edição ou consulte o acervo completo pelos filtros."
+        middle={<EditorialSummaryCards stats={stats} />}
         action={
           <Link className="header-action" href="/sistema/editorial/materias/nova">
             + Nova matéria
           </Link>
         }
       />
-      <EditorialSummaryCards stats={stats} />
       <nav className="editorial-edition-nav" aria-label="Visualização de matérias">
         <h2>{groupedView ? "Matérias agrupadas por edição" : "Todas as matérias"}</h2>
         <Link href={groupedView ? "/sistema/editorial/materias?view=all" : "/sistema/editorial/materias"}

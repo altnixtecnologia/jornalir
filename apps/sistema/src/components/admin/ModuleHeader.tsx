@@ -6,6 +6,7 @@ interface ModuleHeaderProps {
   description: string;
   action?: ReactNode;
   eyebrowAction?: ReactNode;
+  middle?: ReactNode;
 }
 
 export function ModuleHeader({
@@ -14,6 +15,7 @@ export function ModuleHeader({
   description,
   action,
   eyebrowAction,
+  middle,
 }: ModuleHeaderProps): JSX.Element {
   return (
     <header className="module-header">
@@ -22,6 +24,7 @@ export function ModuleHeader({
         <h1>{title}</h1>
         <p className="module-description">{description}</p>
       </div>
+      {middle ? <div className="module-header-middle">{middle}</div> : null}
       {action ? <div className="module-action">{action}</div> : null}
     </header>
   );

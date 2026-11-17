@@ -9,6 +9,8 @@ on:
       - "apps/sistema/src/providers/supabase/articleRepository.supabase.ts"
       - "apps/sistema/src/app/globals.css"
       - "apps/sistema/test/editorial-edition-groups.test.ts"
+      - "apps/sistema/test/editorial-header-mini-cards.test.ts"
+      - "apps/sistema/src/components/admin/ModuleHeader.tsx"
       - ".github/workflows/validate-editorial-edicoes-materias.yml"
   workflow_dispatch:
 
@@ -35,6 +37,7 @@ jobs:
       - name: Testar agrupamento e fluxos editoriais
         run: |
           npx tsx --test apps/sistema/test/editorial-edition-groups.test.ts
+          npx tsx --test apps/sistema/test/editorial-header-mini-cards.test.ts
           npx tsx --test apps/sistema/test/materias-admin-page-performance.test.ts
           npx tsx --test apps/sistema/test/edition-archive-recognition.test.ts
       - name: Typecheck do sistema
