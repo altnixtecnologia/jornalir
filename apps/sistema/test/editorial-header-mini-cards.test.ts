@@ -34,6 +34,7 @@ test("Matérias abre sempre a tabela anterior; edição só altera a ordenação
   assert.match(list, /SORTABLE_COLUMNS/);
   assert.match(list, /<table className="materias-table">/);
   assert.match(list, /name="edition"/);
-  assert.match(repo, /articles_admin_edition_order/);
+  assert.match(repo, /edition: "edition_sort_number"/);
+  assert.doesNotMatch(repo, /articles_admin_edition_order/);
   assert.match(repo, /sortBy === "edition"/);
 });
