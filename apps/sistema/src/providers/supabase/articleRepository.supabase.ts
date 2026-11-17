@@ -581,7 +581,8 @@ export async function listArticlesAdminPageSupabase(
     // quando o filtro já reduz bastante o conjunto (estimativa converge pro
     // valor real nesses casos). Documentado também em STATUS-E-HANDOFF.md.
     let query = client
-      .from(sortBy === "edition" ? "articles_admin_edition_order" : ARTICLES_TABLE)
+      // Ordenação pela edição usa índice em articles, sem varrer todo o acervo.
+      .from(ARTICLES_TABLE)
       .select(ARTICLE_LIST_COLUMNS, { count: "estimated" })
       .order(SORT_COLUMN_TO_DB[sortBy], { ascending, ...(sortBy === "edition" ? { nullsFirst: false } : {}) });
     if (sortBy === "edition") {
