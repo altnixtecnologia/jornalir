@@ -38,3 +38,17 @@ test("Matérias abre sempre a tabela anterior; edição só altera a ordenação
   assert.doesNotMatch(repo, /articles_admin_edition_order/);
   assert.match(repo, /sortBy === "edition"/);
 });
+
+// Não voltar a espalhar o cabeçalho nem esconder a ordenação por edição.
+test("Matérias exibe ordenação ativa e cabeçalho compacto, sem alterar colunas", () => {
+  const list = read("../src/features/editorial/MateriasList.tsx");
+  const css = read("../src/app/globals.css");
+  assert.match(list, /activeSortName = filters\.sortBy === "edition"/);
+  assert.match(list, /className="materias-active-order"/);
+  assert.match(list, /className="materias-mobile-active-order"/);
+  assert.match(list, /className=\{filters\.sortBy === column\.key \? "is-active-sort"/);
+  assert.match(list, /SORTABLE_COLUMNS\.map/);
+  assert.match(css, /\.materias-mobile-page \.materias-list-root \.materias-table\{\s*table-layout:fixed;/);
+  assert.match(css, /\.materias-mobile-page \.materias-list-root \.materias-table thead th\.is-active-sort/);
+  assert.match(css, /\.materias-mobile-page \.materias-list-root \.materias-toolbar-compact\{/);
+});
