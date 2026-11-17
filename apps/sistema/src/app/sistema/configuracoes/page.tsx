@@ -9,10 +9,13 @@ export default async function ConfiguracoesPage(): Promise<JSX.Element> {
   const { data: profile } = user ? await db.from("profiles").select("role,active").eq("id", user.id).maybeSingle() : { data: null };
   const isOwner = Boolean(profile?.active && profile.role === "owner");
   const isAdminOrOwner = Boolean(profile?.active && (profile.role === "owner" || profile.role === "admin"));
-  const [{data:isBusinessCoowner},{data:canManageSponsors},{data:canReadAudit},modelosDenied] = await Promise.all([
+  const [{data:isBusinessCoowner},{data:canManageSponsors},{data:canManageOffers},{data:canReadAudit},modelosDenied] = await Promise.all([
     user && isAdminOrOwner ? db.rpc("is_business_coowner") : Promise.resolve({data:false}),
     user ? db.rpc("staff_can_module_action",{
       p_module:"configuracoes",p_action:"patrocinadores_gerenciar",
+    }) : Promise.resolve({data:false}),
+    user ? db.rpc("staff_can_module_action",{
+      p_module:"configuracoes",p_action:"valores_assine_gerenciar",
     }) : Promise.resolve({data:false}),
     user ? db.rpc("can_read_audit_log") : Promise.resolve({data:false}),
     user ? checkFinanceAction("contratos_editar") : Promise.resolve("Sem sessão"),
@@ -32,8 +35,8 @@ export default async function ConfiguracoesPage(): Promise<JSX.Element> {
           {canReadAudit === true ? <Link className="materia-title-link" href="/sistema/configuracoes/auditoria">Auditoria e Atividades</Link> : null}
           {isAdminOrOwner ? <Link className="materia-title-link" href="/sistema/configuracoes/tv-pauta">TV Pauta — autorizar e gerenciar televisões</Link> : null}
           {isAdminOrOwner&&!isBusinessCoowner?<Link className="materia-title-link" href="/sistema/configuracoes/aplicativo">Aplicativo Jornal IR — versões e APK</Link>:null}
-          {isAdminOrOwner ? <Link className="materia-title-link" href="/sistema/configuracoes/valores-assine">Valores da página Assine</Link> : null}
-          {!isAdminOrOwner && canManageSponsors !== true && !canUseModels && canReadAudit !== true
+          {canManageOffers === true ? <Link className="materia-title-link" href="/sistema/configuracoes/valores-assine">Valores da página Assine</Link> : null}
+          {!isAdminOrOwner && canManageSponsors !== true && canManageOffers !== true && !canUseModels && canReadAudit !== true
             ? <p className="helper-text">Nenhuma área adicional liberada. Peça ao administrador para selecionar as ações necessárias em Usuários.</p> : null}
         </div>
       </section>
