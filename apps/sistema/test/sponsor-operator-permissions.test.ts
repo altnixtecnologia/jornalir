@@ -6,7 +6,7 @@ import {
 } from "../src/lib/permissions/staffPermissionsCatalog";
 import {
   buildPermissionDraft, emptySnapshot, applyModuleActivation, activateDefaultModules,
-  moduleActionDraftKey, diffPermissionDraft,
+  moduleActionDraftKey, diffPermissionDraft, selectAllModuleActions, moduleActionsHaveCritical,
 } from "../src/lib/permissions/permissionsDraft";
 
 const read = (file: string) => readFileSync(new URL(file, import.meta.url), "utf8");
@@ -65,4 +65,39 @@ test("a página Configurações somente mostra rotas autorizadas a operadores", 
   assert.match(desktop, /!canManageUsers && hasModule\("configuracoes"\)/);
   assert.match(mobile, /hasModule\(key\)/);
   assert.match(mobile, /configuracoesNavGroup\.label && !canManageUsers/);
+});
+
+test("preços e descontos do Assine são sensíveis e exigem confirmação antes de conceder", () => {
+  const sensitive = STAFF_MODULE_ACTIONS.find((action) =>
+    action.module === "configuracoes" && action.key === "valores_assine_gerenciar");
+  assert.ok(sensitive && "isCritical" in sensitive && sensitive.isCritical === true);
+  assert.equal(moduleActionsHaveCritical("configuracoes"), true);
+  const draft = applyModuleActivation(buildPermissionDraft(emptySnapshot()), "configuracoes", {hasExistingConfig:false});
+  assert.notEqual(draft.moduleActions[moduleActionDraftKey("configuracoes","valores_assine_gerenciar")], true);
+  const selected = selectAllModuleActions(draft, "configuracoes", {includeCritical:false});
+  assert.equal(selected.moduleActions[moduleActionDraftKey("configuracoes","patrocinadores_gerenciar")], true);
+  assert.notEqual(selected.moduleActions[moduleActionDraftKey("configuracoes","valores_assine_gerenciar")], true);
+  const userManager = read("../src/features/usuarios/UsersManager.tsx");
+  assert.match(userManager, /scope: "single"/);
+  assert.match(userManager, /setCriticalConfirm\(\{ scope: "single"/);
+  assert.match(userManager, /confirmLabel=\{criticalConfirm\?\.scope === "single"/);
+});
+
+test("valores Assine têm proteção na página, nas duas ações e em RLS", () => {
+  const page = read("../src/app/sistema/configuracoes/valores-assine/page.tsx");
+  const actions = read("../src/app/sistema/configuracoes/valores-assine/actions.ts");
+  const sql = read("../../../supabase/migrations/20261122341100_sponsor_operator_permissions.sql");
+  const middleware = read("../src/middleware.ts");
+  assert.match(page, /checkModuleAction\("configuracoes", "valores_assine_gerenciar"\)/);
+  assert.equal((actions.match(/checkModuleAction\("configuracoes", "valores_assine_gerenciar"\)/g) ?? []).length, 2);
+  assert.match(sql, /ALTER POLICY site_offer_settings_staff_update/);
+  assert.match(middleware, /matches\("\/sistema\/configuracoes\/valores-assine"\)/);
+});
+
+test("cadastro e autorização de Usuários permanecem somente para administradores", () => {
+  const middleware = read("../src/middleware.ts");
+  const nav = read("../src/components/admin/AdminHeader.tsx");
+  assert.match(middleware, /matches\("\/sistema\/usuarios"\)/);
+  assert.match(middleware, /if \(adminOnly && !privileged\)/);
+  assert.match(nav, /canManageUsers \? \(/);
 });
