@@ -8698,3 +8698,23 @@ details.pauta-item:has(.workflow-pauta-tools)>.workflow-collapsed-summary{paddin
   }
   .materias-mobile-page .materias-list-root .materias-active-order{display:none}
 }
+
+/* Editorial / Matérias: edição substitui a origem de importação.
+   O critério selecionado é destacado na própria aba do cabeçalho. */
+.materias-mobile-page .materias-list-root .materia-edition-cell{
+  vertical-align:middle;
+  white-space:normal;
+}
+.materias-mobile-page .materias-list-root .materia-edition-value{
+  display:block;font-size:12px;font-weight:700;line-height:1.3;
+}
+.materias-mobile-page .materias-list-root .materia-edition-cell small{
+  display:block;margin-top:3px;font-size:10px;color:var(--muted);
+}
+.materias-mobile-page .materias-list-root .materia-edition-empty{
+  font-size:11px;color:var(--muted);
+}
+.materias-mobile-page .materias-list-root .materia-sort-link.is-active{
+  color:var(--brand);font-weight:800;
+}
+.materias-mobile-page .materias-list-root .materias-toolbar-meta{margin:0}
