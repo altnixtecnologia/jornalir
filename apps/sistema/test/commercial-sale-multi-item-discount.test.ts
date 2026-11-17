@@ -58,7 +58,7 @@ test("desconto em R$ distribuído sem perder centavos, inclusive preço 0",()=>{
   }),products);
   assert.equal(sale.amount,20);
   assert.equal(sale.itemsSnapshot?.reduce((n,x)=>n+x.totalAmount,0),20);
-  assert.equal(sale.itemsSnapshot?.reduce((n,x)=>n+x.discountAmount,0),5.03);
+  assert.equal(Math.round((sale.itemsSnapshot?.reduce((n,x)=>n+x.discountAmount,0) ?? 0) * 100),503);
   assert.ok(sale.itemsSnapshot?.every(x=>x.totalAmount>=0));
 });
 
