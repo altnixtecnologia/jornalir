@@ -1,5 +1,5 @@
 import Link from "next/link";
-import type { ArticleOrigin, ArticleStatus } from "@ir/types";
+import type { ArticleStatus } from "@ir/types";
 import { EditorialSummaryCards } from "../../../../features/editorial/EditorialSummaryCards";
 import { getEditorialArticleStats } from "../../../../features/editorial/editorialArticleStats";
 import { ModuleHeader } from "../../../../components/admin/ModuleHeader";
@@ -28,17 +28,10 @@ function asStatus(value: string): ArticleStatus | "all" | "unpublished" {
     : "all";
 }
 
-function asOrigin(value: string): ArticleOrigin | "all" {
-  return ["manual", "pdfImport", "legacySite"].includes(value)
-    ? (value as ArticleOrigin)
-    : "all";
-}
-
 const SORT_COLUMNS: MateriasSortColumn[] = [
   "edition",
   "reference",
   "title",
-  "origin",
   "section",
   "locality",
   "status",
@@ -85,7 +78,7 @@ export default async function MateriasPage(
     status: asStatus(one(searchParams?.status)),
     sectionId: one(searchParams?.section) || "all",
     localityId: one(searchParams?.locality) || "all",
-    origin: asOrigin(one(searchParams?.origin)),
+    origin: "all",
     editionId: asEditionId(one(searchParams?.edition)),
     includeArchived: one(searchParams?.includeArchived) === "1",
     sortBy: asSortColumn(one(searchParams?.sortBy)),
