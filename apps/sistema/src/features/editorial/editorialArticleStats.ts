@@ -15,7 +15,7 @@ export interface EditorialArticleStats {
 export async function getEditorialArticleStats(client: SupabaseClient): Promise<EditorialArticleStats> {
   const [total, unpublished, scheduled, adjusting] = await Promise.all([
     client.from("articles").select("id", { head: true, count: "estimated" }),
-    client.from("articles").select("id", { head: true, count: "estimated" }).in("status", ["draft", "adjusting", "scheduled"]),
+    client.from("articles").select("id", { head: true, count: "estimated" }).in("status", ["draft", "adjusting"]),
     client.from("articles").select("id", { head: true, count: "estimated" }).eq("status", "scheduled"),
     client.from("articles").select("id", { head: true, count: "estimated" }).eq("status", "adjusting"),
   ]);
