@@ -44,7 +44,7 @@ test("Matérias exibe ordenação ativa e cabeçalho compacto, sem alterar colun
   const list = read("../src/features/editorial/MateriasList.tsx");
   const css = read("../src/app/globals.css");
   assert.match(list, /activeSortName = filters\.sortBy === "edition"/);
-  assert.match(list, /className="materias-active-order"/);
+  assert.doesNotMatch(list, /className="materias-active-order"/);
   assert.match(list, /className="materias-mobile-active-order"/);
   assert.match(list, /className=\{filters\.sortBy === column\.key \? "is-active-sort"/);
   assert.match(list, /SORTABLE_COLUMNS\.map/);
