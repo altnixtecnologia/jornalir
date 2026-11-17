@@ -169,7 +169,6 @@ export function MateriasList({
     filters.status !== "all",
     filters.sectionId !== "all",
     filters.localityId !== "all",
-    filters.origin !== "all",
     filters.editionId !== "all",
     filters.includeArchived,
     Boolean(filters.dateField),
@@ -202,7 +201,6 @@ export function MateriasList({
     if (filters.status !== "all") params.set("status", filters.status);
     if (filters.sectionId !== "all") params.set("section", filters.sectionId);
     if (filters.localityId !== "all") params.set("locality", filters.localityId);
-    if (filters.origin !== "all") params.set("origin", filters.origin);
     if (filters.editionId !== "all") params.set("edition", filters.editionId);
     if (filters.includeArchived) params.set("includeArchived", "1");
     if (filters.dateField) params.set("dateField", filters.dateField);
