@@ -77,6 +77,7 @@ export const STAFF_MODULE_ACTIONS = [
   { module: "assinaturas", key: "assinaturas_suspender", label: "Suspender ou reativar assinaturas" },
   { module: "assinaturas", key: "assinaturas_cancelar", label: "Cancelar assinaturas", isCritical: true },
   { module: "configuracoes", key: "patrocinadores_gerenciar", label: "Patrocinadores do site — enviar, editar, pausar e remover imagens" },
+  { module: "configuracoes", key: "valores_assine_gerenciar", label: "Valores e descontos da página Assine — alterar preços e ativar/desativar ofertas", isCritical: true },
   { module: "publicidade", key: "produtos_gerenciar", label: "Criar e editar produtos/planos" },
   { module: "publicidade", key: "solicitacoes_gerenciar", label: "Atender e converter solicitações do site", isDefault: true },
   { module: "publicidade", key: "propostas_criar", label: "Criar propostas", isDefault: true },
