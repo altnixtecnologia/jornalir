@@ -198,7 +198,7 @@ export async function updateArticle(
       subtitle: payload.subtitle.trim() || undefined,
       subtitleStyle: styleOrUndefined(payload.subtitleStyle),
       body: payload.body,
-      sourceUrl: payload.sourceUrl.trim() || null,
+      sourceUrl: payload.sourceUrl.trim(),
       sectionId: payload.sectionId,
       localityId: payload.localityId,
       urgent: payload.urgent,
