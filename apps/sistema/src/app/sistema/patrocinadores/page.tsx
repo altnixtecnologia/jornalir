@@ -1,8 +1,8 @@
-import { ModuleHeader } from "../../../../components/admin/ModuleHeader";
+import { ModuleHeader } from "../../../components/admin/ModuleHeader";
 import { redirect } from "next/navigation";
-import { SiteAdSlotsPanel } from "../../../../features/configuracoes/SiteAdSlotsPanel";
-import { getSiteAdSlotService } from "../../../../composition/siteAds";
-import { createSupabaseServerClient } from "../../../../lib/supabase/server";
+import { SiteAdSlotsPanel } from "../../../features/configuracoes/SiteAdSlotsPanel";
+import { getSiteAdSlotService } from "../../../composition/siteAds";
+import { createSupabaseServerClient } from "../../../lib/supabase/server";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
