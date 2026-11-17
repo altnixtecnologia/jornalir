@@ -41,6 +41,7 @@ import {
   respondAgendaInvitationAction,
 } from "./actions";
 import type { AgendaEventItem, AgendaWorkspaceData, EventCoverage, WeeklyPautaItem } from "./agendaTypes";
+import { agendaEventState, agendaDayCounts, agendaMonthCounts } from "./agendaCalendarStatus";
 import { coverageClockAt, validCoverageClock } from "./coverageClock";
 import { FIXED_COVERAGE_TASKS,type CoverageTaskDraft } from "./coverageTaskCatalog";
 import { EditorialWorkflowCreate } from "./EditorialWorkflowCreate";
@@ -150,7 +151,7 @@ function editorialDueInLocalTime(iso:string|null):string|null{
 
 /** Horário do evento NUNCA é o prazo da matéria. */
 function eventOverdue(event:AgendaEventItem,now:string):boolean{
- if(event.status!=="scheduled")return false;
+ if(agendaEventState(event)!=="scheduled")return false;
  const due=event.workflowKind!=="general"
    ?event.articleDueAt:event.coverage?.articleDueAt??null;
  const local=editorialDueInLocalTime(due);
@@ -158,13 +159,13 @@ function eventOverdue(event:AgendaEventItem,now:string):boolean{
 }
 /** Atraso do compromisso na Agenda, separado do prazo editorial da materia. */
 function agendaAppointmentOverdue(event:AgendaEventItem,now:string):boolean{
- if(!event.showInAgenda||event.status!=="scheduled")return false;
+ if(!event.showInAgenda||agendaEventState(event)!=="scheduled")return false;
  if(event.assignees.length>0&&event.assignees.every(person=>Boolean(person.completedAt)))return false;
  const end=event.endTime||event.startTime||"23:59";
  return event.eventDate+"T"+end<now;
 }
 function agendaPendingFor(event:AgendaEventItem,profileId:string):boolean{
- return event.showInAgenda&&event.status==="scheduled"&&(
+ return event.showInAgenda&&agendaEventState(event)==="scheduled"&&(
    event.assignees.some(person=>person.id===profileId&&!person.completedAt)||
    (event.assignees.length===0&&event.appointmentOwnerId===profileId));
 }
@@ -378,22 +379,18 @@ export function AgendaOverdueIndicator({data}:{data:AgendaWorkspaceData}):JSX.El
    return ()=>window.clearInterval(interval);
  },[]);
  if(!clock)return null;
- const events=data.events.filter(item=>item.showInAgenda&&eventOverdue(item,clock));
- const linked=new Set(data.events.filter(item=>item.showInAgenda).map(item=>item.id));
- const pauta=data.pautaItems.filter(item=>
-   pautaOverdue(item,clock)&&(!item.agendaEventId||!linked.has(item.agendaEventId)));
- const count=events.length+pauta.length;
+ // O cabeçalho da Agenda não inclui matérias nem prazos somente da Pauta.
+ const events=data.events.filter(item=>agendaAppointmentOverdue(item,clock));
+ const count=events.length;
  if(!count)return null;
- const href=events.length
-   ? "/sistema/agenda?date="+events[0].eventDate
-   : "/sistema/pauta?date="+(pauta[0]?.dueDate||data.today);
+ const href="/sistema/agenda?date="+events[0].eventDate;
  return <details className="agenda-overdue-floating">
   <summary aria-label={count+" pendências. Mostrar detalhes."}>
    <span aria-hidden="true">⚠</span> {count} {count===1?"atraso":"atrasos"}
   </summary>
   <div className="agenda-overdue-popover">
    <strong>{count} {count===1?"pendência":"pendências"} em aberto</strong>
-   <p>Compromissos e pautas com horário ultrapassado.</p>
+   <p>Compromissos da Agenda ainda abertos com horário ultrapassado.</p>
    <Link href={href}>Ver atrasados</Link>
   </div>
  </details>;
@@ -726,13 +723,9 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
   const selectedWeekday = (parseDate(selectedDate).getDay() + 6) % 7;
   const selectedWeekStart = addDays(selectedDate, -selectedWeekday);
   const selectedWeekDays = Array.from({ length: 7 }, (_, index) => addDays(selectedWeekStart, index));
-  const todayCount = filteredEvents.filter((event) => event.eventDate === localClock.slice(0, 10) && event.status !== "cancelled").length;
-  const ownPending = data.events.filter(event=>
-    event.status==="scheduled" && (event.workflowKind!=="general"
-      ?event.articleOwnerId===data.currentUserId
-      :event.assignees.some(person=>person.id===data.currentUserId&&!person.completedAt))).length +
-    data.pautaItems.filter((item) =>
-      item.status === "pending" && item.responsibleProfileId === data.currentUserId && !item.agendaEventId).length;
+  const todayCount = filteredEvents.filter((event) => event.eventDate === localClock.slice(0, 10) && agendaEventState(event) === "scheduled").length;
+  // Só compromissos da Agenda, não misturar a fila editorial da Pauta.
+  const ownPending = data.events.filter(item=>agendaPendingFor(item,data.currentUserId)).length;
   // O seletor existente controla os atrasados; "Minha fila" continua pessoal.
   const overdueAgenda = data.events.filter(item=>agendaAppointmentOverdue(item,localClock))
     .sort((a,b)=>a.eventDate.localeCompare(b.eventDate)||String(a.startTime??"").localeCompare(String(b.startTime??"")));
@@ -749,7 +742,7 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
     activeSummary==="overdue"?"Compromissos atrasados":"Atrasados do responsável";
   const weekDays = Array.from({ length: 7 }, (_, index) => addDays(data.weekStart, index));
   const initialPautaDate = data.today >= data.periodStart && data.today <= data.periodEnd ? data.today : data.periodStart;
-  const monthEventCount = data.events.filter((event) => event.eventDate >= data.monthStart && event.eventDate <= data.monthEnd).length;
+  const monthCounts = agendaMonthCounts(filteredEvents,data.monthStart,data.monthEnd);
   const visiblePauta=data.pautaItems.filter(item=>item.status!=="cancelled");
   const orderedPauta=localPautaOrder
     ? [...visiblePauta].sort((a,b)=>{
@@ -1389,7 +1382,7 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
               <button type="button" onClick={() => moveMonth(-1)} aria-label="Mês anterior">‹</button>
               <div>
                 <strong>{monthLabel(data.focusDate)}</strong>
-                <span>{monthEventCount} compromisso{monthEventCount === 1 ? "" : "s"} no mês</span>
+                <span>{monthCounts.open} em aberto · {monthCounts.completed} concluído{monthCounts.completed === 1 ? "" : "s"}</span>
                 <button type="button" className="agenda-month-toggle" aria-expanded={isMonthExpanded} aria-controls="agenda-month-detail" onClick={() => setIsMonthExpanded((expanded) => !expanded)}>{isMonthExpanded ? "Fechar mês" : "Ver mês"}</button>
               </div>
               <button type="button" onClick={() => moveMonth(1)} aria-label="Próximo mês">›</button>
@@ -1399,7 +1392,7 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
               <button type="button" className="agenda-week-step" aria-label="Semana anterior" onClick={() => navigate("agenda", addDays(selectedDate, -7))}>‹</button>
               <div className="agenda-week-dates">
                 {selectedWeekDays.map((day, index) => {
-                  const count = (eventsByDate.get(day) ?? []).filter((event) => event.status !== "cancelled").length;
+                  const {open,completed} = agendaDayCounts(eventsByDate.get(day) ?? []);
                   return (
                     <button type="button" key={day} aria-label={longDate(day)} aria-pressed={selectedDate === day}
                       className={"agenda-week-date" + (selectedDate === day ? " is-selected" : "") + (day === data.today ? " is-today" : "")}
@@ -1409,7 +1402,8 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
                       }}>
                       <small>{["S", "T", "Q", "Q", "S", "S", "D"][index]}</small>
                       <strong>{parseDate(day).getDate()}</strong>
-                      {count > 0 ? <i aria-label={count + " compromissos"} /> : null}
+                      {open > 0 ? <i aria-label={open + " compromissos em aberto"} /> :
+                        completed > 0 ? <i aria-label={completed + " compromissos concluídos"} style={{background:"#20724a"}} /> : null}
                     </button>
                   );
                 })}
@@ -1421,18 +1415,21 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
             <div className="agenda-month-grid">
               {days.map((day) => {
                 const dayEvents = eventsByDate.get(day.value) ?? [];
-                const activeEvents = dayEvents.filter((event) => event.status !== "cancelled");
+                const activeEvents = dayEvents.filter(event=>agendaEventState(event)==="scheduled");
+                const {completed} = agendaDayCounts(dayEvents);
                 const classes = ["agenda-day"];
                 if (!day.currentMonth) classes.push("is-outside");
                 if (day.value === selectedDate) classes.push("is-selected");
                 if (day.value === data.today) classes.push("is-today");
+                if (!activeEvents.length && completed > 0) classes.push("is-only-completed");
                 return (
                   <button type="button" key={day.value} className={classes.join(" ")} onClick={() => {
                     if (day.value < data.monthStart || day.value > data.monthEnd) navigate("agenda", day.value);
                     else setSelectedDate(day.value);
                   }}>
                     <span className="agenda-day-number">{day.day}</span>
-                    {activeEvents.length ? <span className="agenda-day-count">{activeEvents.length}</span> : null}
+                    {activeEvents.length ? <span className="agenda-day-count" aria-label={activeEvents.length + " compromissos em aberto"}>{activeEvents.length}</span>
+                      : completed > 0 ? <span className="agenda-day-count" aria-label={completed + " compromissos concluídos"} style={{background:"#20724a"}}>✓</span> : null}
                     {activeEvents.length ? <span className="agenda-day-colors" aria-hidden="true">
                       {activeEvents.slice(0, 4).map((event) => <i key={event.id} style={{ background: personColor(event.assignees[0]?.id ?? "") }} />)}
                     </span> : null}
@@ -1450,7 +1447,7 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
               {selectedEvents.length ? (
                 <div className="agenda-events-list">
                   {selectedEvents.map((item) => (
-                    <details key={item.id} className={"agenda-event-card is-" + item.status + (eventOverdue(item, localClock) ? " is-overdue" : "")}
+                    <details key={item.id} className={"agenda-event-card is-" + agendaEventState(item) + (eventOverdue(item, localClock) ? " is-overdue" : "")}
                       style={{ borderLeftColor: personColor(item.assignees[0]?.id ?? "") }}>
                       <summary className="workflow-collapsed-summary">
                         <span>{item.title}</span>
@@ -1471,8 +1468,8 @@ export function AgendaWorkspace({ data, initialView, basePath }: AgendaWorkspace
                               ))}
                             </span> : <span>Sem responsável</span>}
                             <span className={"agenda-event-state" + (eventOverdue(item, localClock) ? " is-overdue" : "")}>
-                              {eventOverdue(item, localClock) ? "⚠ " : ""}{statusLabel(item.status, eventOverdue(item, localClock))}
-                              {item.assignees.length > 1 ? ` · ${item.assignees.filter((person) => person.completedAt).length}/${item.assignees.length} concluídos` : ""}
+                              {eventOverdue(item, localClock) ? "⚠ " : ""}{statusLabel(agendaEventState(item), eventOverdue(item, localClock))}
+                              {item.assignees.length > 1 && agendaEventState(item) === "scheduled" ? ` · ${item.assignees.filter((person) => person.completedAt).length}/${item.assignees.length} concluídos` : ""}
                             </span>
                           </div>
                           {item.description ? <details className="agenda-event-details"><summary>Visualizar detalhes</summary><p>{item.description}</p></details> : null}

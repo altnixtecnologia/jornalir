@@ -1,0 +1,40 @@
+name: Agenda - status de compromissos no calendario (sem deploy)
+
+on:
+  pull_request:
+    branches: [solicitacoes-financeiro-contratos-irc-20261031]
+    paths:
+      - "apps/sistema/src/features/agenda/**"
+      - "apps/sistema/test/agenda-calendar-status.test.ts"
+      - ".github/workflows/validate-agenda-calendario.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verificar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ci-anon-key
+      NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ci-publishable-key
+      NEXT_TELEMETRY_DISABLED: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+      - name: Instalar workspaces
+        run: npm ci --no-audit --no-fund
+      - name: Testes de Agenda, Pauta e conclusoes
+        run: |
+          npx tsx --test apps/sistema/test/agenda-calendar-status.test.ts
+          npx tsx --test apps/sistema/test/agenda-pauta-navigation.test.ts
+          npx tsx --test apps/sistema/test/pauta-period.test.ts
+      - name: Checar TypeScript
+        run: npm run typecheck --workspace @ir/sistema
+      - name: Build completo sem publicar
+        run: npm run build --workspace @ir/sistema
