@@ -813,3 +813,8 @@ suposição ou autoativados.
 - **Testes Git adicionais:** `tests/security/full-schema-rls-postflight.sql` passa a exigir e-mail confirmado mesmo após adicionar membership de operador no banco efêmero. Nenhum usuário real de teste criado.
 - **Banco exclusivo de homologação PENDENTE por custo:** Supabase recusou criar branch sem `confirm_cost_id`. Valor da organização informado: **US$0,01344/h (cerca de US$0,32 por 24h de recurso ligado)**. Não foi solicitada confirmação de custo, nenhuma filial foi criada e nenhum teste comercial/operacional foi disparado. Para iniciar homologação online é necessária aprovação explícita desse custo, posterior configuração de credenciais/SMTP/R2/Asaas Sandbox e criação de usuários **fictícios**.
 - **Manual de implantação de homologação e matriz de 11 blocos:** `docs/HOMOLOGACAO-IR-AMBIENTE-E-ROTEIRO-20261024.md`. Nada no Altnix Informativo ou na `main` do Jornal IR foi alterado; PR #15 permanece DRAFT.
+
+
+## 17/11/2026 — Operadores: permissão de patrocinadores independente de Comercial (preparação)
+- Preparado o módulo próprio de patrocinadores (visibilidade + gerenciar), caminho operacional separado de Configurações, guards de servidor, navegação e alteração de RLS em migration **ainda não aplicada**.
+- Biblioteca única, seis posições da esteira, imagens e demais dados preservados. Sem alteração de usuários reais, sem PIX/NFS-e, sem deploy. Conferir `docs/PERMISSOES-PATROCINADORES-2026-11-17.md` antes de ativar.

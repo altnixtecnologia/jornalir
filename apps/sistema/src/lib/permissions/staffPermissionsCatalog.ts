@@ -8,6 +8,7 @@ export const STAFF_MODULES = [
   { key: "financeiro", label: "Financeiro" },
   { key: "assinaturas", label: "Assinaturas" },
   { key: "publicidade", label: "Comercial" },
+  { key: "patrocinadores", label: "Patrocinadores do site", bulkOptIn: true },
   { key: "nfse", label: "NFS-e", releaseBlocked: true },
   { key: "aniversariantes", label: "Aniversariantes" },
 ] as const;
@@ -16,7 +17,7 @@ export type StaffModuleKey = (typeof STAFF_MODULES)[number]["key"];
 /** Módulos elegíveis para o comando "Ativar módulos (padrão)".
  * NFS-e permanece de fora enquanto a política de release a mantiver bloqueada. */
 export const STAFF_MODULES_ELIGIBLE_FOR_BULK_ACTIVATION: readonly StaffModuleKey[] =
-  STAFF_MODULES.filter((item) => !("releaseBlocked" in item && item.releaseBlocked)).map((item) => item.key);
+  STAFF_MODULES.filter((item) => !("releaseBlocked" in item && item.releaseBlocked) && !("bulkOptIn" in item && item.bulkOptIn)).map((item) => item.key);
 
 
 /** Chaves reais da tabela staff_finance_action_permissions.
@@ -75,6 +76,7 @@ export const STAFF_MODULE_ACTIONS = [
   { module: "assinaturas", key: "assinaturas_ativar", label: "Ativar assinaturas pendentes de formalização" },
   { module: "assinaturas", key: "assinaturas_suspender", label: "Suspender ou reativar assinaturas" },
   { module: "assinaturas", key: "assinaturas_cancelar", label: "Cancelar assinaturas", isCritical: true },
+  { module: "patrocinadores", key: "gerenciar", label: "Gerenciar imagens dos patrocinadores do site", isDefault: true },
   { module: "publicidade", key: "produtos_gerenciar", label: "Criar e editar produtos/planos" },
   { module: "publicidade", key: "solicitacoes_gerenciar", label: "Atender e converter solicitações do site", isDefault: true },
   { module: "publicidade", key: "propostas_criar", label: "Criar propostas", isDefault: true },

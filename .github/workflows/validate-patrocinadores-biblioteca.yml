@@ -11,6 +11,12 @@ on:
       - "apps/sistema/test/site-ad-library.test.ts"
       - "apps/sistema/test/site-ad-publication.test.ts"
       - ".github/workflows/validate-patrocinadores-biblioteca.yml"
+      - "apps/sistema/src/lib/permissions/staffPermissionsCatalog.ts"
+      - "apps/sistema/src/middleware.ts"
+      - "apps/sistema/src/app/sistema/patrocinadores/**"
+      - "apps/sistema/src/components/admin/MobileNav.tsx"
+      - "apps/sistema/test/sponsor-operator-permissions.test.ts"
+      - "supabase/migrations/20261122341100_sponsor_operator_permissions.sql"
   workflow_dispatch:
 
 permissions:
@@ -36,6 +42,7 @@ jobs:
       - name: Testar biblioteca unica e publicacao manual
         run: |
           npx tsx --test apps/sistema/test/site-ad-library.test.ts
+          npx tsx --test apps/sistema/test/sponsor-operator-permissions.test.ts
           npx tsx --test apps/sistema/test/site-ad-publication.test.ts
       - name: Typecheck do sistema
         run: npm run typecheck --workspace @ir/sistema
