@@ -1,0 +1,34 @@
+name: Voltar e alinhamento da Pauta (sem deploy)
+
+on:
+  pull_request:
+    branches: [solicitacoes-financeiro-contratos-irc-20261031]
+    paths:
+      - "apps/sistema/src/components/admin/ModuleHeader.tsx"
+      - "apps/sistema/src/components/admin/ModuleBackButton.tsx"
+      - "apps/sistema/src/app/globals.css"
+      - "apps/sistema/test/module-back-button.test.ts"
+      - ".github/workflows/validate-module-back-button.yml"
+  workflow_dispatch:
+
+permissions: {contents: read}
+
+jobs:
+  validar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ci-anon-key
+      NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ci-publishable-key
+      NEXT_TELEMETRY_DISABLED: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - run: npx tsx --test apps/sistema/test/module-back-button.test.ts
+      - run: npm run typecheck --workspace @ir/sistema
+      - run: npm run build --workspace @ir/sistema
