@@ -215,13 +215,12 @@ export function MateriasList({
     if (filters.origin !== "all") params.set("origin", filters.origin);
     if (filters.editionId !== "all") params.set("edition", filters.editionId);
     if (filters.includeArchived) params.set("includeArchived", "1");
-    params.set("view", "all");
     if (filters.dateField) params.set("dateField", filters.dateField);
     if (filters.dateFrom) params.set("dateFrom", filters.dateFrom);
     if (filters.dateTo) params.set("dateTo", filters.dateTo);
     const sortBy = overrides.sortBy ?? filters.sortBy;
     const sortDir = overrides.sortDir ?? filters.sortDir;
-    if (sortBy !== "date") params.set("sortBy", sortBy);
+    if (sortBy !== "edition") params.set("sortBy", sortBy);
     if (sortDir !== "desc") params.set("sortDir", sortDir);
     params.set("page", String(targetPage));
     params.set("pageSize", String(targetPageSize));
@@ -267,7 +266,6 @@ export function MateriasList({
         method="get"
         action="/sistema/editorial/materias"
       >
-        <input type="hidden" name="view" value="all" />
         {filters.includeArchived ? <input type="hidden" name="includeArchived" value="1" /> : null}
         <input type="hidden" name="sortBy" value={filters.sortBy} />
         <input type="hidden" name="sortDir" value={filters.sortDir} />
@@ -321,7 +319,7 @@ export function MateriasList({
           </select>
           <div className="materias-toolbar-actions">
             <button type="submit" className="cadastros-btn-primary">Aplicar</button>
-            <Link className="secondary-link" href="/sistema/editorial/materias?view=all">Limpar</Link>
+            <Link className="secondary-link" href="/sistema/editorial/materias">Limpar</Link>
           </div>
         </div>
         <div className="materias-toolbar-meta">

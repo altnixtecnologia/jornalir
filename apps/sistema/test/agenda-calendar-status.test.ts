@@ -33,3 +33,12 @@ test("apenas compromissos da Agenda entram; não misturar Só Matéria da Pauta"
  assert.deepEqual(agendaDayCounts([pending,pautaOnly,done]),{open:1,completed:1});
  assert.deepEqual(agendaMonthCounts([pending],"2026-12-01","2026-12-31"),{open:0,completed:0});
 });
+
+test("cores do compromisso seguem situação e não cor do responsável", async () => {
+ const { agendaEventStatusColor } = await import("../src/features/agenda/agendaCalendarStatus");
+ assert.equal(agendaEventStatusColor(event("completed",{title:"Câmara Passo de Torres"}),true),"#16A34A");
+ assert.equal(agendaEventStatusColor(event("completed",{title:"Câmara São João do Sul"}),false),"#16A34A");
+ assert.equal(agendaEventStatusColor(event("scheduled"),true),"#C8102E");
+ assert.equal(agendaEventStatusColor(event("scheduled"),false),"#F5B51B");
+ assert.equal(agendaEventStatusColor(event("cancelled"),true),"#94A3B8");
+});

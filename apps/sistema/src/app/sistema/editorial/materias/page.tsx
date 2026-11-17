@@ -1,8 +1,6 @@
 import Link from "next/link";
 import type { ArticleOrigin, ArticleStatus } from "@ir/types";
 import { EditorialSummaryCards } from "../../../../features/editorial/EditorialSummaryCards";
-import { EditionArticleGroups } from "../../../../features/editorial/EditionArticleGroups";
-import { pickRecentEditionIds } from "../../../../features/editorial/recentEditionGroups";
 import { getEditorialArticleStats } from "../../../../features/editorial/editorialArticleStats";
 import { ModuleHeader } from "../../../../components/admin/ModuleHeader";
 import { MateriasList, type MateriasListFilters } from "../../../../features/editorial/MateriasList";
@@ -37,6 +35,7 @@ function asOrigin(value: string): ArticleOrigin | "all" {
 }
 
 const SORT_COLUMNS: MateriasSortColumn[] = [
+  "edition",
   "reference",
   "title",
   "origin",
@@ -48,7 +47,7 @@ const SORT_COLUMNS: MateriasSortColumn[] = [
 ];
 
 function asSortColumn(value: string): MateriasSortColumn {
-  return (SORT_COLUMNS as string[]).includes(value) ? (value as MateriasSortColumn) : "date";
+  return (SORT_COLUMNS as string[]).includes(value) ? (value as MateriasSortColumn) : "edition";
 }
 
 function asSortDir(value: string): SortDirection {
@@ -98,72 +97,31 @@ export default async function MateriasPage(
   const requestedPage = Math.max(1, Number(one(searchParams?.page)) || 1);
   const requestedPageSize = Number(one(searchParams?.pageSize)) || 48;
 
-  // A visão inicial usa apenas matérias ligadas a edições; o acervo legado
-  // continua disponível em "Todas as matérias" e nunca é recarregado em massa.
-  const listKeys = ["q", "status", "section", "locality", "origin", "edition", "sortBy", "sortDir",
-    "dateField", "dateFrom", "dateTo", "page", "pageSize", "includeArchived"];
-  const hasListQuery = listKeys.some((key) => Boolean(one(searchParams?.[key])));
-  const groupedView = one(searchParams?.view) !== "all" && !hasListQuery;
-
-  const [editions, stats] = await Promise.all([
+  // A listagem original permanece. A edição é apenas a ordenação padrão.
+  const [articlePage, sections, localities, editions, stats] = await Promise.all([
+    listArticlesAdminPageSupabase(supabase, {
+      page: requestedPage, pageSize: requestedPageSize, search: filters.q,
+      status: filters.status, sectionId: filters.sectionId,
+      localityId: filters.localityId, origin: filters.origin,
+      editionId: filters.editionId === "all" ? undefined : filters.editionId,
+      includeArchived: filters.includeArchived,
+      sortBy: filters.sortBy, sortDir: filters.sortDir,
+      dateField: filters.dateField,
+      dateFrom: filters.dateFrom || undefined,
+      dateTo: filters.dateTo || undefined,
+    }),
+    getEditorialSectionService(supabase).list(),
+    getLocalityService(supabase).list(),
     getNewspaperEditionService(supabase).list(),
     getEditorialArticleStats(supabase),
   ]);
-
-  let articlePage: Awaited<ReturnType<typeof listArticlesAdminPageSupabase>> | null = null;
-  let sections: Awaited<ReturnType<ReturnType<typeof getEditorialSectionService>["list"]>> = [];
-  let localities: Awaited<ReturnType<ReturnType<typeof getLocalityService>["list"]>> = [];
-  let editionGroups: { edition: (typeof editions)[number]; articles: Awaited<ReturnType<typeof listArticlesAdminPageSupabase>>["articles"]; total: number }[] = [];
-
-  if (groupedView) {
-    // Consulta apenas IDs já vinculados, não os ~23 mil artigos históricos sem edição.
-    // O limite protege o banco; as demais edições permanecem acessíveis pelo filtro.
-    const { data: linkedRows, error: linkedError } = await supabase.from("articles")
-      .select("newspaper_edition_id")
-      .not("newspaper_edition_id", "is", null)
-      .neq("status", "archived")
-      .order("created_at", { ascending: false })
-      .limit(600);
-    if (linkedError) throw new Error(linkedError.message);
-    const editionIds = pickRecentEditionIds(linkedRows ?? [], editions, 6);
-    const mapped = new Map(editions.map((edition) => [edition.id, edition]));
-    editionGroups = (await Promise.all(editionIds.map(async (id) => {
-      const edition = mapped.get(id);
-      if (!edition) return null;
-      const result = await listArticlesAdminPageSupabase(supabase, {
-        editionId: id, page: 1, pageSize: 96, sortBy: "reference", sortDir: "asc",
-      });
-      return result.articles.length > 0 ? { edition, articles: result.articles, total: result.total } : null;
-    }))).filter((group): group is NonNullable<typeof group> => group !== null);
-  } else {
-    [articlePage, sections, localities] = await Promise.all([
-      listArticlesAdminPageSupabase(supabase, {
-        page: requestedPage,
-        pageSize: requestedPageSize,
-        search: filters.q,
-        status: filters.status,
-        sectionId: filters.sectionId,
-        localityId: filters.localityId,
-        origin: filters.origin,
-        editionId: filters.editionId === "all" ? undefined : filters.editionId,
-        includeArchived: filters.includeArchived,
-        sortBy: filters.sortBy,
-        sortDir: filters.sortDir,
-        dateField: filters.dateField,
-        dateFrom: filters.dateFrom || undefined,
-        dateTo: filters.dateTo || undefined,
-      }),
-      getEditorialSectionService(supabase).list(),
-      getLocalityService(supabase).list(),
-    ]);
-  }
 
   return (
     <div className="materias-mobile-page">
       <ModuleHeader
         eyebrow="EDITORIAL / MATÉRIAS"
         title="Matérias"
-        description="Gerencie as matérias por edição ou consulte o acervo completo pelos filtros."
+        description="Consulte e organize as matérias na listagem, com todos os filtros e ordenações."
         middle={<EditorialSummaryCards stats={stats} />}
         action={
           <Link className="header-action" href="/sistema/editorial/materias/nova">
@@ -171,28 +129,17 @@ export default async function MateriasPage(
           </Link>
         }
       />
-      <nav className="editorial-edition-nav" aria-label="Visualização de matérias">
-        <h2>{groupedView ? "Matérias agrupadas por edição" : "Todas as matérias"}</h2>
-        <Link href={groupedView ? "/sistema/editorial/materias?view=all" : "/sistema/editorial/materias"}
-          className="secondary-link">
-          {groupedView ? "Ver todas e filtrar" : "Ver agrupadas por edição"}
-        </Link>
-      </nav>
-      {groupedView ? (
-        <EditionArticleGroups groups={editionGroups} />
-      ) : articlePage ? (
-        <MateriasList
-          articles={articlePage.articles}
-          sections={sections}
-          localities={localities}
-          editions={editions}
-          total={articlePage.total}
-          page={articlePage.page}
-          pageSize={articlePage.pageSize}
-          totalPages={articlePage.totalPages}
-          filters={filters}
-        />
-      ) : null}
+      <MateriasList
+        articles={articlePage.articles}
+        sections={sections}
+        localities={localities}
+        editions={editions}
+        total={articlePage.total}
+        page={articlePage.page}
+        pageSize={articlePage.pageSize}
+        totalPages={articlePage.totalPages}
+        filters={filters}
+      />
     </div>
   );
 }

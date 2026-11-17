@@ -23,3 +23,18 @@ test("não publicadas não contabiliza nem filtra as programadas", () => {
   assert.match(cards, /caption: "Rascunhos e ajustes"/);
   assert.match(cards, /status=scheduled/);
 });
+
+test("Matérias abre sempre a tabela anterior; edição só altera a ordenação inicial", () => {
+  const page = read("../src/app/sistema/editorial/materias/page.tsx");
+  const list = read("../src/features/editorial/MateriasList.tsx");
+  const repo = read("../src/providers/supabase/articleRepository.supabase.ts");
+  assert.match(page, /<MateriasList/);
+  assert.doesNotMatch(page, /EditionArticleGroups|groupedView|Matérias agrupadas por edição/);
+  assert.match(page, /\(value as MateriasSortColumn\) : "edition"/);
+  assert.match(list, /SORTABLE_COLUMNS/);
+  assert.match(list, /<table className="materias-table">/);
+  assert.match(list, /name="edition"/);
+  assert.match(repo, /edition: "edition_sort_number"/);
+  assert.doesNotMatch(repo, /articles_admin_edition_order/);
+  assert.match(repo, /sortBy === "edition"/);
+});

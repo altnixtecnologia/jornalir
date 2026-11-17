@@ -463,6 +463,7 @@ async function syncArticleMedia(client: SupabaseClient, articleId: string, desir
 
 
 export type MateriasSortColumn =
+  | "edition"
   | "reference"
   | "title"
   | "origin"
@@ -482,6 +483,7 @@ export type MateriasDateField = "published" | "scheduled" | "editorial";
 // direto no banco: `order(col, {foreignTable})` simplesmente não fazia
 // nada), então a coluna denormalizada é a forma real de conseguir isso.
 const SORT_COLUMN_TO_DB: Record<MateriasSortColumn, string> = {
+  edition: "edition_sort_number",
   reference: "internal_reference",
   title: "title",
   origin: "origin",
@@ -579,12 +581,15 @@ export async function listArticlesAdminPageSupabase(
     // quando o filtro já reduz bastante o conjunto (estimativa converge pro
     // valor real nesses casos). Documentado também em STATUS-E-HANDOFF.md.
     let query = client
+      // Ordenação pela edição usa índice em articles, sem varrer todo o acervo.
       .from(ARTICLES_TABLE)
       .select(ARTICLE_LIST_COLUMNS, { count: "estimated" })
-      .order(SORT_COLUMN_TO_DB[sortBy], { ascending });
-    // Desempate estável — evita a ordem "balançar" entre páginas quando a
-    // coluna ativa repete valor (ex.: mesmo status/origem em várias linhas).
-    if (sortBy !== "date") {
+      .order(SORT_COLUMN_TO_DB[sortBy], { ascending, ...(sortBy === "edition" ? { nullsFirst: false } : {}) });
+    if (sortBy === "edition") {
+      // Edição mais recente, páginas na ordem, sem edição depois.
+      query = query.order("newspaper_page", { ascending: true, nullsFirst: false });
+      query = query.order("editorial_sort_at", { ascending: false });
+    } else if (sortBy !== "date") {
       query = query.order("editorial_sort_at", { ascending: false });
     }
     query = query.order("id", { ascending: false });
