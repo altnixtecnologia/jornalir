@@ -118,6 +118,11 @@ export default async function NoticiaDetalhePage({ params }: { params: Promise<{
                 gallery={galleryImages}
                 bodyHtml={current.body}
               />
+              {current.sourceUrl ? (
+                <p className="mt-5 text-sm text-[color:var(--site-muted)]">
+                  Fonte: <a href={current.sourceUrl} target="_blank" rel="noopener noreferrer nofollow" className="underline underline-offset-2 hover:text-[color:var(--site-text)]">Confira a publicação original</a>
+                </p>
+              ) : null}
 
               <div className="mt-10 xl:hidden">
                 <AdSlotPairRow slots={mobilePair} />

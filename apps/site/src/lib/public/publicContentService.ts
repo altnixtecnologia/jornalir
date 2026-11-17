@@ -19,6 +19,7 @@ interface ArticleRow {
   title: string;
   subtitle: string | null;
   body: string;
+  source_url?: string | null;
   section_id: string;
   locality_id: string;
   urgent: boolean;
@@ -113,6 +114,7 @@ function buildArticles(
       title: row.title,
       subtitle: row.subtitle ?? undefined,
       body: row.body,
+      sourceUrl: row.source_url ?? undefined,
       sectionId: row.section_id,
       sectionName: sectionById.get(row.section_id)?.name ?? "Geral",
       sectionSlug: sectionById.get(row.section_id)?.slug ?? "",
@@ -315,7 +317,7 @@ export async function getPublicArticleBySlug(slug: string): Promise<PublicArticl
   const [{ data, error }, sections, localities] = await Promise.all([
     client
       .from("public_articles")
-      .select("id, slug, title, subtitle, body, section_id, locality_id, urgent, published_at")
+      .select("id, slug, title, subtitle, body, source_url, section_id, locality_id, urgent, published_at")
       .eq("slug", slug)
       .maybeSingle(),
     listPublicSections(),

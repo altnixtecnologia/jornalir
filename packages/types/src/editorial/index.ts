@@ -156,6 +156,8 @@ export interface Article {
   subtitleStyle?: EditorialTextStyle;
   /** HTML gerado pelo editor de texto (negrito, itálico, listas, link, citação, alinhamento). */
   body: string;
+  /** Endereço opcional da publicação usada como fonte; não importa conteúdo. */
+  sourceUrl?: string;
   sectionId: string;
   localityId: string;
   status: ArticleStatus;

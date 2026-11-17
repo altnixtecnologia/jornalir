@@ -51,6 +51,7 @@ export function ArticleMediaPicker({
   onFilesUploaded,
   onReplaceMediaAsset,
 }: ArticleMediaPickerProps): JSX.Element {
+  const [editingMetadataId, setEditingMetadataId] = useState<string | null>(null);
   const [viewerTarget, setViewerTarget] = useState<{ role: ArticleMediaRole; order: number; mediaAssetId: string } | null>(null);
   const [remoteMediaAssets, setRemoteMediaAssets] = useState<MediaAsset[]>([]);
   const [searchNotice, setSearchNotice] = useState<string | null>(null);
@@ -504,20 +505,29 @@ export function ArticleMediaPicker({
                     </span>
                   </div>
 
-                  <input
-                    className="media-caption-input"
-                    value={item.caption ?? ""}
-                    onChange={(event) => onSetCaption(item.mediaAssetId, event.target.value)}
-                    placeholder={asset.caption ?? "Legenda (opcional)"}
-                    aria-label={`Legenda de ${asset.reference}`}
-                  />
-                  <input
-                    className="media-caption-input"
-                    value={item.credit ?? ""}
-                    onChange={(event) => onSetCredit(item.mediaAssetId, event.target.value)}
-                    placeholder={asset.credit ?? "Crédito (opcional)"}
-                    aria-label={`Crédito de ${asset.reference}`}
-                  />
+                  <div className="article-media-metadata">
+                    <button type="button" className="article-media-metadata-toggle"
+                      aria-expanded={editingMetadataId === item.mediaAssetId}
+                      aria-controls={`media-metadata-${item.mediaAssetId}`}
+                      onClick={() => setEditingMetadataId((current) => current === item.mediaAssetId ? null : item.mediaAssetId)}>
+                      {editingMetadataId === item.mediaAssetId ? "Fechar legenda / crédito" : "Editar legenda / crédito"}
+                    </button>
+                    <span className="article-media-metadata-summary">
+                      {(item.caption || asset.caption) ? "Legenda ✓" : "Sem legenda"} · {(item.credit || asset.credit) ? "Crédito ✓" : "Sem crédito"}
+                    </span>
+                    {editingMetadataId === item.mediaAssetId ? (
+                      <div id={`media-metadata-${item.mediaAssetId}`} className="article-media-metadata-fields">
+                        <input className="media-caption-input" value={item.caption ?? ""}
+                          onChange={(event) => onSetCaption(item.mediaAssetId, event.target.value)}
+                          placeholder={asset.caption ?? "Legenda (opcional)"}
+                          aria-label={`Legenda de ${asset.reference}`} />
+                        <input className="media-caption-input" value={item.credit ?? ""}
+                          onChange={(event) => onSetCredit(item.mediaAssetId, event.target.value)}
+                          placeholder={asset.credit ?? "Crédito (opcional)"}
+                          aria-label={`Crédito de ${asset.reference}`} />
+                      </div>
+                    ) : null}
+                  </div>
 
                   <div className="article-media-row-actions">
                      <button type="button" className="article-media-view" disabled={editLoading || uploading || Boolean(replacing)}

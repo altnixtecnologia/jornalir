@@ -13,6 +13,7 @@ export interface ArticleFormPayload {
   subtitle: string;
   subtitleStyle: EditorialTextStyle;
   body: string;
+  sourceUrl: string;
   sectionId: string;
   localityId: string;
   notificationMode: NotificationMode;
@@ -38,6 +39,17 @@ export function validateArticlePayload(
 ): string | null {
   if (!payload.title.trim()) return "Informe o título.";
   if (!payload.body.trim()) return "Informe o corpo da matéria.";
+  if (payload.sourceUrl?.trim()) {
+    if (payload.sourceUrl.length > 2048) return "O link da fonte original é muito longo.";
+    try {
+      const url = new URL(payload.sourceUrl.trim());
+      if (!["http:", "https:"].includes(url.protocol) || !url.hostname || url.username || url.password) {
+        return "Informe um link HTTP ou HTTPS válido para a fonte original.";
+      }
+    } catch {
+      return "Informe um link válido para a fonte original.";
+    }
+  }
   if (!payload.sectionId) return "Selecione a editoria.";
   if (!payload.localityId) return "Selecione a localidade.";
   if (intent === "schedule" && !payload.scheduledAt) {

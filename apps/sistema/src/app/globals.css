@@ -8617,3 +8617,14 @@ details.pauta-item:has(.workflow-pauta-tools)>.workflow-collapsed-summary{paddin
 .is-pauta-workspace details.pauta-item>.workflow-collapsed-summary .workflow-expand-chevron{
  flex:none;align-self:center;margin-left:0;
 }
+
+/* Editor de fotos: metadados recolhidos por padrão para galerias extensas.
+   Não altera a apresentação pública ou as ações de movimentação. */
+.article-media-row{grid-template-columns:34px 82px minmax(110px,1fr) minmax(180px,2fr) auto}
+.article-media-metadata{min-width:0;display:flex;flex-direction:column;gap:4px}
+.article-media-metadata-toggle{align-self:flex-start;border:1px solid var(--line);border-radius:6px;background:#fff;padding:6px 9px;color:var(--brand);font-size:11px;font-weight:700;cursor:pointer}
+.article-media-metadata-toggle:hover,.article-media-metadata-toggle:focus-visible{background:#f1f2f9;outline:1px solid var(--brand)}
+.article-media-metadata-summary{font-size:10px;color:var(--muted)}
+.article-media-metadata-fields{display:flex;flex-direction:column;gap:6px}
+.article-media-metadata-fields input{width:100%;min-width:0}
+@media(max-width:900px){.article-media-row{grid-template-columns:34px 72px minmax(0,1fr)}.article-media-metadata{grid-column:2/-1}}

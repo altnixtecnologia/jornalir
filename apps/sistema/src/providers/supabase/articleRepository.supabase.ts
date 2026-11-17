@@ -45,7 +45,7 @@ const PLACEMENTS_TABLE = "article_placements";
 const ARTICLE_MEDIA_TABLE = "article_media";
 
 const ARTICLE_COLUMNS =
-  "id, internal_reference, slug, title, title_style, subtitle, subtitle_style, body, section_id, locality_id, status, notification_mode, origin, author_name, newspaper_edition_id, newspaper_page, urgent, scheduled_at, published_at, archived_at, created_by, created_at, updated_at";
+  "id, internal_reference, slug, title, title_style, subtitle, subtitle_style, body, source_url, section_id, locality_id, status, notification_mode, origin, author_name, newspaper_edition_id, newspaper_page, urgent, scheduled_at, published_at, archived_at, created_by, created_at, updated_at";
 
 // Listagem administrativa (milhares de linhas por página renderizada):
 // MateriasList nunca exibe o corpo da matéria, só a edição/detalhe precisa
@@ -63,6 +63,7 @@ interface ArticleRow {
   subtitle: string | null;
   subtitle_style: EditorialTextStyle | null;
   body: string;
+  source_url: string | null;
   section_id: string;
   locality_id: string;
   status: ArticleStatus;
@@ -178,6 +179,7 @@ function toDomain(row: ArticleRow, placement: PlacementRow | null, media: Articl
     subtitle: row.subtitle ?? undefined,
     subtitleStyle: row.subtitle_style ?? undefined,
     body: row.body,
+    sourceUrl: row.source_url ?? undefined,
     sectionId: row.section_id,
     localityId: row.locality_id,
     status: row.status,
@@ -741,6 +743,7 @@ export function createArticleRepositorySupabase(client: SupabaseClient): Article
           subtitle: record.subtitle ?? null,
           subtitle_style: record.subtitleStyle ?? null,
           body: record.body,
+          source_url: record.sourceUrl ?? null,
           section_id: record.sectionId,
           locality_id: record.localityId,
           status: record.status,
@@ -785,6 +788,7 @@ export function createArticleRepositorySupabase(client: SupabaseClient): Article
       if (changes.subtitle !== undefined) patch.subtitle = changes.subtitle ?? null;
       if (changes.subtitleStyle !== undefined) patch.subtitle_style = changes.subtitleStyle ?? null;
       if (changes.body !== undefined) patch.body = changes.body;
+      if (changes.sourceUrl !== undefined) patch.source_url = changes.sourceUrl || null;
       if (changes.sectionId !== undefined) patch.section_id = changes.sectionId;
       if (changes.localityId !== undefined) patch.locality_id = changes.localityId;
       if (changes.status !== undefined) patch.status = changes.status;
