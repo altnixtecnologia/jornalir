@@ -33,6 +33,7 @@ export interface PublicArticle {
   title: string;
   subtitle?: string;
   body: string;
+  sourceUrl?: string;
   sectionId: string;
   sectionName: string;
   sectionSlug: string;

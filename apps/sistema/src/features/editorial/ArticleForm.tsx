@@ -102,6 +102,7 @@ export function ArticleForm({
     article?.subtitleStyle ?? DEFAULT_TEXT_STYLE,
   );
   const [body, setBody] = useState(article?.body ?? initialBody);
+  const [sourceUrl, setSourceUrl] = useState(article?.sourceUrl ?? "");
   const [sectionId, setSectionId] = useState(article?.sectionId ?? "");
   const [localityId, setLocalityId] = useState(article?.localityId ?? "");
   const [notificationMode, setNotificationMode] = useState<NotificationMode>(
@@ -181,6 +182,7 @@ export function ArticleForm({
       subtitle,
       subtitleStyle,
       body,
+      sourceUrl,
       sectionId,
       localityId,
       notificationMode,
@@ -203,6 +205,7 @@ export function ArticleForm({
       subtitle,
       subtitleStyle,
       body,
+      sourceUrl,
       sectionId,
       localityId,
       notificationMode,
@@ -222,6 +225,7 @@ export function ArticleForm({
       subtitle,
       subtitleStyle,
       body,
+      sourceUrl,
       sectionId,
       localityId,
       notificationMode,
@@ -715,6 +719,14 @@ export function ArticleForm({
                   ) : null}
                 </div>
               ) : null}
+
+              <div className="form-field">
+                <label htmlFor="field-original-source" className="field-label">Fonte original (link) <span className="field-optional">(opcional)</span></label>
+                <input id="field-original-source" type="url" inputMode="url" maxLength={2048}
+                  value={sourceUrl} onChange={(event) => setSourceUrl(event.target.value)}
+                  placeholder="https://exemplo.com.br/materia-original" autoComplete="off" />
+                <p className="helper-text">Cole apenas o endereço da publicação consultada. Não buscamos dados do site. Quando preenchido, o link aparece discretamente no final da matéria.</p>
+              </div>
 
               <div className="form-field publication-notification-field">
                 <label htmlFor="field-notification" className="field-label">Notificação</label>

@@ -42,6 +42,7 @@ export interface CreateArticleInput {
   subtitle?: string;
   subtitleStyle?: EditorialTextStyle;
   body: string;
+  sourceUrl?: string;
   sectionId: string;
   localityId: string;
   urgent?: boolean;
@@ -109,6 +110,7 @@ export class ArticleService {
       subtitle: input.subtitle,
       subtitleStyle: input.subtitleStyle,
       body: input.body,
+      sourceUrl: input.sourceUrl,
       sectionId: input.sectionId,
       localityId: input.localityId,
       status: "draft",
