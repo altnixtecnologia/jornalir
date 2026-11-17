@@ -1,33 +1,30 @@
-# Patrocinadores — permissões granulares (preparação de 17/11/2026)
+# Permissões da seção Configurações para operadores — revisão 17/11/2026
 
-## Objetivo aprovado
-O operador deve poder manter as imagens dos patrocinadores no portal sem acesso a vendas, contratos, financeiro ou Configurações gerais. A biblioteca única e a esteira universal de 07/11 são preservadas.
+## Pedido
+Na área **Usuários → Editar permissões** não existia a seção Configurações, impedindo o administrador de marcar/desmarcar seu acesso. A primeira implementação do PR #108 havia criado um módulo isolado de Patrocinadores; esta revisão o organiza dentro de **Configurações**, como solicitado.
 
-## Diagnóstico real
-- A URL antiga /sistema/configuracoes/patrocinadores é adminOnly pelo middleware.
-- A página, todas as Server Actions e policies de site_ad_media/site_ad_slots dependiam de publicidade.vendas_editar.
-- Para upload, a RLS de media_assets não permitia acesso com essa autorização dedicada.
-- Qualquer funcionário ativo podia editar site_ad_settings diretamente via Data API, sem direito granular.
-- Silas Alves constava como admin no perfil examinado em 16/11; NÃO alterar papel sem revisar conta/sessão correta.
+## Sem abrir outras opções inadvertidamente
+- **Configurações** aparece no catálogo de módulos, com liga/desliga por operador.
+- Dentro desse módulo: opção **Patrocinadores do site — enviar, editar, pausar e remover imagens**, desmarcada até concessão expressa. Ativar só o módulo Configurações não libera as imagens; "Ativar módulos (padrão)" não ativa Configurações.
+- Permissão de patrocinadores continua independente de **Comercial / editar vendas**.
+- **Modelos de contratos** usa a permissão financeira `contratos_editar` já existente e não recebe autorização nova por meio de Configurações.
+- **Auditoria e Atividades** mantém a autorização pré-existente `can_read_audit_log`; não recebe autorização por ativar Configurações.
+- **Usuários, Dados da empresa, Asaas/cobranças, Notificações push, Aplicativo/APK, TV Pauta, Valores Assine e Assistente IR** continuam restritos aos perfis atuais; não criar switches que não tenham segurança de backend/RLS completa.
+- O middleware libera para operadores APENAS o índice Configurações, a URL legada de Patrocinadores e Modelos de contratos (com guarda financeira adicional). Qualquer nova subrota de Configurações é bloqueada para operadores por padrão. O caminho de Auditoria só aceita o `can_read_audit_log` específico.
+- O índice Configurações exibe apenas links com permissão real; menus desktop/mobile mostram o acesso ao índice somente quando o módulo estiver ligado.
 
-## Código preparado
-- Novo caminho operacional /sistema/patrocinadores reaproveitando os componentes e serviços existentes.
-- Caminho de Configurações continua como link legado, redirecionando para a mesma biblioteca (não duplica telas/dados).
-- Módulo 'patrocinadores', ação 'gerenciar', no painel de Usuários; habilitação manual dá acesso às imagens, mas não concede vendas.
-- Excluído da opção de ativação de módulos em massa, evitando concessão inadvertida.
-- Middleware e Server Actions verificam o novo módulo; consulta de mídia e escrita estão cobertas pela migration preparada.
-- Menu do sistema e página inicial oferecem acesso ao operador com o módulo visível.
+## Código/banco
+- Reutiliza a biblioteca única existente e a esteira do site, sem tabelas novas.
+- Guard da página e Server Actions: `configuracoes/patrocinadores_gerenciar`.
+- Migration de RLS preparada em `supabase/migrations/20261122341100_sponsor_operator_permissions.sql`, ainda **NÃO aplicada**: amplia constraints de catálogo e troca direitos de escrita de site_ad_* e media_assets. Nenhuma imagem, usuário ou conteúdo é modificado.
+- Nova rota operacional `/sistema/patrocinadores` e redirecionamento da URL em Configurações continuam compatíveis.
 
-## SQL separado — NAO APLICADO
-supabase/migrations/20261122341100_sponsor_operator_permissions.sql
-Ampliar checks existentes para novo módulo e alterar políticas RLS de site_ad_media, site_ad_slots, site_ad_settings e media_assets. Nenhuma linha é migrada ou atualizada, nenhuma imagem muda de local.
+## Homologar antes de produção
+1. Testar CI com testes unitários, TypeScript e build; revisar migrations reais e a whitelist de Configurações.
+2. Preparar teste isolado do SQL antes de executar no Supabase oficial; confirmar RLS de owner/admin, operador sem módulo, com módulo sem ação e com ação.
+3. Testar navegação por menu, por URL direta e as áreas administrativas proibidas.
+4. Testar upload real/pausa/remoção com conta de teste, sem alterar imagens oficiais e sem acionar Asaas/NFS-e.
+5. Exige autorização específica para migration remota e deploy, somente depois realizar concessões a operadores reais.
+6. O cadastro examinado de Silas Alves constava `admin`; não alterar papel ou permissões existentes sem identificar a sessão.
 
-## Homologação (necessária antes de produção)
-1. Conferir diferença do schema e histórico de migrations atuais; validar SQL em banco descartável/ambiente de homologação.
-2. Com conta operadora: sem módulo visível = acesso negado; visível sem ação = sem gravação; visível + gerenciar = upload/pausa/remoção.
-3. Verificar que a conta só com patrocinadores NÃO acessa vendas, Comercial, Financeiro, Usuários nem Configurações.
-4. Testar owner/admin e URL antiga, RLS de upload/consulta, a biblioteca única e o rodízio público sem regressão.
-5. Pedir autorização específica para migration remota, depois deploy, depois concessão à conta correta.
-6. Não acionar Asaas, NFS-e, e-mails, WhatsApp, movimentação financeira ou alterações de perfis reais.
-
-STATUS: preparado no GitHub para revisão; ainda não publicado nem homologado com login real.
+**Estado: PR #108 rascunho, não publicado.**

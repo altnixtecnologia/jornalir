@@ -15,6 +15,9 @@ on:
       - "apps/sistema/src/middleware.ts"
       - "apps/sistema/src/app/sistema/patrocinadores/**"
       - "apps/sistema/src/components/admin/MobileNav.tsx"
+      - "apps/sistema/src/components/admin/AdminHeader.tsx"
+      - "apps/sistema/src/app/sistema/configuracoes/page.tsx"
+      - "apps/sistema/src/app/sistema/page.tsx"
       - "apps/sistema/test/sponsor-operator-permissions.test.ts"
       - "supabase/migrations/20261122341100_sponsor_operator_permissions.sql"
   workflow_dispatch:

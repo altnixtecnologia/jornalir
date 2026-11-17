@@ -211,6 +211,12 @@ export function AdminHeader({ onOpenMenu }: { onOpenMenu: () => void }): JSX.Ele
               Atividades
             </Link>
           ) : null}
+          {!canManageUsers && hasModule("configuracoes") ? (
+            <Link href="/sistema/configuracoes" className="app-nav-link"
+              aria-current={isConfiguracoes ? "page" : undefined}>
+              Configurações
+            </Link>
+          ) : null}
           {canManageUsers ? (
             <details className="app-nav-dropdown" data-nav-dropdown name="app-nav-dropdown">
               <summary className={`app-nav-link app-nav-summary${isConfiguracoes ? " is-active" : ""}`}>

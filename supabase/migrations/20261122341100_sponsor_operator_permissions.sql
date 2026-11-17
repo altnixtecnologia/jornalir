@@ -1,5 +1,5 @@
 -- Preparada 17/11/2026; aplicacao remota bloqueada ate autorizacao.
--- Modulo de patrocinadores independente de Comercial/vendas.
+-- Modulo Configuracoes com direito pontual a patrocinadores, sem Comercial/vendas.
 -- Sem UPDATE/DELETE em conteudo, imagens ou usuarios. Preserva owner/admin.
 BEGIN;
 
@@ -8,7 +8,7 @@ ALTER TABLE public.staff_module_visibility
 ALTER TABLE public.staff_module_visibility
   ADD CONSTRAINT staff_module_visibility_module_key_check CHECK (
     module_key IN ('editorial','clientes','financeiro','assinaturas',
-      'publicidade','patrocinadores','nfse','aniversariantes')
+      'publicidade','configuracoes','nfse','aniversariantes')
   );
 
 ALTER TABLE public.staff_module_action_permissions
@@ -25,7 +25,7 @@ ALTER TABLE public.staff_module_action_permissions
        'propostas_aprovar','vendas_criar','vendas_editar','vendas_cancelar',
        'locacao_equipamentos_gerenciar','locacao_reservas_gerenciar','locacao_vistorias_registrar',
        'contratos_preparar','contratos_revisar','contratos_assinar','valores_negociar'))
-    OR (module_key = 'patrocinadores' AND action_key = 'gerenciar')
+    OR (module_key = 'configuracoes' AND action_key = 'patrocinadores_gerenciar')
     OR (module_key = 'nfse' AND action_key IN
       ('rascunhos_criar','rascunhos_editar','notas_emitir','notas_cancelar',
        'documentos_consultar','documentos_enviar','configuracoes_gerenciar','perfis_servico_gerenciar'))
@@ -37,7 +37,7 @@ ALTER POLICY media_assets_select_staff ON public.media_assets
   USING (public.is_active_staff() AND (
     public.staff_can_see_module('editorial')
     OR public.staff_can_see_module('publicidade')
-    OR public.staff_can_see_module('patrocinadores')
+    OR public.staff_can_module_action('configuracoes','patrocinadores_gerenciar')
     OR public.staff_can_see_module('aniversariantes')
   ));
 ALTER POLICY media_assets_insert_staff ON public.media_assets
@@ -45,26 +45,26 @@ ALTER POLICY media_assets_insert_staff ON public.media_assets
     public.staff_can_module_action('editorial','midias_gerenciar')
     OR public.staff_can_module_action('editorial','materias_criar')
     OR public.staff_can_module_action('aniversariantes','aniversariantes_gerenciar')
-    OR public.staff_can_module_action('patrocinadores','gerenciar')
+    OR public.staff_can_module_action('configuracoes','patrocinadores_gerenciar')
   ));
 
 ALTER POLICY site_ad_media_insert_staff ON public.site_ad_media
-  WITH CHECK (public.is_active_staff() AND public.staff_can_module_action('patrocinadores','gerenciar'));
+  WITH CHECK (public.is_active_staff() AND public.staff_can_module_action('configuracoes','patrocinadores_gerenciar'));
 ALTER POLICY site_ad_media_update_staff ON public.site_ad_media
-  USING (public.is_active_staff() AND public.staff_can_module_action('patrocinadores','gerenciar'))
-  WITH CHECK (public.is_active_staff() AND public.staff_can_module_action('patrocinadores','gerenciar'));
+  USING (public.is_active_staff() AND public.staff_can_module_action('configuracoes','patrocinadores_gerenciar'))
+  WITH CHECK (public.is_active_staff() AND public.staff_can_module_action('configuracoes','patrocinadores_gerenciar'));
 ALTER POLICY site_ad_media_delete_staff ON public.site_ad_media
-  USING (public.is_active_staff() AND public.staff_can_module_action('patrocinadores','gerenciar'));
+  USING (public.is_active_staff() AND public.staff_can_module_action('configuracoes','patrocinadores_gerenciar'));
 
 ALTER POLICY site_ad_slots_update_staff ON public.site_ad_slots
-  USING (public.is_active_staff() AND public.staff_can_module_action('patrocinadores','gerenciar'))
-  WITH CHECK (public.is_active_staff() AND public.staff_can_module_action('patrocinadores','gerenciar'));
+  USING (public.is_active_staff() AND public.staff_can_module_action('configuracoes','patrocinadores_gerenciar'))
+  WITH CHECK (public.is_active_staff() AND public.staff_can_module_action('configuracoes','patrocinadores_gerenciar'));
 
 -- Antes qualquer funcionario ativo podia editar configuracao global.
 ALTER POLICY site_ad_settings_insert_staff ON public.site_ad_settings
-  WITH CHECK (public.is_active_staff() AND public.staff_can_module_action('patrocinadores','gerenciar'));
+  WITH CHECK (public.is_active_staff() AND public.staff_can_module_action('configuracoes','patrocinadores_gerenciar'));
 ALTER POLICY site_ad_settings_update_staff ON public.site_ad_settings
-  USING (public.is_active_staff() AND public.staff_can_module_action('patrocinadores','gerenciar'))
-  WITH CHECK (public.is_active_staff() AND public.staff_can_module_action('patrocinadores','gerenciar'));
+  USING (public.is_active_staff() AND public.staff_can_module_action('configuracoes','patrocinadores_gerenciar'))
+  WITH CHECK (public.is_active_staff() AND public.staff_can_module_action('configuracoes','patrocinadores_gerenciar'));
 
 COMMIT;

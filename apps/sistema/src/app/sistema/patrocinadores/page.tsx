@@ -12,7 +12,7 @@ export default async function SiteAdSlotsPage(): Promise<JSX.Element> {
   const {data:auth,error:authError}=await supabase.auth.getUser();
   if(authError||!auth.user)redirect("/login");
   const {data:authorized,error:permissionError}=await supabase.rpc("staff_can_module_action",{
-    p_module:"patrocinadores",p_action:"gerenciar",
+    p_module:"configuracoes",p_action:"patrocinadores_gerenciar",
   });
   if(permissionError||authorized!==true)redirect("/sistema?acesso=negado");
   const slots = await getSiteAdSlotService(supabase).listWithMedia();

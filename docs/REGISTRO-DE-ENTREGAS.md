@@ -818,3 +818,9 @@ suposição ou autoativados.
 ## 17/11/2026 — Operadores: permissão de patrocinadores independente de Comercial (preparação)
 - Preparado o módulo próprio de patrocinadores (visibilidade + gerenciar), caminho operacional separado de Configurações, guards de servidor, navegação e alteração de RLS em migration **ainda não aplicada**.
 - Biblioteca única, seis posições da esteira, imagens e demais dados preservados. Sem alteração de usuários reais, sem PIX/NFS-e, sem deploy. Conferir `docs/PERMISSOES-PATROCINADORES-2026-11-17.md` antes de ativar.
+
+
+## 17/11/2026 — Ajuste de escopo da matriz de usuários (PR #108, ainda rascunho)
+- A seção **Configurações** deve aparecer na edição de permissões dos operadores, com a ação individual `patrocinadores_gerenciar`. Substitui a entrada isolada provisória de módulo Patrocinadores.
+- Demais páginas sensíveis seguem bloqueadas por allowlist no middleware; finance/modelos e auditoria preservam direitos anteriores.
+- Code/migration preparados para CI; nenhuma alteração real no banco, no papel de usuários ou na Vercel.

@@ -8,7 +8,7 @@ export const STAFF_MODULES = [
   { key: "financeiro", label: "Financeiro" },
   { key: "assinaturas", label: "Assinaturas" },
   { key: "publicidade", label: "Comercial" },
-  { key: "patrocinadores", label: "Patrocinadores do site", bulkOptIn: true },
+  { key: "configuracoes", label: "Configurações", bulkOptIn: true },
   { key: "nfse", label: "NFS-e", releaseBlocked: true },
   { key: "aniversariantes", label: "Aniversariantes" },
 ] as const;
@@ -76,7 +76,7 @@ export const STAFF_MODULE_ACTIONS = [
   { module: "assinaturas", key: "assinaturas_ativar", label: "Ativar assinaturas pendentes de formalização" },
   { module: "assinaturas", key: "assinaturas_suspender", label: "Suspender ou reativar assinaturas" },
   { module: "assinaturas", key: "assinaturas_cancelar", label: "Cancelar assinaturas", isCritical: true },
-  { module: "patrocinadores", key: "gerenciar", label: "Gerenciar imagens dos patrocinadores do site", isDefault: true },
+  { module: "configuracoes", key: "patrocinadores_gerenciar", label: "Patrocinadores do site — enviar, editar, pausar e remover imagens" },
   { module: "publicidade", key: "produtos_gerenciar", label: "Criar e editar produtos/planos" },
   { module: "publicidade", key: "solicitacoes_gerenciar", label: "Atender e converter solicitações do site", isDefault: true },
   { module: "publicidade", key: "propostas_criar", label: "Criar propostas", isDefault: true },
