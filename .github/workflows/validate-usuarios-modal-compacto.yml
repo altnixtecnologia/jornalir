@@ -1,0 +1,38 @@
+name: Usuarios - cadastro em modal e tabela compacta (sem deploy)
+
+on:
+  pull_request:
+    branches: [solicitacoes-financeiro-contratos-irc-20261031]
+    paths:
+      - "apps/sistema/src/features/usuarios/UsersManager.tsx"
+      - "apps/sistema/src/app/globals.css"
+      - "apps/sistema/test/usuarios-modal-cadastro-compacto.test.ts"
+      - ".github/workflows/validate-usuarios-modal-compacto.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    env:
+      NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ci-anon-key
+      NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ci-publishable-key
+      NEXT_TELEMETRY_DISABLED: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+      - name: Instalar dependências
+        run: npm ci --no-audit --no-fund
+      - name: Teste de regressão de usuário
+        run: npx tsx --test apps/sistema/test/usuarios-modal-cadastro-compacto.test.ts
+      - name: Verificar tipos
+        run: npm run typecheck --workspace @ir/sistema
+      - name: Build sem deploy
+        run: npm run build --workspace @ir/sistema
