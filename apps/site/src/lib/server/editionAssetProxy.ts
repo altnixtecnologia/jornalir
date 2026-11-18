@@ -1,6 +1,7 @@
 import "server-only";
 
 import { getPublicSupabaseClient } from "../public/supabasePublicClient";
+import { isEditionPubliclyReleased } from "../public/editionPublicRelease";
 import {
   EditionObjectNotFoundError,
   EditionRangeNotSatisfiableError,
@@ -15,6 +16,7 @@ export type EditionAssetKind = "pdf" | "cover";
 interface EditionAssetRow {
   id: string;
   active: boolean;
+  available_at: string | null;
   archive_provider: string | null;
   pdf_r2_key: string | null;
   cover_r2_key: string | null;
@@ -46,7 +48,7 @@ async function defaultLookupEdition(id: string): Promise<EditionAssetRow | null>
   const client = getPublicSupabaseClient();
   const { data, error } = await client
     .from("newspaper_editions")
-    .select("id, active, archive_provider, pdf_r2_key, cover_r2_key, edition_number")
+    .select("id, active, available_at, archive_provider, pdf_r2_key, cover_r2_key, edition_number")
     .eq("id", id)
     .maybeSingle();
   if (error) throw new Error(error.message);
@@ -109,7 +111,7 @@ export async function handleEditionAssetRequest(
 
   // Edição inexistente, inativa, ou ainda não vinculada ao R2: nunca
   // entregar nada por este caminho (item 2.8 — nada inativo/não liberado).
-  if (!row || !row.active || row.archive_provider !== "r2") {
+  if (!row || !isEditionPubliclyReleased(row) || row.archive_provider !== "r2") {
     return jsonError(404, "Edição não encontrada ou indisponível.");
   }
 
