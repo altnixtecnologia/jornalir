@@ -1,0 +1,28 @@
+name: Jornal Online - verificar PDFs reais publicados (somente leitura)
+on:
+  pull_request:
+    branches: [solicitacoes-financeiro-contratos-irc-20261031]
+    paths:
+      - "apps/sistema/scripts/verify-public-edition-metadata.ts"
+      - ".github/workflows/verify-editions-public-metadata-20261118.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify-public-pdfs:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+      - name: Dependências do repositório
+        run: npm ci --no-audit --no-fund
+      - name: Conferir 3 PDFs reais do R2 pelo portal publicado, sem escrever no banco
+        env:
+          NODE_OPTIONS: --conditions=react-server
+        run: npx tsx apps/sistema/scripts/verify-public-edition-metadata.ts --numbers=776,775,774
