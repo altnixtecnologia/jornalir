@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getPublicSupabaseClient } from "../../../../lib/public/supabasePublicClient";
 import { mapEditionRow, type NewspaperEditionRow } from "../../../../lib/public/editionListMapping";
+import { isEditionPubliclyReleased } from "../../../../lib/public/editionPublicRelease";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -8,12 +9,15 @@ export const revalidate = 0;
 export async function GET(): Promise<Response> {
   try {
     const client = getPublicSupabaseClient();
+    const nowMs = Date.now();
     const { data, error } = await client
       .from("newspaper_editions")
       .select(
-        "id, edition_number, publication_date, title, pdf_url, cover_url, page_count, archive_provider, pdf_r2_key, cover_r2_key",
+        "id, edition_number, publication_date, title, pdf_url, cover_url, page_count, archive_provider, pdf_r2_key, cover_r2_key, active, available_at",
       )
       .eq("active", true)
+      // Edição ativa pode ainda estar em preparação: não antecipar a liberação.
+      .lte("available_at", new Date(nowMs).toISOString())
       // Uma edição do acervo R2 pode não ter pdf_url externo preenchido —
       // nesse caso ela é servida pela rota de proxy (pdf_r2_key) e não pode
       // desaparecer da listagem só por faltar a URL legada.
@@ -24,7 +28,9 @@ export async function GET(): Promise<Response> {
     if (error) throw new Error(error.message);
 
     return NextResponse.json(
-      { ok: true, items: ((data ?? []) as NewspaperEditionRow[]).map(mapEditionRow) },
+      { ok: true, items: ((data ?? []) as (NewspaperEditionRow & { active: boolean; available_at: string | null })[])
+        .filter((edition) => isEditionPubliclyReleased(edition, nowMs))
+        .map(mapEditionRow) },
       { headers: { "Cache-Control": "no-store" } },
     );
   } catch (error) {

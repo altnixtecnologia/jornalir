@@ -23,6 +23,7 @@ function fakeBodyStream(bytes: Uint8Array): ReadableStream<Uint8Array> {
 interface MockEdition {
   id: string;
   active: boolean;
+  available_at: string | null;
   archive_provider: string | null;
   pdf_r2_key: string | null;
   cover_r2_key: string | null;
@@ -32,6 +33,7 @@ interface MockEdition {
 const EDITION_776: MockEdition = {
   id: VALID_ID,
   active: true,
+  available_at: "2020-11-05T10:00:00.000Z",
   archive_provider: "r2",
   pdf_r2_key: "acervo/edicoes/IR 776.pdf",
   cover_r2_key: "jornal-online/2026/edicao-0776/capa-abc123.webp",
@@ -256,4 +258,34 @@ test("respostas de erro nunca incluem a chave R2 nem credenciais no corpo", asyn
   assert.doesNotMatch(body, /r2\.cloudflarestorage\.com/);
   assert.doesNotMatch(body, /acervo\/edicoes/);
   assert.doesNotMatch(body, /ACCESS_KEY|SECRET/);
+});
+
+test("edição ativa sem available_at ainda está em preparação: PDF e capa retornam 404 sem consultar R2", async () => {
+  for (const kind of ["pdf", "cover"] as const) {
+    let contactedR2 = false;
+    const deps = baseDeps({
+      lookupEdition: async () => ({ ...EDITION_776, available_at: null }),
+      headObject: async () => { contactedR2 = true; throw new Error("não deveria consultar R2"); },
+      getObjectRange: async () => { contactedR2 = true; throw new Error("não deveria consultar R2"); },
+    });
+    for (const method of ["GET", "HEAD"] as const) {
+      const response = await handleEditionAssetRequest(
+        { id: VALID_ID, kind, method, rangeHeader: null, download: false }, deps,
+      );
+      assert.equal(response.status, 404);
+      assert.equal(contactedR2, false);
+    }
+  }
+});
+
+test("edição com disponibilidade futura não entrega PDF nem capa mesmo ativa", async () => {
+  const deps = baseDeps({
+    lookupEdition: async () => ({ ...EDITION_776, available_at: "2099-11-19T10:00:00.000Z" }),
+  });
+  for (const kind of ["pdf", "cover"] as const) {
+    const response = await handleEditionAssetRequest(
+      { id: VALID_ID, kind, method: "GET", rangeHeader: null, download: false }, deps,
+    );
+    assert.equal(response.status, 404);
+  }
 });
