@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 
 const SEEN_SESSION = "jornal-ir-pwa-invite-seen-v2";
 const DISMISSED_AT = "jornal-ir-pwa-invite-dismissed-v2";
@@ -43,7 +43,7 @@ function deviceInfo(): Platform {
   };
 }
 
-function Step({ index, title, children }: { index: number; title: string; children: React.ReactNode }): JSX.Element {
+function Step({ index, title, children }: { index: number; title: string; children: ReactNode }): JSX.Element {
   return (
     <li className="flex items-start gap-3">
       <span aria-hidden="true" className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#30305c] text-sm font-extrabold text-white">{index}</span>
@@ -70,6 +70,10 @@ export function AppInstallInvitation({ mode = "automatic" }: { mode?: "automatic
   const promptRef = useRef<InstallPrompt | null>(null);
 
   useEffect(() => {
+    if (!embedded) {
+      setVisible(false);
+      setGuideOpen(false);
+    }
     if (!embedded && (pathname === "/instalar" || pathname === "/aplicativo" || pathname.startsWith("/sistema"))) return;
 
     setPlatform(deviceInfo());
@@ -163,8 +167,8 @@ export function AppInstallInvitation({ mode = "automatic" }: { mode?: "automatic
       aria-labelledby={embedded ? "pwa-install-title-page" : "pwa-install-title-invite"}
       className={embedded
         ? "rounded-2xl border border-slate-200 bg-white px-5 py-6 shadow-sm sm:px-8 sm:py-9"
-        : "fixed inset-x-3 bottom-20 z-[90] mx-auto max-w-md rounded-2xl border border-slate-200 bg-white p-4 shadow-2xl sm:bottom-6"}
-      style={embedded ? undefined : { boxShadow: "0 18px 56px rgba(27,32,63,.24)" }}
+        : "fixed inset-x-3 bottom-20 z-[90] mx-auto max-w-md overflow-y-auto rounded-2xl border border-slate-200 bg-white p-4 shadow-2xl sm:bottom-6"}
+      style={embedded ? undefined : { boxShadow: "0 18px 56px rgba(27,32,63,.24)", maxHeight: "calc(100dvh - 7rem)" }}
     >
       {!embedded ? (
         <button type="button" onClick={dismiss} aria-label="Fechar convite"
