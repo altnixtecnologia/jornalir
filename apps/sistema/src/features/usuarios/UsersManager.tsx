@@ -171,6 +171,7 @@ export function UsersManager(): JSX.Element {
   const [editingEmail, setEditingEmail] = useState("");
   const [editError, setEditError] = useState("");
   const editDialogRef = useRef<HTMLDialogElement>(null);
+  const inviteDialogRef = useRef<HTMLDialogElement>(null);
   const [inviteRole, setInviteRole] = useState<"operator" | "admin">("operator");
   const [resetTarget, setResetTarget] = useState<UserRow | null>(null);
   const [permissionDraft, setPermissionDraft] = useState<PermissionDraft | null>(null);
@@ -290,6 +291,18 @@ export function UsersManager(): JSX.Element {
     await reload();
   }
 
+  function openInviteDialog(): void {
+    if (pending) return;
+    setError(null);
+    inviteDialogRef.current?.showModal();
+  }
+
+  function closeInviteDialog(): void {
+    if (pending) return;
+    setError(null);
+    inviteDialogRef.current?.close();
+  }
+
   async function handleInvite(): Promise<void> {
     if (inviteName.trim().length < 3) { setError("Informe o nome real da pessoa."); return; }
     if (!inviteEmail.trim()) {
@@ -307,6 +320,8 @@ export function UsersManager(): JSX.Element {
       }
       setInviteEmail("");
       setInviteName("");
+      setInviteRole("operator");
+      inviteDialogRef.current?.close();
       notify.success("Convite solicitado",
         "O Supabase aceitou a solicitação de envio para " + sentName + ". A entrega ainda depende do serviço de e-mail.");
       await reload();
@@ -680,64 +695,61 @@ export function UsersManager(): JSX.Element {
 
   return (
     <>
-      <div className="materias-toolbar">
+      <div className="materias-toolbar usuarios-toolbar">
         <span className="materias-count">{users?.length ?? 0} usuário(s)</span>
+        <button type="button" className="form-action-primary usuarios-new-user-button"
+          onClick={openInviteDialog} disabled={pending}>
+          + Novo usuário
+        </button>
       </div>
 
-      <div className="inline-form">
-        <p className="field-label">Convidar usuário</p>
-        <p className="helper-text">
-          Envia um convite por e-mail (processado no servidor — nunca troca a sua sessão). A pessoa define
-          a própria senha ao acessar o link e depois entra normalmente por e-mail e senha.
-        </p>
-        <div className="form-grid">
-          <label className="form-field">
-            <span className="field-label">Nome completo</span>
-            <input type="text" autoComplete="name" required minLength={3} maxLength={120}
-              value={inviteName} onChange={(event) => setInviteName(event.target.value)}
-              placeholder="Nome e sobrenome da pessoa" />
-          </label>
-          <label className="form-field">
-            <span className="field-label">E-mail</span>
-            <input
-              type="email"
-              value={inviteEmail}
-              onChange={(event) => setInviteEmail(event.target.value)}
-              placeholder="pessoa@informativoregional.com.br"
-            />
-          </label>
-          <label className="form-field">
-            <span className="field-label">Papel</span>
-            <select
-              value={inviteRole}
-              onChange={(event) => setInviteRole(event.target.value as "operator" | "admin")}
-            >
-              <option value="operator">Operador</option>
-              {canPromoteToAdmin() ? <option value="admin">Administrador</option> : null}
-            </select>
-          </label>
-        </div>
-        <div className="form-actions">
-          <button type="button" className="form-action-primary" onClick={handleInvite} disabled={pending}>
-            Convidar
-          </button>
-        </div>
-      </div>
+      {invitationWarning ? <p className="helper-text" role="status">Não foi possível conferir a situação dos convites: {invitationWarning}</p> : null}
 
-      {error ? (
-        <p className="form-error" role="alert">
-          {error}
-        </p>
-      ) : null}
+      <dialog ref={inviteDialogRef} className="ir-modal ir-modal--form usuarios-edit-modal usuarios-invite-modal"
+        aria-labelledby="usuarios-invite-title"
+        onCancel={(event) => { if (pending) event.preventDefault(); else setError(null); }}
+        onClick={(event) => { if (event.target === inviteDialogRef.current) closeInviteDialog(); }}>
+        <form onSubmit={(event) => { event.preventDefault(); void handleInvite(); }}>
+          <h2 id="usuarios-invite-title">Cadastrar novo usuário</h2>
+          <p className="helper-text">O cadastro envia um convite por e-mail para a pessoa criar a própria senha, sem alterar sua sessão atual.</p>
+          <div className="usuarios-edit-fields">
+            <label className="form-field">
+              <span className="field-label">Nome completo *</span>
+              <input type="text" autoComplete="name" required minLength={3} maxLength={120}
+                autoFocus value={inviteName} disabled={pending}
+                onChange={(event) => { setInviteName(event.target.value); setError(null); }}
+                placeholder="Nome e sobrenome" />
+            </label>
+            <label className="form-field">
+              <span className="field-label">E-mail *</span>
+              <input type="email" autoComplete="email" required maxLength={254}
+                value={inviteEmail} disabled={pending}
+                onChange={(event) => { setInviteEmail(event.target.value); setError(null); }}
+                placeholder="pessoa@exemplo.com" />
+            </label>
+            <label className="form-field">
+              <span className="field-label">Papel</span>
+              <select value={inviteRole} disabled={pending}
+                onChange={(event) => setInviteRole(event.target.value as "operator" | "admin")}>
+                <option value="operator">Operador</option>
+                {canPromoteToAdmin() ? <option value="admin">Administrador</option> : null}
+              </select>
+            </label>
+          </div>
+          {error ? <p className="form-error" role="alert">{error}</p> : null}
+          <details className="usuarios-invite-help">
+            <summary>Sobre o envio do convite</summary>
+            <p className="helper-text">Convite pendente significa que o acesso ainda não foi confirmado. O Supabase aceitar o envio não garante entrega ou leitura. Para conferir falhas, consulte Auth Logs, SMTP, Rate Limits, URL Configuration e a caixa de spam do destinatário.</p>
+          </details>
+          <div className="usuarios-edit-actions">
+            <button type="button" onClick={closeInviteDialog} disabled={pending}>Cancelar</button>
+            <button type="submit" className="form-action-primary" disabled={pending || !inviteName.trim() || !inviteEmail.trim()}>
+              {pending ? "Enviando convite…" : "Cadastrar e convidar"}
+            </button>
+          </div>
+        </form>
+      </dialog>
 
-      {invitationWarning ? <p className="helper-text" role="status">A situação dos convites não pôde ser conferida: {invitationWarning}</p> : null}
-      <p className="helper-text">"Convite pendente" significa que há convite sem confirmação;
-        "E-mail não confirmado" identifica outras contas que ainda não confirmaram endereço.
-        O Supabase aceitar uma solicitação não comprova entrega nem leitura da mensagem.
-        Para endereços externos à equipe do projeto, configure SMTP próprio em Supabase:
-        Authentication → SMTP Settings; confira também Auth Logs, Rate Limits,
-        Authentication → URL Configuration e a pasta de spam.
-        O plano Pro não configura SMTP automaticamente.</p>
       <div className="materias-table-wrap usuarios-table-wrap">
         <table className="materias-table usuarios-table">
           <thead>
@@ -754,7 +766,7 @@ export function UsersManager(): JSX.Element {
               const manageable = canManage(user);
               return (
                 <tr key={user.id}>
-                  <td><span className="usuarios-cell-name">{userName(user)}</span>{nameNeedsReview(user) ? <span className="helper-text" style={{ display: "block" }}>Nome cadastral pendente de revisão</span> : null}{userEmail(user.id) ? <span className="helper-text" style={{ display: "block" }}>{userEmail(user.id)}</span> : null}</td>
+                  <td><div className="usuarios-name-inline"><span className="usuarios-cell-name" title={userName(user)}>{userName(user)}</span>{userEmail(user.id) ? <span className="usuarios-cell-email" title={userEmail(user.id)}>{userEmail(user.id)}</span> : null}{nameNeedsReview(user) ? <span className="usuarios-name-alert" title="Nome cadastral pendente de revisão">!</span> : null}</div></td>
                   <td>
                     {user.role === "owner" ? (
                       <span className="status-pill status-pill--published">{ROLE_LABELS.owner}</span>
