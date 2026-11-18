@@ -21,7 +21,7 @@ const NOTICIAS_LINK: NavLink = { href: "/noticias", label: "Notícias" };
 const JORNAL_ONLINE: NavLink = { href: "/jornal-online", label: "Jornal Online" };
 const CONTACT_LINK: NavLink = { href: "/contato", label: "Contato" };
 const CLASSIFICADOS_FALLBACK: NavLink = { href: "/editoria/classificados", label: "Classificados" };
-const FIXED_OVERFLOW: NavLink[] = [{ href: "/sobre", label: "Sobre" }];
+const FIXED_OVERFLOW: NavLink[] = [{ href: "/sobre", label: "Sobre" }, { href: "/instalar", label: "Instalar o Jornal" }];
 
 const FORCED_OVERFLOW_LABELS = new Set(["economia", "eventos", "cidades", "saúde", "saude"]);
 
