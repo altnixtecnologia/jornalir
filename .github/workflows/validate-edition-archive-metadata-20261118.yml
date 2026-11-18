@@ -1,0 +1,41 @@
+name: Jornal Online - metadados historicos R2 (sem deploy)
+
+on:
+  pull_request:
+    branches: [solicitacoes-financeiro-contratos-irc-20261031]
+    paths:
+      - "apps/sistema/scripts/backfill-editions-archive-metadata.ts"
+      - "apps/sistema/src/lib/editorial/editionArchiveMetadata.ts"
+      - "apps/sistema/test/edition-archive-metadata-backfill.test.ts"
+      - "docs/JORNAL-ONLINE-METADADOS-HISTORICOS-20261118.md"
+      - ".github/workflows/validate-edition-archive-metadata-20261118.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  metadata:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
+      NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ci-publishable-key
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ci-publishable-key
+      NEXT_TELEMETRY_DISABLED: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+      - name: Instalar workspaces
+        run: npm ci --no-audit --no-fund
+      - name: Testes de metadados do acervo e PDF
+        run: npx tsx --test apps/sistema/test/edition-archive-metadata-backfill.test.ts
+        env:
+          NODE_OPTIONS: --conditions=react-server
+      - name: TypeScript do sistema
+        run: npm run typecheck --workspace @ir/sistema
+      - name: Build do sistema (sem deploy)
+        run: npm run build --workspace @ir/sistema
