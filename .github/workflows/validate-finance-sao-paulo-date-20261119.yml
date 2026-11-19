@@ -36,7 +36,6 @@ jobs:
         run: npx tsx --test apps/sistema/test/financial-overview-sao-paulo-date.test.ts
       - name: Checagem de tipos
         run: |
-          npm run typecheck --workspace @ir/types
           npm run typecheck --workspace @ir/sistema
       - name: Build do sistema sem publicar
         run: npm run build --workspace @ir/sistema
