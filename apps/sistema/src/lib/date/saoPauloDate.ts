@@ -3,10 +3,7 @@
  * independentemente do fuso do navegador, Vercel ou servidor.
  * Não modifica timestamps originais armazenados no Supabase.
  */
-const saoPauloCalendar = new Intl.DateTimeFormat("en-US", {
-  timeZone: "America/Sao_Paulo",
-  year: "numeric", month: "2-digit", day: "2-digit",
-});
+import { saoPauloCivilDate } from "@ir/types";
 
 const saoPauloDateTime = new Intl.DateTimeFormat("en-US", {
   timeZone: "America/Sao_Paulo",
@@ -21,10 +18,7 @@ function parts(formatter: Intl.DateTimeFormat, date: Date): Record<string, strin
 
 /** Extrai o dia civil de um timestamp, mesmo quando a data UTC já é o dia seguinte. */
 export function saoPauloDayOfTimestamp(instant: string | Date): string {
-  const date = instant instanceof Date ? instant : new Date(instant);
-  if (!Number.isFinite(date.getTime())) throw new Error("Timestamp inválido para o Financeiro.");
-  const p = parts(saoPauloCalendar, date);
-  return `${p.year}-${p.month}-${p.day}`;
+  return saoPauloCivilDate(instant);
 }
 
 /** Mantém a API usada pelos módulos financeiros existentes. */
