@@ -123,6 +123,7 @@ function buildArticles(
       localityName,
       urgent: row.urgent,
       publishedAt: row.published_at,
+      editedAt: row.editorial_edited_at ?? undefined,
       cover: coverByArticle.get(row.id),
       gallery: [],
     };
