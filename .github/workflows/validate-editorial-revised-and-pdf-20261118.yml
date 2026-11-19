@@ -1,0 +1,68 @@
+name: Jornal IR - data de edicao editorial e PDFs (sem deploy)
+
+on:
+  pull_request:
+    branches: [solicitacoes-financeiro-contratos-irc-20261031]
+    paths:
+      - "apps/site/src/app/(public)/noticias/[slug]/page.tsx"
+      - "apps/site/src/lib/public/types.ts"
+      - "apps/site/src/lib/public/publicContentService.ts"
+      - "apps/site/src/components/site/date.ts"
+      - "apps/site/test/article-editorial-edited-at.test.ts"
+      - "apps/sistema/scripts/backfill-editions-archive-metadata.ts"
+      - "apps/sistema/test/edition-upload-metadata-and-year-scope.test.ts"
+      - "supabase/migrations/20261122340400_article_editorial_edited_at.sql"
+      - ".github/workflows/validate-editorial-revised-and-pdf-20261118.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  portal:
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    env:
+      NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
+      NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ci-publishable-key
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ci-publishable-key
+      NEXT_TELEMETRY_DISABLED: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+      - name: Instalar workspaces
+        run: npm ci --no-audit --no-fund
+      - name: Testar data de revisao e demais casos do portal
+        env:
+          NODE_OPTIONS: --conditions=react-server
+        run: npx tsx --test apps/site/test/*.test.ts
+      - name: Verificar TypeScript
+        run: npm run typecheck --workspace @ir/site
+      - name: Build do portal
+        run: npm run build --workspace @ir/site
+
+  system:
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    env:
+      NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
+      NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ci-publishable-key
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ci-publishable-key
+      NEXT_TELEMETRY_DISABLED: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+      - name: Instalar workspaces
+        run: npm ci --no-audit --no-fund
+      - name: Testes de captura automatica no upload e restricao do acervo
+        env:
+          NODE_OPTIONS: --conditions=react-server
+        run: npx tsx --test apps/sistema/test/edition-upload-metadata-and-year-scope.test.ts apps/sistema/test/edition-archive-metadata-backfill.test.ts
+      - name: TypeScript do sistema
+        run: npm run typecheck --workspace @ir/sistema
