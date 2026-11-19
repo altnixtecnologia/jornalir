@@ -167,7 +167,7 @@ export function saoPauloCivilDate(value: Date | string = new Date()): string {
 /** Comparar datas CIVIS, não milissegundos de midnight em fusos diferentes. */
 export function computeReceivableDueFlag(dueDate: string, status: ReceivableStatus, today: Date = new Date()): ReceivableDueFlag {
   if (status !== "open" && status !== "partially_paid") return null;
-  if (!/^\\d{4}-\\d{2}-\\d{2}$/.test(dueDate)) return null;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dueDate)) return null;
   const reference = saoPauloCivilDate(today);
   const days = Math.round((
     Date.parse(`${dueDate}T12:00:00.000Z`) -
