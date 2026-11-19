@@ -319,7 +319,7 @@ export async function getPublicArticleBySlug(slug: string): Promise<PublicArticl
   const [{ data, error }, sections, localities] = await Promise.all([
     client
       .from("public_articles")
-      .select("id, slug, title, subtitle, body, source_url, section_id, locality_id, urgent, published_at")
+      .select("id, slug, title, subtitle, body, source_url, section_id, locality_id, urgent, published_at, editorial_edited_at")
       .eq("slug", slug)
       .maybeSingle(),
     listPublicSections(),
