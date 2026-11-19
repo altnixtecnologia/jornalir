@@ -1,0 +1,41 @@
+name: Financeiro - dias em São Paulo (sem deploy)
+on:
+  pull_request:
+    branches: [solicitacoes-financeiro-contratos-irc-20261031]
+    paths:
+      - "apps/sistema/src/lib/date/saoPauloDate.ts"
+      - "apps/sistema/src/providers/supabase/financialOverview.supabase.ts"
+      - "packages/types/src/financeiro/index.ts"
+      - "apps/sistema/test/financial-overview-sao-paulo-date.test.ts"
+      - ".github/workflows/validate-finance-sao-paulo-date-20261119.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  fiscal-calendar-regression:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
+      NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ci-publishable-key
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ci-publishable-key
+      NEXT_TELEMETRY_DISABLED: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+      - name: Instalar dependências
+        run: npm ci --no-audit --no-fund
+      - name: Testar recebimentos, abatimentos e vencimentos em horário de Brasília
+        env:
+          NODE_OPTIONS: --conditions=react-server
+        run: npx tsx --test apps/sistema/test/financial-overview-sao-paulo-date.test.ts
+      - name: Checagem de tipos
+        run: |
+          npm run typecheck --workspace @ir/sistema
+      - name: Build do sistema sem publicar
+        run: npm run build --workspace @ir/sistema

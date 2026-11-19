@@ -149,15 +149,34 @@ export type ReceivableDueFlag = "overdue" | "due_today" | "due_soon" | null;
 
 const DUE_SOON_DAYS = 7;
 
+/** Dia civil financeiro no fuso do jornal, independente da TZ do servidor/celular. */
+const SAO_PAULO_DAY_FORMAT = new Intl.DateTimeFormat("en-US", {
+  timeZone: "America/Sao_Paulo",
+  year: "numeric", month: "2-digit", day: "2-digit",
+});
+
+export function saoPauloCivilDate(value: Date | string = new Date()): string {
+  const date = value instanceof Date ? value : new Date(value);
+  if (!Number.isFinite(date.getTime())) throw new Error("Data/hora financeira inválida.");
+  const parts = Object.fromEntries(
+    SAO_PAULO_DAY_FORMAT.formatToParts(date).map((part) => [part.type, part.value]),
+  );
+  return `${parts.year}-${parts.month}-${parts.day}`;
+}
+
+/** Comparar datas CIVIS, não milissegundos de midnight em fusos diferentes. */
 export function computeReceivableDueFlag(dueDate: string, status: ReceivableStatus, today: Date = new Date()): ReceivableDueFlag {
   if (status !== "open" && status !== "partially_paid") return null;
-  const reference = new Date(today);
-  reference.setHours(0, 0, 0, 0);
-  const due = new Date(`${dueDate}T00:00:00`);
-  const diffDays = Math.round((due.getTime() - reference.getTime()) / (1000 * 60 * 60 * 24));
-  if (diffDays < 0) return "overdue";
-  if (diffDays === 0) return "due_today";
-  if (diffDays <= DUE_SOON_DAYS) return "due_soon";
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dueDate)) return null;
+  const reference = saoPauloCivilDate(today);
+  const days = Math.round((
+    Date.parse(`${dueDate}T12:00:00.000Z`) -
+    Date.parse(`${reference}T12:00:00.000Z`)
+  ) / 86_400_000);
+  if (!Number.isFinite(days)) return null;
+  if (days < 0) return "overdue";
+  if (days === 0) return "due_today";
+  if (days <= DUE_SOON_DAYS) return "due_soon";
   return null;
 }
 

@@ -2,6 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { computeReceivableDueFlag } from "@ir/types";
 import { isLocalPreviewEnabled } from "../../lib/auth/localPreview";
 import { PREVIEW_RECEIPTS, PREVIEW_RECEIVABLES } from "./receivableRepository.supabase";
+import { nextCalendarDayISO, saoPauloDayOfTimestamp, saoPauloDayStartUtcISO } from "../../lib/date/saoPauloDate";
 
 export interface FinancialPeriodMetric {
   amount: number;
@@ -58,7 +59,8 @@ function metricFromOpen(rows: OpenRow[], start: string, end: string): FinancialP
 }
 
 function metricFromReceipts(rows: ReceiptRow[], start: string, end: string): FinancialPeriodMetric {
-  const matched = rows.filter((row) => inRange(row.received_at, start, end));
+  // received_at é timestamptz (UTC); o dia financeiro pertence a São Paulo.
+  const matched = rows.filter((row) => inRange(saoPauloDayOfTimestamp(row.received_at), start, end));
   return {
     amount: matched.reduce((sum, row) => sum + Number(row.amount), 0),
     count: matched.length,
@@ -139,6 +141,10 @@ export async function getFinancialOverviewSupabase(
 
   const receiptQueryStart = minDate(range.today, range.periodStart, range.monthStart);
   const receiptQueryEnd = maxDate(range.today, range.periodEnd, range.monthEnd);
+  const receiptsUtcStart = saoPauloDayStartUtcISO(receiptQueryStart);
+  const receiptsUtcEndExclusive = saoPauloDayStartUtcISO(nextCalendarDayISO(receiptQueryEnd));
+  const adjustmentsUtcStart = saoPauloDayStartUtcISO(range.periodStart);
+  const adjustmentsUtcEndExclusive = saoPauloDayStartUtcISO(nextCalendarDayISO(range.periodEnd));
 
   const [openResult, receiptsResult, adjustmentsResult] = await Promise.all([
     client
@@ -149,14 +155,15 @@ export async function getFinancialOverviewSupabase(
       .from("receivable_receipts")
       .select("amount, received_at")
       .is("reversed_at", null)
-      .gte("received_at", `${receiptQueryStart}T00:00:00`)
-      .lte("received_at", `${receiptQueryEnd}T23:59:59.999`),
+      // Limites UTC calculados a partir das datas civis do Brasil, com fim exclusivo.
+      .gte("received_at", receiptsUtcStart)
+      .lt("received_at", receiptsUtcEndExclusive),
     client
       .from("receivable_adjustments")
       .select("amount")
       .is("reversed_at", null)
-      .gte("recorded_at", `${range.periodStart}T00:00:00`)
-      .lte("recorded_at", `${range.periodEnd}T23:59:59.999`),
+      .gte("recorded_at", adjustmentsUtcStart)
+      .lt("recorded_at", adjustmentsUtcEndExclusive),
   ]);
 
   if (openResult.error) throw new Error(openResult.error.message);
