@@ -38,7 +38,7 @@ test("o portal expõe a data real da edição e mostra a marca somente quando h�
 });
 
 test("migração só registra alterações editoriais e não inventa datas anteriores", () => {
-  const sql = readFileSync(new URL("../../../supabase/migrations/20261122340400_article_editorial_edited_at.sql", import.meta.url), "utf8");
+  const sql = readFileSync(new URL("../../../supabase/migrations/20261119002405_article_editorial_edited_at_20261122340400.sql", import.meta.url), "utf8");
   assert.match(sql, /add column if not exists editorial_edited_at timestamptz/);
   assert.match(sql, /old\.status = 'published'/);
   assert.match(sql, /new\.status = 'published'/);
