@@ -5,6 +5,9 @@
  *
  * Exemplo:
  *   npx tsx scripts/verify-public-edition-metadata.ts --numbers=776,775,774
+ *   npx tsx scripts/verify-public-edition-metadata.ts --year=2025
+ *   npx tsx scripts/verify-public-edition-metadata.ts --year=2026
+ * --year é restrito a esses dois anos por decisão editorial; só leitura.
  *
  * Não usar para edições em preparação ou ainda não liberadas ao público.
  */
@@ -18,6 +21,7 @@ const MAX_EDITIONS = 3;
 type PublicEdition = {
   id: string;
   editionNumber: number;
+  publicationDate: string;
   pdfPath: string | null;
   archiveProvider: string;
 };
@@ -74,7 +78,14 @@ async function fetchPublicPdf(item: PublicEdition): Promise<{ size: number; sha2
 }
 
 async function main(): Promise<void> {
-  const requestedNumbers = numbersArgument();
+  const yearArg = process.argv.find((a) => a.startsWith("--year="))?.slice("--year=".length);
+  if (yearArg !== undefined && !["2025", "2026"].includes(yearArg)) {
+    throw new Error("A verificação por ano está autorizada somente para 2025 e 2026.");
+  }
+  if (yearArg && process.argv.some((a) => a.startsWith("--numbers="))) {
+    throw new Error("Use --year ou --numbers, nunca os dois juntos.");
+  }
+  const requestedNumbers = yearArg ? null : numbersArgument();
   // Sem autenticação: a listagem pública já omite edições em preparação,
   // agendadas, inativas ou sem available_at.
   const response = await fetch(`${SITE_ORIGIN}/api/jornal-online/editions`, {
@@ -83,12 +94,19 @@ async function main(): Promise<void> {
   if (!response.ok) throw new Error(`Catálogo indisponível (HTTP ${response.status}).`);
   const list = await response.json() as PublicResponse;
   if (!list.ok || !Array.isArray(list.items)) throw new Error("Catálogo inválido.");
-  const output: Array<{ edition: number; id: string; bytes: number; pages: number; sha256: string }> = [];
-  for (const edition of requestedNumbers) {
-    const item = list.items.find((e) => e.editionNumber === edition);
-    if (!item) throw new Error(`Edição ${edition} não está liberada; não tentar acessá-la diretamente.`);
+  const selected = yearArg
+    ? list.items.filter((item) => item.publicationDate?.startsWith(`${yearArg}-`) && item.archiveProvider === "r2")
+        .sort((a, b) => b.editionNumber - a.editionNumber)
+    : (requestedNumbers ?? []).map((n) => {
+        const item = list.items!.find((e) => e.editionNumber === n);
+        if (!item) throw new Error(`Edição ${n} não está liberada; não tentar acessá-la diretamente.`);
+        return item;
+      });
+  if (!selected.length || selected.length > 55) throw new Error("Lote vazio ou grande demais; nenhuma operação iniciada.");
+  const output: Array<{ edition: number; id: string; publicationDate: string; bytes: number; pages: number; sha256: string }> = [];
+  for (const item of selected) {
     const result = await fetchPublicPdf(item);
-    output.push({ edition, id: item.id, bytes: result.size, pages: result.pages, sha256: result.sha256 });
+    output.push({ edition: item.editionNumber, id: item.id, publicationDate: item.publicationDate, bytes: result.size, pages: result.pages, sha256: result.sha256 });
     console.log(`IR_METADATA_VERIFY_RESULT ${JSON.stringify(output[output.length - 1])}`);
   }
   console.log(`[verificação] ${output.length} PDF(s) reais lidos pelo portal público; nenhuma gravação feita.`);

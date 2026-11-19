@@ -1,0 +1,32 @@
+name: Jornal Online - conferir PDFs reais de 2025 e 2026 (somente leitura)
+on:
+  pull_request:
+    branches: [solicitacoes-financeiro-contratos-irc-20261031]
+    paths:
+      - "apps/sistema/scripts/verify-public-edition-metadata.ts"
+      - ".github/workflows/verify-editions-2025-2026-20261119.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  audit-year:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        year: [2025, 2026]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+      - name: Dependencias reproduciveis
+        run: npm ci --no-audit --no-fund
+      - name: Conferir bytes, numero de paginas e SHA-256 dos PDFs publicados
+        env:
+          NODE_OPTIONS: --conditions=react-server
+        run: npx tsx apps/sistema/scripts/verify-public-edition-metadata.ts --year=${{ matrix.year }}
