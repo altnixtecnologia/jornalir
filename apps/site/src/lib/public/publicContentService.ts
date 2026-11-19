@@ -24,6 +24,7 @@ interface ArticleRow {
   locality_id: string;
   urgent: boolean;
   published_at: string;
+  editorial_edited_at?: string | null;
 }
 interface SearchArticleRow extends ArticleRow {
   total_count: number | string;
@@ -122,6 +123,7 @@ function buildArticles(
       localityName,
       urgent: row.urgent,
       publishedAt: row.published_at,
+      editedAt: row.editorial_edited_at ?? undefined,
       cover: coverByArticle.get(row.id),
       gallery: [],
     };
@@ -317,7 +319,7 @@ export async function getPublicArticleBySlug(slug: string): Promise<PublicArticl
   const [{ data, error }, sections, localities] = await Promise.all([
     client
       .from("public_articles")
-      .select("id, slug, title, subtitle, body, source_url, section_id, locality_id, urgent, published_at")
+      .select("id, slug, title, subtitle, body, source_url, section_id, locality_id, urgent, published_at, editorial_edited_at")
       .eq("slug", slug)
       .maybeSingle(),
     listPublicSections(),

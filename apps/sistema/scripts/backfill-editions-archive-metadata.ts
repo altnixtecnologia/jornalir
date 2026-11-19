@@ -2,6 +2,7 @@
  * Completa metadados faltantes do acervo R2, SEM modificar arquivos, capas,
  * links públicos, estado editorial, datas ou agendamentos.
  *
+ * Escopo aprovado: SOMENTE 2025 e 2026 (não processar 2024 ou anteriores).
  * Padrão: prévia (somente leitura); --limit=3 por rodada, --concurrency=1.
  * Somente --apply autoriza UPDATE condicional em newspaper_editions.
  *
@@ -32,6 +33,8 @@ import {
 const OUT_DIR = "../../docs/relatorios-locais/jornal-online-metadados";
 const CHECKPOINT = join(OUT_DIR, "metadados-checkpoint.json");
 const MAX_PER_RUN = 25;
+const START_DATE = "2025-01-01";
+const END_DATE_EXCLUSIVE = "2027-01-01";
 const SELECT_COLUMNS = "id, edition_number, archive_provider, pdf_r2_key, pdf_file_size, pdf_sha256, page_count";
 
 type CheckpointRecord = {
@@ -190,6 +193,10 @@ async function main(): Promise<void> {
   const { data, error } = await client.from("newspaper_editions")
     .select(SELECT_COLUMNS)
     .eq("archive_provider", "r2")
+    // Proteção no próprio SELECT: os arquivos de 2024 e anteriores não
+    // entram na análise nem no UPDATE, mesmo se houver campos faltantes.
+    .gte("publication_date", START_DATE)
+    .lt("publication_date", END_DATE_EXCLUSIVE)
     .or("pdf_sha256.is.null,page_count.is.null")
     .order("edition_number", { ascending: false })
     .limit(1000);
@@ -207,6 +214,7 @@ async function main(): Promise<void> {
       })
   ).slice(0, limit);
 
+  console.log(`[metadados] Escopo autorizado: edições publicadas em 2025 ou 2026.`);
   console.log(`[metadados] Fichas R2 ainda incompletas: ${rows.length} | válidas para análise: ${valid.length}`);
   console.log(`[metadados] Modo: ${apply ? "APLICAR com confirmação de dados existentes" : "PRÉVIA, somente leitura"} | amostra: ${pending.length} | concorrência: ${concurrency}`);
   if (pending.length === 0) {

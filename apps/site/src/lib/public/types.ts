@@ -41,6 +41,8 @@ export interface PublicArticle {
   localityName: string;
   urgent: boolean;
   publishedAt: string;
+  /** Revisão editorial real após publicação; não é o updated_at técnico. */
+  editedAt?: string;
   cover?: PublicArticleMedia;
   gallery: PublicArticleMedia[];
 }
