@@ -24,6 +24,7 @@ interface ArticleRow {
   locality_id: string;
   urgent: boolean;
   published_at: string;
+  editorial_edited_at?: string | null;
 }
 interface SearchArticleRow extends ArticleRow {
   total_count: number | string;
