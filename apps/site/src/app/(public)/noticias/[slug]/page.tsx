@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { cache } from "react";
 import { notFound } from "next/navigation";
-import { formatDateBR } from "../../../../components/site/date";
+import { formatDateBR, formatEditorialDateTimeBR, isEditoriallyEdited } from "../../../../components/site/date";
 import { AdSlotColumn } from "../../../../components/site/AdSlotColumn";
 import { AdSlotPairRow } from "../../../../components/site/AdSlotPairRow";
 import type { AdSlot } from "../../../../components/site/adSlots";
@@ -46,6 +46,7 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
       type: "article", url: canonical, siteName: "Informativo Regional",
       title: article.title, description,
       publishedTime: article.publishedAt,
+      ...(isEditoriallyEdited(article.publishedAt, article.editedAt) ? { modifiedTime: article.editedAt } : {}),
       ...(image ? { images: image } : {}),
     },
     twitter: {
@@ -63,6 +64,7 @@ export default async function NoticiaDetalhePage({ params }: { params: Promise<{
 
   const [readAlso, siteAds] = await Promise.all([getReadAlso(current, 4), getPublicSiteAds()]);
   const readMinutes = estimateReadingMinutes(current.body);
+  const hasEditorialEdit = isEditoriallyEdited(current.publishedAt, current.editedAt);
   const galleryImages = current.gallery.map((item) => ({ url: item.url, caption: item.caption, credit: item.credit }));
 
   // Mesma esteira única da página inicial (antes, aqui cada posição ficava
@@ -106,10 +108,17 @@ export default async function NoticiaDetalhePage({ params }: { params: Promise<{
                 <p className="mt-4 text-lg leading-snug text-[color:var(--site-muted)] md:text-xl">{current.subtitle}</p>
               ) : null}
               <p className="article-meta mt-3">
-                {formatDateBR(current.publishedAt)} · {readingTimeLabel(readMinutes)}
+                {hasEditorialEdit ? readingTimeLabel(readMinutes) : `${formatDateBR(current.publishedAt)} · ${readingTimeLabel(readMinutes)}`}
                 {current.localityName ? ` · ${current.localityName}` : ""}
                 {current.urgent ? " · Urgente" : ""}
               </p>
+              {hasEditorialEdit && current.editedAt ? (
+                <p className="mt-1 text-[11px] italic leading-relaxed tracking-[0.01em] text-slate-400 sm:text-xs">
+                  <time dateTime={current.publishedAt}>Publicado em {formatEditorialDateTimeBR(current.publishedAt)}</time>
+                  {" · "}
+                  <time dateTime={current.editedAt}>Editado em {formatEditorialDateTimeBR(current.editedAt)}</time>
+                </p>
+              ) : null}
               <ArticleShareActions title={current.title} slug={current.slug} />
 
               <ArticleMediaViewer
