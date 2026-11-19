@@ -11,7 +11,7 @@ on:
       - "apps/site/test/article-editorial-edited-at.test.ts"
       - "apps/sistema/scripts/backfill-editions-archive-metadata.ts"
       - "apps/sistema/test/edition-upload-metadata-and-year-scope.test.ts"
-      - "supabase/migrations/20261122340400_article_editorial_edited_at.sql"
+      - "supabase/migrations/20261119002405_article_editorial_edited_at_20261122340400.sql"
       - ".github/workflows/validate-editorial-revised-and-pdf-20261118.yml"
   workflow_dispatch:
 
