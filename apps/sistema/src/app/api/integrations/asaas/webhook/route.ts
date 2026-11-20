@@ -8,6 +8,7 @@ import { getAsaasWebhookToken } from "../../../../../lib/financeiro/asaasWebhook
 import { canProcessAsaasWebhook } from "../../../../../lib/financeiro/asaasRuntimePolicy";
 import { createAsaasPixProvider } from "../../../../../lib/financeiro/asaasPixProvider";
 import { buildAsaasRefundAttention } from "../../../../../lib/financeiro/asaasRefundAttention";
+import { buildAsaasLatePaymentAttention, needsManualAsaasPaymentReconciliation } from "../../../../../lib/financeiro/asaasLatePaymentAttention";
 import {
   isWhatsappCloudConfigured,
   sendWhatsappPaymentConfirmedTemplate,
@@ -250,6 +251,27 @@ async function notifyPaymentReceived(input: {
   }
 }
 
+/**
+ * Quando um PAYMENT_RECEIVED chega para cobrança já cancelada, expirada
+ * ou com falha, não forçar a RPC nem deixar o Asaas reprocessando
+ * indefinidamente. Aviso único por cobrança, evento registrado para
+ * auditoria e tratamento humano. Falha ao criar o aviso devolve 500
+ * e permite nova entrega idempotente, sem baixa automática.
+ */
+async function flagLatePaymentForManualReview(input: {
+  eventId: string;
+  processingToken: string;
+  chargeId: string;
+  receivableId: string;
+}): Promise<Response> {
+  await createPanelNotification(buildAsaasLatePaymentAttention(input.chargeId, input.receivableId));
+  await markEvent(input.eventId, input.processingToken, {
+    processed_at: new Date().toISOString(),
+    error_message: "PAYMENT_RECEIVED chegou após encerramento local da cobrança; conciliação manual pendente.",
+  });
+  return NextResponse.json({ ok: true, manualReconciliation: true });
+}
+
 export async function POST(request: Request): Promise<Response> {
   // Um endpoint Preview não é destino legítimo de webhooks reais e não
   // deve modificar cobranças/recebimentos, mesmo com token válido.
@@ -405,11 +427,40 @@ export async function POST(request: Request): Promise<Response> {
     }
 
     if (eventType === "PAYMENT_RECEIVED") {
-      await getPaymentChargeService(admin).confirmPixCharge(
-        charge.id as string,
-        receivedDate(payload.payment),
-        undefined,
-      );
+      if (needsManualAsaasPaymentReconciliation(charge.status as string)) {
+        return flagLatePaymentForManualReview({
+          eventId, processingToken,
+          chargeId: charge.id as string,
+          receivableId: charge.receivable_id as string,
+        });
+      }
+
+      try {
+        await getPaymentChargeService(admin).confirmPixCharge(
+          charge.id as string,
+          receivedDate(payload.payment),
+          undefined,
+        );
+      } catch (confirmationError) {
+        // Um PAYMENT_DELETED/OVERDUE pode vencer a corrida entre a leitura
+        // inicial e o lock de confirm_payment_charge. Consultar de novo:
+        // só um estado encerrado autoriza enviar para revisão manual.
+        // Erros de banco/infra continuam falhando e são reprocessáveis.
+        const { data: latest, error: latestError } = await admin
+          .from("payment_charges")
+          .select("status")
+          .eq("id", charge.id)
+          .maybeSingle();
+        if (!latestError && latest && needsManualAsaasPaymentReconciliation(latest.status as string)) {
+          return flagLatePaymentForManualReview({
+            eventId, processingToken,
+            chargeId: charge.id as string,
+            receivableId: charge.receivable_id as string,
+          });
+        }
+        throw confirmationError;
+      }
+
       await notifyPaymentReceived({
         eventId,
         chargeId: charge.id as string,
