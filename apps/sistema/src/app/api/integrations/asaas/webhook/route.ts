@@ -8,6 +8,7 @@ import { getAsaasWebhookToken } from "../../../../../lib/financeiro/asaasWebhook
 import { canProcessAsaasWebhook } from "../../../../../lib/financeiro/asaasRuntimePolicy";
 import { createAsaasPixProvider } from "../../../../../lib/financeiro/asaasPixProvider";
 import { buildAsaasRefundAttention } from "../../../../../lib/financeiro/asaasRefundAttention";
+import { matchesStoredAsaasEvent } from "../../../../../lib/financeiro/asaasWebhookEventIdentity";
 import { buildAsaasLatePaymentAttention, needsManualAsaasPaymentReconciliation } from "../../../../../lib/financeiro/asaasLatePaymentAttention";
 import {
   isWhatsappCloudConfigured,
@@ -310,14 +311,23 @@ export async function POST(request: Request): Promise<Response> {
 
   const admin = createSupabaseAdminClient();
 
+  // Evento é um registro de auditoria IMUTÁVEL. Um reenvio pode ter o
+  // mesmo ID, nunca outro tipo ou outra cobrança. Não modificar payload,
+  // identidade nem erro anterior ANTES de obter o lease exclusivo.
   const { data: previous, error: previousError } = await admin
     .from("billing_webhook_events")
-    .select("id, processed_at")
+    .select("id, processed_at, provider, event_type, provider_charge_id")
     .eq("id", eventId)
     .maybeSingle();
 
   if (previousError) {
     return NextResponse.json({ error: "Falha ao consultar idempotência." }, { status: 500 });
+  }
+
+  if (previous && !matchesStoredAsaasEvent(previous, { eventType, providerChargeId })) {
+    // Mesmo ID não pode alterar o significado de evento já processado
+    // ou em espera. 409 deixa explícito o conflito sem nenhum efeito.
+    return NextResponse.json({ error: "Identificação de evento Asaas divergente." }, { status: 409 });
   }
 
   if (previous?.processed_at) {
@@ -333,24 +343,25 @@ export async function POST(request: Request): Promise<Response> {
       payload,
     });
 
-    // Uma entrega concorrente do mesmo evento pode ganhar a corrida do INSERT.
-    // A regra de negócio abaixo continua segura porque confirm_payment_charge
-    // também é idempotente no banco.
-    if (insertError && insertError.code !== "23505") {
+    if (insertError?.code === "23505") {
+      // Outra entrega pode ter inserido o ID entre nosso SELECT e INSERT.
+      // Revalidar a identidade persistida; não presumir mesmo conteúdo.
+      const { data: concurrentlyInserted, error: concurrentError } = await admin
+        .from("billing_webhook_events")
+        .select("id, processed_at, provider, event_type, provider_charge_id")
+        .eq("id", eventId)
+        .single();
+      if (concurrentError || !concurrentlyInserted) {
+        return NextResponse.json({ error: "Falha ao validar evento concorrente." }, { status: 500 });
+      }
+      if (!matchesStoredAsaasEvent(concurrentlyInserted, { eventType, providerChargeId })) {
+        return NextResponse.json({ error: "Identificação de evento Asaas divergente." }, { status: 409 });
+      }
+      if (concurrentlyInserted.processed_at) {
+        return NextResponse.json({ ok: true, duplicate: true });
+      }
+    } else if (insertError) {
       return NextResponse.json({ error: "Falha ao registrar evento." }, { status: 500 });
-    }
-  } else {
-    const { error: refreshError } = await admin
-      .from("billing_webhook_events")
-      .update({
-        event_type: eventType,
-        provider_charge_id: providerChargeId,
-        payload,
-        error_message: null,
-      })
-      .eq("id", eventId);
-    if (refreshError) {
-      return NextResponse.json({ error: "Falha ao atualizar evento." }, { status: 500 });
     }
   }
 

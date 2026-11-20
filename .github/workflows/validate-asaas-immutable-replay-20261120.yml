@@ -1,0 +1,45 @@
+name: Financeiro - webhook Asaas imutável e reprocessamento (sem deploy)
+
+on:
+  pull_request:
+    branches: [solicitacoes-financeiro-contratos-irc-20261031]
+    paths:
+      - "apps/sistema/src/lib/financeiro/asaasWebhookEventIdentity.ts"
+      - "apps/sistema/src/app/api/integrations/asaas/webhook/route.ts"
+      - "apps/sistema/test/asaas-webhook-immutable-replay.test.ts"
+      - ".github/workflows/validate-asaas-immutable-replay-20261120.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  replay-consistency:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
+      NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ci-publishable-key
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ci-publishable-key
+      NEXT_TELEMETRY_DISABLED: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+      - name: Instalar workspaces
+        run: npm ci --no-audit --no-fund
+      - name: Testar duplicações, reprocessamento e regressões
+        env:
+          NODE_OPTIONS: --conditions=react-server
+        run: |
+          npx tsx --test apps/sistema/test/asaas-webhook-immutable-replay.test.ts
+          npx tsx --test apps/sistema/test/asaas-late-payment-reconciliation.test.ts
+          npx tsx --test apps/sistema/test/asaas-refund-attention.test.ts
+          npx tsx --test packages/core/test/payment-charge-webhook-idempotency.test.ts
+          npx tsx --test packages/core/test/payment-charge-creation-concurrency.test.ts
+      - name: TypeScript
+        run: npm run typecheck --workspace @ir/sistema
+      - name: Build completo, sem deploy
+        run: npm run build --workspace @ir/sistema
