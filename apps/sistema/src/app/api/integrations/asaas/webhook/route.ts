@@ -7,6 +7,7 @@ import { createSupabaseAdminClient, hasServiceRoleKey } from "../../../../../lib
 import { getAsaasWebhookToken } from "../../../../../lib/financeiro/asaasWebhookConfig";
 import { canProcessAsaasWebhook } from "../../../../../lib/financeiro/asaasRuntimePolicy";
 import { createAsaasPixProvider } from "../../../../../lib/financeiro/asaasPixProvider";
+import { buildAsaasRefundAttention } from "../../../../../lib/financeiro/asaasRefundAttention";
 import {
   isWhatsappCloudConfigured,
   sendWhatsappPaymentConfirmedTemplate,
@@ -74,7 +75,7 @@ function paymentMethodLabel(payment: AsaasWebhookPayment | undefined): string {
 }
 
 async function createPanelNotification(input: {
-  kind: "payment_received" | "payment_cancelled" | "payment_overdue" | "whatsapp_failed";
+  kind: "payment_received" | "payment_cancelled" | "payment_overdue" | "whatsapp_failed" | "system";
   title: string;
   message: string;
   href: string;
@@ -480,12 +481,15 @@ export async function POST(request: Request): Promise<Response> {
         });
       }
     } else if (eventType === "PAYMENT_REFUNDED" || eventType === "PAYMENT_PARTIALLY_REFUNDED") {
-      // Não altera o recebimento automaticamente: estorno financeiro precisa
-      // manter trilha própria e pode envolver valor parcial. O evento fica
-      // registrado para conciliação sem bloquear a fila do Asaas.
+      // O Asaas pode estornar valores totais/parciais após a baixa local.
+      // Nunca alterar status, saldos, recibos ou créditos automaticamente.
+      // Primeiro reservar aviso por evento (UNIQUE event_key), DEPOIS marcar
+      // como processado: falha permite reenvio sem duplicar a notificação.
+      const attention = buildAsaasRefundAttention(eventType, eventId, charge.receivable_id as string);
+      await createPanelNotification(attention);
       await markEvent(eventId, processingToken, {
         processed_at: new Date().toISOString(),
-        error_message: "Estorno recebido do Asaas; requer conciliação no Financeiro.",
+        error_message: "Estorno comunicado no painel; conciliação financeira manual pendente.",
       });
       return NextResponse.json({ ok: true, manualReconciliation: true });
     }
