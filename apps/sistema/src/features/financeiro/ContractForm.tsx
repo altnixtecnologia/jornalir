@@ -7,6 +7,7 @@ import { CONTRACT_STATUS_LABELS, CONTRACT_STATUSES, clientDisplayName } from "@i
 import { createContract, updateContract } from "../../app/sistema/financeiro/contratos/actions";
 import type { ContractFormPayload } from "./contractFormTypes";
 import { notify } from "../../lib/feedback/notify";
+import { isExternallyDraftedInstitutionalContract } from "../../lib/contracts/externalInstitutionalArchive";
 
 function payloadFromContract(contract?: InstitutionalContract, initialClientId?: string): ContractFormPayload {
   return {
@@ -21,6 +22,7 @@ function payloadFromContract(contract?: InstitutionalContract, initialClientId?:
     endsAt: contract?.endsAt ?? "",
     status: contract?.status ?? "active",
     notes: contract?.notes ?? "",
+    externallyDrafted: contract ? isExternallyDraftedInstitutionalContract(contract) : false,
   };
 }
 
@@ -120,6 +122,15 @@ export function ContractForm({ mode, contract, clients, initialClientId, value, 
             <textarea rows={2} value={payload.object} onChange={(event) => set("object", event.target.value)} />
           </label>
         </div>
+      </section>
+
+      <section className="form-section">
+        <h2>Origem do contrato institucional</h2>
+        <label className="form-field">
+          <span className="field-label">Contrato redigido fora do sistema (ex.: prefeitura ou cartório)</span>
+          <span><input type="checkbox" checked={payload.externallyDrafted} onChange={(event) => set("externallyDrafted", event.target.checked)} /> Sim, o contrato será preparado e assinado externamente</span>
+        </label>
+        {payload.externallyDrafted ? <p className="helper-text">Depois da assinatura em cartório, anexe o PDF digitalizado na ficha do contrato. O Jornal IR apenas arquiva este documento, sem assinatura eletrônica ou convites.</p> : null}
       </section>
 
       <section className="form-section">

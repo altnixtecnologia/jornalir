@@ -7,6 +7,7 @@ import { getContractService, getContractTemplateService } from "../../../../comp
 import { getClientService } from "../../../../composition/clientes";
 import { createSupabaseServerClient } from "../../../../lib/supabase/server";
 import { checkFinanceAction } from "../../../../lib/permissions/checkFinanceAction";
+import { isExternallyDraftedInstitutionalContract } from "../../../../lib/contracts/externalInstitutionalArchive";
 import { buildContractTemplatePdf } from "../../../../lib/contracts/contractTemplatePdf";
 import { loadContractorProfile } from "../../../../lib/contracts/contractorProfileLoader";
 import { buildContracteeHeaderLines } from "../../../../lib/contracts/contractorProfile";
@@ -67,6 +68,8 @@ export async function previewContractFromTemplateAction(input: {
       getContractService(supabase).getById(input.contractId),
       getContractTemplateService(supabase).getById(input.templateId),
     ]);
+    if (isExternallyDraftedInstitutionalContract(contract))
+      return { error: "Contrato redigido externamente: o sistema não gera minutas nem documentos para assinatura." };
     const client = await getClientService(supabase).getById(contract.clientId);
     const extra = await compositionForContract(supabase, contract);
     const result = resolveTemplateVariables({
@@ -103,6 +106,8 @@ export async function generateContractFromTemplateAction(input: {
       getContractService(supabase).getById(input.contractId),
       getContractTemplateService(supabase).getById(input.templateId),
     ]);
+    if (isExternallyDraftedInstitutionalContract(contract))
+      return { error: "Contrato redigido externamente: o sistema não gera minutas nem documentos para assinatura." };
     const client = await getClientService(supabase).getById(contract.clientId);
     const generatedAt = new Date();
     const extra = await compositionForContract(supabase, contract);

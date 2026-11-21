@@ -5,6 +5,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { createSupabaseServerClient } from "../supabase/server";
 import { createSupabaseAdminClient } from "../supabase/admin";
 import { getSupabasePublicEnv } from "../supabase/env";
+import { isExternallyDraftedInstitutionalContract } from "../contracts/externalInstitutionalArchive";
 import { checkModuleAction } from "../permissions/checkModuleAction";
 import { checkFinanceAction } from "../permissions/checkFinanceAction";
 import { checkContractSigningGrant } from "../permissions/checkContractSigningGrant";
@@ -155,7 +156,11 @@ export function createCompanySigningDeps(): CompanySigningDeps {
           recordedSha256: String(data.sha256), templateId: data.template_id as string, templateVersion: Number(data.template_version),
         };
       }
-      const { data } = await admin.from("contract_documents").select("id, name, file_reference, contract_id")
+      const { data: origin, error: originError } = await admin.from("institutional_contracts").select("extra_data")
+         .eq("id", ref.contractId as string).maybeSingle();
+       if (originError || !origin || isExternallyDraftedInstitutionalContract({ extraData: origin.extra_data }))
+         throw new Error("Contrato institucional externo: assinatura eletrônica desativada.");
+       const { data } = await admin.from("contract_documents").select("id, name, file_reference, contract_id")
         .eq("id", ref.documentId as string).eq("contract_id", ref.contractId as string).maybeSingle();
       if (!data || !String(data.file_reference ?? "").startsWith(`contracts/${ref.contractId}/`)) return null;
       return { title: String(data.name), path: String(data.file_reference), bytes: await downloadPdf(admin, String(data.file_reference)) };

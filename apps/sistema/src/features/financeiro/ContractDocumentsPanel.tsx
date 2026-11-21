@@ -4,7 +4,7 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import type { ContractDocument, ContractDocumentType } from "@ir/types";
 import { CONTRACT_DOCUMENT_TYPE_LABELS, CONTRACT_DOCUMENT_TYPES } from "@ir/types";
-import { uploadContractDocumentAction } from "../../app/sistema/financeiro/contratos/actions";
+import { uploadContractDocumentAction, uploadExternalNotaryContractAction } from "../../app/sistema/financeiro/contratos/actions";
 import { notify } from "../../lib/feedback/notify";
 
 function formatDate(iso?: string): string {
@@ -26,12 +26,13 @@ function formatDateTime(iso: string): string {
  * PDFs reais: Supabase Storage privado; download somente por
  * URL temporária, com autenticação e escopo do contrato verificados.
  */
-export function ContractDocumentsPanel({ contractId, documents }: { contractId: string; documents: ContractDocument[] }): JSX.Element {
+export function ContractDocumentsPanel({ contractId, documents, externallyDrafted = false }: { contractId: string; documents: ContractDocument[]; externallyDrafted?: boolean }): JSX.Element {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [file, setFile] = useState<File | null>(null);
+  const [notaryFile, setNotaryFile] = useState<File | null>(null);
 
   const [documentType, setDocumentType] = useState<ContractDocumentType>("contract");
   const [name, setName] = useState("");
@@ -78,6 +79,26 @@ export function ContractDocumentsPanel({ contractId, documents }: { contractId: 
     });
   }
 
+  function archiveNotaryCopy(): void {
+    if (!notaryFile) return;
+    if (notaryFile.size <= 0 || notaryFile.size > 4 * 1024 * 1024) {
+      setError("O arquivo deve ser PDF com até 4 MB.");
+      return;
+    }
+    const data = new FormData();
+    data.append("file", notaryFile);
+    setError(null);
+    startTransition(async () => {
+      try {
+        const result = await uploadExternalNotaryContractAction(contractId, data);
+        if (result && "error" in result) { notify.error("Arquivo não anexado", result.error); return; }
+        setNotaryFile(null);
+        notify.success("Contrato arquivado", "Cópia digitalizada guardada no armazenamento privado.");
+        router.refresh();
+      } catch { notify.error("Arquivo não anexado", "Não foi possível guardar o PDF digitalizado."); }
+    });
+  }
+
   return (
     <section className="form-section">
       <h2>Documentos</h2>
@@ -86,6 +107,20 @@ export function ContractDocumentsPanel({ contractId, documents }: { contractId: 
       </p>
 
       {error ? <p className="form-error" role="alert">{error}</p> : null}
+
+      {externallyDrafted ? (
+        <div className="form-section" style={{ marginTop: 12 }}>
+          <h3>Contrato assinado em cartório — guarda digital</h3>
+          <p className="helper-text">Anexe o PDF digitalizado depois da assinatura física. O arquivo não gera convite, assinatura eletrônica, cobrança nem ativação de serviços. Cópias anteriores são preservadas.</p>
+          <label className="form-field">
+            <span className="field-label">Anexar contrato assinado em cartório (PDF, até 4 MB)</span>
+            <input type="file" accept="application/pdf,.pdf" disabled={pending} onChange={(event) => setNotaryFile(event.target.files?.[0] ?? null)} />
+          </label>
+          <div className="form-actions">
+            <button type="button" className="form-action-primary" onClick={archiveNotaryCopy} disabled={!notaryFile || pending}>{pending ? "Salvando…" : "Guardar contrato digitalizado"}</button>
+          </div>
+        </div>
+      ) : null}
 
       {!showForm ? (
         <div className="form-actions">
