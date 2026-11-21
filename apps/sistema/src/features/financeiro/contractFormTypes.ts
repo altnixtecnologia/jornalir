@@ -12,6 +12,8 @@ export interface ContractFormPayload {
   endsAt: string;
   status: ContractStatus;
   notes: string;
+  /** Contrato institucional redigido fora do sistema e arquivado após assinatura física. */
+  externallyDrafted: boolean;
 }
 
 export function parseAmount(value: string): number | undefined {

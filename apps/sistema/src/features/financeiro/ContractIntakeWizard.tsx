@@ -21,6 +21,7 @@ function emptyPayload(initialClientId?: string): ContractFormPayload {
     endsAt: "",
     status: "active",
     notes: "",
+    externallyDrafted: false,
   };
 }
 
@@ -274,6 +275,10 @@ export function ContractIntakeWizard({
             <div className="form-field">
               <span className="field-label">Cliente/órgão</span>
               <span>{clients.find((client) => client.id === contractPayload.clientId)?.reference ?? "—"}</span>
+            </div>
+            <div className="form-field">
+              <span className="field-label">Origem</span>
+              <span>{contractPayload.externallyDrafted ? "Redigido externamente; anexar cópia assinada após cartório" : "Fluxo institucional interno"}</span>
             </div>
             <div className="form-field">
               <span className="field-label">Número do contrato</span>

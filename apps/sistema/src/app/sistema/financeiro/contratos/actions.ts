@@ -9,6 +9,7 @@ import { createSupabaseServerClient } from "../../../../lib/supabase/server";
 import { checkFinanceAction } from "../../../../lib/permissions/checkFinanceAction";
 import { parseAmount, validateContractPayload, type ContractFormPayload } from "../../../../features/financeiro/contractFormTypes";
 import { extractContractDocumentData, type ContractDocumentExtractionResult } from "../../../../lib/financeiro/contractDocumentExtraction";
+import { isExternallyDraftedInstitutionalContract, withInstitutionalDocumentOrigin } from "../../../../lib/contracts/externalInstitutionalArchive";
 
 const LIST_PATH = "/sistema/financeiro/contratos";
 const CONTRACT_BUCKET = "contract-documents";
@@ -47,7 +48,7 @@ function toErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : "Não foi possível concluir a operação.";
 }
 
-function toServiceInput(payload: ContractFormPayload): ContractInput {
+function toServiceInput(payload: ContractFormPayload, previous?: Record<string, unknown>): ContractInput {
   return {
     clientId: payload.clientId,
     contractNumber: payload.contractNumber,
@@ -60,6 +61,7 @@ function toServiceInput(payload: ContractFormPayload): ContractInput {
     endsAt: payload.endsAt || undefined,
     status: payload.status,
     notes: payload.notes,
+    extraData: withInstitutionalDocumentOrigin(previous, payload.externallyDrafted),
   };
 }
 
@@ -187,7 +189,19 @@ export async function updateContract(id: string, payload: ContractFormPayload): 
   if (validationError) return { error: validationError };
 
   try {
-    await getContractService(createSupabaseServerClient()).update(id, toServiceInput(payload));
+    const supabase = createSupabaseServerClient();
+    const service = getContractService(supabase);
+    const previous = await service.getById(id);
+    if (isExternallyDraftedInstitutionalContract(previous) !== payload.externallyDrafted) {
+      const [invites, rounds] = await Promise.all([
+        supabase.from("contract_signature_invitations").select("id").eq("contract_id", id).limit(1),
+        supabase.from("contract_company_signature_rounds").select("id").eq("contract_id", id).limit(1),
+      ]);
+      if (invites.error || rounds.error) throw new Error("Não foi possível conferir assinaturas anteriores. Tente novamente.");
+      if ((invites.data?.length ?? 0) > 0 || (rounds.data?.length ?? 0) > 0)
+        throw new Error("Há assinaturas eletrônicas vinculadas. Não é possível alterar a origem deste contrato.");
+    }
+    await service.update(id, toServiceInput(payload, previous.extraData));
   } catch (error) {
     return { error: toErrorMessage(error) };
   }
@@ -258,6 +272,35 @@ export async function uploadContractDocumentAction(contractId: string, formData:
       fileReference,
       documentDate: date || undefined,
       notes,
+    });
+    revalidatePath(`${LIST_PATH}/${contractId}`);
+    return;
+  } catch (error) {
+    return { error: toErrorMessage(error) };
+  }
+}
+
+/** Arquivamento privado, sem assinatura eletrônica, convite ou cobrança. */
+export async function uploadExternalNotaryContractAction(contractId: string, formData: FormData): Promise<ActionResult> {
+  const denied = await checkFinanceAction("contratos_editar");
+  if (denied) return { error: denied };
+  if (!/^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i.test(contractId)) return { error: "Contrato inválido." };
+  const file = formData.get("file");
+  if (!(file instanceof File)) return { error: "Selecione o PDF digitalizado." };
+  const fileError = validateContractPdf(file);
+  if (fileError) return { error: fileError };
+  try {
+    const supabase = createSupabaseServerClient();
+    const service = getContractService(supabase);
+    const contract = await service.getById(contractId);
+    if (!isExternallyDraftedInstitutionalContract(contract))
+      return { error: "Indique primeiro que o contrato foi redigido externamente." };
+    const path = await uploadContractPdf(supabase, contractId, file);
+    await service.addDocument(contractId, {
+      documentType: "contract",
+      name: "Contrato assinado em cartório — cópia digitalizada",
+      fileReference: path,
+      notes: "Documento formalizado fora do Jornal IR. Cópia para guarda e consulta, sem assinatura eletrônica pelo sistema.",
     });
     revalidatePath(`${LIST_PATH}/${contractId}`);
     return;
