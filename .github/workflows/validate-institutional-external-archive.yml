@@ -1,0 +1,40 @@
+name: Contratos institucionais externos e cartório (sem deploy)
+on:
+  pull_request:
+    branches: [solicitacoes-financeiro-contratos-irc-20261031]
+    paths:
+      - "apps/sistema/src/features/financeiro/contractFormTypes.ts"
+      - "apps/sistema/src/features/financeiro/ContractForm.tsx"
+      - "apps/sistema/src/features/financeiro/ContractIntakeWizard.tsx"
+      - "apps/sistema/src/features/financeiro/ContractDocumentsPanel.tsx"
+      - "apps/sistema/src/app/sistema/financeiro/contratos/**"
+      - "apps/sistema/src/lib/contracts/externalInstitutionalArchive.ts"
+      - "apps/sistema/src/lib/signatures/companySigningServer.ts"
+      - "apps/sistema/test/institutional-external-archive.test.ts"
+      - ".github/workflows/validate-institutional-external-archive.yml"
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  archive-safety:
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    env:
+      NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
+      NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ci-publishable-key
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ci-publishable-key
+      SIGNATURE_DELIVERY_ENABLED: "false"
+      NEXT_TELEMETRY_DISABLED: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Testar classificação e proteções de arquivamento
+        run: npx tsx --test apps/sistema/test/institutional-external-archive.test.ts
+      - name: TypeScript
+        run: npm run typecheck --workspace @ir/sistema
+      - name: Compilação do sistema sem deploy
+        run: npm run build --workspace @ir/sistema
