@@ -6,6 +6,7 @@ import type { ContractDocumentType, ContractDocumentExtractedData } from "@ir/ty
 import type { ContractInput } from "@ir/core";
 import { getContractService } from "../../../../composition/financeiro";
 import { createSupabaseServerClient } from "../../../../lib/supabase/server";
+import { createSupabaseAdminClient } from "../../../../lib/supabase/admin";
 import { checkFinanceAction } from "../../../../lib/permissions/checkFinanceAction";
 import { parseAmount, validateContractPayload, type ContractFormPayload } from "../../../../features/financeiro/contractFormTypes";
 import { extractContractDocumentData, type ContractDocumentExtractionResult } from "../../../../lib/financeiro/contractDocumentExtraction";
@@ -193,9 +194,11 @@ export async function updateContract(id: string, payload: ContractFormPayload): 
     const service = getContractService(supabase);
     const previous = await service.getById(id);
     if (isExternallyDraftedInstitutionalContract(previous) !== payload.externallyDrafted) {
+      // O acesso aos convites é somente do servidor; operador já passou pelo guard de edição.
+      const admin = createSupabaseAdminClient();
       const [invites, rounds] = await Promise.all([
-        supabase.from("contract_signature_invitations").select("id").eq("contract_id", id).limit(1),
-        supabase.from("contract_company_signature_rounds").select("id").eq("contract_id", id).limit(1),
+        admin.from("contract_signature_invitations").select("id").eq("contract_id", id).limit(1),
+        admin.from("contract_company_signature_rounds").select("id").eq("contract_id", id).limit(1),
       ]);
       if (invites.error || rounds.error) throw new Error("Não foi possível conferir assinaturas anteriores. Tente novamente.");
       if ((invites.data?.length ?? 0) > 0 || (rounds.data?.length ?? 0) > 0)
