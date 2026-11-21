@@ -171,7 +171,7 @@ export function ContractIntakeWizard({
         <section className="form-section">
           <h2>Documento</h2>
           <p className="helper-text">
-            Contrato, processo, licitação, empenho, aditivo, autorização ou outro documento relacionado. Upload real ainda não está disponível — o arquivo fica só na sua tela para a análise de texto, nada é enviado para armazenamento.
+            Contrato, processo, licitação, empenho, aditivo, autorização ou outro documento relacionado. Nesta etapa o PDF é apenas analisado; ele será armazenado em área privada somente quando você concluir o cadastro. Para contratos redigidos fora do sistema, também é possível anexar a cópia assinada em cartório mais tarde, na ficha do contrato.
           </p>
           <div className="form-grid">
             <label className="form-field" style={{ gridColumn: "1 / -1" }}>

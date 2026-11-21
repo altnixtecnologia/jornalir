@@ -23,6 +23,7 @@ test("origem externa é cadastrada e editada, inclusive pelo wizard", () => {
   assert.match(wizard, /externallyDrafted: false/);
   assert.match(actions, /withInstitutionalDocumentOrigin\(previous, payload\.externallyDrafted\)/);
   assert.match(actions, /service\.update\(id, toServiceInput\(payload, previous\.extraData\)\)/);
+  assert.match(actions, /a origem externa deve ser preservada/);
 });
 test("PDF externo exige contrato marcado, acesso de edição e guarda privada", () => {
   const actions = source("../src/app/sistema/financeiro/contratos/actions.ts");

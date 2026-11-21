@@ -200,6 +200,13 @@ export async function updateContract(id: string, payload: ContractFormPayload): 
       if (invites.error || rounds.error) throw new Error("Não foi possível conferir assinaturas anteriores. Tente novamente.");
       if ((invites.data?.length ?? 0) > 0 || (rounds.data?.length ?? 0) > 0)
         throw new Error("Há assinaturas eletrônicas vinculadas. Não é possível alterar a origem deste contrato.");
+      if (isExternallyDraftedInstitutionalContract(previous) && !payload.externallyDrafted) {
+        const scanned = await supabase.from("contract_documents").select("id").eq("contract_id", id)
+          .eq("name", "Contrato assinado em cartório — cópia digitalizada").limit(1);
+        if (scanned.error) throw new Error("Não foi possível conferir o arquivo cartorial.");
+        if ((scanned.data?.length ?? 0) > 0)
+          throw new Error("Este contrato já possui cópia assinada em cartório arquivada; a origem externa deve ser preservada.");
+      }
     }
     await service.update(id, toServiceInput(payload, previous.extraData));
   } catch (error) {
