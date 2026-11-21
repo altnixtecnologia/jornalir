@@ -6,6 +6,8 @@ import { revalidatePath } from "next/cache";
 import sharp from "sharp";
 import { createSupabaseServerClient } from "../../../../lib/supabase/server";
 import { checkFinanceAction } from "../../../../lib/permissions/checkFinanceAction";
+import { getContractService } from "../../../../composition/financeiro";
+import { isExternallyDraftedInstitutionalContract } from "../../../../lib/contracts/externalInstitutionalArchive";
 import { createSupabaseAdminClient } from "../../../../lib/supabase/admin";
 import {
   claimSignatureTurn, findSignatureInvitation, hashInvitationToken,
@@ -84,6 +86,9 @@ export async function createSignatureInvitationAction(input: {
   if (permissionError) return { error: permissionError };
   try {
     const actorId = await requireFinanceAccess();
+    const contract = await getContractService(createSupabaseServerClient()).getById(input.contractId);
+    if (isExternallyDraftedInstitutionalContract(contract))
+      return { error: "Contrato externo: arquive apenas o PDF assinado em cartório; não são permitidos convites eletrônicos." };
     const signerName = input.signerName.trim().replace(/\s+/g, " ").slice(0, 180);
     const signerEmail = input.signerEmail.trim().toLowerCase().slice(0, 254);
     const signerPhone = (input.signerPhone ?? "").replace(/\D/g, "");
@@ -194,6 +199,9 @@ export async function createSignatureRequestAction(input: {
   if (permissionError) return { error: permissionError };
   try {
     const actorId = await requireFinanceAccess();
+    const contract = await getContractService(createSupabaseServerClient()).getById(input.contractId);
+    if (isExternallyDraftedInstitutionalContract(contract))
+      return { error: "Contrato externo: arquive apenas o PDF assinado em cartório; não são permitidos convites eletrônicos." };
     if (input.signers.length < 2) return { error: "Informe ao menos dois signatários para uma rodada com múltiplos signatários." };
     if (input.signers.length > 10) return { error: "Máximo de 10 signatários por rodada." };
 

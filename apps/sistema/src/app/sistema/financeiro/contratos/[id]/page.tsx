@@ -29,6 +29,7 @@ import { getContractService, getContractTemplateService, getReceivableService, g
 import { getClientService } from "../../../../../composition/clientes";
 import { createSupabaseServerClient } from "../../../../../lib/supabase/server";
 import { sumCreditAppliedForReceivables } from "../../../../../providers/supabase/receivableRepository.supabase";
+import { isExternallyDraftedInstitutionalContract } from "../../../../../lib/contracts/externalInstitutionalArchive";
 
 function formatAmount(value?: number): string {
   if (value === undefined) return "—";
@@ -52,6 +53,7 @@ export default async function ContractDetailPage(props: { params: Promise<{ id: 
     throw error;
   });
   if (!contract) notFound();
+  const externallyDrafted = isExternallyDraftedInstitutionalContract(contract);
 
   const [client, documents, amendments, commitmentOrders, receivables, availableCredits] = await Promise.all([
     getClientService(supabase)
@@ -115,7 +117,7 @@ export default async function ContractDetailPage(props: { params: Promise<{ id: 
   const companyCandidates = documents.filter((item) =>
     item.fileReference?.startsWith("contracts/" + contract.id + "/") &&
     !item.name.startsWith("Comprovante de assinatura") && !item.name.startsWith("Versão assinada"));
-  const companySignatureData = companyCandidates.length > 0
+  const companySignatureData = !externallyDrafted && companyCandidates.length > 0
     ? await loadCompanySignaturePanel("institutional", companyCandidates.map((item) => ({ id: item.id, title: item.name, contractId: contract.id })))
     : null;
 
@@ -252,12 +254,13 @@ export default async function ContractDetailPage(props: { params: Promise<{ id: 
         <p className="helper-text">{contract.notes || "Nenhuma observação registrada."}</p>
       </section>
 
-      <ContractTemplateGenerationPanel contractId={contract.id} templates={contractTemplates} />
-      <ContractDocumentsPanel contractId={contract.id} documents={documents} />
+      {externallyDrafted ? <section className="form-section"><h2>Contrato redigido externamente</h2><p className="helper-text">Documento institucional preparado e assinado fora do sistema, por exemplo pela prefeitura e em cartório. O IR arquiva o PDF digitalizado; não gera minuta nem solicita assinatura eletrônica neste contrato.</p></section> : null}
+      {!externallyDrafted ? <ContractTemplateGenerationPanel contractId={contract.id} templates={contractTemplates} /> : null}
+      <ContractDocumentsPanel contractId={contract.id} documents={documents} externallyDrafted={externallyDrafted} />
       {companySignatureData ? <CompanySignaturePanel data={companySignatureData} heading="Assinatura pela empresa (antes do convite ao cliente)" /> : null}
-      <ContractSignaturesPanel contractId={contract.id} documents={documents}
+      {!externallyDrafted ? <ContractSignaturesPanel contractId={contract.id} documents={documents}
         invitations={signatureInvitations} requests={signatureRequests}
-        whatsappEnabled={isWhatsappSignatureTemplateConfigured()} />
+        whatsappEnabled={isWhatsappSignatureTemplateConfigured()} /> : null}
 
       <ContractAmendmentsPanel contractId={contract.id} amendments={amendments} documents={documents} />
 
