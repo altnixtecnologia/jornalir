@@ -2,8 +2,8 @@
 
 // Bloco B — Cadastro complementar (02/11/2026). Gera o link individual
 // seguro; esta tela NUNCA envia o link — a equipe copia e envia
-// manualmente pelo canal já confirmado no cadastro. A página pública que
-// consome o token ainda não existe (lote seguinte).
+// manualmente pelo canal já confirmado no cadastro. A página pública
+// de complementação já existe e exige validação do canal.
 import { useState, useTransition } from "react";
 import { generateClientCompletionLinkAction } from "../../app/sistema/clientes/complementacao-actions";
 import { notify } from "../../lib/feedback/notify";
@@ -18,7 +18,7 @@ export function CompletionLinkControl({
   hasEmail: boolean;
 }): JSX.Element {
   const [pending, start] = useTransition();
-  const [generatedPath, setGeneratedPath] = useState<string | null>(null);
+  const [generatedUrl, setGeneratedUrl] = useState<string | null>(null);
 
   function generate(channel: "whatsapp" | "email"): void {
     start(async () => {
@@ -27,7 +27,8 @@ export function CompletionLinkControl({
         notify.error("Não foi possível gerar o link", result.error);
         return;
       }
-      setGeneratedPath(result.urlPath);
+      // Caminho relativo isolado não é um link clicável no WhatsApp.
+      setGeneratedUrl(new URL(result.urlPath, window.location.origin).href);
       notify.success("Link gerado", `Válido por ${result.expiresInHours}h. Copie e envie manualmente — nenhuma mensagem é enviada automaticamente.`);
     });
   }
@@ -49,10 +50,11 @@ export function CompletionLinkControl({
         </button>
       </div>
       {!hasWhatsapp && !hasEmail ? <p className="helper-text">Cadastre WhatsApp ou e-mail antes de gerar o link.</p> : null}
-      {generatedPath ? (
+      {generatedUrl ? (
         <div className="form-section--compact">
-          <span className="field-label">Caminho gerado (ainda sem página pública nesta etapa):</span>
-          <input readOnly value={generatedPath} onFocus={(e) => e.currentTarget.select()} />
+          <span className="field-label">Link completo para copiar e enviar ao cliente</span>
+          <input readOnly aria-label="Link completo de complementação de cadastro" value={generatedUrl} onFocus={(e) => e.currentTarget.select()} />
+          <p className="helper-text">Envie somente ao WhatsApp ou e-mail já cadastrado. Nenhuma mensagem é enviada automaticamente.</p>
         </div>
       ) : null}
     </section>
