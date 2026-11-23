@@ -28,7 +28,7 @@ export function CompletionLinkControl({
         return;
       }
       // Caminho relativo isolado não é um link clicável no WhatsApp.
-      setGeneratedUrl(new URL(result.urlPath, window.location.origin).href);
+      setGeneratedUrl(new URL(result.urlPath, "https://controle.altnix.com.br").href);
       notify.success("Link gerado", `Válido por ${result.expiresInHours}h. Copie e envie manualmente — nenhuma mensagem é enviada automaticamente.`);
     });
   }
