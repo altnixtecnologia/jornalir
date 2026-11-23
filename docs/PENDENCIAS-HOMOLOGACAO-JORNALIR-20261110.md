@@ -132,3 +132,49 @@ Atualizado: 10/11/2026. Checklists devem receber data, resultado e evidência
 - [ ] **Acesso real depende de confirmação do e-mail** no Supabase Auth — não confirmar artificialmente
 - [ ] Conferir em sessão autenticada com o Maiquiu (teste visual, sem usar credenciais compartilhadas)
 - [ ] Poder jurídico de assinar contratos em nome da empresa exige concessão explícita própria
+
+---
+
+## Revisão concentrada AO FINAL da lista de módulos — anotação de 23/11/2026
+
+Pedido do proprietário: seguir a sequência dos módulos agora e reservar as revisões detalhadas
+e homologações para o encerramento geral. Não confundir código incorporado com publicado
+nem com homologação de uso real. Anotar evidências e conferir uma só vez ao final.
+
+- [ ] Publicação Vercel do sistema: PR #127 (contratos externos/cartório) e PR #128
+  (Audiência/GA4) incorporadas à branch operacional. A configuração Ignored Build
+  Step = exit 0 cancelou o deploy de 21/11. Planejar publicação consolidada com teste
+  de domínio/versão, sem remover silenciosamente a proteção global.
+- [ ] Analytics: propriedade GA4 oficial, Data API, credenciais de leitura na Vercel,
+  horário America/Sao_Paulo, resultados reais por matéria e região; definir e aplicar
+  política de privacidade/consentimento antes de instalar rastreamento novo no portal.
+- [ ] Assinatura eletrônica de contratos: cadastro jurídico da empresa, representantes,
+  revisão das minutas, aprovação, OTP/QR/PDF e fluxo de convites; teste fictício sem
+  obrigações contratuais. Contratos externos: validar upload privado sem assinar no IR.
+- [ ] Asaas: homologação de eventos fora de ordem, duplicidade e concorrência em Sandbox
+  isolado; não gerar cobranças reais para teste.
+- [ ] NFS-e: certificado A1, SEFIN/DANFSe/XML e liberação após homologação; manter
+  emissão bloqueada enquanto faltarem dependências.
+- [ ] Cadastros/aniversariantes: homologar PF/PJ, CNPJ alfanumérico, permissões,
+  cidades IBGE, datas, relatório InDesign, responsáveis, links de complementação
+  e visual no PC/celular. Sem publicar aniversários por presunção de consentimento.
+- [ ] Família na complementação pública: a função já aplicada
+  public_complete_add_family_member (migração 20261120310000) ainda marca
+  family_members_confirmed_empty = true quando adiciona um familiar, contrariando
+  o sentido de 'confirmado que não há familiares'. Ajustada nesta etapa a ação
+  administrativa; o fluxo público exigirá migration incremental própria e teste
+  transacional antes de alterar o banco. NÃO editar migration histórica aplicada.
+- [ ] Agenda e Pauta, permissões, portal/PWA, Meta/Instagram, central de audiência
+  e integração futura Altnix Informativo/Platform: reunir pendências restantes
+  e validar sem duplicar bases, programação, players ou cobranças.
+
+## Item 5 — execução parcial em 23/11/2026
+
+- Cadastro interno: ao incluir familiar, limpar a confirmação anterior de
+  inexistência de familiares, preservando consentimentos e vínculo cadastral.
+- Link de complementação: exibir endereço completo (não apenas caminho relativo);
+  envio permanece manual, pelo canal existente (WhatsApp próprio ou e-mail).
+- Conferidos: DD/MM de aniversariantes, cidades IBGE, relatório TSV/InDesign e
+  campo Origem/Vínculo nas PRs #101–103; não refazer implementações.
+- Homologação autenticada do conjunto e correção do fluxo público: pendentes
+  para a revisão final, junto com o estado de produção e pendências de migrações.
