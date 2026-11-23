@@ -115,6 +115,7 @@ export default async function MateriasPage(
         eyebrow="EDITORIAL / MATÉRIAS"
         title="Matérias"
         description="Consulte e organize as matérias na listagem, com todos os filtros e ordenações."
+        eyebrowAction={<Link className="secondary-link" href="/sistema/editorial/audiencia">Ver audiência do portal</Link>}
         middle={<EditorialSummaryCards stats={stats} />}
         action={
           <Link className="header-action" href="/sistema/editorial/materias/nova">
