@@ -102,7 +102,7 @@ export function FamilyAndRelatedPersonsControl({
       setFamilyRelationship("");
       setFamilyIsMinor(false);
       setFamilyGuardian("");
-      setConfirmedEmpty(true);
+      setConfirmedEmpty(false);
     });
   }
 
