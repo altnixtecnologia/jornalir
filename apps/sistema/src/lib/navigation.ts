@@ -130,6 +130,7 @@ export const editorialNavGroup: AdminNavGroup = {
   label: "Editorial",
   links: [
     { label: "Matérias", href: "/sistema/editorial/materias" },
+    { label: "Audiência do portal", href: "/sistema/editorial/audiencia" },
     { label: "Destaques", href: "/sistema/editorial/destaques" },
     { label: "Importar do jornal impresso", href: "/sistema/editorial/importar-pdf" },
     { label: "Edições", href: "/sistema/editorial/edicoes" },
