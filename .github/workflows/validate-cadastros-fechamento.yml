@@ -19,6 +19,7 @@ on:
       - "apps/sistema/src/features/aniversariantes/birthdayDeepLink.ts"
       - "apps/sistema/src/app/sistema/aniversariantes/page.tsx"
       - "apps/sistema/test/cadastros-birthday-navigation.test.ts"
+      - "apps/sistema/test/cadastros-family-completion-link.test.ts"
       - "apps/sistema/test/altnix-cadastro-canonico-contract.test.ts"
       - "docs/ALTNIX-INFORMATIVO-CADASTRO-MESTRE-CONTRATO-20261116.md"
       - "apps/sistema/src/app/sistema/clientes/**"
@@ -56,6 +57,7 @@ jobs:
           npx tsx --test apps/sistema/test/birthday-origin-full-label.test.ts
           NODE_OPTIONS=--conditions=react-server npx tsx --test apps/sistema/test/birthday-entries-legacy-consent-regression.test.ts
           npx tsx --test apps/sistema/test/cadastros-birthday-navigation.test.ts
+          npx tsx --test apps/sistema/test/cadastros-family-completion-link.test.ts
           npx tsx --test apps/sistema/test/altnix-cadastro-canonico-contract.test.ts
       - name: TypeScript do sistema
         run: npm run typecheck --workspace @ir/sistema
