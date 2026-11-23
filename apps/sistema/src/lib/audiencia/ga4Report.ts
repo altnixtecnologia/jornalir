@@ -54,7 +54,9 @@ export function parseAudienceReports(reports:GaReport[]):AudienceData {
     const path=dim(row,0);
     if(!safeArticlePath(path)) continue;
     const fromGa=dim(row,1).replace(/\s*\|\s*Informativo Regional\s*$/i,"").trim();
-    const title=fromGa && fromGa!=="(not set)" ? fromGa.slice(0,220) : decodeURIComponent(path.split("/")[2]??"").replace(/-/g," ");
+    let fallbackTitle=(path.split("/")[2]??"").replace(/-/g," ");
+    try {fallbackTitle=decodeURIComponent(fallbackTitle);}catch { /* manter slug literal em percent-encoding inválido */ }
+    const title=fromGa && fromGa!=="(not set)" ? fromGa.slice(0,220) : fallbackTitle.slice(0,220);
     const prev=byPath.get(path);
     byPath.set(path,{path,title:prev?.title||title,views:(prev?.views??0)+metric(row,0)});
   }
