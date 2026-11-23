@@ -77,11 +77,11 @@ export async function addFamilyMemberAction(clientId: string, input: FamilyMembe
     .single();
   if (error || !data) return { error: error?.message ?? "Não foi possível adicionar o familiar." };
 
-  // Adicionar um familiar invalida qualquer confirmação anterior de
-  // "sem familiares" — se a equipe adicionar mais tarde, o aviso pode
-  // voltar a fazer sentido numa próxima limpeza, mas não reabre sozinho:
-  // só reseta aqui porque agora HÁ pelo menos um familiar de fato.
-  await supabase.from("clients").update({ family_members_confirmed_empty: true }).eq("id", clientId);
+  // Adicionar um familiar invalida a confirmação explícita de "sem familiares".
+  // Não alterar consentimento editorial nem publicar aniversários automaticamente.
+  const { error: resetError } = await supabase.from("clients")
+    .update({ family_members_confirmed_empty: false }).eq("id", clientId);
+  if (resetError) return { error: "Familiar salvo, mas a confirmação de ausência não foi atualizada. Reabra a ficha." };
 
   revalidatePath(detailPath(clientId));
   return { ok: true, id: data.id as string };
