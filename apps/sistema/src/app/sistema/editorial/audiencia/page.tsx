@@ -35,7 +35,8 @@ export default async function AudiencePage(props:{
   const raw=Array.isArray(query?.period)?query?.period[0]:query?.period;
   const period=asAudiencePeriod(raw??"");
   const result=await getAudienceData(period);
-  const data=result.status==="ready"?result.data:null;
+  // O estado vazio é usado apenas nos cálculos da UI; nunca aparece como visita quando a API não está configurada.
+  const data=result.status==="ready"?result.data:{views:0,visitors:0,sessions:0,days:[],hours:[],locations:[],articles:[]};
   const maxDays=Math.max(1,...(data?.days.map(d=>d.views)??[]));
   const maxHours=Math.max(1,...(data?.hours.map(h=>h.views)??[]));
   const topHours=[...(data?.hours??[])].sort((a,b)=>b.views-a.views).slice(0,8);
