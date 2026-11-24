@@ -178,3 +178,34 @@ nem com homologação de uso real. Anotar evidências e conferir uma só vez ao 
   campo Origem/Vínculo nas PRs #101–103; não refazer implementações.
 - Homologação autenticada do conjunto e correção do fluxo público: pendentes
   para a revisão final, junto com o estado de produção e pendências de migrações.
+
+
+## Item 6 — Agenda e Pauta: status e encerramentos (24/11/2026)
+
+- Fonte verificada em leitura no Supabase oficial, sem editar compromissos:
+  16 eventos ao todo; 7 concluídos e 9 agendados ocultos da Agenda
+  (`show_in_agenda = false`); nenhum evento agendado visível no momento
+  da consulta. As 16 pautas incluem 9 pendentes, todas vinculadas a
+  eventos ainda agendados; não há pauta pendente associada a evento
+  já encerrado nos dados presentes.
+- Dois eventos de Câmara encerrados ainda possuem atribuições
+  individuais sem baixa: encerramento final prevalece para o status
+  visual do evento e do cartão, sem manipular as baixas pessoais.
+- Confirmação importante: o contador `Hoje` **já** usa `filteredEvents`,
+  que exclui registros `showInAgenda=false`. Não alterar esse filtro.
+- Ajustado no código: normalizar o status efetivo ao carregar Agenda,
+  respeitando `completed_at` e `workflow_closed_at` mesmo que o status
+  persistido ainda seja `scheduled`. As ações que consultam `item.status`
+  não devem oferecer conclusão novamente.
+- Ajustado no código: cartão da Pauta vinculado a evento concluído deve
+  mostrar `completed` também em cobertura por equipe; manter baixas
+  individuais e cartão cancelado independentes do evento.
+- Ajustado no código: não apresentar convites pendentes de reunião para
+  evento com baixa/encerramento final.
+- [ ] No **fechamento da lista**, homologar com contas autorizadas no PC
+  e celular, conferir os dois eventos de Câmara com responsáveis e
+  autorização, Pauta/Agenda/TV, contagens e cores. Não atualizar eventos
+  históricos automaticamente para forçar estado visual.
+- [ ] Conferir que a implementação já incorporada ao GitHub esteja
+  também publicada no `jornalir-sistema` no deploy consolidado.
+
