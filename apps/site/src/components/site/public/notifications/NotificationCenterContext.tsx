@@ -29,6 +29,8 @@ interface NotificationCenterState {
    * pendente) — a central funciona, mas o estado de leitura pode não
    * sobreviver a um recarregamento. Nunca escondido do leitor. */
   readPersistenceDegraded: boolean;
+  clearAvailable: boolean;
+  clearNotifications: () => Promise<boolean>;
   openPanel: () => void;
   closePanel: () => void;
   markRead: (id: string) => void;
@@ -43,6 +45,7 @@ export function NotificationCenterProvider({ children }: { children: ReactNode }
   const [panelOpen, setPanelOpen] = useState(false);
   const [hiddenThisSession, setHiddenThisSession] = useState(false);
   const [readPersistenceDegraded, setReadPersistenceDegraded] = useState(false);
+  const [clearAvailable, setClearAvailable] = useState(true);
   const lastUnreadIdsRef = useRef<Set<string>>(new Set());
 
   const fetchFeed = useCallback(async () => {
@@ -55,9 +58,10 @@ export function NotificationCenterProvider({ children }: { children: ReactNode }
         headers: token ? { "X-Notification-Token": token } : undefined,
       });
       if (!response.ok) return;
-      const data = (await response.json()) as { ok?: boolean; items?: NotificationItem[]; readTrackingAvailable?: boolean };
+      const data = (await response.json()) as { ok?: boolean; items?: NotificationItem[]; readTrackingAvailable?: boolean; clearAvailable?: boolean };
       if (!data.ok || !Array.isArray(data.items)) return;
       if (data.readTrackingAvailable === false) setReadPersistenceDegraded(true);
+      setClearAvailable(data.clearAvailable !== false);
 
       // Se chegou um aviso não lido novo (que não existia na última
       // leitura), o flutuante volta a poder aparecer mesmo que o leitor
@@ -119,6 +123,32 @@ export function NotificationCenterProvider({ children }: { children: ReactNode }
       });
   }, []);
 
+  /** Limpa apenas as notificações deste dispositivo que estavam na central. */
+  const clearNotifications = useCallback(async (): Promise<boolean> => {
+    const token = getOrCreateManagementToken();
+    if (!token) return false;
+    const existingIds = new Set(items.map((item) => item.id));
+    if (existingIds.size === 0) return true;
+    try {
+      const response = await fetch(ENDPOINT, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ managementToken: token, clear: true }),
+      });
+      if (!response.ok) {
+        if (response.status === 503) { setClearAvailable(false); setReadPersistenceDegraded(true); }
+        return false;
+      }
+      const result = await response.json() as { ok?: boolean };
+      if (result.ok !== true) return false;
+      setItems((current) => current.filter((item) => !existingIds.has(item.id)));
+      lastUnreadIdsRef.current = new Set();
+      setHiddenThisSession(false);
+      try { sessionStorage.removeItem(SESSION_HIDDEN_KEY); } catch { /* Browser privado */ }
+      return true;
+    } catch { return false; }
+  }, [items]);
+
   const dismissFloatingForSession = useCallback(() => {
     setHiddenThisSession(true);
     try {
@@ -138,6 +168,8 @@ export function NotificationCenterProvider({ children }: { children: ReactNode }
       panelOpen,
       floatingVisible: unreadCount > 0 && !hiddenThisSession && !panelOpen,
       readPersistenceDegraded,
+      clearAvailable,
+      clearNotifications,
       openPanel,
       closePanel,
       markRead,
@@ -150,6 +182,8 @@ export function NotificationCenterProvider({ children }: { children: ReactNode }
       panelOpen,
       hiddenThisSession,
       readPersistenceDegraded,
+      clearAvailable,
+      clearNotifications,
       openPanel,
       closePanel,
       markRead,
