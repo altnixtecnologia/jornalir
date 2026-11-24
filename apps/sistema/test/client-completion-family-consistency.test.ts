@@ -5,7 +5,7 @@ import {readFileSync} from "node:fs";
 function load(path:string) {
   return readFileSync(new URL(path,import.meta.url),"utf8");
 }
-const migration=load("../../../supabase/migrations/20261124130000_client_completion_family_empty_consistency.sql");
+const migration=load("../../../supabase/migrations/20261124174927_client_completion_family_empty_consistency_20261124.sql");
 const original=load("../../../supabase/migrations/20261120310000_client_completion_public_flow.sql");
 const form=load("../src/features/clientes/ClientCompletionWizard.tsx");
 

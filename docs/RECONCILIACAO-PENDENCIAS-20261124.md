@@ -15,9 +15,9 @@ nem tratar código preparado como publicado/homologado.
 | Cadastro interno de familiares e link absoluto de complementação | PR #129 | Código incorporado; fluxo público separado abaixo |
 | Encerramento de Agenda/Pauta e convites | PR #130 | Código incorporado; teste visual autenticado pendente |
 | Proteções server-side Usuários e Asaas e confirmação de ações críticas | PR #131 | Código incorporado; revisão de funções com contas reais pendente |
-| RPC de familiares do formulário público + consistência no autosave | PR #132 | Código incorporado; migration `20261124130000` não aplicada |
-| Auditoria de permissões financeiras e visibilidade | PR #133 | Código incorporado; migration `20261124131000` não aplicada |
-| Limpar notificações apenas no dispositivo do leitor | PR #134 | Código incorporado; migration `20261124132000` não aplicada |
+| RPC de familiares do formulário público + consistência no autosave | PR #132 | Código e banco atualizados; migration `20261124174927` aplicada |
+| Auditoria de permissões financeiras e visibilidade | PR #133 | Código e banco atualizados; migration `20261124174932` aplicada |
+| Limpar notificações apenas no dispositivo do leitor | PR #134 | Código e banco atualizados; migration `20261124174937` aplicada |
 
 **Revisões prévias:** máscaras de datas e cidades IBGE, aniversariantes/InDesign,
 cadastros PF/PJ, Asaas e NFS-e administrativa já receberam entregas anteriores.
@@ -32,8 +32,7 @@ Checar no código e nas PRs antes de tocar de novo.
 - **Supabase:** migrations legadas `20261104100000`,
   `20261104101000`, `20261120300000`, `20261120310000` e
   `20261020001444` **já estão no ledger**. Não reexecutar.
-- **Novas migrations** `20261124130000`, `20261124131000`,
-  `20261124132000`: ainda **ausentes do ledger** na leitura de 24/11.
+- **Atualização 24/11:** as três migrations de familiares, auditoria e notificações foram aplicadas e verificadas no ledger nas versões `20261124174927`, `20261124174932` e `20261124174937`.
 - A versão atual de `public_complete_add_family_member` ainda grava
   `family_members_confirmed_empty = true` após a inclusão. A correção
   é incremental; não editar migração antiga.
@@ -131,7 +130,14 @@ Resultado dos advisors do Supabase (somente leitura, sem alteração de RLS):
   no painel Auth, impacto sobre convidados e política de senhas antes de ativar.
   Referência: https://supabase.com/docs/guides/auth/password-security#password-strength-and-leaked-password-protection
 - A PR #135 concluiu testes SQL reais no PostgreSQL 16 **em CI descartável**;
-  as migrations `20261124130000`, `20261124131000` e `20261124132000`
-  **continuam não aplicadas na produção**, confirmado no ledger após o merge.
+  as migrations `20261124174927`, `20261124174932` e `20261124174937`
+  **foram aplicadas na produção e verificadas depois**, sem mudanças nos registros de clientes.
   Aplicar pelo fluxo oficial de migrações com versões preservadas, evitando
   usar uma ferramenta que registre versões diferentes e cause reaplicação futura.
+
+
+## 7. Reconciliação final do ledger (24/11/2026)
+
+As três versões acima correspondem aos números efetivamente registrados pelo Supabase quando a implantação SQL foi executada. Os arquivos de migração e referências de CI foram renomeados para esses números, evitando reaplicação.
+
+Outros 13 arquivos antigos (editoria e NFS-e) têm nomes de versão diferentes dos registrados anteriormente, mas suas alterações já constam no ledger com nomes equivalentes. **Não executar novamente:** verificar e corrigir os nomes de referência num lote posterior, sempre conferindo o SQL aplicado. A conciliação financeira Jornal IR ↔ Informativo continua desligada até publicação e teste autenticado das APIs.

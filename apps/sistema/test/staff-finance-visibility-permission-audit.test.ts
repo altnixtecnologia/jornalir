@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import {readFileSync} from "node:fs";
 import {describeEvent,moduleLabel} from "../src/features/auditoria/auditEventPresentation";
 
-const source=readFileSync(new URL("../../../supabase/migrations/20261124131000_audit_finance_and_visibility_permissions.sql",import.meta.url),"utf8");
+const source=readFileSync(new URL("../../../supabase/migrations/20261124174932_audit_finance_and_visibility_permissions_20261124.sql",import.meta.url),"utf8");
 test("migração acrescenta auditoria para APENAS os 2 grupos ainda não cobertos",()=>{
   assert.match(source,/create trigger staff_finance_action_permissions_audit/);
   assert.match(source,/create trigger staff_module_visibility_audit/);

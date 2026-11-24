@@ -3,7 +3,7 @@ on:
   pull_request:
     branches: [solicitacoes-financeiro-contratos-irc-20261031]
     paths:
-      - "supabase/migrations/20261124132000_site_notifications_dismissed_per_device.sql"
+      - "supabase/migrations/20261124174937_site_notifications_dismissed_per_device_20261124.sql"
       - "apps/sistema/src/app/api/public/notifications/route.ts"
       - "apps/site/src/components/site/public/notifications/**"
       - "apps/sistema/test/site-notification-clear-device.test.ts"

@@ -3,7 +3,7 @@ on:
   pull_request:
     branches: [solicitacoes-financeiro-contratos-irc-20261031]
     paths:
-      - "supabase/migrations/20261124131000_audit_finance_and_visibility_permissions.sql"
+      - "supabase/migrations/20261124174932_audit_finance_and_visibility_permissions_20261124.sql"
       - "apps/sistema/src/features/auditoria/auditEventPresentation.ts"
       - "apps/sistema/test/staff-finance-visibility-permission-audit.test.ts"
       - ".github/workflows/validate-permission-audit-20261124.yml"
