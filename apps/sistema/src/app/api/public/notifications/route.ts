@@ -50,6 +50,10 @@ function isMissingRelation(error: { code?: string } | null): boolean {
 }
 
 /** code 42883 = função ainda não existe (migration do rate limit pendente). */
+function isMissingColumn(error: { code?: string } | null): boolean {
+  return error?.code === "42703";
+}
+
 function isMissingFunction(error: { code?: string } | null): boolean {
   return error?.code === "42883";
 }
@@ -130,17 +134,28 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     const visible = (events ?? []).filter((event) => allowed[event.kind as SiteKind] !== false);
 
     let readIds = new Set<string>();
+    let dismissedIds = new Set<string>();
     let readTrackingAvailable = true;
+    let clearAvailable = true;
     if (token && visible.length > 0) {
       const hash = managementHash(token);
-      const { data: reads, error: readsError } = await db
+      const result = await db
         .from("site_notification_reads")
-        .select("event_id")
+        .select("event_id,dismissed_at")
         .eq("management_hash", hash)
         .in("event_id", visible.map((event) => event.id));
-      if (!readsError) {
-        readIds = new Set((reads ?? []).map((row) => row.event_id as string));
-      } else if (isMissingRelation(readsError)) {
+      if (!result.error) {
+        readIds = new Set((result.data ?? []).map((row) => row.event_id as string));
+        dismissedIds = new Set((result.data ?? []).filter((row) => Boolean(row.dismissed_at))
+          .map((row) => row.event_id as string));
+      } else if (isMissingColumn(result.error)) {
+        // Permite publicar a API antes da migration: leitura continua, mas limpar fica indisponível.
+        clearAvailable = false;
+        const fallback = await db.from("site_notification_reads").select("event_id")
+          .eq("management_hash", hash).in("event_id", visible.map((event) => event.id));
+        if (fallback.error) return json({ error: "Não foi possível carregar o estado de leitura" }, 500, origin);
+        readIds = new Set((fallback.data ?? []).map((row) => row.event_id as string));
+      } else if (isMissingRelation(result.error)) {
         // Migration ainda não aplicada: trata tudo como não lido, mas avisa
         // o cliente explicitamente — nunca finge que o estado persiste.
         readTrackingAvailable = false;
@@ -149,7 +164,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       }
     }
 
-    const items = visible.map((event) => ({
+    const items = visible.filter((event) => !dismissedIds.has(event.id as string)).map((event) => ({
       id: event.id as string,
       kind: event.kind as SiteKind,
       title: event.title as string,
@@ -160,7 +175,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     }));
 
     return json(
-      { ok: true, items, unreadCount: items.filter((item) => !item.read).length, readTrackingAvailable },
+      { ok: true, items, unreadCount: items.filter((item) => !item.read).length, readTrackingAvailable, clearAvailable },
       200,
       origin,
     );
@@ -176,15 +191,40 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   try {
     const raw = await request.text();
     if (raw.length > 2000) return json({ error: "Corpo inválido" }, 400, origin);
-    const body = JSON.parse(raw) as { managementToken?: unknown; eventId?: unknown };
+    const body = JSON.parse(raw) as { managementToken?: unknown; eventId?: unknown; clear?: unknown };
     if (typeof body.managementToken !== "string" || !TOKEN_RE.test(body.managementToken)) {
       return json({ error: "Identificador inválido" }, 400, origin);
+    }
+    const db = service();
+    if (body.clear === true) {
+      if (!(await checkRateLimit(db, request))) return json({ error: "Muitas tentativas. Tente mais tarde." }, 429, origin);
+      const allowed = await allowedKindsFor(db, body.managementToken);
+      const { data: feed, error: feedError } = await db.from("notification_events")
+        .select("id,kind").eq("app_kind", "site")
+        .lte("scheduled_at", new Date().toISOString())
+        .order("scheduled_at", { ascending: false }).limit(FEED_LIMIT);
+      if (feedError) return json({ error: "Não foi possível consultar os avisos" }, 500, origin);
+      const ids = (feed ?? []).filter((event) => allowed[event.kind as SiteKind] !== false)
+        .map((event) => event.id as string);
+      if (ids.length === 0) return json({ ok: true, cleared: 0 }, 200, origin);
+      const hash = managementHash(body.managementToken);
+      const now = new Date().toISOString();
+      // Jamais apaga notification_events: só o próprio hash recebe o estado ocultado.
+      const { error: clearError } = await db.from("site_notification_reads")
+        .upsert(ids.map((eventId) => ({
+          management_hash: hash, event_id: eventId, read_at: now, dismissed_at: now,
+        })), { onConflict: "management_hash,event_id" });
+      if (clearError) {
+        if (isMissingRelation(clearError) || isMissingColumn(clearError))
+          return json({ error: "O recurso de limpar avisos ainda não está disponível neste servidor." }, 503, origin);
+        return json({ error: "Não foi possível limpar os avisos deste dispositivo." }, 500, origin);
+      }
+      return json({ ok: true, cleared: ids.length }, 200, origin);
     }
     if (typeof body.eventId !== "string" || !UUID_RE.test(body.eventId)) {
       return json({ error: "Aviso inválido" }, 400, origin);
     }
 
-    const db = service();
     if (!(await checkRateLimit(db, request))) return json({ error: "Muitas tentativas. Tente mais tarde." }, 429, origin);
 
     // Antes de marcar como lido, confirma que o evento é mesmo do portal

@@ -1,0 +1,39 @@
+name: Limpar avisos por dispositivo (sem deploy)
+on:
+  pull_request:
+    branches: [solicitacoes-financeiro-contratos-irc-20261031]
+    paths:
+      - "supabase/migrations/20261124132000_site_notifications_dismissed_per_device.sql"
+      - "apps/sistema/src/app/api/public/notifications/route.ts"
+      - "apps/site/src/components/site/public/notifications/**"
+      - "apps/sistema/test/site-notification-clear-device.test.ts"
+      - ".github/workflows/validate-site-notification-clear-20261124.yml"
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  limpar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
+      NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ci-publishable-key
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ci-publishable-key
+      NEXT_TELEMETRY_DISABLED: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Segurança e regressão do botão Limpar
+        run: npx tsx --test apps/sistema/test/site-notification-clear-device.test.ts
+      - name: TypeScript do portal
+        run: npm run typecheck --workspace @ir/site
+      - name: TypeScript do sistema
+        run: npm run typecheck --workspace @ir/sistema
+      - name: Build do portal e API sem publicar
+        run: |
+          npm run build --workspace @ir/site
+          npm run build --workspace @ir/sistema
