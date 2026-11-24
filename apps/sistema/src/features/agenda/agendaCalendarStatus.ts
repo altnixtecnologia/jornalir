@@ -1,4 +1,4 @@
-import type { AgendaEventItem } from "./agendaTypes";
+import type { AgendaEventItem, WeeklyPautaItem } from "./agendaTypes";
 
 /** Fonte visual de conclusão. Uma baixa individual pendente não reabre
  * um evento já encerrado pela equipe. Nunca grava dados. */
@@ -6,6 +6,24 @@ export function agendaEventState(event: Pick<AgendaEventItem,"status"|"completed
   if (event.status === "cancelled") return "cancelled";
   if (event.status === "completed" || event.completedAt || event.workflowClosedAt) return "completed";
   return "scheduled";
+}
+
+/** A situação do compromisso encerrado tem precedência sobre as baixas individuais.
+ * Em coberturas de equipe, cada colaborador conserva sua própria baixa até
+ * o encerramento final; só então o cartão vinculado aparece concluído.
+ * Esta função é somente leitura, nunca altera compromissos ou pauta no banco. */
+export function pautaStatusFromLinkedAgenda(
+  pautaStatus: WeeklyPautaItem["status"],
+  linked: (Pick<AgendaEventItem,"status"|"completedAt"|"workflowClosedAt"> &
+    {coverage?: Pick<NonNullable<AgendaEventItem["coverage"]>,"teamMode"> | null}) | null | undefined,
+): WeeklyPautaItem["status"] {
+  // Excluir da Pauta não altera nem reabre o compromisso original.
+  if (pautaStatus === "cancelled") return "cancelled";
+  if (!linked) return pautaStatus;
+  const eventState = agendaEventState(linked);
+  if (eventState === "cancelled") return "cancelled";
+  if (eventState === "completed") return "completed";
+  return linked.coverage?.teamMode ? pautaStatus : "pending";
 }
 
 export function agendaDayCounts(events: readonly Pick<AgendaEventItem,
