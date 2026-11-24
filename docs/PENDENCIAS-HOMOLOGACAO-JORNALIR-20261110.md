@@ -209,3 +209,38 @@ nem com homologação de uso real. Anotar evidências e conferir uma só vez ao 
 - [ ] Conferir que a implementação já incorporada ao GitHub esteja
   também publicada no `jornalir-sistema` no deploy consolidado.
 
+
+
+## Item 7 — Usuários, permissões e configurações sensíveis (24/11/2026)
+
+- Inventário de leitura do banco: 1 perfil `owner`, 2 `admin` e 2 `operator` ativos.
+  Nenhuma conta, regra de permissão ou dado financeiro foi alterado.
+- A matriz `STAFF_MODULES` **já possui** o módulo `configuracoes` no editor
+  por usuário, com patrocínios e valores de Assine concedidos por ação.
+  Preservar essas exceções previamente autorizadas aos operadores;
+  a gestão de usuários, dados jurídicos e integração Asaas são administrativas.
+- A RPC existente `is_active_admin_or_owner()` valida `staff_memberships`,
+  `profiles.active`, papel `owner/admin` e confirmação de e-mail:
+  reaproveitar a função, sem criar contas ou sistemas paralelos.
+- Melhorias deste lote: guarda server-side na página Usuários e na página de
+  configurações de cobranças; guarda ANTES de obter chave ou chamar a API do
+  Asaas nas três Server Actions (salvar, testar conexão, configurar webhook).
+- No painel Usuários, marcar individualmente `recebimentos_estornar` ou
+  `pix_cancelar` abre confirmação explícita, como já acontece na seleção
+  em lote. Não grava ao confirmar diálogo: continua exigindo
+  `Salvar permissões`. Desmarcar continua simples.
+- Banco mantém RLS no registro de configurações e concessões. Guard da
+  interface é defesa adicional, não substitui proteção de banco.
+- [ ] **Na revisão final:** verificar em sessões reais proprietário,
+  administrador, coproprietário de gestão e operador, incluindo acesso
+  por URL direta, alterações proibidas e auditoria; não utilizar segredos,
+  senhas ou conta de terceiros nos testes.
+- [ ] Confirmar que a publicação consolidada na Vercel inclua este lote e
+  todos os anteriores, após revisão da configuração de Ignored Build Step.
+- [ ] Rever permissões de patrocinadores e preços para operadores e decidir
+  se devem permanecer delegáveis, sem revogar silenciosamente concessões
+  existentes.
+- [ ] Homologar o teste de conexão Asaas **apenas em Sandbox com permissão
+  administrativa explícita**, em etapa separada; nenhuma chamada externa
+  para testar autorização neste lote.
+
