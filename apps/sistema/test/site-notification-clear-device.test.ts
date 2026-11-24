@@ -5,7 +5,7 @@ const read=(path:string)=>readFileSync(new URL(path,import.meta.url),"utf8");
 const route=read("../src/app/api/public/notifications/route.ts");
 const context=read("../../site/src/components/site/public/notifications/NotificationCenterContext.tsx");
 const panel=read("../../site/src/components/site/public/notifications/NotificationPanel.tsx");
-const migration=read("../../../supabase/migrations/20261124132000_site_notifications_dismissed_per_device.sql");
+const migration=read("../../../supabase/migrations/20261124174937_site_notifications_dismissed_per_device_20261124.sql");
 
 test("limpeza reaproveita estado do leitor, sem apagar avisos compartilhados",()=>{
   assert.match(migration,/alter table public\.site_notification_reads/);

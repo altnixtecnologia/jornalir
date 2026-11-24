@@ -36,7 +36,7 @@ create function public.require_verified_client_completion(text,uuid)
 returns uuid language sql as $fn$
   select '00000000-0000-4000-8000-000000000011'::uuid;
 $fn$;
-\ir ../../supabase/migrations/20261124130000_client_completion_family_empty_consistency.sql
+\ir ../../supabase/migrations/20261124174927_client_completion_family_empty_consistency_20261124.sql
 
 insert into public.clients(id,family_members_confirmed_empty)
 values ('00000000-0000-4000-8000-000000000011',true);
@@ -79,7 +79,7 @@ create table public.staff_module_visibility (
   profile_id uuid, module_key text, enabled boolean,
   primary key (profile_id,module_key)
 );
-\ir ../../supabase/migrations/20261124131000_audit_finance_and_visibility_permissions.sql
+\ir ../../supabase/migrations/20261124174932_audit_finance_and_visibility_permissions_20261124.sql
 select set_config('test.actor_id','00000000-0000-4000-8000-000000000021',false);
 insert into public.staff_finance_action_permissions
 values ('00000000-0000-4000-8000-000000000022','pix_cancelar',true);
@@ -124,7 +124,7 @@ create table public.site_notification_reads (
 );
 insert into public.site_notification_reads (management_hash,event_id)
 values (repeat('a',64),'00000000-0000-4000-8000-000000000031');
-\ir ../../supabase/migrations/20261124132000_site_notifications_dismissed_per_device.sql
+\ir ../../supabase/migrations/20261124174937_site_notifications_dismissed_per_device_20261124.sql
 do $assert$
 begin
   if not exists(

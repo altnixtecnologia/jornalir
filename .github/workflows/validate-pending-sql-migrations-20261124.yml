@@ -4,9 +4,9 @@ on:
     branches: [solicitacoes-financeiro-contratos-irc-20261031]
     paths:
       - "tests/security/pending-migrations-20261124-sandbox.sql"
-      - "supabase/migrations/20261124130000_client_completion_family_empty_consistency.sql"
-      - "supabase/migrations/20261124131000_audit_finance_and_visibility_permissions.sql"
-      - "supabase/migrations/20261124132000_site_notifications_dismissed_per_device.sql"
+      - "supabase/migrations/20261124174927_client_completion_family_empty_consistency_20261124.sql"
+      - "supabase/migrations/20261124174932_audit_finance_and_visibility_permissions_20261124.sql"
+      - "supabase/migrations/20261124174937_site_notifications_dismissed_per_device_20261124.sql"
       - ".github/workflows/validate-pending-sql-migrations-20261124.yml"
   workflow_dispatch:
 permissions:

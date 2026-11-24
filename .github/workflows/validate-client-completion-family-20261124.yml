@@ -3,7 +3,7 @@ on:
   pull_request:
     branches: [solicitacoes-financeiro-contratos-irc-20261031]
     paths:
-      - "supabase/migrations/20261124130000_client_completion_family_empty_consistency.sql"
+      - "supabase/migrations/20261124174927_client_completion_family_empty_consistency_20261124.sql"
       - "apps/sistema/src/features/clientes/ClientCompletionWizard.tsx"
       - "apps/sistema/test/client-completion-family-consistency.test.ts"
       - ".github/workflows/validate-client-completion-family-20261124.yml"
