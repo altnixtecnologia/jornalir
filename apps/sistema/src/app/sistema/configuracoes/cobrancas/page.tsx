@@ -1,4 +1,5 @@
 import { ModuleHeader } from "../../../../components/admin/ModuleHeader";
+import { notFound } from "next/navigation";
 import { BillingProviderSettingsPanel } from "../../../../features/configuracoes/BillingProviderSettingsPanel";
 import { createSupabaseServerClient } from "../../../../lib/supabase/server";
 import { getConfiguredAsaasEnvironment, isAsaasApiKeyConfigured } from "../../../../lib/financeiro/asaasEnv";
@@ -9,6 +10,10 @@ export const revalidate = 0;
 
 export default async function BillingProviderSettingsPage(): Promise<JSX.Element> {
   const client = createSupabaseServerClient();
+  const { data: { user }, error: authError } = await client.auth.getUser();
+  if (authError || !user) notFound();
+  const { data: allowed, error: grantError } = await client.rpc("is_active_admin_or_owner");
+  if (grantError || allowed !== true) notFound();
   const { data, error } = await client
     .from("billing_provider_settings")
     .select("environment, enabled, allow_pix, allow_boleto, allow_credit_card, allow_cash, default_due_days, finance_whatsapp")
