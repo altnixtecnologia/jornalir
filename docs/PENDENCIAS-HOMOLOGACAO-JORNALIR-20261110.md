@@ -263,3 +263,15 @@ nem com homologação de uso real. Anotar evidências e conferir uma só vez ao 
 - [ ] Confirmar que a revogação de ações críticas, como cancelar Pix ou
   estornar recebimento, apareça em Auditoria e Atividades mesmo quando
   executada pela API sob o papel administrativo legítimo.
+
+
+---
+
+## CONCILIAÇÃO ATUALIZADA — 24/11/2026
+
+O estado atualizado de cada pendência, confrontado com código do GitHub,
+ledger de migrations do Supabase e produção da Vercel, encontra-se em
+`docs/RECONCILIACAO-PENDENCIAS-20261124.md`. Consulte esse inventário
+**antes de programar ou migrar qualquer item** para evitar repetir correções
+já incorporadas e para diferenciar código, banco, publicação e homologação.
+O arquivo original permanece como fonte da lista de testes práticos.

@@ -1,0 +1,48 @@
+name: Homologacao SQL de pendencias em PostgreSQL descartavel
+on:
+  pull_request:
+    branches: [solicitacoes-financeiro-contratos-irc-20261031]
+    paths:
+      - "tests/security/pending-migrations-20261124-sandbox.sql"
+      - "supabase/migrations/20261124130000_client_completion_family_empty_consistency.sql"
+      - "supabase/migrations/20261124131000_audit_finance_and_visibility_permissions.sql"
+      - "supabase/migrations/20261124132000_site_notifications_dismissed_per_device.sql"
+      - ".github/workflows/validate-pending-sql-migrations-20261124.yml"
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  migration-sandbox:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: sandbox_only
+          POSTGRES_DB: jornalir_sandbox
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d jornalir_sandbox"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      PGHOST: 127.0.0.1
+      PGPORT: "5432"
+      PGUSER: postgres
+      PGPASSWORD: sandbox_only
+      PGDATABASE: jornalir_sandbox
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verificar cliente PostgreSQL
+        run: |
+          if ! command -v psql >/dev/null 2>&1; then
+            sudo apt-get update -qq
+            sudo apt-get install -y --no-install-recommends postgresql-client
+          fi
+          psql --version
+      - name: Exercitar migrações e guardas sem dados reais
+        run: psql -v ON_ERROR_STOP=1 -f tests/security/pending-migrations-20261124-sandbox.sql
