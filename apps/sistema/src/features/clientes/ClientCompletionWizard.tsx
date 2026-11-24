@@ -79,7 +79,7 @@ export function ClientCompletionWizard({ token, channel }: { token: string; chan
     setBirthDate(dateInputValue(snapshot.birthDate));
     setFoundingDate(dateInputValue(snapshot.foundingDate));
     setTitularConsent(snapshot.titularConsent === "granted");
-    setConfirmedNoFamily(snapshot.familyMembersConfirmedEmpty);
+    setConfirmedNoFamily(snapshot.familyMembers.length === 0 && snapshot.familyMembersConfirmedEmpty);
   }, [snapshot]);
 
   function loadSnapshot(): void {
@@ -124,7 +124,7 @@ export function ClientCompletionWizard({ token, channel }: { token: string; chan
       });
       if ("error" in result) { setError(result.error); return; }
       setNewFamilyName(""); setNewFamilyRelationship(""); setNewFamilyDay(""); setNewFamilyMonth(""); setNewFamilyConsent(false);
-      setConfirmedNoFamily(true);
+      setConfirmedNoFamily(false);
       setAskingNoFamily(false);
       loadSnapshot();
     });
@@ -171,7 +171,7 @@ export function ClientCompletionWizard({ token, channel }: { token: string; chan
         address_state: addressState || undefined,
         birth_date: snapshot.kind === "individual" ? (birthDate || undefined) : undefined,
         founding_date: snapshot.kind === "company" ? (foundingDate || undefined) : undefined,
-        family_members_confirmed_empty: confirmedNoFamily || undefined,
+        family_members_confirmed_empty: snapshot.familyMembers.length === 0 && confirmedNoFamily ? true : undefined,
         titular_consent: titularConsent,
       }, finalizeNow);
       if ("error" in result) { setError(result.error); return; }

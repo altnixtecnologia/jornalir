@@ -1,0 +1,34 @@
+name: Complementacao de cadastro - consistencia de familiares (sem deploy)
+on:
+  pull_request:
+    branches: [solicitacoes-financeiro-contratos-irc-20261031]
+    paths:
+      - "supabase/migrations/20261124130000_client_completion_family_empty_consistency.sql"
+      - "apps/sistema/src/features/clientes/ClientCompletionWizard.tsx"
+      - "apps/sistema/test/client-completion-family-consistency.test.ts"
+      - ".github/workflows/validate-client-completion-family-20261124.yml"
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  validar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
+      NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ci-publishable-key
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ci-publishable-key
+      NEXT_TELEMETRY_DISABLED: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Consistencia de familiares e privacidade
+        run: npx tsx --test apps/sistema/test/client-completion-family-consistency.test.ts
+      - name: TypeScript
+        run: npm run typecheck --workspace @ir/sistema
+      - name: Build sem publicar
+        run: npm run build --workspace @ir/sistema
