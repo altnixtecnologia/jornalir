@@ -22,6 +22,7 @@ import {
   clearFinanceActions,
   moduleActionsHaveCritical,
   financeActionsHaveCritical,
+  financeActionNeedsConfirmation,
   countAllowedModuleActions,
   countAllowedFinanceActions,
   diffPermissionDraft,
@@ -180,6 +181,7 @@ export function UsersManager(): JSX.Element {
   const [criticalConfirm, setCriticalConfirm] = useState<
     | { scope: "module"; moduleKey: StaffActionModule }
     | { scope: "finance" }
+    | { scope: "singleFinance"; actionKey: StaffFinanceActionKey; label: string }
     | { scope: "single"; moduleKey: StaffActionModule; actionKey: StaffModuleActionKey; label: string }
     | null
   >(null);
@@ -546,6 +548,11 @@ export function UsersManager(): JSX.Element {
 
   function updateFinanceAction(actionKey: StaffFinanceActionKey, allowed: boolean): void {
     if (!permissionDraft) return;
+    if (financeActionNeedsConfirmation(actionKey, allowed)) {
+      const action = STAFF_FINANCE_ACTIONS.find((item) => item.key === actionKey);
+      if (action) setCriticalConfirm({ scope: "singleFinance", actionKey, label: action.label });
+      return;
+    }
     setPermissionDraft({ ...permissionDraft, financeActions: { ...permissionDraft.financeActions, [actionKey]: allowed } });
   }
 
@@ -580,6 +587,11 @@ export function UsersManager(): JSX.Element {
           ...permissionDraft.moduleActions,
           [moduleActionDraftKey(criticalConfirm.moduleKey, criticalConfirm.actionKey)]: true,
         },
+      });
+    } else if (criticalConfirm.scope === "singleFinance") {
+      setPermissionDraft({
+        ...permissionDraft,
+        financeActions: { ...permissionDraft.financeActions, [criticalConfirm.actionKey]: true },
       });
     } else if (criticalConfirm.scope === "module") {
       setPermissionDraft(selectAllModuleActions(permissionDraft, criticalConfirm.moduleKey, { includeCritical: true }));
@@ -1062,8 +1074,8 @@ export function UsersManager(): JSX.Element {
 
       <ConfirmDialog
         open={criticalConfirm !== null}
-        title={criticalConfirm?.scope === "single" ? "Confirmar concessão de permissão sensível?" : "Incluir ações críticas na seleção?"}
-        description={criticalConfirm?.scope === "single" ? (
+        title={criticalConfirm?.scope === "single" || criticalConfirm?.scope === "singleFinance" ? "Confirmar concessão de permissão sensível?" : "Incluir ações críticas na seleção?"}
+        description={criticalConfirm?.scope === "single" || criticalConfirm?.scope === "singleFinance" ? (
           <p>
             Você está autorizando <strong>{criticalConfirm.label}</strong> para o operador selecionado.
             Essa permissão pode alterar informações importantes do jornal. A concessão ficará registrada
@@ -1081,7 +1093,7 @@ export function UsersManager(): JSX.Element {
             estornar recebimento, cancelar cobrança Pix). Confirme para incluí-las também.
           </p>
         )}
-        confirmLabel={criticalConfirm?.scope === "single" ? "Confirmar autorização" : "Incluir ações críticas"}
+        confirmLabel={criticalConfirm?.scope === "single" || criticalConfirm?.scope === "singleFinance" ? "Confirmar autorização" : "Incluir ações críticas"}
         destructive
         onConfirm={confirmCriticalSelection}
         onCancel={() => setCriticalConfirm(null)}
