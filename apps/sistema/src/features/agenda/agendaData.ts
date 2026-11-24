@@ -5,6 +5,7 @@ import { createSupabaseServerClient } from "../../lib/supabase/server";
 import type { AgendaEventItem, AgendaProfile, AgendaWorkspaceData, CoverageTeamMember, CoverageTeamTransfer, EventCoverage, PendingMeetingInvitation, WeeklyPautaItem } from "./agendaTypes";
 import { startOfPautaWeek } from "./pautaPeriod";
 import { automaticPautaEditionNumber } from "./pautaEdition";
+import { agendaEventState, pautaStatusFromLinkedAgenda } from "./agendaCalendarStatus";
 
 export const AGENDA_TIMEZONE = "America/Sao_Paulo";
 const EVENT_COLUMNS = "id, title, description, event_date, start_time, end_time, location, status, reminder_minutes, event_kind, show_in_agenda, completed_at, updated_at, workflow_kind, council_city, article_owner_id, article_due_at, article_due_time_explicit, article_completed_at, article_completed_by, workflow_closed_at, workflow_closed_by";
@@ -78,6 +79,7 @@ export async function loadMyPendingMeetingInvitations(
   const meetings = await supabase.from("agenda_events")
     .select("id,title,event_date,start_time,location")
     .in("id", pendingIds).eq("status", "scheduled")
+    .is("completed_at", null).is("workflow_closed_at", null)
     .eq("event_kind", "general").gte("event_date", today)
     .order("event_date", { ascending: true })
     .order("start_time", { ascending: true, nullsFirst: false });
@@ -422,7 +424,13 @@ export async function loadAgendaWorkspaceData(focusDate: string): Promise<Agenda
     completedAt: event.completed_at,
     updatedAt: event.updated_at,
     location: event.location,
-    status: event.status as AgendaEventItem["status"],
+    // O estado efetivo também protege ações e botões que consultam status diretamente.
+    // Um workflow encerrado não pode voltar a ser mostrado como agendado.
+    status: agendaEventState({
+      status: event.status as AgendaEventItem["status"],
+      completedAt: event.completed_at,
+      workflowClosedAt: event.workflow_closed_at,
+    }),
     assignees: assigneesByEvent.get(event.id) ?? [],
     invitees: inviteesByEvent.get(event.id) ?? [],
   }));
@@ -448,11 +456,10 @@ export async function loadAgendaWorkspaceData(focusDate: string): Promise<Agenda
     articleId: item.article_id,
     appointments: appointmentsByPauta.get(item.id)??[],
     // Exclusão só da Pauta jamais cancela compromisso original da Agenda.
-    status: item.status==="cancelled"?"cancelled":linked?.coverage?.teamMode
-      ? item.status as WeeklyPautaItem["status"]
-      : linked ? (linked.status === "scheduled" ? "pending" : linked.status)
-      : item.status as WeeklyPautaItem["status"],
-    completedAt: linked?.coverage?.teamMode ? item.completed_at : linked?.completedAt ?? item.completed_at,
+    status: pautaStatusFromLinkedAgenda(item.status as WeeklyPautaItem["status"], linked),
+    completedAt: linked && agendaEventState(linked)==="completed"
+      ? linked.completedAt ?? linked.workflowClosedAt ?? item.completed_at
+      : item.completed_at,
     assignees: linked?.assignees ?? [],
     updatedAt: linked?.updatedAt ?? item.updated_at,
   };
