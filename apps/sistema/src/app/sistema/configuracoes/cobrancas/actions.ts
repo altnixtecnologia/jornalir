@@ -21,6 +21,17 @@ import {
 // billing_provider_settings também é singleton numérico, mas audit_events.entity_id exige UUID.
 const BILLING_PROVIDER_SETTINGS_AUDIT_ID = "00000000-0000-4000-8000-000000000102";
 
+/** Verificar antes de ler credenciais, consultar Asaas ou atualizar seu webhook.
+ * A proteção de página e a RLS são adicionais, não substituem este guard. */
+async function requireBillingSettingsAdmin(): Promise<string | null> {
+  const client = createSupabaseServerClient();
+  const { data: { user }, error: authError } = await client.auth.getUser();
+  if (authError || !user) return "Sessão inválida. Faça login novamente.";
+  const { data: allowed, error: grantError } = await client.rpc("is_active_admin_or_owner");
+  if (grantError || allowed !== true) return "Somente proprietário ou administrador autorizado pode gerenciar o Asaas.";
+  return null;
+}
+
 export interface BillingProviderSettingsInput {
   environment: "sandbox" | "production";
   enabled: boolean;
@@ -36,6 +47,8 @@ export async function updateBillingProviderSettingsAction(
   input: BillingProviderSettingsInput,
 ): Promise<{ ok: true } | { error: string }> {
   try {
+    const denied = await requireBillingSettingsAdmin();
+    if (denied) return { error: denied };
     const dueDays = Number(input.defaultDueDays);
     if (!Number.isInteger(dueDays) || dueDays < 0 || dueDays > 60) {
       return { error: "Informe um prazo padrão entre 0 e 60 dias." };
@@ -127,6 +140,8 @@ export async function testAsaasConnectionAction(
   requestedEnvironment: "sandbox" | "production",
 ): Promise<{ ok: true; generalStatus: string } | { error: string }> {
   try {
+    const denied = await requireBillingSettingsAdmin();
+    if (denied) return { error: denied };
     const environment = getConfiguredAsaasEnvironment() ?? requestedEnvironment;
     const key = getAsaasApiKey(environment);
     if (!key) {
@@ -194,6 +209,8 @@ export async function provisionAsaasWebhookAction(
   requestedEnvironment: "sandbox" | "production",
 ): Promise<{ ok: true; created: boolean; webhookId: string } | { error: string }> {
   try {
+    const denied = await requireBillingSettingsAdmin();
+    if (denied) return { error: denied };
     const environment = getConfiguredAsaasEnvironment() ?? requestedEnvironment;
     const apiKey = getAsaasApiKey(environment);
     if (!apiKey) {
