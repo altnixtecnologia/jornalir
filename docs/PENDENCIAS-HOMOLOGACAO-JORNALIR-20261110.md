@@ -244,3 +244,22 @@ nem com homologação de uso real. Anotar evidências e conferir uma só vez ao 
   administrativa explícita**, em etapa separada; nenhuma chamada externa
   para testar autorização neste lote.
 
+
+
+### Achado de auditoria granular para revisão final — 24/11/2026
+
+- O banco possui trigger de auditoria para mudanças em
+  `staff_module_action_permissions` (`audit_staff_module_permission_change`).
+- A inspeção read-only de `pg_trigger` não identificou triggers equivalentes
+  para `staff_finance_action_permissions` nem `staff_module_visibility`.
+  O salvamento atual do painel faz `upsert` direto nessas tabelas,
+  de modo que a trilha automática das concessões/revogações financeiras e
+  da visibilidade precisa ser revista.
+- [ ] Na revisão final, implementar e testar auditoria transacional para
+  ambos os grupos, com autor real, permissão alterada, valor antes/depois
+  e sem vazar senhas ou dados sensíveis. Fazer via migração incremental
+  própria, em sandbox, com validação de RLS/SECURITY DEFINER antes de
+  qualquer alteração na produção.
+- [ ] Confirmar que a revogação de ações críticas, como cancelar Pix ou
+  estornar recebimento, apareça em Auditoria e Atividades mesmo quando
+  executada pela API sob o papel administrativo legítimo.
