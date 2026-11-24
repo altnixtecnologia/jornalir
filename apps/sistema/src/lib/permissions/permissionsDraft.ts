@@ -111,6 +111,13 @@ export function financeActionsHaveCritical(): boolean {
   return STAFF_FINANCE_ACTIONS.some((action) => "isCritical" in action && action.isCritical === true);
 }
 
+/** Concessão por switch individual segue a mesma confirmação do "Selecionar tudo".
+ * Desligar uma ação nunca exige confirmação de ativação. */
+export function financeActionNeedsConfirmation(actionKey: StaffFinanceActionKey, enabling: boolean): boolean {
+  return enabling && STAFF_FINANCE_ACTIONS.some((action) =>
+    action.key === actionKey && "isCritical" in action && action.isCritical === true);
+}
+
 export function selectAllModuleActions(
   draft: PermissionDraft,
   moduleKey: StaffActionModule,
