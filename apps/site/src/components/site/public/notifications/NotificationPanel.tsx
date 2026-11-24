@@ -23,8 +23,10 @@ const KIND_LABEL: Record<NotificationItem["kind"], string> = {
 };
 
 export function NotificationPanel(): JSX.Element | null {
-  const { items, panelOpen, closePanel, markRead, readPersistenceDegraded } = useNotificationCenter();
+  const { items, panelOpen, closePanel, markRead, readPersistenceDegraded, clearAvailable, clearNotifications } = useNotificationCenter();
   const [expanded, setExpanded] = useState<NotificationItem | null>(null);
+  const [clearing, setClearing] = useState(false);
+  const [clearError, setClearError] = useState("");
   const router = useRouter();
   const panelRef = useRef<HTMLDivElement>(null);
 
@@ -49,6 +51,16 @@ export function NotificationPanel(): JSX.Element | null {
 
   if (!panelOpen) return null;
 
+  async function handleClear(): Promise<void> {
+    if (clearing || !clearAvailable) return;
+    setClearError("");
+    setClearing(true);
+    const ok = await clearNotifications();
+    setClearing(false);
+    if (ok) setExpanded(null);
+    else setClearError("Não foi possível limpar os avisos neste dispositivo. Tente novamente.");
+  }
+
   function handleItemClick(item: NotificationItem): void {
     markRead(item.id);
     if (item.kind === "administrative") {
@@ -66,11 +78,24 @@ export function NotificationPanel(): JSX.Element | null {
       <div ref={panelRef} className="notif-panel" role="dialog" aria-modal="true" aria-label="Notificações">
         <div className="notif-panel-header">
           <h2>Notificações</h2>
-          <button type="button" className="notif-panel-close" aria-label="Fechar notificações" onClick={closePanel}>
-            ✕
-          </button>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            {items.length > 0 ? (
+              <button type="button" className="notif-panel-back"
+                disabled={clearing || !clearAvailable} onClick={() => void handleClear()}
+                aria-label="Limpar notificações deste dispositivo">
+                {clearing ? "Limpando…" : "Limpar"}
+              </button>
+            ) : null}
+            <button type="button" className="notif-panel-close" aria-label="Fechar notificações" onClick={closePanel}>
+              ✕
+            </button>
+          </div>
         </div>
 
+        {clearError ? <p className="notif-panel-degraded" role="alert">{clearError}</p> : null}
+        {!clearAvailable && items.length > 0 ? (
+          <p className="notif-panel-degraded">A opção Limpar será disponibilizada após a atualização do servidor.</p>
+        ) : null}
         {readPersistenceDegraded ? (
           <p className="notif-panel-degraded">
             O registro de "lido" ainda está sendo preparado neste servidor — pode voltar a marcar como novo depois de recarregar.
