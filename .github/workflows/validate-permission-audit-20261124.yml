@@ -1,0 +1,34 @@
+name: Auditoria financeira e visibilidade (sem deploy)
+on:
+  pull_request:
+    branches: [solicitacoes-financeiro-contratos-irc-20261031]
+    paths:
+      - "supabase/migrations/20261124131000_audit_finance_and_visibility_permissions.sql"
+      - "apps/sistema/src/features/auditoria/auditEventPresentation.ts"
+      - "apps/sistema/test/staff-finance-visibility-permission-audit.test.ts"
+      - ".github/workflows/validate-permission-audit-20261124.yml"
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  auditar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 16
+    env:
+      NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
+      NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ci-publishable-key
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ci-publishable-key
+      NEXT_TELEMETRY_DISABLED: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Garantia da auditoria de concessões
+        run: npx tsx --test apps/sistema/test/staff-finance-visibility-permission-audit.test.ts
+      - name: TypeScript
+        run: npm run typecheck --workspace @ir/sistema
+      - name: Build sem publicar
+        run: npm run build --workspace @ir/sistema

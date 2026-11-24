@@ -10,6 +10,7 @@ import type { AuditEventRow } from "../../providers/supabase/auditEvents.supabas
 const MODULE_LABELS: Record<string, string> = {
   articles: "Editorial",
   users: "Usuários",
+  staff_permission: "Usuários e permissões",
   mobile_app_releases: "Aplicativo",
   ai_assistant_chat: "JoIR",
   joir_automation_rule: "JoIR",
@@ -31,6 +32,8 @@ const ACTION_LABELS: Record<string, string> = {
   publish: "publicada",
   schedule: "agendada",
   archive: "arquivada",
+  grant: "concedida",
+  revoke: "revogada",
   remove: "removida da listagem (arquivada)",
   unpublish: "despublicada (voltou a rascunho)",
   update_placement: "alteração de destaque",
@@ -44,6 +47,7 @@ const ACTION_LABELS: Record<string, string> = {
 const ENTITY_SUBJECT_LABELS: Record<string, string> = {
   articles: "Matéria",
   users: "Usuário",
+  staff_permission: "Permissão",
   mobile_app_releases: "Versão do aplicativo",
   ai_assistant_chat: "Conversa do JoIR",
   joir_automation_rule: "Regra de automação do JoIR",
@@ -109,6 +113,12 @@ export function detailMetadataEntries(row: AuditEventRow): Array<[string, string
     placementType: "Tipo de destaque",
     origin: "Origem técnica",
     result: "Resultado",
+    module_key: "Módulo",
+    action_key: "Ação autorizada",
+    previous_allowed: "Permissão anterior",
+    allowed: "Permissão atual",
+    critical: "Operação sensível",
+    actor_type: "Tipo de responsável",
   };
   return Object.entries(row.metadata)
     .filter(([, value]) => value !== null && value !== undefined && value !== "")
