@@ -106,3 +106,32 @@ Separar rigorosamente **código pronto**, **migração aplicada**,
 **versão publicada**, **funcionando com dados reais** e
 **homologado por usuário autorizado**. Registro matriz:
 `docs/PENDENCIAS-HOMOLOGACAO-JORNALIR-20261110.md`.
+
+
+## 6. Conferência adicional de segurança (24/11/2026)
+
+Resultado dos advisors do Supabase (somente leitura, sem alteração de RLS):
+
+- O linter sinaliza **8 views públicas com comportamento SECURITY DEFINER**:
+  `public_article_media`, `public_article_placements`, `public_articles`,
+  `public_editorial_sections`, `public_localities`, `public_site_ad_media`,
+  `public_site_ad_settings` e `public_site_ad_slots`.
+  Podem estar expondo propositalmente apenas dados públicos já filtrados;
+  **não converter em SECURITY INVOKER às cegas**, pois o portal pode deixar
+  de ler o conteúdo caso as RLS das tabelas de origem sejam mais restritas.
+  Revisar definições, colunas expostas, políticas, grants e consultas do portal
+  com testes anônimos e autenticados antes de eventual mudança.
+  Referência: https://supabase.com/docs/guides/database/database-linter?lint=0010_security_definer_view
+- Outros avisos: 16 funções com search_path mutável, 34 funções SECURITY DEFINER
+  acessíveis a `anon`, 129 a `authenticated`; algumas são APIs intencionais.
+  Inventariar exatamente as assinaturas e privilégios antes de revogar algo.
+  Tables RLS sem políticas incluem filas/segredos privados (negação fechada
+  intencional); não criar políticas apenas para silenciar o aviso.
+- Supabase Auth recomenda proteção contra senhas vazadas; conferir a opção
+  no painel Auth, impacto sobre convidados e política de senhas antes de ativar.
+  Referência: https://supabase.com/docs/guides/auth/password-security#password-strength-and-leaked-password-protection
+- A PR #135 concluiu testes SQL reais no PostgreSQL 16 **em CI descartável**;
+  as migrations `20261124130000`, `20261124131000` e `20261124132000`
+  **continuam não aplicadas na produção**, confirmado no ledger após o merge.
+  Aplicar pelo fluxo oficial de migrações com versões preservadas, evitando
+  usar uma ferramenta que registre versões diferentes e cause reaplicação futura.
