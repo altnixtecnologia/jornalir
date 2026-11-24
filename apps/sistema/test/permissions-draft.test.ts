@@ -12,6 +12,7 @@ import {
   clearFinanceActions,
   moduleActionsHaveCritical,
   financeActionsHaveCritical,
+  financeActionNeedsConfirmation,
   countAllowedModuleActions,
   countAllowedFinanceActions,
   diffPermissionDraft,
@@ -181,4 +182,13 @@ test("contagens por módulo refletem o rascunho ao vivo, antes de salvar", () =>
   const { allowed, total } = countAllowedModuleActions(draft, "editorial");
   assert.equal(total, 6);
   assert.ok(allowed > 0 && allowed < total, "deve ter padrões ligados sem ligar tudo");
+});
+
+
+test("finanças: ativação crítica individual precisa de confirmação; desligar é imediato", () => {
+  assert.equal(financeActionNeedsConfirmation("recebimentos_estornar", true), true);
+  assert.equal(financeActionNeedsConfirmation("pix_cancelar", true), true);
+  assert.equal(financeActionNeedsConfirmation("pix_cancelar", false), false);
+  assert.equal(financeActionNeedsConfirmation("titulos_criar", true), false);
+  assert.equal(financeActionNeedsConfirmation("recebimentos_baixar", true), false);
 });
