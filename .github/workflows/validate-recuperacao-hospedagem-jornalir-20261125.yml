@@ -1,0 +1,47 @@
+name: Validar hospedagem Jornal IR site e sistema (sem deploy)
+on:
+  pull_request:
+    branches:
+      - solicitacoes-financeiro-contratos-irc-20261031
+    paths:
+      - ".github/workflows/validate-recuperacao-hospedagem-jornalir-20261125.yml"
+permissions:
+  contents: read
+jobs:
+  workspaces:
+    runs-on: ubuntu-latest
+    timeout-minutes: 23
+    env:
+      NEXT_TELEMETRY_DISABLED: "1"
+      NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
+      NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ci-publishable-key
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ci-publishable-key
+    steps:
+      - name: Checkout sem alterar producao
+        uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+      - name: Instalar workspaces do lockfile oficial
+        run: npm ci --no-audit --no-fund
+      - name: Conferir versoes oficiais
+        run: |
+          node - <<'NODE'
+          const path = require('node:path');
+          for (const dir of ['apps/site','apps/sistema']) {
+            const p = path.resolve(dir);
+            const n=require(require.resolve('next/package.json',{paths:[p]})).version;
+            const r=require(require.resolve('react/package.json',{paths:[p]})).version;
+            console.log(dir+': Next '+n+' / React '+r);
+            if(n!=='15.5.29'||r!=='19.1.10')throw new Error('Versao inesperada em '+dir);
+          }
+          NODE
+      - name: TypeScript Portal
+        run: npm run typecheck --workspace @ir/site
+      - name: Build Portal sem publicar
+        run: npm run build --workspace @ir/site
+      - name: TypeScript Administrativo
+        run: npm run typecheck --workspace @ir/sistema
+      - name: Build Administrativo sem publicar
+        run: npm run build --workspace @ir/sistema
