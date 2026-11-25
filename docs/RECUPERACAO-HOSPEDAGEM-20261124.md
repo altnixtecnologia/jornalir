@@ -76,3 +76,66 @@ Foi conferida a **existência dos nomes de variáveis** no projeto Vercel antigo
 - Fluxo de login: a autorização atual do conector Vercel do ChatGPT é vinculada à equipe antiga. A nova conta precisa ser autorizada pelo usuário no app/plugin Vercel; login em outra aba do navegador não muda automaticamente a conexão do plugin. **Não pedir senha ou token de Vercel pelo chat.**
 - Consulte https://vercel.com/docs/projects/transferring-projects e https://vercel.com/docs/cli/alias.
 - Respeitar o plano/licenciamento e limites de uso: não utilizar outra equipe Hobby como forma de contornar a suspensão por cota da equipe original. Para os projetos comerciais, seguir com transferência regular / suporte oficial / plano adequado conforme decisão do operador.
+
+
+## Atualização operacional verificada em 25/11/2026 — migração para nova conta (sem deploy)
+
+> **Esta seção prevalece sobre as hipóteses operacionais anteriores deste documento quando houver conflito.** O proprietário decidiu preparar três projetos novos em outra equipe Vercel, sem transferência dos projetos antigos. Este registro contém apenas metadados e nomes de variáveis, nunca seus valores secretos. Estado verificado via conectores Vercel/GitHub e Supabase; configurações que a API não permite reler estão explicitamente qualificadas.
+
+### Decisões e limites confirmados
+
+- Conta nova autorizada pelo operador: `suportealtnix@gmail.com`, equipe `suportealtnix-5004` (`team_ZOEjrZL5CvliWPx1SWvMYykJ`).
+- A transferência dos projetos entre contas foi **descartada**. Projetos novos já existem, GitHub conectado; **não recriar**, não mudar a conexão do GitHub e não repetir o fluxo de transferência.
+- Migrar **Production somente**. Ignorar variáveis exclusivas de Preview; as que estavam nos dois targets foram cadastradas apenas em Production na nova conta.
+- O proprietário vai inserir os segredos restantes diretamente na Vercel. Nunca pedir que cole chaves no chat, GitHub ou logs; não usar valores falsos.
+- **Não executar deploy, build na Vercel, migração SQL, troca de DNS, ativação de cobrança/NFS-e, envio externo, alteração R2 ou mudança de domínio antes dos testes e da liberação.** Os serviços antigos permanecem inalterados.
+- A nova equipe está em plano **Hobby**. Validar condições de uso, limites e consumo real antes da operação comercial; não assumir que outra conta elimina a suspensão/cota anterior.
+
+### Inventário da nova Vercel
+
+| Projeto novo | ID Vercel | GitHub/branch correta | Root Directory solicitado à API | Production: preenchidas/total | Valores ainda vazios |
+| --- | --- | --- | --- | --- | --- |
+| `jornalir` | `prj_wtPXmg99fnQXUeu49HsPaBZZiKHV` | `altnixtecnologia/jornalir` — `solicitacoes-financeiro-contratos-irc-20261031` | `apps/site` | 3/6 | 3 |
+| `jornalir-sistema` | `prj_feFmo15MHIg709l6QFW27LLnJhpU` | Mesmo repositório e branch oficial | `apps/sistema` | 25/40 | 15 |
+| `altnix-informativo` | `prj_HLZnpRNtpP0ynBMCWS6sCULPDcwR` | `altnixtecnologia/altnix-informativo` — `main` | `dashboard-next` | 5/20 | 15 |
+
+- Totais: **66 entradas Production cadastradas, 33 com valores reais/identificados, 33 com valor vazio**. Inicialmente, 31 entradas já estavam presentes; foram criadas 35 variáveis Sensitive vazias. Em seguida, `R2_EDITIONS_BUCKET=jornal-ir-edicoes` foi preenchida em portal e sistema, reduzindo as pendências de 35 para 33.
+- O valor de `R2_EDITIONS_BUCKET` veio da documentação oficial: bucket privado `jornal-ir-edicoes`, **segunda conta Cloudflare**, independente da conta de imagens.
+- Nenhuma variável existente foi substituída além dos dois campos de bucket recém-criados.
+- No portal, `NEXT_PUBLIC_SUPABASE_URL` e `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` foram comparadas com a conta antiga e coincidem. URL do Supabase: `https://iqnzrpdccecgalqboeyf.supabase.co`.
+- No sistema, as **24 variáveis Production que já existiam** foram comparadas com a conta antiga, sem divergências detectadas (incluindo Supabase, R2 de imagens e ponte financeira). Não expor seus valores.
+- No Informativo, `JORNALIR_FINANCE_BRIDGE_SECRET` e `PLATFORM_PUBLIC_API_BASE_URL` coincidem com a conta antiga. As outras 3 entradas preexistentes são Sensitive e **não são recuperáveis para conferência via API**; marcar para validação operacional, não presumir igualdade.
+- As 33 variáveis vazias têm comentário `PENDENTE` nas configurações de cada projeto. A Vercel aceitou a criação de `Sensitive` vazia e edição posterior por ID. Preencher na UI/gestor de segredos antes de publicar.
+- Raízes, `sourceFilesOutsideRootDirectory=true` (nos dois workspaces) e `previewDeploymentsDisabled=true` (nos três projetos) foram **enviados e aceitos** pela API, mas o retorno de consulta do conector **não expõe esses campos para confirmação independente**; verificar na tela **Settings → Build and Deployment** antes do primeiro deploy.
+- **Branch de produção Vercel ainda não foi verificada/configurada pelo conector.** É obrigatório conferir no painel: ambos Jornal IR na branch `solicitacoes-financeiro-contratos-irc-20261031` (nunca usar `main` divergente); Informativo em `main`.
+- Os três `vercel.json` existentes já possuem `git.deploymentEnabled: false`. O Informativo mantém os crons existentes, sem criar um novo.
+- Consulta da nova equipe: **0 deployments**; os projetos novos ainda não têm domínios associados. Os domínios reais continuam ligados aos projetos da conta antiga.
+
+### Pendências de variáveis por projeto — nomes apenas
+
+- Portal (3): `R2_EDITIONS_ENDPOINT`, `R2_EDITIONS_ACCESS_KEY_ID`, `R2_EDITIONS_SECRET_ACCESS_KEY`. **Token R2 somente leitura**, restrito ao bucket de edições.
+- Sistema (15): `RESEND_WEBHOOK_SECRET`, `R2_EDITIONS_ENDPOINT`, `R2_EDITIONS_ACCESS_KEY_ID`, `R2_EDITIONS_SECRET_ACCESS_KEY`, `STAFF_FIREBASE_PRIVATE_KEY`, `FIREBASE_PRIVATE_KEY`, `AI_CONFIG_ENCRYPTION_KEY`, `PUSH_VAPID_PRIVATE_KEY`, `CRON_SECRET`, `AGENDA_TELEGRAM_GROUP_CHAT_ID`, `AGENDA_TELEGRAM_BOT_TOKEN`, `WHATSAPP_TOKEN`, `WHATSAPP_PHONE_NUMBER_ID`, `ASAAS_API_KEY_PRODUCTION`, `ASAAS_WEBHOOK_TOKEN`. **Token R2 administrativo** com permissões apropriadas, separado da leitura do portal.
+- Informativo (15): `BUNNY_STREAM_CDN_HOST`, `BUNNY_STREAM_LIBRARY_ID`, `BUNNY_STREAM_API_KEY`, `CLOUDCONVERT_API_KEY`, `PLATFORM_SUPABASE_SERVICE_ROLE_KEY`, `ASAAS_WEBHOOK_TOKEN`, `ASAAS_ENV`, `ASAAS_API_KEY`, `RESEND_API_KEY`, `CLIENT_DELETION_CODE_SECRET`, `CRON_SECRET`, `TELEGRAM_CHAT_ID`, `TELEGRAM_BOT_TOKEN`, `SUPABASE_SERVICE_ROLE_KEY`, `NEXT_PUBLIC_API_BASE_URL`.
+- Restaurar `AI_CONFIG_ENCRYPTION_KEY` **idêntica à original** se existirem dados criptografados; não gerar chave diferente às cegas. `PUSH_VAPID_PRIVATE_KEY` deve corresponder à pública preservada. Chaves Firebase e segredos de webhook precisam corresponder às identidades/configurações reais dos provedores. `ASAAS_ENV` e `NEXT_PUBLIC_API_BASE_URL` são parâmetros, não necessariamente chaves secretas: usar valores reais, sem deduzir de exemplos.
+
+### Código e testes verificados
+
+- Jornal IR oficial HEAD `81b9fb056c0e16becd56fdb3329ee11731b09d2e` após merge PR #138. O workflow de hospedagem do candidato da PR #138, SHA `72555cdc55865d245718169c87ebb73e3ea64802`, concluiu **success** com `npm ci`, TypeScript e build Next.js 15.5.29 dos dois workspaces — **sem deploy**. Não confundir esse sucesso de CI com build na Vercel, teste HTTP ou validação de produção.
+- Informativo `main` HEAD `5d3a8fe9fee41bbaa25547e4aacdc89928115771`, merge PR #62; cinco workflows da PR #62 no SHA `4821aac3a0120d05d3505517da90d66634dc5693` concluíram **success**, cobrindo Next 15, PWA, substituição de mídia e testes relacionados — sem deploy.
+- As PRs #56 (correção de geolocalização) e #59 (redução de chamadas de contagem e sincronização) **já foram incorporadas** à `main` do Informativo em 25/11/2026. Não tentar reaplicar nem mesclar novamente. A redução real de CPU só pode ser comprovada com telemetria após publicar.
+- Os três arquivos `vercel.json` foram inspecionados e impedem deployments automáticos. Os dois projetos do Jornal IR continuam com workspaces npm na raiz e `packages/*`; não construir cópias isoladas.
+- Em `apps/sistema/src/lib/auth/staffAuthRedirect.ts`, o callback de convite em produção tem fallback seguro `https://controle.altnix.com.br`; ausência de `NEXT_PUBLIC_SISTEMA_URL` não aponta para localhost em produção. Não criar variável extra sem necessidade.
+- No Informativo, os crons `/api/internal/billing/reconcile` e `/api/internal/media/expire` são protegidos e rejeitam requisição sem `CRON_SECRET`; manter o segredo antes de liberar.
+- **Nenhuma alteração de código, migrations ou banco nesta etapa**, pois não foi identificado defeito novo que justifique mudança sem testes adicionais.
+
+### Sequência obrigatória antes de liberar produção
+
+1. Operador preenche os **33 valores pendentes** em Production na Vercel (sem compartilhar segredos no chat) e valida as 3 Sensitive preexistentes não legíveis do Informativo.
+2. Conferir branch de produção, Root Directory e workspaces, proteção de Preview, Node.js e crons no dashboard.
+3. Fazer primeiro deploy **controlado e deliberadamente autorizado**, com URL provisória, sem trocar DNS ou remover projetos antigos. Preservar SHA da release em cada projeto.
+4. Testar HTTP e logins, R2 privado de PDFs e imagens, matérias e históricos, editor/admin e permissões, PWA/TV/cliente, sincronização/heartbeat, cron autenticado, webhooks sem envio externo real e fallback de erros. Não emitir nota fiscal, cobrar cliente, enviar WhatsApp ou manipular mídia real durante o smoke.
+5. Observar invocações/duração e **Fluid Active CPU**; não assumir que os patches eliminaram o consumo elevado. Conferir limites/adequação do plano.
+6. Só após aprovação e rollback preparado, planejar associação de `controle.altnix.com.br`, `painel.altnix.com.br` e `cliente.altnix.com.br`. `jornalir.vercel.app` pertence à Vercel e não se transfere por DNS; preservar o alias antigo até haver solução explicitamente aprovada.
+7. Registrar evidências, commits e eventuais dificuldades em `docs/STATUS-E-HANDOFF.md`; não repetir migração inteira nem tentar transferência de contas descartada.
+
+**Estado da rodada:** preparação de hospedagem e inventário concluídos até o limite seguro sem chaves; **deploy pendente**, nenhum domínio, SQL ou armazenamento histórico alterado.
