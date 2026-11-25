@@ -57,3 +57,11 @@ Foi conferida a **existência dos nomes de variáveis** no projeto Vercel antigo
 - Repositório diferente: `altnixtecnologia/altnix-informativo`, aplicativo Next.js em `dashboard-next`, domínios `painel.altnix.com.br` e `cliente.altnix.com.br`.
 - PR #56 (hotfix de geolocalização) e PR #59 (economia parcial de sync) são branches draft, **não publicadas** na data desta nota. O aplicativo Android continua separado; preservar compatibilidade de APKs.
 - A Altnix Platform (`app.altnix.com.br`) **não** participa da migração agora.
+
+## Decisão operacional de 24/11/2026 — sequência das etapas
+
+- **Agora:** deixar o candidato web do portal e sistema pronto, baseado na branch oficial `solicitacoes-financeiro-contratos-irc-20261031`, sem reescrever o trabalho local nem mudar bancos/URLs.
+- **Depois:** configurar os dois aplicativos na hospedagem de destino autorizada, cada um com root correto, cópia segura dos segredos, URL provisória, smoke tests e limites de execução. A publicação e a alteração de DNS só ocorrerão mediante liberação específica.
+- **Na etapa posterior:** concluir ajustes de aplicativos Android e a revisão do ambiente local Windows em conjunto com Codex/Claude. O primeiro passo será fazer inventário de espaço, builds, caches e backups; não executar remoção automática e não apagar código, stashes, chaves de assinatura, certificados, APKs oficiais ou arquivos históricos.
+- **Fora desta migração:** Altnix Platform. O Altnix Informativo tem plano e PRs próprios no seu repositório. Não misturar branches nem deploys entre os projetos.
+- **Regra de segurança:** não confundir preparar build, testar, publicar, trocar DNS e instalar APK. Documentar evidências distintas para cada operação.
