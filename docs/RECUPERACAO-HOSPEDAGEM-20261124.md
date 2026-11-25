@@ -14,6 +14,7 @@ Documento operacional, sem publicação automática. Escopo: **Portal** e **Sist
   - Portal: root `apps/site`, workspace `@ir/site`.
   - Sistema: root `apps/sistema`, workspace `@ir/sistema`, basePath `/sistema`.
   - Há dependências de `packages/*` no monorepo npm workspaces; compilar com a estrutura completa, não copiar as pastas isoladamente.
+- Na branch oficial conferida, ambos os aplicativos usam **Next.js 15.5.29** e React 19.1.10; não copiar diagnóstico antigo que cite Next 14 sem verificar o commit correspondente.
 - Arquivos existentes `apps/site/vercel.json` e `apps/sistema/vercel.json` trazem `git.deploymentEnabled: false`. O bloqueio de build automático configurado no projeto antigo **não é transferido automaticamente a outra equipe**.
 
 ## Domínios e provedores
