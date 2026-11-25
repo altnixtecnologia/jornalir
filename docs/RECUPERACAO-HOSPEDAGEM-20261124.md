@@ -65,3 +65,14 @@ Foi conferida a **existência dos nomes de variáveis** no projeto Vercel antigo
 - **Na etapa posterior:** concluir ajustes de aplicativos Android e a revisão do ambiente local Windows em conjunto com Codex/Claude. O primeiro passo será fazer inventário de espaço, builds, caches e backups; não executar remoção automática e não apagar código, stashes, chaves de assinatura, certificados, APKs oficiais ou arquivos históricos.
 - **Fora desta migração:** Altnix Platform. O Altnix Informativo tem plano e PRs próprios no seu repositório. Não misturar branches nem deploys entre os projetos.
 - **Regra de segurança:** não confundir preparar build, testar, publicar, trocar DNS e instalar APK. Documentar evidências distintas para cada operação.
+
+## Preservação de nomes e login na Vercel (verificado em 24/11)
+
+- A equipe antiga conectada ao ChatGPT ainda é `cristians-projects-34074cc3` (Hobby). A conta pessoal nova mostrada pelo operador é `suportealtnix-5004`, mas **não aparece no conector atual**; será preciso conectar a nova conta ou conceder acesso autorizado na etapa operacional.
+- Conferidos nos deployments READY da equipe antiga os aliases `jornalir.vercel.app` (portal), `controle.altnix.com.br` (sistema), `painel.altnix.com.br` e `cliente.altnix.com.br` (Informativo).
+- **Prioridade para `jornalir.vercel.app`:** estudar transferência de projeto pelo fluxo oficial Vercel (`Settings → General → Transfer Project`). A documentação oficial lista *Domains and Aliases* como transferíveis, juntamente com envs, deployments, Git link e cron. **Não garantir** que uma equipe suspensa possa transferir para outra identidade ou que o fluxo permita a equipe destino sem associação/autorização; documentação menciona método de pagamento válido no destino.
+- Renomear o projeto antigo `jornalir`, apagar a conta, remover o alias ou reimportar um `jornalir` novo **não garante** preservar/liberar o `.vercel.app`, e pode derrubar a URL do portal. Não executar nenhuma dessas operações sem confirmação e plano de retorno.
+- Nomes de domínios próprios `*.altnix.com.br` podem ser preservados, pois o DNS está na Cloudflare, mas associação de projetos/domínios na Vercel deve ser tratada de forma controlada. Não alterar DNS antes da homologação.
+- Fluxo de login: a autorização atual do conector Vercel do ChatGPT é vinculada à equipe antiga. A nova conta precisa ser autorizada pelo usuário no app/plugin Vercel; login em outra aba do navegador não muda automaticamente a conexão do plugin. **Não pedir senha ou token de Vercel pelo chat.**
+- Consulte https://vercel.com/docs/projects/transferring-projects e https://vercel.com/docs/cli/alias.
+- Respeitar o plano/licenciamento e limites de uso: não utilizar outra equipe Hobby como forma de contornar a suspensão por cota da equipe original. Para os projetos comerciais, seguir com transferência regular / suporte oficial / plano adequado conforme decisão do operador.
