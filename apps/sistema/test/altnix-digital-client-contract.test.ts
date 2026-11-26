@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { ALTNIX_CLIENT_EXPORT_RELEASED, toAltnixDigitalClient, sanitizeDigitalClientSearch } from "../src/lib/integrations/altnixDigitalClientContract";
+import { ALTNIX_CLIENT_EXPORT_RELEASED, parseDigitalClientIds, toAltnixDigitalClient, sanitizeDigitalClientSearch } from "../src/lib/integrations/altnixDigitalClientContract";
 
 const data = {
   id: "11111111-1111-4111-8111-111111111111",
@@ -60,4 +60,27 @@ test("WhatsApp canônico apenas na consulta por ID; jamais telefone como fallbac
   assert.equal(toAltnixDigitalClient({...row,whatsapp:null},true)?.whatsapp,null);
   assert.equal(toAltnixDigitalClient(data,true)?.whatsapp,null);
   assert.equal(toAltnixDigitalClient(row,true)?.phone, data.phone_primary);
+});
+
+
+test("lote de clientes exige UUIDs distintos e limita o volume", () => {
+  const other="22222222-2222-4222-8222-222222222222";
+  assert.deepEqual(parseDigitalClientIds(data.id+","+other),[data.id,other]);
+  assert.equal(parseDigitalClientIds(data.id+","+data.id.toUpperCase()),null);
+  assert.equal(parseDigitalClientIds(""),null);
+  assert.equal(parseDigitalClientIds(data.id+",*"),null);
+  assert.equal(parseDigitalClientIds(Array.from({length:21},(_,i)=>"11111111-1111-4111-8111-"+String(i).padStart(12,"0")).join(",")),null);
+  const route=readFileSync(new URL("../src/app/api/integrations/altnix/clients/route.ts",import.meta.url),"utf8");
+  assert.ok(route.includes('query.in("id", ids)'));
+  assert.ok(route.includes('selection: "altnix_informativo"'));
+  assert.ok(route.includes('clients.length !== (data ?? []).length'));
+  assert.ok(route.includes('searchParams.has("q")'));
+});
+
+test("a seleção do Informativo reutiliza a autorização existente", () => {
+  const ui=readFileSync(new URL("../src/features/clientes/DigitalExportControl.tsx",import.meta.url),"utf8");
+  assert.ok(ui.includes("Serviços digitais vinculados"));
+  assert.ok(ui.includes('type="checkbox"'));
+  assert.ok(ui.includes("setClientDigitalExportAction(clientId, next)"));
+  assert.ok(!ui.includes("Pré-autorizar"));
 });

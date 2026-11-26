@@ -2,7 +2,7 @@ import "server-only";
 import { createHash, timingSafeEqual } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { createSupabaseAdminClient } from "../../../../../lib/supabase/admin";
-import { ALTNIX_CLIENT_EXPORT_RELEASED, sanitizeDigitalClientSearch, toAltnixDigitalClient, type ExportableJornalClient } from "../../../../../lib/integrations/altnixDigitalClientContract";
+import { ALTNIX_CLIENT_EXPORT_RELEASED, parseDigitalClientIds, DIGITAL_CLIENT_BATCH_LIMIT, sanitizeDigitalClientSearch, toAltnixDigitalClient, type ExportableJornalClient } from "../../../../../lib/integrations/altnixDigitalClientContract";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -39,33 +39,46 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   const id = request.nextUrl.searchParams.get("id")?.trim() || "";
   const search = request.nextUrl.searchParams.get("q") || "";
   const q = sanitizeDigitalClientSearch(search);
+  const rawIds = request.nextUrl.searchParams.get("ids");
+  const ids = rawIds === null ? null : parseDigitalClientIds(rawIds);
+  if (rawIds !== null && (!ids || request.nextUrl.searchParams.getAll("ids").length !== 1 ||
+      request.nextUrl.searchParams.has("id") || request.nextUrl.searchParams.has("q"))) {
+    return respond({ error: "Lote de identificadores inválido." }, 400);
+  }
   if (id && !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id)) {
     return respond({ error: "Identificador inválido." }, 400);
   }
-  if (!id && !q) return respond({ error: "Informe uma busca com 2 a 70 caracteres." }, 400);
+  if (!id && !ids && !q) return respond({ error: "Informe uma busca com 2 a 70 caracteres." }, 400);
   try {
     const db = createSupabaseAdminClient();
     // Join obrigatório com a lista expressa de cadastros autorizados.
     let query = db.from("clients").select(
       "id,kind,status,full_name,company_name,trade_name,cpf,cnpj,phone_primary,email," +
-      (id ? "whatsapp," : "") +
+      (id || ids ? "whatsapp," : "") +
       "" +
       "address_zip,address_street,address_number,address_complement,address_city,address_state,updated_at," +
       "client_digital_export_permissions!inner(enabled)",
     ).eq("client_digital_export_permissions.enabled", true).eq("status", "active");
-    if (id) query = query.eq("id", id);
+    if (ids) query = query.in("id", ids);
+    else if (id) query = query.eq("id", id);
     else query = query.or(
       ["full_name","company_name","trade_name"].map((field) => field+".ilike.%"+q+"%").join(","),
     );
-    const { data, error } = await query.order("updated_at", { ascending: false }).limit(20);
+    const { data, error } = await query.order("updated_at", { ascending: false }).limit(DIGITAL_CLIENT_BATCH_LIMIT);
     if (error) {
       console.error("Altnix digital client read failed:", error.code);
       return respond({ error: "Não foi possível consultar o cadastro digital." }, 503);
     }
     const clients = (data ?? []).map((row) =>
-      toAltnixDigitalClient(row as unknown as ExportableJornalClient, Boolean(id)),
+      toAltnixDigitalClient(row as unknown as ExportableJornalClient, Boolean(id || ids)),
     ).filter((row): row is NonNullable<typeof row> => row !== null);
-    return respond({ clients, count: clients.length, source: "jornalir", mode: "readonly" });
+    // Uma resposta incompleta/malformada jamais equivale a serviço não selecionado.
+    if (ids && clients.length !== (data ?? []).length) {
+      return respond({ error: "Cadastro digital indisponível." }, 503);
+    }
+    return respond({ clients, count: clients.length, source: "jornalir", mode: "readonly",
+      ...(ids ? { selection: "altnix_informativo", requestedCount: ids.length } : {}),
+    });
   } catch {
     return respond({ error: "Integração indisponível." }, 503);
   }

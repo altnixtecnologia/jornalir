@@ -44,3 +44,15 @@ export function sanitizeDigitalClientSearch(search: string): string | null {
   const cleaned = search.trim().replace(/[^\p{L}\p{N}\s-]/gu, " ").replace(/\s+/g, " ").trim();
   return cleaned.length >= 2 && cleaned.length <= 70 ? cleaned : null;
 }
+
+
+/** Consulta em lote apenas por UUIDs já conhecidos pelo serviço. */
+export const DIGITAL_CLIENT_BATCH_LIMIT = 20;
+const DIGITAL_CLIENT_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+export function parseDigitalClientIds(raw: string): string[] | null {
+  const ids = raw.split(",").map((id) => id.trim().toLowerCase());
+  if (!ids.length || ids.length > DIGITAL_CLIENT_BATCH_LIMIT ||
+      ids.some((id) => !DIGITAL_CLIENT_UUID.test(id)) ||
+      new Set(ids).size !== ids.length) return null;
+  return ids;
+}
