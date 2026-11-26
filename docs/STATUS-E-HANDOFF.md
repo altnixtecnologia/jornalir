@@ -1,5 +1,10 @@
 # Jornal IR — Status atual e passagem de contexto (HANDOFF)
 
+## 26/11/2026 — Correção da migration e permissão de edição do novo cadastro
+
+- CI do vínculo detectou erro de literal regex na migration ainda não aplicada; corrigido, consulta exata usa INTO STRICT e recusa duplicidade. Grant explícito allow_edit_created (default false) permite ao ator que criou novo cliente editá-lo sem intervenção a cada cadastro; não concede edição de cliente existente vinculado, nem a terceiros. Testes de SQL/contrato ampliados; CI da correção pendente.
+
+
 ## 26/11/2026 — Vínculo explícito de cadastro existente (preparação)
 
 - Reaproveitada a API de criação e ledger de operações, com modo link_existing separado e grant adicional allow_existing por tenant/ator (default false). Consulta somente por CPF/CNPJ válido e exato de cadastro ativo previamente autorizado no Jornal. Não cria/edita cliente, papéis, financeiro, nem habilita exportação. Retorna identidade e nome canônicos; idempotência auditada, recusa acesso revogado e escopo de outro tenant. Nenhuma migração aplicada ou autorização ativada; SQL na migration ainda inédita da PR #140.

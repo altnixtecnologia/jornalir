@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import {ALTNIX_CADASTRO_CREATE_RELEASED,parseCadastroCreateCommand} from "../src/lib/integrations/altnixCadastroCreateContract";
+import {ALTNIX_CADASTRO_CREATE_RELEASED,parseCadastroCreateCommand,parseCadastroLinkCommand} from "../src/lib/integrations/altnixCadastroCreateContract";
 const id="11111111-1111-4111-8111-111111111111";
 const cmd={operationId:id,tenantId:id,advertiserId:id,actorId:id,client:{kind:"company",document:"11.222.333/0001-81",name:"Empresa",whatsapp:"(48) 98888-7777",email:"A@example.test",city:"Praia Grande",region:"SC"}};
 test("criação normaliza documento e contato, sem papéis ou financeiro vindos do caller",()=>{
@@ -11,3 +11,10 @@ test("criação normaliza documento e contato, sem papéis ou financeiro vindos 
 });
 
 test("novo cadastro sem WhatsApp permanece permitido quando não há envio",()=>{assert.equal(parseCadastroCreateCommand({...cmd,client:{...cmd.client,whatsapp:null}})?.client.whatsapp,null);});
+
+test("vínculo explícito exige documento válido e identidade completa; não aceita dados de cliente",()=>{
+ const link={mode:"link_existing",operationId:id,tenantId:id,advertiserId:id,actorId:id,document:"11222333000181"};
+ assert.equal(parseCadastroLinkCommand(link)?.document,"11222333000181");
+ for(const change of [{document:"11222333000180"},{document:"11.222.333/0001-81"},{mode:"create"},{actorId:"x"},{client:cmd.client}])assert.equal(parseCadastroLinkCommand({...link,...change}),null);
+ assert.equal(parseCadastroCreateCommand(link),null);
+});
