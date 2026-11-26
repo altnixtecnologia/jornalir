@@ -1,5 +1,12 @@
 # Jornal IR — Status atual e passagem de contexto (HANDOFF)
 
+## 26/11/2026 — Infraestrutura cadastral aplicada em produção, sem ativação
+
+- Autorização expressa 15:18h. Backups físicos no painel Supabase verificados: Jornal 26/11 04:11:49h e Informativo 26/11 05:18:30h (BRT). Não restaurar backup global para rollback cadastral; inclui metadados, não objetos do Storage/R2. Status Supabase indicava incidente de gerenciamento em monitoramento; SQL respondeu e cada migration foi verificada no ledger.
+- Migrations aditivas aplicadas com sucesso: altnix_cadastro_write_commands (20261126170000 → 20261126182316); altnix_cadastro_create_commands (20261126172000 → 20261126182340). Arquivos renomeados mantendo exatamente os blobs executados, para conciliar os timestamps reais registrados no Supabase. Sandbox e paths da CI atualizados. PRs originais #140/#67 ainda têm nomes antigos: **não aplicar de novo nem mesclar integralmente**; reconciliar quando retomar financeiro.
+- Jornal: 4 clientes, 0 exportações habilitadas, 0 grants e operações; Informativo: 16 fichas, 4 ativos vinculados, 78 mídias não excluídas, 16 contratos, 13 faturas; 0 intenções/âncoras/cutover. RPCs privilegiadas não executáveis por authenticated; provisionamento direto revogado. Nenhum cliente, mídia, contrato, fatura, autorização ou storage alterado. As travas de código continuam desligadas; resta publicar versão isolada e homologar leitura/escrita. PR original preservada.
+
+
 ## 26/11/2026 — Release isolada de cadastro mestre (autorização recebida às 15:18h)
 
 - Reaproveitados os blobs da PR #140 já validados; branch de publicação parte da versão oficial, excluindo mudanças financeiras/diagnósticas e, no Informativo, otimizações de playlist/portal/financeiro não cadastrais. Travas permanecem desligadas. PR original preservada, não mesclar em bloco. Nova CI necessária pela seleção do escopo. Domínios da conta de produção conferidos; banco ainda sem as migrations novas. Backup dos dois projetos ainda não confirmado: não aplicar SQL, não ativar permissões, não mesclar nem promover antes da conferência. Sem novo banco, sem alterações de dados. 

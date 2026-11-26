@@ -6,7 +6,7 @@ create table public.clients(id uuid primary key,kind text not null,status text n
 create table public.client_roles(client_id uuid,role text);
 create table public.client_digital_export_permissions(client_id uuid primary key,enabled boolean not null);
 create table public.audit_events(user_id uuid,entity_type text,entity_id uuid,action text,metadata jsonb);
-\ir ../../supabase/migrations/20261126170000_altnix_cadastro_write_commands.sql
+\ir ../../supabase/migrations/20261126182316_altnix_cadastro_write_commands.sql
 insert into public.clients(id,kind,status,company_name,whatsapp,email,address_city,address_state,address_ibge_code,cnpj,fiscal_email,updated_at) values('11111111-1111-4111-8111-111111111111','company','active','Empresa','48999999999','a@example.test','Praia Grande','SC','4213807','11222333000181','fiscal@example.test','2026-11-26 12:00:00+00');
 insert into public.client_roles values('11111111-1111-4111-8111-111111111111','anunciante');
 insert into public.client_digital_export_permissions values('11111111-1111-4111-8111-111111111111',true);
@@ -39,7 +39,7 @@ create unique index clients_cpf_unique on public.clients(cpf) where cpf is not n
 create unique index clients_cnpj_unique on public.clients(cnpj) where cnpj is not null;
 create function public.staff_can_module_action(text,text) returns boolean language sql as $$select false$$;
 \ir ../../supabase/migrations/20261104101000_save_client_action_guard.sql
-\ir ../../supabase/migrations/20261126172000_altnix_cadastro_create_commands.sql
+\ir ../../supabase/migrations/20261126182340_altnix_cadastro_create_commands.sql
 do $create_test$
 declare t uuid:='22222222-2222-4222-8222-222222222222';a uuid:='aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';u uuid:='44444444-4444-4444-8444-444444444444';op uuid:='bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'; c uuid; w uuid;
  payload jsonb:='{"kind":"individual","status":"active","full_name":"Pessoa teste","cpf":"11122233396","whatsapp":"48988887777","email":"a@example.test"}';

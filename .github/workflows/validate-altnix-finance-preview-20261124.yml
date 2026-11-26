@@ -4,11 +4,11 @@ on:
     branches: [solicitacoes-financeiro-contratos-irc-20261031]
     paths:
       - "apps/sistema/src/lib/integrations/altnixCadastroCreateContract.ts"
-      - "supabase/migrations/20261126172000_altnix_cadastro_create_commands.sql"
+      - "supabase/migrations/20261126182340_altnix_cadastro_create_commands.sql"
       - "apps/sistema/test/altnix-cadastro-create-contract.test.ts"
       - "apps/sistema/src/lib/integrations/altnixCadastroWriteContract.ts"
       - "apps/sistema/test/altnix-cadastro-write-contract.test.ts"
-      - "supabase/migrations/20261126170000_altnix_cadastro_write_commands.sql"
+      - "supabase/migrations/20261126182316_altnix_cadastro_write_commands.sql"
       - "tests/security/altnix-cadastro-write-sandbox.sql"
       - "apps/sistema/src/lib/integrations/altnixDigitalClientContract.ts"
       - "apps/sistema/src/app/api/integrations/altnix/clients/**"
