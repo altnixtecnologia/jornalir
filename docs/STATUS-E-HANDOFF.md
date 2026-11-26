@@ -1,5 +1,10 @@
 # Jornal IR — Status atual e passagem de contexto (HANDOFF)
 
+## 26/11/2026 — Homologação controlada da leitura cadastral
+
+- Release de infraestrutura com migrações já conciliadas mesclada: Jornal PR #141 (012da09), Informativo PR #68 (85dfbac); cinco workflows aprovados. Deploys iniciados na Vercel (Jornal dpl_HefwD79UYAvMKVv7BUf4M7xc1tvK, Informativo dpl_6Lc9VTF7jAgfdQMogNHPd4C72oLM), ainda verificar READY e aliases. Variáveis e segredos exclusivos de produção configurados; flags false. Próxima release isola homologação: Jornal permite somente leitura autenticada em produção com aprovação individual, e Informativo testa vínculos ativos por ação explícita de administrador da conta principal, sem aplicar projeção na lista. Escrita/criação, cutover e financeiro permanecem fechados. Após CI e infraestrutura READY, liberar somente flags de leitura, registrar aprovações dos quatro vinculados com trilha de auditoria, homologar via sessão real antes de ativar interface. Não criar clientes fictícios em produção nem disparar WhatsApp. 
+
+
 ## 26/11/2026 — Infraestrutura cadastral aplicada em produção, sem ativação
 
 - Autorização expressa 15:18h. Backups físicos no painel Supabase verificados: Jornal 26/11 04:11:49h e Informativo 26/11 05:18:30h (BRT). Não restaurar backup global para rollback cadastral; inclui metadados, não objetos do Storage/R2. Status Supabase indicava incidente de gerenciamento em monitoramento; SQL respondeu e cada migration foi verificada no ledger.
