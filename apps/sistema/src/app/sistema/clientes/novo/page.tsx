@@ -1,6 +1,9 @@
 import { ClientForm } from "../../../../features/clientes/ClientForm";
 
-export default function NovoClientePage(): JSX.Element {
+import { createSupabaseServerClient } from "../../../../lib/supabase/server";
+
+export default async function NovoClientePage(): Promise<JSX.Element> {
+  const { data: canSelectInformativo } = await createSupabaseServerClient().rpc("is_active_admin_or_owner");
   return (
     <>
       <header className="cadastros-header">
@@ -10,7 +13,7 @@ export default function NovoClientePage(): JSX.Element {
           <p className="cadastros-header-desc">Identificação, contato, endereço e papéis em um só lugar.</p>
         </div>
       </header>
-      <ClientForm mode="create" />
+      <ClientForm mode="create" canSelectInformativo={canSelectInformativo === true} />
     </>
   );
 }

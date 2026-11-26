@@ -2,7 +2,7 @@ import "server-only";
 import { createHash, timingSafeEqual } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { createSupabaseAdminClient } from "../../../../../lib/supabase/admin";
-import { ALTNIX_CLIENT_EXPORT_RELEASED, parseDigitalClientIds, DIGITAL_CLIENT_BATCH_LIMIT, sanitizeDigitalClientSearch, toAltnixDigitalClient, type ExportableJornalClient } from "../../../../../lib/integrations/altnixDigitalClientContract";
+import { ALTNIX_CLIENT_EXPORT_RELEASED, parseDigitalClientIds, parseDigitalSelectionPage, digitalSelectionPage, DIGITAL_CLIENT_BATCH_LIMIT, sanitizeDigitalClientSearch, toAltnixDigitalClient, type ExportableJornalClient } from "../../../../../lib/integrations/altnixDigitalClientContract";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -36,6 +36,25 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     return respond({ error: "Integração de clientes desativada." }, 503);
   }
   if (!secretValid(request)) return respond({ error: "Não autorizado." }, 401);
+  // Descoberta somente por ação explícita do consumidor. Retorna apenas IDs
+  // ativos e selecionados; detalhes continuam na API exata em lote.
+  if (request.nextUrl.searchParams.has("selected") || request.nextUrl.searchParams.has("after")) {
+    const page = parseDigitalSelectionPage(request.nextUrl.searchParams);
+    if (!page) return respond({ error: "Página de seleção inválida." }, 400);
+    try {
+      const db = createSupabaseAdminClient();
+      let query = db.from("clients").select("id,client_digital_export_permissions!inner(enabled)")
+        .eq("client_digital_export_permissions.enabled", true).eq("status", "active");
+      if (page.after) query = query.gt("id", page.after);
+      const { data, error } = await query.order("id", { ascending: true }).limit(DIGITAL_CLIENT_BATCH_LIMIT + 1);
+      if (error || !data) return respond({ error: "Seleção indisponível." }, 503);
+      const result = digitalSelectionPage(data.map(row => row.id), page.after);
+      if (!result) return respond({ error: "Seleção indisponível." }, 503);
+      return respond({ source: "jornalir", mode: "readonly", selection: "altnix_informativo", ...result });
+    } catch {
+      return respond({ error: "Seleção indisponível." }, 503);
+    }
+  }
   const id = request.nextUrl.searchParams.get("id")?.trim() || "";
   const search = request.nextUrl.searchParams.get("q") || "";
   const q = sanitizeDigitalClientSearch(search);

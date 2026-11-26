@@ -1,5 +1,22 @@
 # Jornal IR — Status atual e passagem de contexto (HANDOFF)
 
+## 26/11/2026 — Preparação da release cadastral definitiva
+
+- CI anterior dos dois repositórios aprovada (Jornal 2/2, Informativo 3/3). Branch de release habilita as constantes de criação e escrita, mantendo a exigência de ambiente production, segredo de escrita distinto, grants específicos e validação de identidade. A flag produtiva de escrita permanece desligada até CI desta revisão e publicação coordenada. Nenhum grant, cliente ou dado financeiro alterado nesta preparação. Jornal deve publicar primeiro; Informativo depende do manifesto e da migration atômica já aplicada no Informativo. Não publicar separadamente o portal público; evitar rebuilds intermediários. Homologar cadastro real com proprietário, sem gerar financeiro, contratos ou mensagens.
+
+## 26/11/2026 — Migration cadastral aplicada e conciliada
+
+- Aplicada em produção do Jornal IR a migration aditiva `save_client_with_informativo`, já validada pelos dois workflows do head 1d70f78, sem deploy ou alteração de registros de clientes. Ledger confirmado `20261126212452`; arquivo renomeado preservando o blob SQL e sandbox atualizado. RPC confirmada SECURITY INVOKER, EXECUTE para authenticated e negado a anon e service_role; a função exige admin/owner ativo. Informativo já possui as três migrations de infraestrutura (20261126182351/20261126182400/20261126182410), sem reaplicação. A ativação definitiva, as flags de código e os grants de escrita/criação ainda precisam de homologação coordenada. Produção anterior READY, sem nova compilação iniciada neste passo. Financeiro separado; não limpar faturas de teste sem verificar Asaas.
+
+## 26/11/2026 — Seleção do Informativo ao criar cadastro (preparação)
+
+- Detectada lacuna da seleção somente na ficha existente. Novo cadastro permite marcar Informativo antes de salvar, exclusivamente owner/admin e cadastro ativo. A nova RPC invocadora chama `save_client` e `set_client_digital_export_permission` na mesma transação; sem segunda autorização, nova tabela ou escrita direta no banco. Cadastro sem seleção mantém caminho anterior. Incluídos teste de contrato e sandbox de atomicidade, permissões e duplicidade. Migration preparada na branch, não aplicada; requer CI e conciliação do ledger antes de publicar. Sem deploy ou alteração de banco real nesta revisão.
+
+## 26/11/2026 — Descoberta de novos clientes selecionados (preparação)
+
+- Homologação de leitura real: 4/4 seleções confirmadas no banco e 4/4 vínculos no diagnóstico do Informativo, conforme retorno do administrador. Builds READY promovidos para os domínios, sem recompilação. Retirar botão temporário ao concluir a integração definitiva (PR Informativo #70).
+- Preparação do manifesto paginado de IDs ativos selecionados, autenticado e sem dados pessoais adicionais: `selected=1`, cursor `after` opcional, até 20 IDs, sem escrita. Não disponibilizar ao navegador diretamente. Detalhes permanecem restritos à API exata por lote. Necessária implementação correspondente no Informativo, criação idempotente de âncora operacional sem ativação comercial, proteção de escrita e testes antes de liberar. Sem polling, heartbeat, deploy ou alterações no banco nesta revisão.
+
 ## 26/11/2026 — Seleção de serviços digitais no cadastro mestre (em desenvolvimento)
 
 - Decisão do proprietário às 15:58–16:00h: marcar o serviço no cadastro do Jornal IR é a autorização de leitura correspondente; nenhuma segunda aprovação. Reutilizar `client_digital_export_permissions.enabled` exclusivamente para Altnix Informativo e a RPC auditada existente. Não confundir papéis, catálogo comercial ou contratos com compartilhamento. Platform terá seleção própria e credencial/escopo próprios em sua fase; gerentes/operadores do Platform ficam no Platform, somente empresa/instituição cliente no Jornal. Não ampliar acesso Informativo a clientes exclusivos Platform. Não inventar segunda tabela de clientes.

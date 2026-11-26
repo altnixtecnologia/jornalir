@@ -79,3 +79,44 @@ begin
  if has_function_privilege('authenticated','public.apply_altnix_client_link(uuid,uuid,uuid,uuid,text)','execute') then raise exception 'public link';end if;
 end;
 $link_test$;
+
+
+-- Simula as dependências da autorização existente; testa a nova transação
+-- contra a implementação oficial de save_client carregada acima.
+create function auth.uid() returns uuid language sql stable as $$select nullif(current_setting('request.jwt.claim.sub',true),'')::uuid$$;
+create or replace function public.staff_can_module_action(text,text) returns boolean language sql as $$select coalesce(current_setting('sandbox.can_create',true),'')='yes'$$;
+create function public.is_active_admin_or_owner() returns boolean language sql as $$select coalesce(current_setting('sandbox.admin',true),'')='yes'$$;
+create function public.set_client_digital_export_permission(p_client_id uuid,p_enabled boolean) returns boolean language plpgsql as $stub$
+begin
+ if not public.is_active_admin_or_owner() then raise exception 'denied' using errcode='42501';end if;
+ if current_setting('sandbox.fail_selection',true)='yes' then return false;end if;
+ insert into public.client_digital_export_permissions values(p_client_id,p_enabled) on conflict(client_id) do update set enabled=excluded.enabled;
+ return true;
+end;
+$stub$;
+\ir ../../supabase/migrations/20261126212452_save_client_with_informativo.sql
+do $select_test$
+declare c uuid;n integer; payload jsonb:='{"kind":"individual","status":"active","full_name":"Novo teste","cpf":"52998224725","email":"new@example.test"}';
+begin
+ if has_function_privilege('anon','public.save_client_with_informativo(jsonb,text[])','execute') or has_function_privilege('service_role','public.save_client_with_informativo(jsonb,text[])','execute') or not has_function_privilege('authenticated','public.save_client_with_informativo(jsonb,text[])','execute') then raise exception 'bad grants';end if;
+ perform set_config('request.jwt.claim.role','authenticated',true);
+ perform set_config('request.jwt.claim.sub','44444444-4444-4444-8444-444444444444',true);
+ perform set_config('sandbox.can_create','yes',true);
+ perform set_config('sandbox.admin','no',true);
+ n:=(select count(*) from public.clients);
+ begin perform public.save_client_with_informativo(payload,array['cliente']);raise exception 'nonadmin passed';exception when insufficient_privilege then null;end;
+ perform set_config('sandbox.admin','yes',true);
+ perform set_config('sandbox.can_create','no',true);
+ begin perform public.save_client_with_informativo(payload,array['cliente']);raise exception 'no create permission passed';exception when insufficient_privilege then null;end;
+ perform set_config('sandbox.can_create','yes',true);
+ begin perform public.save_client_with_informativo(payload||'{"status":"inactive"}',array['cliente']);raise exception 'inactive passed';exception when invalid_parameter_value then null;end;
+ perform set_config('sandbox.fail_selection','yes',true);
+ begin perform public.save_client_with_informativo(payload,array['cliente']);raise exception 'selection failure passed';exception when invalid_parameter_value then null;end;
+ if (select count(*) from public.clients)<>n or exists(select 1 from public.clients where cpf='52998224725') then raise exception 'orphan after failed selection';end if;
+ perform set_config('sandbox.fail_selection','no',true);
+ c:=public.save_client_with_informativo(payload,array['cliente']);
+ if not exists(select 1 from public.clients where id=c and cpf='52998224725') or not exists(select 1 from public.client_roles where client_id=c and role='cliente') or not exists(select 1 from public.client_digital_export_permissions where client_id=c and enabled) then raise exception 'selection not saved';end if;
+ begin perform public.save_client_with_informativo(payload,array['cliente']);raise exception 'duplicate passed';exception when unique_violation then null;end;
+ if (select count(*) from public.clients)<>n+1 then raise exception 'duplicate or partial record';end if;
+end;
+$select_test$;

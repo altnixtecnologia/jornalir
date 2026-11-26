@@ -1,6 +1,6 @@
 import { isValidCpf,isValidCnpj,normalizeCnpj,onlyDigits } from "@ir/core";
 import { parseCadastroWriteCommand,validAltnixTenantId } from "./altnixCadastroWriteContract";
-export const ALTNIX_CADASTRO_CREATE_RELEASED=false as boolean;
+export const ALTNIX_CADASTRO_CREATE_RELEASED=true as boolean;
 const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 type CreateCommand={operationId:string;tenantId:string;advertiserId:string;actorId:string;client:Record<string,string|null>};
 export function parseCadastroCreateCommand(raw:unknown):CreateCommand|null{

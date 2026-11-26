@@ -120,6 +120,7 @@ function payloadFromClient(client?: Client): ClientFormPayload {
 interface ClientFormProps {
   mode: "create" | "edit";
   client?: Client;
+  canSelectInformativo?: boolean;
 }
 
 /**
@@ -130,9 +131,10 @@ interface ClientFormProps {
  * digitado, porque o estado de verdade é este `payload` único, nunca algo
  * local de cada aba.
  */
-export function ClientForm({ mode, client }: ClientFormProps): JSX.Element {
+export function ClientForm({ mode, client, canSelectInformativo = false }: ClientFormProps): JSX.Element {
   const router = useRouter();
   const [payload, setPayload] = useState<ClientFormPayload>(() => payloadFromClient(client));
+  const [selectInformativo, setSelectInformativo] = useState(false);
   const [rolesError, setRolesError] = useState<string | null>(null);
   const [fiscalEmailSeparate, setFiscalEmailSeparate] = useState(Boolean(client?.fiscalEmail));
   const [pending, startTransition] = useTransition();
@@ -191,7 +193,7 @@ export function ClientForm({ mode, client }: ClientFormProps): JSX.Element {
     }
     setRolesError(null);
     startTransition(async () => {
-      const result = mode === "create" ? await createClient(payload) : await updateClient(client!.id, payload);
+      const result = mode === "create" ? await createClient(payload, selectInformativo) : await updateClient(client!.id, payload);
       if (result && "error" in result) notify.error("Não foi possível salvar o cadastro", result.error);
     });
   }
@@ -228,7 +230,10 @@ export function ClientForm({ mode, client }: ClientFormProps): JSX.Element {
             role="switch"
             aria-checked={payload.status === "active"}
             className={`switch-control${payload.status === "active" ? " is-on" : ""}`}
-            onClick={() => set("status", payload.status === "active" ? "inactive" : "active")}
+            onClick={() => {
+              if (payload.status === "active") setSelectInformativo(false);
+              set("status", payload.status === "active" ? "inactive" : "active");
+            }}
           >
             <span className="switch-track" aria-hidden="true">
               <span className="switch-thumb" />
@@ -237,6 +242,17 @@ export function ClientForm({ mode, client }: ClientFormProps): JSX.Element {
           </button>
         </div>
       </div>
+
+      {mode === "create" && canSelectInformativo ? (
+        <section className="form-section">
+          <h2>Serviços digitais vinculados</h2>
+          <label>
+            <input type="checkbox" checked={selectInformativo} disabled={pending || payload.status !== "active"}
+              onChange={(event) => setSelectInformativo(event.target.checked)} />{" "}Altnix Informativo
+          </label>
+          <p className="helper-text">Ao salvar o cadastro ativo, a seleção autoriza o compartilhamento cadastral com o Informativo. Não ativa contratos, cobranças, mídias ou equipamentos.</p>
+        </section>
+      ) : null}
 
       {isIndividual ? (
         <section className="form-section form-section--first">

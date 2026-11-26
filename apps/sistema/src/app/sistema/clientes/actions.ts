@@ -59,15 +59,22 @@ function toServiceInput(payload: ClientFormPayload): ClientInput {
  * ({error} | void): a ação redireciona pro detalhe recém-criado em caso de
  * sucesso, e redirect() nunca retorna de verdade.
  */
-export async function createClient(payload: ClientFormPayload): Promise<ActionResult> {
+export async function createClient(payload: ClientFormPayload, selectInformativo = false): Promise<ActionResult> {
   const permissionError = await checkModuleAction("clientes", "clientes_criar");
   if (permissionError) return { error: permissionError };
   const validationError = validateClientPayload(payload);
   if (validationError) return { error: validationError };
 
+  if (typeof selectInformativo !== "boolean") return { error: "Seleção de serviço inválida." };
+  if (selectInformativo && payload.status !== "active") return { error: "Ative o cadastro antes de vincular o serviço." };
   let clientId: string;
   try {
-    const client = await getClientService(createSupabaseServerClient()).register(toServiceInput(payload));
+    const supabase = createSupabaseServerClient();
+    if (selectInformativo) {
+      const { data: allowed, error } = await supabase.rpc("is_active_admin_or_owner");
+      if (error || allowed !== true) return { error: "Seu usuário não pode alterar serviços digitais vinculados." };
+    }
+    const client = await getClientService(supabase, selectInformativo).register(toServiceInput(payload));
     clientId = client.id;
   } catch (error) {
     return { error: toErrorMessage(error) };

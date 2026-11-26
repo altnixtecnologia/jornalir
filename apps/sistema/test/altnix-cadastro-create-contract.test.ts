@@ -7,7 +7,7 @@ test("criação normaliza documento e contato, sem papéis ou financeiro vindos 
  const v=parseCadastroCreateCommand(cmd);assert.ok(v);assert.equal(v.client.cnpj,"11222333000181");assert.equal(v.client.whatsapp,"48988887777");assert.equal(v.client.email,"a@example.test");assert.equal(v.client.address_state,"SC");
  assert.equal(v.client.cpf,null);assert.equal(v.client.roles,undefined);
  for(const change of [{document:"00000000000000"},{roles:["admin"]},{status:"inactive"},{whatsapp:"abc"},{region:"XX"},{city:null},{kind:"individual"}])assert.equal(parseCadastroCreateCommand({...cmd,client:{...cmd.client,...change}}),null);
- assert.equal(ALTNIX_CADASTRO_CREATE_RELEASED,false);
+ assert.equal(ALTNIX_CADASTRO_CREATE_RELEASED,true);
 });
 
 test("novo cadastro sem WhatsApp permanece permitido quando não há envio",()=>{assert.equal(parseCadastroCreateCommand({...cmd,client:{...cmd.client,whatsapp:null}})?.client.whatsapp,null);});

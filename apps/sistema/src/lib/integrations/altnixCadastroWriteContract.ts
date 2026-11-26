@@ -1,7 +1,7 @@
 import { onlyDigits } from "@ir/core";
 
 /** Release independente da leitura. Nenhum env libera sozinho uma escrita. */
-export const ALTNIX_CADASTRO_WRITE_RELEASED = false as boolean;
+export const ALTNIX_CADASTRO_WRITE_RELEASED = true as boolean;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 /** Tenant principal: UUID PostgreSQL legado, sem bits RFC de versão/variante. */
 export const ALTNIX_PRIMARY_TENANT_ID = "00000000-0000-0000-0000-000000000001";
