@@ -47,7 +47,10 @@ test("piloto de leitura exige produção, env, segredo e autorização individua
   assert.match(route,/if \(!secretValid\(request\)\)/);
   assert.match(route,/client_digital_export_permissions!inner\(enabled\)/);
   assert.match(route,/\.eq\("client_digital_export_permissions.enabled", true\)\.eq\("status", "active"\)/);
-  assert.doesNotMatch(route,/\.insert\(|\.update\(|\.delete\(|\.upsert\(|\.rpc\(/);
+  // createHash().update() é operação criptográfica, não gravação no banco.
+  const databaseSection=route.slice(route.indexOf("const db = createSupabaseAdminClient()"));
+  assert.ok(databaseSection.startsWith("const db = createSupabaseAdminClient()"));
+  assert.doesNotMatch(databaseSection,/\.insert\(|\.update\(|\.delete\(|\.upsert\(|\.rpc\(/);
 });
 
 test("WhatsApp canônico apenas na consulta por ID; jamais telefone como fallback", () => {
