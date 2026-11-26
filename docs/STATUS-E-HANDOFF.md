@@ -1,5 +1,9 @@
 # Jornal IR — Status atual e passagem de contexto (HANDOFF)
 
+## 26/11/2026 — Contratos por serviço: identidade canônica existente
+
+- CI da rodada financeira anterior aprovada nos dois repositórios (Jornal #145 e Informativo #72). A consulta de conciliação reutiliza `commercial_contract_packages.id` e `commercial_contract_services.id` e escopo da venda/cliente selecionado; exporta apenas identificadores, canal, vigência, modalidade de documento e status de revisão, com completude explícita. Não exporta documento, assinatura, texto jurídico ou dados pessoais. Aprovação jurídica não equivale a assinatura nem autorização de exibição/cobrança. Sem nova tabela de contratos, sem banco, flags, deploy ou emissão. Próxima CI deve validar a extensão coordenada; corte financeiro continua fechado.
+
 ## 26/11/2026 — Cadastro publicado; retomada de contratos e financeiro
 
 - Cadastro definitivo publicado: Jornal PR #144, commit 737aca1, deployment dpl_5MzgXyvuLhax8GAh2bscovcdvn4E; Informativo PR #71, commit fce9861, deployment dpl_F3A66TtFXKiu9XjhfACvdpJBbyEw. Ambos READY e aliases conferidos, cutover cadastral ativo exclusivamente no tenant principal. Cinco workflows aprovados; homologação em sessão real ainda pendente. Quatro seleções e quatro vínculos ativos; proprietário único com um grant de criação e quatro de edição. Nenhuma operação de escrita em cliente registrada na última conferência. Botão de diagnóstico retirado. 

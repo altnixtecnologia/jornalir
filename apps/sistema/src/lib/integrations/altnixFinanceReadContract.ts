@@ -97,6 +97,14 @@ export type JornalFinanceSalePreview = {
   services: JornalFinanceServicePreview[] | null;
 };
 
+/** Identidade jurídica/operacional existente; legal_approved não equivale a assinatura. */
+export type JornalCommercialContractPreview = {
+  id: string;
+  saleId: string;
+  documentMode: "combined" | "separate";
+  status: "draft" | "pending_legal_review" | "legal_approved";
+  services: Array<{id:string; serviceChannel:string; itemOrdinal:number; startsOn:string|null; endsOn:string|null}>;
+};
 export type JornalFinancePreviewResponse = {
   version: typeof FINANCE_BRIDGE_VERSION;
   source: "jornal_ir";
@@ -112,4 +120,6 @@ export type JornalFinancePreviewResponse = {
   sales: JornalFinanceSalePreview[];
   salesTotal: number;
   salesComplete: boolean;
+  contracts: JornalCommercialContractPreview[];
+  contractsComplete: boolean;
 };

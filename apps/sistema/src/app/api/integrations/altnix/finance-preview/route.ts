@@ -120,6 +120,33 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       services: projectFinanceSaleServices(row.items_snapshot),
     }));
 
+    // Reutiliza os UUIDs das contratações existentes, não cria contrato paralelo.
+    // Limites explícitos: uma resposta parcial jamais comprova autorização.
+    let contracts: JornalFinancePreviewResponse["contracts"] = [];
+    let contractsComplete = saleCount === sales.length;
+    if (sales.length) {
+      const {data: packages,error: packageError,count: packageCount}=await db.from("commercial_contract_packages")
+        .select("id,commercial_sale_id,document_mode,status",{count:"exact"})
+        .eq("client_id",id).in("commercial_sale_id",sales.map(s=>s.id)).order("id").limit(FINANCE_PAGE_SIZE);
+      if(packageError||packageCount===null) return respond({error:"Consulta temporariamente indisponível."},503);
+      contractsComplete=contractsComplete && packageCount===(packages??[]).length;
+      const packageIds=(packages??[]).map(p=>p.id);
+      if(packageIds.length){
+        const {data: serviceRows,error: serviceError,count: serviceCount}=await db.from("commercial_contract_services")
+          .select("id,package_id,item_ordinal,service_channel,starts_on,ends_on",{count:"exact"})
+          .in("package_id",packageIds).order("id").limit(500);
+        if(serviceError||serviceCount===null) return respond({error:"Consulta temporariamente indisponível."},503);
+        contractsComplete=contractsComplete && serviceCount===(serviceRows??[]).length;
+        contracts=(packages??[]).map(p=>({
+          id:p.id,saleId:p.commercial_sale_id,documentMode:p.document_mode,status:p.status,
+          services:(serviceRows??[]).filter(service=>service.package_id===p.id).map(service=>({
+            id:service.id,serviceChannel:service.service_channel,itemOrdinal:service.item_ordinal,
+            startsOn:service.starts_on,endsOn:service.ends_on,
+          })).sort((a,b)=>a.itemOrdinal-b.itemOrdinal),
+        }));
+        if(contracts.some(c=>!c.services.length))contractsComplete=false;
+      }
+    }
     const response: JornalFinancePreviewResponse = {
       version: FINANCE_BRIDGE_VERSION,
       source: "jornal_ir",
@@ -135,6 +162,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       sales,
       salesTotal: saleCount,
       salesComplete: saleCount === sales.length,
+      contracts, contractsComplete,
     };
     return respond(response);
   } catch {

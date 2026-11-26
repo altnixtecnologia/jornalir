@@ -77,3 +77,13 @@ test("serviços de venda conjunta preservam identidade por item, sem inferência
 });
 
  test("revogar seleção digital também fecha a conciliação",()=>{assert.match(route,/client_digital_export_permissions!inner\(enabled\)/);assert.match(route,/\.eq\("client_digital_export_permissions.enabled", true\)/);});
+
+test("contratos e serviços usam UUIDs existentes; projeção parcial não autoriza cobrança",()=>{
+ assert.match(route,/\.from\("commercial_contract_packages"\)/);
+ assert.match(route,/\.eq\("client_id",id\)\.in\("commercial_sale_id",sales\.map/);
+ assert.match(route,/\.from\("commercial_contract_services"\)/);
+ assert.match(route,/\.in\("package_id",packageIds\)/);
+ assert.match(route,/serviceCount===\(serviceRows\?\?\[\]\)\.length/);
+ assert.match(route,/contracts, contractsComplete/);
+ assert.doesNotMatch(route,/\.insert\(|\.update\(|\.upsert\(|\.delete\(|\.rpc\(/);
+});
