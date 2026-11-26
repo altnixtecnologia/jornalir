@@ -15,6 +15,8 @@ on:
       - "apps/sistema/test/altnix-digital-client-contract.test.ts"
       - "apps/sistema/test/altnix-cadastro-canonico-contract.test.ts"
       - "apps/sistema/src/lib/integrations/altnixFinanceReadContract.ts"
+      - "apps/sistema/src/lib/integrations/altnixLinkPreview.ts"
+      - "apps/sistema/test/altnix-link-preview.test.ts"
       - "apps/sistema/src/app/api/integrations/altnix/finance-preview/**"
       - "apps/sistema/test/altnix-finance-bridge-readonly.test.ts"
       - ".github/workflows/validate-altnix-finance-preview-20261124.yml"
@@ -38,7 +40,7 @@ jobs:
           cache: npm
       - run: npm ci --no-audit --no-fund
       - name: Escopo, autenticação, recusa e somente leitura
-        run: npx tsx --test apps/sistema/test/altnix-finance-bridge-readonly.test.ts apps/sistema/test/altnix-digital-client-contract.test.ts apps/sistema/test/altnix-cadastro-canonico-contract.test.ts apps/sistema/test/altnix-cadastro-write-contract.test.ts apps/sistema/test/altnix-cadastro-create-contract.test.ts
+        run: npx tsx --test apps/sistema/test/altnix-finance-bridge-readonly.test.ts apps/sistema/test/altnix-digital-client-contract.test.ts apps/sistema/test/altnix-cadastro-canonico-contract.test.ts apps/sistema/test/altnix-cadastro-write-contract.test.ts apps/sistema/test/altnix-cadastro-create-contract.test.ts apps/sistema/test/altnix-link-preview.test.ts
       - name: TypeScript
         run: npm run typecheck --workspace @ir/sistema
       - name: Build sem deploy

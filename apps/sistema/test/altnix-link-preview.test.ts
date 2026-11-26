@@ -96,3 +96,16 @@ test("arquivado com documento ou ativo sem documento fica fora da prévia", () =
     "not_active", "missing_or_invalid_document",
   ]);
 });
+
+test("CNPJ alfanumérico preserva letras e não confunde cadastros",()=>{
+ const source={...advertiser,document:"12.ABC.345/01DE-35"};
+ const canonical={clientId:"ir-alpha",cpf:null,cnpj:"12ABC34501DE35"};
+ assert.equal(preview([source],[canonical])[0].masterClientId,"ir-alpha");
+ assert.equal(preview([source],[{...canonical,cnpj:"12XYZ34501DE35"}])[0].reason,"no_master_document_match");
+ assert.equal(preview([{...source,document:"123450135"}],[canonical])[0].reason,"missing_or_invalid_document");
+});
+test("vínculo informado sem documento verificável não é confirmado na prévia",()=>{
+ const link={tenantId:"tenant-a",adClientId:"ad-1",masterClientId:"ir-1"};
+ assert.equal(preview([{...advertiser,document:null}],[master],[link])[0].reason,"confirmed_document_missing");
+ assert.equal(preview([advertiser],[{...master,cnpj:null}],[link])[0].reason,"confirmed_document_missing");
+});

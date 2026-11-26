@@ -1,5 +1,12 @@
 # Jornal IR — Status atual e passagem de contexto (HANDOFF)
 
+## 26/11/2026 — Prioridade: cadastro único e conferência dos vínculos existentes
+
+- Operador reafirmou prioridade cadastral do Informativo e Jornal IR (site/sistema), sem aguardar conclusão de contratos/financeiro. Quatro anunciantes ativos da conta principal têm quatro UUIDs mestres distintos, todos existem e estão ativos no Jornal; comparação de documentos normalizados por hash em consultas somente leitura confirmou 4/4. Não recriar, não associar por nome, não mover IDs. Nenhuma permissão de exportação habilitada (0/4); 1/4 com WhatsApp preenchido no cadastro mestre, 0/4 no legado. Não copiar telefone para WhatsApp.
+- Reaproveitar ação administrativa setClientDigitalExportAction/RPC de aprovação existente, separando aprovação de leitura de grants de criação/edição. As tabelas de grants novas ainda não existem no banco real; não aplicar migrations ou autorizar agora. Quatro vínculos prontos para revisão de aprovação após homologação. Cadastro arquivado em outros tenants permanece preservado.
+- Prévia de vínculo existente agora preserva CNPJ alfanumérico, exige documento verificável também quando há vínculo informado (sem documento vira revisão manual), não transforma formato em validação fiscal. Testes novos e CI existente ampliada. Informativo PR #67 40477bd integra o formulário Novo cliente à API já preparada, valida dados antes da intenção e mantém âncora pausada até serviço. Sem novo contrato, cobrança, alteração de dados ou deploy.
+
+
 ## 26/11/2026 — Inventário de serviços discriminados nas vendas (sem ativação)
 
 - API de diagnóstico agora projeta apenas chave de item e serviceChannel de items_snapshot imutável das vendas existentes; múltiplos serviços permanecem separados dentro da mesma venda. Sem snapshot, inválido, duplicado ou acima de 100 itens retorna services=null (não prova ausência de serviço); pacote genérico não implica LED. Chave composta venda + item, ainda não representa vínculo canônico de contrato/serviço ou autorização. Nenhum valor, descrição de item ou novo cadastro financeiro exportado por esta alteração.
