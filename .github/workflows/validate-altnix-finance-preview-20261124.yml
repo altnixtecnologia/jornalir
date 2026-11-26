@@ -3,6 +3,9 @@ on:
   pull_request:
     branches: [solicitacoes-financeiro-contratos-irc-20261031]
     paths:
+      - "apps/sistema/src/lib/integrations/altnixCadastroCreateContract.ts"
+      - "supabase/migrations/20261126172000_altnix_cadastro_create_commands.sql"
+      - "apps/sistema/test/altnix-cadastro-create-contract.test.ts"
       - "apps/sistema/src/lib/integrations/altnixCadastroWriteContract.ts"
       - "apps/sistema/test/altnix-cadastro-write-contract.test.ts"
       - "supabase/migrations/20261126170000_altnix_cadastro_write_commands.sql"
@@ -35,7 +38,7 @@ jobs:
           cache: npm
       - run: npm ci --no-audit --no-fund
       - name: Escopo, autenticação, recusa e somente leitura
-        run: npx tsx --test apps/sistema/test/altnix-finance-bridge-readonly.test.ts apps/sistema/test/altnix-digital-client-contract.test.ts apps/sistema/test/altnix-cadastro-canonico-contract.test.ts apps/sistema/test/altnix-cadastro-write-contract.test.ts
+        run: npx tsx --test apps/sistema/test/altnix-finance-bridge-readonly.test.ts apps/sistema/test/altnix-digital-client-contract.test.ts apps/sistema/test/altnix-cadastro-canonico-contract.test.ts apps/sistema/test/altnix-cadastro-write-contract.test.ts apps/sistema/test/altnix-cadastro-create-contract.test.ts
       - name: TypeScript
         run: npm run typecheck --workspace @ir/sistema
       - name: Build sem deploy

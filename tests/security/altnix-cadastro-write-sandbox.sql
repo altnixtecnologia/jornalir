@@ -31,3 +31,29 @@ begin
  begin perform public.apply_altnix_client_update(gen_random_uuid(),t,a,u,c,v,'{"name":"Revoked"}');raise exception 'revoked passed';exception when insufficient_privilege then null;end;
 end;
 $test$;
+
+-- Usa a implementação oficial de save_client, em esquema reduzido descartável.
+alter table public.clients alter column id set default gen_random_uuid(),alter column updated_at set default now();
+alter table public.clients add column birth_date date,add column state_registration text,add column responsible_name text,add column responsible_cpf text,add column founding_date date,add column phone_secondary text,add column municipal_registration text,add column icms_status text,add column address_neighborhood text,add column notes text;
+create unique index clients_cpf_unique on public.clients(cpf) where cpf is not null;
+create unique index clients_cnpj_unique on public.clients(cnpj) where cnpj is not null;
+create function public.staff_can_module_action(text,text) returns boolean language sql as $$select false$$;
+\ir ../../supabase/migrations/20261104101000_save_client_action_guard.sql
+\ir ../../supabase/migrations/20261126172000_altnix_cadastro_create_commands.sql
+do $create_test$
+declare t uuid:='22222222-2222-4222-8222-222222222222';a uuid:='aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';u uuid:='44444444-4444-4444-8444-444444444444';op uuid:='bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'; c uuid; w uuid;
+ payload jsonb:='{"kind":"individual","status":"active","full_name":"Pessoa teste","cpf":"11122233396","whatsapp":"48988887777","email":"a@example.test"}';
+begin
+ perform set_config('request.jwt.claim.role','service_role',true);
+ begin perform public.apply_altnix_client_create(op,t,a,u,payload);raise exception 'create without grant passed';exception when insufficient_privilege then null;end;
+ insert into public.altnix_client_create_grants values(t,u,true);
+ c:=public.apply_altnix_client_create(op,t,a,u,payload);
+ w:=public.apply_altnix_client_create(op,t,a,u,payload);
+ if c is distinct from w or not exists(select 1 from public.client_roles where client_id=c and role='anunciante') or not exists(select 1 from public.client_digital_export_permissions where client_id=c and enabled) then raise exception 'create/retry invalid';end if;
+ if (select count(*) from public.audit_events where entity_id=c)<>1 then raise exception 'duplicate audit';end if;
+ begin perform public.apply_altnix_client_create(gen_random_uuid(),t,gen_random_uuid(),u,payload);raise exception 'duplicate document passed';exception when unique_violation then null;end;
+ begin perform public.apply_altnix_client_create(gen_random_uuid(),t,a,u,payload||'{"cpf":"52998224725"}');raise exception 'duplicate anchor passed';exception when unique_violation then null;end;
+ if (select count(*) from public.clients where cpf='52998224725')<>0 then raise exception 'orphan after rollback';end if;
+ begin perform public.apply_altnix_client_create(op,t,a,u,payload||'{"full_name":"Changed"}');raise exception 'operation conflict passed';exception when unique_violation then null;end;
+end;
+$create_test$;
