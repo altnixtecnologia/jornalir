@@ -1,5 +1,10 @@
 # Jornal IR — Status atual e passagem de contexto (HANDOFF)
 
+## 26/11/2026 — Vínculo explícito de cadastro existente (preparação)
+
+- Reaproveitada a API de criação e ledger de operações, com modo link_existing separado e grant adicional allow_existing por tenant/ator (default false). Consulta somente por CPF/CNPJ válido e exato de cadastro ativo previamente autorizado no Jornal. Não cria/edita cliente, papéis, financeiro, nem habilita exportação. Retorna identidade e nome canônicos; idempotência auditada, recusa acesso revogado e escopo de outro tenant. Nenhuma migração aplicada ou autorização ativada; SQL na migration ainda inédita da PR #140.
+
+
 ## 26/11/2026 — Prioridade: cadastro único e conferência dos vínculos existentes
 
 - Operador reafirmou prioridade cadastral do Informativo e Jornal IR (site/sistema), sem aguardar conclusão de contratos/financeiro. Quatro anunciantes ativos da conta principal têm quatro UUIDs mestres distintos, todos existem e estão ativos no Jornal; comparação de documentos normalizados por hash em consultas somente leitura confirmou 4/4. Não recriar, não associar por nome, não mover IDs. Nenhuma permissão de exportação habilitada (0/4); 1/4 com WhatsApp preenchido no cadastro mestre, 0/4 no legado. Não copiar telefone para WhatsApp.

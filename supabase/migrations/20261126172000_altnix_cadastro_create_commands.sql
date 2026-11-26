@@ -3,12 +3,13 @@
 begin;
 create table public.altnix_client_create_grants (
  tenant_id uuid not null,actor_id uuid not null,enabled boolean not null default false,
+ allow_existing boolean not null default false,
  primary key(tenant_id,actor_id)
 );
 alter table public.altnix_client_create_grants enable row level security;
 revoke all on public.altnix_client_create_grants from public,anon,authenticated,service_role;
-alter table public.altnix_client_write_operations add column operation_kind text not null default 'update' check(operation_kind in ('update','create'));
-create unique index altnix_cadastro_create_anchor_uidx on public.altnix_client_write_operations(tenant_id,advertiser_id) where operation_kind='create';
+alter table public.altnix_client_write_operations add column operation_kind text not null default 'update' check(operation_kind in ('update','create','link'));
+create unique index altnix_cadastro_create_anchor_uidx on public.altnix_client_write_operations(tenant_id,advertiser_id) where operation_kind in ('create','link');
 create function public.apply_altnix_client_create(
  p_operation_id uuid,p_tenant_id uuid,p_advertiser_id uuid,p_actor_id uuid,p_client jsonb
 ) returns uuid language plpgsql security definer set search_path='' as $create_client$
@@ -50,4 +51,41 @@ end;
 $create_client$;
 revoke all on function public.apply_altnix_client_create(uuid,uuid,uuid,uuid,jsonb) from public,anon,authenticated;
 grant execute on function public.apply_altnix_client_create(uuid,uuid,uuid,uuid,jsonb) to service_role;
+-- Vínculo explícito de cadastro já existente: não altera cadastro, papéis
+-- nem libera exportação. Grant adicional por tenant/ator, desligado por padrão.
+create function public.apply_altnix_client_link(
+ p_operation_id uuid,p_tenant_id uuid,p_advertiser_id uuid,p_actor_id uuid,p_document text
+) returns table(canonical_client_id uuid,canonical_name text)
+language plpgsql security definer set search_path='' as $link$
+declare v_id uuid;v_name text;v_version timestamptz;v_hash text;v_previous public.altnix_client_write_operations%rowtype;
+begin
+ if auth.role() is distinct from 'service_role' then raise exception 'permission denied' using errcode='42501';end if;
+ if p_operation_id is null or p_tenant_id is null or p_advertiser_id is null or p_actor_id is null or coalesce(p_document,'') !~ '^([0-9]{11}|[A-Z0-9]{12}[0-9]{2})
+ then raise exception 'invalid command' using errcode='22023';end if;
+ perform 1 from public.altnix_client_create_grants where tenant_id=p_tenant_id and actor_id=p_actor_id and enabled and allow_existing for share;
+ if not found then raise exception 'permission denied' using errcode='42501';end if;
+ perform pg_advisory_xact_lock(hashtextextended(p_operation_id::text,0));
+ -- Não procurar por nome, telefone, e-mail nem aproximação. Sem
+ -- aprovação explícita prévia, ausência e revogação são indistinguíveis.
+ select c.id,case when c.kind='individual' then c.full_name else c.company_name end,c.updated_at
+ into v_id,v_name,v_version
+ from public.clients c join public.client_digital_export_permissions e on e.client_id=c.id and e.enabled
+ where c.status='active' and ((length(p_document)=11 and c.kind='individual' and c.cpf=p_document) or (length(p_document)=14 and c.kind='company' and c.cnpj=p_document))
+ for share of c,e;
+ if not found or nullif(btrim(v_name),'') is null then raise exception 'approved client not found' using errcode='42501';end if;
+ v_hash=encode(sha256(convert_to(jsonb_build_object('kind','link','tenant',p_tenant_id,'advertiser',p_advertiser_id,'actor',p_actor_id,'client',v_id)::text,'UTF8')),'hex');
+ select * into v_previous from public.altnix_client_write_operations where operation_id=p_operation_id;
+ if found then
+  if v_previous.operation_kind<>'link' or v_previous.request_hash<>v_hash then raise exception 'operation conflict' using errcode='23505';end if;
+ else
+  insert into public.altnix_client_write_operations(operation_id,tenant_id,advertiser_id,actor_id,client_id,request_hash,result_updated_at,operation_kind)
+  values(p_operation_id,p_tenant_id,p_advertiser_id,p_actor_id,v_id,v_hash,v_version,'link');
+  insert into public.audit_events(user_id,entity_type,entity_id,action,metadata)
+  values(null,'client',v_id,'altnix_cadastro_link',jsonb_build_object('origin','altnix_informativo','operation_id',p_operation_id,'actor_id',p_actor_id,'advertiser_id',p_advertiser_id,'tenant_id',p_tenant_id));
+ end if;
+ return query select v_id,btrim(v_name);
+end;
+$link$;
+revoke all on function public.apply_altnix_client_link(uuid,uuid,uuid,uuid,text) from public,anon,authenticated;
+grant execute on function public.apply_altnix_client_link(uuid,uuid,uuid,uuid,text) to service_role;
 commit;

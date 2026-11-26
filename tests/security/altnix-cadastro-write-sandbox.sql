@@ -46,7 +46,7 @@ declare t uuid:='22222222-2222-4222-8222-222222222222';a uuid:='aaaaaaaa-aaaa-4a
 begin
  perform set_config('request.jwt.claim.role','service_role',true);
  begin perform public.apply_altnix_client_create(op,t,a,u,payload);raise exception 'create without grant passed';exception when insufficient_privilege then null;end;
- insert into public.altnix_client_create_grants values(t,u,true);
+ insert into public.altnix_client_create_grants(tenant_id,actor_id,enabled) values(t,u,true);
  c:=public.apply_altnix_client_create(op,t,a,u,payload);
  w:=public.apply_altnix_client_create(op,t,a,u,payload);
  if c is distinct from w or not exists(select 1 from public.client_roles where client_id=c and role='anunciante') or not exists(select 1 from public.client_digital_export_permissions where client_id=c and enabled) then raise exception 'create/retry invalid';end if;
@@ -57,3 +57,23 @@ begin
  begin perform public.apply_altnix_client_create(op,t,a,u,payload||'{"full_name":"Changed"}');raise exception 'operation conflict passed';exception when unique_violation then null;end;
 end;
 $create_test$;
+
+do $link_test$
+declare t uuid:='22222222-2222-4222-8222-222222222222';a uuid:=gen_random_uuid();u uuid:='44444444-4444-4444-8444-444444444444';op uuid:=gen_random_uuid();c uuid:='11111111-1111-4111-8111-111111111111';v record;w record;n integer;
+begin
+ perform set_config('request.jwt.claim.role','service_role',true);
+ update public.client_digital_export_permissions set enabled=true where client_id=c;
+ begin perform public.apply_altnix_client_link(op,t,a,u,'11222333000181');raise exception 'link without separate grant passed';exception when insufficient_privilege then null;end;
+ update public.altnix_client_create_grants set allow_existing=true where tenant_id=t and actor_id=u;
+ n:=(select count(*) from public.clients);
+ select * into v from public.apply_altnix_client_link(op,t,a,u,'11222333000181');
+ select * into w from public.apply_altnix_client_link(op,t,a,u,'11222333000181');
+ if v.canonical_client_id<>c or w.canonical_client_id<>c or v.canonical_name<>'Novo' or (select count(*) from public.clients)<>n then raise exception 'link created/changed master';end if;
+ if (select count(*) from public.audit_events where action='altnix_cadastro_link')<>1 then raise exception 'duplicate audit';end if;
+ begin perform public.apply_altnix_client_link(op,t,gen_random_uuid(),u,'11222333000181');raise exception 'reused operation';exception when unique_violation then null;end;
+ begin perform public.apply_altnix_client_link(gen_random_uuid(),gen_random_uuid(),a,u,'11222333000181');raise exception 'other tenant';exception when insufficient_privilege then null;end;
+ update public.client_digital_export_permissions set enabled=false where client_id=c;
+ begin perform public.apply_altnix_client_link(op,t,a,u,'11222333000181');raise exception 'revoked link';exception when insufficient_privilege then null;end;
+ if has_function_privilege('authenticated','public.apply_altnix_client_link(uuid,uuid,uuid,uuid,text)','execute') then raise exception 'public link';end if;
+end;
+$link_test$;

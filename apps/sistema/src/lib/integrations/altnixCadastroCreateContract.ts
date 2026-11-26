@@ -30,3 +30,11 @@ export function parseCadastroCreateCommand(raw:unknown):CreateCommand|null{
   address_zip:p.postalCode??null,address_street:p.street??null,address_number:p.number??null,address_complement:p.complement??null,address_city:city,address_state:region
  }};
 }
+
+export function parseCadastroLinkCommand(raw:unknown):{operationId:string;tenantId:string;advertiserId:string;actorId:string;document:string}|null{
+ if(!raw||typeof raw!=="object"||Array.isArray(raw))return null;
+ const v=raw as Record<string,unknown>;
+ if(Object.keys(v).length!==6||v.mode!=="link_existing"||!["operationId","tenantId","advertiserId","actorId"].every(k=>typeof v[k]==="string"&&UUID.test(v[k] as string))||typeof v.document!=="string"||!/^(?:[0-9]{11}|[A-Z0-9]{12}[0-9]{2})$/.test(v.document))return null;
+ if(!(v.document.length===11?isValidCpf(v.document):isValidCnpj(v.document)))return null;
+ return {operationId:v.operationId as string,tenantId:v.tenantId as string,advertiserId:v.advertiserId as string,actorId:v.actorId as string,document:v.document};
+}
