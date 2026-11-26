@@ -1,5 +1,9 @@
 # Jornal IR — Status atual e passagem de contexto (HANDOFF)
 
+## 26/11/2026 — Seleção do Informativo ao criar cadastro (preparação)
+
+- Detectada lacuna da seleção somente na ficha existente. Novo cadastro permite marcar Informativo antes de salvar, exclusivamente owner/admin e cadastro ativo. A nova RPC invocadora chama `save_client` e `set_client_digital_export_permission` na mesma transação; sem segunda autorização, nova tabela ou escrita direta no banco. Cadastro sem seleção mantém caminho anterior. Incluídos teste de contrato e sandbox de atomicidade, permissões e duplicidade. Migration preparada na branch, não aplicada; requer CI e conciliação do ledger antes de publicar. Sem deploy ou alteração de banco real nesta revisão.
+
 ## 26/11/2026 — Descoberta de novos clientes selecionados (preparação)
 
 - Homologação de leitura real: 4/4 seleções confirmadas no banco e 4/4 vínculos no diagnóstico do Informativo, conforme retorno do administrador. Builds READY promovidos para os domínios, sem recompilação. Retirar botão temporário ao concluir a integração definitiva (PR Informativo #70).

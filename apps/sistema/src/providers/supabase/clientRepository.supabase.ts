@@ -178,7 +178,7 @@ function rethrowAsDuplicate(error: { code?: string; message?: string }): never {
   throw new Error(error.message ?? "Falha ao salvar cliente.");
 }
 
-export function createClientRepositorySupabase(client: SupabaseClient): ClientRepository {
+export function createClientRepositorySupabase(client: SupabaseClient, selectInformativo = false): ClientRepository {
   return {
     async list() {
       if (isLocalPreviewEnabled()) return PREVIEW_CLIENTS;
@@ -203,11 +203,10 @@ export function createClientRepositorySupabase(client: SupabaseClient): ClientRe
     // INSERT/UPDATE de `clients` e DELETE/INSERT de `client_roles` como
     // chamadas HTTP separadas: se qualquer parte falhar, nada é gravado.
     async create(record) {
-      const result = await client.rpc("save_client", {
-        p_id: null,
-        p_client: toClientJson(record),
-        p_roles: record.roles,
-      });
+      // A seleção faz parte da mesma transação do cadastro e seus papéis.
+      const result = selectInformativo
+        ? await client.rpc("save_client_with_informativo", { p_client: toClientJson(record), p_roles: record.roles })
+        : await client.rpc("save_client", { p_id: null, p_client: toClientJson(record), p_roles: record.roles });
       if (result.error) rethrowAsDuplicate(result.error);
       const newId = result.data as string;
       const reloaded = await client.from(TABLE).select(COLUMNS).eq("id", newId).single();

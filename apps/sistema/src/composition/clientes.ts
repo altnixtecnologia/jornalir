@@ -6,6 +6,6 @@ import { createClientRepositorySupabase } from "../providers/supabase/clientRepo
 // singleton de módulo — precisa da sessão de quem está fazendo a
 // requisição (cookies, via createSupabaseServerClient()), que só existe
 // DENTRO de uma requisição (mesmo princípio de composition/editorial.ts).
-export function getClientService(client: SupabaseClient): ClientService {
-  return new ClientService(createClientRepositorySupabase(client));
+export function getClientService(client: SupabaseClient, selectInformativo = false): ClientService {
+  return new ClientService(createClientRepositorySupabase(client, selectInformativo));
 }

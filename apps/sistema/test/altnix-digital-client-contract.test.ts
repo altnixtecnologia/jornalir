@@ -108,3 +108,18 @@ test("manifesto selecionado: cursor estrito, sem busca mista e sem dados pessoai
   assert.ok(manifest.includes('.order("id", { ascending: true }).limit(DIGITAL_CLIENT_BATCH_LIMIT + 1)'));
   assert.doesNotMatch(manifest,/\.insert\(|\.update\(|\.delete\(|\.upsert\(|\.rpc\(/);
 });
+
+
+test("novo cadastro seleciona Informativo na mesma gravação, sem ampliar permissões", () => {
+  const form=readFileSync(new URL("../src/features/clientes/ClientForm.tsx",import.meta.url),"utf8");
+  const page=readFileSync(new URL("../src/app/sistema/clientes/novo/page.tsx",import.meta.url),"utf8");
+  const actions=readFileSync(new URL("../src/app/sistema/clientes/actions.ts",import.meta.url),"utf8");
+  const repo=readFileSync(new URL("../src/providers/supabase/clientRepository.supabase.ts",import.meta.url),"utf8");
+  assert.ok(form.includes('mode === "create" && canSelectInformativo'));
+  assert.ok(form.includes("await createClient(payload, selectInformativo)"));
+  assert.ok(page.includes('rpc("is_active_admin_or_owner")'));
+  assert.ok(actions.includes('typeof selectInformativo !== "boolean"'));
+  assert.ok(actions.includes('rpc("is_active_admin_or_owner")'));
+  assert.ok(repo.includes('rpc("save_client_with_informativo"'));
+  assert.ok(repo.includes('rpc("save_client", { p_id: null'));
+});
