@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createSupabaseAdminClient } from "../../../../../lib/supabase/admin";
 import {
   FINANCE_BRIDGE_VERSION, FINANCE_PAGE_SIZE, allowedFinanceClient,
-  canonicalIdOrNull, financeBridgeAuthorized, parseFinanceOffset,
+  canonicalIdOrNull, financeBridgeAuthorized, parseFinanceOffset, projectFinanceSaleServices,
   type JornalFinancePreviewResponse,
 } from "../../../../../lib/integrations/altnixFinanceReadContract";
 
@@ -59,13 +59,14 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
     const { data, error, count } = await db.from("receivables")
       .select(
-        "id,status,original_amount,issue_date,due_date,source_type,source_id,source_reference,contract_id",
+        "id,status,original_amount,issue_date,due_date,source_type,source_id,source_reference,contract_id,commercial_sale_id,installment_number,competency_date",
         { count: "exact" },
       )
       .eq("client_id", id)
       .order("created_at", { ascending: false })
+      .order("id", { ascending: false })
       .range(offset, offset + FINANCE_PAGE_SIZE - 1);
-    if (error) return respond({ error: "Consulta temporariamente indisponível." }, 503);
+    if (error || count === null) return respond({ error: "Consulta temporariamente indisponível." }, 503);
     const receivables = (data ?? []).map((row) => ({
       id: row.id as string,
       status: row.status as string,
@@ -76,15 +77,22 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       sourceId: row.source_id as string | null,
       sourceReference: row.source_reference as string | null,
       contractId: row.contract_id as string | null,
+      commercialSaleId: row.commercial_sale_id as string | null,
+      installmentNumber: row.installment_number as number | null,
+      competencyDate: row.competency_date as string | null,
     }));
     const ids = receivables.map((row) => row.id);
     let receipts: JornalFinancePreviewResponse["receipts"] = [];
+    let receiptsComplete = true;
     if (ids.length) {
-      const { data: paid, error: paidError } = await db.from("receivable_receipts")
-        .select("receivable_id,amount,received_at,reversed_at")
-        .in("receivable_id", ids);
+      const { data: paid, error: paidError, count: paidCount } = await db.from("receivable_receipts")
+        .select("id,receivable_id,amount,received_at,reversed_at", { count: "exact" })
+        .in("receivable_id", ids)
+        .order("id").limit(500);
       if (paidError) return respond({ error: "Consulta temporariamente indisponível." }, 503);
+      receiptsComplete = paidCount !== null && paidCount === (paid ?? []).length;
       receipts = (paid ?? []).map((row) => ({
+        id: row.id as string,
         receivableId: row.receivable_id as string,
         amount: Number(row.amount),
         receivedAt: row.received_at as string | null,
@@ -92,17 +100,41 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       }));
     }
 
+    // Consultar vendas existentes, inclusive as que ainda não geraram títulos.
+    // Sem inferir serviço pelo canal textual nem autorizar migração.
+    const { data: saleRows, error: saleError, count: saleCount } = await db.from("commercial_sales")
+      .select("id,internal_reference,channel,product_id,commercial_condition,status,start_date,end_date,installments_count,items_snapshot", { count: "exact" })
+      .eq("client_id", id)
+      .order("id").limit(FINANCE_PAGE_SIZE);
+    if (saleError || saleCount === null) return respond({ error: "Consulta temporariamente indisponível." }, 503);
+    const sales: JornalFinancePreviewResponse["sales"] = (saleRows ?? []).map((row) => ({
+      id: row.id as string,
+      reference: row.internal_reference as string,
+      channel: row.channel as string,
+      productId: row.product_id as string | null,
+      condition: row.commercial_condition as string,
+      status: row.status as string,
+      startDate: row.start_date as string,
+      endDate: row.end_date as string | null,
+      installmentsCount: Number(row.installments_count),
+      services: projectFinanceSaleServices(row.items_snapshot),
+    }));
+
     const response: JornalFinancePreviewResponse = {
       version: FINANCE_BRIDGE_VERSION,
       source: "jornal_ir",
       mode: "readonly",
       financeCutoverActive: false,
       canonicalClientId: id,
-      total: count ?? 0,
+      total: count,
       offset,
-      hasMore: offset + receivables.length < (count ?? 0),
+      hasMore: offset + receivables.length < count,
       receivables,
       receipts,
+      receiptsComplete,
+      sales,
+      salesTotal: saleCount,
+      salesComplete: saleCount === sales.length,
     };
     return respond(response);
   } catch {
