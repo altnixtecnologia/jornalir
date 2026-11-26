@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import {
   FINANCE_BRIDGE_VERSION, FINANCE_PAGE_SIZE, allowedFinanceClient,
-  canonicalIdOrNull, financeBridgeAuthorized, parseFinanceOffset,
+  canonicalIdOrNull, financeBridgeAuthorized, parseFinanceOffset, projectFinanceSaleServices,
 } from "../src/lib/integrations/altnixFinanceReadContract";
 const route=readFileSync(new URL("../src/app/api/integrations/altnix/finance-preview/route.ts",import.meta.url),"utf8");
 
@@ -56,9 +56,22 @@ test("identidade financeira preserva venda, competência e IDs de recibo sem tru
 
 test("vendas comerciais existentes são consultadas por cliente, inclusive sem recebível; completude explícita",()=>{
   assert.match(route,/\.from\("commercial_sales"\)/);
-  assert.match(route,/\.select\("id,internal_reference,channel,product_id,commercial_condition,status,start_date,end_date,installments_count", \{ count: "exact" \}\)\s*\.eq\("client_id", id\)/);
+  assert.match(route,/\.select\("id,internal_reference,channel,product_id,commercial_condition,status,start_date,end_date,installments_count,items_snapshot", \{ count: "exact" \}\)\s*\.eq\("client_id", id\)/);
   assert.match(route,/saleCount === null/);
   assert.match(route,/salesComplete: saleCount === sales.length/);
   assert.match(route,/if \(error \|\| count === null\)/);
   assert.doesNotMatch(route,/\.insert\(|\.update\(|\.upsert\(|\.delete\(|\.rpc\(/);
+});
+
+test("serviços de venda conjunta preservam identidade por item, sem inferência de cabeçalho",()=>{
+ const print={sourceProposalItemId:"direct-sale:1",serviceChannel:"newspaper",description:"não exportar"};
+ const led={sourceProposalItemId:"direct-sale:2",serviceChannel:"led_panel"};
+ assert.deepEqual(projectFinanceSaleServices([print,led]),[{itemKey:"direct-sale:1",serviceChannel:"newspaper"},{itemKey:"direct-sale:2",serviceChannel:"led_panel"}]);
+ assert.equal(projectFinanceSaleServices(null),null);
+ assert.equal(projectFinanceSaleServices([]),null);
+ assert.equal(projectFinanceSaleServices([print,print]),null);
+ assert.equal(projectFinanceSaleServices([{...led,serviceChannel:"tv inventada"}]),null);
+ assert.equal(projectFinanceSaleServices([{...led,sourceProposalItemId:""}]),null);
+ assert.deepEqual(projectFinanceSaleServices([{...led,serviceChannel:"package"}]),[{itemKey:"direct-sale:2",serviceChannel:"package"}]);
+ assert.match(route,/services: projectFinanceSaleServices\(row\.items_snapshot\)/);
 });

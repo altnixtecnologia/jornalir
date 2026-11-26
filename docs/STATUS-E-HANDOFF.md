@@ -1,5 +1,11 @@
 # Jornal IR — Status atual e passagem de contexto (HANDOFF)
 
+## 26/11/2026 — Inventário de serviços discriminados nas vendas (sem ativação)
+
+- API de diagnóstico agora projeta apenas chave de item e serviceChannel de items_snapshot imutável das vendas existentes; múltiplos serviços permanecem separados dentro da mesma venda. Sem snapshot, inválido, duplicado ou acima de 100 itens retorna services=null (não prova ausência de serviço); pacote genérico não implica LED. Chave composta venda + item, ainda não representa vínculo canônico de contrato/serviço ou autorização. Nenhum valor, descrição de item ou novo cadastro financeiro exportado por esta alteração.
+- Testes com venda conjunta impresso/LED e casos negativos; integração com consumidor PR #67, sem UI, dados, flags, cobrança, migration ou deploy. CI da nova revisão pendente.
+
+
 ## 26/11/2026 — Diretriz do operador: contratos por serviço e assinatura do jornal
 
 - Cadastro único; cliente pode ter N contratos comerciais. Um contrato pode conter um ou vários serviços discriminados (ex.: anúncio impresso, painel LED/TV digital); nova contratação posterior pode gerar contrato independente. Exemplo: anúncio impresso contratado hoje, LED dois meses depois = dois contratos; contratação conjunta = um documento com dois serviços. Não impor unicidade por cliente ou serviço; distinguir cada vínculo e vigência. Bloqueios, autorização de mídia, competência e cobrança devem respeitar o serviço/contrato; inadimplência de impresso não bloqueia automaticamente LED, nem vice-versa. No pacote, regras de alocação e condições contratuais devem ser explícitas; não presumir divisão por valor.

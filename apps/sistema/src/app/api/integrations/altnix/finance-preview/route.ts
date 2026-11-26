@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createSupabaseAdminClient } from "../../../../../lib/supabase/admin";
 import {
   FINANCE_BRIDGE_VERSION, FINANCE_PAGE_SIZE, allowedFinanceClient,
-  canonicalIdOrNull, financeBridgeAuthorized, parseFinanceOffset,
+  canonicalIdOrNull, financeBridgeAuthorized, parseFinanceOffset, projectFinanceSaleServices,
   type JornalFinancePreviewResponse,
 } from "../../../../../lib/integrations/altnixFinanceReadContract";
 
@@ -103,7 +103,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     // Consultar vendas existentes, inclusive as que ainda não geraram títulos.
     // Sem inferir serviço pelo canal textual nem autorizar migração.
     const { data: saleRows, error: saleError, count: saleCount } = await db.from("commercial_sales")
-      .select("id,internal_reference,channel,product_id,commercial_condition,status,start_date,end_date,installments_count", { count: "exact" })
+      .select("id,internal_reference,channel,product_id,commercial_condition,status,start_date,end_date,installments_count,items_snapshot", { count: "exact" })
       .eq("client_id", id)
       .order("id").limit(FINANCE_PAGE_SIZE);
     if (saleError || saleCount === null) return respond({ error: "Consulta temporariamente indisponível." }, 503);
@@ -117,6 +117,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       startDate: row.start_date as string,
       endDate: row.end_date as string | null,
       installmentsCount: Number(row.installments_count),
+      services: projectFinanceSaleServices(row.items_snapshot),
     }));
 
     const response: JornalFinancePreviewResponse = {

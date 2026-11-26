@@ -59,6 +59,31 @@ export type JornalFinanceReceiptPreview = {
 };
 
 /** Dados comerciais para revisão explícita; canal é snapshot textual, não prova de vínculo. */
+const SERVICE_CHANNELS = ["newspaper","website","led_panel","social_media","package","equipment_rental","other"] as const;
+export type JornalFinanceServicePreview = {
+  itemKey: string;
+  serviceChannel: typeof SERVICE_CHANNELS[number];
+};
+
+/** Usa somente a fotografia imutável da negociação. A chave é local à venda,
+ * não um UUID de contrato nem autorização financeira. Sem snapshot válido,
+ * não deduzir serviço pelo cabeçalho, catálogo atual ou nome do produto. */
+export function projectFinanceSaleServices(snapshot: unknown): JornalFinanceServicePreview[] | null {
+  if (!Array.isArray(snapshot) || snapshot.length === 0 || snapshot.length > 100) return null;
+  const seen = new Set<string>();
+  const services: JornalFinanceServicePreview[] = [];
+  for (const entry of snapshot) {
+    if (!entry || typeof entry !== "object" || Array.isArray(entry)) return null;
+    const key: unknown = entry.sourceProposalItemId;
+    const channel: unknown = entry.serviceChannel;
+    if (typeof key !== "string" || !key.trim() || key.length > 128 || seen.has(key)
+      || !SERVICE_CHANNELS.some(value => value === channel)) return null;
+    seen.add(key);
+    services.push({itemKey:key,serviceChannel:channel as JornalFinanceServicePreview["serviceChannel"]});
+  }
+  return services;
+}
+
 export type JornalFinanceSalePreview = {
   id: string;
   reference: string;
@@ -69,6 +94,7 @@ export type JornalFinanceSalePreview = {
   startDate: string;
   endDate: string | null;
   installmentsCount: number;
+  services: JornalFinanceServicePreview[] | null;
 };
 
 export type JornalFinancePreviewResponse = {
