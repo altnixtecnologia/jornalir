@@ -1,5 +1,10 @@
 # Jornal IR — Status atual e passagem de contexto (HANDOFF)
 
+## 26/11/2026 — Homologação: tenant real e isolamento do piloto cadastral
+
+- CI do head 9a4ee42 aprovada nos dois workflows, incluindo build e sandbox SQL. Revisão de pré-publicação identificou UUID PostgreSQL legado da conta principal (00000000-0000-0000-0000-000000000001), recusado pelo regex RFC anterior. Corrigida somente a validação de tenantId; demais IDs continuam estritos. Escrita, criação e vínculo HTTP restritos à conta principal, além dos grants SQL existentes; demais tenants não participam do piloto. Testes de regressão acrescentados; nova CI pendente. Sem ativar flags, permissões, banco ou deploy.
+
+
 ## 26/11/2026 — Roteiro de homologação e publicação exclusivamente cadastral
 
 **Separar o corte cadastral do financeiro.** Não executar limpeza financeira, criar títulos, ativar bridge financeiro, alterar contratos, mídias, APKs, playlists ou job de faturamento neste lote. Portal público não consulta dados pessoais nem recebe segredos; projetos Vercel Jornal portal e sistema são independentes. A integração usa exclusivamente controle.altnix.com.br, não o portal público.

@@ -3,7 +3,7 @@ import {createHash,timingSafeEqual} from "node:crypto";
 import {NextRequest,NextResponse} from "next/server";
 import {createSupabaseAdminClient} from "../../../../../../lib/supabase/admin";
 import {ALTNIX_CADASTRO_CREATE_RELEASED,parseCadastroCreateCommand,parseCadastroLinkCommand} from "../../../../../../lib/integrations/altnixCadastroCreateContract";
-import {ALTNIX_CADASTRO_WRITE_RELEASED} from "../../../../../../lib/integrations/altnixCadastroWriteContract";
+import {ALTNIX_CADASTRO_WRITE_RELEASED,altnixCadastroTenantAllowed} from "../../../../../../lib/integrations/altnixCadastroWriteContract";
 export const runtime="nodejs";
 export const dynamic="force-dynamic";
 function respond(value:unknown,status=200){return NextResponse.json(value,{status,headers:{"Cache-Control":"private, no-store","X-Content-Type-Options":"nosniff"}});}
@@ -16,6 +16,7 @@ export async function POST(request:NextRequest){
  try{const body=await request.text();if(body.length>8192)return respond({error:"invalid_command"},400);raw=JSON.parse(body);}catch{return respond({error:"invalid_command"},400);}
  const link=parseCadastroLinkCommand(raw);
  if(link){
+  if(!altnixCadastroTenantAllowed(link.tenantId))return respond({error:"permission_denied"},403);
   try{
    const {data,error}=await createSupabaseAdminClient().rpc("apply_altnix_client_link",{p_operation_id:link.operationId,p_tenant_id:link.tenantId,p_advertiser_id:link.advertiserId,p_actor_id:link.actorId,p_document:link.document}).single();
    if(error)return respond({error:error.code==="23505"?"operation_conflict":"approved_client_unavailable"},error.code==="23505"?409:error.code==="42501"?403:503);
@@ -26,6 +27,7 @@ export async function POST(request:NextRequest){
  }
  const command=parseCadastroCreateCommand(raw);
  if(!command)return respond({error:"invalid_command"},400);
+ if(!altnixCadastroTenantAllowed(command.tenantId))return respond({error:"permission_denied"},403);
  try{
   const {data,error}=await createSupabaseAdminClient().rpc("apply_altnix_client_create",{p_operation_id:command.operationId,p_tenant_id:command.tenantId,p_advertiser_id:command.advertiserId,p_actor_id:command.actorId,p_client:command.client});
   if(error){

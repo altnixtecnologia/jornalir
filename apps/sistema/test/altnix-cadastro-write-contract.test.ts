@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {readFileSync} from "node:fs";
-import {ALTNIX_CADASTRO_WRITE_RELEASED,parseCadastroWriteCommand} from "../src/lib/integrations/altnixCadastroWriteContract";
+import {ALTNIX_CADASTRO_WRITE_RELEASED,parseCadastroWriteCommand,altnixCadastroTenantAllowed} from "../src/lib/integrations/altnixCadastroWriteContract";
 const id="11111111-1111-4111-8111-111111111111";
 const cmd={operationId:id,tenantId:id,advertiserId:id,actorId:id,canonicalClientId:id,expectedUpdatedAt:"2026-11-26T12:00:00.123456+00:00",patch:{name:" Empresa ",phone:"(48) 3333-4444",whatsapp:"+55 48 98888-7777",email:"A@EXAMPLE.TEST",postalCode:"88900-000"}};
 test("valida e normaliza somente campos comuns; mantém timestamp exato",()=>{
@@ -21,3 +21,12 @@ test("trava de release e segredo de escrita separado",()=>{
 });
 
 test("preserva contato opcional; limpar WhatsApp ou e-mail não usa telefone como substituto",()=>{assert.deepEqual(parseCadastroWriteCommand({...cmd,patch:{whatsapp:null,email:null}})?.patch,{whatsapp:null,email:null});});
+
+test("piloto cadastral aceita tenant principal legado e mantém demais IDs estritos",()=>{
+ const tenantId="00000000-0000-0000-0000-000000000001";
+ assert.equal(parseCadastroWriteCommand({...cmd,tenantId})?.tenantId,tenantId);
+ assert.equal(parseCadastroWriteCommand({...cmd,canonicalClientId:tenantId}),null);
+ assert.equal(parseCadastroWriteCommand({...cmd,tenantId:"00000000-0000-0000-0000-000000000002"}),null);
+ assert.equal(altnixCadastroTenantAllowed(tenantId),true);
+ assert.equal(altnixCadastroTenantAllowed(id),false);
+});

@@ -3,6 +3,14 @@ import { onlyDigits } from "@ir/core";
 /** Release independente da leitura. Nenhum env libera sozinho uma escrita. */
 export const ALTNIX_CADASTRO_WRITE_RELEASED = false as boolean;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+/** Tenant principal: UUID PostgreSQL legado, sem bits RFC de versão/variante. */
+export const ALTNIX_PRIMARY_TENANT_ID = "00000000-0000-0000-0000-000000000001";
+export function validAltnixTenantId(value:unknown):value is string {
+  return typeof value==="string" && (value===ALTNIX_PRIMARY_TENANT_ID||UUID.test(value));
+}
+export function altnixCadastroTenantAllowed(value:unknown):boolean {
+  return value===ALTNIX_PRIMARY_TENANT_ID;
+}
 const FIELDS = ["name","tradeName","phone","whatsapp","email","postalCode","street","number","complement"] as const;
 type Field = typeof FIELDS[number];
 export type CadastroWriteCommand = {
@@ -17,7 +25,7 @@ const isObject=(v:unknown):v is Record<string,unknown> => Boolean(v && typeof v=
  * alterados por este comando. Cadastro novo terá contrato próprio. */
 export function parseCadastroWriteCommand(raw:unknown):CadastroWriteCommand|null {
   if(!isObject(raw)||Object.keys(raw).length!==keys.length||keys.some(k=>!Object.hasOwn(raw,k)))return null;
-  for(const k of keys.slice(0,5))if(typeof raw[k]!=="string"||!UUID.test(raw[k] as string))return null;
+  for(const k of keys.slice(0,5))if(k==="tenantId"?!validAltnixTenantId(raw[k]):typeof raw[k]!=="string"||!UUID.test(raw[k] as string))return null;
   if(typeof raw.expectedUpdatedAt!=="string"||!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{1,6})?(Z|[+-]\d{2}:\d{2})$/.test(raw.expectedUpdatedAt)||!Number.isFinite(Date.parse(raw.expectedUpdatedAt)))return null;
   if(!isObject(raw.patch)||!Object.keys(raw.patch).length||Object.keys(raw.patch).some(k=>!FIELDS.includes(k as Field)))return null;
   const patch:CadastroWriteCommand["patch"]={};

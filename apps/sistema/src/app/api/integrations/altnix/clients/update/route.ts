@@ -2,7 +2,7 @@ import "server-only";
 import { createHash, timingSafeEqual } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { createSupabaseAdminClient } from "../../../../../../lib/supabase/admin";
-import { ALTNIX_CADASTRO_WRITE_RELEASED, parseCadastroWriteCommand } from "../../../../../../lib/integrations/altnixCadastroWriteContract";
+import { ALTNIX_CADASTRO_WRITE_RELEASED, parseCadastroWriteCommand, altnixCadastroTenantAllowed } from "../../../../../../lib/integrations/altnixCadastroWriteContract";
 export const runtime="nodejs";
 export const dynamic="force-dynamic";
 function respond(payload:unknown,status=200){
@@ -18,6 +18,7 @@ export async function POST(request:NextRequest){
  try{const body=await request.text();if(body.length>8192)return respond({error:"invalid_command"},400);raw=JSON.parse(body);}catch{return respond({error:"invalid_command"},400);}
  const command=parseCadastroWriteCommand(raw);
  if(!command)return respond({error:"invalid_command"},400);
+ if(!altnixCadastroTenantAllowed(command.tenantId))return respond({error:"permission_denied"},403);
  try{
   const db=createSupabaseAdminClient();
   const {data,error}=await db.rpc("apply_altnix_client_update",{

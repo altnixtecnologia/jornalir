@@ -18,3 +18,12 @@ test("vínculo explícito exige documento válido e identidade completa; não ac
  for(const change of [{document:"11222333000180"},{document:"11.222.333/0001-81"},{mode:"create"},{actorId:"x"},{client:cmd.client}])assert.equal(parseCadastroLinkCommand({...link,...change}),null);
  assert.equal(parseCadastroCreateCommand(link),null);
 });
+
+test("tenant principal legado é válido exclusivamente no campo tenantId",()=>{
+ const tenantId="00000000-0000-0000-0000-000000000001";
+ assert.equal(parseCadastroCreateCommand({...cmd,tenantId})?.tenantId,tenantId);
+ assert.equal(parseCadastroCreateCommand({...cmd,actorId:tenantId}),null);
+ const link={mode:"link_existing",operationId:id,tenantId,advertiserId:id,actorId:id,document:"11222333000181"};
+ assert.equal(parseCadastroLinkCommand(link)?.tenantId,tenantId);
+ assert.equal(parseCadastroLinkCommand({...link,advertiserId:tenantId}),null);
+});
