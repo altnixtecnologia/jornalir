@@ -56,3 +56,24 @@ export function parseDigitalClientIds(raw: string): string[] | null {
       new Set(ids).size !== ids.length) return null;
   return ids;
 }
+
+/** Manifesto mínimo de clientes selecionados: cursor UUID e página limitada.
+ * Não mistura descoberta com a busca textual ou consulta de detalhes. */
+export function parseDigitalSelectionPage(params: URLSearchParams): { after: string | null } | null {
+  if (params.getAll("selected").length !== 1 || params.get("selected") !== "1" ||
+      params.getAll("after").length > 1) return null;
+  let valid = true;
+  params.forEach((_value, key) => { if (key !== "selected" && key !== "after") valid = false; });
+  if (!valid) return null;
+  const after = params.get("after");
+  if (after !== null && !DIGITAL_CLIENT_UUID.test(after)) return null;
+  return { after: after?.toLowerCase() ?? null };
+}
+
+export function digitalSelectionPage(ids: string[], after: string | null): { ids: string[]; nextAfter: string | null } | null {
+  if (ids.length > DIGITAL_CLIENT_BATCH_LIMIT + 1 || ids.some((id, index) =>
+    !DIGITAL_CLIENT_UUID.test(id) || id !== id.toLowerCase() ||
+    (index > 0 ? id <= ids[index - 1]! : after !== null && id <= after))) return null;
+  const page = ids.slice(0, DIGITAL_CLIENT_BATCH_LIMIT);
+  return { ids: page, nextAfter: ids.length > DIGITAL_CLIENT_BATCH_LIMIT ? page[page.length - 1]! : null };
+}

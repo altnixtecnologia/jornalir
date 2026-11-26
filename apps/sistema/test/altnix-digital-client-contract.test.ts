@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { ALTNIX_CLIENT_EXPORT_RELEASED, parseDigitalClientIds, toAltnixDigitalClient, sanitizeDigitalClientSearch } from "../src/lib/integrations/altnixDigitalClientContract";
+import { ALTNIX_CLIENT_EXPORT_RELEASED, parseDigitalClientIds, parseDigitalSelectionPage, digitalSelectionPage, toAltnixDigitalClient, sanitizeDigitalClientSearch } from "../src/lib/integrations/altnixDigitalClientContract";
 
 const data = {
   id: "11111111-1111-4111-8111-111111111111",
@@ -83,4 +83,28 @@ test("a seleção do Informativo reutiliza a autorização existente", () => {
   assert.ok(ui.includes('type="checkbox"'));
   assert.ok(ui.includes("setClientDigitalExportAction(clientId, next)"));
   assert.ok(!ui.includes("Pré-autorizar"));
+});
+
+test("manifesto selecionado: cursor estrito, sem busca mista e sem dados pessoais", () => {
+  assert.deepEqual(parseDigitalSelectionPage(new URLSearchParams("selected=1")), { after: null });
+  assert.deepEqual(parseDigitalSelectionPage(new URLSearchParams("selected=1&after="+data.id)), { after: data.id });
+  for (const raw of ["selected=0","selected=1&selected=1","selected=1&q=Maria","selected=1&id="+data.id,"selected=1&after=","selected=1&after=*&foo=1","after="+data.id]) {
+    assert.equal(parseDigitalSelectionPage(new URLSearchParams(raw)), null);
+  }
+  const ids=Array.from({length:21},(_,i)=>"11111111-1111-4111-8111-"+String(i+1).padStart(12,"0"));
+  assert.deepEqual(digitalSelectionPage(ids,null), {ids:ids.slice(0,20),nextAfter:ids[19]});
+  assert.deepEqual(digitalSelectionPage([ids[20]!],ids[19]!), {ids:[ids[20]],nextAfter:null});
+  assert.deepEqual(digitalSelectionPage([],null), {ids:[],nextAfter:null});
+  assert.equal(digitalSelectionPage([ids[0]!,ids[0]!],null),null);
+  assert.equal(digitalSelectionPage([ids[1]!,ids[0]!],null),null);
+  assert.equal(digitalSelectionPage([ids[0]!],ids[0]!),null);
+  const route=readFileSync(new URL("../src/app/api/integrations/altnix/clients/route.ts",import.meta.url),"utf8");
+  const start=route.indexOf("if (request.nextUrl.searchParams.has(\"selected\")");
+  const end=route.indexOf("const id = request.nextUrl.searchParams.get(\"id\")",start);
+  assert.ok(start>route.indexOf("if (!secretValid(request))") && end>start);
+  const manifest=route.slice(start,end);
+  assert.ok(manifest.includes('.select("id,client_digital_export_permissions!inner(enabled)")'));
+  assert.ok(manifest.includes('.eq("client_digital_export_permissions.enabled", true).eq("status", "active")'));
+  assert.ok(manifest.includes('.order("id", { ascending: true }).limit(DIGITAL_CLIENT_BATCH_LIMIT + 1)'));
+  assert.doesNotMatch(manifest,/\.insert\(|\.update\(|\.delete\(|\.upsert\(|\.rpc\(/);
 });

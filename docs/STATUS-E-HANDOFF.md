@@ -1,5 +1,10 @@
 # Jornal IR — Status atual e passagem de contexto (HANDOFF)
 
+## 26/11/2026 — Descoberta de novos clientes selecionados (preparação)
+
+- Homologação de leitura real: 4/4 seleções confirmadas no banco e 4/4 vínculos no diagnóstico do Informativo, conforme retorno do administrador. Builds READY promovidos para os domínios, sem recompilação. Retirar botão temporário ao concluir a integração definitiva (PR Informativo #70).
+- Preparação do manifesto paginado de IDs ativos selecionados, autenticado e sem dados pessoais adicionais: `selected=1`, cursor `after` opcional, até 20 IDs, sem escrita. Não disponibilizar ao navegador diretamente. Detalhes permanecem restritos à API exata por lote. Necessária implementação correspondente no Informativo, criação idempotente de âncora operacional sem ativação comercial, proteção de escrita e testes antes de liberar. Sem polling, heartbeat, deploy ou alterações no banco nesta revisão.
+
 ## 26/11/2026 — Seleção de serviços digitais no cadastro mestre (em desenvolvimento)
 
 - Decisão do proprietário às 15:58–16:00h: marcar o serviço no cadastro do Jornal IR é a autorização de leitura correspondente; nenhuma segunda aprovação. Reutilizar `client_digital_export_permissions.enabled` exclusivamente para Altnix Informativo e a RPC auditada existente. Não confundir papéis, catálogo comercial ou contratos com compartilhamento. Platform terá seleção própria e credencial/escopo próprios em sua fase; gerentes/operadores do Platform ficam no Platform, somente empresa/instituição cliente no Jornal. Não ampliar acesso Informativo a clientes exclusivos Platform. Não inventar segunda tabela de clientes.
