@@ -1,5 +1,14 @@
 # Jornal IR — Status atual e passagem de contexto (HANDOFF)
 
+## 26/11/2026 — Contratos por serviço: identidade canônica existente
+
+- CI da rodada financeira anterior aprovada nos dois repositórios (Jornal #145 e Informativo #72). A consulta de conciliação reutiliza `commercial_contract_packages.id` e `commercial_contract_services.id` e escopo da venda/cliente selecionado; exporta apenas identificadores, canal, vigência, modalidade de documento e status de revisão, com completude explícita. Não exporta documento, assinatura, texto jurídico ou dados pessoais. Aprovação jurídica não equivale a assinatura nem autorização de exibição/cobrança. Sem nova tabela de contratos, sem banco, flags, deploy ou emissão. Próxima CI deve validar a extensão coordenada; corte financeiro continua fechado.
+
+## 26/11/2026 — Cadastro publicado; retomada de contratos e financeiro
+
+- Cadastro definitivo publicado: Jornal PR #144, commit 737aca1, deployment dpl_5MzgXyvuLhax8GAh2bscovcdvn4E; Informativo PR #71, commit fce9861, deployment dpl_F3A66TtFXKiu9XjhfACvdpJBbyEw. Ambos READY e aliases conferidos, cutover cadastral ativo exclusivamente no tenant principal. Cinco workflows aprovados; homologação em sessão real ainda pendente. Quatro seleções e quatro vínculos ativos; proprietário único com um grant de criação e quatro de edição. Nenhuma operação de escrita em cliente registrada na última conferência. Botão de diagnóstico retirado. 
+- Retomada isolada da conciliação financeira a partir das versões oficiais, reaproveitando somente componentes financeiros das PRs #140/#67, sem migrations antigas nem alterações cadastrais. Inventário de venda por item/serviço, competência explícita, contagem de recibos e itens, proteção contra snapshots incompletos e revogação de seleção. Política de titularidade por contrato/fatura é preparatória, não autoriza emissão. Manter contrato permanente IR, demais registros históricos e 3 referências Asaas production até conferência do provedor. Não importar testes, não gerar cobrança e não alterar banco/flags/produção. Próxima etapa: vínculo comercial explícito e guarda SQL do financeiro legado antes de qualquer corte. CI desta revisão pendente.
+
 ## 26/11/2026 — Preparação da release cadastral definitiva
 
 - CI anterior dos dois repositórios aprovada (Jornal 2/2, Informativo 3/3). Branch de release habilita as constantes de criação e escrita, mantendo a exigência de ambiente production, segredo de escrita distinto, grants específicos e validação de identidade. A flag produtiva de escrita permanece desligada até CI desta revisão e publicação coordenada. Nenhum grant, cliente ou dado financeiro alterado nesta preparação. Jornal deve publicar primeiro; Informativo depende do manifesto e da migration atômica já aplicada no Informativo. Não publicar separadamente o portal público; evitar rebuilds intermediários. Homologar cadastro real com proprietário, sem gerar financeiro, contratos ou mensagens.

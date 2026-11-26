@@ -21,7 +21,7 @@ export function allowedFinanceClient(id: string, rawAllowlist: string | undefine
 }
 
 export function financeBridgeAuthorized(authorization: string | null, configured: string | undefined): boolean {
-  if (!configured || configured.length < 32 || !authorization?.startsWith("Bearer ")) return false;
+  if (!configured || configured.length < 32 || configured.length > 512 || !authorization?.startsWith("Bearer ")) return false;
   const supplied = authorization.slice(7);
   if (!supplied || supplied.length < 32 || supplied.length > 512) return false;
   return timingSafeEqual(
@@ -45,15 +45,66 @@ export type JornalFinanceReceivablePreview = {
   sourceId: string | null;
   sourceReference: string | null;
   contractId: string | null;
+  commercialSaleId: string | null;
+  installmentNumber: number | null;
+  competencyDate: string | null;
 };
 
 export type JornalFinanceReceiptPreview = {
+  id: string;
   receivableId: string;
   amount: number;
   receivedAt: string | null;
   reversed: boolean;
 };
 
+/** Dados comerciais para revisão explícita; canal é snapshot textual, não prova de vínculo. */
+const SERVICE_CHANNELS = ["newspaper","website","led_panel","social_media","package","equipment_rental","other"] as const;
+export type JornalFinanceServicePreview = {
+  itemKey: string;
+  serviceChannel: typeof SERVICE_CHANNELS[number];
+};
+
+/** Usa somente a fotografia imutável da negociação. A chave é local à venda,
+ * não um UUID de contrato nem autorização financeira. Sem snapshot válido,
+ * não deduzir serviço pelo cabeçalho, catálogo atual ou nome do produto. */
+export function projectFinanceSaleServices(snapshot: unknown): JornalFinanceServicePreview[] | null {
+  if (!Array.isArray(snapshot) || snapshot.length === 0 || snapshot.length > 100) return null;
+  const seen = new Set<string>();
+  const services: JornalFinanceServicePreview[] = [];
+  for (const entry of snapshot) {
+    if (!entry || typeof entry !== "object" || Array.isArray(entry)) return null;
+    const key: unknown = entry.sourceProposalItemId;
+    const channel: unknown = entry.serviceChannel;
+    if (typeof key !== "string" || !key.trim() || key.length > 128 || seen.has(key)
+      || !SERVICE_CHANNELS.some(value => value === channel)) return null;
+    seen.add(key);
+    services.push({itemKey:key,serviceChannel:channel as JornalFinanceServicePreview["serviceChannel"]});
+  }
+  return services;
+}
+
+export type JornalFinanceSalePreview = {
+  id: string;
+  reference: string;
+  channel: string;
+  productId: string | null;
+  condition: string;
+  status: string;
+  startDate: string;
+  endDate: string | null;
+  installmentsCount: number;
+  services: JornalFinanceServicePreview[] | null;
+};
+
+/** Identidade jurídica/operacional existente; legal_approved não equivale a assinatura. */
+export type JornalCommercialContractPreview = {
+  id: string;
+  saleId: string;
+  documentMode: "combined" | "separate";
+  status: "draft" | "pending_legal_review" | "legal_approved";
+  services: Array<{id:string; serviceChannel:string; itemOrdinal:number; startsOn:string|null; endsOn:string|null}>;
+};
 export type JornalFinancePreviewResponse = {
   version: typeof FINANCE_BRIDGE_VERSION;
   source: "jornal_ir";
@@ -65,4 +116,10 @@ export type JornalFinancePreviewResponse = {
   hasMore: boolean;
   receivables: JornalFinanceReceivablePreview[];
   receipts: JornalFinanceReceiptPreview[];
+  receiptsComplete: boolean;
+  sales: JornalFinanceSalePreview[];
+  salesTotal: number;
+  salesComplete: boolean;
+  contracts: JornalCommercialContractPreview[];
+  contractsComplete: boolean;
 };
