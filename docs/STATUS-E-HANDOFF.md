@@ -1,5 +1,10 @@
 # Jornal IR — Status atual e passagem de contexto (HANDOFF)
 
+## 26/11/2026 — Conciliação comercial: inventário de vendas no contrato existente (PR #140)
+
+- API de diagnóstico finance-preview inclui até 50 vendas do mesmo cliente, inclusive sem recebíveis, com IDs/referência, canal textual, produto opcional, condição, status, vigência e parcelas. Contagem explícita e salesComplete; erro de leitura/contagem ausente não vira lista vazia confirmada. Mantidas autenticação, allowlist, cache privado, flag e ausência de escrita. O canal da venda é snapshot de texto, não comprova vínculo com LED/TV; não inferir por cliente, nome, data ou valor.
+- Contrato complementar à PR #67: revisão por venda/contrato e competência, sem ativar financeiro. Versão anterior do consumidor não deve autorizar corte; consumidor atualizado deverá recusar ausência das vendas. Não criar títulos, contratos paralelos, permissões ou charges. Teste de escopo acrescentado ao workflow existente; execução da nova revisão pendente no momento deste registro. Sem alteração de produção, dados, migrations, UI ou APK.
+
 ## 26/11/2026 — Preparação cadastral Altnix (sem publicação)
 
 - Contrato de consulta existente preparado para devolver WhatsApp oficial somente por UUID, sem fallback para telefone. Mantidas travas de release, flag e permissão de exportação por cliente; nenhuma gravação, ativação ou alteração visual. Testes adicionados à CI existente. Diretriz: interface do Informativo intacta, Jornal IR mestre, legado preservado. Base oficial 81b9fb0; validar PR antes de integração.

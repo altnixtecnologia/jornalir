@@ -52,3 +52,13 @@ test("identidade financeira preserva venda, competência e IDs de recibo sem tru
   assert.match(route,/receiptsComplete = paidCount !== null/);
   assert.match(route,/\.order\("id"\)\.limit\(500\)/);
 });
+
+
+test("vendas comerciais existentes são consultadas por cliente, inclusive sem recebível; completude explícita",()=>{
+  assert.match(route,/\.from\("commercial_sales"\)/);
+  assert.match(route,/\.select\("id,internal_reference,channel,product_id,commercial_condition,status,start_date,end_date,installments_count", \{ count: "exact" \}\)\s*\.eq\("client_id", id\)/);
+  assert.match(route,/saleCount === null/);
+  assert.match(route,/salesComplete: saleCount === sales.length/);
+  assert.match(route,/if \(error \|\| count === null\)/);
+  assert.doesNotMatch(route,/\.insert\(|\.update\(|\.upsert\(|\.delete\(|\.rpc\(/);
+});

@@ -58,6 +58,19 @@ export type JornalFinanceReceiptPreview = {
   reversed: boolean;
 };
 
+/** Dados comerciais para revisão explícita; canal é snapshot textual, não prova de vínculo. */
+export type JornalFinanceSalePreview = {
+  id: string;
+  reference: string;
+  channel: string;
+  productId: string | null;
+  condition: string;
+  status: string;
+  startDate: string;
+  endDate: string | null;
+  installmentsCount: number;
+};
+
 export type JornalFinancePreviewResponse = {
   version: typeof FINANCE_BRIDGE_VERSION;
   source: "jornal_ir";
@@ -70,4 +83,7 @@ export type JornalFinancePreviewResponse = {
   receivables: JornalFinanceReceivablePreview[];
   receipts: JornalFinanceReceiptPreview[];
   receiptsComplete: boolean;
+  sales: JornalFinanceSalePreview[];
+  salesTotal: number;
+  salesComplete: boolean;
 };
