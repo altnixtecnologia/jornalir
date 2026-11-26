@@ -3,7 +3,20 @@ on:
   pull_request:
     branches: [solicitacoes-financeiro-contratos-irc-20261031]
     paths:
+      - "apps/sistema/src/lib/integrations/altnixCadastroCreateContract.ts"
+      - "supabase/migrations/20261126172000_altnix_cadastro_create_commands.sql"
+      - "apps/sistema/test/altnix-cadastro-create-contract.test.ts"
+      - "apps/sistema/src/lib/integrations/altnixCadastroWriteContract.ts"
+      - "apps/sistema/test/altnix-cadastro-write-contract.test.ts"
+      - "supabase/migrations/20261126170000_altnix_cadastro_write_commands.sql"
+      - "tests/security/altnix-cadastro-write-sandbox.sql"
+      - "apps/sistema/src/lib/integrations/altnixDigitalClientContract.ts"
+      - "apps/sistema/src/app/api/integrations/altnix/clients/**"
+      - "apps/sistema/test/altnix-digital-client-contract.test.ts"
+      - "apps/sistema/test/altnix-cadastro-canonico-contract.test.ts"
       - "apps/sistema/src/lib/integrations/altnixFinanceReadContract.ts"
+      - "apps/sistema/src/lib/integrations/altnixLinkPreview.ts"
+      - "apps/sistema/test/altnix-link-preview.test.ts"
       - "apps/sistema/src/app/api/integrations/altnix/finance-preview/**"
       - "apps/sistema/test/altnix-finance-bridge-readonly.test.ts"
       - ".github/workflows/validate-altnix-finance-preview-20261124.yml"
@@ -27,8 +40,34 @@ jobs:
           cache: npm
       - run: npm ci --no-audit --no-fund
       - name: Escopo, autenticação, recusa e somente leitura
-        run: npx tsx --test apps/sistema/test/altnix-finance-bridge-readonly.test.ts
+        run: npx tsx --test apps/sistema/test/altnix-finance-bridge-readonly.test.ts apps/sistema/test/altnix-digital-client-contract.test.ts apps/sistema/test/altnix-cadastro-canonico-contract.test.ts apps/sistema/test/altnix-cadastro-write-contract.test.ts apps/sistema/test/altnix-cadastro-create-contract.test.ts apps/sistema/test/altnix-link-preview.test.ts
       - name: TypeScript
         run: npm run typecheck --workspace @ir/sistema
       - name: Build sem deploy
         run: npm run build --workspace @ir/sistema
+
+  cadastro-sql-sandbox:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: sandbox_only
+          POSTGRES_DB: jornalir_sandbox
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d jornalir_sandbox"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      PGHOST: 127.0.0.1
+      PGUSER: postgres
+      PGPASSWORD: sandbox_only
+      PGDATABASE: jornalir_sandbox
+    steps:
+      - uses: actions/checkout@v4
+      - run: psql -v ON_ERROR_STOP=1 -f tests/security/altnix-cadastro-write-sandbox.sql
