@@ -1,5 +1,9 @@
 # Jornal IR — Status atual e passagem de contexto (HANDOFF)
 
+## 26/11/2026 — Preparação da release cadastral definitiva
+
+- CI anterior dos dois repositórios aprovada (Jornal 2/2, Informativo 3/3). Branch de release habilita as constantes de criação e escrita, mantendo a exigência de ambiente production, segredo de escrita distinto, grants específicos e validação de identidade. A flag produtiva de escrita permanece desligada até CI desta revisão e publicação coordenada. Nenhum grant, cliente ou dado financeiro alterado nesta preparação. Jornal deve publicar primeiro; Informativo depende do manifesto e da migration atômica já aplicada no Informativo. Não publicar separadamente o portal público; evitar rebuilds intermediários. Homologar cadastro real com proprietário, sem gerar financeiro, contratos ou mensagens.
+
 ## 26/11/2026 — Migration cadastral aplicada e conciliada
 
 - Aplicada em produção do Jornal IR a migration aditiva `save_client_with_informativo`, já validada pelos dois workflows do head 1d70f78, sem deploy ou alteração de registros de clientes. Ledger confirmado `20261126212452`; arquivo renomeado preservando o blob SQL e sandbox atualizado. RPC confirmada SECURITY INVOKER, EXECUTE para authenticated e negado a anon e service_role; a função exige admin/owner ativo. Informativo já possui as três migrations de infraestrutura (20261126182351/20261126182400/20261126182410), sem reaplicação. A ativação definitiva, as flags de código e os grants de escrita/criação ainda precisam de homologação coordenada. Produção anterior READY, sem nova compilação iniciada neste passo. Financeiro separado; não limpar faturas de teste sem verificar Asaas.

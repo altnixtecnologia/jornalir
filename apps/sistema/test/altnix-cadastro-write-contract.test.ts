@@ -12,7 +12,7 @@ test("valida e normaliza somente campos comuns; mantém timestamp exato",()=>{
  for(const change of [{actorId:"wrong"},{expectedUpdatedAt:"bad"},{unknown:1}])assert.equal(parseCadastroWriteCommand({...cmd,...change}),null);
 });
 test("trava de release e segredo de escrita separado",()=>{
- assert.equal(ALTNIX_CADASTRO_WRITE_RELEASED,false);
+ assert.equal(ALTNIX_CADASTRO_WRITE_RELEASED,true);
  const route=readFileSync(new URL("../src/app/api/integrations/altnix/clients/update/route.ts",import.meta.url),"utf8");
  assert.match(route,/!ALTNIX_CADASTRO_WRITE_RELEASED/);
  assert.match(route,/ALTNIX_CLIENT_WRITE_SECRET/);
