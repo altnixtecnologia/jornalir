@@ -49,6 +49,8 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     // Join obrigatório com a lista expressa de cadastros autorizados.
     let query = db.from("clients").select(
       "id,kind,status,full_name,company_name,trade_name,cpf,cnpj,phone_primary,email," +
+      (id ? "whatsapp," : "") +
+      "" +
       "address_zip,address_street,address_number,address_complement,address_city,address_state,updated_at," +
       "client_digital_export_permissions!inner(enabled)",
     ).eq("client_digital_export_permissions.enabled", true).eq("status", "active");
@@ -62,7 +64,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       return respond({ error: "Não foi possível consultar o cadastro digital." }, 503);
     }
     const clients = (data ?? []).map((row) =>
-      toAltnixDigitalClient(row as unknown as ExportableJornalClient),
+      toAltnixDigitalClient(row as unknown as ExportableJornalClient, Boolean(id)),
     ).filter((row): row is NonNullable<typeof row> => row !== null);
     return respond({ clients, count: clients.length, source: "jornalir", mode: "readonly" });
   } catch {

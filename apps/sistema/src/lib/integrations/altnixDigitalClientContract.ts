@@ -13,19 +13,19 @@ export const ALTNIX_CLIENT_EXPORT_RELEASED = false as boolean;
 export type ExportableJornalClient = {
   id: string; kind: "individual" | "company"; status: "active" | "inactive";
   full_name: string | null; company_name: string | null; trade_name: string | null;
-  cpf: string | null; cnpj: string | null; phone_primary: string | null;
+  cpf: string | null; cnpj: string | null; phone_primary: string | null; whatsapp?: string | null;
   email: string | null; address_zip: string | null; address_street: string | null;
   address_number: string | null; address_complement: string | null;
   address_city: string | null; address_state: string | null; updated_at: string;
 };
 export type AltnixDigitalClient = {
   masterClientId: string; name: string; tradeName: string | null;
-  document: string | null; phone: string | null; email: string | null;
+  document: string | null; phone: string | null; whatsapp?: string | null; email: string | null;
   postalCode: string | null; street: string | null; number: string | null;
   complement: string | null; city: string | null; region: string | null;
   updatedAt: string;
 };
-export function toAltnixDigitalClient(record: ExportableJornalClient): AltnixDigitalClient | null {
+export function toAltnixDigitalClient(record: ExportableJornalClient, includeCanonicalContact = false): AltnixDigitalClient | null {
   if (record.status !== "active") return null;
   const name = record.kind === "company" ? record.company_name : record.full_name;
   if (!name?.trim()) return null;
@@ -35,6 +35,7 @@ export function toAltnixDigitalClient(record: ExportableJornalClient): AltnixDig
     tradeName: record.kind === "company" ? record.trade_name : null,
     document: record.kind === "company" ? record.cnpj : record.cpf,
     phone: record.phone_primary, email: record.email,
+    ...(includeCanonicalContact ? { whatsapp: record.whatsapp ?? null } : {}),
     postalCode: record.address_zip, street: record.address_street,
     number: record.address_number, complement: record.address_complement,
     city: record.address_city, region: record.address_state,

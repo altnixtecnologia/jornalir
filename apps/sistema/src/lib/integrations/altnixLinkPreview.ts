@@ -32,6 +32,7 @@ export type LinkPreviewReason =
   | "conflicting_confirmed_links"
   | "confirmed_master_not_found"
   | "confirmed_document_mismatch"
+  | "confirmed_document_missing"
   | "duplicate_source_record";
 
 export type AdvertiserLinkPreview = {
@@ -44,8 +45,12 @@ export type AdvertiserLinkPreview = {
 };
 
 function normalizedDocument(value: string | null | undefined): string | null {
-  const digits = (value ?? "").replace(/\D/g, "");
-  return digits.length === 11 || digits.length === 14 ? digits : null;
+  const raw = (value ?? "").trim();
+  if (!raw || !/^[A-Za-z0-9.\/-]+$/.test(raw)) return null;
+  // Preservar CNPJ alfanumérico; o inventário é de formato/identidade,
+  // não de validação fiscal. A criação usa o validador oficial do core.
+  const document = raw.toUpperCase().replace(/[.\/-]/g, "");
+  return /^\d{11}$/.test(document) || /^[A-Z0-9]{12}[0-9]{2}$/.test(document) ? document : null;
 }
 
 function sourceKey(tenantId: string, adClientId: string): string {
@@ -98,7 +103,8 @@ export function previewInformativoAdvertiserLinks(
       const target = masterById.get(linked[0]);
       if (!target) return review("confirmed_master_not_found");
       const targetDocuments = [target.cpf, target.cnpj].map(normalizedDocument).filter(Boolean);
-      if (sourceDocument && targetDocuments.length && !targetDocuments.includes(sourceDocument)) {
+      if (!sourceDocument || !targetDocuments.length) return review("confirmed_document_missing");
+      if (!targetDocuments.includes(sourceDocument)) {
         return review("confirmed_document_mismatch");
       }
       return { ...base, status: "confirmed", masterClientId: linked[0], reason: "confirmed_link" };
