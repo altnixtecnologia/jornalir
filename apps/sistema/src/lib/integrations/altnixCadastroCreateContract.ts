@@ -25,8 +25,8 @@ export function parseCadastroCreateCommand(raw:unknown):CreateCommand|null{
  if(Boolean(city)!==Boolean(region)||region&&!/^(AC|AL|AP|AM|BA|CE|DF|ES|GO|MA|MT|MS|MG|PA|PB|PR|PE|PI|RJ|RN|RS|RO|RR|SC|SP|SE|TO)$/.test(region))return null;
  const p=parsed.patch;
  return {operationId:parsed.operationId,tenantId:parsed.tenantId,advertiserId:parsed.advertiserId,actorId:parsed.actorId,client:{
-  kind:individual?"individual":"company",status:"active",full_name:individual?p.name:null,company_name:individual?null:p.name,trade_name:individual?null:p.tradeName??null,
-  cpf:individual?document:null,cnpj:individual?null:document,phone_primary:p.phone??null,whatsapp:p.whatsapp,email:p.email,
+  kind:individual?"individual":"company",status:"active",full_name:individual?p.name??null:null,company_name:individual?null:p.name??null,trade_name:individual?null:p.tradeName??null,
+  cpf:individual?document:null,cnpj:individual?null:document,phone_primary:p.phone??null,whatsapp:p.whatsapp??null,email:p.email??null,
   address_zip:p.postalCode??null,address_street:p.street??null,address_number:p.number??null,address_complement:p.complement??null,address_city:city,address_state:region
  }};
 }
