@@ -59,11 +59,12 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
     const { data, error, count } = await db.from("receivables")
       .select(
-        "id,status,original_amount,issue_date,due_date,source_type,source_id,source_reference,contract_id",
+        "id,status,original_amount,issue_date,due_date,source_type,source_id,source_reference,contract_id,commercial_sale_id,installment_number,competency_date",
         { count: "exact" },
       )
       .eq("client_id", id)
       .order("created_at", { ascending: false })
+      .order("id", { ascending: false })
       .range(offset, offset + FINANCE_PAGE_SIZE - 1);
     if (error) return respond({ error: "Consulta temporariamente indisponível." }, 503);
     const receivables = (data ?? []).map((row) => ({
@@ -76,15 +77,22 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       sourceId: row.source_id as string | null,
       sourceReference: row.source_reference as string | null,
       contractId: row.contract_id as string | null,
+      commercialSaleId: row.commercial_sale_id as string | null,
+      installmentNumber: row.installment_number as number | null,
+      competencyDate: row.competency_date as string | null,
     }));
     const ids = receivables.map((row) => row.id);
     let receipts: JornalFinancePreviewResponse["receipts"] = [];
+    let receiptsComplete = true;
     if (ids.length) {
-      const { data: paid, error: paidError } = await db.from("receivable_receipts")
-        .select("receivable_id,amount,received_at,reversed_at")
-        .in("receivable_id", ids);
+      const { data: paid, error: paidError, count: paidCount } = await db.from("receivable_receipts")
+        .select("id,receivable_id,amount,received_at,reversed_at", { count: "exact" })
+        .in("receivable_id", ids)
+        .order("id").limit(500);
       if (paidError) return respond({ error: "Consulta temporariamente indisponível." }, 503);
+      receiptsComplete = paidCount !== null && paidCount === (paid ?? []).length;
       receipts = (paid ?? []).map((row) => ({
+        id: row.id as string,
         receivableId: row.receivable_id as string,
         amount: Number(row.amount),
         receivedAt: row.received_at as string | null,
@@ -103,6 +111,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       hasMore: offset + receivables.length < (count ?? 0),
       receivables,
       receipts,
+      receiptsComplete,
     };
     return respond(response);
   } catch {

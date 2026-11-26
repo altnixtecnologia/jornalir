@@ -45,3 +45,10 @@ test("rota só lê tabela de recebíveis e recibos e NÃO reabre exportação ou
   assert.doesNotMatch(route,/cpf|cnpj|whatsapp|phone_primary|asaas_|pix_copy_paste/);
   assert.match(route,/financeCutoverActive: false/);
 });
+
+test("identidade financeira preserva venda, competência e IDs de recibo sem truncamento silencioso",()=>{
+  assert.match(route,/commercial_sale_id,installment_number,competency_date/);
+  assert.match(route,/\.select\("id,receivable_id,amount,received_at,reversed_at", \{ count: "exact" \}\)/);
+  assert.match(route,/receiptsComplete = paidCount !== null/);
+  assert.match(route,/\.order\("id"\)\.limit\(500\)/);
+});

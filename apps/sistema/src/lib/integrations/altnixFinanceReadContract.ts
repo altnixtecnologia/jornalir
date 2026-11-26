@@ -45,9 +45,13 @@ export type JornalFinanceReceivablePreview = {
   sourceId: string | null;
   sourceReference: string | null;
   contractId: string | null;
+  commercialSaleId: string | null;
+  installmentNumber: number | null;
+  competencyDate: string | null;
 };
 
 export type JornalFinanceReceiptPreview = {
+  id: string;
   receivableId: string;
   amount: number;
   receivedAt: string | null;
@@ -65,4 +69,5 @@ export type JornalFinancePreviewResponse = {
   hasMore: boolean;
   receivables: JornalFinanceReceivablePreview[];
   receipts: JornalFinanceReceiptPreview[];
+  receiptsComplete: boolean;
 };
