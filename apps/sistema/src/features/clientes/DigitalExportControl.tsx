@@ -4,36 +4,41 @@ import { useState, useTransition } from "react";
 import { setClientDigitalExportAction } from "../../app/sistema/clientes/digital-export-actions";
 import { notify } from "../../lib/feedback/notify";
 
+/** A seleção do serviço é a própria autorização cadastral, sem uma
+ * segunda aprovação. Reutiliza a tabela e o RPC auditado existentes. */
 export function DigitalExportControl({
   clientId, initiallyEnabled, clientActive,
 }: { clientId: string; initiallyEnabled: boolean; clientActive: boolean }): JSX.Element {
   const [enabled, setEnabled] = useState(initiallyEnabled);
   const [pending, start] = useTransition();
-  function change(): void {
+  function change(next: boolean): void {
+    if (pending || (next && !clientActive) || next === enabled) return;
     start(async () => {
-      const result = await setClientDigitalExportAction(clientId, !enabled);
+      const result = await setClientDigitalExportAction(clientId, next);
       if ("error" in result) {
-        notify.error("Não foi possível salvar", result.error);
+        notify.error("Não foi possível salvar o serviço", result.error);
       } else {
-        setEnabled(!enabled);
-        notify.success(!enabled ? "Pré-autorização registrada" : "Pré-autorização revogada", !enabled
-          ? "Registrada para etapa futura. A comunicação com o Altnix segue desligada."
-          : "Nenhum dado foi enviado ao Altnix.");
+        setEnabled(next);
+        notify.success(next ? "Altnix Informativo vinculado" : "Altnix Informativo desvinculado",
+          next ? "Cadastro disponível para consulta quando a integração estiver habilitada."
+          : "Novas consultas cadastrais pelo serviço deixam de ser autorizadas.");
       }
     });
   }
   return <section className="form-section">
-    <h2>Integração de cadastro digital — Altnix Informativo</h2>
+    <h2>Serviços digitais vinculados</h2>
     <p className="helper-text">
-      Apenas registra a pré-autorização interna de identidade, contato e endereço para uma etapa futura.
-      A integração com o Altnix Informativo está DESLIGADA, mesmo com pré-autorização.
-      Não envia dados nem cria mídia, contrato, cobrança, playlist ou equipamento.
+      Selecione os serviços utilizados pelo cliente. O cadastro principal permanece no Jornal IR.
+      A seleção permite compartilhar somente os dados cadastrais necessários, sem criar contratos,
+      cobranças, mídias ou equipamentos e sem alterar operações existentes.
     </p>
-    <p className="helper-text">Estado: <strong>{enabled ? "Pré-autorizado; conexão desligada" : "Sem pré-autorização; conexão desligada"}</strong></p>
-    <button type="button" className="form-action-primary"
-      disabled={pending || (!enabled && !clientActive)} onClick={change}>
-      {pending ? "Salvando..." : enabled ? "Revogar pré-autorização" : "Pré-autorizar para integração futura"}
-    </button>
-    {!clientActive && !enabled ? <p className="helper-text">Ative o cliente antes de liberar dados.</p> : null}
+    <label>
+      <input type="checkbox" checked={enabled}
+        disabled={pending || (!enabled && !clientActive)}
+        onChange={(event) => change(event.target.checked)} />
+      {" "}Altnix Informativo
+    </label>
+    {pending ? <p className="helper-text" role="status">Salvando...</p> : null}
+    {!clientActive && !enabled ? <p className="helper-text">Ative o cadastro antes de vincular o serviço.</p> : null}
   </section>;
 }

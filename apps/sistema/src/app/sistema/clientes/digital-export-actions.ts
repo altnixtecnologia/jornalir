@@ -11,11 +11,11 @@ export async function setClientDigitalExportAction(clientId: string, enabled: bo
   const { data: user, error: authError } = await client.auth.getUser();
   if (authError || !user.user) return { error: "Sessão inválida." };
   const { data: allowed, error: permissionError } = await client.rpc("is_active_admin_or_owner");
-  if (permissionError || allowed !== true) return { error: "Somente um administrador pode liberar a integração." };
+  if (permissionError || allowed !== true) return { error: "Seu usuário não pode alterar serviços digitais vinculados." };
   const { data, error } = await client.rpc("set_client_digital_export_permission", {
     p_client_id: clientId, p_enabled: enabled,
   });
-  if (error || data !== true) return { error: error?.message || "Não foi possível registrar a autorização." };
+  if (error || data !== true) return { error: error?.message || "Não foi possível salvar o serviço." };
   revalidatePath("/sistema/clientes/" + clientId);
   return { ok: true };
 }
