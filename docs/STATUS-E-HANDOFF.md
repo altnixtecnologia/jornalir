@@ -1,5 +1,12 @@
 # Jornal IR — Status atual e passagem de contexto (HANDOFF)
 
+## 26/11/2026 — Decisão revisada: iniciar o financeiro Altnix sem importar testes
+
+- Operador esclareceu às 14:21 BRT que faturas, contratos e demais dados financeiros do Informativo eram de testes e não devem ser importados. Manter cadastros e mídias, vínculos operacionais e funcionamento do Informativo Regional, contrato interno permanente sem mensalidade/vencimento. Não zerar o financeiro existente do Jornal IR: a limpeza refere-se exclusivamente ao legado de testes do Altnix Informativo.
+- Inventário read-only no Informativo: 15 contratos de teste além do permanente, 13 faturas e 4 pagamentos; três faturas referenciam Asaas production. Verificar provedor e preservar evidências antes de limpeza; nenhum estorno/cancelamento ou execução em produção autorizado por este registro.
+- Direção: reaproveitar commercial_sales, receivables e integração Asaas oficiais para operações novas, sem criar financeiro paralelo, sem importar títulos de teste, mantendo interface existente e regras de serviço/contrato. A API de conciliação e os testes anteriores ficam úteis para verificação e prevenção de duplicidade, mas não exigem correspondência de cada fatura de teste. Guardas de autoridade, provisionamento comercial, recorrência, portal e homologação permanecem pendentes. Não mudar flags, publicar ou limpar registros nesta etapa.
+
+
 ## 26/11/2026 — Conciliação comercial: inventário de vendas no contrato existente (PR #140)
 
 - API de diagnóstico finance-preview inclui até 50 vendas do mesmo cliente, inclusive sem recebíveis, com IDs/referência, canal textual, produto opcional, condição, status, vigência e parcelas. Contagem explícita e salesComplete; erro de leitura/contagem ausente não vira lista vazia confirmada. Mantidas autenticação, allowlist, cache privado, flag e ausência de escrita. O canal da venda é snapshot de texto, não comprova vínculo com LED/TV; não inferir por cliente, nome, data ou valor.
