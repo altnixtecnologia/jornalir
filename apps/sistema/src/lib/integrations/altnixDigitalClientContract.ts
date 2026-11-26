@@ -1,10 +1,7 @@
-/** TRAVA DE RELEASE — decisão do proprietário em 24/10/2026.
- * Não habilitar via variável de ambiente. A conexão com Altnix e o
- * controle de mídias só serão publicados em bloco futuro, após
- * homologação e autorização EXPRESSA. É necessária alteração de código
- * revisada para liberar: não mudar este valor nesta PR.
- */
-export const ALTNIX_CLIENT_EXPORT_RELEASED = false as boolean;
+/** Homologação de leitura autorizada em 26/11/2026. O ambiente ainda
+ * precisa liberar ALTNIX_CLIENT_SYNC_ENABLED; autenticação e aprovação
+ * explícita por cliente continuam obrigatórias. Escrita permanece desligada. */
+export const ALTNIX_CLIENT_EXPORT_RELEASED = true as boolean;
 
 /** Contrato mínimo e deliberadamente limitado de cadastro Jornal IR → Altnix.
  * Proibido transportar estados operacionais, dados fiscais internos, crédito,

@@ -14,7 +14,7 @@ function respond(payload: unknown, status = 200): NextResponse {
 }
 function secretValid(request: NextRequest): boolean {
   const configured = process.env.ALTNIX_CLIENT_SYNC_SECRET;
-  if (!configured || configured.length < 32) return false;
+  if (!configured || configured.length < 32 || configured.length > 512) return false;
   const auth = request.headers.get("authorization") || "";
   if (!auth.startsWith("Bearer ")) return false;
   const supplied = auth.slice(7);
@@ -27,13 +27,12 @@ function secretValid(request: NextRequest): boolean {
  * key no browser. Disponível só após ativação manual em ambiente homologado.
  */
 export async function GET(request: NextRequest): Promise<NextResponse> {
-  // Este bloqueio exige mudança de código deliberada em release futuro.
-  // Nem segredo válido nem variável de ambiente podem ligar a integração
-  // acidentalmente antes da homologação e do aval do proprietário.
+  // Piloto: somente produção, segredo exclusivo e aprovação individual.
+  // A liberação de leitura não autoriza nenhuma escrita.
   if (!ALTNIX_CLIENT_EXPORT_RELEASED) {
     return respond({ error: "Integração Jornal IR–Altnix ainda não autorizada para ativação." }, 503);
   }
-  if (process.env.ALTNIX_CLIENT_SYNC_ENABLED !== "true") {
+  if (process.env.VERCEL_ENV !== "production" || process.env.ALTNIX_CLIENT_SYNC_ENABLED !== "true") {
     return respond({ error: "Integração de clientes desativada." }, 503);
   }
   if (!secretValid(request)) return respond({ error: "Não autorizado." }, 401);

@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { ALTNIX_CLIENT_EXPORT_RELEASED, toAltnixDigitalClient, sanitizeDigitalClientSearch } from "../src/lib/integrations/altnixDigitalClientContract";
 
 const data = {
@@ -38,10 +39,18 @@ test("busca rejeita filtro sem conteúdo e neutraliza sintaxe da query", () => {
   assert.equal(sanitizeDigitalClientSearch("  Maria, (x)  "),"Maria x");
 });
 
-test("integração remota não foi liberada neste release, independentemente de ambiente", () => {
-  // A rota consulta esta trava ANTES de segredo, env, sessão e banco.
-  // Alterar o valor exige revisão e autorização específica no release futuro.
-  assert.equal(ALTNIX_CLIENT_EXPORT_RELEASED, false);
+test("piloto de leitura exige produção, env, segredo e autorização individual; sem escrita", () => {
+  assert.equal(ALTNIX_CLIENT_EXPORT_RELEASED, true);
+  const route=readFileSync(new URL("../src/app/api/integrations/altnix/clients/route.ts",import.meta.url),"utf8");
+  assert.match(route,/process\.env\.VERCEL_ENV !== "production"/);
+  assert.match(route,/process\.env\.ALTNIX_CLIENT_SYNC_ENABLED !== "true"/);
+  assert.match(route,/if \(!secretValid\(request\)\)/);
+  assert.match(route,/client_digital_export_permissions!inner\(enabled\)/);
+  assert.match(route,/\.eq\("client_digital_export_permissions.enabled", true\)\.eq\("status", "active"\)/);
+  // createHash().update() é operação criptográfica, não gravação no banco.
+  const databaseSection=route.slice(route.indexOf("const db = createSupabaseAdminClient()"));
+  assert.ok(databaseSection.startsWith("const db = createSupabaseAdminClient()"));
+  assert.doesNotMatch(databaseSection,/\.insert\(|\.update\(|\.delete\(|\.upsert\(|\.rpc\(/);
 });
 
 test("WhatsApp canônico apenas na consulta por ID; jamais telefone como fallback", () => {
