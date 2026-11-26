@@ -1,5 +1,9 @@
 # Jornal IR — Status atual e passagem de contexto (HANDOFF)
 
+## 26/11/2026 — Migration cadastral aplicada e conciliada
+
+- Aplicada em produção do Jornal IR a migration aditiva `save_client_with_informativo`, já validada pelos dois workflows do head 1d70f78, sem deploy ou alteração de registros de clientes. Ledger confirmado `20261126212452`; arquivo renomeado preservando o blob SQL e sandbox atualizado. RPC confirmada SECURITY INVOKER, EXECUTE para authenticated e negado a anon e service_role; a função exige admin/owner ativo. Informativo já possui as três migrations de infraestrutura (20261126182351/20261126182400/20261126182410), sem reaplicação. A ativação definitiva, as flags de código e os grants de escrita/criação ainda precisam de homologação coordenada. Produção anterior READY, sem nova compilação iniciada neste passo. Financeiro separado; não limpar faturas de teste sem verificar Asaas.
+
 ## 26/11/2026 — Seleção do Informativo ao criar cadastro (preparação)
 
 - Detectada lacuna da seleção somente na ficha existente. Novo cadastro permite marcar Informativo antes de salvar, exclusivamente owner/admin e cadastro ativo. A nova RPC invocadora chama `save_client` e `set_client_digital_export_permission` na mesma transação; sem segunda autorização, nova tabela ou escrita direta no banco. Cadastro sem seleção mantém caminho anterior. Incluídos teste de contrato e sandbox de atomicidade, permissões e duplicidade. Migration preparada na branch, não aplicada; requer CI e conciliação do ledger antes de publicar. Sem deploy ou alteração de banco real nesta revisão.

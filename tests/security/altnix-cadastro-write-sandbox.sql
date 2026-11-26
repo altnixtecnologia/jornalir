@@ -94,7 +94,7 @@ begin
  return true;
 end;
 $stub$;
-\ir ../../supabase/migrations/20261126203048_save_client_with_informativo.sql
+\ir ../../supabase/migrations/20261126212452_save_client_with_informativo.sql
 do $select_test$
 declare c uuid;n integer; payload jsonb:='{"kind":"individual","status":"active","full_name":"Novo teste","cpf":"52998224725","email":"new@example.test"}';
 begin
