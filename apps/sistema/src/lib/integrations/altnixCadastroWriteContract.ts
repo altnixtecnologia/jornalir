@@ -34,11 +34,11 @@ export function parseCadastroWriteCommand(raw:unknown):CadastroWriteCommand|null
         normalized=onlyDigits(normalized);
         if(!/^(?:\d{10,11}|55\d{10,11})$/.test(normalized))return null;
         if(normalized.length>11)normalized=normalized.slice(2);
-      }else if(key==="whatsapp")return null;
+      }
     }
     if(key==="email"){
-      if(!normalized||!/^\S+@[^\s@]+\.[^\s@]+$/.test(normalized)||normalized.split("@").length!==2)return null;
-      normalized=normalized.toLowerCase();
+      if(normalized&&(!/^\S+@[^\s@]+\.[^\s@]+$/.test(normalized)||normalized.split("@").length!==2))return null;
+      normalized=normalized?.toLowerCase()??null;
     }
     if(key==="postalCode"&&normalized){
       if(!/^\d{5}-?\d{3}$/.test(normalized))return null;

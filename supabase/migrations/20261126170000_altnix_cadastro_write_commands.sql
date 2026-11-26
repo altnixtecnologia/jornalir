@@ -43,9 +43,9 @@ begin
   raise exception 'invalid fields' using errcode='22023';
  end if;
  if (p_patch?'name' and nullif(btrim(p_patch->>'name'),'') is null)
- or (p_patch?'whatsapp' and coalesce(p_patch->>'whatsapp','') !~ '^[0-9]{10,11}$')
+ or (p_patch?'whatsapp' and p_patch->>'whatsapp' is not null and p_patch->>'whatsapp' !~ '^[0-9]{10,11}$')
  or (p_patch?'phone' and p_patch->>'phone' is not null and p_patch->>'phone' !~ '^[0-9]{10,11}$')
- or (p_patch?'email' and coalesce(p_patch->>'email','') !~ '^[^[:space:]@]+@[^[:space:]@]+\.[^[:space:]@]+$')
+ or (p_patch?'email' and p_patch->>'email' is not null and p_patch->>'email' !~ '^[^[:space:]@]+@[^[:space:]@]+\.[^[:space:]@]+$')
  or (p_patch?'postalCode' and p_patch->>'postalCode' is not null and p_patch->>'postalCode' !~ '^[0-9]{8}$') then
   raise exception 'invalid contact' using errcode='22023';
  end if;

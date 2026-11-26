@@ -19,7 +19,7 @@ begin
  perform 1 from public.altnix_client_create_grants where tenant_id=p_tenant_id and actor_id=p_actor_id and enabled for share;
  if not found then raise exception 'permission denied' using errcode='42501';end if;
  if exists(select 1 from jsonb_each(p_client) e where e.key not in ('kind','status','full_name','company_name','trade_name','cpf','cnpj','phone_primary','whatsapp','email','address_zip','address_street','address_number','address_complement','address_city','address_state') or jsonb_typeof(e.value) not in ('string','null') or length(e.value#>>'{}')>300) then raise exception 'invalid fields' using errcode='22023';end if;
- if coalesce(p_client->>'status','')<>'active' or coalesce(p_client->>'kind','') not in ('individual','company') or coalesce(p_client->>'whatsapp','') !~ '^[0-9]{10,11}$' or coalesce(p_client->>'email','') !~ '^[^[:space:]@]+@[^[:space:]@]+\.[^[:space:]@]+$' then raise exception 'invalid contact' using errcode='22023';end if;
+ if coalesce(p_client->>'status','')<>'active' or coalesce(p_client->>'kind','') not in ('individual','company') or (p_client->>'whatsapp' is not null and p_client->>'whatsapp' !~ '^[0-9]{10,11}$') or coalesce(p_client->>'email','') !~ '^[^[:space:]@]+@[^[:space:]@]+\.[^[:space:]@]+$' then raise exception 'invalid contact' using errcode='22023';end if;
  if p_client->>'kind'='individual' then
   if nullif(btrim(p_client->>'full_name'),'') is null or coalesce(p_client->>'cpf','') !~ '^[0-9]{11}$' or p_client->>'cnpj' is not null or p_client->>'company_name' is not null or p_client->>'trade_name' is not null then raise exception 'invalid identity' using errcode='22023';end if;
  else

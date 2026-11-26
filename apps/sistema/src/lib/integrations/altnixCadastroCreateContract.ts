@@ -10,7 +10,7 @@ export function parseCadastroCreateCommand(raw:unknown):CreateCommand|null{
  if(!v.client||typeof v.client!=="object"||Array.isArray(v.client))return null;
  const c=v.client as Record<string,unknown>;
  const fields=["kind","document","name","tradeName","phone","whatsapp","email","postalCode","street","number","complement","city","region"];
- if(Object.keys(c).some(k=>!fields.includes(k))||!["individual","company"].includes(c.kind as string)||typeof c.document!=="string"||typeof c.name!=="string"||typeof c.whatsapp!=="string"||typeof c.email!=="string")return null;
+ if(Object.keys(c).some(k=>!fields.includes(k))||!["individual","company"].includes(c.kind as string)||typeof c.document!=="string"||typeof c.name!=="string"||(c.whatsapp!=null&&typeof c.whatsapp!=="string")||typeof c.email!=="string")return null;
  if(!/^[A-Za-z0-9.\/-]+$/.test(c.document))return null;
  const individual=c.kind==="individual";
  if(individual&&!/^[0-9.-]+$/.test(c.document))return null;
@@ -18,7 +18,7 @@ export function parseCadastroCreateCommand(raw:unknown):CreateCommand|null{
  if(!(individual?isValidCpf(document):isValidCnpj(document)))return null;
  const patch=Object.fromEntries(Object.entries(c).filter(([k])=>!["kind","document","city","region"].includes(k)));
  const parsed=parseCadastroWriteCommand({operationId:v.operationId,tenantId:v.tenantId,advertiserId:v.advertiserId,actorId:v.actorId,canonicalClientId:v.advertiserId,expectedUpdatedAt:"2026-01-01T00:00:00Z",patch});
- if(!parsed||!parsed.patch.name||!parsed.patch.whatsapp||!parsed.patch.email||(individual&&parsed.patch.tradeName))return null;
+ if(!parsed||!parsed.patch.name||!parsed.patch.email||(individual&&parsed.patch.tradeName))return null;
  if([c.city,c.region].some(x=>x!=null&&(typeof x!=="string"||x.length>100||/[\u0000-\u001f\u007f]/.test(x))))return null;
  const city=typeof c.city==="string"?c.city.trim()||null:null;
  const region=typeof c.region==="string"?c.region.trim().toUpperCase()||null:null;
