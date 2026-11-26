@@ -43,3 +43,12 @@ test("integração remota não foi liberada neste release, independentemente de 
   // Alterar o valor exige revisão e autorização específica no release futuro.
   assert.equal(ALTNIX_CLIENT_EXPORT_RELEASED, false);
 });
+
+test("WhatsApp canônico apenas na consulta por ID; jamais telefone como fallback", () => {
+  const row = {...data, whatsapp: "48988887777"};
+  assert.equal(toAltnixDigitalClient(row)?.whatsapp, undefined);
+  assert.equal(toAltnixDigitalClient(row,true)?.whatsapp, row.whatsapp);
+  assert.equal(toAltnixDigitalClient({...row,whatsapp:null},true)?.whatsapp,null);
+  assert.equal(toAltnixDigitalClient(data,true)?.whatsapp,null);
+  assert.equal(toAltnixDigitalClient(row,true)?.phone, data.phone_primary);
+});

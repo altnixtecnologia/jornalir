@@ -30,3 +30,7 @@ No último diagnóstico do banco do Informativo: 16 anunciantes, 0 com `jornalir
 5. Depois de backup, testes, reconciliação e plano de reversão, habilitar o fluxo de produção autorizado. Preservar sempre mídias, aparelhos e veiculações.
 
 **Fora do escopo agora:** sincronização de dados reais, associação de cliente por documento, novas cobranças, alteração de permissões, envio de códigos, publicação de APK, acionamento de equipamentos ou migração financeira.
+
+## 26/11/2026 — Interface preservada, preparação de consulta
+
+A mesma API cadastral existente passa a preparar o campo WhatsApp canônico apenas na consulta por UUID exato (`id`); buscas por nome não retornam esse campo. Mantidas a trava de release `false`, a flag, o segredo server-side, o consentimento individual e a exigência de cliente ativo. O telefone principal nunca substitui WhatsApp. O Informativo conserva seu layout e formato de dados, com adaptador de leitura e futuras gravações no mestre. Nada é apagado nem replicado fisicamente. Não habilitar a integração, alterar autorizações, emitir cobrança ou publicar sem decisão separada. A documentação financeira de 24/11 registra quatro vínculos já existentes, sem corte financeiro.

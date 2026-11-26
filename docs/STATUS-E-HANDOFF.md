@@ -1,5 +1,9 @@
 # Jornal IR — Status atual e passagem de contexto (HANDOFF)
 
+## 26/11/2026 — Preparação cadastral Altnix (sem publicação)
+
+- Contrato de consulta existente preparado para devolver WhatsApp oficial somente por UUID, sem fallback para telefone. Mantidas travas de release, flag e permissão de exportação por cliente; nenhuma gravação, ativação ou alteração visual. Testes adicionados à CI existente. Diretriz: interface do Informativo intacta, Jornal IR mestre, legado preservado. Base oficial 81b9fb0; validar PR antes de integração.
+
 > **Registro em 17/10/2026, a partir dos relatórios fornecidos pelo usuário do Claude Code local.** Não representa verificação independente dos arquivos locais por ChatGPT. Atualizar após cada lote; nunca tratar este snapshot como estado definitivo.
 
 ## Onde desenvolver
