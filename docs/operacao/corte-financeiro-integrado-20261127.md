@@ -1,5 +1,9 @@
 # Corte financeiro Jornal IR ↔ Altnix Informativo — 27/11/2026
 
+## 27/11/2026 — Diretriz atualizada pelo proprietário: valores históricos são testes
+
+- Proprietário confirmou que os valores discutidos são de testes e pediu para não insistir neles. A conferência Asaas legada não é mais condição para avançar na homologação do financeiro novo; não recuperar a integração financeira antiga, não refazer consultas externas nem publicar correções apenas para isso. Comunicação real Jornal/Informativo e Asaas Jornal já aprovados. Preservar histórico, recibos, logs, referências e contrato permanente até limpeza controlada, sem cancelar/estornar pagamentos externos. Próximo passo: homologar escrita de serviços com entrega aos aparelhos ainda protegida, planejar desativação das rotinas financeiras antigas e ativação do Jornal como única fonte. Esta diretriz prevalece sobre os bloqueios de conferência legada nos registros anteriores. Nenhuma alteração de dados, flags ou deploy nesta rodada.
+
 ## Ordem executável (não confundir instalação com ativação)
 
 1. CI da revisão exata dos dois repositórios, inclusive teste integral do schema Informativo. Confirmar PRs #146 e #73; não integrar outra branch por engano. Migrations oficiais já instaladas nos dois bancos, não reaplicar.

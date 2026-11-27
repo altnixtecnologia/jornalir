@@ -1,5 +1,9 @@
 # Jornal IR — Status atual e passagem de contexto (HANDOFF)
 
+## 27/11/2026 — Diretriz atualizada pelo proprietário: valores históricos são testes
+
+- Proprietário confirmou que os valores discutidos são de testes e pediu para não insistir neles. A conferência Asaas legada não é mais condição para avançar na homologação do financeiro novo; não recuperar a integração financeira antiga, não refazer consultas externas nem publicar correções apenas para isso. Comunicação real Jornal/Informativo e Asaas Jornal já aprovados. Preservar histórico, recibos, logs, referências e contrato permanente até limpeza controlada, sem cancelar/estornar pagamentos externos. Próximo passo: homologar escrita de serviços com entrega aos aparelhos ainda protegida, planejar desativação das rotinas financeiras antigas e ativação do Jornal como única fonte. Esta diretriz prevalece sobre os bloqueios de conferência legada nos registros anteriores. Nenhuma alteração de dados, flags ou deploy nesta rodada.
+
 ## 27/11/2026 — Diagnóstico confirmado do histórico Asaas legado
 
 - Às 13:37h BRT, usuário apresentou resposta HTTP 503 da rota /apk/api/admin/jornalir/asaas-reconciliation: “Asaas de produção indisponível.” Código publicado confirma que o bloqueio ocorre antes de consulta de faturas ou chamada ao Asaas (VERCEL_ENV != production, ASAAS_ENV != production ou ASAAS_API_KEY ausente). Handshake previamente aprovado indica ambiente de produção, mas a variável específica não está comprovada. Metadados Vercel confirmam ASAAS_ENV e ASAAS_API_KEY sensitive de produção presentes; não ler/expor valores, trocar chave nem alterar ambiente global de cobrança. Avisos CSS são independentes.
