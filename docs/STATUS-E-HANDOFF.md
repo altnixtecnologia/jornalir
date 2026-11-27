@@ -1,5 +1,9 @@
 # Jornal IR — Status atual e passagem de contexto (HANDOFF)
 
+## 27/11/2026 — Migration operacional versionada
+
+- Migration `supabase/migrations/20261127105512_altnix_service_operational_authorization.sql` com nome real emitido pelo Supabase CLI 3.4.0, reconstruída deterministicamente a partir do candidato e gerador do head validado, SHA256 do candidato `98b6b8bf978c01d60e53127bacd26010855dfdd54f88a29475519a4ae29d4a8f`. Job de geração e segundo sandbox aprovados (run 45986076515, artifact 15191368228); próxima CI compara o arquivo versionado byte a byte com a geração. Nenhum schema remoto alterado, nenhuma flag ativada. Instalar projeção do Informativo antes do emissor Jornal, mantendo release desativada; validar dependências e ledger dos dois projetos antes de aplicar. Auditoria ampla ao final.
+
 ## 27/11/2026 — Migration operacional preparada por CLI
 
 - Gerador local `node scripts/prepare-operational-migration.mjs --generate` usa exclusivamente `supabase migration new`, sem conexão, push ou deploy. Copia o candidato validado com SHA256; não sobrescreve migration existente divergente. CI fixada na versão CLI 3.4.0 gera o SQL em checkout descartável, executa o mesmo sandbox contra a migration gerada e publica artefato por sete dias. A versão gerada deverá ser recuperada e versionada na PR, conferir dependências contra schema oficial antes de instalar. Sem aplicação ou ativação; manter flags, contrato permanente e dados intactos. Auditoria ampla reservada ao final.
