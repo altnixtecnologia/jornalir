@@ -198,3 +198,34 @@ export async function reassessAfterReceivableCommit(
   return !result.error&&typeof result.data==="number"&&Number.isInteger(result.data)&&result.data>=0&&result.data<=50?"ok":"review";
  }catch{return "review";}
 }
+
+
+export type ServiceDailyResult={status:"ok"|"busy";processed:number;queued:number;review:number;complete:boolean};
+export function checkedServiceDailyResult(raw:unknown,limit:number):ServiceDailyResult|null{
+ if(!raw||typeof raw!=="object"||Array.isArray(raw)||!Number.isInteger(limit)||limit<1||limit>50)return null;
+ const v=raw as Record<string,unknown>;
+ if(Object.keys(v).length!==5||(v.status!=="ok"&&v.status!=="busy")||typeof v.complete!=="boolean"
+ ||typeof v.processed!=="number"||!Number.isInteger(v.processed)||v.processed<0||v.processed>limit
+ ||typeof v.queued!=="number"||!Number.isInteger(v.queued)||v.queued<0
+ ||typeof v.review!=="number"||!Number.isInteger(v.review)||v.review<0||v.queued+v.review>v.processed
+ ||(v.status==="busy"&&(v.processed!==0||v.complete)))return null;
+ return {status:v.status,processed:v.processed,queued:v.queued,review:v.review,complete:v.complete};
+}
+export type ServiceDailyRpc=(name:"altnix_run_daily_service_finance"|"altnix_claim_service_authorizations"|"altnix_finish_service_authorization",args:Record<string,unknown>)=>Promise<{data:unknown;error:unknown}>;
+/** Uma execução central limitada. Mesmo após completar o dia, recupera
+ * a fila de entrega existente. Não faz consultas por dispositivo. */
+export async function runDailyServiceFinance(rpc:ServiceDailyRpc):Promise<{
+ status:"disabled"|"review"|"ok"|"busy";daily:ServiceDailyResult|null;delivery:{claimed:number;acknowledged:number;unconfirmed:number}|null;
+}>{
+ if(!ALTNIX_SERVICE_AUTH_RELEASED||process.env.VERCEL_ENV!=="production"||process.env.JORNALIR_SERVICE_AUTH_WRITE_ENABLED!=="true"||process.env.JORNALIR_SERVICE_FINANCE_WORKER_ENABLED!=="true")return {status:"disabled",daily:null,delivery:null};
+ const limit=25;
+ let daily:ServiceDailyResult|null=null;
+ try{
+  const result=await rpc("altnix_run_daily_service_finance",{p_limit:limit});
+  if(!result.error)daily=checkedServiceDailyResult(result.data,limit);
+ }catch{/* retry no próximo ciclo */}
+ // Um erro na avaliação não impede recuperar eventos já persistidos.
+ let delivery:null|{claimed:number;acknowledged:number;unconfirmed:number}=null;
+ try{delivery=await drainServiceAuthorizationOutbox(rpc);}catch{/* retry pela fila */}
+ return {status:!daily||!delivery?"review":daily.status,daily,delivery};
+}

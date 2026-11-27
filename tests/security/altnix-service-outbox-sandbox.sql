@@ -176,3 +176,30 @@ begin
  if public.altnix_reassess_receivable_services(array[rid])<>1 then raise exception 'payment event not processed';end if;
  if (public.altnix_read_service_authorization(s)->>'status') is distinct from 'authorized' then raise exception 'payment not applied';end if;
 end;$receipt_event$;
+
+
+-- Cursor e transições na mesma transação; retry não revarre nem duplica.
+do $daily_test$
+declare s uuid:='00000000-0000-4000-8000-000000000024';v uuid:='00000000-0000-4000-8000-000000000022';result jsonb;d date:=(statement_timestamp() at time zone 'America/Sao_Paulo')::date;
+begin
+ if has_function_privilege('authenticated','public.altnix_run_daily_service_finance(integer)','EXECUTE') then raise exception 'daily exposed';end if;
+ if public.altnix_run_daily_service_finance(51) is not null then raise exception 'unbounded daily run';end if;
+ update public.receivables_with_balance set status='open',balance=100,due_date=d-3 where commercial_sale_id=v;
+ result:=public.altnix_run_daily_service_finance(1);
+ if result is distinct from '{"status":"ok","processed":1,"queued":1,"review":0,"complete":false}'::jsonb then raise exception 'first daily batch incorrect: %',result;end if;
+ if (public.altnix_read_service_authorization(s)->>'status') is distinct from 'suspended' then raise exception 'daily suspension missing';end if;
+ if not exists(select 1 from altnix_operational.finance_daily_progress where singleton and civil_day=d and last_service_id=s and processed=1) then raise exception 'cursor missing';end if;
+ result:=public.altnix_run_daily_service_finance(1);
+ if result is distinct from '{"status":"ok","processed":0,"queued":0,"review":0,"complete":true}'::jsonb then raise exception 'cursor did not finish: %',result;end if;
+ result:=public.altnix_run_daily_service_finance(25);
+ if (result->>'processed') is distinct from '0' or (result->>'complete') is distinct from 'true' then raise exception 'same day repeated';end if;
+ -- Simulate the next civil day without modifying the clock.
+ update altnix_operational.finance_daily_progress set civil_day=d-1 where singleton;
+ update public.receivables_with_balance set status='paid',balance=0 where commercial_sale_id=v;
+ result:=public.altnix_run_daily_service_finance(25);
+ if result is distinct from '{"status":"ok","processed":1,"queued":1,"review":0,"complete":true}'::jsonb then raise exception 'next day not reset: %',result;end if;
+ if (public.altnix_read_service_authorization(s)->>'status') is distinct from 'authorized' then raise exception 'daily recovery missing';end if;
+end;$daily_test$;
+set role service_role;
+select public.altnix_run_daily_service_finance(25);
+reset role;

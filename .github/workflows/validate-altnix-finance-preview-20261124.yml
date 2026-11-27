@@ -16,6 +16,7 @@ on:
       - "apps/sistema/test/altnix-cadastro-canonico-contract.test.ts"
       - "apps/sistema/src/lib/integrations/altnixFinanceReadContract.ts"
       - "apps/sistema/src/lib/integrations/altnixServiceAuthorization.ts"
+      - "apps/sistema/src/app/api/cron/altnix-service-finance/route.ts"
       - "apps/sistema/src/lib/integrations/altnixReceivableEvent.ts"
       - "apps/sistema/src/app/sistema/financeiro/contas-a-receber/actions.ts"
       - "apps/sistema/src/app/api/integrations/asaas/webhook/route.ts"

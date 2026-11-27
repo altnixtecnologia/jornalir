@@ -349,3 +349,59 @@ begin
 end;$receivable_event$;
 revoke all on function public.altnix_reassess_receivable_services(uuid[]) from public,anon,authenticated;
 grant execute on function public.altnix_reassess_receivable_services(uuid[]) to service_role;
+
+
+-- Um cursor por dia civil, persistido na mesma transação que as decisões.
+-- Um único trabalhador por vez. Repetição no mesmo dia não varre serviços
+-- já processados; a fila de entrega pode ser recuperada independentemente.
+create table altnix_operational.finance_daily_progress(
+ singleton boolean primary key default true check(singleton),
+ civil_day date not null,
+ last_service_id uuid,
+ completed boolean not null default false,
+ processed integer not null default 0 check(processed>=0),
+ queued integer not null default 0 check(queued>=0),
+ review_count integer not null default 0 check(review_count>=0),
+ updated_at timestamptz not null default now()
+);
+alter table altnix_operational.finance_daily_progress enable row level security;
+revoke all on altnix_operational.finance_daily_progress from public,anon,authenticated,service_role;
+grant select,insert,update on altnix_operational.finance_daily_progress to service_role;
+create policy finance_daily_progress_server on altnix_operational.finance_daily_progress for all to service_role using(true) with check(true);
+create function public.altnix_run_daily_service_finance(p_limit integer default 25)
+returns jsonb language plpgsql security invoker set search_path='' as $daily$
+declare
+ d date:=(statement_timestamp() at time zone 'America/Sao_Paulo')::date;
+ progress altnix_operational.finance_daily_progress%rowtype;
+ item record; n integer:=0; q integer:=0; r integer:=0; cursor_id uuid;
+begin
+ if p_limit is null or p_limit not between 1 and 50 then return null;end if;
+ if not pg_try_advisory_xact_lock(hashtextextended('altnix-service-finance-daily',0)) then
+  return jsonb_build_object('status','busy','processed',0,'queued',0,'review',0,'complete',false);
+ end if;
+ insert into altnix_operational.finance_daily_progress(singleton,civil_day) values(true,d)
+ on conflict(singleton) do nothing;
+ select * into progress from altnix_operational.finance_daily_progress where singleton for update;
+ -- Não voltar o cursor para trás se o relógio do ambiente regredir.
+ if progress.civil_day>d then return null;end if;
+ if progress.civil_day<d then
+  update altnix_operational.finance_daily_progress set civil_day=d,last_service_id=null,completed=false,
+   processed=0,queued=0,review_count=0,updated_at=statement_timestamp() where singleton returning * into progress;
+ end if;
+ if progress.completed then
+  return jsonb_build_object('status','ok','processed',0,'queued',0,'review',0,'complete',true);
+ end if;
+ cursor_id:=progress.last_service_id;
+ for item in select * from public.altnix_reassess_service_finance_batch(null,progress.last_service_id,p_limit)
+ loop
+  cursor_id:=item.service_id;
+  n:=n+1;
+  if item.outcome='queued' then q:=q+1;end if;
+  if item.outcome in ('review','manual_required') then r:=r+1;end if;
+ end loop;
+ update altnix_operational.finance_daily_progress set last_service_id=cursor_id,completed=(n<p_limit),
+  processed=processed+n,queued=queued+q,review_count=review_count+r,updated_at=statement_timestamp() where singleton;
+ return jsonb_build_object('status','ok','processed',n,'queued',q,'review',r,'complete',n<p_limit);
+end;$daily$;
+revoke all on function public.altnix_run_daily_service_finance(integer) from public,anon,authenticated;
+grant execute on function public.altnix_run_daily_service_finance(integer) to service_role;

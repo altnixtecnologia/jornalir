@@ -1,5 +1,9 @@
 # Jornal IR — Status atual e passagem de contexto (HANDOFF)
 
+## 27/11/2026 — Worker diário central e recuperação de fila
+
+- RPC com cursor persistido por dia civil BRT, transação atômica, trava de concorrência, limite 25 por execução (máximo 50), reinício apenas no novo dia. Após completar a avaliação, novas chamadas apenas tentam entregar a fila existente (até cinco eventos); falha de avaliação não impede retry da fila. Endpoint cron autenticado pelo CRON_SECRET já usado no sistema, sem parâmetros externos, sem acesso a credencial em cliente; exige release e flag separada JORNALIR_SERVICE_FINANCE_WORKER_ENABLED. Nenhum cron cadastrado/ativo, nenhuma alteração produtiva. Sandbox testa cursor, idempotência, mudança de dia, suspensão, recuperação e ACL; CI anterior c944c6b 7/7 aprovada. Próxima etapa: preparar migrations oficiais e configuração central de cadência após homologação; não criar polling por aparelho nem reutilizar jobs editoriais. Auditoria ampla ao final.
+
 ## 27/11/2026 — Eventos financeiros reais conectados
 
 - Ações existentes de baixa manual/composição, quitação com diferença, ajuste/crédito, estornos, edição, cancelamento e reabertura de título, mais confirmação local autenticada de pagamento Asaas, notificam reavaliação somente após commit bem-sucedido. RPC resolve venda via títulos persistidos, deduplica, limita 50, atua apenas em políticas opt-in; não envia HTTP no caminho financeiro. Estorno externo Asaas continua revisão manual, sem mutação presumida. Sandbox valida escopo, suspensão/recuperação, ACL, duplicidade e limites. Trava release permanece false. Falha na reavaliação não desfaz baixa; fila e futura rotina central diária recuperam pendências. CI pendente; próxima etapa: endpoint e cursor diário/retry, sem consultas dos players e sem cron ativo até homologação. CI da revisão anterior 194dd0d aprovada 4/4. Sem deploy/migration/cobrança. Auditoria ampla ao final.

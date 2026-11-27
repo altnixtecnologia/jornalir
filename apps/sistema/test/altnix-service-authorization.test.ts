@@ -1,6 +1,6 @@
 import {test} from "node:test";
 import assert from "node:assert/strict";
-import {ALTNIX_SERVICE_AUTH_RELEASED,ALTNIX_SERVICE_TENANT,ALTNIX_SERVICE_AUTH_ENDPOINT,checkedServiceAuthorizationEvent,authorizationDeliveryResult,sendServiceAuthorization,drainServiceAuthorizationOutbox,parseServiceDecision,parseServiceBindingRequest,checkedServiceBinding,checkedCampaignOptions,checkedServiceFinanceBatchScope,runServiceFinanceBatch,checkedReceivableEventIds,reassessAfterReceivableCommit} from "../src/lib/integrations/altnixServiceAuthorization";
+import {ALTNIX_SERVICE_AUTH_RELEASED,ALTNIX_SERVICE_TENANT,ALTNIX_SERVICE_AUTH_ENDPOINT,checkedServiceAuthorizationEvent,authorizationDeliveryResult,sendServiceAuthorization,drainServiceAuthorizationOutbox,parseServiceDecision,parseServiceBindingRequest,checkedServiceBinding,checkedCampaignOptions,checkedServiceFinanceBatchScope,runServiceFinanceBatch,checkedReceivableEventIds,reassessAfterReceivableCommit,checkedServiceDailyResult,runDailyServiceFinance} from "../src/lib/integrations/altnixServiceAuthorization";
 const uuid=(n:number)=>"00000000-0000-4000-8000-"+String(n).padStart(12,"0");
 const event={origin:"jornal_ir",contractVersion:"1",serviceCode:"altnix_informativo",tenantId:ALTNIX_SERVICE_TENANT,
  advertiserId:uuid(2),canonicalClientId:uuid(3),canonicalContractId:uuid(4),canonicalServiceId:uuid(5),
@@ -73,5 +73,18 @@ test("eventos de títulos são limitados, deduplicados e não aceitam IDs arbitr
 test("evento financeiro confirmado não toca RPC com integração desativada",async()=>{
  let calls=0;
  assert.equal(await reassessAfterReceivableCommit(async()=>{calls++;return {data:1,error:null};},[uuid(2)]),"disabled");
+ assert.equal(calls,0);
+});
+
+
+test("resposta diária limitada e estado concorrente validado",()=>{
+ const good={status:"ok",processed:25,queued:2,review:3,complete:false};
+ assert.deepEqual(checkedServiceDailyResult(good,25),good);
+ assert.deepEqual(checkedServiceDailyResult({status:"busy",processed:0,queued:0,review:0,complete:false},25),{status:"busy",processed:0,queued:0,review:0,complete:false});
+ for(const bad of [{...good,processed:26},{...good,queued:24},{...good,review:-1},{...good,status:"busy"},{...good,complete:"false"},{...good,extra:1}])assert.equal(checkedServiceDailyResult(bad,25),null);
+});
+test("rotina diária não acessa banco com release desligada",async()=>{
+ let calls=0;
+ assert.deepEqual(await runDailyServiceFinance(async()=>{calls++;return {data:null,error:null};}),{status:"disabled",daily:null,delivery:null});
  assert.equal(calls,0);
 });
