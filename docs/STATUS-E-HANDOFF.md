@@ -1,5 +1,9 @@
 # Jornal IR — Status atual e passagem de contexto (HANDOFF)
 
+## 27/11/2026 — Publicação oficial confirmada, corte ainda protegido
+
+- Build production READY, commit 28323b5f1fcd0b462b1c1bde85aebdd56b88a9d3, deployment dpl_D2uoVB1cebNJYPUcmGYPg1jUVhnG; promovido sem rebuild e aliases oficiais controle.altnix.com.br confirmados no novo deployment. Versão anterior para rollback: dpl_GnkH56RXcwpVYS3LN8FPZvbK1MMG. Conta Suporte Altnix. CI dos heads mergeados: Jornal 7/7, Informativo 4/4. Portal público não alterado. Configurações Vercel verificadas: credencial sensitive presente, flags de escrita, entrega e worker false. Não ligar antes de handshake autenticado e conciliação Asaas. Navegador conectado não acessível nesta sessão; proprietário/admin precisa executar na versão publicada Jornal > Configurações > Cobranças > Testar comunicação com o Informativo e Conferir cobranças existentes, e no Financeiro Informativo conferir cobranças Asaas. Não solicitar chave nem repetir teste de conexão Asaas previamente aprovado. Sem novos deploys, cobranças, limpeza, cron, APK ou alterações de dados. 
+
 ## 27/11/2026 — Roteiro único do corte e limpeza
 
 - Atualizado `docs/operacao/corte-financeiro-integrado-20261127.md` com sequência de homologação, flags independentes, preservação de auditoria, escopo e dependências reais da limpeza. Dados atuais: Jornal 1 assinatura/1 recebível/1 recibo/2 cobranças, 2 logs e 1 solicitação vinculados; Informativo 15 contratos de teste, 13 faturas, 4 pagamentos, 53 itens de playlist permanentes protegidos. Sem exclusão, freeze, cron ou deploy. Configuração de credencial concluída; conclusão de Asaas e limpeza condicionada à comprovação externa.
