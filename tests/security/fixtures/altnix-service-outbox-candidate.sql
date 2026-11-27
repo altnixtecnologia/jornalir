@@ -177,3 +177,15 @@ begin
 end;$confirm$;
 revoke all on function public.altnix_confirm_service_binding(uuid,uuid,uuid,uuid) from public,anon,authenticated;
 grant execute on function public.altnix_confirm_service_binding(uuid,uuid,uuid,uuid) to service_role;
+
+create function public.altnix_service_binding_context(p_service uuid)
+returns jsonb language sql stable security invoker set search_path='' as $context$
+ select jsonb_build_object('clientId',p.client_id,'campaignId',b.campaign_id,'advertiserId',b.advertiser_id)
+ from public.commercial_contract_services s join public.commercial_contract_packages p on p.id=s.package_id
+ join public.commercial_sales v on v.id=p.commercial_sale_id and v.client_id=p.client_id
+ join public.client_digital_export_permissions e on e.client_id=p.client_id and e.enabled
+ left join altnix_operational.service_binding b on b.service_id=s.id
+ where s.id=p_service and s.service_channel='led_panel';
+$context$;
+revoke all on function public.altnix_service_binding_context(uuid) from public,anon,authenticated;
+grant execute on function public.altnix_service_binding_context(uuid) to service_role;

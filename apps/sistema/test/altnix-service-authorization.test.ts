@@ -1,6 +1,6 @@
 import {test} from "node:test";
 import assert from "node:assert/strict";
-import {ALTNIX_SERVICE_AUTH_RELEASED,ALTNIX_SERVICE_TENANT,ALTNIX_SERVICE_AUTH_ENDPOINT,checkedServiceAuthorizationEvent,authorizationDeliveryResult,sendServiceAuthorization,drainServiceAuthorizationOutbox,parseServiceDecision,parseServiceBindingRequest,checkedServiceBinding} from "../src/lib/integrations/altnixServiceAuthorization";
+import {ALTNIX_SERVICE_AUTH_RELEASED,ALTNIX_SERVICE_TENANT,ALTNIX_SERVICE_AUTH_ENDPOINT,checkedServiceAuthorizationEvent,authorizationDeliveryResult,sendServiceAuthorization,drainServiceAuthorizationOutbox,parseServiceDecision,parseServiceBindingRequest,checkedServiceBinding,checkedCampaignOptions} from "../src/lib/integrations/altnixServiceAuthorization";
 const uuid=(n:number)=>"00000000-0000-4000-8000-"+String(n).padStart(12,"0");
 const event={origin:"jornal_ir",contractVersion:"1",serviceCode:"altnix_informativo",tenantId:ALTNIX_SERVICE_TENANT,
  advertiserId:uuid(2),canonicalClientId:uuid(3),canonicalContractId:uuid(4),canonicalServiceId:uuid(5),
@@ -42,4 +42,12 @@ test("vínculo exige confirmação e envelope retornado corresponde exatamente �
  const envelope={origin:"jornal_ir",contractVersion:"1",tenantId:ALTNIX_SERVICE_TENANT,campaignId:uuid(7),advertiserId:uuid(2),canonicalClientId:uuid(3),canonicalContractId:uuid(4),canonicalServiceId:uuid(5),approvedBy:uuid(8)};
  assert.deepEqual(checkedServiceBinding(envelope,command,uuid(8)),envelope);
  assert.equal(checkedServiceBinding({...envelope,campaignId:uuid(9)},command,uuid(8)),null);
+});
+
+test("opções de campanha limitadas, válidas e sem duplicidade",()=>{
+ const option={campaignId:uuid(7),advertiserId:uuid(2),name:"Campanha",status:"active"};
+ assert.deepEqual(checkedCampaignOptions({options:[option],complete:true}),{options:[option],complete:true});
+ assert.equal(checkedCampaignOptions({options:[option,option],complete:true}),null);
+ assert.equal(checkedCampaignOptions({options:[{...option,status:"archived"}],complete:true}),null);
+ assert.equal(checkedCampaignOptions({options:[{...option,campaignId:"wrong"}],complete:true}),null);
 });

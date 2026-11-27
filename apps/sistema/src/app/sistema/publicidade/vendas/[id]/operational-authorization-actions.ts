@@ -3,7 +3,7 @@ import { createSupabaseServerClient } from "../../../../../lib/supabase/server";
 import { createSupabaseAdminClient } from "../../../../../lib/supabase/admin";
 import { canonicalIdOrNull } from "../../../../../lib/integrations/altnixFinanceReadContract";
 import { checkModuleAction } from "../../../../../lib/permissions/checkModuleAction";
-import { ALTNIX_SERVICE_AUTH_RELEASED,parseServiceDecision,checkedServiceAuthorizationEvent,drainServiceAuthorizationOutbox,parseServiceBindingRequest,checkedServiceBinding,sendServiceBinding } from "../../../../../lib/integrations/altnixServiceAuthorization";
+import { ALTNIX_SERVICE_AUTH_RELEASED,parseServiceDecision,checkedServiceAuthorizationEvent,drainServiceAuthorizationOutbox,parseServiceBindingRequest,checkedServiceBinding,sendServiceBinding,fetchServiceCampaignOptions,type CampaignOptions } from "../../../../../lib/integrations/altnixServiceAuthorization";
 
 type Result={ok:true;queued:true;delivery:"confirmed"|"pending"}|{error:string};
 /** Preparação de ponto de decisão humana; não é autorização automática
@@ -64,6 +64,12 @@ export async function bindAltnixServiceAction(raw:unknown):Promise<{ok:true}|{er
   const {data:service,error:serviceError}=await session.from("commercial_contract_services").select("id,service_channel").eq("id",command.serviceId).maybeSingle();
   if(serviceError||service?.service_channel!=="led_panel")return {error:"Serviço não disponível."};
   const admin=createSupabaseAdminClient(),args={p_service:command.serviceId,p_advertiser:command.advertiserId,p_campaign:command.campaignId,p_actor:auth.user.id};
+  // Conferir campanha remota antes de reservar: evita fixar um UUID errado.
+  const {data:context,error:contextError}=await admin.rpc("altnix_service_binding_context",{p_service:command.serviceId});
+  if(contextError||!context||canonicalIdOrNull(context.clientId)!==context.clientId)return {error:"Cliente sem seleção autorizada."};
+  if(context.campaignId&&(context.campaignId!==command.campaignId||context.advertiserId!==command.advertiserId))return {error:"Já existe reserva para outra campanha."};
+  const candidates=await fetchServiceCampaignOptions(context.clientId,command.serviceId);
+  if(!candidates?.options.some(c=>c.campaignId===command.campaignId&&c.advertiserId===command.advertiserId))return {error:"Campanha não está disponível para este cliente e serviço."};
   const {data,error:prepareError}=await admin.rpc("altnix_prepare_service_binding",args);
   const binding=checkedServiceBinding(data,command,auth.user.id);
   if(prepareError||!binding)return {error:"Vínculo indisponível, conflitante ou cliente sem seleção autorizada."};
@@ -72,4 +78,22 @@ export async function bindAltnixServiceAction(raw:unknown):Promise<{ok:true}|{er
   if(confirmed.error||confirmed.data!==true)return {error:"Informativo confirmou, mas falta registrar a confirmação central. Repita os mesmos dados."};
   return {ok:true};
  }catch{return {error:"Não foi possível confirmar o vínculo. Consulte a situação antes de repetir."};}
+}
+
+export async function listAltnixServiceCampaignsAction(serviceId:string):Promise<{ok:true;result:CampaignOptions}|{error:string}>{
+ if(!ALTNIX_SERVICE_AUTH_RELEASED||process.env.VERCEL_ENV!=="production"||process.env.JORNALIR_SERVICE_AUTH_WRITE_ENABLED!=="true")return {error:"Integração operacional aguardando homologação."};
+ if(canonicalIdOrNull(serviceId)!==serviceId)return {error:"Serviço inválido."};
+ try{
+  const denied=await checkModuleAction("publicidade","contratos_revisar");if(denied)return {error:denied};
+  const session=createSupabaseServerClient();const {data:auth,error}=await session.auth.getUser();if(error||!auth.user)return {error:"Sessão inválida."};
+  const {data:profile}=await session.from("profiles").select("role,active").eq("id",auth.user.id).maybeSingle();
+  if(!profile?.active||profile.role!=="owner")return {error:"Operação reservada ao proprietário."};
+  const {data:service,error:serviceError}=await session.from("commercial_contract_services").select("id,service_channel").eq("id",serviceId).maybeSingle();
+  if(serviceError||service?.service_channel!=="led_panel")return {error:"Serviço não disponível."};
+  const {data:context,error:contextError}=await createSupabaseAdminClient().rpc("altnix_service_binding_context",{p_service:serviceId});
+  if(contextError||!context||canonicalIdOrNull(context.clientId)!==context.clientId)return {error:"Cliente sem seleção autorizada."};
+  const result=await fetchServiceCampaignOptions(context.clientId,serviceId);
+  if(!result)return {error:"Campanhas indisponíveis."};
+  return {ok:true,result:{...result,options:result.options.filter(c=>!context.campaignId||(context.campaignId===c.campaignId&&context.advertiserId===c.advertiserId))}};
+ }catch{return {error:"Consulta de campanhas indisponível."};}
 }

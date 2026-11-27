@@ -110,3 +110,26 @@ export async function sendServiceBinding(binding:ServiceBindingEnvelope):Promise
   const body=await response.json().catch(()=>null);return response.status===200&&body?.code==="bound";
  }catch{return false;}
 }
+
+export type CampaignOption={campaignId:string;advertiserId:string;name:string;status:"active"|"paused"};
+export type CampaignOptions={options:CampaignOption[];complete:boolean};
+export function checkedCampaignOptions(raw:unknown):CampaignOptions|null{
+ if(!raw||typeof raw!=="object"||Array.isArray(raw))return null;
+ const v=raw as Record<string,unknown>;
+ if(typeof v.complete!=="boolean"||!Array.isArray(v.options)||v.options.length>50)return null;
+ const seen=new Set<string>();const options:CampaignOption[]=[];
+ for(const row of v.options){
+  if(!row||typeof row!=="object"||Array.isArray(row)||typeof row.campaignId!=="string"||canonicalIdOrNull(row.campaignId)!==row.campaignId||typeof row.advertiserId!=="string"||canonicalIdOrNull(row.advertiserId)!==row.advertiserId||typeof row.name!=="string"||row.name.length>250||!["active","paused"].includes(row.status)||seen.has(row.campaignId))return null;
+  seen.add(row.campaignId);options.push({campaignId:row.campaignId,advertiserId:row.advertiserId,name:row.name,status:row.status});
+ }
+ return {options,complete:v.complete};
+}
+export async function fetchServiceCampaignOptions(clientId:string,serviceId:string):Promise<CampaignOptions|null>{
+ const secret=process.env.JORNALIR_SERVICE_AUTH_WRITE_SECRET;
+ if(!ALTNIX_SERVICE_AUTH_RELEASED||process.env.VERCEL_ENV!=="production"||process.env.JORNALIR_SERVICE_AUTH_WRITE_ENABLED!=="true"||!secret||secret.length<32||secret.length>512
+ ||[process.env.JORNALIR_FINANCE_BRIDGE_SECRET,process.env.ALTNIX_CLIENT_SYNC_SECRET,process.env.ALTNIX_CLIENT_WRITE_SECRET,process.env.SUPABASE_SERVICE_ROLE_KEY,process.env.CRON_SECRET].includes(secret))return null;
+ try{
+  const response=await fetch("https://painel.altnix.com.br/apk/api/integrations/jornalir/service-binding-options",{method:"POST",headers:{Authorization:"Bearer "+secret,"Content-Type":"application/json"},body:JSON.stringify({canonicalClientId:clientId,canonicalServiceId:serviceId}),cache:"no-store",redirect:"error",signal:AbortSignal.timeout(10000)});
+  return response.ok?checkedCampaignOptions(await response.json()):null;
+ }catch{return null;}
+}

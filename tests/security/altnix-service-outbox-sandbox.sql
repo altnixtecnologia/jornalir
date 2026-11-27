@@ -27,8 +27,10 @@ insert into public.commercial_contract_services values('00000000-0000-4000-8000-
 set role service_role;
 do $binding$ declare s uuid:='00000000-0000-4000-8000-000000000006'; a uuid:=gen_random_uuid(); c uuid:=gen_random_uuid(); actor uuid:=gen_random_uuid();p jsonb;
 begin
+ if public.altnix_service_binding_context(s)->>'clientId' is null then raise exception 'context missing';end if;
  p=public.altnix_prepare_service_binding(s,a,c,actor);
  if p is null or p->>'campaignId'<>c::text then raise exception 'reserve failed';end if;
+ if (public.altnix_service_binding_context(s)->>'campaignId') is distinct from c::text then raise exception 'reserved context missing';end if;
  if (public.altnix_read_service_authorization(s)->>'enabled') is distinct from 'false' then raise exception 'enabled before remote confirmation';end if;
  if public.altnix_queue_service_authorization(s,gen_random_uuid(),actor,'authorized',now(),'must remain disabled') is not null then raise exception 'premature authorization';end if;
  if public.altnix_prepare_service_binding(s,a,c,actor) is distinct from p then raise exception 'reservation retry failed';end if;

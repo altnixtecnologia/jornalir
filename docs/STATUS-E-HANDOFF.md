@@ -1,5 +1,9 @@
 # Jornal IR — Status atual e passagem de contexto (HANDOFF)
 
+## 27/11/2026 — Seleção de campanha do cadastro mestre
+
+- Substituída digitação de UUIDs por consulta explícita de campanhas do cliente canônico derivado do serviço e da permissão de exportação. Backend confere opção e anunciante antes de reservar; reserva anterior limita retry à mesma identidade. Não cria cadastro/contrato/mídia ou cobrança e não consulta por aparelho. CI pendente, flags desativadas. Se houver conflito concorrente após reserva, exigir revisão administrativa, nunca sobrescrever automaticamente. Prioridade integração cadastral/financeira; Asaas sem reimplementação.
+
 ## 27/11/2026 — Vínculo em duas fases no fluxo de venda
 
 - Tela existente permite reservar vínculo com campanha existente mediante IDs operacionais e confirmação do proprietário. RPC central valida pacote/serviço LED e cliente selecionado, reserva inicialmente desabilitada; backend envia envelope mínimo ao Informativo, confirma localmente somente após resposta bound; retries exatos não duplicam. Sem contrato espelho, novo cadastro, cobrança ou autorização automática. Seleção amigável de campanha ainda deve substituir digitação de IDs. CI pendente, release desativada. Não ativar antes de migrations, homologação e proteção financeira completa. Não refazer Asaas.
