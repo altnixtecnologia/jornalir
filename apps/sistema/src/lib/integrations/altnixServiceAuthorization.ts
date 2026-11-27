@@ -28,9 +28,9 @@ export function checkedServiceAuthorizationEvent(raw:unknown, nowMs:number):Serv
 export type AuthorizationDelivery="disabled"|"invalid"|"applied"|"review_required"|"retryable";
 export function authorizationDeliveryResult(status:number,body:unknown):AuthorizationDelivery{
  const code=body&&typeof body==="object"&&!Array.isArray(body)?(body as Record<string,unknown>).code:null;
- if(status===200&&code==="applied")return "applied";
- // 409 não prova que o evento foi aceito. O worker futuro deverá conferir
- // a identidade persistida/recibo antes de encerrar uma tentativa ambígua.
+ if(status===200&&(code==="applied"||code==="already_applied"))return "applied";
+ // O receptor só confirma already_applied se o recibo persistido corresponder
+ // ao evento exato. 409 genérico continua sem comprovação de entrega.
  if(status===409||status===400||status===401||status===403||status===415)return "review_required";
  return "retryable";
 }

@@ -13,6 +13,7 @@ test("contrato estrito compatível com Informativo",()=>{
 });
 test("não considerar conflito como autorização entregue",()=>{
  assert.equal(authorizationDeliveryResult(200,{code:"applied"}),"applied");
+ assert.equal(authorizationDeliveryResult(200,{code:"already_applied"}),"applied");
  assert.equal(authorizationDeliveryResult(200,{code:"other"}),"retryable");
  assert.equal(authorizationDeliveryResult(409,{code:"not_applied"}),"review_required");
  assert.equal(authorizationDeliveryResult(503,null),"retryable");

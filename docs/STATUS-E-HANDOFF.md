@@ -1,5 +1,10 @@
 # Jornal IR — Status atual e passagem de contexto (HANDOFF)
 
+## 27/11/2026 — Handoff obrigatório VS Code e confirmação de entrega
+
+- Proprietário determinou: antes de alterações no VS Code, verificar repositório/branch, git status, git stash list, alterações staged/unstaged/untracked e commits locais; git fetch, comparar upstream e reconciliar divergências preservando trabalho local. Sincronizar com GitHub antes de modificar (fast-forward somente se seguro), sem reset --hard, clean, force push ou descarte de stashes. Depois, revisar testes/diferenças e commits locais a enviar, respeitando autorização. Branch oficial Jornal `solicitacoes-financeiro-contratos-irc-20261031`, Informativo `main`; consultar PRs #146/#73 antes de trabalhar. Acesso remoto não comprova situação local. Eventuais APKs: instrução coordenada Codex/Claude nos commits corretos, validar necessidade e variantes TB20/TB40, Xiaomi S 3rd Gen e Universal, offline, sync, suspensão por serviço, playlists permanentes e OTA. Não gerar novos APKs sem necessidade comprovada.
+- Transporte central reconhece recibo exato already_applied do Informativo; conflito genérico não prova entrega. CI anterior aprovada, nova CI pendente. Envio continua desligado. Falta emissor persistido e vínculo auditado, integração operacional e homologação. Nenhuma alteração produtiva. Dados comerciais existentes são testes salvo contrato interno permanente do Informativo Regional.
+
 ## 27/11/2026 — Transporte de autorização operacional para o Informativo
 
 - Adaptador servidor de envio por contrato/serviço/campanha, tenant principal, credencial dedicada, endpoint fixo, validação estrita e entrega sem cache. Trava de release false: ainda requer fonte de autorização por serviço persistida, vínculo operacional auditado, outbox e confirmação idempotente; não derivar liberação de aprovação jurídica ou pagamento global. CI sem deploy. Todos os registros comerciais/financeiros existentes são testes, exceto o contrato interno permanente Informativo Regional (operacional, não faturável); preservar cadastros e mídias/playlists. Nada aplicado em produção.
