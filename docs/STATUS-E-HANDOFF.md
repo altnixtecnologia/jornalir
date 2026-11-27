@@ -1,5 +1,9 @@
 # Jornal IR — Status atual e passagem de contexto (HANDOFF)
 
+## 27/11/2026 — Roteiro único do corte e limpeza
+
+- Atualizado `docs/operacao/corte-financeiro-integrado-20261127.md` com sequência de homologação, flags independentes, preservação de auditoria, escopo e dependências reais da limpeza. Dados atuais: Jornal 1 assinatura/1 recebível/1 recibo/2 cobranças, 2 logs e 1 solicitação vinculados; Informativo 15 contratos de teste, 13 faturas, 4 pagamentos, 53 itens de playlist permanentes protegidos. Sem exclusão, freeze, cron ou deploy. Configuração de credencial concluída; conclusão de Asaas e limpeza condicionada à comprovação externa.
+
 ## 27/11/2026 — Comunicação preparada e credencial configurada
 
 - Projetos Vercel oficiais da conta Suporte Altnix confirmados por domínios controle.altnix.com.br e painel.altnix.com.br. Criada a mesma credencial exclusiva sensitive em ambos, somente production; flags de escrita e worker configuradas false, flag de entrega do Informativo false. Nenhum valor de segredo registrado no GitHub. Libera constante de transporte (migration oficial instalada), mantendo runtime de escrita desabilitado. Probe GET autenticado no endpoint existente de opções, sem identidade de cliente e sem mutação; botão manual na página de configurações de cobranças, restrito a proprietário/admin; distingue comunicação de escrita ativa. Tests atualizados. Informativo commit 2923061 inclui receptor e comprovação somente leitura de 3/3 telas e 150/150 ocorrências permanentes elegíveis. Sem deploy ou ativação; aguardar CI integral e fazer teste real antes de corte. Asaas: chaves existentes mantidas, teste anterior aprovado pelo usuário; conferência de pagamentos individuais ainda depende da interface publicada/autenticada. Não apagar ou estornar registros até confirmação do provedor e homologação. 
