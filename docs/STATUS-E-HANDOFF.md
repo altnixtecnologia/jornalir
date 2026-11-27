@@ -1,5 +1,9 @@
 # Jornal IR — Status atual e passagem de contexto (HANDOFF)
 
+## 27/11/2026 — Encerramento GitHub antes do VS Code
+
+- Proprietário confirmou teste de conexão Asaas aprovado. Reutilizada tela Configurações/Cobranças: consulta somente GET das até 10 cobranças existentes no Jornal, autorização admin/owner, escopo por registros locais via RLS, ambiente production confirmado, sem IDs fornecidos pelo navegador, sem alterar gateway ou banco. CI pendente. Não comprova situação externa até executar após deploy. Informativo tem utilitário GET próprio já testado. Preflight de limpeza somente leitura executado: 1 assinatura, 1 recebível, 1 recibo, 2 cobranças, 2 billing_message_logs vinculados (FK NOT NULL), 1 solicitação site vinculada; preservar logs e solicitação. Não excluir nem desativar até implantação/homologação. Diretriz: terminar trabalho GitHub antes de passar ao VS Code; handoff único, sincronizar e verificar alterações locais/stashes/commits antes de modificar. Sem deploy intermediário, nova chave ou APK.
+
 ## 27/11/2026 — Correção da fonte única de contratos
 
 - Pré-corte real confirmou que a guarda do Informativo bloqueia INSERT em ad_contracts após freeze. Eliminado requisito de contrato comercial local no candidato de vínculo e envelope ainda não publicado: usar campaign_id existente e IDs canônicos Jornal. Não criar contrato espelho; única exceção é contrato interno permanente do Informativo Regional. Alteração coordenada com Informativo #73. CI pendente, nenhuma migration, produção, cobrança ou deploy alterado. Provisionamento, regras de autorização e homologação ainda necessários.

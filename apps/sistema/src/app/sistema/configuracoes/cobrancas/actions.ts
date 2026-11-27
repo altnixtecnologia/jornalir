@@ -9,6 +9,7 @@ import {
   getConfiguredAsaasEnvironment,
   isAsaasApiKeyConfigured,
 } from "../../../../lib/financeiro/asaasEnv";
+import { inspectExistingAsaasCharges, type ChargeRead } from "../../../../lib/financeiro/asaasExistingChargesRead";
 import { hasServiceRoleKey } from "../../../../lib/supabase/admin";
 import {
   ASAAS_WEBHOOK_EMAIL,
@@ -304,4 +305,24 @@ export async function provisionAsaasWebhookAction(
   } catch (error) {
     return { error: error instanceof Error ? error.message : "Não foi possível configurar o webhook no Asaas." };
   }
+}
+
+/** Consulta sob demanda na mesma tela existente, sem IDs fornecidos pelo navegador.
+ * Paginação não é automática: somente os 10 registros locais mais recentes.
+ * Não confundir correspondência de status/valor com autorização de limpeza.
+ */
+export async function inspectAsaasExistingChargesAction():Promise<{ok:true;rows:ChargeRead[];more:boolean}|{error:string}>{
+ try{
+  const denied=await requireBillingSettingsAdmin();
+  if(denied)return {error:denied};
+  const client=createSupabaseServerClient();
+  const {data:settings,error:settingsError}=await client.from("billing_provider_settings").select("environment").eq("id",1).single();
+  if(settingsError||settings?.environment!=="production"||getConfiguredAsaasEnvironment()!=="production")return {error:"Consulta disponível somente no ambiente de produção confirmado."};
+  const key=getAsaasApiKey("production");
+  if(!key)return {error:"Chave de produção indisponível."};
+  const {data,error}=await client.from("payment_charges").select("id,provider_charge_id,status,amount").eq("provider","asaas").order("created_at",{ascending:false}).order("id",{ascending:false}).limit(11);
+  if(error||!data)return {error:"Não foi possível consultar as cobranças locais."};
+  const rows=await inspectExistingAsaasCharges(data.slice(0,10),key);
+  return {ok:true,rows,more:data.length>10};
+ }catch{return {error:"Consulta Asaas indisponível."};}
 }

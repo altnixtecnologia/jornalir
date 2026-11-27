@@ -18,6 +18,10 @@ on:
       - "apps/sistema/src/lib/integrations/altnixServiceAuthorization.ts"
       - "apps/sistema/src/app/sistema/publicidade/vendas/**/operational-authorization-actions.ts"
       - "apps/sistema/test/altnix-service-authorization.test.ts"
+      - "apps/sistema/test/asaas-existing-charges-read.test.ts"
+      - "apps/sistema/src/lib/financeiro/asaasExistingChargesRead.ts"
+      - "apps/sistema/src/app/sistema/configuracoes/cobrancas/**"
+      - "apps/sistema/src/features/configuracoes/BillingProviderSettingsPanel.tsx"
       - "tests/security/altnix-service-outbox-sandbox.sql"
       - "tests/security/fixtures/altnix-service-outbox-candidate.sql"
       - "apps/sistema/src/lib/integrations/altnixLinkPreview.ts"
@@ -45,7 +49,7 @@ jobs:
           cache: npm
       - run: npm ci --no-audit --no-fund
       - name: Escopo, autenticação, recusa e somente leitura
-        run: npx tsx --test apps/sistema/test/altnix-finance-bridge-readonly.test.ts apps/sistema/test/altnix-digital-client-contract.test.ts apps/sistema/test/altnix-cadastro-canonico-contract.test.ts apps/sistema/test/altnix-cadastro-write-contract.test.ts apps/sistema/test/altnix-cadastro-create-contract.test.ts apps/sistema/test/altnix-link-preview.test.ts apps/sistema/test/altnix-service-authorization.test.ts
+        run: npx tsx --test apps/sistema/test/altnix-finance-bridge-readonly.test.ts apps/sistema/test/altnix-digital-client-contract.test.ts apps/sistema/test/altnix-cadastro-canonico-contract.test.ts apps/sistema/test/altnix-cadastro-write-contract.test.ts apps/sistema/test/altnix-cadastro-create-contract.test.ts apps/sistema/test/altnix-link-preview.test.ts apps/sistema/test/altnix-service-authorization.test.ts apps/sistema/test/asaas-existing-charges-read.test.ts
       - name: TypeScript
         run: npm run typecheck --workspace @ir/sistema
       - name: Build sem deploy

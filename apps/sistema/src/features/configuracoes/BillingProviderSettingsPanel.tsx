@@ -3,9 +3,11 @@
 import { useState, useTransition } from "react";
 import {
   provisionAsaasWebhookAction,
+  inspectAsaasExistingChargesAction,
   testAsaasConnectionAction,
   updateBillingProviderSettingsAction,
 } from "../../app/sistema/configuracoes/cobrancas/actions";
+import type { ChargeRead } from "../../lib/financeiro/asaasExistingChargesRead";
 import { notify } from "../../lib/feedback/notify";
 
 export interface BillingProviderSettingsValues {
@@ -34,6 +36,7 @@ export function BillingProviderSettingsPanel({ values }: { values: BillingProvid
   const [defaultDueDays, setDefaultDueDays] = useState(String(values.defaultDueDays));
   const [financeWhatsapp, setFinanceWhatsapp] = useState(values.financeWhatsapp);
   const [pending, startTransition] = useTransition();
+  const [inspection,setInspection]=useState<{rows:ChargeRead[];more:boolean}|null>(null);
 
   const selectedKeyConfigured = environment === "sandbox" ? values.sandboxKeyConfigured : values.productionKeyConfigured;
 
@@ -45,6 +48,15 @@ export function BillingProviderSettingsPanel({ values }: { values: BillingProvid
         return;
       }
       notify.success("Conexão confirmada", `Conexão com o Asaas confirmada. Status geral da conta: ${result.generalStatus}.`);
+    });
+  }
+
+  function inspectCharges():void{
+    setInspection(null);
+    startTransition(async()=>{
+      const result=await inspectAsaasExistingChargesAction();
+      if("error" in result){notify.error("Consulta indisponível",result.error);return;}
+      setInspection({rows:result.rows,more:result.more});
     });
   }
 
@@ -151,6 +163,7 @@ export function BillingProviderSettingsPanel({ values }: { values: BillingProvid
           <button type="button" onClick={testConnection} disabled={pending || !selectedKeyConfigured}>
             Testar conexão com o Asaas
           </button>
+          <button type="button" onClick={inspectCharges} disabled={pending || environment!=="production" || !selectedKeyConfigured}>Conferir cobranças existentes</button>
           <button
             type="button"
             onClick={provisionWebhook}
@@ -159,6 +172,11 @@ export function BillingProviderSettingsPanel({ values }: { values: BillingProvid
             Cadastrar / atualizar webhook
           </button>
         </div>
+        {inspection&&<div style={{marginTop:12}}>
+          <p className="helper-text">Consulta somente leitura das cobranças Asaas cadastradas no Jornal. Não gera, cancela, estorna ou dá baixa. Correspondência não autoriza exclusão.</p>
+          {inspection.more&&<p role="status">Apenas as 10 cobranças mais recentes; consulta parcial.</p>}
+          {inspection.rows.length===0?<p>Nenhuma cobrança Asaas cadastrada no Jornal.</p>:<div style={{overflowX:"auto"}}><table><thead><tr><th>Local</th><th>Asaas</th><th>Valor local / externo</th><th>Conferência</th></tr></thead><tbody>{inspection.rows.map(row=><tr key={row.id}><td>{row.localStatus}</td><td>{row.providerStatus??"Não verificado"}</td><td>{row.localAmount.toLocaleString("pt-BR",{style:"currency",currency:"BRL"})} / {row.providerAmount===null?"—":row.providerAmount.toLocaleString("pt-BR",{style:"currency",currency:"BRL"})}</td><td>{row.reason}</td></tr>)}</tbody></table></div>}
+        </div>}
         {enabled && !selectedKeyConfigured ? <p className="form-error">O ambiente selecionado ainda não possui chave configurada.</p> : null}
         {enabled && !values.webhookTokenConfigured ? <p className="form-error">O token de autenticação do webhook ainda não está configurado.</p> : null}
       </section>
