@@ -1,6 +1,6 @@
 import {test} from "node:test";
 import assert from "node:assert/strict";
-import {ALTNIX_SERVICE_AUTH_RELEASED,ALTNIX_SERVICE_TENANT,ALTNIX_SERVICE_AUTH_ENDPOINT,checkedServiceAuthorizationEvent,authorizationDeliveryResult,sendServiceAuthorization} from "../src/lib/integrations/altnixServiceAuthorization";
+import {ALTNIX_SERVICE_AUTH_RELEASED,ALTNIX_SERVICE_TENANT,ALTNIX_SERVICE_AUTH_ENDPOINT,checkedServiceAuthorizationEvent,authorizationDeliveryResult,sendServiceAuthorization,drainServiceAuthorizationOutbox} from "../src/lib/integrations/altnixServiceAuthorization";
 const uuid=(n:number)=>"00000000-0000-4000-8000-"+String(n).padStart(12,"0");
 const event={origin:"jornal_ir",contractVersion:"1",serviceCode:"altnix_informativo",tenantId:ALTNIX_SERVICE_TENANT,
  advertiserId:uuid(2),canonicalClientId:uuid(3),canonicalContractId:uuid(4),canonicalServiceId:uuid(5),
@@ -21,4 +21,10 @@ test("não considerar conflito como autorização entregue",()=>{
 test("transporte desabilitado até autorização persistida e homologação",async()=>{
  assert.equal(ALTNIX_SERVICE_AUTH_RELEASED,false);
  assert.equal(await sendServiceAuthorization(event),"disabled");
+});
+
+test("fila não é consultada com release desativada",async()=>{
+ let calls=0;
+ assert.deepEqual(await drainServiceAuthorizationOutbox(async()=>{calls++;return {data:null,error:null};}),{claimed:0,acknowledged:0,unconfirmed:0});
+ assert.equal(calls,0);
 });

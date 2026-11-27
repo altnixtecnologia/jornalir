@@ -47,3 +47,24 @@ export async function sendServiceAuthorization(raw:unknown):Promise<Authorizatio
   return authorizationDeliveryResult(response.status,body);
  }catch{return "retryable";}
 }
+
+/** Worker limitado, preparado para reutilizar rotina de servidor existente.
+ * Sem agendamento novo. Não reivindica nada enquanto a release estiver fechada.
+ * Chamador deve usar exclusivamente o cliente administrativo interno.
+ */
+export type ServiceOutboxRpc = (name:"altnix_claim_service_authorizations"|"altnix_finish_service_authorization",args:Record<string,unknown>)=>Promise<{data:unknown;error:unknown}>;
+export async function drainServiceAuthorizationOutbox(rpc:ServiceOutboxRpc):Promise<{claimed:number;acknowledged:number;unconfirmed:number}>{
+ const counts={claimed:0,acknowledged:0,unconfirmed:0};
+ if(!ALTNIX_SERVICE_AUTH_RELEASED||process.env.VERCEL_ENV!=="production"||process.env.JORNALIR_SERVICE_AUTH_WRITE_ENABLED!=="true")return counts;
+ const claimed=await rpc("altnix_claim_service_authorizations",{p_limit:5});
+ if(claimed.error||!Array.isArray(claimed.data)||claimed.data.length>5)return counts;
+ for(const row of claimed.data){
+  if(!row||typeof row!=="object"||!canonicalIdOrNull(row.event_id)||!canonicalIdOrNull(row.claim_token))continue;
+  counts.claimed++;
+  const event=checkedServiceAuthorizationEvent(row.payload,Date.now());
+  const result=event&&event.eventId===row.event_id?await sendServiceAuthorization(event):"invalid";
+  const ack=await rpc("altnix_finish_service_authorization",{p_event:row.event_id,p_token:row.claim_token,p_result:result});
+  if(!ack.error&&ack.data===true)counts.acknowledged++;else counts.unconfirmed++;
+ }
+ return counts;
+}

@@ -24,6 +24,11 @@ create table altnix_operational.service_outbox(
  decision_reason text not null check(length(btrim(decision_reason)) between 1 and 500),
  created_at timestamptz not null default now(),
  delivered_at timestamptz,
+ claim_token uuid,
+ claimed_at timestamptz,
+ attempts integer not null default 0 check(attempts between 0 and 5),
+ retry_after timestamptz not null default now(),
+ review_required boolean not null default false,
  unique(service_id,revision)
 );
 alter table altnix_operational.service_binding enable row level security;
@@ -31,7 +36,7 @@ alter table altnix_operational.service_outbox enable row level security;
 revoke all on altnix_operational.service_binding,altnix_operational.service_outbox from public,anon,authenticated,service_role;
 grant select on altnix_operational.service_binding,altnix_operational.service_outbox to service_role;
 grant insert on altnix_operational.service_outbox to service_role;
-grant update(delivered_at) on altnix_operational.service_outbox to service_role;
+grant update(delivered_at,claim_token,claimed_at,attempts,retry_after,review_required) on altnix_operational.service_outbox to service_role;
 create policy binding_read on altnix_operational.service_binding for select to service_role using(true);
 create policy outbox_read on altnix_operational.service_outbox for select to service_role using(true);
 create policy outbox_append on altnix_operational.service_outbox for insert to service_role with check(true);
@@ -72,3 +77,45 @@ begin
 end;$queue$;
 revoke all on function public.altnix_queue_service_authorization(uuid,uuid,uuid,text,timestamptz,text) from public,anon,authenticated;
 grant execute on function public.altnix_queue_service_authorization(uuid,uuid,uuid,text,timestamptz,text) to service_role;
+
+-- Somente a revisão mais recente de cada serviço pode ser reivindicada.
+-- Um serviço revogado não envia nova autorização positiva. Suspensão/fim
+-- continuam elegíveis para não deixar a última autorização positiva ativa.
+create function public.altnix_claim_service_authorizations(p_limit integer default 5)
+returns table(event_id uuid,claim_token uuid,payload jsonb)
+language sql security invoker set search_path='' as $claim$
+ with next_rows as (
+ select o.event_id from altnix_operational.service_outbox o
+ join altnix_operational.service_binding b on b.service_id=o.service_id
+ where o.delivered_at is null and not o.review_required and o.attempts<5
+ and o.retry_after<=statement_timestamp()
+ and (o.claimed_at is null or o.claimed_at<statement_timestamp()-interval '2 minutes')
+ and not exists(select 1 from altnix_operational.service_outbox n where n.service_id=o.service_id and n.revision>o.revision)
+ and (o.payload->>'status' in ('suspended','ended') or
+ (b.enabled and exists(select 1 from public.client_digital_export_permissions p where p.client_id=b.client_id and p.enabled)))
+ order by o.created_at,o.event_id limit greatest(0,least(coalesce(p_limit,0),10))
+ for update of o skip locked
+ )
+ update altnix_operational.service_outbox o set claim_token=gen_random_uuid(),claimed_at=statement_timestamp(),attempts=o.attempts+1
+ from next_rows n where n.event_id=o.event_id
+ returning o.event_id,o.claim_token,o.payload;
+$claim$;
+revoke all on function public.altnix_claim_service_authorizations(integer) from public,anon,authenticated;
+grant execute on function public.altnix_claim_service_authorizations(integer) to service_role;
+create function public.altnix_finish_service_authorization(p_event uuid,p_token uuid,p_result text)
+returns boolean language plpgsql security invoker set search_path='' as $finish$
+declare affected integer;
+begin
+ if p_result is null or p_result not in ('applied','retryable','review_required','disabled','invalid') then return false;end if;
+ update altnix_operational.service_outbox o set
+ delivered_at=case when p_result='applied' then statement_timestamp() else null end,
+ review_required=p_result in ('review_required','invalid') or (p_result='retryable' and o.attempts>=5),
+ attempts=case when p_result='disabled' then greatest(o.attempts-1,0) else o.attempts end,
+ retry_after=statement_timestamp()+interval '5 minutes',
+ claim_token=null,claimed_at=null
+ where o.event_id=p_event and o.claim_token=p_token and o.delivered_at is null;
+ get diagnostics affected=row_count;
+ return affected=1;
+end;$finish$;
+revoke all on function public.altnix_finish_service_authorization(uuid,uuid,text) from public,anon,authenticated;
+grant execute on function public.altnix_finish_service_authorization(uuid,uuid,text) to service_role;

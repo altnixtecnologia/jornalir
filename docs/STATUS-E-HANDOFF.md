@@ -1,5 +1,9 @@
 # Jornal IR — Status atual e passagem de contexto (HANDOFF)
 
+## 27/11/2026 — Processamento controlado da fila operacional
+
+- Candidato sandbox: claim limitado, lease por tentativa, proteção contra concorrência, somente última revisão, confirmação por token, retry com intervalo e revisão manual após falhas. Worker servidor preparado, desativado pela trava da release; sem cron novo, sem polling do player. Teste de reivindicação, confirmação e revisão superada. Falta conectar ao ponto autorizado de decisão e rotina existente, revisar revogações e concluir migration/CI. Nada aplicado ou publicado em produção.
+
 ## 27/11/2026 — Vínculo auditado e fila central de autorização (sandbox)
 
 - CI do transporte anterior aprovada. Candidato SQL somente em testes: vínculo operacional explícito referenciado pelos IDs existentes de serviço/pacote/cliente, provisionado administrativamente, com ator e data; fila de eventos por serviço, revisão serializada, identidade estável e decisão auditável. Rejeita canal não LED, seleção revogada, duplicidade divergente e eventos futuros. Não deduz autorização de recebimento global; ainda requer integrar decisão autorizada, worker com confirmação e reprovação, migration oficial e homologação. Não é migration, não modifica produção nem cria vendas/contratos. CI pendente.
