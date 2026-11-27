@@ -133,3 +133,12 @@ export async function fetchServiceCampaignOptions(clientId:string,serviceId:stri
   return response.ok?checkedCampaignOptions(await response.json()):null;
  }catch{return null;}
 }
+
+export type ServiceFinancialAssessment={state:"authorized"|"grace"|"suspended"|"ended"|"review";reason:string;oldestDue?:string};
+export function checkedFinancialAssessment(raw:unknown):ServiceFinancialAssessment|null{
+ if(!raw||typeof raw!=="object"||Array.isArray(raw))return null;
+ const v=raw as Record<string,unknown>;
+ if(!["authorized","grace","suspended","ended","review"].includes(String(v.state))||typeof v.reason!=="string"||!["service_ended","export_revoked","sale_or_period_not_ready","allocation_not_proven","non_monetary_or_undefined","billing_incomplete","no_overdue_balance","overdue_within_grace","overdue_after_grace"].includes(v.reason))return null;
+ if(v.oldestDue!==undefined&&(typeof v.oldestDue!=="string"||!/^\d{4}-\d{2}-\d{2}$/.test(v.oldestDue)))return null;
+ return {state:v.state as ServiceFinancialAssessment["state"],reason:v.reason,...(typeof v.oldestDue==="string"?{oldestDue:v.oldestDue}:{})};
+}

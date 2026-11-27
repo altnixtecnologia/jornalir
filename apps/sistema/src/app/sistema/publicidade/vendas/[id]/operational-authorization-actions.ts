@@ -3,7 +3,7 @@ import { createSupabaseServerClient } from "../../../../../lib/supabase/server";
 import { createSupabaseAdminClient } from "../../../../../lib/supabase/admin";
 import { canonicalIdOrNull } from "../../../../../lib/integrations/altnixFinanceReadContract";
 import { checkModuleAction } from "../../../../../lib/permissions/checkModuleAction";
-import { ALTNIX_SERVICE_AUTH_RELEASED,parseServiceDecision,checkedServiceAuthorizationEvent,drainServiceAuthorizationOutbox,parseServiceBindingRequest,checkedServiceBinding,sendServiceBinding,fetchServiceCampaignOptions,type CampaignOptions } from "../../../../../lib/integrations/altnixServiceAuthorization";
+import { ALTNIX_SERVICE_AUTH_RELEASED,parseServiceDecision,checkedServiceAuthorizationEvent,drainServiceAuthorizationOutbox,parseServiceBindingRequest,checkedServiceBinding,sendServiceBinding,fetchServiceCampaignOptions,type CampaignOptions,checkedFinancialAssessment,type ServiceFinancialAssessment } from "../../../../../lib/integrations/altnixServiceAuthorization";
 
 type Result={ok:true;queued:true;delivery:"confirmed"|"pending"}|{error:string};
 /** Preparação de ponto de decisão humana; não é autorização automática
@@ -96,4 +96,22 @@ export async function listAltnixServiceCampaignsAction(serviceId:string):Promise
   if(!result)return {error:"Campanhas indisponíveis."};
   return {ok:true,result:{...result,options:result.options.filter(c=>!context.campaignId||(context.campaignId===c.campaignId&&context.advertiserId===c.advertiserId))}};
  }catch{return {error:"Consulta de campanhas indisponível."};}
+}
+
+/** Simulação explícita; não configura tolerância nem publica autorização. */
+export async function assessAltnixServiceFinanceAction(serviceId:string,graceDays:number):Promise<{ok:true;assessment:ServiceFinancialAssessment}|{error:string}>{
+ if(!ALTNIX_SERVICE_AUTH_RELEASED||process.env.VERCEL_ENV!=="production"||process.env.JORNALIR_SERVICE_AUTH_WRITE_ENABLED!=="true")return {error:"Integração operacional aguardando homologação."};
+ if(canonicalIdOrNull(serviceId)!==serviceId||!Number.isInteger(graceDays)||graceDays<0||graceDays>30)return {error:"Informe a tolerância em dias, de 0 a 30."};
+ try{
+  const denied=await checkModuleAction("publicidade","contratos_revisar");if(denied)return {error:denied};
+  const session=createSupabaseServerClient();const {data:auth,error}=await session.auth.getUser();if(error||!auth.user)return {error:"Sessão inválida."};
+  const {data:profile}=await session.from("profiles").select("role,active").eq("id",auth.user.id).maybeSingle();
+  if(!profile?.active||profile.role!=="owner")return {error:"Operação reservada ao proprietário."};
+  const {data:service,error:serviceError}=await session.from("commercial_contract_services").select("id,service_channel").eq("id",serviceId).maybeSingle();
+  if(serviceError||service?.service_channel!=="led_panel")return {error:"Serviço não disponível."};
+  const result=await createSupabaseAdminClient().rpc("altnix_assess_service_finance",{p_service:serviceId,p_grace_days:graceDays});
+  const assessment=checkedFinancialAssessment(result.data);
+  if(result.error||!assessment)return {error:"Não foi possível avaliar o financeiro deste serviço."};
+  return {ok:true,assessment};
+ }catch{return {error:"Avaliação financeira indisponível."};}
 }

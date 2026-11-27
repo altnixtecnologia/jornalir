@@ -5,16 +5,17 @@ do $roles$ begin
  if not exists(select 1 from pg_roles where rolname='service_role') then create role service_role;end if;
 end;$roles$;
 create table public.clients(id uuid primary key);
-create table public.commercial_sales(id uuid primary key,client_id uuid not null);
+create table public.commercial_sales(id uuid primary key,client_id uuid not null,status text default 'active',commercial_condition text default 'installments',amount numeric default 100,installments_count integer default 1,items_snapshot jsonb default '[{"serviceChannel":"led_panel"}]'::jsonb);
 create table public.commercial_contract_packages(id uuid primary key,client_id uuid not null,commercial_sale_id uuid not null);
-create table public.commercial_contract_services(id uuid primary key,package_id uuid not null,service_channel text not null);
+create table public.commercial_contract_services(id uuid primary key,package_id uuid not null,service_channel text not null,starts_on date default current_date-30,ends_on date);
+create table public.receivables_with_balance(id uuid primary key,client_id uuid,commercial_sale_id uuid,installment_number integer,original_amount numeric,balance numeric,status text,due_date date);
 create table public.client_digital_export_permissions(client_id uuid primary key,enabled boolean not null);
-grant select on public.clients,public.commercial_sales,public.commercial_contract_packages,public.commercial_contract_services,public.client_digital_export_permissions to service_role;
+grant select on public.receivables_with_balance,public.clients,public.commercial_sales,public.commercial_contract_packages,public.commercial_contract_services,public.client_digital_export_permissions to service_role;
 \ir fixtures/altnix-service-outbox-candidate.sql
 insert into public.clients values('00000000-0000-4000-8000-000000000001');
-insert into public.commercial_sales values('00000000-0000-4000-8000-000000000002','00000000-0000-4000-8000-000000000001');
+insert into public.commercial_sales(id,client_id) values('00000000-0000-4000-8000-000000000002','00000000-0000-4000-8000-000000000001');
 insert into public.commercial_contract_packages values('00000000-0000-4000-8000-000000000003','00000000-0000-4000-8000-000000000001','00000000-0000-4000-8000-000000000002');
-insert into public.commercial_contract_services values('00000000-0000-4000-8000-000000000004','00000000-0000-4000-8000-000000000003','led_panel'),('00000000-0000-4000-8000-000000000005','00000000-0000-4000-8000-000000000003','newspaper');
+insert into public.commercial_contract_services(id,package_id,service_channel) values('00000000-0000-4000-8000-000000000004','00000000-0000-4000-8000-000000000003','led_panel'),('00000000-0000-4000-8000-000000000005','00000000-0000-4000-8000-000000000003','newspaper');
 insert into public.client_digital_export_permissions values('00000000-0000-4000-8000-000000000001',true);
 insert into altnix_operational.service_binding(service_id,package_id,client_id,advertiser_id,campaign_id,approved_by,enabled)
 values('00000000-0000-4000-8000-000000000004','00000000-0000-4000-8000-000000000003','00000000-0000-4000-8000-000000000001',gen_random_uuid(),gen_random_uuid(),gen_random_uuid(),true),
@@ -23,7 +24,7 @@ do $acl$ begin
  if has_schema_privilege('authenticated','altnix_operational','USAGE') or has_column_privilege('service_role','altnix_operational.service_binding','enabled','INSERT') or has_column_privilege('service_role','altnix_operational.service_outbox','payload','UPDATE') or has_function_privilege('anon','public.altnix_queue_service_authorization(uuid,uuid,uuid,text,timestamptz,text)','EXECUTE') then raise exception 'unsafe privilege';end if;
 end;$acl$;
 -- Novo serviço sem contrato espelho, reserva e confirmação em duas fases.
-insert into public.commercial_contract_services values('00000000-0000-4000-8000-000000000006','00000000-0000-4000-8000-000000000003','led_panel');
+insert into public.commercial_contract_services(id,package_id,service_channel) values('00000000-0000-4000-8000-000000000006','00000000-0000-4000-8000-000000000003','led_panel');
 set role service_role;
 do $binding$ declare s uuid:='00000000-0000-4000-8000-000000000006'; a uuid:=gen_random_uuid(); c uuid:=gen_random_uuid(); actor uuid:=gen_random_uuid();p jsonb;
 begin
@@ -69,3 +70,28 @@ do $revoked$ begin
 end;$revoked$;
 reset role;
 select 'outbox sandbox OK' as result;
+
+-- Financeiro real: cenários de venda de serviço único e pacote misto.
+insert into public.clients values('00000000-0000-4000-8000-000000000021');
+insert into public.client_digital_export_permissions values('00000000-0000-4000-8000-000000000021',true);
+insert into public.commercial_sales(id,client_id) values('00000000-0000-4000-8000-000000000022','00000000-0000-4000-8000-000000000021');
+insert into public.commercial_contract_packages values('00000000-0000-4000-8000-000000000023','00000000-0000-4000-8000-000000000021','00000000-0000-4000-8000-000000000022');
+insert into public.commercial_contract_services(id,package_id,service_channel) values('00000000-0000-4000-8000-000000000024','00000000-0000-4000-8000-000000000023','led_panel');
+do $evidence$ declare s uuid:='00000000-0000-4000-8000-000000000024';v uuid:='00000000-0000-4000-8000-000000000022';c uuid:='00000000-0000-4000-8000-000000000021';d date:=(now() at time zone 'America/Sao_Paulo')::date;begin
+ if (public.altnix_assess_service_finance(s,2)->>'reason') is distinct from 'billing_incomplete' then raise exception 'missing billing accepted';end if;
+ insert into public.receivables_with_balance values(gen_random_uuid(),c,v,1,100,50,'partially_paid',d-1);
+ if (public.altnix_assess_service_finance(s,2)->>'state') is distinct from 'grace' then raise exception 'grace not honored';end if;
+ if (public.altnix_assess_service_finance(s,0)->>'state') is distinct from 'suspended' then raise exception 'overdue not suspended';end if;
+ update public.receivables_with_balance set balance=0,status='paid' where commercial_sale_id=v;
+ if (public.altnix_assess_service_finance(s,2)->>'state') is distinct from 'authorized' then raise exception 'paid balance not recognized';end if;
+ update public.receivables_with_balance set balance=50,status='paid' where commercial_sale_id=v;
+ if (public.altnix_assess_service_finance(s,2)->>'state') is distinct from 'review' then raise exception 'inconsistent receipt accepted';end if;
+ update public.receivables_with_balance set status='open',balance=100,due_date=d+10 where commercial_sale_id=v;
+ if (public.altnix_assess_service_finance(s,2)->>'state') is distinct from 'authorized' then raise exception 'future due date overdue';end if;
+ update public.commercial_sales set commercial_condition='courtesy' where id=v;
+ if (public.altnix_assess_service_finance(s,2)->>'reason') is distinct from 'non_monetary_or_undefined' then raise exception 'courtesy treated as debt';end if;
+ update public.commercial_sales set commercial_condition='cash',items_snapshot='[{"serviceChannel":"led_panel"},{"serviceChannel":"newspaper"}]' where id=v;
+ if (public.altnix_assess_service_finance(s,2)->>'reason') is distinct from 'allocation_not_proven' then raise exception 'mixed sale attributed';end if;
+ update public.commercial_sales set status='cancelled' where id=v;
+ if (public.altnix_assess_service_finance(s,2)->>'state') is distinct from 'ended' then raise exception 'cancelled sale still active';end if;
+end;$evidence$;

@@ -1,5 +1,9 @@
 # Jornal IR — Status atual e passagem de contexto (HANDOFF)
 
+## 27/11/2026 — Avaliação financeira por serviço sem rateio presumido
+
+- CI anterior Jornal 4/4 aprovada; Informativo 3/4, falha exclusiva na obtenção latest CLI (rate limit), versão estável fixada na PR #73. Reutilizada `receivables_with_balance` (saldo já considera baixas/ajustes não estornados), venda e vigência reais; avaliação em dia civil BRT, tolerância explicitamente informada, verifica total/parcelas/cliente/estado. Venda mista, títulos faltantes/cancelados/inconsistentes, cortesia/permuta/comodato/condição indefinida exigem revisão; não presumir quitação ou rateio. Painel da venda consulta indicação sob demanda; nenhuma autorização automática ainda, release fechada. SQL sandbox testa pagamento parcial, tolerância, atraso, quitação, inconsistência, parcela futura, condição não monetária, venda mista e cancelamento. Não emitir, alterar ou apagar cobrança, não gerar cron. Próxima fase conectar rotina de transição controlada, preservar suspensões manuais e configurar política de tolerância sem assumir padrão. Nenhum deploy/migration produtiva.
+
 ## 27/11/2026 — Seleção de campanha do cadastro mestre
 
 - Substituída digitação de UUIDs por consulta explícita de campanhas do cliente canônico derivado do serviço e da permissão de exportação. Backend confere opção e anunciante antes de reservar; reserva anterior limita retry à mesma identidade. Não cria cadastro/contrato/mídia ou cobrança e não consulta por aparelho. CI pendente, flags desativadas. Se houver conflito concorrente após reserva, exigir revisão administrativa, nunca sobrescrever automaticamente. Prioridade integração cadastral/financeira; Asaas sem reimplementação.

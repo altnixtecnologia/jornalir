@@ -189,3 +189,59 @@ returns jsonb language sql stable security invoker set search_path='' as $contex
 $context$;
 revoke all on function public.altnix_service_binding_context(uuid) from public,anon,authenticated;
 grant execute on function public.altnix_service_binding_context(uuid) to service_role;
+
+-- Avaliação autoritativa: reutiliza saldo já calculado pelo Financeiro, incluindo
+-- recibos/ajustes não estornados. Nunca rateia pagamento de venda multiproduto.
+-- Retorna indicação, não cria títulos, cobrança, autorização ou cron.
+create function public.altnix_assess_service_finance(p_service uuid,p_grace_days integer)
+returns jsonb language plpgsql stable security invoker set search_path='' as $finance$
+declare
+ x record;
+ civil_day date:=(statement_timestamp() at time zone 'America/Sao_Paulo')::date;
+ n integer; distinct_n integer; total numeric; bad integer; oldest date;
+begin
+ if p_service is null or p_grace_days is null or p_grace_days not between 0 and 30 then return null;end if;
+ select s.starts_on,s.ends_on,v.id as sale_id,v.client_id,v.status,v.commercial_condition,v.amount,v.installments_count,v.items_snapshot,
+ (select count(*) from public.commercial_contract_services t where t.package_id=p.id) as service_count,
+ exists(select 1 from public.client_digital_export_permissions e where e.client_id=v.client_id and e.enabled) as export_enabled
+ into x
+ from public.commercial_contract_services s join public.commercial_contract_packages p on p.id=s.package_id
+ join public.commercial_sales v on v.id=p.commercial_sale_id and v.client_id=p.client_id
+ where s.id=p_service and s.service_channel='led_panel';
+ if not found then return null;end if;
+ if x.status='cancelled' or (x.ends_on is not null and x.ends_on<civil_day) then
+  return jsonb_build_object('state','ended','reason','service_ended');
+ end if;
+ if not x.export_enabled then return jsonb_build_object('state','suspended','reason','export_revoked');end if;
+ if x.status not in ('approved','active') or x.starts_on is null or x.starts_on>civil_day then
+  return jsonb_build_object('state','review','reason','sale_or_period_not_ready');
+ end if;
+ if x.service_count<>1 or x.items_snapshot is null or jsonb_typeof(x.items_snapshot)<>'array' then
+  return jsonb_build_object('state','review','reason','allocation_not_proven');
+ end if;
+ if jsonb_array_length(x.items_snapshot)<>1 or x.items_snapshot->0->>'serviceChannel' is distinct from 'led_panel' then
+  return jsonb_build_object('state','review','reason','allocation_not_proven');
+ end if;
+ if x.commercial_condition not in ('cash','installments') then
+  return jsonb_build_object('state','review','reason','non_monetary_or_undefined');
+ end if;
+ if x.amount is null or x.amount<=0 or x.installments_count is null or x.installments_count not between 1 and 120 then
+  return jsonb_build_object('state','review','reason','billing_incomplete');
+ end if;
+ select count(*),count(distinct r.installment_number),coalesce(sum(r.original_amount),0),
+ count(*) filter(where r.client_id is distinct from x.client_id or r.status is null or r.status not in ('open','partially_paid','paid')
+ or r.installment_number is null or r.installment_number not between 1 and x.installments_count
+ or r.original_amount is null or r.original_amount<=0 or r.due_date is null or r.balance is null or r.balance<0
+ or (r.status='paid' and r.balance<>0) or (r.status<>'paid' and r.balance=0)),
+ min(r.due_date) filter(where r.balance>0 and r.due_date<civil_day)
+ into n,distinct_n,total,bad,oldest
+ from public.receivables_with_balance r where r.commercial_sale_id=x.sale_id;
+ if n<>x.installments_count or distinct_n<>n or total<>x.amount or bad<>0 then
+  return jsonb_build_object('state','review','reason','billing_incomplete');
+ end if;
+ if oldest is null then return jsonb_build_object('state','authorized','reason','no_overdue_balance');end if;
+ if civil_day<=oldest+p_grace_days then return jsonb_build_object('state','grace','reason','overdue_within_grace','oldestDue',oldest);end if;
+ return jsonb_build_object('state','suspended','reason','overdue_after_grace','oldestDue',oldest);
+end;$finance$;
+revoke all on function public.altnix_assess_service_finance(uuid,integer) from public,anon,authenticated;
+grant execute on function public.altnix_assess_service_finance(uuid,integer) to service_role;
