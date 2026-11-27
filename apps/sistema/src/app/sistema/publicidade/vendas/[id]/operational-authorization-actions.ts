@@ -23,7 +23,7 @@ export async function authorizeAltnixServiceAction(raw:unknown):Promise<Result>{
   const admin=createSupabaseAdminClient();
   const {data,error}=await admin.rpc("altnix_queue_service_authorization",{
     p_service:command.serviceId,p_event:command.operationId,p_actor:auth.user.id,p_state:command.status,
-    p_effective:new Date().toISOString(),p_reason:command.reason
+    p_effective:null,p_reason:command.reason
   });
   if(error||!checkedServiceAuthorizationEvent(data,Date.now()))return {error:"Vínculo ou decisão não confirmado."};
   // A fila é persistida antes do envio. Falha de rede mantém a decisão.

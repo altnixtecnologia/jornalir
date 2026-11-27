@@ -2,7 +2,9 @@
 
 ## 27/11/2026 — Ponto de decisão operacional explícita (desativado)
 
-- CI do worker anterior aprovada. Server Action prepara decisão por serviço com confirmação, justificativa e sessão de proprietário ativo, checagem de permissão existente, ator real e fila persistida antes de tentativa de envio. Sem UI, sem cron novo, release false. Não assume envio concluído pelo lote. Ainda exige confirmar regra comercial automática por serviço, política de retry com effectiveAt persistido, provisionamento e migration, homologação coordenada. Não altera financeiro, cobrança ou dados em produção.
+- Retry de decisão imediata usa a data original registrada no evento; timestamp produzido no banco, não no navegador. CI pendente.
+
+- CI do worker anterior aprovada. Server Action prepara decisão por serviço com confirmação, justificativa e sessão de proprietário ativo, checagem de permissão existente, ator real e fila persistida antes de tentativa de envio. Sem UI, sem cron novo, release false. Não assume envio concluído pelo lote. Ainda exige confirmar regra comercial automática por serviço, provisionamento e migration, homologação coordenada. Não altera financeiro, cobrança ou dados em produção.
 
 ## 27/11/2026 — Processamento controlado da fila operacional
 

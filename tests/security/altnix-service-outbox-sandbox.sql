@@ -26,7 +26,7 @@ set role service_role;
 do $test$ declare s uuid:='00000000-0000-4000-8000-000000000004'; other uuid:='00000000-0000-4000-8000-000000000005';e uuid:=gen_random_uuid();a uuid:=gen_random_uuid();d timestamptz:=now();p jsonb;q jsonb;begin
  p=public.altnix_queue_service_authorization(s,e,a,'authorized',d,'explicit test decision');
  if p is null or p->>'revision'<>'1' or p->>'canonicalServiceId'<>s::text then raise exception 'valid event missing';end if;
- q=public.altnix_queue_service_authorization(s,e,a,'authorized',d,'explicit test decision');
+ q=public.altnix_queue_service_authorization(s,e,a,'authorized',null,'explicit test decision');
  if q is distinct from p then raise exception 'retry generated new event';end if;
  if public.altnix_queue_service_authorization(s,e,a,'suspended',d,'changed decision') is not null then raise exception 'conflicting replay';end if;
  if public.altnix_queue_service_authorization(other,gen_random_uuid(),a,'authorized',d,'wrong service') is not null then raise exception 'newspaper accepted';end if;

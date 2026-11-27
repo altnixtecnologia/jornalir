@@ -49,7 +49,7 @@ create function public.altnix_queue_service_authorization(
 declare b altnix_operational.service_binding%rowtype; old altnix_operational.service_outbox%rowtype; rev bigint; payload jsonb;
 begin
  if p_event is null or p_actor is null or p_service is null or p_state is null or p_state not in ('authorized','grace','suspended','ended')
- or p_effective is null or p_effective>statement_timestamp() or p_reason is null or length(btrim(p_reason)) not between 1 and 500 then return null;end if;
+ or p_effective>statement_timestamp() or p_reason is null or length(btrim(p_reason)) not between 1 and 500 then return null;end if;
  -- Serializar evento e serviço sem permissões de UPDATE sobre vínculo.
  perform pg_advisory_xact_lock(hashtextextended('altnix-service:'||p_service::text,0));
  select * into b from altnix_operational.service_binding where service_id=p_service and enabled;
@@ -61,7 +61,7 @@ begin
  select * into old from altnix_operational.service_outbox where event_id=p_event;
  if found then
   if old.service_id=p_service and old.decision_actor=p_actor and old.decision_reason=p_reason
-   and old.payload->>'status'=p_state and (old.payload->>'effectiveAt')::timestamptz=p_effective then return old.payload;end if;
+   and old.payload->>'status'=p_state and (p_effective is null or (old.payload->>'effectiveAt')::timestamptz=p_effective) then return old.payload;end if;
   return null;
  end if;
  select coalesce(max(o.revision),0)+1 into rev from altnix_operational.service_outbox o where o.service_id=p_service;
@@ -69,7 +69,7 @@ begin
  'tenantId','00000000-0000-0000-0000-000000000001','advertiserId',b.advertiser_id,'canonicalClientId',b.client_id,
  'canonicalContractId',b.package_id,'canonicalServiceId',b.service_id,'localContractId',b.local_contract_id,
  'campaignId',b.campaign_id,'eventId',p_event,'revision',rev,'status',p_state,
- 'effectiveAt',to_char(p_effective at time zone 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"'));
+ 'effectiveAt',to_char(coalesce(p_effective,statement_timestamp()) at time zone 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"'));
  insert into altnix_operational.service_outbox(event_id,service_id,revision,payload,decision_actor,decision_reason)
  values(p_event,p_service,rev,payload,p_actor,p_reason);
  return payload;
