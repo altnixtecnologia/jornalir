@@ -30,6 +30,8 @@ on:
       - "apps/sistema/src/features/configuracoes/BillingProviderSettingsPanel.tsx"
       - "tests/security/altnix-service-outbox-sandbox.sql"
       - "tests/security/fixtures/altnix-service-outbox-candidate.sql"
+      - "scripts/prepare-operational-migration.mjs"
+      - "supabase/migrations/*altnix_service_operational_authorization.sql"
       - "apps/sistema/src/lib/integrations/altnixLinkPreview.ts"
       - "apps/sistema/test/altnix-link-preview.test.ts"
       - "apps/sistema/src/app/api/integrations/altnix/finance-preview/**"
@@ -91,3 +93,19 @@ jobs:
         run: |
           createdb altnix_service_outbox_sandbox
           psql -d altnix_service_outbox_sandbox -v ON_ERROR_STOP=1 -f tests/security/altnix-service-outbox-sandbox.sql
+      - name: Instalar CLI para gerar migration
+        uses: supabase/setup-cli@v1
+        with:
+          version: 3.4.0
+      - name: Gerar migration e validar em segundo banco descartável
+        run: |
+          node scripts/prepare-operational-migration.mjs --generate --sandbox-copy
+          createdb altnix_service_outbox_sandbox_migration
+          psql -d altnix_service_outbox_sandbox_migration -v ON_ERROR_STOP=1 -f tests/security/.generated-operational-migration-sandbox.sql
+      - name: Guardar migration validada (sem deploy)
+        uses: actions/upload-artifact@v4
+        with:
+          name: jornalir-operational-migration
+          path: supabase/migrations/*_altnix_service_operational_authorization.sql
+          if-no-files-found: error
+          retention-days: 7

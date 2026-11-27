@@ -1,5 +1,9 @@
 # Jornal IR — Status atual e passagem de contexto (HANDOFF)
 
+## 27/11/2026 — Migration operacional preparada por CLI
+
+- Gerador local `node scripts/prepare-operational-migration.mjs --generate` usa exclusivamente `supabase migration new`, sem conexão, push ou deploy. Copia o candidato validado com SHA256; não sobrescreve migration existente divergente. CI fixada na versão CLI 3.4.0 gera o SQL em checkout descartável, executa o mesmo sandbox contra a migration gerada e publica artefato por sete dias. A versão gerada deverá ser recuperada e versionada na PR, conferir dependências contra schema oficial antes de instalar. Sem aplicação ou ativação; manter flags, contrato permanente e dados intactos. Auditoria ampla reservada ao final.
+
 ## 27/11/2026 — Worker diário central e recuperação de fila
 
 - RPC com cursor persistido por dia civil BRT, transação atômica, trava de concorrência, limite 25 por execução (máximo 50), reinício apenas no novo dia. Após completar a avaliação, novas chamadas apenas tentam entregar a fila existente (até cinco eventos); falha de avaliação não impede retry da fila. Endpoint cron autenticado pelo CRON_SECRET já usado no sistema, sem parâmetros externos, sem acesso a credencial em cliente; exige release e flag separada JORNALIR_SERVICE_FINANCE_WORKER_ENABLED. Nenhum cron cadastrado/ativo, nenhuma alteração produtiva. Sandbox testa cursor, idempotência, mudança de dia, suspensão, recuperação e ACL; CI anterior c944c6b 7/7 aprovada. Próxima etapa: preparar migrations oficiais e configuração central de cadência após homologação; não criar polling por aparelho nem reutilizar jobs editoriais. Auditoria ampla ao final.
