@@ -299,3 +299,29 @@ begin
 end;$apply$;
 revoke all on function public.altnix_apply_service_finance(uuid) from public,anon,authenticated;
 grant execute on function public.altnix_apply_service_finance(uuid) to service_role;
+
+
+-- Reavaliação central em lotes por venda (baixa/estorno) ou por cursor (dia civil).
+-- Apenas políticas opt-in; sem consulta nos aparelhos, sem novo agendamento.
+-- A fila de entrega existente continua sendo a única saída operacional.
+create function public.altnix_reassess_service_finance_batch(p_sale uuid,p_after uuid,p_limit integer default 25)
+returns table(service_id uuid,outcome text)
+language plpgsql security invoker set search_path='' as $batch$
+declare candidate uuid;
+begin
+ if p_limit is null or p_limit not between 1 and 50 then return;end if;
+ for candidate in
+  select b.service_id from altnix_operational.service_binding b
+  join public.commercial_contract_packages p on p.id=b.package_id and p.client_id=b.client_id
+  where b.enabled and b.financial_grace_days is not null
+    and (p_sale is null or p.commercial_sale_id=p_sale)
+    and (p_after is null or b.service_id>p_after)
+  order by b.service_id limit p_limit
+ loop
+  service_id:=candidate;
+  outcome:=public.altnix_apply_service_finance(candidate);
+  return next;
+ end loop;
+end;$batch$;
+revoke all on function public.altnix_reassess_service_finance_batch(uuid,uuid,integer) from public,anon,authenticated;
+grant execute on function public.altnix_reassess_service_finance_batch(uuid,uuid,integer) to service_role;

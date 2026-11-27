@@ -1,5 +1,9 @@
 # Jornal IR — Status atual e passagem de contexto (HANDOFF)
 
+## 27/11/2026 — Reavaliação financeira central limitada
+
+- Preparados RPC em lotes (1–50 serviços) e worker servidor protegido pela release: baixa/estorno por venda, rotina diária por cursor, apenas serviços com política opt-in; utiliza decisão e fila existentes, sem polling nos players ou consultas à Vercel por aparelho. Sandbox verifica escopo, cursor, limite, idempotência, suspensão e recuperação. A rotina ainda não está conectada aos eventos ou agendada; falta validar CI, integrar pontos de baixa/estorno e persistir cursor da execução diária. Não criar nova cobrança. Prioridade do proprietário: implementar pendências, anotar e deixar auditoria ampla para o final. Sem alteração produtiva.
+
 ## 27/11/2026 — Regra financeira opt-in por serviço
 
 - Política opcional na própria associação, sem tolerância padrão; proprietário confirma regra e dias após liberação humana e avaliação financeira inequívoca. Transição serializada com decisão manual, nova revisão apenas quando estado muda; quitação só recupera suspensão de origem financeira, não suspensão manual nem encerramento. Permite enviar suspensão/fim mesmo após revogação da exportação, sem permitir autorização positiva. Ação da venda aplica a avaliação inicial e tenta enviar pela fila existente; desativar conserva autorização corrente. Sandbox cobre tolerância, atraso, recuperação, bloqueio manual, encerramento e duplicidade. Não está agendado nem ativo em produção: falta integrar rotina periódica/eventos de baixa já existentes, testar CI e homologar migrations. Sem cobrança, APK ou deploy.

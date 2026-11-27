@@ -142,3 +142,42 @@ export function checkedFinancialAssessment(raw:unknown):ServiceFinancialAssessme
  if(v.oldestDue!==undefined&&(typeof v.oldestDue!=="string"||!/^\d{4}-\d{2}-\d{2}$/.test(v.oldestDue)))return null;
  return {state:v.state as ServiceFinancialAssessment["state"],reason:v.reason,...(typeof v.oldestDue==="string"?{oldestDue:v.oldestDue}:{})};
 }
+
+
+export type ServiceFinanceBatchScope={saleId:string|null;after:string|null;limit:number};
+type ServiceFinanceOutcome="disabled"|"manual_required"|"review"|"unchanged"|"queued";
+export type ServiceFinanceBatchRpc=ServiceOutboxRpc extends (name:infer N,args:infer A)=>infer R
+ ? (name:N|"altnix_reassess_service_finance_batch",args:A)=>R : never;
+export function checkedServiceFinanceBatchScope(raw:unknown):ServiceFinanceBatchScope|null{
+ if(!raw||typeof raw!=="object"||Array.isArray(raw))return null;
+ const v=raw as Record<string,unknown>;
+ if(Object.keys(v).length!==3||!["saleId","after","limit"].every(k=>Object.hasOwn(v,k))
+ ||(v.saleId!==null&&(typeof v.saleId!=="string"||canonicalIdOrNull(v.saleId)!==v.saleId))
+ ||(v.after!==null&&(typeof v.after!=="string"||canonicalIdOrNull(v.after)!==v.after))
+ ||typeof v.limit!=="number"||!Number.isInteger(v.limit)||v.limit<1||v.limit>50)return null;
+ return {saleId:v.saleId as string|null,after:v.after as string|null,limit:v.limit};
+}
+/** Um lote por chamada autorizada de servidor. Venda específica para eventos
+ * financeiros; saleId null para a futura rotina diária. Não cria cron nem
+ * repete chamadas automaticamente. O chamador controla o cursor persistido. */
+export async function runServiceFinanceBatch(rpc:ServiceFinanceBatchRpc,raw:unknown):Promise<{
+ status:"disabled"|"invalid"|"review"|"ok";processed:number;queued:number;review:number;nextCursor:string|null;
+}>{
+ const empty={processed:0,queued:0,review:0,nextCursor:null};
+ if(!ALTNIX_SERVICE_AUTH_RELEASED||process.env.VERCEL_ENV!=="production"||process.env.JORNALIR_SERVICE_AUTH_WRITE_ENABLED!=="true")return {status:"disabled",...empty};
+ const scope=checkedServiceFinanceBatchScope(raw);
+ if(!scope)return {status:"invalid",...empty};
+ const result=await rpc("altnix_reassess_service_finance_batch",{p_sale:scope.saleId,p_after:scope.after,p_limit:scope.limit});
+ if(result.error||!Array.isArray(result.data)||result.data.length>scope.limit)return {status:"review",...empty};
+ let previous=scope.after,queued=0,review=0;
+ for(const row of result.data){
+  if(!row||typeof row!=="object"||typeof row.service_id!=="string"||canonicalIdOrNull(row.service_id)!==row.service_id||(previous!==null&&row.service_id<=previous)
+   ||!["disabled","manual_required","review","unchanged","queued"].includes(row.outcome as ServiceFinanceOutcome))return {status:"review",...empty};
+  previous=row.service_id;
+  if(row.outcome==="queued")queued++;
+  if(row.outcome==="review"||row.outcome==="manual_required")review++;
+ }
+ // Também tenta entregar pendências antigas; a fila limita o lote a cinco.
+ try{await drainServiceAuthorizationOutbox(rpc);}catch{/* decisão persistida; retry pela rotina central */}
+ return {status:"ok",processed:result.data.length,queued,review,nextCursor:result.data.length===scope.limit?previous:null};
+}

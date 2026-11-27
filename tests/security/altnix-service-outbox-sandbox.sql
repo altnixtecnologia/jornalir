@@ -131,3 +131,30 @@ do $auto$ declare s uuid:='00000000-0000-4000-8000-000000000024';v uuid:='000000
  if public.altnix_apply_service_finance(s)<>'manual_required' then raise exception 'ended reopened';end if;
  if not public.altnix_configure_service_finance(s,actor,null) or public.altnix_apply_service_finance(s)<>'disabled' then raise exception 'disable failed';end if;
 end;$auto$;
+
+
+-- Reavaliação central por venda e por cursor; política desligada não entra.
+do $batch_test$
+declare s uuid:='00000000-0000-4000-8000-000000000024';v uuid:='00000000-0000-4000-8000-000000000022';a uuid:=gen_random_uuid();d date:=(now() at time zone 'America/Sao_Paulo')::date; row_result record; n integer;
+begin
+ if has_function_privilege('authenticated','public.altnix_reassess_service_finance_batch(uuid,uuid,integer)','EXECUTE') then raise exception 'batch exposed';end if;
+ if exists(select 1 from public.altnix_reassess_service_finance_batch(null,null,25)) then raise exception 'disabled policies in batch';end if;
+ update public.commercial_sales set status='active' where id=v;
+ perform public.altnix_queue_service_authorization(s,gen_random_uuid(),a,'authorized',null,'new explicit release');
+ if not public.altnix_configure_service_finance(s,a,2) then raise exception 'batch setup failed';end if;
+ update public.receivables_with_balance set status='open',balance=100,due_date=d-3 where commercial_sale_id=v;
+ if exists(select 1 from public.altnix_reassess_service_finance_batch(gen_random_uuid(),null,25)) then raise exception 'wrong sale selected';end if;
+ if exists(select 1 from public.altnix_reassess_service_finance_batch(null,s,25)) then raise exception 'cursor repeated service';end if;
+ if exists(select 1 from public.altnix_reassess_service_finance_batch(null,null,51)) then raise exception 'unbounded batch';end if;
+ select * into row_result from public.altnix_reassess_service_finance_batch(v,null,1);
+ if not found or row_result.service_id is distinct from s or row_result.outcome is distinct from 'queued' then raise exception 'sale batch did not queue suspension';end if;
+ select * into row_result from public.altnix_reassess_service_finance_batch(null,null,25);
+ if not found or row_result.outcome is distinct from 'unchanged' then raise exception 'daily batch repeated event';end if;
+ update public.receivables_with_balance set status='paid',balance=0 where commercial_sale_id=v;
+ select * into row_result from public.altnix_reassess_service_finance_batch(v,null,25);
+ if not found or row_result.outcome is distinct from 'queued' then raise exception 'payment batch did not recover';end if;
+ if (public.altnix_read_service_authorization(s)->>'status') is distinct from 'authorized' then raise exception 'recovery not persisted';end if;
+end;$batch_test$;
+set role service_role;
+select count(*) from public.altnix_reassess_service_finance_batch(null,null,25);
+reset role;

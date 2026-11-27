@@ -1,6 +1,6 @@
 import {test} from "node:test";
 import assert from "node:assert/strict";
-import {ALTNIX_SERVICE_AUTH_RELEASED,ALTNIX_SERVICE_TENANT,ALTNIX_SERVICE_AUTH_ENDPOINT,checkedServiceAuthorizationEvent,authorizationDeliveryResult,sendServiceAuthorization,drainServiceAuthorizationOutbox,parseServiceDecision,parseServiceBindingRequest,checkedServiceBinding,checkedCampaignOptions} from "../src/lib/integrations/altnixServiceAuthorization";
+import {ALTNIX_SERVICE_AUTH_RELEASED,ALTNIX_SERVICE_TENANT,ALTNIX_SERVICE_AUTH_ENDPOINT,checkedServiceAuthorizationEvent,authorizationDeliveryResult,sendServiceAuthorization,drainServiceAuthorizationOutbox,parseServiceDecision,parseServiceBindingRequest,checkedServiceBinding,checkedCampaignOptions,checkedServiceFinanceBatchScope,runServiceFinanceBatch} from "../src/lib/integrations/altnixServiceAuthorization";
 const uuid=(n:number)=>"00000000-0000-4000-8000-"+String(n).padStart(12,"0");
 const event={origin:"jornal_ir",contractVersion:"1",serviceCode:"altnix_informativo",tenantId:ALTNIX_SERVICE_TENANT,
  advertiserId:uuid(2),canonicalClientId:uuid(3),canonicalContractId:uuid(4),canonicalServiceId:uuid(5),
@@ -50,4 +50,17 @@ test("opções de campanha limitadas, válidas e sem duplicidade",()=>{
  assert.equal(checkedCampaignOptions({options:[option,option],complete:true}),null);
  assert.equal(checkedCampaignOptions({options:[{...option,status:"archived"}],complete:true}),null);
  assert.equal(checkedCampaignOptions({options:[{...option,campaignId:"wrong"}],complete:true}),null);
+});
+
+
+test("lote financeiro exige escopo explícito, cursor válido e limite de 50",()=>{
+ const scope={saleId:uuid(2),after:null,limit:25};
+ assert.deepEqual(checkedServiceFinanceBatchScope(scope),scope);
+ assert.deepEqual(checkedServiceFinanceBatchScope({saleId:null,after:uuid(5),limit:50}),{saleId:null,after:uuid(5),limit:50});
+ for(const invalid of [{...scope,saleId:"invalid"},{...scope,after:"invalid"},{...scope,limit:0},{...scope,limit:51},{...scope,limit:1.5},{...scope,actorId:uuid(9)},{after:null,limit:25}])assert.equal(checkedServiceFinanceBatchScope(invalid),null);
+});
+test("lote financeiro não toca o banco nem a fila antes da release",async()=>{
+ let calls=0;
+ assert.deepEqual(await runServiceFinanceBatch(async()=>{calls++;return {data:null,error:null};},{saleId:null,after:null,limit:25}),{status:"disabled",processed:0,queued:0,review:0,nextCursor:null});
+ assert.equal(calls,0);
 });
