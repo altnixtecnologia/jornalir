@@ -132,3 +132,48 @@ returns jsonb language sql stable security invoker set search_path='' as $read$
 $read$;
 revoke all on function public.altnix_read_service_authorization(uuid) from public,anon,authenticated;
 grant execute on function public.altnix_read_service_authorization(uuid) to service_role;
+
+-- Vínculo em duas fases: reserva desabilitada; habilitação só após confirmação
+-- exata do Informativo pelo backend proprietário. Não cria contrato espelho.
+grant insert(service_id,package_id,client_id,advertiser_id,campaign_id,approved_by) on altnix_operational.service_binding to service_role;
+grant update(enabled) on altnix_operational.service_binding to service_role;
+create policy binding_reserve on altnix_operational.service_binding for insert to service_role with check(not enabled);
+create policy binding_confirm on altnix_operational.service_binding for update to service_role using(true) with check(true);
+create function public.altnix_prepare_service_binding(p_service uuid,p_advertiser uuid,p_campaign uuid,p_actor uuid)
+returns jsonb language plpgsql security invoker set search_path='' as $prepare$
+declare b altnix_operational.service_binding%rowtype;
+begin
+ if p_service is null or p_advertiser is null or p_campaign is null or p_actor is null then return null;end if;
+ perform pg_advisory_xact_lock(hashtextextended('altnix-service:'||p_service::text,0));
+ insert into altnix_operational.service_binding(service_id,package_id,client_id,advertiser_id,campaign_id,approved_by)
+ select s.id,p.id,p.client_id,p_advertiser,p_campaign,p_actor
+ from public.commercial_contract_services s join public.commercial_contract_packages p on p.id=s.package_id
+ join public.commercial_sales v on v.id=p.commercial_sale_id and v.client_id=p.client_id
+ join public.client_digital_export_permissions e on e.client_id=p.client_id and e.enabled
+ where s.id=p_service and s.service_channel='led_panel'
+ on conflict do nothing;
+ select * into b from altnix_operational.service_binding where service_id=p_service and advertiser_id=p_advertiser and campaign_id=p_campaign and approved_by=p_actor;
+ if not found or not exists(select 1 from public.commercial_contract_services s join public.commercial_contract_packages p on p.id=s.package_id
+ join public.commercial_sales v on v.id=p.commercial_sale_id and v.client_id=p.client_id
+ join public.client_digital_export_permissions e on e.client_id=p.client_id and e.enabled
+ where s.id=b.service_id and s.service_channel='led_panel' and p.id=b.package_id and p.client_id=b.client_id) then return null;end if;
+ return jsonb_build_object('origin','jornal_ir','contractVersion','1','tenantId','00000000-0000-0000-0000-000000000001',
+ 'campaignId',b.campaign_id,'advertiserId',b.advertiser_id,'canonicalClientId',b.client_id,'canonicalContractId',b.package_id,'canonicalServiceId',b.service_id,'approvedBy',b.approved_by);
+end;$prepare$;
+revoke all on function public.altnix_prepare_service_binding(uuid,uuid,uuid,uuid) from public,anon,authenticated;
+grant execute on function public.altnix_prepare_service_binding(uuid,uuid,uuid,uuid) to service_role;
+create function public.altnix_confirm_service_binding(p_service uuid,p_advertiser uuid,p_campaign uuid,p_actor uuid)
+returns boolean language plpgsql security invoker set search_path='' as $confirm$
+declare n integer;
+begin
+ update altnix_operational.service_binding b set enabled=true
+ where b.service_id=p_service and b.advertiser_id=p_advertiser and b.campaign_id=p_campaign and b.approved_by=p_actor
+ and exists(select 1 from public.commercial_contract_services s join public.commercial_contract_packages p on p.id=s.package_id
+ join public.commercial_sales v on v.id=p.commercial_sale_id and v.client_id=p.client_id
+ join public.client_digital_export_permissions e on e.client_id=p.client_id and e.enabled
+ where s.id=b.service_id and s.service_channel='led_panel' and p.id=b.package_id and p.client_id=b.client_id);
+ get diagnostics n=row_count;
+ return n=1;
+end;$confirm$;
+revoke all on function public.altnix_confirm_service_binding(uuid,uuid,uuid,uuid) from public,anon,authenticated;
+grant execute on function public.altnix_confirm_service_binding(uuid,uuid,uuid,uuid) to service_role;

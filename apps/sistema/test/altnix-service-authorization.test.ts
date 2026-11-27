@@ -1,6 +1,6 @@
 import {test} from "node:test";
 import assert from "node:assert/strict";
-import {ALTNIX_SERVICE_AUTH_RELEASED,ALTNIX_SERVICE_TENANT,ALTNIX_SERVICE_AUTH_ENDPOINT,checkedServiceAuthorizationEvent,authorizationDeliveryResult,sendServiceAuthorization,drainServiceAuthorizationOutbox,parseServiceDecision} from "../src/lib/integrations/altnixServiceAuthorization";
+import {ALTNIX_SERVICE_AUTH_RELEASED,ALTNIX_SERVICE_TENANT,ALTNIX_SERVICE_AUTH_ENDPOINT,checkedServiceAuthorizationEvent,authorizationDeliveryResult,sendServiceAuthorization,drainServiceAuthorizationOutbox,parseServiceDecision,parseServiceBindingRequest,checkedServiceBinding} from "../src/lib/integrations/altnixServiceAuthorization";
 const uuid=(n:number)=>"00000000-0000-4000-8000-"+String(n).padStart(12,"0");
 const event={origin:"jornal_ir",contractVersion:"1",serviceCode:"altnix_informativo",tenantId:ALTNIX_SERVICE_TENANT,
  advertiserId:uuid(2),canonicalClientId:uuid(3),canonicalContractId:uuid(4),canonicalServiceId:uuid(5),
@@ -33,4 +33,13 @@ test("decisão exige confirmação e não aceita ator ou identificadores externo
  const raw={serviceId:uuid(5),operationId:uuid(8),status:"suspended",reason:"Suspensão expressamente confirmada",confirmed:true};
  assert.equal(parseServiceDecision(raw)?.status,"suspended");
  for(const change of [{confirmed:false},{reason:"curta"},{actorId:uuid(4)},{status:"paid"},{operationId:null}])assert.equal(parseServiceDecision({...raw,...change}),null);
+});
+
+test("vínculo exige confirmação e envelope retornado corresponde exatamente à operação",()=>{
+ const raw={serviceId:uuid(5),advertiserId:uuid(2),campaignId:uuid(7),confirmed:true};
+ const command=parseServiceBindingRequest(raw);assert.ok(command);
+ assert.equal(parseServiceBindingRequest({...raw,confirmed:false}),null);
+ const envelope={origin:"jornal_ir",contractVersion:"1",tenantId:ALTNIX_SERVICE_TENANT,campaignId:uuid(7),advertiserId:uuid(2),canonicalClientId:uuid(3),canonicalContractId:uuid(4),canonicalServiceId:uuid(5),approvedBy:uuid(8)};
+ assert.deepEqual(checkedServiceBinding(envelope,command,uuid(8)),envelope);
+ assert.equal(checkedServiceBinding({...envelope,campaignId:uuid(9)},command,uuid(8)),null);
 });

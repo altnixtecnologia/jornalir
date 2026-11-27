@@ -1,5 +1,9 @@
 # Jornal IR — Status atual e passagem de contexto (HANDOFF)
 
+## 27/11/2026 — Vínculo em duas fases no fluxo de venda
+
+- Tela existente permite reservar vínculo com campanha existente mediante IDs operacionais e confirmação do proprietário. RPC central valida pacote/serviço LED e cliente selecionado, reserva inicialmente desabilitada; backend envia envelope mínimo ao Informativo, confirma localmente somente após resposta bound; retries exatos não duplicam. Sem contrato espelho, novo cadastro, cobrança ou autorização automática. Seleção amigável de campanha ainda deve substituir digitação de IDs. CI pendente, release desativada. Não ativar antes de migrations, homologação e proteção financeira completa. Não refazer Asaas.
+
 ## 27/11/2026 — Autorização por serviço na venda existente
 
 - Adicionado painel na própria venda para serviços LED, owner ativo com permissão existente, só após release. Consulta explícita da campanha e revisão/entrega via RPC restrita; registra decisão confirmada com justificativa e operação estável, sem gerar cobrança. Não cria cadastro, venda, contrato ou campanha. CI pendente, release continua fechada. Provisionamento real do vínculo e migrations continuam pendentes; não confundir painel com homologação do fluxo. Não refazer Asaas; conexão aprovada e interface Jornal testada. Priorizar cadastro e financeiro.

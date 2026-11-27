@@ -84,3 +84,29 @@ export function parseServiceDecision(raw:unknown):{serviceId:string;operationId:
  if(reason.length<10||reason.length>500)return null;
  return {serviceId,operationId,status:v.status as ServiceAuthorizationEvent["status"],reason};
 }
+
+export type ServiceBindingRequest={serviceId:string;advertiserId:string;campaignId:string};
+export type ServiceBindingEnvelope={origin:"jornal_ir";contractVersion:"1";tenantId:string;campaignId:string;advertiserId:string;canonicalClientId:string;canonicalContractId:string;canonicalServiceId:string;approvedBy:string};
+export function parseServiceBindingRequest(raw:unknown):ServiceBindingRequest|null{
+ if(!raw||typeof raw!=="object"||Array.isArray(raw))return null;
+ const v=raw as Record<string,unknown>;const ids=["serviceId","advertiserId","campaignId"];
+ if(Object.keys(v).length!==4||v.confirmed!==true||!ids.every(k=>typeof v[k]==="string"&&canonicalIdOrNull(v[k])===v[k]))return null;
+ return {serviceId:v.serviceId as string,advertiserId:v.advertiserId as string,campaignId:v.campaignId as string};
+}
+export function checkedServiceBinding(raw:unknown,request:ServiceBindingRequest,actor:string):ServiceBindingEnvelope|null{
+ if(!raw||typeof raw!=="object"||Array.isArray(raw))return null;
+ const v=raw as Record<string,unknown>;
+ if(Object.keys(v).length!==9||v.origin!=="jornal_ir"||v.contractVersion!=="1"||v.tenantId!==ALTNIX_SERVICE_TENANT
+ ||v.canonicalServiceId!==request.serviceId||v.advertiserId!==request.advertiserId||v.campaignId!==request.campaignId||v.approvedBy!==actor
+ ||!["canonicalClientId","canonicalContractId","canonicalServiceId","advertiserId","campaignId","approvedBy"].every(k=>typeof v[k]==="string"&&canonicalIdOrNull(v[k])===v[k]))return null;
+ return v as ServiceBindingEnvelope;
+}
+export async function sendServiceBinding(binding:ServiceBindingEnvelope):Promise<boolean>{
+ const secret=process.env.JORNALIR_SERVICE_AUTH_WRITE_SECRET;
+ if(!ALTNIX_SERVICE_AUTH_RELEASED||process.env.VERCEL_ENV!=="production"||process.env.JORNALIR_SERVICE_AUTH_WRITE_ENABLED!=="true"||!secret||secret.length<32||secret.length>512
+ ||[process.env.JORNALIR_FINANCE_BRIDGE_SECRET,process.env.ALTNIX_CLIENT_SYNC_SECRET,process.env.ALTNIX_CLIENT_WRITE_SECRET,process.env.SUPABASE_SERVICE_ROLE_KEY,process.env.CRON_SECRET].includes(secret))return false;
+ try{
+  const response=await fetch("https://painel.altnix.com.br/apk/api/integrations/jornalir/service-binding",{method:"POST",headers:{Authorization:"Bearer "+secret,"Content-Type":"application/json"},body:JSON.stringify(binding),cache:"no-store",redirect:"error",signal:AbortSignal.timeout(10000)});
+  const body=await response.json().catch(()=>null);return response.status===200&&body?.code==="bound";
+ }catch{return false;}
+}

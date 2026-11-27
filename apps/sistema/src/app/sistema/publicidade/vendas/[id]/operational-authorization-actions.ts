@@ -3,7 +3,7 @@ import { createSupabaseServerClient } from "../../../../../lib/supabase/server";
 import { createSupabaseAdminClient } from "../../../../../lib/supabase/admin";
 import { canonicalIdOrNull } from "../../../../../lib/integrations/altnixFinanceReadContract";
 import { checkModuleAction } from "../../../../../lib/permissions/checkModuleAction";
-import { ALTNIX_SERVICE_AUTH_RELEASED,parseServiceDecision,checkedServiceAuthorizationEvent,drainServiceAuthorizationOutbox } from "../../../../../lib/integrations/altnixServiceAuthorization";
+import { ALTNIX_SERVICE_AUTH_RELEASED,parseServiceDecision,checkedServiceAuthorizationEvent,drainServiceAuthorizationOutbox,parseServiceBindingRequest,checkedServiceBinding,sendServiceBinding } from "../../../../../lib/integrations/altnixServiceAuthorization";
 
 type Result={ok:true;queued:true;delivery:"confirmed"|"pending"}|{error:string};
 /** Preparação de ponto de decisão humana; não é autorização automática
@@ -51,4 +51,25 @@ export async function readAltnixServiceAuthorizationAction(serviceId:string):Pro
   if(typeof data!=="object"||canonicalIdOrNull(data.campaignId)!==data.campaignId||typeof data.enabled!=="boolean"||!Number.isSafeInteger(data.revision)||data.revision<0||![null,"authorized","grace","suspended","ended"].includes(data.status)||!["none","confirmed","review","pending"].includes(data.delivery))return {error:"Resposta operacional inválida."};
   return {ok:true,binding:{campaignId:data.campaignId,enabled:data.enabled,revision:data.revision,status:data.status,delivery:data.delivery}};
  }catch{return {error:"Consulta operacional indisponível."};}
+}
+
+export async function bindAltnixServiceAction(raw:unknown):Promise<{ok:true}|{error:string}>{
+ if(!ALTNIX_SERVICE_AUTH_RELEASED||process.env.VERCEL_ENV!=="production"||process.env.JORNALIR_SERVICE_AUTH_WRITE_ENABLED!=="true")return {error:"Integração operacional aguardando homologação."};
+ const command=parseServiceBindingRequest(raw);if(!command)return {error:"Selecione a campanha e confirme o vínculo."};
+ try{
+  const denied=await checkModuleAction("publicidade","contratos_revisar");if(denied)return {error:denied};
+  const session=createSupabaseServerClient();const {data:auth,error}=await session.auth.getUser();if(error||!auth.user)return {error:"Sessão inválida."};
+  const {data:profile}=await session.from("profiles").select("role,active").eq("id",auth.user.id).maybeSingle();
+  if(!profile?.active||profile.role!=="owner")return {error:"Operação reservada ao proprietário."};
+  const {data:service,error:serviceError}=await session.from("commercial_contract_services").select("id,service_channel").eq("id",command.serviceId).maybeSingle();
+  if(serviceError||service?.service_channel!=="led_panel")return {error:"Serviço não disponível."};
+  const admin=createSupabaseAdminClient(),args={p_service:command.serviceId,p_advertiser:command.advertiserId,p_campaign:command.campaignId,p_actor:auth.user.id};
+  const {data,error:prepareError}=await admin.rpc("altnix_prepare_service_binding",args);
+  const binding=checkedServiceBinding(data,command,auth.user.id);
+  if(prepareError||!binding)return {error:"Vínculo indisponível, conflitante ou cliente sem seleção autorizada."};
+  if(!await sendServiceBinding(binding))return {error:"Vínculo reservado, mas não confirmado pelo Informativo. Confira os mesmos dados e repita; nenhuma autorização foi criada."};
+  const confirmed=await admin.rpc("altnix_confirm_service_binding",args);
+  if(confirmed.error||confirmed.data!==true)return {error:"Informativo confirmou, mas falta registrar a confirmação central. Repita os mesmos dados."};
+  return {ok:true};
+ }catch{return {error:"Não foi possível confirmar o vínculo. Consulte a situação antes de repetir."};}
 }

@@ -20,9 +20,23 @@ insert into altnix_operational.service_binding(service_id,package_id,client_id,a
 values('00000000-0000-4000-8000-000000000004','00000000-0000-4000-8000-000000000003','00000000-0000-4000-8000-000000000001',gen_random_uuid(),gen_random_uuid(),gen_random_uuid(),true),
 ('00000000-0000-4000-8000-000000000005','00000000-0000-4000-8000-000000000003','00000000-0000-4000-8000-000000000001',gen_random_uuid(),gen_random_uuid(),gen_random_uuid(),true);
 do $acl$ begin
- if has_schema_privilege('authenticated','altnix_operational','USAGE') or has_table_privilege('service_role','altnix_operational.service_binding','INSERT') or has_column_privilege('service_role','altnix_operational.service_outbox','payload','UPDATE') or has_function_privilege('anon','public.altnix_queue_service_authorization(uuid,uuid,uuid,text,timestamptz,text)','EXECUTE') then raise exception 'unsafe privilege';end if;
+ if has_schema_privilege('authenticated','altnix_operational','USAGE') or has_column_privilege('service_role','altnix_operational.service_binding','enabled','INSERT') or has_column_privilege('service_role','altnix_operational.service_outbox','payload','UPDATE') or has_function_privilege('anon','public.altnix_queue_service_authorization(uuid,uuid,uuid,text,timestamptz,text)','EXECUTE') then raise exception 'unsafe privilege';end if;
 end;$acl$;
+-- Novo serviço sem contrato espelho, reserva e confirmação em duas fases.
+insert into public.commercial_contract_services values('00000000-0000-4000-8000-000000000006','00000000-0000-4000-8000-000000000003','led_panel');
 set role service_role;
+do $binding$ declare s uuid:='00000000-0000-4000-8000-000000000006'; a uuid:=gen_random_uuid(); c uuid:=gen_random_uuid(); actor uuid:=gen_random_uuid();p jsonb;
+begin
+ p=public.altnix_prepare_service_binding(s,a,c,actor);
+ if p is null or p->>'campaignId'<>c::text then raise exception 'reserve failed';end if;
+ if (public.altnix_read_service_authorization(s)->>'enabled') is distinct from 'false' then raise exception 'enabled before remote confirmation';end if;
+ if public.altnix_queue_service_authorization(s,gen_random_uuid(),actor,'authorized',now(),'must remain disabled') is not null then raise exception 'premature authorization';end if;
+ if public.altnix_prepare_service_binding(s,a,c,actor) is distinct from p then raise exception 'reservation retry failed';end if;
+ if public.altnix_prepare_service_binding(s,a,gen_random_uuid(),actor) is not null then raise exception 'binding replaced';end if;
+ if public.altnix_confirm_service_binding(s,a,c,gen_random_uuid()) then raise exception 'wrong actor confirmed';end if;
+ if not public.altnix_confirm_service_binding(s,a,c,actor) then raise exception 'confirm failed';end if;
+ if (public.altnix_read_service_authorization(s)->>'enabled') is distinct from 'true' then raise exception 'confirmation not saved';end if;
+end;$binding$;
 do $test$ declare s uuid:='00000000-0000-4000-8000-000000000004'; other uuid:='00000000-0000-4000-8000-000000000005';e uuid:=gen_random_uuid();a uuid:=gen_random_uuid();d timestamptz:=now();p jsonb;q jsonb;begin
  p=public.altnix_queue_service_authorization(s,e,a,'authorized',d,'explicit test decision');
  if p is null or p?'localContractId' or p->>'revision'<>'1' or p->>'canonicalServiceId'<>s::text then raise exception 'valid event missing';end if;
