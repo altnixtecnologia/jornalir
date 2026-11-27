@@ -325,3 +325,27 @@ begin
 end;$batch$;
 revoke all on function public.altnix_reassess_service_finance_batch(uuid,uuid,integer) from public,anon,authenticated;
 grant execute on function public.altnix_reassess_service_finance_batch(uuid,uuid,integer) to service_role;
+
+
+-- Após uma operação financeira confirmada, resolver a venda pelo título
+-- persistido. Não aceitar cliente/venda do navegador nem emitir cobranças.
+create function public.altnix_reassess_receivable_services(p_receivable_ids uuid[])
+returns integer language plpgsql security invoker set search_path='' as $receivable_event$
+declare candidate uuid; processed integer:=0;
+begin
+ if p_receivable_ids is null or cardinality(p_receivable_ids) not between 1 and 50
+  or array_position(p_receivable_ids,null::uuid) is not null then return 0;end if;
+ for candidate in
+  select distinct b.service_id from altnix_operational.service_binding b
+  join public.commercial_contract_packages p on p.id=b.package_id and p.client_id=b.client_id
+  join public.receivables_with_balance r on r.commercial_sale_id=p.commercial_sale_id and r.client_id=b.client_id
+  where b.enabled and b.financial_grace_days is not null and r.id=any(p_receivable_ids)
+  order by b.service_id limit 50
+ loop
+  perform public.altnix_apply_service_finance(candidate);
+  processed:=processed+1;
+ end loop;
+ return processed;
+end;$receivable_event$;
+revoke all on function public.altnix_reassess_receivable_services(uuid[]) from public,anon,authenticated;
+grant execute on function public.altnix_reassess_receivable_services(uuid[]) to service_role;

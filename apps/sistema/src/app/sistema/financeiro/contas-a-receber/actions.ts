@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { notifyAltnixReceivableCommit } from "../../../../lib/integrations/altnixReceivableEvent";
 import { redirect } from "next/navigation";
 import type { PaymentMethod, AdjustmentType } from "@ir/types";
 import type { ReceivableInput } from "@ir/core";
@@ -83,6 +84,7 @@ export async function updateReceivable(id: string, payload: ReceivableFormPayloa
   } catch (error) {
     return { error: toErrorMessage(error) };
   }
+  if (!isLocalPreviewEnabled()) await notifyAltnixReceivableCommit([id]);
   revalidatePath(LIST_PATH);
   revalidatePath(`${LIST_PATH}/${id}`);
   redirect(`${LIST_PATH}/${id}`);
@@ -96,6 +98,7 @@ export async function cancelReceivableAction(id: string): Promise<ActionResult> 
   } catch (error) {
     return { error: toErrorMessage(error) };
   }
+  if (!isLocalPreviewEnabled()) await notifyAltnixReceivableCommit([id]);
   revalidatePath(`${LIST_PATH}/${id}`);
   revalidatePath(LIST_PATH);
 }
@@ -108,6 +111,7 @@ export async function reopenReceivableAction(id: string): Promise<ActionResult> 
   } catch (error) {
     return { error: toErrorMessage(error) };
   }
+  if (!isLocalPreviewEnabled()) await notifyAltnixReceivableCommit([id]);
   revalidatePath(`${LIST_PATH}/${id}`);
   revalidatePath(LIST_PATH);
 }
@@ -159,6 +163,7 @@ export async function addReceiptAction(receivableId: string, input: ReceiptFormI
   } catch (error) {
     return { error: toErrorMessage(error) };
   }
+  if (!isLocalPreviewEnabled()) await notifyAltnixReceivableCommit([receivableId]);
   revalidatePath(`${LIST_PATH}/${receivableId}`);
   revalidatePath(LIST_PATH);
 }
@@ -189,6 +194,7 @@ export async function settleWithDifferenceAction(receivableId: string, input: Se
   } catch (error) {
     return { error: toErrorMessage(error) };
   }
+  if (!isLocalPreviewEnabled()) await notifyAltnixReceivableCommit([receivableId]);
   revalidatePath(`${LIST_PATH}/${receivableId}`);
   revalidatePath(LIST_PATH);
 }
@@ -231,6 +237,7 @@ export async function addAdjustmentAction(receivableId: string, input: Adjustmen
   } catch (error) {
     return { error: toErrorMessage(error) };
   }
+  if (!isLocalPreviewEnabled()) await notifyAltnixReceivableCommit([receivableId]);
   revalidatePath(`${LIST_PATH}/${receivableId}`);
   revalidatePath(LIST_PATH);
 }
@@ -288,6 +295,7 @@ export async function payCompositionAction(receivableIdsOldestFirst: string[], i
   } catch (error) {
     return { error: toErrorMessage(error) };
   }
+  if (!isLocalPreviewEnabled()) await notifyAltnixReceivableCommit(receivableIdsOldestFirst);
   for (const id of receivableIdsOldestFirst) revalidatePath(`${LIST_PATH}/${id}`);
   revalidatePath(LIST_PATH);
 }
@@ -308,6 +316,7 @@ export async function applyCreditManuallyAction(receivableId: string, creditId: 
   } catch (error) {
     return { error: toErrorMessage(error) };
   }
+  if (!isLocalPreviewEnabled()) await notifyAltnixReceivableCommit([receivableId]);
   revalidatePath(`${LIST_PATH}/${receivableId}`);
   revalidatePath(LIST_PATH);
 }
@@ -329,6 +338,7 @@ export async function reverseReceiptAction(receivableId: string, receiptId: stri
   } catch (error) {
     return { error: toErrorMessage(error) };
   }
+  if (!isLocalPreviewEnabled()) await notifyAltnixReceivableCommit([receivableId]);
   revalidatePath(`${LIST_PATH}/${receivableId}`);
   revalidatePath(LIST_PATH);
 }
@@ -350,6 +360,7 @@ export async function reverseAdjustmentAction(receivableId: string, adjustmentId
   } catch (error) {
     return { error: toErrorMessage(error) };
   }
+  if (!isLocalPreviewEnabled()) await notifyAltnixReceivableCommit([receivableId]);
   revalidatePath(`${LIST_PATH}/${receivableId}`);
   revalidatePath(LIST_PATH);
 }

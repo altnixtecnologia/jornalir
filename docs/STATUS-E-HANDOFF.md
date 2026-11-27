@@ -1,5 +1,9 @@
 # Jornal IR — Status atual e passagem de contexto (HANDOFF)
 
+## 27/11/2026 — Eventos financeiros reais conectados
+
+- Ações existentes de baixa manual/composição, quitação com diferença, ajuste/crédito, estornos, edição, cancelamento e reabertura de título, mais confirmação local autenticada de pagamento Asaas, notificam reavaliação somente após commit bem-sucedido. RPC resolve venda via títulos persistidos, deduplica, limita 50, atua apenas em políticas opt-in; não envia HTTP no caminho financeiro. Estorno externo Asaas continua revisão manual, sem mutação presumida. Sandbox valida escopo, suspensão/recuperação, ACL, duplicidade e limites. Trava release permanece false. Falha na reavaliação não desfaz baixa; fila e futura rotina central diária recuperam pendências. CI pendente; próxima etapa: endpoint e cursor diário/retry, sem consultas dos players e sem cron ativo até homologação. CI da revisão anterior 194dd0d aprovada 4/4. Sem deploy/migration/cobrança. Auditoria ampla ao final.
+
 ## 27/11/2026 — Reavaliação financeira central limitada
 
 - Preparados RPC em lotes (1–50 serviços) e worker servidor protegido pela release: baixa/estorno por venda, rotina diária por cursor, apenas serviços com política opt-in; utiliza decisão e fila existentes, sem polling nos players ou consultas à Vercel por aparelho. Sandbox verifica escopo, cursor, limite, idempotência, suspensão e recuperação. A rotina ainda não está conectada aos eventos ou agendada; falta validar CI, integrar pontos de baixa/estorno e persistir cursor da execução diária. Não criar nova cobrança. Prioridade do proprietário: implementar pendências, anotar e deixar auditoria ampla para o final. Sem alteração produtiva.

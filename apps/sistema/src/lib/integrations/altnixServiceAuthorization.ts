@@ -181,3 +181,20 @@ export async function runServiceFinanceBatch(rpc:ServiceFinanceBatchRpc,raw:unkn
  try{await drainServiceAuthorizationOutbox(rpc);}catch{/* decisão persistida; retry pela rotina central */}
  return {status:"ok",processed:result.data.length,queued,review,nextCursor:result.data.length===scope.limit?previous:null};
 }
+
+
+export function checkedReceivableEventIds(raw:unknown):string[]|null{
+ if(!Array.isArray(raw)||raw.length<1||raw.length>50||raw.some(id=>typeof id!=="string"||canonicalIdOrNull(id)!==id))return null;
+ return [...new Set(raw as string[])];
+}
+export async function reassessAfterReceivableCommit(
+ rpc:(name:"altnix_reassess_receivable_services",args:{p_receivable_ids:string[]})=>Promise<{data:unknown;error:unknown}>,raw:unknown
+):Promise<"disabled"|"invalid"|"review"|"ok">{
+ if(!ALTNIX_SERVICE_AUTH_RELEASED||process.env.VERCEL_ENV!=="production"||process.env.JORNALIR_SERVICE_AUTH_WRITE_ENABLED!=="true")return "disabled";
+ const ids=checkedReceivableEventIds(raw);
+ if(!ids)return "invalid";
+ try{
+  const result=await rpc("altnix_reassess_receivable_services",{p_receivable_ids:ids});
+  return !result.error&&typeof result.data==="number"&&Number.isInteger(result.data)&&result.data>=0&&result.data<=50?"ok":"review";
+ }catch{return "review";}
+}

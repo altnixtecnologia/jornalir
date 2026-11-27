@@ -158,3 +158,21 @@ end;$batch_test$;
 set role service_role;
 select count(*) from public.altnix_reassess_service_finance_batch(null,null,25);
 reset role;
+
+
+-- Baixa/estorno usa título persistido, não ID comercial fornecido pela UI.
+do $receipt_event$
+declare s uuid:='00000000-0000-4000-8000-000000000024';v uuid:='00000000-0000-4000-8000-000000000022';rid uuid;
+begin
+ select id into rid from public.receivables_with_balance where commercial_sale_id=v;
+ if has_function_privilege('authenticated','public.altnix_reassess_receivable_services(uuid[])','EXECUTE') then raise exception 'receipt event exposed';end if;
+ if public.altnix_reassess_receivable_services(array[gen_random_uuid()])<>0 then raise exception 'unknown receipt selected';end if;
+ if public.altnix_reassess_receivable_services(array[rid,null::uuid])<>0 then raise exception 'invalid receipt list accepted';end if;
+ if public.altnix_reassess_receivable_services(array_fill(rid,array[51]))<>0 then raise exception 'oversized receipt list accepted';end if;
+ update public.receivables_with_balance set status='open',balance=100,due_date=(now() at time zone 'America/Sao_Paulo')::date-3 where id=rid;
+ if public.altnix_reassess_receivable_services(array[rid,rid])<>1 then raise exception 'receipt scope not deduplicated';end if;
+ if (public.altnix_read_service_authorization(s)->>'status') is distinct from 'suspended' then raise exception 'reversal not applied';end if;
+ update public.receivables_with_balance set status='paid',balance=0 where id=rid;
+ if public.altnix_reassess_receivable_services(array[rid])<>1 then raise exception 'payment event not processed';end if;
+ if (public.altnix_read_service_authorization(s)->>'status') is distinct from 'authorized' then raise exception 'payment not applied';end if;
+end;$receipt_event$;

@@ -4,6 +4,7 @@ import { randomUUID, timingSafeEqual } from "crypto";
 import { NextResponse } from "next/server";
 import { getPaymentChargeService } from "../../../../../composition/financeiro";
 import { createSupabaseAdminClient, hasServiceRoleKey } from "../../../../../lib/supabase/admin";
+import { notifyAltnixReceivableCommit } from "../../../../../lib/integrations/altnixReceivableEvent";
 import { getAsaasWebhookToken } from "../../../../../lib/financeiro/asaasWebhookConfig";
 import { canProcessAsaasWebhook } from "../../../../../lib/financeiro/asaasRuntimePolicy";
 import { createAsaasPixProvider } from "../../../../../lib/financeiro/asaasPixProvider";
@@ -472,6 +473,8 @@ export async function POST(request: Request): Promise<Response> {
         throw confirmationError;
       }
 
+      // Só após confirmar baixa local; estorno do provedor continua em revisão manual.
+      await notifyAltnixReceivableCommit([charge.receivable_id as string]);
       await notifyPaymentReceived({
         eventId,
         chargeId: charge.id as string,

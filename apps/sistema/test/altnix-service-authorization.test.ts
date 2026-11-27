@@ -1,6 +1,6 @@
 import {test} from "node:test";
 import assert from "node:assert/strict";
-import {ALTNIX_SERVICE_AUTH_RELEASED,ALTNIX_SERVICE_TENANT,ALTNIX_SERVICE_AUTH_ENDPOINT,checkedServiceAuthorizationEvent,authorizationDeliveryResult,sendServiceAuthorization,drainServiceAuthorizationOutbox,parseServiceDecision,parseServiceBindingRequest,checkedServiceBinding,checkedCampaignOptions,checkedServiceFinanceBatchScope,runServiceFinanceBatch} from "../src/lib/integrations/altnixServiceAuthorization";
+import {ALTNIX_SERVICE_AUTH_RELEASED,ALTNIX_SERVICE_TENANT,ALTNIX_SERVICE_AUTH_ENDPOINT,checkedServiceAuthorizationEvent,authorizationDeliveryResult,sendServiceAuthorization,drainServiceAuthorizationOutbox,parseServiceDecision,parseServiceBindingRequest,checkedServiceBinding,checkedCampaignOptions,checkedServiceFinanceBatchScope,runServiceFinanceBatch,checkedReceivableEventIds,reassessAfterReceivableCommit} from "../src/lib/integrations/altnixServiceAuthorization";
 const uuid=(n:number)=>"00000000-0000-4000-8000-"+String(n).padStart(12,"0");
 const event={origin:"jornal_ir",contractVersion:"1",serviceCode:"altnix_informativo",tenantId:ALTNIX_SERVICE_TENANT,
  advertiserId:uuid(2),canonicalClientId:uuid(3),canonicalContractId:uuid(4),canonicalServiceId:uuid(5),
@@ -62,5 +62,16 @@ test("lote financeiro exige escopo explícito, cursor válido e limite de 50",()
 test("lote financeiro não toca o banco nem a fila antes da release",async()=>{
  let calls=0;
  assert.deepEqual(await runServiceFinanceBatch(async()=>{calls++;return {data:null,error:null};},{saleId:null,after:null,limit:25}),{status:"disabled",processed:0,queued:0,review:0,nextCursor:null});
+ assert.equal(calls,0);
+});
+
+
+test("eventos de títulos são limitados, deduplicados e não aceitam IDs arbitrários inválidos",()=>{
+ assert.deepEqual(checkedReceivableEventIds([uuid(2),uuid(2),uuid(3)]),[uuid(2),uuid(3)]);
+ for(const invalid of [[],[null],["wrong"],Array(51).fill(uuid(2)),{id:uuid(2)}])assert.equal(checkedReceivableEventIds(invalid),null);
+});
+test("evento financeiro confirmado não toca RPC com integração desativada",async()=>{
+ let calls=0;
+ assert.equal(await reassessAfterReceivableCommit(async()=>{calls++;return {data:1,error:null};},[uuid(2)]),"disabled");
  assert.equal(calls,0);
 });
