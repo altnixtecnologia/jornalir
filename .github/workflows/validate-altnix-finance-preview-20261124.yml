@@ -16,6 +16,7 @@ on:
       - "apps/sistema/test/altnix-cadastro-canonico-contract.test.ts"
       - "apps/sistema/src/lib/integrations/altnixFinanceReadContract.ts"
       - "apps/sistema/src/lib/integrations/altnixServiceAuthorization.ts"
+      - "apps/sistema/src/app/sistema/publicidade/vendas/**/operational-authorization-actions.ts"
       - "apps/sistema/test/altnix-service-authorization.test.ts"
       - "tests/security/altnix-service-outbox-sandbox.sql"
       - "tests/security/fixtures/altnix-service-outbox-candidate.sql"

@@ -1,6 +1,6 @@
 import {test} from "node:test";
 import assert from "node:assert/strict";
-import {ALTNIX_SERVICE_AUTH_RELEASED,ALTNIX_SERVICE_TENANT,ALTNIX_SERVICE_AUTH_ENDPOINT,checkedServiceAuthorizationEvent,authorizationDeliveryResult,sendServiceAuthorization,drainServiceAuthorizationOutbox} from "../src/lib/integrations/altnixServiceAuthorization";
+import {ALTNIX_SERVICE_AUTH_RELEASED,ALTNIX_SERVICE_TENANT,ALTNIX_SERVICE_AUTH_ENDPOINT,checkedServiceAuthorizationEvent,authorizationDeliveryResult,sendServiceAuthorization,drainServiceAuthorizationOutbox,parseServiceDecision} from "../src/lib/integrations/altnixServiceAuthorization";
 const uuid=(n:number)=>"00000000-0000-4000-8000-"+String(n).padStart(12,"0");
 const event={origin:"jornal_ir",contractVersion:"1",serviceCode:"altnix_informativo",tenantId:ALTNIX_SERVICE_TENANT,
  advertiserId:uuid(2),canonicalClientId:uuid(3),canonicalContractId:uuid(4),canonicalServiceId:uuid(5),
@@ -27,4 +27,10 @@ test("fila não é consultada com release desativada",async()=>{
  let calls=0;
  assert.deepEqual(await drainServiceAuthorizationOutbox(async()=>{calls++;return {data:null,error:null};}),{claimed:0,acknowledged:0,unconfirmed:0});
  assert.equal(calls,0);
+});
+
+test("decisão exige confirmação e não aceita ator ou identificadores externos",()=>{
+ const raw={serviceId:uuid(5),operationId:uuid(8),status:"suspended",reason:"Suspensão expressamente confirmada",confirmed:true};
+ assert.equal(parseServiceDecision(raw)?.status,"suspended");
+ for(const change of [{confirmed:false},{reason:"curta"},{actorId:uuid(4)},{status:"paid"},{operationId:null}])assert.equal(parseServiceDecision({...raw,...change}),null);
 });

@@ -68,3 +68,19 @@ export async function drainServiceAuthorizationOutbox(rpc:ServiceOutboxRpc):Prom
  }
  return counts;
 }
+
+
+/** Decisão operacional explícita, jamais inferida de status jurídico,
+ * total da venda ou confirmação de pagamento global. Ator vem da sessão.
+ * operationId é estável durante uma tentativa de decisão.
+ */
+export function parseServiceDecision(raw:unknown):{serviceId:string;operationId:string;status:ServiceAuthorizationEvent["status"];reason:string}|null{
+ if(!raw||typeof raw!=="object"||Array.isArray(raw))return null;
+ const v=raw as Record<string,unknown>;
+ if(Object.keys(v).length!==5||!["serviceId","operationId","status","reason","confirmed"].every(k=>Object.hasOwn(v,k))||v.confirmed!==true)return null;
+ const serviceId=canonicalIdOrNull(v.serviceId),operationId=canonicalIdOrNull(v.operationId);
+ if(!serviceId||!operationId||typeof v.status!=="string"||!["authorized","grace","suspended","ended"].includes(v.status)||typeof v.reason!=="string")return null;
+ const reason=v.reason.trim();
+ if(reason.length<10||reason.length>500)return null;
+ return {serviceId,operationId,status:v.status as ServiceAuthorizationEvent["status"],reason};
+}

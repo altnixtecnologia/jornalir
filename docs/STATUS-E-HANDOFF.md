@@ -1,5 +1,9 @@
 # Jornal IR — Status atual e passagem de contexto (HANDOFF)
 
+## 27/11/2026 — Ponto de decisão operacional explícita (desativado)
+
+- CI do worker anterior aprovada. Server Action prepara decisão por serviço com confirmação, justificativa e sessão de proprietário ativo, checagem de permissão existente, ator real e fila persistida antes de tentativa de envio. Sem UI, sem cron novo, release false. Não assume envio concluído pelo lote. Ainda exige confirmar regra comercial automática por serviço, política de retry com effectiveAt persistido, provisionamento e migration, homologação coordenada. Não altera financeiro, cobrança ou dados em produção.
+
 ## 27/11/2026 — Processamento controlado da fila operacional
 
 - Candidato sandbox: claim limitado, lease por tentativa, proteção contra concorrência, somente última revisão, confirmação por token, retry com intervalo e revisão manual após falhas. Worker servidor preparado, desativado pela trava da release; sem cron novo, sem polling do player. Teste de reivindicação, confirmação e revisão superada. Falta conectar ao ponto autorizado de decisão e rotina existente, revisar revogações e concluir migration/CI. Nada aplicado ou publicado em produção.
