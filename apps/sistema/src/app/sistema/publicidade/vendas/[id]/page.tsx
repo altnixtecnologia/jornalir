@@ -2,6 +2,8 @@ import { notFound } from "next/navigation";
 import { clientDisplayName, deriveCommercialSaleFinancialStatus } from "@ir/types";
 import { CommercialSaleNotFoundError } from "@ir/core";
 import { ModuleHeader } from "../../../../../components/admin/ModuleHeader";
+import { ALTNIX_SERVICE_AUTH_RELEASED } from "../../../../../lib/integrations/altnixServiceAuthorization";
+import { AltnixServiceAuthorizationPanel } from "../../../../../features/comercial/AltnixServiceAuthorizationPanel";
 import { CommercialSaleDetail } from "../../../../../features/comercial/CommercialSaleDetail";
 import { CommercialContractPreparationPanel, type CommercialContractServiceView } from "../../../../../features/comercial/CommercialContractPreparationPanel";
 import { CommercialSignersPreparationPanel, type CommercialSignerPreparation } from "../../../../../features/comercial/CommercialSignersPreparationPanel";
@@ -100,6 +102,11 @@ export default async function CommercialSaleDetailPage(props: { params: Promise<
       .in("preparation_id",preparationIds)
     : null;
   const financialStatus = deriveCommercialSaleFinancialStatus(receivables);
+  const operationalServices=(termsResult?.data??[]).filter(s=>s.service_channel==="led_panel").map(s=>({id:s.id,title:s.service_title}));
+  const operationalEnabled=ALTNIX_SERVICE_AUTH_RELEASED&&process.env.VERCEL_ENV==="production"&&process.env.JORNALIR_SERVICE_AUTH_WRITE_ENABLED==="true";
+  const ownerResult=operationalEnabled&&canReview.data===true&&operationalServices.length?await supabase.auth.getUser():null;
+  const ownerProfile=ownerResult?.data.user?await supabase.from("profiles").select("role,active").eq("id",ownerResult.data.user.id).maybeSingle():null;
+  const showOperational=ownerProfile?.data?.role==="owner"&&ownerProfile.data.active===true;
   // Etapa 3A: assinatura pela EMPRESA antes de qualquer convite ao cliente (um cartão por PDF emitido).
   const companySignatureData = canReview.data === true && (issuedDocumentsResult?.data ?? []).some(document => !document.addendum_id)
     ? await loadCompanySignaturePanel("commercial", (issuedDocumentsResult?.data ?? []).filter(document => !document.addendum_id).map(document => ({ id: document.id, title: document.title })))
@@ -117,6 +124,7 @@ export default async function CommercialSaleDetailPage(props: { params: Promise<
         nfseDraft={nfseDraft}
         proposal={proposal}
       />
+      {showOperational&&<AltnixServiceAuthorizationPanel services={operationalServices}/>}
       <CommercialContractPreparationPanel
         saleId={sale.id}
         clientId={client.id}

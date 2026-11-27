@@ -33,6 +33,7 @@ do $test$ declare s uuid:='00000000-0000-4000-8000-000000000004'; other uuid:='0
  q=public.altnix_queue_service_authorization(s,gen_random_uuid(),a,'suspended',d,'second decision');
  if q is null or q->>'revision'<>'2' then raise exception 'revision missing';end if;
  if (select count(*) from altnix_operational.service_outbox)<>2 then raise exception 'duplicate';end if;
+ if (public.altnix_read_service_authorization(s)->>'status') is distinct from 'suspended' or (public.altnix_read_service_authorization(s)->>'delivery') is distinct from 'pending' then raise exception 'status projection incorrect';end if;
 end;$test$;
 do $claim_test$ declare r record;begin
  select * into r from public.altnix_claim_service_authorizations(5);
@@ -42,6 +43,7 @@ do $claim_test$ declare r record;begin
  if not public.altnix_finish_service_authorization(r.event_id,r.claim_token,'applied') then raise exception 'ack failed';end if;
  if public.altnix_finish_service_authorization(r.event_id,r.claim_token,'applied') then raise exception 'repeated ack';end if;
  if exists(select 1 from public.altnix_claim_service_authorizations(5)) then raise exception 'superseded revision dispatched';end if;
+ if (public.altnix_read_service_authorization((r.payload->>'canonicalServiceId')::uuid)->>'delivery') is distinct from 'confirmed' then raise exception 'confirmed status missing';end if;
 end;$claim_test$;
 reset role;
 update public.client_digital_export_permissions set enabled=false;

@@ -1,5 +1,9 @@
 # Jornal IR — Status atual e passagem de contexto (HANDOFF)
 
+## 27/11/2026 — Autorização por serviço na venda existente
+
+- Adicionado painel na própria venda para serviços LED, owner ativo com permissão existente, só após release. Consulta explícita da campanha e revisão/entrega via RPC restrita; registra decisão confirmada com justificativa e operação estável, sem gerar cobrança. Não cria cadastro, venda, contrato ou campanha. CI pendente, release continua fechada. Provisionamento real do vínculo e migrations continuam pendentes; não confundir painel com homologação do fluxo. Não refazer Asaas; conexão aprovada e interface Jornal testada. Priorizar cadastro e financeiro.
+
 ## 27/11/2026 — Encerramento GitHub antes do VS Code
 
 - Proprietário confirmou teste de conexão Asaas aprovado. Reutilizada tela Configurações/Cobranças: consulta somente GET das até 10 cobranças existentes no Jornal, autorização admin/owner, escopo por registros locais via RLS, ambiente production confirmado, sem IDs fornecidos pelo navegador, sem alterar gateway ou banco. CI pendente. Não comprova situação externa até executar após deploy. Informativo tem utilitário GET próprio já testado. Preflight de limpeza somente leitura executado: 1 assinatura, 1 recebível, 1 recibo, 2 cobranças, 2 billing_message_logs vinculados (FK NOT NULL), 1 solicitação site vinculada; preservar logs e solicitação. Não excluir nem desativar até implantação/homologação. Diretriz: terminar trabalho GitHub antes de passar ao VS Code; handoff único, sincronizar e verificar alterações locais/stashes/commits antes de modificar. Sem deploy intermediário, nova chave ou APK.

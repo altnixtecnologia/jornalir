@@ -1,6 +1,7 @@
 "use server";
 import { createSupabaseServerClient } from "../../../../../lib/supabase/server";
 import { createSupabaseAdminClient } from "../../../../../lib/supabase/admin";
+import { canonicalIdOrNull } from "../../../../../lib/integrations/altnixFinanceReadContract";
 import { checkModuleAction } from "../../../../../lib/permissions/checkModuleAction";
 import { ALTNIX_SERVICE_AUTH_RELEASED,parseServiceDecision,checkedServiceAuthorizationEvent,drainServiceAuthorizationOutbox } from "../../../../../lib/integrations/altnixServiceAuthorization";
 
@@ -31,4 +32,23 @@ export async function authorizeAltnixServiceAction(raw:unknown):Promise<Result>{
   try{await drainServiceAuthorizationOutbox(async(name,args)=>await admin.rpc(name,args));}catch{/* pendência permanece */}
   return {ok:true,queued:true,delivery:"pending"};
  }catch{return {error:"Autorização temporariamente indisponível."};}
+}
+
+export async function readAltnixServiceAuthorizationAction(serviceId:string):Promise<{ok:true;binding:null|{campaignId:string;enabled:boolean;revision:number;status:string|null;delivery:string}}|{error:string}>{
+ if(!ALTNIX_SERVICE_AUTH_RELEASED||process.env.VERCEL_ENV!=="production"||process.env.JORNALIR_SERVICE_AUTH_WRITE_ENABLED!=="true")return {error:"Integração operacional aguardando homologação."};
+ if(canonicalIdOrNull(serviceId)!==serviceId)return {error:"Serviço inválido."};
+ try{
+  const denied=await checkModuleAction("publicidade","contratos_revisar");if(denied)return {error:denied};
+  const session=createSupabaseServerClient();const {data:auth,error}=await session.auth.getUser();
+  if(error||!auth.user)return {error:"Sessão inválida."};
+  const {data:profile}=await session.from("profiles").select("role,active").eq("id",auth.user.id).maybeSingle();
+  if(!profile?.active||profile.role!=="owner")return {error:"Operação reservada ao proprietário."};
+  const {data:service,error:serviceError}=await session.from("commercial_contract_services").select("id,service_channel").eq("id",serviceId).maybeSingle();
+  if(serviceError||service?.service_channel!=="led_panel")return {error:"Serviço não disponível."};
+  const {data,error:rpcError}=await createSupabaseAdminClient().rpc("altnix_read_service_authorization",{p_service:serviceId});
+  if(rpcError)return {error:"Vínculo indisponível."};
+  if(data===null)return {ok:true,binding:null};
+  if(typeof data!=="object"||canonicalIdOrNull(data.campaignId)!==data.campaignId||typeof data.enabled!=="boolean"||!Number.isSafeInteger(data.revision)||data.revision<0||![null,"authorized","grace","suspended","ended"].includes(data.status)||!["none","confirmed","review","pending"].includes(data.delivery))return {error:"Resposta operacional inválida."};
+  return {ok:true,binding:{campaignId:data.campaignId,enabled:data.enabled,revision:data.revision,status:data.status,delivery:data.delivery}};
+ }catch{return {error:"Consulta operacional indisponível."};}
 }

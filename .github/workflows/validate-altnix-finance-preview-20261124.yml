@@ -17,6 +17,8 @@ on:
       - "apps/sistema/src/lib/integrations/altnixFinanceReadContract.ts"
       - "apps/sistema/src/lib/integrations/altnixServiceAuthorization.ts"
       - "apps/sistema/src/app/sistema/publicidade/vendas/**/operational-authorization-actions.ts"
+      - "apps/sistema/src/features/comercial/AltnixServiceAuthorizationPanel.tsx"
+      - "apps/sistema/src/app/sistema/publicidade/vendas/**/page.tsx"
       - "apps/sistema/test/altnix-service-authorization.test.ts"
       - "apps/sistema/test/asaas-existing-charges-read.test.ts"
       - "apps/sistema/src/lib/financeiro/asaasExistingChargesRead.ts"

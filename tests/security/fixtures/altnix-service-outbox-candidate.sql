@@ -118,3 +118,17 @@ begin
 end;$finish$;
 revoke all on function public.altnix_finish_service_authorization(uuid,uuid,text) from public,anon,authenticated;
 grant execute on function public.altnix_finish_service_authorization(uuid,uuid,text) to service_role;
+
+-- Exposição mínima para a interface da venda. Nenhuma decisão é criada.
+create function public.altnix_read_service_authorization(p_service uuid)
+returns jsonb language sql stable security invoker set search_path='' as $read$
+ select jsonb_build_object('campaignId',b.campaign_id,'enabled',b.enabled,
+ 'revision',coalesce(o.revision,0),'status',o.payload->>'status',
+ 'delivery',case when o.event_id is null then 'none' when o.delivered_at is not null then 'confirmed'
+ when o.review_required or o.attempts>=5 then 'review' else 'pending' end)
+ from altnix_operational.service_binding b
+ left join lateral (select x.* from altnix_operational.service_outbox x where x.service_id=b.service_id order by x.revision desc limit 1) o on true
+ where b.service_id=p_service;
+$read$;
+revoke all on function public.altnix_read_service_authorization(uuid) from public,anon,authenticated;
+grant execute on function public.altnix_read_service_authorization(uuid) to service_role;
