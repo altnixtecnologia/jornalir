@@ -15,6 +15,23 @@ on:
       - "apps/sistema/test/altnix-digital-client-contract.test.ts"
       - "apps/sistema/test/altnix-cadastro-canonico-contract.test.ts"
       - "apps/sistema/src/lib/integrations/altnixFinanceReadContract.ts"
+      - "apps/sistema/src/lib/integrations/altnixServiceAuthorization.ts"
+      - "apps/sistema/src/app/api/cron/altnix-service-finance/route.ts"
+      - "apps/sistema/src/lib/integrations/altnixReceivableEvent.ts"
+      - "apps/sistema/src/app/sistema/financeiro/contas-a-receber/actions.ts"
+      - "apps/sistema/src/app/api/integrations/asaas/webhook/route.ts"
+      - "apps/sistema/src/app/sistema/publicidade/vendas/**/operational-authorization-actions.ts"
+      - "apps/sistema/src/features/comercial/AltnixServiceAuthorizationPanel.tsx"
+      - "apps/sistema/src/app/sistema/publicidade/vendas/**/page.tsx"
+      - "apps/sistema/test/altnix-service-authorization.test.ts"
+      - "apps/sistema/test/asaas-existing-charges-read.test.ts"
+      - "apps/sistema/src/lib/financeiro/asaasExistingChargesRead.ts"
+      - "apps/sistema/src/app/sistema/configuracoes/cobrancas/**"
+      - "apps/sistema/src/features/configuracoes/BillingProviderSettingsPanel.tsx"
+      - "tests/security/altnix-service-outbox-sandbox.sql"
+      - "tests/security/fixtures/altnix-service-outbox-candidate.sql"
+      - "scripts/prepare-operational-migration.mjs"
+      - "supabase/migrations/*altnix_service_operational_authorization.sql"
       - "apps/sistema/src/lib/integrations/altnixLinkPreview.ts"
       - "apps/sistema/test/altnix-link-preview.test.ts"
       - "apps/sistema/src/app/api/integrations/altnix/finance-preview/**"
@@ -40,7 +57,7 @@ jobs:
           cache: npm
       - run: npm ci --no-audit --no-fund
       - name: Escopo, autenticação, recusa e somente leitura
-        run: npx tsx --test apps/sistema/test/altnix-finance-bridge-readonly.test.ts apps/sistema/test/altnix-digital-client-contract.test.ts apps/sistema/test/altnix-cadastro-canonico-contract.test.ts apps/sistema/test/altnix-cadastro-write-contract.test.ts apps/sistema/test/altnix-cadastro-create-contract.test.ts apps/sistema/test/altnix-link-preview.test.ts
+        run: npx tsx --test apps/sistema/test/altnix-finance-bridge-readonly.test.ts apps/sistema/test/altnix-digital-client-contract.test.ts apps/sistema/test/altnix-cadastro-canonico-contract.test.ts apps/sistema/test/altnix-cadastro-write-contract.test.ts apps/sistema/test/altnix-cadastro-create-contract.test.ts apps/sistema/test/altnix-link-preview.test.ts apps/sistema/test/altnix-service-authorization.test.ts apps/sistema/test/asaas-existing-charges-read.test.ts
       - name: TypeScript
         run: npm run typecheck --workspace @ir/sistema
       - name: Build sem deploy
@@ -71,3 +88,24 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: psql -v ON_ERROR_STOP=1 -f tests/security/altnix-cadastro-write-sandbox.sql
+
+      - name: Sandbox de vínculo e fila de autorizações
+        run: |
+          createdb altnix_service_outbox_sandbox
+          psql -d altnix_service_outbox_sandbox -v ON_ERROR_STOP=1 -f tests/security/altnix-service-outbox-sandbox.sql
+      - name: Instalar CLI para gerar migration
+        uses: supabase/setup-cli@v1
+        with:
+          version: 3.4.0
+      - name: Gerar migration e validar em segundo banco descartável
+        run: |
+          node scripts/prepare-operational-migration.mjs --generate --sandbox-copy
+          createdb altnix_service_outbox_sandbox_migration
+          psql -d altnix_service_outbox_sandbox_migration -v ON_ERROR_STOP=1 -f tests/security/.generated-operational-migration-sandbox.sql
+      - name: Guardar migration validada (sem deploy)
+        uses: actions/upload-artifact@v4
+        with:
+          name: jornalir-operational-migration
+          path: supabase/migrations/*_altnix_service_operational_authorization.sql
+          if-no-files-found: error
+          retention-days: 7
