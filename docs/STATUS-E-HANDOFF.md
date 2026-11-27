@@ -1,5 +1,13 @@
 # Jornal IR — Status atual e passagem de contexto (HANDOFF)
 
+
+## 27/11/2026 — Pré-corte financeiro e conciliação dos testes (itens 10 e 11)
+
+- Revisões Jornal a68b99fb (2/2 CI) e Informativo d00e2689 (4/4 CI) aprovadas. Ambas as PRs permanecem isoladas; nenhum deploy. Jornal continua sendo autoridade comercial/financeira para novos negócios após corte, usando os formulários existentes, sem copiar faturas locais ou criar outro cadastro. Informativo mantém equipamentos, telas, mídias e autorização operacional projetada por serviço.
+- Banco Jornal: zero vendas, zero serviços comerciais, um recebível de assinatura e duas cobranças Asaas de R$5 (paga com recibo e cancelada). São testes. Dois eventos indevidamente recebidos pelo webhook Informativo correspondem exatamente aos provider_charge_id dessas cobranças; outros dois pertencem ao checkout do próprio Informativo. Todas as quatro ocorrências são identificadas internamente, mas não conciliadas externamente. Consultar status atual no Asaas sem mutação; não reenviar ou cancelar automaticamente. O utilitário somente GET está na PR Informativo #73, revisão 53575f56.
+- Pré-condições do corte: (1) revisar as migrations candidatas de ambos os repos, gerar nomes via CLI no ambiente local sincronizado e validar contra schema atual em banco isolado; (2) aprovar/publicar de forma coordenada e homologar decisão, envio/recibo, projeção de autorização, manifesto e sync, sem criar obrigação de cobrança real; (3) conferir efeitos externos Asaas de todos os IDs existentes, inclusive checkout, e impedir novas emissões/cobranças legadas durante janela de corte; (4) ativar guarda financeira somente tenant principal em operação auditada e confirmar ausência de novas faturas/pagamentos automáticos, não bloquear outros tenants; (5) conduzir venda/contrato/recebível oficial exclusivamente pelos formulários existentes do Jornal; (6) limpar registros de teste em operação separada, preservar cadastro, auditoria, contrato permanente IR (1 ativo, R$0, sem vencimento, 0 faturas, 52 itens em 2 playlists), mídias, telas e equipamentos; (7) homologar sessão e hardware. Não interpretar freeze como autorização de emissão central, nem usar aprovação jurídica/pagamento global como autorização automática de um serviço.
+- Bloqueador externo real: conta Asaas não autenticada para este agente. Não extrair chaves da Vercel nem usar segredos no chat. Conferência via sessão do proprietário ou Codex/Claude com credencial local já autorizada, somente GET. Nenhum banco, flag, gateway ou Vercel alterado.
+
 ## 27/11/2026 — Ponto de decisão operacional explícita (desativado)
 
 - Retry de decisão imediata usa a data original registrada no evento; timestamp produzido no banco, não no navegador. CI pendente.
