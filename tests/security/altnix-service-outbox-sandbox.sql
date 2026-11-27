@@ -21,7 +21,7 @@ insert into altnix_operational.service_binding(service_id,package_id,client_id,a
 values('00000000-0000-4000-8000-000000000004','00000000-0000-4000-8000-000000000003','00000000-0000-4000-8000-000000000001',gen_random_uuid(),gen_random_uuid(),gen_random_uuid(),true),
 ('00000000-0000-4000-8000-000000000005','00000000-0000-4000-8000-000000000003','00000000-0000-4000-8000-000000000001',gen_random_uuid(),gen_random_uuid(),gen_random_uuid(),true);
 do $acl$ begin
- if has_schema_privilege('authenticated','altnix_operational','USAGE') or has_column_privilege('service_role','altnix_operational.service_binding','enabled','INSERT') or has_column_privilege('service_role','altnix_operational.service_outbox','payload','UPDATE') or has_function_privilege('anon','public.altnix_queue_service_authorization(uuid,uuid,uuid,text,timestamptz,text)','EXECUTE') then raise exception 'unsafe privilege';end if;
+ if has_schema_privilege('authenticated','altnix_operational','USAGE') or has_column_privilege('service_role','altnix_operational.service_binding','enabled','INSERT') or has_column_privilege('service_role','altnix_operational.service_outbox','payload','UPDATE') or has_function_privilege('anon','public.altnix_queue_service_authorization(uuid,uuid,uuid,text,timestamptz,text,text)','EXECUTE') then raise exception 'unsafe privilege';end if;
 end;$acl$;
 -- Novo serviço sem contrato espelho, reserva e confirmação em duas fases.
 insert into public.commercial_contract_services(id,package_id,service_channel) values('00000000-0000-4000-8000-000000000006','00000000-0000-4000-8000-000000000003','led_panel');
@@ -95,3 +95,27 @@ do $evidence$ declare s uuid:='00000000-0000-4000-8000-000000000024';v uuid:='00
  update public.commercial_sales set status='cancelled' where id=v;
  if (public.altnix_assess_service_finance(s,2)->>'state') is distinct from 'ended' then raise exception 'cancelled sale still active';end if;
 end;$evidence$;
+
+-- Política automática opt-in: reavalia saldo, preserva decisão manual, sem duplicar.
+do $auto$ declare s uuid:='00000000-0000-4000-8000-000000000024';v uuid:='00000000-0000-4000-8000-000000000022';a uuid:=gen_random_uuid();ca uuid:=gen_random_uuid();actor uuid:=gen_random_uuid();d date:=(now() at time zone 'America/Sao_Paulo')::date; p jsonb;begin
+ update public.commercial_sales set status='active',commercial_condition='cash',items_snapshot='[{"serviceChannel":"led_panel"}]' where id=v;
+ update public.receivables_with_balance set status='open',balance=100,due_date=d+2 where commercial_sale_id=v;
+ if public.altnix_prepare_service_binding(s,a,ca,actor) is null or not public.altnix_confirm_service_binding(s,a,ca,actor) then raise exception 'auto fixture binding failed';end if;
+ if public.altnix_configure_service_finance(s,actor,2) then raise exception 'automation without human release';end if;
+ p=public.altnix_queue_service_authorization(s,gen_random_uuid(),actor,'authorized',null,'human release');
+ if p is null or public.altnix_apply_service_finance(s)<>'disabled' then raise exception 'automation default not disabled';end if;
+ if not public.altnix_configure_service_finance(s,actor,2) then raise exception 'explicit policy rejected';end if;
+ update public.receivables_with_balance set due_date=d-1 where commercial_sale_id=v;
+ if public.altnix_apply_service_finance(s)<>'queued' or public.altnix_read_service_authorization(s)->>'status'<>'grace' then raise exception 'automatic grace missing';end if;
+ if public.altnix_apply_service_finance(s)<>'unchanged' then raise exception 'duplicate finance event';end if;
+ update public.receivables_with_balance set due_date=d-3 where commercial_sale_id=v;
+ if public.altnix_apply_service_finance(s)<>'queued' or public.altnix_read_service_authorization(s)->>'status'<>'suspended' then raise exception 'automatic suspension missing';end if;
+ update public.receivables_with_balance set status='paid',balance=0 where commercial_sale_id=v;
+ if public.altnix_apply_service_finance(s)<>'queued' or public.altnix_read_service_authorization(s)->>'status'<>'authorized' then raise exception 'automatic recovery missing';end if;
+ p=public.altnix_queue_service_authorization(s,gen_random_uuid(),actor,'suspended',null,'manual suspension');
+ if p is null or public.altnix_apply_service_finance(s)<>'manual_required' then raise exception 'manual suspension overwritten';end if;
+ update public.commercial_sales set status='cancelled' where id=v;
+ if public.altnix_apply_service_finance(s)<>'queued' or public.altnix_read_service_authorization(s)->>'status'<>'ended' then raise exception 'cancel not ended';end if;
+ if public.altnix_apply_service_finance(s)<>'manual_required' then raise exception 'ended reopened';end if;
+ if not public.altnix_configure_service_finance(s,actor,null) or public.altnix_apply_service_finance(s)<>'disabled' then raise exception 'disable failed';end if;
+end;$auto$;

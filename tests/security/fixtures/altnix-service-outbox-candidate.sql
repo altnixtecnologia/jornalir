@@ -12,7 +12,11 @@ create table altnix_operational.service_binding(
  campaign_id uuid not null unique,
  approved_by uuid not null,
  approved_at timestamptz not null default now(),
- enabled boolean not null default false
+ enabled boolean not null default false,
+ financial_grace_days integer check(financial_grace_days between 0 and 30),
+ financial_approved_by uuid,
+ financial_approved_at timestamptz,
+ check(financial_grace_days is null or (financial_approved_by is not null and financial_approved_at is not null))
 );
 create table altnix_operational.service_outbox(
  event_id uuid primary key,
@@ -20,6 +24,7 @@ create table altnix_operational.service_outbox(
  revision bigint not null check(revision between 1 and 9007199254740991),
  payload jsonb not null,
  decision_actor uuid not null,
+ decision_origin text not null default 'manual' check(decision_origin in ('manual','finance')),
  decision_reason text not null check(length(btrim(decision_reason)) between 1 and 500),
  created_at timestamptz not null default now(),
  delivered_at timestamptz,
@@ -43,11 +48,11 @@ create policy outbox_ack on altnix_operational.service_outbox for update to serv
 -- O chamador futuro deve ser servidor autorizado, com decisão explícita auditada.
 -- Nenhuma regra de autorização pode ser deduzida de um pagamento global.
 create function public.altnix_queue_service_authorization(
- p_service uuid,p_event uuid,p_actor uuid,p_state text,p_effective timestamptz,p_reason text
+ p_service uuid,p_event uuid,p_actor uuid,p_state text,p_effective timestamptz,p_reason text,p_origin text default 'manual'
 ) returns jsonb language plpgsql security invoker set search_path='' as $queue$
 declare b altnix_operational.service_binding%rowtype; old altnix_operational.service_outbox%rowtype; rev bigint; payload jsonb;
 begin
- if p_event is null or p_actor is null or p_service is null or p_state is null or p_state not in ('authorized','grace','suspended','ended')
+ if p_origin is null or p_origin not in ('manual','finance') or p_event is null or p_actor is null or p_service is null or p_state is null or p_state not in ('authorized','grace','suspended','ended')
  or p_effective>statement_timestamp() or p_reason is null or length(btrim(p_reason)) not between 1 and 500 then return null;end if;
  -- Serializar evento e serviço sem permissões de UPDATE sobre vínculo.
  perform pg_advisory_xact_lock(hashtextextended('altnix-service:'||p_service::text,0));
@@ -55,11 +60,11 @@ begin
  if not found then return null;end if;
  if not exists(select 1 from public.commercial_contract_services s join public.commercial_contract_packages p on p.id=s.package_id
  join public.commercial_sales v on v.id=p.commercial_sale_id
- join public.client_digital_export_permissions e on e.client_id=p.client_id and e.enabled
- where s.id=b.service_id and p.id=b.package_id and p.client_id=b.client_id and v.client_id=b.client_id and s.service_channel='led_panel') then return null;end if;
+ where s.id=b.service_id and p.id=b.package_id and p.client_id=b.client_id and v.client_id=b.client_id and s.service_channel='led_panel'
+ and (p_state in ('suspended','ended') or exists(select 1 from public.client_digital_export_permissions e where e.client_id=p.client_id and e.enabled))) then return null;end if;
  select * into old from altnix_operational.service_outbox where event_id=p_event;
  if found then
-  if old.service_id=p_service and old.decision_actor=p_actor and old.decision_reason=p_reason
+  if old.service_id=p_service and old.decision_actor=p_actor and old.decision_origin=p_origin and old.decision_reason=p_reason
    and old.payload->>'status'=p_state and (p_effective is null or (old.payload->>'effectiveAt')::timestamptz=p_effective) then return old.payload;end if;
   return null;
  end if;
@@ -69,13 +74,13 @@ begin
  'canonicalContractId',b.package_id,'canonicalServiceId',b.service_id,
  'campaignId',b.campaign_id,'eventId',p_event,'revision',rev,'status',p_state,
  'effectiveAt',to_char(coalesce(p_effective,statement_timestamp()) at time zone 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"'));
- insert into altnix_operational.service_outbox(event_id,service_id,revision,payload,decision_actor,decision_reason)
- values(p_event,p_service,rev,payload,p_actor,p_reason);
+ insert into altnix_operational.service_outbox(event_id,service_id,revision,payload,decision_actor,decision_reason,decision_origin)
+ values(p_event,p_service,rev,payload,p_actor,p_reason,p_origin);
  return payload;
  exception when unique_violation then return null;
 end;$queue$;
-revoke all on function public.altnix_queue_service_authorization(uuid,uuid,uuid,text,timestamptz,text) from public,anon,authenticated;
-grant execute on function public.altnix_queue_service_authorization(uuid,uuid,uuid,text,timestamptz,text) to service_role;
+revoke all on function public.altnix_queue_service_authorization(uuid,uuid,uuid,text,timestamptz,text,text) from public,anon,authenticated;
+grant execute on function public.altnix_queue_service_authorization(uuid,uuid,uuid,text,timestamptz,text,text) to service_role;
 
 -- Somente a revisão mais recente de cada serviço pode ser reivindicada.
 -- Um serviço revogado não envia nova autorização positiva. Suspensão/fim
@@ -245,3 +250,52 @@ begin
 end;$finance$;
 revoke all on function public.altnix_assess_service_finance(uuid,integer) from public,anon,authenticated;
 grant execute on function public.altnix_assess_service_finance(uuid,integer) to service_role;
+
+-- Opt-in explícito após vínculo e uma decisão humana. NULL desativa a regra.
+-- Não existe tolerância padrão presumida. Venda mista/sem evidência não é ativável.
+grant update(financial_grace_days,financial_approved_by,financial_approved_at) on altnix_operational.service_binding to service_role;
+create function public.altnix_configure_service_finance(p_service uuid,p_actor uuid,p_grace_days integer)
+returns boolean language plpgsql security invoker set search_path='' as $configure$
+declare n integer; evidence jsonb;
+begin
+ if p_service is null or p_actor is null or (p_grace_days is not null and p_grace_days not between 0 and 30) then return false;end if;
+ perform pg_advisory_xact_lock(hashtextextended('altnix-service:'||p_service::text,0));
+ if p_grace_days is not null then
+  evidence=public.altnix_assess_service_finance(p_service,p_grace_days);
+  if evidence is null or evidence->>'reason' not in ('no_overdue_balance','overdue_within_grace','overdue_after_grace') then return false;end if;
+  if not exists(select 1 from altnix_operational.service_outbox o where o.service_id=p_service
+   and o.revision=(select max(t.revision) from altnix_operational.service_outbox t where t.service_id=p_service)
+   and (o.payload->>'status' in ('authorized','grace') or (o.decision_origin='finance' and o.payload->>'status'='suspended'))) then return false;end if;
+ end if;
+ update altnix_operational.service_binding set financial_grace_days=p_grace_days,
+ financial_approved_by=p_actor,financial_approved_at=statement_timestamp()
+ where service_id=p_service and enabled;
+ get diagnostics n=row_count;
+ return n=1;
+end;$configure$;
+revoke all on function public.altnix_configure_service_finance(uuid,uuid,integer) from public,anon,authenticated;
+grant execute on function public.altnix_configure_service_finance(uuid,uuid,integer) to service_role;
+
+-- Reavalia apenas o serviço escolhido. Serializa com decisões manuais.
+-- Uma suspensão manual/encerramento nunca é desfeito pelo pagamento.
+-- Dúvida financeira => revisão, não gera liberação/suspensão presumida.
+create function public.altnix_apply_service_finance(p_service uuid)
+returns text language plpgsql security invoker set search_path='' as $apply$
+declare b altnix_operational.service_binding%rowtype; last_event altnix_operational.service_outbox%rowtype; evidence jsonb; desired text; result jsonb;
+begin
+ perform pg_advisory_xact_lock(hashtextextended('altnix-service:'||p_service::text,0));
+ select * into b from altnix_operational.service_binding where service_id=p_service and enabled and financial_grace_days is not null;
+ if not found then return 'disabled';end if;
+ select * into last_event from altnix_operational.service_outbox where service_id=p_service order by revision desc limit 1;
+ if not found or last_event.payload->>'status'='ended' then return 'manual_required';end if;
+ evidence=public.altnix_assess_service_finance(p_service,b.financial_grace_days);
+ if evidence is null or evidence->>'state'='review' then return 'review';end if;
+ desired=evidence->>'state';
+ if last_event.payload->>'status'='suspended' and last_event.decision_origin='manual' and desired<>'ended' then return 'manual_required';end if;
+ if desired=last_event.payload->>'status' then return 'unchanged';end if;
+ result=public.altnix_queue_service_authorization(p_service,gen_random_uuid(),b.financial_approved_by,desired,null,'finance_rule:'||(evidence->>'reason'),'finance');
+ if result is null then return 'review';end if;
+ return 'queued';
+end;$apply$;
+revoke all on function public.altnix_apply_service_finance(uuid) from public,anon,authenticated;
+grant execute on function public.altnix_apply_service_finance(uuid) to service_role;

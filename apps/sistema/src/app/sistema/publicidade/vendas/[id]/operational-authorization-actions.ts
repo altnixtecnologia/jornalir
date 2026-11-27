@@ -115,3 +115,25 @@ export async function assessAltnixServiceFinanceAction(serviceId:string,graceDay
   return {ok:true,assessment};
  }catch{return {error:"Avaliação financeira indisponível."};}
 }
+
+/** Ativação confirmada pelo proprietário; sem nova cobrança. NULL desativa. */
+export async function configureAltnixServiceFinanceAction(serviceId:string,graceDays:number|null,confirmed:boolean):Promise<{ok:true;transition:string}|{error:string}>{
+ if(!ALTNIX_SERVICE_AUTH_RELEASED||process.env.VERCEL_ENV!=="production"||process.env.JORNALIR_SERVICE_AUTH_WRITE_ENABLED!=="true")return {error:"Integração operacional aguardando homologação."};
+ if(confirmed!==true||canonicalIdOrNull(serviceId)!==serviceId||(graceDays!==null&&(!Number.isInteger(graceDays)||graceDays<0||graceDays>30)))return {error:"Confirme a política e informe uma tolerância válida."};
+ try{
+  const denied=await checkModuleAction("publicidade","contratos_revisar");if(denied)return {error:denied};
+  const session=createSupabaseServerClient();const {data:auth,error}=await session.auth.getUser();if(error||!auth.user)return {error:"Sessão inválida."};
+  const {data:profile}=await session.from("profiles").select("role,active").eq("id",auth.user.id).maybeSingle();
+  if(!profile?.active||profile.role!=="owner")return {error:"Operação reservada ao proprietário."};
+  const {data:service,error:serviceError}=await session.from("commercial_contract_services").select("id,service_channel").eq("id",serviceId).maybeSingle();
+  if(serviceError||service?.service_channel!=="led_panel")return {error:"Serviço não disponível."};
+  const admin=createSupabaseAdminClient();
+  const saved=await admin.rpc("altnix_configure_service_finance",{p_service:serviceId,p_actor:auth.user.id,p_grace_days:graceDays});
+  if(saved.error||saved.data!==true)return {error:"Política não registrada: confirme o vínculo, a liberação humana e os títulos do serviço."};
+  if(graceDays===null)return {ok:true,transition:"disabled"};
+  const transition=await admin.rpc("altnix_apply_service_finance",{p_service:serviceId});
+  if(transition.error)return {ok:true,transition:"review"};
+  if(transition.data==="queued")try{await drainServiceAuthorizationOutbox(async(name,args)=>await admin.rpc(name,args));}catch{/* fila permanece pendente */}
+  return {ok:true,transition:typeof transition.data==="string"?transition.data:"review"};
+ }catch{return {error:"Não foi possível confirmar a política financeira."};}
+}
