@@ -9,7 +9,6 @@ create table altnix_operational.service_binding(
  package_id uuid not null references public.commercial_contract_packages(id) on delete restrict,
  client_id uuid not null references public.clients(id) on delete restrict,
  advertiser_id uuid not null,
- local_contract_id uuid not null unique,
  campaign_id uuid not null unique,
  approved_by uuid not null,
  approved_at timestamptz not null default now(),
@@ -67,7 +66,7 @@ begin
  select coalesce(max(o.revision),0)+1 into rev from altnix_operational.service_outbox o where o.service_id=p_service;
  payload=jsonb_build_object('origin','jornal_ir','contractVersion','1','serviceCode','altnix_informativo',
  'tenantId','00000000-0000-0000-0000-000000000001','advertiserId',b.advertiser_id,'canonicalClientId',b.client_id,
- 'canonicalContractId',b.package_id,'canonicalServiceId',b.service_id,'localContractId',b.local_contract_id,
+ 'canonicalContractId',b.package_id,'canonicalServiceId',b.service_id,
  'campaignId',b.campaign_id,'eventId',p_event,'revision',rev,'status',p_state,
  'effectiveAt',to_char(coalesce(p_effective,statement_timestamp()) at time zone 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"'));
  insert into altnix_operational.service_outbox(event_id,service_id,revision,payload,decision_actor,decision_reason)

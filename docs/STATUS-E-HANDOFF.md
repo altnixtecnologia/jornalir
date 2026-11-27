@@ -1,5 +1,9 @@
 # Jornal IR — Status atual e passagem de contexto (HANDOFF)
 
+## 27/11/2026 — Correção da fonte única de contratos
+
+- Pré-corte real confirmou que a guarda do Informativo bloqueia INSERT em ad_contracts após freeze. Eliminado requisito de contrato comercial local no candidato de vínculo e envelope ainda não publicado: usar campaign_id existente e IDs canônicos Jornal. Não criar contrato espelho; única exceção é contrato interno permanente do Informativo Regional. Alteração coordenada com Informativo #73. CI pendente, nenhuma migration, produção, cobrança ou deploy alterado. Provisionamento, regras de autorização e homologação ainda necessários.
+
 
 ## 27/11/2026 — Pré-corte financeiro e conciliação dos testes (itens 10 e 11)
 

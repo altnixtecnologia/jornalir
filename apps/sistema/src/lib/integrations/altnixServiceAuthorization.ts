@@ -9,16 +9,16 @@ export const ALTNIX_SERVICE_TENANT="00000000-0000-0000-0000-000000000001";
 export type ServiceAuthorizationEvent={
  origin:"jornal_ir"; contractVersion:"1"; serviceCode:"altnix_informativo";
  tenantId:string; advertiserId:string; canonicalClientId:string; canonicalContractId:string;
- canonicalServiceId:string; localContractId:string; campaignId:string; eventId:string;
+ canonicalServiceId:string; campaignId:string; eventId:string;
  revision:number; status:"authorized"|"grace"|"suspended"|"ended"; effectiveAt:string;
 };
-const keys=["origin","contractVersion","serviceCode","tenantId","advertiserId","canonicalClientId","canonicalContractId","canonicalServiceId","localContractId","campaignId","eventId","revision","status","effectiveAt"];
+const keys=["origin","contractVersion","serviceCode","tenantId","advertiserId","canonicalClientId","canonicalContractId","canonicalServiceId","campaignId","eventId","revision","status","effectiveAt"];
 export function checkedServiceAuthorizationEvent(raw:unknown, nowMs:number):ServiceAuthorizationEvent|null{
  if(!raw||typeof raw!=="object"||Array.isArray(raw)||!Number.isFinite(nowMs))return null;
  const e=raw as Record<string,unknown>;
  if(Object.keys(e).length!==keys.length||keys.some(k=>!Object.hasOwn(e,k))
  ||e.origin!=="jornal_ir"||e.contractVersion!=="1"||e.serviceCode!=="altnix_informativo"||e.tenantId!==ALTNIX_SERVICE_TENANT
- ||!["advertiserId","canonicalClientId","canonicalContractId","canonicalServiceId","localContractId","campaignId","eventId"].every(k=>typeof e[k]==="string"&&canonicalIdOrNull(e[k])===e[k])
+ ||!["advertiserId","canonicalClientId","canonicalContractId","canonicalServiceId","campaignId","eventId"].every(k=>typeof e[k]==="string"&&canonicalIdOrNull(e[k])===e[k])
  ||!Number.isSafeInteger(e.revision)||Number(e.revision)<1
  ||!["authorized","grace","suspended","ended"].includes(String(e.status))
  ||typeof e.effectiveAt!=="string"||e.effectiveAt.length>40||!/T.*(?:Z|[+-]\d{2}:\d{2})$/.test(e.effectiveAt)

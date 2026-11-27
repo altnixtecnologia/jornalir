@@ -16,16 +16,16 @@ insert into public.commercial_sales values('00000000-0000-4000-8000-000000000002
 insert into public.commercial_contract_packages values('00000000-0000-4000-8000-000000000003','00000000-0000-4000-8000-000000000001','00000000-0000-4000-8000-000000000002');
 insert into public.commercial_contract_services values('00000000-0000-4000-8000-000000000004','00000000-0000-4000-8000-000000000003','led_panel'),('00000000-0000-4000-8000-000000000005','00000000-0000-4000-8000-000000000003','newspaper');
 insert into public.client_digital_export_permissions values('00000000-0000-4000-8000-000000000001',true);
-insert into altnix_operational.service_binding(service_id,package_id,client_id,advertiser_id,local_contract_id,campaign_id,approved_by,enabled)
-values('00000000-0000-4000-8000-000000000004','00000000-0000-4000-8000-000000000003','00000000-0000-4000-8000-000000000001',gen_random_uuid(),gen_random_uuid(),gen_random_uuid(),gen_random_uuid(),true),
-('00000000-0000-4000-8000-000000000005','00000000-0000-4000-8000-000000000003','00000000-0000-4000-8000-000000000001',gen_random_uuid(),gen_random_uuid(),gen_random_uuid(),gen_random_uuid(),true);
+insert into altnix_operational.service_binding(service_id,package_id,client_id,advertiser_id,campaign_id,approved_by,enabled)
+values('00000000-0000-4000-8000-000000000004','00000000-0000-4000-8000-000000000003','00000000-0000-4000-8000-000000000001',gen_random_uuid(),gen_random_uuid(),gen_random_uuid(),true),
+('00000000-0000-4000-8000-000000000005','00000000-0000-4000-8000-000000000003','00000000-0000-4000-8000-000000000001',gen_random_uuid(),gen_random_uuid(),gen_random_uuid(),true);
 do $acl$ begin
  if has_schema_privilege('authenticated','altnix_operational','USAGE') or has_table_privilege('service_role','altnix_operational.service_binding','INSERT') or has_column_privilege('service_role','altnix_operational.service_outbox','payload','UPDATE') or has_function_privilege('anon','public.altnix_queue_service_authorization(uuid,uuid,uuid,text,timestamptz,text)','EXECUTE') then raise exception 'unsafe privilege';end if;
 end;$acl$;
 set role service_role;
 do $test$ declare s uuid:='00000000-0000-4000-8000-000000000004'; other uuid:='00000000-0000-4000-8000-000000000005';e uuid:=gen_random_uuid();a uuid:=gen_random_uuid();d timestamptz:=now();p jsonb;q jsonb;begin
  p=public.altnix_queue_service_authorization(s,e,a,'authorized',d,'explicit test decision');
- if p is null or p->>'revision'<>'1' or p->>'canonicalServiceId'<>s::text then raise exception 'valid event missing';end if;
+ if p is null or p?'localContractId' or p->>'revision'<>'1' or p->>'canonicalServiceId'<>s::text then raise exception 'valid event missing';end if;
  q=public.altnix_queue_service_authorization(s,e,a,'authorized',null,'explicit test decision');
  if q is distinct from p then raise exception 'retry generated new event';end if;
  if public.altnix_queue_service_authorization(s,e,a,'suspended',d,'changed decision') is not null then raise exception 'conflicting replay';end if;
