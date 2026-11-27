@@ -17,6 +17,8 @@ on:
       - "apps/sistema/src/lib/integrations/altnixFinanceReadContract.ts"
       - "apps/sistema/src/lib/integrations/altnixServiceAuthorization.ts"
       - "apps/sistema/test/altnix-service-authorization.test.ts"
+      - "tests/security/altnix-service-outbox-sandbox.sql"
+      - "tests/security/fixtures/altnix-service-outbox-candidate.sql"
       - "apps/sistema/src/lib/integrations/altnixLinkPreview.ts"
       - "apps/sistema/test/altnix-link-preview.test.ts"
       - "apps/sistema/src/app/api/integrations/altnix/finance-preview/**"
@@ -73,3 +75,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: psql -v ON_ERROR_STOP=1 -f tests/security/altnix-cadastro-write-sandbox.sql
+
+      - name: Sandbox de vínculo e fila de autorizações
+        run: |
+          createdb altnix_service_outbox_sandbox
+          psql -d altnix_service_outbox_sandbox -v ON_ERROR_STOP=1 -f tests/security/altnix-service-outbox-sandbox.sql

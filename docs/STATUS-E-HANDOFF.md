@@ -1,5 +1,9 @@
 # Jornal IR — Status atual e passagem de contexto (HANDOFF)
 
+## 27/11/2026 — Vínculo auditado e fila central de autorização (sandbox)
+
+- CI do transporte anterior aprovada. Candidato SQL somente em testes: vínculo operacional explícito referenciado pelos IDs existentes de serviço/pacote/cliente, provisionado administrativamente, com ator e data; fila de eventos por serviço, revisão serializada, identidade estável e decisão auditável. Rejeita canal não LED, seleção revogada, duplicidade divergente e eventos futuros. Não deduz autorização de recebimento global; ainda requer integrar decisão autorizada, worker com confirmação e reprovação, migration oficial e homologação. Não é migration, não modifica produção nem cria vendas/contratos. CI pendente.
+
 ## 27/11/2026 — Handoff obrigatório VS Code e confirmação de entrega
 
 - Proprietário determinou: antes de alterações no VS Code, verificar repositório/branch, git status, git stash list, alterações staged/unstaged/untracked e commits locais; git fetch, comparar upstream e reconciliar divergências preservando trabalho local. Sincronizar com GitHub antes de modificar (fast-forward somente se seguro), sem reset --hard, clean, force push ou descarte de stashes. Depois, revisar testes/diferenças e commits locais a enviar, respeitando autorização. Branch oficial Jornal `solicitacoes-financeiro-contratos-irc-20261031`, Informativo `main`; consultar PRs #146/#73 antes de trabalhar. Acesso remoto não comprova situação local. Eventuais APKs: instrução coordenada Codex/Claude nos commits corretos, validar necessidade e variantes TB20/TB40, Xiaomi S 3rd Gen e Universal, offline, sync, suspensão por serviço, playlists permanentes e OTA. Não gerar novos APKs sem necessidade comprovada.
