@@ -1,6 +1,6 @@
 import {test} from "node:test";
 import assert from "node:assert/strict";
-import {ALTNIX_SERVICE_AUTH_RELEASED,ALTNIX_SERVICE_TENANT,ALTNIX_SERVICE_AUTH_ENDPOINT,checkedServiceAuthorizationEvent,authorizationDeliveryResult,sendServiceAuthorization,drainServiceAuthorizationOutbox,parseServiceDecision,parseServiceBindingRequest,checkedServiceBinding,checkedCampaignOptions,checkedServiceFinanceBatchScope,runServiceFinanceBatch,checkedReceivableEventIds,reassessAfterReceivableCommit,checkedServiceDailyResult,runDailyServiceFinance} from "../src/lib/integrations/altnixServiceAuthorization";
+import {ALTNIX_SERVICE_AUTH_RELEASED,ALTNIX_SERVICE_TENANT,ALTNIX_SERVICE_AUTH_ENDPOINT,checkedServiceAuthorizationEvent,authorizationDeliveryResult,sendServiceAuthorization,drainServiceAuthorizationOutbox,parseServiceDecision,parseServiceBindingRequest,checkedServiceBinding,checkedCampaignOptions,checkedServiceFinanceBatchScope,runServiceFinanceBatch,checkedReceivableEventIds,reassessAfterReceivableCommit,checkedServiceDailyResult,runDailyServiceFinance,checkedServiceBridgeHealth,probeServiceBridge} from "../src/lib/integrations/altnixServiceAuthorization";
 const uuid=(n:number)=>"00000000-0000-4000-8000-"+String(n).padStart(12,"0");
 const event={origin:"jornal_ir",contractVersion:"1",serviceCode:"altnix_informativo",tenantId:ALTNIX_SERVICE_TENANT,
  advertiserId:uuid(2),canonicalClientId:uuid(3),canonicalContractId:uuid(4),canonicalServiceId:uuid(5),
@@ -18,8 +18,8 @@ test("não considerar conflito como autorização entregue",()=>{
  assert.equal(authorizationDeliveryResult(409,{code:"not_applied"}),"review_required");
  assert.equal(authorizationDeliveryResult(503,null),"retryable");
 });
-test("transporte desabilitado até autorização persistida e homologação",async()=>{
- assert.equal(ALTNIX_SERVICE_AUTH_RELEASED,false);
+test("transporte depende de flag e ambiente de produção",async()=>{
+ assert.equal(ALTNIX_SERVICE_AUTH_RELEASED,true);
  assert.equal(await sendServiceAuthorization(event),"disabled");
 });
 
@@ -87,4 +87,15 @@ test("rotina diária não acessa banco com release desligada",async()=>{
  let calls=0;
  assert.deepEqual(await runDailyServiceFinance(async()=>{calls++;return {data:null,error:null};}),{status:"disabled",daily:null,delivery:null});
  assert.equal(calls,0);
+});
+
+test("handshake exige resposta estrita, versão e estado da flag",()=>{
+ const valid={code:"ready",contractVersion:"1",writeEnabled:false};
+ assert.deepEqual(checkedServiceBridgeHealth(valid),valid);
+ for(const raw of [null,[],{...valid,code:"other"},{...valid,contractVersion:"2"},{...valid,writeEnabled:"false"},{...valid,extra:true}])assert.equal(checkedServiceBridgeHealth(raw),null);
+});
+test("probe não consulta rede fora de produção",async()=>{
+ const old=process.env.VERCEL_ENV;
+ try{process.env.VERCEL_ENV="preview";assert.equal(await probeServiceBridge(),null);}
+ finally{if(old===undefined)delete process.env.VERCEL_ENV;else process.env.VERCEL_ENV=old;}
 });

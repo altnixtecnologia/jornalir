@@ -11,6 +11,7 @@ import {
 } from "../../../../lib/financeiro/asaasEnv";
 import { inspectExistingAsaasCharges, type ChargeRead } from "../../../../lib/financeiro/asaasExistingChargesRead";
 import { hasServiceRoleKey } from "../../../../lib/supabase/admin";
+import { probeServiceBridge } from "../../../../lib/integrations/altnixServiceAuthorization";
 import {
   ASAAS_WEBHOOK_EMAIL,
   ASAAS_WEBHOOK_EVENTS,
@@ -325,4 +326,15 @@ export async function inspectAsaasExistingChargesAction():Promise<{ok:true;rows:
   const rows=await inspectExistingAsaasCharges(data.slice(0,10),key);
   return {ok:true,rows,more:data.length>10};
  }catch{return {error:"Consulta Asaas indisponível."};}
+}
+
+
+/** Teste sem mutação, sob a mesma autorização administrativa da configuração. */
+export async function testAltnixServiceBridgeAction():Promise<{ok:true;receiverWriteEnabled:boolean;senderWriteEnabled:boolean}|{error:string}>{
+ try{
+  const denied=await requireBillingSettingsAdmin();
+  if(denied)return {error:denied};
+  const health=await probeServiceBridge();
+  return health?{ok:true,...health}:{error:"Comunicação indisponível. Confira a implantação e a credencial de integração."};
+ }catch{return {error:"Não foi possível verificar a comunicação com o Informativo."};}
 }

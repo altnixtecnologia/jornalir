@@ -5,6 +5,7 @@ import {
   provisionAsaasWebhookAction,
   inspectAsaasExistingChargesAction,
   testAsaasConnectionAction,
+  testAltnixServiceBridgeAction,
   updateBillingProviderSettingsAction,
 } from "../../app/sistema/configuracoes/cobrancas/actions";
 import type { ChargeRead } from "../../lib/financeiro/asaasExistingChargesRead";
@@ -48,6 +49,14 @@ export function BillingProviderSettingsPanel({ values }: { values: BillingProvid
         return;
       }
       notify.success("Conexão confirmada", `Conexão com o Asaas confirmada. Status geral da conta: ${result.generalStatus}.`);
+    });
+  }
+
+  function testServiceBridge():void{
+    startTransition(async()=>{
+      const result=await testAltnixServiceBridgeAction();
+      if("error" in result){notify.error("Comunicação com o Informativo",result.error);return;}
+      notify.success("Comunicação confirmada",result.senderWriteEnabled&&result.receiverWriteEnabled?"Escrita habilitada nos dois sistemas.":"Canal autenticado; escrita ainda não liberada nos dois sistemas.");
     });
   }
 
@@ -179,6 +188,14 @@ export function BillingProviderSettingsPanel({ values }: { values: BillingProvid
         </div>}
         {enabled && !selectedKeyConfigured ? <p className="form-error">O ambiente selecionado ainda não possui chave configurada.</p> : null}
         {enabled && !values.webhookTokenConfigured ? <p className="form-error">O token de autenticação do webhook ainda não está configurado.</p> : null}
+      </section>
+
+      <section className="form-section">
+        <h2>Integração Altnix Informativo</h2>
+        <p className="helper-text">Verifica a comunicação autenticada entre os sistemas, sem criar vínculo, cobrança ou autorização.</p>
+        <div className="form-actions">
+          <button type="button" onClick={testServiceBridge} disabled={pending}>Testar comunicação com o Informativo</button>
+        </div>
       </section>
 
       <section className="form-section">

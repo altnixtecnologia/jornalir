@@ -4,7 +4,8 @@ import { canonicalIdOrNull } from "./altnixFinanceReadContract";
 // revisão jurídica. Somente o futuro emissor de estado/outbox persistido
 // poderá fornecer uma autorização. Não gerar novos eventos em retries.
 export const ALTNIX_SERVICE_AUTH_ENDPOINT="https://painel.altnix.com.br/apk/api/integrations/jornalir/service-authorization";
-export const ALTNIX_SERVICE_AUTH_RELEASED:boolean=false;
+// Transporte preparado; escrita e worker continuam sob flags independentes de produção.
+export const ALTNIX_SERVICE_AUTH_RELEASED:boolean=true;
 export const ALTNIX_SERVICE_TENANT="00000000-0000-0000-0000-000000000001";
 export type ServiceAuthorizationEvent={
  origin:"jornal_ir"; contractVersion:"1"; serviceCode:"altnix_informativo";
@@ -228,4 +229,26 @@ export async function runDailyServiceFinance(rpc:ServiceDailyRpc):Promise<{
  let delivery:null|{claimed:number;acknowledged:number;unconfirmed:number}=null;
  try{delivery=await drainServiceAuthorizationOutbox(rpc);}catch{/* retry pela fila */}
  return {status:!daily||!delivery?"review":daily.status,daily,delivery};
+}
+
+
+export type ServiceBridgeHealth={code:"ready";contractVersion:"1";writeEnabled:boolean};
+export function checkedServiceBridgeHealth(raw:unknown):ServiceBridgeHealth|null{
+ if(!raw||typeof raw!=="object"||Array.isArray(raw))return null;
+ const v=raw as Record<string,unknown>;
+ return Object.keys(v).length===3&&v.code==="ready"&&v.contractVersion==="1"&&typeof v.writeEnabled==="boolean"
+ ? {code:"ready",contractVersion:"1",writeEnabled:v.writeEnabled}:null;
+}
+/** Somente teste manual de comunicação; usa a mesma credencial de escrita,
+ * mas não exige que a escrita esteja ativada e não envia dados de cliente. */
+export async function probeServiceBridge():Promise<{receiverWriteEnabled:boolean;senderWriteEnabled:boolean}|null>{
+ const secret=process.env.JORNALIR_SERVICE_AUTH_WRITE_SECRET;
+ if(!ALTNIX_SERVICE_AUTH_RELEASED||process.env.VERCEL_ENV!=="production"||!secret||secret.length<32||secret.length>512
+ ||[process.env.JORNALIR_FINANCE_BRIDGE_SECRET,process.env.ALTNIX_CLIENT_SYNC_SECRET,process.env.ALTNIX_CLIENT_WRITE_SECRET,process.env.SUPABASE_SERVICE_ROLE_KEY,process.env.CRON_SECRET].includes(secret))return null;
+ try{
+  const result=await fetch("https://painel.altnix.com.br/apk/api/integrations/jornalir/service-binding-options",{method:"GET",headers:{Authorization:"Bearer "+secret},cache:"no-store",redirect:"error",signal:AbortSignal.timeout(10000)});
+  if(!result.ok)return null;
+  const health=checkedServiceBridgeHealth(await result.json());
+  return health?{receiverWriteEnabled:health.writeEnabled,senderWriteEnabled:process.env.JORNALIR_SERVICE_AUTH_WRITE_ENABLED==="true"}:null;
+ }catch{return null;}
 }
