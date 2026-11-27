@@ -1,5 +1,9 @@
 # Jornal IR — Status atual e passagem de contexto (HANDOFF)
 
+## 27/11/2026 — Estrutura operacional instalada no banco oficial (sem ativação)
+
+- Migration aplicada com sucesso pelo MCP Supabase após aprovação do sandbox da migration versionada e conferência de dependências. Ledger registrou `20261127110057_altnix_service_operational_authorization.sql`; renomeado arquivo Git para a versão efetivamente aplicada, preservando conteúdo e SHA do candidato (não reaplicar a versão temporária `20261127105512_altnix_service_operational_authorization.sql`). Verificação oficial: 3 tabelas privadas vazias, RLS habilitada, 13 RPCs exclusivas service_role. Nenhuma venda, cobrança, campanha, serviço ou vínculo alterado; nenhum agendamento ativado; flags continuam fechadas. Informativo instalado primeiro, Jornal em seguida. Próximos passos: homologação de comunicação, configuração de credencial dedicada e ativação coordenada, reconciliação Asaas e limpeza de testes. Auditoria ampla ao final.
+
 ## 27/11/2026 — Migration operacional versionada
 
 - Migration `supabase/migrations/20261127105512_altnix_service_operational_authorization.sql` com nome real emitido pelo Supabase CLI 3.4.0, reconstruída deterministicamente a partir do candidato e gerador do head validado, SHA256 do candidato `98b6b8bf978c01d60e53127bacd26010855dfdd54f88a29475519a4ae29d4a8f`. Job de geração e segundo sandbox aprovados (run 45986076515, artifact 15191368228); próxima CI compara o arquivo versionado byte a byte com a geração. Nenhum schema remoto alterado, nenhuma flag ativada. Instalar projeção do Informativo antes do emissor Jornal, mantendo release desativada; validar dependências e ledger dos dois projetos antes de aplicar. Auditoria ampla ao final.
