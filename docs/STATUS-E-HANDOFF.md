@@ -1,5 +1,9 @@
 # Jornal IR — Status atual e passagem de contexto (HANDOFF)
 
+## 27/11/2026 — Transporte de autorização operacional para o Informativo
+
+- Adaptador servidor de envio por contrato/serviço/campanha, tenant principal, credencial dedicada, endpoint fixo, validação estrita e entrega sem cache. Trava de release false: ainda requer fonte de autorização por serviço persistida, vínculo operacional auditado, outbox e confirmação idempotente; não derivar liberação de aprovação jurídica ou pagamento global. CI sem deploy. Todos os registros comerciais/financeiros existentes são testes, exceto o contrato interno permanente Informativo Regional (operacional, não faturável); preservar cadastros e mídias/playlists. Nada aplicado em produção.
+
 ## 26/11/2026 — Contratos por serviço: identidade canônica existente
 
 - CI da rodada financeira anterior aprovada nos dois repositórios (Jornal #145 e Informativo #72). A consulta de conciliação reutiliza `commercial_contract_packages.id` e `commercial_contract_services.id` e escopo da venda/cliente selecionado; exporta apenas identificadores, canal, vigência, modalidade de documento e status de revisão, com completude explícita. Não exporta documento, assinatura, texto jurídico ou dados pessoais. Aprovação jurídica não equivale a assinatura nem autorização de exibição/cobrança. Sem nova tabela de contratos, sem banco, flags, deploy ou emissão. Próxima CI deve validar a extensão coordenada; corte financeiro continua fechado.
