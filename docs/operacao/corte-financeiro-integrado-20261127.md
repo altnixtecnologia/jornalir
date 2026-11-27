@@ -1,5 +1,12 @@
 # Corte financeiro Jornal IR ↔ Altnix Informativo — 27/11/2026
 
+## 27/11/2026 — Relatórios sem títulos de teste (código preparado, sem migration aplicada nem marcação)
+
+- Mecanismo que preserva evidência: migration aditiva `20261127150000_receivables_report_exclusion.sql` (três colunas anuláveis `report_excluded_at/by/reason` em `receivables`, motivo obrigatório; não altera dados, constraints existentes nem a view). Fonte única `receivableReportExclusion.supabase.ts`: lista/relatório de contas a receber, relatório de recebimentos, de ajustes, visão financeira e a consulta central enviada ao Informativo (`finance-preview`) passam a excluir os IDs marcados. Sem a migration aplicada a coluna não existe (42703) e nada é excluído, ou seja, comportamento anterior; nenhum relatório quebra. Nada foi apagado ou alterado.
+- Não coberto de propósito: recibos emitidos (documentos), listas por contrato/venda e o cadastro do título. Seguem mostrando o título para auditoria.
+- Para ativar (somente com autorização do proprietário, nesta ordem): 1) aplicar a migration pelo CLI; 2) congelar o conjunto explícito de IDs de teste (receivable do título pago IR-ASS-2026-000001 e demais aprovados, jamais por filtro amplo); 3) marcar em transação, com `report_excluded_by` = proprietário e motivo textual, e conferir contagens antes/depois; 4) publicar. Reversão: limpar as três colunas. Não excluir fisicamente nem desabilitar constraints.
+- Consulta central pelo cliente (Informativo, portal): usa `finance-preview` deste projeto; com a marcação acima os testes também deixam de ser enviados. Vendas, serviços, campanhas e suspensão/restabelecimento já têm código nos dois projetos (painel na venda, avaliação e aplicação financeira, receptores no Informativo) e dependem apenas de homologação real, que exige banco de produção e aparelhos; nada ativado.
+
 ## 27/11/2026 — Escrita publicada, financeiro legado bloqueado e assinatura teste encerrada
 
 - Deploys production READY e promovidos sem rebuild adicional, receptor primeiro: Informativo dpl_FxXHJa5i1G2Enu3YsUGZWMWchobH (painel e cliente), Jornal dpl_48bML2noh5Ky1FWVM7kByBv7tWeA (controle). Aliases conferidos. Escrita configurada true em ambos, entrega e worker continuam false; não confundir configuração publicada com homologação de eventos. Navegador conectado segue indisponível. Comunicação autenticada anterior aprovada pelo proprietário. Zero serviços/vínculos/eventos antes do corte.

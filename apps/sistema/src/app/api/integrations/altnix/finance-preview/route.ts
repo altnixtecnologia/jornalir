@@ -1,6 +1,7 @@
 import "server-only";
 import { NextRequest, NextResponse } from "next/server";
 import { createSupabaseAdminClient } from "../../../../../lib/supabase/admin";
+import { listReportExcludedReceivableIds, withoutExcludedReceivables } from "../../../../../providers/supabase/receivableReportExclusion.supabase";
 import {
   FINANCE_BRIDGE_VERSION, FINANCE_PAGE_SIZE, allowedFinanceClient,
   canonicalIdOrNull, financeBridgeAuthorized, parseFinanceOffset, projectFinanceSaleServices,
@@ -57,12 +58,14 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     if (clientError) return respond({ error: "Consulta temporariamente indisponível." }, 503);
     if (!client) return respond({ error: "Cadastro não localizado ou inativo." }, 404);
 
-    const { data, error, count } = await db.from("receivables")
+    // Títulos classificados como teste não são enviados ao Informativo (histórico preservado no Jornal).
+    const excludedIds = await listReportExcludedReceivableIds(db);
+    const { data, error, count } = await withoutExcludedReceivables(db.from("receivables")
       .select(
         "id,status,original_amount,issue_date,due_date,source_type,source_id,source_reference,contract_id,commercial_sale_id,installment_number,competency_date",
         { count: "exact" },
       )
-      .eq("client_id", id)
+      .eq("client_id", id), "id", excludedIds)
       .order("created_at", { ascending: false })
       .order("id", { ascending: false })
       .range(offset, offset + FINANCE_PAGE_SIZE - 1);

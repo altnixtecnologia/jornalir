@@ -20,6 +20,7 @@ import type {
 } from "@ir/core";
 import { isLocalPreviewEnabled } from "../../lib/auth/localPreview";
 import { createSupabaseAdminClient } from "../../lib/supabase/admin";
+import { listReportExcludedReceivableIds, withoutExcludedReceivables } from "./receivableReportExclusion.supabase";
 
 const TABLE = "receivables";
 const VIEW = "receivables_with_balance";
@@ -778,9 +779,12 @@ export async function listReceivablesAdminPageSupabase(
     paymentMethod: input.paymentMethod,
   });
   const settledWithDifferenceIds = input.settledWithDifferenceOnly ? await findReceivableIdsSettledWithDifference(client) : null;
+  // Títulos classificados como teste ficam fora de listas e relatórios (histórico preservado).
+  const excludedIds = await listReportExcludedReceivableIds(client);
 
   const build = (page: number) => {
     let query = client.from(VIEW).select(LIST_VIEW_COLUMNS, { count: "exact" }).order("due_date", { ascending: true }).order("id", { ascending: true });
+    query = withoutExcludedReceivables(query, "id", excludedIds);
 
     if (input.status) query = query.eq("status", input.status);
     if (input.partiallyPaidOnly) query = query.eq("status", "partially_paid");
@@ -1019,6 +1023,7 @@ export async function listReceivableReceiptsReportSupabase(
     contractId: input.contractId,
     sourceType: input.sourceType,
   });
+  const excludedIds = await listReportExcludedReceivableIds(client);
 
   const build = (page: number) => {
     let query = client
@@ -1026,6 +1031,7 @@ export async function listReceivableReceiptsReportSupabase(
       .select(RECEIPT_REPORT_COLUMNS, { count: "exact" })
       .is("reversed_at", null)
       .order("received_at", { ascending: false });
+    query = withoutExcludedReceivables(query, "receivable_id", excludedIds);
     if (titleFilteredIds !== null) {
       query = query.in("receivable_id", titleFilteredIds.length > 0 ? titleFilteredIds : ["00000000-0000-0000-0000-000000000000"]);
     }
@@ -1229,6 +1235,7 @@ export async function listReceivableAdjustmentsReportSupabase(
     clientId: input.clientId,
     contractId: input.contractId,
   });
+  const excludedIds = await listReportExcludedReceivableIds(client);
 
   const build = (page: number) => {
     let query = client
@@ -1236,6 +1243,7 @@ export async function listReceivableAdjustmentsReportSupabase(
       .select(ADJUSTMENT_REPORT_COLUMNS, { count: "exact" })
       .is("reversed_at", null)
       .order("recorded_at", { ascending: false });
+    query = withoutExcludedReceivables(query, "receivable_id", excludedIds);
     if (titleFilteredIds !== null) {
       query = query.in("receivable_id", titleFilteredIds.length > 0 ? titleFilteredIds : ["00000000-0000-0000-0000-000000000000"]);
     }

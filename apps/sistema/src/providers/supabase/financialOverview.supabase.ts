@@ -2,6 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { computeReceivableDueFlag } from "@ir/types";
 import { isLocalPreviewEnabled } from "../../lib/auth/localPreview";
 import { PREVIEW_RECEIPTS, PREVIEW_RECEIVABLES } from "./receivableRepository.supabase";
+import { listReportExcludedReceivableIds, withoutExcludedReceivables } from "./receivableReportExclusion.supabase";
 import { nextCalendarDayISO, saoPauloDayOfTimestamp, saoPauloDayStartUtcISO } from "../../lib/date/saoPauloDate";
 
 export interface FinancialPeriodMetric {
@@ -146,24 +147,26 @@ export async function getFinancialOverviewSupabase(
   const adjustmentsUtcStart = saoPauloDayStartUtcISO(range.periodStart);
   const adjustmentsUtcEndExclusive = saoPauloDayStartUtcISO(nextCalendarDayISO(range.periodEnd));
 
+  // Títulos classificados como teste não entram nos totais (histórico preservado).
+  const excludedIds = await listReportExcludedReceivableIds(client);
   const [openResult, receiptsResult, adjustmentsResult] = await Promise.all([
-    client
+    withoutExcludedReceivables(client
       .from("receivables_with_balance")
       .select("status, due_date, balance")
-      .in("status", ["open", "partially_paid"]),
-    client
+      .in("status", ["open", "partially_paid"]), "id", excludedIds),
+    withoutExcludedReceivables(client
       .from("receivable_receipts")
       .select("amount, received_at")
       .is("reversed_at", null)
       // Limites UTC calculados a partir das datas civis do Brasil, com fim exclusivo.
       .gte("received_at", receiptsUtcStart)
-      .lt("received_at", receiptsUtcEndExclusive),
-    client
+      .lt("received_at", receiptsUtcEndExclusive), "receivable_id", excludedIds),
+    withoutExcludedReceivables(client
       .from("receivable_adjustments")
       .select("amount")
       .is("reversed_at", null)
       .gte("recorded_at", adjustmentsUtcStart)
-      .lt("recorded_at", adjustmentsUtcEndExclusive),
+      .lt("recorded_at", adjustmentsUtcEndExclusive), "receivable_id", excludedIds),
   ]);
 
   if (openResult.error) throw new Error(openResult.error.message);

@@ -49,6 +49,8 @@ function mockFinancialDatabase(tables: Record<string, MockTableRow[]>) {
         is(field: string, value: unknown) { filters.push({ field, op: "is", value }); return query; },
         gte(field: string, value: string) { filters.push({ field, op: "gte", value }); return query; },
         lt(field: string, value: string) { filters.push({ field, op: "lt", value }); return query; },
+        not(field: string, op: string, value: unknown) { filters.push({ field, op: `not_${op}`, value }); return query; },
+        limit(_count: number) { return query; },
         then(resolve: (value: { data: MockTableRow[]; error: null }) => unknown,
           reject?: (error: unknown) => unknown) {
           for (const filter of filters) calls.push({ table, ...filter });
@@ -57,6 +59,8 @@ function mockFinancialDatabase(tables: Record<string, MockTableRow[]>) {
             if (f.op === "is") return row[f.field] === f.value;
             if (f.op === "gte") return String(row[f.field]) >= String(f.value);
             if (f.op === "lt") return String(row[f.field]) < String(f.value);
+            if (f.op === "not_is") return f.value === null ? row[f.field] != null : row[f.field] !== f.value;
+            if (f.op === "not_in") return !String(f.value).replace(/^\(|\)$/g, "").split(",").includes(String(row[f.field]));
             return false;
           }));
           return Promise.resolve({ data, error: null }).then(resolve, reject);
@@ -102,4 +106,28 @@ test("Resumo financeiro: recebimentos e abatimentos de 22:30h entram em 12/10, n
     && c.value === "2026-10-12T03:00:00.000Z"));
   assert.ok(calls.some((c) => c.table === "receivable_adjustments" && c.op === "lt"
     && c.value === "2026-10-13T03:00:00.000Z"));
+});
+
+test("Resumo financeiro: título classificado como teste fica fora de abertos, recebimentos e ajustes", async () => {
+  const { client } = mockFinancialDatabase({
+    receivables: [{ id: "teste-1", report_excluded_at: "2026-11-27T12:00:00.000Z" }, { id: "real-1", report_excluded_at: null }],
+    receivables_with_balance: [
+      { id: "teste-1", status: "open", due_date: "2026-10-12", balance: 5 },
+      { id: "real-1", status: "open", due_date: "2026-10-12", balance: 100 },
+    ],
+    receivable_receipts: [
+      { receivable_id: "teste-1", amount: 5, received_at: "2026-10-12T12:00:00.000Z", reversed_at: null },
+      { receivable_id: "real-1", amount: 40, received_at: "2026-10-12T12:00:00.000Z", reversed_at: null },
+    ],
+    receivable_adjustments: [
+      { receivable_id: "teste-1", amount: 3, recorded_at: "2026-10-12T12:00:00.000Z", reversed_at: null },
+      { receivable_id: "real-1", amount: 7, recorded_at: "2026-10-12T12:00:00.000Z", reversed_at: null },
+    ],
+  });
+  const report = await getFinancialOverviewSupabase(client, {
+    today: "2026-10-12", periodStart: "2026-10-12", periodEnd: "2026-10-12", monthStart: "2026-10-01", monthEnd: "2026-10-31",
+  });
+  assert.deepEqual(report.dueToday, { amount: 100, count: 1 });
+  assert.deepEqual(report.receivedToday, { amount: 40, count: 1 });
+  assert.equal(report.adjustmentsInPeriod, 7);
 });
