@@ -134,3 +134,18 @@ Migration executada em PostgreSQL 9.5 local com esquema mínimo de apoio (soment
 ### Testes locais (mocks/fixtures)
 
 Jornal: `apps/sistema/test/purchase-billing-restructuring.test.ts` (23 casos). Informativo: `dashboard-next/scripts/test-jornalir-purchase-billing.mjs`. Mais as suítes afetadas (financeiro, Asaas, WhatsApp, cartão, serviço/autorização) e `tsc --noEmit` nos dois.
+
+## 28/11/2026 — Identidade central no acesso ao portal (sem alteração no Jornal) e auditoria futura de consumo
+
+- O acesso ao portal do Informativo por WhatsApp usa a consulta cadastral **já existente** do Jornal (`api/integrations/altnix/clients?id=`, campo `whatsapp` canônico, somente clientes ativos com exportação habilitada). Nenhuma rota, migration ou despacho novo no Jornal; o Informativo é o único dono do envio do OTP. Detalhes e pré-requisitos: [ALT-AUTH-001] em `PENDENCIAS-TECNICAS.md` do Informativo.
+- Checklist de liberação (adicional): confirmar leitura cadastral habilitada e `ALTNIX_CLIENT_SYNC_*` no Informativo; modelo `autenticacao` aprovado; homologar troca de WhatsApp no Jornal refletindo no próximo pedido de código.
+
+**### Item futuro consolidado: AUTOMATION AND RESOURCE CONSUMPTION REVIEW** (registrado em 28/11/2026; **não executado**)
+
+Quando: na preparação da liberação final (release), nunca durante o desenvolvimento dos módulos. Diretriz do proprietário: consultas automáticas só quando tecnicamente justificadas, em frequência moderada, configurável quando fizer sentido e ajustável com base em evidência operacional. Rotinas essenciais não devem ser desligadas indiscriminadamente.
+
+Escopo: polling e atualização automática no frontend; jobs agendados/cron no backend; heartbeat, manifesto e sincronização de aparelhos; solicitações de geolocalização; reconciliação financeira e processamento de autorização; envio e novas tentativas de WhatsApp; consultas de autenticação e da ponte de identidade; leituras, escritas, armazenamento e egress do Supabase; invocações, CPU, builds e transferência da Vercel; GitHub Actions (execução e armazenamento); operações e armazenamento do Cloudflare R2; requisições a Asaas, Meta, Resend e demais provedores.
+
+Para CADA operação automática registrar: `purpose`, `trigger`, `current_frequency`, `expected_request_volume`, `resource_cost`, `operational_necessity`, `configurable_limits`, `alternative_event_driven_strategy`, `recommended_adjustment`. Classificar como **essencial**, **ajustável**, **redundante** ou **removível**.
+
+Insumos já levantados nos módulos (ponto de partida, sem substituir a auditoria): rotina diária única de avaliação financeira por serviço (cursor persistido), reavaliação event-driven após baixa/reestruturação, fila de entrega de autorização (limite de lote), contagem regressiva visual do reenvio de OTP (sem requisição), consulta central de identidade apenas dentro de operações de autenticação, limites de OTP configuráveis por ambiente (`PORTAL_OTP_*`).
