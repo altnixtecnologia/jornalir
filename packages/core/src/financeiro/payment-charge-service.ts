@@ -22,6 +22,22 @@ export type RenewPixChargeResult =
   | { kind: "paid_pending_confirmation" }
   | { kind: "unsafe"; reason: "ambiguous_reservation" | "previous_charge_not_cancelled" | "local_state_changed" };
 
+export type OpenChargeMethod = "pix" | "credit_card";
+export interface OpenChargeInput extends CreatePixChargeInput {
+  method: OpenChargeMethod;
+  /** Cartão: parcelas (1 = à vista). O total cobrado nunca muda. */
+  installments?: number;
+  /** Cartão: URL de retorno JÁ validada pelo chamador. */
+  successUrl?: string;
+  now?: number;
+}
+export type OpenChargeResult =
+  | { kind: "created"; charge: PaymentCharge }
+  | { kind: "reused"; charge: PaymentCharge }
+  /** O provedor já recebeu ou confirmou o pagamento: nada é cancelado nem substituído; o webhook decide. */
+  | { kind: "paid_pending_confirmation" }
+  | { kind: "unsafe"; reason: "ambiguous_reservation" | "previous_charge_not_cancelled" | "local_state_changed" | "card_unavailable" };
+
 export interface CancelPixChargeInput {
   cancelledByProfileId: string;
   cancellationReason: string;
@@ -208,6 +224,111 @@ export class PaymentChargeService {
         });
       } catch {
         // Mudou durante a operação (webhook pagou ou outra renovação concluiu): reavaliar sem criar às cegas.
+        const current = await this.charges.findPendingForReceivable(input.receivableId);
+        if (current && current.id !== latest.id) return { kind: "reused", charge: current };
+        const after = await this.charges.getById(latest.id);
+        if (after?.status === "paid") return { kind: "paid_pending_confirmation" };
+        if (after?.status !== "cancelled") return { kind: "unsafe", reason: "local_state_changed" };
+      }
+    }
+    return create();
+  }
+
+  /**
+   * Cobrança de cartão pela fatura hospedada. Mesma garantia do Pix: a reserva disputa o índice único
+   * (uma cobrança pendente por título, de qualquer forma) ANTES de chamar o provedor; falha ambígua conserva
+   * a reserva. Nenhum dado de cartão passa por aqui.
+   */
+  async createCardCharge(input: CreatePixChargeInput & { installments: number; successUrl?: string }): Promise<PaymentCharge> {
+    if (!this.provider.createCardCharge) throw new Error("Pagamento por cartão indisponível neste ambiente.");
+    const existing = await this.charges.findPendingForReceivable(input.receivableId);
+    if (existing) {
+      if (existing.provider === "asaas" && !existing.providerChargeId)
+        throw new Error("Cobrança ainda não conciliada. Confira no Asaas antes de tentar novamente; não gere outra cobrança.");
+      throw new PaymentChargeAlreadyPendingError();
+    }
+    const base = {
+      receivableId: input.receivableId, clientId: input.clientId, amount: input.amount,
+      description: input.description, expiresAt: input.expiresAt,
+    };
+    const reservation = this.reserveRemoteCreation
+      ? await this.charges.create({
+          ...base, provider: "asaas", status: "pending", paymentMethod: "credit_card", installmentCount: input.installments,
+        })
+      : null;
+    const result = await this.provider.createCardCharge({ ...base, installments: input.installments, successUrl: input.successUrl });
+    const values: NewPaymentChargeRecord = {
+      ...base, provider: result.provider, providerChargeId: result.providerChargeId, status: "pending",
+      paymentMethod: "credit_card", invoiceUrl: result.invoiceUrl, installmentCount: input.installments,
+      providerInstallmentId: result.providerInstallmentId, expiresAt: result.expiresAt ?? input.expiresAt,
+    };
+    return reservation ? this.charges.update(reservation.id, values) : this.charges.create(values);
+  }
+
+  /**
+   * Abre (ou reaproveita) a ÚNICA cobrança pendente do título na forma escolhida pelo cliente.
+   *  - mesma forma e vigente → reaproveita (nada novo no provedor);
+   *  - outra forma, parcelas diferentes ou expirada → cancela a anterior no provedor e SÓ ENTÃO emite a nova;
+   *    se o cancelamento falhar, uma consulta decide: recebida/confirmada → nada é substituído (o webhook
+   *    decide); cancelada → segue; qualquer outro resultado → recusa segura (`unsafe`);
+   *  - reserva ambígua (sem ID no provedor) nunca é substituída;
+   *  - cartão já confirmado pelo provedor nunca é cancelado;
+   *  - pedidos concorrentes convergem no índice único.
+   * Cancelamento por cliente não tem operador: motivo fixo e `cancelled_by` nulo (aceito pelo schema).
+   */
+  async openCharge(input: OpenChargeInput): Promise<OpenChargeResult> {
+    const now = input.now ?? Date.now();
+    const installments = input.method === "credit_card" ? Math.max(1, input.installments ?? 1) : undefined;
+    const request = {
+      receivableId: input.receivableId, clientId: input.clientId, amount: input.amount,
+      description: input.description, expiresAt: input.expiresAt,
+    };
+    const create = async (): Promise<OpenChargeResult> => {
+      try {
+        const charge = input.method === "credit_card"
+          ? await this.createCardCharge({ ...request, installments: installments!, successUrl: input.successUrl })
+          : await this.createPixCharge(request);
+        return { kind: "created", charge };
+      } catch (error) {
+        if (error instanceof PaymentChargeAlreadyPendingError) {
+          const current = await this.charges.findPendingForReceivable(input.receivableId);
+          if (current) return { kind: "reused", charge: current };
+        }
+        throw error;
+      }
+    };
+
+    const history = await this.charges.listForReceivable(input.receivableId);
+    const latest = history[0] ?? null;
+    if (!latest || (latest.status !== "pending" && latest.status !== "expired")) return create();
+
+    const latestMethod = latest.paymentMethod ?? "pix";
+    const expired = latest.status === "expired" || (latest.expiresAt !== undefined && Date.parse(latest.expiresAt) < now);
+    const ambiguous = latest.provider === "asaas" && !latest.providerChargeId;
+    if (latest.status === "pending" && latest.providerConfirmedAt && !latest.paidAt) return { kind: "paid_pending_confirmation" };
+    const sameChoice = latestMethod === input.method && (input.method === "pix" || (latest.installmentCount ?? 1) === installments);
+    if (latest.status === "pending" && !expired && sameChoice && (ambiguous || latestMethod === "pix" || latest.invoiceUrl))
+      return { kind: "reused", charge: latest };
+    if (ambiguous) return { kind: "unsafe", reason: "ambiguous_reservation" };
+
+    if (latest.providerChargeId) {
+      try {
+        await this.provider.cancelCharge(latest.providerChargeId);
+      } catch {
+        let remote: Awaited<ReturnType<PixProvider["getCharge"]>> | undefined;
+        try { remote = await this.provider.getCharge(latest.providerChargeId); } catch { remote = undefined; }
+        if (remote && (remote.status === "paid" || remote.confirmed)) return { kind: "paid_pending_confirmation" };
+        if (remote?.status !== "cancelled") return { kind: "unsafe", reason: "previous_charge_not_cancelled" };
+      }
+    }
+    if (latest.status === "pending") {
+      try {
+        await this.charges.update(latest.id, {
+          status: "cancelled",
+          cancelledAt: new Date(now).toISOString(),
+          cancellationReason: expired ? "renovacao_solicitada_pelo_cliente" : "troca_de_forma_de_pagamento_pelo_cliente",
+        });
+      } catch {
         const current = await this.charges.findPendingForReceivable(input.receivableId);
         if (current && current.id !== latest.id) return { kind: "reused", charge: current };
         const after = await this.charges.getById(latest.id);

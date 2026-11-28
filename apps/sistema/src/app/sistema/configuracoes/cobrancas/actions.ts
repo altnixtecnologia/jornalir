@@ -40,6 +40,10 @@ export interface BillingProviderSettingsInput {
   allowPix: boolean;
   allowBoleto: boolean;
   allowCreditCard: boolean;
+  /** Parcelas máximas do cartão (1 = só à vista). Sem juros nem taxas: o total cobrado é o saldo do título. */
+  creditCardMaxInstallments: string;
+  /** Valor mínimo por parcela (R$); nunca abaixo do mínimo do provedor (R$ 5,00). */
+  creditCardMinInstallmentAmount: string;
   allowCash: boolean;
   defaultDueDays: string;
   financeWhatsapp: string;
@@ -56,6 +60,17 @@ export async function updateBillingProviderSettingsAction(
       return { error: "Informe um prazo padrão entre 0 e 60 dias." };
     }
 
+    const maxInstallments = Number(input.creditCardMaxInstallments);
+    const minInstallmentAmount = Number(String(input.creditCardMinInstallmentAmount).replace(",", "."));
+    if (!Number.isInteger(maxInstallments) || maxInstallments < 1 || maxInstallments > 12) {
+      return { error: "Informe de 1 a 12 parcelas para o cartão." };
+    }
+    if (!Number.isFinite(minInstallmentAmount) || minInstallmentAmount < 5) {
+      return { error: "O valor mínimo por parcela não pode ser menor que R$ 5,00." };
+    }
+    if (input.allowCreditCard && !input.enabled) {
+      return { error: "Habilite a integração Asaas antes de ativar o cartão de crédito." };
+    }
     const environment = getConfiguredAsaasEnvironment() ?? input.environment;
     const keyConfigured = isAsaasApiKeyConfigured(environment);
 
@@ -110,9 +125,12 @@ export async function updateBillingProviderSettingsAction(
       environment,
       enabled: input.enabled,
       allow_pix: input.allowPix,
-      // Boleto/cartão ainda não têm provider implementado; nunca gravar como habilitados só porque a UI já os prepara.
+      // Boleto ainda não tem provider implementado. Cartão pela fatura hospedada do Asaas já existe, mas só abre
+      // com esta configuração E a chave de ativação do ambiente (JORNALIR_FINANCE_CARD_ENABLED).
       allow_boleto: false,
-      allow_credit_card: false,
+      allow_credit_card: input.allowCreditCard,
+      credit_card_max_installments: maxInstallments,
+      credit_card_min_installment_amount: Math.round(minInstallmentAmount * 100) / 100,
       allow_cash: input.allowCash,
       default_due_days: dueDays,
       finance_whatsapp: input.financeWhatsapp.trim() || null,

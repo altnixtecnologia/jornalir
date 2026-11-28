@@ -14,7 +14,7 @@ export async function GET(_request: Request, props: { params: Promise<{ token: s
   const admin = createSupabaseAdminClient();
   const { data, error } = await admin
     .from("payment_charges")
-    .select("provider, provider_charge_id, status")
+    .select("provider, provider_charge_id, status, payment_method")
     .eq("public_token", params.token)
     .maybeSingle();
 
@@ -22,6 +22,8 @@ export async function GET(_request: Request, props: { params: Promise<{ token: s
   if (!data || data.provider !== "asaas" || !data.provider_charge_id) {
     return new Response("QR Code não encontrado.", { status: 404 });
   }
+  // Cobrança de cartão não tem QR Pix: nunca consultar o provedor por QR para ela.
+  if (data.payment_method === "credit_card") return new Response("QR Code não encontrado.", { status: 404 });
   if (data.status === "cancelled") {
     return new Response("Cobrança cancelada.", { status: 410 });
   }

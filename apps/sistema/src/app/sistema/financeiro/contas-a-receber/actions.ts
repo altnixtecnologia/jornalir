@@ -781,7 +781,7 @@ export async function buildPaymentConfirmationPreviewAction(
     const paidCharge = charges
       .filter((charge) => charge.status === "paid")
       .sort((a, b) => (b.paidAt ?? "").localeCompare(a.paidAt ?? ""))[0];
-    if (!paidCharge) return { error: "Nenhuma cobrança Pix paga encontrada neste título." };
+    if (!paidCharge) return { error: "Nenhum pagamento confirmado (Pix ou cartão) encontrado neste título." };
     if ((await listReportExcludedReceivableIds(client)).includes(receivableId))
       return { error: "Este título foi classificado como teste e não recebe mensagens de clientes." };
 
@@ -854,7 +854,7 @@ export async function sendPaymentConfirmationAction(
       clientName,
       reference,
       amountLabel,
-      paymentMethodLabel: "PIX",
+      paymentMethodLabel: paidCharge.paymentMethod === "credit_card" ? "Cartão de crédito" : "PIX",
       transactionId: paidCharge.providerChargeId || paidCharge.id,
     });
 

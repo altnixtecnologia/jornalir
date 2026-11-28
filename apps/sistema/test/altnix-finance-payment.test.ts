@@ -153,7 +153,7 @@ test("Pix expirado local ('expired') também exige cancelamento remoto antes da 
 test("pagamento tardio: provedor já recebeu → sem substituta (aguarda confirmação do webhook)",async()=>{
  const b=backend([charge({})],{cancel:"fail",remote:"paid"});
  const result=await executeFinancePayment(cmd("renew"),b.deps(base));
- assert.equal(result.status,202);assert.equal(state(result),"reconciling");
+ assert.equal(result.status,202);assert.equal(state(result),"confirming");
  assert.equal(b.calls.create,0);
 });
 
@@ -183,7 +183,7 @@ test("renovação concorrente e falha ao emitir a substituta: uma só cobrança,
 
 test("cobrança expirada não é reutilizada e valores internos não vazam",()=>{
  const expired=customerSafeCharge({status:"pending",amount:300,provider:"asaas",providerChargeId:"p",pixCopyPaste:"x",publicToken:"t",expiresAt:"2026-11-26T00:00:00Z"},now);
- assert.deepEqual(expired,{state:"expired",amount:300});
+ assert.deepEqual(expired,{state:"expired",amount:300,method:"pix"});
  assert.equal(customerSafeCharge({status:"expired",amount:1},now).state,"expired");
  assert.equal(customerSafeCharge({status:"cancelled",amount:1},now).state,"cancelled");
  assert.equal(customerSafeCharge({status:"weird",amount:1},now).state,"failed");
@@ -194,10 +194,12 @@ test("rota: travas, segredo, allowlist e titularidade antes de qualquer cobranç
  const route=readFileSync(new URL("../src/app/api/integrations/altnix/finance-payment/route.ts",import.meta.url),"utf8");
  assert.ok(route.indexOf("JORNALIR_FINANCE_PAYMENT_ENABLED")<route.indexOf("financeBridgeAuthorized("));
  assert.ok(route.indexOf("financeBridgeAuthorized(")<route.indexOf("allowedFinanceClient("));
- assert.ok(route.indexOf("allowedFinanceClient(")<route.indexOf("receivables_with_balance"));
- assert.match(route,/\.eq\("client_id", command\.canonicalClientId\)/);
- assert.match(route,/getPaymentChargeService\(db\)/);
- assert.match(route,/listReportExcludedReceivableIds/);
+ const runtime=readFileSync(new URL("../src/lib/integrations/financePaymentRuntime.ts",import.meta.url),"utf8");
+ assert.ok(route.indexOf("allowedFinanceClient(")<route.indexOf("runFinancePayment("));
+ assert.match(runtime,/receivables_with_balance/);
+ assert.match(runtime,/\.eq\("client_id", command\.canonicalClientId\)/);
+ assert.match(runtime,/getPaymentChargeService\(db\)/);
+ assert.match(runtime,/listReportExcludedReceivableIds/);
  assert.doesNotMatch(route,/body\.(amount|status|balance)|command\.amount/);
  assert.doesNotMatch(route,/confirmPixCharge|confirm_payment_charge|receivable_receipts|insert\(/,"confirmação e recibo seguem o webhook");
  assert.doesNotMatch(route,/ad_contracts|internal_permanent|subscriptions|altnix_apply_service_finance|altnix_queue_service_authorization/,"não toca contrato permanente nem autorização operacional");

@@ -41,7 +41,7 @@ export function evaluateBillingSend(input: BillingSendInput): BillingSendDecisio
 
   if (kind === "confirmation") {
     const paid = charges.filter((c) => c.status === "paid").sort((a, b) => (b.paidAt ?? "").localeCompare(a.paidAt ?? ""))[0];
-    return paid ? { ok: true, charge: paid } : { ok: false, error: "Nenhuma cobrança Pix paga encontrada neste título." };
+    return paid ? { ok: true, charge: paid } : { ok: false, error: "Nenhum pagamento confirmado (Pix ou cartão) encontrado neste título." };
   }
 
   if (receivable.status === "cancelled") return { ok: false, error: "Título cancelado: não há cobrança a enviar." };

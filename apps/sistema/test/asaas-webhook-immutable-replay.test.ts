@@ -53,7 +53,7 @@ test("a rota autentica antes de checar evento, compara antes de processado e man
   const concurrent = source.indexOf('insertError?.code === "23505"');
   const concurCheck = source.indexOf("if (!matchesStoredAsaasEvent(concurrentlyInserted");
   const claim = source.indexOf(".update({ processing_token: processingToken, processing_at:");
-  const payment = source.indexOf('if (eventType === "PAYMENT_RECEIVED")');
+  const payment = source.indexOf('const plan = cardWebhookPlan(');
   assert.ok(authenticated >= 0 && initialLookup > authenticated);
   assert.ok(initialCheck > initialLookup && duplicate > initialCheck);
   assert.ok(inserted > duplicate && concurrent > inserted && concurCheck > concurrent);

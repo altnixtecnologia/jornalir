@@ -18,6 +18,8 @@ export interface BillingProviderSettingsValues {
   allowPix: boolean;
   allowBoleto: boolean;
   allowCreditCard: boolean;
+  creditCardMaxInstallments: number;
+  creditCardMinInstallmentAmount: number;
   allowCash: boolean;
   defaultDueDays: number;
   financeWhatsapp: string;
@@ -33,6 +35,8 @@ export function BillingProviderSettingsPanel({ values }: { values: BillingProvid
   const [allowPix, setAllowPix] = useState(values.allowPix);
   const [allowBoleto, setAllowBoleto] = useState(values.allowBoleto);
   const [allowCreditCard, setAllowCreditCard] = useState(values.allowCreditCard);
+  const [creditCardMaxInstallments, setCreditCardMaxInstallments] = useState(String(values.creditCardMaxInstallments));
+  const [creditCardMinInstallmentAmount, setCreditCardMinInstallmentAmount] = useState(String(values.creditCardMinInstallmentAmount));
   const [allowCash, setAllowCash] = useState(values.allowCash);
   const [defaultDueDays, setDefaultDueDays] = useState(String(values.defaultDueDays));
   const [financeWhatsapp, setFinanceWhatsapp] = useState(values.financeWhatsapp);
@@ -91,6 +95,8 @@ export function BillingProviderSettingsPanel({ values }: { values: BillingProvid
         allowPix,
         allowBoleto,
         allowCreditCard,
+        creditCardMaxInstallments,
+        creditCardMinInstallmentAmount,
         allowCash,
         defaultDueDays,
         financeWhatsapp,
@@ -145,9 +151,20 @@ export function BillingProviderSettingsPanel({ values }: { values: BillingProvid
           <label title="Integração ainda não habilitada">
             <input type="checkbox" checked={allowBoleto} onChange={(e) => setAllowBoleto(e.target.checked)} disabled /> Boleto <span className="field-optional">(em preparação)</span>
           </label>
-          <label title="Integração ainda não habilitada">
-            <input type="checkbox" checked={allowCreditCard} onChange={(e) => setAllowCreditCard(e.target.checked)} disabled /> Cartão <span className="field-optional">(em preparação)</span>
+          <label title="Cartão de crédito pela página segura do Asaas. Só abre também com a chave de ativação do ambiente.">
+            <input type="checkbox" checked={allowCreditCard} onChange={(e) => setAllowCreditCard(e.target.checked)} /> Cartão de crédito
           </label>
+          {allowCreditCard ? (
+            <>
+              <label>Parcelas máximas (1 = só à vista)
+                <input type="number" min={1} max={12} value={creditCardMaxInstallments} onChange={(e) => setCreditCardMaxInstallments(e.target.value)} />
+              </label>
+              <label>Parcela mínima (R$)
+                <input type="number" min={5} step="0.01" value={creditCardMinInstallmentAmount} onChange={(e) => setCreditCardMinInstallmentAmount(e.target.value)} />
+              </label>
+              <p className="helper-text">O cliente paga o valor total do título em qualquer opção; nenhum juro ou taxa é acrescentado ao cliente por este sistema.</p>
+            </>
+          ) : null}
           <label><input type="checkbox" checked={allowCash} onChange={(e) => setAllowCash(e.target.checked)} /> Dinheiro / manual</label>
         </div>
       </section>

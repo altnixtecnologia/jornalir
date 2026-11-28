@@ -13,7 +13,8 @@ function round2(value: number): number {
 const TABLE = "payment_charges";
 const COLUMNS =
   "id, receivable_id, client_id, provider, provider_charge_id, amount, description, status, pix_copy_paste, public_token, " +
-  "expires_at, paid_at, receipt_id, cancelled_at, cancelled_by, cancellation_reason, created_by, created_at, updated_at";
+  "expires_at, paid_at, receipt_id, cancelled_at, cancelled_by, cancellation_reason, created_by, created_at, updated_at, " +
+  "payment_method, invoice_url, installment_count, provider_installment_id, provider_confirmed_at, provider_settled_at, provider_rejected_at, gateway_net_amount";
 
 interface PaymentChargeRow {
   id: string;
@@ -35,6 +36,14 @@ interface PaymentChargeRow {
   created_by: string | null;
   created_at: string;
   updated_at: string;
+  payment_method?: "pix" | "credit_card" | null;
+  invoice_url?: string | null;
+  installment_count?: number | null;
+  provider_installment_id?: string | null;
+  provider_confirmed_at?: string | null;
+  provider_settled_at?: string | null;
+  provider_rejected_at?: string | null;
+  gateway_net_amount?: number | string | null;
 }
 
 function toDomain(row: PaymentChargeRow): PaymentCharge {
@@ -56,6 +65,14 @@ function toDomain(row: PaymentChargeRow): PaymentCharge {
     cancelledByProfileId: row.cancelled_by ?? undefined,
     cancellationReason: row.cancellation_reason ?? undefined,
     createdByProfileId: row.created_by ?? undefined,
+    paymentMethod: row.payment_method ?? "pix",
+    invoiceUrl: row.invoice_url ?? undefined,
+    installmentCount: row.installment_count ?? undefined,
+    providerInstallmentId: row.provider_installment_id ?? undefined,
+    providerConfirmedAt: row.provider_confirmed_at ?? undefined,
+    providerSettledAt: row.provider_settled_at ?? undefined,
+    providerRejectedAt: row.provider_rejected_at ?? undefined,
+    gatewayNetAmount: row.gateway_net_amount === null || row.gateway_net_amount === undefined ? undefined : Number(row.gateway_net_amount),
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -77,6 +94,10 @@ function toRow(record: NewPaymentChargeRecord | PaymentChargeChanges): Record<st
   if (record.cancelledAt !== undefined) row.cancelled_at = record.cancelledAt ?? null;
   if (record.cancelledByProfileId !== undefined) row.cancelled_by = record.cancelledByProfileId ?? null;
   if (record.cancellationReason !== undefined) row.cancellation_reason = record.cancellationReason ?? null;
+  if (record.paymentMethod !== undefined) row.payment_method = record.paymentMethod;
+  if (record.invoiceUrl !== undefined) row.invoice_url = record.invoiceUrl ?? null;
+  if (record.installmentCount !== undefined) row.installment_count = record.installmentCount ?? null;
+  if (record.providerInstallmentId !== undefined) row.provider_installment_id = record.providerInstallmentId ?? null;
   return row;
 }
 

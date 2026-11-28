@@ -31,6 +31,26 @@ export interface PixChargeProviderResult {
   pixCopyPaste: string;
   expiresAt?: string;
   status: "pending" | "paid" | "expired" | "cancelled" | "failed";
+  /** true quando o provedor já confirmou o pagamento mas o valor ainda não foi liquidado (cartão). */
+  confirmed?: boolean;
+}
+
+/** Cobrança de cartão pela fatura hospedada: nenhum dado de cartão passa por este sistema. */
+export interface CreateCardChargeRequest extends CreatePixChargeRequest {
+  /** Parcelas (1 = à vista). O valor total NÃO muda: o provedor divide o total informado. */
+  installments: number;
+  /** URL de retorno já validada pelo chamador (origem confiável); opcional. */
+  successUrl?: string;
+}
+
+export interface CardChargeProviderResult {
+  provider: PaymentChargeProvider;
+  providerChargeId: string;
+  /** URL da fatura hospedada (a validação de origem é feita por quem a usa). */
+  invoiceUrl: string;
+  providerInstallmentId?: string;
+  expiresAt?: string;
+  status: PixChargeProviderResult["status"];
 }
 
 export class PixProviderUnavailableError extends Error {
@@ -43,6 +63,8 @@ export interface PixProvider {
   createCharge(request: CreatePixChargeRequest): Promise<PixChargeProviderResult>;
   getCharge(providerChargeId: string): Promise<PixChargeProviderResult>;
   cancelCharge(providerChargeId: string): Promise<void>;
+  /** Cartão pela fatura hospedada; ausente quando o provedor não oferece cartão. */
+  createCardCharge?(request: CreateCardChargeRequest): Promise<CardChargeProviderResult>;
   /** Apenas consulta por externalReference; NUNCA faz POST de nova cobrança. */
   findActiveChargeForReceivable?(request: CreatePixChargeRequest): Promise<PixChargeProviderResult | null>;
 }

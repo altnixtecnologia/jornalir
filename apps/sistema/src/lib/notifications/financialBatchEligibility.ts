@@ -9,7 +9,7 @@ export { BATCH_KIND_LABEL, type BatchKind };
  * para cobrança; confirmação e recibo exigem justamente pagamento/recibo existentes:
  *
  *  - billing:      título aberto com saldo e Pix vigente já existente (nunca cria cobrança);
- *  - confirmation: pagamento Pix confirmado (cobrança paga) — autoritativo;
+ *  - confirmation: pagamento confirmado (Pix ou cartão; cobrança paga) — autoritativo;
  *  - receipt:      recibo existente e não estornado.
  * Em todos: cliente ativo, WhatsApp canônico válido, título de teste excluído e sem envio igual recente.
  */
@@ -17,7 +17,7 @@ export const BATCH_KIND_EVENT: Record<BatchKind, ManualEvent> = {
   billing: "manual_billing", confirmation: "manual_confirmation", receipt: "manual_receipt",
 };
 
-type Charge = { status: string; amount: number; provider?: string; providerChargeId?: string; publicToken?: string; expiresAt?: string; paidAt?: string };
+type Charge = { paymentMethod?: string; status: string; amount: number; provider?: string; providerChargeId?: string; publicToken?: string; expiresAt?: string; paidAt?: string };
 
 export type BatchCandidateInput = {
   kind: BatchKind;
@@ -68,9 +68,9 @@ export function evaluateBatchCandidate(input: BatchCandidateInput): BatchCandida
     });
   } else if (kind === "confirmation") {
     const paid = input.paidCharge;
-    if (!paid || paid.status !== "paid") return no("Sem pagamento Pix confirmado neste título.");
+    if (!paid || paid.status !== "paid") return no("Sem pagamento confirmado (Pix ou cartão) neste título.");
     params = buildTemplateParams("manual_confirmation", {
-      name: client.name, reference: receivable.reference, amount: paid.amount, methodLabel: "PIX",
+      name: client.name, reference: receivable.reference, amount: paid.amount, methodLabel: paid.paymentMethod === "credit_card" ? "Cartão de crédito" : "PIX",
       transactionId: paid.providerChargeId ?? "-",
     });
   } else {

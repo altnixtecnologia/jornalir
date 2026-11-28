@@ -286,6 +286,9 @@ export function isReversed(entry: Pick<ReceivableReceipt | ReceivableAdjustment,
 // própria ampliando o check de `provider`, nunca inventados aqui.
 
 export type PaymentChargeProvider = "pix_manual" | "asaas";
+/** Forma de pagamento da cobrança: uma única cobrança pendente por título, de uma só forma por vez. */
+export type PaymentChargeMethod = "pix" | "credit_card";
+export const PAYMENT_CHARGE_METHOD_LABELS: Record<PaymentChargeMethod, string> = { pix: "PIX", credit_card: "Cartão de crédito" };
 export type PaymentChargeStatus = "pending" | "paid" | "expired" | "cancelled" | "failed";
 
 export const PAYMENT_CHARGE_STATUSES: readonly PaymentChargeStatus[] = ["pending", "paid", "expired", "cancelled", "failed"];
@@ -310,6 +313,21 @@ export interface PaymentCharge {
   status: PaymentChargeStatus;
   /** Payload Pix "copia e cola". A imagem do QR continua não sendo armazenada; é obtida do Asaas no servidor. */
   pixCopyPaste?: string;
+  /** Padrão "pix" (cobranças anteriores). Cartão usa a página hospedada do provedor, nunca dados de cartão locais. */
+  paymentMethod?: PaymentChargeMethod;
+  /** URL da fatura hospedada pelo provedor (cartão). Validada contra origens confiáveis antes de qualquer uso. */
+  invoiceUrl?: string;
+  installmentCount?: number;
+  /** Identificador do parcelamento no provedor (pagamentos filhos compartilham este valor). */
+  providerInstallmentId?: string;
+  /** Provedor confirmou o pagamento (cartão capturado), ainda sem liquidação. */
+  providerConfirmedAt?: string;
+  /** Provedor liquidou (valor disponível). */
+  providerSettledAt?: string;
+  /** Última tentativa de cartão recusada (a cobrança segue pendente até novo pagamento ou troca). */
+  providerRejectedAt?: string;
+  /** Valor líquido informado pelo provedor na liquidação (bruto permanece em `amount`). */
+  gatewayNetAmount?: number;
   /** Token aleatório para a página pública da cobrança. Nunca usar providerChargeId como URL pública. */
   publicToken?: string;
   expiresAt?: string;

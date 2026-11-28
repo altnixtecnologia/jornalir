@@ -16,7 +16,7 @@ export default async function BillingProviderSettingsPage(): Promise<JSX.Element
   if (grantError || allowed !== true) notFound();
   const { data, error } = await client
     .from("billing_provider_settings")
-    .select("environment, enabled, allow_pix, allow_boleto, allow_credit_card, allow_cash, default_due_days, finance_whatsapp")
+    .select("environment, enabled, allow_pix, allow_boleto, allow_credit_card, credit_card_max_installments, credit_card_min_installment_amount, allow_cash, default_due_days, finance_whatsapp")
     .eq("id", 1)
     .single();
 
@@ -39,6 +39,8 @@ export default async function BillingProviderSettingsPage(): Promise<JSX.Element
           allowPix: Boolean(data.allow_pix),
           allowBoleto: Boolean(data.allow_boleto),
           allowCreditCard: Boolean(data.allow_credit_card),
+          creditCardMaxInstallments: Number(data.credit_card_max_installments ?? 1),
+          creditCardMinInstallmentAmount: Number(data.credit_card_min_installment_amount ?? 5),
           allowCash: Boolean(data.allow_cash),
           defaultDueDays: Number(data.default_due_days),
           financeWhatsapp: data.finance_whatsapp ?? "",

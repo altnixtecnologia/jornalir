@@ -3,18 +3,26 @@ import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   PixProviderUnavailableError,
+  type CardChargeProviderResult,
+  type CreateCardChargeRequest,
   type CreatePixChargeRequest,
   type PixChargeProviderResult,
   type PixProvider,
 } from "@ir/core";
 import { getAsaasApiKey } from "./asaasEnv";
+import { trustedAsaasInvoiceUrl } from "./cardPaymentUrls";
 
 interface BillingSettingsRow {
   environment: "sandbox" | "production";
   enabled: boolean;
   allow_pix: boolean;
+  allow_credit_card: boolean;
+  credit_card_max_installments: number;
+  credit_card_min_installment_amount: number;
   default_due_days: number;
 }
+
+type ChargeMethod = "pix" | "credit_card";
 
 interface ClientRow {
   id: string;
@@ -42,6 +50,10 @@ interface AsaasPayment {
   dueDate?: string;
   value?: number;
   billingType?: string;
+  invoiceUrl?: string;
+  /** Identificador do parcelamento; pagamentos filhos compartilham o valor. */
+  installment?: string;
+  installmentNumber?: number;
 }
 interface AsaasPaymentList { data?: AsaasPayment[]; }
 interface AsaasCustomer { id: string; }
@@ -75,16 +87,18 @@ function baseUrl(environment: "sandbox" | "production"): string {
   return environment === "sandbox" ? "https://api-sandbox.asaas.com/v3" : "https://api.asaas.com/v3";
 }
 
-async function loadSettings(client: SupabaseClient): Promise<BillingSettingsRow> {
+async function loadSettings(client: SupabaseClient, method: ChargeMethod = "pix"): Promise<BillingSettingsRow> {
   const { data, error } = await client
     .from("billing_provider_settings")
-    .select("environment, enabled, allow_pix, default_due_days")
+    .select("environment, enabled, allow_pix, allow_credit_card, credit_card_max_installments, credit_card_min_installment_amount, default_due_days")
     .eq("id", 1)
     .single();
 
   if (error || !data) throw new PixProviderUnavailableError();
   const settings = data as BillingSettingsRow;
-  if (!settings.enabled || !settings.allow_pix || !getAsaasApiKey(settings.environment)) throw new PixProviderUnavailableError();
+  // Cada forma só abre quando habilitada na configuração central (controle de ativação existente).
+  const methodAllowed = method === "credit_card" ? settings.allow_credit_card : settings.allow_pix;
+  if (!settings.enabled || !methodAllowed || !getAsaasApiKey(settings.environment)) throw new PixProviderUnavailableError();
   return settings;
 }
 
@@ -127,6 +141,11 @@ async function findExistingActivePayment(
   });
 
   if (active.length > 1) {
+    // Parcelas de UM mesmo parcelamento são uma só obrigação (a 1ª parcela representa a cobrança).
+    const installmentIds = new Set(active.map((payment) => payment.installment ?? ""));
+    if (installmentIds.size === 1 && !installmentIds.has("")) {
+      return [...active].sort((a, b) => (a.installmentNumber ?? 0) - (b.installmentNumber ?? 0))[0];
+    }
     throw new Error(
       "Há mais de uma cobrança ativa no Asaas para este título. Faça a conciliação antes de gerar outra cobrança.",
     );
@@ -285,6 +304,53 @@ export function createAsaasPixProvider(client: SupabaseClient): PixProvider {
       };
     },
 
+    /**
+     * Cartão pela FATURA HOSPEDADA: cria a cobrança CREDIT_CARD sem dados de cartão e devolve a URL da fatura
+     * (validada contra origens do Asaas). À vista envia `value`; parcelado envia installmentCount + totalValue
+     * (o total cobrado do cliente não muda). Callback de retorno só se o chamador já validou a URL.
+     */
+    async createCardCharge(request: CreateCardChargeRequest): Promise<CardChargeProviderResult> {
+      const settings = await loadSettings(client, "credit_card");
+      const installments = request.installments;
+      if (!Number.isInteger(installments) || installments < 1 || installments > settings.credit_card_max_installments)
+        throw new Error("Parcelamento indisponível para esta cobrança.");
+      if (installments > 1 && Math.round((request.amount / installments) * 100) < Math.round(Number(settings.credit_card_min_installment_amount) * 100))
+        throw new Error("O valor da parcela ficaria abaixo do mínimo configurado.");
+      const externalReference = `receivable:${request.receivableId}`;
+      // Qualquer cobrança ativa para o título (de outra forma ou sem registro local) exige conciliação: nunca duplicar.
+      if (await findExistingActivePayment(settings, externalReference))
+        throw new Error("Já existe cobrança ativa no Asaas para este título. Concilie antes de gerar outra.");
+
+      const customer = await ensureAsaasCustomer(client, settings, request.clientId);
+      const dueDate = request.expiresAt?.slice(0, 10) || addDaysIso(settings.default_due_days);
+      const payment = await asaasFetch<AsaasPayment>(settings, "/payments", {
+        method: "POST",
+        body: JSON.stringify({
+          customer,
+          billingType: "CREDIT_CARD",
+          ...(installments > 1 ? { installmentCount: installments, totalValue: request.amount } : { value: request.amount }),
+          dueDate,
+          description: request.description?.slice(0, 500),
+          externalReference,
+          ...(request.successUrl ? { callback: { successUrl: request.successUrl, autoRedirect: true } } : {}),
+        }),
+      });
+      const invoiceUrl = trustedAsaasInvoiceUrl(payment.invoiceUrl);
+      if (!invoiceUrl) {
+        // URL fora das origens do Asaas nunca é usada: remove a cobrança recém-criada e recusa.
+        try { await asaasFetch<Record<string, unknown>>(settings, `/payments/${payment.id}`, { method: "DELETE" }); } catch { /* reserva ambígua preservada para conciliação */ }
+        throw new Error("O Asaas não retornou uma URL de pagamento confiável.");
+      }
+      return {
+        provider: "asaas",
+        providerChargeId: payment.id,
+        invoiceUrl,
+        providerInstallmentId: payment.installment,
+        expiresAt: `${dueDate}T23:59:59-03:00`,
+        status: mapStatus(payment.status),
+      };
+    },
+
     async findActiveChargeForReceivable(request: CreatePixChargeRequest): Promise<PixChargeProviderResult | null> {
       const settings = await loadSettings(client);
       const existing = await findExistingActivePayment(settings, `receivable:${request.receivableId}`);
@@ -326,6 +392,8 @@ export function createAsaasPixProvider(client: SupabaseClient): PixProvider {
         pixCopyPaste: qr.payload ?? "",
         expiresAt: payment.dueDate ? `${payment.dueDate}T23:59:59-03:00` : undefined,
         status: mapStatus(payment.status),
+        // Cartão capturado mas ainda não liquidado: nunca substituir nem cancelar.
+        confirmed: payment.status.toUpperCase() === "CONFIRMED",
       };
     },
 

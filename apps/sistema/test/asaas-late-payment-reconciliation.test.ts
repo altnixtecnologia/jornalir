@@ -42,7 +42,7 @@ test("eventos diferentes da mesma cobrança não disparam vários avisos", () =>
 
 test("webhook não tenta baixa de cobrança encerrada e registra primeiro o alerta", () => {
   const source = readFileSync(new URL("../src/app/api/integrations/asaas/webhook/route.ts", import.meta.url), "utf8");
-  const entry = source.indexOf('if (eventType === "PAYMENT_RECEIVED")');
+  const entry = source.indexOf('if (plan.settle)');
   const guard = source.indexOf("if (needsManualAsaasPaymentReconciliation(charge.status as string))", entry);
   const confirm = source.indexOf("await getPaymentChargeService(admin).confirmPixCharge(", entry);
   const retry = source.indexOf("} catch (confirmationError) {", entry);
@@ -59,7 +59,7 @@ test("webhook não tenta baixa de cobrança encerrada e registra primeiro o aler
 
 test("evento PAYMENT_RECEIVED em processamento normal continua delegando ao banco a confirmação atômica", () => {
   const source = readFileSync(new URL("../src/app/api/integrations/asaas/webhook/route.ts", import.meta.url), "utf8");
-  const section = source.slice(source.indexOf('if (eventType === "PAYMENT_RECEIVED")'), source.indexOf('} else if (eventType === "PAYMENT_OVERDUE")'));
+  const section = source.slice(source.indexOf('if (plan.settle)'), source.indexOf('} else if (eventType === "PAYMENT_OVERDUE")'));
   assert.match(section, /confirmPixCharge\(/);
   assert.match(section, /await notifyPaymentReceived\(/);
   assert.doesNotMatch(section, /\.insert\(\{.*receipt_id/s);

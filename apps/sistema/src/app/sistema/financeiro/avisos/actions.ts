@@ -27,7 +27,7 @@ type Base = {
   key: string; receivableId: string; kind: BatchKind;
   receivable: { id: string; status: string; balance: number; dueDate: string; reference: string };
   client: { id: string; name: string; active: boolean; whatsapp: string | null };
-  amount: number; paidCharge?: { status: string; amount: number; providerChargeId?: string; paidAt?: string } | null;
+  amount: number; paidCharge?: { paymentMethod?: string; status: string; amount: number; providerChargeId?: string; paidAt?: string } | null;
   receipt?: { id: string; amount: number; reversed: boolean } | null;
 };
 
@@ -72,7 +72,7 @@ async function loadBase(db: SupabaseClient, kind: BatchKind, opts: { ids?: strin
     if (error) return { error: "Não foi possível consultar os títulos." };
     for (const r of data ?? []) { const b = toBase(r as Record<string, unknown>, { key: String((r as { id: string }).id), amount: Number((r as { balance: number }).balance) }); if (b) rows.push(b); }
   } else if (kind === "confirmation") {
-    let q = db.from("payment_charges").select("receivable_id,amount,status,provider_charge_id,paid_at").eq("status", "paid").order("paid_at", { ascending: false }).limit(MAX_ROWS);
+    let q = db.from("payment_charges").select("receivable_id,amount,status,provider_charge_id,paid_at,payment_method").eq("status", "paid").order("paid_at", { ascending: false }).limit(MAX_ROWS);
     if (opts.ids) q = q.in("receivable_id", opts.ids);
     if (opts.from) q = q.gte("paid_at", opts.from);
     if (opts.to) q = q.lte("paid_at", `${opts.to}T23:59:59-03:00`);
@@ -88,7 +88,7 @@ async function loadBase(db: SupabaseClient, kind: BatchKind, opts: { ids?: strin
       const rid = String(c.receivable_id);
       if (seen.has(rid) || !byId.has(rid)) continue; // um aviso por título (pagamento mais recente)
       seen.add(rid);
-      const b = toBase(byId.get(rid)!, { key: rid, amount: Number(c.amount), paidCharge: { status: String(c.status), amount: Number(c.amount), providerChargeId: c.provider_charge_id ? String(c.provider_charge_id) : undefined, paidAt: c.paid_at ? String(c.paid_at) : undefined } });
+      const b = toBase(byId.get(rid)!, { key: rid, amount: Number(c.amount), paidCharge: { paymentMethod: c.payment_method ? String(c.payment_method) : undefined, status: String(c.status), amount: Number(c.amount), providerChargeId: c.provider_charge_id ? String(c.provider_charge_id) : undefined, paidAt: c.paid_at ? String(c.paid_at) : undefined } });
       if (b) rows.push(b);
     }
   } else {

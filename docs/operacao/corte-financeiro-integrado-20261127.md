@@ -23,13 +23,13 @@
 
 - `PaymentChargeService.renewExpiredPixCharge` (packages/core) e ação `renew` em `finance-payment`: só por pedido explícito do cliente. Vigente → reaproveita. Anterior expirada (pendente vencida ou `expired`) → cancela no provedor (`DELETE`); se falhar/timeout, uma consulta decide: paga → sem substituta, webhook baixa; cancelada → segue; outro → recusa (`renewal_unsafe`, operador continua o fallback). Reserva sem ID remoto nunca é substituída. Cancelamento local só se ainda `pending` (guard do repositório contra baixa concorrente), com motivo `renovacao_solicitada_pelo_cliente` e `cancelled_by` nulo (o schema só exige motivo; nenhum perfil administrativo é emprestado). Reserva da nova cobrança disputa o índice único `payment_charges_one_pending_per_receivable`. A ação `pix` nunca substitui às cegas uma cobrança já expirada.
 - Recibo: `finance-receipt` (POST `{canonicalClientId, receiptId}`) e página `/recibo/[token]`. Flag `JORNALIR_FINANCE_RECEIPT_ENABLED` + produção + segredo da ponte + allowlist. Recibo precisa pertencer ao cliente, não estornado e de título não classificado como teste; 404 indistinguível nos demais casos. O link é HMAC com payload mínimo (recibo, cliente, validade de 10 min), não é URL permanente, a página é `noindex` e somente leitura (sem insert/update/storage). Recibo = linha existente de `receivable_receipts` renderizada como na cartela interna; não há geração, numeração nova nem arquivo.
-- Pendente: ativar as flags com autorização, provisionar o webhook Asaas e homologar (incluindo timeout real do gateway e pagamento tardio) com cobrança de baixo valor. Cartão segue fora ([ALT-FIN-002] no Informativo).
+- Pendente: ativar as flags com autorização, provisionar o webhook Asaas e homologar (incluindo timeout real do gateway e pagamento tardio) com cobrança de baixo valor. Cartão: ver a seção ALT-FIN-002 abaixo.
 
 ## 27/11/2026 — Operação de pagamento Pix para o cliente do Informativo (código local, desligada por padrão)
 
 - Nova rota `api/integrations/altnix/finance-payment` (POST `{canonicalClientId, receivableId, action: pix|status}`) e `lib/integrations/altnixFinancePayment.ts`. Reaproveita `getPaymentChargeService` (reserva antes do Asaas, índice único de cobrança pendente, recuperação, webhook e `confirm_payment_charge`). Não confirma pagamento, não cria recibo, não altera autorização operacional nem tolerância; isso segue o webhook e a lógica de autorização existentes.
 - Segurança: produção + `JORNALIR_FINANCE_PAYMENT_ENABLED=true` + segredo da ponte (>=32) + allowlist de clientes canônicos; título precisa pertencer ao cliente (`receivables_with_balance.client_id`); recusa quitado, cancelado, fora de `advertising` com venda, título de teste classificado e saldo < R$ 5,00 (mínimo Asaas); valor é sempre o saldo atual calculado aqui (sem pagamento parcial; venda conjunta continua um único título global). Cobrança pendente é reaproveitada, inclusive reserva ambígua (nunca nova cobrança após timeout). Resposta só com estado, valor, código copia e cola, validade e link público; sem IDs do Asaas.
-- Cartão: não oferecido (`allow_credit_card=false`, sem fluxo hospedado). Recibo ao cliente: não há acesso público a recibos. Cobrança expirada: nova emissão pela equipe (cancelar exige operador). Pendente: provisionar o webhook Asaas antes de ativar (a operação interna faz isso por ação de operador; a ponte não).
+- Cartão: (atualizado) ver ALT-FIN-002. Recibo ao cliente: não há acesso público a recibos. Cobrança expirada: nova emissão pela equipe (cancelar exige operador). Pendente: provisionar o webhook Asaas antes de ativar (a operação interna faz isso por ação de operador; a ponte não).
 - Sem migration, cron ou infraestrutura nova. Nenhuma flag foi ativada e nada foi chamado no Asaas.
 
 ## 27/11/2026 — Relatórios sem títulos de teste (código preparado, sem migration aplicada nem marcação)
@@ -69,3 +69,37 @@ Informativo: 15 contratos de teste (3 tenant principal e 12 outros tenants), 13 
 Contrato permanente IR: 1 ativo, R$ 0, sem vencimento; **53 itens de playlist protegidos no levantamento mais recente** (anterior 52: houve atualização operacional normal, portanto nunca usar contagem antiga como lista de exclusão). Comparação das três telas com playlists: 3/3 snapshots preservam campos e contagem de itens, 150/150 ocorrências permanentes elegíveis. Nenhuma projeção ativa ou vínculo central. Não usar esse contrato para testes destrutivos.
 
 Bloqueios atuais: CI integral em curso após correção do runner; publicação e teste ao vivo ainda não executados. Asaas sem conector disponível e navegador vinculado indisponível nesta sessão; chaves sensitive estão nos projetos corretos. Não contornar proteção para recuperar valores de segredos. Nenhuma cobrança cancelada/estornada/excluída nem dado de teste removido nesta rodada. Não declarar integração ativa até teste real. Antes de trabalhar local, checar status/stashes/ahead-behind, fetch e sincronização segura nos dois repos; preservar trabalho de outros agentes.
+
+## 27/11/2026 — ALT-FIN-002: cartão de crédito pela fatura hospedada do Asaas (código local, desligado por padrão)
+
+**Arquitetura reaproveitada:** `PaymentChargeService` (reserva antes do Asaas, índice único `payment_charges_one_pending_per_receivable`, recuperação), provedor `asaasPixProvider`, webhook com idempotência `billing_webhook_events`, RPC `confirm_payment_charge`, `receivable_receipts` (já aceitava `credit_card`), avisos `billing_notification_dispatches`, ponte Informativo→Jornal (`finance-payment`). Novos módulos puros: `cardPaymentUrls.ts`, `cardWebhookPolicy.ts`, `asaasChargebackAttention.ts`, `financePaymentRuntime.ts` (compartilhado pela rota da ponte e pela troca na página pública).
+
+**Capacidades:** PIX; cartão à vista; cartão parcelado (`installmentCount` + `totalValue`, sem acréscimo; total = saldo). Configuração em Configurações → Cobranças: `allow_credit_card` (ativação controlada, antes fixa em `false` por guard de implementação, não restrição do gateway), `credit_card_max_installments` (1–12, padrão 1) e `credit_card_min_installment_amount` (padrão R$ 5,00). Nenhum dado de cartão (PAN/CVV/titular/validade) trafega, é gravado ou logado.
+
+**Uma cobrança por título:** `openCharge` reaproveita a mesma escolha; para trocar, cancela no provedor e só então cria (reserva antes). Falha no cancelamento → consulta: pago/confirmado → "confirmando", nunca substituta; não cancelado ou sem prova → `renewal_unsafe`. Timeout ao criar mantém a reserva (sem novo POST). Concorrência converge no índice único. Motivos de cancelamento: `troca_de_forma_de_pagamento_pelo_cliente` / `renovacao_solicitada_pelo_cliente`.
+
+**Retorno:** `callback.successUrl` + `autoRedirect=true`, só com `ASAAS_CARD_CALLBACK_ENABLED=true`; URL montada no servidor: portal `https://<origem permitida>/<código do portal>?finance=return&ref=<hmac>` (origens em `JORNALIR_CARD_RETURN_ORIGINS`, padrão `https://cliente.altnix.com.br`) ou `/pagamento/<token>?retorno=1` na página pública. Entrada do navegador nunca vira destino. `invoiceUrl` só é usada se for https em domínio Asaas (`/i/<código>`); do contrário a cobrança recém-criada é removida e o pedido recusado.
+
+**Webhook (cartão):** `PAYMENT_CONFIRMED` → baixa única (recibo `credit_card`, aviso WhatsApp "Cartão de crédito", autorização operacional existente); `PAYMENT_RECEIVED` → só `provider_settled_at` e `gateway_net_amount` (registro; recibo e saldo seguem brutos); `CAPTURE_REFUSED`/`REPROVED_BY_RISK_ANALYSIS` → `provider_rejected_at`, cobrança segue pendente; refund e chargeback → atenção no painel, sem ajuste automático; parcelas filhas (`provider_installment_id`) só auditoria. `ASAAS_CARD_RECEIPT_ON_RECEIVED=true` troca para baixa só na liquidação.
+
+**Página pública:** `/pagamento/<token>` mostra PIX ou cartão; troca de forma por `api/public/pagamento/<token>/metodo` (desligada: `JORNALIR_PUBLIC_METHOD_SWITCH_ENABLED`, intervalo mínimo de 20 s); QR Pix não é emitido para cartão.
+
+### Migration (não aplicada)
+
+`supabase/migrations/20261127190000_payment_charge_credit_card.sql`: aditiva (colunas e constraints em `payment_charges`, 2 colunas em `billing_provider_settings`, `create or replace confirm_payment_charge` com a forma real no recibo). Aplicar **antes** do deploy do código, pelo CLI, só com autorização. Reversão: o código antigo ignora as colunas; `allow_credit_card` desligado devolve ao estado anterior.
+
+### Checklist de ativação em produção (nada foi ativado)
+
+1. Backup/ponto de restauração e aprovação do proprietário.
+2. Aplicar a migration `20261127190000` (conferir constraints e a função).
+3. Deploy do Jornal e do Informativo por decisão separada de publicação (builds automáticos seguem ignorados).
+4. Sandbox Asaas: cartão à vista e parcelado; confirmar premissas (`value` com `installmentCount`, `externalReference` nas parcelas, mínimo por parcela, callback com subdomínio e query, semântica de `PAYMENT_CONFIRMED`/`RECEIVED`).
+5. Cadastrar o domínio comercial do portal no Asaas; `ASAAS_CARD_CALLBACK_ENABLED=true`; conferir `JORNALIR_CARD_RETURN_ORIGINS`.
+6. Jornal: `JORNALIR_FINANCE_CARD_ENABLED=true`; ligar `allow_credit_card` e definir parcelas máximas/mínimo na tela de Cobranças; Informativo: `JORNALIR_PORTAL_PAYMENT_ENABLED=true`; allowlist de clientes do piloto.
+7. Piloto com cobrança de baixo valor (sem contrato permanente): pagar, recusar, trocar PIX⇄cartão, voltar sem pagar, pagamento tardio; conferir recibo, WhatsApp, autorização operacional e liquidação.
+8. Estorno/chargeback: conferir o aviso no painel e a conciliação manual.
+9. Reversão: desligar `allow_credit_card` e `JORNALIR_FINANCE_CARD_ENABLED`; cobranças de cartão pendentes continuam resolvíveis pelo webhook.
+
+### Testes locais (mocks, sem rede/Asaas/banco)
+
+Jornal: `apps/sistema/test/credit-card-payment.test.ts` (22 casos: URL de fatura e retorno sem open redirect, contrato, parcelamento, cartão autorizado, cliente não autorizado/quitado/teste/forma desligada, troca PIX⇄cartão, pendente existente, concorrência, timeout do gateway, confirmação tardia, recusa, expiração, webhook/estorno/chargeback, migration, provedor Asaas com `fetch` simulado, WhatsApp, segurança/contrato permanente). Informativo: `dashboard-next/scripts/test-jornalir-portal-card.mjs`. `tsc --noEmit` limpo nos dois.

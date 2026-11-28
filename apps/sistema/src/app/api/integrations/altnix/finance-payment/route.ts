@@ -1,11 +1,9 @@
 import "server-only";
 import { NextRequest, NextResponse } from "next/server";
-import { PaymentChargeAlreadyPendingError } from "@ir/core";
 import { createSupabaseAdminClient } from "../../../../../lib/supabase/admin";
-import { getPaymentChargeService } from "../../../../../composition/financeiro";
 import { allowedFinanceClient, financeBridgeAuthorized } from "../../../../../lib/integrations/altnixFinanceReadContract";
-import { executeFinancePayment, parseFinancePaymentRequest } from "../../../../../lib/integrations/altnixFinancePayment";
-import { listReportExcludedReceivableIds } from "../../../../../providers/supabase/receivableReportExclusion.supabase";
+import { parseFinancePaymentRequest } from "../../../../../lib/integrations/altnixFinancePayment";
+import { runFinancePayment } from "../../../../../lib/integrations/financePaymentRuntime";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -19,19 +17,20 @@ function respond(value: unknown, status = 200): NextResponse {
 }
 
 /**
- * Pagamento Pix de título central pelo cliente do Informativo.
+ * Pagamento de título central pelo cliente do Informativo (Pix e cartão de crédito).
  *
- * Reaproveita PaymentChargeService (reserva atômica antes do Asaas, índice
- * único de cobrança pendente, recuperação e webhook com confirmação atômica
- * existentes). O Jornal decide titularidade, elegibilidade e valor (sempre o
- * saldo atual do título); nada disso vem do chamador. Não confirma pagamento,
- * não cria recibo e não altera autorização operacional: isso segue o webhook.
- * Cartão não é oferecido: não há fluxo seguro de cartão no Jornal (allow_credit_card=false).
+ * Reaproveita PaymentChargeService (reserva atômica antes do Asaas, índice único de cobrança pendente — uma por
+ * título, de uma forma por vez —, troca de forma/renovação com cancelamento comprovado, recuperação e webhook com
+ * confirmação atômica). O Jornal decide titularidade, elegibilidade e valor (sempre o saldo atual); nada disso
+ * vem do chamador. Não confirma pagamento, não cria recibo e não altera autorização operacional: isso segue o webhook.
  *
- * Travas independentes: produção, flag própria, segredo da ponte (>=32) e lista
- * explícita de clientes canônicos. A decisão em si está em `executeFinancePayment`.
+ * Cartão: pela FATURA HOSPEDADA do Asaas (nenhum dado de cartão passa por aqui), à vista ou parcelado conforme a
+ * configuração central. Só abre com JORNALIR_FINANCE_CARD_ENABLED=true E allow_credit_card; o retorno ao portal só
+ * é enviado ao Asaas com ASAAS_CARD_CALLBACK_ENABLED=true (domínio cadastrado) e é montado a partir de partes validadas.
  *
- * POST { canonicalClientId, receivableId, action: "pix" | "status" }
+ * Travas independentes: produção, flag própria, segredo da ponte (>=32) e lista explícita de clientes canônicos.
+ *
+ * POST { canonicalClientId, receivableId, action: "pix" | "card" | "renew" | "status", installments?, returnPortalCode?, returnRef? }
  *  - "status" nunca cria cobrança.
  */
 export async function POST(request: NextRequest): Promise<NextResponse> {
@@ -41,7 +40,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     return respond({ error: "Não autorizado." }, 401);
 
   const raw = await request.text();
-  if (raw.length > 512) return respond({ error: "Requisição muito extensa." }, 413);
+  if (raw.length > 768) return respond({ error: "Requisição muito extensa." }, 413);
   let command: ReturnType<typeof parseFinancePaymentRequest> = null;
   try { command = parseFinancePaymentRequest(JSON.parse(raw)); } catch { command = null; }
   if (!command) return respond({ error: "Requisição inválida." }, 400);
@@ -57,26 +56,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     if (clientError) return respond({ error: "Consulta temporariamente indisponível.", code: "unavailable" }, 503);
     if (!client) return respond({ error: "Cadastro não localizado ou inativo.", code: "not_found" }, 404);
 
-    // Titularidade: o título precisa pertencer ao cliente canônico informado.
-    const { data: row, error: rowError } = await db.from("receivables_with_balance")
-      .select("id,client_id,status,balance,source_type,commercial_sale_id,internal_reference")
-      .eq("id", command.receivableId).eq("client_id", command.canonicalClientId).maybeSingle();
-    if (rowError) return respond({ error: "Consulta temporariamente indisponível.", code: "unavailable" }, 503);
-
-    const excluded = row ? (await listReportExcludedReceivableIds(db)).includes(command.receivableId) : false;
-    const charges = getPaymentChargeService(db);
-    const outcome = await executeFinancePayment(command, {
-      receivable: row ? {
-        clientId: String(row.client_id), status: String(row.status), balance: Number(row.balance),
-        sourceType: (row.source_type as string | null) ?? null,
-        commercialSaleId: (row.commercial_sale_id as string | null) ?? null,
-        excludedFromReports: excluded,
-        reference: (row.internal_reference as string | null) ?? null,
-      } : null,
-      charges,
-      isAlreadyPendingError: (error) => error instanceof PaymentChargeAlreadyPendingError,
-      now: () => Date.now(),
-    });
+    const outcome = await runFinancePayment(db, command);
     return respond(outcome.body, outcome.status);
   } catch {
     return respond({ error: "Pagamento temporariamente indisponível.", code: "unavailable" }, 503);

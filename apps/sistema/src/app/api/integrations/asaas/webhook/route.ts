@@ -11,6 +11,8 @@ import { getAsaasWebhookToken } from "../../../../../lib/financeiro/asaasWebhook
 import { canProcessAsaasWebhook } from "../../../../../lib/financeiro/asaasRuntimePolicy";
 import { createAsaasPixProvider } from "../../../../../lib/financeiro/asaasPixProvider";
 import { buildAsaasRefundAttention } from "../../../../../lib/financeiro/asaasRefundAttention";
+import { buildAsaasChargebackAttention, isAsaasChargebackEvent } from "../../../../../lib/financeiro/asaasChargebackAttention";
+import { cardWebhookPlan } from "../../../../../lib/financeiro/cardWebhookPolicy";
 import { matchesStoredAsaasEvent } from "../../../../../lib/financeiro/asaasWebhookEventIdentity";
 import { buildAsaasLatePaymentAttention, needsManualAsaasPaymentReconciliation } from "../../../../../lib/financeiro/asaasLatePaymentAttention";
 import {
@@ -29,6 +31,9 @@ interface AsaasWebhookPayment {
   clientPaymentDate?: string;
   confirmedDate?: string;
   externalReference?: string;
+  /** Identificador do parcelamento (cartão): pagamentos filhos compartilham o valor. */
+  installment?: string;
+  netValue?: number;
 }
 
 interface AsaasWebhookPayload {
@@ -402,14 +407,50 @@ export async function POST(request: Request): Promise<Response> {
       return NextResponse.json({ ok: true, ignored: true });
     }
 
-    const { data: charge, error: chargeError } = await admin
+    const CHARGE_COLUMNS = "id, receivable_id, status, receipt_id, amount, payment_method, provider_confirmed_at, provider_rejected_at";
+    const { data: chargeById, error: chargeError } = await admin
       .from("payment_charges")
-      .select("id, receivable_id, status, receipt_id, amount")
+      .select(CHARGE_COLUMNS)
       .eq("provider", "asaas")
       .eq("provider_charge_id", providerChargeId)
       .maybeSingle();
 
     if (chargeError) throw new Error(chargeError.message);
+
+    // Parcelamento no cartão: o Asaas gera um pagamento por parcela. A cobrança local é UMA (a 1ª parcela);
+    // eventos das parcelas filhas só são auditoria, nunca baixa, recibo ou aviso duplicados.
+    let charge = chargeById;
+    let childInstallment = false;
+    if (!charge && typeof payload.payment?.installment === "string" && payload.payment.installment) {
+      const { data: parent, error: parentError } = await admin
+        .from("payment_charges")
+        .select(CHARGE_COLUMNS)
+        .eq("provider", "asaas")
+        .eq("provider_installment_id", payload.payment.installment)
+        .maybeSingle();
+      if (parentError) throw new Error(parentError.message);
+      if (parent) { charge = parent; childInstallment = true; }
+    }
+    if (charge && childInstallment) {
+      if (eventType === "PAYMENT_REFUNDED" || eventType === "PAYMENT_PARTIALLY_REFUNDED" || isAsaasChargebackEvent(eventType)) {
+        const attention = isAsaasChargebackEvent(eventType)
+          ? buildAsaasChargebackAttention(eventType, eventId, charge.receivable_id as string)
+          : buildAsaasRefundAttention(eventType as "PAYMENT_REFUNDED" | "PAYMENT_PARTIALLY_REFUNDED", eventId, charge.receivable_id as string);
+        await createPanelNotification(attention);
+        await markEvent(eventId, processingToken, { processed_at: new Date().toISOString(), error_message: "Evento de parcela do cartão comunicado no painel; conciliação manual pendente." });
+        return NextResponse.json({ ok: true, manualReconciliation: true });
+      }
+      await markEvent(eventId, processingToken, { processed_at: new Date().toISOString(), error_message: "Evento de parcela filha do cartão: sem efeito financeiro (cobrança única)." });
+      return NextResponse.json({ ok: true, ignored: true });
+    }
+    const isCard = charge?.payment_method === "credit_card";
+    // Modelo contábil: o recibo (baixa) do cartão é gerado na CONFIRMAÇÃO (pagamento efetuado, saldo ainda não
+    // disponível) e a liquidação (PAYMENT_RECEIVED, ~32 dias) só registra data e valor líquido, sem novo recibo.
+    // ASAAS_CARD_RECEIPT_ON_RECEIVED=true mantém a baixa só na liquidação (modelo estrito).
+    const plan = cardWebhookPlan({
+      eventType, isCard, chargeStatus: String(charge?.status ?? ""),
+      strictSettlement: process.env.ASAAS_CARD_RECEIPT_ON_RECEIVED === "true",
+    });
 
     // Há uma janela curta entre criar a cobrança no Asaas e persistir
     // payment_charges localmente. Se o webhook chegar nessa janela e a
@@ -444,7 +485,32 @@ export async function POST(request: Request): Promise<Response> {
       return NextResponse.json({ ok: true, ignored: true });
     }
 
-    if (eventType === "PAYMENT_RECEIVED") {
+    // Marcos do cartão (auditoria durável, uma gravação por marco; nunca altera saldo).
+    if (plan.markConfirmed) {
+      const now = new Date().toISOString();
+      const milestones: Record<string, unknown> = { provider_rejected_at: null };
+      if (!charge.provider_confirmed_at) milestones.provider_confirmed_at = now;
+      if (plan.markSettled) {
+        milestones.provider_settled_at = now;
+        if (typeof payload.payment?.netValue === "number" && Number.isFinite(payload.payment.netValue)) milestones.gateway_net_amount = payload.payment.netValue;
+      }
+      const { error: milestoneError } = await admin.from("payment_charges").update(milestones).eq("id", charge.id);
+      if (milestoneError) throw new Error(milestoneError.message);
+    }
+    if (plan.settlementOnly) {
+      // Liquidação de cartão já baixado na confirmação: só os marcos acima; nada de novo recibo nem aviso.
+      await markEvent(eventId, processingToken, { processed_at: new Date().toISOString(), error_message: null });
+      return NextResponse.json({ ok: true, settled: true });
+    }
+    if (plan.markRejected) {
+      // Recusa: a cobrança segue pendente (nova tentativa na mesma fatura ou troca de forma); só registra o estado.
+      const { error: refusedError } = await admin.from("payment_charges")
+        .update({ provider_rejected_at: new Date().toISOString() })
+        .eq("id", charge.id).eq("status", "pending").is("provider_confirmed_at", null);
+      if (refusedError) throw new Error(refusedError.message);
+    }
+
+    if (plan.settle) {
       if (needsManualAsaasPaymentReconciliation(charge.status as string)) {
         return flagLatePaymentForManualReview({
           eventId, processingToken,
@@ -514,7 +580,7 @@ export async function POST(request: Request): Promise<Response> {
         const reference = context.receivable.internal_reference || context.receivable.description || "Título financeiro";
         await createPanelNotification({
           kind: "payment_overdue",
-          title: "Cobrança Pix vencida",
+          title: isCard ? "Cobrança de cartão vencida" : "Cobrança Pix vencida",
           message: `${reference} venceu e foi removida automaticamente do Asaas.`,
           href: `/sistema/financeiro/contas-a-receber/${charge.receivable_id}`,
           entityId: charge.receivable_id as string,
@@ -544,13 +610,21 @@ export async function POST(request: Request): Promise<Response> {
         const reference = context.receivable.internal_reference || context.receivable.description || "Título financeiro";
         await createPanelNotification({
           kind: "payment_cancelled",
-          title: "Cobrança Pix cancelada",
+          title: isCard ? "Cobrança de cartão cancelada" : "Cobrança Pix cancelada",
           message: `${reference} foi removida no Asaas.`,
           href: `/sistema/financeiro/contas-a-receber/${charge.receivable_id}`,
           entityId: charge.receivable_id as string,
           eventKey: `asaas:${eventId}:payment_deleted`,
         });
       }
+    } else if (isAsaasChargebackEvent(eventType)) {
+      // Chargeback: nunca estorna recibo, altera saldo ou serviço automaticamente (conciliação humana).
+      await createPanelNotification(buildAsaasChargebackAttention(eventType, eventId, charge.receivable_id as string));
+      await markEvent(eventId, processingToken, {
+        processed_at: new Date().toISOString(),
+        error_message: "Chargeback comunicado no painel; conciliação financeira manual pendente.",
+      });
+      return NextResponse.json({ ok: true, manualReconciliation: true });
     } else if (eventType === "PAYMENT_REFUNDED" || eventType === "PAYMENT_PARTIALLY_REFUNDED") {
       // O Asaas pode estornar valores totais/parciais após a baixa local.
       // Nunca alterar status, saldos, recibos ou créditos automaticamente.
