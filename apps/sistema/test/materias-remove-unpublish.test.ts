@@ -46,5 +46,5 @@ test("Remover também dentro da matéria não publicada, voltando à listagem; A
 });
 
 test("listagem 'Status: todos' esconde arquivadas; filtro Arquivado continua mostrando", () => {
-  assert.match(REPO, /if \(input\.status && input\.status !== "all"\) query = query\.eq\("status", input\.status\);\s*else query = query\.neq\("status", "archived"\);/);
+  assert.match(REPO, /else if \(input\.status && input\.status !== "all"\) query = query\.eq\("status", input\.status\);\s*else if \(!input\.includeArchived\) query = query\.neq\("status", "archived"\);/);
 });

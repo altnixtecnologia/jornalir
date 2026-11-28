@@ -162,7 +162,7 @@ test("Fluxos 3+4+5: proposta com 2 serviços de canais diferentes → aprovada �
     clientId: CLIENT.id, proposalId: proposal.id, itemsSnapshot,
     channel: "package", description: "LED + impresso", startDate: "2026-11-01",
     amount: 999, commercialCondition: "cash", installmentsCount: 1,
-  }), /soma dos serviços/);
+  }), /soma dos (produtos|serviços)/);
 
   // 4) Vínculo proposta→venda — nunca duas vezes.
   const converted = await proposalService.markConverted(proposal.id, sale.id);

@@ -11,10 +11,17 @@ export function AdminNotificationBell(): JSX.Element {
 
   useEffect(() => {
     let cancelled = false;
+    // ALT-AUD-001: o id do usuário da sessão é resolvido UMA vez por montagem (antes: getUser() — chamada ao servidor de
+    // autenticação — a cada atualização, ~2x/min por aba), e o intervalo só consulta com a aba visível.
+    let mineResolved = false;
+    let mine: string | undefined;
 
     async function refresh(): Promise<void> {
-      const auth = await client.auth.getUser();
-      const mine = auth.data.user?.id;
+      if (!mineResolved) {
+        const auth = await client.auth.getUser();
+        mine = auth.data.user?.id;
+        mineResolved = true;
+      }
       // O sino contabiliza apenas convites da sessão, nunca convites de
       // outro colaborador nem os registros globais de push.
       const todayParts = new Intl.DateTimeFormat("en-US", {
@@ -54,7 +61,7 @@ export function AdminNotificationBell(): JSX.Element {
     }
 
     void refresh();
-    const timer = window.setInterval(() => void refresh(), 30_000);
+    const timer = window.setInterval(() => { if (document.visibilityState === "visible") void refresh(); }, 30_000);
 
     const siteChannel = client
       .channel("site-interest-notifications")
@@ -93,12 +100,17 @@ export function AdminNotificationBell(): JSX.Element {
     function onFocus(): void {
       void refresh();
     }
+    function onVisible(): void {
+      if (document.visibilityState === "visible") void refresh();
+    }
     window.addEventListener("focus", onFocus);
+    document.addEventListener("visibilitychange", onVisible);
 
     return () => {
       cancelled = true;
       window.clearInterval(timer);
       window.removeEventListener("focus", onFocus);
+      document.removeEventListener("visibilitychange", onVisible);
       void client.removeChannel(siteChannel);
       void client.removeChannel(adminChannel);
     };

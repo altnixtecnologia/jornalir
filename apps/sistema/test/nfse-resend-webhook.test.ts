@@ -188,7 +188,7 @@ test("a rota do webhook não envia e-mail, não emite nota e não expõe documen
 // ---------------------------------------------------------------------------------------------------------
 // Corrida: o webhook pode chegar ANTES de o worker gravar o provider_message_id (envio ainda em "processing").
 const iso = (offsetMs: number) => new Date(NOW * 1000 + offsetMs).toISOString();
-const inFlight = (extra: Row = {}): Row => ({ id: "p1", channel: "email", provider: null, provider_message_id: null, status: "processing", processing_at: iso(-30_000), ...extra });
+const inFlight = (extra: Row = {}): Row => ({ id: "p1", channel: "email", provider: null, provider_message_id: null, status: "processing", processing_at: iso(-30_000), recipient_snapshot: "x@example.com", ...extra });
 
 test("corrida: webhook antes do worker gravar o identificador => 503 (o Resend repete), nada se perde; depois do registro => confirma", async () => {
   const rows = [inFlight()]; const db = fakeAdmin(rows);

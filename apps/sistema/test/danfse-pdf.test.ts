@@ -72,8 +72,9 @@ function makeIssuedNote(overrides: Partial<NfseIssuedNote> = {}): NfseIssuedNote
     environment: "homologation",
     dpsSeries: "1",
     dpsNumber: 42,
-    dpsId: "DPS42164042299999999999999999999001000000000000042",
-    accessKey: "421640419999999999999999999990000000001202610",
+    // O vínculo nota↔DPS é validado (extractDanfseData): o identificador precisa ser o Id real da DPS gerada.
+    dpsId: /Id="(DPS[^"]+)"/.exec(buildDpsXml(makeDpsInput()))![1],
+    accessKey: "42164041999999999999990000000012026100000000000012", // TSChaveNFSe: 6 + 14 + 30 = 50 caracteres (validador exige o padrão do XSD)
     nfseNumber: "12",
     issuedAt: "2026-10-25T12:00:00-03:00",
     competencyDate: "2026-10-01",
@@ -122,9 +123,10 @@ test("buildDanfsePdf inclui a expressão obrigatória 'NFS-e SEM VALIDADE JURÍD
   const { text: homologationText } = await pdfPageTexts(await buildDanfsePdf(homologationData));
   assert.ok(homologationText.includes("NFS-e SEM VALIDADE JURÍDICA"));
 
-  const productionData = extractDanfseData(makeIssuedNote({ nfseXml: makeNfseXml({ environment: "production" }) }));
-  const { text: productionText } = await pdfPageTexts(await buildDanfsePdf(productionData));
-  assert.ok(!productionText.includes("NFS-e SEM VALIDADE JURÍDICA"), "a nota de produção NUNCA pode mostrar o aviso de homologação");
+  // O DANFSe de PRODUÇÃO está bloqueado por desenho até a homologação contra a NT 008/2026 v1.02 (guarda deliberada em
+  // buildDanfsePdf). Logo, nenhuma nota de produção chega a ser renderizada — e portanto nunca exibe o aviso de homologação.
+  const productionData = extractDanfseData(makeIssuedNote({ environment: "production", nfseXml: makeNfseXml({ environment: "production" }) }));
+  await assert.rejects(() => buildDanfsePdf(productionData), /produção ainda não homologado/);
 });
 
 test("buildDanfsePdf: QR Code aponta pro endereço oficial de consulta pública com a chave de acesso correta", async () => {
