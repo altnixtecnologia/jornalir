@@ -10,9 +10,15 @@ function source(path: string): string {
   return readFileSync(new URL("../src/" + path, import.meta.url), "utf8");
 }
 
-test("primeira publicação não habilita NFS-e nem Altnix por flag/segredo", () => {
+test("publicação não habilita NFS-e; leitura cadastral Altnix liberada só atrás de ambiente, segredo e seleção individual", () => {
   assert.equal(NFSE_AVAILABLE_IN_THIS_RELEASE, false);
-  assert.equal(ALTNIX_CLIENT_EXPORT_RELEASED, false);
+  // Leitura cadastral autenticada liberada pelo proprietário (commit 55edd508, 26/11/2026). Escrita continua fora do contrato.
+  assert.equal(ALTNIX_CLIENT_EXPORT_RELEASED, true);
+  const remoteRoute = source("app/api/integrations/altnix/clients/route.ts");
+  assert.ok(remoteRoute.includes('process.env.VERCEL_ENV !== "production" || process.env.ALTNIX_CLIENT_SYNC_ENABLED !== "true"'), "exige produção e flag de ambiente");
+  assert.ok(remoteRoute.includes('if (!secretValid(request)) return respond({ error: "Não autorizado." }, 401)'), "exige segredo servidor-a-servidor");
+  assert.ok(remoteRoute.includes('client_digital_export_permissions.enabled", true)'), "seleção só de clientes individualmente aprovados");
+  assert.doesNotMatch(remoteRoute, /export async function (POST|PUT|PATCH|DELETE)/, "rota continua somente leitura");
   assert.match(NFSE_POSTPONED_MESSAGE, /posterior/);
   assert.equal(adminModules.find((module) => module.slug === "nfse")?.planned, false, "preparacao interna disponivel, transmissao fiscal bloqueada");
 });
