@@ -4,7 +4,7 @@ import { useMemo, useState, useTransition, type JSX } from "react";
 import {
   confirmDueReminderBatchSendAction, deleteDueReminderDraftAction, findDueReminderCandidatesAction,
   getDueReminderBatchDetailAction, listDueReminderBatchesAction, saveDueReminderDraftAction,
-  searchClientsForDueReminderAction,
+  retryDueReminderRecipientAction, searchClientsForDueReminderAction,
   type DueReminderBatchRow, type DueReminderCandidate,
 } from "../../app/sistema/assinaturas/avisos-vencimento/actions";
 import { notify } from "../../lib/feedback/notify";
@@ -24,7 +24,13 @@ function addMonths(date: Date, months: number): Date {
   return new Date(date.getFullYear(), date.getMonth() + months, 1);
 }
 
-type Recipient = DueReminderCandidate;
+/** `recipientId`/`deliveryStatus` só existem em lote já enviado (histórico) e permitem o reenvio manual de falhas. */
+type Recipient = DueReminderCandidate & { recipientId?: string; deliveryStatus?: string };
+
+const DELIVERY_LABELS: Record<string, string> = {
+  pending: "aguardando", sending: "em envio", sent: "aceito pela Meta", failed: "falhou", skipped: "ignorado (sem WhatsApp válido)",
+  uncertain: "resultado incerto (confira no WhatsApp)",
+};
 
 function renderPreview(template: string, recipient: Recipient | undefined, mesAnoLabel: string): string {
   if (!recipient) return template;
@@ -168,6 +174,7 @@ export function DueReminderPanel({
       setRecipients(result.data.recipients.map((r) => ({
         clientId: r.clientId, clientName: r.clientName ?? "(cliente)", phone: r.phone, phoneValid: r.phoneValid,
         subscriptionIds: r.subscriptionIds, subscriptionLabels: [], dueDates: [], dueDayMismatch: false,
+        recipientId: r.id, deliveryStatus: r.status,
       })));
       setOpenBatch({ id: result.data.batch.id, status: result.data.batch.status });
     });
@@ -190,9 +197,15 @@ export function DueReminderPanel({
 
   async function confirmSend(): Promise<void> {
     if (!batchId) return;
+    // O operador vê quem recebe: nomes com WhatsApp válido (até 12) e quantos serão ignorados.
+    const valid = recipients.filter((r) => r.phoneValid);
+    const ignored = recipients.length - valid.length;
+    const names = valid.slice(0, 12).map((r) => r.clientName).join(", ") + (valid.length > 12 ? ` e mais ${valid.length - 12}` : "");
     const confirmed = await confirmDialog({
       title: "Enviar este lote?",
-      description: `O lote vai para ${recipients.length} destinatário(s).`,
+      description: `Serão enviados ${valid.length} aviso(s) por WhatsApp: ${names || "nenhum destinatário válido"}.`
+        + (ignored ? ` ${ignored} destinatário(s) sem WhatsApp válido serão ignorados.` : "")
+        + " O envio não pode ser repetido para o lote inteiro.",
       confirmLabel: "Enviar",
       destructive: false,
     });
@@ -201,13 +214,29 @@ export function DueReminderPanel({
     startTransition(async () => {
       const result = await confirmDueReminderBatchSendAction(batchId);
       if ("error" in result) { notify.error("Envio não concluído", result.error); return; }
-      notify.success("Envio concluído",
-        `${result.data.sent} enviado(s), ${result.data.failed} falha(s), ${result.data.skipped} ignorado(s) (telefone inválido).`);
-      setOpenBatch({ id: batchId, status: "sent", sentStats: result.data });
+      const summary = `${result.data.sent} aceito(s) pela Meta, ${result.data.failed} falha(s), ${result.data.uncertain} incerto(s), ${result.data.skipped} ignorado(s) (sem WhatsApp válido).`;
+      // Só "concluído" quando ninguém ficou pendente; interrompido continua "em envio" e pode ser retomado.
+      if (result.data.complete) notify.success("Envio concluído", summary);
+      else notify.error("Envio incompleto", `${summary} O lote não foi concluído; use "Retomar envio" depois de alguns minutos.`);
+      setOpenBatch({ id: batchId, status: result.data.complete ? "sent" : "sending", sentStats: result.data });
     });
   }
 
-  const isDraftLocked = openBatch?.status === "sent";
+  const isDraftLocked = openBatch?.status === "sent" || openBatch?.status === "sending";
+
+  function retryRecipient(recipient: Recipient): void {
+    if (!recipient.recipientId) return;
+    const recipientId = recipient.recipientId;
+    setError(null);
+    startTransition(async () => {
+      const result = await retryDueReminderRecipientAction(recipientId);
+      if ("error" in result) { notify.error("Reenvio não concluído", result.error); return; }
+      setRecipients((prev) => prev.map((r) => (r.recipientId === recipientId ? { ...r, deliveryStatus: result.data.status } : r)));
+      if (result.data.status === "sent") notify.success("Reenvio aceito pela Meta", `${recipient.clientName}: aceito para entrega (a entrega ao aparelho só é confirmada por status do provedor).`);
+      else if (result.data.status === "uncertain") notify.error("Resultado incerto", `${recipient.clientName}: sem resposta conclusiva da Meta. Confira no WhatsApp antes de reenviar.`);
+      else notify.error("Reenvio falhou", `${recipient.clientName}: o provedor recusou novamente. Confira o número cadastrado.`);
+    });
+  }
 
   return (
     <div className="article-step-layout">
@@ -279,7 +308,9 @@ export function DueReminderPanel({
                     <strong>{r.clientName}</strong> — {r.phone || "sem telefone"}
                     {!r.phoneValid ? <span className="status-pill status-pill--archived"> inválido</span> : null}
                     {isDuplicate ? <span className="status-pill status-pill--draft"> telefone duplicado</span> : null}
+                    {r.deliveryStatus ? <span className={`status-pill status-pill--${r.deliveryStatus === "sent" ? "published" : r.deliveryStatus === "failed" ? "archived" : "draft"}`}> {DELIVERY_LABELS[r.deliveryStatus] ?? r.deliveryStatus}</span> : null}
                     {" "}
+                    {openBatch?.status === "sent" && r.deliveryStatus === "failed" ? <><button type="button" className="text-link" onClick={() => retryRecipient(r)}>Reenviar</button>{" "}</> : null}
                     <button type="button" className="text-link" onClick={() => setPreviewClientId(r.clientId)} disabled={isDraftLocked}>Prévia</button>{" "}
                     {!isDraftLocked ? <button type="button" className="text-link" onClick={() => removeRecipient(r.clientId)}>Remover</button> : null}
                   </li>
@@ -328,8 +359,8 @@ export function DueReminderPanel({
             <button type="button" className="form-action-primary" onClick={saveDraft} disabled={pending || isDraftLocked}>
               {pending ? "Salvando…" : "Salvar rascunho"}
             </button>
-            <button type="button" onClick={confirmSend} disabled={pending || !batchId || isDraftLocked}>
-              Confirmar envio
+            <button type="button" onClick={confirmSend} disabled={pending || !batchId || openBatch?.status === "sent"}>
+              {openBatch?.status === "sending" ? "Retomar envio" : "Confirmar envio"}
             </button>
           </div>
           {error ? <p className="form-error" role="alert">{error}</p> : null}
@@ -354,7 +385,7 @@ export function DueReminderPanel({
             {history.map((b) => (
               <li key={b.id}>
                 {b.referenceMonth.split("-").slice(0, 2).reverse().join("/")} — {b.recipientCount} destinatário(s) —{" "}
-                <span className={`status-pill status-pill--${b.status === "sent" ? "published" : "draft"}`}>{b.status === "sent" ? "Enviado" : "Rascunho"}</span>
+                <span className={`status-pill status-pill--${b.status === "sent" ? "published" : "draft"}`}>{b.status === "sent" ? "Concluído" : b.status === "sending" ? "Em envio / interrompido" : "Rascunho"}</span>
                 {" "}
                 <button type="button" className="text-link" onClick={() => openHistoryBatch(b.id)}>Abrir</button>
                 {b.status === "draft" ? <> <button type="button" className="text-link" onClick={() => deleteDraft(b.id)}>Excluir</button></> : null}

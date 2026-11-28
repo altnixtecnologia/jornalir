@@ -2,6 +2,8 @@
 
 import { revalidatePath } from "next/cache";
 import { SUBSCRIPTION_SERVICE_TYPE_LABELS, type SubscriptionServiceType } from "@ir/types";
+import { resolveClientWhatsappRecipient, WHATSAPP_RECIPIENT_MESSAGES } from "@ir/core";
+import { failureKind } from "../../../../lib/notifications/whatsappErrors";
 import { createSupabaseServerClient } from "../../../../lib/supabase/server";
 import {
   isWhatsappDueReminderTemplateConfigured, sendWhatsappDueReminderTemplate,
@@ -25,10 +27,10 @@ function clientDisplayName(c: { kind: string; full_name: string | null; company_
   return c.trade_name || c.company_name || "Empresa sem nome";
 }
 
-function validPhone(raw: string | null): boolean {
-  if (!raw) return false;
-  const digits = raw.replace(/\D/g, "");
-  return digits.length >= 10 && digits.length <= 13;
+/** Prévia ao operador: mesmo critério do envio (WhatsApp canônico; fixo não conta como WhatsApp). */
+function previewRecipient(client: { whatsapp: string | null }): { phone: string | null; valid: boolean } {
+  const resolved = resolveClientWhatsappRecipient({ whatsapp: client.whatsapp });
+  return resolved.ok ? { phone: resolved.e164, valid: true } : { phone: client.whatsapp || null, valid: false };
 }
 
 export interface DueReminderCandidate {
@@ -57,7 +59,7 @@ export async function findDueReminderCandidatesAction(input: {
     return { error: "Período inválido." };
   }
   const { data, error } = await caller.db.from("subscriptions")
-    .select("id,client_id,service_type,next_due_date,due_day,clients(id,kind,full_name,company_name,trade_name,phone_primary,whatsapp,status)")
+    .select("id,client_id,service_type,next_due_date,due_day,clients(id,kind,full_name,company_name,trade_name,whatsapp,status)")
     .eq("status", "active")
     .gte("next_due_date", input.startDate)
     .lte("next_due_date", input.endDate)
@@ -68,10 +70,10 @@ export async function findDueReminderCandidatesAction(input: {
   for (const row of data ?? []) {
     const client = row.clients as unknown as {
       id: string; kind: string; full_name: string | null; company_name: string | null; trade_name: string | null;
-      phone_primary: string | null; whatsapp: string | null; status: string;
+      whatsapp: string | null; status: string;
     } | null;
     if (!client || client.status !== "active") continue; // cadastro mestre inativo nunca entra na lista.
-    const phone = client.whatsapp || client.phone_primary;
+    const recipient = previewRecipient(client);
     const dueDate = row.next_due_date as string;
     const dueDayMismatch = Boolean(row.due_day) && Number(dueDate.slice(8, 10)) !== row.due_day;
     const existing = byClient.get(client.id);
@@ -84,7 +86,7 @@ export async function findDueReminderCandidatesAction(input: {
     } else {
       byClient.set(client.id, {
         clientId: client.id, clientName: clientDisplayName(client),
-        phone, phoneValid: validPhone(phone),
+        phone: recipient.phone, phoneValid: recipient.valid,
         subscriptionIds: [row.id], subscriptionLabels: [label], dueDates: [dueDate],
         dueDayMismatch,
       });
@@ -102,7 +104,7 @@ export async function searchClientsForDueReminderAction(query: string): Promise<
   const q = query.trim();
   if (q.length < 2) return { ok: true, data: [] };
   const { data: clients, error: clientsError } = await caller.db.from("clients")
-    .select("id,kind,full_name,company_name,trade_name,phone_primary,whatsapp,status")
+    .select("id,kind,full_name,company_name,trade_name,whatsapp,status")
     .eq("status", "active")
     .or(`full_name.ilike.%${q}%,company_name.ilike.%${q}%,trade_name.ilike.%${q}%`)
     .limit(15);
@@ -123,10 +125,10 @@ export async function searchClientsForDueReminderAction(query: string): Promise<
   for (const client of clients ?? []) {
     const clientSubs = subsByClient.get(client.id) ?? [];
     if (clientSubs.length === 0) continue; // sem assinatura ativa, não entra (módulo é específico de Assinaturas).
-    const phone = client.whatsapp || client.phone_primary;
+    const recipient = previewRecipient(client);
     results.push({
       clientId: client.id, clientName: clientDisplayName(client),
-      phone, phoneValid: validPhone(phone),
+      phone: recipient.phone, phoneValid: recipient.valid,
       subscriptionIds: clientSubs.map((s) => s.id),
       subscriptionLabels: clientSubs.map((s) => SUBSCRIPTION_SERVICE_TYPE_LABELS[s.service_type as SubscriptionServiceType] ?? s.service_type),
       dueDates: clientSubs.map((s) => s.next_due_date).filter((d): d is string => Boolean(d)),
@@ -140,7 +142,7 @@ export interface DueReminderBatchRow {
   id: string;
   referenceMonth: string;
   messageTemplate: string;
-  status: "draft" | "sent";
+  status: "draft" | "sending" | "sent";
   createdAt: string;
   sentAt: string | null;
   recipientCount: number;
@@ -239,10 +241,30 @@ export async function saveDueReminderDraftAction(input: SaveDueReminderBatchInpu
     batchId = created.id;
   }
 
-  const rows = input.recipients.map((r) => ({
-    batch_id: batchId, client_id: r.clientId, subscription_ids: r.subscriptionIds,
-    phone_snapshot: r.phone, phone_valid: validPhone(r.phone),
-  }));
+  // O telefone NUNCA vem do navegador: é resolvido aqui a partir do cadastro mestre (WhatsApp canônico)
+  // e as assinaturas precisam pertencer ao cliente informado. Cadastro inativo/inexistente invalida o lote.
+  const clientIds = [...uniqueClientIds];
+  const allSubscriptionIds = [...new Set(input.recipients.flatMap((r) => r.subscriptionIds))];
+  const [clientsResult, subscriptionsResult] = await Promise.all([
+    db.from("clients").select("id,status,whatsapp").in("id", clientIds),
+    allSubscriptionIds.length ? db.from("subscriptions").select("id,client_id").in("id", allSubscriptionIds) : Promise.resolve({ data: [], error: null }),
+  ]);
+  if (clientsResult.error || subscriptionsResult.error) return { error: "Não foi possível validar os destinatários." };
+  const clientById = new Map((clientsResult.data ?? []).map((c) => [c.id as string, c]));
+  const subscriptionOwner = new Map((subscriptionsResult.data ?? []).map((s) => [s.id as string, s.client_id as string]));
+  for (const r of input.recipients) {
+    const known = clientById.get(r.clientId);
+    if (!known || known.status !== "active") return { error: "Há destinatário com cadastro inexistente ou inativo. Atualize a lista." };
+    if (r.subscriptionIds.some((id) => subscriptionOwner.get(id) !== r.clientId)) return { error: "Há assinatura que não pertence ao cliente informado. Atualize a lista." };
+  }
+  const rows = input.recipients.map((r) => {
+    const known = clientById.get(r.clientId)!;
+    const resolved = resolveClientWhatsappRecipient({ whatsapp: known.whatsapp as string | null });
+    return {
+      batch_id: batchId, client_id: r.clientId, subscription_ids: r.subscriptionIds,
+      phone_snapshot: resolved.ok ? resolved.e164 : null, phone_valid: resolved.ok,
+    };
+  });
   const { error: insertError } = await db.from("subscription_due_reminder_recipients").insert(rows);
   if (insertError) return { error: "Não foi possível salvar os destinatários: " + insertError.message };
 
@@ -277,13 +299,22 @@ function renderTemplate(template: string, vars: { cliente: string; assinatura: s
 
 const MONTH_LABELS = ["janeiro", "fevereiro", "março", "abril", "maio", "junho", "julho", "agosto", "setembro", "outubro", "novembro", "dezembro"];
 
+/** Estados do lote: draft → sending → sent. "sending" só vira "sent" quando NENHUM destinatário está
+ * pendente ou em envio; se o processo cair no meio, o lote continua "sending" (interrompido) e nunca
+ * parece concluído. Retomar só é permitido depois de 5 minutos de inatividade. */
+const RESUME_AFTER_MS = 5 * 60 * 1000;
+
+function deliveryFailure(error: unknown): { status: "failed" | "uncertain"; message: string } {
+  const message = error instanceof Error ? error.message : "Falha desconhecida";
+  // Resposta ambígua (rede/timeout/sem ID): a Meta pode ter aceitado; nunca reenviar às cegas.
+  return failureKind(error) === "ambiguous" ? { status: "uncertain", message } : { status: "failed", message };
+}
+
 /** Confirma o disparo manual de verdade — protegido por: (1) template
  * próprio aprovado na Meta configurado, (2) interruptor de ambiente
- * separado (WHATSAPP_DUE_REMINDER_SEND_ENABLED), ambos desligados até
- * autorização explícita nesta sessão. Processa um destinatário de cada
- * vez, registra o resultado individual, nunca reenvia quem já está
- * status=sent (idempotente por linha). */
-export async function confirmDueReminderBatchSendAction(batchId: string): Promise<ActionResult<{ sent: number; failed: number; skipped: number }>> {
+ * separado (WHATSAPP_DUE_REMINDER_SEND_ENABLED). Um destinatário de cada vez,
+ * cada um reivindicado de forma atômica (pending → sending): duplo clique ou duas abas não duplicam. */
+export async function confirmDueReminderBatchSendAction(batchId: string): Promise<ActionResult<{ sent: number; failed: number; skipped: number; uncertain: number; complete: boolean }>> {
   const caller = await requireAdmin();
   if (!caller) return { error: "Acesso não autorizado." };
   if (process.env.WHATSAPP_DUE_REMINDER_SEND_ENABLED !== "true") {
@@ -295,16 +326,42 @@ export async function confirmDueReminderBatchSendAction(batchId: string): Promis
   const { db, userId } = caller;
   const detail = await getDueReminderBatchDetailAction(batchId);
   if ("error" in detail) return detail;
-  if (detail.data.batch.status === "sent") return { error: "Este lote já foi enviado." };
+  if (detail.data.batch.status === "sent") return { error: "Este lote já foi concluído." };
+
+  const nowIso = new Date().toISOString();
+  if (detail.data.batch.status === "draft") {
+    // Trava atômica draft → sending (no máximo uma sessão inicia o lote).
+    const { data: claimed, error: claimError } = await db.from("subscription_due_reminder_batches")
+      .update({ status: "sending", sent_by: userId, claimed_at: nowIso })
+      .eq("id", batchId).eq("status", "draft").select("id").maybeSingle();
+    if (claimError || !claimed) return { error: "Este lote já foi iniciado por outra sessão." };
+  } else {
+    // Lote interrompido: retomada só após inatividade, por comparação atômica do instante da reivindicação.
+    const { data: current } = await db.from("subscription_due_reminder_batches").select("claimed_at").eq("id", batchId).eq("status", "sending").maybeSingle();
+    const claimedAt = current?.claimed_at ? Date.parse(String(current.claimed_at)) : NaN;
+    if (!Number.isFinite(claimedAt) || Date.now() - claimedAt < RESUME_AFTER_MS)
+      return { error: "Este lote está em envio. Aguarde alguns minutos; se foi interrompido, será possível retomá-lo." };
+    const { data: reclaimed } = await db.from("subscription_due_reminder_batches")
+      .update({ claimed_at: nowIso, sent_by: userId }).eq("id", batchId).eq("status", "sending").eq("claimed_at", current!.claimed_at).select("id").maybeSingle();
+    if (!reclaimed) return { error: "Outra sessão retomou este lote." };
+    // Quem estava "sending" quando o processo caiu pode ter sido enviado: vira incerto (nunca reenvio às cegas).
+    await db.from("subscription_due_reminder_recipients").update({
+      status: "uncertain", error_message: "Envio interrompido: confirme no WhatsApp antes de reenviar manualmente.",
+    }).eq("batch_id", batchId).eq("status", "sending");
+  }
 
   const monthDate = new Date(detail.data.batch.referenceMonth + "T12:00:00Z");
   const mesAno = `${MONTH_LABELS[monthDate.getUTCMonth()]}/${monthDate.getUTCFullYear()}`;
 
-  let sent = 0, failed = 0, skipped = 0;
+  let sent = 0, failed = 0, skipped = 0, uncertain = 0;
   for (const recipient of detail.data.recipients) {
-    if (recipient.status === "sent") continue;
+    if (recipient.status !== "pending") continue; // enviado, ignorado, falho ou incerto: nunca reprocessado em massa
+    // Reivindicação do destinatário: só quem muda pending → sending envia.
+    const { data: mine } = await db.from("subscription_due_reminder_recipients")
+      .update({ status: "sending" }).eq("id", recipient.id).eq("status", "pending").select("id").maybeSingle();
+    if (!mine) continue;
     if (!recipient.phoneValid || !recipient.phone) {
-      await db.from("subscription_due_reminder_recipients").update({ status: "skipped", error_message: "Telefone ausente/inválido" }).eq("id", recipient.id);
+      await db.from("subscription_due_reminder_recipients").update({ status: "skipped", error_message: "WhatsApp ausente ou inválido" }).eq("id", recipient.id);
       skipped++;
       continue;
     }
@@ -319,17 +376,71 @@ export async function confirmDueReminderBatchSendAction(batchId: string): Promis
       }).eq("id", recipient.id);
       sent++;
     } catch (error) {
+      const outcome = deliveryFailure(error);
       await db.from("subscription_due_reminder_recipients").update({
-        status: "failed", message_rendered: message, error_message: error instanceof Error ? error.message : "Falha desconhecida",
+        status: outcome.status, message_rendered: message, error_message: outcome.message.slice(0, 500),
       }).eq("id", recipient.id);
-      failed++;
+      if (outcome.status === "uncertain") uncertain++; else failed++;
     }
   }
 
-  await db.from("subscription_due_reminder_batches").update({
-    status: "sent", sent_by: userId, sent_at: new Date().toISOString(),
-  }).eq("id", batchId);
-
+  // Só marca o lote como concluído quando ninguém ficou pendente ou em envio (processo interrompido ≠ concluído).
+  const { count: open } = await db.from("subscription_due_reminder_recipients")
+    .select("id", { count: "exact", head: true }).eq("batch_id", batchId).in("status", ["pending", "sending"]);
+  const complete = (open ?? 1) === 0;
+  if (complete) {
+    await db.from("subscription_due_reminder_batches")
+      .update({ status: "sent", sent_at: new Date().toISOString() }).eq("id", batchId).eq("status", "sending");
+  }
   revalidatePath(PATH);
-  return { ok: true, data: { sent, failed, skipped } };
+  return { ok: true, data: { sent, failed, skipped, uncertain, complete } };
+}
+
+/** Reenvio MANUAL de um destinatário com falha DEFINITIVA (um por vez, nunca em massa nem automático).
+ * Incerto não é reenviado aqui (pode já ter sido entregue). Reivindicação atômica failed → sending;
+ * o telefone é resolvido de novo no cadastro (WhatsApp canônico). "Enviado" = aceito pela API da Meta. */
+export async function retryDueReminderRecipientAction(recipientId: string): Promise<ActionResult<{ status: "sent" | "failed" | "uncertain" }>> {
+  const caller = await requireAdmin();
+  if (!caller) return { error: "Acesso não autorizado." };
+  if (process.env.WHATSAPP_DUE_REMINDER_SEND_ENABLED !== "true" || !isWhatsappDueReminderTemplateConfigured())
+    return { error: "Envio de avisos de vencimento desligado ou sem template aprovado." };
+  const { db } = caller;
+  const { data: claimed } = await db.from("subscription_due_reminder_recipients")
+    .update({ status: "sending", error_message: null })
+    .eq("id", recipientId).eq("status", "failed")
+    .select("id,batch_id,client_id,clients(id,kind,full_name,company_name,trade_name,status,whatsapp)").maybeSingle();
+  if (!claimed) return { error: "Só é possível reenviar destinatários com falha definitiva, e um reenvio por vez." };
+
+  const fail = async (message: string): Promise<ActionResult<{ status: "sent" | "failed" | "uncertain" }>> => {
+    await db.from("subscription_due_reminder_recipients").update({ status: "failed", error_message: message }).eq("id", recipientId);
+    return { ok: true, data: { status: "failed" } };
+  };
+  const client = claimed.clients as unknown as { kind: string; full_name: string | null; company_name: string | null; trade_name: string | null; status: string; whatsapp: string | null } | null;
+  if (!client || client.status !== "active") return fail("Cadastro inativo ou inexistente.");
+  const resolved = resolveClientWhatsappRecipient({ whatsapp: client.whatsapp });
+  if (!resolved.ok) return fail(WHATSAPP_RECIPIENT_MESSAGES[resolved.reason]);
+  const { data: batch } = await db.from("subscription_due_reminder_batches")
+    .select("reference_month,message_template,status").eq("id", claimed.batch_id).maybeSingle();
+  if (!batch || batch.status !== "sent") return fail("Lote não está em estado de reenvio.");
+
+  const monthDate = new Date(String(batch.reference_month) + "T12:00:00Z");
+  const mesAno = `${MONTH_LABELS[monthDate.getUTCMonth()]}/${monthDate.getUTCFullYear()}`;
+  const name = clientDisplayName(client);
+  const message = renderTemplate(String(batch.message_template), { cliente: name, assinatura: "assinatura", mesAno });
+  try {
+    const result = await sendWhatsappDueReminderTemplate({ toPhone: resolved.e164, clientName: name, subscriptionLabel: "assinatura", dueMonthLabel: mesAno });
+    await db.from("subscription_due_reminder_recipients").update({
+      status: "sent", message_rendered: message, phone_snapshot: resolved.e164, phone_valid: true,
+      provider_message_id: result.providerMessageId ?? null, sent_at: new Date().toISOString(), error_message: null,
+    }).eq("id", recipientId);
+    revalidatePath(PATH);
+    return { ok: true, data: { status: "sent" } };
+  } catch (error) {
+    const outcome = deliveryFailure(error);
+    await db.from("subscription_due_reminder_recipients").update({
+      status: outcome.status, message_rendered: message, error_message: outcome.message.slice(0, 500),
+    }).eq("id", recipientId);
+    revalidatePath(PATH);
+    return { ok: true, data: { status: outcome.status } };
+  }
 }

@@ -2,6 +2,8 @@ import "server-only";
 
 import { randomUUID, timingSafeEqual } from "crypto";
 import { NextResponse } from "next/server";
+import { resolveClientWhatsappRecipient, WHATSAPP_RECIPIENT_MESSAGES } from "@ir/core";
+import { listReportExcludedReceivableIds } from "../../../../../providers/supabase/receivableReportExclusion.supabase";
 import { getPaymentChargeService } from "../../../../../composition/financeiro";
 import { createSupabaseAdminClient, hasServiceRoleKey } from "../../../../../lib/supabase/admin";
 import { notifyAltnixReceivableCommit } from "../../../../../lib/integrations/altnixReceivableEvent";
@@ -114,7 +116,6 @@ async function loadPaymentContext(receivableId: string): Promise<{
     company_name: string | null;
     trade_name: string | null;
     whatsapp: string | null;
-    phone_primary: string | null;
   };
 }> {
   const admin = createSupabaseAdminClient();
@@ -127,7 +128,7 @@ async function loadPaymentContext(receivableId: string): Promise<{
 
   const { data: client, error: clientError } = await admin
     .from("clients")
-    .select("id, full_name, company_name, trade_name, whatsapp, phone_primary")
+    .select("id, full_name, company_name, trade_name, whatsapp")
     .eq("id", receivable.client_id)
     .single();
   if (clientError || !client) throw new Error(clientError?.message ?? "Cliente não encontrado.");
@@ -159,12 +160,17 @@ async function notifyPaymentReceived(input: {
     eventKey: `asaas:charge:${input.chargeId}:payment_received`,
   });
 
-  const toPhone = client.whatsapp || client.phone_primary || "";
-  if (!toPhone) {
+  // Título de teste classificado: o aviso interno acima basta; nada é enviado ao cliente.
+  if ((await listReportExcludedReceivableIds(admin)).includes(receivable.id)) return;
+
+  // WhatsApp canônico; só cai para o telefone principal se não houver WhatsApp e for celular válido.
+  const recipient = resolveClientWhatsappRecipient({ whatsapp: client.whatsapp });
+  const toPhone = recipient.ok ? recipient.e164 : "";
+  if (!recipient.ok) {
     await createPanelNotification({
       kind: "whatsapp_failed",
       title: "WhatsApp de confirmação não enviado",
-      message: `${clientName} não possui WhatsApp/telefone cadastrado para confirmar o pagamento de ${amountLabel}.`,
+      message: `${clientName}: ${WHATSAPP_RECIPIENT_MESSAGES[recipient.reason]} (pagamento de ${amountLabel}).`,
       href,
       entityId: receivable.id,
       eventKey: `asaas:charge:${input.chargeId}:whatsapp_no_phone`,

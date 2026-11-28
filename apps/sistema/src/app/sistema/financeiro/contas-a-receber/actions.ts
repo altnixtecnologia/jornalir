@@ -16,7 +16,9 @@ import { validateSubscriptionForBilling } from "../../../../lib/financeiro/subsc
 import { todayInSaoPauloISO } from "../../../../lib/date/saoPauloDate";
 import { getAuditContext } from "../../../../lib/auth/getAuditContext";
 import { isLocalPreviewEnabled, LOCAL_PREVIEW_PROFILE } from "../../../../lib/auth/localPreview";
-import { buildBillingMessage } from "@ir/core";
+import { buildBillingMessage, resolveClientWhatsappRecipient, WHATSAPP_RECIPIENT_MESSAGES } from "@ir/core";
+import { evaluateBillingSend } from "../../../../lib/notifications/billingSendGuard";
+import { listReportExcludedReceivableIds } from "../../../../providers/supabase/receivableReportExclusion.supabase";
 import { parseAmount, validateReceivablePayload, type ReceivableFormPayload } from "../../../../features/financeiro/receivableFormTypes";
 import { createBillingMessageLogRepositorySupabase } from "../../../../providers/supabase/billingMessageLogRepository.supabase";
 import {
@@ -625,15 +627,24 @@ export async function sendBillingMessageAction(
     if (receivable.clientId !== clientRecord.id) {
       return { error: "O cliente informado não corresponde à cobrança selecionada." };
     }
-    toPhone = clientRecord.whatsapp ?? clientRecord.phonePrimary ?? "";
-    if (!toPhone) return { error: "Cadastro sem WhatsApp." };
+    // WhatsApp canônico do cadastro mestre; nunca desvia para telefone principal quando há WhatsApp.
+    const recipient = resolveClientWhatsappRecipient({ whatsapp: clientRecord.whatsapp });
+    if (!recipient.ok) return { error: WHATSAPP_RECIPIENT_MESSAGES[recipient.reason] };
+    toPhone = recipient.e164;
 
-    const pendingCharge = charges.find((charge) => charge.status === "pending");
-    if (pendingCharge?.provider === "asaas" && !pendingCharge.providerChargeId)
-      return { error: "Criação Pix pendente de conciliação no Asaas; envio bloqueado." };
-    if (!pendingCharge?.publicToken) {
-      return { error: "Gere uma cobrança Pix antes de enviar ao cliente." };
-    }
+    // Estado financeiro atual: teste, quitado, Pix expirado/ambíguo e reenvio duplicado são barrados;
+    // nenhuma cobrança nova é criada só para notificar.
+    const [excludedIds, recentLogs] = await Promise.all([
+      listReportExcludedReceivableIds(client),
+      createBillingMessageLogRepositorySupabase(client).listForReceivable(receivableId),
+    ]);
+    const decision = evaluateBillingSend({
+      kind: "billing",
+      receivable: { status: receivable.status, balance: receivable.balance, excludedFromReports: excludedIds.includes(receivableId) },
+      charges, recentLogs, now: Date.now(),
+    });
+    if (!decision.ok) return { error: decision.error };
+    const pendingCharge = decision.charge as typeof charges[number];
 
     const paymentUrl = `https://controle.altnix.com.br/pagamento/${pendingCharge.publicToken}`;
     const clientName = (clientRecord.tradeName ?? clientRecord.fullName ?? clientRecord.companyName ?? "Cliente").split(" ")[0];
@@ -709,6 +720,13 @@ export async function buildBillingMessagePreviewAction(
     const pendingCharge = charges.find((charge) => charge.status === "pending");
     if (pendingCharge?.provider === "asaas" && !pendingCharge.providerChargeId)
       return { error: "Aguarde a conciliação da cobrança Pix com o Asaas." };
+    // Mesmas barreiras do envio automático da mensagem: teste, título encerrado e Pix expirado nunca são oferecidos.
+    if ((await listReportExcludedReceivableIds(client)).includes(receivableId))
+      return { error: "Este título foi classificado como teste e não recebe mensagens de clientes." };
+    if (receivable.status === "cancelled" || receivable.status === "paid" || receivable.balance <= 0)
+      return { error: "Título cancelado ou já quitado: não há cobrança a enviar." };
+    if (pendingCharge?.expiresAt && Date.parse(pendingCharge.expiresAt) < Date.now())
+      return { error: "O Pix desta cobrança expirou. Gere um novo Pix antes de enviar ao cliente." };
     const paymentUrl = pendingCharge?.publicToken
       ? `https://controle.altnix.com.br/pagamento/${pendingCharge.publicToken}`
       : undefined;
@@ -720,8 +738,9 @@ export async function buildBillingMessagePreviewAction(
     const message = paymentUrl
       ? `${baseMessage}\n\nQR Code e Pix Copia e Cola:\n${paymentUrl}`
       : baseMessage;
-    const phone = (clientRecord.whatsapp ?? clientRecord.phonePrimary ?? "").replace(/\D/g, "");
-    const normalizedPhone = phone && !phone.startsWith("55") ? `55${phone}` : phone;
+    // WhatsApp canônico (nunca desvia do WhatsApp cadastrado para o telefone principal).
+    const recipient = resolveClientWhatsappRecipient({ whatsapp: clientRecord.whatsapp });
+    const normalizedPhone = recipient.ok ? recipient.e164 : "";
     const whatsappHref = normalizedPhone
       ? `https://wa.me/${normalizedPhone}?text=${encodeURIComponent(message)}`
       : undefined;
@@ -763,6 +782,8 @@ export async function buildPaymentConfirmationPreviewAction(
       .filter((charge) => charge.status === "paid")
       .sort((a, b) => (b.paidAt ?? "").localeCompare(a.paidAt ?? ""))[0];
     if (!paidCharge) return { error: "Nenhuma cobrança Pix paga encontrada neste título." };
+    if ((await listReportExcludedReceivableIds(client)).includes(receivableId))
+      return { error: "Este título foi classificado como teste e não recebe mensagens de clientes." };
 
     const clientName = (clientRecord.tradeName ?? clientRecord.fullName ?? clientRecord.companyName ?? "Cliente").split(" ")[0];
     const amountLabel = paidCharge.amount.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
@@ -770,8 +791,8 @@ export async function buildPaymentConfirmationPreviewAction(
     const message =
       `Olá, ${clientName}! Confirmamos o recebimento de ${amountLabel} referente a ${reference}. Obrigado! — Informativo Regional`;
 
-    const phone = (clientRecord.whatsapp ?? clientRecord.phonePrimary ?? "").replace(/\D/g, "");
-    const normalizedPhone = phone && !phone.startsWith("55") ? `55${phone}` : phone;
+    const recipient = resolveClientWhatsappRecipient({ whatsapp: clientRecord.whatsapp });
+    const normalizedPhone = recipient.ok ? recipient.e164 : "";
     const whatsappHref = normalizedPhone
       ? `https://wa.me/${normalizedPhone}?text=${encodeURIComponent(message)}`
       : undefined;
@@ -807,13 +828,21 @@ export async function sendPaymentConfirmationAction(
     ]);
     actorId = resolvedActorId;
     clientId = clientRecord.id;
-    toPhone = clientRecord.whatsapp ?? clientRecord.phonePrimary ?? "";
-    if (!toPhone) return { error: "Cadastro sem WhatsApp." };
+    const recipient = resolveClientWhatsappRecipient({ whatsapp: clientRecord.whatsapp });
+    if (!recipient.ok) return { error: WHATSAPP_RECIPIENT_MESSAGES[recipient.reason] };
+    toPhone = recipient.e164;
 
-    const paidCharge = charges
-      .filter((charge) => charge.status === "paid")
-      .sort((a, b) => (b.paidAt ?? "").localeCompare(a.paidAt ?? ""))[0];
-    if (!paidCharge) return { error: "Nenhuma cobrança Pix paga encontrada neste título." };
+    const [excludedIds, recentLogs] = await Promise.all([
+      listReportExcludedReceivableIds(client),
+      createBillingMessageLogRepositorySupabase(client).listForReceivable(receivableId),
+    ]);
+    const decision = evaluateBillingSend({
+      kind: "confirmation",
+      receivable: { status: receivable.status, balance: receivable.balance, excludedFromReports: excludedIds.includes(receivableId) },
+      charges, recentLogs, now: Date.now(),
+    });
+    if (!decision.ok) return { error: decision.error };
+    const paidCharge = decision.charge as typeof charges[number];
 
     const clientName = (clientRecord.tradeName ?? clientRecord.fullName ?? clientRecord.companyName ?? "Cliente").split(" ")[0];
     const amountLabel = paidCharge.amount.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });

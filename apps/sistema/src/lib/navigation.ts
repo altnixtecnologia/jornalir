@@ -162,6 +162,7 @@ export const financeiroNavGroup: AdminNavGroup = {
     { label: "Contas a receber", href: "/sistema/financeiro/contas-a-receber" },
     { label: "Contratos institucionais", href: "/sistema/financeiro/contratos" },
     { label: "Recibos", href: "/sistema/financeiro/recibos" },
+    { label: "Avisos aos clientes", href: "/sistema/financeiro/avisos" },
     { label: "Relatórios", href: "/sistema/financeiro/relatorios" },
   ],
 };

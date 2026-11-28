@@ -1,4 +1,5 @@
 import "server-only";
+import { WhatsappProviderError, classifyMetaRefusal } from "../notifications/whatsappErrors";
 
 export interface WhatsappBillingTemplateInput {
   toPhone: string;
@@ -46,31 +47,38 @@ async function sendTemplate(
   const to = normalizePhone(toPhone);
   if (!to) throw new Error("Cliente sem WhatsApp válido.");
 
-  const response = await fetch("https://graph.facebook.com/" + version + "/" + numberId + "/messages", {
-    method: "POST",
-    cache: "no-store",
-    headers: {
-      Authorization: "Bearer " + accessToken,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      messaging_product: "whatsapp",
-      to,
-      type: "template",
-      template: {
-        name: template,
-        language: { code: language },
-        components: variables.length
-          ? [
-              {
-                type: "body",
-                parameters: variables.map((text) => ({ type: "text", text })),
-              },
-            ]
-          : undefined,
+  let response: Response;
+  try {
+    response = await fetch("https://graph.facebook.com/" + version + "/" + numberId + "/messages", {
+      method: "POST",
+      cache: "no-store",
+      // Sem resposta em 15 s: resultado ambíguo (a Meta pode ter aceitado); nunca reenviar às cegas.
+      signal: AbortSignal.timeout(15000),
+      headers: {
+        Authorization: "Bearer " + accessToken,
+        "Content-Type": "application/json",
       },
-    }),
-  });
+      body: JSON.stringify({
+        messaging_product: "whatsapp",
+        to,
+        type: "template",
+        template: {
+          name: template,
+          language: { code: language },
+          components: variables.length
+            ? [
+                {
+                  type: "body",
+                  parameters: variables.map((text) => ({ type: "text", text })),
+                },
+              ]
+            : undefined,
+        },
+      }),
+    });
+  } catch {
+    throw new WhatsappProviderError("Sem resposta conclusiva da Meta (rede ou tempo esgotado). Verifique o envio antes de repetir.", "ambiguous");
+  }
 
   const raw = await response.text();
   let body: Record<string, any> = {};
@@ -84,20 +92,29 @@ async function sendTemplate(
   if (!response.ok) {
     const meta = body?.error as { code?: number; message?: string; title?: string } | undefined;
     const detail = meta?.message || meta?.title || body?.message || "erro desconhecido";
-    throw new Error(
+    throw new WhatsappProviderError(
       "WhatsApp/Meta retornou " +
         response.status +
         (meta?.code ? " (Meta " + meta.code + ")" : "") +
         ": " +
         detail,
+      classifyMetaRefusal(response.status, meta?.code),
+      response.status,
+      meta?.code !== undefined ? String(meta.code) : undefined,
     );
   }
 
   const providerMessageId = body?.messages?.[0]?.id;
   if (typeof providerMessageId !== "string" || !providerMessageId.trim()) {
-    throw new Error("A Meta não confirmou um identificador de mensagem. Verifique o envio no WhatsApp Manager antes de tentar novamente.");
+    throw new WhatsappProviderError("A Meta não confirmou um identificador de mensagem. Verifique o envio no WhatsApp Manager antes de tentar novamente.", "ambiguous", response.status);
   }
   return { providerMessageId };
+}
+
+/** Envio de um template JÁ APROVADO pelo nome (despacho durável). Nunca texto livre. */
+export async function sendWhatsappNamedTemplate(toPhone: string, template: string, variables: string[]): Promise<WhatsappBillingTemplateResult> {
+  if (!template.trim()) throw new Error("Template não configurado.");
+  return sendTemplate(toPhone, template.trim(), variables);
 }
 
 export async function sendWhatsappBillingTemplate(
