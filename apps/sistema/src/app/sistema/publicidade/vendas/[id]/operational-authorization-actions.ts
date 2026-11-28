@@ -137,3 +137,47 @@ export async function configureAltnixServiceFinanceAction(serviceId:string,grace
   return {ok:true,transition:typeof transition.data==="string"?transition.data:"review"};
  }catch{return {error:"Não foi possível confirmar a política financeira."};}
 }
+
+export type ServiceTolerancePolicy={mode:"off"|"override"|"inherit";overrideDays:number|null;defaultDays:number|null;effectiveDays:number|null};
+function checkedTolerancePolicy(raw:unknown):ServiceTolerancePolicy|null{
+ if(!raw||typeof raw!=="object"||Array.isArray(raw))return null;const v=raw as Record<string,unknown>;
+ const days=(x:unknown)=>x===null||x===undefined?null:(typeof x==="number"&&Number.isInteger(x)&&x>=0&&x<=30?x:undefined);
+ const o=days(v.overrideDays),d=days(v.defaultDays),e=days(v.effectiveDays);
+ if(!["off","override","inherit"].includes(String(v.mode))||o===undefined||d===undefined||e===undefined)return null;
+ return {mode:v.mode as ServiceTolerancePolicy["mode"],overrideDays:o,defaultDays:d,effectiveDays:e};
+}
+async function requireOwnerForService(serviceId:string):Promise<{actor:string}|{error:string}>{
+ if(!ALTNIX_SERVICE_AUTH_RELEASED||process.env.VERCEL_ENV!=="production"||process.env.JORNALIR_SERVICE_AUTH_WRITE_ENABLED!=="true")return {error:"Integração operacional aguardando homologação."};
+ if(canonicalIdOrNull(serviceId)!==serviceId)return {error:"Serviço inválido."};
+ const denied=await checkModuleAction("publicidade","contratos_revisar");if(denied)return {error:denied};
+ const session=createSupabaseServerClient();const {data:auth,error}=await session.auth.getUser();if(error||!auth.user)return {error:"Sessão inválida."};
+ const {data:profile}=await session.from("profiles").select("role,active").eq("id",auth.user.id).maybeSingle();
+ if(!profile?.active||profile.role!=="owner")return {error:"Operação reservada ao proprietário."};
+ const {data:service,error:serviceError}=await session.from("commercial_contract_services").select("id,service_channel").eq("id",serviceId).maybeSingle();
+ if(serviceError||service?.service_channel!=="led_panel")return {error:"Serviço não disponível."};
+ return {actor:auth.user.id};
+}
+/** Política efetiva do serviço: desligada, substituição individual (0–30) ou herança explícita do padrão global. */
+export async function readAltnixServiceTolerancePolicyAction(serviceId:string):Promise<{ok:true;policy:ServiceTolerancePolicy|null}|{error:string}>{
+ try{
+  const who=await requireOwnerForService(serviceId);if("error" in who)return who;
+  const {data,error}=await createSupabaseAdminClient().rpc("altnix_read_service_finance_policy",{p_service:serviceId});
+  if(error)return {error:"Política indisponível."};
+  return {ok:true,policy:data===null?null:checkedTolerancePolicy(data)};
+ }catch{return {error:"Política indisponível."};}
+}
+/** mode: off | override (days 0–30) | inherit (padrão global). A decisão financeira não cria cobrança nem muda outros serviços. */
+export async function configureAltnixServiceToleranceModeAction(serviceId:string,mode:"off"|"override"|"inherit",days:number|null,confirmed:boolean):Promise<{ok:true;transition:string}|{error:string}>{
+ if(confirmed!==true||!["off","override","inherit"].includes(mode)||(mode==="override"&&(days===null||!Number.isInteger(days)||days<0||days>30)))return {error:"Confirme a política e informe uma tolerância válida (0 a 30 dias)."};
+ try{
+  const who=await requireOwnerForService(serviceId);if("error" in who)return who;
+  const admin=createSupabaseAdminClient();
+  const saved=await admin.rpc("altnix_configure_service_finance_mode",{p_service:serviceId,p_actor:who.actor,p_mode:mode,p_days:mode==="override"?days:null});
+  if(saved.error||saved.data!==true)return {error:"Política não registrada: confirme o vínculo, a tolerância padrão (para herdar) e a composição financeira do serviço."};
+  if(mode==="off")return {ok:true,transition:"disabled"};
+  const transition=await admin.rpc("altnix_apply_service_finance",{p_service:serviceId});
+  if(transition.error)return {ok:true,transition:"review"};
+  if(transition.data==="queued")try{await drainServiceAuthorizationOutbox(async(name,args)=>await admin.rpc(name,args));}catch{/* fila permanece pendente */}
+  return {ok:true,transition:typeof transition.data==="string"?transition.data:"review"};
+ }catch{return {error:"Não foi possível confirmar a política financeira."};}
+}

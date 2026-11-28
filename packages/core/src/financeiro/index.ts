@@ -13,3 +13,4 @@ export * from "./pix-provider";
 export * from "./payment-charge-repository";
 export * from "./payment-charge-service";
 export * from "./billing-message";
+export * from "./receivable-restructuring";

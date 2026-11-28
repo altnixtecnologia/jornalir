@@ -103,3 +103,34 @@ Bloqueios atuais: CI integral em curso após correção do runner; publicação 
 ### Testes locais (mocks, sem rede/Asaas/banco)
 
 Jornal: `apps/sistema/test/credit-card-payment.test.ts` (22 casos: URL de fatura e retorno sem open redirect, contrato, parcelamento, cartão autorizado, cliente não autorizado/quitado/teste/forma desligada, troca PIX⇄cartão, pendente existente, concorrência, timeout do gateway, confirmação tardia, recusa, expiração, webhook/estorno/chargeback, migration, provedor Asaas com `fetch` simulado, WhatsApp, segurança/contrato permanente). Informativo: `dashboard-next/scripts/test-jornalir-portal-card.mjs`. `tsc --noEmit` limpo nos dois.
+
+## 27/11/2026 — ALT-FIN-003: cobrança por compra, composição por serviço e inadimplência por serviço (código local, desligado)
+
+**Arquitetura reaproveitada:** `receivables`/recibos/ajustes, `commercial_sales.items_snapshot`, `commercial_contract_services` (identidade do serviço), `PaymentChargeService` (reserva única, índice `payment_charges_one_pending_per_receivable`, cancelamento com prova), webhook/`confirm_payment_charge`, `notifyAltnixReceivableCommit` (reavaliação event-driven), fila/outbox/entrega `altnix_operational.*`, rotina diária existente, auditoria `audit_events`, permissões `titulos_criar`/`titulos_cancelar`. Nenhuma estrutura financeira paralela, cron, polling ou chamada ao Asaas em navegação.
+
+**Modelo:** cada compra gera a sua cobrança (compras do mesmo dia permanecem independentes; nada agrega por cliente/data/contrato/forma). Cadeia: `sale → serviço → título (parcela) → alocação (centavos) → recebimento → autorização operacional`. Invariantes no banco: soma das alocações == `original_amount` do título (gatilho diferido no commit); alocação imutável; serviço de valor zero não recebe alocação; arredondamento por maior resto com desempate pela ordem do item; só aloca com composição provada (serviços == itens e soma dos itens == valor da compra). Alocação criada na geração do financeiro e, sob demanda, em "Preparar composição"/avaliação.
+
+**Unificar cobranças / Dividir cobrança (administração):** painel "Composição financeira da compra" na venda (compra, produtos/serviços, valor original, pago, saldo, vencimentos, situação). Fluxo: prévia (sem efeitos) → confirmação explícita → `runRestructuring`: inspeção local → cancelamento externo **com prova** (PIX/cartão; pago, confirmado, ambíguo ou sem prova de cancelamento = recusa) → RPC `restructure_receivables` (locks por título, mesmo cliente, só publicidade em aberto sem recebimento/abatimento, não teste, sem cobrança ativa, conservação por serviço, vencimentos >= hoje, idempotência por `operation_id`) → auditoria (operador, motivo, vínculo origem→substitutos) → reavaliação dos serviços afetados. Originais ficam `cancelled` (histórico, recibos e referências Asaas preservados); relatórios só somam `open/partially_paid`, sem dupla contagem. Permissões: `titulos_criar` **e** `titulos_cancelar`; aplicação atrás de `JORNALIR_RESTRUCTURING_ENABLED=true` (padrão desligado). Não há rota do cliente.
+
+**Inadimplência por serviço:** `altnix_assess_service_finance` avalia as alocações do serviço (substitui a regra de serviço único): título com saldo vencido além da tolerância restringe **apenas** os serviços nele alocados; pagamento parcial não é rateado; título de teste não restringe; tolerância `D+N` (suspende em D+N+1, fuso America/Sao_Paulo). Tolerância: padrão global (`altnix_configure_finance_default`, 0–30) + substituição individual + herança explícita (`altnix_configure_service_finance_mode`: off/override/inherit); sem política, desativado. Restauração automática ao pagar (reavaliação por título, inclusive substitutos, via alocação); suspensão manual e vínculos de outras origens nunca são desfeitos por pagamento. WhatsApp de suspensão/restabelecimento continua dependendo do estado operacional efetivo (fila de entrega existente).
+
+### Migrations (nenhuma aplicada; ordem)
+
+1. Jornal `20261127200000_purchase_billing_allocation_restructuring.sql` (aditiva; antes do deploy; depende de `20261127110057`, `20261127150000`, `20261127190000`).
+2. Informativo `20261127210000_jornalir_item_level_media_eligibility.sql` (cria `playlist_item_eligibility` e recria, com a mesma assinatura, `jornalir_device_manifest_snapshot` e `jornalir_legacy_playlist_items`; antes de liberar a entrega operacional).
+
+### Validação em banco real (descartável, sem tocar produção)
+
+Migration executada em PostgreSQL 9.5 local com esquema mínimo de apoio (somente as 4 construções incompatíveis adaptadas na cópia): alocação (arredondamento 0,34/0,33/0,33, item zero, composição não provada), avaliação (limites D+N, teste, pago libera), recusas atômicas da reestruturação (clientes distintos, sem conservação, vencimento passado, cobrança pendente, abatimento, teste), unificação com conservação por serviço e linhagem, idempotência, divisão, política de tolerância e processador (suspende só o serviço atrasado, restaura ao pagar, preserva suspensão manual), gatilho diferido e imutabilidade, e **concorrência real entre duas sessões** (1 reestruturação, 1 substituta, sem dívida duplicada). Repetir no ambiente de homologação Supabase (PG 15) antes de aplicar.
+
+### Checklist de ativação (nada foi ativado)
+
+1. Aplicar a migration do Jornal (backup/ponto de restauração; autorização do proprietário) e depois a do Informativo.
+2. Deploy por decisão separada. Definir a tolerância padrão (Painel → proprietário) e, por serviço, desligar/herdar/substituir.
+3. Homologar com compra de teste: duas compras, serviço pago × em atraso, unificar, dividir, PIX/cartão ativos sendo cancelados, pagamento confirmado restaurando só o serviço afetado, mídia compartilhada, contrato permanente.
+4. `JORNALIR_RESTRUCTURING_ENABLED=true` só depois. Reversão: desligar a flag; os substitutos e originais permanecem como histórico.
+5. Validar com o time Android a leitura do sinalizador por item (limitação do protocolo por `media_id`).
+
+### Testes locais (mocks/fixtures)
+
+Jornal: `apps/sistema/test/purchase-billing-restructuring.test.ts` (23 casos). Informativo: `dashboard-next/scripts/test-jornalir-purchase-billing.mjs`. Mais as suítes afetadas (financeiro, Asaas, WhatsApp, cartão, serviço/autorização) e `tsc --noEmit` nos dois.

@@ -2,6 +2,7 @@ import type { CommercialSaleFinancialStatus, CommercialSaleStatus } from "@ir/ty
 import { COMMERCIAL_SALE_FINANCIAL_STATUS_LABELS, COMMERCIAL_SALE_STATUS_LABELS, COMMERCIAL_SALE_STATUSES, deriveCommercialSaleFinancialStatus } from "@ir/types";
 import { createSupabaseServerClient } from "../../../../../lib/supabase/server";
 import { listCommercialSalesAdminPageSupabase } from "../../../../../providers/supabase/commercialSaleRepository.supabase";
+import { loadRestructuredSummariesBySale } from "../../../../../providers/supabase/saleBillingComposition.supabase";
 import { listReceivablesForCommercialSalesSupabase } from "../../../../../providers/supabase/receivableRepository.supabase";
 import { PrintButton } from "../../../../../features/financeiro/PrintButton";
 
@@ -53,8 +54,10 @@ export default async function CommercialSalesPrintPage(
     list.push(receivable);
     receivablesBySale.set(receivable.commercialSaleId, list);
   }
+  // Compras cujos títulos foram substituídos por reestruturação: os substitutos entram na situação (sem dupla contagem: os originais ficam cancelados).
+  const restructuredBySale = await loadRestructuredSummariesBySale(supabase, receivables);
   const financialStatusBySaleId = new Map<string, CommercialSaleFinancialStatus>(
-    result.sales.map((sale) => [sale.id, deriveCommercialSaleFinancialStatus(receivablesBySale.get(sale.id) ?? [])]),
+    result.sales.map((sale) => [sale.id, deriveCommercialSaleFinancialStatus([...(receivablesBySale.get(sale.id) ?? []), ...(restructuredBySale.get(sale.id) ?? [])])]),
   );
 
   const totalContratado = result.sales.filter((sale) => sale.status !== "cancelled").reduce((sum, sale) => sum + sale.amount, 0);

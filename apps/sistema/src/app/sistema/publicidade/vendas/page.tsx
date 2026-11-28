@@ -7,6 +7,7 @@ import { ReceivablePageSizeSelect } from "../../../../features/financeiro/Receiv
 import { CommercialSalesList } from "../../../../features/comercial/CommercialSalesList";
 import { createSupabaseServerClient } from "../../../../lib/supabase/server";
 import { listCommercialSalesAdminPageSupabase } from "../../../../providers/supabase/commercialSaleRepository.supabase";
+import { loadRestructuredSummariesBySale } from "../../../../providers/supabase/saleBillingComposition.supabase";
 import { listReceivablesForCommercialSalesSupabase } from "../../../../providers/supabase/receivableRepository.supabase";
 
 const FILTERS_FORM_ID = "vendas-filtros";
@@ -57,8 +58,10 @@ export default async function CommercialSalesPage(
     list.push(receivable);
     receivablesBySale.set(receivable.commercialSaleId, list);
   }
+  // Compras cujos títulos foram substituídos por reestruturação: os substitutos entram na situação (sem dupla contagem: os originais ficam cancelados).
+  const restructuredBySale = await loadRestructuredSummariesBySale(supabase, receivables);
   const financialStatusBySaleId = new Map<string, CommercialSaleFinancialStatus>(
-    result.sales.map((sale) => [sale.id, deriveCommercialSaleFinancialStatus(receivablesBySale.get(sale.id) ?? [])]),
+    result.sales.map((sale) => [sale.id, deriveCommercialSaleFinancialStatus([...(receivablesBySale.get(sale.id) ?? []), ...(restructuredBySale.get(sale.id) ?? [])])]),
   );
 
   return (

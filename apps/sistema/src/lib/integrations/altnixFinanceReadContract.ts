@@ -122,4 +122,12 @@ export type JornalFinancePreviewResponse = {
   salesComplete: boolean;
   contracts: JornalCommercialContractPreview[];
   contractsComplete: boolean;
+  /** Composição por serviço dos títulos desta página (somente identidade e título; sem valores por serviço). Ausente = não disponível. */
+  composition?: JornalFinanceCompositionPreview[];
+};
+export type JornalFinanceCompositionPreview = {
+  receivableId: string;
+  /** Título criado por unificação/divisão administrativa. */
+  restructured: boolean;
+  services: Array<{ serviceId: string; title: string }>;
 };

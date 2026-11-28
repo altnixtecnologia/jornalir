@@ -54,6 +54,11 @@ export interface CancelPixChargeInput {
  * banco) — este service nunca monta o receipt em múltiplos passos
  * separados, delega a operação inteira.
  */
+export type SupersedeChargeResult =
+  | { kind: "none" }
+  | { kind: "cancelled" }
+  | { kind: "blocked"; reason: "paid_or_confirmed" | "ambiguous_reservation" | "cancellation_unproven" | "local_state_changed" };
+
 export class PaymentChargeService {
   constructor(
     private readonly charges: PaymentChargeRepository,
@@ -337,6 +342,60 @@ export class PaymentChargeService {
       }
     }
     return create();
+  }
+
+  /** Inspeção SOMENTE local (nenhuma chamada ao provedor): há cobrança que impeça a reestruturação? */
+  async inspectChargeForRestructuring(receivableId: string): Promise<"none" | "cancellable" | Extract<SupersedeChargeResult, { kind: "blocked" }>["reason"]> {
+    const latest = (await this.charges.listForReceivable(receivableId))[0] ?? null;
+    if (!latest) return "none";
+    if (latest.status === "paid") return "paid_or_confirmed";
+    if (latest.status !== "pending" && latest.status !== "expired") return "none";
+    if (latest.status === "pending" && latest.providerConfirmedAt && !latest.paidAt) return "paid_or_confirmed";
+    if (latest.provider === "asaas" && !latest.providerChargeId) return "ambiguous_reservation";
+    return "cancellable";
+  }
+
+  /**
+   * Libera o título para reestruturação administrativa: cancela a cobrança externa ativa (Pix ou cartão) SOMENTE
+   * com prova de cancelamento. Mesmas proteções do openCharge/renovação:
+   *  - cobrança paga, confirmada pelo provedor ou recebida → bloqueia (o webhook decide; nada é substituído);
+   *  - reserva ambígua (sem ID no provedor) → bloqueia;
+   *  - falha/timeout no cancelamento → consulta; só "cancelada" libera; qualquer outra resposta bloqueia;
+   *  - estado local mudou durante a operação → relê e só libera se já estiver cancelada.
+   * Nunca cria cobrança substituta aqui. Idempotente: sem cobrança ativa → { kind: "none" }.
+   */
+  async supersedeActiveCharge(receivableId: string, input: { cancelledByProfileId?: string; reason: string; now?: number }): Promise<SupersedeChargeResult> {
+    const now = input.now ?? Date.now();
+    const history = await this.charges.listForReceivable(receivableId);
+    const latest = history[0] ?? null;
+    if (!latest) return { kind: "none" };
+    if (latest.status === "paid") return { kind: "blocked", reason: "paid_or_confirmed" };
+    if (latest.status !== "pending" && latest.status !== "expired") return { kind: "none" };
+    if (latest.status === "pending" && latest.providerConfirmedAt && !latest.paidAt) return { kind: "blocked", reason: "paid_or_confirmed" };
+    if (latest.provider === "asaas" && !latest.providerChargeId) return { kind: "blocked", reason: "ambiguous_reservation" };
+    if (latest.providerChargeId) {
+      try {
+        await this.provider.cancelCharge(latest.providerChargeId);
+      } catch {
+        let remote: Awaited<ReturnType<PixProvider["getCharge"]>> | undefined;
+        try { remote = await this.provider.getCharge(latest.providerChargeId); } catch { remote = undefined; }
+        if (remote && (remote.status === "paid" || remote.confirmed)) return { kind: "blocked", reason: "paid_or_confirmed" };
+        if (remote?.status !== "cancelled") return { kind: "blocked", reason: "cancellation_unproven" };
+      }
+    }
+    if (latest.status === "pending") {
+      try {
+        await this.charges.update(latest.id, {
+          status: "cancelled", cancelledAt: new Date(now).toISOString(),
+          cancelledByProfileId: input.cancelledByProfileId, cancellationReason: input.reason,
+        });
+      } catch {
+        const after = await this.charges.getById(latest.id);
+        if (after?.status === "paid") return { kind: "blocked", reason: "paid_or_confirmed" };
+        if (after?.status !== "cancelled") return { kind: "blocked", reason: "local_state_changed" };
+      }
+    }
+    return { kind: "cancelled" };
   }
 
   async cancelPixCharge(id: string, input: CancelPixChargeInput): Promise<PaymentCharge> {

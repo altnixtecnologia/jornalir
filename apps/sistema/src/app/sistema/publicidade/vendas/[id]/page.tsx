@@ -16,6 +16,9 @@ import { createSupabaseServerClient } from "../../../../../lib/supabase/server";
 import { CompanySignaturePanel } from "../../../../../features/contratos/CompanySignaturePanel";
 import { loadCompanySignaturePanel } from "../../../../../lib/signatures/companySigningServer";
 import { listReceivablesForCommercialSalesSupabase } from "../../../../../providers/supabase/receivableRepository.supabase";
+import { loadRestructurableReceivables, loadSaleBillingComposition } from "../../../../../providers/supabase/saleBillingComposition.supabase";
+import { PurchaseBillingPanel } from "../../../../../features/financeiro/PurchaseBillingPanel";
+import { todayInSaoPauloISO } from "../../../../../lib/date/saoPauloDate";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -101,7 +104,17 @@ export default async function CommercialSaleDetailPage(props: { params: Promise<
       .select("id,preparation_id,status,completed_at,commercial_signature_invitations(id,participant_id,status,expires_at,signed_at,commercial_signature_participants(signer_name,signer_role,signer_email),commercial_signature_attempts(created_at))")
       .in("preparation_id",preparationIds)
     : null;
-  const financialStatus = deriveCommercialSaleFinancialStatus(receivables);
+  // Composição por compra/serviço (leitura em lote, sem Asaas). Títulos substitutos de reestruturação entram no
+  // status da compra; os substituídos (cancelados) são ignorados pelo cálculo, sem dupla contagem.
+  const composition = pkg ? await loadSaleBillingComposition(supabase, sale.id, todayInSaoPauloISO()) : { receivables: [], services: [], complete: false };
+  const replacementSummaries = composition.receivables.filter(r => r.replacement).map(r => ({ status: r.status, dueDate: r.dueDate }));
+  const financialStatus = deriveCommercialSaleFinancialStatus([...receivables, ...replacementSummaries]);
+  const [canCreateTitles, canCancelTitles] = pkg ? await Promise.all([
+    supabase.rpc("staff_can_finance_action", { p_action: "titulos_criar" }),
+    supabase.rpc("staff_can_finance_action", { p_action: "titulos_cancelar" }),
+  ]) : [null, null];
+  const canRestructure = canCreateTitles?.data === true && canCancelTitles?.data === true;
+  const restructureCandidates = canRestructure ? await loadRestructurableReceivables(supabase, sale.clientId) : [];
   const operationalServices=(termsResult?.data??[]).filter(s=>s.service_channel==="led_panel").map(s=>({id:s.id,title:s.service_title}));
   const operationalEnabled=ALTNIX_SERVICE_AUTH_RELEASED&&process.env.VERCEL_ENV==="production"&&process.env.JORNALIR_SERVICE_AUTH_WRITE_ENABLED==="true";
   const ownerResult=operationalEnabled&&canReview.data===true&&operationalServices.length?await supabase.auth.getUser():null;
@@ -124,6 +137,14 @@ export default async function CommercialSaleDetailPage(props: { params: Promise<
         nfseDraft={nfseDraft}
         proposal={proposal}
       />
+      {pkg && (
+        <PurchaseBillingPanel
+          saleId={sale.id} saleReference={sale.reference} composition={composition} candidates={restructureCandidates}
+          hasSaleReceivables={receivables.length > 0} canRestructure={canRestructure}
+          restructuringEnabled={process.env.JORNALIR_RESTRUCTURING_ENABLED === "true"}
+          ledServices={operationalServices} showOperational={showOperational}
+        />
+      )}
       {showOperational&&<AltnixServiceAuthorizationPanel services={operationalServices}/>}
       <CommercialContractPreparationPanel
         saleId={sale.id}

@@ -9,6 +9,7 @@ import { getReceivableService } from "../../../../../composition/financeiro";
 import { getDraftService } from "../../../../../composition/nfse";
 import { getClientService } from "../../../../../composition/clientes";
 import { createSupabaseServerClient } from "../../../../../lib/supabase/server";
+import { createSupabaseAdminClient } from "../../../../../lib/supabase/admin";
 import { checkModuleAction } from "../../../../../lib/permissions/checkModuleAction";
 import { checkFinanceAction } from "../../../../../lib/permissions/checkFinanceAction";
 import { todayInSaoPauloISO } from "../../../../../lib/date/saoPauloDate";
@@ -163,6 +164,8 @@ export async function generateCommercialSaleFinanceiroAction(id: string, firstDu
       }
     }
 
+    // Composição por serviço dos títulos recém-gerados (idempotente; só quando provada). Falha não afeta a geração.
+    try { await createSupabaseAdminClient().rpc("altnix_allocate_sale_receivables", { p_sale: id }); } catch { /* "Preparar composição" refaz sob demanda */ }
     await recordAuditEventSupabase(client, {
       userId: AUDIT.actorId,
       entityType: ENTITY_TYPE,

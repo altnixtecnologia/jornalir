@@ -103,6 +103,29 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       }));
     }
 
+    // Composição por serviço (aditiva): permite ao portal mostrar o que está sendo pago e tratar títulos
+    // substitutos de reestruturação. Falha/ausência não derruba a consulta; o Informativo trata como não disponível.
+    let composition: JornalFinancePreviewResponse["composition"];
+    if (ids.length) {
+      const [allocationResult, restructuredResult] = await Promise.all([
+        db.from("receivable_service_allocations")
+          .select("receivable_id,service_id,commercial_contract_services(service_title)").in("receivable_id", ids).limit(1000),
+        db.from("receivables").select("id").in("id", ids).not("restructuring_id", "is", null),
+      ]);
+      if (!allocationResult.error && !restructuredResult.error) {
+        const restructured = new Set((restructuredResult.data ?? []).map((row) => row.id as string));
+        const grouped = new Map<string, Array<{ serviceId: string; title: string }>>();
+        for (const row of allocationResult.data ?? []) {
+          const service = row.commercial_contract_services as unknown as { service_title?: string } | { service_title?: string }[] | null;
+          const title = String((Array.isArray(service) ? service[0] : service)?.service_title ?? "Serviço").slice(0, 160);
+          const list = grouped.get(row.receivable_id as string) ?? [];
+          list.push({ serviceId: row.service_id as string, title });
+          grouped.set(row.receivable_id as string, list);
+        }
+        composition = [...grouped.entries()].map(([receivableId, services]) => ({ receivableId, restructured: restructured.has(receivableId), services }));
+      }
+    }
+
     // Consultar vendas existentes, inclusive as que ainda não geraram títulos.
     // Sem inferir serviço pelo canal textual nem autorizar migração.
     const { data: saleRows, error: saleError, count: saleCount } = await db.from("commercial_sales")
@@ -166,6 +189,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       salesTotal: saleCount,
       salesComplete: saleCount === sales.length,
       contracts, contractsComplete,
+      ...(composition ? { composition } : {}),
     };
     return respond(response);
   } catch {
